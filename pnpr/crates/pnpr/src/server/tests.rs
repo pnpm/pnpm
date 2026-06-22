@@ -9,7 +9,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use axum::{
-    body::Body,
+    body::{Body, to_bytes},
     http::{Method, Request, StatusCode, header},
 };
 use std::{
@@ -193,6 +193,23 @@ fn with_peer(mut request: Request<Body>, addr: SocketAddr) -> Request<Body> {
 
 async fn status(app: axum::Router, request: Request<Body>) -> StatusCode {
     app.oneshot(request).await.unwrap().status()
+}
+
+#[tokio::test]
+async fn authenticated_identity_reaches_handlers() {
+    let tmp = TempDir::new().unwrap();
+    let app = app_with_token(&tmp, "tok", record(false, &[]));
+    // The middleware resolves the bearer once; whoami reads that identity
+    // back out of request extensions rather than re-parsing the header.
+    let response = app.clone().oneshot(signed(Method::GET, "/-/whoami", "tok")).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(json["username"], "alice");
+
+    // An unknown token resolves to anonymous, so whoami is a 401.
+    let anon = app.oneshot(signed(Method::GET, "/-/whoami", "unknown")).await.unwrap();
+    assert_eq!(anon.status(), StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]

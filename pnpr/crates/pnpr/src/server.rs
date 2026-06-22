@@ -1,5 +1,5 @@
 use crate::{
-    auth::{AuthState, UpsertOutcome, identify},
+    auth::{AuthState, TokenRecord, UpsertOutcome, identify},
     config::Config,
     error::RegistryError,
     journal::JournaledPublish,
@@ -20,9 +20,10 @@ use axum::{
     Router,
     body::Body,
     extract::{
-        ConnectInfo, DefaultBodyLimit, OriginalUri, Path, Request, State, connect_info::Connected,
+        ConnectInfo, DefaultBodyLimit, FromRequestParts, OriginalUri, Path, Request, State,
+        connect_info::Connected,
     },
-    http::{HeaderMap, Method, StatusCode, header},
+    http::{HeaderMap, Method, StatusCode, header, request::Parts},
     middleware::Next,
     response::{IntoResponse, Response},
     routing::{any, delete, get, post, put},
@@ -313,11 +314,12 @@ fn router_with_auth_and_osv(
     }
     router
         .layer(DefaultBodyLimit::max(MAX_PUBLISH_BODY_BYTES))
-        // Enforce bearer-token read-only / CIDR restrictions ahead of
-        // every handler, so a restricted token is rejected before a write
-        // handler buffers its (up to 100 MiB) request body. Inside the
-        // trace layer below, so a rejection is still one access record.
-        .layer(axum::middleware::from_fn_with_state(state.clone(), enforce_token_restrictions))
+        // Authenticate once, ahead of every handler: resolve the caller,
+        // enforce bearer-token read-only / CIDR restrictions (so a
+        // restricted token is rejected before a write handler buffers its
+        // up-to-100-MiB body), and stash the identity for handlers to read.
+        // Inside the trace layer below, so a rejection is still one record.
+        .layer(axum::middleware::from_fn_with_state(state.clone(), authenticate))
         // gzip metadata responses for clients that send `Accept-Encoding:
         // gzip`, matching how a real (CDN-fronted) registry serves
         // packuments — pnpr is commonly hit directly with no proxy in
@@ -509,43 +511,45 @@ async fn shutdown_signal() {
 
 async fn get_packument_unscoped(
     State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
     headers: HeaderMap,
     Path(name): Path<String>,
 ) -> Response {
-    serve_packument(&state, &headers, &name).await
+    serve_packument(&state, &identity, &headers, &name).await
 }
 
 async fn get_two_segments(
     State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
     headers: HeaderMap,
     Path((first, second)): Path<(String, String)>,
 ) -> Response {
     if first == "-" && second == "whoami" {
-        return private_no_cache(serve_whoami(&state, &headers).await);
+        return private_no_cache(serve_whoami(&identity));
     }
     if first.starts_with('@') {
         let full = format!("{first}/{second}");
-        serve_packument(&state, &headers, &full).await
+        serve_packument(&state, &identity, &headers, &full).await
     } else {
-        serve_version_manifest(&state, &headers, &first, &second).await
+        serve_version_manifest(&state, &identity, &first, &second).await
     }
 }
 
 async fn get_three_segments(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthedCaller(identity): AuthedCaller,
     OriginalUri(uri): OriginalUri,
     Path((first, second, third)): Path<(String, String, String)>,
 ) -> Response {
     if first == "-" && second == "v1" && third == "search" {
         let query = uri.query().unwrap_or("");
-        return serve_search(&state, &headers, query).await;
+        return serve_search(&state, &identity, query).await;
     }
     if second == "-" {
-        serve_tarball(&state, &headers, &first, &third).await
+        serve_tarball(&state, &identity, &first, &third).await
     } else if first.starts_with('@') {
         let full = format!("{first}/{second}");
-        serve_version_manifest(&state, &headers, &full, &third).await
+        serve_version_manifest(&state, &identity, &full, &third).await
     } else {
         not_found()
     }
@@ -553,14 +557,14 @@ async fn get_three_segments(
 
 async fn get_tarball_scoped(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthedCaller(identity): AuthedCaller,
     Path((scope, name, filename)): Path<(String, String, String)>,
 ) -> Response {
     if !scope.starts_with('@') {
         return not_found();
     }
     let full = format!("{scope}/{name}");
-    serve_tarball(&state, &headers, &full, &filename).await
+    serve_tarball(&state, &identity, &full, &filename).await
 }
 
 /// 4-segment GET:
@@ -570,17 +574,17 @@ async fn get_tarball_scoped(
 ///   (`npm token list`).
 async fn get_four_segments(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthedCaller(identity): AuthedCaller,
     Path((a, b, c, d)): Path<(String, String, String, String)>,
 ) -> Response {
     if a == "-" && b == "package" && d == "dist-tags" {
-        return get_dist_tags(&state, &headers, &c).await;
+        return get_dist_tags(&state, &identity, &c).await;
     }
     if a == "-" && b == "npm" && c == "v1" && d == "user" {
-        return private_no_cache(serve_profile(&state, &headers).await);
+        return private_no_cache(serve_profile(&identity));
     }
     if a == "-" && b == "npm" && c == "v1" && d == "tokens" {
-        return private_no_cache(list_tokens(&state, &headers).await);
+        return private_no_cache(list_tokens(&state, &identity).await);
     }
     not_found()
 }
@@ -602,11 +606,11 @@ async fn get_five_segments(
 /// `PUT /{name}` — publish an unscoped package.
 async fn put_one_segment(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthedCaller(identity): AuthedCaller,
     Path(name): Path<String>,
     body: axum::body::Bytes,
 ) -> Response {
-    publish_package(&state, &headers, &name, body).await
+    publish_package(&state, &identity, &name, body).await
 }
 
 /// `PUT /{first}/{second}` — publish a scoped package
@@ -614,13 +618,13 @@ async fn put_one_segment(
 /// because that's at least 4 segments.
 async fn put_two_segments(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthedCaller(identity): AuthedCaller,
     Path((first, second)): Path<(String, String)>,
     body: axum::body::Bytes,
 ) -> Response {
     if first.starts_with('@') {
         let full = format!("{first}/{second}");
-        return publish_package(&state, &headers, &full, body).await;
+        return publish_package(&state, &identity, &full, body).await;
     }
     not_found()
 }
@@ -629,7 +633,7 @@ async fn put_two_segments(
 /// `PUT /{pkg}/-rev/{rev}` — packument update (partial unpublish).
 async fn put_three_segments(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthedCaller(identity): AuthedCaller,
     Path((first, second, third)): Path<(String, String, String)>,
     body: axum::body::Bytes,
 ) -> Response {
@@ -637,6 +641,8 @@ async fn put_three_segments(
         && second == "user"
         && let Some(name) = third.strip_prefix("org.couchdb.user:")
     {
+        // adduser/login authenticates from the request body, not the
+        // caller's existing identity.
         return add_user(&state, name, &body).await;
     }
     if second == "-rev" {
@@ -644,7 +650,7 @@ async fn put_three_segments(
         // We don't track revisions, so it's only used for routing —
         // the body is the full mutated packument.
         let _ = third;
-        return update_packument(&state, &headers, &first, &body).await;
+        return update_packument(&state, &identity, &first, &body).await;
     }
     not_found()
 }
@@ -655,12 +661,12 @@ async fn put_three_segments(
 /// axum's percent-decoding.
 async fn delete_three_segments(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthedCaller(identity): AuthedCaller,
     Path((first, second, third)): Path<(String, String, String)>,
 ) -> Response {
     if second == "-rev" {
         let _ = third;
-        return delete_package(&state, &headers, &first).await;
+        return delete_package(&state, &identity, &first).await;
     }
     not_found()
 }
@@ -668,12 +674,12 @@ async fn delete_three_segments(
 /// `PUT /-/package/{pkg}/dist-tags/{tag}` — add/update a dist-tag.
 async fn put_five_segments(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthedCaller(identity): AuthedCaller,
     Path((a, b, c, d, e)): Path<(String, String, String, String, String)>,
     body: axum::body::Bytes,
 ) -> Response {
     if a == "-" && b == "package" && d == "dist-tags" {
-        return set_dist_tag(&state, &headers, &c, &e, &body).await;
+        return set_dist_tag(&state, &identity, &c, &e, &body).await;
     }
     not_found()
 }
@@ -683,11 +689,11 @@ async fn put_five_segments(
 /// row from the token store.
 async fn delete_four_segments(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthedCaller(identity): AuthedCaller,
     Path((a, b, c, d)): Path<(String, String, String, String)>,
 ) -> Response {
     if a == "-" && b == "user" && c == "token" {
-        return private_no_cache(logout(&state, &headers, &d).await);
+        return private_no_cache(logout(&state, &identity, &d).await);
     }
     not_found()
 }
@@ -698,15 +704,15 @@ async fn delete_four_segments(
 ///   (one step of `pnpm unpublish <pkg>@<version>`).
 async fn delete_five_segments(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthedCaller(identity): AuthedCaller,
     Path((a, b, c, d, e)): Path<(String, String, String, String, String)>,
 ) -> Response {
     if a == "-" && b == "package" && d == "dist-tags" {
-        return remove_dist_tag(&state, &headers, &c, &e).await;
+        return remove_dist_tag(&state, &identity, &c, &e).await;
     }
     if b == "-" && d == "-rev" {
         let _ = e; // revision token is unused
-        return delete_tarball(&state, &headers, &a, &c).await;
+        return delete_tarball(&state, &identity, &a, &c).await;
     }
     not_found()
 }
@@ -722,16 +728,16 @@ async fn delete_five_segments(
 ///   listing-side `key` (`npm token revoke`).
 async fn delete_six_segments(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthedCaller(identity): AuthedCaller,
     Path((a, b, c, d, e, f)): Path<(String, String, String, String, String, String)>,
 ) -> Response {
     if a == "-" && b == "npm" && c == "v1" && d == "tokens" && e == "token" {
-        return private_no_cache(revoke_token_by_key(&state, &headers, &f).await);
+        return private_no_cache(revoke_token_by_key(&state, &identity, &f).await);
     }
     if a.starts_with('@') && c == "-" && e == "-rev" {
         let _ = f; // revision token is unused
         let full = format!("{a}/{b}");
-        return delete_tarball(&state, &headers, &full, &d).await;
+        return delete_tarball(&state, &identity, &full, &d).await;
     }
     not_found()
 }
@@ -740,12 +746,17 @@ async fn delete_six_segments(
 // Handler bodies.
 // --------------------------------------------------------------------
 
-async fn serve_packument(state: &AppState, headers: &HeaderMap, raw_name: &str) -> Response {
+async fn serve_packument(
+    state: &AppState,
+    identity: &Identity,
+    headers: &HeaderMap,
+    raw_name: &str,
+) -> Response {
     let name = match PackageName::parse(raw_name) {
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Access).await {
+    if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
         return error_response(&err);
     }
     match load_packument_bytes(state, &name).await {
@@ -769,7 +780,7 @@ async fn serve_packument(state: &AppState, headers: &HeaderMap, raw_name: &str) 
 
 async fn serve_version_manifest(
     state: &AppState,
-    headers: &HeaderMap,
+    identity: &Identity,
     raw_name: &str,
     version_or_tag: &str,
 ) -> Response {
@@ -777,7 +788,7 @@ async fn serve_version_manifest(
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Access).await {
+    if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
         return error_response(&err);
     }
     let bytes = match load_packument_bytes(state, &name).await {
@@ -808,7 +819,7 @@ async fn serve_version_manifest(
 
 async fn serve_tarball(
     state: &AppState,
-    headers: &HeaderMap,
+    identity: &Identity,
     raw_name: &str,
     filename: &str,
 ) -> Response {
@@ -820,7 +831,7 @@ async fn serve_tarball(
         Ok(parsed) => parsed,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Access).await {
+    if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
         return error_response(&err);
     }
     if let Err(err) = ensure_osv_allowed(state, &name, &version) {
@@ -1076,10 +1087,10 @@ async fn add_user(state: &AppState, name: &str, body: &[u8]) -> Response {
 /// pure auth: no per-package policy applies, so anonymous always
 /// gets 401 even when `$all` would let it through for packument
 /// reads.
-async fn serve_whoami(state: &AppState, headers: &HeaderMap) -> Response {
-    let username = match require_caller(state, headers, "user identity").await {
+fn serve_whoami(identity: &Identity) -> Response {
+    let username = match require_caller(identity, "user identity") {
         Ok(username) => username,
-        Err(response) => return response,
+        Err(err) => return error_response(&err),
     };
     json_response(StatusCode::OK, &json!({ "username": username }))
 }
@@ -1089,10 +1100,10 @@ async fn serve_whoami(state: &AppState, headers: &HeaderMap) -> Response {
 /// 2FA, or anything beyond the username; the absent fields surface
 /// as their zero-value defaults so the npm CLI's table renderer
 /// doesn't choke on a missing key.
-async fn serve_profile(state: &AppState, headers: &HeaderMap) -> Response {
-    let username = match require_caller(state, headers, "user profile").await {
+fn serve_profile(identity: &Identity) -> Response {
+    let username = match require_caller(identity, "user profile") {
         Ok(username) => username,
-        Err(response) => return response,
+        Err(err) => return error_response(&err),
     };
     json_response(
         StatusCode::OK,
@@ -1113,10 +1124,10 @@ async fn serve_profile(state: &AppState, headers: &HeaderMap) -> Response {
 /// raw token itself is never persisted; the `token` field surfaces
 /// the leading 6 hex characters of the key as a preview, matching
 /// what verdaccio does when it can't reconstruct the original.
-async fn list_tokens(state: &AppState, headers: &HeaderMap) -> Response {
-    let username = match require_caller(state, headers, "token list").await {
+async fn list_tokens(state: &AppState, identity: &Identity) -> Response {
+    let username = match require_caller(identity, "token list") {
         Ok(username) => username,
-        Err(response) => return response,
+        Err(err) => return error_response(&err),
     };
     let tokens = match state.inner.auth.tokens.list_for_user(&username).await {
         Ok(tokens) => tokens,
@@ -1132,10 +1143,10 @@ async fn list_tokens(state: &AppState, headers: &HeaderMap) -> Response {
 /// (anonymous is 401, a different authenticated user is 403); an
 /// unknown key returns 404. `npm token revoke` calls this with the
 /// `key` it pulled from [`list_tokens`].
-async fn revoke_token_by_key(state: &AppState, headers: &HeaderMap, key: &str) -> Response {
-    let username = match require_caller(state, headers, "token revocation").await {
+async fn revoke_token_by_key(state: &AppState, identity: &Identity, key: &str) -> Response {
+    let username = match require_caller(identity, "token revocation") {
         Ok(username) => username,
-        Err(response) => return response,
+        Err(err) => return error_response(&err),
     };
     match state.inner.auth.tokens.find_by_key(key).await {
         Ok(Some(record)) if record.username != username => {
@@ -1160,10 +1171,10 @@ async fn revoke_token_by_key(state: &AppState, headers: &HeaderMap, key: &str) -
 /// `Authorization: Bearer <tok>` header). We require authentication
 /// and require that the auth identifies the same user who owns the
 /// token being deleted.
-async fn logout(state: &AppState, headers: &HeaderMap, raw_token: &str) -> Response {
-    let username = match require_caller(state, headers, "logout").await {
+async fn logout(state: &AppState, identity: &Identity, raw_token: &str) -> Response {
+    let username = match require_caller(identity, "logout") {
         Ok(username) => username,
-        Err(response) => return response,
+        Err(err) => return error_response(&err),
     };
     let target_owner = match state.inner.auth.tokens.lookup(raw_token).await {
         Ok(Some(owner)) => owner,
@@ -1212,34 +1223,17 @@ fn token_timestamp_millis(seconds: u64) -> i64 {
 #[cfg(test)]
 mod tests;
 
-async fn caller_username(
-    state: &AppState,
-    headers: &HeaderMap,
-) -> Result<Option<String>, RegistryError> {
-    identify(
-        headers.get(header::AUTHORIZATION).and_then(|value| value.to_str().ok()),
-        state.inner.auth.users.as_ref(),
-        state.inner.auth.tokens.as_ref(),
-    )
-    .await
-}
-
-/// Resolve the authenticated caller for an endpoint that requires one,
-/// or return the ready-made response to send back: 401 when the request
-/// is anonymous, or a 5xx when the auth backend itself failed (so an
-/// outage isn't mistaken for "not logged in"). `resource` names what the
-/// 401 is about.
-async fn require_caller(
-    state: &AppState,
-    headers: &HeaderMap,
-    resource: &str,
-) -> Result<String, Response> {
-    match caller_username(state, headers).await {
-        Ok(Some(username)) => Ok(username),
-        Ok(None) => {
-            Err(error_response(&RegistryError::Unauthenticated { resource: resource.to_string() }))
+/// Require that an endpoint's caller is authenticated, returning their
+/// username or the 401 error to send back. The identity was already
+/// resolved by the [`authenticate`] middleware (which is also where an
+/// auth-backend outage surfaces as a 5xx), so this is a pure check.
+/// `resource` names what the 401 is about.
+fn require_caller(identity: &Identity, resource: &str) -> Result<String, RegistryError> {
+    match identity {
+        Identity::User { username } => Ok(username.clone()),
+        Identity::Anonymous => {
+            Err(RegistryError::Unauthenticated { resource: resource.to_string() })
         }
-        Err(err) => Err(error_response(&err)),
     }
 }
 
@@ -1272,7 +1266,7 @@ fn private_no_cache(mut response: Response) -> Response {
 /// base64-encoded.
 async fn publish_package(
     state: &AppState,
-    headers: &HeaderMap,
+    identity: &Identity,
     raw_name: &str,
     body: axum::body::Bytes,
 ) -> Response {
@@ -1301,7 +1295,7 @@ async fn publish_package(
         });
     }
 
-    let validated = match validate_publish_doc(state, headers, name, incoming).await {
+    let validated = match validate_publish_doc(state, identity, name, incoming).await {
         Ok(validated) => validated,
         Err(err) => return error_response(&err),
     };
@@ -1336,7 +1330,7 @@ async fn publish_package(
 /// behind.
 async fn serve_batch_publish(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthedCaller(identity): AuthedCaller,
     body: axum::body::Bytes,
 ) -> Response {
     let incoming: Value = match serde_json::from_slice(&body) {
@@ -1381,7 +1375,7 @@ async fn serve_batch_publish(
                 reason: format!("duplicate package {:?} in `packages`", name.as_str()),
             });
         }
-        match validate_publish_doc(&state, &headers, name, doc).await {
+        match validate_publish_doc(&state, &identity, name, doc).await {
             Ok(doc) => validated.push(doc),
             Err(err) => return error_response(&err),
         }
@@ -1427,11 +1421,11 @@ struct ValidatedPublish {
 
 async fn validate_publish_doc(
     state: &AppState,
-    headers: &HeaderMap,
+    identity: &Identity,
     name: PackageName,
     mut incoming: Value,
 ) -> Result<ValidatedPublish, RegistryError> {
-    enforce_access(state, headers, name.as_str(), Action::Publish).await?;
+    authorize(state, identity, name.as_str(), Action::Publish)?;
 
     let attachments = extract_attachments(&mut incoming)?;
 
@@ -1642,7 +1636,7 @@ async fn cleanup_tmp_slots(slots: Vec<crate::storage::TarballSlot>) {
 /// `objects` before the response is built. Without this the search
 /// endpoint would happily enumerate protected packages that the
 /// packument and tarball GETs correctly hide behind 401.
-async fn serve_search(state: &AppState, headers: &HeaderMap, query_string: &str) -> Response {
+async fn serve_search(state: &AppState, identity: &Identity, query_string: &str) -> Response {
     let Some(text) = crate::search::parse_query(query_string) else {
         let body = json!({ "objects": [], "total": 0, "time": now_iso() });
         let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
@@ -1667,13 +1661,8 @@ async fn serve_search(state: &AppState, headers: &HeaderMap, query_string: &str)
     augment_search_with_upstream(state, &text, &mut body).await;
 
     if let Some(objects) = body.get_mut("objects").and_then(Value::as_array_mut) {
-        // The caller is the same across every result, so resolve the
-        // identity once (the async backend hit) and authorize each
-        // candidate synchronously inside the filter.
-        let identity = match resolve_identity(state, headers).await {
-            Ok(identity) => identity,
-            Err(err) => return error_response(&err),
-        };
+        // The caller was resolved once by the middleware; authorize each
+        // candidate synchronously against it inside the filter.
         objects.retain(|entry| {
             let Some(name) =
                 entry.get("package").and_then(|pkg| pkg.get("name")).and_then(Value::as_str)
@@ -1681,7 +1670,7 @@ async fn serve_search(state: &AppState, headers: &HeaderMap, query_string: &str)
                 // Malformed entry — be conservative and drop it.
                 return false;
             };
-            authorize(state, &identity, name, Action::Access).is_ok()
+            authorize(state, identity, name, Action::Access).is_ok()
         });
         let visible = objects.len();
         // Surface the post-filter count so clients can't infer the
@@ -1750,7 +1739,7 @@ async fn augment_search_with_upstream(state: &AppState, query: &str, body: &mut 
 /// alongside the manifest.
 async fn update_packument(
     state: &AppState,
-    headers: &HeaderMap,
+    identity: &Identity,
     raw_name: &str,
     body: &[u8],
 ) -> Response {
@@ -1758,7 +1747,7 @@ async fn update_packument(
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Publish).await {
+    if let Err(err) = authorize(state, identity, name.as_str(), Action::Publish) {
         return error_response(&err);
     }
     let mut packument: Value = match serde_json::from_slice(body) {
@@ -1792,12 +1781,12 @@ async fn update_packument(
 
 /// `DELETE /:pkg/-rev/:rev` — remove the entire package directory,
 /// packument and all tarballs. Used by `pnpm unpublish --force`.
-async fn delete_package(state: &AppState, headers: &HeaderMap, raw_name: &str) -> Response {
+async fn delete_package(state: &AppState, identity: &Identity, raw_name: &str) -> Response {
     let name = match PackageName::parse(raw_name) {
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Publish).await {
+    if let Err(err) = authorize(state, identity, name.as_str(), Action::Publish) {
         return error_response(&err);
     }
     // Serialize against same-package publishers so a delete can't race a
@@ -1822,7 +1811,7 @@ async fn delete_package(state: &AppState, headers: &HeaderMap, raw_name: &str) -
 /// by going through `canonicalize_tarball_name` first.
 async fn delete_tarball(
     state: &AppState,
-    headers: &HeaderMap,
+    identity: &Identity,
     raw_name: &str,
     filename: &str,
 ) -> Response {
@@ -1834,7 +1823,7 @@ async fn delete_tarball(
         Ok(c) => c,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Publish).await {
+    if let Err(err) = authorize(state, identity, name.as_str(), Action::Publish) {
         return error_response(&err);
     }
     // Serialize against same-package publishers so a delete can't race a
@@ -1854,12 +1843,12 @@ async fn delete_tarball(
 
 /// `GET /-/package/:pkg/dist-tags` — return the packument's
 /// `dist-tags` object.
-async fn get_dist_tags(state: &AppState, headers: &HeaderMap, raw_name: &str) -> Response {
+async fn get_dist_tags(state: &AppState, identity: &Identity, raw_name: &str) -> Response {
     let name = match PackageName::parse(raw_name) {
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Access).await {
+    if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
         return error_response(&err);
     }
     let bytes = match load_packument_bytes(state, &name).await {
@@ -1885,12 +1874,12 @@ async fn get_dist_tags(state: &AppState, headers: &HeaderMap, raw_name: &str) ->
 /// a JSON-encoded version string (e.g. `"1.0.0"`).
 async fn set_dist_tag(
     state: &AppState,
-    headers: &HeaderMap,
+    identity: &Identity,
     raw_name: &str,
     tag: &str,
     body: &[u8],
 ) -> Response {
-    update_dist_tag(state, headers, raw_name, tag, |tags| {
+    update_dist_tag(state, identity, raw_name, tag, |tags| {
         let version: String = match serde_json::from_slice(body) {
             Ok(s) => s,
             Err(err) => return Err(RegistryError::Json(err)),
@@ -1903,11 +1892,11 @@ async fn set_dist_tag(
 
 async fn remove_dist_tag(
     state: &AppState,
-    headers: &HeaderMap,
+    identity: &Identity,
     raw_name: &str,
     tag: &str,
 ) -> Response {
-    update_dist_tag(state, headers, raw_name, tag, |tags| {
+    update_dist_tag(state, identity, raw_name, tag, |tags| {
         tags.remove(tag);
         Ok(())
     })
@@ -1920,7 +1909,7 @@ async fn remove_dist_tag(
 /// 200 or 201, so we standardize on 201.
 async fn update_dist_tag<Mutate>(
     state: &AppState,
-    headers: &HeaderMap,
+    identity: &Identity,
     raw_name: &str,
     tag: &str,
     mutate: Mutate,
@@ -1932,7 +1921,7 @@ where
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Publish).await {
+    if let Err(err) = authorize(state, identity, name.as_str(), Action::Publish) {
         return error_response(&err);
     }
 
@@ -2032,32 +2021,129 @@ impl Action {
     }
 }
 
-/// Resolve the caller behind a request by inspecting its
-/// `Authorization` header against the auth backends. The backend
-/// lookup is async (a networked record store hits the database here),
-/// so this is the one async step the access checks fan out from.
-async fn resolve_identity(
+/// The caller resolved once by the [`authenticate`] middleware and stored
+/// in request extensions. Every registry handler that needs to know who is
+/// calling reads it back through this extractor rather than re-inspecting
+/// the `Authorization` header — so a request hits the auth backend exactly
+/// once, and the identity a handler sees is the same one the restriction
+/// gate already approved (no second lookup, no policy/identity race).
+#[derive(Clone)]
+struct AuthedCaller(Identity);
+
+impl<RouterState: Send + Sync> FromRequestParts<RouterState> for AuthedCaller {
+    type Rejection = Response;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        _state: &RouterState,
+    ) -> Result<Self, Self::Rejection> {
+        // The middleware runs on every route, so the context is always
+        // present; a miss means a wiring bug, surfaced as a 5xx.
+        parts.extensions.get::<AuthedCaller>().cloned().ok_or_else(|| {
+            error_response(&RegistryError::Internal {
+                reason: "authentication middleware did not run".to_string(),
+            })
+        })
+    }
+}
+
+/// Authenticate every request once, up front, and stash the resolved
+/// [`Identity`] in request extensions for the handlers (via
+/// [`AuthedCaller`]).
+///
+/// This is also where bearer-token restrictions are enforced — ahead of
+/// every route handler, so a restricted token is rejected before a write
+/// handler buffers its (up to 100 MiB) request body. npm bearer tokens can
+/// be marked read-only or pinned to a set of CIDR ranges; pnpr persists
+/// both and surfaces them on `npm token list`, so it must enforce them too
+/// — otherwise a token the operator restricted could still publish, or be
+/// used from any network. Basic-auth and anonymous requests carry no
+/// restriction and are still subject to the per-package access policy in
+/// the handlers; an unknown or revoked bearer token resolves to anonymous.
+async fn authenticate(State(state): State<AppState>, mut request: Request, next: Next) -> Response {
+    // Copy what resolution needs out of the request before mutating its
+    // extensions below — the header and method borrows can't outlive the
+    // `extensions_mut` call.
+    let header = request
+        .headers()
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .map(str::to_owned);
+    let method = request.method().clone();
+    let peer = request.extensions().get::<ConnectInfo<PeerAddr>>().map(|info| info.0.0);
+
+    let identity = match resolve_caller(&state, header.as_deref(), &method, peer).await {
+        Ok(identity) => identity,
+        Err(err) => return error_response(&err),
+    };
+    request.extensions_mut().insert(AuthedCaller(identity));
+    next.run(request).await
+}
+
+/// Resolve the `Authorization` header to an [`Identity`], hitting the auth
+/// backend exactly once. A bearer token is looked up as a full record so
+/// its read-only / CIDR restrictions can be enforced here (a violation is
+/// a `Forbidden` error); an unknown bearer token, a wrong Basic password,
+/// and a missing header all resolve to [`Identity::Anonymous`]. `Err` is a
+/// backing-store failure, surfaced as a 5xx so an outage isn't mistaken
+/// for "not authenticated".
+async fn resolve_caller(
     state: &AppState,
-    headers: &HeaderMap,
+    header: Option<&str>,
+    method: &Method,
+    peer: Option<SocketAddr>,
 ) -> Result<Identity, RegistryError> {
-    let username = identify(
-        headers.get(header::AUTHORIZATION).and_then(|value| value.to_str().ok()),
-        state.inner.auth.users.as_ref(),
-        state.inner.auth.tokens.as_ref(),
-    )
-    .await?;
-    Ok(match username {
-        Some(username) => Identity::User { username },
-        None => Identity::Anonymous,
-    })
+    if let Some(raw_token) = header.and_then(bearer_credentials) {
+        let Some(record) = state.inner.auth.tokens.lookup_record(raw_token).await? else {
+            return Ok(Identity::Anonymous);
+        };
+        check_token_restrictions(&record, method, peer)?;
+        return Ok(Identity::User { username: record.username });
+    }
+    // Not a bearer token: Basic (or no credentials), which carries no
+    // token-level restriction. `identify` does the decode + password
+    // verification.
+    let username =
+        identify(header, state.inner.auth.users.as_ref(), state.inner.auth.tokens.as_ref()).await?;
+    Ok(username.map_or(Identity::Anonymous, |username| Identity::User { username }))
+}
+
+/// Enforce a bearer token's own restrictions. A read-only token may not
+/// drive a mutating request; a CIDR-pinned token may only be used from a
+/// whitelisted peer (and is refused when the peer address is unavailable,
+/// so the check fails closed).
+fn check_token_restrictions(
+    record: &TokenRecord,
+    method: &Method,
+    peer: Option<SocketAddr>,
+) -> Result<(), RegistryError> {
+    if record.readonly && is_write_method(method) {
+        return Err(RegistryError::Forbidden {
+            user: record.username.clone(),
+            action: "write with",
+            resource: "a read-only token".to_string(),
+        });
+    }
+    if !record.cidr_whitelist.is_empty() {
+        // The peer address comes from the accepted socket (`ConnectInfo`),
+        // never a client-supplied forwarding header.
+        let allowed = peer.is_some_and(|addr| cidr_whitelist_allows(&record.cidr_whitelist, addr));
+        if !allowed {
+            return Err(RegistryError::Forbidden {
+                user: record.username.clone(),
+                action: "use",
+                resource: "this token from your network address".to_string(),
+            });
+        }
+    }
+    Ok(())
 }
 
 /// Check an already-resolved `identity` against the per-package rule.
-/// Returns `Ok(())` when the call is allowed; otherwise the
-/// appropriate `Unauthenticated` / `Forbidden` error. Split from
-/// [`resolve_identity`] so a caller that filters many packages (the
-/// search endpoint) resolves the identity once and authorizes each
-/// candidate synchronously.
+/// Returns `Ok(())` when the call is allowed; otherwise the appropriate
+/// `Unauthenticated` / `Forbidden` error. The identity is resolved once by
+/// [`authenticate`], so every handler — including the search endpoint that
+/// filters many packages — authorizes synchronously against it.
 fn authorize(
     state: &AppState,
     identity: &Identity,
@@ -2084,76 +2170,6 @@ fn authorize(
             resource: format!("package {package:?}"),
         }),
     }
-}
-
-/// Resolve the caller and check the per-package rule in one step.
-async fn enforce_access(
-    state: &AppState,
-    headers: &HeaderMap,
-    package: &str,
-    action: Action,
-) -> Result<(), RegistryError> {
-    let identity = resolve_identity(state, headers).await?;
-    authorize(state, &identity, package, action)
-}
-
-/// Reject a request whose bearer token violates its own restrictions,
-/// ahead of every route handler (and, for writes, before the handler
-/// buffers the request body).
-///
-/// npm bearer tokens can be marked read-only or pinned to a set of CIDR
-/// ranges. pnpr persists both and surfaces them on `npm token list`, so
-/// it must enforce them too — otherwise a token the operator restricted
-/// could still publish, or be used from any network. Only bearer tokens
-/// carry restrictions; Basic-auth and anonymous requests pass through and
-/// remain subject to the per-package access policy in the handlers. An
-/// unknown or revoked token also passes through here — the handler
-/// resolves it to anonymous and the access policy applies.
-async fn enforce_token_restrictions(
-    State(state): State<AppState>,
-    request: Request,
-    next: Next,
-) -> Response {
-    let Some(raw_token) = request
-        .headers()
-        .get(header::AUTHORIZATION)
-        .and_then(|value| value.to_str().ok())
-        .and_then(bearer_credentials)
-    else {
-        return next.run(request).await;
-    };
-    let record = match state.inner.auth.tokens.lookup_record(raw_token).await {
-        Ok(Some(record)) => record,
-        // No record means nothing to enforce here; a store failure fails
-        // closed with a 5xx rather than silently skipping the check.
-        Ok(None) => return next.run(request).await,
-        Err(err) => return error_response(&err),
-    };
-
-    if record.readonly && is_write_method(request.method()) {
-        return error_response(&RegistryError::Forbidden {
-            user: record.username,
-            action: "write with",
-            resource: "a read-only token".to_string(),
-        });
-    }
-
-    if !record.cidr_whitelist.is_empty() {
-        // The peer address comes from the accepted socket (`ConnectInfo`),
-        // never a client-supplied forwarding header. When it's absent the
-        // restriction can't be evaluated, so the token is refused.
-        let peer = request.extensions().get::<ConnectInfo<PeerAddr>>().map(|info| info.0.0);
-        let allowed = peer.is_some_and(|addr| cidr_whitelist_allows(&record.cidr_whitelist, addr));
-        if !allowed {
-            return error_response(&RegistryError::Forbidden {
-                user: record.username,
-                action: "use",
-                resource: "this token from your network address".to_string(),
-            });
-        }
-    }
-
-    next.run(request).await
 }
 
 /// The raw credentials of an `Authorization: Bearer <token>` header, or
