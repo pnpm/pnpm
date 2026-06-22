@@ -131,13 +131,18 @@ impl std::fmt::Debug for AuthState {
 }
 
 impl AuthState {
-    /// All-in-memory auth state. Used when no record backend is
-    /// configured and neither `auth.htpasswd.file` nor
-    /// `auth.tokens.file` are set, and by tests that don't care about
-    /// persistence.
+    /// All-in-memory auth state for surfaces that never expose
+    /// registration: a resolver-only deployment (registry disabled, so
+    /// the adduser route is not mounted) and tests that don't care
+    /// about persistence. Registration is left uncapped here because no
+    /// untrusted caller can reach it; the production registration path
+    /// goes through [`Self::load`], which honors `auth.htpasswd.max_users`.
     #[must_use]
     pub fn in_memory() -> Self {
-        Self { users: Arc::new(UserStore::in_memory()), tokens: Arc::new(TokenStore::in_memory()) }
+        Self {
+            users: Arc::new(UserStore::in_memory(MaxUsers::Unlimited)),
+            tokens: Arc::new(TokenStore::in_memory()),
+        }
     }
 
     /// Build the auth state from the resolved config. A configured SQL
@@ -198,7 +203,7 @@ impl AuthState {
         }
         let users: Arc<dyn UserBackend> = match auth.htpasswd.file.clone() {
             Some(path) => Arc::new(UserStore::open(path, auth.htpasswd.max_users)?),
-            None => Arc::new(UserStore::in_memory()),
+            None => Arc::new(UserStore::in_memory(auth.htpasswd.max_users)),
         };
         let tokens: Arc<dyn TokenBackend> = match auth.tokens.file.clone() {
             Some(path) => Arc::new(TokenStore::open(path)?),
@@ -312,13 +317,15 @@ impl UserStore {
     /// In-memory store with no on-disk persistence. Used when
     /// `auth.htpasswd.file` is unset and by the existing
     /// `@pnpm/registry-mock` integration where every restart is a
-    /// fresh process.
+    /// fresh process. The registration cap is honored here just as it
+    /// is for the file-backed store, so an unset `auth.htpasswd.file`
+    /// does not silently re-open sign-ups that `max_users` denied.
     #[must_use]
-    pub fn in_memory() -> Self {
+    pub fn in_memory(max_users: MaxUsers) -> Self {
         Self {
             users: Mutex::new(HashMap::new()),
             path: None,
-            max_users: MaxUsers::Unlimited,
+            max_users,
             bcrypt_cost: DEFAULT_BCRYPT_COST,
         }
     }
@@ -617,7 +624,7 @@ impl Default for TokenStore {
 
 impl Default for UserStore {
     fn default() -> Self {
-        Self::in_memory()
+        Self::in_memory(MaxUsers::Unlimited)
     }
 }
 

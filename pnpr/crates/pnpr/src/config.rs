@@ -297,25 +297,30 @@ pub struct TokensConfig {
 
 /// Three-state cap on `auth.htpasswd.max_users`:
 ///
-/// * absent → unlimited (verdaccio's `+infinity` default; the YAML
-///   `+inf` token is a float literal and won't parse into the
-///   `i64` field, so the only way to ask for "no cap" is to omit
-///   the key)
+/// * absent → registration disabled. Self-registration is opt-in:
+///   leaving the key out denies new sign-ups. Verdaccio defaults this
+///   to `+infinity`, but an open default lets any anonymous client
+///   create an account and then publish under an `$authenticated`
+///   policy, so pnpr refuses registration until an operator sets an
+///   explicit positive cap.
 /// * `-1` → registration disabled
 /// * non-negative `n` → at most `n` users
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum MaxUsers {
     #[default]
-    Unlimited,
     Disabled,
+    Unlimited,
     Limited(u64),
 }
 
 impl MaxUsers {
-    /// Translate the YAML value into [`MaxUsers`]. Verdaccio accepts
-    /// any signed integer here; negative anything other than `-1` is
-    /// nonsense and is treated as "disabled" to err on the side of
-    /// rejecting unsafe configs.
+    /// Translate an explicit YAML value into [`MaxUsers`]. Verdaccio
+    /// accepts any signed integer here; negative anything other than
+    /// `-1` is nonsense and is treated as "disabled" to err on the
+    /// side of rejecting unsafe configs. An omitted key never reaches
+    /// this function — it maps to [`MaxUsers::Disabled`] in
+    /// [`build_auth_config`], so there is no YAML spelling for
+    /// "unlimited".
     fn from_yaml(value: i64) -> Self {
         if value < 0 { MaxUsers::Disabled } else { MaxUsers::Limited(value as u64) }
     }
@@ -1301,7 +1306,7 @@ fn build_auth_config(file: &AuthFile, base_dir: &Path) -> AuthConfig {
     AuthConfig {
         htpasswd: HtpasswdConfig {
             file: htpasswd_file,
-            max_users: file.htpasswd.max_users.map_or(MaxUsers::Unlimited, MaxUsers::from_yaml),
+            max_users: file.htpasswd.max_users.map_or(MaxUsers::Disabled, MaxUsers::from_yaml),
         },
         tokens: TokensConfig { file: tokens_file },
     }
