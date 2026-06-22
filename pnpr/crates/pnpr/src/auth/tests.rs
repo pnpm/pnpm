@@ -1,7 +1,7 @@
 use super::{
     MAX_USERNAME_CHARS, TokenBackend, TokenRecord, TokenStore, UpsertOutcome, UserBackend,
-    UserStore, identify, parse_htpasswd, token_timestamp_from_sql, token_timestamp_to_sql,
-    validate_username,
+    UserStore, identify, parse_htpasswd, sha256_hex, token_timestamp_from_sql,
+    token_timestamp_to_sql, validate_username,
 };
 use crate::config::MaxUsers;
 use std::sync::Arc;
@@ -251,8 +251,8 @@ async fn tokens_round_trip() {
 async fn lookup_record_surfaces_token_restrictions() {
     let tokens = TokenStore::in_memory();
     let raw = "restricted-token";
-    tokens.insert_record_for_test(
-        raw,
+    tokens.inner.lock().expect("TokenStore mutex poisoned").tokens.insert(
+        sha256_hex(raw.as_bytes()),
         TokenRecord {
             username: "alice".to_string(),
             created_at: 1,

@@ -600,17 +600,6 @@ impl TokenBackend for TokenStore {
     }
 }
 
-#[cfg(test)]
-impl TokenStore {
-    /// Seed a pre-built record under `raw`'s hash. Test-only seam: no
-    /// client endpoint mints read-only or CIDR-restricted tokens yet, so
-    /// enforcement tests insert them directly.
-    pub(crate) fn insert_record_for_test(&self, raw: &str, record: TokenRecord) {
-        let token_hash = sha256_hex(raw.as_bytes());
-        self.inner.lock().expect("TokenStore mutex poisoned").tokens.insert(token_hash, record);
-    }
-}
-
 impl Default for TokenStore {
     fn default() -> Self {
         Self::in_memory()

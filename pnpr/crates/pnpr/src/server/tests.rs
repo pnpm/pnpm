@@ -3,9 +3,11 @@ use super::{
     is_write_method, router_with_auth, token_timestamp_millis,
 };
 use crate::{
-    auth::{AuthState, TokenRecord, TokenStore, UserStore},
+    auth::{AuthState, TokenBackend, TokenRecord, UserStore},
     config::Config,
+    error::{RegistryError, Result},
 };
+use async_trait::async_trait;
 use axum::{
     body::Body,
     http::{Method, Request, StatusCode, header},
@@ -131,9 +133,45 @@ fn record(readonly: bool, cidr_whitelist: &[&str]) -> TokenRecord {
     }
 }
 
+/// Token backend that resolves exactly one raw token to a fixed record.
+/// No client endpoint mints read-only or CIDR-restricted tokens, so the
+/// enforcement tests inject one this way.
+struct OneToken {
+    raw: String,
+    record: TokenRecord,
+}
+
+#[async_trait]
+impl TokenBackend for OneToken {
+    async fn issue(&self, _username: &str) -> Result<String> {
+        // The restriction tests never issue tokens; surface a clear error
+        // rather than a panic if that assumption ever breaks.
+        Err(RegistryError::Internal { reason: "OneToken cannot issue tokens".to_string() })
+    }
+
+    async fn lookup(&self, raw: &str) -> Result<Option<String>> {
+        Ok((raw == self.raw).then(|| self.record.username.clone()))
+    }
+
+    async fn lookup_record(&self, raw: &str) -> Result<Option<TokenRecord>> {
+        Ok((raw == self.raw).then(|| self.record.clone()))
+    }
+
+    async fn find_by_key(&self, _key: &str) -> Result<Option<TokenRecord>> {
+        Ok(None)
+    }
+
+    async fn list_for_user(&self, _username: &str) -> Result<Vec<(String, TokenRecord)>> {
+        Ok(Vec::new())
+    }
+
+    async fn revoke_by_key(&self, _key: &str) -> Result<Option<TokenRecord>> {
+        Ok(None)
+    }
+}
+
 fn app_with_token(tmp: &TempDir, raw: &str, record: TokenRecord) -> axum::Router {
-    let tokens: Arc<TokenStore> = Arc::new(TokenStore::in_memory());
-    tokens.insert_record_for_test(raw, record);
+    let tokens: Arc<dyn TokenBackend> = Arc::new(OneToken { raw: raw.to_string(), record });
     let auth = AuthState { users: Arc::new(UserStore::in_memory()), tokens };
     let listen = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
     router_with_auth(Config::static_serve(listen, tmp.path().to_path_buf()), auth)

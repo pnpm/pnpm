@@ -487,7 +487,7 @@ impl axum::serve::Listener for NodelayTcpListener {
 /// bare [`tokio::net::TcpListener`], not our wrapper. This is the real
 /// peer address from the socket, never a client-supplied forwarding
 /// header, so it can't be spoofed.
-#[derive(Clone, Copy, Debug)]
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct PeerAddr(pub(crate) SocketAddr);
 
 impl Connected<IncomingStream<'_, NodelayTcpListener>> for PeerAddr {
