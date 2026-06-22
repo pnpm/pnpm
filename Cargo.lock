@@ -3615,6 +3615,7 @@ dependencies = [
  "pnpr",
  "pretty_assertions",
  "rayon",
+ "rmp-serde",
  "serde",
  "serde-saphyr",
  "serde_json",

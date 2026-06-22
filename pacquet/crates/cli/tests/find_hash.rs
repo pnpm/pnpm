@@ -2,6 +2,28 @@ use assert_cmd::prelude::*;
 use pacquet_store_dir::store_index::StoreIndex;
 use pacquet_testing_utils::bin::CommandTempCwd;
 
+fn find_hash_fixture(store_index: &StoreIndex) -> (String, String, String) {
+    let keys = store_index.keys().unwrap();
+    assert!(!keys.is_empty(), "Store index should have at least one key");
+
+    let entries = store_index.get_many(&keys).unwrap();
+    for (_key, data) in entries {
+        let Some(manifest) = &data.manifest else { continue };
+        let Some(expected_name) = manifest.get("name").and_then(|value| value.as_str()) else {
+            continue;
+        };
+        let Some(expected_version) = manifest.get("version").and_then(|value| value.as_str())
+        else {
+            continue;
+        };
+        if let Some(file) = data.files.values().next() {
+            return (file.digest.clone(), expected_name.to_string(), expected_version.to_string());
+        }
+    }
+
+    panic!("Should find a package hash with a non-empty name@version in the store index");
+}
+
 #[test]
 fn find_hash_works() {
     let CommandTempCwd { mut pacquet, workspace, root: _root, npmrc_info, .. } =
@@ -12,38 +34,7 @@ fn find_hash_works() {
 
     let store_dir = pacquet_store_dir::StoreDir::from(npmrc_info.store_dir);
     let store_index = StoreIndex::open_readonly_in(&store_dir).unwrap();
-    let keys = store_index.keys().unwrap();
-    assert!(!keys.is_empty(), "Store index should have at least one key");
-
-    // Find a valid hash and remember which package it belongs to
-    let mut valid_hash = String::new();
-    let mut expected_name = String::new();
-    let mut expected_version = String::new();
-
-    let entries = store_index.get_many(&keys).unwrap();
-    for (_key, data) in entries {
-        if let Some(file) = data.files.values().next() {
-            valid_hash = file.digest.clone();
-
-            if let Some(manifest) = &data.manifest {
-                expected_name =
-                    manifest.get("name").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
-                expected_version = manifest
-                    .get("version")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("unknown")
-                    .to_string();
-            }
-        }
-        if !valid_hash.is_empty() {
-            break;
-        }
-    }
-    assert!(!valid_hash.is_empty(), "Should find a valid hash in the store index");
-    assert!(
-        !expected_name.is_empty() && !expected_version.is_empty(),
-        "Should resolve a non-empty name@version for the selected hash",
-    );
+    let (valid_hash, expected_name, expected_version) = find_hash_fixture(&store_index);
 
     // 2. Run find-hash with the valid hash
     let mut pacquet2 = std::process::Command::cargo_bin("pacquet").unwrap();
@@ -86,6 +77,16 @@ fn should_fail_on_invalid_base64() {
 }
 
 #[test]
+fn should_fail_on_oversized_base64() {
+    let CommandTempCwd { mut pacquet, root: _root, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let hash = format!("sha512-{}", "A".repeat(1_000));
+    let output = pacquet.arg("find-hash").arg(hash).assert().failure();
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    assert!(stderr.contains("sha512 base64 payload has 1000 character(s)"));
+}
+
+#[test]
 fn find_hash_works_with_base64() {
     let CommandTempCwd { mut pacquet, workspace, root: _root, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
@@ -94,35 +95,7 @@ fn find_hash_works_with_base64() {
 
     let store_dir = pacquet_store_dir::StoreDir::from(npmrc_info.store_dir);
     let store_index = StoreIndex::open_readonly_in(&store_dir).unwrap();
-    let keys = store_index.keys().unwrap();
-
-    let mut hex_hash = String::new();
-    let mut expected_name = String::new();
-    let mut expected_version = String::new();
-
-    let entries = store_index.get_many(&keys).unwrap();
-    for (_key, data) in entries {
-        if let Some(file) = data.files.values().next() {
-            hex_hash = file.digest.clone();
-
-            if let Some(manifest) = &data.manifest {
-                expected_name =
-                    manifest.get("name").and_then(|v| v.as_str()).unwrap_or("unknown").to_string();
-                expected_version = manifest
-                    .get("version")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or("unknown")
-                    .to_string();
-            }
-            break;
-        }
-    }
-
-    assert!(!hex_hash.is_empty(), "Should find a valid hash in the store index");
-    assert!(
-        !expected_name.is_empty() && !expected_version.is_empty(),
-        "Should resolve a non-empty name@version for the selected hash",
-    );
+    let (hex_hash, expected_name, expected_version) = find_hash_fixture(&store_index);
 
     // Convert hex to base64
     use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
