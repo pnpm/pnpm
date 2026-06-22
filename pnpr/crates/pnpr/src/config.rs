@@ -82,9 +82,9 @@ pub struct Config {
     /// re-fetched from the resolved uplink. Ignored when no uplink
     /// matches.
     pub packument_ttl: Duration,
-    /// Per-package access and publish rules. [`Config::from_yaml`]
+    /// Per-package access, publish, and unpublish rules. [`Config::from_yaml`]
     /// compiles these from the YAML `packages:` block (each entry's
-    /// `access` / `publish` tokens); the programmatic
+    /// `access` / `publish` / `unpublish` tokens); the programmatic
     /// [`Config::proxy`] / [`Config::static_serve`] constructors use
     /// [`PackagePolicies::registry_mock_defaults`] instead, enforcing
     /// the `@private/*` and `@pnpm.e2e/needs-auth` rules
@@ -752,12 +752,11 @@ fn non_empty_token(token: &str) -> Option<String> {
     (!token.trim().is_empty()).then(|| token.to_string())
 }
 
-/// Per-package routing and access rules. `access` / `publish` are
-/// verdaccio permission lists (built-in groups like `$all` /
-/// `$authenticated` / `$anonymous`, plus usernames / group names),
-/// compiled into the [`PackagePolicies`] that gate reads and writes.
-/// `unpublish` is parsed but currently folded into `publish` at
-/// enforcement time. `proxy` selects the [`UplinkConfig`] by name.
+/// Per-package routing and access rules. `access` / `publish` /
+/// `unpublish` are verdaccio permission lists (built-in groups like
+/// `$all` / `$authenticated` / `$anonymous`, plus usernames / group
+/// names), compiled into the [`PackagePolicies`] that gate reads and
+/// writes. `proxy` selects the [`UplinkConfig`] by name.
 #[derive(Debug, Default, Clone, Deserialize)]
 pub struct PackageAccess {
     pub access: Option<AccessSpec>,
@@ -1421,11 +1420,11 @@ fn build_log_config(entry: Option<&LogEntryFile>) -> LogConfig {
 /// Compile the YAML `packages:` rules into the runtime
 /// [`PackagePolicies`], in declared order (first match wins). A
 /// missing `access` defaults to `$all`, a missing `publish` to
-/// `$authenticated` — the same safe fallback [`PackagePolicies`]
-/// applies to packages no rule matches. `unpublish` is parsed for
-/// config compatibility but not yet enforced separately (it folds
-/// into `publish`). Errors only on an invalid glob pattern — any
-/// token string is a valid group/username, as in verdaccio.
+/// `$authenticated`, and a missing, empty, or null `unpublish` denies
+/// destructive writes. The same safe fallback [`PackagePolicies`]
+/// applies to packages no rule matches. Errors only on an invalid glob
+/// pattern — any token string is a valid group/username, as in
+/// verdaccio.
 fn build_policies(
     packages: &IndexMap<String, PackageAccess>,
 ) -> Result<PackagePolicies, RegistryError> {
@@ -1440,7 +1439,11 @@ fn build_policies(
                 .publish
                 .as_ref()
                 .map_or_else(|| AccessList::parse("$authenticated"), AccessSpec::to_access_list);
-            PackagePolicy::new(pattern, access_list, publish_list)
+            let unpublish_list = access
+                .unpublish
+                .as_ref()
+                .map_or_else(AccessList::default, AccessSpec::to_access_list);
+            PackagePolicy::new(pattern, access_list, publish_list, unpublish_list)
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok(PackagePolicies::new(rules))

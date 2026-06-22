@@ -110,12 +110,13 @@ impl Identity {
 /// compiled from the verdaccio-style key (e.g. `@private/*`,
 /// `@pnpm.e2e/needs-auth`, `**`). `access` controls who can read the
 /// packument and tarballs; `publish` controls who can publish or
-/// change dist-tags.
+/// change dist-tags; `unpublish` controls destructive writes.
 #[derive(Debug, Clone)]
 pub struct PackagePolicy {
     pattern: Glob<'static>,
     pub access: AccessList,
     pub publish: AccessList,
+    pub unpublish: AccessList,
 }
 
 impl PackagePolicy {
@@ -123,6 +124,7 @@ impl PackagePolicy {
         pattern: &str,
         access: AccessList,
         publish: AccessList,
+        unpublish: AccessList,
     ) -> Result<Self, RegistryError> {
         let glob = Glob::new(pattern)
             .map_err(|err| RegistryError::InvalidPolicyPattern {
@@ -130,7 +132,7 @@ impl PackagePolicy {
                 reason: err.to_string(),
             })?
             .into_owned();
-        Ok(Self { pattern: glob, access, publish })
+        Ok(Self { pattern: glob, access, publish, unpublish })
     }
 
     fn matches(&self, package: &str) -> bool {
@@ -149,6 +151,7 @@ pub struct PackagePolicies {
     /// borrow.
     default_access: AccessList,
     default_publish: AccessList,
+    default_unpublish: AccessList,
 }
 
 impl Default for PackagePolicies {
@@ -163,6 +166,7 @@ impl Default for PackagePolicies {
 pub struct Effective<'a> {
     pub access: &'a AccessList,
     pub publish: &'a AccessList,
+    pub unpublish: &'a AccessList,
 }
 
 impl PackagePolicies {
@@ -172,6 +176,7 @@ impl PackagePolicies {
             rules,
             default_access: AccessList::parse("$all"),
             default_publish: AccessList::parse("$authenticated"),
+            default_unpublish: AccessList::default(),
         }
     }
 
@@ -179,21 +184,26 @@ impl PackagePolicies {
     /// box `Config` already enforces the same access rules verdaccio
     /// did. The relevant patterns from `registry-mock`'s `config.yaml`:
     ///
-    /// * `@private/*` — authenticated access + publish
-    /// * `@pnpm.e2e/needs-auth` — authenticated access + publish
-    /// * everything else — $all access, $authenticated publish
+    /// * `@private/*` — authenticated access + publish + unpublish
+    /// * `@pnpm.e2e/needs-auth` — authenticated access + publish + unpublish
+    /// * everything else — $all access, $authenticated publish + unpublish
     #[must_use]
     pub fn registry_mock_defaults() -> Self {
         let rules = [
-            ("@private/*", "$authenticated", "$authenticated"),
-            ("@pnpm.e2e/needs-auth", "$authenticated", "$authenticated"),
-            ("**", "$all", "$authenticated"),
+            ("@private/*", "$authenticated", "$authenticated", "$authenticated"),
+            ("@pnpm.e2e/needs-auth", "$authenticated", "$authenticated", "$authenticated"),
+            ("**", "$all", "$authenticated", "$authenticated"),
         ];
         let rules = rules
             .into_iter()
-            .map(|(pattern, access, publish)| {
-                PackagePolicy::new(pattern, AccessList::parse(access), AccessList::parse(publish))
-                    .expect("registry-mock defaults compile")
+            .map(|(pattern, access, publish, unpublish)| {
+                PackagePolicy::new(
+                    pattern,
+                    AccessList::parse(access),
+                    AccessList::parse(publish),
+                    AccessList::parse(unpublish),
+                )
+                .expect("registry-mock defaults compile")
             })
             .collect();
         Self::new(rules)
@@ -203,10 +213,18 @@ impl PackagePolicies {
     pub fn for_package(&self, package: &str) -> Effective<'_> {
         for rule in &self.rules {
             if rule.matches(package) {
-                return Effective { access: &rule.access, publish: &rule.publish };
+                return Effective {
+                    access: &rule.access,
+                    publish: &rule.publish,
+                    unpublish: &rule.unpublish,
+                };
             }
         }
-        Effective { access: &self.default_access, publish: &self.default_publish }
+        Effective {
+            access: &self.default_access,
+            publish: &self.default_publish,
+            unpublish: &self.default_unpublish,
+        }
     }
 }
 

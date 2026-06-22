@@ -1747,8 +1747,10 @@ async fn update_packument(
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = authorize(state, identity, name.as_str(), Action::Publish) {
-        return error_response(&err);
+    for action in [Action::Publish, Action::Unpublish] {
+        if let Err(err) = authorize(state, identity, name.as_str(), action) {
+            return error_response(&err);
+        }
     }
     let mut packument: Value = match serde_json::from_slice(body) {
         Ok(v) => v,
@@ -1786,7 +1788,7 @@ async fn delete_package(state: &AppState, identity: &Identity, raw_name: &str) -
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = authorize(state, identity, name.as_str(), Action::Publish) {
+    if let Err(err) = authorize(state, identity, name.as_str(), Action::Unpublish) {
         return error_response(&err);
     }
     // Serialize against same-package publishers so a delete can't race a
@@ -1823,7 +1825,7 @@ async fn delete_tarball(
         Ok(c) => c,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = authorize(state, identity, name.as_str(), Action::Publish) {
+    if let Err(err) = authorize(state, identity, name.as_str(), Action::Unpublish) {
         return error_response(&err);
     }
     // Serialize against same-package publishers so a delete can't race a
@@ -2010,6 +2012,7 @@ where
 enum Action {
     Access,
     Publish,
+    Unpublish,
 }
 
 impl Action {
@@ -2017,6 +2020,7 @@ impl Action {
         match self {
             Action::Access => "access",
             Action::Publish => "publish",
+            Action::Unpublish => "unpublish",
         }
     }
 }
@@ -2154,6 +2158,7 @@ fn authorize(
     let list = match action {
         Action::Access => effective.access,
         Action::Publish => effective.publish,
+        Action::Unpublish => effective.unpublish,
     };
     if list.allows(identity) {
         return Ok(());

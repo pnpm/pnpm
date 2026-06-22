@@ -79,6 +79,8 @@ fn defaults_match_registry_mock_config() {
     assert!(public.access.allows(&Identity::Anonymous));
     assert!(!public.publish.allows(&Identity::Anonymous));
     assert!(public.publish.allows(&user("alice")));
+    assert!(!public.unpublish.allows(&Identity::Anonymous));
+    assert!(public.unpublish.allows(&user("alice")));
 }
 
 #[test]
@@ -96,4 +98,6 @@ fn falls_back_to_safe_defaults_when_no_rules_match() {
     assert!(effective.access.allows(&Identity::Anonymous));
     assert!(!effective.publish.allows(&Identity::Anonymous));
     assert!(effective.publish.allows(&user("alice")));
+    assert!(!effective.unpublish.allows(&Identity::Anonymous));
+    assert!(!effective.unpublish.allows(&user("alice")));
 }

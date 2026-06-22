@@ -74,43 +74,53 @@ packages:
   '@private/*':
     access: $authenticated
     publish: $authenticated
+    unpublish: $authenticated
 
   '@pnpm.e2e/needs-auth':
     access: $authenticated
     publish: $authenticated
+    unpublish: $authenticated
 
   '@*/*':
     access: $all
     publish: $authenticated
+    unpublish: $authenticated
     proxy: npmjs
 
   'plugin-example':
     access: $all
     publish: $authenticated
+    unpublish: $authenticated
 
   'pkg-with-1-dep':
     access: $all
     publish: $authenticated
+    unpublish: $authenticated
 
   'dep-of-pkg-with-1-dep':
     access: $all
     publish: $authenticated
+    unpublish: $authenticated
 
   'foobar':
     access: $all
     publish: $authenticated
+    unpublish: $authenticated
 
   'alpha':
     access: $all
     publish: $authenticated
+    unpublish: $authenticated
 
   'deprecated':
     access: $all
     publish: $authenticated
+    unpublish: $authenticated
 
   '**':
     access: $all
     publish: $authenticated
+    unpublish: $authenticated
     proxy: npmjs
 
 # log settings (verdaccio 6+ shape: a single `log:` object, not a list)

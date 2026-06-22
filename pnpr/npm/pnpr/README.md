@@ -65,11 +65,13 @@ packages:
   '@*/*':
     access: $all
     publish: $authenticated
+    unpublish: $authenticated
     proxy: npmjs
 
   '**':
     access: $all
     publish: $authenticated
+    unpublish: $authenticated
     proxy: npmjs
 ```
 
@@ -156,6 +158,7 @@ packages:
   '**':
     access: $all
     publish: $authenticated
+    unpublish: $authenticated
     proxy: npmjs
 ```
 
