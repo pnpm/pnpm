@@ -269,17 +269,12 @@ fn rewrites_query_bearing_tarball_to_its_path_basename() {
 
 #[test]
 fn tarball_basename_strips_query_and_fragment() {
-    assert_eq!(tarball_basename("https://r.example/foo/-/foo-1.0.0.tgz"), Some("foo-1.0.0.tgz"));
-    assert_eq!(
-        tarball_basename("https://r.example/foo/-/foo-1.0.0.tgz?sig=x"),
-        Some("foo-1.0.0.tgz")
-    );
-    assert_eq!(
-        tarball_basename("https://r.example/foo/-/foo-1.0.0.tgz#frag"),
-        Some("foo-1.0.0.tgz")
-    );
-    assert_eq!(tarball_basename("foo-1.0.0.tgz"), Some("foo-1.0.0.tgz"));
-    assert_eq!(tarball_basename("https://r.example/foo/"), None);
+    let base = "foo-1.0.0.tgz";
+    assert_eq!(tarball_basename("https://r/foo/-/foo-1.0.0.tgz"), Some(base));
+    assert_eq!(tarball_basename("https://r/foo/-/foo-1.0.0.tgz?sig=x"), Some(base));
+    assert_eq!(tarball_basename("https://r/foo/-/foo-1.0.0.tgz#frag"), Some(base));
+    assert_eq!(tarball_basename("foo-1.0.0.tgz"), Some(base));
+    assert_eq!(tarball_basename("https://r/foo/"), None);
 }
 
 #[test]
