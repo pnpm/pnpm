@@ -16,6 +16,7 @@ pub mod patch;
 pub mod patch_commit;
 pub mod patch_remove;
 pub(crate) mod patch_state;
+pub mod prune;
 pub mod rebuild;
 pub mod recursive;
 pub mod remove;
@@ -57,6 +58,7 @@ use pacquet_reporter::{
 use patch::PatchArgs;
 use patch_commit::PatchCommitArgs;
 use patch_remove::PatchRemoveArgs;
+use prune::PruneArgs;
 use rebuild::RebuildArgs;
 use remove::RemoveArgs;
 use restart::RestartArgs;
@@ -222,6 +224,8 @@ pub enum CliCommand {
     Import(ImportArgs),
     /// Deduplicate packages in the lockfile
     Dedupe(DedupeArgs),
+    /// Remove extraneous packages
+    Prune(PruneArgs),
 }
 
 impl CliArgs {
@@ -308,6 +312,7 @@ impl CliArgs {
                 | CliCommand::Dlx(_)
                 | CliCommand::Import(_)
                 | CliCommand::Dedupe(_)
+                | CliCommand::Prune(_)
                 | CliCommand::Create(_)
                 | CliCommand::Runtime(_)
                 // `rebuild` drives the frozen-install pipeline and emits
@@ -691,6 +696,59 @@ impl CliArgs {
                     ReporterType::Silent => Box::pin(args.run::<SilentReporter>(command_state)),
                 }
             }
+            CliCommand::Prune(args) => Box::pin(async move {
+                let cfg = config()?;
+                cfg.modules_cache_max_age = 0;
+                cfg.ignore_scripts = cfg.ignore_scripts || args.ignore_scripts;
+                let workspace_root =
+                    cfg.workspace_dir.clone().unwrap_or_else(|| dir_ref.clone());
+                let workspace_root = std::fs::canonicalize(&workspace_root)
+                    .into_diagnostic()
+                    .wrap_err("canonicalize workspace root for prune safety check")?;
+                let modules_dir = std::fs::canonicalize(&cfg.modules_dir)
+                    .into_diagnostic()
+                    .wrap_err("canonicalize modules_dir for prune safety check")?;
+                if !modules_dir.starts_with(&workspace_root) {
+                    return Err(miette::miette!(
+                        "refusing prune: modules_dir ({}) is outside workspace root ({})",
+                        cfg.modules_dir.display(),
+                        workspace_root.display(),
+                    ));
+                }
+                let virtual_store_dir =
+                    std::fs::canonicalize(cfg.effective_virtual_store_dir())
+                        .into_diagnostic()
+                        .wrap_err("canonicalize virtual_store_dir for prune safety check")?;
+                if !virtual_store_dir.starts_with(&modules_dir) {
+                    return Err(miette::miette!(
+                        "refusing prune: virtual_store_dir ({}) is outside modules_dir ({})",
+                        cfg.effective_virtual_store_dir().display(),
+                        cfg.modules_dir.display(),
+                    ));
+                }
+                let (config_root, package_manager_to_sync) =
+                    derive_config_root_and_package_manager_to_sync(cfg, dir_ref)
+                        .wrap_err("derive workspace root and package manager policy")?;
+                let pipeline = PrunePipeline {
+                    args,
+                    cfg,
+                    config_root,
+                    package_manager_to_sync,
+                    manifest_path: manifest_path_ref.clone(),
+                };
+                match reporter {
+                    ReporterType::Default | ReporterType::AppendOnly => {
+                        Box::pin(pipeline.run::<DefaultReporter>()).await?;
+                    }
+                    ReporterType::Ndjson => {
+                        Box::pin(pipeline.run::<NdjsonReporter>()).await?;
+                    }
+                    ReporterType::Silent => {
+                        Box::pin(pipeline.run::<SilentReporter>()).await?;
+                    }
+                }
+                Ok(())
+            })
             CliCommand::CatIndex(args) => Box::pin(async move {
                 args.run(dir_ref, || config().map(|m| &*m)).await?;
                 Ok(())
@@ -793,8 +851,8 @@ impl InstallPipeline {
     }
 }
 
-/// Shared workspace-root and package-manager policy derivation used by both
-/// the install and dedupe dispatch paths.
+/// Shared workspace-root and package-manager policy derivation used by the
+/// install, dedupe, and prune dispatch paths.
 fn derive_config_root_and_package_manager_to_sync(
     cfg: &Config,
     dir_ref: &Path,
@@ -848,6 +906,43 @@ impl DedupePipeline {
         let cfg: &'static Config = cfg;
         let state = State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
         args.run::<Reporter>(state, existing, guard, &lockfile_path).await
+    }
+}
+
+/// The reporter-generic body of `pacquet prune`: runs config-deps, then
+/// state init, then the prune install pipeline. Mirrors what
+/// [`InstallPipeline`] does for the install command, since pnpm's prune
+/// delegates to its install handler which goes through the same
+/// config-finalization steps.
+struct PrunePipeline {
+    args: PruneArgs,
+    cfg: &'static mut Config,
+    config_root: PathBuf,
+    package_manager_to_sync: Option<PackageManagerToSync>,
+    manifest_path: PathBuf,
+}
+
+impl PrunePipeline {
+    async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
+        let PrunePipeline { args, cfg, config_root, package_manager_to_sync, manifest_path } =
+            self;
+
+        if let Some(pm) = package_manager_to_sync.as_ref() {
+            config_deps::sync_package_manager_dependencies(
+                cfg,
+                &config_root,
+                &pm.specifier,
+                &pm.version,
+                false,
+            )
+            .await?;
+        }
+        config_deps::install_config_deps::<Reporter>(cfg, &config_root, false).await?;
+        config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
+        let cfg: &'static Config = cfg;
+        let state =
+            State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
+        args.run::<Reporter>(state).await
     }
 }
 
