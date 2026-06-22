@@ -2527,6 +2527,8 @@ fn allow_build_key_keeps_full_id_for_non_semver_artifacts() {
     let git = "foo@github.com/foo/bar#0123456789";
     assert_eq!(allow_build_key_from_ignored_build(git), git);
 
-    let tarball = "https://example.com/foo.tgz";
+    // Ignored-build entries are depPath-shaped (`name@<resolution>`); a
+    // tarball's non-semver resolution keeps the whole pkgId as the key.
+    let tarball = "foo@https://example.com/foo.tgz";
     assert_eq!(allow_build_key_from_ignored_build(tarball), tarball);
 }

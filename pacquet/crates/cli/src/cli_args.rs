@@ -276,7 +276,11 @@ impl CliArgs {
                 | CliCommand::Install(_)
                 | CliCommand::Dlx(_)
                 | CliCommand::Create(_)
-                | CliCommand::Runtime(_),
+                | CliCommand::Runtime(_)
+                // `rebuild` drives the frozen-install pipeline and emits
+                // the same progress events, so it shares the `Done in ...`
+                // footer.
+                | CliCommand::Rebuild(_),
         );
         let manifest_path = || dir.join("package.json");
         // Resolve `.npmrc` / `pnpm-workspace.yaml` from the canonicalized

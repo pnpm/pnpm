@@ -302,10 +302,14 @@ fn is_source_like_dep_path_version(version: &str) -> bool {
 /// ignored-builds record for the packages it did not touch.
 #[derive(Debug, Default, Clone)]
 pub struct RebuildOptions {
-    /// Package names to force past the side-effects `is_built` gate.
-    /// `None` forces every build-needing package (`pnpm rebuild` with no
-    /// arguments); `Some(names)` forces only the matching names
-    /// (`pnpm rebuild <pkg>...`).
+    /// Allow-build keys (the package name for registry deps, the full
+    /// pkgId for git/tarball artifacts — see
+    /// [`allow_build_key_from_ignored_build`]) to force past the
+    /// side-effects `is_built` gate. `None` forces every build-needing
+    /// package (`pnpm rebuild` with no arguments); `Some(keys)` forces
+    /// only the matching ones (`pnpm rebuild <pkg>...`). A package matches
+    /// when either its name or its allow-build key is in the set, so a
+    /// `pnpm rebuild <name>` and an `approve-builds` key both select it.
     pub selected_names: Option<HashSet<String>>,
 }
 
@@ -740,17 +744,24 @@ fn build_one_snapshot<Reporter: self::Reporter>(
         return Ok(());
     }
 
-    let (name, version) = parse_name_version_from_key(&metadata_key.to_string());
+    let dep_path = metadata_key.to_string();
+    let (name, version) = parse_name_version_from_key(&dep_path);
 
     // An explicit `pacquet rebuild` re-runs the build scripts of the
     // selected packages even when the side-effects cache reports them
     // already built; `force_rebuild` marks those so they bypass the
-    // `is_built` gate below. The allow-policy gate still applies — a
+    // `is_built` gate below. The selection holds allow-build keys (the
+    // package name for registry deps, the full pkgId for git/tarball
+    // artifacts), so match either form — a selected non-registry artifact
+    // is forced past the gate too. The allow-policy gate still applies — a
     // rebuild never builds a disallowed package — matching pnpm's
     // `buildModules` honoring `allowBuild` during rebuild. Non-selected
     // packages are still visited under their normal gating so a partial
     // rebuild keeps the `.modules.yaml` ignored-builds record intact.
-    let force_rebuild = rebuild.is_some_and(|rebuild| rebuild.is_selected(&name));
+    let force_rebuild = rebuild.is_some_and(|rebuild| {
+        rebuild.is_selected(&name)
+            || rebuild.is_selected(&allow_build_key_from_ignored_build(&dep_path))
+    });
 
     // Mirrors upstream's `if (node.requiresBuild) { allowBuild(...) }`
     // at lines 88-101: the allowBuilds gate only applies when the
@@ -763,7 +774,6 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     // `ignoreScripts = true; break` pattern.
     let mut should_run_scripts = requires_build && !ignore_scripts;
     if should_run_scripts {
-        let dep_path = metadata_key.to_string();
         match allow_build_policy.check(&dep_path) {
             Some(false) => {
                 should_run_scripts = false;

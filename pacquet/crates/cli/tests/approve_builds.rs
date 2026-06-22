@@ -21,7 +21,11 @@ const INSTALL_MARKER: &str = "node_modules/.pnpm/@pnpm.e2e+install-script-exampl
 /// `ERR_PNPM_IGNORED_BUILDS`.
 fn disable_strict_dep_builds(workspace: &Path) {
     let yaml_path = workspace.join("pnpm-workspace.yaml");
-    let mut yaml = fs::read_to_string(&yaml_path).unwrap_or_default();
+    let mut yaml = match fs::read_to_string(&yaml_path) {
+        Ok(content) => content,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => String::new(),
+        Err(err) => panic!("read pnpm-workspace.yaml: {err}"),
+    };
     if !yaml.is_empty() && !yaml.ends_with('\n') {
         yaml.push('\n');
     }

@@ -468,13 +468,19 @@ where
     /// already-resolved lockfile + materialized `node_modules`, bypass the
     /// "up to date" short-circuit, and re-run the lifecycle scripts of the
     /// selected packages (or every build-needing package when
-    /// `rebuild.selected_names` is `None`). The caller must set
-    /// `frozen_lockfile: true`. Drives `pacquet rebuild` and the rebuild
-    /// step of `pacquet approve-builds`.
+    /// `rebuild.selected_names` is `None`). Drives `pacquet rebuild` and
+    /// the rebuild step of `pacquet approve-builds`.
+    ///
+    /// # Panics
+    ///
+    /// Panics unless `frozen_lockfile` is set: a rebuild must take the
+    /// frozen path, since the fresh-resolve path drops the rebuild
+    /// selection and would silently degrade to a plain install.
     pub async fn run_rebuild<Reporter: self::Reporter + 'static>(
         self,
         rebuild: RebuildOptions,
     ) -> Result<(), InstallError> {
+        assert!(self.frozen_lockfile, "run_rebuild requires frozen_lockfile = true");
         self.run_inner::<Reporter>(None, Some(rebuild)).await
     }
 
