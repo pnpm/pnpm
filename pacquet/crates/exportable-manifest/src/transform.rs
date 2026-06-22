@@ -178,7 +178,7 @@ mod tests {
         let err = run(json!({ "name": "@foo", "version": "1.0.0", "bin": "cli.js" })).unwrap_err();
         assert_eq!(
             err,
-            TransformError::InvalidScopedPackageName { invalid_name: "@foo".to_string() }
+            TransformError::InvalidScopedPackageName { invalid_name: "@foo".to_string() },
         );
     }
 
@@ -204,7 +204,7 @@ mod tests {
         .unwrap();
         assert_eq!(
             out["repository"],
-            json!({ "type": "git", "url": "https://github.com/foo/bar" })
+            json!({ "type": "git", "url": "https://github.com/foo/bar" }),
         );
     }
 

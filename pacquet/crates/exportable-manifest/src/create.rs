@@ -173,7 +173,7 @@ pub fn create_exportable_manifest(
 
 /// Whether a dependency map's specifiers carry the regular-dependency
 /// or the peer-dependency workspace-protocol semantics. Peer specs
-/// allow the broader comparator set (`>=`, `<=`, …).
+/// allow the broader comparator set (`>=`, `<=`, ...).
 #[derive(Clone, Copy)]
 enum DependencyKind {
     Regular,
