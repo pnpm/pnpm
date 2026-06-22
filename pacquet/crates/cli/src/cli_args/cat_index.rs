@@ -1,6 +1,7 @@
-use crate::State;
 use clap::Args;
 use miette::{Context, IntoDiagnostic, Result};
+use pacquet_config::Config;
+use pacquet_network::{NetworkSettings, RetryOpts, ThrottledClient};
 use pacquet_resolving_npm_resolver::{
     InMemoryPackageMetaCache, PickPackageContext, PickPackageOptions, parse_bare_specifier,
     pick_package, pick_registry_for_package, shared_packument_fetch_locker,
@@ -8,6 +9,7 @@ use pacquet_resolving_npm_resolver::{
 use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use pacquet_store_dir::{StoreIndex, store_index_key};
 use serde_json::Value;
+use std::{collections::HashMap, io::Write as _, time::Duration};
 
 #[derive(Debug, Args)]
 pub struct CatIndexArgs {
@@ -16,7 +18,7 @@ pub struct CatIndexArgs {
 }
 
 impl CatIndexArgs {
-    pub async fn run(self, state: State) -> Result<()> {
+    pub async fn run<'a>(self, config: impl FnOnce() -> Result<&'a Config>) -> Result<()> {
         let parsed = parse_wanted_dependency(&self.wanted_dependency);
         let Some(alias) = parsed.alias else {
             return Err(miette::miette!(
@@ -27,8 +29,8 @@ impl CatIndexArgs {
 
         let bare_specifier = parsed.bare_specifier.unwrap_or_else(|| "latest".to_string());
 
-        let config = state.config;
-        let registries: std::collections::HashMap<String, String> =
+        let config = config()?;
+        let registries: HashMap<String, String> =
             config.resolved_registries().into_iter().collect();
         let registry = pick_registry_for_package(&registries, &alias, None);
 
@@ -38,11 +40,24 @@ impl CatIndexArgs {
             return Err(miette::miette!("Invalid specifier for registry resolution"));
         };
 
+        let http_client = ThrottledClient::for_installs(
+            &config.proxy,
+            &config.tls,
+            &config.tls_by_uri,
+            &NetworkSettings {
+                network_concurrency: config.network_concurrency,
+                fetch_timeout: Duration::from_millis(config.fetch_timeout),
+                user_agent: config.user_agent.clone(),
+            },
+        )
+        .into_diagnostic()
+        .wrap_err("create the network client")?;
+
         let meta_cache = InMemoryPackageMetaCache::default();
         let fetch_locker = shared_packument_fetch_locker();
 
         let ctx = PickPackageContext {
-            http_client: &state.http_client,
+            http_client: &http_client,
             auth_headers: &config.auth_headers,
             meta_cache: &meta_cache,
             fetch_locker: &fetch_locker,
@@ -52,7 +67,12 @@ impl CatIndexArgs {
             ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
             full_metadata: false,
             filter_metadata: false,
-            retry_opts: pacquet_network::RetryOpts::default(),
+            retry_opts: RetryOpts {
+                retries: config.fetch_retries,
+                factor: config.fetch_retry_factor,
+                min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
+                max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
+            },
         };
 
         let opts = PickPackageOptions {
@@ -62,7 +82,9 @@ impl CatIndexArgs {
             published_by_exclude: None,
             pick_lowest_version: false,
             include_latest_tag: false,
-            dry_run: false,
+            // A read-only inspection command: skip the cache write-back that
+            // `pick_package` performs on a fresh 200 response.
+            dry_run: true,
             optional: false,
             update_checksums: false,
             blocked_versions: None,
@@ -77,11 +99,9 @@ impl CatIndexArgs {
             return Err(miette::miette!("No version found matching the specifier"));
         };
 
-        let integrity = picked
-            .dist
-            .integrity
-            .clone()
-            .unwrap_or_else(|| panic!("Package resolved without integrity"));
+        let integrity = picked.dist.integrity.clone().ok_or_else(|| {
+            miette::miette!("Package {alias} has no integrity hash in registry metadata")
+        })?;
 
         let files_index_file =
             store_index_key(&integrity.to_string(), &format!("{}@{}", alias, picked.version));
@@ -96,40 +116,43 @@ impl CatIndexArgs {
 
         let store_index = StoreIndex::open_readonly(store_dir).into_diagnostic()?;
 
-        let pkg_files_index = store_index.get(&files_index_file).into_diagnostic()?;
-
-        let Some(pkg_files_index) = pkg_files_index else {
+        let Some(pkg_files_index) = store_index.get(&files_index_file).into_diagnostic()? else {
             return Err(miette::miette!(
                 "No corresponding index file found. You can use pnpm list to see if the package is installed."
             ));
         };
 
-        // pnpm's sortDeepKeys equivalent
+        // Mirror pnpm's `sortDeepKeys`: order every nested object's keys
+        // lexicographically so the rendered index is stable and diffable.
         let mut value = serde_json::to_value(&pkg_files_index).into_diagnostic()?;
         sort_deep_keys(&mut value);
 
         let json = serde_json::to_string_pretty(&value).into_diagnostic()?;
-        println!("{json}");
+        // Ignore write errors (e.g. a closed pipe from `| head`) so the command
+        // exits cleanly instead of panicking on EPIPE.
+        let mut stdout = std::io::stdout();
+        let _ = writeln!(stdout, "{json}");
+        let _ = stdout.flush();
 
         Ok(())
     }
 }
 
 fn sort_deep_keys(value: &mut Value) {
-    if let Value::Object(map) = value {
-        let mut sorted = serde_json::Map::new();
-        let mut keys: Vec<_> = map.keys().cloned().collect();
-        keys.sort(); // Simple string comparison
-
-        for key in keys {
-            let mut val = map.remove(&key).unwrap();
-            sort_deep_keys(&mut val);
-            sorted.insert(key, val);
+    match value {
+        Value::Object(map) => {
+            let mut entries: Vec<(String, Value)> = std::mem::take(map).into_iter().collect();
+            entries.sort_unstable_by(|(left, _), (right, _)| left.cmp(right));
+            for (_, val) in &mut entries {
+                sort_deep_keys(val);
+            }
+            *map = entries.into_iter().collect();
         }
-        *map = sorted;
-    } else if let Value::Array(arr) = value {
-        for item in arr {
-            sort_deep_keys(item);
+        Value::Array(arr) => {
+            for item in arr {
+                sort_deep_keys(item);
+            }
         }
+        _ => {}
     }
 }

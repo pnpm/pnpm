@@ -24,7 +24,17 @@ fn should_cat_index_of_installed_package() {
 
     let files =
         json.get("files").expect("has 'files' object").as_object().expect("'files' is an object");
-    assert!(files.contains_key("package.json"), "package.json must be in the index");
+    let package_json = files
+        .get("package.json")
+        .expect("package.json must be in the index")
+        .as_object()
+        .expect("the package.json entry is an object");
+    for key in ["digest", "mode", "size"] {
+        assert!(
+            package_json.contains_key(key),
+            "the package.json file entry records {key:?}, got: {package_json:?}",
+        );
+    }
 
     drop(root);
 }
