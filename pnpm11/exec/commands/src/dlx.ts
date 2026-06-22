@@ -17,6 +17,7 @@ import { createHexHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { createResolver, makeResolutionStrict } from '@pnpm/installing.client'
 import { add } from '@pnpm/installing.commands'
+import { logger } from '@pnpm/logger'
 import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import type { PackageManifest, PnpmSettings, SupportedArchitectures } from '@pnpm/types'
@@ -212,8 +213,22 @@ export async function handler (
         cachedDir = completedDir
       } else {
         // Drop the partially-populated cache so a subsequent dlx run starts
-        // clean instead of reusing a broken install.
-        await fs.promises.rm(cachedDir, { recursive: true, force: true })
+        // clean instead of reusing a broken install. This is best-effort: on
+        // Windows the just-run install scripts (or antivirus) can briefly hold
+        // handles on freshly written files, so retry with backoff. A cleanup
+        // failure must never mask the original install error, which is the one
+        // worth surfacing — log it and rethrow err. A leftover prepare dir is
+        // harmless: it has a unique name and findCache only trusts the `pkg`
+        // symlink.
+        try {
+          await fs.promises.rm(cachedDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
+        } catch (cleanupErr) {
+          logger.warn({
+            error: cleanupErr as Error,
+            message: `Failed to clean up the dlx cache directory at "${cachedDir}"`,
+            prefix: cachedDir,
+          })
+        }
         throw err
       }
     }
