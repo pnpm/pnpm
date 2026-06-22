@@ -179,6 +179,24 @@ async fn removing_cached_tarball_removes_integrity_sidecar() {
 }
 
 #[tokio::test]
+async fn hosted_tarball_under_non_directory_package_path_is_an_error() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    let name = pkg("foo");
+    let storage_root = tmp.path().join("storage");
+    fs::create_dir_all(&storage_root).await.unwrap();
+    fs::write(storage_root.join("foo"), b"not a directory").await.unwrap();
+
+    let Err(err) = storage.open_hosted_tarball(&name, "foo-1.0.0.tgz").await else {
+        panic!("expected hosted tarball open to fail");
+    };
+    match err {
+        RegistryError::Io(err) => assert_eq!(err.kind(), ErrorKind::NotADirectory),
+        other => panic!("expected I/O error, got {other:?}"),
+    }
+}
+
+#[tokio::test]
 async fn temp_file_creation_retries_existing_candidate_without_overwriting() {
     let tmp = TempDir::new().unwrap();
     let final_path = tmp.path().join("foo-1.0.0.tgz");
