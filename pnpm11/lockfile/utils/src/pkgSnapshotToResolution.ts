@@ -9,11 +9,6 @@ import type { Registries } from '@pnpm/types'
 
 import { nameVerFromPkgSnapshot } from './nameVerFromPkgSnapshot.js'
 
-// A registry tarball entry that lacks an `integrity` is rejected by the npm
-// resolver's lockfile verifier (`MISSING_TARBALL_INTEGRITY`), so the read-side
-// policy enforcement lives there rather than in this pure snapshot→resolution
-// conversion. `assertFetchableResolution` (below) is the fail-closed companion that
-// must gate the *fetch* itself.
 export function pkgSnapshotToResolution (
   depPath: string,
   pkgSnapshot: PackageSnapshot,
@@ -21,9 +16,7 @@ export function pkgSnapshotToResolution (
 ): Resolution {
   const resolution = pkgSnapshot.resolution as TarballResolution
   if (resolution.tarball != null && typeof resolution.tarball !== 'string') {
-    // Lockfiles are untrusted; a non-string `tarball` (e.g. a YAML array) would otherwise be
-    // string-coerced into an attacker-controlled URL by `new url.URL(...)`, and crash the
-    // string checks below. Fail closed.
+    // Avoid URL string-coercion from malformed YAML lockfile values.
     throw new PnpmError('INVALID_TARBALL_RESOLUTION',
       `Cannot install package "${depPath}": its lockfile entry has a non-string "tarball" field.`)
   }
@@ -74,16 +67,8 @@ export function pkgSnapshotToResolution (
 }
 
 /**
- * Fail closed before a lockfile-derived resolution is handed to the store controller to
- * fetch. A registry/`http(s)` tarball (`remoteTarball`) must carry a non-empty string
- * `integrity`, otherwise its downloaded bytes can't be checked against an expected hash.
- *
- * The npm resolver's lockfile verifier enforces the same rule, but it runs in
- * parallel with fetching and some headless paths do not run it, so fetch sites
- * keep the same cheap network-free guard.
- *
- * `file:`, git-hosted, git, directory, binary and custom resolutions are anchored another
- * way (local bytes, a commit SHA) and are exempt.
+ * Rejects a lockfile-derived remote tarball before fetch when no expected
+ * integrity is available. Some fetch paths run without the npm verifier.
  */
 export function assertFetchableResolution (depPath: string, resolution: Resolution): void {
   if (classifyResolution(resolution) !== 'remoteTarball') return

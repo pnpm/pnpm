@@ -37,7 +37,7 @@ export interface ResolutionFetchContract {
   /**
    * Returns `true` when the resolution is missing data only a fetch can supply (e.g. a
    * registry tarball with no integrity), so a caller that would otherwise skip fetching
-   * (`--lockfile-only`) or reuse the store copy must fetch instead. Absent ⇒ `false`.
+   * (`--lockfile-only`) or reuse the store copy must fetch instead. Absent means `false`.
    */
   resolutionNeedsFetch?: (resolution: Resolution) => boolean
 }

@@ -266,21 +266,16 @@ async function resolveAndFetch (
         })
     )
   )
-  // `variations` picks a platform-specific fetcher inside the fetch path.
   const fetcherForResolution = resolution.type === 'variations'
     ? undefined
     : await pickFetcher(ctx.fetchers, resolution as AtomicResolution, {
       customFetchers: ctx.customFetchers,
       packageId: id,
     })
-  // A custom fetcher's `resolutionNeedsFetch` is untrusted hook input: only call it when
-  // it's actually a function, otherwise default to "no extra fetch needed" (false).
   const resolutionNeedsFetchHook = fetcherForResolution?.resolutionNeedsFetch
   const resolutionNeedsFetch = typeof resolutionNeedsFetchHook === 'function'
     ? resolutionNeedsFetchHook(resolution)
     : false
-  // Integrity computed from platform-independent tarball bytes is still needed under
-  // `--lockfile-only` and for packages not installable on this machine.
   if ((options.skipFetch === true || isInstallable === false) && !resolutionNeedsFetch && !integrityChanged && (manifest != null)) {
     return {
       body: {
@@ -306,7 +301,6 @@ async function resolveAndFetch (
     fetchRawManifest: true,
     force: integrityChanged,
     mustComputeIntegrity: resolutionNeedsFetch,
-    // Reuse the fetcher selected for the resolution; `variations` is selected at fetch time.
     pickedFetcher: fetcherForResolution,
     ignoreScripts: options.ignoreScripts,
     lockfileDir: options.lockfileDir,
@@ -334,14 +328,13 @@ async function resolveAndFetch (
         manifest = loadedManifest as unknown as DependencyManifest
       }
     }
-    // `variations` spans multiple platform variants; do not write one
-    // machine's computed integrity into the shared resolution.
+    // `variations` spans multiple platform variants; do not write one machine's
+    // computed integrity into the shared resolution.
     if (resolution.type !== 'variations' && fetchedResult.integrity != null && getExpectedIntegrity(resolution) == null) {
       (resolution as TarballResolution).integrity = fetchedResult.integrity
     }
   }
 
-  // The resolver awaits these before building lockfile snapshots and virtual-store paths.
   let fetching = fetchResult.fetching
   if (resolutionNeedsFetch) {
     let populating: Promise<PkgRequestFetchResult> | undefined
@@ -352,9 +345,7 @@ async function resolveAndFetch (
         }
         return fetchedResult
       }).catch((err: unknown) => {
-        // Only memoize a fulfilled result. Clearing the memo on rejection lets a transient
-        // fetch failure be retried instead of permanently re-rejecting, matching
-        // `fetchToStore`'s `removeKeyOnFail`.
+        // Cache only fulfilled fetches; rejected fetches may be retried.
         populating = undefined
         throw err
       })
@@ -571,14 +562,10 @@ function fetchToStore (
       const isLocalTarballDep = opts.pkg.id.startsWith('file:')
       const isLocalPkg = resolution.type === 'directory'
 
-      // Integrity-less tarballs must be downloaded to compute their lockfile integrity.
       const mustComputeIntegrity = opts.mustComputeIntegrity === true
 
-      // True only after a failed store read, so first-time downloads don't warn.
       let refetchingStoredPackage = false
 
-      // A store copy can't provide a missing lockfile integrity, so skip
-      // the store probe on this path.
       if (
         !opts.force &&
         !mustComputeIntegrity &&
@@ -599,7 +586,6 @@ function fetchToStore (
           })
           return
         }
-        // The store held the package but it failed verification.
         refetchingStoredPackage = (files?.filesMap) != null
       }
 
@@ -719,9 +705,6 @@ async function fetcher (
   pickedFetcher?: PickedFetcher
 ): Promise<FetchResult> {
   try {
-    // Reuse the fetcher the caller already selected for this resolution; only run
-    // `pickFetcher` here when it wasn't pre-picked (e.g. a `variations` variant, whose
-    // fetcher is chosen at fetch time, or a direct `fetchPackage` caller).
     const fetch = pickedFetcher ?? await pickFetcher(fetcherByHostingType, resolution, {
       customFetchers,
       packageId,

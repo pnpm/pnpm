@@ -180,13 +180,9 @@ export function createNpmResolutionVerifier (
   const trustPolicyIgnoreAfter = opts.trustPolicyIgnoreAfter
 
   const verify: ResolutionVerifier['verify'] = async (resolution, { name, version, nonSemverVersion }) => {
-    // Git / directory / binary / custom / file: / git-hosted resolutions anchor their
-    // bytes another way (a commit SHA, a local path) and are exempt from the
-    // registry-tarball checks.
     if (!isRegistryTarballResolution(resolution)) return { ok: true }
 
-    // This check is network-free, so it must run before the URL-keyed and
-    // semver short-circuits below.
+    // Network-free structural checks must run before registry metadata shortcuts.
     const integrity = (resolution as { integrity?: unknown }).integrity
     if (typeof integrity !== 'string' || integrity.length === 0) {
       return {
@@ -196,13 +192,8 @@ export function createNpmResolutionVerifier (
       }
     }
 
-    // URL-keyed entries are deliberate non-registry deps: integrity above already binds
-    // their bytes, and the registry policy checks below (tarball-URL binding, age, trust)
-    // would 404 against a non-registry origin, so stop here.
     if (nonSemverVersion != null) return { ok: true }
 
-    // A registry-keyed entry needs a semver version so its tarball URL can
-    // be bound to registry metadata instead of silently skipping origin checks.
     if (!semver.valid(version)) {
       return {
         ok: false,
@@ -211,9 +202,6 @@ export function createNpmResolutionVerifier (
       }
     }
 
-    // A tampered lockfile could carry a non-string `tarball` (e.g. a YAML array that
-    // stringifies to an attacker URL once `pkgSnapshotToResolution` coerces it). Fail
-    // closed rather than silently skipping the URL-binding check below.
     const rawTarball = (resolution as { tarball?: unknown }).tarball
     if (rawTarball != null && typeof rawTarball !== 'string') {
       return {
@@ -949,9 +937,7 @@ function isExcluded (policy: PackageVersionPolicy | undefined, name: string, ver
   return false
 }
 
-// Canonical registry entries may omit both `tarball` and `integrity`, so this
-// classifies by exemption: typed, non-http, and URL-recognized git-hosted
-// resolutions are outside the npm registry verifier.
+// Canonical registry entries may omit both `tarball` and `integrity`.
 function isRegistryTarballResolution (resolution: Resolution | unknown): boolean {
   if (resolution == null || typeof resolution !== 'object') return false
   if ('type' in resolution && (resolution as { type?: unknown }).type != null) return false

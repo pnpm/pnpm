@@ -148,11 +148,6 @@ function getPathSegments (url: URL): string[] {
   return url.pathname.split('/').filter(Boolean)
 }
 
-/**
- * The kind of source a resolution points at — used by fetcher selection (`pickFetcher`).
- * `'custom'` covers `custom:*` resolution types (served by custom fetchers) and any other
- * non-built-in shape.
- */
 export type ResolutionKind =
   | 'localTarball'
   | 'gitHostedTarball'
@@ -163,21 +158,15 @@ export type ResolutionKind =
   | 'custom'
 
 /**
- * Classifies a resolution by the kind of source it points at. A tarball-shaped
- * resolution (no `type`) is a `remoteTarball` unless its URL marks it as local
- * (`file:`) or git-hosted. A canonical registry entry whose tarball URL was omitted
- * (reconstructed later from name/version/registry) still classifies as `remoteTarball`.
+ * Classifies a resolution for fetcher selection. Lockfile-provided flags are
+ * treated as hints; integrity exemptions depend on the resolved source shape.
  */
 export function classifyResolution (resolution: Resolution): ResolutionKind {
-  // `== null` so a tarball entry deserialized from YAML with `type: null` is treated the
-  // same as an absent `type`, instead of falling through to `custom`.
   if (resolution.type == null) {
-    // Non-string tarballs stay in the remote-tarball path, where the verifier rejects them.
     const tarball = typeof (resolution as { tarball?: unknown }).tarball === 'string'
       ? (resolution as { tarball: string }).tarball
       : undefined
     if (tarball?.startsWith('file:')) return 'localTarball'
-    // `gitHosted` is lockfile input; only the archive URL classifies a tarball as git-hosted.
     if (tarball != null && isGitHostedTarballUrl(tarball)) {
       return 'gitHostedTarball'
     }

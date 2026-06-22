@@ -104,7 +104,7 @@ test('pkgSnapshotToResolution()', () => {
 
 test('pkgSnapshotToResolution() converts git-hosted and file: tarball snapshots', () => {
   // The integrity requirement for registry tarballs is enforced by the npm
-  // resolver's lockfile verifier, not here — this pure conversion returns
+  // resolver's lockfile verifier, not here; this pure conversion returns
   // git-hosted (commit-anchored) and file: (local) tarballs as-is.
   expect(pkgSnapshotToResolution('foo@https+++github.com+foo+bar', {
     resolution: {
