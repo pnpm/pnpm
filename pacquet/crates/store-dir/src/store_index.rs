@@ -649,6 +649,31 @@ impl StoreIndex {
         Ok(out)
     }
 
+    /// Visit every raw `package_index` row without first collecting the
+    /// full key set. This mirrors pnpm's `StoreIndex.entries()` shape while
+    /// leaving decode policy to the caller.
+    pub fn for_each_raw<VisitError>(
+        &self,
+        mut visit: impl FnMut(String, Vec<u8>) -> Result<(), VisitError>,
+    ) -> Result<(), VisitError>
+    where
+        VisitError: From<StoreIndexError>,
+    {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT key, data FROM package_index")
+            .map_err(|source| VisitError::from(StoreIndexError::Read { source }))?;
+        let rows = stmt
+            .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?)))
+            .map_err(|source| VisitError::from(StoreIndexError::Read { source }))?;
+        for row in rows {
+            let (key, data) =
+                row.map_err(|source| VisitError::from(StoreIndexError::Read { source }))?;
+            visit(key, data)?;
+        }
+        Ok(())
+    }
+
     /// Batched existence probe: the subset of `keys` that have a row in
     /// `package_index`. Same chunked `WHERE key IN` shape (and SQL-injection
     /// posture) as [`Self::get_many_raw`], but selects only the key column,

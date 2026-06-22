@@ -1,6 +1,6 @@
 use super::{
-    CafsFileInfo, GET_MANY_CHUNK, PackageFilesIndex, StoreIndex, git_hosted_store_index_key,
-    immutable_sqlite_uri, pick_store_index_key, store_index_key,
+    CafsFileInfo, GET_MANY_CHUNK, PackageFilesIndex, StoreIndex, StoreIndexError,
+    git_hosted_store_index_key, immutable_sqlite_uri, pick_store_index_key, store_index_key,
 };
 use crate::StoreDir;
 use pretty_assertions::assert_eq;
@@ -252,6 +252,30 @@ fn get_many_all_hit_returns_every_row() {
     for key in &keys {
         assert_eq!(out.get(key), Some(&payload));
     }
+}
+
+#[test]
+fn for_each_raw_visits_every_row() {
+    let dir = tempdir().unwrap();
+    let idx = StoreIndex::open(dir.path()).unwrap();
+    let payload = sample_index();
+    let mut keys: Vec<String> =
+        (0..3).map(|index| store_index_key("sha512-x", &format!("pkg{index}@1.0.0"))).collect();
+    for key in &keys {
+        idx.set(key, &payload).unwrap();
+    }
+
+    let mut visited = Vec::new();
+    idx.for_each_raw(|key, data| {
+        assert!(!data.is_empty());
+        visited.push(key);
+        Ok::<(), StoreIndexError>(())
+    })
+    .unwrap();
+
+    keys.sort();
+    visited.sort();
+    assert_eq!(visited, keys);
 }
 
 #[test]
