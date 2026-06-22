@@ -9,8 +9,8 @@ use pretty_assertions::assert_eq;
 use ssri::Integrity;
 
 use super::{
-    CreateNpmResolutionVerifierOptions, create_npm_resolution_verifier, observed_dist_stats_sink,
-    redact_url_credentials,
+    CreateNpmResolutionVerifierOptions, FetchMetadataError, create_npm_resolution_verifier,
+    describe_meta_fetch_error, observed_dist_stats_sink, redact_url_credentials,
 };
 
 const FAKE_INTEGRITY: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
@@ -1183,4 +1183,13 @@ fn redact_url_credentials_strips_embedded_basic_auth() {
     // A bare "://" with no preceding scheme character is not treated as a URL
     // authority, so an "@" further along is preserved.
     assert_eq!(redact_url_credentials("a :// b@c"), "a :// b@c");
+}
+
+#[test]
+fn describe_meta_fetch_error_falls_back_to_redacted_message_when_no_http_status() {
+    // An error without an HTTP status (here a 304-without-cache failure) has no
+    // structured status to report, so the description falls back to the
+    // credential-redacted Display message rather than the bare status line.
+    let err = FetchMetadataError::NotModifiedWithoutCache { pkg_name: "acme".to_string() };
+    assert_eq!(describe_meta_fetch_error(&err), err.to_string());
 }
