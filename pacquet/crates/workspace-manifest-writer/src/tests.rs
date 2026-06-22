@@ -328,3 +328,29 @@ fn set_allow_builds_replaces_a_symlinked_manifest_without_following_it() {
         "allowBuilds:\n  esbuild: true\n",
     );
 }
+
+#[test]
+fn allow_builds_upserts_a_key_containing_a_colon() {
+    // Artifact allow-build keys keep the full pkgId, which contains `:`
+    // (e.g. a tarball/git URL). The upsert must find and toggle the
+    // existing entry instead of appending a duplicate — which a
+    // first-colon line scan would do by truncating the key.
+    let key = "foo@https://example.com/foo.tgz";
+    let original = format!("allowBuilds:\n  '{key}': false\n");
+    let out = run_allow_builds(Some(&original), &[(key, true)]).expect("file written");
+    assert_eq!(out, format!("allowBuilds:\n  '{key}': true\n"));
+    assert_eq!(out.matches(key).count(), 1, "exactly one entry, no duplicate: {out}");
+}
+
+#[test]
+fn allow_builds_creates_and_round_trips_a_colon_key() {
+    let key = "foo@https://example.com/foo.tgz";
+    let created = run_allow_builds(None, &[(key, true)]).expect("file written");
+    assert!(created.contains(key), "key written verbatim: {created}");
+    // Re-upserting the same value is a no-op (the entry is found, not duplicated).
+    let same = run_allow_builds(Some(&created), &[(key, true)]);
+    assert_eq!(same.as_deref(), Some(created.as_str()), "idempotent: {created}");
+    // Toggling flips the existing entry rather than appending a duplicate.
+    let toggled = run_allow_builds(Some(&created), &[(key, false)]).expect("written");
+    assert_eq!(toggled.matches(key).count(), 1, "no duplicate after toggle: {toggled}");
+}

@@ -164,8 +164,7 @@ where
 
     let mut changed = false;
     for (name, value) in entries {
-        changed |= edit::add_allow_build(&mut manifest, name, value)
-            .map_err(|source| UpdateWorkspaceManifestError::Edit { path: path.clone(), source })?;
+        changed |= edit::add_allow_build(&mut manifest, name, value);
     }
     if !changed {
         return Ok(());

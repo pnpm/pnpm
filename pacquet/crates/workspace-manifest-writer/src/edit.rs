@@ -81,11 +81,7 @@ pub(crate) fn add_config_dependency(
 /// [`writeSettings`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/writer/src/index.ts),
 /// which `pnpm approve-builds` calls with each approved package set to
 /// `true` and each denied/unselected package set to `false`.
-pub(crate) fn add_allow_build(
-    manifest: &mut Manifest,
-    name: &str,
-    value: bool,
-) -> Result<bool, Box<yamlpatch::Error>> {
+pub(crate) fn add_allow_build(manifest: &mut Manifest, name: &str, value: bool) -> bool {
     const BLOCK: &str = "allowBuilds";
     let text = manifest.text();
     let changed = if let Some(mapping) = locate(text, &[BLOCK]) {
@@ -93,9 +89,9 @@ pub(crate) fn add_allow_build(
             // Already present with the same value — a true no-op, so don't
             // rewrite the file (which would bump its mtime).
             if manifest.allow_builds.as_ref().and_then(|builds| builds.get(name)) == Some(&value) {
-                return Ok(false);
+                return false;
             }
-            let new_text = replace_scalar_at(text, &[BLOCK], name, value.into())?;
+            let new_text = replace_bool_value_at(text, &[BLOCK], name, value);
             manifest.set_text(new_text);
         } else {
             let new_text = insert_rendered_entry_at(text, &[BLOCK], name, render_bool(value));
@@ -113,7 +109,7 @@ pub(crate) fn add_allow_build(
     // Keep the decoded view in sync so later upserts in the same write see
     // this entry (for both no-op detection and block-presence checks).
     manifest.allow_builds.get_or_insert_with(IndexMap::new).insert(name.to_string(), value);
-    Ok(changed)
+    changed
 }
 
 fn render_bool(value: bool) -> &'static str {
@@ -444,6 +440,8 @@ struct Mapping {
 /// One direct child entry of a mapping.
 struct EntryPos {
     key: String,
+    /// Byte offset where this entry's line begins.
+    line_start: usize,
     /// Byte offset just past this entry's line (after its newline).
     line_end: usize,
     /// Byte offset where this entry's whole sub-block ends (for nested maps).
@@ -486,13 +484,54 @@ fn structural_indent(content: &str) -> Option<usize> {
 }
 
 /// The mapping-key a structural line declares (`key:` or `key: value`), if any.
+///
+/// The key/value delimiter is the first `:` that ends the line or is followed
+/// by whitespace — a `:` inside the value, or inside a key (quoted or not,
+/// e.g. an `allowBuilds` artifact key like `foo@https://example.com/foo.tgz`),
+/// is not the delimiter. Splitting on the first `:` would truncate such keys.
 fn line_key(content: &str) -> Option<String> {
     let trimmed = content.trim_start();
-    let key = trimmed.split_once(':')?.0.trim_end();
+    let delimiter = structural_colon_index(trimmed)?;
+    let key = trimmed[..delimiter].trim_end();
     if key.is_empty() {
         return None;
     }
     Some(strip_quotes(key))
+}
+
+/// Byte offset of the YAML key/value delimiter in `line`: the first `:` that
+/// ends the line or is followed by whitespace. A `:` inside a value or key
+/// (e.g. `foo@https://...`) is not the delimiter.
+fn structural_colon_index(line: &str) -> Option<usize> {
+    let bytes = line.as_bytes();
+    (0..bytes.len())
+        .find(|&idx| bytes[idx] == b':' && bytes.get(idx + 1).is_none_or(u8::is_ascii_whitespace))
+}
+
+/// Rewrite the scalar value of `key`'s existing entry under `path` in place,
+/// preserving the key's text/quoting and any trailing comment. Used for
+/// `allowBuilds` instead of the `yamlpatch` route, which rejects a key
+/// containing `:` (an artifact pkgId such as `foo@https://example.com/foo.tgz`).
+fn replace_bool_value_at(text: &str, path: &[&str], key: &str, value: bool) -> String {
+    let mapping = locate(text, path).expect("mapping exists");
+    let entry = mapping.entries.iter().find(|entry| entry.key == key).expect("entry exists");
+    let line = &text[entry.line_start..entry.line_end];
+    let content = line.strip_suffix('\n').unwrap_or(line);
+    let indent_len = content.len() - content.trim_start().len();
+    let colon = indent_len
+        + structural_colon_index(&content[indent_len..]).expect("entry line has a delimiter");
+    let key_text = content[..colon].trim_end();
+    // Preserve any trailing comment after the value token.
+    let after = content[colon + 1..].trim_start();
+    let value_end = after.find(char::is_whitespace).unwrap_or(after.len());
+    let trailing = &after[value_end..];
+    let new_line = format!("{key_text}: {}{trailing}\n", render_bool(value));
+
+    let mut out = String::with_capacity(text.len());
+    out.push_str(&text[..entry.line_start]);
+    out.push_str(&new_line);
+    out.push_str(&text[entry.line_end..]);
+    out
 }
 
 fn strip_quotes(key: &str) -> String {
@@ -563,7 +602,12 @@ fn collect_entries(all: &[Line<'_>], from: usize, to: usize, entry_indent: usize
                 })
                 .unwrap_or(to);
             let block_end = all.get(block_end_idx).map_or(all[to - 1].end, |line| line.start);
-            entries.push(EntryPos { key, line_end: all[idx].end, block_end });
+            entries.push(EntryPos {
+                key,
+                line_start: all[idx].start,
+                line_end: all[idx].end,
+                block_end,
+            });
             idx = block_end_idx;
         } else {
             idx += 1;
