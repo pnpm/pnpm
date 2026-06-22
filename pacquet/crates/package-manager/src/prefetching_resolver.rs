@@ -27,19 +27,25 @@ use crate::{
     install_package_from_registry::{extract_tarball, manifest_file_count, manifest_unpacked_size},
     retry_config::retry_opts_from_config,
 };
-use dashmap::DashSet;
+use dashmap::{DashMap, DashSet};
 use pacquet_config::Config;
+use pacquet_lockfile::{LockfileResolution, is_git_hosted_tarball_url};
 use pacquet_network::{AuthHeaders, ThrottledClient};
-use pacquet_reporter::Reporter;
+use pacquet_reporter::{Reporter, SilentReporter};
 use pacquet_resolving_resolver_base::{
-    LatestQuery, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver,
-    WantedDependency,
+    LatestQuery, ResolveError, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult,
+    Resolver, WantedDependency,
 };
 use pacquet_store_dir::{
     SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreDir, StoreIndexWriter,
 };
-use pacquet_tarball::{DownloadTarballToStore, MemCache, RetryOpts, SharedReportedProgressKeys};
+use pacquet_tarball::{
+    DownloadTarballToStore, FetchTarballForResolution, MemCache, RetryOpts,
+    SharedReportedProgressKeys,
+};
+use ssri::Integrity;
 use std::{marker::PhantomData, sync::Arc};
+use tokio::sync::OnceCell;
 
 /// Borrowed-data bag handed to [`PrefetchingResolver::new`]. Everything
 /// the wrapper needs to drive a background tarball download:
@@ -92,6 +98,10 @@ struct OwnedFetchCtx {
     /// without this gate the bench saw ~3-5k redundant spawns per
     /// install on the alotta-files fixture (one per dependent edge).
     spawned_urls: Arc<DashSet<String>>,
+    /// Per-URL singleflight cache for integrity-less tarballs. The first
+    /// edge downloads and computes the integrity; later edges await the
+    /// same cell instead of fetching the URL again.
+    integrity_cache: Arc<DashMap<String, Arc<OnceCell<Integrity>>>>,
 }
 
 /// Wraps an inner [`Resolver`] and, after each successful resolve that
@@ -146,8 +156,69 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             verify_store_integrity: config.verify_store_integrity,
             progress_reported: SharedReportedProgressKeys::clone(progress_reported),
             spawned_urls: Arc::new(DashSet::new()),
+            integrity_cache: Arc::new(DashMap::new()),
         };
         PrefetchingResolver { inner, ctx, _phantom: PhantomData }
+    }
+
+    /// Populate remote tarball resolutions whose integrity can only be
+    /// learned from the downloaded bytes. `file:` and git-hosted tarballs
+    /// are anchored by local bytes or a commit SHA and remain unchanged.
+    async fn populate_missing_integrity(
+        &self,
+        result: &mut ResolveResult,
+    ) -> Result<(), ResolveError> {
+        let LockfileResolution::Tarball(tarball) = &result.resolution else {
+            return Ok(());
+        };
+        if tarball.integrity.is_some()
+            // git-hosted tarballs are anchored by their commit SHA, not an integrity. Detect
+            // them by URL, NOT by the `git_hosted` flag: the flag is tamper-prone lockfile
+            // input, so trusting it would let a forged `git_hosted: true` on an arbitrary URL
+            // skip the integrity computation. A real git-hosted archive (codeload/gitlab/
+            // bitbucket) always has a matching URL.
+            || is_git_hosted_tarball_url(&tarball.tarball)
+            || tarball.tarball.starts_with("file:")
+        {
+            return Ok(());
+        }
+        let package_url = tarball.tarball.clone();
+        // Scope credentials are selected from `name@version` when the
+        // resolver knows it; direct URL tarballs fall back to URL identity.
+        let package_id = result
+            .name_ver
+            .as_ref()
+            .map_or_else(|| package_url.clone(), |nv| format!("{}@{}", nv.name, nv.suffix));
+
+        // Singleflight per URL: the same integrity-less tarball can arrive on many edges,
+        // so compute its integrity once and share it. Clone the cell's `Arc` out of the map
+        // before awaiting so the shard lock isn't held across the download.
+        let cell = Arc::clone(&self.ctx.integrity_cache.entry(package_url.clone()).or_default());
+        let integrity = cell
+            .get_or_try_init(|| async {
+                // This fetch warms the mem cache, so the prefetch path should not
+                // spawn another task for the same URL.
+                self.ctx.spawned_urls.insert(package_url.clone());
+                let resolved = FetchTarballForResolution {
+                    http_client: &self.ctx.http_client,
+                    store_dir: self.ctx.store_dir,
+                    store_index_writer: self.ctx.store_index_writer.clone(),
+                    package_url: &package_url,
+                    package_id: &package_id,
+                    auth_headers: &self.ctx.auth_headers,
+                    retry_opts: self.ctx.retry_opts,
+                }
+                .run::<SilentReporter>(Some(&self.ctx.mem_cache))
+                .await
+                .map_err(|err| Box::new(err) as ResolveError)?;
+                Ok::<_, ResolveError>(resolved.integrity)
+            })
+            .await?
+            .clone();
+        if let LockfileResolution::Tarball(tarball) = &mut result.resolution {
+            tarball.integrity = Some(integrity);
+        }
+        Ok(())
     }
 
     /// Inspect a fresh `ResolveResult` and, if it carries a tarball
@@ -263,9 +334,10 @@ impl<Reporter: self::Reporter + 'static> Resolver for PrefetchingResolver<Report
         opts: &'a ResolveOptions,
     ) -> ResolveFuture<'a> {
         Box::pin(async move {
-            let result = self.inner.resolve(wanted_dependency, opts).await?;
-            if let Some(result_ref) = result.as_ref() {
-                self.maybe_kickoff_download(result_ref);
+            let mut result = self.inner.resolve(wanted_dependency, opts).await?;
+            if let Some(result_mut) = result.as_mut() {
+                self.populate_missing_integrity(result_mut).await?;
+                self.maybe_kickoff_download(result_mut);
             }
             Ok(result)
         })

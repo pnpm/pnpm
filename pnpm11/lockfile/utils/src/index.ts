@@ -5,8 +5,9 @@ export { packageIdFromSnapshot } from './packageIdFromSnapshot.js'
 export { packageIsIndependent } from './packageIsIndependent.js'
 export { pkgSnapshotToResolution } from './pkgSnapshotToResolution.js'
 export { refIsLocalDirectory, refIsLocalTarball } from './refIsLocalTarball.js'
-export { isGitHostedTarballUrl, toLockfileResolution } from './toLockfileResolution.js'
+export { toLockfileResolution } from './toLockfileResolution.js'
 export * from '@pnpm/lockfile.types'
+export { isGitHostedTarballUrl } from '@pnpm/resolving.resolver-base'
 
 // for backward compatibility
 export const getPkgShortId = refToRelative

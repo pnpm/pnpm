@@ -590,3 +590,32 @@ describe('custom fetcher implementation examples', () => {
     })
   })
 })
+
+test('remoteTarball fetcher reports resolutionNeedsFetch from the integrity', () => {
+  const fetchers = createTarballFetcher(createFetchFromRegistry({}), () => undefined, { storeIndex })
+  expect(fetchers.remoteTarball.resolutionNeedsFetch?.(createMockResolution({ tarball: 'http://x/p.tgz' }))).toBe(true)
+  expect(fetchers.remoteTarball.resolutionNeedsFetch?.(createMockResolution({ tarball: 'http://x/p.tgz', integrity: 'sha512-x' }))).toBe(false)
+  // Empty/non-string integrity from a tampered lockfile counts as missing.
+  expect(fetchers.remoteTarball.resolutionNeedsFetch?.(createMockResolution({ tarball: 'http://x/p.tgz', integrity: '' }))).toBe(true)
+  expect(fetchers.remoteTarball.resolutionNeedsFetch?.(createMockResolution({ tarball: 'http://x/p.tgz', integrity: true }))).toBe(true)
+  // file: and git-hosted tarballs are anchored otherwise and don't force a fetch.
+  expect(fetchers.localTarball.resolutionNeedsFetch).toBeUndefined()
+  expect(fetchers.gitHostedTarball.resolutionNeedsFetch).toBeUndefined()
+})
+
+test('pickFetcher() forwards a custom fetcher resolutionNeedsFetch hook bound to the fetcher', async () => {
+  const customFetcher = {
+    marker: 'mine',
+    canFetch: () => true,
+    fetch: jest.fn() as unknown as CustomFetcher['fetch'],
+    resolutionNeedsFetch (this: { marker: string }): boolean {
+      return this.marker === 'mine'
+    },
+  }
+  const picked = await pickFetcher(
+    createMockFetchers(),
+    createMockResolution({ tarball: 'http://example.com/p.tgz' }),
+    { customFetchers: [customFetcher as unknown as CustomFetcher], packageId: 'p@1.0.0' }
+  ) as FetchFunction
+  expect(picked.resolutionNeedsFetch?.(createMockResolution({}))).toBe(true)
+})

@@ -40,7 +40,6 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/fetching.pick-fetcher": "workspace:*",
     "@pnpm/fs.packlist": "workspace:*",
     "@pnpm/installing.commands": "workspace:*",
     "@pnpm/installing.modules-yaml": "workspace:*",

@@ -1,8 +1,18 @@
 import { PnpmError } from '@pnpm/error'
-import type { BinaryFetcher, DirectoryFetcher, Fetchers, FetchFunction, FetchOptions, GitFetcher } from '@pnpm/fetching.fetcher-base'
+import type {
+  BinaryFetcher,
+  DirectoryFetcher,
+  Fetchers,
+  FetchFunction,
+  FetchOptions,
+  FetchResult,
+  GitFetcher,
+} from '@pnpm/fetching.fetcher-base'
 import type { CustomFetcher } from '@pnpm/hooks.types'
-import type { AtomicResolution } from '@pnpm/resolving.resolver-base'
+import { type AtomicResolution, classifyResolution } from '@pnpm/resolving.resolver-base'
 import type { Cafs } from '@pnpm/store.cafs-types'
+
+export type PickedFetcher = FetchFunction | DirectoryFetcher | GitFetcher | BinaryFetcher
 
 export async function pickFetcher (
   fetcherByHostingType: Fetchers,
@@ -11,7 +21,7 @@ export async function pickFetcher (
     customFetchers?: CustomFetcher[]
     packageId: string
   }
-): Promise<FetchFunction | DirectoryFetcher | GitFetcher | BinaryFetcher> {
+): Promise<PickedFetcher> {
   // Try custom fetcher hooks first if available
   // Custom fetchers act as complete fetcher replacements
   if (opts?.customFetchers && opts.customFetchers.length > 0) {
@@ -21,41 +31,23 @@ export async function pickFetcher (
         const canFetch = await customFetcher.canFetch(opts.packageId, resolution)
 
         if (canFetch) {
-          // Return a wrapper FetchFunction that calls the custom fetcher's fetch method
-          // The custom fetcher's fetch receives cafs, resolution, opts, and the standard fetchers for delegation
-          return async (cafs: Cafs, resolution: AtomicResolution, fetchOpts: FetchOptions) => {
-            return customFetcher.fetch!(cafs, resolution, fetchOpts, fetcherByHostingType)
-          }
+          // Preserve `this` for custom fetchers that implement their optional
+          // resolution contract as a method.
+          const resolutionNeedsFetch = typeof customFetcher.resolutionNeedsFetch === 'function'
+            ? customFetcher.resolutionNeedsFetch.bind(customFetcher)
+            : undefined
+          return Object.assign(
+            async (cafs: Cafs, resolution: AtomicResolution, fetchOpts: FetchOptions): Promise<FetchResult> =>
+              customFetcher.fetch!(cafs, resolution, fetchOpts, fetcherByHostingType),
+            { resolutionNeedsFetch }
+          ) as FetchFunction
         }
       }
     }
   }
 
-  // No custom fetcher handled the fetch, use standard fetcher selection
-  let fetcherType: keyof Fetchers | undefined
-
-  // Determine the fetcher type based on resolution
-  if (resolution.type == null) {
-    // Tarball resolution without explicit type
-    if ('tarball' in resolution && resolution.tarball) {
-      if (resolution.tarball.startsWith('file:')) {
-        fetcherType = 'localTarball'
-      } else if (
-        ('gitHosted' in resolution && resolution.gitHosted === true) ||
-        // URL fallback for resolutions that didn't go through the resolver or
-        // the lockfile loader (e.g., constructed ad-hoc).
-        isGitHostedPkgUrl(resolution.tarball)
-      ) {
-        fetcherType = 'gitHostedTarball'
-      } else {
-        fetcherType = 'remoteTarball'
-      }
-    }
-  } else if (resolution.type === 'directory' || resolution.type === 'git' || resolution.type === 'binary') {
-    // Standard resolution types that map directly to fetchers
-    fetcherType = resolution.type
-  } else {
-    // Custom resolution type that wasn't handled by any custom fetcher
+  const fetcherType = classifyResolution(resolution)
+  if (fetcherType === 'custom') {
     throw new PnpmError(
       'UNSUPPORTED_RESOLUTION_TYPE',
       `Cannot fetch dependency with custom resolution type "${resolution.type}". ` +
@@ -63,19 +55,11 @@ export async function pickFetcher (
     )
   }
 
-  const fetch = fetcherType != null ? fetcherByHostingType[fetcherType] : undefined
+  const fetch = fetcherByHostingType[fetcherType]
 
   if (!fetch) {
     throw new Error(`Fetching for dependency type "${resolution.type ?? 'tarball'}" is not supported`)
   }
 
   return fetch
-}
-
-export function isGitHostedPkgUrl (url: string): boolean {
-  return (
-    url.startsWith('https://codeload.github.com/') ||
-    url.startsWith('https://bitbucket.org/') ||
-    url.startsWith('https://gitlab.com/')
-  ) && url.includes('tar.gz')
 }

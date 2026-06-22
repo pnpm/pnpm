@@ -2291,6 +2291,9 @@ pub struct FetchTarballForResolution<'a> {
     pub store_dir: &'static StoreDir,
     pub store_index_writer: Option<Arc<StoreIndexWriter>>,
     pub package_url: &'a str,
+    /// Package identity used for scoped auth lookup and the intermediate
+    /// store-index cache key.
+    pub package_id: &'a str,
     pub auth_headers: &'a AuthHeaders,
     pub retry_opts: RetryOpts,
 }
@@ -2305,25 +2308,21 @@ impl FetchTarballForResolution<'_> {
             store_dir,
             store_index_writer,
             package_url,
+            package_id,
             auth_headers,
             retry_opts,
         } = self;
 
-        // `None` expected-integrity → compute it from the bytes. The
-        // package_id / requester are the post-redirect URL: the real
-        // `name@version` is only known once the manifest is read below,
-        // and the resolve-time fetch is silent (the install pass owns
-        // the reporter ordering), so the placeholder never surfaces.
-        // `UNPRIORITIZED`: this fetch gates the resolver's walk (a
-        // tarball dep's manifest comes from its archive), so like a
-        // packument fetch it must not queue behind sized downloads.
+        // Resolve-time tarball fetches compute integrity from bytes and
+        // gate the dependency walk, so they use the same priority class as
+        // packument requests instead of queuing behind sized downloads.
         let (integrity, cas_paths, pkg_files_idx) = fetch_and_extract_with_retry::<Reporter>(
             http_client,
             package_url,
             None,
             None,
             UNPRIORITIZED,
-            package_url,
+            package_id,
             package_url,
             store_dir,
             retry_opts,

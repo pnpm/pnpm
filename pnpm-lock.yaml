@@ -5547,6 +5547,9 @@ importers:
       '@pnpm/core-loggers':
         specifier: workspace:*
         version: link:../../core/core-loggers
+      '@pnpm/error':
+        specifier: workspace:*
+        version: link:../../core/error
       '@pnpm/installing.modules-yaml':
         specifier: workspace:*
         version: link:../modules-yaml
@@ -7458,9 +7461,6 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
-      '@pnpm/fetching.pick-fetcher':
-        specifier: workspace:*
-        version: link:../../fetching/pick-fetcher
       '@pnpm/fs.packlist':
         specifier: workspace:*
         version: link:../../fs/packlist
@@ -8890,6 +8890,9 @@ importers:
         specifier: workspace:*
         version: link:../../core/types
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.4.1
       '@pnpm/resolving.resolver-base':
         specifier: workspace:*
         version: 'link:'

@@ -83,6 +83,105 @@ export interface VariationsResolution {
 
 export type Resolution = AtomicResolution | VariationsResolution
 
+const GIT_COMMIT_SHA = /^[0-9a-f]{40}$/i
+
+/**
+ * A tarball URL is git-hosted when it points at a known git provider's immutable
+ * archive endpoint. The result gates integrity exemptions, so the match is
+ * limited to provider-specific path shapes whose ref is a full commit SHA.
+ */
+export function isGitHostedTarballUrl (url: string): boolean {
+  if (typeof url !== 'string') return false
+  let parsedUrl: URL
+  try {
+    parsedUrl = new URL(url)
+  } catch {
+    return false
+  }
+  if (parsedUrl.protocol !== 'https:') return false
+  switch (parsedUrl.hostname.toLowerCase()) {
+    case 'codeload.github.com':
+      return isGitHubCodeloadArchive(parsedUrl)
+    case 'bitbucket.org':
+      return isBitbucketArchive(parsedUrl)
+    case 'gitlab.com':
+      return isGitLabArchive(parsedUrl)
+    default:
+      return false
+  }
+}
+
+function isGitHubCodeloadArchive (url: URL): boolean {
+  const segments = getPathSegments(url)
+  return segments.length === 4 && segments[2] === 'tar.gz' && GIT_COMMIT_SHA.test(segments[3])
+}
+
+function isBitbucketArchive (url: URL): boolean {
+  const segments = getPathSegments(url)
+  if (segments.length !== 4 || segments[2] !== 'get' || !segments[3].endsWith('.tar.gz')) return false
+  return GIT_COMMIT_SHA.test(segments[3].slice(0, -'.tar.gz'.length))
+}
+
+function isGitLabArchive (url: URL): boolean {
+  const segments = getPathSegments(url)
+  if (segments.length === 6 &&
+    segments[0] === 'api' &&
+    segments[1] === 'v4' &&
+    segments[2] === 'projects' &&
+    segments[4] === 'repository' &&
+    segments[5] === 'archive.tar.gz') {
+    return GIT_COMMIT_SHA.test(url.searchParams.get('ref') ?? '')
+  }
+
+  const archiveMarkerIndex = segments.findIndex((segment, index) =>
+    segment === '-' && segments[index + 1] === 'archive'
+  )
+  if (archiveMarkerIndex < 2) return false
+  const ref = segments[archiveMarkerIndex + 2]
+  const archiveName = segments[archiveMarkerIndex + 3]
+  return segments.length === archiveMarkerIndex + 4 &&
+    archiveName?.endsWith('.tar.gz') === true &&
+    GIT_COMMIT_SHA.test(ref)
+}
+
+function getPathSegments (url: URL): string[] {
+  return url.pathname.split('/').filter(Boolean)
+}
+
+export type ResolutionKind =
+  | 'localTarball'
+  | 'gitHostedTarball'
+  | 'remoteTarball'
+  | 'directory'
+  | 'git'
+  | 'binary'
+  | 'custom'
+
+/**
+ * Classifies a resolution for fetcher selection. Lockfile-provided flags are
+ * treated as hints; integrity exemptions depend on the resolved source shape.
+ */
+export function classifyResolution (resolution: Resolution): ResolutionKind {
+  if (resolution.type == null) {
+    const tarball = typeof (resolution as { tarball?: unknown }).tarball === 'string'
+      ? (resolution as { tarball: string }).tarball
+      : undefined
+    if (tarball?.startsWith('file:')) return 'localTarball'
+    if (tarball != null && isGitHostedTarballUrl(tarball)) {
+      return 'gitHostedTarball'
+    }
+    return 'remoteTarball'
+  }
+  switch (resolution.type) {
+    case 'directory':
+    case 'git':
+    case 'binary':
+      return resolution.type
+    default:
+      return 'custom'
+  }
+}
+
 /**
  * Outcome of asking a `ResolutionVerifier` whether a (name, version,
  * resolution) entry from a lockfile is acceptable under whatever policies

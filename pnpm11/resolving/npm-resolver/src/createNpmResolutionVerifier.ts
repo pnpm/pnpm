@@ -4,9 +4,10 @@ import { FULL_META_DIR } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import type { GetAuthHeader } from '@pnpm/fetching.types'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
-import type {
-  Resolution,
-  ResolutionVerifier,
+import {
+  isGitHostedTarballUrl,
+  type Resolution,
+  type ResolutionVerifier,
 } from '@pnpm/resolving.resolver-base'
 import type { PackageVersionPolicy, Registries, TrustPolicy } from '@pnpm/types'
 import semver from 'semver'
@@ -25,6 +26,7 @@ import { getPkgMetaCacheKey, getPkgMirrorPath, loadMeta, warnMissingTimeFieldOnc
 import { failIfTrustDowngraded } from './trustChecks.js'
 import {
   MINIMUM_RELEASE_AGE_VIOLATION_CODE,
+  MISSING_TARBALL_INTEGRITY_VIOLATION_CODE,
   TARBALL_URL_MISMATCH_VIOLATION_CODE,
   TRUST_DOWNGRADE_VIOLATION_CODE,
 } from './violationCodes.js'
@@ -178,16 +180,42 @@ export function createNpmResolutionVerifier (
   const trustPolicyIgnoreAfter = opts.trustPolicyIgnoreAfter
 
   const verify: ResolutionVerifier['verify'] = async (resolution, { name, version, nonSemverVersion }) => {
-    if (!isNpmRegistryResolution(resolution)) return { ok: true }
+    if (!isRegistryTarballResolution(resolution)) return { ok: true }
+
+    // Network-free structural checks must run before registry metadata shortcuts.
+    const integrity = (resolution as { integrity?: unknown }).integrity
+    if (typeof integrity !== 'string' || integrity.length === 0) {
+      return {
+        ok: false,
+        code: MISSING_TARBALL_INTEGRITY_VIOLATION_CODE,
+        reason: 'has no "integrity" field, so its downloaded tarball cannot be verified',
+      }
+    }
+
     // URL/git-keyed entries are deliberate non-registry deps. They can still
     // carry a semver `version` copied from the resolved manifest, so the
     // semver guard below isn't enough on its own — the registry policies and
     // the tarball-URL binding don't apply to them, and a registry lookup
     // would 404.
     if (nonSemverVersion != null) return { ok: true }
-    if (!semver.valid(version)) return { ok: true }
 
-    const tarballUrl = (resolution as { tarball?: string }).tarball
+    if (!semver.valid(version)) {
+      return {
+        ok: false,
+        code: TARBALL_URL_MISMATCH_VIOLATION_CODE,
+        reason: `has a non-semver version ("${version}") and so cannot be verified against the registry's published metadata`,
+      }
+    }
+
+    const rawTarball = (resolution as { tarball?: unknown }).tarball
+    if (rawTarball != null && typeof rawTarball !== 'string') {
+      return {
+        ok: false,
+        code: TARBALL_URL_MISMATCH_VIOLATION_CODE,
+        reason: 'has a non-string "tarball" field, so its URL cannot be verified',
+      }
+    }
+    const tarballUrl = typeof rawTarball === 'string' ? rawTarball : undefined
     const registry = pickRegistryForVersion(opts.registries, namedRegistryPrefixes, name, tarballUrl)
 
     // A registry entry that pins an explicit tarball URL must point at the
@@ -242,6 +270,8 @@ export function createNpmResolutionVerifier (
       // applies the binding — otherwise an upgrade could keep trusting a
       // lockfile that was only ever age/trust-checked.
       tarballUrlBinding: true,
+      // Same cache identity rule for the missing-integrity structural check.
+      integrityRequired: true,
       minimumReleaseAge,
       minimumReleaseAgeExclude: sortedMinAgeExcludes,
       trustPolicy: trustPolicy ?? null,
@@ -252,6 +282,10 @@ export function createNpmResolutionVerifier (
       // The tarball-URL binding is unconditional today; a cached run that
       // didn't record it can't be trusted to have enforced it.
       if (cached.tarballUrlBinding !== true) return false
+
+      // The missing-integrity check is also unconditional; older cache records
+      // without the flag cannot prove they rejected unverifiable tarballs.
+      if (cached.integrityRequired !== true) return false
 
       // Maturity: a previously cached run under a larger cutoff
       // (stricter window) is trustworthy under a smaller current one —
@@ -914,20 +948,21 @@ function isExcluded (policy: PackageVersionPolicy | undefined, name: string, ver
   return false
 }
 
-function isNpmRegistryResolution (resolution: Resolution | unknown): boolean {
+function isRegistryTarballResolution (resolution: Resolution | unknown): boolean {
   if (resolution == null || typeof resolution !== 'object') return false
   // Only plain tarball resolutions (npm registry / named registries) have no
   // `type` field. Git / directory / binary / custom resolutions all carry one.
   if ('type' in resolution && (resolution as { type?: unknown }).type != null) return false
-  // Git-hosted tarballs (codeload/gitlab/bitbucket) are special-cased in
-  // the resolver and aren't subject to release-age policy.
-  if ('gitHosted' in resolution && (resolution as { gitHosted?: boolean }).gitHosted) return false
   const tarball = (resolution as { tarball?: unknown }).tarball
   if (typeof tarball === 'string') {
+    // Git-hosted tarballs (codeload/gitlab/bitbucket) are special-cased in
+    // the resolver and aren't subject to registry policy.
+    if (isGitHostedTarballUrl(tarball)) return false
     // Local/non-registry tarballs (for example `file:`) have no packument
     // metadata, so minimumReleaseAge/trustPolicy verification cannot apply.
     const protocol = tryParseUrl(tarball)?.protocol
     if (protocol != null && protocol !== 'http:' && protocol !== 'https:') return false
   }
-  return 'tarball' in resolution || 'integrity' in resolution
+  // Canonical registry entries may omit both `tarball` and `integrity`.
+  return true
 }

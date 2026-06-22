@@ -170,9 +170,14 @@ fn osv_checkable_tarball_does_not_trust_git_hosted_flag_or_strict_url_parsing() 
         "https://registry.npmjs.org/foo/-/foo 1.0.0.tgz",
         None,
     )));
+    // Mutable git-host archive refs are still checked.
+    assert!(super::is_osv_checkable_resolution(&tarball(
+        "https://codeload.github.com/foo/bar/tar.gz/abc123",
+        Some(false),
+    )));
     // Genuinely git-hosted-by-URL tarballs are skipped regardless of the flag.
     assert!(!super::is_osv_checkable_resolution(&tarball(
-        "https://codeload.github.com/foo/bar/tar.gz/abc123",
+        "https://codeload.github.com/foo/bar/tar.gz/0123456789abcdef0123456789abcdef01234567",
         Some(false),
     )));
     // Non-http schemes are skipped.
