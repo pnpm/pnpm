@@ -34,15 +34,35 @@ pub fn main() -> miette::Result<()> {
     // returns; see `job_control`.
     let _job_guard = job_control::setup();
     configure_rayon_pool();
-    tokio::runtime::Builder::new_multi_thread()
-        .enable_all()
-        .build()
-        .expect("build the tokio runtime")
-        // Boxed for `clippy::large_futures`: the command future exceeds
-        // the lint's stack-size threshold (the limit trips on Windows
-        // first).
-        .block_on(Box::pin(args.run(&config_overrides)))
+    // `block_on` polls the command future on the calling thread, and the
+    // install pipeline has a deep synchronous call chain whose stack frames
+    // overflow Windows' 1 MiB default main-thread stack (Linux and macOS
+    // default to 8 MiB, so the limit trips on Windows first). Run it on a
+    // thread with a generous, platform-uniform stack instead of the OS
+    // default main-thread stack.
+    std::thread::Builder::new()
+        .name("pacquet-main".to_string())
+        .stack_size(MAIN_STACK_SIZE)
+        .spawn(move || {
+            tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()
+                .expect("build the tokio runtime")
+                // Boxed for `clippy::large_futures`: the command future
+                // exceeds the lint's stack-size threshold.
+                .block_on(Box::pin(args.run(&config_overrides)))
+        })
+        .expect("spawn the pacquet-main thread")
+        .join()
+        // Re-raise a panic from the worker on this thread so the process
+        // still aborts with the original message and backtrace.
+        .unwrap_or_else(|payload| std::panic::resume_unwind(payload))
 }
+
+/// Stack size for the thread the command runs on. Generous headroom over
+/// the 8 MiB Linux/macOS default so the deep install call chain has the
+/// same room on every platform, including Windows (1 MiB default).
+const MAIN_STACK_SIZE: usize = 32 * 1024 * 1024;
 
 /// Size rayon's global pool at `2 × available_parallelism`. The link
 /// phase is dominated by clonefile / hardlink syscalls that block the
