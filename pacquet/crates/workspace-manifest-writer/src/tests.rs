@@ -301,3 +301,30 @@ fn allow_builds_preserves_other_keys_and_comments() {
     assert!(out.contains("storeDir: ../store"), "existing key preserved");
     assert!(out.contains("allowBuilds:\n  esbuild: true"), "block appended");
 }
+
+#[cfg(unix)]
+#[test]
+fn set_allow_builds_replaces_a_symlinked_manifest_without_following_it() {
+    use std::os::unix::fs::symlink;
+
+    let dir = TempDir::new().expect("temp dir");
+    // A file outside the manifest that a malicious symlink would target.
+    let outside = dir.path().join("outside.txt");
+    fs::write(&outside, "").expect("seed outside file");
+    let manifest = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+    symlink(&outside, &manifest).expect("symlink the manifest to the outside file");
+
+    crate::set_allow_builds(dir.path(), [("esbuild", true)]).expect("update succeeds");
+
+    // The atomic rename replaces the symlink's directory entry, so the
+    // outside target is untouched and the manifest is now a regular file.
+    assert_eq!(fs::read_to_string(&outside).expect("read outside"), "");
+    assert!(
+        !fs::symlink_metadata(&manifest).expect("stat manifest").file_type().is_symlink(),
+        "the manifest should no longer be a symlink",
+    );
+    assert_eq!(
+        fs::read_to_string(&manifest).expect("read manifest"),
+        "allowBuilds:\n  esbuild: true\n",
+    );
+}

@@ -18,7 +18,11 @@
 //! [`reorderRecursive`]: https://github.com/pnpm/pnpm/blob/e7e99f04e4/workspace/workspace-manifest-writer/src/index.ts#L290-L313
 //! [`propagateBlankLinesToNewPairs`]: https://github.com/pnpm/pnpm/blob/e7e99f04e4/workspace/workspace-manifest-writer/src/index.ts#L347-L385
 
-use std::{fs, io, path::Path};
+use std::{
+    fs,
+    io::{self, Write as _},
+    path::Path,
+};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -97,7 +101,7 @@ pub fn update_workspace_manifest(
         return Ok(());
     }
 
-    fs::write(&path, manifest.into_text())
+    write_atomic(&path, &manifest.into_text())
         .map_err(|source| UpdateWorkspaceManifestError::Write { path, source })
 }
 
@@ -128,7 +132,7 @@ pub fn set_config_dependency(
         return Ok(());
     }
 
-    fs::write(&path, manifest.into_text())
+    write_atomic(&path, &manifest.into_text())
         .map_err(|source| UpdateWorkspaceManifestError::Write { path, source })
 }
 
@@ -167,6 +171,25 @@ where
         return Ok(());
     }
 
-    fs::write(&path, manifest.into_text())
+    write_atomic(&path, &manifest.into_text())
         .map_err(|source| UpdateWorkspaceManifestError::Write { path, source })
+}
+
+/// Write `contents` to `path` atomically: a sibling temp file in the same
+/// directory is written, flushed to disk, and renamed over `path`. The
+/// rename replaces the destination's directory entry, so a
+/// `pnpm-workspace.yaml` that is a symlink is overwritten rather than
+/// followed, and a crash mid-write cannot leave a torn manifest. Mirrors
+/// pnpm's `writeFileAtomic` use in
+/// [`updateWorkspaceManifest`](https://github.com/pnpm/pnpm/blob/e7e99f04e4/workspace/workspace-manifest-writer/src/index.ts#L32).
+fn write_atomic(path: &Path, contents: &str) -> io::Result<()> {
+    let dir = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let mut tmp = tempfile::NamedTempFile::new_in(dir)?;
+    tmp.write_all(contents.as_bytes())?;
+    tmp.as_file().sync_all()?;
+    tmp.persist(path).map_err(|err| err.error)?;
+    Ok(())
 }
