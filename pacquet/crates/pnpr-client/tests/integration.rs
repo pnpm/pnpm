@@ -20,6 +20,9 @@ use pacquet_testing_utils::registry::TestRegistry;
 use tempfile::TempDir;
 use tokio::net::TcpListener;
 
+/// Basic auth for `pnpr-client:password123`, registered by [`start_pnpr`].
+const PNPR_AUTHORIZATION: &str = "Basic cG5wci1jbGllbnQ6cGFzc3dvcmQxMjM=";
+
 /// Start an in-process pnpr with the fast-path endpoints. Returns the
 /// base URL and the storage guard.
 async fn start_pnpr() -> (String, TempDir) {
@@ -29,13 +32,16 @@ async fn start_pnpr() -> (String, TempDir) {
 
     let mut config = pnpr::Config::proxy(addr, storage.path().to_path_buf());
     config.public_url = format!("http://{addr}");
+    config.auth.htpasswd.max_users = pnpr::MaxUsers::Unlimited;
 
     tokio::spawn(async move {
         let _ = pnpr::serve_listener(config, listener).await;
     });
 
     wait_until_ready(addr).await;
-    (format!("http://{addr}/"), storage)
+    let base_url = format!("http://{addr}/");
+    let _ = register_token(&base_url, "pnpr-client").await;
+    (base_url, storage)
 }
 
 async fn wait_until_ready(addr: SocketAddr) {
@@ -70,8 +76,9 @@ fn nerf_key(url: &str) -> String {
     if path.is_empty() { format!("//{authority}/") } else { format!("//{authority}/{path}/") }
 }
 
-/// Register a user with the shared test registry and return its bearer
-/// token, so a test can forward it as the caller's upstream credential.
+/// Register a user with an npm-compatible registry and return its bearer
+/// token. The pnpr fixture reuses the account through Basic auth; registry
+/// tests forward the token as an upstream credential.
 async fn register_token(registry_url: &str, username: &str) -> String {
     let body = serde_json::json!({ "name": username, "password": "password123" });
     let response = reqwest::Client::new()
@@ -93,7 +100,7 @@ fn options(registry: &str, dependencies: BTreeMap<String, String>) -> ResolveOpt
         registry: registry.to_string(),
         named_registries: BTreeMap::new(),
         auth_headers: BTreeMap::new(),
-        authorization: None,
+        authorization: Some(PNPR_AUTHORIZATION.to_string()),
         overrides: None,
         lockfile: None,
         frozen_lockfile: false,

@@ -1,16 +1,22 @@
 use axum::{
-    body::{Body, to_bytes},
-    http::{Request, StatusCode},
+    body::{Body, Bytes, to_bytes},
+    http::{HeaderValue, Request, StatusCode, header},
 };
 use flate2::read::GzDecoder;
-use pnpr::{Config, router};
+use futures_util::stream;
+use pnpr::{AuthState, Config, router, router_with_auth};
 use serde_json::{Value, json};
 use ssri::{Algorithm, IntegrityOpts};
 use std::{
+    convert::Infallible,
     fs,
     io::Read as _,
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
     path::{Path, PathBuf},
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
     time::Duration,
 };
 use tempfile::TempDir;
@@ -31,6 +37,243 @@ fn config_for(upstream: &str, storage: PathBuf) -> Config {
 
 async fn body_bytes(body: Body) -> Vec<u8> {
     to_bytes(body, usize::MAX).await.expect("read body").to_vec()
+}
+
+fn git_resolve_request(repo_url: &str, authorization: Option<&str>) -> Request<Body> {
+    let body = json!({
+        "dependencies": {
+            "git-dependency": format!("git+{repo_url}#main"),
+        },
+        "registry": "http://127.0.0.1:1/",
+        "trustLockfile": true,
+        "preferFrozenLockfile": false,
+    });
+    let mut request =
+        Request::post("/-/pnpr/v0/resolve").header("content-type", "application/json");
+    if let Some(authorization) = authorization {
+        request = request.header("authorization", authorization);
+    }
+    request.body(Body::from(serde_json::to_vec(&body).unwrap())).unwrap()
+}
+
+fn verify_lockfile_request(registry_url: &str, authorization: Option<&str>) -> Request<Body> {
+    let body = json!({
+        "registry": registry_url,
+        "lockfile": {
+            "lockfileVersion": "9.0",
+            "settings": {
+                "autoInstallPeers": true,
+                "excludeLinksFromLockfile": false,
+            },
+            "importers": {
+                ".": {
+                    "dependencies": {
+                        "probe-pkg": {
+                            "specifier": "1.0.0",
+                            "version": "1.0.0",
+                        },
+                    },
+                },
+            },
+            "packages": {
+                "probe-pkg@1.0.0": {
+                    "resolution": {
+                        "integrity": "sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==",
+                    },
+                },
+            },
+            "snapshots": {
+                "probe-pkg@1.0.0": {},
+            },
+        },
+        "minimumReleaseAge": 1,
+        "minimumReleaseAgeIgnoreMissingTime": false,
+    });
+    let mut request =
+        Request::post("/-/pnpr/v0/verify-lockfile").header("content-type", "application/json");
+    if let Some(authorization) = authorization {
+        request = request.header("authorization", authorization);
+    }
+    request.body(Body::from(serde_json::to_vec(&body).unwrap())).unwrap()
+}
+
+async fn drain_resolve_response(response: axum::response::Response) -> (StatusCode, Vec<u8>) {
+    let status = response.status();
+    let body = tokio::time::timeout(Duration::from_secs(10), body_bytes(response.into_body()))
+        .await
+        .expect("resolver response should finish within 10 seconds");
+    (status, body)
+}
+
+async fn spawn_git_probe() -> (String, Arc<AtomicUsize>) {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let request_count = Arc::new(AtomicUsize::new(0));
+    let probe_count = Arc::clone(&request_count);
+    tokio::spawn(async move {
+        while let Ok((mut socket, _)) = listener.accept().await {
+            probe_count.fetch_add(1, Ordering::SeqCst);
+            tokio::spawn(async move {
+                let mut buf = vec![0u8; 4096];
+                let _ = socket.read(&mut buf).await;
+                let _ = socket
+                    .write_all(
+                        b"HTTP/1.1 500 Internal Server Error\r\n\
+                          Content-Length: 0\r\n\
+                          Connection: close\r\n\
+                          \r\n",
+                    )
+                    .await;
+            });
+        }
+    });
+    (format!("http://{addr}/repo.git"), request_count)
+}
+
+#[tokio::test]
+async fn anonymous_resolve_cannot_trigger_git_egress() {
+    let (repo_url, request_count) = spawn_git_probe().await;
+
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for("http://127.0.0.1:1", tmp.path().to_path_buf()));
+    let response = app.oneshot(git_resolve_request(&repo_url, None)).await.unwrap();
+    let (status, body) = drain_resolve_response(response).await;
+
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    assert!(String::from_utf8_lossy(&body).contains("Authentication required"));
+    assert_eq!(request_count.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn default_registration_cannot_mint_a_resolver_credential() {
+    let (repo_url, request_count) = spawn_git_probe().await;
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for("http://127.0.0.1:1", tmp.path().to_path_buf()));
+    let registration = json!({
+        "_id": "org.couchdb.user:outsider",
+        "name": "outsider",
+        "password": "secret",
+        "email": "outsider@example.test",
+        "type": "user",
+        "roles": [],
+    });
+    let response = app
+        .clone()
+        .oneshot(
+            Request::put("/-/user/org.couchdb.user:outsider")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&registration).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    assert!(!String::from_utf8_lossy(&body_bytes(response.into_body()).await).contains("token"));
+
+    let response = app.oneshot(git_resolve_request(&repo_url, None)).await.unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(request_count.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn anonymous_resolve_is_rejected_before_the_body_is_collected() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for("http://127.0.0.1:1", tmp.path().to_path_buf()));
+    let body = Body::from_stream(stream::pending::<Result<Bytes, Infallible>>());
+    let request = Request::post("/-/pnpr/v0/resolve")
+        .header("content-type", "application/json")
+        .header("content-length", "1000000")
+        .body(body)
+        .unwrap();
+
+    let response = tokio::time::timeout(Duration::from_millis(250), app.oneshot(request))
+        .await
+        .expect("authentication must finish without waiting for the request body")
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn resolve_rejects_duplicate_authorization_headers() {
+    let (repo_url, request_count) = spawn_git_probe().await;
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let app = router_with_auth(config_for("http://127.0.0.1:1", tmp.path().to_path_buf()), auth);
+    let mut request = git_resolve_request(&repo_url, Some(&format!("Bearer {token}")));
+    request
+        .headers_mut()
+        .append(header::AUTHORIZATION, HeaderValue::from_static("Bearer invalid-second-value"));
+
+    let response = app.clone().oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    let mut reversed = git_resolve_request(&repo_url, None);
+    reversed
+        .headers_mut()
+        .append(header::AUTHORIZATION, HeaderValue::from_static("Bearer invalid-first-value"));
+    reversed
+        .headers_mut()
+        .append(header::AUTHORIZATION, HeaderValue::from_str(&format!("Bearer {token}")).unwrap());
+    let response = app.clone().oneshot(reversed).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+
+    let mut non_text = git_resolve_request(&repo_url, None);
+    non_text.headers_mut().insert(header::AUTHORIZATION, HeaderValue::from_bytes(&[0xff]).unwrap());
+    let response = app.oneshot(non_text).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(request_count.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn anonymous_verify_lockfile_cannot_trigger_registry_egress() {
+    let (registry_url, request_count) = spawn_git_probe().await;
+
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for("http://127.0.0.1:1", tmp.path().to_path_buf()));
+    let response = app.oneshot(verify_lockfile_request(&registry_url, None)).await.unwrap();
+    let (status, body) = drain_resolve_response(response).await;
+
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    assert!(String::from_utf8_lossy(&body).contains("Authentication required"));
+    assert_eq!(request_count.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn anonymous_verify_lockfile_is_rejected_before_the_body_is_collected() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for("http://127.0.0.1:1", tmp.path().to_path_buf()));
+    let body = Body::from_stream(stream::pending::<Result<Bytes, Infallible>>());
+    let request = Request::post("/-/pnpr/v0/verify-lockfile")
+        .header("content-type", "application/json")
+        .header("content-length", "1000000")
+        .body(body)
+        .unwrap();
+
+    let response = tokio::time::timeout(Duration::from_millis(250), app.oneshot(request))
+        .await
+        .expect("authentication must finish without waiting for the request body")
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn authenticated_resolve_preserves_git_dependencies() {
+    let (repo_url, request_count) = spawn_git_probe().await;
+
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let app = router_with_auth(config_for("http://127.0.0.1:1", tmp.path().to_path_buf()), auth);
+    let response = app
+        .oneshot(git_resolve_request(&repo_url, Some(&format!("Bearer {token}"))))
+        .await
+        .unwrap();
+    let (status, body) = drain_resolve_response(response).await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert!(String::from_utf8_lossy(&body).contains(r#""type":"error""#));
+    assert!(request_count.load(Ordering::SeqCst) >= 1);
 }
 
 async fn body_json(body: Body) -> Value {
@@ -1672,8 +1915,8 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
     let app = router(config);
 
     // The resolver surface stays reachable. `/-/ping` and the capability
-    // handshake answer 200; `/-/pnpr/v0/verify-lockfile` is mounted, so an empty
-    // body is a 400 (bad request) rather than a 404 (route absent) — that
+    // handshake answer 200; `/-/pnpr/v0/verify-lockfile` is mounted and gated,
+    // so an anonymous request is a 401 rather than a 404 (route absent) — that
     // distinction is the point of the assertion.
     let ping =
         app.clone().oneshot(Request::get("/-/ping").body(Body::empty()).unwrap()).await.unwrap();
@@ -1688,11 +1931,7 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
         .oneshot(Request::post("/-/pnpr/v0/verify-lockfile").body(Body::empty()).unwrap())
         .await
         .unwrap();
-    assert_ne!(
-        verify.status(),
-        StatusCode::NOT_FOUND,
-        "the verify-lockfile route must stay mounted when the registry is disabled",
-    );
+    assert_eq!(verify.status(), StatusCode::UNAUTHORIZED);
 
     // Every npm-registry route is gone, not merely hidden: a packument
     // read, a publish, and a batch publish all 404 without any upstream

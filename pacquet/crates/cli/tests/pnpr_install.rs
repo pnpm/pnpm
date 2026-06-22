@@ -13,6 +13,7 @@ use pacquet_testing_utils::{
     bin::{AddMockedRegistry, CommandTempCwd},
     fs::is_symlink_or_junction,
 };
+use pnpr::TokenBackend;
 use std::{
     fs,
     net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream},
@@ -23,8 +24,8 @@ use std::{
 };
 
 /// Start an in-process pnpr with the fast-path endpoints on a detached
-/// thread; returns its base URL.
-fn start_pnpr() -> String {
+/// thread; returns its base URL and a pre-seeded bearer token.
+fn start_pnpr() -> (String, String) {
     // Persisted (not cleaned) because the detached server thread outlives
     // this function.
     let storage = tempfile::tempdir().expect("pnpr storage").keep();
@@ -32,6 +33,15 @@ fn start_pnpr() -> String {
     // tokio's `from_std` requires the listener to be non-blocking.
     listener.set_nonblocking(true).expect("set pnpr listener non-blocking");
     let addr = listener.local_addr().expect("pnpr addr");
+    let tokens_path = storage.join("tokens.db");
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("token setup runtime");
+    let token = runtime.block_on(async {
+        let tokens = pnpr::TokenStore::open(tokens_path.clone()).expect("open token store");
+        tokens.issue("pacquet-test").await.expect("issue pnpr test token")
+    });
 
     thread::Builder::new()
         .name("pnpr".to_string())
@@ -43,6 +53,7 @@ fn start_pnpr() -> String {
             runtime.block_on(async move {
                 let mut config = pnpr::Config::proxy(addr, storage);
                 config.public_url = format!("http://{addr}");
+                config.auth.tokens.file = Some(tokens_path);
                 let listener = tokio::net::TcpListener::from_std(listener).expect("tokio listener");
                 let _ = pnpr::serve_listener(config, listener).await;
             });
@@ -50,7 +61,16 @@ fn start_pnpr() -> String {
         .expect("spawn pnpr thread");
 
     wait_until_ready(addr);
-    format!("http://{addr}/")
+    (format!("http://{addr}/"), token)
+}
+
+fn configure_pnpr_auth(npmrc_path: &std::path::Path, pnpr_url: &str, token: &str) {
+    let authority =
+        pnpr_url.strip_prefix("http://").expect("test pnpr URL uses http").trim_end_matches('/');
+    let current = fs::read_to_string(npmrc_path).expect("read .npmrc");
+    let separator = if current.ends_with('\n') { "" } else { "\n" };
+    fs::write(npmrc_path, format!("{current}{separator}//{authority}/:_authToken={token}\n"))
+        .expect("write pnpr auth to .npmrc");
 }
 
 fn wait_until_ready(addr: SocketAddr) {
@@ -71,9 +91,10 @@ fn pacquet_at(workspace: &Path) -> Command {
 fn install_via_pnpr_links_node_modules() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
-    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+    let AddMockedRegistry { npmrc_path, store_dir, mock_instance, .. } = npmrc_info;
 
-    let pnpr_url = start_pnpr();
+    let (pnpr_url, token) = start_pnpr();
+    configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
 
     let manifest_path = workspace.join("package.json");
     let package_json = serde_json::json!({
@@ -81,7 +102,13 @@ fn install_via_pnpr_links_node_modules() {
     });
     fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
 
-    pacquet.with_arg("install").with_arg("--pnpr-server").with_arg(&pnpr_url).assert().success();
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .with_arg("--pnpr-server")
+        .with_arg(&pnpr_url)
+        .assert()
+        .success();
 
     let symlink_path = workspace.join("node_modules/@foo/no-deps");
     assert!(is_symlink_or_junction(&symlink_path).unwrap(), "direct dep should be symlinked");
@@ -101,7 +128,8 @@ fn frozen_install_via_pnpr_verifies_the_local_lockfile_without_resolving_or_redo
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
 
-    let pnpr_url = start_pnpr();
+    let (pnpr_url, token) = start_pnpr();
+    configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
 
     let manifest_path = workspace.join("package.json");
     let package_json = serde_json::json!({
@@ -109,7 +137,13 @@ fn frozen_install_via_pnpr_verifies_the_local_lockfile_without_resolving_or_redo
     });
     fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
 
-    pacquet.with_arg("install").with_arg("--pnpr-server").with_arg(&pnpr_url).assert().success();
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("install")
+        .with_arg("--pnpr-server")
+        .with_arg(&pnpr_url)
+        .assert()
+        .success();
     fs::remove_dir_all(workspace.join("node_modules")).expect("remove node_modules");
 
     let mut verifier = mockito::Server::new();
@@ -162,9 +196,10 @@ fn frozen_install_via_pnpr_verifies_the_local_lockfile_without_resolving_or_redo
 fn install_via_pnpr_lockfile_only_writes_lockfile_without_linking() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();
-    let AddMockedRegistry { store_dir, mock_instance, .. } = npmrc_info;
+    let AddMockedRegistry { npmrc_path, store_dir, mock_instance, .. } = npmrc_info;
 
-    let pnpr_url = start_pnpr();
+    let (pnpr_url, token) = start_pnpr();
+    configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
 
     let manifest_path = workspace.join("package.json");
     let package_json = serde_json::json!({
@@ -173,6 +208,7 @@ fn install_via_pnpr_lockfile_only_writes_lockfile_without_linking() {
     fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
 
     pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
         .with_arg("install")
         .with_arg("--pnpr-server")
         .with_arg(&pnpr_url)
