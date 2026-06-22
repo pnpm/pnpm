@@ -38,9 +38,10 @@ impl LinkArgs {
             };
 
             let target_manifest_path = target_dir.join("package.json");
+            let dir_display = target_dir.display();
             let target_manifest =
                 PackageManifest::from_path(target_manifest_path).map_err(|_| {
-                    miette::miette!("No package.json found in {}", target_dir.display())
+                    miette::miette!("No package.json found in {}", dir_display)
                 })?;
             let package_name = target_manifest.value()["name"]
                 .as_str()
