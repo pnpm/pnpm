@@ -343,7 +343,7 @@ async function resolveAndFetch (
     // Skip only `variations` runtime resolutions (e.g. `node@runtime`): they span multiple
     // platform variants, so a single machine's integrity must not be written into the
     // shared resolution.
-    if (resolution.type !== 'variations' && fetchedResult.integrity != null && !(resolution as TarballResolution).integrity) {
+    if (resolution.type !== 'variations' && fetchedResult.integrity != null && getExpectedIntegrity(resolution) == null) {
       (resolution as TarballResolution).integrity = fetchedResult.integrity
     }
   }
@@ -356,7 +356,7 @@ async function resolveAndFetch (
     let populating: Promise<PkgRequestFetchResult> | undefined
     fetching = () => {
       populating ??= fetchResult.fetching().then((fetchedResult) => {
-        if (fetchedResult.integrity != null && !(resolution as TarballResolution).integrity) {
+        if (fetchedResult.integrity != null && getExpectedIntegrity(resolution) == null) {
           (resolution as TarballResolution).integrity = fetchedResult.integrity
         }
         return fetchedResult
@@ -664,7 +664,7 @@ function fetchToStore (
         opts.pickedFetcher
       ), { priority })
 
-      const integrity = (opts.pkg.resolution as TarballResolution).integrity ?? fetchedPackage.integrity
+      const integrity = getExpectedIntegrity(opts.pkg.resolution) ?? fetchedPackage.integrity
       if (isLocalTarballDep && integrity) {
         await fs.mkdir(target, { recursive: true })
         await gfs.writeFile(path.join(target, TARBALL_INTEGRITY_FILENAME), integrity, 'utf8')
@@ -688,6 +688,13 @@ function fetchToStore (
 
 async function readBundledManifest (pkgJsonPath: string): Promise<BundledManifest | undefined> {
   return normalizeBundledManifest(await loadJsonFile<DependencyManifest>(pkgJsonPath))
+}
+
+function getExpectedIntegrity (resolution: unknown): string | undefined {
+  const integrity = (resolution as { integrity?: unknown }).integrity
+  return typeof integrity === 'string' && integrity.length > 0
+    ? integrity
+    : undefined
 }
 
 async function tarballIsUpToDate (

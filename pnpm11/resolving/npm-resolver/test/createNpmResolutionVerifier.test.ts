@@ -398,6 +398,18 @@ test('createNpmResolutionVerifier() passes a URL-keyed tarball that carries inte
   expect(result).toStrictEqual({ ok: true })
 })
 
+test('createNpmResolutionVerifier() fails closed on a non-semver version for a registry tarball', async () => {
+  // `nameVerFromPkgSnapshot` prefers the (untrusted) `pkgSnapshot.version`, so a tampered
+  // non-semver version on a registry-keyed entry could skip the tarball-URL binding. Even with a
+  // valid integrity, the verifier must fail closed rather than skip the registry-origin checks.
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts())
+  const result = await verifier.verify(
+    { integrity: FAKE_INTEGRITY, tarball: REGISTRY_TARBALL } as unknown as Resolution,
+    { name: 'foo', version: 'not-a-semver' }
+  )
+  expect(result).toMatchObject({ ok: false, code: 'TARBALL_URL_MISMATCH' })
+})
+
 test('createNpmResolutionVerifier() rejects a non-string tarball instead of crashing', async () => {
   // A YAML array `tarball` would otherwise be string-coerced into an attacker URL later;
   // the verifier fails closed rather than silently skipping the URL-binding check.

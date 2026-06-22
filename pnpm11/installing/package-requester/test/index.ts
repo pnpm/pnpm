@@ -8,7 +8,7 @@ import { createClient } from '@pnpm/installing.client'
 import { createPackageRequester, type PackageResponse } from '@pnpm/installing.package-requester'
 import { streamParser } from '@pnpm/logger'
 import type { PackageFilesIndex } from '@pnpm/store.cafs'
-import type { PkgRequestFetchResult, PkgResolutionId, RequestPackageOptions } from '@pnpm/store.controller-types'
+import type { PkgRequestFetchResult, PkgResolutionId, RequestPackageOptions, Resolution } from '@pnpm/store.controller-types'
 import { createCafsStore } from '@pnpm/store.create-cafs-store'
 import { StoreIndex } from '@pnpm/store.index'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -526,6 +526,50 @@ test('integrity of a tarball dependency is preserved when the resolver returns n
 
   expect(response.body.updated).toBe(false)
   expect(response.body.resolution).toStrictEqual({ tarball, integrity })
+})
+
+test('computed tarball integrity replaces a non-string lockfile integrity', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const projectDir = temporaryDirectory()
+
+  const resolution = {
+    integrity: true,
+    tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+  } as unknown as Resolution
+  const customResolve: typeof resolve = async () => ({
+    id: 'is-positive@1.0.0' as PkgResolutionId,
+    latest: '1.0.0',
+    resolution,
+    manifest: {
+      name: 'is-positive',
+      version: '1.0.0',
+    },
+    resolvedVia: 'npm-registry',
+  })
+  const requestPackage = createPackageRequester({
+    resolve: customResolve,
+    fetchers,
+    cafs,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  const response = await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
+    downloadPriority: 0,
+    lockfileDir: projectDir,
+    preferredVersions: {},
+    projectDir,
+    skipFetch: true,
+  })
+
+  expect(response.fetching).toBeTruthy()
+  expect((response.body.resolution as { integrity?: unknown }).integrity).toBe(true)
+
+  const fetchedResult = await response.fetching!()
+  expect(fetchedResult.integrity).toMatch(/^sha512-/)
+  expect((response.body.resolution as { integrity?: unknown }).integrity).toBe(fetchedResult.integrity)
 })
 
 test('fetchPackageToStore()', async () => {

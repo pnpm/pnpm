@@ -205,10 +205,19 @@ export function createNpmResolutionVerifier (
     // would 404 against a non-registry origin, so stop here.
     if (nonSemverVersion != null) return { ok: true }
 
-    // The registry policy checks below query the registry by version, so they need a
-    // valid semver. A registry entry with a non-semver version still carries a verified
-    // integrity (checked above), so it isn't rejected here — just not policed further.
-    if (!semver.valid(version)) return { ok: true }
+    // A registry-keyed entry (we've passed the `nonSemverVersion` exemption) is identified by
+    // a semver depPath, so its version must be valid semver. If it isn't, the version field was
+    // tampered — `nameVerFromPkgSnapshot` prefers the (untrusted) `pkgSnapshot.version` over the
+    // depPath — and we can't query the registry to bind the tarball URL. Fail closed rather than
+    // skip the origin checks, otherwise a tampered lockfile could set a non-semver version to
+    // front attacker-chosen bytes (with a matching integrity) under a trusted registry identity.
+    if (!semver.valid(version)) {
+      return {
+        ok: false,
+        code: TARBALL_URL_MISMATCH_VIOLATION_CODE,
+        reason: `has a non-semver version ("${version}") and so cannot be verified against the registry's published metadata`,
+      }
+    }
 
     // A tampered lockfile could carry a non-string `tarball` (e.g. a YAML array that
     // stringifies to an attacker URL once `pkgSnapshotToResolution` coerces it). Fail
