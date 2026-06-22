@@ -956,20 +956,21 @@ function isExcluded (policy: PackageVersionPolicy | undefined, name: string, ver
 }
 
 // A plain registry/named-registry tarball: no `type` (git/directory/binary/custom all
-// carry one), not git-hosted (codeload/gitlab/bitbucket — special-cased in the resolver),
-// and not a non-http tarball such as `file:` (no packument to verify against). Unlike a
+// carry one), not git-hosted (codeload/gitlab/bitbucket, detected by URL), and not a
+// non-http tarball such as `file:` (no packument to verify against). Unlike a
 // "has a fetchable artifact" check, this does NOT require a `tarball` or `integrity`
 // field to be present: a canonical entry whose integrity was stripped down to `{}` is
 // still a registry tarball that must carry one, and the integrity check needs to catch it.
+//
+// The `gitHosted` flag is NOT consulted: it comes from an untrusted lockfile, so honoring it
+// would let a forged `gitHosted: true` on an arbitrary http(s) tarball skip the integrity
+// requirement. Git-hosted entries are recognized solely by their archive URL, matching
+// `classifyResolution`.
 function isRegistryTarballResolution (resolution: Resolution | unknown): boolean {
   if (resolution == null || typeof resolution !== 'object') return false
   if ('type' in resolution && (resolution as { type?: unknown }).type != null) return false
-  if ('gitHosted' in resolution && (resolution as { gitHosted?: boolean }).gitHosted) return false
   const tarball = (resolution as { tarball?: unknown }).tarball
   if (typeof tarball === 'string') {
-    // A git-hosted archive URL (codeload/gitlab/bitbucket) is commit-anchored and carries no
-    // integrity. The `gitHosted` flag is the primary signal, but legacy lockfiles record
-    // these without it, so detect them by URL too — matching `classifyResolution`.
     if (isGitHostedTarballUrl(tarball)) return false
     const protocol = tryParseUrl(tarball)?.protocol
     if (protocol != null && protocol !== 'http:' && protocol !== 'https:') return false

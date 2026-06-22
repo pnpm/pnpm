@@ -363,6 +363,18 @@ test('createNpmResolutionVerifier() exempts a git-hosted tarball URL recorded wi
   expect(result).toStrictEqual({ ok: true })
 })
 
+test('createNpmResolutionVerifier() rejects a forged gitHosted flag on a non-git-hosted tarball', async () => {
+  // A tampered lockfile can set `gitHosted: true` on an attacker-controlled http(s) tarball to
+  // try to dodge the integrity gate. The flag is untrusted — only the URL decides git-hosted —
+  // so this stays a registry tarball and is rejected for its missing integrity.
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts())
+  const result = await verifier.verify(
+    { gitHosted: true, tarball: 'https://attacker.example/evil-1.0.0.tgz' } as unknown as Resolution,
+    { name: 'evil', version: '1.0.0', nonSemverVersion: 'https+++attacker.example+evil' }
+  )
+  expect(result).toMatchObject({ ok: false, code: 'MISSING_TARBALL_INTEGRITY' })
+})
+
 test('createNpmResolutionVerifier() enforces missing integrity on a URL-keyed (nonSemverVersion) tarball', async () => {
   // A URL-keyed http(s) tarball entry sets `nonSemverVersion`. Integrity binds its bytes
   // and needs no registry lookup, so the URL-keyed short-circuit must not let a tampered

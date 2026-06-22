@@ -135,7 +135,12 @@ export function classifyResolution (resolution: Resolution): ResolutionKind {
       ? (resolution as { tarball: string }).tarball
       : undefined
     if (tarball?.startsWith('file:')) return 'localTarball'
-    if (resolution.gitHosted === true || (tarball != null && isGitHostedTarballUrl(tarball))) {
+    // `gitHosted` is a tamper-prone hint from an untrusted lockfile, so it is NOT trusted on
+    // its own: a resolution is git-hosted only when its tarball URL is a recognized git-hosted
+    // archive. Otherwise a forged `gitHosted: true` on an arbitrary http(s) tarball would
+    // classify as `gitHostedTarball` and dodge the integrity gate; it stays a `remoteTarball`
+    // that must carry integrity instead.
+    if (tarball != null && isGitHostedTarballUrl(tarball)) {
       return 'gitHostedTarball'
     }
     return 'remoteTarball'

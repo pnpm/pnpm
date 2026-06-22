@@ -5,8 +5,11 @@ test('classifyResolution() classifies tarball-shaped resolutions', () => {
   expect(classifyResolution({ tarball: 'https://registry.npmjs.org/foo/-/foo-1.0.0.tgz' } as Resolution)).toBe('remoteTarball')
   expect(classifyResolution({ tarball: 'file:foo-1.0.0.tgz' } as Resolution)).toBe('localTarball')
   expect(classifyResolution({ tarball: 'https://codeload.github.com/foo/bar/tar.gz/abc' } as Resolution)).toBe('gitHostedTarball')
-  // The `gitHosted` flag wins even when the URL isn't a recognized git host.
-  expect(classifyResolution({ tarball: 'https://example.com/foo.tgz', gitHosted: true } as Resolution)).toBe('gitHostedTarball')
+  // A recognized git-host URL is git-hosted with or without the `gitHosted` flag.
+  expect(classifyResolution({ tarball: 'https://codeload.github.com/foo/bar/tar.gz/abc', gitHosted: true } as Resolution)).toBe('gitHostedTarball')
+  // A forged `gitHosted: true` on a non-git-host URL is NOT trusted (lockfiles are untrusted
+  // input): it stays a `remoteTarball` so the missing-integrity gate still applies.
+  expect(classifyResolution({ tarball: 'https://example.com/foo.tgz', gitHosted: true } as Resolution)).toBe('remoteTarball')
 })
 
 test('classifyResolution() treats a canonical entry with no tarball URL as a remote tarball', () => {

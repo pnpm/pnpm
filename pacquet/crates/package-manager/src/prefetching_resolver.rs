@@ -182,11 +182,11 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             return Ok(());
         };
         if tarball.integrity.is_some()
-            // git-hosted tarballs are anchored by their commit SHA, not an integrity. The
-            // `git_hosted` flag is the primary signal, but the tarball resolver emits
-            // codeload/gitlab/bitbucket archive URLs with `git_hosted: None`, so also detect
-            // them by URL — matching the lockfile's own git-hosted gating.
-            || tarball.git_hosted == Some(true)
+            // git-hosted tarballs are anchored by their commit SHA, not an integrity. Detect
+            // them by URL, NOT by the `git_hosted` flag: the flag is tamper-prone lockfile
+            // input, so trusting it would let a forged `git_hosted: true` on an arbitrary URL
+            // skip the integrity computation. A real git-hosted archive (codeload/gitlab/
+            // bitbucket) always has a matching URL.
             || is_git_hosted_tarball_url(&tarball.tarball)
             || tarball.tarball.starts_with("file:")
         {
