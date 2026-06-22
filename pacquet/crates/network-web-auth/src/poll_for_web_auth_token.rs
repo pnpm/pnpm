@@ -11,7 +11,7 @@ mod tests;
 /// the undici retry knobs pnpm passes through; the production
 /// [`Host`](crate::Host) fetch currently applies only `timeout` and leaves
 /// `retry` for the consuming command to wire.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct WebAuthFetchOptions {
     /// Per-request timeout in milliseconds.
     pub timeout: Option<u64>,
@@ -20,7 +20,7 @@ pub struct WebAuthFetchOptions {
 
 /// Retry knobs forwarded with [`WebAuthFetchOptions`]. Field-for-field
 /// port of pnpm's `WebAuthFetchOptions['retry']`.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct WebAuthRetryOptions {
     pub factor: Option<f64>,
     pub max_timeout: Option<u64>,

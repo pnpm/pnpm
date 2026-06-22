@@ -143,7 +143,7 @@ fn global_event_matches_pnpm_wire_shape() {
     assert_eq!(json["level"], "info");
     assert_eq!(
         json["message"],
-        "Authenticate your account at:\nhttps://registry.npmjs.org/auth/abc"
+        "Authenticate your account at:\nhttps://registry.npmjs.org/auth/abc",
     );
     assert!(json.get("prefix").is_none(), "pnpm:global must not carry a prefix, got {json:?}");
 }

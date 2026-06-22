@@ -22,7 +22,7 @@ mod tests;
 /// The `authUrl` / `doneUrl` an OTP challenge may carry. Both are optional
 /// because a registry may send neither (a classic OTP) or a malformed
 /// body. Ports TS `OtpErrorBody`.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct OtpErrorBody {
     pub auth_url: Option<String>,
     pub done_url: Option<String>,
@@ -30,7 +30,7 @@ pub struct OtpErrorBody {
 
 /// An EOTP challenge surfaced by an operation's error. Ports the
 /// `{ code: 'EOTP', body? }` shape pnpm detects with `isOtpError`.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct OtpChallenge {
     pub body: Option<OtpErrorBody>,
 }
@@ -46,7 +46,7 @@ pub trait OtpError {
 /// Synthetic EOTP error meant to be thrown by an operation passed to
 /// [`with_otp_handling`] and caught by it — never to propagate elsewhere.
 /// Ports TS `SyntheticOtpError`.
-#[derive(Debug, Clone, derive_more::Display, derive_more::Error)]
+#[derive(Debug, derive_more::Display, derive_more::Error, Clone)]
 #[display(
     "This error was meant to be caught by `with_otp_handling`, not to propagate to other parts of \
      the code"
@@ -66,12 +66,12 @@ impl SyntheticOtpError {
     /// global-warn seam) when either is present with a non-string type.
     /// Ports TS `SyntheticOtpError.fromUnknownBody`.
     #[must_use]
-    pub fn from_unknown_body<R: Reporter>(body: Option<&Value>) -> Self {
+    pub fn from_unknown_body<Reporter: self::Reporter>(body: Option<&Value>) -> Self {
         let Some(Value::Object(map)) = body else {
             return SyntheticOtpError { body: None };
         };
-        let auth_url = extract_url_field::<R>(map, "authUrl");
-        let done_url = extract_url_field::<R>(map, "doneUrl");
+        let auth_url = extract_url_field::<Reporter>(map, "authUrl");
+        let done_url = extract_url_field::<Reporter>(map, "doneUrl");
         SyntheticOtpError { body: Some(OtpErrorBody { auth_url, done_url }) }
     }
 }
@@ -82,7 +82,7 @@ impl OtpError for SyntheticOtpError {
     }
 }
 
-fn extract_url_field<R: Reporter>(
+fn extract_url_field<Reporter: self::Reporter>(
     map: &serde_json::Map<String, Value>,
     field: &str,
 ) -> Option<String> {
@@ -90,9 +90,9 @@ fn extract_url_field<R: Reporter>(
         None => None,
         Some(Value::String(value)) => Some(value.clone()),
         Some(other) => {
-            global_warn::<R>(&format!(
+            global_warn::<Reporter>(&format!(
                 "OTP error body: {field} has type {}, expected string",
-                js_typeof(other)
+                js_typeof(other),
             ));
             None
         }
@@ -183,7 +183,7 @@ pub enum WithOtpError<Error: Diagnostic + 'static> {
 /// or an OTP challenge with no usable code, propagates unchanged.
 ///
 /// Ports pnpm's `withOtpHandling`.
-pub async fn with_otp_handling<Sys, R, Token, Error, Operation>(
+pub async fn with_otp_handling<Sys, Reporter, Token, Error, Operation>(
     fetch_options: WebAuthFetchOptions,
     mut operation: Operation,
 ) -> Result<Token, WithOtpError<Error>>
@@ -196,7 +196,7 @@ where
         + EnterKeyListener
         + OpenUrl
         + PromptOtp,
-    R: Reporter,
+    Reporter: self::Reporter,
     Error: OtpError + Diagnostic + 'static,
     Operation: AsyncFnMut(Option<&str>) -> Result<Token, Error>,
 {
@@ -216,13 +216,15 @@ where
     let otp = match challenge.body {
         Some(OtpErrorBody { auth_url: Some(auth_url), done_url: Some(done_url) }) => {
             let qr_code = generate_qr_code(&auth_url).map_err(WithOtpError::QrCode)?;
-            global_info::<R>(&format!("Authenticate your account at:\n{auth_url}\n\n{qr_code}"));
+            global_info::<Reporter>(&format!(
+                "Authenticate your account at:\n{auth_url}\n\n{qr_code}",
+            ));
             let poll = poll_for_web_auth_token::<Sys>(WebAuthTokenPollParams {
                 done_url,
                 fetch_options,
                 timeout_ms: None,
             });
-            prompt_browser_open::<Sys, R, _, _>(&auth_url, poll)
+            prompt_browser_open::<Sys, Reporter, _, _>(&auth_url, poll)
                 .await
                 .map(Some)
                 .map_err(WithOtpError::Timeout)?
