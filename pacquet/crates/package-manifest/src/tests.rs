@@ -458,6 +458,76 @@ fn save_and_get_written_value_returns_saved_manifest() {
 }
 
 #[test]
+fn save_prunes_removed_reified_runtime_entry() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    let raw = json!({
+        "name": "fixture",
+        "devEngines": {
+            "runtime": {
+                "name": "node",
+                "version": "22",
+                "onFail": "download",
+            },
+        },
+    });
+    std::fs::write(&path, serde_json::to_string_pretty(&raw).unwrap()).unwrap();
+
+    let mut manifest = PackageManifest::from_path(path.clone()).unwrap();
+    manifest.remove_dependencies(&["node".to_string()], Some(DependencyGroup::Dev));
+    manifest.save().unwrap();
+
+    let saved: serde_json::Value =
+        serde_json::from_str(&read_to_string(path).unwrap()).expect("parse saved manifest");
+    assert_eq!(saved.get("devEngines"), Some(&json!({})));
+    assert_eq!(saved.get("devDependencies"), Some(&json!({})));
+}
+
+#[test]
+fn save_prunes_only_removed_reified_runtime_entry_from_array() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    let raw = json!({
+        "name": "fixture",
+        "devEngines": {
+            "runtime": [
+                {
+                    "name": "node",
+                    "version": "22",
+                    "onFail": "download",
+                },
+                {
+                    "name": "deno",
+                    "version": "2",
+                    "onFail": "download",
+                },
+            ],
+        },
+    });
+    std::fs::write(&path, serde_json::to_string_pretty(&raw).unwrap()).unwrap();
+
+    let mut manifest = PackageManifest::from_path(path.clone()).unwrap();
+    manifest.remove_dependencies(&["node".to_string()], Some(DependencyGroup::Dev));
+    manifest.save().unwrap();
+
+    let saved: serde_json::Value =
+        serde_json::from_str(&read_to_string(path).unwrap()).expect("parse saved manifest");
+    assert_eq!(
+        saved.get("devEngines"),
+        Some(&json!({
+            "runtime": [
+                {
+                    "name": "deno",
+                    "version": "2",
+                    "onFail": "download",
+                },
+            ],
+        })),
+    );
+    assert_eq!(saved.get("devDependencies"), Some(&json!({})));
+}
+
+#[test]
 fn failed_save_preserves_existing_file_contents() {
     let dir = tempdir().unwrap();
     let path = dir.path().join("package.json");

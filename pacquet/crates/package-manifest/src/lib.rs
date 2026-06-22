@@ -403,21 +403,45 @@ pub fn convert_dependencies_to_engines_runtime(
     engines_field: &str,
 ) -> Result<(), PackageManifestError> {
     for runtime_name in RUNTIME_NAMES {
-        let Some(version) = manifest
+        let version = manifest
             .get(deps_field)
             .and_then(|deps| deps.get(runtime_name))
             .and_then(Value::as_str)
             .and_then(|dep| dep.strip_prefix("runtime:"))
-            .map(str::to_string)
-        else {
-            continue;
-        };
-        upsert_runtime_entry(manifest, engines_field, runtime_name, &version)?;
-        if let Some(deps) = manifest.get_mut(deps_field).and_then(Value::as_object_mut) {
-            deps.remove(runtime_name);
+            .map(str::to_string);
+        if let Some(version) = version {
+            upsert_runtime_entry(manifest, engines_field, runtime_name, &version)?;
+            if let Some(deps) = manifest.get_mut(deps_field).and_then(Value::as_object_mut) {
+                deps.remove(runtime_name);
+            }
+        } else {
+            remove_managed_runtime_entry(manifest, engines_field, runtime_name);
         }
     }
     Ok(())
+}
+
+fn remove_managed_runtime_entry(manifest: &mut Value, engines_field: &str, runtime_name: &str) {
+    let Some(engines) = manifest.get_mut(engines_field).and_then(Value::as_object_mut) else {
+        return;
+    };
+    let remove_runtime = match engines.get_mut("runtime") {
+        Some(Value::Array(runtimes)) => {
+            runtimes.retain(|runtime| !is_managed_runtime_entry(runtime, runtime_name));
+            runtimes.is_empty()
+        }
+        Some(runtime) if is_managed_runtime_entry(runtime, runtime_name) => true,
+        _ => false,
+    };
+    if remove_runtime {
+        engines.remove("runtime");
+    }
+}
+
+fn is_managed_runtime_entry(runtime: &Value, runtime_name: &str) -> bool {
+    runtime.get("name").and_then(Value::as_str) == Some(runtime_name)
+        && runtime.get("onFail").and_then(Value::as_str) == Some("download")
+        && runtime.get("version").and_then(Value::as_str).is_some()
 }
 
 fn upsert_runtime_entry(
