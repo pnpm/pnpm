@@ -1,6 +1,6 @@
 use super::{
     BenchmarkScenario, HyperfineCommand, PhaseEvent, collect_pnpr_direct_ratios,
-    non_trivial_cold_batch, read_phase_events, render_diagnostics_markdown,
+    non_trivial_cold_batch, pnpr_auth_config_key, read_phase_events, render_diagnostics_markdown,
     requires_fresh_pnpr_cold_batch_metrics, summarize_phase_events,
 };
 use std::{collections::HashMap, fs};
@@ -134,6 +134,12 @@ fn cold_batch_metrics_canary_targets_current_pnpr_revision() {
     assert!(requires_fresh_pnpr_cold_batch_metrics("pnpr@HEAD"));
     assert!(!requires_fresh_pnpr_cold_batch_metrics("pnpr@main"));
     assert!(!requires_fresh_pnpr_cold_batch_metrics("pacquet@HEAD"));
+}
+
+#[test]
+fn pnpr_auth_config_key_uses_npmrc_nerf_shape() {
+    assert_eq!(pnpr_auth_config_key("http://127.0.0.1:42509"), "//127.0.0.1:42509/");
+    assert_eq!(pnpr_auth_config_key("http://localhost:4873/pnpr/"), "//localhost:4873/pnpr/");
 }
 
 #[test]

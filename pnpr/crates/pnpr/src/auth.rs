@@ -628,7 +628,7 @@ impl Default for TokenStore {
 
 impl Default for UserStore {
     fn default() -> Self {
-        Self::in_memory(MaxUsers::Unlimited)
+        Self::in_memory()
     }
 }
 
