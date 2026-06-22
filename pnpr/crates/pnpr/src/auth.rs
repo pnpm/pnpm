@@ -257,6 +257,16 @@ pub trait TokenBackend: Send + Sync {
     /// "not authenticated".
     async fn lookup(&self, raw: &str) -> Result<Option<String>>;
 
+    /// Resolve a raw token to its full record — the username plus the
+    /// `readonly` / `cidr_whitelist` restrictions that [`Self::lookup`]
+    /// drops. The request-time restriction gate needs those, so it goes
+    /// through here. `Ok(None)` for a token that was never issued (or was
+    /// revoked); `Err` only for a backing-store failure, never conflated
+    /// with "no such token".
+    async fn lookup_record(&self, raw: &str) -> Result<Option<TokenRecord>> {
+        self.find_by_key(&sha256_hex(raw.as_bytes())).await
+    }
+
     /// Snapshot the record for a token by its key (SHA-256 hex). Used
     /// to check ownership before revocation. `Ok(None)` if no such
     /// token; `Err` on a store failure.

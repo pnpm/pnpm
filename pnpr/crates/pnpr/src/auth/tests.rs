@@ -1,6 +1,7 @@
 use super::{
-    MAX_USERNAME_CHARS, TokenBackend, TokenStore, UpsertOutcome, UserBackend, UserStore, identify,
-    parse_htpasswd, token_timestamp_from_sql, token_timestamp_to_sql, validate_username,
+    MAX_USERNAME_CHARS, TokenBackend, TokenRecord, TokenStore, UpsertOutcome, UserBackend,
+    UserStore, identify, parse_htpasswd, sha256_hex, token_timestamp_from_sql,
+    token_timestamp_to_sql, validate_username,
 };
 use crate::config::MaxUsers;
 use std::sync::Arc;
@@ -287,6 +288,32 @@ async fn tokens_round_trip() {
     let token = tokens.issue("alice").await.unwrap();
     assert_eq!(tokens.lookup(&token).await.unwrap().as_deref(), Some("alice"));
     assert!(tokens.lookup("not-a-token").await.unwrap().is_none());
+}
+
+#[tokio::test]
+async fn lookup_record_surfaces_token_restrictions() {
+    let tokens = TokenStore::in_memory();
+    let raw = "restricted-token";
+    tokens.inner.lock().expect("TokenStore mutex poisoned").tokens.insert(
+        sha256_hex(raw.as_bytes()),
+        TokenRecord {
+            username: "alice".to_string(),
+            created_at: 1,
+            last_used_at: 1,
+            readonly: true,
+            cidr_whitelist: vec!["203.0.113.0/24".to_string()],
+        },
+    );
+
+    let record = tokens.lookup_record(raw).await.unwrap().expect("seeded token resolves");
+    assert_eq!(record.username, "alice");
+    assert!(record.readonly, "readonly flag must survive the lookup");
+    assert_eq!(record.cidr_whitelist, vec!["203.0.113.0/24".to_string()]);
+
+    assert!(
+        tokens.lookup_record("not-a-token").await.unwrap().is_none(),
+        "an unknown token resolves to no record",
+    );
 }
 
 #[tokio::test]
