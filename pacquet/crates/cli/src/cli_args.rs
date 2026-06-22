@@ -4,6 +4,7 @@ pub mod cache;
 pub mod cat_file;
 pub mod cat_index;
 pub mod create;
+pub mod dedupe;
 pub mod dlx;
 pub mod exec;
 pub mod find_hash;
@@ -37,6 +38,7 @@ use cat_file::CatFileArgs;
 use cat_index::CatIndexArgs;
 use clap::{Parser, Subcommand, ValueEnum};
 use create::CreateArgs;
+use dedupe::DedupeArgs;
 use dlx::DlxArgs;
 use exec::ExecArgs;
 use find_hash::FindHashArgs;
@@ -218,6 +220,8 @@ pub enum CliCommand {
     ApproveBuilds(ApproveBuildsArgs),
     /// Generates a pnpm-lock.yaml from an external lockfile
     Import(ImportArgs),
+    /// Deduplicate packages in the lockfile
+    Dedupe(DedupeArgs),
 }
 
 impl CliArgs {
@@ -303,6 +307,7 @@ impl CliArgs {
                 | CliCommand::Install(_)
                 | CliCommand::Dlx(_)
                 | CliCommand::Import(_)
+                | CliCommand::Dedupe(_)
                 | CliCommand::Create(_)
                 | CliCommand::Runtime(_)
                 // `rebuild` drives the frozen-install pipeline and emits
@@ -646,6 +651,16 @@ impl CliArgs {
                 Box::pin(std::future::ready(Ok(())))
             }
             CliCommand::Import(args) => {
+                let command_state = state(false)?;
+                match reporter {
+                    ReporterType::Default | ReporterType::AppendOnly => {
+                        Box::pin(args.run::<DefaultReporter>(command_state))
+                    }
+                    ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(command_state)),
+                    ReporterType::Silent => Box::pin(args.run::<SilentReporter>(command_state)),
+                }
+            }
+            CliCommand::Dedupe(args) => {
                 let command_state = state(false)?;
                 match reporter {
                     ReporterType::Default | ReporterType::AppendOnly => {
