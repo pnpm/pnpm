@@ -52,11 +52,9 @@ secret: pnpm-registry-mock-secret-key-32
 auth:
   htpasswd:
     file: ./htpasswd
-    # Maximum number of users allowed to self-register. Registration is
-    # opt-in: it stays disabled unless this is set to a positive number
-    # (set it to -1 to keep it disabled explicitly). This mock registry
-    # opts in so the test suite can create accounts.
-    max_users: 1000
+    # Maximum amount of users allowed to register. The safe default is -1
+    # (registration disabled); set a non-negative cap to allow registration.
+    max_users: -1
 
 plugins: ../node_modules
 

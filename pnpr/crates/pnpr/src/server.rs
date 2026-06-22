@@ -24,7 +24,7 @@ use axum::{
         connect_info::Connected,
     },
     http::{HeaderMap, Method, StatusCode, header, request::Parts},
-    middleware::Next,
+    middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::{any, delete, get, post, put},
     serve::IncomingStream,
@@ -167,14 +167,16 @@ impl PackageLocks {
 /// router level, so we take both via one handler that branches on
 /// the `@` prefix and the literal-`-` segment.
 pub fn router(config: Config) -> Router {
-    router_with_auth(config, AuthState::in_memory())
+    let max_users = config.auth.htpasswd.max_users;
+    router_with_auth(config, AuthState::in_memory_with_max_users(max_users))
 }
 
 /// Fallible counterpart to [`router`]: surfaces a missing/invalid OSV
 /// database (when `osv.enabled`) as an error instead of panicking, for
 /// embedders that build the router directly rather than via [`serve`].
 pub fn try_router(config: Config) -> crate::error::Result<Router> {
-    try_router_with_auth(config, AuthState::in_memory())
+    let max_users = config.auth.htpasswd.max_users;
+    try_router_with_auth(config, AuthState::in_memory_with_max_users(max_users))
 }
 
 /// Like [`router`] but with a caller-supplied [`AuthState`]. Used
@@ -212,17 +214,14 @@ fn load_active_osv_index(
     }
 }
 
-/// Run the registry surface's startup side effects and load its auth
-/// backends — but only when the registry is enabled. A resolver-only
-/// deployment skips publish-journal recovery and on-disk auth entirely,
-/// so it stays stateless: it creates no credential files and reads
-/// nothing from the store, and so can run on a read-only or ephemeral
-/// host. The resolver routes never consult auth.
+/// Run startup side effects and load auth backends for surfaces that
+/// consult caller identity. The registry needs publish-journal recovery;
+/// both the registry and resolver need auth because resolver requests
+/// control outbound dependency-resolution work.
 async fn load_startup_auth(config: &Config) -> crate::error::Result<AuthState> {
-    if !config.registry.enabled {
-        return Ok(AuthState::in_memory());
+    if config.registry.enabled {
+        crate::journal::recover_publish_journal(config).await?;
     }
-    crate::journal::recover_publish_journal(config).await?;
     AuthState::load(&config.auth, &config.backend).await
 }
 
@@ -282,7 +281,13 @@ fn router_with_auth_and_osv(
     if resolver_enabled {
         router = router
             .route("/-/pnpr", get(serve_pnpr_handshake))
-            .route("/-/pnpr/v0/resolve", post(serve_resolve))
+            .route(
+                "/-/pnpr/v0/resolve",
+                post(serve_resolve).route_layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    require_resolver_caller,
+                )),
+            )
             .route("/-/pnpr/v0/verify-lockfile", post(serve_verify_lockfile));
     } else {
         router = router.route("/-/pnpr", any(resolver_disabled));
@@ -374,11 +379,10 @@ fn router_with_auth_and_osv(
         .with_state(state)
 }
 
-/// Bind to `config.listen` and serve forever. When the registry surface
-/// is enabled, loads its htpasswd users and token database before binding
-/// the socket so a startup-time auth error surfaces before we accept any
-/// client connections; a resolver-only server skips journal recovery and
-/// on-disk auth entirely and stays stateless.
+/// Bind to `config.listen` and serve forever. Loads auth state before
+/// binding so a startup-time auth error surfaces before we accept any
+/// client connections. Registry startup additionally recovers the publish
+/// journal.
 pub async fn serve(config: Config) -> crate::error::Result<()> {
     // Enforce the "at least one surface" invariant here too, not only at
     // YAML load / CLI: embedders build `Config` programmatically and call
@@ -424,11 +428,9 @@ pub async fn serve_listener(
     config.ensure_a_feature_is_enabled()?;
     log_enabled_surfaces(&config);
     let osv_index = load_active_osv_index(&config)?;
-    // Load the configured auth backends here too (when the registry is
-    // enabled) — going through `router` would silently fall back to
-    // in-memory auth and ignore a persisted htpasswd / SQLite store or a
-    // configured `backend:`. A resolver-only server intentionally uses
-    // in-memory auth (see [`load_startup_auth`]).
+    // Load the configured auth backends here too — going through `router`
+    // would silently fall back to in-memory auth and ignore a persisted
+    // htpasswd / SQLite store or a configured `backend:`.
     let auth = load_startup_auth(&config).await?;
     let app = router_with_auth_and_osv(config, auth, osv_index);
     tracing::info!(%listen, "pnpr listening");
@@ -1235,6 +1237,41 @@ fn require_caller(identity: &Identity, resource: &str) -> Result<String, Registr
             Err(RegistryError::Unauthenticated { resource: resource.to_string() })
         }
     }
+}
+
+async fn require_resolver_caller(
+    State(state): State<AppState>,
+    request: Request,
+    next: Next,
+) -> Response {
+    let authorization = match single_authorization_header(request.headers()) {
+        Ok(value) => value,
+        Err(error) => return error_response(&error),
+    };
+    match identify(authorization, state.inner.auth.users.as_ref(), state.inner.auth.tokens.as_ref())
+        .await
+    {
+        Ok(Some(_)) => next.run(request).await,
+        Ok(None) => error_response(&RegistryError::Unauthenticated {
+            resource: "dependency resolution".to_string(),
+        }),
+        Err(error) => error_response(&error),
+    }
+}
+
+fn single_authorization_header(headers: &HeaderMap) -> Result<Option<&str>, RegistryError> {
+    let mut values = headers.get_all(header::AUTHORIZATION).iter();
+    let Some(value) = values.next() else {
+        return Ok(None);
+    };
+    if values.next().is_some() {
+        return Err(RegistryError::BadRequest {
+            reason: "multiple Authorization headers are not allowed".to_string(),
+        });
+    }
+    value.to_str().map(Some).map_err(|_| RegistryError::BadRequest {
+        reason: "Authorization header is not valid text".to_string(),
+    })
 }
 
 fn json_response(status: StatusCode, body: &Value) -> Response {
