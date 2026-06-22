@@ -270,7 +270,10 @@ impl CliArgs {
     /// they're layered on top of `.npmrc` / `pnpm-workspace.yaml` whenever
     /// `Config` is loaded, mirroring pnpm 11's
     /// "CLI > yaml > .npmrc > defaults" precedence.
-    #[allow(clippy::large_stack_frames)]
+    #[allow(
+        clippy::large_stack_frames,
+        reason = "the run function dispatches all CLI commands and contains large types like Install on the stack"
+    )]
     pub async fn run(self, config_overrides: &ConfigOverrides) -> miette::Result<()> {
         let CliArgs { command, dir, npmrc_auth_file, recursive, reporter, filter, filter_prod } =
             self;
