@@ -1,5 +1,6 @@
 pub mod add;
 pub mod cat_file;
+pub mod cat_index;
 pub mod create;
 pub mod dlx;
 pub mod exec;
@@ -21,6 +22,7 @@ pub mod why;
 use crate::{State, config_deps, config_overrides::ConfigOverrides};
 use add::AddArgs;
 use cat_file::CatFileArgs;
+use cat_index::CatIndexArgs;
 use clap::{Parser, Subcommand, ValueEnum};
 use create::CreateArgs;
 use dlx::DlxArgs;
@@ -168,6 +170,8 @@ pub enum CliCommand {
     Store(StoreCommand),
     /// Prints the contents of a file based on the hash value stored in the index file.
     CatFile(CatFileArgs),
+    /// Prints the index file of a specific package from the store.
+    CatIndex(CatIndexArgs),
 }
 
 impl CliArgs {
@@ -470,6 +474,9 @@ impl CliArgs {
             CliCommand::Store(command) => command.run(|| config().map(|m| &*m))?,
             CliCommand::CatFile(args) => {
                 args.run(|| config().map(|m| &*m))?;
+            }
+            CliCommand::CatIndex(args) => {
+                args.run(&dir, || config().map(|m| &*m)).await?;
             }
         }
 
