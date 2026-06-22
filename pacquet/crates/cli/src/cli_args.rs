@@ -322,30 +322,29 @@ impl CliArgs {
         // dependency-injection plumbing is visible at the call site.
         // See [pnpm/pacquet#339](https://github.com/pnpm/pacquet/issues/339)
         // for the pattern and rationale.
-        let config = || -> miette::Result<&'static mut Config> {
-            // Seed `npmrc_auth_file` from the CLI flag before
-            // `current()` reads `.npmrc`, so the override redirects the
-            // user-level read. Mirrors pnpm's `--npmrc-auth-file`.
-            Config { npmrc_auth_file: npmrc_auth_file.clone(), ..Config::default() }
-                .current::<Host>(&dir)
-                .map(|mut cfg| {
-                    config_overrides.apply(&mut cfg);
-                    // `--recursive` / `-r` is CLI-only upstream (not a
-                    // `.npmrc` / yaml key), so it is set here from the
-                    // global flag rather than through the yaml / env
-                    // overlay. Mirrors pnpm's `Config.recursive`.
-                    cfg.recursive = recursive;
-                    // `--filter` / `--filter-prod` are likewise CLI-only
-                    // (pnpm's `Config.filter` / `Config.filterProd`),
-                    // so the parsed selector strings are threaded in
-                    // from the global flags here.
-                    cfg.filter.clone_from(&filter);
-                    cfg.filter_prod.clone_from(&filter_prod);
-                    Config::leak(cfg)
-                })
-                .map_err(miette::Report::new)
-                .wrap_err("load configuration")
-        };
+        let cfg = Config { npmrc_auth_file: npmrc_auth_file.clone(), ..Config::default() }
+            .current::<Host>(&dir)
+            .map(|mut cfg| {
+                config_overrides.apply(&mut cfg);
+                // `--recursive` / `-r` is CLI-only upstream (not a
+                // `.npmrc` / yaml key), so it is set here from the
+                // global flag rather than through the yaml / env
+                // overlay. Mirrors pnpm's `Config.recursive`.
+                cfg.recursive = recursive;
+                // `--filter` / `--filter-prod` are likewise CLI-only
+                // (pnpm's `Config.filter` / `Config.filterProd`),
+                // so the parsed selector strings are threaded in
+                // from the global flags here.
+                cfg.filter.clone_from(&filter);
+                cfg.filter_prod.clone_from(&filter_prod);
+                Config::leak(cfg)
+            })
+            .map_err(miette::Report::new)
+            .wrap_err("load configuration")?;
+
+        let cfg_ptr = cfg as *mut Config;
+        let config =
+            move || -> miette::Result<&'static mut Config> { Ok(unsafe { &mut *cfg_ptr }) };
         // `require_lockfile` is the "this subcommand cannot run without a
         // lockfile loaded" signal, used by `State::init` to override
         // `config.lockfile=false`. Only `install --frozen-lockfile` needs
@@ -645,13 +644,23 @@ impl CliArgs {
                 args.run(|| config().map(|m| &*m))?;
                 Box::pin(std::future::ready(Ok(())))
             }
-            CliCommand::Import(args) => match reporter {
-                ReporterType::Default | ReporterType::AppendOnly => {
-                    Box::pin(args.run::<DefaultReporter>(state(false)?)).await?;
+            CliCommand::Import(args) => {
+                if let Some(pnpr_server) = args.pnpr_server.clone() {
+                    let cfg = config()?;
+                    cfg.pnpr_server = Some(pnpr_server);
                 }
-                ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(state(false)?)).await?,
-                ReporterType::Silent => Box::pin(args.run::<SilentReporter>(state(false)?)).await?,
-            },
+                match reporter {
+                    ReporterType::Default | ReporterType::AppendOnly => {
+                        Box::pin(args.run::<DefaultReporter>(state(false)?)).await?;
+                    }
+                    ReporterType::Ndjson => {
+                        Box::pin(args.run::<NdjsonReporter>(state(false)?)).await?;
+                    }
+                    ReporterType::Silent => {
+                        Box::pin(args.run::<SilentReporter>(state(false)?)).await?;
+                    }
+                }
+            }
             CliCommand::CatIndex(args) => Box::pin(async move {
                 args.run(dir_ref, || config().map(|m| &*m)).await?;
                 Ok(())

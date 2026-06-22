@@ -6,7 +6,12 @@ use pacquet_package_manifest::DependencyGroup;
 use pacquet_reporter::Reporter;
 
 #[derive(Debug, Args)]
-pub struct ImportArgs {}
+pub struct ImportArgs {
+    /// Server URL of the alternative resolve/verify endpoint to offload
+    /// lockfile resolution to.
+    #[clap(long = "pnpr-server")]
+    pub pnpr_server: Option<String>,
+}
 
 impl ImportArgs {
     pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
@@ -19,6 +24,31 @@ impl ImportArgs {
             && error.kind() != std::io::ErrorKind::NotFound
         {
             return Err(error).into_diagnostic().wrap_err("removing existing pnpm-lock.yaml");
+        }
+
+        if let Some(pnpr_server) = config.pnpr_server.as_deref() {
+            return super::install::install_via_pnpr::<Reporter>(
+                &state,
+                pnpr_server,
+                super::install::PnprLink {
+                    dependency_groups: vec![
+                        DependencyGroup::Prod,
+                        DependencyGroup::Dev,
+                        DependencyGroup::Optional,
+                    ],
+                    supported_architectures: config.supported_architectures.clone(),
+                    node_linker: config.node_linker,
+                    skip_runtimes: false,
+                    frozen_lockfile: false,
+                    prefer_frozen_lockfile: false,
+                    lockfile_only: true,
+                    ignore_manifest_check: false,
+                    trust_lockfile: false,
+                    lockfile_path: Some(lockfile_path.as_path()),
+                },
+            )
+            .await
+            .wrap_err("importing dependencies via the pnpr server");
         }
 
         Install {
