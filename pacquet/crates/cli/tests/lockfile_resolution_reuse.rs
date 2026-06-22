@@ -12,7 +12,7 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
-use std::{fs, net::TcpListener, path::Path, process::Command, time::Duration};
+use std::{fs, net::TcpListener, path::Path, process::Command};
 
 fn pacquet_at(workspace: &Path) -> Command {
     Command::cargo_bin("pacquet").expect("find the pacquet binary").with_current_dir(workspace)
@@ -130,9 +130,10 @@ fn a_reused_tree_is_structurally_identical_to_a_fresh_resolve() {
     .expect("write the reuse scenario's initial manifest");
     pacquet_at(&reused.workspace).with_arg("install").assert().success();
     fs::write(&reused_manifest, &both).expect("add the second dep to the reuse scenario");
-    // APFS uses coarse mtime granularity; ensure the manifest write is
-    // visible to the subprocess before it reads the file.
-    std::thread::sleep(Duration::from_millis(100));
+    let future = std::time::SystemTime::now() + std::time::Duration::from_secs(2);
+    std::fs::File::open(&reused_manifest)
+        .and_then(|file| file.set_times(std::fs::FileTimes::new().set_modified(future)))
+        .expect("bump manifest mtime");
     pacquet_at(&reused.workspace).with_arg("install").assert().success();
     let reused_lockfile =
         fs::read_to_string(reused.workspace.join("pnpm-lock.yaml")).expect("read reused lockfile");
