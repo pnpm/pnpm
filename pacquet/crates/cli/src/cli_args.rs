@@ -33,6 +33,7 @@ pub mod set_script;
 pub mod stop;
 pub mod store;
 pub mod supported_architectures;
+pub mod unlink;
 pub mod update;
 pub mod update_interactive;
 pub mod why;
@@ -85,6 +86,7 @@ use std::{
 };
 use stop::StopArgs;
 use store::StoreCommand;
+use unlink::UnlinkArgs;
 use update::UpdateArgs;
 use why::WhyArgs;
 
@@ -250,6 +252,9 @@ pub enum CliCommand {
     Prune(PruneArgs),
     /// Fetch packages from the lockfile into the virtual store
     Fetch(FetchArgs),
+    /// Removes links to a local package and reinstalls it
+    #[clap(visible_aliases = ["dislink"])]
+    Unlink(UnlinkArgs),
 }
 
 impl CliArgs {
@@ -339,6 +344,7 @@ impl CliArgs {
                 | CliCommand::Dedupe(_)
                 | CliCommand::Prune(_)
                 | CliCommand::Fetch(_)
+                | CliCommand::Unlink(_)
                 | CliCommand::Create(_)
                 | CliCommand::Runtime(_)
                 // `rebuild` drives the frozen-install pipeline and emits
@@ -809,6 +815,17 @@ impl CliArgs {
                 args.run(dir_ref, || config().map(|m| &*m)).await?;
                 Ok(())
             }),
+            CliCommand::Unlink(args) => match reporter {
+                ReporterType::Default | ReporterType::AppendOnly => {
+                    Box::pin(args.run::<DefaultReporter>(state(false)?)).await?;
+                }
+                ReporterType::Ndjson => {
+                    Box::pin(args.run::<NdjsonReporter>(state(false)?)).await?;
+                }
+                ReporterType::Silent => {
+                    Box::pin(args.run::<SilentReporter>(state(false)?)).await?;
+                }
+            },
             CliCommand::Fetch(args) => match reporter {
                 ReporterType::Default | ReporterType::AppendOnly => {
                     Box::pin(args.run::<DefaultReporter>(state(true)?))
