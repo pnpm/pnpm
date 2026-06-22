@@ -468,7 +468,7 @@ impl CliArgs {
                 args.run(|| config().map(|m| &*m))?;
             }
             CliCommand::CatIndex(args) => {
-                args.run(|| config().map(|m| &*m)).await?;
+                args.run(&dir, || config().map(|m| &*m)).await?;
             }
         }
 

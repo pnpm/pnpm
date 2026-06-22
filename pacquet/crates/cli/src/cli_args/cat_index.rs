@@ -24,7 +24,11 @@ pub struct CatIndexArgs {
 }
 
 impl CatIndexArgs {
-    pub async fn run<'a>(self, config: impl FnOnce() -> Result<&'a Config>) -> Result<()> {
+    pub async fn run<'a>(
+        self,
+        dir: &Path,
+        config: impl FnOnce() -> Result<&'a Config>,
+    ) -> Result<()> {
         let parsed = parse_wanted_dependency(&self.wanted_dependency);
         let Some(alias) = parsed.alias else {
             return Err(miette::miette!(
@@ -34,9 +38,9 @@ impl CatIndexArgs {
         };
 
         let config = config()?;
-        let lockfile_dir = lockfile_dir(config)?;
+        let lockfile_dir = lockfile_dir(config, dir);
         let requested_bare = parsed.bare_specifier.as_deref();
-        let keys = lockfile_store_index_keys(&lockfile_dir, &alias, requested_bare)
+        let keys = lockfile_store_index_keys(&lockfile_dir, dir, &alias, requested_bare)
             .wrap_err("load package key from lockfile")?;
         let fallback_pkg_ids = fallback_pkg_ids(&alias, requested_bare);
         let store_dir = config.store_dir.root().to_path_buf();
@@ -72,15 +76,16 @@ impl CatIndexArgs {
     }
 }
 
-fn lockfile_dir(config: &Config) -> Result<PathBuf> {
+fn lockfile_dir(config: &Config, dir: &Path) -> PathBuf {
     match &config.workspace_dir {
-        Some(workspace_dir) => Ok(workspace_dir.clone()),
-        None => std::env::current_dir().into_diagnostic().wrap_err("get current directory"),
+        Some(workspace_dir) => workspace_dir.clone(),
+        None => dir.to_path_buf(),
     }
 }
 
 fn lockfile_store_index_keys(
     lockfile_dir: &Path,
+    dir: &Path,
     alias: &str,
     requested_bare: Option<&str>,
 ) -> Result<Vec<String>> {
@@ -93,11 +98,9 @@ fn lockfile_store_index_keys(
     let Ok(alias_name) = alias.parse::<PkgName>() else {
         return Ok(Vec::new());
     };
-    let current_dir =
-        std::env::current_dir().into_diagnostic().wrap_err("get current directory")?;
     let mut keys = Vec::new();
     let mut seen = HashSet::new();
-    for importer_id in importer_ids(lockfile_dir, &current_dir) {
+    for importer_id in importer_ids(lockfile_dir, dir) {
         let Some(importer) = lockfile.importers.get(&importer_id) else { continue };
         let Some(dependency) = find_dependency(importer, &alias_name) else { continue };
         let Some(snapshot_key) = dependency.version.resolved_key(&alias_name) else { continue };
