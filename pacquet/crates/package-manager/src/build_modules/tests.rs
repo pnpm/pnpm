@@ -1,5 +1,6 @@
 use super::{
-    AllowBuildPolicy, BuildModules, allow_build_key_from_ignored_build, parse_name_version_from_key,
+    AllowBuildPolicy, BuildModules, RebuildOptions, allow_build_key_from_ignored_build,
+    parse_name_version_from_key,
 };
 use crate::{RequiresBuildBySnapshot, SkippedSnapshots, VirtualStoreLayout};
 use pacquet_config::{Config, PackageImportMethod};
@@ -2531,4 +2532,89 @@ fn allow_build_key_keeps_full_id_for_non_semver_artifacts() {
     // tarball's non-semver resolution keeps the whole pkgId as the key.
     let tarball = "foo@https://example.com/foo.tgz";
     assert_eq!(allow_build_key_from_ignored_build(tarball), tarball);
+}
+
+/// Like [`create_buildable_pkg`], but the postinstall writes a `built-marker`
+/// file into the package directory so a test can observe whether the script
+/// actually ran.
+#[cfg(unix)]
+fn create_marker_pkg(virtual_store_dir: &Path, key: &PackageKey) -> PathBuf {
+    let key_str = key.without_peer().to_string();
+    let name_version = key_str.strip_prefix('/').unwrap_or(&key_str);
+    let at_idx = name_version.rfind('@').unwrap_or(name_version.len());
+    let pkg_name = &name_version[..at_idx];
+    let store_name = name_version.replace('/', "+");
+    let pkg_dir = virtual_store_dir.join(&store_name).join("node_modules").join(pkg_name);
+    fs::create_dir_all(&pkg_dir).expect("create pkg dir");
+    let manifest = serde_json::json!({
+        "scripts": { "postinstall": "echo ran > built-marker" },
+    });
+    fs::write(pkg_dir.join("package.json"), manifest.to_string()).expect("write manifest");
+    pkg_dir
+}
+
+/// A `pacquet rebuild <pkg>` with a selection runs scripts ONLY for the
+/// selected package, even with the side-effects cache disabled (so its
+/// `is_built` short-circuit cannot fire). Both packages are allowed to
+/// build, so without the rebuild-selection gate `zzz` would also run.
+#[cfg(unix)]
+#[test]
+fn rebuild_selection_runs_only_selected_scripts() {
+    let snapshots = HashMap::from([
+        (key("aaa", "1.0.0"), SnapshotEntry::default()),
+        (key("zzz", "1.0.0"), SnapshotEntry::default()),
+    ]);
+    let importers = root_importers(&[("aaa", "1.0.0"), ("zzz", "1.0.0")]);
+    let policy = policy_from_specs([("aaa", true), ("zzz", true)], false);
+
+    let virtual_store_dir = tempdir().expect("create temp dir");
+    let modules_dir = tempdir().expect("create temp dir");
+    let lockfile_dir = tempdir().expect("create temp dir");
+
+    let aaa_dir = create_marker_pkg(virtual_store_dir.path(), &key("aaa", "1.0.0"));
+    let zzz_dir = create_marker_pkg(virtual_store_dir.path(), &key("zzz", "1.0.0"));
+
+    let rebuild =
+        RebuildOptions { selected_names: Some(std::iter::once("aaa".to_string()).collect()) };
+
+    BuildModules {
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
+        modules_dir: modules_dir.path(),
+        lockfile_dir: lockfile_dir.path(),
+        snapshots: Some(&snapshots),
+        importers: &importers,
+        packages: None,
+        allow_build_policy: &policy,
+        side_effects_maps_by_snapshot: None,
+        requires_build_by_snapshot: None,
+        engine_name: None,
+        side_effects_cache: false,
+        side_effects_cache_write: false,
+        store_dir: None,
+        store_index_writer: None,
+        patches: None,
+        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
+        unsafe_perm: true,
+        child_concurrency: 1,
+        skipped: &SkippedSnapshots::default(),
+        pkg_root_by_key: None,
+        gather_ancestor_bin_paths: false,
+        frozen_store: false,
+        ignore_scripts: false,
+        import_method: PackageImportMethod::Auto,
+        logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: Some(&rebuild),
+    }
+    .run::<SilentReporter>()
+    .expect("rebuild runs");
+
+    assert!(aaa_dir.join("built-marker").exists(), "the selected package's script ran");
+    assert!(
+        !zzz_dir.join("built-marker").exists(),
+        "the non-selected package's script must not run",
+    );
 }

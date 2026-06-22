@@ -756,8 +756,9 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     // is forced past the gate too. The allow-policy gate still applies — a
     // rebuild never builds a disallowed package — matching pnpm's
     // `buildModules` honoring `allowBuild` during rebuild. Non-selected
-    // packages are still visited under their normal gating so a partial
-    // rebuild keeps the `.modules.yaml` ignored-builds record intact.
+    // packages still run the allow-policy gate below (so their
+    // `.modules.yaml` ignored-builds record stays intact), but their
+    // scripts are suppressed by the rebuild-selection gate after it.
     let force_rebuild = rebuild.is_some_and(|rebuild| {
         rebuild.is_selected(&name)
             || rebuild.is_selected(&allow_build_key_from_ignored_build(&dep_path))
@@ -791,6 +792,17 @@ fn build_one_snapshot<Reporter: self::Reporter>(
             }
             Some(true) => {}
         }
+    }
+
+    // A `pacquet rebuild <pkg>` runs scripts only for the selected
+    // packages. Non-selected packages were still evaluated by the policy
+    // gate above (so their ignored-builds state is recorded), but their
+    // scripts are suppressed here. The side-effects `is_built` gate below
+    // is only an optimization and is disabled by default, so this gate —
+    // not that short-circuit — is what bounds script execution to the
+    // selection, matching pnpm's `buildSelectedPkgs`.
+    if rebuild.is_some() && !force_rebuild {
+        should_run_scripts = false;
     }
 
     // Compute the side-effects cache key once per snapshot, before
