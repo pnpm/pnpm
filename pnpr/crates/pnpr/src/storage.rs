@@ -554,7 +554,24 @@ impl Store {
         let path = self.tarball_path(name, filename);
         let file = match fs::File::open(&path).await {
             Ok(f) => f,
-            Err(err) if err.kind() == ErrorKind::NotFound => return Ok(None),
+            Err(err) if err.kind() == ErrorKind::NotFound => {
+                let package_dir = self.package_dir(name);
+                match fs::metadata(&package_dir).await {
+                    Ok(meta) if meta.is_dir() => return Ok(None),
+                    Ok(_) => {
+                        return Err(std::io::Error::new(
+                            ErrorKind::NotADirectory,
+                            format!(
+                                "package storage path is not a directory: {}",
+                                package_dir.display(),
+                            ),
+                        )
+                        .into());
+                    }
+                    Err(err) if err.kind() == ErrorKind::NotFound => return Ok(None),
+                    Err(err) => return Err(err.into()),
+                }
+            }
             Err(err) => return Err(err.into()),
         };
         let len = file.metadata().await?.len();
