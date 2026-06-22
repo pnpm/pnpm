@@ -15,10 +15,10 @@ impl ImportArgs {
         let dir = manifest.path().parent().expect("manifest path always has a parent dir");
         let lockfile_path = dir.join("pnpm-lock.yaml");
 
-        if lockfile_path.exists() {
-            std::fs::remove_file(&lockfile_path)
-                .into_diagnostic()
-                .wrap_err("removing existing pnpm-lock.yaml")?;
+        if let Err(error) = std::fs::remove_file(&lockfile_path)
+            && error.kind() != std::io::ErrorKind::NotFound
+        {
+            return Err(error).into_diagnostic().wrap_err("removing existing pnpm-lock.yaml");
         }
 
         Install {
@@ -47,7 +47,7 @@ impl ImportArgs {
             node_linker: config.node_linker,
             lockfile_only: true,
             dry_run: false,
-            update_seed_policy: pacquet_package_manager::UpdateSeedPolicy::KeepAll,
+            update_seed_policy: pacquet_package_manager::UpdateSeedPolicy::DropAll,
             auth_override: None,
             resolution_observer: None,
             catalogs_override: None,
