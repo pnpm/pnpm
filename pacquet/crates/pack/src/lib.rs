@@ -200,16 +200,16 @@ pub enum PackError {
 /// `R` threads the reporter through the lifecycle-script emits; `Sys`
 /// is the filesystem seam for the tarball write phase
 /// ([`capabilities::Host`] in production).
-pub fn api<R, Sys>(opts: &PackOptions) -> Result<PackResult, PackError>
+pub fn api<Reporter, Sys>(opts: &PackOptions) -> Result<PackResult, PackError>
 where
-    R: Reporter,
+    Reporter: self::Reporter,
     Sys: FsReadFile + FsFileLen + FsCreateDirAll + FsWrite,
 {
     let entry_manifest = read_manifest(&opts.dir)?;
     prevent_bundled_dependencies_without_hoisted(opts.node_linker, &entry_manifest)?;
 
     if !opts.ignore_scripts {
-        run_scripts_if_present::<R>(opts, &["prepack", "prepare"], &entry_manifest)?;
+        run_scripts_if_present::<Reporter>(opts, &["prepack", "prepare"], &entry_manifest)?;
     }
 
     // The publish directory may differ from the project root when
@@ -293,7 +293,7 @@ where
             source,
         })?;
         if !opts.ignore_scripts {
-            run_scripts_if_present::<R>(opts, &["postpack"], &entry_manifest)?;
+            run_scripts_if_present::<Reporter>(opts, &["postpack"], &entry_manifest)?;
         }
     }
 
@@ -398,7 +398,7 @@ fn node_linker_str(node_linker: NodeLinker) -> &'static str {
 /// Run the named lifecycle scripts that the manifest actually declares,
 /// in order. Mirrors upstream's `runScriptsIfPresent`; the Rust port is
 /// a plain loop rather than upstream's bound partial application.
-fn run_scripts_if_present<R: Reporter>(
+fn run_scripts_if_present<Reporter: self::Reporter>(
     opts: &PackOptions,
     script_names: &[&str],
     manifest: &Value,
@@ -432,7 +432,7 @@ fn run_scripts_if_present<R: Reporter>(
 
     for &script_name in script_names {
         let Some(script) = script_body(scripts, script_name) else { continue };
-        run_lifecycle_hook::<R>(script_name, script, &run_opts, manifest, &parent_env)
+        run_lifecycle_hook::<Reporter>(script_name, script, &run_opts, manifest, &parent_env)
             .map_err(PackError::Lifecycle)?;
     }
     Ok(())
@@ -589,7 +589,7 @@ fn packed_contents(files_map: &indexmap::IndexMap<String, PathBuf>) -> Vec<Strin
         })
         .filter(|item| seen.insert(item.clone()))
         .collect();
-    contents.sort_by(|a, b| locale_compare_en(a, b));
+    contents.sort_by(|left, right| locale_compare_en(left, right));
     contents
 }
 
@@ -598,22 +598,22 @@ fn packed_contents(files_map: &indexmap::IndexMap<String, PathBuf>) -> Vec<Strin
 /// tie by giving a lowercase character precedence over its uppercase
 /// counterpart. Full ICU collation is not a workspace dependency; this
 /// reproduces `en` ordering for plain file paths, where the two agree.
-fn locale_compare_en(a: &str, b: &str) -> Ordering {
-    let primary = a.to_lowercase().cmp(&b.to_lowercase());
+fn locale_compare_en(left: &str, right: &str) -> Ordering {
+    let primary = left.to_lowercase().cmp(&right.to_lowercase());
     if primary != Ordering::Equal {
         return primary;
     }
-    for (ca, cb) in a.chars().zip(b.chars()) {
-        if ca == cb {
+    for (left_char, right_char) in left.chars().zip(right.chars()) {
+        if left_char == right_char {
             continue;
         }
-        return match (ca.is_lowercase(), cb.is_lowercase()) {
+        return match (left_char.is_lowercase(), right_char.is_lowercase()) {
             (true, false) => Ordering::Less,
             (false, true) => Ordering::Greater,
-            _ => ca.cmp(&cb),
+            _ => left_char.cmp(&right_char),
         };
     }
-    a.len().cmp(&b.len())
+    left.len().cmp(&right.len())
 }
 
 /// Whether a packed path looks like a license file, matching upstream's

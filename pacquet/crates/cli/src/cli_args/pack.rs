@@ -73,14 +73,14 @@ pub struct PackArgs {
 impl PackArgs {
     /// Pack the project at `dir` (or every workspace project when
     /// `recursive`), returning the text/JSON the CLI prints.
-    pub fn run<R: Reporter>(
+    pub fn run<Reporter: self::Reporter>(
         &self,
         dir: &Path,
         config: &Config,
         recursive: bool,
     ) -> miette::Result<String> {
         if recursive {
-            self.run_recursive::<R>(dir, config)
+            self.run_recursive::<Reporter>(dir, config)
         } else {
             let options = self.pack_options(
                 dir.to_path_buf(),
@@ -88,7 +88,7 @@ impl PackArgs {
                 self.out.clone(),
                 self.pack_destination.clone(),
             );
-            let result = api::<R, Host>(&options)
+            let result = api::<Reporter, Host>(&options)
                 .map_err(miette::Report::new)
                 .wrap_err("pack the package")?;
             Ok(format_pack_output(&[to_pack_result_json(&result)], self.json, false))
@@ -98,7 +98,11 @@ impl PackArgs {
     /// Pack every workspace project that declares both a name and a
     /// version, in topological order. Mirrors the recursive arm of
     /// pnpm's `handler`.
-    fn run_recursive<R: Reporter>(&self, dir: &Path, config: &Config) -> miette::Result<String> {
+    fn run_recursive<Reporter: self::Reporter>(
+        &self,
+        dir: &Path,
+        config: &Config,
+    ) -> miette::Result<String> {
         let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
         let patterns = read_workspace_manifest(workspace_root)
             .map_err(miette::Report::new)
@@ -133,7 +137,7 @@ impl PackArgs {
                     out.clone(),
                     pack_destination.clone(),
                 );
-                let result = api::<R, Host>(&options)
+                let result = api::<Reporter, Host>(&options)
                     .map_err(miette::Report::new)
                     .wrap_err_with(|| format!("pack {}", project.root_dir.display()))?;
                 packed.push(to_pack_result_json(&result));
