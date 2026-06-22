@@ -13,7 +13,7 @@
 //! token-revocation request are `Sys`-bound capabilities with no `&self`
 //! receiver (production provider [`Host`], test fakes are unit structs),
 //! and the two `global*` log channels are emitted through the
-//! `R: Reporter` seam. See the dependency-injection convention in
+//! `Reporter` seam. See the dependency-injection convention in
 //! `pacquet/CODE_STYLE_GUIDE.md`.
 
 use std::{collections::HashMap, future::Future, io, path::PathBuf};
@@ -123,13 +123,13 @@ pub struct LogoutOptions<'a> {
 /// for the registry, and [`LogoutError::LogoutFailed`] when the registry
 /// rejected the revocation *and* the token was not in `auth.ini` to
 /// remove locally.
-pub async fn logout<Sys, R>(
+pub async fn logout<Sys, Reporter>(
     http_client: &ThrottledClient,
     opts: LogoutOptions<'_>,
 ) -> Result<String, LogoutError>
 where
     Sys: FsReadToString + FsWrite + RevokeToken,
-    R: Reporter,
+    Reporter: self::Reporter,
 {
     let registry = normalize_registry_url(opts.registry.unwrap_or(DEFAULT_REGISTRY));
     let registry_config_key = nerf_dart(&registry);
@@ -143,7 +143,7 @@ where
     let revoked = match Sys::revoke(http_client, &revoke_url, token, opts.retry).await {
         RevokeOutcome::Revoked => true,
         RevokeOutcome::Rejected { status } => {
-            global::<R>(
+            global::<Reporter>(
                 opts.prefix,
                 LogLevel::Info,
                 format!("Registry returned HTTP {status} when revoking token"),
@@ -151,7 +151,7 @@ where
             false
         }
         RevokeOutcome::Unreachable => {
-            global::<R>(
+            global::<Reporter>(
                 opts.prefix,
                 LogLevel::Info,
                 "Could not reach the registry to revoke the token".to_string(),
@@ -167,14 +167,14 @@ where
         Sys::write(&config_path, settings.serialize().as_bytes())
             .map_err(|error| LogoutError::WriteAuthIni { path: config_path.clone(), error })?;
     } else if revoked {
-        global::<R>(
+        global::<Reporter>(
             opts.prefix,
             LogLevel::Warn,
             format!(
                 "The auth token for {registry} was not found in {}. \
                  It may be configured in .npmrc or another config file. \
                  The token was revoked on the registry but must be removed manually from that config file.",
-                config_path.display()
+                config_path.display(),
             ),
         );
     } else {
@@ -194,8 +194,8 @@ fn safe_read_ini<Sys: FsReadToString>(path: &std::path::Path) -> Result<IniSetti
     }
 }
 
-fn global<R: Reporter>(prefix: &str, level: LogLevel, message: String) {
-    R::emit(&LogEvent::Pnpm(PnpmLog { level, message, prefix: prefix.to_string() }));
+fn global<Reporter: self::Reporter>(prefix: &str, level: LogLevel, message: String) {
+    Reporter::emit(&LogEvent::Pnpm(PnpmLog { level, message, prefix: prefix.to_string() }));
 }
 
 /// Append a trailing slash if the registry URL lacks one. Mirrors npm's

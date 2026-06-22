@@ -22,7 +22,11 @@ pub struct LogoutArgs {
 }
 
 impl LogoutArgs {
-    pub async fn run<R: Reporter>(self, config: &Config, prefix: &str) -> miette::Result<()> {
+    pub async fn run<Reporter: self::Reporter>(
+        self,
+        config: &Config,
+        prefix: &str,
+    ) -> miette::Result<()> {
         let Some(config_dir) = config.config_dir.as_deref() else {
             return Err(miette::miette!(
                 code = "ERR_PNPM_NO_CONFIG_DIR",
@@ -57,7 +61,7 @@ impl LogoutArgs {
             max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
         };
 
-        let message = logout::<AuthHost, R>(
+        let message = logout::<AuthHost, Reporter>(
             &http_client,
             LogoutOptions {
                 // `--registry` wins; otherwise the resolved registry,

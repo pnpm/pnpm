@@ -3,5 +3,6 @@
 //!
 //! Only `logout` is ported so far.
 
-mod ini;
 pub mod logout;
+
+mod ini;

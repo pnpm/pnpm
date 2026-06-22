@@ -102,7 +102,7 @@ async fn throws_when_not_logged_in() {
         writes = WRITES,
         revokes = REVOKES,
         read = { unreachable!() },
-        revoke = unreachable!()
+        revoke = unreachable!(),
     );
     let auth = auth_config(&[]);
     let err = logout::<Sys, Rep>(
@@ -133,7 +133,7 @@ async fn throws_when_not_logged_in_to_a_custom_registry() {
         writes = WRITES,
         revokes = REVOKES,
         read = { unreachable!() },
-        revoke = unreachable!()
+        revoke = unreachable!(),
     );
     let auth = auth_config(&[]);
     let err = logout::<Sys, Rep>(
@@ -494,4 +494,51 @@ async fn handles_registry_with_a_path() {
     assert_eq!(result, "Logged out of https://example.com/npm/");
     assert_eq!(REVOKES.lock().unwrap()[0].0, "https://example.com/npm/-/user/token/path-token");
     assert_eq!(WRITES.lock().unwrap()[0].1, "");
+}
+
+#[tokio::test]
+async fn propagates_auth_ini_write_errors() {
+    recording_reporter!(Rep, EVENTS);
+    // `sys_fake!`'s write always succeeds, so this branch needs a
+    // hand-written fake whose `FsWrite::write` returns an error.
+    struct Sys;
+    impl FsReadToString for Sys {
+        fn read_to_string(_path: &Path) -> io::Result<String> {
+            Ok("//registry.npmjs.org/:_authToken=tok\n".to_string())
+        }
+    }
+    impl FsWrite for Sys {
+        fn write(_path: &Path, _bytes: &[u8]) -> io::Result<()> {
+            Err(io::Error::new(io::ErrorKind::PermissionDenied, "EACCES"))
+        }
+    }
+    impl RevokeToken for Sys {
+        async fn revoke(
+            _http_client: &ThrottledClient,
+            _revoke_url: &str,
+            _token: &str,
+            _retry: RetryOpts,
+        ) -> RevokeOutcome {
+            RevokeOutcome::Revoked
+        }
+    }
+    let auth = auth_config(&[("//registry.npmjs.org/:_authToken", "tok")]);
+    let err = logout::<Sys, Rep>(
+        &unused_client(),
+        LogoutOptions {
+            registry: None,
+            auth_config: &auth,
+            config_dir: Path::new("/config"),
+            retry: no_retry(),
+            prefix: "/mock",
+        },
+    )
+    .await
+    .unwrap_err();
+
+    let LogoutError::WriteAuthIni { path, error } = &err else {
+        panic!("expected WriteAuthIni, got {err:?}");
+    };
+    assert_eq!(path, &Path::new("/config").join("auth.ini"));
+    assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
 }
