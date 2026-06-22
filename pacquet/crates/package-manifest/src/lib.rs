@@ -153,13 +153,18 @@ impl PackageManifest {
         &mut self.value
     }
 
-    pub fn save(&self) -> Result<(), PackageManifestError> {
+    pub fn save_and_get_written_value(&self) -> Result<Value, PackageManifestError> {
         let mut value = self.value.clone();
         convert_dependencies_to_engines_runtime(&mut value, "devDependencies", "devEngines")?;
         convert_dependencies_to_engines_runtime(&mut value, "dependencies", "engines")?;
         let contents = serde_json::to_string_pretty(&value)?;
         let mut file = fs::File::create(&self.path)?;
         file.write_all(contents.as_bytes())?;
+        Ok(value)
+    }
+
+    pub fn save(&self) -> Result<(), PackageManifestError> {
+        self.save_and_get_written_value()?;
         Ok(())
     }
 

@@ -432,6 +432,32 @@ fn save_converts_runtime_dependencies_before_writing() {
 }
 
 #[test]
+fn save_and_get_written_value_returns_saved_manifest() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(path.clone()).unwrap();
+    manifest.add_dependency("node", "runtime:22", DependencyGroup::Dev).unwrap();
+
+    let written = manifest.save_and_get_written_value().unwrap();
+    let saved: serde_json::Value =
+        serde_json::from_str(&read_to_string(path).unwrap()).expect("parse saved manifest");
+
+    assert_eq!(written, saved);
+    assert_eq!(
+        saved.get("devEngines"),
+        Some(&json!({
+            "runtime": {
+                "name": "node",
+                "version": "22",
+                "onFail": "download",
+            },
+        })),
+    );
+    assert_eq!(saved.get("devDependencies"), Some(&json!({})));
+    assert_eq!(manifest.value().get("devDependencies"), Some(&json!({ "node": "runtime:22" })));
+}
+
+#[test]
 fn failed_save_preserves_existing_file_contents() {
     let dir = tempdir().unwrap();
     let path = dir.path().join("package.json");

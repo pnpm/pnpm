@@ -568,7 +568,8 @@ impl Update<'_> {
         .map_err(UpdateError::Install)?;
 
         if persist_manifest {
-            manifest.save().map_err(UpdateError::SaveManifest)?;
+            let updated =
+                manifest.save_and_get_written_value().map_err(UpdateError::SaveManifest)?;
 
             let prefix = manifest
                 .path()
@@ -578,10 +579,7 @@ impl Update<'_> {
                 .into_owned();
             Reporter::emit(&LogEvent::PackageManifest(PackageManifestLog {
                 level: LogLevel::Debug,
-                message: PackageManifestMessage::Updated {
-                    prefix,
-                    updated: manifest.value().clone(),
-                },
+                message: PackageManifestMessage::Updated { prefix, updated },
             }));
         }
 

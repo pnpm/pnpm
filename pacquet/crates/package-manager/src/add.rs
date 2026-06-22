@@ -302,7 +302,7 @@ where
         .await
         .map_err(AddError::Install)?;
 
-        manifest.save().map_err(AddError::SaveManifest)?;
+        let updated = manifest.save_and_get_written_value().map_err(AddError::SaveManifest)?;
 
         // `pnpm:package-manifest updated` mirrors pnpm's emit at
         // <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/deps-resolver/src/index.ts#L238>:
@@ -326,7 +326,7 @@ where
             .into_owned();
         Reporter::emit(&LogEvent::PackageManifest(PackageManifestLog {
             level: LogLevel::Debug,
-            message: PackageManifestMessage::Updated { prefix, updated: manifest.value().clone() },
+            message: PackageManifestMessage::Updated { prefix, updated },
         }));
 
         Ok(())
