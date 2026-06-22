@@ -9,7 +9,7 @@ use tempfile::{NamedTempFile, tempdir};
 use super::safe_read_package_json_from_dir;
 use super::{
     BundleDependencies, PackageManifest, PackageManifestError,
-    convert_engines_runtime_to_dependencies,
+    convert_dependencies_to_engines_runtime, convert_engines_runtime_to_dependencies,
 };
 use crate::DependencyGroup;
 use serde_json::json;
@@ -306,6 +306,129 @@ fn convert_engines_runtime_targets_dependencies_for_engines_field() {
         manifest.get("dependencies").and_then(|d| d.get("node")).and_then(|v| v.as_str()),
         Some("runtime:22.0.0"),
     );
+}
+
+#[test]
+fn convert_dependencies_runtime_writes_devengines_runtime() {
+    let mut manifest = json!({
+        "devDependencies": {
+            "node": "runtime:22",
+        },
+    });
+    convert_dependencies_to_engines_runtime(&mut manifest, "devDependencies", "devEngines")
+        .unwrap();
+
+    assert_eq!(
+        manifest.get("devEngines"),
+        Some(&json!({
+            "runtime": {
+                "name": "node",
+                "version": "22",
+                "onFail": "download",
+            },
+        })),
+    );
+    assert_eq!(manifest.get("devDependencies"), Some(&json!({})));
+}
+
+#[test]
+fn convert_dependencies_runtime_updates_existing_single_entry() {
+    let mut manifest = json!({
+        "devEngines": {
+            "runtime": {
+                "name": "node",
+                "version": "16",
+                "onFail": "warn",
+            },
+        },
+        "devDependencies": {
+            "node": "runtime:22",
+        },
+    });
+    convert_dependencies_to_engines_runtime(&mut manifest, "devDependencies", "devEngines")
+        .unwrap();
+
+    assert_eq!(
+        manifest.get("devEngines"),
+        Some(&json!({
+            "runtime": {
+                "name": "node",
+                "version": "22",
+                "onFail": "download",
+            },
+        })),
+    );
+    assert_eq!(manifest.get("devDependencies"), Some(&json!({})));
+}
+
+#[test]
+fn convert_dependencies_runtime_preserves_other_single_runtime_as_array() {
+    let mut manifest = json!({
+        "devEngines": {
+            "runtime": {
+                "name": "deno",
+                "version": "1",
+            },
+        },
+        "devDependencies": {
+            "node": "runtime:22",
+        },
+    });
+    convert_dependencies_to_engines_runtime(&mut manifest, "devDependencies", "devEngines")
+        .unwrap();
+
+    assert_eq!(
+        manifest.get("devEngines"),
+        Some(&json!({
+            "runtime": [
+                {
+                    "name": "deno",
+                    "version": "1",
+                },
+                {
+                    "name": "node",
+                    "version": "22",
+                    "onFail": "download",
+                },
+            ],
+        })),
+    );
+    assert_eq!(manifest.get("devDependencies"), Some(&json!({})));
+}
+
+#[test]
+fn save_converts_runtime_dependencies_before_writing() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(path.clone()).unwrap();
+    manifest.add_dependency("node", "runtime:22", DependencyGroup::Dev).unwrap();
+    manifest.add_dependency("bun", "runtime:1.2.0", DependencyGroup::Prod).unwrap();
+    manifest.save().unwrap();
+
+    let saved: serde_json::Value =
+        serde_json::from_str(&read_to_string(path).unwrap()).expect("parse saved manifest");
+    assert_eq!(
+        saved.get("devEngines"),
+        Some(&json!({
+            "runtime": {
+                "name": "node",
+                "version": "22",
+                "onFail": "download",
+            },
+        })),
+    );
+    assert_eq!(
+        saved.get("engines"),
+        Some(&json!({
+            "runtime": {
+                "name": "bun",
+                "version": "1.2.0",
+                "onFail": "download",
+            },
+        })),
+    );
+    assert_eq!(saved.get("devDependencies"), Some(&json!({})));
+    assert_eq!(saved.get("dependencies"), Some(&json!({})));
 }
 
 /// Reading a manifest with `devEngines.runtime` set must apply the

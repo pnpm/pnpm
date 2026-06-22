@@ -11,6 +11,7 @@ pub mod recursive;
 pub mod remove;
 pub mod restart;
 pub mod run;
+pub mod runtime;
 pub mod sanitize;
 pub mod stop;
 pub mod store;
@@ -41,6 +42,7 @@ use pacquet_reporter::{
 use remove::RemoveArgs;
 use restart::RestartArgs;
 use run::RunArgs;
+use runtime::RuntimeArgs;
 use serde_json::Value;
 use std::{
     fs,
@@ -165,6 +167,9 @@ pub enum CliCommand {
     Restart(RestartArgs),
     /// Lists the packages that include the file with the specified hash.
     FindHash(FindHashArgs),
+    /// Manage runtimes.
+    #[clap(visible_alias = "rt")]
+    Runtime(RuntimeArgs),
     /// Managing the package store.
     #[clap(subcommand)]
     Store(StoreCommand),
@@ -252,7 +257,8 @@ impl CliArgs {
                 | CliCommand::Remove(_)
                 | CliCommand::Install(_)
                 | CliCommand::Dlx(_)
-                | CliCommand::Create(_),
+                | CliCommand::Create(_)
+                | CliCommand::Runtime(_),
         );
         let manifest_path = || dir.join("package.json");
         // Resolve `.npmrc` / `pnpm-workspace.yaml` from the canonicalized
@@ -470,6 +476,20 @@ impl CliArgs {
             }
             CliCommand::FindHash(args) => {
                 args.run(|| config().map(|m| &*m))?;
+            }
+            CliCommand::Runtime(args) => {
+                args.reject_unsupported_global()?;
+                match reporter {
+                    ReporterType::Default | ReporterType::AppendOnly => {
+                        Box::pin(args.run::<DefaultReporter>(state(false)?)).await?;
+                    }
+                    ReporterType::Ndjson => {
+                        Box::pin(args.run::<NdjsonReporter>(state(false)?)).await?;
+                    }
+                    ReporterType::Silent => {
+                        Box::pin(args.run::<SilentReporter>(state(false)?)).await?;
+                    }
+                }
             }
             CliCommand::Store(command) => command.run(|| config().map(|m| &*m))?,
             CliCommand::CatFile(args) => {
