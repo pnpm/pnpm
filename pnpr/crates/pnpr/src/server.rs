@@ -9,7 +9,7 @@ use crate::{
         PendingAttachment, extract_attachments, iso_from_unix_millis, merge_manifest, now_iso,
         stream_decode_verify_and_write,
     },
-    storage::{CachedPackument, Storage},
+    storage::{CachedPackument, CachedTarballIntegrity, Storage},
     streaming,
     upstream::{
         CacheValidators, FetchOutcome, FetchedPackument, PackumentFetch, Upstream,
@@ -27,6 +27,7 @@ use axum::{
 use chrono::Utc;
 use indexmap::IndexMap;
 use serde_json::{Value, json};
+use ssri::Integrity;
 use std::{collections::HashSet, sync::Arc, time::Duration};
 use tower_http::{
     compression::{
@@ -45,12 +46,17 @@ use tracing::Span;
 /// long version histories.
 const ABBREVIATED_CONTENT_TYPE: &str = "application/vnd.npm.install-v1+json";
 
+/// Cap tarballs at 100 MiB while pnpr has to spool them to disk for SRI
+/// verification. This bounds per-request temporary disk usage for
+/// chunked or malicious upstream bodies.
+const MAX_TARBALL_BYTES: u64 = 100 * 1024 * 1024;
+
 /// Cap publish bodies at 100 MiB. The default axum body limit is
 /// 2 MiB, far too small for a real package — npm itself caps publish
 /// at 100 MiB and verdaccio inherits that limit. We apply it via
 /// [`DefaultBodyLimit::max`] on the router rather than on each
 /// route, so future write endpoints inherit the same ceiling.
-const MAX_PUBLISH_BODY_BYTES: usize = 100 * 1024 * 1024;
+const MAX_PUBLISH_BODY_BYTES: usize = MAX_TARBALL_BYTES as usize;
 
 #[derive(Clone)]
 struct AppState {
@@ -775,7 +781,7 @@ async fn serve_tarball(
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    let (canonical_filename, version) = match name.parse_tarball_name(filename) {
+    let (filename, version) = match name.parse_tarball_name(filename) {
         Ok(parsed) => parsed,
         Err(err) => return error_response(&err),
     };
@@ -786,43 +792,200 @@ async fn serve_tarball(
         return error_response(&err);
     }
 
-    match state.inner.storage.open_tarball(&name, &canonical_filename).await {
+    // The hosted store is authoritative. A genuine fault here (not a
+    // plain miss, which surfaces as `Ok(None)`) must fail closed rather
+    // than fall through to upstream and serve bytes of a different
+    // provenance for the same package name.
+    match state.inner.storage.open_hosted_tarball(&name, &filename).await {
         Ok(Some((body, len))) => return tarball_response(body, len),
         Ok(None) => {}
         Err(err) => {
-            tracing::warn!(?err, package = %name.as_str(), %filename, canonical = %canonical_filename, "tarball cache open failed");
+            tracing::warn!(?err, package = %name.as_str(), %filename, "hosted tarball open failed");
+            return error_response(&err);
         }
     }
 
-    let Some(upstream) = resolve_upstream(state, &name) else {
+    let packument = match load_packument_bytes(state, &name).await {
+        PackumentLoad::Ok(bytes) => bytes,
+        PackumentLoad::NotFound => return not_found(),
+        PackumentLoad::Err(err) => return error_response(&err),
+    };
+    let integrity = match expected_tarball_integrity(&packument, &name, &filename, &version) {
+        Ok(Some(integrity)) => integrity,
+        Ok(None) => return not_found(),
+        Err(err) => return error_response(&err),
+    };
+
+    let upstream = resolve_upstream(state, &name);
+    let should_read_cache = upstream.as_ref().is_none_or(|upstream| upstream.caches());
+    if should_read_cache {
+        match state.inner.storage.open_cached_tarball(&name, &filename).await {
+            Ok(Some((file, len))) => {
+                let expected = cached_tarball_integrity(&integrity, len);
+                if state
+                    .inner
+                    .storage
+                    .read_cached_tarball_integrity(&name, &filename)
+                    .await
+                    .is_some_and(|cached| cached == expected)
+                {
+                    return tarball_response(streaming::stream_file(file), Some(len));
+                }
+                match streaming::verify_file(file, &integrity).await {
+                    Ok(file) => {
+                        record_cached_tarball_integrity(state, &name, &filename, expected).await;
+                        return tarball_response(streaming::stream_file(file), Some(len));
+                    }
+                    Err(err) => {
+                        let err = tarball_stream_error(err, &name, &filename);
+                        tracing::warn!(?err, package = %name.as_str(), %filename, "cached tarball failed verification");
+                        discard_cached_tarball(state, &name, &filename).await;
+                    }
+                }
+            }
+            Ok(None) => {}
+            Err(err) => {
+                tracing::warn!(?err, package = %name.as_str(), %filename, "tarball cache open failed");
+            }
+        }
+    }
+
+    let Some(upstream) = upstream else {
         return not_found();
     };
 
-    let response = match upstream.fetch_tarball_response(&name, &canonical_filename).await {
+    let response = match upstream.fetch_tarball_response(&name, &filename).await {
         Ok(FetchOutcome::Ok(response)) => response,
         Ok(FetchOutcome::NotFound) => return not_found(),
         Err(err) => return error_response(&err),
     };
-    let upstream_len = response.content_length();
 
-    // `cache: false` uplinks (verdaccio) are mirror-less: stream the
-    // tarball straight to the client without writing it to disk.
-    if !upstream.caches() {
-        return tarball_response(Body::from_stream(response.bytes_stream()), upstream_len);
-    }
-
-    let write = match state.inner.storage.open_cached_tarball_tmp(&name, &canonical_filename).await
-    {
+    let write = match state.inner.storage.open_cached_tarball_tmp(&name, &filename).await {
         Ok(w) => w,
-        Err(err) => {
-            tracing::warn!(?err, package = %name.as_str(), %filename, canonical = %canonical_filename, "tarball cache tmp-open failed; streaming without cache");
-            let body = Body::from_stream(response.bytes_stream());
-            return tarball_response(body, upstream_len);
-        }
+        Err(err) => return error_response(&err),
     };
 
-    let body = streaming::tee_to_cache(response, write);
-    tarball_response(body, upstream_len)
+    if upstream.caches() {
+        let len = match streaming::download_verified_to_cache(
+            response,
+            write,
+            &integrity,
+            MAX_TARBALL_BYTES,
+        )
+        .await
+        {
+            Ok(len) => len,
+            Err(err) => return error_response(&tarball_stream_error(err, &name, &filename)),
+        };
+        record_cached_tarball_integrity(
+            state,
+            &name,
+            &filename,
+            cached_tarball_integrity(&integrity, len),
+        )
+        .await;
+
+        match state.inner.storage.open_cached_tarball(&name, &filename).await {
+            Ok(Some((file, len))) => tarball_response(streaming::stream_file(file), Some(len)),
+            Ok(None) => error_response(&tarball_integrity_error(
+                &name,
+                &filename,
+                "verified cache entry disappeared before it could be served".to_string(),
+            )),
+            Err(err) => error_response(&err),
+        }
+    } else {
+        match streaming::download_verified_to_temp(response, write, &integrity, MAX_TARBALL_BYTES)
+            .await
+        {
+            Ok((file, len, tmp_path)) => {
+                tarball_response(streaming::stream_file_and_remove(file, tmp_path), Some(len))
+            }
+            Err(err) => error_response(&tarball_stream_error(err, &name, &filename)),
+        }
+    }
+}
+
+fn expected_tarball_integrity(
+    packument: &[u8],
+    name: &PackageName,
+    filename: &str,
+    version: &str,
+) -> Result<Option<Integrity>, RegistryError> {
+    let packument: Value = serde_json::from_slice(packument)?;
+    let Some(manifest) = packument
+        .get("versions")
+        .and_then(Value::as_object)
+        .and_then(|versions| versions.get(version))
+    else {
+        return Ok(None);
+    };
+    let declared = manifest
+        .get("dist")
+        .and_then(|dist| dist.get("integrity"))
+        .and_then(Value::as_str)
+        .ok_or_else(|| {
+            tarball_integrity_error(
+                name,
+                filename,
+                format!("packument has no dist.integrity for version {version:?}"),
+            )
+        })?;
+    streaming::parse_integrity(declared).map(Some).map_err(|err| {
+        tarball_integrity_error(name, filename, format!("malformed dist.integrity: {err}"))
+    })
+}
+
+fn tarball_stream_error(
+    err: streaming::TarballStreamError,
+    name: &PackageName,
+    filename: &str,
+) -> RegistryError {
+    match err {
+        streaming::TarballStreamError::Upstream { url, source } => {
+            RegistryError::Upstream { url, source }
+        }
+        streaming::TarballStreamError::Io(err) => RegistryError::Io(err),
+        streaming::TarballStreamError::Integrity(err) => {
+            tarball_integrity_error(name, filename, format!("integrity verification failed: {err}"))
+        }
+        streaming::TarballStreamError::TooLarge { limit, received } => tarball_integrity_error(
+            name,
+            filename,
+            format!("tarball body exceeds {limit} byte limit (received {received} bytes)"),
+        ),
+    }
+}
+
+fn tarball_integrity_error(name: &PackageName, filename: &str, reason: String) -> RegistryError {
+    RegistryError::TarballIntegrity {
+        package: name.as_str().to_string(),
+        filename: filename.to_string(),
+        reason,
+    }
+}
+
+async fn discard_cached_tarball(state: &AppState, name: &PackageName, filename: &str) {
+    if let Err(err) = state.inner.storage.remove_cached_tarball(name, filename).await {
+        tracing::warn!(?err, package = %name.as_str(), %filename, "invalid tarball cache removal failed");
+    }
+}
+
+fn cached_tarball_integrity(integrity: &Integrity, len: u64) -> CachedTarballIntegrity {
+    CachedTarballIntegrity { integrity: integrity.to_string(), len }
+}
+
+async fn record_cached_tarball_integrity(
+    state: &AppState,
+    name: &PackageName,
+    filename: &str,
+    integrity: CachedTarballIntegrity,
+) {
+    if let Err(err) =
+        state.inner.storage.write_cached_tarball_integrity(name, filename, &integrity).await
+    {
+        tracing::warn!(?err, package = %name.as_str(), %filename, "tarball cache integrity marker write failed");
+    }
 }
 
 /// Add a new user or log in an existing one. Mirrors verdaccio's

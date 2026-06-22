@@ -21,6 +21,10 @@ fn sidecar_path(tmp: &TempDir, name: &str) -> PathBuf {
     tmp.path().join("cache").join(name).join(PACKUMENT_META_FILE)
 }
 
+fn tarball_sidecar_path(tmp: &TempDir, name: &str, filename: &str) -> PathBuf {
+    tmp.path().join("cache").join(name).join(format!("{filename}{TARBALL_INTEGRITY_SUFFIX}"))
+}
+
 /// Read an entry back as `Stale` so its validators can be inspected. The
 /// write is aged past a 1ms TTL with a short sleep.
 async fn read_stale_validators(storage: &Storage, name: &PackageName) -> CacheValidators {
@@ -133,4 +137,113 @@ async fn read_cached_packument_returns_bytes_regardless_of_age() {
     tokio::time::sleep(Duration::from_millis(10)).await;
     let bytes = storage.read_cached_packument(&name).await.unwrap();
     assert_eq!(bytes.as_deref(), Some(&br#"{"v":1}"#[..]));
+}
+
+#[tokio::test]
+async fn cached_tarball_integrity_roundtrips_and_malformed_is_none() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    let name = pkg("foo");
+    let integrity = CachedTarballIntegrity { integrity: "sha512-ZGVhZGJlZWY=".to_string(), len: 7 };
+
+    storage.write_cached_tarball_integrity(&name, "foo-1.0.0.tgz", &integrity).await.unwrap();
+    assert_eq!(
+        storage.read_cached_tarball_integrity(&name, "foo-1.0.0.tgz").await,
+        Some(integrity),
+    );
+
+    fs::write(tarball_sidecar_path(&tmp, "foo", "foo-1.0.0.tgz"), b"not json").await.unwrap();
+    assert!(storage.read_cached_tarball_integrity(&name, "foo-1.0.0.tgz").await.is_none());
+}
+
+#[tokio::test]
+async fn removing_cached_tarball_removes_integrity_sidecar() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    let name = pkg("foo");
+    let mut write = storage.open_cached_tarball_tmp(&name, "foo-1.0.0.tgz").await.unwrap();
+    write.write_all(b"tarball").await.unwrap();
+    write.finalize().await.unwrap();
+    storage
+        .write_cached_tarball_integrity(
+            &name,
+            "foo-1.0.0.tgz",
+            &CachedTarballIntegrity { integrity: "sha512-ZGVhZGJlZWY=".to_string(), len: 7 },
+        )
+        .await
+        .unwrap();
+
+    assert!(tarball_sidecar_path(&tmp, "foo", "foo-1.0.0.tgz").exists());
+    assert!(storage.remove_cached_tarball(&name, "foo-1.0.0.tgz").await.unwrap());
+    assert!(!tarball_sidecar_path(&tmp, "foo", "foo-1.0.0.tgz").exists());
+}
+
+#[tokio::test]
+async fn temp_file_creation_retries_existing_candidate_without_overwriting() {
+    let tmp = TempDir::new().unwrap();
+    let final_path = tmp.path().join("foo-1.0.0.tgz");
+    let occupied = tmp.path().join("foo-1.0.0.tgz.tmp.occupied");
+    let retry = tmp.path().join("foo-1.0.0.tgz.tmp.retry");
+    fs::write(&occupied, b"occupied").await.unwrap();
+
+    let mut first = true;
+    let (mut file, path) = create_tmp_file_with(&final_path, |_| {
+        if std::mem::replace(&mut first, false) { occupied.clone() } else { retry.clone() }
+    })
+    .await
+    .unwrap();
+    assert_eq!(path, retry);
+
+    file.write_all(b"new").await.unwrap();
+    file.sync_all().await.unwrap();
+    drop(file);
+
+    assert_eq!(fs::read(&occupied).await.unwrap(), b"occupied");
+    assert_eq!(fs::read(&retry).await.unwrap(), b"new");
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn temp_file_creation_does_not_follow_symlink_candidate() {
+    use std::os::unix::fs::symlink;
+
+    let tmp = TempDir::new().unwrap();
+    let final_path = tmp.path().join("foo-1.0.0.tgz");
+    let victim = tmp.path().join("victim");
+    let symlink_path = tmp.path().join("foo-1.0.0.tgz.tmp.symlink");
+    let retry = tmp.path().join("foo-1.0.0.tgz.tmp.retry");
+    fs::write(&victim, b"victim").await.unwrap();
+    symlink(&victim, &symlink_path).unwrap();
+
+    let mut first = true;
+    let (mut file, path) = create_tmp_file_with(&final_path, |_| {
+        if std::mem::replace(&mut first, false) { symlink_path.clone() } else { retry.clone() }
+    })
+    .await
+    .unwrap();
+    assert_eq!(path, retry);
+
+    file.write_all(b"new").await.unwrap();
+    file.sync_all().await.unwrap();
+    drop(file);
+
+    assert_eq!(fs::read(&victim).await.unwrap(), b"victim");
+    assert_eq!(fs::read(&retry).await.unwrap(), b"new");
+    assert!(std::fs::symlink_metadata(&symlink_path).unwrap().file_type().is_symlink());
+}
+
+#[tokio::test]
+async fn failed_tarball_finalize_removes_tmp_file() {
+    let tmp = TempDir::new().unwrap();
+    let tmp_path = tmp.path().join("foo-1.0.0.tgz.tmp.test");
+    let final_path = tmp.path().join("foo-1.0.0.tgz");
+    fs::create_dir(&final_path).await.unwrap();
+    fs::write(final_path.join("block-rename"), b"occupied").await.unwrap();
+
+    let file = fs::File::create(&tmp_path).await.unwrap();
+    let mut write = TarballWrite { file: Some(file), tmp_path: Some(tmp_path.clone()), final_path };
+    write.write_all(b"tarball").await.unwrap();
+
+    assert!(write.finalize().await.is_err());
+    assert!(!tmp_path.exists(), "failed finalization must remove its temporary file");
 }

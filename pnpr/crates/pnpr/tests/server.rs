@@ -5,6 +5,7 @@ use axum::{
 use flate2::read::GzDecoder;
 use pnpr::{Config, router};
 use serde_json::{Value, json};
+use ssri::{Algorithm, IntegrityOpts};
 use std::{
     fs,
     io::Read as _,
@@ -36,6 +37,12 @@ async fn body_json(body: Body) -> Value {
     serde_json::from_slice(&body_bytes(body).await).expect("body parses as JSON")
 }
 
+fn sha512_integrity(bytes: &[u8]) -> String {
+    let mut opts = IntegrityOpts::new().algorithm(Algorithm::Sha512);
+    opts.input(bytes);
+    opts.result().to_string()
+}
+
 fn osv_database(package: &str, versions: &[&str]) -> TempDir {
     let dir = TempDir::new().unwrap();
     let versions: Vec<Value> = versions.iter().map(|version| json!(version)).collect();
@@ -53,6 +60,41 @@ fn osv_database(package: &str, versions: &[&str]) -> TempDir {
 fn enable_osv(config: &mut Config, path: &Path) {
     config.osv.enabled = true;
     config.osv.path = Some(path.to_path_buf());
+}
+
+async fn mock_packument_for_tarball(
+    upstream: &mut mockito::ServerGuard,
+    package: &str,
+    version: &str,
+    expected_bytes: &[u8],
+) -> mockito::Mock {
+    let basename = package.rsplit('/').next().expect("package has a basename");
+    let mut versions = serde_json::Map::new();
+    versions.insert(
+        version.to_string(),
+        json!({
+            "name": package,
+            "version": version,
+            "dist": {
+                "tarball": format!("{}/{package}/-/{basename}-{version}.tgz", upstream.url()),
+                "integrity": sha512_integrity(expected_bytes),
+            },
+        }),
+    );
+    let packument = json!({
+        "name": package,
+        "dist-tags": { "latest": version },
+        "versions": versions,
+    });
+    let path = format!("/{package}");
+    upstream
+        .mock("GET", path.as_str())
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(packument.to_string())
+        .expect(1)
+        .create_async()
+        .await
 }
 
 #[tokio::test]
@@ -322,6 +364,7 @@ async fn scoped_packument_is_served() {
 async fn tarball_is_proxied_and_cached() {
     let mut upstream = mockito::Server::new_async().await;
     let bytes = b"fake-tarball-bytes";
+    let packument_mock = mock_packument_for_tarball(&mut upstream, "foo", "1.0.0", bytes).await;
     let mock = upstream
         .mock("GET", "/foo/-/foo-1.0.0.tgz")
         .with_status(200)
@@ -332,7 +375,8 @@ async fn tarball_is_proxied_and_cached() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
+    let storage = tmp.path().to_path_buf();
+    let app = router(config_for(&upstream.url(), storage.clone()));
 
     let first = app
         .clone()
@@ -342,14 +386,14 @@ async fn tarball_is_proxied_and_cached() {
     assert_eq!(first.status(), StatusCode::OK);
     assert_eq!(body_bytes(first.into_body()).await, bytes);
 
-    let second = app
-        .clone()
+    let second = router(config_for("http://127.0.0.1:1", storage))
         .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_eq!(second.status(), StatusCode::OK);
     assert_eq!(body_bytes(second.into_body()).await, bytes);
 
+    packument_mock.assert_async().await;
     mock.assert_async().await;
 }
 
@@ -417,6 +461,7 @@ async fn osv_tarball_screening_preserves_access_gate() {
 async fn osv_refuses_vulnerable_tarball_from_cache() {
     let mut upstream = mockito::Server::new_async().await;
     let bytes = b"cached vulnerable tarball";
+    let packument_mock = mock_packument_for_tarball(&mut upstream, "foo", "1.0.0", bytes).await;
     let mock = upstream
         .mock("GET", "/foo/-/foo-1.0.0.tgz")
         .with_status(200)
@@ -448,7 +493,243 @@ async fn osv_refuses_vulnerable_tarball_from_cache() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
 
+    packument_mock.assert_async().await;
     mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn selected_version_controls_tarball_route_and_offline_cache_key() {
+    let mut upstream = mockito::Server::new_async().await;
+    let v1_bytes = b"selected-version-one";
+    let v2_bytes = b"other-version-two";
+    let packument = json!({
+        "name": "foo",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "foo",
+                "version": "1.0.0",
+                "dist": {
+                    "tarball": format!("{}/foo/-/foo-2.0.0.tgz", upstream.url()),
+                    "integrity": sha512_integrity(v1_bytes),
+                },
+            },
+            "2.0.0": {
+                "name": "foo",
+                "version": "2.0.0",
+                "dist": {
+                    "tarball": format!("{}/foo/-/foo-1.0.0.tgz", upstream.url()),
+                    "integrity": sha512_integrity(v2_bytes),
+                },
+            },
+        },
+    });
+    let packument_mock = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(packument.to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    let tarball_mock = upstream
+        .mock("GET", "/foo/-/foo-1.0.0.tgz")
+        .with_status(200)
+        .with_body(v1_bytes)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(config_for(&upstream.url(), storage.clone()));
+
+    let selected = app
+        .clone()
+        .oneshot(Request::get("/foo/latest").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(selected.status(), StatusCode::OK);
+    let selected: Value = serde_json::from_slice(&body_bytes(selected.into_body()).await).unwrap();
+    assert_eq!(selected["dist"]["tarball"], "http://example.test/foo/-/foo-1.0.0.tgz");
+
+    let full =
+        app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    let full: Value = serde_json::from_slice(&body_bytes(full.into_body()).await).unwrap();
+    assert_eq!(
+        full["versions"]["1.0.0"]["dist"]["tarball"],
+        "http://example.test/foo/-/foo-1.0.0.tgz",
+    );
+    assert_eq!(
+        full["versions"]["2.0.0"]["dist"]["tarball"],
+        "http://example.test/foo/-/foo-2.0.0.tgz",
+    );
+
+    let route =
+        selected["dist"]["tarball"].as_str().unwrap().strip_prefix("http://example.test").unwrap();
+    let first = app.oneshot(Request::get(route).body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(first.status(), StatusCode::OK);
+    assert_eq!(body_bytes(first.into_body()).await, v1_bytes);
+
+    let package_dir = storage.join(".pnpr-cache").join("foo");
+    assert_eq!(tarball_cache_entries(&package_dir), vec!["foo-1.0.0.tgz".to_string()]);
+
+    let offline = router(config_for("http://127.0.0.1:1", storage));
+    let replay = offline.oneshot(Request::get(route).body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(replay.status(), StatusCode::OK);
+    assert_eq!(body_bytes(replay.into_body()).await, v1_bytes);
+
+    packument_mock.assert_async().await;
+    tarball_mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn tampered_upstream_tarball_is_rejected_and_not_cached() {
+    let mut upstream = mockito::Server::new_async().await;
+    let good_bytes = b"good-tarball-bytes";
+    let poison_bytes = b"poisoned-cache-bytes";
+    let packument = json!({
+        "name": "poisoned",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "poisoned",
+                "version": "1.0.0",
+                "dist": {
+                    "tarball": format!(
+                        "{}/poisoned/-/poisoned-1.0.0.tgz",
+                        upstream.url()
+                    ),
+                    "integrity": sha512_integrity(good_bytes),
+                },
+            },
+        },
+    });
+    let packument_mock = upstream
+        .mock("GET", "/poisoned")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(packument.to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    let tarball_mock = upstream
+        .mock("GET", "/poisoned/-/poisoned-1.0.0.tgz")
+        .with_status(200)
+        .with_header("content-type", "application/octet-stream")
+        .with_body(poison_bytes)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let cache_dir = storage.join(".pnpr-cache").join("poisoned");
+    std::fs::create_dir_all(&cache_dir).unwrap();
+    let cache_path = cache_dir.join("poisoned-1.0.0.tgz");
+    std::fs::write(&cache_path, poison_bytes).unwrap();
+
+    let app = router(config_for(&upstream.url(), storage.clone()));
+    let packument_response =
+        app.clone().oneshot(Request::get("/poisoned").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(packument_response.status(), StatusCode::OK);
+
+    let tarball_response = app
+        .oneshot(Request::get("/poisoned/-/poisoned-1.0.0.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(tarball_response.status(), StatusCode::BAD_GATEWAY);
+    assert!(!cache_path.exists(), "unverified tarball must not remain cached");
+
+    let cached_response = router(config_for("http://127.0.0.1:1", storage))
+        .oneshot(Request::get("/poisoned/-/poisoned-1.0.0.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(cached_response.status(), StatusCode::SERVICE_UNAVAILABLE);
+
+    packument_mock.assert_async().await;
+    tarball_mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn tarball_without_integrity_is_rejected_before_fetch() {
+    let mut upstream = mockito::Server::new_async().await;
+    let packument = foo_packument(&upstream.url());
+    let packument_mock = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(packument.to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    let tarball_mock = upstream
+        .mock("GET", "/foo/-/foo-1.0.0.tgz")
+        .with_status(200)
+        .with_body("unverified")
+        .expect(0)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let response = router(config_for(&upstream.url(), tmp.path().to_path_buf()))
+        .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+    packument_mock.assert_async().await;
+    tarball_mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn invalid_tarball_integrities_are_controlled_failures() {
+    for (case, integrity) in [
+        ("malformed", "not-a-valid-sri"),
+        ("whitespace", " \t\n "),
+        ("zero-hash", ""),
+        ("unsupported", "md5-deadbeef"),
+    ] {
+        let mut upstream = mockito::Server::new_async().await;
+        let packument = json!({
+            "name": "foo",
+            "versions": {
+                "1.0.0": {
+                    "name": "foo",
+                    "version": "1.0.0",
+                    "dist": {
+                        "tarball": format!("{}/foo/-/foo-1.0.0.tgz", upstream.url()),
+                        "integrity": integrity,
+                    },
+                },
+            },
+        });
+        let packument_mock = upstream
+            .mock("GET", "/foo")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(packument.to_string())
+            .expect(1)
+            .create_async()
+            .await;
+        let tarball_mock = upstream
+            .mock("GET", "/foo/-/foo-1.0.0.tgz")
+            .with_status(200)
+            .with_body("must-not-be-fetched")
+            .expect(0)
+            .create_async()
+            .await;
+
+        let tmp = TempDir::new().unwrap();
+        let response = router(config_for(&upstream.url(), tmp.path().to_path_buf()))
+            .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), StatusCode::BAD_GATEWAY, "case: {case}");
+        packument_mock.assert_async().await;
+        tarball_mock.assert_async().await;
+    }
 }
 
 #[tokio::test]
@@ -470,11 +751,12 @@ async fn upstream_404_is_propagated() {
 }
 
 #[tokio::test]
-async fn tarball_streaming_finalizes_cache_with_no_tmp_leftover() {
+async fn tarball_verification_finalizes_cache_with_no_tmp_leftover() {
     let mut upstream = mockito::Server::new_async().await;
     // Large-ish body so the streaming path is exercised across many
     // chunks rather than fitting in a single hyper buffer.
     let bytes = vec![0xAB_u8; 512 * 1024];
+    let _packument_mock = mock_packument_for_tarball(&mut upstream, "big", "1.0.0", &bytes).await;
     let _mock = upstream
         .mock("GET", "/big/-/big-1.0.0.tgz")
         .with_status(200)
@@ -496,16 +778,10 @@ async fn tarball_streaming_finalizes_cache_with_no_tmp_leftover() {
     assert_eq!(received.len(), bytes.len());
     assert_eq!(received, bytes);
 
-    // By the time the client's stream ends (rx sees None), the tee
-    // task has already called finalize, so the cache file is in
-    // place at the canonical path and no `.tmp.*` siblings remain.
-    // Proxied tarballs land in the disposable cache root.
+    // Verification and finalization complete before the response is
+    // built, leaving only the canonical cache path.
     let package_dir = cache_dir.join(".pnpr-cache").join("big");
-    let entries: Vec<String> = std::fs::read_dir(&package_dir)
-        .unwrap()
-        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
-        .filter(|name| name.ends_with(".tgz"))
-        .collect();
+    let entries = tarball_cache_entries(&package_dir);
     assert_eq!(entries, vec!["big-1.0.0.tgz".to_string()]);
 
     let cached = std::fs::read(package_dir.join("big-1.0.0.tgz")).unwrap();
@@ -561,6 +837,8 @@ async fn tarball_filename_for_other_package_is_rejected() {
 async fn scoped_tarball_is_proxied() {
     let mut upstream = mockito::Server::new_async().await;
     let bytes = b"scoped-tarball-bytes";
+    let _packument_mock =
+        mock_packument_for_tarball(&mut upstream, "@types/node", "20.0.0", bytes).await;
     let mock = upstream
         .mock("GET", "/@types/node/-/node-20.0.0.tgz")
         .with_status(200)
@@ -585,6 +863,8 @@ async fn scoped_tarball_is_proxied() {
 async fn scoped_tarball_filename_is_canonicalized_before_fetch_and_cache() {
     let mut upstream = mockito::Server::new_async().await;
     let bytes = b"scoped-tarball-full-name";
+    let packument_mock =
+        mock_packument_for_tarball(&mut upstream, "@types/node", "20.0.0", bytes).await;
     let mock = upstream
         .mock("GET", "/@types/node/-/node-20.0.0.tgz")
         .with_status(200)
@@ -615,6 +895,7 @@ async fn scoped_tarball_filename_is_canonicalized_before_fetch_and_cache() {
     assert_eq!(body_bytes(canonical.into_body()).await, bytes);
     assert!(storage.join(".pnpr-cache/@types/node/node-20.0.0.tgz").exists());
     assert!(!storage.join(".pnpr-cache/@types/node/@types").exists());
+    packument_mock.assert_async().await;
     mock.assert_async().await;
 }
 
@@ -813,20 +1094,22 @@ async fn invalid_package_name_returns_bad_request() {
 async fn concurrent_tarball_fetches_settle_to_one_cache_file() {
     let mut upstream = mockito::Server::new_async().await;
     let bytes = vec![0xCD; 128 * 1024];
+    let _packument_mock = mock_packument_for_tarball(&mut upstream, "foo", "1.0.0", &bytes).await;
     let mock = upstream
         .mock("GET", "/foo/-/foo-1.0.0.tgz")
         .with_status(200)
         .with_body(&bytes)
-        // We deliberately don't single-flight, so the upstream is hit
-        // at least twice. Bound only the lower side; the exact count
-        // depends on scheduling.
-        .expect_at_least(2)
+        .expect_at_least(1)
         .create_async()
         .await;
 
     let tmp = TempDir::new().unwrap();
     let cache_dir = tmp.path().to_path_buf();
     let app = router(config_for(&upstream.url(), cache_dir.clone()));
+
+    let packument =
+        app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(packument.status(), StatusCode::OK);
 
     let req1 =
         app.clone().oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap());
@@ -839,26 +1122,20 @@ async fn concurrent_tarball_fetches_settle_to_one_cache_file() {
     assert_eq!(body_bytes(r1.into_body()).await, bytes);
     assert_eq!(body_bytes(r2.into_body()).await, bytes);
 
-    // After both responses drain, both tee tasks have called
-    // `finalize` (rename is last-writer-wins on POSIX, and both
-    // wrote identical content). Exactly one `.tgz` file in the
-    // package dir, no `.tmp.*` survivors thanks to the unique-tmp
-    // suffix. Proxied tarballs live in the disposable cache root.
+    // Any overlapping verified writes atomically target the same final
+    // path, so one tarball remains with no temporary siblings.
     let dir = cache_dir.join(".pnpr-cache").join("foo");
-    let entries: Vec<String> = std::fs::read_dir(&dir)
-        .unwrap()
-        .map(|entry| entry.unwrap().file_name().to_string_lossy().into_owned())
-        .filter(|name| name.ends_with(".tgz"))
-        .collect();
+    let entries = tarball_cache_entries(&dir);
     assert_eq!(entries, vec!["foo-1.0.0.tgz".to_string()]);
 
     mock.assert_async().await;
 }
 
 #[tokio::test]
-async fn cache_tmp_open_failure_falls_back_to_uncached_stream() {
+async fn cache_tmp_open_failure_fails_closed() {
     let mut upstream = mockito::Server::new_async().await;
     let bytes = b"served-without-cache";
+    let _packument_mock = mock_packument_for_tarball(&mut upstream, "foo", "1.0.0", bytes).await;
     let _mock = upstream
         .mock("GET", "/foo/-/foo-1.0.0.tgz")
         .with_status(200)
@@ -867,8 +1144,8 @@ async fn cache_tmp_open_failure_falls_back_to_uncached_stream() {
         .await;
 
     // Point `cache_dir` at a regular file so `create_dir_all` inside
-    // `open_cached_tarball_tmp` fails. The handler should still stream
-    // the body to the client and skip the cache write.
+    // `open_cached_tarball_tmp` fails. Without a place to verify the
+    // complete body, the handler must fail rather than stream it.
     let tmp = TempDir::new().unwrap();
     let blocked = tmp.path().join("not-a-dir");
     std::fs::write(&blocked, b"already a file").unwrap();
@@ -879,12 +1156,37 @@ async fn cache_tmp_open_failure_falls_back_to_uncached_stream() {
         .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(body_bytes(response.into_body()).await, bytes);
+    assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
 
     // The cache path under the not-a-dir should not exist.
     let cache_path = blocked.join(".pnpr-cache").join("foo").join("foo-1.0.0.tgz");
     assert!(!cache_path.exists());
+}
+
+#[tokio::test]
+async fn hosted_tarball_open_failure_fails_closed() {
+    let mut upstream = mockito::Server::new_async().await;
+    // A hosted-store fault must fail closed before any upstream lookup,
+    // so neither the packument nor the tarball may be fetched.
+    let packument_mock = upstream.mock("GET", "/foo").expect(0).create_async().await;
+    let tarball_mock = upstream.mock("GET", "/foo/-/foo-1.0.0.tgz").expect(0).create_async().await;
+
+    // Place a regular file where the hosted package directory belongs so
+    // opening the hosted tarball fails with a real I/O error (not a plain
+    // miss). The authoritative hosted store must fail closed instead of
+    // falling through to the upstream proxy.
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    std::fs::create_dir_all(&storage).unwrap();
+    std::fs::write(storage.join("foo"), b"not a directory").unwrap();
+
+    let response = router(config_for(&upstream.url(), storage))
+        .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+    packument_mock.assert_async().await;
+    tarball_mock.assert_async().await;
 }
 
 #[tokio::test]
@@ -905,30 +1207,60 @@ async fn malformed_upstream_json_maps_to_bad_gateway() {
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
 }
 
-/// Spawn a TCP listener that speaks just enough HTTP/1.1 to answer a
-/// single GET with valid headers and a *truncated* body, then drops
-/// the connection. Mockito can't simulate mid-body disconnects, so a
-/// hand-rolled server is the cheapest way to exercise the `upstream
-/// stream errored mid-body` branch in `run_tee`.
-async fn spawn_truncated_upstream() -> SocketAddr {
+/// Spawn a TCP listener that serves a valid packument but truncates the
+/// matching tarball body. Mockito cannot simulate a mid-body disconnect.
+async fn spawn_truncated_upstream(expected_integrity: String) -> SocketAddr {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
+    let packument = json!({
+        "name": "foo",
+        "versions": {
+            "1.0.0": {
+                "name": "foo",
+                "version": "1.0.0",
+                "dist": {
+                    "tarball": format!("http://{addr}/foo/-/foo-1.0.0.tgz"),
+                    "integrity": expected_integrity,
+                },
+            },
+        },
+    })
+    .to_string();
     tokio::spawn(async move {
         while let Ok((mut socket, _)) = listener.accept().await {
+            let packument = packument.clone();
             tokio::spawn(async move {
                 let mut buf = vec![0u8; 4096];
-                let _ = socket.read(&mut buf).await;
-                let _ = socket
-                    .write_all(
-                        b"HTTP/1.1 200 OK\r\n\
+                let bytes_read = socket.read(&mut buf).await.unwrap_or(0);
+                let request = String::from_utf8_lossy(&buf[..bytes_read]);
+                if request.starts_with("GET /foo HTTP/") {
+                    let response = format!(
+                        "HTTP/1.1 200 OK\r\n\
+                         Content-Length: {}\r\n\
+                         Content-Type: application/json\r\n\
+                         Connection: close\r\n\
+                         \r\n\
+                         {packument}",
+                        packument.len(),
+                    );
+                    let _ = socket.write_all(response.as_bytes()).await;
+                    return;
+                }
+                if request.starts_with("GET /foo/-/foo-1.0.0.tgz HTTP/") {
+                    let _ = socket
+                        .write_all(
+                            b"HTTP/1.1 200 OK\r\n\
                           Content-Length: 1048576\r\n\
                           Content-Type: application/octet-stream\r\n\
                           Connection: close\r\n\
                           \r\n",
-                    )
-                    .await;
-                let _ = socket.write_all(&[0xAA; 100]).await;
-                // Drop socket without sending the remaining 1048476 bytes.
+                        )
+                        .await;
+                    let _ = socket.write_all(&[0xAA; 100]).await;
+                    return;
+                }
+                let _ =
+                    socket.write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n").await;
             });
         }
     });
@@ -937,7 +1269,8 @@ async fn spawn_truncated_upstream() -> SocketAddr {
 
 #[tokio::test]
 async fn upstream_stream_error_clears_cache() {
-    let addr = spawn_truncated_upstream().await;
+    let expected_bytes = vec![0xAA; 1024 * 1024];
+    let addr = spawn_truncated_upstream(sha512_integrity(&expected_bytes)).await;
     let upstream_url = format!("http://{addr}");
     let tmp = TempDir::new().unwrap();
     let cache_dir = tmp.path().to_path_buf();
@@ -947,28 +1280,18 @@ async fn upstream_stream_error_clears_cache() {
         .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
 
-    // Body read should fail — upstream advertised 1 MiB and closed
-    // the socket after 100 bytes.
-    let result = to_bytes(response.into_body(), usize::MAX).await;
-    assert!(result.is_err(), "expected body to error mid-stream");
-
-    // The tee task observes the upstream error and calls
-    // `write.abandon()`. We don't know when that finishes, but it
-    // should happen quickly — poll for it so the test fails fast on
-    // success and gives a 1s budget for the worst case (heavy CI
-    // load).
+    // The incomplete body is rejected before a response or cache entry
+    // can expose its bytes.
     assert!(await_no_tgz(&cache_dir.join(".pnpr-cache").join("foo"), Duration::from_secs(1)).await);
 }
 
 #[tokio::test]
-async fn client_disconnect_mid_stream_clears_cache() {
+async fn verified_tarball_is_cached_before_response_is_served() {
     let mut upstream = mockito::Server::new_async().await;
-    // 8 MiB is comfortably larger than the tee channel can buffer
-    // (16 chunks × ~64 KiB ≈ 1 MiB), so the tee task is guaranteed
-    // to be parked on `tx.send` when we drop the response below.
-    let bytes = vec![0xEE_u8; 8 * 1024 * 1024];
+    let bytes = vec![0xEE_u8; 512 * 1024];
+    let _packument_mock = mock_packument_for_tarball(&mut upstream, "big", "1.0.0", &bytes).await;
     let _mock = upstream
         .mock("GET", "/big/-/big-1.0.0.tgz")
         .with_status(200)
@@ -986,29 +1309,35 @@ async fn client_disconnect_mid_stream_clears_cache() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 
-    // Drop the response without reading the body. The mpsc receiver
-    // goes away, the tee task's next `tx.send` returns Err, and
-    // `write.abandon()` runs. Poll for the abandon so the test
-    // doesn't depend on a fixed sleep budget under heavy CI load.
+    // The response is not constructed until the complete upstream body
+    // has passed verification and cache finalization.
     drop(response);
-    assert!(await_no_tgz(&cache_dir.join(".pnpr-cache").join("big"), Duration::from_secs(1)).await);
+    let cache_path = cache_dir.join(".pnpr-cache").join("big").join("big-1.0.0.tgz");
+    assert_eq!(std::fs::read(cache_path).unwrap(), bytes);
 }
 
-/// Poll `dir` until it contains no `.tgz` files *and* no `.tmp.*`
-/// orphans (or doesn't exist), up to `budget`. Returns `true` on
-/// success, `false` on timeout — gives the calling test a single
-/// deterministic signal that the tee task observed the abandon
-/// condition and `write.abandon()` actually unlinked the temp file.
+fn is_tarball_tmp(name: &str) -> bool {
+    name.split_once(".tgz.tmp.").is_some_and(|(_, suffix)| !suffix.is_empty())
+}
+
+fn tarball_cache_entries(dir: &std::path::Path) -> Vec<String> {
+    let mut entries = dir
+        .read_dir()
+        .map(|iter| {
+            iter.filter_map(Result::ok)
+                .map(|entry| entry.file_name().to_string_lossy().into_owned())
+                .filter(|name| name.ends_with(".tgz") || is_tarball_tmp(name))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    entries.sort();
+    entries
+}
+
 async fn await_no_tgz(dir: &std::path::Path, budget: Duration) -> bool {
     let deadline = std::time::Instant::now() + budget;
     loop {
-        let still_present = dir.read_dir().is_ok_and(|iter| {
-            iter.filter_map(Result::ok).any(|entry| {
-                let name = entry.file_name().to_string_lossy().into_owned();
-                name.ends_with(".tgz") || name.contains(".tmp.")
-            })
-        });
-        if !still_present {
+        if tarball_cache_entries(dir).is_empty() {
             return true;
         }
         if std::time::Instant::now() >= deadline {
@@ -1120,6 +1449,7 @@ async fn packument_is_not_gzipped_without_accept_encoding() {
 async fn tarball_is_not_gzipped_even_when_accepted() {
     let mut upstream = mockito::Server::new_async().await;
     let bytes = b"fake-tarball-bytes-long-enough-to-clear-the-compression-size-floor";
+    let _packument_mock = mock_packument_for_tarball(&mut upstream, "foo", "1.0.0", bytes).await;
     let mock = upstream
         .mock("GET", "/foo/-/foo-1.0.0.tgz")
         .with_status(200)
@@ -1195,6 +1525,7 @@ async fn per_uplink_maxage_overrides_global_packument_ttl() {
 async fn cache_false_uplink_streams_tarball_without_mirroring() {
     let mut upstream = mockito::Server::new_async().await;
     let bytes = b"uncached-tarball-bytes";
+    let packument_mock = mock_packument_for_tarball(&mut upstream, "foo", "1.0.0", bytes).await;
     let mock = upstream
         .mock("GET", "/foo/-/foo-1.0.0.tgz")
         .with_status(200)
@@ -1220,17 +1551,51 @@ async fn cache_false_uplink_streams_tarball_without_mirroring() {
     }
 
     // Nothing was mirrored: the package dir either doesn't exist or holds
-    // no `.tgz`. Both requests therefore went to the upstream.
+    // no tarball or temp tarball. Both requests therefore went to the upstream.
     let package_dir = cache_dir.join(".pnpr-cache").join("foo");
-    let cached_tarballs = std::fs::read_dir(&package_dir).map_or(0, |entries| {
-        entries
-            .filter_map(Result::ok)
-            .filter(|entry| entry.file_name().to_string_lossy().ends_with(".tgz"))
-            .count()
-    });
-    assert_eq!(cached_tarballs, 0, "a cache:false uplink must not write tarballs to the mirror");
+    assert!(
+        tarball_cache_entries(&package_dir).is_empty(),
+        "a cache:false uplink must not write tarballs to the mirror",
+    );
 
+    packument_mock.assert_async().await;
     mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn cache_false_uplink_rejects_tampered_tarball_without_mirroring() {
+    let mut upstream = mockito::Server::new_async().await;
+    let good_bytes = b"good-uncached-tarball";
+    let poison_bytes = b"poisoned-uncached-tarball";
+    let packument_mock =
+        mock_packument_for_tarball(&mut upstream, "foo", "1.0.0", good_bytes).await;
+    let tarball_mock = upstream
+        .mock("GET", "/foo/-/foo-1.0.0.tgz")
+        .with_status(200)
+        .with_body(poison_bytes)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let cache_dir = tmp.path().to_path_buf();
+    let mut config = config_for(&upstream.url(), cache_dir.clone());
+    config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink").cache = false;
+    let app = router(config);
+
+    let response = app
+        .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+    let package_dir = cache_dir.join(".pnpr-cache").join("foo");
+    assert!(
+        tarball_cache_entries(&package_dir).is_empty(),
+        "a rejected cache:false tarball must leave no mirror entry",
+    );
+
+    packument_mock.assert_async().await;
+    tarball_mock.assert_async().await;
 }
 
 #[tokio::test]

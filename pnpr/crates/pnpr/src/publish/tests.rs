@@ -100,6 +100,26 @@ fn stream_rejects_malformed_integrity_sri() {
 }
 
 #[test]
+fn stream_rejects_integrity_without_hashes() {
+    for declared in ["", " \t\n "] {
+        let dist = json!({ "integrity": declared });
+        let (result, dest, _tmp) = run_stream(b"bytes", Some(&dist), None);
+        let msg = result.unwrap_err().to_string();
+        assert!(msg.contains("EINTEGRITY") && msg.contains("hash"), "got: {msg}");
+        assert!(!dest.exists());
+    }
+}
+
+#[test]
+fn stream_rejects_unsupported_integrity_algorithm() {
+    let dist = json!({ "integrity": "md5-deadbeef" });
+    let (result, dest, _tmp) = run_stream(b"bytes", Some(&dist), None);
+    let msg = result.unwrap_err().to_string();
+    assert!(msg.contains("EINTEGRITY") && msg.contains("malformed"), "got: {msg}");
+    assert!(!dest.exists());
+}
+
+#[test]
 fn stream_rejects_invalid_base64() {
     let tmp = TempDir::new().unwrap();
     let dest = tmp.path().join("out.tgz");
