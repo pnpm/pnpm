@@ -354,3 +354,27 @@ fn allow_builds_creates_and_round_trips_a_colon_key() {
     let toggled = run_allow_builds(Some(&created), &[(key, false)]).expect("written");
     assert_eq!(toggled.matches(key).count(), 1, "no duplicate after toggle: {toggled}");
 }
+
+#[test]
+fn allow_builds_rejects_a_manifest_with_duplicate_keys() {
+    // A repo-controlled manifest with duplicate `allowBuilds` keys is
+    // rejected at parse time (`DuplicateMappingKey`), so `set_allow_builds`
+    // errors and writes nothing rather than rewriting only the first
+    // occurrence and leaving the effective (last) value untouched. The
+    // policy change fails loudly instead of being silently bypassed.
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+    let original = "allowBuilds:\n  esbuild: false\n  esbuild: true\n";
+    fs::write(&path, original).expect("seed manifest");
+
+    let result = crate::set_allow_builds(dir.path(), [("esbuild", false)]);
+    assert!(
+        matches!(result, Err(crate::UpdateWorkspaceManifestError::Parse { .. })),
+        "duplicate keys must be rejected, got {result:?}",
+    );
+    assert_eq!(
+        fs::read_to_string(&path).expect("read manifest"),
+        original,
+        "the manifest is left unchanged when the update fails",
+    );
+}
