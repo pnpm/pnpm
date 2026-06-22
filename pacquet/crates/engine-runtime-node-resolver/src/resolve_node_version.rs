@@ -151,6 +151,7 @@ async fn fetch_all_versions(
 }
 
 fn is_latest_selector(version_spec: &str) -> bool {
+    let version_spec = version_spec.trim();
     version_spec.is_empty() || version_spec == "latest"
 }
 

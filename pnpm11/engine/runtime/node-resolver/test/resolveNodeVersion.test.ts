@@ -12,6 +12,8 @@ test.each([
   ['https://nodejs.org/download/release/', 'lts', /.+/],
   ['https://nodejs.org/download/release/', 'argon', '4.9.1'],
   ['https://nodejs.org/download/release/', 'latest', /.+/],
+  ['https://nodejs.org/download/release/', '', /.+/],
+  ['https://nodejs.org/download/release/', '  ', /.+/],
   [undefined, 'latest', /.+/],
 ])('Node.js %s is resolved', async (nodeMirrorBaseUrl, spec, expectedVersion) => {
   const version = await resolveNodeVersion(fetch, spec, nodeMirrorBaseUrl)

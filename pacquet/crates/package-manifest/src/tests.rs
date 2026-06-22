@@ -332,6 +332,29 @@ fn convert_dependencies_runtime_writes_devengines_runtime() {
 }
 
 #[test]
+fn convert_dependencies_runtime_trims_runtime_selector() {
+    let mut manifest = json!({
+        "devDependencies": {
+            "node": "runtime:  ",
+        },
+    });
+    convert_dependencies_to_engines_runtime(&mut manifest, "devDependencies", "devEngines")
+        .unwrap();
+
+    assert_eq!(
+        manifest.get("devEngines"),
+        Some(&json!({
+            "runtime": {
+                "name": "node",
+                "version": "",
+                "onFail": "download",
+            },
+        })),
+    );
+    assert_eq!(manifest.get("devDependencies"), Some(&json!({})));
+}
+
+#[test]
 fn convert_dependencies_runtime_updates_existing_single_entry() {
     let mut manifest = json!({
         "devEngines": {
@@ -543,6 +566,36 @@ fn failed_save_preserves_existing_file_contents() {
 
     let manifest = PackageManifest::from_path(path.clone()).unwrap();
     assert!(matches!(manifest.save(), Err(PackageManifestError::InvalidAttribute(_))));
+    assert_eq!(read_to_string(path).unwrap(), raw);
+}
+
+#[test]
+fn failed_save_preserves_existing_file_when_dependency_field_is_malformed() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    let raw = serde_json::to_string_pretty(&json!({
+        "name": "fixture",
+        "devEngines": {
+            "runtime": {
+                "name": "node",
+                "version": "22",
+                "onFail": "download",
+            },
+        },
+    }))
+    .unwrap();
+    std::fs::write(&path, &raw).unwrap();
+
+    let mut manifest = PackageManifest::from_path(path.clone()).unwrap();
+    manifest.value_mut()["devDependencies"] = json!([]);
+    let err =
+        manifest.save().expect_err("malformed devDependencies must reject save before writing");
+    match err {
+        PackageManifestError::InvalidAttribute(msg) => {
+            assert!(msg.contains("devDependencies"), "got: {msg:?}");
+        }
+        other => panic!("expected InvalidAttribute, got {other:?}"),
+    }
     assert_eq!(read_to_string(path).unwrap(), raw);
 }
 

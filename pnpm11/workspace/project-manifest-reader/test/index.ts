@@ -134,6 +134,20 @@ test('writeProjectManifest() removes an empty-version devEngines runtime when it
   })
 })
 
+test('writeProjectManifest() rejects malformed dependency fields without pruning runtime entries', async () => {
+  const dir = f.prepare('package-json-with-dev-engines')
+  const manifestPath = path.join(dir, 'package.json')
+  const raw = fs.readFileSync(manifestPath, 'utf8')
+  const { manifest, writeProjectManifest } = await tryReadProjectManifest(dir)
+  const invalidManifest = manifest as unknown as Record<string, unknown>
+  invalidManifest.devDependencies = []
+
+  await expect(writeProjectManifest(invalidManifest as unknown as ProjectManifest)).rejects.toMatchObject({
+    code: 'ERR_PNPM_INVALID_DEPENDENCIES_FIELD',
+  })
+  expect(fs.readFileSync(manifestPath, 'utf8')).toBe(raw)
+})
+
 test('writeProjectManifest() removes only the removed runtime from a devEngines runtime array', async () => {
   const dir = f.prepare('package-json')
   fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({
@@ -234,6 +248,21 @@ test.each([
           onFail: 'download',
         },
       ],
+    },
+  },
+  {
+    name: 'trims a whitespace-only devDependency runtime selector',
+    manifest: {
+      devDependencies: {
+        node: 'runtime:  ',
+      },
+    },
+    expected: {
+      runtime: {
+        name: 'node',
+        version: '',
+        onFail: 'download',
+      },
     },
   },
   {

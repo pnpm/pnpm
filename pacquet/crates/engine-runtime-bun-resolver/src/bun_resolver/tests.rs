@@ -90,3 +90,21 @@ async fn empty_runtime_spec_delegates_latest_to_npm_resolver() {
 
     assert_eq!(npm_resolver.seen.lock().unwrap().clone(), vec![Some("latest".to_string())]);
 }
+
+#[tokio::test]
+async fn whitespace_runtime_spec_delegates_latest_to_npm_resolver() {
+    let npm_resolver = Arc::new(CapturingResolver::default());
+    let resolver = BunResolver::new(
+        Arc::new(ThrottledClient::new_for_installs()),
+        Arc::<CapturingResolver>::clone(&npm_resolver),
+    );
+    let wanted = WantedDependency {
+        alias: Some("bun".to_string()),
+        bare_specifier: Some("runtime:  ".to_string()),
+        ..WantedDependency::default()
+    };
+
+    resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap_err();
+
+    assert_eq!(npm_resolver.seen.lock().unwrap().clone(), vec![Some("latest".to_string())]);
+}
