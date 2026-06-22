@@ -11,6 +11,18 @@ use tokio::sync::Barrier;
 /// Production paths use [`DEFAULT_BCRYPT_COST`].
 const TEST_COST: u32 = 4;
 
+const INVALID_USERNAMES: &[&str] = &[
+    "",
+    " alice",
+    "alice ",
+    "#alice",
+    "alice:bob",
+    "alice\nbob",
+    "alice\rbob",
+    "alice\0bob",
+    "alice\u{7f}bob",
+];
+
 fn test_user_store() -> UserStore {
     UserStore {
         users: std::sync::Mutex::new(std::collections::HashMap::new()),
@@ -44,7 +56,7 @@ fn token_timestamp_to_sql_saturates_overflow() {
 
 #[test]
 fn username_validation_rejects_htpasswd_structural_characters() {
-    for username in ["", "alice:bob", "alice\nbob", "alice\rbob", "alice\0bob", "alice\u{7f}bob"] {
+    for username in INVALID_USERNAMES {
         let err = validate_username(username).unwrap_err();
         assert_eq!(
             err.status_code(),
@@ -69,8 +81,14 @@ fn username_validation_rejects_names_that_trim_differently() {
 #[tokio::test]
 async fn user_store_rejects_invalid_username_before_persisting() {
     let store = test_user_store();
-    let err = store.add_or_login("alice:bob", "secret").await.unwrap_err();
-    assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST);
+    for username in INVALID_USERNAMES {
+        let err = store.add_or_login(username, "secret").await.unwrap_err();
+        assert_eq!(
+            err.status_code(),
+            axum::http::StatusCode::BAD_REQUEST,
+            "expected {username:?} to be rejected",
+        );
+    }
     assert!(
         store.users.lock().expect("UserStore mutex poisoned").is_empty(),
         "invalid username should be rejected before any persistence",
@@ -78,16 +96,28 @@ async fn user_store_rejects_invalid_username_before_persisting() {
 }
 
 #[tokio::test]
-async fn user_store_allows_existing_legacy_username_to_login() {
+async fn user_store_rejects_invalid_username_before_lookup() {
     let store = test_user_store();
-    let legacy = format!("{}:", "a".repeat(MAX_USERNAME_CHARS));
     let hash = bcrypt::hash("secret", TEST_COST).unwrap();
-    store.users.lock().expect("UserStore mutex poisoned").insert(legacy.clone(), hash);
+    {
+        let mut users = store.users.lock().expect("UserStore mutex poisoned");
+        for username in INVALID_USERNAMES {
+            users.insert((*username).to_string(), hash.clone());
+        }
+    }
 
-    let outcome = store.add_or_login(&legacy, "secret").await.unwrap();
-
-    assert!(matches!(outcome, (UpsertOutcome::LoggedIn, _)));
-    assert_eq!(outcome.1, legacy);
+    for username in INVALID_USERNAMES {
+        let err = store.add_or_login(username, "secret").await.unwrap_err();
+        assert_eq!(
+            err.status_code(),
+            axum::http::StatusCode::BAD_REQUEST,
+            "expected adduser for {username:?} to be rejected",
+        );
+        assert!(
+            store.verify(username, "secret").await.unwrap().is_none(),
+            "expected Basic auth for {username:?} to be rejected",
+        );
+    }
 }
 
 #[tokio::test]
@@ -236,6 +266,19 @@ fn parse_htpasswd_accepts_blank_and_comment_lines() {
     let map = parse_htpasswd(raw).unwrap();
     assert_eq!(map.len(), 1);
     assert!(map.contains_key("alice"));
+}
+
+#[test]
+fn parse_htpasswd_preserves_legacy_whitespace_normalization() {
+    let map = parse_htpasswd(" alice :$2y$10$abcdef\n").unwrap();
+    assert_eq!(map.get("alice").map(String::as_str), Some("$2y$10$abcdef"));
+}
+
+#[test]
+fn parse_htpasswd_rejects_invalid_usernames() {
+    for raw in [" #alice:$2y$10$abcdef\n", "alice\u{1}admin:$2y$10$abcdef\n"] {
+        assert!(parse_htpasswd(raw).is_err(), "expected {raw:?} to be rejected");
+    }
 }
 
 #[tokio::test]

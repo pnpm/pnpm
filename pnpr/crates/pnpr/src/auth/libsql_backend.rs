@@ -130,11 +130,11 @@ impl UserBackend for LibsqlAuth {
         username: &str,
         password: &str,
     ) -> Result<(UpsertOutcome, String)> {
+        validate_username(username)?;
+
         if let Some(stored) = self.stored_hash(username).await? {
             return verify_returning_user(username, password, stored).await;
         }
-
-        validate_username(username)?;
 
         // Brand-new user. The cheap pre-check avoids the (expensive) hash
         // when the cap is already full; the insert below re-checks the
@@ -222,6 +222,10 @@ impl UserBackend for LibsqlAuth {
     }
 
     async fn verify(&self, username: &str, password: &str) -> Result<Option<String>> {
+        if validate_username(username).is_err() {
+            return Ok(None);
+        }
+
         let Some(stored) = self.stored_hash(username).await? else {
             return Ok(None);
         };

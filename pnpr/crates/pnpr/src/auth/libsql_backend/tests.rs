@@ -43,7 +43,7 @@ async fn add_or_login_rejects_invalid_username_before_insert() {
 }
 
 #[tokio::test]
-async fn add_or_login_allows_existing_legacy_username() {
+async fn add_or_login_rejects_existing_invalid_username() {
     let backend = local_backend(MaxUsers::Unlimited).await;
     let hash = bcrypt::hash("secret", 4).unwrap();
     backend
@@ -55,10 +55,10 @@ async fn add_or_login_allows_existing_legacy_username() {
         .await
         .unwrap();
 
-    let outcome = backend.add_or_login("alice ", "secret").await.unwrap();
+    let err = backend.add_or_login("alice ", "secret").await.unwrap_err();
 
-    assert!(matches!(outcome, (UpsertOutcome::LoggedIn, _)));
-    assert_eq!(outcome.1, "alice ");
+    assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST);
+    assert!(backend.verify("alice ", "secret").await.unwrap().is_none());
 }
 
 #[tokio::test]
