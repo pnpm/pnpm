@@ -633,7 +633,7 @@ test('fetchPackageToStore()', async () => {
   )
 })
 
-test('fetchPackageToStore() rejects lockfile remote tarballs without integrity', async () => {
+test('fetchPackageToStore() rejects remote tarballs without integrity by default', async () => {
   const storeDir = temporaryDirectory()
   const cafs = createCafsStore(storeDir)
   const packageRequester = createPackageRequester({
@@ -657,7 +657,6 @@ test('fetchPackageToStore() rejects lockfile remote tarballs without integrity',
         tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
       },
     },
-    requireIntegrity: true,
   })
 
   await expect(fetchResult.fetching()).rejects.toMatchObject({
@@ -892,6 +891,7 @@ test('fetchPackageToStore() fetch raw manifest of cached package', async () => {
   }
   const fetchResults = await Promise.all([
     packageRequester.fetchPackageToStore({
+      calculateIntegrity: true,
       fetchRawManifest: false,
       force: false,
       lockfileDir: temporaryDirectory(),
@@ -903,6 +903,7 @@ test('fetchPackageToStore() fetch raw manifest of cached package', async () => {
       },
     }),
     packageRequester.fetchPackageToStore({
+      calculateIntegrity: true,
       fetchRawManifest: true,
       force: false,
       lockfileDir: temporaryDirectory(),
@@ -925,9 +926,11 @@ test('refetch package to store if it has been modified', async () => {
   const localFetchers = createFetchersForStore(storeDir)
 
   const pkgId = 'magic-hook@2.0.0'
-  const resolution = {
-    tarball: `http://localhost:${REGISTRY_MOCK_PORT}/magic-hook/-/magic-hook-2.0.0.tgz`,
-  }
+  const resolution = (await resolve({ alias: 'magic-hook', bareSpecifier: '2.0.0' }, {
+    lockfileDir,
+    preferredVersions: {},
+    projectDir: lockfileDir,
+  })).resolution
 
   let indexJsFile!: string
   {

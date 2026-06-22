@@ -253,7 +253,6 @@ async function fetchDeps (
           lockfileDir: opts.lockfileDir,
           ignoreScripts: opts.ignoreScripts,
           pkg: pkgResolution,
-          requireIntegrity: true,
           supportedArchitectures: opts.supportedArchitectures,
         }) as unknown as ReturnType<FetchPackageToStoreFunction>
         if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse

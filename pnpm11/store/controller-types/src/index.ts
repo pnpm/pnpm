@@ -90,11 +90,7 @@ export interface FetchPackageToStoreOptions {
    * whose integrity must be computed from the bytes), so the store copy must not be
    * reused. Determined by the fetcher's `resolutionNeedsFetch`.
    */
-  mustComputeIntegrity?: boolean
-  /**
-   * Reject remote tarballs without expected integrity instead of fetching them to repair it.
-   */
-  requireIntegrity?: boolean
+  calculateIntegrity?: boolean
   /**
    * In-process callers may pass the fetcher they already selected for this resolution.
    * Omitted when the fetcher has to be selected at fetch time, such as `variations`.
