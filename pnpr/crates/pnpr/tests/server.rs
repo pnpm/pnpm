@@ -156,6 +156,9 @@ async fn osv_filters_vulnerable_versions_from_proxy_and_cache() {
     assert_eq!(cached.status(), StatusCode::OK);
     let cached_body = body_json(cached.into_body()).await;
     assert!(cached_body["versions"].get("1.1.0").is_none());
+    assert!(cached_body["time"].get("1.1.0").is_none());
+    assert!(cached_body["dist-tags"].get("latest").is_none());
+    assert_eq!(cached_body["dist-tags"]["stable"], "1.0.0");
 
     let vulnerable_manifest =
         app.clone().oneshot(Request::get("/foo/1.1.0").body(Body::empty()).unwrap()).await.unwrap();
