@@ -756,7 +756,7 @@ importers:
 packages:
 
   acme@1.0.0:
-    resolution: {integrity: sha512-deadbeef, tarball: 'https://CODELOAD.GITHUB.COM/org/acme/tar.gz/abc123', gitHosted: false}
+    resolution: {integrity: sha512-deadbeef, tarball: 'https://CODELOAD.GITHUB.COM/org/acme/tar.gz/0123456789abcdef0123456789abcdef01234567', gitHosted: false}
 
 snapshots:
 
