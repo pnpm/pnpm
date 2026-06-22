@@ -2,7 +2,7 @@ use clap::Args;
 use miette::{Context, IntoDiagnostic};
 use pacquet_config::Config;
 use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
-use pacquet_modules_yaml::{Host, read_modules_manifest};
+use pacquet_modules_yaml::{Host, read_modules_layout, read_modules_manifest};
 use pacquet_package_manager::{
     Install, RebuildOptions, UpdateSeedPolicy, allow_build_key_from_ignored_build,
 };
@@ -78,6 +78,8 @@ pub(crate) async fn run_rebuild<Reporter: self::Reporter + 'static>(
         selected_names: selected_names.map(|names| names.into_iter().collect::<HashSet<_>>()),
     };
 
+    let dependency_groups = rebuild_dependency_groups(config)?;
+
     Install {
         tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
         http_client,
@@ -86,9 +88,10 @@ pub(crate) async fn run_rebuild<Reporter: self::Reporter + 'static>(
         manifest,
         lockfile: MaybeLazyLockfile::Lazy(lockfile),
         lockfile_path: lockfile_path.as_deref(),
-        // Rebuild operates over the whole already-resolved graph; include
-        // every group so no build-needing dependency is filtered out.
-        dependency_groups: [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
+        // Reuse exactly the dependency groups the current `node_modules`
+        // was materialized with, so a rebuild never widens the installed
+        // set (see [`rebuild_dependency_groups`]).
+        dependency_groups,
         frozen_lockfile: true,
         prefer_frozen_lockfile: None,
         ignore_manifest_check: false,
@@ -114,3 +117,31 @@ pub(crate) async fn run_rebuild<Reporter: self::Reporter + 'static>(
 
     Ok(())
 }
+
+/// The dependency groups the current `node_modules` was materialized with,
+/// read from `.modules.yaml`'s `included`. A rebuild must keep the
+/// installed set unchanged, so it reuses exactly these groups rather than
+/// widening to all of them — otherwise a `--prod` / `--no-optional`
+/// install would have its excluded dev/optional dependencies fetched and
+/// their lifecycle scripts run. Falls back to every group only when there
+/// is no `.modules.yaml` (nothing recorded to preserve).
+fn rebuild_dependency_groups(config: &Config) -> miette::Result<Vec<DependencyGroup>> {
+    let Some(modules) = read_modules_layout::<Host>(&config.modules_dir).into_diagnostic()? else {
+        return Ok(vec![DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional]);
+    };
+    let included = modules.included;
+    let mut groups = Vec::with_capacity(3);
+    if included.dependencies {
+        groups.push(DependencyGroup::Prod);
+    }
+    if included.dev_dependencies {
+        groups.push(DependencyGroup::Dev);
+    }
+    if included.optional_dependencies {
+        groups.push(DependencyGroup::Optional);
+    }
+    Ok(groups)
+}
+
+#[cfg(test)]
+mod tests;
