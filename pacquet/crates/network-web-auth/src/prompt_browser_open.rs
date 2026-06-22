@@ -25,13 +25,13 @@ mod tests;
 /// registry response), or when the listener fails to set up.
 ///
 /// Ports pnpm's `promptBrowserOpen`.
-pub async fn prompt_browser_open<Sys, R, Error, Poll>(
+pub async fn prompt_browser_open<Sys, Reporter, Error, Poll>(
     auth_url: &str,
     poll: Poll,
 ) -> Result<String, Error>
 where
     Sys: StdinIsTty + EnterKeyListener + OpenUrl,
-    R: Reporter,
+    Reporter: self::Reporter,
     Poll: Future<Output = Result<String, Error>>,
 {
     if !Sys::stdin_is_tty() {
@@ -45,18 +45,18 @@ where
     let mut listener = match Sys::listen() {
         Ok(listener) => listener,
         Err(error) => {
-            global_warn::<R>(&format!("Could not set up keyboard listener: {error}"));
+            global_warn::<Reporter>(&format!("Could not set up keyboard listener: {error}"));
             return poll.await;
         }
     };
 
-    global_info::<R>("Press ENTER to open the URL in your browser.");
+    global_info::<Reporter>("Press ENTER to open the URL in your browser.");
 
     tokio::pin!(poll);
     tokio::select! {
         result = &mut poll => result,
         () = &mut listener => {
-            open_in_browser::<Sys, R>(&canonical_url);
+            open_in_browser::<Sys, Reporter>(&canonical_url);
             // The keypress fires once; keep awaiting the poll. The listener
             // is dropped (closed) when this function returns.
             poll.await
@@ -66,14 +66,14 @@ where
 
 /// Open `url`, downgrading any failure to a warning so a missing
 /// `xdg-open` (or equivalent) never interrupts the poll.
-fn open_in_browser<Sys, R>(url: &str)
+fn open_in_browser<Sys, Reporter>(url: &str)
 where
     Sys: OpenUrl,
-    R: Reporter,
+    Reporter: self::Reporter,
 {
     if let Err(error) = Sys::open_url(url) {
-        global_warn::<R>(&format!("Could not open browser automatically: {error}"));
-        global_info::<R>("Please open the URL shown above manually.");
+        global_warn::<Reporter>(&format!("Could not open browser automatically: {error}"));
+        global_info::<Reporter>("Please open the URL shown above manually.");
     }
 }
 
