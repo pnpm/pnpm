@@ -204,11 +204,14 @@ fn rewrites_npm_form_tarball() {
 
 #[test]
 fn rewrites_verdaccio_form_tarball_for_scoped() {
+    // Verdaccio publishes scoped tarball URLs like
+    // `/@scope/name/-/@scope/name-1.0.0.tgz` — the scope is
+    // present twice. We only care about the basename.
     let mut doc = json!({
         "versions": {
             "1.0.0": {
                 "dist": {
-                    "tarball": "http://localhost:4873/@foo/no-deps/-/@foo/no-deps-9.9.9.tgz"
+                    "tarball": "http://localhost:4873/@foo/no-deps/-/@foo/no-deps-1.0.0.tgz"
                 }
             }
         }
@@ -218,6 +221,29 @@ fn rewrites_verdaccio_form_tarball_for_scoped() {
     assert_eq!(
         doc["versions"]["1.0.0"]["dist"]["tarball"],
         "http://127.0.0.1:9999/@foo/no-deps/-/no-deps-1.0.0.tgz",
+    );
+}
+
+#[test]
+fn preserves_non_canonical_tarball_basename() {
+    // A version whose tarball filename does not follow the
+    // `<name>-<version>.tgz` convention (here esprima-fb's zero-padded
+    // name for version `3001.1.0-dev-harmony-fb`) keeps its basename, so
+    // the client records and fetches back the path the upstream hosts.
+    let mut doc = json!({
+        "versions": {
+            "3001.1.0-dev-harmony-fb": {
+                "dist": {
+                    "tarball": "https://registry.npmjs.org/esprima-fb/-/esprima-fb-3001.0001.0000-dev-harmony-fb.tgz"
+                }
+            }
+        }
+    });
+    let name = PackageName::parse("esprima-fb").unwrap();
+    rewrite_tarball_urls(&mut doc, &name, "http://127.0.0.1:9999");
+    assert_eq!(
+        doc["versions"]["3001.1.0-dev-harmony-fb"]["dist"]["tarball"],
+        "http://127.0.0.1:9999/esprima-fb/-/esprima-fb-3001.0001.0000-dev-harmony-fb.tgz",
     );
 }
 
@@ -239,7 +265,7 @@ fn extracts_version_by_dist_tag() {
                 "name": "@foo/no-deps",
                 "version": "1.0.0",
                 "dist": {
-                    "tarball": "http://localhost:4873/@foo/no-deps/-/@foo/no-deps-2.0.0.tgz",
+                    "tarball": "http://localhost:4873/@foo/no-deps/-/@foo/no-deps-1.0.0.tgz",
                     "shasum": "abc"
                 }
             }

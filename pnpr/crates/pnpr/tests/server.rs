@@ -498,7 +498,14 @@ async fn osv_refuses_vulnerable_tarball_from_cache() {
 }
 
 #[tokio::test]
-async fn selected_version_controls_tarball_route_and_offline_cache_key() {
+async fn tarball_route_preserves_basename_and_binds_to_declaring_version() {
+    // A version's tarball is served, fetched, and cached under the basename
+    // its own `dist.tarball` declares (preserved verbatim, so a
+    // non-canonical upstream name survives into the client's lockfile). The
+    // bytes are verified against that declaring version's integrity, so the
+    // preserved name still can't smuggle in bytes of another provenance.
+    // Here the packument deliberately swaps the two versions' tarball names
+    // to prove the binding follows the declaring version, not the filename.
     let mut upstream = mockito::Server::new_async().await;
     let v1_bytes = b"selected-version-one";
     let v2_bytes = b"other-version-two";
@@ -532,8 +539,11 @@ async fn selected_version_controls_tarball_route_and_offline_cache_key() {
         .expect(1)
         .create_async()
         .await;
+    // `latest` is 1.0.0, whose declared tarball basename is `foo-2.0.0.tgz`,
+    // so that is the upstream path pnpr fetches — and it must yield bytes
+    // matching 1.0.0's integrity.
     let tarball_mock = upstream
-        .mock("GET", "/foo/-/foo-1.0.0.tgz")
+        .mock("GET", "/foo/-/foo-2.0.0.tgz")
         .with_status(200)
         .with_body(v1_bytes)
         .expect(1)
@@ -551,18 +561,18 @@ async fn selected_version_controls_tarball_route_and_offline_cache_key() {
         .unwrap();
     assert_eq!(selected.status(), StatusCode::OK);
     let selected: Value = serde_json::from_slice(&body_bytes(selected.into_body()).await).unwrap();
-    assert_eq!(selected["dist"]["tarball"], "http://example.test/foo/-/foo-1.0.0.tgz");
+    assert_eq!(selected["dist"]["tarball"], "http://example.test/foo/-/foo-2.0.0.tgz");
 
     let full =
         app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
     let full: Value = serde_json::from_slice(&body_bytes(full.into_body()).await).unwrap();
     assert_eq!(
         full["versions"]["1.0.0"]["dist"]["tarball"],
-        "http://example.test/foo/-/foo-1.0.0.tgz",
+        "http://example.test/foo/-/foo-2.0.0.tgz",
     );
     assert_eq!(
         full["versions"]["2.0.0"]["dist"]["tarball"],
-        "http://example.test/foo/-/foo-2.0.0.tgz",
+        "http://example.test/foo/-/foo-1.0.0.tgz",
     );
 
     let route =
@@ -572,7 +582,7 @@ async fn selected_version_controls_tarball_route_and_offline_cache_key() {
     assert_eq!(body_bytes(first.into_body()).await, v1_bytes);
 
     let package_dir = storage.join(".pnpr-cache").join("foo");
-    assert_eq!(tarball_cache_entries(&package_dir), vec!["foo-1.0.0.tgz".to_string()]);
+    assert_eq!(tarball_cache_entries(&package_dir), vec!["foo-2.0.0.tgz".to_string()]);
 
     let offline = router(config_for("http://127.0.0.1:1", storage));
     let replay = offline.oneshot(Request::get(route).body(Body::empty()).unwrap()).await.unwrap();
