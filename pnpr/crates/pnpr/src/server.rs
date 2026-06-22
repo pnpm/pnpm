@@ -22,7 +22,7 @@ use axum::{
     extract::{DefaultBodyLimit, OriginalUri, Path, Request, State},
     http::{HeaderMap, StatusCode, header},
     response::{IntoResponse, Response},
-    routing::{delete, get, post, put},
+    routing::{any, delete, get, post, put},
 };
 use chrono::Utc;
 use indexmap::IndexMap;
@@ -169,13 +169,43 @@ pub fn try_router(config: Config) -> crate::error::Result<Router> {
 /// [`try_router_with_auth`] to handle that as a recoverable error.
 pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
     try_router_with_auth(config, auth)
-        .expect("enabled OSV database must load before building pnpr router")
+        .expect("pnpr config must be valid and any enabled OSV database must load before building the router")
 }
 
 /// Fallible counterpart to [`router_with_auth`].
 pub fn try_router_with_auth(config: Config, auth: AuthState) -> crate::error::Result<Router> {
-    let osv_index = crate::resolver::load_osv_index(&config)?;
+    // Enforce the "at least one surface enabled" invariant for embedders
+    // that build and serve the router themselves rather than going through
+    // `serve`/`serve_listener`.
+    config.ensure_a_feature_is_enabled()?;
+    let osv_index = load_active_osv_index(&config)?;
     Ok(router_with_auth_and_osv(config, auth, osv_index))
+}
+
+/// Load the OSV index only for surfaces that actually consult it. Today
+/// that is the resolver, so a registry-only server (`resolver.enabled =
+/// false`) skips the load — avoiding the startup cost and the
+/// missing/invalid-database error for a feature no mounted route uses.
+/// The gate widens to the registry once registry-side OSV screening
+/// lands (pnpm/pnpm#12561).
+fn load_active_osv_index(
+    config: &Config,
+) -> crate::error::Result<Option<Arc<crate::resolver::OsvIndex>>> {
+    if config.resolver.enabled { crate::resolver::load_osv_index(config) } else { Ok(None) }
+}
+
+/// Run the registry surface's startup side effects and load its auth
+/// backends — but only when the registry is enabled. A resolver-only
+/// deployment skips publish-journal recovery and on-disk auth entirely,
+/// so it stays stateless: it creates no credential files and reads
+/// nothing from the store, and so can run on a read-only or ephemeral
+/// host. The resolver routes never consult auth.
+async fn load_startup_auth(config: &Config) -> crate::error::Result<AuthState> {
+    if !config.registry.enabled {
+        return Ok(AuthState::in_memory());
+    }
+    crate::journal::recover_publish_journal(config).await?;
+    AuthState::load(&config.auth, &config.backend).await
 }
 
 fn router_with_auth_and_osv(
@@ -185,11 +215,20 @@ fn router_with_auth_and_osv(
 ) -> Router {
     let storage =
         Storage::new(&config.hosted_store, config.storage.clone(), config.cache_storage.clone());
-    let upstreams: IndexMap<String, Upstream> = config
-        .uplinks
-        .iter()
-        .map(|(name, uplink)| (name.clone(), Upstream::new(name, uplink)))
-        .collect();
+    let registry_enabled = config.registry.enabled;
+    let resolver_enabled = config.resolver.enabled;
+    // Only the registry routes consult the uplinks, so a resolver-only
+    // server builds none — skipping a `ThrottledClient` allocation per
+    // configured uplink.
+    let upstreams: IndexMap<String, Upstream> = if registry_enabled {
+        config
+            .uplinks
+            .iter()
+            .map(|(name, uplink)| (name.clone(), Upstream::new(name, uplink)))
+            .collect()
+    } else {
+        IndexMap::new()
+    };
     let state = AppState {
         inner: Arc::new(AppInner {
             storage,
@@ -201,32 +240,62 @@ fn router_with_auth_and_osv(
             osv_index,
         }),
     };
-    Router::new()
-        .route("/-/ping", get(serve_ping))
-        // pnpr resolver: opt-in, versioned endpoints layered on the
-        // registry core. Non-pnpm clients never touch these. `/-/pnpr`
-        // is the capability handshake (404 on a plain registry).
-        .route("/-/pnpr", get(serve_pnpr_handshake))
-        .route("/v1/resolve", post(serve_resolve))
-        .route("/v1/verify-lockfile", post(serve_verify_lockfile))
-        // Batch publish: one request carrying many packages' publish
-        // documents. Not part of the standard npm registry API —
-        // `pnpm publish --batch` opts into it explicitly.
-        .route("/-/pnpm/v1/publish", put(serve_batch_publish))
-        .route("/{name}", get(get_packument_unscoped).put(put_one_segment))
-        .route("/{first}/{second}", get(get_two_segments).put(put_two_segments))
-        .route(
-            "/{first}/{second}/{third}",
-            get(get_three_segments).put(put_three_segments).delete(delete_three_segments),
-        )
-        .route("/{scope}/{name}/-/{filename}", get(get_tarball_scoped))
-        .route("/{a}/{b}/{c}/{d}", get(get_four_segments).delete(delete_four_segments))
-        .route(
-            "/{a}/{b}/{c}/{d}/{e}",
-            get(get_five_segments).put(put_five_segments).delete(delete_five_segments),
-        )
-        // Scoped tarball delete: `DELETE /@scope/name/-/<basename-version>.tgz/-rev/<rev>`
-        .route("/{a}/{b}/{c}/{d}/{e}/{f}", delete(delete_six_segments))
+    // `/-/ping` is a health check and is always served. The two
+    // configurable surfaces — the resolver (install accelerator) and the
+    // npm registry — are each mounted only when their feature is enabled,
+    // so an operator can run resolver-only, registry-only, or both. The
+    // config guarantees at least one is enabled.
+    let mut router = Router::new().route("/-/ping", get(serve_ping));
+    // The install-accelerator (resolver) surface. `/-/pnpr` is the
+    // capability handshake (404 on a plain registry); `/v1/resolve` and
+    // `/v1/verify-lockfile` are the resolver endpoints. These resolve
+    // against the registries the *client* sends, so the accelerator works
+    // whether or not this process also fronts a registry.
+    //
+    // When the resolver is disabled, only `/-/pnpr` gets a 404 stub: it is
+    // the capability-probe path and overlaps the registry catch-all
+    // (`/-/pnpr` matches `/{first}/{second}`), so without the stub a probe
+    // would be proxied upstream, giving a confusing 502 where a client
+    // expects the "no resolver here" 404. `/v1/resolve` and
+    // `/v1/verify-lockfile` carry no capability probe and are POST-only, so
+    // they are left unmounted rather than stubbed: that keeps the registry
+    // npm-compatible for the (unusual but legitimate) version-manifest
+    // paths `GET /v1/resolve` / `GET /v1/verify-lockfile` (package `v1`,
+    // tag `resolve` / `verify-lockfile`), with their POST falling to a 405.
+    if resolver_enabled {
+        router = router
+            .route("/-/pnpr", get(serve_pnpr_handshake))
+            .route("/v1/resolve", post(serve_resolve))
+            .route("/v1/verify-lockfile", post(serve_verify_lockfile));
+    } else {
+        router = router.route("/-/pnpr", any(resolver_disabled));
+    }
+    // The npm-registry surface: every packument/tarball read, publish,
+    // unpublish, dist-tag, search, and the user/login endpoint. When the
+    // feature is disabled, none of these routes are mounted — not merely
+    // hidden — so a resolver-only tier exposes no registry surface at all.
+    if registry_enabled {
+        router = router
+            // Batch publish: one request carrying many packages' publish
+            // documents. Not part of the standard npm registry API —
+            // `pnpm publish --batch` opts into it explicitly.
+            .route("/-/pnpm/v1/publish", put(serve_batch_publish))
+            .route("/{name}", get(get_packument_unscoped).put(put_one_segment))
+            .route("/{first}/{second}", get(get_two_segments).put(put_two_segments))
+            .route(
+                "/{first}/{second}/{third}",
+                get(get_three_segments).put(put_three_segments).delete(delete_three_segments),
+            )
+            .route("/{scope}/{name}/-/{filename}", get(get_tarball_scoped))
+            .route("/{a}/{b}/{c}/{d}", get(get_four_segments).delete(delete_four_segments))
+            .route(
+                "/{a}/{b}/{c}/{d}/{e}",
+                get(get_five_segments).put(put_five_segments).delete(delete_five_segments),
+            )
+            // Scoped tarball delete: `DELETE /@scope/name/-/<basename-version>.tgz/-rev/<rev>`
+            .route("/{a}/{b}/{c}/{d}/{e}/{f}", delete(delete_six_segments));
+    }
+    router
         .layer(DefaultBodyLimit::max(MAX_PUBLISH_BODY_BYTES))
         // gzip metadata responses for clients that send `Accept-Encoding:
         // gzip`, matching how a real (CDN-fronted) registry serves
@@ -282,20 +351,39 @@ fn router_with_auth_and_osv(
         .with_state(state)
 }
 
-/// Bind to `config.listen` and serve forever. Loads the configured
-/// htpasswd users and token database before binding the socket so
-/// a startup-time auth error surfaces before we accept any client
-/// connections.
+/// Bind to `config.listen` and serve forever. When the registry surface
+/// is enabled, loads its htpasswd users and token database before binding
+/// the socket so a startup-time auth error surfaces before we accept any
+/// client connections; a resolver-only server skips journal recovery and
+/// on-disk auth entirely and stays stateless.
 pub async fn serve(config: Config) -> crate::error::Result<()> {
-    crate::journal::recover_publish_journal(&config).await?;
-    let osv_index = crate::resolver::load_osv_index(&config)?;
-    let auth = AuthState::load(&config.auth, &config.backend).await?;
+    // Enforce the "at least one surface" invariant here too, not only at
+    // YAML load / CLI: embedders build `Config` programmatically and call
+    // straight into `serve`, so a both-disabled config must fail loudly
+    // rather than start a server that only answers `/-/ping`.
+    config.ensure_a_feature_is_enabled()?;
+    log_enabled_surfaces(&config);
+    let osv_index = load_active_osv_index(&config)?;
+    let auth = load_startup_auth(&config).await?;
     let listen = config.listen;
     let app = router_with_auth_and_osv(config, auth, osv_index);
     let listener = NodelayTcpListener(tokio::net::TcpListener::bind(listen).await?);
     tracing::info!(%listen, "pnpr listening");
     axum::serve(listener, app).with_graceful_shutdown(shutdown_signal()).await?;
     Ok(())
+}
+
+/// Log which surfaces are mounted at startup. A misconfiguration — most
+/// importantly a typo'd `registry:` / `resolver:` block name, which the
+/// intentionally verdaccio-lenient config parser silently ignores and so
+/// leaves the surface at its default-enabled state — is then immediately
+/// visible to the operator rather than only discoverable by probing.
+fn log_enabled_surfaces(config: &Config) {
+    tracing::info!(
+        registry = config.registry.enabled,
+        resolver = config.resolver.enabled,
+        "pnpr surfaces",
+    );
 }
 
 /// Serve on an already-bound listener.
@@ -308,12 +396,15 @@ pub async fn serve_listener(
     listener: tokio::net::TcpListener,
 ) -> crate::error::Result<()> {
     let listen = listener.local_addr()?;
-    crate::journal::recover_publish_journal(&config).await?;
-    let osv_index = crate::resolver::load_osv_index(&config)?;
-    // Load the configured auth backends here too — going through
-    // `router` would silently fall back to in-memory auth and ignore a
-    // persisted htpasswd / SQLite store or a configured `backend:`.
-    let auth = AuthState::load(&config.auth, &config.backend).await?;
+    config.ensure_a_feature_is_enabled()?;
+    log_enabled_surfaces(&config);
+    let osv_index = load_active_osv_index(&config)?;
+    // Load the configured auth backends here too (when the registry is
+    // enabled) — going through `router` would silently fall back to
+    // in-memory auth and ignore a persisted htpasswd / SQLite store or a
+    // configured `backend:`. A resolver-only server intentionally uses
+    // in-memory auth (see [`load_startup_auth`]).
+    let auth = load_startup_auth(&config).await?;
     let app = router_with_auth_and_osv(config, auth, osv_index);
     tracing::info!(%listen, "pnpr listening");
     axum::serve(NodelayTcpListener(listener), app)
@@ -2044,6 +2135,15 @@ async fn serve_ping(State(_state): State<AppState>) -> Response {
 /// lists the `/vN/resolve` protocol versions this server speaks.
 async fn serve_pnpr_handshake() -> Response {
     (StatusCode::OK, axum::Json(serde_json::json!({ "pnpr": { "versions": [1] } }))).into_response()
+}
+
+/// 404 stub mounted on the resolver paths when the resolver feature is
+/// disabled. Registered so these specific paths return a clean
+/// not-found — in particular `/-/pnpr`, whose 404 is how a client
+/// detects "no resolver here" — rather than being shadowed by the
+/// registry's catch-all param routes and proxied upstream.
+async fn resolver_disabled() -> Response {
+    StatusCode::NOT_FOUND.into_response()
 }
 
 async fn serve_resolve(State(state): State<AppState>, body: axum::body::Bytes) -> Response {

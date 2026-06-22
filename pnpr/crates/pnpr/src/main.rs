@@ -51,17 +51,37 @@ struct Args {
     /// Path to the local OSV npm database zip or extracted JSON directory.
     #[arg(long)]
     osv_db: Option<PathBuf>,
+
+    /// Disable the npm-registry surface (packument/tarball reads, publish,
+    /// unpublish, dist-tag, search, and the user/login endpoints).
+    /// Overrides `registry.enabled` from the loaded config.
+    #[arg(long)]
+    disable_registry: bool,
+
+    /// Disable the install-accelerator surface (`/-/pnpr`, `/v1/resolve`,
+    /// `/v1/verify-lockfile`). Overrides `resolver.enabled` from the
+    /// loaded config.
+    #[arg(long)]
+    disable_resolver: bool,
 }
 
 #[tokio::main]
 async fn main() -> miette::Result<()> {
     let args = Args::parse();
     let auto_path = Config::auto_config_path();
-    let (mut config, source) = Config::resolve(
+    // Pass the surface-disable flags into parsing so a CLI-disabled surface
+    // skips its parse-time work too (e.g. strict uplink token resolution),
+    // not just its routes — applying them after `resolve` would be too late.
+    let overrides = pnpr::FeatureOverrides {
+        disable_registry: args.disable_registry,
+        disable_resolver: args.disable_resolver,
+    };
+    let (mut config, source) = Config::resolve_with_overrides(
         args.config.as_deref(),
         auto_path.as_deref(),
         args.listen,
         args.public_url.clone(),
+        overrides,
     )
     .map_err(|err| miette::miette!("{err}"))?;
     if let Some(storage) = args.storage {
@@ -95,6 +115,8 @@ async fn main() -> miette::Result<()> {
     if let Some(osv_db) = args.osv_db {
         config.osv.path = Some(osv_db);
     }
+    // Surface overrides were folded in during parse; the parse already
+    // enforced that at least one surface stays enabled.
     init_logging(&config.logs);
     log_config_source(&source);
     serve(config).await.map_err(|err| redacted_report(&err))

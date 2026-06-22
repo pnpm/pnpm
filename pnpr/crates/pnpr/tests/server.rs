@@ -904,3 +904,110 @@ async fn cache_false_uplink_streams_tarball_without_mirroring() {
 
     mock.assert_async().await;
 }
+
+#[tokio::test]
+async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://upstream.invalid", tmp.path().to_path_buf());
+    config.registry.enabled = false;
+    let app = router(config);
+
+    // The resolver surface stays reachable. `/-/ping` and the capability
+    // handshake answer 200; `/v1/verify-lockfile` is mounted, so an empty
+    // body is a 400 (bad request) rather than a 404 (route absent) — that
+    // distinction is the point of the assertion.
+    let ping =
+        app.clone().oneshot(Request::get("/-/ping").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(ping.status(), StatusCode::OK);
+
+    let handshake =
+        app.clone().oneshot(Request::get("/-/pnpr").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(handshake.status(), StatusCode::OK);
+
+    let verify = app
+        .clone()
+        .oneshot(Request::post("/v1/verify-lockfile").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_ne!(
+        verify.status(),
+        StatusCode::NOT_FOUND,
+        "the verify-lockfile route must stay mounted when the registry is disabled",
+    );
+
+    // Every npm-registry route is gone, not merely hidden: a packument
+    // read, a publish, and a batch publish all 404 without any upstream
+    // call (the route itself is absent).
+    let packument =
+        app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(packument.status(), StatusCode::NOT_FOUND);
+
+    let publish =
+        app.clone().oneshot(Request::put("/foo").body(Body::from("{}")).unwrap()).await.unwrap();
+    assert_eq!(publish.status(), StatusCode::NOT_FOUND);
+
+    let batch_publish = app
+        .clone()
+        .oneshot(Request::put("/-/pnpm/v1/publish").body(Body::from("{}")).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(batch_publish.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn registry_only_serves_registry_and_refuses_resolver_endpoints() {
+    let mut upstream = mockito::Server::new_async().await;
+    let mock = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_body(json!({ "name": "foo", "versions": {} }).to_string())
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.resolver.enabled = false;
+    let app = router(config);
+
+    // The registry surface still works: ping and a proxied packument read.
+    let ping =
+        app.clone().oneshot(Request::get("/-/ping").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(ping.status(), StatusCode::OK);
+
+    let packument =
+        app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(packument.status(), StatusCode::OK);
+
+    // The resolver surface is gone: the handshake and both resolver
+    // endpoints 404.
+    let handshake =
+        app.clone().oneshot(Request::get("/-/pnpr").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(handshake.status(), StatusCode::NOT_FOUND);
+
+    // `/-/pnpr` is the only stubbed resolver path, for every method, so
+    // capability detection cleanly concludes "no resolver here".
+    let handshake_post =
+        app.clone().oneshot(Request::post("/-/pnpr").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(handshake_post.status(), StatusCode::NOT_FOUND);
+
+    // `/v1/resolve` and `/v1/verify-lockfile` are NOT stubbed: they belong
+    // to the registry's version-manifest route (`GET|PUT /{first}/{second}`,
+    // i.e. package `v1`, tag `resolve` / `verify-lockfile`), so a POST
+    // returns 405 — proving the resolver stubs no longer shadow these
+    // legitimate registry paths.
+    let resolve = app
+        .clone()
+        .oneshot(Request::post("/v1/resolve").body(Body::from("{}")).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(resolve.status(), StatusCode::METHOD_NOT_ALLOWED);
+
+    let verify = app
+        .clone()
+        .oneshot(Request::post("/v1/verify-lockfile").body(Body::from("{}")).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(verify.status(), StatusCode::METHOD_NOT_ALLOWED);
+
+    mock.assert_async().await;
+}

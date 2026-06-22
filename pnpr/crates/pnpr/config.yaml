@@ -40,6 +40,13 @@ storage: ./storage
 #  mysql:
 #    url: ${PNPR_MYSQL_URL}
 #    maxConnections: 16
+# Feature toggles for pnpr's two surfaces. Both are enabled by default;
+# disable one to carve down what this server exposes. At least one must
+# stay enabled. (`/-/ping` is always served.)
+#registry:          # npm registry: packument/tarball reads, publish,
+#  enabled: true    # unpublish, dist-tag, search, user/login endpoints
+#resolver:          # install accelerator: /-/pnpr, /v1/resolve,
+#  enabled: true    # and /v1/verify-lockfile
 secret: pnpm-registry-mock-secret-key-32
 
 auth:

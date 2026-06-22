@@ -1,7 +1,7 @@
 use super::{
-    BackendConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML, HostedStoreConfig, Interval,
-    LogFormat, LogLevel, TokenEnv, UplinkAuthFile, UplinkAuthType, UplinkConfig, UplinkFile,
-    config_file_in, parse_interval, pattern_matches, resolve_relative, resolve_uplink,
+    BackendConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML, FeatureOverrides, HostedStoreConfig,
+    Interval, LogFormat, LogLevel, TokenEnv, UplinkAuthFile, UplinkAuthType, UplinkConfig,
+    UplinkFile, config_file_in, parse_interval, pattern_matches, resolve_relative, resolve_uplink,
 };
 use crate::{error::RegistryError, policy::Identity};
 use indexmap::IndexMap;
@@ -224,6 +224,117 @@ packages:
     let uplink = &config.uplinks["npmjs"];
     assert_eq!(uplink.headers.get(AUTHORIZATION).unwrap().to_str().unwrap(), "Bearer secret-token");
     assert_eq!(uplink.headers.get("x-org").unwrap().to_str().unwrap(), "acme");
+}
+
+#[test]
+fn features_default_to_enabled_when_absent() {
+    let config = Config::from_yaml_str("{}", Path::new("/x"), listen(), None).unwrap();
+    assert!(config.registry.enabled);
+    assert!(config.resolver.enabled);
+}
+
+#[test]
+fn feature_blocks_present_but_empty_default_to_enabled() {
+    // A bare `registry:` parses as YAML null and `resolver: {}` as an
+    // empty map; both must mean "enabled", not fail to deserialize.
+    let yaml = "registry:\nresolver: {}\n";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    assert!(config.registry.enabled);
+    assert!(config.resolver.enabled);
+}
+
+#[test]
+fn resolver_only_skips_uplink_resolution() {
+    // With the registry disabled, an uplink whose auth token can't be
+    // resolved must not fail config load — no registry route uses uplinks,
+    // so a resolver-only tier shouldn't need upstream secrets.
+    let yaml = r"
+registry:
+  enabled: false
+uplinks:
+  npmjs:
+    url: https://registry.npmjs.org/
+    auth:
+      type: bearer
+      token_env: PNPR_DEFINITELY_UNSET_TOKEN_VAR
+packages:
+  '**':
+    proxy: npmjs
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    assert!(!config.registry.enabled);
+    assert!(config.uplinks.is_empty());
+}
+
+#[test]
+fn cli_disabling_both_surfaces_with_bundled_config_errors_without_panicking() {
+    // No config file → the bundled branch. Disabling both surfaces via
+    // CLI must surface a clean error, not panic on the bundled `expect`.
+    let overrides = FeatureOverrides { disable_registry: true, disable_resolver: true };
+    let err = Config::resolve_with_overrides(None, None, listen(), None, overrides)
+        .expect_err("both surfaces disabled must error rather than panic");
+    assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+}
+
+#[test]
+fn cli_disable_registry_skips_uplink_resolution() {
+    // The config file enables the registry, but `--disable-registry`
+    // (a CLI override) turns it off. Uplink resolution must be skipped
+    // based on the *effective* enablement, so an unresolvable auth token
+    // doesn't fail startup of a resolver-only tier driven by the flag.
+    let yaml = r"
+uplinks:
+  npmjs:
+    url: https://registry.npmjs.org/
+    auth:
+      type: bearer
+      token_env: PNPR_DEFINITELY_UNSET_TOKEN_VAR
+packages:
+  '**':
+    proxy: npmjs
+";
+    let overrides = FeatureOverrides { disable_registry: true, disable_resolver: false };
+    let config =
+        Config::from_yaml_str_with_overrides(yaml, Path::new("/x"), listen(), None, overrides)
+            .expect("a CLI-disabled registry must skip strict uplink resolution");
+    assert!(!config.registry.enabled);
+    assert!(config.uplinks.is_empty());
+}
+
+#[test]
+fn unknown_key_in_feature_block_is_a_config_error() {
+    // A typo'd `enable` (vs `enabled`) must fail loudly rather than
+    // silently leaving the surface enabled.
+    let yaml = "registry:\n  enable: false\n";
+    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+        .expect_err("an unknown key in a feature block must error");
+    assert!(matches!(err, RegistryError::InvalidConfig { .. }));
+}
+
+#[test]
+fn from_yaml_str_parses_feature_toggles() {
+    let yaml = r"
+registry:
+  enabled: false
+resolver:
+  enabled: true
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    assert!(!config.registry.enabled);
+    assert!(config.resolver.enabled);
+}
+
+#[test]
+fn disabling_both_features_is_a_config_error() {
+    let yaml = r"
+registry:
+  enabled: false
+resolver:
+  enabled: false
+";
+    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+        .expect_err("a server with neither surface enabled must error");
+    assert!(matches!(err, RegistryError::InvalidConfig { .. }));
 }
 
 #[test]
