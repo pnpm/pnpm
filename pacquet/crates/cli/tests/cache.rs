@@ -1,6 +1,6 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
-use pacquet_testing_utils::bin::CommandTempCwd;
+use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use std::fs;
 
 #[test]
@@ -115,4 +115,85 @@ fn should_delete_packages() {
     assert!(stdout.contains(&format!("{registry_name}/is-positive.jsonl")));
     assert!(!cache_dir.join(&registry_name).join("is-positive.jsonl").exists());
     assert!(cache_dir.join(&registry_name).join("is-negative.jsonl").exists());
+}
+
+#[test]
+fn should_view_package_cache() {
+    let cwd = CommandTempCwd::init().add_mocked_registry();
+    let cache_dir = cwd.npmrc_info.cache_dir.join("v11").join("metadata");
+    let url_str = cwd.npmrc_info.mock_instance.url();
+    let registry_name =
+        pacquet_resolving_npm_resolver::mirror::get_registry_name(&url_str).unwrap();
+    fs::create_dir_all(cache_dir.join(&registry_name)).unwrap();
+
+    let package_jsonl = "{}\n{\
+        \"name\":\"is-positive\",\
+        \"dist-tags\":{\"latest\":\"1.0.0\"},\
+        \"versions\":{\
+            \"1.0.0\":{\
+                \"name\":\"is-positive\",\
+                \"version\":\"1.0.0\",\
+                \"dist\":{\
+                    \"integrity\":\"sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==\"\
+                }\
+            }\
+        }\
+    }";
+    fs::write(cache_dir.join(&registry_name).join("is-positive.jsonl"), package_jsonl).unwrap();
+
+    let output = cwd
+        .pacquet
+        .with_args(["cache", "view", "is-positive"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+
+    let stdout = String::from_utf8(output).unwrap();
+    let json: serde_json::Value = serde_json::from_str(&stdout).unwrap();
+
+    let key = registry_name.replace('+', ":");
+    assert!(json.get(&key).is_some());
+    let info = json.get(&key).unwrap();
+    assert!(info.get("cachedVersions").is_some());
+    assert!(info.get("nonCachedVersions").is_some());
+    assert!(info.get("cachedAt").is_some());
+}
+
+#[test]
+fn import_populates_metadata_cache() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, cache_dir, .. } = npmrc_info;
+
+    let manifest_path = workspace.join("package.json");
+    fs::write(
+        &manifest_path,
+        serde_json::json!({
+            "dependencies": {
+                "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json");
+
+    pacquet.with_arg("import").assert().success();
+
+    let registry_name =
+        pacquet_resolving_npm_resolver::mirror::get_registry_name(&mock_instance.url()).unwrap();
+    let cache_metadata_dir = cache_dir.join("v11").join("metadata").join(&registry_name);
+
+    assert!(cache_metadata_dir.exists(), "metadata cache directory must exist");
+    assert!(
+        cache_metadata_dir.join("@pnpm.e2e/pkg-with-1-dep.jsonl").exists(),
+        "cached metadata file for @pnpm.e2e/pkg-with-1-dep must exist",
+    );
+    assert!(
+        cache_metadata_dir.join("@pnpm.e2e/dep-of-pkg-with-1-dep.jsonl").exists(),
+        "cached metadata file for transitive dependency @pnpm.e2e/dep-of-pkg-with-1-dep must exist",
+    );
+
+    drop((root, mock_instance));
 }
