@@ -118,6 +118,26 @@ fn get_returns_none_for_missing_key() {
 }
 
 #[test]
+fn get_by_pkg_id_escapes_like_metacharacters() {
+    let dir = tempdir().unwrap();
+    let idx = StoreIndex::open(dir.path()).unwrap();
+    let exact_pkg_id = r"pkg%_\name@1.0.0";
+    let wildcard_neighbor_pkg_id = "pkgXYZname@1.0.0";
+
+    let neighbor_payload = sample_index();
+    idx.set(&store_index_key("sha512-neighbor", wildcard_neighbor_pkg_id), &neighbor_payload)
+        .unwrap();
+
+    assert!(idx.get_by_pkg_id(exact_pkg_id).unwrap().is_none());
+
+    let mut exact_payload = sample_index();
+    exact_payload.algo = "sha512-special".to_string();
+    idx.set(&store_index_key("sha512-exact", exact_pkg_id), &exact_payload).unwrap();
+
+    assert_eq!(idx.get_by_pkg_id(exact_pkg_id).unwrap(), Some(exact_payload));
+}
+
+#[test]
 fn set_is_upsert() {
     let dir = tempdir().unwrap();
     let idx = StoreIndex::open(dir.path()).unwrap();
