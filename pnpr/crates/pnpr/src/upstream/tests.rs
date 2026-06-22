@@ -1,6 +1,6 @@
 use super::{
     CacheValidators, CircuitBreaker, FetchOutcome, PackumentFetch, Upstream, abbreviate_packument,
-    extract_version_manifest, rewrite_tarball_urls,
+    extract_version_manifest, rewrite_tarball_urls, tarball_basename,
 };
 use crate::{config::UplinkConfig, error::RegistryError, package_name::PackageName};
 use chrono::{DateTime, TimeZone, Utc};
@@ -245,6 +245,41 @@ fn preserves_non_canonical_tarball_basename() {
         doc["versions"]["3001.1.0-dev-harmony-fb"]["dist"]["tarball"],
         "http://127.0.0.1:9999/esprima-fb/-/esprima-fb-3001.0001.0000-dev-harmony-fb.tgz",
     );
+}
+
+#[test]
+fn rewrites_query_bearing_tarball_to_its_path_basename() {
+    // A signed/query-bearing upstream URL must rewrite to the path basename
+    // alone: the query is not part of the route a client later requests, so
+    // keeping it would desync the public URL from the serve-time match.
+    let mut doc = json!({
+        "versions": {
+            "1.0.0": {
+                "dist": { "tarball": "https://cdn.example.com/foo/-/foo-1.0.0.tgz?sig=abc&exp=123" }
+            }
+        }
+    });
+    let name = PackageName::parse("foo").unwrap();
+    rewrite_tarball_urls(&mut doc, &name, "http://127.0.0.1:9999");
+    assert_eq!(
+        doc["versions"]["1.0.0"]["dist"]["tarball"],
+        "http://127.0.0.1:9999/foo/-/foo-1.0.0.tgz",
+    );
+}
+
+#[test]
+fn tarball_basename_strips_query_and_fragment() {
+    assert_eq!(tarball_basename("https://r.example/foo/-/foo-1.0.0.tgz"), Some("foo-1.0.0.tgz"));
+    assert_eq!(
+        tarball_basename("https://r.example/foo/-/foo-1.0.0.tgz?sig=x"),
+        Some("foo-1.0.0.tgz")
+    );
+    assert_eq!(
+        tarball_basename("https://r.example/foo/-/foo-1.0.0.tgz#frag"),
+        Some("foo-1.0.0.tgz")
+    );
+    assert_eq!(tarball_basename("foo-1.0.0.tgz"), Some("foo-1.0.0.tgz"));
+    assert_eq!(tarball_basename("https://r.example/foo/"), None);
 }
 
 #[test]

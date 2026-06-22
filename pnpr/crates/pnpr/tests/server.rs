@@ -693,6 +693,62 @@ async fn tarball_without_integrity_is_rejected_before_fetch() {
 }
 
 #[tokio::test]
+async fn ambiguous_tarball_basename_is_rejected_before_fetch() {
+    // Two versions declaring the same dist.tarball basename make the
+    // declaring version ambiguous, so the request must fail closed rather
+    // than bind integrity/OSV to whichever version is encountered first.
+    let mut upstream = mockito::Server::new_async().await;
+    let bytes = b"shared-basename-bytes";
+    let packument = json!({
+        "name": "foo",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "foo",
+                "version": "1.0.0",
+                "dist": {
+                    "tarball": format!("{}/foo/-/foo-1.0.0.tgz", upstream.url()),
+                    "integrity": sha512_integrity(bytes),
+                },
+            },
+            "2.0.0": {
+                "name": "foo",
+                "version": "2.0.0",
+                "dist": {
+                    "tarball": format!("{}/foo/-/foo-1.0.0.tgz", upstream.url()),
+                    "integrity": sha512_integrity(bytes),
+                },
+            },
+        },
+    });
+    let packument_mock = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(packument.to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    let tarball_mock = upstream
+        .mock("GET", "/foo/-/foo-1.0.0.tgz")
+        .with_status(200)
+        .with_body(bytes)
+        .expect(0)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let response = router(config_for(&upstream.url(), tmp.path().to_path_buf()))
+        .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+    packument_mock.assert_async().await;
+    tarball_mock.assert_async().await;
+}
+
+#[tokio::test]
 async fn invalid_tarball_integrities_are_controlled_failures() {
     for (case, integrity) in [
         ("malformed", "not-a-valid-sri"),

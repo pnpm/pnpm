@@ -392,10 +392,22 @@ fn rewrite_dist_tarball(value: &mut Value, pkg: &PackageName, public_url: &str) 
         return;
     };
     let Some(tarball_value) = dist.get_mut("tarball") else { return };
-    let Some(basename) = tarball_value.as_str().and_then(|url| url.rsplit('/').next()) else {
+    let Some(basename) = tarball_value.as_str().and_then(tarball_basename) else {
         return;
     };
     *tarball_value = Value::String(format!("{public_url}/{}/-/{basename}", pkg.as_str()));
+}
+
+/// The tarball filename a `dist.tarball` URL points at: the final path
+/// segment, with any `?query`/`#fragment` stripped. This basename is the
+/// trust key shared by the rewritten public URL ([`rewrite_tarball_urls`])
+/// and the serve-time version match (`expected_tarball_dist`), so both
+/// must derive it identically — including for query-bearing URLs (signed
+/// CDN links), where the query is not part of the route path a client
+/// later requests. Returns `None` for a URL whose path ends in `/`.
+pub fn tarball_basename(url: &str) -> Option<&str> {
+    let path = url.split(['?', '#']).next().unwrap_or(url);
+    path.rsplit('/').next().filter(|segment| !segment.is_empty())
 }
 
 /// Look up the version manifest for `version_or_tag` inside a parsed

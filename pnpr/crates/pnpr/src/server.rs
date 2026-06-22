@@ -13,7 +13,7 @@ use crate::{
     streaming,
     upstream::{
         CacheValidators, FetchOutcome, FetchedPackument, PackumentFetch, Upstream,
-        abbreviate_packument, extract_version_manifest, rewrite_tarball_urls,
+        abbreviate_packument, extract_version_manifest, rewrite_tarball_urls, tarball_basename,
     },
 };
 use axum::{
@@ -985,16 +985,28 @@ fn expected_tarball_dist(
     let Some(versions) = packument.get("versions").and_then(Value::as_object) else {
         return Ok(None);
     };
-    let Some((version, manifest)) = versions.iter().find(|(_, manifest)| {
+    let mut matches = versions.iter().filter(|(_, manifest)| {
         manifest
             .get("dist")
             .and_then(|dist| dist.get("tarball"))
             .and_then(Value::as_str)
-            .and_then(|url| url.rsplit('/').next())
+            .and_then(tarball_basename)
             .is_some_and(|basename| basename == filename)
-    }) else {
+    });
+    let Some((version, manifest)) = matches.next() else {
         return Ok(None);
     };
+    // A tarball name must identify exactly one declaring version, or the
+    // integrity and OSV checks below could bind to the wrong one. Two
+    // versions sharing a basename is a malformed/hostile packument, never a
+    // legitimate registry, so fail closed rather than pick by iteration order.
+    if matches.next().is_some() {
+        return Err(tarball_integrity_error(
+            name,
+            filename,
+            "packument declares the same dist.tarball basename for multiple versions".to_string(),
+        ));
+    }
     let declared = manifest
         .get("dist")
         .and_then(|dist| dist.get("integrity"))
