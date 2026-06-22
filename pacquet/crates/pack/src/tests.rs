@@ -321,3 +321,50 @@ fn format_pack_output_text_block() {
     assert!(text.contains("Tarball Details"));
     assert!(text.contains("foo-1.0.0.tgz"));
 }
+
+/// Port of pnpm's `pack: runs prepack, prepare, and postpack`
+/// ([pack.ts](https://github.com/pnpm/pnpm/blob/cab1c11c69/releasing/commands/test/publish/pack.ts#L346-L368)).
+/// Exercises `run_scripts_if_present` / `script_body`: with scripts
+/// enabled, each of `prepack` / `prepare` / `postpack` runs and leaves a
+/// marker file. Gated to Unix like the executor's other script-running
+/// tests, since it shells out through the platform shell.
+#[cfg(unix)]
+#[test]
+fn runs_prepack_prepare_and_postpack() {
+    let (dir, mut opts) = fixture(&json!({
+        "name": "foo",
+        "version": "1.0.0",
+        "scripts": {
+            "prepack": "touch prepack.ran",
+            "prepare": "touch prepare.ran",
+            "postpack": "touch postpack.ran",
+        },
+    }));
+    opts.ignore_scripts = false;
+
+    api::<SilentReporter, Host>(&opts).unwrap();
+
+    assert!(dir.path().join("foo-1.0.0.tgz").is_file());
+    assert!(dir.path().join("prepack.ran").exists(), "prepack should have run");
+    assert!(dir.path().join("prepare.ran").exists(), "prepare should have run");
+    assert!(dir.path().join("postpack.ran").exists(), "postpack should have run");
+}
+
+/// With scripts enabled but the manifest declaring none of the
+/// requested lifecycle scripts (here an empty `prepack`), `script_body`
+/// yields `None` and `run_scripts_if_present` returns early, so packing
+/// still succeeds without shelling out.
+#[test]
+fn pack_succeeds_when_scripts_enabled_but_absent() {
+    let (dir, mut opts) = fixture(&json!({
+        "name": "foo",
+        "version": "1.0.0",
+        "scripts": { "prepack": "" },
+    }));
+    opts.ignore_scripts = false;
+
+    let result = api::<SilentReporter, Host>(&opts).unwrap();
+
+    assert_eq!(result.tarball_path, "foo-1.0.0.tgz");
+    assert!(dir.path().join("foo-1.0.0.tgz").is_file());
+}
