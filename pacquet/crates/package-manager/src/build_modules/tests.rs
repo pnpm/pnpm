@@ -1,7 +1,10 @@
 use super::{
-    AllowBuildPolicy, BuildModules, RebuildOptions, allow_build_key_from_ignored_build,
-    parse_name_version_from_key,
+    AllowBuildPolicy, BuildModules, allow_build_key_from_ignored_build, parse_name_version_from_key,
 };
+// Only the `#[cfg(unix)]` rebuild-selection test uses this; importing it
+// unconditionally would be an unused import on Windows.
+#[cfg(unix)]
+use super::RebuildOptions;
 use crate::{RequiresBuildBySnapshot, SkippedSnapshots, VirtualStoreLayout};
 use pacquet_config::{Config, PackageImportMethod};
 use pacquet_executor::ScriptsPrependNodePath;
