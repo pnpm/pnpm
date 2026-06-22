@@ -236,12 +236,16 @@ async fn osv_filters_packument_identity_mismatches() {
     let response = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let body = body_json(response.into_body()).await;
-    assert_eq!(body["versions"].as_object().unwrap().keys().collect::<Vec<_>>(), vec!["1.0.0"]);
-    assert_eq!(body["dist-tags"].as_object().unwrap().keys().collect::<Vec<_>>(), vec!["stable"]);
-    assert_eq!(
-        body["time"].as_object().unwrap().keys().collect::<Vec<_>>(),
-        vec!["modified", "1.0.0"],
-    );
+    let versions = body["versions"].as_object().unwrap();
+    assert_eq!(versions.len(), 1);
+    assert!(versions.contains_key("1.0.0"));
+    let tags = body["dist-tags"].as_object().unwrap();
+    assert_eq!(tags.len(), 1);
+    assert!(tags.contains_key("stable"));
+    let time = body["time"].as_object().unwrap();
+    assert_eq!(time.len(), 2);
+    assert!(time.contains_key("modified"));
+    assert!(time.contains_key("1.0.0"));
 
     mock.assert_async().await;
 }
