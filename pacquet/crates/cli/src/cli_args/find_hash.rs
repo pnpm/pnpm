@@ -157,7 +157,7 @@ impl FindHashArgs {
                 "{}@{}  {}",
                 package_info(&name),
                 package_info(&version),
-                index_path(&index_key)
+                index_path(&index_key),
             );
         }
 
