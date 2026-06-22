@@ -388,14 +388,30 @@ pub fn rewrite_tarball_urls(value: &mut Value, pkg: &PackageName, public_url: &s
 }
 
 fn rewrite_dist_tarball(value: &mut Value, pkg: &PackageName, public_url: &str) {
+    // Every string `dist.tarball` must be rewritten to a route on *this*
+    // server, where integrity and OSV are enforced — never passed through.
+    // When the upstream URL has no usable basename (e.g. it ends in `/`), fall
+    // back to the version-derived canonical name (the manifest carries its own
+    // `version`) so a malformed URL still points at pnpr (and 404s there)
+    // rather than directing the client at an arbitrary upstream host.
+    let fallback = value
+        .get("version")
+        .and_then(Value::as_str)
+        .map(|version| pkg.tarball_name_for_version(version));
     let Some(dist) = value.get_mut("dist").and_then(Value::as_object_mut) else {
         return;
     };
     let Some(tarball_value) = dist.get_mut("tarball") else { return };
-    let Some(basename) = tarball_value.as_str().and_then(tarball_basename) else {
+    if !tarball_value.is_string() {
         return;
-    };
-    *tarball_value = Value::String(format!("{public_url}/{}/-/{basename}", pkg.as_str()));
+    }
+    let filename = tarball_value
+        .as_str()
+        .and_then(tarball_basename)
+        .map(str::to_owned)
+        .or(fallback)
+        .unwrap_or_default();
+    *tarball_value = Value::String(format!("{public_url}/{}/-/{filename}", pkg.as_str()));
 }
 
 /// The tarball filename a `dist.tarball` URL points at: the final path

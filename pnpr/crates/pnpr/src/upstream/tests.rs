@@ -268,6 +268,28 @@ fn rewrites_query_bearing_tarball_to_its_path_basename() {
 }
 
 #[test]
+fn rewrites_basenameless_tarball_url_to_pnpr_route() {
+    // A dist.tarball with no usable basename (here a trailing slash) must
+    // never be passed through to the client; it falls back to the
+    // version-derived pnpr route so integrity/OSV stay enforced here and the
+    // client is never directed at the upstream host.
+    let mut doc = json!({
+        "versions": {
+            "1.0.0": {
+                "version": "1.0.0",
+                "dist": { "tarball": "https://evil.example.com/somewhere/" }
+            }
+        }
+    });
+    let name = PackageName::parse("foo").unwrap();
+    rewrite_tarball_urls(&mut doc, &name, "http://127.0.0.1:9999");
+    assert_eq!(
+        doc["versions"]["1.0.0"]["dist"]["tarball"],
+        "http://127.0.0.1:9999/foo/-/foo-1.0.0.tgz",
+    );
+}
+
+#[test]
 fn tarball_basename_strips_query_and_fragment() {
     let base = "foo-1.0.0.tgz";
     assert_eq!(tarball_basename("https://r/foo/-/foo-1.0.0.tgz"), Some(base));
