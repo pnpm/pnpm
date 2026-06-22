@@ -34,9 +34,7 @@ export function pkgSnapshotToResolution (
   ) {
     return pkgSnapshot.resolution as Resolution
   }
-  // Recover the tarball field for `file:` snapshots whose resolution lost
-  // its tarball (e.g. lockfiles written by an earlier pnpm 11 version that
-  // dropped the tarball under `lockfile-include-tarball-url=false`).
+  // Legacy `file:` snapshots may carry the tarball in the depPath only.
   const nonSemverVersion = dp.parse(depPath).nonSemverVersion
   if (nonSemverVersion?.startsWith('file:')) {
     return {
@@ -80,11 +78,9 @@ export function pkgSnapshotToResolution (
  * fetch. A registry/`http(s)` tarball (`remoteTarball`) must carry a non-empty string
  * `integrity`, otherwise its downloaded bytes can't be checked against an expected hash.
  *
- * The npm resolver's lockfile verifier enforces the same rule, but it is deliberately
- * overlapped with fetching (and the self-updater's headless install runs without it), so the
- * verifier alone can't stop an integrity-less — i.e. tampered or pre-fix — lockfile entry
- * from kicking off a download. This check is cheap and network-free, so the headless
- * dep-graph builders run it right before `fetchPackage` to keep the fail-closed invariant.
+ * The npm resolver's lockfile verifier enforces the same rule, but it runs in
+ * parallel with fetching and some headless paths do not run it, so fetch sites
+ * keep the same cheap network-free guard.
  *
  * `file:`, git-hosted, git, directory, binary and custom resolutions are anchored another
  * way (local bytes, a commit SHA) and are exempt.

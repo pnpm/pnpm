@@ -98,13 +98,9 @@ struct OwnedFetchCtx {
     /// without this gate the bench saw ~3-5k redundant spawns per
     /// install on the alotta-files fixture (one per dependent edge).
     spawned_urls: Arc<DashSet<String>>,
-    /// Per-URL singleflight cache of integrities computed for
-    /// integrity-less tarballs (see [`PrefetchingResolver::fill_missing_integrity`]).
-    /// `resolve()` runs once per (parent, child) edge, so the same
-    /// integrity-less URL can arrive on many edges; the cell is shared so
-    /// the first edge downloads + computes while later edges await it and
-    /// read the cached integrity with no network work. Empty in the common
-    /// case (registries that publish integrity never reach the fetch).
+    /// Per-URL singleflight cache for integrity-less tarballs. The first
+    /// edge downloads and computes the integrity; later edges await the
+    /// same cell instead of fetching the URL again.
     integrity_cache: Arc<DashMap<String, Arc<OnceCell<Integrity>>>>,
 }
 
@@ -165,18 +161,9 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         PrefetchingResolver { inner, ctx, _phantom: PhantomData }
     }
 
-    /// When the inner resolver produced a remote tarball resolution with no
-    /// integrity — a registry that generates tarballs on demand and omits the
-    /// checksum from its metadata — download the tarball to compute its sha512
-    /// integrity and write it into the resolution, so the lockfile entry is
-    /// verifiable on later installs.
-    ///
-    /// This is pacquet's analogue of pnpm computing the integrity in the fetcher
-    /// and writing it back into the resolution before the lockfile is built
-    /// ([pnpm/pnpm#12145](https://github.com/pnpm/pnpm/issues/12145)). `file:`
-    /// and git-hosted tarballs are anchored another way (local bytes / commit
-    /// SHA) and keep their integrity-less form. The download warms the same
-    /// `MemCache` the install pass reads, so it isn't fetched twice.
+    /// Complete remote tarball resolutions whose integrity can only be
+    /// learned from the downloaded bytes. `file:` and git-hosted tarballs
+    /// are anchored by local bytes or a commit SHA and remain unchanged.
     async fn fill_missing_integrity(&self, result: &mut ResolveResult) -> Result<(), ResolveError> {
         let LockfileResolution::Tarball(tarball) = &result.resolution else {
             return Ok(());
@@ -193,9 +180,8 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
             return Ok(());
         }
         let package_url = tarball.tarball.clone();
-        // Identify the package by `name@version` for auth/scope selection so a private
-        // scoped registry tarball picks up its credentials (the npm resolver fills
-        // `name_ver`); fall back to the URL when the name is unknown.
+        // Scope credentials are selected from `name@version` when the
+        // resolver knows it; direct URL tarballs fall back to URL identity.
         let package_id = result
             .name_ver
             .as_ref()
@@ -207,8 +193,8 @@ impl<Reporter: self::Reporter + 'static> PrefetchingResolver<Reporter> {
         let cell = Arc::clone(&self.ctx.integrity_cache.entry(package_url.clone()).or_default());
         let integrity = cell
             .get_or_try_init(|| async {
-                // Claim the URL so `maybe_kickoff_download` doesn't spawn a second fetch:
-                // this one already warms the mem cache.
+                // This fetch warms the mem cache, so the prefetch path should not
+                // spawn another task for the same URL.
                 self.ctx.spawned_urls.insert(package_url.clone());
                 let resolved = FetchTarballForResolution {
                     http_client: &self.ctx.http_client,

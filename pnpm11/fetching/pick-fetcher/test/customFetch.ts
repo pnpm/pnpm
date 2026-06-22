@@ -617,6 +617,5 @@ test('pickFetcher() forwards a custom fetcher resolutionNeedsFetch hook bound to
     createMockResolution({ tarball: 'http://example.com/p.tgz' }),
     { customFetchers: [customFetcher as unknown as CustomFetcher], packageId: 'p@1.0.0' }
   ) as FetchFunction
-  // Without binding, `this` would be the wrapper (no `marker`) and this would be false.
   expect(picked.resolutionNeedsFetch?.(createMockResolution({}))).toBe(true)
 })

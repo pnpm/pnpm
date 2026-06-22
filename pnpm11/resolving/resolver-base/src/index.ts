@@ -97,8 +97,7 @@ const GIT_HOSTED_TARBALL_HOSTS = [
  * tarball. Only the lowercased copy is inspected; the original URL is never rewritten.
  */
 export function isGitHostedTarballUrl (url: string): boolean {
-  // Lockfiles are untrusted input and YAML can produce a non-string `tarball`, so guard
-  // before calling string methods rather than throwing a TypeError during fetcher selection.
+  // Guard untrusted lockfile input before calling string methods.
   if (typeof url !== 'string') return false
   const lowerUrl = url.toLowerCase()
   return GIT_HOSTED_TARBALL_HOSTS.some((host) => lowerUrl.startsWith(host)) && lowerUrl.includes('tar.gz')
@@ -128,18 +127,12 @@ export function classifyResolution (resolution: Resolution): ResolutionKind {
   // `== null` so a tarball entry deserialized from YAML with `type: null` is treated the
   // same as an absent `type`, instead of falling through to `custom`.
   if (resolution.type == null) {
-    // A tampered lockfile (YAML) could carry a non-string `tarball`; normalize to a string
-    // so the string methods below can't throw during fetcher selection. A non-string value
-    // classifies as `remoteTarball`, where the verifier rejects it.
+    // Non-string tarballs stay in the remote-tarball path, where the verifier rejects them.
     const tarball = typeof (resolution as { tarball?: unknown }).tarball === 'string'
       ? (resolution as { tarball: string }).tarball
       : undefined
     if (tarball?.startsWith('file:')) return 'localTarball'
-    // `gitHosted` is a tamper-prone hint from an untrusted lockfile, so it is NOT trusted on
-    // its own: a resolution is git-hosted only when its tarball URL is a recognized git-hosted
-    // archive. Otherwise a forged `gitHosted: true` on an arbitrary http(s) tarball would
-    // classify as `gitHostedTarball` and dodge the integrity gate; it stays a `remoteTarball`
-    // that must carry integrity instead.
+    // `gitHosted` is lockfile input; only the archive URL classifies a tarball as git-hosted.
     if (tarball != null && isGitHostedTarballUrl(tarball)) {
       return 'gitHostedTarball'
     }

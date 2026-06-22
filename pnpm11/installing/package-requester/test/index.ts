@@ -133,8 +133,6 @@ test('a custom fetcher is selected once per request, not re-picked on the fetch 
   })
   await pkgResponse.fetching!()
 
-  // Without the picked-fetcher reuse, `pickFetcher` (and this `canFetch`) would run twice:
-  // once to read `resolutionNeedsFetch`, once on the fetch path.
   expect(canFetchCalls).toBe(1)
 })
 
@@ -422,9 +420,7 @@ test('force fetch when resolution integrity differs from current package integri
   const cafs = createCafsStore(storeDir)
   const projectDir = temporaryDirectory()
 
-  // Create a custom resolver that returns a different integrity than the current package
   const customResolve: typeof resolve = async () => {
-    // Return a resolution with a different integrity than what's in currentPkg
     return {
       id: 'is-positive@1.0.0' as PkgResolutionId,
       latest: '1.0.0',
@@ -449,12 +445,10 @@ test('force fetch when resolution integrity differs from current package integri
     virtualStoreDirMaxLength: 120,
   })
 
-  // Request with a currentPkg that has a different integrity
   const response = await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
     currentPkg: {
       id: 'is-positive@1.0.0' as PkgResolutionId,
       resolution: {
-        // Different valid integrity than what the resolver returns
         integrity: 'sha512-AvAi2XyFuGzKkv+hij9PXH0sZVQsU2npTQ0x3L81GCtHilFKme8lhBtD31Vxg/AKYrAvg==',
         tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
       },
@@ -469,10 +463,8 @@ test('force fetch when resolution integrity differs from current package integri
     fetching: () => Promise<PkgRequestFetchResult>
   }
 
-  // The package should be marked as updated because the integrity changed
   expect(response.body.updated).toBe(true)
 
-  // Fetching should occur because integrity changed
   const { files } = await response.fetching()
   expect(files.resolvedFrom).toBe('remote')
 })
@@ -1357,7 +1349,6 @@ test('HTTP tarball without integrity gets integrity computed during fetch', asyn
   })
 
   const projectDir = temporaryDirectory()
-  // Request a package via HTTP tarball URL (simulated via the local registry)
   const pkgResponse = await requestPackage(
     { alias: 'is-positive', bareSpecifier: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz` },
     {
@@ -1369,7 +1360,6 @@ test('HTTP tarball without integrity gets integrity computed during fetch', asyn
   )
 
   expect(pkgResponse.body).toBeTruthy()
-  // The resolution should now include an integrity hash computed during fetch
   expect(pkgResponse.body.resolution).toHaveProperty('integrity')
   expect((pkgResponse.body.resolution as { integrity?: string }).integrity).toMatch(/^sha512-/)
 })
@@ -1397,9 +1387,7 @@ test('registry tarball without integrity gets integrity computed even when alrea
   }) as PackageResponse & { fetching: () => Promise<PkgRequestFetchResult> }
   await seedResponse.fetching()
 
-  // Now resolve the same package with a resolver that returns a manifest but no
-  // integrity. The package is already in the store (cache hit), so without the
-  // forced re-download there would be no integrity to compute.
+  // Store hits cannot supply missing lockfile integrity; this path must fetch.
   const resolveWithoutIntegrity: typeof resolve = async () => ({
     id: 'is-positive@1.0.0' as PkgResolutionId,
     latest: '1.0.0',
@@ -1440,7 +1428,6 @@ test('skipFetch still downloads the tarball to compute a missing integrity', asy
   const cafs = createCafsStore(storeDir)
   const projectDir = temporaryDirectory()
 
-  // A registry that doesn't provide an integrity in its metadata.
   const resolveWithoutIntegrity: typeof resolve = async () => ({
     id: 'is-positive@1.0.0' as PkgResolutionId,
     latest: '1.0.0',

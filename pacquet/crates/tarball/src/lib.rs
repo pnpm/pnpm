@@ -2291,11 +2291,8 @@ pub struct FetchTarballForResolution<'a> {
     pub store_dir: &'static StoreDir,
     pub store_index_writer: Option<Arc<StoreIndexWriter>>,
     pub package_url: &'a str,
-    /// Identifies the package for auth/scope credential selection (and the
-    /// intermediate store-index cache key). Pass `name@version` when the
-    /// resolver knows it, so a private scoped package (`@org/pkg`) resolves its
-    /// scope-specific token; fall back to the tarball URL when only the URL is
-    /// known (a direct https tarball, which has no scoped auth).
+    /// Package identity used for scoped auth lookup and the intermediate
+    /// store-index cache key.
     pub package_id: &'a str,
     pub auth_headers: &'a AuthHeaders,
     pub retry_opts: RetryOpts,
@@ -2316,13 +2313,9 @@ impl FetchTarballForResolution<'_> {
             retry_opts,
         } = self;
 
-        // `None` expected-integrity → compute it from the bytes. `package_id` drives
-        // auth/scope selection (so a private scoped package picks up its token) and the
-        // intermediate cache key; the resolve-time fetch is silent (the install pass owns
-        // the reporter ordering), so the URL used as the `requester` placeholder never
-        // surfaces. `UNPRIORITIZED`: this fetch gates the resolver's walk (a tarball dep's
-        // manifest comes from its archive), so like a packument fetch it must not queue
-        // behind sized downloads.
+        // Resolve-time tarball fetches compute integrity from bytes and
+        // gate the dependency walk, so they use the same priority class as
+        // packument requests instead of queuing behind sized downloads.
         let (integrity, cas_paths, pkg_files_idx) = fetch_and_extract_with_retry::<Reporter>(
             http_client,
             package_url,

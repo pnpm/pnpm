@@ -21,14 +21,8 @@ export async function pickFetcher (
         const canFetch = await customFetcher.canFetch(opts.packageId, resolution)
 
         if (canFetch) {
-          // Return a wrapper FetchFunction that calls the custom fetcher's fetch method.
-          // The custom fetcher's fetch receives cafs, resolution, opts, and the standard
-          // fetchers for delegation. Its optional resolution contract is forwarded so the
-          // requester treats it like any standard fetcher (defaults apply when it opts out).
-          // The hook is bound to the custom fetcher so an implementation that uses `this`
-          // still works once it's copied onto the wrapper. A misconfigured custom fetcher
-          // could set `resolutionNeedsFetch` to a non-function truthy value; treat anything
-          // that isn't callable as "hook not provided" rather than crashing on `.bind`.
+          // Preserve `this` for custom fetchers that implement their optional
+          // resolution contract as a method.
           const resolutionNeedsFetch = typeof customFetcher.resolutionNeedsFetch === 'function'
             ? customFetcher.resolutionNeedsFetch.bind(customFetcher)
             : undefined
@@ -42,10 +36,8 @@ export async function pickFetcher (
     }
   }
 
-  // No custom fetcher handled the fetch, use standard fetcher selection.
   const fetcherType = classifyResolution(resolution)
   if (fetcherType === 'custom') {
-    // Custom resolution type that wasn't handled by any custom fetcher above.
     throw new PnpmError(
       'UNSUPPORTED_RESOLUTION_TYPE',
       `Cannot fetch dependency with custom resolution type "${resolution.type}". ` +

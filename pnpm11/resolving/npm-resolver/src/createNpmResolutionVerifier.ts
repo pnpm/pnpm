@@ -185,12 +185,8 @@ export function createNpmResolutionVerifier (
     // registry-tarball checks.
     if (!isRegistryTarballResolution(resolution)) return { ok: true }
 
-    // An http(s) tarball is only verifiable against its integrity, so reject any entry
-    // whose integrity isn't a non-empty string: missing, `""`, or a non-string truthy value
-    // from a tampered YAML lockfile (which would otherwise pass a truthiness check, then
-    // crash in the worker's `parseIntegrity`). This check needs no registry lookup, so it
-    // runs before both the URL-keyed and semver short-circuits below — neither a URL-keyed
-    // entry nor a tampered non-semver `version` can dodge it. Pacquet enforces the same invariant.
+    // This check is network-free, so it must run before the URL-keyed and
+    // semver short-circuits below.
     const integrity = (resolution as { integrity?: unknown }).integrity
     if (typeof integrity !== 'string' || integrity.length === 0) {
       return {
@@ -205,12 +201,8 @@ export function createNpmResolutionVerifier (
     // would 404 against a non-registry origin, so stop here.
     if (nonSemverVersion != null) return { ok: true }
 
-    // A registry-keyed entry (we've passed the `nonSemverVersion` exemption) is identified by
-    // a semver depPath, so its version must be valid semver. If it isn't, the version field was
-    // tampered — `nameVerFromPkgSnapshot` prefers the (untrusted) `pkgSnapshot.version` over the
-    // depPath — and we can't query the registry to bind the tarball URL. Fail closed rather than
-    // skip the origin checks, otherwise a tampered lockfile could set a non-semver version to
-    // front attacker-chosen bytes (with a matching integrity) under a trusted registry identity.
+    // A registry-keyed entry needs a semver version so its tarball URL can
+    // be bound to registry metadata instead of silently skipping origin checks.
     if (!semver.valid(version)) {
       return {
         ok: false,
@@ -279,14 +271,10 @@ export function createNpmResolutionVerifier (
   return {
     verify,
     policy: {
-      // Marks runs that enforced the tarball-URL binding. A cache record
-      // written before this rule existed lacks the flag, so
-      // `canTrustPastCheck` rejects it and forces a re-verification that
-      // applies the binding — otherwise an upgrade could keep trusting a
-      // lockfile that was only ever age/trust-checked.
+      // Cache records must explicitly prove they enforced the always-on
+      // tarball URL binding; absence of the flag is not trusted.
       tarballUrlBinding: true,
-      // Same contract for the missing-integrity check: a record written before
-      // it existed must be re-verified rather than trusted.
+      // Same contract for the missing-integrity check.
       integrityRequired: true,
       minimumReleaseAge,
       minimumReleaseAgeExclude: sortedMinAgeExcludes,
@@ -295,12 +283,9 @@ export function createNpmResolutionVerifier (
       trustPolicyIgnoreAfter: trustPolicyIgnoreAfter ?? null,
     },
     canTrustPastCheck: (cached) => {
-      // The tarball-URL binding is unconditional today; a cached run that
-      // didn't record it can't be trusted to have enforced it.
+      // Always-on structural checks require an explicit cache identity.
       if (cached.tarballUrlBinding !== true) return false
 
-      // Same for the missing-integrity check: a record without the flag predates
-      // it, so it can't be trusted to have rejected an integrity-less entry.
       if (cached.integrityRequired !== true) return false
 
       // Maturity: a previously cached run under a larger cutoff
@@ -964,17 +949,9 @@ function isExcluded (policy: PackageVersionPolicy | undefined, name: string, ver
   return false
 }
 
-// A plain registry/named-registry tarball: no `type` (git/directory/binary/custom all
-// carry one), not git-hosted (codeload/gitlab/bitbucket, detected by URL), and not a
-// non-http tarball such as `file:` (no packument to verify against). Unlike a
-// "has a fetchable artifact" check, this does NOT require a `tarball` or `integrity`
-// field to be present: a canonical entry whose integrity was stripped down to `{}` is
-// still a registry tarball that must carry one, and the integrity check needs to catch it.
-//
-// The `gitHosted` flag is NOT consulted: it comes from an untrusted lockfile, so honoring it
-// would let a forged `gitHosted: true` on an arbitrary http(s) tarball skip the integrity
-// requirement. Git-hosted entries are recognized solely by their archive URL, matching
-// `classifyResolution`.
+// Canonical registry entries may omit both `tarball` and `integrity`, so this
+// classifies by exemption: typed, non-http, and URL-recognized git-hosted
+// resolutions are outside the npm registry verifier.
 function isRegistryTarballResolution (resolution: Resolution | unknown): boolean {
   if (resolution == null || typeof resolution !== 'object') return false
   if ('type' in resolution && (resolution as { type?: unknown }).type != null) return false

@@ -1251,12 +1251,8 @@ async fn retries_integrity_mismatch_until_exhausted() {
     drop(store_dir_keep);
 }
 
-/// Registries that build tarballs on demand omit `dist.integrity` from
-/// their packument, so the npm resolver hands the prefetch path a
-/// tarball resolution with no integrity. `FetchTarballForResolution::run`
-/// must then download the bytes and compute the sha512 itself, so the
-/// lockfile entry it writes is verifiable on later installs
-/// ([pnpm/pnpm#12145](https://github.com/pnpm/pnpm/issues/12145)).
+/// Integrity-less tarball resolutions must be completed from the
+/// downloaded bytes before they are written to the lockfile.
 #[tokio::test]
 async fn fetch_for_resolution_computes_integrity_when_none_is_expected() {
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
@@ -1285,7 +1281,6 @@ async fn fetch_for_resolution_computes_integrity_when_none_is_expected() {
     .await
     .expect("a registry that omits integrity should get it computed from the bytes");
 
-    // The computed integrity must equal the tarball's actual sha512.
     assert_eq!(resolved.integrity, integrity(FASTIFY_ERROR_INTEGRITY));
     mock.assert_async().await;
     drop(store_dir_keep);
@@ -1294,8 +1289,6 @@ async fn fetch_for_resolution_computes_integrity_when_none_is_expected() {
 /// `FetchTarballForResolution` must forward its `package_id` (the package's
 /// `name@version`) for auth/scope selection, so a private scoped registry tarball
 /// resolves its scope token while its integrity is computed during resolution.
-/// Passing the URL there instead (the earlier behaviour) misses the scope credential
-/// and the fetch would fail for private scoped packages.
 #[tokio::test]
 async fn fetch_for_resolution_uses_package_id_for_scoped_auth() {
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();

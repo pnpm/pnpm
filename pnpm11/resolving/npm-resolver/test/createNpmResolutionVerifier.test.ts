@@ -341,8 +341,6 @@ test('createNpmResolutionVerifier() treats a non-string integrity as missing', a
 })
 
 test('createNpmResolutionVerifier() enforces missing integrity even with a non-semver version', async () => {
-  // The integrity check must run before the semver guard so a tampered non-semver version
-  // can't be used to skip it.
   const verifier = createNpmResolutionVerifier(makeVerifierOpts())
   const result = await verifier.verify(
     { tarball: REGISTRY_TARBALL } as unknown as Resolution,
@@ -352,9 +350,6 @@ test('createNpmResolutionVerifier() enforces missing integrity even with a non-s
 })
 
 test('createNpmResolutionVerifier() exempts a git-hosted tarball URL recorded without the gitHosted flag', async () => {
-  // Legacy lockfiles record codeload/gitlab/bitbucket archive URLs without `gitHosted: true`.
-  // They are commit-anchored and carry no integrity, so the verifier must not reject them as
-  // integrity-less registry tarballs. No mock agent: an exempt entry does no registry lookup.
   const verifier = createNpmResolutionVerifier(makeVerifierOpts())
   const result = await verifier.verify(
     { tarball: 'https://codeload.github.com/kevva/is-negative/tar.gz/abc1234' } as unknown as Resolution,
@@ -364,9 +359,6 @@ test('createNpmResolutionVerifier() exempts a git-hosted tarball URL recorded wi
 })
 
 test('createNpmResolutionVerifier() rejects a forged gitHosted flag on a non-git-hosted tarball', async () => {
-  // A tampered lockfile can set `gitHosted: true` on an attacker-controlled http(s) tarball to
-  // try to dodge the integrity gate. The flag is untrusted — only the URL decides git-hosted —
-  // so this stays a registry tarball and is rejected for its missing integrity.
   const verifier = createNpmResolutionVerifier(makeVerifierOpts())
   const result = await verifier.verify(
     { gitHosted: true, tarball: 'https://attacker.example/evil-1.0.0.tgz' } as unknown as Resolution,
@@ -376,9 +368,6 @@ test('createNpmResolutionVerifier() rejects a forged gitHosted flag on a non-git
 })
 
 test('createNpmResolutionVerifier() enforces missing integrity on a URL-keyed (nonSemverVersion) tarball', async () => {
-  // A URL-keyed http(s) tarball entry sets `nonSemverVersion`. Integrity binds its bytes
-  // and needs no registry lookup, so the URL-keyed short-circuit must not let a tampered
-  // integrity-less entry through.
   const verifier = createNpmResolutionVerifier(makeVerifierOpts())
   const result = await verifier.verify(
     { tarball: 'https://cdn.example/foo/-/foo-1.0.0.tgz' } as unknown as Resolution,
@@ -388,8 +377,6 @@ test('createNpmResolutionVerifier() enforces missing integrity on a URL-keyed (n
 })
 
 test('createNpmResolutionVerifier() passes a URL-keyed tarball that carries integrity without a registry lookup', async () => {
-  // With integrity present, the URL-keyed entry is bound and the registry policy checks
-  // (which would 404 against a non-registry origin) are correctly skipped — no mock agent.
   const verifier = createNpmResolutionVerifier(makeVerifierOpts())
   const result = await verifier.verify(
     { integrity: FAKE_INTEGRITY, tarball: 'https://cdn.example/foo/-/foo-1.0.0.tgz' } as unknown as Resolution,
@@ -399,9 +386,6 @@ test('createNpmResolutionVerifier() passes a URL-keyed tarball that carries inte
 })
 
 test('createNpmResolutionVerifier() fails closed on a non-semver version for a registry tarball', async () => {
-  // `nameVerFromPkgSnapshot` prefers the (untrusted) `pkgSnapshot.version`, so a tampered
-  // non-semver version on a registry-keyed entry could skip the tarball-URL binding. Even with a
-  // valid integrity, the verifier must fail closed rather than skip the registry-origin checks.
   const verifier = createNpmResolutionVerifier(makeVerifierOpts())
   const result = await verifier.verify(
     { integrity: FAKE_INTEGRITY, tarball: REGISTRY_TARBALL } as unknown as Resolution,

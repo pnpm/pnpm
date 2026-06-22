@@ -266,8 +266,7 @@ async function resolveAndFetch (
         })
     )
   )
-  // A `variations` resolution picks its variant inside the fetch path, so it has no single
-  // fetcher to ask here.
+  // `variations` picks a platform-specific fetcher inside the fetch path.
   const fetcherForResolution = resolution.type === 'variations'
     ? undefined
     : await pickFetcher(ctx.fetchers, resolution as AtomicResolution, {
@@ -280,9 +279,8 @@ async function resolveAndFetch (
   const resolutionNeedsFetch = typeof resolutionNeedsFetchHook === 'function'
     ? resolutionNeedsFetchHook(resolution)
     : false
-  // A resolution that needs a fetch to be completed is downloaded even when fetching is
-  // skipped (`--lockfile-only`) or the package isn't installable here: its lockfile entry
-  // must carry an integrity for every platform, and the tarball bytes are platform-independent.
+  // Integrity computed from platform-independent tarball bytes is still needed under
+  // `--lockfile-only` and for packages not installable on this machine.
   if ((options.skipFetch === true || isInstallable === false) && !resolutionNeedsFetch && !integrityChanged && (manifest != null)) {
     return {
       body: {
@@ -308,9 +306,7 @@ async function resolveAndFetch (
     fetchRawManifest: true,
     force: integrityChanged,
     mustComputeIntegrity: resolutionNeedsFetch,
-    // Reuse the fetcher already picked above so the fetch path doesn't run `pickFetcher`
-    // (and a custom fetcher's async `canFetch`) a second time. `undefined` for `variations`,
-    // whose per-platform variant is selected at fetch time.
+    // Reuse the fetcher selected for the resolution; `variations` is selected at fetch time.
     pickedFetcher: fetcherForResolution,
     ignoreScripts: options.ignoreScripts,
     lockfileDir: options.lockfileDir,
@@ -338,19 +334,14 @@ async function resolveAndFetch (
         manifest = loadedManifest as unknown as DependencyManifest
       }
     }
-    // This fetch already happened to read the manifest (git-hosted and remote tarballs
-    // carry none), so fill in the integrity it computed for the entry that lacked one.
-    // Skip only `variations` runtime resolutions (e.g. `node@runtime`): they span multiple
-    // platform variants, so a single machine's integrity must not be written into the
-    // shared resolution.
+    // `variations` spans multiple platform variants; do not write one
+    // machine's computed integrity into the shared resolution.
     if (resolution.type !== 'variations' && fetchedResult.integrity != null && getExpectedIntegrity(resolution) == null) {
       (resolution as TarballResolution).integrity = fetchedResult.integrity
     }
   }
 
-  // Fill in the computed integrity when the fetch is awaited instead of blocking resolution
-  // on the download here. The resolver awaits these (flagged by `resolutionNeedsFetch` on
-  // the response) before building the lockfile snapshot and virtual-store paths.
+  // The resolver awaits these before building lockfile snapshots and virtual-store paths.
   let fetching = fetchResult.fetching
   if (resolutionNeedsFetch) {
     let populating: Promise<PkgRequestFetchResult> | undefined
@@ -580,17 +571,14 @@ function fetchToStore (
       const isLocalTarballDep = opts.pkg.id.startsWith('file:')
       const isLocalPkg = resolution.type === 'directory'
 
-      // A resolution flagged `resolutionNeedsFetch` (e.g. a registry tarball with no
-      // integrity) must be downloaded to compute it, so the store copy can't be reused.
+      // Integrity-less tarballs must be downloaded to compute their lockfile integrity.
       const mustComputeIntegrity = opts.mustComputeIntegrity === true
 
-      // True only once a store read confirms the package was there but can't be served, so
-      // the warning below doesn't fire on a genuine first-time download.
+      // True only after a failed store read, so first-time downloads don't warn.
       let refetchingStoredPackage = false
 
-      // When integrity must be computed, the store copy can never be served (the check
-      // below blocks it), so skip the `readPkgFromCafs` probe entirely and go straight to
-      // the network fetch — the read would be pure disk/SQLite overhead on this path.
+      // A store copy can't provide a missing lockfile integrity, so skip
+      // the store probe on this path.
       if (
         !opts.force &&
         !mustComputeIntegrity &&
@@ -611,9 +599,7 @@ function fetchToStore (
           })
           return
         }
-        // The store held the package but it failed verification (modified content), so it
-        // must be refetched. (The missing-integrity case never reaches here — it skips the
-        // store read above.)
+        // The store held the package but it failed verification.
         refetchingStoredPackage = (files?.filesMap) != null
       }
 
