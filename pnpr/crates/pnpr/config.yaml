@@ -52,8 +52,12 @@ secret: pnpm-registry-mock-secret-key-32
 auth:
   htpasswd:
     file: ./htpasswd
-    # Maximum amount of users allowed to register. The safe default is -1
-    # (registration disabled); set a non-negative cap to allow registration.
+    # Maximum number of users allowed to self-register. Registration is
+    # opt-in and disabled by default (this `-1`, or omitting the key);
+    # set it to a positive number to allow anonymous clients to create
+    # accounts. This file is compiled into the binary as the fallback
+    # default config, so it stays locked down — deployments that want
+    # self-registration set a positive cap in their own config.
     max_users: -1
 
 plugins: ../node_modules

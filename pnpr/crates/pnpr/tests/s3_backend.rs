@@ -29,6 +29,8 @@ fn s3_config(storage: PathBuf, store: Arc<dyn ObjectStore>) -> Config {
     config.public_url = "http://example.test".to_string();
     config.auth.htpasswd.max_users = MaxUsers::Unlimited;
     config.hosted_store = HostedStoreConfig::S3 { store, prefix: String::new() };
+    // Registration is opt-in; these tests create accounts via adduser.
+    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
     config
 }
 

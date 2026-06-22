@@ -41,6 +41,9 @@ export default async () => {
       // static) never look stale and never trigger a re-fetch to
       // npmjs.org that would 404.
       '--packument-ttl-secs', '31536000',
+      // pnpr disables self-registration by default; opt in so the test
+      // suite can create the mock account below.
+      '--max-users', '1000',
     ],
     { stdio: 'inherit' }
   )

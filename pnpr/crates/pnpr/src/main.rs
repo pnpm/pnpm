@@ -43,6 +43,14 @@ struct Args {
     #[arg(long)]
     packument_ttl_secs: Option<u64>,
 
+    /// Override `auth.htpasswd.max_users` from the loaded config. `-1`
+    /// (the default) disables self-registration; a positive number is
+    /// the maximum number of accounts that may self-register. Lets
+    /// tests and benchmarks enable registration on top of the bundled
+    /// (locked-down) config without writing a custom YAML.
+    #[arg(long)]
+    max_users: Option<i64>,
+
     /// Enable local OSV npm vulnerability checks. Requires a local OSV
     /// npm database zip at --osv-db or <cache>/osv/npm/all.zip.
     #[arg(long)]
@@ -108,6 +116,9 @@ async fn main() -> miette::Result<()> {
     }
     if let Some(ttl_secs) = args.packument_ttl_secs {
         config.packument_ttl = Duration::from_secs(ttl_secs);
+    }
+    if let Some(max_users) = args.max_users {
+        config.auth.htpasswd.max_users = pnpr::MaxUsers::from_explicit(max_users);
     }
     if args.osv {
         config.osv.enabled = true;
