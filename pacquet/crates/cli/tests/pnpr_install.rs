@@ -251,7 +251,7 @@ fn import_via_pnpr_server_writes_lockfile_without_linking() {
 
     assert!(workspace.join("pnpm-lock.yaml").exists(), "pnpr should write the lockfile");
     assert!(!workspace.join("node_modules").exists(), "import must not link node_modules");
-    assert!(!store_dir.join("v11/index.db").exists(), "import must not populate the client store",);
+    assert!(!store_dir.join("v11/index.db").exists(), "import must not populate the client store");
 
     drop((root, mock_instance));
 }

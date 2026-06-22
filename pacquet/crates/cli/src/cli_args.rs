@@ -342,9 +342,28 @@ impl CliArgs {
             .map_err(miette::Report::new)
             .wrap_err("load configuration")?;
 
-        let cfg_ptr = cfg as *mut Config;
-        let config =
-            move || -> miette::Result<&'static mut Config> { Ok(unsafe { &mut *cfg_ptr }) };
+        struct SendPtr(*mut Config);
+        // SAFETY: Config is Send/Sync, and SendPtr is just a raw pointer wrapper to allow passing it across thread boundaries.
+        unsafe impl Send for SendPtr {}
+        // SAFETY: Config is Send/Sync, and SendPtr is just a raw pointer wrapper to allow passing it across thread boundaries.
+        unsafe impl Sync for SendPtr {}
+
+        impl SendPtr {
+            // SAFETY: The caller must ensure that the returned mutable reference is not used
+            // concurrently with other uses of the Config.
+            unsafe fn as_mut(&self) -> &'static mut Config {
+                // SAFETY: The Config is leaked and lives for the entire program execution.
+                // The CLI executes subcommands sequentially.
+                unsafe { &mut *self.0 }
+            }
+        }
+
+        let cfg_ptr = SendPtr(std::ptr::from_mut(cfg));
+        let config = move || -> miette::Result<&'static mut Config> {
+            // SAFETY: The Config is leaked and lives for the entire program execution.
+            // The CLI executes subcommands sequentially.
+            Ok(unsafe { cfg_ptr.as_mut() })
+        };
         // `require_lockfile` is the "this subcommand cannot run without a
         // lockfile loaded" signal, used by `State::init` to override
         // `config.lockfile=false`. Only `install --frozen-lockfile` needs
