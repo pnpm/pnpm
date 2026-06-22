@@ -1,5 +1,7 @@
 use clap::{Parser, builder::BoolishValueParser};
-use pnpr::{Config, ConfigSource, LogConfig, LogFormat, RegistryError, default_cache_dir, serve};
+use pnpr::{
+    Config, ConfigSource, LogConfig, LogFormat, MaxUsers, RegistryError, default_cache_dir, serve,
+};
 use std::{
     io::IsTerminal,
     net::SocketAddr,
@@ -21,12 +23,31 @@ struct Args {
     #[arg(short = 'c', long, env = "PNPR_CONFIG")]
     config: Option<PathBuf>,
 
-    /// Address to bind to.
-    #[arg(long, default_value = Config::DEFAULT_LISTEN, env = "PNPR_LISTEN")]
-    listen: SocketAddr,
+    #[command(flatten)]
+    http: HttpArgs,
 
     #[command(flatten)]
     paths: StorageArgs,
+
+    /// Override `auth.htpasswd.max_users` from the loaded config. `-1`
+    /// (the default) disables self-registration; a positive number is
+    /// the maximum number of accounts that may self-register. Lets
+    /// tests and benchmarks enable registration on top of the bundled
+    /// (locked-down) config without writing a custom YAML.
+    #[arg(long, env = "PNPR_MAX_USERS")]
+    max_users: Option<i64>,
+
+    #[command(flatten)]
+    osv_options: OsvArgs,
+    #[command(flatten)]
+    features: FeatureArgs,
+}
+
+#[derive(Debug, clap::Args)]
+struct HttpArgs {
+    /// Address to bind to.
+    #[arg(long, default_value = Config::DEFAULT_LISTEN, env = "PNPR_LISTEN")]
+    listen: SocketAddr,
 
     /// URL clients should use to reach this server. Used when
     /// rewriting `dist.tarball` URLs in served packuments. Defaults
@@ -38,11 +59,8 @@ struct Args {
     /// refetched. When omitted, the loaded config's value wins.
     #[arg(long, env = "PNPR_PACKUMENT_TTL_SECS")]
     packument_ttl_secs: Option<u64>,
-    #[command(flatten)]
-    osv_options: OsvArgs,
-    #[command(flatten)]
-    features: FeatureArgs,
 }
+
 #[derive(Debug, clap::Args)]
 struct StorageArgs {
     /// Override the storage path from the loaded config (bundled or
@@ -131,8 +149,8 @@ async fn main() -> miette::Result<()> {
     let (mut config, source) = Config::resolve_with_overrides(
         args.config.as_deref(),
         auto_path.as_deref(),
-        args.listen,
-        args.public_url.clone(),
+        args.http.listen,
+        args.http.public_url.clone(),
         overrides,
     )
     .map_err(|err| miette::miette!("{err}"))?;
@@ -170,8 +188,11 @@ fn apply_cli_overrides(config: &mut Config, args: &mut Args, source: &ConfigSour
     if let Some(cache) = args.paths.cache.take() {
         config.storage.cache_dir = cache;
     }
-    if let Some(ttl_secs) = args.packument_ttl_secs {
+    if let Some(ttl_secs) = args.http.packument_ttl_secs {
         config.http.packument_ttl = Duration::from_secs(ttl_secs);
+    }
+    if let Some(max_users) = args.max_users {
+        config.identity.auth.htpasswd.max_users = MaxUsers::from_explicit(max_users);
     }
     if args.osv_options.osv {
         config.osv.enabled = true;
