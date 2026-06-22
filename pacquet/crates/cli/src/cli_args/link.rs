@@ -22,29 +22,34 @@ impl LinkArgs {
             ));
         }
 
+        let manifest_dir = state
+            .manifest
+            .path()
+            .parent()
+            .ok_or_else(|| miette::miette!("manifest path has no parent directory"))?
+            .to_path_buf();
+
         for path_str in &self.package_paths {
             let target_path = PathBuf::from(path_str);
             let target_dir = if target_path.is_absolute() {
                 target_path.clone()
             } else {
-                let base =
-                    state.manifest.path().parent().expect("manifest path always has a parent dir");
-                base.join(&target_path)
+                manifest_dir.join(&target_path)
             };
 
             let target_manifest_path = target_dir.join("package.json");
-            if !target_manifest_path.exists() {
-                return Err(miette::miette!("No package.json found in {}", target_dir.display()));
-            }
-
-            let target_manifest = PackageManifest::from_path(target_manifest_path)
-                .wrap_err("reading target package manifest")?;
+            let target_manifest =
+                PackageManifest::from_path(target_manifest_path).map_err(|_| {
+                    miette::miette!("No package.json found in {}", target_dir.display())
+                })?;
             let package_name = target_manifest.value()["name"]
                 .as_str()
                 .ok_or_else(|| miette::miette!("Target package does not have a name field"))?
                 .to_string();
 
-            let link_spec = format!("link:{path_str}");
+            let normalized = pathdiff::diff_paths(&target_dir, &manifest_dir)
+                .ok_or_else(|| miette::miette!("cannot compute relative path to target"))?;
+            let link_spec = format!("link:{}", normalized.display());
 
             let manifest = &mut state.manifest;
             manifest
