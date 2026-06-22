@@ -60,7 +60,7 @@ export async function getPatchedDependency (rawDependency: string, opts: GetPatc
     const preferred = preferredVersions[0]
     if (preferred.gitTarballUrl) {
       return {
-        ...opts,
+        ...dep,
         applyToAll: false,
         bareSpecifier: preferred.gitTarballUrl,
       }
