@@ -870,7 +870,9 @@ async fn serve_tarball(
     // Re-screen when the resolved version differs from the filename's: a
     // non-canonical tarball name slips past the screen above, so this is
     // where OSV sees the version such a tarball really belongs to.
-    if version != name_version && let Err(err) = ensure_osv_allowed(state, &name, &version) {
+    if version != name_version
+        && let Err(err) = ensure_osv_allowed(state, &name, &version)
+    {
         return error_response(&err);
     }
 
