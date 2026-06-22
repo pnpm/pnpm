@@ -300,7 +300,7 @@ fn is_source_like_dep_path_version(version: &str) -> bool {
 /// never builds a disallowed package — and non-selected packages keep
 /// their normal install gating so a partial rebuild does not drop the
 /// ignored-builds record for the packages it did not touch.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct RebuildOptions {
     /// Package names to force past the side-effects `is_built` gate.
     /// `None` forces every build-needing package (`pnpm rebuild` with no

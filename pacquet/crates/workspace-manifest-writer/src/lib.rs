@@ -140,9 +140,12 @@ pub fn set_config_dependency(
 ///
 /// `entries` is iterated in its own order; pass an ordered map for a
 /// deterministic result.
-pub fn set_allow_builds<'a, I>(dir: &Path, entries: I) -> Result<(), UpdateWorkspaceManifestError>
+pub fn set_allow_builds<'a, Entries>(
+    dir: &Path,
+    entries: Entries,
+) -> Result<(), UpdateWorkspaceManifestError>
 where
-    I: IntoIterator<Item = (&'a str, bool)>,
+    Entries: IntoIterator<Item = (&'a str, bool)>,
 {
     let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
 

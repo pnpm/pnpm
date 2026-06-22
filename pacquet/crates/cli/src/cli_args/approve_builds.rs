@@ -11,8 +11,7 @@ use std::{
     path::Path,
 };
 
-use crate::State;
-use crate::cli_args::ignored_builds::get_automatically_ignored_builds;
+use crate::{State, cli_args::ignored_builds::get_automatically_ignored_builds};
 
 /// `pacquet approve-builds` — approve dependencies for running scripts
 /// during installation. Ports pnpm's
@@ -41,7 +40,7 @@ enum ApproveBuildsError {
     #[diagnostic(
         code(ERR_PNPM_APPROVE_BUILDS_NOT_SUPPORTED_WITH_GLOBAL),
         help(
-            "Use --allow-build when installing globally, e.g. \"pnpm add -g --allow-build=<pkg> <pkg>\". pnpm will also prompt to allow builds interactively during global install."
+            r#"Use --allow-build when installing globally, e.g. "pnpm add -g --allow-build=<pkg> <pkg>". pnpm will also prompt to allow builds interactively during global install."#
         )
     )]
     NotSupportedWithGlobal,

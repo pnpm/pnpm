@@ -276,7 +276,7 @@ fn allow_builds_creates_block_when_absent() {
 #[test]
 fn allow_builds_writes_boolean_values_unquoted() {
     let out = run_allow_builds(None, &[("esbuild", true), ("@scope/pkg", false)]);
-    assert_eq!(out.as_deref(), Some("allowBuilds:\n  '@scope/pkg': false\n  esbuild: true\n"),);
+    assert_eq!(out.as_deref(), Some("allowBuilds:\n  '@scope/pkg': false\n  esbuild: true\n"));
 }
 
 #[test]

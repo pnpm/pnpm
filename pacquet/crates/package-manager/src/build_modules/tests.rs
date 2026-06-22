@@ -2515,9 +2515,9 @@ fn allow_build_key_strips_version_for_registry_packages() {
 
 #[test]
 fn allow_build_key_ignores_patch_hash_when_deriving_name() {
-    // A `(patch_hash=…)` segment is dropped before the version is checked,
+    // A `(patch_hash=...)` segment is dropped before the version is checked,
     // so a patched registry package still reduces to its name.
-    assert_eq!(allow_build_key_from_ignored_build("esbuild@0.17.0(patch_hash=abcdef)"), "esbuild",);
+    assert_eq!(allow_build_key_from_ignored_build("esbuild@0.17.0(patch_hash=abcdef)"), "esbuild");
 }
 
 #[test]
