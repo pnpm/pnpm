@@ -15,26 +15,48 @@ impl UnlinkArgs {
         self,
         mut state: State,
     ) -> miette::Result<()> {
-        let packages_to_remove: Vec<String> = if self.package_names.is_empty() {
-            state
-                .manifest
-                .dependencies([
-                    DependencyGroup::Prod,
-                    DependencyGroup::Dev,
-                    DependencyGroup::Optional,
-                ])
-                .filter(|(_, version)| version.starts_with("link:"))
-                .map(|(name, _)| name.to_string())
-                .collect()
-        } else {
-            self.package_names.clone()
+        let overrides = state
+            .manifest
+            .value()
+            .get("pnpm")
+            .and_then(|v| v.get("overrides"))
+            .and_then(|v| v.as_object());
+
+        let packages_to_remove: Vec<String> = match overrides {
+            None => return Ok(()),
+            Some(obj) if self.package_names.is_empty() => obj
+                .iter()
+                .filter(|(_, v)| v.as_str().is_some_and(|s| s.starts_with("link:")))
+                .map(|(k, _)| k.clone())
+                .collect(),
+            Some(obj) => self
+                .package_names
+                .iter()
+                .filter(|name| {
+                    obj.get(name.as_str())
+                        .and_then(|v| v.as_str())
+                        .is_some_and(|s| s.starts_with("link:"))
+                })
+                .cloned()
+                .collect(),
         };
 
         if packages_to_remove.is_empty() {
             return Ok(());
         }
 
-        state.manifest.remove_dependencies(&packages_to_remove, None);
+        if let Some(obj) = state
+            .manifest
+            .value_mut()
+            .get_mut("pnpm")
+            .and_then(|v| v.get_mut("overrides"))
+            .and_then(|v| v.as_object_mut())
+        {
+            for name in &packages_to_remove {
+                obj.remove(name.as_str());
+            }
+        }
+
         state.manifest.save().wrap_err("saving package.json after unlinking")?;
 
         let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
