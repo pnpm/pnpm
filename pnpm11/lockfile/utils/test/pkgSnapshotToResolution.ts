@@ -1,6 +1,9 @@
 import { expect, test } from '@jest/globals'
 import { assertFetchableResolution, pkgSnapshotToResolution } from '@pnpm/lockfile.utils'
 
+const GIT_TARBALL = 'https://codeload.github.com/foo/bar/tar.gz/0123456789abcdef0123456789abcdef01234567'
+const LEGACY_GIT_TARBALL = 'https://codeload.github.com/kevva/is-negative/tar.gz/0123456789abcdef0123456789abcdef01234567'
+
 test('assertFetchableResolution() rejects an integrity-less registry tarball before fetch', () => {
   const missing = expect.objectContaining({ code: 'ERR_PNPM_MISSING_TARBALL_INTEGRITY' })
   // explicit tarball URL, no integrity
@@ -24,7 +27,7 @@ test('assertFetchableResolution() allows verifiable and non-registry resolutions
   } as never)).not.toThrow()
   // git-hosted: anchored by commit SHA, no registry integrity
   expect(() => assertFetchableResolution('foo@x', {
-    tarball: 'https://codeload.github.com/foo/bar/tar.gz/abc1234',
+    tarball: GIT_TARBALL,
     gitHosted: true,
   } as never)).not.toThrow()
   // file: tarball (local bytes)
@@ -105,20 +108,20 @@ test('pkgSnapshotToResolution() converts git-hosted and file: tarball snapshots'
   // git-hosted (commit-anchored) and file: (local) tarballs as-is.
   expect(pkgSnapshotToResolution('foo@https+++github.com+foo+bar', {
     resolution: {
-      tarball: 'https://codeload.github.com/foo/bar/tar.gz/abc1234',
+      tarball: GIT_TARBALL,
       gitHosted: true,
     },
   }, { default: 'https://registry.npmjs.org/' })).toEqual({
-    tarball: 'https://codeload.github.com/foo/bar/tar.gz/abc1234',
+    tarball: GIT_TARBALL,
     gitHosted: true,
   })
 
   expect(pkgSnapshotToResolution('is-negative@https+++codeload.github.com+kevva+is-negative+tar.gz+abc', {
     resolution: {
-      tarball: 'https://codeload.github.com/kevva/is-negative/tar.gz/abc1234',
+      tarball: LEGACY_GIT_TARBALL,
     },
   }, { default: 'https://registry.npmjs.org/' })).toEqual({
-    tarball: 'https://codeload.github.com/kevva/is-negative/tar.gz/abc1234',
+    tarball: LEGACY_GIT_TARBALL,
   })
 
   // `file:` tarballs are local files; the user already controls the

@@ -352,10 +352,19 @@ test('createNpmResolutionVerifier() enforces missing integrity even with a non-s
 test('createNpmResolutionVerifier() exempts a git-hosted tarball URL recorded without the gitHosted flag', async () => {
   const verifier = createNpmResolutionVerifier(makeVerifierOpts())
   const result = await verifier.verify(
-    { tarball: 'https://codeload.github.com/kevva/is-negative/tar.gz/abc1234' } as unknown as Resolution,
+    { tarball: 'https://codeload.github.com/kevva/is-negative/tar.gz/0123456789abcdef0123456789abcdef01234567' } as unknown as Resolution,
     { name: 'is-negative', version: '1.0.0', nonSemverVersion: 'https+++github.com+kevva+is-negative' }
   )
   expect(result).toStrictEqual({ ok: true })
+})
+
+test('createNpmResolutionVerifier() rejects git-host archive URLs that are not pinned to a commit', async () => {
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts())
+  const result = await verifier.verify(
+    { tarball: 'https://codeload.github.com/kevva/is-negative/tar.gz/main' } as unknown as Resolution,
+    { name: 'is-negative', version: '1.0.0', nonSemverVersion: 'https+++github.com+kevva+is-negative' }
+  )
+  expect(result).toMatchObject({ ok: false, code: 'MISSING_TARBALL_INTEGRITY' })
 })
 
 test('createNpmResolutionVerifier() rejects a forged gitHosted flag on a non-git-hosted tarball', async () => {

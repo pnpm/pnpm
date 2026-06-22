@@ -1,14 +1,16 @@
 use super::{
     BinaryArchive, BinaryResolution, BinarySpec, DirectoryResolution, GitResolution,
     LockfileResolution, PlatformAssetResolution, PlatformAssetTarget, PlatformSelector,
-    RegistryResolution, TarballResolution, VariationsResolution, libc_matches,
-    select_platform_variant,
+    RegistryResolution, TarballResolution, VariationsResolution, is_git_hosted_tarball_url,
+    libc_matches, select_platform_variant,
 };
 use crate::serialize_yaml;
 use pretty_assertions::assert_eq;
 use ssri::Integrity;
 use std::collections::BTreeMap;
 use text_block_macros::text_block;
+
+const GIT_COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
 
 fn integrity(integrity_str: &str) -> Integrity {
     integrity_str.parse().expect("parse integrity string")
@@ -87,13 +89,11 @@ fn deserialize_tarball_resolution_with_git_hosted() {
 #[test]
 fn deserialize_tarball_resolution_backfills_git_hosted() {
     eprintln!("CASE: codeload.github.com");
-    let yaml = text_block! {
-        "tarball: https://codeload.github.com/foo/bar/tar.gz/abc1234"
-    };
-    let received: LockfileResolution = serde_saphyr::from_str(yaml).unwrap();
+    let yaml = format!("tarball: https://codeload.github.com/foo/bar/tar.gz/{GIT_COMMIT}");
+    let received: LockfileResolution = serde_saphyr::from_str(&yaml).unwrap();
     dbg!(&received);
     let expected = LockfileResolution::Tarball(TarballResolution {
-        tarball: "https://codeload.github.com/foo/bar/tar.gz/abc1234".to_string(),
+        tarball: format!("https://codeload.github.com/foo/bar/tar.gz/{GIT_COMMIT}"),
         integrity: None,
         git_hosted: Some(true),
         path: None,
@@ -101,12 +101,14 @@ fn deserialize_tarball_resolution_backfills_git_hosted() {
     assert_eq!(received, expected);
 
     eprintln!("CASE: gitlab.com archive");
-    let yaml = text_block! {
-        "tarball: https://gitlab.com/foo/bar/-/archive/abc1234/bar-abc1234.tar.gz"
-    };
-    let received: LockfileResolution = serde_saphyr::from_str(yaml).unwrap();
+    let yaml = format!(
+        "tarball: https://gitlab.com/foo/bar/-/archive/{GIT_COMMIT}/bar-{GIT_COMMIT}.tar.gz"
+    );
+    let received: LockfileResolution = serde_saphyr::from_str(&yaml).unwrap();
     let expected = LockfileResolution::Tarball(TarballResolution {
-        tarball: "https://gitlab.com/foo/bar/-/archive/abc1234/bar-abc1234.tar.gz".to_string(),
+        tarball: format!(
+            "https://gitlab.com/foo/bar/-/archive/{GIT_COMMIT}/bar-{GIT_COMMIT}.tar.gz"
+        ),
         integrity: None,
         git_hosted: Some(true),
         path: None,
@@ -114,12 +116,10 @@ fn deserialize_tarball_resolution_backfills_git_hosted() {
     assert_eq!(received, expected);
 
     eprintln!("CASE: bitbucket.org archive");
-    let yaml = text_block! {
-        "tarball: https://bitbucket.org/foo/bar/get/abc1234.tar.gz"
-    };
-    let received: LockfileResolution = serde_saphyr::from_str(yaml).unwrap();
+    let yaml = format!("tarball: https://bitbucket.org/foo/bar/get/{GIT_COMMIT}.tar.gz");
+    let received: LockfileResolution = serde_saphyr::from_str(&yaml).unwrap();
     let expected = LockfileResolution::Tarball(TarballResolution {
-        tarball: "https://bitbucket.org/foo/bar/get/abc1234.tar.gz".to_string(),
+        tarball: format!("https://bitbucket.org/foo/bar/get/{GIT_COMMIT}.tar.gz"),
         integrity: None,
         git_hosted: Some(true),
         path: None,
@@ -151,6 +151,25 @@ fn deserialize_tarball_resolution_backfills_git_hosted() {
         path: None,
     });
     assert_eq!(received, expected);
+}
+
+#[test]
+fn is_git_hosted_tarball_url_rejects_false_positives() {
+    assert!(is_git_hosted_tarball_url(&format!(
+        "https://codeload.github.com/foo/bar/tar.gz/{GIT_COMMIT}"
+    )));
+    assert!(is_git_hosted_tarball_url(&format!(
+        "https://gitlab.com/api/v4/projects/foo%2Fbar/repository/archive.tar.gz?ref={GIT_COMMIT}"
+    )));
+    assert!(!is_git_hosted_tarball_url("https://gitlab.com/foo/bar?download=tar.gz"));
+    assert!(!is_git_hosted_tarball_url("https://codeload.github.com/foo/bar/tar.gz/main"));
+    assert!(!is_git_hosted_tarball_url(
+        "https://gitlab.com/foo/bar/-/archive/main/bar-main.tar.gz",
+    ));
+    assert!(!is_git_hosted_tarball_url(
+        "https://gitlab.com/api/v4/projects/foo%2Fbar/repository/archive.tar.gz",
+    ));
+    assert!(!is_git_hosted_tarball_url("https://bitbucket.org/foo/bar/get/main.tar.gz"));
 }
 
 #[test]

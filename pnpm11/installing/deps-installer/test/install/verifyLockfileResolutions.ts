@@ -9,6 +9,8 @@ import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 
 import { verifyLockfileResolutions } from '../../src/install/verifyLockfileResolutions.js'
 
+const GIT_COMMIT = '0123456789abcdef0123456789abcdef01234567'
+
 function makeLockfile (packages: Record<string, { resolution: unknown, version?: string }>): LockfileObject {
   return {
     lockfileVersion: '9.0',
@@ -362,7 +364,7 @@ test('rejects a registry-style depPath backed by a git resolution, even with no 
 
 test('rejects a registry-style depPath backed by a git-hosted tarball resolution', async () => {
   const lockfile = makeLockfile({
-    'foo@1.0.0': { resolution: { integrity: 'sha512-deadbeef', tarball: 'https://codeload.github.com/org/foo/tar.gz/abc123', gitHosted: true } },
+    'foo@1.0.0': { resolution: { integrity: 'sha512-deadbeef', tarball: `https://codeload.github.com/org/foo/tar.gz/${GIT_COMMIT}`, gitHosted: true } },
   })
   await expect(verifyLockfileResolutions(lockfile, [])).rejects.toMatchObject({
     code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH',
@@ -424,7 +426,7 @@ test('rejects a registry-style depPath whose git-host tarball clears the gitHost
   // dodge a flag-only check. The URL itself must still flag it.
   for (const gitHosted of [false, 'true', 'false', 0, 1]) {
     const lockfile = makeLockfile({
-      'foo@1.0.0': { resolution: { integrity: 'sha512-deadbeef', tarball: 'https://codeload.github.com/org/foo/tar.gz/abc123', gitHosted } as never },
+      'foo@1.0.0': { resolution: { integrity: 'sha512-deadbeef', tarball: `https://codeload.github.com/org/foo/tar.gz/${GIT_COMMIT}`, gitHosted } as never },
     })
     // eslint-disable-next-line no-await-in-loop
     await expect(verifyLockfileResolutions(lockfile, [])).rejects.toMatchObject({
@@ -474,7 +476,7 @@ test('rejects a registry-style depPath whose git-host tarball varies the host ca
   // Hostnames are case-insensitive; an upper-case codeload host paired with
   // gitHosted: false must not pass as registry-shaped.
   const lockfile = makeLockfile({
-    'foo@1.0.0': { resolution: { integrity: 'sha512-deadbeef', tarball: 'https://CODELOAD.GITHUB.COM/org/foo/tar.gz/abc123', gitHosted: false } as never },
+    'foo@1.0.0': { resolution: { integrity: 'sha512-deadbeef', tarball: `https://CODELOAD.GITHUB.COM/org/foo/tar.gz/${GIT_COMMIT}`, gitHosted: false } as never },
   })
   await expect(verifyLockfileResolutions(lockfile, [])).rejects.toMatchObject({
     code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH',

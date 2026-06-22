@@ -2,6 +2,7 @@ import { expect, test } from '@jest/globals'
 import { toLockfileResolution } from '@pnpm/lockfile.utils'
 
 const REGISTRY = 'https://registry.npmjs.org/'
+const GIT_TARBALL = 'https://codeload.github.com/foo/bar/tar.gz/0123456789abcdef0123456789abcdef01234567'
 
 test('keeps the tarball when lockfileIncludeTarballUrl is true', () => {
   expect(toLockfileResolution(
@@ -95,12 +96,12 @@ test('keeps file: tarballs even when lockfileIncludeTarballUrl is undefined', ()
 test('keeps git-hosted tarballs when lockfileIncludeTarballUrl is false', () => {
   expect(toLockfileResolution(
     { name: 'foo', version: '1.0.0' },
-    { integrity: 'sha512-AAAA', tarball: 'https://codeload.github.com/foo/bar/tar.gz/abcdef' },
+    { integrity: 'sha512-AAAA', tarball: GIT_TARBALL },
     REGISTRY,
     false
   )).toEqual({
     integrity: 'sha512-AAAA',
-    tarball: 'https://codeload.github.com/foo/bar/tar.gz/abcdef',
+    tarball: GIT_TARBALL,
     gitHosted: true,
   })
 })
@@ -111,12 +112,12 @@ test('keeps the path of a git-hosted tarball pointing to a subdirectory', () => 
   // unpack the repository root. See https://github.com/pnpm/pnpm/issues/12304.
   expect(toLockfileResolution(
     { name: 'foo', version: '1.0.0' },
-    { integrity: 'sha512-AAAA', tarball: 'https://codeload.github.com/foo/bar/tar.gz/abcdef', gitHosted: true, path: '/packages/foo' },
+    { integrity: 'sha512-AAAA', tarball: GIT_TARBALL, gitHosted: true, path: '/packages/foo' },
     REGISTRY,
     false
   )).toEqual({
     integrity: 'sha512-AAAA',
-    tarball: 'https://codeload.github.com/foo/bar/tar.gz/abcdef',
+    tarball: GIT_TARBALL,
     gitHosted: true,
     path: '/packages/foo',
   })
@@ -125,12 +126,12 @@ test('keeps the path of a git-hosted tarball pointing to a subdirectory', () => 
 test('keeps the path of a git-hosted tarball when lockfileIncludeTarballUrl is true', () => {
   expect(toLockfileResolution(
     { name: 'foo', version: '1.0.0' },
-    { integrity: 'sha512-AAAA', tarball: 'https://codeload.github.com/foo/bar/tar.gz/abcdef', gitHosted: true, path: '/packages/foo' },
+    { integrity: 'sha512-AAAA', tarball: GIT_TARBALL, gitHosted: true, path: '/packages/foo' },
     REGISTRY,
     true
   )).toEqual({
     integrity: 'sha512-AAAA',
-    tarball: 'https://codeload.github.com/foo/bar/tar.gz/abcdef',
+    tarball: GIT_TARBALL,
     gitHosted: true,
     path: '/packages/foo',
   })
@@ -139,12 +140,12 @@ test('keeps the path of a git-hosted tarball when lockfileIncludeTarballUrl is t
 test('records gitHosted on the lockfile entry when set on the resolution', () => {
   expect(toLockfileResolution(
     { name: 'foo', version: '1.0.0' },
-    { integrity: 'sha512-AAAA', tarball: 'https://codeload.github.com/foo/bar/tar.gz/abcdef', gitHosted: true },
+    { integrity: 'sha512-AAAA', tarball: GIT_TARBALL, gitHosted: true },
     REGISTRY,
     true
   )).toEqual({
     integrity: 'sha512-AAAA',
-    tarball: 'https://codeload.github.com/foo/bar/tar.gz/abcdef',
+    tarball: GIT_TARBALL,
     gitHosted: true,
   })
 })
