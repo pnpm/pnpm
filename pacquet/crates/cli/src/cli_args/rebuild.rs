@@ -23,6 +23,13 @@ pub struct RebuildArgs {
 
     /// Rebuild packages that were not built during installation. Packages
     /// are not built when installing with the `--ignore-scripts` flag.
+    ///
+    /// Accepted for parity with pnpm, but currently a no-op: pacquet's
+    /// install pipeline does not yet record `pendingBuilds` in
+    /// `.modules.yaml`, so there is nothing for `--pending` to select.
+    /// Tracked with the rest of the not-yet-populated `.modules.yaml`
+    /// fields; until then, name the packages explicitly or use
+    /// `approve-builds`.
     #[clap(long)]
     pub pending: bool,
 }
@@ -48,6 +55,11 @@ fn resolve_selection(
     if !pending {
         return Ok(None);
     }
+    // `pacquet`'s install pipeline does not populate `.modules.yaml`'s
+    // `pendingBuilds` yet (see [`RebuildArgs::pending`]), so this is
+    // effectively empty today. Reading it is forward-compatible: once the
+    // install pipeline records pending builds, `--pending` starts working
+    // without a change here.
     let modules = read_modules_manifest::<Host>(&config.modules_dir).into_diagnostic()?;
     let pending_names = modules
         .map(|manifest| {
