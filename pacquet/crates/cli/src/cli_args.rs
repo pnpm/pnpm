@@ -10,6 +10,7 @@ pub mod recursive;
 pub mod remove;
 pub mod restart;
 pub mod run;
+pub mod sanitize;
 pub mod stop;
 pub mod store;
 pub mod supported_architectures;

@@ -1,7 +1,8 @@
+use crate::cli_args::sanitize::sanitize;
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use owo_colors::{OwoColorize, Rgb};
+use owo_colors::{OwoColorize, Rgb, Stream};
 use pacquet_config::Config;
 use pacquet_store_dir::store_index::StoreIndex;
 
@@ -151,17 +152,31 @@ impl FindHashArgs {
             return Err(FindHashError::InvalidFileHash.into());
         }
 
-        // pnpm uses PACKAGE_INFO_CLR = chalk.greenBright and INDEX_PATH_CLR = chalk.hex(`#078487`)
-        // We will use OwoColorize to match. `#078487` is rgb(7, 132, 135)
         for (name, version, index_key) in results {
             println!(
                 "{}@{}  {}",
-                name.bright_green(),
-                version.bright_green(),
-                index_key.color(Rgb(7, 132, 135)),
+                package_info(&name),
+                package_info(&version),
+                index_path(&index_key)
             );
         }
 
         Ok(())
     }
+}
+
+/// Color a package name/version like pnpm's `PACKAGE_INFO_CLR = chalk.greenBright`.
+/// `chalk` suppresses color when stdout is not a TTY, so this only emits ANSI
+/// when stdout supports color.
+fn package_info(text: &str) -> String {
+    sanitize(text).as_ref().if_supports_color(Stream::Stdout, |t| t.bright_green()).to_string()
+}
+
+/// Color an index key like pnpm's `INDEX_PATH_CLR = chalk.hex('#078487')`
+/// (`#078487` is `rgb(7, 132, 135)`). See [`package_info`] for the TTY behavior.
+fn index_path(text: &str) -> String {
+    sanitize(text)
+        .as_ref()
+        .if_supports_color(Stream::Stdout, |t| t.color(Rgb(7, 132, 135)))
+        .to_string()
 }

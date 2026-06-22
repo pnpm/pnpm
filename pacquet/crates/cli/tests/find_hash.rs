@@ -40,6 +40,10 @@ fn find_hash_works() {
         }
     }
     assert!(!valid_hash.is_empty(), "Should find a valid hash in the store index");
+    assert!(
+        !expected_name.is_empty() && !expected_version.is_empty(),
+        "Should resolve a non-empty name@version for the selected hash",
+    );
 
     // 2. Run find-hash with the valid hash
     let mut pacquet2 = std::process::Command::cargo_bin("pacquet").unwrap();
@@ -113,6 +117,12 @@ fn find_hash_works_with_base64() {
             break;
         }
     }
+
+    assert!(!hex_hash.is_empty(), "Should find a valid hash in the store index");
+    assert!(
+        !expected_name.is_empty() && !expected_version.is_empty(),
+        "Should resolve a non-empty name@version for the selected hash",
+    );
 
     // Convert hex to base64
     use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};

@@ -6,7 +6,7 @@
 //! [`buildDependentsTree`](https://github.com/pnpm/pnpm/blob/deps/inspection/tree-builder/src/buildDependentsTree.ts).
 //!
 
-use crate::State;
+use crate::{State, cli_args::sanitize::sanitize};
 use clap::Args;
 use owo_colors::{OwoColorize, Stream};
 use pacquet_config::matcher::{Matcher, create_matcher};
@@ -486,20 +486,6 @@ fn bold(text: &str) -> String {
 fn dim(text: &str) -> String {
     let cleaned = sanitize(text);
     cleaned.as_ref().if_supports_color(Stream::Stdout, |t| t.dimmed()).to_string()
-}
-
-fn sanitize(text: &str) -> std::borrow::Cow<'_, str> {
-    if text.bytes().any(|byte| byte < 0x20 && byte != b'\n' && byte != b'\t') {
-        std::borrow::Cow::Owned(
-            text.chars()
-                .filter(|character| {
-                    !character.is_control() || *character == '\n' || *character == '\t'
-                })
-                .collect(),
-        )
-    } else {
-        std::borrow::Cow::Borrowed(text)
-    }
 }
 
 #[cfg(test)]
