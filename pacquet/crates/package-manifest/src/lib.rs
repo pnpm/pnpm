@@ -154,11 +154,11 @@ impl PackageManifest {
     }
 
     pub fn save(&self) -> Result<(), PackageManifestError> {
-        let mut file = fs::File::create(&self.path)?;
         let mut value = self.value.clone();
         convert_dependencies_to_engines_runtime(&mut value, "devDependencies", "devEngines")?;
         convert_dependencies_to_engines_runtime(&mut value, "dependencies", "engines")?;
         let contents = serde_json::to_string_pretty(&value)?;
+        let mut file = fs::File::create(&self.path)?;
         file.write_all(contents.as_bytes())?;
         Ok(())
     }

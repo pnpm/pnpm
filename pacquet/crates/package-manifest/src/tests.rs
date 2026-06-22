@@ -431,6 +431,25 @@ fn save_converts_runtime_dependencies_before_writing() {
     assert_eq!(saved.get("dependencies"), Some(&json!({})));
 }
 
+#[test]
+fn failed_save_preserves_existing_file_contents() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    let raw = serde_json::to_string_pretty(&json!({
+        "name": "fixture",
+        "devEngines": "invalid",
+        "devDependencies": {
+            "node": "runtime:22",
+        },
+    }))
+    .unwrap();
+    std::fs::write(&path, &raw).unwrap();
+
+    let manifest = PackageManifest::from_path(path.clone()).unwrap();
+    assert!(matches!(manifest.save(), Err(PackageManifestError::InvalidAttribute(_))));
+    assert_eq!(read_to_string(path).unwrap(), raw);
+}
+
 /// Reading a manifest with `devEngines.runtime` set must apply the
 /// reification automatically — that's the hook upstream wires into
 /// `convertManifestAfterRead`. Verifies the `from_path` end of the
