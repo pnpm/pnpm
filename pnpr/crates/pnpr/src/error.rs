@@ -101,6 +101,19 @@ pub enum RegistryError {
         reason: String,
     },
 
+    #[display(
+        "Package {package}@{version} is listed in the local OSV database as vulnerable ({advisories})"
+    )]
+    #[from(skip)]
+    OsvVulnerability {
+        #[error(not(source))]
+        package: String,
+        #[error(not(source))]
+        version: String,
+        #[error(not(source))]
+        advisories: String,
+    },
+
     /// `auth.htpasswd.max_users: -1` blocks new registrations.
     /// Returned for adduser on a username that doesn't already
     /// exist; existing-user logins are unaffected.
@@ -187,6 +200,7 @@ impl RegistryError {
             RegistryError::Forbidden { .. } => "forbidden",
             RegistryError::InvalidAttachment { .. } => "invalid_attachment",
             RegistryError::BadRequest { .. } => "bad_request",
+            RegistryError::OsvVulnerability { .. } => "osv_vulnerability",
             RegistryError::RegistrationDisabled => "registration_disabled",
             RegistryError::TooManyUsers { .. } => "too_many_users",
             RegistryError::Internal { .. } => "internal",
@@ -256,6 +270,7 @@ impl RegistryError {
             | RegistryError::BadRequest { .. } => StatusCode::BAD_REQUEST,
             RegistryError::Unauthenticated { .. } => StatusCode::UNAUTHORIZED,
             RegistryError::Forbidden { .. } => StatusCode::FORBIDDEN,
+            RegistryError::OsvVulnerability { .. } => StatusCode::FORBIDDEN,
             RegistryError::RegistrationDisabled | RegistryError::TooManyUsers { .. } => {
                 StatusCode::FORBIDDEN
             }

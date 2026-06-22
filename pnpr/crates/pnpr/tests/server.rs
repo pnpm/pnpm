@@ -6,8 +6,10 @@ use flate2::read::GzDecoder;
 use pnpr::{Config, router};
 use serde_json::{Value, json};
 use std::{
+    fs,
     io::Read as _,
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
+    path::{Path, PathBuf},
     time::Duration,
 };
 use tempfile::TempDir;
@@ -17,7 +19,7 @@ use tokio::{
 };
 use tower::ServiceExt;
 
-fn config_for(upstream: &str, storage: std::path::PathBuf) -> Config {
+fn config_for(upstream: &str, storage: PathBuf) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::proxy(listen, storage);
     config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink").url = upstream.to_string();
@@ -28,6 +30,29 @@ fn config_for(upstream: &str, storage: std::path::PathBuf) -> Config {
 
 async fn body_bytes(body: Body) -> Vec<u8> {
     to_bytes(body, usize::MAX).await.expect("read body").to_vec()
+}
+
+async fn body_json(body: Body) -> Value {
+    serde_json::from_slice(&body_bytes(body).await).expect("body parses as JSON")
+}
+
+fn osv_database(package: &str, versions: &[&str]) -> TempDir {
+    let dir = TempDir::new().unwrap();
+    let versions: Vec<Value> = versions.iter().map(|version| json!(version)).collect();
+    let advisory = json!({
+        "id": "GHSA-registry",
+        "affected": [{
+            "package": { "ecosystem": "npm", "name": package },
+            "versions": versions,
+        }],
+    });
+    fs::write(dir.path().join("GHSA-registry.json"), advisory.to_string()).unwrap();
+    dir
+}
+
+fn enable_osv(config: &mut Config, path: &Path) {
+    config.osv.enabled = true;
+    config.osv.path = Some(path.to_path_buf());
 }
 
 #[tokio::test]
@@ -75,6 +100,174 @@ async fn packument_is_proxied_cached_and_rewritten() {
     assert_eq!(cached.status(), StatusCode::OK);
 
     packument_mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn osv_filters_vulnerable_versions_from_proxy_and_cache() {
+    let mut upstream = mockito::Server::new_async().await;
+    let packument = json!({
+        "name": "foo",
+        "dist-tags": { "latest": "1.1.0", "stable": "1.0.0" },
+        "time": {
+            "modified": "2026-06-21T12:00:00.000Z",
+            "1.0.0": "2026-06-20T12:00:00.000Z",
+            "1.1.0": "2026-06-21T12:00:00.000Z",
+        },
+        "versions": {
+            "1.0.0": {
+                "name": "foo",
+                "version": "1.0.0",
+                "dist": { "tarball": format!("{}/foo/-/foo-1.0.0.tgz", upstream.url()) },
+            },
+            "1.1.0": {
+                "name": "foo",
+                "version": "1.1.0",
+                "dist": { "tarball": format!("{}/foo/-/foo-1.1.0.tgz", upstream.url()) },
+            },
+        },
+    });
+    let mock = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_body(packument.to_string())
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let osv = osv_database("foo", &["1.1.0"]);
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.resolver.enabled = false;
+    enable_osv(&mut config, osv.path());
+    let app = router(config);
+
+    let first =
+        app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(first.status(), StatusCode::OK);
+    let body = body_json(first.into_body()).await;
+    assert!(body["versions"].get("1.1.0").is_none());
+    assert!(body["time"].get("1.1.0").is_none());
+    assert_eq!(body["versions"]["1.0.0"]["version"], "1.0.0");
+    assert!(body["dist-tags"].get("latest").is_none());
+    assert_eq!(body["dist-tags"]["stable"], "1.0.0");
+
+    let cached =
+        app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(cached.status(), StatusCode::OK);
+    let cached_body = body_json(cached.into_body()).await;
+    assert!(cached_body["versions"].get("1.1.0").is_none());
+    assert!(cached_body["time"].get("1.1.0").is_none());
+    assert!(cached_body["dist-tags"].get("latest").is_none());
+    assert_eq!(cached_body["dist-tags"]["stable"], "1.0.0");
+
+    let vulnerable_manifest =
+        app.clone().oneshot(Request::get("/foo/1.1.0").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(vulnerable_manifest.status(), StatusCode::NOT_FOUND);
+
+    let safe_manifest =
+        app.clone().oneshot(Request::get("/foo/1.0.0").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(safe_manifest.status(), StatusCode::OK);
+    let safe_body = body_json(safe_manifest.into_body()).await;
+    assert_eq!(safe_body["version"], "1.0.0");
+
+    let dist_tags = app
+        .oneshot(Request::get("/-/package/foo/dist-tags").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(dist_tags.status(), StatusCode::OK);
+    let tags = body_json(dist_tags.into_body()).await;
+    assert!(tags.get("latest").is_none());
+    assert_eq!(tags["stable"], "1.0.0");
+
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn osv_filters_packument_identity_mismatches() {
+    let mut upstream = mockito::Server::new_async().await;
+    let packument = json!({
+        "name": "foo",
+        "dist-tags": {
+            "latest": "1.1.0",
+            "alias": "safe-key",
+            "hidden": "1.2.0",
+            "stable": "1.0.0",
+        },
+        "time": {
+            "modified": "2026-06-21T12:00:00.000Z",
+            "1.0.0": "2026-06-20T12:00:00.000Z",
+            "1.1.0": "2026-06-21T12:00:00.000Z",
+            "safe-key": "2026-06-21T12:00:00.000Z",
+            "1.2.0": "2026-06-21T12:00:00.000Z",
+        },
+        "versions": {
+            "1.0.0": {
+                "name": "foo",
+                "version": "1.0.0",
+                "dist": { "tarball": format!("{}/foo/-/foo-1.0.0.tgz", upstream.url()) },
+            },
+            "1.1.0": {
+                "name": "foo",
+                "version": "9.9.9",
+                "dist": { "tarball": format!("{}/foo/-/foo-1.1.0.tgz", upstream.url()) },
+            },
+            "safe-key": {
+                "name": "foo",
+                "version": "1.2.0",
+                "dist": { "tarball": format!("{}/foo/-/foo-1.2.0.tgz", upstream.url()) },
+            },
+        },
+    });
+    let mock = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_body(packument.to_string())
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let osv = osv_database("foo", &["1.1.0", "1.2.0"]);
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.resolver.enabled = false;
+    enable_osv(&mut config, osv.path());
+    let app = router(config);
+
+    let response =
+        app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = body_json(response.into_body()).await;
+    let versions = body["versions"].as_object().unwrap();
+    assert_eq!(versions.len(), 1);
+    assert!(versions.contains_key("1.0.0"));
+    let tags = body["dist-tags"].as_object().unwrap();
+    assert_eq!(tags.len(), 1);
+    assert!(tags.contains_key("stable"));
+    let time = body["time"].as_object().unwrap();
+    assert_eq!(time.len(), 2);
+    assert!(time.contains_key("modified"));
+    assert!(time.contains_key("1.0.0"));
+
+    let vulnerable_key_manifest =
+        app.clone().oneshot(Request::get("/foo/1.1.0").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(vulnerable_key_manifest.status(), StatusCode::NOT_FOUND);
+    let vulnerable_manifest_version = app
+        .clone()
+        .oneshot(Request::get("/foo/safe-key").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(vulnerable_manifest_version.status(), StatusCode::NOT_FOUND);
+
+    let dist_tags = app
+        .oneshot(Request::get("/-/package/foo/dist-tags").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(dist_tags.status(), StatusCode::OK);
+    let tags = body_json(dist_tags.into_body()).await;
+    assert_eq!(tags.as_object().unwrap().len(), 1);
+    assert_eq!(tags["stable"], "1.0.0");
+
+    mock.assert_async().await;
 }
 
 #[tokio::test]
@@ -156,6 +349,104 @@ async fn tarball_is_proxied_and_cached() {
         .unwrap();
     assert_eq!(second.status(), StatusCode::OK);
     assert_eq!(body_bytes(second.into_body()).await, bytes);
+
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn osv_refuses_vulnerable_tarball_before_upstream_fetch() {
+    let mut upstream = mockito::Server::new_async().await;
+    let mock = upstream
+        .mock("GET", "/foo/-/foo-1.0.0.tgz")
+        .with_status(200)
+        .with_body("vulnerable tarball")
+        .expect(0)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let osv = osv_database("foo", &["1.0.0"]);
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.resolver.enabled = false;
+    enable_osv(&mut config, osv.path());
+    let app = router(config);
+
+    let response = app
+        .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    let body = String::from_utf8(body_bytes(response.into_body()).await).unwrap();
+    assert!(body.contains("GHSA-registry"), "{body}");
+
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn osv_tarball_screening_preserves_access_gate() {
+    let mut upstream = mockito::Server::new_async().await;
+    let mock = upstream
+        .mock("GET", "/@pnpm.e2e/needs-auth/-/needs-auth-1.0.0.tgz")
+        .with_status(200)
+        .with_body("private vulnerable tarball")
+        .expect(0)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let osv = osv_database("@pnpm.e2e/needs-auth", &["1.0.0"]);
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.resolver.enabled = false;
+    enable_osv(&mut config, osv.path());
+    let app = router(config);
+
+    let response = app
+        .oneshot(
+            Request::get("/@pnpm.e2e/needs-auth/-/needs-auth-1.0.0.tgz")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn osv_refuses_vulnerable_tarball_from_cache() {
+    let mut upstream = mockito::Server::new_async().await;
+    let bytes = b"cached vulnerable tarball";
+    let mock = upstream
+        .mock("GET", "/foo/-/foo-1.0.0.tgz")
+        .with_status(200)
+        .with_body(bytes)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let cache_dir = tmp.path().to_path_buf();
+    let warming_app = router(config_for(&upstream.url(), cache_dir.clone()));
+
+    let warmed = warming_app
+        .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(warmed.status(), StatusCode::OK);
+    assert_eq!(body_bytes(warmed.into_body()).await, bytes);
+
+    let osv = osv_database("foo", &["1.0.0"]);
+    let mut config = config_for(&upstream.url(), cache_dir);
+    config.resolver.enabled = false;
+    enable_osv(&mut config, osv.path());
+    let screened_app = router(config);
+
+    let response = screened_app
+        .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
 
     mock.assert_async().await;
 }
@@ -287,6 +578,43 @@ async fn scoped_tarball_is_proxied() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(body_bytes(response.into_body()).await, bytes);
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn scoped_tarball_filename_is_canonicalized_before_fetch_and_cache() {
+    let mut upstream = mockito::Server::new_async().await;
+    let bytes = b"scoped-tarball-full-name";
+    let mock = upstream
+        .mock("GET", "/@types/node/-/node-20.0.0.tgz")
+        .with_status(200)
+        .with_body(bytes)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(config_for(&upstream.url(), storage.clone()));
+
+    let noncanonical = app
+        .clone()
+        .oneshot(
+            Request::get("/@types/node/-/%40types%2Fnode-20.0.0.tgz").body(Body::empty()).unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(noncanonical.status(), StatusCode::OK);
+    assert_eq!(body_bytes(noncanonical.into_body()).await, bytes);
+
+    let canonical = app
+        .oneshot(Request::get("/@types/node/-/node-20.0.0.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(canonical.status(), StatusCode::OK);
+    assert_eq!(body_bytes(canonical.into_body()).await, bytes);
+    assert!(storage.join(".pnpr-cache/@types/node/node-20.0.0.tgz").exists());
+    assert!(!storage.join(".pnpr-cache/@types/node/@types").exists());
     mock.assert_async().await;
 }
 
