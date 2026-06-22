@@ -252,6 +252,16 @@ pub trait TokenBackend: Send + Sync {
     /// "not authenticated".
     async fn lookup(&self, raw: &str) -> Result<Option<String>>;
 
+    /// Resolve a raw token to its full record — the username plus the
+    /// `readonly` / `cidr_whitelist` restrictions that [`Self::lookup`]
+    /// drops. The request-time restriction gate needs those, so it goes
+    /// through here. `Ok(None)` for a token that was never issued (or was
+    /// revoked); `Err` only for a backing-store failure, never conflated
+    /// with "no such token".
+    async fn lookup_record(&self, raw: &str) -> Result<Option<TokenRecord>> {
+        self.find_by_key(&sha256_hex(raw.as_bytes())).await
+    }
+
     /// Snapshot the record for a token by its key (SHA-256 hex). Used
     /// to check ownership before revocation. `Ok(None)` if no such
     /// token; `Err` on a store failure.
@@ -587,6 +597,17 @@ impl TokenBackend for TokenStore {
             inner.tokens.remove(key);
         }
         Ok(Some(record))
+    }
+}
+
+#[cfg(test)]
+impl TokenStore {
+    /// Seed a pre-built record under `raw`'s hash. Test-only seam: no
+    /// client endpoint mints read-only or CIDR-restricted tokens yet, so
+    /// enforcement tests insert them directly.
+    pub(crate) fn insert_record_for_test(&self, raw: &str, record: TokenRecord) {
+        let token_hash = sha256_hex(raw.as_bytes());
+        self.inner.lock().expect("TokenStore mutex poisoned").tokens.insert(token_hash, record);
     }
 }
 

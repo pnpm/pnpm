@@ -19,16 +19,25 @@ use crate::{
 use axum::{
     Router,
     body::Body,
-    extract::{DefaultBodyLimit, OriginalUri, Path, Request, State},
-    http::{HeaderMap, StatusCode, header},
+    extract::{
+        ConnectInfo, DefaultBodyLimit, OriginalUri, Path, Request, State, connect_info::Connected,
+    },
+    http::{HeaderMap, Method, StatusCode, header},
+    middleware::Next,
     response::{IntoResponse, Response},
     routing::{any, delete, get, post, put},
+    serve::IncomingStream,
 };
 use chrono::Utc;
 use indexmap::IndexMap;
 use serde_json::{Value, json};
 use ssri::Integrity;
-use std::{collections::HashSet, sync::Arc, time::Duration};
+use std::{
+    collections::HashSet,
+    net::{IpAddr, SocketAddr},
+    sync::Arc,
+    time::Duration,
+};
 use tower_http::{
     compression::{
         CompressionLayer,
@@ -304,6 +313,11 @@ fn router_with_auth_and_osv(
     }
     router
         .layer(DefaultBodyLimit::max(MAX_PUBLISH_BODY_BYTES))
+        // Enforce bearer-token read-only / CIDR restrictions ahead of
+        // every handler, so a restricted token is rejected before a write
+        // handler buffers its (up to 100 MiB) request body. Inside the
+        // trace layer below, so a rejection is still one access record.
+        .layer(axum::middleware::from_fn_with_state(state.clone(), enforce_token_restrictions))
         // gzip metadata responses for clients that send `Accept-Encoding:
         // gzip`, matching how a real (CDN-fronted) registry serves
         // packuments — pnpr is commonly hit directly with no proxy in
@@ -376,7 +390,9 @@ pub async fn serve(config: Config) -> crate::error::Result<()> {
     let app = router_with_auth_and_osv(config, auth, osv_index);
     let listener = NodelayTcpListener(tokio::net::TcpListener::bind(listen).await?);
     tracing::info!(%listen, "pnpr listening");
-    axum::serve(listener, app).with_graceful_shutdown(shutdown_signal()).await?;
+    axum::serve(listener, app.into_make_service_with_connect_info::<PeerAddr>())
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
     Ok(())
 }
 
@@ -414,9 +430,12 @@ pub async fn serve_listener(
     let auth = load_startup_auth(&config).await?;
     let app = router_with_auth_and_osv(config, auth, osv_index);
     tracing::info!(%listen, "pnpr listening");
-    axum::serve(NodelayTcpListener(listener), app)
-        .with_graceful_shutdown(shutdown_signal())
-        .await?;
+    axum::serve(
+        NodelayTcpListener(listener),
+        app.into_make_service_with_connect_info::<PeerAddr>(),
+    )
+    .with_graceful_shutdown(shutdown_signal())
+    .await?;
     Ok(())
 }
 
@@ -458,6 +477,22 @@ impl axum::serve::Listener for NodelayTcpListener {
 
     fn local_addr(&self) -> std::io::Result<Self::Addr> {
         self.0.local_addr()
+    }
+}
+
+/// Client socket address captured from the accepted TCP connection, for
+/// the CIDR-restriction gate. A local newtype (rather than [`SocketAddr`]
+/// directly) so we can implement axum's [`Connected`] for
+/// [`NodelayTcpListener`] — the blanket impl axum ships covers only the
+/// bare [`tokio::net::TcpListener`], not our wrapper. This is the real
+/// peer address from the socket, never a client-supplied forwarding
+/// header, so it can't be spoofed.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct PeerAddr(pub(crate) SocketAddr);
+
+impl Connected<IncomingStream<'_, NodelayTcpListener>> for PeerAddr {
+    fn connect_info(stream: IncomingStream<'_, NodelayTcpListener>) -> Self {
+        PeerAddr(*stream.remote_addr())
     }
 }
 
@@ -2060,6 +2095,149 @@ async fn enforce_access(
 ) -> Result<(), RegistryError> {
     let identity = resolve_identity(state, headers).await?;
     authorize(state, &identity, package, action)
+}
+
+/// Reject a request whose bearer token violates its own restrictions,
+/// ahead of every route handler (and, for writes, before the handler
+/// buffers the request body).
+///
+/// npm bearer tokens can be marked read-only or pinned to a set of CIDR
+/// ranges. pnpr persists both and surfaces them on `npm token list`, so
+/// it must enforce them too — otherwise a token the operator restricted
+/// could still publish, or be used from any network. Only bearer tokens
+/// carry restrictions; Basic-auth and anonymous requests pass through and
+/// remain subject to the per-package access policy in the handlers. An
+/// unknown or revoked token also passes through here — the handler
+/// resolves it to anonymous and the access policy applies.
+async fn enforce_token_restrictions(
+    State(state): State<AppState>,
+    request: Request,
+    next: Next,
+) -> Response {
+    let Some(raw_token) = request
+        .headers()
+        .get(header::AUTHORIZATION)
+        .and_then(|value| value.to_str().ok())
+        .and_then(bearer_credentials)
+    else {
+        return next.run(request).await;
+    };
+    let record = match state.inner.auth.tokens.lookup_record(raw_token).await {
+        Ok(Some(record)) => record,
+        // No record means nothing to enforce here; a store failure fails
+        // closed with a 5xx rather than silently skipping the check.
+        Ok(None) => return next.run(request).await,
+        Err(err) => return error_response(&err),
+    };
+
+    if record.readonly && is_write_method(request.method()) {
+        return error_response(&RegistryError::Forbidden {
+            user: record.username,
+            action: "write with",
+            resource: "a read-only token".to_string(),
+        });
+    }
+
+    if !record.cidr_whitelist.is_empty() {
+        // The peer address comes from the accepted socket (`ConnectInfo`),
+        // never a client-supplied forwarding header. When it's absent the
+        // restriction can't be evaluated, so the token is refused.
+        let peer = request.extensions().get::<ConnectInfo<PeerAddr>>().map(|info| info.0.0);
+        let allowed = peer.is_some_and(|addr| cidr_whitelist_allows(&record.cidr_whitelist, addr));
+        if !allowed {
+            return error_response(&RegistryError::Forbidden {
+                user: record.username,
+                action: "use",
+                resource: "this token from your network address".to_string(),
+            });
+        }
+    }
+
+    next.run(request).await
+}
+
+/// The raw credentials of an `Authorization: Bearer <token>` header, or
+/// `None` for any other scheme. The scheme is matched case-insensitively,
+/// matching [`identify`].
+fn bearer_credentials(header_value: &str) -> Option<&str> {
+    let (scheme, credentials) = header_value.trim().split_once(' ')?;
+    scheme.eq_ignore_ascii_case("Bearer").then(|| credentials.trim())
+}
+
+/// Whether `method` mutates registry state. Every write surface (publish,
+/// unpublish, dist-tag add/remove, adduser, logout, token revoke) is a
+/// PUT or DELETE; reads and the resolver POSTs are not. A read-only token
+/// is confined to the non-mutating methods.
+fn is_write_method(method: &Method) -> bool {
+    matches!(*method, Method::PUT | Method::DELETE | Method::PATCH)
+}
+
+/// Whether `peer` falls inside any range of a token's CIDR whitelist. An
+/// IPv4-mapped IPv6 peer is normalized to its IPv4 form first, so a
+/// dual-stack listener still matches plain IPv4 ranges.
+fn cidr_whitelist_allows(whitelist: &[String], peer: SocketAddr) -> bool {
+    let peer = canonical_ip(peer.ip());
+    whitelist.iter().any(|entry| cidr_contains(entry.trim(), peer))
+}
+
+fn canonical_ip(addr: IpAddr) -> IpAddr {
+    match addr {
+        IpAddr::V6(v6) => v6.to_ipv4_mapped().map_or(IpAddr::V6(v6), IpAddr::V4),
+        v4 @ IpAddr::V4(_) => v4,
+    }
+}
+
+/// Whether `peer` is inside one `addr/prefix` (or bare `addr`) whitelist
+/// entry. A bare address matches only itself; a malformed entry (bad
+/// address, or a non-numeric / out-of-range prefix) matches nothing, so
+/// the restriction fails closed rather than open.
+fn cidr_contains(entry: &str, peer: IpAddr) -> bool {
+    let (net, prefix) = match entry.split_once('/') {
+        Some((net, prefix)) => (net.trim(), Some(prefix.trim())),
+        None => (entry, None),
+    };
+    let Ok(net) = net.parse::<IpAddr>() else {
+        return false;
+    };
+    match (net, peer) {
+        (IpAddr::V4(net), IpAddr::V4(peer)) => {
+            let Some(bits) = parse_prefix(prefix, 32) else {
+                return false;
+            };
+            let mask = ipv4_mask(bits);
+            (u32::from(net) & mask) == (u32::from(peer) & mask)
+        }
+        (IpAddr::V6(net), IpAddr::V6(peer)) => {
+            let Some(bits) = parse_prefix(prefix, 128) else {
+                return false;
+            };
+            let mask = ipv6_mask(bits);
+            (u128::from(net) & mask) == (u128::from(peer) & mask)
+        }
+        // Different address families never match.
+        _ => false,
+    }
+}
+
+/// Parse a CIDR prefix length, defaulting to a full-width match (an exact
+/// host) when the entry carried no `/prefix`. `None` for a non-numeric or
+/// too-large value.
+fn parse_prefix(prefix: Option<&str>, max_bits: u8) -> Option<u8> {
+    match prefix {
+        None => Some(max_bits),
+        Some(prefix) => {
+            let bits: u8 = prefix.parse().ok()?;
+            (bits <= max_bits).then_some(bits)
+        }
+    }
+}
+
+fn ipv4_mask(prefix: u8) -> u32 {
+    if prefix == 0 { 0 } else { u32::MAX << (32 - prefix) }
+}
+
+fn ipv6_mask(prefix: u8) -> u128 {
+    if prefix == 0 { 0 } else { u128::MAX << (128 - prefix) }
 }
 
 /// True when the client's `Accept` header offers the
