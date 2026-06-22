@@ -133,6 +133,51 @@ async fn user_and_token_survive_restart() {
     );
 }
 
+#[tokio::test]
+async fn invalid_usernames_do_not_change_htpasswd_across_restart() {
+    let auth_dir = TempDir::new().unwrap();
+    let storage = TempDir::new().unwrap();
+    let htpasswd = auth_dir.path().join("htpasswd");
+    let tokens_db = auth_dir.path().join("tokens.db");
+
+    let config =
+        persistent_config(storage.path().to_path_buf(), htpasswd.clone(), tokens_db.clone());
+    let auth = AuthState::load(&config.auth, &config.backend).await.expect("first boot");
+    let app = router_with_auth(config.clone(), auth);
+
+    let response = app
+        .clone()
+        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret")))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let original_htpasswd = std::fs::read_to_string(&htpasswd).unwrap();
+
+    for (case, encoded_username, username) in [
+        ("newline", "alice%0Aadmin", "alice\nadmin"),
+        ("carriage return", "alice%0Dadmin", "alice\radmin"),
+        ("colon", "alice%3Aadmin", "alice:admin"),
+        ("comment marker", "%23alice", "#alice"),
+        ("leading whitespace", "%20alice", " alice"),
+        ("trailing whitespace", "alice%20", "alice "),
+    ] {
+        let path = format!("/-/user/org.couchdb.user:{encoded_username}");
+        let response =
+            app.clone().oneshot(put_json(&path, adduser_body(username, "secret"))).await.unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{case} username");
+        assert_eq!(
+            std::fs::read_to_string(&htpasswd).unwrap(),
+            original_htpasswd,
+            "{case} username must not alter htpasswd",
+        );
+    }
+
+    drop(app);
+    let auth = AuthState::load(&config.auth, &config.backend).await.expect("reload after restart");
+    assert_eq!(auth.users.verify("alice", "secret").await.unwrap().as_deref(), Some("alice"));
+    assert_eq!(std::fs::read_to_string(&htpasswd).unwrap(), original_htpasswd);
+}
+
 /// Corrupt the htpasswd file → server returns a parse diagnostic on
 /// startup, not a silent empty user list. The acceptance criterion
 /// is that the operator sees an error rather than the server happily

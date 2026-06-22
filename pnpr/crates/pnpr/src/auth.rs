@@ -88,6 +88,11 @@ pub(crate) fn validate_username(username: &str) -> Result<()> {
             reason: "username must not start or end with whitespace".to_string(),
         });
     }
+    if username.starts_with('#') {
+        return Err(RegistryError::BadRequest {
+            reason: "username must not start with '#'".to_string(),
+        });
+    }
     if contains_colon {
         return Err(RegistryError::BadRequest {
             reason: "username must not contain ':'".to_string(),
@@ -351,6 +356,8 @@ impl UserBackend for UserStore {
         username: &str,
         password: &str,
     ) -> Result<(UpsertOutcome, String)> {
+        validate_username(username)?;
+
         let existing_hash = {
             let users = self.users.lock().expect("UserStore mutex poisoned");
             users.get(username).cloned()
@@ -358,8 +365,6 @@ impl UserBackend for UserStore {
         if let Some(stored) = existing_hash {
             return verify_returning_user(username, password, stored).await;
         }
-
-        validate_username(username)?;
 
         // Brand-new user — check the registration cap before doing
         // the (expensive) bcrypt hash.
@@ -409,6 +414,10 @@ impl UserBackend for UserStore {
     }
 
     async fn verify(&self, username: &str, password: &str) -> Result<Option<String>> {
+        if validate_username(username).is_err() {
+            return Ok(None);
+        }
+
         let stored = {
             let users = self.users.lock().expect("UserStore mutex poisoned");
             users.get(username).cloned()
@@ -672,6 +681,13 @@ fn parse_htpasswd(raw: &str) -> std::result::Result<HashMap<String, String>, Str
         let hash = hash.trim();
         if user.is_empty() {
             return Err(format!("line {}: empty username", line_no + 1));
+        }
+        if let Err(err) = validate_username(user) {
+            let reason = match err {
+                RegistryError::BadRequest { reason } => reason,
+                err => err.to_string(),
+            };
+            return Err(format!("line {}: invalid username {user:?}: {reason}", line_no + 1));
         }
         if !is_supported_hash(hash) {
             return Err(format!(
