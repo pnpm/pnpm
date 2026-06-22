@@ -96,6 +96,82 @@ test('readProjectManifest() converts engines runtime to dependencies', async () 
   })
 })
 
+test('writeProjectManifest() removes a single devEngines runtime when its dependency was removed', async () => {
+  const dir = f.prepare('package-json-with-dev-engines')
+  const { manifest, writeProjectManifest } = await tryReadProjectManifest(dir)
+
+  delete manifest!.devDependencies!.node
+  await writeProjectManifest(manifest!)
+
+  const pkgJson = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'))
+  expect(pkgJson).toStrictEqual({
+    devEngines: {},
+  })
+})
+
+test('writeProjectManifest() removes an empty-version devEngines runtime when its dependency was removed', async () => {
+  const dir = f.prepare('package-json')
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({
+    devDependencies: {
+      node: 'runtime:',
+    },
+    devEngines: {
+      runtime: {
+        name: 'node',
+        version: '',
+        onFail: 'download',
+      },
+    },
+  }))
+  const { manifest, writeProjectManifest } = await tryReadProjectManifest(dir)
+
+  delete manifest!.devDependencies!.node
+  await writeProjectManifest(manifest!)
+
+  const pkgJson = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'))
+  expect(pkgJson).toStrictEqual({
+    devEngines: {},
+  })
+})
+
+test('writeProjectManifest() removes only the removed runtime from a devEngines runtime array', async () => {
+  const dir = f.prepare('package-json')
+  fs.writeFileSync(path.join(dir, 'package.json'), JSON.stringify({
+    devEngines: {
+      runtime: [
+        {
+          name: 'node',
+          version: '24',
+          onFail: 'download',
+        },
+        {
+          name: 'deno',
+          version: '2',
+          onFail: 'download',
+        },
+      ],
+    },
+  }))
+  const { manifest, writeProjectManifest } = await tryReadProjectManifest(dir)
+
+  delete manifest!.devDependencies!.node
+  await writeProjectManifest(manifest!)
+
+  const pkgJson = JSON.parse(fs.readFileSync(path.join(dir, 'package.json'), 'utf8'))
+  expect(pkgJson).toStrictEqual({
+    devDependencies: {},
+    devEngines: {
+      runtime: [
+        {
+          name: 'deno',
+          version: '2',
+          onFail: 'download',
+        },
+      ],
+    },
+  })
+})
+
 test.each([
   {
     name: 'creates devEngines when it is missing',

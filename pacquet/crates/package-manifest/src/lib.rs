@@ -153,10 +153,18 @@ impl PackageManifest {
         &mut self.value
     }
 
-    pub fn save(&self) -> Result<(), PackageManifestError> {
+    pub fn save_and_get_written_value(&self) -> Result<Value, PackageManifestError> {
+        let mut value = self.value.clone();
+        convert_dependencies_to_engines_runtime(&mut value, "devDependencies", "devEngines")?;
+        convert_dependencies_to_engines_runtime(&mut value, "dependencies", "engines")?;
+        let contents = serde_json::to_string_pretty(&value)?;
         let mut file = fs::File::create(&self.path)?;
-        let contents = serde_json::to_string_pretty(&self.value)?;
         file.write_all(contents.as_bytes())?;
+        Ok(value)
+    }
+
+    pub fn save(&self) -> Result<(), PackageManifestError> {
+        self.save_and_get_written_value()?;
         Ok(())
     }
 
@@ -380,6 +388,134 @@ pub fn convert_engines_runtime_to_dependencies(
     for (name, spec) in to_insert {
         deps_obj.insert(name.to_string(), Value::String(spec));
     }
+}
+
+/// Fold `runtime:<version>` dependency entries back into
+/// `devEngines.runtime` / `engines.runtime` before writing a manifest.
+///
+/// Mirrors upstream's `convertDependenciesToEnginesRuntime` writer hook in
+/// `workspace/project-manifest-reader`: the in-memory dependency form drives
+/// resolution and lockfile checks, while the on-disk manifest keeps the
+/// `devEngines.runtime` / `engines.runtime` contract.
+pub fn convert_dependencies_to_engines_runtime(
+    manifest: &mut Value,
+    deps_field: &str,
+    engines_field: &str,
+) -> Result<(), PackageManifestError> {
+    for runtime_name in RUNTIME_NAMES {
+        let version = manifest
+            .get(deps_field)
+            .and_then(|deps| deps.get(runtime_name))
+            .and_then(Value::as_str)
+            .and_then(|dep| dep.strip_prefix("runtime:"))
+            .map(str::to_string);
+        if let Some(version) = version {
+            upsert_runtime_entry(manifest, engines_field, runtime_name, &version)?;
+            if let Some(deps) = manifest.get_mut(deps_field).and_then(Value::as_object_mut) {
+                deps.remove(runtime_name);
+            }
+        } else {
+            remove_managed_runtime_entry(manifest, engines_field, runtime_name);
+        }
+    }
+    Ok(())
+}
+
+fn remove_managed_runtime_entry(manifest: &mut Value, engines_field: &str, runtime_name: &str) {
+    let Some(engines) = manifest.get_mut(engines_field).and_then(Value::as_object_mut) else {
+        return;
+    };
+    let remove_runtime = match engines.get_mut("runtime") {
+        Some(Value::Array(runtimes)) => {
+            runtimes.retain(|runtime| !is_managed_runtime_entry(runtime, runtime_name));
+            runtimes.is_empty()
+        }
+        Some(runtime) if is_managed_runtime_entry(runtime, runtime_name) => true,
+        _ => false,
+    };
+    if remove_runtime {
+        engines.remove("runtime");
+    }
+}
+
+fn is_managed_runtime_entry(runtime: &Value, runtime_name: &str) -> bool {
+    runtime.get("name").and_then(Value::as_str) == Some(runtime_name)
+        && runtime.get("onFail").and_then(Value::as_str) == Some("download")
+        && runtime.get("version").and_then(Value::as_str).is_some()
+}
+
+fn upsert_runtime_entry(
+    manifest: &mut Value,
+    engines_field: &str,
+    runtime_name: &str,
+    version: &str,
+) -> Result<(), PackageManifestError> {
+    let runtime_entry = json!({
+        "name": runtime_name,
+        "version": version,
+        "onFail": "download",
+    });
+    let engines = ensure_object_field(manifest, engines_field)?;
+    match engines.get_mut("runtime") {
+        None | Some(Value::Null) => {
+            engines.insert("runtime".to_string(), runtime_entry);
+        }
+        Some(Value::Array(runtimes)) => {
+            if let Some(existing) = runtimes
+                .iter_mut()
+                .find(|runtime| runtime.get("name").and_then(Value::as_str) == Some(runtime_name))
+            {
+                merge_runtime_entry(existing, runtime_name, version)?;
+            } else {
+                runtimes.push(runtime_entry);
+            }
+        }
+        Some(Value::Object(runtime))
+            if runtime.get("name").and_then(Value::as_str) == Some(runtime_name) =>
+        {
+            runtime.insert("name".to_string(), Value::String(runtime_name.to_string()));
+            runtime.insert("version".to_string(), Value::String(version.to_string()));
+            runtime.insert("onFail".to_string(), Value::String("download".to_string()));
+        }
+        Some(existing) => {
+            *existing = Value::Array(vec![existing.clone(), runtime_entry]);
+        }
+    }
+    Ok(())
+}
+
+fn ensure_object_field<'a>(
+    manifest: &'a mut Value,
+    field: &str,
+) -> Result<&'a mut Map<String, Value>, PackageManifestError> {
+    let Some(root) = manifest.as_object_mut() else {
+        return Err(PackageManifestError::InvalidAttribute(
+            "the manifest root must be an object".to_string(),
+        ));
+    };
+    let value = root.entry(field.to_string()).or_insert_with(|| Value::Object(Map::new()));
+    if value.is_null() {
+        *value = Value::Object(Map::new());
+    }
+    value.as_object_mut().ok_or_else(|| {
+        PackageManifestError::InvalidAttribute(format!("the {field} field must be an object"))
+    })
+}
+
+fn merge_runtime_entry(
+    runtime: &mut Value,
+    runtime_name: &str,
+    version: &str,
+) -> Result<(), PackageManifestError> {
+    let Some(runtime) = runtime.as_object_mut() else {
+        return Err(PackageManifestError::InvalidAttribute(
+            "runtime entries must be objects".to_string(),
+        ));
+    };
+    runtime.insert("name".to_string(), Value::String(runtime_name.to_string()));
+    runtime.insert("version".to_string(), Value::String(version.to_string()));
+    runtime.insert("onFail".to_string(), Value::String("download".to_string()));
+    Ok(())
 }
 
 /// Read `<dir>/package.json` if it exists, returning `Ok(None)` when the file

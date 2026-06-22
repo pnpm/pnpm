@@ -279,8 +279,34 @@ function convertDependenciesToEnginesRuntime (
       if (manifest[dependenciesFieldName]) {
         delete manifest[dependenciesFieldName][runtimeName]
       }
+    } else {
+      removeManagedRuntimeEntry(manifest[enginesFieldName], runtimeName)
     }
   }
+}
+
+function removeManagedRuntimeEntry (
+  enginesField: ProjectManifest['devEngines'] | ProjectManifest['engines'],
+  runtimeName: string
+): void {
+  if (!enginesField?.runtime) return
+
+  if (Array.isArray(enginesField.runtime)) {
+    const runtimes = enginesField.runtime.filter((runtime) => !isManagedRuntimeEntry(runtime, runtimeName))
+    if (runtimes.length === 0) {
+      delete enginesField.runtime
+    } else {
+      enginesField.runtime = runtimes
+    }
+  } else if (isManagedRuntimeEntry(enginesField.runtime, runtimeName)) {
+    delete enginesField.runtime
+  }
+}
+
+function isManagedRuntimeEntry (runtime: EngineDependency, runtimeName: string): boolean {
+  return runtime.name === runtimeName &&
+    runtime.onFail === 'download' &&
+    typeof runtime.version === 'string'
 }
 
 const dependencyKeys = new Set([
