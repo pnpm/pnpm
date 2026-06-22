@@ -2120,10 +2120,11 @@ fn filter_osv_vulnerable_versions(
             .iter()
             .filter_map(|(key, manifest)| {
                 let manifest_version = manifest.get("version").and_then(Value::as_str);
-                (osv_index.is_vulnerable(package_name, key)
-                    || manifest_version
-                        .is_some_and(|version| osv_index.is_vulnerable(package_name, version)))
-                .then(|| key.clone())
+                let key_is_vulnerable = osv_index.is_vulnerable(package_name, key);
+                let manifest_is_vulnerable = manifest_version.is_some_and(|version| {
+                    version != key && osv_index.is_vulnerable(package_name, version)
+                });
+                (key_is_vulnerable || manifest_is_vulnerable).then(|| key.clone())
             })
             .collect();
         versions.retain(|key, _| !blocked_keys.contains(key));
