@@ -114,7 +114,7 @@ fn frozen_install_via_pnpr_verifies_the_local_lockfile_without_resolving_or_redo
 
     let mut verifier = mockito::Server::new();
     let verify_mock = verifier
-        .mock("POST", "/v1/verify-lockfile")
+        .mock("POST", "/-/pnpr/v0/verify-lockfile")
         .with_status(200)
         .with_header("content-type", "application/x-ndjson")
         .with_body("{\"type\":\"done\"}\n")

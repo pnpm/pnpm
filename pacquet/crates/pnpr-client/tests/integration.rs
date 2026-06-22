@@ -2,7 +2,7 @@
 //!
 //! Topology: a shared [`TestRegistry`] serves the package fixtures; a
 //! per-test in-process `pnpr` hosts the `/-/pnpr` handshake +
-//! `/v1/resolve` endpoints. The client sends the registry it wants
+//! `/-/pnpr/v0/resolve` endpoints. The client sends the registry it wants
 //! resolved from, so the pnpr server's *own* uplink is left at the
 //! default — proving resolution uses the client-supplied registry. pnpr
 //! serves no file content; the client receives only the resolved
@@ -119,7 +119,7 @@ fn options(registry: &str, dependencies: BTreeMap<String, String>) -> ResolveOpt
 async fn forwards_credentials_and_the_identity_header() {
     let mut server = mockito::Server::new_async().await;
     let mock = server
-        .mock("POST", "/v1/resolve")
+        .mock("POST", "/-/pnpr/v0/resolve")
         .match_header("authorization", "Bearer pnpr-token")
         .match_body(mockito::Matcher::PartialJsonString(
             r#"{"authHeaders":{"//npm.acme.test/":{"@":"Bearer upstream-token"}}}"#.to_string(),
@@ -366,7 +366,7 @@ async fn verify_lockfile_endpoint_rejects_policy_violation() {
 }
 
 /// The verification fan-out fetches each entry's packument, so a gated
-/// package verifies only when `/v1/verify-lockfile` forwards the
+/// package verifies only when `/-/pnpr/v0/verify-lockfile` forwards the
 /// client's credential map — and fails closed when it doesn't. Each
 /// verify call targets a fresh pnpr so neither the whole-lockfile
 /// verdict cache nor the metadata mirror warmed by an earlier call can

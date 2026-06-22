@@ -69,7 +69,7 @@ struct AppInner {
     /// two concurrent writers to the same package on this instance can't
     /// lose each other's changes. See [`PackageLocks`].
     package_locks: PackageLocks,
-    /// Lazily-built engine backing the `/v1/resolve` endpoint. Built on
+    /// Lazily-built engine backing the `/-/pnpr/v0/resolve` endpoint. Built on
     /// first such request so servers that never receive one pay nothing.
     resolver: std::sync::OnceLock<crate::resolver::Resolver>,
     /// Local OSV index, loaded before the server accepts requests when
@@ -246,27 +246,26 @@ fn router_with_auth_and_osv(
     // so an operator can run resolver-only, registry-only, or both. The
     // config guarantees at least one is enabled.
     let mut router = Router::new().route("/-/ping", get(serve_ping));
-    // The install-accelerator (resolver) surface. `/-/pnpr` is the
-    // capability handshake (404 on a plain registry); `/v1/resolve` and
-    // `/v1/verify-lockfile` are the resolver endpoints. These resolve
-    // against the registries the *client* sends, so the accelerator works
-    // whether or not this process also fronts a registry.
+    // The install-accelerator (resolver) surface, all under the reserved
+    // `/-/pnpr` namespace. `/-/pnpr` is the capability handshake (404 on a
+    // plain registry); `/-/pnpr/v0/resolve` and `/-/pnpr/v0/verify-lockfile`
+    // are the resolver endpoints. These resolve against the registries the
+    // *client* sends, so the accelerator works whether or not this process
+    // also fronts a registry.
     //
     // When the resolver is disabled, only `/-/pnpr` gets a 404 stub: it is
     // the capability-probe path and overlaps the registry catch-all
     // (`/-/pnpr` matches `/{first}/{second}`), so without the stub a probe
     // would be proxied upstream, giving a confusing 502 where a client
-    // expects the "no resolver here" 404. `/v1/resolve` and
-    // `/v1/verify-lockfile` carry no capability probe and are POST-only, so
-    // they are left unmounted rather than stubbed: that keeps the registry
-    // npm-compatible for the (unusual but legitimate) version-manifest
-    // paths `GET /v1/resolve` / `GET /v1/verify-lockfile` (package `v1`,
-    // tag `resolve` / `verify-lockfile`), with their POST falling to a 405.
+    // expects the "no resolver here" 404. The `/-/pnpr/v0/*` endpoints carry
+    // no capability probe, so they are left unmounted rather than stubbed: a
+    // client learns the resolver is absent from the handshake 404 and never
+    // calls them.
     if resolver_enabled {
         router = router
             .route("/-/pnpr", get(serve_pnpr_handshake))
-            .route("/v1/resolve", post(serve_resolve))
-            .route("/v1/verify-lockfile", post(serve_verify_lockfile));
+            .route("/-/pnpr/v0/resolve", post(serve_resolve))
+            .route("/-/pnpr/v0/verify-lockfile", post(serve_verify_lockfile));
     } else {
         router = router.route("/-/pnpr", any(resolver_disabled));
     }
@@ -2132,9 +2131,9 @@ async fn serve_ping(State(_state): State<AppState>) -> Response {
 /// `GET /-/pnpr` — capability handshake for the pnpr resolver
 /// protocol. A plain npm registry has no such route and 404s, so a
 /// client can fail fast against a misconfigured server. `versions`
-/// lists the `/vN/resolve` protocol versions this server speaks.
+/// lists the `/-/pnpr/vN/resolve` protocol versions this server speaks.
 async fn serve_pnpr_handshake() -> Response {
-    (StatusCode::OK, axum::Json(serde_json::json!({ "pnpr": { "versions": [1] } }))).into_response()
+    (StatusCode::OK, axum::Json(serde_json::json!({ "pnpr": { "versions": [0] } }))).into_response()
 }
 
 /// 404 stub mounted on the resolver paths when the resolver feature is

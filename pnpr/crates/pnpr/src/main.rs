@@ -58,8 +58,8 @@ struct Args {
     #[arg(long)]
     disable_registry: bool,
 
-    /// Disable the install-accelerator surface (`/-/pnpr`, `/v1/resolve`,
-    /// `/v1/verify-lockfile`). Overrides `resolver.enabled` from the
+    /// Disable the install-accelerator surface (`/-/pnpr`, `/-/pnpr/v0/resolve`,
+    /// `/-/pnpr/v0/verify-lockfile`). Overrides `resolver.enabled` from the
     /// loaded config.
     #[arg(long)]
     disable_resolver: bool,

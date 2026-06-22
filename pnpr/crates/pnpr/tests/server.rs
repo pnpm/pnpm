@@ -913,7 +913,7 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
     let app = router(config);
 
     // The resolver surface stays reachable. `/-/ping` and the capability
-    // handshake answer 200; `/v1/verify-lockfile` is mounted, so an empty
+    // handshake answer 200; `/-/pnpr/v0/verify-lockfile` is mounted, so an empty
     // body is a 400 (bad request) rather than a 404 (route absent) — that
     // distinction is the point of the assertion.
     let ping =
@@ -926,7 +926,7 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
 
     let verify = app
         .clone()
-        .oneshot(Request::post("/v1/verify-lockfile").body(Body::empty()).unwrap())
+        .oneshot(Request::post("/-/pnpr/v0/verify-lockfile").body(Body::empty()).unwrap())
         .await
         .unwrap();
     assert_ne!(
@@ -990,21 +990,21 @@ async fn registry_only_serves_registry_and_refuses_resolver_endpoints() {
         app.clone().oneshot(Request::post("/-/pnpr").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(handshake_post.status(), StatusCode::NOT_FOUND);
 
-    // `/v1/resolve` and `/v1/verify-lockfile` are NOT stubbed: they belong
-    // to the registry's version-manifest route (`GET|PUT /{first}/{second}`,
-    // i.e. package `v1`, tag `resolve` / `verify-lockfile`), so a POST
-    // returns 405 — proving the resolver stubs no longer shadow these
-    // legitimate registry paths.
+    // `/-/pnpr/v0/resolve` and `/-/pnpr/v0/verify-lockfile` are NOT stubbed:
+    // with the resolver disabled they fall through to the registry's
+    // four-segment catch-all (`GET|DELETE /{a}/{b}/{c}/{d}`), which has no
+    // POST handler, so a POST returns 405. Only `/-/pnpr` needs a stub for
+    // clean capability detection.
     let resolve = app
         .clone()
-        .oneshot(Request::post("/v1/resolve").body(Body::from("{}")).unwrap())
+        .oneshot(Request::post("/-/pnpr/v0/resolve").body(Body::from("{}")).unwrap())
         .await
         .unwrap();
     assert_eq!(resolve.status(), StatusCode::METHOD_NOT_ALLOWED);
 
     let verify = app
         .clone()
-        .oneshot(Request::post("/v1/verify-lockfile").body(Body::from("{}")).unwrap())
+        .oneshot(Request::post("/-/pnpr/v0/verify-lockfile").body(Body::from("{}")).unwrap())
         .await
         .unwrap();
     assert_eq!(verify.status(), StatusCode::METHOD_NOT_ALLOWED);

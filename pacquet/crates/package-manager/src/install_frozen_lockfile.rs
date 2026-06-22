@@ -81,7 +81,7 @@ where
     pub resolution_verifiers: &'a [Arc<dyn ResolutionVerifier>],
     /// When set, replaces the local `resolution_verifiers` fan-out as the
     /// trust verdict — used by the pnpr client to delegate verification to
-    /// the server's `/v1/verify-lockfile` while the fetch runs locally. The
+    /// the server's `/-/pnpr/v0/verify-lockfile` while the fetch runs locally. The
     /// same concurrent sequencing and build gate apply.
     pub lockfile_verification_override: Option<LockfileVerificationOverride<'a>>,
     /// Absolute path of the lockfile being verified, for the on-disk
