@@ -206,6 +206,15 @@ async fn max_users_minus_one_disables_registration() {
 }
 
 #[tokio::test]
+async fn in_memory_store_honors_the_registration_cap() {
+    // An unset `auth.htpasswd.file` must not re-open sign-ups that the
+    // configured cap denied: the in-memory store enforces it too.
+    let store = UserStore::in_memory(MaxUsers::Disabled);
+    let err = store.add_or_login("alice", "secret").await.unwrap_err();
+    assert_eq!(err.status_code(), axum::http::StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
 async fn max_users_caps_new_registrations() {
     let store = UserStore {
         users: std::sync::Mutex::new(std::collections::HashMap::new()),

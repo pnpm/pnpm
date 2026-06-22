@@ -936,7 +936,22 @@ fn auth_block_absent_keeps_in_memory_defaults() {
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert!(config.auth.htpasswd.file.is_none());
     assert!(config.auth.tokens.file.is_none());
-    assert_eq!(config.auth.htpasswd.max_users, super::MaxUsers::Unlimited);
+    // Registration is opt-in: an omitted cap denies new sign-ups.
+    assert_eq!(config.auth.htpasswd.max_users, super::MaxUsers::Disabled);
+}
+
+#[test]
+fn auth_max_users_absent_disables_registration() {
+    let yaml = "\
+storage: ./s
+auth:
+  htpasswd:
+    file: ./htpasswd
+uplinks: {}
+packages: {}
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    assert_eq!(config.auth.htpasswd.max_users, super::MaxUsers::Disabled);
 }
 
 #[test]

@@ -123,10 +123,13 @@ pub enum RegistryError {
         advisories: String,
     },
 
-    /// `auth.htpasswd.max_users: -1` blocks new registrations.
-    /// Returned for adduser on a username that doesn't already
-    /// exist; existing-user logins are unaffected.
-    #[display("New user registration is disabled by auth.htpasswd.max_users: -1")]
+    /// New-user registration is off: `auth.htpasswd.max_users` is
+    /// unset (the secure default) or set to `-1`. Returned for adduser
+    /// on a username that doesn't already exist; existing-user logins
+    /// are unaffected.
+    #[display(
+        "New user registration is disabled. Set auth.htpasswd.max_users to a positive number to allow sign-ups"
+    )]
     RegistrationDisabled,
 
     /// `auth.htpasswd.max_users: N` cap reached. Returned for
