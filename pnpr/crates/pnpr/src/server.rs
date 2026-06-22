@@ -830,7 +830,7 @@ async fn serve_tarball(
     // `name_version` is the version segment carried by the filename. It is
     // canonical for hosted tarballs (the publish handler enforces it) and a
     // best-effort screen here; the authoritative version a proxied tarball
-    // resolves to is `dist.version` below, which may differ for a
+    // resolves to is the `version` matched below, which may differ for a
     // non-canonical upstream tarball name.
     let (filename, name_version) = match name.parse_tarball_name(filename) {
         Ok(parsed) => parsed,
@@ -969,10 +969,8 @@ async fn serve_tarball(
 /// The version a tarball request resolves to, plus that version's declared
 /// `dist.integrity`. The version is found by matching `filename` against
 /// each version's `dist.tarball` basename rather than parsing it out of
-/// the filename, so a non-canonical tarball name (e.g. esprima-fb's
-/// `esprima-fb-3001.0001.0000-dev-harmony-fb.tgz` for version
-/// `3001.1.0-dev-harmony-fb`) resolves to the right version, integrity,
-/// and OSV identity.
+/// the filename, so a non-canonical name (see [`rewrite_tarball_urls`])
+/// resolves to the right version, integrity, and OSV identity.
 struct TarballDist {
     version: String,
     integrity: Integrity,
