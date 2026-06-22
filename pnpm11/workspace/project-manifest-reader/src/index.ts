@@ -304,7 +304,9 @@ function removeManagedRuntimeEntry (
 }
 
 function isManagedRuntimeEntry (runtime: EngineDependency, runtimeName: string): boolean {
-  return runtime.name === runtimeName && runtime.onFail === 'download' && Boolean(runtime.version)
+  return runtime.name === runtimeName &&
+    runtime.onFail === 'download' &&
+    typeof runtime.version === 'string'
 }
 
 const dependencyKeys = new Set([
