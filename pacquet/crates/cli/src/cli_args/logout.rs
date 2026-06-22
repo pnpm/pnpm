@@ -79,3 +79,6 @@ impl LogoutArgs {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests;

@@ -232,6 +232,32 @@ fn parses_default_auth_token_and_keys_to_registry() {
     );
 }
 
+/// `build_auth_headers` keys *unrescoped* default credentials — both the
+/// `Authorization` header and the raw token — to `config.registry`'s
+/// nerf-darted URI. The full `Config::current` cascade rescopes default
+/// creds onto a per-URI key before this runs, so the branch is reached
+/// only by calling `build_auth_headers` directly.
+#[test]
+fn build_auth_headers_keys_default_token_to_registry_uri() {
+    let mut config = Config::new();
+    let auth = NpmrcAuth {
+        default_creds: RawCreds {
+            auth_token: Some("top-secret".to_string()),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    auth.build_auth_headers(&mut config);
+    assert_eq!(
+        config.auth_tokens_by_uri.get("//registry.npmjs.org/").map(String::as_str),
+        Some("top-secret"),
+    );
+    assert_eq!(
+        config.auth_headers.for_url("https://registry.npmjs.org/x").as_deref(),
+        Some("Bearer top-secret"),
+    );
+}
+
 #[test]
 fn env_replace_substitutes_token() {
     struct EnvWithToken;
