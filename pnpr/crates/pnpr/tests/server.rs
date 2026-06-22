@@ -827,7 +827,7 @@ async fn selected_version_controls_tarball_route_and_offline_cache_key() {
 }
 
 #[tokio::test]
-async fn tampered_upstream_tarball_is_rejected_and_not_cached() {
+async fn tampered_upstream_tarball_is_streamed_but_not_cached() {
     let mut upstream = mockito::Server::new_async().await;
     let good_bytes = b"good-tarball-bytes";
     let poison_bytes = b"poisoned-cache-bytes";
@@ -881,7 +881,11 @@ async fn tampered_upstream_tarball_is_rejected_and_not_cached() {
         .oneshot(Request::get("/poisoned/-/poisoned-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
-    assert_eq!(tarball_response.status(), StatusCode::BAD_GATEWAY);
+    // The proxy streams the bytes through — the client's own SRI check against
+    // the packument integrity is what rejects them — but a body that fails
+    // verification must never be promoted into the cache.
+    assert_eq!(tarball_response.status(), StatusCode::OK);
+    assert_eq!(body_bytes(tarball_response.into_body()).await, poison_bytes);
     assert!(!cache_path.exists(), "unverified tarball must not remain cached");
 
     let cached_response = router(config_for("http://127.0.0.1:1", storage))
@@ -1523,15 +1527,18 @@ async fn upstream_stream_error_clears_cache() {
         .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
-    assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+    // The body is streamed, so the 200 status is already committed; the
+    // truncated upstream surfaces as a broken body the client rejects.
+    assert_eq!(response.status(), StatusCode::OK);
+    // Drive the stream to its error so the tee task reaches its abandon path.
+    let _ = to_bytes(response.into_body(), usize::MAX).await;
 
-    // The incomplete body is rejected before a response or cache entry
-    // can expose its bytes.
+    // An incomplete body must never leave a cached (or half-written) entry.
     assert!(await_no_tgz(&cache_dir.join(".pnpr-cache").join("foo"), Duration::from_secs(1)).await);
 }
 
 #[tokio::test]
-async fn verified_tarball_is_cached_before_response_is_served() {
+async fn verified_tarball_is_streamed_then_cached() {
     let mut upstream = mockito::Server::new_async().await;
     let bytes = vec![0xEE_u8; 512 * 1024];
     let _packument_mock = mock_packument_for_tarball(&mut upstream, "big", "1.0.0", &bytes).await;
@@ -1552,9 +1559,10 @@ async fn verified_tarball_is_cached_before_response_is_served() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
 
-    // The response is not constructed until the complete upstream body
-    // has passed verification and cache finalization.
-    drop(response);
+    // The body streams to the client; the verified copy is promoted into the
+    // cache once the whole body has drained, so it exists by the time the
+    // response body is fully read.
+    assert_eq!(body_bytes(response.into_body()).await, bytes);
     let cache_path = cache_dir.join(".pnpr-cache").join("big").join("big-1.0.0.tgz");
     assert_eq!(std::fs::read(cache_path).unwrap(), bytes);
 }

@@ -920,34 +920,31 @@ async fn serve_tarball(
     };
 
     if upstream.caches() {
-        let len = match streaming::download_verified_to_cache(
-            response,
-            write,
-            &integrity,
-            MAX_TARBALL_BYTES,
+        // Stream the tarball to the client immediately; the cache copy is
+        // hashed in the background and promoted only on an SRI match, so the
+        // proxy cache never stores unverified bytes. The client verifies the
+        // bytes it installs against the same integrity itself.
+        let upstream_len = response.content_length();
+        let inner = Arc::clone(&state.inner);
+        let commit_name = name.clone();
+        let commit_filename = filename.clone();
+        let commit_integrity = integrity.clone();
+        let commit: streaming::CacheCommit = Box::new(move |len| {
+            Box::pin(async move {
+                let marker = cached_tarball_integrity(&commit_integrity, len);
+                if let Err(err) = inner
+                    .storage
+                    .write_cached_tarball_integrity(&commit_name, &commit_filename, &marker)
+                    .await
+                {
+                    tracing::warn!(?err, package = %commit_name.as_str(), filename = %commit_filename, "tarball cache integrity marker write failed");
+                }
+            })
+        });
+        tarball_response(
+            streaming::tee_verified_to_cache(response, write, integrity, MAX_TARBALL_BYTES, commit),
+            upstream_len,
         )
-        .await
-        {
-            Ok(len) => len,
-            Err(err) => return error_response(&tarball_stream_error(err, &name, &filename)),
-        };
-        record_cached_tarball_integrity(
-            state,
-            &name,
-            &filename,
-            cached_tarball_integrity(&integrity, len),
-        )
-        .await;
-
-        match state.inner.storage.open_cached_tarball(&name, &filename).await {
-            Ok(Some((file, len))) => tarball_response(streaming::stream_file(file), Some(len)),
-            Ok(None) => error_response(&tarball_integrity_error(
-                &name,
-                &filename,
-                "verified cache entry disappeared before it could be served".to_string(),
-            )),
-            Err(err) => error_response(&err),
-        }
     } else {
         match streaming::download_verified_to_temp(response, write, &integrity, MAX_TARBALL_BYTES)
             .await

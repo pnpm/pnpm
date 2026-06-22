@@ -1,7 +1,12 @@
-use super::{TarballStreamError, download_verified_to_cache, integrity_checker, parse_integrity};
+use super::{CacheCommit, integrity_checker, parse_integrity, tee_verified_to_cache};
 use crate::{config::HostedStoreConfig, package_name::PackageName, storage::Storage};
+use axum::body::to_bytes;
 use ssri::{Algorithm, Integrity, IntegrityOpts};
-use std::{path::Path, sync::Arc, time::Duration};
+use std::{
+    path::Path,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 use tempfile::TempDir;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
@@ -118,8 +123,92 @@ async fn await_nonempty_tarball_tmp(dir: &Path) -> Vec<String> {
     }
 }
 
+fn recording_commit() -> (CacheCommit, Arc<Mutex<Option<u64>>>) {
+    let recorded = Arc::new(Mutex::new(None));
+    let recorded_for_cb = Arc::clone(&recorded);
+    let commit: CacheCommit = Box::new(move |len| {
+        Box::pin(async move {
+            *recorded_for_cb.lock().unwrap() = Some(len);
+        })
+    });
+    (commit, recorded)
+}
+
 #[tokio::test]
-async fn cancelling_in_flight_response_body_removes_tmp_file() {
+async fn teed_matching_body_is_cached_and_committed() {
+    let bytes: &'static [u8] = b"a verified tarball body";
+    let integrity = parse_integrity(&sha512_integrity(bytes)).unwrap();
+    let response = reqwest::get(spawn_response(bytes).await).await.unwrap();
+
+    let tmp = TempDir::new().unwrap();
+    let cache = tmp.path().join("cache");
+    let storage = Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), cache.clone());
+    let name = PackageName::parse("foo").unwrap();
+    let write = storage.open_cached_tarball_tmp(&name, "foo-1.0.0.tgz").await.unwrap();
+
+    let (commit, committed) = recording_commit();
+    let body = tee_verified_to_cache(response, write, integrity, u64::MAX, commit);
+    // The stream closes only after the background task finalizes and commits,
+    // so a fully drained body means promotion has already completed.
+    let served = to_bytes(body, usize::MAX).await.unwrap();
+    assert_eq!(served.as_ref(), bytes);
+
+    let package_dir = cache.join("foo");
+    let cached_path = package_dir.join("foo-1.0.0.tgz");
+    assert_eq!(std::fs::read(&cached_path).unwrap(), bytes);
+    assert_eq!(*committed.lock().unwrap(), Some(bytes.len() as u64));
+    assert!(tarball_tmp_entries(&package_dir).is_empty());
+}
+
+#[tokio::test]
+async fn teed_mismatched_body_is_streamed_but_not_cached() {
+    let actual: &'static [u8] = b"actual upstream bytes";
+    let declared = parse_integrity(&sha512_integrity(b"a different body entirely")).unwrap();
+    let response = reqwest::get(spawn_response(actual).await).await.unwrap();
+
+    let tmp = TempDir::new().unwrap();
+    let cache = tmp.path().join("cache");
+    let storage = Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), cache.clone());
+    let name = PackageName::parse("foo").unwrap();
+    let write = storage.open_cached_tarball_tmp(&name, "foo-1.0.0.tgz").await.unwrap();
+
+    let (commit, committed) = recording_commit();
+    let body = tee_verified_to_cache(response, write, declared, u64::MAX, commit);
+    let served = to_bytes(body, usize::MAX).await.unwrap();
+    // The client still receives the bytes; its own SRI check is what rejects them.
+    assert_eq!(served.as_ref(), actual);
+
+    let package_dir = cache.join("foo");
+    assert!(!package_dir.join("foo-1.0.0.tgz").exists());
+    assert!(committed.lock().unwrap().is_none());
+    assert!(tarball_tmp_entries(&package_dir).is_empty());
+}
+
+#[tokio::test]
+async fn teed_oversized_body_is_streamed_but_not_cached() {
+    let bytes: &'static [u8] = b"oversized";
+    let integrity = parse_integrity(&sha512_integrity(bytes)).unwrap();
+    let response = reqwest::get(spawn_response(bytes).await).await.unwrap();
+
+    let tmp = TempDir::new().unwrap();
+    let cache = tmp.path().join("cache");
+    let storage = Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), cache.clone());
+    let name = PackageName::parse("foo").unwrap();
+    let write = storage.open_cached_tarball_tmp(&name, "foo-1.0.0.tgz").await.unwrap();
+
+    let (commit, committed) = recording_commit();
+    let body = tee_verified_to_cache(response, write, integrity, 3, commit);
+    let served = to_bytes(body, usize::MAX).await.unwrap();
+    assert_eq!(served.as_ref(), bytes);
+
+    let package_dir = cache.join("foo");
+    assert!(!package_dir.join("foo-1.0.0.tgz").exists());
+    assert!(committed.lock().unwrap().is_none());
+    assert!(tarball_tmp_entries(&package_dir).is_empty());
+}
+
+#[tokio::test]
+async fn client_disconnect_mid_stream_removes_tmp_file() {
     let expected_bytes = vec![0xAA; 1024 * 1024];
     let integrity = parse_integrity(&sha512_integrity(&expected_bytes)).unwrap();
     let (url, release, server) = spawn_stalled_response().await;
@@ -131,38 +220,28 @@ async fn cancelling_in_flight_response_body_removes_tmp_file() {
     let name = PackageName::parse("foo").unwrap();
     let write = storage.open_cached_tarball_tmp(&name, "foo-1.0.0.tgz").await.unwrap();
 
-    let download = tokio::spawn(async move {
-        download_verified_to_cache(response, write, &integrity, u64::MAX).await
-    });
+    let (commit, _committed) = recording_commit();
+    let body = tee_verified_to_cache(response, write, integrity, u64::MAX, commit);
     let package_dir = cache.join("foo");
     let in_flight = await_nonempty_tarball_tmp(&package_dir).await;
     assert_eq!(in_flight.len(), 1, "expected one in-flight tarball writer");
 
-    download.abort();
-    assert!(download.await.unwrap_err().is_cancelled());
-    assert!(tarball_tmp_entries(&package_dir).is_empty());
-    assert!(!package_dir.join("foo-1.0.0.tgz").exists());
-
+    // Client goes away mid-body; releasing the stalled upstream then lets the
+    // tee task observe the truncated body / gone receiver and abandon the tmp.
+    drop(body);
     release.notify_one();
     server.await.unwrap();
-}
 
-#[tokio::test]
-async fn oversized_response_is_rejected_and_tmp_is_removed() {
-    let bytes = b"oversized";
-    let integrity = parse_integrity(&sha512_integrity(bytes)).unwrap();
-    let response = reqwest::get(spawn_response(bytes).await).await.unwrap();
-
-    let tmp = TempDir::new().unwrap();
-    let cache = tmp.path().join("cache");
-    let storage = Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), cache.clone());
-    let name = PackageName::parse("foo").unwrap();
-    let write = storage.open_cached_tarball_tmp(&name, "foo-1.0.0.tgz").await.unwrap();
-
-    let err = download_verified_to_cache(response, write, &integrity, 3).await.unwrap_err();
-    assert!(matches!(err, TarballStreamError::TooLarge { limit: 3, received } if received > 3));
-
-    let package_dir = cache.join("foo");
-    assert!(tarball_tmp_entries(&package_dir).is_empty());
+    let deadline = std::time::Instant::now() + Duration::from_secs(2);
+    loop {
+        if tarball_tmp_entries(&package_dir).is_empty() {
+            break;
+        }
+        assert!(
+            std::time::Instant::now() < deadline,
+            "tmp file was not cleaned up after client disconnect",
+        );
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
     assert!(!package_dir.join("foo-1.0.0.tgz").exists());
 }

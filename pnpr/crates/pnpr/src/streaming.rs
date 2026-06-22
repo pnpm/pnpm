@@ -1,31 +1,41 @@
 //! Streaming helpers for the tarball path.
 //!
-//! Four flows live here:
+//! Flows that live here:
 //!
 //! * [`verify_file`] hashes a cache hit before it can be served.
-//! * [`download_verified_to_cache`] hashes an upstream response into a
-//!   temp file and promotes it only after the declared SRI matches.
+//! * [`tee_verified_to_cache`] streams an upstream response to the client
+//!   immediately while hashing it in the background, promoting it into the
+//!   cache only after the declared SRI matches.
 //! * [`download_verified_to_temp`] hashes an upstream response into a
 //!   temp file for mirror-less pass-through.
 //! * [`stream_file`] yields an already verified file to the response.
 
 use crate::storage::TarballWrite;
 use axum::body::{Body, Bytes};
-use futures_util::{StreamExt, stream};
+use futures_util::{Stream, StreamExt, stream};
 use ssri::{Integrity, IntegrityChecker};
 use std::{
+    future::Future,
     io::{self, SeekFrom},
     path::PathBuf,
+    pin::Pin,
 };
 use tokio::{
     fs::File,
     io::{AsyncReadExt, AsyncSeekExt},
+    sync::mpsc,
 };
 
 /// Chunk size for reading from a cached file. 64 KiB keeps syscall
 /// overhead low without buffering a meaningful fraction of a
 /// multi-MB tarball.
 const READ_CHUNK: usize = 64 * 1024;
+
+/// Backpressure budget for the upstream-tee channel. Each in-flight item
+/// is one upstream chunk (a few kB), so 16 caps the writer's lead over the
+/// client at ~1 MB. Once the buffer fills, the tee task awaits on `send`,
+/// throttling the upstream read loop to the client's read rate.
+const TEE_CHANNEL: usize = 16;
 
 pub fn parse_integrity(value: &str) -> Result<Integrity, ssri::Error> {
     let integrity: Integrity = value.parse()?;
@@ -75,24 +85,128 @@ pub async fn verify_file(
     Ok(file)
 }
 
-/// Download an upstream response into `write`, verify the complete body,
-/// and atomically promote it to the cache. No bytes become cache-visible
-/// until the declared SRI matches.
-pub async fn download_verified_to_cache(
+/// Run once a teed body has been fully hashed and atomically promoted into
+/// the proxy cache, with the verified byte length, to persist the cache
+/// entry's integrity sidecar.
+pub type CacheCommit = Box<dyn FnOnce(u64) -> Pin<Box<dyn Future<Output = ()> + Send>> + Send>;
+
+/// Stream an upstream response to the client immediately while teeing the
+/// bytes into a temp file and hashing them in the background. The client
+/// receives bytes as they arrive — the proxy does not buffer the whole body
+/// first — and the cache copy is promoted (and `commit` run) only if the
+/// complete body matches `integrity`, so the proxy cache never stores
+/// unverified bytes. A hash mismatch, oversized body, write error, upstream
+/// error, or client disconnect abandons the temp file without promoting it.
+///
+/// Authoritative verification of the bytes a client *installs* is the
+/// client's own SRI check against the packument it resolved; this proxy
+/// guards only what it persists, trading emit-time verification for the
+/// concurrency the streaming download regains.
+pub fn tee_verified_to_cache(
     response: reqwest::Response,
-    mut write: TarballWrite,
-    integrity: &Integrity,
+    write: TarballWrite,
+    integrity: Integrity,
     max_bytes: u64,
-) -> Result<u64, TarballStreamError> {
-    let len = match download_verified(response, &mut write, integrity, max_bytes).await {
-        Ok(len) => len,
+    commit: CacheCommit,
+) -> Body {
+    let url = response.url().to_string();
+    let upstream = response.bytes_stream();
+    let (tx, rx) = mpsc::channel::<Result<Bytes, io::Error>>(TEE_CHANNEL);
+    tokio::spawn(run_tee_verified(
+        Box::pin(upstream),
+        write,
+        tx,
+        url,
+        integrity,
+        max_bytes,
+        commit,
+    ));
+    let stream = stream::unfold(rx, |mut rx| async move { rx.recv().await.map(|item| (item, rx)) });
+    Body::from_stream(stream)
+}
+
+async fn run_tee_verified(
+    mut upstream: Pin<Box<dyn Stream<Item = reqwest::Result<Bytes>> + Send>>,
+    write: TarballWrite,
+    tx: mpsc::Sender<Result<Bytes, io::Error>>,
+    url: String,
+    integrity: Integrity,
+    max_bytes: u64,
+    commit: CacheCommit,
+) {
+    // `cache_write` drops to `None` the moment caching is abandoned (write
+    // failure, oversized body, or a body that can't be hashed). The client
+    // keeps receiving upstream bytes regardless — a failed cache write must
+    // never truncate the response.
+    let mut cache_write = Some(write);
+    // `integrity` was already validated by `parse_integrity` upstream, so
+    // this only fails defensively; abandon caching rather than promote an
+    // unhashed body.
+    let mut checker = match integrity_checker(&integrity) {
+        Ok(checker) => Some(checker),
         Err(err) => {
-            write.abandon().await;
-            return Err(err);
+            tracing::warn!(%url, %err, "integrity checker init failed; serving without cache");
+            if let Some(write) = cache_write.take() {
+                write.abandon().await;
+            }
+            None
         }
     };
-    write.finalize().await.map_err(TarballStreamError::Io)?;
-    Ok(len)
+    let mut written = 0u64;
+    while let Some(chunk_result) = upstream.next().await {
+        let chunk = match chunk_result {
+            Ok(chunk) => chunk,
+            Err(err) => {
+                tracing::warn!(%url, %err, "upstream stream errored mid-body");
+                let _ = tx.send(Err(io::Error::other(err.to_string()))).await;
+                if let Some(write) = cache_write {
+                    write.abandon().await;
+                }
+                return;
+            }
+        };
+        let mut abandon = false;
+        if let Some(write) = cache_write.as_mut() {
+            let projected = written.saturating_add(chunk.len() as u64);
+            if projected > max_bytes {
+                tracing::warn!(%url, limit = max_bytes, received = projected, "upstream body exceeds cache size cap; serving without caching");
+                abandon = true;
+            } else if let Err(err) = write.write_all(&chunk).await {
+                tracing::warn!(%url, ?err, "cache temp-file write failed; continuing without cache");
+                abandon = true;
+            } else {
+                if let Some(checker) = checker.as_mut() {
+                    checker.input(&chunk);
+                }
+                written = projected;
+            }
+        }
+        if abandon && let Some(write) = cache_write.take() {
+            write.abandon().await;
+        }
+        if tx.send(Ok(chunk)).await.is_err() {
+            // Client hung up. Stop the cache write too — a future request
+            // will refetch and populate the cache cleanly.
+            tracing::debug!(%url, "client disconnected mid-stream; abandoning cache write");
+            if let Some(write) = cache_write {
+                write.abandon().await;
+            }
+            return;
+        }
+    }
+    let (Some(write), Some(checker)) = (cache_write, checker) else {
+        return;
+    };
+    if let Err(err) = checker.result() {
+        tracing::warn!(%url, %err, "upstream body failed integrity check; not caching");
+        write.abandon().await;
+        return;
+    }
+    if let Err(err) = write.finalize().await {
+        tracing::warn!(%url, ?err, "cache finalize failed");
+        return;
+    }
+    commit(written).await;
 }
 
 pub async fn download_verified_to_temp(
