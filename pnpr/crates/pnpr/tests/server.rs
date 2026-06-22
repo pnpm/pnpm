@@ -56,6 +56,47 @@ fn git_resolve_request(repo_url: &str, authorization: Option<&str>) -> Request<B
     request.body(Body::from(serde_json::to_vec(&body).unwrap())).unwrap()
 }
 
+fn verify_lockfile_request(registry_url: &str, authorization: Option<&str>) -> Request<Body> {
+    let body = json!({
+        "registry": registry_url,
+        "lockfile": {
+            "lockfileVersion": "9.0",
+            "settings": {
+                "autoInstallPeers": true,
+                "excludeLinksFromLockfile": false,
+            },
+            "importers": {
+                ".": {
+                    "dependencies": {
+                        "probe-pkg": {
+                            "specifier": "1.0.0",
+                            "version": "1.0.0",
+                        },
+                    },
+                },
+            },
+            "packages": {
+                "probe-pkg@1.0.0": {
+                    "resolution": {
+                        "integrity": "sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==",
+                    },
+                },
+            },
+            "snapshots": {
+                "probe-pkg@1.0.0": {},
+            },
+        },
+        "minimumReleaseAge": 1,
+        "minimumReleaseAgeIgnoreMissingTime": false,
+    });
+    let mut request =
+        Request::post("/-/pnpr/v0/verify-lockfile").header("content-type", "application/json");
+    if let Some(authorization) = authorization {
+        request = request.header("authorization", authorization);
+    }
+    request.body(Body::from(serde_json::to_vec(&body).unwrap())).unwrap()
+}
+
 async fn drain_resolve_response(response: axum::response::Response) -> (StatusCode, Vec<u8>) {
     let status = response.status();
     let body = tokio::time::timeout(Duration::from_secs(10), body_bytes(response.into_body()))
@@ -182,6 +223,38 @@ async fn resolve_rejects_duplicate_authorization_headers() {
     let response = app.oneshot(non_text).await.unwrap();
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
     assert_eq!(request_count.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn anonymous_verify_lockfile_cannot_trigger_registry_egress() {
+    let (registry_url, request_count) = spawn_git_probe().await;
+
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for("http://127.0.0.1:1", tmp.path().to_path_buf()));
+    let response = app.oneshot(verify_lockfile_request(&registry_url, None)).await.unwrap();
+    let (status, body) = drain_resolve_response(response).await;
+
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    assert!(String::from_utf8_lossy(&body).contains("Authentication required"));
+    assert_eq!(request_count.load(Ordering::SeqCst), 0);
+}
+
+#[tokio::test]
+async fn anonymous_verify_lockfile_is_rejected_before_the_body_is_collected() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for("http://127.0.0.1:1", tmp.path().to_path_buf()));
+    let body = Body::from_stream(stream::pending::<Result<Bytes, Infallible>>());
+    let request = Request::post("/-/pnpr/v0/verify-lockfile")
+        .header("content-type", "application/json")
+        .header("content-length", "1000000")
+        .body(body)
+        .unwrap();
+
+    let response = tokio::time::timeout(Duration::from_millis(250), app.oneshot(request))
+        .await
+        .expect("authentication must finish without waiting for the request body")
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
@@ -1776,8 +1849,8 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
     let app = router(config);
 
     // The resolver surface stays reachable. `/-/ping` and the capability
-    // handshake answer 200; `/-/pnpr/v0/verify-lockfile` is mounted, so an empty
-    // body is a 400 (bad request) rather than a 404 (route absent) — that
+    // handshake answer 200; `/-/pnpr/v0/verify-lockfile` is mounted and gated,
+    // so an anonymous request is a 401 rather than a 404 (route absent) — that
     // distinction is the point of the assertion.
     let ping =
         app.clone().oneshot(Request::get("/-/ping").body(Body::empty()).unwrap()).await.unwrap();
@@ -1792,11 +1865,7 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
         .oneshot(Request::post("/-/pnpr/v0/verify-lockfile").body(Body::empty()).unwrap())
         .await
         .unwrap();
-    assert_ne!(
-        verify.status(),
-        StatusCode::NOT_FOUND,
-        "the verify-lockfile route must stay mounted when the registry is disabled",
-    );
+    assert_eq!(verify.status(), StatusCode::UNAUTHORIZED);
 
     // Every npm-registry route is gone, not merely hidden: a packument
     // read, a publish, and a batch publish all 404 without any upstream

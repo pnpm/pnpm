@@ -288,7 +288,13 @@ fn router_with_auth_and_osv(
                     require_resolver_caller,
                 )),
             )
-            .route("/-/pnpr/v0/verify-lockfile", post(serve_verify_lockfile));
+            .route(
+                "/-/pnpr/v0/verify-lockfile",
+                post(serve_verify_lockfile).route_layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    require_resolver_caller,
+                )),
+            );
     } else {
         router = router.route("/-/pnpr", any(resolver_disabled));
     }
@@ -1239,19 +1245,21 @@ fn require_caller(identity: &Identity, resource: &str) -> Result<String, Registr
     }
 }
 
+async fn caller_username(
+    state: &AppState,
+    headers: &HeaderMap,
+) -> Result<Option<String>, RegistryError> {
+    let authorization = single_authorization_header(headers)?;
+    identify(authorization, state.inner.auth.users.as_ref(), state.inner.auth.tokens.as_ref()).await
+}
+
 async fn require_resolver_caller(
     State(state): State<AppState>,
     request: Request,
     next: Next,
 ) -> Response {
-    let authorization = match single_authorization_header(request.headers()) {
-        Ok(value) => value,
-        Err(error) => return error_response(&error),
-    };
-    match identify(authorization, state.inner.auth.users.as_ref(), state.inner.auth.tokens.as_ref())
-        .await
-    {
-        Ok(Some(_)) => next.run(request).await,
+    match caller_username(&state, request.headers()).await {
+        Ok(Some(_username)) => next.run(request).await,
         Ok(None) => error_response(&RegistryError::Unauthenticated {
             resource: "dependency resolution".to_string(),
         }),
@@ -2105,11 +2113,10 @@ async fn authenticate(State(state): State<AppState>, mut request: Request, next:
     // Copy what resolution needs out of the request before mutating its
     // extensions below — the header and method borrows can't outlive the
     // `extensions_mut` call.
-    let header = request
-        .headers()
-        .get(header::AUTHORIZATION)
-        .and_then(|value| value.to_str().ok())
-        .map(str::to_owned);
+    let header = match single_authorization_header(request.headers()) {
+        Ok(header) => header.map(str::to_owned),
+        Err(err) => return error_response(&err),
+    };
     let method = request.method().clone();
     let peer = request.extensions().get::<ConnectInfo<PeerAddr>>().map(|info| info.0.0);
 
