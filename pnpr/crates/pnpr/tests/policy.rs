@@ -28,7 +28,7 @@ fn config_from_yaml(packages_block: &str) -> (TempDir, Config) {
     // the config sets an explicit positive cap.
     let yaml = format!(
         "storage: {}\nuplinks: {{}}\nauth:\n  htpasswd:\n    max_users: 1000\n{packages_block}\n",
-        storage.display()
+        storage.display(),
     );
     let path = dir.path().join("config.yaml");
     std::fs::write(&path, yaml).unwrap();
