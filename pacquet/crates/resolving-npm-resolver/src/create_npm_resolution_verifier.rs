@@ -36,15 +36,15 @@ use serde_json::Value as JsonValue;
 use tokio::sync::OnceCell;
 
 use crate::{
-    FetchAttestationOptions, FetchFullMetadataCachedOptions, TrustCheckOptions, TrustViolation,
-    fetch_attestation_published_at, fetch_full_metadata_cached,
+    FetchAttestationOptions, FetchFullMetadataCachedOptions, FetchMetadataError, TrustCheckOptions,
+    TrustViolation, fetch_attestation_published_at, fetch_full_metadata_cached,
     lookup_context::{PublishedAtLookupContext, PublishedAtTimeMap, package_key, version_key},
     named_registry::{build_named_registry_prefixes, pick_registry_for_package},
     pick_package::PackageMetaCache,
     trust_checks::fail_if_trust_downgraded,
     violation_codes::{
-        MINIMUM_RELEASE_AGE_VIOLATION_CODE, TARBALL_URL_MISMATCH_VIOLATION_CODE,
-        TRUST_DOWNGRADE_VIOLATION_CODE,
+        MINIMUM_RELEASE_AGE_VIOLATION_CODE, TARBALL_URL_FETCH_FAILED_VIOLATION_CODE,
+        TARBALL_URL_MISMATCH_VIOLATION_CODE, TRUST_DOWNGRADE_VIOLATION_CODE,
     },
 };
 
@@ -449,7 +449,7 @@ impl NpmResolutionVerifier {
         lockfile_tarball: &str,
     ) -> Option<ResolutionVerification> {
         let registry_tarball = match self.fetch_abbreviated_meta(registry, name).await {
-            Ok(Some(meta)) => {
+            Ok(meta) => {
                 if let Some(sink) = self.observed_dist_stats.as_ref()
                     && let Some(stats) =
                         meta.version_dist_stats.as_ref().and_then(|stats| stats.get(version))
@@ -458,7 +458,20 @@ impl NpmResolutionVerifier {
                 }
                 meta.version_tarballs.and_then(|tarballs| tarballs.get(version).cloned())
             }
-            Ok(None) | Err(_) => None,
+            Err(error) => {
+                // Couldn't reach the registry to verify (auth/network/5xx).
+                // Surface the transport error under a distinct code instead of
+                // reporting it as a tampering-style URL mismatch — mirrors
+                // run_age_check / run_trust_check, which also surface the
+                // underlying fetch error. Still fail-closed: the entry is
+                // rejected, just with an actionable reason.
+                return Some(ResolutionVerification::Err {
+                    code: TARBALL_URL_FETCH_FAILED_VIOLATION_CODE,
+                    reason: format!(
+                        "could not be verified against the registry's published metadata ({error})",
+                    ),
+                });
+            }
         };
         match registry_tarball {
             Some(url) if same_tarball_url(lockfile_tarball, &url) => None,
@@ -600,8 +613,7 @@ impl NpmResolutionVerifier {
         name: &PkgName,
         version: &str,
     ) -> Result<Option<String>, String> {
-        if let Some(value) = self.try_abbreviated_modified_shortcut(registry, name, version).await?
-        {
+        if let Some(value) = self.try_abbreviated_modified_shortcut(registry, name, version).await {
             return Ok(Some(value));
         }
         if let Some(map) = self.read_local_meta_time(registry, name).await
@@ -632,20 +644,23 @@ impl NpmResolutionVerifier {
         registry: &str,
         name: &PkgName,
         version: &str,
-    ) -> Result<Option<String>, String> {
+    ) -> Option<String> {
         let cutoff = self.cutoff.expect("cutoff is Some when age check is active");
-        let Some(meta) = self.fetch_abbreviated_meta(registry, name).await? else {
-            return Ok(None);
+        // A fetch failure here is fine: ignore the error and fall back to
+        // per-version lookups, the same as a successful-but-uninformative
+        // metadata response.
+        let Ok(meta) = self.fetch_abbreviated_meta(registry, name).await else {
+            return None;
         };
-        let Some(modified) = meta.modified else { return Ok(None) };
-        let Some(parsed) = parse_packument_timestamp(&modified) else { return Ok(None) };
+        let modified = meta.modified?;
+        let parsed = parse_packument_timestamp(&modified)?;
         if parsed >= cutoff {
-            return Ok(None);
+            return None;
         }
         if !meta.version_tarballs.as_ref().is_some_and(|map| map.contains_key(version)) {
-            return Ok(None);
+            return None;
         }
-        Ok(Some(modified))
+        Some(modified)
     }
 
     /// Per-`(registry, name)` abbreviated-meta lookup. The result is
@@ -662,9 +677,11 @@ impl NpmResolutionVerifier {
     /// 2. The on-disk + network cached fetcher
     ///    ([`fetch_full_metadata_cached()`] with `full_metadata: false`)
     ///    when no shared entry is available.
-    /// 3. A failure (decode / network / cache-write IO) caches
-    ///    `None` so subsequent calls fall through to the next layer
-    ///    of [`Self::resolve_published_at`] without retrying.
+    /// 3. A failure (decode / network / cache-write IO) caches a
+    ///    credential-safe `Err(reason)` so subsequent calls reuse the
+    ///    same verdict without retrying. The tarball-URL check surfaces
+    ///    this error; the age shortcut ignores it and falls through to
+    ///    the next layer of [`Self::resolve_published_at`].
     ///
     /// Mirrors upstream's
     /// [`fetchAbbreviatedMeta`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts#L626-L653).
@@ -672,7 +689,7 @@ impl NpmResolutionVerifier {
         &self,
         registry: &str,
         name: &PkgName,
-    ) -> Result<Option<crate::lookup_context::AbbreviatedMetaProjection>, String> {
+    ) -> Result<crate::lookup_context::AbbreviatedMetaProjection, String> {
         let key = package_key(registry, &name.to_string());
         let cell = {
             let mut cache = self.lookup_context.abbreviated_meta.lock().await;
@@ -681,7 +698,7 @@ impl NpmResolutionVerifier {
         let value = cell
             .get_or_init(|| async {
                 if let Some(shared) = self.read_shared_meta(name) {
-                    return Some(project_abbreviated_meta(&shared));
+                    return Ok(project_abbreviated_meta(&shared));
                 }
                 let opts = FetchFullMetadataCachedOptions {
                     registry,
@@ -692,13 +709,18 @@ impl NpmResolutionVerifier {
                     filter_metadata: false,
                     retry_opts: self.retry_opts,
                 };
+                // Carry a fetch failure (auth/network/5xx) as the `Err` value
+                // instead of collapsing it to a missing projection: the
+                // tarball-URL check needs to tell a transport failure apart
+                // from a version genuinely absent from the metadata, otherwise
+                // it reports a 403 as a tampering-style mismatch.
                 match fetch_full_metadata_cached(&name.to_string(), &opts).await {
-                    Ok(meta) => Some(project_abbreviated_meta(&meta)),
-                    Err(_) => None,
+                    Ok(meta) => Ok(project_abbreviated_meta(&meta)),
+                    Err(error) => Err(describe_meta_fetch_error(&error)),
                 }
             })
             .await;
-        Ok(value.clone())
+        value.clone()
     }
 
     /// Try the resolver's shared [`PackageMetaCache`] for a packument
@@ -1073,6 +1095,58 @@ fn project_abbreviated_meta(meta: &Package) -> crate::lookup_context::Abbreviate
         version_tarballs: Some(version_tarballs),
         version_dist_stats: Some(version_dist_stats),
     }
+}
+
+/// Describe a metadata fetch failure for a user-facing violation reason
+/// without leaking registry credentials. [`FetchMetadataError`]'s `Display`
+/// interpolates the request URL (`Failed to fetch metadata from <url>: …`),
+/// and a registry configured as `https://user:pass@host/` embeds the
+/// credentials in that URL — so the raw message must never reach terminal/CI
+/// output. Prefer the structured HTTP status when the registry answered;
+/// otherwise fall back to the message with any embedded `user:pass@`
+/// credentials stripped.
+///
+/// Mirrors upstream's `describeMetaFetchError`.
+fn describe_meta_fetch_error(error: &FetchMetadataError) -> String {
+    if let FetchMetadataError::Network { error: source, .. } = error
+        && let Some(status) = source.status()
+    {
+        return format!("registry responded with {status}");
+    }
+    redact_url_credentials(&error.to_string())
+}
+
+/// Strip `user:pass@` (or `user@`) that appears right after a URL scheme in
+/// any message text, e.g. `… https://user:pass@host/pkg …` →
+/// `… https://host/pkg …`.
+fn redact_url_credentials(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(pos) = rest.find("://") {
+        let (before, after) = rest.split_at(pos + "://".len());
+        out.push_str(before);
+        // Only treat "://" as a URL authority boundary when a scheme character
+        // precedes it (mirrors the `[a-z][a-z0-9+.-]*` in upstream's regex), so
+        // an unrelated "://" in the message isn't mangled.
+        let has_scheme = pos > 0 && rest.as_bytes()[pos - 1].is_ascii_alphanumeric();
+        rest = strip_leading_userinfo(after).filter(|_| has_scheme).unwrap_or(after);
+    }
+    out.push_str(rest);
+    out
+}
+
+/// If `authority` begins with `userinfo@` — no `/` or whitespace before the
+/// `@` — return the slice after the `@`; otherwise `None`.
+fn strip_leading_userinfo(authority: &str) -> Option<&str> {
+    for (idx, ch) in authority.char_indices() {
+        match ch {
+            '@' => return Some(&authority[idx + ch.len_utf8()..]),
+            '/' => return None,
+            c if c.is_whitespace() => return None,
+            _ => {}
+        }
+    }
+    None
 }
 
 fn same_tarball_url(left: &str, right: &str) -> bool {

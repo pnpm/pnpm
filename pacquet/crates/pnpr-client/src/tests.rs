@@ -28,6 +28,16 @@ fn tarball_mismatch_maps_to_the_generic_envelope() {
 }
 
 #[test]
+fn tarball_fetch_failure_maps_to_the_fetch_failed_variant() {
+    let line = br#"{"type":"violations","violations":[{"name":"private-pkg","version":"1.0.0","code":"TARBALL_URL_FETCH_FAILED","reason":"could not be verified against the registry's published metadata (registry responded with 403 Forbidden)"}]}"#;
+    let Frame::Violations { violations } = parse_frame(line).expect("frame parses") else {
+        panic!("expected a violations frame");
+    };
+    let verify_err = build_verify_error(violations);
+    assert!(matches!(verify_err, VerifyError::TarballUrlFetchFailed { .. }), "got {verify_err:?}",);
+}
+
+#[test]
 fn a_package_frame_parses_its_fetch_hint() {
     let line = br#"{"type":"package","id":"acme@1.0.0","name":"acme","version":"1.0.0","integrity":"sha512-abc","tarball":"https://r.test/acme/-/acme-1.0.0.tgz","unpackedSize":123456,"fileCount":42}"#;
     let Frame::Package { id, name, version, integrity, tarball, unpacked_size, file_count } =

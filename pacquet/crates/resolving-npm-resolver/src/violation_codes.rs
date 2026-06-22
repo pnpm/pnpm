@@ -10,3 +10,7 @@
 pub const MINIMUM_RELEASE_AGE_VIOLATION_CODE: &str = "MINIMUM_RELEASE_AGE_VIOLATION";
 pub const TRUST_DOWNGRADE_VIOLATION_CODE: &str = "TRUST_DOWNGRADE";
 pub const TARBALL_URL_MISMATCH_VIOLATION_CODE: &str = "TARBALL_URL_MISMATCH";
+/// The registry metadata needed to verify a tarball URL could not be fetched
+/// (auth/network/5xx), as opposed to a genuine mismatch above. Kept distinct so
+/// `TARBALL_URL_MISMATCH` retains its "this looks like tampering" meaning.
+pub const TARBALL_URL_FETCH_FAILED_VIOLATION_CODE: &str = "TARBALL_URL_FETCH_FAILED";
