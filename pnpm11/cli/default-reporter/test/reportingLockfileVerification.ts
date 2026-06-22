@@ -4,7 +4,7 @@ import { stripVTControlCharacters as stripAnsi } from 'node:util'
 import { expect, test } from '@jest/globals'
 import { toOutput$ } from '@pnpm/cli.default-reporter'
 import type { Config, ConfigContext } from '@pnpm/config.reader'
-import { lockfileVerificationLogger } from '@pnpm/core-loggers'
+import { lockfileVerificationLogger, progressLogger, stageLogger } from '@pnpm/core-loggers'
 import { createStreamParser } from '@pnpm/logger'
 import { firstValueFrom, take, toArray } from 'rxjs'
 
@@ -183,4 +183,55 @@ test('emits a brief failure line on failed status', async () => {
   const [started, failed] = await frames
   expect(stripAnsi(started)).toBe('? Verifying lockfile against supply-chain policies (12 entries)...')
   expect(stripAnsi(failed)).toBe('✗ Lockfile failed supply-chain policy check (12 entries in 800ms)')
+})
+
+// Regression test for https://github.com/pnpm/pnpm/issues — the cached
+// verdict line was re-rendered on every subsequent progress tick because
+// `mergeOutputs` keeps every non-fixed block in `acc.blocks` for the rest
+// of the command. Each redraw re-includes the cached line, and any captured
+// output (CI logs, `tee`, `script`, terminal scrollback) records each
+// redraw as a separate line — producing dozens of copies of the same
+// "Lockfile passes supply-chain policies (verified Nh ago)" message for a
+// single underlying emission.
+//
+// The fix is to make the cached verdict a one-shot frame: render once,
+// then clear so subsequent progress redraws don't re-include it.
+test('cached verdict does not repeat on subsequent progress frames', async () => {
+  const cwd = '/repo'
+  const output$ = toOutput$({
+    context: {
+      argv: ['install'],
+      config: { dir: cwd } as Config & ConfigContext,
+    },
+    reportingOptions: { throttleProgress: 0 },
+    streamParser: createStreamParser(),
+  })
+
+  const lockfilePath = path.join(cwd, 'pnpm-lock.yaml')
+
+  // One underlying emission — what the user actually wants to see once.
+  lockfileVerificationLogger.debug({
+    status: 'cached',
+    verifiedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    lockfilePath,
+  })
+
+  // Subsequent progress events from a different reporter source. Each
+  // updates the rolling region of the combined frame; without the fix
+  // each redraw re-includes the cached line that's still sitting in
+  // `acc.blocks`.
+  stageLogger.debug({ prefix: cwd, stage: 'resolution_started' })
+  progressLogger.debug({ packageId: 'registry.npmjs.org/foo/1.0.0', requester: cwd, status: 'resolved' })
+  progressLogger.debug({ packageId: 'registry.npmjs.org/foo/1.0.0', requester: cwd, status: 'fetched' })
+  progressLogger.debug({ packageId: 'registry.npmjs.org/bar/1.0.0', requester: cwd, status: 'found_in_store' })
+  progressLogger.debug({ method: 'hardlink', requester: cwd, status: 'imported', to: '/node_modules/.pnpm/bar@1.0.0' })
+
+  const frames = await firstValueFrom(output$.pipe(take(5), toArray()))
+
+  // Count how many of the captured frames still contain the cached line.
+  // Before the fix this is 5 (one per frame); the fix renders the line
+  // once and then clears it, so subsequent progress-only frames no longer
+  // re-include it.
+  const cachedFrameCount = frames.filter((frame) => frame.includes('Lockfile passes supply-chain policies')).length
+  expect(cachedFrameCount).toBe(1)
 })

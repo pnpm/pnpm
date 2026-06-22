@@ -9,9 +9,9 @@ use pacquet_default_reporter::{
 };
 use pacquet_reporter::{
     AddedRoot, ContextLog, DependencyType, ExecutionTimeLog, LifecycleLog, LifecycleMessage,
-    LifecycleStdio, LogEvent, LogLevel, PackageImportMethod, PackageImportMethodLog, PnpmLog,
-    ProgressLog, ProgressMessage, RootLog, RootMessage, Stage, StageLog, StatsLog, StatsMessage,
-    SummaryLog,
+    LifecycleStdio, LockfileVerificationLog, LockfileVerificationMessage, LogEvent, LogLevel,
+    PackageImportMethod, PackageImportMethodLog, PnpmLog, ProgressLog, ProgressMessage, RootLog,
+    RootMessage, Stage, StageLog, StatsLog, StatsMessage, SummaryLog,
 };
 
 const CWD: &str = "/repo";
@@ -313,4 +313,68 @@ fn lifecycle_script_output_is_grouped_and_indented() {
     ];
     let frame = render(&mut reporter, events);
     assert_eq!(frame, "deps/foo postinstall$ node build.js\n│ building\n└─ Running...");
+}
+
+fn lockfile_cached() -> LogEvent {
+    LogEvent::LockfileVerification(LockfileVerificationLog {
+        level: LogLevel::Debug,
+        message: LockfileVerificationMessage::Cached {
+            verified_at: None,
+            lockfile_path: Some("/repo/pnpm-lock.yaml".to_string()),
+        },
+    })
+}
+
+/// Mirror of the TS regression test in
+/// `pnpm11/cli/default-reporter/test/reportingLockfileVerification.ts`:
+/// the cached verdict is a one-shot status that must not be re-rendered on
+/// every subsequent progress tick. Without the cached-then-clear pattern
+/// the line stays in `blocks[]` forever and is re-included in every
+/// redraw — producing dozens of duplicate lines in captured output.
+#[test]
+fn lockfile_cached_does_not_repeat_on_subsequent_progress_frames() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![
+            lockfile_cached(),
+            progress("resolved"),
+            progress("fetched"),
+            progress("found_in_store"),
+            progress("imported"),
+        ],
+    );
+    // The cached event's own frame included the verdict line; the next
+    // (non-LockfileVerification) event triggers the pre-dispatch clear in
+    // `handle()`, so the final frame contains only the rolling progress line.
+    assert_eq!(frame, "Progress: resolved 1, reused 1, downloaded 1, added 1");
+}
+
+/// The cached verdict still renders at least once — the clear in `handle()`
+/// only fires on the *next* event, so a lone cached event produces the
+/// verdict line as its frame.
+#[test]
+fn lockfile_cached_renders_verdict_line_once_in_isolation() {
+    let mut reporter = state(false);
+    let frame = render(&mut reporter, vec![lockfile_cached()]);
+    assert_eq!(frame, "✓ Lockfile passes supply-chain policies (previously verified)");
+}
+
+/// In append-only mode the cached event emits its verdict line directly to
+/// `pending` (no fixed-block juggling), and the clear hook in `handle()` is
+/// a no-op because `slot.fixed` was never set. The result is exactly the
+/// two payload lines, with no blank in between.
+#[test]
+fn lockfile_cached_append_only_does_not_emit_blank_clear_line() {
+    let mut reporter = ReporterState::new(CWD.to_string(), 80, Colors { enabled: false }, true);
+    let mut lines: Vec<String> = Vec::new();
+    for event in [lockfile_cached(), progress("resolved")] {
+        if let Output::Lines(emitted) = reporter.handle(&event) {
+            lines.extend(emitted);
+        }
+    }
+    // Cached verdict line + progress line, no blanks in between.
+    assert_eq!(lines.len(), 2);
+    assert_eq!(lines[0], "✓ Lockfile passes supply-chain policies (previously verified)");
+    assert_eq!(lines[1], "Progress: resolved 1, reused 0, downloaded 0, added 0");
 }

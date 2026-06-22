@@ -289,6 +289,15 @@ impl ReporterState {
     }
 
     pub fn handle(&mut self, event: &LogEvent) -> Output {
+        // Clear the one-shot cached lockfile-verification fixed block before
+        // any other event runs, so it appears in exactly one rendered frame.
+        // See `on_lockfile_verification` for the rationale.
+        if !matches!(event, LogEvent::LockfileVerification(_))
+            && let Some(idx) = self.lockfile_verification_slot.fixed.take()
+            && idx < self.frame.fixed_blocks.len()
+        {
+            self.frame.fixed_blocks[idx] = None;
+        }
         match event {
             LogEvent::Context(log) => self.on_context(log),
             LogEvent::PackageImportMethod(log) => {
@@ -880,43 +889,61 @@ impl ReporterState {
     }
 
     fn on_lockfile_verification(&mut self, message: &LockfileVerificationMessage) {
-        let msg = match message {
+        // The cached verdict is a one-shot status: it confirms the policy
+        // gate ran via a cached short-circuit and shouldn't be re-rendered
+        // on every subsequent progress tick. Emit it as `fixed: true` so
+        // it lands in `fixed_blocks` for this render, and mark the slot
+        // for clearing on the next non-LockfileVerification event (see
+        // `handle`'s pre-dispatch hook). Without that follow-up clear,
+        // the cached line would sit in `fixed_blocks` forever and be
+        // re-rendered on every subsequent progress tick — once per
+        // redraw — producing dozens of duplicate lines in captured output
+        // (CI logs, `tee`, `script`, terminal scrollback). Mirrors the
+        // cached-then-clear pair `reportLockfileVerification` emits in
+        // the TypeScript pnpm CLI; pacquet cannot use the same
+        // back-to-back emit trick because `render` runs once per
+        // `handle()` call, so the clear is deferred to the next event.
+        let (msg, fixed) = match message {
             LockfileVerificationMessage::Cached { lockfile_path, .. } => {
                 let path = self.lockfile_path_suffix(lockfile_path.as_deref());
-                format!(
+                let msg = format!(
                     "{} Lockfile{path} passes supply-chain policies (previously verified)",
                     self.colors.green("✓"),
-                )
+                );
+                (msg, true)
             }
             LockfileVerificationMessage::Started { entries, lockfile_path } => {
                 let path = self.lockfile_path_suffix(lockfile_path.as_deref());
-                format!(
+                let msg = format!(
                     "{} Verifying lockfile{path} against supply-chain policies ({})...",
                     self.colors.cyan("?"),
                     entries_label(*entries),
-                )
+                );
+                (msg, false)
             }
             LockfileVerificationMessage::Done { entries, elapsed_ms, lockfile_path } => {
                 let path = self.lockfile_path_suffix(lockfile_path.as_deref());
-                format!(
+                let msg = format!(
                     "{} Lockfile{path} passes supply-chain policies ({} in {})",
                     self.colors.green("✓"),
                     entries_label(*entries),
                     pretty_ms(u128::from(*elapsed_ms)),
-                )
+                );
+                (msg, false)
             }
             LockfileVerificationMessage::Failed { entries, elapsed_ms, lockfile_path } => {
                 let path = self.lockfile_path_suffix(lockfile_path.as_deref());
-                format!(
+                let msg = format!(
                     "{} Lockfile{path} failed supply-chain policy check ({} in {})",
                     self.colors.red("✗"),
                     entries_label(*entries),
                     pretty_ms(u128::from(*elapsed_ms)),
-                )
+                );
+                (msg, false)
             }
         };
         let mut slot = std::mem::take(&mut self.lockfile_verification_slot);
-        self.frame.emit(&mut slot, msg, false);
+        self.frame.emit(&mut slot, msg, fixed);
         self.lockfile_verification_slot = slot;
     }
 

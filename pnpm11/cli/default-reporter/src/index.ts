@@ -313,7 +313,15 @@ export function toOutput$ (
   if (opts.reportingOptions?.appendOnly) {
     return Rx.merge(...outputs)
       .pipe(
-        map((log: Rx.Observable<{ msg: string }>) => log.pipe(map((msg) => msg.msg))),
+        // Append-only mode bypasses `mergeOutputs`, so the per-frame
+        // `blocks.filter(Boolean)` that drops empty msgs there never runs.
+        // Drop them inline instead: source-side "clear" emissions (e.g.
+        // the cached-then-clear pair from `reportLockfileVerification`)
+        // would otherwise render as blank lines in append-only / CI output.
+        map((log: Rx.Observable<{ msg: string }>) => log.pipe(
+          map((msg) => msg.msg),
+          filter((msg) => msg !== '')
+        )),
         mergeAll()
       )
   }
