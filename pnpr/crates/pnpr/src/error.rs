@@ -307,7 +307,7 @@ impl RegistryError {
     }
 }
 
-fn redact_url_credentials(message: &str) -> String {
+pub(crate) fn redact_url_credentials(message: &str) -> String {
     let mut redacted = String::with_capacity(message.len());
     let mut cursor = 0;
     while let Some(relative_scheme_end) = message[cursor..].find("://") {

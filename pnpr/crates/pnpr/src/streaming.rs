@@ -10,7 +10,7 @@
 //!   temp file for mirror-less pass-through.
 //! * [`stream_file`] yields an already verified file to the response.
 
-use crate::storage::TarballWrite;
+use crate::{error::redact_url_credentials, storage::TarballWrite};
 use axum::body::{Body, Bytes};
 use futures_util::{Stream, StreamExt, stream};
 use ssri::{Integrity, IntegrityChecker};
@@ -95,8 +95,10 @@ pub type CacheCommit = Box<dyn FnOnce(u64) -> Pin<Box<dyn Future<Output = ()> + 
 /// receives bytes as they arrive — the proxy does not buffer the whole body
 /// first — and the cache copy is promoted (and `commit` run) only if the
 /// complete body matches `integrity`, so the proxy cache never stores
-/// unverified bytes. A hash mismatch, oversized body, write error, upstream
-/// error, or client disconnect abandons the temp file without promoting it.
+/// unverified bytes. A hash mismatch, write error, upstream error, or client
+/// disconnect abandons the temp file without promoting it; a body that exceeds
+/// `max_bytes` additionally aborts the client stream, so the proxy never relays
+/// unbounded attacker-controlled data.
 ///
 /// Authoritative verification of the bytes a client *installs* is the
 /// client's own SRI check against the packument it resolved; this proxy
@@ -109,7 +111,9 @@ pub fn tee_verified_to_cache(
     max_bytes: u64,
     commit: CacheCommit,
 ) -> Body {
-    let url = response.url().to_string();
+    // The upstream URL is logged on several paths below; strip any embedded
+    // credentials/secrets first, since the uplink URL is operator-provided.
+    let url = redact_url_credentials(response.url().as_ref());
     let upstream = response.bytes_stream();
     let (tx, rx) = mpsc::channel::<Result<Bytes, io::Error>>(TEE_CHANNEL);
     tokio::spawn(run_tee_verified(
@@ -152,7 +156,7 @@ async fn run_tee_verified(
             None
         }
     };
-    let mut written = 0u64;
+    let mut streamed = 0u64;
     while let Some(chunk_result) = upstream.next().await {
         let chunk = match chunk_result {
             Ok(chunk) => chunk,
@@ -165,20 +169,24 @@ async fn run_tee_verified(
                 return;
             }
         };
+        // Cap the bytes relayed, not just the bytes cached: an oversized body is
+        // aborted so pnpr never forwards unbounded attacker-controlled data.
+        streamed = streamed.saturating_add(chunk.len() as u64);
+        if streamed > max_bytes {
+            tracing::warn!(%url, limit = max_bytes, received = streamed, "upstream body exceeds size cap; aborting");
+            let _ = tx.send(Err(io::Error::other("tarball body exceeds size limit"))).await;
+            if let Some(write) = cache_write {
+                write.abandon().await;
+            }
+            return;
+        }
         let mut abandon = false;
         if let Some(write) = cache_write.as_mut() {
-            let projected = written.saturating_add(chunk.len() as u64);
-            if projected > max_bytes {
-                tracing::warn!(%url, limit = max_bytes, received = projected, "upstream body exceeds cache size cap; serving without caching");
-                abandon = true;
-            } else if let Err(err) = write.write_all(&chunk).await {
+            if let Err(err) = write.write_all(&chunk).await {
                 tracing::warn!(%url, ?err, "cache temp-file write failed; continuing without cache");
                 abandon = true;
-            } else {
-                if let Some(checker) = checker.as_mut() {
-                    checker.input(&chunk);
-                }
-                written = projected;
+            } else if let Some(checker) = checker.as_mut() {
+                checker.input(&chunk);
             }
         }
         if abandon && let Some(write) = cache_write.take() {
@@ -206,7 +214,7 @@ async fn run_tee_verified(
         tracing::warn!(%url, ?err, "cache finalize failed");
         return;
     }
-    commit(written).await;
+    commit(streamed).await;
 }
 
 pub async fn download_verified_to_temp(

@@ -920,11 +920,19 @@ async fn serve_tarball(
     };
 
     if upstream.caches() {
+        // Reject an honestly-oversized body before streaming; the tee enforces
+        // the same cap for chunked/unknown-length bodies as it relays them.
+        if response.content_length().is_some_and(|len| len > MAX_TARBALL_BYTES) {
+            return error_response(&tarball_integrity_error(
+                &name,
+                &filename,
+                format!("upstream tarball exceeds the {MAX_TARBALL_BYTES} byte limit"),
+            ));
+        }
         // Stream the tarball to the client immediately; the cache copy is
         // hashed in the background and promoted only on an SRI match, so the
         // proxy cache never stores unverified bytes. The client verifies the
         // bytes it installs against the same integrity itself.
-        let upstream_len = response.content_length();
         let inner = Arc::clone(&state.inner);
         let commit_name = name.clone();
         let commit_filename = filename.clone();
@@ -941,9 +949,12 @@ async fn serve_tarball(
                 }
             })
         });
+        // The verified length is only known after the body has streamed, and the
+        // upstream's advertised Content-Length is attacker-controlled, so respond
+        // without asserting a length rather than promise one we can't guarantee.
         tarball_response(
             streaming::tee_verified_to_cache(response, write, integrity, MAX_TARBALL_BYTES, commit),
-            upstream_len,
+            None,
         )
     } else {
         match streaming::download_verified_to_temp(response, write, &integrity, MAX_TARBALL_BYTES)

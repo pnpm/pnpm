@@ -185,7 +185,7 @@ async fn teed_mismatched_body_is_streamed_but_not_cached() {
 }
 
 #[tokio::test]
-async fn teed_oversized_body_is_streamed_but_not_cached() {
+async fn teed_oversized_body_is_aborted_and_not_cached() {
     let bytes: &'static [u8] = b"oversized";
     let integrity = parse_integrity(&sha512_integrity(bytes)).unwrap();
     let response = reqwest::get(spawn_response(bytes).await).await.unwrap();
@@ -198,8 +198,9 @@ async fn teed_oversized_body_is_streamed_but_not_cached() {
 
     let (commit, committed) = recording_commit();
     let body = tee_verified_to_cache(response, write, integrity, 3, commit);
-    let served = to_bytes(body, usize::MAX).await.unwrap();
-    assert_eq!(served.as_ref(), bytes);
+    // The body exceeds the cap, so the relayed stream is aborted (errors) rather
+    // than forwarding unbounded data, and nothing is cached.
+    assert!(to_bytes(body, usize::MAX).await.is_err());
 
     let package_dir = cache.join("foo");
     assert!(!package_dir.join("foo-1.0.0.tgz").exists());
