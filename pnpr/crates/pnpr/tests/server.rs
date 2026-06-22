@@ -562,6 +562,43 @@ async fn scoped_tarball_is_proxied() {
 }
 
 #[tokio::test]
+async fn scoped_tarball_filename_is_canonicalized_before_fetch_and_cache() {
+    let mut upstream = mockito::Server::new_async().await;
+    let bytes = b"scoped-tarball-full-name";
+    let mock = upstream
+        .mock("GET", "/@types/node/-/node-20.0.0.tgz")
+        .with_status(200)
+        .with_body(bytes)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(config_for(&upstream.url(), storage.clone()));
+
+    let noncanonical = app
+        .clone()
+        .oneshot(
+            Request::get("/@types/node/-/%40types%2Fnode-20.0.0.tgz").body(Body::empty()).unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(noncanonical.status(), StatusCode::OK);
+    assert_eq!(body_bytes(noncanonical.into_body()).await, bytes);
+
+    let canonical = app
+        .oneshot(Request::get("/@types/node/-/node-20.0.0.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(canonical.status(), StatusCode::OK);
+    assert_eq!(body_bytes(canonical.into_body()).await, bytes);
+    assert!(storage.join(".pnpr-cache/@types/node/node-20.0.0.tgz").exists());
+    assert!(!storage.join(".pnpr-cache/@types/node/@types").exists());
+    mock.assert_async().await;
+}
+
+#[tokio::test]
 async fn packument_is_refetched_after_ttl_expires() {
     let mut upstream = mockito::Server::new_async().await;
     let packument = json!({ "name": "foo", "versions": {} });

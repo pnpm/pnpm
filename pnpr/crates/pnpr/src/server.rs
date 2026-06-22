@@ -772,7 +772,7 @@ async fn serve_tarball(
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    let (_, version) = match name.parse_tarball_name(filename) {
+    let (canonical_filename, version) = match name.parse_tarball_name(filename) {
         Ok(parsed) => parsed,
         Err(err) => return error_response(&err),
     };
@@ -783,11 +783,11 @@ async fn serve_tarball(
         return error_response(&err);
     }
 
-    match state.inner.storage.open_tarball(&name, filename).await {
+    match state.inner.storage.open_tarball(&name, &canonical_filename).await {
         Ok(Some((body, len))) => return tarball_response(body, len),
         Ok(None) => {}
         Err(err) => {
-            tracing::warn!(?err, package = %name.as_str(), %filename, "tarball cache open failed");
+            tracing::warn!(?err, package = %name.as_str(), %filename, canonical = %canonical_filename, "tarball cache open failed");
         }
     }
 
@@ -795,7 +795,7 @@ async fn serve_tarball(
         return not_found();
     };
 
-    let response = match upstream.fetch_tarball_response(&name, filename).await {
+    let response = match upstream.fetch_tarball_response(&name, &canonical_filename).await {
         Ok(FetchOutcome::Ok(response)) => response,
         Ok(FetchOutcome::NotFound) => return not_found(),
         Err(err) => return error_response(&err),
@@ -808,10 +808,11 @@ async fn serve_tarball(
         return tarball_response(Body::from_stream(response.bytes_stream()), upstream_len);
     }
 
-    let write = match state.inner.storage.open_cached_tarball_tmp(&name, filename).await {
+    let write = match state.inner.storage.open_cached_tarball_tmp(&name, &canonical_filename).await
+    {
         Ok(w) => w,
         Err(err) => {
-            tracing::warn!(?err, package = %name.as_str(), %filename, "tarball cache tmp-open failed; streaming without cache");
+            tracing::warn!(?err, package = %name.as_str(), %filename, canonical = %canonical_filename, "tarball cache tmp-open failed; streaming without cache");
             let body = Body::from_stream(response.bytes_stream());
             return tarball_response(body, upstream_len);
         }
