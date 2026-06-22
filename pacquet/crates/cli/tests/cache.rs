@@ -84,7 +84,7 @@ fn should_list_only_files_not_directories() {
     let scope_dir = format!("{registry_name}/@scope");
     assert!(
         !stdout.lines().any(|line| line == scope_dir),
-        "directory entry {scope_dir:?} should not be listed, got: {stdout}"
+        "directory entry {scope_dir:?} should not be listed, got: {stdout}",
     );
 }
 
