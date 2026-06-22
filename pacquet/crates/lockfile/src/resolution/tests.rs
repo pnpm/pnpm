@@ -102,12 +102,12 @@ fn deserialize_tarball_resolution_backfills_git_hosted() {
 
     eprintln!("CASE: gitlab.com archive");
     let yaml = format!(
-        "tarball: https://gitlab.com/foo/bar/-/archive/{GIT_COMMIT}/bar-{GIT_COMMIT}.tar.gz"
+        "tarball: https://gitlab.com/foo/bar/-/archive/{GIT_COMMIT}/bar-{GIT_COMMIT}.tar.gz",
     );
     let received: LockfileResolution = serde_saphyr::from_str(&yaml).unwrap();
     let expected = LockfileResolution::Tarball(TarballResolution {
         tarball: format!(
-            "https://gitlab.com/foo/bar/-/archive/{GIT_COMMIT}/bar-{GIT_COMMIT}.tar.gz"
+            "https://gitlab.com/foo/bar/-/archive/{GIT_COMMIT}/bar-{GIT_COMMIT}.tar.gz",
         ),
         integrity: None,
         git_hosted: Some(true),
