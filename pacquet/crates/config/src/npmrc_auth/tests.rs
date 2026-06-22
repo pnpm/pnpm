@@ -226,6 +226,10 @@ fn parses_default_auth_token_and_keys_to_registry() {
         config.auth_headers.for_url("https://registry.npmjs.org/foo/-/foo-1.0.0.tgz").as_deref(),
         Some("Bearer top-secret"),
     );
+    assert_eq!(
+        config.auth_tokens_by_uri.get("//registry.npmjs.org/").map(String::as_str),
+        Some("top-secret"),
+    );
 }
 
 #[test]

@@ -1,10 +1,11 @@
 use std::{collections::HashMap, io, path::Path, sync::Mutex, time::Duration};
 
-use pacquet_network::{RetryOpts, ThrottledClient};
-use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
+use pacquet_network::{RetryOpts, ThrottledClient, nerf_dart};
+use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter, SilentReporter};
+use tempfile::TempDir;
 
 use super::{
-    FsReadToString, FsWrite, LogoutError, LogoutOptions, RevokeOutcome, RevokeToken, logout,
+    FsReadToString, FsWrite, Host, LogoutError, LogoutOptions, RevokeOutcome, RevokeToken, logout,
 };
 
 fn no_retry() -> RetryOpts {
@@ -541,4 +542,116 @@ async fn propagates_auth_ini_write_errors() {
     };
     assert_eq!(path, &Path::new("/config").join("auth.ini"));
     assert_eq!(error.kind(), io::ErrorKind::PermissionDenied);
+}
+
+// The tests below drive the production `Host` provider end-to-end —
+// real filesystem reads/writes of `auth.ini` and a real `DELETE` over
+// the HTTP stack — against a `tempfile::TempDir` and a `mockito` server.
+// They cover the side-effecting code the `Sys`-fake tests above
+// deliberately bypass.
+
+/// Token revoked on the registry, and removed from `auth.ini`.
+#[tokio::test]
+async fn host_revokes_and_removes_token() {
+    const TOKEN: &str = "secret-token";
+    let mut server = mockito::Server::new_async().await;
+    let mock =
+        server.mock("DELETE", "/-/user/token/secret-token").with_status(200).create_async().await;
+    let registry = server.url();
+    let token_key = format!("{}:_authToken", nerf_dart(&format!("{registry}/")));
+
+    let config_dir = TempDir::new().expect("create temp config dir");
+    std::fs::write(
+        config_dir.path().join("auth.ini"),
+        format!("{token_key}={TOKEN}\nother=keep\n"),
+    )
+    .expect("seed auth.ini");
+    let auth_config = auth_config(&[(&token_key, TOKEN)]);
+
+    let result = logout::<Host, SilentReporter>(
+        &ThrottledClient::new_for_installs(),
+        LogoutOptions {
+            registry: Some(&registry),
+            auth_config: &auth_config,
+            config_dir: config_dir.path(),
+            retry: no_retry(),
+            prefix: "/mock",
+        },
+    )
+    .await
+    .expect("logout succeeds");
+
+    mock.assert_async().await;
+    assert_eq!(result, format!("Logged out of {registry}/"));
+    let remaining =
+        std::fs::read_to_string(config_dir.path().join("auth.ini")).expect("read auth.ini");
+    assert!(!remaining.contains(TOKEN), "token should be gone: {remaining:?}");
+    assert!(remaining.contains("other=keep"), "other settings kept: {remaining:?}");
+}
+
+/// Registry rejects the revocation, but the local token is still removed.
+#[tokio::test]
+async fn host_removes_token_locally_when_registry_rejects() {
+    const TOKEN: &str = "old-token";
+    let mut server = mockito::Server::new_async().await;
+    let mock =
+        server.mock("DELETE", "/-/user/token/old-token").with_status(404).create_async().await;
+    let registry = server.url();
+    let token_key = format!("{}:_authToken", nerf_dart(&format!("{registry}/")));
+
+    let config_dir = TempDir::new().expect("create temp config dir");
+    std::fs::write(config_dir.path().join("auth.ini"), format!("{token_key}={TOKEN}\n"))
+        .expect("seed auth.ini");
+    let auth_config = auth_config(&[(&token_key, TOKEN)]);
+
+    let result = logout::<Host, SilentReporter>(
+        &ThrottledClient::new_for_installs(),
+        LogoutOptions {
+            registry: Some(&registry),
+            auth_config: &auth_config,
+            config_dir: config_dir.path(),
+            retry: no_retry(),
+            prefix: "/mock",
+        },
+    )
+    .await
+    .expect("logout still removes the local token");
+
+    mock.assert_async().await;
+    assert_eq!(result, format!("Logged out of {registry}/"));
+    let remaining =
+        std::fs::read_to_string(config_dir.path().join("auth.ini")).expect("read auth.ini");
+    assert!(!remaining.contains(TOKEN), "token should be gone: {remaining:?}");
+}
+
+/// Registry unreachable (connection refused): the local token is still removed.
+#[tokio::test]
+async fn host_removes_token_locally_when_registry_unreachable() {
+    const TOKEN: &str = "net-err-token";
+    // Port 1 has nothing listening, so the connection is refused at once.
+    let registry = "http://127.0.0.1:1";
+    let token_key = format!("{}:_authToken", nerf_dart(&format!("{registry}/")));
+
+    let config_dir = TempDir::new().expect("create temp config dir");
+    std::fs::write(config_dir.path().join("auth.ini"), format!("{token_key}={TOKEN}\n"))
+        .expect("seed auth.ini");
+    let auth_config = auth_config(&[(&token_key, TOKEN)]);
+
+    let result = logout::<Host, SilentReporter>(
+        &ThrottledClient::new_for_installs(),
+        LogoutOptions {
+            registry: Some(registry),
+            auth_config: &auth_config,
+            config_dir: config_dir.path(),
+            retry: no_retry(),
+            prefix: "/mock",
+        },
+    )
+    .await
+    .expect("logout still removes the local token");
+
+    assert_eq!(result, format!("Logged out of {registry}/"));
+    let remaining =
+        std::fs::read_to_string(config_dir.path().join("auth.ini")).expect("read auth.ini");
+    assert!(!remaining.contains(TOKEN), "token should be gone: {remaining:?}");
 }
