@@ -1,13 +1,13 @@
 use clap::Subcommand;
+use indexmap::IndexMap;
 use miette::IntoDiagnostic;
 use pacquet_config::{Config, ResolutionMode};
 use pacquet_resolving_npm_resolver::mirror::{
-    ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, encode_pkg_name, get_registry_name, load_meta,
+    ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, get_registry_name, load_meta,
 };
 use pacquet_store_dir::StoreIndex;
 use serde_json::json;
 use std::{
-    collections::HashMap,
     fs,
     path::{Path, PathBuf},
 };
@@ -48,6 +48,19 @@ impl CacheCommand {
         get_registry_name(&config.registry).into_diagnostic()
     }
 
+    /// Reject names whose glob would escape the cache root. pnpm passes filter
+    /// arguments straight into a glob; pacquet additionally guards against `..`
+    /// segments so a crafted name can't match files outside the cache tree —
+    /// `delete` removes whatever the glob resolves to.
+    fn reject_path_traversal(name: &str) -> miette::Result<()> {
+        if name.contains("..") {
+            return Err(miette::miette!(
+                "Invalid package name '{name}': path traversal sequences are not allowed"
+            ));
+        }
+        Ok(())
+    }
+
     fn find_metadata_files(
         config: &Config,
         cache_dir: &Path,
@@ -61,12 +74,10 @@ impl CacheCommand {
             packages
                 .iter()
                 .map(|pkg| {
-                    if pkg.contains("..") {
-                        return Err(miette::miette!(
-                            "Invalid package name '{pkg}': path traversal sequences are not allowed"
-                        ));
-                    }
-                    Ok(format!("{registry_prefix}/{}.jsonl", encode_pkg_name(pkg)))
+                    Self::reject_path_traversal(pkg)?;
+                    // Filters are matched literally, as in pnpm — they are glob
+                    // segments, not package names, so they are not re-encoded.
+                    Ok(format!("{registry_prefix}/{pkg}.jsonl"))
                 })
                 .collect::<miette::Result<Vec<_>>>()?
         };
@@ -133,11 +144,10 @@ impl CacheCommand {
                     println!("{{}}");
                     return Ok(());
                 }
-                let encoded_name = encode_pkg_name(&package);
-                // Bypass find_metadata_files: the package name is matched as an
-                // exact filename here, while find_metadata_files re-encodes it.
+                Self::reject_path_traversal(&package)?;
                 let registry_prefix = Self::registry_prefix(config)?;
-                let pattern = format!("{registry_prefix}/{encoded_name}.jsonl");
+                // pnpm matches the package name literally as a glob segment.
+                let pattern = format!("{registry_prefix}/{package}.jsonl");
 
                 let glob = wax::Glob::new(&pattern).into_diagnostic()?;
                 let mut meta_file_paths = Vec::new();
@@ -154,7 +164,10 @@ impl CacheCommand {
                 }
                 meta_file_paths.sort();
 
-                let mut meta_files_by_path = HashMap::new();
+                // IndexMap preserves insertion order so the JSON key order is
+                // deterministic (driven by the sorted file paths), matching
+                // pnpm's plain-object output.
+                let mut meta_files_by_path = IndexMap::new();
 
                 // pnpm's cacheView opens a writable StoreIndex that creates
                 // index.db when absent, so a fresh/empty store reports every
