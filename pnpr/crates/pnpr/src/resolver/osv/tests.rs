@@ -27,6 +27,9 @@ fn loads_directory_and_matches_semver_ranges() {
 
     let index = OsvIndex::load_from_path(dir.path()).expect("load index");
 
+    assert!(!index.is_vulnerable("acme", "0.9.0"));
+    assert!(index.is_vulnerable("acme", "1.1.0"));
+    assert!(!index.is_vulnerable("acme", "1.2.0"));
     assert_eq!(index.vulnerability_ids("acme", "0.9.0"), Vec::<String>::new());
     assert_eq!(index.vulnerability_ids("acme", "1.1.0"), vec!["GHSA-test"]);
     assert_eq!(index.vulnerability_ids("acme", "1.2.0"), Vec::<String>::new());

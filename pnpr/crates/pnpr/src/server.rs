@@ -2112,29 +2112,32 @@ fn filter_osv_vulnerable_versions(
     osv_index: Option<&Arc<crate::resolver::OsvIndex>>,
 ) {
     let Some(osv_index) = osv_index else { return };
-    let Some(versions) = packument.get_mut("versions").and_then(Value::as_object_mut) else {
-        return;
-    };
-    let blocked_keys: HashSet<String> = versions
-        .iter()
-        .filter_map(|(key, version)| {
-            let version = version.get("version").and_then(Value::as_str).unwrap_or(key);
-            (!osv_index.vulnerability_ids(name.as_str(), version).is_empty()).then(|| key.clone())
-        })
-        .collect();
-    if blocked_keys.is_empty() {
-        return;
+    let package_name = name.as_str();
+    let mut blocked_keys = HashSet::new();
+    if let Some(versions) = packument.get_mut("versions").and_then(Value::as_object_mut) {
+        blocked_keys = versions
+            .iter()
+            .filter_map(|(key, manifest)| {
+                let manifest_version = manifest.get("version").and_then(Value::as_str);
+                (osv_index.is_vulnerable(package_name, key)
+                    || manifest_version
+                        .is_some_and(|version| osv_index.is_vulnerable(package_name, version)))
+                .then(|| key.clone())
+            })
+            .collect();
+        versions.retain(|key, _| !blocked_keys.contains(key));
     }
-    versions.retain(|key, _| !blocked_keys.contains(key));
     if let Some(tags) = packument.get_mut("dist-tags").and_then(Value::as_object_mut) {
         tags.retain(|_, version| {
-            version.as_str().is_none_or(|version| !blocked_keys.contains(version))
+            version.as_str().is_none_or(|version| {
+                !blocked_keys.contains(version) && !osv_index.is_vulnerable(package_name, version)
+            })
         });
     }
     if let Some(time) = packument.get_mut("time").and_then(Value::as_object_mut) {
-        for key in &blocked_keys {
-            time.remove(key);
-        }
+        time.retain(|key, _| {
+            !blocked_keys.contains(key) && !osv_index.is_vulnerable(package_name, key)
+        });
     }
 }
 

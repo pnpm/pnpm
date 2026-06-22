@@ -180,6 +180,70 @@ async fn osv_filters_vulnerable_versions_from_proxy_and_cache() {
 }
 
 #[tokio::test]
+async fn osv_filters_packument_identity_mismatches() {
+    let mut upstream = mockito::Server::new_async().await;
+    let packument = json!({
+        "name": "foo",
+        "dist-tags": {
+            "latest": "1.1.0",
+            "alias": "safe-key",
+            "hidden": "1.2.0",
+            "stable": "1.0.0",
+        },
+        "time": {
+            "modified": "2026-06-21T12:00:00.000Z",
+            "1.0.0": "2026-06-20T12:00:00.000Z",
+            "1.1.0": "2026-06-21T12:00:00.000Z",
+            "safe-key": "2026-06-21T12:00:00.000Z",
+            "1.2.0": "2026-06-21T12:00:00.000Z",
+        },
+        "versions": {
+            "1.0.0": {
+                "name": "foo",
+                "version": "1.0.0",
+                "dist": { "tarball": format!("{}/foo/-/foo-1.0.0.tgz", upstream.url()) },
+            },
+            "1.1.0": {
+                "name": "foo",
+                "version": "9.9.9",
+                "dist": { "tarball": format!("{}/foo/-/foo-1.1.0.tgz", upstream.url()) },
+            },
+            "safe-key": {
+                "name": "foo",
+                "version": "1.2.0",
+                "dist": { "tarball": format!("{}/foo/-/foo-1.2.0.tgz", upstream.url()) },
+            },
+        },
+    });
+    let mock = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_body(packument.to_string())
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let osv = osv_database("foo", &["1.1.0", "1.2.0"]);
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.resolver.enabled = false;
+    enable_osv(&mut config, osv.path());
+    let app = router(config);
+
+    let response = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = body_json(response.into_body()).await;
+    assert_eq!(body["versions"].as_object().unwrap().keys().collect::<Vec<_>>(), vec!["1.0.0"]);
+    assert_eq!(body["dist-tags"].as_object().unwrap().keys().collect::<Vec<_>>(), vec!["stable"]);
+    assert_eq!(
+        body["time"].as_object().unwrap().keys().collect::<Vec<_>>(),
+        vec!["modified", "1.0.0"],
+    );
+
+    mock.assert_async().await;
+}
+
+#[tokio::test]
 async fn uplink_auth_and_custom_headers_are_forwarded_upstream() {
     let mut upstream = mockito::Server::new_async().await;
     // The mock only matches when both headers are present, so a passing
