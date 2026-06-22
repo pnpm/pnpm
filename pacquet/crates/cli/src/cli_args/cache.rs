@@ -228,10 +228,8 @@ impl CacheCommand {
                             "cachedVersions": cached_versions,
                             "nonCachedVersions": non_cached_versions,
                             "cachedAt": mtime.map(|time| {
-                            time.duration_since(std::time::UNIX_EPOCH)
-                                .unwrap_or_default()
-                                .as_millis()
-                                .to_string()
+                            chrono::DateTime::<chrono::Utc>::from(time)
+                                .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
                         }),
                             "distTags": meta_object.dist_tags,
                         }),
