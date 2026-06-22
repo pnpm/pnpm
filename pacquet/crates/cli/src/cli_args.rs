@@ -498,7 +498,10 @@ impl CliArgs {
                 // Boxed for `clippy::large_stack_frames`: the three
                 // monomorphized install futures would otherwise each reserve
                 // their full size in this frame.
-                #[allow(clippy::large_stack_frames)]
+                #[allow(
+                    clippy::large_stack_frames,
+                    reason = "the three monomorphized install futures would otherwise each reserve their full size in this frame"
+                )]
                 {
                     // CLI overrides for `offline` / `prefer_offline` live
                     // alongside `--frozen-lockfile`: they upgrade an
