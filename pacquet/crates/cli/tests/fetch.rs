@@ -52,10 +52,7 @@ fn fetch_succeeds_with_lockfile() {
 
     pacquet_at(&workspace).with_arg("fetch").assert().success();
 
-    assert!(
-        store_dir.join("v11").exists(),
-        "fetch must populate the store",
-    );
+    assert!(store_dir.join("v11").exists(), "fetch must populate the store",);
 
     drop((root, mock_instance, store_dir));
 }
