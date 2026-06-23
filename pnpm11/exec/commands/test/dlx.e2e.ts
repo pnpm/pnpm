@@ -43,8 +43,9 @@ function sanitizeDlxCacheComponent (cacheName: string): string {
     throw new Error(`Unexpected name: ${cacheName}`)
   }
   const [date, pid] = segments
-  if (!/[0-9a-f]+/.test(date) && !/[0-9a-f]+/.test(pid)) {
-    throw new Error(`Name ${cacheName} doesn't end with 2 hex numbers`)
+  // getPrepareDir encodes time and pid in base36 (0-9a-z).
+  if (!/^[0-9a-z]+$/.test(date) || !/^[0-9a-z]+$/.test(pid)) {
+    throw new Error(`Name ${cacheName} is not a base36 "<time>-<pid>" prepare dir`)
   }
   return '***********-*****'
 }
