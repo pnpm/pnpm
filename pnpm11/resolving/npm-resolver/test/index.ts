@@ -2114,7 +2114,7 @@ test('pick lowest version by * when there are only prerelease versions', async (
   expect(resolveResult!.manifest!.version).toBe('1.0.0-alpha.1')
 })
 
-test('throws when workspace package version does not match and package is not found in the registry', async () => {
+test('throws NO_MATCHING_VERSION_INSIDE_WORKSPACE with available versions when package is in workspace but version does not match and package is not found in the registry', async () => {
   getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(404, {})
@@ -2126,8 +2126,9 @@ test('throws when workspace package version does not match and package is not fo
     registries,
   })
 
-  await expect(
-    resolveFromNpm({ alias: 'is-positive', bareSpecifier: '2.0.0' }, {
+  let err!: PnpmError
+  try {
+    await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '2.0.0' }, {
       projectDir: '/home/istvan/src',
       update: 'compatible',
       workspacePackages: new Map([
@@ -2142,10 +2143,15 @@ test('throws when workspace package version does not match and package is not fo
         ])],
       ]),
     })
-  ).rejects.toThrow()
+  } catch (e: any) { // eslint-disable-line
+    err = e
+  }
+  expect(err).toBeDefined()
+  expect(err.code).toBe('ERR_PNPM_NO_MATCHING_VERSION_INSIDE_WORKSPACE')
+  expect(err.message).toContain('1.0.0')
 })
 
-test('throws NoMatchingVersionError when workspace package version does not match and registry has no matching version', async () => {
+test('throws NoMatchingVersionError with workspace versions hint when workspace package version does not match and registry has no matching version', async () => {
   getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })
     .reply(200, isPositiveMeta)
@@ -2157,8 +2163,9 @@ test('throws NoMatchingVersionError when workspace package version does not matc
     registries,
   })
 
-  await expect(
-    resolveFromNpm({ alias: 'is-positive', bareSpecifier: '99.0.0' }, {
+  let err!: NoMatchingVersionError
+  try {
+    await resolveFromNpm({ alias: 'is-positive', bareSpecifier: '99.0.0' }, {
       projectDir: '/home/istvan/src',
       update: 'compatible',
       workspacePackages: new Map([
@@ -2173,7 +2180,12 @@ test('throws NoMatchingVersionError when workspace package version does not matc
         ])],
       ]),
     })
-  ).rejects.toThrow(NoMatchingVersionError)
+  } catch (e: any) { // eslint-disable-line
+    err = e
+  }
+  expect(err).toBeInstanceOf(NoMatchingVersionError)
+  expect(err.message).toContain('1.0.0')
+  expect(err.hint).toContain('1.0.0')
 })
 
 test('resolve from registry when workspace package version does not match the requested version', async () => {

@@ -68,6 +68,8 @@ export interface NoMatchingVersionErrorOptions {
   wantedDependency: WantedDependency
   packageMeta: PackageMeta
   registry: string
+  /** Available versions found in the workspace when none satisfied the range. */
+  workspaceVersions?: string[]
 }
 
 export class NoMatchingVersionError extends PnpmError {
@@ -76,7 +78,17 @@ export class NoMatchingVersionError extends PnpmError {
     const dep = opts.wantedDependency.alias
       ? `${opts.wantedDependency.alias}@${opts.wantedDependency.bareSpecifier ?? ''}`
       : opts.wantedDependency.bareSpecifier!
-    super('NO_MATCHING_VERSION', `No matching version found for ${dep} while fetching it from ${opts.registry}`)
+    const pkgName = opts.wantedDependency.alias ?? opts.packageMeta.name
+    const workspaceHint = opts.workspaceVersions?.length
+      ? `\n\nFound "${pkgName}" in the workspace with the following versions: ${opts.workspaceVersions.join(', ')}. None of them match the required range.`
+      : ''
+    super(
+      'NO_MATCHING_VERSION',
+      `No matching version found for ${dep} while fetching it from ${opts.registry}${workspaceHint}`,
+      opts.workspaceVersions?.length
+        ? { hint: `Available workspace versions for "${pkgName}": ${opts.workspaceVersions.join(', ')}` }
+        : undefined
+    )
     this.packageMeta = opts.packageMeta
   }
 }
@@ -520,8 +532,12 @@ async function resolveNpm (
           calcSpecifier: opts.calcSpecifier,
           pinnedVersion: opts.pinnedVersion,
         })
-      } catch {
-        // ignore
+      } catch (workspaceErr: any) { // eslint-disable-line
+        // If the package exists in the workspace but no version matches, surface
+        // the available workspace versions instead of the confusing registry error.
+        if (workspaceErr.code === 'ERR_PNPM_NO_MATCHING_VERSION_INSIDE_WORKSPACE') {
+          throw workspaceErr
+        }
       }
     }
     throw err
@@ -541,8 +557,21 @@ async function resolveNpm (
           calcSpecifier: opts.calcSpecifier,
           pinnedVersion: opts.pinnedVersion,
         })
-      } catch {
-        // ignore
+      } catch (workspaceErr: any) { // eslint-disable-line
+        // If the package exists in the workspace but no version matches, enrich the
+        // NoMatchingVersionError with the available workspace versions.
+        if (workspaceErr.code === 'ERR_PNPM_NO_MATCHING_VERSION_INSIDE_WORKSPACE') {
+          const workspacePkgsMatchingName = workspacePackages.get(spec.name)
+          const availableVersions = workspacePkgsMatchingName
+            ? Array.from(workspacePkgsMatchingName.keys()).sort((a, b) => semver.rcompare(a, b))
+            : []
+          throw new NoMatchingVersionError({
+            wantedDependency,
+            packageMeta: meta,
+            registry,
+            workspaceVersions: availableVersions,
+          })
+        }
       }
     }
 
