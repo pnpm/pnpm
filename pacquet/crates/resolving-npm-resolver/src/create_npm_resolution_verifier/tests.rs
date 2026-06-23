@@ -1170,6 +1170,17 @@ fn redact_url_credentials_strips_embedded_basic_auth() {
         redact_url_credentials("got https://token@registry.example/foo"),
         "got https://registry.example/foo",
     );
+    // A raw "@" inside the password is stripped up to the last "@" in the
+    // authority, so the password tail can't leak.
+    assert_eq!(
+        redact_url_credentials("Failed to fetch metadata from https://user:p@ss@host/pkg: 403"),
+        "Failed to fetch metadata from https://host/pkg: 403",
+    );
+    // An "@" in the path/query (after the authority) is preserved.
+    assert_eq!(
+        redact_url_credentials("got https://host/path?to=a@b"),
+        "got https://host/path?to=a@b",
+    );
     // A credential-free URL is left untouched.
     assert_eq!(
         redact_url_credentials("Failed to fetch metadata from https://host/pkg: timed out"),

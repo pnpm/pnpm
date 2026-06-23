@@ -1111,18 +1111,21 @@ fn redact_url_credentials(text: &str) -> String {
     out
 }
 
-/// If `authority` begins with `userinfo@` — no `/` or whitespace before the
-/// `@` — return the slice after the `@`; otherwise `None`.
+/// If the authority leading `text` contains `userinfo@`, return the slice after
+/// the **last** `@` within it; otherwise `None`. The authority ends at the first
+/// `/`, `?`, `#`, or whitespace. Stripping to the last `@` keeps a raw `@` inside
+/// the password (`user:p@ss@host`) from leaking its tail.
 fn strip_leading_userinfo(authority: &str) -> Option<&str> {
+    let mut last_at = None;
     for (idx, ch) in authority.char_indices() {
         match ch {
-            '@' => return Some(&authority[idx + ch.len_utf8()..]),
-            '/' => return None,
-            c if c.is_whitespace() => return None,
+            '@' => last_at = Some(idx + ch.len_utf8()),
+            '/' | '?' | '#' => break,
+            c if c.is_whitespace() => break,
             _ => {}
         }
     }
-    None
+    last_at.map(|end| &authority[end..])
 }
 
 fn same_tarball_url(left: &str, right: &str) -> bool {

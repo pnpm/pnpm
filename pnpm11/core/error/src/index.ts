@@ -69,13 +69,44 @@ export class FetchError extends PnpmError {
  * embedded basic-auth credentials into every error message that interpolates
  * the request URL (terminal output, CI logs). `FetchError` already hides the
  * auth *header*; this covers credentials carried in the URL itself.
+ *
+ * Implemented as a single forward scan rather than a regex: `text` is
+ * uncontrolled (it interpolates the request URL), so a backtracking pattern is
+ * a ReDoS vector, and the scan strips up to the **last** `@` in the authority
+ * so a raw `@` inside the password (`user:p@ss@host`) doesn't leak its tail.
  */
 export function redactUrlCredentials (text: string): string {
-  // The scheme run is length-bounded (real URL schemes are short) so a long
-  // run of letters with no `://` can't drive quadratic backtracking — `text`
-  // is uncontrolled (it includes the request URL), so an unbounded `*` here is
-  // a ReDoS vector.
-  return text.replace(/([a-z][a-z0-9+.-]{0,63}:\/\/)[^/@\s]+@/gi, '$1')
+  let result = ''
+  let cursor = 0
+  while (cursor < text.length) {
+    const schemeSep = text.indexOf('://', cursor)
+    if (schemeSep === -1) return result + text.slice(cursor)
+    const authorityStart = schemeSep + 3
+    result += text.slice(cursor, authorityStart)
+    cursor = authorityStart
+    // Only treat `://` as a URL authority boundary when a scheme character
+    // (schemes end in an ASCII alphanumeric) sits right before it; otherwise a
+    // bare `://` in the text is left untouched.
+    if (schemeSep === 0 || !isSchemeTailChar(text.charCodeAt(schemeSep - 1))) continue
+    // Userinfo runs to the last `@` within the authority, which itself ends at
+    // the first `/`, `?`, `#`, or whitespace.
+    let lastAt = -1
+    for (let i = authorityStart; i < text.length; i++) {
+      const code = text.charCodeAt(i)
+      if (code === 0x2f || code === 0x3f || code === 0x23 || isAsciiWhitespace(code)) break
+      if (code === 0x40) lastAt = i
+    }
+    if (lastAt !== -1) cursor = lastAt + 1
+  }
+  return result
+}
+
+function isSchemeTailChar (code: number): boolean {
+  return (code >= 0x30 && code <= 0x39) || (code >= 0x41 && code <= 0x5a) || (code >= 0x61 && code <= 0x7a)
+}
+
+function isAsciiWhitespace (code: number): boolean {
+  return code === 0x20 || code === 0x09 || code === 0x0a || code === 0x0b || code === 0x0c || code === 0x0d
 }
 
 function hideAuthInformation (authHeaderValue: string): string {

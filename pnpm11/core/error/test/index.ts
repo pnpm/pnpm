@@ -63,10 +63,20 @@ test('redactUrlCredentials', () => {
     .toBe('GET https://host/pkg: timed out')
   expect(redactUrlCredentials('git+ssh://token@host/repo.git'))
     .toBe('git+ssh://host/repo.git')
+  // A raw "@" inside the password is stripped up to the last "@" in the
+  // authority, so the password tail can't leak.
+  expect(redactUrlCredentials('GET https://user:p@ss@host/pkg: 403'))
+    .toBe('GET https://host/pkg: 403')
+  // An "@" in the path/query (after the authority) is preserved.
+  expect(redactUrlCredentials('https://host/path?to=a@b'))
+    .toBe('https://host/path?to=a@b')
   // A credential-free URL is left untouched.
   expect(redactUrlCredentials('GET https://host/pkg: timed out'))
     .toBe('GET https://host/pkg: timed out')
   // A bare "://" with no preceding scheme character is not a URL authority, so
   // a later "@" is preserved.
   expect(redactUrlCredentials('a :// b@c')).toBe('a :// b@c')
+  // Multiple credentialed URLs in one message are all redacted.
+  expect(redactUrlCredentials('a https://u:p@h1/x and b https://t@h2/y'))
+    .toBe('a https://h1/x and b https://h2/y')
 })

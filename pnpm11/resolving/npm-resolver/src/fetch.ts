@@ -1,4 +1,5 @@
 import url from 'node:url'
+import util from 'node:util'
 
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import {
@@ -144,6 +145,12 @@ export async function fetchMetadataFromFromRegistry (
           timeout: fetchOpts.timeout,
         }) as RegistryResponse
       } catch (error: any) { // eslint-disable-line
+        // Redact credentials embedded in the URL from the cause as well, not
+        // just the top-level message: a reporter or debugger that renders
+        // `error.cause` would otherwise print the raw URL-bearing message.
+        if (util.types.isNativeError(error) && typeof error.message === 'string') {
+          error.message = redactUrlCredentials(error.message)
+        }
         reject(new PnpmError('META_FETCH_FAIL', redactUrlCredentials(`GET ${uri}: ${error.message as string}`), { attempts: attempt, cause: error }))
         return
       }
