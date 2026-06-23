@@ -66,7 +66,22 @@ jobs:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           pn config set "//registry.npmjs.org/:_authToken" "${NPM_TOKEN}"
-          pn publish --filter=!pnpm --filter=!@pnpm/exe --access=public --provenance
+          publish_filters=(
+            "--filter=!pnpm"
+            "--filter=!@pnpm/exe"
+          )
+          if [[ "${GITHUB_REF}" != refs/tags/* ]]; then
+            publish_filters+=(
+              "--filter=!@pnpm/macos-arm64"
+              "--filter=!@pnpm/linux-arm64"
+              "--filter=!@pnpm/linux-x64"
+              "--filter=!@pnpm/linuxstatic-arm64"
+              "--filter=!@pnpm/linuxstatic-x64"
+              "--filter=!@pnpm/win-arm64"
+              "--filter=!@pnpm/win-x64"
+            )
+          fi
+          pn publish "${publish_filters[@]}" --access=public --provenance
           pn config delete "//registry.npmjs.org/:_authToken"
       - name: Publish pnpm CLI (trusted publishing)
         # No NPM_TOKEN — same rationale as the @pnpm/exe step above. This must come after
