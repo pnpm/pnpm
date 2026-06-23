@@ -41,3 +41,59 @@ fn link_fails_with_nonexistent_target() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn link_succeeds_with_valid_target() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "test-project", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write package.json");
+
+    let target_dir = root.join("target-project");
+    fs::create_dir_all(&target_dir).expect("create target dir");
+    fs::write(
+        target_dir.join("package.json"),
+        serde_json::json!({ "name": "target-project", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write target package.json");
+
+    pacquet.with_arg("link").with_arg(target_dir.to_str().unwrap()).assert().success();
+
+    let manifest =
+        pacquet_package_manifest::PackageManifest::from_path(workspace.join("package.json"))
+            .expect("read manifest");
+    let overrides = manifest.value()["pnpm"]["overrides"].as_object().expect("overrides exist");
+    assert!(overrides.contains_key("target-project"), "override must exist");
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn link_fails_target_no_name() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    fs::write(
+        workspace.join("package.json"),
+        serde_json::json!({ "name": "test-project", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write package.json");
+
+    let target_dir = root.join("target-project-no-name");
+    fs::create_dir_all(&target_dir).expect("create target dir");
+    fs::write(
+        target_dir.join("package.json"),
+        serde_json::json!({ "version": "1.0.0" }).to_string(),
+    )
+    .expect("write target package.json");
+
+    pacquet.with_arg("link").with_arg(target_dir.to_str().unwrap()).assert().failure();
+
+    drop((root, mock_instance));
+}
