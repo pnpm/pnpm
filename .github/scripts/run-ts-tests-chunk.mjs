@@ -119,6 +119,10 @@ async function runJestPackage (pkg, selectedPackage) {
     NODE_OPTIONS: withJestNodeOptions(process.env.NODE_OPTIONS),
     PNPM_SCRIPT_SRC_DIR: pkg.path,
   }
+  prependPath(env, [
+    path.join(pkg.path, 'node_modules', '.bin'),
+    path.join(rootDir, 'node_modules', '.bin'),
+  ])
   if (pkg.manifest.name === '@pnpm/installing.deps-installer') {
     env.PNPM_REGISTRY_MOCK_PORT = '7769'
   }
@@ -232,6 +236,18 @@ function withJestNodeOptions (current = '') {
   options.add('--disable-warning=ExperimentalWarning')
   options.add('--disable-warning=DEP0169')
   return Array.from(options).join(' ')
+}
+
+function prependPath (env, dirs) {
+  const pathKey = getPathKey(env)
+  env[pathKey] = [
+    ...dirs,
+    env[pathKey],
+  ].filter(Boolean).join(path.delimiter)
+}
+
+function getPathKey (env) {
+  return Object.keys(env).find((key) => key.toLowerCase() === 'path') ?? 'PATH'
 }
 
 function runPnpm (args, opts = {}) {
