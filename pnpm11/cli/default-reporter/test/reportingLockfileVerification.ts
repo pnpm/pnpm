@@ -209,6 +209,12 @@ test('cached verdict does not repeat on subsequent progress frames', async () =>
 
   const lockfilePath = path.join(cwd, 'pnpm-lock.yaml')
 
+  // Subscribe before emitting so the take(5) captures every frame from the
+  // first emission onward — matching the pattern the other tests in this
+  // file use and avoiding reliance on the `setTimeout(0)` deferral inside
+  // `initDefaultReporter`.
+  const frames = firstValueFrom(output$.pipe(take(5), toArray()))
+
   // One underlying emission — what the user actually wants to see once.
   lockfileVerificationLogger.debug({
     status: 'cached',
@@ -226,12 +232,48 @@ test('cached verdict does not repeat on subsequent progress frames', async () =>
   progressLogger.debug({ packageId: 'registry.npmjs.org/bar/1.0.0', requester: cwd, status: 'found_in_store' })
   progressLogger.debug({ method: 'hardlink', requester: cwd, status: 'imported', to: '/node_modules/.pnpm/bar@1.0.0' })
 
-  const frames = await firstValueFrom(output$.pipe(take(5), toArray()))
+  const captured = await frames
 
   // Count how many of the captured frames still contain the cached line.
   // Before the fix this is 5 (one per frame); the fix renders the line
   // once and then clears it, so subsequent progress-only frames no longer
   // re-include it.
-  const cachedFrameCount = frames.filter((frame) => frame.includes('Lockfile passes supply-chain policies')).length
+  const cachedFrameCount = captured.filter((frame) => frame.includes('Lockfile passes supply-chain policies')).length
   expect(cachedFrameCount).toBe(1)
+})
+
+// The cached-then-clear pair drives a fixed-block deletion through
+// `mergeOutputs`' scan state. The clear emission carries an empty `msg`,
+// which — once the cached line was the only block — produces a combined
+// frame of "". That empty frame must NOT reach `logUpdate`, which
+// unconditionally appends EOL and would write a visible blank line in
+// captured TTY output (`script`, CI TTY captures). The scan still runs
+// (state updates regardless); only the rendered empty frame is dropped.
+test('cached verdict clear does not emit an empty frame', async () => {
+  const cwd = '/repo'
+  const output$ = toOutput$({
+    context: { argv: ['install'], config: { dir: cwd } as Config & ConfigContext },
+    reportingOptions: { throttleProgress: 0 },
+    streamParser: createStreamParser(),
+  })
+
+  // Subscribe before emitting so we capture every frame from the start.
+  // `take(2)` because only two frames reach the subscriber: the cached
+  // verdict and the first progress. The empty clear frame is dropped by
+  // `mergeOutputs` (the fix under test), so `take(3)` would never
+  // complete.
+  const frames = firstValueFrom(output$.pipe(take(2), toArray()))
+
+  lockfileVerificationLogger.debug({
+    status: 'cached',
+    verifiedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    lockfilePath: path.join(cwd, 'pnpm-lock.yaml'),
+  })
+  // Stage + progress flush the cached-then-clear pair through the pipeline
+  // and produce subsequent non-empty frames.
+  stageLogger.debug({ prefix: cwd, stage: 'resolution_started' })
+  progressLogger.debug({ packageId: 'registry.npmjs.org/foo/1.0.0', requester: cwd, status: 'resolved' })
+
+  const captured = await frames
+  expect(captured.includes('')).toBe(false)
 })

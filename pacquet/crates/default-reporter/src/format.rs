@@ -64,6 +64,40 @@ pub fn pretty_ms(ms: u128) -> String {
     parts.join(" ")
 }
 
+/// Port of `pretty-ms` with `{ compact: true }`: show only the most
+/// significant non-zero unit, with up to one decimal place (trailing `.0`
+/// trimmed). Used by `on_lockfile_verification` for the "verified Xh ago"
+/// suffix so pacquet matches the TS CLI's
+/// `formatCachedVerdict` (`reportLockfileVerification.ts`).
+#[must_use]
+pub fn pretty_ms_compact(ms: u128) -> String {
+    if ms < 1000 {
+        return format!("{ms}ms");
+    }
+    let secs = ms as f64 / 1000.0;
+    let days = secs / 86_400.0;
+    let hours = secs / 3_600.0;
+    let mins = secs / 60.0;
+    let one_unit = |value: f64| -> String {
+        let rounded = (value * 10.0).round() / 10.0;
+        if (rounded.fract()).abs() < f64::EPSILON {
+            format!("{}", rounded as u64)
+        } else {
+            format!("{rounded:.1}")
+        }
+    };
+    if days >= 1.0 {
+        return format!("{}d", one_unit(days));
+    }
+    if hours >= 1.0 {
+        return format!("{}h", one_unit(hours));
+    }
+    if mins >= 1.0 {
+        return format!("{}m", one_unit(mins));
+    }
+    format!("{}s", one_unit(secs))
+}
+
 /// Visible width of a string, skipping ANSI CSI escape sequences (so a
 /// colored cell counts as its glyphs only). Counts `char`s, which matches
 /// pnpm's reliance on `string-length` for the ASCII-dominant lines it lays

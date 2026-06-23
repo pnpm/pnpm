@@ -7,6 +7,7 @@
 
 use std::{collections::HashMap, fmt::Write as _};
 
+use chrono::{DateTime, Utc};
 use pacquet_reporter::{
     AddedRoot, ContextLog, DependencyType, ExecutionTimeLog, FetchingProgressMessage,
     IgnoredScriptsLog, InstallingConfigDepsLog, InstallingConfigDepsStatus, LifecycleMessage,
@@ -20,7 +21,7 @@ use crate::{
     colors::Colors,
     format::{
         contains_path, cut_line, format_prefix, format_prefix_no_trim, highlight_last_folder,
-        normalize, pretty_bytes, pretty_ms, relative, visible_width, zoom_out,
+        normalize, pretty_bytes, pretty_ms, pretty_ms_compact, relative, visible_width, zoom_out,
     },
 };
 
@@ -290,10 +291,20 @@ impl ReporterState {
 
     pub fn handle(&mut self, event: &LogEvent) -> Output {
         // Clear the one-shot cached lockfile-verification fixed block before
-        // any other event runs, so it appears in exactly one rendered frame.
-        // See `on_lockfile_verification` for the rationale.
-        if !matches!(event, LogEvent::LockfileVerification(_))
-            && let Some(idx) = self.lockfile_verification_slot.fixed.take()
+        // any event that will actually redraw the frame runs, so the verdict
+        // appears in exactly one rendered frame. See `on_lockfile_verification`
+        // for the rationale.
+        //
+        // Excludes `LockfileVerification` itself (would clear the very block
+        // we just emitted) and the explicitly no-op channels `Hook` and
+        // `BrokenModules` — those don't update the frame, so clearing on
+        // them would force a redraw whose only effect is to drop the cached
+        // line, producing an extra captured frame/line in CI logs and
+        // `tee`/`script` output.
+        if !matches!(
+            event,
+            LogEvent::LockfileVerification(_) | LogEvent::Hook(_) | LogEvent::BrokenModules(_),
+        ) && let Some(idx) = self.lockfile_verification_slot.fixed.take()
             && idx < self.frame.fixed_blocks.len()
         {
             self.frame.fixed_blocks[idx] = None;
@@ -904,10 +915,11 @@ impl ReporterState {
         // back-to-back emit trick because `render` runs once per
         // `handle()` call, so the clear is deferred to the next event.
         let (msg, fixed) = match message {
-            LockfileVerificationMessage::Cached { lockfile_path, .. } => {
+            LockfileVerificationMessage::Cached { verified_at, lockfile_path } => {
                 let path = self.lockfile_path_suffix(lockfile_path.as_deref());
+                let suffix = format_cached_verdict(verified_at.as_deref());
                 let msg = format!(
-                    "{} Lockfile{path} passes supply-chain policies (previously verified)",
+                    "{} Lockfile{path} passes supply-chain policies ({suffix})",
                     self.colors.green("✓"),
                 );
                 (msg, true)
@@ -1061,6 +1073,22 @@ fn lifecycle_ids(message: &LifecycleMessage) -> (&str, &str, &str) {
 
 fn entries_label(entries: u64) -> String {
     if entries == 1 { "1 entry".to_string() } else { format!("{entries} entries") }
+}
+
+/// Render the cached verdict suffix the way pnpm's
+/// `formatCachedVerdict` does (`reportLockfileVerification.ts`):
+/// `"verified <compact-duration> ago"` when `verified_at` parses to a
+/// recent instant, the timeless `"previously verified"` otherwise. The
+/// elapsed time is clamped at zero so a clock that moved backwards
+/// between the verification run and this render doesn't render a
+/// negative age.
+fn format_cached_verdict(verified_at: Option<&str>) -> String {
+    let Some(timestamp) = verified_at else { return "previously verified".to_string() };
+    let Ok(parsed) = DateTime::parse_from_rfc3339(timestamp) else {
+        return "previously verified".to_string();
+    };
+    let elapsed_ms = Utc::now().timestamp_millis().saturating_sub(parsed.timestamp_millis());
+    format!("verified {} ago", pretty_ms_compact(u128::try_from(elapsed_ms).unwrap_or(0)))
 }
 
 fn remove_optional_from_prod(manifest: &Value) -> Value {

@@ -3718,6 +3718,7 @@ dependencies = [
 name = "pacquet-default-reporter"
 version = "0.0.1"
 dependencies = [
+ "chrono",
  "insta",
  "libc",
  "owo-colors",

@@ -66,6 +66,15 @@ export function mergeOutputs (outputs: Array<Rx.Observable<Rx.Observable<{ msg: 
       started = true
       return true
     }),
+    // An empty combined string means every block has been cleared — most
+    // commonly from the cached-then-clear pair `reportLockfileVerification`
+    // emits to drive the fixed-block deletion through `scan` above. The
+    // state update has already happened by this point; the empty frame
+    // itself carries no information for the renderer and must not reach
+    // `logUpdate`, which appends EOL unconditionally and would write a
+    // visible blank line in captured TTY output (`script`, CI TTY
+    // captures).
+    filter((msg) => msg !== ''),
     filter((msg) => {
       if (msg !== previousOutput) {
         previousOutput = msg

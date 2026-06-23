@@ -3,15 +3,17 @@
 //! produces for the same events. Colors are constructed off for readable
 //! plain-text assertions and on for the ANSI-specific ones.
 
+use chrono::{DateTime, Utc};
 use pacquet_default_reporter::{
     colors::Colors,
     state::{Output, ReporterState},
 };
 use pacquet_reporter::{
-    AddedRoot, ContextLog, DependencyType, ExecutionTimeLog, LifecycleLog, LifecycleMessage,
-    LifecycleStdio, LockfileVerificationLog, LockfileVerificationMessage, LogEvent, LogLevel,
-    PackageImportMethod, PackageImportMethodLog, PnpmLog, ProgressLog, ProgressMessage, RootLog,
-    RootMessage, Stage, StageLog, StatsLog, StatsMessage, SummaryLog,
+    AddedRoot, BrokenModulesLog, ContextLog, DependencyType, ExecutionTimeLog, HookLog,
+    LifecycleLog, LifecycleMessage, LifecycleStdio, LockfileVerificationLog,
+    LockfileVerificationMessage, LogEvent, LogLevel, PackageImportMethod, PackageImportMethodLog,
+    PnpmLog, ProgressLog, ProgressMessage, RootLog, RootMessage, Stage, StageLog, StatsLog,
+    StatsMessage, SummaryLog,
 };
 
 const CWD: &str = "/repo";
@@ -325,6 +327,20 @@ fn lockfile_cached() -> LogEvent {
     })
 }
 
+/// Cached event carrying a `verified_at` timestamp two hours in the past —
+/// exercises the "verified Xh ago" suffix path (mirrors the TS test at
+/// `pnpm11/cli/default-reporter/test/reportingLockfileVerification.ts`).
+fn lockfile_cached_two_hours_ago() -> LogEvent {
+    let two_hours_ago = Utc::now() - chrono::Duration::seconds(2 * 3600);
+    LogEvent::LockfileVerification(LockfileVerificationLog {
+        level: LogLevel::Debug,
+        message: LockfileVerificationMessage::Cached {
+            verified_at: Some(two_hours_ago.to_rfc3339()),
+            lockfile_path: Some("/repo/pnpm-lock.yaml".to_string()),
+        },
+    })
+}
+
 /// Mirror of the TS regression test in
 /// `pnpm11/cli/default-reporter/test/reportingLockfileVerification.ts`:
 /// the cached verdict is a one-shot status that must not be re-rendered on
@@ -377,4 +393,90 @@ fn lockfile_cached_append_only_does_not_emit_blank_clear_line() {
     assert_eq!(lines.len(), 2);
     assert_eq!(lines[0], "✓ Lockfile passes supply-chain policies (previously verified)");
     assert_eq!(lines[1], "Progress: resolved 1, reused 0, downloaded 0, added 0");
+}
+
+/// When the cached verdict carries a `verified_at` timestamp, the suffix
+/// renders the elapsed time compactly (e.g. "verified 2h ago") instead of
+/// the timeless "previously verified" — matching pnpm's
+/// `formatCachedVerdict`.
+#[test]
+fn lockfile_cached_with_timestamp_renders_verified_age() {
+    let mut reporter = state(false);
+    let frame = render(&mut reporter, vec![lockfile_cached_two_hours_ago()]);
+    // Two hours + the few ms the test took to get here rounds under
+    // `pretty_ms_compact`'s 0.05h threshold (180s), so the suffix stays
+    // "2h ago" rather than ticking over to a tenth-of-an-hour readout.
+    assert_eq!(frame, "✓ Lockfile passes supply-chain policies (verified 2h ago)");
+}
+
+/// A `verified_at` string that doesn't parse as RFC 3339 falls back to the
+/// timeless "previously verified" suffix — matches pnpm's NaN-elapsed
+/// fallback in `formatCachedVerdict`.
+#[test]
+fn lockfile_cached_with_unparseable_timestamp_falls_back() {
+    let mut reporter = state(false);
+    let event = LogEvent::LockfileVerification(LockfileVerificationLog {
+        level: LogLevel::Debug,
+        message: LockfileVerificationMessage::Cached {
+            verified_at: Some("not-a-timestamp".to_string()),
+            lockfile_path: Some("/repo/pnpm-lock.yaml".to_string()),
+        },
+    });
+    let frame = render(&mut reporter, vec![event]);
+    assert_eq!(frame, "✓ Lockfile passes supply-chain policies (previously verified)");
+}
+
+/// Confirm the test-suite clock assumption above: a `DateTime` two hours
+/// before `Utc::now()` parses back to within a few hundred milliseconds of
+/// `7_200_000` ms. If this ever drifts (e.g. chrono changes its RFC 3339
+/// precision), the `lockfile_cached_with_timestamp_renders_verified_age`
+/// assertion will need to be revisited.
+#[test]
+fn two_hours_ago_parses_close_to_7200s_before_now() {
+    let two_hours_ago = Utc::now() - chrono::Duration::seconds(2 * 3600);
+    let parsed = DateTime::parse_from_rfc3339(&two_hours_ago.to_rfc3339()).unwrap();
+    let elapsed_ms = Utc::now().timestamp_millis() - parsed.timestamp_millis();
+    assert!((7_200_000..=7_201_000).contains(&elapsed_ms), "expected ~7200000ms, got {elapsed_ms}");
+}
+
+/// `Hook` and `BrokenModules` are explicitly no-op channels in the dispatch
+/// match. The pre-dispatch clear in `handle()` must skip them too — otherwise
+/// a debug-only event arriving just after the cached verdict would force a
+/// redraw whose only effect is to drop the cached line, producing an extra
+/// captured frame in CI / `tee` / `script` output. The clear should wait for
+/// the next event that actually updates the frame.
+#[test]
+fn hook_and_broken_modules_do_not_clear_cached_verdict_prematurely() {
+    let mut reporter = state(false);
+
+    // Cached event sets the verdict line as the current frame.
+    let cached_frame = match reporter.handle(&lockfile_cached()) {
+        Output::Frame(f) => f,
+        Output::None => panic!("cached event should produce a Frame, got Output::None"),
+        Output::Lines(_) => panic!("cached event should produce a Frame, got Output::Lines"),
+    };
+    assert_eq!(cached_frame, "✓ Lockfile passes supply-chain policies (previously verified)");
+
+    // A debug-only Hook event arrives. It must NOT trigger a redraw just to
+    // clear the verdict — Output::None means no frame is emitted.
+    let hook = LogEvent::Hook(HookLog {
+        level: LogLevel::Debug,
+        from: "readPackage".to_string(),
+        hook: "readPackage".to_string(),
+        message: "ignored".to_string(),
+        prefix: CWD.to_string(),
+    });
+    assert!(matches!(reporter.handle(&hook), Output::None), "Hook should not redraw");
+
+    // Same for BrokenModules.
+    let broken = LogEvent::BrokenModules(BrokenModulesLog {
+        level: LogLevel::Debug,
+        missing: "whatever".to_string(),
+    });
+    assert!(matches!(reporter.handle(&broken), Output::None), "BrokenModules should not redraw");
+
+    // The next *rendering* event clears the verdict as part of its redraw —
+    // the cached line is gone from the final frame.
+    let frame = render(&mut reporter, vec![progress("resolved")]);
+    assert_eq!(frame, "Progress: resolved 1, reused 0, downloaded 0, added 0");
 }
