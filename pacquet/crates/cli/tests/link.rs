@@ -35,7 +35,7 @@ fn link_fails_with_nonexistent_target() {
 
     let output = pacquet
         .with_arg("link")
-        .with_arg("/nonexistent/path")
+        .with_arg(workspace.join("definitely-missing-target").to_string_lossy().as_ref())
         .output()
         .expect("spawn pacquet link");
     assert!(!output.status.success(), "link to nonexistent path must fail");
