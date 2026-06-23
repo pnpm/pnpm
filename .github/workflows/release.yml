@@ -12,6 +12,7 @@ on:
 jobs:
   validate-release-ref:
     runs-on: ubuntu-latest
+    permissions: {}
     steps:
       - name: Validate release ref
         run: |
