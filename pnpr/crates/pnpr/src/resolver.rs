@@ -795,7 +795,15 @@ async fn verify_input_lockfile(
         return Ok(None);
     }
 
-    let violations = collect_resolution_policy_violations(lockfile, &verifiers, None).await;
+    // A transport failure verifying an entry (the upstream registry couldn't be
+    // reached/authorized) is a gateway error, not a policy violation — surface
+    // the registry's own (credential-redacted) message to the client.
+    let violations = match collect_resolution_policy_violations(lockfile, &verifiers, None).await {
+        Ok(violations) => violations,
+        Err(message) => {
+            return Err(VerifyFailure::Internal(json_error(StatusCode::BAD_GATEWAY, &message)));
+        }
+    };
     let osv_violations = runtime
         .osv_index
         .as_ref()

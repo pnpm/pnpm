@@ -36,15 +36,15 @@ use serde_json::Value as JsonValue;
 use tokio::sync::OnceCell;
 
 use crate::{
-    FetchAttestationOptions, FetchFullMetadataCachedOptions, FetchMetadataError, TrustCheckOptions,
-    TrustViolation, fetch_attestation_published_at, fetch_full_metadata_cached,
+    FetchAttestationOptions, FetchFullMetadataCachedOptions, TrustCheckOptions, TrustViolation,
+    fetch_attestation_published_at, fetch_full_metadata_cached,
     lookup_context::{PublishedAtLookupContext, PublishedAtTimeMap, package_key, version_key},
     named_registry::{build_named_registry_prefixes, pick_registry_for_package},
     pick_package::PackageMetaCache,
     trust_checks::fail_if_trust_downgraded,
     violation_codes::{
-        MINIMUM_RELEASE_AGE_VIOLATION_CODE, TARBALL_URL_FETCH_FAILED_VIOLATION_CODE,
-        TARBALL_URL_MISMATCH_VIOLATION_CODE, TRUST_DOWNGRADE_VIOLATION_CODE,
+        MINIMUM_RELEASE_AGE_VIOLATION_CODE, TARBALL_URL_MISMATCH_VIOLATION_CODE,
+        TRUST_DOWNGRADE_VIOLATION_CODE,
     },
 };
 
@@ -458,19 +458,14 @@ impl NpmResolutionVerifier {
                 }
                 meta.version_tarballs.and_then(|tarballs| tarballs.get(version).cloned())
             }
-            Err(error) => {
+            Err(message) => {
                 // Couldn't reach the registry to verify (auth/network/5xx).
-                // Surface the transport error under a distinct code instead of
-                // reporting it as a tampering-style URL mismatch — mirrors
-                // run_age_check / run_trust_check, which also surface the
-                // underlying fetch error. Still fail-closed: the entry is
-                // rejected, just with an actionable reason.
-                return Some(ResolutionVerification::Err {
-                    code: TARBALL_URL_FETCH_FAILED_VIOLATION_CODE,
-                    reason: format!(
-                        "could not be verified against the registry's published metadata ({error})",
-                    ),
-                });
+                // Propagate the registry's own fetch error (already
+                // credential-redacted) so the install aborts with it rather
+                // than mislabeling a transport failure as a tampering-style URL
+                // mismatch. Still fail-closed: the entry never reaches the
+                // filesystem because the install never proceeds.
+                return Some(ResolutionVerification::FetchFailed { message });
             }
         };
         match registry_tarball {
@@ -498,12 +493,10 @@ impl NpmResolutionVerifier {
         let cutoff = self.cutoff.expect("cutoff is Some when age check is active");
         let published = match self.fetch_published_at(registry, name, version).await {
             Ok(value) => value,
-            Err(reason) => {
-                return Some(ResolutionVerification::Err {
-                    code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
-                    reason: uncheckable("minimumReleaseAge", &reason),
-                });
-            }
+            // A transport failure propagates the registry's own fetch error so
+            // the install aborts with it; a successful fetch that merely lacks a
+            // timestamp is handled below.
+            Err(message) => return Some(ResolutionVerification::FetchFailed { message }),
         };
         let Some(published) = published else {
             // No source surfaced a publish timestamp; mirror the
@@ -548,12 +541,10 @@ impl NpmResolutionVerifier {
     ) -> Option<ResolutionVerification> {
         let meta = match self.fetch_full_meta_for_trust(registry, name).await {
             Ok(meta) => meta,
-            Err(reason) => {
-                return Some(ResolutionVerification::Err {
-                    code: TRUST_DOWNGRADE_VIOLATION_CODE,
-                    reason: uncheckable("trustPolicy", &reason),
-                });
-            }
+            // A transport failure propagates the registry's own fetch error so
+            // the install aborts with it rather than folding it into a policy
+            // violation.
+            Err(message) => return Some(ResolutionVerification::FetchFailed { message }),
         };
         let trust_opts = TrustCheckOptions {
             trust_policy_exclude: self.trust_policy_exclude.as_ref(),
@@ -716,7 +707,7 @@ impl NpmResolutionVerifier {
                 // it reports a 403 as a tampering-style mismatch.
                 match fetch_full_metadata_cached(&name.to_string(), &opts).await {
                     Ok(meta) => Ok(project_abbreviated_meta(&meta)),
-                    Err(error) => Err(describe_meta_fetch_error(&error)),
+                    Err(error) => Err(redact_url_credentials(&error.to_string())),
                 }
             })
             .await;
@@ -793,7 +784,7 @@ impl NpmResolutionVerifier {
         };
         fetch_attestation_published_at(&name.to_string(), version, &opts)
             .await
-            .map_err(|err| err.to_string())
+            .map_err(|err| redact_url_credentials(&err.to_string()))
     }
 
     async fn fetch_full_meta_time(
@@ -874,7 +865,9 @@ impl NpmResolutionVerifier {
             filter_metadata: false,
             retry_opts: self.retry_opts,
         };
-        fetch_full_metadata_cached(&name.to_string(), &opts).await.map_err(|err| err.to_string())
+        fetch_full_metadata_cached(&name.to_string(), &opts)
+            .await
+            .map_err(|err| redact_url_credentials(&err.to_string()))
     }
 }
 
@@ -1097,28 +1090,11 @@ fn project_abbreviated_meta(meta: &Package) -> crate::lookup_context::Abbreviate
     }
 }
 
-/// Describe a metadata fetch failure for a user-facing violation reason
-/// without leaking registry credentials. [`FetchMetadataError`]'s `Display`
-/// interpolates the request URL (`Failed to fetch metadata from <url>: …`),
-/// and a registry configured as `https://user:pass@host/` embeds the
-/// credentials in that URL — so the raw message must never reach terminal/CI
-/// output. Prefer the structured HTTP status when the registry answered;
-/// otherwise fall back to the message with any embedded `user:pass@`
-/// credentials stripped.
-///
-/// Mirrors upstream's `describeMetaFetchError`.
-fn describe_meta_fetch_error(error: &FetchMetadataError) -> String {
-    if let FetchMetadataError::Network { error: source, .. } = error
-        && let Some(status) = source.status()
-    {
-        return format!("registry responded with {status}");
-    }
-    redact_url_credentials(&error.to_string())
-}
-
 /// Strip `user:pass@` (or `user@`) that appears right after a URL scheme in
 /// any message text, e.g. `… https://user:pass@host/pkg …` →
-/// `… https://host/pkg …`.
+/// `… https://host/pkg …`. A registry configured as `https://user:pass@host/`
+/// would otherwise leak its embedded basic-auth into the fetch error the
+/// verifier surfaces when it aborts on a transport failure.
 fn redact_url_credentials(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;

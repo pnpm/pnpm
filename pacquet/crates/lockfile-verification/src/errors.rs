@@ -16,15 +16,6 @@ run \"pnpm clean --lockfile\" and then \"pnpm install\" to rebuild from \
 a fresh resolution. Alternatively, relax the policy that flagged \
 them.";
 
-// A pure batch of fetch failures is not a lockfile problem: the registry
-// metadata needed to verify the entries couldn't be fetched (auth/network/5xx).
-// Point the user at credentials/connectivity instead of at pnpm-lock.yaml.
-const FETCH_FAILED_HINT: &str = "pnpm could not fetch the registry metadata needed to verify \
-these entries (for example an authentication, authorization, or network failure). This is not a \
-lockfile problem — check that your registry credentials grant read access to these packages (in \
-CI, the token may lack permission for a private package), that the registry is reachable, then \
-run the install again.";
-
 const INVALID_ALIAS_HINT: &str = "A dependency alias becomes a directory under node_modules, \
 so it must be a valid npm package name — a single `name` or `@scope/name` with no leading \
 `.` or `_`, and not a reserved name such as `node_modules`. An alias containing path-traversal \
@@ -66,15 +57,16 @@ pub enum VerifyError {
         breakdown: String,
     },
 
-    /// A pure batch of registry metadata fetch failures (auth/network/5xx),
-    /// kept distinct from a tampering-style mismatch so the help text can
-    /// point at credentials/connectivity rather than the lockfile.
-    #[display("{count} lockfile entries failed verification:\n{breakdown}")]
-    #[diagnostic(code(ERR_PNPM_TARBALL_URL_FETCH_FAILED), help("{FETCH_FAILED_HINT}"))]
-    TarballUrlFetchFailed {
+    /// The registry couldn't be reached to verify an entry
+    /// (auth/network/5xx). Surfaces the registry's own fetch error — which
+    /// already explains the auth situation — rather than a tampering-style
+    /// mismatch or a lockfile-policy batch. The message is credential-redacted
+    /// at the verifier before it reaches here.
+    #[display("{message}")]
+    #[diagnostic(code(ERR_PNPM_META_FETCH_FAIL))]
+    RegistryMetaFetchFailed {
         #[error(not(source))]
-        count: usize,
-        breakdown: String,
+        message: String,
     },
 
     #[display("{count} lockfile entries failed verification:\n{breakdown}")]
@@ -189,9 +181,6 @@ impl VerifyError {
                 pacquet_resolving_npm_resolver_violation_codes::TRUST_DOWNGRADE => {
                     VerifyError::TrustDowngrade { count, breakdown }
                 }
-                pacquet_resolving_npm_resolver_violation_codes::TARBALL_URL_FETCH_FAILED => {
-                    VerifyError::TarballUrlFetchFailed { count, breakdown }
-                }
                 crate::RESOLUTION_SHAPE_MISMATCH_VIOLATION_CODE => {
                     VerifyError::ResolutionShapeMismatch { count, breakdown }
                 }
@@ -214,8 +203,6 @@ mod pacquet_resolving_npm_resolver_violation_codes {
     pub const MINIMUM_RELEASE_AGE_VIOLATION: &str = "MINIMUM_RELEASE_AGE_VIOLATION";
     /// Matches `pacquet_resolving_npm_resolver::TRUST_DOWNGRADE_VIOLATION_CODE`.
     pub const TRUST_DOWNGRADE: &str = "TRUST_DOWNGRADE";
-    /// Matches `pacquet_resolving_npm_resolver::TARBALL_URL_FETCH_FAILED_VIOLATION_CODE`.
-    pub const TARBALL_URL_FETCH_FAILED: &str = "TARBALL_URL_FETCH_FAILED";
 }
 
 #[cfg(test)]

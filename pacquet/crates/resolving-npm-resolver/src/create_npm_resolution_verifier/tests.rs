@@ -9,8 +9,8 @@ use pretty_assertions::assert_eq;
 use ssri::Integrity;
 
 use super::{
-    CreateNpmResolutionVerifierOptions, FetchMetadataError, create_npm_resolution_verifier,
-    describe_meta_fetch_error, observed_dist_stats_sink, redact_url_credentials,
+    CreateNpmResolutionVerifierOptions, create_npm_resolution_verifier, observed_dist_stats_sink,
+    redact_url_credentials,
 };
 
 const FAKE_INTEGRITY: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
@@ -1077,9 +1077,10 @@ async fn binding_check_records_dist_stats_into_the_sink() {
 
 /// A 403 on the metadata fetch (e.g. a CI token that is authenticated but not
 /// authorized to read a private package) must not be reported as a lockfile
-/// tarball-URL mismatch: the lockfile is correct, the fetch is the problem.
+/// tarball-URL mismatch: the lockfile is correct, the fetch is the problem. The
+/// verifier propagates the registry's own fetch error so the install aborts.
 #[tokio::test]
-async fn surfaces_metadata_fetch_failure_as_tarball_url_fetch_failed() {
+async fn propagates_metadata_fetch_failure_instead_of_a_tampering_mismatch() {
     let mut server = mockito::Server::new_async().await;
     let registry = format!("{}/", server.url());
     let server_url = server.url();
@@ -1101,23 +1102,17 @@ async fn surfaces_metadata_fetch_failure_as_tarball_url_fetch_failed() {
     let name: PkgName = "private-pkg".parse().expect("parse");
     let result = verifier.verify(&resolution, ctx(&name, "1.0.0")).await;
 
-    let ResolutionVerification::Err { code, reason } = result else {
-        panic!("expected Err, got {result:?}");
+    // A transport failure aborts via FetchFailed, never a tampering-style
+    // TARBALL_URL_MISMATCH.
+    let ResolutionVerification::FetchFailed { message } = result else {
+        panic!("expected FetchFailed, got {result:?}");
     };
-    assert_eq!(code, "TARBALL_URL_FETCH_FAILED");
-    // The underlying transport status is surfaced, not hidden behind the bare
-    // "could not be verified" mismatch message.
-    assert!(reason.contains("could not be verified"), "reason: {reason}");
-    assert!(reason.contains("403"), "reason: {reason}");
-    // The raw fetch URL must never leak into the reason. A registry configured
-    // with embedded basic-auth (https://user:pass@host/) would otherwise expose
-    // those credentials in terminal/CI output on every verification failure.
-    assert!(!reason.contains(&server_url), "reason leaked the request URL: {reason}");
+    assert!(message.contains("403"), "message: {message}");
 }
 
 /// The metadata fetch succeeds but does not list the pinned version. That is a
-/// genuine verification failure (not a transport error), so it must stay
-/// `TARBALL_URL_MISMATCH` — distinct from the new `TARBALL_URL_FETCH_FAILED`.
+/// genuine verification failure (not a transport error), so it stays
+/// `TARBALL_URL_MISMATCH` rather than aborting via `FetchFailed`.
 #[tokio::test]
 async fn version_absent_from_fetched_metadata_stays_tarball_url_mismatch() {
     let mut server = mockito::Server::new_async().await;
@@ -1183,13 +1178,4 @@ fn redact_url_credentials_strips_embedded_basic_auth() {
     // A bare "://" with no preceding scheme character is not treated as a URL
     // authority, so an "@" further along is preserved.
     assert_eq!(redact_url_credentials("a :// b@c"), "a :// b@c");
-}
-
-#[test]
-fn describe_meta_fetch_error_falls_back_to_redacted_message_when_no_http_status() {
-    // An error without an HTTP status (here a 304-without-cache failure) has no
-    // structured status to report, so the description falls back to the
-    // credential-redacted Display message rather than the bare status line.
-    let err = FetchMetadataError::NotModifiedWithoutCache { pkg_name: "acme".to_string() };
-    assert_eq!(describe_meta_fetch_error(&err), err.to_string());
 }

@@ -31,19 +31,6 @@ fn single_trust_violation_picks_trust_variant() {
     assert!(matches!(err, VerifyError::TrustDowngrade { .. }), "got: {err:?}");
 }
 
-/// A pure batch of fetch failures maps to the dedicated variant so the help
-/// text points at credentials/connectivity, not lockfile tampering.
-#[test]
-fn single_fetch_failure_picks_fetch_failed_variant() {
-    let err = VerifyError::from_rendered(&[rendered(
-        "private-pkg",
-        "1.0.0",
-        "TARBALL_URL_FETCH_FAILED",
-        "could not be verified against the registry's published metadata (registry responded with 403 Forbidden)",
-    )]);
-    assert!(matches!(err, VerifyError::TarballUrlFetchFailed { .. }), "got: {err:?}");
-}
-
 #[test]
 fn mixed_codes_escalate_and_render_code_per_entry() {
     let err = VerifyError::from_rendered(&[
