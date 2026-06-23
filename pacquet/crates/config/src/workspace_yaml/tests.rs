@@ -470,6 +470,17 @@ patchedDependencies:
     assert_eq!(map.get("lodash@4.17.21").map(String::as_str), Some("patches/lodash@4.17.21.patch"));
 }
 
+#[test]
+fn patches_dir_reads_from_workspace_yaml() {
+    let settings: WorkspaceSettings =
+        serde_saphyr::from_str("patchesDir: custom-patches\n").unwrap();
+    assert_eq!(settings.patches_dir.as_deref(), Some("custom-patches"));
+
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/workspace/root"));
+    assert_eq!(config.patches_dir.as_deref(), Some("custom-patches"));
+}
+
 /// `configDependencies` is a map of package name → version-with-integrity
 /// spec. pacquet records it into the workspace-state file so pnpm's
 /// `checkDepsStatus` doesn't treat the install as stale on the next
