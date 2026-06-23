@@ -335,14 +335,11 @@ function capturePnpm (args) {
 
 function runCommand (command, args, opts = {}) {
   return new Promise((resolve, reject) => {
-    const shell = process.platform === 'win32'
-    if (shell) {
-      validateWindowsShellArgs([command, ...args])
-    }
-    const child = spawn(command, args, {
+    const spawnTarget = resolveSpawnTarget(command, args)
+    const child = spawn(spawnTarget.command, spawnTarget.args, {
       cwd: opts.cwd ?? rootDir,
       env: opts.env ?? process.env,
-      shell,
+      shell: spawnTarget.shell,
       stdio: 'inherit',
     })
     child.on('error', reject)
@@ -361,13 +358,10 @@ function runCommand (command, args, opts = {}) {
 function captureCommand (command, args) {
   return new Promise((resolve, reject) => {
     let stdout = ''
-    const shell = process.platform === 'win32'
-    if (shell) {
-      validateWindowsShellArgs([command, ...args])
-    }
-    const child = spawn(command, args, {
+    const spawnTarget = resolveSpawnTarget(command, args)
+    const child = spawn(spawnTarget.command, spawnTarget.args, {
       cwd: rootDir,
-      shell,
+      shell: spawnTarget.shell,
       stdio: ['ignore', 'pipe', 'inherit'],
     })
     child.stdout.setEncoding('utf8')
@@ -400,9 +394,33 @@ function resolveCommand (command) {
   return result.stdout.split(/\r?\n/).find(Boolean) ?? command
 }
 
+// On Windows the command (e.g. `pn`) resolves to a `.cmd` shim, which Node
+// refuses to spawn without a shell (CVE-2024-27980). But `spawn(cmd, args,
+// { shell: true })` joins the args into one string without quoting, so an arg
+// containing a space would be split into separate tokens. Build the quoted
+// command line ourselves and hand it to cmd.exe as a single string — the same
+// thing Node does internally for the non-shell Windows path.
+function resolveSpawnTarget (command, args) {
+  if (process.platform !== 'win32') {
+    return { command, args, shell: false }
+  }
+  validateWindowsShellArgs([command, ...args])
+  return {
+    command: [command, ...args].map(quoteWindowsArg).join(' '),
+    args: undefined,
+    shell: true,
+  }
+}
+
+function quoteWindowsArg (arg) {
+  return arg === '' || /\s/.test(arg) ? `"${arg}"` : arg
+}
+
 function validateWindowsShellArgs (args) {
   for (const arg of args) {
-    if (/[&|<>^%\r\n]/.test(arg)) {
+    // `"` is rejected alongside the shell metacharacters so quoteWindowsArg can
+    // wrap spaced args in double quotes without needing to escape inner quotes.
+    if (/[&|<>^%"\r\n]/.test(arg)) {
       throw new Error(`Cannot run command with Windows shell metacharacters: ${arg}`)
     }
   }
