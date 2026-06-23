@@ -79,7 +79,7 @@ jobs:
       # server stays warm — i.e. pnpr's cold-client-vs-warm-server shape,
       # the realistic CI case. Running both tools in one hyperfine
       # invocation also yields the pnpr-vs-direct ratio per scenario.
-      BENCHMARK_TARGETS: 'pacquet@cdc897f838 pnpr@cdc897f838 pacquet@85d9e7708a pnpr@85d9e7708a pacquet@88add0909a pnpr@88add0909a'
+      BENCHMARK_TARGETS: 'pnpr@cdc897f838 pnpr@85d9e7708a pnpr@88add0909a'
       # Network emulation so both install strategies cross the link they
       # would in production instead of free loopback (~GB/s, ~0 RTT), which
       # would hide every download cost.
@@ -254,7 +254,7 @@ jobs:
         # `pnpr` server from its clone, so this also produces the server
         # binaries the boot step needs. More builds than the pacquet-only
         # bench, hence the larger timeout.
-        timeout-minutes: 25
+        timeout-minutes: 45
         run: just integrated-benchmark --reuse-prebuilt-binaries --build-only $BENCHMARK_TARGETS
 
       - name: 'Benchmark: Isolated linker: fresh restore, cold cache + cold store'
