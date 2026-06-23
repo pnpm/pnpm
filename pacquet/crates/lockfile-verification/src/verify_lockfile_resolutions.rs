@@ -170,7 +170,13 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
     let mut emit_guard =
         TerminalEmitGuard::<Reporter>::failed(entries, started_at, lockfile_path_str.clone());
 
-    let violations = run_fan_out(candidates, verifiers, opts.concurrency).await;
+    let violations = match run_fan_out(candidates, verifiers, opts.concurrency).await {
+        Ok(violations) => violations,
+        // The registry couldn't be reached to verify an entry: abort with its
+        // own error (already credential-redacted) instead of a policy batch.
+        // `emit_guard` is still armed to emit `failed` on drop.
+        Err(message) => return Err(VerifyError::RegistryMetaFetchFailed { message }),
+    };
     if violations.is_empty() {
         emit_guard.cancel(LockfileVerificationMessage::Done {
             entries,
@@ -200,14 +206,16 @@ pub async fn collect_resolution_policy_violations(
     lockfile: &Lockfile,
     verifiers: &[Arc<dyn ResolutionVerifier>],
     concurrency: Option<usize>,
-) -> Vec<ResolutionPolicyViolation> {
+) -> Result<Vec<ResolutionPolicyViolation>, String> {
     if verifiers.is_empty() || lockfile.packages.is_none() {
-        return Vec::new();
+        return Ok(Vec::new());
     }
     // Shape violations and invalid aliases are deliberately not
     // collected here: they are hard tampering failures, not policy
     // picks a caller may auto-exclude.
     let (candidates, _shape_violations, _invalid_aliases) = collect_candidates(lockfile);
+    // `Err(message)` is a transport failure the caller must surface rather than
+    // treat as "no violations" — see [`run_fan_out`].
     run_fan_out(candidates, verifiers, concurrency).await
 }
 
@@ -424,7 +432,7 @@ async fn run_fan_out(
     candidates: Vec<Candidate>,
     verifiers: &[Arc<dyn ResolutionVerifier>],
     concurrency: Option<usize>,
-) -> Vec<ResolutionPolicyViolation> {
+) -> Result<Vec<ResolutionPolicyViolation>, String> {
     let limit = concurrency.unwrap_or(DEFAULT_CONCURRENCY).max(1);
     let semaphore = Arc::new(Semaphore::new(limit));
     let mut futures = FuturesUnordered::new();
@@ -450,35 +458,57 @@ async fn run_fan_out(
             evaluate_candidate(candidate, &verifiers).await
         });
     }
+    // A transport failure (the registry couldn't be reached to verify an
+    // entry) aborts the whole pass with the registry's own error rather than
+    // collecting it as a policy violation. Drain the rest of the fan-out so no
+    // in-flight task is dropped mid-await, but keep only the first abort.
     let mut violations = Vec::new();
+    let mut fetch_error: Option<String> = None;
     while let Some(result) = futures.next().await {
-        if let Some(violation) = result {
-            violations.push(violation);
+        match result {
+            Ok(Some(violation)) => violations.push(violation),
+            Ok(None) => {}
+            Err(message) => {
+                if fetch_error.is_none() {
+                    fetch_error = Some(message);
+                }
+            }
         }
     }
-    violations
+    // A registry that couldn't be reached takes precedence over collected
+    // violations: the pass never finished, so the batch is incomplete and the
+    // actionable failure is the transport error.
+    match fetch_error {
+        Some(message) => Err(message),
+        None => Ok(violations),
+    }
 }
 
+/// Outcome of evaluating one candidate against the active verifiers.
+/// `Err(message)` is a transport failure (the registry couldn't be
+/// reached to verify the entry) — the runner aborts the whole pass with
+/// it rather than collecting it as a policy violation.
 async fn evaluate_candidate(
     candidate: Candidate,
     verifiers: &[Arc<dyn ResolutionVerifier>],
-) -> Option<ResolutionPolicyViolation> {
+) -> Result<Option<ResolutionPolicyViolation>, String> {
     for verifier in verifiers {
         let ctx = VerifyCtx { name: &candidate.name, version: &candidate.version };
         match verifier.verify(&candidate.resolution, ctx).await {
             ResolutionVerification::Ok => continue,
             ResolutionVerification::Err { code, reason } => {
-                return Some(ResolutionPolicyViolation {
+                return Ok(Some(ResolutionPolicyViolation {
                     name: candidate.name,
                     version: candidate.version,
                     resolution: candidate.resolution,
                     code,
                     reason,
-                });
+                }));
             }
+            ResolutionVerification::FetchFailed { message } => return Err(message),
         }
     }
-    None
+    Ok(None)
 }
 
 /// Sort violations by `name@version` and build the matching

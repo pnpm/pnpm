@@ -145,6 +145,57 @@ impl ResolutionVerifier for FailFor {
     }
 }
 
+/// Abort every candidate with a transport failure (the registry couldn't be
+/// reached to verify it).
+struct FetchFails {
+    message: &'static str,
+    policy: serde_json::Map<String, serde_json::Value>,
+}
+
+impl FetchFails {
+    fn new(message: &'static str) -> Arc<Self> {
+        Arc::new(Self { message, policy: serde_json::Map::new() })
+    }
+}
+
+impl ResolutionVerifier for FetchFails {
+    fn verify<'a>(
+        &'a self,
+        _resolution: &'a LockfileResolution,
+        _ctx: VerifyCtx<'a>,
+    ) -> VerifyFuture<'a> {
+        let message = self.message.to_string();
+        Box::pin(async move { ResolutionVerification::FetchFailed { message } })
+    }
+
+    fn policy(&self) -> &serde_json::Map<String, serde_json::Value> {
+        &self.policy
+    }
+
+    fn can_trust_past_check(&self, _cached: &serde_json::Map<String, serde_json::Value>) -> bool {
+        true
+    }
+}
+
+#[tokio::test]
+async fn a_fetch_failure_aborts_with_the_registry_error() {
+    let lockfile = parse(SINGLE_PKG_LOCKFILE);
+    let verifier =
+        FetchFails::new("Failed to fetch metadata from https://registry.example/acme: 403");
+    let err = verify_lockfile_resolutions::<SilentReporter>(
+        &lockfile,
+        &[verifier as Arc<dyn ResolutionVerifier>],
+        &VerifyLockfileResolutionsOptions::default(),
+    )
+    .await
+    .expect_err("a transport failure must abort verification");
+    // It surfaces the registry's own error, not a lockfile-policy batch.
+    let VerifyError::RegistryMetaFetchFailed { message } = err else {
+        panic!("expected RegistryMetaFetchFailed, got: {err:?}");
+    };
+    assert!(message.contains("403"), "message: {message}");
+}
+
 #[tokio::test]
 async fn no_verifiers_is_a_noop() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
@@ -280,7 +331,8 @@ async fn per_candidate_fan_out_stops_at_first_failure() {
         &[first as Arc<dyn ResolutionVerifier>, second as Arc<dyn ResolutionVerifier>],
         None,
     )
-    .await;
+    .await
+    .expect("no fetch failure");
     assert_eq!(violations.len(), 1, "stop at first failing verifier");
     assert_eq!(violations[0].code, "MINIMUM_RELEASE_AGE_VIOLATION");
 }
@@ -294,7 +346,8 @@ async fn collect_returns_data_for_all_violations() {
         &[verifier as Arc<dyn ResolutionVerifier>],
         None,
     )
-    .await;
+    .await
+    .expect("no fetch failure");
     assert_eq!(violations.len(), 2);
 }
 

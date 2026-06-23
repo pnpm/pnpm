@@ -262,6 +262,10 @@ function buildVerificationError (violations: ResolutionPolicyViolation[]): PnpmE
   const details = omitted > 0
     ? `${breakdown}\n  …and ${omitted} more`
     : breakdown
+  // Registry fetch failures (auth/network/5xx) don't reach this batch — the
+  // verifier throws the registry's own error and the gate aborts with it. So
+  // every violation here is a genuine policy rejection, and the hint points at
+  // the lockfile rather than at connectivity.
   return new PnpmError(
     errorCode,
     `${violations.length} lockfile entries failed verification:\n${details}`,
@@ -422,23 +426,40 @@ async function iterateLockfileViolations (
   concurrency: number | undefined
 ): Promise<ResolutionPolicyViolation[]> {
   const violations: ResolutionPolicyViolation[] = []
+  // A verifier may throw rather than return a violation when it can't reach the
+  // registry to verify an entry (auth/network/5xx) — that's not a per-entry
+  // policy pick, it's an incomplete verification, so the registry's own error
+  // should abort the install. Capture the first such error and rethrow it after
+  // the fan-out settles: rethrowing straight into Promise.all would leave the
+  // sibling tasks (all failing against the same dead registry) as unhandled
+  // rejections once Promise.all rejects on the first.
+  let fetchError: unknown
   const limit = pLimit(concurrency ?? DEFAULT_CONCURRENCY)
   await Promise.all(
     Array.from(candidates.values(), ({ name, version, nonSemverVersion, resolution }) => limit(async () => {
-      // Fan out across every active verifier; each handles its own
-      // protocol short-circuit (e.g. the npm verifier returns ok:true for
-      // git resolutions). We stop at the first failure per entry so a
-      // multi-verifier setup doesn't produce duplicate violations for the
-      // same (name, version).
-      for (const verifier of verifiers) {
-        // eslint-disable-next-line no-await-in-loop
-        const result = await verifier.verify(resolution, { name, version, nonSemverVersion })
-        if (!result.ok) {
-          violations.push({ name, version, resolution, code: result.code, reason: result.reason })
-          break
+      try {
+        // Fan out across every active verifier; each handles its own
+        // protocol short-circuit (e.g. the npm verifier returns ok:true for
+        // git resolutions). We stop at the first failure per entry so a
+        // multi-verifier setup doesn't produce duplicate violations for the
+        // same (name, version).
+        for (const verifier of verifiers) {
+          // eslint-disable-next-line no-await-in-loop
+          const result = await verifier.verify(resolution, { name, version, nonSemverVersion })
+          if (!result.ok) {
+            violations.push({ name, version, resolution, code: result.code, reason: result.reason })
+            break
+          }
         }
+      } catch (err) {
+        fetchError ??= err
       }
     }))
   )
+  // A registry that couldn't be reached takes precedence over collected
+  // violations: the run never finished verifying, so the batch is incomplete
+  // and the actionable failure is the transport error. Once it's resolved the
+  // re-run surfaces any remaining violations.
+  if (fetchError != null) throw fetchError
   return violations
 }

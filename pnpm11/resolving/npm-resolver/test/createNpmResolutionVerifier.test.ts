@@ -563,3 +563,47 @@ test('createNpmResolutionVerifier() canTrustPastCheck rejects when the trust-exc
     trustPolicyIgnoreAfter: null,
   })).toBe(false)
 })
+
+test('createNpmResolutionVerifier() propagates the registry fetch error instead of reporting a tampering-style mismatch', async () => {
+  // A 403 on the metadata fetch (e.g. a CI token that is authenticated but not
+  // authorized to read a private package) must not be reported as a lockfile
+  // tarball-URL mismatch: the lockfile is correct, the fetch is the problem.
+  // The verifier rethrows the registry's own error so the install aborts with
+  // ERR_PNPM_FETCH_403 (which already explains the auth situation).
+  const pool = getMockAgent().get('https://registry.npmjs.org')
+  pool.intercept({ path: '/private-pkg', method: 'GET' }).reply(403, { error: 'Forbidden' }).persist()
+
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts())
+  await expect(verifier.verify(
+    makeTarballResolution('private-pkg', '1.0.0'),
+    { name: 'private-pkg', version: '1.0.0' }
+  )).rejects.toMatchObject({ code: 'ERR_PNPM_FETCH_403' })
+})
+
+test('createNpmResolutionVerifier() still flags a version absent from fetched metadata as TARBALL_URL_MISMATCH', async () => {
+  // The metadata fetch succeeds but does not list the pinned version. That is a
+  // genuine verification failure (not a transport error), so it must stay
+  // TARBALL_URL_MISMATCH — distinct from the new TARBALL_URL_FETCH_FAILED.
+  const meta = {
+    name: 'present-pkg',
+    'dist-tags': { latest: '1.0.0' },
+    versions: {
+      '1.0.0': {
+        name: 'present-pkg',
+        version: '1.0.0',
+        dist: { tarball: 'https://registry.npmjs.org/present-pkg/-/present-pkg-1.0.0.tgz', shasum: 'aa' },
+      },
+    },
+    modified: '2020-01-01T00:00:00.000Z',
+  }
+  const pool = getMockAgent().get('https://registry.npmjs.org')
+  pool.intercept({ path: '/present-pkg', method: 'GET' }).reply(200, meta).persist()
+
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts())
+  const result = await verifier.verify(
+    makeTarballResolution('present-pkg', '2.0.0'),
+    { name: 'present-pkg', version: '2.0.0' }
+  )
+
+  expect(result).toMatchObject({ ok: false, code: 'TARBALL_URL_MISMATCH' })
+})

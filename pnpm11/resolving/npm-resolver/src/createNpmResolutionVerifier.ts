@@ -335,16 +335,11 @@ async function runAgeCheck (
   cutoff: number,
   ignoreMissingTimeField: boolean
 ): Promise<{ ok: false, code: string, reason: string } | undefined> {
-  let published: string | undefined
-  try {
-    published = await fetchPublishedAt(context, registry, name, version)
-  } catch (err) {
-    return {
-      ok: false,
-      code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
-      reason: uncheckable('minimumReleaseAge', err instanceof Error ? err.message : String(err)),
-    }
-  }
+  // A transport failure (auth/network/5xx) propagates the registry's own fetch
+  // error (e.g. ERR_PNPM_FETCH_403); the gate aborts the install with it rather
+  // than folding it into a policy violation. A successful fetch that simply
+  // lacks a publish timestamp for this version is handled below.
+  const published = await fetchPublishedAt(context, registry, name, version)
   if (!published) {
     // No source — attestation, local mirror, or full metadata —
     // surfaced a publish timestamp for this version. The resolver's
@@ -400,7 +395,15 @@ async function runTarballUrlCheck (
   version: string,
   lockfileTarball: string
 ): Promise<{ ok: false, code: string, reason: string } | undefined> {
-  const meta = await fetchAbbreviatedMeta(context, registry, name)
+  const { meta, error } = await fetchAbbreviatedMeta(context, registry, name)
+  if (error != null) {
+    // Couldn't reach the registry to verify (auth/network/5xx). Propagate the
+    // registry's own fetch error (e.g. ERR_PNPM_FETCH_403, which already
+    // explains the auth situation) instead of mislabeling a transport failure
+    // as a tampering-style URL mismatch. The gate aborts the install with that
+    // error — still fail-closed, the entry never reaches the filesystem.
+    throw error
+  }
   const registryTarball = meta?.versionTarballs?.get(version)
   if (registryTarball != null && sameTarballUrl(lockfileTarball, registryTarball)) {
     return undefined
@@ -454,19 +457,11 @@ async function runTrustCheck (
     trustPolicyIgnoreAfter?: number
   }
 ): Promise<{ ok: false, code: string, reason: string } | undefined> {
-  let meta: PackageMeta
-  try {
-    meta = await fetchFullMetaForTrust(context, registry, name)
-  } catch (err) {
-    // `fetchFullMetadataCached` rejects (network error, 404, etc.); the
-    // verifier fails closed so a missing manifest can't be mistaken
-    // for a passing trust check.
-    return {
-      ok: false,
-      code: TRUST_DOWNGRADE_VIOLATION_CODE,
-      reason: uncheckable('trustPolicy', err instanceof Error ? err.message : String(err)),
-    }
-  }
+  // A transport failure (auth/network/5xx) propagates the registry's own fetch
+  // error; the gate aborts the install with it rather than folding it into a
+  // policy violation. Still fail-closed: a missing manifest can't be mistaken
+  // for a passing trust check because the install never proceeds.
+  const meta = await fetchFullMetaForTrust(context, registry, name)
 
   try {
     failIfTrustDowngraded(meta, version, opts)
@@ -611,10 +606,11 @@ interface PublishedAtLookupContext {
    * package-level `modified` plus the set of currently-listed version
    * names — so the multi-hundred-KB packument can be GC'd as soon as
    * the fetch returns (the cache only needs to dedupe network/disk
-   * round-trips, not full document storage). Resolves to `undefined`
-   * on failure.
+   * round-trips, not full document storage). Resolves to `{ meta }` on
+   * success or `{ error }` on a fetch failure — it never rejects, so the
+   * cached promise is safe to share between callers.
    */
-  abbreviatedMetaCache: Map<string, Promise<AbbreviatedMetaProjection | undefined>>
+  abbreviatedMetaCache: Map<string, Promise<AbbreviatedMetaResult>>
   /**
    * Per-(registry+name+version) memo of the final published-at answer
    * the verifier hands to the policy check. One install verifies each
@@ -724,7 +720,9 @@ async function tryAbbreviatedModifiedShortcut (
   name: string,
   version: string
 ): Promise<string | undefined> {
-  const meta = await fetchAbbreviatedMeta(context, registry, name)
+  // A fetch failure here is fine: ignore `error` and fall back to per-version
+  // lookups, the same as a successful-but-uninformative metadata response.
+  const { meta } = await fetchAbbreviatedMeta(context, registry, name)
   const modified = meta?.modified
   if (typeof modified !== 'string') return undefined
   const modifiedMs = Date.parse(modified)
@@ -742,7 +740,7 @@ function fetchAbbreviatedMeta (
   context: PublishedAtLookupContext,
   registry: string,
   name: string
-): Promise<AbbreviatedMetaProjection | undefined> {
+): Promise<AbbreviatedMetaResult> {
   const cacheKey = `${registry}\x00${name}`
   let cachedPromise = context.abbreviatedMetaCache.get(cacheKey)
   if (cachedPromise == null) {
@@ -753,13 +751,22 @@ function fetchAbbreviatedMeta (
     // can only return this registry's own packument.
     const shared = readSharedMeta(context.sharedMetaCache, registry, name)
     if (shared != null) {
-      cachedPromise = Promise.resolve(projectAbbreviatedMeta(shared))
+      cachedPromise = Promise.resolve({ meta: projectAbbreviatedMeta(shared) })
     } else {
+      // Carry a fetch failure (auth/network/5xx) as `error` instead of
+      // collapsing it to `undefined`: the tarball-URL check rethrows it (so the
+      // registry's own error surfaces, not a tampering-style mismatch) while
+      // the age shortcut ignores it and falls back to per-version lookups.
+      // Keeping it a resolved value — not a rejected promise — lets the two
+      // callers share one cached promise without an unhandled rejection.
       cachedPromise = fetchAbbreviatedMetadataCached(context.fetchOpts, name, {
         registry,
         authHeaderValue: context.getAuthHeaderValueByURI(registry, { pkgName: name }),
         cacheDir: context.cacheDir,
-      }).then(projectAbbreviatedMeta, () => undefined)
+      }).then(
+        (meta) => ({ meta: projectAbbreviatedMeta(meta) }),
+        (error: unknown) => ({ error })
+      )
     }
     context.abbreviatedMetaCache.set(cacheKey, cachedPromise)
   }
@@ -845,6 +852,21 @@ interface AbbreviatedMetaProjection {
   /** version → `dist.tarball`; key presence means the version is published. */
   versionTarballs?: Map<string, string | undefined>
 }
+
+/**
+ * Result of an abbreviated-metadata fetch. The fetch error is carried as a
+ * value rather than rejected so the per-install cache can hold a single
+ * resolved promise — a cached rejection would surface as an unhandled
+ * rejection and be shared across every caller of the same key. The
+ * tarball-URL check rethrows this error; the age shortcut ignores it and
+ * falls back to per-version lookups.
+ *
+ * Modeled as a discriminated union so a result carries exactly one of `meta`
+ * or `error` — never both, never neither.
+ */
+type AbbreviatedMetaResult =
+  | { meta: AbbreviatedMetaProjection, error?: undefined }
+  | { error: unknown, meta?: undefined }
 
 function readLocalMetaTime (
   context: PublishedAtLookupContext,

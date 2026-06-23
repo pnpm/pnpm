@@ -57,6 +57,18 @@ pub enum VerifyError {
         breakdown: String,
     },
 
+    /// The registry couldn't be reached to verify an entry
+    /// (auth/network/5xx). Surfaces the registry's own fetch error — which
+    /// already explains the auth situation — rather than a tampering-style
+    /// mismatch or a lockfile-policy batch. The message is credential-redacted
+    /// at the verifier before it reaches here.
+    #[display("{message}")]
+    #[diagnostic(code(ERR_PNPM_META_FETCH_FAIL))]
+    RegistryMetaFetchFailed {
+        #[error(not(source))]
+        message: String,
+    },
+
     #[display("{count} lockfile entries failed verification:\n{breakdown}")]
     #[diagnostic(code(ERR_PNPM_RESOLUTION_SHAPE_MISMATCH), help("{HINT}"))]
     ResolutionShapeMismatch {

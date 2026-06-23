@@ -10,6 +10,7 @@ use ssri::Integrity;
 
 use super::{
     CreateNpmResolutionVerifierOptions, create_npm_resolution_verifier, observed_dist_stats_sink,
+    redact_url_credentials,
 };
 
 const FAKE_INTEGRITY: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
@@ -1072,4 +1073,120 @@ async fn binding_check_records_dist_stats_into_the_sink() {
         .expect("stats recorded");
     assert_eq!(recorded.unpacked_size, Some(123_456));
     assert_eq!(recorded.file_count, Some(42));
+}
+
+/// A 403 on the metadata fetch (e.g. a CI token that is authenticated but not
+/// authorized to read a private package) must not be reported as a lockfile
+/// tarball-URL mismatch: the lockfile is correct, the fetch is the problem. The
+/// verifier propagates the registry's own fetch error so the install aborts.
+#[tokio::test]
+async fn propagates_metadata_fetch_failure_instead_of_a_tampering_mismatch() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let server_url = server.url();
+    let _meta_mock = server
+        .mock("GET", "/private-pkg")
+        .with_status(403)
+        .with_body(r#"{"error":"Forbidden"}"#)
+        .create_async()
+        .await;
+
+    let opts = default_opts(&registry);
+    let verifier = create_npm_resolution_verifier(opts);
+    let resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: format!("{server_url}/private-pkg/-/private-pkg-1.0.0.tgz"),
+        integrity: Some(fake_integrity()),
+        git_hosted: None,
+        path: None,
+    });
+    let name: PkgName = "private-pkg".parse().expect("parse");
+    let result = verifier.verify(&resolution, ctx(&name, "1.0.0")).await;
+
+    // A transport failure aborts via FetchFailed, never a tampering-style
+    // TARBALL_URL_MISMATCH.
+    let ResolutionVerification::FetchFailed { message } = result else {
+        panic!("expected FetchFailed, got {result:?}");
+    };
+    assert!(message.contains("403"), "message: {message}");
+}
+
+/// The metadata fetch succeeds but does not list the pinned version. That is a
+/// genuine verification failure (not a transport error), so it stays
+/// `TARBALL_URL_MISMATCH` rather than aborting via `FetchFailed`.
+#[tokio::test]
+async fn version_absent_from_fetched_metadata_stays_tarball_url_mismatch() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let server_url = server.url();
+    let packument = serde_json::json!({
+        "name": "present-pkg",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "present-pkg",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": FAKE_INTEGRITY,
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": format!("{server_url}/present-pkg/-/present-pkg-1.0.0.tgz"),
+                }
+            }
+        }
+    });
+    let _meta_mock = server
+        .mock("GET", "/present-pkg")
+        .with_status(200)
+        .with_body(packument.to_string())
+        .create_async()
+        .await;
+
+    let opts = default_opts(&registry);
+    let verifier = create_npm_resolution_verifier(opts);
+    let resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: format!("{server_url}/present-pkg/-/present-pkg-2.0.0.tgz"),
+        integrity: Some(fake_integrity()),
+        git_hosted: None,
+        path: None,
+    });
+    let name: PkgName = "present-pkg".parse().expect("parse");
+    let result = verifier.verify(&resolution, ctx(&name, "2.0.0")).await;
+
+    let ResolutionVerification::Err { code, .. } = result else {
+        panic!("expected Err, got {result:?}");
+    };
+    assert_eq!(code, "TARBALL_URL_MISMATCH");
+}
+
+#[test]
+fn redact_url_credentials_strips_embedded_basic_auth() {
+    assert_eq!(
+        redact_url_credentials(
+            "Failed to fetch metadata from https://user:pass@host/pkg: timed out"
+        ),
+        "Failed to fetch metadata from https://host/pkg: timed out",
+    );
+    // user-only userinfo (no password) is stripped too.
+    assert_eq!(
+        redact_url_credentials("got https://token@registry.example/foo"),
+        "got https://registry.example/foo",
+    );
+    // A raw "@" inside the password is stripped up to the last "@" in the
+    // authority, so the password tail can't leak.
+    assert_eq!(
+        redact_url_credentials("Failed to fetch metadata from https://user:p@ss@host/pkg: 403"),
+        "Failed to fetch metadata from https://host/pkg: 403",
+    );
+    // An "@" in the path/query (after the authority) is preserved.
+    assert_eq!(
+        redact_url_credentials("got https://host/path?to=a@b"),
+        "got https://host/path?to=a@b",
+    );
+    // A credential-free URL is left untouched.
+    assert_eq!(
+        redact_url_credentials("Failed to fetch metadata from https://host/pkg: timed out"),
+        "Failed to fetch metadata from https://host/pkg: timed out",
+    );
+    // A bare "://" with no preceding scheme character is not treated as a URL
+    // authority, so an "@" further along is preserved.
+    assert_eq!(redact_url_credentials("a :// b@c"), "a :// b@c");
 }
