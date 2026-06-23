@@ -37,6 +37,7 @@ jobs:
               - 'cspell.json'
               - '.github/workflows/ci.yml'
               - '.github/workflows/test.yml'
+              - '.github/scripts/**'
 
   compile-and-lint:
     needs: changes
@@ -91,33 +92,44 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ['22.13.0', '24.0.0', '26.3.1']
-        platform: [ubuntu-latest, windows-latest]
         include:
           - node: '22.13.0'
             node_major: '22'
-          - node: '24.0.0'
-            node_major: '24'
+            platform: ubuntu-latest
+            platform_label: ubuntu
+            test_chunk: '1'
+            test_chunk_total: '1'
           - node: '26.3.1'
             node_major: '26'
-          - platform: ubuntu-latest
-            platform_label: ubuntu
-          - platform: windows-latest
-            platform_label: windows
-        exclude:
-          - node: '24.0.0'
             platform: ubuntu-latest
-          # On branches, only run Windows with the lowest supported Node.js.
-          # Exception: main and release branches (release/x, release/x.x) run the full matrix.
-          - node: ${{ (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) && 'none' || '24.0.0' }}
+            platform_label: ubuntu
+            test_chunk: '1'
+            test_chunk_total: '1'
+          - node: '22.13.0'
+            node_major: '22'
             platform: windows-latest
-          - node: ${{ (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) && 'none' || '26.3.1' }}
+            platform_label: windows 1/3
+            test_chunk: '1'
+            test_chunk_total: '3'
+          - node: '22.13.0'
+            node_major: '22'
             platform: windows-latest
+            platform_label: windows 2/3
+            test_chunk: '2'
+            test_chunk_total: '3'
+          - node: '22.13.0'
+            node_major: '22'
+            platform: windows-latest
+            platform_label: windows 3/3
+            test_chunk: '3'
+            test_chunk_total: '3'
     uses: ./.github/workflows/test.yml
     with:
       node: ${{ matrix.node }}
       node_major: ${{ matrix.node_major }}
       platform: ${{ matrix.platform }}
+      test_chunk: ${{ matrix.test_chunk }}
+      test_chunk_total: ${{ matrix.test_chunk_total }}
 
   # Single aggregate gate — the only TS CI context branch protection needs
   # to require. Listing the individual jobs as required checks does not
