@@ -1,12 +1,14 @@
 #!/usr/bin/env node
-import { spawn } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { mkdir, readdir, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { performance } from 'node:perf_hooks'
 
 const rootDir = process.cwd()
-const JEST_FILES_PER_SPLIT_SCRIPT_BATCH = 10
+const pnpmCommand = resolveCommand('pn')
+const WINDOWS_SHELL_COMMAND_LENGTH_LIMIT = 7000
+const DEFAULT_COMMAND_LENGTH_LIMIT = 100000
 const { chunk, chunks, dryRun, script, summary } = parseArgs(process.argv.slice(2))
 
 if (!dryRun) {
@@ -63,16 +65,17 @@ async function listTestTasks (packages) {
       continue
     }
 
-    for (const file of await findJestTestFiles(pkg.path)) {
+    const testFiles = await findJestTestFiles(pkg.path)
+    tasks.push(...await Promise.all(testFiles.map(async (file) => {
       const fileStat = await stat(file)
-      tasks.push({
+      return {
         file,
         id: normalizePath(path.relative(rootDir, file)),
         kind: 'jest',
         packagePath: pkg.path,
         weight: Math.max(1, fileStat.size),
-      })
-    }
+      }
+    })))
   }
   return tasks
 }
@@ -238,11 +241,20 @@ function compareTasksByWeight (a, b) {
 }
 
 function withJestNodeOptions (current = '') {
-  const options = new Set(current.split(/\s+/).filter(Boolean))
-  options.add('--experimental-vm-modules')
-  options.add('--disable-warning=ExperimentalWarning')
-  options.add('--disable-warning=DEP0169')
-  return Array.from(options).join(' ')
+  const options = current.split(/\s+/).filter(Boolean)
+  addNodeOption(options, '--experimental-vm-modules')
+  addNodeOption(options, '--disable-warning=ExperimentalWarning')
+  addNodeOption(options, '--disable-warning=DEP0169')
+  if (!options.some((option) => option.startsWith('--max-old-space-size='))) {
+    options.push('--max-old-space-size=6144')
+  }
+  return options.join(' ')
+}
+
+function addNodeOption (options, option) {
+  if (!options.includes(option)) {
+    options.push(option)
+  }
 }
 
 function getJestFileBatches (pkg, relFiles) {
@@ -254,7 +266,7 @@ function getJestFileBatches (pkg, relFiles) {
   const remainingFiles = relFiles.filter((file) => !isolatedFileSet.has(file))
   return [
     ...isolatedFiles.map((file) => [file]),
-    ...chunkArray(remainingFiles, JEST_FILES_PER_SPLIT_SCRIPT_BATCH),
+    ...splitJestFilesByCommandLength(pkg, remainingFiles),
   ].filter((files) => files.length > 0)
 }
 
@@ -273,12 +285,32 @@ function getExplicitJestFiles (scripts) {
   return files
 }
 
-function chunkArray (items, size) {
+function splitJestFilesByCommandLength (pkg, files) {
+  const limit = process.platform === 'win32' ? WINDOWS_SHELL_COMMAND_LENGTH_LIMIT : DEFAULT_COMMAND_LENGTH_LIMIT
+  const baseArgs = [pnpmCommand, '--dir', pkg.path, 'exec', 'jest', '--runTestsByPath']
   const chunks = []
-  for (let index = 0; index < items.length; index += size) {
-    chunks.push(items.slice(index, index + size))
+  let currentChunk = []
+  let currentLength = estimateCommandLength(baseArgs)
+
+  for (const file of files) {
+    const fileLength = estimateCommandLength([file])
+    if (currentChunk.length > 0 && currentLength + fileLength > limit) {
+      chunks.push(currentChunk)
+      currentChunk = []
+      currentLength = estimateCommandLength(baseArgs)
+    }
+    currentChunk.push(file)
+    currentLength += fileLength
+  }
+
+  if (currentChunk.length > 0) {
+    chunks.push(currentChunk)
   }
   return chunks
+}
+
+function estimateCommandLength (args) {
+  return args.reduce((total, arg) => total + arg.length + 3, 0)
 }
 
 function prependPath (env, dirs) {
@@ -294,19 +326,23 @@ function getPathKey (env) {
 }
 
 function runPnpm (args, opts = {}) {
-  return runCommand('pn', args, opts)
+  return runCommand(pnpmCommand, args, opts)
 }
 
 function capturePnpm (args) {
-  return captureCommand('pn', args)
+  return captureCommand(pnpmCommand, args)
 }
 
 function runCommand (command, args, opts = {}) {
   return new Promise((resolve, reject) => {
+    const shell = process.platform === 'win32'
+    if (shell) {
+      validateWindowsShellArgs([command, ...args])
+    }
     const child = spawn(command, args, {
       cwd: opts.cwd ?? rootDir,
       env: opts.env ?? process.env,
-      shell: process.platform === 'win32',
+      shell,
       stdio: 'inherit',
     })
     child.on('error', reject)
@@ -325,9 +361,13 @@ function runCommand (command, args, opts = {}) {
 function captureCommand (command, args) {
   return new Promise((resolve, reject) => {
     let stdout = ''
+    const shell = process.platform === 'win32'
+    if (shell) {
+      validateWindowsShellArgs([command, ...args])
+    }
     const child = spawn(command, args, {
       cwd: rootDir,
-      shell: process.platform === 'win32',
+      shell,
       stdio: ['ignore', 'pipe', 'inherit'],
     })
     child.stdout.setEncoding('utf8')
@@ -345,6 +385,27 @@ function captureCommand (command, args) {
       }
     })
   })
+}
+
+function resolveCommand (command) {
+  const result = process.platform === 'win32'
+    ? spawnSync('where', [command], { encoding: 'utf8' })
+    : spawnSync('sh', ['-c', `command -v ${command}`], { encoding: 'utf8' })
+  if (result.error != null) {
+    throw result.error
+  }
+  if (result.status !== 0) {
+    throw new Error(`Cannot resolve command: ${command}`)
+  }
+  return result.stdout.split(/\r?\n/).find(Boolean) ?? command
+}
+
+function validateWindowsShellArgs (args) {
+  for (const arg of args) {
+    if (/[&|<>^%\r\n]/.test(arg)) {
+      throw new Error(`Cannot run command with Windows shell metacharacters: ${arg}`)
+    }
+  }
 }
 
 function normalizePath (file) {

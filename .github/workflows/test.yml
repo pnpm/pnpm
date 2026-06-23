@@ -174,6 +174,28 @@ jobs:
             } >> "$GITHUB_OUTPUT"
           fi
         fi
+    - name: Validate test chunk inputs
+      shell: bash
+      env:
+        TEST_CHUNK: ${{ inputs.test_chunk }}
+        TEST_CHUNK_TOTAL: ${{ inputs.test_chunk_total }}
+      run: |
+        case "$TEST_CHUNK" in
+          ''|*[!0-9]*)
+            echo "::error::test_chunk must be a positive integer"
+            exit 1
+            ;;
+        esac
+        case "$TEST_CHUNK_TOTAL" in
+          ''|*[!0-9]*)
+            echo "::error::test_chunk_total must be a positive integer"
+            exit 1
+            ;;
+        esac
+        if (( TEST_CHUNK < 1 || TEST_CHUNK_TOTAL < 1 || TEST_CHUNK > TEST_CHUNK_TOTAL )); then
+          echo "::error::test_chunk must be between 1 and test_chunk_total"
+          exit 1
+        fi
     - name: Run tests (${{ steps.test-scope.outputs.scope }})
       timeout-minutes: 70
       shell: bash
@@ -207,13 +229,21 @@ jobs:
         TEST_CHUNK_TOTAL: ${{ inputs.test_chunk_total }}
       run: |
         benchmark=tests.cli
+        args=(
+          --name "$benchmark"
+          --output ".bench/${benchmark}.json"
+          --package-dir pnpm11/pnpm
+        )
         if [ "$TEST_CHUNK_TOTAL" != "1" ]; then
           benchmark="${benchmark}.chunk${TEST_CHUNK}"
+          args=(
+            --name "$benchmark"
+            --output ".bench/${benchmark}.json"
+            --package-dir pnpm11/pnpm
+            --allow-missing
+          )
         fi
-        node .github/scripts/bencher-result-from-pnpm-summary.mjs \
-          --name "$benchmark" \
-          --output ".bench/${benchmark}.json" \
-          --package-dir pnpm11/pnpm
+        node .github/scripts/bencher-result-from-pnpm-summary.mjs "${args[@]}"
     - name: Stage Bencher test durations
       if: steps.test-scope.outputs.full_tests == 'true'
       env:
