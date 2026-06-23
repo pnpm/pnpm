@@ -24,7 +24,7 @@ pub mod update;
 pub mod update_interactive;
 pub mod why;
 
-use crate::{State, config_deps, config_overrides::ConfigOverrides};
+use crate::{InitStateError, State, config_deps, config_overrides::ConfigOverrides};
 use add::AddArgs;
 use approve_builds::ApproveBuildsArgs;
 use cache::CacheCommand;
@@ -44,7 +44,7 @@ use pacquet_default_reporter::DefaultReporter;
 use pacquet_executor::execute_shell;
 use pacquet_package_manifest::PackageManifest;
 use pacquet_reporter::{
-    ExecutionTimeLog, LogEvent, LogLevel, NdjsonReporter, Reporter, SilentReporter,
+    ExecutionTimeLog, LogEvent, LogLevel, NdjsonReporter, PnpmLog, Reporter, SilentReporter,
 };
 use rebuild::RebuildArgs;
 use remove::RemoveArgs;
@@ -209,25 +209,44 @@ impl CliArgs {
     /// canonicalized `--dir`, the same config layering (`.npmrc` auth
     /// file seed + `--config.<key>` overrides). Workspace-filtered and
     /// recursive installs always take the full path.
-    pub fn finished_via_install_fast_path(&self, config_overrides: &ConfigOverrides) -> bool {
+    pub fn finished_via_install_fast_path(
+        &self,
+        config_overrides: &ConfigOverrides,
+    ) -> miette::Result<bool> {
         let started_at = now_millis();
         let CliCommand::Install(install_args) = &self.command else {
-            return false;
+            return Ok(false);
         };
         if self.recursive || !self.filter.is_empty() || !self.filter_prod.is_empty() {
-            return false;
+            return Ok(false);
         }
         let Ok(dir) = dunce::canonicalize(&self.dir) else {
-            return false;
+            return Ok(false);
         };
         let loaded = Config { npmrc_auth_file: self.npmrc_auth_file.clone(), ..Config::default() }
             .current::<Host>(&dir);
         let Ok(mut config) = loaded else {
-            return false;
+            return Ok(false);
         };
         config_overrides.apply(&mut config);
         configure_default_reporter(self.reporter, &dir);
         let emit = reporter_emit(self.reporter);
+        // Validate / promote root `package.json#resolutions` before the
+        // fast-path check. An up-to-date install still needs to surface
+        // malformed-resolutions errors and the migration / ignored
+        // warnings — otherwise `pacquet install` on a cached repo
+        // silently skips them. Mirrors the call site in
+        // `InstallPipeline::run`.
+        let manifest = PackageManifest::create_if_needed(dir.join("package.json"))
+            .map_err(InitStateError::Manifest)?;
+        let warnings = crate::state::apply_root_resolutions_to_config(&mut config, &manifest)?;
+        for message in warnings {
+            emit(&LogEvent::Pnpm(PnpmLog {
+                level: LogLevel::Warn,
+                message,
+                prefix: dir.to_string_lossy().to_string(),
+            }));
+        }
         let finished = install_args.finished_via_up_to_date_fast_path(&dir, &config, emit);
         if finished {
             // The fast path returns from `main` before `run` reaches its
@@ -239,7 +258,7 @@ impl CliArgs {
                 ended_at: now_millis(),
             }));
         }
-        finished
+        Ok(finished)
     }
 
     /// Execute the command. `config_overrides` carries `--config.<key>=<value>`
@@ -323,29 +342,66 @@ impl CliArgs {
         // pnpm's CLI: `--frozen-lockfile` is the strongest signal and
         // must not be silently dropped because `lockfile=false` was set
         // (or defaulted) in config.
+
         let state = |require_lockfile: bool| -> miette::Result<State> {
-            State::init(manifest_path(), config()?, require_lockfile)
-                .wrap_err("initialize the state")
+            let manifest = PackageManifest::create_if_needed(manifest_path())
+                .map_err(InitStateError::Manifest)
+                .wrap_err("initialize the state")?;
+            State::init(manifest, config()?, require_lockfile).wrap_err("initialize the state")
+        };
+
+        // Surface resolutions warnings through the active reporter (rather
+        // than `eprintln!`) so `--reporter=silent` drops them and
+        // `--reporter=ndjson` serializes them as `pnpm` records. `dir` is
+        // the canonicalized install root pnpm threads as each event's
+        // `prefix`.
+        let emit_resolutions_warnings = |warnings: Vec<String>| {
+            let prefix = dir.to_string_lossy().to_string();
+            for message in warnings {
+                reporter_emit(reporter)(&LogEvent::Pnpm(PnpmLog {
+                    level: LogLevel::Warn,
+                    message,
+                    prefix: prefix.clone(),
+                }));
+            }
         };
 
         match command {
             CliCommand::Init => {
                 PackageManifest::init(&manifest_path()).wrap_err("initialize package.json")?;
             }
-            CliCommand::Add(args) => match reporter {
-                ReporterType::Default | ReporterType::AppendOnly => {
-                    Box::pin(args.run::<DefaultReporter>(state(false)?)).await?;
+            CliCommand::Add(args) => {
+                let cfg = config()?;
+                let manifest = PackageManifest::create_if_needed(manifest_path())
+                    .map_err(InitStateError::Manifest)
+                    .wrap_err("initialize the state")?;
+                let warnings = crate::state::apply_root_resolutions_to_config(cfg, &manifest)?;
+                emit_resolutions_warnings(warnings);
+                let state = State::init(manifest, cfg, false).wrap_err("initialize the state")?;
+                match reporter {
+                    ReporterType::Default | ReporterType::AppendOnly => {
+                        Box::pin(args.run::<DefaultReporter>(state)).await?;
+                    }
+                    ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(state)).await?,
+                    ReporterType::Silent => Box::pin(args.run::<SilentReporter>(state)).await?,
                 }
-                ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(state(false)?)).await?,
-                ReporterType::Silent => Box::pin(args.run::<SilentReporter>(state(false)?)).await?,
-            },
-            CliCommand::Update(args) => match reporter {
-                ReporterType::Default | ReporterType::AppendOnly => {
-                    Box::pin(args.run::<DefaultReporter>(state(false)?)).await?;
+            }
+            CliCommand::Update(args) => {
+                let cfg = config()?;
+                let manifest = PackageManifest::create_if_needed(manifest_path())
+                    .map_err(InitStateError::Manifest)
+                    .wrap_err("initialize the state")?;
+                let warnings = crate::state::apply_root_resolutions_to_config(cfg, &manifest)?;
+                emit_resolutions_warnings(warnings);
+                let state = State::init(manifest, cfg, false).wrap_err("initialize the state")?;
+                match reporter {
+                    ReporterType::Default | ReporterType::AppendOnly => {
+                        Box::pin(args.run::<DefaultReporter>(state)).await?;
+                    }
+                    ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(state)).await?,
+                    ReporterType::Silent => Box::pin(args.run::<SilentReporter>(state)).await?,
                 }
-                ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(state(false)?)).await?,
-                ReporterType::Silent => Box::pin(args.run::<SilentReporter>(state(false)?)).await?,
-            },
+            }
             // `outdated` is a read-only query: it prints a report to
             // stdout and never installs, so it has no reporter-typed
             // install pipeline to dispatch on. It reports back whether any
@@ -359,13 +415,22 @@ impl CliArgs {
             CliCommand::Why(args) => {
                 args.run(state(true)?).await?;
             }
-            CliCommand::Remove(args) => match reporter {
-                ReporterType::Default | ReporterType::AppendOnly => {
-                    Box::pin(args.run::<DefaultReporter>(state(false)?)).await?;
+            CliCommand::Remove(args) => {
+                let cfg = config()?;
+                let manifest = PackageManifest::create_if_needed(manifest_path())
+                    .map_err(InitStateError::Manifest)
+                    .wrap_err("initialize the state")?;
+                let warnings = crate::state::apply_root_resolutions_to_config(cfg, &manifest)?;
+                emit_resolutions_warnings(warnings);
+                let state = State::init(manifest, cfg, false).wrap_err("initialize the state")?;
+                match reporter {
+                    ReporterType::Default | ReporterType::AppendOnly => {
+                        Box::pin(args.run::<DefaultReporter>(state)).await?;
+                    }
+                    ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(state)).await?,
+                    ReporterType::Silent => Box::pin(args.run::<SilentReporter>(state)).await?,
                 }
-                ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(state(false)?)).await?,
-                ReporterType::Silent => Box::pin(args.run::<SilentReporter>(state(false)?)).await?,
-            },
+            }
             CliCommand::Install(args) => {
                 // CLI overrides for `offline` / `prefer_offline` live
                 // alongside `--frozen-lockfile`: they upgrade an
@@ -607,6 +672,25 @@ impl InstallPipeline {
             require_lockfile,
             frozen_lockfile,
         } = self;
+        // Validate / promote root `package.json#resolutions` before any
+        // side-effectful work — config-deps sync writes the env lockfile
+        // document into `pnpm-lock.yaml`, and `updateConfig` hooks may
+        // mutate `cfg`. Running the resolutions handler here keeps a
+        // malformed or warn-worthy repo from leaving half-written state
+        // behind. Reads the manifest once and reuses it for `State::init`
+        // below.
+        let manifest = PackageManifest::create_if_needed(manifest_path)
+            .map_err(InitStateError::Manifest)
+            .wrap_err("initialize the state")?;
+        let warnings = crate::state::apply_root_resolutions_to_config(cfg, &manifest)?;
+        let prefix = config_root.to_string_lossy().to_string();
+        for message in warnings {
+            Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+                level: LogLevel::Warn,
+                message,
+                prefix: prefix.clone(),
+            }));
+        }
         if let Some(pm) = package_manager_to_sync.as_ref() {
             config_deps::sync_package_manager_dependencies(
                 cfg,
@@ -621,7 +705,7 @@ impl InstallPipeline {
         config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
         let cfg: &'static Config = cfg;
         let state =
-            State::init(manifest_path, cfg, require_lockfile).wrap_err("initialize the state")?;
+            State::init(manifest, cfg, require_lockfile).wrap_err("initialize the state")?;
         args.run::<Reporter>(state).await
     }
 }

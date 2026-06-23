@@ -837,6 +837,10 @@ impl WorkspaceSettings {
         if let Some(v) = self.overrides {
             config.overrides = (!v.is_empty()).then_some(v);
         }
+        // Empty map collapses to `None` so the workspace-state drift
+        // check ignores it, mirroring the same shape `overrides` uses.
+        // An explicit later-layer `packageExtensions: {}` still clears
+        // a prior non-empty value rather than no-oping.
         if let Some(v) = self.package_extensions {
             config.package_extensions = (!v.is_empty()).then_some(v);
         }

@@ -1,5 +1,5 @@
 use crate::{
-    State,
+    InitStateError, State,
     cli_args::{add::add_package, supported_architectures::SupportedArchitecturesArgs},
 };
 use clap::Args;
@@ -10,7 +10,7 @@ use pacquet_config::Config;
 use pacquet_crypto_hash::create_short_hash;
 use pacquet_fs::force_symlink_dir;
 use pacquet_package_is_installable::SupportedArchitectures;
-use pacquet_package_manifest::DependencyGroup;
+use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_registry::PinnedVersion;
 use pacquet_reporter::Reporter;
 use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
@@ -295,8 +295,11 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     let config: &Config = config;
 
     for pkg in pkgs {
-        let state = State::init(manifest_path.clone(), config, false)
+        let manifest = PackageManifest::create_if_needed(manifest_path.clone())
+            .map_err(InitStateError::Manifest)
             .wrap_err("initialize the dlx install state")?;
+        let state =
+            State::init(manifest, config, false).wrap_err("initialize the dlx install state")?;
         add_package::<Reporter, _, _>(
             state,
             pkg,

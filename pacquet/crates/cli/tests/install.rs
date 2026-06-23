@@ -1230,3 +1230,168 @@ fn set_dir_modes(path: &std::path::Path, mode: u32) {
     }
     fs::set_permissions(path, fs::Permissions::from_mode(mode)).expect("set directory mode");
 }
+
+/// Set up a workspace with a `package.json` whose `resolutions` field
+/// triggers the deprecation warning when `pacquet install` runs. The
+/// install itself doesn't need to succeed for the warning to fire —
+/// `apply_root_resolutions_to_config` runs before any network/IO work.
+fn write_manifest_with_resolutions(workspace: &std::path::Path) {
+    let manifest_path = workspace.join("package.json");
+    fs::write(
+        &manifest_path,
+        serde_json::json!({
+            "name": "resolutions-warning-host",
+            "version": "1.0.0",
+            "resolutions": {
+                "@pnpm.e2e/foo": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json with resolutions");
+}
+
+#[test]
+fn install_resolutions_warning_routed_through_silent_reporter_produces_no_stderr() {
+    // `apply_root_resolutions_to_config` emits the deprecation warning via
+    // `LogEvent::Pnpm` (level: Warn). `SilentReporter::emit` is a no-op,
+    // so the warning must not reach stderr — regression test for the
+    // `eprintln!` -> reporter reroute.
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest_with_resolutions(&workspace);
+
+    let output = pacquet
+        .with_args(["install", "--reporter=silent"])
+        .output()
+        .expect("spawn pacquet install");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("stderr={stderr}");
+    assert!(
+        !stderr.contains("resolutions"),
+        "`--reporter=silent` must not leak the resolutions deprecation warning to stderr",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn install_resolutions_warning_routed_through_ndjson_reporter_emits_parseable_records() {
+    // `NdjsonReporter::emit` writes one bunyan-shaped JSON record per
+    // event + `\n` to stderr. Every line must parse as JSON, and the
+    // deprecation warning must surface as a `pnpm` channel record with
+    // `level: warn` — regression test for the reporter contract.
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest_with_resolutions(&workspace);
+
+    let output = pacquet
+        .with_args(["install", "--reporter=ndjson"])
+        .output()
+        .expect("spawn pacquet install");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("stderr={stderr}");
+
+    let mut saw_resolutions_warning = false;
+    for line in stderr.lines() {
+        let parsed: serde_json::Value = serde_json::from_str(line).unwrap_or_else(|err| {
+            panic!("ndjson reporter emitted a non-JSON line: {line:?} ({err})")
+        });
+        // pacquet's `PnpmLog` wire shape: `{ name: "pnpm", level: "warn",
+        // message: "...", prefix: "..." }`. `level` serializes lowercase
+        // via `#[serde(rename_all = "lowercase")]` on `LogLevel`.
+        if parsed.get("name").and_then(|v| v.as_str()) == Some("pnpm")
+            && parsed.get("level").and_then(|v| v.as_str()) == Some("warn")
+        {
+            let msg = parsed.get("message").and_then(|v| v.as_str()).unwrap_or("");
+            if msg.contains("resolutions") {
+                saw_resolutions_warning = true;
+            }
+        }
+    }
+    assert!(
+        saw_resolutions_warning,
+        "ndjson reporter must emit the resolutions deprecation warning as a `pnpm` channel warn record",
+    );
+
+    drop((root, mock_instance));
+}
+
+/// Set up a workspace where `package.json#resolutions` and
+/// `pnpm-workspace.yaml#overrides` both exist. `resolutions` is ignored
+/// with a warning; install must still succeed. `add_mocked_registry`
+/// already writes a baseline `pnpm-workspace.yaml`, so we append an
+/// `overrides` block to it.
+fn write_manifest_with_resolutions_and_workspace_overrides(workspace: &std::path::Path) {
+    use std::fs::OpenOptions;
+    use std::io::Write;
+    let manifest_path = workspace.join("package.json");
+    fs::write(
+        &manifest_path,
+        serde_json::json!({
+            "name": "resolutions-and-overrides-host",
+            "version": "1.0.0",
+            "resolutions": {
+                "@pnpm.e2e/foo": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json with resolutions");
+    let mut yaml = OpenOptions::new()
+        .append(true)
+        .open(workspace.join("pnpm-workspace.yaml"))
+        .expect("open pnpm-workspace.yaml for append");
+    writeln!(yaml, "overrides:").expect("append overrides key");
+    writeln!(yaml, r#"  "@pnpm.e2e/bar": "2.0.0""#).expect("append override entry");
+}
+
+#[test]
+fn install_succeeds_and_warns_when_resolutions_and_overrides_both_exist() {
+    // `resolutions` is dropped with a warning when `overrides` exists;
+    // install must complete successfully and emit the "ignored" warning
+    // via the active reporter. Asserted through the ndjson reporter so
+    // the warning is checked structurally rather than via the default
+    // reporter's rendered output.
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_manifest_with_resolutions_and_workspace_overrides(&workspace);
+
+    let output = pacquet
+        .with_args(["install", "--reporter=ndjson"])
+        .output()
+        .expect("spawn pacquet install");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("stderr={stderr}");
+    assert!(
+        output.status.success(),
+        "`pacquet install` must succeed when both resolutions and overrides exist",
+    );
+
+    let mut saw_ignored_warning = false;
+    for line in stderr.lines() {
+        let parsed: serde_json::Value = serde_json::from_str(line).unwrap_or_else(|err| {
+            panic!("ndjson reporter emitted a non-JSON line: {line:?} ({err})")
+        });
+        if parsed.get("name").and_then(|v| v.as_str()) == Some("pnpm")
+            && parsed.get("level").and_then(|v| v.as_str()) == Some("warn")
+        {
+            let msg = parsed.get("message").and_then(|v| v.as_str()).unwrap_or("");
+            if msg.contains(r#""resolutions" field in package.json is ignored"#) {
+                saw_ignored_warning = true;
+            }
+        }
+    }
+    assert!(
+        saw_ignored_warning,
+        "ndjson reporter must emit the 'resolutions ignored' warning when both fields exist",
+    );
+
+    drop((root, mock_instance));
+}

@@ -424,3 +424,80 @@ fn should_add_peer_dependency() {
     );
     drop((root, anchor)); // cleanup
 }
+
+/// Set up a workspace where `package.json#resolutions` and
+/// `pnpm-workspace.yaml#overrides` both exist. `resolutions` is now
+/// ignored with a warning rather than erroring, so `add` must succeed.
+/// `add_mocked_registry` already writes a baseline `pnpm-workspace.yaml`,
+/// so we append an `overrides` block to it.
+fn write_resolutions_and_overrides(workspace: &std::path::Path) {
+    use std::fs::OpenOptions;
+    use std::io::Write;
+    let manifest_path = workspace.join("package.json");
+    std::fs::write(
+        &manifest_path,
+        serde_json::json!({
+            "name": "resolutions-host",
+            "version": "1.0.0",
+            "resolutions": {
+                "@pnpm.e2e/foo": "1.0.0",
+            },
+        })
+        .to_string(),
+    )
+    .expect("write package.json with resolutions");
+    let mut yaml = OpenOptions::new()
+        .append(true)
+        .open(workspace.join("pnpm-workspace.yaml"))
+        .expect("open pnpm-workspace.yaml for append");
+    writeln!(yaml, "overrides:").expect("append overrides key");
+    writeln!(yaml, r#"  "@pnpm.e2e/bar": "2.0.0""#).expect("append override entry");
+}
+
+#[test]
+fn add_succeeds_and_warns_when_resolutions_and_overrides_both_exist() {
+    // `resolutions` is ignored with a warning when `overrides` exists;
+    // `add` must complete successfully and emit the warning via the
+    // reporter. The `--reporter=ndjson` shape lets us assert the warning
+    // surfaced as a parseable `pnpm` channel record without depending
+    // on the default reporter's rendering.
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    write_resolutions_and_overrides(&workspace);
+
+    let output = pacquet
+        .with_args(["add", "@pnpm.e2e/hello-world-js-bin", "--reporter=ndjson"])
+        .output()
+        .expect("spawn pacquet add");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("stderr={stderr}");
+    assert!(
+        output.status.success(),
+        "`pacquet add` must succeed when both resolutions and overrides exist",
+    );
+
+    let mut saw_ignored_warning = false;
+    for line in stderr.lines() {
+        let parsed: serde_json::Value = serde_json::from_str(line).unwrap_or_else(|err| {
+            panic!("ndjson reporter emitted a non-JSON line: {line:?} ({err})")
+        });
+        if parsed.get("name").and_then(|v| v.as_str()) == Some("pnpm")
+            && parsed.get("level").and_then(|v| v.as_str()) == Some("warn")
+            && parsed
+                .get("message")
+                .and_then(|v| v.as_str())
+                .is_some_and(|m| m.contains(r#""resolutions" field in package.json is ignored"#))
+        {
+            saw_ignored_warning = true;
+            break;
+        }
+    }
+    assert!(
+        saw_ignored_warning,
+        "`pacquet add` must emit the 'resolutions ignored' warning when both fields exist",
+    );
+
+    drop((root, mock_instance));
+}

@@ -9,7 +9,7 @@ use cli_args::CliArgs;
 use config_overrides::ConfigOverrides;
 use miette::set_panic_hook;
 use pacquet_diagnostics::enable_tracing_by_env;
-use state::State;
+use state::{InitStateError, State};
 
 pub fn main() -> miette::Result<()> {
     enable_tracing_by_env();
@@ -26,7 +26,7 @@ pub fn main() -> miette::Result<()> {
     let args = CliArgs::parse_from(argv);
     // An up-to-date `pacquet install` finishes here, without paying for
     // the runtime, the HTTP client, or any worker threads.
-    if args.finished_via_install_fast_path(&config_overrides) {
+    if args.finished_via_install_fast_path(&config_overrides)? {
         return Ok(());
     }
     // Tie any child pacquet spawns (lifecycle scripts and their descendants)
