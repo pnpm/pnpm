@@ -18,10 +18,16 @@
 //!    `HISTORY*` / `NOTICE*` at the root, plus the paths declared in
 //!    `main` / `bin`. These survive `.npmignore` rejection and the
 //!    `files`-field filter.
-//! 4. **`bundleDependencies` recursion**: for each name in
+//! 4. **`bundleDependencies` closure**: starting from the names in
 //!    `manifest.bundleDependencies` (or the legacy
-//!    `bundledDependencies`), recurse into `node_modules/<name>/` and
-//!    splice its packlist under that prefix.
+//!    `bundledDependencies`), transitively include every reachable
+//!    dependency. A bundled package pulls in its own `dependencies`
+//!    and `optionalDependencies` too, so the whole closure ships.
+//!    Each name is resolved with the node module-resolution walk-up
+//!    (nested `node_modules/` first, then ancestor `node_modules/`),
+//!    which is what lets a hoisted transitive dep at the root
+//!    `node_modules/` be found and spliced in under its real path.
+//!    Port of [`npm-bundled`](https://github.com/npm/npm-bundled).
 //!
 //! Two intentional divergences from upstream:
 //!
@@ -43,17 +49,17 @@ use ignore::{WalkBuilder, gitignore::Gitignore};
 use pacquet_package_manifest::safe_read_package_json_from_dir;
 use serde_json::Value;
 use std::{
-    collections::{BTreeSet, HashSet},
+    collections::{BTreeSet, HashSet, VecDeque},
     fs,
     path::{Path, PathBuf},
 };
 
-/// Cap on `bundleDependencies` recursion depth. Real packages bundle
+/// Cap on `bundleDependencies` closure depth. Real packages bundle
 /// at most a handful of levels (most published packages bundle zero;
-/// the rare ones bundle one or two). The cap prevents a runaway
-/// recursion if a bundled dep declares its own bundle pointing at
-/// itself (or a symlink loop in the source tree slips past
-/// `canonicalize`).
+/// the rare ones bundle one or two). The visited-set already makes
+/// the walk terminate; this cap is belt-and-braces against a
+/// pathological tree that keeps resolving fresh canonical paths
+/// (e.g. a deep chain of `dependencies` that never repeats).
 const MAX_BUNDLE_DEPTH: u32 = 32;
 
 /// Case-insensitive prefix matches for files always-included at the
@@ -88,47 +94,139 @@ const ALWAYS_EXCLUDED_SUFFIXES: &[&str] = &[".orig"];
 /// [`fs/packlist/src/index.ts:24-29`](https://github.com/pnpm/pnpm/blob/94240bc046/fs/packlist/src/index.ts#L24-L29)
 /// (paths relative to `pkg_dir`, no leading `./`).
 pub fn packlist(pkg_dir: &Path, manifest: &Value) -> Result<Vec<String>, PacklistError> {
-    let mut visited = HashSet::new();
-    packlist_inner(pkg_dir, manifest, &mut visited, 0)
+    let mut out: BTreeSet<String> = collect_own_files(pkg_dir, manifest)?;
+    collect_bundled_files(pkg_dir, manifest, &mut out)?;
+    Ok(out.into_iter().collect())
 }
 
-/// Inner recursive entry point that threads cycle detection and a
-/// depth cap through `bundleDependencies` traversals. Each
-/// recursion's canonicalised `pkg_dir` is inserted into `visited`
-/// so a bundled dep that points back at an ancestor (cycle) gets
-/// skipped instead of stack-overflowing. The `depth` counter is a
-/// belt-and-braces guard against any cycle the canonical-path check
-/// can't see (e.g. filesystem mount tricks).
-fn packlist_inner(
-    pkg_dir: &Path,
-    manifest: &Value,
-    visited: &mut HashSet<PathBuf>,
+/// One unit of `bundleDependencies`-closure work: resolve `name`
+/// starting the node module-resolution walk-up at `from_dir`, then
+/// splice the resolved package's files into the output.
+struct BundleTask {
+    name: String,
+    from_dir: PathBuf,
     depth: u32,
-) -> Result<Vec<String>, PacklistError> {
-    // `fs::canonicalize` resolves symlinks, which is precisely what
-    // we want for cycle detection — a symlink loop in the source
-    // tree shows up as the same canonical path. Fall back to the
-    // input path on canonicalisation failure (e.g. permission
-    // denied); the cycle check then degrades to identity on the
-    // raw path, which is still enough to catch trivial self-bundles.
-    let canonical = fs::canonicalize(pkg_dir).unwrap_or_else(|_| pkg_dir.to_path_buf());
-    if !visited.insert(canonical) {
-        tracing::warn!(
-            target: "pacquet::git_fetcher::packlist",
-            pkg_dir = %pkg_dir.display(),
-            "bundleDependencies cycle: directory already visited at this canonical path; skipping",
-        );
-        return Ok(Vec::new());
+}
+
+/// Build the `bundleDependencies` closure for `root` and splice each
+/// bundled package's files into `out` under the package's real path
+/// relative to `root` (e.g. `node_modules/<name>/...`).
+///
+/// Mirrors [`npm-bundled`](https://github.com/npm/npm-bundled): seed
+/// from the root manifest's bundle list, then transitively pull in
+/// every reachable dependency. Once a package is bundled, its own
+/// `dependencies` and `optionalDependencies` are bundled too — that
+/// is how the closure reaches a hoisted transitive dep sitting at the
+/// root `node_modules/`. `devDependencies` are never followed.
+///
+/// The `visited` set is keyed on the canonicalised resolved directory,
+/// so a diamond (two bundled deps sharing a transitive dep) processes
+/// the shared package once and a `dependencies` cycle terminates
+/// instead of looping forever.
+fn collect_bundled_files(
+    root: &Path,
+    root_manifest: &Value,
+    out: &mut BTreeSet<String>,
+) -> Result<(), PacklistError> {
+    let mut visited: HashSet<PathBuf> = HashSet::new();
+    let mut queue: VecDeque<BundleTask> = root_bundle_dep_names(root_manifest)
+        .into_iter()
+        .map(|name| BundleTask { name, from_dir: root.to_path_buf(), depth: 0 })
+        .collect();
+
+    while let Some(task) = queue.pop_front() {
+        if task.depth > MAX_BUNDLE_DEPTH {
+            tracing::warn!(
+                target: "pacquet::git_fetcher::packlist",
+                bundle_name = %task.name,
+                depth = task.depth,
+                "bundleDependencies closure exceeded MAX_BUNDLE_DEPTH; refusing to descend further",
+            );
+            continue;
+        }
+        // Defense-in-depth: a malicious manifest could carry
+        // `bundleDependencies: ["../../etc"]` (or an absolute path).
+        // Reject anything that's not a single safe segment before it
+        // reaches the join in `resolve_bundled_dependency`.
+        if !is_safe_bundle_name(&task.name) {
+            tracing::warn!(
+                target: "pacquet::git_fetcher::packlist",
+                bundle_name = %task.name,
+                "rejecting bundleDependencies entry that is not a single path segment",
+            );
+            continue;
+        }
+        let Some(dep_dir) = resolve_bundled_dependency(&task.name, &task.from_dir, root) else {
+            tracing::debug!(
+                target: "pacquet::git_fetcher::packlist",
+                bundle_name = %task.name,
+                from_dir = %task.from_dir.display(),
+                "bundleDependencies entry not resolvable under node_modules/; skipping",
+            );
+            continue;
+        };
+        // `fs::canonicalize` resolves symlinks so a symlink loop shows
+        // up as a path we've already visited. Fall back to the raw
+        // path on failure (e.g. permission denied); dedup then
+        // degrades to identity on the resolved path, still enough to
+        // stop a plain `dependencies` cycle.
+        let canonical = fs::canonicalize(&dep_dir).unwrap_or_else(|_| dep_dir.clone());
+        if !visited.insert(canonical) {
+            continue;
+        }
+        // The walk-up only ever returns a path under `root`, but guard
+        // anyway: never splice in files resolved outside the package
+        // tree.
+        if dep_dir.strip_prefix(root).is_err() {
+            continue;
+        }
+        let prefix = relative_forward_slash(root, &dep_dir);
+        let dep_manifest = safe_read_package_json_from_dir(&dep_dir)
+            .ok()
+            .flatten()
+            .unwrap_or_else(|| Value::Object(serde_json::Map::new()));
+        for rel in collect_own_files(&dep_dir, &dep_manifest)? {
+            out.insert(format!("{prefix}/{rel}"));
+        }
+        for name in nested_bundle_dep_names(&dep_manifest) {
+            queue.push_back(BundleTask { name, from_dir: dep_dir.clone(), depth: task.depth + 1 });
+        }
     }
-    if depth > MAX_BUNDLE_DEPTH {
-        tracing::warn!(
-            target: "pacquet::git_fetcher::packlist",
-            pkg_dir = %pkg_dir.display(),
-            depth,
-            "bundleDependencies recursion exceeded MAX_BUNDLE_DEPTH; refusing to descend further",
-        );
-        return Ok(Vec::new());
+    Ok(())
+}
+
+/// Resolve a bundled dependency `name` to its directory using the
+/// node module-resolution walk-up: check `from_dir/node_modules/name`,
+/// then climb to each ancestor's `node_modules/`, stopping at `root`.
+/// Returns the first directory that contains a `package.json`, or
+/// `None` if the name resolves nowhere within the package tree.
+///
+/// Climbing past `root` is refused so a hoisted dep always resolves to
+/// the package being packed rather than to a sibling on the host.
+fn resolve_bundled_dependency(name: &str, from_dir: &Path, root: &Path) -> Option<PathBuf> {
+    let mut current = from_dir.to_path_buf();
+    loop {
+        let candidate = current.join("node_modules").join(name);
+        if candidate.join("package.json").is_file() {
+            return Some(candidate);
+        }
+        if current == root {
+            return None;
+        }
+        let parent = current.parent()?;
+        if parent == current {
+            return None;
+        }
+        current = parent.to_path_buf();
     }
+}
+
+/// Collect the forward-slash relative paths for a single package's own
+/// files — the `.npmignore` / `.gitignore` walk, the `files`-field
+/// allowlist, and the always-included / `main` / `bin` force-includes.
+/// This is the per-package packlist with no `bundleDependencies`
+/// traversal; [`collect_bundled_files`] layers the closure on top.
+fn collect_own_files(pkg_dir: &Path, manifest: &Value) -> Result<BTreeSet<String>, PacklistError> {
     let files_field = manifest.get("files").and_then(Value::as_array);
     let files_matcher: Option<Gitignore> =
         files_field.and_then(|arr| build_files_matcher(pkg_dir, arr));
@@ -241,47 +339,7 @@ fn packlist_inner(
         }
     }
 
-    // Pass 4: recurse into `bundleDependencies` /
-    // `bundledDependencies`. Each bundled dep gets its own packlist
-    // pass; the result splices in under `node_modules/<name>/`. Both
-    // field names are accepted because some published packages use
-    // one and some the other (npm-packlist tolerates both).
-    for bundle_name in bundle_dep_names(manifest) {
-        // Defense-in-depth: a malicious manifest could carry
-        // `bundleDependencies: ["../../etc"]` (or an absolute path).
-        // Reject anything that's not a single safe segment before
-        // building the join path; let `is_safe_bundle_name` log the
-        // refusal so the gap is observable in install logs.
-        if !is_safe_bundle_name(&bundle_name) {
-            tracing::warn!(
-                target: "pacquet::git_fetcher::packlist",
-                bundle_name = %bundle_name,
-                pkg_dir = %pkg_dir.display(),
-                "rejecting bundleDependencies entry that is not a single path segment",
-            );
-            continue;
-        }
-        let bundle_pkg_dir = pkg_dir.join("node_modules").join(&bundle_name);
-        if !bundle_pkg_dir.is_dir() {
-            tracing::debug!(
-                target: "pacquet::git_fetcher::packlist",
-                bundle_name = %bundle_name,
-                pkg_dir = %pkg_dir.display(),
-                "bundleDependencies entry not present under node_modules/; skipping",
-            );
-            continue;
-        }
-        let bundle_manifest = safe_read_package_json_from_dir(&bundle_pkg_dir)
-            .ok()
-            .flatten()
-            .unwrap_or_else(|| Value::Object(serde_json::Map::new()));
-        let nested = packlist_inner(&bundle_pkg_dir, &bundle_manifest, visited, depth + 1)?;
-        for rel in nested {
-            out.insert(format!("node_modules/{bundle_name}/{rel}"));
-        }
-    }
-
-    Ok(out.into_iter().collect())
+    Ok(out)
 }
 
 /// Compile the `manifest.files` allowlist into a single `Gitignore`
@@ -413,10 +471,11 @@ fn is_safe_bundle_name(name: &str) -> bool {
     true
 }
 
-/// Collect names from `bundleDependencies` (or the legacy
-/// `bundledDependencies`). Both spellings appear in real published
-/// packages; npm-packlist accepts either.
-fn bundle_dep_names(manifest: &Value) -> Vec<String> {
+/// Seed names for the bundle closure: the root manifest's
+/// `bundleDependencies` (or the legacy `bundledDependencies`). Both
+/// spellings appear in real published packages; npm-packlist accepts
+/// either.
+fn root_bundle_dep_names(manifest: &Value) -> Vec<String> {
     let raw = manifest.get("bundleDependencies").or_else(|| manifest.get("bundledDependencies"));
     let Some(raw) = raw else { return Vec::new() };
     match raw {
@@ -433,6 +492,23 @@ fn bundle_dep_names(manifest: &Value) -> Vec<String> {
         }
         _ => Vec::new(),
     }
+}
+
+/// Names a bundled package pulls into the closure: every key in its
+/// own `dependencies` and `optionalDependencies`. A bundled package
+/// ships its whole runtime closure, so these are followed regardless
+/// of whether the nested package declares its own `bundleDependencies`
+/// (already-bundled packages don't re-gate their deps). `peer`- and
+/// `dev`-dependencies are deliberately excluded — they are not part of
+/// the published closure. Mirrors `npm-bundled`'s `getDeps`.
+fn nested_bundle_dep_names(manifest: &Value) -> Vec<String> {
+    let mut names = Vec::new();
+    for field in ["dependencies", "optionalDependencies"] {
+        if let Some(map) = manifest.get(field).and_then(Value::as_object) {
+            names.extend(map.keys().cloned());
+        }
+    }
+    names
 }
 
 fn relative_forward_slash(root: &Path, full: &Path) -> String {
