@@ -4,15 +4,28 @@ on:
   push:
     tags:
       - "v*.*.*"
-  # Manual trigger for publishing whatever versions are currently in each
-  # package.json on the selected ref (typically `main`). Useful after a
-  # version-bump commit that hasn't been tagged yet. Versions already on
-  # npm are rejected by the registry, so re-running on an already-released
-  # tree is a no-op rather than a corruption.
+  # Manual trigger for rerunning a tag release. Dispatching this workflow from a
+  # branch fails before publishing because release artifacts are only built on
+  # version tags.
   workflow_dispatch:
 
 jobs:
+  validate-release-ref:
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Validate release ref
+        run: |
+          case "${GITHUB_REF}" in
+            refs/tags/v*.*.*) ;;
+            *)
+              echo "::error::The release workflow must run from a version tag like v11.9.0. Current ref: ${GITHUB_REF}"
+              exit 1
+              ;;
+          esac
+
   release:
+    needs: validate-release-ref
     permissions:
       id-token: write  # Required for OIDC
       contents: write  # for softprops/action-gh-release to create GitHub release
@@ -47,11 +60,6 @@ jobs:
         # No NPM_TOKEN: pnpm has no static token to short-circuit on, so it will perform
         # the OIDC token exchange against npm's trusted-publishing config for `@pnpm/exe`.
         # The exe artifacts must be built before the publish, so they're built here too.
-        #
-        # On workflow_dispatch (tagless manual run), skip this step: building the exe
-        # artifacts takes ~minutes, and the CLI + exe are normally released together
-        # via a `v*.*.*` tag. Manual dispatch is for lib-only republishes.
-        if: startsWith(github.ref, 'refs/tags/')
         run: |
           pn --filter=@pnpm/exe run build-artifacts
           pn --filter=@pnpm/exe publish --tag=next-11 --access=public --provenance
@@ -65,51 +73,22 @@ jobs:
           # doesn't work — pnpm doesn't appear to pass auth tokens to child processes.
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
+          trap 'pn config delete "//registry.npmjs.org/:_authToken" || true' EXIT
           pn config set "//registry.npmjs.org/:_authToken" "${NPM_TOKEN}"
-          publish_filters=(
-            "--filter=!pnpm"
-            "--filter=!@pnpm/exe"
-          )
-          if [[ "${GITHUB_REF}" != refs/tags/* ]]; then
-            publish_filters+=(
-              "--filter=!@pnpm/macos-arm64"
-              "--filter=!@pnpm/linux-arm64"
-              "--filter=!@pnpm/linux-x64"
-              "--filter=!@pnpm/linuxstatic-arm64"
-              "--filter=!@pnpm/linuxstatic-x64"
-              "--filter=!@pnpm/win-arm64"
-              "--filter=!@pnpm/win-x64"
-            )
-          fi
-          pn publish "${publish_filters[@]}" --access=public --provenance
-          pn config delete "//registry.npmjs.org/:_authToken"
+          pn publish --filter=!pnpm --filter=!@pnpm/exe --access=public --provenance
       - name: Publish pnpm CLI (trusted publishing)
         # No NPM_TOKEN — same rationale as the @pnpm/exe step above. This must come after
         # the previous step has cleared its NPM_TOKEN from pnpm's config.
-        #
-        # On workflow_dispatch (tagless manual run), skip — see the @pnpm/exe step.
-        if: startsWith(github.ref, 'refs/tags/')
         run: pn publish --filter=pnpm --tag=next-11 --access=public --provenance
-      # The remaining steps build the GitHub Release (asset upload, body,
-      # attestation of the dist/* exe files). Skip them on workflow_dispatch:
-      # there's no version tag to attach the release to, so
-      # softprops/action-gh-release would default `tag_name` to `github.ref_name`
-      # (which is `main` for a manual dispatch from main) and produce a junk
-      # release. The npm publishes above are unaffected — they're the
-      # authoritative artifact path on manual runs.
       - name: Copy Artifacts
-        if: startsWith(github.ref, 'refs/tags/')
         run: pn copy-artifacts
       - name: Attest build provenance
-        if: startsWith(github.ref, 'refs/tags/')
         uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
         with:
           subject-path: 'dist/*'
       - name: Generate release description
-        if: startsWith(github.ref, 'refs/tags/')
         run: pn make-release-description
       - name: Release
-        if: startsWith(github.ref, 'refs/tags/')
         # `gh release create` could replace this, but the release pipeline is
         # sensitive and softprops/action-gh-release is widely battle-tested.
         uses: softprops/action-gh-release@b4309332981a82ec1c5618f44dd2e27cc8bfbfda # v3.0.0 # zizmor: ignore[superfluous-actions]
