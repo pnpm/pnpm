@@ -79,7 +79,7 @@ jobs:
       # server stays warm — i.e. pnpr's cold-client-vs-warm-server shape,
       # the realistic CI case. Running both tools in one hyperfine
       # invocation also yields the pnpr-vs-direct ratio per scenario.
-      BENCHMARK_TARGETS: 'pacquet@88add0909a pnpr@cdc897f838 pnpr@88add0909a'
+      BENCHMARK_TARGETS: 'pacquet@cdc897f838 pnpr@cdc897f838'
       # Network emulation so both install strategies cross the link they
       # would in production instead of free loopback (~GB/s, ~0 RTT), which
       # would hide every download cost.

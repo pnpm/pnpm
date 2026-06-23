@@ -576,7 +576,10 @@ impl WorkEnv {
         // raw upstream tarball URLs even when the server resolves through a
         // latency proxy; the pacquet client rewrites this prefix to its
         // configured registry, which is `client_registry` from `.npmrc`.
-        append_pnpr_auth_to_npmrc(&bench_dir, &client_url);
+        // EXPERIMENT: auth-send disabled to isolate whether sending credentials
+        // (added in pnpm/pnpm#12577) is what doubled the pnpr benchmark. Targets
+        // an earlier pnpr whose resolver allows anonymous requests.
+        let _ = &client_url; // append_pnpr_auth_to_npmrc(&bench_dir, &client_url);
         fs::write(
             bench_dir.join(".pnpr-env"),
             format!(
@@ -1374,6 +1377,7 @@ fn seed_pnpr_auth(pnpr_storage: &Path) {
         .expect("seed pnpr benchmark htpasswd");
 }
 
+#[allow(dead_code, reason = "temporarily disabled for the auth-isolation experiment")]
 fn append_pnpr_auth_to_npmrc(dir: &Path, pnpr_server: &str) {
     let path = dir.join(".npmrc");
     let mut file =
