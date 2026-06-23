@@ -1,5 +1,13 @@
 # @pnpm/fetch
 
+## 1100.1.4
+
+### Patch Changes
+
+- 05b95ab: Fixed `pnpm` hanging (and crashing with an unhandled promise rejection) when a non-retryable network error such as `SELF_SIGNED_CERT_IN_CHAIN` occurs while fetching from a registry. The error is now rejected through the returned promise instead of being thrown inside the detached retry callback.
+- Updated dependencies [852d537]
+  - @pnpm/error@1100.0.1
+
 ## 1100.1.3
 
 ### Patch Changes

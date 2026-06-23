@@ -1,5 +1,20 @@
 # @pnpm/deps.graph-builder
 
+## 1100.0.18
+
+### Patch Changes
+
+- bae694f: Some registries generate tarballs on-demand and cannot provide an integrity checksum in their package metadata. In that case pnpm now computes the integrity from the downloaded tarball and stores it in the lockfile, so the entry is verifiable on subsequent installs instead of being written without an integrity (which would fail the next install). This also applies to `--lockfile-only`: the tarball is downloaded so its integrity can be computed. A lockfile entry that is still missing its integrity is rejected as a `ERR_PNPM_MISSING_TARBALL_INTEGRITY` lockfile verification violation (the install fails closed) rather than being silently re-fetched.
+- Updated dependencies [bae694f]
+- Updated dependencies [a84d2a1]
+  - @pnpm/hooks.types@1100.1.0
+  - @pnpm/store.controller-types@1100.1.6
+  - @pnpm/lockfile.utils@1100.1.0
+  - @pnpm/deps.graph-hasher@1100.2.6
+  - @pnpm/lockfile.fs@1100.1.7
+  - @pnpm/config.package-is-installable@1100.0.12
+  - @pnpm/patching.config@1100.0.9
+
 ## 1100.0.17
 
 ### Patch Changes

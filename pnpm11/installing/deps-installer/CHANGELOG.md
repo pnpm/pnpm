@@ -1,5 +1,57 @@
 # @pnpm/core
 
+## 1102.1.1
+
+### Patch Changes
+
+- 852d537: Lockfile verification no longer reports a registry metadata fetch failure (for example a `403`/`401` on a private registry, or a network error) as `ERR_PNPM_TARBALL_URL_MISMATCH`. When the registry can't be reached to verify an entry, the install now aborts with the registry's own fetch error (such as `ERR_PNPM_FETCH_403`, which already explains the authentication situation) instead of mislabeling a transport failure as lockfile tampering. Registry fetch errors no longer leak basic-auth credentials embedded in the registry URL (`https://user:pass@host/`) into their message.
+- Updated dependencies [bae694f]
+- Updated dependencies [1cbb5f2]
+- Updated dependencies [322f88f]
+- Updated dependencies [1488db1]
+- Updated dependencies [4d3fe4b]
+- Updated dependencies [0ec878d]
+- Updated dependencies [a84d2a1]
+- Updated dependencies [852d537]
+  - @pnpm/resolving.resolver-base@1100.5.0
+  - @pnpm/hooks.types@1100.1.0
+  - @pnpm/installing.package-requester@1102.1.0
+  - @pnpm/installing.context@1100.0.20
+  - @pnpm/installing.deps-resolver@1100.2.5
+  - @pnpm/store.controller-types@1100.1.6
+  - @pnpm/lockfile.utils@1100.1.0
+  - @pnpm/installing.deps-restorer@1102.1.1
+  - @pnpm/installing.linking.hoist@1100.0.16
+  - @pnpm/pnpr.client@1.2.3
+  - @pnpm/workspace.project-manifest-reader@1100.0.14
+  - @pnpm/pkg-manifest.utils@1100.2.6
+  - @pnpm/error@1100.0.1
+  - @pnpm/building.policy@1100.0.11
+  - @pnpm/deps.graph-hasher@1100.2.6
+  - @pnpm/lockfile.preferred-versions@1100.0.17
+  - @pnpm/lockfile.verification@1100.0.20
+  - @pnpm/building.after-install@1102.0.2
+  - @pnpm/building.during-install@1102.0.2
+  - @pnpm/exec.lifecycle@1100.1.1
+  - @pnpm/installing.linking.modules-cleaner@1100.1.9
+  - @pnpm/lockfile.filtering@1100.1.8
+  - @pnpm/lockfile.fs@1100.1.7
+  - @pnpm/lockfile.to-pnp@1100.1.1
+  - @pnpm/bins.linker@1100.0.16
+  - @pnpm/catalogs.config@1100.0.2
+  - @pnpm/config.parse-overrides@1100.0.2
+  - @pnpm/hooks.read-package-hook@1100.0.9
+  - @pnpm/network.auth-header@1101.1.3
+  - @pnpm/patching.config@1100.0.9
+  - @pnpm/store.index@1100.2.1
+  - @pnpm/worker@1100.2.2
+  - @pnpm/lockfile.pruner@1100.0.12
+  - @pnpm/lockfile.settings-checker@1100.0.20
+  - @pnpm/lockfile.walker@1100.0.12
+  - @pnpm/bins.remover@1100.0.11
+  - @pnpm/crypto.hash@1100.0.1
+  - @pnpm/fs.symlink-dependency@1100.0.10
+
 ## 1102.1.0
 
 ### Minor Changes

@@ -1,5 +1,18 @@
 # @pnpm/reviewing.dependencies-hierarchy
 
+## 1100.0.17
+
+### Patch Changes
+
+- Updated dependencies [bae694f]
+- Updated dependencies [a84d2a1]
+  - @pnpm/lockfile.utils@1100.1.0
+  - @pnpm/store.cafs@1100.1.11
+  - @pnpm/lockfile.fs@1100.1.7
+  - @pnpm/pkg-manifest.reader@1100.0.9
+  - @pnpm/store.index@1100.2.1
+  - @pnpm/lockfile.detect-dep-types@1100.0.12
+
 ## 1100.0.16
 
 ### Patch Changes

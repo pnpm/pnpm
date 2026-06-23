@@ -1,5 +1,12 @@
 # @pnpm/global.packages
 
+## 1100.0.9
+
+### Patch Changes
+
+- @pnpm/pkg-manifest.reader@1100.0.9
+- @pnpm/crypto.hash@1100.0.1
+
 ## 1100.0.8
 
 ### Patch Changes

@@ -1,5 +1,21 @@
 # @pnpm/resolving.bun-resolver
 
+## 1102.0.2
+
+### Patch Changes
+
+- 0ec878d: Removing a runtime dependency now removes the matching `devEngines.runtime` or `engines.runtime` entry that was materialized from it. Blank runtime selectors are normalized to `latest`.
+- Updated dependencies [bae694f]
+- Updated dependencies [fa7004b]
+- Updated dependencies [852d537]
+  - @pnpm/resolving.npm-resolver@1102.1.0
+  - @pnpm/resolving.resolver-base@1100.5.0
+  - @pnpm/fetching.fetcher-base@1100.2.0
+  - @pnpm/error@1100.0.1
+  - @pnpm/fetching.binary-fetcher@1102.0.1
+  - @pnpm/crypto.shasums-file@1100.1.2
+  - @pnpm/worker@1100.2.2
+
 ## 1102.0.1
 
 ### Patch Changes

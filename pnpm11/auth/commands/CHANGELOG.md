@@ -1,5 +1,18 @@
 # @pnpm/auth.commands
 
+## 1100.2.6
+
+### Patch Changes
+
+- Updated dependencies [05b95ab]
+- Updated dependencies [852d537]
+  - @pnpm/network.fetch@1100.1.4
+  - @pnpm/error@1100.0.1
+  - @pnpm/registry-access.client@1100.1.5
+  - @pnpm/cli.utils@1101.0.13
+  - @pnpm/config.reader@1101.10.1
+  - @pnpm/network.web-auth@1101.1.2
+
 ## 1100.2.5
 
 ### Patch Changes

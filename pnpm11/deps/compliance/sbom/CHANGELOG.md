@@ -1,5 +1,25 @@
 # @pnpm/deps.compliance.sbom
 
+## 1100.3.0
+
+### Minor Changes
+
+- 6c35a43: Added `--exclude-peers` to `pnpm sbom`. With `auto-install-peers` (the default), peer dependencies resolve into the lockfile and are otherwise indistinguishable from the package's own dependencies. The flag drops peer dependencies (and any transitive subtree reachable only through them) from the SBOM. CycloneDX 1.7 has no scope or relationship that expresses "consumer-provided peer", so omission is the only spec-clean handling. The flag name matches `pnpm list --exclude-peers`; note the SBOM flag prunes a peer's exclusive subtree, which is stricter than `pnpm list` (which only hides leaf peers).
+
+### Patch Changes
+
+- 17e7f2c: `pnpm sbom` now emits a CycloneDX `issue-tracker` external reference for components (and the root) whose `package.json` declares a `bugs` URL. Email-only `bugs` entries are skipped, since the reference requires a URL.
+- Updated dependencies [bae694f]
+- Updated dependencies [a84d2a1]
+  - @pnpm/resolving.resolver-base@1100.5.0
+  - @pnpm/lockfile.utils@1100.1.0
+  - @pnpm/lockfile.types@1100.0.12
+  - @pnpm/store.pkg-finder@1100.0.18
+  - @pnpm/pkg-manifest.reader@1100.0.9
+  - @pnpm/store.index@1100.2.1
+  - @pnpm/lockfile.detect-dep-types@1100.0.12
+  - @pnpm/lockfile.walker@1100.0.12
+
 ## 1100.2.0
 
 ### Minor Changes

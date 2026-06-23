@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/registry-access.client",
-  "version": "1100.1.4",
+  "version": "1100.1.5",
   "description": "Low-level helpers for npm-registry HTTP endpoints (PUT dist-tag, PUT user, etc.)",
   "keywords": [
     "pnpm",

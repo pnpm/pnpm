@@ -1,5 +1,11 @@
 # @pnpm/remove-bins
 
+## 1100.0.11
+
+### Patch Changes
+
+- @pnpm/pkg-manifest.reader@1100.0.9
+
 ## 1100.0.10
 
 ### Patch Changes

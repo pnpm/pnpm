@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/deps.graph-builder",
-  "version": "1100.0.17",
+  "version": "1100.0.18",
   "description": "A package for building a dependency graph from a lockfile",
   "keywords": [
     "pnpm",

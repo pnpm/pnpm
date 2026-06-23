@@ -1,5 +1,15 @@
 # @pnpm/list
 
+## 1100.0.20
+
+### Patch Changes
+
+- Updated dependencies [0ec878d]
+  - @pnpm/workspace.project-manifest-reader@1100.0.14
+  - @pnpm/deps.inspection.tree-builder@1100.0.17
+  - @pnpm/lockfile.fs@1100.1.7
+  - @pnpm/pkg-manifest.reader@1100.0.9
+
 ## 1100.0.19
 
 ### Patch Changes
