@@ -655,7 +655,7 @@ impl CliArgs {
                 ReporterType::Silent => {
                     Box::pin(args.run::<SilentReporter>(state(false)?)).await?;
                 }
-            }
+            },
             CliCommand::CatIndex(args) => Box::pin(async move {
                 args.run(dir_ref, || config().map(|m| &*m)).await?;
                 Ok(())
