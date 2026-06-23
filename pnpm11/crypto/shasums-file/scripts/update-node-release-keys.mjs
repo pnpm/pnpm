@@ -14,9 +14,11 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const RAW = 'https://raw.githubusercontent.com/nodejs/release-keys/main'
+// The TypeScript pnpm CLI lives under pnpm11/, while pacquet stays at the repo root.
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..')
+const REPO_ROOT = path.join(ROOT, '..')
 const TS_KEYS_FILE = path.join(ROOT, 'crypto', 'shasums-file', 'src', 'nodeReleaseKeys.ts')
-const RUST_KEYS_FILE = path.join(ROOT, 'pacquet', 'crates', 'crypto-shasums-file', 'src', 'node_release_keys.rs')
+const RUST_KEYS_FILE = path.join(REPO_ROOT, 'pacquet', 'crates', 'crypto-shasums-file', 'src', 'node_release_keys.rs')
 
 async function main () {
   const update = process.argv.includes('--update')
@@ -65,7 +67,7 @@ async function fetchOk (url) {
 }
 
 function readEmbeddedFingerprints (file, pattern) {
-  const label = path.relative(ROOT, file)
+  const label = path.relative(REPO_ROOT, file)
   if (!fs.existsSync(file)) return { label, fingerprints: [] }
   return {
     label,
