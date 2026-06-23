@@ -147,9 +147,12 @@ export async function fetchMetadataFromFromRegistry (
       } catch (error: any) { // eslint-disable-line
         // Redact credentials embedded in the URL from the cause as well, not
         // just the top-level message: a reporter or debugger that renders
-        // `error.cause` would otherwise print the raw URL-bearing message.
-        if (util.types.isNativeError(error) && typeof error.message === 'string') {
-          error.message = redactUrlCredentials(error.message)
+        // `error.cause` would otherwise print the raw URL-bearing message. The
+        // `stack` string embeds the original (pre-mutation) message, so redact
+        // it too — mutating `message` alone leaves the credentials in `stack`.
+        if (util.types.isNativeError(error)) {
+          if (typeof error.message === 'string') error.message = redactUrlCredentials(error.message)
+          if (typeof error.stack === 'string') error.stack = redactUrlCredentials(error.stack)
         }
         reject(new PnpmError('META_FETCH_FAIL', redactUrlCredentials(`GET ${uri}: ${error.message as string}`), { attempts: attempt, cause: error }))
         return
