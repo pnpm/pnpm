@@ -63,7 +63,7 @@ fn link_succeeds_with_valid_target() {
     )
     .expect("write target package.json");
 
-    pacquet.with_arg("link").with_arg(target_dir.to_str().unwrap()).assert().success();
+    pacquet.with_arg("link").with_arg("../target-project").assert().success();
 
     let manifest =
         pacquet_package_manifest::PackageManifest::from_path(workspace.join("package.json"))
@@ -95,7 +95,7 @@ fn link_fails_target_no_name() {
     )
     .expect("write target package.json");
 
-    pacquet.with_arg("link").with_arg(target_dir.to_str().unwrap()).assert().failure();
+    pacquet.with_arg("link").with_arg("../target-project-no-name").assert().failure();
 
     drop((root, mock_instance));
 }

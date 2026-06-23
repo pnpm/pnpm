@@ -48,7 +48,7 @@ impl LinkArgs {
 
             let normalized = pathdiff::diff_paths(&target_dir, &manifest_dir)
                 .ok_or_else(|| miette::miette!("cannot compute relative path to target"))?;
-            let link_spec = format!("link:{}", normalized.display());
+            let link_spec = format!("link:{}", normalized.display().to_string().replace("\\", "/"));
 
             let manifest = &mut state.manifest;
             manifest
