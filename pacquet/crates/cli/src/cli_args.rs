@@ -322,47 +322,29 @@ impl CliArgs {
         // dependency-injection plumbing is visible at the call site.
         // See [pnpm/pacquet#339](https://github.com/pnpm/pacquet/issues/339)
         // for the pattern and rationale.
-        let cfg = Config { npmrc_auth_file: npmrc_auth_file.clone(), ..Config::default() }
-            .current::<Host>(&dir)
-            .map(|mut cfg| {
-                config_overrides.apply(&mut cfg);
-                // `--recursive` / `-r` is CLI-only upstream (not a
-                // `.npmrc` / yaml key), so it is set here from the
-                // global flag rather than through the yaml / env
-                // overlay. Mirrors pnpm's `Config.recursive`.
-                cfg.recursive = recursive;
-                // `--filter` / `--filter-prod` are likewise CLI-only
-                // (pnpm's `Config.filter` / `Config.filterProd`),
-                // so the parsed selector strings are threaded in
-                // from the global flags here.
-                cfg.filter.clone_from(&filter);
-                cfg.filter_prod.clone_from(&filter_prod);
-                Config::leak(cfg)
-            })
-            .map_err(miette::Report::new)
-            .wrap_err("load configuration")?;
-
-        struct SendPtr(*mut Config);
-        // SAFETY: Config is Send/Sync, and SendPtr is just a raw pointer wrapper to allow passing it across thread boundaries.
-        unsafe impl Send for SendPtr {}
-        // SAFETY: Config is Send/Sync, and SendPtr is just a raw pointer wrapper to allow passing it across thread boundaries.
-        unsafe impl Sync for SendPtr {}
-
-        impl SendPtr {
-            // SAFETY: The caller must ensure that the returned mutable reference is not used
-            // concurrently with other uses of the Config.
-            unsafe fn as_mut(&self) -> &'static mut Config {
-                // SAFETY: The Config is leaked and lives for the entire program execution.
-                // The CLI executes subcommands sequentially.
-                unsafe { &mut *self.0 }
-            }
-        }
-
-        let cfg_ptr = SendPtr(std::ptr::from_mut(cfg));
-        let config = move || -> miette::Result<&'static mut Config> {
-            // SAFETY: The Config is leaked and lives for the entire program execution.
-            // The CLI executes subcommands sequentially.
-            Ok(unsafe { cfg_ptr.as_mut() })
+        let config = || -> miette::Result<&'static mut Config> {
+            // Seed `npmrc_auth_file` from the CLI flag before
+            // `current()` reads `.npmrc`, so the override redirects the
+            // user-level read. Mirrors pnpm's `--npmrc-auth-file`.
+            Config { npmrc_auth_file: npmrc_auth_file.clone(), ..Config::default() }
+                .current::<Host>(&dir)
+                .map(|mut cfg| {
+                    config_overrides.apply(&mut cfg);
+                    // `--recursive` / `-r` is CLI-only upstream (not a
+                    // `.npmrc` / yaml key), so it is set here from the
+                    // global flag rather than through the yaml / env
+                    // overlay. Mirrors pnpm's `Config.recursive`.
+                    cfg.recursive = recursive;
+                    // `--filter` / `--filter-prod` are likewise CLI-only
+                    // (pnpm's `Config.filter` / `Config.filterProd`),
+                    // so the parsed selector strings are threaded in
+                    // from the global flags here.
+                    cfg.filter.clone_from(&filter);
+                    cfg.filter_prod.clone_from(&filter_prod);
+                    Config::leak(cfg)
+                })
+                .map_err(miette::Report::new)
+                .wrap_err("load configuration")
         };
         // `require_lockfile` is the "this subcommand cannot run without a
         // lockfile loaded" signal, used by `State::init` to override
@@ -663,21 +645,15 @@ impl CliArgs {
                 args.run(|| config().map(|m| &*m))?;
                 Box::pin(std::future::ready(Ok(())))
             }
-            CliCommand::Import(args) => {
-                if let Some(pnpr_server) = args.pnpr_server.clone() {
-                    let cfg = config()?;
-                    cfg.pnpr_server = Some(pnpr_server);
+            CliCommand::Import(args) => match reporter {
+                ReporterType::Default | ReporterType::AppendOnly => {
+                    Box::pin(args.run::<DefaultReporter>(state(false)?)).await?;
                 }
-                match reporter {
-                    ReporterType::Default | ReporterType::AppendOnly => {
-                        Box::pin(args.run::<DefaultReporter>(state(false)?)).await?;
-                    }
-                    ReporterType::Ndjson => {
-                        Box::pin(args.run::<NdjsonReporter>(state(false)?)).await?;
-                    }
-                    ReporterType::Silent => {
-                        Box::pin(args.run::<SilentReporter>(state(false)?)).await?;
-                    }
+                ReporterType::Ndjson => {
+                    Box::pin(args.run::<NdjsonReporter>(state(false)?)).await?;
+                }
+                ReporterType::Silent => {
+                    Box::pin(args.run::<SilentReporter>(state(false)?)).await?;
                 }
             }
             CliCommand::CatIndex(args) => Box::pin(async move {

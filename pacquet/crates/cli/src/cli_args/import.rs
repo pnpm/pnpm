@@ -26,7 +26,7 @@ impl ImportArgs {
             return Err(error).into_diagnostic().wrap_err("removing existing pnpm-lock.yaml");
         }
 
-        if let Some(pnpr_server) = config.pnpr_server.as_deref() {
+        if let Some(pnpr_server) = self.pnpr_server.as_deref().or(config.pnpr_server.as_deref()) {
             return super::install::install_via_pnpr::<Reporter>(
                 &state,
                 pnpr_server,
