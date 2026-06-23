@@ -52,5 +52,14 @@ fn fetch_succeeds_with_lockfile() {
 
     pacquet_at(&workspace).with_arg("fetch").assert().success();
 
+    assert!(
+        !workspace.join("node_modules").exists(),
+        "fetch must not create node_modules",
+    );
+    assert!(
+        store_dir.join("v11").exists(),
+        "fetch must populate the store",
+    );
+
     drop((root, mock_instance, store_dir));
 }
