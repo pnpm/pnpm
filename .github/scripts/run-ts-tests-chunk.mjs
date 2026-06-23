@@ -6,6 +6,7 @@ import path from 'node:path'
 import { performance } from 'node:perf_hooks'
 
 const rootDir = process.cwd()
+const JEST_FILES_PER_SPLIT_SCRIPT_BATCH = 10
 const { chunk, chunks, dryRun, script, summary } = parseArgs(process.argv.slice(2))
 
 if (!dryRun) {
@@ -112,6 +113,7 @@ async function runJestPackage (pkg, selectedPackage) {
   const startedAt = performance.now()
   const relDir = normalizePath(path.relative(rootDir, pkg.path))
   const relFiles = selectedPackage.files.map((file) => normalizePath(path.relative(pkg.path, file)))
+  const batches = getJestFileBatches(pkg, relFiles)
   console.log(`Running ${relFiles.length} Jest file(s) in ${relDir}`)
 
   const env = {
@@ -133,7 +135,12 @@ async function runJestPackage (pkg, selectedPackage) {
     if (pkg.manifest.scripts.pretest != null) {
       await runPnpm(['--dir', pkg.path, 'run', 'pretest'], { env })
     }
-    await runPnpm(['--dir', pkg.path, 'exec', 'jest', '--runTestsByPath', ...relFiles], { env })
+    for (const [index, files] of batches.entries()) {
+      if (batches.length > 1) {
+        console.log(`Running batch ${index + 1}/${batches.length} (${files.length} Jest file(s)) in ${relDir}`)
+      }
+      await runPnpm(['--dir', pkg.path, 'exec', 'jest', '--runTestsByPath', ...files], { env })
+    }
   } catch (err) {
     status = 'failure'
     exitCode = err.exitCode ?? 1
@@ -236,6 +243,42 @@ function withJestNodeOptions (current = '') {
   options.add('--disable-warning=ExperimentalWarning')
   options.add('--disable-warning=DEP0169')
   return Array.from(options).join(' ')
+}
+
+function getJestFileBatches (pkg, relFiles) {
+  const isolatedFiles = Array.from(getExplicitJestFiles(pkg.manifest.scripts))
+    .filter((file) => relFiles.includes(file))
+  if (isolatedFiles.length === 0 && !hasSplitJestScripts(pkg.manifest.scripts)) return [relFiles]
+
+  const isolatedFileSet = new Set(isolatedFiles)
+  const remainingFiles = relFiles.filter((file) => !isolatedFileSet.has(file))
+  return [
+    ...isolatedFiles.map((file) => [file]),
+    ...chunkArray(remainingFiles, JEST_FILES_PER_SPLIT_SCRIPT_BATCH),
+  ].filter((files) => files.length > 0)
+}
+
+function hasSplitJestScripts (scripts) {
+  return Object.entries(scripts).some(([name, script]) => name.startsWith('.test:') && script.includes('jest'))
+}
+
+function getExplicitJestFiles (scripts) {
+  const files = new Set()
+  for (const [name, script] of Object.entries(scripts)) {
+    if (!name.startsWith('.test:') || !script.includes('jest')) continue
+    for (const match of script.matchAll(/(?:^|\s)(test\/[^\s"'`]+?\.[jt]sx?)(?=\s|$)/g)) {
+      files.add(match[1])
+    }
+  }
+  return files
+}
+
+function chunkArray (items, size) {
+  const chunks = []
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size))
+  }
+  return chunks
 }
 
 function prependPath (env, dirs) {
