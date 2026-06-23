@@ -368,3 +368,90 @@ fn pack_succeeds_when_scripts_enabled_but_absent() {
     assert_eq!(result.tarball_path, "foo-1.0.0.tgz");
     assert!(dir.path().join("foo-1.0.0.tgz").is_file());
 }
+
+/// Write a package under `<dir>/node_modules/<name>/` for the bundle
+/// tests.
+fn install_module(dir: &Path, name: &str, version: &str, extra: &[(&str, &str)]) {
+    let module = dir.join("node_modules").join(name);
+    std::fs::create_dir_all(&module).unwrap();
+    std::fs::write(
+        module.join("package.json"),
+        serde_json::to_string(&json!({ "name": name, "version": version })).unwrap(),
+    )
+    .unwrap();
+    for (rel, contents) in extra {
+        std::fs::write(module.join(rel), contents).unwrap();
+    }
+}
+
+/// Port of pnpm's `pack: bundles dependencies listed in bundleDependencies`
+/// ([pack.ts](https://github.com/pnpm/pnpm/blob/cab1c11c69/releasing/commands/test/publish/pack.ts#L102-L128)).
+/// Covers the `fs-packlist` `bundleDependencies` recursion and the
+/// `node_linker: hoisted` allow-path.
+#[test]
+fn bundles_dependencies_listed_in_bundle_dependencies() {
+    let (dir, mut opts) = fixture(&json!({
+        "name": "pkg-with-bundle-deps",
+        "version": "0.0.0",
+        "bundleDependencies": ["bundled-dep"],
+    }));
+    opts.node_linker = NodeLinker::Hoisted;
+    install_module(dir.path(), "bundled-dep", "1.0.0", &[("index.js", "module.exports = 42")]);
+    install_module(dir.path(), "not-bundled", "1.0.0", &[]);
+
+    let result = api::<SilentReporter, Host>(&opts).unwrap();
+
+    assert!(result.contents.contains(&"node_modules/bundled-dep/package.json".to_string()));
+    assert!(result.contents.contains(&"node_modules/bundled-dep/index.js".to_string()));
+    assert!(!result.contents.iter().any(|path| path.contains("not-bundled")));
+}
+
+/// Port of pnpm's `pack: bundles every dependency when bundleDependencies
+/// is true`
+/// ([pack.ts](https://github.com/pnpm/pnpm/blob/cab1c11c69/releasing/commands/test/publish/pack.ts#L130-L159)).
+/// Covers `bundle_dep_names`' `bundleDependencies: true` branch, which
+/// materializes the names from `dependencies`.
+#[test]
+fn bundles_every_dependency_when_bundle_dependencies_is_true() {
+    let (dir, mut opts) = fixture(&json!({
+        "name": "pkg-with-bundle-deps-true",
+        "version": "0.0.0",
+        "dependencies": { "bundled-dep": "1.0.0" },
+        "bundleDependencies": true,
+    }));
+    opts.node_linker = NodeLinker::Hoisted;
+    install_module(dir.path(), "bundled-dep", "1.0.0", &[("index.js", "module.exports = 42")]);
+    install_module(dir.path(), "not-a-dep", "1.0.0", &[]);
+
+    let result = api::<SilentReporter, Host>(&opts).unwrap();
+
+    assert!(result.contents.contains(&"node_modules/bundled-dep/index.js".to_string()));
+    assert!(result.contents.contains(&"node_modules/bundled-dep/package.json".to_string()));
+    assert!(!result.contents.iter().any(|path| path.contains("not-a-dep")));
+}
+
+/// Port of pnpm's `pack should read from the correct node_modules when
+/// publishing from a custom directory`
+/// ([pack.ts](https://github.com/pnpm/pnpm/blob/cab1c11c69/releasing/commands/test/publish/pack.ts#L503-L541)).
+/// Covers the `publishConfig.directory` redirect: the manifest is read
+/// from `dist/`, but `workspace:` deps still resolve against the project
+/// root's `node_modules`.
+#[test]
+fn reads_node_modules_from_original_dir_when_publishing_from_custom_directory() {
+    let (dir, opts) = fixture(&json!({
+        "name": "custom-publish-dir",
+        "version": "0.0.0",
+        "publishConfig": { "directory": "dist" },
+        "dependencies": { "local": "workspace:*" },
+    }));
+    let dist = dir.path().join("dist");
+    std::fs::create_dir_all(&dist).unwrap();
+    std::fs::copy(dir.path().join("package.json"), dist.join("package.json")).unwrap();
+    install_module(dir.path(), "local", "1.0.0", &[]);
+
+    let result = api::<SilentReporter, Host>(&opts).unwrap();
+
+    // The `workspace:*` spec resolves to the installed version, read from
+    // the project root's node_modules (not `dist/node_modules`).
+    assert_eq!(result.published_manifest["dependencies"]["local"], json!("1.0.0"));
+}

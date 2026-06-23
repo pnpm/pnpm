@@ -137,6 +137,39 @@ fn jsr_protocol_dependency_becomes_npm_alias() {
 }
 
 #[test]
+fn jsr_dependency_without_version_selector_becomes_bare_npm_alias() {
+    let dir = tempdir().unwrap();
+    let catalogs = empty_catalogs();
+    let out = build(
+        dir.path(),
+        &json!({
+            "name": "foo",
+            "version": "1.0.0",
+            "dependencies": { "@foo/bar": "jsr:@foo/bar" },
+        }),
+        &default_opts(&catalogs),
+    );
+    assert_eq!(out["dependencies"], json!({ "@foo/bar": "npm:@jsr/foo__bar" }));
+}
+
+#[test]
+fn peer_workspace_protocol_dependency_is_rewritten() {
+    let dir = tempdir().unwrap();
+    install_dep(dir.path(), "bar", "3.0.0");
+    let catalogs = empty_catalogs();
+    let out = build(
+        dir.path(),
+        &json!({
+            "name": "foo",
+            "version": "1.0.0",
+            "peerDependencies": { "bar": "workspace:^" },
+        }),
+        &default_opts(&catalogs),
+    );
+    assert_eq!(out["peerDependencies"], json!({ "bar": "^3.0.0" }));
+}
+
+#[test]
 fn publish_config_whitelisted_keys_are_hoisted() {
     let dir = tempdir().unwrap();
     let catalogs = empty_catalogs();
