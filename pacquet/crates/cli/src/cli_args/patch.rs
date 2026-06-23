@@ -1,0 +1,315 @@
+use crate::{
+    State,
+    cli_args::patch_state::{EditDirState, StateFileError, write_edit_dir_state},
+};
+use clap::Args;
+use derive_more::{Display, Error};
+use dialoguer::{Confirm, Select};
+use miette::{Diagnostic, IntoDiagnostic, miette};
+use owo_colors::OwoColorize;
+use pacquet_lockfile::{LoadLockfileError, Lockfile};
+use pacquet_package_manager::{
+    PatchCandidate, PatchCandidateSet, PatchTarget, PatchTargetError, WritePackageForPatch,
+    WritePackageForPatchError, default_patch_target, patch_candidates_from_lockfile,
+};
+use pacquet_patching::PatchApplyError;
+use pacquet_reporter::Reporter;
+use std::{
+    fs,
+    io::{self, IsTerminal},
+    path::{Path, PathBuf},
+};
+
+#[derive(Debug, Args)]
+pub struct PatchArgs {
+    /// Name of the package to patch.
+    pub package_name: Option<String>,
+    /// The package that needs to be modified will be extracted to this directory.
+    #[clap(short = 'd', long = "edit-dir", value_name = "dir")]
+    pub edit_dir: Option<PathBuf>,
+    /// Ignore existing patch files when patching.
+    #[clap(long = "ignore-existing")]
+    pub ignore_existing: bool,
+}
+
+#[derive(Debug, Display, Error, Diagnostic)]
+#[non_exhaustive]
+pub enum PatchError {
+    #[display("`pacquet patch` requires the package name")]
+    #[diagnostic(code(ERR_PNPM_MISSING_PACKAGE_NAME))]
+    MissingPackageName,
+
+    #[display("The modules directory is not ready for patching")]
+    #[diagnostic(code(ERR_PNPM_PATCH_NO_LOCKFILE), help("Run pacquet install first"))]
+    PatchNoLockfile,
+
+    #[display("The target directory already exists: '{}'", edit_dir.display())]
+    #[diagnostic(code(ERR_PNPM_PATCH_EDIT_DIR_EXISTS))]
+    PatchEditDirExists { edit_dir: PathBuf },
+
+    #[display("The directory {} is not empty", edit_dir.display())]
+    #[diagnostic(code(ERR_PNPM_EDIT_DIR_NOT_EMPTY))]
+    EditDirNotEmpty { edit_dir: PathBuf },
+
+    #[display("Unable to read the target directory '{}': {source}", edit_dir.display())]
+    #[diagnostic(code(pacquet::patch_edit_dir_read))]
+    ReadEditDir {
+        edit_dir: PathBuf,
+        #[error(source)]
+        source: io::Error,
+    },
+
+    #[display("Canceled")]
+    #[diagnostic(code(ERR_PNPM_PATCH_CANCELED))]
+    Canceled,
+
+    #[diagnostic(transparent)]
+    LoadLockfile(#[error(source)] LoadLockfileError),
+
+    #[diagnostic(transparent)]
+    PatchTarget(#[error(source)] PatchTargetError),
+
+    #[diagnostic(transparent)]
+    WritePackage(#[error(source)] WritePackageForPatchError),
+
+    #[diagnostic(transparent)]
+    StateFile(#[error(source)] StateFileError),
+
+    #[diagnostic(transparent)]
+    ApplyExistingPatch(#[error(source)] PatchApplyError),
+
+    #[display("Unable to find patch file {}", patch_file_path.display())]
+    #[diagnostic(code(ERR_PNPM_PATCH_FILE_NOT_FOUND))]
+    PatchFileNotFound { patch_file_path: PathBuf },
+}
+
+impl PatchArgs {
+    pub async fn run<Reporter: self::Reporter + 'static>(
+        self,
+        dir: &Path,
+        state: State,
+    ) -> Result<(), PatchError> {
+        let PatchArgs { package_name, edit_dir, ignore_existing } = self;
+        if let Some(edit_dir) = edit_dir.as_ref().map(|path| resolve_path(dir, path)) {
+            reject_non_empty_custom_edit_dir(&edit_dir)?;
+        }
+        let package_name = package_name.ok_or(PatchError::MissingPackageName)?;
+        let current_lockfile =
+            Lockfile::load_current_from_virtual_store_dir(&state.config.virtual_store_dir)
+                .map_err(PatchError::LoadLockfile)?
+                .ok_or(PatchError::PatchNoLockfile)?;
+
+        let candidate_set = patch_candidates_from_lockfile(&package_name, &current_lockfile)
+            .map_err(PatchError::PatchTarget)?;
+        let target = select_patch_target(&candidate_set)?;
+        let edit_dir = edit_dir.as_ref().map_or_else(
+            || default_edit_dir(&state.config.modules_dir, &package_name, &target),
+            |path| resolve_path(dir, path),
+        );
+        reject_non_empty_edit_dir(&edit_dir)?;
+
+        WritePackageForPatch {
+            tarball_mem_cache: &state.tarball_mem_cache,
+            http_client: &state.http_client,
+            config: state.config,
+            current_lockfile: &current_lockfile,
+            target: &target,
+            dest: &edit_dir,
+        }
+        .run::<Reporter>()
+        .await
+        .map_err(PatchError::WritePackage)?;
+
+        write_edit_dir_state(
+            &state.config.modules_dir,
+            &edit_dir,
+            &EditDirState { patched_pkg: package_name.clone(), apply_to_all: target.apply_to_all },
+        )
+        .map_err(PatchError::StateFile)?;
+
+        if !ignore_existing {
+            apply_existing_patch_file(state.config, &target, &edit_dir)?;
+        }
+
+        print_success(&edit_dir);
+        Ok(())
+    }
+}
+
+fn select_patch_target(set: &PatchCandidateSet) -> Result<PatchTarget, PatchError> {
+    if let Some(target) = default_patch_target(set) {
+        return Ok(target);
+    }
+
+    select_patch_target_with_prompt(set, &DialoguerPatchPrompt)
+}
+
+trait PatchPrompt {
+    fn select_version(&self, candidates: &[PatchCandidate]) -> Result<usize, PatchError>;
+    fn confirm_apply_to_all(&self) -> Result<bool, PatchError>;
+}
+
+struct DialoguerPatchPrompt;
+
+impl PatchPrompt for DialoguerPatchPrompt {
+    fn select_version(&self, candidates: &[PatchCandidate]) -> Result<usize, PatchError> {
+        let labels: Vec<String> = candidates
+            .iter()
+            .map(|candidate| match &candidate.git_tarball_url {
+                Some(url) => format!("{} (Git Hosted: {url})", candidate.version),
+                None => candidate.version.clone(),
+            })
+            .collect();
+        Select::new()
+            .with_prompt("Choose which version to patch")
+            .items(&labels)
+            .default(0)
+            .interact()
+            .into_diagnostic()
+            .map_err(|err| miette!("patch version selection failed: {err}"))
+            .map_err(|_| PatchError::Canceled)
+    }
+
+    fn confirm_apply_to_all(&self) -> Result<bool, PatchError> {
+        Confirm::new()
+            .with_prompt("Apply this patch to all versions?")
+            .interact()
+            .into_diagnostic()
+            .map_err(|err| miette!("patch apply-to-all confirmation failed: {err}"))
+            .map_err(|_| PatchError::Canceled)
+    }
+}
+
+fn select_patch_target_with_prompt(
+    set: &PatchCandidateSet,
+    prompt: &impl PatchPrompt,
+) -> Result<PatchTarget, PatchError> {
+    let selected = prompt.select_version(&set.preferred_versions)?;
+    let apply_to_all = prompt.confirm_apply_to_all()?;
+    Ok(target_from_candidate(set, &set.preferred_versions[selected], apply_to_all))
+}
+
+fn target_from_candidate(
+    set: &PatchCandidateSet,
+    candidate: &PatchCandidate,
+    apply_to_all: bool,
+) -> PatchTarget {
+    let bare_specifier =
+        candidate.git_tarball_url.clone().unwrap_or_else(|| candidate.version.clone());
+    PatchTarget {
+        alias: set.alias.clone(),
+        version: candidate.version.clone(),
+        bare_specifier,
+        apply_to_all,
+        git_tarball_url: candidate.git_tarball_url.clone(),
+        package_key: candidate.package_key.clone(),
+    }
+}
+
+fn resolve_path(dir: &Path, path: &Path) -> PathBuf {
+    if path.is_absolute() { path.to_path_buf() } else { dir.join(path) }
+}
+
+fn reject_non_empty_custom_edit_dir(edit_dir: &Path) -> Result<(), PatchError> {
+    if !edit_dir.exists() {
+        return Ok(());
+    }
+    if is_empty_dir(edit_dir)
+        .map_err(|source| PatchError::ReadEditDir { edit_dir: edit_dir.to_path_buf(), source })?
+    {
+        return Ok(());
+    }
+    Err(PatchError::PatchEditDirExists { edit_dir: edit_dir.to_path_buf() })
+}
+
+fn reject_non_empty_edit_dir(edit_dir: &Path) -> Result<(), PatchError> {
+    if !edit_dir.exists() {
+        return Ok(());
+    }
+    if is_empty_dir(edit_dir)
+        .map_err(|source| PatchError::ReadEditDir { edit_dir: edit_dir.to_path_buf(), source })?
+    {
+        return Ok(());
+    }
+    Err(PatchError::EditDirNotEmpty { edit_dir: edit_dir.to_path_buf() })
+}
+
+fn is_empty_dir(path: &Path) -> io::Result<bool> {
+    Ok(fs::read_dir(path)?.next().is_none())
+}
+
+fn default_edit_dir(modules_dir: &Path, package_name: &str, target: &PatchTarget) -> PathBuf {
+    modules_dir.join(".pnpm_patches").join(default_edit_dir_name(package_name, target))
+}
+
+fn default_edit_dir_name(package_name: &str, target: &PatchTarget) -> String {
+    if !target.alias.is_empty() && !target.bare_specifier.is_empty() {
+        return format!("{}@{}", target.alias, sanitize_bare_specifier(&target.bare_specifier));
+    }
+    if !target.alias.is_empty() {
+        return target.alias.clone();
+    }
+    package_name.to_string()
+}
+
+fn sanitize_bare_specifier(input: &str) -> String {
+    let mut result = String::with_capacity(input.len());
+    let mut replacing = false;
+    for ch in input.chars() {
+        if matches!(ch, '\\' | '/' | ':' | '*' | '?' | '"' | '<' | '>' | '|') {
+            if !replacing {
+                result.push('+');
+                replacing = true;
+            }
+        } else {
+            result.push(ch);
+            replacing = false;
+        }
+    }
+    result
+}
+
+fn apply_existing_patch_file(
+    config: &pacquet_config::Config,
+    target: &PatchTarget,
+    edit_dir: &Path,
+) -> Result<(), PatchError> {
+    let Some(patched_dependencies) = &config.patched_dependencies else { return Ok(()) };
+    let exact_key = format!("{}@{}", target.alias, target.bare_specifier);
+    let patch_file = patched_dependencies
+        .get(&exact_key)
+        .or_else(|| target.apply_to_all.then(|| patched_dependencies.get(&target.alias)).flatten());
+    let Some(patch_file) = patch_file else { return Ok(()) };
+    let base_dir = config
+        .workspace_dir
+        .as_deref()
+        .unwrap_or_else(|| config.modules_dir.parent().unwrap_or_else(|| Path::new(".")));
+    let patch_file_path = resolve_path(base_dir, Path::new(patch_file));
+    if !patch_file_path.exists() {
+        return Err(PatchError::PatchFileNotFound { patch_file_path });
+    }
+    pacquet_patching::apply_patch_to_dir(edit_dir, &patch_file_path)
+        .map_err(PatchError::ApplyExistingPatch)
+}
+
+fn print_success(edit_dir: &Path) {
+    print!("{}", render_success(edit_dir, io::stdout().is_terminal()));
+}
+
+fn render_success(edit_dir: &Path, colors_enabled: bool) -> String {
+    let quote = if cfg!(windows) { r#"""# } else { "'" };
+    let edit_dir = edit_dir.display().to_string();
+    let command = format!("pacquet patch-commit {quote}{edit_dir}{quote}");
+    let edit_dir = if colors_enabled { edit_dir.blue().to_string() } else { edit_dir };
+    let command = if colors_enabled { command.green().to_string() } else { command };
+    render_success_parts(&edit_dir, &command)
+}
+
+fn render_success_parts(edit_dir: &str, command: &str) -> String {
+    format!(
+        "Patch: You can now edit the package at:\n\n  {edit_dir}\n\nTo commit your changes, run:\n\n  {command}\n\n",
+    )
+}
+
+#[cfg(test)]
+mod tests;

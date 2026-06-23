@@ -1,0 +1,474 @@
+use super::*;
+use pacquet_config::ScriptsPrependNodePath;
+use pacquet_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
+use pacquet_lockfile::{
+    BinaryArchive, BinaryResolution, BinarySpec, ComVer, GitResolution, Lockfile,
+    LockfileResolution, LockfileVersion, PackageKey, PackageMetadata, RegistryResolution,
+    TarballResolution, VariationsResolution,
+};
+use pretty_assertions::assert_eq;
+use serde_json::json;
+use std::collections::HashMap;
+
+fn empty_lockfile() -> Lockfile {
+    Lockfile {
+        lockfile_version: LockfileVersion::<9>::try_from(ComVer { major: 9, minor: 0 }).unwrap(),
+        settings: None,
+        catalogs: None,
+        overrides: None,
+        package_extensions_checksum: None,
+        pnpmfile_checksum: None,
+        ignored_optional_dependencies: None,
+        patched_dependencies: None,
+        importers: HashMap::new(),
+        packages: None,
+        snapshots: None,
+    }
+}
+
+fn lockfile_with_packages(keys: &[&str]) -> Lockfile {
+    let packages =
+        keys.iter().map(|key| (key.parse::<PackageKey>().unwrap(), registry_metadata())).collect();
+    Lockfile { packages: Some(packages), ..empty_lockfile() }
+}
+
+fn registry_metadata() -> PackageMetadata {
+    serde_json::from_value(json!({
+        "resolution": {
+            "integrity": "sha512-aGVsbG8=",
+        },
+    }))
+    .unwrap()
+}
+
+fn lockfile_with_package_metadata(key: &str, metadata: PackageMetadata) -> Lockfile {
+    Lockfile {
+        packages: Some(HashMap::from([(key.parse::<PackageKey>().unwrap(), metadata)])),
+        ..empty_lockfile()
+    }
+}
+
+fn patch_target(raw: &str, lockfile: &Lockfile) -> PatchTarget {
+    let set = patch_candidates_from_lockfile(raw, lockfile).unwrap();
+    default_patch_target(&set).expect("single target")
+}
+
+fn versions(candidates: &[PatchCandidate]) -> Vec<&str> {
+    candidates.iter().map(|candidate| candidate.version.as_str()).collect()
+}
+
+#[test]
+fn patch_candidate_exact_version_selects_matching_installed_version() {
+    let lockfile = lockfile_with_packages(&["is-positive@1.0.0"]);
+
+    let set = patch_candidates_from_lockfile("is-positive@1.0.0", &lockfile).unwrap();
+    let target = default_patch_target(&set).expect("single target");
+
+    assert_eq!(versions(&set.versions), vec!["1.0.0"]);
+    assert_eq!(versions(&set.preferred_versions), vec!["1.0.0"]);
+    assert_eq!(target.alias, "is-positive");
+    assert_eq!(target.version, "1.0.0");
+    assert_eq!(target.bare_specifier, "1.0.0");
+    assert!(!target.apply_to_all);
+}
+
+#[test]
+fn patch_candidate_bare_name_single_version_applies_to_all() {
+    let lockfile = lockfile_with_packages(&["is-positive@1.0.0"]);
+
+    let set = patch_candidates_from_lockfile("is-positive", &lockfile).unwrap();
+    let target = default_patch_target(&set).expect("single target");
+
+    assert_eq!(versions(&set.preferred_versions), vec!["1.0.0"]);
+    assert_eq!(target.bare_specifier, "1.0.0");
+    assert!(target.apply_to_all);
+}
+
+#[test]
+fn patch_candidate_range_selects_satisfying_installed_versions() {
+    let lockfile = lockfile_with_packages(&["is-positive@1.0.0", "is-positive@2.0.0"]);
+
+    let set = patch_candidates_from_lockfile("is-positive@1", &lockfile).unwrap();
+
+    assert_eq!(versions(&set.versions), vec!["1.0.0", "2.0.0"]);
+    assert_eq!(versions(&set.preferred_versions), vec!["1.0.0"]);
+}
+
+#[test]
+fn patch_candidate_missing_package_reports_installed_versions_when_name_exists() {
+    let lockfile = lockfile_with_packages(&["is-positive@1.0.0"]);
+
+    let err = patch_candidates_from_lockfile("is-positive@2.0.0", &lockfile).unwrap_err();
+
+    assert!(err.to_string().contains("1.0.0"), "error should mention installed versions: {err}");
+}
+
+#[test]
+fn patch_candidate_missing_package_without_installed_versions_reports_install_hint() {
+    let err = patch_candidates_from_lockfile("is-positive", &empty_lockfile()).unwrap_err();
+
+    assert!(
+        err.to_string().contains("did you forget to install is-positive?"),
+        "error should mention install hint: {err}",
+    );
+}
+
+#[test]
+fn default_patch_target_returns_none_when_multiple_versions_match() {
+    let lockfile = lockfile_with_packages(&["is-positive@1.0.0", "is-positive@2.0.0"]);
+    let set = patch_candidates_from_lockfile("is-positive", &lockfile).unwrap();
+
+    assert!(default_patch_target(&set).is_none());
+}
+
+#[test]
+fn patch_candidate_reports_missing_for_non_package_specs() {
+    let err = patch_candidates_from_lockfile("^1.0.0", &empty_lockfile()).unwrap_err();
+    assert!(err.to_string().contains("^1.0.0"), "error should mention raw spec: {err}");
+
+    let err = patch_candidates_from_lockfile("", &empty_lockfile()).unwrap_err();
+    assert!(err.to_string().contains("install"), "error should include install hint: {err}");
+}
+
+#[test]
+fn patch_candidate_detects_git_hosted_tarball_url_without_flag() {
+    let tarball =
+        "https://codeload.github.com/example/foo/tar.gz/0123456789abcdef0123456789abcdef01234567";
+    let metadata: PackageMetadata = serde_json::from_value(json!({
+        "resolution": {
+            "tarball": tarball,
+            "integrity": "sha512-aGVsbG8="
+        },
+        "version": "1.0.0",
+    }))
+    .unwrap();
+    let lockfile = lockfile_with_package_metadata("foo@1.0.0", metadata);
+
+    let target = patch_target("foo@1.0.0", &lockfile);
+
+    assert_eq!(target.bare_specifier, tarball);
+    assert_eq!(target.git_tarball_url.as_deref(), Some(tarball));
+    assert!(!target.apply_to_all);
+}
+
+#[test]
+fn patch_candidate_detects_pr_new_tarball_url_as_git_hosted() {
+    let tarball = "https://pkg.pr.new/example/foo@deadbeef";
+    let metadata: PackageMetadata = serde_json::from_value(json!({
+        "resolution": {
+            "tarball": tarball,
+            "integrity": "sha512-aGVsbG8="
+        },
+        "version": "1.0.0",
+    }))
+    .unwrap();
+    let lockfile = lockfile_with_package_metadata("foo@1.0.0", metadata);
+
+    let target = patch_target("foo@1.0.0", &lockfile);
+
+    assert_eq!(target.bare_specifier, tarball);
+    assert_eq!(target.git_tarball_url.as_deref(), Some(tarball));
+}
+
+#[tokio::test]
+async fn patch_extract_imports_package_files_into_empty_destination() {
+    let fixture = PatchExtractFixture::new("foo", "1.0.0");
+    let dest = fixture.tmp.path().join("edit");
+
+    WritePackageForPatch {
+        tarball_mem_cache: &fixture.mem_cache,
+        http_client: &fixture.http_client,
+        config: fixture.config,
+        current_lockfile: &fixture.lockfile,
+        target: &fixture.target,
+        dest: &dest,
+    }
+    .run::<pacquet_reporter::SilentReporter>()
+    .await
+    .expect("extract package for patching");
+
+    assert_eq!(
+        std::fs::read_to_string(dest.join("package.json")).expect("package.json"),
+        r#"{"name":"foo","version":"1.0.0"}"#,
+    );
+    assert_eq!(std::fs::read_to_string(dest.join("index.js")).expect("index.js"), "ok\n");
+    assert!(!dest.join("node_modules").exists(), "edit dir should not contain wrapper deps");
+}
+
+#[tokio::test]
+async fn patch_extract_replaces_existing_empty_destination() {
+    let fixture = PatchExtractFixture::new("foo", "1.0.0");
+    let dest = fixture.tmp.path().join("edit");
+    std::fs::create_dir_all(&dest).expect("create empty edit dir");
+
+    WritePackageForPatch {
+        tarball_mem_cache: &fixture.mem_cache,
+        http_client: &fixture.http_client,
+        config: fixture.config,
+        current_lockfile: &fixture.lockfile,
+        target: &fixture.target,
+        dest: &dest,
+    }
+    .run::<pacquet_reporter::SilentReporter>()
+    .await
+    .expect("extract into empty dir");
+
+    assert!(dest.join("package.json").is_file());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn patch_extract_git_hosted_tarball_runs_packlist() {
+    let fixture = PatchExtractFixture::new_git_hosted("foo", "1.0.0");
+    let dest = fixture.tmp.path().join("edit");
+
+    WritePackageForPatch {
+        tarball_mem_cache: &fixture.mem_cache,
+        http_client: &fixture.http_client,
+        config: fixture.config,
+        current_lockfile: &fixture.lockfile,
+        target: &fixture.target,
+        dest: &dest,
+    }
+    .run::<pacquet_reporter::SilentReporter>()
+    .await
+    .expect("extract git-hosted package for patching");
+
+    assert_eq!(
+        std::fs::read_to_string(dest.join("package.json")).expect("package.json"),
+        r#"{"name":"foo","version":"1.0.0","files":["index.js"]}"#,
+    );
+    assert_eq!(std::fs::read_to_string(dest.join("index.js")).expect("index.js"), "ok\n");
+    assert!(!dest.join("ignore.txt").exists(), "packlist should filter ignored files");
+}
+
+#[tokio::test]
+async fn patch_extract_rejects_unsupported_resolution_shape() {
+    let tmp = tempfile::tempdir().expect("temp dir");
+    let mut config = pacquet_config::Config::new();
+    config.store_dir = tmp.path().join("store").into();
+    let config: &'static pacquet_config::Config = Box::leak(Box::new(config));
+    let metadata: PackageMetadata = serde_json::from_value(json!({
+        "resolution": {
+            "type": "directory",
+            "directory": "../foo",
+        },
+        "version": "1.0.0",
+    }))
+    .unwrap();
+    let lockfile = lockfile_with_package_metadata("foo@1.0.0", metadata);
+    let target = patch_target("foo@1.0.0", &lockfile);
+    let mem_cache = pacquet_tarball::MemCache::default();
+    let http_client = pacquet_network::ThrottledClient::default();
+    let dest = tmp.path().join("edit");
+
+    let err = WritePackageForPatch {
+        tarball_mem_cache: &mem_cache,
+        http_client: &http_client,
+        config,
+        current_lockfile: &lockfile,
+        target: &target,
+        dest: &dest,
+    }
+    .run::<pacquet_reporter::SilentReporter>()
+    .await
+    .unwrap_err();
+
+    assert!(err.to_string().contains("directory"), "error should name unsupported shape: {err}");
+}
+
+#[tokio::test]
+async fn patch_extract_rejects_missing_package_metadata() {
+    let tmp = tempfile::tempdir().expect("temp dir");
+    let mut config = pacquet_config::Config::new();
+    config.store_dir = tmp.path().join("store").into();
+    let config: &'static pacquet_config::Config = Box::leak(Box::new(config));
+    let mem_cache = pacquet_tarball::MemCache::default();
+    let http_client = pacquet_network::ThrottledClient::default();
+    let target = PatchTarget {
+        alias: "missing".to_string(),
+        version: "1.0.0".to_string(),
+        bare_specifier: "1.0.0".to_string(),
+        apply_to_all: false,
+        git_tarball_url: None,
+        package_key: "missing@1.0.0".parse().expect("package key"),
+    };
+
+    let err = WritePackageForPatch {
+        tarball_mem_cache: &mem_cache,
+        http_client: &http_client,
+        config,
+        current_lockfile: &empty_lockfile(),
+        target: &target,
+        dest: &tmp.path().join("edit"),
+    }
+    .run::<pacquet_reporter::SilentReporter>()
+    .await
+    .unwrap_err();
+
+    assert!(
+        matches!(err, WritePackageForPatchError::MissingPackageMetadata { .. }),
+        "missing metadata should be reported, got {err:?}",
+    );
+}
+
+#[test]
+fn executor_scripts_prepend_node_path_maps_all_variants() {
+    assert_eq!(
+        executor_scripts_prepend_node_path(ScriptsPrependNodePath::Always),
+        ExecScriptsPrependNodePath::Always,
+    );
+    assert_eq!(
+        executor_scripts_prepend_node_path(ScriptsPrependNodePath::Never),
+        ExecScriptsPrependNodePath::Never,
+    );
+    assert_eq!(
+        executor_scripts_prepend_node_path(ScriptsPrependNodePath::WarnOnly),
+        ExecScriptsPrependNodePath::WarnOnly,
+    );
+}
+
+#[test]
+fn compare_candidates_orders_semver_before_non_semver() {
+    let candidate = |version: &str| PatchCandidate {
+        name: "foo".to_string(),
+        version: version.to_string(),
+        git_tarball_url: None,
+        package_key: "foo@1.0.0".parse().expect("package key"),
+    };
+
+    assert_eq!(
+        compare_candidates(&candidate("1.0.0"), &candidate("workspace:*")),
+        std::cmp::Ordering::Less,
+    );
+    assert_eq!(
+        compare_candidates(&candidate("workspace:*"), &candidate("1.0.0")),
+        std::cmp::Ordering::Greater,
+    );
+    assert_eq!(
+        compare_candidates(&candidate("workspace:*"), &candidate("npm:foo@1.0.0")),
+        std::cmp::Ordering::Equal,
+    );
+}
+
+#[test]
+fn resolution_kind_names_non_patchable_resolution_shapes() {
+    let tarball = LockfileResolution::Tarball(TarballResolution {
+        tarball: "https://registry.test/foo/-/foo-1.0.0.tgz".to_string(),
+        integrity: Some("sha512-aGVsbG8=".parse().expect("integrity")),
+        git_hosted: None,
+        path: None,
+    });
+    assert_eq!(resolution_kind(&tarball), "tarball");
+
+    let registry = LockfileResolution::Registry(RegistryResolution {
+        integrity: "sha512-aGVsbG8=".parse().expect("integrity"),
+    });
+    assert_eq!(resolution_kind(&registry), "registry");
+
+    let git = LockfileResolution::Git(GitResolution {
+        repo: "https://github.com/example/foo.git".to_string(),
+        commit: "deadbeef".to_string(),
+        path: None,
+    });
+    assert_eq!(resolution_kind(&git), "git");
+
+    let binary = LockfileResolution::Binary(BinaryResolution {
+        url: "https://nodejs.org/dist/v1.0.0/node.tar.gz".to_string(),
+        integrity: "sha512-aGVsbG8=".parse().expect("integrity"),
+        bin: BinarySpec::Single("bin/node".to_string()),
+        archive: BinaryArchive::Tarball,
+        prefix: None,
+    });
+    assert_eq!(resolution_kind(&binary), "binary");
+
+    let variations = LockfileResolution::Variations(VariationsResolution { variants: Vec::new() });
+    assert_eq!(resolution_kind(&variations), "variations");
+}
+
+struct PatchExtractFixture {
+    tmp: tempfile::TempDir,
+    mem_cache: pacquet_tarball::MemCache,
+    http_client: pacquet_network::ThrottledClient,
+    config: &'static pacquet_config::Config,
+    lockfile: Lockfile,
+    target: PatchTarget,
+}
+
+impl PatchExtractFixture {
+    fn new(name: &str, version: &str) -> Self {
+        Self::new_with_options(name, version, false)
+    }
+
+    fn new_git_hosted(name: &str, version: &str) -> Self {
+        Self::new_with_options(name, version, true)
+    }
+
+    fn new_with_options(name: &str, version: &str, git_hosted: bool) -> Self {
+        use pacquet_tarball::CacheValue;
+        use std::{collections::HashMap, path::PathBuf, sync::Arc};
+
+        let tmp = tempfile::tempdir().expect("temp dir");
+        let store_dir = tmp.path().join("store");
+        std::fs::create_dir_all(&store_dir).expect("create store dir");
+        let pkg_json = store_dir.join("pkg-json");
+        let index = store_dir.join("index");
+        let manifest = if git_hosted {
+            format!(r#"{{"name":"{name}","version":"{version}","files":["index.js"]}}"#)
+        } else {
+            format!(r#"{{"name":"{name}","version":"{version}"}}"#)
+        };
+        std::fs::write(&pkg_json, manifest).expect("write package json");
+        std::fs::write(&index, "ok\n").expect("write index");
+        let ignored = store_dir.join("ignore");
+        std::fs::write(&ignored, "do not publish\n").expect("write ignored file");
+
+        let mut config = pacquet_config::Config::new();
+        config.registry = "https://registry.test/".to_string();
+        config.store_dir = store_dir.into();
+        config.offline = true;
+        let config: &'static pacquet_config::Config = Box::leak(Box::new(config));
+
+        let key = format!("{name}@{version}");
+        let lockfile = lockfile_with_package_metadata(
+            &key,
+            if git_hosted { git_hosted_metadata() } else { registry_metadata() },
+        );
+        let target = patch_target(&key, &lockfile);
+        let tarball_url = if git_hosted {
+            format!("https://codeload.github.com/example/{name}/tar.gz/deadbeef")
+        } else {
+            format!("https://registry.test/{name}/-/{name}-{version}.tgz")
+        };
+        let seeded: HashMap<String, PathBuf> = HashMap::from([
+            ("package.json".to_string(), pkg_json),
+            ("index.js".to_string(), index),
+            ("ignore.txt".to_string(), ignored),
+        ]);
+        let mem_cache = pacquet_tarball::MemCache::default();
+        mem_cache.insert(
+            tarball_url,
+            Arc::new(tokio::sync::RwLock::new(CacheValue::Available(Arc::new(seeded)))),
+        );
+
+        Self {
+            tmp,
+            mem_cache,
+            http_client: pacquet_network::ThrottledClient::default(),
+            config,
+            lockfile,
+            target,
+        }
+    }
+}
+
+fn git_hosted_metadata() -> PackageMetadata {
+    serde_json::from_value(json!({
+        "resolution": {
+            "tarball": "https://codeload.github.com/example/foo/tar.gz/deadbeef",
+            "integrity": "sha512-aGVsbG8=",
+            "gitHosted": true,
+        },
+        "version": "1.0.0",
+    }))
+    .unwrap()
+}

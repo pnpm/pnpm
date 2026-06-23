@@ -274,6 +274,36 @@ pub struct InstallArgs {
 }
 
 impl InstallArgs {
+    pub(crate) fn for_patch_manifest_change() -> Self {
+        Self {
+            dependency_options: InstallDependencyOptions {
+                prod: false,
+                dev: false,
+                no_optional: false,
+            },
+            supported_architectures: SupportedArchitecturesArgs::default(),
+            frozen_lockfile: false,
+            lockfile_only: false,
+            dry_run: false,
+            prefer_frozen_lockfile: false,
+            no_prefer_frozen_lockfile: true,
+            ignore_manifest_check: false,
+            no_runtime: false,
+            ignore_scripts: false,
+            node_linker: None,
+            offline: false,
+            frozen_store: false,
+            prefer_offline: false,
+            trust_lockfile: false,
+            update_checksums: false,
+            workspace_concurrency: None,
+            network_concurrency: None,
+            fetch_timeout: None,
+            user_agent: None,
+            pnpr_server: None,
+        }
+    }
+
     /// Run the repeat-install fast path before any of the async install
     /// machinery exists: when every gate below holds and
     /// [`install_already_up_to_date`] confirms nothing changed since the

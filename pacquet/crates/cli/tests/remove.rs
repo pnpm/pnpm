@@ -33,6 +33,26 @@ fn should_remove_from_package_json() {
 }
 
 #[test]
+fn remove_runs_with_ndjson_and_silent_reporters() {
+    for reporter in ["--reporter=ndjson", "--reporter=silent"] {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+        let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+        pacquet.with_args(["add", "@pnpm.e2e/hello-world-js-bin"]).assert().success();
+        assert!(manifest_has(&workspace, DependencyGroup::Prod, "@pnpm.e2e/hello-world-js-bin"));
+
+        pacquet_at(&workspace)
+            .with_args([reporter, "remove", "@pnpm.e2e/hello-world-js-bin"])
+            .assert()
+            .success();
+        assert!(!manifest_has(&workspace, DependencyGroup::Prod, "@pnpm.e2e/hello-world-js-bin"));
+
+        drop((root, mock_instance));
+    }
+}
+
+#[test]
 fn should_remove_only_from_targeted_field() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();

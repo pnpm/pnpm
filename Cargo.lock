@@ -3601,6 +3601,7 @@ dependencies = [
  "pacquet-package-is-installable",
  "pacquet-package-manager",
  "pacquet-package-manifest",
+ "pacquet-patching",
  "pacquet-pnpr-client",
  "pacquet-registry",
  "pacquet-reporter",

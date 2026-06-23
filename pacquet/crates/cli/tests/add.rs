@@ -111,6 +111,25 @@ fn should_add_to_package_json() {
     drop((root, anchor)); // cleanup
 }
 
+#[test]
+fn add_runs_with_ndjson_and_silent_reporters() {
+    for reporter in ["--reporter=ndjson", "--reporter=silent"] {
+        let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+            CommandTempCwd::init().add_mocked_registry();
+
+        pacquet.with_args([reporter, "add", "@pnpm.e2e/hello-world-js-bin"]).assert().success();
+
+        let file = PackageManifest::from_path(workspace.join("package.json")).unwrap();
+        assert!(
+            file.dependencies([DependencyGroup::Prod])
+                .any(|(key, _)| key == "@pnpm.e2e/hello-world-js-bin"),
+            "dependency should be saved when running add with {reporter}",
+        );
+
+        drop((root, npmrc_info)); // cleanup
+    }
+}
+
 fn prod_spec(dir: &std::path::Path, name: &str) -> String {
     let manifest = dir.join("package.json").pipe(PackageManifest::from_path).unwrap();
     let (_, spec) = manifest
