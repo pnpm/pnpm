@@ -65,7 +65,9 @@ fn link_succeeds_with_valid_target() {
 
     pacquet.with_arg("link").with_arg(target_dir.to_str().unwrap()).assert().success();
 
-    let manifest = pacquet_package_manifest::PackageManifest::from_path(workspace.join("package.json")).expect("read manifest");
+    let manifest =
+        pacquet_package_manifest::PackageManifest::from_path(workspace.join("package.json"))
+            .expect("read manifest");
     let deps = manifest.value()["dependencies"].as_object().expect("dependencies exist");
     assert!(deps.contains_key("target-project"), "dependency must exist");
     assert_eq!(deps["target-project"], "link:../target-project");
