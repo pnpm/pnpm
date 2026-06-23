@@ -45,7 +45,7 @@ export class FetchError extends PnpmError {
     if (request.authHeaderValue) {
       _request.authHeaderValue = hideAuthInformation(request.authHeaderValue)
     }
-    const message = `GET ${request.url}: ${response.statusText} - ${response.status}`
+    const message = `GET ${redactUrlCredentials(request.url)}: ${response.statusText} - ${response.status}`
     // NOTE: For security reasons, some registries respond with 404 on authentication errors as well.
     // So we print authorization info on 404 errors as well.
     if (response.status === 401 || response.status === 403 || response.status === 404) {
@@ -60,6 +60,18 @@ export class FetchError extends PnpmError {
     this.request = _request
     this.response = response
   }
+}
+
+/**
+ * Strip `user:pass@` (or `user@`) userinfo that follows a URL scheme in any
+ * text, e.g. `GET https://user:pass@host/pkg: …` → `GET https://host/pkg: …`.
+ * A registry configured as `https://user:pass@host/` would otherwise leak its
+ * embedded basic-auth credentials into every error message that interpolates
+ * the request URL (terminal output, CI logs). `FetchError` already hides the
+ * auth *header*; this covers credentials carried in the URL itself.
+ */
+export function redactUrlCredentials (text: string): string {
+  return text.replace(/([a-z][a-z0-9+.-]*:\/\/)[^/@\s]+@/gi, '$1')
 }
 
 function hideAuthInformation (authHeaderValue: string): string {

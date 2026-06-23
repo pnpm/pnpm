@@ -6,6 +6,7 @@ import {
   type FetchErrorRequest,
   type FetchErrorResponse,
   PnpmError,
+  redactUrlCredentials,
 } from '@pnpm/error'
 import type { FetchFromRegistry, RetryTimeoutOptions } from '@pnpm/fetching.types'
 import { globalWarn } from '@pnpm/logger'
@@ -143,7 +144,7 @@ export async function fetchMetadataFromFromRegistry (
           timeout: fetchOpts.timeout,
         }) as RegistryResponse
       } catch (error: any) { // eslint-disable-line
-        reject(new PnpmError('META_FETCH_FAIL', `GET ${uri}: ${error.message as string}`, { attempts: attempt, cause: error }))
+        reject(new PnpmError('META_FETCH_FAIL', redactUrlCredentials(`GET ${uri}: ${error.message as string}`), { attempts: attempt, cause: error }))
         return
       }
       if (response.status === 304) {

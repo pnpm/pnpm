@@ -564,30 +564,20 @@ test('createNpmResolutionVerifier() canTrustPastCheck rejects when the trust-exc
   })).toBe(false)
 })
 
-test('createNpmResolutionVerifier() surfaces a metadata fetch failure as TARBALL_URL_FETCH_FAILED, not a tampering-style mismatch', async () => {
+test('createNpmResolutionVerifier() propagates the registry fetch error instead of reporting a tampering-style mismatch', async () => {
   // A 403 on the metadata fetch (e.g. a CI token that is authenticated but not
   // authorized to read a private package) must not be reported as a lockfile
   // tarball-URL mismatch: the lockfile is correct, the fetch is the problem.
+  // The verifier rethrows the registry's own error so the install aborts with
+  // ERR_PNPM_FETCH_403 (which already explains the auth situation).
   const pool = getMockAgent().get('https://registry.npmjs.org')
   pool.intercept({ path: '/private-pkg', method: 'GET' }).reply(403, { error: 'Forbidden' }).persist()
 
   const verifier = createNpmResolutionVerifier(makeVerifierOpts())
-  const result = await verifier.verify(
+  await expect(verifier.verify(
     makeTarballResolution('private-pkg', '1.0.0'),
     { name: 'private-pkg', version: '1.0.0' }
-  )
-
-  expect(result).toMatchObject({ ok: false, code: 'TARBALL_URL_FETCH_FAILED' })
-  // The underlying transport error (the 403 status) is surfaced in the reason,
-  // not hidden behind the bare "could not be verified" mismatch message.
-  const reason = (result as { reason: string }).reason
-  expect(reason).toContain('could not be verified')
-  expect(reason).toMatch(/\b403\b/)
-  // The raw fetch URL must never leak into the reason. A registry configured
-  // with embedded basic-auth (`https://user:pass@host/`) would otherwise expose
-  // those credentials in terminal/CI output on every verification failure.
-  expect(reason).not.toContain('registry.npmjs.org')
-  expect(reason).not.toMatch(/GET https?:\/\//)
+  )).rejects.toMatchObject({ code: 'ERR_PNPM_FETCH_403' })
 })
 
 test('createNpmResolutionVerifier() still flags a version absent from fetched metadata as TARBALL_URL_MISMATCH', async () => {

@@ -71,6 +71,27 @@ test('throws with the verifier-supplied code and reason on a single failure', as
   })
 })
 
+test('propagates a verifier throw (registry fetch failure) instead of folding it into a batch', async () => {
+  // A verifier throws — rather than returning a violation — when it can't reach
+  // the registry to verify an entry. That transport error must surface as-is
+  // (the install aborts with the registry's own error), not be turned into a
+  // lockfile-verification batch.
+  const lockfile = makeLockfile({
+    'is-odd@0.1.2': { resolution: tarballResolution('sha512-a') },
+    'private-pkg@1.0.0': { resolution: tarballResolution('sha512-b') },
+  })
+  const fetchError = Object.assign(new Error('GET https://registry.example/private-pkg: Forbidden - 403'), {
+    code: 'ERR_PNPM_FETCH_403',
+  })
+  const verifier = wrap(async (_, { name }) => {
+    if (name === 'private-pkg') throw fetchError
+    return { ok: false, code: 'MINIMUM_RELEASE_AGE_VIOLATION', reason: 'too fresh' }
+  })
+
+  // The thrown transport error wins over the collected policy violation.
+  await expect(verifyLockfileResolutions(lockfile, [verifier])).rejects.toBe(fetchError)
+})
+
 test('throws a generic code with per-entry codes in the breakdown when violations span policies', async () => {
   const lockfile = makeLockfile({
     'is-odd@0.1.2': { resolution: tarballResolution('sha512-a') },

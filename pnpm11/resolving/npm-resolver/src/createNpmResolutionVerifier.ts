@@ -27,7 +27,6 @@ import { failIfTrustDowngraded } from './trustChecks.js'
 import {
   MINIMUM_RELEASE_AGE_VIOLATION_CODE,
   MISSING_TARBALL_INTEGRITY_VIOLATION_CODE,
-  TARBALL_URL_FETCH_FAILED_VIOLATION_CODE,
   TARBALL_URL_MISMATCH_VIOLATION_CODE,
   TRUST_DOWNGRADE_VIOLATION_CODE,
 } from './violationCodes.js'
@@ -336,16 +335,11 @@ async function runAgeCheck (
   cutoff: number,
   ignoreMissingTimeField: boolean
 ): Promise<{ ok: false, code: string, reason: string } | undefined> {
-  let published: string | undefined
-  try {
-    published = await fetchPublishedAt(context, registry, name, version)
-  } catch (err) {
-    return {
-      ok: false,
-      code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
-      reason: uncheckable('minimumReleaseAge', err instanceof Error ? err.message : String(err)),
-    }
-  }
+  // A transport failure (auth/network/5xx) propagates the registry's own fetch
+  // error (e.g. ERR_PNPM_FETCH_403); the gate aborts the install with it rather
+  // than folding it into a policy violation. A successful fetch that simply
+  // lacks a publish timestamp for this version is handled below.
+  const published = await fetchPublishedAt(context, registry, name, version)
   if (!published) {
     // No source — attestation, local mirror, or full metadata —
     // surfaced a publish timestamp for this version. The resolver's
@@ -403,16 +397,12 @@ async function runTarballUrlCheck (
 ): Promise<{ ok: false, code: string, reason: string } | undefined> {
   const { meta, error } = await fetchAbbreviatedMeta(context, registry, name)
   if (error != null) {
-    // Couldn't reach the registry to verify (auth/network/5xx). Surface the
-    // transport error under a distinct code instead of reporting it as a
-    // tampering-style URL mismatch — mirrors runAgeCheck/runTrustCheck, which
-    // also surface the underlying fetch error. Still fail-closed: the entry
-    // is rejected, just with an actionable reason.
-    return {
-      ok: false,
-      code: TARBALL_URL_FETCH_FAILED_VIOLATION_CODE,
-      reason: `could not be verified against the registry's published metadata (${describeMetaFetchError(error)})`,
-    }
+    // Couldn't reach the registry to verify (auth/network/5xx). Propagate the
+    // registry's own fetch error (e.g. ERR_PNPM_FETCH_403, which already
+    // explains the auth situation) instead of mislabeling a transport failure
+    // as a tampering-style URL mismatch. The gate aborts the install with that
+    // error — still fail-closed, the entry never reaches the filesystem.
+    throw error
   }
   const registryTarball = meta?.versionTarballs?.get(version)
   if (registryTarball != null && sameTarballUrl(lockfileTarball, registryTarball)) {
@@ -425,32 +415,6 @@ async function runTarballUrlCheck (
       ? "could not be verified against the registry's published metadata"
       : `has a tarball URL (${lockfileTarball}) that does not match the registry's published metadata (${registryTarball})`,
   }
-}
-
-/**
- * Describe a metadata fetch failure for a user-facing violation reason without
- * leaking registry credentials. A `FetchError`'s `message` is `GET <url>: …`,
- * and a registry configured as `https://user:pass@host/` embeds the credentials
- * in that URL — so the raw message must never reach terminal/CI output. Prefer
- * the structured HTTP status when the registry answered; otherwise fall back to
- * the message with any embedded `user:pass@` credentials stripped.
- */
-function describeMetaFetchError (error: unknown): string {
-  const status = (error as { response?: { status?: number } })?.response?.status
-  if (typeof status === 'number') {
-    const statusText = (error as { response?: { statusText?: string } }).response?.statusText
-    return statusText
-      ? `registry responded with ${status} ${statusText}`
-      : `registry responded with ${status}`
-  }
-  const message = error instanceof Error ? error.message : String(error)
-  return redactUrlCredentials(message)
-}
-
-// Strip `user:pass@` (or `user@`) that appears right after a URL scheme in any
-// message text, e.g. `GET https://user:pass@host/pkg: …` → `GET https://host/pkg: …`.
-function redactUrlCredentials (text: string): string {
-  return text.replace(/([a-z][a-z0-9+.-]*:\/\/)[^/@\s]+@/gi, '$1')
 }
 
 function sameTarballUrl (a: string, b: string): boolean {
@@ -493,19 +457,11 @@ async function runTrustCheck (
     trustPolicyIgnoreAfter?: number
   }
 ): Promise<{ ok: false, code: string, reason: string } | undefined> {
-  let meta: PackageMeta
-  try {
-    meta = await fetchFullMetaForTrust(context, registry, name)
-  } catch (err) {
-    // `fetchFullMetadataCached` rejects (network error, 404, etc.); the
-    // verifier fails closed so a missing manifest can't be mistaken
-    // for a passing trust check.
-    return {
-      ok: false,
-      code: TRUST_DOWNGRADE_VIOLATION_CODE,
-      reason: uncheckable('trustPolicy', err instanceof Error ? err.message : String(err)),
-    }
-  }
+  // A transport failure (auth/network/5xx) propagates the registry's own fetch
+  // error; the gate aborts the install with it rather than folding it into a
+  // policy violation. Still fail-closed: a missing manifest can't be mistaken
+  // for a passing trust check because the install never proceeds.
+  const meta = await fetchFullMetaForTrust(context, registry, name)
 
   try {
     failIfTrustDowngraded(meta, version, opts)
@@ -798,9 +754,11 @@ function fetchAbbreviatedMeta (
       cachedPromise = Promise.resolve({ meta: projectAbbreviatedMeta(shared) })
     } else {
       // Carry a fetch failure (auth/network/5xx) as `error` instead of
-      // collapsing it to `undefined`: the tarball-URL check needs to tell a
-      // transport failure apart from a version genuinely absent from the
-      // metadata, otherwise it reports a 403 as a tampering-style mismatch.
+      // collapsing it to `undefined`: the tarball-URL check rethrows it (so the
+      // registry's own error surfaces, not a tampering-style mismatch) while
+      // the age shortcut ignores it and falls back to per-version lookups.
+      // Keeping it a resolved value — not a rejected promise — lets the two
+      // callers share one cached promise without an unhandled rejection.
       cachedPromise = fetchAbbreviatedMetadataCached(context.fetchOpts, name, {
         registry,
         authHeaderValue: context.getAuthHeaderValueByURI(registry, { pkgName: name }),
@@ -900,7 +858,7 @@ interface AbbreviatedMetaProjection {
  * value rather than rejected so the per-install cache can hold a single
  * resolved promise — a cached rejection would surface as an unhandled
  * rejection and be shared across every caller of the same key. The
- * tarball-URL check surfaces this error; the age shortcut ignores it and
+ * tarball-URL check rethrows this error; the age shortcut ignores it and
  * falls back to per-version lookups.
  *
  * Modeled as a discriminated union so a result carries exactly one of `meta`
