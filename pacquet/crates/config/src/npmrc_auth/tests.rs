@@ -1122,3 +1122,508 @@ fn url_scoped_env_ignores_non_ascii_names_without_panicking() {
     let auth = NpmrcAuth::from_url_scoped_env::<Env>();
     assert!(auth.creds_by_scope_by_uri.is_empty());
 }
+
+#[test]
+fn json_env_reads_host_keyed_default_auth_token() {
+    static_env!(
+        Env,
+        &[(
+            "pnpm_config__auth",
+            r#"{"https://registry.npmjs.org":{"@":{"authToken":"json-token"}}}"#
+        )]
+    );
+    let auth = NpmrcAuth::from_json_sources::<Env>(None);
+    assert_eq!(default_auth_token(&auth, "//registry.npmjs.org/"), Some(Some("json-token")));
+}
+
+#[test]
+fn json_env_accepts_uppercase_scheme() {
+    // URL schemes are case-insensitive; the TS side parses keys with
+    // `new URL()`, which accepts `HTTPS://...`. pacquet must too.
+    static_env!(
+        Env,
+        &[(
+            "pnpm_config__auth",
+            r#"{"HTTPS://registry.npmjs.org":{"@":{"authToken":"upper-scheme-token"}}}"#
+        )]
+    );
+    let auth = NpmrcAuth::from_json_sources::<Env>(None);
+    assert_eq!(
+        default_auth_token(&auth, "//registry.npmjs.org/"),
+        Some(Some("upper-scheme-token")),
+    );
+}
+
+#[test]
+fn json_env_reads_scoped_auth_tokens_on_shared_host() {
+    static_env!(
+        Env,
+        &[(
+            "pnpm_config__auth",
+            r#"{"https://npm.pkg.github.com":{"@org-a":{"authToken":"a-tok"},"@org-b":{"authToken":"b-tok"}}}"#
+        )]
+    );
+    let auth = NpmrcAuth::from_json_sources::<Env>(None);
+    assert_eq!(scoped_auth_token(&auth, "//npm.pkg.github.com/", "@org-a"), Some(Some("a-tok")));
+    assert_eq!(scoped_auth_token(&auth, "//npm.pkg.github.com/", "@org-b"), Some(Some("b-tok")));
+}
+
+#[test]
+fn json_env_rejects_deprecated_basic_auth_and_username_password_fields() {
+    // Only `authToken` is supported; the deprecated `basicAuth` /
+    // `username` + `password` forms are dropped with a warning and never
+    // produce an auth header.
+    struct EnvDeprecated;
+    impl EnvVar for EnvDeprecated {
+        fn var(name: &str) -> Option<String> {
+            (name == "pnpm_config__auth").then(|| {
+                let pair = base64_encode("alice:secret");
+                let password_b64 = base64_encode("p@ss");
+                format!(
+                    r#"{{"https://reg.example":{{"@":{{"basicAuth":"{pair}","username":"alice","password":"{password_b64}"}}}}}}"#,
+                )
+            })
+        }
+    }
+    let auth = NpmrcAuth::from_json_sources::<EnvDeprecated>(None);
+    for field in ["basicAuth", "username", "password"] {
+        assert!(
+            auth.warnings.iter().any(|warning| warning.contains(field)
+                && warning.contains(r#"only "authToken" is supported"#)),
+            "expected an unsupported-field warning for {field:?}, got: {:?}",
+            auth.warnings,
+        );
+    }
+    let mut config = Config::new();
+    auth.apply_to::<EnvDeprecated>(&mut config);
+    assert!(config.auth_headers.for_url("https://reg.example/").is_none());
+}
+
+#[test]
+fn json_env_default_scope_infers_default_registry_route() {
+    static_env!(
+        Env,
+        &[("pnpm_config__auth", r#"{"https://my-npm-proxy.example":{"@":{"authToken":"tok"}}}"#)]
+    );
+    let auth = NpmrcAuth::from_json_sources::<Env>(None);
+    assert_eq!(
+        auth.json_env_registries.get("default").map(String::as_str),
+        Some("https://my-npm-proxy.example/"),
+    );
+}
+
+#[test]
+fn json_env_package_scope_infers_scoped_registry_route() {
+    static_env!(
+        Env,
+        &[("pnpm_config__auth", r#"{"https://npm.pkg.github.com":{"@org":{"authToken":"tok"}}}"#)]
+    );
+    let auth = NpmrcAuth::from_json_sources::<Env>(None);
+    assert_eq!(
+        auth.json_env_registries.get("@org").map(String::as_str),
+        Some("https://npm.pkg.github.com/"),
+    );
+    assert!(!auth.json_env_registries.contains_key("default"));
+}
+
+#[test]
+fn json_env_honors_upper_case_form() {
+    // Both `pnpm_config__auth` (documented) and `PNPM_CONFIG__AUTH` (the
+    // all-caps shell convention) are accepted — mirrors `read_pnpm_env`'s
+    // two-form lookup shape.
+    static_env!(
+        Env,
+        &[(
+            "PNPM_CONFIG__AUTH",
+            r#"{"https://registry.npmjs.org":{"@":{"authToken":"upper-token"}}}"#
+        )]
+    );
+    let auth = NpmrcAuth::from_json_sources::<Env>(None);
+    assert_eq!(default_auth_token(&auth, "//registry.npmjs.org/"), Some(Some("upper-token")));
+}
+
+#[test]
+fn json_env_lower_case_wins_over_upper_case_when_both_are_set() {
+    // Both forms are accepted; when both are set, the documented
+    // (lowercase) form wins. Mirrors `read_pnpm_env`'s two-form lookup.
+    static_env!(
+        Env,
+        &[
+            (
+                "pnpm_config__auth",
+                r#"{"https://registry.npmjs.org":{"@":{"authToken":"lower-token"}}}"#
+            ),
+            (
+                "PNPM_CONFIG__AUTH",
+                r#"{"https://registry.npmjs.org":{"@":{"authToken":"upper-token"}}}"#
+            ),
+        ]
+    );
+    let auth = NpmrcAuth::from_json_sources::<Env>(None);
+    assert_eq!(default_auth_token(&auth, "//registry.npmjs.org/"), Some(Some("lower-token")));
+}
+
+#[test]
+fn json_env_empty_lowercase_falls_back_to_uppercase() {
+    static_env!(
+        Env,
+        &[
+            ("pnpm_config__auth", ""),
+            (
+                "PNPM_CONFIG__AUTH",
+                r#"{"https://registry.npmjs.org":{"@":{"authToken":"upper-token"}}}"#
+            ),
+        ]
+    );
+    let auth = NpmrcAuth::from_json_sources::<Env>(None);
+    assert_eq!(default_auth_token(&auth, "//registry.npmjs.org/"), Some(Some("upper-token")));
+}
+
+#[test]
+fn json_env_warns_when_auth_field_value_is_not_a_string() {
+    static_env!(
+        Env,
+        &[("pnpm_config__auth", r#"{"https://registry.example":{"@":{"authToken":123}}}"#)]
+    );
+    let auth = NpmrcAuth::from_json_sources::<Env>(None);
+    assert!(auth.creds_by_scope_by_uri.is_empty());
+    assert!(
+        auth.warnings
+            .iter()
+            .any(|warning| warning.contains("authToken")
+                && warning.contains("value must be a string")),
+        "expected a per-key type warning, got: {:?}",
+        auth.warnings,
+    );
+}
+
+#[test]
+fn json_env_warns_when_host_value_is_not_scope_object() {
+    static_env!(Env, &[("pnpm_config__auth", r#"{"https://registry.example":123}"#)]);
+    let auth = NpmrcAuth::from_json_sources::<Env>(None);
+    assert!(auth.creds_by_scope_by_uri.is_empty());
+    assert!(
+        auth.warnings.iter().any(|warning| warning.contains("entry 1")
+            && warning.contains("object keyed by scope")),
+        "expected a per-key type warning, got: {:?}",
+        auth.warnings,
+    );
+}
+
+#[test]
+fn json_env_warns_when_host_key_is_not_a_registry_url() {
+    static_env!(Env, &[("pnpm_config__auth", r#"{"not a url":{"@":{"authToken":"tok"}}}"#)]);
+    let auth = NpmrcAuth::from_json_sources::<Env>(None);
+    assert!(auth.creds_by_scope_by_uri.is_empty());
+    assert!(
+        auth.warnings
+            .iter()
+            .any(|warning| warning.contains("entry 1") && warning.contains("registry URL")),
+        "expected a registry-URL warning, got: {:?}",
+        auth.warnings,
+    );
+    assert!(
+        !auth.warnings.iter().any(|warning| warning.contains("not a url")),
+        "raw key must not leak into warnings: {:?}",
+        auth.warnings,
+    );
+}
+
+#[test]
+fn json_env_warns_when_host_key_has_empty_host() {
+    static_env!(
+        Env,
+        &[(
+            "pnpm_config__auth",
+            r#"{"https://":{"@":{"authToken":"tok"}},"https://:8080":{"@":{"authToken":"tok"}}}"#
+        )]
+    );
+    let auth = NpmrcAuth::from_json_sources::<Env>(None);
+    assert!(auth.creds_by_scope_by_uri.is_empty());
+    let entry1_count = auth
+        .warnings
+        .iter()
+        .filter(|warning| warning.contains("entry 1") && warning.contains("registry URL"))
+        .count();
+    let entry2_count = auth
+        .warnings
+        .iter()
+        .filter(|warning| warning.contains("entry 2") && warning.contains("registry URL"))
+        .count();
+    assert_eq!(entry1_count, 1, "expected one entry-1 warning, got: {:?}", auth.warnings);
+    assert_eq!(entry2_count, 1, "expected one entry-2 warning, got: {:?}", auth.warnings);
+    assert!(
+        !auth.warnings.iter().any(|warning| warning.contains("https://")),
+        "raw URL must not leak into warnings: {:?}",
+        auth.warnings,
+    );
+}
+
+#[test]
+fn json_env_warns_when_host_key_has_non_http_scheme() {
+    // A key with a `://` separator parses a scheme, so it skips the
+    // missing-separator branch — but a non-http(s) scheme like `ftp://`
+    // must still be rejected on the scheme check, not accepted as a host.
+    static_env!(
+        Env,
+        &[("pnpm_config__auth", r#"{"ftp://registry.example":{"@":{"authToken":"tok"}}}"#)]
+    );
+    let auth = NpmrcAuth::from_json_sources::<Env>(None);
+    assert!(auth.creds_by_scope_by_uri.is_empty());
+    assert!(
+        auth.warnings
+            .iter()
+            .any(|warning| warning.contains("entry 1") && warning.contains("registry URL")),
+        "expected a registry-URL warning, got: {:?}",
+        auth.warnings,
+    );
+    assert!(
+        !auth.warnings.iter().any(|warning| warning.contains("ftp://")),
+        "raw key must not leak into warnings: {:?}",
+        auth.warnings,
+    );
+}
+
+#[test]
+fn json_env_warns_when_scope_name_is_invalid() {
+    static_env!(
+        Env,
+        &[("pnpm_config__auth", r#"{"https://registry.example":{"org":{"authToken":"tok"}}}"#)]
+    );
+    let auth = NpmrcAuth::from_json_sources::<Env>(None);
+    assert!(auth.creds_by_scope_by_uri.is_empty());
+    assert!(
+        auth.warnings
+            .iter()
+            .any(|warning| warning.contains("org") && warning.contains("scope must be")),
+        "expected a per-key type warning, got: {:?}",
+        auth.warnings,
+    );
+}
+
+#[test]
+fn json_env_warns_when_scope_value_is_not_auth_object() {
+    static_env!(Env, &[("pnpm_config__auth", r#"{"https://registry.example":{"@":"tok"}}"#)]);
+    let auth = NpmrcAuth::from_json_sources::<Env>(None);
+    assert!(auth.creds_by_scope_by_uri.is_empty());
+    assert!(
+        auth.warnings.iter().any(|warning| warning.contains("entry 1")
+            && warning.contains("value must be an auth object")),
+        "expected an auth-object warning, got: {:?}",
+        auth.warnings,
+    );
+}
+
+#[test]
+fn json_env_warns_when_auth_field_is_unsupported() {
+    static_env!(
+        Env,
+        &[(
+            "pnpm_config__auth",
+            r#"{"https://registry.example":{"@":{"tokenHelper":"/bin/echo"}}}"#
+        )]
+    );
+    let auth = NpmrcAuth::from_json_sources::<Env>(None);
+    assert!(auth.creds_by_scope_by_uri.is_empty());
+    assert!(
+        auth.warnings
+            .iter()
+            .any(|warning| warning.contains("tokenHelper") && warning.contains("unsupported")),
+        "expected an unsupported-field warning, got: {:?}",
+        auth.warnings,
+    );
+    assert!(auth.json_env_registries.is_empty());
+}
+
+#[test]
+fn json_env_warnings_do_not_leak_url_credentials() {
+    // The URL key carries userinfo and a query-string token — both are
+    // common places to embed secrets in registry URLs. No warning should
+    // surface any fragment of the raw key.
+    static_env!(
+        Env,
+        &[(
+            "pnpm_config__auth",
+            r#"{"https://user:pw@registry.example?token=secret":{"@":{"authToken":"tok"}}}"#
+        )]
+    );
+    let auth = NpmrcAuth::from_json_sources::<Env>(None);
+    assert!(
+        auth.warnings.iter().any(|warning| warning.contains("entry 1 (https://registry.example)")
+            && warning.contains("credentials, query, or fragment")),
+        "expected a credentials-rejection warning with sanitized label, got: {:?}",
+        auth.warnings,
+    );
+    for leak in &["user:pw", "pw@", "token=secret", "?token"] {
+        assert!(
+            !auth.warnings.iter().any(|warning| warning.contains(leak)),
+            "secret fragment {leak:?} leaked into a warning: {:?}",
+            auth.warnings,
+        );
+    }
+}
+
+#[test]
+fn json_env_rejects_urls_with_credentials_query_or_fragment() {
+    // Mirrors TS `parseJsonAuthRegistry`: URLs with userinfo, query, or
+    // fragment are rejected — no token is applied, no route is inferred.
+    static_env!(
+        Env,
+        &[(
+            "pnpm_config__auth",
+            r#"{"https://user:pw@reg.example":{"@":{"authToken":"tok"}},"https://reg.example?token=secret":{"@":{"authToken":"tok"}},"https://reg.example#frag":{"@":{"authToken":"tok"}}}"#
+        )]
+    );
+    let auth = NpmrcAuth::from_json_sources::<Env>(None);
+    assert!(
+        auth.creds_by_scope_by_uri.is_empty(),
+        "no creds should be applied: {:?}",
+        auth.creds_by_scope_by_uri,
+    );
+    assert!(auth.json_env_registries.is_empty(), "no routes should be inferred");
+    let rejection_count = auth
+        .warnings
+        .iter()
+        .filter(|warning| warning.contains("credentials, query, or fragment"))
+        .count();
+    assert_eq!(rejection_count, 3, "expected 3 rejection warnings, got: {:?}", auth.warnings);
+    for leak in &["user:pw", "pw@", "token=secret", "?token", "#frag"] {
+        assert!(
+            !auth.warnings.iter().any(|warning| warning.contains(leak)),
+            "secret fragment {leak:?} leaked: {:?}",
+            auth.warnings,
+        );
+    }
+}
+
+#[test]
+fn json_env_does_not_infer_registry_route_when_no_auth_field_is_accepted() {
+    static_env!(
+        Env,
+        &[(
+            "pnpm_config__auth",
+            r#"{"https://private.example":{"@":{"tokenAuth":"tok"},"@org":{"authToken":123}}}"#
+        )]
+    );
+    let auth = NpmrcAuth::from_json_sources::<Env>(None);
+    assert!(auth.creds_by_scope_by_uri.is_empty());
+    assert!(auth.json_env_registries.is_empty());
+}
+
+#[test]
+fn json_env_malformed_json_pushes_warning_and_returns_empty() {
+    static_env!(Env, &[("pnpm_config__auth", "{ not valid json")]);
+    let auth = NpmrcAuth::from_json_sources::<Env>(None);
+    assert!(auth.creds_by_scope_by_uri.is_empty());
+    assert!(
+        auth.warnings.iter().any(|warning| warning.contains("Failed to parse pnpm_config__auth")),
+        "expected a parse-failure warning, got: {:?}",
+        auth.warnings,
+    );
+}
+
+#[test]
+fn json_env_rejects_non_object_top_level_with_warning() {
+    // Arrays expose their indices as keys, so reject them outright.
+    static_env!(Env, &[("pnpm_config__auth", r#"["//registry.example/:_authToken","sneaky"]"#)]);
+    let auth = NpmrcAuth::from_json_sources::<Env>(None);
+    assert!(auth.creds_by_scope_by_uri.is_empty());
+    assert!(
+        auth.warnings.iter().any(|warning| warning.contains("must be a JSON object")),
+        "expected a top-level type warning, got: {:?}",
+        auth.warnings,
+    );
+}
+
+#[test]
+fn json_env_empty_or_unset_returns_default() {
+    // Unset: `Sys::var` returns `None` for both forms.
+    struct UnsetEnv;
+    impl EnvVar for UnsetEnv {
+        fn var(_: &str) -> Option<String> {
+            None
+        }
+    }
+    let auth = NpmrcAuth::from_json_sources::<UnsetEnv>(None);
+    assert!(auth.creds_by_scope_by_uri.is_empty());
+    assert!(auth.warnings.is_empty());
+
+    // Set but empty: filtered out by the `.filter(|v| !v.is_empty())` step.
+    static_env!(EnvWithEmptyAuth, &[("pnpm_config__auth", "")]);
+    let auth = NpmrcAuth::from_json_sources::<EnvWithEmptyAuth>(None);
+    assert!(auth.creds_by_scope_by_uri.is_empty());
+    assert!(auth.warnings.is_empty());
+}
+
+#[test]
+fn json_global_value_configures_auth_and_env_wins_on_conflict() {
+    // `_auth` from the global `config.yaml` (the `global_value` argument)
+    // is parsed like the env var; the env var wins on a conflicting host.
+    struct EnvJson;
+    impl EnvVar for EnvJson {
+        fn var(name: &str) -> Option<String> {
+            (name == "pnpm_config__auth").then(|| {
+                r#"{"https://registry.npmjs.org":{"@":{"authToken":"env-token"}}}"#.to_string()
+            })
+        }
+    }
+    let global = serde_json::json!({
+        "https://registry.npmjs.org": { "@": { "authToken": "yaml-token" } },
+        "https://other.example": { "@": { "authToken": "yaml-other" } },
+    });
+    let auth = NpmrcAuth::from_json_sources::<EnvJson>(Some(&global));
+    // Env wins on the conflicting host.
+    assert_eq!(default_auth_token(&auth, "//registry.npmjs.org/"), Some(Some("env-token")));
+    // The global-only host is preserved.
+    assert_eq!(default_auth_token(&auth, "//other.example/"), Some(Some("yaml-other")));
+}
+
+#[test]
+fn json_type_label_names_every_variant() {
+    // Direct exercise of the helper across every serde_json variant —
+    // from_json_sources only reaches it on the non-Object error path, so a
+    // handful of variants (Null/Bool/Number/Object) never get hit through
+    // the integration tests.
+    use super::json_type_label;
+    assert_eq!(json_type_label(&serde_json::Value::Null), "null");
+    assert_eq!(json_type_label(&serde_json::Value::Bool(true)), "boolean");
+    assert_eq!(json_type_label(&serde_json::Value::from(42)), "number");
+    assert_eq!(json_type_label(&serde_json::Value::from("hi")), "string");
+    assert_eq!(json_type_label(&serde_json::Value::Array(vec![serde_json::Value::Null])), "array");
+    assert_eq!(json_type_label(&serde_json::Value::Object(serde_json::Map::new())), "object");
+}
+
+#[test]
+fn json_auth_entry_label_formats() {
+    use super::json_auth_entry_label;
+    // No scheme separator → bare entry label
+    assert_eq!(json_auth_entry_label("not a url", 1), "entry 1");
+    // Non-http scheme → bare entry label
+    assert_eq!(json_auth_entry_label("ftp://host", 2), "entry 2");
+    // http/https with empty host → bare entry label
+    assert_eq!(json_auth_entry_label("https://", 3), "entry 3");
+    assert_eq!(json_auth_entry_label("https://:8080", 4), "entry 4");
+    // Valid URL → entry N (scheme://host)
+    assert_eq!(json_auth_entry_label("https://reg.example", 5), "entry 5 (https://reg.example)");
+    // Port preserved in label
+    assert_eq!(
+        json_auth_entry_label("https://reg.example:8080", 6),
+        "entry 6 (https://reg.example:8080)",
+    );
+    // Userinfo stripped from label
+    assert_eq!(
+        json_auth_entry_label("https://user:pw@reg.example", 7),
+        "entry 7 (https://reg.example)",
+    );
+}
+
+#[test]
+fn json_auth_url_has_credentials_or_extras_truth_table() {
+    use super::json_auth_url_has_credentials_or_extras;
+    assert!(json_auth_url_has_credentials_or_extras("https://user:pw@host"));
+    assert!(json_auth_url_has_credentials_or_extras("https://host?token=x"));
+    assert!(json_auth_url_has_credentials_or_extras("https://host#frag"));
+    assert!(!json_auth_url_has_credentials_or_extras("https://host"));
+    assert!(!json_auth_url_has_credentials_or_extras("https://@host"));
+    assert!(!json_auth_url_has_credentials_or_extras("not a url"));
+}

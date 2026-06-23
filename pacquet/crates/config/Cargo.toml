@@ -39,8 +39,9 @@ libc = { workspace = true }
 [dev-dependencies]
 pacquet-testing-utils = { workspace = true }
 
-pretty_assertions = { workspace = true }
-tempfile          = { workspace = true }
+pretty_assertions  = { workspace = true }
+tempfile           = { workspace = true }
+tracing-subscriber = { workspace = true }
 
 [lints]
 workspace = true

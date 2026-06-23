@@ -1219,6 +1219,691 @@ test('URL-scoped env vars honor non-token credential fields and ignore non-URL k
   expect(config.authConfig['always-auth']).toBeUndefined()
 })
 
+test('reads a host-keyed default auth token from pnpm_config__auth', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://json-test.example': {
+          '@': { authToken: 'json-token' },
+        },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.authConfig['//json-test.example/:_authToken']).toBe('json-token')
+})
+
+test('pnpm_config__auth normalizes registry URL keys before keying auth', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'HTTPS://JSON-Test.Example:443': {
+          '@': { authToken: 'json-token' },
+        },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.authConfig['//json-test.example/:_authToken']).toBe('json-token')
+  expect(config.registries.default).toBe('https://json-test.example/')
+})
+
+test('host-keyed pnpm_config__auth supports scoped tokens on a shared host', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://npm.pkg.github.com': {
+          '@org-a': { authToken: 'org-a-token' },
+          '@org-b': { authToken: 'org-b-token' },
+        },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.authConfig['//npm.pkg.github.com/:@org-a:_authToken']).toBe('org-a-token')
+  expect(config.authConfig['//npm.pkg.github.com/:@org-b:_authToken']).toBe('org-b-token')
+})
+
+test('host-keyed pnpm_config__auth rejects deprecated basic-auth fields', async () => {
+  prepareEmpty()
+  const basicAuth = Buffer.from('user:pass').toString('base64')
+  const password = Buffer.from('pass').toString('base64')
+
+  const { config, warnings } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://json-test.example': {
+          '@': {
+            basicAuth,
+            username: 'user',
+            password,
+          },
+        },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  // Only `authToken` is supported; the deprecated forms are dropped with a warning.
+  expect(config.authConfig['//json-test.example/:_auth']).toBeUndefined()
+  expect(config.authConfig['//json-test.example/:username']).toBeUndefined()
+  expect(config.authConfig['//json-test.example/:_password']).toBeUndefined()
+  for (const field of ['basicAuth', 'username', 'password']) {
+    expect(warnings.some(w => w.includes(field) && w.includes('only "authToken" is supported'))).toBe(true)
+  }
+})
+
+test('pnpm_config__auth token overrides a project .npmrc token for the same host', async () => {
+  prepareEmpty()
+
+  fs.writeFileSync('.npmrc', '//json-test.example/:_authToken=workspace-token', 'utf8')
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://json-test.example': {
+          '@': { authToken: 'env-token' },
+        },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.authConfig['//json-test.example/:_authToken']).toBe('env-token')
+})
+
+test('a CLI-provided token overrides the same key from pnpm_config__auth', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfig({
+    cliOptions: {
+      '//json-test.example/:_authToken': 'cli-token',
+    },
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://json-test.example': {
+          '@': { authToken: 'env-token' },
+        },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.authConfig['//json-test.example/:_authToken']).toBe('cli-token')
+})
+
+test('repo registry config cannot redirect pnpm_config__auth tokens', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registries: {
+      '@victim-scope': 'https://attacker.example/',
+    },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://registry.npmjs.org': {
+          '@victim-scope': { authToken: 'secret-token' },
+        },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.authConfig['//attacker.example/:_authToken']).toBeUndefined()
+  expect(config.authConfig['//attacker.example/:@victim-scope:_authToken']).toBeUndefined()
+  expect(config.authConfig['//registry.npmjs.org/:@victim-scope:_authToken']).toBe('secret-token')
+})
+
+test('host entry that is not a scope object is rejected with a warning', async () => {
+  prepareEmpty()
+
+  const { warnings } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://json-test.example': 123,
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(warnings.some(w => w.includes('entry 1 (https://json-test.example)') && w.includes('object keyed by scope'))).toBe(true)
+})
+
+test('pnpm_config__auth invalid registry URL key is rejected with a warning', async () => {
+  prepareEmpty()
+
+  const { config, warnings } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'not a url': {
+          '@': { authToken: 'token' },
+        },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(Object.values(config.authConfig).filter(v => v === 'token')).toHaveLength(0)
+  expect(warnings.some(w => w.includes('entry 1') && w.includes('registry URL'))).toBe(true)
+  expect(warnings.some(w => w.includes('not a url'))).toBe(false)
+})
+
+test('pnpm_config__auth registry URL with credentials or query is rejected without leaking secrets', async () => {
+  prepareEmpty()
+
+  const { config, warnings } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://user:secret-password@json-test.example?token=leaky-token#fragment': {
+          '@': { authToken: 'token' },
+        },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.authConfig['//json-test.example/:_authToken']).toBeUndefined()
+  expect(config.registries.default).toBe('https://registry.npmjs.org/')
+  const warning = warnings.find(w => w.includes('credentials, query, or fragment'))
+  expect(warning).toContain('entry 1 (https://json-test.example)')
+  expect(warning).not.toContain('secret-password')
+  expect(warning).not.toContain('leaky-token')
+})
+
+test('pnpm_config__auth invalid scope name is rejected with a warning', async () => {
+  prepareEmpty()
+
+  const { warnings } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://json-test.example': {
+          org: { authToken: 'token' },
+        },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(warnings.some(w => w.includes('org') && w.includes('scope must be'))).toBe(true)
+})
+
+test('pnpm_config__auth scope value that is not an auth object is rejected with a warning', async () => {
+  prepareEmpty()
+
+  const { config, warnings } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://json-test.example': {
+          '@': 'token',
+        },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.authConfig['//json-test.example/:_authToken']).toBeUndefined()
+  expect(warnings.some(w => w.includes('entry 1 (https://json-test.example)') && w.includes('value must be an auth object'))).toBe(true)
+})
+
+test('pnpm_config__auth non-string auth field value warns and is dropped', async () => {
+  prepareEmpty()
+
+  const { config, warnings } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://json-test.example': {
+          '@': { authToken: 123 },
+        },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.authConfig['//json-test.example/:_authToken']).toBeUndefined()
+  expect(warnings.some(w => w.includes('authToken') && w.includes('must be a string'))).toBe(true)
+})
+
+test('pnpm_config__auth unsupported auth field warns and is dropped', async () => {
+  prepareEmpty()
+
+  const { config, warnings } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://json-test.example': {
+          '@': { tokenHelper: '/bin/echo' },
+        },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.authConfig['//json-test.example/:tokenHelper']).toBeUndefined()
+  expect(warnings.some(w => w.includes('tokenHelper') && w.includes('unsupported'))).toBe(true)
+})
+
+test('pnpm_config__auth inherited property names like toString are rejected', async () => {
+  prepareEmpty()
+
+  const { config, warnings } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://json-test.example': {
+          '@': { toString: 'sneaky-token' },
+        },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.authConfig['//json-test.example/:_authToken']).toBeUndefined()
+  expect(warnings.some(w => w.includes('toString') && w.includes('unsupported'))).toBe(true)
+})
+
+test('malformed pnpm_config__auth JSON produces a warning and does not crash', async () => {
+  prepareEmpty()
+
+  const { config, warnings } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: '{ not valid json',
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(warnings.some((w: string) => w.includes('Failed to parse pnpm_config__auth'))).toBe(true)
+  expect(config.authConfig['//json-test.example/:_authToken']).toBeUndefined()
+})
+
+test('a non-object pnpm_config__auth value is rejected with a warning', async () => {
+  prepareEmpty()
+
+  // Arrays and primitives are rejected — arrays would expose their indices
+  // as keys, and primitives have no entries at all.
+  const { warnings } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify(['//json-test.example/:_authToken', 'sneaky-token']),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(warnings.some((w: string) => w.includes('must be a JSON object'))).toBe(true)
+})
+
+test('PNPM_CONFIG__AUTH (all-caps) form is also honored', async () => {
+  prepareEmpty()
+
+  // Both forms are accepted — `pnpm_config__auth` (documented) and
+  // `PNPM_CONFIG__AUTH` (the all-caps shell convention some CI runners
+  // apply). Mirrors `readEnvVar`'s two-form lookup shape.
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      PNPM_CONFIG__AUTH: JSON.stringify({
+        'https://json-test.example': {
+          '@': { authToken: 'upper-token' },
+        },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.authConfig['//json-test.example/:_authToken']).toBe('upper-token')
+})
+
+test('pnpm_config__auth wins over PNPM_CONFIG__AUTH when both are set', async () => {
+  prepareEmpty()
+
+  // The documented lowercase form wins when both are set, mirroring
+  // `readEnvVar`'s lookup order.
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://json-test.example': {
+          '@': { authToken: 'lower-token' },
+        },
+      }),
+      PNPM_CONFIG__AUTH: JSON.stringify({
+        'https://json-test.example': {
+          '@': { authToken: 'upper-token' },
+        },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.authConfig['//json-test.example/:_authToken']).toBe('lower-token')
+})
+
+test('empty or unset pnpm_config__auth is a no-op', async () => {
+  prepareEmpty()
+
+  // Unset.
+  const { config: configUnset, warnings: warningsUnset } = await getConfig({
+    cliOptions: {},
+    env: { ...env },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+  expect(warningsUnset.some(w => w.includes('pnpm_config__auth'))).toBe(false)
+  expect(Object.keys(configUnset.authConfig).filter(k => k.startsWith('//json-test'))).toHaveLength(0)
+
+  // Set but empty string.
+  const { config: configEmpty, warnings: warningsEmpty } = await getConfig({
+    cliOptions: {},
+    env: { ...env, pnpm_config__auth: '' },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+  expect(warningsEmpty.some(w => w.includes('pnpm_config__auth'))).toBe(false)
+  expect(Object.keys(configEmpty.authConfig).filter(k => k.startsWith('//json-test'))).toHaveLength(0)
+})
+
+test('empty lowercase pnpm_config__auth falls back to PNPM_CONFIG__AUTH', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: '',
+      PNPM_CONFIG__AUTH: JSON.stringify({
+        'https://json-test.example': {
+          '@': { authToken: 'upper-token' },
+        },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.authConfig['//json-test.example/:_authToken']).toBe('upper-token')
+})
+
+test('host-keyed pnpm_config__auth flows through to configByUri', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://npm.pkg.github.com': {
+          '@org-a': { authToken: 'org-a-token' },
+        },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.configByUri?.['//npm.pkg.github.com/']?.['@org-a']?.authToken).toBe('org-a-token')
+})
+
+test('pnpm_config__auth "@" scope routes the default registry to its host', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://my-npm-proxy.example': {
+          '@': { authToken: 'proxy-token' },
+        },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.registries.default).toBe('https://my-npm-proxy.example/')
+  expect(config.registry).toBe('https://my-npm-proxy.example/')
+  expect(config.authConfig['//my-npm-proxy.example/:_authToken']).toBe('proxy-token')
+})
+
+test('pnpm_config__auth scoped entry routes that scope to its host', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://npm.pkg.github.com': {
+          '@org': { authToken: 'org-token' },
+        },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.registries['@org']).toBe('https://npm.pkg.github.com/')
+})
+
+test('pnpm_config__auth env default registry wins over pnpm-workspace.yaml default', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registries: {
+      default: 'https://workspace-registry.example/',
+    },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://my-npm-proxy.example': {
+          '@': { authToken: 'proxy-token' },
+        },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.registries.default).toBe('https://my-npm-proxy.example/')
+  expect(config.registry).toBe('https://my-npm-proxy.example/')
+})
+
+test('pnpm_config__auth env scoped registry wins over pnpm-workspace.yaml scoped registry', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    registries: {
+      '@victim-scope': 'https://attacker.example/',
+    },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://registry.npmjs.org': {
+          '@victim-scope': { authToken: 'secret-token' },
+        },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.registries['@victim-scope']).toBe('https://registry.npmjs.org/')
+  expect(config.authConfig['//attacker.example/:_authToken']).toBeUndefined()
+  expect(config.authConfig['//attacker.example/:@victim-scope:_authToken']).toBeUndefined()
+  expect(config.authConfig['//registry.npmjs.org/:@victim-scope:_authToken']).toBe('secret-token')
+})
+
+test('pnpm_config__auth scoped registry wins over user .npmrc scoped registry', async () => {
+  prepareEmpty()
+
+  const userHome = path.resolve('user-home')
+  fs.mkdirSync(userHome, { recursive: true })
+  fs.writeFileSync(path.resolve(userHome, '.npmrc'), '@org:registry=https://user.example/', 'utf8')
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      PNPM_CONFIG_USERCONFIG: path.resolve(userHome, '.npmrc'),
+      pnpm_config__auth: JSON.stringify({
+        'https://env.example': {
+          '@org': { authToken: 'env-token' },
+        },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.registries['@org']).toBe('https://env.example/')
+  expect(config.packageManagerRegistries?.['@org']).toBe('https://env.example/')
+})
+
+test('CLI --registry overrides pnpm_config__auth default registry routing', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfig({
+    cliOptions: {
+      registry: 'https://cli-registry.example/',
+    },
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://my-npm-proxy.example': {
+          '@': { authToken: 'proxy-token' },
+        },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.registries.default).toBe('https://cli-registry.example/')
+  expect(config.registry).toBe('https://cli-registry.example/')
+  expect(config.packageManagerRegistries?.default).toBe('https://cli-registry.example/')
+  // The token is still pinned to the env-declared host.
+  expect(config.authConfig['//my-npm-proxy.example/:_authToken']).toBe('proxy-token')
+  expect(config.authConfig['//cli-registry.example/:_authToken']).toBeUndefined()
+})
+
+test('pnpm_config__auth inferred registries flow through to packageManagerRegistries', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://my-npm-proxy.example': {
+          '@': { authToken: 'proxy-token' },
+          '@org': { authToken: 'org-token' },
+        },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.packageManagerRegistries?.default).toBe('https://my-npm-proxy.example/')
+  expect(config.packageManagerRegistries?.['@org']).toBe('https://my-npm-proxy.example/')
+  expect(config.packageManagerNetworkConfig?.configByUri['//my-npm-proxy.example/']).toMatchObject({
+    '@': { authToken: 'proxy-token' },
+    '@org': { authToken: 'org-token' },
+  })
+})
+
+test('CLI scoped registry overrides pnpm_config__auth in packageManagerRegistries', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfig({
+    cliOptions: {
+      '@org:registry': 'https://cli-registry.example',
+    },
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://my-npm-proxy.example': {
+          '@org': { authToken: 'org-token' },
+        },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.registries['@org']).toBe('https://cli-registry.example/')
+  expect(config.packageManagerRegistries?.['@org']).toBe('https://cli-registry.example/')
+  // The token stays pinned to the env-declared host, not the CLI override host.
+  expect(config.authConfig['//my-npm-proxy.example/:@org:_authToken']).toBe('org-token')
+  expect(config.authConfig['//cli-registry.example/:@org:_authToken']).toBeUndefined()
+})
+
+test('pnpm_config__auth does not infer registry routes from invalid auth objects', async () => {
+  prepareEmpty()
+
+  const { config, warnings } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://private.example': {
+          '@': { tokenAuth: 'typo-token' },
+          '@org': { authToken: 123 },
+        },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.registries.default).toBe('https://registry.npmjs.org/')
+  expect(config.registries['@org']).toBeUndefined()
+  expect(config.packageManagerRegistries?.['@org']).toBeUndefined()
+  expect(warnings.some(w => w.includes('tokenAuth') && w.includes('unsupported'))).toBe(true)
+  expect(warnings.some(w => w.includes('authToken') && w.includes('must be a string'))).toBe(true)
+})
+
 test('workspace .npmrc overrides pnpm auth file', async () => {
   prepareEmpty()
 
@@ -1257,6 +1942,110 @@ test('workspace .npmrc overrides pnpm auth file', async () => {
     }
   }
 })
+
+test('_auth from the global config yaml configures registry auth and routing', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfigWithGlobalYaml({
+    _auth: {
+      'https://json-test.example': {
+        '@': { authToken: 'yaml-token' },
+        '@org': { authToken: 'org-yaml-token' },
+      },
+    },
+  })
+
+  expect(config.authConfig['//json-test.example/:_authToken']).toBe('yaml-token')
+  expect(config.authConfig['//json-test.example/:@org:_authToken']).toBe('org-yaml-token')
+  expect(config.registries.default).toBe('https://json-test.example/')
+  expect(config.registries['@org']).toBe('https://json-test.example/')
+})
+
+test('pnpm_config__auth env wins over global yaml _auth on the same key', async () => {
+  prepareEmpty()
+
+  const { config } = await getConfigWithGlobalYaml(
+    {
+      _auth: {
+        'https://json-test.example': {
+          '@': { authToken: 'yaml-token' },
+        },
+      },
+    },
+    {
+      env: {
+        pnpm_config__auth: JSON.stringify({
+          'https://json-test.example': {
+            '@': { authToken: 'env-token' },
+          },
+        }),
+      },
+    }
+  )
+
+  expect(config.authConfig['//json-test.example/:_authToken']).toBe('env-token')
+})
+
+test('a malformed global yaml _auth value warns and is ignored', async () => {
+  prepareEmpty()
+
+  const { config, warnings } = await getConfigWithGlobalYaml({
+    _auth: {
+      'https://json-test.example': 123,
+    },
+  })
+
+  expect(config.authConfig['//json-test.example/:_authToken']).toBeUndefined()
+  expect(warnings.some(w => w.includes('_auth[entry 1 (https://json-test.example)') && w.includes('object keyed by scope'))).toBe(true)
+})
+
+test('_auth in a project pnpm-workspace.yaml is ignored (not honored as registry auth)', async () => {
+  prepareEmpty()
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    _auth: {
+      'https://attacker.example': {
+        '@': { authToken: 'attacker-token' },
+      },
+    },
+  })
+
+  const { config } = await getConfig({
+    cliOptions: {},
+    env,
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+    workspaceDir: process.cwd(),
+  })
+
+  expect(config.authConfig['//attacker.example/:_authToken']).toBeUndefined()
+  expect(config.registries.default).not.toBe('https://attacker.example/')
+})
+
+async function getConfigWithGlobalYaml (
+  globalConfigYaml: Record<string, unknown>,
+  opts: { cliOptions?: Record<string, unknown>, env?: Record<string, string | undefined>, workspaceDir?: string } = {}
+) {
+  const configHome = path.resolve('xdg-config')
+  fs.mkdirSync(path.join(configHome, 'pnpm'), { recursive: true })
+  writeYamlFileSync(path.join(configHome, 'pnpm', 'config.yaml'), globalConfigYaml)
+  const originalXdg = process.env.XDG_CONFIG_HOME
+  process.env.XDG_CONFIG_HOME = configHome
+  try {
+    const { config, warnings } = await getConfig({
+      cliOptions: opts.cliOptions ?? {},
+      env: { ...env, ...opts.env, XDG_CONFIG_HOME: configHome },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+      workspaceDir: opts.workspaceDir,
+    })
+    return { config, warnings }
+  } finally {
+    if (originalXdg != null) {
+      process.env.XDG_CONFIG_HOME = originalXdg
+    } else {
+      delete process.env.XDG_CONFIG_HOME
+    }
+  }
+}
 
 describe('unresolved ${VAR} placeholders in .npmrc auth values', () => {
   // Regression suite for https://github.com/pnpm/pnpm/issues/11513: actions/setup-node

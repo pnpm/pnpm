@@ -249,6 +249,9 @@ export async function getConfig (opts: {
     configDir: configDir as string,
     moduleDirname: import.meta.dirname,
     env: opts.env,
+    // Only the global config yaml may supply `_auth` (deleted from
+    // `globalYamlConfig` below so it isn't flagged as an unknown setting).
+    globalConfigAuth: (globalYamlConfigForNpmrcAuthFile as unknown as Record<string, unknown> | undefined)?._auth,
   })
   const warnings = npmrcResult.warnings
 
@@ -303,6 +306,8 @@ export async function getConfig (opts: {
   // Reuse the global config.yaml already read for npmrcAuthFile
   const globalYamlConfig = globalYamlConfigForNpmrcAuthFile
   if (globalYamlConfig) {
+    // Consumed by loadNpmrcConfig above; drop so it isn't flagged as unknown.
+    delete (globalYamlConfig as unknown as Record<string, unknown>)._auth
     const ignoredKeys: string[] = []
     for (const key in globalYamlConfig) {
       if (!isConfigFileKey(kebabCase(key))) {
@@ -329,6 +334,12 @@ export async function getConfig (opts: {
   }
   const trustedAuthConfig = pickIniConfig(npmrcResult.trustedConfig)
   const trustedNetworkConfigs = getNetworkConfigs(trustedAuthConfig)
+  const cliScopedRegistries: Record<string, string> = {}
+  for (const [key, value] of Object.entries(cliOptions)) {
+    if (key.startsWith('@') && key.endsWith(':registry') && typeof value === 'string') {
+      cliScopedRegistries[key.slice(0, -':registry'.length)] = normalizeRegistryUrl(value)
+    }
+  }
   pnpmConfig.registries = { ...registriesFromNpmrc }
   if (explicitlySetKeys.has('registry') && typeof pnpmConfig.registry === 'string') {
     pnpmConfig.registries.default = normalizeRegistryUrl(pnpmConfig.registry)
@@ -336,6 +347,13 @@ export async function getConfig (opts: {
   pnpmConfig.packageManagerRegistries = {
     default: normalizeRegistryUrl(trustedAuthConfig.registry as string),
     ...trustedNetworkConfigs.registries,
+    // `_auth` routes apply here too so bootstrap (self-download / version
+    // switching) resolves the same way as regular installs.
+    ...npmrcResult.jsonAuth.registries,
+    ...cliScopedRegistries,
+  }
+  if (explicitlySetKeys.has('registry') && typeof pnpmConfig.registry === 'string') {
+    pnpmConfig.packageManagerRegistries.default = normalizeRegistryUrl(pnpmConfig.registry)
   }
   pnpmConfig.packageManagerNetworkConfig = createPackageManagerNetworkConfig(
     npmrcResult.trustedConfig,
@@ -463,13 +481,26 @@ export async function getConfig (opts: {
     }
   }
 
-  // Merge registries from pnpm-workspace.yaml onto the .npmrc-based registries.
-  // The workspace manifest may have set pnpmConfig.registries via addSettingsFromWorkspaceManifestToConfig,
-  // but we need to ensure 'default' is always set and all URLs are normalized.
+  // Precedence: builtin < .npmrc < yaml < `_auth` < CLI. CLI
+  // `--@scope:registry` / `--registry` already entered `registriesFromNpmrc`
+  // via `authConfig`, so they're re-applied last here to avoid being buried
+  // by yaml. `cliScopedRegistries` iterates raw `cliOptions` because
+  // `explicitlySetKeys` is camelCased, which mangles `@org-a:registry`.
   const workspaceRegistries = pnpmConfig.registries as Record<string, string> | undefined
   pnpmConfig.registries = {
     ...registriesFromNpmrc,
     ...workspaceRegistries,
+    // `_auth` routes win over repo-controlled yaml on conflicting scopes.
+    ...npmrcResult.jsonAuth.registries,
+    // CLI per-scope registries last, so `--@scope:registry=...` wins over
+    // both yaml and `_auth` ("CLI > _auth > yaml").
+    ...cliScopedRegistries,
+  }
+  // Re-apply an unscoped `--registry` CLI flag last for the same reason
+  // as `cliScopedRegistries` — it entered `registriesFromNpmrc` via
+  // `authConfig.registry` and would otherwise be buried by env JSON.
+  if (explicitlySetKeys.has('registry') && typeof pnpmConfig.registry === 'string') {
+    pnpmConfig.registries.default = normalizeRegistryUrl(pnpmConfig.registry)
   }
   if (!pnpmConfig.registries.default) {
     pnpmConfig.registries.default = registriesFromNpmrc.default

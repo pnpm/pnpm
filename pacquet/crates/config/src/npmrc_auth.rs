@@ -1,7 +1,8 @@
 use crate::{Config, api::EnvVar};
 use pacquet_env_replace::env_replace_lossy;
 use pacquet_network::{
-    AuthHeaders, DEFAULT_REGISTRY_SCOPE, NoProxySetting, PerRegistryTls, RegistryTls, base64_encode,
+    AuthHeaders, DEFAULT_REGISTRY_SCOPE, NoProxySetting, PerRegistryTls, RegistryTls,
+    base64_encode, nerf_dart,
 };
 use std::{
     collections::{BTreeMap, HashMap},
@@ -108,6 +109,12 @@ pub(crate) struct NpmrcAuth {
     /// pnpm's
     /// [`configByUri[<uri>].tls`](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/getNetworkConfigs.ts#L34-L40).
     pub tls_by_uri: HashMap<String, RegistryTls>,
+    /// Scope→URL registry routes inferred from `_auth` (`"@"` → `"default"`,
+    /// `"@org"` → that scope). Safe because the credential and its
+    /// destination host come from the same trusted value, so repo config
+    /// can't redirect the token elsewhere. Applied after workspace yaml by
+    /// [`Self::apply_json_env_registries`].
+    pub json_env_registries: BTreeMap<String, String>,
 }
 
 /// Raw (unparsed) credential fields for a given registry URI, mirroring
@@ -205,6 +212,108 @@ impl NpmrcAuth {
             }
         }
         auth
+    }
+
+    /// Parse the structured `_auth` setting from its two trusted, non-repo
+    /// sources — the global pnpm `config.yaml` (`global_value`) and the
+    /// `pnpm_config__auth` env var — global-first then env, so the env var
+    /// wins on conflict. Mirrors pnpm's `readJsonAuthEnv` +
+    /// `readGlobalConfigAuth`.
+    ///
+    /// The env var exists because GitHub Actions / bash / zsh drop env var
+    /// names containing `/`, `:`, or `.`, breaking the
+    /// `pnpm_config_//host/:_authToken=…` form on CI (pnpm/pnpm#12314).
+    /// Values are used as-is — no `${VAR}` re-expansion, which would let
+    /// repo-controlled env vars leak into them.
+    pub fn from_json_sources<Sys: EnvVar>(global_value: Option<&serde_json::Value>) -> Self {
+        let mut auth = NpmrcAuth::default();
+        if let Some(global_value) = global_value {
+            auth.apply_json_object(global_value.clone(), "_auth");
+        }
+        // Lowercase is the documented form; UPPER covers the all-caps shell
+        // convention some CI runners apply.
+        let env_value = Sys::var("pnpm_config__auth")
+            .filter(|value| !value.is_empty())
+            .or_else(|| Sys::var("PNPM_CONFIG__AUTH").filter(|value| !value.is_empty()));
+        if let Some(value) = env_value {
+            match serde_json::from_str::<serde_json::Value>(&value) {
+                Ok(parsed) => auth.apply_json_object(parsed, "pnpm_config__auth"),
+                Err(err) => auth
+                    .warnings
+                    .push(format!("Failed to parse pnpm_config__auth as JSON: {err}. Ignored.")),
+            }
+        }
+        auth
+    }
+
+    /// Parse one URL-keyed `_auth` object into creds plus inferred registry
+    /// routes, appending to `self` (last-write-wins). `source` labels warnings.
+    fn apply_json_object(&mut self, parsed: serde_json::Value, source: &str) {
+        let serde_json::Value::Object(root) = parsed else {
+            self.warnings.push(format!(
+                "{source} must be a JSON object; got {}. Ignored.",
+                json_type_label(&parsed),
+            ));
+            return;
+        };
+
+        for (entry_index, (url, scopes)) in root.into_iter().enumerate() {
+            let label = json_auth_entry_label(&url, entry_index + 1);
+            let serde_json::Value::Object(scopes) = scopes else {
+                self.warnings.push(format!(
+                    "{source}[{label}] ignored: value must be an object keyed by scope.",
+                ));
+                continue;
+            };
+            if !is_valid_json_auth_registry_url(&url) {
+                self.warnings.push(format!(
+                    "{source}[{label}] ignored: key must be an http(s) registry URL.",
+                ));
+                continue;
+            }
+            if json_auth_url_has_credentials_or_extras(&url) {
+                self.warnings.push(format!(
+                    "{source}[{label}] ignored: registry URL must not include credentials, query, or fragment.",
+                ));
+                continue;
+            }
+            let normalized = normalize_registry_url(&url);
+            let nerfed = nerf_dart(&normalized);
+            if nerfed.is_empty() {
+                self.warnings.push(format!(
+                    "{source}[{label}] ignored: key must be an http(s) registry URL.",
+                ));
+                continue;
+            }
+            for (scope, creds) in scopes {
+                if !is_json_auth_scope(&scope) {
+                    self.warnings.push(format!(
+                        "{source}[{label}][{scope:?}] ignored: scope must be \"@\" or a package scope like \"@org\".",
+                    ));
+                    continue;
+                }
+                let serde_json::Value::Object(creds) = creds else {
+                    self.warnings.push(format!(
+                        "{source}[{label}][{scope:?}] ignored: value must be an auth object.",
+                    ));
+                    continue;
+                };
+                let accepted_creds =
+                    apply_json_auth_creds(self, &nerfed, &label, &scope, creds, source);
+                if !accepted_creds {
+                    continue;
+                }
+                // Infer a registry route from the same entry (see
+                // `json_env_registries`). Last write wins on a duplicate
+                // scope, matching yaml/CLI.
+                let route_key = if scope == DEFAULT_REGISTRY_SCOPE {
+                    "default".to_string()
+                } else {
+                    scope.clone()
+                };
+                self.json_env_registries.insert(route_key, normalized.clone());
+            }
+        }
     }
 
     /// Parse an `.npmrc` file's contents and pick out the auth/network keys.
@@ -499,6 +608,19 @@ impl NpmrcAuth {
         }
     }
 
+    /// Apply the [`Self::json_env_registries`] routes. Unlike
+    /// [`Self::apply_registry_and_warn`] (which runs *before* workspace
+    /// yaml), this is called *after* yaml so the inferred routes win over
+    /// repo-controlled registries.
+    pub fn apply_json_env_registries(&mut self, config: &mut Config) {
+        for (scope, url) in std::mem::take(&mut self.json_env_registries) {
+            if scope == "default" {
+                config.registry.clone_from(&url);
+            }
+            config.registries.insert(scope, url);
+        }
+    }
+
     /// Phase 2: compute and store the final [`AuthHeaders`] map,
     /// keying default-registry creds at `config.registry`'s nerf-darted
     /// URI. Mirrors pnpm's
@@ -633,6 +755,9 @@ impl NpmrcAuth {
         self.registry = self.registry.take().or(lower.registry);
         for (scope, registry) in lower.scoped_registries {
             self.scoped_registries.entry(scope).or_insert(registry);
+        }
+        for (scope, registry) in lower.json_env_registries {
+            self.json_env_registries.entry(scope).or_insert(registry);
         }
         self.https_proxy = self.https_proxy.take().or(lower.https_proxy);
         self.http_proxy = self.http_proxy.take().or(lower.http_proxy);
@@ -941,6 +1066,119 @@ fn apply_creds_field(creds: &mut RawCreds, field: &str, value: String) {
         "username" => creds.username = Some(value),
         "_password" => creds.password = Some(value),
         _ => {}
+    }
+}
+
+fn is_json_auth_scope(scope: &str) -> bool {
+    scope == DEFAULT_REGISTRY_SCOPE || is_package_scope(scope)
+}
+
+fn is_valid_json_auth_registry_url(url: &str) -> bool {
+    let Some((scheme, rest)) = url.split_once("://") else {
+        return false;
+    };
+    // Schemes are case-insensitive (`new URL()` on the TS side accepts
+    // `HTTPS://...`), so compare without regard to case.
+    if !scheme.eq_ignore_ascii_case("https") && !scheme.eq_ignore_ascii_case("http") {
+        return false;
+    }
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or(rest);
+    let host_port = authority.rsplit_once('@').map_or(authority, |(_, host_port)| host_port);
+    let host = match host_port.rsplit_once(':') {
+        Some((host, _)) if !host.contains('[') => host,
+        _ => host_port,
+    };
+    !host.is_empty()
+}
+
+/// Detect secret-bearing parts (`user:pw@`, `?token=`, `#frag`) in a
+/// registry URL key, which get a distinct rejection warning. The host is
+/// validated separately by [`is_valid_json_auth_registry_url`].
+fn json_auth_url_has_credentials_or_extras(url: &str) -> bool {
+    let Some((_, rest)) = url.split_once("://") else {
+        return false;
+    };
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or(rest);
+    if let Some((userinfo, _)) = authority.rsplit_once('@')
+        && !userinfo.is_empty()
+    {
+        return true;
+    }
+    rest.contains('?') || rest.contains('#')
+}
+
+/// A warning-safe label for an `_auth` entry: `scheme://host[:port]` for
+/// valid http(s) URLs (never userinfo/query/fragment, which may hold
+/// secrets), else `entry N` (1-based source order).
+fn json_auth_entry_label(url: &str, entry_number: usize) -> String {
+    let entry_label = format!("entry {entry_number}");
+    let Some((scheme, rest)) = url.split_once("://") else {
+        return entry_label;
+    };
+    if !scheme.eq_ignore_ascii_case("https") && !scheme.eq_ignore_ascii_case("http") {
+        return entry_label;
+    }
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or(rest);
+    let host_port = authority.rsplit_once('@').map_or(authority, |(_, host_port)| host_port);
+    let host = match host_port.rsplit_once(':') {
+        Some((host, _)) if !host.contains('[') => host,
+        _ => host_port,
+    };
+    if host.is_empty() {
+        return entry_label;
+    }
+    format!("{entry_label} ({scheme}://{host_port})")
+}
+
+fn apply_json_auth_creds(
+    auth: &mut NpmrcAuth,
+    nerfed: &str,
+    label: &str,
+    scope: &str,
+    creds: serde_json::Map<String, serde_json::Value>,
+    source: &str,
+) -> bool {
+    let key_prefix = if scope == DEFAULT_REGISTRY_SCOPE {
+        format!("{nerfed}:")
+    } else {
+        format!("{nerfed}:{scope}:")
+    };
+    let mut accepted = false;
+    for (field, value) in creds {
+        // Only `authToken` is supported. The other npm credential forms
+        // (`_auth`, username + `_password`) are deprecated, so this new
+        // setting deliberately does not introduce them.
+        if field != "authToken" {
+            auth.warnings.push(format!(
+                "{source}[{label}][{scope:?}][{field:?}] ignored: unsupported auth field (only \"authToken\" is supported).",
+            ));
+            continue;
+        }
+        let serde_json::Value::String(value) = value else {
+            auth.warnings.push(format!(
+                "{source}[{label}][{scope:?}][{field:?}] ignored: value must be a string.",
+            ));
+            continue;
+        };
+        let key = format!("{key_prefix}_authToken");
+        if let Some((uri, suffix)) = split_creds_key(&key) {
+            let entry = auth.creds_entry_mut(uri);
+            apply_creds_field(entry, suffix, value);
+            accepted = true;
+        }
+    }
+    accepted
+}
+
+/// A short type name for a JSON value, used in "must be an object" warnings.
+fn json_type_label(value: &serde_json::Value) -> &'static str {
+    match value {
+        serde_json::Value::Null => "null",
+        serde_json::Value::Bool(_) => "boolean",
+        serde_json::Value::Number(_) => "number",
+        serde_json::Value::String(_) => "string",
+        serde_json::Value::Array(_) => "array",
+        serde_json::Value::Object(_) => "object",
     }
 }
 
