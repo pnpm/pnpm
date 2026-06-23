@@ -137,6 +137,8 @@ jobs:
       with:
         name: pnpr-bins-${{ runner.os }}
         path: .pnpr-bin
+        # `.pnpr-bin` is a dotfile dir, which upload-artifact skips by default.
+        include-hidden-files: true
         if-no-files-found: error
         retention-days: 1
 
