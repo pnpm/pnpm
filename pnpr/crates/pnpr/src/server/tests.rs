@@ -173,7 +173,7 @@ impl TokenBackend for OneToken {
 fn app_with_token(tmp: &TempDir, raw: &str, record: TokenRecord) -> axum::Router {
     let tokens: Arc<dyn TokenBackend> = Arc::new(OneToken { raw: raw.to_string(), record });
     let auth = AuthState {
-        users: Arc::new(UserStore::in_memory(crate::config::MaxUsers::Unlimited)),
+        users: Arc::new(UserStore::in_memory()),
         tokens,
     };
     let listen = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
