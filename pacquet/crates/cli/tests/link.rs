@@ -1,3 +1,4 @@
+use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::bin::{AddMockedRegistry, CommandTempCwd};
 use std::fs;
@@ -54,7 +55,7 @@ fn link_succeeds_with_valid_target() {
     )
     .expect("write package.json");
 
-    let target_dir = root.join("target-project");
+    let target_dir = root.path().join("target-project");
     fs::create_dir_all(&target_dir).expect("create target dir");
     fs::write(
         target_dir.join("package.json"),
@@ -64,11 +65,10 @@ fn link_succeeds_with_valid_target() {
 
     pacquet.with_arg("link").with_arg(target_dir.to_str().unwrap()).assert().success();
 
-    let manifest =
-        pacquet_package_manifest::PackageManifest::from_path(workspace.join("package.json"))
-            .expect("read manifest");
-    let overrides = manifest.value()["pnpm"]["overrides"].as_object().expect("overrides exist");
-    assert!(overrides.contains_key("target-project"), "override must exist");
+    let manifest = pacquet_package_manifest::PackageManifest::from_path(workspace.join("package.json")).expect("read manifest");
+    let deps = manifest.value()["dependencies"].as_object().expect("dependencies exist");
+    assert!(deps.contains_key("target-project"), "dependency must exist");
+    assert_eq!(deps["target-project"], "link:../target-project");
 
     drop((root, mock_instance));
 }
@@ -85,7 +85,7 @@ fn link_fails_target_no_name() {
     )
     .expect("write package.json");
 
-    let target_dir = root.join("target-project-no-name");
+    let target_dir = root.path().join("target-project-no-name");
     fs::create_dir_all(&target_dir).expect("create target dir");
     fs::write(
         target_dir.join("package.json"),
