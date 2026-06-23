@@ -8,7 +8,7 @@ use axum::{
     http::{Request, StatusCode},
 };
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
-use pnpr::{Config, MaxUsers, recover_publish_journal, router};
+use pnpr::{Config, recover_publish_journal, router};
 use serde_json::{Value, json};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
@@ -21,7 +21,6 @@ fn static_config(storage: PathBuf) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::static_serve(listen, storage);
     config.public_url = "http://example.test".to_string();
-    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
     config
 }
 

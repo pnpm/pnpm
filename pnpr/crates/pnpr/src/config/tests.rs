@@ -443,7 +443,6 @@ fn from_default_yaml_parses_bundled_file() {
     let config = Config::from_default_yaml(Path::new("/tmp"), listen(), None);
     assert!(config.uplinks.contains_key("npmjs"));
     assert_eq!(config.uplinks["npmjs"].url, "https://registry.npmjs.org/");
-    assert_eq!(config.auth.htpasswd.max_users, super::MaxUsers::Disabled);
     // The bundled file routes the catch-all through npmjs.
     let (name, _) = config.resolve_uplink("lodash").expect("** -> npmjs in defaults");
     assert_eq!(name, "npmjs");
@@ -932,7 +931,7 @@ packages: {}
 }
 
 #[test]
-fn auth_block_absent_disables_registration_by_default() {
+fn auth_block_absent_keeps_in_memory_defaults() {
     let yaml = "storage: ./s\nuplinks: {}\npackages: {}\n";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert!(config.auth.htpasswd.file.is_none());
