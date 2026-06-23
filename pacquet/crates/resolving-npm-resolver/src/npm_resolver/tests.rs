@@ -1175,8 +1175,10 @@ async fn workspace_fallback_kicks_in_when_registry_lacks_requested_version() {
 }
 
 /// Ports pnpm's [`index.ts#L2092-L2121`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L2092-L2121).
+/// Updated for pnpm issue 1379: when both registry and workspace fallback fail,
+/// the error now shows available workspace versions.
 #[tokio::test]
-async fn registry_error_propagates_when_workspace_has_no_matching_version() {
+async fn workspace_version_hint_shown_when_registry_and_workspace_both_fail() {
     let mut server = mockito::Server::new_async().await;
     let _mock = server.mock("GET", "/acme").with_status(404).create_async().await;
     let registry = format!("{}/", server.url());
@@ -1193,8 +1195,16 @@ async fn registry_error_propagates_when_workspace_has_no_matching_version() {
     let err = resolver
         .resolve(&wanted, &opts)
         .await
-        .expect_err("workspace can't satisfy 2.0.0; original 404 error must surface");
-    assert!(err.to_string().contains("404"), "expected the 404 to propagate, got: {err}");
+        .expect_err("workspace can't satisfy 2.0.0; workspace version hint must surface");
+    let err_msg = err.to_string();
+    assert!(
+        err_msg.contains("1.0.0"),
+        "expected error to mention available workspace version 1.0.0, got: {err_msg}",
+    );
+    assert!(
+        err_msg.contains("available"),
+        "expected error to mention available versions, got: {err_msg}",
+    );
 }
 
 /// Ports pnpm's [`index.ts#L2154-L2183`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L2154-L2183).
@@ -1224,4 +1234,131 @@ async fn registry_pick_wins_when_workspace_version_does_not_match() {
     let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("registry pick");
     assert_eq!(result.resolved_via, "npm-registry");
     assert_eq!(result.id.as_str(), "acme@3.1.0");
+}
+
+/// When registry returns 404 and the workspace has a package with the
+/// same name at a different version, the error includes a helpful hint.
+#[tokio::test]
+async fn workspace_version_hint_shown_when_registry_404_and_workspace_version_mismatch() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server.mock("GET", "/acme").with_status(404).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    // Workspace has "acme" at 1.0.0, but we request 2.0.0 (404 on registry).
+    let packages = build_workspace_packages("acme", &["1.0.0"]);
+    let opts = workspace_resolve_options(packages);
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^2.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let err = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .expect_err("should fail since registry returns 404 and workspace version doesn't match");
+    let err_msg = err.to_string();
+    assert!(
+        err_msg.contains("1.0.0"),
+        "expected error to mention available workspace version 1.0.0, got: {err_msg}",
+    );
+    assert!(
+        err_msg.contains("available"),
+        "expected error to mention available versions, got: {err_msg}",
+    );
+}
+
+/// When registry returns 404 and the workspace does NOT have a
+/// package with the same name, the registry error propagates as-is
+/// without any workspace hint.
+#[tokio::test]
+async fn no_workspace_hint_when_package_not_in_workspace() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server.mock("GET", "/acme").with_status(404).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    // Workspace has "other-pkg" but not "acme".
+    let packages = build_workspace_packages("other-pkg", &["1.0.0"]);
+    let opts = workspace_resolve_options(packages);
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let err = resolver
+        .resolve(&wanted, &opts)
+        .await
+        .expect_err("should fail since package not in workspace and registry 404s");
+    let err_msg = err.to_string();
+    assert!(
+        !err_msg.contains("available"),
+        "should NOT include workspace hint when package is not in workspace, got: {err_msg}",
+    );
+}
+
+/// Workspace fallback still works when the version matches.
+#[tokio::test]
+async fn workspace_fallback_succeeds_when_version_matches() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server.mock("GET", "/acme").with_status(404).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    // Workspace has "acme" at 1.0.0, and we request ^1.0.0 — matches.
+    let packages = build_workspace_packages("acme", &["1.0.0"]);
+    let opts = workspace_resolve_options(packages);
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^1.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await.unwrap().expect("workspace fallback");
+    assert_eq!(result.resolved_via, "workspace");
+}
+
+/// Non-404 registry errors (500, auth) must NOT be masked by workspace
+/// version hints. Regression test for the `CodeRabbit` review on this pull request.
+#[tokio::test]
+async fn non_404_registry_error_not_masked_by_workspace_hint() {
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server.mock("GET", "/acme").with_status(500).create_async().await;
+    let registry = format!("{}/", server.url());
+    let (resolver, _tempdir) = build_resolver(&registry);
+
+    // Workspace has "acme" at 1.0.0, but we request ^2.0.0 — no match
+    // AND the registry returns 500 (not 404).
+    let packages = build_workspace_packages("acme", &["1.0.0"]);
+    let opts = workspace_resolve_options(packages);
+
+    let wanted = WantedDependency {
+        alias: Some("acme".to_string()),
+        bare_specifier: Some("^2.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver.resolve(&wanted, &opts).await;
+    // The resolve should either:
+    // - Return an Err (500 propagated), or
+    // - Return Ok(None) (no matching version found)
+    // But it must NOT return an Err containing the workspace hint text.
+    // Before the fix, a 500 + workspace package existing would incorrectly
+    // surface "available version(s)" hint even for non-404 errors.
+    match result {
+        Err(e) => {
+            let msg = e.to_string();
+            assert!(
+                !msg.contains("available version(s)"),
+                "Workspace hint should not appear for 500 errors, got: {msg}",
+            );
+        }
+        Ok(None) => {
+            // This is acceptable — the 500 produced no versions, not a workspace hint
+        }
+        Ok(Some(_)) => {
+            panic!("Should not resolve successfully from a 500 registry response");
+        }
+    }
 }

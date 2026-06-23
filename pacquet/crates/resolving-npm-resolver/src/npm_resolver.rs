@@ -40,7 +40,10 @@ use pacquet_resolving_resolver_base::{
 };
 
 use crate::{
-    errors::{AllVersionsBlockedError, GuardRepickLimitError},
+    errors::{
+        AllVersionsBlockedError, GuardRepickLimitError, WorkspaceVersionMismatchError,
+        build_workspace_version_hint,
+    },
     named_registry::pick_registry_for_package,
     parse_bare_specifier::{parse_bare_specifier, parse_jsr_specifier_to_registry_package_spec},
     pick_package::{PackageMetaCache, PickPackageContext, PickPackageOptions, pick_package},
@@ -235,6 +238,15 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
                 {
                     return Ok(Some(result));
                 }
+                // The registry had no matching version and the workspace
+                // fallback also failed. If a workspace package with the
+                // same name exists, surface the available versions so the
+                // user knows which versions they can pick (pnpm/pnpm#1379).
+                if let Some(hint) = workspace_packages_active
+                    .and_then(|wp| build_workspace_version_hint(&spec.name, wp))
+                {
+                    return Err(Box::new(WorkspaceVersionMismatchError { message: hint }));
+                }
                 return Ok(None);
             }
             Err(err) => {
@@ -243,6 +255,16 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
                         try_workspace_fallback(workspace_packages, &spec, wanted_dependency, opts)
                 {
                     return Ok(Some(result));
+                }
+                // The registry fetch failed and the workspace fallback
+                // also failed. Only surface workspace version hints for
+                // 404 (not-found) errors — auth, network, or server
+                // errors should propagate as-is (pnpm/pnpm#1379).
+                if is_not_found_error(err.as_ref())
+                    && let Some(hint) = workspace_packages_active
+                        .and_then(|wp| build_workspace_version_hint(&spec.name, wp))
+                {
+                    return Err(Box::new(WorkspaceVersionMismatchError { message: hint }));
                 }
                 return Err(err);
             }
@@ -795,6 +817,21 @@ fn detect_min_release_age_violation(
             cutoff = cutoff.to_rfc3339_opts(chrono::SecondsFormat::Millis, true),
         ),
     })
+}
+
+/// Walk the error chain looking for a reqwest 404 status code.
+fn is_not_found_error(err: &(dyn std::error::Error + 'static)) -> bool {
+    // Check the current error
+    if let Some(reqwest_err) = err.downcast_ref::<reqwest::Error>()
+        && reqwest_err.status() == Some(reqwest::StatusCode::NOT_FOUND)
+    {
+        return true;
+    }
+    // Walk the source chain
+    if let Some(source) = err.source() {
+        return is_not_found_error(source);
+    }
+    false
 }
 
 #[cfg(test)]
