@@ -105,6 +105,24 @@ jobs:
             platform_label: ubuntu
             test_chunk: '1'
             test_chunk_total: '1'
+    uses: ./.github/workflows/test.yml
+    with:
+      node: ${{ matrix.node }}
+      node_major: ${{ matrix.node_major }}
+      platform: ${{ matrix.platform }}
+      test_chunk: ${{ matrix.test_chunk }}
+      test_chunk_total: ${{ matrix.test_chunk_total }}
+
+  # Windows is the slowest platform. Gate it only on compile-and-lint so its
+  # shards run in parallel with the ubuntu smoke job, instead of waiting for
+  # the smoke job like the other Node.js versions do.
+  test-windows:
+    name: TS CI / Test / ${{ matrix.platform_label }}
+    needs: compile-and-lint
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
           - node: '22.13.0'
             node_major: '22'
             platform: windows-latest
@@ -147,6 +165,7 @@ jobs:
       - compile-and-lint
       - test-smoke
       - test
+      - test-windows
     runs-on: ubuntu-latest
     steps:
       - name: Fail if any dependency failed or was cancelled
