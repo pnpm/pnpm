@@ -86,6 +86,14 @@ function usesJest (scripts) {
   ))
 }
 
+function readRegistryMockPort (scripts) {
+  for (const script of Object.values(scripts ?? {})) {
+    const match = /PNPM_REGISTRY_MOCK_PORT=(\d+)/.exec(script)
+    if (match != null) return match[1]
+  }
+  return undefined
+}
+
 function selectChunk (tasks, opts) {
   const groups = Array.from({ length: opts.chunks }, () => ({ tasks: [], weight: 0 }))
   for (const task of [...tasks].sort(compareTasksByWeight)) {
@@ -128,8 +136,12 @@ async function runJestPackage (pkg, selectedPackage) {
     path.join(pkg.path, 'node_modules', '.bin'),
     path.join(rootDir, 'node_modules', '.bin'),
   ])
-  if (pkg.manifest.name === '@pnpm/installing.deps-installer') {
-    env.PNPM_REGISTRY_MOCK_PORT = '7769'
+  // Some packages pin PNPM_REGISTRY_MOCK_PORT in their `.test` script (e.g. a
+  // fixture whose dependency is a tarball URL baked to that port). Running jest
+  // directly bypasses the script, so carry the pin over from the manifest.
+  const registryMockPort = readRegistryMockPort(pkg.manifest.scripts)
+  if (registryMockPort != null) {
+    env.PNPM_REGISTRY_MOCK_PORT = registryMockPort
   }
 
   let status = 'passed'

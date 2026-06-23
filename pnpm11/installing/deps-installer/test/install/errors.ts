@@ -14,6 +14,23 @@ import { testDefaults } from '../utils/index.js'
 
 const f = fixtures(import.meta.dirname)
 
+interface PackumentFixture {
+  versions: Record<string, { dist: { tarball: string } }>
+}
+
+// The committed packument fixtures carry tarball URLs whose origin is just a
+// placeholder. Rebuild each one against the live registry mock port so the
+// mock agent (which intercepts `http://localhost:${REGISTRY_MOCK_PORT}`) sees
+// the tarball request — this is what lets the test run on any port instead of
+// pinning PNPM_REGISTRY_MOCK_PORT to match a baked-in value.
+function loadPackument (fixtureName: string): PackumentFixture {
+  const packument = loadJsonFileSync<PackumentFixture>(f.find(fixtureName))
+  for (const version of Object.values(packument.versions)) {
+    version.dist.tarball = `http://localhost:${REGISTRY_MOCK_PORT}${new URL(version.dist.tarball).pathname}`
+  }
+  return packument
+}
+
 test('fail if none of the available resolvers support a version spec', async () => {
   prepareEmpty()
 
@@ -49,12 +66,10 @@ test('fail if a package cannot be fetched', async () => {
   prepareEmpty()
   await setupMockAgent()
   const mockPool = getMockAgent().get(`http://localhost:${REGISTRY_MOCK_PORT}`)
-  /* eslint-disable @typescript-eslint/no-explicit-any */
   mockPool.intercept({ path: '/@pnpm.e2e%2Fpkg-with-1-dep', method: 'GET' }) // cspell:disable-line
-    .reply(200, loadJsonFileSync<any>(f.find('pkg-with-1-dep.json')))
+    .reply(200, loadPackument('pkg-with-1-dep.json'))
   mockPool.intercept({ path: '/@pnpm.e2e%2Fdep-of-pkg-with-1-dep', method: 'GET' }) // cspell:disable-line
-    .reply(200, loadJsonFileSync<any>(f.find('dep-of-pkg-with-1-dep.json')))
-  /* eslint-enable @typescript-eslint/no-explicit-any */
+    .reply(200, loadPackument('dep-of-pkg-with-1-dep.json'))
   const tarballContent = fs.readFileSync(f.find('pkg-with-1-dep-100.0.0.tgz'))
   mockPool.intercept({ path: '/@pnpm.e2e/pkg-with-1-dep/-/@pnpm.e2e/pkg-with-1-dep-100.0.0.tgz', method: 'GET' })
     .reply(200, tarballContent, { headers: { 'content-length': String(tarballContent.length) } })
