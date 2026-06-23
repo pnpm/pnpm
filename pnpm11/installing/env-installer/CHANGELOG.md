@@ -1,5 +1,40 @@
 # @pnpm/config.deps-installer
 
+## 1102.0.2
+
+### Patch Changes
+
+- a84d2a1: Add `@pnpm/resolving.tarball-url`, which builds and recognizes the canonical npm tarball URL of a package. It vendors `getNpmTarballUrl` (previously the external `get-npm-tarball-url` package) and adds `isCanonicalRegistryTarballUrl`, the predicate the lockfile writer uses to decide whether a tarball URL is derivable from name+version+registry (and can therefore be omitted from `pnpm-lock.yaml`).
+
+  Exposing `isCanonicalRegistryTarballUrl` lets a custom resolver (pnpmfile `resolvers`) fronting a proxy that serves tarballs on a non-canonical path (e.g. an ephemeral `localhost:<port>`) rewrite the resolved tarball to the canonical form, so nothing host-specific is persisted to the lockfile. Previously this logic was private to `@pnpm/lockfile.utils`.
+
+  Two correctness fixes are included while consolidating the logic: the scoped-package unescape now handles uppercase `%2F` as well as `%2f` (percent-encoding is case-insensitive), and protocol-insensitive comparison strips only a leading `http(s)://` scheme instead of splitting on the first `://` (which could truncate URLs containing a later `://`).
+
+- Updated dependencies [bae694f]
+- Updated dependencies [1cbb5f2]
+- Updated dependencies [05b95ab]
+- Updated dependencies [322f88f]
+- Updated dependencies [fa7004b]
+- Updated dependencies [a84d2a1]
+- Updated dependencies [852d537]
+  - @pnpm/resolving.npm-resolver@1102.1.0
+  - @pnpm/installing.deps-resolver@1100.2.5
+  - @pnpm/store.controller-types@1100.1.6
+  - @pnpm/lockfile.utils@1100.1.0
+  - @pnpm/network.fetch@1100.1.4
+  - @pnpm/resolving.tarball-url@1100.0.0
+  - @pnpm/error@1100.0.1
+  - @pnpm/config.writer@1100.0.14
+  - @pnpm/deps.graph-hasher@1100.2.6
+  - @pnpm/lockfile.types@1100.0.12
+  - @pnpm/store.controller@1102.0.2
+  - @pnpm/lockfile.fs@1100.1.7
+  - @pnpm/config.package-is-installable@1100.0.12
+  - @pnpm/network.auth-header@1101.1.3
+  - @pnpm/pkg-manifest.reader@1100.0.9
+  - @pnpm/worker@1100.2.2
+  - @pnpm/lockfile.pruner@1100.0.12
+
 ## 1102.0.1
 
 ### Patch Changes

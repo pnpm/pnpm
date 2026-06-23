@@ -1,5 +1,22 @@
 # @pnpm/building.during-install
 
+## 1102.0.2
+
+### Patch Changes
+
+- Updated dependencies [bae694f]
+- Updated dependencies [852d537]
+  - @pnpm/store.controller-types@1100.1.6
+  - @pnpm/error@1100.0.1
+  - @pnpm/deps.graph-hasher@1100.2.6
+  - @pnpm/exec.lifecycle@1100.1.1
+  - @pnpm/bins.linker@1100.0.16
+  - @pnpm/config.reader@1101.10.1
+  - @pnpm/patching.apply-patch@1100.0.3
+  - @pnpm/pkg-manifest.reader@1100.0.9
+  - @pnpm/worker@1100.2.2
+  - @pnpm/fs.hard-link-dir@1100.0.2
+
 ## 1102.0.1
 
 ### Patch Changes

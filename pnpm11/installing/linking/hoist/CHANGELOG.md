@@ -1,5 +1,12 @@
 # @pnpm/hoist
 
+## 1100.0.16
+
+### Patch Changes
+
+- 1488db1: When `enableGlobalVirtualStore` is toggled on for a project that was previously installed without it, stale hoisted symlinks under `node_modules/.pnpm/node_modules` are now replaced instead of being left pointing at the old per-project virtual store location [#9739](https://github.com/pnpm/pnpm/issues/9739).
+  - @pnpm/bins.linker@1100.0.16
+
 ## 1100.0.15
 
 ### Patch Changes

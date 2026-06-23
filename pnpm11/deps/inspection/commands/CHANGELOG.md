@@ -1,5 +1,30 @@
 # @pnpm/deps.inspection.commands
 
+## 1100.4.1
+
+### Patch Changes
+
+- Updated dependencies [bae694f]
+- Updated dependencies [05b95ab]
+- Updated dependencies [fa7004b]
+- Updated dependencies [0ec878d]
+- Updated dependencies [852d537]
+  - @pnpm/resolving.npm-resolver@1102.1.0
+  - @pnpm/network.fetch@1100.1.4
+  - @pnpm/workspace.project-manifest-reader@1100.0.14
+  - @pnpm/error@1100.0.1
+  - @pnpm/deps.inspection.outdated@1100.1.10
+  - @pnpm/resolving.default-resolver@1100.3.10
+  - @pnpm/lockfile.fs@1100.1.7
+  - @pnpm/cli.utils@1101.0.13
+  - @pnpm/config.reader@1101.10.1
+  - @pnpm/deps.inspection.list@1100.0.20
+  - @pnpm/global.commands@1100.0.30
+  - @pnpm/deps.inspection.peers-checker@1100.0.16
+  - @pnpm/network.auth-header@1101.1.3
+  - @pnpm/store.path@1100.0.2
+  - @pnpm/global.packages@1100.0.9
+
 ## 1100.4.0
 
 ### Minor Changes

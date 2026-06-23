@@ -1,5 +1,12 @@
 # @pnpm/object.property-path
 
+## 1100.1.1
+
+### Patch Changes
+
+- Updated dependencies [852d537]
+  - @pnpm/error@1100.0.1
+
 ## 1100.1.0
 
 ### Minor Changes

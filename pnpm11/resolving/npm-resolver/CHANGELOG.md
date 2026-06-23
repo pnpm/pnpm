@@ -1,5 +1,28 @@
 # @pnpm/npm-resolver
 
+## 1102.1.0
+
+### Minor Changes
+
+- bae694f: Some registries generate tarballs on-demand and cannot provide an integrity checksum in their package metadata. In that case pnpm now computes the integrity from the downloaded tarball and stores it in the lockfile, so the entry is verifiable on subsequent installs instead of being written without an integrity (which would fail the next install). This also applies to `--lockfile-only`: the tarball is downloaded so its integrity can be computed. A lockfile entry that is still missing its integrity is rejected as a `ERR_PNPM_MISSING_TARBALL_INTEGRITY` lockfile verification violation (the install fails closed) rather than being silently re-fetched.
+
+### Patch Changes
+
+- fa7004b: The in-memory package metadata cache is now populated on the exact-version disk fast path, so repeated resolutions of the same package within one install no longer re-read and re-parse the on-disk metadata. In large monorepos this brings the time for adding a new package down from minutes to seconds. The in-memory cache key now also includes the registry, so a package of the same name served by two different registries in a single install can no longer share a cache slot and resolve the wrong tarball.
+- 852d537: Lockfile verification no longer reports a registry metadata fetch failure (for example a `403`/`401` on a private registry, or a network error) as `ERR_PNPM_TARBALL_URL_MISMATCH`. When the registry can't be reached to verify an entry, the install now aborts with the registry's own fetch error (such as `ERR_PNPM_FETCH_403`, which already explains the authentication situation) instead of mislabeling a transport failure as lockfile tampering. Registry fetch errors no longer leak basic-auth credentials embedded in the registry URL (`https://user:pass@host/`) into their message.
+- Updated dependencies [25a829e]
+- Updated dependencies [bae694f]
+- Updated dependencies [fbdc0eb]
+- Updated dependencies [852d537]
+  - @pnpm/config.version-policy@1100.1.6
+  - @pnpm/resolving.resolver-base@1100.5.0
+  - @pnpm/error@1100.0.1
+  - @pnpm/store.cafs@1100.1.11
+  - @pnpm/resolving.jsr-specifier-parser@1100.0.1
+  - @pnpm/store.index@1100.2.1
+  - @pnpm/worker@1100.2.2
+  - @pnpm/crypto.hash@1100.0.1
+
 ## 1102.0.1
 
 ### Patch Changes

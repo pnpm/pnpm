@@ -1,5 +1,13 @@
 # @pnpm/assert-project
 
+## 1100.0.17
+
+### Patch Changes
+
+- @pnpm/lockfile.types@1100.0.12
+- @pnpm/testing.registry-mock@1100.0.7
+- @pnpm/assert-store@1100.0.17
+
 ## 1100.0.16
 
 ### Patch Changes

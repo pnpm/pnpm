@@ -1,5 +1,32 @@
 # @pnpm/plugin-commands-script-runners
 
+## 1100.3.1
+
+### Patch Changes
+
+- d577eea: Fixed a Windows flakiness in `pnpm dlx` where a failed install could surface a spurious `EBUSY: resource busy or locked` error. The cleanup of a partially-populated dlx cache is now best-effort with retries and no longer masks the original error.
+- ec7cf70: Shortened the `pnpm dlx` cache path so deep dependency trees no longer overflow Windows' `MAX_PATH`, which could make a dependency's lifecycle script fail with `spawn cmd.exe ENOENT`.
+- Updated dependencies [25a829e]
+- Updated dependencies [6545793]
+- Updated dependencies [fbdc0eb]
+- Updated dependencies [0ec878d]
+- Updated dependencies [852d537]
+  - @pnpm/installing.commands@1100.10.1
+  - @pnpm/config.version-policy@1100.1.6
+  - @pnpm/workspace.project-manifest-reader@1100.0.14
+  - @pnpm/error@1100.0.1
+  - @pnpm/building.commands@1100.1.7
+  - @pnpm/installing.client@1100.2.10
+  - @pnpm/deps.status@1100.1.3
+  - @pnpm/exec.lifecycle@1100.1.1
+  - @pnpm/engine.runtime.commands@1100.1.7
+  - @pnpm/cli.utils@1101.0.13
+  - @pnpm/config.reader@1101.10.1
+  - @pnpm/pkg-manifest.reader@1100.0.9
+  - @pnpm/store.path@1100.0.2
+  - @pnpm/workspace.injected-deps-syncer@1100.0.21
+  - @pnpm/crypto.hash@1100.0.1
+
 ## 1100.3.0
 
 ### Minor Changes

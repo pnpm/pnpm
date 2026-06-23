@@ -1,5 +1,26 @@
 # @pnpm/outdated
 
+## 1100.1.10
+
+### Patch Changes
+
+- Updated dependencies [25a829e]
+- Updated dependencies [bae694f]
+- Updated dependencies [fbdc0eb]
+- Updated dependencies [fa7004b]
+- Updated dependencies [0ec878d]
+- Updated dependencies [a84d2a1]
+- Updated dependencies [852d537]
+  - @pnpm/config.version-policy@1100.1.6
+  - @pnpm/resolving.npm-resolver@1102.1.0
+  - @pnpm/lockfile.utils@1100.1.0
+  - @pnpm/pkg-manifest.utils@1100.2.6
+  - @pnpm/error@1100.0.1
+  - @pnpm/installing.client@1100.2.10
+  - @pnpm/lockfile.fs@1100.1.7
+  - @pnpm/config.parse-overrides@1100.0.2
+  - @pnpm/hooks.read-package-hook@1100.0.9
+
 ## 1100.1.9
 
 ### Patch Changes

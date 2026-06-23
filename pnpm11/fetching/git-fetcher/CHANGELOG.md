@@ -1,5 +1,18 @@
 # @pnpm/git-fetcher
 
+## 1102.0.2
+
+### Patch Changes
+
+- Updated dependencies [bae694f]
+- Updated dependencies [852d537]
+  - @pnpm/fetching.fetcher-base@1100.2.0
+  - @pnpm/error@1100.0.1
+  - @pnpm/resolving.git-resolver@1100.1.7
+  - @pnpm/exec.prepare-package@1100.0.20
+  - @pnpm/store.index@1100.2.1
+  - @pnpm/worker@1100.2.2
+
 ## 1102.0.1
 
 ### Patch Changes

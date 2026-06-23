@@ -1,5 +1,11 @@
 # @pnpm/workspace.state
 
+## 1100.0.24
+
+### Patch Changes
+
+- @pnpm/config.reader@1101.10.1
+
 ## 1100.0.23
 
 ### Patch Changes

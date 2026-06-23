@@ -1,5 +1,17 @@
 # @pnpm/node.resolver
 
+## 1101.1.9
+
+### Patch Changes
+
+- 0ec878d: Removing a runtime dependency now removes the matching `devEngines.runtime` or `engines.runtime` entry that was materialized from it. Blank runtime selectors are normalized to `latest`.
+- Updated dependencies [bae694f]
+- Updated dependencies [852d537]
+  - @pnpm/resolving.resolver-base@1100.5.0
+  - @pnpm/error@1100.0.1
+  - @pnpm/config.reader@1101.10.1
+  - @pnpm/crypto.shasums-file@1100.1.2
+
 ## 1101.1.8
 
 ### Patch Changes

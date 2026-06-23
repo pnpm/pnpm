@@ -1,5 +1,29 @@
 # @pnpm/building.after-install
 
+## 1102.0.2
+
+### Patch Changes
+
+- Updated dependencies [bae694f]
+- Updated dependencies [a84d2a1]
+- Updated dependencies [852d537]
+  - @pnpm/installing.context@1100.0.20
+  - @pnpm/store.controller-types@1100.1.6
+  - @pnpm/lockfile.utils@1100.1.0
+  - @pnpm/error@1100.0.1
+  - @pnpm/building.policy@1100.0.11
+  - @pnpm/deps.graph-hasher@1100.2.6
+  - @pnpm/lockfile.types@1100.0.12
+  - @pnpm/store.connection-manager@1100.3.2
+  - @pnpm/store.cafs@1100.1.11
+  - @pnpm/exec.lifecycle@1100.1.1
+  - @pnpm/bins.linker@1100.0.16
+  - @pnpm/config.reader@1101.10.1
+  - @pnpm/pkg-manifest.reader@1100.0.9
+  - @pnpm/store.index@1100.2.1
+  - @pnpm/worker@1100.2.2
+  - @pnpm/lockfile.walker@1100.0.12
+
 ## 1102.0.1
 
 ### Patch Changes

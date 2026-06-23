@@ -1,5 +1,17 @@
 # @pnpm/testing.temp-store
 
+## 1100.1.11
+
+### Patch Changes
+
+- Updated dependencies [bae694f]
+  - @pnpm/resolving.resolver-base@1100.5.0
+  - @pnpm/store.controller-types@1100.1.6
+  - @pnpm/installing.client@1100.2.10
+  - @pnpm/store.controller@1102.0.2
+  - @pnpm/testing.registry-mock@1100.0.7
+  - @pnpm/store.index@1100.2.1
+
 ## 1100.1.10
 
 ### Patch Changes

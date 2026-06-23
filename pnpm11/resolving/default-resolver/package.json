@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolving.default-resolver",
-  "version": "1100.3.9",
+  "version": "1100.3.10",
   "description": "pnpm's default package resolver",
   "keywords": [
     "pnpm",

@@ -1,5 +1,13 @@
 # @pnpm-private/updater
 
+## 1100.0.21
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1100.1.7
+- @pnpm/workspace.projects-reader@1101.0.13
+- @pnpm/workspace.workspace-manifest-reader@1100.0.9
+
 ## 1100.0.20
 
 ### Patch Changes

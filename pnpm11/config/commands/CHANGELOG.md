@@ -1,5 +1,17 @@
 # @pnpm/plugin-commands-config
 
+## 1100.0.24
+
+### Patch Changes
+
+- Updated dependencies [25a829e]
+- Updated dependencies [852d537]
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.14
+  - @pnpm/error@1100.0.1
+  - @pnpm/cli.utils@1101.0.13
+  - @pnpm/config.reader@1101.10.1
+  - @pnpm/object.property-path@1100.1.1
+
 ## 1100.0.23
 
 ### Patch Changes
