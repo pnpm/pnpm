@@ -6,13 +6,17 @@ use pacquet_lockfile::{
     RegistryResolution, SnapshotDepRef, VariationsResolution,
 };
 use pacquet_package_manifest::PackageManifest;
-use pacquet_resolving_deps_resolver::{DependenciesGraph, DependenciesGraphNode, PeerDep};
+use pacquet_resolving_deps_resolver::{
+    ChildEdge, DependenciesGraph, DependenciesGraphNode, DependenciesTreeNode, DirectDep, NodeId,
+    PeerDep, ResolvePeersOptions, ResolvedPackage, ResolvedTree, TreeChildren, resolve_peers,
+};
 use pacquet_resolving_resolver_base::{PkgResolutionId, ResolveResult};
 use serde_json::json;
 use ssri::Integrity;
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     str::FromStr,
+    sync::Arc,
 };
 use tempfile::TempDir;
 
@@ -113,6 +117,7 @@ fn make_node_with_optional(
         resolved_package_id: format!("{name}@{version}"),
         resolve_result: std::sync::Arc::new(make_resolve_result(name, version, manifest)),
         children,
+        optional_children: HashSet::new(),
         peer_dependencies,
         transitive_peer_dependencies,
         resolved_peer_names: HashSet::new(),
@@ -489,6 +494,7 @@ fn runtime_dependency_strips_importer_prefix_and_records_package_version() {
         resolved_package_id: "node@runtime:26.3.0".to_string(),
         resolve_result: std::sync::Arc::new(resolve_result),
         children: BTreeMap::new(),
+        optional_children: HashSet::new(),
         peer_dependencies: BTreeMap::new(),
         transitive_peer_dependencies: HashSet::new(),
         resolved_peer_names: HashSet::new(),
@@ -567,6 +573,7 @@ fn peer_suffixed_dep_path_splits_into_distinct_snapshot_and_package_keys() {
             }),
         )),
         children: react_dom_children,
+        optional_children: HashSet::new(),
         peer_dependencies: react_dom_peers,
         transitive_peer_dependencies: HashSet::new(),
         resolved_peer_names: std::iter::once("react".to_string()).collect(),
@@ -660,6 +667,98 @@ fn snapshot_partitions_optional_children_by_manifest_optional_dependencies() {
         SnapshotDepRef::Plain(ver) => assert_eq!(ver.to_string(), "1.0.0"),
         other => panic!("expected Plain, got {other:?}"),
     }
+}
+
+#[test]
+fn snapshot_preserves_optional_child_edges_from_resolved_tree() {
+    let (_tmp, manifest) = write_manifest(json!({
+        "name": "fixture",
+        "version": "1.0.0",
+        "dependencies": { "outer": "^1.0.0" },
+    }));
+
+    let outer_id = "outer@1.0.0".to_string();
+    let inner_id = "inner@1.0.0".to_string();
+    let outer_node_id = NodeId::next();
+
+    let mut tree = ResolvedTree {
+        direct: vec![DirectDep {
+            alias: "outer".to_string(),
+            node_id: outer_node_id.clone(),
+            id: outer_id.clone(),
+        }],
+        packages: HashMap::from([
+            (
+                outer_id.clone(),
+                ResolvedPackage {
+                    id: outer_id.clone(),
+                    result: Arc::new(make_resolve_result(
+                        "outer",
+                        "1.0.0",
+                        json!({ "name": "outer", "version": "1.0.0" }),
+                    )),
+                    peer_dependencies: BTreeMap::new(),
+                    optional: false,
+                    is_leaf: false,
+                },
+            ),
+            (
+                inner_id.clone(),
+                ResolvedPackage {
+                    id: inner_id.clone(),
+                    result: Arc::new(make_resolve_result(
+                        "inner",
+                        "1.0.0",
+                        json!({ "name": "inner", "version": "1.0.0" }),
+                    )),
+                    peer_dependencies: BTreeMap::new(),
+                    optional: true,
+                    is_leaf: true,
+                },
+            ),
+        ]),
+        dependencies_tree: HashMap::from([(
+            outer_node_id,
+            DependenciesTreeNode {
+                resolved_package_id: outer_id.clone(),
+                children: TreeChildren::Lazy { parent_ids: Arc::new(Vec::new()) },
+                depth: 0,
+                installable: true,
+            },
+        )]),
+        all_peer_dep_names: HashSet::new(),
+        policy_violations: Vec::new(),
+        applied_patches: HashSet::new(),
+        children_by_id: HashMap::from([(
+            outer_id,
+            Arc::new(vec![ChildEdge {
+                alias: "inner".to_string(),
+                pkg_id: inner_id,
+                optional: true,
+            }]),
+        )]),
+    };
+
+    let resolved = resolve_peers(&mut tree, ResolvePeersOptions::default());
+    let lockfile = dependencies_graph_to_lockfile(single_importer_opts(
+        &manifest,
+        &resolved.graph,
+        resolved.direct_dependencies_by_alias,
+        false,
+        false,
+        None,
+        None,
+    ));
+
+    let snapshots = lockfile.snapshots.as_ref().unwrap();
+    let outer_key: PackageKey = "outer@1.0.0".parse().unwrap();
+    let outer_snap = &snapshots[&outer_key];
+    assert!(outer_snap.dependencies.is_none(), "optional child must not be written as regular");
+    let opt = outer_snap.optional_dependencies.as_ref().expect("opt deps map");
+    assert!(opt.contains_key(&PkgName::parse("inner").unwrap()));
+
+    let inner_key: PackageKey = "inner@1.0.0".parse().unwrap();
+    assert!(snapshots[&inner_key].optional, "optional child edge keeps the child optional");
 }
 
 #[test]
@@ -924,6 +1023,7 @@ fn make_link_node(target: &str, manifest: serde_json::Value) -> DependenciesGrap
         resolved_package_id: id_text,
         resolve_result: std::sync::Arc::new(resolve_result),
         children: BTreeMap::new(),
+        optional_children: HashSet::new(),
         peer_dependencies: BTreeMap::new(),
         transitive_peer_dependencies: HashSet::new(),
         resolved_peer_names: HashSet::new(),
