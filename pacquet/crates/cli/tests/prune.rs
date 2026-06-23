@@ -47,6 +47,9 @@ fn prune_with_prod_only_omits_dev_deps() {
             "dependencies": {
                 "@pnpm.e2e/pkg-with-1-dep": "100.0.0",
             },
+            "devDependencies": {
+                "@pnpm.e2e/hello-world-js-bin": "1.0.0",
+            }
         })
         .to_string(),
     )
@@ -60,6 +63,10 @@ fn prune_with_prod_only_omits_dev_deps() {
     assert!(
         lockfile.contains("@pnpm.e2e/pkg-with-1-dep"),
         "prune --prod must include prod dependencies:\n{lockfile}",
+    );
+    assert!(
+        !lockfile.contains("@pnpm.e2e/hello-world-js-bin"),
+        "prune --prod must NOT include dev dependencies:\n{lockfile}",
     );
 
     drop((root, mock_instance));
