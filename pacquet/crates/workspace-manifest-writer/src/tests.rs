@@ -4,8 +4,9 @@
 //! Structural cases assert the parsed shape; the format-sensitive cases
 //! assert byte-for-byte, matching pnpm's own expectations.
 
-use std::fs;
+use std::{fs, path::PathBuf};
 
+use indexmap::IndexMap;
 use pacquet_catalogs_types::Catalogs;
 use tempfile::TempDir;
 
@@ -377,4 +378,214 @@ fn allow_builds_rejects_a_manifest_with_duplicate_keys() {
         original,
         "the manifest is left unchanged when the update fails",
     );
+}
+
+fn patched_deps(entries: &[(&str, &str)]) -> IndexMap<String, String> {
+    entries.iter().map(|(key, value)| ((*key).to_string(), (*value).to_string())).collect()
+}
+
+/// Run `set_patched_dependencies` against `original` (when `Some`) and return
+/// the resulting file contents.
+fn run_patched_deps(original: Option<&str>, entries: &[(&str, &str)]) -> String {
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+    if let Some(text) = original {
+        fs::write(&path, text).expect("seed manifest");
+    }
+    crate::set_patched_dependencies(dir.path(), &patched_deps(entries)).expect("update succeeds");
+    fs::read_to_string(&path).expect("file written")
+}
+
+fn run_patched_deps_path(original: Option<&str>, entries: &[(&str, &str)]) -> (TempDir, PathBuf) {
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+    if let Some(text) = original {
+        fs::write(&path, text).expect("seed manifest");
+    }
+    crate::set_patched_dependencies(dir.path(), &patched_deps(entries)).expect("update succeeds");
+    (dir, path)
+}
+
+#[test]
+fn patched_dependency_creates_block_when_absent() {
+    let out = run_patched_deps(None, &[("is-positive@1.0.0", "patches/is-positive@1.0.0.patch")]);
+    assert_eq!(out, "patchedDependencies:\n  is-positive@1.0.0: patches/is-positive@1.0.0.patch\n");
+}
+
+#[test]
+fn patched_dependency_quotes_scoped_keys_and_slash_paths() {
+    let out = run_patched_deps(
+        None,
+        &[("@pnpm.e2e/console-log", "patches/@pnpm.e2e__console-log.patch")],
+    );
+    assert_eq!(
+        out,
+        "patchedDependencies:\n  '@pnpm.e2e/console-log': patches/@pnpm.e2e__console-log.patch\n",
+    );
+}
+
+#[test]
+fn patched_dependency_preserves_existing_manifest_content() {
+    let original = "packages:\n  - '*'\n\nallowBuilds:\n  foo: true\n\ncatalog:\n  react: 18.2.0\n";
+    let out = run_patched_deps(
+        Some(original),
+        &[("is-positive@1.0.0", "patches/is-positive@1.0.0.patch")],
+    );
+    assert_eq!(
+        out,
+        "packages:\n  - '*'\n\nallowBuilds:\n  foo: true\n\ncatalog:\n  react: 18.2.0\n\npatchedDependencies:\n  is-positive@1.0.0: patches/is-positive@1.0.0.patch\n",
+    );
+}
+
+#[test]
+fn patched_dependency_noops_when_unchanged() {
+    use crate::{edit, model::Manifest};
+
+    let original = "patchedDependencies:\n  is-positive@1.0.0: patches/is-positive@1.0.0.patch\n";
+    let deps = patched_deps(&[("is-positive@1.0.0", "patches/is-positive@1.0.0.patch")]);
+    let mut manifest = Manifest::parse(Some(original)).unwrap();
+    assert!(
+        !edit::add_patched_dependencies(&mut manifest, &deps).unwrap(),
+        "re-adding the same patch entry should report no change",
+    );
+    assert_eq!(manifest.into_text(), original);
+}
+
+#[test]
+fn patched_dependency_removes_omitted_entries() {
+    let original = "packages:\n  - '*'\n\npatchedDependencies:\n  is-negative@1.0.0: patches/is-negative@1.0.0.patch\n  is-positive@1.0.0: patches/is-positive@1.0.0.patch\n\ncatalog:\n  react: 18.2.0\n";
+    let out = run_patched_deps(
+        Some(original),
+        &[("is-positive@1.0.0", "patches/is-positive@1.0.0.patch")],
+    );
+
+    assert_eq!(
+        out,
+        "packages:\n  - '*'\n\npatchedDependencies:\n  is-positive@1.0.0: patches/is-positive@1.0.0.patch\n\ncatalog:\n  react: 18.2.0\n",
+    );
+}
+
+#[test]
+fn patched_dependency_removes_empty_block() {
+    let original = "packages:\n  - '*'\n\npatchedDependencies:\n  is-positive@1.0.0: patches/is-positive@1.0.0.patch\n\ncatalog:\n  react: 18.2.0\n";
+    let out = run_patched_deps(Some(original), &[]);
+
+    assert_eq!(out, "packages:\n  - '*'\n\ncatalog:\n  react: 18.2.0\n");
+}
+
+#[test]
+fn patched_dependency_removes_empty_last_block() {
+    let original = "packages:\n  - '*'\n\npatchedDependencies:\n  is-positive@1.0.0: patches/is-positive@1.0.0.patch\n";
+    let out = run_patched_deps(Some(original), &[]);
+
+    assert_eq!(out, "packages:\n  - '*'\n\n");
+}
+
+#[test]
+fn patched_dependency_removes_manifest_when_last_setting_is_removed() {
+    let original = "patchedDependencies:\n  is-positive@1.0.0: patches/is-positive@1.0.0.patch\n";
+    let (_dir, path) = run_patched_deps_path(Some(original), &[]);
+
+    assert!(!path.exists(), "empty pnpm-workspace.yaml should be removed");
+}
+
+#[test]
+fn patched_dependency_empty_map_does_not_create_manifest() {
+    let (_dir, path) = run_patched_deps_path(None, &[]);
+
+    assert!(!path.exists(), "empty patchedDependencies should not create pnpm-workspace.yaml");
+}
+
+#[test]
+fn patched_dependency_empty_map_preserves_manifest_without_patch_block() {
+    let original = "packages:\n  - '*'\n";
+    let out = run_patched_deps(Some(original), &[]);
+
+    assert_eq!(out, original);
+}
+
+#[test]
+fn patched_dependency_missing_decoded_block_returns_original_text_when_removing_block() {
+    use crate::{edit, model::Manifest};
+
+    let original = "packages:\n  - '*'\n";
+    let mut manifest = Manifest::parse(Some(original)).unwrap();
+    manifest.patched_dependencies = Some(IndexMap::from([(
+        "is-positive".to_string(),
+        "patches/is-positive.patch".to_string(),
+    )]));
+
+    assert!(edit::add_patched_dependencies(&mut manifest, &IndexMap::new()).unwrap());
+    assert_eq!(manifest.into_text(), original);
+}
+
+#[test]
+fn patched_dependency_missing_decoded_mapping_keeps_text_before_inserting_new_block() {
+    use crate::{edit, model::Manifest};
+
+    let original = "packages:\n  - '*'\n";
+    let mut manifest = Manifest::parse(Some(original)).unwrap();
+    manifest.patched_dependencies = Some(IndexMap::from([(
+        "is-negative".to_string(),
+        "patches/is-negative.patch".to_string(),
+    )]));
+    let deps = patched_deps(&[("is-positive", "patches/is-positive.patch")]);
+
+    assert!(edit::add_patched_dependencies(&mut manifest, &deps).unwrap());
+
+    let text = manifest.into_text();
+    assert!(text.contains("packages:\n  - '*'\n"), "text: {text}");
+    assert!(text.contains("is-positive: patches/is-positive.patch"), "text: {text}");
+    assert!(!text.contains("is-negative"), "text: {text}");
+}
+
+#[test]
+fn write_or_remove_manifest_ignores_missing_empty_manifest() {
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+    let manifest = crate::model::Manifest::parse(Some("")).expect("empty manifest");
+
+    crate::write_or_remove_manifest(&path, manifest).expect("remove missing empty manifest");
+
+    assert!(!path.exists());
+}
+
+#[test]
+fn set_patched_dependencies_reports_read_errors() {
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+    fs::create_dir(&path).expect("create manifest dir");
+
+    let err = crate::set_patched_dependencies(
+        dir.path(),
+        &patched_deps(&[("is-positive", "patches/is-positive.patch")]),
+    )
+    .expect_err("manifest directory should fail to read");
+
+    assert!(matches!(err, crate::UpdateWorkspaceManifestError::Read { .. }));
+}
+
+#[test]
+fn write_or_remove_manifest_reports_remove_errors() {
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+    fs::create_dir(&path).expect("create manifest dir");
+    let manifest = crate::model::Manifest::parse(Some("")).expect("empty manifest");
+
+    let err =
+        crate::write_or_remove_manifest(&path, manifest).expect_err("directory remove should fail");
+
+    assert!(matches!(err, crate::UpdateWorkspaceManifestError::Remove { .. }));
+}
+
+#[test]
+fn write_or_remove_manifest_reports_write_errors() {
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join("missing").join(WORKSPACE_MANIFEST_FILENAME);
+    let manifest = crate::model::Manifest::parse(Some("packages:\n  - '*'\n")).expect("manifest");
+
+    let err =
+        crate::write_or_remove_manifest(&path, manifest).expect_err("missing parent should fail");
+
+    assert!(matches!(err, crate::UpdateWorkspaceManifestError::Write { .. }));
 }

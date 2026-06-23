@@ -31,6 +31,8 @@ mod optimistic_repeat_install;
 mod overrides;
 mod package_extender;
 mod package_map;
+mod patch;
+mod patch_commit;
 mod prefetching_resolver;
 mod prune_virtual_store;
 mod remove;
@@ -81,6 +83,8 @@ pub use package_extender::*;
 pub use package_map::{
     WritePackageMapError, make_node_package_map_option, package_map_path_for_execution,
 };
+pub use patch::*;
+pub use patch_commit::*;
 pub use prefetching_resolver::*;
 pub use remove::*;
 pub use resolution_observer::*;

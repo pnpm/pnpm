@@ -45,32 +45,104 @@ pub(crate) fn add_config_dependency(
     specifier: &str,
 ) -> Result<bool, Box<yamlpatch::Error>> {
     const BLOCK: &str = "configDependencies";
+    let current_matches =
+        manifest.config_dependencies.as_ref().and_then(|deps| deps.get(name)).map(String::as_str)
+            == Some(specifier);
+    let changed = upsert_top_level_entry(manifest, BLOCK, name, specifier, current_matches)?;
+    if changed {
+        manifest
+            .config_dependencies
+            .get_or_insert_with(IndexMap::new)
+            .insert(name.to_string(), specifier.to_string());
+    }
+    Ok(changed)
+}
+
+/// Upsert `patchedDependencies:` entries into the workspace manifest,
+/// creating the block when needed.
+pub(crate) fn add_patched_dependencies(
+    manifest: &mut Manifest,
+    patched_dependencies: &IndexMap<String, String>,
+) -> Result<bool, Box<yamlpatch::Error>> {
+    const BLOCK: &str = "patchedDependencies";
+    let mut changed = false;
+
+    if patched_dependencies.is_empty() {
+        if manifest.patched_dependencies.is_none() {
+            return Ok(false);
+        }
+        manifest.set_text(remove_top_level_block(manifest.text(), BLOCK));
+        manifest.patched_dependencies = None;
+        manifest.top_level_keys.retain(|key| key != BLOCK);
+        return Ok(true);
+    }
+
+    if let Some(existing) = manifest.patched_dependencies.as_ref() {
+        let omitted: Vec<String> = existing
+            .keys()
+            .filter(|key| !patched_dependencies.contains_key(*key))
+            .cloned()
+            .collect();
+        if !omitted.is_empty() {
+            manifest.set_text(remove_mapping_entries(manifest.text(), &[BLOCK], &omitted));
+            let current = manifest
+                .patched_dependencies
+                .as_mut()
+                .expect("existing patched dependencies should remain decoded");
+            for key in &omitted {
+                current.shift_remove(key);
+            }
+            changed = true;
+        }
+    }
+
+    for (key, path) in patched_dependencies {
+        let current_matches = manifest
+            .patched_dependencies
+            .as_ref()
+            .and_then(|deps| deps.get(key))
+            .map(String::as_str)
+            == Some(path);
+        let entry_changed = upsert_top_level_entry(manifest, BLOCK, key, path, current_matches)?;
+        if entry_changed {
+            manifest
+                .patched_dependencies
+                .get_or_insert_with(IndexMap::new)
+                .insert(key.clone(), path.clone());
+            changed = true;
+        }
+    }
+    Ok(changed)
+}
+
+fn upsert_top_level_entry(
+    manifest: &mut Manifest,
+    block_name: &str,
+    key: &str,
+    value: &str,
+    current_matches: bool,
+) -> Result<bool, Box<yamlpatch::Error>> {
     let text = manifest.text();
-    if let Some(mapping) = locate(text, &[BLOCK]) {
-        let new_text = if mapping.entries.iter().any(|entry| entry.key == name) {
-            // Already present with the same clean specifier — a true
-            // no-op, so don't rewrite the file (which would bump its
-            // mtime and look like a change to freshness checks).
-            if manifest.config_dependencies.as_ref().and_then(|deps| deps.get(name))
-                == Some(&specifier.to_string())
-            {
+    if let Some(mapping) = locate(text, &[block_name]) {
+        let new_text = if mapping.entries.iter().any(|entry| entry.key == key) {
+            if current_matches {
                 return Ok(false);
             }
-            replace_value_at(text, &[BLOCK], name, specifier)?
+            replace_value_at(text, &[block_name], key, value)?
         } else {
-            insert_entry_at(text, &[BLOCK], name, specifier)
+            insert_entry_at(text, &[block_name], key, value)
         };
         manifest.set_text(new_text);
     } else {
         let block = format!(
-            "{BLOCK}:\n  {}: {}\n",
-            render::render_value(name),
-            render::render_value(specifier),
+            "{block_name}:\n  {}: {}\n",
+            render::render_value(key),
+            render::render_value(value),
         );
-        let new_text = insert_top_level_block(manifest, BLOCK, &block);
+        let new_text = insert_top_level_block(manifest, block_name, &block);
         manifest.set_text(new_text);
         manifest.top_level_keys =
-            render::target_order(&manifest.top_level_keys, &[BLOCK.to_string()]);
+            render::target_order(&manifest.top_level_keys, &[block_name.to_string()]);
     }
     Ok(true)
 }
@@ -347,6 +419,26 @@ fn insert_rendered_entry_at(text: &str, path: &[&str], dep: &str, value_text: &s
     splice(text, offset, &line)
 }
 
+fn remove_mapping_entries(text: &str, path: &[&str], keys: &[String]) -> String {
+    let Some(mapping) = locate(text, path) else {
+        return text.to_string();
+    };
+    let mut out = text.to_string();
+    for entry in mapping.entries.iter().rev().filter(|entry| keys.contains(&entry.key)) {
+        out.replace_range(entry.line_start..entry.block_end, "");
+    }
+    out
+}
+
+fn remove_top_level_block(text: &str, key: &str) -> String {
+    let Some(span) = top_level_span(text, key) else {
+        return text.to_string();
+    };
+    let mut out = text.to_string();
+    out.replace_range(span.key_line_start..span.block_end, "");
+    out
+}
+
 /// Insert a new named catalog (`<name>:` + its first entry) into an existing
 /// top-level `catalogs:` block, at the position the reorder pass would choose.
 fn insert_named_subblock(manifest: &Manifest, name: &str, dep: &str, value: &str) -> String {
@@ -451,6 +543,7 @@ struct EntryPos {
 /// Span of a top-level block keyed by `key`.
 struct TopLevelSpan {
     key_line_start: usize,
+    block_end: usize,
 }
 
 struct Line<'a> {
@@ -619,12 +712,21 @@ fn collect_entries(all: &[Line<'_>], from: usize, to: usize, entry_indent: usize
 /// The starting offset of a top-level key's line.
 fn top_level_span(text: &str, key: &str) -> Option<TopLevelSpan> {
     let all = lines(text);
-    all.iter()
-        .find(|line| {
+    let key_idx = all.iter().position(|line| {
+        structural_indent(line.content) == Some(0) && line_key(line.content).as_deref() == Some(key)
+    })?;
+    let block_end_idx = ((key_idx + 1)..all.len())
+        .find(|&idx| structural_indent(all[idx].content) == Some(0))
+        .unwrap_or(all.len());
+    let block_end = all
+        .get(block_end_idx)
+        .map_or_else(|| all.last().map_or(0, |line| line.end), |line| line.start);
+    all.get(key_idx)
+        .filter(|line| {
             structural_indent(line.content) == Some(0)
                 && line_key(line.content).as_deref() == Some(key)
         })
-        .map(|line| TopLevelSpan { key_line_start: line.start })
+        .map(|line| TopLevelSpan { key_line_start: line.start, block_end })
 }
 
 /// Whether every original non-first top-level key has a blank line before it

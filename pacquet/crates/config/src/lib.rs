@@ -1007,6 +1007,11 @@ pub struct Config {
     /// [`addSettingsFromWorkspaceManifestToConfig`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/index.ts#L803-L831).
     pub patched_dependencies: Option<IndexMap<String, String>>,
 
+    /// Raw `patchesDir` setting used by `patch-commit` when writing
+    /// generated patch files. `None` means the command default
+    /// (`patches`) applies, matching pnpm's `opts.patchesDir ?? 'patches'`.
+    pub patches_dir: Option<String>,
+
     /// Raw `configDependencies` from `pnpm-workspace.yaml`: package
     /// name → version-with-integrity spec. Recorded verbatim in the
     /// workspace-state file so pnpm's `checkDepsStatus` sees the same

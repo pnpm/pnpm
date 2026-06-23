@@ -113,6 +113,25 @@ fn approve_builds_with_args_runs_the_build() {
 }
 
 #[test]
+fn approve_builds_runs_the_build_with_ndjson_and_silent_reporters() {
+    for reporter in ["--reporter=ndjson", "--reporter=silent"] {
+        let (harness, workspace) = install_with_ignored_build();
+
+        pacquet(&workspace)
+            .with_args([reporter, "approve-builds", "@pnpm.e2e/install-script-example"])
+            .assert()
+            .success();
+
+        assert!(
+            workspace.join(INSTALL_MARKER).exists(),
+            "approving the build under {reporter} must run its install script",
+        );
+
+        drop(harness);
+    }
+}
+
+#[test]
 fn approve_builds_deny_keeps_the_build_ignored() {
     let (harness, workspace) = install_with_ignored_build();
 
@@ -169,6 +188,20 @@ fn rebuild_reruns_an_approved_build() {
     assert!(marker.exists(), "rebuild must re-run the install script");
 
     drop(harness);
+}
+
+#[test]
+fn rebuild_runs_with_ndjson_and_silent_reporters() {
+    for reporter in ["--reporter=ndjson", "--reporter=silent"] {
+        let harness = CommandTempCwd::init().add_mocked_registry();
+        let workspace = harness.workspace.clone();
+        fs::write(workspace.join("package.json"), "{}").expect("write package.json");
+        pacquet(&workspace).with_arg("install").assert().success();
+
+        pacquet(&workspace).with_args([reporter, "rebuild"]).assert().success();
+
+        drop(harness);
+    }
 }
 
 /// Package names of the two build-script fixtures used by the multi-dep tests.

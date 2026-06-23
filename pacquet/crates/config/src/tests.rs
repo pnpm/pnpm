@@ -1359,6 +1359,34 @@ pub fn pnpm_config_env_var_overrides_workspace_yaml() {
     );
 }
 
+#[test]
+pub fn patches_dir_reads_from_env_overlay() {
+    struct HostWithPatchesDirEnv;
+    impl EnvVar for HostWithPatchesDirEnv {
+        fn var(name: &str) -> Option<String> {
+            if name == "PNPM_CONFIG_PATCHES_DIR" {
+                return Some("custom-patches".to_owned());
+            }
+            safe_host_var(name)
+        }
+    }
+    impl EnvVarOs for HostWithPatchesDirEnv {
+        fn var_os(_: &str) -> Option<OsString> {
+            None
+        }
+    }
+    impl GetHomeDir for HostWithPatchesDirEnv {
+        fn home_dir() -> Option<PathBuf> {
+            None
+        }
+    }
+    inert_link_probe!(HostWithPatchesDirEnv);
+
+    let tmp = tempdir().unwrap();
+    let config = Config::new().current::<HostWithPatchesDirEnv>(tmp.path()).expect("loads");
+    assert_eq!(config.patches_dir.as_deref(), Some("custom-patches"));
+}
+
 /// `PNPM_CONFIG_HOIST=false` runs the same post-processing as
 /// yaml-set `hoist: false` — it short-circuits `hoist_pattern`
 /// to `None`, mirroring upstream's

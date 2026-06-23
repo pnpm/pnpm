@@ -14,18 +14,25 @@ use pacquet_testing_utils::bin::CommandTempCwd;
 /// the mocked registry and is exercised in CI rather than here.
 #[test]
 fn dlx_errors_when_no_command_given() {
-    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+    for reporter in [None, Some("--reporter=ndjson"), Some("--reporter=silent")] {
+        let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
 
-    let output = pacquet.with_arg("dlx").output().expect("spawn pacquet dlx");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    eprintln!("STDERR:\n{stderr}\n");
-    assert!(!output.status.success(), "dlx with no command must fail");
-    assert!(
-        stderr.contains("requires a command to run"),
-        "the failure must be the missing-command diagnostic",
-    );
+        let mut command = pacquet;
+        if let Some(reporter) = reporter {
+            command.arg(reporter);
+        }
+        command.arg("dlx");
+        let output = command.output().expect("spawn pacquet dlx");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        eprintln!("STDERR:\n{stderr}\n");
+        assert!(!output.status.success(), "dlx with no command must fail");
+        assert!(
+            stderr.contains("requires a command to run"),
+            "the failure must be the missing-command diagnostic",
+        );
 
-    drop(root);
+        drop(root);
+    }
 }
 
 /// `pacquet dlx <package>` resolves the package against the mocked

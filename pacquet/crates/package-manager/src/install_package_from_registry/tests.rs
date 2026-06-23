@@ -85,6 +85,7 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         npmrc_auth_file: None,
         workspace_dir: None,
         patched_dependencies: None,
+        patches_dir: None,
         config_dependencies: None,
         allow_builds: Default::default(),
         dangerously_allow_all_builds: false,

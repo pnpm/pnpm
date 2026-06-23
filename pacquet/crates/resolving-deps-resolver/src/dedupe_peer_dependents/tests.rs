@@ -36,6 +36,7 @@ fn make_node(
             policy_violation: None,
         }),
         children: children.iter().map(|(alias, child)| (alias.to_string(), dp(child))).collect(),
+        optional_children: HashSet::new(),
         peer_dependencies: BTreeMap::new(),
         transitive_peer_dependencies: HashSet::new(),
         resolved_peer_names: resolved_peers.iter().map(std::string::ToString::to_string).collect(),
