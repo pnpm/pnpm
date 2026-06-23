@@ -1102,8 +1102,8 @@ fn redact_url_credentials(text: &str) -> String {
         let (before, after) = rest.split_at(pos + "://".len());
         out.push_str(before);
         // Only treat "://" as a URL authority boundary when a scheme character
-        // precedes it (mirrors the `[a-z][a-z0-9+.-]*` in upstream's regex), so
-        // an unrelated "://" in the message isn't mangled.
+        // (schemes end in an ASCII alphanumeric) precedes it, so an unrelated
+        // "://" in the message isn't mangled.
         let has_scheme = pos > 0 && rest.as_bytes()[pos - 1].is_ascii_alphanumeric();
         rest = strip_leading_userinfo(after).filter(|_| has_scheme).unwrap_or(after);
     }
