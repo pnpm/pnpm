@@ -131,7 +131,9 @@ fn a_reused_tree_is_structurally_identical_to_a_fresh_resolve() {
     pacquet_at(&reused.workspace).with_arg("install").assert().success();
     fs::write(&reused_manifest, &both).expect("add the second dep to the reuse scenario");
     let future = std::time::SystemTime::now() + std::time::Duration::from_secs(2);
-    std::fs::File::open(&reused_manifest)
+    std::fs::OpenOptions::new()
+        .write(true)
+        .open(&reused_manifest)
         .and_then(|file| file.set_times(std::fs::FileTimes::new().set_modified(future)))
         .expect("bump manifest mtime");
     pacquet_at(&reused.workspace).with_arg("install").assert().success();
