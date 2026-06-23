@@ -41,10 +41,10 @@ jobs:
     runs-on: ${{ inputs.platform }}
 
     steps:
-    # A near-full "affected packages" sweep plus the pnpr Rust build
-    # can exhaust the hosted runner's free disk mid-test (the runner
-    # worker itself dies with "No space left on device"). Drop the
-    # preinstalled toolchains this job never uses (~25 GB) first.
+    # A near-full "affected packages" sweep can exhaust the hosted runner's
+    # free disk mid-test (the runner worker itself dies with "No space left
+    # on device"). Drop the preinstalled toolchains this job never uses
+    # (~25 GB) first.
     - name: Free up runner disk space
       if: ${{ runner.os == 'Linux' }}
       run: |
@@ -94,53 +94,25 @@ jobs:
         name: compiled-packages
     - name: Extract compiled artifacts
       run: tar -xzf compiled.tar.gz
-    # The test harness serves package fixtures through the in-repo
-    # `pnpr` server; `pnpr-prepare` turns the raw fixtures under
-    # `pnpr/.fixtures/packages` into the storage the server reads. Both
-    # are built from source so the tests exercise the current server
-    # (e.g. the install-accelerator endpoints) rather than a published
-    # `@pnpm/pnpr` binary that may predate it.
-    #
-    # The built binaries are cached and keyed on the Rust sources that
-    # produce them, so a run that only touches TypeScript restores them
-    # in seconds instead of recompiling. They are copied out of `target/`
-    # into a stable dir so `Swatinem/rust-cache`'s `target/` cleanup
-    # can't strip them before this cache saves.
-    - name: Restore prebuilt pnpr binaries
-      id: pnpr-bins
-      uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+    # The test harness serves package fixtures through the in-repo `pnpr`
+    # server; `pnpr-prepare` turns the raw fixtures under
+    # `pnpr/.fixtures/packages` into the storage the server reads. Both are
+    # built from source (so the tests exercise the current server, not a
+    # published `@pnpm/pnpr` that may predate it) once per OS by the
+    # `build-pnpr` job, then shared with every test job/shard here as an
+    # artifact instead of rebuilt per job.
+    - name: Download prebuilt pnpr binaries
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
       with:
+        name: pnpr-bins-${{ runner.os }}
         path: .pnpr-bin
-        key: pnpr-bins-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml', '**/Cargo.lock', '**/Cargo.toml', 'pnpr/**/*.rs', 'pacquet/**/*.rs') }}
-    - name: Install Rust
-      if: steps.pnpr-bins.outputs.cache-hit != 'true'
-      uses: ./.github/actions/rustup
-      with:
-        save-cache: ${{ github.ref_name == 'main' }}
-        shared-key: registry-prepare
-    - name: Build the pnpr server and registry fixture preparer
-      if: steps.pnpr-bins.outputs.cache-hit != 'true'
-      shell: bash
-      run: |
-        cargo build --locked --release -p pnpr --bin pnpr -p pnpr-fixtures --bin pnpr-prepare
-        mkdir -p .pnpr-bin
-        ext=""
-        [ -f target/release/pnpr.exe ] && ext=".exe"
-        cp "target/release/pnpr$ext" "target/release/pnpr-prepare$ext" .pnpr-bin/
-    # Save the binaries to the cache right after they build, not in a post-job
-    # step: a later step failing (e.g. a crashing test) would otherwise skip
-    # the save and force a full Rust rebuild on the next run.
-    - name: Save prebuilt pnpr binaries
-      if: steps.pnpr-bins.outputs.cache-hit != 'true'
-      uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-      with:
-        path: .pnpr-bin
-        key: ${{ steps.pnpr-bins.outputs.cache-primary-key }}
     - name: Export pnpr binary paths
       shell: bash
       run: |
         ext=""
         [ -f "$PWD/.pnpr-bin/pnpr.exe" ] && ext=".exe"
+        # Artifacts don't preserve the executable bit; restore it on POSIX.
+        [ -z "$ext" ] && chmod +x "$PWD/.pnpr-bin/pnpr" "$PWD/.pnpr-bin/pnpr-prepare"
         echo "PNPR_BIN=$PWD/.pnpr-bin/pnpr$ext" >> "$GITHUB_ENV"
         echo "PNPR_PREPARE_BIN=$PWD/.pnpr-bin/pnpr-prepare$ext" >> "$GITHUB_ENV"
     - name: Determine test scope
