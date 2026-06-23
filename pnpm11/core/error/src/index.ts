@@ -71,7 +71,11 @@ export class FetchError extends PnpmError {
  * auth *header*; this covers credentials carried in the URL itself.
  */
 export function redactUrlCredentials (text: string): string {
-  return text.replace(/([a-z][a-z0-9+.-]*:\/\/)[^/@\s]+@/gi, '$1')
+  // The scheme run is length-bounded (real URL schemes are short) so a long
+  // run of letters with no `://` can't drive quadratic backtracking — `text`
+  // is uncontrolled (it includes the request URL), so an unbounded `*` here is
+  // a ReDoS vector.
+  return text.replace(/([a-z][a-z0-9+.-]{0,63}:\/\/)[^/@\s]+@/gi, '$1')
 }
 
 function hideAuthInformation (authHeaderValue: string): string {
