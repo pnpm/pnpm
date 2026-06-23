@@ -21,6 +21,7 @@ pub mod restart;
 pub mod run;
 pub mod runtime;
 pub mod sanitize;
+pub mod set_script;
 pub mod stop;
 pub mod store;
 pub mod supported_architectures;
@@ -59,6 +60,7 @@ use restart::RestartArgs;
 use run::RunArgs;
 use runtime::RuntimeArgs;
 use serde_json::Value;
+use set_script::SetScriptArgs;
 use std::{
     fs,
     future::Future,
@@ -178,6 +180,9 @@ pub enum CliCommand {
     /// Remove existing patch files.
     #[clap(name = "patch-remove")]
     PatchRemove(PatchRemoveArgs),
+    /// Set a script in package.json
+    #[clap(visible_alias = "ss")]
+    SetScript(SetScriptArgs),
     /// Runs a package's "test" script, if one was provided.
     Test,
     /// Runs a defined package script.
@@ -480,6 +485,14 @@ impl CliArgs {
                     Ok(())
                 }),
             },
+            // `set-script` only rewrites `package.json#scripts`; it never
+            // touches the lockfile or runs the install pipeline, so it
+            // dispatches synchronously off the canonicalized `--dir` like
+            // `init`, with no reporter-typed fan-out.
+            CliCommand::SetScript(args) => {
+                let result = args.run(manifest_path_ref);
+                Box::pin(std::future::ready(result))
+            }
             CliCommand::Install(args) => Box::pin(async move {
                 // CLI overrides for `offline` / `prefer_offline` live
                 // alongside `--frozen-lockfile`: they upgrade an
