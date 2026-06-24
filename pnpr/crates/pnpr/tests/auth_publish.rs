@@ -11,7 +11,7 @@ use axum::{
     http::{Request, StatusCode},
 };
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
-use pnpr::{Config, MaxUsers, router};
+use pnpr::{Config, router};
 use serde_json::{Value, json};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
@@ -24,7 +24,6 @@ fn static_config(storage: PathBuf) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::static_serve(listen, storage);
     config.public_url = "http://example.test".to_string();
-    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
     config
 }
 
@@ -36,9 +35,8 @@ fn static_config_with_packages(dir: &TempDir, packages_block: &str) -> (Config, 
         format!("storage: {}\nuplinks: {{}}\npackages:\n{packages_block}\n", storage.display());
     let config_path = dir.path().join("config.yaml");
     std::fs::write(&config_path, yaml).unwrap();
-    let mut config =
+    let config =
         Config::from_yaml(&config_path, listen, Some("http://example.test".to_string())).unwrap();
-    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
     (config, storage)
 }
 

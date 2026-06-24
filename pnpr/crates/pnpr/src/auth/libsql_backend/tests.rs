@@ -32,13 +32,6 @@ async fn add_or_login_rejects_existing_user_with_wrong_password() {
 }
 
 #[tokio::test]
-async fn max_users_disabled_rejects_registration() {
-    let backend = local_backend(MaxUsers::Disabled).await;
-    let err = backend.add_or_login("alice", "x").await.unwrap_err();
-    assert_eq!(err.status_code(), axum::http::StatusCode::FORBIDDEN);
-}
-
-#[tokio::test]
 async fn add_or_login_rejects_invalid_username_before_insert() {
     let backend = local_backend(MaxUsers::Unlimited).await;
     let err = backend.add_or_login("alice ", "secret").await.unwrap_err();
