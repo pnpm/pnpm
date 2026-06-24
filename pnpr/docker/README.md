@@ -3,7 +3,7 @@
 Official image for [`pnpr`](../), the pnpm-compatible npm registry server,
 published to GitHub Container Registry.
 
-```
+```text
 ghcr.io/pnpm/pnpr
 ```
 
