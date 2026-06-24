@@ -2,6 +2,7 @@ use super::{
     cleanup_after_diff, normalize_patches_dir_name, patch_target_from_state,
     path_from_forward_slash, remove_dir_if_exists, write_patch_file_atomically,
 };
+use crate::cli_args::patch_state::EditDirState;
 use pacquet_lockfile::{ComVer, Lockfile, LockfileVersion, PackageKey, PackageMetadata};
 use pacquet_package_manager::PkgFilesForDiff;
 use pretty_assertions::assert_eq;
@@ -31,6 +32,10 @@ fn lockfile_with_packages(keys: &[&str]) -> Lockfile {
     Lockfile { packages: Some(packages), ..empty_lockfile() }
 }
 
+fn lockfile_with_package_entries(entries: Vec<(PackageKey, PackageMetadata)>) -> Lockfile {
+    Lockfile { packages: Some(entries.into_iter().collect()), ..empty_lockfile() }
+}
+
 fn registry_metadata() -> PackageMetadata {
     serde_json::from_value(json!({
         "resolution": {
@@ -40,12 +45,28 @@ fn registry_metadata() -> PackageMetadata {
     .unwrap()
 }
 
+fn git_tarball_metadata(version: &str, tarball: &str) -> PackageMetadata {
+    serde_json::from_value(json!({
+        "resolution": {
+            "tarball": tarball,
+            "gitHosted": true,
+        },
+        "version": version,
+    }))
+    .unwrap()
+}
+
 #[test]
 fn patch_target_from_state_falls_back_to_manifest_name_and_version() {
     let lockfile = lockfile_with_packages(&["foo@1.0.0"]);
+    let state = EditDirState {
+        patched_pkg: "old-name@9.9.9".to_string(),
+        apply_to_all: true,
+        package_key: None,
+    };
 
-    let target = patch_target_from_state("old-name@9.9.9", "foo", "1.0.0", true, &lockfile)
-        .expect("target from fallback");
+    let target =
+        patch_target_from_state(&state, "foo", "1.0.0", &lockfile).expect("target from fallback");
 
     assert_eq!(target.alias, "foo");
     assert_eq!(target.version, "1.0.0");
@@ -56,8 +77,13 @@ fn patch_target_from_state_falls_back_to_manifest_name_and_version() {
 #[test]
 fn patch_target_from_state_reports_missing_manifest_version() {
     let lockfile = lockfile_with_packages(&["foo@1.0.0"]);
+    let state = EditDirState {
+        patched_pkg: "old-name@9.9.9".to_string(),
+        apply_to_all: false,
+        package_key: None,
+    };
 
-    let err = patch_target_from_state("old-name@9.9.9", "foo", "2.0.0", false, &lockfile)
+    let err = patch_target_from_state(&state, "foo", "2.0.0", &lockfile)
         .expect_err("missing fallback version");
 
     assert!(err.to_string().contains("foo@2.0.0"), "error names fallback target: {err}");
@@ -66,11 +92,34 @@ fn patch_target_from_state_reports_missing_manifest_version() {
 #[test]
 fn patch_target_from_state_reports_installed_name_version_mismatch() {
     let lockfile = lockfile_with_packages(&["foo@1.0.0"]);
+    let state =
+        EditDirState { patched_pkg: "foo".to_string(), apply_to_all: false, package_key: None };
 
-    let err = patch_target_from_state("foo", "foo", "2.0.0", false, &lockfile)
+    let err = patch_target_from_state(&state, "foo", "2.0.0", &lockfile)
         .expect_err("missing selected version");
 
     assert!(err.to_string().contains("did you forget to install foo@2.0.0"), "{err}");
+}
+
+#[test]
+fn patch_target_from_state_uses_persisted_package_key_for_same_version_candidates() {
+    let git_tarball_url = "https://codeload.github.com/foo/foo/tar.gz/0123456789abcdef";
+    let git_package_key = format!("foo@{git_tarball_url}").parse::<PackageKey>().unwrap();
+    let lockfile = lockfile_with_package_entries(vec![
+        ("foo@1.0.0".parse::<PackageKey>().unwrap(), registry_metadata()),
+        (git_package_key.clone(), git_tarball_metadata("1.0.0", git_tarball_url)),
+    ]);
+    let state = EditDirState {
+        patched_pkg: "foo".to_string(),
+        apply_to_all: false,
+        package_key: Some(git_package_key.clone()),
+    };
+
+    let target =
+        patch_target_from_state(&state, "foo", "1.0.0", &lockfile).expect("target from state");
+
+    assert_eq!(target.package_key, git_package_key);
+    assert_eq!(target.git_tarball_url, Some(git_tarball_url.to_string()));
 }
 
 #[test]

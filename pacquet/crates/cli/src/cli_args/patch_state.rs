@@ -1,6 +1,7 @@
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_fs::{is_subdir, lexical_normalize};
+use pacquet_lockfile::PackageKey;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
@@ -19,6 +20,8 @@ pub(crate) struct EditDirState {
     pub(crate) patched_pkg: String,
     #[serde(rename = "applyToAll")]
     pub(crate) apply_to_all: bool,
+    #[serde(rename = "packageKey", default, skip_serializing_if = "Option::is_none")]
+    pub(crate) package_key: Option<PackageKey>,
 }
 
 #[derive(Debug, Display, Error, Diagnostic)]

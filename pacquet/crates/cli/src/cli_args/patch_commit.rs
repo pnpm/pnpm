@@ -1,16 +1,16 @@
 use crate::{
     State,
-    cli_args::patch_state::{StateFileError, read_edit_dir_state},
+    cli_args::patch_state::{EditDirState, StateFileError, read_edit_dir_state},
 };
 use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_crypto_hash::create_short_hash;
 use pacquet_fs::{is_subdir, lexical_normalize};
-use pacquet_lockfile::{LoadLockfileError, Lockfile};
+use pacquet_lockfile::{LoadLockfileError, Lockfile, PackageKey};
 use pacquet_package_manager::{
-    PatchTarget, PatchTargetError, PkgFilesForDiff, WritePackageForPatch,
-    WritePackageForPatchError, diff_folders, patch_candidates_from_lockfile,
+    PatchCandidate, PatchCandidateSet, PatchTarget, PatchTargetError, PkgFilesForDiff,
+    WritePackageForPatch, WritePackageForPatchError, diff_folders, patch_candidates_from_lockfile,
     prepare_pkg_files_for_diff,
 };
 use pacquet_package_manifest::{PackageManifest, PackageManifestError};
@@ -139,13 +139,7 @@ impl PatchCommitArgs {
             Lockfile::load_current_from_virtual_store_dir(&state.config.virtual_store_dir)
                 .map_err(PatchCommitError::LoadLockfile)?
                 .ok_or(PatchCommitError::PatchNoLockfile)?;
-        let target = patch_target_from_state(
-            &state_value.patched_pkg,
-            &name,
-            &version,
-            state_value.apply_to_all,
-            &current_lockfile,
-        )?;
+        let target = patch_target_from_state(&state_value, &name, &version, &current_lockfile)?;
 
         let clean_dir = clean_source_dir(&state, &patch_dir);
         remove_dir_if_exists(&clean_dir).map_err(|source| PatchCommitError::CleanupTempDir {
@@ -246,21 +240,16 @@ fn manifest_string(
 }
 
 fn patch_target_from_state(
-    raw_dependency: &str,
+    state_value: &EditDirState,
     name: &str,
     version: &str,
-    apply_to_all: bool,
     current_lockfile: &Lockfile,
 ) -> Result<PatchTarget, PatchCommitError> {
     let fallback = format!("{name}@{version}");
-    let set = patch_candidates_from_lockfile(raw_dependency, current_lockfile)
+    let set = patch_candidates_from_lockfile(&state_value.patched_pkg, current_lockfile)
         .or_else(|_| patch_candidates_from_lockfile(&fallback, current_lockfile))
         .map_err(PatchCommitError::PatchTarget)?;
-    let candidate = set
-        .preferred_versions
-        .iter()
-        .chain(set.versions.iter())
-        .find(|candidate| candidate.version == version)
+    let candidate = matching_candidate(&set, version, state_value.package_key.as_ref())
         .ok_or_else(|| {
             PatchCommitError::PatchTarget(PatchTargetError::VersionNotFound {
                 requested: fallback.clone(),
@@ -271,10 +260,25 @@ fn patch_target_from_state(
         alias: name.to_string(),
         version: version.to_string(),
         bare_specifier: candidate.git_tarball_url.clone().unwrap_or_else(|| version.to_string()),
-        apply_to_all,
+        apply_to_all: state_value.apply_to_all,
         git_tarball_url: candidate.git_tarball_url.clone(),
-        package_key: candidate.package_key.clone(),
+        package_key: candidate.package_key,
     })
+}
+
+fn matching_candidate(
+    set: &PatchCandidateSet,
+    version: &str,
+    package_key: Option<&PackageKey>,
+) -> Option<PatchCandidate> {
+    set.preferred_versions
+        .iter()
+        .chain(set.versions.iter())
+        .find(|candidate| {
+            candidate.version == version
+                && package_key.is_none_or(|package_key| candidate.package_key == *package_key)
+        })
+        .cloned()
 }
 
 fn resolve_path(dir: &Path, path: &Path) -> PathBuf {

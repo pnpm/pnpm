@@ -696,6 +696,7 @@ fn patch_exact_version_creates_edit_dir_and_state() {
     let state = patch_state(&workspace);
     assert_eq!(state[&key]["patchedPkg"], "is-positive@1.0.0");
     assert_eq!(state[&key]["applyToAll"], false);
+    assert_eq!(state[&key]["packageKey"], "is-positive@1.0.0");
 
     drop((root, mock_instance));
 }
@@ -769,6 +770,7 @@ fn patch_bare_name_single_version_sets_apply_to_all() {
     let state = patch_state(&workspace);
     assert_eq!(state[&key]["patchedPkg"], "is-positive");
     assert_eq!(state[&key]["applyToAll"], true);
+    assert_eq!(state[&key]["packageKey"], "is-positive@1.0.0");
 
     drop((root, mock_instance));
 }
@@ -827,6 +829,7 @@ fn patch_accepts_empty_custom_edit_dir() {
     let key = dunce::canonicalize(&edit_dir).expect("canonical edit dir").display().to_string();
     let state = patch_state(&workspace);
     assert_eq!(state[&key]["patchedPkg"], "is-positive@1.0.0");
+    assert_eq!(state[&key]["packageKey"], "is-positive@1.0.0");
 
     drop((root, mock_instance));
 }

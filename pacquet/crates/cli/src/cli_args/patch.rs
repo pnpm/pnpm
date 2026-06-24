@@ -176,7 +176,11 @@ impl PatchArgs {
         write_edit_dir_state(
             &state.config.modules_dir,
             &edit_dir,
-            &EditDirState { patched_pkg: package_name.clone(), apply_to_all: target.apply_to_all },
+            &EditDirState {
+                patched_pkg: package_name.clone(),
+                apply_to_all: target.apply_to_all,
+                package_key: Some(target.package_key.clone()),
+            },
         )
         .map_err(PatchError::StateFile)?;
 

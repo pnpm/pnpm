@@ -10,7 +10,11 @@ use tempfile::tempdir;
 static CWD_LOCK: Mutex<()> = Mutex::new(());
 
 fn sample_state() -> EditDirState {
-    EditDirState { patched_pkg: "is-positive@1.0.0".to_string(), apply_to_all: false }
+    EditDirState {
+        patched_pkg: "is-positive@1.0.0".to_string(),
+        apply_to_all: false,
+        package_key: None,
+    }
 }
 
 #[test]
@@ -58,7 +62,11 @@ fn patch_state_write_updates_existing_state_file() {
     write_edit_dir_state(
         &modules_dir,
         &second_edit_dir,
-        &EditDirState { patched_pkg: "is-negative@1.0.0".to_string(), apply_to_all: true },
+        &EditDirState {
+            patched_pkg: "is-negative@1.0.0".to_string(),
+            apply_to_all: true,
+            package_key: None,
+        },
     )
     .unwrap();
 
