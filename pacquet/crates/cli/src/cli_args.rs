@@ -4,6 +4,7 @@ pub mod cache;
 pub mod cat_file;
 pub mod cat_index;
 pub mod create;
+pub mod dedupe;
 pub mod dlx;
 pub mod exec;
 pub mod find_hash;
@@ -37,6 +38,7 @@ use cat_file::CatFileArgs;
 use cat_index::CatIndexArgs;
 use clap::{Parser, Subcommand, ValueEnum};
 use create::CreateArgs;
+use dedupe::DedupeArgs;
 use dlx::DlxArgs;
 use exec::ExecArgs;
 use find_hash::FindHashArgs;
@@ -218,6 +220,8 @@ pub enum CliCommand {
     ApproveBuilds(ApproveBuildsArgs),
     /// Generates a pnpm-lock.yaml from an external lockfile
     Import(ImportArgs),
+    /// Deduplicate packages in the lockfile
+    Dedupe(DedupeArgs),
 }
 
 impl CliArgs {
@@ -303,6 +307,7 @@ impl CliArgs {
                 | CliCommand::Install(_)
                 | CliCommand::Dlx(_)
                 | CliCommand::Import(_)
+                | CliCommand::Dedupe(_)
                 | CliCommand::Create(_)
                 | CliCommand::Runtime(_)
                 // `rebuild` drives the frozen-install pipeline and emits
@@ -490,78 +495,88 @@ impl CliArgs {
                 }),
             },
             CliCommand::Install(args) => Box::pin(async move {
-                // CLI overrides for `offline` / `prefer_offline` live
-                // alongside `--frozen-lockfile`: they upgrade an
-                // unset / `false` yaml value to `true`, but cannot
-                // turn an explicit yaml `true` back off. Matches
-                // pnpm's CLI semantics — the flags are "enable", not
-                // a toggle. Applied here (between `config()` and
-                // `State::init`) while the loaded `Config` is still
-                // mutable through `Config::leak`'s
-                // `&'static mut Config` return.
-                let cfg = config()?;
-                cfg.offline = cfg.offline || args.offline;
-                cfg.prefer_offline = cfg.prefer_offline || args.prefer_offline;
-                cfg.frozen_store = cfg.frozen_store || args.frozen_store;
-                // `--ignore-scripts` enables (never toggles off) the
-                // config value, matching the "enable" CLI flags above.
-                cfg.ignore_scripts = cfg.ignore_scripts || args.ignore_scripts;
-                cfg.workspace_concurrency =
-                    args.resolve_workspace_concurrency(cfg.workspace_concurrency);
-                // Network overrides: a passed `--network-concurrency` /
-                // `--fetch-timeout` / `--user-agent` replaces the
-                // config-resolved value for this invocation, matching
-                // pnpm's "CLI wins" precedence.
-                if let Some(network_concurrency) = args.network_concurrency {
-                    cfg.network_concurrency = network_concurrency;
-                }
-                if let Some(fetch_timeout) = args.fetch_timeout {
-                    cfg.fetch_timeout = fetch_timeout;
-                }
-                if let Some(user_agent) = args.user_agent.clone() {
-                    cfg.user_agent = user_agent;
-                }
-                if let Some(pnpr_server) = args.pnpr_server.clone() {
-                    cfg.pnpr_server = Some(pnpr_server);
-                }
-                let require_lockfile = args.frozen_lockfile;
-                let frozen_lockfile = args.frozen_lockfile;
-                // Config dependencies are workspace-level state: their
-                // `.pnpm-config` and env lockfile live at the lockfile /
-                // workspace root, not the CLI cwd. Use the same root
-                // `State::init` uses (`config.workspace_dir`, set when a
-                // `pnpm-workspace.yaml` is found), falling back to `--dir`
-                // for a single-package repo. Owned so it doesn't hold a
-                // borrow of `cfg` across the `&mut` `updateConfig` pass.
-                let config_root = cfg.workspace_dir.clone().unwrap_or_else(|| dir_ref.clone());
-                let package_manager_to_sync =
-                    package_manager_to_sync(&config_root.join("package.json"), &config_root)
-                        .wrap_err("read package manager policy")?;
-                // Resolve + install configurational dependencies, then run
-                // their `updateConfig` plugin hooks, before the main
-                // install. The env lockfile must land at the top of
-                // `pnpm-lock.yaml` before `State::init` loads the wanted
-                // lockfile, and `updateConfig` must mutate `cfg` (still
-                // `&'static mut`) before it's frozen and the install reads
-                // it. Mirrors pnpm running both at config-finalization.
-                let pipeline = InstallPipeline {
-                    args,
-                    cfg,
-                    config_root,
-                    package_manager_to_sync,
-                    manifest_path: manifest_path_ref.clone(),
-                    require_lockfile,
-                    frozen_lockfile,
-                };
                 // Boxed for `clippy::large_stack_frames`: the three
                 // monomorphized install futures would otherwise each reserve
                 // their full size in this frame.
-                match reporter {
-                    ReporterType::Default | ReporterType::AppendOnly => {
-                        Box::pin(pipeline.run::<DefaultReporter>()).await?;
+                #[allow(
+                    clippy::large_stack_frames,
+                    reason = "the three monomorphized install futures would otherwise each reserve their full size in this frame"
+                )]
+                {
+                    // CLI overrides for `offline` / `prefer_offline` live
+                    // alongside `--frozen-lockfile`: they upgrade an
+                    // unset / `false` yaml value to `true`, but cannot
+                    // turn an explicit yaml `true` back off. Matches
+                    // pnpm's CLI semantics — the flags are "enable", not
+                    // a toggle. Applied here (between `config()` and
+                    // `State::init`) while the loaded `Config` is still
+                    // mutable through `Config::leak`'s
+                    // `&'static mut Config` return.
+                    let cfg = config()?;
+                    cfg.offline = cfg.offline || args.offline;
+                    cfg.prefer_offline = cfg.prefer_offline || args.prefer_offline;
+                    cfg.frozen_store = cfg.frozen_store || args.frozen_store;
+                    // `--ignore-scripts` enables (never toggles off) the
+                    // config value, matching the "enable" CLI flags above.
+                    cfg.ignore_scripts = cfg.ignore_scripts || args.ignore_scripts;
+                    cfg.workspace_concurrency =
+                        args.resolve_workspace_concurrency(cfg.workspace_concurrency);
+                    // Network overrides: a passed `--network-concurrency` /
+                    // `--fetch-timeout` / `--user-agent` replaces the
+                    // config-resolved value for this invocation, matching
+                    // pnpm's "CLI wins" precedence.
+                    if let Some(network_concurrency) = args.network_concurrency {
+                        cfg.network_concurrency = network_concurrency;
                     }
-                    ReporterType::Ndjson => Box::pin(pipeline.run::<NdjsonReporter>()).await?,
-                    ReporterType::Silent => Box::pin(pipeline.run::<SilentReporter>()).await?,
+                    if let Some(fetch_timeout) = args.fetch_timeout {
+                        cfg.fetch_timeout = fetch_timeout;
+                    }
+                    if let Some(user_agent) = args.user_agent.clone() {
+                        cfg.user_agent = user_agent;
+                    }
+                    if let Some(pnpr_server) = args.pnpr_server.clone() {
+                        cfg.pnpr_server = Some(pnpr_server);
+                    }
+                    let require_lockfile = args.frozen_lockfile;
+                    let frozen_lockfile = args.frozen_lockfile;
+                    // Config dependencies are workspace-level state: their
+                    // `.pnpm-config` and env lockfile live at the lockfile /
+                    // workspace root, not the CLI cwd. Use the same root
+                    // `State::init` uses (`config.workspace_dir`, set when a
+                    // `pnpm-workspace.yaml` is found), falling back to `--dir`
+                    // for a single-package repo. Owned so it doesn't hold a
+                    // borrow of `cfg` across the `&mut` `updateConfig` pass.
+                    let (config_root, package_manager_to_sync) =
+                        derive_config_root_and_package_manager_to_sync(cfg, dir_ref)
+                            .wrap_err("derive workspace root and package manager policy")?;
+                    // Resolve + install configurational dependencies, then
+                    // run their `updateConfig` plugin hooks, before the main
+                    // install. The env lockfile must land at the top of
+                    // `pnpm-lock.yaml` before `State::init` loads the wanted
+                    // lockfile, and `updateConfig` must mutate `cfg` (still
+                    // `&'static mut`) before it's frozen and the install
+                    // reads it. Mirrors pnpm running both at
+                    // config-finalization.
+                    let pipeline = InstallPipeline {
+                        args,
+                        cfg,
+                        config_root,
+                        package_manager_to_sync,
+                        manifest_path: manifest_path_ref.clone(),
+                        require_lockfile,
+                        frozen_lockfile,
+                    };
+                    match reporter {
+                        ReporterType::Default | ReporterType::AppendOnly => {
+                            Box::pin(pipeline.run::<DefaultReporter>()).await?;
+                        }
+                        ReporterType::Ndjson => {
+                            Box::pin(pipeline.run::<NdjsonReporter>()).await?;
+                        }
+                        ReporterType::Silent => {
+                            Box::pin(pipeline.run::<SilentReporter>()).await?;
+                        }
+                    }
                 }
                 Ok(())
             }),
@@ -645,6 +660,27 @@ impl CliArgs {
                 args.run(|| config().map(|m| &*m))?;
                 Box::pin(std::future::ready(Ok(())))
             }
+            CliCommand::Dedupe(args) => Box::pin(async move {
+                let cfg = config()?;
+                let (config_root, package_manager_to_sync) =
+                    derive_config_root_and_package_manager_to_sync(cfg, dir_ref)
+                        .wrap_err("derive workspace root and package manager policy")?;
+                let dedupe = DedupePipeline {
+                    args,
+                    cfg,
+                    config_root,
+                    package_manager_to_sync,
+                    manifest_path: manifest_path_ref.clone(),
+                };
+                match reporter {
+                    ReporterType::Default | ReporterType::AppendOnly => {
+                        Box::pin(dedupe.run::<DefaultReporter>()).await?;
+                    }
+                    ReporterType::Ndjson => Box::pin(dedupe.run::<NdjsonReporter>()).await?,
+                    ReporterType::Silent => Box::pin(dedupe.run::<SilentReporter>()).await?,
+                }
+                Ok(())
+            }),
             CliCommand::Import(args) => {
                 let command_state = state(false)?;
                 match reporter {
@@ -754,6 +790,64 @@ impl InstallPipeline {
         let state =
             State::init(manifest_path, cfg, require_lockfile).wrap_err("initialize the state")?;
         args.run::<Reporter>(state).await
+    }
+}
+
+/// Shared workspace-root and package-manager policy derivation used by both
+/// the install and dedupe dispatch paths.
+fn derive_config_root_and_package_manager_to_sync(
+    cfg: &Config,
+    dir_ref: &Path,
+) -> miette::Result<(PathBuf, Option<PackageManagerToSync>)> {
+    let config_root = cfg.workspace_dir.clone().unwrap_or_else(|| dir_ref.to_path_buf());
+    let package_manager_to_sync =
+        package_manager_to_sync(&config_root.join("package.json"), &config_root)
+            .wrap_err("read package manager policy")?;
+    Ok((config_root, package_manager_to_sync))
+}
+
+/// The reporter-generic body of `pacquet dedupe`: snapshots the lockfile
+/// (when `--check`), runs config-dependency installation and `updateConfig`
+/// hooks, then dispatches to the install pipeline. The snapshot wraps the
+/// entire pipeline so any lockfile write made by config-deps is also covered
+/// by the check gate.
+struct DedupePipeline {
+    args: DedupeArgs,
+    cfg: &'static mut Config,
+    config_root: PathBuf,
+    package_manager_to_sync: Option<PackageManagerToSync>,
+    manifest_path: PathBuf,
+}
+
+impl DedupePipeline {
+    async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
+        let DedupePipeline { args, cfg, config_root, package_manager_to_sync, manifest_path } =
+            self;
+
+        let lockfile_path = config_root.join(pacquet_lockfile::Lockfile::FILE_NAME);
+
+        // Snapshot before any config-dep writes so --check detects lockfile
+        // changes made by config-dependency syncing as well.
+        let existing =
+            if args.check { dedupe::read_lockfile_snapshot(&lockfile_path)? } else { None };
+        let guard =
+            args.check.then(|| dedupe::LockfileGuard::new(existing.clone(), &lockfile_path));
+
+        if let Some(pm) = package_manager_to_sync.as_ref() {
+            config_deps::sync_package_manager_dependencies(
+                cfg,
+                &config_root,
+                &pm.specifier,
+                &pm.version,
+                false,
+            )
+            .await?;
+        }
+        config_deps::install_config_deps::<Reporter>(cfg, &config_root, false).await?;
+        config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
+        let cfg: &'static Config = cfg;
+        let state = State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
+        args.run::<Reporter>(state, existing, guard, &lockfile_path).await
     }
 }
 
