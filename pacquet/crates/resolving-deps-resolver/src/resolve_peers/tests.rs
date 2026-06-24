@@ -749,6 +749,7 @@ fn final_graph_keeps_first_equal_depth_payload_and_unions_transitive_peers() {
         NodeRecord {
             edges: BTreeMap::from([("peer".to_string(), second_child)]),
             peer_edges: HashSet::new(),
+            optional_child_aliases: HashSet::new(),
             transitive_peer_dependencies: HashSet::from(["debug".to_string()]),
             depth: 1,
             installable: true,
@@ -761,6 +762,7 @@ fn final_graph_keeps_first_equal_depth_payload_and_unions_transitive_peers() {
         NodeRecord {
             edges: BTreeMap::from([("peer".to_string(), first_child)]),
             peer_edges: HashSet::new(),
+            optional_child_aliases: HashSet::new(),
             transitive_peer_dependencies: HashSet::new(),
             depth: 1,
             installable: true,
@@ -816,6 +818,7 @@ fn final_graph_duplicate_parent_prefers_child_variant_matching_parent_peers() {
         NodeRecord {
             edges: BTreeMap::from([("webpack-cli".to_string(), first_child.clone())]),
             peer_edges: HashSet::new(),
+            optional_child_aliases: HashSet::new(),
             transitive_peer_dependencies: HashSet::new(),
             depth: 1,
             installable: true,
@@ -828,6 +831,7 @@ fn final_graph_duplicate_parent_prefers_child_variant_matching_parent_peers() {
         NodeRecord {
             edges: BTreeMap::from([("webpack-cli".to_string(), second_child.clone())]),
             peer_edges: HashSet::new(),
+            optional_child_aliases: HashSet::new(),
             transitive_peer_dependencies: HashSet::new(),
             depth: 1,
             installable: true,
@@ -909,6 +913,7 @@ fn final_graph_peer_edge_uses_provider_variant_without_unavailable_extra_peers()
         NodeRecord {
             edges: BTreeMap::new(),
             peer_edges: HashSet::new(),
+            optional_child_aliases: HashSet::new(),
             transitive_peer_dependencies: HashSet::new(),
             depth: 0,
             installable: true,
@@ -921,6 +926,7 @@ fn final_graph_peer_edge_uses_provider_variant_without_unavailable_extra_peers()
         NodeRecord {
             edges: BTreeMap::new(),
             peer_edges: HashSet::new(),
+            optional_child_aliases: HashSet::new(),
             transitive_peer_dependencies: HashSet::new(),
             depth: 0,
             installable: true,
@@ -933,6 +939,7 @@ fn final_graph_peer_edge_uses_provider_variant_without_unavailable_extra_peers()
         NodeRecord {
             edges: BTreeMap::from([("webpack-cli".to_string(), provider_analyzer.clone())]),
             peer_edges: HashSet::from(["webpack-dev-server".to_string(), "webpack".to_string()]),
+            optional_child_aliases: HashSet::new(),
             transitive_peer_dependencies: HashSet::new(),
             depth: 1,
             installable: true,
@@ -1037,6 +1044,7 @@ fn final_graph_peer_edge_keeps_provider_transitive_peer_suffixes() {
         NodeRecord {
             edges: BTreeMap::new(),
             peer_edges: HashSet::new(),
+            optional_child_aliases: HashSet::new(),
             transitive_peer_dependencies: HashSet::from([
                 "bufferutil".to_string(),
                 "tslib".to_string(),
@@ -1057,6 +1065,7 @@ fn final_graph_peer_edge_keeps_provider_transitive_peer_suffixes() {
                 "webpack-bundle-analyzer".to_string(),
                 "webpack-dev-server".to_string(),
             ]),
+            optional_child_aliases: HashSet::new(),
             transitive_peer_dependencies: HashSet::new(),
             depth: 0,
             installable: true,

@@ -116,6 +116,26 @@ fn update_bumps_within_range() {
     drop((root, anchor));
 }
 
+#[test]
+fn update_runs_with_ndjson_and_silent_reporters() {
+    for reporter in ["--reporter=ndjson", "--reporter=silent"] {
+        let (root, workspace, anchor) = setup();
+
+        write_manifest(&workspace, &format!(r#"{{ "{DEP}": "100.0.0" }}"#));
+        pacquet(&workspace, ["install"]).assert().success();
+        write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+
+        pacquet(&workspace, [reporter, "update"]).assert().success();
+
+        assert!(
+            virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"),
+            "update should bump the dependency when running with {reporter}",
+        );
+
+        drop((root, anchor));
+    }
+}
+
 /// Mixing a transitive selector with a direct dependency selector must
 /// still update the matching transitive package. Ports pnpm's regression
 /// test for <https://github.com/pnpm/pnpm/issues/12103>, where a direct

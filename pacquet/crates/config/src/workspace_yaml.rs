@@ -194,6 +194,8 @@ pub struct WorkspaceSettings {
     /// [`BTreeMap`]: std::collections::BTreeMap
     pub patched_dependencies: Option<IndexMap<String, String>>,
 
+    pub patches_dir: Option<String>,
+
     /// `configDependencies` from `pnpm-workspace.yaml`: package name →
     /// version-with-integrity spec. pnpm records this verbatim in the
     /// workspace-state file so that `checkDepsStatus` can detect when a
@@ -685,6 +687,7 @@ impl WorkspaceSettings {
         substitute_optional_string::<Sys>(&mut self.global_virtual_store_dir);
         substitute_optional_string::<Sys>(&mut self.user_agent);
         substitute_optional_string::<Sys>(&mut self.npmrc_auth_file);
+        substitute_optional_string::<Sys>(&mut self.patches_dir);
         substitute_optional_string::<Sys>(&mut self.cache_dir);
         substitute_optional_inner_string::<Sys>(&mut self.script_shell);
         substitute_optional_inner_string::<Sys>(&mut self.node_options);
@@ -788,6 +791,9 @@ impl WorkspaceSettings {
         config.workspace_dir = Some(base_dir.to_path_buf());
         if let Some(v) = self.patched_dependencies {
             config.patched_dependencies = Some(v);
+        }
+        if let Some(v) = self.patches_dir {
+            config.patches_dir = Some(v);
         }
         if let Some(v) = self.config_dependencies {
             config.config_dependencies = Some(v);

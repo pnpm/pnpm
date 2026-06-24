@@ -781,7 +781,7 @@ fn walk_subgraph<'g>(
 /// depNode.peerDependencies[child.alias]?.optional === true` in
 /// [`updateLockfile`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/updateLockfile.ts#L28-L31).
 fn optional_children_of(node: &DependenciesGraphNode) -> HashSet<String> {
-    let mut out: HashSet<String> = HashSet::new();
+    let mut out: HashSet<String> = node.optional_children.clone();
     if let Some(manifest) = node.resolve_result.manifest.as_ref()
         && let Some(map) = manifest.get("optionalDependencies").and_then(Value::as_object)
     {

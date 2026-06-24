@@ -25,6 +25,8 @@ pub(crate) struct Manifest {
     /// of an already-present value (and kept in sync as entries are
     /// upserted during a single `pnpm approve-builds` write).
     pub(crate) allow_builds: Option<IndexMap<String, bool>>,
+    /// `patchedDependencies:` entries, keyed by `name[@version]`.
+    pub(crate) patched_dependencies: Option<IndexMap<String, String>>,
 }
 
 #[derive(Default, Deserialize)]
@@ -37,6 +39,8 @@ struct CatalogData {
     config_dependencies: Option<IndexMap<String, ConfigDepValue>>,
     #[serde(default, rename = "allowBuilds")]
     allow_builds: Option<IndexMap<String, AllowBuildValue>>,
+    #[serde(default, rename = "patchedDependencies")]
+    patched_dependencies: Option<IndexMap<String, String>>,
 }
 
 /// An `allowBuilds` value, tolerant of the string form pnpm also accepts
@@ -75,6 +79,7 @@ impl Manifest {
                 catalogs: None,
                 config_dependencies: None,
                 allow_builds: None,
+                patched_dependencies: None,
             });
         }
 
@@ -109,6 +114,7 @@ impl Manifest {
             catalogs: data.catalogs,
             config_dependencies,
             allow_builds,
+            patched_dependencies: data.patched_dependencies,
         })
     }
 

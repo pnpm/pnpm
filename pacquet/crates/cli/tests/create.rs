@@ -6,22 +6,29 @@ use pacquet_testing_utils::bin::CommandTempCwd;
 /// `create`, which throws `ERR_PNPM_MISSING_ARGS` when given no arguments.
 #[test]
 fn create_errors_when_no_name_given() {
-    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+    for reporter in [None, Some("--reporter=ndjson"), Some("--reporter=silent")] {
+        let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
 
-    let output = pacquet.with_arg("create").output().expect("spawn pacquet create");
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    eprintln!("STDERR:\n{stderr}\n");
-    assert!(!output.status.success(), "create with no name must fail");
-    assert!(
-        stderr.contains("ERR_PNPM_MISSING_ARGS"),
-        "stderr must contain the pnpm-compatible error code",
-    );
-    assert!(
-        stderr.contains("Missing the template package name"),
-        "stderr must contain the human-readable message",
-    );
+        let mut command = pacquet;
+        if let Some(reporter) = reporter {
+            command.arg(reporter);
+        }
+        command.arg("create");
+        let output = command.output().expect("spawn pacquet create");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        eprintln!("STDERR:\n{stderr}\n");
+        assert!(!output.status.success(), "create with no name must fail");
+        assert!(
+            stderr.contains("ERR_PNPM_MISSING_ARGS"),
+            "stderr must contain the pnpm-compatible error code",
+        );
+        assert!(
+            stderr.contains("Missing the template package name"),
+            "stderr must contain the human-readable message",
+        );
 
-    drop(root);
+        drop(root);
+    }
 }
 
 /// `pacquet create <name>` converts the name to `create-<name>` and

@@ -10,6 +10,10 @@ pub mod find_hash;
 pub mod ignored_builds;
 pub mod install;
 pub mod outdated;
+pub mod patch;
+pub mod patch_commit;
+pub mod patch_remove;
+pub(crate) mod patch_state;
 pub mod rebuild;
 pub mod recursive;
 pub mod remove;
@@ -46,6 +50,9 @@ use pacquet_package_manifest::PackageManifest;
 use pacquet_reporter::{
     ExecutionTimeLog, LogEvent, LogLevel, NdjsonReporter, Reporter, SilentReporter,
 };
+use patch::PatchArgs;
+use patch_commit::PatchCommitArgs;
+use patch_remove::PatchRemoveArgs;
 use rebuild::RebuildArgs;
 use remove::RemoveArgs;
 use restart::RestartArgs;
@@ -54,8 +61,10 @@ use runtime::RuntimeArgs;
 use serde_json::Value;
 use std::{
     fs,
+    future::Future,
     io::ErrorKind,
     path::{Path, PathBuf},
+    pin::Pin,
 };
 use stop::StopArgs;
 use store::StoreCommand;
@@ -136,6 +145,8 @@ pub enum ReporterType {
     Silent,
 }
 
+type CommandFuture<'a> = Pin<Box<dyn Future<Output = miette::Result<()>> + Send + 'a>>;
+
 #[derive(Debug, Subcommand)]
 pub enum CliCommand {
     /// Initialize a package.json
@@ -159,6 +170,14 @@ pub enum CliCommand {
     // confusion with "run" and "recursive". Mirrors pnpm's `commandNames`.
     #[clap(visible_aliases = ["uninstall", "rm", "un", "uni"])]
     Remove(RemoveArgs),
+    /// Prepare a package for patching.
+    Patch(PatchArgs),
+    /// Generate a patch out of a directory.
+    #[clap(name = "patch-commit")]
+    PatchCommit(PatchCommitArgs),
+    /// Remove existing patch files.
+    #[clap(name = "patch-remove")]
+    PatchRemove(PatchRemoveArgs),
     /// Runs a package's "test" script, if one was provided.
     Test,
     /// Runs a defined package script.
@@ -280,9 +299,11 @@ impl CliArgs {
                 // `rebuild` drives the frozen-install pipeline and emits
                 // the same progress events, so it shares the `Done in ...`
                 // footer.
-                | CliCommand::Rebuild(_),
+                | CliCommand::Rebuild(_)
+                | CliCommand::PatchCommit(_)
+                | CliCommand::PatchRemove(_),
         );
-        let manifest_path = || dir.join("package.json");
+        let manifest_path = dir.join("package.json");
         // Resolve `.npmrc` / `pnpm-workspace.yaml` from the canonicalized
         // `--dir` rather than the process cwd, matching pnpm 11 (which
         // builds its `localPrefix` from `cliOptions.dir`, not `cwd`) —
@@ -324,49 +345,142 @@ impl CliArgs {
         // must not be silently dropped because `lockfile=false` was set
         // (or defaulted) in config.
         let state = |require_lockfile: bool| -> miette::Result<State> {
-            State::init(manifest_path(), config()?, require_lockfile)
+            State::init(manifest_path.clone(), config()?, require_lockfile)
                 .wrap_err("initialize the state")
         };
 
-        match command {
+        let dir_ref = &dir;
+        let manifest_path_ref = &manifest_path;
+        let command_future: CommandFuture<'_> = match command {
             CliCommand::Init => {
-                PackageManifest::init(&manifest_path()).wrap_err("initialize package.json")?;
+                let result =
+                    PackageManifest::init(manifest_path_ref).wrap_err("initialize package.json");
+                Box::pin(std::future::ready(result))
             }
-            CliCommand::Add(args) => match reporter {
-                ReporterType::Default | ReporterType::AppendOnly => {
-                    Box::pin(args.run::<DefaultReporter>(state(false)?)).await?;
+            CliCommand::Add(args) => {
+                let command_state = state(false)?;
+                match reporter {
+                    ReporterType::Default | ReporterType::AppendOnly => {
+                        Box::pin(args.run::<DefaultReporter>(command_state))
+                    }
+                    ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(command_state)),
+                    ReporterType::Silent => Box::pin(args.run::<SilentReporter>(command_state)),
                 }
-                ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(state(false)?)).await?,
-                ReporterType::Silent => Box::pin(args.run::<SilentReporter>(state(false)?)).await?,
-            },
-            CliCommand::Update(args) => match reporter {
-                ReporterType::Default | ReporterType::AppendOnly => {
-                    Box::pin(args.run::<DefaultReporter>(state(false)?)).await?;
+            }
+            CliCommand::Update(args) => {
+                let command_state = state(false)?;
+                match reporter {
+                    ReporterType::Default | ReporterType::AppendOnly => {
+                        Box::pin(args.run::<DefaultReporter>(command_state))
+                    }
+                    ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(command_state)),
+                    ReporterType::Silent => Box::pin(args.run::<SilentReporter>(command_state)),
                 }
-                ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(state(false)?)).await?,
-                ReporterType::Silent => Box::pin(args.run::<SilentReporter>(state(false)?)).await?,
-            },
+            }
             // `outdated` is a read-only query: it prints a report to
             // stdout and never installs, so it has no reporter-typed
             // install pipeline to dispatch on. It reports back whether any
             // dependency was outdated; process termination stays here, at
             // the top-level harness, rather than inside the command.
             CliCommand::Outdated(args) => {
-                if args.run(state(false)?).await? == OutdatedOutcome::Outdated {
-                    std::process::exit(1);
+                let command_state = state(false)?;
+                Box::pin(async move {
+                    if args.run(command_state).await? == OutdatedOutcome::Outdated {
+                        std::process::exit(1);
+                    }
+                    Ok(())
+                })
+            }
+            CliCommand::Why(args) => Box::pin(args.run(state(true)?)),
+            CliCommand::Remove(args) => {
+                let command_state = state(false)?;
+                match reporter {
+                    ReporterType::Default | ReporterType::AppendOnly => {
+                        Box::pin(args.run::<DefaultReporter>(command_state))
+                    }
+                    ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(command_state)),
+                    ReporterType::Silent => Box::pin(args.run::<SilentReporter>(command_state)),
                 }
             }
-            CliCommand::Why(args) => {
-                args.run(state(true)?).await?;
-            }
-            CliCommand::Remove(args) => match reporter {
-                ReporterType::Default | ReporterType::AppendOnly => {
-                    Box::pin(args.run::<DefaultReporter>(state(false)?)).await?;
+            CliCommand::Patch(args) => {
+                let command_state = state(false)?;
+                match reporter {
+                    ReporterType::Default | ReporterType::AppendOnly => Box::pin(async move {
+                        args.run::<DefaultReporter>(dir_ref, command_state).await?;
+                        Ok(())
+                    }),
+                    ReporterType::Ndjson => Box::pin(async move {
+                        args.run::<NdjsonReporter>(dir_ref, command_state).await?;
+                        Ok(())
+                    }),
+                    ReporterType::Silent => Box::pin(async move {
+                        args.run::<SilentReporter>(dir_ref, command_state).await?;
+                        Ok(())
+                    }),
                 }
-                ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(state(false)?)).await?,
-                ReporterType::Silent => Box::pin(args.run::<SilentReporter>(state(false)?)).await?,
+            }
+            CliCommand::PatchCommit(args) => match reporter {
+                ReporterType::Default | ReporterType::AppendOnly => Box::pin(async move {
+                    if Box::pin(args.run::<DefaultReporter>(dir_ref, state(false)?)).await? {
+                        Box::pin(
+                            InstallArgs::for_patch_manifest_change()
+                                .run::<DefaultReporter>(state(false)?),
+                        )
+                        .await?;
+                    }
+                    Ok(())
+                }),
+                ReporterType::Ndjson => Box::pin(async move {
+                    if Box::pin(args.run::<NdjsonReporter>(dir_ref, state(false)?)).await? {
+                        Box::pin(
+                            InstallArgs::for_patch_manifest_change()
+                                .run::<NdjsonReporter>(state(false)?),
+                        )
+                        .await?;
+                    }
+                    Ok(())
+                }),
+                ReporterType::Silent => Box::pin(async move {
+                    if Box::pin(args.run::<SilentReporter>(dir_ref, state(false)?)).await? {
+                        Box::pin(
+                            InstallArgs::for_patch_manifest_change()
+                                .run::<SilentReporter>(state(false)?),
+                        )
+                        .await?;
+                    }
+                    Ok(())
+                }),
             },
-            CliCommand::Install(args) => {
+            CliCommand::PatchRemove(args) => match reporter {
+                ReporterType::Default | ReporterType::AppendOnly => Box::pin(async move {
+                    Box::pin(args.run(dir_ref, state(false)?)).await?;
+                    Box::pin(
+                        InstallArgs::for_patch_manifest_change()
+                            .run::<DefaultReporter>(state(false)?),
+                    )
+                    .await?;
+                    Ok(())
+                }),
+                ReporterType::Ndjson => Box::pin(async move {
+                    Box::pin(args.run(dir_ref, state(false)?)).await?;
+                    Box::pin(
+                        InstallArgs::for_patch_manifest_change()
+                            .run::<NdjsonReporter>(state(false)?),
+                    )
+                    .await?;
+                    Ok(())
+                }),
+                ReporterType::Silent => Box::pin(async move {
+                    Box::pin(args.run(dir_ref, state(false)?)).await?;
+                    Box::pin(
+                        InstallArgs::for_patch_manifest_change()
+                            .run::<SilentReporter>(state(false)?),
+                    )
+                    .await?;
+                    Ok(())
+                }),
+            },
+            CliCommand::Install(args) => Box::pin(async move {
                 // CLI overrides for `offline` / `prefer_offline` live
                 // alongside `--frozen-lockfile`: they upgrade an
                 // unset / `false` yaml value to `true`, but cannot
@@ -410,7 +524,7 @@ impl CliArgs {
                 // `pnpm-workspace.yaml` is found), falling back to `--dir`
                 // for a single-package repo. Owned so it doesn't hold a
                 // borrow of `cfg` across the `&mut` `updateConfig` pass.
-                let config_root = cfg.workspace_dir.clone().unwrap_or_else(|| dir.clone());
+                let config_root = cfg.workspace_dir.clone().unwrap_or_else(|| dir_ref.clone());
                 let package_manager_to_sync =
                     package_manager_to_sync(&config_root.join("package.json"), &config_root)
                         .wrap_err("read package manager policy")?;
@@ -426,7 +540,7 @@ impl CliArgs {
                     cfg,
                     config_root,
                     package_manager_to_sync,
-                    manifest_path: manifest_path(),
+                    manifest_path: manifest_path_ref.clone(),
                     require_lockfile,
                     frozen_lockfile,
                 };
@@ -440,132 +554,130 @@ impl CliArgs {
                     ReporterType::Ndjson => Box::pin(pipeline.run::<NdjsonReporter>()).await?,
                     ReporterType::Silent => Box::pin(pipeline.run::<SilentReporter>()).await?,
                 }
-            }
+                Ok(())
+            }),
             CliCommand::Test => {
-                let manifest = PackageManifest::from_path(manifest_path())
+                let manifest = PackageManifest::from_path(manifest_path_ref.clone())
                     .wrap_err("getting the package.json in current directory")?;
                 if let Some(script) = manifest.script("test", false)? {
                     execute_shell(script).wrap_err(format!("executing command: \"{script}\""))?;
                 }
+                Box::pin(std::future::ready(Ok(())))
             }
             CliCommand::Run(args) => {
                 if recursive {
-                    args.run_recursive(config()?, &dir)?;
+                    args.run_recursive(config()?, dir_ref)?;
                 } else {
-                    args.run(&dir, config()?, matches!(reporter, ReporterType::Silent))?;
+                    args.run(dir_ref, config()?, matches!(reporter, ReporterType::Silent))?;
                 }
+                Box::pin(std::future::ready(Ok(())))
             }
             CliCommand::Exec(args) => {
                 if recursive {
-                    args.run_recursive(config()?, &dir)?;
+                    args.run_recursive(config()?, dir_ref)?;
                 } else {
-                    args.run(&dir, config()?)?;
+                    args.run(dir_ref, config()?)?;
                 }
+                Box::pin(std::future::ready(Ok(())))
             }
             CliCommand::Dlx(args) => match reporter {
                 ReporterType::Default | ReporterType::AppendOnly => {
-                    Box::pin(args.run::<DefaultReporter>(&dir, config()?)).await?;
+                    Box::pin(args.run::<DefaultReporter>(dir_ref, config()?))
                 }
-                ReporterType::Ndjson => {
-                    Box::pin(args.run::<NdjsonReporter>(&dir, config()?)).await?;
-                }
-                ReporterType::Silent => {
-                    Box::pin(args.run::<SilentReporter>(&dir, config()?)).await?;
-                }
+                ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(dir_ref, config()?)),
+                ReporterType::Silent => Box::pin(args.run::<SilentReporter>(dir_ref, config()?)),
             },
             CliCommand::Create(args) => match reporter {
                 ReporterType::Default | ReporterType::AppendOnly => {
-                    Box::pin(args.run::<DefaultReporter>(&dir, config()?)).await?;
+                    Box::pin(args.run::<DefaultReporter>(dir_ref, config()?))
                 }
-                ReporterType::Ndjson => {
-                    Box::pin(args.run::<NdjsonReporter>(&dir, config()?)).await?;
-                }
-                ReporterType::Silent => {
-                    Box::pin(args.run::<SilentReporter>(&dir, config()?)).await?;
-                }
+                ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(dir_ref, config()?)),
+                ReporterType::Silent => Box::pin(args.run::<SilentReporter>(dir_ref, config()?)),
             },
             CliCommand::Start => {
-                let manifest = PackageManifest::from_path(manifest_path())
+                let manifest = PackageManifest::from_path(manifest_path_ref.clone())
                     .wrap_err("getting the package.json in current directory")?;
                 let command = manifest.script("start", true)?.unwrap_or("node server.js");
                 execute_shell(command).wrap_err(format!("executing command: \"{command}\""))?;
+                Box::pin(std::future::ready(Ok(())))
             }
             CliCommand::Stop(args) => {
-                args.run(&dir, config()?, matches!(reporter, ReporterType::Silent))?;
+                args.run(dir_ref, config()?, matches!(reporter, ReporterType::Silent))?;
+                Box::pin(std::future::ready(Ok(())))
             }
             CliCommand::Restart(args) => {
-                args.run(&dir, config()?, matches!(reporter, ReporterType::Silent))?;
+                args.run(dir_ref, config()?, matches!(reporter, ReporterType::Silent))?;
+                Box::pin(std::future::ready(Ok(())))
             }
             CliCommand::FindHash(args) => {
                 args.run(|| config().map(|m| &*m))?;
+                Box::pin(std::future::ready(Ok(())))
             }
             CliCommand::Runtime(args) => {
                 args.reject_unsupported_global()?;
+                let command_state = state(false)?;
                 match reporter {
                     ReporterType::Default | ReporterType::AppendOnly => {
-                        Box::pin(args.run::<DefaultReporter>(state(false)?)).await?;
+                        Box::pin(args.run::<DefaultReporter>(command_state))
                     }
-                    ReporterType::Ndjson => {
-                        Box::pin(args.run::<NdjsonReporter>(state(false)?)).await?;
-                    }
-                    ReporterType::Silent => {
-                        Box::pin(args.run::<SilentReporter>(state(false)?)).await?;
-                    }
+                    ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(command_state)),
+                    ReporterType::Silent => Box::pin(args.run::<SilentReporter>(command_state)),
                 }
             }
-            CliCommand::Store(command) => command.run(|| config().map(|m| &*m))?,
-            CliCommand::Cache(command) => command.run(config()?)?,
+            CliCommand::Store(command) => {
+                command.run(|| config().map(|m| &*m))?;
+                Box::pin(std::future::ready(Ok(())))
+            }
+            CliCommand::Cache(command) => {
+                command.run(config()?)?;
+                Box::pin(std::future::ready(Ok(())))
+            }
             CliCommand::CatFile(args) => {
                 args.run(|| config().map(|m| &*m))?;
+                Box::pin(std::future::ready(Ok(())))
             }
-            CliCommand::CatIndex(args) => {
-                args.run(&dir, || config().map(|m| &*m)).await?;
-            }
+            CliCommand::CatIndex(args) => Box::pin(async move {
+                args.run(dir_ref, || config().map(|m| &*m)).await?;
+                Ok(())
+            }),
             CliCommand::IgnoredBuilds(_) => {
                 let output = ignored_builds::render_ignored_builds(config()?)?;
                 print!("{output}");
+                Box::pin(std::future::ready(Ok(())))
             }
             CliCommand::Rebuild(args) => match reporter {
                 ReporterType::Default | ReporterType::AppendOnly => {
-                    Box::pin(args.run::<DefaultReporter>(state(true)?)).await?;
+                    Box::pin(args.run::<DefaultReporter>(state(true)?))
                 }
-                ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(state(true)?)).await?,
-                ReporterType::Silent => Box::pin(args.run::<SilentReporter>(state(true)?)).await?,
+                ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(state(true)?)),
+                ReporterType::Silent => Box::pin(args.run::<SilentReporter>(state(true)?)),
             },
             CliCommand::ApproveBuilds(args) => {
                 // The settings/prompt work is synchronous; only the rebuild
                 // is async, so the non-`Send` `config` / `state` closures
                 // stay out of the awaited future.
                 if let Some((rebuild_state, build_packages)) =
-                    args.prepare(&dir, &config, &state)?
+                    args.prepare(dir_ref, &config, &state)?
                 {
                     let selected = Some(build_packages);
                     match reporter {
-                        ReporterType::Default | ReporterType::AppendOnly => {
-                            Box::pin(rebuild::run_rebuild::<DefaultReporter>(
-                                &rebuild_state,
-                                selected,
-                            ))
-                            .await?;
-                        }
-                        ReporterType::Ndjson => {
-                            Box::pin(rebuild::run_rebuild::<NdjsonReporter>(
-                                &rebuild_state,
-                                selected,
-                            ))
-                            .await?;
-                        }
-                        ReporterType::Silent => {
-                            Box::pin(rebuild::run_rebuild::<SilentReporter>(
-                                &rebuild_state,
-                                selected,
-                            ))
-                            .await?;
-                        }
+                        ReporterType::Default | ReporterType::AppendOnly => Box::pin(async move {
+                            rebuild::run_rebuild::<DefaultReporter>(&rebuild_state, selected).await
+                        }),
+                        ReporterType::Ndjson => Box::pin(async move {
+                            rebuild::run_rebuild::<NdjsonReporter>(&rebuild_state, selected).await
+                        }),
+                        ReporterType::Silent => Box::pin(async move {
+                            rebuild::run_rebuild::<SilentReporter>(&rebuild_state, selected).await
+                        }),
                     }
+                } else {
+                    Box::pin(std::future::ready(Ok(())))
                 }
             }
-        }
+        };
+
+        command_future.await?;
 
         // The `Done in ...` footer covers the whole command, mirroring pnpm's
         // `pnpm:execution-time` emit in `main.ts`. Only the install-family

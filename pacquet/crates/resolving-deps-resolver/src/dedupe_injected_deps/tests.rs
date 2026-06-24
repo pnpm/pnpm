@@ -27,6 +27,7 @@ fn make_node(id: &str, children: BTreeMap<String, DepPath>) -> DependenciesGraph
             policy_violation: None,
         }),
         children,
+        optional_children: HashSet::new(),
         peer_dependencies: BTreeMap::new(),
         transitive_peer_dependencies: HashSet::new(),
         resolved_peer_names: HashSet::new(),

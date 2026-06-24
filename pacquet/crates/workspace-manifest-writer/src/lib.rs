@@ -25,6 +25,7 @@ use std::{
 };
 
 use derive_more::{Display, Error};
+use indexmap::IndexMap;
 use miette::Diagnostic;
 use pacquet_catalogs_types::Catalogs;
 
@@ -76,6 +77,14 @@ pub enum UpdateWorkspaceManifestError {
         #[error(source)]
         source: io::Error,
     },
+
+    #[display("Failed to remove {path:?}: {source}")]
+    #[diagnostic(code(pacquet_workspace_manifest_writer::remove))]
+    Remove {
+        path: std::path::PathBuf,
+        #[error(source)]
+        source: io::Error,
+    },
 }
 
 /// Merge `updated_catalogs` into `dir`'s `pnpm-workspace.yaml`, writing the
@@ -101,8 +110,7 @@ pub fn update_workspace_manifest(
         return Ok(());
     }
 
-    write_atomic(&path, &manifest.into_text())
-        .map_err(|source| UpdateWorkspaceManifestError::Write { path, source })
+    write_or_remove_manifest(&path, manifest)
 }
 
 /// Write a `name → specifier` entry into `dir`'s `pnpm-workspace.yaml`
@@ -132,8 +140,7 @@ pub fn set_config_dependency(
         return Ok(());
     }
 
-    write_atomic(&path, &manifest.into_text())
-        .map_err(|source| UpdateWorkspaceManifestError::Write { path, source })
+    write_or_remove_manifest(&path, manifest)
 }
 
 /// Upsert `name → bool` entries into `dir`'s `pnpm-workspace.yaml`
@@ -170,8 +177,53 @@ where
         return Ok(());
     }
 
-    write_atomic(&path, &manifest.into_text())
-        .map_err(|source| UpdateWorkspaceManifestError::Write { path, source })
+    write_or_remove_manifest(&path, manifest)
+}
+
+/// Merge `patched_dependencies` into `dir`'s `pnpm-workspace.yaml`
+/// `patchedDependencies:` block, preserving the rest of the document's
+/// formatting.
+pub fn set_patched_dependencies(
+    dir: &Path,
+    patched_dependencies: &IndexMap<String, String>,
+) -> Result<(), UpdateWorkspaceManifestError> {
+    let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
+
+    let original = match fs::read_to_string(&path) {
+        Ok(text) => Some(text),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
+        Err(source) => return Err(UpdateWorkspaceManifestError::Read { path, source }),
+    };
+
+    let mut manifest = Manifest::parse(original.as_deref())
+        .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
+
+    let changed = edit::add_patched_dependencies(&mut manifest, patched_dependencies)
+        .map_err(|source| UpdateWorkspaceManifestError::Edit { path: path.clone(), source })?;
+    if !changed {
+        return Ok(());
+    }
+
+    write_or_remove_manifest(&path, manifest)
+}
+
+fn write_or_remove_manifest(
+    path: &Path,
+    manifest: Manifest,
+) -> Result<(), UpdateWorkspaceManifestError> {
+    if manifest.top_level_keys.is_empty() {
+        match fs::remove_file(path) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+            Err(source) => {
+                Err(UpdateWorkspaceManifestError::Remove { path: path.to_path_buf(), source })
+            }
+        }
+    } else {
+        write_atomic(path, &manifest.into_text()).map_err(|source| {
+            UpdateWorkspaceManifestError::Write { path: path.to_path_buf(), source }
+        })
+    }
 }
 
 /// Write `contents` to `path` atomically: a sibling temp file in the same
