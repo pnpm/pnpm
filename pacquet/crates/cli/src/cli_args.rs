@@ -922,10 +922,10 @@ impl PrunePipeline {
         // path outside the workspace) before any destructive work begins.
         let workspace_root = cfg.workspace_dir.clone().unwrap_or_else(|| PathBuf::from("/"));
         if !cfg.modules_dir.starts_with(&workspace_root) {
+            let modules_dir = cfg.modules_dir.display();
+            let wr = workspace_root.display();
             return Err(miette::miette!(
-                "refusing prune: modules_dir ({}) is outside workspace root ({})",
-                cfg.modules_dir.display(),
-                workspace_root.display(),
+                "refusing prune: modules_dir ({modules_dir}) is outside workspace root ({wr})",
             ));
         }
         // Apply prune-specific overrides after hooks so that:
