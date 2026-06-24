@@ -1,3 +1,4 @@
+use std::io::Write;
 use std::path::Path;
 
 use crate::State;
@@ -68,7 +69,18 @@ impl DedupeArgs {
             };
             if existing != current {
                 if let Some(old) = existing {
-                    std::fs::write(lockfile_path, &old)
+                    let dir = lockfile_path.parent().unwrap_or_else(|| Path::new("."));
+                    let mut tmp = tempfile::NamedTempFile::new_in(dir)
+                        .into_diagnostic()
+                        .wrap_err("creating temp file for atomic lockfile restore")?;
+                    tmp.write_all(old.as_bytes())
+                        .into_diagnostic()
+                        .wrap_err("writing temp lockfile for rollback")?;
+                    tmp.as_file()
+                        .sync_all()
+                        .into_diagnostic()
+                        .wrap_err("syncing temp lockfile for rollback")?;
+                    tmp.persist(lockfile_path)
                         .into_diagnostic()
                         .wrap_err("restoring lockfile after check")?;
                 } else {
