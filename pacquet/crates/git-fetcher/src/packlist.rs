@@ -184,6 +184,14 @@ fn collect_bundled_files(
         // fetcher imports untrusted git-hosted packages, so this matters.
         let escapes = match (&canonical_root, &canonical_dep) {
             (Some(root), Some(dep)) => dep.strip_prefix(root).is_err(),
+            // Root resolved but the dependency's real path didn't: we
+            // can't prove it stays inside the tree, so fail closed. A
+            // genuine dependency always canonicalises here —
+            // `resolve_bundled_dependency` already stat'd its
+            // `package.json` through the same path.
+            (Some(_), None) => true,
+            // Root itself won't canonicalise (pathological): fall back
+            // to a best-effort lexical check.
             _ => dep_dir.strip_prefix(root).is_err(),
         };
         if escapes {
