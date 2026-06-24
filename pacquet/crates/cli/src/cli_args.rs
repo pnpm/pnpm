@@ -797,7 +797,8 @@ impl InstallPipeline {
 
 /// The reporter-generic body of `pacquet dedupe`: runs config-dependency
 /// installation and `updateConfig` hooks before creating state and dispatching
-/// to the dedupe install pipeline.
+/// to the dedupe install pipeline. Skips config-deps when `--check` is set to
+/// avoid materializing `node_modules/.pnpm-config`.
 struct DedupePipeline {
     args: DedupeArgs,
     cfg: &'static mut Config,
@@ -826,18 +827,20 @@ impl DedupePipeline {
             None
         };
 
-        if let Some(pm) = package_manager_to_sync.as_ref() {
-            config_deps::sync_package_manager_dependencies(
-                cfg,
-                &config_root,
-                &pm.specifier,
-                &pm.version,
-                false,
-            )
-            .await?;
+        if !args.check {
+            if let Some(pm) = package_manager_to_sync.as_ref() {
+                config_deps::sync_package_manager_dependencies(
+                    cfg,
+                    &config_root,
+                    &pm.specifier,
+                    &pm.version,
+                    false,
+                )
+                .await?;
+            }
+            config_deps::install_config_deps::<Reporter>(cfg, &config_root, false).await?;
+            config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
         }
-        config_deps::install_config_deps::<Reporter>(cfg, &config_root, false).await?;
-        config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
         let cfg: &'static Config = cfg;
         let state = State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
         args.run::<Reporter>(state, existing, &lockfile_path).await
