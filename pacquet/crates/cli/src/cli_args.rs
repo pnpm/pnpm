@@ -920,12 +920,15 @@ impl PrunePipeline {
         // VSD containment, but only at sweep time; this earlier check
         // catches a misconfigured modules_dir itself (e.g. an absolute
         // path outside the workspace) before any destructive work begins.
-        let workspace_root = cfg.workspace_dir.clone().unwrap_or_else(|| PathBuf::from("/"));
-        if !cfg.modules_dir.starts_with(&workspace_root) {
+        //
+        // `config_root` is `cfg.workspace_dir` when present, or the
+        // canonicalized `--dir` otherwise — a meaningful containment
+        // boundary in both cases.
+        if !cfg.modules_dir.starts_with(&config_root) {
             let modules_dir = cfg.modules_dir.display();
-            let wr = workspace_root.display();
+            let cr = config_root.display();
             return Err(miette::miette!(
-                "refusing prune: modules_dir ({modules_dir}) is outside workspace root ({wr})",
+                "refusing prune: modules_dir ({modules_dir}) is outside workspace root ({cr})",
             ));
         }
         // Apply prune-specific overrides after hooks so that:
