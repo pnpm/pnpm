@@ -53,12 +53,16 @@ The build context expects the binary for each target architecture, staged as
 `pnpr-amd64` / `pnpr-arm64`. Build one with `cross` (or `cargo` for the host
 arch) and drop it in:
 
+The build verifies the binary against a SHA256 checksum before trusting it,
+so pass the checksum for the architecture you're building:
+
 ```sh
 VERSION=0.2.3
 cross build -p pnpr --bin pnpr --release --target x86_64-unknown-linux-musl
 cp target/x86_64-unknown-linux-musl/release/pnpr pnpr/docker/pnpr-amd64
 docker buildx build \
   --build-arg PNPR_VERSION=${VERSION} \
+  --build-arg PNPR_SHA256_AMD64=$(shasum -a 256 pnpr/docker/pnpr-amd64 | awk '{print $1}') \
   --platform linux/amd64 \
   --load \
   -t pnpr-test ./pnpr/docker
@@ -69,5 +73,6 @@ docker run --rm pnpr-test --version
 
 Images are built and pushed by the `docker` job in
 [`.github/workflows/pnpr-release-to-npm.yml`](../../.github/workflows/pnpr-release-to-npm.yml),
-which runs after the npm packages are published. The build fails if
-`pnpr --version` in the image doesn't match the `PNPR_VERSION` build-arg.
+which runs after the npm packages are published. The build verifies each
+staged binary against the SHA256 checksum pinned by the release job and fails
+if `pnpr --version` in the image doesn't match the `PNPR_VERSION` build-arg.

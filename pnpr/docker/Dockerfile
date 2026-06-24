@@ -6,6 +6,8 @@ FROM debian:stable-slim@sha256:e51bfcd2226c480a5416730e0fa2c40df28b0da5ff562fc46
 
 ARG PNPR_VERSION
 ARG TARGETARCH
+ARG PNPR_SHA256_AMD64
+ARG PNPR_SHA256_ARM64
 
 # pnpr reaches upstream registries over HTTPS via rustls' platform
 # verifier, which reads the system CA bundle, so ca-certificates is required.
@@ -19,8 +21,18 @@ RUN set -eu; \
 # architecture as pnpr-<TARGETARCH> (pnpr-amd64, pnpr-arm64).
 COPY pnpr-${TARGETARCH} /usr/local/bin/pnpr
 
+# Verify the staged binary against the checksum pinned by the release job
+# before trusting it. `pnpr --version` only confirms reported metadata, so
+# it cannot stand in for an integrity check on the binary itself.
 RUN set -eu; \
     test -n "$PNPR_VERSION"; \
+    case "$TARGETARCH" in \
+      amd64) expected_sha="$PNPR_SHA256_AMD64" ;; \
+      arm64) expected_sha="$PNPR_SHA256_ARM64" ;; \
+      *) echo "unsupported architecture: $TARGETARCH" >&2; exit 1 ;; \
+    esac; \
+    test -n "$expected_sha" || { echo "missing PNPR_SHA256_* build-arg for $TARGETARCH" >&2; exit 1; }; \
+    echo "$expected_sha  /usr/local/bin/pnpr" | sha256sum -c -; \
     chmod 0755 /usr/local/bin/pnpr; \
     installed="$(pnpr --version | awk '{print $NF}')"; \
     test "$installed" = "$PNPR_VERSION" || { \
