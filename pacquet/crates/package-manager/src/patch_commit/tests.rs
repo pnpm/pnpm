@@ -181,8 +181,8 @@ index 123..456 100644
     assert!(normalized.contains("diff --git a/index.js b/index.js"), "{normalized}");
     assert!(normalized.contains("--- a/index.js"), "{normalized}");
     assert!(normalized.contains("+++ b/index.js"), "{normalized}");
-    assert!(normalized.contains("-console.log(\"/tmp/before/ must stay in content\")"));
-    assert!(normalized.contains("+console.log(\"/tmp/after/ must stay in content\")"));
+    assert!(normalized.contains(r#"-console.log("/tmp/before/ must stay in content")"#));
+    assert!(normalized.contains(r#"+console.log("/tmp/after/ must stay in content")"#));
     assert!(normalized.contains("--- /tmp/before/ also stays"));
     assert!(normalized.contains("+++ /tmp/after/ also stays"));
 }
