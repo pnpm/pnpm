@@ -2173,10 +2173,10 @@ async fn authenticate(State(state): State<AppState>, mut request: Request, next:
 /// Resolve the `Authorization` header to an [`Identity`], hitting the auth
 /// backend exactly once. A bearer token is looked up as a full record so
 /// its read-only / CIDR restrictions can be enforced here (a violation is
-/// a `Forbidden` error); an unknown bearer token, a wrong Basic password,
-/// and a missing header all resolve to [`Identity::Anonymous`]. `Err` is a
-/// backing-store failure, surfaced as a 5xx so an outage isn't mistaken
-/// for "not authenticated".
+/// a `Forbidden` error); an unknown bearer token, a non-`Bearer` scheme
+/// (e.g. legacy `Basic`), and a missing header all resolve to
+/// [`Identity::Anonymous`]. `Err` is a backing-store failure, surfaced as a
+/// 5xx so an outage isn't mistaken for "not authenticated".
 async fn resolve_caller(
     state: &AppState,
     header: Option<&str>,
@@ -2190,11 +2190,11 @@ async fn resolve_caller(
         check_token_restrictions(&record, method, peer)?;
         return Ok(Identity::User { username: record.username });
     }
-    // Not a bearer token: Basic (or no credentials), which carries no
-    // token-level restriction. `identify` does the decode + password
-    // verification.
-    let username = identify(header, state.inner.auth.tokens.as_ref()).await?;
-    Ok(username.map_or(Identity::Anonymous, |username| Identity::User { username }))
+    // Anything that is not a bearer token — Basic, another scheme, or no
+    // credentials — carries no request identity. Going through `identify`
+    // here would re-run the bearer lookup and bypass the restriction checks
+    // above, so resolve straight to anonymous.
+    Ok(Identity::Anonymous)
 }
 
 /// Enforce a bearer token's own restrictions. A read-only token may not

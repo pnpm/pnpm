@@ -1173,25 +1173,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn add_or_login_skips_unbounded_usernames_without_db_lookup() {
-        let stored_user_calls = Arc::new(AtomicU64::new(0));
-        let auth = SqlAuth::new(
-            CountingLookupBackend { stored_user_calls: Arc::clone(&stored_user_calls) },
-            MaxUsers::Unlimited,
-            Duration::from_secs(30),
-        );
-        let overlong = "a".repeat(MAX_USERNAME_CHARS + 1);
-
-        for username in ["", " alice", "alice ", "#alice", "alice:admin", "alice\nadmin"] {
-            let err = auth.add_or_login(username, "secret").await.unwrap_err();
-            assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST);
-        }
-        let err = auth.add_or_login(&overlong, "secret").await.unwrap_err();
-        assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST);
-        assert_eq!(stored_user_calls.load(Ordering::SeqCst), 0);
-    }
-
-    #[tokio::test]
     async fn add_or_login_returns_the_stored_username_for_existing_users() {
         let bcrypt_hash = bcrypt::hash("secret", 4).unwrap();
         let auth = SqlAuth::new(

@@ -186,10 +186,25 @@ async fn adduser_rejects_same_username_concurrent_registration_with_different_pa
     assert_eq!(created, 1, "exactly one concurrent adduser should create the account");
     assert_eq!(unauthorized, 1, "the losing registration must be rejected");
     // Exactly one of the two passwords is the one that was stored: logging in
-    // with it succeeds, the other is unauthorized.
-    let pw_a_logs_in = store.add_or_login("alice", "pw-a").await.is_ok();
-    let pw_b_logs_in = store.add_or_login("alice", "pw-b").await.is_ok();
-    assert_ne!(pw_a_logs_in, pw_b_logs_in, "exactly one password must be the stored one");
+    // with it succeeds, the other is rejected as unauthorized.
+    let login_a = store.add_or_login("alice", "pw-a").await;
+    let login_b = store.add_or_login("alice", "pw-b").await;
+    let logged_in = [login_a.as_ref(), login_b.as_ref()]
+        .into_iter()
+        .filter(|result| matches!(result, Ok((UpsertOutcome::LoggedIn, _))))
+        .count();
+    let unauthorized_logins = [&login_a, &login_b]
+        .into_iter()
+        .filter(|result| {
+            result
+                .as_ref()
+                .err()
+                .is_some_and(|err| err.status_code() == axum::http::StatusCode::UNAUTHORIZED)
+        })
+        .count();
+
+    assert_eq!(logged_in, 1, "exactly one password must be the stored one");
+    assert_eq!(unauthorized_logins, 1, "the other password must be unauthorized");
 }
 
 #[tokio::test]
