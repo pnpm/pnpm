@@ -698,22 +698,12 @@ impl CliArgs {
             }
             CliCommand::Prune(args) => Box::pin(async move {
                 let cfg = config()?;
-                cfg.modules_cache_max_age = 0;
-                cfg.ignore_scripts = cfg.ignore_scripts || args.ignore_scripts;
                 let workspace_root = cfg.workspace_dir.clone().unwrap_or_else(|| dir_ref.clone());
                 if !cfg.modules_dir.starts_with(&workspace_root) {
                     return Err(miette::miette!(
                         "refusing prune: modules_dir ({}) is outside workspace root ({})",
                         cfg.modules_dir.display(),
                         workspace_root.display(),
-                    ));
-                }
-                let vsd = cfg.effective_virtual_store_dir();
-                if !vsd.starts_with(&cfg.modules_dir) {
-                    return Err(miette::miette!(
-                        "refusing prune: virtual_store_dir ({}) is outside modules_dir ({})",
-                        vsd.display(),
-                        cfg.modules_dir.display(),
                     ));
                 }
                 let (config_root, package_manager_to_sync) =
@@ -899,11 +889,14 @@ impl DedupePipeline {
     }
 }
 
-/// The reporter-generic body of `pacquet prune`: runs config-deps, then
-/// state init, then the prune install pipeline. Mirrors what
-/// [`InstallPipeline`] does for the install command, since pnpm's prune
-/// delegates to its install handler which goes through the same
-/// config-finalization steps.
+/// The reporter-generic body of `pacquet prune`: runs config-deps and
+/// `updateConfig` hooks first, then applies prune-specific config
+/// overrides (`modules_cache_max_age`, `ignore_scripts`) on the
+/// post-hook config, and finally dispatches to the install pipeline.
+/// The overrides must come after hooks because `updateConfig` can
+/// mutate `Config` fields (including `modules_dir` /
+/// `virtual_store_dir`), and the CLI `--ignore-scripts` flag must win
+/// over any hook-set value.
 struct PrunePipeline {
     args: PruneArgs,
     cfg: &'static mut Config,
@@ -928,6 +921,13 @@ impl PrunePipeline {
         }
         config_deps::install_config_deps::<Reporter>(cfg, &config_root, false).await?;
         config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
+        // Apply prune-specific overrides after hooks so that:
+        // - `modules_cache_max_age = 0` forces the virtual-store sweep
+        //   on the final (post-hook) config paths.
+        // - `--ignore-scripts` from the CLI wins over any value the
+        //   hooks set via `WorkspaceSettings::apply_to`.
+        cfg.modules_cache_max_age = 0;
+        cfg.ignore_scripts = cfg.ignore_scripts || args.ignore_scripts;
         let cfg: &'static Config = cfg;
         let state = State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
         args.run::<Reporter>(state).await
