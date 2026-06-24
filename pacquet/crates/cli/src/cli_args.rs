@@ -546,10 +546,9 @@ impl CliArgs {
                     // `pnpm-workspace.yaml` is found), falling back to `--dir`
                     // for a single-package repo. Owned so it doesn't hold a
                     // borrow of `cfg` across the `&mut` `updateConfig` pass.
-                    let config_root = cfg.workspace_dir.clone().unwrap_or_else(|| dir_ref.clone());
-                    let package_manager_to_sync =
-                        package_manager_to_sync(&config_root.join("package.json"), &config_root)
-                            .wrap_err("read package manager policy")?;
+                    let (config_root, package_manager_to_sync) =
+                        derive_config_root_and_package_manager_to_sync(cfg, dir_ref)
+                            .wrap_err("derive workspace root and package manager policy")?;
                     // Resolve + install configurational dependencies, then
                     // run their `updateConfig` plugin hooks, before the main
                     // install. The env lockfile must land at the top of
@@ -663,10 +662,9 @@ impl CliArgs {
             }
             CliCommand::Dedupe(args) => Box::pin(async move {
                 let cfg = config()?;
-                let config_root = cfg.workspace_dir.clone().unwrap_or_else(|| dir_ref.clone());
-                let package_manager_to_sync =
-                    package_manager_to_sync(&config_root.join("package.json"), &config_root)
-                        .wrap_err("read package manager policy")?;
+                let (config_root, package_manager_to_sync) =
+                    derive_config_root_and_package_manager_to_sync(cfg, dir_ref)
+                        .wrap_err("derive workspace root and package manager policy")?;
                 let dedupe = DedupePipeline {
                     args,
                     cfg,
@@ -793,6 +791,19 @@ impl InstallPipeline {
             State::init(manifest_path, cfg, require_lockfile).wrap_err("initialize the state")?;
         args.run::<Reporter>(state).await
     }
+}
+
+/// Shared workspace-root and package-manager policy derivation used by both
+/// the install and dedupe dispatch paths.
+fn derive_config_root_and_package_manager_to_sync(
+    cfg: &Config,
+    dir_ref: &Path,
+) -> miette::Result<(PathBuf, Option<PackageManagerToSync>)> {
+    let config_root = cfg.workspace_dir.clone().unwrap_or_else(|| dir_ref.to_path_buf());
+    let package_manager_to_sync =
+        package_manager_to_sync(&config_root.join("package.json"), &config_root)
+            .wrap_err("read package manager policy")?;
+    Ok((config_root, package_manager_to_sync))
 }
 
 /// The reporter-generic body of `pacquet dedupe`: runs config-dependency
