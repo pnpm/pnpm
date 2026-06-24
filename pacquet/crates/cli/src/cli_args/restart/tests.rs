@@ -1,3 +1,8 @@
+// Every test here drives `/bin/sh`-style lifecycle scripts, so the whole
+// module is Unix-only; gating it keeps Windows builds free of unused-import
+// and dead-code warnings.
+#![cfg(unix)]
+
 use super::RestartArgs;
 use serde_json::json;
 use tempfile::TempDir;

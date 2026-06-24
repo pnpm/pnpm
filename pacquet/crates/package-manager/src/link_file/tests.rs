@@ -1,9 +1,9 @@
-#[cfg(unix)]
-use super::LINK_STATE_COPY;
 use super::{
     LINK_STATE_CLONE, LINK_STATE_HARDLINK, LinkFileError, auto_link, clone_or_copy_link,
-    import_into_fresh_target, is_call_error, is_cross_device, link_file,
+    is_call_error, is_cross_device, link_file,
 };
+#[cfg(unix)]
+use super::{LINK_STATE_COPY, import_into_fresh_target};
 use pacquet_config::PackageImportMethod;
 use pacquet_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
