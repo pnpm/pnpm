@@ -1,9 +1,11 @@
 use super::{
-    PatchCommitError, PatchCommitFs, PkgFilesForDiff, RealPatchCommitFs, diff_folders,
-    normalize_diff_output, prepare_pkg_files_for_diff, prepare_pkg_files_for_diff_with_fs,
-    remove_existing_temp_dir_with_fs, temporary_filtered_dir,
+    DiffTempFile, PatchCommitError, PatchCommitFs, PkgFilesForDiff, RealPatchCommitFs,
+    diff_folders, normalize_diff_output, prepare_pkg_files_for_diff,
+    prepare_pkg_files_for_diff_with_fs, remove_existing_temp_dir_with_fs, temporary_filtered_dir,
 };
 use pretty_assertions::assert_eq;
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 use std::{cell::Cell, fs, io, path::Path};
 use tempfile::tempdir;
 
@@ -62,6 +64,16 @@ fn patch_commit_diff_dirs_accepts_paths_that_start_with_dash() {
     let diff = diff_folders(&before, &after).expect("diff dirs");
 
     assert!(diff.contains("diff --git a/index.js b/index.js"), "diff: {diff}");
+}
+
+#[cfg(unix)]
+#[test]
+fn patch_commit_diff_temp_files_are_owner_only() {
+    let temp_file = DiffTempFile::new("stdout").expect("diff temp file");
+
+    let mode = fs::metadata(&temp_file.path).expect("diff temp metadata").permissions().mode();
+
+    assert_eq!(mode & 0o777, 0o600);
 }
 
 #[test]

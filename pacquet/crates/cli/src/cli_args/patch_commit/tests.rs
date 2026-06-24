@@ -1,6 +1,6 @@
 use super::{
     cleanup_after_diff, normalize_patches_dir_name, patch_target_from_state,
-    path_from_forward_slash, remove_dir_if_exists,
+    path_from_forward_slash, remove_dir_if_exists, write_patch_file_atomically,
 };
 use pacquet_lockfile::{ComVer, Lockfile, LockfileVersion, PackageKey, PackageMetadata};
 use pacquet_package_manager::PkgFilesForDiff;
@@ -108,6 +108,17 @@ fn remove_dir_if_exists_reports_non_directory_cleanup_error() {
 
     assert!(path.is_file(), "cleanup errors are ignored but not fatal");
     assert_eq!(err.kind(), std::io::ErrorKind::NotADirectory);
+}
+
+#[test]
+fn patch_commit_atomic_writer_replaces_existing_patch_file() {
+    let tmp = tempdir().expect("temp dir");
+    let patch_file = tmp.path().join("pkg.patch");
+    std::fs::write(&patch_file, "old").expect("write old patch");
+
+    write_patch_file_atomically(&patch_file, b"new").expect("replace patch");
+
+    assert_eq!(std::fs::read_to_string(patch_file).expect("read patch"), "new");
 }
 
 #[test]

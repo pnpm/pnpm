@@ -4,11 +4,9 @@ use pacquet_fs::{is_subdir, lexical_normalize};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeMap,
-    env,
-    fs::{self, OpenOptions},
+    env, fs,
     io::{self, Write},
     path::{Path, PathBuf},
-    sync::atomic::{AtomicU64, Ordering},
 };
 
 const STATE_DIR: &str = ".pnpm_patches";
@@ -182,44 +180,12 @@ fn reject_state_symlink_if_exists(path: &Path) -> Result<(), StateFileError> {
 }
 
 fn write_state_file_atomically(target: &Path, content: &[u8]) -> io::Result<()> {
-    const MAX_TEMP_ATTEMPTS: usize = 16;
-
-    static COUNTER: AtomicU64 = AtomicU64::new(0);
-    let pid = std::process::id();
     let parent = target.parent().unwrap_or_else(|| Path::new("."));
-    let file_name = target
-        .file_name()
-        .map_or_else(|| String::from("state.json"), |name| name.to_string_lossy().into_owned());
-
-    let mut last_already_exists = None;
-    for _ in 0..MAX_TEMP_ATTEMPTS {
-        let counter = COUNTER.fetch_add(1, Ordering::Relaxed);
-        let tmp = parent.join(format!(".{file_name}.{pid}.{counter}.pacquet-tmp"));
-        let mut file = match OpenOptions::new().write(true).create_new(true).open(&tmp) {
-            Ok(file) => file,
-            Err(source) if source.kind() == io::ErrorKind::AlreadyExists => {
-                last_already_exists = Some(source);
-                continue;
-            }
-            Err(source) => return Err(source),
-        };
-        if let Err(source) = file.write_all(content) {
-            drop(file);
-            let _ = fs::remove_file(&tmp);
-            return Err(source);
-        }
-        drop(file);
-        return fs::rename(&tmp, target).inspect_err(|_| {
-            let _ = fs::remove_file(&tmp);
-        });
-    }
-
-    Err(last_already_exists.unwrap_or_else(|| {
-        io::Error::new(
-            io::ErrorKind::AlreadyExists,
-            "exhausted temp-path attempts for atomic patch state write",
-        )
-    }))
+    let mut tmp = tempfile::NamedTempFile::new_in(parent)?;
+    tmp.write_all(content)?;
+    tmp.as_file().sync_all()?;
+    tmp.persist(target).map_err(|error| error.error)?;
+    Ok(())
 }
 
 fn edit_dir_key(edit_dir: &Path) -> Result<String, StateFileError> {

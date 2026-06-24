@@ -3,6 +3,8 @@ use miette::Diagnostic;
 use pacquet_git_fetcher::PacklistError;
 use pacquet_package_manifest::PackageManifestError;
 use serde_json::{Map, Value};
+#[cfg(unix)]
+use std::os::unix::fs::OpenOptionsExt;
 use std::{
     fs::{self, File, OpenOptions},
     io::{self, Read},
@@ -212,7 +214,7 @@ impl DiffTempFile {
         for _ in 0..16 {
             let counter = COUNTER.fetch_add(1, Ordering::Relaxed);
             let path = temp_dir.join(format!("pacquet-git-diff-{stream}-{pid}-{counter}.tmp"));
-            match OpenOptions::new().write(true).create_new(true).open(&path) {
+            match diff_temp_file_options().open(&path) {
                 Ok(writer) => return Ok(Self { path, writer }),
                 Err(source) if source.kind() == io::ErrorKind::AlreadyExists => {}
                 Err(source) => return Err(PatchCommitError::DiffSpawn { source }),
@@ -261,6 +263,14 @@ impl DiffTempFile {
         }
         Ok(String::from_utf8_lossy(&bytes).into_owned())
     }
+}
+
+fn diff_temp_file_options() -> OpenOptions {
+    let mut options = OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    options.mode(0o600);
+    options
 }
 
 impl Drop for DiffTempFile {
