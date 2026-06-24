@@ -45,6 +45,48 @@ fn patch_state_write_creates_pnpm_state_file() {
 }
 
 #[test]
+fn patch_state_write_updates_existing_state_file() {
+    let tmp = tempdir().expect("temp dir");
+    let modules_dir = tmp.path().join("node_modules");
+    let first_edit_dir = tmp.path().join("first-edit");
+    let second_edit_dir = tmp.path().join("second-edit");
+    fs::create_dir_all(&first_edit_dir).expect("create first edit dir");
+    fs::create_dir_all(&second_edit_dir).expect("create second edit dir");
+
+    write_edit_dir_state(&modules_dir, &first_edit_dir, &sample_state()).unwrap();
+    write_edit_dir_state(
+        &modules_dir,
+        &second_edit_dir,
+        &EditDirState { patched_pkg: "is-negative@1.0.0".to_string(), apply_to_all: true },
+    )
+    .unwrap();
+
+    let first_key = dunce::canonicalize(&first_edit_dir)
+        .expect("canonical first edit dir")
+        .display()
+        .to_string();
+    let second_key = dunce::canonicalize(&second_edit_dir)
+        .expect("canonical second edit dir")
+        .display()
+        .to_string();
+    let state_path = modules_dir.join(".pnpm_patches").join("state.json");
+    let text = fs::read_to_string(state_path).expect("state file");
+    assert_eq!(
+        serde_json::from_str::<serde_json::Value>(&text).expect("valid JSON"),
+        json!({
+            first_key: {
+                "patchedPkg": "is-positive@1.0.0",
+                "applyToAll": false,
+            },
+            second_key: {
+                "patchedPkg": "is-negative@1.0.0",
+                "applyToAll": true,
+            },
+        }),
+    );
+}
+
+#[test]
 fn patch_state_read_uses_resolved_edit_dir_key() {
     let tmp = tempdir().expect("temp dir");
     let modules_dir = tmp.path().join("node_modules");
@@ -95,6 +137,43 @@ fn patch_state_write_errors_when_existing_state_path_is_not_a_file() {
         write_edit_dir_state(&modules_dir, &tmp.path().join("edit"), &sample_state()).unwrap_err();
 
     assert!(matches!(err, StateFileError::Read { .. }));
+}
+
+#[cfg(unix)]
+#[test]
+fn patch_state_write_rejects_symlinked_state_dir() {
+    let tmp = tempdir().expect("temp dir");
+    let modules_dir = tmp.path().join("node_modules");
+    let state_dir = modules_dir.join(".pnpm_patches");
+    let outside_dir = tmp.path().join("outside");
+    fs::create_dir_all(&modules_dir).expect("create modules dir");
+    fs::create_dir(&outside_dir).expect("create outside dir");
+    std::os::unix::fs::symlink(&outside_dir, &state_dir).expect("symlink state dir");
+
+    let err =
+        write_edit_dir_state(&modules_dir, &tmp.path().join("edit"), &sample_state()).unwrap_err();
+
+    assert!(matches!(err, StateFileError::UnsafePath { .. }));
+    assert!(!outside_dir.join("state.json").exists(), "outside state file must not be written");
+}
+
+#[cfg(unix)]
+#[test]
+fn patch_state_write_rejects_symlinked_state_file() {
+    let tmp = tempdir().expect("temp dir");
+    let modules_dir = tmp.path().join("node_modules");
+    let state_dir = modules_dir.join(".pnpm_patches");
+    let state_path = state_dir.join("state.json");
+    let outside_target = tmp.path().join("outside-state.json");
+    fs::create_dir_all(&state_dir).expect("create state dir");
+    fs::write(&outside_target, "{}").expect("write outside state");
+    std::os::unix::fs::symlink(&outside_target, &state_path).expect("symlink state file");
+
+    let err =
+        write_edit_dir_state(&modules_dir, &tmp.path().join("edit"), &sample_state()).unwrap_err();
+
+    assert!(matches!(err, StateFileError::UnsafePath { .. }));
+    assert_eq!(fs::read_to_string(&outside_target).expect("read outside state"), "{}");
 }
 
 #[test]

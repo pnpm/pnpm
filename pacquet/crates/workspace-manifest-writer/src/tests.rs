@@ -489,7 +489,7 @@ fn patched_dependency_remove_preserves_successor_comments() {
     let original = "packages:\n  - '*'\n\npatchedDependencies:\n  is-positive: patches/is-positive.patch\n\n# catalog pins\ncatalog:\n  react: 18.2.0\n";
     let out = run_patched_deps(Some(original), &[]);
 
-    assert_eq!(out, "packages:\n  - '*'\n\n# catalog pins\ncatalog:\n  react: 18.2.0\n",);
+    assert_eq!(out, "packages:\n  - '*'\n\n# catalog pins\ncatalog:\n  react: 18.2.0\n");
 }
 
 #[test]

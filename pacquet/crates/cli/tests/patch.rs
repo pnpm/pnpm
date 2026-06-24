@@ -702,6 +702,29 @@ fn patch_exact_version_creates_edit_dir_and_state() {
 
 #[cfg(unix)]
 #[test]
+fn patch_rejects_symlinked_default_edit_root() {
+    let (root, workspace, npmrc_info) = setup_installed();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let outside_dir = root.path().join("outside-patch-edits");
+    fs::create_dir(&outside_dir).expect("create outside edit dir");
+    std::os::unix::fs::symlink(&outside_dir, workspace.join("node_modules/.pnpm_patches"))
+        .expect("symlink default patch edit root");
+
+    let output = pacquet(&workspace, ["patch", "is-positive@1.0.0", "--reporter=silent"])
+        .output()
+        .expect("run patch");
+
+    assert!(!output.status.success(), "symlinked default edit root should fail");
+    assert!(
+        !outside_dir.join("is-positive@1.0.0").exists(),
+        "package files must not be extracted outside node_modules",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[cfg(unix)]
+#[test]
 fn patch_commit_rejects_symlinked_patch_file_outside_patches_dir() {
     let (root, workspace, npmrc_info) = setup_installed();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;

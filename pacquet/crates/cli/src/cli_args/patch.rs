@@ -60,6 +60,30 @@ pub enum PatchError {
         source: io::Error,
     },
 
+    #[display("Unable to create the default patch edit directory '{}': {source}", edit_dir.display())]
+    #[diagnostic(code(pacquet::patch_edit_dir_create))]
+    CreateEditDir {
+        edit_dir: PathBuf,
+        #[error(source)]
+        source: io::Error,
+    },
+
+    #[display("Unable to resolve the default patch edit directory '{}': {source}", edit_dir.display())]
+    #[diagnostic(code(pacquet::patch_edit_dir_resolve))]
+    ResolveEditDir {
+        edit_dir: PathBuf,
+        #[error(source)]
+        source: io::Error,
+    },
+
+    #[display("The default patch edit directory is outside node_modules: '{}'", edit_dir.display())]
+    #[diagnostic(code(pacquet::patch_edit_dir_outside_modules_dir))]
+    EditDirOutsideModulesDir { edit_dir: PathBuf },
+
+    #[display("The default patch edit directory must not use a symbolic link: '{}'", edit_dir.display())]
+    #[diagnostic(code(pacquet::patch_edit_dir_symlink))]
+    EditDirSymlink { edit_dir: PathBuf },
+
     #[display("Canceled")]
     #[diagnostic(code(ERR_PNPM_PATCH_CANCELED))]
     Canceled,
@@ -123,10 +147,13 @@ impl PatchArgs {
         let candidate_set = patch_candidates_from_lockfile(&package_name, &current_lockfile)
             .map_err(PatchError::PatchTarget)?;
         let target = select_patch_target(&candidate_set)?;
-        let edit_dir = edit_dir.as_ref().map_or_else(
-            || default_edit_dir(&state.config.modules_dir, &package_name, &target),
-            |path| resolve_path(dir, path),
-        );
+        let edit_dir = if let Some(path) = edit_dir.as_ref() {
+            resolve_path(dir, path)
+        } else {
+            let edit_dir = default_edit_dir(&state.config.modules_dir, &package_name, &target);
+            prepare_default_edit_dir(&state.config.modules_dir, &edit_dir)?;
+            edit_dir
+        };
         reject_non_empty_edit_dir(&edit_dir)?;
 
         WritePackageForPatch {
@@ -261,6 +288,73 @@ fn is_empty_dir(path: &Path) -> io::Result<bool> {
 
 fn default_edit_dir(modules_dir: &Path, package_name: &str, target: &PatchTarget) -> PathBuf {
     modules_dir.join(".pnpm_patches").join(default_edit_dir_name(package_name, target))
+}
+
+fn prepare_default_edit_dir(modules_dir: &Path, edit_dir: &Path) -> Result<(), PatchError> {
+    let edit_root = modules_dir.join(".pnpm_patches");
+    if edit_dir == edit_root || !is_subdir(&edit_root, edit_dir) {
+        return Err(PatchError::EditDirOutsideModulesDir { edit_dir: edit_dir.to_path_buf() });
+    }
+    reject_edit_dir_symlink_if_exists(&edit_root)?;
+    fs::create_dir_all(&edit_root)
+        .map_err(|source| PatchError::CreateEditDir { edit_dir: edit_root.clone(), source })?;
+    reject_default_edit_dir_symlink_components(&edit_root, edit_dir)?;
+
+    let real_modules_dir = dunce::canonicalize(modules_dir).map_err(|source| {
+        PatchError::ResolveEditDir { edit_dir: modules_dir.to_path_buf(), source }
+    })?;
+    let real_edit_root = dunce::canonicalize(&edit_root)
+        .map_err(|source| PatchError::ResolveEditDir { edit_dir: edit_root.clone(), source })?;
+    if !is_subdir(&real_modules_dir, &real_edit_root) {
+        return Err(PatchError::EditDirOutsideModulesDir { edit_dir: edit_root });
+    }
+    Ok(())
+}
+
+fn reject_default_edit_dir_symlink_components(
+    edit_root: &Path,
+    edit_dir: &Path,
+) -> Result<(), PatchError> {
+    reject_edit_dir_symlink_if_exists(edit_root)?;
+    let relative = edit_dir
+        .strip_prefix(edit_root)
+        .map_err(|_| PatchError::EditDirOutsideModulesDir { edit_dir: edit_dir.to_path_buf() })?;
+    let mut current = edit_root.to_path_buf();
+    for component in relative.components() {
+        match component {
+            Component::Normal(part) => {
+                current.push(part);
+                match fs::symlink_metadata(&current) {
+                    Ok(meta) if meta.file_type().is_symlink() => {
+                        return Err(PatchError::EditDirSymlink { edit_dir: current });
+                    }
+                    Ok(_) => {}
+                    Err(source) if source.kind() == io::ErrorKind::NotFound => break,
+                    Err(source) => {
+                        return Err(PatchError::ReadEditDir { edit_dir: current, source });
+                    }
+                }
+            }
+            Component::CurDir => {}
+            Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
+                return Err(PatchError::EditDirOutsideModulesDir {
+                    edit_dir: edit_dir.to_path_buf(),
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+fn reject_edit_dir_symlink_if_exists(path: &Path) -> Result<(), PatchError> {
+    match fs::symlink_metadata(path) {
+        Ok(meta) if meta.file_type().is_symlink() => {
+            Err(PatchError::EditDirSymlink { edit_dir: path.to_path_buf() })
+        }
+        Ok(_) => Ok(()),
+        Err(source) if source.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(source) => Err(PatchError::ReadEditDir { edit_dir: path.to_path_buf(), source }),
+    }
 }
 
 fn default_edit_dir_name(package_name: &str, target: &PatchTarget) -> String {
