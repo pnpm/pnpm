@@ -273,7 +273,7 @@ fn bundle_dependencies_subtree_is_included() {
 fn bundle_dependencies_pull_in_hoisted_transitive_deps() {
     // Port of pnpm's `pack: bundles transitive dependencies of bundled
     // dependencies (hoisted)`
-    // ([releasing/commands/test/publish/pack.ts](https://github.com/pnpm/pnpm/blob/cab1c11c69/releasing/commands/test/publish/pack.ts#L161-L190)).
+    // ([pnpm11/releasing/commands/test/publish/pack.ts](https://github.com/pnpm/pnpm/blob/dd79bdc08e/pnpm11/releasing/commands/test/publish/pack.ts#L161-L191)).
     // `top` is bundled and
     // declares `dependencies: { nested }`; `nested` is hoisted to the
     // root `node_modules`. The closure must follow `top`'s
