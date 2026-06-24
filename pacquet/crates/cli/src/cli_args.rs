@@ -661,17 +661,29 @@ impl CliArgs {
                 args.run(|| config().map(|m| &*m))?;
                 Box::pin(std::future::ready(Ok(())))
             }
-            CliCommand::Import(args) => {
-                let command_state = state(false)?;
+            CliCommand::Dedupe(args) => Box::pin(async move {
+                let cfg = config()?;
+                let config_root = cfg.workspace_dir.clone().unwrap_or_else(|| dir_ref.clone());
+                let package_manager_to_sync =
+                    package_manager_to_sync(&config_root.join("package.json"), &config_root)
+                        .wrap_err("read package manager policy")?;
+                let dedupe = DedupePipeline {
+                    args,
+                    cfg,
+                    config_root,
+                    package_manager_to_sync,
+                    manifest_path: manifest_path_ref.clone(),
+                };
                 match reporter {
                     ReporterType::Default | ReporterType::AppendOnly => {
-                        Box::pin(args.run::<DefaultReporter>(command_state))
+                        Box::pin(dedupe.run::<DefaultReporter>()).await?;
                     }
-                    ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(command_state)),
-                    ReporterType::Silent => Box::pin(args.run::<SilentReporter>(command_state)),
+                    ReporterType::Ndjson => Box::pin(dedupe.run::<NdjsonReporter>()).await?,
+                    ReporterType::Silent => Box::pin(dedupe.run::<SilentReporter>()).await?,
                 }
-            }
-            CliCommand::Dedupe(args) => {
+                Ok(())
+            }),
+            CliCommand::Import(args) => {
                 let command_state = state(false)?;
                 match reporter {
                     ReporterType::Default | ReporterType::AppendOnly => {
@@ -779,6 +791,39 @@ impl InstallPipeline {
         let cfg: &'static Config = cfg;
         let state =
             State::init(manifest_path, cfg, require_lockfile).wrap_err("initialize the state")?;
+        args.run::<Reporter>(state).await
+    }
+}
+
+/// The reporter-generic body of `pacquet dedupe`: runs config-dependency
+/// installation and `updateConfig` hooks before creating state and dispatching
+/// to the dedupe install pipeline.
+struct DedupePipeline {
+    args: DedupeArgs,
+    cfg: &'static mut Config,
+    config_root: PathBuf,
+    package_manager_to_sync: Option<PackageManagerToSync>,
+    manifest_path: PathBuf,
+}
+
+impl DedupePipeline {
+    async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
+        let DedupePipeline { args, cfg, config_root, package_manager_to_sync, manifest_path } =
+            self;
+        if let Some(pm) = package_manager_to_sync.as_ref() {
+            config_deps::sync_package_manager_dependencies(
+                cfg,
+                &config_root,
+                &pm.specifier,
+                &pm.version,
+                false,
+            )
+            .await?;
+        }
+        config_deps::install_config_deps::<Reporter>(cfg, &config_root, false).await?;
+        config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
+        let cfg: &'static Config = cfg;
+        let state = State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
         args.run::<Reporter>(state).await
     }
 }
