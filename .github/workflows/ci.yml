@@ -1,6 +1,6 @@
 name: TS CI
 
-on: [push, pull_request]
+on: [push, pull_request, merge_group]
 
 permissions:
   contents: read # to fetch code (actions/checkout)
@@ -13,12 +13,23 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      ts: ${{ steps.filter.outputs.ts }}
+      ts: ${{ steps.force.outputs.ts || steps.filter.outputs.ts }}
     steps:
+      # In the merge queue the full suite must run: `TS CI / Compile & Lint`
+      # is itself a required check, and a skipped job never reports its
+      # context, which would leave the queue waiting forever. Forcing
+      # detection true also tests the merged result, which is the point of
+      # the queue.
+      - name: Force TS CI for merge queue
+        if: github.event_name == 'merge_group'
+        id: force
+        run: echo "ts=true" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        if: github.event_name != 'merge_group'
         with:
           persist-credentials: false
       - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        if: github.event_name != 'merge_group'
         id: filter
         with:
           # The TypeScript pnpm stack lives under pnpm11/, plus the
