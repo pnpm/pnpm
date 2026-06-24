@@ -1,4 +1,7 @@
-use std::{io::Write, path::Path};
+use std::{
+    io::Write,
+    path::{Path, PathBuf},
+};
 
 use crate::State;
 use clap::Args;
@@ -6,6 +9,7 @@ use miette::{Context, IntoDiagnostic};
 use pacquet_package_manager::Install;
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_reporter::Reporter;
+use tempfile::NamedTempFile;
 
 #[derive(Debug, Args)]
 pub struct DedupeArgs {
@@ -14,10 +18,15 @@ pub struct DedupeArgs {
 }
 
 impl DedupeArgs {
+    /// Run the deduplication install pipeline. In `--check` mode the method
+    /// receives a pre-computed snapshot (`existing`) and drop guard created by
+    /// the caller *before* config-dependency steps, so the gate covers any
+    /// lockfile mutations made by config-deps as well.
     pub async fn run<Reporter: self::Reporter + 'static>(
         self,
         state: State,
         existing: Option<String>,
+        guard: Option<LockfileGuard>,
         lockfile_path: &Path,
     ) -> miette::Result<()> {
         let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
@@ -41,7 +50,7 @@ impl DedupeArgs {
             prefer_frozen_lockfile: Some(false),
             ignore_manifest_check: false,
             skip_runtimes: false,
-            trust_lockfile: false,
+            trust_lockfile: config.trust_lockfile,
             update_checksums: false,
             is_full_install: true,
             resolved_packages,
@@ -59,38 +68,75 @@ impl DedupeArgs {
         .wrap_err("deduplicating dependencies")?;
 
         if self.check {
-            let current = match std::fs::read_to_string(lockfile_path) {
-                Ok(content) => Some(content),
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
-                Err(e) => {
-                    return Err(e).into_diagnostic().wrap_err("reading lockfile after dedupe");
-                }
-            };
-            if existing != current {
-                if let Some(old) = existing {
-                    let dir = lockfile_path.parent().unwrap_or_else(|| Path::new("."));
-                    let mut tmp = tempfile::NamedTempFile::new_in(dir)
-                        .into_diagnostic()
-                        .wrap_err("creating temp file for atomic lockfile restore")?;
-                    tmp.write_all(old.as_bytes())
-                        .into_diagnostic()
-                        .wrap_err("writing temp lockfile for rollback")?;
-                    tmp.as_file()
-                        .sync_all()
-                        .into_diagnostic()
-                        .wrap_err("syncing temp lockfile for rollback")?;
-                    tmp.persist(lockfile_path)
-                        .into_diagnostic()
-                        .wrap_err("restoring lockfile after check")?;
-                } else {
-                    std::fs::remove_file(lockfile_path)
-                        .into_diagnostic()
-                        .wrap_err("removing lockfile after check")?;
-                }
-                return Err(miette::miette!("Lockfile would be modified by deduplication"));
+            let mut guard = guard.unwrap();
+            let current = read_lockfile_snapshot(lockfile_path)?;
+            if existing == current {
+                guard.disarm();
+                Ok(())
+            } else {
+                Err(miette::miette!("Lockfile would be modified by deduplication"))
+            }
+        } else {
+            Ok(())
+        }
+    }
+}
+
+/// Atomically write `content` to `path` via temp-file + rename, so the write
+/// does not follow symlinks and cannot produce a torn file on crash.
+fn atomic_write(path: &Path, content: &[u8]) -> miette::Result<()> {
+    let dir = path.parent().unwrap_or_else(|| Path::new("."));
+    let mut tmp = NamedTempFile::new_in(dir)
+        .into_diagnostic()
+        .wrap_err("creating temp file for atomic write")?;
+    tmp.write_all(content).into_diagnostic().wrap_err("writing temp file")?;
+    tmp.as_file().sync_all().into_diagnostic().wrap_err("syncing temp file")?;
+    tmp.persist(path).into_diagnostic().wrap_err("renaming temp file into place")?;
+    Ok(())
+}
+
+/// A drop guard for `--check` mode: restores the lockfile snapshot on drop
+/// unless [`disarm`](LockfileGuard::disarm) has been called. This way an
+/// unexpected error during deduplication still leaves the workspace in its
+/// original state.
+pub(crate) struct LockfileGuard {
+    existing: Option<String>,
+    lockfile_path: PathBuf,
+    disarmed: bool,
+}
+
+impl LockfileGuard {
+    pub(crate) fn new(existing: Option<String>, lockfile_path: &Path) -> Self {
+        Self { existing, lockfile_path: lockfile_path.to_path_buf(), disarmed: false }
+    }
+
+    pub(crate) fn disarm(&mut self) {
+        self.disarmed = true;
+    }
+}
+
+impl Drop for LockfileGuard {
+    fn drop(&mut self) {
+        if self.disarmed {
+            return;
+        }
+        match self.existing.take() {
+            Some(ref old) => {
+                let _ = atomic_write(&self.lockfile_path, old.as_bytes());
+            }
+            None => {
+                let _ = std::fs::remove_file(&self.lockfile_path);
             }
         }
+    }
+}
 
-        Ok(())
+/// Read pnpm-lock.yaml into an `Option<String>` for snapshot comparisons.
+/// Returns `None` when the file does not exist.
+pub(crate) fn read_lockfile_snapshot(lockfile_path: &Path) -> miette::Result<Option<String>> {
+    match std::fs::read_to_string(lockfile_path) {
+        Ok(content) => Ok(Some(content)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(e).into_diagnostic().wrap_err("reading lockfile"),
     }
 }

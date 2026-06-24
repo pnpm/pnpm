@@ -806,10 +806,11 @@ fn derive_config_root_and_package_manager_to_sync(
     Ok((config_root, package_manager_to_sync))
 }
 
-/// The reporter-generic body of `pacquet dedupe`: runs config-dependency
-/// installation and `updateConfig` hooks before creating state and dispatching
-/// to the dedupe install pipeline. Skips config-deps when `--check` is set to
-/// avoid materializing `node_modules/.pnpm-config`.
+/// The reporter-generic body of `pacquet dedupe`: snapshots the lockfile
+/// (when `--check`), runs config-dependency installation and `updateConfig`
+/// hooks, then dispatches to the install pipeline. The snapshot wraps the
+/// entire pipeline so any lockfile write made by config-deps is also covered
+/// by the check gate.
 struct DedupePipeline {
     args: DedupeArgs,
     cfg: &'static mut Config,
@@ -823,38 +824,30 @@ impl DedupePipeline {
         let DedupePipeline { args, cfg, config_root, package_manager_to_sync, manifest_path } =
             self;
 
-        // Snapshot lockfile BEFORE config-dependency ops that can persist
-        // into pnpm-lock.yaml (env-lockfile document).
         let lockfile_path = config_root.join(pacquet_lockfile::Lockfile::FILE_NAME);
-        let existing = if args.check {
-            match std::fs::read_to_string(&lockfile_path) {
-                Ok(content) => Some(content),
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
-                Err(e) => {
-                    return Err(e).into_diagnostic().wrap_err("reading lockfile before dedupe");
-                }
-            }
-        } else {
-            None
-        };
 
-        if !args.check {
-            if let Some(pm) = package_manager_to_sync.as_ref() {
-                config_deps::sync_package_manager_dependencies(
-                    cfg,
-                    &config_root,
-                    &pm.specifier,
-                    &pm.version,
-                    false,
-                )
-                .await?;
-            }
-            config_deps::install_config_deps::<Reporter>(cfg, &config_root, false).await?;
-            config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
+        // Snapshot before any config-dep writes so --check detects lockfile
+        // changes made by config-dependency syncing as well.
+        let existing =
+            if args.check { dedupe::read_lockfile_snapshot(&lockfile_path)? } else { None };
+        let guard =
+            args.check.then(|| dedupe::LockfileGuard::new(existing.clone(), &lockfile_path));
+
+        if let Some(pm) = package_manager_to_sync.as_ref() {
+            config_deps::sync_package_manager_dependencies(
+                cfg,
+                &config_root,
+                &pm.specifier,
+                &pm.version,
+                false,
+            )
+            .await?;
         }
+        config_deps::install_config_deps::<Reporter>(cfg, &config_root, false).await?;
+        config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
         let cfg: &'static Config = cfg;
         let state = State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
-        args.run::<Reporter>(state, existing, &lockfile_path).await
+        args.run::<Reporter>(state, existing, guard, &lockfile_path).await
     }
 }
 
