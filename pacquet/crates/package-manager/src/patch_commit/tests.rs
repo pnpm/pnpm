@@ -1,6 +1,6 @@
 use super::{
     PatchCommitError, PatchCommitFs, PkgFilesForDiff, RealPatchCommitFs, diff_folders,
-    prepare_pkg_files_for_diff, prepare_pkg_files_for_diff_with_fs,
+    normalize_diff_output, prepare_pkg_files_for_diff, prepare_pkg_files_for_diff_with_fs,
     remove_existing_temp_dir_with_fs,
 };
 use pretty_assertions::assert_eq;
@@ -122,6 +122,24 @@ fn patch_commit_prepare_pkg_files_for_diff_reports_hard_link_errors() {
 }
 
 #[test]
+fn patch_commit_prepare_pkg_files_for_diff_rejects_packlist_paths_that_escape_source() {
+    let root = tempdir().expect("root dir");
+    let edit_dir = root.path().join("edit");
+    fs::create_dir(&edit_dir).expect("create edit dir");
+    fs::write(
+        edit_dir.join("package.json"),
+        r#"{"name":"pkg","version":"1.0.0","main":"../secret.js","files":["index.js"]}"#,
+    )
+    .unwrap();
+    fs::write(edit_dir.join("index.js"), "included\n").unwrap();
+    fs::write(root.path().join("secret.js"), "outside\n").unwrap();
+
+    let err = prepare_pkg_files_for_diff(&edit_dir).expect_err("escaping packlist path");
+
+    assert!(matches!(err, PatchCommitError::InvalidPackageFilePath { .. }));
+}
+
+#[test]
 fn patch_commit_prepare_pkg_files_for_diff_returns_original_when_all_files_match() {
     let edit_dir = tempdir().expect("edit dir");
     fs::write(edit_dir.path().join("package.json"), r#"{"name":"pkg","version":"1.0.0"}"#).unwrap();
@@ -142,6 +160,31 @@ fn patch_commit_diff_dirs_returns_empty_for_equal_dirs() {
     let diff = diff_folders(before.path(), after.path()).expect("diff dirs");
 
     assert_eq!(diff, "");
+}
+
+#[test]
+fn patch_commit_diff_normalization_leaves_hunk_content_untouched() {
+    let diff = "\
+diff --git a/tmp/before/index.js b/tmp/after/index.js
+index 123..456 100644
+--- a/tmp/before/index.js
++++ b/tmp/after/index.js
+@@ -1 +1 @@
+-console.log(\"/tmp/before/ must stay in content\")
++console.log(\"/tmp/after/ must stay in content\")
+--- /tmp/before/ also stays when content resembles a file header
++++ /tmp/after/ also stays when content resembles a file header
+";
+
+    let normalized = normalize_diff_output(diff, "/tmp/before", "/tmp/after");
+
+    assert!(normalized.contains("diff --git a/index.js b/index.js"), "{normalized}");
+    assert!(normalized.contains("--- a/index.js"), "{normalized}");
+    assert!(normalized.contains("+++ b/index.js"), "{normalized}");
+    assert!(normalized.contains("-console.log(\"/tmp/before/ must stay in content\")"));
+    assert!(normalized.contains("+console.log(\"/tmp/after/ must stay in content\")"));
+    assert!(normalized.contains("--- /tmp/before/ also stays"));
+    assert!(normalized.contains("+++ /tmp/after/ also stays"));
 }
 
 #[test]

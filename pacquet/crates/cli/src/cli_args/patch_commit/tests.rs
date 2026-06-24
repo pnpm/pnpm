@@ -1,8 +1,12 @@
-use super::*;
+use super::{
+    cleanup_after_diff, normalize_patches_dir_name, patch_target_from_state,
+    path_from_forward_slash, remove_dir_if_exists,
+};
 use pacquet_lockfile::{ComVer, Lockfile, LockfileVersion, PackageKey, PackageMetadata};
+use pacquet_package_manager::PkgFilesForDiff;
 use pretty_assertions::assert_eq;
 use serde_json::json;
-use std::collections::HashMap;
+use std::{collections::HashMap, path::PathBuf};
 use tempfile::tempdir;
 
 fn empty_lockfile() -> Lockfile {
@@ -102,7 +106,7 @@ fn remove_dir_if_exists_keeps_going_after_non_directory_cleanup_error() {
 
     remove_dir_if_exists(&path);
 
-    assert!(path.is_file(), "cleanup errors are reported but not fatal");
+    assert!(path.is_file(), "cleanup errors are ignored but not fatal");
 }
 
 #[test]

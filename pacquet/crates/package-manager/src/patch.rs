@@ -214,7 +214,7 @@ impl WritePackageForPatch<'_> {
         .map_err(WritePackageForPatchError::DownloadTarball)?;
         let raw_cas_paths = (*cas_paths).clone();
         let cas_paths = if let LockfileResolution::Tarball(t) = &metadata.resolution
-            && t.git_hosted == Some(true)
+            && git_tarball_url(&metadata.resolution).is_some()
         {
             let allow_build_closure = |_dep_path: &str| false;
             let files_index_file = git_hosted_store_index_key(&package_id, !config.ignore_scripts);

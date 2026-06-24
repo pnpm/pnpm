@@ -6,6 +6,7 @@ use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_crypto_hash::create_short_hash;
+use pacquet_fs::{is_subdir, lexical_normalize};
 use pacquet_lockfile::{LoadLockfileError, Lockfile};
 use pacquet_package_manager::{
     PatchTarget, PatchTargetError, PkgFilesForDiff, WritePackageForPatch,
@@ -17,8 +18,10 @@ use pacquet_reporter::Reporter;
 use pacquet_workspace_manifest_writer::UpdateWorkspaceManifestError;
 use serde_json::Value;
 use std::{
-    fs, io,
+    fs::{self, OpenOptions},
+    io::{self, Write},
     path::{Component, Path, PathBuf},
+    sync::atomic::{AtomicU64, Ordering},
 };
 
 #[derive(Debug, Args)]
@@ -59,6 +62,22 @@ pub enum PatchCommitError {
     #[display("Failed to create patches directory {}: {source}", path.display())]
     #[diagnostic(code(pacquet::patch_commit_create_patches_dir))]
     CreatePatchesDir {
+        path: PathBuf,
+        #[error(source)]
+        source: io::Error,
+    },
+
+    #[display("The configured patches directory is outside the project: {patches_dir}")]
+    #[diagnostic(code(ERR_PNPM_PATCHES_DIR_OUTSIDE_PROJECT))]
+    PatchesDirOutsideProject { patches_dir: String },
+
+    #[display("Patch file \"{patch_file}\" is outside the configured patches directory")]
+    #[diagnostic(code(ERR_PNPM_PATCH_FILE_OUTSIDE_PATCHES_DIR))]
+    PatchFileOutsidePatchesDir { patch_file: String },
+
+    #[display("Failed to read patch file metadata for {}: {source}", path.display())]
+    #[diagnostic(code(pacquet::patch_commit_read_patch_file_metadata))]
+    ReadPatchFileMetadata {
         path: PathBuf,
         #[error(source)]
         source: io::Error,
@@ -133,15 +152,28 @@ impl PatchCommitArgs {
         }
         .run::<Reporter>()
         .await
-        .map_err(PatchCommitError::WritePackage)?;
+        .map_err(|source| {
+            remove_dir_if_exists(&clean_dir);
+            PatchCommitError::WritePackage(source)
+        })?;
 
-        let filtered =
-            prepare_pkg_files_for_diff(&patch_dir).map_err(PatchCommitError::PatchCommit)?;
+        let filtered = match prepare_pkg_files_for_diff(&patch_dir) {
+            Ok(filtered) => filtered,
+            Err(source) => {
+                remove_dir_if_exists(&clean_dir);
+                return Err(PatchCommitError::PatchCommit(source));
+            }
+        };
         let filtered_path = match &filtered {
             PkgFilesForDiff::Original(path) | PkgFilesForDiff::Temporary(path) => path,
         };
-        let patch_content =
-            diff_folders(&clean_dir, filtered_path).map_err(PatchCommitError::PatchCommit)?;
+        let patch_content = match diff_folders(&clean_dir, filtered_path) {
+            Ok(patch_content) => patch_content,
+            Err(source) => {
+                cleanup_after_diff(&clean_dir, &filtered);
+                return Err(PatchCommitError::PatchCommit(source));
+            }
+        };
         cleanup_after_diff(&clean_dir, &filtered);
 
         if patch_content.is_empty() {
@@ -161,14 +193,15 @@ impl PatchCommitArgs {
             path: patches_dir.clone(),
             source,
         })?;
+        let patch_file_context = PatchFileWriteContext::new(&workspace_dir, &patches_dir_name)?;
 
         let patch_key =
             if state_value.apply_to_all { name.clone() } else { format!("{name}@{version}") };
         let patch_file_name = format!("{}.patch", patch_key.replace('/', "__"));
-        let patch_file_path = patches_dir.join(&patch_file_name);
-        fs::write(&patch_file_path, patch_content).map_err(|source| {
-            PatchCommitError::WritePatch { path: patch_file_path.clone(), source }
-        })?;
+        let patch_file_path = patch_file_context.patch_file_path(&patch_file_name)?;
+        write_patch_file_atomically(&patch_file_path, patch_content.as_bytes()).map_err(
+            |source| PatchCommitError::WritePatch { path: patch_file_path.clone(), source },
+        )?;
 
         let mut patched_dependencies =
             state.config.patched_dependencies.clone().unwrap_or_default();
@@ -231,6 +264,136 @@ fn resolve_path(dir: &Path, path: &Path) -> PathBuf {
     if path.is_absolute() { path.to_path_buf() } else { dir.join(path) }
 }
 
+struct PatchFileWriteContext {
+    patches_dir: PathBuf,
+    real_patches_dir: PathBuf,
+}
+
+impl PatchFileWriteContext {
+    fn new(lockfile_dir: &Path, patches_dir_setting: &str) -> Result<Self, PatchCommitError> {
+        let project_root = lexical_normalize(lockfile_dir);
+        let real_project_root =
+            dunce::canonicalize(&project_root).unwrap_or_else(|_| project_root.clone());
+        let patches_dir = join_setting_path(&project_root, patches_dir_setting);
+        if !is_subdir(&project_root, &patches_dir) {
+            return Err(PatchCommitError::PatchesDirOutsideProject {
+                patches_dir: patches_dir_setting.to_string(),
+            });
+        }
+        let real_patches_dir = dunce::canonicalize(&patches_dir).map_err(|source| {
+            PatchCommitError::ReadPatchFileMetadata { path: patches_dir.clone(), source }
+        })?;
+        if !is_subdir(&real_project_root, &real_patches_dir) {
+            return Err(PatchCommitError::PatchesDirOutsideProject {
+                patches_dir: patches_dir_setting.to_string(),
+            });
+        }
+        Ok(Self { patches_dir, real_patches_dir })
+    }
+
+    fn patch_file_path(&self, patch_file: &str) -> Result<PathBuf, PatchCommitError> {
+        let target_path = resolve_patch_path(&self.patches_dir, Path::new(patch_file));
+        if target_path == self.patches_dir || !is_subdir(&self.patches_dir, &target_path) {
+            return Err(PatchCommitError::PatchFileOutsidePatchesDir {
+                patch_file: patch_file.to_string(),
+            });
+        }
+
+        let parent_dir = target_path.parent().map_or_else(PathBuf::new, Path::to_path_buf);
+        let real_parent_dir = dunce::canonicalize(&parent_dir).map_err(|source| {
+            PatchCommitError::ReadPatchFileMetadata { path: parent_dir.clone(), source }
+        })?;
+        if !is_subdir(&self.real_patches_dir, &real_parent_dir) {
+            return Err(PatchCommitError::PatchFileOutsidePatchesDir {
+                patch_file: patch_file.to_string(),
+            });
+        }
+
+        if lstat_if_exists(&target_path)?.as_ref().is_some_and(|stats| {
+            stats.file_type().is_symlink()
+                && dunce::canonicalize(&target_path)
+                    .ok()
+                    .is_none_or(|real_target| !is_subdir(&self.real_patches_dir, &real_target))
+        }) {
+            return Err(PatchCommitError::PatchFileOutsidePatchesDir {
+                patch_file: patch_file.to_string(),
+            });
+        }
+
+        Ok(target_path)
+    }
+}
+
+fn join_setting_path(base: &Path, setting: &str) -> PathBuf {
+    let mut joined = base.to_path_buf();
+    for component in Path::new(setting).components() {
+        match component {
+            Component::Prefix(_) | Component::RootDir => {}
+            Component::CurDir => {}
+            Component::ParentDir => joined.push(".."),
+            Component::Normal(part) => joined.push(part),
+        }
+    }
+    lexical_normalize(&joined)
+}
+
+fn resolve_patch_path(base: &Path, path: &Path) -> PathBuf {
+    if path.is_absolute() { lexical_normalize(path) } else { lexical_normalize(&base.join(path)) }
+}
+
+fn lstat_if_exists(path: &Path) -> Result<Option<fs::Metadata>, PatchCommitError> {
+    match fs::symlink_metadata(path) {
+        Ok(meta) => Ok(Some(meta)),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(source) => {
+            Err(PatchCommitError::ReadPatchFileMetadata { path: path.to_path_buf(), source })
+        }
+    }
+}
+
+fn write_patch_file_atomically(target: &Path, content: &[u8]) -> io::Result<()> {
+    const MAX_TEMP_ATTEMPTS: usize = 16;
+
+    static COUNTER: AtomicU64 = AtomicU64::new(0);
+    let pid = std::process::id();
+    let parent = target.parent().unwrap_or_else(|| Path::new("."));
+    let file_name = target
+        .file_name()
+        .map_or_else(|| String::from("patch"), |name| name.to_string_lossy().into_owned());
+
+    let mut last_already_exists = None;
+    for _ in 0..MAX_TEMP_ATTEMPTS {
+        let counter = COUNTER.fetch_add(1, Ordering::Relaxed);
+        let tmp = parent.join(format!(".{file_name}.{pid}.{counter}.pacquet-tmp"));
+        let mut file = match OpenOptions::new().write(true).create_new(true).open(&tmp) {
+            Ok(file) => file,
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                last_already_exists = Some(error);
+                continue;
+            }
+            Err(error) => return Err(error),
+        };
+
+        if let Err(error) = file.write_all(content) {
+            drop(file);
+            let _ = fs::remove_file(&tmp);
+            return Err(error);
+        }
+        drop(file);
+
+        return fs::rename(&tmp, target).inspect_err(|_| {
+            let _ = fs::remove_file(&tmp);
+        });
+    }
+
+    Err(last_already_exists.unwrap_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::AlreadyExists,
+            "exhausted temp-path attempts for atomic patch write",
+        )
+    }))
+}
+
 fn clean_source_dir(state: &State, patch_dir: &Path) -> PathBuf {
     let hash = create_short_hash(&patch_dir.to_string_lossy());
     state.config.store_dir.tmp().join("patch-commit").join(hash)
@@ -247,9 +410,7 @@ fn remove_dir_if_exists(path: &Path) {
     match fs::remove_dir_all(path) {
         Ok(()) => {}
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-        Err(error) => {
-            eprintln!("Failed to clean up temporary directory at {}: {error}", path.display());
-        }
+        Err(_) => {}
     }
 }
 

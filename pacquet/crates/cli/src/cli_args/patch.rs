@@ -7,6 +7,7 @@ use derive_more::{Display, Error};
 use dialoguer::{Confirm, Select};
 use miette::{Diagnostic, IntoDiagnostic, miette};
 use owo_colors::OwoColorize;
+use pacquet_fs::{is_subdir, lexical_normalize};
 use pacquet_lockfile::{LoadLockfileError, Lockfile};
 use pacquet_package_manager::{
     PatchCandidate, PatchCandidateSet, PatchTarget, PatchTargetError, WritePackageForPatch,
@@ -17,7 +18,7 @@ use pacquet_reporter::Reporter;
 use std::{
     fs,
     io::{self, IsTerminal},
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
 };
 
 #[derive(Debug, Args)]
@@ -81,6 +82,26 @@ pub enum PatchError {
     #[display("Unable to find patch file {}", patch_file_path.display())]
     #[diagnostic(code(ERR_PNPM_PATCH_FILE_NOT_FOUND))]
     PatchFileNotFound { patch_file_path: PathBuf },
+
+    #[display("The configured patches directory is outside the project: {patches_dir}")]
+    #[diagnostic(code(ERR_PNPM_PATCHES_DIR_OUTSIDE_PROJECT))]
+    PatchesDirOutsideProject { patches_dir: String },
+
+    #[display("Patch file \"{patch_file}\" is outside the configured patches directory")]
+    #[diagnostic(code(ERR_PNPM_PATCH_FILE_OUTSIDE_PATCHES_DIR))]
+    PatchFileOutsidePatchesDir { patch_file: String },
+
+    #[display("Patch file \"{patch_file}\" is a directory")]
+    #[diagnostic(code(ERR_PNPM_PATCH_FILE_IS_DIRECTORY))]
+    PatchFileIsDirectory { patch_file: String },
+
+    #[display("Failed to read patch file metadata for {}: {source}", path.display())]
+    #[diagnostic(code(pacquet::patch_read_patch_file_metadata))]
+    ReadPatchFileMetadata {
+        path: PathBuf,
+        #[error(source)]
+        source: io::Error,
+    },
 }
 
 impl PatchArgs {
@@ -90,10 +111,10 @@ impl PatchArgs {
         state: State,
     ) -> Result<(), PatchError> {
         let PatchArgs { package_name, edit_dir, ignore_existing } = self;
+        let package_name = package_name.ok_or(PatchError::MissingPackageName)?;
         if let Some(edit_dir) = edit_dir.as_ref().map(|path| resolve_path(dir, path)) {
             reject_non_empty_custom_edit_dir(&edit_dir)?;
         }
-        let package_name = package_name.ok_or(PatchError::MissingPackageName)?;
         let current_lockfile =
             Lockfile::load_current_from_virtual_store_dir(&state.config.virtual_store_dir)
                 .map_err(PatchError::LoadLockfile)?
@@ -284,12 +305,107 @@ fn apply_existing_patch_file(
         .workspace_dir
         .as_deref()
         .unwrap_or_else(|| config.modules_dir.parent().unwrap_or_else(|| Path::new(".")));
-    let patch_file_path = resolve_path(base_dir, Path::new(patch_file));
+    let patch_file_path = checked_existing_patch_file_path(
+        base_dir,
+        config.patches_dir.as_deref().unwrap_or("patches"),
+        patch_file,
+    )?;
     if !patch_file_path.exists() {
         return Err(PatchError::PatchFileNotFound { patch_file_path });
     }
     pacquet_patching::apply_patch_to_dir(edit_dir, &patch_file_path)
         .map_err(PatchError::ApplyExistingPatch)
+}
+
+struct ExistingPatchFileContext {
+    project_root: PathBuf,
+    patches_dir: PathBuf,
+    real_patches_dir: Option<PathBuf>,
+}
+
+impl ExistingPatchFileContext {
+    fn new(lockfile_dir: &Path, patches_dir_setting: &str) -> Result<Self, PatchError> {
+        let project_root = lexical_normalize(lockfile_dir);
+        let real_project_root =
+            dunce::canonicalize(&project_root).unwrap_or_else(|_| project_root.clone());
+        let patches_dir = join_setting_path(&project_root, patches_dir_setting);
+        if !is_subdir(&project_root, &patches_dir) {
+            return Err(PatchError::PatchesDirOutsideProject {
+                patches_dir: patches_dir_setting.to_string(),
+            });
+        }
+        let real_patches_dir = realpath_if_exists(&patches_dir);
+        if real_patches_dir.as_ref().is_some_and(|real| !is_subdir(&real_project_root, real)) {
+            return Err(PatchError::PatchesDirOutsideProject {
+                patches_dir: patches_dir_setting.to_string(),
+            });
+        }
+        Ok(Self { project_root, patches_dir, real_patches_dir })
+    }
+}
+
+fn checked_existing_patch_file_path(
+    lockfile_dir: &Path,
+    patches_dir_setting: &str,
+    patch_file: &str,
+) -> Result<PathBuf, PatchError> {
+    let ctx = ExistingPatchFileContext::new(lockfile_dir, patches_dir_setting)?;
+    let target_path = resolve_patch_path(&ctx.project_root, Path::new(patch_file));
+    if target_path == ctx.patches_dir || !is_subdir(&ctx.patches_dir, &target_path) {
+        return Err(PatchError::PatchFileOutsidePatchesDir { patch_file: patch_file.to_string() });
+    }
+
+    let parent_dir = target_path.parent().map_or_else(PathBuf::new, Path::to_path_buf);
+    let target_stats = lstat_patch_if_exists(&target_path)?;
+    let real_parent_dir = realpath_if_exists(&parent_dir);
+    let real_patches_dir = ctx.real_patches_dir.or_else(|| realpath_if_exists(&ctx.patches_dir));
+    if let (Some(real_parent_dir), Some(real_patches_dir)) = (&real_parent_dir, &real_patches_dir)
+        && !is_subdir(real_patches_dir, real_parent_dir)
+    {
+        return Err(PatchError::PatchFileOutsidePatchesDir { patch_file: patch_file.to_string() });
+    }
+    if target_stats.as_ref().is_some_and(fs::Metadata::is_dir) {
+        return Err(PatchError::PatchFileIsDirectory { patch_file: patch_file.to_string() });
+    }
+    if target_stats.as_ref().is_some_and(|stats| stats.file_type().is_symlink())
+        && real_patches_dir.as_ref().is_some_and(|real_patches_dir| {
+            dunce::canonicalize(&target_path)
+                .ok()
+                .is_none_or(|real_target| !is_subdir(real_patches_dir, &real_target))
+        })
+    {
+        return Err(PatchError::PatchFileOutsidePatchesDir { patch_file: patch_file.to_string() });
+    }
+    Ok(target_path)
+}
+
+fn join_setting_path(base: &Path, setting: &str) -> PathBuf {
+    let mut joined = base.to_path_buf();
+    for component in Path::new(setting).components() {
+        match component {
+            Component::Prefix(_) | Component::RootDir => {}
+            Component::CurDir => {}
+            Component::ParentDir => joined.push(".."),
+            Component::Normal(part) => joined.push(part),
+        }
+    }
+    lexical_normalize(&joined)
+}
+
+fn resolve_patch_path(base: &Path, path: &Path) -> PathBuf {
+    if path.is_absolute() { lexical_normalize(path) } else { lexical_normalize(&base.join(path)) }
+}
+
+fn lstat_patch_if_exists(path: &Path) -> Result<Option<fs::Metadata>, PatchError> {
+    match fs::symlink_metadata(path) {
+        Ok(meta) => Ok(Some(meta)),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(None),
+        Err(source) => Err(PatchError::ReadPatchFileMetadata { path: path.to_path_buf(), source }),
+    }
+}
+
+fn realpath_if_exists(path: &Path) -> Option<PathBuf> {
+    dunce::canonicalize(path).ok()
 }
 
 fn print_success(edit_dir: &Path) {

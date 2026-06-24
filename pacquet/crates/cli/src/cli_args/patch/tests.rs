@@ -1,5 +1,9 @@
-use super::*;
-use std::io::IsTerminal;
+use super::{
+    DialoguerPatchPrompt, PatchCandidate, PatchCandidateSet, PatchError, PatchPrompt, PatchTarget,
+    default_edit_dir_name, reject_non_empty_custom_edit_dir, reject_non_empty_edit_dir,
+    render_success, select_patch_target, select_patch_target_with_prompt,
+};
+use std::{io::IsTerminal, path::Path};
 use tempfile::tempdir;
 
 #[test]
@@ -62,18 +66,14 @@ fn prompt_selection_uses_git_tarball_url_as_bare_specifier() {
 
 #[test]
 fn select_patch_target_uses_dialoguer_when_no_default_target() {
-    if std::io::stdin().is_terminal() {
-        return;
-    }
+    assert!(!std::io::stdin().is_terminal(), "test requires non-interactive stdin");
 
     assert!(matches!(select_patch_target(&prompt_candidate_set()), Err(PatchError::Canceled)));
 }
 
 #[test]
 fn dialoguer_prompt_reports_cancellation_when_stdin_is_not_interactive() {
-    if std::io::stdin().is_terminal() {
-        return;
-    }
+    assert!(!std::io::stdin().is_terminal(), "test requires non-interactive stdin");
 
     let prompt = DialoguerPatchPrompt;
     let mut git_candidate = prompt_candidate("chalk@5.3.0");

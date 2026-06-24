@@ -1,4 +1,8 @@
-use super::*;
+use super::{
+    PatchCandidate, PatchTarget, WritePackageForPatch, WritePackageForPatchError,
+    compare_candidates, default_patch_target, executor_scripts_prepend_node_path,
+    patch_candidates_from_lockfile, resolution_kind,
+};
 use pacquet_config::ScriptsPrependNodePath;
 use pacquet_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
 use pacquet_lockfile::{
@@ -9,6 +13,8 @@ use pacquet_lockfile::{
 use pretty_assertions::assert_eq;
 use serde_json::json;
 use std::collections::HashMap;
+
+const GIT_HOSTED_COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
 
 fn empty_lockfile() -> Lockfile {
     Lockfile {
@@ -241,6 +247,31 @@ async fn patch_extract_git_hosted_tarball_runs_packlist() {
     assert!(!dest.join("ignore.txt").exists(), "packlist should filter ignored files");
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn patch_extract_url_inferred_git_hosted_tarball_runs_packlist() {
+    let fixture = PatchExtractFixture::new_git_hosted_without_flag("foo", "1.0.0");
+    let dest = fixture.tmp.path().join("edit");
+
+    WritePackageForPatch {
+        tarball_mem_cache: &fixture.mem_cache,
+        http_client: &fixture.http_client,
+        config: fixture.config,
+        current_lockfile: &fixture.lockfile,
+        target: &fixture.target,
+        dest: &dest,
+    }
+    .run::<pacquet_reporter::SilentReporter>()
+    .await
+    .expect("extract URL-inferred git-hosted package for patching");
+
+    assert_eq!(
+        std::fs::read_to_string(dest.join("package.json")).expect("package.json"),
+        r#"{"name":"foo","version":"1.0.0","files":["index.js"]}"#,
+    );
+    assert_eq!(std::fs::read_to_string(dest.join("index.js")).expect("index.js"), "ok\n");
+    assert!(!dest.join("ignore.txt").exists(), "packlist should filter ignored files");
+}
+
 #[tokio::test]
 async fn patch_extract_rejects_unsupported_resolution_shape() {
     let tmp = tempfile::tempdir().expect("temp dir");
@@ -396,14 +427,23 @@ struct PatchExtractFixture {
 
 impl PatchExtractFixture {
     fn new(name: &str, version: &str) -> Self {
-        Self::new_with_options(name, version, false)
+        Self::new_with_options(name, version, false, false)
     }
 
     fn new_git_hosted(name: &str, version: &str) -> Self {
-        Self::new_with_options(name, version, true)
+        Self::new_with_options(name, version, true, true)
     }
 
-    fn new_with_options(name: &str, version: &str, git_hosted: bool) -> Self {
+    fn new_git_hosted_without_flag(name: &str, version: &str) -> Self {
+        Self::new_with_options(name, version, true, false)
+    }
+
+    fn new_with_options(
+        name: &str,
+        version: &str,
+        use_git_hosted_url: bool,
+        git_hosted_flag: bool,
+    ) -> Self {
         use pacquet_tarball::CacheValue;
         use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
@@ -412,7 +452,7 @@ impl PatchExtractFixture {
         std::fs::create_dir_all(&store_dir).expect("create store dir");
         let pkg_json = store_dir.join("pkg-json");
         let index = store_dir.join("index");
-        let manifest = if git_hosted {
+        let manifest = if use_git_hosted_url {
             format!(r#"{{"name":"{name}","version":"{version}","files":["index.js"]}}"#)
         } else {
             format!(r#"{{"name":"{name}","version":"{version}"}}"#)
@@ -431,11 +471,15 @@ impl PatchExtractFixture {
         let key = format!("{name}@{version}");
         let lockfile = lockfile_with_package_metadata(
             &key,
-            if git_hosted { git_hosted_metadata() } else { registry_metadata() },
+            if use_git_hosted_url {
+                git_hosted_metadata(git_hosted_flag)
+            } else {
+                registry_metadata()
+            },
         );
         let target = patch_target(&key, &lockfile);
-        let tarball_url = if git_hosted {
-            format!("https://codeload.github.com/example/{name}/tar.gz/deadbeef")
+        let tarball_url = if use_git_hosted_url {
+            git_hosted_tarball(name)
         } else {
             format!("https://registry.test/{name}/-/{name}-{version}.tgz")
         };
@@ -461,14 +505,27 @@ impl PatchExtractFixture {
     }
 }
 
-fn git_hosted_metadata() -> PackageMetadata {
-    serde_json::from_value(json!({
-        "resolution": {
-            "tarball": "https://codeload.github.com/example/foo/tar.gz/deadbeef",
+fn git_hosted_metadata(git_hosted_flag: bool) -> PackageMetadata {
+    let tarball = git_hosted_tarball("foo");
+    let resolution = if git_hosted_flag {
+        json!({
+            "tarball": tarball,
             "integrity": "sha512-aGVsbG8=",
             "gitHosted": true,
-        },
+        })
+    } else {
+        json!({
+            "tarball": tarball,
+            "integrity": "sha512-aGVsbG8=",
+        })
+    };
+    serde_json::from_value(json!({
+        "resolution": resolution,
         "version": "1.0.0",
     }))
     .unwrap()
+}
+
+fn git_hosted_tarball(name: &str) -> String {
+    format!("https://codeload.github.com/example/{name}/tar.gz/{GIT_HOSTED_COMMIT}")
 }

@@ -172,6 +172,30 @@ fn patch_errors_when_package_is_missing() {
 }
 
 #[test]
+fn patch_missing_package_name_takes_precedence_over_edit_dir_checks() {
+    let CommandTempCwd { root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let edit_dir = workspace.join("custom-edit");
+    fs::create_dir_all(&edit_dir).expect("create edit dir");
+    fs::write(edit_dir.join("index.js"), "already here").expect("seed edit dir");
+
+    let output = pacquet(
+        &workspace,
+        ["patch", "--edit-dir", edit_dir.to_str().expect("utf8 edit dir"), "--reporter=silent"],
+    )
+    .output()
+    .expect("run patch");
+
+    assert!(!output.status.success(), "patch without package should fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("requires the package name"), "stderr: {stderr}");
+    assert!(!stderr.contains("already exists"), "stderr: {stderr}");
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn patch_errors_when_requested_version_is_not_installed() {
     let (root, workspace, npmrc_info) = setup_installed();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
@@ -632,6 +656,32 @@ fn patch_errors_when_existing_patch_file_is_missing() {
 }
 
 #[test]
+fn patch_rejects_existing_patch_file_outside_patches_dir() {
+    let (root, workspace, npmrc_info) = setup_installed();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    let outside_patch = workspace.parent().expect("workspace parent").join("outside.patch");
+    fs::write(&outside_patch, IS_POSITIVE_PATCH).expect("write outside patch");
+    let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut workspace_yaml =
+        fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
+    if !workspace_yaml.ends_with('\n') {
+        workspace_yaml.push('\n');
+    }
+    workspace_yaml.push_str("patchedDependencies:\n  is-positive@1.0.0: ../outside.patch\n");
+    fs::write(&workspace_yaml_path, workspace_yaml).expect("write pnpm-workspace.yaml");
+
+    let output = pacquet(&workspace, ["patch", "is-positive@1.0.0", "--reporter=silent"])
+        .output()
+        .expect("run patch");
+
+    assert!(!output.status.success(), "outside patch file should fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_PATCH_FILE_OUTSIDE_PATCHES_DIR"), "stderr: {stderr}");
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn patch_exact_version_creates_edit_dir_and_state() {
     let (root, workspace, npmrc_info) = setup_installed();
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
@@ -646,6 +696,40 @@ fn patch_exact_version_creates_edit_dir_and_state() {
     let state = patch_state(&workspace);
     assert_eq!(state[&key]["patchedPkg"], "is-positive@1.0.0");
     assert_eq!(state[&key]["applyToAll"], false);
+
+    drop((root, mock_instance));
+}
+
+#[cfg(unix)]
+#[test]
+fn patch_commit_rejects_symlinked_patch_file_outside_patches_dir() {
+    let (root, workspace, npmrc_info) = setup_installed();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+
+    pacquet(&workspace, ["patch", "is-positive@1.0.0", "--reporter=silent"]).assert().success();
+    let edit_dir = workspace.join("node_modules/.pnpm_patches/is-positive@1.0.0");
+    write_patch_edit(&edit_dir, "symlink write attempt");
+    let patches_dir = workspace.join("patches");
+    fs::create_dir_all(&patches_dir).expect("create patches dir");
+    let outside_target = workspace.parent().expect("workspace parent").join("outside.patch");
+    fs::write(&outside_target, "outside original\n").expect("write outside target");
+    std::os::unix::fs::symlink(&outside_target, patches_dir.join("is-positive@1.0.0.patch"))
+        .expect("create patch symlink");
+
+    let output = pacquet(
+        &workspace,
+        ["patch-commit", edit_dir.to_str().expect("utf8 edit dir"), "--reporter=silent"],
+    )
+    .output()
+    .expect("run patch-commit");
+
+    assert!(!output.status.success(), "symlinked patch file should fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("ERR_PNPM_PATCH_FILE_OUTSIDE_PATCHES_DIR"), "stderr: {stderr}");
+    assert_eq!(
+        fs::read_to_string(&outside_target).expect("read outside target"),
+        "outside original\n",
+    );
 
     drop((root, mock_instance));
 }

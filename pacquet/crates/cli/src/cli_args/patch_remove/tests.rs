@@ -1,4 +1,11 @@
-use super::*;
+use super::{
+    DialoguerPatchRemovePrompt, PatchRemovalContext, PatchRemovalTarget, PatchRemoveArgs,
+    PatchRemoveError, PatchRemoveFs, PatchRemovePrompt, join_setting_path,
+    patches_from_selected_indices, patches_to_remove, remove_empty_patch_dirs,
+    remove_empty_patch_dirs_with_fs, select_patches_from_indices, unlink_patch_if_exists,
+};
+use crate::State;
+use indexmap::IndexMap;
 use std::{io::IsTerminal, path::Path};
 
 #[test]
@@ -76,9 +83,7 @@ fn select_patches_from_indices_maps_selected_indices() {
 
 #[test]
 fn dialoguer_prompt_reports_cancellation_when_stdin_is_not_interactive() {
-    if std::io::stdin().is_terminal() {
-        return;
-    }
+    assert!(!std::io::stdin().is_terminal(), "test requires non-interactive stdin");
 
     let prompt = DialoguerPatchRemovePrompt;
     let err = prompt.select_patches(&["pkg".to_string()]).expect_err("prompt should cancel");

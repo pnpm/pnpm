@@ -474,6 +474,25 @@ fn patched_dependency_removes_empty_block() {
 }
 
 #[test]
+fn patched_dependency_removes_empty_or_null_block() {
+    let empty = "packages:\n  - '*'\n\npatchedDependencies:\n\ncatalog:\n  react: 18.2.0\n";
+    let out = run_patched_deps(Some(empty), &[]);
+    assert_eq!(out, "packages:\n  - '*'\n\ncatalog:\n  react: 18.2.0\n");
+
+    let null = "packages:\n  - '*'\n\npatchedDependencies: null\n\ncatalog:\n  react: 18.2.0\n";
+    let out = run_patched_deps(Some(null), &[]);
+    assert_eq!(out, "packages:\n  - '*'\n\ncatalog:\n  react: 18.2.0\n");
+}
+
+#[test]
+fn patched_dependency_remove_preserves_successor_comments() {
+    let original = "packages:\n  - '*'\n\npatchedDependencies:\n  is-positive: patches/is-positive.patch\n\n# catalog pins\ncatalog:\n  react: 18.2.0\n";
+    let out = run_patched_deps(Some(original), &[]);
+
+    assert_eq!(out, "packages:\n  - '*'\n\n# catalog pins\ncatalog:\n  react: 18.2.0\n",);
+}
+
+#[test]
 fn patched_dependency_removes_empty_last_block() {
     let original = "packages:\n  - '*'\n\npatchedDependencies:\n  is-positive@1.0.0: patches/is-positive@1.0.0.patch\n";
     let out = run_patched_deps(Some(original), &[]);

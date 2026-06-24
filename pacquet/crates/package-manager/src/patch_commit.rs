@@ -72,6 +72,10 @@ pub enum PatchCommitError {
         source: io::Error,
     },
 
+    #[display("Package file path escapes package directory: {path}")]
+    #[diagnostic(code(pacquet_package_manager::patch_commit_invalid_package_file_path))]
+    InvalidPackageFilePath { path: String },
+
     #[display(
         "Unable to diff directories. Make sure you have a recent version of 'git' available in PATH.\nThe following error was reported by 'git':\n{stderr}"
     )]
@@ -109,8 +113,9 @@ fn prepare_pkg_files_for_diff_with_fs(
         .create_dir_all(&temp_dir)
         .map_err(|source| PatchCommitError::CreateTempDir { dir: temp_dir.clone(), source })?;
     for file in files {
-        let source_path = src.join(path_from_forward_slash(&file));
-        let target = temp_dir.join(path_from_forward_slash(&file));
+        let relative_path = safe_package_file_path(&file)?;
+        let source_path = src.join(&relative_path);
+        let target = temp_dir.join(&relative_path);
         let parent =
             target.parent().expect("filtered package file target should have a parent directory");
         fs_ops.create_dir_all(parent).map_err(|source| PatchCommitError::CreateTempDir {
@@ -236,22 +241,66 @@ fn slash_path(path: &Path) -> String {
     path.to_string_lossy().replace('\\', "/")
 }
 
+fn safe_package_file_path(path: &str) -> Result<PathBuf, PatchCommitError> {
+    let path = path_from_forward_slash(path);
+    if path.is_absolute()
+        || path.components().any(|component| {
+            matches!(
+                component,
+                std::path::Component::ParentDir
+                    | std::path::Component::RootDir
+                    | std::path::Component::Prefix(_)
+            )
+        })
+    {
+        return Err(PatchCommitError::InvalidPackageFilePath {
+            path: path.to_string_lossy().into_owned(),
+        });
+    }
+    Ok(path)
+}
+
 fn path_from_forward_slash(path: &str) -> PathBuf {
     path.split('/').collect()
 }
 
 fn normalize_diff_output(diff: &str, folder_a: &str, folder_b: &str) -> String {
-    let mut out = diff.to_string();
+    let mut out = String::with_capacity(diff.len());
+    let mut in_hunk = false;
+    for line in diff.split_inclusive('\n') {
+        let (content, newline) = line.strip_suffix('\n').map_or((line, ""), |line| (line, "\n"));
+        if content.starts_with("diff --git ") {
+            in_hunk = false;
+            out.push_str(&normalize_diff_path_line(content, folder_a, folder_b));
+        } else if !in_hunk && is_diff_path_line(content) {
+            out.push_str(&normalize_diff_path_line(content, folder_a, folder_b));
+        } else {
+            out.push_str(content);
+        }
+        if content.starts_with("@@ ") || content.starts_with("@@@ ") {
+            in_hunk = true;
+        }
+        out.push_str(newline);
+    }
+    if let Some(without_marker) = out.strip_suffix("\n\\ No newline at end of file\n") {
+        out = format!("{without_marker}\n");
+    }
+    remove_ds_store_diff_blocks(&out)
+}
+
+fn is_diff_path_line(line: &str) -> bool {
+    line.starts_with("diff --git ") || line.starts_with("--- ") || line.starts_with("+++ ")
+}
+
+fn normalize_diff_path_line(line: &str, folder_a: &str, folder_b: &str) -> String {
+    let mut out = line.to_string();
     for (prefix, folder) in [('a', folder_a), ('b', folder_b)] {
         let trimmed = folder.trim_matches('/');
         out = out.replace(&format!("{prefix}/{trimmed}/"), &format!("{prefix}/"));
         out = out.replace(&format!("{prefix}{folder}/"), &format!("{prefix}/"));
         out = out.replace(&format!("{folder}/"), "");
     }
-    if let Some(without_marker) = out.strip_suffix("\n\\ No newline at end of file\n") {
-        out = format!("{without_marker}\n");
-    }
-    remove_ds_store_diff_blocks(&out)
+    out
 }
 
 fn remove_ds_store_diff_blocks(diff: &str) -> String {

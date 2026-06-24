@@ -68,7 +68,8 @@ pub(crate) fn add_patched_dependencies(
     let mut changed = false;
 
     if patched_dependencies.is_empty() {
-        if manifest.patched_dependencies.is_none() {
+        let has_block = manifest.top_level_keys.iter().any(|key| key == BLOCK);
+        if manifest.patched_dependencies.is_none() && !has_block {
             return Ok(false);
         }
         manifest.set_text(remove_top_level_block(manifest.text(), BLOCK));
@@ -715,9 +716,10 @@ fn top_level_span(text: &str, key: &str) -> Option<TopLevelSpan> {
     let key_idx = all.iter().position(|line| {
         structural_indent(line.content) == Some(0) && line_key(line.content).as_deref() == Some(key)
     })?;
-    let block_end_idx = ((key_idx + 1)..all.len())
+    let next_key_idx = ((key_idx + 1)..all.len())
         .find(|&idx| structural_indent(all[idx].content) == Some(0))
         .unwrap_or(all.len());
+    let block_end_idx = leading_comment_start(&all, key_idx + 1, next_key_idx);
     let block_end = all
         .get(block_end_idx)
         .map_or_else(|| all.last().map_or(0, |line| line.end), |line| line.start);
@@ -727,6 +729,22 @@ fn top_level_span(text: &str, key: &str) -> Option<TopLevelSpan> {
                 && line_key(line.content).as_deref() == Some(key)
         })
         .map(|line| TopLevelSpan { key_line_start: line.start, block_end })
+}
+
+fn leading_comment_start(all: &[Line<'_>], block_start: usize, next_key_idx: usize) -> usize {
+    if next_key_idx == all.len() {
+        return next_key_idx;
+    }
+    let mut idx = next_key_idx;
+    while idx > block_start && is_comment_line(all[idx - 1].content) {
+        idx -= 1;
+    }
+    idx
+}
+
+fn is_comment_line(content: &str) -> bool {
+    let trimmed = content.trim_start();
+    !trimmed.is_empty() && trimmed.starts_with('#')
 }
 
 /// Whether every original non-first top-level key has a blank line before it
