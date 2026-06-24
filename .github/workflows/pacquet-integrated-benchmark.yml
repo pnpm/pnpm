@@ -325,9 +325,17 @@ jobs:
 
       - name: Generate summary
         shell: bash
+        env:
+          # The PR head SHA for pull_request events, otherwise (push,
+          # workflow_dispatch) the ref's own SHA. Display-only — no
+          # control flow consumes it; the comment workflow resolves the
+          # PR number from the trusted workflow_run payload regardless.
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           (
             echo '## Integrated-Benchmark Report (${{ runner.os }})'
+            echo
+            echo "**Commit:** [\`${SHA:0:12}\`](${{ github.server_url }}/${{ github.repository }}/commit/$SHA)"
             echo
             echo 'Each scenario reports direct installs and pnpr installs. Bencher consumes pacquet@HEAD and pnpr@HEAD.'
             echo
