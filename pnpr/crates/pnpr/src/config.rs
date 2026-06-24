@@ -943,7 +943,7 @@ fn default_true() -> bool {
 
 impl Config {
     /// Default `listen` when one isn't supplied by the caller.
-    pub const DEFAULT_LISTEN: &'static str = "127.0.0.1:4873";
+    pub const DEFAULT_LISTEN: &'static str = "127.0.0.1:7677";
     /// Default packument TTL — five minutes, matching the historical
     /// proxy-mode default.
     pub const DEFAULT_PACKUMENT_TTL: Duration = Duration::from_mins(5);

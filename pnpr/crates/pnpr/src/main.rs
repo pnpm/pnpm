@@ -14,7 +14,7 @@ struct Args {
     config: Option<PathBuf>,
 
     /// Address to bind to.
-    #[arg(long, default_value = "127.0.0.1:4873")]
+    #[arg(long, default_value = "127.0.0.1:7677")]
     listen: SocketAddr,
 
     /// Override the storage path from the loaded config (bundled or

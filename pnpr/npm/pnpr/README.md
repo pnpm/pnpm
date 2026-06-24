@@ -28,11 +28,11 @@ Start the server with the bundled default config:
 pnpr
 ```
 
-It listens on `127.0.0.1:4873` and proxies `https://registry.npmjs.org/`
+It listens on `127.0.0.1:7677` and proxies `https://registry.npmjs.org/`
 by default. Point a client at it with:
 
 ```sh
-pnpm config set registry http://127.0.0.1:4873/
+pnpm config set registry http://127.0.0.1:7677/
 ```
 
 ## CLI flags
@@ -40,7 +40,7 @@ pnpm config set registry http://127.0.0.1:4873/
 | Flag | Description |
 | --- | --- |
 | `-c, --config <path>` | Path to a verdaccio-shaped YAML config. When omitted, the bundled default is used. |
-| `--listen <addr>` | Address to bind to. Defaults to `127.0.0.1:4873`. |
+| `--listen <addr>` | Address to bind to. Defaults to `127.0.0.1:7677`. |
 | `--storage <path>` | Override the storage directory from the loaded config. |
 | `--cache <path>` | Override the disposable proxy-cache directory (the mirror of upstream registries plus the resolver cache). Defaults to a `.pnpr-cache` subdirectory of `--storage`. |
 | `--public-url <url>` | URL clients should use to reach the server, used when rewriting `dist.tarball` in served packuments. Defaults to `http://<listen>`. |
@@ -165,7 +165,7 @@ packages:
 ```sh
 export AWS_ACCESS_KEY_ID="<r2-access-key-id>"
 export AWS_SECRET_ACCESS_KEY="<r2-secret-access-key>"
-pnpr -c ./pnpr.yaml --listen 0.0.0.0:4873 --public-url https://registry.example.com
+pnpr -c ./pnpr.yaml --listen 0.0.0.0:7677 --public-url https://registry.example.com
 ```
 
 (`--public-url` is what rewrites the `dist.tarball` URLs in served
