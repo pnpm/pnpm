@@ -29,7 +29,7 @@ impl Drop for RegistryAnchor {
         // load an up-to-date anchor, it is leaked to prevent dropping (again).
         let anchor = RegistryAnchor::load().pipe(Box::new).pipe(Box::leak);
         if self.info != anchor.info {
-            eprintln!("info: {:?} is outdated. Skip.", &self.info);
+            eprintln!("info: {:?} is outdated. Skip.", self.info);
             return;
         }
 

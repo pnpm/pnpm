@@ -127,6 +127,20 @@ fn patch_state_read_errors_when_state_path_is_not_a_file() {
 }
 
 #[test]
+fn patch_state_read_rejects_oversized_state_file() {
+    let tmp = tempdir().expect("temp dir");
+    let modules_dir = tmp.path().join("node_modules");
+    let state_path = modules_dir.join(".pnpm_patches").join("state.json");
+    fs::create_dir_all(state_path.parent().expect("state parent")).expect("create state dir");
+    fs::write(&state_path, " ".repeat(super::MAX_STATE_FILE_BYTES + 1))
+        .expect("write oversized state");
+
+    let err = read_edit_dir_state(&modules_dir, &tmp.path().join("edit")).unwrap_err();
+
+    assert!(matches!(err, StateFileError::StateFileTooLarge { .. }));
+}
+
+#[test]
 fn patch_state_write_errors_when_existing_state_path_is_not_a_file() {
     let tmp = tempdir().expect("temp dir");
     let modules_dir = tmp.path().join("node_modules");

@@ -7,6 +7,7 @@ use miette::Diagnostic;
 use pacquet_fs::{is_subdir, lexical_normalize};
 use pacquet_workspace_manifest_writer::UpdateWorkspaceManifestError;
 use std::{
+    collections::HashSet,
     fs, io,
     path::{Component, Path, PathBuf},
 };
@@ -99,9 +100,19 @@ impl PatchRemoveArgs {
                 PatchRemovalTarget::new(patch, patch_file, &ctx)
             })
             .collect::<Result<Vec<_>, _>>()?;
+        let removed_patches: HashSet<&String> = patches_to_remove.iter().collect();
+        let remaining_patch_files = patched_dependencies
+            .iter()
+            .filter(|(patch, _)| !removed_patches.contains(patch))
+            .map(|(patch, patch_file)| {
+                PatchRemovalTarget::new(patch, patch_file, &ctx).map(|target| target.target_path)
+            })
+            .collect::<Result<HashSet<_>, _>>()?;
 
         for target in &targets {
-            unlink_patch_if_exists(target)?;
+            if !remaining_patch_files.contains(&target.target_path) {
+                unlink_patch_if_exists(target)?;
+            }
         }
         for target in &targets {
             patched_dependencies.shift_remove(&target.patch);

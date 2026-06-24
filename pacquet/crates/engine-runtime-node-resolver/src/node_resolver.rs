@@ -373,14 +373,11 @@ struct NodeFileName {
 fn parse_node_file_name(file_name: &str, version: &str) -> Option<NodeFileName> {
     let prefix = format!("node-v{version}-");
     let rest = file_name.strip_prefix(&prefix)?;
-    let (head, suffix) = if let Some(head) = rest.strip_suffix(".tar.gz") {
-        (head, ".tar.gz")
-    } else if let Some(head) = rest.strip_suffix(".zip") {
-        (head, ".zip")
+    let head = if let Some(head) = rest.strip_suffix(".tar.gz") {
+        head
     } else {
-        return None;
+        rest.strip_suffix(".zip")?
     };
-    let _ = suffix;
     let (platform, after_platform) = head.split_once('-')?;
     if platform.is_empty() || platform.contains('.') {
         return None;

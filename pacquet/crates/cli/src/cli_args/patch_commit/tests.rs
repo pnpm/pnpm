@@ -93,20 +93,21 @@ fn remove_dir_if_exists_removes_existing_dir() {
     let dir = tmp.path().join("patch-commit-temp");
     std::fs::create_dir(&dir).expect("create temp dir");
 
-    remove_dir_if_exists(&dir);
+    remove_dir_if_exists(&dir).expect("remove temp dir");
 
     assert!(!dir.exists(), "temp dir should be removed");
 }
 
 #[test]
-fn remove_dir_if_exists_keeps_going_after_non_directory_cleanup_error() {
+fn remove_dir_if_exists_reports_non_directory_cleanup_error() {
     let tmp = tempdir().expect("temp dir");
     let path = tmp.path().join("patch-commit-temp");
     std::fs::write(&path, "").expect("create file");
 
-    remove_dir_if_exists(&path);
+    let err = remove_dir_if_exists(&path).expect_err("file cleanup should fail");
 
     assert!(path.is_file(), "cleanup errors are ignored but not fatal");
+    assert_eq!(err.kind(), std::io::ErrorKind::NotADirectory);
 }
 
 #[test]
@@ -117,7 +118,8 @@ fn cleanup_after_diff_removes_temporary_filtered_dir() {
     std::fs::create_dir(&clean_dir).expect("create clean dir");
     std::fs::create_dir(&filtered_dir).expect("create filtered dir");
 
-    cleanup_after_diff(&clean_dir, &PkgFilesForDiff::Temporary(filtered_dir.clone()));
+    cleanup_after_diff(&clean_dir, &PkgFilesForDiff::Temporary(filtered_dir.clone()))
+        .expect("cleanup temp dirs");
 
     assert!(!clean_dir.exists(), "clean dir should be removed");
     assert!(!filtered_dir.exists(), "filtered dir should be removed");
@@ -131,7 +133,8 @@ fn cleanup_after_diff_keeps_original_patch_dir() {
     std::fs::create_dir(&clean_dir).expect("create clean dir");
     std::fs::create_dir(&patch_dir).expect("create patch dir");
 
-    cleanup_after_diff(&clean_dir, &PkgFilesForDiff::Original(patch_dir.clone()));
+    cleanup_after_diff(&clean_dir, &PkgFilesForDiff::Original(patch_dir.clone()))
+        .expect("cleanup clean dir");
 
     assert!(!clean_dir.exists(), "clean dir should be removed");
     assert!(patch_dir.exists(), "original patch dir should remain");

@@ -391,10 +391,8 @@ fn semver_satisfies(version: &str, range: &str) -> bool {
 fn parse_local_target(new_bare_specifier: &str, root_dir: &Path) -> Option<LocalTarget> {
     let (protocol, pkg_path) = if let Some(rest) = new_bare_specifier.strip_prefix("file:") {
         (LocalProtocol::File, rest)
-    } else if let Some(rest) = new_bare_specifier.strip_prefix("link:") {
-        (LocalProtocol::Link, rest)
     } else {
-        return None;
+        (LocalProtocol::Link, new_bare_specifier.strip_prefix("link:")?)
     };
 
     let candidate = Path::new(pkg_path);

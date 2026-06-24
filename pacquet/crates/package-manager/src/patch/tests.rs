@@ -10,9 +10,17 @@ use pacquet_lockfile::{
     LockfileResolution, LockfileVersion, PackageKey, PackageMetadata, RegistryResolution,
     TarballResolution, VariationsResolution,
 };
+use pacquet_network::{RetryOpts, ThrottledClient};
+use pacquet_resolving_npm_resolver::{
+    InMemoryPackageMetaCache, NpmResolver, shared_packument_fetch_locker,
+    shared_picked_manifest_cache,
+};
+use pacquet_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
+use pacquet_store_dir::{StoreDir, StoreIndex, store_index_key};
+use pacquet_testing_utils::registry::TestRegistry;
 use pretty_assertions::assert_eq;
 use serde_json::json;
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 const GIT_HOSTED_COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
 
@@ -199,6 +207,98 @@ async fn patch_extract_imports_package_files_into_empty_destination() {
     );
     assert_eq!(std::fs::read_to_string(dest.join("index.js")).expect("index.js"), "ok\n");
     assert!(!dest.join("node_modules").exists(), "edit dir should not contain wrapper deps");
+}
+
+#[cfg(unix)]
+#[tokio::test]
+async fn patch_extract_rejects_symlinked_destination() {
+    let fixture = PatchExtractFixture::new("foo", "1.0.0");
+    let outside = fixture.tmp.path().join("outside");
+    let dest = fixture.tmp.path().join("edit");
+    std::fs::create_dir_all(&outside).expect("create symlink target");
+    std::os::unix::fs::symlink(&outside, &dest).expect("create edit symlink");
+
+    let err = WritePackageForPatch {
+        tarball_mem_cache: &fixture.mem_cache,
+        http_client: &fixture.http_client,
+        config: fixture.config,
+        current_lockfile: &fixture.lockfile,
+        target: &fixture.target,
+        dest: &dest,
+    }
+    .run::<pacquet_reporter::SilentReporter>()
+    .await
+    .expect_err("symlink destination must be rejected");
+
+    assert!(err.to_string().contains("symlink"), "error should mention symlink: {err}");
+    assert!(
+        !outside.join("package.json").exists(),
+        "patch extraction must not write through the destination symlink",
+    );
+}
+
+#[tokio::test]
+async fn patch_extract_records_download_in_store_index() {
+    let registry = TestRegistry::start();
+    let tmp = tempfile::tempdir().expect("temp dir");
+    let store_dir = tmp.path().join("store");
+    std::fs::create_dir_all(&store_dir).expect("create store dir");
+
+    let mut config = pacquet_config::Config::new();
+    config.registry = registry.url();
+    config.store_dir = StoreDir::new(&store_dir);
+    let config: &'static pacquet_config::Config = Box::leak(Box::new(config));
+
+    let http_client = Arc::new(ThrottledClient::new_for_installs());
+    let resolved = resolve_registry_fixture(
+        &config.registry,
+        tmp.path(),
+        Arc::clone(&http_client),
+        "@pnpm.e2e/hello-world-js-bin",
+        "1.0.0",
+    )
+    .await;
+    let name_ver = resolved.name_ver.as_ref().expect("npm resolver fills name/version");
+    let package_id = name_ver.to_string();
+    let integrity = resolved.resolution.integrity().expect("registry fixture has integrity");
+    let store_index_key = store_index_key(&integrity.to_string(), &package_id);
+    let lockfile = lockfile_with_package_metadata(
+        &package_id,
+        PackageMetadata {
+            resolution: resolved.resolution,
+            version: None,
+            engines: None,
+            cpu: None,
+            os: None,
+            libc: None,
+            deprecated: None,
+            has_bin: None,
+            prepare: None,
+            bundled_dependencies: None,
+            peer_dependencies: None,
+            peer_dependencies_meta: None,
+        },
+    );
+    let target = patch_target(&package_id, &lockfile);
+    let dest = tmp.path().join("edit");
+
+    WritePackageForPatch {
+        tarball_mem_cache: &pacquet_tarball::MemCache::default(),
+        http_client: http_client.as_ref(),
+        config,
+        current_lockfile: &lockfile,
+        target: &target,
+        dest: &dest,
+    }
+    .run::<pacquet_reporter::SilentReporter>()
+    .await
+    .expect("extract registry package");
+
+    let store_index = StoreIndex::shared_readonly_in(&config.store_dir)
+        .expect("patch extraction should create a store index");
+    let indexed_package =
+        store_index.lock().expect("store index lock").get(&store_index_key).expect("read row");
+    assert!(indexed_package.is_some(), "store index row should exist for {store_index_key}");
 }
 
 #[tokio::test]
@@ -503,6 +603,43 @@ impl PatchExtractFixture {
             target,
         }
     }
+}
+
+async fn resolve_registry_fixture(
+    registry: &str,
+    cache_dir: &std::path::Path,
+    http_client: Arc<ThrottledClient>,
+    alias: &str,
+    range: &str,
+) -> pacquet_resolving_resolver_base::ResolveResult {
+    let mut registries = HashMap::new();
+    registries.insert("default".to_string(), registry.to_string());
+    let resolver = NpmResolver {
+        registries,
+        named_registries: HashMap::new(),
+        http_client,
+        auth_headers: Arc::default(),
+        meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
+        fetch_locker: shared_packument_fetch_locker(),
+        picked_manifest_cache: shared_picked_manifest_cache(),
+        cache_dir: Some(cache_dir.to_path_buf()),
+        offline: false,
+        prefer_offline: false,
+        ignore_missing_time_field: true,
+        full_metadata: false,
+        filter_metadata: false,
+        retry_opts: RetryOpts::default(),
+    };
+    let wanted = WantedDependency {
+        alias: Some(alias.to_string()),
+        bare_specifier: Some(range.to_string()),
+        ..WantedDependency::default()
+    };
+    resolver
+        .resolve(&wanted, &ResolveOptions::default())
+        .await
+        .expect("resolve succeeds against fixture registry")
+        .expect("npm resolver claims fixture")
 }
 
 fn git_hosted_metadata(git_hosted_flag: bool) -> PackageMetadata {

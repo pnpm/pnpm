@@ -13,6 +13,7 @@ use std::{
 
 const STATE_DIR: &str = ".pnpm_patches";
 const STATE_FILE: &str = "state.json";
+pub(crate) const MAX_STATE_FILE_BYTES: usize = 1024 * 1024;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) struct EditDirState {
@@ -61,6 +62,10 @@ pub(crate) enum StateFileError {
     #[diagnostic(code(pacquet::patch_state_unsafe_path))]
     UnsafePath { path: PathBuf, reason: &'static str },
 
+    #[display("Patch state file {path:?} is larger than {limit} bytes")]
+    #[diagnostic(code(pacquet::patch_state_file_too_large))]
+    StateFileTooLarge { path: PathBuf, limit: usize },
+
     #[display("Failed to resolve patch edit directory {path:?}: {source}")]
     #[diagnostic(code(pacquet::patch_state_resolve_edit_dir))]
     ResolveEditDir {
@@ -75,11 +80,7 @@ pub(crate) fn read_edit_dir_state(
     edit_dir: &Path,
 ) -> Result<Option<EditDirState>, StateFileError> {
     let path = checked_state_file_path_for_read(modules_dir)?;
-    let text = match fs::read_to_string(&path) {
-        Ok(text) => text,
-        Err(source) if source.kind() == io::ErrorKind::NotFound => return Ok(None),
-        Err(source) => return Err(StateFileError::Read { path, source }),
-    };
+    let Some(text) = read_state_file_text(&path)? else { return Ok(None) };
     let state: BTreeMap<String, EditDirState> = serde_json::from_str(&text)
         .map_err(|source| StateFileError::Parse { path: path.clone(), source })?;
     let key = edit_dir_key(edit_dir)?;
@@ -104,13 +105,32 @@ pub(crate) fn write_edit_dir_state(
 fn read_state_file_for_write(
     path: &Path,
 ) -> Result<BTreeMap<String, EditDirState>, StateFileError> {
-    let text = match fs::read_to_string(path) {
-        Ok(text) => text,
-        Err(source) if source.kind() == io::ErrorKind::NotFound => return Ok(BTreeMap::new()),
-        Err(source) => return Err(StateFileError::Read { path: path.to_path_buf(), source }),
-    };
+    let Some(text) = read_state_file_text(path)? else { return Ok(BTreeMap::new()) };
     serde_json::from_str(&text)
         .map_err(|source| StateFileError::Parse { path: path.to_path_buf(), source })
+}
+
+fn read_state_file_text(path: &Path) -> Result<Option<String>, StateFileError> {
+    let metadata = match fs::metadata(path) {
+        Ok(metadata) => metadata,
+        Err(source) if source.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(source) => return Err(StateFileError::Read { path: path.to_path_buf(), source }),
+    };
+    if !metadata.is_file() {
+        return Err(StateFileError::Read {
+            path: path.to_path_buf(),
+            source: io::Error::new(io::ErrorKind::InvalidData, "state path is not a file"),
+        });
+    }
+    if metadata.len() > MAX_STATE_FILE_BYTES as u64 {
+        return Err(StateFileError::StateFileTooLarge {
+            path: path.to_path_buf(),
+            limit: MAX_STATE_FILE_BYTES,
+        });
+    }
+    fs::read_to_string(path)
+        .map(Some)
+        .map_err(|source| StateFileError::Read { path: path.to_path_buf(), source })
 }
 
 fn state_file_path(modules_dir: &Path) -> PathBuf {

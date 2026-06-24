@@ -1,7 +1,8 @@
 use super::{
     DialoguerPatchPrompt, PatchCandidate, PatchCandidateSet, PatchError, PatchPrompt, PatchTarget,
-    default_edit_dir_name, reject_non_empty_custom_edit_dir, reject_non_empty_edit_dir,
-    render_success, select_patch_target, select_patch_target_with_prompt,
+    checked_existing_patch_file_path, default_edit_dir_name, reject_non_empty_custom_edit_dir,
+    reject_non_empty_edit_dir, render_success, select_patch_target,
+    select_patch_target_with_prompt,
 };
 use std::{io::IsTerminal, path::Path};
 use tempfile::tempdir;
@@ -116,6 +117,31 @@ fn success_message_is_plain_when_colors_are_disabled() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn success_message_shell_quotes_single_quotes_in_edit_dir() {
+    let edit_dir = Path::new("/tmp/patch user's dir");
+    let rendered = render_success(edit_dir, false);
+
+    assert!(rendered.contains(r"pacquet patch-commit '/tmp/patch user'\''s dir'"), "{rendered}");
+}
+
+#[cfg(unix)]
+#[test]
+fn existing_patch_file_path_rejects_non_regular_files() {
+    let tmp = tempdir().expect("temp dir");
+    let patches_dir = tmp.path().join("patches");
+    std::fs::create_dir(&patches_dir).expect("create patches dir");
+    let socket_path = patches_dir.join("pkg.patch");
+    let _listener =
+        std::os::unix::net::UnixListener::bind(&socket_path).expect("create patch socket");
+
+    let err = checked_existing_patch_file_path(tmp.path(), "patches", "patches/pkg.patch")
+        .expect_err("socket patch path should be rejected");
+
+    assert!(matches!(err, PatchError::PatchFileNotRegular { .. }));
+}
+
 #[test]
 fn edit_dir_rejectors_accept_missing_and_empty_dirs() {
     let tmp = tempdir().expect("temp dir");
@@ -144,6 +170,21 @@ fn edit_dir_rejectors_reject_non_empty_dirs_with_command_specific_errors() {
         reject_non_empty_edit_dir(&edit_dir),
         Err(PatchError::EditDirNotEmpty { .. })
     ));
+}
+
+#[cfg(unix)]
+#[test]
+fn custom_edit_dir_rejector_rejects_symlinked_edit_dir() {
+    let tmp = tempdir().expect("temp dir");
+    let outside = tmp.path().join("outside");
+    let edit_dir = tmp.path().join("edit");
+    std::fs::create_dir(&outside).expect("create outside dir");
+    std::os::unix::fs::symlink(&outside, &edit_dir).expect("symlink edit dir");
+
+    let err = reject_non_empty_custom_edit_dir(&edit_dir)
+        .expect_err("custom edit dir symlink should be rejected");
+
+    assert!(matches!(err, PatchError::EditDirSymlink { .. }));
 }
 
 #[test]

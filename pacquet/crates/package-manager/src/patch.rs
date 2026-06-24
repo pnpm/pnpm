@@ -12,9 +12,18 @@ use pacquet_lockfile::{Lockfile, LockfileResolution, PackageKey, is_git_hosted_t
 use pacquet_network::ThrottledClient;
 use pacquet_reporter::Reporter;
 use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
-use pacquet_store_dir::{SharedVerifiedFilesCache, git_hosted_store_index_key};
+use pacquet_store_dir::{
+    SharedReadonlyStoreIndex, SharedVerifiedFilesCache, StoreIndex, StoreIndexError,
+    StoreIndexWriter, git_hosted_store_index_key,
+};
 use pacquet_tarball::{DownloadTarballToStore, MemCache, TarballError};
-use std::{cmp::Ordering, collections::BTreeSet, path::Path, sync::atomic::AtomicU8};
+use std::{
+    cmp::Ordering,
+    collections::BTreeSet,
+    io,
+    path::{Path, PathBuf},
+    sync::{Arc, atomic::AtomicU8},
+};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PatchCandidate {
@@ -76,6 +85,18 @@ pub enum WritePackageForPatchError {
 
     #[diagnostic(transparent)]
     TarballResolution(#[error(source)] InstallPackageBySnapshotError),
+
+    #[display("Failed to inspect patch edit directory {dest:?}: {source}")]
+    #[diagnostic(code(pacquet_package_manager::patch_dest_stat))]
+    PatchDestinationStat {
+        dest: PathBuf,
+        #[error(source)]
+        source: io::Error,
+    },
+
+    #[display("Refusing to write package files to unsafe patch edit directory {dest:?}: {reason}")]
+    #[diagnostic(code(pacquet_package_manager::unsafe_patch_dest))]
+    UnsafePatchDestination { dest: PathBuf, reason: &'static str },
 
     #[diagnostic(transparent)]
     DownloadTarball(#[error(source)] TarballError),
@@ -189,70 +210,145 @@ impl WritePackageForPatch<'_> {
             tarball_url_and_integrity(&metadata.resolution, &target.package_key, config)
                 .map_err(WritePackageForPatchError::TarballResolution)?;
         let package_id = format!("{}@{}", target.alias, target.version);
-        let cas_paths = DownloadTarballToStore {
-            http_client,
-            store_dir: &config.store_dir,
-            store_index: None,
-            store_index_writer: None,
-            verify_store_integrity: config.verify_store_integrity,
-            verified_files_cache: SharedVerifiedFilesCache::default(),
-            package_integrity: integrity,
-            package_unpacked_size: None,
-            package_file_count: None,
-            package_url: &tarball_url,
-            package_id: &package_id,
-            auth_headers: &config.auth_headers,
-            requester: "",
-            prefetched_cas_paths: None,
-            retry_opts: retry_opts_from_config(config),
-            ignore_file_pattern: None,
-            offline: config.offline,
-            progress_reported: None,
-        }
-        .run_with_mem_cache::<Reporter>(tarball_mem_cache)
-        .await
-        .map_err(WritePackageForPatchError::DownloadTarball)?;
-        let raw_cas_paths = (*cas_paths).clone();
-        let cas_paths = if let LockfileResolution::Tarball(t) = &metadata.resolution
-            && git_tarball_url(&metadata.resolution).is_some()
-        {
-            let allow_build_closure = |_dep_path: &str| false;
-            let files_index_file = git_hosted_store_index_key(&package_id, !config.ignore_scripts);
-            let GitFetchOutput { cas_paths, built: _built } = GitHostedTarballFetcher {
-                cas_paths: raw_cas_paths,
-                path: t.path.as_deref(),
-                allow_build: &allow_build_closure,
-                ignore_scripts: config.ignore_scripts,
-                unsafe_perm: config.unsafe_perm,
-                user_agent: None,
-                scripts_prepend_node_path: executor_scripts_prepend_node_path(
-                    config.scripts_prepend_node_path,
-                ),
-                script_shell: None,
-                node_execpath: None,
-                npm_execpath: None,
-                store_dir: &config.store_dir,
-                package_id: &package_id,
-                requester: "",
-                store_index_writer: None,
-                files_index_file: &files_index_file,
-            }
-            .run::<Reporter>()
-            .await
-            .map_err(WritePackageForPatchError::GitFetch)?;
-            cas_paths
-        } else {
-            raw_cas_paths
-        };
 
-        import_indexed_dir::<Reporter>(
-            &AtomicU8::new(0),
-            PackageImportMethod::CloneOrCopy,
-            dest,
-            &cas_paths,
-            ImportIndexedDirOpts { force: true, keep_modules_dir: false },
-        )
-        .map_err(WritePackageForPatchError::ImportIndexedDir)
+        validate_patch_destination(dest)?;
+
+        let store_index = open_store_index_for_patch(config).await;
+        let (store_index_writer, writer_task) = if config.frozen_store {
+            StoreIndexWriter::spawn_disabled()
+        } else {
+            StoreIndexWriter::spawn(&config.store_dir)
+        };
+        let verified_files_cache = SharedVerifiedFilesCache::default();
+
+        let result = async {
+            let cas_paths = DownloadTarballToStore {
+                http_client,
+                store_dir: &config.store_dir,
+                store_index: store_index.clone(),
+                store_index_writer: Some(Arc::clone(&store_index_writer)),
+                verify_store_integrity: config.verify_store_integrity,
+                verified_files_cache: SharedVerifiedFilesCache::clone(&verified_files_cache),
+                package_integrity: integrity,
+                package_unpacked_size: None,
+                package_file_count: None,
+                package_url: &tarball_url,
+                package_id: &package_id,
+                auth_headers: &config.auth_headers,
+                requester: "",
+                prefetched_cas_paths: None,
+                retry_opts: retry_opts_from_config(config),
+                ignore_file_pattern: None,
+                offline: config.offline,
+                progress_reported: None,
+            }
+            .run_with_mem_cache::<Reporter>(tarball_mem_cache)
+            .await
+            .map_err(WritePackageForPatchError::DownloadTarball)?;
+            let raw_cas_paths = (*cas_paths).clone();
+            let cas_paths = if let LockfileResolution::Tarball(t) = &metadata.resolution
+                && git_tarball_url(&metadata.resolution).is_some()
+            {
+                let allow_build_closure = |_dep_path: &str| false;
+                let files_index_file =
+                    git_hosted_store_index_key(&package_id, !config.ignore_scripts);
+                let GitFetchOutput { cas_paths, built: _built } = GitHostedTarballFetcher {
+                    cas_paths: raw_cas_paths,
+                    path: t.path.as_deref(),
+                    allow_build: &allow_build_closure,
+                    ignore_scripts: config.ignore_scripts,
+                    unsafe_perm: config.unsafe_perm,
+                    user_agent: None,
+                    scripts_prepend_node_path: executor_scripts_prepend_node_path(
+                        config.scripts_prepend_node_path,
+                    ),
+                    script_shell: None,
+                    node_execpath: None,
+                    npm_execpath: None,
+                    store_dir: &config.store_dir,
+                    package_id: &package_id,
+                    requester: "",
+                    store_index_writer: Some(&store_index_writer),
+                    files_index_file: &files_index_file,
+                }
+                .run::<Reporter>()
+                .await
+                .map_err(WritePackageForPatchError::GitFetch)?;
+                cas_paths
+            } else {
+                raw_cas_paths
+            };
+
+            import_indexed_dir::<Reporter>(
+                &AtomicU8::new(0),
+                PackageImportMethod::CloneOrCopy,
+                dest,
+                &cas_paths,
+                ImportIndexedDirOpts { force: true, keep_modules_dir: false },
+            )
+            .map_err(WritePackageForPatchError::ImportIndexedDir)
+        }
+        .await;
+
+        shutdown_store_index_writer_for_patch(store_index_writer, writer_task).await;
+        result
+    }
+}
+
+fn validate_patch_destination(dest: &Path) -> Result<(), WritePackageForPatchError> {
+    match std::fs::symlink_metadata(dest) {
+        Ok(metadata) if metadata.file_type().is_symlink() => {
+            Err(WritePackageForPatchError::UnsafePatchDestination {
+                dest: dest.to_path_buf(),
+                reason: "destination is a symlink",
+            })
+        }
+        Ok(_) => Ok(()),
+        Err(source) if source.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(source) => Err(WritePackageForPatchError::PatchDestinationStat {
+            dest: dest.to_path_buf(),
+            source,
+        }),
+    }
+}
+
+async fn open_store_index_for_patch(config: &'static Config) -> Option<SharedReadonlyStoreIndex> {
+    let open_store_index = if config.frozen_store {
+        StoreIndex::shared_immutable_in
+    } else {
+        StoreIndex::shared_readonly_in
+    };
+    let store_dir: &'static _ = &config.store_dir;
+    match tokio::task::spawn_blocking(move || open_store_index(store_dir)).await {
+        Ok(store_index) => store_index,
+        Err(error) => {
+            tracing::warn!(
+                target: "pacquet::patch",
+                ?error,
+                "store-index open task failed; continuing without a shared cache index",
+            );
+            None
+        }
+    }
+}
+
+async fn shutdown_store_index_writer_for_patch(
+    store_index_writer: Arc<StoreIndexWriter>,
+    writer_task: tokio::task::JoinHandle<Result<(), StoreIndexError>>,
+) {
+    drop(store_index_writer);
+    match writer_task.await {
+        Ok(Ok(())) => {}
+        Ok(Err(error)) => tracing::warn!(
+            target: "pacquet::patch",
+            ?error,
+            "store-index writer task returned an error; some rows may not be persisted",
+        ),
+        Err(error) => tracing::warn!(
+            target: "pacquet::patch",
+            ?error,
+            "store-index writer task panicked; some rows may not be persisted",
+        ),
     }
 }
 

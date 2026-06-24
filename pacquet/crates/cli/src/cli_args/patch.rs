@@ -119,6 +119,10 @@ pub enum PatchError {
     #[diagnostic(code(ERR_PNPM_PATCH_FILE_IS_DIRECTORY))]
     PatchFileIsDirectory { patch_file: String },
 
+    #[display("Patch file \"{patch_file}\" is not a regular file")]
+    #[diagnostic(code(ERR_PNPM_PATCH_FILE_NOT_REGULAR))]
+    PatchFileNotRegular { patch_file: String },
+
     #[display("Failed to read patch file metadata for {}: {source}", path.display())]
     #[diagnostic(code(pacquet::patch_read_patch_file_metadata))]
     ReadPatchFileMetadata {
@@ -137,6 +141,7 @@ impl PatchArgs {
         let PatchArgs { package_name, edit_dir, ignore_existing } = self;
         let package_name = package_name.ok_or(PatchError::MissingPackageName)?;
         if let Some(edit_dir) = edit_dir.as_ref().map(|path| resolve_path(dir, path)) {
+            reject_edit_dir_symlink_components_under(dir, &edit_dir)?;
             reject_non_empty_custom_edit_dir(&edit_dir)?;
         }
         let current_lockfile =
@@ -259,6 +264,7 @@ fn resolve_path(dir: &Path, path: &Path) -> PathBuf {
 }
 
 fn reject_non_empty_custom_edit_dir(edit_dir: &Path) -> Result<(), PatchError> {
+    reject_edit_dir_symlink_if_exists(edit_dir)?;
     if !edit_dir.exists() {
         return Ok(());
     }
@@ -271,6 +277,7 @@ fn reject_non_empty_custom_edit_dir(edit_dir: &Path) -> Result<(), PatchError> {
 }
 
 fn reject_non_empty_edit_dir(edit_dir: &Path) -> Result<(), PatchError> {
+    reject_edit_dir_symlink_if_exists(edit_dir)?;
     if !edit_dir.exists() {
         return Ok(());
     }
@@ -355,6 +362,18 @@ fn reject_edit_dir_symlink_if_exists(path: &Path) -> Result<(), PatchError> {
         Err(source) if source.kind() == io::ErrorKind::NotFound => Ok(()),
         Err(source) => Err(PatchError::ReadEditDir { edit_dir: path.to_path_buf(), source }),
     }
+}
+
+fn reject_edit_dir_symlink_components_under(
+    root: &Path,
+    edit_dir: &Path,
+) -> Result<(), PatchError> {
+    let root = lexical_normalize(root);
+    let edit_dir = lexical_normalize(edit_dir);
+    if !is_subdir(&root, &edit_dir) {
+        return Ok(());
+    }
+    reject_default_edit_dir_symlink_components(&root, &edit_dir)
 }
 
 fn default_edit_dir_name(package_name: &str, target: &PatchTarget) -> String {
@@ -461,14 +480,21 @@ fn checked_existing_patch_file_path(
     if target_stats.as_ref().is_some_and(fs::Metadata::is_dir) {
         return Err(PatchError::PatchFileIsDirectory { patch_file: patch_file.to_string() });
     }
-    if target_stats.as_ref().is_some_and(|stats| stats.file_type().is_symlink())
-        && real_patches_dir.as_ref().is_some_and(|real_patches_dir| {
-            dunce::canonicalize(&target_path)
-                .ok()
-                .is_none_or(|real_target| !is_subdir(real_patches_dir, &real_target))
-        })
-    {
-        return Err(PatchError::PatchFileOutsidePatchesDir { patch_file: patch_file.to_string() });
+    if target_stats.as_ref().is_some_and(|stats| stats.file_type().is_symlink()) {
+        let real_target = dunce::canonicalize(&target_path).ok();
+        if real_patches_dir.as_ref().is_some_and(|real_patches_dir| {
+            real_target.as_ref().is_none_or(|real_target| !is_subdir(real_patches_dir, real_target))
+        }) {
+            return Err(PatchError::PatchFileOutsidePatchesDir {
+                patch_file: patch_file.to_string(),
+            });
+        }
+        let is_regular_file = fs::metadata(&target_path).is_ok_and(|stats| stats.is_file());
+        if !is_regular_file {
+            return Err(PatchError::PatchFileNotRegular { patch_file: patch_file.to_string() });
+        }
+    } else if target_stats.as_ref().is_some_and(|stats| !stats.is_file()) {
+        return Err(PatchError::PatchFileNotRegular { patch_file: patch_file.to_string() });
     }
     Ok(target_path)
 }
@@ -507,12 +533,19 @@ fn print_success(edit_dir: &Path) {
 }
 
 fn render_success(edit_dir: &Path, colors_enabled: bool) -> String {
-    let quote = if cfg!(windows) { r#"""# } else { "'" };
     let edit_dir = edit_dir.display().to_string();
-    let command = format!("pacquet patch-commit {quote}{edit_dir}{quote}");
+    let command = format!("pacquet patch-commit {}", shell_quote(&edit_dir));
     let edit_dir = if colors_enabled { edit_dir.blue().to_string() } else { edit_dir };
     let command = if colors_enabled { command.green().to_string() } else { command };
     render_success_parts(&edit_dir, &command)
+}
+
+fn shell_quote(value: &str) -> String {
+    if cfg!(windows) {
+        format!("\"{}\"", value.replace('"', r#"\""#))
+    } else {
+        format!("'{}'", value.replace('\'', r"'\''"))
+    }
 }
 
 fn render_success_parts(edit_dir: &str, command: &str) -> String {

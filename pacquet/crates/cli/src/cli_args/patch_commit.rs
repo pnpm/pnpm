@@ -91,6 +91,14 @@ pub enum PatchCommitError {
         source: io::Error,
     },
 
+    #[display("Failed to clean up temporary patch directory {}: {source}", path.display())]
+    #[diagnostic(code(pacquet::patch_commit_cleanup_temp_dir))]
+    CleanupTempDir {
+        path: PathBuf,
+        #[error(source)]
+        source: io::Error,
+    },
+
     #[diagnostic(transparent)]
     StateFile(#[error(source)] StateFileError),
 
@@ -141,7 +149,10 @@ impl PatchCommitArgs {
         )?;
 
         let clean_dir = clean_source_dir(&state, &patch_dir);
-        remove_dir_if_exists(&clean_dir);
+        remove_dir_if_exists(&clean_dir).map_err(|source| PatchCommitError::CleanupTempDir {
+            path: clean_dir.clone(),
+            source,
+        })?;
         WritePackageForPatch {
             tarball_mem_cache: &state.tarball_mem_cache,
             http_client: &state.http_client,
@@ -152,15 +163,22 @@ impl PatchCommitArgs {
         }
         .run::<Reporter>()
         .await
-        .map_err(|source| {
-            remove_dir_if_exists(&clean_dir);
-            PatchCommitError::WritePackage(source)
+        .map_err(|source| match remove_dir_if_exists(&clean_dir) {
+            Ok(()) => PatchCommitError::WritePackage(source),
+            Err(cleanup_source) => {
+                PatchCommitError::CleanupTempDir { path: clean_dir.clone(), source: cleanup_source }
+            }
         })?;
 
         let filtered = match prepare_pkg_files_for_diff(&patch_dir) {
             Ok(filtered) => filtered,
             Err(source) => {
-                remove_dir_if_exists(&clean_dir);
+                remove_dir_if_exists(&clean_dir).map_err(|cleanup_source| {
+                    PatchCommitError::CleanupTempDir {
+                        path: clean_dir.clone(),
+                        source: cleanup_source,
+                    }
+                })?;
                 return Err(PatchCommitError::PatchCommit(source));
             }
         };
@@ -170,11 +188,11 @@ impl PatchCommitArgs {
         let patch_content = match diff_folders(&clean_dir, filtered_path) {
             Ok(patch_content) => patch_content,
             Err(source) => {
-                cleanup_after_diff(&clean_dir, &filtered);
+                cleanup_after_diff(&clean_dir, &filtered)?;
                 return Err(PatchCommitError::PatchCommit(source));
             }
         };
-        cleanup_after_diff(&clean_dir, &filtered);
+        cleanup_after_diff(&clean_dir, &filtered)?;
 
         if patch_content.is_empty() {
             println!("No changes were found to the following directory: {}", patch_dir.display());
@@ -399,18 +417,37 @@ fn clean_source_dir(state: &State, patch_dir: &Path) -> PathBuf {
     state.config.store_dir.tmp().join("patch-commit").join(hash)
 }
 
-fn cleanup_after_diff(clean_dir: &Path, filtered: &PkgFilesForDiff) {
-    remove_dir_if_exists(clean_dir);
+fn cleanup_after_diff(
+    clean_dir: &Path,
+    filtered: &PkgFilesForDiff,
+) -> Result<(), PatchCommitError> {
+    remove_dir_if_exists(clean_dir).map_err(|source| PatchCommitError::CleanupTempDir {
+        path: clean_dir.to_path_buf(),
+        source,
+    })?;
     if let PkgFilesForDiff::Temporary(path) = filtered {
-        remove_dir_if_exists(path);
+        remove_dir_if_exists(path)
+            .map_err(|source| PatchCommitError::CleanupTempDir { path: path.clone(), source })?;
     }
+    Ok(())
 }
 
-fn remove_dir_if_exists(path: &Path) {
+fn remove_dir_if_exists(path: &Path) -> io::Result<()> {
+    match fs::symlink_metadata(path) {
+        Ok(meta) if meta.file_type().is_symlink() => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "temporary directory must not be a symbolic link",
+            ));
+        }
+        Ok(_) => {}
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error),
+    }
     match fs::remove_dir_all(path) {
-        Ok(()) => {}
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
-        Err(_) => {}
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
     }
 }
 
