@@ -224,7 +224,6 @@ jobs:
     permissions:
       contents: read
       packages: write
-      id-token: write
     env:
       IMAGE: ghcr.io/${{ github.repository_owner }}/pnpr
     steps:
