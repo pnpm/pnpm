@@ -698,14 +698,6 @@ impl CliArgs {
             }
             CliCommand::Prune(args) => Box::pin(async move {
                 let cfg = config()?;
-                let workspace_root = cfg.workspace_dir.clone().unwrap_or_else(|| dir_ref.clone());
-                if !cfg.modules_dir.starts_with(&workspace_root) {
-                    return Err(miette::miette!(
-                        "refusing prune: modules_dir ({}) is outside workspace root ({})",
-                        cfg.modules_dir.display(),
-                        workspace_root.display(),
-                    ));
-                }
                 let (config_root, package_manager_to_sync) =
                     derive_config_root_and_package_manager_to_sync(cfg, dir_ref)
                         .wrap_err("derive workspace root and package manager policy")?;
@@ -921,6 +913,21 @@ impl PrunePipeline {
         }
         config_deps::install_config_deps::<Reporter>(cfg, &config_root, false).await?;
         config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
+        // Validate path containment AFTER hooks: updateConfig can mutate
+        // modules_dir / virtual_store_dir via WorkspaceSettings::apply_to,
+        // so the check must use the final (post-hook) config values.
+        // The install pipeline's prune_target_within_modules also validates
+        // VSD containment, but only at sweep time; this earlier check
+        // catches a misconfigured modules_dir itself (e.g. an absolute
+        // path outside the workspace) before any destructive work begins.
+        let workspace_root = cfg.workspace_dir.clone().unwrap_or_else(|| PathBuf::from("/"));
+        if !cfg.modules_dir.starts_with(&workspace_root) {
+            return Err(miette::miette!(
+                "refusing prune: modules_dir ({}) is outside workspace root ({})",
+                cfg.modules_dir.display(),
+                workspace_root.display(),
+            ));
+        }
         // Apply prune-specific overrides after hooks so that:
         // - `modules_cache_max_age = 0` forces the virtual-store sweep
         //   on the final (post-hook) config paths.
