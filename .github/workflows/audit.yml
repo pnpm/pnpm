@@ -1,6 +1,12 @@
 name: Audit
 
-on: [push, pull_request]
+on:
+  push:
+    # Skip the redundant run on the merge queue's temporary
+    # `gh-readonly-queue/**` branches; the pull_request run already covered it.
+    branches-ignore:
+      - 'gh-readonly-queue/**'
+  pull_request:
 
 permissions:
   contents: read # to fetch code (actions/checkout)
