@@ -18,9 +18,6 @@ async fn add_or_login_creates_then_logs_in() {
         backend.add_or_login("alice", "secret").await.unwrap(),
         (UpsertOutcome::LoggedIn, _),
     ));
-    assert_eq!(backend.verify("alice", "secret").await.unwrap().as_deref(), Some("alice"));
-    assert!(backend.verify("alice", "wrong").await.unwrap().is_none());
-    assert!(backend.verify("bob", "secret").await.unwrap().is_none());
 }
 
 #[tokio::test]
@@ -65,11 +62,10 @@ async fn add_or_login_rejects_existing_invalid_username() {
     let err = backend.add_or_login("alice ", "secret").await.unwrap_err();
 
     assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST);
-    assert!(backend.verify("alice ", "secret").await.unwrap().is_none());
 }
 
 #[tokio::test]
-async fn verify_propagates_corrupt_hash_errors() {
+async fn add_or_login_propagates_corrupt_hash_errors() {
     let backend = local_backend(MaxUsers::Unlimited).await;
     backend
         .conn
@@ -80,7 +76,7 @@ async fn verify_propagates_corrupt_hash_errors() {
         .await
         .unwrap();
 
-    let err = backend.verify("alice", "secret").await.unwrap_err();
+    let err = backend.add_or_login("alice", "secret").await.unwrap_err();
 
     assert!(matches!(err, RegistryError::Bcrypt(_)), "got {err:?}");
 }

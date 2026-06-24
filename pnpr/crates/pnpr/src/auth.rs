@@ -31,7 +31,6 @@ use crate::{
     error::{RegistryError, Result},
 };
 use async_trait::async_trait;
-use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 #[cfg(feature = "backend-libsql")]
 use libsql_backend::LibsqlAuth;
 use rusqlite::Connection;
@@ -226,27 +225,20 @@ fn backend_not_enabled(name: &str, feature: &str) -> RegistryError {
     }
 }
 
-/// Username + password record store. The hot read is
-/// [`Self::verify`] (the Basic-auth path of [`identify`]); the write
-/// is [`Self::add_or_login`] (npm `adduser` / `login`).
+/// Username + password record store. The only operation is
+/// [`Self::add_or_login`] (npm `adduser` / `login`), which verifies a
+/// password and mints a bearer token. pnpr no longer verifies Basic
+/// credentials on requests, so there is no per-request password check.
 #[async_trait]
 pub trait UserBackend: Send + Sync {
     /// Add a new user or verify a returning one. On success, returns
     /// the outcome plus the canonical stored username to bind follow-up
-    /// token issuance to the same identity that Basic auth would
-    /// resolve. A wrong password for an existing user is
-    /// [`RegistryError::Unauthenticated`], and a new user past the
-    /// registration cap is [`RegistryError::RegistrationDisabled`] /
+    /// token issuance to the same identity. A wrong password for an
+    /// existing user is [`RegistryError::Unauthenticated`], and a new user
+    /// past the registration cap is [`RegistryError::RegistrationDisabled`] /
     /// `TooManyUsers`.
     async fn add_or_login(&self, username: &str, password: &str)
     -> Result<(UpsertOutcome, String)>;
-
-    /// Verify a username+password pair. `Ok(Some(username))` on a match,
-    /// `Ok(None)` when the user is unknown or the password is wrong, and
-    /// `Err` only when the backing store itself fails — so a store
-    /// outage surfaces as a 5xx rather than masquerading as a bad
-    /// password.
-    async fn verify(&self, username: &str, password: &str) -> Result<Option<String>>;
 }
 
 /// Bearer-token record store. The hot read is [`Self::lookup`]
@@ -433,26 +425,6 @@ impl UserBackend for UserStore {
             }
         }
     }
-
-    async fn verify(&self, username: &str, password: &str) -> Result<Option<String>> {
-        if validate_username(username).is_err() {
-            return Ok(None);
-        }
-
-        let stored = {
-            let users = self.users.lock().expect("UserStore mutex poisoned");
-            users.get(username).cloned()
-        };
-        let Some(stored) = stored else {
-            return Ok(None);
-        };
-        // The in-memory read can't fail; a bcrypt error is treated as a
-        // non-match (not a store outage), so it stays `Ok(None)`.
-        Ok(verify_bcrypt(password.to_string(), stored)
-            .await
-            .unwrap_or(false)
-            .then(|| username.to_string()))
-    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -633,22 +605,24 @@ impl Default for UserStore {
 }
 
 /// Identify the caller behind an HTTP request. Inspects the
-/// `Authorization` header and resolves it to a username via the
-/// token store (for `Bearer`) or the user store (for `Basic`).
-/// Returns `None` for missing/unsupported credentials so the caller
-/// can decide whether anonymous is allowed.
+/// `Authorization` header and resolves it to a username via the token
+/// store. Only `Bearer` tokens are honored: pnpr does not accept Basic
+/// credentials on requests. Clients authenticate with `_authToken`, and a
+/// password login mints a token through [`UserBackend::add_or_login`] — so
+/// request handling never pays a per-request bcrypt. Returns `None` for
+/// missing/unsupported credentials so the caller can decide whether
+/// anonymous is allowed.
 ///
 /// The scheme is matched case-insensitively (RFC 7235 §2.1: "the
 /// scheme is case-insensitive"), so `BEARER`, `bearer`, and `Bearer`
 /// all parse the same.
 /// `Ok(None)` covers every "no usable credentials" case — a missing or
-/// malformed header, an unsupported scheme, or credentials that simply
-/// don't match. `Err` is reserved for a failure of the backing store
-/// (e.g. the networked auth DB is unreachable) so the caller can return
-/// a 5xx instead of a misleading 401.
+/// malformed header, a non-`Bearer` scheme (including legacy `Basic`), or a
+/// token that simply doesn't match. `Err` is reserved for a failure of the
+/// backing store (e.g. the networked auth DB is unreachable) so the caller
+/// can return a 5xx instead of a misleading 401.
 pub async fn identify(
     header_value: Option<&str>,
-    users: &dyn UserBackend,
     tokens: &dyn TokenBackend,
 ) -> Result<Option<String>> {
     let Some(value) = header_value.map(str::trim) else {
@@ -663,18 +637,6 @@ pub async fn identify(
     };
     if scheme.eq_ignore_ascii_case("Bearer") {
         return tokens.lookup(credentials).await;
-    }
-    if scheme.eq_ignore_ascii_case("Basic") {
-        let Ok(decoded) = BASE64.decode(credentials) else {
-            return Ok(None);
-        };
-        let Ok(pair) = std::str::from_utf8(&decoded) else {
-            return Ok(None);
-        };
-        let Some((user, password)) = pair.split_once(':') else {
-            return Ok(None);
-        };
-        return users.verify(user, password).await;
     }
     Ok(None)
 }

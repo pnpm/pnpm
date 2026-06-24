@@ -174,7 +174,9 @@ async fn invalid_usernames_do_not_change_htpasswd_across_restart() {
 
     drop(app);
     let auth = AuthState::load(&config.auth, &config.backend).await.expect("reload after restart");
-    assert_eq!(auth.users.verify("alice", "secret").await.unwrap().as_deref(), Some("alice"));
+    // The reloaded htpasswd still logs the user in with the original password.
+    let (_, username) = auth.users.add_or_login("alice", "secret").await.unwrap();
+    assert_eq!(username, "alice");
     assert_eq!(std::fs::read_to_string(&htpasswd).unwrap(), original_htpasswd);
 }
 

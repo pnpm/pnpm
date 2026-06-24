@@ -3,8 +3,7 @@
 
 use super::{
     DEFAULT_BCRYPT_COST, TokenBackend, TokenRecord, UpsertOutcome, UserBackend, fresh_secret,
-    hash_bcrypt, mint_token, sha256_hex, unix_seconds, validate_username, verify_bcrypt,
-    verify_returning_user,
+    hash_bcrypt, mint_token, sha256_hex, unix_seconds, validate_username, verify_returning_user,
 };
 use crate::{
     config::MaxUsers,
@@ -153,19 +152,6 @@ where
                 }
             },
         }
-    }
-
-    async fn verify(&self, username: &str, password: &str) -> Result<Option<String>> {
-        if validate_username(username).is_err() {
-            return Ok(None);
-        }
-
-        let Some(stored) = with_auth_timeout(self.timeout, self.db.stored_user(username)).await?
-        else {
-            return Ok(None);
-        };
-        let valid = verify_bcrypt(password.to_string(), stored.bcrypt_hash).await?;
-        Ok(valid.then_some(stored.username))
     }
 }
 
@@ -1169,19 +1155,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn verify_returns_the_stored_username() {
-        let bcrypt_hash = bcrypt::hash("secret", 4).unwrap();
-        let auth = SqlAuth::new(
-            CanonicalBackend { user: StoredUser { username: "Alice".to_string(), bcrypt_hash } },
-            MaxUsers::Unlimited,
-            Duration::from_secs(30),
-        );
-
-        assert_eq!(auth.verify("alice", "secret").await.unwrap().as_deref(), Some("Alice"));
-    }
-
-    #[tokio::test]
-    async fn verify_propagates_corrupt_hash_errors() {
+    async fn add_or_login_propagates_corrupt_hash_errors() {
         let auth = SqlAuth::new(
             CanonicalBackend {
                 user: StoredUser {
@@ -1193,26 +1167,9 @@ mod tests {
             Duration::from_secs(30),
         );
 
-        let err = auth.verify("alice", "secret").await.unwrap_err();
+        let err = auth.add_or_login("alice", "secret").await.unwrap_err();
 
         assert!(matches!(err, RegistryError::Bcrypt(_)), "got {err:?}");
-    }
-
-    #[tokio::test]
-    async fn verify_skips_unbounded_usernames_without_db_lookup() {
-        let stored_user_calls = Arc::new(AtomicU64::new(0));
-        let auth = SqlAuth::new(
-            CountingLookupBackend { stored_user_calls: Arc::clone(&stored_user_calls) },
-            MaxUsers::Unlimited,
-            Duration::from_secs(30),
-        );
-        let overlong = "a".repeat(MAX_USERNAME_CHARS + 1);
-
-        for username in ["", " alice", "alice ", "#alice", "alice:admin", "alice\nadmin"] {
-            assert_eq!(auth.verify(username, "secret").await.unwrap(), None);
-        }
-        assert_eq!(auth.verify(&overlong, "secret").await.unwrap(), None);
-        assert_eq!(stored_user_calls.load(Ordering::SeqCst), 0);
     }
 
     #[tokio::test]

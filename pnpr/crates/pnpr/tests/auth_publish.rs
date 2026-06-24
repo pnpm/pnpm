@@ -152,11 +152,14 @@ async fn bearer_token_grants_access_to_protected_package() {
 }
 
 #[tokio::test]
-async fn basic_auth_grants_access_to_protected_package() {
+async fn basic_auth_is_rejected_for_protected_package() {
     let storage = common::build_storage();
     let app = router(static_config(storage.path().to_path_buf()));
     let (app, _) = add_user_and_get_token(app, "alice", "secret").await;
 
+    // pnpr no longer accepts Basic credentials on requests: the header is
+    // ignored (treated as anonymous), so a protected package is rejected.
+    // Clients must authenticate with a bearer token.
     let basic = BASE64.encode(b"alice:secret");
     let response = app
         .oneshot(
@@ -167,7 +170,7 @@ async fn basic_auth_grants_access_to_protected_package() {
         )
         .await
         .unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
