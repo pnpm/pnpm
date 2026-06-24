@@ -275,9 +275,9 @@ fn collect_own_files(pkg_dir: &Path, manifest: &Value) -> Result<BTreeSet<String
         if should_always_exclude(&rel) {
             continue;
         }
-        // `node_modules/` is handled by the `bundleDependencies`
-        // pass below — never include its contents via the general
-        // walk. Without this gate a manifest that publishes a stray
+        // `node_modules/` contents are bundled by
+        // `collect_bundled_files`, never via this general walk.
+        // Without this gate a manifest that publishes a stray
         // `node_modules/something` would slip through.
         if rel.starts_with("node_modules/") || rel == "node_modules" {
             continue;
