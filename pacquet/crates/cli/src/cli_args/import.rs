@@ -20,14 +20,18 @@ impl ImportArgs {
         let dir = manifest.path().parent().expect("manifest path always has a parent dir");
         let lockfile_path = dir.join("pnpm-lock.yaml");
 
-        if let Err(error) = std::fs::remove_file(&lockfile_path)
-            && error.kind() != std::io::ErrorKind::NotFound
-        {
-            return Err(error).into_diagnostic().wrap_err("removing existing pnpm-lock.yaml");
+        let lockfile_backup = lockfile_path.with_extension("yaml.import.bak");
+        let lockfile_existed = lockfile_path.exists();
+        if lockfile_existed {
+            std::fs::rename(&lockfile_path, &lockfile_backup)
+                .into_diagnostic()
+                .wrap_err("backing up existing pnpm-lock.yaml")?;
         }
 
-        if let Some(pnpr_server) = self.pnpr_server.as_deref().or(config.pnpr_server.as_deref()) {
-            return super::install::install_via_pnpr::<Reporter>(
+        let install_result = if let Some(pnpr_server) =
+            self.pnpr_server.as_deref().or(config.pnpr_server.as_deref())
+        {
+            super::install::install_via_pnpr::<Reporter>(
                 &state,
                 pnpr_server,
                 super::install::PnprLink {
@@ -38,7 +42,7 @@ impl ImportArgs {
                     ],
                     supported_architectures: config.supported_architectures.clone(),
                     node_linker: config.node_linker,
-                    skip_runtimes: false,
+                    skip_runtimes: config.skip_runtimes,
                     frozen_lockfile: false,
                     prefer_frozen_lockfile: false,
                     lockfile_only: true,
@@ -48,42 +52,57 @@ impl ImportArgs {
                 },
             )
             .await
-            .wrap_err("importing dependencies via the pnpr server");
-        }
+            .wrap_err("importing dependencies via the pnpr server")
+        } else {
+            Install {
+                tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
+                http_client,
+                http_client_arc: std::sync::Arc::clone(http_client),
+                config,
+                manifest,
+                lockfile: pacquet_lockfile::MaybeLazyLockfile::Lazy(lockfile),
+                lockfile_path: Some(lockfile_path.as_path()),
+                dependency_groups: [
+                    DependencyGroup::Prod,
+                    DependencyGroup::Dev,
+                    DependencyGroup::Optional,
+                ]
+                .into_iter(),
+                frozen_lockfile: false,
+                prefer_frozen_lockfile: Some(false),
+                ignore_manifest_check: false,
+                skip_runtimes: config.skip_runtimes,
+                trust_lockfile: false,
+                update_checksums: false,
+                is_full_install: false,
+                resolved_packages,
+                supported_architectures: config.supported_architectures.clone(),
+                node_linker: config.node_linker,
+                lockfile_only: true,
+                dry_run: false,
+                update_seed_policy: pacquet_package_manager::UpdateSeedPolicy::DropAll,
+                auth_override: None,
+                resolution_observer: None,
+                catalogs_override: None,
+            }
+            .run::<Reporter>()
+            .await
+            .wrap_err("importing dependencies")
+        };
 
-        Install {
-            tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
-            http_client,
-            http_client_arc: std::sync::Arc::clone(http_client),
-            config,
-            manifest,
-            lockfile: pacquet_lockfile::MaybeLazyLockfile::Lazy(lockfile),
-            lockfile_path: Some(lockfile_path.as_path()),
-            dependency_groups: [
-                DependencyGroup::Prod,
-                DependencyGroup::Dev,
-                DependencyGroup::Optional,
-            ]
-            .into_iter(),
-            frozen_lockfile: false,
-            prefer_frozen_lockfile: Some(false),
-            ignore_manifest_check: false,
-            skip_runtimes: false,
-            trust_lockfile: false,
-            update_checksums: false,
-            is_full_install: false,
-            resolved_packages,
-            supported_architectures: config.supported_architectures.clone(),
-            node_linker: config.node_linker,
-            lockfile_only: true,
-            dry_run: false,
-            update_seed_policy: pacquet_package_manager::UpdateSeedPolicy::DropAll,
-            auth_override: None,
-            resolution_observer: None,
-            catalogs_override: None,
+        match install_result {
+            Ok(()) => {
+                if lockfile_existed {
+                    let _ = std::fs::remove_file(&lockfile_backup);
+                }
+                Ok(())
+            }
+            Err(error) => {
+                if lockfile_existed {
+                    let _ = std::fs::rename(&lockfile_backup, &lockfile_path);
+                }
+                Err(error)
+            }
         }
-        .run::<Reporter>()
-        .await
-        .wrap_err("importing dependencies")
     }
 }

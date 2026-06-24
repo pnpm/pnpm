@@ -645,17 +645,16 @@ impl CliArgs {
                 args.run(|| config().map(|m| &*m))?;
                 Box::pin(std::future::ready(Ok(())))
             }
-            CliCommand::Import(args) => match reporter {
-                ReporterType::Default | ReporterType::AppendOnly => {
-                    Box::pin(args.run::<DefaultReporter>(state(false)?)).await?;
+            CliCommand::Import(args) => {
+                let command_state = state(false)?;
+                match reporter {
+                    ReporterType::Default | ReporterType::AppendOnly => {
+                        Box::pin(args.run::<DefaultReporter>(command_state))
+                    }
+                    ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(command_state)),
+                    ReporterType::Silent => Box::pin(args.run::<SilentReporter>(command_state)),
                 }
-                ReporterType::Ndjson => {
-                    Box::pin(args.run::<NdjsonReporter>(state(false)?)).await?;
-                }
-                ReporterType::Silent => {
-                    Box::pin(args.run::<SilentReporter>(state(false)?)).await?;
-                }
-            },
+            }
             CliCommand::CatIndex(args) => Box::pin(async move {
                 args.run(dir_ref, || config().map(|m| &*m)).await?;
                 Ok(())
