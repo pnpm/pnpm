@@ -1,0 +1,80 @@
+name: Build pnpr (reusable)
+
+# Build the pnpr server and registry fixture preparer once for the given OS,
+# then share the binaries with every test job/shard as an artifact. Building
+# inside each test job instead rebuilt pnpr once per shard, because the
+# parallel shards all miss the build cache at job start.
+#
+# This is a per-OS reusable workflow rather than a single matrix job so each
+# platform's test jobs can gate on their own build. `needs` can only target a
+# whole job, never an individual matrix leg, so a matrix build would force the
+# ubuntu tests to wait for the (slower) windows build and vice versa.
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build-pnpr:
+    name: ${{ inputs.os }}
+    runs-on: ${{ inputs.os }}
+    steps:
+    - name: Free up runner disk space
+      if: ${{ runner.os == 'Linux' }}
+      run: |
+        sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+        df -h /
+    - name: Checkout Commit
+      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      with:
+        persist-credentials: false
+    # The binaries are cached and keyed on the Rust sources that produce them,
+    # so a run that only touches TypeScript restores them in seconds instead of
+    # recompiling. They are copied out of `target/` into a stable dir so
+    # `Swatinem/rust-cache`'s `target/` cleanup can't strip them before the
+    # cache saves.
+    - name: Restore prebuilt pnpr binaries
+      id: pnpr-bins
+      uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      with:
+        path: .pnpr-bin
+        key: pnpr-bins-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml', '**/Cargo.lock', '**/Cargo.toml', 'pnpr/**/*.rs', 'pacquet/**/*.rs') }}
+    - name: Install Rust
+      if: steps.pnpr-bins.outputs.cache-hit != 'true'
+      uses: ./.github/actions/rustup
+      with:
+        save-cache: ${{ github.ref_name == 'main' }}
+        shared-key: registry-prepare
+    - name: Build the pnpr server and registry fixture preparer
+      if: steps.pnpr-bins.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        cargo build --locked --release -p pnpr --bin pnpr -p pnpr-fixtures --bin pnpr-prepare
+        mkdir -p .pnpr-bin
+        ext=""
+        [ -f target/release/pnpr.exe ] && ext=".exe"
+        cp "target/release/pnpr$ext" "target/release/pnpr-prepare$ext" .pnpr-bin/
+    # Save the binaries to the cache right after they build, not in a post-job
+    # step: a later step failing would otherwise skip the save and force a full
+    # Rust rebuild on the next run.
+    - name: Save prebuilt pnpr binaries
+      if: steps.pnpr-bins.outputs.cache-hit != 'true'
+      uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      with:
+        path: .pnpr-bin
+        key: ${{ steps.pnpr-bins.outputs.cache-primary-key }}
+    - name: Upload pnpr binaries
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      with:
+        name: pnpr-bins-${{ runner.os }}
+        path: .pnpr-bin
+        # `.pnpr-bin` is a dotfile dir, which upload-artifact skips by default.
+        include-hidden-files: true
+        if-no-files-found: error
+        retention-days: 1

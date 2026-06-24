@@ -99,8 +99,8 @@ jobs:
     # `pnpr/.fixtures/packages` into the storage the server reads. Both are
     # built from source (so the tests exercise the current server, not a
     # published `@pnpm/pnpr` that may predate it) once per OS by the
-    # `build-pnpr` job, then shared with every test job/shard here as an
-    # artifact instead of rebuilt per job.
+    # `build-pnpr` reusable workflow, then shared with every test job/shard
+    # here as an artifact instead of rebuilt per job.
     - name: Download prebuilt pnpr binaries
       uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
       with:
