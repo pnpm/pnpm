@@ -249,7 +249,7 @@ fn safe_package_file_path(path: &str) -> Result<PathBuf, PatchCommitError> {
                 component,
                 std::path::Component::ParentDir
                     | std::path::Component::RootDir
-                    | std::path::Component::Prefix(_)
+                    | std::path::Component::Prefix(_),
             )
         })
     {
