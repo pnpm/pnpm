@@ -1,6 +1,18 @@
 name: TS CI
 
-on: [push, pull_request, merge_group]
+on:
+  push:
+    # The merge queue runs each entry on a temporary `gh-readonly-queue/**`
+    # branch, whose creation also fires a `push` event. That duplicate run
+    # shares `github.ref` (hence the test.yml concurrency group) with the
+    # `merge_group` run for the same commit, so with `cancel-in-progress`
+    # the two cancel each other's test jobs — failing `TS CI / Success` and
+    # ejecting the PR. Only the `merge_group` run reports to the queue, so
+    # skip `push` for those branches.
+    branches-ignore:
+      - 'gh-readonly-queue/**'
+  pull_request:
+  merge_group:
 
 permissions:
   contents: read # to fetch code (actions/checkout)
