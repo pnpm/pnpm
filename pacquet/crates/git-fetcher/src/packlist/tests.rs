@@ -465,6 +465,39 @@ fn bundle_dependencies_rejects_path_traversal() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn bundle_dependency_symlink_escaping_pkg_dir_is_refused() {
+    // Defense-in-depth: the bundle name is a single safe segment
+    // (`is_safe_bundle_name` accepts it), but `node_modules/<name>` is
+    // a symlink pointing outside the package. Resolving and walking it
+    // would splice host files into the published set. The fetcher
+    // imports untrusted git-hosted packages, so this must be refused.
+    let dir = tempdir().unwrap();
+    let root = dir.path().join("pkg");
+    fs::create_dir_all(root.join("node_modules")).unwrap();
+    touch(&root, "package.json");
+    // A sibling directory outside the package, made to look like a real
+    // package so the walk-up resolves it.
+    let escape = dir.path().join("escape");
+    fs::create_dir_all(&escape).unwrap();
+    fs::write(escape.join("package.json"), r#"{"name":"evil","version":"1.0.0"}"#).unwrap();
+    fs::write(escape.join("secret.txt"), "DO NOT EXFIL\n").unwrap();
+    std::os::unix::fs::symlink(&escape, root.join("node_modules/evil")).unwrap();
+
+    let manifest = json!({
+        "name": "x",
+        "version": "0.0.0",
+        "bundleDependencies": ["evil"],
+    });
+    let out = packlist(&root, &manifest).unwrap();
+
+    assert!(
+        !out.iter().any(|path| path.contains("secret")),
+        "a node_modules symlink escaping pkg_dir must not leak host files: {out:?}",
+    );
+}
+
 #[test]
 fn always_excluded_dir_segments_only_match_vcs() {
     let dir = tempdir().unwrap();

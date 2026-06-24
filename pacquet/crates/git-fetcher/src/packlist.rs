@@ -128,6 +128,11 @@ fn collect_bundled_files(
     root_manifest: &Value,
     out: &mut BTreeSet<String>,
 ) -> Result<(), PacklistError> {
+    // Canonical form of the package root, used to reject any bundled
+    // dependency whose real path escapes the tree (see the symlink check
+    // in the loop below). `None` if `root` itself can't be canonicalised,
+    // in which case the escape check falls back to a lexical comparison.
+    let canonical_root = fs::canonicalize(root).ok();
     let mut visited: HashSet<PathBuf> = HashSet::new();
     let mut queue: VecDeque<BundleTask> = root_bundle_dep_names(root_manifest)
         .into_iter()
@@ -165,19 +170,32 @@ fn collect_bundled_files(
             );
             continue;
         };
-        // `fs::canonicalize` resolves symlinks so a symlink loop shows
-        // up as a path we've already visited. Fall back to the raw
-        // path on failure (e.g. permission denied); dedup then
-        // degrades to identity on the resolved path, still enough to
-        // stop a plain `dependencies` cycle.
-        let canonical = fs::canonicalize(&dep_dir).unwrap_or_else(|_| dep_dir.clone());
-        if !visited.insert(canonical) {
+        // `fs::canonicalize` resolves symlinks, giving both the dedup
+        // key (a symlink loop shows up as an already-visited path) and
+        // the real target for the escape check below. `None` on failure
+        // (e.g. permission denied); dedup then degrades to the raw path
+        // and the escape check to a lexical comparison.
+        let canonical_dep = fs::canonicalize(&dep_dir).ok();
+        // `is_safe_bundle_name` only screens the name; a
+        // `node_modules/<name>` symlink pointing at a sibling or an
+        // absolute host path passes that yet resolves outside the tree.
+        // Walking it would splice host files into the published set, so
+        // refuse anything whose real path is not under the root. The
+        // fetcher imports untrusted git-hosted packages, so this matters.
+        let escapes = match (&canonical_root, &canonical_dep) {
+            (Some(root), Some(dep)) => dep.strip_prefix(root).is_err(),
+            _ => dep_dir.strip_prefix(root).is_err(),
+        };
+        if escapes {
+            tracing::warn!(
+                target: "pacquet::git_fetcher::packlist",
+                bundle_name = %task.name,
+                dep_dir = %dep_dir.display(),
+                "bundled dependency resolves outside the package tree; refusing",
+            );
             continue;
         }
-        // The walk-up only ever returns a path under `root`, but guard
-        // anyway: never splice in files resolved outside the package
-        // tree.
-        if dep_dir.strip_prefix(root).is_err() {
+        if !visited.insert(canonical_dep.unwrap_or_else(|| dep_dir.clone())) {
             continue;
         }
         let prefix = relative_forward_slash(root, &dep_dir);
