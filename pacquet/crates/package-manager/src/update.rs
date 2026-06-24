@@ -562,6 +562,7 @@ impl Update<'_> {
             auth_override: None,
             resolution_observer: None,
             catalogs_override,
+            disable_optimistic_repeat_install: false,
         }
         .run::<Reporter>()
         .await

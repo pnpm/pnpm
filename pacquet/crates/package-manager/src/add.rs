@@ -297,6 +297,7 @@ where
             auth_override: None,
             resolution_observer: None,
             catalogs_override: None,
+            disable_optimistic_repeat_install: false,
         }
         .run::<Reporter>()
         .await

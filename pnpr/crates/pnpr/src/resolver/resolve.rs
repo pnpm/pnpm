@@ -193,6 +193,7 @@ pub async fn resolve(
         // single terminal `done` frame carrying the whole lockfile.
         resolution_observer: observer,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
