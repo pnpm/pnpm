@@ -265,12 +265,24 @@ jobs:
         # The static musl binaries match what was just published to npm. The
         # Dockerfile selects one via the build's TARGETARCH (amd64 / arm64) and
         # re-verifies it against the build-time checksum surfaced here.
+        #
+        # Extract into a throwaway directory and move only the expected,
+        # checksum-verified regular files into the build context, so a malformed
+        # archive cannot escape it (path traversal, symlinks) and overwrite the
+        # Dockerfile or the staged binaries before they are pushed to GHCR.
         run: |
           set -eu
-          for f in pnpr-linux-*-musl.tar.gz; do tar xf "$f"; done
-          sha256sum -c pnpr-linux-x64-musl.sha256 pnpr-linux-arm64-musl.sha256
-          mv pnpr-linux-x64-musl pnpr/docker/pnpr-amd64
-          mv pnpr-linux-arm64-musl pnpr/docker/pnpr-arm64
+          rm -rf extracted
+          mkdir extracted
+          for f in pnpr-linux-*-musl.tar.gz; do
+            tar -xzf "$f" -C extracted --no-same-owner
+          done
+          ( cd extracted && sha256sum -c ../pnpr-linux-x64-musl.sha256 ../pnpr-linux-arm64-musl.sha256 )
+          for pair in x64:amd64 arm64:arm64; do
+            bin="extracted/pnpr-linux-${pair%:*}-musl"
+            test -f "$bin" && test ! -L "$bin"
+            mv "$bin" "pnpr/docker/pnpr-${pair#*:}"
+          done
           {
             echo "sha_amd64=$(awk '{print $1}' pnpr-linux-x64-musl.sha256)"
             echo "sha_arm64=$(awk '{print $1}' pnpr-linux-arm64-musl.sha256)"
