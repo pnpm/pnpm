@@ -48,6 +48,7 @@ jobs:
               - 'cspell.json'
               - '.github/workflows/ci.yml'
               - '.github/workflows/test.yml'
+              - '.github/workflows/build-pnpr.yml'
               - '.github/scripts/**'
 
   compile-and-lint:
