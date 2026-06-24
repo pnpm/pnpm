@@ -56,7 +56,7 @@ jobs:
         git config --global user.name "xyz"
         git config --global user.email "x@y.z"
     - name: Checkout Commit
-      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
         persist-credentials: false
     - if: ${{ inputs.garnet }}
@@ -64,7 +64,7 @@ jobs:
       with:
         api_token: ${{ secrets.GARNET_API_TOKEN }}
     - name: Install pnpm and Node
-      uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
+      uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
       with:
         runtime: node@${{ inputs.node }}
     - name: Verify Node version
