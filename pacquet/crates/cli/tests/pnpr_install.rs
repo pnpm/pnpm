@@ -225,3 +225,33 @@ fn install_via_pnpr_lockfile_only_writes_lockfile_without_linking() {
 
     drop((root, mock_instance));
 }
+
+#[test]
+fn import_via_pnpr_server_writes_lockfile_without_linking() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { npmrc_path, store_dir, mock_instance, .. } = npmrc_info;
+
+    let (pnpr_url, token) = start_pnpr();
+    configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
+
+    let manifest_path = workspace.join("package.json");
+    let package_json = serde_json::json!({
+        "dependencies": { "@foo/no-deps": "1.0.0" },
+    });
+    fs::write(&manifest_path, package_json.to_string()).expect("write package.json");
+
+    pacquet
+        .with_env("PNPM_CONFIG_REGISTRY", mock_instance.url())
+        .with_arg("import")
+        .with_arg("--pnpr-server")
+        .with_arg(&pnpr_url)
+        .assert()
+        .success();
+
+    assert!(workspace.join("pnpm-lock.yaml").exists(), "pnpr should write the lockfile");
+    assert!(!workspace.join("node_modules").exists(), "import must not link node_modules");
+    assert!(!store_dir.join("v11/index.db").exists(), "import must not populate the client store");
+
+    drop((root, mock_instance));
+}

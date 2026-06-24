@@ -538,39 +538,40 @@ impl InstallArgs {
 
 /// Per-invocation install knobs forwarded to the frozen link pass,
 /// already resolved from the CLI flags + config by [`InstallArgs::run`].
-struct PnprLink<'a> {
-    dependency_groups: Vec<DependencyGroup>,
-    supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
-    node_linker: NodeLinker,
-    skip_runtimes: bool,
+pub(crate) struct PnprLink<'a> {
+    pub(crate) dependency_groups: Vec<DependencyGroup>,
+    pub(crate) supported_architectures:
+        Option<pacquet_package_is_installable::SupportedArchitectures>,
+    pub(crate) node_linker: NodeLinker,
+    pub(crate) skip_runtimes: bool,
     /// Governs the *server's* resolution behavior (frozen vs
     /// reuse-and-update); forwarded to `/-/pnpr/v0/resolve`. The local
     /// materialization always runs frozen against the server-produced
     /// lockfile.
-    frozen_lockfile: bool,
+    pub(crate) frozen_lockfile: bool,
     /// The *effective* `preferFrozenLockfile` (the CLI tri-state already
     /// resolved against `config.prefer_frozen_lockfile`, exactly as the
     /// local `Install` resolves it); forwarded to `/-/pnpr/v0/resolve`. `false`
     /// forces the server to re-resolve. Resolving here — rather than
     /// sending the raw CLI override — keeps a yaml `preferFrozenLockfile:
     /// false` honored on the pnpr path without `--no-prefer-frozen-lockfile`.
-    prefer_frozen_lockfile: bool,
+    pub(crate) prefer_frozen_lockfile: bool,
     /// `--lockfile-only`. Forwarded to `/-/pnpr/v0/resolve` so the server
     /// resolves only — returning the lockfile without fetching files —
     /// after which `install_via_pnpr` writes the lockfile and skips
     /// materialization, mirroring pnpm's resolve + write, fetch nothing,
     /// link nothing. See
     /// [pnpm/pnpm#12146](https://github.com/pnpm/pnpm/issues/12146).
-    lockfile_only: bool,
+    pub(crate) lockfile_only: bool,
     /// `--ignore-manifest-check`; forwarded so the server's frozen
     /// freshness check and the local materialization both skip the
     /// manifest ↔ lockfile comparison.
-    ignore_manifest_check: bool,
+    pub(crate) ignore_manifest_check: bool,
     /// The effective `trustLockfile` (yaml `trustLockfile` OR
     /// `--trust-lockfile`); forwarded so the server skips verifying the
     /// input lockfile when the user opted out, mirroring the local path.
-    trust_lockfile: bool,
-    lockfile_path: Option<&'a std::path::Path>,
+    pub(crate) trust_lockfile: bool,
+    pub(crate) lockfile_path: Option<&'a std::path::Path>,
 }
 
 /// `frozenStore` was enabled together with a configured `pnprServer`.
@@ -615,7 +616,7 @@ struct DryRunIncompatibleWithPnpr;
 /// `installFromPnpmRegistry` handing off to `headlessInstall`. Under
 /// `--lockfile-only` it stops after writing the lockfile (fetch nothing,
 /// link nothing).
-async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
+pub(crate) async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
     state: &State,
     pnpr_server: &str,
     link: PnprLink<'_>,
