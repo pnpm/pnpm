@@ -117,6 +117,27 @@ fn fails_when_arguments_are_missing() {
 }
 
 #[test]
+fn fails_when_no_arguments_are_given() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_manifest(&workspace, &json!({ "name": "test-package", "version": "1.0.0" }));
+
+    // No arguments at all exercises the missing-name branch, separate from the
+    // missing-command branch covered above.
+    let output = pacquet.with_args(["set-script"]).output().expect("spawn pacquet set-script");
+    assert!(
+        !output.status.success(),
+        "no arguments at all must fail (stderr: {})",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
+    assert!(
+        stderr.contains("ERR_PNPM_SET_SCRIPT_MISSING_ARGS"),
+        "stderr must name the missing-args diagnostic; got:\n{stderr}",
+    );
+    drop(root);
+}
+
+#[test]
 fn rejects_unsafe_script_names() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     write_manifest(&workspace, &json!({ "name": "test-package", "version": "1.0.0" }));
