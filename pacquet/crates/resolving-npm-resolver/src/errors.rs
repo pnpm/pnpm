@@ -95,3 +95,42 @@ pub struct GuardRepickLimitError {
     pub limit: usize,
     pub reason: String,
 }
+
+/// Raised when a dependency resolution fails and a workspace package
+/// with the same name exists but no version satisfies the requested
+/// range. The `message` includes the list of available workspace
+/// versions. Mirrors pnpm's
+/// [`NO_MATCHING_VERSION_INSIDE_WORKSPACE`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/src/index.ts#L877-L885)
+/// error with an enhanced message for the non-`workspace:`-prefixed
+/// case (pnpm/pnpm#1379).
+#[derive(Debug, Display, Error, Diagnostic)]
+#[display("{message}")]
+#[diagnostic(code(pacquet_resolving_npm_resolver::no_matching_version_inside_workspace))]
+pub struct WorkspaceVersionMismatchError {
+    #[error(not(source))]
+    pub message: String,
+}
+
+/// Build a human-readable message listing available workspace versions
+/// for a package, or `None` if the package is not in the workspace.
+pub fn build_workspace_version_hint(
+    pkg_name: &str,
+    workspace_packages: &pacquet_resolving_resolver_base::WorkspacePackages,
+) -> Option<String> {
+    let by_version = workspace_packages.get(pkg_name)?;
+    let mut versions: Vec<String> = by_version.keys().cloned().collect();
+    // Sort in descending semver order so the highest version comes first.
+    versions.sort_by(|a, b| {
+        match (node_semver::Version::parse(a), node_semver::Version::parse(b)) {
+            (Ok(a), Ok(b)) => b.cmp(&a),
+            _ => b.cmp(a),
+        }
+    });
+    if versions.is_empty() {
+        return None;
+    }
+    Some(format!(
+        "Package \"{pkg_name}\" is not available in the registry but is present in the workspace with available version(s): {}",
+        versions.join(", "),
+    ))
+}
