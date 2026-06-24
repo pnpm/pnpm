@@ -700,29 +700,19 @@ impl CliArgs {
                 let cfg = config()?;
                 cfg.modules_cache_max_age = 0;
                 cfg.ignore_scripts = cfg.ignore_scripts || args.ignore_scripts;
-                let workspace_root =
-                    cfg.workspace_dir.clone().unwrap_or_else(|| dir_ref.clone());
-                let workspace_root = std::fs::canonicalize(&workspace_root)
-                    .into_diagnostic()
-                    .wrap_err("canonicalize workspace root for prune safety check")?;
-                let modules_dir = std::fs::canonicalize(&cfg.modules_dir)
-                    .into_diagnostic()
-                    .wrap_err("canonicalize modules_dir for prune safety check")?;
-                if !modules_dir.starts_with(&workspace_root) {
+                let workspace_root = cfg.workspace_dir.clone().unwrap_or_else(|| dir_ref.clone());
+                if !cfg.modules_dir.starts_with(&workspace_root) {
                     return Err(miette::miette!(
                         "refusing prune: modules_dir ({}) is outside workspace root ({})",
                         cfg.modules_dir.display(),
                         workspace_root.display(),
                     ));
                 }
-                let virtual_store_dir =
-                    std::fs::canonicalize(cfg.effective_virtual_store_dir())
-                        .into_diagnostic()
-                        .wrap_err("canonicalize virtual_store_dir for prune safety check")?;
-                if !virtual_store_dir.starts_with(&modules_dir) {
+                let vsd = cfg.effective_virtual_store_dir();
+                if !vsd.starts_with(&cfg.modules_dir) {
                     return Err(miette::miette!(
                         "refusing prune: virtual_store_dir ({}) is outside modules_dir ({})",
-                        cfg.effective_virtual_store_dir().display(),
+                        vsd.display(),
                         cfg.modules_dir.display(),
                     ));
                 }
@@ -748,7 +738,7 @@ impl CliArgs {
                     }
                 }
                 Ok(())
-            })
+            }),
             CliCommand::CatIndex(args) => Box::pin(async move {
                 args.run(dir_ref, || config().map(|m| &*m)).await?;
                 Ok(())
@@ -924,8 +914,7 @@ struct PrunePipeline {
 
 impl PrunePipeline {
     async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
-        let PrunePipeline { args, cfg, config_root, package_manager_to_sync, manifest_path } =
-            self;
+        let PrunePipeline { args, cfg, config_root, package_manager_to_sync, manifest_path } = self;
 
         if let Some(pm) = package_manager_to_sync.as_ref() {
             config_deps::sync_package_manager_dependencies(
@@ -940,8 +929,7 @@ impl PrunePipeline {
         config_deps::install_config_deps::<Reporter>(cfg, &config_root, false).await?;
         config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
         let cfg: &'static Config = cfg;
-        let state =
-            State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
+        let state = State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
         args.run::<Reporter>(state).await
     }
 }
