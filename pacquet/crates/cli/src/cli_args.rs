@@ -810,6 +810,22 @@ impl DedupePipeline {
     async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
         let DedupePipeline { args, cfg, config_root, package_manager_to_sync, manifest_path } =
             self;
+
+        // Snapshot lockfile BEFORE config-dependency ops that can persist
+        // into pnpm-lock.yaml (env-lockfile document).
+        let lockfile_path = config_root.join(pacquet_lockfile::Lockfile::FILE_NAME);
+        let existing = if args.check {
+            match std::fs::read_to_string(&lockfile_path) {
+                Ok(content) => Some(content),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+                Err(e) => {
+                    return Err(e).into_diagnostic().wrap_err("reading lockfile before dedupe");
+                }
+            }
+        } else {
+            None
+        };
+
         if let Some(pm) = package_manager_to_sync.as_ref() {
             config_deps::sync_package_manager_dependencies(
                 cfg,
@@ -824,7 +840,7 @@ impl DedupePipeline {
         config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
         let cfg: &'static Config = cfg;
         let state = State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
-        args.run::<Reporter>(state).await
+        args.run::<Reporter>(state, existing, &lockfile_path).await
     }
 }
 

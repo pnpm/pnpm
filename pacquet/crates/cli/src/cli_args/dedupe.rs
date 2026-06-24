@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use crate::State;
 use clap::Args;
 use miette::{Context, IntoDiagnostic};
@@ -12,16 +14,14 @@ pub struct DedupeArgs {
 }
 
 impl DedupeArgs {
-    pub async fn run<Reporter: self::Reporter + 'static>(self, state: State) -> miette::Result<()> {
+    pub async fn run<Reporter: self::Reporter + 'static>(
+        self,
+        state: State,
+        existing: Option<String>,
+        lockfile_path: &Path,
+    ) -> miette::Result<()> {
         let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
             &state;
-
-        let workspace_root = config.workspace_dir.as_deref().unwrap_or_else(|| {
-            manifest.path().parent().expect("manifest path always has a parent dir")
-        });
-        let lockfile_path = workspace_root.join(pacquet_lockfile::Lockfile::FILE_NAME);
-
-        let existing = self.check.then(|| std::fs::read_to_string(&lockfile_path).ok()).flatten();
 
         Install {
             tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
@@ -30,7 +30,7 @@ impl DedupeArgs {
             config,
             manifest,
             lockfile: pacquet_lockfile::MaybeLazyLockfile::Lazy(lockfile),
-            lockfile_path: Some(lockfile_path.as_path()),
+            lockfile_path: Some(lockfile_path),
             dependency_groups: [
                 DependencyGroup::Prod,
                 DependencyGroup::Dev,
@@ -59,14 +59,22 @@ impl DedupeArgs {
         .wrap_err("deduplicating dependencies")?;
 
         if self.check {
-            let current = std::fs::read_to_string(&lockfile_path).ok();
+            let current = match std::fs::read_to_string(lockfile_path) {
+                Ok(content) => Some(content),
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+                Err(e) => {
+                    return Err(e).into_diagnostic().wrap_err("reading lockfile after dedupe");
+                }
+            };
             if existing != current {
                 if let Some(old) = existing {
-                    std::fs::write(&lockfile_path, &old)
+                    std::fs::write(lockfile_path, &old)
                         .into_diagnostic()
                         .wrap_err("restoring lockfile after check")?;
                 } else {
-                    let _ = std::fs::remove_file(&lockfile_path);
+                    std::fs::remove_file(lockfile_path)
+                        .into_diagnostic()
+                        .wrap_err("removing lockfile after check")?;
                 }
                 return Err(miette::miette!("Lockfile would be modified by deduplication"));
             }
