@@ -202,6 +202,12 @@ function createEnv (opts?: { storeDir?: string, omitEnvDefaults?: PnpmEnvDefault
   }
 
   const env: Record<string, string> = {
+    // Isolate the metadata cache per test, alongside the store. The mock
+    // registry serves fixture packuments without cache-control headers, so a
+    // shared cache lets one test's packument (e.g. a default `latest` dist-tag)
+    // leak into another test that changed that tag via `addDistTag`, resolving
+    // a stale version. Keeping it next to the project dir makes it per-test.
+    pnpm_config_cache_dir: fallback('cacheDir', '../cache'),
     pnpm_config_fetch_retries: fallback('fetchRetries', '4'),
     pnpm_config_hoist: fallback('hoist', 'true'),
     pnpm_config_minimum_release_age: '0',
