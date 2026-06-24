@@ -13,6 +13,7 @@ permissions:
 
 on:
   workflow_dispatch:
+  merge_group:
   pull_request:
     types: [opened, synchronize, reopened]
   push:
@@ -30,18 +31,22 @@ jobs:
     outputs:
       rust: ${{ steps.manual.outputs.rust || steps.filter.outputs.rust }}
     steps:
-      - name: Run Rust CI for manual dispatch
-        if: github.event_name == 'workflow_dispatch'
+      # Force the full Rust suite on manual runs and in the merge queue.
+      # The merge queue tests the merged commit, so path filtering it away
+      # would defeat the point; running unconditionally also guarantees the
+      # `success` gate has a real (non-skipped) result to report.
+      - name: Force Rust CI
+        if: github.event_name == 'workflow_dispatch' || github.event_name == 'merge_group'
         id: manual
         run: echo "rust=true" >> "$GITHUB_OUTPUT"
 
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        if: github.event_name != 'workflow_dispatch'
+        if: github.event_name != 'workflow_dispatch' && github.event_name != 'merge_group'
         with:
           persist-credentials: false
 
       - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
-        if: github.event_name != 'workflow_dispatch'
+        if: github.event_name != 'workflow_dispatch' && github.event_name != 'merge_group'
         id: filter
         with:
           filters: |
@@ -267,6 +272,7 @@ jobs:
           persist-credentials: false
 
       - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        if: github.event_name != 'merge_group'
         id: filter
         with:
           filters: |
@@ -275,12 +281,12 @@ jobs:
               - 'deny.toml'
 
       - name: Install cargo-deny
-        if: steps.filter.outputs.src == 'true'
+        if: github.event_name == 'merge_group' || steps.filter.outputs.src == 'true'
         uses: taiki-e/install-action@0631aa6515c7d545823c67cfae7ef4fc7f490154 # v2.81.8
         with:
           tool: cargo-deny
 
-      - if: steps.filter.outputs.src == 'true'
+      - if: github.event_name == 'merge_group' || steps.filter.outputs.src == 'true'
         run: cargo deny check
 
   format:

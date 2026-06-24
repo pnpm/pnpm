@@ -1,6 +1,6 @@
 name: TS CI
 
-on: [push, pull_request]
+on: [push, pull_request, merge_group]
 
 permissions:
   contents: read # to fetch code (actions/checkout)
@@ -13,12 +13,23 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      ts: ${{ steps.filter.outputs.ts }}
+      ts: ${{ steps.force.outputs.ts || steps.filter.outputs.ts }}
     steps:
+      # In the merge queue the full suite must run: `TS CI / Compile & Lint`
+      # is itself a required check, and a skipped job never reports its
+      # context, which would leave the queue waiting forever. Forcing
+      # detection true also tests the merged result, which is the point of
+      # the queue.
+      - name: Force TS CI for merge queue
+        if: github.event_name == 'merge_group'
+        id: force
+        run: echo "ts=true" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        if: github.event_name != 'merge_group'
         with:
           persist-credentials: false
       - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        if: github.event_name != 'merge_group'
         id: filter
         with:
           # The TypeScript pnpm stack lives under pnpm11/, plus the
@@ -45,7 +56,7 @@ jobs:
     # pull_request events from PRs in the same repo to prevent duplicate
     # build jobs (the push event already covers them).
     # Exception: chore/update-lockfile PRs (created by automation with GITHUB_TOKEN, which doesn't trigger push events)
-    if: ${{ !cancelled() && needs.changes.outputs.ts == 'true' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository || github.head_ref == 'chore/update-lockfile') }}
+    if: ${{ !cancelled() && needs.changes.outputs.ts == 'true' && (github.event_name == 'push' || github.event_name == 'merge_group' || github.event.pull_request.head.repo.full_name != github.repository || github.head_ref == 'chore/update-lockfile') }}
 
     name: TS CI / Compile & Lint
     runs-on: ubuntu-latest
@@ -80,7 +91,7 @@ jobs:
   # parallel shards all miss the build cache at job start.
   build-pnpr:
     needs: changes
-    if: ${{ !cancelled() && needs.changes.outputs.ts == 'true' && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository || github.head_ref == 'chore/update-lockfile') }}
+    if: ${{ !cancelled() && needs.changes.outputs.ts == 'true' && (github.event_name == 'push' || github.event_name == 'merge_group' || github.event.pull_request.head.repo.full_name != github.repository || github.head_ref == 'chore/update-lockfile') }}
     name: TS CI / Build pnpr / ${{ matrix.os }}
     strategy:
       fail-fast: false
