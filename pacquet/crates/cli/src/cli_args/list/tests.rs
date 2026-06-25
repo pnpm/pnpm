@@ -1,5 +1,10 @@
-use super::*;
+use super::{
+    DepNode, LocalTreeRoot, PkgNameVerPeer, dep_to_json, get_peer_set, glob_match, matches_params,
+    name_at_version, print_label, read_root_manifest, render_local_json, render_local_parseable,
+    render_local_tree, sort_deps,
+};
 use pretty_assertions::assert_eq;
+use serde_json::Value;
 
 #[test]
 fn glob_match_exact() {

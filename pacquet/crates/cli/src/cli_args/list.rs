@@ -101,8 +101,8 @@ impl ListArgs {
         } else {
             dir.strip_prefix(lockfile_dir)
                 .ok()
-                .map(|p| p.to_string_lossy().replace('\\', "/"))
-                .filter(|s| !s.is_empty())
+                .map(|rel| rel.to_string_lossy().replace('\\', "/"))
+                .filter(|id| !id.is_empty())
                 .unwrap_or_else(|| ".".to_string())
         };
         let Some(importer) =
