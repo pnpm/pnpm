@@ -1916,49 +1916,35 @@ async fn update_packument(
         .expect("static-shape response always builds")
 }
 
-/// Enforce that an already-published version's security-critical `dist` fields —
-/// its `integrity` and its `tarball` basename — are immutable across the
-/// partial-unpublish `PUT`. Either one changing while the bytes on disk stay the
-/// same breaks installs of that version: a swapped `integrity` fails every
-/// client with `EINTEGRITY`, and a repointed `tarball` basename sends clients at
-/// a missing or foreign tarball that can't match the version's integrity. So for
-/// every version already in the hosted packument:
+/// Hold a published version's security-critical `dist` fields immutable across
+/// the partial-unpublish `PUT`, which otherwise persists the body verbatim.
+/// [`expected_tarball_dist`] resolves a tarball request to a version by
+/// `dist.tarball` basename and verifies the bytes against that version's string
+/// `dist.integrity`, so letting either drift — while the bytes on disk stay put —
+/// breaks installs of that version (`EINTEGRITY`, or a 404/502 redirect).
 ///
-/// - A *change* to its `dist.integrity`, or to its `dist.tarball` basename, is
-///   rejected.
-/// - An *omission* of either is repaired in place from the hosted value — the
-///   round-trip body legitimately re-PUTs the remaining versions, and a dropped
-///   field would otherwise leave that version unservable. [`expected_tarball_dist`]
-///   matches a tarball request to a version by basename and verifies the bytes
-///   against a string integrity, so both fields must survive.
-/// - A version *not* already published is rejected: this endpoint only removes
-///   versions, never adds them, and a new entry could declare a `dist.tarball`
-///   basename that collides with a published version (making
-///   [`expected_tarball_dist`] fail closed / 502) or seed a tarball-less version.
-/// - A `PUT` to a package with no hosted packument is rejected outright: there is
-///   nothing to unpublish, and writing the body would seed authoritative versions
-///   that publish can never overwrite (a durable squat).
+/// For each version in the body, given a hosted packument: changing the
+/// `dist.integrity` or `dist.tarball` basename of an already-published version is
+/// rejected; omitting either is repaired from the hosted value (the round-trip
+/// drops them on retained versions); and a version not already published is
+/// rejected — this endpoint only removes versions, and an added entry could
+/// collide a basename or seed a tarball-less one. A `PUT` to a package with no
+/// hosted packument is rejected outright (nothing to unpublish, and the write
+/// would seed versions that publish can never overwrite).
 ///
-/// Returns the rejection error, or `None` when the body is acceptable (possibly
-/// after restoring omitted fields). Must be called while holding the package
-/// lock so a concurrent publish can't race the read.
+/// Returns the rejection, or `None` when the body is acceptable (after any
+/// restores). Must hold the package lock so a concurrent publish can't race it.
 async fn enforce_published_version_immutability(
     state: &AppState,
     name: &PackageName,
     incoming: &mut Value,
 ) -> Option<RegistryError> {
     let hosted: Value = match state.inner.storage.read_hosted_packument(name).await {
-        // Fail closed: a corrupt hosted packument must not silently disable the
-        // immutability gate (which would let tampered dist fields through).
+        // Fail closed: a corrupt packument must not silently disable the gate.
         Ok(Some(bytes)) => match serde_json::from_slice(&bytes) {
             Ok(value) => value,
             Err(err) => return Some(RegistryError::Json(err)),
         },
-        // Partial-unpublish operates on an already-published package; with no
-        // hosted packument there is nothing to unpublish. Writing the body would
-        // instead seed authoritative versions with no tarballs and — because
-        // publish refuses any version already in the packument — permanently
-        // block their later legitimate publish. Refuse it.
         Ok(None) => {
             return Some(RegistryError::BadRequest {
                 reason: format!(
@@ -1969,19 +1955,13 @@ async fn enforce_published_version_immutability(
         }
         Err(err) => return Some(err),
     };
-    // A body without a versions object has nothing to enforce (and nothing the
-    // caller could be unpublishing); accept it.
+    // None (no versions to enforce) means "accept", not "error" here.
     let incoming_versions = incoming.get("versions").and_then(Value::as_object)?;
     let hosted_versions = hosted.get("versions").and_then(Value::as_object);
-    // (version, dist key, hosted value) triples re-inserted after the scan, for
-    // published versions whose body omitted an immutable dist field (a borrow of
-    // `incoming` is live until then).
+    // Fields to re-insert after the scan; deferred because the scan borrows
+    // `incoming` and the restore mutates it.
     let mut restore: Vec<(String, &'static str, Value)> = Vec::new();
     for (version, manifest) in incoming_versions {
-        // Partial-unpublish only removes versions; it must not add one. A new
-        // entry could declare a dist.tarball basename colliding with a published
-        // version (making expected_tarball_dist fail closed / 502) or seed a
-        // version with no tarball, so reject anything not already published.
         let Some(existing) = hosted_versions.and_then(|versions| versions.get(version)) else {
             return Some(RegistryError::BadRequest {
                 reason: format!(
@@ -1989,10 +1969,8 @@ async fn enforce_published_version_immutability(
                 ),
             });
         };
-        // A present dist.integrity must be a string — a valid SRI is the only
-        // acceptable shape. A present-but-non-string value (null, number,
-        // object) would slip past the string-only checks below and still break
-        // tarball serving, so reject it outright.
+        // A present dist.integrity must be a string; a non-string would slip past
+        // the string-only checks below.
         let incoming_integrity = match manifest.get("dist").and_then(|dist| dist.get("integrity")) {
             None => None,
             Some(Value::String(value)) => Some(value.as_str()),
@@ -2003,7 +1981,6 @@ async fn enforce_published_version_immutability(
             }
         };
         let existing_dist = existing.get("dist");
-        // dist.integrity immutability.
         let existing_integrity =
             existing_dist.and_then(|dist| dist.get("integrity")).and_then(Value::as_str);
         match (existing_integrity, incoming_integrity) {
@@ -2022,13 +1999,10 @@ async fn enforce_published_version_immutability(
             }
             _ => {}
         }
-        // dist.tarball basename immutability. The hosted tarball is the
-        // originally published URL while the round-trip body carries the
-        // rewritten URL (see [`rewrite_tarball_urls`]), so only the basename —
-        // the trust key shared with serve time — is comparable. The hosted side
-        // uses the *served* basename ([`served_tarball_basename`]), which mirrors
-        // the rewrite's version-derived fallback, so a stored URL without a
-        // basename is still protected rather than left open to a redirect.
+        // Compare basenames, not URLs: the round-trip carries the rewritten URL
+        // (see [`rewrite_tarball_urls`]) while the hosted side keeps the original,
+        // and [`served_tarball_basename`] applies the same version-derived
+        // fallback so a basename-less stored URL is still pinned.
         let existing_tarball = existing_dist.and_then(|dist| dist.get("tarball"));
         if let Some(stored_basename) = served_tarball_basename(existing, name) {
             let incoming_basename = manifest
@@ -2045,10 +2019,6 @@ async fn enforce_published_version_immutability(
                     });
                 }
                 Some(_) => {}
-                // Omitted, non-string, or basename-less incoming tarball: restore
-                // the hosted value so the served basename can't shift (a
-                // basename-less URL would otherwise fall back to a *different*
-                // version-derived name when the stored one was non-canonical).
                 None => {
                     if let Some(err) = require_object_dist(manifest, version) {
                         return Some(err);
@@ -2085,10 +2055,9 @@ fn served_tarball_basename(manifest: &Value, pkg: &PackageName) -> Option<String
     Some(pkg.tarball_name_for_version(version))
 }
 
-/// Restoring an omitted immutable dist field needs an object `dist` to write
-/// into. A published version sent with a non-object (or absent) `dist` is
-/// rejected rather than silently left as-is — otherwise the restore would no-op
-/// and persist the version without the field, the stripping this guards against.
+/// Reject a published version whose `dist` isn't an object: a restore needs an
+/// object to write into, so otherwise it would no-op and persist the version
+/// without the field — the stripping this guards against.
 fn require_object_dist(manifest: &Value, version: &str) -> Option<RegistryError> {
     if manifest.get("dist").is_some_and(Value::is_object) {
         return None;

@@ -320,7 +320,6 @@ async fn update_packument_rejects_tampering_with_a_published_version_integrity()
         .unwrap();
     assert_eq!(app.clone().oneshot(tamper).await.unwrap().status(), StatusCode::BAD_REQUEST);
 
-    // The stored integrity must be untouched.
     let after = app.oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
     let after = body_json(after.into_body()).await;
     assert_eq!(after["versions"]["1.0.0"]["dist"]["integrity"], original_integrity);
@@ -376,9 +375,8 @@ async fn update_packument_rejects_a_non_object_dist_for_a_published_version() {
         app.clone().oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
     let mut packument = body_json(get.into_body()).await;
     let original_integrity = packument["versions"]["1.0.0"]["dist"]["integrity"].clone();
-    // Replacing dist with a non-object would skip the integrity-restore path and
-    // leave the published version without its hash; it must be rejected, not
-    // silently persisted.
+    // A non-object dist would skip the integrity-restore path and strip the hash,
+    // so it must be rejected rather than silently persisted.
     packument["versions"]["1.0.0"]["dist"] = json!(null);
     let request = Request::put("/mypkg/-rev/1-0")
         .header("content-type", "application/json")
@@ -387,7 +385,6 @@ async fn update_packument_rejects_a_non_object_dist_for_a_published_version() {
         .unwrap();
     assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::BAD_REQUEST);
 
-    // The stored integrity must be untouched.
     let after = app.oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
     let after = body_json(after.into_body()).await;
     assert_eq!(after["versions"]["1.0.0"]["dist"]["integrity"], original_integrity);
@@ -426,7 +423,6 @@ async fn update_packument_rejects_tampering_with_a_published_version_tarball() {
         .unwrap();
     assert_eq!(app.clone().oneshot(tamper).await.unwrap().status(), StatusCode::BAD_REQUEST);
 
-    // The stored tarball must be untouched.
     let after = app.oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
     let after = body_json(after.into_body()).await;
     assert_eq!(after["versions"]["1.0.0"]["dist"]["tarball"], original_tarball);
@@ -453,11 +449,9 @@ async fn update_packument_rejects_adding_a_version_via_the_unpublish_put() {
     let mut packument = body_json(get.into_body()).await;
     let original_versions = packument["versions"].clone();
 
-    // Smuggle in a brand-new version whose tarball basename collides with the
-    // published 1.0.0 tarball. expected_tarball_dist fails closed on a duplicate
-    // basename, so persisting this would 502 every fetch of mypkg-1.0.0.tgz. The
-    // endpoint only removes versions, so adding one must be rejected — even with
-    // an otherwise-valid integrity.
+    // Add a new version whose tarball basename collides with 1.0.0's. A duplicate
+    // basename makes expected_tarball_dist fail closed (502), so the addition must
+    // be rejected — even with an otherwise-valid integrity.
     packument["versions"]["9.9.9"] = json!({
         "name": "mypkg",
         "version": "9.9.9",
@@ -473,7 +467,6 @@ async fn update_packument_rejects_adding_a_version_via_the_unpublish_put() {
         .unwrap();
     assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::BAD_REQUEST);
 
-    // No new version may have been persisted.
     let after = app.oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
     let after = body_json(after.into_body()).await;
     assert_eq!(after["versions"], original_versions);
@@ -495,17 +488,15 @@ async fn update_packument_protects_a_published_tarball_with_a_basenameless_url()
         .unwrap();
     assert_eq!(app.clone().oneshot(publish).await.unwrap().status(), StatusCode::CREATED);
 
-    // Force the *stored* dist.tarball to a URL with no basename (ends in `/`).
-    // rewrite_tarball_urls serves such a URL under the version-derived canonical
-    // name, so the served basename is still well-defined and must stay immutable.
+    // Force the stored dist.tarball to a basename-less URL (ends in `/`), which
+    // rewrite_tarball_urls serves under the version-derived canonical name — so
+    // the served basename is still well-defined and must stay pinned.
     let packument_path = storage.join("mypkg/package.json");
     let mut stored: Value =
         serde_json::from_slice(&std::fs::read(&packument_path).unwrap()).unwrap();
     stored["versions"]["1.0.0"]["dist"]["tarball"] = json!("http://localhost:4873/mypkg/-/");
     std::fs::write(&packument_path, serde_json::to_vec(&stored).unwrap()).unwrap();
 
-    // A PUT that repoints the version at a concrete, different basename must
-    // still be rejected, even though the stored URL itself has no basename.
     let mut tampered = stored.clone();
     tampered["versions"]["1.0.0"]["dist"]["tarball"] =
         json!("http://example.test/mypkg/-/mypkg-9.9.9.tgz");
@@ -524,10 +515,8 @@ async fn update_packument_rejects_seeding_a_package_with_no_published_packument(
     let app = router(static_config(storage.clone()));
     let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
 
-    // No prior publish: PUT a packument straight to the unpublish route. This
-    // would otherwise seed an authoritative version with no tarball and — since
-    // publish refuses a version already in the packument — block its future
-    // legitimate publish, so it must be rejected.
+    // PUT to the unpublish route with no prior publish would seed an authoritative
+    // version that publish can never overwrite, so it must be rejected.
     let body = sample_publish_body("ghost", "1.0.0", b"bytes");
     let request = Request::put("/ghost/-rev/anything")
         .header("content-type", "application/json")
@@ -536,7 +525,6 @@ async fn update_packument_rejects_seeding_a_package_with_no_published_packument(
         .unwrap();
     assert_eq!(app.oneshot(request).await.unwrap().status(), StatusCode::BAD_REQUEST);
 
-    // Nothing may have been written to the hosted store.
     assert!(!storage.join("ghost/package.json").exists());
 }
 
