@@ -387,17 +387,19 @@ impl Storage {
         self.cached.read_packument_any_age(name).await
     }
 
-    /// Write a cached upstream packument, recording `uplink`'s validators in
-    /// the package's per-uplink validator map (merging with any other
-    /// uplinks' existing entries) and refreshing the entry's freshness.
-    /// Called both on a fresh upstream body and on a `304` revalidation
-    /// (re-written with the unchanged bytes to bump the cache mtime).
+    /// Write a cached upstream packument, recording **only** `uplink`'s
+    /// validators (the origin of these bytes) and refreshing the entry's
+    /// freshness. Called both on a fresh upstream body and on a `304`
+    /// revalidation (re-written with the unchanged bytes to bump the mtime).
     ///
-    /// Read-modify-write on the validator sidecar: two concurrent refreshes
-    /// for *different* uplinks of the same package can race and drop one
-    /// another's entry. That is benign — a dropped validator only costs the
-    /// next refresh of that uplink an unconditional GET — and matches the
-    /// best-effort nature of the rest of this cache.
+    /// The validator map is *replaced*, not merged: the cache holds a single
+    /// shared packument body, so it must carry validators for exactly the
+    /// uplink that fetched that body. If validators from other uplinks
+    /// survived here, a later `304` from one of them would revalidate *these*
+    /// bytes — which that uplink never served — and we'd keep serving another
+    /// origin's body under its confirmation. Scoping validators to the body's
+    /// origin guarantees a conditional GET only ever goes to that origin, so a
+    /// `304` can only confirm the body actually on disk.
     pub async fn write_cached_packument(
         &self,
         name: &PackageName,
@@ -405,7 +407,7 @@ impl Storage {
         uplink: &str,
         validators: &CacheValidators,
     ) -> Result<()> {
-        let mut map = self.cached.read_validators(name).await;
+        let mut map = ValidatorsByUplink::default();
         map.set(uplink, validators.clone());
         self.cached.write_packument_with_meta(name, bytes, &map).await
     }

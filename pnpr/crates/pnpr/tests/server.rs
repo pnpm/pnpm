@@ -734,6 +734,33 @@ async fn packument_falls_back_to_secondary_uplink_on_primary_404() {
 }
 
 #[tokio::test]
+async fn packument_does_not_fall_through_on_primary_hard_4xx() {
+    let mut primary = mockito::Server::new_async().await;
+    let mut secondary = mockito::Server::new_async().await;
+    // A hard authoritative rejection (403) from the primary must not be
+    // masked by a later uplink: the secondary is never contacted, and the
+    // rejection surfaces as a gateway error rather than the secondary's body.
+    let primary_mock = primary.mock("GET", "/foo").with_status(403).expect(1).create_async().await;
+    let secondary_mock = secondary
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(packument_json(&secondary.url()).to_string())
+        .expect(0)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for_two(&primary.url(), &secondary.url(), tmp.path().to_path_buf()));
+    let response = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+
+    primary_mock.assert_async().await;
+    // `expect(0)` asserts the secondary was never reached.
+    secondary_mock.assert_async().await;
+}
+
+#[tokio::test]
 async fn packument_is_not_found_when_all_uplinks_404() {
     let mut primary = mockito::Server::new_async().await;
     let mut secondary = mockito::Server::new_async().await;

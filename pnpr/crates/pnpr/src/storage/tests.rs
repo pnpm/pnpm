@@ -110,6 +110,45 @@ async fn empty_validators_remove_a_previously_written_sidecar() {
 }
 
 #[tokio::test]
+async fn writing_a_new_body_scopes_validators_to_its_origin_uplink() {
+    let tmp = TempDir::new().unwrap();
+    let storage = storage_in(&tmp);
+    let name = pkg("foo");
+
+    // The primary fills the cache, then a secondary replaces the shared body.
+    storage
+        .write_cached_packument(
+            &name,
+            br#"{"v":"a"}"#,
+            "primary",
+            &validators(Some(r#""a""#), None),
+        )
+        .await
+        .unwrap();
+    storage
+        .write_cached_packument(
+            &name,
+            br#"{"v":"b"}"#,
+            "secondary",
+            &validators(Some(r#""b""#), None),
+        )
+        .await
+        .unwrap();
+
+    tokio::time::sleep(Duration::from_millis(20)).await;
+    let map =
+        match storage.read_cached_packument_entry(&name, Duration::from_millis(1)).await.unwrap() {
+            Some(CachedPackument::Stale(map)) => map,
+            other => panic!("expected a stale entry, got {other:?}"),
+        };
+    // Only the body's origin keeps validators: the primary's are dropped, so a
+    // later refresh sends the primary an unconditional GET and a 304 can only
+    // come from the secondary — the uplink that actually wrote the body.
+    assert_eq!(map.get("secondary").etag.as_deref(), Some(r#""b""#));
+    assert!(map.get("primary").is_empty());
+}
+
+#[tokio::test]
 async fn writing_without_validators_is_a_noop_when_no_sidecar_exists() {
     let tmp = TempDir::new().unwrap();
     let storage = storage_in(&tmp);

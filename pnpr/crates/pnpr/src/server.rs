@@ -2399,10 +2399,13 @@ enum TarballFetch<'a> {
 
 /// Try each uplink in `upstreams` in order until one returns the tarball.
 /// A `NotFound` falls through to the next uplink (a private uplink later in
-/// the chain may host it); a transport/circuit error is remembered and the
-/// next uplink tried. After the chain is exhausted, an error (if any was
-/// seen) takes precedence over `NotFound`, so a tarball that a momentarily
-/// failing uplink really hosts isn't masked as a hard 404.
+/// the chain may host it); an *availability* error (transport, circuit, 5xx)
+/// is remembered and the next uplink tried. An authoritative upstream error
+/// (401/403/other hard 4xx) stops the walk immediately — see
+/// [`RegistryError::allows_uplink_fallthrough`] — so a later mirror can't
+/// mask the primary's rejection. After the chain is exhausted, an error (if
+/// any was seen) takes precedence over `NotFound`, so a tarball that a
+/// momentarily failing uplink really hosts isn't masked as a hard 404.
 async fn fetch_tarball_with_fallback<'a>(
     upstreams: &[&'a Upstream],
     name: &PackageName,
@@ -2415,6 +2418,11 @@ async fn fetch_tarball_with_fallback<'a>(
             Ok(FetchOutcome::NotFound) => continue,
             Err(err) => {
                 tracing::warn!(?err, package = %name.as_str(), %filename, uplink = upstream.name(), "upstream tarball fetch failed");
+                if !err.allows_uplink_fallthrough() {
+                    // Hard upstream rejection — surface it rather than letting
+                    // a later uplink answer for a tarball this one refused.
+                    return TarballFetch::Err(err);
+                }
                 last_err = Some(err);
             }
         }
@@ -2476,12 +2484,14 @@ async fn load_packument_bytes(state: &AppState, name: &PackageName) -> Packument
     // cheap (a `304` refreshes the entry without re-downloading it).
     //
     // The TTL is a per-package cache property decided before any uplink is
-    // contacted, so it comes from the primary (first) uplink in the chain
-    // that sets a `maxage` (verdaccio's knob); otherwise the global
-    // `packument_ttl` (the `--packument-ttl-secs` flag) applies.
+    // contacted, so it comes from the primary (first) uplink's `maxage`
+    // (verdaccio's knob) when it sets one; otherwise the global
+    // `packument_ttl` (the `--packument-ttl-secs` flag) applies. Only the
+    // primary governs freshness — a secondary's `maxage` must not control the
+    // shared cache it rarely fills.
     let ttl = upstreams
-        .iter()
-        .find_map(|upstream| upstream.maxage())
+        .first()
+        .and_then(|upstream| upstream.maxage())
         .unwrap_or(state.inner.config.packument_ttl);
     // A fresh entry serves immediately (and moves its bytes out — a
     // packument can be multiple MB). A stale entry yields only its
@@ -2504,10 +2514,14 @@ async fn load_packument_bytes(state: &AppState, name: &PackageName) -> Packument
     // Walk the uplink fallback chain in declared order. The first uplink to
     // return a body (`Modified`) or confirm our cache (`NotModified`) wins;
     // a `NotFound` falls through to the next (a private uplink later in the
-    // chain may host the package); a transport/circuit error is remembered
-    // and the next uplink tried. Each uplink is sent only *its own* cached
-    // validators — an `ETag` is origin-specific, so replaying one uplink's
-    // against another could spuriously `304` and serve stale data.
+    // chain may host the package); an *availability* error (transport,
+    // circuit, 5xx) is remembered and the next uplink tried. An authoritative
+    // upstream error (401/403/other hard 4xx) stops the walk immediately —
+    // see [`RegistryError::allows_uplink_fallthrough`] — so a later public
+    // mirror can never mask the primary's rejection of a scoped package. Each
+    // uplink is sent only *its own* cached validators — an `ETag` is
+    // origin-specific, so replaying one uplink's against another could
+    // spuriously `304` and serve stale data.
     let mut last_err = None;
     for upstream in &upstreams {
         // Revalidate conditionally when we hold this uplink's validators:
@@ -2524,6 +2538,12 @@ async fn load_packument_bytes(state: &AppState, name: &PackageName) -> Packument
             Ok(PackumentFetch::NotFound) => continue,
             Err(err) => {
                 tracing::warn!(?err, package = %name.as_str(), uplink = upstream.name(), "upstream packument fetch failed");
+                if !err.allows_uplink_fallthrough() {
+                    // Hard upstream rejection — don't try later uplinks, which
+                    // could answer for a package this one authoritatively
+                    // refused. Fall back to a stale cached body if we have one.
+                    return serve_stale_or_error(state, name, err).await;
+                }
                 last_err = Some(err);
             }
         }

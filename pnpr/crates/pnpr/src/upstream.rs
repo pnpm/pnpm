@@ -189,8 +189,17 @@ impl CacheValidators {
 /// keyed by uplink name. A `proxy:` rule can list several uplinks as a
 /// fallback chain, and each upstream's `ETag`/`Last-Modified` is its own —
 /// replaying one origin's validators against another risks a spurious
-/// `304` (stale data served). So the cache keeps a validator per uplink and
-/// a refresh sends each uplink only [`Self::get`]'s entry for it.
+/// `304` (another origin's body served under that confirmation). A refresh
+/// therefore sends each uplink only [`Self::get`]'s entry for it.
+///
+/// In practice the cache holds a single shared packument body, so
+/// [`crate::storage::Storage::write_cached_packument`] keeps validators for
+/// exactly the uplink that fetched that body — the map carries at most one
+/// entry (the body's origin), and every other uplink resolves to empty
+/// validators (an unconditional GET). Modelling it as a map keeps the
+/// `get`/`set` plumbing origin-agnostic and tolerates a stray multi-entry
+/// sidecar from a future change without ever sending the wrong origin's
+/// validators.
 ///
 /// Persisted as the packument's validator sidecar (see [`crate::storage`]),
 /// a JSON object `{ "<uplink>": { "etag": ..., "last_modified": ... } }`.
