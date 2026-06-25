@@ -4,7 +4,7 @@ use crate::{
     package_name::PackageName,
     s3::S3Store,
     streaming,
-    upstream::CacheValidators,
+    upstream::{CacheValidators, ValidatorsByUplink},
 };
 use axum::body::Body;
 use serde::{Deserialize, Serialize};
@@ -151,14 +151,15 @@ impl Drop for TarballWrite {
 ///
 /// * `Fresh` — within the TTL; the body is read and ready to serve.
 /// * `Stale` — past the TTL; only the small conditional-GET validators
-///   are loaded. The body is left on disk and pulled on demand by the
-///   caller (via [`Storage::read_cached_packument`]) only if the upstream
-///   answers `304` or is unreachable — the common stale→`200` refresh
-///   discards the old body, so it's never read.
+///   (one set per uplink in the package's fallback chain) are loaded. The
+///   body is left on disk and pulled on demand by the caller (via
+///   [`Storage::read_cached_packument`]) only if the upstream answers `304`
+///   or is unreachable — the common stale→`200` refresh discards the old
+///   body, so it's never read.
 #[derive(Debug)]
 pub enum CachedPackument {
     Fresh(Vec<u8>),
-    Stale(CacheValidators),
+    Stale(ValidatorsByUplink),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -386,17 +387,29 @@ impl Storage {
         self.cached.read_packument_any_age(name).await
     }
 
-    /// Write a cached upstream packument and its validators, refreshing
-    /// the entry's freshness. Called both on a fresh upstream body and
-    /// on a `304` revalidation (re-written with the unchanged bytes to
-    /// bump the cache mtime).
+    /// Write a cached upstream packument, recording **only** `uplink`'s
+    /// validators (the origin of these bytes) and refreshing the entry's
+    /// freshness. Called both on a fresh upstream body and on a `304`
+    /// revalidation (re-written with the unchanged bytes to bump the mtime).
+    ///
+    /// The validator map is *replaced*, not merged: the cache holds a single
+    /// shared packument body, so it must carry validators for exactly the
+    /// uplink that fetched that body. If validators from other uplinks
+    /// survived here, a later `304` from one of them would revalidate *these*
+    /// bytes — which that uplink never served — and we'd keep serving another
+    /// origin's body under its confirmation. Scoping validators to the body's
+    /// origin guarantees a conditional GET only ever goes to that origin, so a
+    /// `304` can only confirm the body actually on disk.
     pub async fn write_cached_packument(
         &self,
         name: &PackageName,
         bytes: &[u8],
+        uplink: &str,
         validators: &CacheValidators,
     ) -> Result<()> {
-        self.cached.write_packument_with_meta(name, bytes, validators).await
+        let mut map = ValidatorsByUplink::default();
+        map.set(uplink, validators.clone());
+        self.cached.write_packument_with_meta(name, bytes, &map).await
     }
 
     /// Create and open a per-request temp file for a proxied tarball.
@@ -497,13 +510,14 @@ impl Store {
         }
     }
 
-    /// Best-effort read of the validator sidecar. A missing, unreadable,
-    /// or malformed sidecar yields empty validators so the next refresh
-    /// falls back to an unconditional GET rather than failing.
-    async fn read_validators(&self, name: &PackageName) -> CacheValidators {
+    /// Best-effort read of the validator sidecar. A missing, unreadable, or
+    /// malformed sidecar — including an older single-object sidecar written
+    /// before the per-uplink map shape — yields an empty map so the next
+    /// refresh falls back to an unconditional GET rather than failing.
+    async fn read_validators(&self, name: &PackageName) -> ValidatorsByUplink {
         match fs::read(self.packument_meta_path(name)).await {
             Ok(bytes) => serde_json::from_slice(&bytes).unwrap_or_default(),
-            Err(_) => CacheValidators::default(),
+            Err(_) => ValidatorsByUplink::default(),
         }
     }
 
@@ -530,7 +544,7 @@ impl Store {
         &self,
         name: &PackageName,
         bytes: &[u8],
-        validators: &CacheValidators,
+        validators: &ValidatorsByUplink,
     ) -> Result<()> {
         write_atomic(&self.packument_path(name), bytes).await?;
         let meta_path = self.packument_meta_path(name);

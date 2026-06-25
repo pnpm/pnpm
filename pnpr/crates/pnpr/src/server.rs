@@ -13,7 +13,8 @@ use crate::{
     streaming,
     upstream::{
         CacheValidators, FetchOutcome, FetchedPackument, PackumentFetch, Upstream,
-        abbreviate_packument, extract_version_manifest, rewrite_tarball_urls, tarball_basename,
+        ValidatorsByUplink, abbreviate_packument, extract_version_manifest, rewrite_tarball_urls,
+        tarball_basename,
     },
 };
 use axum::{
@@ -884,8 +885,12 @@ async fn serve_tarball(
         return error_response(&err);
     }
 
-    let upstream = resolve_upstream(state, &name);
-    let should_read_cache = upstream.as_ref().is_none_or(|upstream| upstream.caches());
+    let upstreams = resolve_upstreams(state, &name);
+    // Read the cache if any uplink in the chain mirrors tarballs (or there's
+    // no upstream left at all — a leftover mirror). Reading is harmless: the
+    // bytes are verified against the version's `dist.integrity` before being
+    // served, whichever uplink originally wrote them.
+    let should_read_cache = upstreams.is_empty() || upstreams.iter().any(|u| u.caches());
     if should_read_cache {
         match state.inner.storage.open_cached_tarball(&name, &filename).await {
             Ok(Some((file, len))) => {
@@ -918,14 +923,20 @@ async fn serve_tarball(
         }
     }
 
-    let Some(upstream) = upstream else {
+    if upstreams.is_empty() {
         return not_found();
-    };
+    }
 
-    let response = match upstream.fetch_tarball_response(&name, &filename).await {
-        Ok(FetchOutcome::Ok(response)) => response,
-        Ok(FetchOutcome::NotFound) => return not_found(),
-        Err(err) => return error_response(&err),
+    // Walk the uplink fallback chain in declared order: the first uplink to
+    // return the tarball wins; a `NotFound` falls through to the next; a
+    // transport error is remembered and the next uplink tried. Integrity is
+    // enforced on the streamed bytes below regardless of which uplink served
+    // them, so trying several is safe.
+    let (upstream, response) = match fetch_tarball_with_fallback(&upstreams, &name, &filename).await
+    {
+        TarballFetch::Ok(upstream, response) => (upstream, response),
+        TarballFetch::NotFound => return not_found(),
+        TarballFetch::Err(err) => return error_response(&err),
     };
 
     let write = match state.inner.storage.open_cached_tarball_tmp(&name, &filename).await {
@@ -2594,14 +2605,68 @@ fn wants_abbreviated(headers: &HeaderMap) -> bool {
         .is_some_and(|accept| accept.contains(ABBREVIATED_CONTENT_TYPE))
 }
 
-/// Resolve which prebuilt [`Upstream`] should serve `package`, by
-/// walking the verdaccio-style `packages` rules in declared order and
-/// looking up the resolved uplink name in [`AppInner::upstreams`].
-/// Returns `None` when no rule with a `proxy:` field matches the
-/// package, leaving the request to fall through to a not-found.
-fn resolve_upstream<'a>(state: &'a AppState, package: &PackageName) -> Option<&'a Upstream> {
-    let (uplink_name, _) = state.inner.config.resolve_uplink(package.as_str())?;
-    state.inner.upstreams.get(uplink_name)
+/// Resolve the ordered [`Upstream`] fallback chain that should serve
+/// `package`, by walking the verdaccio-style `packages` rules in declared
+/// order ([`Config::resolve_uplinks`]) and looking each resolved uplink
+/// name up in [`AppInner::upstreams`], preserving order. Returns an empty
+/// vec when no rule with a `proxy:` field matches, leaving the request to
+/// fall through to a not-found.
+fn resolve_upstreams<'a>(state: &'a AppState, package: &PackageName) -> Vec<&'a Upstream> {
+    state
+        .inner
+        .config
+        .resolve_uplinks(package.as_str())
+        .into_iter()
+        .filter_map(|(uplink_name, _)| state.inner.upstreams.get(uplink_name))
+        .collect()
+}
+
+/// Outcome of walking the uplink fallback chain for a tarball.
+enum TarballFetch<'a> {
+    /// `upstream` returned the tarball; the caller streams `response` and
+    /// keys the cache-write decision off `upstream.caches()`.
+    Ok(&'a Upstream, reqwest::Response),
+    /// Every uplink answered `404` — the tarball isn't anywhere in the chain.
+    NotFound,
+    /// No uplink served it and at least one errored. Surfaced rather than a
+    /// `404` so a transient failure isn't reported as "gone".
+    Err(RegistryError),
+}
+
+/// Try each uplink in `upstreams` in order until one returns the tarball.
+/// A `NotFound` falls through to the next uplink (a private uplink later in
+/// the chain may host it); an *availability* error (transport, circuit, 5xx)
+/// is remembered and the next uplink tried. An authoritative upstream error
+/// (401/403/other hard 4xx) stops the walk immediately — see
+/// [`RegistryError::allows_uplink_fallthrough`] — so a later mirror can't
+/// mask the primary's rejection. After the chain is exhausted, an error (if
+/// any was seen) takes precedence over `NotFound`, so a tarball that a
+/// momentarily failing uplink really hosts isn't masked as a hard 404.
+async fn fetch_tarball_with_fallback<'a>(
+    upstreams: &[&'a Upstream],
+    name: &PackageName,
+    filename: &str,
+) -> TarballFetch<'a> {
+    let mut last_err = None;
+    for upstream in upstreams {
+        match upstream.fetch_tarball_response(name, filename).await {
+            Ok(FetchOutcome::Ok(response)) => return TarballFetch::Ok(upstream, response),
+            Ok(FetchOutcome::NotFound) => continue,
+            Err(err) => {
+                tracing::warn!(?err, package = %name.as_str(), %filename, uplink = upstream.name(), "upstream tarball fetch failed");
+                if !err.allows_uplink_fallthrough() {
+                    // Hard upstream rejection — surface it rather than letting
+                    // a later uplink answer for a tarball this one refused.
+                    return TarballFetch::Err(err);
+                }
+                last_err = Some(err);
+            }
+        }
+    }
+    match last_err {
+        Some(err) => TarballFetch::Err(err),
+        None => TarballFetch::NotFound,
+    }
 }
 
 /// Result of loading the packument for a package — either bytes (raw,
@@ -2630,7 +2695,8 @@ async fn load_packument_bytes(state: &AppState, name: &PackageName) -> Packument
         }
     }
 
-    let Some(upstream) = resolve_upstream(state, name) else {
+    let upstreams = resolve_upstreams(state, name);
+    if upstreams.is_empty() {
         // Nothing published and no upstream to proxy. The only thing
         // left is a leftover cache entry (e.g. a `proxy:` rule was
         // removed after the package was mirrored).
@@ -2644,100 +2710,164 @@ async fn load_packument_bytes(state: &AppState, name: &PackageName) -> Packument
             Ok(None) => PackumentLoad::NotFound,
             Err(err) => PackumentLoad::Err(err),
         };
-    };
+    }
 
     // Freshness window for the proxy cache: a cached packument younger
     // than `ttl` is served straight from disk; older than `ttl` it's
-    // "stale" and revalidated against the upstream below. Lower = newer
+    // "stale" and revalidated against an upstream below. Lower = newer
     // versions surface sooner but more upstream traffic; higher = the
     // reverse. The conditional GET on the stale path keeps a high `ttl`
     // cheap (a `304` refreshes the entry without re-downloading it).
     //
-    // The uplink's per-uplink `maxage` (verdaccio) wins when set;
-    // otherwise the global `packument_ttl` (the `--packument-ttl-secs`
-    // flag) applies.
-    let ttl = upstream.maxage().unwrap_or(state.inner.config.packument_ttl);
+    // The TTL is a per-package cache property decided before any uplink is
+    // contacted, so it comes from the primary (first) uplink's `maxage`
+    // (verdaccio's knob) when it sets one; otherwise the global
+    // `packument_ttl` (the `--packument-ttl-secs` flag) applies. Only the
+    // primary governs freshness — a secondary's `maxage` must not control the
+    // shared cache it rarely fills.
+    let ttl = upstreams
+        .first()
+        .and_then(|upstream| upstream.maxage())
+        .unwrap_or(state.inner.config.packument_ttl);
     // A fresh entry serves immediately (and moves its bytes out — a
     // packument can be multiple MB). A stale entry yields only its
-    // validators; its body stays on disk until a `304`/error path below
-    // actually needs it, so the common stale→`200` refresh never reads it.
+    // per-uplink validators; its body stays on disk until a `304`/error
+    // path below actually needs it, so the common stale→`200` refresh never
+    // reads it.
     let validators = match state.inner.storage.read_cached_packument_entry(name, ttl).await {
         Ok(Some(CachedPackument::Fresh(bytes))) => {
             record_cache_status("hit");
             return PackumentLoad::Ok(bytes);
         }
         Ok(Some(CachedPackument::Stale(validators))) => validators,
-        Ok(None) => CacheValidators::default(),
+        Ok(None) => ValidatorsByUplink::default(),
         Err(err) => {
             tracing::warn!(?err, package = %name.as_str(), "cache read failed");
-            CacheValidators::default()
+            ValidatorsByUplink::default()
         }
     };
 
-    // Revalidate conditionally when we hold a stale copy: the upstream
-    // can answer `304` and save us re-downloading an unchanged packument.
-    match upstream.fetch_packument(name, &validators).await {
-        Ok(PackumentFetch::Modified(fetched)) => {
-            store_fetched_packument(state, name, fetched).await
-        }
-        // `304` confirmed our stale copy is current: read it now (deferred
-        // until here), re-write it to bump the cache mtime so it's fresh
-        // again until the next TTL window, and serve it.
-        Ok(PackumentFetch::NotModified) => {
-            match state.inner.storage.read_cached_packument(name).await {
-                Ok(Some(bytes)) => {
-                    if let Err(err) =
-                        state.inner.storage.write_cached_packument(name, &bytes, &validators).await
-                    {
-                        tracing::warn!(?err, package = %name.as_str(), "packument cache refresh failed");
-                    }
-                    record_cache_status("revalidated");
-                    PackumentLoad::Ok(bytes)
-                }
-                // The body vanished between the freshness check and this read
-                // (cache wiped concurrently). The upstream just confirmed the
-                // package exists, so re-fetch it unconditionally and self-heal
-                // rather than 404-ing a present package.
-                Ok(None) => match upstream.fetch_packument(name, &CacheValidators::default()).await
-                {
-                    Ok(PackumentFetch::Modified(fetched)) => {
-                        store_fetched_packument(state, name, fetched).await
-                    }
-                    Ok(_) => PackumentLoad::NotFound,
-                    Err(err) => PackumentLoad::Err(err),
-                },
-                Err(err) => PackumentLoad::Err(err),
+    // Walk the uplink fallback chain in declared order. The first uplink to
+    // return a body (`Modified`) or confirm our cache (`NotModified`) wins;
+    // a `NotFound` falls through to the next (a private uplink later in the
+    // chain may host the package); an *availability* error (transport,
+    // circuit, 5xx) is remembered and the next uplink tried. An authoritative
+    // upstream error (401/403/other hard 4xx) stops the walk immediately —
+    // see [`RegistryError::allows_uplink_fallthrough`] — so a later public
+    // mirror can never mask the primary's rejection of a scoped package. Each
+    // uplink is sent only *its own* cached validators — an `ETag` is
+    // origin-specific, so replaying one uplink's against another could
+    // spuriously `304` and serve stale data.
+    let mut last_err = None;
+    for upstream in &upstreams {
+        // Revalidate conditionally when we hold this uplink's validators:
+        // the upstream can answer `304` and save re-downloading an unchanged
+        // packument.
+        let uplink_validators = validators.get(upstream.name());
+        match upstream.fetch_packument(name, &uplink_validators).await {
+            Ok(PackumentFetch::Modified(fetched)) => {
+                return store_fetched_packument(state, name, upstream.name(), fetched).await;
             }
-        }
-        Ok(PackumentFetch::NotFound) => PackumentLoad::NotFound,
-        Err(err) => {
-            tracing::warn!(?err, package = %name.as_str(), "upstream packument fetch failed");
-            match state.inner.storage.read_cached_packument(name).await {
-                Ok(Some(bytes)) => {
-                    record_cache_status("stale");
-                    PackumentLoad::Ok(bytes)
+            Ok(PackumentFetch::NotModified) => {
+                return serve_revalidated(state, name, upstream, &uplink_validators).await;
+            }
+            Ok(PackumentFetch::NotFound) => continue,
+            Err(err) => {
+                tracing::warn!(?err, package = %name.as_str(), uplink = upstream.name(), "upstream packument fetch failed");
+                if !err.allows_uplink_fallthrough() {
+                    // Hard upstream rejection (auth/throttle/other 4xx). Surface
+                    // it immediately: don't try later uplinks (which could
+                    // answer for a package this one authoritatively refused) and
+                    // don't fall back to a stale cached body either — serving
+                    // cache here would mask an authoritative denial and keep
+                    // handing out content the upstream is now refusing.
+                    return PackumentLoad::Err(err);
                 }
-                // No cache to fall back on: surface the upstream failure.
-                Ok(None) => PackumentLoad::Err(err),
-                // The cache itself is unreadable: surface that I/O error
-                // rather than the upstream one — it's the more actionable
-                // failure when both go wrong.
-                Err(cache_err) => PackumentLoad::Err(cache_err),
+                last_err = Some(err);
             }
         }
     }
+
+    // Chain exhausted. If any uplink errored, fall back to a stale cached
+    // body — a transient failure must never be reported as an authoritative
+    // 404 the client would cache as "gone". If every uplink answered a clean
+    // `NotFound`, the package genuinely isn't anywhere in the chain.
+    match last_err {
+        Some(err) => serve_stale_or_error(state, name, err).await,
+        None => PackumentLoad::NotFound,
+    }
 }
 
-/// Persist a freshly fetched packument to the proxy cache and return it,
-/// tagging the access record as a `miss`. A cache-write failure is logged
-/// but not fatal — the fetched bytes are still served.
+/// Handle a `304 Not Modified` from `upstream`: the cached body is still
+/// current, so read it (deferred until now), re-write it to bump the cache
+/// mtime and re-record this uplink's validators, and serve it
+/// (`revalidated`). If the body vanished between the freshness check and
+/// this read (cache wiped concurrently), re-fetch it unconditionally from
+/// the same uplink and self-heal rather than 404-ing a present package.
+async fn serve_revalidated(
+    state: &AppState,
+    name: &PackageName,
+    upstream: &Upstream,
+    validators: &CacheValidators,
+) -> PackumentLoad {
+    match state.inner.storage.read_cached_packument(name).await {
+        Ok(Some(bytes)) => {
+            if let Err(err) = state
+                .inner
+                .storage
+                .write_cached_packument(name, &bytes, upstream.name(), validators)
+                .await
+            {
+                tracing::warn!(?err, package = %name.as_str(), "packument cache refresh failed");
+            }
+            record_cache_status("revalidated");
+            PackumentLoad::Ok(bytes)
+        }
+        Ok(None) => match upstream.fetch_packument(name, &CacheValidators::default()).await {
+            Ok(PackumentFetch::Modified(fetched)) => {
+                store_fetched_packument(state, name, upstream.name(), fetched).await
+            }
+            Ok(_) => PackumentLoad::NotFound,
+            Err(err) => PackumentLoad::Err(err),
+        },
+        Err(err) => PackumentLoad::Err(err),
+    }
+}
+
+/// Every uplink in the chain failed. Fall back to a stale cached body if one
+/// exists (tagging the access `stale`); otherwise surface the upstream
+/// error — unless the cache read itself failed, in which case that I/O error
+/// is the more actionable one to surface.
+async fn serve_stale_or_error(
+    state: &AppState,
+    name: &PackageName,
+    err: RegistryError,
+) -> PackumentLoad {
+    match state.inner.storage.read_cached_packument(name).await {
+        Ok(Some(bytes)) => {
+            record_cache_status("stale");
+            PackumentLoad::Ok(bytes)
+        }
+        Ok(None) => PackumentLoad::Err(err),
+        Err(cache_err) => PackumentLoad::Err(cache_err),
+    }
+}
+
+/// Persist a freshly fetched packument to the proxy cache (recording
+/// `uplink_name`'s validators in the package's per-uplink validator map)
+/// and return it, tagging the access record as a `miss`. A cache-write
+/// failure is logged but not fatal — the fetched bytes are still served.
 async fn store_fetched_packument(
     state: &AppState,
     name: &PackageName,
+    uplink_name: &str,
     fetched: FetchedPackument,
 ) -> PackumentLoad {
-    if let Err(err) =
-        state.inner.storage.write_cached_packument(name, &fetched.bytes, &fetched.validators).await
+    if let Err(err) = state
+        .inner
+        .storage
+        .write_cached_packument(name, &fetched.bytes, uplink_name, &fetched.validators)
+        .await
     {
         tracing::warn!(?err, package = %name.as_str(), "packument cache write failed");
     }
@@ -2754,8 +2884,8 @@ async fn store_fetched_packument(
 /// * `revalidated` — entry was stale; the upstream answered `304 Not
 ///   Modified`, so the cached body was reused.
 /// * `miss` — fetched a fresh body from the upstream.
-/// * `stale` — upstream was unreachable; a stale cached body was served
-///   as a fallback.
+/// * `stale` — every uplink in the chain errored; a stale cached body was
+///   served as a fallback.
 /// * `orphaned` — a leftover mirror served with no upstream left to
 ///   revalidate against (its `proxy:` rule was removed after the package
 ///   was mirrored). Served regardless of age, so distinct from `hit`.

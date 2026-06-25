@@ -214,6 +214,27 @@ pub enum RegistryError {
 }
 
 impl RegistryError {
+    /// Whether a failed upstream fetch may fall through to the next uplink
+    /// in a package's `proxy:` fallback chain. Only *availability* failures
+    /// are retryable this way: a transport error, an open circuit breaker,
+    /// or an upstream `5xx`. Any `4xx` is an authoritative response about
+    /// *this* request — `401`/`403` (auth), `429` (throttle), `400`/`410`,
+    /// etc. — and is **not** eligible: a later uplink must never mask it,
+    /// which would let a public mirror answer for a package the primary
+    /// scoped to an authenticated private uplink, or silently bypass a
+    /// rate-limit. Such an error surfaces immediately.
+    ///
+    /// A `404` never reaches here — it is modeled as a distinct not-found
+    /// outcome, not an error, and the chain walks past it on its own.
+    #[must_use]
+    pub fn allows_uplink_fallthrough(&self) -> bool {
+        match self {
+            RegistryError::Upstream { .. } | RegistryError::UpstreamUnavailable { .. } => true,
+            RegistryError::UpstreamStatus { status, .. } => *status >= 500,
+            _ => false,
+        }
+    }
+
     #[must_use]
     pub fn log_kind(&self) -> &'static str {
         match self {
