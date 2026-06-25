@@ -28,6 +28,30 @@ fn no_retry_opts() -> RetryOpts {
     RetryOpts { retries: 0, ..Default::default() }
 }
 
+fn fast_retry_opts() -> RetryOpts {
+    RetryOpts {
+        retries: 1,
+        min_timeout: std::time::Duration::from_millis(1),
+        max_timeout: std::time::Duration::from_millis(1),
+        ..Default::default()
+    }
+}
+
+/// A `Content-Encoding: gzip` header over a body that isn't gzip makes
+/// reqwest fail while decoding the response body — the same class of
+/// failure as a connection reset mid-transfer, which `send_with_retry`
+/// can't see because it happens after the request returns `200`.
+async fn corrupt_gzip_body_mock(server: &mut mockito::ServerGuard) -> mockito::Mock {
+    server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_header("content-encoding", "gzip")
+        .with_body("this is not valid gzip")
+        .expect(1)
+        .create_async()
+        .await
+}
+
 #[tokio::test]
 async fn cold_cache_writes_mirror_on_200() {
     let mut server = mockito::Server::new_async().await;
@@ -327,4 +351,43 @@ async fn read_only_cache_dir_does_not_fail_the_call() {
 
     // Restore so TempDir's drop can clean up.
     let _ = fs::set_permissions(cache.path(), fs::Permissions::from_mode(mode));
+}
+
+#[tokio::test]
+async fn body_read_failure_retries_and_writes_mirror() {
+    let mut server = mockito::Server::new_async().await;
+    let first = corrupt_gzip_body_mock(&mut server).await;
+    let second = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_header("etag", r#"W/"after-retry""#)
+        .with_body(PACKAGE_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let cache = TempDir::new().expect("tempdir");
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataCachedOptions {
+        registry: &registry,
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        cache_dir: Some(cache.path()),
+        full_metadata: true,
+        filter_metadata: false,
+        retry_opts: fast_retry_opts(),
+    };
+
+    let pkg = fetch_full_metadata_cached("acme", &opts).await.expect("body read retries");
+    assert_eq!(pkg.name, "acme");
+    first.assert_async().await;
+    second.assert_async().await;
+
+    // The retry's body is what gets persisted to the mirror.
+    let mirror_path =
+        get_pkg_mirror_path(cache.path(), FULL_META_DIR, &registry, "acme").expect("path");
+    let headers = load_meta_headers(&mirror_path).expect("headers readable");
+    assert_eq!(headers.etag.as_deref(), Some(r#"W/"after-retry""#));
 }
