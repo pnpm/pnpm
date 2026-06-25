@@ -21,8 +21,13 @@ permissions: {}
 
 jobs:
   act:
-    if: github.event.workflow_run.event == 'pull_request_review'
+    if: >-
+      github.event.workflow_run.event == 'pull_request_review' &&
+      contains(fromJSON('["coderabbitai[bot]", "qodo-free-for-open-source-projects[bot]", "zkochan"]'), github.event.workflow_run.actor.login)
     runs-on: ubuntu-latest
+    concurrency:
+      group: pr-review-automation-${{ github.event.workflow_run.head_sha }}-${{ github.event.workflow_run.actor.login }}
+      cancel-in-progress: true
     permissions:
       # The POST /issues/{n}/labels endpoint is shared between issues and PRs,
       # but the governing permission depends on the target: labeling a pull
