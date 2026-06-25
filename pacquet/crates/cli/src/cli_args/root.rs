@@ -1,4 +1,6 @@
 use clap::Args;
+use derive_more::{Display, Error};
+use miette::Diagnostic;
 use std::path::Path;
 
 /// `pacquet root`: print the effective `node_modules` directory.
@@ -19,16 +21,24 @@ pub struct RootArgs {
     pub global: bool,
 }
 
+/// Errors specific to `pacquet root`.
+#[derive(Debug, Display, Error, Diagnostic, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum RootError {
+    /// `--global` is rejected because the global-dir machinery (pnpm's
+    /// `@pnpm/global.commands`) is not ported to pacquet yet; refuse rather
+    /// than print a wrong path.
+    #[display(
+        "`pacquet root --global` is not supported yet; global package management has not been ported to pacquet."
+    )]
+    #[diagnostic(code(pacquet_cli::root_global_unsupported))]
+    GlobalUnsupported,
+}
+
 impl RootArgs {
     pub fn run(self, dir: &Path) -> miette::Result<()> {
-        // Global package management (the global-dir machinery and
-        // `@pnpm/global.commands`) has not been ported to pacquet yet, so
-        // there is no global packages directory to print. Refuse instead of
-        // emitting a wrong path.
         if self.global {
-            return Err(miette::miette!(
-                "`pacquet root --global` is not supported yet; global package management has not been ported to pacquet."
-            ));
+            return Err(RootError::GlobalUnsupported.into());
         }
         println!("{}", dir.join("node_modules").display());
         Ok(())
