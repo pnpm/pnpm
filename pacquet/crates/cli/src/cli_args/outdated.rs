@@ -371,6 +371,11 @@ impl OutdatedArgs {
     /// treating each install dir's `package.json` as a project, and report
     /// the aggregate. Mirrors pnpm's global branch in `outdated.handler`.
     pub async fn run_global(self, config: &'static Config) -> miette::Result<OutdatedOutcome> {
+        if config.recursive {
+            return Err(miette::miette!(
+                "`pacquet outdated --recursive` is not supported yet; recursive workspace inspection has not been ported to pacquet."
+            ));
+        }
         let global_pkg_dir = config.global_pkg_dir.clone().ok_or_else(|| {
             miette::miette!(
                 code = "ERR_PNPM_NO_GLOBAL_BIN_DIR",

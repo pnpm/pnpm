@@ -192,6 +192,11 @@ impl UpdateArgs {
                 "`pacquet update --workspace` is not supported yet; workspace-protocol version linking has not been ported to pacquet."
             ));
         }
+        if self.interactive {
+            return Err(miette::miette!(
+                "`pacquet update --global --interactive` is not supported yet; interactive selection for global updates has not been ported to pacquet."
+            ));
+        }
         let supported_architectures =
             self.supported_architectures.apply_to(config.supported_architectures.clone());
         let pinned_version = PinnedVersion::from_save_options(self.save_exact, None);

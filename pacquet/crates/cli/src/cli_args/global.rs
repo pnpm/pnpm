@@ -259,7 +259,10 @@ async fn run_group_install<Reporter: self::Reporter + 'static>(
     // Each global group is self-contained, so the virtual store lives
     // inside its install dir (never the shared global one).
     cfg.enable_global_virtual_store = false;
-    cfg.lockfile = false;
+    // Persist a `pnpm-lock.yaml` in the group's install dir (pnpm sets
+    // `lockfileDir = installDir`). `outdated -g` / `update -g` read these
+    // pins to determine the currently-installed versions.
+    cfg.lockfile = true;
     cfg.workspace_dir = None;
     cfg.supported_architectures = supported_architectures;
     let config: &'static Config = Config::leak(cfg);

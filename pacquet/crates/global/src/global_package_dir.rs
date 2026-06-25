@@ -6,6 +6,7 @@
 use std::{
     io,
     path::{Path, PathBuf},
+    sync::atomic::{AtomicU32, Ordering},
     time::{SystemTime, UNIX_EPOCH},
 };
 
@@ -33,12 +34,29 @@ pub fn resolve_install_dir(global_dir: &Path, hash: &str) -> io::Result<Option<P
 
 /// Create and return a fresh, unique install directory under `global_dir`.
 ///
-/// Mirrors pnpm's `createInstallDir`: the directory name is
-/// `<pid-hex>-<now-hex>` so concurrent installs don't collide.
+/// Mirrors pnpm's `createInstallDir` (a per-group dir named from the pid +
+/// time), but hardens it: the name adds high-resolution nanos and an atomic
+/// counter, and the directory is created with exclusive `create_dir`
+/// (retrying on `AlreadyExists`) rather than `create_dir_all`. This avoids
+/// reusing — or following a pre-existing symlink at — a colliding name when
+/// `global_dir` is shared, so each group's `package.json` / `node_modules`
+/// stay isolated. The parent `global_dir` must already exist.
 pub fn create_install_dir(global_dir: &Path) -> io::Result<PathBuf> {
-    let now_ms = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis());
-    let name = format!("{:x}-{:x}", std::process::id(), now_ms);
-    let dir = global_dir.join(name);
-    std::fs::create_dir_all(&dir)?;
-    Ok(dir)
+    static COUNTER: AtomicU32 = AtomicU32::new(0);
+    let pid = std::process::id();
+    let mut last_err = None;
+    for _ in 0..10 {
+        let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_nanos());
+        let seq = COUNTER.fetch_add(1, Ordering::Relaxed);
+        let dir = global_dir.join(format!("{pid:x}-{nanos:x}-{seq:x}"));
+        match std::fs::create_dir(&dir) {
+            Ok(()) => return Ok(dir),
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                last_err = Some(error);
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    Err(last_err
+        .unwrap_or_else(|| io::Error::other("could not create a unique global install dir")))
 }

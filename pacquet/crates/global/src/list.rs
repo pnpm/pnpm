@@ -9,7 +9,7 @@
 use crate::scan::{get_global_package_details, scan_global_packages};
 use owo_colors::{OwoColorize, Stream};
 use serde_json::{Map, Value, json};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 /// Output format for [`list_global_packages`]. Mirrors pnpm's `reportAs`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -24,6 +24,10 @@ struct ListedDep {
     alias: String,
     name: String,
     version: String,
+    /// Filesystem location of the installed dependency, used for manifest
+    /// I/O (kept as a `PathBuf` so non-UTF-8 paths round-trip losslessly).
+    location: PathBuf,
+    /// Display form of [`Self::location`] for the rendered output.
     path: String,
 }
 
@@ -50,16 +54,14 @@ pub fn list_global_packages(
                 .and_then(Value::as_str)
                 .unwrap_or(&installed.alias)
                 .to_string();
+            let location = pkg.install_dir.join("node_modules").join(&installed.alias);
+            let path = location.to_string_lossy().into_owned();
             deps.push(ListedDep {
                 alias: installed.alias.clone(),
                 name,
                 version: installed.version.clone(),
-                path: pkg
-                    .install_dir
-                    .join("node_modules")
-                    .join(&installed.alias)
-                    .to_string_lossy()
-                    .into_owned(),
+                location,
+                path,
             });
         }
     }
@@ -247,7 +249,7 @@ fn render_node(node: &TreeNode, connector: &str, prefix: &str, out: &mut String)
 // --- helpers ---------------------------------------------------------------
 
 fn read_dep_manifest(dep: &ListedDep) -> Option<Value> {
-    crate::read_package_json(Path::new(&dep.path))
+    crate::read_package_json(&dep.location)
 }
 
 fn repository_url(manifest: &Value) -> Option<String> {

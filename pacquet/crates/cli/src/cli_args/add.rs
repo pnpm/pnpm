@@ -190,6 +190,18 @@ impl AddArgs {
         config: &'static Config,
         dir: &Path,
     ) -> miette::Result<()> {
+        // `--config` (configurational dependency) and `--lockfile-only` have
+        // no meaning for a global install; reject rather than silently ignore.
+        if self.config {
+            return Err(miette::miette!(
+                "`pacquet add --config` cannot be combined with --global."
+            ));
+        }
+        if self.lockfile_only {
+            return Err(miette::miette!(
+                "`pacquet add --lockfile-only` cannot be combined with --global."
+            ));
+        }
         let supported_architectures =
             self.supported_architectures.apply_to(config.supported_architectures.clone());
         let pinned_version =
