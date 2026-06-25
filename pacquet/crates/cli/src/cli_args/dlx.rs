@@ -273,6 +273,11 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     // The cache install is always fresh, so no lockfile is loaded from
     // the process working directory.
     config.lockfile = false;
+    // The throwaway cache project is not part of the caller's
+    // workspace. If a caller has a settings-only pnpm-workspace.yaml,
+    // carrying its workspace root here makes the install enumerate that
+    // workspace and fail on the missing root package.json.
+    config.workspace_dir = None;
     // Build a *fresh* allow-list for the throwaway install — the dlx
     // packages themselves plus the CLI `--allow-build` entries — rather
     // than inheriting the caller project's `allow_builds` /
