@@ -40,14 +40,17 @@ pub trait FsCreateDirAll {
     fn create_dir_all(path: &Path) -> io::Result<()>;
 }
 
-/// Write `bytes` to `path`, replacing existing contents. Persists the
-/// compressed archive.
+/// Materialize the file at `dest` by streaming through `write_body`.
 ///
-/// The production [`Host`] writes atomically (sibling temp file + rename),
-/// so the rename replaces a symlink at `path` instead of following it and
-/// a crash never leaves a truncated `.tgz` behind. See the `Host` impl.
-pub trait FsWrite {
-    fn write(path: &Path, bytes: &[u8]) -> io::Result<()>;
+/// The production [`Host`] streams into a sibling temp file and renames it
+/// over `dest`, so the whole archive never has to be buffered on the heap,
+/// the rename replaces a symlink at `dest` instead of following it, and a
+/// crash never leaves a truncated `.tgz` behind. See the `Host` impl.
+pub trait FsAtomicWrite {
+    fn atomic_write(
+        dest: &Path,
+        write_body: &mut dyn FnMut(&mut dyn Write) -> io::Result<()>,
+    ) -> io::Result<()>;
 }
 
 /// The production filesystem provider. Every method delegates straight
@@ -72,21 +75,24 @@ impl FsCreateDirAll for Host {
     }
 }
 
-impl FsWrite for Host {
-    /// Write the tarball atomically: a sibling temp file is written and
-    /// fsynced, then renamed over `path`. The rename replaces a symlink
-    /// sitting at the output path rather than following it — so a
-    /// repo-controlled symlink can't redirect the write to clobber an
-    /// arbitrary file — and a crash never leaves a partial `.tgz` behind.
-    /// Mirrors the `write-file-atomic` pattern `pacquet-package-manifest`
-    /// uses for `package.json`.
-    fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
-        let dir = path
+impl FsAtomicWrite for Host {
+    /// Stream the tarball atomically: `write_body` writes into a sibling
+    /// temp file that is fsynced, then renamed over `dest`. The rename
+    /// replaces a symlink sitting at the output path rather than following
+    /// it — so a repo-controlled symlink can't redirect the write to
+    /// clobber an arbitrary file — and a crash never leaves a partial
+    /// `.tgz` behind. Mirrors the `write-file-atomic` pattern
+    /// `pacquet-package-manifest` uses for `package.json`.
+    fn atomic_write(
+        dest: &Path,
+        write_body: &mut dyn FnMut(&mut dyn Write) -> io::Result<()>,
+    ) -> io::Result<()> {
+        let dir = dest
             .parent()
             .filter(|parent| !parent.as_os_str().is_empty())
             .unwrap_or_else(|| Path::new("."));
         let mut tmp = tempfile::NamedTempFile::new_in(dir)?;
-        tmp.write_all(bytes)?;
+        write_body(tmp.as_file_mut())?;
         tmp.as_file().sync_all()?;
         // A `NamedTempFile` is created 0o600. Match what a plain
         // `fs::write` would leave: preserve an existing tarball's mode when
@@ -95,11 +101,11 @@ impl FsWrite for Host {
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mode = std::fs::metadata(path)
+            let mode = std::fs::metadata(dest)
                 .map_or(0o644, |metadata| metadata.permissions().mode() & 0o777);
             tmp.as_file().set_permissions(std::fs::Permissions::from_mode(mode))?;
         }
-        tmp.persist(path).map_err(|error| error.error)?;
+        tmp.persist(dest).map_err(|error| error.error)?;
         Ok(())
     }
 }

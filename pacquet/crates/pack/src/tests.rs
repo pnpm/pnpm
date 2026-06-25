@@ -1,7 +1,7 @@
 use super::{
     Host, PackError, PackOptions, PackResult, api, format_pack_output, to_pack_result_json,
 };
-use crate::capabilities::{FsCreateDirAll, FsFileLen, FsReadFile, FsWrite};
+use crate::capabilities::{FsAtomicWrite, FsCreateDirAll, FsFileLen, FsReadFile};
 use flate2::read::GzDecoder;
 use pacquet_config::NodeLinker;
 use pacquet_reporter::{LogEvent, Reporter, SilentReporter};
@@ -28,6 +28,7 @@ fn fixture(manifest: &Value) -> (TempDir, PackOptions) {
         dir: dir.path().to_path_buf(),
         catalogs: BTreeMap::new(),
         ignore_scripts: true,
+        unsafe_perm: true,
         embed_readme: false,
         pack_gzip_level: None,
         node_linker: NodeLinker::Isolated,
@@ -288,6 +289,7 @@ fn workspace_license_is_injected_into_a_sub_package() {
         dir: pkg_dir.clone(),
         catalogs: BTreeMap::new(),
         ignore_scripts: true,
+        unsafe_perm: true,
         embed_readme: false,
         pack_gzip_level: None,
         node_linker: NodeLinker::Isolated,
@@ -330,6 +332,7 @@ fn symlinked_workspace_license_is_not_injected() {
         dir: pkg_dir.clone(),
         catalogs: BTreeMap::new(),
         ignore_scripts: true,
+        unsafe_perm: true,
         embed_readme: false,
         pack_gzip_level: None,
         node_linker: NodeLinker::Isolated,
@@ -371,8 +374,11 @@ fn tarball_write_failure_surfaces_as_write_error() {
             Ok(())
         }
     }
-    impl FsWrite for DeniedWrite {
-        fn write(_: &Path, _: &[u8]) -> io::Result<()> {
+    impl FsAtomicWrite for DeniedWrite {
+        fn atomic_write(
+            _: &Path,
+            _: &mut dyn FnMut(&mut dyn std::io::Write) -> io::Result<()>,
+        ) -> io::Result<()> {
             Err(io::Error::new(io::ErrorKind::PermissionDenied, "mocked"))
         }
     }
@@ -400,6 +406,33 @@ fn format_pack_output_json_single_vs_multiple() {
     let json_multi = format_pack_output(&two, true, false);
     let parsed_multi: Value = serde_json::from_str(&json_multi).unwrap();
     assert!(parsed_multi.is_array());
+}
+
+#[test]
+fn out_resolving_to_no_filename_is_rejected() {
+    for out in [".", "..", ""] {
+        let (_dir, mut opts) = fixture(&json!({ "name": "foo", "version": "1.0.0" }));
+        opts.out = Some(out.to_string());
+        assert!(
+            matches!(api::<SilentReporter, Host>(&opts), Err(PackError::InvalidOut { .. })),
+            "--out {out:?} should be rejected",
+        );
+    }
+}
+
+#[test]
+fn text_output_strips_control_characters_from_paths() {
+    // A filename carrying a raw ANSI escape must not reach the terminal
+    // verbatim, or it could spoof/obscure the printed output.
+    let result = PackResult {
+        published_manifest: json!({ "name": "foo", "version": "1.0.0" }),
+        contents: vec!["evil\u{1b}[2K.js".to_string(), "package.json".into()],
+        tarball_path: "foo-1.0.0.tgz".to_string(),
+        unpacked_size: 0,
+    };
+    let text = format_pack_output(&[to_pack_result_json(&result)], false, false);
+    assert!(!text.contains('\u{1b}'), "escape sequence must be stripped: {text:?}");
+    assert!(text.contains("evil[2K.js"));
 }
 
 #[test]

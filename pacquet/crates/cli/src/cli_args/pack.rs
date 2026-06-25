@@ -192,6 +192,7 @@ impl PackArgs {
             dir,
             catalogs: config.catalogs.clone().unwrap_or_default(),
             ignore_scripts: config.ignore_scripts,
+            unsafe_perm: config.unsafe_perm,
             embed_readme: false,
             pack_gzip_level: self.pack_gzip_level,
             node_linker: config.node_linker,

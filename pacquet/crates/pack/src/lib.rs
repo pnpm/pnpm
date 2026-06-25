@@ -48,7 +48,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-pub use capabilities::{FsCreateDirAll, FsFileLen, FsReadFile, FsWrite, Host};
+pub use capabilities::{FsAtomicWrite, FsCreateDirAll, FsFileLen, FsReadFile, Host};
 
 /// The single supported manifest basename. pacquet only reads
 /// `package.json`; the name appears in the "name/version not defined"
@@ -65,6 +65,10 @@ pub struct PackOptions {
     pub catalogs: Catalogs,
     /// Skip the `prepack` / `prepare` / `postpack` lifecycle scripts.
     pub ignore_scripts: bool,
+    /// `--unsafe-perm`: run lifecycle scripts without dropping privileges.
+    /// Threaded from [`pacquet_config::Config::unsafe_perm`] so packing
+    /// honors the same policy (and `TMPDIR` isolation) as an install.
+    pub unsafe_perm: bool,
     /// Embed the project's `README.md` into the published manifest.
     pub embed_readme: bool,
     /// gzip compression level (`0..=9`); `None` uses the zlib default.
@@ -165,6 +169,10 @@ pub enum PackError {
     #[diagnostic(code(ERR_PNPM_INVALID_OPTION))]
     OutAndPackDestination,
 
+    #[display("Invalid --out value \"{out}\": it does not resolve to a file name")]
+    #[diagnostic(code(ERR_PNPM_INVALID_OPTION))]
+    InvalidOut { out: String },
+
     #[diagnostic(transparent)]
     CreateManifest(#[error(source)] CreateExportableManifestError),
 
@@ -207,7 +215,7 @@ pub enum PackError {
 pub fn api<Reporter, Sys>(opts: &PackOptions) -> Result<PackResult, PackError>
 where
     Reporter: self::Reporter,
-    Sys: FsReadFile + FsFileLen + FsCreateDirAll + FsWrite,
+    Sys: FsReadFile + FsFileLen + FsCreateDirAll + FsAtomicWrite,
 {
     let entry_manifest = read_manifest(&opts.dir)?;
     prevent_bundled_dependencies_without_hoisted(opts.node_linker, &entry_manifest)?;
@@ -293,14 +301,17 @@ where
             source,
         })?;
         let bins = executable_sources(&publish_manifest, &manifest, &dir);
-        let tarball =
-            tarball::build_tarball::<Sys>(&files_map, &manifest_json, &bins, opts.pack_gzip_level)
-                .map_err(|source| PackError::ReadFile {
-                    path: dir.display().to_string(),
-                    source,
-                })?;
         let dest_file = dest_dir.join(&tarball_name);
-        Sys::write(&dest_file, &tarball).map_err(|source| PackError::WriteTarball {
+        Sys::atomic_write(&dest_file, &mut |writer| {
+            tarball::build_tarball::<Sys>(
+                writer,
+                &files_map,
+                &manifest_json,
+                &bins,
+                opts.pack_gzip_level,
+            )
+        })
+        .map_err(|source| PackError::WriteTarball {
             path: dest_file.display().to_string(),
             source,
         })?;
@@ -347,17 +358,46 @@ pub fn format_pack_output(results: &[PackResultJson], json: bool, unicode: bool)
     results
         .iter()
         .map(|result| {
-            let files =
-                result.files.iter().map(|file| file.path.as_str()).collect::<Vec<_>>().join("\n");
+            // `name` / `version` / `filename` and the file paths are
+            // manifest- and filesystem-derived, so strip control
+            // characters before they reach the terminal — a file named
+            // with raw ANSI escapes would otherwise spoof the output.
+            let files = result
+                .files
+                .iter()
+                .map(|file| sanitize_for_terminal(&file.path))
+                .collect::<Vec<_>>()
+                .join("\n");
             format!(
                 "{prefix} {name}@{version}\nTarball Contents\n{files}\nTarball Details\n{filename}",
-                name = result.name,
-                version = result.version,
-                filename = result.filename,
+                name = sanitize_for_terminal(&result.name),
+                version = sanitize_for_terminal(&result.version),
+                filename = sanitize_for_terminal(&result.filename),
             )
         })
         .collect::<Vec<_>>()
         .join("\n\n")
+}
+
+/// Strip control characters (keeping `\n` / `\t`) from text headed for the
+/// terminal, so a manifest- or filesystem-derived value can't emit raw
+/// escape sequences. JSON output is left untouched — it is data, not a
+/// terminal rendering.
+fn sanitize_for_terminal(text: &str) -> std::borrow::Cow<'_, str> {
+    if text
+        .chars()
+        .any(|character| character.is_control() && character != '\n' && character != '\t')
+    {
+        std::borrow::Cow::Owned(
+            text.chars()
+                .filter(|character| {
+                    !character.is_control() || *character == '\n' || *character == '\t'
+                })
+                .collect(),
+        )
+    } else {
+        std::borrow::Cow::Borrowed(text)
+    }
 }
 
 /// Read the raw manifest under `dir`, erroring when it is absent.
@@ -447,8 +487,7 @@ fn run_scripts_if_present<Reporter: self::Reporter>(
         npm_execpath: None,
         node_gyp_path: None,
         user_agent: Some(&opts.user_agent),
-        // Running scripts explicitly assumes they're trusted.
-        unsafe_perm: true,
+        unsafe_perm: opts.unsafe_perm,
         node_gyp_bin: None,
         scripts_prepend_node_path: ScriptsPrependNodePath::default(),
         script_shell: None,
@@ -492,10 +531,14 @@ fn resolve_output(
     }
     let prepared = out.replace("%s", normalized_name).replace("%v", version);
     let prepared_path = Path::new(&prepared);
-    let tarball_name = prepared_path
-        .file_name()
-        .map(|name| name.to_string_lossy().into_owned())
-        .unwrap_or_default();
+    // `--out .`, `--out ..`, or `--out ""` resolve to no filename; the
+    // join would then target a directory and the write would fail with a
+    // confusing OS error, so reject the option up front.
+    let Some(tarball_name) =
+        prepared_path.file_name().map(|name| name.to_string_lossy().into_owned())
+    else {
+        return Err(PackError::InvalidOut { out: out.clone() });
+    };
     let parent =
         prepared_path.parent().map(|dir| dir.to_string_lossy().into_owned()).unwrap_or_default();
     let pack_destination =
@@ -613,7 +656,7 @@ fn unpacked_size<Sys: FsFileLen>(
 /// stripped from the rest.
 fn packed_contents(files_map: &indexmap::IndexMap<String, PathBuf>) -> Vec<String> {
     let mut seen = HashSet::new();
-    let mut contents: Vec<String> = files_map
+    let contents: Vec<String> = files_map
         .keys()
         .map(|name| {
             if is_manifest_entry(name) {
@@ -624,20 +667,23 @@ fn packed_contents(files_map: &indexmap::IndexMap<String, PathBuf>) -> Vec<Strin
         })
         .filter(|item| seen.insert(item.clone()))
         .collect();
-    contents.sort_by(|left, right| locale_compare_en(left, right));
-    contents
+    // Decorate each path with its lowercase form once, rather than
+    // recomputing `to_lowercase` for both sides on every comparison.
+    let mut decorated: Vec<(String, String)> =
+        contents.into_iter().map(|item| (item.to_lowercase(), item)).collect();
+    decorated.sort_by(|(left_lower, left), (right_lower, right)| {
+        left_lower.cmp(right_lower).then_with(|| case_precedence_tiebreak(left, right))
+    });
+    decorated.into_iter().map(|(_, item)| item).collect()
 }
 
-/// Approximate `String.prototype.localeCompare(b, 'en')` for the ASCII
-/// path strings `pack` emits: compare case-insensitively, then break a
-/// tie by giving a lowercase character precedence over its uppercase
-/// counterpart. Full ICU collation is not a workspace dependency; this
-/// reproduces `en` ordering for plain file paths, where the two agree.
-fn locale_compare_en(left: &str, right: &str) -> Ordering {
-    let primary = left.to_lowercase().cmp(&right.to_lowercase());
-    if primary != Ordering::Equal {
-        return primary;
-    }
+/// Tie-breaker for [`packed_contents`]' `localeCompare(b, 'en')`
+/// approximation: once two ASCII path strings compare equal
+/// case-insensitively, give a lowercase character precedence over its
+/// uppercase counterpart. Full ICU collation is not a workspace
+/// dependency; this reproduces `en` ordering for plain file paths, where
+/// the two agree.
+fn case_precedence_tiebreak(left: &str, right: &str) -> Ordering {
     for (left_char, right_char) in left.chars().zip(right.chars()) {
         if left_char == right_char {
             continue;
