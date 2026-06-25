@@ -1,4 +1,7 @@
-use std::{cell::Cell, time::Duration};
+use std::{
+    sync::atomic::{AtomicU32, Ordering},
+    time::Duration,
+};
 
 use reqwest::StatusCode;
 
@@ -68,52 +71,52 @@ fn retryable_statuses_match_pnpm() {
 
 #[tokio::test]
 async fn retry_async_retries_a_retryable_error_until_success() {
-    let calls = Cell::new(0u32);
+    let calls = AtomicU32::new(0);
     let result: Result<&str, &str> = retry_async(
         "https://registry/pkg",
         instant_retry_opts(3),
         |_error| true,
         || {
-            let attempt = calls.get();
-            calls.set(attempt + 1);
+            let attempt = calls.fetch_add(1, Ordering::Relaxed);
             async move { if attempt < 2 { Err("error decoding response body") } else { Ok("ok") } }
         },
     )
     .await;
     assert_eq!(result, Ok("ok"));
-    assert_eq!(calls.get(), 3, "two failures then a success");
+    assert_eq!(calls.load(Ordering::Relaxed), 3, "two failures then a success");
 }
 
 #[tokio::test]
 async fn retry_async_does_not_retry_a_non_retryable_error() {
-    let calls = Cell::new(0u32);
+    let calls = AtomicU32::new(0);
     let result: Result<(), &str> = retry_async(
         "https://registry/pkg",
         instant_retry_opts(3),
         |_error| false,
         || {
-            calls.set(calls.get() + 1);
+            calls.fetch_add(1, Ordering::Relaxed);
             async { Err("fatal") }
         },
     )
     .await;
     assert_eq!(result, Err("fatal"));
-    assert_eq!(calls.get(), 1, "non-retryable errors return on the first attempt");
+    let total = calls.load(Ordering::Relaxed);
+    assert_eq!(total, 1, "non-retryable errors return on the first attempt");
 }
 
 #[tokio::test]
 async fn retry_async_gives_up_after_the_retry_budget() {
-    let calls = Cell::new(0u32);
+    let calls = AtomicU32::new(0);
     let result: Result<(), &str> = retry_async(
         "https://registry/pkg",
         instant_retry_opts(2),
         |_error| true,
         || {
-            calls.set(calls.get() + 1);
+            calls.fetch_add(1, Ordering::Relaxed);
             async { Err("error decoding response body") }
         },
     )
     .await;
     assert_eq!(result, Err("error decoding response body"));
-    assert_eq!(calls.get(), 3, "initial attempt plus `retries` retries");
+    assert_eq!(calls.load(Ordering::Relaxed), 3, "initial attempt plus `retries` retries");
 }
