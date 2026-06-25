@@ -12,6 +12,29 @@ pub(crate) use pacquet_lockfile::PkgNameVerPeer;
 use pacquet_lockfile::{Lockfile, PkgName, ProjectSnapshot, SnapshotEntry};
 use serde_json::{Map, Value, json};
 
+use crate::cli_args::sanitize::sanitize;
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum RecursionLimit {
+    ProjectsOnly,
+    Levels(u32),
+    Unlimited,
+}
+
+fn parse_depth(text: &str) -> Result<RecursionLimit, String> {
+    if text.eq_ignore_ascii_case("Infinity") || text == "-1" {
+        return Ok(if text == "-1" {
+            RecursionLimit::ProjectsOnly
+        } else {
+            RecursionLimit::Unlimited
+        });
+    }
+    let n: u32 = text
+        .parse()
+        .map_err(|_| format!("expected a non-negative integer, Infinity, or -1, got `{text}`"))?;
+    Ok(RecursionLimit::Levels(n))
+}
+
 #[derive(Debug, Args)]
 pub struct ListArgs {
     pub packages: Vec<String>,
@@ -28,8 +51,8 @@ pub struct ListArgs {
     #[clap(long)]
     pub parseable: bool,
 
-    #[clap(long, default_value_t = 0)]
-    pub depth: i32,
+    #[clap(long, default_value = "0", value_parser = parse_depth)]
+    pub depth: RecursionLimit,
 
     #[clap(short = 'P', long = "prod")]
     pub production: bool,
@@ -121,10 +144,10 @@ impl ListArgs {
         let manifest_path = dir.join("package.json");
         let (root_name, root_version, root_private) = read_root_manifest(&manifest_path)?;
 
-        let prod_explicitly_false = self.dev && !self.production;
-        let include_prod = !prod_explicitly_false;
-        let include_dev = !self.production;
-        let include_optional = !self.no_optional && !prod_explicitly_false;
+        let has_both = self.production == self.dev;
+        let include_prod = has_both || self.production;
+        let include_dev = has_both || self.dev;
+        let include_optional = !self.no_optional;
 
         let ctx = BuildContext {
             snapshots: lockfile.snapshots.as_ref(),
@@ -212,7 +235,7 @@ struct BuiltTree {
 struct BuildContext<'a> {
     snapshots: Option<&'a HashMap<PkgNameVerPeer, SnapshotEntry>>,
     packages: Option<&'a HashMap<PkgNameVerPeer, pacquet_lockfile::PackageMetadata>>,
-    depth: i32,
+    depth: RecursionLimit,
     exclude_peers: bool,
     include_optional: bool,
     virtual_store_dir_max_length: usize,
@@ -225,6 +248,14 @@ fn build_local_tree(
     include_dev: bool,
     include_optional: bool,
 ) -> BuiltTree {
+    if ctx.depth == RecursionLimit::ProjectsOnly {
+        return BuiltTree {
+            dependencies: Vec::new(),
+            dev_dependencies: Vec::new(),
+            optional_dependencies: Vec::new(),
+        };
+    }
+
     let mut deps = Vec::new();
     let mut dev_deps = Vec::new();
     let mut opt_deps = Vec::new();
@@ -291,10 +322,12 @@ fn resolve_importer_dep(
                         .is_some_and(|peers| peers.contains_key(&name.to_string()))
                 });
 
-            let children = if current_depth < ctx.depth && ctx.depth >= 0 {
-                resolve_snapshot_children(key, ctx, current_depth + 1)
-            } else {
-                Vec::new()
+            let children = match ctx.depth {
+                RecursionLimit::Unlimited => resolve_snapshot_children(key, ctx, current_depth + 1),
+                RecursionLimit::Levels(n) if (current_depth as u32) < n => {
+                    resolve_snapshot_children(key, ctx, current_depth + 1)
+                }
+                _ => Vec::new(),
             };
 
             (dep_name, dep_version, peer, children)
@@ -347,14 +380,14 @@ fn resolve_snapshot_children(
             None => (alias_str.clone(), dep_ref.to_string()),
         };
 
-        let grandchildren = if current_depth < ctx.depth && ctx.depth >= 0 {
-            if let Some(ck) = &child_key {
-                resolve_snapshot_children(ck, ctx, current_depth + 1)
-            } else {
-                Vec::new()
-            }
-        } else {
-            Vec::new()
+        let grandchildren = match ctx.depth {
+            RecursionLimit::Unlimited => child_key
+                .as_ref()
+                .map_or(Vec::new(), |ck| resolve_snapshot_children(ck, ctx, current_depth + 1)),
+            RecursionLimit::Levels(n) if (current_depth as u32) < n => child_key
+                .as_ref()
+                .map_or(Vec::new(), |ck| resolve_snapshot_children(ck, ctx, current_depth + 1)),
+            _ => Vec::new(),
         };
 
         let pkg_path = if let Some(ck) = &child_key {
@@ -575,12 +608,15 @@ fn dep_to_tree_node(dep: &DepNode, long: bool, is_dev: bool, is_optional: bool) 
 }
 
 pub(crate) fn print_label(dep: &DepNode, color: &dyn Fn(&str) -> String) -> String {
-    if dep.alias == dep.name {
-        format!("{}{}", color(&dep.name), gray(&format!("@{version}", version = dep.version)))
-    } else if dep.version.contains('@') {
-        format!("{}{}", color(&dep.alias), gray(&format!("@{}", dep.version)))
+    let alias = sanitize(&dep.alias);
+    let name = sanitize(&dep.name);
+    let version = sanitize(&dep.version);
+    if alias == name {
+        format!("{}{}", color(&name), gray(&format!("@{version}")))
+    } else if version.contains('@') {
+        format!("{}{}", color(&alias), gray(&format!("@{version}")))
     } else {
-        format!("{}{}", color(&dep.alias), gray(&format!("@npm:{}@{}", dep.name, dep.version)))
+        format!("{}{}", color(&alias), gray(&format!("@npm:{name}@{version}")))
     }
 }
 
@@ -700,13 +736,13 @@ pub(crate) fn render_local_parseable(root: &LocalTreeRoot, long: bool) -> String
     let mut lines = Vec::new();
 
     let root_line = if long {
-        let mut line = root.path.clone();
+        let mut line = sanitize(&root.path).to_string();
         if let Some(ref name) = root.name {
             line.push(':');
-            line.push_str(name);
+            line.push_str(&sanitize(name));
             if let Some(ref version) = root.version {
                 line.push('@');
-                line.push_str(version);
+                line.push_str(&sanitize(version));
             }
             if root.private == Some(true) {
                 line.push_str(":PRIVATE");
@@ -714,12 +750,12 @@ pub(crate) fn render_local_parseable(root: &LocalTreeRoot, long: bool) -> String
         }
         line
     } else {
-        root.path.clone()
+        sanitize(&root.path).to_string()
     };
     lines.push(root_line);
 
     let mut seen = HashSet::new();
-    seen.insert(root.path.clone());
+    seen.insert(sanitize(&root.path).to_string());
 
     for dep in &root.dependencies {
         flatten_parseable(dep, &mut lines, &mut seen, long);
@@ -740,24 +776,28 @@ fn flatten_parseable(
     seen: &mut HashSet<String>,
     long: bool,
 ) {
-    if !seen.insert(dep.path.clone()) && !dep.path.is_empty() {
+    let path = sanitize(&dep.path);
+    if !seen.insert(path.to_string()) && !path.is_empty() {
         return;
     }
 
     if long {
-        if dep.alias != dep.name {
-            if dep.version.contains('@') {
-                lines.push(format!("{}:{} {}", dep.path, dep.alias, dep.version));
+        let alias = sanitize(&dep.alias);
+        let name = sanitize(&dep.name);
+        let version = sanitize(&dep.version);
+        if alias != name {
+            if version.contains('@') {
+                lines.push(format!("{path}:{alias} {version}"));
             } else {
-                lines.push(format!("{}:{} npm:{}@{}", dep.path, dep.alias, dep.name, dep.version));
+                lines.push(format!("{path}:{alias} npm:{name}@{version}"));
             }
-        } else if dep.version.contains('@') {
-            lines.push(format!("{}:{}", dep.path, dep.version));
+        } else if version.contains('@') {
+            lines.push(format!("{path}:{version}"));
         } else {
-            lines.push(format!("{}:{}@{}", dep.path, dep.name, dep.version));
+            lines.push(format!("{path}:{name}@{version}"));
         }
     } else {
-        lines.push(dep.path.clone());
+        lines.push(path.to_string());
     }
 
     for child in &dep.dependencies {
@@ -766,17 +806,17 @@ fn flatten_parseable(
 }
 
 fn dim(text: &str) -> String {
-    text.if_supports_color(Stream::Stdout, |t| t.dimmed()).to_string()
+    sanitize(text).if_supports_color(Stream::Stdout, |t| t.dimmed()).to_string()
 }
 
 fn bold(text: &str) -> String {
-    text.if_supports_color(Stream::Stdout, |t| t.bold()).to_string()
+    sanitize(text).if_supports_color(Stream::Stdout, |t| t.bold()).to_string()
 }
 
 fn cyan_bright(text: &str) -> String {
-    text.if_supports_color(Stream::Stdout, |t| t.bright_cyan()).to_string()
+    sanitize(text).if_supports_color(Stream::Stdout, |t| t.bright_cyan()).to_string()
 }
 
 fn gray(text: &str) -> String {
-    text.if_supports_color(Stream::Stdout, |t| t.bright_black()).to_string()
+    sanitize(text).if_supports_color(Stream::Stdout, |t| t.bright_black()).to_string()
 }

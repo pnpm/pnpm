@@ -5,7 +5,6 @@ mod job_control;
 mod state;
 
 #[cfg(test)]
-#[path = "../tests/list_unit/mod.rs"]
 mod list_unit;
 
 use clap::Parser;
