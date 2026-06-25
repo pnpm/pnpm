@@ -634,10 +634,11 @@ fn bundle_dependencies_closure_stops_past_max_depth() {
         // Every package except the last depends on the next one, forming the
         // linear chain.
         let manifest = if n < LAST {
+            let next = format!("p{}", n + 1);
             json!({
                 "name": format!("p{n}"),
                 "version": "1.0.0",
-                "dependencies": { (format!("p{}", n + 1)): "1.0.0" },
+                "dependencies": { (next): "1.0.0" },
             })
         } else {
             json!({
