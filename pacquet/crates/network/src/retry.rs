@@ -27,8 +27,7 @@
 //!
 //! [`RetryTimeoutOptions`]: https://github.com/pnpm/pnpm/blob/1819226b51/network/fetch/src/fetch.ts
 
-use std::future::Future;
-use std::time::Duration;
+use std::{future::Future, time::Duration};
 
 use reqwest::{Client, RequestBuilder, Response, StatusCode};
 
@@ -200,15 +199,15 @@ pub async fn send_with_retry<'client>(
 /// [`send_with_retry`] inside the closure already owns that budget,
 /// exactly as pnpm rejects a fetch failure immediately while letting
 /// the network library retry it internally.
-pub async fn retry_async<T, E, Fut>(
+pub async fn retry_async<Value, Err, Fut>(
     url: &str,
     retry_opts: RetryOpts,
-    is_retryable: impl Fn(&E) -> bool,
+    is_retryable: impl Fn(&Err) -> bool,
     mut attempt_fn: impl FnMut() -> Fut,
-) -> Result<T, E>
+) -> Result<Value, Err>
 where
-    Fut: Future<Output = Result<T, E>>,
-    E: std::fmt::Debug,
+    Fut: Future<Output = Result<Value, Err>>,
+    Err: std::fmt::Debug,
 {
     let mut attempt = 0;
     loop {

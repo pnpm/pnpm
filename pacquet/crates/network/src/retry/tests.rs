@@ -1,5 +1,4 @@
-use std::cell::Cell;
-use std::time::Duration;
+use std::{cell::Cell, time::Duration};
 
 use reqwest::StatusCode;
 
