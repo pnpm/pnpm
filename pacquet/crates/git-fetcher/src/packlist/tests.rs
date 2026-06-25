@@ -631,16 +631,21 @@ fn bundle_dependencies_closure_stops_past_max_depth() {
     const FIRST_REFUSED: usize = 33;
     const LAST: usize = FIRST_REFUSED + 1;
     for n in 0..=LAST {
-        let deps = if n < LAST {
-            format!(r#","dependencies":{{"p{}":"1.0.0"}}"#, n + 1)
+        // Every package except the last depends on the next one, forming the
+        // linear chain.
+        let manifest = if n < LAST {
+            json!({
+                "name": format!("p{n}"),
+                "version": "1.0.0",
+                "dependencies": { (format!("p{}", n + 1)): "1.0.0" },
+            })
         } else {
-            String::new()
+            json!({
+                "name": format!("p{n}"),
+                "version": "1.0.0",
+            })
         };
-        write(
-            root,
-            &format!("node_modules/p{n}/package.json"),
-            &format!(r#"{{"name":"p{n}","version":"1.0.0"{deps}}}"#),
-        );
+        write(root, &format!("node_modules/p{n}/package.json"), &manifest.to_string());
         touch(root, &format!("node_modules/p{n}/index.js"));
     }
 
