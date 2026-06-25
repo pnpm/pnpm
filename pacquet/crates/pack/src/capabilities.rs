@@ -17,7 +17,10 @@
 //! branch they have; the write phase is where a portable
 //! `PermissionDenied` / `ENOSPC` test needs a fake.
 
-use std::{io, path::Path};
+use std::{
+    io::{self, Write},
+    path::Path,
+};
 
 /// Read the entire contents of a file into a `Vec<u8>`. Supplies the
 /// bytes for each non-manifest tar entry.
@@ -40,8 +43,9 @@ pub trait FsCreateDirAll {
 /// Write `bytes` to `path`, replacing existing contents. Persists the
 /// compressed archive.
 ///
-/// **Not atomic** — the moral equivalent of `std::fs::write`. Matches
-/// upstream, which streams straight into a `fs.createWriteStream`.
+/// The production [`Host`] writes atomically (sibling temp file + rename),
+/// so the rename replaces a symlink at `path` instead of following it and
+/// a crash never leaves a truncated `.tgz` behind. See the `Host` impl.
 pub trait FsWrite {
     fn write(path: &Path, bytes: &[u8]) -> io::Result<()>;
 }
@@ -69,7 +73,33 @@ impl FsCreateDirAll for Host {
 }
 
 impl FsWrite for Host {
+    /// Write the tarball atomically: a sibling temp file is written and
+    /// fsynced, then renamed over `path`. The rename replaces a symlink
+    /// sitting at the output path rather than following it — so a
+    /// repo-controlled symlink can't redirect the write to clobber an
+    /// arbitrary file — and a crash never leaves a partial `.tgz` behind.
+    /// Mirrors the `write-file-atomic` pattern `pacquet-package-manifest`
+    /// uses for `package.json`.
     fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
-        std::fs::write(path, bytes)
+        let dir = path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."));
+        let mut tmp = tempfile::NamedTempFile::new_in(dir)?;
+        tmp.write_all(bytes)?;
+        tmp.as_file().sync_all()?;
+        // A `NamedTempFile` is created 0o600. Match what a plain
+        // `fs::write` would leave: preserve an existing tarball's mode when
+        // overwriting, otherwise widen to 0o644 so the archive isn't
+        // owner-only.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(path)
+                .map_or(0o644, |metadata| metadata.permissions().mode() & 0o777);
+            tmp.as_file().set_permissions(std::fs::Permissions::from_mode(mode))?;
+        }
+        tmp.persist(path).map_err(|error| error.error)?;
+        Ok(())
     }
 }

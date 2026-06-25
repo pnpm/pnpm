@@ -79,6 +79,28 @@ fn packs_a_basic_package_to_a_tarball() {
     assert_eq!(names, vec!["package/index.js".to_string(), "package/package.json".into()]);
 }
 
+/// A symlink planted at the output `.tgz` path must not be followed:
+/// the atomic temp-file + rename replaces the symlink with the real
+/// tarball, leaving the symlink's target untouched. Otherwise a
+/// repo-controlled symlink could redirect the write to clobber an
+/// arbitrary file.
+#[cfg(unix)]
+#[test]
+fn symlinked_output_path_is_not_followed() {
+    let (dir, opts) = fixture(&json!({ "name": "foo", "version": "1.0.0" }));
+    let outside = tempdir().unwrap();
+    let target = outside.path().join("victim.txt");
+    std::fs::write(&target, "do not overwrite").unwrap();
+    let tarball_path = dir.path().join("foo-1.0.0.tgz");
+    std::os::unix::fs::symlink(&target, &tarball_path).unwrap();
+
+    api::<SilentReporter, Host>(&opts).unwrap();
+
+    assert_eq!(std::fs::read_to_string(&target).unwrap(), "do not overwrite");
+    assert!(!std::fs::symlink_metadata(&tarball_path).unwrap().file_type().is_symlink());
+    assert!(!tarball_entry_names(&tarball_path).is_empty());
+}
+
 #[test]
 fn scoped_name_normalizes_the_tarball_filename() {
     let (dir, opts) = fixture(&json!({ "name": "@scope/foo", "version": "0.1.0" }));
