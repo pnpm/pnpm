@@ -15,15 +15,9 @@
 //! pipeline, not just a single request — but reuses [`RetryOpts`].
 //!
 //! Reading a response body can fail *after* [`send_with_retry`] has
-//! handed back a `200`: a connection reset or truncated transfer
-//! mid-stream surfaces as reqwest's "error decoding response body".
-//! [`send_with_retry`] cannot retry that — the body is consumed by the
-//! caller, outside its loop. [`retry_async`] is the companion that
-//! re-issues the *whole* request when consuming or parsing the body
-//! fails, mirroring pnpm's metadata fetch, which nests a second
-//! `@zkochan/retry` operation around `response.text()` + `JSON.parse`
-//! on top of the network library's request retry
-//! ([`resolving/npm-resolver/src/fetch.ts`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetch.ts#L172-L210)).
+//! handed back a `200`, outside its loop; [`retry_async`] is the
+//! companion that re-issues the whole request when consuming or parsing
+//! the body fails. See its docs for why that second layer exists.
 //!
 //! [`RetryTimeoutOptions`]: https://github.com/pnpm/pnpm/blob/1819226b51/network/fetch/src/fetch.ts
 

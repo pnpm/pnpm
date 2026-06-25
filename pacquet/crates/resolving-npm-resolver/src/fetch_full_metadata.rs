@@ -91,10 +91,6 @@ pub async fn fetch_full_metadata(
 ) -> Result<FetchFullMetadataOutcome, FetchMetadataError> {
     let url = to_registry_url(opts.registry, pkg_name);
     let accept = if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC };
-    // The request itself is retried inside `send_with_retry`; this
-    // outer loop re-issues the whole fetch when reading or parsing the
-    // body fails ("error decoding response body", broken JSON), the
-    // way pnpm nests a second retry around `response.text()`.
     retry_async(&url, opts.retry_opts, FetchMetadataError::is_body_retryable, || async {
         let (client, response) =
             send_with_retry(opts.http_client, &url, opts.retry_opts, |client| {

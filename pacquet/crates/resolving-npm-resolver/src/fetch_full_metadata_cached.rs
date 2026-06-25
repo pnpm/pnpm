@@ -103,12 +103,9 @@ pub async fn fetch_full_metadata_cached(
     let accept = if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC };
     let should_filter_metadata = opts.full_metadata && opts.filter_metadata;
 
-    // The request itself is retried inside `send_with_retry`; this
-    // outer loop re-issues the whole fetch — conditional headers and
-    // all — when reading or parsing the body fails ("error decoding
-    // response body", broken JSON), the way pnpm nests a second retry
-    // around `response.text()`. A `304` is a success, not a retry: it
-    // returns the cached mirror body.
+    // A body-read retry re-issues the whole request, conditional
+    // headers and all, so a `304` stays a success that returns the
+    // cached mirror body rather than re-fetching it.
     retry_async(&url, opts.retry_opts, FetchMetadataError::is_body_retryable, || async {
         let (client, response) =
             send_with_retry(opts.http_client, &url, opts.retry_opts, |client| {
