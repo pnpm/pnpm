@@ -71,8 +71,13 @@ function generateNativePackage(target) {
   fs.chmodSync(binaryTarget, 0o755);
 }
 
-function writeManifest() {
-  const manifestPath = resolve(PACKAGES_ROOT, BIN_NAME, "package.json");
+// Patch a wrapper package's manifest in place with the release version and
+// the full set of `@pacquet/<target>` optional dependencies, preserving every
+// other field (notably its `bin` map). Used for both the `pacquet` wrapper and
+// the `pnpm` wrapper — both ship a JS shim that dispatches to the same native
+// sub-packages, only their package name and bin entries differ.
+function patchWrapperManifest(dir) {
+  const manifestPath = resolve(PACKAGES_ROOT, dir, "package.json");
 
   const manifestData = JSON.parse(
     fs.readFileSync(manifestPath, "utf-8")
@@ -141,8 +146,14 @@ for (const target of TARGETS) {
   generateNativePackage(target);
 }
 
-writeManifest();
-// Must run after `writeManifest`: the alias mirrors the patched
-// pacquet manifest (version + optionalDependencies), so reading it
+// The `pacquet` wrapper, its `@pnpm/pacquet` scoped alias, and the `pnpm`
+// wrapper are all published from the same build at the same version. The
+// `pnpm` wrapper carries its own `bin` map (`pnpm`/`pn`/`pnpx`/`pnx`), so it
+// keeps a committed manifest that we only patch — unlike the alias, which is
+// generated wholesale.
+patchWrapperManifest(BIN_NAME);
+patchWrapperManifest("pnpm");
+// Must run after `patchWrapperManifest(BIN_NAME)`: the alias mirrors the
+// patched pacquet manifest (version + optionalDependencies), so reading it
 // before the patch would copy stale values.
 generateScopedAliasPackage();

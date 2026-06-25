@@ -1,15 +1,28 @@
-name: Release Pacquet
+name: Release pnpm (Rust)
 
 # Manual-trigger only. Type the version to publish — the workflow patches
 # pacquet/npm/pacquet/package.json with it before generating per-platform
 # packages and publishing. No git tag is created and no GitHub release
 # asset is uploaded; npm is the authoritative artifact store.
+#
+# The same build is published under three names at the same version: `pnpm`
+# (the Rust port presenting as pnpm), `pacquet`, and the `@pnpm/pacquet`
+# alias. They all depend on the same `@pacquet/<target>` native sub-packages.
+#
+# The `tag` input defaults to `alpha` so a release never moves the `pnpm`
+# `latest` dist-tag (which serves the production TypeScript pnpm). Override it
+# deliberately when promoting a release.
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to publish (e.g. 0.2.3 or 0.2.3-rc.1)'
+        description: 'Version to publish (e.g. 12.0.0-alpha.0)'
         required: true
+        type: string
+      tag:
+        description: 'npm dist-tag to publish under'
+        required: true
+        default: 'alpha'
         type: string
 
 concurrency:
@@ -197,20 +210,23 @@ jobs:
         run: |
           node pacquet/npm/pacquet/scripts/generate-packages.mjs
           cat pacquet/npm/pacquet/package.json
-          for package in pacquet/npm/pacquet* pacquet/npm/pnpm-pacquet; do cat $package/package.json ; echo ; done
+          for package in pacquet/npm/pacquet* pacquet/npm/pnpm*; do cat $package/package.json ; echo ; done
 
-      - name: Publish npm packages as latest
+      - name: Publish npm packages
         # Auth is via npm's trusted publishing: `id-token: write` above grants
         # this job an OIDC token that pnpm/npm exchange with the registry,
         # so no NPM_TOKEN is needed. `--provenance` attaches the same OIDC
         # token to a provenance attestation on each tarball.
         # The trailing slash on $package/ changes it to publishing the directory.
-        # `pnpm-pacquet` is the `@pnpm/pacquet` scoped alias mirror —
-        # same shim and same `@pacquet/<target>` optional deps as the
-        # unscoped `pacquet`. Published alongside so users can adopt
-        # either name; the per-target binary sub-packages stay under
-        # the `@pacquet/` scope (no need to mirror those).
+        # The glob covers: the `pacquet` wrapper and its `@pacquet/<target>`
+        # native sub-packages (`pacquet*`), plus the `pnpm` wrapper and the
+        # `@pnpm/pacquet` scoped-alias mirror `pnpm-pacquet` (`pnpm*`). The
+        # `pnpm` and `@pnpm/pacquet` wrappers ship the same shim and the same
+        # `@pacquet/<target>` optional deps as `pacquet`; only the package
+        # name and bin entries differ, so users can adopt any of the names.
+        env:
+          TAG: ${{ inputs.tag }}
         run: |
-          for package in pacquet/npm/pacquet* pacquet/npm/pnpm-pacquet; do
-            pnpm publish "$package/" --tag latest --access public --provenance --no-git-checks
+          for package in pacquet/npm/pacquet* pacquet/npm/pnpm*; do
+            pnpm publish "$package/" --tag "$TAG" --access public --provenance --no-git-checks
           done

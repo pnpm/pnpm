@@ -110,8 +110,8 @@ use why::WhyArgs;
 
 /// Experimental package manager for node.js written in rust.
 #[derive(Debug, Parser)]
-#[clap(name = "pacquet")]
-#[clap(bin_name = "pacquet")]
+#[clap(name = "pnpm")]
+#[clap(bin_name = "pnpm")]
 #[clap(version = pacquet_config::PACQUET_VERSION)]
 #[clap(about = "Experimental package manager for node.js")]
 pub struct CliArgs {

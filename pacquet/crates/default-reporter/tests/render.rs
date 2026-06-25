@@ -206,7 +206,7 @@ fn execution_time_renders_done_footer() {
             ended_at: 3500,
         })],
     );
-    assert!(frame.starts_with("Done in 2.5s using pacquet v"), "got: {frame}");
+    assert!(frame.starts_with("Done in 2.5s using pnpm v"), "got: {frame}");
 }
 
 #[test]
@@ -250,7 +250,7 @@ fn full_install_frame_orders_blocks_like_pnpm() {
         frame,
         "Packages: +1\n+\n\ndependencies:\n+ foo 1.0.0\n\n\
          Progress: resolved 1, reused 1, downloaded 0, added 1, done\n\
-         Done in 1.2s using pacquet v0.0.1",
+         Done in 1.2s using pnpm v0.0.1",
     );
 }
 

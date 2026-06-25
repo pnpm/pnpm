@@ -36,7 +36,7 @@ pub struct PatchArgs {
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum PatchError {
-    #[display("`pacquet patch` requires the package name")]
+    #[display("`pnpm patch` requires the package name")]
     #[diagnostic(code(ERR_PNPM_MISSING_PACKAGE_NAME))]
     MissingPackageName,
 
@@ -538,7 +538,7 @@ fn print_success(edit_dir: &Path) {
 
 fn render_success(edit_dir: &Path, colors_enabled: bool) -> String {
     let edit_dir = edit_dir.display().to_string();
-    let command = format!("pacquet patch-commit {}", shell_quote(&edit_dir));
+    let command = format!("pnpm patch-commit {}", shell_quote(&edit_dir));
     let edit_dir = if colors_enabled { edit_dir.blue().to_string() } else { edit_dir };
     let command = if colors_enabled { command.green().to_string() } else { command };
     render_success_parts(&edit_dir, &command)

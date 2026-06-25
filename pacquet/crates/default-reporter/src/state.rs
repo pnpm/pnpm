@@ -960,7 +960,7 @@ impl ReporterState {
     fn on_execution_time(&mut self, log: &ExecutionTimeLog) {
         let elapsed = log.ended_at.saturating_sub(log.started_at);
         let msg =
-            format!("Done in {} using pacquet v{}", pretty_ms(elapsed), crate::package_version());
+            format!("Done in {} using pnpm v{}", pretty_ms(elapsed), crate::package_version());
         let mut slot = std::mem::take(&mut self.exec_slot);
         self.frame.emit(&mut slot, msg, true);
         self.exec_slot = slot;

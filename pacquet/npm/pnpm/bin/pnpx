@@ -1,0 +1,5 @@
+#!/usr/bin/env node
+// `pnpx` is shorthand for `pnpm dlx` — inject the `dlx` subcommand and
+// delegate to the pnpm shim, mirroring pnpm's own bin/pnpx.mjs.
+process.argv.splice(2, 0, "dlx");
+require("./pnpm");
