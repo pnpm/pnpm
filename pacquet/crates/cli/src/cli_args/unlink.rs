@@ -1,10 +1,23 @@
 use crate::State;
 use clap::Args;
 use miette::Context;
-use pacquet_package_manager::Install;
+use pacquet_config::Config;
+use pacquet_package_manager::{Install, UpdateSeedPolicy};
 use pacquet_package_manifest::DependencyGroup;
-use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
+use pacquet_reporter::Reporter;
+use pacquet_workspace_manifest_writer::remove_overrides;
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
+/// Removes the link created by `pacquet link` and reinstalls the package if
+/// it is saved in `package.json`.
+///
+/// Mirrors pnpm's `unlink`: it strips `link:` entries from the `overrides`
+/// block in `pnpm-workspace.yaml` (the same source the installer reads), then
+/// runs install so the previous resolution is restored. With package names it
+/// only drops the matching `link:` overrides; with none it drops them all.
 #[derive(Debug, Args)]
 pub struct UnlinkArgs {
     pub package_names: Vec<String>,
@@ -13,49 +26,42 @@ pub struct UnlinkArgs {
 impl UnlinkArgs {
     pub async fn run<Reporter: self::Reporter + 'static>(
         self,
-        mut state: State,
+        config: &'static mut Config,
+        manifest_path: PathBuf,
     ) -> miette::Result<()> {
-        let overrides = state
-            .manifest
-            .value()
-            .get("pnpm")
-            .and_then(|v| v.get("overrides"))
-            .and_then(|v| v.as_object());
-
-        let packages_to_remove: Vec<String> = match overrides {
-            None => return Ok(()),
-            Some(obj) if self.package_names.is_empty() => obj
-                .iter()
-                .filter(|(_, v)| v.as_str().is_some_and(|s| s.starts_with("link:")))
-                .map(|(k, _)| k.clone())
-                .collect(),
-            Some(obj) => self
-                .package_names
-                .iter()
-                .filter(|name| {
-                    obj.get(name.as_str())
-                        .and_then(|v| v.as_str())
-                        .is_some_and(|s| s.starts_with("link:"))
-                })
-                .cloned()
-                .collect(),
+        // pnpm bails with "Nothing to unlink" when no overrides are configured.
+        let Some(overrides) = config.overrides.as_mut() else {
+            return Ok(());
         };
 
-        if packages_to_remove.is_empty() {
+        let removed: Vec<String> = overrides
+            .iter()
+            .filter(|(selector, specifier)| {
+                specifier.starts_with("link:")
+                    && (self.package_names.is_empty()
+                        || self.package_names.iter().any(|name| name == *selector))
+            })
+            .map(|(selector, _)| selector.clone())
+            .collect();
+
+        if removed.is_empty() {
             return Ok(());
         }
 
-        if let Some(obj) = state
-            .manifest
-            .value_mut()
-            .get_mut("pnpm")
-            .and_then(|v| v.get_mut("overrides"))
-            .and_then(|v| v.as_object_mut())
-        {
-            for name in &packages_to_remove {
-                obj.remove(name.as_str());
-            }
+        for selector in &removed {
+            overrides.shift_remove(selector);
         }
+
+        let root_dir = config
+            .workspace_dir
+            .clone()
+            .or_else(|| manifest_path.parent().map(Path::to_path_buf))
+            .ok_or_else(|| miette::miette!("manifest path has no parent directory"))?;
+
+        remove_overrides(&root_dir, &removed)
+            .wrap_err("removing link: overrides from pnpm-workspace.yaml")?;
+
+        let state = State::init(manifest_path, config, false).wrap_err("initialize the state")?;
 
         let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
             &state;
@@ -66,9 +72,9 @@ impl UnlinkArgs {
             .map(|parent| parent.join(pacquet_lockfile::Lockfile::FILE_NAME));
 
         Install {
-            tarball_mem_cache: std::sync::Arc::clone(tarball_mem_cache),
+            tarball_mem_cache: Arc::clone(tarball_mem_cache),
             http_client,
-            http_client_arc: std::sync::Arc::clone(http_client),
+            http_client_arc: Arc::clone(http_client),
             config,
             manifest,
             lockfile: pacquet_lockfile::MaybeLazyLockfile::Lazy(lockfile),
@@ -80,7 +86,7 @@ impl UnlinkArgs {
             ]
             .into_iter(),
             frozen_lockfile: false,
-            prefer_frozen_lockfile: None,
+            prefer_frozen_lockfile: Some(false),
             ignore_manifest_check: false,
             skip_runtimes: config.skip_runtimes,
             trust_lockfile: config.trust_lockfile,
@@ -91,33 +97,14 @@ impl UnlinkArgs {
             node_linker: config.node_linker,
             lockfile_only: false,
             dry_run: false,
-            update_seed_policy: pacquet_package_manager::UpdateSeedPolicy::KeepAll,
+            disable_optimistic_repeat_install: false,
+            update_seed_policy: UpdateSeedPolicy::KeepAll,
             auth_override: None,
             resolution_observer: None,
             catalogs_override: None,
-            disable_optimistic_repeat_install: false,
         }
         .run::<Reporter>()
         .await
-        .wrap_err("unlinking dependencies")?;
-
-        let updated = state
-            .manifest
-            .save_and_get_written_value()
-            .wrap_err("saving package.json after unlinking")?;
-
-        let prefix = state
-            .manifest
-            .path()
-            .parent()
-            .unwrap_or_else(|| state.manifest.path())
-            .to_string_lossy()
-            .into_owned();
-        Reporter::emit(&LogEvent::PackageManifest(PackageManifestLog {
-            level: LogLevel::Debug,
-            message: PackageManifestMessage::Updated { prefix, updated },
-        }));
-
-        Ok(())
+        .wrap_err("unlinking dependencies")
     }
 }

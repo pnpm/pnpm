@@ -138,6 +138,38 @@ pub(crate) fn add_overrides(
     Ok(changed)
 }
 
+/// Delete the given `selectors` from the top-level `overrides:` block,
+/// dropping the whole block when nothing remains. Selectors absent from the
+/// block are ignored. Returns whether anything changed. The inverse of
+/// [`add_overrides`]; used by `pacquet unlink`.
+pub(crate) fn remove_overrides(manifest: &mut Manifest, selectors: &[String]) -> bool {
+    const BLOCK: &str = "overrides";
+    let present: Vec<String> = match manifest.overrides.as_ref() {
+        Some(overrides) => {
+            selectors.iter().filter(|selector| overrides.contains_key(*selector)).cloned().collect()
+        }
+        None => return false,
+    };
+    if present.is_empty() {
+        return false;
+    }
+
+    let overrides = manifest.overrides.as_mut().expect("overrides decoded above");
+    for selector in &present {
+        overrides.shift_remove(selector);
+    }
+    let now_empty = overrides.is_empty();
+
+    if now_empty {
+        manifest.set_text(remove_top_level_block(manifest.text(), BLOCK));
+        manifest.overrides = None;
+        manifest.top_level_keys.retain(|key| key != BLOCK);
+    } else {
+        manifest.set_text(remove_mapping_entries(manifest.text(), &[BLOCK], &present));
+    }
+    true
+}
+
 /// Set `auditConfig.ignoreGhsas:` to `ghsas` (the complete desired list),
 /// creating the `auditConfig:` block or the nested `ignoreGhsas:` key when
 /// absent. An empty `ghsas` removes the `auditConfig:` block. Mirrors the

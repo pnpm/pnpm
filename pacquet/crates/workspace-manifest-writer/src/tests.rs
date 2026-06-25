@@ -642,6 +642,19 @@ fn run_ignore_ghsas(original: Option<&str>, ghsas: &[&str]) -> Option<String> {
     fs::read_to_string(&path).ok()
 }
 
+/// Run `remove_overrides` against `original` and return the resulting file
+/// contents, or `None` when no file exists afterward.
+fn run_remove_overrides(original: Option<&str>, selectors: &[&str]) -> Option<String> {
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+    if let Some(text) = original {
+        fs::write(&path, text).expect("seed manifest");
+    }
+    let selectors: Vec<String> = selectors.iter().copied().map(ToString::to_string).collect();
+    crate::remove_overrides(dir.path(), &selectors).expect("remove succeeds");
+    fs::read_to_string(&path).ok()
+}
+
 #[test]
 fn overrides_block_is_created() {
     let out = run_overrides(None, &overrides(&[("foo@<1.0.1", "^1.0.1")])).expect("written");
@@ -868,4 +881,36 @@ fn set_overrides_rejects_control_characters() {
         .expect_err("must reject a control character");
 
     assert!(matches!(err, crate::UpdateWorkspaceManifestError::InvalidControlCharacter { .. }));
+}
+
+#[test]
+fn remove_overrides_drops_only_the_named_entry() {
+    let original = "overrides:\n  foo: link:../foo\n  bar: link:../bar\n  baz: 1.0.0\n";
+    let out = run_remove_overrides(Some(original), &["foo"]).expect("file kept");
+    assert_eq!(out, "overrides:\n  bar: link:../bar\n  baz: 1.0.0\n");
+}
+
+#[test]
+fn remove_overrides_drops_the_block_when_emptied_but_keeps_siblings() {
+    let original = "packages:\n  - '*'\noverrides:\n  foo: link:../foo\n";
+    let out = run_remove_overrides(Some(original), &["foo"]).expect("file kept");
+    assert_eq!(out, "packages:\n  - '*'\n");
+}
+
+#[test]
+fn remove_overrides_deletes_the_file_when_nothing_remains() {
+    let original = "overrides:\n  foo: link:../foo\n  bar: link:../bar\n";
+    assert_eq!(run_remove_overrides(Some(original), &["foo", "bar"]), None);
+}
+
+#[test]
+fn remove_overrides_is_a_noop_for_absent_selectors() {
+    let original = "overrides:\n  foo: link:../foo\n";
+    let out = run_remove_overrides(Some(original), &["missing"]).expect("file kept");
+    assert_eq!(out, original);
+}
+
+#[test]
+fn remove_overrides_is_a_noop_when_the_manifest_is_missing() {
+    assert_eq!(run_remove_overrides(None, &["foo"]), None);
 }

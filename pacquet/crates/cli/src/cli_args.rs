@@ -815,13 +815,20 @@ impl CliArgs {
                 args.run(dir_ref, || config().map(|m| &*m)).await?;
                 Ok(())
             }),
-            CliCommand::Unlink(args) => match reporter {
-                ReporterType::Default | ReporterType::AppendOnly => {
-                    Box::pin(args.run::<DefaultReporter>(state(false)?))
+            CliCommand::Unlink(args) => {
+                let manifest_path = manifest_path_ref.clone();
+                match reporter {
+                    ReporterType::Default | ReporterType::AppendOnly => {
+                        Box::pin(args.run::<DefaultReporter>(config()?, manifest_path))
+                    }
+                    ReporterType::Ndjson => {
+                        Box::pin(args.run::<NdjsonReporter>(config()?, manifest_path))
+                    }
+                    ReporterType::Silent => {
+                        Box::pin(args.run::<SilentReporter>(config()?, manifest_path))
+                    }
                 }
-                ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(state(false)?)),
-                ReporterType::Silent => Box::pin(args.run::<SilentReporter>(state(false)?)),
-            },
+            }
             CliCommand::Fetch(args) => match reporter {
                 ReporterType::Default | ReporterType::AppendOnly => {
                     Box::pin(args.run::<DefaultReporter>(state(true)?))
