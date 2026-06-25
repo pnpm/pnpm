@@ -1882,7 +1882,7 @@ async fn update_packument(
         return error_response(&RegistryError::BadRequest {
             reason: format!(
                 "packument name {body_name:?} does not match the URL package {:?}",
-                name.as_str()
+                name.as_str(),
             ),
         });
     }
@@ -1932,7 +1932,12 @@ async fn reject_packument_integrity_tampering(
 ) -> Option<RegistryError> {
     let incoming_versions = incoming.get("versions").and_then(Value::as_object)?;
     let hosted: Option<Value> = match state.inner.storage.read_hosted_packument(name).await {
-        Ok(Some(bytes)) => serde_json::from_slice(&bytes).ok(),
+        // Fail closed: a corrupt hosted packument must not silently disable the
+        // immutability gate (which would let a tampered dist.integrity through).
+        Ok(Some(bytes)) => match serde_json::from_slice(&bytes) {
+            Ok(value) => Some(value),
+            Err(err) => return Some(RegistryError::Json(err)),
+        },
         Ok(None) => None,
         Err(err) => return Some(err),
     };
@@ -1950,7 +1955,7 @@ async fn reject_packument_integrity_tampering(
                 if incoming_integrity != existing_integrity {
                     return Some(RegistryError::BadRequest {
                         reason: format!(
-                            "dist.integrity for the published version {version:?} is immutable"
+                            "dist.integrity for the published version {version:?} is immutable",
                         ),
                     });
                 }
