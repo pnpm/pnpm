@@ -224,6 +224,68 @@ async fn authenticated_publish_writes_manifest_and_tarball() {
     );
 }
 
+#[tokio::test]
+async fn republishing_an_existing_version_is_rejected_with_conflict() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let publish = |bytes: &[u8]| {
+        let body = serde_json::to_vec(&sample_publish_body("mypkg", "1.0.0", bytes)).unwrap();
+        Request::put("/mypkg")
+            .header("content-type", "application/json")
+            .header("Authorization", format!("Bearer {token}"))
+            .body(Body::from(body))
+            .unwrap()
+    };
+
+    let first = app.clone().oneshot(publish(b"original-bytes")).await.unwrap();
+    assert_eq!(first.status(), StatusCode::CREATED);
+
+    // Re-publishing the same version with different bytes must be refused.
+    let second = app.clone().oneshot(publish(b"backdoored-bytes")).await.unwrap();
+    assert_eq!(second.status(), StatusCode::CONFLICT);
+
+    // The originally published tarball must be untouched on disk.
+    let on_disk = std::fs::read(storage.join("mypkg/mypkg-1.0.0.tgz")).unwrap();
+    assert_eq!(on_disk, b"original-bytes");
+}
+
+#[tokio::test]
+async fn republish_via_a_smuggled_version_entry_without_an_attachment_is_rejected() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    // Publish 1.0.0 normally.
+    let first = Request::put("/mypkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(
+            serde_json::to_vec(&sample_publish_body("mypkg", "1.0.0", b"original")).unwrap(),
+        ))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(first).await.unwrap().status(), StatusCode::CREATED);
+
+    // Publish 1.0.1 (with its own attachment) but smuggle a modified 1.0.0
+    // entry into `versions` with no matching attachment. The conflict check
+    // must still reject it because 1.0.0 is already hosted.
+    let mut body = sample_publish_body("mypkg", "1.0.1", b"new-bytes");
+    body["versions"]["1.0.0"] = json!({
+        "name": "mypkg",
+        "version": "1.0.0",
+        "dist": { "tarball": "http://example.test/mypkg/-/mypkg-1.0.0.tgz", "integrity": "sha512-EVIL" },
+    });
+    let smuggle = Request::put("/mypkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    assert_eq!(app.oneshot(smuggle).await.unwrap().status(), StatusCode::CONFLICT);
+}
+
 /// Published packages are the source of truth: they live in the
 /// authoritative `storage` root, never in the disposable proxy cache,
 /// and survive a full wipe of that cache.
