@@ -72,6 +72,20 @@ jobs:
     name: Rust CI / Test / ${{ matrix.os_label }}
     needs: changes
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
+    # Build the nextest artifacts with line-tables-only debug info. The full
+    # `cargo nextest` build holds a complete set of `--all-targets` debug
+    # binaries for the whole workspace (~60 crates plus heavy C deps like
+    # aws-lc-sys, ring, libsql-ffi, and tree-sitter) in target/, which had
+    # grown close to the hosted runner's free-disk ceiling even after the
+    # cleanup step below — a run can cross ENOSPC mid-link (the linker dies
+    # with "No space left on device"). Line tables keep panic backtraces
+    # file:line-accurate while dropping most of the debuginfo bytes. Set here
+    # in CI rather than in Cargo.toml so local `just test` keeps full debug
+    # info. CARGO_PROFILE_DEV_DEBUG covers dependencies (built dev), _TEST_
+    # covers the test targets.
+    env:
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
     strategy:
       fail-fast: false
       matrix:
