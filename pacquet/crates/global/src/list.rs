@@ -38,8 +38,8 @@ pub fn list_global_packages(
     params: &[String],
     report_as: ListReportAs,
     long: bool,
-) -> String {
-    let packages = scan_global_packages(global_dir);
+) -> std::io::Result<String> {
+    let packages = scan_global_packages(global_dir)?;
     let global_dir_str = global_dir.to_string_lossy().into_owned();
 
     let mut deps: Vec<ListedDep> = Vec::new();
@@ -68,7 +68,7 @@ pub fn list_global_packages(
     deps.sort_by(|a, b| a.alias.cmp(&b.alias));
 
     if deps.is_empty() {
-        return match report_as {
+        return Ok(match report_as {
             ListReportAs::Json => {
                 let empty =
                     json!([{ "path": global_dir_str, "private": true, "dependencies": {} }]);
@@ -82,14 +82,14 @@ pub fn list_global_packages(
                     "No matching global packages found".to_string()
                 }
             }
-        };
+        });
     }
 
-    match report_as {
+    Ok(match report_as {
         ListReportAs::Json => render_json(&global_dir_str, &deps, long),
         ListReportAs::Parseable => render_parseable(&global_dir_str, &deps, long),
         ListReportAs::Tree => render_tree(&global_dir_str, &deps, long),
-    }
+    })
 }
 
 fn render_json(global_dir: &str, deps: &[ListedDep], long: bool) -> String {

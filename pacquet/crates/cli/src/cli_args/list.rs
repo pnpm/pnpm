@@ -3,6 +3,7 @@
 //! command. Listing a local project's tree is not ported yet.
 
 use clap::Args;
+use miette::{Context, IntoDiagnostic};
 use pacquet_config::Config;
 use pacquet_global::{ListReportAs, list_global_packages};
 
@@ -58,7 +59,9 @@ impl ListArgs {
             ListReportAs::Tree
         };
 
-        let output = list_global_packages(&global_pkg_dir, &self.packages, report_as, self.long);
+        let output = list_global_packages(&global_pkg_dir, &self.packages, report_as, self.long)
+            .into_diagnostic()
+            .wrap_err("list global packages")?;
         println!("{output}");
         Ok(())
     }

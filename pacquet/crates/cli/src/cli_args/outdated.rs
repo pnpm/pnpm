@@ -395,7 +395,9 @@ impl OutdatedArgs {
         };
 
         let mut outdated = Vec::new();
-        for pkg in pacquet_global::scan_global_packages(&global_pkg_dir) {
+        let global_packages = pacquet_global::scan_global_packages(&global_pkg_dir)
+            .map_err(|err| miette::miette!("failed to scan global packages: {err}"))?;
+        for pkg in global_packages {
             let manifest_path = pkg.install_dir.join("package.json");
             let state = State::init(manifest_path, config, false)
                 .map_err(|err| miette::Report::new(err).wrap_err("initialize global state"))?;

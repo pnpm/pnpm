@@ -33,6 +33,19 @@ pub struct GlobalBinConflictError {
     pub alias: String,
 }
 
+/// Failure from [`check_global_bin_conflicts`]: either a real bin-name
+/// conflict, or the global packages directory could not be scanned.
+#[derive(Debug, Display, Error, Diagnostic)]
+pub enum CheckGlobalBinConflictsError {
+    #[display("{_0}")]
+    #[diagnostic(transparent)]
+    Conflict(GlobalBinConflictError),
+
+    #[display("failed to scan the global packages directory: {_0}")]
+    #[diagnostic(code(ERR_PNPM_GLOBAL_SCAN))]
+    Scan(#[error(source)] std::io::Error),
+}
+
 /// Check for bin-name conflicts between `new_pkgs` and the global packages
 /// under `global_dir`. Returns the set of bin names that should be skipped
 /// during linking (legitimately owned by a package being kept), or a
@@ -46,7 +59,7 @@ pub fn check_global_bin_conflicts(
     global_bin_dir: &Path,
     new_pkgs: &[PackageBinSource],
     should_skip: impl Fn(&GlobalPackageInfo) -> bool,
-) -> Result<HashSet<String>, GlobalBinConflictError> {
+) -> Result<HashSet<String>, CheckGlobalBinConflictsError> {
     let mut bins_to_skip = HashSet::new();
 
     // Map each new bin name to the packages that provide it.
@@ -71,7 +84,9 @@ pub fn check_global_bin_conflicts(
         return Ok(bins_to_skip);
     }
 
-    for existing_pkg in scan_global_packages(global_dir) {
+    for existing_pkg in
+        scan_global_packages(global_dir).map_err(CheckGlobalBinConflictsError::Scan)?
+    {
         if should_skip(&existing_pkg) {
             continue;
         }
@@ -103,11 +118,11 @@ pub fn check_global_bin_conflicts(
                 } else {
                     format!(r#""{alias}" (package "{manifest_name}")"#)
                 };
-                return Err(GlobalBinConflictError {
+                return Err(CheckGlobalBinConflictsError::Conflict(GlobalBinConflictError {
                     bin_name: bin.name,
                     conflict_display,
                     alias: alias.clone(),
-                });
+                }));
             }
         }
     }

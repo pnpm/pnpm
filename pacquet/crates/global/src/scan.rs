@@ -9,6 +9,7 @@ use pacquet_resolving_deps_resolver::is_valid_dependency_alias;
 use serde_json::Value;
 use std::{
     collections::BTreeSet,
+    io,
     path::{Path, PathBuf},
     sync::Arc,
     time::{Duration, SystemTime},
@@ -48,11 +49,18 @@ pub struct InstalledGlobalPackage {
     pub manifest: Value,
 }
 
-/// Scan `global_dir` for installed package groups. A missing directory
-/// yields an empty list (matching pnpm's ENOENT handling).
-#[must_use]
-pub fn scan_global_packages(global_dir: &Path) -> Vec<GlobalPackageInfo> {
-    let Ok(entries) = std::fs::read_dir(global_dir) else { return Vec::new() };
+/// Scan `global_dir` for installed package groups.
+///
+/// A missing directory yields an empty list; any other read error (e.g.
+/// permission denied) is surfaced so callers don't mistake an unreadable
+/// global dir for "no global packages." Mirrors pnpm's `scanGlobalPackages`,
+/// which returns `[]` only for `ENOENT` and rethrows otherwise.
+pub fn scan_global_packages(global_dir: &Path) -> io::Result<Vec<GlobalPackageInfo>> {
+    let entries = match std::fs::read_dir(global_dir) {
+        Ok(entries) => entries,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => return Err(error),
+    };
     let mut result = Vec::new();
     for entry in entries.flatten() {
         // Hash entries are symlinks pointing to install dirs.
@@ -73,14 +81,16 @@ pub fn scan_global_packages(global_dir: &Path) -> Vec<GlobalPackageInfo> {
             dependencies,
         });
     }
-    result
+    Ok(result)
 }
 
 /// Find the group that contains `alias`, if any. Mirrors pnpm's
 /// `findGlobalPackage`.
-#[must_use]
-pub fn find_global_package(global_dir: &Path, alias: &str) -> Option<GlobalPackageInfo> {
-    scan_global_packages(global_dir).into_iter().find(|pkg| pkg.has_alias(alias))
+pub fn find_global_package(
+    global_dir: &Path,
+    alias: &str,
+) -> io::Result<Option<GlobalPackageInfo>> {
+    Ok(scan_global_packages(global_dir)?.into_iter().find(|pkg| pkg.has_alias(alias)))
 }
 
 /// Read the installed details (alias, version, manifest) for every direct

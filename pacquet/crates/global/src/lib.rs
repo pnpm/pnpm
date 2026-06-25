@@ -17,7 +17,9 @@ use serde_json::Value;
 use std::path::Path;
 
 pub use cache_key::create_global_cache_key;
-pub use check_bin_conflicts::{GlobalBinConflictError, check_global_bin_conflicts};
+pub use check_bin_conflicts::{
+    CheckGlobalBinConflictsError, GlobalBinConflictError, check_global_bin_conflicts,
+};
 pub use global_package_dir::{create_install_dir, get_hash_link, resolve_install_dir};
 pub use list::{ListReportAs, list_global_packages};
 pub use scan::{

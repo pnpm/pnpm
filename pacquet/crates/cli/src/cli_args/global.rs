@@ -126,7 +126,9 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
             }
         };
 
-        remove_existing_global_installs(&global_pkg_dir, &global_bin_dir, &aliases);
+        remove_existing_global_installs(&global_pkg_dir, &global_bin_dir, &aliases)
+            .into_diagnostic()
+            .wrap_err("remove existing global installs")?;
 
         let cache_hash = create_global_cache_key(&aliases, &registries_with_default(config));
         let hash_link = get_hash_link(&global_pkg_dir, &cache_hash);
@@ -154,7 +156,8 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
     check_bin_dir(&global_bin_dir)?;
     clean_orphaned_install_dirs(&global_pkg_dir);
 
-    let all = scan_global_packages(&global_pkg_dir);
+    let all =
+        scan_global_packages(&global_pkg_dir).into_diagnostic().wrap_err("scan global packages")?;
     if all.is_empty() {
         println!("No global packages found");
         return Ok(());
@@ -204,7 +207,9 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
         // Remove stale bins from the old install before swapping, but keep
         // any bin owned by a different global group.
         let protected =
-            bin_names_of_other_groups(&global_pkg_dir, &HashSet::from([pkg.hash.clone()]));
+            bin_names_of_other_groups(&global_pkg_dir, &HashSet::from([pkg.hash.clone()]))
+                .into_diagnostic()
+                .wrap_err("scan global packages")?;
         for bin in get_installed_bin_names(pkg) {
             if protected.contains(&bin) {
                 continue;
@@ -236,7 +241,10 @@ pub fn handle_global_remove(base_config: &'static Config, params: &[String]) -> 
     let mut groups: Vec<GlobalPackageInfo> = Vec::new();
     let mut seen = HashSet::new();
     for param in params {
-        let Some(pkg) = find_global_package(&global_pkg_dir, param) else {
+        let Some(pkg) = find_global_package(&global_pkg_dir, param)
+            .into_diagnostic()
+            .wrap_err("scan global packages")?
+        else {
             return Err(GlobalError::PkgNotFound { param: param.clone() }.into());
         };
         if seen.insert(pkg.hash.clone()) {
@@ -247,7 +255,9 @@ pub fn handle_global_remove(base_config: &'static Config, params: &[String]) -> 
     // Bins shared with (and owned by) groups that survive this removal must
     // not be unlinked, or we'd delete another global package's bin.
     let exclude: HashSet<String> = groups.iter().map(|pkg| pkg.hash.clone()).collect();
-    let protected = bin_names_of_other_groups(&global_pkg_dir, &exclude);
+    let protected = bin_names_of_other_groups(&global_pkg_dir, &exclude)
+        .into_diagnostic()
+        .wrap_err("scan global packages")?;
 
     for pkg in &groups {
         remove_group(&global_pkg_dir, &global_bin_dir, pkg, &protected);
@@ -370,11 +380,11 @@ fn remove_existing_global_installs(
     global_pkg_dir: &Path,
     global_bin_dir: &Path,
     aliases: &[String],
-) {
+) -> std::io::Result<()> {
     let mut to_remove: Vec<GlobalPackageInfo> = Vec::new();
     let mut seen = HashSet::new();
     for alias in aliases {
-        if let Some(pkg) = find_global_package(global_pkg_dir, alias)
+        if let Some(pkg) = find_global_package(global_pkg_dir, alias)?
             && seen.insert(pkg.hash.clone())
         {
             to_remove.push(pkg);
@@ -383,10 +393,11 @@ fn remove_existing_global_installs(
     // Bins owned by groups that survive this replacement must not be
     // unlinked, or we'd delete a different global package's bin.
     let exclude: HashSet<String> = to_remove.iter().map(|pkg| pkg.hash.clone()).collect();
-    let protected = bin_names_of_other_groups(global_pkg_dir, &exclude);
+    let protected = bin_names_of_other_groups(global_pkg_dir, &exclude)?;
     for pkg in &to_remove {
         remove_group(global_pkg_dir, global_bin_dir, pkg, &protected);
     }
+    Ok(())
 }
 
 /// Remove a group's bins (except those in `protected`, owned by a surviving
@@ -414,9 +425,9 @@ fn remove_group(
 fn bin_names_of_other_groups(
     global_pkg_dir: &Path,
     exclude_hashes: &HashSet<String>,
-) -> HashSet<String> {
+) -> std::io::Result<HashSet<String>> {
     let mut names = HashSet::new();
-    for pkg in scan_global_packages(global_pkg_dir) {
+    for pkg in scan_global_packages(global_pkg_dir)? {
         if exclude_hashes.contains(&pkg.hash) {
             continue;
         }
@@ -424,7 +435,7 @@ fn bin_names_of_other_groups(
             names.insert(bin);
         }
     }
-    names
+    Ok(names)
 }
 
 /// The direct-dependency aliases of an install directory's `package.json`.
