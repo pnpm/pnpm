@@ -93,18 +93,22 @@ impl FsAtomicWrite for Host {
             .unwrap_or_else(|| Path::new("."));
         let mut tmp = tempfile::NamedTempFile::new_in(dir)?;
         write_body(tmp.as_file_mut())?;
-        tmp.as_file().sync_all()?;
-        // A `NamedTempFile` is created 0o600. Match what a plain
-        // `fs::write` would leave: preserve an existing tarball's mode when
-        // overwriting, otherwise widen to 0o644 so the archive isn't
-        // owner-only.
+        // A `NamedTempFile` is created 0o600. Match what a plain `fs::write`
+        // would leave: preserve the mode only when overwriting an existing
+        // regular file — `symlink_metadata` so a symlink at `dest` doesn't
+        // donate its target's (or a directory's) mode — otherwise widen to
+        // 0o644 so the archive isn't owner-only. Set the mode before the
+        // sync so content and metadata are flushed together.
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-            let mode = std::fs::metadata(dest)
+            let mode = std::fs::symlink_metadata(dest)
+                .ok()
+                .filter(std::fs::Metadata::is_file)
                 .map_or(0o644, |metadata| metadata.permissions().mode() & 0o777);
             tmp.as_file().set_permissions(std::fs::Permissions::from_mode(mode))?;
         }
+        tmp.as_file().sync_all()?;
         tmp.persist(dest).map_err(|error| error.error)?;
         Ok(())
     }

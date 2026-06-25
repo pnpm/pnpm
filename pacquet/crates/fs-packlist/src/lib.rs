@@ -374,7 +374,7 @@ fn collect_own_files(pkg_dir: &Path, manifest: &Value) -> Result<BTreeSet<String
         let main_norm = normalize_field_path(main);
         if is_contained_field_path(&main_norm)
             && !should_always_exclude(&main_norm)
-            && is_regular_file(&pkg_dir.join(&main_norm))
+            && is_regular_file_within(pkg_dir, &pkg_dir.join(&main_norm))
         {
             out.insert(main_norm);
         }
@@ -383,7 +383,7 @@ fn collect_own_files(pkg_dir: &Path, manifest: &Value) -> Result<BTreeSet<String
         let bin_norm = normalize_field_path(bin);
         if is_contained_field_path(&bin_norm)
             && !should_always_exclude(&bin_norm)
-            && is_regular_file(&pkg_dir.join(&bin_norm))
+            && is_regular_file_within(pkg_dir, &pkg_dir.join(&bin_norm))
         {
             out.insert(bin_norm);
         }
@@ -593,11 +593,20 @@ fn is_contained_field_path(normalized: &str) -> bool {
             .all(|component| matches!(component, Component::Normal(_)))
 }
 
-/// Whether `path` is a regular file without following a final symlink, so
-/// a `main` / `bin` pointing at a symlink to a file outside the package
-/// is not force-included (which would leak the target's bytes).
-fn is_regular_file(path: &Path) -> bool {
-    fs::symlink_metadata(path).is_ok_and(|metadata| metadata.file_type().is_file())
+/// Whether `candidate` resolves to a regular file strictly inside `root`.
+/// Canonicalizing follows every symlink, so an intermediate symlinked
+/// directory (`subdir -> /outside`) or a final symlink to an out-of-tree
+/// file is caught even though it passes the lexical
+/// [`is_contained_field_path`] check — otherwise a `main` / `bin` could
+/// splice a host file into the tarball / CAS. Following symlinks that stay
+/// inside `root` keeps parity with npm-packlist's `is_file`, while the
+/// containment check fails closed on any escape.
+fn is_regular_file_within(root: &Path, candidate: &Path) -> bool {
+    let Ok(resolved) = candidate.canonicalize() else {
+        return false;
+    };
+    let canonical_root = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
+    resolved.starts_with(&canonical_root) && resolved.is_file()
 }
 
 fn io_error(pkg_dir: &Path, source: std::io::Error) -> PacklistError {
