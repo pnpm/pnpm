@@ -3,7 +3,7 @@ use clap::Args;
 use miette::Context;
 use pacquet_package_manager::Install;
 use pacquet_package_manifest::DependencyGroup;
-use pacquet_reporter::Reporter;
+use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
 
 #[derive(Debug, Args)]
 pub struct UnlinkArgs {
@@ -57,8 +57,6 @@ impl UnlinkArgs {
             }
         }
 
-        state.manifest.save().wrap_err("saving package.json after unlinking")?;
-
         let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
             &state;
 
@@ -84,10 +82,10 @@ impl UnlinkArgs {
             frozen_lockfile: false,
             prefer_frozen_lockfile: None,
             ignore_manifest_check: false,
-            skip_runtimes: false,
-            trust_lockfile: false,
+            skip_runtimes: config.skip_runtimes,
+            trust_lockfile: config.trust_lockfile,
             update_checksums: false,
-            is_full_install: true,
+            is_full_install: false,
             resolved_packages,
             supported_architectures: config.supported_architectures.clone(),
             node_linker: config.node_linker,
@@ -97,9 +95,29 @@ impl UnlinkArgs {
             auth_override: None,
             resolution_observer: None,
             catalogs_override: None,
+            disable_optimistic_repeat_install: false,
         }
         .run::<Reporter>()
         .await
-        .wrap_err("unlinking dependencies")
+        .wrap_err("unlinking dependencies")?;
+
+        let updated = state
+            .manifest
+            .save_and_get_written_value()
+            .wrap_err("saving package.json after unlinking")?;
+
+        let prefix = state
+            .manifest
+            .path()
+            .parent()
+            .unwrap_or_else(|| state.manifest.path())
+            .to_string_lossy()
+            .into_owned();
+        Reporter::emit(&LogEvent::PackageManifest(PackageManifestLog {
+            level: LogLevel::Debug,
+            message: PackageManifestMessage::Updated { prefix, updated },
+        }));
+
+        Ok(())
     }
 }

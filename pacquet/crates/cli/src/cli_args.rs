@@ -817,14 +817,10 @@ impl CliArgs {
             }),
             CliCommand::Unlink(args) => match reporter {
                 ReporterType::Default | ReporterType::AppendOnly => {
-                    Box::pin(args.run::<DefaultReporter>(state(false)?)).await?;
+                    Box::pin(args.run::<DefaultReporter>(state(false)?))
                 }
-                ReporterType::Ndjson => {
-                    Box::pin(args.run::<NdjsonReporter>(state(false)?)).await?;
-                }
-                ReporterType::Silent => {
-                    Box::pin(args.run::<SilentReporter>(state(false)?)).await?;
-                }
+                ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(state(false)?)),
+                ReporterType::Silent => Box::pin(args.run::<SilentReporter>(state(false)?)),
             },
             CliCommand::Fetch(args) => match reporter {
                 ReporterType::Default | ReporterType::AppendOnly => {
