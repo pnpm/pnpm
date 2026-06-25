@@ -114,6 +114,30 @@ pub enum TrustPolicy {
     NoDowngrade,
 }
 
+/// Minimum advisory severity shown by `pnpm audit`.
+///
+/// Mirrors `Config.auditLevel` in pnpm's config reader. The command-level
+/// default is `low`, so [`Config::audit_level`] stays optional and the audit
+/// command applies the fallback when the setting is unset.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AuditLevel {
+    Info,
+    Low,
+    Moderate,
+    High,
+    Critical,
+}
+
+/// `auditConfig` from `pnpm-workspace.yaml`.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct AuditConfig {
+    /// GHSA identifiers that `pnpm audit` should suppress in the rendered
+    /// report.
+    pub ignore_ghsas: Vec<String>,
+}
+
 /// Tri-state mirror of `pacquet_executor::ScriptsPrependNodePath`
 /// with serde wiring. The executor crate keeps its own enum free of
 /// serde so config concerns don't leak into the spawn-path. Converted
@@ -1344,6 +1368,12 @@ pub struct Config {
     /// Trust-evidence policy applied to lockfile entries; see
     /// [`TrustPolicy`].
     pub trust_policy: TrustPolicy,
+
+    /// `audit-level` / `auditLevel` config for `pnpm audit`.
+    pub audit_level: Option<AuditLevel>,
+
+    /// `auditConfig` config for `pnpm audit`.
+    pub audit_config: AuditConfig,
 
     /// Glob-style `name[@version]` patterns that opt specific packages
     /// out of the [`trust_policy`] check. Mirrors pnpm's
