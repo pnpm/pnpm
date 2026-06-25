@@ -10,8 +10,8 @@ use pacquet_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
 use pacquet_git_fetcher::{GitFetchOutput, GitFetcher, GitFetcherError, GitHostedTarballFetcher};
 use pacquet_graph_hasher::{host_arch, host_libc, host_platform};
 use pacquet_lockfile::{
-    BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PackageKey, PackageMetadata,
-    PlatformSelector, SnapshotEntry, select_platform_variant,
+    BinaryArchive, BinaryResolution, BinarySpec, DirectoryResolution, LockfileResolution,
+    PackageKey, PackageMetadata, PlatformSelector, SnapshotEntry, select_platform_variant,
 };
 use pacquet_network::ThrottledClient;
 use pacquet_reporter::{LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter};
@@ -419,16 +419,7 @@ impl InstallPackageBySnapshot<'_> {
                 // follow-up; see the `resolveSymlinksInInjectedDirs`
                 // / `includeOnlyPackageFiles` plumbing tracked in the
                 // directory-fetcher PR description.
-                let directory = workspace_root.join(&dir_resolution.directory);
-                let output = pacquet_directory_fetcher::DirectoryFetcher {
-                    directory,
-                    include_only_package_files: false,
-                    resolve_symlinks: false,
-                    allow_path_escape: true,
-                }
-                .run()
-                .map_err(InstallPackageBySnapshotError::DirectoryFetch)?;
-                output.files_map
+                fetch_directory_resolution(workspace_root, dir_resolution)?
             }
             // Runtime artifacts (Node.js / Bun / Deno) — `Binary`
             // and `Variations` carry a `BinaryResolution` describing
@@ -573,6 +564,22 @@ impl InstallPackageBySnapshot<'_> {
 
         Ok(cas_paths)
     }
+}
+
+fn fetch_directory_resolution(
+    workspace_root: &Path,
+    dir_resolution: &DirectoryResolution,
+) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
+    let directory = workspace_root.join(&dir_resolution.directory);
+    let output = pacquet_directory_fetcher::DirectoryFetcher {
+        directory,
+        include_only_package_files: false,
+        resolve_symlinks: false,
+        allow_path_escape: false,
+    }
+    .run()
+    .map_err(InstallPackageBySnapshotError::DirectoryFetch)?;
+    Ok(output.files_map)
 }
 
 /// Resolve the tarball URL + integrity for tarball- and registry-shaped
