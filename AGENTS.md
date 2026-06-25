@@ -2,12 +2,13 @@
 
 This document provides context and instructions for AI agents working on the pnpm codebase.
 
-The repository contains two stacks:
+The repository contains three products:
 
-- The **TypeScript pnpm CLI** — everything outside `pacquet/`.
+- The **TypeScript pnpm CLI** — the main TypeScript workspaces outside `pacquet/` and `pnpr/`.
 - The **Rust pacquet port** — `pacquet/`. See [`pacquet/AGENTS.md`](./pacquet/AGENTS.md) for pacquet-specific rules; it adds to (and never contradicts) the conventions below.
+- The **Rust pnpr registry server** — `pnpr/`. See [`pnpr/AGENTS.md`](./pnpr/AGENTS.md) for pnpr-specific rules; it adds to (and never contradicts) the conventions below.
 
-Sections below marked "(TypeScript only)" do not apply to pacquet. Everything else applies to both stacks.
+Sections below marked "(TypeScript only)" apply to TypeScript code only; they do not apply to Rust code in `pacquet/` or `pnpr/`. Everything else applies repo-wide unless a nested `AGENTS.md` specializes it.
 
 ## Keep pnpm and pacquet in sync
 
@@ -59,9 +60,10 @@ The pnpm codebase is a monorepo managed by pnpm itself. The root contains functi
 -   `crypto/`: Cryptographic utilities.
 -   `text/`: Text processing utilities.
 
-### Rust Port
+### Rust Projects
 
 -   `pacquet/`: The pnpm CLI ported to Rust. Self-contained sub-project with its own crates, tests, and tooling — see [`pacquet/AGENTS.md`](./pacquet/AGENTS.md).
+-   `pnpr/`: The pnpm-compatible npm registry server. Self-contained sub-project with its own crates, tests, and tooling — see [`pnpr/AGENTS.md`](./pnpr/AGENTS.md).
 
 ## Setup & Build (TypeScript only)
 
@@ -126,7 +128,7 @@ Do not dismiss a failing test as a "pre-existing" failure that is unrelated to y
 
 ## AI Review Guidance
 
-The repository's review framework lives in **[REVIEW_GUIDE.md](./REVIEW_GUIDE.md)** — how changes are accepted or rejected, the security-first / performance-second priorities, the security checklist and advisory regression themes, and the test/changeset/parity expectations. Apply it when reviewing pull requests. (Code style, comments, and engineering conventions for the TypeScript CLI are documented in the "Code Style" section of this file; pacquet and pnpr follow their own `AGENTS.md` and style guides.)
+The repository's review framework lives in **[REVIEW_GUIDE.md](./REVIEW_GUIDE.md)** — how changes are accepted or rejected, the security-first / performance-second priorities, the security checklist and advisory regression themes, and the test/changeset/parity expectations. Apply it when reviewing pull requests. (TypeScript-specific code style and engineering conventions for the CLI are documented in the "Code Style" section of this file; pacquet and pnpr follow their own `AGENTS.md` and style guides.)
 
 Security is the first review priority and performance the second. Surface only issues tied to the changed code, and explain the exploit path, impact, or hot path affected. See the guide's Security and Performance review sections for the full checklist.
 
@@ -210,6 +212,27 @@ Added a new setting `blockExoticSubdeps` that prevents the resolution of exotic 
 - **minor**: New features, settings, or commands that should be documented (anything users should know about)
 - **major**: Breaking changes
 
+## Comments
+
+These conventions apply to the TypeScript pnpm CLI, pacquet, and pnpr. Product-specific `AGENTS.md` files may add language-specific rules, but they do not weaken this baseline.
+
+Write code that explains itself. A reader should understand what a function does from its name, parameters, and types — not from prose above the call site.
+
+Defaults:
+
+-   **Do not write a comment** that restates what the code already says. If renaming a variable, splitting a helper, or moving a check to a more obvious place would carry the information, do that instead.
+-   **Do not repeat documentation** at call sites that already lives on the callee. If the function has JSDoc, a Rust doc comment, or equivalent API documentation, the call site shouldn't re-explain what calling it does. Update the documentation once; let every call site benefit.
+-   **Put a shared *why* in one place.** When the same rationale underlies several related functions — peers that delegate to a common helper, or a type and its methods — document it once at that common home and reference it from the rest, instead of re-deriving it in each. This is the call-site rule applied sideways across peers, not just upward to a callee.
+-   **Documentation comments are for the item's contract** — preconditions, postconditions, edge cases, why the item exists. Not for re-narrating the body.
+-   **Do not record past implementation shape, refactor history, or "the previous code did X" framing.** That's what `git log` and `git blame` are for. Describe the current contract — what the code is and what it guarantees — not what it replaced. Phrasings like "used to", "previously", "the original X", or a parenthetical naming a removed type belong in the commit message, not in the source.
+
+Write a comment only when:
+
+-   The reason for the code is non-obvious from reading it (a hidden invariant, a workaround for a known bug, a deliberate exception to the surrounding pattern).
+-   The right name doesn't fit — e.g., a temporary technical constraint that's worth flagging but doesn't justify a new symbol.
+
+Before adding a comment, ask: "Could I rename, restructure, or extract instead?" If yes, do that. The bar for prose-in-code is high; the bar for prose-that-restates-code is "don't."
+
 ## Code Style (TypeScript only)
 
 This repository uses [Standard Style](https://github.com/standard/standard) with a few modifications:
@@ -227,25 +250,6 @@ To ensure your code adheres to the style guide, run:
 ```bash
 pnpm run lint
 ```
-
-### Comments
-
-Write code that explains itself. A reader should understand what a function does from its name, parameters, and types — not from prose above the call site.
-
-Defaults:
-
--   **Do not write a comment** that restates what the code already says. If renaming a variable, splitting a helper, or moving a check to a more obvious place would carry the information, do that instead.
--   **Do not repeat documentation** at call sites that already lives on the callee. If the function has a JSDoc, the call site shouldn't re-explain what calling it does. Update the JSDoc once; let every call site benefit.
--   **Put a shared *why* in one place.** When the same rationale underlies several related functions — peers that delegate to a common helper, or a type and its methods — document it once at that common home and reference it from the rest, instead of re-deriving it in each. This is the call-site rule applied sideways across peers, not just upward to a callee.
--   **JSDoc is for the function's contract** — preconditions, postconditions, edge cases, why the function exists. Not for re-narrating the body.
--   **Do not record past implementation shape, refactor history, or "the previous code did X" framing.** That's what `git log` and `git blame` are for. Describe the current contract — what the code is and what it guarantees — not what it replaced. Phrasings like "used to", "previously", "the original X", or a parenthetical naming a removed type belong in the commit message, not in the source.
-
-Write a comment only when:
-
--   The reason for the code is non-obvious from reading it (a hidden invariant, a workaround for a known bug, a deliberate exception to the surrounding pattern).
--   The right name doesn't fit — e.g., a temporary technical constraint that's worth flagging but doesn't justify a new symbol.
-
-Before adding a comment, ask: "Could I rename, restructure, or extract instead?" If yes, do that. The bar for prose-in-code is high; the bar for prose-that-restates-code is "don't."
 
 ### Conventions
 
