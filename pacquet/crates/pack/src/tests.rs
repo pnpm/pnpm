@@ -4,12 +4,13 @@ use super::{
 use crate::capabilities::{FsCreateDirAll, FsFileLen, FsReadFile, FsWrite};
 use flate2::read::GzDecoder;
 use pacquet_config::NodeLinker;
-use pacquet_reporter::SilentReporter;
+use pacquet_reporter::{LogEvent, Reporter, SilentReporter};
 use serde_json::{Value, json};
 use std::{
     collections::{BTreeMap, HashMap},
     io,
     path::Path,
+    sync::Mutex,
 };
 use tempfile::{TempDir, tempdir};
 
@@ -353,9 +354,22 @@ fn runs_prepack_prepare_and_postpack() {
 /// With scripts enabled but the manifest declaring none of the
 /// requested lifecycle scripts (here an empty `prepack`), `script_body`
 /// yields `None` and `run_scripts_if_present` returns early, so packing
-/// still succeeds without shelling out.
+/// still succeeds without shelling out. A recording reporter pins the
+/// "without shelling out" half: were the empty `prepack` executed, the
+/// lifecycle runner would emit a `pnpm:lifecycle` event, so asserting
+/// none was emitted is what makes this guard `script_body`'s
+/// empty-string filter rather than just packing-succeeds.
 #[test]
 fn pack_succeeds_when_scripts_enabled_but_absent() {
+    static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
+    EVENTS.lock().unwrap().clear();
+    struct RecordingReporter;
+    impl Reporter for RecordingReporter {
+        fn emit(event: &LogEvent) {
+            EVENTS.lock().unwrap().push(event.clone());
+        }
+    }
+
     let (dir, mut opts) = fixture(&json!({
         "name": "foo",
         "version": "1.0.0",
@@ -363,10 +377,17 @@ fn pack_succeeds_when_scripts_enabled_but_absent() {
     }));
     opts.ignore_scripts = false;
 
-    let result = api::<SilentReporter, Host>(&opts).unwrap();
+    let result = api::<RecordingReporter, Host>(&opts).unwrap();
 
     assert_eq!(result.tarball_path, "foo-1.0.0.tgz");
     assert!(dir.path().join("foo-1.0.0.tgz").is_file());
+    let lifecycle_events = EVENTS
+        .lock()
+        .unwrap()
+        .iter()
+        .filter(|event| matches!(event, LogEvent::Lifecycle(_)))
+        .count();
+    assert_eq!(lifecycle_events, 0, "an empty `prepack` must be skipped, not executed");
 }
 
 /// Write a package under `<dir>/node_modules/<name>/` for the bundle
