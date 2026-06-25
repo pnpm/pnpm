@@ -1,9 +1,9 @@
-use super::split_local_payload;
+use super::{create_deploy_install_config, split_local_payload};
+use pacquet_config::{Config, NodeLinker};
+use std::path::Path;
 
 #[cfg(windows)]
 use super::{is_ancestor_path, is_child_path, same_path, validate_deploy_target};
-#[cfg(windows)]
-use std::path::Path;
 
 #[test]
 fn split_local_payload_preserves_parentheses_in_path_before_peer_suffix() {
@@ -19,6 +19,21 @@ fn split_local_payload_preserves_parentheses_in_path_before_patch_suffix() {
         split_local_payload("../local(foo)/pkg(patch_hash=abc)(peer@1.0.0)"),
         ("../local(foo)/pkg", "(patch_hash=abc)(peer@1.0.0)"),
     );
+}
+
+#[test]
+fn hoisted_deploy_install_config_preserves_lockfile_setting() {
+    let deploy_dir = Path::new("deploy");
+    let mut base_config = Config::new();
+    base_config.lockfile = true;
+
+    let deploy_config = create_deploy_install_config(&base_config, deploy_dir, NodeLinker::Hoisted);
+    assert!(deploy_config.lockfile);
+    assert_eq!(deploy_config.node_linker, NodeLinker::Hoisted);
+
+    base_config.lockfile = false;
+    let deploy_config = create_deploy_install_config(&base_config, deploy_dir, NodeLinker::Hoisted);
+    assert!(!deploy_config.lockfile);
 }
 
 #[cfg(windows)]

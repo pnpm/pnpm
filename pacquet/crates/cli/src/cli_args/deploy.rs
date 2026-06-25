@@ -303,17 +303,7 @@ impl DeployArgs {
             .install_args
             .node_linker
             .map_or(base_config.node_linker, NodeLinkerArg::into_config);
-        let mut deploy_config = base_config.clone();
-        deploy_config.modules_dir = deploy_dir.join("node_modules");
-        deploy_config.virtual_store_dir = deploy_dir.join("node_modules/.pnpm");
-        deploy_config.global_virtual_store_dir = deploy_config.virtual_store_dir.clone();
-        deploy_config.enable_global_virtual_store = false;
-        deploy_config.pnpr_server = None;
-        deploy_config.optimistic_repeat_install = false;
-        deploy_config.dedupe_peer_dependents = false;
-        deploy_config.dedupe_injected_deps = false;
-        deploy_config.node_linker = node_linker;
-        deploy_config.lockfile = !matches!(node_linker, NodeLinker::Hoisted if !frozen_lockfile);
+        let mut deploy_config = create_deploy_install_config(base_config, deploy_dir, node_linker);
         deploy_config.prefer_frozen_lockfile = frozen_lockfile;
 
         match mode {
@@ -377,6 +367,24 @@ impl DeployArgs {
         .await
         .wrap_err("installing deployed dependencies")
     }
+}
+
+fn create_deploy_install_config(
+    base_config: &Config,
+    deploy_dir: &Path,
+    node_linker: NodeLinker,
+) -> Config {
+    let mut deploy_config = base_config.clone();
+    deploy_config.modules_dir = deploy_dir.join("node_modules");
+    deploy_config.virtual_store_dir = deploy_dir.join("node_modules/.pnpm");
+    deploy_config.global_virtual_store_dir = deploy_config.virtual_store_dir.clone();
+    deploy_config.enable_global_virtual_store = false;
+    deploy_config.pnpr_server = None;
+    deploy_config.optimistic_repeat_install = false;
+    deploy_config.dedupe_peer_dependents = false;
+    deploy_config.dedupe_injected_deps = false;
+    deploy_config.node_linker = node_linker;
+    deploy_config
 }
 
 enum SharedDeployOutcome {
