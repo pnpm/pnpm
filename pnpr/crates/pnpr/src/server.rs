@@ -2539,10 +2539,13 @@ async fn load_packument_bytes(state: &AppState, name: &PackageName) -> Packument
             Err(err) => {
                 tracing::warn!(?err, package = %name.as_str(), uplink = upstream.name(), "upstream packument fetch failed");
                 if !err.allows_uplink_fallthrough() {
-                    // Hard upstream rejection — don't try later uplinks, which
-                    // could answer for a package this one authoritatively
-                    // refused. Fall back to a stale cached body if we have one.
-                    return serve_stale_or_error(state, name, err).await;
+                    // Hard upstream rejection (auth/throttle/other 4xx). Surface
+                    // it immediately: don't try later uplinks (which could
+                    // answer for a package this one authoritatively refused) and
+                    // don't fall back to a stale cached body either — serving
+                    // cache here would mask an authoritative denial and keep
+                    // handing out content the upstream is now refusing.
+                    return PackumentLoad::Err(err);
                 }
                 last_err = Some(err);
             }

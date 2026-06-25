@@ -761,6 +761,56 @@ async fn packument_does_not_fall_through_on_primary_hard_4xx() {
 }
 
 #[tokio::test]
+async fn packument_hard_4xx_does_not_serve_stale_cache() {
+    // Warm the cache from a live primary, then make the primary return a hard
+    // 403: the authoritative rejection must surface as a gateway error, not be
+    // masked by the stale cached body.
+    let mut warm_primary = mockito::Server::new_async().await;
+    let warm_mock = warm_primary
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(packument_json(&warm_primary.url()).to_string())
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+
+    let secondary = mockito::Server::new_async().await;
+    let warm = router(config_for_two(&warm_primary.url(), &secondary.url(), storage.clone()));
+    let first = warm.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(first.status(), StatusCode::OK);
+    warm_mock.assert_async().await;
+
+    // Primary now rejects with 403; the secondary must never be consulted and
+    // the stale cache must not be served.
+    tokio::time::sleep(Duration::from_millis(20)).await;
+    let mut denying_primary = mockito::Server::new_async().await;
+    let deny_mock =
+        denying_primary.mock("GET", "/foo").with_status(403).expect(1).create_async().await;
+    let mut secondary = mockito::Server::new_async().await;
+    let secondary_mock = secondary
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(packument_json(&secondary.url()).to_string())
+        .expect(0)
+        .create_async()
+        .await;
+
+    let mut config = config_for_two(&denying_primary.url(), &secondary.url(), storage);
+    config.packument_ttl = Duration::from_millis(1);
+    let response =
+        router(config).oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
+
+    deny_mock.assert_async().await;
+    secondary_mock.assert_async().await;
+}
+
+#[tokio::test]
 async fn packument_is_not_found_when_all_uplinks_404() {
     let mut primary = mockito::Server::new_async().await;
     let mut secondary = mockito::Server::new_async().await;
