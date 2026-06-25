@@ -1895,7 +1895,7 @@ async fn update_packument(
     // packument writers (publish / dist-tag), so the client-supplied
     // rewrite can't interleave with a concurrent merge.
     let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
-    if let Some(err) = enforce_published_version_integrity(state, &name, &mut packument).await {
+    if let Some(err) = enforce_published_version_immutability(state, &name, &mut packument).await {
         return error_response(&err);
     }
     let bytes = match serde_json::to_vec_pretty(&packument) {
@@ -1914,21 +1914,27 @@ async fn update_packument(
         .expect("static-shape response always builds")
 }
 
-/// Enforce that an already-published version's `dist.integrity` is immutable
-/// across the partial-unpublish `PUT`. Changing it while the tarball on disk
-/// stays the same would break every client with `EINTEGRITY`, so:
+/// Enforce that an already-published version's security-critical `dist` fields —
+/// its `integrity` and its `tarball` basename — are immutable across the
+/// partial-unpublish `PUT`. Either one changing while the bytes on disk stay the
+/// same breaks installs of that version: a swapped `integrity` fails every
+/// client with `EINTEGRITY`, and a repointed `tarball` basename sends clients at
+/// a missing or foreign tarball that can't match the version's integrity. So for
+/// every version already in the hosted packument:
 ///
-/// - A *change* to a published version's integrity is rejected.
-/// - An *omission* is repaired in place by restoring the hosted value — the
+/// - A *change* to its `dist.integrity`, or to its `dist.tarball` basename, is
+///   rejected.
+/// - An *omission* of either is repaired in place from the hosted value — the
 ///   round-trip body legitimately re-PUTs the remaining versions, and a dropped
-///   integrity would otherwise leave that version's tarball unservable, since
-///   [`expected_tarball_dist`] requires a string integrity.
+///   field would otherwise leave that version unservable. [`expected_tarball_dist`]
+///   matches a tarball request to a version by basename and verifies the bytes
+///   against a string integrity, so both fields must survive.
 /// - A newly added version entry must carry a syntactically valid SRI.
 ///
 /// Returns the rejection error, or `None` when the body is acceptable (possibly
-/// after restoring stripped integrities). Must be called while holding the
-/// package lock so a concurrent publish can't race the read.
-async fn enforce_published_version_integrity(
+/// after restoring omitted fields). Must be called while holding the package
+/// lock so a concurrent publish can't race the read.
+async fn enforce_published_version_immutability(
     state: &AppState,
     name: &PackageName,
     incoming: &mut Value,
@@ -1936,7 +1942,7 @@ async fn enforce_published_version_integrity(
     let incoming_versions = incoming.get("versions").and_then(Value::as_object)?;
     let hosted: Option<Value> = match state.inner.storage.read_hosted_packument(name).await {
         // Fail closed: a corrupt hosted packument must not silently disable the
-        // immutability gate (which would let a tampered dist.integrity through).
+        // immutability gate (which would let tampered dist fields through).
         Ok(Some(bytes)) => match serde_json::from_slice(&bytes) {
             Ok(value) => Some(value),
             Err(err) => return Some(RegistryError::Json(err)),
@@ -1946,9 +1952,10 @@ async fn enforce_published_version_integrity(
     };
     let hosted_versions =
         hosted.as_ref().and_then(|value| value.get("versions")).and_then(Value::as_object);
-    // Published versions whose integrity the body omitted: their hosted value is
-    // re-inserted after the scan (a borrow of `incoming` is live until then).
-    let mut restore: Vec<(String, String)> = Vec::new();
+    // (version, dist key, hosted value) triples re-inserted after the scan, for
+    // published versions whose body omitted an immutable dist field (a borrow of
+    // `incoming` is live until then).
+    let mut restore: Vec<(String, &'static str, Value)> = Vec::new();
     for (version, manifest) in incoming_versions {
         // A present dist.integrity must be a string — a valid SRI is the only
         // acceptable shape. A present-but-non-string value (null, number,
@@ -1963,61 +1970,94 @@ async fn enforce_published_version_integrity(
                 });
             }
         };
-        match hosted_versions.and_then(|versions| versions.get(version)) {
-            Some(existing) => {
-                let existing_integrity = existing
-                    .get("dist")
-                    .and_then(|dist| dist.get("integrity"))
-                    .and_then(Value::as_str);
-                match (existing_integrity, incoming_integrity) {
-                    (Some(stored), Some(submitted)) if stored != submitted => {
-                        return Some(RegistryError::BadRequest {
-                            reason: format!(
-                                "dist.integrity for the published version {version:?} is immutable",
-                            ),
-                        });
-                    }
-                    // Integrity omitted: restore the stored value. Restoring
-                    // requires an object `dist` to write into, so a published
-                    // version sent with a non-object (or absent) `dist` is
-                    // rejected — otherwise the restore would silently no-op and
-                    // persist the version without its integrity, the very
-                    // stripping this guards against.
-                    (Some(stored), None) => {
-                        if !manifest.get("dist").is_some_and(Value::is_object) {
-                            return Some(RegistryError::BadRequest {
-                                reason: format!(
-                                    "dist for the published version {version:?} must be an object carrying its integrity",
-                                ),
-                            });
-                        }
-                        restore.push((version.clone(), stored.to_string()));
-                    }
-                    _ => {}
-                }
+        let Some(existing) = hosted_versions.and_then(|versions| versions.get(version)) else {
+            // Newly added version: not an immutability concern, but its SRI must
+            // be syntactically valid so it can't poison tarball serving later.
+            if let Some(sri) = incoming_integrity
+                && let Err(err) = crate::streaming::parse_integrity(sri)
+            {
+                return Some(RegistryError::BadRequest {
+                    reason: format!("malformed dist.integrity for version {version:?}: {err}"),
+                });
             }
-            None => {
-                if let Some(sri) = incoming_integrity
-                    && let Err(err) = crate::streaming::parse_integrity(sri)
-                {
+            continue;
+        };
+        let existing_dist = existing.get("dist");
+        // dist.integrity immutability.
+        let existing_integrity =
+            existing_dist.and_then(|dist| dist.get("integrity")).and_then(Value::as_str);
+        match (existing_integrity, incoming_integrity) {
+            (Some(stored), Some(submitted)) if stored != submitted => {
+                return Some(RegistryError::BadRequest {
+                    reason: format!(
+                        "dist.integrity for the published version {version:?} is immutable",
+                    ),
+                });
+            }
+            (Some(stored), None) => {
+                if let Some(err) = require_object_dist(manifest, version) {
+                    return Some(err);
+                }
+                restore.push((version.clone(), "integrity", Value::String(stored.to_string())));
+            }
+            _ => {}
+        }
+        // dist.tarball basename immutability. The hosted tarball is the
+        // originally published URL while the round-trip body carries the
+        // rewritten URL (see [`rewrite_tarball_urls`]), so only the basename —
+        // the trust key shared with serve time — is comparable.
+        let existing_tarball = existing_dist.and_then(|dist| dist.get("tarball"));
+        if let Some(stored_basename) =
+            existing_tarball.and_then(Value::as_str).and_then(tarball_basename)
+        {
+            let incoming_basename = manifest
+                .get("dist")
+                .and_then(|dist| dist.get("tarball"))
+                .and_then(Value::as_str)
+                .and_then(tarball_basename);
+            match incoming_basename {
+                Some(submitted) if submitted != stored_basename => {
                     return Some(RegistryError::BadRequest {
-                        reason: format!("malformed dist.integrity for version {version:?}: {err}"),
+                        reason: format!(
+                            "dist.tarball for the published version {version:?} is immutable",
+                        ),
                     });
+                }
+                Some(_) => {}
+                None => {
+                    if let Some(err) = require_object_dist(manifest, version) {
+                        return Some(err);
+                    }
+                    let stored = existing_tarball.cloned().unwrap_or(Value::Null);
+                    restore.push((version.clone(), "tarball", stored));
                 }
             }
         }
     }
-    for (version, integrity) in restore {
+    for (version, key, value) in restore {
         if let Some(dist) = incoming
             .get_mut("versions")
             .and_then(|versions| versions.get_mut(&version))
             .and_then(|manifest| manifest.get_mut("dist"))
             .and_then(Value::as_object_mut)
         {
-            dist.insert("integrity".to_string(), Value::String(integrity));
+            dist.insert(key.to_string(), value);
         }
     }
     None
+}
+
+/// Restoring an omitted immutable dist field needs an object `dist` to write
+/// into. A published version sent with a non-object (or absent) `dist` is
+/// rejected rather than silently left as-is — otherwise the restore would no-op
+/// and persist the version without the field, the stripping this guards against.
+fn require_object_dist(manifest: &Value, version: &str) -> Option<RegistryError> {
+    if manifest.get("dist").is_some_and(Value::is_object) {
+        return None;
+    }
+    Some(RegistryError::BadRequest {
+        reason: format!("dist for the published version {version:?} must be an object"),
+    })
 }
 
 /// `DELETE /:pkg/-rev/:rev` — remove the entire package directory,
