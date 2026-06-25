@@ -37,6 +37,21 @@ fn completion_scripts_are_printed_for_pnpm_supported_shells() {
 }
 
 #[test]
+fn completion_scripts_do_not_expose_redundant_parameter_plumbing() {
+    let cases = [("bash", "[EXTRA]"), ("zsh", "*::extra:_default")];
+
+    for (shell, leaked_marker) in cases {
+        let output =
+            pacquet().args(["completion", shell]).output().expect("run pacquet completion");
+        let script = stdout(output);
+        assert!(
+            !script.contains(leaked_marker),
+            "{shell} script should not contain hidden extra argument marker {leaked_marker:?}: {script}"
+        );
+    }
+}
+
+#[test]
 fn completion_missing_shell_errors_like_pnpm() {
     let output = pacquet().arg("completion").output().expect("run pacquet completion");
     let err = stderr(output);

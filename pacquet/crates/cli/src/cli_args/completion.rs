@@ -1,4 +1,4 @@
-use clap::{Args, CommandFactory};
+use clap::{Arg, Args, Command, CommandFactory};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use std::io::Write;
@@ -83,8 +83,20 @@ impl CompletionArgs {
 }
 
 pub fn generate_completion(shell: CompletionShell, output: &mut dyn Write) {
-    let mut command = super::CliArgs::command();
+    let mut command = command_for_completion_generation();
     clap_complete::generate(shell.to_clap_shell(), &mut command, "pacquet", output);
+}
+
+fn command_for_completion_generation() -> Command {
+    super::CliArgs::command().mut_subcommands(|subcommand| {
+        if subcommand.get_name() == "completion" {
+            Command::new("completion")
+                .about("Print shell completion code to stdout.")
+                .arg(Arg::new("shell").value_name("SHELL"))
+        } else {
+            subcommand
+        }
+    })
 }
 
 #[cfg(test)]
