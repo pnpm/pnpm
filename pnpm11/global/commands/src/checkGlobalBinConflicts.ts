@@ -42,9 +42,7 @@ export async function checkGlobalBinConflicts (opts: {
 
   // Quick check: only investigate if a bin with the same name already exists
   const conflicting = new Set(
-    [...newBinOwners.keys()].filter(
-      (name) => fs.existsSync(path.join(opts.globalBinDir, name))
-    )
+    [...newBinOwners.keys()].filter((name) => binSlotExists(opts.globalBinDir, name))
   )
   if (conflicting.size === 0) return binsToSkip
 
@@ -88,4 +86,14 @@ export async function checkGlobalBinConflicts (opts: {
     }
   }
   return binsToSkip
+}
+
+// Whether a bin named `name` already occupies a slot in `globalBinDir`. On
+// Windows the `node` runtime bin is linked as `<name>.exe` (with no bare
+// `<name>` file), so that flavor is checked too — otherwise an existing
+// `node.exe` would not be detected as a conflict and could be silently
+// overwritten.
+function binSlotExists (globalBinDir: string, name: string): boolean {
+  if (fs.existsSync(path.join(globalBinDir, name))) return true
+  return process.platform === 'win32' && fs.existsSync(path.join(globalBinDir, `${name}.exe`))
 }

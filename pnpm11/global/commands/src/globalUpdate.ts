@@ -17,6 +17,7 @@ import type { CreateStoreControllerOptions } from '@pnpm/store.connection-manage
 import { isSubdir } from 'is-subdir'
 import { symlinkDir } from 'symlink-dir'
 
+import { getBinNamesOfOtherGroups } from './binOwnership.js'
 import { checkGlobalBinConflicts } from './checkGlobalBinConflicts.js'
 import { installGlobalPackages, type ResolutionPolicyViolation } from './installGlobalPackages.js'
 import { promptApproveGlobalBuilds } from './promptApproveGlobalBuilds.js'
@@ -139,9 +140,15 @@ async function updateGlobalPackageGroup (
     throw err
   }
 
-  // Remove stale bins from old installation before swapping
+  // Remove stale bins from old installation before swapping, but keep any
+  // bin owned by a different global group (don't delete another package's bin).
+  const protectedBins = await getBinNamesOfOtherGroups(globalDir, new Set([pkg.hash]))
   const oldBinNames = await getInstalledBinNames(pkg)
-  await Promise.all(oldBinNames.map((binName) => removeBin(path.join(globalBinDir, binName))))
+  await Promise.all(
+    oldBinNames
+      .filter((binName) => !protectedBins.has(binName))
+      .map((binName) => removeBin(path.join(globalBinDir, binName)))
+  )
 
   // Swap hash symlink to new install dir, then clean up old one
   const hashLink = getHashLink(globalDir, pkg.hash)
