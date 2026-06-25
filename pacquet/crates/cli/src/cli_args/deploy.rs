@@ -505,10 +505,9 @@ fn validate_workspace_child_target_components(
     workspace_dir: &Path,
     deploy_dir: &Path,
 ) -> miette::Result<()> {
-    let relative = deploy_dir.strip_prefix(workspace_dir).into_diagnostic()?;
     let mut current = workspace_dir.to_path_buf();
-    for component in relative.components() {
-        current.push(component.as_os_str());
+    for component in relative_components_from_child(workspace_dir, deploy_dir)? {
+        current.push(component);
         let metadata = match fs::symlink_metadata(&current) {
             Ok(metadata) => metadata,
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
@@ -530,11 +529,11 @@ fn unsafe_deploy_target<Output>(deploy_dir: &Path, reason: &'static str) -> miet
 }
 
 fn is_ancestor_path(parent: &Path, child: &Path) -> bool {
-    child.starts_with(parent) && !same_path(parent, child)
+    is_child_path(child, parent)
 }
 
 fn is_child_path(child: &Path, parent: &Path) -> bool {
-    child.starts_with(parent) && !same_path(child, parent)
+    has_path_prefix(child, parent) && !same_path(child, parent)
 }
 
 fn prepare_deploy_dir<ReporterT: Reporter>(
@@ -578,10 +577,9 @@ fn create_workspace_child_target_parents(
     let Some(parent) = deploy_dir.parent() else {
         return Ok(());
     };
-    let relative = parent.strip_prefix(workspace_dir).into_diagnostic()?;
     let mut current = workspace_dir.to_path_buf();
-    for component in relative.components() {
-        current.push(component.as_os_str());
+    for component in relative_components_from_child(workspace_dir, parent)? {
+        current.push(component);
         create_workspace_child_target_component(&current)?;
     }
     Ok(())
@@ -1189,7 +1187,54 @@ fn create_file_url_key(
 }
 
 fn same_path(left: &Path, right: &Path) -> bool {
-    lexical_normalize(left) == lexical_normalize(right)
+    let left = lexical_normalize(left);
+    let right = lexical_normalize(right);
+    path_components_match(&left, &right)
+}
+
+fn has_path_prefix(child: &Path, parent: &Path) -> bool {
+    let child = lexical_normalize(child);
+    let parent = lexical_normalize(parent);
+    let child_components = comparable_path_components(&child);
+    let parent_components = comparable_path_components(&parent);
+    child_components.len() >= parent_components.len()
+        && child_components
+            .iter()
+            .zip(parent_components.iter())
+            .all(|(child, parent)| child == parent)
+}
+
+fn path_components_match(left: &Path, right: &Path) -> bool {
+    comparable_path_components(left) == comparable_path_components(right)
+}
+
+fn comparable_path_components(path: &Path) -> Vec<String> {
+    path.components()
+        .map(|component| comparison_component(component.as_os_str().to_string_lossy().as_ref()))
+        .collect()
+}
+
+#[cfg(windows)]
+fn comparison_component(component: &str) -> String {
+    component.to_lowercase()
+}
+
+#[cfg(not(windows))]
+fn comparison_component(component: &str) -> String {
+    component.to_string()
+}
+
+fn relative_components_from_child(parent: &Path, child: &Path) -> miette::Result<Vec<PathBuf>> {
+    let parent = lexical_normalize(parent);
+    let child = lexical_normalize(child);
+    if !has_path_prefix(&child, &parent) {
+        child.strip_prefix(&parent).into_diagnostic()?;
+    }
+    Ok(child
+        .components()
+        .skip(parent.components().count())
+        .map(|component| PathBuf::from(component.as_os_str()))
+        .collect())
 }
 
 fn relative_path(from: &Path, to: &Path) -> String {
