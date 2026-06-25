@@ -179,7 +179,7 @@ pub async fn fetch_full_metadata_cached(
             let mut meta: Package = serde_json::from_str(&raw_body)
                 .map_err(|error| FetchMetadataError::Decode { url: task_url.clone(), error })?;
             if should_filter_metadata {
-                meta = clear_meta(&meta).map_err(|error| FetchMetadataError::Decode {
+                meta = clear_meta(&meta).map_err(|error| FetchMetadataError::FilterMetadata {
                     url: task_url.clone(),
                     error: error.into_inner(),
                 })?;

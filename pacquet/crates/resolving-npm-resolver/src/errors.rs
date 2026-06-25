@@ -45,6 +45,21 @@ pub enum FetchMetadataError {
         error: serde_json::Error,
     },
 
+    /// Filtering a parsed packument down to the fields pnpm keeps
+    /// (`clear_meta`, the `filterMetadata` path) failed. Unlike a body
+    /// read or the top-level parse, this runs on an already-parsed,
+    /// complete `Package`, so it is deterministic — a fresh re-fetch
+    /// would feed `clear_meta` the same structure and fail identically.
+    /// Kept out of [`FetchMetadataError::is_body_retryable`] for that
+    /// reason.
+    #[display("Failed to filter metadata from {url}: {error}")]
+    #[diagnostic(code(pacquet_resolving_npm_resolver::filter_metadata_error))]
+    FilterMetadata {
+        url: String,
+        #[error(source)]
+        error: serde_json::Error,
+    },
+
     /// Mirrors upstream's `META_NOT_MODIFIED_WITHOUT_CACHE`. Surfaces
     /// only when a stale-but-removed mirror plus an `If-None-Match`
     /// header the caller-provided cache headers carried (impossible
