@@ -19,7 +19,7 @@ use crate::{
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pacquet_cmd_shim::{Host as CmdShimHost, link_bins_of_packages_with_excludes, remove_bin};
-use pacquet_config::{Config, check_global_bin_dir};
+use pacquet_config::{Config, WorkspaceSettings, check_global_bin_dir};
 use pacquet_fs::{force_symlink_dir, is_subdir, lexical_normalize};
 use pacquet_global::{
     GlobalPackageInfo, check_global_bin_conflicts, clean_orphaned_install_dirs,
@@ -265,6 +265,32 @@ async fn run_group_install<Reporter: self::Reporter + 'static>(
     cfg.lockfile = true;
     cfg.workspace_dir = None;
     cfg.supported_architectures = supported_architectures;
+
+    // Build-script policy for global installs comes from the global packages
+    // directory, never the caller's repo — otherwise a repo-controlled
+    // `pnpm-workspace.yaml` could decide which lifecycle scripts run during
+    // `add -g` / `update -g`. Drop the inherited repo policy and load the
+    // global `allowBuilds` (where the approval prompt persists its
+    // decisions) instead.
+    cfg.dangerously_allow_all_builds = false;
+    cfg.allow_builds.clear();
+    if let Some((_, settings)) = WorkspaceSettings::find_and_load(global_pkg_dir)
+        .map_err(miette::Report::new)
+        .wrap_err("load global allowBuilds")?
+    {
+        if let Some(allow_builds) = settings.allow_builds {
+            cfg.allow_builds = allow_builds;
+        }
+        if let Some(allow_all) = settings.dangerously_allow_all_builds {
+            cfg.dangerously_allow_all_builds = allow_all;
+        }
+    }
+    // Don't fail the install when a dependency's build is ignored; the
+    // global approval prompt (run after the install) handles it. Mirrors
+    // pnpm's global flow, which records ignored builds and prompts rather
+    // than erroring under `strictDepBuilds`.
+    cfg.strict_dep_builds = false;
+
     let config: &'static Config = Config::leak(cfg);
 
     let manifest_path = install_dir.join("package.json");
