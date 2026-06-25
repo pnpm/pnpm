@@ -4,9 +4,6 @@ mod config_overrides;
 mod job_control;
 mod state;
 
-#[cfg(test)]
-mod list_unit;
-
 use clap::Parser;
 use cli_args::CliArgs;
 use config_overrides::ConfigOverrides;
