@@ -209,6 +209,23 @@ fn invalid_package_name_is_rejected() {
 }
 
 #[test]
+fn version_with_path_separator_is_rejected() {
+    // A separator in the manifest version would smuggle path components
+    // into the default `<name>-<version>.tgz` filename and write the
+    // tarball outside the destination directory.
+    for version in ["../../evil", "1.0.0/../../evil", r"..\..\evil"] {
+        let (_dir, opts) = fixture(&json!({ "name": "foo", "version": version }));
+        assert!(
+            matches!(
+                api::<SilentReporter, Host>(&opts),
+                Err(PackError::InvalidPackageVersion { .. })
+            ),
+            "version {version:?} should be rejected",
+        );
+    }
+}
+
+#[test]
 fn out_and_pack_destination_together_is_rejected() {
     let (_dir, mut opts) = fixture(&json!({ "name": "foo", "version": "1.0.0" }));
     opts.out = Some("%s.tgz".to_string());

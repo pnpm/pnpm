@@ -157,6 +157,10 @@ pub enum PackError {
     #[diagnostic(code(ERR_PNPM_PACKAGE_VERSION_NOT_FOUND))]
     PackageVersionNotFound,
 
+    #[display("Invalid package version \"{version}\".")]
+    #[diagnostic(code(ERR_PNPM_INVALID_PACKAGE_VERSION))]
+    InvalidPackageVersion { version: String },
+
     #[display("Cannot use --pack-destination and --out together")]
     #[diagnostic(code(ERR_PNPM_INVALID_OPTION))]
     OutAndPackDestination,
@@ -232,11 +236,19 @@ where
     if !is_valid_old_npm_package_name(name) {
         return Err(PackError::InvalidPackageName { name: name.to_string() });
     }
-    let _ = manifest
+    let version = manifest
         .get("version")
         .and_then(Value::as_str)
         .filter(|version| !version.is_empty())
         .ok_or(PackError::PackageVersionNotFound)?;
+    // The version is interpolated into the default tarball filename
+    // (`<name>-<version>.tgz`), and the manifest is attacker-controlled.
+    // A separator would let `version` smuggle path components into the
+    // join and write the tarball outside `dest_dir`. A real semver
+    // version never contains one, so reject it.
+    if version.contains('/') || version.contains('\\') {
+        return Err(PackError::InvalidPackageVersion { version: version.to_string() });
+    }
 
     let modules_dir = opts.dir.join("node_modules");
     let mut publish_manifest = create_exportable_manifest(

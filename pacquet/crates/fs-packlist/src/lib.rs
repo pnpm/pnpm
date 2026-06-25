@@ -58,7 +58,7 @@ use serde_json::Value;
 use std::{
     collections::{BTreeSet, HashSet, VecDeque},
     fs,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
 };
 
 #[cfg(test)]
@@ -372,18 +372,18 @@ fn collect_own_files(pkg_dir: &Path, manifest: &Value) -> Result<BTreeSet<String
     // silent too (a `tracing::debug!` would be lost in install logs).
     if let Some(main) = main_path {
         let main_norm = normalize_field_path(main);
-        if !main_norm.is_empty()
+        if is_contained_field_path(&main_norm)
             && !should_always_exclude(&main_norm)
-            && pkg_dir.join(&main_norm).is_file()
+            && is_regular_file(&pkg_dir.join(&main_norm))
         {
             out.insert(main_norm);
         }
     }
     for bin in &bin_paths {
         let bin_norm = normalize_field_path(bin);
-        if !bin_norm.is_empty()
+        if is_contained_field_path(&bin_norm)
             && !should_always_exclude(&bin_norm)
-            && pkg_dir.join(&bin_norm).is_file()
+            && is_regular_file(&pkg_dir.join(&bin_norm))
         {
             out.insert(bin_norm);
         }
@@ -576,6 +576,28 @@ fn relative_forward_slash(root: &Path, full: &Path) -> String {
 fn normalize_field_path(path: &str) -> String {
     let trimmed = path.trim_start_matches("./");
     trimmed.trim_start_matches('/').to_string()
+}
+
+/// Whether a `normalize_field_path`-ed `main` / `bin` value stays inside
+/// the package: non-empty, only normal path components (no `..`, root, or
+/// drive/UNC prefix), and no backslash (a separator on Windows, where the
+/// git fetcher may import a package). The packlist feeds both `pack` and
+/// the git fetcher on attacker-controlled manifests, so an escaping field
+/// must never be force-included — a `main: "../secret"` would otherwise be
+/// read into the tarball / CAS.
+fn is_contained_field_path(normalized: &str) -> bool {
+    !normalized.is_empty()
+        && !normalized.contains('\\')
+        && Path::new(normalized)
+            .components()
+            .all(|component| matches!(component, Component::Normal(_)))
+}
+
+/// Whether `path` is a regular file without following a final symlink, so
+/// a `main` / `bin` pointing at a symlink to a file outside the package
+/// is not force-included (which would leak the target's bytes).
+fn is_regular_file(path: &Path) -> bool {
+    fs::symlink_metadata(path).is_ok_and(|metadata| metadata.file_type().is_file())
 }
 
 fn io_error(pkg_dir: &Path, source: std::io::Error) -> PacklistError {
