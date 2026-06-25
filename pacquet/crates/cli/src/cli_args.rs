@@ -186,9 +186,12 @@ pub enum CliCommand {
     Outdated(OutdatedArgs),
     /// Checks for known security issues with the installed packages.
     Audit(AuditArgs),
-    /// List installed packages (global only for now).
+    /// List installed packages.
     #[clap(visible_alias = "ls")]
     List(ListArgs),
+    /// List installed packages in long format.
+    #[clap(visible_alias = "la")]
+    Ll(ListArgs),
     /// Shows the packages that depend on `pkg`
     Why(WhyArgs),
     /// Displays your pnpm username.
@@ -507,7 +510,12 @@ impl CliArgs {
                 }
             }
             CliCommand::List(args) => {
-                args.run(config()?)?;
+                args.run(config()?, dir_ref)?;
+                Box::pin(std::future::ready(Ok(())))
+            }
+            CliCommand::Ll(mut args) => {
+                args.long = true;
+                args.run(config()?, dir_ref)?;
                 Box::pin(std::future::ready(Ok(())))
             }
             CliCommand::Why(args) => Box::pin(args.run(state(true)?)),
