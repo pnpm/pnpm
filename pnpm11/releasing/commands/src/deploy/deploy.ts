@@ -113,6 +113,12 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
     projectDir: selectedProject.rootDir,
     workspaceDir: opts.workspaceDir,
   })
+  const normalizedDeployDir = path.resolve(deployDir)
+  const normalizedWorkspaceDir = path.resolve(opts.workspaceDir)
+  const workspaceChildTarget = isChildPath(normalizedDeployDir, normalizedWorkspaceDir)
+  if (workspaceChildTarget) {
+    createWorkspaceChildTargetParents(normalizedWorkspaceDir, normalizedDeployDir)
+  }
 
   if (!isEmptyDirOrNothing(deployDir)) {
     if (!opts.force) {
@@ -122,8 +128,16 @@ export async function handler (opts: DeployOptions, params: string[]): Promise<v
     logger.warn({ message: 'using --force, deleting deploy path', prefix: deployDir })
   }
 
+  if (workspaceChildTarget) {
+    validateWorkspaceChildTargetComponents(normalizedWorkspaceDir, normalizedDeployDir)
+  }
   await rimraf(deployDir)
-  await fs.promises.mkdir(deployDir, { recursive: true })
+  if (workspaceChildTarget) {
+    createWorkspaceChildTargetParents(normalizedWorkspaceDir, normalizedDeployDir)
+    createWorkspaceChildTargetDir(normalizedWorkspaceDir, normalizedDeployDir)
+  } else {
+    await fs.promises.mkdir(deployDir, { recursive: true })
+  }
   const includeOnlyPackageFiles = !opts.deployAllFiles
   await copyProject(selectedProject.rootDir, deployDir, { includeOnlyPackageFiles })
 
@@ -267,6 +281,44 @@ function validateWorkspaceChildTargetComponents (workspaceDir: string, deployDir
   }
 }
 
+function createWorkspaceChildTargetParents (workspaceDir: string, deployDir: string): void {
+  const parent = path.dirname(deployDir)
+  const relative = path.relative(workspaceDir, parent)
+  let current = workspaceDir
+  for (const component of relative.split(path.sep)) {
+    if (!component) continue
+    current = path.join(current, component)
+    createWorkspaceChildTargetComponent(current)
+  }
+}
+
+function createWorkspaceChildTargetDir (workspaceDir: string, deployDir: string): void {
+  try {
+    fs.mkdirSync(deployDir)
+  } catch (error: unknown) {
+    if (isEEXIST(error)) {
+      throw unsafeDeployTarget(deployDir, 'target changed during deploy preparation')
+    }
+    throw error
+  }
+  validateWorkspaceChildTargetComponents(workspaceDir, deployDir)
+}
+
+function createWorkspaceChildTargetComponent (component: string): void {
+  try {
+    fs.mkdirSync(component)
+  } catch (error: unknown) {
+    if (!isEEXIST(error)) throw error
+  }
+  const stat = fs.lstatSync(component)
+  if (stat.isSymbolicLink()) {
+    throw unsafeDeployTarget(component, 'target path contains a symlink')
+  }
+  if (!stat.isDirectory()) {
+    throw unsafeDeployTarget(component, 'target path contains a non-directory')
+  }
+}
+
 function unsafeDeployTarget (deployDir: string, reason: string): PnpmError {
   return new PnpmError('INVALID_DEPLOY_TARGET', `Refusing to deploy to unsafe target ${deployDir}: ${reason}`)
 }
@@ -286,6 +338,10 @@ function isChildPath (child: string, parent: string): boolean {
 
 function isENOENT (error: unknown): boolean {
   return typeof error === 'object' && error != null && 'code' in error && error.code === 'ENOENT'
+}
+
+function isEEXIST (error: unknown): boolean {
+  return typeof error === 'object' && error != null && 'code' in error && error.code === 'EEXIST'
 }
 
 async function deployFromSharedLockfile (

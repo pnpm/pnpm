@@ -210,7 +210,7 @@ impl DeployArgs {
             dir,
             self.force,
         )?;
-        prepare_deploy_dir::<ReporterT>(&deploy_dir, self.force)?;
+        prepare_deploy_dir::<ReporterT>(workspace_dir, &deploy_dir, self.force)?;
         copy_project::<ReporterT>(
             &selected.project.root_dir,
             &deploy_dir,
@@ -531,22 +531,94 @@ fn is_child_path(child: &Path, parent: &Path) -> bool {
     child.starts_with(parent) && !same_path(child, parent)
 }
 
-fn prepare_deploy_dir<ReporterT: Reporter>(deploy_dir: &Path, force: bool) -> miette::Result<()> {
-    if !is_empty_dir_or_absent(deploy_dir)? {
+fn prepare_deploy_dir<ReporterT: Reporter>(
+    workspace_dir: &Path,
+    deploy_dir: &Path,
+    force: bool,
+) -> miette::Result<()> {
+    let workspace_dir = lexical_normalize(workspace_dir);
+    let deploy_dir = lexical_normalize(deploy_dir);
+    let workspace_child_target = is_child_path(&deploy_dir, &workspace_dir);
+    if workspace_child_target {
+        create_workspace_child_target_parents(&workspace_dir, &deploy_dir)?;
+    }
+    if !is_empty_dir_or_absent(&deploy_dir)? {
         if !force {
-            return Err(
-                DeployError::DeployDirNotEmpty { deploy_dir: deploy_dir.to_path_buf() }.into()
-            );
+            return Err(DeployError::DeployDirNotEmpty { deploy_dir }.into());
         }
         warn::<ReporterT>(
-            deploy_dir,
+            &deploy_dir,
             format!("using --force, deleting deploy path {}", deploy_dir.display()),
         );
     }
-    remove_path_if_exists(deploy_dir)?;
-    fs::create_dir_all(deploy_dir)
+    if workspace_child_target {
+        validate_workspace_child_target_components(&workspace_dir, &deploy_dir)?;
+    }
+    remove_path_if_exists(&deploy_dir)?;
+    if workspace_child_target {
+        create_workspace_child_target_parents(&workspace_dir, &deploy_dir)?;
+        create_workspace_child_target_dir(&workspace_dir, &deploy_dir)
+    } else {
+        fs::create_dir_all(&deploy_dir)
+            .into_diagnostic()
+            .wrap_err_with(|| format!("create deploy directory {}", deploy_dir.display()))
+    }
+}
+
+fn create_workspace_child_target_parents(
+    workspace_dir: &Path,
+    deploy_dir: &Path,
+) -> miette::Result<()> {
+    let Some(parent) = deploy_dir.parent() else {
+        return Ok(());
+    };
+    let relative = parent.strip_prefix(workspace_dir).into_diagnostic()?;
+    let mut current = workspace_dir.to_path_buf();
+    for component in relative.components() {
+        current.push(component.as_os_str());
+        create_workspace_child_target_component(&current)?;
+    }
+    Ok(())
+}
+
+fn create_workspace_child_target_dir(
+    workspace_dir: &Path,
+    deploy_dir: &Path,
+) -> miette::Result<()> {
+    match fs::create_dir(deploy_dir) {
+        Ok(()) => {}
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+            return unsafe_deploy_target(deploy_dir, "target changed during deploy preparation");
+        }
+        Err(error) => {
+            return Err(error)
+                .into_diagnostic()
+                .wrap_err_with(|| format!("create deploy directory {}", deploy_dir.display()));
+        }
+    }
+    validate_workspace_child_target_components(workspace_dir, deploy_dir)
+}
+
+fn create_workspace_child_target_component(component: &Path) -> miette::Result<()> {
+    match fs::create_dir(component) {
+        Ok(()) => {}
+        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
+        Err(error) => {
+            return Err(error).into_diagnostic().wrap_err_with(|| {
+                format!("create deploy target component {}", component.display())
+            });
+        }
+    }
+    let metadata = fs::symlink_metadata(component)
         .into_diagnostic()
-        .wrap_err_with(|| format!("create deploy directory {}", deploy_dir.display()))
+        .wrap_err_with(|| format!("inspect deploy target {}", component.display()))?;
+    if metadata.file_type().is_symlink() {
+        return unsafe_deploy_target(component, "target path contains a symlink");
+    }
+    if !metadata.is_dir() {
+        return unsafe_deploy_target(component, "target path contains a non-directory");
+    }
+    Ok(())
 }
 
 fn is_empty_dir_or_absent(path: &Path) -> miette::Result<bool> {
