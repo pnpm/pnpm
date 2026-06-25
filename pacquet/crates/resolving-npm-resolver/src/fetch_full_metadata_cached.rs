@@ -18,7 +18,9 @@
 
 use std::path::Path;
 
-use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient, retry_async, send_with_retry};
+use pacquet_network::{
+    AuthHeaders, RetryOpts, ThrottledClient, redact_url_credentials, retry_async, send_with_retry,
+};
 use pacquet_registry::Package;
 use pipe_trait::Pipe;
 use reqwest::{StatusCode, header};
@@ -124,7 +126,10 @@ pub async fn fetch_full_metadata_cached(
                 request
             })
             .await
-            .map_err(|error| FetchMetadataError::Network { url: url.clone(), error })?;
+            .map_err(|error| FetchMetadataError::Network {
+                url: redact_url_credentials(&url),
+                error,
+            })?;
 
         if response.status() == StatusCode::NOT_MODIFIED {
             // No body to stream — release the connection and its
@@ -145,19 +150,19 @@ pub async fn fetch_full_metadata_cached(
             return Ok(meta);
         }
 
-        let response = response
-            .error_for_status()
-            .map_err(|error| FetchMetadataError::Network { url: url.clone(), error })?;
+        let response = response.error_for_status().map_err(|error| {
+            FetchMetadataError::Network { url: redact_url_credentials(&url), error }
+        })?;
 
         let etag = response
             .headers()
             .get(header::ETAG)
             .and_then(|value| value.to_str().ok())
             .map(str::to_string);
-        let raw_body = response
-            .text()
-            .await
-            .map_err(|error| FetchMetadataError::BodyRead { url: url.clone(), error })?;
+        let raw_body = response.text().await.map_err(|error| FetchMetadataError::BodyRead {
+            url: redact_url_credentials(&url),
+            error,
+        })?;
 
         // Body fully buffered — release the connection and its
         // network-concurrency permit before the CPU-bound parse so the
@@ -176,11 +181,12 @@ pub async fn fetch_full_metadata_cached(
         let task_url = url.clone();
         let task_mirror_path = mirror_path.clone();
         let meta = tokio::task::spawn_blocking(move || -> Result<Package, FetchMetadataError> {
-            let mut meta: Package = serde_json::from_str(&raw_body)
-                .map_err(|error| FetchMetadataError::Decode { url: task_url.clone(), error })?;
+            let mut meta: Package = serde_json::from_str(&raw_body).map_err(|error| {
+                FetchMetadataError::Decode { url: redact_url_credentials(&task_url), error }
+            })?;
             if should_filter_metadata {
                 meta = clear_meta(&meta).map_err(|error| FetchMetadataError::FilterMetadata {
-                    url: task_url.clone(),
+                    url: redact_url_credentials(&task_url),
                     error: error.into_inner(),
                 })?;
             }
@@ -206,7 +212,10 @@ pub async fn fetch_full_metadata_cached(
             Ok(meta)
         })
         .await
-        .map_err(|error| FetchMetadataError::ParseTask { url: url.clone(), error })??;
+        .map_err(|error| FetchMetadataError::ParseTask {
+            url: redact_url_credentials(&url),
+            error,
+        })??;
 
         meta.pipe(Ok)
     })

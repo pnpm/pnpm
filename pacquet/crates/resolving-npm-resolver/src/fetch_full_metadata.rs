@@ -20,7 +20,9 @@
 //! Ports the request half of upstream's
 //! [`fetchMetadataFromFromRegistry`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetch.ts#L118-L204).
 
-use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient, retry_async, send_with_retry};
+use pacquet_network::{
+    AuthHeaders, RetryOpts, ThrottledClient, redact_url_credentials, retry_async, send_with_retry,
+};
 use pacquet_registry::Package;
 use reqwest::{StatusCode, header};
 
@@ -107,17 +109,20 @@ pub async fn fetch_full_metadata(
                 request
             })
             .await
-            .map_err(|error| FetchMetadataError::Network { url: url.clone(), error })?;
+            .map_err(|error| FetchMetadataError::Network {
+                url: redact_url_credentials(&url),
+                error,
+            })?;
         if response.status() == StatusCode::NOT_MODIFIED {
             return Ok(FetchFullMetadataOutcome::NotModified);
         }
-        let response = response
-            .error_for_status()
-            .map_err(|error| FetchMetadataError::Network { url: url.clone(), error })?;
-        let raw_body = response
-            .text()
-            .await
-            .map_err(|error| FetchMetadataError::BodyRead { url: url.clone(), error })?;
+        let response = response.error_for_status().map_err(|error| {
+            FetchMetadataError::Network { url: redact_url_credentials(&url), error }
+        })?;
+        let raw_body = response.text().await.map_err(|error| FetchMetadataError::BodyRead {
+            url: redact_url_credentials(&url),
+            error,
+        })?;
         // Body fully buffered — release the connection and its
         // network-concurrency permit, then parse off the reactor: a
         // multi-MB packument parse would otherwise pin a tokio worker
@@ -126,11 +131,16 @@ pub async fn fetch_full_metadata(
         drop(client);
         let task_url = url.clone();
         let meta = tokio::task::spawn_blocking(move || {
-            serde_json::from_str::<Package>(&raw_body)
-                .map_err(|error| FetchMetadataError::Decode { url: task_url.clone(), error })
+            serde_json::from_str::<Package>(&raw_body).map_err(|error| FetchMetadataError::Decode {
+                url: redact_url_credentials(&task_url),
+                error,
+            })
         })
         .await
-        .map_err(|error| FetchMetadataError::ParseTask { url: url.clone(), error })??;
+        .map_err(|error| FetchMetadataError::ParseTask {
+            url: redact_url_credentials(&url),
+            error,
+        })??;
         Ok(FetchFullMetadataOutcome::Modified(Box::new(meta)))
     })
     .await

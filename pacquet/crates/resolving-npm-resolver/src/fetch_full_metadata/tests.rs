@@ -175,6 +175,35 @@ async fn fetch_full_metadata_surfaces_5xx_as_network_error() {
 }
 
 #[tokio::test]
+async fn fetch_full_metadata_redacts_credentials_in_surfaced_error() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server.mock("GET", "/acme").with_status(503).expect(1).create_async().await;
+
+    // Registry configured with inline basic-auth in the URL: the surfaced
+    // error (Display *and* Debug, which reach the terminal and CI logs) must
+    // not carry the password.
+    let registry = format!("{}/", server.url().replacen("http://", "http://user:secret@", 1));
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataOptions {
+        registry: &registry,
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        full_metadata: true,
+        etag: None,
+        modified: None,
+        retry_opts: no_retry_opts(),
+    };
+
+    let err = fetch_full_metadata("acme", &opts).await.expect_err("503 must surface");
+    for rendered in [err.to_string(), format!("{err:?}")] {
+        assert!(!rendered.contains("secret"), "password must not leak: {rendered}");
+        assert!(!rendered.contains("user:"), "userinfo must not leak: {rendered}");
+    }
+    mock.assert_async().await;
+}
+
+#[tokio::test]
 async fn fetch_full_metadata_retries_transient_status() {
     let mut server = mockito::Server::new_async().await;
     let first = server.mock("GET", "/acme").with_status(503).expect(1).create_async().await;

@@ -10,6 +10,13 @@ use miette::Diagnostic;
 /// [`crate::MINIMUM_RELEASE_AGE_VIOLATION_CODE`] or
 /// [`crate::TRUST_DOWNGRADE_VIOLATION_CODE`] depending on which
 /// policy triggered the lookup.
+///
+/// Every URL-bearing variant stores a credential-redacted `url` (the
+/// fetchers pass it through [`pacquet_network::redact_url_credentials`]
+/// at construction), so a registry configured with inline
+/// `user:pass@host` basic-auth can't leak into the `Display` /
+/// `Diagnostic` message — which reaches the terminal, CI logs, and
+/// reporters whenever the resolver surfaces the error.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum FetchMetadataError {
