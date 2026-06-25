@@ -16,6 +16,7 @@ pub mod patch;
 pub mod patch_commit;
 pub mod patch_remove;
 pub(crate) mod patch_state;
+pub mod prune;
 pub mod rebuild;
 pub mod recursive;
 pub mod remove;
@@ -58,6 +59,7 @@ use pacquet_reporter::{
 use patch::PatchArgs;
 use patch_commit::PatchCommitArgs;
 use patch_remove::PatchRemoveArgs;
+use prune::PruneArgs;
 use rebuild::RebuildArgs;
 use remove::RemoveArgs;
 use restart::RestartArgs;
@@ -227,6 +229,8 @@ pub enum CliCommand {
     Import(ImportArgs),
     /// Deduplicate packages in the lockfile
     Dedupe(DedupeArgs),
+    /// Remove extraneous packages
+    Prune(PruneArgs),
 }
 
 impl CliArgs {
@@ -313,6 +317,7 @@ impl CliArgs {
                 | CliCommand::Dlx(_)
                 | CliCommand::Import(_)
                 | CliCommand::Dedupe(_)
+                | CliCommand::Prune(_)
                 | CliCommand::Create(_)
                 | CliCommand::Runtime(_)
                 // `rebuild` drives the frozen-install pipeline and emits
@@ -704,6 +709,31 @@ impl CliArgs {
                     ReporterType::Silent => Box::pin(args.run::<SilentReporter>(command_state)),
                 }
             }
+            CliCommand::Prune(args) => Box::pin(async move {
+                let cfg = config()?;
+                let (config_root, package_manager_to_sync) =
+                    derive_config_root_and_package_manager_to_sync(cfg, dir_ref)
+                        .wrap_err("derive workspace root and package manager policy")?;
+                let pipeline = PrunePipeline {
+                    args,
+                    cfg,
+                    config_root,
+                    package_manager_to_sync,
+                    manifest_path: manifest_path_ref.clone(),
+                };
+                match reporter {
+                    ReporterType::Default | ReporterType::AppendOnly => {
+                        Box::pin(pipeline.run::<DefaultReporter>()).await?;
+                    }
+                    ReporterType::Ndjson => {
+                        Box::pin(pipeline.run::<NdjsonReporter>()).await?;
+                    }
+                    ReporterType::Silent => {
+                        Box::pin(pipeline.run::<SilentReporter>()).await?;
+                    }
+                }
+                Ok(())
+            }),
             CliCommand::CatIndex(args) => Box::pin(async move {
                 args.run(dir_ref, || config().map(|m| &*m)).await?;
                 Ok(())
@@ -806,8 +836,8 @@ impl InstallPipeline {
     }
 }
 
-/// Shared workspace-root and package-manager policy derivation used by both
-/// the install and dedupe dispatch paths.
+/// Shared workspace-root and package-manager policy derivation used by the
+/// install, dedupe, and prune dispatch paths.
 fn derive_config_root_and_package_manager_to_sync(
     cfg: &Config,
     dir_ref: &Path,
@@ -861,6 +891,69 @@ impl DedupePipeline {
         let cfg: &'static Config = cfg;
         let state = State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
         args.run::<Reporter>(state, existing, guard, &lockfile_path).await
+    }
+}
+
+/// The reporter-generic body of `pacquet prune`: runs config-deps and
+/// `updateConfig` hooks first, then applies prune-specific config
+/// overrides (`modules_cache_max_age`, `ignore_scripts`) on the
+/// post-hook config, and finally dispatches to the install pipeline.
+/// The overrides must come after hooks because `updateConfig` can
+/// mutate `Config` fields (including `modules_dir` /
+/// `virtual_store_dir`), and the CLI `--ignore-scripts` flag must win
+/// over any hook-set value.
+struct PrunePipeline {
+    args: PruneArgs,
+    cfg: &'static mut Config,
+    config_root: PathBuf,
+    package_manager_to_sync: Option<PackageManagerToSync>,
+    manifest_path: PathBuf,
+}
+
+impl PrunePipeline {
+    async fn run<Reporter: self::Reporter + 'static>(self) -> miette::Result<()> {
+        let PrunePipeline { args, cfg, config_root, package_manager_to_sync, manifest_path } = self;
+
+        if let Some(pm) = package_manager_to_sync.as_ref() {
+            config_deps::sync_package_manager_dependencies(
+                cfg,
+                &config_root,
+                &pm.specifier,
+                &pm.version,
+                false,
+            )
+            .await?;
+        }
+        config_deps::install_config_deps::<Reporter>(cfg, &config_root, false).await?;
+        config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
+        // Validate path containment AFTER hooks: updateConfig can mutate
+        // modules_dir / virtual_store_dir via WorkspaceSettings::apply_to,
+        // so the check must use the final (post-hook) config values.
+        // The install pipeline's prune_target_within_modules also validates
+        // VSD containment, but only at sweep time; this earlier check
+        // catches a misconfigured modules_dir itself (e.g. an absolute
+        // path outside the workspace) before any destructive work begins.
+        //
+        // `config_root` is `cfg.workspace_dir` when present, or the
+        // canonicalized `--dir` otherwise — a meaningful containment
+        // boundary in both cases.
+        if !cfg.modules_dir.starts_with(&config_root) {
+            let modules_dir = cfg.modules_dir.display();
+            let cr = config_root.display();
+            return Err(miette::miette!(
+                "refusing prune: modules_dir ({modules_dir}) is outside workspace root ({cr})",
+            ));
+        }
+        // Apply prune-specific overrides after hooks so that:
+        // - `modules_cache_max_age = 0` forces the virtual-store sweep
+        //   on the final (post-hook) config paths.
+        // - `--ignore-scripts` from the CLI wins over any value the
+        //   hooks set via `WorkspaceSettings::apply_to`.
+        cfg.modules_cache_max_age = 0;
+        cfg.ignore_scripts = cfg.ignore_scripts || args.ignore_scripts;
+        let cfg: &'static Config = cfg;
+        let state = State::init(manifest_path, cfg, false).wrap_err("initialize the state")?;
+        args.run::<Reporter>(state).await
     }
 }
 

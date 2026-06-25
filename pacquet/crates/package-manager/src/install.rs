@@ -244,6 +244,12 @@ where
     /// catalog bump drives resolution even under `--no-save`, where the
     /// bumped entry is intentionally not persisted to disk.
     pub catalogs_override: Option<Catalogs>,
+    /// When `true`, the optimistic repeat-install fast path is
+    /// disabled so the full install pipeline always runs. `pacquet
+    /// prune` sets this because the fast path short-circuits before
+    /// the virtual-store sweep, meaning extraneous packages can
+    /// survive a prune when the lockfile hasn't changed.
+    pub disable_optimistic_repeat_install: bool,
 }
 
 /// Error type of [`Install`].
@@ -514,6 +520,7 @@ where
             auth_override,
             resolution_observer,
             catalogs_override,
+            disable_optimistic_repeat_install,
         } = self;
 
         // `--dry-run` resolves but never materializes, so it borrows the
@@ -641,6 +648,7 @@ where
         let optimistic_decision = is_full_install
             && matches!(update_seed_policy, UpdateSeedPolicy::KeepAll)
             && !frozen_lockfile
+            && !disable_optimistic_repeat_install
             && check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
                 workspace_root: &workspace_root,
                 config,
