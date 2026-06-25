@@ -163,6 +163,31 @@ fn rejects_output_dir_symlinked_outside_the_project() {
     assert_eq!(code, "ERR_PNPM_PACK_APP_OUTPUT_DIR_OUTSIDE_PROJECT");
 }
 
+#[cfg(unix)]
+#[test]
+fn rejects_output_file_that_is_a_preexisting_symlink() {
+    let dir = TempDir::new().unwrap();
+    let outside = TempDir::new().unwrap();
+    let victim = outside.path().join("victim");
+    fs::write(&victim, "do not overwrite").unwrap();
+    fs::write(dir.path().join("entry.cjs"), "module.exports = {}").unwrap();
+    // The committed output path `dist-app/linux-x64/app` is a symlink to a
+    // file outside the project; `node --build-sea` must not write through it.
+    let target_dir = dir.path().join("dist-app").join("linux-x64");
+    fs::create_dir_all(&target_dir).unwrap();
+    std::os::unix::fs::symlink(&victim, target_dir.join("app")).unwrap();
+    let code = run_and_get_code(
+        &dir,
+        PackAppArgs {
+            entry: Some("entry.cjs".to_string()),
+            target: vec!["linux-x64".to_string()],
+            output_name: Some("app".to_string()),
+            ..args()
+        },
+    );
+    assert_eq!(code, "ERR_PNPM_PACK_APP_OUTPUT_FILE_NOT_REGULAR");
+}
+
 #[test]
 fn rejects_unknown_keys_in_pnpm_app() {
     let dir = TempDir::new().unwrap();

@@ -140,6 +140,18 @@ pub enum PackAppError {
     },
 
     #[display(
+        r#"The output file "{path}" already exists and is not a regular file (e.g. a symlink); refusing to write through it."#
+    )]
+    #[diagnostic(
+        code(ERR_PNPM_PACK_APP_OUTPUT_FILE_NOT_REGULAR),
+        help("Remove the existing path, or choose a different --output-name or --output-dir.")
+    )]
+    OutputFileNotRegular {
+        #[error(not(source))]
+        path: String,
+    },
+
+    #[display(
         r#""pacquet pack-app" requires at least one target — pass --target <triplet> or set "pnpm.app.targets" in package.json. Supported: {supported}"#
     )]
     #[diagnostic(code(ERR_PNPM_PACK_APP_MISSING_TARGET))]
@@ -353,6 +365,18 @@ impl PackAppArgs {
             return Err(PackAppError::OutputDirOutsideProject { path: output_dir_raw }.into());
         }
 
+        // Reject a pre-existing symlink (or any non-regular file) at any
+        // target's final output path before downloading anything: a repo
+        // could commit `dist-app/<target>/<name>` as a symlink pointing
+        // outside the project, and `node --build-sea` would follow it to
+        // overwrite an arbitrary file. The directory containment checks
+        // above do not cover the leaf file.
+        for target in &targets {
+            let output_file =
+                output_dir.join(&target.raw).join(output_file_name(&output_name, &target.platform));
+            reject_non_regular_output_file(&output_file)?;
+        }
+
         let build_root = pnpm_home_dir()?.join("pack-app");
 
         // Resolve the embedded target version first so the builder can be
@@ -392,11 +416,11 @@ impl PackAppArgs {
                 .into());
             }
 
-            let output_file = if target.platform == "win32" {
-                target_output_dir.join(format!("{output_name}.exe"))
-            } else {
-                target_output_dir.join(&output_name)
-            };
+            let output_file =
+                target_output_dir.join(output_file_name(&output_name, &target.platform));
+            // Re-check the leaf path right before the build in case it became
+            // a symlink after the upfront pass.
+            reject_non_regular_output_file(&output_file)?;
 
             let sea_config = serde_json::json!({
                 "main": resolved_entry,
@@ -638,6 +662,26 @@ fn path_is_within(path: &Path, base: &Path) -> bool {
         return false;
     };
     canonical_path.starts_with(&canonical_base)
+}
+
+/// The on-disk file name of the produced executable for a target: a bare
+/// name on POSIX, suffixed with `.exe` on Windows.
+fn output_file_name(output_name: &str, platform: &str) -> String {
+    if platform == "win32" { format!("{output_name}.exe") } else { output_name.to_string() }
+}
+
+/// Refuse to write to `output_file` when it already exists and is not a
+/// regular file — most importantly a symlink, which `node --build-sea`
+/// would follow to overwrite a file outside the project. `symlink_metadata`
+/// does not traverse the final component, so a symlink reports
+/// `is_file() == false`. A missing path is fine (nothing to overwrite).
+fn reject_non_regular_output_file(output_file: &Path) -> Result<(), PackAppError> {
+    match fs::symlink_metadata(output_file) {
+        Ok(meta) if !meta.is_file() => {
+            Err(PackAppError::OutputFileNotRegular { path: output_file.display().to_string() })
+        }
+        _ => Ok(()),
+    }
 }
 
 fn parse_target(raw: &str) -> Result<ParsedTarget, PackAppError> {

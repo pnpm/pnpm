@@ -212,6 +212,15 @@ export async function handler (opts: PackAppOptions, params: string[]): Promise<
 
   const outputName = validateOutputName(opts.outputName ?? project.app?.outputName ?? deriveOutputNameFromPackage(project, opts.dir))
 
+  // Reject a pre-existing symlink (or any non-regular file) at any target's
+  // final output path before downloading anything: a repo could commit
+  // `dist-app/<target>/<name>` as a symlink pointing outside the project, and
+  // `node --build-sea` would follow it to overwrite an arbitrary file. The
+  // directory containment checks above do not cover the leaf file.
+  for (const target of targets) {
+    rejectNonRegularOutputFile(path.join(outputDir, target.raw, outputFileName(outputName, target.platform)))
+  }
+
   const fetch = createFetchFromRegistry(opts)
   const buildRoot = path.join(opts.pnpmHomeDir, 'pack-app')
 
@@ -250,9 +259,10 @@ export async function handler (opts: PackAppOptions, params: string[]): Promise<
         { hint: 'The output directory must be a relative path inside the project directory, not an absolute path or one that escapes via "..".' })
     }
 
-    const outputFile = target.platform === 'win32'
-      ? path.join(targetOutputDir, `${outputName}.exe`)
-      : path.join(targetOutputDir, outputName)
+    const outputFile = path.join(targetOutputDir, outputFileName(outputName, target.platform))
+    // Re-check the leaf path right before the build in case it became a
+    // symlink after the upfront pass.
+    rejectNonRegularOutputFile(outputFile)
 
     const seaConfig = {
       main: resolvedEntry,
@@ -614,6 +624,25 @@ function isWithinDir (target: string, dir: string): boolean {
   }
   const rel = path.relative(realDir, realTarget)
   return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel))
+}
+
+// The on-disk file name of the produced executable for a target: a bare name
+// on POSIX, suffixed with `.exe` on Windows.
+function outputFileName (outputName: string, platform: string): string {
+  return platform === 'win32' ? `${outputName}.exe` : outputName
+}
+
+// Refuse to write to `outputFile` when it already exists and is not a regular
+// file — most importantly a symlink, which `node --build-sea` would follow to
+// overwrite a file outside the project. `lstatSync` does not traverse the final
+// component, so a symlink reports `isFile() === false`. A missing path is fine.
+function rejectNonRegularOutputFile (outputFile: string): void {
+  const existing = fs.lstatSync(outputFile, { throwIfNoEntry: false })
+  if (existing && !existing.isFile()) {
+    throw new PnpmError('PACK_APP_OUTPUT_FILE_NOT_REGULAR',
+      `The output file "${outputFile}" already exists and is not a regular file (e.g. a symlink); refusing to write through it.`,
+      { hint: 'Remove the existing path, or choose a different --output-name or --output-dir.' })
+  }
 }
 
 /**

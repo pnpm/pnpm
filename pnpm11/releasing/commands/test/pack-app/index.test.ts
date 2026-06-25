@@ -133,6 +133,29 @@ describe('pack-app command', () => {
     }
   })
 
+  it('rejects an output file that is a pre-existing symlink', async () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-pack-app-outside-'))
+    try {
+      const victim = path.join(outside, 'victim')
+      fs.writeFileSync(victim, 'do not overwrite')
+      fs.writeFileSync(path.join(tempDir, 'entry.cjs'), 'module.exports = {}')
+      // The committed output path `dist-app/linux-x64/app` is a symlink to a
+      // file outside the project; node --build-sea must not write through it.
+      const targetDir = path.join(tempDir, 'dist-app', 'linux-x64')
+      fs.mkdirSync(targetDir, { recursive: true })
+      fs.symlinkSync(victim, path.join(targetDir, 'app'))
+      await expect(
+        handler(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          { ...baseOpts(), entry: 'entry.cjs', target: 'linux-x64', outputName: 'app' } as any,
+          []
+        )
+      ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_OUTPUT_FILE_NOT_REGULAR' })
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true })
+    }
+  })
+
   it('reads entry from pnpm.app.entry when --entry is omitted', async () => {
     fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify({
       name: 'test-app',
