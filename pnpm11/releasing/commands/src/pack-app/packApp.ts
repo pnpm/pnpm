@@ -146,6 +146,15 @@ export async function handler (opts: PackAppOptions, params: string[]): Promise<
     throw new PnpmError('PACK_APP_MISSING_ENTRY',
       '"pnpm pack-app" requires a CJS entry file — pass --entry <path> or set "pnpm.app.entry" in package.json.')
   }
+  // `entry` may come from a repo-controlled package.json, so reject absolute
+  // paths and `..` traversal before touching the filesystem: the entry's
+  // contents get embedded into the produced executable, so an escaping path
+  // could exfiltrate a host file (e.g. an SSH key) into a distributable binary.
+  if (pathEscapesProject(entryPath)) {
+    throw new PnpmError('PACK_APP_ENTRY_OUTSIDE_PROJECT',
+      `The entry path "${entryPath}" resolves outside the project directory.`,
+      { hint: 'The entry must be a relative path inside the project directory, not an absolute path or one that escapes via "..".' })
+  }
   const resolvedEntry = path.resolve(opts.dir, entryPath)
   let entryStat: fs.Stats
   try {
@@ -156,6 +165,14 @@ export async function handler (opts: PackAppOptions, params: string[]): Promise<
   if (!entryStat.isFile()) {
     throw new PnpmError('PACK_APP_ENTRY_NOT_FILE',
       `Entry path must be a regular file: ${resolvedEntry}`)
+  }
+  // Defense in depth against a same-name symlink that points out of the
+  // project: resolve symlinks and require the real path to stay within the
+  // (also symlink-resolved) project directory.
+  if (!isWithinDir(resolvedEntry, opts.dir)) {
+    throw new PnpmError('PACK_APP_ENTRY_OUTSIDE_PROJECT',
+      `The entry path "${entryPath}" resolves outside the project directory.`,
+      { hint: 'The entry must be a relative path inside the project directory, not an absolute path or one that escapes via "..".' })
   }
 
   const cliTargets = opts.target == null
@@ -174,10 +191,35 @@ export async function handler (opts: PackAppOptions, params: string[]): Promise<
   const runtimeSpec = opts.runtime ?? project.app?.runtime ?? `node@${process.version.slice(1)}`
   const { version: requestedNodeSpec } = parseRuntime(runtimeSpec)
 
-  const outputDir = path.resolve(opts.dir, opts.outputDir ?? project.app?.outputDir ?? 'dist-app')
+  // `outputDir` is likewise repo-controllable; reject absolute paths and `..`
+  // traversal so build artifacts cannot be written outside the project directory.
+  const outputDirRaw = opts.outputDir ?? project.app?.outputDir ?? 'dist-app'
+  if (pathEscapesProject(outputDirRaw)) {
+    throw new PnpmError('PACK_APP_OUTPUT_DIR_OUTSIDE_PROJECT',
+      `The output directory "${outputDirRaw}" resolves outside the project directory.`,
+      { hint: 'The output directory must be a relative path inside the project directory, not an absolute path or one that escapes via "..".' })
+  }
+  const outputDir = path.resolve(opts.dir, outputDirRaw)
   await mkdir(outputDir, { recursive: true })
+  // Defense in depth against a symlinked output directory that points out of
+  // the project: the lexical check above can't see through a symlink, so
+  // re-check containment once the real path exists.
+  if (!isWithinDir(outputDir, opts.dir)) {
+    throw new PnpmError('PACK_APP_OUTPUT_DIR_OUTSIDE_PROJECT',
+      `The output directory "${outputDirRaw}" resolves outside the project directory.`,
+      { hint: 'The output directory must be a relative path inside the project directory, not an absolute path or one that escapes via "..".' })
+  }
 
   const outputName = validateOutputName(opts.outputName ?? project.app?.outputName ?? deriveOutputNameFromPackage(project, opts.dir))
+
+  // Reject a pre-existing symlink (or any non-regular file) at any target's
+  // final output path before downloading anything: a repo could commit
+  // `dist-app/<target>/<name>` as a symlink pointing outside the project, and
+  // `node --build-sea` would follow it to overwrite an arbitrary file. The
+  // directory containment checks above do not cover the leaf file.
+  for (const target of targets) {
+    rejectNonRegularOutputFile(path.join(outputDir, target.raw, outputFileName(outputName, target.platform)))
+  }
 
   const fetch = createFetchFromRegistry(opts)
   const buildRoot = path.join(opts.pnpmHomeDir, 'pack-app')
@@ -208,10 +250,19 @@ export async function handler (opts: PackAppOptions, params: string[]): Promise<
     const targetOutputDir = path.join(outputDir, target.raw)
     // eslint-disable-next-line no-await-in-loop
     await mkdir(targetOutputDir, { recursive: true })
+    // A repo could symlink `dist-app/<target>` out of the project even when
+    // `dist-app` itself is contained; re-check the real path before any
+    // binary is written into it.
+    if (!isWithinDir(targetOutputDir, opts.dir)) {
+      throw new PnpmError('PACK_APP_OUTPUT_DIR_OUTSIDE_PROJECT',
+        `The output directory "${targetOutputDir}" resolves outside the project directory.`,
+        { hint: 'The output directory must be a relative path inside the project directory, not an absolute path or one that escapes via "..".' })
+    }
 
-    const outputFile = target.platform === 'win32'
-      ? path.join(targetOutputDir, `${outputName}.exe`)
-      : path.join(targetOutputDir, outputName)
+    const outputFile = path.join(targetOutputDir, outputFileName(outputName, target.platform))
+    // Re-check the leaf path right before the build in case it became a
+    // symlink after the upfront pass.
+    rejectNonRegularOutputFile(outputFile)
 
     const seaConfig = {
       main: resolvedEntry,
@@ -239,7 +290,7 @@ export async function handler (opts: PackAppOptions, params: string[]): Promise<
     }
 
     // eslint-disable-next-line no-await-in-loop
-    await adHocSignMacBinary(target, outputFile)
+    await adHocSignMacBinary(target, outputFile, opts.dir)
 
     results.push(`  ${target.raw}: ${outputFile} (Node.js ${resolvedTargetVersion})`)
   }
@@ -543,6 +594,57 @@ function isObject (value: unknown): value is Record<string, unknown> {
   return value != null && typeof value === 'object' && !Array.isArray(value)
 }
 
+// `entry` and `outputDir` can come from a repo-controlled package.json, so a
+// malicious repo must not be able to read/write outside the project via an
+// absolute path or `..` traversal. An absolute path replaces the base on join;
+// a `..` segment climbs out. Checked lexically before any filesystem access so
+// the failure is fast and side-effect-free.
+function pathEscapesProject (rawPath: string): boolean {
+  // `path.parse().root` is non-empty for any host-rooted form: a POSIX
+  // absolute path (`/x`), and on Windows also the drive-relative (`C:x`) and
+  // root-relative (`\x`) forms that `path.isAbsolute()` reports as relative
+  // yet still resolve outside the project. Platform-specific, matching the
+  // pacquet port (which rejects `Component::RootDir` / `Component::Prefix`).
+  if (path.parse(rawPath).root !== '') return true
+  return rawPath.split(/[/\\]/).includes('..')
+}
+
+// Defense in depth beyond `pathEscapesProject`: resolve symlinks and require
+// the real target to stay inside the (also symlink-resolved) project dir, so a
+// same-name symlink pointing out of the project is caught even though the
+// lexical join looked contained. Fails closed on any realpath error.
+function isWithinDir (target: string, dir: string): boolean {
+  let realDir: string
+  let realTarget: string
+  try {
+    realDir = fs.realpathSync(dir)
+    realTarget = fs.realpathSync(target)
+  } catch {
+    return false
+  }
+  const rel = path.relative(realDir, realTarget)
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel))
+}
+
+// The on-disk file name of the produced executable for a target: a bare name
+// on POSIX, suffixed with `.exe` on Windows.
+function outputFileName (outputName: string, platform: string): string {
+  return platform === 'win32' ? `${outputName}.exe` : outputName
+}
+
+// Refuse to write to `outputFile` when it already exists and is not a regular
+// file — most importantly a symlink, which `node --build-sea` would follow to
+// overwrite a file outside the project. `lstatSync` does not traverse the final
+// component, so a symlink reports `isFile() === false`. A missing path is fine.
+function rejectNonRegularOutputFile (outputFile: string): void {
+  const existing = fs.lstatSync(outputFile, { throwIfNoEntry: false })
+  if (existing && !existing.isFile()) {
+    throw new PnpmError('PACK_APP_OUTPUT_FILE_NOT_REGULAR',
+      `The output file "${outputFile}" already exists and is not a regular file (e.g. a symlink); refusing to write through it.`,
+      { hint: 'Remove the existing path, or choose a different --output-name or --output-dir.' })
+  }
+}
+
 /**
  * SEA injection invalidates the existing code signature on macOS binaries, so
  * the output must be re-signed. Native macOS hosts use `codesign`; Linux hosts
@@ -550,15 +652,19 @@ function isObject (value: unknown): value is Record<string, unknown> {
  * available ad-hoc signer, so we refuse to produce an unsigned output silently
  * and tell the user to re-sign on macOS or Linux.
  */
-async function adHocSignMacBinary (target: ParsedTarget, outputFile: string): Promise<void> {
+async function adHocSignMacBinary (target: ParsedTarget, outputFile: string, dir: string): Promise<void> {
   if (target.platform !== 'darwin') return
   if (process.platform === 'darwin') {
-    await execa('codesign', ['--sign', '-', outputFile], { stdio: 'inherit' })
+    // `codesign` is a macOS system tool; spawn it by absolute path so a
+    // repo-controlled `node_modules/.bin/codesign` on PATH can't be run in its
+    // place.
+    await execa('/usr/bin/codesign', ['--sign', '-', outputFile], { stdio: 'inherit' })
     return
   }
   if (process.platform === 'linux') {
+    const ldid = resolveTrustedSigner('ldid', dir, outputFile)
     try {
-      await execa('ldid', ['-S', outputFile], { stdio: 'inherit' })
+      await execa(ldid, ['-S', outputFile], { stdio: 'inherit' })
     } catch {
       throw new PnpmError('PACK_APP_MACOS_SIGN_FAILED',
         `Cross-compiled macOS binary at ${outputFile} could not be ad-hoc signed with "ldid".`,
@@ -570,5 +676,35 @@ async function adHocSignMacBinary (target: ParsedTarget, outputFile: string): Pr
   throw new PnpmError('PACK_APP_MACOS_SIGN_UNSUPPORTED_HOST',
     `Cannot ad-hoc sign the macOS binary at ${outputFile} on a ${process.platform} host.`,
     { hint: 'Build macOS targets on a macOS or Linux host, or re-sign the produced binary yourself with "codesign --sign -" on macOS.' }
+  )
+}
+
+// Resolve an external signer (`ldid`) to an absolute path via PATH, skipping
+// any match that resolves inside the project directory — a repo could ship
+// `node_modules/.bin/ldid` and, if that directory is on the developer's PATH,
+// get an attacker-controlled binary executed when packaging a darwin target.
+// Returns the first match outside the project, or throws PACK_APP_MACOS_SIGN_FAILED.
+function resolveTrustedSigner (name: string, dir: string, outputFile: string): string {
+  for (const entry of (process.env.PATH ?? '').split(path.delimiter)) {
+    if (entry === '') continue
+    const candidate = path.join(entry, name)
+    let stat: fs.Stats
+    try {
+      stat = fs.statSync(candidate)
+    } catch {
+      continue
+    }
+    if (!stat.isFile()) continue
+    if (isWithinDir(candidate, dir)) continue
+    try {
+      fs.accessSync(candidate, fs.constants.X_OK)
+    } catch {
+      continue
+    }
+    return candidate
+  }
+  throw new PnpmError('PACK_APP_MACOS_SIGN_FAILED',
+    `Cross-compiled macOS binary at ${outputFile} could not be ad-hoc signed with "ldid".`,
+    { hint: 'Install ldid (https://github.com/ProcursusTeam/ldid) or re-sign the binary on macOS with "codesign --sign - <file>".' }
   )
 }
