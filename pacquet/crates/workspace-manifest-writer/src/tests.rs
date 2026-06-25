@@ -954,3 +954,61 @@ fn remove_overrides_leaves_flow_style_block_with_non_string_entries_untouched() 
     let out = run_remove_overrides(Some(original), &["foo"]).expect("file kept");
     assert_eq!(out, original);
 }
+
+// --- generic top-level field set/delete (pnpm config set / delete) ---
+
+fn run_update_field(
+    original: Option<&str>,
+    key: &str,
+    value: &serde_json::Value,
+) -> Option<String> {
+    let dir = TempDir::new().expect("temp dir");
+    let path = dir.path().join(WORKSPACE_MANIFEST_FILENAME);
+    if let Some(text) = original {
+        fs::write(&path, text).expect("seed manifest");
+    }
+    crate::update_manifest_field(&path, key, value).expect("update succeeds");
+    fs::read_to_string(&path).ok()
+}
+
+#[test]
+fn set_scalar_field_into_existing_file() {
+    let out =
+        run_update_field(Some("storeDir: ~/store\n"), "fetchTimeout", &serde_json::json!(1000))
+            .expect("file written");
+    let parsed: indexmap::IndexMap<String, serde_json::Value> =
+        serde_saphyr::from_str(&out).expect("parse");
+    assert_eq!(parsed["storeDir"], serde_json::json!("~/store"));
+    assert_eq!(parsed["fetchTimeout"], serde_json::json!(1000));
+}
+
+#[test]
+fn set_object_field_with_json() {
+    let value = serde_json::json!({
+        "@babel/parser": { "peerDependencies": { "@babel/types": "*" } },
+        "jest-circus": { "dependencies": { "slash": "3" } },
+    });
+    let out = run_update_field(None, "packageExtensions", &value).expect("file written");
+    let parsed: serde_json::Value = serde_saphyr::from_str(&out).expect("parse");
+    assert_eq!(parsed["packageExtensions"], value);
+}
+
+#[test]
+fn delete_last_field_removes_file() {
+    let out = run_update_field(
+        Some("virtualStoreDir: .pnpm\n"),
+        "virtualStoreDir",
+        &serde_json::Value::Null,
+    );
+    assert_eq!(out, None);
+}
+
+#[test]
+fn delete_unset_field_is_noop() {
+    let out = run_update_field(Some("cacheDir: ~/cache\n"), "storeDir", &serde_json::Value::Null)
+        .expect("file kept");
+    let parsed: indexmap::IndexMap<String, serde_json::Value> =
+        serde_saphyr::from_str(&out).expect("parse");
+    assert_eq!(parsed.len(), 1);
+    assert_eq!(parsed["cacheDir"], serde_json::json!("~/cache"));
+}

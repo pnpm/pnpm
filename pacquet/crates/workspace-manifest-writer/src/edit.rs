@@ -480,6 +480,80 @@ fn render_bool(value: bool) -> &'static str {
     if value { "true" } else { "false" }
 }
 
+/// Set the top-level `key` to `value` (a non-null JSON value), inserting the
+/// block when absent and replacing it when present. Returns whether anything
+/// changed — a deep-equal current value is a no-op. Used by `pnpm config set`
+/// for arbitrary `pnpm-workspace.yaml` / `config.yaml` keys.
+///
+/// The replace path removes the old block and re-inserts the new one at the
+/// reorder position (rather than an in-place value patch), so the same code
+/// handles scalar and nested-object values uniformly; sibling keys and their
+/// comments are preserved.
+pub(crate) fn set_top_level_field(
+    manifest: &mut Manifest,
+    key: &str,
+    value: &serde_json::Value,
+) -> bool {
+    if current_top_level_value(manifest.text(), key).as_ref() == Some(value) {
+        return false;
+    }
+    let block = render_top_level_field(key, value);
+    if manifest.top_level_keys.iter().any(|existing| existing == key) {
+        manifest.set_text(remove_top_level_block(manifest.text(), key));
+        manifest.top_level_keys.retain(|existing| existing != key);
+    }
+    let new_text = insert_top_level_block(manifest, key, &block);
+    manifest.set_text(new_text);
+    manifest.top_level_keys = render::target_order(&manifest.top_level_keys, &[key.to_string()]);
+    true
+}
+
+/// Remove the top-level `key`. Returns whether anything changed (false when the
+/// key is absent). Used by `pnpm config delete` and by `pnpm config set` when
+/// the cast value is null/undefined.
+pub(crate) fn remove_top_level_field(manifest: &mut Manifest, key: &str) -> bool {
+    if !manifest.top_level_keys.iter().any(|existing| existing == key) {
+        return false;
+    }
+    manifest.set_text(remove_top_level_block(manifest.text(), key));
+    manifest.top_level_keys.retain(|existing| existing != key);
+    true
+}
+
+/// Decode the current value of top-level `key` as JSON, or `None` when the key
+/// is absent or the document does not parse. Used for no-op detection.
+fn current_top_level_value(text: &str, key: &str) -> Option<serde_json::Value> {
+    let map: IndexMap<String, serde_json::Value> = serde_saphyr::from_str(text).ok()?;
+    map.get(key).cloned()
+}
+
+/// Render a brand-new top-level block for `key: value`. Scalars render inline;
+/// objects and arrays render as an indented block body via [`yaml_serde`].
+fn render_top_level_field(key: &str, value: &serde_json::Value) -> String {
+    let key_text = render::render_value(key);
+    match value {
+        serde_json::Value::String(s) => format!("{key_text}: {}\n", render::render_value(s)),
+        serde_json::Value::Number(n) => format!("{key_text}: {n}\n"),
+        serde_json::Value::Bool(b) => format!("{key_text}: {b}\n"),
+        serde_json::Value::Null => format!("{key_text}: null\n"),
+        serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
+            let body =
+                yaml_serde::to_string(value).expect("serializing a JSON value to YAML never fails");
+            let mut out = format!("{key_text}:\n");
+            for line in body.trim_end_matches('\n').lines() {
+                if line.is_empty() {
+                    out.push('\n');
+                } else {
+                    out.push_str("  ");
+                    out.push_str(line);
+                    out.push('\n');
+                }
+            }
+            out
+        }
+    }
+}
+
 /// Where a catalog's entries live (or should be created) in the manifest.
 enum Target {
     /// The top-level `catalog:` shorthand for the default catalog.

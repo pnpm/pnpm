@@ -136,6 +136,9 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         tls: Default::default(),
         tls_by_uri: Default::default(),
         package_manager_bootstrap: Default::default(),
+        explicit_settings: Default::default(),
+        raw_auth_config: Default::default(),
+        config_dir: None,
     }
 }
 

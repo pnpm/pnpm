@@ -116,6 +116,13 @@ pub(crate) struct NpmrcAuth {
     /// can't redirect the token elsewhere. Applied after workspace yaml by
     /// [`Self::apply_json_env_registries`].
     pub json_env_registries: BTreeMap<String, String>,
+    /// Raw INI config keys (those for which
+    /// [`crate::config_types::is_ini_config_key`] holds), post-`${VAR}`
+    /// substitution, captured verbatim for `pnpm config get` / `list`. This
+    /// is the source of [`crate::Config::raw_auth_config`] (pnpm's
+    /// `authConfig`); it does not feed auth-header resolution, which reads
+    /// the structured fields above.
+    pub raw_ini_config: BTreeMap<String, String>,
 }
 
 /// Raw (unparsed) credential fields for a given registry URI, mirroring
@@ -368,6 +375,13 @@ impl NpmrcAuth {
             let (value, value_unresolved) = env_replace_lossy::<Sys>(raw_value);
             for placeholder in key_unresolved.into_iter().chain(value_unresolved) {
                 auth.warnings.push(format!("Failed to replace env in config: {placeholder}"));
+            }
+
+            // Capture every auth/scoped/per-registry key verbatim for
+            // `pnpm config get` / `list`, independent of the structured
+            // parsing below (which only some of these keys feed).
+            if crate::config_types::is_ini_config_key(&key) {
+                auth.raw_ini_config.insert(key.clone(), value.clone());
             }
 
             if key == "registry" {
@@ -717,6 +731,9 @@ impl NpmrcAuth {
         }
         for (scope, registry) in lower.json_env_registries {
             self.json_env_registries.entry(scope).or_insert(registry);
+        }
+        for (key, value) in lower.raw_ini_config {
+            self.raw_ini_config.entry(key).or_insert(value);
         }
         self.https_proxy = self.https_proxy.take().or(lower.https_proxy);
         self.http_proxy = self.http_proxy.take().or(lower.http_proxy);

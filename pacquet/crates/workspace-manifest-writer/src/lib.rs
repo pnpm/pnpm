@@ -406,6 +406,57 @@ pub fn remove_overrides(
     write_or_remove_manifest(&path, manifest)
 }
 
+/// Set or delete an arbitrary top-level field in the YAML manifest at `path`
+/// (a `pnpm-workspace.yaml` or a global `config.yaml`), preserving the rest of
+/// the document's formatting and writing back only when something changed.
+///
+/// A `null` `value` deletes the key (mirroring pnpm's
+/// [`updateWorkspaceManifest`](https://github.com/pnpm/pnpm/blob/e7e99f04e4/workspace/workspace-manifest-writer/src/index.ts#L75-L83),
+/// where `value == null` `delete`s the field); any other value sets it. When the
+/// edit empties the document, the file is removed. Used by `pnpm config set` /
+/// `pnpm config delete` for the keys routed to a YAML config file.
+pub fn update_manifest_field(
+    path: &Path,
+    key: &str,
+    value: &serde_json::Value,
+) -> Result<(), UpdateWorkspaceManifestError> {
+    let original = match fs::read_to_string(path) {
+        Ok(text) => Some(text),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
+        Err(source) => {
+            return Err(UpdateWorkspaceManifestError::Read { path: path.to_path_buf(), source });
+        }
+    };
+
+    let mut manifest = Manifest::parse(original.as_deref()).map_err(|source| {
+        UpdateWorkspaceManifestError::Parse { path: path.to_path_buf(), source }
+    })?;
+
+    let changed = if value.is_null() {
+        edit::remove_top_level_field(&mut manifest, key)
+    } else {
+        edit::set_top_level_field(&mut manifest, key, value)
+    };
+    if !changed {
+        return Ok(());
+    }
+
+    // A `set` may target a config directory that does not exist yet
+    // (`pnpm config set --global`). Mirror pnpm's `fs.mkdir(dir, { recursive:
+    // true })` before the write; a `delete` never needs it (the file, hence its
+    // parent, already exists).
+    if !value.is_null()
+        && let Some(parent) = path.parent().filter(|parent| !parent.as_os_str().is_empty())
+    {
+        fs::create_dir_all(parent).map_err(|source| UpdateWorkspaceManifestError::Write {
+            path: path.to_path_buf(),
+            source,
+        })?;
+    }
+
+    write_or_remove_manifest(path, manifest)
+}
+
 fn write_or_remove_manifest(
     path: &Path,
     manifest: Manifest,
