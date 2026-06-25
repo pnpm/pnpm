@@ -4,7 +4,7 @@ use axum::{
 };
 use flate2::read::GzDecoder;
 use futures_util::stream;
-use pnpr::{AuthState, Config, router, router_with_auth};
+use pnpr::{AccessSpec, AuthState, Config, PackageAccess, router, router_with_auth};
 use serde_json::{Value, json};
 use ssri::{Algorithm, IntegrityOpts};
 use std::{
@@ -32,6 +32,24 @@ fn config_for(upstream: &str, storage: PathBuf) -> Config {
     config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink").url = upstream.to_string();
     config.public_url = "http://example.test".to_string();
     config.packument_ttl = Duration::from_mins(1);
+    config
+}
+
+/// A proxy config whose `**` rule lists two uplinks — `npmjs` (primary)
+/// then `private` (secondary) — as an ordered fallback chain, so the
+/// registry tries `primary` first and falls through to `secondary`.
+fn config_for_two(primary: &str, secondary: &str, storage: PathBuf) -> Config {
+    let mut config = config_for(primary, storage);
+    let mut secondary_uplink = config.uplinks.get("npmjs").expect("default `npmjs` uplink").clone();
+    secondary_uplink.url = secondary.to_string();
+    config.uplinks.insert("private".to_string(), secondary_uplink);
+    config.packages.insert(
+        "**".to_string(),
+        PackageAccess {
+            proxy: Some(AccessSpec::Many(vec!["npmjs".to_string(), "private".to_string()])),
+            ..Default::default()
+        },
+    );
     config
 }
 
@@ -638,6 +656,165 @@ async fn tarball_is_proxied_and_cached() {
 
     packument_mock.assert_async().await;
     mock.assert_async().await;
+}
+
+/// Builds a packument whose single `1.0.0` version points its tarball at
+/// `upstream_url`. Used by the multi-uplink tests, which need to control the
+/// upstream the packument is served from independently of the helper that
+/// also installs a mock.
+fn packument_json(upstream_url: &str) -> Value {
+    json!({
+        "name": "foo",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "foo",
+                "version": "1.0.0",
+                "dist": {
+                    "tarball": format!("{upstream_url}/foo/-/foo-1.0.0.tgz"),
+                    "integrity": "sha512-deadbeef",
+                },
+            },
+        },
+    })
+}
+
+#[tokio::test]
+async fn packument_falls_back_to_secondary_uplink_on_primary_error() {
+    let mut primary = mockito::Server::new_async().await;
+    let mut secondary = mockito::Server::new_async().await;
+    // Primary errors (5xx) once; the registry must fall through to the
+    // secondary rather than surfacing the error.
+    let primary_mock = primary.mock("GET", "/foo").with_status(500).expect(1).create_async().await;
+    let secondary_mock = secondary
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(packument_json(&secondary.url()).to_string())
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for_two(&primary.url(), &secondary.url(), tmp.path().to_path_buf()));
+    let response = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(body["versions"]["1.0.0"]["version"], "1.0.0");
+
+    primary_mock.assert_async().await;
+    secondary_mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn packument_falls_back_to_secondary_uplink_on_primary_404() {
+    let mut primary = mockito::Server::new_async().await;
+    let mut secondary = mockito::Server::new_async().await;
+    // A 404 from the primary is not authoritative across the chain: a
+    // private uplink later in the list may still host the package.
+    let primary_mock = primary.mock("GET", "/foo").with_status(404).expect(1).create_async().await;
+    let secondary_mock = secondary
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(packument_json(&secondary.url()).to_string())
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for_two(&primary.url(), &secondary.url(), tmp.path().to_path_buf()));
+    let response = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    assert_eq!(body["versions"]["1.0.0"]["version"], "1.0.0");
+
+    primary_mock.assert_async().await;
+    secondary_mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn packument_is_not_found_when_all_uplinks_404() {
+    let mut primary = mockito::Server::new_async().await;
+    let mut secondary = mockito::Server::new_async().await;
+    let primary_mock = primary.mock("GET", "/foo").with_status(404).expect(1).create_async().await;
+    let secondary_mock =
+        secondary.mock("GET", "/foo").with_status(404).expect(1).create_async().await;
+
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for_two(&primary.url(), &secondary.url(), tmp.path().to_path_buf()));
+    let response = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+    primary_mock.assert_async().await;
+    secondary_mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn tarball_falls_back_to_secondary_uplink() {
+    let mut primary = mockito::Server::new_async().await;
+    let mut secondary = mockito::Server::new_async().await;
+    let bytes = b"fallback-tarball-bytes";
+    // The primary serves the packument (so version + integrity resolve) but
+    // 404s the tarball; the secondary holds the actual bytes.
+    let packument_mock = mock_packument_for_tarball(&mut primary, "foo", "1.0.0", bytes).await;
+    let primary_tarball =
+        primary.mock("GET", "/foo/-/foo-1.0.0.tgz").with_status(404).expect(1).create_async().await;
+    let secondary_tarball = secondary
+        .mock("GET", "/foo/-/foo-1.0.0.tgz")
+        .with_status(200)
+        .with_header("content-type", "application/octet-stream")
+        .with_body(bytes)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for_two(&primary.url(), &secondary.url(), tmp.path().to_path_buf()));
+    let response = app
+        .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body_bytes(response.into_body()).await, bytes);
+
+    packument_mock.assert_async().await;
+    primary_tarball.assert_async().await;
+    secondary_tarball.assert_async().await;
+}
+
+#[tokio::test]
+async fn packument_serves_stale_cache_when_all_uplinks_fail() {
+    let mut primary = mockito::Server::new_async().await;
+    let secondary = mockito::Server::new_async().await;
+    let packument_mock = primary
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(packument_json(&primary.url()).to_string())
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+
+    // Populate the cache from the live uplinks.
+    let warm = router(config_for_two(&primary.url(), &secondary.url(), storage.clone()));
+    let first = warm.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(first.status(), StatusCode::OK);
+    packument_mock.assert_async().await;
+
+    // Both uplinks now unreachable and the cache is past its TTL: the stale
+    // body must still be served rather than erroring.
+    tokio::time::sleep(Duration::from_millis(20)).await;
+    let mut dead = config_for_two("http://127.0.0.1:1", "http://127.0.0.1:1", storage);
+    dead.packument_ttl = Duration::from_millis(1);
+    let stale =
+        router(dead).oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(stale.status(), StatusCode::OK);
+    let body: Value = serde_json::from_slice(&body_bytes(stale.into_body()).await).unwrap();
+    assert_eq!(body["versions"]["1.0.0"]["version"], "1.0.0");
 }
 
 #[tokio::test]

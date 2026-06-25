@@ -25,12 +25,15 @@ fn tarball_sidecar_path(tmp: &TempDir, name: &str, filename: &str) -> PathBuf {
     tmp.path().join("cache").join(name).join(format!("{filename}{TARBALL_INTEGRITY_SUFFIX}"))
 }
 
-/// Read an entry back as `Stale` so its validators can be inspected. The
-/// write is aged past a 1ms TTL with a short sleep.
+/// The uplink name the cache tests key their validators under.
+const UPLINK: &str = "npmjs";
+
+/// Read an entry back as `Stale` and return `UPLINK`'s validators so they
+/// can be inspected. The write is aged past a 1ms TTL with a short sleep.
 async fn read_stale_validators(storage: &Storage, name: &PackageName) -> CacheValidators {
     tokio::time::sleep(Duration::from_millis(20)).await;
     match storage.read_cached_packument_entry(name, Duration::from_millis(1)).await.unwrap() {
-        Some(CachedPackument::Stale(validators)) => validators,
+        Some(CachedPackument::Stale(validators)) => validators.get(UPLINK),
         other => panic!("expected a stale entry, got {other:?}"),
     }
 }
@@ -42,7 +45,10 @@ async fn fresh_entry_returns_its_body() {
     let name = pkg("foo");
     let body = br#"{"name":"foo"}"#;
 
-    storage.write_cached_packument(&name, body, &validators(Some(r#""abc""#), None)).await.unwrap();
+    storage
+        .write_cached_packument(&name, body, UPLINK, &validators(Some(r#""abc""#), None))
+        .await
+        .unwrap();
 
     match storage.read_cached_packument_entry(&name, Duration::from_mins(1)).await.unwrap() {
         Some(CachedPackument::Fresh(bytes)) => assert_eq!(bytes, body),
@@ -60,6 +66,7 @@ async fn stale_entry_returns_its_validators() {
         .write_cached_packument(
             &name,
             b"{}",
+            UPLINK,
             &validators(Some(r#""abc""#), Some("Wed, 21 Oct 2015 07:28:00 GMT")),
         )
         .await
@@ -85,12 +92,18 @@ async fn empty_validators_remove_a_previously_written_sidecar() {
     let storage = storage_in(&tmp);
     let name = pkg("foo");
 
-    storage.write_cached_packument(&name, b"{}", &validators(Some(r#""v1""#), None)).await.unwrap();
+    storage
+        .write_cached_packument(&name, b"{}", UPLINK, &validators(Some(r#""v1""#), None))
+        .await
+        .unwrap();
     assert!(sidecar_path(&tmp, "foo").exists(), "validators write a sidecar");
 
     // A later refresh whose upstream sends no validators must drop the
     // stale sidecar so the next read can't replay an outdated ETag.
-    storage.write_cached_packument(&name, b"{}", &CacheValidators::default()).await.unwrap();
+    storage
+        .write_cached_packument(&name, b"{}", UPLINK, &CacheValidators::default())
+        .await
+        .unwrap();
     assert!(!sidecar_path(&tmp, "foo").exists(), "empty validators remove the sidecar");
 
     assert!(read_stale_validators(&storage, &name).await.is_empty());
@@ -104,7 +117,10 @@ async fn writing_without_validators_is_a_noop_when_no_sidecar_exists() {
 
     // First write already carries no validators: removing the (absent)
     // sidecar must be a benign no-op, not an error.
-    storage.write_cached_packument(&name, b"{}", &CacheValidators::default()).await.unwrap();
+    storage
+        .write_cached_packument(&name, b"{}", UPLINK, &CacheValidators::default())
+        .await
+        .unwrap();
     assert!(!sidecar_path(&tmp, "foo").exists());
 
     assert!(read_stale_validators(&storage, &name).await.is_empty());
@@ -115,7 +131,10 @@ async fn malformed_sidecar_reads_as_empty_validators() {
     let tmp = TempDir::new().unwrap();
     let storage = storage_in(&tmp);
     let name = pkg("foo");
-    storage.write_cached_packument(&name, b"{}", &validators(Some(r#""v1""#), None)).await.unwrap();
+    storage
+        .write_cached_packument(&name, b"{}", UPLINK, &validators(Some(r#""v1""#), None))
+        .await
+        .unwrap();
 
     // A damaged sidecar must degrade to empty validators (forcing an
     // unconditional refresh) rather than failing the read.
@@ -130,7 +149,7 @@ async fn read_cached_packument_returns_bytes_regardless_of_age() {
     let storage = storage_in(&tmp);
     let name = pkg("foo");
     storage
-        .write_cached_packument(&name, br#"{"v":1}"#, &CacheValidators::default())
+        .write_cached_packument(&name, br#"{"v":1}"#, UPLINK, &CacheValidators::default())
         .await
         .unwrap();
 

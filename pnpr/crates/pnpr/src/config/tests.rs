@@ -868,6 +868,106 @@ packages:
     assert_eq!(config.resolve_uplink("lodash").unwrap().0, "npmjs");
 }
 
+/// `proxy:` as a space-separated string lists the uplinks as an ordered
+/// fallback chain (verdaccio's `proxy: npmjs private` shape).
+#[test]
+fn from_yaml_str_proxy_string_lists_uplinks_in_order() {
+    let yaml = "\
+storage: ./s
+uplinks:
+  npmjs:   { url: https://registry.npmjs.org/ }
+  private: { url: https://private.example/ }
+packages:
+  '**':
+    proxy: npmjs private
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let names: Vec<_> = config.resolve_uplinks("anything").into_iter().map(|(n, _)| n).collect();
+    assert_eq!(names, ["npmjs", "private"]);
+    // The convenience singular accessor returns the primary (first).
+    assert_eq!(config.resolve_uplink("anything").unwrap().0, "npmjs");
+}
+
+/// `proxy:` as a YAML sequence parses to the same ordered chain as the
+/// space-separated string form.
+#[test]
+fn from_yaml_str_proxy_sequence_lists_uplinks_in_order() {
+    let yaml = "\
+storage: ./s
+uplinks:
+  npmjs:   { url: https://registry.npmjs.org/ }
+  private: { url: https://private.example/ }
+packages:
+  '**':
+    proxy: [private, npmjs]
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let names: Vec<_> = config.resolve_uplinks("anything").into_iter().map(|(n, _)| n).collect();
+    assert_eq!(names, ["private", "npmjs"]);
+}
+
+/// A proxy name with no matching `uplinks:` entry is silently skipped
+/// (verdaccio ignores unknown proxy names), and the rest of the chain is
+/// preserved in order.
+#[test]
+fn from_yaml_str_proxy_skips_unknown_uplink_names() {
+    let yaml = "\
+storage: ./s
+uplinks:
+  npmjs: { url: https://registry.npmjs.org/ }
+packages:
+  '**':
+    proxy: ghost npmjs
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let names: Vec<_> = config.resolve_uplinks("anything").into_iter().map(|(n, _)| n).collect();
+    assert_eq!(names, ["npmjs"]);
+}
+
+/// First-match-wins still selects a single rule, then expands *that* rule's
+/// proxy list — a later catch-all's uplinks don't get appended.
+#[test]
+fn from_yaml_str_resolve_uplinks_expands_only_the_matched_rule() {
+    let yaml = "\
+storage: ./s
+uplinks:
+  mirror:  { url: https://mirror.example/ }
+  npmjs:   { url: https://registry.npmjs.org/ }
+  private: { url: https://private.example/ }
+packages:
+  '@private/*':
+    proxy: private mirror
+  '**':
+    proxy: npmjs
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let scoped: Vec<_> =
+        config.resolve_uplinks("@private/foo").into_iter().map(|(n, _)| n).collect();
+    assert_eq!(scoped, ["private", "mirror"]);
+    let other: Vec<_> = config.resolve_uplinks("lodash").into_iter().map(|(n, _)| n).collect();
+    assert_eq!(other, ["npmjs"]);
+}
+
+/// A matched rule with no `proxy:` (or no matching rule at all) yields an
+/// empty chain — the package is storage-only.
+#[test]
+fn from_yaml_str_resolve_uplinks_empty_when_no_proxy() {
+    let yaml = "\
+storage: ./s
+uplinks:
+  npmjs: { url: https://registry.npmjs.org/ }
+packages:
+  '@private/*':
+    access: $authenticated
+  '**':
+    proxy: npmjs
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    assert!(config.resolve_uplinks("@private/foo").is_empty());
+    let other: Vec<_> = config.resolve_uplinks("lodash").into_iter().map(|(n, _)| n).collect();
+    assert_eq!(other, ["npmjs"]);
+}
+
 #[test]
 fn from_yaml_str_public_url_defaults_to_listen_when_none_passed() {
     let yaml = "storage: ./s\nuplinks: {}\npackages: {}\n";

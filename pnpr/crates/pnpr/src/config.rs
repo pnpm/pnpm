@@ -761,19 +761,20 @@ fn non_empty_token(token: &str) -> Option<String> {
 /// `unpublish` are verdaccio permission lists (built-in groups like
 /// `$all` / `$authenticated` / `$anonymous`, plus usernames / group
 /// names), compiled into the [`PackagePolicies`] that gate reads and
-/// writes. `proxy` selects the [`UplinkConfig`] by name.
+/// writes. `proxy` names the uplinks to fall back through, in order
+/// (`proxy: npmjs private`); see [`Config::resolve_uplinks`].
 #[derive(Debug, Default, Clone, Deserialize)]
 pub struct PackageAccess {
     pub access: Option<AccessSpec>,
     pub publish: Option<AccessSpec>,
     pub unpublish: Option<AccessSpec>,
-    pub proxy: Option<String>,
+    pub proxy: Option<AccessSpec>,
 }
 
-/// A YAML permission value. Verdaccio accepts either a single
-/// space-separated string (`access: $authenticated admin`) or a
-/// sequence (`access: [$authenticated, admin]`); both normalize to the
-/// same token list.
+/// A YAML string-or-list value. Verdaccio accepts either a single
+/// space-separated string (`access: $authenticated admin`,
+/// `proxy: npmjs private`) or a sequence (`access: [$authenticated,
+/// admin]`); both normalize to the same ordered token list.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 pub enum AccessSpec {
@@ -789,6 +790,19 @@ impl AccessSpec {
             // `[a b, c]` and `[a, b, c]` agree.
             AccessSpec::Many(items) => {
                 AccessList::from_tokens(items.iter().flat_map(|item| item.split_whitespace()))
+            }
+        }
+    }
+
+    /// The tokens in declared order, each element flattened on whitespace
+    /// (so `[a b, c]` and `[a, b, c]` agree). Unlike [`Self::to_access_list`]
+    /// — which builds an unordered permission *set* — this preserves order,
+    /// which `proxy:` relies on for its fallback chain.
+    fn to_ordered_tokens(&self) -> Vec<&str> {
+        match self {
+            AccessSpec::One(spec) => spec.split_whitespace().collect(),
+            AccessSpec::Many(items) => {
+                items.iter().flat_map(|item| item.split_whitespace()).collect()
             }
         }
     }
@@ -961,7 +975,10 @@ impl Config {
         let mut packages = IndexMap::new();
         packages.insert(
             "**".to_string(),
-            PackageAccess { proxy: Some("npmjs".to_string()), ..Default::default() },
+            PackageAccess {
+                proxy: Some(AccessSpec::One("npmjs".to_string())),
+                ..Default::default()
+            },
         );
         Self {
             listen,
@@ -1270,20 +1287,43 @@ impl Config {
         }
     }
 
-    /// Find the uplink for `package_name` by walking [`Self::packages`]
-    /// in declared order: the first pattern that matches is the rule
-    /// that applies. If that rule has no `proxy:`, the package is
-    /// storage-only and this returns `None` — matching verdaccio's
-    /// first-match-wins semantics. The returned tuple's first element
-    /// is the uplink *name* (the key in [`Self::uplinks`]); callers
-    /// that have pre-built per-uplink state can use it as an index.
+    /// Find the uplink fallback chain for `package_name` by walking
+    /// [`Self::packages`] in declared order: the first pattern that matches
+    /// is the rule that applies (verdaccio's first-match-wins). That rule's
+    /// `proxy:` names the uplinks to try, **in order** — the registry walks
+    /// the returned list as a fallback chain (try the first, fall through to
+    /// the next on failure or 404). A proxy name absent from [`Self::uplinks`]
+    /// is silently skipped (as verdaccio does). An empty result means the
+    /// package is storage-only.
+    ///
+    /// Each tuple's first element is the uplink *name* (the key in
+    /// [`Self::uplinks`]), so callers with pre-built per-uplink state can use
+    /// it as an index.
+    #[must_use]
+    pub fn resolve_uplinks(&self, package_name: &str) -> Vec<(&str, &UplinkConfig)> {
+        let Some(access) = self
+            .packages
+            .iter()
+            .find_map(|(pattern, access)| pattern_matches(pattern, package_name).then_some(access))
+        else {
+            return Vec::new();
+        };
+        let Some(proxy) = &access.proxy else {
+            return Vec::new();
+        };
+        proxy
+            .to_ordered_tokens()
+            .into_iter()
+            .filter_map(|name| self.uplinks.get_key_value(name).map(|(k, v)| (k.as_str(), v)))
+            .collect()
+    }
+
+    /// The primary (first) uplink for `package_name`, or `None` when the
+    /// package is storage-only. A convenience over [`Self::resolve_uplinks`]
+    /// for the single-uplink question.
     #[must_use]
     pub fn resolve_uplink(&self, package_name: &str) -> Option<(&str, &UplinkConfig)> {
-        let access = self.packages.iter().find_map(|(pattern, access)| {
-            pattern_matches(pattern, package_name).then_some(access)
-        })?;
-        let proxy_name = access.proxy.as_deref()?;
-        self.uplinks.get_key_value(proxy_name).map(|(k, v)| (k.as_str(), v))
+        self.resolve_uplinks(package_name).into_iter().next()
     }
 }
 
