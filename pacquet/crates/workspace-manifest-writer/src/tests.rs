@@ -928,3 +928,29 @@ fn remove_overrides_drops_a_flow_style_block_when_emptied() {
     let out = run_remove_overrides(Some(original), &["foo"]).expect("file kept");
     assert_eq!(out, "packages:\n  - '*'\n");
 }
+
+#[test]
+fn remove_overrides_preserves_non_string_entries_in_block_style() {
+    let original = "overrides:\n  foo: link:../foo\n  bar:\n    nested: value\n";
+    let out = run_remove_overrides(Some(original), &["foo"]).expect("file kept");
+    assert_eq!(out, "overrides:\n  bar:\n    nested: value\n");
+}
+
+#[test]
+fn remove_overrides_keeps_block_when_only_non_string_entry_remains() {
+    // Removing the last string entry must not delete the block while a
+    // non-string entry (which the decoded map drops) is still present.
+    let original = "overrides:\n  foo: link:../foo\n  bar:\n    nested: value\n";
+    let out = run_remove_overrides(Some(original), &["foo"]).expect("file kept");
+    assert!(out.contains("bar:"), "non-string override must survive: {out}");
+}
+
+#[test]
+fn remove_overrides_leaves_flow_style_block_with_non_string_entries_untouched() {
+    // A flow-style block can only be rewritten wholesale, and the decoded map
+    // cannot reserialize the non-string `bar`, so the file is left as-is rather
+    // than dropping data.
+    let original = "overrides: { foo: link:../foo, bar: { nested: value } }\n";
+    let out = run_remove_overrides(Some(original), &["foo"]).expect("file kept");
+    assert_eq!(out, original);
+}

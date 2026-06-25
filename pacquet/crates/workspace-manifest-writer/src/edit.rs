@@ -156,33 +156,62 @@ pub(crate) fn remove_overrides(manifest: &mut Manifest, selectors: &[String]) ->
         return false;
     }
 
-    let overrides = manifest.overrides.as_mut().expect("overrides decoded above");
-    for selector in &present {
-        overrides.shift_remove(selector);
+    // Emptiness is judged from the keys actually in the YAML, not the decoded
+    // map: `Manifest::parse` drops non-string override values, so the decoded
+    // map can be empty while the block still holds other entries. Deleting the
+    // whole block off the decoded map would silently drop that configuration.
+    let all_keys = override_keys_in_text(manifest.text());
+    let remaining_keys: Vec<&String> =
+        all_keys.iter().filter(|key| !present.contains(key)).collect();
+
+    if let Some(overrides) = manifest.overrides.as_mut() {
+        for selector in &present {
+            overrides.shift_remove(selector);
+        }
     }
 
-    if manifest.overrides.as_ref().is_none_or(IndexMap::is_empty) {
+    if remaining_keys.is_empty() {
         manifest.set_text(remove_top_level_block(manifest.text(), BLOCK));
         manifest.overrides = None;
         manifest.top_level_keys.retain(|key| key != BLOCK);
         return true;
     }
 
-    // A block-style mapping stores each entry on its own line, so the entries
-    // can be excised surgically while preserving the surrounding formatting. A
-    // flow-style mapping (`overrides: { ... }`) exposes no line entries, so
-    // `remove_mapping_entries` would be a silent no-op — fall back to dropping
-    // the block and re-rendering it block-style from the decoded map.
-    let line_based = locate(manifest.text(), &[BLOCK]).is_some_and(|mapping| {
-        present.iter().all(|key| mapping.entries.iter().any(|entry| &entry.key == key))
-    });
+    // A block-style mapping stores each entry on its own line, so the requested
+    // entries can be excised surgically while every other entry (string or not)
+    // is preserved. A flow-style mapping (`overrides: { ... }`) exposes no line
+    // entries, so it can only be rewritten wholesale — which the decoded map can
+    // do faithfully only when it accounts for every remaining key (i.e. the
+    // block has no non-string entries). When it does not, leave the file
+    // untouched rather than drop the entries we cannot reserialize.
+    let line_based =
+        locate(manifest.text(), &[BLOCK]).is_some_and(|mapping| !mapping.entries.is_empty());
 
     if line_based {
         manifest.set_text(remove_mapping_entries(manifest.text(), &[BLOCK], &present));
-    } else {
+        true
+    } else if manifest.overrides.as_ref().map_or(0, IndexMap::len) == remaining_keys.len() {
         rerender_overrides_block(manifest, BLOCK);
+        true
+    } else {
+        false
     }
-    true
+}
+
+/// Every key under the top-level `overrides:` block as written in `text`,
+/// including non-string values that the decoded [`Manifest`] drops. Returns an
+/// empty list when the block is absent or the text does not parse.
+fn override_keys_in_text(text: &str) -> Vec<String> {
+    #[derive(serde::Deserialize)]
+    struct OnlyOverrides {
+        #[serde(default)]
+        overrides: Option<IndexMap<String, serde::de::IgnoredAny>>,
+    }
+    serde_saphyr::from_str::<OnlyOverrides>(text)
+        .ok()
+        .and_then(|parsed| parsed.overrides)
+        .map(|map| map.into_keys().collect())
+        .unwrap_or_default()
 }
 
 /// Set `auditConfig.ignoreGhsas:` to `ghsas` (the complete desired list),
