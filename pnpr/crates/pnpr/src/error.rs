@@ -110,6 +110,18 @@ pub enum RegistryError {
         reason: String,
     },
 
+    /// A publish targeted a `name@version` that is already hosted.
+    /// Published versions are immutable; npm and verdaccio both answer a
+    /// re-publish with 409 Conflict.
+    #[display("Cannot publish over the previously published version {package}@{version}")]
+    #[from(skip)]
+    VersionAlreadyPublished {
+        #[error(not(source))]
+        package: String,
+        #[error(not(source))]
+        version: String,
+    },
+
     #[display(
         "Package {package}@{version} is listed in the local OSV database as vulnerable ({advisories})"
     )]
@@ -213,6 +225,7 @@ impl RegistryError {
             RegistryError::Forbidden { .. } => "forbidden",
             RegistryError::InvalidAttachment { .. } => "invalid_attachment",
             RegistryError::BadRequest { .. } => "bad_request",
+            RegistryError::VersionAlreadyPublished { .. } => "version_already_published",
             RegistryError::OsvVulnerability { .. } => "osv_vulnerability",
             RegistryError::RegistrationDisabled => "registration_disabled",
             RegistryError::TooManyUsers { .. } => "too_many_users",
@@ -283,6 +296,7 @@ impl RegistryError {
             | RegistryError::InvalidConfig { .. }
             | RegistryError::InvalidAttachment { .. }
             | RegistryError::BadRequest { .. } => StatusCode::BAD_REQUEST,
+            RegistryError::VersionAlreadyPublished { .. } => StatusCode::CONFLICT,
             RegistryError::Unauthenticated { .. } => StatusCode::UNAUTHORIZED,
             RegistryError::Forbidden { .. } => StatusCode::FORBIDDEN,
             RegistryError::OsvVulnerability { .. } => StatusCode::FORBIDDEN,

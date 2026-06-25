@@ -1501,9 +1501,20 @@ struct ValidatedPublish {
     name: PackageName,
     /// The publish body with `_attachments` stripped.
     incoming: Value,
-    /// One `(attachment, canonical disk filename, dist)` triple per
-    /// attachment.
-    prepared: Vec<(PendingAttachment, String, Value)>,
+    /// One entry per attachment.
+    prepared: Vec<PreparedAttachment>,
+}
+
+/// One publish attachment resolved to its canonical on-disk filename, the
+/// version it publishes, and its `versions[version].dist` block.
+struct PreparedAttachment {
+    attachment: PendingAttachment,
+    /// Canonical on-disk filename.
+    canonical: String,
+    /// The version this attachment publishes.
+    version: String,
+    /// The matching `dist` block, or `Value::Null` when absent.
+    dist: Value,
 }
 
 async fn validate_publish_doc(
@@ -1524,8 +1535,7 @@ async fn validate_publish_doc(
     // scoped libnpmpublish bodies the wire form is `@scope/name-version.tgz`
     // but on disk it lives at `<root>/@scope/name/name-version.tgz`,
     // matching what `serve_tarball` expects.
-    let mut prepared: Vec<(PendingAttachment, String, Value)> =
-        Vec::with_capacity(attachments.len());
+    let mut prepared: Vec<PreparedAttachment> = Vec::with_capacity(attachments.len());
     for attachment in attachments {
         let (canonical, version) = name.parse_tarball_name(&attachment.filename)?;
         let dist = incoming
@@ -1534,7 +1544,7 @@ async fn validate_publish_doc(
             .and_then(|manifest| manifest.get("dist"))
             .cloned()
             .unwrap_or(Value::Null);
-        prepared.push((attachment, canonical, dist));
+        prepared.push(PreparedAttachment { attachment, canonical, version, dist });
     }
     Ok(ValidatedPublish { name, incoming, prepared })
 }
@@ -1560,6 +1570,25 @@ async fn stage_publish(
 ) -> Result<StagedPublish, RegistryError> {
     let ValidatedPublish { name, incoming, prepared } = doc;
 
+    let hosted_bytes = state.inner.storage.read_hosted_packument(&name).await?;
+
+    // Reject a re-publish of an already-hosted version: published versions
+    // are immutable, and npm/verdaccio answer a re-publish with 409. Check
+    // only the locally hosted packument, not the upstream-seeded merge
+    // below — a version that exists only upstream may still be published
+    // here for the first time.
+    if let Some(bytes) = hosted_bytes.as_deref() {
+        let hosted: Value = serde_json::from_slice(bytes).map_err(RegistryError::Json)?;
+        if let Some(versions) = hosted.get("versions").and_then(Value::as_object)
+            && let Some(clash) = prepared.iter().find(|entry| versions.contains_key(&entry.version))
+        {
+            return Err(RegistryError::VersionAlreadyPublished {
+                package: name.as_str().to_string(),
+                version: clash.version.clone(),
+            });
+        }
+    }
+
     // Seed the merge from whatever the upstream knows about the
     // package, not just from a cold cache. Without this, a publish
     // of a brand-new version of an upstream-only package would
@@ -1567,7 +1596,7 @@ async fn stage_publish(
     // would mask every upstream version + dist-tag on subsequent
     // reads. `update_dist_tag` already does the same fallback —
     // we just mirror it here.
-    let existing_bytes = match state.inner.storage.read_hosted_packument(&name).await? {
+    let existing_bytes = match hosted_bytes {
         Some(bytes) => Some(bytes),
         None => match load_packument_bytes(state, &name).await {
             PackumentLoad::Ok(bytes) => Some(bytes),
@@ -1592,7 +1621,7 @@ async fn stage_publish(
     // 400; any tmp files written before the failure get removed
     // along the way so a bad upload leaves no on-disk artifact.
     let mut written_slots = Vec::with_capacity(prepared.len());
-    for (attachment, canonical, dist) in prepared {
+    for PreparedAttachment { attachment, canonical, dist, version: _ } in prepared {
         let slot = match state.inner.storage.reserve_hosted_tarball(&name, &canonical).await {
             Ok(slot) => slot,
             Err(err) => {
