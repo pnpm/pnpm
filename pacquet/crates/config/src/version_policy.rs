@@ -94,6 +94,67 @@ where
     Ok(out)
 }
 
+/// Merge a list of package-version-policy specs into one canonical entry per
+/// package, preserving first-seen package order. Specs for the same package
+/// are combined: a bare name/pattern absorbs any version-specific specs for
+/// that package (every version excluded); otherwise the exact versions are
+/// deduplicated, sorted by semver, and joined into a single `name@v1 || v2`
+/// entry. Ports upstream's
+/// [`mergePackageVersionSpecs`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/version-policy/src/index.ts#L60-L86),
+/// used to keep `minimumReleaseAgeExclude` canonical when `pnpm audit --fix`
+/// appends patched versions.
+pub fn merge_package_version_specs<Iter, Spec>(
+    specs: Iter,
+) -> Result<Vec<String>, VersionPolicyError>
+where
+    Iter: IntoIterator<Item = Spec>,
+    Spec: AsRef<str>,
+{
+    // `None` => a bare name/pattern matched (every version); `Some(vec)` =>
+    // the accumulated exact versions in first-seen order.
+    let mut by_package: indexmap::IndexMap<String, Option<Vec<String>>> = indexmap::IndexMap::new();
+    for spec in specs {
+        let parsed = parse_version_policy_rule(spec.as_ref())?;
+        let name = parsed.package_name.to_string();
+        match by_package.get_mut(&name) {
+            None => {
+                let value = if parsed.exact_versions.is_empty() {
+                    None
+                } else {
+                    Some(parsed.exact_versions)
+                };
+                by_package.insert(name, value);
+            }
+            Some(slot) => {
+                if parsed.exact_versions.is_empty() {
+                    *slot = None;
+                } else if let Some(existing) = slot {
+                    for version in parsed.exact_versions {
+                        if !existing.contains(&version) {
+                            existing.push(version);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(by_package
+        .into_iter()
+        .map(|(name, versions)| match versions {
+            None => name,
+            Some(mut versions) => {
+                versions.sort_by(|left, right| {
+                    match (Version::parse(left), Version::parse(right)) {
+                        (Ok(left), Ok(right)) => left.cmp(&right),
+                        _ => left.cmp(right),
+                    }
+                });
+                format!("{name}@{}", versions.join(" || "))
+            }
+        })
+        .collect())
+}
+
 /// Decision a [`PackageVersionPolicy`] reaches for a given package name.
 /// Mirrors upstream's `boolean | string[]` return shape at
 /// [`evaluateVersionPolicy`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/version-policy/src/index.ts#L74-L85).

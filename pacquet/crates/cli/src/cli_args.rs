@@ -432,12 +432,23 @@ impl CliArgs {
             }
             CliCommand::Audit(args) => {
                 let command_state = state(true)?;
-                Box::pin(async move {
-                    if args.run(command_state).await? == AuditOutcome::Vulnerable {
-                        std::process::exit(1);
-                    }
-                    Ok(())
-                })
+                macro_rules! run_audit {
+                    ($reporter:ty) => {
+                        Box::pin(async move {
+                            if args.run::<$reporter>(command_state).await?
+                                == AuditOutcome::Vulnerable
+                            {
+                                std::process::exit(1);
+                            }
+                            Ok(())
+                        })
+                    };
+                }
+                match reporter {
+                    ReporterType::Default | ReporterType::AppendOnly => run_audit!(DefaultReporter),
+                    ReporterType::Ndjson => run_audit!(NdjsonReporter),
+                    ReporterType::Silent => run_audit!(SilentReporter),
+                }
             }
             CliCommand::Why(args) => Box::pin(args.run(state(true)?)),
             CliCommand::Remove(args) => {
