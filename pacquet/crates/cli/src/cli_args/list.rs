@@ -84,7 +84,8 @@ impl ListArgs {
         } else {
             match Lockfile::load_current_from_virtual_store_dir(&config.virtual_store_dir) {
                 Ok(Some(lf)) => Ok(Some(lf)),
-                _ => Lockfile::load_wanted_from_dir(lockfile_dir),
+                Ok(None) => Lockfile::load_wanted_from_dir(lockfile_dir),
+                Err(e) => Err(e),
             }
         };
         let Some(lockfile) = lockfile_result.into_diagnostic().wrap_err("load lockfile")? else {
