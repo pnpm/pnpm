@@ -27,7 +27,7 @@ fn empty_string_name_is_rejected() {
 
 #[test]
 fn falsy_version_is_rejected() {
-    for falsy in [json!(0), json!(false), json!(null)] {
+    for falsy in [json!(0), json!(false), json!(null), json!("")] {
         let err = run(json!({ "name": "foo", "version": falsy })).unwrap_err();
         assert_eq!(err, TransformError::MissingRequiredField { field: "version" });
     }
