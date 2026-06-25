@@ -6,6 +6,7 @@ pub mod cat_file;
 pub mod cat_index;
 pub mod create;
 pub mod dedupe;
+pub mod dist_tag;
 pub mod dlx;
 pub mod exec;
 pub mod fetch;
@@ -51,6 +52,7 @@ use cat_index::CatIndexArgs;
 use clap::{Parser, Subcommand, ValueEnum};
 use create::CreateArgs;
 use dedupe::DedupeArgs;
+use dist_tag::DistTagArgs;
 use dlx::DlxArgs;
 use exec::ExecArgs;
 use fetch::FetchArgs;
@@ -196,6 +198,9 @@ pub enum CliCommand {
     Why(WhyArgs),
     /// Displays your pnpm username.
     Whoami,
+    /// Manage a package's distribution tags.
+    #[clap(name = "dist-tag", visible_alias = "dist-tags")]
+    DistTag(DistTagArgs),
     /// Rebuild a package.
     #[clap(visible_alias = "rb")]
     Rebuild(RebuildArgs),
@@ -534,6 +539,19 @@ impl CliArgs {
                 Box::pin(async move {
                     let username = whoami::whoami(cfg).await?;
                     println!("{}", sanitize::sanitize(&username));
+                    Ok(())
+                })
+            }
+            CliCommand::DistTag(args) => {
+                let cfg: &Config = config()?;
+                Box::pin(async move {
+                    if let Some(output) = args.run(cfg).await? {
+                        let output = sanitize::sanitize(&output);
+                        if output.is_empty() {
+                            return Ok(());
+                        }
+                        println!("{output}");
+                    }
                     Ok(())
                 })
             }
