@@ -30,14 +30,49 @@ use crate::{
 use async_trait::async_trait;
 use libsql::{Builder, Connection, Database, Error as LibsqlError, Row, params};
 use std::{
+    future::Future,
     sync::atomic::{AtomicU64, Ordering},
     time::Duration,
 };
+use tokio::time::timeout;
 
 /// The `tokens` columns selected (in order) by every token read, so
 /// [`row_to_keyed_record`] can decode any of them the same way.
 const TOKEN_COLUMNS: &str =
     "token_hash, username, created_at, last_used_at, readonly, cidr_whitelist";
+
+/// Deadline applied to every request-path auth database read. Mirrors the
+/// sqlx backend's `backend.<driver>.timeout` default so a stalled or hostile
+/// libsql/Turso endpoint cannot hold a Tokio task open indefinitely and
+/// exhaust the executor — a registry-wide `DoS`. (Not yet a separate YAML knob
+/// like the sqlx backend exposes; see the PR description.)
+const DEFAULT_AUTH_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Deadline for the one-time startup connect + schema setup. More generous
+/// than [`DEFAULT_AUTH_TIMEOUT`] (cold schema DDL against a remote primary can
+/// be slow) but still bounded so an unreachable database fails fast.
+const DEFAULT_STARTUP_TIMEOUT: Duration = Duration::from_mins(5);
+
+/// Bound a read-only request-path (or startup) database future with
+/// [`DEFAULT_AUTH_TIMEOUT`]-style deadline, surfacing
+/// [`RegistryError::AuthDatabaseTimeout`] (HTTP 504) on expiry instead of
+/// awaiting forever. Mirror of `with_auth_timeout` in [`super::sqlx_backend`];
+/// the two backends are independently feature-gated, so the helper is not
+/// shared. Use only around reads and startup: request-path writes must await
+/// the database result so a caller never observes a timeout with an unknown
+/// commit state.
+async fn with_auth_timeout<T, E>(
+    deadline: Duration,
+    future: impl Future<Output = std::result::Result<T, E>>,
+) -> Result<T>
+where
+    RegistryError: From<E>,
+{
+    match timeout(deadline, future).await {
+        Ok(result) => result.map_err(RegistryError::from),
+        Err(_) => Err(RegistryError::AuthDatabaseTimeout),
+    }
+}
 
 /// Networked-SQLite auth backend. One [`Connection`] serves both record
 /// stores; the [`Database`] handle is held only to keep the connection
@@ -51,6 +86,8 @@ pub struct LibsqlAuth {
     secret: [u8; 32],
     counter: AtomicU64,
     max_users: MaxUsers,
+    /// Deadline applied to every request-path auth database read.
+    timeout: Duration,
 }
 
 impl std::fmt::Debug for LibsqlAuth {
@@ -94,32 +131,45 @@ impl LibsqlAuth {
     /// [`Self::connect`] and the local-database test setup.
     async fn from_database(db: Database, max_users: MaxUsers) -> Result<Self> {
         let conn = db.connect()?;
-        init_schema(&conn).await?;
-        Ok(Self { _db: db, conn, secret: fresh_secret(), counter: AtomicU64::new(0), max_users })
+        with_auth_timeout(DEFAULT_STARTUP_TIMEOUT, init_schema(&conn)).await?;
+        Ok(Self {
+            _db: db,
+            conn,
+            secret: fresh_secret(),
+            counter: AtomicU64::new(0),
+            max_users,
+            timeout: DEFAULT_AUTH_TIMEOUT,
+        })
     }
 
     /// The bcrypt hash stored for `username`, or `None` when no such
     /// user exists.
     async fn stored_hash(&self, username: &str) -> Result<Option<String>> {
-        let mut rows = self
-            .conn
-            .query("SELECT bcrypt_hash FROM users WHERE username = ?1", params![username])
-            .await?;
-        match rows.next().await? {
-            Some(row) => Ok(Some(row.get::<String>(0)?)),
-            None => Ok(None),
-        }
+        with_auth_timeout::<_, RegistryError>(self.timeout, async {
+            let mut rows = self
+                .conn
+                .query("SELECT bcrypt_hash FROM users WHERE username = ?1", params![username])
+                .await?;
+            match rows.next().await? {
+                Some(row) => Ok(Some(row.get::<String>(0)?)),
+                None => Ok(None),
+            }
+        })
+        .await
     }
 
     /// Current number of registered users — read under the
     /// registration cap, never on the hot path.
     async fn user_count(&self) -> Result<u64> {
-        let mut rows = self.conn.query("SELECT COUNT(*) FROM users", ()).await?;
-        let Some(row) = rows.next().await? else {
-            return Err(missing_count_row());
-        };
-        let count: i64 = row.get(0)?;
-        Ok(count.max(0) as u64)
+        with_auth_timeout::<_, RegistryError>(self.timeout, async {
+            let mut rows = self.conn.query("SELECT COUNT(*) FROM users", ()).await?;
+            let Some(row) = rows.next().await? else {
+                return Err(missing_count_row());
+            };
+            let count: i64 = row.get(0)?;
+            Ok(count.max(0) as u64)
+        })
+        .await
     }
 }
 
@@ -242,33 +292,42 @@ impl TokenBackend for LibsqlAuth {
 
     async fn lookup(&self, raw: &str) -> Result<Option<String>> {
         let token_hash = sha256_hex(raw.as_bytes());
-        let mut rows = self
-            .conn
-            .query("SELECT username FROM tokens WHERE token_hash = ?1", params![token_hash])
-            .await?;
-        match rows.next().await? {
-            Some(row) => Ok(Some(row.get::<String>(0)?)),
-            None => Ok(None),
-        }
+        with_auth_timeout::<_, RegistryError>(self.timeout, async {
+            let mut rows = self
+                .conn
+                .query("SELECT username FROM tokens WHERE token_hash = ?1", params![token_hash])
+                .await?;
+            match rows.next().await? {
+                Some(row) => Ok(Some(row.get::<String>(0)?)),
+                None => Ok(None),
+            }
+        })
+        .await
     }
 
     async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
         let query = format!("SELECT {TOKEN_COLUMNS} FROM tokens WHERE token_hash = ?1");
-        let mut rows = self.conn.query(&query, params![key]).await?;
-        match rows.next().await? {
-            Some(row) => Ok(Some(row_to_keyed_record(&row)?.1)),
-            None => Ok(None),
-        }
+        with_auth_timeout::<_, RegistryError>(self.timeout, async {
+            let mut rows = self.conn.query(&query, params![key]).await?;
+            match rows.next().await? {
+                Some(row) => Ok(Some(row_to_keyed_record(&row)?.1)),
+                None => Ok(None),
+            }
+        })
+        .await
     }
 
     async fn list_for_user(&self, username: &str) -> Result<Vec<(String, TokenRecord)>> {
         let query = format!("SELECT {TOKEN_COLUMNS} FROM tokens WHERE username = ?1");
-        let mut rows = self.conn.query(&query, params![username]).await?;
-        let mut out = Vec::new();
-        while let Some(row) = rows.next().await? {
-            out.push(row_to_keyed_record(&row)?);
-        }
-        Ok(out)
+        with_auth_timeout::<_, RegistryError>(self.timeout, async {
+            let mut rows = self.conn.query(&query, params![username]).await?;
+            let mut out = Vec::new();
+            while let Some(row) = rows.next().await? {
+                out.push(row_to_keyed_record(&row)?);
+            }
+            Ok(out)
+        })
+        .await
     }
 
     async fn revoke_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
