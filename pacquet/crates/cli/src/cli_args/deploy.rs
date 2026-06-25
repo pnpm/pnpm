@@ -28,7 +28,8 @@ use pacquet_workspace_projects_graph::{BaseProject, GraphProject};
 use serde_json::{Map, Value, json};
 use std::{
     collections::HashMap,
-    fs, io,
+    fs,
+    io::{self, Write},
     path::{Path, PathBuf},
     sync::{Arc, atomic::AtomicU8},
 };
@@ -80,6 +81,10 @@ enum DeployError {
     #[display("Deploy path {} is not empty", deploy_dir.display())]
     #[diagnostic(code(ERR_PNPM_DEPLOY_DIR_NOT_EMPTY))]
     DeployDirNotEmpty { deploy_dir: PathBuf },
+
+    #[display("Refusing to deploy to unsafe target {}: {reason}", deploy_dir.display())]
+    #[diagnostic(code(ERR_PNPM_INVALID_DEPLOY_TARGET))]
+    UnsafeDeployTarget { deploy_dir: PathBuf, reason: &'static str },
 
     #[display(
         r#"By default, starting from pnpm v10, we only deploy from workspaces that have "inject-workspace-packages=true" set"#
@@ -192,7 +197,19 @@ impl DeployArgs {
             return Err(DeployError::InvalidDeployTarget.into());
         }
 
+        let force_legacy = self.legacy || config.force_legacy_deploy;
+        if config.shared_workspace_lockfile && !force_legacy && !config.inject_workspace_packages {
+            return Err(DeployError::NonInjectedWorkspace.into());
+        }
+
         let deploy_dir = resolve_target_dir(dir, &self.target_dirs[0]);
+        validate_deploy_target(
+            &deploy_dir,
+            workspace_dir,
+            &selected.project.root_dir,
+            dir,
+            self.force,
+        )?;
         prepare_deploy_dir::<ReporterT>(&deploy_dir, self.force)?;
         copy_project::<ReporterT>(
             &selected.project.root_dir,
@@ -200,7 +217,6 @@ impl DeployArgs {
             !config.deploy_all_files,
         )?;
 
-        let force_legacy = self.legacy || config.force_legacy_deploy;
         if config.shared_workspace_lockfile && !force_legacy {
             match Box::pin(self.deploy_from_shared_lockfile::<ReporterT>(
                 config,
@@ -439,6 +455,55 @@ fn resolve_target_dir(dir: &Path, target: &Path) -> PathBuf {
     }
 }
 
+fn validate_deploy_target(
+    deploy_dir: &Path,
+    workspace_dir: &Path,
+    project_dir: &Path,
+    dir: &Path,
+    force: bool,
+) -> miette::Result<()> {
+    let deploy_dir = lexical_normalize(deploy_dir);
+    let workspace_dir = lexical_normalize(workspace_dir);
+    let project_dir = lexical_normalize(project_dir);
+    let dir = lexical_normalize(dir);
+
+    if same_path(&deploy_dir, &workspace_dir) {
+        return unsafe_deploy_target(&deploy_dir, "target is the workspace root");
+    }
+    if is_ancestor_path(&deploy_dir, &workspace_dir) {
+        return unsafe_deploy_target(&deploy_dir, "target contains the workspace root");
+    }
+    if same_path(&deploy_dir, &project_dir) {
+        return unsafe_deploy_target(&deploy_dir, "target is the selected project root");
+    }
+    if is_ancestor_path(&deploy_dir, &project_dir) {
+        return unsafe_deploy_target(&deploy_dir, "target contains the selected project");
+    }
+    if same_path(&deploy_dir, &dir) {
+        return unsafe_deploy_target(&deploy_dir, "target is the current directory");
+    }
+    if is_ancestor_path(&deploy_dir, &dir) {
+        return unsafe_deploy_target(&deploy_dir, "target contains the current directory");
+    }
+    if force && !is_child_path(&deploy_dir, &workspace_dir) {
+        return unsafe_deploy_target(&deploy_dir, "target is outside the workspace");
+    }
+
+    Ok(())
+}
+
+fn unsafe_deploy_target<Output>(deploy_dir: &Path, reason: &'static str) -> miette::Result<Output> {
+    Err(DeployError::UnsafeDeployTarget { deploy_dir: deploy_dir.to_path_buf(), reason }.into())
+}
+
+fn is_ancestor_path(parent: &Path, child: &Path) -> bool {
+    child.starts_with(parent) && !same_path(parent, child)
+}
+
+fn is_child_path(child: &Path, parent: &Path) -> bool {
+    child.starts_with(parent) && !same_path(child, parent)
+}
+
 fn prepare_deploy_dir<ReporterT: Reporter>(deploy_dir: &Path, force: bool) -> miette::Result<()> {
     if !is_empty_dir_or_absent(deploy_dir)? {
         if !force {
@@ -493,6 +558,7 @@ fn copy_project<ReporterT: Reporter>(
         directory: src.to_path_buf(),
         include_only_package_files,
         resolve_symlinks: false,
+        allow_path_escape: false,
     }
     .run()
     .map_err(miette::Report::new)
@@ -1013,22 +1079,37 @@ fn relative_path(from: &Path, to: &Path) -> String {
 fn write_deploy_files(deploy_dir: &Path, deploy_files: &DeployFiles) -> miette::Result<()> {
     let mut manifest = serde_json::to_string_pretty(&deploy_files.manifest).into_diagnostic()?;
     manifest.push('\n');
-    fs::write(deploy_dir.join("package.json"), manifest)
-        .into_diagnostic()
-        .wrap_err("write deployed package.json")?;
     deploy_files
         .lockfile
         .save_to_path(&deploy_dir.join(Lockfile::FILE_NAME))
         .map_err(miette::Report::new)
         .wrap_err("write deployed lockfile")?;
     if let Some(workspace_manifest) = &deploy_files.workspace_manifest {
-        fs::write(
-            deploy_dir.join(WORKSPACE_MANIFEST_FILENAME),
-            workspace_manifest_yaml(workspace_manifest),
+        write_atomic(
+            &deploy_dir.join(WORKSPACE_MANIFEST_FILENAME),
+            workspace_manifest_yaml(workspace_manifest).as_bytes(),
         )
         .into_diagnostic()
         .wrap_err("write deployed workspace manifest")?;
     }
+    write_atomic(&deploy_dir.join("package.json"), manifest.as_bytes())
+        .into_diagnostic()
+        .wrap_err("write deployed package.json")?;
+    Ok(())
+}
+
+fn write_atomic(path: &Path, contents: &[u8]) -> io::Result<()> {
+    let dir = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let mut tmp = tempfile::NamedTempFile::new_in(dir)?;
+    tmp.write_all(contents)?;
+    tmp.as_file().sync_all()?;
+    if let Ok(metadata) = fs::metadata(path) {
+        tmp.as_file().set_permissions(metadata.permissions())?;
+    }
+    tmp.persist(path).map_err(|error| error.error)?;
     Ok(())
 }
 

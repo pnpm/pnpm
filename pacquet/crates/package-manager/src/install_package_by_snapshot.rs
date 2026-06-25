@@ -424,6 +424,7 @@ impl InstallPackageBySnapshot<'_> {
                     directory,
                     include_only_package_files: false,
                     resolve_symlinks: false,
+                    allow_path_escape: true,
                 }
                 .run()
                 .map_err(InstallPackageBySnapshotError::DirectoryFetch)?;

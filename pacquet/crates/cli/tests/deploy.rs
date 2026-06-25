@@ -80,6 +80,88 @@ fn deploy_refuses_non_empty_target_without_force() {
 }
 
 #[test]
+fn shared_lockfile_deploy_refuses_non_injected_workspace_before_target_mutation() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, false);
+
+    let output = pacquet
+        .with_args(["--filter", "app", "deploy", "deploy"])
+        .output()
+        .expect("run pacquet deploy");
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("inject-workspace-packages=true"), "unexpected stderr:\n{stderr}");
+    assert!(
+        !workspace.join("deploy").exists(),
+        "non-injected shared-lockfile deploy must fail before creating the target",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
+fn force_deploy_rejects_out_of_scope_target_without_deleting_it() {
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, false);
+    let outside = root.path().join("outside-deploy");
+    fs::create_dir_all(&outside).unwrap();
+    fs::write(outside.join("keep.txt"), "keep").unwrap();
+
+    let output = pacquet
+        .with_args(["--filter", "app", "deploy", "--legacy", "--force", outside.to_str().unwrap()])
+        .output()
+        .expect("run pacquet deploy");
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("unsafe target") && stderr.contains("outside the workspace"),
+        "unexpected stderr:\n{stderr}",
+    );
+    assert_eq!(fs::read_to_string(outside.join("keep.txt")).unwrap(), "keep");
+
+    drop((root, mock_instance));
+}
+
+#[cfg(unix)]
+#[test]
+fn deploy_all_files_rejects_symlink_escape() {
+    use std::os::unix::fs::symlink;
+
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, false);
+    let mut workspace_yaml = fs::read_to_string(workspace.join("pnpm-workspace.yaml")).unwrap();
+    workspace_yaml.push_str("deployAllFiles: true\n");
+    fs::write(workspace.join("pnpm-workspace.yaml"), workspace_yaml).unwrap();
+    let outside = root.path().join("outside-source");
+    fs::create_dir_all(&outside).unwrap();
+    fs::write(outside.join("secret.txt"), "secret").unwrap();
+    symlink(&outside, workspace.join("packages/app/outside")).unwrap();
+
+    let output = pacquet
+        .with_args(["--filter", "app", "deploy", "--legacy", "deploy"])
+        .output()
+        .expect("run pacquet deploy");
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("path_escape") && stderr.contains("resolves outside source"),
+        "unexpected stderr:\n{stderr}",
+    );
+    assert!(
+        !workspace.join("deploy/outside/secret.txt").exists(),
+        "deploy must not copy files reached through an outside symlink",
+    );
+
+    drop((root, mock_instance));
+}
+
+#[test]
 fn legacy_deploy_installs_selected_project() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();

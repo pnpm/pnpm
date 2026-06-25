@@ -37,10 +37,12 @@ pub(crate) type FilesMap = HashMap<String, PathBuf>;
 pub(crate) fn walk_all_files(
     dir: &Path,
     resolve_symlinks: bool,
+    allow_path_escape: bool,
 ) -> Result<FilesMap, DirectoryFetcherError> {
     let mut out = FilesMap::new();
     let mut visited = HashSet::new();
-    walk_all_inner(dir, "", resolve_symlinks, &mut visited, &mut out)?;
+    let confined_root = if allow_path_escape { None } else { Some(canonicalize_path(dir)?) };
+    walk_all_inner(dir, "", resolve_symlinks, confined_root.as_deref(), &mut visited, &mut out)?;
     Ok(out)
 }
 
@@ -48,6 +50,7 @@ fn walk_all_inner(
     dir: &Path,
     rel_prefix: &str,
     resolve_symlinks: bool,
+    confined_root: Option<&Path>,
     visited: &mut HashSet<PathBuf>,
     out: &mut FilesMap,
 ) -> Result<(), DirectoryFetcherError> {
@@ -89,14 +92,16 @@ fn walk_all_inner(
             continue;
         }
         let entry_path = entry.path();
-        let Some(resolved) = resolve_entry(&entry_path, resolve_symlinks)? else { continue };
+        let Some(resolved) = resolve_entry(&entry_path, resolve_symlinks, confined_root)? else {
+            continue;
+        };
         let rel = if rel_prefix.is_empty() {
             file_name_str.to_string()
         } else {
             format!("{rel_prefix}/{file_name_str}")
         };
         if resolved.metadata.is_dir() {
-            walk_all_inner(&resolved.path, &rel, resolve_symlinks, visited, out)?;
+            walk_all_inner(&resolved.path, &rel, resolve_symlinks, confined_root, visited, out)?;
         } else {
             out.insert(rel, resolved.path);
         }
@@ -116,7 +121,42 @@ struct ResolvedEntry {
 fn resolve_entry(
     path: &Path,
     resolve_symlinks: bool,
+    confined_root: Option<&Path>,
 ) -> Result<Option<ResolvedEntry>, DirectoryFetcherError> {
+    if let Some(root) = confined_root {
+        let lstat = match fs::symlink_metadata(path) {
+            Ok(m) => m,
+            Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(source) => {
+                return Err(DirectoryFetcherError::Io { dir: path.display().to_string(), source });
+            }
+        };
+        if !lstat.file_type().is_symlink() {
+            return Ok(Some(ResolvedEntry { path: path.to_path_buf(), metadata: lstat }));
+        }
+        let real = match fs::canonicalize(path) {
+            Ok(path) => path,
+            Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(source) => {
+                return Err(DirectoryFetcherError::Io { dir: path.display().to_string(), source });
+            }
+        };
+        if !real.starts_with(root) {
+            return Err(DirectoryFetcherError::PathOutsideDirectory {
+                path: path.to_path_buf(),
+                directory: root.to_path_buf(),
+            });
+        }
+        let real_meta = match fs::metadata(&real) {
+            Ok(m) => m,
+            Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(source) => {
+                return Err(DirectoryFetcherError::Io { dir: real.display().to_string(), source });
+            }
+        };
+        let path = if resolve_symlinks { real } else { path.to_path_buf() };
+        return Ok(Some(ResolvedEntry { path, metadata: real_meta }));
+    }
     if resolve_symlinks {
         let lstat = match fs::symlink_metadata(path) {
             Ok(m) => m,
@@ -177,6 +217,28 @@ fn resolve_entry(
             }
         }
     }
+}
+
+pub(crate) fn ensure_paths_stay_in_directory(
+    directory: &Path,
+    files_map: &FilesMap,
+) -> Result<(), DirectoryFetcherError> {
+    let root = canonicalize_path(directory)?;
+    for path in files_map.values() {
+        let resolved = canonicalize_path(path)?;
+        if !resolved.starts_with(&root) {
+            return Err(DirectoryFetcherError::PathOutsideDirectory {
+                path: path.clone(),
+                directory: root,
+            });
+        }
+    }
+    Ok(())
+}
+
+fn canonicalize_path(path: &Path) -> Result<PathBuf, DirectoryFetcherError> {
+    fs::canonicalize(path)
+        .map_err(|source| DirectoryFetcherError::Io { dir: path.display().to_string(), source })
 }
 
 /// Read the manifest for packlist filtering, run
