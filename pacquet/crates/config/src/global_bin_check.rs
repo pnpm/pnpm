@@ -6,8 +6,10 @@
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use std::{
-    fs,
+    fs, io,
     path::{Path, PathBuf},
+    sync::atomic::{AtomicU32, Ordering},
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 /// Failure from [`check_global_bin_dir`]. Codes mirror pnpm's
@@ -86,14 +88,26 @@ fn can_write_to_dir_and_exists(dir: &Path) -> bool {
     if !dir.exists() {
         return false;
     }
-    let probe = dir.join(format!(".pacquet-write-probe-{}", std::process::id()));
-    match fs::File::create(&probe) {
-        Ok(_) => {
-            let _ = fs::remove_file(&probe);
-            true
+    // Probe with an exclusive create (`O_EXCL`) under an unpredictable name:
+    // `create_new` never follows a symlink to (or truncates) an existing
+    // file, so this cannot be turned into a file-clobber primitive when the
+    // bin dir is shared or attacker-writable.
+    static COUNTER: AtomicU32 = AtomicU32::new(0);
+    for _ in 0..5 {
+        let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_nanos());
+        let seq = COUNTER.fetch_add(1, Ordering::Relaxed);
+        let probe =
+            dir.join(format!(".pacquet-write-probe-{}-{nanos:x}-{seq:x}", std::process::id()));
+        match fs::OpenOptions::new().write(true).create_new(true).open(&probe) {
+            Ok(_) => {
+                let _ = fs::remove_file(&probe);
+                return true;
+            }
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
+            Err(_) => return false,
         }
-        Err(_) => false,
     }
+    false
 }
 
 #[cfg(test)]
