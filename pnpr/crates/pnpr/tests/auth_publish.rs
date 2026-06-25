@@ -1182,6 +1182,13 @@ async fn unpublish_partial_writes_modified_packument() {
         .unwrap();
     let served = body_json(response.into_body()).await;
     assert_eq!(served["versions"].as_object().unwrap().keys().collect::<Vec<_>>(), vec!["2.0.0"]);
+    // The PUT body dropped dist.integrity for the retained version; the server
+    // restores the published value so the round-trip can't strip a hash and
+    // leave 2.0.0's tarball unservable.
+    assert!(
+        served["versions"]["2.0.0"]["dist"]["integrity"].is_string(),
+        "stripped integrity must be restored from the hosted packument",
+    );
 
     // DELETE the 1.0.0 tarball next.
     let request = Request::delete("/unpub-partial/-/unpub-partial-1.0.0.tgz/-rev/anything")

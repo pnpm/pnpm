@@ -1891,23 +1891,17 @@ async fn update_packument(
         obj.remove("_rev");
         obj.remove("_revisions");
     }
-    let bytes = match serde_json::to_vec_pretty(&packument) {
-        Ok(b) => b,
-        Err(err) => return error_response(&RegistryError::Json(err)),
-    };
     // Serialize the write against this instance's other same-package
     // packument writers (publish / dist-tag), so the client-supplied
     // rewrite can't interleave with a concurrent merge.
     let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
-    // A published version's dist.integrity is immutable. This endpoint is the
-    // partial-unpublish flow (removing versions), not a way to rewrite the
-    // integrity of versions still on disk — doing so would break every
-    // client's install with EINTEGRITY while the real tarball is untouched.
-    // The hosted packument is read under the lock so a concurrent publish
-    // can't race the check.
-    if let Some(err) = reject_packument_integrity_tampering(state, &name, &packument).await {
+    if let Some(err) = enforce_published_version_integrity(state, &name, &mut packument).await {
         return error_response(&err);
     }
+    let bytes = match serde_json::to_vec_pretty(&packument) {
+        Ok(b) => b,
+        Err(err) => return error_response(&RegistryError::Json(err)),
+    };
     if let Err(err) = state.inner.storage.write_hosted_packument(&name, &bytes).await {
         return error_response(&err);
     }
@@ -1920,15 +1914,24 @@ async fn update_packument(
         .expect("static-shape response always builds")
 }
 
-/// Guard the partial-unpublish `PUT` against `dist.integrity` tampering: a
-/// version already on disk must keep its integrity, and any newly added
-/// version entry must carry a syntactically valid SRI. Returns the rejection
-/// error, or `None` when the body is acceptable. Must be called while holding
-/// the package lock so a concurrent publish can't race the read.
-async fn reject_packument_integrity_tampering(
+/// Enforce that an already-published version's `dist.integrity` is immutable
+/// across the partial-unpublish `PUT`. Changing it while the tarball on disk
+/// stays the same would break every client with `EINTEGRITY`, so:
+///
+/// - A *change* to a published version's integrity is rejected.
+/// - An *omission* is repaired in place by restoring the hosted value — the
+///   round-trip body legitimately re-PUTs the remaining versions, and a dropped
+///   integrity would otherwise leave that version's tarball unservable, since
+///   [`expected_tarball_dist`] requires a string integrity.
+/// - A newly added version entry must carry a syntactically valid SRI.
+///
+/// Returns the rejection error, or `None` when the body is acceptable (possibly
+/// after restoring stripped integrities). Must be called while holding the
+/// package lock so a concurrent publish can't race the read.
+async fn enforce_published_version_integrity(
     state: &AppState,
     name: &PackageName,
-    incoming: &Value,
+    incoming: &mut Value,
 ) -> Option<RegistryError> {
     let incoming_versions = incoming.get("versions").and_then(Value::as_object)?;
     let hosted: Option<Value> = match state.inner.storage.read_hosted_packument(name).await {
@@ -1943,12 +1946,14 @@ async fn reject_packument_integrity_tampering(
     };
     let hosted_versions =
         hosted.as_ref().and_then(|value| value.get("versions")).and_then(Value::as_object);
+    // Published versions whose integrity the body omitted: their hosted value is
+    // re-inserted after the scan (a borrow of `incoming` is live until then).
+    let mut restore: Vec<(String, String)> = Vec::new();
     for (version, manifest) in incoming_versions {
         // A present dist.integrity must be a string — a valid SRI is the only
-        // acceptable shape. Absence is allowed (the partial-unpublish flow
-        // re-PUTs remaining versions without it), but a present-but-non-string
-        // value (null, number, object) would slip past the string-only checks
-        // below and still break tarball serving, so reject it outright.
+        // acceptable shape. A present-but-non-string value (null, number,
+        // object) would slip past the string-only checks below and still break
+        // tarball serving, so reject it outright.
         let incoming_integrity = match manifest.get("dist").and_then(|dist| dist.get("integrity")) {
             None => None,
             Some(Value::String(value)) => Some(value.as_str()),
@@ -1964,19 +1969,16 @@ async fn reject_packument_integrity_tampering(
                     .get("dist")
                     .and_then(|dist| dist.get("integrity"))
                     .and_then(Value::as_str);
-                // Reject only a *change* to an integrity that is already
-                // present. A partial-unpublish legitimately re-PUTs the
-                // remaining versions with dist.integrity omitted, so an absent
-                // incoming integrity is allowed — it doesn't substitute a bogus
-                // value, which is the tampering this guards against.
-                if let (Some(stored), Some(submitted)) = (existing_integrity, incoming_integrity)
-                    && stored != submitted
-                {
-                    return Some(RegistryError::BadRequest {
-                        reason: format!(
-                            "dist.integrity for the published version {version:?} is immutable",
-                        ),
-                    });
+                match (existing_integrity, incoming_integrity) {
+                    (Some(stored), Some(submitted)) if stored != submitted => {
+                        return Some(RegistryError::BadRequest {
+                            reason: format!(
+                                "dist.integrity for the published version {version:?} is immutable",
+                            ),
+                        });
+                    }
+                    (Some(stored), None) => restore.push((version.clone(), stored.to_string())),
+                    _ => {}
                 }
             }
             None => {
@@ -1988,6 +1990,16 @@ async fn reject_packument_integrity_tampering(
                     });
                 }
             }
+        }
+    }
+    for (version, integrity) in restore {
+        if let Some(dist) = incoming
+            .get_mut("versions")
+            .and_then(|versions| versions.get_mut(&version))
+            .and_then(|manifest| manifest.get_mut("dist"))
+            .and_then(Value::as_object_mut)
+        {
+            dist.insert("integrity".to_string(), Value::String(integrity));
         }
     }
     None
