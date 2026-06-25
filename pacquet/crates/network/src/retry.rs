@@ -14,13 +14,18 @@
 //! retry boundary wraps the whole fetch + integrity + decode + extract
 //! pipeline, not just a single request — but reuses [`RetryOpts`].
 //!
+//! Reading a response body can fail *after* [`send_with_retry`] has
+//! handed back a `200`, outside its loop; [`retry_async`] is the
+//! companion that re-issues the whole request when consuming or parsing
+//! the body fails. See its docs for why that second layer exists.
+//!
 //! [`RetryTimeoutOptions`]: https://github.com/pnpm/pnpm/blob/1819226b51/network/fetch/src/fetch.ts
 
-use std::time::Duration;
+use std::{future::Future, time::Duration};
 
 use reqwest::{Client, RequestBuilder, Response, StatusCode};
 
-use crate::{ThrottledClient, ThrottledClientGuard};
+use crate::{ThrottledClient, ThrottledClientGuard, redact_url_credentials};
 
 /// Settings for the per-request retry loop. Mirrors pnpm's
 /// `fetch-retries` / `fetch-retry-factor` / `fetch-retry-mintimeout` /
@@ -138,7 +143,7 @@ pub async fn send_with_retry<'client>(
                 let delay = retry_opts.delay_for(attempt);
                 tracing::warn!(
                     target: "pacquet_network::retry",
-                    url,
+                    url = %redact_url_credentials(url),
                     ?status,
                     attempt = attempt + 1,
                     max_attempts = retry_opts.retries + 1,
@@ -154,12 +159,64 @@ pub async fn send_with_retry<'client>(
                 let delay = retry_opts.delay_for(attempt);
                 tracing::warn!(
                     target: "pacquet_network::retry",
-                    url,
-                    ?error,
+                    url = %redact_url_credentials(url),
+                    error = %redact_url_credentials(&format!("{error:?}")),
                     attempt = attempt + 1,
                     max_attempts = retry_opts.retries + 1,
                     ?delay,
                     "Request errored; retrying after backoff",
+                );
+                tokio::time::sleep(delay).await;
+                attempt += 1;
+            }
+            Err(error) => return Err(error),
+        }
+    }
+}
+
+/// Run `attempt` — a full "issue the request, then read and parse its
+/// body" round trip — retrying under `retry_opts`'s exponential
+/// backoff whenever it fails with an error `is_retryable` accepts and
+/// retries remain.
+///
+/// This is the body-read/parse companion to [`send_with_retry`].
+/// pnpm's metadata fetch nests two retry layers: the shared network
+/// library retries the request ([`send_with_retry`] here), and the
+/// resolver re-runs the *whole* fetch when reading or parsing the
+/// response body fails — "error decoding response body" from a
+/// mid-stream reset, or broken JSON — via a second `@zkochan/retry`
+/// operation in
+/// [`resolving/npm-resolver/src/fetch.ts`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetch.ts#L172-L210).
+/// The `attempt` closure issues the request *and* consumes its body,
+/// so `is_retryable` should accept only body-read/parse failures:
+/// transport and status failures stay non-retryable here because
+/// [`send_with_retry`] inside the closure already owns that budget,
+/// exactly as pnpm rejects a fetch failure immediately while letting
+/// the network library retry it internally.
+pub async fn retry_async<Value, Err, Fut>(
+    url: &str,
+    retry_opts: RetryOpts,
+    is_retryable: impl Fn(&Err) -> bool,
+    mut attempt_fn: impl FnMut() -> Fut,
+) -> Result<Value, Err>
+where
+    Fut: Future<Output = Result<Value, Err>>,
+    Err: std::fmt::Debug,
+{
+    let mut attempt = 0;
+    loop {
+        match attempt_fn().await {
+            Ok(value) => return Ok(value),
+            Err(error) if is_retryable(&error) && attempt < retry_opts.retries => {
+                let delay = retry_opts.delay_for(attempt);
+                tracing::warn!(
+                    target: "pacquet_network::retry",
+                    url = %redact_url_credentials(url),
+                    error = %redact_url_credentials(&format!("{error:?}")),
+                    attempt = attempt + 1,
+                    max_attempts = retry_opts.retries + 1,
+                    ?delay,
+                    "Reading response body failed; retrying after backoff",
                 );
                 tokio::time::sleep(delay).await;
                 attempt += 1;
