@@ -73,6 +73,7 @@ rmp-serde            = { workspace = true }
 serde                = { workspace = true }
 serde_json           = { workspace = true }
 tabled               = { workspace = true }
+url                  = { workspace = true }
 tempfile             = { workspace = true }
 tokio                = { workspace = true }
 tracing              = { workspace = true }
@@ -85,7 +86,7 @@ wax                  = { workspace = true }
 # children (lifecycle scripts and their descendants) to pacquet's. See
 # `src/job_control.rs`.
 [target.'cfg(windows)'.dependencies]
-windows-sys = { workspace = true }
+windows-sys = { workspace = true, features = ["Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
 
 [dev-dependencies]
 pacquet-testing-utils = { workspace = true }

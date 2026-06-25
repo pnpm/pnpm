@@ -11,6 +11,7 @@ pub mod dedupe;
 pub mod deploy;
 pub mod dist_tag;
 pub mod dlx;
+pub mod docs;
 pub mod exec;
 pub mod fetch;
 pub mod find_hash;
@@ -63,6 +64,7 @@ use dedupe::DedupeArgs;
 use deploy::DeployArgs;
 use dist_tag::DistTagArgs;
 use dlx::DlxArgs;
+use docs::DocsArgs;
 use exec::ExecArgs;
 use fetch::FetchArgs;
 use find_hash::FindHashArgs;
@@ -300,6 +302,9 @@ pub enum CliCommand {
     /// Removes links to a local package and reinstalls it
     #[clap(visible_aliases = ["dislink"])]
     Unlink(UnlinkArgs),
+    /// Opens the documentation of a package in the browser.
+    #[clap(visible_alias = "home")]
+    Docs(DocsArgs),
 }
 
 impl CliArgs {
@@ -1050,6 +1055,10 @@ impl CliArgs {
                 } else {
                     Box::pin(std::future::ready(Ok(())))
                 }
+            }
+            CliCommand::Docs(args) => {
+                let cfg = config()?;
+                Box::pin(async move { args.run(cfg).await })
             }
             CliCommand::Completion(_) | CliCommand::CompletionServer(_) => {
                 unreachable!("completion returns before configuration")
