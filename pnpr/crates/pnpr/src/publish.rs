@@ -209,15 +209,23 @@ fn sha1_hex_from_integrity_opts(opts: IntegrityOpts) -> String {
 /// `@pnpm/registry-mock`'s publish script exercises):
 ///
 /// * `name`, `_id` — copied from the new body.
-/// * `versions` — union, with the new body's entries taking
-///   precedence when keys collide.
+/// * `versions` — union; an already-hosted version is immutable except for
+///   its `deprecated` flag (see [`merge_versions`]), an upstream-only or
+///   new version is taken from the body. `hosted` is the locally hosted
+///   packument (or `None`); `existing` is the merge seed, which may instead
+///   be the upstream packument, so immutability keys off `hosted`, not it.
 /// * `dist-tags` — union, new body overrides on key collision.
 /// * `time` — union, new entries override on key collision.
 ///   `time.modified` is always bumped to "now".
 /// * Other top-level keys (`description`, `readme`, `maintainers`,
 ///   `users`, etc.) come from the new body when present, falling
 ///   back to the existing packument otherwise.
-pub fn merge_manifest(existing: Option<&Value>, incoming: &Value, now_iso: &str) -> Value {
+pub fn merge_manifest(
+    existing: Option<&Value>,
+    incoming: &Value,
+    hosted: Option<&Value>,
+    now_iso: &str,
+) -> Value {
     let mut out = match existing {
         Some(Value::Object(obj)) => obj.clone(),
         _ => Map::new(),
@@ -227,7 +235,7 @@ pub fn merge_manifest(existing: Option<&Value>, incoming: &Value, now_iso: &str)
         for (key, value) in incoming_obj {
             match key.as_str() {
                 "versions" => {
-                    let merged = merge_objects(out.get(key), value);
+                    let merged = merge_versions(out.get(key), value, hosted);
                     out.insert(key.clone(), merged);
                 }
                 "dist-tags" => {
@@ -288,6 +296,56 @@ fn merge_objects(existing: Option<&Value>, incoming: &Value) -> Value {
     if let Some(incoming_obj) = incoming.as_object() {
         for (key, value) in incoming_obj {
             merged.insert(key.clone(), value.clone());
+        }
+    }
+    Value::Object(merged)
+}
+
+/// Merge the `versions` map onto the seed `existing`. A version that is
+/// already **hosted** is immutable except for its `deprecated` flag: the
+/// hosted manifest is kept and only `deprecated` is applied from the body
+/// (set it, or remove it for undeprecate), so `dist`, `dependencies`, `bin`,
+/// `engines` and every other resolution-relevant field stay as published. A
+/// malformed incoming entry for a hosted version is ignored. Any other
+/// version — brand-new, or one that exists only upstream in the seed — is
+/// taken from the body, so its manifest matches the tarball being published.
+///
+/// Immutability keys off `hosted` (the locally hosted packument), not the
+/// seed: `existing` may be the upstream packument, and upstream versions are
+/// not immutable here — a first local publish of one must win.
+fn merge_versions(existing: Option<&Value>, incoming: &Value, hosted: Option<&Value>) -> Value {
+    let hosted_versions = hosted.and_then(|h| h.get("versions")).and_then(Value::as_object);
+    let mut merged = match existing {
+        Some(Value::Object(obj)) => obj.clone(),
+        _ => Map::new(),
+    };
+    if let Some(incoming_obj) = incoming.as_object() {
+        for (version, manifest) in incoming_obj {
+            let hosted_manifest = hosted_versions
+                .and_then(|versions| versions.get(version))
+                .and_then(Value::as_object);
+            match (hosted_manifest, manifest.as_object()) {
+                (Some(hosted_manifest), Some(incoming_manifest)) => {
+                    let mut updated = hosted_manifest.clone();
+                    match incoming_manifest.get("deprecated") {
+                        Some(deprecated) => {
+                            updated.insert("deprecated".to_string(), deprecated.clone());
+                        }
+                        None => {
+                            updated.remove("deprecated");
+                        }
+                    }
+                    merged.insert(version.clone(), Value::Object(updated));
+                }
+                // Malformed incoming entry for a hosted version: keep the
+                // hosted manifest rather than overwrite it with junk.
+                (Some(hosted_manifest), None) => {
+                    merged.insert(version.clone(), Value::Object(hosted_manifest.clone()));
+                }
+                _ => {
+                    merged.insert(version.clone(), manifest.clone());
+                }
+            }
         }
     }
     Value::Object(merged)

@@ -1511,6 +1511,10 @@ struct PreparedAttachment {
     attachment: PendingAttachment,
     /// Canonical on-disk filename.
     canonical: String,
+    /// The version this attachment publishes, parsed from its filename.
+    /// Lets the re-publish guard tell a content publish from a metadata-only
+    /// update (which carries no attachments).
+    version: String,
     /// The matching `dist` block, or `Value::Null` when absent.
     dist: Value,
 }
@@ -1542,7 +1546,7 @@ async fn validate_publish_doc(
             .and_then(|manifest| manifest.get("dist"))
             .cloned()
             .unwrap_or(Value::Null);
-        prepared.push(PreparedAttachment { attachment, canonical, dist });
+        prepared.push(PreparedAttachment { attachment, canonical, version, dist });
     }
     Ok(ValidatedPublish { name, incoming, prepared })
 }
@@ -1569,24 +1573,57 @@ async fn stage_publish(
     let ValidatedPublish { name, incoming, prepared } = doc;
 
     let hosted_bytes = state.inner.storage.read_hosted_packument(&name).await?;
+    let hosted: Option<Value> = match hosted_bytes.as_deref().map(serde_json::from_slice) {
+        Some(Ok(value)) => Some(value),
+        Some(Err(err)) => return Err(RegistryError::Json(err)),
+        None => None,
+    };
 
-    // Reject a re-publish of an already-hosted version: published versions
-    // are immutable, and npm/verdaccio answer a re-publish with 409. Check
-    // every version in the incoming body — not just the ones backed by an
-    // attachment, since merge_manifest below consumes the whole `versions`
-    // map — against the locally hosted packument only (a version that exists
-    // only upstream may still be published here for the first time).
-    if let Some(bytes) = hosted_bytes.as_deref() {
-        let hosted: Value = serde_json::from_slice(bytes).map_err(RegistryError::Json)?;
-        if let Some(hosted_versions) = hosted.get("versions").and_then(Value::as_object)
-            && let Some(incoming_versions) = incoming.get("versions").and_then(Value::as_object)
-            && let Some(clash) =
-                incoming_versions.keys().find(|version| hosted_versions.contains_key(*version))
-        {
-            return Err(RegistryError::VersionAlreadyPublished {
-                package: name.as_str().to_string(),
-                version: clash.clone(),
-            });
+    // Validate each incoming version against the locally hosted packument
+    // (a hosted packument is served as-is, so anything not in it is genuinely
+    // new here, even if it exists upstream):
+    //
+    // * Already hosted — published content is immutable, so reject a *content*
+    //   re-publish with 409 (as npm/verdaccio do): one that carries a new
+    //   tarball (an attachment) or changes `dist.integrity` (the content
+    //   anchor; the `tarball` URL is rewritten on read, so don't compare it).
+    //   A clash that does neither is a metadata-only update (`pnpm deprecate`),
+    //   which is allowed — `merge_versions` keeps the hosted `dist`.
+    // * New — it must ship a tarball. A version entry with no attachment would
+    //   be advertised with no hosted tarball (installs 404) and would block a
+    //   later real publish of it (409): reject with 400.
+    let attachment_versions: HashSet<&str> =
+        prepared.iter().map(|attachment| attachment.version.as_str()).collect();
+    let hosted_versions =
+        hosted.as_ref().and_then(|h| h.get("versions")).and_then(Value::as_object);
+    if let Some(incoming_versions) = incoming.get("versions").and_then(Value::as_object) {
+        for (version, incoming_manifest) in incoming_versions {
+            let has_attachment = attachment_versions.contains(version.as_str());
+            match hosted_versions.and_then(|hosted| hosted.get(version)) {
+                Some(hosted_manifest) => {
+                    let incoming_integrity =
+                        incoming_manifest.pointer("/dist/integrity").and_then(Value::as_str);
+                    let hosted_integrity =
+                        hosted_manifest.pointer("/dist/integrity").and_then(Value::as_str);
+                    let integrity_changed = incoming_integrity
+                        .is_some_and(|integrity| Some(integrity) != hosted_integrity);
+                    if has_attachment || integrity_changed {
+                        return Err(RegistryError::VersionAlreadyPublished {
+                            package: name.as_str().to_string(),
+                            version: version.clone(),
+                        });
+                    }
+                }
+                None if !has_attachment => {
+                    return Err(RegistryError::BadRequest {
+                        reason: format!(
+                            "cannot publish version {version} of {:?} without a tarball",
+                            name.as_str(),
+                        ),
+                    });
+                }
+                None => {}
+            }
         }
     }
 
@@ -1610,7 +1647,7 @@ async fn stage_publish(
         Some(Err(err)) => return Err(RegistryError::Json(err)),
         None => None,
     };
-    let merged = merge_manifest(existing.as_ref(), &incoming, now_iso);
+    let merged = merge_manifest(existing.as_ref(), &incoming, hosted.as_ref(), now_iso);
     let merged_bytes = serde_json::to_vec_pretty(&merged).map_err(RegistryError::Json)?;
     // `incoming` is no longer needed; drop it so the base64 strings
     // inside go away as soon as `prepared` (which owns each one) is
@@ -1622,7 +1659,7 @@ async fn stage_publish(
     // 400; any tmp files written before the failure get removed
     // along the way so a bad upload leaves no on-disk artifact.
     let mut written_slots = Vec::with_capacity(prepared.len());
-    for PreparedAttachment { attachment, canonical, dist } in prepared {
+    for PreparedAttachment { attachment, canonical, version: _, dist } in prepared {
         let slot = match state.inner.storage.reserve_hosted_tarball(&name, &canonical).await {
             Ok(slot) => slot,
             Err(err) => {
