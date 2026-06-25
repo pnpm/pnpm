@@ -275,6 +275,12 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
     let lockfile_modified =
         wanted_lockfile_modified(workspace_root, state.last_validated_timestamp);
 
+    match current_lockfile_missing_with_non_empty_wanted(check) {
+        Ok(true) => return Decision::Skipped { reason: "current lockfile missing" },
+        Ok(false) => {}
+        Err(reason) => return Decision::Skipped { reason },
+    }
+
     if modified.is_empty() && !lockfile_modified {
         return match regenerate_wanted_lockfile_if_missing(check, None) {
             Ok(()) => Decision::UpToDate,
@@ -902,6 +908,23 @@ fn mtime_ms(path: &Path) -> Option<i64> {
 fn wanted_lockfile_modified(workspace_root: &Path, last_validated_timestamp: i64) -> bool {
     mtime_ms(&workspace_root.join(Lockfile::FILE_NAME))
         .is_some_and(|mtime| mtime > last_validated_timestamp)
+}
+
+fn current_lockfile_missing_with_non_empty_wanted(
+    check: &OptimisticRepeatInstallCheck<'_>,
+) -> Result<bool, &'static str> {
+    if check.is_workspace_install || !check.config.lockfile {
+        return Ok(false);
+    }
+    if check.config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME).exists() {
+        return Ok(false);
+    }
+    let Some(wanted) =
+        check.lockfile.get().map_err(|_| "the wanted lockfile cannot be read or parsed")?
+    else {
+        return Ok(false);
+    };
+    Ok(wanted.packages.as_ref().is_some_and(|packages| !packages.is_empty()))
 }
 
 /// Compare today's settings against what the previous install

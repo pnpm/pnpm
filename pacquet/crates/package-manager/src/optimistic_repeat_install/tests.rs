@@ -1880,6 +1880,20 @@ fn content_check_decision(
     })
 }
 
+#[test]
+fn returns_skipped_when_current_lockfile_missing_for_non_empty_wanted_lockfile() {
+    let (dir, config) = setup_content_check_project();
+    fs::remove_file(config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME)).unwrap();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+
+    let decision =
+        content_check_decision(&dir, config, false, &[(dir.path().to_path_buf(), &manifest)]);
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("current lockfile")),
+        "expected Skipped(current lockfile missing), got {decision:?}",
+    );
+}
+
 /// A manifest rewrite that leaves the dependency fields intact — the
 /// shape `touch package.json` / `npm pkg set/delete` produce — must
 /// still short-circuit. Ports the contract behind upstream's
