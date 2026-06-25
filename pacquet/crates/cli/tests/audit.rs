@@ -578,18 +578,23 @@ fn audit_signatures_skips_registry_without_signing_keys() {
 fn audit_signatures_fails_when_keys_endpoint_errors() {
     let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     let mut registry = mockito::Server::new();
-    let keys_mock =
-        registry.mock("GET", "/-/npm/v1/keys").with_status(500).with_body("boom").create();
+    let keys_mock = registry
+        .mock("GET", "/-/npm/v1/keys")
+        .with_status(500)
+        .with_body("boom \u{1b}[31m\n")
+        .create();
     write_signatures_workspace(&workspace, &registry.url(), "signed-pkg");
 
     let output = pacquet.arg("audit").arg("signatures").output().expect("run audit signatures");
 
     assert_failure(&output);
-    assert!(
-        stderr(&output).contains("ERR_PNPM_AUDIT_SIGNATURE_KEYS_FETCH_FAIL"),
-        "stderr:\n{}",
-        stderr(&output),
-    );
+    let stderr = stderr(&output);
+    assert!(stderr.contains("ERR_PNPM_AUDIT_SIGNATURE_KEYS_FETCH_FAIL"), "stderr:\n{stderr}");
+    assert!(stderr.contains("responded with 500"), "stderr:\n{stderr}");
+    // The attacker-controlled registry body is escaped before it reaches the
+    // terminal: the raw ESC byte must not survive.
+    assert!(stderr.contains(r"boom \u{1b}[31m\u{a}"), "stderr:\n{stderr}");
+    assert!(!stderr.contains('\u{1b}'), "stderr:\n{stderr}");
     keys_mock.assert();
 }
 

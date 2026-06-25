@@ -2,9 +2,9 @@
 //! installed packages.
 //!
 //! Ports pnpm's
-//! [`@pnpm/deps.security.signatures`](https://github.com/pnpm/pnpm/blob/fc2f33912e/deps/security/signatures/src/verifySignatures.ts)
+//! [`@pnpm/deps.security.signatures`](https://github.com/pnpm/pnpm/blob/fc2f33912e/pnpm11/deps/security/signatures/src/verifySignatures.ts)
 //! and the
-//! [`audit signatures` command](https://github.com/pnpm/pnpm/blob/fc2f33912e/deps/compliance/commands/src/audit/signatures.ts).
+//! [`audit signatures` command](https://github.com/pnpm/pnpm/blob/fc2f33912e/pnpm11/deps/compliance/commands/src/audit/signatures.ts).
 //!
 //! For every installed `name@version`, the package's own registry is asked
 //! for its signing keys (`/-/npm/v1/keys`) and its full packument. A
@@ -31,7 +31,7 @@ use pacquet_config::Config;
 use pacquet_network::{ThrottledClient, redact_url_credentials, send_with_retry};
 use serde::{Deserialize, Serialize};
 
-use super::{bold, red, retry_opts_from_config};
+use super::{bold, red, retry_opts_from_config, sanitize_response_body};
 
 /// One installed package to check, already routed to the registry it was
 /// installed from.
@@ -405,7 +405,10 @@ async fn fetch_registry_keys(
     let keys_url = format!("{registry_url}-/npm/v1/keys");
     let display_url = redact_url_credentials(&keys_url);
     let authorization = config.auth_headers.for_url(&registry_url);
-    let (_, response) =
+    // Keep the throttle guard alive until the body is fully read; dropping it
+    // before `response.text()` would release the concurrency permit while the
+    // socket is still draining (see [`send_with_retry`]).
+    let (_guard, response) =
         send_with_retry(http_client, &keys_url, retry_opts_from_config(config), |client| {
             let mut request = client.get(&keys_url).header("accept", "application/json");
             if let Some(value) = &authorization {
@@ -430,7 +433,7 @@ async fn fetch_registry_keys(
         return Err(SignaturesError::KeysBadStatus {
             url: display_url,
             status,
-            body: sanitize_body(&body),
+            body: sanitize_response_body(&body),
         });
     }
 
@@ -438,12 +441,12 @@ async fn fetch_registry_keys(
         serde_json::from_str(&body).map_err(|err| SignaturesError::KeysInvalidJson {
             url: display_url.clone(),
             reason: err.to_string(),
-            body: sanitize_body(&body),
+            body: sanitize_response_body(&body),
         })?;
     let parsed: RegistryKeysResponse =
         serde_json::from_value(value.clone()).map_err(|_| SignaturesError::KeysUnexpectedBody {
             url: display_url,
-            body: sanitize_body(&value.to_string()),
+            body: sanitize_response_body(&value.to_string()),
         })?;
 
     // npm registry signing uses ECDSA P-256 keys; provenance attestations are
@@ -465,7 +468,8 @@ async fn fetch_packument(
     let packument_url = format!("{registry_url}{}", encode_package_name(name));
     let display_url = redact_url_credentials(&packument_url);
     let authorization = config.auth_headers.for_url(&registry_url);
-    let (_, response) =
+    // Hold the throttle guard until the body is read; see `fetch_registry_keys`.
+    let (_guard, response) =
         send_with_retry(http_client, &packument_url, retry_opts_from_config(config), |client| {
             let mut request = client.get(&packument_url).header("accept", "application/json");
             if let Some(value) = &authorization {
@@ -488,7 +492,7 @@ async fn fetch_packument(
         return Err(SignaturesError::PackumentBadStatus {
             url: display_url,
             status,
-            body: sanitize_body(&body),
+            body: sanitize_response_body(&body),
         });
     }
 
@@ -496,12 +500,12 @@ async fn fetch_packument(
         serde_json::from_str(&body).map_err(|err| SignaturesError::PackumentInvalidJson {
             url: display_url.clone(),
             reason: err.to_string(),
-            body: sanitize_body(&body),
+            body: sanitize_response_body(&body),
         })?;
     let parsed: Packument = serde_json::from_value(value.clone()).map_err(|_| {
         SignaturesError::PackumentUnexpectedBody {
             url: display_url,
-            body: sanitize_body(&value.to_string()),
+            body: sanitize_response_body(&value.to_string()),
         }
     })?;
     Ok(Some(parsed))
@@ -534,10 +538,6 @@ fn encode_uri_component(input: &str) -> String {
         }
     }
     output
-}
-
-fn sanitize_body(value: &str) -> String {
-    value.chars().take(500).collect()
 }
 
 pub(super) fn render_signature_verification_result(result: &SignatureVerificationResult) -> String {
