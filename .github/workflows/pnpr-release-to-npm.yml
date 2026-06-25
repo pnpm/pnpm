@@ -150,6 +150,7 @@ jobs:
   publish:
     name: Publish
     runs-on: ubuntu-latest
+    environment: release
     permissions:
       # Required for npm provenance attestations via OIDC.
       id-token: write
@@ -222,6 +223,7 @@ jobs:
   docker:
     name: Docker
     runs-on: ubuntu-latest
+    environment: release
     needs:
       - build
       - publish
