@@ -1,7 +1,7 @@
 use crate::{
-    CatalogMode, Config, HoistingLimits, LinkWorkspacePackages, NodeLinker, NodePackageMapType,
-    PackageImportMethod, ResolutionMode, ScriptsPrependNodePath, TrustPolicy, api::EnvVar,
-    resolve_child_concurrency,
+    AuditConfig, AuditLevel, CatalogMode, Config, HoistingLimits, LinkWorkspacePackages,
+    NodeLinker, NodePackageMapType, PackageImportMethod, ResolutionMode, ScriptsPrependNodePath,
+    TrustPolicy, api::EnvVar, resolve_child_concurrency,
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
@@ -373,6 +373,12 @@ pub struct WorkspaceSettings {
 
     /// `trustPolicy` from `pnpm-workspace.yaml`. See [`TrustPolicy`].
     pub trust_policy: Option<TrustPolicy>,
+
+    /// `auditLevel` from `pnpm-workspace.yaml`.
+    pub audit_level: Option<AuditLevel>,
+
+    /// `auditConfig` from `pnpm-workspace.yaml`.
+    pub audit_config: Option<AuditConfig>,
 
     /// `trustPolicyExclude` from `pnpm-workspace.yaml`.
     pub trust_policy_exclude: Option<Vec<String>>,
@@ -866,6 +872,12 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.trust_policy {
             config.trust_policy = v;
+        }
+        if let Some(v) = self.audit_level {
+            config.audit_level = Some(v);
+        }
+        if let Some(v) = self.audit_config {
+            config.audit_config = v;
         }
         if let Some(v) = self.trust_policy_exclude {
             config.trust_policy_exclude = Some(v);

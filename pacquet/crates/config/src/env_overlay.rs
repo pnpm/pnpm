@@ -17,7 +17,7 @@
 //! [`config/reader/src/index.ts:719-722`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts#L719-L722).
 
 use crate::{
-    CatalogMode, HoistingLimits, NodeLinker, NodePackageMapType, PackageImportMethod,
+    AuditLevel, CatalogMode, HoistingLimits, NodeLinker, NodePackageMapType, PackageImportMethod,
     ResolutionMode, ScriptsPrependNodePath, TrustPolicy, WorkspaceSettings, api::EnvVar,
 };
 use serde::de::DeserializeOwned;
@@ -206,6 +206,8 @@ impl WorkspaceSettings {
         json_field!(minimum_release_age_strict, "MINIMUM_RELEASE_AGE_STRICT");
         json_field!(trust_lockfile, "TRUST_LOCKFILE");
         enum_field!(trust_policy, "TRUST_POLICY", TrustPolicy);
+        enum_field!(audit_level, "AUDIT_LEVEL", AuditLevel);
+        json_field!(audit_config, "AUDIT_CONFIG");
         json_field!(trust_policy_exclude, "TRUST_POLICY_EXCLUDE");
         json_field!(trust_policy_ignore_after, "TRUST_POLICY_IGNORE_AFTER");
         enum_field!(resolution_mode, "RESOLUTION_MODE", ResolutionMode);

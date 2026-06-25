@@ -3618,6 +3618,7 @@ dependencies = [
  "pnpr",
  "pretty_assertions",
  "rayon",
+ "reqwest 0.13.4",
  "rmp-serde",
  "serde",
  "serde-saphyr",

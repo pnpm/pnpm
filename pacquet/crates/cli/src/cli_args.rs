@@ -1,5 +1,6 @@
 pub mod add;
 pub mod approve_builds;
+pub mod audit;
 pub mod cache;
 pub mod cat_file;
 pub mod cat_index;
@@ -34,6 +35,7 @@ pub mod why;
 use crate::{State, config_deps, config_overrides::ConfigOverrides};
 use add::AddArgs;
 use approve_builds::ApproveBuildsArgs;
+use audit::{AuditArgs, AuditOutcome};
 use cache::CacheCommand;
 use cat_file::CatFileArgs;
 use cat_index::CatIndexArgs;
@@ -166,6 +168,8 @@ pub enum CliCommand {
     Update(UpdateArgs),
     /// Check for outdated packages
     Outdated(OutdatedArgs),
+    /// Checks for known security issues with the installed packages.
+    Audit(AuditArgs),
     /// Shows the packages that depend on `pkg`
     Why(WhyArgs),
     /// Rebuild a package.
@@ -405,6 +409,15 @@ impl CliArgs {
                 let command_state = state(false)?;
                 Box::pin(async move {
                     if args.run(command_state).await? == OutdatedOutcome::Outdated {
+                        std::process::exit(1);
+                    }
+                    Ok(())
+                })
+            }
+            CliCommand::Audit(args) => {
+                let command_state = state(true)?;
+                Box::pin(async move {
+                    if args.run(command_state).await? == AuditOutcome::Vulnerable {
                         std::process::exit(1);
                     }
                     Ok(())

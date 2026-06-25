@@ -115,6 +115,8 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         minimum_release_age_strict: None,
         trust_lockfile: false,
         trust_policy: Default::default(),
+        audit_level: None,
+        audit_config: Default::default(),
         trust_policy_exclude: None,
         trust_policy_ignore_after: None,
         resolution_mode: Default::default(),
