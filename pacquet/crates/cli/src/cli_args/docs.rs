@@ -60,7 +60,7 @@ impl DocsArgs {
         let package = match outcome {
             FetchFullMetadataOutcome::Modified(pkg) => *pkg,
             FetchFullMetadataOutcome::NotModified => {
-                unreachable!("unexpected 304 without conditional headers")
+                miette::bail!("registry returned 304 Not Modified unexpectedly")
             }
         };
 
