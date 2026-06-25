@@ -323,7 +323,7 @@ fn format_pack_output_text_block() {
 }
 
 /// Port of pnpm's `pack: runs prepack, prepare, and postpack`
-/// ([pack.ts](https://github.com/pnpm/pnpm/blob/cab1c11c69/releasing/commands/test/publish/pack.ts#L346-L368)).
+/// ([pack.ts](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/test/publish/pack.ts#L346-L368)).
 /// Exercises `run_scripts_if_present` / `script_body`: with scripts
 /// enabled, each of `prepack` / `prepare` / `postpack` runs and leaves a
 /// marker file. Gated to Unix like the executor's other script-running
@@ -385,7 +385,7 @@ fn install_module(dir: &Path, name: &str, version: &str, extra: &[(&str, &str)])
 }
 
 /// Port of pnpm's `pack: bundles dependencies listed in bundleDependencies`
-/// ([pack.ts](https://github.com/pnpm/pnpm/blob/cab1c11c69/releasing/commands/test/publish/pack.ts#L102-L128)).
+/// ([pack.ts](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/test/publish/pack.ts#L102-L128)).
 /// Covers the `fs-packlist` `bundleDependencies` recursion and the
 /// `node_linker: hoisted` allow-path.
 #[test]
@@ -408,7 +408,7 @@ fn bundles_dependencies_listed_in_bundle_dependencies() {
 
 /// Port of pnpm's `pack: bundles every dependency when bundleDependencies
 /// is true`
-/// ([pack.ts](https://github.com/pnpm/pnpm/blob/cab1c11c69/releasing/commands/test/publish/pack.ts#L130-L159)).
+/// ([pack.ts](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/test/publish/pack.ts#L130-L159)).
 /// Covers `bundle_dep_names`' `bundleDependencies: true` branch, which
 /// materializes the names from `dependencies`.
 #[test]
@@ -430,9 +430,46 @@ fn bundles_every_dependency_when_bundle_dependencies_is_true() {
     assert!(!result.contents.iter().any(|path| path.contains("not-a-dep")));
 }
 
+/// Port of pnpm's `pack: bundles transitive dependencies of bundled
+/// dependencies (hoisted)`
+/// ([pnpm11/releasing/commands/test/publish/pack.ts](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/test/publish/pack.ts#L161-L191)).
+/// A bundled dep's own (hoisted) `dependencies` ship too: `top` is
+/// bundled and depends on `nested`, which is hoisted to the root
+/// `node_modules`, so `nested` must be bundled under its real path. The
+/// transitive walk this exercises landed in `fs-packlist` via
+/// [pnpm/pnpm#12620](https://github.com/pnpm/pnpm/pull/12620).
+#[test]
+fn bundles_transitive_dependencies_of_bundled_dependencies() {
+    let (dir, mut opts) = fixture(&json!({
+        "name": "pkg-with-transitive-bundle-deps",
+        "version": "0.0.0",
+        "bundledDependencies": ["top"],
+    }));
+    opts.node_linker = NodeLinker::Hoisted;
+    // `top` (directly bundled) depends on `nested`, hoisted to the root.
+    let top = dir.path().join("node_modules").join("top");
+    std::fs::create_dir_all(&top).unwrap();
+    std::fs::write(
+        top.join("package.json"),
+        r#"{"name":"top","version":"1.0.0","dependencies":{"nested":"1.0.0"}}"#,
+    )
+    .unwrap();
+    std::fs::write(top.join("index.js"), "top").unwrap();
+    install_module(dir.path(), "nested", "1.0.0", &[("index.js", "nested")]);
+
+    let result = api::<SilentReporter, Host>(&opts).unwrap();
+
+    assert!(result.contents.contains(&"node_modules/top/index.js".to_string()));
+    assert!(
+        result.contents.contains(&"node_modules/nested/index.js".to_string()),
+        "hoisted transitive dep `nested` must be bundled: {:?}",
+        result.contents,
+    );
+}
+
 /// Port of pnpm's `pack should read from the correct node_modules when
 /// publishing from a custom directory`
-/// ([pack.ts](https://github.com/pnpm/pnpm/blob/cab1c11c69/releasing/commands/test/publish/pack.ts#L503-L541)).
+/// ([pack.ts](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/test/publish/pack.ts#L503-L541)).
 /// Covers the `publishConfig.directory` redirect: the manifest is read
 /// from `dist/`, but `workspace:` deps still resolve against the project
 /// root's `node_modules`.
