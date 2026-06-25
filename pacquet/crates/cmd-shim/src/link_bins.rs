@@ -666,7 +666,7 @@ fn with_extension_appended(path: &Path, ext: &str) -> PathBuf {
     result.into()
 }
 
-/// Remove a bin shim previously written by [`write_shim`].
+/// Remove a bin shim previously written by [`link_bins_of_packages`].
 ///
 /// Ports pnpm's [`removeBin`](https://github.com/pnpm/pnpm/blob/4750fd370c/bins/remover/src/removeBins.ts):
 /// on Windows it deletes the `<name>`, `<name>.ps1`, and `<name>.cmd`
