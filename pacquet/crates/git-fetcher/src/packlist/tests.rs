@@ -610,6 +610,62 @@ fn bundle_dependencies_self_cycle_is_caught() {
 }
 
 #[test]
+fn bundle_dependencies_closure_stops_past_max_depth() {
+    // On top of the visited-set, the closure walk carries a
+    // belt-and-braces `MAX_BUNDLE_DEPTH` cap: a pathological chain of
+    // `dependencies` that keeps resolving fresh, never-repeating
+    // canonical paths would slip past the cycle check and descend
+    // forever. Build a linear chain longer than the cap (each package
+    // depends on the next) and assert the packages beyond it are
+    // refused while everything within it still ships.
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+
+    // The cap refuses any task whose depth exceeds 32. Tasks are
+    // depth-0 for the root's bundle seed and gain one level per
+    // `dependencies` hop, so `p33` is the first package created beyond
+    // the cap. Lay the chain out hoisted-flat under the root
+    // `node_modules/`: the walk-up resolves `p{n+1}` from there while
+    // the depth counter still climbs one per hop.
+    const FIRST_REFUSED: usize = 33;
+    const LAST: usize = FIRST_REFUSED + 1;
+    for n in 0..=LAST {
+        let deps = if n < LAST {
+            format!(r#","dependencies":{{"p{}":"1.0.0"}}"#, n + 1)
+        } else {
+            String::new()
+        };
+        write(
+            root,
+            &format!("node_modules/p{n}/package.json"),
+            &format!(r#"{{"name":"p{n}","version":"1.0.0"{deps}}}"#),
+        );
+        touch(root, &format!("node_modules/p{n}/index.js"));
+    }
+
+    let manifest = json!({
+        "name": "x",
+        "version": "0.0.0",
+        "bundleDependencies": ["p0"],
+    });
+    let out = packlist(root, &manifest).unwrap();
+
+    // The last package within the cap (depth 32) is processed and ships.
+    assert!(
+        out.contains(&format!("node_modules/p{}/index.js", FIRST_REFUSED - 1)),
+        "packages within MAX_BUNDLE_DEPTH must ship: {out:?}",
+    );
+    // `p33` is created at depth 33 (> 32); the cap refuses to descend,
+    // so it and everything past it are dropped even though they exist
+    // on disk.
+    assert!(
+        !out.iter().any(|p| p.starts_with(&format!("node_modules/p{FIRST_REFUSED}/"))),
+        "packages past MAX_BUNDLE_DEPTH must be refused: {out:?}",
+    );
+}
+
+#[test]
 fn main_field_pointing_at_always_excluded_basename_is_refused() {
     let dir = tempdir().unwrap();
     let root = dir.path();
