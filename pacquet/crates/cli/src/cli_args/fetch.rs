@@ -23,6 +23,10 @@ impl FetchArgs {
         let include_prod = has_both || prod;
         let include_dev = has_both || dev;
 
+        // The lockfile-verification gate keys its on-disk cache off
+        // `<manifest_dir>/pnpm-lock.yaml`, matching `pacquet install`.
+        // Once workspace support lands (pacquet#431), this becomes
+        // `workspace_root` to match where the lockfile actually lives.
         let lockfile_path = manifest
             .path()
             .parent()
@@ -36,15 +40,22 @@ impl FetchArgs {
             manifest,
             lockfile: pacquet_lockfile::MaybeLazyLockfile::Lazy(lockfile),
             lockfile_path: lockfile_path.as_deref(),
+            // Optional dependencies follow production: pnpm's fetch sets
+            // `optionalDependencies: opts.production !== false`, so `--dev`
+            // (which excludes production) excludes optional deps too.
+            // <https://github.com/pnpm/pnpm/blob/85d9e7708a/installing/commands/src/fetch.ts#L51-L59>
             dependency_groups: std::iter::empty()
                 .chain(include_prod.then_some(DependencyGroup::Prod))
                 .chain(include_dev.then_some(DependencyGroup::Dev))
-                .chain(Some(DependencyGroup::Optional)),
+                .chain(include_prod.then_some(DependencyGroup::Optional)),
             frozen_lockfile: true,
             prefer_frozen_lockfile: None,
             ignore_manifest_check: true,
-            skip_runtimes: false,
-            trust_lockfile: false,
+            // Honor the yaml/npmrc `skipRuntimes` / `trustLockfile`. Fetch
+            // exposes no CLI override for either, so the config value is
+            // the resolved value, mirroring `pacquet install`.
+            skip_runtimes: config.skip_runtimes,
+            trust_lockfile: config.trust_lockfile,
             update_checksums: false,
             is_full_install: false,
             resolved_packages,
@@ -56,6 +67,7 @@ impl FetchArgs {
             auth_override: None,
             resolution_observer: None,
             catalogs_override: None,
+            disable_optimistic_repeat_install: false,
         }
         .run::<Reporter>()
         .await
