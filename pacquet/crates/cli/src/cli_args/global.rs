@@ -30,6 +30,7 @@ use pacquet_package_is_installable::SupportedArchitectures;
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_registry::PinnedVersion;
 use pacquet_reporter::Reporter;
+use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use serde_json::Value;
 use std::{
     collections::HashSet,
@@ -85,7 +86,11 @@ pub async fn handle_global_add<Reporter: self::Reporter + 'static>(
     supported_architectures: Option<SupportedArchitectures>,
     cwd: &Path,
 ) -> miette::Result<()> {
-    if params.iter().any(|param| param == "pnpm" || param == "@pnpm/exe") {
+    // Normalize each selector to its package name first, so versioned forms
+    // like `pnpm@9` or `@pnpm/exe@1` can't bypass the self-install guard.
+    if params.iter().any(|param| {
+        matches!(parse_wanted_dependency(param).alias.as_deref(), Some("pnpm" | "@pnpm/exe"))
+    }) {
         return Err(GlobalError::GlobalPnpmInstall.into());
     }
     let (global_pkg_dir, global_bin_dir) = global_dirs(base_config)?;
@@ -196,7 +201,14 @@ pub async fn handle_global_update<Reporter: self::Reporter + 'static>(
             }
         };
 
+        // Remove stale bins from the old install before swapping, but keep
+        // any bin owned by a different global group.
+        let protected =
+            bin_names_of_other_groups(&global_pkg_dir, &HashSet::from([pkg.hash.clone()]));
         for bin in get_installed_bin_names(pkg) {
+            if protected.contains(&bin) {
+                continue;
+            }
             let _ = remove_bin(&global_bin_dir.join(&bin));
         }
 
@@ -232,8 +244,13 @@ pub fn handle_global_remove(base_config: &'static Config, params: &[String]) -> 
         }
     }
 
+    // Bins shared with (and owned by) groups that survive this removal must
+    // not be unlinked, or we'd delete another global package's bin.
+    let exclude: HashSet<String> = groups.iter().map(|pkg| pkg.hash.clone()).collect();
+    let protected = bin_names_of_other_groups(&global_pkg_dir, &exclude);
+
     for pkg in &groups {
-        remove_group(&global_pkg_dir, &global_bin_dir, pkg);
+        remove_group(&global_pkg_dir, &global_bin_dir, pkg, &protected);
     }
     Ok(())
 }
@@ -354,24 +371,60 @@ fn remove_existing_global_installs(
     global_bin_dir: &Path,
     aliases: &[String],
 ) {
+    let mut to_remove: Vec<GlobalPackageInfo> = Vec::new();
     let mut seen = HashSet::new();
     for alias in aliases {
         if let Some(pkg) = find_global_package(global_pkg_dir, alias)
             && seen.insert(pkg.hash.clone())
         {
-            remove_group(global_pkg_dir, global_bin_dir, &pkg);
+            to_remove.push(pkg);
         }
+    }
+    // Bins owned by groups that survive this replacement must not be
+    // unlinked, or we'd delete a different global package's bin.
+    let exclude: HashSet<String> = to_remove.iter().map(|pkg| pkg.hash.clone()).collect();
+    let protected = bin_names_of_other_groups(global_pkg_dir, &exclude);
+    for pkg in &to_remove {
+        remove_group(global_pkg_dir, global_bin_dir, pkg, &protected);
     }
 }
 
-fn remove_group(global_pkg_dir: &Path, global_bin_dir: &Path, pkg: &GlobalPackageInfo) {
+/// Remove a group's bins (except those in `protected`, owned by a surviving
+/// group), its hash symlink, and its install dir.
+fn remove_group(
+    global_pkg_dir: &Path,
+    global_bin_dir: &Path,
+    pkg: &GlobalPackageInfo,
+    protected: &HashSet<String>,
+) {
     for bin in get_installed_bin_names(pkg) {
+        if protected.contains(&bin) {
+            continue;
+        }
         let _ = remove_bin(&global_bin_dir.join(&bin));
     }
     let _ = fs::remove_file(get_hash_link(global_pkg_dir, &pkg.hash));
     if is_subdir(global_pkg_dir, &pkg.install_dir) {
         let _ = fs::remove_dir_all(&pkg.install_dir);
     }
+}
+
+/// The set of bin names provided by global package groups other than those
+/// in `exclude_hashes`. Mirrors pnpm's `getBinNamesOfOtherGroups`.
+fn bin_names_of_other_groups(
+    global_pkg_dir: &Path,
+    exclude_hashes: &HashSet<String>,
+) -> HashSet<String> {
+    let mut names = HashSet::new();
+    for pkg in scan_global_packages(global_pkg_dir) {
+        if exclude_hashes.contains(&pkg.hash) {
+            continue;
+        }
+        for bin in get_installed_bin_names(&pkg) {
+            names.insert(bin);
+        }
+    }
+    names
 }
 
 /// The direct-dependency aliases of an install directory's `package.json`.
