@@ -55,6 +55,7 @@ use cache::CacheCommand;
 use cat_file::CatFileArgs;
 use cat_index::CatIndexArgs;
 use clap::{Parser, Subcommand, ValueEnum};
+use completion::CompletionArgs;
 use config::ConfigArgs;
 use create::CreateArgs;
 use dedupe::DedupeArgs;
@@ -242,6 +243,8 @@ pub enum CliCommand {
     Dlx(DlxArgs),
     /// Creates a project from a `create-*` starter kit.
     Create(CreateArgs),
+    /// Print shell completion code to stdout.
+    Completion(CompletionArgs),
     /// Runs an arbitrary command specified in the package's start property of its scripts object.
     Start,
     /// Runs a package's "stop" script, if one was provided.
@@ -349,6 +352,11 @@ impl CliArgs {
     pub async fn run(self, config_overrides: &ConfigOverrides) -> miette::Result<()> {
         let CliArgs { command, dir, npmrc_auth_file, recursive, reporter, filter, filter_prod } =
             self;
+        if let CliCommand::Completion(args) = command {
+            args.run()?;
+            return Ok(());
+        }
+
         // Canonicalize `--dir` so the bunyan-envelope `prefix` emitted by
         // the reporter is the same absolute, symlink-resolved path that
         // `@pnpm/cli.default-reporter` derives via `process.cwd()`. Without
@@ -1017,6 +1025,7 @@ impl CliArgs {
                     Box::pin(std::future::ready(Ok(())))
                 }
             }
+            CliCommand::Completion(_) => unreachable!("completion returns before configuration"),
         };
 
         command_future.await?;

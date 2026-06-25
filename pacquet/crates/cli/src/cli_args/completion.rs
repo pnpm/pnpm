@@ -1,11 +1,7 @@
-#![cfg_attr(
-    not(test),
-    expect(dead_code, reason = "Task 1 adds the parser before Task 2 registers the command.")
-)]
-
-use clap::Args;
+use clap::{Args, CommandFactory};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use std::io::Write;
 
 pub const SUPPORTED_SHELLS: &[&str] = &["bash", "fish", "pwsh", "zsh"];
 
@@ -76,6 +72,19 @@ pub fn shell_from_args(
 
     CompletionShell::from_name(shell)
         .ok_or_else(|| CompletionError::UnsupportedShell { shell: shell.to_string() })
+}
+
+impl CompletionArgs {
+    pub fn run(self) -> miette::Result<()> {
+        let shell = shell_from_args(self.shell.as_deref(), &self.extra)?;
+        generate_completion(shell, &mut std::io::stdout());
+        Ok(())
+    }
+}
+
+pub fn generate_completion(shell: CompletionShell, output: &mut dyn Write) {
+    let mut command = super::CliArgs::command();
+    clap_complete::generate(shell.to_clap_shell(), &mut command, "pacquet", output);
 }
 
 #[cfg(test)]
