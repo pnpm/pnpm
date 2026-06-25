@@ -56,17 +56,17 @@ const DEFAULT_STARTUP_TIMEOUT: Duration = Duration::from_mins(5);
 /// Bound a read-only request-path (or startup) database future with
 /// [`DEFAULT_AUTH_TIMEOUT`]-style deadline, surfacing
 /// [`RegistryError::AuthDatabaseTimeout`] (HTTP 504) on expiry instead of
-/// awaiting forever. Mirror of `with_auth_timeout` in [`super::sqlx_backend`];
+/// awaiting forever. Mirror of `with_auth_timeout` in the `sqlx_backend` module;
 /// the two backends are independently feature-gated, so the helper is not
 /// shared. Use only around reads and startup: request-path writes must await
 /// the database result so a caller never observes a timeout with an unknown
 /// commit state.
-async fn with_auth_timeout<T, E>(
+async fn with_auth_timeout<Loaded, DbError>(
     deadline: Duration,
-    future: impl Future<Output = std::result::Result<T, E>>,
-) -> Result<T>
+    future: impl Future<Output = std::result::Result<Loaded, DbError>>,
+) -> Result<Loaded>
 where
-    RegistryError: From<E>,
+    RegistryError: From<DbError>,
 {
     match timeout(deadline, future).await {
         Ok(result) => result.map_err(RegistryError::from),
