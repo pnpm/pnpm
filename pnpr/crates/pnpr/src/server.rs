@@ -1944,8 +1944,20 @@ async fn reject_packument_integrity_tampering(
     let hosted_versions =
         hosted.as_ref().and_then(|value| value.get("versions")).and_then(Value::as_object);
     for (version, manifest) in incoming_versions {
-        let incoming_integrity =
-            manifest.get("dist").and_then(|dist| dist.get("integrity")).and_then(Value::as_str);
+        // A present dist.integrity must be a string — a valid SRI is the only
+        // acceptable shape. Absence is allowed (the partial-unpublish flow
+        // re-PUTs remaining versions without it), but a present-but-non-string
+        // value (null, number, object) would slip past the string-only checks
+        // below and still break tarball serving, so reject it outright.
+        let incoming_integrity = match manifest.get("dist").and_then(|dist| dist.get("integrity")) {
+            None => None,
+            Some(Value::String(value)) => Some(value.as_str()),
+            Some(_) => {
+                return Some(RegistryError::BadRequest {
+                    reason: format!("dist.integrity for version {version:?} must be a string"),
+                });
+            }
+        };
         match hosted_versions.and_then(|versions| versions.get(version)) {
             Some(existing) => {
                 let existing_integrity = existing

@@ -326,6 +326,36 @@ async fn update_packument_rejects_tampering_with_a_published_version_integrity()
     assert_eq!(after["versions"]["1.0.0"]["dist"]["integrity"], original_integrity);
 }
 
+#[tokio::test]
+async fn update_packument_rejects_a_non_string_dist_integrity() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let publish = Request::put("/mypkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(
+            serde_json::to_vec(&sample_publish_body("mypkg", "1.0.0", b"real")).unwrap(),
+        ))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(publish).await.unwrap().status(), StatusCode::CREATED);
+
+    let get =
+        app.clone().oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    let mut packument = body_json(get.into_body()).await;
+    // A present-but-non-string integrity must be rejected — otherwise it slips
+    // past the string-only immutability check and breaks tarball serving.
+    packument["versions"]["1.0.0"]["dist"]["integrity"] = json!(null);
+    let request = Request::put("/mypkg/-rev/1-0")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&packument).unwrap()))
+        .unwrap();
+    assert_eq!(app.oneshot(request).await.unwrap().status(), StatusCode::BAD_REQUEST);
+}
+
 /// Published packages are the source of truth: they live in the
 /// authoritative `storage` root, never in the disposable proxy cache,
 /// and survive a full wipe of that cache.
