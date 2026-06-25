@@ -4,7 +4,7 @@ import { distTag } from '@pnpm/registry-access.commands'
 import { publish } from '@pnpm/releasing.commands'
 import { DEFAULT_OPTS as BASE_OPTS } from '@pnpm/testing.command-defaults'
 import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
-import { REGISTRY_MOCK_CREDENTIALS, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
+import { getRegistryMockToken, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 
 const DEFAULT_OPTS = {
   ...BASE_OPTS,
@@ -13,7 +13,7 @@ const DEFAULT_OPTS = {
 
 const CONFIG_BY_URI = {
   [`//localhost:${REGISTRY_MOCK_PORT}/`]: {
-    '@': { basicAuth: REGISTRY_MOCK_CREDENTIALS },
+    '@': { authToken: getRegistryMockToken() },
   },
 }
 

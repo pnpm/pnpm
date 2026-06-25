@@ -12,9 +12,26 @@ export const REGISTRY_MOCK_CREDENTIALS = {
 
 const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}/`
 
-const AUTH_HEADER = `Basic ${Buffer.from(
-  `${REGISTRY_MOCK_CREDENTIALS.username}:${REGISTRY_MOCK_CREDENTIALS.password}`
-).toString('base64')}`
+/**
+ * The bearer token the with-registry jest globalSetup minted for the test user
+ * and published as `REGISTRY_MOCK_TOKEN`.
+ *
+ * pnpr only honors `Authorization: Bearer` credentials on requests — it rejects
+ * HTTP Basic (`_auth`) since the bearer-only auth change. So any test that
+ * authenticates to the mock registry (publishing, setting a dist-tag, etc. on a
+ * `publish: $authenticated` package) must send this token rather than Basic
+ * credentials. Throws if the with-registry preset hasn't run.
+ */
+export function getRegistryMockToken (): string {
+  const token = process.env.REGISTRY_MOCK_TOKEN
+  if (!token) {
+    throw new Error(
+      'REGISTRY_MOCK_TOKEN is not set — the registry mock auth token is unknown. ' +
+      'Tests that authenticate to the registry mock must run under the with-registry jest preset.'
+    )
+  }
+  return token
+}
 
 export interface AddDistTagOptions {
   package: string
@@ -35,7 +52,7 @@ export async function addDistTag (opts: AddDistTagOptions): Promise<void> {
     version: opts.version,
     distTag: opts.distTag,
     registryUrl: REGISTRY_URL,
-    authHeader: AUTH_HEADER,
+    authHeader: `Bearer ${getRegistryMockToken()}`,
     fetchFromRegistry: createFetchFromRegistry({}),
   })
 }
