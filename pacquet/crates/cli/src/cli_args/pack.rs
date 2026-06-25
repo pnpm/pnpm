@@ -18,7 +18,7 @@ use clap::Args;
 use miette::Context;
 use pacquet_config::Config;
 use pacquet_pack::{
-    Host, PackOptions, PackResultJson, api, format_pack_output, to_pack_result_json,
+    Host, PackError, PackOptions, PackResultJson, api, format_pack_output, to_pack_result_json,
 };
 use pacquet_reporter::Reporter;
 use pacquet_workspace::{
@@ -103,6 +103,13 @@ impl PackArgs {
         dir: &Path,
         config: &Config,
     ) -> miette::Result<String> {
+        // `--out` and `--pack-destination` are mutually exclusive. The
+        // single-project path enforces this inside `api`; the recursive
+        // path resolves a shared destination before `api` ever sees both,
+        // so check here too rather than silently dropping one.
+        if self.out.is_some() && self.pack_destination.is_some() {
+            return Err(miette::Report::new(PackError::OutAndPackDestination));
+        }
         let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
         let patterns = read_workspace_manifest(workspace_root)
             .map_err(miette::Report::new)
