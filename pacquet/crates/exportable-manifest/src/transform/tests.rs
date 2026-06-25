@@ -20,6 +20,30 @@ fn missing_version_is_rejected() {
 }
 
 #[test]
+fn empty_string_name_is_rejected() {
+    let err = run(json!({ "name": "", "version": "1.0.0" })).unwrap_err();
+    assert_eq!(err, TransformError::MissingRequiredField { field: "name" });
+}
+
+#[test]
+fn falsy_version_is_rejected() {
+    for falsy in [json!(0), json!(false), json!(null)] {
+        let err = run(json!({ "name": "foo", "version": falsy })).unwrap_err();
+        assert_eq!(err, TransformError::MissingRequiredField { field: "version" });
+    }
+}
+
+#[test]
+fn non_string_truthy_required_fields_pass() {
+    // pnpm's `if (!manifest.name)` accepts any truthy value, so a
+    // numeric `name` / `version` must survive validation just as it
+    // does upstream rather than be rejected as "missing".
+    let out = run(json!({ "name": 1, "version": 2 })).unwrap();
+    assert_eq!(out["name"], json!(1));
+    assert_eq!(out["version"], json!(2));
+}
+
+#[test]
 fn string_bin_becomes_object_under_unscoped_name() {
     let out = run(json!({ "name": "foo", "version": "1.0.0", "bin": "cli.js" })).unwrap();
     assert_eq!(out["bin"], json!({ "foo": "cli.js" }));

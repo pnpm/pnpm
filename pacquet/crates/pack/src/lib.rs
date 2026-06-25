@@ -377,7 +377,7 @@ fn prevent_bundled_dependencies_without_hoisted(
         return Ok(());
     }
     for field in ["bundledDependencies", "bundleDependencies"] {
-        if manifest.get(field).is_some_and(|value| !value.is_null()) {
+        if manifest.get(field).is_some_and(is_truthy) {
             return Err(PackError::BundledDependenciesWithoutHoisted {
                 field,
                 node_linker: node_linker_str(node_linker),
@@ -385,6 +385,20 @@ fn prevent_bundled_dependencies_without_hoisted(
         }
     }
     Ok(())
+}
+
+/// Whether a JSON value is truthy under JavaScript's coercion rules, so
+/// the guard fires for exactly the values pnpm's `if (bundledDependencies)`
+/// check rejects — `false`, `0`, `""`, and `null`/absent are skipped,
+/// while a non-empty array, object, number, string, or `true` all fire.
+fn is_truthy(value: &Value) -> bool {
+    match value {
+        Value::Null => false,
+        Value::Bool(boolean) => *boolean,
+        Value::Number(number) => number.as_f64().is_some_and(|number| number != 0.0),
+        Value::String(string) => !string.is_empty(),
+        Value::Array(_) | Value::Object(_) => true,
+    }
 }
 
 fn node_linker_str(node_linker: NodeLinker) -> &'static str {
@@ -546,7 +560,16 @@ fn inject_workspace_license(
     let Ok(entries) = std::fs::read_dir(workspace_dir) else { return };
     for entry in entries.flatten() {
         let name = entry.file_name().to_string_lossy().into_owned();
-        if is_license_filename(&name) {
+        if !is_license_filename(&name) {
+            continue;
+        }
+        // Upstream globs the license with `onlyFiles` (fast-glob's
+        // default), so a directory named `LICENSE` is not a match.
+        // `fs::metadata` follows symlinks, mirroring fast-glob's default
+        // symlink resolution, so a symlinked license still counts while a
+        // directory (or a symlink to one) is skipped — the latter would
+        // otherwise fail the later read/size pass with "Is a directory".
+        if std::fs::metadata(entry.path()).is_ok_and(|metadata| metadata.is_file()) {
             files_map.insert(format!("package/{name}"), workspace_dir.join(&name));
         }
     }

@@ -44,17 +44,30 @@ pub fn transform(manifest: &mut Map<String, Value>) -> Result<(), TransformError
 }
 
 /// Reject a manifest missing the registry-required `name` / `version`.
-/// A field present but not a non-empty string counts as missing, matching
-/// the JS `if (!manifest.name)` truthiness check.
+/// Mirrors upstream's `if (!manifest.name)` truthiness check: a field
+/// counts as missing only when it is absent or JS-falsy (`null`, `false`,
+/// `0`, or `""`), so any other present value — including a non-string —
+/// passes, matching pnpm exactly.
 fn transform_required_fields(manifest: &Map<String, Value>) -> Result<(), TransformError> {
     for field in ["name", "version"] {
-        let present =
-            manifest.get(field).and_then(Value::as_str).is_some_and(|value| !value.is_empty());
-        if !present {
+        if !manifest.get(field).is_some_and(is_truthy) {
             return Err(TransformError::MissingRequiredField { field });
         }
     }
     Ok(())
+}
+
+/// Whether a JSON value is truthy under JavaScript's coercion rules, so
+/// the publish-manifest transforms gate the same way pnpm's `if (!value)`
+/// checks do. Arrays and objects are always truthy, even when empty.
+fn is_truthy(value: &Value) -> bool {
+    match value {
+        Value::Null => false,
+        Value::Bool(boolean) => *boolean,
+        Value::Number(number) => number.as_f64().is_some_and(|number| number != 0.0),
+        Value::String(string) => !string.is_empty(),
+        Value::Array(_) | Value::Object(_) => true,
+    }
 }
 
 /// Normalize a string `bin` into the object form `{ <command>: <path> }`.

@@ -150,9 +150,12 @@ pub fn create_exportable_manifest(
             publish.insert(field.to_string(), deps);
         }
     }
-    if let Some(peer) = original.get("peerDependencies") {
-        let converted = make_publish_dependencies(dir, Some(peer), opts, DependencyKind::Peer)?
-            .unwrap_or_else(|| Value::Object(Map::new()));
+    if let Some(converted) = make_publish_dependencies(
+        dir,
+        original.get("peerDependencies"),
+        opts,
+        DependencyKind::Peer,
+    )? {
         publish.insert("peerDependencies".to_string(), converted);
     }
 

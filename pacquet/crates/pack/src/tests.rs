@@ -208,6 +208,20 @@ fn bundled_dependencies_without_hoisted_is_rejected() {
 }
 
 #[test]
+fn bundle_dependencies_false_is_allowed_without_hoisted() {
+    // pnpm gates on truthiness (`if (bundledDependencies)`), so an
+    // explicit `false` must pack cleanly under the default non-hoisted
+    // linker instead of tripping the guard.
+    let (_dir, opts) = fixture(&json!({
+        "name": "foo",
+        "version": "1.0.0",
+        "bundleDependencies": false,
+        "bundledDependencies": false,
+    }));
+    assert!(api::<SilentReporter, Host>(&opts).is_ok());
+}
+
+#[test]
 fn out_template_substitutes_name_and_version_and_directory() {
     let (dir, mut opts) = fixture(&json!({ "name": "@scope/foo", "version": "2.0.0" }));
     opts.out = Some("artifacts/%s-%v.tgz".to_string());

@@ -55,7 +55,7 @@ pub struct PackArgs {
     pub out: Option<String>,
 
     /// gzip compression level (`0`–`9`) for the tarball.
-    #[clap(long = "pack-gzip-level")]
+    #[clap(long = "pack-gzip-level", value_parser = clap::value_parser!(u32).range(0..=9))]
     pub pack_gzip_level: Option<u32>,
 
     /// Keep the original `packageManager` field and publish-lifecycle
@@ -126,8 +126,14 @@ impl PackArgs {
             for root in chunk {
                 let project = graph[root].package.project;
                 let manifest = project.manifest.value();
-                let has_name = manifest.get("name").and_then(|name| name.as_str()).is_some();
-                let has_version = manifest.get("version").and_then(|v| v.as_str()).is_some();
+                let has_name = manifest
+                    .get("name")
+                    .and_then(|name| name.as_str())
+                    .is_some_and(|name| !name.is_empty());
+                let has_version = manifest
+                    .get("version")
+                    .and_then(|version| version.as_str())
+                    .is_some_and(|version| !version.is_empty());
                 if !has_name || !has_version {
                     continue;
                 }

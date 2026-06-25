@@ -540,8 +540,12 @@ impl CliArgs {
                     ReporterType::Default | ReporterType::AppendOnly => {
                         args.run::<DefaultReporter>(dir_ref, config()?, recursive)?
                     }
-                    ReporterType::Ndjson => args.run::<NdjsonReporter>(dir_ref, config()?, recursive)?,
-                    ReporterType::Silent => args.run::<SilentReporter>(dir_ref, config()?, recursive)?,
+                    ReporterType::Ndjson => {
+                        args.run::<NdjsonReporter>(dir_ref, config()?, recursive)?
+                    }
+                    ReporterType::Silent => {
+                        args.run::<SilentReporter>(dir_ref, config()?, recursive)?
+                    }
                 };
                 if !output.is_empty() {
                     println!("{output}");
