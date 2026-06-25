@@ -58,6 +58,7 @@ indexmap             = { workspace = true }
 node-semver          = { workspace = true }
 miette               = { workspace = true }
 owo-colors.workspace = true
+p256                 = { workspace = true }
 pathdiff             = { workspace = true }
 pipe-trait           = { workspace = true }
 rayon                = { workspace = true }
