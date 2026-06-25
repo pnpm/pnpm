@@ -3584,6 +3584,7 @@ dependencies = [
  "mockito",
  "node-semver",
  "owo-colors",
+ "p256",
  "pacquet-catalogs-config",
  "pacquet-cmd-shim",
  "pacquet-config",

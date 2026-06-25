@@ -8,7 +8,7 @@ use owo_colors::{OwoColorize, Stream};
 use pacquet_config::{AuditLevel as ConfigAuditLevel, Config};
 use pacquet_lockfile::{
     EnvLockfile, ImporterDepVersion, Lockfile, PackageKey, PkgName, ResolvedDependencyMap,
-    SnapshotDepRef, SnapshotEntry, SpecifierAndResolution,
+    SnapshotDepRef, SnapshotEntry, SpecifierAndResolution, pick_registry_for_package,
 };
 use pacquet_network::{RetryOpts, send_with_retry};
 use pacquet_package_manager::{ResolutionObserver, ResolvedPackageHint, Update};
@@ -25,6 +25,8 @@ use std::{
     sync::Arc,
     time::Duration,
 };
+
+mod signatures;
 
 const MAX_PATHS_COUNT: usize = 3;
 const MAX_PATHS_PER_FINDING: usize = 100;
@@ -68,7 +70,8 @@ pub struct AuditArgs {
     #[clap(short = 'i', long)]
     pub interactive: bool,
 
-    /// Audit subcommand. `audit signatures` has not been ported yet.
+    /// Audit subcommand. The only supported subcommand is `signatures`,
+    /// which verifies registry signatures for the installed packages.
     pub params: Vec<String>,
 }
 
@@ -141,16 +144,22 @@ impl AuditArgs {
         mut state: State,
     ) -> miette::Result<AuditOutcome> {
         if let Some(subcommand) = self.params.first() {
-            return if subcommand == "signatures" {
-                Err(miette::miette!(
-                    "`pacquet audit signatures` is not supported yet; registry signature verification has not been ported to pacquet."
-                ))
-            } else {
-                Err(AuditError::UnknownSubcommand {
-                    subcommand: self.params.iter().take(2).cloned().collect::<Vec<_>>().join(" "),
+            if subcommand == "signatures" {
+                if self.params.len() > 1 {
+                    return Err(AuditError::UnknownSubcommand {
+                        subcommand: self
+                            .params
+                            .iter()
+                            .take(2)
+                            .cloned()
+                            .collect::<Vec<_>>()
+                            .join(" "),
+                    }
+                    .into());
                 }
-                .into())
-            };
+                return self.run_signatures(state).await;
+            }
+            return Err(AuditError::UnknownSubcommand { subcommand: subcommand.clone() }.into());
         }
 
         let include = self.dependency_options.include();
@@ -309,6 +318,69 @@ impl AuditArgs {
             None => Ok(None),
         }
     }
+
+    /// Handle `audit signatures`: verify registry signatures for every
+    /// installed package and print the report. Exit code 1 (via
+    /// [`AuditOutcome::Vulnerable`]) when any signature is missing or invalid.
+    /// Ports pnpm's `auditSignatures`.
+    async fn run_signatures(&self, state: State) -> miette::Result<AuditOutcome> {
+        let include = self.dependency_options.include();
+        let lockfile_dir = state
+            .manifest
+            .path()
+            .parent()
+            .map_or_else(|| state.manifest.path().to_path_buf(), std::path::Path::to_path_buf);
+
+        let packages = {
+            let lockfile = state
+                .lockfile
+                .get()
+                .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
+            let Some(lockfile) = lockfile else {
+                return Err(AuditError::NoLockfile.into());
+            };
+            let env_lockfile_dir = state.config.workspace_dir.as_deref().unwrap_or(&lockfile_dir);
+            let env_lockfile = EnvLockfile::read(env_lockfile_dir)
+                .map_err(|err| miette::Report::new(err).wrap_err("load the env lockfile"))?;
+            let audit_request = lockfile_to_audit_request(lockfile, env_lockfile.as_ref(), include);
+            let registries: HashMap<String, String> =
+                state.config.resolved_registries().into_iter().collect();
+            audit_request
+                .request
+                .iter()
+                .flat_map(|(name, versions)| {
+                    let registry = pick_registry_for_package(&registries, name, None);
+                    versions.iter().map(move |version| signatures::SignaturePackage {
+                        name: name.clone(),
+                        registry: registry.clone(),
+                        version: version.clone(),
+                    })
+                })
+                .collect::<Vec<_>>()
+        };
+
+        if packages.is_empty() {
+            return Err(AuditError::NoPackages.into());
+        }
+
+        let result =
+            signatures::verify_signatures(&packages, state.config, state.http_client.as_ref())
+                .await?;
+
+        let output = if self.json {
+            serde_json::to_string_pretty(&result).into_diagnostic()?
+        } else {
+            signatures::render_signature_verification_result(&result)
+        };
+        print!("{output}");
+        let _ = std::io::stdout().flush();
+
+        Ok(if result.invalid.is_empty() && result.missing.is_empty() {
+            AuditOutcome::Clean
+        } else {
+            AuditOutcome::Vulnerable
+        })
+    }
 }
 
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -317,6 +389,10 @@ enum AuditError {
     #[display("No pnpm-lock.yaml found: Cannot audit a project without a lockfile")]
     #[diagnostic(code(ERR_PNPM_AUDIT_NO_LOCKFILE))]
     NoLockfile,
+
+    #[display("No installed packages found to audit")]
+    #[diagnostic(code(ERR_PNPM_AUDIT_NO_PACKAGES))]
+    NoPackages,
 
     #[display("No pnpm-lock.yaml found after update: Cannot report fixed vulnerabilities")]
     #[diagnostic(code(ERR_PNPM_AUDIT_NO_LOCKFILE))]
