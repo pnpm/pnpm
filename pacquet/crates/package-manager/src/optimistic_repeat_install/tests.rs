@@ -1828,6 +1828,17 @@ snapshots:
   foo@1.0.0: {}
 ";
 
+const FOO_LOCKFILE_WITHOUT_PACKAGES: &str = "lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.0.0
+";
+
 const FOO_MANIFEST: &str = r#"{"name":"root","version":"1.0.0","dependencies":{"foo":"^1.0.0"}}"#;
 
 /// Build a single project whose manifest, wanted lockfile, and current
@@ -1878,6 +1889,62 @@ fn content_check_decision(
         lockfile: MaybeLazyLockfile::Loaded(lockfile.as_ref()),
         catalogs: &BTreeMap::default(),
     })
+}
+
+#[test]
+fn returns_skipped_when_current_lockfile_missing_for_non_empty_wanted_lockfile() {
+    let (dir, config) = setup_content_check_project();
+    fs::remove_file(config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME)).unwrap();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+
+    let decision =
+        content_check_decision(&dir, config, false, &[(dir.path().to_path_buf(), &manifest)]);
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("current lockfile")),
+        "expected Skipped(current lockfile missing), got {decision:?}",
+    );
+}
+
+#[test]
+fn returns_skipped_when_current_lockfile_missing_for_wanted_lockfile_with_importer_deps() {
+    let (dir, config) = setup_content_check_project();
+    let workspace_root = dir.path();
+    fs::write(workspace_root.join(Lockfile::FILE_NAME), FOO_LOCKFILE_WITHOUT_PACKAGES).unwrap();
+
+    sleep(Duration::from_millis(20));
+    let settings =
+        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included());
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        workspace_root.to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    write_state(workspace_root, now_millis(), settings, projects);
+    sleep(Duration::from_millis(20));
+
+    fs::remove_file(config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME)).unwrap();
+    let manifest = PackageManifest::from_path(workspace_root.join("package.json")).unwrap();
+
+    let decision =
+        content_check_decision(&dir, config, false, &[(workspace_root.to_path_buf(), &manifest)]);
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("current lockfile")),
+        "expected Skipped(current lockfile missing), got {decision:?}",
+    );
+}
+
+#[test]
+fn returns_skipped_when_current_lockfile_is_empty_for_non_empty_wanted_lockfile() {
+    let (dir, config) = setup_content_check_project();
+    fs::write(config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME), "").unwrap();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+
+    let decision =
+        content_check_decision(&dir, config, false, &[(dir.path().to_path_buf(), &manifest)]);
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("current lockfile")),
+        "expected Skipped(current lockfile missing), got {decision:?}",
+    );
 }
 
 /// A manifest rewrite that leaves the dependency fields intact — the

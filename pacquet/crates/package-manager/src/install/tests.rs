@@ -5095,6 +5095,107 @@ async fn fresh_install_also_writes_current_lockfile_under_virtual_store() {
     drop((dir, mock_instance));
 }
 
+#[tokio::test]
+async fn prefer_frozen_install_writes_missing_current_lockfile() {
+    let mock_instance = TestRegistry::start();
+
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    fs::create_dir_all(&project_root).unwrap();
+    let manifest_path = project_root.join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    manifest
+        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
+        .unwrap();
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir;
+    config.virtual_store_dir = virtual_store_dir.clone();
+    config.registry = mock_instance.url();
+    let config = config.leak();
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        dry_run: false,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+        catalogs_override: None,
+        disable_optimistic_repeat_install: true,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("first install should succeed");
+
+    let current_lockfile_path = virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
+    fs::remove_file(&current_lockfile_path).expect("remove current lockfile");
+    let wanted = Lockfile::load_wanted_from_dir(&project_root)
+        .expect("parse wanted lockfile")
+        .expect("wanted lockfile should exist");
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: MaybeLazyLockfile::Loaded(Some(&wanted)),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: Some(true),
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        dry_run: false,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+        catalogs_override: None,
+        disable_optimistic_repeat_install: true,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("prefer-frozen reinstall should succeed");
+
+    assert!(
+        current_lockfile_path.is_file(),
+        "prefer-frozen reinstall must restore the current lockfile",
+    );
+
+    drop((dir, mock_instance));
+}
+
 /// `config.lockfile = false` opts out of *both* lockfile writes (the
 /// wanted `pnpm-lock.yaml` and the per-virtual-store `lock.yaml`),
 /// matching upstream pnpm's all-or-nothing `useLockfile` behavior.

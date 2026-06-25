@@ -1598,7 +1598,7 @@ where
         )
         .map_err(InstallError::WriteModules)?;
 
-        let filtered_current_lockfile = if frozen_lockfile {
+        let filtered_current_lockfile = if take_frozen_path {
             lockfile.map(|lockfile| {
                 crate::filter_lockfile_for_current(lockfile, included, &frozen_skipped)
             })
@@ -1623,7 +1623,7 @@ where
         // <https://github.com/pnpm/pacquet/issues/299>), this needs to narrow to the filtered lockfile
         // (selected importers × engine filter) so the saved current
         // lockfile reflects only what was actually materialized.
-        if frozen_lockfile && let Some(lockfile) = filtered_current_lockfile.as_ref() {
+        if take_frozen_path && let Some(lockfile) = filtered_current_lockfile.as_ref() {
             // Filter the wanted lockfile down to the snapshots that
             // were actually materialized: dep maps the user excluded
             // (`--no-optional`, `--no-dev`) plus snapshots the
