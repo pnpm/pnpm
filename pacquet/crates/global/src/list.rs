@@ -132,12 +132,29 @@ fn render_parseable(global_dir: &str, deps: &[ListedDep], long: bool) -> String 
     let mut lines = vec![global_dir.to_string()];
     for dep in deps {
         if long {
-            lines.push(format!("{}:{}@{}", dep.path, dep.name, dep.version));
+            lines.push(parseable_long_line(dep));
         } else {
             lines.push(dep.path.clone());
         }
     }
     lines.join("\n")
+}
+
+/// `--parseable --long` line for one dependency, mirroring pnpm's
+/// alias-aware [`renderParseable`](https://github.com/pnpm/pnpm/blob/1819226b51/deps/inspection/list/src/renderParseable.ts).
+fn parseable_long_line(dep: &ListedDep) -> String {
+    if dep.alias != dep.name {
+        // npm-aliased dependency: emit the alias, plus an `npm:` locator
+        // unless the version is already a full `name@spec` form.
+        if dep.version.contains('@') {
+            return format!("{}:{} {}", dep.path, dep.alias, dep.version);
+        }
+        return format!("{}:{} npm:{}@{}", dep.path, dep.alias, dep.name, dep.version);
+    }
+    if dep.version.contains('@') {
+        return format!("{}:{}", dep.path, dep.version);
+    }
+    format!("{}:{}@{}", dep.path, dep.name, dep.version)
 }
 
 const LEGEND: &str = "Legend: production dependency, optional only, dev only\n\n";
