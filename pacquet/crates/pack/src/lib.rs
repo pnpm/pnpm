@@ -1,5 +1,5 @@
 //! Pacquet port of pnpm's `pack` command
-//! ([`releasing/commands/src/publish/pack.ts`](https://github.com/pnpm/pnpm/blob/cab1c11c69/releasing/commands/src/publish/pack.ts)).
+//! ([`releasing/commands/src/publish/pack.ts`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/pack.ts)).
 //!
 //! [`api`] packs a single project into a `.tgz`: it runs the
 //! `prepack` / `prepare` lifecycle scripts, builds the publish manifest
@@ -319,7 +319,7 @@ pub fn to_pack_result_json(result: &PackResult) -> PackResultJson {
 /// Render packed results the way `pnpm pack` prints them: pretty JSON
 /// under `--json`, otherwise a per-package "Tarball Contents / Details"
 /// block. Mirrors the `handler` return at
-/// [`pack.ts:186-196`](https://github.com/pnpm/pnpm/blob/cab1c11c69/releasing/commands/src/publish/pack.ts#L186-L196).
+/// [`pack.ts:186-196`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/pack.ts#L186-L196).
 #[must_use]
 pub fn format_pack_output(results: &[PackResultJson], json: bool, unicode: bool) -> String {
     if json {
@@ -532,7 +532,7 @@ fn executable_sources(publish_manifest: &Value, manifest: &Value, dir: &Path) ->
 
 /// Append a workspace-root `LICENSE` to a sub-package tarball that lacks
 /// one. Mirrors upstream's license injection at
-/// [`pack.ts:269-274`](https://github.com/pnpm/pnpm/blob/cab1c11c69/releasing/commands/src/publish/pack.ts#L269-L274).
+/// [`pack.ts:269-274`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/pack.ts#L269-L274).
 fn inject_workspace_license(
     opts: &PackOptions,
     dir: &Path,

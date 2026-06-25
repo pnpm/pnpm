@@ -1,7 +1,7 @@
 //! Builds the gzipped tar archive a `pacquet pack` writes to disk.
 //!
 //! Mirrors upstream's `packPkg` at
-//! [`pack.ts:355-388`](https://github.com/pnpm/pnpm/blob/cab1c11c69/releasing/commands/src/publish/pack.ts#L355-L388):
+//! [`pack.ts:355-388`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/pack.ts#L355-L388):
 //! every entry is stamped with a fixed mtime so the archive is
 //! reproducible, executable bins get mode `0o755` and everything else
 //! `0o644`, and any `package.json` / `package.json5` / `package.yaml`
@@ -21,7 +21,7 @@ use std::{io, path::PathBuf};
 /// 08:15:00 UTC, the "Back to the Future" timestamp npm uses so a
 /// re-pack of unchanged sources produces a byte-identical archive.
 /// Matches upstream's `new Date('1985-10-26T08:15:00.000Z')` at
-/// [`pack.ts:369`](https://github.com/pnpm/pnpm/blob/cab1c11c69/releasing/commands/src/publish/pack.ts#L369).
+/// [`pack.ts:369`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/pack.ts#L369).
 const REPRODUCIBLE_MTIME: u64 = 499_162_500;
 
 const EXECUTABLE_MODE: u32 = 0o755;
