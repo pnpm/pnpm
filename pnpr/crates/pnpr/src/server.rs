@@ -1850,10 +1850,12 @@ async fn augment_search_with_upstream(state: &AppState, query: &str, body: &mut 
 /// `PUT /:pkg/-rev/:rev` — overwrite the on-disk packument with the
 /// client-supplied body. pnpm uses this in the partial-unpublish
 /// flow: it fetches the packument, removes the unpublished version
-/// from `versions` / `dist-tags`, then PUTs the result back. We
-/// trust the body verbatim — the same trust verdaccio extends — and
-/// strip any `_attachments` so we don't persist base64 payloads
-/// alongside the manifest.
+/// from `versions` / `dist-tags`, then PUTs the result back. We strip
+/// any `_attachments` so we don't persist base64 payloads alongside
+/// the manifest, and run [`enforce_published_version_immutability`] so
+/// the body can't tamper with a published version's `dist` or smuggle
+/// in a new one — everything else in the body is trusted verbatim, the
+/// same trust verdaccio extends.
 async fn update_packument(
     state: &AppState,
     identity: &Identity,
@@ -1929,7 +1931,12 @@ async fn update_packument(
 ///   field would otherwise leave that version unservable. [`expected_tarball_dist`]
 ///   matches a tarball request to a version by basename and verifies the bytes
 ///   against a string integrity, so both fields must survive.
-/// - A newly added version entry must carry a syntactically valid SRI.
+/// - A version *not* already published is rejected: this endpoint only removes
+///   versions, never adds them, and a new entry could declare a `dist.tarball`
+///   basename that collides with a published version — making
+///   [`expected_tarball_dist`] fail closed (502) for that filename. (When no
+///   hosted packument exists there is nothing to unpublish from, so a fresh body
+///   is accepted once its SRIs are validated.)
 ///
 /// Returns the rejection error, or `None` when the body is acceptable (possibly
 /// after restoring omitted fields). Must be called while holding the package
@@ -1971,8 +1978,19 @@ async fn enforce_published_version_immutability(
             }
         };
         let Some(existing) = hosted_versions.and_then(|versions| versions.get(version)) else {
-            // Newly added version: not an immutability concern, but its SRI must
-            // be syntactically valid so it can't poison tarball serving later.
+            // Partial-unpublish only removes versions from an existing package;
+            // it must not add one. A new entry could declare a dist.tarball
+            // basename colliding with a published version, which makes
+            // expected_tarball_dist fail closed (502) for that filename. Only
+            // when there is no hosted packument is there nothing to unpublish
+            // from, so a fresh body is accepted once its SRI is validated.
+            if hosted_versions.is_some() {
+                return Some(RegistryError::BadRequest {
+                    reason: format!(
+                        "version {version:?} is not in the published package; this endpoint removes versions, it does not add them",
+                    ),
+                });
+            }
             if let Some(sri) = incoming_integrity
                 && let Err(err) = crate::streaming::parse_integrity(sri)
             {

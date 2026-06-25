@@ -432,6 +432,53 @@ async fn update_packument_rejects_tampering_with_a_published_version_tarball() {
     assert_eq!(after["versions"]["1.0.0"]["dist"]["tarball"], original_tarball);
 }
 
+#[tokio::test]
+async fn update_packument_rejects_adding_a_version_via_the_unpublish_put() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let publish = Request::put("/mypkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(
+            serde_json::to_vec(&sample_publish_body("mypkg", "1.0.0", b"real-bytes")).unwrap(),
+        ))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(publish).await.unwrap().status(), StatusCode::CREATED);
+
+    let get =
+        app.clone().oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    let mut packument = body_json(get.into_body()).await;
+    let original_versions = packument["versions"].clone();
+
+    // Smuggle in a brand-new version whose tarball basename collides with the
+    // published 1.0.0 tarball. expected_tarball_dist fails closed on a duplicate
+    // basename, so persisting this would 502 every fetch of mypkg-1.0.0.tgz. The
+    // endpoint only removes versions, so adding one must be rejected — even with
+    // an otherwise-valid integrity.
+    packument["versions"]["9.9.9"] = json!({
+        "name": "mypkg",
+        "version": "9.9.9",
+        "dist": {
+            "tarball": "http://example.test/mypkg/-/mypkg-1.0.0.tgz",
+            "integrity": packument["versions"]["1.0.0"]["dist"]["integrity"].clone(),
+        },
+    });
+    let request = Request::put("/mypkg/-rev/1-0")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&packument).unwrap()))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::BAD_REQUEST);
+
+    // No new version may have been persisted.
+    let after = app.oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    let after = body_json(after.into_body()).await;
+    assert_eq!(after["versions"], original_versions);
+}
+
 /// Published packages are the source of truth: they live in the
 /// authoritative `storage` root, never in the disposable proxy cache,
 /// and survive a full wipe of that cache.
