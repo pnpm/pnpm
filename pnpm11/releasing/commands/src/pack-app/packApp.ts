@@ -590,7 +590,12 @@ function isObject (value: unknown): value is Record<string, unknown> {
 // a `..` segment climbs out. Checked lexically before any filesystem access so
 // the failure is fast and side-effect-free.
 function pathEscapesProject (rawPath: string): boolean {
-  if (path.isAbsolute(rawPath)) return true
+  // `path.parse().root` is non-empty for any host-rooted form: a POSIX
+  // absolute path (`/x`), and on Windows also the drive-relative (`C:x`) and
+  // root-relative (`\x`) forms that `path.isAbsolute()` reports as relative
+  // yet still resolve outside the project. Platform-specific, matching the
+  // pacquet port (which rejects `Component::RootDir` / `Component::Prefix`).
+  if (path.parse(rawPath).root !== '') return true
   return rawPath.split(/[/\\]/).includes('..')
 }
 
