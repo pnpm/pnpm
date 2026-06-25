@@ -4,7 +4,8 @@
 //! Ports the upstream whoami tests
 //! (<https://github.com/pnpm/pnpm/blob/fc2f33912e/pnpm11/registry-access/commands/test/whoami.ts>):
 //! the success path, the unauthenticated path, a registry that rejects the
-//! request, and preservation of a registry path prefix.
+//! request, and preservation of a registry path prefix. Adds a pacquet-only
+//! guard that control characters in a registry-provided username are stripped.
 //!
 //! The registry is a `mockito` server the spawned `pacquet` connects to
 //! over loopback. Credentials are supplied through `--npmrc-auth-file`,
@@ -80,6 +81,35 @@ fn returns_the_current_username() {
         String::from_utf8_lossy(&output.stderr),
     );
     assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "alice");
+    drop((root, server));
+}
+
+#[test]
+fn strips_control_characters_from_the_username() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    // A malicious/compromised registry returns a username carrying an ESC
+    // (0x1b) and a BEL (0x07); pacquet must not emit them raw to the terminal.
+    let esc = char::from(0x1b);
+    let bel = char::from(0x07);
+    let username = format!("al{esc}[31mice{bel}");
+    let body = serde_json::json!({ "username": username }).to_string();
+    let mock = server.mock("GET", "/-/whoami").with_status(200).with_body(body).create();
+    let auth_file = configure(root.path(), &workspace, &registry, Some("test-token"));
+
+    let output = run_whoami(&workspace, &auth_file);
+
+    mock.assert();
+    assert!(
+        output.status.success(),
+        "whoami must succeed (stderr: {})",
+        String::from_utf8_lossy(&output.stderr),
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(stdout.trim(), "al[31mice", "control characters must be stripped");
+    assert!(!stdout.contains(esc), "ESC must be stripped: {stdout:?}");
+    assert!(!stdout.contains(bel), "BEL must be stripped: {stdout:?}");
     drop((root, server));
 }
 

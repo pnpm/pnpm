@@ -517,7 +517,7 @@ impl CliArgs {
                 let cfg: &Config = config()?;
                 Box::pin(async move {
                     let username = whoami::whoami(cfg).await?;
-                    println!("{username}");
+                    println!("{}", sanitize::sanitize(&username));
                     Ok(())
                 })
             }
