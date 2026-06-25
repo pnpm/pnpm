@@ -17,16 +17,16 @@ pub enum CheckGlobalBinDirError {
     /// The `PATH` environment variable is unset, so there is no global
     /// executables directory to validate against.
     #[display(
-        "Couldn't find a global directory for executables because the \"PATH\" environment variable is not set."
+        r#"Couldn't find a global directory for executables because the "PATH" environment variable is not set."#
     )]
     #[diagnostic(code(ERR_PNPM_NO_PATH_ENV))]
     NoPathEnv,
 
     /// The configured global bin directory is not one of the `PATH` entries.
-    #[display("The configured global bin directory \"{}\" is not in PATH", global_bin_dir.display())]
+    #[display(r#"The configured global bin directory "{}" is not in PATH"#, global_bin_dir.display())]
     #[diagnostic(
         code(ERR_PNPM_GLOBAL_BIN_DIR_NOT_IN_PATH),
-        help("Run \"pnpm setup\" to update your shell configuration.")
+        help(r#"Run "pnpm setup" to update your shell configuration."#)
     )]
     NotInPath {
         #[error(not(source))]
@@ -97,39 +97,4 @@ fn can_write_to_dir_and_exists(dir: &Path) -> bool {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{CheckGlobalBinDirError, check_global_bin_dir};
-    use std::path::Path;
-
-    #[test]
-    fn no_path_env_when_unset_or_empty() {
-        let dir = Path::new("/some/bin");
-        assert!(matches!(
-            check_global_bin_dir(dir, None, false),
-            Err(CheckGlobalBinDirError::NoPathEnv)
-        ));
-        assert!(matches!(
-            check_global_bin_dir(dir, Some(""), false),
-            Err(CheckGlobalBinDirError::NoPathEnv)
-        ));
-    }
-
-    #[test]
-    fn not_in_path_when_missing() {
-        let tmp = tempfile::tempdir().unwrap();
-        let bin = tmp.path().join("bin");
-        std::fs::create_dir_all(&bin).unwrap();
-        let other = tmp.path().join("other").to_string_lossy().into_owned();
-        let result = check_global_bin_dir(&bin, Some(&other), false);
-        assert!(matches!(result, Err(CheckGlobalBinDirError::NotInPath { .. })));
-    }
-
-    #[test]
-    fn ok_when_in_path() {
-        let tmp = tempfile::tempdir().unwrap();
-        let bin = tmp.path().join("bin");
-        std::fs::create_dir_all(&bin).unwrap();
-        let path_env = bin.to_string_lossy().into_owned();
-        check_global_bin_dir(&bin, Some(&path_env), true).unwrap();
-    }
-}
+mod tests;

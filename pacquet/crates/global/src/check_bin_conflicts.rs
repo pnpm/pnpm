@@ -20,7 +20,7 @@ use std::{
 /// global package's bin, and neither legitimately owns it.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display(
-    "Cannot install: binary \"{bin_name}\" would conflict with {conflict_display} that is already installed globally"
+    r#"Cannot install: binary "{bin_name}" would conflict with {conflict_display} that is already installed globally"#
 )]
 #[diagnostic(
     code(ERR_PNPM_GLOBAL_BIN_CONFLICT),
@@ -96,9 +96,9 @@ pub fn check_global_bin_conflicts(
                 }
                 // Both or neither own it → a real conflict.
                 let conflict_display = if *alias == manifest_name {
-                    format!("\"{alias}\"")
+                    format!(r#""{alias}""#)
                 } else {
-                    format!("\"{alias}\" (package \"{manifest_name}\")")
+                    format!(r#""{alias}" (package "{manifest_name}")"#)
                 };
                 return Err(GlobalBinConflictError {
                     bin_name: bin.name,

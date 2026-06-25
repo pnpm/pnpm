@@ -34,22 +34,4 @@ pub fn create_global_cache_key(aliases: &[String], registries: &[(String, String
 }
 
 #[cfg(test)]
-mod tests {
-    use super::create_global_cache_key;
-
-    #[test]
-    fn order_independent_for_aliases_and_registries() {
-        let registries = vec![("default".to_string(), "https://registry.npmjs.org/".to_string())];
-        let a = create_global_cache_key(&["foo".to_string(), "bar".to_string()], &registries);
-        let b = create_global_cache_key(&["bar".to_string(), "foo".to_string()], &registries);
-        assert_eq!(a, b);
-    }
-
-    #[test]
-    fn differs_by_alias_set() {
-        let registries = vec![("default".to_string(), "https://registry.npmjs.org/".to_string())];
-        let a = create_global_cache_key(&["foo".to_string()], &registries);
-        let b = create_global_cache_key(&["bar".to_string()], &registries);
-        assert_ne!(a, b);
-    }
-}
+mod tests;
