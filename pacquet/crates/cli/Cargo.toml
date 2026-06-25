@@ -32,6 +32,7 @@ pacquet-modules-yaml                      = { workspace = true }
 pacquet-network                           = { workspace = true }
 pacquet-config                            = { workspace = true }
 pacquet-default-reporter                  = { workspace = true }
+pacquet-deps-path                         = { workspace = true }
 pacquet-pack                              = { workspace = true }
 pacquet-package-manifest                  = { workspace = true }
 pacquet-package-manager                   = { workspace = true }

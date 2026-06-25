@@ -1000,7 +1000,8 @@ fn resolve_link_payload(base: &Path, payload: &str) -> LocalResolve {
 }
 
 fn split_local_payload(payload: &str) -> (&str, &str) {
-    match payload.find('(') {
+    let suffix = pacquet_deps_path::index_of_dep_path_suffix(payload);
+    match suffix.patch_hash_index.or(suffix.peers_index) {
         Some(index) => (&payload[..index], &payload[index..]),
         None => (payload, ""),
     }
@@ -1138,3 +1139,6 @@ fn warn<ReporterT: Reporter>(prefix: &Path, message: impl Into<String>) {
         prefix: prefix.to_string_lossy().into_owned(),
     }));
 }
+
+#[cfg(test)]
+mod tests;
