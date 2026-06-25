@@ -59,12 +59,19 @@ pub fn write(path: &Path, settings: &IndexMap<String, String>) -> io::Result<()>
     tmp.write_all(contents.as_bytes())?;
     tmp.as_file().sync_all()?;
     // `NamedTempFile` creates with mode 0600 on Unix; persisting it over an
-    // existing file would silently tighten that file's permissions. Carry the
-    // target's existing mode across the rename so rewriting a project `.npmrc`
-    // preserves it (pnpm's `write-ini-file` keeps the target's mode too). New
-    // files keep the conservative 0600 default — they may hold credentials.
+    // existing regular file would silently tighten that file's permissions, so
+    // carry the target's mode across the rename to preserve it (pnpm's
+    // `write-ini-file` keeps the target's mode too). New files keep the
+    // conservative 0600 default — they may hold credentials.
+    //
+    // `symlink_metadata` (not `metadata`) so a symlinked target is detected
+    // rather than followed: the rename replaces the symlink with a fresh
+    // regular file, and copying the link target's (possibly 0644) mode would
+    // loosen permissions on freshly written credentials. A symlink keeps 0600.
     #[cfg(unix)]
-    if let Ok(metadata) = fs::metadata(path) {
+    if let Ok(metadata) = fs::symlink_metadata(path)
+        && !metadata.file_type().is_symlink()
+    {
         use std::os::unix::fs::PermissionsExt as _;
         let mode = metadata.permissions().mode();
         tmp.as_file().set_permissions(std::fs::Permissions::from_mode(mode))?;

@@ -570,3 +570,37 @@ fn set_preserves_existing_npmrc_mode() {
     let mode = std::fs::metadata(&npmrc).unwrap().permissions().mode() & 0o777;
     assert_eq!(mode, 0o644, "existing .npmrc mode must be preserved, got {mode:o}");
 }
+
+#[cfg(unix)]
+#[test]
+fn set_does_not_follow_symlinked_npmrc_mode() {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let tmp = TempDir::new().unwrap();
+    // A repo-controlled symlinked `.npmrc` pointing at a permissive (0644) file.
+    let target = tmp.path().join("target-npmrc");
+    std::fs::write(&target, "@local:registry=https://localhost/\n").unwrap();
+    std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o644)).unwrap();
+    let npmrc = tmp.path().join(".npmrc");
+    std::os::unix::fs::symlink(&target, &npmrc).unwrap();
+
+    let config = config_with_dir(&tmp.path().join("global-config"));
+    config_set(
+        &config,
+        tmp.path(),
+        flags(false, Some(ConfigLocation::Project), false),
+        "//registry.example.com/:_authToken",
+        Some("secret-token".to_string()),
+    )
+    .unwrap();
+
+    // The rename replaced the symlink with a fresh regular file that must keep
+    // the conservative 0600 default, not the link target's 0644.
+    let meta = std::fs::symlink_metadata(&npmrc).unwrap();
+    assert!(!meta.file_type().is_symlink(), "symlink should be replaced by a regular file");
+    let mode = meta.permissions().mode() & 0o777;
+    assert_eq!(
+        mode, 0o600,
+        "credentials written through a symlinked .npmrc must stay 0600, got {mode:o}",
+    );
+}
