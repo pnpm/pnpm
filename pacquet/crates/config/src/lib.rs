@@ -655,6 +655,19 @@ pub struct Config {
     /// with another pacquet binary) flip this to `true`.
     pub skip_runtimes: bool,
 
+    /// Copy every project file during `pnpm deploy` instead of the publish
+    /// packlist. Default `false`, matching pnpm's `deployAllFiles`.
+    pub deploy_all_files: bool,
+
+    /// Force `pnpm deploy` to use the legacy install-based implementation
+    /// even when a shared workspace lockfile is available.
+    pub force_legacy_deploy: bool,
+
+    /// Whether the workspace uses a single root `pnpm-lock.yaml`. Default
+    /// `true`, matching pnpm's `sharedWorkspaceLockfile`.
+    #[default = true]
+    pub shared_workspace_lockfile: bool,
+
     /// Refuse network requests during install. Mirrors pnpm's
     /// [`offline`](https://github.com/pnpm/pnpm/blob/94240bc046/resolving/npm-resolver/src/pickPackage.ts)
     /// flag — upstream gates the metadata-fetch path with

@@ -147,6 +147,9 @@ impl WorkspaceSettings {
         json_field!(peers_suffix_max_length, "PEERS_SUFFIX_MAX_LENGTH");
         json_field!(lockfile, "LOCKFILE");
         json_field!(prefer_frozen_lockfile, "PREFER_FROZEN_LOCKFILE");
+        json_field!(deploy_all_files, "DEPLOY_ALL_FILES");
+        json_field!(force_legacy_deploy, "FORCE_LEGACY_DEPLOY");
+        json_field!(shared_workspace_lockfile, "SHARED_WORKSPACE_LOCKFILE");
         json_field!(offline, "OFFLINE");
         json_field!(prefer_offline, "PREFER_OFFLINE");
         json_field!(lockfile_include_tarball_url, "LOCKFILE_INCLUDE_TARBALL_URL");

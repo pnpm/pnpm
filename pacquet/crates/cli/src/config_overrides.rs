@@ -22,6 +22,9 @@ use std::{
 pub struct ConfigOverrides {
     registry: Option<String>,
     registries: BTreeMap<String, String>,
+    deploy_all_files: Option<bool>,
+    force_legacy_deploy: Option<bool>,
+    shared_workspace_lockfile: Option<bool>,
 }
 
 impl ConfigOverrides {
@@ -49,6 +52,18 @@ impl ConfigOverrides {
             self.registry = Some(normalize_registry_url(value));
             return;
         }
+        if key == "deploy-all-files" {
+            self.deploy_all_files = parse_bool(value);
+            return;
+        }
+        if key == "force-legacy-deploy" {
+            self.force_legacy_deploy = parse_bool(value);
+            return;
+        }
+        if key == "shared-workspace-lockfile" {
+            self.shared_workspace_lockfile = parse_bool(value);
+            return;
+        }
         if let Some(scope) = scoped_registry_key(key) {
             self.registries.insert(scope.to_owned(), normalize_registry_url(value));
         }
@@ -70,6 +85,15 @@ impl ConfigOverrides {
         for (scope, registry) in &self.registries {
             config.registries.insert(scope.clone(), registry.clone());
             config.package_manager_bootstrap.registries.insert(scope.clone(), registry.clone());
+        }
+        if let Some(value) = self.deploy_all_files {
+            config.deploy_all_files = value;
+        }
+        if let Some(value) = self.force_legacy_deploy {
+            config.force_legacy_deploy = value;
+        }
+        if let Some(value) = self.shared_workspace_lockfile {
+            config.shared_workspace_lockfile = value;
         }
     }
 }
@@ -104,6 +128,14 @@ fn scoped_registry_key(key: &str) -> Option<&str> {
 
 fn normalize_registry_url(registry: &str) -> String {
     if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
+}
+
+fn parse_bool(value: &str) -> Option<bool> {
+    match value.to_ascii_lowercase().as_str() {
+        "true" | "1" => Some(true),
+        "false" | "0" => Some(false),
+        _ => None,
+    }
 }
 
 #[cfg(test)]
