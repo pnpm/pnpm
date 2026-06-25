@@ -1181,6 +1181,25 @@ fn json_env_rejects_deprecated_basic_auth_field() {
 }
 
 #[test]
+fn json_env_duplicate_route_keeps_last_in_source_order() {
+    // Two hosts both route the default registry; the source-LAST entry wins,
+    // matching pnpm's `Object.entries` iteration. Listed reverse-alphabetically
+    // so a sorted map would pick the wrong host.
+    static_env!(
+        Env,
+        &[(
+            "pnpm_config__auth",
+            r#"{"https://zzz.example":{"@":{"authToken":"z"}},"https://aaa.example":{"@":{"authToken":"a"}}}"#
+        )]
+    );
+    let auth = NpmrcAuth::from_json_sources::<Env>(None).expect("valid _auth");
+    assert_eq!(
+        auth.json_env_registries.get("default").map(String::as_str),
+        Some("https://aaa.example/"),
+    );
+}
+
+#[test]
 fn json_env_default_scope_infers_default_registry_route() {
     static_env!(
         Env,

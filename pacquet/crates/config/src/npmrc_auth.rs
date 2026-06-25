@@ -1,4 +1,5 @@
 use crate::{Config, api::EnvVar};
+use indexmap::IndexMap;
 use pacquet_env_replace::env_replace_lossy;
 use pacquet_network::{
     AuthHeaders, DEFAULT_REGISTRY_SCOPE, NoProxySetting, PerRegistryTls, RegistryTls,
@@ -1031,14 +1032,19 @@ fn apply_creds_field(creds: &mut RawCreds, field: &str, value: String) {
 /// Deserialization is strict — any malformed entry (bad JSON, wrong shape,
 /// invalid URL/scope, unsupported credential field) is an error, never a
 /// silent skip. See [`NpmrcAuth::from_json_sources`].
+///
+/// [`IndexMap`] preserves source order so a later entry wins for a
+/// duplicate inferred route (`"@"` / `@scope` across different hosts),
+/// matching pnpm's `Object.entries` iteration — a `BTreeMap` would re-sort
+/// and could pick a different host.
 #[derive(Debug, serde::Deserialize)]
-struct JsonAuth(BTreeMap<JsonAuthRegistry, BTreeMap<JsonAuthScope, JsonAuthCreds>>);
+struct JsonAuth(IndexMap<JsonAuthRegistry, IndexMap<JsonAuthScope, JsonAuthCreds>>);
 
 /// A registry URL `_auth` key. Validated to be an http(s) URL with no
 /// userinfo, query, or fragment (those can carry secrets), then stored
 /// normalized (trailing slash) and nerf-darted for the credential key.
 /// Parsed with the `url` crate, matching the TS side's `new URL()`.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Deserialize)]
 #[serde(try_from = "String")]
 struct JsonAuthRegistry {
     normalized: String,
@@ -1085,7 +1091,7 @@ impl TryFrom<String> for JsonAuthRegistry {
 
 /// A scope key within a registry: `@` for registry-wide/default credentials,
 /// or a package scope like `@org`.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Deserialize)]
 #[serde(try_from = "String")]
 enum JsonAuthScope {
     Default,

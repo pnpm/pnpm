@@ -1580,6 +1580,27 @@ test('pnpm_config__auth "@" scope routes the default registry to its host', asyn
   expect(config.authConfig['//my-npm-proxy.example/:_authToken']).toBe('proxy-token')
 })
 
+test('pnpm_config__auth keeps the last duplicate route in source order', async () => {
+  prepareEmpty()
+
+  // Two hosts both route the default registry; the source-last entry wins
+  // (object iteration order), listed reverse-alphabetically so an
+  // order-insensitive implementation would pick the wrong host.
+  const { config } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      pnpm_config__auth: JSON.stringify({
+        'https://zzz.example': { '@': { authToken: 'z' } },
+        'https://aaa.example': { '@': { authToken: 'a' } },
+      }),
+    },
+    packageManager: { name: 'pnpm', version: '1.0.0' },
+  })
+
+  expect(config.registries.default).toBe('https://aaa.example/')
+})
+
 test('pnpm_config__auth scoped entry routes that scope to its host', async () => {
   prepareEmpty()
 
