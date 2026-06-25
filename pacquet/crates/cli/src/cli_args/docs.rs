@@ -4,7 +4,8 @@ use pacquet_config::Config;
 use pacquet_network::{NetworkSettings, RetryOpts, ThrottledClient};
 use pacquet_package_manifest::PackageManifest;
 use pacquet_resolving_npm_resolver::{
-    FetchFullMetadataOptions, FetchFullMetadataOutcome, fetch_full_metadata, pick_registry_for_package,
+    FetchFullMetadataOptions, FetchFullMetadataOutcome, fetch_full_metadata,
+    pick_registry_for_package,
 };
 use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
 
@@ -21,8 +22,7 @@ impl DocsArgs {
 
         let parsed = parse_wanted_dependency(raw_spec);
         let name = parsed.alias.as_deref().unwrap_or(raw_spec);
-        let (resolved_name, _range) =
-            PackageManifest::resolve_registry_dependency(name, name);
+        let (resolved_name, _range) = PackageManifest::resolve_registry_dependency(name, name);
 
         let http_client = ThrottledClient::for_installs(
             &config.proxy,
@@ -114,11 +114,7 @@ fn open_url(url: &str) -> miette::Result<()> {
                     windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL,
                 )
             };
-            if (result as isize) > 32 {
-                Ok(())
-            } else {
-                Err(std::io::Error::last_os_error())
-            }
+            if (result as isize) > 32 { Ok(()) } else { Err(std::io::Error::last_os_error()) }
         }
         #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
         {
