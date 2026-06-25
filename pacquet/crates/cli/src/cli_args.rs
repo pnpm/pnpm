@@ -8,6 +8,7 @@ pub mod create;
 pub mod dedupe;
 pub mod dlx;
 pub mod exec;
+pub mod fetch;
 pub mod find_hash;
 pub mod ignored_builds;
 pub mod import;
@@ -45,6 +46,7 @@ use create::CreateArgs;
 use dedupe::DedupeArgs;
 use dlx::DlxArgs;
 use exec::ExecArgs;
+use fetch::FetchArgs;
 use find_hash::FindHashArgs;
 use ignored_builds::IgnoredBuildsArgs;
 use import::ImportArgs;
@@ -235,6 +237,8 @@ pub enum CliCommand {
     Dedupe(DedupeArgs),
     /// Remove extraneous packages
     Prune(PruneArgs),
+    /// Fetch packages from the lockfile into the virtual store
+    Fetch(FetchArgs),
 }
 
 impl CliArgs {
@@ -322,6 +326,7 @@ impl CliArgs {
                 | CliCommand::Import(_)
                 | CliCommand::Dedupe(_)
                 | CliCommand::Prune(_)
+                | CliCommand::Fetch(_)
                 | CliCommand::Create(_)
                 | CliCommand::Runtime(_)
                 // `rebuild` drives the frozen-install pipeline and emits
@@ -722,6 +727,13 @@ impl CliArgs {
                     ReporterType::Silent => Box::pin(args.run::<SilentReporter>(command_state)),
                 }
             }
+            CliCommand::Fetch(args) => match reporter {
+                ReporterType::Default | ReporterType::AppendOnly => {
+                    Box::pin(args.run::<DefaultReporter>(state(true)?))
+                }
+                ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(state(true)?)),
+                ReporterType::Silent => Box::pin(args.run::<SilentReporter>(state(true)?)),
+            },
             CliCommand::Prune(args) => Box::pin(async move {
                 let cfg = config()?;
                 let (config_root, package_manager_to_sync) =
