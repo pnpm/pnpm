@@ -980,6 +980,11 @@ fn redact_url_userinfo_removes_credentials_from_audit_endpoint() {
     assert_eq!(redact_url_userinfo("not a url"), "not a url");
 }
 
+#[test]
+fn sanitize_control_chars_escapes_registry_control_characters() {
+    assert_eq!(sanitize_control_chars("ok\u{1b}[31m\n\u{7f}"), r"ok\u{1b}[31m\u{a}\u{7f}");
+}
+
 fn advisory(id: u64, title: &str, severity: ConfigAuditLevel, ghsa: &str) -> AuditAdvisory {
     AuditAdvisory {
         findings: vec![AuditFinding {

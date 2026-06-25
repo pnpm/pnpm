@@ -172,7 +172,7 @@ fn audit_ignore_registry_errors_keeps_exit_code_zero() {
         .mock("POST", "/-/npm/v1/security/advisories/bulk")
         .with_status(500)
         .with_header("content-type", "application/json")
-        .with_body(r#"{"message":"Something bad happened"}"#)
+        .with_body("Something bad happened \u{1b}[31m\n")
         .create();
     write_audit_workspace(&workspace, &registry.url(), "");
 
@@ -180,8 +180,46 @@ fn audit_ignore_registry_errors_keeps_exit_code_zero() {
         pacquet.arg("audit").arg("--ignore-registry-errors").output().expect("run pacquet audit");
 
     assert_success(&output);
-    assert!(stdout(&output).contains("responded with 500"));
-    assert!(stdout(&output).contains(r#"{"message":"Something bad happened"}"#));
+    assert_eq!(stdout(&output), "");
+    let stderr = stderr(&output);
+    eprintln!("STDERR:\n{stderr}\n");
+    assert!(stderr.contains("responded with 500"));
+    assert!(stderr.contains(r"Something bad happened \u{1b}[31m\u{a}"));
+    assert!(!stderr.contains('\u{1b}'));
+    mock.assert();
+}
+
+#[test]
+fn audit_json_ignore_registry_errors_keeps_stdout_parseable() {
+    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
+    let mut registry = mockito::Server::new();
+    let mock = registry
+        .mock("POST", "/-/npm/v1/security/advisories/bulk")
+        .with_status(500)
+        .with_header("content-type", "application/json")
+        .with_body("bad \u{1b}[31m")
+        .create();
+    write_audit_workspace(&workspace, &registry.url(), "");
+
+    let output = pacquet
+        .arg("audit")
+        .arg("--json")
+        .arg("--ignore-registry-errors")
+        .output()
+        .expect("run pacquet audit");
+
+    assert_success(&output);
+    let report: serde_json::Value = serde_json::from_str(&stdout(&output)).unwrap();
+    assert_eq!(report["advisories"].as_object().unwrap().len(), 0);
+    assert_eq!(report["metadata"]["vulnerabilities"]["high"], 0);
+    assert_eq!(report["metadata"]["dependencies"], 3);
+    assert_eq!(report["metadata"]["devDependencies"], 1);
+    assert_eq!(report["metadata"]["optionalDependencies"], 1);
+    assert_eq!(report["metadata"]["totalDependencies"], 5);
+    let stderr = stderr(&output);
+    eprintln!("STDERR:\n{stderr}\n");
+    assert!(stderr.contains(r"bad \u{1b}[31m"));
+    assert!(!stderr.contains('\u{1b}'));
     mock.assert();
 }
 

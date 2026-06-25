@@ -143,8 +143,13 @@ impl AuditArgs {
         {
             Ok(report) => report,
             Err(err) if self.ignore_registry_errors => {
-                print!("{err}");
-                let _ = std::io::stdout().flush();
+                eprintln!("{err}");
+                let _ = std::io::stderr().flush();
+                if self.json {
+                    let report = empty_audit_report(lockfile, env_lockfile.as_ref(), include);
+                    print!("{}", render_json_report(&report, audit_level)?);
+                    let _ = std::io::stdout().flush();
+                }
                 return Ok(AuditOutcome::Clean);
             }
             Err(err) => return Err(err.into()),
@@ -360,17 +365,21 @@ async fn audit(
                 serde_json::from_str(&raw_body).map_err(|source| AuditError::InvalidJson {
                     url: display_audit_url.clone(),
                     reason: source.to_string(),
-                    body: truncate_chars(&raw_body, 500),
+                    body: sanitize_response_body(&raw_body),
                 })?;
             let bulk: BTreeMap<String, Vec<RawBulkAdvisory>> =
                 serde_json::from_value(parsed.clone()).map_err(|_| AuditError::UnexpectedBody {
                     url: display_audit_url.clone(),
-                    body: truncate_chars(&parsed.to_string(), 500),
+                    body: sanitize_response_body(&parsed.to_string()),
                 })?;
             Ok(bulk_response_to_audit_report(bulk, &audit_request, lockfile, env_lockfile, include))
         }
         404 => Err(AuditError::EndpointNotExists { url: display_audit_url }),
-        _ => Err(AuditError::BadStatus { url: display_audit_url, status, body: raw_body }),
+        _ => Err(AuditError::BadStatus {
+            url: display_audit_url,
+            status,
+            body: sanitize_response_body(&raw_body),
+        }),
     }
 }
 
@@ -418,15 +427,31 @@ fn bulk_response_to_audit_report(
         }
     }
 
+    AuditReport { advisories, metadata: audit_metadata(audit_request, vulnerabilities) }
+}
+
+fn empty_audit_report(
+    lockfile: &Lockfile,
+    env_lockfile: Option<&EnvLockfile>,
+    include: Include,
+) -> AuditReport {
+    let audit_request = lockfile_to_audit_request(lockfile, env_lockfile, include);
     AuditReport {
-        advisories,
-        metadata: AuditMetadata {
-            vulnerabilities,
-            dependencies: audit_request.dependencies,
-            dev_dependencies: audit_request.dev_dependencies,
-            optional_dependencies: audit_request.optional_dependencies,
-            total_dependencies: audit_request.total_dependencies,
-        },
+        advisories: BTreeMap::new(),
+        metadata: audit_metadata(&audit_request, AuditVulnerabilityCounts::default()),
+    }
+}
+
+fn audit_metadata(
+    audit_request: &AuditIndexRequest,
+    vulnerabilities: AuditVulnerabilityCounts,
+) -> AuditMetadata {
+    AuditMetadata {
+        vulnerabilities,
+        dependencies: audit_request.dependencies,
+        dev_dependencies: audit_request.dev_dependencies,
+        optional_dependencies: audit_request.optional_dependencies,
+        total_dependencies: audit_request.total_dependencies,
     }
 }
 
@@ -1257,6 +1282,22 @@ fn redact_url_userinfo(url: &str) -> String {
 
 fn truncate_chars(value: &str, max_chars: usize) -> String {
     value.chars().take(max_chars).collect()
+}
+
+fn sanitize_response_body(value: &str) -> String {
+    sanitize_control_chars(&truncate_chars(value, 500))
+}
+
+fn sanitize_control_chars(value: &str) -> String {
+    let mut output = String::with_capacity(value.len());
+    for ch in value.chars() {
+        if ch.is_control() {
+            output.extend(ch.escape_unicode());
+        } else {
+            output.push(ch);
+        }
+    }
+    output
 }
 
 fn bold(text: &str) -> String {
