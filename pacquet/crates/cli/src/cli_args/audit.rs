@@ -1152,7 +1152,40 @@ fn severity_name(level: ConfigAuditLevel) -> &'static str {
 fn satisfies_safe(version: &str, range: &str) -> bool {
     let Ok(version) = version.parse::<Version>() else { return false };
     let Ok(range) = range.parse::<Range>() else { return false };
-    version.satisfies(&range)
+    satisfies_including_prerelease(&version, &range)
+}
+
+fn satisfies_including_prerelease(version: &Version, range: &Range) -> bool {
+    if version.satisfies(range) {
+        return true;
+    }
+    range.to_string().split("||").any(|comparators| {
+        comparators.split_whitespace().all(|comparator| comparator_matches(version, comparator))
+    })
+}
+
+fn comparator_matches(version: &Version, comparator: &str) -> bool {
+    if comparator == "*" {
+        return true;
+    }
+    let (operator, wanted) = comparator_operator_and_version(comparator);
+    let Ok(wanted) = wanted.parse::<Version>() else { return false };
+    match operator {
+        ">" => version > &wanted,
+        ">=" => version >= &wanted,
+        "<" => version < &wanted,
+        "<=" => version <= &wanted,
+        _ => version == &wanted,
+    }
+}
+
+fn comparator_operator_and_version(comparator: &str) -> (&str, &str) {
+    for operator in [">=", "<=", ">", "<"] {
+        if let Some(version) = comparator.strip_prefix(operator) {
+            return (operator, version);
+        }
+    }
+    ("", comparator)
 }
 
 fn infer_patched_versions(vulnerable_range: &str) -> Option<String> {

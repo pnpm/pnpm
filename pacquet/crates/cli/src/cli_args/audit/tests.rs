@@ -229,6 +229,14 @@ fn filter_ignored_advisories_does_not_match_blank_ghsa_ids() {
 }
 
 #[test]
+fn satisfies_safe_includes_prerelease_versions_for_audit_ranges() {
+    assert!(satisfies_safe("1.2.3-rc.0", "<2.0.0"));
+    assert!(satisfies_safe("2.0.0-rc.1", "<2.0.0"));
+    assert!(satisfies_safe("1.2.3-beta.0", "^1.2.0"));
+    assert!(!satisfies_safe("1.2.0-beta.0", "^1.2.0"));
+}
+
+#[test]
 fn text_report_separates_advisory_table_from_summary() {
     let report = AuditReport {
         advisories: BTreeMap::from([(
