@@ -1873,6 +1873,19 @@ async fn update_packument(
         Ok(v) => v,
         Err(err) => return error_response(&RegistryError::Json(err)),
     };
+    // The write destination is the URL package name; a mismatched body name
+    // would otherwise land under the URL package and persist an inconsistent
+    // manifest.
+    if let Some(body_name) = packument.get("name").and_then(Value::as_str)
+        && body_name != name.as_str()
+    {
+        return error_response(&RegistryError::BadRequest {
+            reason: format!(
+                "packument name {body_name:?} does not match the URL package {:?}",
+                name.as_str()
+            ),
+        });
+    }
     if let Some(obj) = packument.as_object_mut() {
         obj.remove("_attachments");
         obj.remove("_rev");
@@ -1886,6 +1899,15 @@ async fn update_packument(
     // packument writers (publish / dist-tag), so the client-supplied
     // rewrite can't interleave with a concurrent merge.
     let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
+    // A published version's dist.integrity is immutable. This endpoint is the
+    // partial-unpublish flow (removing versions), not a way to rewrite the
+    // integrity of versions still on disk — doing so would break every
+    // client's install with EINTEGRITY while the real tarball is untouched.
+    // The hosted packument is read under the lock so a concurrent publish
+    // can't race the check.
+    if let Some(err) = reject_packument_integrity_tampering(state, &name, &packument).await {
+        return error_response(&err);
+    }
     if let Err(err) = state.inner.storage.write_hosted_packument(&name, &bytes).await {
         return error_response(&err);
     }
@@ -1896,6 +1918,55 @@ async fn update_packument(
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(bytes))
         .expect("static-shape response always builds")
+}
+
+/// Guard the partial-unpublish `PUT` against `dist.integrity` tampering: a
+/// version already on disk must keep its integrity, and any newly added
+/// version entry must carry a syntactically valid SRI. Returns the rejection
+/// error, or `None` when the body is acceptable. Must be called while holding
+/// the package lock so a concurrent publish can't race the read.
+async fn reject_packument_integrity_tampering(
+    state: &AppState,
+    name: &PackageName,
+    incoming: &Value,
+) -> Option<RegistryError> {
+    let incoming_versions = incoming.get("versions").and_then(Value::as_object)?;
+    let hosted: Option<Value> = match state.inner.storage.read_hosted_packument(name).await {
+        Ok(Some(bytes)) => serde_json::from_slice(&bytes).ok(),
+        Ok(None) => None,
+        Err(err) => return Some(err),
+    };
+    let hosted_versions =
+        hosted.as_ref().and_then(|value| value.get("versions")).and_then(Value::as_object);
+    for (version, manifest) in incoming_versions {
+        let incoming_integrity =
+            manifest.get("dist").and_then(|dist| dist.get("integrity")).and_then(Value::as_str);
+        match hosted_versions.and_then(|versions| versions.get(version)) {
+            Some(existing) => {
+                let existing_integrity = existing
+                    .get("dist")
+                    .and_then(|dist| dist.get("integrity"))
+                    .and_then(Value::as_str);
+                if incoming_integrity != existing_integrity {
+                    return Some(RegistryError::BadRequest {
+                        reason: format!(
+                            "dist.integrity for the published version {version:?} is immutable"
+                        ),
+                    });
+                }
+            }
+            None => {
+                if let Some(sri) = incoming_integrity
+                    && let Err(err) = crate::streaming::parse_integrity(sri)
+                {
+                    return Some(RegistryError::BadRequest {
+                        reason: format!("malformed dist.integrity for version {version:?}: {err}"),
+                    });
+                }
+            }
+        }
+    }
+    None
 }
 
 /// `DELETE /:pkg/-rev/:rev` — remove the entire package directory,

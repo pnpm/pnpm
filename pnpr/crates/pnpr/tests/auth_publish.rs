@@ -286,6 +286,46 @@ async fn republish_via_a_smuggled_version_entry_without_an_attachment_is_rejecte
     assert_eq!(app.oneshot(smuggle).await.unwrap().status(), StatusCode::CONFLICT);
 }
 
+#[tokio::test]
+async fn update_packument_rejects_tampering_with_a_published_version_integrity() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let publish = Request::put("/mypkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(
+            serde_json::to_vec(&sample_publish_body("mypkg", "1.0.0", b"real-bytes")).unwrap(),
+        ))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(publish).await.unwrap().status(), StatusCode::CREATED);
+
+    let get =
+        app.clone().oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    let mut packument = body_json(get.into_body()).await;
+    let original_integrity = packument["versions"]["1.0.0"]["dist"]["integrity"].clone();
+    assert!(original_integrity.is_string(), "published version should carry an integrity");
+
+    // Point the already-published version at a bogus integrity and PUT it back
+    // through the partial-unpublish endpoint.
+    packument["versions"]["1.0.0"]["dist"]["integrity"] = json!(
+        "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+    );
+    let tamper = Request::put("/mypkg/-rev/1-0")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&packument).unwrap()))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(tamper).await.unwrap().status(), StatusCode::BAD_REQUEST);
+
+    // The stored integrity must be untouched.
+    let after = app.oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    let after = body_json(after.into_body()).await;
+    assert_eq!(after["versions"]["1.0.0"]["dist"]["integrity"], original_integrity);
+}
+
 /// Published packages are the source of truth: they live in the
 /// authoritative `storage` root, never in the disposable proxy cache,
 /// and survive a full wipe of that cache.
