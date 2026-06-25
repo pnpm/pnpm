@@ -40,6 +40,25 @@ fn save_leaves_the_original_intact_when_the_write_cannot_complete() {
     assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
 }
 
+#[cfg(unix)]
+#[test]
+fn save_preserves_the_existing_package_json_permissions() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    std::fs::write(&path, r#"{"name":"perm","version":"1.0.0"}"#).unwrap();
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o640)).unwrap();
+
+    let manifest = PackageManifest::from_path(path.clone()).unwrap();
+    manifest.save().unwrap();
+
+    // The atomic temp-file-then-rename must keep the original mode, not leave
+    // the NamedTempFile's default 0o600 behind.
+    let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode, 0o640);
+}
+
 #[test]
 fn test_init_package_json_content() {
     let manifest = PackageManifest::create_init_package_json("test");

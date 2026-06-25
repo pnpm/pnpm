@@ -109,6 +109,12 @@ impl PackageManifest {
         let mut tmp = NamedTempFile::new_in(dir)?;
         tmp.write_all(contents.as_bytes())?;
         tmp.as_file().sync_all()?;
+        // A NamedTempFile is created 0o600; preserve the original file's mode
+        // when overwriting an existing package.json (write-file-atomic does the
+        // same) so the rename doesn't silently tighten its permissions.
+        if let Ok(metadata) = fs::metadata(path) {
+            tmp.as_file().set_permissions(metadata.permissions())?;
+        }
         tmp.persist(path).map_err(|err| err.error)?;
         Ok(())
     }
