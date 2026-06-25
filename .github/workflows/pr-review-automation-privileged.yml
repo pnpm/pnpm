@@ -44,20 +44,38 @@ jobs:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
           REVIEWER: ${{ github.event.workflow_run.actor.login }}
+        shell: bash
         run: |
-          if [ -z "$PR_NUMBER" ]; then
-            echo "::notice::No pull request attached to the review workflow run; nothing to do"
-            echo "has_approval=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          if ! printf '%s' "$PR_NUMBER" | grep -qE '^[0-9]+$'; then
-            echo "Invalid PR number: $PR_NUMBER" >&2
-            exit 1
-          fi
-          if ! printf '%s' "$HEAD_SHA" | grep -qE '^[0-9a-f]{40}$'; then
+          set -euo pipefail
+
+          if ! [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]; then
             echo "Invalid head SHA: $HEAD_SHA" >&2
             exit 1
           fi
+
+          pr_number="${PR_NUMBER:-}"
+          if [ -z "$pr_number" ]; then
+            pr_matches="$(
+              gh api "repos/$GITHUB_REPOSITORY/pulls?state=open&per_page=100" --paginate --jq '.[]' |
+                jq -s --arg sha "$HEAD_SHA" '[.[] | select(.head.sha == $sha) | .number] | unique'
+            )"
+            pr_count="$(printf '%s' "$pr_matches" | jq 'length')"
+            if [ "$pr_count" = "0" ]; then
+              echo "::error::No open PR matches head_sha=$HEAD_SHA in $GITHUB_REPOSITORY"
+              exit 1
+            fi
+            if [ "$pr_count" != "1" ]; then
+              echo "::error::Ambiguous head_sha=$HEAD_SHA matches $pr_count PRs: $pr_matches"
+              exit 1
+            fi
+            pr_number="$(printf '%s' "$pr_matches" | jq -r '.[0]')"
+          fi
+
+          if ! [[ "$pr_number" =~ ^[1-9][0-9]*$ ]]; then
+            echo "Invalid PR number: $pr_number" >&2
+            exit 1
+          fi
+
           case "$REVIEWER" in
             'coderabbitai[bot]') label='reviewed: coderabbit'; announce=true ;;
             'qodo-free-for-open-source-projects[bot]') label='reviewed: qodo'; announce=false ;;
@@ -69,28 +87,37 @@ jobs:
               ;;
           esac
 
-          approved_review_id=
+          latest_review=
           for _ in 1 2 3 4 5; do
-            approved_review_id="$(
-              gh api --paginate "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER/reviews" |
+            latest_review="$(
+              gh api "repos/$GITHUB_REPOSITORY/pulls/$pr_number/reviews" --paginate --jq '.[]' |
                 jq -sr --arg reviewer "$REVIEWER" --arg head_sha "$HEAD_SHA" \
-                  '[.[][] | select(.user.login == $reviewer and .state == "APPROVED" and .commit_id == $head_sha) | .id][0] // empty'
+                  '[.[] | select(.user.login == $reviewer and .commit_id == $head_sha and .state != "COMMENTED")]
+                  | sort_by(.submitted_at // .created_at // "")
+                  | last // empty'
             )"
-            if [ -n "$approved_review_id" ]; then
+            if [ -n "$latest_review" ]; then
               break
             fi
             sleep 2
           done
 
-          if [ -z "$approved_review_id" ]; then
-            echo "::notice::No approved $REVIEWER review on $HEAD_SHA for PR #$PR_NUMBER; nothing to do"
+          if [ -z "$latest_review" ]; then
+            echo "::notice::No decision review by $REVIEWER on $HEAD_SHA for PR #$pr_number; nothing to do"
+            echo "has_approval=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          review_state="$(printf '%s' "$latest_review" | jq -r '.state')"
+          if [ "$review_state" != "APPROVED" ]; then
+            echo "::notice::Latest decision review by $REVIEWER on $HEAD_SHA is $review_state; nothing to do"
             echo "has_approval=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           {
             echo "has_approval=true"
-            echo "pr_number=$PR_NUMBER"
+            echo "pr_number=$pr_number"
             echo "label=$label"
             echo "announce=$announce"
           } >> "$GITHUB_OUTPUT"
