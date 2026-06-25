@@ -32,10 +32,10 @@ jobs:
       issues: write     # let the agent apply labels and comment
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - name: Triage with Oz agent
-        uses: warpdotdev/oz-agent-action@v1
+        uses: warpdotdev/oz-agent-action@501d24fbf4d1447e8db60eb0973eeadeb5ff54c2 # v1
         id: triage
         env:
           # Authenticates the `gh` CLI the agent uses to read/label/comment.
