@@ -473,11 +473,19 @@ where
     let already_correct = sh_marker_ok && windows_ok;
 
     if !already_correct {
+        // Unlink any pre-existing entry before writing. `Sys::write` opens
+        // through a symlink, so without this a symlink planted at the bin
+        // path (e.g. in a shared/writable global bin dir) would redirect the
+        // write and clobber an arbitrary target. Removing first guarantees we
+        // create a fresh regular file.
+        remove_stale_bin(shim_path)?;
         Sys::write(shim_path, sh_body.as_bytes())
             .map_err(|error| LinkBinsError::WriteShim { path: shim_path.to_path_buf(), error })?;
         if let Some((cmd_path, cmd_body, ps1_path, ps1_body)) = &windows_shims {
+            remove_stale_bin(cmd_path)?;
             Sys::write(cmd_path, cmd_body.as_bytes())
                 .map_err(|error| LinkBinsError::WriteShim { path: cmd_path.clone(), error })?;
+            remove_stale_bin(ps1_path)?;
             Sys::write(ps1_path, ps1_body.as_bytes())
                 .map_err(|error| LinkBinsError::WriteShim { path: ps1_path.clone(), error })?;
         }

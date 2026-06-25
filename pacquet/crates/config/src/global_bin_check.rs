@@ -79,9 +79,34 @@ fn global_bin_dir_is_in_path(global_bin_dir: &Path, path_env: &str) -> bool {
     })
 }
 
-/// Mirrors pnpm's `areDirsEqual` (`path.relative(dir1, dir2) === ''`).
+/// Mirrors pnpm's `areDirsEqual` (`path.relative(dir1, dir2) === ''`), which
+/// normalizes both paths before comparing. Plain `Path` equality would treat
+/// e.g. `/a/b/.` or `/a/x/../b` as different from `/a/b` and reject a global
+/// bin dir that is effectively on `PATH`.
 fn dirs_equal(dir1: &Path, dir2: &Path) -> bool {
-    dir1 == dir2
+    lexically_normalize(dir1) == lexically_normalize(dir2)
+}
+
+/// Collapse `.` / `..` / redundant separators without touching the
+/// filesystem (it never resolves symlinks — neither does Node's
+/// `path.relative`).
+fn lexically_normalize(path: &Path) -> PathBuf {
+    use std::path::Component;
+    let mut out = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::ParentDir => match out.components().next_back() {
+                Some(Component::Normal(_)) => {
+                    out.pop();
+                }
+                Some(Component::RootDir | Component::Prefix(_)) => {}
+                _ => out.push(".."),
+            },
+            Component::CurDir => {}
+            other => out.push(other.as_os_str()),
+        }
+    }
+    out
 }
 
 fn can_write_to_dir_and_exists(dir: &Path) -> bool {
