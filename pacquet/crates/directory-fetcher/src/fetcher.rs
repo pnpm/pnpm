@@ -53,14 +53,15 @@ pub struct DirectoryFetchOutput {
 
 impl DirectoryFetcher {
     pub fn run(&self) -> Result<DirectoryFetchOutput, DirectoryFetcherError> {
-        let mut files_map = if self.include_only_package_files {
-            walker::walk_package_files(&self.directory)?
+        let files_map = if self.include_only_package_files {
+            let mut files_map = walker::walk_package_files(&self.directory)?;
+            if !self.allow_path_escape {
+                walker::resolve_paths_in_directory(&self.directory, &mut files_map)?;
+            }
+            files_map
         } else {
             walker::walk_all_files(&self.directory, self.resolve_symlinks, self.allow_path_escape)?
         };
-        if !self.allow_path_escape {
-            walker::resolve_paths_in_directory(&self.directory, &mut files_map)?;
-        }
         let manifest = safe_read_package_json_from_dir(&self.directory)
             .map_err(DirectoryFetcherError::ReadManifest)?;
         // Upstream's `pkgRequiresBuild(manifest, filesMap)` checks

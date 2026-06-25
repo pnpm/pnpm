@@ -1,5 +1,9 @@
-use super::{create_deploy_install_config, split_local_payload, validate_lockfile_local_path};
+use super::{
+    ConvertCtx, convert_package_metadata, create_deploy_install_config, split_local_payload,
+    validate_lockfile_local_path,
+};
 use pacquet_config::{Config, NodeLinker};
+use pacquet_lockfile::{LockfileResolution, PackageMetadata, TarballResolution};
 use std::path::Path;
 
 #[cfg(windows)]
@@ -47,6 +51,53 @@ fn lockfile_local_path_rejects_workspace_escape() {
     let err = validate_lockfile_local_path(&workspace.join("../outside"), workspace)
         .expect_err("parent traversal should be rejected");
     assert!(err.to_string().contains("outside workspace"), "unexpected error: {err}");
+}
+
+#[test]
+fn convert_package_metadata_rebases_file_tarball_resolution_to_deploy_dir() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let lockfile_dir = tmp.path().join("workspace");
+    let deploy_dir = lockfile_dir.join("deploy");
+    let deployed_project_root = lockfile_dir.join("packages/app");
+    let all_projects = Vec::new();
+    let metadata = PackageMetadata {
+        resolution: LockfileResolution::Tarball(TarballResolution {
+            tarball: "file:vendor/pkg.tgz".to_string(),
+            integrity: Some(
+                "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+                    .parse()
+                    .expect("parse integrity"),
+            ),
+            git_hosted: None,
+            path: None,
+        }),
+        version: None,
+        engines: None,
+        cpu: None,
+        os: None,
+        libc: None,
+        deprecated: None,
+        has_bin: None,
+        prepare: None,
+        bundled_dependencies: None,
+        peer_dependencies: None,
+        peer_dependencies_meta: None,
+    };
+    let ctx = ConvertCtx {
+        all_projects: &all_projects,
+        deploy_dir: &deploy_dir,
+        lockfile_dir: &lockfile_dir,
+        deployed_project_root: &deployed_project_root,
+    };
+
+    let converted = convert_package_metadata(&metadata, &ctx).expect("convert metadata");
+
+    match converted.resolution {
+        LockfileResolution::Tarball(resolution) => {
+            assert_eq!(resolution.tarball, "file:../vendor/pkg.tgz");
+        }
+        other => panic!("expected tarball resolution, got {other:?}"),
+    }
 }
 
 #[cfg(windows)]

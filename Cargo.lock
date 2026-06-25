@@ -4573,6 +4573,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
+ "url",
  "zip",
  "zune-inflate",
 ]

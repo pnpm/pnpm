@@ -32,6 +32,7 @@ ssri         = { workspace = true }
 tar          = { workspace = true }
 tokio        = { workspace = true }
 tracing      = { workspace = true }
+url          = { workspace = true }
 zip          = { workspace = true }
 zune-inflate = { workspace = true }
 

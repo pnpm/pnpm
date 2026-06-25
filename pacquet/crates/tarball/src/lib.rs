@@ -153,6 +153,15 @@ pub enum TarballError {
     #[diagnostic(code(pacquet_tarball::io_error))]
     ReadTarballEntries(std::io::Error),
 
+    #[from(ignore)]
+    #[display("Failed to read local tarball {}: {source}", path.display())]
+    #[diagnostic(code(pacquet_tarball::read_local_tarball))]
+    ReadLocalTarball {
+        path: PathBuf,
+        #[error(source)]
+        source: std::io::Error,
+    },
+
     #[diagnostic(
         code(pacquet_tarball::verify_checksum_error),
         help(
@@ -1442,6 +1451,9 @@ fn tarball_error_to_request_retry(err: &TarballError) -> RequestRetryError {
         TarballError::ReadTarballEntries(_) => {
             out.code = Some("ERR_PACQUET_TARBALL_TAR".to_string());
         }
+        TarballError::ReadLocalTarball { .. } => {
+            out.code = Some("ERR_PACQUET_TARBALL_FILE".to_string());
+        }
         TarballError::WriteCasFile(_) | TarballError::WriteStoreIndex(_) => {
             out.code = Some("ERR_PACQUET_TARBALL_STORE".to_string());
         }
@@ -1486,8 +1498,75 @@ fn tarball_error_to_request_retry(err: &TarballError) -> RequestRetryError {
 fn is_transient_error(err: &TarballError) -> bool {
     match err {
         TarballError::HttpStatus(http) => !matches!(http.status, 401 | 403 | 404),
+        TarballError::ReadLocalTarball { .. } => false,
         _ => true,
     }
+}
+
+fn local_file_tarball_path(package_url: &str) -> Option<PathBuf> {
+    let path = package_url.strip_prefix("file:")?;
+    if (path.starts_with('/') || path.starts_with("//"))
+        && let Ok(url) = url::Url::parse(package_url)
+        && let Ok(path) = url.to_file_path()
+    {
+        return Some(path);
+    }
+    Some(PathBuf::from(path))
+}
+
+async fn extract_tarball_buffer(
+    buffer: Vec<u8>,
+    expected_integrity: Option<&Integrity>,
+    package_unpacked_size: Option<usize>,
+    package_url: &str,
+    store_dir: &'static StoreDir,
+    ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
+) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+    let _post_download_permit = post_download_semaphore()
+        .acquire()
+        .await
+        .expect("post-download semaphore shouldn't be closed this soon");
+
+    tracing::info!(target: "pacquet::download", ?package_url, "Download completed");
+
+    let expected_integrity = expected_integrity.cloned();
+    let package_url_owned = package_url.to_string();
+    let result = tokio::task::spawn_blocking(
+        move || -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+            let integrity = verify_tarball_integrity(
+                &buffer,
+                expected_integrity,
+                package_url_owned,
+            )?;
+            let tar_data = decompress_gzip(&buffer, package_unpacked_size)?;
+            let (cas_paths, pkg_files_idx) =
+                extract_tarball_entries(&tar_data, store_dir, ignore_file_pattern.as_deref())?;
+            Ok((integrity, cas_paths, pkg_files_idx))
+        },
+    )
+    .await
+    .map_err(TarballError::TaskJoin)??;
+
+    tracing::info!(target: "pacquet::download", ?package_url, "Checksum verified");
+
+    Ok(result)
+}
+
+fn verify_tarball_integrity(
+    buffer: &[u8],
+    expected_integrity: Option<Integrity>,
+    package_url: String,
+) -> Result<Integrity, TarballError> {
+    if let Some(expected) = expected_integrity {
+        expected.check(buffer).map_err(|error| {
+            TarballError::Checksum(VerifyChecksumError { url: package_url, error })
+        })?;
+        return Ok(expected);
+    }
+
+    let mut opts = IntegrityOpts::new().algorithm(Algorithm::Sha512);
+    opts.input(buffer);
+    Ok(opts.result())
 }
 
 /// Run one full tarball-fetch attempt: hit the network, drain the body
@@ -1528,6 +1607,30 @@ async fn fetch_and_extract_once<Reporter: self::Reporter>(
 ) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
     let network_error =
         |error| TarballError::FetchTarball(NetworkError { url: package_url.to_string(), error });
+
+    if let Some(path) = local_file_tarball_path(package_url) {
+        let size = tokio::fs::metadata(&path).await.ok().map(|metadata| metadata.len());
+        Reporter::emit(&LogEvent::FetchingProgress(FetchingProgressLog {
+            level: LogLevel::Debug,
+            message: FetchingProgressMessage::Started {
+                attempt: attempt + 1,
+                package_id: package_id.to_owned(),
+                size,
+            },
+        }));
+        let buffer = tokio::fs::read(&path)
+            .await
+            .map_err(|source| TarballError::ReadLocalTarball { path: path.clone(), source })?;
+        return extract_tarball_buffer(
+            buffer,
+            expected_integrity,
+            package_unpacked_size,
+            package_url,
+            store_dir,
+            ignore_file_pattern,
+        )
+        .await;
+    }
 
     // Acquire the network permit *before* `connect + send` and hold it
     // through body streaming. Releasing earlier would let the next
@@ -1698,61 +1801,15 @@ async fn fetch_and_extract_once<Reporter: self::Reporter>(
     // fixed; don't reintroduce it.
     drop(client);
 
-    // Gate the CPU-heavy decompress + cafs-write pipeline. The blocking
-    // pool is 512-wide by default, which is right for I/O wait but
-    // disastrous for CPU work that can only really run `num_cpus` at a
-    // time, so we cap concurrent `spawn_blocking` bodies. The permit is
-    // held across the `spawn_blocking.await` below and dropped at end
-    // of scope.
-    let _post_download_permit = post_download_semaphore()
-        .acquire()
-        .await
-        .expect("post-download semaphore shouldn't be closed this soon");
-
-    tracing::info!(target: "pacquet::download", ?package_url, "Download completed");
-
-    // Move the CPU-bound work (SHA-512, gzip inflate, per-file SHA-512,
-    // CAFS writes) onto the blocking pool. A plain `tokio::spawn` would
-    // pin a reactor worker for each tarball — on a 2-core runner only
-    // two tarballs could make progress at a time. The post-download
-    // semaphore caps concurrency here.
-    let expected_integrity = expected_integrity.cloned();
-    let package_url_owned = package_url.to_string();
-    let result = tokio::task::spawn_blocking(
-        move || -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
-            // Verify a known integrity, or compute one when the hash
-            // isn't known until after download — remote (non-registry)
-            // https-tarball direct deps, where the resolver learns the
-            // integrity here. Mirrors pnpm's worker
-            // `integrity ?? calcIntegrity(buffer)`
-            // ([worker/src/start.ts](https://github.com/pnpm/pnpm/blob/086c5e91e8/worker/src/start.ts#L232)).
-            let integrity = if let Some(expected) = expected_integrity {
-                expected.check(&buffer).map_err(|error| {
-                    TarballError::Checksum(VerifyChecksumError { url: package_url_owned, error })
-                })?;
-                expected
-            } else {
-                let mut opts = IntegrityOpts::new().algorithm(Algorithm::Sha512);
-                opts.input(&buffer);
-                opts.result()
-            };
-
-            // Extract in a scope so the decompressed buffer + `tar::Archive`
-            // are released before we return — a large package's inflated
-            // bytes can be many MB.
-            let (cas_paths, pkg_files_idx) = {
-                let tar_data = decompress_gzip(&buffer, package_unpacked_size)?;
-                extract_tarball_entries(&tar_data, store_dir, ignore_file_pattern.as_deref())?
-            };
-            Ok((integrity, cas_paths, pkg_files_idx))
-        },
+    extract_tarball_buffer(
+        buffer,
+        expected_integrity,
+        package_unpacked_size,
+        package_url,
+        store_dir,
+        ignore_file_pattern,
     )
     .await
-    .map_err(TarballError::TaskJoin)??;
-
-    tracing::info!(target: "pacquet::download", ?package_url, "Checksum verified");
-
-    Ok(result)
 }
 
 /// Run [`fetch_and_extract_once`] under pnpm's retry policy. Permanent
@@ -2198,7 +2255,7 @@ impl<'a> DownloadTarballToStore<'a> {
         // shape as upstream's `ERR_PNPM_NO_OFFLINE_META`, scoped to
         // tarballs because that's what pacquet's frozen install needs
         // network for.
-        if self.offline {
+        if self.offline && local_file_tarball_path(package_url).is_none() {
             tracing::warn!(
                 target: "pacquet::download",
                 ?package_url,

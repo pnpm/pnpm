@@ -1169,6 +1169,45 @@ fn fast_retry_opts() -> RetryOpts {
 }
 
 #[tokio::test]
+async fn run_without_mem_cache_reads_local_file_tarball() {
+    let local_dir = tempdir().unwrap();
+    let tarball_path = local_dir.path().join("pkg.tgz");
+    std::fs::write(&tarball_path, FASTIFY_ERROR_TARBALL).unwrap();
+
+    let (store_dir, store_path) = tempdir_with_leaked_path();
+    let package_url = format!("file:{}", tarball_path.display());
+    let client = fast_fail_client();
+    let package_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
+    let cas_paths = DownloadTarballToStore {
+        http_client: &client,
+        store_dir: store_path,
+        store_index: None,
+        store_index_writer: None,
+        verify_store_integrity: true,
+        package_integrity: &package_integrity,
+        package_unpacked_size: Some(16697),
+        package_file_count: None,
+        package_url: &package_url,
+        package_id: "@fastify/error@3.3.0",
+        requester: "",
+        prefetched_cas_paths: None,
+        verified_files_cache: SharedVerifiedFilesCache::default(),
+        retry_opts: test_retry_opts(),
+        auth_headers: &AuthHeaders::default(),
+        ignore_file_pattern: None,
+        offline: true,
+        progress_reported: None,
+    }
+    .run_without_mem_cache::<SilentReporter>()
+    .await
+    .expect("local tarballs should be read from disk without network access");
+
+    assert!(cas_paths.contains_key("package.json"));
+
+    drop((store_dir, local_dir));
+}
+
+#[tokio::test]
 async fn retries_then_succeeds_on_transient_5xx() {
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
     let mut server = mockito::Server::new_async().await;

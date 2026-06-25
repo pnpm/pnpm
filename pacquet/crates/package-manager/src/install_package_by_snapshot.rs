@@ -7,6 +7,7 @@ use miette::Diagnostic;
 use pacquet_config::{Config, NodeLinker};
 use pacquet_directory_fetcher::DirectoryFetcherError;
 use pacquet_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
+use pacquet_fs::lexical_normalize;
 use pacquet_git_fetcher::{GitFetchOutput, GitFetcher, GitFetcherError, GitHostedTarballFetcher};
 use pacquet_graph_hasher::{host_arch, host_libc, host_platform};
 use pacquet_lockfile::{
@@ -294,6 +295,7 @@ impl InstallPackageBySnapshot<'_> {
             LockfileResolution::Tarball(_) | LockfileResolution::Registry(_) => {
                 let (tarball_url, integrity) =
                     tarball_url_and_integrity(&metadata.resolution, package_key, config)?;
+                let tarball_url = local_file_tarball_install_url(tarball_url, self.workspace_root);
                 let download = DownloadTarballToStore {
                     http_client,
                     store_dir: &config.store_dir,
@@ -580,6 +582,19 @@ fn fetch_directory_resolution(
     .run()
     .map_err(InstallPackageBySnapshotError::DirectoryFetch)?;
     Ok(output.files_map)
+}
+
+fn local_file_tarball_install_url<'a>(
+    tarball_url: Cow<'a, str>,
+    workspace_root: &Path,
+) -> Cow<'a, str> {
+    let Some(path) = tarball_url.strip_prefix("file:") else {
+        return tarball_url;
+    };
+    if path.starts_with("//") || Path::new(path).is_absolute() {
+        return tarball_url;
+    }
+    Cow::Owned(format!("file:{}", lexical_normalize(&workspace_root.join(path)).display()))
 }
 
 /// Resolve the tarball URL + integrity for tarball- and registry-shaped
