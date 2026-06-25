@@ -9,6 +9,8 @@
 //! are expressed as targeted text splices for inserts and a [`yamlpatch`]
 //! `Op::Replace` for value updates.
 
+use std::fmt::Write as _;
+
 use indexmap::IndexMap;
 use pacquet_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
 use yamlpatch::{Op, Patch};
@@ -158,14 +160,27 @@ pub(crate) fn remove_overrides(manifest: &mut Manifest, selectors: &[String]) ->
     for selector in &present {
         overrides.shift_remove(selector);
     }
-    let now_empty = overrides.is_empty();
 
-    if now_empty {
+    if manifest.overrides.as_ref().is_none_or(IndexMap::is_empty) {
         manifest.set_text(remove_top_level_block(manifest.text(), BLOCK));
         manifest.overrides = None;
         manifest.top_level_keys.retain(|key| key != BLOCK);
-    } else {
+        return true;
+    }
+
+    // A block-style mapping stores each entry on its own line, so the entries
+    // can be excised surgically while preserving the surrounding formatting. A
+    // flow-style mapping (`overrides: { ... }`) exposes no line entries, so
+    // `remove_mapping_entries` would be a silent no-op — fall back to dropping
+    // the block and re-rendering it block-style from the decoded map.
+    let line_based = locate(manifest.text(), &[BLOCK]).is_some_and(|mapping| {
+        present.iter().all(|key| mapping.entries.iter().any(|entry| &entry.key == key))
+    });
+
+    if line_based {
         manifest.set_text(remove_mapping_entries(manifest.text(), &[BLOCK], &present));
+    } else {
+        rerender_overrides_block(manifest, BLOCK);
     }
     true
 }
@@ -335,6 +350,32 @@ fn upsert_sequence_entry(text: &str, block_name: &str, key: &str, items: &[Strin
             .block_end
     };
     splice(text, offset, &rendered)
+}
+
+/// Replace the on-disk `overrides:` block with a block-style rendering of the
+/// decoded (already-edited) map. Used when the original block is flow-style and
+/// cannot be edited entry by entry.
+fn rerender_overrides_block(manifest: &mut Manifest, block_name: &str) {
+    let block = {
+        let overrides = manifest.overrides.as_ref().expect("non-empty overrides above");
+        let mut block = format!("{block_name}:\n");
+        for (selector, specifier) in overrides {
+            writeln!(
+                block,
+                "  {}: {}",
+                render::render_value(selector),
+                render::render_value(specifier),
+            )
+            .expect("writing to a String never fails");
+        }
+        block
+    };
+    manifest.set_text(remove_top_level_block(manifest.text(), block_name));
+    manifest.top_level_keys.retain(|key| key != block_name);
+    let new_text = insert_top_level_block(manifest, block_name, &block);
+    manifest.set_text(new_text);
+    manifest.top_level_keys =
+        render::target_order(&manifest.top_level_keys, &[block_name.to_string()]);
 }
 
 fn upsert_top_level_entry(

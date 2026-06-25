@@ -914,3 +914,17 @@ fn remove_overrides_is_a_noop_for_absent_selectors() {
 fn remove_overrides_is_a_noop_when_the_manifest_is_missing() {
     assert_eq!(run_remove_overrides(None, &["foo"]), None);
 }
+
+#[test]
+fn remove_overrides_handles_flow_style_mappings() {
+    let original = "overrides: { foo: link:../foo, bar: 1.0.0 }\n";
+    let out = run_remove_overrides(Some(original), &["foo"]).expect("file kept");
+    assert_eq!(out, "overrides:\n  bar: 1.0.0\n");
+}
+
+#[test]
+fn remove_overrides_drops_a_flow_style_block_when_emptied() {
+    let original = "packages:\n  - '*'\noverrides: { foo: link:../foo }\n";
+    let out = run_remove_overrides(Some(original), &["foo"]).expect("file kept");
+    assert_eq!(out, "packages:\n  - '*'\n");
+}
