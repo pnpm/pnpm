@@ -1952,7 +1952,14 @@ async fn reject_packument_integrity_tampering(
                     .get("dist")
                     .and_then(|dist| dist.get("integrity"))
                     .and_then(Value::as_str);
-                if incoming_integrity != existing_integrity {
+                // Reject only a *change* to an integrity that is already
+                // present. A partial-unpublish legitimately re-PUTs the
+                // remaining versions with dist.integrity omitted, so an absent
+                // incoming integrity is allowed — it doesn't substitute a bogus
+                // value, which is the tampering this guards against.
+                if let (Some(stored), Some(submitted)) = (existing_integrity, incoming_integrity)
+                    && stored != submitted
+                {
                     return Some(RegistryError::BadRequest {
                         reason: format!(
                             "dist.integrity for the published version {version:?} is immutable",
