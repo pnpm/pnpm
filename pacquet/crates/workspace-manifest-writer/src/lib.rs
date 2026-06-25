@@ -207,6 +207,43 @@ pub fn set_patched_dependencies(
     write_or_remove_manifest(&path, manifest)
 }
 
+/// Upsert `selector → specifier` entries into `dir`'s `pnpm-workspace.yaml`
+/// `overrides:` block (creating the file/block if absent), preserving the
+/// rest of the document's formatting, and write the file back only when
+/// something actually changed. Used by `pacquet link` to record link: overrides.
+///
+/// `entries` is iterated in its own order; pass an ordered map for a
+/// deterministic result.
+pub fn set_overrides<'a, Entries>(
+    dir: &Path,
+    entries: Entries,
+) -> Result<(), UpdateWorkspaceManifestError>
+where
+    Entries: IntoIterator<Item = (&'a str, &'a str)>,
+{
+    let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
+
+    let original = match fs::read_to_string(&path) {
+        Ok(text) => Some(text),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
+        Err(source) => return Err(UpdateWorkspaceManifestError::Read { path, source }),
+    };
+
+    let mut manifest = Manifest::parse(original.as_deref())
+        .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
+
+    let mut changed = false;
+    for (selector, specifier) in entries {
+        changed |= edit::add_overrides(&mut manifest, selector, specifier)
+            .map_err(|source| UpdateWorkspaceManifestError::Edit { path: path.clone(), source })?;
+    }
+    if !changed {
+        return Ok(());
+    }
+
+    write_or_remove_manifest(&path, manifest)
+}
+
 fn write_or_remove_manifest(
     path: &Path,
     manifest: Manifest,

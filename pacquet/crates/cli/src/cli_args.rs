@@ -703,13 +703,17 @@ impl CliArgs {
                 Box::pin(std::future::ready(Ok(())))
             }
             CliCommand::Link(args) => {
-                let command_state = state(false)?;
+                let manifest_path = manifest_path_ref.clone();
                 match reporter {
                     ReporterType::Default | ReporterType::AppendOnly => {
-                        Box::pin(args.run::<DefaultReporter>(command_state))
+                        Box::pin(args.run::<DefaultReporter>(config()?, manifest_path))
                     }
-                    ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(command_state)),
-                    ReporterType::Silent => Box::pin(args.run::<SilentReporter>(command_state)),
+                    ReporterType::Ndjson => {
+                        Box::pin(args.run::<NdjsonReporter>(config()?, manifest_path))
+                    }
+                    ReporterType::Silent => {
+                        Box::pin(args.run::<SilentReporter>(config()?, manifest_path))
+                    }
                 }
             }
             CliCommand::Dedupe(args) => Box::pin(async move {

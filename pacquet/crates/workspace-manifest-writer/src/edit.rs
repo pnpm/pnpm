@@ -116,6 +116,27 @@ pub(crate) fn add_patched_dependencies(
     Ok(changed)
 }
 
+/// Upsert one `selector → specifier` entry into the top-level `overrides:`
+/// block, creating the block if absent. Returns whether anything changed.
+pub(crate) fn add_overrides(
+    manifest: &mut Manifest,
+    selector: &str,
+    specifier: &str,
+) -> Result<bool, Box<yamlpatch::Error>> {
+    const BLOCK: &str = "overrides";
+    let current_matches =
+        manifest.overrides.as_ref().and_then(|deps| deps.get(selector)).map(String::as_str)
+            == Some(specifier);
+    let changed = upsert_top_level_entry(manifest, BLOCK, selector, specifier, current_matches)?;
+    if changed {
+        manifest
+            .overrides
+            .get_or_insert_with(IndexMap::new)
+            .insert(selector.to_string(), specifier.to_string());
+    }
+    Ok(changed)
+}
+
 fn upsert_top_level_entry(
     manifest: &mut Manifest,
     block_name: &str,

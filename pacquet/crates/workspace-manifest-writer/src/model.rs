@@ -27,6 +27,8 @@ pub(crate) struct Manifest {
     pub(crate) allow_builds: Option<IndexMap<String, bool>>,
     /// `patchedDependencies:` entries, keyed by `name[@version]`.
     pub(crate) patched_dependencies: Option<IndexMap<String, String>>,
+    /// `overrides:` entries, keyed by package selector.
+    pub(crate) overrides: Option<IndexMap<String, String>>,
 }
 
 #[derive(Default, Deserialize)]
@@ -41,6 +43,8 @@ struct CatalogData {
     allow_builds: Option<IndexMap<String, AllowBuildValue>>,
     #[serde(default, rename = "patchedDependencies")]
     patched_dependencies: Option<IndexMap<String, String>>,
+    #[serde(default)]
+    overrides: Option<IndexMap<String, OverrideValue>>,
 }
 
 /// An `allowBuilds` value, tolerant of the string form pnpm also accepts
@@ -64,6 +68,16 @@ enum ConfigDepValue {
     Other(serde::de::IgnoredAny),
 }
 
+/// An overrides value, tolerant of non-string forms (nested objects) so
+/// decoding a manifest that uses them doesn't fail. Only the string shape
+/// is retained — the only shape `pacquet link` writes.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum OverrideValue {
+    String(String),
+    Other(serde::de::IgnoredAny),
+}
+
 impl Manifest {
     /// Parse `original` (the file's contents, or `None` when the file is
     /// absent). An empty or whitespace/comment-only document decodes to an
@@ -80,6 +94,7 @@ impl Manifest {
                 config_dependencies: None,
                 allow_builds: None,
                 patched_dependencies: None,
+                overrides: None,
             });
         }
 
@@ -106,6 +121,15 @@ impl Manifest {
                 })
                 .collect()
         });
+        let overrides = data.overrides.map(|entries| {
+            entries
+                .into_iter()
+                .filter_map(|(name, value)| match value {
+                    OverrideValue::String(spec) => Some((name, spec)),
+                    OverrideValue::Other(_) => None,
+                })
+                .collect()
+        });
 
         Ok(Manifest {
             text,
@@ -115,6 +139,7 @@ impl Manifest {
             config_dependencies,
             allow_builds,
             patched_dependencies: data.patched_dependencies,
+            overrides,
         })
     }
 

@@ -19,8 +19,8 @@ fn link_fails_without_paths() {
     assert!(!output.status.success(), "link without paths must fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("Cannot link by package name"),
-        "stderr should contain error message: {stderr}"
+        stderr.contains("You must provide a parameter"),
+        "stderr should contain error message: {stderr}",
     );
 
     drop((root, mock_instance));
@@ -65,7 +65,7 @@ fn link_fails_with_nonexistent_target() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("No package.json found"),
-        "stderr should contain error message: {stderr}"
+        "stderr should contain error message: {stderr}",
     );
 
     drop((root, mock_instance));
@@ -200,7 +200,7 @@ fn link_fails_target_no_name() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("does not have a name"),
-        "stderr should contain error message: {stderr}"
+        "stderr should contain error message: {stderr}",
     );
 
     drop((root, mock_instance));
