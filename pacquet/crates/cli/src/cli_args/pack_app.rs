@@ -23,6 +23,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
     process::Command,
+    time::Duration,
 };
 
 use clap::Args;
@@ -34,7 +35,6 @@ use pacquet_engine_runtime_node_resolver::{
 };
 use pacquet_network::{NetworkSettings, ThrottledClient};
 use serde_json::Value;
-use std::time::Duration;
 
 /// Minimum Node.js version that supports `node --build-sea`.
 const MIN_BUILDER_VERSION: (u64, u64) = (25, 5);
@@ -185,7 +185,9 @@ pub enum PackAppError {
     )]
     #[diagnostic(
         code(ERR_PNPM_PACK_APP_RUNTIME_TOO_OLD),
-        help("Pass --runtime node@25.5.0 (or newer) or set \"pnpm.app.runtime\" in package.json.")
+        help(
+            r#"Pass --runtime node@25.5.0 (or newer) or set "pnpm.app.runtime" in package.json."#
+        )
     )]
     RuntimeTooOld { version: String, major: u64, minor: u64 },
 
@@ -206,7 +208,7 @@ pub enum PackAppError {
     #[diagnostic(
         code(ERR_PNPM_PACK_APP_MACOS_SIGN_FAILED),
         help(
-            "Install ldid (https://github.com/ProcursusTeam/ldid) or re-sign the binary on macOS with \"codesign --sign - <file>\"."
+            r#"Install ldid (https://github.com/ProcursusTeam/ldid) or re-sign the binary on macOS with "codesign --sign - <file>"."#
         )
     )]
     MacosSignFailed {
@@ -218,7 +220,7 @@ pub enum PackAppError {
     #[diagnostic(
         code(ERR_PNPM_PACK_APP_MACOS_SIGN_UNSUPPORTED_HOST),
         help(
-            "Build macOS targets on a macOS or Linux host, or re-sign the produced binary yourself with \"codesign --sign -\" on macOS."
+            r#"Build macOS targets on a macOS or Linux host, or re-sign the produced binary yourself with "codesign --sign -" on macOS."#
         )
     )]
     MacosSignUnsupportedHost { path: String, host: String },
@@ -369,7 +371,7 @@ impl PackAppArgs {
             results.push(format!(
                 "  {}: {} (Node.js {resolved_target_version})",
                 target.raw,
-                output_file.display()
+                output_file.display(),
             ));
         }
 
@@ -477,7 +479,7 @@ fn ensure_node_runtime(
                 "name": format!("pacquet-pack-app-{target_id}"),
                 "private": true,
             }))
-            .expect("serialize the runtime install manifest")
+            .expect("serialize the runtime install manifest"),
         ),
     )
     .into_diagnostic()
@@ -699,13 +701,13 @@ fn validate_app_config(
             .iter()
             .map(|item| {
                 item.as_str().map(ToString::to_string).ok_or_else(|| PackAppError::InvalidConfig {
-                    message: "\"pnpm.app.targets\" must be an array of strings.".to_string(),
+                    message: r#""pnpm.app.targets" must be an array of strings."#.to_string(),
                 })
             })
             .collect::<Result<Vec<_>, _>>()?,
         Some(_) => {
             return Err(PackAppError::InvalidConfig {
-                message: "\"pnpm.app.targets\" must be an array of strings.".to_string(),
+                message: r#""pnpm.app.targets" must be an array of strings."#.to_string(),
             });
         }
     };

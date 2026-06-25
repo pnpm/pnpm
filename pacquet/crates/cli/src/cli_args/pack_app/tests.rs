@@ -36,7 +36,7 @@ fn run_and_get_code(dir: &TempDir, args: PackAppArgs) -> String {
     diagnostic_code(report)
 }
 
-fn pacquet_tokio_block_on<F: std::future::Future>(future: F) -> F::Output {
+fn pacquet_tokio_block_on<Fut: std::future::Future>(future: Fut) -> Fut::Output {
     tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -177,9 +177,26 @@ fn accepts_valid_runtimes() {
 #[test]
 fn rejects_invalid_output_names() {
     let cases = [
-        "sub/dir", "sub\\dir", "..", "../pwn", "/tmp/pwn", ".", "pwn\0", "", "CON", "nul.exe",
-        "COM1", "my:tool", "my|tool", "my?tool", "my*tool", "my<tool", "my>tool", "my\"tool",
-        "tool.", "tool ",
+        "sub/dir",
+        r"sub\dir",
+        "..",
+        "../pwn",
+        "/tmp/pwn",
+        ".",
+        "pwn\0",
+        "",
+        "CON",
+        "nul.exe",
+        "COM1",
+        "my:tool",
+        "my|tool",
+        "my?tool",
+        "my*tool",
+        "my<tool",
+        "my>tool",
+        r#"my"tool"#,
+        "tool.",
+        "tool ",
     ];
     for name in cases {
         assert!(validate_output_name(name).is_err(), "output name should be rejected: {name:?}");
