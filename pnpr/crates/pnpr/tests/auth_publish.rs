@@ -356,6 +356,43 @@ async fn update_packument_rejects_a_non_string_dist_integrity() {
     assert_eq!(app.oneshot(request).await.unwrap().status(), StatusCode::BAD_REQUEST);
 }
 
+#[tokio::test]
+async fn update_packument_rejects_a_non_object_dist_for_a_published_version() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let publish = Request::put("/mypkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(
+            serde_json::to_vec(&sample_publish_body("mypkg", "1.0.0", b"real")).unwrap(),
+        ))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(publish).await.unwrap().status(), StatusCode::CREATED);
+
+    let get =
+        app.clone().oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    let mut packument = body_json(get.into_body()).await;
+    let original_integrity = packument["versions"]["1.0.0"]["dist"]["integrity"].clone();
+    // Replacing dist with a non-object would skip the integrity-restore path and
+    // leave the published version without its hash; it must be rejected, not
+    // silently persisted.
+    packument["versions"]["1.0.0"]["dist"] = json!(null);
+    let request = Request::put("/mypkg/-rev/1-0")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&packument).unwrap()))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::BAD_REQUEST);
+
+    // The stored integrity must be untouched.
+    let after = app.oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    let after = body_json(after.into_body()).await;
+    assert_eq!(after["versions"]["1.0.0"]["dist"]["integrity"], original_integrity);
+}
+
 /// Published packages are the source of truth: they live in the
 /// authoritative `storage` root, never in the disposable proxy cache,
 /// and survive a full wipe of that cache.
@@ -1183,11 +1220,13 @@ async fn unpublish_partial_writes_modified_packument() {
     let served = body_json(response.into_body()).await;
     assert_eq!(served["versions"].as_object().unwrap().keys().collect::<Vec<_>>(), vec!["2.0.0"]);
     // The PUT body dropped dist.integrity for the retained version; the server
-    // restores the published value so the round-trip can't strip a hash and
-    // leave 2.0.0's tarball unservable.
-    assert!(
-        served["versions"]["2.0.0"]["dist"]["integrity"].is_string(),
-        "stripped integrity must be restored from the hosted packument",
+    // restores the *exact* published hash (2.0.0 was published with its version
+    // string as the tarball bytes), so the round-trip can neither strip nor
+    // corrupt a published version's integrity.
+    assert_eq!(
+        served["versions"]["2.0.0"]["dist"]["integrity"],
+        json!(sri_sha512(b"2.0.0")),
+        "the original published integrity must be restored, unchanged",
     );
 
     // DELETE the 1.0.0 tarball next.

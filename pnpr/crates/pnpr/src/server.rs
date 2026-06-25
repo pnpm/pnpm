@@ -1977,7 +1977,22 @@ async fn enforce_published_version_integrity(
                             ),
                         });
                     }
-                    (Some(stored), None) => restore.push((version.clone(), stored.to_string())),
+                    // Integrity omitted: restore the stored value. Restoring
+                    // requires an object `dist` to write into, so a published
+                    // version sent with a non-object (or absent) `dist` is
+                    // rejected — otherwise the restore would silently no-op and
+                    // persist the version without its integrity, the very
+                    // stripping this guards against.
+                    (Some(stored), None) => {
+                        if !manifest.get("dist").is_some_and(Value::is_object) {
+                            return Some(RegistryError::BadRequest {
+                                reason: format!(
+                                    "dist for the published version {version:?} must be an object carrying its integrity",
+                                ),
+                            });
+                        }
+                        restore.push((version.clone(), stored.to_string()));
+                    }
                     _ => {}
                 }
             }
