@@ -58,7 +58,7 @@ impl PingArgs {
         )
         .await?;
 
-        let mut report = format!("PING {}\nPONG {time}ms", sanitized_registry(registry_url));
+        let mut report = format!("PING {}\nPONG {time}ms", redact_and_sanitize(registry_url));
         if let Some(details) = format_details(&body) {
             report.push_str("\nPONG ");
             report.push_str(&details);
@@ -67,15 +67,14 @@ impl PingArgs {
     }
 }
 
-/// Render a registry URL for the echoed `PING` line: redact any inline
-/// `user:pass@` credentials and strip control characters. A registry from an
-/// untrusted `.npmrc` / `--registry` must not leak its basic-auth or emit raw
-/// escape sequences — or inject lines via `\r` / `\n` — to the terminal.
-fn sanitized_registry(registry_url: &str) -> String {
-    redact_url_credentials(registry_url)
-        .chars()
-        .filter(|character| !character.is_control())
-        .collect()
+/// Make untrusted, network-derived text safe to print: redact inline
+/// `user:pass@` credentials and strip control characters. Applied to the
+/// echoed registry URL and to error messages alike — both can carry
+/// basic-auth or escape sequences from an untrusted `.npmrc` / `--registry`
+/// (or a `reqwest` error that echoes the request URL back), which must not
+/// leak credentials or inject terminal output via raw escapes / `\r` / `\n`.
+fn redact_and_sanitize(text: &str) -> String {
+    redact_url_credentials(text).chars().filter(|character| !character.is_control()).collect()
 }
 
 /// GET `ping_url` with the optional `Authorization` header, timing the
@@ -83,9 +82,11 @@ fn sanitized_registry(registry_url: &str) -> String {
 ///
 /// Errors with `ERR_PNPM_PING_ERROR` on a transport failure, a non-success
 /// status, or a failed body read. Messages from network failures are
-/// credential-redacted before they reach stderr / CI logs: a registry
-/// configured as `https://user:password@host/` carries inline credentials
-/// that the underlying `reqwest` error would otherwise echo back.
+/// credential-redacted and control-character-stripped before they reach
+/// stderr / CI logs: a registry configured as `https://user:password@host/`
+/// carries inline credentials, and an untrusted `.npmrc` / `--registry` can
+/// carry escape sequences, that the underlying `reqwest` error would
+/// otherwise echo back.
 async fn fetch_ping(
     ping_url: &str,
     http_client: &ThrottledClient,
@@ -101,9 +102,7 @@ async fn fetch_ping(
         }
     })
     .await
-    .map_err(|error| PingError::Unreachable {
-        message: redact_url_credentials(&error.to_string()),
-    })?;
+    .map_err(|error| PingError::Unreachable { message: redact_and_sanitize(&error.to_string()) })?;
 
     if !response.status().is_success() {
         let status = response.status();
@@ -120,7 +119,7 @@ async fn fetch_ping(
     }
 
     let body = response.text().await.map_err(|error| PingError::Unreachable {
-        message: redact_url_credentials(&error.to_string()),
+        message: redact_and_sanitize(&error.to_string()),
     })?;
     let time = start.elapsed().as_millis();
     drop(client);
@@ -142,4 +141,21 @@ fn format_details(body: &str) -> Option<String> {
         _ => false,
     };
     if non_empty { serde_json::to_string_pretty(&value).ok() } else { None }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::redact_and_sanitize;
+
+    #[test]
+    fn redact_and_sanitize_strips_credentials_and_control_chars() {
+        // A `reqwest` error that echoes a registry URL with inline basic-auth
+        // and an attacker-injected escape sequence + newline.
+        let dirty = "error sending request for url (https://user:pass@host/-/ping): \u{1b}[31m\nPONG spoofed";
+        let clean = redact_and_sanitize(dirty);
+        assert!(!clean.contains("user:pass"), "credentials must be redacted: {clean:?}");
+        assert!(!clean.contains('\u{1b}'), "escape sequences must be stripped: {clean:?}");
+        assert!(!clean.contains('\n'), "newlines must be stripped: {clean:?}");
+        assert!(clean.contains("https://host/-/ping"), "non-sensitive text is kept: {clean:?}");
+    }
 }
