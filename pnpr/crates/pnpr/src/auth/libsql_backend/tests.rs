@@ -8,6 +8,23 @@ async fn local_backend(max_users: MaxUsers) -> LibsqlAuth {
 }
 
 #[tokio::test]
+async fn with_auth_timeout_surfaces_auth_database_timeout_when_a_read_stalls() {
+    let result: Result<()> = with_auth_timeout(Duration::from_millis(5), async {
+        tokio::time::sleep(Duration::from_secs(30)).await;
+        Ok::<(), RegistryError>(())
+    })
+    .await;
+    assert!(matches!(result, Err(RegistryError::AuthDatabaseTimeout)));
+}
+
+#[tokio::test]
+async fn with_auth_timeout_passes_a_fast_read_through() {
+    let result: Result<u32> =
+        with_auth_timeout(Duration::from_secs(30), async { Ok::<_, RegistryError>(7) }).await;
+    assert_eq!(result.unwrap(), 7);
+}
+
+#[tokio::test]
 async fn add_or_login_creates_then_logs_in() {
     let backend = local_backend(MaxUsers::Unlimited).await;
     assert!(matches!(

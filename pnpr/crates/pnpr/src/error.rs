@@ -188,7 +188,11 @@ pub enum RegistryError {
     Sqlx(sqlx::Error),
 
     /// SQL auth backend operation timed out.
-    #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+    #[cfg(any(
+        feature = "backend-libsql",
+        feature = "backend-postgres",
+        feature = "backend-mysql"
+    ))]
     #[display("Auth database timeout")]
     AuthDatabaseTimeout,
 
@@ -237,7 +241,11 @@ impl RegistryError {
             RegistryError::Libsql(_) => "libsql",
             #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
             RegistryError::Sqlx(_) => "sqlx",
-            #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+            #[cfg(any(
+                feature = "backend-libsql",
+                feature = "backend-postgres",
+                feature = "backend-mysql"
+            ))]
             RegistryError::AuthDatabaseTimeout => "auth_database_timeout",
             RegistryError::JoinError(_) => "join_error",
             RegistryError::Io(_) => "io",
@@ -312,7 +320,11 @@ impl RegistryError {
             RegistryError::Libsql(_) => StatusCode::INTERNAL_SERVER_ERROR,
             #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
             RegistryError::Sqlx(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+            #[cfg(any(
+                feature = "backend-libsql",
+                feature = "backend-postgres",
+                feature = "backend-mysql"
+            ))]
             RegistryError::AuthDatabaseTimeout => StatusCode::GATEWAY_TIMEOUT,
             RegistryError::Io(_) | RegistryError::ObjectStore(_) | RegistryError::Json(_) => {
                 StatusCode::BAD_GATEWAY
