@@ -5,6 +5,7 @@
 
 use crate::read_package_json;
 use pacquet_cmd_shim::{Host, PackageBinSource, get_bins_from_package_manifest};
+use pacquet_resolving_deps_resolver::is_valid_dependency_alias;
 use serde_json::Value;
 use std::{
     collections::BTreeSet,
@@ -182,12 +183,23 @@ fn recently_created(dir_path: &Path, now: SystemTime, window: Duration) -> bool 
     }
 }
 
+/// Read the `dependencies` map of a global group manifest as `(alias, spec)`
+/// pairs, dropping any alias that isn't a valid npm package name.
+///
+/// The aliases become directory names under `node_modules` at every
+/// downstream join site (list, conflict-check, remove, update), so a
+/// tampered group `package.json` could otherwise use an alias like `../x`
+/// or an absolute path to escape the install directory. Validating here —
+/// the single point where aliases enter the scan — closes that for every
+/// consumer, using the same [`is_valid_dependency_alias`] check the
+/// resolver applies to direct dependencies.
 fn dependencies_of(manifest: &Value) -> Vec<(String, String)> {
     manifest
         .get("dependencies")
         .and_then(Value::as_object)
         .map(|deps| {
             deps.iter()
+                .filter(|(alias, _)| is_valid_dependency_alias(alias))
                 .map(|(alias, spec)| (alias.clone(), spec.as_str().unwrap_or_default().to_string()))
                 .collect()
         })
