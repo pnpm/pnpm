@@ -532,11 +532,17 @@ configDependencies:
 #[test]
 fn config_dependencies_cleared_as_workspace_only_field() {
     let yaml = r#"
+deployAllFiles: true
+forceLegacyDeploy: true
+sharedWorkspaceLockfile: false
 configDependencies:
   "@pnpm/pacquet": 0.2.2-14
 "#;
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     settings.clear_workspace_only_fields();
+    assert!(settings.deploy_all_files.is_none());
+    assert!(settings.force_legacy_deploy.is_none());
+    assert!(settings.shared_workspace_lockfile.is_none());
     assert!(settings.config_dependencies.is_none());
 }
 

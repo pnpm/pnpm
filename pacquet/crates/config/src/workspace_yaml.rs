@@ -597,6 +597,9 @@ impl WorkspaceSettings {
         self.node_linker = None;
         self.symlink = None;
         self.lockfile = None;
+        self.deploy_all_files = None;
+        self.force_legacy_deploy = None;
+        self.shared_workspace_lockfile = None;
         self.offline = None;
         self.lockfile_include_tarball_url = None;
         self.auto_install_peers = None;
