@@ -3614,6 +3614,7 @@ dependencies = [
  "pacquet-workspace-manifest-writer",
  "pacquet-workspace-projects-graph",
  "pacquet-workspace-state",
+ "pathdiff",
  "pipe-trait",
  "pnpr",
  "pretty_assertions",

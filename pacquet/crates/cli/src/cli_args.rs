@@ -13,6 +13,7 @@ pub mod find_hash;
 pub mod ignored_builds;
 pub mod import;
 pub mod install;
+pub mod link;
 pub mod outdated;
 pub mod patch;
 pub mod patch_commit;
@@ -51,6 +52,7 @@ use find_hash::FindHashArgs;
 use ignored_builds::IgnoredBuildsArgs;
 use import::ImportArgs;
 use install::InstallArgs;
+use link::LinkArgs;
 use miette::{Context, IntoDiagnostic};
 use outdated::{OutdatedArgs, OutdatedOutcome};
 use pacquet_config::{Config, Host};
@@ -231,6 +233,9 @@ pub enum CliCommand {
     IgnoredBuilds(IgnoredBuildsArgs),
     /// Approve dependencies for running scripts during installation.
     ApproveBuilds(ApproveBuildsArgs),
+    /// Links a local package as a dependency
+    #[clap(visible_aliases = ["ln"])]
+    Link(LinkArgs),
     /// Generates a pnpm-lock.yaml from an external lockfile
     Import(ImportArgs),
     /// Deduplicate packages in the lockfile
@@ -323,6 +328,7 @@ impl CliArgs {
                 | CliCommand::Remove(_)
                 | CliCommand::Install(_)
                 | CliCommand::Dlx(_)
+                | CliCommand::Link(_)
                 | CliCommand::Import(_)
                 | CliCommand::Dedupe(_)
                 | CliCommand::Prune(_)
@@ -696,6 +702,20 @@ impl CliArgs {
                 args.run(|| config().map(|m| &*m))?;
                 Box::pin(std::future::ready(Ok(())))
             }
+            CliCommand::Link(args) => {
+                let manifest_path = manifest_path_ref.clone();
+                match reporter {
+                    ReporterType::Default | ReporterType::AppendOnly => {
+                        Box::pin(args.run::<DefaultReporter>(config()?, manifest_path))
+                    }
+                    ReporterType::Ndjson => {
+                        Box::pin(args.run::<NdjsonReporter>(config()?, manifest_path))
+                    }
+                    ReporterType::Silent => {
+                        Box::pin(args.run::<SilentReporter>(config()?, manifest_path))
+                    }
+                }
+            }
             CliCommand::Dedupe(args) => Box::pin(async move {
                 let cfg = config()?;
                 let (config_root, package_manager_to_sync) =
@@ -727,6 +747,10 @@ impl CliArgs {
                     ReporterType::Silent => Box::pin(args.run::<SilentReporter>(command_state)),
                 }
             }
+            CliCommand::CatIndex(args) => Box::pin(async move {
+                args.run(dir_ref, || config().map(|m| &*m)).await?;
+                Ok(())
+            }),
             CliCommand::Fetch(args) => match reporter {
                 ReporterType::Default | ReporterType::AppendOnly => {
                     Box::pin(args.run::<DefaultReporter>(state(true)?))
@@ -757,10 +781,6 @@ impl CliArgs {
                         Box::pin(pipeline.run::<SilentReporter>()).await?;
                     }
                 }
-                Ok(())
-            }),
-            CliCommand::CatIndex(args) => Box::pin(async move {
-                args.run(dir_ref, || config().map(|m| &*m)).await?;
                 Ok(())
             }),
             CliCommand::IgnoredBuilds(_) => {
