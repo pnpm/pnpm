@@ -26,6 +26,7 @@ pub mod rebuild;
 pub mod recursive;
 pub mod remove;
 pub mod restart;
+pub mod root;
 pub mod run;
 pub mod runtime;
 pub mod sanitize;
@@ -73,6 +74,7 @@ use prune::PruneArgs;
 use rebuild::RebuildArgs;
 use remove::RemoveArgs;
 use restart::RestartArgs;
+use root::RootArgs;
 use run::RunArgs;
 use runtime::RuntimeArgs;
 use serde_json::Value;
@@ -227,6 +229,8 @@ pub enum CliCommand {
     /// Manage runtimes.
     #[clap(visible_alias = "rt")]
     Runtime(RuntimeArgs),
+    /// Print the effective `node_modules` directory.
+    Root(RootArgs),
     /// Managing the package store.
     #[clap(subcommand)]
     Store(StoreCommand),
@@ -753,6 +757,10 @@ impl CliArgs {
                     ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(command_state)),
                     ReporterType::Silent => Box::pin(args.run::<SilentReporter>(command_state)),
                 }
+            }
+            CliCommand::Root(args) => {
+                args.run(dir_ref)?;
+                Box::pin(std::future::ready(Ok(())))
             }
             CliCommand::Store(command) => {
                 command.run(|| config().map(|m| &*m))?;
