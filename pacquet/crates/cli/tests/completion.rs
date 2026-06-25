@@ -46,8 +46,20 @@ fn completion_scripts_do_not_expose_redundant_parameter_plumbing() {
         let script = stdout(output);
         assert!(
             !script.contains(leaked_marker),
-            "{shell} script should not contain hidden extra argument marker {leaked_marker:?}: {script}"
+            "{shell} script should not contain hidden extra argument marker {leaked_marker:?}: {script}",
         );
+    }
+}
+
+#[test]
+fn completion_shell_argument_suggests_supported_shells() {
+    let cases = [("bash", "bash fish pwsh zsh"), ("zsh", "::shell:(bash fish pwsh zsh)")];
+
+    for (shell, marker) in cases {
+        let output =
+            pacquet().args(["completion", shell]).output().expect("run pacquet completion");
+        let script = stdout(output);
+        assert!(script.contains(marker), "{shell} script should contain {marker:?}: {script}");
     }
 }
 
