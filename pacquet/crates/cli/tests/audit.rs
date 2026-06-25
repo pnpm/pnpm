@@ -599,6 +599,23 @@ fn audit_signatures_fails_when_keys_endpoint_errors() {
 }
 
 #[test]
+fn audit_signatures_redacts_registry_credentials_on_network_error() {
+    let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
+    // A registry with embedded credentials pointed at a closed port: the keys
+    // fetch fails at the transport layer, and the resulting error must not leak
+    // the `user:pass@` userinfo into stderr.
+    write_signatures_workspace(&workspace, "https://user:pass@127.0.0.1:1", "signed-pkg");
+
+    let output = pacquet.arg("audit").arg("signatures").output().expect("run audit signatures");
+
+    assert_failure(&output);
+    let stderr = stderr(&output);
+    assert!(stderr.contains("ERR_PNPM_AUDIT_SIGNATURE_KEYS_FETCH_FAIL"), "stderr:\n{stderr}");
+    assert!(!stderr.contains("user:pass"), "credentials leaked into stderr:\n{stderr}");
+    assert!(!stderr.contains("pass@"), "credentials leaked into stderr:\n{stderr}");
+}
+
+#[test]
 fn audit_signatures_errors_when_no_packages() {
     let CommandTempCwd { mut pacquet, workspace, root: _root, .. } = CommandTempCwd::init();
     fs::write(workspace.join(".npmrc"), "registry=https://registry.npmjs.org/\n")

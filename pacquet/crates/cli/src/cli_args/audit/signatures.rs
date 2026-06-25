@@ -115,13 +115,13 @@ struct Packument {
 #[derive(Debug, derive_more::Display, derive_more::Error, miette::Diagnostic)]
 #[non_exhaustive]
 pub(super) enum SignaturesError {
-    #[display("Failed to request the registry keys endpoint (at {url}): {source}")]
+    // `reason` is the registry error already passed through
+    // `redact_url_credentials`; the raw `reqwest::Error` is not carried as a
+    // diagnostic source, so embedded `user:pass@` credentials cannot leak via
+    // its `Display` or the miette cause chain.
+    #[display("Failed to request the registry keys endpoint (at {url}): {reason}")]
     #[diagnostic(code(ERR_PNPM_AUDIT_SIGNATURE_KEYS_FETCH_FAIL))]
-    KeysNetwork {
-        url: String,
-        #[error(source)]
-        source: reqwest::Error,
-    },
+    KeysNetwork { url: String, reason: String },
 
     #[display("The registry keys endpoint (at {url}) responded with {status}: {body}")]
     #[diagnostic(code(ERR_PNPM_AUDIT_SIGNATURE_KEYS_FETCH_FAIL))]
@@ -139,13 +139,11 @@ pub(super) enum SignaturesError {
     #[diagnostic(code(ERR_PNPM_AUDIT_SIGNATURE_KEYS_FETCH_FAIL))]
     KeysUnexpectedBody { url: String, body: String },
 
-    #[display("Failed to request the packument endpoint (at {url}): {source}")]
+    /// See [`SignaturesError::KeysNetwork`] for why the error is stored as a
+    /// pre-redacted string rather than a `reqwest::Error` source.
+    #[display("Failed to request the packument endpoint (at {url}): {reason}")]
     #[diagnostic(code(ERR_PNPM_AUDIT_SIGNATURE_PACKUMENT_FETCH_FAIL))]
-    PackumentNetwork {
-        url: String,
-        #[error(source)]
-        source: reqwest::Error,
-    },
+    PackumentNetwork { url: String, reason: String },
 
     #[display("The packument endpoint (at {url}) responded with {status}: {body}")]
     #[diagnostic(code(ERR_PNPM_AUDIT_SIGNATURE_PACKUMENT_FETCH_FAIL))]
@@ -417,13 +415,16 @@ async fn fetch_registry_keys(
             request
         })
         .await
-        .map_err(|source| SignaturesError::KeysNetwork { url: display_url.clone(), source })?;
+        .map_err(|source| SignaturesError::KeysNetwork {
+            url: display_url.clone(),
+            reason: redact_url_credentials(&source.to_string()),
+        })?;
 
     let status = response.status().as_u16();
-    let body = response
-        .text()
-        .await
-        .map_err(|source| SignaturesError::KeysNetwork { url: display_url.clone(), source })?;
+    let body = response.text().await.map_err(|source| SignaturesError::KeysNetwork {
+        url: display_url.clone(),
+        reason: redact_url_credentials(&source.to_string()),
+    })?;
     // npm registries answer 404 (no signing) and 400 the same way: there is no
     // trust root, so the registry's packages are simply not audited.
     if status == 404 || status == 400 {
@@ -478,13 +479,16 @@ async fn fetch_packument(
             request
         })
         .await
-        .map_err(|source| SignaturesError::PackumentNetwork { url: display_url.clone(), source })?;
+        .map_err(|source| SignaturesError::PackumentNetwork {
+            url: display_url.clone(),
+            reason: redact_url_credentials(&source.to_string()),
+        })?;
 
     let status = response.status().as_u16();
-    let body = response
-        .text()
-        .await
-        .map_err(|source| SignaturesError::PackumentNetwork { url: display_url.clone(), source })?;
+    let body = response.text().await.map_err(|source| SignaturesError::PackumentNetwork {
+        url: display_url.clone(),
+        reason: redact_url_credentials(&source.to_string()),
+    })?;
     if status == 404 {
         return Ok(None);
     }
