@@ -130,6 +130,39 @@ fn rejects_output_dir_that_escapes_the_project() {
     }
 }
 
+#[cfg(unix)]
+#[test]
+fn rejects_entry_symlinked_outside_the_project() {
+    let dir = TempDir::new().unwrap();
+    let outside = TempDir::new().unwrap();
+    let secret = outside.path().join("secret.cjs");
+    fs::write(&secret, "module.exports = {}").unwrap();
+    std::os::unix::fs::symlink(&secret, dir.path().join("entry.cjs")).unwrap();
+    let code =
+        run_and_get_code(&dir, PackAppArgs { entry: Some("entry.cjs".to_string()), ..args() });
+    assert_eq!(code, "ERR_PNPM_PACK_APP_ENTRY_OUTSIDE_PROJECT");
+}
+
+#[cfg(unix)]
+#[test]
+fn rejects_output_dir_symlinked_outside_the_project() {
+    let dir = TempDir::new().unwrap();
+    let outside = TempDir::new().unwrap();
+    fs::write(dir.path().join("entry.cjs"), "module.exports = {}").unwrap();
+    std::os::unix::fs::symlink(outside.path(), dir.path().join("dist-app")).unwrap();
+    let code = run_and_get_code(
+        &dir,
+        PackAppArgs {
+            entry: Some("entry.cjs".to_string()),
+            target: vec!["linux-x64".to_string()],
+            output_name: Some("app".to_string()),
+            // default output dir is `dist-app`, the symlink created above
+            ..args()
+        },
+    );
+    assert_eq!(code, "ERR_PNPM_PACK_APP_OUTPUT_DIR_OUTSIDE_PROJECT");
+}
+
 #[test]
 fn rejects_unknown_keys_in_pnpm_app() {
     let dir = TempDir::new().unwrap();

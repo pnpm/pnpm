@@ -346,6 +346,12 @@ impl PackAppArgs {
         fs::create_dir_all(&output_dir)
             .into_diagnostic()
             .wrap_err_with(|| format!("creating output directory {}", output_dir.display()))?;
+        // Defense in depth against a symlinked `dist-app` (or configured dir)
+        // that points out of the project: the lexical check above can't see
+        // through a symlink, so re-check containment once the real path exists.
+        if !path_is_within(&output_dir, dir) {
+            return Err(PackAppError::OutputDirOutsideProject { path: output_dir_raw }.into());
+        }
 
         let build_root = pnpm_home_dir()?.join("pack-app");
 
@@ -376,6 +382,15 @@ impl PackAppArgs {
             fs::create_dir_all(&target_output_dir).into_diagnostic().wrap_err_with(|| {
                 format!("creating target output directory {}", target_output_dir.display())
             })?;
+            // A repo could symlink `dist-app/<target>` out of the project even
+            // when `dist-app` itself is contained; re-check the real path
+            // before any binary is written into it.
+            if !path_is_within(&target_output_dir, dir) {
+                return Err(PackAppError::OutputDirOutsideProject {
+                    path: target_output_dir.display().to_string(),
+                }
+                .into());
+            }
 
             let output_file = if target.platform == "win32" {
                 target_output_dir.join(format!("{output_name}.exe"))
@@ -600,11 +615,16 @@ fn build_http_client(config: &Config) -> miette::Result<ThrottledClient> {
 }
 
 /// Whether a repo-controlled `entry` / `outputDir` value could escape the
-/// project directory once joined onto it: an absolute path (which replaces
-/// the base on join) or any `..` traversal component.
+/// project directory once joined onto it: an absolute path, a `..` traversal
+/// component, or a Windows root-relative (`\foo`) / drive-relative (`C:foo`)
+/// form. `Path::is_absolute` returns `false` for the latter two on Windows,
+/// so they are matched explicitly via `RootDir` / `Prefix`.
 fn escapes_project(raw: &str) -> bool {
     let path = Path::new(raw);
-    path.is_absolute() || path.components().any(|component| component == Component::ParentDir)
+    path.is_absolute()
+        || path.components().any(|component| {
+            matches!(component, Component::ParentDir | Component::RootDir | Component::Prefix(_))
+        })
 }
 
 /// Whether `path` resolves (symlinks included) to a location inside `base`.

@@ -201,6 +201,14 @@ export async function handler (opts: PackAppOptions, params: string[]): Promise<
   }
   const outputDir = path.resolve(opts.dir, outputDirRaw)
   await mkdir(outputDir, { recursive: true })
+  // Defense in depth against a symlinked output directory that points out of
+  // the project: the lexical check above can't see through a symlink, so
+  // re-check containment once the real path exists.
+  if (!isWithinDir(outputDir, opts.dir)) {
+    throw new PnpmError('PACK_APP_OUTPUT_DIR_OUTSIDE_PROJECT',
+      `The output directory "${outputDirRaw}" resolves outside the project directory.`,
+      { hint: 'The output directory must be a relative path inside the project directory, not an absolute path or one that escapes via "..".' })
+  }
 
   const outputName = validateOutputName(opts.outputName ?? project.app?.outputName ?? deriveOutputNameFromPackage(project, opts.dir))
 
@@ -233,6 +241,14 @@ export async function handler (opts: PackAppOptions, params: string[]): Promise<
     const targetOutputDir = path.join(outputDir, target.raw)
     // eslint-disable-next-line no-await-in-loop
     await mkdir(targetOutputDir, { recursive: true })
+    // A repo could symlink `dist-app/<target>` out of the project even when
+    // `dist-app` itself is contained; re-check the real path before any
+    // binary is written into it.
+    if (!isWithinDir(targetOutputDir, opts.dir)) {
+      throw new PnpmError('PACK_APP_OUTPUT_DIR_OUTSIDE_PROJECT',
+        `The output directory "${targetOutputDir}" resolves outside the project directory.`,
+        { hint: 'The output directory must be a relative path inside the project directory, not an absolute path or one that escapes via "..".' })
+    }
 
     const outputFile = target.platform === 'win32'
       ? path.join(targetOutputDir, `${outputName}.exe`)

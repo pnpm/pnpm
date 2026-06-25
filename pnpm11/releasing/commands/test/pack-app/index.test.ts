@@ -102,6 +102,37 @@ describe('pack-app command', () => {
     ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_OUTPUT_DIR_OUTSIDE_PROJECT' })
   })
 
+  it('rejects an entry that is a symlink pointing outside the project', async () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-pack-app-outside-'))
+    try {
+      fs.writeFileSync(path.join(outside, 'secret.cjs'), 'module.exports = {}')
+      fs.symlinkSync(path.join(outside, 'secret.cjs'), path.join(tempDir, 'entry.cjs'))
+      await expect(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        handler({ ...baseOpts(), entry: 'entry.cjs' } as any, [])
+      ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_ENTRY_OUTSIDE_PROJECT' })
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true })
+    }
+  })
+
+  it('rejects an output dir that is a symlink pointing outside the project', async () => {
+    const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'pnpm-pack-app-outside-'))
+    try {
+      fs.writeFileSync(path.join(tempDir, 'entry.cjs'), 'module.exports = {}')
+      fs.symlinkSync(outside, path.join(tempDir, 'dist-app'))
+      await expect(
+        handler(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          { ...baseOpts(), entry: 'entry.cjs', target: 'linux-x64', outputName: 'app' } as any,
+          []
+        )
+      ).rejects.toMatchObject({ code: 'ERR_PNPM_PACK_APP_OUTPUT_DIR_OUTSIDE_PROJECT' })
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true })
+    }
+  })
+
   it('reads entry from pnpm.app.entry when --entry is omitted', async () => {
     fs.writeFileSync(path.join(tempDir, 'package.json'), JSON.stringify({
       name: 'test-app',
