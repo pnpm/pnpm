@@ -5,6 +5,7 @@ pub mod cache;
 pub mod cat_file;
 pub mod cat_index;
 pub mod config;
+pub mod completion;
 pub mod create;
 pub mod dedupe;
 pub mod dist_tag;

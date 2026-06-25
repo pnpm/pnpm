@@ -52,6 +52,7 @@ pacquet-workspace-state                   = { workspace = true }
 
 chrono               = { workspace = true }
 clap                 = { workspace = true }
+clap_complete        = { workspace = true }
 derive_more          = { workspace = true }
 dialoguer            = { workspace = true }
 dunce                = { workspace = true }
