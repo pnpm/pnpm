@@ -62,8 +62,11 @@ pub fn check_global_bin_conflicts(
     }
 
     // Only investigate names whose shim already exists in the global bin dir.
-    let conflicting: HashSet<String> =
-        new_bin_owners.keys().filter(|name| global_bin_dir.join(name).exists()).cloned().collect();
+    let conflicting: HashSet<String> = new_bin_owners
+        .keys()
+        .filter(|name| bin_slot_exists(global_bin_dir, name))
+        .cloned()
+        .collect();
     if conflicting.is_empty() {
         return Ok(bins_to_skip);
     }
@@ -109,4 +112,15 @@ pub fn check_global_bin_conflicts(
         }
     }
     Ok(bins_to_skip)
+}
+
+/// Whether a bin named `name` already occupies a slot in `global_bin_dir`.
+/// On Windows the `node` runtime bin is linked as `<name>.exe` with no
+/// extensionless file, so that flavor is checked too — otherwise an
+/// existing `node.exe` would not be detected as a conflict.
+fn bin_slot_exists(global_bin_dir: &Path, name: &str) -> bool {
+    if global_bin_dir.join(name).exists() {
+        return true;
+    }
+    cfg!(windows) && global_bin_dir.join(format!("{name}.exe")).exists()
 }

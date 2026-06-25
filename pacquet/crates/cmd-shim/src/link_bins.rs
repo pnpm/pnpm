@@ -668,15 +668,19 @@ fn with_extension_appended(path: &Path, ext: &str) -> PathBuf {
 
 /// Remove a bin shim previously written by [`link_bins_of_packages`].
 ///
-/// Ports pnpm's [`removeBin`](https://github.com/pnpm/pnpm/blob/4750fd370c/bins/remover/src/removeBins.ts):
-/// on Windows it deletes the `<name>`, `<name>.ps1`, and `<name>.cmd`
-/// flavors; on other platforms just `<name>`. A missing file is not an
-/// error (rimraf-style).
+/// Ports pnpm's [`removeBin`](https://github.com/pnpm/pnpm/blob/4750fd370c/bins/remover/src/removeBins.ts)
+/// (deletes `<name>`, `<name>.ps1`, `<name>.cmd` on Windows; just `<name>`
+/// elsewhere), and additionally removes the `<name>.exe` flavor on Windows:
+/// the `node` runtime bin is linked as `<name>.exe` by the linker's node
+/// special-case, so without this a `node.exe` would survive `remove -g` /
+/// `update -g` and stay reachable on `PATH`. A missing file is not an error
+/// (rimraf-style).
 pub fn remove_bin(bin_path: &Path) -> io::Result<()> {
     remove_if_exists(bin_path)?;
     if cfg!(windows) {
         remove_if_exists(&with_extension_appended(bin_path, "ps1"))?;
         remove_if_exists(&with_extension_appended(bin_path, "cmd"))?;
+        remove_if_exists(&with_extension_appended(bin_path, "exe"))?;
     }
     Ok(())
 }
