@@ -208,7 +208,7 @@ impl AddArgs {
 /// Add a single package to `state`'s manifest and install it.
 ///
 /// Shared by `pacquet add` and `pacquet dlx`. dlx points `state` at a
-/// cache directory (via a [`Config`](pacquet_config::Config) whose
+/// cache directory (via a [`Config`] whose
 /// `modules_dir` is anchored there) and saves to `dependencies` so the
 /// package's bin lands in `<cacheDir>/node_modules/.bin`.
 pub(crate) async fn add_package<Reporter, ListDependencyGroups, DependencyGroupList>(
