@@ -406,6 +406,44 @@ pub fn remove_overrides(
     write_or_remove_manifest(&path, manifest)
 }
 
+/// Set or delete an arbitrary top-level field in the YAML manifest at `path`
+/// (a `pnpm-workspace.yaml` or a global `config.yaml`), preserving the rest of
+/// the document's formatting and writing back only when something changed.
+///
+/// A `null` `value` deletes the key (mirroring pnpm's
+/// [`updateWorkspaceManifest`](https://github.com/pnpm/pnpm/blob/e7e99f04e4/workspace/workspace-manifest-writer/src/index.ts#L75-L83),
+/// where `value == null` `delete`s the field); any other value sets it. When the
+/// edit empties the document, the file is removed. Used by `pnpm config set` /
+/// `pnpm config delete` for the keys routed to a YAML config file.
+pub fn update_manifest_field(
+    path: &Path,
+    key: &str,
+    value: &serde_json::Value,
+) -> Result<(), UpdateWorkspaceManifestError> {
+    let original = match fs::read_to_string(path) {
+        Ok(text) => Some(text),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
+        Err(source) => {
+            return Err(UpdateWorkspaceManifestError::Read { path: path.to_path_buf(), source });
+        }
+    };
+
+    let mut manifest = Manifest::parse(original.as_deref()).map_err(|source| {
+        UpdateWorkspaceManifestError::Parse { path: path.to_path_buf(), source }
+    })?;
+
+    let changed = if value.is_null() {
+        edit::remove_top_level_field(&mut manifest, key)
+    } else {
+        edit::set_top_level_field(&mut manifest, key, value)
+    };
+    if !changed {
+        return Ok(());
+    }
+
+    write_or_remove_manifest(path, manifest)
+}
+
 fn write_or_remove_manifest(
     path: &Path,
     manifest: Manifest,
@@ -437,6 +475,10 @@ fn write_atomic(path: &Path, contents: &str) -> io::Result<()> {
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty())
         .unwrap_or_else(|| Path::new("."));
+    // Mirror pnpm's `fs.mkdir(dir, { recursive: true })` before writing, so a
+    // global `config.yaml` whose `<configDir>` does not yet exist is created
+    // (`pnpm config set --global`).
+    fs::create_dir_all(dir)?;
     let mut tmp = tempfile::NamedTempFile::new_in(dir)?;
     tmp.write_all(contents.as_bytes())?;
     tmp.as_file().sync_all()?;

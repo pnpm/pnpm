@@ -4,6 +4,7 @@ pub mod audit;
 pub mod cache;
 pub mod cat_file;
 pub mod cat_index;
+pub mod config;
 pub mod create;
 pub mod dedupe;
 pub mod dlx;
@@ -49,6 +50,7 @@ use cache::CacheCommand;
 use cat_file::CatFileArgs;
 use cat_index::CatIndexArgs;
 use clap::{Parser, Subcommand, ValueEnum};
+use config::ConfigArgs;
 use create::CreateArgs;
 use dedupe::DedupeArgs;
 use dlx::DlxArgs;
@@ -241,6 +243,9 @@ pub enum CliCommand {
     Runtime(RuntimeArgs),
     /// Print the effective `node_modules` directory.
     Root(RootArgs),
+    /// Manage the pnpm configuration files.
+    #[clap(visible_alias = "c")]
+    Config(ConfigArgs),
     /// Managing the package store.
     #[clap(subcommand)]
     Store(StoreCommand),
@@ -812,6 +817,10 @@ impl CliArgs {
             }
             CliCommand::Root(args) => {
                 args.run(dir_ref)?;
+                Box::pin(std::future::ready(Ok(())))
+            }
+            CliCommand::Config(args) => {
+                args.run(config()?, dir_ref)?;
                 Box::pin(std::future::ready(Ok(())))
             }
             CliCommand::Store(command) => {

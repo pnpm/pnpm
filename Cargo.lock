@@ -4613,6 +4613,7 @@ dependencies = [
  "pacquet-catalogs-types",
  "serde",
  "serde-saphyr",
+ "serde_json",
  "tempfile",
  "yaml_serde",
  "yamlpatch",
