@@ -9,6 +9,7 @@ use miette::Diagnostic;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use strum::IntoStaticStr;
+use tempfile::NamedTempFile;
 
 #[derive(Debug, Display, Error, Diagnostic, From)]
 #[non_exhaustive]
@@ -96,6 +97,22 @@ impl PackageManifest {
         Ok((manifest, contents))
     }
 
+    /// Write `contents` to `path` atomically: a sibling temp file is written
+    /// and fsynced, then renamed over `path`. A crash or write error therefore
+    /// never leaves a truncated or partial `package.json` behind, matching the
+    /// `write-file-atomic` guarantee the TypeScript pnpm CLI relies on.
+    fn write_atomic(path: &Path, contents: &str) -> io::Result<()> {
+        let dir = path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."));
+        let mut tmp = NamedTempFile::new_in(dir)?;
+        tmp.write_all(contents.as_bytes())?;
+        tmp.as_file().sync_all()?;
+        tmp.persist(path).map_err(|err| err.error)?;
+        Ok(())
+    }
+
     fn read_from_file(path: &Path) -> Result<Value, PackageManifestError> {
         let contents = fs::read_to_string(path)?;
         let mut value: Value = serde_json::from_str(&contents)?;
@@ -158,8 +175,7 @@ impl PackageManifest {
         convert_dependencies_to_engines_runtime(&mut value, "devDependencies", "devEngines")?;
         convert_dependencies_to_engines_runtime(&mut value, "dependencies", "engines")?;
         let contents = serde_json::to_string_pretty(&value)?;
-        let mut file = fs::File::create(&self.path)?;
-        file.write_all(contents.as_bytes())?;
+        Self::write_atomic(&self.path, &contents)?;
         Ok(value)
     }
 
