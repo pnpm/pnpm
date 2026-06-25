@@ -2023,11 +2023,12 @@ async fn enforce_published_version_immutability(
         // dist.tarball basename immutability. The hosted tarball is the
         // originally published URL while the round-trip body carries the
         // rewritten URL (see [`rewrite_tarball_urls`]), so only the basename —
-        // the trust key shared with serve time — is comparable.
+        // the trust key shared with serve time — is comparable. The hosted side
+        // uses the *served* basename ([`served_tarball_basename`]), which mirrors
+        // the rewrite's version-derived fallback, so a stored URL without a
+        // basename is still protected rather than left open to a redirect.
         let existing_tarball = existing_dist.and_then(|dist| dist.get("tarball"));
-        if let Some(stored_basename) =
-            existing_tarball.and_then(Value::as_str).and_then(tarball_basename)
-        {
+        if let Some(stored_basename) = served_tarball_basename(existing, name) {
             let incoming_basename = manifest
                 .get("dist")
                 .and_then(|dist| dist.get("tarball"))
@@ -2042,6 +2043,10 @@ async fn enforce_published_version_immutability(
                     });
                 }
                 Some(_) => {}
+                // Omitted, non-string, or basename-less incoming tarball: restore
+                // the hosted value so the served basename can't shift (a
+                // basename-less URL would otherwise fall back to a *different*
+                // version-derived name when the stored one was non-canonical).
                 None => {
                     if let Some(err) = require_object_dist(manifest, version) {
                         return Some(err);
@@ -2063,6 +2068,19 @@ async fn enforce_published_version_immutability(
         }
     }
     None
+}
+
+/// The tarball basename a version is actually served under, mirroring
+/// [`rewrite_tarball_urls`]: the `dist.tarball` URL's own basename when it has
+/// one, otherwise the version-derived canonical name the rewrite falls back to.
+/// Returns `None` when the manifest carries no string `dist.tarball` to serve.
+fn served_tarball_basename(manifest: &Value, pkg: &PackageName) -> Option<String> {
+    let url = manifest.get("dist").and_then(|dist| dist.get("tarball")).and_then(Value::as_str)?;
+    if let Some(basename) = tarball_basename(url) {
+        return Some(basename.to_owned());
+    }
+    let version = manifest.get("version").and_then(Value::as_str)?;
+    Some(pkg.tarball_name_for_version(version))
 }
 
 /// Restoring an omitted immutable dist field needs an object `dist` to write

@@ -479,6 +479,44 @@ async fn update_packument_rejects_adding_a_version_via_the_unpublish_put() {
     assert_eq!(after["versions"], original_versions);
 }
 
+#[tokio::test]
+async fn update_packument_protects_a_published_tarball_with_a_basenameless_url() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let publish = Request::put("/mypkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(
+            serde_json::to_vec(&sample_publish_body("mypkg", "1.0.0", b"real-bytes")).unwrap(),
+        ))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(publish).await.unwrap().status(), StatusCode::CREATED);
+
+    // Force the *stored* dist.tarball to a URL with no basename (ends in `/`).
+    // rewrite_tarball_urls serves such a URL under the version-derived canonical
+    // name, so the served basename is still well-defined and must stay immutable.
+    let packument_path = storage.join("mypkg/package.json");
+    let mut stored: Value =
+        serde_json::from_slice(&std::fs::read(&packument_path).unwrap()).unwrap();
+    stored["versions"]["1.0.0"]["dist"]["tarball"] = json!("http://localhost:4873/mypkg/-/");
+    std::fs::write(&packument_path, serde_json::to_vec(&stored).unwrap()).unwrap();
+
+    // A PUT that repoints the version at a concrete, different basename must
+    // still be rejected, even though the stored URL itself has no basename.
+    let mut tampered = stored.clone();
+    tampered["versions"]["1.0.0"]["dist"]["tarball"] =
+        json!("http://example.test/mypkg/-/mypkg-9.9.9.tgz");
+    let request = Request::put("/mypkg/-rev/1-0")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&tampered).unwrap()))
+        .unwrap();
+    assert_eq!(app.oneshot(request).await.unwrap().status(), StatusCode::BAD_REQUEST);
+}
+
 /// Published packages are the source of truth: they live in the
 /// authoritative `storage` root, never in the disposable proxy cache,
 /// and survive a full wipe of that cache.
