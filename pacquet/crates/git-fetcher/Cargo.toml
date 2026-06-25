@@ -14,19 +14,18 @@ repository.workspace  = true
 pacquet-diagnostics      = { workspace = true }
 pacquet-executor         = { workspace = true }
 pacquet-fs               = { workspace = true }
+pacquet-fs-packlist      = { workspace = true }
 pacquet-package-manifest = { workspace = true }
 pacquet-reporter         = { workspace = true }
 pacquet-store-dir        = { workspace = true }
 
 derive_more = { workspace = true }
-ignore      = { workspace = true }
 miette      = { workspace = true }
 pipe-trait  = { workspace = true }
 serde_json  = { workspace = true }
 tempfile    = { workspace = true }
 tokio       = { workspace = true }
 tracing     = { workspace = true }
-walkdir     = { workspace = true }
 
 [dev-dependencies]
 pacquet-testing-utils = { workspace = true }

@@ -28,9 +28,11 @@ pacquet-engine-runtime-node-resolver      = { path = "pacquet/crates/engine-runt
 pacquet-env-installer                     = { path = "pacquet/crates/env-installer" }
 pacquet-env-replace                       = { path = "pacquet/crates/env-replace" }
 pacquet-fs                                = { path = "pacquet/crates/fs" }
+pacquet-fs-packlist                       = { path = "pacquet/crates/fs-packlist" }
 pacquet-registry                          = { path = "pacquet/crates/registry" }
 pacquet-tarball                           = { path = "pacquet/crates/tarball" }
 pacquet-testing-utils                     = { path = "pacquet/crates/testing-utils" }
+pacquet-pack                              = { path = "pacquet/crates/pack" }
 pacquet-package-manifest                  = { path = "pacquet/crates/package-manifest" }
 pacquet-package-manager                   = { path = "pacquet/crates/package-manager" }
 pacquet-package-is-installable            = { path = "pacquet/crates/package-is-installable" }

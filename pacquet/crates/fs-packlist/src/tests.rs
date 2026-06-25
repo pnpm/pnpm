@@ -716,3 +716,54 @@ fn bin_field_pointing_at_vcs_segment_is_refused() {
         "VCS-segment exclusion must win over `bin` field: {out:?}",
     );
 }
+
+#[test]
+fn escaping_main_and_bin_fields_are_not_force_included() {
+    // A `main` / `bin` value that climbs out of the package with `..`
+    // must not be force-included, even though the target file exists —
+    // otherwise an attacker-controlled manifest could splice a host file
+    // outside the package into the tarball / CAS.
+    let base = tempdir().unwrap();
+    write(base.path(), "secret.js", "SECRET");
+    let root = base.path().join("pkg");
+    touch(&root, "package.json");
+
+    let manifest = json!({
+        "name": "x",
+        "version": "0.0.0",
+        "main": "../secret.js",
+        "bin": { "x-cli": "../secret.js" },
+    });
+    let out = packlist(&root, &manifest).unwrap();
+
+    assert!(
+        !out.iter().any(|path| path.contains("secret")),
+        "`..`-escaping main/bin must not be force-included: {out:?}",
+    );
+}
+
+/// An intermediate symlinked directory (`subdir -> /outside`) lets a
+/// lexically-contained `main` resolve to a host file, so containment must
+/// be verified against the canonical resolved path, not just the string.
+#[cfg(unix)]
+#[test]
+fn main_resolving_through_a_symlinked_dir_is_not_force_included() {
+    let outside = tempdir().unwrap();
+    write(outside.path(), "secret.js", "SECRET");
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "package.json");
+    std::os::unix::fs::symlink(outside.path(), root.join("subdir")).unwrap();
+
+    let manifest = json!({
+        "name": "x",
+        "version": "0.0.0",
+        "main": "subdir/secret.js",
+    });
+    let out = packlist(root, &manifest).unwrap();
+
+    assert!(
+        !out.iter().any(|path| path.contains("secret")),
+        "main resolving outside the package via a symlinked dir must not be included: {out:?}",
+    );
+}

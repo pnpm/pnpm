@@ -1,7 +1,12 @@
-//! Decide which files inside an extracted git-hosted package end up in
-//! the CAS. Port of [`npm-packlist`](https://github.com/npm/npm-packlist)
+//! Decide which files inside a package directory end up in a published
+//! tarball. Port of [`npm-packlist`](https://github.com/npm/npm-packlist)
 //! and pnpm's
 //! [`fs/packlist`](https://github.com/pnpm/pnpm/blob/94240bc046/fs/packlist/src/index.ts).
+//!
+//! Both `pacquet pack` (computing a tarball's contents) and the
+//! git / directory fetchers (deciding what to import into the CAS) need
+//! this, so it lives in its own crate matching pnpm's standalone
+//! `@pnpm/fs.packlist` package.
 //!
 //! The algorithm has four passes:
 //!
@@ -40,19 +45,38 @@
 //!   rare configuration in the wild. Documented gap; revisit if a
 //!   real package surfaces it.
 //! - `.git/info/exclude` and global `~/.gitignore` are NOT honored —
-//!   only the in-tree `.gitignore` / `.npmignore` files. The fetcher
-//!   imports a clean tarball / git checkout, not a user's working
-//!   tree, so the global-state ignores are wrong by construction.
+//!   only the in-tree `.gitignore` / `.npmignore` files. Callers pass
+//!   a clean tarball / git checkout or a project directory, not a
+//!   user's working tree, so the global-state ignores are wrong by
+//!   construction.
 
-use crate::error::PacklistError;
+use derive_more::{Display, Error};
 use ignore::{WalkBuilder, gitignore::Gitignore};
+use pacquet_diagnostics::miette::{self, Diagnostic};
 use pacquet_package_manifest::safe_read_package_json_from_dir;
 use serde_json::Value;
 use std::{
     collections::{BTreeSet, HashSet, VecDeque},
     fs,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
 };
+
+#[cfg(test)]
+mod tests;
+
+/// Error type of [`packlist`]. Surfaces the subset of npm-packlist
+/// failures the current scope can produce.
+#[derive(Debug, Display, Error, Diagnostic)]
+#[non_exhaustive]
+pub enum PacklistError {
+    #[display("I/O error while computing packlist for {pkg_dir}: {source}")]
+    #[diagnostic(code(pacquet_fs_packlist::io))]
+    Io {
+        pkg_dir: String,
+        #[error(source)]
+        source: std::io::Error,
+    },
+}
 
 /// Cap on `bundleDependencies` closure depth. Real packages bundle
 /// at most a handful of levels (most published packages bundle zero;
@@ -142,7 +166,7 @@ fn collect_bundled_files(
     while let Some(task) = queue.pop_front() {
         if task.depth > MAX_BUNDLE_DEPTH {
             tracing::warn!(
-                target: "pacquet::git_fetcher::packlist",
+                target: "pacquet::fs_packlist",
                 bundle_name = %task.name,
                 depth = task.depth,
                 "bundleDependencies closure exceeded MAX_BUNDLE_DEPTH; refusing to descend further",
@@ -155,7 +179,7 @@ fn collect_bundled_files(
         // reaches the join in `resolve_bundled_dependency`.
         if !is_safe_bundle_name(&task.name) {
             tracing::warn!(
-                target: "pacquet::git_fetcher::packlist",
+                target: "pacquet::fs_packlist",
                 bundle_name = %task.name,
                 "rejecting bundleDependencies entry that is not a single path segment",
             );
@@ -163,7 +187,7 @@ fn collect_bundled_files(
         }
         let Some(dep_dir) = resolve_bundled_dependency(&task.name, &task.from_dir, root) else {
             tracing::debug!(
-                target: "pacquet::git_fetcher::packlist",
+                target: "pacquet::fs_packlist",
                 bundle_name = %task.name,
                 from_dir = %task.from_dir.display(),
                 "bundleDependencies entry not resolvable under node_modules/; skipping",
@@ -196,7 +220,7 @@ fn collect_bundled_files(
         };
         if escapes {
             tracing::warn!(
-                target: "pacquet::git_fetcher::packlist",
+                target: "pacquet::fs_packlist",
                 bundle_name = %task.name,
                 dep_dir = %dep_dir.display(),
                 "bundled dependency resolves outside the package tree; refusing",
@@ -348,18 +372,18 @@ fn collect_own_files(pkg_dir: &Path, manifest: &Value) -> Result<BTreeSet<String
     // silent too (a `tracing::debug!` would be lost in install logs).
     if let Some(main) = main_path {
         let main_norm = normalize_field_path(main);
-        if !main_norm.is_empty()
+        if is_contained_field_path(&main_norm)
             && !should_always_exclude(&main_norm)
-            && pkg_dir.join(&main_norm).is_file()
+            && is_regular_file_within(pkg_dir, &pkg_dir.join(&main_norm))
         {
             out.insert(main_norm);
         }
     }
     for bin in &bin_paths {
         let bin_norm = normalize_field_path(bin);
-        if !bin_norm.is_empty()
+        if is_contained_field_path(&bin_norm)
             && !should_always_exclude(&bin_norm)
-            && pkg_dir.join(&bin_norm).is_file()
+            && is_regular_file_within(pkg_dir, &pkg_dir.join(&bin_norm))
         {
             out.insert(bin_norm);
         }
@@ -387,7 +411,7 @@ fn build_files_matcher(pkg_dir: &Path, entries: &[Value]) -> Option<Gitignore> {
         }
         if let Err(error) = builder.add_line(None, &pattern) {
             tracing::debug!(
-                target: "pacquet::git_fetcher::packlist",
+                target: "pacquet::fs_packlist",
                 ?pattern,
                 ?error,
                 "skipping invalid `files` entry",
@@ -403,7 +427,7 @@ fn build_files_matcher(pkg_dir: &Path, entries: &[Value]) -> Option<Gitignore> {
         Ok(gi) => Some(gi),
         Err(error) => {
             tracing::debug!(
-                target: "pacquet::git_fetcher::packlist",
+                target: "pacquet::fs_packlist",
                 ?error,
                 "failed to build `files`-field matcher; treating field as absent",
             );
@@ -554,6 +578,37 @@ fn normalize_field_path(path: &str) -> String {
     trimmed.trim_start_matches('/').to_string()
 }
 
+/// Whether a `normalize_field_path`-ed `main` / `bin` value stays inside
+/// the package: non-empty, only normal path components (no `..`, root, or
+/// drive/UNC prefix), and no backslash (a separator on Windows, where the
+/// git fetcher may import a package). The packlist feeds both `pack` and
+/// the git fetcher on attacker-controlled manifests, so an escaping field
+/// must never be force-included — a `main: "../secret"` would otherwise be
+/// read into the tarball / CAS.
+fn is_contained_field_path(normalized: &str) -> bool {
+    !normalized.is_empty()
+        && !normalized.contains('\\')
+        && Path::new(normalized)
+            .components()
+            .all(|component| matches!(component, Component::Normal(_)))
+}
+
+/// Whether `candidate` resolves to a regular file strictly inside `root`.
+/// Canonicalizing follows every symlink, so an intermediate symlinked
+/// directory (`subdir -> /outside`) or a final symlink to an out-of-tree
+/// file is caught even though it passes the lexical
+/// [`is_contained_field_path`] check — otherwise a `main` / `bin` could
+/// splice a host file into the tarball / CAS. Following symlinks that stay
+/// inside `root` keeps parity with npm-packlist's `is_file`, while the
+/// containment check fails closed on any escape.
+fn is_regular_file_within(root: &Path, candidate: &Path) -> bool {
+    let Ok(resolved) = candidate.canonicalize() else {
+        return false;
+    };
+    let canonical_root = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
+    resolved.starts_with(&canonical_root) && resolved.is_file()
+}
+
 fn io_error(pkg_dir: &Path, source: std::io::Error) -> PacklistError {
     PacklistError::Io { pkg_dir: pkg_dir.display().to_string(), source }
 }
@@ -562,6 +617,3 @@ fn into_io(err: ignore::Error) -> std::io::Error {
     err.into_io_error()
         .unwrap_or_else(|| std::io::Error::other("ignore walker produced a non-io error"))
 }
-
-#[cfg(test)]
-mod tests;
