@@ -1,7 +1,8 @@
 use super::{
     DiffTempFile, PatchCommitError, PatchCommitFs, PkgFilesForDiff, RealPatchCommitFs,
     diff_folders, normalize_diff_output, prepare_pkg_files_for_diff,
-    prepare_pkg_files_for_diff_with_fs, remove_existing_temp_dir_with_fs, temporary_filtered_dir,
+    prepare_pkg_files_for_diff_with_fs, remove_existing_temp_dir_with_fs, safe_package_file_path,
+    temporary_filtered_dir,
 };
 use pretty_assertions::assert_eq;
 #[cfg(unix)]
@@ -160,8 +161,31 @@ fn patch_commit_prepare_pkg_files_for_diff_reports_hard_link_errors() {
     assert!(matches!(err, PatchCommitError::LinkFile { .. }));
 }
 
+/// `safe_package_file_path` is patch-commit's defense-in-depth guard
+/// against a packlist entry that escapes the source dir. It is unit-tested
+/// directly because the packlist now filters escaping `main` / `bin`
+/// fields upstream (see `escaping_main_and_bin_fields_are_not_force_included`
+/// in `pacquet-fs-packlist`), so the integration path below no longer
+/// surfaces one.
 #[test]
-fn patch_commit_prepare_pkg_files_for_diff_rejects_packlist_paths_that_escape_source() {
+fn safe_package_file_path_rejects_paths_that_escape_source() {
+    for path in ["../secret.js", "a/../../secret.js", "nested/../../escape.js"] {
+        assert!(
+            matches!(
+                safe_package_file_path(path),
+                Err(PatchCommitError::InvalidPackageFilePath { .. })
+            ),
+            "{path} should be rejected",
+        );
+    }
+    assert!(safe_package_file_path("lib/index.js").is_ok());
+}
+
+#[test]
+fn patch_commit_prepare_pkg_files_for_diff_drops_escaping_main_field() {
+    // A `main` pointing outside the package (`../secret.js`) is filtered
+    // by the packlist, so the prepared diff view is built without it and
+    // never hard-links the out-of-tree file.
     let root = tempdir().expect("root dir");
     let edit_dir = root.path().join("edit");
     fs::create_dir(&edit_dir).expect("create edit dir");
@@ -173,9 +197,12 @@ fn patch_commit_prepare_pkg_files_for_diff_rejects_packlist_paths_that_escape_so
     fs::write(edit_dir.join("index.js"), "included\n").unwrap();
     fs::write(root.path().join("secret.js"), "outside\n").unwrap();
 
-    let err = prepare_pkg_files_for_diff(&edit_dir).expect_err("escaping packlist path");
-
-    assert!(matches!(err, PatchCommitError::InvalidPackageFilePath { .. }));
+    let prepared = prepare_pkg_files_for_diff(&edit_dir).expect("prepare files");
+    let PkgFilesForDiff::Temporary(path) = prepared else {
+        panic!("package files should be prepared in a temporary filtered dir");
+    };
+    assert!(path.join("index.js").exists());
+    assert!(!path.join("secret.js").exists(), "the escaping main must not be materialized");
 }
 
 #[test]
