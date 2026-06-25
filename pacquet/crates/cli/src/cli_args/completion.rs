@@ -113,7 +113,7 @@ mod tests {
     #[test]
     fn redundant_parameters_are_rejected_before_shell_validation() {
         let extra = strings(&["fish", "pwsh", "zsh"]);
-        let err = shell_from_args(Some("bash"), &extra).expect_err("redundant params rejected");
+        let err = shell_from_args(None, &extra).expect_err("redundant params rejected");
         assert_eq!(err.to_string(), "The 3 parameters after shell is not necessary");
     }
 
