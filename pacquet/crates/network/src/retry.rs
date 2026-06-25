@@ -14,8 +14,20 @@
 //! retry boundary wraps the whole fetch + integrity + decode + extract
 //! pipeline, not just a single request — but reuses [`RetryOpts`].
 //!
+//! Reading a response body can fail *after* [`send_with_retry`] has
+//! handed back a `200`: a connection reset or truncated transfer
+//! mid-stream surfaces as reqwest's "error decoding response body".
+//! [`send_with_retry`] cannot retry that — the body is consumed by the
+//! caller, outside its loop. [`retry_async`] is the companion that
+//! re-issues the *whole* request when consuming or parsing the body
+//! fails, mirroring pnpm's metadata fetch, which nests a second
+//! `@zkochan/retry` operation around `response.text()` + `JSON.parse`
+//! on top of the network library's request retry
+//! ([`resolving/npm-resolver/src/fetch.ts`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetch.ts#L172-L210)).
+//!
 //! [`RetryTimeoutOptions`]: https://github.com/pnpm/pnpm/blob/1819226b51/network/fetch/src/fetch.ts
 
+use std::future::Future;
 use std::time::Duration;
 
 use reqwest::{Client, RequestBuilder, Response, StatusCode};
@@ -160,6 +172,58 @@ pub async fn send_with_retry<'client>(
                     max_attempts = retry_opts.retries + 1,
                     ?delay,
                     "Request errored; retrying after backoff",
+                );
+                tokio::time::sleep(delay).await;
+                attempt += 1;
+            }
+            Err(error) => return Err(error),
+        }
+    }
+}
+
+/// Run `attempt` — a full "issue the request, then read and parse its
+/// body" round trip — retrying under `retry_opts`'s exponential
+/// backoff whenever it fails with an error `is_retryable` accepts and
+/// retries remain.
+///
+/// This is the body-read/parse companion to [`send_with_retry`].
+/// pnpm's metadata fetch nests two retry layers: the shared network
+/// library retries the request ([`send_with_retry`] here), and the
+/// resolver re-runs the *whole* fetch when reading or parsing the
+/// response body fails — "error decoding response body" from a
+/// mid-stream reset, or broken JSON — via a second `@zkochan/retry`
+/// operation in
+/// [`resolving/npm-resolver/src/fetch.ts`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetch.ts#L172-L210).
+/// The `attempt` closure issues the request *and* consumes its body,
+/// so `is_retryable` should accept only body-read/parse failures:
+/// transport and status failures stay non-retryable here because
+/// [`send_with_retry`] inside the closure already owns that budget,
+/// exactly as pnpm rejects a fetch failure immediately while letting
+/// the network library retry it internally.
+pub async fn retry_async<T, E, Fut>(
+    url: &str,
+    retry_opts: RetryOpts,
+    is_retryable: impl Fn(&E) -> bool,
+    mut attempt_fn: impl FnMut() -> Fut,
+) -> Result<T, E>
+where
+    Fut: Future<Output = Result<T, E>>,
+    E: std::fmt::Debug,
+{
+    let mut attempt = 0;
+    loop {
+        match attempt_fn().await {
+            Ok(value) => return Ok(value),
+            Err(error) if is_retryable(&error) && attempt < retry_opts.retries => {
+                let delay = retry_opts.delay_for(attempt);
+                tracing::warn!(
+                    target: "pacquet_network::retry",
+                    url,
+                    ?error,
+                    attempt = attempt + 1,
+                    max_attempts = retry_opts.retries + 1,
+                    ?delay,
+                    "Reading response body failed; retrying after backoff",
                 );
                 tokio::time::sleep(delay).await;
                 attempt += 1;

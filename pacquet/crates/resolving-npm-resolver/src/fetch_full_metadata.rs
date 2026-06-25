@@ -20,7 +20,7 @@
 //! Ports the request half of upstream's
 //! [`fetchMetadataFromFromRegistry`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetch.ts#L118-L204).
 
-use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient, send_with_retry};
+use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient, retry_async, send_with_retry};
 use pacquet_registry::Package;
 use reqwest::{StatusCode, header};
 
@@ -91,45 +91,53 @@ pub async fn fetch_full_metadata(
 ) -> Result<FetchFullMetadataOutcome, FetchMetadataError> {
     let url = to_registry_url(opts.registry, pkg_name);
     let accept = if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC };
-    let (client, response) = send_with_retry(opts.http_client, &url, opts.retry_opts, |client| {
-        let mut request = client.get(&url).header(header::ACCEPT, accept);
-        if let Some(value) = opts.auth_headers.for_url_with_package(&url, Some(pkg_name)) {
-            request = request.header(header::AUTHORIZATION, value);
+    // The request itself is retried inside `send_with_retry`; this
+    // outer loop re-issues the whole fetch when reading or parsing the
+    // body fails ("error decoding response body", broken JSON), the
+    // way pnpm nests a second retry around `response.text()`.
+    retry_async(&url, opts.retry_opts, FetchMetadataError::is_body_retryable, || async {
+        let (client, response) =
+            send_with_retry(opts.http_client, &url, opts.retry_opts, |client| {
+                let mut request = client.get(&url).header(header::ACCEPT, accept);
+                if let Some(value) = opts.auth_headers.for_url_with_package(&url, Some(pkg_name)) {
+                    request = request.header(header::AUTHORIZATION, value);
+                }
+                if let Some(etag) = opts.etag {
+                    request = request.header(header::IF_NONE_MATCH, etag);
+                }
+                if let Some(modified) = opts.modified {
+                    request = request.header(header::IF_MODIFIED_SINCE, modified);
+                }
+                request
+            })
+            .await
+            .map_err(|error| FetchMetadataError::Network { url: url.clone(), error })?;
+        if response.status() == StatusCode::NOT_MODIFIED {
+            return Ok(FetchFullMetadataOutcome::NotModified);
         }
-        if let Some(etag) = opts.etag {
-            request = request.header(header::IF_NONE_MATCH, etag);
-        }
-        if let Some(modified) = opts.modified {
-            request = request.header(header::IF_MODIFIED_SINCE, modified);
-        }
-        request
-    })
-    .await
-    .map_err(|error| FetchMetadataError::Network { url: url.clone(), error })?;
-    if response.status() == StatusCode::NOT_MODIFIED {
-        return Ok(FetchFullMetadataOutcome::NotModified);
-    }
-    let response = response
-        .error_for_status()
-        .map_err(|error| FetchMetadataError::Network { url: url.clone(), error })?;
-    let raw_body = response
-        .text()
+        let response = response
+            .error_for_status()
+            .map_err(|error| FetchMetadataError::Network { url: url.clone(), error })?;
+        let raw_body = response
+            .text()
+            .await
+            .map_err(|error| FetchMetadataError::BodyRead { url: url.clone(), error })?;
+        // Body fully buffered — release the connection and its
+        // network-concurrency permit, then parse off the reactor: a
+        // multi-MB packument parse would otherwise pin a tokio worker
+        // and stall every socket it pumps (see
+        // `fetch_full_metadata_cached` for the cold-install numbers).
+        drop(client);
+        let task_url = url.clone();
+        let meta = tokio::task::spawn_blocking(move || {
+            serde_json::from_str::<Package>(&raw_body)
+                .map_err(|error| FetchMetadataError::Decode { url: task_url.clone(), error })
+        })
         .await
-        .map_err(|error| FetchMetadataError::Network { url: url.clone(), error })?;
-    // Body fully buffered — release the connection and its
-    // network-concurrency permit, then parse off the reactor: a
-    // multi-MB packument parse would otherwise pin a tokio worker
-    // and stall every socket it pumps (see
-    // `fetch_full_metadata_cached` for the cold-install numbers).
-    drop(client);
-    let task_url = url.clone();
-    let meta = tokio::task::spawn_blocking(move || {
-        serde_json::from_str::<Package>(&raw_body)
-            .map_err(|error| FetchMetadataError::Decode { url: task_url, error })
+        .map_err(|error| FetchMetadataError::ParseTask { url: url.clone(), error })??;
+        Ok(FetchFullMetadataOutcome::Modified(Box::new(meta)))
     })
     .await
-    .map_err(|error| FetchMetadataError::ParseTask { url, error })??;
-    Ok(FetchFullMetadataOutcome::Modified(Box::new(meta)))
 }
 
 #[cfg(test)]

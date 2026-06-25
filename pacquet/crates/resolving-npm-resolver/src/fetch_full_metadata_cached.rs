@@ -18,7 +18,7 @@
 
 use std::path::Path;
 
-use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient, send_with_retry};
+use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient, retry_async, send_with_retry};
 use pacquet_registry::Package;
 use pipe_trait::Pipe;
 use reqwest::{StatusCode, header};
@@ -101,107 +101,119 @@ pub async fn fetch_full_metadata_cached(
 
     let url = to_registry_url(opts.registry, pkg_name);
     let accept = if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC };
-    let (client, response) = send_with_retry(opts.http_client, &url, opts.retry_opts, |client| {
-        let mut request = client.get(&url).header(header::ACCEPT, accept);
-        if let Some(value) = opts.auth_headers.for_url_with_package(&url, Some(pkg_name)) {
-            request = request.header(header::AUTHORIZATION, value);
-        }
-        if let Some(headers) = cache_headers.as_ref() {
-            if let Some(etag) = headers.etag.as_deref() {
-                request = request.header(header::IF_NONE_MATCH, etag);
-            }
-            if let Some(modified) = headers.modified.as_deref() {
-                request = request.header(header::IF_MODIFIED_SINCE, modified);
-            }
-        }
-        request
-    })
-    .await
-    .map_err(|error| FetchMetadataError::Network { url: url.clone(), error })?;
-
-    if response.status() == StatusCode::NOT_MODIFIED {
-        // No body to stream — release the connection and its
-        // network-concurrency permit before the mirror disk read.
-        drop(client);
-        let Some(path) = mirror_path else {
-            // 304 without an existing cache to fall back on — the
-            // registry over-reached on `If-None-Match: <stale>`.
-            // Mirrors upstream's `META_NOT_MODIFIED_WITHOUT_CACHE`.
-            return Err(FetchMetadataError::NotModifiedWithoutCache {
-                pkg_name: pkg_name.to_string(),
-            });
-        };
-        let meta = load_meta_async(Some(&path)).await.ok_or_else(|| {
-            FetchMetadataError::CacheMissingAfter304 { pkg_name: pkg_name.to_string() }
-        })?;
-        renew_mirror_freshness(&path);
-        return Ok(meta);
-    }
-
-    let response = response
-        .error_for_status()
-        .map_err(|error| FetchMetadataError::Network { url: url.clone(), error })?;
-
-    let etag = response
-        .headers()
-        .get(header::ETAG)
-        .and_then(|value| value.to_str().ok())
-        .map(str::to_string);
-    let raw_body = response
-        .text()
-        .await
-        .map_err(|error| FetchMetadataError::Network { url: url.clone(), error })?;
-
-    // Body fully buffered — release the connection and its
-    // network-concurrency permit before the CPU-bound parse so the
-    // semaphore keeps bounding *sockets*, not parses. Same
-    // buffer-then-release shape as the tarball pipeline in
-    // `pacquet-tarball`.
-    drop(client);
-
-    // Deserialize and persist the mirror off the reactor. Packuments
-    // run to several megabytes for high-release-cadence packages
-    // (`@fluentui/*`, `@types/node`, ...); parsing one inline pins a
-    // tokio worker for hundreds of milliseconds and stalls every
-    // socket that worker pumps — on a cold babylon install the
-    // inline parses held the metadata phase to a third of pnpm's
-    // throughput.
-    let task_url = url.clone();
     let should_filter_metadata = opts.full_metadata && opts.filter_metadata;
-    let meta = tokio::task::spawn_blocking(move || -> Result<Package, FetchMetadataError> {
-        let mut meta: Package = serde_json::from_str(&raw_body)
-            .map_err(|error| FetchMetadataError::Decode { url: task_url.clone(), error })?;
-        if should_filter_metadata {
-            meta = clear_meta(&meta).map_err(|error| FetchMetadataError::Decode {
-                url: task_url.clone(),
-                error: error.into_inner(),
+
+    // The request itself is retried inside `send_with_retry`; this
+    // outer loop re-issues the whole fetch — conditional headers and
+    // all — when reading or parsing the body fails ("error decoding
+    // response body", broken JSON), the way pnpm nests a second retry
+    // around `response.text()`. A `304` is a success, not a retry: it
+    // returns the cached mirror body.
+    retry_async(&url, opts.retry_opts, FetchMetadataError::is_body_retryable, || async {
+        let (client, response) =
+            send_with_retry(opts.http_client, &url, opts.retry_opts, |client| {
+                let mut request = client.get(&url).header(header::ACCEPT, accept);
+                if let Some(value) = opts.auth_headers.for_url_with_package(&url, Some(pkg_name)) {
+                    request = request.header(header::AUTHORIZATION, value);
+                }
+                if let Some(headers) = cache_headers.as_ref() {
+                    if let Some(etag) = headers.etag.as_deref() {
+                        request = request.header(header::IF_NONE_MATCH, etag);
+                    }
+                    if let Some(modified) = headers.modified.as_deref() {
+                        request = request.header(header::IF_MODIFIED_SINCE, modified);
+                    }
+                }
+                request
+            })
+            .await
+            .map_err(|error| FetchMetadataError::Network { url: url.clone(), error })?;
+
+        if response.status() == StatusCode::NOT_MODIFIED {
+            // No body to stream — release the connection and its
+            // network-concurrency permit before the mirror disk read.
+            drop(client);
+            let Some(path) = mirror_path.as_deref() else {
+                // 304 without an existing cache to fall back on — the
+                // registry over-reached on `If-None-Match: <stale>`.
+                // Mirrors upstream's `META_NOT_MODIFIED_WITHOUT_CACHE`.
+                return Err(FetchMetadataError::NotModifiedWithoutCache {
+                    pkg_name: pkg_name.to_string(),
+                });
+            };
+            let meta = load_meta_async(Some(path)).await.ok_or_else(|| {
+                FetchMetadataError::CacheMissingAfter304 { pkg_name: pkg_name.to_string() }
             })?;
+            renew_mirror_freshness(path);
+            return Ok(meta);
         }
 
-        if let Some(path) = mirror_path.as_deref() {
-            // A filtered full response is written in pnpm's NDJSON
-            // shape. Other responses keep pacquet's indexed mirror
-            // layout for lazy version hydration.
-            let save_result = if should_filter_metadata {
-                save_meta_ndjson(path, &meta, etag.as_deref())
-            } else {
-                save_meta_indexed(path, &meta, etag.as_deref())
-            };
-            if let Err(error) = save_result {
-                tracing::debug!(
-                    target: "pacquet_resolving_npm_resolver::cache",
-                    ?error,
-                    path = %path.display(),
-                    "could not persist mirror; bypassing cache write",
-                );
+        let response = response
+            .error_for_status()
+            .map_err(|error| FetchMetadataError::Network { url: url.clone(), error })?;
+
+        let etag = response
+            .headers()
+            .get(header::ETAG)
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_string);
+        let raw_body = response
+            .text()
+            .await
+            .map_err(|error| FetchMetadataError::BodyRead { url: url.clone(), error })?;
+
+        // Body fully buffered — release the connection and its
+        // network-concurrency permit before the CPU-bound parse so the
+        // semaphore keeps bounding *sockets*, not parses. Same
+        // buffer-then-release shape as the tarball pipeline in
+        // `pacquet-tarball`.
+        drop(client);
+
+        // Deserialize and persist the mirror off the reactor. Packuments
+        // run to several megabytes for high-release-cadence packages
+        // (`@fluentui/*`, `@types/node`, ...); parsing one inline pins a
+        // tokio worker for hundreds of milliseconds and stalls every
+        // socket that worker pumps — on a cold babylon install the
+        // inline parses held the metadata phase to a third of pnpm's
+        // throughput.
+        let task_url = url.clone();
+        let task_mirror_path = mirror_path.clone();
+        let meta = tokio::task::spawn_blocking(move || -> Result<Package, FetchMetadataError> {
+            let mut meta: Package = serde_json::from_str(&raw_body)
+                .map_err(|error| FetchMetadataError::Decode { url: task_url.clone(), error })?;
+            if should_filter_metadata {
+                meta = clear_meta(&meta).map_err(|error| FetchMetadataError::Decode {
+                    url: task_url.clone(),
+                    error: error.into_inner(),
+                })?;
             }
-        }
-        Ok(meta)
+
+            if let Some(path) = task_mirror_path.as_deref() {
+                // A filtered full response is written in pnpm's NDJSON
+                // shape. Other responses keep pacquet's indexed mirror
+                // layout for lazy version hydration.
+                let save_result = if should_filter_metadata {
+                    save_meta_ndjson(path, &meta, etag.as_deref())
+                } else {
+                    save_meta_indexed(path, &meta, etag.as_deref())
+                };
+                if let Err(error) = save_result {
+                    tracing::debug!(
+                        target: "pacquet_resolving_npm_resolver::cache",
+                        ?error,
+                        path = %path.display(),
+                        "could not persist mirror; bypassing cache write",
+                    );
+                }
+            }
+            Ok(meta)
+        })
+        .await
+        .map_err(|error| FetchMetadataError::ParseTask { url: url.clone(), error })??;
+
+        meta.pipe(Ok)
     })
     .await
-    .map_err(|error| FetchMetadataError::ParseTask { url, error })??;
-
-    meta.pipe(Ok)
 }
 
 /// Bump the mirror file's mtime to "now" after a `304 Not Modified`.

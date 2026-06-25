@@ -21,6 +21,22 @@ pub enum FetchMetadataError {
         error: reqwest::Error,
     },
 
+    /// Reading the response body failed *after* the registry returned
+    /// a `2xx` — a connection reset or truncated transfer mid-stream,
+    /// reqwest's "error decoding response body". Kept distinct from
+    /// [`FetchMetadataError::Network`] (the request itself, already
+    /// retried by [`pacquet_network::send_with_retry`]) so the body
+    /// re-fetch loop in the fetchers retries only this and
+    /// [`FetchMetadataError::Decode`] — see
+    /// [`FetchMetadataError::is_body_retryable`].
+    #[display("Failed to read metadata response body from {url}: {error}")]
+    #[diagnostic(code(pacquet_resolving_npm_resolver::body_read_error))]
+    BodyRead {
+        url: String,
+        #[error(source)]
+        error: reqwest::Error,
+    },
+
     #[display("Failed to decode metadata from {url}: {error}")]
     #[diagnostic(code(pacquet_resolving_npm_resolver::decode_error))]
     Decode {
@@ -62,6 +78,29 @@ pub enum FetchMetadataError {
         #[error(source)]
         error: tokio::task::JoinError,
     },
+}
+
+impl FetchMetadataError {
+    /// Whether a fresh re-fetch of the whole request could plausibly
+    /// succeed where this attempt failed. Only the body-consumption
+    /// failures qualify — a mid-stream transport drop
+    /// ([`FetchMetadataError::BodyRead`]) or a body that parsed as
+    /// broken JSON ([`FetchMetadataError::Decode`]). This is the
+    /// predicate the fetchers hand to
+    /// [`pacquet_network::retry_async`], mirroring pnpm's metadata
+    /// fetch, which retries exactly `response.text()` and `JSON.parse`
+    /// failures while letting the network library own request retry
+    /// ([`resolving/npm-resolver/src/fetch.ts`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetch.ts#L172-L210)).
+    ///
+    /// [`FetchMetadataError::Network`] stays non-retryable here: the
+    /// request (transport error or a `4xx`/`5xx` status) was already
+    /// retried inside [`pacquet_network::send_with_retry`], exactly as
+    /// pnpm rejects a fetch failure immediately rather than re-running
+    /// its outer operation.
+    #[must_use]
+    pub fn is_body_retryable(&self) -> bool {
+        matches!(self, FetchMetadataError::BodyRead { .. } | FetchMetadataError::Decode { .. })
+    }
 }
 
 /// Raised when an external `PackageVersionGuard` rejects every
