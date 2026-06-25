@@ -336,8 +336,9 @@ async fn audit(
         .expect("audit request is a map of package names to version strings");
     let authorization = config.auth_headers.for_url(&registry);
     let retry_opts = retry_opts_from_config(config);
-    let request_url = audit_url.clone();
-    let (_, response) = send_with_retry(http_client, &audit_url, retry_opts, |client| {
+    let request_url = redact_url_userinfo(&audit_url);
+    let display_audit_url = request_url.clone();
+    let (_, response) = send_with_retry(http_client, &display_audit_url, retry_opts, |client| {
         let mut request =
             client.post(&request_url).header("content-type", "application/json").body(body.clone());
         if let Some(value) = &authorization {
@@ -346,30 +347,30 @@ async fn audit(
         request
     })
     .await
-    .map_err(|source| AuditError::Network { url: audit_url.clone(), source })?;
+    .map_err(|source| AuditError::Network { url: display_audit_url.clone(), source })?;
 
     let status = response.status().as_u16();
     let raw_body = response
         .text()
         .await
-        .map_err(|source| AuditError::Network { url: audit_url.clone(), source })?;
+        .map_err(|source| AuditError::Network { url: display_audit_url.clone(), source })?;
     match status {
         200 => {
             let parsed: serde_json::Value =
                 serde_json::from_str(&raw_body).map_err(|source| AuditError::InvalidJson {
-                    url: audit_url.clone(),
+                    url: display_audit_url.clone(),
                     reason: source.to_string(),
                     body: truncate_chars(&raw_body, 500),
                 })?;
             let bulk: BTreeMap<String, Vec<RawBulkAdvisory>> =
                 serde_json::from_value(parsed.clone()).map_err(|_| AuditError::UnexpectedBody {
-                    url: audit_url.clone(),
+                    url: display_audit_url.clone(),
                     body: truncate_chars(&parsed.to_string(), 500),
                 })?;
             Ok(bulk_response_to_audit_report(bulk, &audit_request, lockfile, env_lockfile, include))
         }
-        404 => Err(AuditError::EndpointNotExists { url: audit_url }),
-        _ => Err(AuditError::BadStatus { url: audit_url, status, body: raw_body }),
+        404 => Err(AuditError::EndpointNotExists { url: display_audit_url }),
+        _ => Err(AuditError::BadStatus { url: display_audit_url, status, body: raw_body }),
     }
 }
 
@@ -1203,6 +1204,18 @@ fn normalize_ghsa_id(ghsa_id: &str) -> String {
 
 fn normalize_registry(registry: &str) -> String {
     if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
+}
+
+fn redact_url_userinfo(url: &str) -> String {
+    let Ok(mut parsed) = reqwest::Url::parse(url) else {
+        return url.to_string();
+    };
+    if parsed.username().is_empty() && parsed.password().is_none() {
+        return url.to_string();
+    }
+    let _ = parsed.set_username("");
+    let _ = parsed.set_password(None);
+    parsed.to_string()
 }
 
 fn truncate_chars(value: &str, max_chars: usize) -> String {

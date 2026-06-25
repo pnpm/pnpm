@@ -221,6 +221,21 @@ fn text_report_separates_advisory_table_from_summary() {
     assert_eq!(output.as_bytes()[summary_start - 1], b'\n');
 }
 
+#[test]
+fn redact_url_userinfo_removes_credentials_from_audit_endpoint() {
+    assert_eq!(
+        redact_url_userinfo(
+            "https://user:secret@registry.example.com/npm/-/npm/v1/security/advisories/bulk"
+        ),
+        "https://registry.example.com/npm/-/npm/v1/security/advisories/bulk",
+    );
+    assert_eq!(
+        redact_url_userinfo("https://user@registry.example.com/-/npm/v1/security/advisories/bulk"),
+        "https://registry.example.com/-/npm/v1/security/advisories/bulk",
+    );
+    assert_eq!(redact_url_userinfo("not a url"), "not a url");
+}
+
 fn advisory(id: u64, title: &str, severity: ConfigAuditLevel, ghsa: &str) -> AuditAdvisory {
     AuditAdvisory {
         findings: vec![AuditFinding {
