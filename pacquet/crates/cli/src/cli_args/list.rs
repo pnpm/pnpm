@@ -96,13 +96,17 @@ impl ListArgs {
             return Ok(());
         };
 
-        let importer_id = if dir == lockfile_dir {
-            "."
+        let importer_id: String = if dir == lockfile_dir {
+            ".".into()
         } else {
-            dir.strip_prefix(lockfile_dir).ok().and_then(|p| p.to_str()).unwrap_or(".")
+            dir.strip_prefix(lockfile_dir)
+                .ok()
+                .map(|p| p.to_string_lossy().replace('\\', "/"))
+                .filter(|s| !s.is_empty())
+                .unwrap_or_else(|| ".".to_string())
         };
         let Some(importer) =
-            lockfile.importers.get(importer_id).or_else(|| lockfile.root_project())
+            lockfile.importers.get(&importer_id).or_else(|| lockfile.root_project())
         else {
             if self.packages.is_empty() {
                 println!("No packages found");
@@ -115,9 +119,10 @@ impl ListArgs {
         let manifest_path = dir.join("package.json");
         let (root_name, root_version, root_private) = read_root_manifest(&manifest_path)?;
 
-        let include_prod = !self.dev;
+        let prod_explicitly_false = self.dev && !self.production;
+        let include_prod = !prod_explicitly_false;
         let include_dev = !self.production;
-        let include_optional = !self.no_optional;
+        let include_optional = !self.no_optional && !prod_explicitly_false;
 
         let ctx = BuildContext {
             snapshots: lockfile.snapshots.as_ref(),
@@ -132,10 +137,10 @@ impl ListArgs {
             build_local_tree(importer, &ctx, include_prod, include_dev, include_optional);
 
         if !self.packages.is_empty() {
-            let matches = |d: &DepNode| dep_or_subtree_matches(d, &self.packages);
-            tree.dependencies.retain(|d| matches(d));
-            tree.dev_dependencies.retain(|d| matches(d));
-            tree.optional_dependencies.retain(|d| matches(d));
+            let matches = |dep: &DepNode| dep_or_subtree_matches(dep, &self.packages);
+            tree.dependencies.retain(|dep| matches(dep));
+            tree.dev_dependencies.retain(|dep| matches(dep));
+            tree.optional_dependencies.retain(|dep| matches(dep));
 
             if tree.dependencies.is_empty()
                 && tree.dev_dependencies.is_empty()
@@ -280,7 +285,7 @@ fn resolve_importer_dep(
                 && ctx.packages.is_some_and(|pkgs| {
                     let base_key = key.without_peer();
                     pkgs.get(&base_key)
-                        .and_then(|m| m.peer_dependencies.as_ref())
+                        .and_then(|meta| meta.peer_dependencies.as_ref())
                         .is_some_and(|peers| peers.contains_key(&name.to_string()))
                 });
 
@@ -395,7 +400,7 @@ fn get_peer_set(
     let base_key = key.without_peer();
     packages
         .get(&base_key)
-        .and_then(|m| m.peer_dependencies.as_ref())
+        .and_then(|meta| meta.peer_dependencies.as_ref())
         .map(|peers| peers.keys().cloned().collect())
         .unwrap_or_default()
 }
@@ -421,7 +426,7 @@ fn dep_or_subtree_matches(dep: &DepNode, params: &[String]) -> bool {
     if matches_params(params, &dep.alias) || matches_params(params, &dep.name) {
         return true;
     }
-    dep.dependencies.iter().any(|c| dep_or_subtree_matches(c, params))
+    dep.dependencies.iter().any(|child| dep_or_subtree_matches(child, params))
 }
 
 fn glob_match(pattern: &str, value: &str) -> bool {
@@ -454,12 +459,12 @@ fn read_root_manifest(
     let content = std::fs::read_to_string(manifest_path)
         .into_diagnostic()
         .wrap_err_with(|| format!("failed to read {}", manifest_path.display()))?;
-    let v: Value = serde_json::from_str(&content)
+    let parsed: Value = serde_json::from_str(&content)
         .into_diagnostic()
         .wrap_err_with(|| format!("failed to parse {}", manifest_path.display()))?;
-    let name = v.get("name").and_then(Value::as_str).map(str::to_string);
-    let version = v.get("version").and_then(Value::as_str).map(str::to_string);
-    let private = v.get("private").and_then(Value::as_bool);
+    let name = parsed.get("name").and_then(Value::as_str).map(str::to_string);
+    let version = parsed.get("version").and_then(Value::as_str).map(str::to_string);
+    let private = parsed.get("private").and_then(Value::as_bool);
     Ok((name, version, private))
 }
 
@@ -540,11 +545,11 @@ fn deps_to_tree_nodes_colored(
 
 fn dep_to_tree_node(dep: &DepNode, long: bool, is_dev: bool, is_optional: bool) -> TreeNode {
     let color: fn(&str) -> String = if is_optional {
-        |s| s.if_supports_color(Stream::Stdout, |t| t.blue()).to_string()
+        |text| text.if_supports_color(Stream::Stdout, |text| text.blue()).to_string()
     } else if is_dev {
-        |s| s.if_supports_color(Stream::Stdout, |t| t.yellow()).to_string()
+        |text| text.if_supports_color(Stream::Stdout, |text| text.yellow()).to_string()
     } else {
-        |s| s.to_string()
+        |text| text.to_string()
     };
 
     let mut label = print_label(dep, &color);
@@ -775,414 +780,5 @@ fn gray(text: &str) -> String {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use pretty_assertions::assert_eq;
-
-    #[test]
-    fn glob_match_exact() {
-        assert!(glob_match("foo", "foo"));
-        assert!(!glob_match("foo", "bar"));
-    }
-
-    #[test]
-    fn glob_match_wildcard_suffix() {
-        assert!(glob_match("foo*", "foobar"));
-        assert!(glob_match("foo*", "foo"));
-        assert!(!glob_match("foo*", "f"));
-    }
-
-    #[test]
-    fn glob_match_wildcard_prefix() {
-        assert!(glob_match("*bar", "foobar"));
-        assert!(glob_match("*bar", "bar"));
-        assert!(!glob_match("*bar", "barbaz"));
-    }
-
-    #[test]
-    fn glob_match_wildcard_infix() {
-        assert!(glob_match("f*o", "foo"));
-        assert!(glob_match("f*o", "f_o"));
-        assert!(glob_match("f*o", "fooo"));
-        assert!(!glob_match("f*o", "far"));
-    }
-
-    #[test]
-    fn glob_match_scoped_package() {
-        assert!(glob_match("@scope/*", "@scope/foo"));
-        assert!(!glob_match("@scope/*", "@other/foo"));
-    }
-
-    #[test]
-    fn matches_params_empty() {
-        assert!(matches_params(&[], "anything"));
-    }
-
-    #[test]
-    fn matches_params_with_patterns() {
-        assert!(matches_params(&["foo".to_string()], "foo"));
-        assert!(!matches_params(&["foo".to_string()], "bar"));
-        assert!(matches_params(&["foo*".to_string()], "foobar"));
-    }
-
-    #[test]
-    fn matches_params_multiple_patterns() {
-        assert!(matches_params(&["foo".to_string(), "bar".to_string()], "bar"));
-        assert!(!matches_params(&["foo".to_string(), "bar".to_string()], "baz"));
-    }
-
-    #[test]
-    fn sort_deps_by_name() {
-        let mut deps = vec![
-            DepNode {
-                alias: "z-pkg".into(),
-                name: "z-pkg".into(),
-                version: "1.0.0".into(),
-                path: String::new(),
-                is_peer: false,
-                is_dev: false,
-                is_optional: false,
-                dependencies: vec![],
-            },
-            DepNode {
-                alias: "a-pkg".into(),
-                name: "a-pkg".into(),
-                version: "2.0.0".into(),
-                path: String::new(),
-                is_peer: false,
-                is_dev: false,
-                is_optional: false,
-                dependencies: vec![],
-            },
-        ];
-        sort_deps(&mut deps);
-        assert_eq!(deps[0].name, "a-pkg");
-        assert_eq!(deps[1].name, "z-pkg");
-    }
-
-    #[test]
-    fn sort_deps_recursive() {
-        let mut deps = vec![DepNode {
-            alias: "outer".into(),
-            name: "outer".into(),
-            version: "1.0.0".into(),
-            path: String::new(),
-            is_peer: false,
-            is_dev: false,
-            is_optional: false,
-            dependencies: vec![
-                DepNode {
-                    alias: "z-inner".into(),
-                    name: "z-inner".into(),
-                    version: "0.1.0".into(),
-                    path: String::new(),
-                    is_peer: false,
-                    is_dev: false,
-                    is_optional: false,
-                    dependencies: vec![],
-                },
-                DepNode {
-                    alias: "a-inner".into(),
-                    name: "a-inner".into(),
-                    version: "0.2.0".into(),
-                    path: String::new(),
-                    is_peer: false,
-                    is_dev: false,
-                    is_optional: false,
-                    dependencies: vec![],
-                },
-            ],
-        }];
-        sort_deps(&mut deps);
-        assert_eq!(deps[0].dependencies[0].name, "a-inner");
-        assert_eq!(deps[0].dependencies[1].name, "z-inner");
-    }
-
-    #[test]
-    fn read_root_manifest_with_all_fields() {
-        let dir = tempfile::TempDir::new().expect("temp dir");
-        let manifest = dir.path().join("package.json");
-        std::fs::write(&manifest, r#"{"name":"test-pkg","version":"1.0.0","private":true}"#)
-            .expect("write manifest");
-        let (name, version, private) = read_root_manifest(&manifest).unwrap();
-        assert_eq!(name, Some("test-pkg".into()));
-        assert_eq!(version, Some("1.0.0".into()));
-        assert_eq!(private, Some(true));
-    }
-
-    #[test]
-    fn read_root_manifest_missing_file() {
-        let dir = tempfile::TempDir::new().expect("temp dir");
-        let manifest = dir.path().join("nonexistent.json");
-        let err = read_root_manifest(&manifest).unwrap_err();
-        assert!(err.to_string().contains("failed to read"));
-    }
-
-    #[test]
-    fn read_root_manifest_invalid_json() {
-        let dir = tempfile::TempDir::new().expect("temp dir");
-        let manifest = dir.path().join("package.json");
-        std::fs::write(&manifest, "not json").expect("write manifest");
-        let err = read_root_manifest(&manifest).unwrap_err();
-        assert!(err.to_string().contains("failed to parse"));
-    }
-
-    #[test]
-    fn render_local_tree_shows_root_with_name() {
-        let root = LocalTreeRoot {
-            name: Some("my-pkg".into()),
-            version: Some("1.0.0".into()),
-            private: Some(false),
-            path: "/tmp/project".into(),
-            dependencies: vec![],
-            dev_dependencies: vec![],
-            optional_dependencies: vec![],
-        };
-        let output = render_local_tree(&root, false);
-        assert!(output.contains("my-pkg"));
-    }
-
-    #[test]
-    fn render_local_tree_shows_private() {
-        let root = LocalTreeRoot {
-            name: Some("my-pkg".into()),
-            version: Some("1.0.0".into()),
-            private: Some(true),
-            path: "/tmp/project".into(),
-            dependencies: vec![],
-            dev_dependencies: vec![],
-            optional_dependencies: vec![],
-        };
-        let output = render_local_tree(&root, false);
-        assert!(output.contains("PRIVATE"));
-    }
-
-    #[test]
-    fn render_local_tree_with_deps() {
-        let root = LocalTreeRoot {
-            name: Some("root".into()),
-            version: Some("0.0.0".into()),
-            private: Some(false),
-            path: "/project".into(),
-            dependencies: vec![DepNode {
-                alias: "foo".into(),
-                name: "foo".into(),
-                version: "1.0.0".into(),
-                path: ".pnpm/foo@1.0.0/node_modules/foo".into(),
-                is_peer: false,
-                is_dev: false,
-                is_optional: false,
-                dependencies: vec![],
-            }],
-            dev_dependencies: vec![],
-            optional_dependencies: vec![],
-        };
-        let output = render_local_tree(&root, false);
-        assert!(output.contains("foo"));
-        assert!(output.contains("1.0.0"));
-    }
-
-    #[test]
-    fn render_local_tree_empty_returns_root_line() {
-        let root = LocalTreeRoot {
-            name: Some("lone".into()),
-            version: Some("0.0.0".into()),
-            private: Some(false),
-            path: "/nowhere".into(),
-            dependencies: vec![],
-            dev_dependencies: vec![],
-            optional_dependencies: vec![],
-        };
-        let output = render_local_tree(&root, false);
-        assert!(output.contains("lone"));
-        assert!(output.contains("nowhere"));
-    }
-
-    #[test]
-    fn render_local_json_basic() {
-        let root = LocalTreeRoot {
-            name: Some("pkg".into()),
-            version: Some("2.0.0".into()),
-            private: Some(false),
-            path: "/p".into(),
-            dependencies: vec![DepNode {
-                alias: "dep".into(),
-                name: "dep".into(),
-                version: "1.0.0".into(),
-                path: ".pnpm/dep@1.0.0/node_modules/dep".into(),
-                is_peer: false,
-                is_dev: false,
-                is_optional: false,
-                dependencies: vec![],
-            }],
-            dev_dependencies: vec![],
-            optional_dependencies: vec![],
-        };
-        let output = render_local_json(&root);
-        assert!(output.contains("pkg"));
-        assert!(output.contains("2.0.0"));
-        assert!(output.contains("dep"));
-        let parsed: Value = serde_json::from_str(&output).expect("valid json");
-        assert!(parsed.is_array());
-        assert_eq!(parsed[0]["name"], "pkg");
-    }
-
-    #[test]
-    fn render_local_json_private() {
-        let root = LocalTreeRoot {
-            name: Some("secret".into()),
-            version: None,
-            private: Some(true),
-            path: "/hidden".into(),
-            dependencies: vec![],
-            dev_dependencies: vec![],
-            optional_dependencies: vec![],
-        };
-        let output = render_local_json(&root);
-        let parsed: Value = serde_json::from_str(&output).expect("valid json");
-        assert_eq!(parsed[0]["private"], true);
-    }
-
-    #[test]
-    fn render_local_parseable_flat() {
-        let root = LocalTreeRoot {
-            name: Some("root".into()),
-            version: Some("1.0.0".into()),
-            private: Some(false),
-            path: "/r".into(),
-            dependencies: vec![DepNode {
-                alias: "a".into(),
-                name: "a".into(),
-                version: "0.1.0".into(),
-                path: ".pnpm/a@0.1.0/node_modules/a".into(),
-                is_peer: false,
-                is_dev: false,
-                is_optional: false,
-                dependencies: vec![],
-            }],
-            dev_dependencies: vec![],
-            optional_dependencies: vec![],
-        };
-        let output = render_local_parseable(&root, false);
-        let lines: Vec<&str> = output.lines().collect();
-        assert_eq!(lines[0], "/r");
-        assert!(lines[1].contains(".pnpm/a@0.1.0"));
-    }
-
-    #[test]
-    fn render_local_parseable_long() {
-        let root = LocalTreeRoot {
-            name: Some("test".into()),
-            version: Some("3.0.0".into()),
-            private: Some(false),
-            path: "/t".into(),
-            dependencies: vec![DepNode {
-                alias: "b".into(),
-                name: "b".into(),
-                version: "2.0.0".into(),
-                path: ".pnpm/b@2.0.0/node_modules/b".into(),
-                is_peer: false,
-                is_dev: false,
-                is_optional: false,
-                dependencies: vec![],
-            }],
-            dev_dependencies: vec![],
-            optional_dependencies: vec![],
-        };
-        let output = render_local_parseable(&root, true);
-        assert!(output.contains(":test@3.0.0"));
-        assert!(output.contains("b@2.0.0"));
-    }
-
-    #[test]
-    fn dep_to_json_nested() {
-        let dep = DepNode {
-            alias: "parent".into(),
-            name: "parent".into(),
-            version: "1.0.0".into(),
-            path: ".pnpm/parent@1.0.0/node_modules/parent".into(),
-            is_peer: false,
-            is_dev: false,
-            is_optional: false,
-            dependencies: vec![DepNode {
-                alias: "child".into(),
-                name: "child".into(),
-                version: "0.1.0".into(),
-                path: ".pnpm/child@0.1.0/node_modules/child".into(),
-                is_peer: false,
-                is_dev: false,
-                is_optional: false,
-                dependencies: vec![],
-            }],
-        };
-        let json = dep_to_json(&dep);
-        assert_eq!(json["from"], "parent");
-        assert_eq!(json["version"], "1.0.0");
-        assert!(json.get("dependencies").is_some());
-    }
-
-    #[test]
-    fn get_peer_set_empty_when_no_packages() {
-        let key = "pkg@1.0.0".parse::<PkgNameVerPeer>().expect("parse pkg@1.0.0");
-        let set = get_peer_set(&key, None);
-        assert!(set.is_empty());
-    }
-
-    #[test]
-    fn name_at_version_with_and_without() {
-        assert_eq!(name_at_version("pkg", ""), "pkg");
-        let with_v = name_at_version("pkg", "1.0.0");
-        assert!(with_v.starts_with("pkg"));
-    }
-
-    #[test]
-    fn print_label_alias_match() {
-        let dep = DepNode {
-            alias: "mypkg".into(),
-            name: "mypkg".into(),
-            version: "1.0.0".into(),
-            path: String::new(),
-            is_peer: false,
-            is_dev: false,
-            is_optional: false,
-            dependencies: vec![],
-        };
-        let label = print_label(&dep, &|s| s.to_string());
-        assert!(label.starts_with("mypkg"));
-        assert!(label.contains("1.0.0"));
-    }
-
-    #[test]
-    fn print_label_alias_different() {
-        let dep = DepNode {
-            alias: "my-alias".into(),
-            name: "real-name".into(),
-            version: "2.0.0".into(),
-            path: String::new(),
-            is_peer: false,
-            is_dev: false,
-            is_optional: false,
-            dependencies: vec![],
-        };
-        let label = print_label(&dep, &|s| s.to_string());
-        assert!(label.starts_with("my-alias"));
-        assert!(label.contains("real-name"));
-    }
-
-    #[test]
-    fn print_label_alias_with_version_containing_at() {
-        let dep = DepNode {
-            alias: "aliased".into(),
-            name: "target".into(),
-            version: "npm:@scope/pkg@1.0.0".into(),
-            path: String::new(),
-            is_peer: false,
-            is_dev: false,
-            is_optional: false,
-            dependencies: vec![],
-        };
-        let label = print_label(&dep, &|s| s.to_string());
-        assert!(label.starts_with("aliased"));
-        assert!(label.contains("npm:@scope/pkg@1.0.0"));
-    }
-}
+#[path = "list/tests.rs"]
+mod tests;
