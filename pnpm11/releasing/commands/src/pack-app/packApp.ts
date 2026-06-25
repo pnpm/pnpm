@@ -146,6 +146,15 @@ export async function handler (opts: PackAppOptions, params: string[]): Promise<
     throw new PnpmError('PACK_APP_MISSING_ENTRY',
       '"pnpm pack-app" requires a CJS entry file — pass --entry <path> or set "pnpm.app.entry" in package.json.')
   }
+  // `entry` may come from a repo-controlled package.json, so reject absolute
+  // paths and `..` traversal before touching the filesystem: the entry's
+  // contents get embedded into the produced executable, so an escaping path
+  // could exfiltrate a host file (e.g. an SSH key) into a distributable binary.
+  if (pathEscapesProject(entryPath)) {
+    throw new PnpmError('PACK_APP_ENTRY_OUTSIDE_PROJECT',
+      `The entry path "${entryPath}" resolves outside the project directory.`,
+      { hint: 'The entry must be a relative path inside the project directory, not an absolute path or one that escapes via "..".' })
+  }
   const resolvedEntry = path.resolve(opts.dir, entryPath)
   let entryStat: fs.Stats
   try {
@@ -156,6 +165,14 @@ export async function handler (opts: PackAppOptions, params: string[]): Promise<
   if (!entryStat.isFile()) {
     throw new PnpmError('PACK_APP_ENTRY_NOT_FILE',
       `Entry path must be a regular file: ${resolvedEntry}`)
+  }
+  // Defense in depth against a same-name symlink that points out of the
+  // project: resolve symlinks and require the real path to stay within the
+  // (also symlink-resolved) project directory.
+  if (!isWithinDir(resolvedEntry, opts.dir)) {
+    throw new PnpmError('PACK_APP_ENTRY_OUTSIDE_PROJECT',
+      `The entry path "${entryPath}" resolves outside the project directory.`,
+      { hint: 'The entry must be a relative path inside the project directory, not an absolute path or one that escapes via "..".' })
   }
 
   const cliTargets = opts.target == null
@@ -174,7 +191,15 @@ export async function handler (opts: PackAppOptions, params: string[]): Promise<
   const runtimeSpec = opts.runtime ?? project.app?.runtime ?? `node@${process.version.slice(1)}`
   const { version: requestedNodeSpec } = parseRuntime(runtimeSpec)
 
-  const outputDir = path.resolve(opts.dir, opts.outputDir ?? project.app?.outputDir ?? 'dist-app')
+  // `outputDir` is likewise repo-controllable; reject absolute paths and `..`
+  // traversal so build artifacts cannot be written outside the project directory.
+  const outputDirRaw = opts.outputDir ?? project.app?.outputDir ?? 'dist-app'
+  if (pathEscapesProject(outputDirRaw)) {
+    throw new PnpmError('PACK_APP_OUTPUT_DIR_OUTSIDE_PROJECT',
+      `The output directory "${outputDirRaw}" resolves outside the project directory.`,
+      { hint: 'The output directory must be a relative path inside the project directory, not an absolute path or one that escapes via "..".' })
+  }
+  const outputDir = path.resolve(opts.dir, outputDirRaw)
   await mkdir(outputDir, { recursive: true })
 
   const outputName = validateOutputName(opts.outputName ?? project.app?.outputName ?? deriveOutputNameFromPackage(project, opts.dir))
@@ -541,6 +566,33 @@ function deriveOutputNameFromPackage (project: ReadProjectAppConfigResult, dir: 
 
 function isObject (value: unknown): value is Record<string, unknown> {
   return value != null && typeof value === 'object' && !Array.isArray(value)
+}
+
+// `entry` and `outputDir` can come from a repo-controlled package.json, so a
+// malicious repo must not be able to read/write outside the project via an
+// absolute path or `..` traversal. An absolute path replaces the base on join;
+// a `..` segment climbs out. Checked lexically before any filesystem access so
+// the failure is fast and side-effect-free.
+function pathEscapesProject (rawPath: string): boolean {
+  if (path.isAbsolute(rawPath)) return true
+  return rawPath.split(/[/\\]/).includes('..')
+}
+
+// Defense in depth beyond `pathEscapesProject`: resolve symlinks and require
+// the real target to stay inside the (also symlink-resolved) project dir, so a
+// same-name symlink pointing out of the project is caught even though the
+// lexical join looked contained. Fails closed on any realpath error.
+function isWithinDir (target: string, dir: string): boolean {
+  let realDir: string
+  let realTarget: string
+  try {
+    realDir = fs.realpathSync(dir)
+    realTarget = fs.realpathSync(target)
+  } catch {
+    return false
+  }
+  const rel = path.relative(realDir, realTarget)
+  return rel === '' || (!rel.startsWith('..') && !path.isAbsolute(rel))
 }
 
 /**

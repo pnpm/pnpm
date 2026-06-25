@@ -21,7 +21,7 @@
 
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     process::Command,
     time::Duration,
 };
@@ -111,6 +111,30 @@ pub enum PackAppError {
     #[display("Entry path must be a regular file: {path}")]
     #[diagnostic(code(ERR_PNPM_PACK_APP_ENTRY_NOT_FILE))]
     EntryNotFile {
+        #[error(not(source))]
+        path: String,
+    },
+
+    #[display(r#"The entry path "{path}" resolves outside the project directory."#)]
+    #[diagnostic(
+        code(ERR_PNPM_PACK_APP_ENTRY_OUTSIDE_PROJECT),
+        help(
+            r#"The entry must be a relative path inside the project directory, not an absolute path or one that escapes via ".."."#
+        )
+    )]
+    EntryOutsideProject {
+        #[error(not(source))]
+        path: String,
+    },
+
+    #[display(r#"The output directory "{path}" resolves outside the project directory."#)]
+    #[diagnostic(
+        code(ERR_PNPM_PACK_APP_OUTPUT_DIR_OUTSIDE_PROJECT),
+        help(
+            r#"The output directory must be a relative path inside the project directory, not an absolute path or one that escapes via ".."."#
+        )
+    )]
+    OutputDirOutsideProject {
         #[error(not(source))]
         path: String,
     },
@@ -248,6 +272,14 @@ impl PackAppArgs {
             .or_else(|| self.params.first().cloned())
             .or_else(|| project.app.as_ref().and_then(|app| app.entry.clone()))
             .ok_or(PackAppError::MissingEntry)?;
+        // `entry` may come from a repo-controlled `package.json`, so reject
+        // absolute paths and `..` traversal before touching the filesystem:
+        // the entry's *contents* get embedded into the produced executable,
+        // so an escaping path could exfiltrate a host file (e.g. an SSH key)
+        // into a distributable binary.
+        if escapes_project(&entry_path) {
+            return Err(PackAppError::EntryOutsideProject { path: entry_path }.into());
+        }
         let resolved_entry = dir.join(&entry_path);
         let entry_meta = fs::metadata(&resolved_entry).map_err(|_| {
             PackAppError::EntryNotFound { path: resolved_entry.display().to_string() }
@@ -256,6 +288,12 @@ impl PackAppArgs {
             return Err(
                 PackAppError::EntryNotFile { path: resolved_entry.display().to_string() }.into()
             );
+        }
+        // Defense in depth against a same-name symlink that points out of the
+        // project: resolve symlinks and require the real path to stay within
+        // the (also symlink-resolved) project directory.
+        if !path_is_within(&resolved_entry, dir) {
+            return Err(PackAppError::EntryOutsideProject { path: entry_path }.into());
         }
 
         let raw_targets: Vec<String> = if self.target.is_empty() {
@@ -293,12 +331,18 @@ impl PackAppArgs {
         };
         let output_name = validate_output_name(&output_name)?;
 
-        let output_dir = dir.join(
-            self.output_dir
-                .clone()
-                .or_else(|| project.app.as_ref().and_then(|app| app.output_dir.clone()))
-                .unwrap_or_else(|| "dist-app".to_string()),
-        );
+        // `outputDir` is likewise repo-controllable; reject absolute paths
+        // and `..` traversal so build artifacts cannot be written outside the
+        // project directory.
+        let output_dir_raw = self
+            .output_dir
+            .clone()
+            .or_else(|| project.app.as_ref().and_then(|app| app.output_dir.clone()))
+            .unwrap_or_else(|| "dist-app".to_string());
+        if escapes_project(&output_dir_raw) {
+            return Err(PackAppError::OutputDirOutsideProject { path: output_dir_raw }.into());
+        }
+        let output_dir = dir.join(&output_dir_raw);
         fs::create_dir_all(&output_dir)
             .into_diagnostic()
             .wrap_err_with(|| format!("creating output directory {}", output_dir.display()))?;
@@ -553,6 +597,27 @@ fn build_http_client(config: &Config) -> miette::Result<ThrottledClient> {
     )
     .into_diagnostic()
     .wrap_err("create the network client for pack-app")
+}
+
+/// Whether a repo-controlled `entry` / `outputDir` value could escape the
+/// project directory once joined onto it: an absolute path (which replaces
+/// the base on join) or any `..` traversal component.
+fn escapes_project(raw: &str) -> bool {
+    let path = Path::new(raw);
+    path.is_absolute() || path.components().any(|component| component == Component::ParentDir)
+}
+
+/// Whether `path` resolves (symlinks included) to a location inside `base`.
+/// Both are canonicalized so a same-name symlink that points out of the
+/// project is caught even though the lexical join looked contained. A
+/// canonicalization failure is treated as "not within" (fail closed).
+fn path_is_within(path: &Path, base: &Path) -> bool {
+    let (Ok(canonical_path), Ok(canonical_base)) =
+        (dunce::canonicalize(path), dunce::canonicalize(base))
+    else {
+        return false;
+    };
+    canonical_path.starts_with(&canonical_base)
 }
 
 fn parse_target(raw: &str) -> Result<ParsedTarget, PackAppError> {

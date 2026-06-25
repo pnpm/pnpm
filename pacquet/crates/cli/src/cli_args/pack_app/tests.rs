@@ -100,6 +100,37 @@ fn reads_targets_from_pnpm_app_targets_when_target_is_omitted() {
 }
 
 #[test]
+fn rejects_entry_that_escapes_the_project() {
+    for entry in ["../outside.cjs", "../../etc/passwd", "/etc/passwd", "sub/../../escape.cjs"] {
+        let dir = TempDir::new().unwrap();
+        let code = run_and_get_code(&dir, PackAppArgs { entry: Some(entry.to_string()), ..args() });
+        assert_eq!(code, "ERR_PNPM_PACK_APP_ENTRY_OUTSIDE_PROJECT", "entry: {entry}");
+    }
+}
+
+#[test]
+fn rejects_output_dir_that_escapes_the_project() {
+    for output_dir in ["../pwn", "../../tmp/pwn", "/tmp/pwn", "sub/../../pwn"] {
+        let dir = TempDir::new().unwrap();
+        fs::write(dir.path().join("entry.cjs"), "module.exports = {}").unwrap();
+        let code = run_and_get_code(
+            &dir,
+            PackAppArgs {
+                entry: Some("entry.cjs".to_string()),
+                target: vec!["linux-x64".to_string()],
+                output_name: Some("app".to_string()),
+                output_dir: Some(output_dir.to_string()),
+                ..args()
+            },
+        );
+        assert_eq!(
+            code, "ERR_PNPM_PACK_APP_OUTPUT_DIR_OUTSIDE_PROJECT",
+            "output_dir: {output_dir}",
+        );
+    }
+}
+
+#[test]
 fn rejects_unknown_keys_in_pnpm_app() {
     let dir = TempDir::new().unwrap();
     fs::write(
