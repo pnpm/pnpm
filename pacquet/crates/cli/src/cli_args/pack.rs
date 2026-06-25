@@ -1,7 +1,7 @@
 //! `pacquet pack` — create a tarball from a package.
 //!
 //! Ports pnpm's
-//! [`pack` command](https://github.com/pnpm/pnpm/blob/cab1c11c69/releasing/commands/src/publish/pack.ts).
+//! [`pack` command](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/pack.ts).
 //! The single-project work lives in [`pacquet_pack::api`]; this module
 //! maps the resolved [`Config`] and CLI flags onto
 //! [`pacquet_pack::PackOptions`], and drives the recursive (`-r`) sweep
