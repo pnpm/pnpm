@@ -1088,14 +1088,18 @@ fn filter_ignored_advisories(
         .audit_config
         .ignore_ghsas
         .iter()
-        .map(|ghsa| normalize_ghsa_id(ghsa))
+        .filter_map(|ghsa| {
+            let ghsa_id = normalize_ghsa_id(ghsa);
+            (!ghsa_id.is_empty()).then_some(ghsa_id)
+        })
         .collect::<HashSet<_>>();
     if ignore_set.is_empty() {
         return AuditVulnerabilityCounts::default();
     }
     let mut ignored = AuditVulnerabilityCounts::default();
     report.advisories.retain(|_, advisory| {
-        if !ignore_set.contains(&normalize_ghsa_id(&advisory.github_advisory_id)) {
+        let ghsa_id = normalize_ghsa_id(&advisory.github_advisory_id);
+        if ghsa_id.is_empty() || !ignore_set.contains(&ghsa_id) {
             return true;
         }
         ignored.increment(advisory.severity);

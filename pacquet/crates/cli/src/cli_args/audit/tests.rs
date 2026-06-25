@@ -194,6 +194,41 @@ fn render_json_filters_by_audit_level_after_ignores() {
 }
 
 #[test]
+fn filter_ignored_advisories_does_not_match_blank_ghsa_ids() {
+    let mut report = AuditReport {
+        advisories: BTreeMap::from([
+            ("1".to_string(), advisory(1, "missing ghsa", ConfigAuditLevel::High, "")),
+            (
+                "2".to_string(),
+                advisory(2, "ignored ghsa", ConfigAuditLevel::High, "GHSA-high-3333-4444"),
+            ),
+        ]),
+        metadata: AuditMetadata {
+            vulnerabilities: AuditVulnerabilityCounts {
+                info: 0,
+                low: 0,
+                moderate: 0,
+                high: 2,
+                critical: 0,
+            },
+            dependencies: 2,
+            dev_dependencies: 0,
+            optional_dependencies: 0,
+            total_dependencies: 2,
+        },
+    };
+    let mut config = Config::default();
+    config.audit_config.ignore_ghsas =
+        vec![String::new(), "  ".to_string(), "ghsa-HIGH-3333-4444".to_string()];
+
+    let ignored = filter_ignored_advisories(&mut report, &config);
+
+    assert_eq!(ignored.high, 1);
+    assert!(report.advisories.contains_key("1"));
+    assert!(!report.advisories.contains_key("2"));
+}
+
+#[test]
 fn text_report_separates_advisory_table_from_summary() {
     let report = AuditReport {
         advisories: BTreeMap::from([(
