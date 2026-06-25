@@ -229,7 +229,7 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
     // probe is handled by `wanted_lockfile_modified` below.
     if !is_workspace_install
         && !workspace_root.join(Lockfile::FILE_NAME).exists()
-        && !config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME).exists()
+        && !current_lockfile_file_has_content(&config.virtual_store_dir)
     {
         return Decision::Skipped { reason: "wanted lockfile missing" };
     }
@@ -275,7 +275,7 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
     let lockfile_modified =
         wanted_lockfile_modified(workspace_root, state.last_validated_timestamp);
 
-    match current_lockfile_missing_with_non_empty_wanted(check) {
+    match current_lockfile_unusable_with_non_empty_wanted(check) {
         Ok(true) => return Decision::Skipped { reason: "current lockfile missing" },
         Ok(false) => {}
         Err(reason) => return Decision::Skipped { reason },
@@ -609,7 +609,7 @@ fn modified_manifests_match_lockfile(
             // "The manifest file is not newer than the lockfile.
             // Exiting check."
             &[]
-        } else if wanted.packages.as_ref().is_some_and(|packages| !packages.is_empty()) {
+        } else if !wanted.is_empty() {
             // RUN_CHECK_DEPS_NO_DEPS: the lockfile requires
             // dependencies but nothing was ever installed.
             return Err("the lockfile requires dependencies but none were installed");
@@ -910,13 +910,13 @@ fn wanted_lockfile_modified(workspace_root: &Path, last_validated_timestamp: i64
         .is_some_and(|mtime| mtime > last_validated_timestamp)
 }
 
-fn current_lockfile_missing_with_non_empty_wanted(
+fn current_lockfile_unusable_with_non_empty_wanted(
     check: &OptimisticRepeatInstallCheck<'_>,
 ) -> Result<bool, &'static str> {
     if check.is_workspace_install || !check.config.lockfile {
         return Ok(false);
     }
-    if check.config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME).exists() {
+    if current_lockfile_file_has_content(&check.config.virtual_store_dir) {
         return Ok(false);
     }
     let Some(wanted) =
@@ -924,7 +924,12 @@ fn current_lockfile_missing_with_non_empty_wanted(
     else {
         return Ok(false);
     };
-    Ok(wanted.packages.as_ref().is_some_and(|packages| !packages.is_empty()))
+    Ok(!wanted.is_empty())
+}
+
+fn current_lockfile_file_has_content(virtual_store_dir: &Path) -> bool {
+    fs::metadata(virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME))
+        .is_ok_and(|metadata| metadata.is_file() && metadata.len() > 0)
 }
 
 /// Compare today's settings against what the previous install
