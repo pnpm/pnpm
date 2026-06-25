@@ -152,6 +152,12 @@ pub enum ConfigError {
     #[display("The global config directory could not be determined")]
     #[diagnostic(code(ERR_PNPM_CONFIG_NO_GLOBAL_DIR))]
     NoGlobalConfigDir,
+
+    #[display(
+        "Cannot write {value:?} to an INI config file: it contains a control character that would corrupt the file"
+    )]
+    #[diagnostic(code(pacquet_cli::config_set_invalid_control_character))]
+    SetIniControlCharacter { value: String },
 }
 
 impl ConfigArgs {
@@ -291,12 +297,26 @@ fn write_ini_setting(config_path: &Path, key: &str, value: &Value) -> miette::Re
             return Ok(());
         }
     } else {
-        settings.insert(key.to_string(), ini_value_string(value));
+        let value_string = ini_value_string(value);
+        // A control character (notably a newline) in the value would split into
+        // extra `key=value` lines when the INI file is re-parsed, injecting
+        // settings the user never set. Refuse rather than corrupt the file.
+        if has_control_char(key) || has_control_char(&value_string) {
+            return Err(ConfigError::SetIniControlCharacter { value: value_string }.into());
+        }
+        settings.insert(key.to_string(), value_string);
     }
     ini::write(config_path, &settings)
         .map_err(miette::Report::msg)
         .map_err(|err| err.wrap_err(format!("writing {}", config_path.display())))?;
     Ok(())
+}
+
+/// Whether `text` holds a control character. The INI writer splices `text`
+/// into a single `key=value` line, so a control character would corrupt the
+/// file; the values `config set` writes never legitimately contain one.
+fn has_control_char(text: &str) -> bool {
+    text.chars().any(char::is_control)
 }
 
 /// Render a JSON value as its INI string form. Auth values are strings; the

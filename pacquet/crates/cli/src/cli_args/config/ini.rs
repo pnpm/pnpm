@@ -58,6 +58,17 @@ pub fn write(path: &Path, settings: &IndexMap<String, String>) -> io::Result<()>
     let mut tmp = tempfile::NamedTempFile::new_in(dir)?;
     tmp.write_all(contents.as_bytes())?;
     tmp.as_file().sync_all()?;
+    // `NamedTempFile` creates with mode 0600 on Unix; persisting it over an
+    // existing file would silently tighten that file's permissions. Carry the
+    // target's existing mode across the rename so rewriting a project `.npmrc`
+    // preserves it (pnpm's `write-ini-file` keeps the target's mode too). New
+    // files keep the conservative 0600 default — they may hold credentials.
+    #[cfg(unix)]
+    if let Ok(metadata) = fs::metadata(path) {
+        use std::os::unix::fs::PermissionsExt as _;
+        let mode = metadata.permissions().mode();
+        tmp.as_file().set_permissions(std::fs::Permissions::from_mode(mode))?;
+    }
     tmp.persist(path).map_err(|err| err.error)?;
     Ok(())
 }

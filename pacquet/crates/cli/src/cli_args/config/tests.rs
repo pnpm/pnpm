@@ -522,3 +522,51 @@ fn list_includes_settings_and_censors_protected() {
     let got_value: Value = serde_json::from_str(&got).unwrap();
     assert_eq!(got_value["storeDir"], json!("~/store"));
 }
+
+// --- security hardening for the INI write path -----------------------------
+
+#[test]
+fn set_ini_value_with_control_char_is_rejected() {
+    let tmp = TempDir::new().unwrap();
+    let config = config_with_dir(&tmp.path().join("global-config"));
+
+    let err = config_set(
+        &config,
+        tmp.path(),
+        flags(false, Some(ConfigLocation::Project), false),
+        "//registry.example.com/:_authToken",
+        Some("token\ninjected=evil".to_string()),
+    )
+    .unwrap_err();
+
+    assert_eq!(
+        err.code().unwrap().to_string(),
+        "pacquet_cli::config_set_invalid_control_character",
+    );
+    // The file must not have been written.
+    assert!(!tmp.path().join(".npmrc").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn set_preserves_existing_npmrc_mode() {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let tmp = TempDir::new().unwrap();
+    let npmrc = tmp.path().join(".npmrc");
+    std::fs::write(&npmrc, "@local:registry=https://localhost/\n").unwrap();
+    std::fs::set_permissions(&npmrc, std::fs::Permissions::from_mode(0o644)).unwrap();
+
+    let config = config_with_dir(&tmp.path().join("global-config"));
+    config_set(
+        &config,
+        tmp.path(),
+        flags(false, Some(ConfigLocation::Project), false),
+        "registry",
+        Some("https://example.com/".to_string()),
+    )
+    .unwrap();
+
+    let mode = std::fs::metadata(&npmrc).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode, 0o644, "existing .npmrc mode must be preserved, got {mode:o}");
+}
