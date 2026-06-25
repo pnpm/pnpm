@@ -154,7 +154,7 @@ fn resolve_entry(
                 return Err(DirectoryFetcherError::Io { dir: real.display().to_string(), source });
             }
         };
-        let path = if resolve_symlinks { real } else { path.to_path_buf() };
+        let path = real;
         return Ok(Some(ResolvedEntry { path, metadata: real_meta }));
     }
     if resolve_symlinks {
@@ -219,19 +219,21 @@ fn resolve_entry(
     }
 }
 
-pub(crate) fn ensure_paths_stay_in_directory(
+pub(crate) fn resolve_paths_in_directory(
     directory: &Path,
-    files_map: &FilesMap,
+    files_map: &mut FilesMap,
 ) -> Result<(), DirectoryFetcherError> {
     let root = canonicalize_path(directory)?;
-    for path in files_map.values() {
-        let resolved = canonicalize_path(path)?;
+    for path in files_map.values_mut() {
+        let original = path.clone();
+        let resolved = canonicalize_path(&original)?;
         if !resolved.starts_with(&root) {
             return Err(DirectoryFetcherError::PathOutsideDirectory {
-                path: path.clone(),
+                path: original,
                 directory: root,
             });
         }
+        *path = resolved;
     }
     Ok(())
 }

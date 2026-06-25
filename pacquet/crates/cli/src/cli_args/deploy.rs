@@ -106,6 +106,14 @@ enum DeployError {
     #[display("The selected project is missing from pnpm-lock.yaml: {project_id}")]
     #[diagnostic(code(ERR_PNPM_CANNOT_DEPLOY))]
     MissingImporter { project_id: String },
+
+    #[display(
+        "Refusing to deploy unsafe lockfile path {}: path resolves outside workspace {}",
+        path.display(),
+        workspace_dir.display()
+    )]
+    #[diagnostic(code(ERR_PNPM_CANNOT_DEPLOY))]
+    UnsafeLockfilePath { path: PathBuf, workspace_dir: PathBuf },
 }
 
 #[derive(Clone, Copy)]
@@ -741,7 +749,8 @@ fn create_deploy_files(
         .importers
         .get(project_id)
         .ok_or_else(|| DeployError::MissingImporter { project_id: project_id.to_string() })?;
-    let deployed_project_root = lexical_normalize(&lockfile_dir.join(project_id));
+    let deployed_project_root =
+        validate_lockfile_local_path(&lockfile_dir.join(project_id), lockfile_dir)?;
     let ctx = ConvertCtx {
         all_projects: &selected.all_projects,
         deploy_dir,
@@ -786,7 +795,8 @@ fn create_deploy_files(
         if importer_path == project_id {
             continue;
         }
-        let project_root = lexical_normalize(&lockfile_dir.join(importer_path));
+        let project_root =
+            validate_lockfile_local_path(&lockfile_dir.join(importer_path), lockfile_dir)?;
         let package_key = create_file_url_key(&project_root, "", &selected.all_projects)?;
         packages.insert(
             package_key,
@@ -820,7 +830,8 @@ fn create_deploy_files(
         if importer_path == project_id {
             continue;
         }
-        let project_root = lexical_normalize(&lockfile_dir.join(importer_path));
+        let project_root =
+            validate_lockfile_local_path(&lockfile_dir.join(importer_path), lockfile_dir)?;
         let bases = ResolveBases { file_base: lockfile_dir, link_base: &project_root };
         let package_key = create_file_url_key(&project_root, "", &selected.all_projects)?;
         snapshots.insert(
@@ -933,14 +944,18 @@ fn convert_package_metadata(
     let mut metadata = metadata.clone();
     metadata.resolution = match &metadata.resolution {
         LockfileResolution::Directory(resolution) => {
-            let resolved = lexical_normalize(&ctx.lockfile_dir.join(&resolution.directory));
+            let resolved = validate_lockfile_local_path(
+                &ctx.lockfile_dir.join(&resolution.directory),
+                ctx.lockfile_dir,
+            )?;
             LockfileResolution::Directory(DirectoryResolution {
                 directory: relative_path(ctx.deploy_dir, &resolved),
             })
         }
         LockfileResolution::Tarball(resolution) if resolution.tarball.starts_with("file:") => {
             let input_path = resolution.tarball.trim_start_matches("file:");
-            let resolved = lexical_normalize(&ctx.lockfile_dir.join(input_path));
+            let resolved =
+                validate_lockfile_local_path(&ctx.lockfile_dir.join(input_path), ctx.lockfile_dir)?;
             LockfileResolution::Tarball(TarballResolution {
                 tarball: format!("file:{}", relative_path(ctx.deploy_dir, &resolved)),
                 integrity: resolution.integrity.clone(),
@@ -1144,10 +1159,11 @@ fn local_to_importer_dep_version(
     local: &LocalResolve,
     ctx: &ConvertCtx,
 ) -> miette::Result<ImporterDepVersion> {
-    if same_path(&local.resolved_path, ctx.deployed_project_root) {
+    let resolved_path = validate_lockfile_local_path(&local.resolved_path, ctx.lockfile_dir)?;
+    if same_path(&resolved_path, ctx.deployed_project_root) {
         return Ok(ImporterDepVersion::Link(".".to_string()));
     }
-    let key = create_file_url_key(&local.resolved_path, &local.suffix, ctx.all_projects)?;
+    let key = create_file_url_key(&resolved_path, &local.suffix, ctx.all_projects)?;
     Ok(ImporterDepVersion::Alias(key))
 }
 
@@ -1155,20 +1171,26 @@ fn local_to_snapshot_dep_ref(
     local: &LocalResolve,
     ctx: &ConvertCtx,
 ) -> miette::Result<SnapshotDepRef> {
-    if same_path(&local.resolved_path, ctx.deployed_project_root) {
+    let resolved_path = validate_lockfile_local_path(&local.resolved_path, ctx.lockfile_dir)?;
+    if same_path(&resolved_path, ctx.deployed_project_root) {
         return Ok(SnapshotDepRef::Link(".".to_string()));
     }
-    Ok(SnapshotDepRef::Alias(create_file_url_key(
-        &local.resolved_path,
-        &local.suffix,
-        ctx.all_projects,
-    )?))
+    Ok(SnapshotDepRef::Alias(create_file_url_key(&resolved_path, &local.suffix, ctx.all_projects)?))
 }
 
 fn convert_package_key(key: &PackageKey, ctx: &ConvertCtx) -> miette::Result<PackageKey> {
     let VersionPart::File(path) = key.suffix.version() else { return Ok(key.clone()) };
-    let resolved = lexical_normalize(&ctx.lockfile_dir.join(path));
+    let resolved = validate_lockfile_local_path(&ctx.lockfile_dir.join(path), ctx.lockfile_dir)?;
     create_file_url_key(&resolved, key.suffix.peer(), ctx.all_projects)
+}
+
+fn validate_lockfile_local_path(path: &Path, lockfile_dir: &Path) -> miette::Result<PathBuf> {
+    let normalized = lexical_normalize(path);
+    let workspace_dir = lexical_normalize(lockfile_dir);
+    if same_path(&normalized, &workspace_dir) || is_child_path(&normalized, &workspace_dir) {
+        return Ok(normalized);
+    }
+    Err(DeployError::UnsafeLockfilePath { path: normalized, workspace_dir }.into())
 }
 
 fn create_file_url_key(

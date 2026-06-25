@@ -1,4 +1,4 @@
-use super::{create_deploy_install_config, split_local_payload};
+use super::{create_deploy_install_config, split_local_payload, validate_lockfile_local_path};
 use pacquet_config::{Config, NodeLinker};
 use std::path::Path;
 
@@ -34,6 +34,19 @@ fn hoisted_deploy_install_config_preserves_lockfile_setting() {
     base_config.lockfile = false;
     let deploy_config = create_deploy_install_config(&base_config, deploy_dir, NodeLinker::Hoisted);
     assert!(!deploy_config.lockfile);
+}
+
+#[test]
+fn lockfile_local_path_rejects_workspace_escape() {
+    let workspace = Path::new("workspace");
+    assert!(
+        validate_lockfile_local_path(&workspace.join("packages/app"), workspace).is_ok(),
+        "workspace children should be valid lockfile local paths",
+    );
+
+    let err = validate_lockfile_local_path(&workspace.join("../outside"), workspace)
+        .expect_err("parent traversal should be rejected");
+    assert!(err.to_string().contains("outside workspace"), "unexpected error: {err}");
 }
 
 #[cfg(windows)]

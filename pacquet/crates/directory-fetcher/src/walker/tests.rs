@@ -188,6 +188,21 @@ fn walk_all_files_rejects_symlink_escape_when_confined() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn walk_all_files_rewrites_confined_symlink_sources_to_real_paths() {
+    use std::os::unix::fs::symlink;
+
+    let dir = tempdir().unwrap();
+    let root = dir.path();
+    touch(root, "real.txt");
+    symlink(root.join("real.txt"), root.join("link.txt")).unwrap();
+
+    let out = walk_all_files(root, false, false).unwrap();
+    let src = out.get("link.txt").expect("link.txt entry");
+    assert_eq!(src, &fs::canonicalize(root.join("real.txt")).unwrap());
+}
+
 #[test]
 fn walk_package_files_applies_npm_packlist_filter() {
     let dir = tempdir().unwrap();
