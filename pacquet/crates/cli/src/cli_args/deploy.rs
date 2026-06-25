@@ -488,7 +488,34 @@ fn validate_deploy_target(
     if force && !is_child_path(&deploy_dir, &workspace_dir) {
         return unsafe_deploy_target(&deploy_dir, "target is outside the workspace");
     }
+    if is_child_path(&deploy_dir, &workspace_dir) {
+        validate_workspace_child_target_components(&workspace_dir, &deploy_dir)?;
+    }
 
+    Ok(())
+}
+
+fn validate_workspace_child_target_components(
+    workspace_dir: &Path,
+    deploy_dir: &Path,
+) -> miette::Result<()> {
+    let relative = deploy_dir.strip_prefix(workspace_dir).into_diagnostic()?;
+    let mut current = workspace_dir.to_path_buf();
+    for component in relative.components() {
+        current.push(component.as_os_str());
+        let metadata = match fs::symlink_metadata(&current) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
+            Err(error) => {
+                return Err(error)
+                    .into_diagnostic()
+                    .wrap_err_with(|| format!("inspect deploy target {}", current.display()));
+            }
+        };
+        if metadata.file_type().is_symlink() {
+            return unsafe_deploy_target(&current, "target path contains a symlink");
+        }
+    }
     Ok(())
 }
 

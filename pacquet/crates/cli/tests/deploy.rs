@@ -161,6 +161,37 @@ fn deploy_all_files_rejects_symlink_escape() {
     drop((root, mock_instance));
 }
 
+#[cfg(unix)]
+#[test]
+fn deploy_rejects_symlinked_target_parent() {
+    use std::os::unix::fs::symlink;
+
+    let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
+        CommandTempCwd::init().add_mocked_registry();
+    let AddMockedRegistry { mock_instance, .. } = npmrc_info;
+    write_workspace(&workspace, false);
+    let outside = root.path().join("outside-target");
+    fs::create_dir_all(&outside).unwrap();
+    symlink(&outside, workspace.join("out")).unwrap();
+
+    let output = pacquet
+        .with_args(["--filter", "app", "deploy", "--legacy", "--force", "out/deploy"])
+        .output()
+        .expect("run pacquet deploy");
+    assert!(!output.status.success());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_INVALID_DEPLOY_TARGET") && stderr.contains("contains a symlink"),
+        "unexpected stderr:\n{stderr}",
+    );
+    assert!(
+        !outside.join("deploy").exists(),
+        "deploy must not create output through a symlinked target parent",
+    );
+
+    drop((root, mock_instance));
+}
+
 #[test]
 fn legacy_deploy_installs_selected_project() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =

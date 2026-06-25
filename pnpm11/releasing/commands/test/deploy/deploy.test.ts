@@ -24,6 +24,7 @@ jest.unstable_mockModule('@pnpm/logger', () => {
 })
 const { globalWarn } = await import('@pnpm/logger')
 const { deploy } = await import('@pnpm/releasing.commands')
+const testOnNonWindows = process.platform === 'win32' ? test.skip : test
 
 beforeEach(async () => {
   jest.mocked(globalWarn).mockClear()
@@ -401,6 +402,76 @@ test('forced deploy succeeds with a warning when destination directory exists an
   expect(fs.existsSync('pnpm-lock.yaml')).toBeFalsy() // no changes to the lockfile are written
 
   warn.mockRestore()
+})
+
+test('forced deploy rejects target outside the workspace', async () => {
+  preparePackages([
+    {
+      name: 'project',
+      version: '1.0.0',
+      files: ['index.js'],
+      dependencies: {},
+      devDependencies: {},
+    },
+  ])
+  fs.writeFileSync('project/index.js', '', 'utf8')
+  const outside = path.resolve('..', 'outside-deploy')
+  fs.mkdirSync(outside, { recursive: true })
+  fs.writeFileSync(path.join(outside, 'keep.txt'), 'keep', 'utf8')
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project' }])
+
+  await expect(() =>
+    deploy.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      dir: process.cwd(),
+      dev: false,
+      force: true,
+      production: true,
+      recursive: true,
+      selectedProjectsGraph,
+      sharedWorkspaceLockfile: true,
+      lockfileDir: process.cwd(),
+      workspaceDir: process.cwd(),
+    }, [outside])).rejects.toThrow(`Refusing to deploy to unsafe target ${outside}: target is outside the workspace`)
+
+  expect(fs.readFileSync(path.join(outside, 'keep.txt'), 'utf8')).toBe('keep')
+})
+
+testOnNonWindows('deploy rejects symlinked target parent', async () => {
+  preparePackages([
+    {
+      name: 'project',
+      version: '1.0.0',
+      files: ['index.js'],
+      dependencies: {},
+      devDependencies: {},
+    },
+  ])
+  fs.writeFileSync('project/index.js', '', 'utf8')
+  const outside = path.resolve('..', 'outside-target')
+  fs.mkdirSync(outside, { recursive: true })
+  fs.symlinkSync(outside, 'out', 'dir')
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project' }])
+
+  await expect(() =>
+    deploy.handler({
+      ...DEFAULT_OPTS,
+      allProjects,
+      dir: process.cwd(),
+      dev: false,
+      force: true,
+      production: true,
+      recursive: true,
+      selectedProjectsGraph,
+      sharedWorkspaceLockfile: true,
+      lockfileDir: process.cwd(),
+      workspaceDir: process.cwd(),
+    }, ['out/deploy'])).rejects.toThrow(`Refusing to deploy to unsafe target ${path.resolve('out')}: target path contains a symlink`)
+
+  expect(fs.existsSync(path.join(outside, 'deploy'))).toBeFalsy()
 })
 
 test('deploy with dedupePeerDependents=true ignores the value of dedupePeerDependents', async () => {
