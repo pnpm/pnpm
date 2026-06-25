@@ -530,6 +530,11 @@ pub enum LoadWorkspaceYamlError {
         #[error(source)]
         source: Box<serde_saphyr::Error>,
     },
+    #[display("Invalid `_auth` setting: {source}")]
+    InvalidJsonAuth {
+        #[error(source)]
+        source: serde_json::Error,
+    },
 }
 
 impl WorkspaceSettings {

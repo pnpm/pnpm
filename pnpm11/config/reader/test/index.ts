@@ -1281,33 +1281,20 @@ test('host-keyed pnpm_config__auth supports scoped tokens on a shared host', asy
 
 test('host-keyed pnpm_config__auth rejects deprecated basic-auth fields', async () => {
   prepareEmpty()
-  const basicAuth = Buffer.from('user:pass').toString('base64')
-  const password = Buffer.from('pass').toString('base64')
 
-  const { config, warnings } = await getConfig({
+  // Only `authToken` is supported; a deprecated field is a hard error.
+  await expect(getConfig({
     cliOptions: {},
     env: {
       ...env,
       pnpm_config__auth: JSON.stringify({
         'https://json-test.example': {
-          '@': {
-            basicAuth,
-            username: 'user',
-            password,
-          },
+          '@': { basicAuth: 'any-value' },
         },
       }),
     },
     packageManager: { name: 'pnpm', version: '1.0.0' },
-  })
-
-  // Only `authToken` is supported; the deprecated forms are dropped with a warning.
-  expect(config.authConfig['//json-test.example/:_auth']).toBeUndefined()
-  expect(config.authConfig['//json-test.example/:username']).toBeUndefined()
-  expect(config.authConfig['//json-test.example/:_password']).toBeUndefined()
-  for (const field of ['basicAuth', 'username', 'password']) {
-    expect(warnings.some(w => w.includes(field) && w.includes('only "authToken" is supported'))).toBe(true)
-  }
+  })).rejects.toThrow('only "authToken" is supported')
 })
 
 test('pnpm_config__auth token overrides a project .npmrc token for the same host', async () => {
@@ -1380,198 +1367,87 @@ test('repo registry config cannot redirect pnpm_config__auth tokens', async () =
   expect(config.authConfig['//registry.npmjs.org/:@victim-scope:_authToken']).toBe('secret-token')
 })
 
-test('host entry that is not a scope object is rejected with a warning', async () => {
+async function expectAuthError (auth: unknown): Promise<Error> {
+  let error: Error | undefined
+  try {
+    await getConfig({
+      cliOptions: {},
+      env: { ...env, pnpm_config__auth: typeof auth === 'string' ? auth : JSON.stringify(auth) },
+      packageManager: { name: 'pnpm', version: '1.0.0' },
+    })
+  } catch (err: unknown) {
+    error = err as Error
+  }
+  expect(error).toBeDefined()
+  return error!
+}
+
+test('host entry that is not a scope object aborts the load', async () => {
   prepareEmpty()
-
-  const { warnings } = await getConfig({
-    cliOptions: {},
-    env: {
-      ...env,
-      pnpm_config__auth: JSON.stringify({
-        'https://json-test.example': 123,
-      }),
-    },
-    packageManager: { name: 'pnpm', version: '1.0.0' },
-  })
-
-  expect(warnings.some(w => w.includes('entry 1 (https://json-test.example)') && w.includes('object keyed by scope'))).toBe(true)
+  const error = await expectAuthError({ 'https://json-test.example': 123 })
+  expect(error.message).toContain('object keyed by scope')
 })
 
-test('pnpm_config__auth invalid registry URL key is rejected with a warning', async () => {
+test('pnpm_config__auth invalid registry URL key aborts the load without leaking the key', async () => {
   prepareEmpty()
-
-  const { config, warnings } = await getConfig({
-    cliOptions: {},
-    env: {
-      ...env,
-      pnpm_config__auth: JSON.stringify({
-        'not a url': {
-          '@': { authToken: 'token' },
-        },
-      }),
-    },
-    packageManager: { name: 'pnpm', version: '1.0.0' },
-  })
-
-  expect(Object.values(config.authConfig).filter(v => v === 'token')).toHaveLength(0)
-  expect(warnings.some(w => w.includes('entry 1') && w.includes('registry URL'))).toBe(true)
-  expect(warnings.some(w => w.includes('not a url'))).toBe(false)
+  const error = await expectAuthError({ 'not a url': { '@': { authToken: 'token' } } })
+  expect(error.message).toContain('registry URL')
+  expect(error.message).not.toContain('not a url')
 })
 
-test('pnpm_config__auth registry URL with credentials or query is rejected without leaking secrets', async () => {
+test('pnpm_config__auth registry URL with credentials or query aborts the load without leaking secrets', async () => {
   prepareEmpty()
-
-  const { config, warnings } = await getConfig({
-    cliOptions: {},
-    env: {
-      ...env,
-      pnpm_config__auth: JSON.stringify({
-        'https://user:secret-password@json-test.example?token=leaky-token#fragment': {
-          '@': { authToken: 'token' },
-        },
-      }),
+  const error = await expectAuthError({
+    'https://user:secret-password@json-test.example?token=leaky-token#fragment': {
+      '@': { authToken: 'token' },
     },
-    packageManager: { name: 'pnpm', version: '1.0.0' },
   })
-
-  expect(config.authConfig['//json-test.example/:_authToken']).toBeUndefined()
-  expect(config.registries.default).toBe('https://registry.npmjs.org/')
-  const warning = warnings.find(w => w.includes('credentials, query, or fragment'))
-  expect(warning).toContain('entry 1 (https://json-test.example)')
-  expect(warning).not.toContain('secret-password')
-  expect(warning).not.toContain('leaky-token')
+  expect(error.message).toContain('must not include credentials, query, or fragment')
+  expect(error.message).not.toContain('secret-password')
+  expect(error.message).not.toContain('leaky-token')
 })
 
-test('pnpm_config__auth invalid scope name is rejected with a warning', async () => {
+test('pnpm_config__auth invalid scope name aborts the load', async () => {
   prepareEmpty()
-
-  const { warnings } = await getConfig({
-    cliOptions: {},
-    env: {
-      ...env,
-      pnpm_config__auth: JSON.stringify({
-        'https://json-test.example': {
-          org: { authToken: 'token' },
-        },
-      }),
-    },
-    packageManager: { name: 'pnpm', version: '1.0.0' },
-  })
-
-  expect(warnings.some(w => w.includes('org') && w.includes('scope must be'))).toBe(true)
+  const error = await expectAuthError({ 'https://json-test.example': { org: { authToken: 'token' } } })
+  expect(error.message).toContain('scope must be')
 })
 
-test('pnpm_config__auth scope value that is not an auth object is rejected with a warning', async () => {
+test('pnpm_config__auth scope value that is not an auth object aborts the load', async () => {
   prepareEmpty()
-
-  const { config, warnings } = await getConfig({
-    cliOptions: {},
-    env: {
-      ...env,
-      pnpm_config__auth: JSON.stringify({
-        'https://json-test.example': {
-          '@': 'token',
-        },
-      }),
-    },
-    packageManager: { name: 'pnpm', version: '1.0.0' },
-  })
-
-  expect(config.authConfig['//json-test.example/:_authToken']).toBeUndefined()
-  expect(warnings.some(w => w.includes('entry 1 (https://json-test.example)') && w.includes('value must be an auth object'))).toBe(true)
+  const error = await expectAuthError({ 'https://json-test.example': { '@': 'token' } })
+  expect(error.message).toContain('must be an auth object')
 })
 
-test('pnpm_config__auth non-string auth field value warns and is dropped', async () => {
+test('pnpm_config__auth non-string auth token aborts the load', async () => {
   prepareEmpty()
-
-  const { config, warnings } = await getConfig({
-    cliOptions: {},
-    env: {
-      ...env,
-      pnpm_config__auth: JSON.stringify({
-        'https://json-test.example': {
-          '@': { authToken: 123 },
-        },
-      }),
-    },
-    packageManager: { name: 'pnpm', version: '1.0.0' },
-  })
-
-  expect(config.authConfig['//json-test.example/:_authToken']).toBeUndefined()
-  expect(warnings.some(w => w.includes('authToken') && w.includes('must be a string'))).toBe(true)
+  const error = await expectAuthError({ 'https://json-test.example': { '@': { authToken: 123 } } })
+  expect(error.message).toContain('"authToken" must be a string')
 })
 
-test('pnpm_config__auth unsupported auth field warns and is dropped', async () => {
+test('pnpm_config__auth unsupported auth field aborts the load', async () => {
   prepareEmpty()
-
-  const { config, warnings } = await getConfig({
-    cliOptions: {},
-    env: {
-      ...env,
-      pnpm_config__auth: JSON.stringify({
-        'https://json-test.example': {
-          '@': { tokenHelper: '/bin/echo' },
-        },
-      }),
-    },
-    packageManager: { name: 'pnpm', version: '1.0.0' },
-  })
-
-  expect(config.authConfig['//json-test.example/:tokenHelper']).toBeUndefined()
-  expect(warnings.some(w => w.includes('tokenHelper') && w.includes('unsupported'))).toBe(true)
+  const error = await expectAuthError({ 'https://json-test.example': { '@': { tokenHelper: '/bin/echo' } } })
+  expect(error.message).toContain('only "authToken" is supported')
 })
 
-test('pnpm_config__auth inherited property names like toString are rejected', async () => {
+test('pnpm_config__auth own property names like toString are rejected', async () => {
   prepareEmpty()
-
-  const { config, warnings } = await getConfig({
-    cliOptions: {},
-    env: {
-      ...env,
-      pnpm_config__auth: JSON.stringify({
-        'https://json-test.example': {
-          '@': { toString: 'sneaky-token' },
-        },
-      }),
-    },
-    packageManager: { name: 'pnpm', version: '1.0.0' },
-  })
-
-  expect(config.authConfig['//json-test.example/:_authToken']).toBeUndefined()
-  expect(warnings.some(w => w.includes('toString') && w.includes('unsupported'))).toBe(true)
+  const error = await expectAuthError({ 'https://json-test.example': { '@': { toString: 'sneaky-token' } } })
+  expect(error.message).toContain('only "authToken" is supported')
 })
 
-test('malformed pnpm_config__auth JSON produces a warning and does not crash', async () => {
+test('malformed pnpm_config__auth JSON aborts the load', async () => {
   prepareEmpty()
-
-  const { config, warnings } = await getConfig({
-    cliOptions: {},
-    env: {
-      ...env,
-      pnpm_config__auth: '{ not valid json',
-    },
-    packageManager: { name: 'pnpm', version: '1.0.0' },
-  })
-
-  expect(warnings.some((w: string) => w.includes('Failed to parse pnpm_config__auth'))).toBe(true)
-  expect(config.authConfig['//json-test.example/:_authToken']).toBeUndefined()
+  const error = await expectAuthError('{ not valid json')
+  expect(error.message).toContain('Failed to parse pnpm_config__auth')
 })
 
-test('a non-object pnpm_config__auth value is rejected with a warning', async () => {
+test('a non-object pnpm_config__auth value aborts the load', async () => {
   prepareEmpty()
-
-  // Arrays and primitives are rejected — arrays would expose their indices
-  // as keys, and primitives have no entries at all.
-  const { warnings } = await getConfig({
-    cliOptions: {},
-    env: {
-      ...env,
-      pnpm_config__auth: JSON.stringify(['//json-test.example/:_authToken', 'sneaky-token']),
-    },
-    packageManager: { name: 'pnpm', version: '1.0.0' },
-  })
-
-  expect(warnings.some((w: string) => w.includes('must be a JSON object'))).toBe(true)
+  // Arrays would expose their indices as keys; primitives have no entries.
+  const error = await expectAuthError(['//json-test.example/:_authToken', 'sneaky-token'])
+  expect(error.message).toContain('must be a JSON object')
 })
 
 test('PNPM_CONFIG__AUTH (all-caps) form is also honored', async () => {
@@ -1880,28 +1756,16 @@ test('CLI scoped registry overrides pnpm_config__auth in packageManagerRegistrie
   expect(config.authConfig['//cli-registry.example/:@org:_authToken']).toBeUndefined()
 })
 
-test('pnpm_config__auth does not infer registry routes from invalid auth objects', async () => {
+test('pnpm_config__auth invalid auth object aborts the load (no partial routing)', async () => {
   prepareEmpty()
 
-  const { config, warnings } = await getConfig({
-    cliOptions: {},
-    env: {
-      ...env,
-      pnpm_config__auth: JSON.stringify({
-        'https://private.example': {
-          '@': { tokenAuth: 'typo-token' },
-          '@org': { authToken: 123 },
-        },
-      }),
+  const error = await expectAuthError({
+    'https://private.example': {
+      '@': { tokenAuth: 'typo-token' },
+      '@org': { authToken: 123 },
     },
-    packageManager: { name: 'pnpm', version: '1.0.0' },
   })
-
-  expect(config.registries.default).toBe('https://registry.npmjs.org/')
-  expect(config.registries['@org']).toBeUndefined()
-  expect(config.packageManagerRegistries?.['@org']).toBeUndefined()
-  expect(warnings.some(w => w.includes('tokenAuth') && w.includes('unsupported'))).toBe(true)
-  expect(warnings.some(w => w.includes('authToken') && w.includes('must be a string'))).toBe(true)
+  expect(error.message).toContain('only "authToken" is supported')
 })
 
 test('workspace .npmrc overrides pnpm auth file', async () => {
@@ -1986,17 +1850,14 @@ test('pnpm_config__auth env wins over global yaml _auth on the same key', async 
   expect(config.authConfig['//json-test.example/:_authToken']).toBe('env-token')
 })
 
-test('a malformed global yaml _auth value warns and is ignored', async () => {
+test('a malformed global yaml _auth value aborts the load', async () => {
   prepareEmpty()
 
-  const { config, warnings } = await getConfigWithGlobalYaml({
+  await expect(getConfigWithGlobalYaml({
     _auth: {
       'https://json-test.example': 123,
     },
-  })
-
-  expect(config.authConfig['//json-test.example/:_authToken']).toBeUndefined()
-  expect(warnings.some(w => w.includes('_auth[entry 1 (https://json-test.example)') && w.includes('object keyed by scope'))).toBe(true)
+  })).rejects.toThrow('object keyed by scope')
 })
 
 test('_auth in a project pnpm-workspace.yaml is ignored (not honored as registry auth)', async () => {

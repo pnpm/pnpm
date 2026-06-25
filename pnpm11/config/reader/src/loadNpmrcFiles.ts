@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import { envReplaceLossy } from '@pnpm/config.env-replace'
 import { nerfDart } from '@pnpm/config.nerf-dart'
+import { PnpmError } from '@pnpm/error'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import { readIniFileSync } from 'read-ini-file'
 
@@ -122,8 +123,8 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
   // runners that silently drop env vars whose names contain `/`, `:`, or
   // `.` — GitHub Actions, bash, zsh; see pnpm/pnpm#12314) and the `_auth`
   // key of the global pnpm config yaml. The env var wins on conflict.
-  const envJsonAuth = readJsonAuthEnv(env, warnings)
-  const globalConfigJsonAuth = readGlobalConfigAuth(opts.globalConfigAuth, warnings)
+  const envJsonAuth = readJsonAuthEnv(env)
+  const globalConfigJsonAuth = readGlobalConfigAuth(opts.globalConfigAuth)
   const jsonAuth: JsonAuthResult = {
     auth: { ...globalConfigJsonAuth.auth, ...envJsonAuth.auth },
     registries: { ...globalConfigJsonAuth.registries, ...envJsonAuth.registries },
@@ -231,7 +232,7 @@ function readUrlScopedEnvConfig (env: Record<string, string | undefined>): Recor
   return { ...npmScoped, ...pnpmScoped }
 }
 
-function readJsonAuthEnv (env: Record<string, string | undefined>, warnings: string[]): JsonAuthResult {
+function readJsonAuthEnv (env: Record<string, string | undefined>): JsonAuthResult {
   const value = readJsonAuthEnvValue(env)
   if (value == null) return { auth: {}, registries: {} }
 
@@ -239,43 +240,41 @@ function readJsonAuthEnv (env: Record<string, string | undefined>, warnings: str
   try {
     parsed = JSON.parse(value)
   } catch (err: unknown) {
-    warnings.push(`Failed to parse pnpm_config__auth as JSON: ${err instanceof Error ? err.message : String(err)}. Ignored.`)
-    return { auth: {}, registries: {} }
+    throw new PnpmError('INVALID_AUTH_SETTING', `Failed to parse pnpm_config__auth as JSON: ${err instanceof Error ? err.message : String(err)}`)
   }
-  return parseJsonAuth(parsed, warnings, 'pnpm_config__auth')
+  return parseJsonAuth(parsed, 'pnpm_config__auth')
 }
 
 /**
  * Parse a URL-keyed `_auth` object into `.npmrc`-shaped flat auth keys plus
  * the registry routes inferred from each host. Shared by the env var and the
- * global config yaml; `source` labels warnings.
+ * global config yaml.
+ *
+ * Strict: any malformed entry throws. Both sources are user-controlled, so a
+ * typo should fail fast rather than silently drop auth. `source` names the
+ * origin in errors; raw URL keys are never echoed — they can embed secrets.
  */
-function parseJsonAuth (parsed: unknown, warnings: string[], source: string): JsonAuthResult {
+function parseJsonAuth (parsed: unknown, source: string): JsonAuthResult {
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    warnings.push(`${source} must be a JSON object; got ${Array.isArray(parsed) ? 'array' : parsed === null ? 'null' : typeof parsed}. Ignored.`)
-    return { auth: {}, registries: {} }
+    throw new PnpmError('INVALID_AUTH_SETTING', `${source} must be a JSON object`)
   }
 
   const auth: Record<string, string> = {}
   const registries: Record<string, string> = {}
   for (const [index, [url, scopes]] of Object.entries(parsed as Record<string, unknown>).entries()) {
-    const registry = parseJsonAuthRegistry(url, index + 1, warnings, source)
-    if (registry == null) continue
+    const registry = parseJsonAuthRegistry(url, index + 1, source)
     if (scopes === null || typeof scopes !== 'object' || Array.isArray(scopes)) {
-      warnings.push(`${source}[${registry.label}] ignored: value must be an object keyed by scope.`)
-      continue
+      throw new PnpmError('INVALID_AUTH_SETTING', `${source}[${registry.label}] must be an object keyed by scope`)
     }
     for (const [scope, rawCreds] of Object.entries(scopes as Record<string, unknown>)) {
       if (!isJsonAuthScope(scope)) {
-        warnings.push(`${source}[${registry.label}][${JSON.stringify(scope)}] ignored: scope must be "@" or a package scope like "@org".`)
-        continue
+        throw new PnpmError('INVALID_AUTH_SETTING', `${source}[${registry.label}][${JSON.stringify(scope)}]: scope must be "@" or a package scope like "@org"`)
       }
       if (rawCreds === null || typeof rawCreds !== 'object' || Array.isArray(rawCreds)) {
-        warnings.push(`${source}[${registry.label}][${JSON.stringify(scope)}] ignored: value must be an auth object.`)
-        continue
+        throw new PnpmError('INVALID_AUTH_SETTING', `${source}[${registry.label}][${JSON.stringify(scope)}] must be an auth object`)
       }
-      const acceptedCreds = appendJsonAuthCreds(auth, warnings, registry, scope, rawCreds as Record<string, unknown>, source)
-      if (!acceptedCreds) continue
+      const token = jsonAuthToken(rawCreds as Record<string, unknown>, registry, scope, source)
+      auth[`${registry.nerfed}:${scope === '@' ? '' : `${scope}:`}_authToken`] = token
       // Infer a registry route from the same entry (see JsonAuthResult.registries).
       // Last write wins on a duplicate scope, matching yaml/CLI.
       registries[scope === '@' ? 'default' : scope] = registry.normalized
@@ -285,9 +284,9 @@ function parseJsonAuth (parsed: unknown, warnings: string[], source: string): Js
 }
 
 /** Parse `_auth` from the global pnpm config yaml (already a parsed object). */
-function readGlobalConfigAuth (globalConfigAuth: unknown, warnings: string[]): JsonAuthResult {
+function readGlobalConfigAuth (globalConfigAuth: unknown): JsonAuthResult {
   if (globalConfigAuth == null) return { auth: {}, registries: {} }
-  return parseJsonAuth(globalConfigAuth, warnings, '_auth')
+  return parseJsonAuth(globalConfigAuth, '_auth')
 }
 
 interface JsonAuthRegistry {
@@ -296,29 +295,25 @@ interface JsonAuthRegistry {
   normalized: string
 }
 
-function parseJsonAuthRegistry (url: string, entryNumber: number, warnings: string[], source: string): JsonAuthRegistry | undefined {
+function parseJsonAuthRegistry (url: string, entryNumber: number, source: string): JsonAuthRegistry {
   const label = jsonAuthRegistryLabel(url, entryNumber)
   let parsed: URL
   try {
     parsed = new URL(url)
   } catch {
-    warnings.push(`${source}[${label}] ignored: key must be an http(s) registry URL.`)
-    return undefined
+    throw new PnpmError('INVALID_AUTH_SETTING', `${source}[${label}]: key must be an http(s) registry URL`)
   }
   if ((parsed.protocol !== 'https:' && parsed.protocol !== 'http:') || parsed.hostname === '') {
-    warnings.push(`${source}[${label}] ignored: key must be an http(s) registry URL.`)
-    return undefined
+    throw new PnpmError('INVALID_AUTH_SETTING', `${source}[${label}]: key must be an http(s) registry URL`)
   }
   if (parsed.username !== '' || parsed.password !== '' || parsed.search !== '' || parsed.hash !== '') {
-    warnings.push(`${source}[${label}] ignored: registry URL must not include credentials, query, or fragment.`)
-    return undefined
+    throw new PnpmError('INVALID_AUTH_SETTING', `${source}[${label}]: registry URL must not include credentials, query, or fragment`)
   }
 
   const normalized = normalizeRegistryUrl(parsed.href)
   const nerfed = nerfDart(normalized)
   if (nerfed === '') {
-    warnings.push(`${source}[${label}] ignored: key must be an http(s) registry URL.`)
-    return undefined
+    throw new PnpmError('INVALID_AUTH_SETTING', `${source}[${label}]: key must be an http(s) registry URL`)
   }
   return { label, nerfed, normalized }
 }
@@ -346,32 +341,26 @@ function isJsonAuthScope (scope: string): boolean {
   return scope === '@' || (scope.startsWith('@') && scope.length > 1 && !scope.includes('/') && !scope.includes(':'))
 }
 
-function appendJsonAuthCreds (
-  result: Record<string, string>,
-  warnings: string[],
+// Validate one scope's credentials and return its `authToken`. Only
+// `authToken` is supported — the deprecated `basicAuth` / `username` +
+// `password` forms (any other field) are rejected, as is a missing or
+// non-string token.
+function jsonAuthToken (
+  creds: Record<string, unknown>,
   registry: JsonAuthRegistry,
   scope: string,
-  creds: Record<string, unknown>,
   source: string
-): boolean {
-  const keyPrefix = `${registry.nerfed}:${scope === '@' ? '' : `${scope}:`}`
-  let accepted = false
-  for (const [field, value] of Object.entries(creds)) {
-    // Only `authToken` is supported. The other npm credential forms
-    // (`_auth`, username + `_password`) are deprecated, so this new
-    // setting deliberately does not introduce them.
+): string {
+  for (const field of Object.keys(creds)) {
     if (field !== 'authToken') {
-      warnings.push(`${source}[${registry.label}][${JSON.stringify(scope)}][${JSON.stringify(field)}] ignored: unsupported auth field (only "authToken" is supported).`)
-      continue
+      throw new PnpmError('INVALID_AUTH_SETTING', `${source}[${registry.label}][${JSON.stringify(scope)}][${JSON.stringify(field)}]: unsupported auth field (only "authToken" is supported)`)
     }
-    if (typeof value !== 'string') {
-      warnings.push(`${source}[${registry.label}][${JSON.stringify(scope)}][${JSON.stringify(field)}] ignored: value must be a string.`)
-      continue
-    }
-    result[`${keyPrefix}_authToken`] = value
-    accepted = true
   }
-  return accepted
+  const token = creds.authToken
+  if (typeof token !== 'string') {
+    throw new PnpmError('INVALID_AUTH_SETTING', `${source}[${registry.label}][${JSON.stringify(scope)}]: "authToken" must be a string`)
+  }
+  return token
 }
 
 // Per-registry rc keys that, when written without a `//host/` prefix, fall

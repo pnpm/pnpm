@@ -1,6 +1,6 @@
 use super::{
-    Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe, NodeLinker,
-    NodePackageMapType, PackageImportMethod, fs,
+    Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe, LoadWorkspaceYamlError,
+    NodeLinker, NodePackageMapType, PackageImportMethod, fs,
 };
 use crate::defaults::default_store_dir;
 use pacquet_store_dir::StoreDir;
@@ -11,60 +11,8 @@ use std::{
     ffi::OsString,
     io,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex},
 };
 use tempfile::tempdir;
-
-/// Capture everything pnpm emits through `tracing::warn!` / `info!` /
-/// `debug!` while `body` runs, returning the formatted text so assertions
-/// can grep for expected substrings.
-///
-/// `tracing` events are dropped silently when no subscriber is installed —
-/// the default in tests. The closure runs under a thread-local
-/// [`tracing::dispatcher::with_default`] scope so other tests running in
-/// parallel are unaffected. ANSI escapes and timestamps are disabled to
-/// keep the captured string easy to match.
-fn capture_tracing_output<Ret>(body: impl FnOnce() -> Ret) -> (Ret, String) {
-    let buffer = Arc::new(Mutex::new(Vec::<u8>::new()));
-    let subscriber = tracing_subscriber::fmt()
-        .with_writer(BufferWriter(Arc::clone(&buffer)))
-        .without_time()
-        .with_ansi(false)
-        .with_target(false)
-        .finish();
-    let dispatch = tracing::dispatcher::Dispatch::new(subscriber);
-    let result = tracing::dispatcher::with_default(&dispatch, body);
-    let captured = String::from_utf8(buffer.lock().unwrap().clone())
-        .expect("captured tracing output is valid UTF-8");
-    (result, captured)
-}
-
-/// [`tracing_subscriber::fmt::MakeWriter`] impl that funnels formatted
-/// events into an [`Arc<Mutex<Vec<u8>>>`] so the test can read them back
-/// after the fact. Arc-clones the buffer per writer to side-step the
-/// `&'a self` lifetime in `MakeWriter::make_writer` — a tiny allocation
-/// cost per event that doesn't matter for tests.
-#[derive(Clone)]
-struct BufferWriter(Arc<Mutex<Vec<u8>>>);
-
-impl<'a> tracing_subscriber::fmt::MakeWriter<'a> for BufferWriter {
-    type Writer = BufferSink;
-    fn make_writer(&'a self) -> Self::Writer {
-        BufferSink(Arc::clone(&self.0))
-    }
-}
-
-struct BufferSink(Arc<Mutex<Vec<u8>>>);
-
-impl io::Write for BufferSink {
-    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
-        self.0.lock().unwrap().extend_from_slice(bytes);
-        Ok(bytes.len())
-    }
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-}
 
 /// `Config::current` requires `Sys: LinkProbe` so the late-stage
 /// `store_dir` resolver (port of pnpm's `storePathRelativeToHome`)
@@ -574,47 +522,25 @@ pub fn json_env_per_scope_token_on_shared_host() {
     );
 }
 
-/// End-to-end: malformed `pnpm_config__auth` JSON does not abort the load.
-/// Warning emission is verified at unit level in
-/// `npmrc_auth::tests::json_env_malformed_json_pushes_warning_and_returns_empty`.
+/// End-to-end: malformed `pnpm_config__auth` JSON aborts the load with an
+/// error rather than silently dropping the auth.
 #[test]
-pub fn json_env_malformed_json_does_not_crash_the_load() {
+pub fn json_env_malformed_json_aborts_the_load() {
     let project = tempdir().expect("project tempdir");
-    write_file(&project.path().join(".npmrc"), "//json2e.example.com/:_authToken=project-token\n");
     set_fake_env(&[("pnpm_config__auth", "{ not valid json")]);
 
-    let config = load_with_fake_env(project.path());
-
-    // The project .npmrc token still applies — env JSON was ignored.
-    assert_eq!(
-        config.auth_headers.for_url("https://json2e.example.com/pkg").as_deref(),
-        Some("Bearer project-token"),
-    );
+    let result = Config::default().current::<FakeEnv>(project.path());
+    assert!(matches!(result, Err(LoadWorkspaceYamlError::InvalidJsonAuth { .. })));
 }
 
-/// End-to-end: `pnpm_config__auth` with parse-time warnings (malformed
-/// JSON, non-object top level) still emits those warnings via
-/// `tracing::warn!`. Regression for the "creds OR warnings" gate in
-/// `Config::current` — if `env_json_source` is dropped when only warnings
-/// are present, the warning never reaches the `apply_registry_and_warn`
-/// flush that turns the in-memory `NpmrcAuth.warnings` entry into an
-/// actual `tracing` event.
+/// End-to-end: a non-object top-level `pnpm_config__auth` aborts the load.
 #[test]
-pub fn json_env_warnings_survive_when_no_creds_present() {
+pub fn json_env_non_object_top_level_aborts_the_load() {
     let project = tempdir().expect("project tempdir");
     set_fake_env(&[("pnpm_config__auth", r#"["array","is","not","an","object"]"#)]);
 
-    let (config, captured) = capture_tracing_output(|| load_with_fake_env(project.path()));
-
-    // Load completes; the malformed source contributes no creds.
-    assert!(config.auth_headers.for_url("https://json2e.example.com/pkg").is_none());
-    // The top-level type rejection produced a warning that reached
-    // `tracing::warn!` end-to-end (i.e. the env_json_source was not
-    // dropped by the gate before reaching the flush loop).
-    assert!(
-        captured.contains("must be a JSON object"),
-        "expected a tracing warn emission for the non-object top level, got: {captured:?}",
-    );
+    let result = Config::default().current::<FakeEnv>(project.path());
+    assert!(matches!(result, Err(LoadWorkspaceYamlError::InvalidJsonAuth { .. })));
 }
 
 /// End-to-end: the "@" (default) scope in `pnpm_config__auth` routes the
@@ -867,18 +793,17 @@ pub fn json_env_env_scoped_wins_over_workspace_yaml_scoped() {
 }
 
 #[test]
-pub fn json_env_invalid_auth_does_not_route_registry() {
+pub fn json_env_invalid_auth_aborts_the_load() {
+    // An unsupported field and a non-string token are both hard errors, so
+    // no partially-applied routing leaks through.
     let project = tempdir().expect("project tempdir");
     set_fake_env(&[(
         "pnpm_config__auth",
         r#"{"https://private.example":{"@":{"tokenAuth":"tok"},"@org":{"authToken":123}}}"#,
     )]);
 
-    let config = load_with_fake_env(project.path());
-
-    assert_eq!(config.registry, NPM_DEFAULT_REGISTRY);
-    assert_eq!(config.registries.get("@org"), None);
-    assert_eq!(config.package_manager_bootstrap.registries.get("@org"), None);
+    let result = Config::default().current::<FakeEnv>(project.path());
+    assert!(matches!(result, Err(LoadWorkspaceYamlError::InvalidJsonAuth { .. })));
 }
 
 /// Env JSON routes override user-level (`~/.npmrc` / `auth.ini`) scoped

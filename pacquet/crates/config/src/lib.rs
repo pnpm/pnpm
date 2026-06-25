@@ -9,6 +9,7 @@ mod workspace_yaml;
 
 pub use crate::api::{EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe};
 
+use crate::npmrc_auth::NpmrcAuth;
 use indexmap::IndexMap;
 use pacquet_patching::{
     CalcPatchHashError, PatchGroupRecord, ResolvePatchedDependenciesError, calc_patch_hashes,
@@ -1836,15 +1837,14 @@ impl Config {
         // project `.npmrc` > `auth.ini` > user-level `.npmrc`. Each is
         // parsed and rescoped independently before being folded together.
         let parse_trusted_source = |text: String, dir: PathBuf, label: &str| {
-            let mut auth = crate::npmrc_auth::NpmrcAuth::from_ini::<Sys>(&text, &dir);
+            let mut auth = NpmrcAuth::from_ini::<Sys>(&text, &dir);
             auth.rescope_unscoped(label);
             auth
         };
         let project_npmrc_dir =
             workspace_yaml.as_ref().map_or(start_dir, |(base_dir, _)| base_dir.as_path());
         let project_source = read_npmrc(project_npmrc_dir).map(|text| {
-            let mut auth =
-                crate::npmrc_auth::NpmrcAuth::from_project_ini::<Sys>(&text, project_npmrc_dir);
+            let mut auth = NpmrcAuth::from_project_ini::<Sys>(&text, project_npmrc_dir);
             auth.rescope_unscoped("<project>/.npmrc");
             auth
         });
@@ -1873,20 +1873,21 @@ impl Config {
         // `.npmrc` — mirroring the env-over-workspace ordering in pnpm's
         // [`loadNpmrcFiles.ts`](https://github.com/pnpm/pnpm/blob/main/config/reader/src/loadNpmrcFiles.ts).
         let env_scoped_source = {
-            let auth = crate::npmrc_auth::NpmrcAuth::from_url_scoped_env::<Sys>();
+            let auth = NpmrcAuth::from_url_scoped_env::<Sys>();
             (!auth.creds_by_scope_by_uri.is_empty()).then_some(auth)
         };
 
         // Structured `_auth` registry auth from its two trusted sources:
         // the `pnpm_config__auth` env var and the global `config.yaml`'s
         // `_auth` key (env wins on conflict). See `from_json_sources`.
-        let json_auth = crate::npmrc_auth::NpmrcAuth::from_json_sources::<Sys>(
-            global_settings.as_ref().and_then(|settings| settings.auth.as_ref()),
-        );
-        let env_json_source = (!json_auth.creds_by_scope_by_uri.is_empty()
-            || !json_auth.json_env_registries.is_empty()
-            || !json_auth.warnings.is_empty())
-        .then_some(json_auth);
+        let json_auth = global_settings
+            .as_ref()
+            .and_then(|settings| settings.auth.as_ref())
+            .pipe(NpmrcAuth::from_json_sources::<Sys>)
+            .map_err(|source| LoadWorkspaceYamlError::InvalidJsonAuth { source })?;
+        let json_auth_has_content = !json_auth.creds_by_scope_by_uri.is_empty()
+            || !json_auth.json_env_registries.is_empty();
+        let env_json_source = json_auth_has_content.then_some(json_auth);
 
         // Capture the trusted sources (everything but `project_source`) for
         // [`PackageManagerBootstrap`] before the fold below consumes them.
@@ -2132,7 +2133,7 @@ impl Config {
 /// full config uses so the bootstrap cascade matches the project cascade
 /// minus the repository-controlled sources.
 fn build_package_manager_bootstrap<Sys: EnvVar>(
-    mut trusted_auth: crate::npmrc_auth::NpmrcAuth,
+    mut trusted_auth: NpmrcAuth,
 ) -> PackageManagerBootstrap {
     // The full-config fold already surfaced these sources' `${VAR}` warnings;
     // drop the duplicates this second pass would log.
