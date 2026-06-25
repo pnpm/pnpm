@@ -36,6 +36,7 @@ pub mod supported_architectures;
 pub mod unlink;
 pub mod update;
 pub mod update_interactive;
+pub mod whoami;
 pub mod why;
 
 use crate::{State, config_deps, config_overrides::ConfigOverrides};
@@ -186,6 +187,8 @@ pub enum CliCommand {
     List(ListArgs),
     /// Shows the packages that depend on `pkg`
     Why(WhyArgs),
+    /// Displays your pnpm username.
+    Whoami,
     /// Rebuild a package.
     #[clap(visible_alias = "rb")]
     Rebuild(RebuildArgs),
@@ -503,6 +506,20 @@ impl CliArgs {
             CliCommand::Remove(args) if args.global => {
                 global::handle_global_remove(config()?, &args.package_names)?;
                 Box::pin(std::future::ready(Ok(())))
+            }
+            // `whoami` is a read-only registry query: it resolves the
+            // default registry's auth header from config and GETs
+            // `-/whoami`, with no lockfile or install pipeline. It needs
+            // an async future for the request but no reporter-typed
+            // fan-out, so it dispatches off `config()` like the other
+            // read-only commands.
+            CliCommand::Whoami => {
+                let cfg: &Config = config()?;
+                Box::pin(async move {
+                    let username = whoami::whoami(cfg).await?;
+                    println!("{username}");
+                    Ok(())
+                })
             }
             CliCommand::Remove(args) => {
                 let command_state = state(false)?;
