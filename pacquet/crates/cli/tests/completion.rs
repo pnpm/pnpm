@@ -17,11 +17,11 @@ fn stderr(output: std::process::Output) -> String {
 }
 
 #[test]
-fn completion_scripts_are_printed_for_pnpm_supported_shells() {
+fn completion_scripts_are_lightweight_shims_for_pnpm_supported_shells() {
     let cases = [
-        ("bash", "_pacquet()"),
+        ("bash", "_pacquet_completion"),
         ("fish", "complete -c pacquet"),
-        ("pwsh", "Register-ArgumentCompleter -Native -CommandName 'pacquet'"),
+        ("pwsh", "Register-ArgumentCompleter -Native -CommandName pacquet"),
         ("zsh", "#compdef pacquet"),
     ];
 
@@ -30,15 +30,21 @@ fn completion_scripts_are_printed_for_pnpm_supported_shells() {
             pacquet().args(["completion", shell]).output().expect("run pacquet completion");
         let script = stdout(output);
         assert!(script.contains(marker), "{shell} script should contain {marker:?}: {script}");
-        assert!(script.contains("install"), "{shell} script should include existing commands");
-        assert!(script.contains("completion"), "{shell} script should include completion command");
-        assert!(script.contains("--filter"), "{shell} script should include global options");
+        assert!(
+            script.contains("pacquet completion-server"),
+            "{shell} script should call completion-server: {script}",
+        );
+        assert!(script.lines().count() < 80, "{shell} script should be lightweight: {script}");
+        assert!(
+            !script.contains("Install packages"),
+            "{shell} script should not inline command help: {script}",
+        );
     }
 }
 
 #[test]
 fn completion_scripts_do_not_expose_redundant_parameter_plumbing() {
-    let cases = [("bash", "[EXTRA]"), ("zsh", "*::extra:_default")];
+    let cases = [("bash", "EXTRA"), ("zsh", "*::extra:_default")];
 
     for (shell, leaked_marker) in cases {
         let output =
@@ -52,15 +58,93 @@ fn completion_scripts_do_not_expose_redundant_parameter_plumbing() {
 }
 
 #[test]
-fn completion_shell_argument_suggests_supported_shells() {
-    let cases = [("bash", "bash fish pwsh zsh"), ("zsh", "::shell:(bash fish pwsh zsh)")];
+fn completion_server_lists_top_level_commands() {
+    let output = pacquet()
+        .args(["completion-server", "--", "pacquet", ""])
+        .output()
+        .expect("run pacquet completion-server");
+    let reply = stdout(output);
 
-    for (shell, marker) in cases {
-        let output =
-            pacquet().args(["completion", shell]).output().expect("run pacquet completion");
-        let script = stdout(output);
-        assert!(script.contains(marker), "{shell} script should contain {marker:?}: {script}");
-    }
+    assert!(reply.lines().any(|line| line == "install"), "{reply}");
+    assert!(reply.lines().any(|line| line == "completion"), "{reply}");
+    assert!(reply.lines().any(|line| line == "add"), "{reply}");
+}
+
+#[test]
+fn completion_server_lists_options_for_current_command() {
+    let output = pacquet()
+        .args(["completion-server", "--", "pacquet", "install", "--"])
+        .output()
+        .expect("run pacquet completion-server");
+    let reply = stdout(output);
+
+    assert!(reply.lines().any(|line| line == "--filter"), "{reply}");
+    assert!(reply.lines().any(|line| line == "--reporter"), "{reply}");
+    assert!(reply.lines().any(|line| line == "--frozen-lockfile"), "{reply}");
+}
+
+#[test]
+fn completion_server_lists_option_values() {
+    let output = pacquet()
+        .args(["completion-server", "--", "pacquet", "--reporter", ""])
+        .output()
+        .expect("run pacquet completion-server");
+    let reply = stdout(output);
+
+    assert!(reply.lines().any(|line| line == "default"), "{reply}");
+    assert!(reply.lines().any(|line| line == "append-only"), "{reply}");
+    assert!(reply.lines().any(|line| line == "ndjson"), "{reply}");
+    assert!(reply.lines().any(|line| line == "silent"), "{reply}");
+}
+
+#[test]
+fn completion_server_lists_option_values_only_after_option_name() {
+    let output = pacquet()
+        .args(["completion-server", "--", "pacquet", "--reporter", "default", ""])
+        .output()
+        .expect("run pacquet completion-server");
+    let reply = stdout(output);
+
+    assert!(reply.lines().any(|line| line == "install"), "{reply}");
+    assert!(!reply.lines().any(|line| line == "append-only"), "{reply}");
+}
+
+#[test]
+fn completion_server_does_not_treat_option_values_as_commands() {
+    let output = pacquet()
+        .args(["completion-server", "--", "pacquet", "--filter", "install", ""])
+        .output()
+        .expect("run pacquet completion-server");
+    let reply = stdout(output);
+
+    assert!(reply.lines().any(|line| line == "add"), "{reply}");
+    assert!(!reply.lines().any(|line| line == "--frozen-lockfile"), "{reply}");
+}
+
+#[test]
+fn completion_server_lists_completion_shells() {
+    let output = pacquet()
+        .args(["completion-server", "--", "pacquet", "completion", ""])
+        .output()
+        .expect("run pacquet completion-server");
+    let reply = stdout(output);
+
+    assert_eq!(reply.lines().collect::<Vec<_>>(), ["bash", "fish", "pwsh", "zsh"]);
+}
+
+#[test]
+fn completion_server_does_not_require_a_project_or_existing_dir_argument() {
+    let root = TempDir::new().expect("temp dir");
+    let missing_dir = root.path().join("missing");
+    let output = pacquet()
+        .args(["--dir"])
+        .arg(&missing_dir)
+        .args(["completion-server", "--", "pacquet", "completion", ""])
+        .output()
+        .expect("run pacquet completion-server");
+    let reply = stdout(output);
+
+    assert_eq!(reply.lines().collect::<Vec<_>>(), ["bash", "fish", "pwsh", "zsh"]);
 }
 
 #[test]

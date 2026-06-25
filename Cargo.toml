@@ -94,7 +94,6 @@ axum = { version = "0.8.7", default-features = false, features = [
   "original-uri",
 ] }
 clap = { version = "4", features = ["derive", "string"] }
-clap_complete = { version = "4.6.5" }
 command-extra = { version = "1.0.0" }
 base64 = { version = "0.22.1" }
 bcrypt = { version = "0.19.1" }

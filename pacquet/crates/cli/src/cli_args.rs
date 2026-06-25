@@ -55,7 +55,7 @@ use cache::CacheCommand;
 use cat_file::CatFileArgs;
 use cat_index::CatIndexArgs;
 use clap::{Parser, Subcommand, ValueEnum};
-use completion::CompletionArgs;
+use completion::{CompletionArgs, CompletionServerArgs};
 use config::ConfigArgs;
 use create::CreateArgs;
 use dedupe::DedupeArgs;
@@ -245,6 +245,9 @@ pub enum CliCommand {
     Create(CreateArgs),
     /// Print shell completion code to stdout.
     Completion(CompletionArgs),
+    /// Dynamic completion endpoint used by generated shell scripts.
+    #[clap(name = "completion-server", hide = true)]
+    CompletionServer(CompletionServerArgs),
     /// Runs an arbitrary command specified in the package's start property of its scripts object.
     Start,
     /// Runs a package's "stop" script, if one was provided.
@@ -352,10 +355,17 @@ impl CliArgs {
     pub async fn run(self, config_overrides: &ConfigOverrides) -> miette::Result<()> {
         let CliArgs { command, dir, npmrc_auth_file, recursive, reporter, filter, filter_prod } =
             self;
-        if let CliCommand::Completion(args) = command {
-            args.run()?;
-            return Ok(());
-        }
+        let command = match command {
+            CliCommand::Completion(args) => {
+                args.run()?;
+                return Ok(());
+            }
+            CliCommand::CompletionServer(args) => {
+                args.run()?;
+                return Ok(());
+            }
+            command => command,
+        };
 
         // Canonicalize `--dir` so the bunyan-envelope `prefix` emitted by
         // the reporter is the same absolute, symlink-resolved path that
@@ -1025,7 +1035,9 @@ impl CliArgs {
                     Box::pin(std::future::ready(Ok(())))
                 }
             }
-            CliCommand::Completion(_) => unreachable!("completion returns before configuration"),
+            CliCommand::Completion(_) | CliCommand::CompletionServer(_) => {
+                unreachable!("completion returns before configuration")
+            }
         };
 
         command_future.await?;

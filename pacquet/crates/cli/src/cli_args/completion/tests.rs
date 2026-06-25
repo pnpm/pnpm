@@ -57,6 +57,14 @@ fn supported_shells_parse_after_trimming() {
 }
 
 #[test]
-fn pwsh_maps_to_powershell_generator() {
-    assert_eq!(CompletionShell::Pwsh.to_clap_shell(), clap_complete::Shell::PowerShell);
+fn generated_scripts_call_completion_server() {
+    let shells =
+        [CompletionShell::Bash, CompletionShell::Fish, CompletionShell::Pwsh, CompletionShell::Zsh];
+
+    for shell in shells {
+        let mut output = Vec::new();
+        super::generate_completion(shell, &mut output).expect("generate completion");
+        let script = String::from_utf8(output).expect("script is utf8");
+        assert!(script.contains("pacquet completion-server"), "{script}");
+    }
 }
