@@ -60,9 +60,16 @@ impl ConfigOverrides {
     pub fn apply(&self, config: &mut Config) {
         if let Some(registry) = &self.registry {
             config.registry.clone_from(registry);
+            config.registries.insert("default".to_string(), registry.clone());
+            config.package_manager_bootstrap.registry.clone_from(registry);
+            config
+                .package_manager_bootstrap
+                .registries
+                .insert("default".to_string(), registry.clone());
         }
         for (scope, registry) in &self.registries {
             config.registries.insert(scope.clone(), registry.clone());
+            config.package_manager_bootstrap.registries.insert(scope.clone(), registry.clone());
         }
     }
 }

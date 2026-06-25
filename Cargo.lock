@@ -3677,6 +3677,8 @@ dependencies = [
  "smart-default",
  "tempfile",
  "tracing",
+ "tracing-subscriber",
+ "url",
 ]
 
 [[package]]

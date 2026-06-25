@@ -114,6 +114,14 @@ pub struct WorkspaceSettings {
     /// setting.
     pub named_registries: Option<BTreeMap<String, String>>,
 
+    /// Structured registry auth (`_auth`). Honored **only** from the global
+    /// pnpm `config.yaml` (read via `NpmrcAuth::from_json_sources`, not
+    /// applied in [`Self::apply_to`]) — never a project file, so repo config
+    /// can't supply credentials. A raw [`serde_json::Value`] so the auth
+    /// parser is the single validator of its shape.
+    #[serde(rename = "_auth")]
+    pub auth: Option<serde_json::Value>,
+
     pub auto_install_peers: Option<bool>,
     pub auto_install_peers_from_highest_match: Option<bool>,
     pub exclude_links_from_lockfile: Option<bool>,
@@ -527,6 +535,11 @@ pub enum LoadWorkspaceYamlError {
         path: PathBuf,
         #[error(source)]
         source: Box<serde_saphyr::Error>,
+    },
+    #[display("Invalid `_auth` setting: {source}")]
+    InvalidJsonAuth {
+        #[error(source)]
+        source: serde_json::Error,
     },
 }
 

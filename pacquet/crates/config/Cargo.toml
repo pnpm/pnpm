@@ -32,6 +32,7 @@ serde-saphyr  = { workspace = true }
 serde_json    = { workspace = true }
 smart-default = { workspace = true }
 tracing       = { workspace = true }
+url           = { workspace = true }
 
 [target.'cfg(all(unix, not(target_os = "cygwin")))'.dependencies]
 libc = { workspace = true }
@@ -39,8 +40,9 @@ libc = { workspace = true }
 [dev-dependencies]
 pacquet-testing-utils = { workspace = true }
 
-pretty_assertions = { workspace = true }
-tempfile          = { workspace = true }
+pretty_assertions  = { workspace = true }
+tempfile           = { workspace = true }
+tracing-subscriber = { workspace = true }
 
 [lints]
 workspace = true
