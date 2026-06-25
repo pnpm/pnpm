@@ -1,6 +1,7 @@
 use crate::{State, cli_args::supported_architectures::SupportedArchitecturesArgs, config_deps};
 use clap::Args;
 use miette::Context;
+use pacquet_config::Config;
 use pacquet_package_manager::Add;
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_registry::PinnedVersion;
@@ -104,6 +105,11 @@ pub struct AddArgs {
     /// All direct and indirect dependencies of the project are linked into this directory
     #[clap(long = "virtual-store-dir", default_value = "node_modules/.pacquet")]
     pub virtual_store_dir: Option<PathBuf>, // TODO: make use of this
+
+    /// Install the package globally, linking its bins into the global bin
+    /// directory. Mirrors pnpm's `add -g`.
+    #[clap(short = 'g', long)]
+    pub global: bool,
 }
 
 impl AddArgs {
@@ -173,6 +179,28 @@ impl AddArgs {
             supported_architectures,
             || self.dependency_options.dependency_groups(),
         )
+        .await
+    }
+
+    /// `pnpm add -g`: install the package into the global packages
+    /// directory and link its bins. Delegates to
+    /// [`crate::cli_args::global::handle_global_add`].
+    pub async fn run_global<Reporter: self::Reporter + 'static>(
+        self,
+        config: &'static Config,
+        dir: &Path,
+    ) -> miette::Result<()> {
+        let supported_architectures =
+            self.supported_architectures.apply_to(config.supported_architectures.clone());
+        let pinned_version =
+            PinnedVersion::from_save_options(self.save_exact, self.save_prefix.as_deref());
+        Box::pin(crate::cli_args::global::handle_global_add::<Reporter>(
+            config,
+            &[self.package_name],
+            pinned_version,
+            supported_architectures,
+            dir,
+        ))
         .await
     }
 }

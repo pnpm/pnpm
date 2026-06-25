@@ -3593,6 +3593,7 @@ dependencies = [
  "pacquet-env-installer",
  "pacquet-executor",
  "pacquet-fs",
+ "pacquet-global",
  "pacquet-graph-hasher",
  "pacquet-hooks",
  "pacquet-lockfile",
@@ -3936,6 +3937,20 @@ dependencies = [
  "tokio",
  "tracing",
  "walkdir",
+]
+
+[[package]]
+name = "pacquet-global"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "owo-colors",
+ "pacquet-cmd-shim",
+ "pacquet-crypto-hash",
+ "pacquet-fs",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]

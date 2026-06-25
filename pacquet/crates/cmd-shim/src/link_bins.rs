@@ -283,6 +283,32 @@ where
         + FsSetExecutable
         + FsEnsureExecutableBits,
 {
+    link_bins_of_packages_with_excludes::<Sys>(
+        packages,
+        bins_dir,
+        &std::collections::HashSet::new(),
+    )
+}
+
+/// Like [`link_bins_of_packages`] but skips any bin whose name is in
+/// `exclude_bins`. Mirrors the `excludeBins` option of pnpm's
+/// [`linkBinsOfPackages`](https://github.com/pnpm/pnpm/blob/4750fd370c/bins/linker/src/index.ts),
+/// used by global install to leave bins legitimately owned by an
+/// already-installed global package untouched.
+pub fn link_bins_of_packages_with_excludes<Sys>(
+    packages: &[PackageBinSource],
+    bins_dir: &Path,
+    exclude_bins: &std::collections::HashSet<String>,
+) -> Result<(), LinkBinsError>
+where
+    Sys: FsReadToString
+        + FsReadHead
+        + FsCreateDirAll
+        + FsWalkFiles
+        + FsWrite
+        + FsSetExecutable
+        + FsEnsureExecutableBits,
+{
     let mut chosen: HashMap<String, (Command, &PackageBinSource)> = HashMap::new();
 
     for pkg in packages {
@@ -308,6 +334,10 @@ where
                 }
             }
         }
+    }
+
+    for excluded in exclude_bins {
+        chosen.remove(excluded);
     }
 
     if chosen.is_empty() {
@@ -634,6 +664,29 @@ fn with_extension_appended(path: &Path, ext: &str) -> PathBuf {
     result.push(".");
     result.push(ext);
     result.into()
+}
+
+/// Remove a bin shim previously written by [`write_shim`].
+///
+/// Ports pnpm's [`removeBin`](https://github.com/pnpm/pnpm/blob/4750fd370c/bins/remover/src/removeBins.ts):
+/// on Windows it deletes the `<name>`, `<name>.ps1`, and `<name>.cmd`
+/// flavors; on other platforms just `<name>`. A missing file is not an
+/// error (rimraf-style).
+pub fn remove_bin(bin_path: &Path) -> io::Result<()> {
+    remove_if_exists(bin_path)?;
+    if cfg!(windows) {
+        remove_if_exists(&with_extension_appended(bin_path, "ps1"))?;
+        remove_if_exists(&with_extension_appended(bin_path, "cmd"))?;
+    }
+    Ok(())
+}
+
+fn remove_if_exists(path: &Path) -> io::Result<()> {
+    match std::fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    }
 }
 
 #[cfg(test)]

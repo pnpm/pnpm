@@ -1,6 +1,7 @@
 mod api;
 mod defaults;
 mod env_overlay;
+mod global_bin_check;
 pub mod matcher;
 mod npmrc_auth;
 mod store_path;
@@ -8,6 +9,7 @@ pub mod version_policy;
 mod workspace_yaml;
 
 pub use crate::api::{EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe};
+pub use crate::global_bin_check::{CheckGlobalBinDirError, check_global_bin_dir};
 
 use indexmap::IndexMap;
 use pacquet_patching::{
@@ -26,9 +28,10 @@ use std::{
 };
 
 pub use crate::defaults::{
-    PACQUET_VERSION, available_parallelism, default_git_shallow_hosts,
-    default_peers_suffix_max_length, default_unsafe_perm, default_virtual_store_dir_max_length,
-    default_workspace_concurrency, is_unsafe_perm_posix, resolve_child_concurrency,
+    GLOBAL_LAYOUT_VERSION, PACQUET_VERSION, available_parallelism, default_git_shallow_hosts,
+    default_peers_suffix_max_length, default_pnpm_home_dir, default_unsafe_perm,
+    default_virtual_store_dir_max_length, default_workspace_concurrency, is_unsafe_perm_posix,
+    resolve_child_concurrency,
 };
 use crate::defaults::{
     default_cache_dir, default_child_concurrency, default_config_dir,
@@ -394,7 +397,7 @@ pub enum PackageImportMethod {
 /// onto `Config` field-by-field, mirroring pnpm 11's split between
 /// `.npmrc` (auth/registry/network) and `pnpm-workspace.yaml`
 /// (project-structural settings).
-#[derive(Debug, SmartDefault)]
+#[derive(Debug, Clone, SmartDefault)]
 pub struct Config {
     /// When true, all dependencies are hoisted to `node_modules/.pnpm/node_modules`.
     /// This makes unlisted dependencies accessible to all packages inside `node_modules`.
@@ -524,6 +527,29 @@ pub struct Config {
     /// [`virtual_store_dir`]: Self::virtual_store_dir
     #[default(_code = "default_virtual_store_dir()")]
     pub global_virtual_store_dir: PathBuf,
+
+    /// User override for the global packages root (`global-dir` setting /
+    /// `PNPM_CONFIG_GLOBAL_DIR`). When unset, [`Config::current`] derives
+    /// the root from the pnpm home directory. Mirrors pnpm's
+    /// `Config.globalDir`.
+    pub global_dir: Option<PathBuf>,
+
+    /// User override for the global bin directory (`global-bin-dir` setting
+    /// / `PNPM_CONFIG_GLOBAL_BIN_DIR`). When unset, [`Config::current`]
+    /// derives it as `<pnpm-home>/bin`. Mirrors pnpm's `Config.globalBinDir`.
+    pub global_bin_dir: Option<PathBuf>,
+
+    /// The resolved global packages directory,
+    /// `(global_dir ?? <pnpm-home>/global)/v11`. Populated by
+    /// [`Config::current`]; `None` when the pnpm home directory cannot be
+    /// determined and no override is set. Mirrors pnpm's
+    /// `Config.globalPkgDir`.
+    pub global_pkg_dir: Option<PathBuf>,
+
+    /// The resolved global bin directory, `global_bin_dir ?? <pnpm-home>/bin`.
+    /// Populated by [`Config::current`]; global add/remove/update require it
+    /// (pnpm's `NO_GLOBAL_BIN_DIR` when absent). Mirrors pnpm's `Config.bin`.
+    pub global_bin: Option<PathBuf>,
 
     /// Controls the way packages are imported from the store (if you want to disable symlinks
     /// inside `node_modules`, then you need to change the node-linker setting, not this one).
@@ -2117,6 +2143,28 @@ impl Config {
             virtual_store_dir_explicit,
             global_virtual_store_dir_explicit,
         );
+
+        // Resolve the global install directories. Mirrors pnpm's
+        // [`index.ts:358-376`](https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/index.ts#L358-L376):
+        // `globalPkgDir = (globalDir ?? <pnpm-home>/global)/v11` and
+        // `bin = globalBinDir ?? <pnpm-home>/bin`.
+        if self.global_dir.is_none() {
+            self.global_dir = read_pnpm_env::<Sys>("global_dir", "GLOBAL_DIR").map(PathBuf::from);
+        }
+        if self.global_bin_dir.is_none() {
+            self.global_bin_dir =
+                read_pnpm_env::<Sys>("global_bin_dir", "GLOBAL_BIN_DIR").map(PathBuf::from);
+        }
+        let pnpm_home_dir = default_pnpm_home_dir::<Sys>();
+        let global_dir_root = self
+            .global_dir
+            .clone()
+            .or_else(|| pnpm_home_dir.as_ref().map(|home| home.join("global")));
+        self.global_pkg_dir = global_dir_root.map(|root| root.join(GLOBAL_LAYOUT_VERSION));
+        self.global_bin = self
+            .global_bin_dir
+            .clone()
+            .or_else(|| pnpm_home_dir.as_ref().map(|home| home.join("bin")));
 
         Ok(self)
     }

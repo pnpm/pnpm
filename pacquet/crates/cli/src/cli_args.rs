@@ -10,10 +10,12 @@ pub mod dlx;
 pub mod exec;
 pub mod fetch;
 pub mod find_hash;
+pub mod global;
 pub mod ignored_builds;
 pub mod import;
 pub mod install;
 pub mod link;
+pub mod list;
 pub mod outdated;
 pub mod patch;
 pub mod patch_commit;
@@ -53,6 +55,7 @@ use ignored_builds::IgnoredBuildsArgs;
 use import::ImportArgs;
 use install::InstallArgs;
 use link::LinkArgs;
+use list::ListArgs;
 use miette::{Context, IntoDiagnostic};
 use outdated::{OutdatedArgs, OutdatedOutcome};
 use pacquet_config::{Config, Host};
@@ -176,6 +179,9 @@ pub enum CliCommand {
     Outdated(OutdatedArgs),
     /// Checks for known security issues with the installed packages.
     Audit(AuditArgs),
+    /// List installed packages (global only for now).
+    #[clap(visible_alias = "ls")]
+    List(ListArgs),
     /// Shows the packages that depend on `pkg`
     Why(WhyArgs),
     /// Rebuild a package.
@@ -396,6 +402,20 @@ impl CliArgs {
                     PackageManifest::init(manifest_path_ref).wrap_err("initialize package.json");
                 Box::pin(std::future::ready(result))
             }
+            CliCommand::Add(args) if args.global => {
+                let config = config()?;
+                match reporter {
+                    ReporterType::Default | ReporterType::AppendOnly => {
+                        Box::pin(args.run_global::<DefaultReporter>(config, dir_ref))
+                    }
+                    ReporterType::Ndjson => {
+                        Box::pin(args.run_global::<NdjsonReporter>(config, dir_ref))
+                    }
+                    ReporterType::Silent => {
+                        Box::pin(args.run_global::<SilentReporter>(config, dir_ref))
+                    }
+                }
+            }
             CliCommand::Add(args) => {
                 let command_state = state(false)?;
                 match reporter {
@@ -404,6 +424,16 @@ impl CliArgs {
                     }
                     ReporterType::Ndjson => Box::pin(args.run::<NdjsonReporter>(command_state)),
                     ReporterType::Silent => Box::pin(args.run::<SilentReporter>(command_state)),
+                }
+            }
+            CliCommand::Update(args) if args.global => {
+                let config = config()?;
+                match reporter {
+                    ReporterType::Default | ReporterType::AppendOnly => {
+                        Box::pin(args.run_global::<DefaultReporter>(config))
+                    }
+                    ReporterType::Ndjson => Box::pin(args.run_global::<NdjsonReporter>(config)),
+                    ReporterType::Silent => Box::pin(args.run_global::<SilentReporter>(config)),
                 }
             }
             CliCommand::Update(args) => {
@@ -421,6 +451,15 @@ impl CliArgs {
             // install pipeline to dispatch on. It reports back whether any
             // dependency was outdated; process termination stays here, at
             // the top-level harness, rather than inside the command.
+            CliCommand::Outdated(args) if args.global => {
+                let config = config()?;
+                Box::pin(async move {
+                    if args.run_global(config).await? == OutdatedOutcome::Outdated {
+                        std::process::exit(1);
+                    }
+                    Ok(())
+                })
+            }
             CliCommand::Outdated(args) => {
                 let command_state = state(false)?;
                 Box::pin(async move {
@@ -439,7 +478,15 @@ impl CliArgs {
                     Ok(())
                 })
             }
+            CliCommand::List(args) => {
+                args.run(config()?)?;
+                Box::pin(std::future::ready(Ok(())))
+            }
             CliCommand::Why(args) => Box::pin(args.run(state(true)?)),
+            CliCommand::Remove(args) if args.global => {
+                global::handle_global_remove(config()?, &args.package_names)?;
+                Box::pin(std::future::ready(Ok(())))
+            }
             CliCommand::Remove(args) => {
                 let command_state = state(false)?;
                 match reporter {
