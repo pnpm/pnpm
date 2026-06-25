@@ -2,7 +2,7 @@
 //!
 //! Port of the read half of pnpm's
 //! [`@pnpm/object.property-path`](https://github.com/pnpm/pnpm/blob/8eb1be4988/object/property-path/src):
-//! the tokenizer ([`tokenize`]), the parser ([`parse_property_path`]), and
+//! the tokenizer (`tokenize`), the parser ([`parse_property_path`]), and
 //! [`get_object_value_by_property_path`]. The mutating `set`/`delete` halves
 //! are not ported — the config command only reads through a property path and
 //! uses [`parse_property_path`] to classify a key as simple vs. deep.
@@ -324,17 +324,21 @@ pub fn get_object_value_by_property_path<'a>(
 
 /// Convert a numeric segment to a valid array index, or `None` when it is not
 /// a non-negative integer (`Object.hasOwn(array, name)` is false otherwise).
-fn array_index(n: f64) -> Option<usize> {
-    if n.fract() != 0.0 || n.is_sign_negative() || !n.is_finite() {
+fn array_index(value: f64) -> Option<usize> {
+    if value.fract() != 0.0 || value.is_sign_negative() || !value.is_finite() {
         return None;
     }
-    Some(n as usize)
+    Some(value as usize)
 }
 
 /// Render a JS number the way `String(number)` / object-key coercion would for
 /// the integer values these paths use.
-fn number_to_string(n: f64) -> String {
-    if n.fract() == 0.0 && n.is_finite() { format!("{}", n as i64) } else { n.to_string() }
+fn number_to_string(value: f64) -> String {
+    if value.fract() == 0.0 && value.is_finite() {
+        format!("{}", value as i64)
+    } else {
+        value.to_string()
+    }
 }
 
 #[cfg(test)]

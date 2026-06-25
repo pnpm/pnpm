@@ -62,7 +62,7 @@ fn set_cafile_global_writes_auth_ini() {
 
     assert_eq!(
         read_ini(&config_dir.join("auth.ini")).get("cafile").map(String::as_str),
-        Some("some-cafile")
+        Some("some-cafile"),
     );
 }
 
@@ -82,7 +82,7 @@ fn set_scoped_registry_project_creates_npmrc() {
 
     assert_eq!(
         read_ini(&tmp.path().join(".npmrc")).get("@myorg:registry").map(String::as_str),
-        Some("https://test-registry.example.com/")
+        Some("https://test-registry.example.com/"),
     );
     assert!(!tmp.path().join("pnpm-workspace.yaml").exists());
 }
@@ -105,7 +105,7 @@ fn set_per_registry_auth_project_creates_npmrc() {
         read_ini(&tmp.path().join(".npmrc"))
             .get("//registry.example.com/:_auth")
             .map(String::as_str),
-        Some("test-auth-value")
+        Some("test-auth-value"),
     );
 }
 
@@ -159,7 +159,7 @@ fn set_pnpm_key_project_writes_workspace_yaml() {
 
     assert_eq!(
         read_yaml(&tmp.path().join("pnpm-workspace.yaml")).unwrap(),
-        json!({ "virtualStoreDir": ".pnpm" })
+        json!({ "virtualStoreDir": ".pnpm" }),
     );
 }
 
@@ -180,7 +180,7 @@ fn set_global_https_proxy_writes_config_yaml_not_auth_ini() {
 
     assert_eq!(
         read_yaml(&config_dir.join("config.yaml")).unwrap(),
-        json!({ "httpsProxy": "http://proxy.example.com:8443" })
+        json!({ "httpsProxy": "http://proxy.example.com:8443" }),
     );
     assert!(!config_dir.join("auth.ini").exists());
 }
@@ -206,13 +206,13 @@ fn set_key_equals_value_form() {
 
     assert_eq!(
         read_yaml(&tmp.path().join("pnpm-workspace.yaml")).unwrap(),
-        json!({ "lockfileDir": "foo=bar" })
+        json!({ "lockfileDir": "foo=bar" }),
     );
 }
 
 #[test]
 fn set_dot_leading_and_subscripted_keys() {
-    for key in [".fetchRetries", "[\"fetch-retries\"]"] {
+    for key in [".fetchRetries", r#"["fetch-retries"]"#] {
         let tmp = TempDir::new().unwrap();
         let config_dir = tmp.path().join("global-config");
         std::fs::create_dir_all(&config_dir).unwrap();
@@ -223,7 +223,7 @@ fn set_dot_leading_and_subscripted_keys() {
         assert_eq!(
             read_yaml(&config_dir.join("config.yaml")).unwrap(),
             json!({ "fetchRetries": 1 }),
-            "key {key}"
+            "key {key}",
         );
     }
 }
@@ -248,7 +248,7 @@ fn set_object_value_with_json_writes_workspace_yaml() {
 
     assert_eq!(
         read_yaml(&tmp.path().join("pnpm-workspace.yaml")).unwrap(),
-        json!({ "packageExtensions": extensions })
+        json!({ "packageExtensions": extensions }),
     );
 }
 
@@ -344,7 +344,7 @@ fn delete_auth_key_set_and_unset() {
     config_set(&config, tmp.path(), flags(true, None, false), "registry", None).unwrap();
     assert_eq!(
         read_ini(&config_dir.join("auth.ini")).get("@my-company:registry").map(String::as_str),
-        Some("https://registry.my-company.example.com/")
+        Some("https://registry.my-company.example.com/"),
     );
 
     // set present → removed
@@ -402,14 +402,14 @@ fn get_boolean_and_array_and_object() {
             &config_get(&config, flags(true, None, false), "public-hoist-pattern").unwrap()
         )
         .unwrap(),
-        json!(["*eslint*", "*prettier*"])
+        json!(["*eslint*", "*prettier*"]),
     );
     assert_eq!(
         serde_json::from_str::<Value>(
             &config_get(&config, flags(true, None, false), "package-extensions").unwrap()
         )
         .unwrap(),
-        json!({ "a": { "dependencies": { "b": "1" } } })
+        json!({ "a": { "dependencies": { "b": "1" } } }),
     );
 }
 
@@ -418,14 +418,14 @@ fn get_unknown_key_is_undefined() {
     let config = config_for_get(&[], &[]);
     assert_eq!(
         config_get(&config, flags(true, None, false), "no-such-setting").unwrap(),
-        "undefined"
+        "undefined",
     );
     // prototype-chain names must not resolve
     for key in ["constructor", "__proto__", "hasOwnProperty"] {
         assert_eq!(
             config_get(&config, flags(true, None, false), key).unwrap(),
             "undefined",
-            "{key}"
+            "{key}",
         );
     }
 }
@@ -436,7 +436,7 @@ fn get_scoped_registry_from_auth_and_merged() {
         config_for_get(&[], &[("@scope:registry", "https://custom-registry.example.com/")]);
     assert_eq!(
         config_get(&from_auth, flags(false, None, false), "@scope:registry").unwrap(),
-        "https://custom-registry.example.com/"
+        "https://custom-registry.example.com/",
     );
 
     // merged `registries` block wins over the raw .npmrc value (pnpm/pnpm#11492)
@@ -446,13 +446,13 @@ fn get_scoped_registry_from_auth_and_merged() {
         .insert("@scope".to_string(), "https://from-workspace-yaml.example.com/".to_string());
     assert_eq!(
         config_get(&merged, flags(false, None, false), "@scope:registry").unwrap(),
-        "https://from-workspace-yaml.example.com/"
+        "https://from-workspace-yaml.example.com/",
     );
 
     let absent = config_for_get(&[], &[]);
     assert_eq!(
         config_get(&absent, flags(false, None, false), "@scope:registry").unwrap(),
-        "undefined"
+        "undefined",
     );
 }
 
@@ -461,7 +461,7 @@ fn get_globalconfig_path() {
     let config = config_for_get(&[], &[]);
     assert_eq!(
         config_get(&config, flags(true, None, false), "globalconfig").unwrap(),
-        Path::new("/config").join("config.yaml").to_string_lossy()
+        Path::new("/config").join("config.yaml").to_string_lossy(),
     );
 }
 
@@ -479,7 +479,7 @@ fn get_property_path_into_object() {
     );
     assert_eq!(
         config_get(&config, flags(false, None, false), "trustPolicyExclude[0]").unwrap(),
-        "foo"
+        "foo",
     );
     assert_eq!(
         config_get(
@@ -488,14 +488,14 @@ fn get_property_path_into_object() {
             r#"packageExtensions["@babel/parser"].peerDependencies["@babel/types"]"#
         )
         .unwrap(),
-        "*"
+        "*",
     );
     assert_eq!(
         serde_json::from_str::<Value>(
             &config_get(&config, flags(false, None, false), "package-extensions").unwrap()
         )
         .unwrap(),
-        json!({ "@babel/parser": { "peerDependencies": { "@babel/types": "*" } } })
+        json!({ "@babel/parser": { "peerDependencies": { "@babel/types": "*" } } }),
     );
 }
 

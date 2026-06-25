@@ -51,7 +51,7 @@ pub enum ConfigSubcommand {
 
 /// Shared `--global` / `--location` / `--json` flags. Marked `global` so they
 /// can appear before or after the positional arguments, matching pnpm.
-#[derive(Debug, Clone, Copy, Default, Args)]
+#[derive(Debug, Default, Clone, Copy, Args)]
 pub struct ConfigFlags {
     /// Operate on the global config file.
     #[clap(short = 'g', long, global = true)]

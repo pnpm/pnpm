@@ -31,7 +31,7 @@ fn is_kebab_segment(segment: &str) -> bool {
     if !first.is_ascii_lowercase() {
         return false;
     }
-    chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
+    chars.all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit())
 }
 
 /// Whether `name` is camelCase: `[a-z][a-zA-Z0-9]*`.
@@ -46,7 +46,7 @@ pub fn is_camel_case(name: &str) -> bool {
     if !first.is_ascii_lowercase() {
         return false;
     }
-    chars.all(|c| c.is_ascii_alphanumeric())
+    chars.all(|ch| ch.is_ascii_alphanumeric())
 }
 
 /// Convert `name` to kebab-case, matching `lodash.kebabcase` for the ASCII
@@ -117,25 +117,26 @@ fn words(name: &str) -> Vec<String> {
     result
 }
 
-/// Whether a word boundary falls *before* `c` given the previous char `p`
-/// (both alphanumeric, same separator-free run) and the following char `next`.
-fn boundary_before(p: char, c: char, next: Option<char>) -> bool {
-    let p_lower = p.is_ascii_lowercase();
-    let p_upper = p.is_ascii_uppercase();
-    let p_digit = p.is_ascii_digit();
-    let c_upper = c.is_ascii_uppercase();
-    let c_digit = c.is_ascii_digit();
+/// Whether a word boundary falls *before* `curr` given the previous char
+/// `prev` (both alphanumeric, same separator-free run) and the following char
+/// `next`.
+fn boundary_before(prev: char, curr: char, next: Option<char>) -> bool {
+    let prev_lower = prev.is_ascii_lowercase();
+    let prev_upper = prev.is_ascii_uppercase();
+    let prev_digit = prev.is_ascii_digit();
+    let curr_upper = curr.is_ascii_uppercase();
+    let curr_digit = curr.is_ascii_digit();
 
     // letter → digit and digit → letter both start a new word
-    if (p.is_ascii_alphabetic() && c_digit) || (p_digit && c.is_ascii_alphabetic()) {
+    if (prev.is_ascii_alphabetic() && curr_digit) || (prev_digit && curr.is_ascii_alphabetic()) {
         return true;
     }
     // lower → upper: camelCase hump (`fetchRetries` → `fetch`, `Retries`)
-    if p_lower && c_upper {
+    if prev_lower && curr_upper {
         return true;
     }
     // upper → upper followed by lower: acronym end (`XMLHttp` → `XML`, `Http`)
-    if p_upper && c_upper && next.is_some_and(|n| n.is_ascii_lowercase()) {
+    if prev_upper && curr_upper && next.is_some_and(|following| following.is_ascii_lowercase()) {
         return true;
     }
     false

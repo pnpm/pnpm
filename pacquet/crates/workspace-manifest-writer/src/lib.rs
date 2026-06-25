@@ -441,6 +441,19 @@ pub fn update_manifest_field(
         return Ok(());
     }
 
+    // A `set` may target a config directory that does not exist yet
+    // (`pnpm config set --global`). Mirror pnpm's `fs.mkdir(dir, { recursive:
+    // true })` before the write; a `delete` never needs it (the file, hence its
+    // parent, already exists).
+    if !value.is_null()
+        && let Some(parent) = path.parent().filter(|parent| !parent.as_os_str().is_empty())
+    {
+        fs::create_dir_all(parent).map_err(|source| UpdateWorkspaceManifestError::Write {
+            path: path.to_path_buf(),
+            source,
+        })?;
+    }
+
     write_or_remove_manifest(path, manifest)
 }
 
@@ -475,10 +488,6 @@ fn write_atomic(path: &Path, contents: &str) -> io::Result<()> {
         .parent()
         .filter(|parent| !parent.as_os_str().is_empty())
         .unwrap_or_else(|| Path::new("."));
-    // Mirror pnpm's `fs.mkdir(dir, { recursive: true })` before writing, so a
-    // global `config.yaml` whose `<configDir>` does not yet exist is created
-    // (`pnpm config set --global`).
-    fs::create_dir_all(dir)?;
     let mut tmp = tempfile::NamedTempFile::new_in(dir)?;
     tmp.write_all(contents.as_bytes())?;
     tmp.as_file().sync_all()?;

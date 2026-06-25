@@ -11,17 +11,17 @@ fn keys(path: &str) -> Vec<Segment> {
 fn parses_dotted_and_bracketed_forms() {
     assert_eq!(
         keys("foo.bar.baz"),
-        vec![Segment::Key("foo".into()), Segment::Key("bar".into()), Segment::Key("baz".into()),]
+        vec![Segment::Key("foo".into()), Segment::Key("bar".into()), Segment::Key("baz".into()),],
     );
     assert_eq!(keys(".foo.bar"), vec![Segment::Key("foo".into()), Segment::Key("bar".into())]);
     assert_eq!(
         keys(r#"foo["bar"].baz"#),
-        vec![Segment::Key("foo".into()), Segment::Key("bar".into()), Segment::Key("baz".into()),]
+        vec![Segment::Key("foo".into()), Segment::Key("bar".into()), Segment::Key("baz".into()),],
     );
     assert_eq!(keys("foo['bar']"), vec![Segment::Key("foo".into()), Segment::Key("bar".into())]);
     assert_eq!(
         keys(r#"["foo"].bar"#),
-        vec![Segment::Key("foo".into()), Segment::Key("bar".into())]
+        vec![Segment::Key("foo".into()), Segment::Key("bar".into())],
     );
     assert_eq!(keys("foo[123]"), vec![Segment::Key("foo".into()), Segment::Index(123.0)]);
     assert!(keys("").is_empty());
@@ -35,7 +35,7 @@ fn parses_scoped_package_keys() {
             Segment::Key("packageExtensions".into()),
             Segment::Key("@babel/parser".into()),
             Segment::Key("peerDependencies".into()),
-        ]
+        ],
     );
 }
 
@@ -43,7 +43,7 @@ fn parses_scoped_package_keys() {
 fn parse_errors() {
     assert_eq!(
         parse_property_path("foo..bar"),
-        Err(ParsePropertyPathError::UnexpectedToken { token: ".".into() })
+        Err(ParsePropertyPathError::UnexpectedToken { token: ".".into() }),
     );
     assert_eq!(parse_property_path("foo["), Err(ParsePropertyPathError::UnexpectedEndOfInput));
 }
@@ -59,18 +59,18 @@ fn gets_nested_values() {
 
     assert_eq!(
         get_object_value_by_property_path(&value, &keys("trustPolicyExclude[0]")),
-        Some(&json!("foo"))
+        Some(&json!("foo")),
     );
     assert_eq!(
         get_object_value_by_property_path(&value, &keys("trustPolicyExclude[1]")),
-        Some(&json!("bar"))
+        Some(&json!("bar")),
     );
     assert_eq!(
         get_object_value_by_property_path(
             &value,
             &keys(r#"packageExtensions["@babel/parser"].peerDependencies["@babel/types"]"#)
         ),
-        Some(&json!("*"))
+        Some(&json!("*")),
     );
     // out-of-range index, missing key, and non-numeric array index → None
     assert_eq!(get_object_value_by_property_path(&value, &keys("trustPolicyExclude[2]")), None);

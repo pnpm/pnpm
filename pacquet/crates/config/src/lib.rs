@@ -1531,7 +1531,7 @@ pub struct Config {
     /// config record consumed by `pnpm config get` / `pnpm config list`:
     /// because [`WorkspaceSettings`]'s fields are `Option`s, a serialized
     /// settings struct names exactly the keys a source set, with the user's
-    /// raw value. See [`Config::config_to_record`].
+    /// raw value. The `config` command turns this into the record it prints.
     pub explicit_settings: serde_json::Map<String, serde_json::Value>,
 
     /// Raw `.npmrc` / `auth.ini` config keys (those for which
