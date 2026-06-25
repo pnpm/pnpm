@@ -71,7 +71,7 @@ fn deploy_refuses_non_empty_target_without_force() {
     assert!(!output.status.success());
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("Deploy path") && stderr.contains("is not empty"),
+        stderr.contains("ERR_PNPM_DEPLOY_DIR_NOT_EMPTY") && stderr.contains("empty"),
         "unexpected stderr:\n{stderr}",
     );
     assert_eq!(fs::read_to_string(workspace.join("deploy/keep.txt")).unwrap(), "keep");
