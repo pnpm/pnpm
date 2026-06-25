@@ -80,12 +80,15 @@ async fn fetch_whoami(
     retry_opts: RetryOpts,
 ) -> miette::Result<String> {
     let url = format!("{registry_url}-/whoami");
+    // Diagnostic context omits the URL: a registry configured as
+    // `https://user:password@host/` carries inline credentials (accepted by
+    // `AuthHeaders`), which must not reach stderr / CI logs.
     let (client, response) = send_with_retry(http_client, &url, retry_opts, |client| {
         client.get(&url).header("authorization", auth_header)
     })
     .await
     .into_diagnostic()
-    .wrap_err_with(|| format!("requesting {url}"))?;
+    .wrap_err("requesting the registry whoami endpoint")?;
     if !response.status().is_success() {
         let status = response.status();
         return Err(WhoamiError::Failed {
@@ -98,7 +101,7 @@ async fn fetch_whoami(
         .json::<WhoamiResponse>()
         .await
         .into_diagnostic()
-        .wrap_err_with(|| format!("parsing the whoami response from {url}"))?;
+        .wrap_err("parsing the whoami response")?;
     drop(client);
     Ok(body.username)
 }
