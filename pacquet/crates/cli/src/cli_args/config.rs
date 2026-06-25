@@ -153,11 +153,11 @@ pub enum ConfigError {
     #[diagnostic(code(ERR_PNPM_CONFIG_NO_GLOBAL_DIR))]
     NoGlobalConfigDir,
 
-    #[display(
-        "Cannot write {value:?} to an INI config file: it contains a control character that would corrupt the file"
-    )]
+    // The rejected value is deliberately not echoed — it may be a credential
+    // (e.g. a token with a stray newline pasted from an env var).
+    #[display("Cannot write a value containing a control character to an INI config file")]
     #[diagnostic(code(pacquet_cli::config_set_invalid_control_character))]
-    SetIniControlCharacter { value: String },
+    SetIniControlCharacter,
 }
 
 impl ConfigArgs {
@@ -302,7 +302,7 @@ fn write_ini_setting(config_path: &Path, key: &str, value: &Value) -> miette::Re
         // extra `key=value` lines when the INI file is re-parsed, injecting
         // settings the user never set. Refuse rather than corrupt the file.
         if has_control_char(key) || has_control_char(&value_string) {
-            return Err(ConfigError::SetIniControlCharacter { value: value_string }.into());
+            return Err(ConfigError::SetIniControlCharacter.into());
         }
         settings.insert(key.to_string(), value_string);
     }
