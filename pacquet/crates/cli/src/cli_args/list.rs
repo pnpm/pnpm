@@ -781,5 +781,4 @@ fn gray(text: &str) -> String {
 }
 
 #[cfg(test)]
-#[path = "list/tests.rs"]
 mod tests;
