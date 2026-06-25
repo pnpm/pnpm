@@ -1505,14 +1505,12 @@ struct ValidatedPublish {
     prepared: Vec<PreparedAttachment>,
 }
 
-/// One publish attachment resolved to its canonical on-disk filename, the
-/// version it publishes, and its `versions[version].dist` block.
+/// One publish attachment resolved to its canonical on-disk filename and its
+/// `versions[version].dist` block.
 struct PreparedAttachment {
     attachment: PendingAttachment,
     /// Canonical on-disk filename.
     canonical: String,
-    /// The version this attachment publishes.
-    version: String,
     /// The matching `dist` block, or `Value::Null` when absent.
     dist: Value,
 }
@@ -1544,7 +1542,7 @@ async fn validate_publish_doc(
             .and_then(|manifest| manifest.get("dist"))
             .cloned()
             .unwrap_or(Value::Null);
-        prepared.push(PreparedAttachment { attachment, canonical, version, dist });
+        prepared.push(PreparedAttachment { attachment, canonical, dist });
     }
     Ok(ValidatedPublish { name, incoming, prepared })
 }
@@ -1574,17 +1572,20 @@ async fn stage_publish(
 
     // Reject a re-publish of an already-hosted version: published versions
     // are immutable, and npm/verdaccio answer a re-publish with 409. Check
-    // only the locally hosted packument, not the upstream-seeded merge
-    // below — a version that exists only upstream may still be published
-    // here for the first time.
+    // every version in the incoming body — not just the ones backed by an
+    // attachment, since merge_manifest below consumes the whole `versions`
+    // map — against the locally hosted packument only (a version that exists
+    // only upstream may still be published here for the first time).
     if let Some(bytes) = hosted_bytes.as_deref() {
         let hosted: Value = serde_json::from_slice(bytes).map_err(RegistryError::Json)?;
-        if let Some(versions) = hosted.get("versions").and_then(Value::as_object)
-            && let Some(clash) = prepared.iter().find(|entry| versions.contains_key(&entry.version))
+        if let Some(hosted_versions) = hosted.get("versions").and_then(Value::as_object)
+            && let Some(incoming_versions) = incoming.get("versions").and_then(Value::as_object)
+            && let Some(clash) =
+                incoming_versions.keys().find(|version| hosted_versions.contains_key(*version))
         {
             return Err(RegistryError::VersionAlreadyPublished {
                 package: name.as_str().to_string(),
-                version: clash.version.clone(),
+                version: clash.clone(),
             });
         }
     }
@@ -1621,7 +1622,7 @@ async fn stage_publish(
     // 400; any tmp files written before the failure get removed
     // along the way so a bad upload leaves no on-disk artifact.
     let mut written_slots = Vec::with_capacity(prepared.len());
-    for PreparedAttachment { attachment, canonical, dist, version: _ } in prepared {
+    for PreparedAttachment { attachment, canonical, dist } in prepared {
         let slot = match state.inner.storage.reserve_hosted_tarball(&name, &canonical).await {
             Ok(slot) => slot,
             Err(err) => {
