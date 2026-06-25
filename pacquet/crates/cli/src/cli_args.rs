@@ -24,9 +24,11 @@ pub mod patch;
 pub mod patch_commit;
 pub mod patch_remove;
 pub(crate) mod patch_state;
+pub mod ping;
 pub mod prune;
 pub mod rebuild;
 pub mod recursive;
+pub mod registry_client;
 pub mod remove;
 pub mod restart;
 pub mod root;
@@ -77,6 +79,7 @@ use pacquet_reporter::{
 use patch::PatchArgs;
 use patch_commit::PatchCommitArgs;
 use patch_remove::PatchRemoveArgs;
+use ping::PingArgs;
 use prune::PruneArgs;
 use rebuild::RebuildArgs;
 use remove::RemoveArgs;
@@ -203,6 +206,8 @@ pub enum CliCommand {
     /// Manage a package's distribution tags.
     #[clap(name = "dist-tag", visible_alias = "dist-tags")]
     DistTag(DistTagArgs),
+    /// Test connectivity to the configured registry.
+    Ping(PingArgs),
     /// Rebuild a package.
     #[clap(visible_alias = "rb")]
     Rebuild(RebuildArgs),
@@ -557,6 +562,19 @@ impl CliArgs {
                         }
                         println!("{output}");
                     }
+                    Ok(())
+                })
+            }
+            // `ping` is a read-only connectivity check: it resolves the
+            // registry (and any auth header) from config and GETs
+            // `-/ping`, with no lockfile or install pipeline, so it
+            // dispatches off `config()` like the other read-only registry
+            // commands.
+            CliCommand::Ping(args) => {
+                let cfg: &Config = config()?;
+                Box::pin(async move {
+                    let report = args.run(cfg).await?;
+                    println!("{report}");
                     Ok(())
                 })
             }

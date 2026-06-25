@@ -1,7 +1,8 @@
+use crate::cli_args::registry_client::build_registry_client;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pacquet_config::Config;
-use pacquet_network::{NetworkSettings, RetryOpts, ThrottledClient, send_with_retry};
+use pacquet_network::{RetryOpts, ThrottledClient, send_with_retry};
 use serde::Deserialize;
 use std::time::Duration;
 
@@ -37,7 +38,7 @@ struct WhoamiResponse {
 pub async fn whoami(config: &Config) -> miette::Result<String> {
     let auth_header =
         config.auth_headers.for_url(&config.registry).ok_or(WhoamiError::Unauthorized)?;
-    let http_client = build_http_client(config)?;
+    let http_client = build_registry_client(config)?;
     let retry_opts = RetryOpts {
         retries: config.fetch_retries,
         factor: config.fetch_retry_factor,
@@ -45,24 +46,6 @@ pub async fn whoami(config: &Config) -> miette::Result<String> {
         max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
     };
     fetch_whoami(&config.registry, &http_client, &auth_header, retry_opts).await
-}
-
-/// The network client `whoami` makes its single request through, built
-/// from the same proxy / TLS / timeout config as the install client
-/// ([`crate::state::State::init`]).
-fn build_http_client(config: &Config) -> miette::Result<ThrottledClient> {
-    ThrottledClient::for_installs(
-        &config.proxy,
-        &config.tls,
-        &config.tls_by_uri,
-        &NetworkSettings {
-            network_concurrency: config.network_concurrency,
-            fetch_timeout: Duration::from_millis(config.fetch_timeout),
-            user_agent: config.user_agent.clone(),
-        },
-    )
-    .into_diagnostic()
-    .wrap_err("create the network client for whoami")
 }
 
 /// GET `<registry>-/whoami` with the resolved `Authorization` header and
