@@ -379,6 +379,33 @@ pub fn set_minimum_release_age_excludes(
     write_or_remove_manifest(&path, manifest)
 }
 
+/// Delete `selectors` from `dir`'s `pnpm-workspace.yaml` `overrides:` block,
+/// dropping the block (and the file, once it has no other top-level keys)
+/// when nothing remains, and writing back only when something actually
+/// changed. A missing file is a no-op. The inverse of [`set_overrides`];
+/// used by `pacquet unlink` to drop link: overrides.
+pub fn remove_overrides(
+    dir: &Path,
+    selectors: &[String],
+) -> Result<(), UpdateWorkspaceManifestError> {
+    let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
+
+    let original = match fs::read_to_string(&path) {
+        Ok(text) => text,
+        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(source) => return Err(UpdateWorkspaceManifestError::Read { path, source }),
+    };
+
+    let mut manifest = Manifest::parse(Some(&original))
+        .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
+
+    if !edit::remove_overrides(&mut manifest, selectors) {
+        return Ok(());
+    }
+
+    write_or_remove_manifest(&path, manifest)
+}
+
 fn write_or_remove_manifest(
     path: &Path,
     manifest: Manifest,
