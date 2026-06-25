@@ -101,7 +101,12 @@ fn unlink_is_noop_without_overrides() {
 
     write_manifest(&workspace, &serde_json::json!({ "name": "test-project", "version": "1.0.0" }));
 
-    pacquet.with_arg("unlink").assert().success();
+    let output = pacquet.with_arg("unlink").output().expect("run pacquet unlink");
+    assert!(output.status.success(), "unlink without overrides must succeed");
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("Nothing to unlink"),
+        "unlink must report when there is nothing to unlink, matching pnpm",
+    );
 
     let workspace_yaml = read_workspace_yaml(&workspace);
     assert!(

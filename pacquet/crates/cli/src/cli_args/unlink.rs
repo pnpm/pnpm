@@ -29,8 +29,11 @@ impl UnlinkArgs {
         config: &'static mut Config,
         manifest_path: PathBuf,
     ) -> miette::Result<()> {
-        // pnpm bails with "Nothing to unlink" when no overrides are configured.
+        // pnpm prints "Nothing to unlink" and stops when no overrides are
+        // configured; otherwise it strips the matching link: overrides and
+        // reinstalls — running the install even when nothing matched.
         let Some(overrides) = config.overrides.as_mut() else {
+            println!("Nothing to unlink");
             return Ok(());
         };
 
@@ -44,22 +47,20 @@ impl UnlinkArgs {
             .map(|(selector, _)| selector.clone())
             .collect();
 
-        if removed.is_empty() {
-            return Ok(());
-        }
-
         for selector in &removed {
             overrides.shift_remove(selector);
         }
 
-        let root_dir = config
-            .workspace_dir
-            .clone()
-            .or_else(|| manifest_path.parent().map(Path::to_path_buf))
-            .ok_or_else(|| miette::miette!("manifest path has no parent directory"))?;
+        if !removed.is_empty() {
+            let root_dir = config
+                .workspace_dir
+                .clone()
+                .or_else(|| manifest_path.parent().map(Path::to_path_buf))
+                .ok_or_else(|| miette::miette!("manifest path has no parent directory"))?;
 
-        remove_overrides(&root_dir, &removed)
-            .wrap_err("removing link: overrides from pnpm-workspace.yaml")?;
+            remove_overrides(&root_dir, &removed)
+                .wrap_err("removing link: overrides from pnpm-workspace.yaml")?;
+        }
 
         let state = State::init(manifest_path, config, false).wrap_err("initialize the state")?;
 
