@@ -6,7 +6,7 @@
 use crate::cli_args::registry_client::build_registry_client;
 use clap::Args;
 use derive_more::{Display, Error};
-use miette::{Context, Diagnostic, IntoDiagnostic};
+use miette::Diagnostic;
 use pacquet_config::Config;
 use pacquet_network::{RetryOpts, ThrottledClient, redact_url_credentials, send_with_retry};
 use serde_json::Value;
@@ -58,7 +58,7 @@ impl PingArgs {
         )
         .await?;
 
-        let mut report = format!("PING {registry_url}\nPONG {time}ms");
+        let mut report = format!("PING {}\nPONG {time}ms", sanitized_registry(registry_url));
         if let Some(details) = format_details(&body) {
             report.push_str("\nPONG ");
             report.push_str(&details);
@@ -67,14 +67,25 @@ impl PingArgs {
     }
 }
 
+/// Render a registry URL for the echoed `PING` line: redact any inline
+/// `user:pass@` credentials and strip control characters. A registry from an
+/// untrusted `.npmrc` / `--registry` must not leak its basic-auth or emit raw
+/// escape sequences — or inject lines via `\r` / `\n` — to the terminal.
+fn sanitized_registry(registry_url: &str) -> String {
+    redact_url_credentials(registry_url)
+        .chars()
+        .filter(|character| !character.is_control())
+        .collect()
+}
+
 /// GET `ping_url` with the optional `Authorization` header, timing the
 /// round trip (request plus body read) the way pnpm measures `Date.now()`.
 ///
-/// Errors with `ERR_PNPM_PING_ERROR` on any transport failure or
-/// non-success status. The transport error message is credential-redacted
-/// before it reaches stderr / CI logs: a registry configured as
-/// `https://user:password@host/` carries inline credentials that the
-/// underlying error may echo back.
+/// Errors with `ERR_PNPM_PING_ERROR` on a transport failure, a non-success
+/// status, or a failed body read. Messages from network failures are
+/// credential-redacted before they reach stderr / CI logs: a registry
+/// configured as `https://user:password@host/` carries inline credentials
+/// that the underlying `reqwest` error would otherwise echo back.
 async fn fetch_ping(
     ping_url: &str,
     http_client: &ThrottledClient,
@@ -108,8 +119,9 @@ async fn fetch_ping(
         .into());
     }
 
-    let body =
-        response.text().await.into_diagnostic().wrap_err("reading the registry ping response")?;
+    let body = response.text().await.map_err(|error| PingError::Unreachable {
+        message: redact_url_credentials(&error.to_string()),
+    })?;
     let time = start.elapsed().as_millis();
     drop(client);
     Ok((time, body))
