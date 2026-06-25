@@ -517,6 +517,29 @@ async fn update_packument_protects_a_published_tarball_with_a_basenameless_url()
     assert_eq!(app.oneshot(request).await.unwrap().status(), StatusCode::BAD_REQUEST);
 }
 
+#[tokio::test]
+async fn update_packument_rejects_seeding_a_package_with_no_published_packument() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    // No prior publish: PUT a packument straight to the unpublish route. This
+    // would otherwise seed an authoritative version with no tarball and — since
+    // publish refuses a version already in the packument — block its future
+    // legitimate publish, so it must be rejected.
+    let body = sample_publish_body("ghost", "1.0.0", b"bytes");
+    let request = Request::put("/ghost/-rev/anything")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    assert_eq!(app.oneshot(request).await.unwrap().status(), StatusCode::BAD_REQUEST);
+
+    // Nothing may have been written to the hosted store.
+    assert!(!storage.join("ghost/package.json").exists());
+}
+
 /// Published packages are the source of truth: they live in the
 /// authoritative `storage` root, never in the disposable proxy cache,
 /// and survive a full wipe of that cache.

@@ -1933,10 +1933,11 @@ async fn update_packument(
 ///   against a string integrity, so both fields must survive.
 /// - A version *not* already published is rejected: this endpoint only removes
 ///   versions, never adds them, and a new entry could declare a `dist.tarball`
-///   basename that collides with a published version — making
-///   [`expected_tarball_dist`] fail closed (502) for that filename. (When no
-///   hosted packument exists there is nothing to unpublish from, so a fresh body
-///   is accepted once its SRIs are validated.)
+///   basename that collides with a published version (making
+///   [`expected_tarball_dist`] fail closed / 502) or seed a tarball-less version.
+/// - A `PUT` to a package with no hosted packument is rejected outright: there is
+///   nothing to unpublish, and writing the body would seed authoritative versions
+///   that publish can never overwrite (a durable squat).
 ///
 /// Returns the rejection error, or `None` when the body is acceptable (possibly
 /// after restoring omitted fields). Must be called while holding the package
@@ -1946,24 +1947,48 @@ async fn enforce_published_version_immutability(
     name: &PackageName,
     incoming: &mut Value,
 ) -> Option<RegistryError> {
-    let incoming_versions = incoming.get("versions").and_then(Value::as_object)?;
-    let hosted: Option<Value> = match state.inner.storage.read_hosted_packument(name).await {
+    let hosted: Value = match state.inner.storage.read_hosted_packument(name).await {
         // Fail closed: a corrupt hosted packument must not silently disable the
         // immutability gate (which would let tampered dist fields through).
         Ok(Some(bytes)) => match serde_json::from_slice(&bytes) {
-            Ok(value) => Some(value),
+            Ok(value) => value,
             Err(err) => return Some(RegistryError::Json(err)),
         },
-        Ok(None) => None,
+        // Partial-unpublish operates on an already-published package; with no
+        // hosted packument there is nothing to unpublish. Writing the body would
+        // instead seed authoritative versions with no tarballs and — because
+        // publish refuses any version already in the packument — permanently
+        // block their later legitimate publish. Refuse it.
+        Ok(None) => {
+            return Some(RegistryError::BadRequest {
+                reason: format!(
+                    "cannot update {:?}: it has no published packument to unpublish from",
+                    name.as_str(),
+                ),
+            });
+        }
         Err(err) => return Some(err),
     };
-    let hosted_versions =
-        hosted.as_ref().and_then(|value| value.get("versions")).and_then(Value::as_object);
+    // A body without a versions object has nothing to enforce (and nothing the
+    // caller could be unpublishing); accept it.
+    let incoming_versions = incoming.get("versions").and_then(Value::as_object)?;
+    let hosted_versions = hosted.get("versions").and_then(Value::as_object);
     // (version, dist key, hosted value) triples re-inserted after the scan, for
     // published versions whose body omitted an immutable dist field (a borrow of
     // `incoming` is live until then).
     let mut restore: Vec<(String, &'static str, Value)> = Vec::new();
     for (version, manifest) in incoming_versions {
+        // Partial-unpublish only removes versions; it must not add one. A new
+        // entry could declare a dist.tarball basename colliding with a published
+        // version (making expected_tarball_dist fail closed / 502) or seed a
+        // version with no tarball, so reject anything not already published.
+        let Some(existing) = hosted_versions.and_then(|versions| versions.get(version)) else {
+            return Some(RegistryError::BadRequest {
+                reason: format!(
+                    "version {version:?} is not in the published package; this endpoint removes versions, it does not add them",
+                ),
+            });
+        };
         // A present dist.integrity must be a string — a valid SRI is the only
         // acceptable shape. A present-but-non-string value (null, number,
         // object) would slip past the string-only checks below and still break
@@ -1976,29 +2001,6 @@ async fn enforce_published_version_immutability(
                     reason: format!("dist.integrity for version {version:?} must be a string"),
                 });
             }
-        };
-        let Some(existing) = hosted_versions.and_then(|versions| versions.get(version)) else {
-            // Partial-unpublish only removes versions from an existing package;
-            // it must not add one. A new entry could declare a dist.tarball
-            // basename colliding with a published version, which makes
-            // expected_tarball_dist fail closed (502) for that filename. Only
-            // when there is no hosted packument is there nothing to unpublish
-            // from, so a fresh body is accepted once its SRI is validated.
-            if hosted_versions.is_some() {
-                return Some(RegistryError::BadRequest {
-                    reason: format!(
-                        "version {version:?} is not in the published package; this endpoint removes versions, it does not add them",
-                    ),
-                });
-            }
-            if let Some(sri) = incoming_integrity
-                && let Err(err) = crate::streaming::parse_integrity(sri)
-            {
-                return Some(RegistryError::BadRequest {
-                    reason: format!("malformed dist.integrity for version {version:?}: {err}"),
-                });
-            }
-            continue;
         };
         let existing_dist = existing.get("dist");
         // dist.integrity immutability.
