@@ -163,6 +163,32 @@ fn rejects_output_dir_symlinked_outside_the_project() {
     assert_eq!(code, "ERR_PNPM_PACK_APP_OUTPUT_DIR_OUTSIDE_PROJECT");
 }
 
+#[test]
+fn signer_resolution_skips_project_local_binaries() {
+    use super::first_signer_outside_project;
+
+    let project = TempDir::new().unwrap();
+    let outside = TempDir::new().unwrap();
+    // A repo-controlled `node_modules/.bin/ldid` and a trusted system one.
+    let bin_dir = project.path().join("node_modules").join(".bin");
+    fs::create_dir_all(&bin_dir).unwrap();
+    let project_ldid = bin_dir.join("ldid");
+    fs::write(&project_ldid, "#!/bin/sh\n").unwrap();
+    let system_ldid = outside.path().join("ldid");
+    fs::write(&system_ldid, "#!/bin/sh\n").unwrap();
+
+    // Project-local match comes first on PATH but must be skipped.
+    let resolved = first_signer_outside_project(
+        [project_ldid.clone(), system_ldid.clone()].into_iter(),
+        project.path(),
+    );
+    assert_eq!(resolved.as_deref(), Some(system_ldid.as_path()));
+
+    // When every match is inside the project, none is returned.
+    let none = first_signer_outside_project([project_ldid].into_iter(), project.path());
+    assert!(none.is_none());
+}
+
 #[cfg(unix)]
 #[test]
 fn rejects_output_file_that_is_a_preexisting_symlink() {

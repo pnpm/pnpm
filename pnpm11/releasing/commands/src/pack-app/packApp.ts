@@ -290,7 +290,7 @@ export async function handler (opts: PackAppOptions, params: string[]): Promise<
     }
 
     // eslint-disable-next-line no-await-in-loop
-    await adHocSignMacBinary(target, outputFile)
+    await adHocSignMacBinary(target, outputFile, opts.dir)
 
     results.push(`  ${target.raw}: ${outputFile} (Node.js ${resolvedTargetVersion})`)
   }
@@ -652,15 +652,19 @@ function rejectNonRegularOutputFile (outputFile: string): void {
  * available ad-hoc signer, so we refuse to produce an unsigned output silently
  * and tell the user to re-sign on macOS or Linux.
  */
-async function adHocSignMacBinary (target: ParsedTarget, outputFile: string): Promise<void> {
+async function adHocSignMacBinary (target: ParsedTarget, outputFile: string, dir: string): Promise<void> {
   if (target.platform !== 'darwin') return
   if (process.platform === 'darwin') {
-    await execa('codesign', ['--sign', '-', outputFile], { stdio: 'inherit' })
+    // `codesign` is a macOS system tool; spawn it by absolute path so a
+    // repo-controlled `node_modules/.bin/codesign` on PATH can't be run in its
+    // place.
+    await execa('/usr/bin/codesign', ['--sign', '-', outputFile], { stdio: 'inherit' })
     return
   }
   if (process.platform === 'linux') {
+    const ldid = resolveTrustedSigner('ldid', dir, outputFile)
     try {
-      await execa('ldid', ['-S', outputFile], { stdio: 'inherit' })
+      await execa(ldid, ['-S', outputFile], { stdio: 'inherit' })
     } catch {
       throw new PnpmError('PACK_APP_MACOS_SIGN_FAILED',
         `Cross-compiled macOS binary at ${outputFile} could not be ad-hoc signed with "ldid".`,
@@ -672,5 +676,35 @@ async function adHocSignMacBinary (target: ParsedTarget, outputFile: string): Pr
   throw new PnpmError('PACK_APP_MACOS_SIGN_UNSUPPORTED_HOST',
     `Cannot ad-hoc sign the macOS binary at ${outputFile} on a ${process.platform} host.`,
     { hint: 'Build macOS targets on a macOS or Linux host, or re-sign the produced binary yourself with "codesign --sign -" on macOS.' }
+  )
+}
+
+// Resolve an external signer (`ldid`) to an absolute path via PATH, skipping
+// any match that resolves inside the project directory — a repo could ship
+// `node_modules/.bin/ldid` and, if that directory is on the developer's PATH,
+// get an attacker-controlled binary executed when packaging a darwin target.
+// Returns the first match outside the project, or throws PACK_APP_MACOS_SIGN_FAILED.
+function resolveTrustedSigner (name: string, dir: string, outputFile: string): string {
+  for (const entry of (process.env.PATH ?? '').split(path.delimiter)) {
+    if (entry === '') continue
+    const candidate = path.join(entry, name)
+    let stat: fs.Stats
+    try {
+      stat = fs.statSync(candidate)
+    } catch {
+      continue
+    }
+    if (!stat.isFile()) continue
+    if (isWithinDir(candidate, dir)) continue
+    try {
+      fs.accessSync(candidate, fs.constants.X_OK)
+    } catch {
+      continue
+    }
+    return candidate
+  }
+  throw new PnpmError('PACK_APP_MACOS_SIGN_FAILED',
+    `Cross-compiled macOS binary at ${outputFile} could not be ad-hoc signed with "ldid".`,
+    { hint: 'Install ldid (https://github.com/ProcursusTeam/ldid) or re-sign the binary on macOS with "codesign --sign - <file>".' }
   )
 }

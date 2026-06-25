@@ -453,7 +453,7 @@ impl PackAppArgs {
             )?;
             drop(tmp_config_dir);
 
-            ad_hoc_sign_mac_binary(target, &output_file)?;
+            ad_hoc_sign_mac_binary(target, &output_file, dir)?;
 
             results.push(format!(
                 "  {}: {} (Node.js {resolved_target_version})",
@@ -889,17 +889,25 @@ fn pnpm_home_dir() -> miette::Result<PathBuf> {
 /// binaries, so the output must be re-signed. Native macOS hosts use
 /// `codesign`; Linux hosts cross-signing a darwin target use `ldid`.
 /// Windows hosts have no readily available ad-hoc signer.
-fn ad_hoc_sign_mac_binary(target: &ParsedTarget, output_file: &Path) -> miette::Result<()> {
+fn ad_hoc_sign_mac_binary(
+    target: &ParsedTarget,
+    output_file: &Path,
+    dir: &Path,
+) -> miette::Result<()> {
     if target.platform != "darwin" {
         return Ok(());
     }
     match pacquet_detect_libc::host_platform() {
+        // `codesign` is a macOS system tool; spawn it by absolute path so a
+        // repo-controlled `node_modules/.bin/codesign` on PATH can't be run
+        // in its place.
         "darwin" => run_command(
-            Command::new("codesign").arg("--sign").arg("-").arg(output_file),
+            Command::new("/usr/bin/codesign").arg("--sign").arg("-").arg(output_file),
             "codesign",
         ),
         "linux" => {
-            run_command(Command::new("ldid").arg("-S").arg(output_file), "ldid").map_err(|_| {
+            let ldid = resolve_trusted_signer("ldid", dir, output_file)?;
+            run_command(Command::new(&ldid).arg("-S").arg(output_file), "ldid").map_err(|_| {
                 PackAppError::MacosSignFailed { path: output_file.display().to_string() }.into()
             })
         }
@@ -909,6 +917,32 @@ fn ad_hoc_sign_mac_binary(target: &ParsedTarget, output_file: &Path) -> miette::
         }
         .into()),
     }
+}
+
+/// Resolve an external signer (`ldid`) to an absolute path via `PATH`,
+/// skipping any match that resolves inside the project directory — a repo
+/// could ship `node_modules/.bin/ldid` and, if that directory is on the
+/// developer's `PATH`, get an attacker-controlled binary executed when
+/// packaging a darwin target. Returns the first match outside the project,
+/// or [`PackAppError::MacosSignFailed`] when none is found.
+fn resolve_trusted_signer(
+    name: &str,
+    dir: &Path,
+    output_file: &Path,
+) -> Result<PathBuf, PackAppError> {
+    let sign_failed = || PackAppError::MacosSignFailed { path: output_file.display().to_string() };
+    let matches = which::which_all(name).map_err(|_| sign_failed())?;
+    first_signer_outside_project(matches, dir).ok_or_else(sign_failed)
+}
+
+/// The first resolved signer path that is not inside the project directory.
+/// Split out from [`resolve_trusted_signer`] so the skip-project-local rule is
+/// unit-testable without manipulating the process `PATH`.
+fn first_signer_outside_project(
+    mut matches: impl Iterator<Item = PathBuf>,
+    dir: &Path,
+) -> Option<PathBuf> {
+    matches.find(|resolved| !path_is_within(resolved, dir))
 }
 
 /// Run a child process inheriting stdio, erroring on spawn failure or a
