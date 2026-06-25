@@ -74,7 +74,7 @@ pub struct PackAppArgs {
 
     /// Runtime to embed, as a `<name>@<version>` spec (e.g. `node@25`,
     /// `node@25.5.0`). Only `node` is supported, and the version must be
-    /// >= v25.5. Defaults to the running runtime version.
+    /// >= v25.5. Defaults to the minimum SEA-capable version (v25.5.0).
     #[clap(long)]
     pub runtime: Option<String>,
 
@@ -279,16 +279,10 @@ impl PackAppArgs {
             .unwrap_or_else(|| format!("node@{}", default_runtime_version()));
         let requested_node_spec = parse_runtime(&runtime_spec)?;
 
-        let output_dir = dir.join(
-            self.output_dir
-                .clone()
-                .or_else(|| project.app.as_ref().and_then(|app| app.output_dir.clone()))
-                .unwrap_or_else(|| "dist-app".to_string()),
-        );
-        fs::create_dir_all(&output_dir)
-            .into_diagnostic()
-            .wrap_err_with(|| format!("creating output directory {}", output_dir.display()))?;
-
+        // Derive and validate the output name before creating any
+        // directory, so an invalid `--output-name` / `pnpm.app.outputName`
+        // (or a missing package name) fails fast without leaving an empty
+        // `dist-app` behind.
         let configured_output_name = self
             .output_name
             .clone()
@@ -298,6 +292,16 @@ impl PackAppArgs {
             None => derive_output_name_from_package(&project, dir)?,
         };
         let output_name = validate_output_name(&output_name)?;
+
+        let output_dir = dir.join(
+            self.output_dir
+                .clone()
+                .or_else(|| project.app.as_ref().and_then(|app| app.output_dir.clone()))
+                .unwrap_or_else(|| "dist-app".to_string()),
+        );
+        fs::create_dir_all(&output_dir)
+            .into_diagnostic()
+            .wrap_err_with(|| format!("creating output directory {}", output_dir.display()))?;
 
         let build_root = pnpm_home_dir()?.join("pack-app");
 
@@ -522,6 +526,13 @@ async fn resolve_version(config: &Config, specifier: &str) -> miette::Result<Str
     let version = resolve_node_version(&http_client, &parsed.version_specifier, Some(&mirror))
         .await
         .map_err(miette::Report::new)?;
+    // The resolved version becomes a path component of the per-target
+    // runtime cache dir (`<build_root>/<target_id>-<version>`). For the
+    // `latest` / channel selectors the resolver returns the mirror's first
+    // `index.json` entry without semver validation, so a compromised mirror
+    // could smuggle `..` or a path separator and escape the cache dir.
+    // Require a parseable semver before the string is ever used as a path.
+    let version = version.filter(|version| node_semver::Version::parse(version).is_ok());
     version.ok_or_else(|| {
         PackAppError::NodeVersionNotFound { specifier: specifier.to_string() }.into()
     })
