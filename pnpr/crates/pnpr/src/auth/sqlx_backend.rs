@@ -4,6 +4,7 @@
 use super::{
     DEFAULT_BCRYPT_COST, TokenBackend, TokenRecord, UpsertOutcome, UserBackend, fresh_secret,
     hash_bcrypt, mint_token, sha256_hex, unix_seconds, validate_username, verify_returning_user,
+    with_auth_timeout,
 };
 use crate::{
     config::MaxUsers,
@@ -11,7 +12,6 @@ use crate::{
 };
 use async_trait::async_trait;
 use std::{
-    future::Future,
     sync::atomic::{AtomicU64, Ordering},
     time::Duration,
 };
@@ -58,22 +58,6 @@ impl<Db> SqlAuth<Db> {
             return Ok(false);
         }
         self.db.reconcile_user_counter_overcount().await
-    }
-}
-
-/// Only use this around read-only request-path work or startup setup. Request-path
-/// writes rely on the backend's statement timeout and must await the database
-/// result so callers do not observe a timeout with an unknown commit state.
-async fn with_auth_timeout<T, E>(
-    timeout: Duration,
-    future: impl Future<Output = std::result::Result<T, E>>,
-) -> Result<T>
-where
-    RegistryError: From<E>,
-{
-    match tokio::time::timeout(timeout, future).await {
-        Ok(result) => result.map_err(RegistryError::from),
-        Err(_) => Err(RegistryError::AuthDatabaseTimeout),
     }
 }
 

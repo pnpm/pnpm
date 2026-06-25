@@ -21,7 +21,7 @@
 use super::{
     DEFAULT_BCRYPT_COST, TokenBackend, TokenRecord, UpsertOutcome, UserBackend, fresh_secret,
     hash_bcrypt, mint_token, sha256_hex, token_timestamp_from_sql, unix_seconds, validate_username,
-    verify_returning_user,
+    verify_returning_user, with_auth_timeout,
 };
 use crate::{
     config::{LibsqlSettings, MaxUsers},
@@ -30,49 +30,22 @@ use crate::{
 use async_trait::async_trait;
 use libsql::{Builder, Connection, Database, Error as LibsqlError, Row, params};
 use std::{
-    future::Future,
     sync::atomic::{AtomicU64, Ordering},
     time::Duration,
 };
-use tokio::time::timeout;
 
 /// The `tokens` columns selected (in order) by every token read, so
 /// [`row_to_keyed_record`] can decode any of them the same way.
 const TOKEN_COLUMNS: &str =
     "token_hash, username, created_at, last_used_at, readonly, cidr_whitelist";
 
-/// Deadline applied to every request-path auth database read. Mirrors the
-/// sqlx backend's `backend.<driver>.timeout` default so a stalled or hostile
-/// libsql/Turso endpoint cannot hold a Tokio task open indefinitely and
-/// exhaust the executor — a registry-wide `DoS`. (Not yet a separate YAML knob
-/// like the sqlx backend exposes; see the PR description.)
+/// Deadline for request-path auth reads, beyond which a stalled endpoint
+/// surfaces [`RegistryError::AuthDatabaseTimeout`] rather than hanging.
 const DEFAULT_AUTH_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// Deadline for the one-time startup connect + schema setup. More generous
-/// than [`DEFAULT_AUTH_TIMEOUT`] (cold schema DDL against a remote primary can
-/// be slow) but still bounded so an unreachable database fails fast.
+/// Deadline for the one-time startup connect and schema setup; more
+/// generous than [`DEFAULT_AUTH_TIMEOUT`] for cold remote DDL.
 const DEFAULT_STARTUP_TIMEOUT: Duration = Duration::from_mins(5);
-
-/// Bound a read-only request-path (or startup) database future with
-/// [`DEFAULT_AUTH_TIMEOUT`]-style deadline, surfacing
-/// [`RegistryError::AuthDatabaseTimeout`] (HTTP 504) on expiry instead of
-/// awaiting forever. Mirror of `with_auth_timeout` in the `sqlx_backend` module;
-/// the two backends are independently feature-gated, so the helper is not
-/// shared. Use only around reads and startup: request-path writes must await
-/// the database result so a caller never observes a timeout with an unknown
-/// commit state.
-async fn with_auth_timeout<Loaded, DbError>(
-    deadline: Duration,
-    future: impl Future<Output = std::result::Result<Loaded, DbError>>,
-) -> Result<Loaded>
-where
-    RegistryError: From<DbError>,
-{
-    match timeout(deadline, future).await {
-        Ok(result) => result.map_err(RegistryError::from),
-        Err(_) => Err(RegistryError::AuthDatabaseTimeout),
-    }
-}
 
 /// Networked-SQLite auth backend. One [`Connection`] serves both record
 /// stores; the [`Database`] handle is held only to keep the connection
@@ -86,7 +59,7 @@ pub struct LibsqlAuth {
     secret: [u8; 32],
     counter: AtomicU64,
     max_users: MaxUsers,
-    /// Deadline applied to every request-path auth database read.
+    /// Deadline for each request-path auth read.
     timeout: Duration,
 }
 
@@ -120,9 +93,15 @@ impl LibsqlAuth {
                 if interval > 0 {
                     builder = builder.sync_interval(Duration::from_secs(interval));
                 }
-                builder.build().await?
+                with_auth_timeout(DEFAULT_STARTUP_TIMEOUT, Box::pin(builder.build())).await?
             }
-            None => Builder::new_remote(settings.url.clone(), auth_token).build().await?,
+            None => {
+                with_auth_timeout(
+                    DEFAULT_STARTUP_TIMEOUT,
+                    Box::pin(Builder::new_remote(settings.url.clone(), auth_token).build()),
+                )
+                .await?
+            }
         };
         Self::from_database(db, max_users).await
     }

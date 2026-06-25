@@ -55,6 +55,25 @@ mod libsql_backend;
 #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
 mod sqlx_backend;
 
+/// Bound a read-only request-path or startup database future with a
+/// deadline, surfacing [`RegistryError::AuthDatabaseTimeout`] on expiry.
+/// Use only around reads and startup setup: request-path writes must
+/// await the database result directly, so a caller never observes a
+/// timeout with an unknown commit state.
+#[cfg(any(feature = "backend-libsql", feature = "backend-postgres", feature = "backend-mysql"))]
+async fn with_auth_timeout<Loaded, DbError>(
+    deadline: std::time::Duration,
+    future: impl std::future::Future<Output = std::result::Result<Loaded, DbError>>,
+) -> Result<Loaded>
+where
+    RegistryError: From<DbError>,
+{
+    match tokio::time::timeout(deadline, future).await {
+        Ok(result) => result.map_err(RegistryError::from),
+        Err(_) => Err(RegistryError::AuthDatabaseTimeout),
+    }
+}
+
 pub(crate) const MAX_USERNAME_CHARS: usize = 255;
 
 pub(crate) fn validate_username(username: &str) -> Result<()> {
