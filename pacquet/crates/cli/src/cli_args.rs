@@ -20,6 +20,7 @@ pub mod link;
 pub mod list;
 pub mod outdated;
 pub mod pack;
+pub mod pack_app;
 pub mod patch;
 pub mod patch_commit;
 pub mod patch_remove;
@@ -67,6 +68,7 @@ use list::ListArgs;
 use miette::{Context, IntoDiagnostic};
 use outdated::{OutdatedArgs, OutdatedOutcome};
 use pack::PackArgs;
+use pack_app::PackAppArgs;
 use pacquet_config::{Config, Host};
 use pacquet_default_reporter::DefaultReporter;
 use pacquet_executor::execute_shell;
@@ -251,6 +253,9 @@ pub enum CliCommand {
     /// Manage the pnpm configuration files.
     #[clap(visible_alias = "c")]
     Config(ConfigArgs),
+    /// Pack a `CommonJS` entry file into a standalone executable for one or more target platforms.
+    #[clap(name = "pack-app")]
+    PackApp(PackAppArgs),
     /// Managing the package store.
     #[clap(subcommand)]
     Store(StoreCommand),
@@ -840,6 +845,16 @@ impl CliArgs {
             CliCommand::Config(args) => {
                 args.run(config()?, dir_ref)?;
                 Box::pin(std::future::ready(Ok(())))
+            }
+            // `pack-app` reads `pnpm.app` from package.json, resolves a
+            // Node.js version over the network, and shells out to build the
+            // SEA executables. It needs config (proxy / TLS / registry) and
+            // the canonicalized `--dir` but no lockfile or install
+            // pipeline, so it dispatches off `config()` like the other
+            // read-only commands.
+            CliCommand::PackApp(args) => {
+                let cfg: &Config = config()?;
+                Box::pin(async move { args.run(cfg, dir_ref).await })
             }
             CliCommand::Store(command) => {
                 command.run(|| config().map(|m| &*m))?;
