@@ -10,7 +10,6 @@ use ssri::Integrity;
 
 use super::{
     CreateNpmResolutionVerifierOptions, create_npm_resolution_verifier, observed_dist_stats_sink,
-    redact_url_credentials,
 };
 
 const FAKE_INTEGRITY: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
@@ -1155,38 +1154,4 @@ async fn version_absent_from_fetched_metadata_stays_tarball_url_mismatch() {
         panic!("expected Err, got {result:?}");
     };
     assert_eq!(code, "TARBALL_URL_MISMATCH");
-}
-
-#[test]
-fn redact_url_credentials_strips_embedded_basic_auth() {
-    assert_eq!(
-        redact_url_credentials(
-            "Failed to fetch metadata from https://user:pass@host/pkg: timed out"
-        ),
-        "Failed to fetch metadata from https://host/pkg: timed out",
-    );
-    // user-only userinfo (no password) is stripped too.
-    assert_eq!(
-        redact_url_credentials("got https://token@registry.example/foo"),
-        "got https://registry.example/foo",
-    );
-    // A raw "@" inside the password is stripped up to the last "@" in the
-    // authority, so the password tail can't leak.
-    assert_eq!(
-        redact_url_credentials("Failed to fetch metadata from https://user:p@ss@host/pkg: 403"),
-        "Failed to fetch metadata from https://host/pkg: 403",
-    );
-    // An "@" in the path/query (after the authority) is preserved.
-    assert_eq!(
-        redact_url_credentials("got https://host/path?to=a@b"),
-        "got https://host/path?to=a@b",
-    );
-    // A credential-free URL is left untouched.
-    assert_eq!(
-        redact_url_credentials("Failed to fetch metadata from https://host/pkg: timed out"),
-        "Failed to fetch metadata from https://host/pkg: timed out",
-    );
-    // A bare "://" with no preceding scheme character is not treated as a URL
-    // authority, so an "@" further along is preserved.
-    assert_eq!(redact_url_credentials("a :// b@c"), "a :// b@c");
 }

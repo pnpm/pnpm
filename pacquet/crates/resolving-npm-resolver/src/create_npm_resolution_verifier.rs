@@ -26,7 +26,7 @@ use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use pacquet_config::{TrustPolicy, version_policy::PackageVersionPolicy};
 use pacquet_lockfile::{LockfileResolution, PkgName};
-use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_url_credentials};
 use pacquet_registry::{Approver, NpmUser, Package, PackageDistribution, PackageVersion};
 use pacquet_resolving_resolver_base::{
     ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture, parse_packument_timestamp,
@@ -1088,44 +1088,6 @@ fn project_abbreviated_meta(meta: &Package) -> crate::lookup_context::Abbreviate
         version_tarballs: Some(version_tarballs),
         version_dist_stats: Some(version_dist_stats),
     }
-}
-
-/// Strip `user:pass@` (or `user@`) that appears right after a URL scheme in
-/// any message text, e.g. `… https://user:pass@host/pkg …` →
-/// `… https://host/pkg …`. A registry configured as `https://user:pass@host/`
-/// would otherwise leak its embedded basic-auth into the fetch error the
-/// verifier surfaces when it aborts on a transport failure.
-fn redact_url_credentials(text: &str) -> String {
-    let mut out = String::with_capacity(text.len());
-    let mut rest = text;
-    while let Some(pos) = rest.find("://") {
-        let (before, after) = rest.split_at(pos + "://".len());
-        out.push_str(before);
-        // Only treat "://" as a URL authority boundary when a scheme character
-        // (schemes end in an ASCII alphanumeric) precedes it, so an unrelated
-        // "://" in the message isn't mangled.
-        let has_scheme = pos > 0 && rest.as_bytes()[pos - 1].is_ascii_alphanumeric();
-        rest = strip_leading_userinfo(after).filter(|_| has_scheme).unwrap_or(after);
-    }
-    out.push_str(rest);
-    out
-}
-
-/// If the authority leading `text` contains `userinfo@`, return the slice after
-/// the **last** `@` within it; otherwise `None`. The authority ends at the first
-/// `/`, `?`, `#`, or whitespace. Stripping to the last `@` keeps a raw `@` inside
-/// the password (`user:p@ss@host`) from leaking its tail.
-fn strip_leading_userinfo(authority: &str) -> Option<&str> {
-    let mut last_at = None;
-    for (idx, ch) in authority.char_indices() {
-        match ch {
-            '@' => last_at = Some(idx + ch.len_utf8()),
-            '/' | '?' | '#' => break,
-            c if c.is_whitespace() => break,
-            _ => {}
-        }
-    }
-    last_at.map(|end| &authority[end..])
 }
 
 fn same_tarball_url(left: &str, right: &str) -> bool {

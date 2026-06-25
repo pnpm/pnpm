@@ -6,7 +6,10 @@ mod retry;
 mod tests;
 mod tls;
 
-pub use auth::{AuthHeaders, AuthHeadersByScope, DEFAULT_REGISTRY_SCOPE, base64_encode, nerf_dart};
+pub use auth::{
+    AuthHeaders, AuthHeadersByScope, DEFAULT_REGISTRY_SCOPE, base64_encode, nerf_dart,
+    redact_url_credentials,
+};
 pub use proxy::{NoProxySetting, ProxyConfig, ProxyError};
 pub use retry::{RetryOpts, retry_async, send_with_retry, should_retry_status};
 pub use tls::{PerRegistryTls, RegistryTls, TlsConfig, TlsError};

@@ -25,7 +25,7 @@ use std::{future::Future, time::Duration};
 
 use reqwest::{Client, RequestBuilder, Response, StatusCode};
 
-use crate::{ThrottledClient, ThrottledClientGuard};
+use crate::{ThrottledClient, ThrottledClientGuard, redact_url_credentials};
 
 /// Settings for the per-request retry loop. Mirrors pnpm's
 /// `fetch-retries` / `fetch-retry-factor` / `fetch-retry-mintimeout` /
@@ -143,7 +143,7 @@ pub async fn send_with_retry<'client>(
                 let delay = retry_opts.delay_for(attempt);
                 tracing::warn!(
                     target: "pacquet_network::retry",
-                    url,
+                    url = %redact_url_credentials(url),
                     ?status,
                     attempt = attempt + 1,
                     max_attempts = retry_opts.retries + 1,
@@ -159,7 +159,7 @@ pub async fn send_with_retry<'client>(
                 let delay = retry_opts.delay_for(attempt);
                 tracing::warn!(
                     target: "pacquet_network::retry",
-                    url,
+                    url = %redact_url_credentials(url),
                     ?error,
                     attempt = attempt + 1,
                     max_attempts = retry_opts.retries + 1,
@@ -211,7 +211,7 @@ where
                 let delay = retry_opts.delay_for(attempt);
                 tracing::warn!(
                     target: "pacquet_network::retry",
-                    url,
+                    url = %redact_url_credentials(url),
                     ?error,
                     attempt = attempt + 1,
                     max_attempts = retry_opts.retries + 1,

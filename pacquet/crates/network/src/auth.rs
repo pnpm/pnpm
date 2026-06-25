@@ -457,5 +457,45 @@ pub fn base64_encode(input: &str) -> String {
     out
 }
 
+/// Strip `user:pass@` (or `user@`) that appears right after a URL scheme in
+/// any message text, e.g. `… https://user:pass@host/pkg …` →
+/// `… https://host/pkg …`. A registry configured as `https://user:pass@host/`
+/// would otherwise leak its embedded basic-auth into a fetch error or a retry
+/// log line. Ports pnpm's
+/// [`redactUrlCredentials`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/core/error/src/index.ts#L78-L101).
+#[must_use]
+pub fn redact_url_credentials(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut rest = text;
+    while let Some(pos) = rest.find("://") {
+        let (before, after) = rest.split_at(pos + "://".len());
+        out.push_str(before);
+        // Only treat "://" as a URL authority boundary when a scheme character
+        // (schemes end in an ASCII alphanumeric) precedes it, so an unrelated
+        // "://" in the message isn't mangled.
+        let has_scheme = pos > 0 && rest.as_bytes()[pos - 1].is_ascii_alphanumeric();
+        rest = strip_leading_userinfo(after).filter(|_| has_scheme).unwrap_or(after);
+    }
+    out.push_str(rest);
+    out
+}
+
+/// If the authority leading `text` contains `userinfo@`, return the slice after
+/// the **last** `@` within it; otherwise `None`. The authority ends at the first
+/// `/`, `?`, `#`, or whitespace. Stripping to the last `@` keeps a raw `@` inside
+/// the password (`user:p@ss@host`) from leaking its tail.
+fn strip_leading_userinfo(authority: &str) -> Option<&str> {
+    let mut last_at = None;
+    for (idx, ch) in authority.char_indices() {
+        match ch {
+            '@' => last_at = Some(idx + ch.len_utf8()),
+            '/' | '?' | '#' => break,
+            c if c.is_whitespace() => break,
+            _ => {}
+        }
+    }
+    last_at.map(|end| &authority[end..])
+}
+
 #[cfg(test)]
 mod tests;
