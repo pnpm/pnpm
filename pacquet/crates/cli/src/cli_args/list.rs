@@ -8,7 +8,8 @@ use miette::{Context, IntoDiagnostic};
 use owo_colors::{OwoColorize, Stream};
 use pacquet_config::Config;
 use pacquet_global::{ListReportAs, list_global_packages};
-use pacquet_lockfile::{Lockfile, PkgName, PkgNameVerPeer, ProjectSnapshot, SnapshotEntry};
+pub(crate) use pacquet_lockfile::PkgNameVerPeer;
+use pacquet_lockfile::{Lockfile, PkgName, ProjectSnapshot, SnapshotEntry};
 use serde_json::{Map, Value, json};
 
 #[derive(Debug, Args)]
@@ -180,26 +181,26 @@ impl ListArgs {
 }
 
 #[derive(Debug, Clone)]
-struct DepNode {
-    alias: String,
-    name: String,
-    version: String,
-    path: String,
-    is_peer: bool,
-    is_dev: bool,
-    is_optional: bool,
-    dependencies: Vec<DepNode>,
+pub(crate) struct DepNode {
+    pub(crate) alias: String,
+    pub(crate) name: String,
+    pub(crate) version: String,
+    pub(crate) path: String,
+    pub(crate) is_peer: bool,
+    pub(crate) is_dev: bool,
+    pub(crate) is_optional: bool,
+    pub(crate) dependencies: Vec<DepNode>,
 }
 
 #[derive(Debug)]
-struct LocalTreeRoot {
-    name: Option<String>,
-    version: Option<String>,
-    private: Option<bool>,
-    path: String,
-    dependencies: Vec<DepNode>,
-    dev_dependencies: Vec<DepNode>,
-    optional_dependencies: Vec<DepNode>,
+pub(crate) struct LocalTreeRoot {
+    pub(crate) name: Option<String>,
+    pub(crate) version: Option<String>,
+    pub(crate) private: Option<bool>,
+    pub(crate) path: String,
+    pub(crate) dependencies: Vec<DepNode>,
+    pub(crate) dev_dependencies: Vec<DepNode>,
+    pub(crate) optional_dependencies: Vec<DepNode>,
 }
 
 struct BuiltTree {
@@ -393,7 +394,7 @@ fn resolve_snapshot_children(
     children
 }
 
-fn get_peer_set(
+pub(crate) fn get_peer_set(
     key: &PkgNameVerPeer,
     packages: Option<&HashMap<PkgNameVerPeer, pacquet_lockfile::PackageMetadata>>,
 ) -> HashSet<String> {
@@ -406,21 +407,21 @@ fn get_peer_set(
         .unwrap_or_default()
 }
 
-fn sort_deps(deps: &mut [DepNode]) {
+pub(crate) fn sort_deps(deps: &mut [DepNode]) {
     deps.sort_by(|a, b| a.name.cmp(&b.name));
     for dep in deps.iter_mut() {
         sort_deps(&mut dep.dependencies);
     }
 }
 
-fn matches_params(params: &[String], alias: &str) -> bool {
+pub(crate) fn matches_params(params: &[String], alias: &str) -> bool {
     if params.is_empty() {
         return true;
     }
     params.iter().any(|pattern| glob_match(pattern, alias))
 }
 
-fn dep_or_subtree_matches(dep: &DepNode, params: &[String]) -> bool {
+pub(crate) fn dep_or_subtree_matches(dep: &DepNode, params: &[String]) -> bool {
     if params.is_empty() {
         return true;
     }
@@ -430,7 +431,7 @@ fn dep_or_subtree_matches(dep: &DepNode, params: &[String]) -> bool {
     dep.dependencies.iter().any(|child| dep_or_subtree_matches(child, params))
 }
 
-fn glob_match(pattern: &str, value: &str) -> bool {
+pub(crate) fn glob_match(pattern: &str, value: &str) -> bool {
     if !pattern.contains('*') {
         return pattern == value;
     }
@@ -454,7 +455,7 @@ fn glob_match(pattern: &str, value: &str) -> bool {
     true
 }
 
-fn read_root_manifest(
+pub(crate) fn read_root_manifest(
     manifest_path: &Path,
 ) -> miette::Result<(Option<String>, Option<String>, Option<bool>)> {
     let content = std::fs::read_to_string(manifest_path)
@@ -481,7 +482,7 @@ struct TreeNodeGroup {
     nodes: Vec<TreeNode>,
 }
 
-fn render_local_tree(root: &LocalTreeRoot, long: bool) -> String {
+pub(crate) fn render_local_tree(root: &LocalTreeRoot, long: bool) -> String {
     let mut root_label = String::new();
     if let Some(ref name) = root.name {
         use std::fmt::Write;
@@ -573,7 +574,7 @@ fn dep_to_tree_node(dep: &DepNode, long: bool, is_dev: bool, is_optional: bool) 
     TreeNode { label, groups }
 }
 
-fn print_label(dep: &DepNode, color: &dyn Fn(&str) -> String) -> String {
+pub(crate) fn print_label(dep: &DepNode, color: &dyn Fn(&str) -> String) -> String {
     if dep.alias == dep.name {
         format!("{}{}", color(&dep.name), gray(&format!("@{version}", version = dep.version)))
     } else if dep.version.contains('@') {
@@ -583,7 +584,7 @@ fn print_label(dep: &DepNode, color: &dyn Fn(&str) -> String) -> String {
     }
 }
 
-fn name_at_version(name: &str, version: &str) -> String {
+pub(crate) fn name_at_version(name: &str, version: &str) -> String {
     if version.is_empty() {
         name.to_string()
     } else {
@@ -641,7 +642,7 @@ fn render_archy(node: &TreeNode, connector: &str, prefix: &str, out: &mut String
     }
 }
 
-fn render_local_json(root: &LocalTreeRoot) -> String {
+pub(crate) fn render_local_json(root: &LocalTreeRoot) -> String {
     let mut deps_map = Map::new();
     for dep in &root.dependencies {
         deps_map.insert(dep.alias.clone(), dep_to_json(dep));
@@ -678,7 +679,7 @@ fn render_local_json(root: &LocalTreeRoot) -> String {
     serde_json::to_string_pretty(&json!([root_obj])).expect("serialize local list")
 }
 
-fn dep_to_json(dep: &DepNode) -> Value {
+pub(crate) fn dep_to_json(dep: &DepNode) -> Value {
     let mut obj = Map::new();
     obj.insert("from".to_string(), json!(dep.name));
     obj.insert("version".to_string(), json!(dep.version));
@@ -695,7 +696,7 @@ fn dep_to_json(dep: &DepNode) -> Value {
     Value::Object(obj)
 }
 
-fn render_local_parseable(root: &LocalTreeRoot, long: bool) -> String {
+pub(crate) fn render_local_parseable(root: &LocalTreeRoot, long: bool) -> String {
     let mut lines = Vec::new();
 
     let root_line = if long {
@@ -779,6 +780,3 @@ fn cyan_bright(text: &str) -> String {
 fn gray(text: &str) -> String {
     text.if_supports_color(Stream::Stdout, |t| t.bright_black()).to_string()
 }
-
-#[cfg(test)]
-mod tests;
