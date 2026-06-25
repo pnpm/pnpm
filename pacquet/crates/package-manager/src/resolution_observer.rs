@@ -53,6 +53,15 @@ pub trait ResolutionObserver: Send + Sync {
     fn package_version_guard(&self) -> Option<Arc<dyn PackageVersionGuard>> {
         None
     }
+
+    /// Extra `minimumReleaseAgeExclude` specs to merge into the resolve's
+    /// maturity-cutoff exclusions for this run. `pacquet audit --fix update`
+    /// returns the patched versions here so the resolver may install them
+    /// even when `minimumReleaseAge` would otherwise block a fresh release.
+    /// `None`/empty leaves the config value untouched.
+    fn minimum_release_age_exclude_override(&self) -> Option<Vec<String>> {
+        None
+    }
 }
 
 /// Wraps an inner [`Resolver`], forwarding each tarball-shaped result to

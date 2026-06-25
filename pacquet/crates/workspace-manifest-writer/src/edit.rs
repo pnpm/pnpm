@@ -118,6 +118,7 @@ pub(crate) fn add_patched_dependencies(
 
 /// Upsert one `selector → specifier` entry into the top-level `overrides:`
 /// block, creating the block if absent. Returns whether anything changed.
+/// Used by `pacquet link` and (one entry at a time) by `pnpm audit --fix`.
 pub(crate) fn add_overrides(
     manifest: &mut Manifest,
     selector: &str,
@@ -135,6 +136,173 @@ pub(crate) fn add_overrides(
             .insert(selector.to_string(), specifier.to_string());
     }
     Ok(changed)
+}
+
+/// Set `auditConfig.ignoreGhsas:` to `ghsas` (the complete desired list),
+/// creating the `auditConfig:` block or the nested `ignoreGhsas:` key when
+/// absent. An empty `ghsas` removes the `auditConfig:` block. Mirrors the
+/// `auditConfig` half of pnpm's
+/// [`writeSettings`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/writer/src/index.ts),
+/// which `pnpm audit --ignore` calls with the merged ignore list. Returns
+/// whether anything changed.
+pub(crate) fn set_audit_ignore_ghsas(
+    manifest: &mut Manifest,
+    ghsas: &[String],
+) -> Result<bool, Box<yamlpatch::Error>> {
+    const BLOCK: &str = "auditConfig";
+    let current = manifest.audit_ignore_ghsas.as_deref().unwrap_or_default();
+
+    if ghsas.is_empty() {
+        let text = manifest.text();
+        let Some(mapping) = locate(text, &[BLOCK]) else {
+            return Ok(false);
+        };
+        // Nothing to remove if `ignoreGhsas` isn't present — and crucially,
+        // don't touch sibling `auditConfig` keys.
+        if !mapping.entries.iter().any(|entry| entry.key == "ignoreGhsas") {
+            return Ok(false);
+        }
+        let only_ignore_ghsas = mapping.entries.iter().all(|entry| entry.key == "ignoreGhsas");
+        if only_ignore_ghsas {
+            manifest.set_text(remove_top_level_block(text, BLOCK));
+            manifest.top_level_keys.retain(|key| key != BLOCK);
+        } else {
+            manifest.set_text(remove_mapping_entries(text, &[BLOCK], &["ignoreGhsas".to_string()]));
+        }
+        manifest.audit_ignore_ghsas = None;
+        return Ok(true);
+    }
+
+    if current == ghsas {
+        return Ok(false);
+    }
+
+    let text = manifest.text();
+    if locate(text, &[BLOCK]).is_some() {
+        let new_text = upsert_sequence_entry(text, BLOCK, "ignoreGhsas", ghsas);
+        manifest.set_text(new_text);
+    } else {
+        let block = render_audit_config_block(ghsas);
+        let new_text = insert_top_level_block(manifest, BLOCK, &block);
+        manifest.set_text(new_text);
+        manifest.top_level_keys =
+            render::target_order(&manifest.top_level_keys, &[BLOCK.to_string()]);
+    }
+    manifest.audit_ignore_ghsas = Some(ghsas.to_vec());
+    Ok(true)
+}
+
+/// Set the top-level `minimumReleaseAgeExclude:` block to `items` (the
+/// complete desired list), creating or replacing it, and removing it when
+/// `items` is empty. The caller is responsible for merging with the existing
+/// entries (via `pacquet_config::version_policy::merge_package_version_specs`)
+/// before calling. Mirrors the `minimumReleaseAgeExclude` half of pnpm's
+/// workspace-manifest writer. Returns whether anything changed.
+pub(crate) fn set_minimum_release_age_excludes(manifest: &mut Manifest, items: &[String]) -> bool {
+    const BLOCK: &str = "minimumReleaseAgeExclude";
+    let current = manifest.minimum_release_age_exclude.as_deref().unwrap_or_default();
+
+    if items.is_empty() {
+        let has_block = manifest.top_level_keys.iter().any(|key| key == BLOCK);
+        if !has_block {
+            return false;
+        }
+        manifest.set_text(remove_top_level_block(manifest.text(), BLOCK));
+        manifest.minimum_release_age_exclude = None;
+        manifest.top_level_keys.retain(|key| key != BLOCK);
+        return true;
+    }
+
+    if current == items {
+        return false;
+    }
+
+    let text = manifest.text();
+    let rendered = render_top_level_sequence(BLOCK, items);
+    if let Some(span) = top_level_span(text, BLOCK) {
+        // Preserve a trailing blank line before the next block, since the
+        // span includes it but the freshly rendered block does not.
+        let had_trailing_blank = text[span.key_line_start..span.block_end].ends_with("\n\n");
+        let mut out = text.to_string();
+        let replacement = if had_trailing_blank { format!("{rendered}\n") } else { rendered };
+        out.replace_range(span.key_line_start..span.block_end, &replacement);
+        manifest.set_text(out);
+    } else {
+        let new_text = insert_top_level_block(manifest, BLOCK, &rendered);
+        manifest.set_text(new_text);
+        manifest.top_level_keys =
+            render::target_order(&manifest.top_level_keys, &[BLOCK.to_string()]);
+    }
+    manifest.minimum_release_age_exclude = Some(items.to_vec());
+    true
+}
+
+/// Render a top-level block whose value is a block sequence (`key:` then
+/// `  - item` lines).
+fn render_top_level_sequence(key: &str, items: &[String]) -> String {
+    let mut block = String::new();
+    block.push_str(key);
+    block.push_str(":\n");
+    for item in items {
+        block.push_str("  - ");
+        block.push_str(&render::render_value(item));
+        block.push('\n');
+    }
+    block
+}
+
+/// Render a brand-new `auditConfig:` block holding `ignoreGhsas`. GHSA IDs are
+/// plain scalars, but route through [`render::render_value`] for safety.
+fn render_audit_config_block(ghsas: &[String]) -> String {
+    let mut block = String::from("auditConfig:\n  ignoreGhsas:\n");
+    for ghsa in ghsas {
+        block.push_str("    - ");
+        block.push_str(&render::render_value(ghsa));
+        block.push('\n');
+    }
+    block
+}
+
+/// Upsert a `key:` entry whose value is a block sequence (`items`) into the
+/// existing top-level mapping `block_name`, creating or replacing the entry
+/// in the position pnpm's reorder pass would choose. The mapping at
+/// `block_name` must already exist. Used to write `auditConfig.ignoreGhsas`.
+fn upsert_sequence_entry(text: &str, block_name: &str, key: &str, items: &[String]) -> String {
+    let mapping = locate(text, &[block_name]).expect("block exists");
+    let item_indent = mapping.entry_indent + 2;
+    let mut rendered = String::new();
+    rendered.push_str(&" ".repeat(mapping.entry_indent));
+    rendered.push_str(&render::render_value(key));
+    rendered.push_str(":\n");
+    for item in items {
+        rendered.push_str(&" ".repeat(item_indent));
+        rendered.push_str("- ");
+        rendered.push_str(&render::render_value(item));
+        rendered.push('\n');
+    }
+
+    if let Some(entry) = mapping.entries.iter().find(|entry| entry.key == key) {
+        let mut out = text.to_string();
+        out.replace_range(entry.line_start..entry.block_end, &rendered);
+        return out;
+    }
+
+    let existing: Vec<String> = mapping.entries.iter().map(|entry| entry.key.clone()).collect();
+    let order = render::target_order(&existing, &[key.to_string()]);
+    let position =
+        order.iter().position(|order_key| order_key == key).expect("key is in the order");
+    let offset = if position == 0 {
+        mapping.body_start
+    } else {
+        let predecessor = &order[position - 1];
+        mapping
+            .entries
+            .iter()
+            .find(|entry| &entry.key == predecessor)
+            .expect("predecessor entry exists")
+            .block_end
+    };
+    splice(text, offset, &rendered)
 }
 
 fn upsert_top_level_entry(
@@ -729,6 +897,25 @@ fn collect_entries(all: &[Line<'_>], from: usize, to: usize, entry_indent: usize
         }
     }
     entries
+}
+
+/// Whether the top-level `key:` carries an inline value (a flow mapping /
+/// flow sequence / scalar) on the same line rather than a block body on the
+/// following lines. The block-style splice writers (e.g.
+/// [`set_audit_ignore_ghsas`]) assume a block body, so a caller can refuse an
+/// inline shape instead of corrupting it. A bare `key:` (optionally with a
+/// trailing comment) is block-style and returns `false`.
+pub(crate) fn top_level_has_inline_value(text: &str, key: &str) -> bool {
+    for line in text.lines() {
+        if structural_indent(line) != Some(0) || line_key(line).as_deref() != Some(key) {
+            continue;
+        }
+        let trimmed = line.trim_start();
+        let Some(colon) = structural_colon_index(trimmed) else { return false };
+        let after = trimmed[colon + 1..].trim_start();
+        return !after.is_empty() && !after.starts_with('#');
+    }
+    false
 }
 
 /// The starting offset of a top-level key's line.

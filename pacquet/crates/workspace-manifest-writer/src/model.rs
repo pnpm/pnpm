@@ -5,6 +5,7 @@
 
 use indexmap::IndexMap;
 use serde::Deserialize;
+use std::collections::HashSet;
 
 /// The `catalog:` / `catalogs:` slice of a `pnpm-workspace.yaml`, decoded
 /// twice over the same source: once for the ordered top-level key list, once
@@ -27,8 +28,20 @@ pub(crate) struct Manifest {
     pub(crate) allow_builds: Option<IndexMap<String, bool>>,
     /// `patchedDependencies:` entries, keyed by `name[@version]`.
     pub(crate) patched_dependencies: Option<IndexMap<String, String>>,
-    /// `overrides:` entries, keyed by package selector.
+    /// `overrides:` clean string entries, keyed by package selector.
+    /// Consulted to detect a no-op write of an already-present clean
+    /// specifier (the shape `pacquet link` and `pacquet audit --fix` write).
     pub(crate) overrides: Option<IndexMap<String, String>>,
+    /// Override keys whose existing value is *not* a plain string (e.g. a
+    /// nested mapping a user hand-wrote). The writer refuses to replace
+    /// these with a scalar rather than corrupting the document.
+    pub(crate) non_scalar_overrides: HashSet<String>,
+    /// `auditConfig.ignoreGhsas:` list. Consulted to detect a no-op write
+    /// of an already-present list.
+    pub(crate) audit_ignore_ghsas: Option<Vec<String>>,
+    /// `minimumReleaseAgeExclude:` list. Consulted to detect a no-op write
+    /// of an already-present list.
+    pub(crate) minimum_release_age_exclude: Option<Vec<String>>,
 }
 
 #[derive(Default, Deserialize)]
@@ -45,6 +58,17 @@ struct CatalogData {
     patched_dependencies: Option<IndexMap<String, String>>,
     #[serde(default)]
     overrides: Option<IndexMap<String, OverrideValue>>,
+    #[serde(default, rename = "auditConfig")]
+    audit_config: Option<AuditConfigData>,
+    #[serde(default, rename = "minimumReleaseAgeExclude")]
+    minimum_release_age_exclude: Option<Vec<String>>,
+}
+
+/// The `auditConfig` slice consulted for no-op detection.
+#[derive(Default, Deserialize)]
+struct AuditConfigData {
+    #[serde(default, rename = "ignoreGhsas")]
+    ignore_ghsas: Option<Vec<String>>,
 }
 
 /// An `allowBuilds` value, tolerant of the string form pnpm also accepts
@@ -68,9 +92,10 @@ enum ConfigDepValue {
     Other(serde::de::IgnoredAny),
 }
 
-/// An overrides value, tolerant of non-string forms (nested objects) so
-/// decoding a manifest that uses them doesn't fail. Only the string shape
-/// is retained — the only shape `pacquet link` writes.
+/// An `overrides` value, tolerant of non-string forms (nested parent-scoped
+/// objects) so decoding a manifest that uses them doesn't fail. Only the
+/// string shape is retained; non-string keys are tracked separately so the
+/// writer refuses to clobber them.
 #[derive(Deserialize)]
 #[serde(untagged)]
 enum OverrideValue {
@@ -95,6 +120,9 @@ impl Manifest {
                 allow_builds: None,
                 patched_dependencies: None,
                 overrides: None,
+                non_scalar_overrides: HashSet::new(),
+                audit_ignore_ghsas: None,
+                minimum_release_age_exclude: None,
             });
         }
 
@@ -121,15 +149,20 @@ impl Manifest {
                 })
                 .collect()
         });
+        let mut non_scalar_overrides = HashSet::new();
         let overrides = data.overrides.map(|entries| {
             entries
                 .into_iter()
                 .filter_map(|(name, value)| match value {
-                    OverrideValue::String(spec) => Some((name, spec)),
-                    OverrideValue::Other(_) => None,
+                    OverrideValue::String(specifier) => Some((name, specifier)),
+                    OverrideValue::Other(_) => {
+                        non_scalar_overrides.insert(name);
+                        None
+                    }
                 })
                 .collect()
         });
+        let audit_ignore_ghsas = data.audit_config.and_then(|config| config.ignore_ghsas);
 
         Ok(Manifest {
             text,
@@ -140,6 +173,9 @@ impl Manifest {
             allow_builds,
             patched_dependencies: data.patched_dependencies,
             overrides,
+            non_scalar_overrides,
+            audit_ignore_ghsas,
+            minimum_release_age_exclude: data.minimum_release_age_exclude,
         })
     }
 

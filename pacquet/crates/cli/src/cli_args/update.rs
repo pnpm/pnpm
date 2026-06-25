@@ -174,6 +174,7 @@ impl UpdateArgs {
             depth: self.depth.unwrap_or(usize::MAX),
             supported_architectures,
             lockfile_only: self.lockfile_only,
+            resolution_observer: None,
         }
         .run::<Reporter>()
         .await

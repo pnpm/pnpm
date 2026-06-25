@@ -491,6 +491,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         let auth_headers = auth_override.unwrap_or_else(|| Arc::clone(&config.auth_headers));
         let package_version_guard =
             resolution_observer.as_ref().and_then(|observer| observer.package_version_guard());
+        let minimum_release_age_exclude_override = resolution_observer
+            .as_ref()
+            .and_then(|observer| observer.minimum_release_age_exclude_override());
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
         // Materialise the caller's iterator into a `Vec` so the same
         // group set can be replayed into both the resolver (consumes
@@ -552,8 +555,11 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             full_metadata,
             published_by,
             published_by_exclude,
-        } = crate::resolution_policy::PickPolicy::from_config(config)
-            .map_err(InstallWithFreshLockfileError::MinimumReleaseAgeExclude)?;
+        } = crate::resolution_policy::PickPolicy::from_config_with_extra_excludes(
+            config,
+            minimum_release_age_exclude_override.as_deref(),
+        )
+        .map_err(InstallWithFreshLockfileError::MinimumReleaseAgeExclude)?;
 
         // One per-cache-key packument fetch serializer shared between
         // the npm and named-registry resolvers. Ports upstream's

@@ -1005,3 +1005,233 @@ fn advisory(id: u64, title: &str, severity: ConfigAuditLevel, ghsa: &str) -> Aud
         url: format!("https://github.com/advisories/{ghsa}"),
     }
 }
+
+#[test]
+fn caret_range_for_patched_uses_minimum_with_caret() {
+    assert_eq!(caret_range_for_patched(">=2.0.0"), "^2.0.0");
+    assert_eq!(caret_range_for_patched(">=1.2.3"), "^1.2.3");
+    // A non-inferred range is passed through unchanged.
+    assert_eq!(caret_range_for_patched("not-a-range"), "not-a-range");
+}
+
+fn fix_advisory(
+    id: u64,
+    module_name: &str,
+    vulnerable: &str,
+    patched: Option<&str>,
+    severity: ConfigAuditLevel,
+    ghsa: &str,
+) -> AuditAdvisory {
+    let mut advisory = advisory(id, "title", severity, ghsa);
+    advisory.module_name = module_name.to_string();
+    advisory.vulnerable_versions = vulnerable.to_string();
+    advisory.patched_versions = patched.map(ToString::to_string);
+    advisory
+}
+
+fn report_of(advisories: Vec<AuditAdvisory>) -> AuditReport {
+    AuditReport {
+        advisories: advisories
+            .into_iter()
+            .map(|advisory| (advisory.id.to_string(), advisory))
+            .collect(),
+        metadata: AuditMetadata {
+            vulnerabilities: AuditVulnerabilityCounts::default(),
+            dependencies: 0,
+            dev_dependencies: 0,
+            optional_dependencies: 0,
+            total_dependencies: 0,
+        },
+    }
+}
+
+#[test]
+fn create_overrides_sorts_and_skips_unfixable() {
+    let advisories = BTreeMap::from([
+        (
+            "1".to_string(),
+            fix_advisory(1, "zoo", "<2.0.0", Some(">=2.0.0"), ConfigAuditLevel::High, "GHSA-a"),
+        ),
+        (
+            "2".to_string(),
+            fix_advisory(2, "abc", "<1.5.0", Some(">=1.5.0"), ConfigAuditLevel::Low, "GHSA-b"),
+        ),
+        // No patched range: cannot produce an override.
+        (
+            "3".to_string(),
+            fix_advisory(3, "unfixable", ">=0.0.0", None, ConfigAuditLevel::High, "GHSA-c"),
+        ),
+    ]);
+
+    let overrides = create_overrides(&advisories);
+
+    assert_eq!(
+        overrides.into_iter().collect::<Vec<_>>(),
+        vec![
+            ("abc@<1.5.0".to_string(), "^1.5.0".to_string()),
+            ("zoo@<2.0.0".to_string(), "^2.0.0".to_string()),
+        ],
+    );
+}
+
+#[test]
+fn filter_advisories_for_fix_drops_below_level_and_ignored() {
+    let report = report_of(vec![
+        fix_advisory(1, "high", "<2.0.0", Some(">=2.0.0"), ConfigAuditLevel::High, "GHSA-high-1"),
+        fix_advisory(2, "info", "<2.0.0", Some(">=2.0.0"), ConfigAuditLevel::Info, "GHSA-info-1"),
+        fix_advisory(
+            3,
+            "ignored",
+            "<2.0.0",
+            Some(">=2.0.0"),
+            ConfigAuditLevel::Critical,
+            "GHSA-skip-1",
+        ),
+    ]);
+    let mut config = Config::default();
+    config.audit_config.ignore_ghsas = vec!["GHSA-skip-1".to_string()];
+
+    let filtered = filter_advisories_for_fix(&report, ConfigAuditLevel::Low, &config);
+
+    assert!(filtered.contains_key("1"), "high stays");
+    assert!(!filtered.contains_key("2"), "info is below the low audit level");
+    assert!(!filtered.contains_key("3"), "ignored GHSA is dropped");
+}
+
+#[tokio::test]
+async fn vulnerability_guard_rejects_only_vulnerable_versions() {
+    let guard = VulnerabilityGuard {
+        ranges_by_name: HashMap::from([(
+            "vulnerable".to_string(),
+            vec!["<2.0.0".parse().expect("range")],
+        )]),
+    };
+
+    let rejected = guard.check("vulnerable", "1.5.0").await.expect("guard check");
+    assert!(matches!(rejected, PackageVersionGuardDecision::Reject { .. }));
+
+    let allowed_safe = guard.check("vulnerable", "2.0.0").await.expect("guard check");
+    assert_eq!(allowed_safe, PackageVersionGuardDecision::Allow);
+
+    let allowed_other = guard.check("unrelated", "1.0.0").await.expect("guard check");
+    assert_eq!(allowed_other, PackageVersionGuardDecision::Allow);
+}
+
+#[test]
+fn format_fix_with_update_output_lists_fixed_and_remaining() {
+    let advisories = BTreeMap::from([
+        (
+            "1".to_string(),
+            fix_advisory(
+                1,
+                "fixed-pkg",
+                "<2.0.0",
+                Some(">=2.0.0"),
+                ConfigAuditLevel::High,
+                "GHSA-a",
+            ),
+        ),
+        (
+            "2".to_string(),
+            fix_advisory(
+                2,
+                "stuck-pkg",
+                "<2.0.0",
+                Some(">=2.0.0"),
+                ConfigAuditLevel::Low,
+                "GHSA-b",
+            ),
+        ),
+    ]);
+
+    let output = format_fix_with_update_output(&[1], &[2], &advisories);
+
+    assert!(output.contains("1 vulnerability was fixed, 1 vulnerability remains."));
+    assert!(output.contains("The fixed vulnerabilities are:"));
+    assert!(output.contains("fixed-pkg"));
+    assert!(output.contains("The remaining vulnerabilities are:"));
+    assert!(output.contains("stuck-pkg"));
+}
+
+#[test]
+fn minimum_release_age_excludes_uses_patched_minimums_and_skips_unfixable() {
+    let advisories = report_of(vec![
+        fix_advisory(1, "foo", "<2.0.0", Some(">=2.0.0"), ConfigAuditLevel::High, "GHSA-a"),
+        // No patched range: contributes no exclude entry.
+        fix_advisory(2, "bar", ">=0.0.0", None, ConfigAuditLevel::High, "GHSA-b"),
+    ])
+    .advisories;
+
+    let excludes = minimum_release_age_excludes(&advisories).expect("compute excludes");
+
+    assert_eq!(excludes, vec!["foo@2.0.0".to_string()]);
+}
+
+#[test]
+fn classify_for_update_routes_unparsable_ranges_to_remaining() {
+    let advisories = report_of(vec![
+        fix_advisory(1, "ok", "<2.0.0", Some(">=2.0.0"), ConfigAuditLevel::High, "GHSA-a"),
+        fix_advisory(2, "any", ">=0.0.0", None, ConfigAuditLevel::High, "GHSA-b"),
+        // An untrusted registry could send a range we can't parse.
+        fix_advisory(3, "broken", "not a range", None, ConfigAuditLevel::High, "GHSA-c"),
+        // ...or pad an unfixable sentinel with whitespace.
+        fix_advisory(4, "padded", "  >=0.0.0  ", None, ConfigAuditLevel::High, "GHSA-d"),
+    ])
+    .advisories;
+
+    let classification = classify_for_update(&advisories);
+
+    assert!(classification.vulnerabilities.contains_key("ok"));
+    assert!(classification.unfixable.contains_key("any"));
+    assert!(
+        classification.unfixable.contains_key("padded"),
+        "a padded sentinel is still unfixable",
+    );
+    assert_eq!(classification.unparsable, vec![3], "an unparsable range must not be dropped");
+}
+
+#[test]
+fn classify_for_update_trims_module_names() {
+    // A whitespace-padded module name from an untrusted registry must key the
+    // guard and the installed-name comparison by the clean package name.
+    let advisories = report_of(vec![fix_advisory(
+        1,
+        "  vulnerable  ",
+        "<2.0.0",
+        Some(">=2.0.0"),
+        ConfigAuditLevel::High,
+        "GHSA-a",
+    )])
+    .advisories;
+
+    let classification = classify_for_update(&advisories);
+
+    assert!(classification.vulnerabilities.contains_key("vulnerable"));
+    assert!(!classification.vulnerabilities.contains_key("  vulnerable  "));
+}
+
+#[test]
+fn report_fixed_remaining_keeps_non_semver_installed_packages_remaining() {
+    let mut vulnerabilities: HashMap<String, Vec<(u64, Range)>> = HashMap::new();
+    vulnerabilities.insert("gone".to_string(), vec![(1, "<2.0.0".parse().unwrap())]);
+    vulnerabilities.insert("bumped".to_string(), vec![(2, "<2.0.0".parse().unwrap())]);
+    vulnerabilities.insert("non-semver".to_string(), vec![(3, "<2.0.0".parse().unwrap())]);
+
+    // `non-semver` is still installed but only under a non-semver key, so its
+    // version can't be range-checked.
+    let installed = InstalledPackages {
+        names: ["bumped".to_string(), "non-semver".to_string()].into_iter().collect(),
+        versions: HashMap::from([("bumped".to_string(), vec!["2.0.0".parse().unwrap()])]),
+    };
+
+    let (fixed, remaining) =
+        report_fixed_remaining(&vulnerabilities, &HashMap::new(), &[], &installed);
+
+    assert!(fixed.contains(&1), "an absent package is fixed");
+    assert!(fixed.contains(&2), "a package bumped out of range is fixed");
+    assert!(
+        remaining.contains(&3),
+        "a package surviving only under a non-semver key cannot be proven fixed",
+    );
+    assert!(!fixed.contains(&3));
+}
