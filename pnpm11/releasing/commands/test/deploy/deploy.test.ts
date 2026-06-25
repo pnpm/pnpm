@@ -439,6 +439,40 @@ test('forced deploy rejects target outside the workspace', async () => {
   expect(fs.readFileSync(path.join(outside, 'keep.txt'), 'utf8')).toBe('keep')
 })
 
+test('forced deploy accepts workspace child target with dot-dot prefix', async () => {
+  preparePackages([
+    {
+      name: 'project',
+      version: '1.0.0',
+      files: ['index.js'],
+      dependencies: {},
+      devDependencies: {},
+    },
+  ])
+  fs.writeFileSync('project/index.js', '', 'utf8')
+  fs.mkdirSync('..deploy')
+  fs.writeFileSync(path.join('..deploy', 'stale.txt'), 'stale', 'utf8')
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: 'project' }])
+
+  await deploy.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    dev: false,
+    force: true,
+    production: true,
+    recursive: true,
+    selectedProjectsGraph,
+    sharedWorkspaceLockfile: true,
+    lockfileDir: process.cwd(),
+    workspaceDir: process.cwd(),
+  }, ['..deploy'])
+
+  expect(fs.existsSync(path.join('..deploy', 'index.js'))).toBeTruthy()
+  expect(fs.existsSync(path.join('..deploy', 'stale.txt'))).toBeFalsy()
+})
+
 testOnNonWindows('deploy rejects symlinked target parent', async () => {
   preparePackages([
     {

@@ -69,6 +69,7 @@
     "ci-info": "catalog:",
     "detect-libc": "catalog:",
     "execa": "catalog:",
+    "is-subdir": "catalog:",
     "libnpmpublish": "catalog:",
     "normalize-path": "catalog:",
     "normalize-registry-url": "catalog:",

@@ -14,6 +14,7 @@ import { getLockfileImporterId, readWantedLockfile, writeWantedLockfile } from '
 import { globalWarn, logger } from '@pnpm/logger'
 import type { Project } from '@pnpm/types'
 import { rimraf } from '@zkochan/rimraf'
+import { isSubdir } from 'is-subdir'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 import { writeYamlFile } from 'write-yaml-file'
@@ -332,8 +333,7 @@ function isAncestorPath (parent: string, child: string): boolean {
 }
 
 function isChildPath (child: string, parent: string): boolean {
-  const relative = path.relative(parent, child)
-  return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative)
+  return !samePath(child, parent) && isSubdir(parent, child)
 }
 
 function isENOENT (error: unknown): boolean {

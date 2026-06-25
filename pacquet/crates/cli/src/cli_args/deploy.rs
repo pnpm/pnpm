@@ -8,7 +8,7 @@ use indexmap::IndexMap;
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pacquet_config::{Config, LinkWorkspacePackages, NodeLinker, PackageImportMethod};
 use pacquet_directory_fetcher::DirectoryFetcher;
-use pacquet_fs::lexical_normalize;
+use pacquet_fs::{lexical_normalize, remove_symlink_dir};
 use pacquet_lockfile::{
     DirectoryResolution, ImporterDepVersion, Lockfile, LockfileResolution, MaybeLazyLockfile,
     PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, ProjectSnapshot, ResolvedDependencyMap,
@@ -33,6 +33,12 @@ use std::{
     path::{Path, PathBuf},
     sync::{Arc, atomic::AtomicU8},
 };
+
+#[cfg(windows)]
+use std::os::windows::fs::MetadataExt;
+
+#[cfg(windows)]
+const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0000_0400;
 
 #[derive(Debug, Args)]
 pub struct DeployArgs {
@@ -512,8 +518,8 @@ fn validate_workspace_child_target_components(
                     .wrap_err_with(|| format!("inspect deploy target {}", current.display()));
             }
         };
-        if metadata.file_type().is_symlink() {
-            return unsafe_deploy_target(&current, "target path contains a symlink");
+        if is_unsafe_deploy_link(&metadata) {
+            return unsafe_deploy_target(&current, "target path contains a symlink or junction");
         }
     }
     Ok(())
@@ -612,8 +618,8 @@ fn create_workspace_child_target_component(component: &Path) -> miette::Result<(
     let metadata = fs::symlink_metadata(component)
         .into_diagnostic()
         .wrap_err_with(|| format!("inspect deploy target {}", component.display()))?;
-    if metadata.file_type().is_symlink() {
-        return unsafe_deploy_target(component, "target path contains a symlink");
+    if is_unsafe_deploy_link(&metadata) {
+        return unsafe_deploy_target(component, "target path contains a symlink or junction");
     }
     if !metadata.is_dir() {
         return unsafe_deploy_target(component, "target path contains a non-directory");
@@ -627,7 +633,7 @@ fn is_empty_dir_or_absent(path: &Path) -> miette::Result<bool> {
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(true),
         Err(error) => return Err(error).into_diagnostic(),
     };
-    if !metadata.is_dir() || metadata.file_type().is_symlink() {
+    if !metadata.is_dir() || is_unsafe_deploy_link(&metadata) {
         return Ok(false);
     }
     let mut entries = fs::read_dir(path).into_diagnostic()?;
@@ -640,12 +646,27 @@ fn remove_path_if_exists(path: &Path) -> miette::Result<()> {
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(()),
         Err(error) => return Err(error).into_diagnostic(),
     };
-    if metadata.is_dir() && !metadata.file_type().is_symlink() {
+    let unsafe_link = is_unsafe_deploy_link(&metadata);
+    if metadata.is_dir() && !unsafe_link {
         fs::remove_dir_all(path).into_diagnostic()
+    } else if metadata.is_dir() {
+        remove_symlink_dir(path).into_diagnostic()
     } else {
         fs::remove_file(path).into_diagnostic()
     }
     .wrap_err_with(|| format!("remove deploy path {}", path.display()))
+}
+
+fn is_unsafe_deploy_link(metadata: &fs::Metadata) -> bool {
+    #[cfg(windows)]
+    {
+        metadata.file_type().is_symlink()
+            || metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+    }
+    #[cfg(not(windows))]
+    {
+        metadata.file_type().is_symlink()
+    }
 }
 
 fn copy_project<ReporterT: Reporter>(
