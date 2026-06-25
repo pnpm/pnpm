@@ -35,20 +35,32 @@ pub fn create_hash_from_file(path: &Path) -> io::Result<String> {
     Ok(create_hash(&content.replace("\r\n", "\n")))
 }
 
+/// Compute the full sha256 hex digest of `input`.
+///
+/// Matches upstream
+/// [`createHexHash`](https://github.com/pnpm/pnpm/blob/1819226b51/crypto/hash/src/index.ts#L11-L13):
+/// `crypto.hash('sha256', input, 'hex')`. Used for the global-install
+/// cache key (`createGlobalCacheKey`), whose value names an on-disk
+/// symlink, so the full hex digest is part of the directory layout.
+#[must_use]
+pub fn create_hex_hash(input: &str) -> String {
+    let digest = Sha256::digest(input.as_bytes());
+    format!("{digest:x}")
+}
+
 /// Compute the sha256 hex digest of `input` and truncate to the first
 /// 32 hex characters (16 bytes of entropy).
 ///
 /// Matches upstream
 /// [`createShortHash`](https://github.com/pnpm/pnpm/blob/1819226b51/crypto/hash/src/index.ts#L7-L9):
-/// `crypto.hash('sha256', input, 'hex').substring(0, 32)`. The truncation
+/// `createHexHash(input).substring(0, 32)`. The truncation
 /// is part of the on-disk contract — anything written into a path with
 /// this hash (project-registry slugs, virtual-store dirnames that
 /// overflowed `virtualStoreDirMaxLength`, etc.) must use the same 32-char
 /// length so pacquet and pnpm produce the same directory layout.
 #[must_use]
 pub fn create_short_hash(input: &str) -> String {
-    let digest = Sha256::digest(input.as_bytes());
-    let mut hex = format!("{digest:x}");
+    let mut hex = create_hex_hash(input);
     hex.truncate(32);
     hex
 }

@@ -6,6 +6,7 @@ import { writeSettings } from '@pnpm/config.writer'
 import { PnpmError } from '@pnpm/error'
 import { handleGlobalAdd } from '@pnpm/global.commands'
 import { resolveConfigDeps } from '@pnpm/installing.env-installer'
+import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import { createStoreController } from '@pnpm/store.connection-manager'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
@@ -259,7 +260,12 @@ export async function handler (
         hint: 'Run "pnpm setup" to create it automatically, or set the global-bin-dir setting, or the PNPM_HOME env variable. The global bin directory should be in the PATH.',
       })
     }
-    if (params.includes('pnpm') || params.includes('@pnpm/exe')) {
+    // Normalize each selector to its package name first, so versioned
+    // forms like `pnpm@9` or `@pnpm/exe@1` can't bypass the guard.
+    if (params.some((param) => {
+      const { alias } = parseWantedDependency(param)
+      return alias === 'pnpm' || alias === '@pnpm/exe'
+    })) {
       throw new PnpmError('GLOBAL_PNPM_INSTALL', 'Use the "pnpm self-update" command to install or update pnpm')
     }
     return handleGlobalAdd({

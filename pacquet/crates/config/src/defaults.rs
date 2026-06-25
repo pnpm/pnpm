@@ -115,6 +115,42 @@ where
     }
 }
 
+/// The directory-layout version for global installs, appended to the
+/// global packages root. Mirrors pnpm's
+/// [`GLOBAL_LAYOUT_VERSION`](https://github.com/pnpm/pnpm/blob/1819226b51/core/constants/src/index.ts#L10).
+/// Bumping it isolates a new pnpm major's global packages from older ones.
+pub const GLOBAL_LAYOUT_VERSION: &str = "v11";
+
+/// Resolve pnpm's home (data) directory, the root under which global
+/// packages and global bins live.
+///
+/// Mirrors pnpm's
+/// [`getDataDir`](https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/dirs.ts):
+/// `PNPM_HOME` → `XDG_DATA_HOME/pnpm` → `~/Library/pnpm` (macOS) /
+/// `~/.local/share/pnpm` (non-Windows) / `%LOCALAPPDATA%/pnpm` (Windows)
+/// → `~/.pnpm`. Returns `None` only when the home directory cannot be
+/// determined and no env override is set.
+#[must_use]
+pub fn default_pnpm_home_dir<Sys>() -> Option<PathBuf>
+where
+    Sys: EnvVar + GetHomeDir,
+{
+    if let Some(pnpm_home) = Sys::var("PNPM_HOME") {
+        return Some(PathBuf::from(pnpm_home));
+    }
+    if let Some(xdg_data_home) = Sys::var("XDG_DATA_HOME") {
+        return Some(PathBuf::from(xdg_data_home).join("pnpm"));
+    }
+    let home_dir = Sys::home_dir()?;
+    Some(match env::consts::OS {
+        "macos" => home_dir.join("Library/pnpm"),
+        "windows" => Sys::var("LOCALAPPDATA")
+            .map_or_else(|| home_dir.join(".pnpm"), |local| PathBuf::from(local).join("pnpm")),
+        // pnpm treats every non-Windows platform as Unix here.
+        _ => home_dir.join(".local/share/pnpm"),
+    })
+}
+
 pub fn default_modules_dir() -> PathBuf {
     // TODO: find directory with package.json
     env::current_dir().expect("current directory is unavailable").join("node_modules")

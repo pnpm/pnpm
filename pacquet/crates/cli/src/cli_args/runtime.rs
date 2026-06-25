@@ -46,7 +46,7 @@ pub enum RuntimeError {
     MissingRuntimeName,
 
     #[display(
-        "`pacquet runtime set --global` is not supported yet; global package management has not been ported to pacquet."
+        "`pacquet runtime set --global` is not supported yet; global runtime installation has not been ported to pacquet."
     )]
     #[diagnostic(code(pacquet_cli::runtime_global_unsupported))]
     GlobalUnsupported,

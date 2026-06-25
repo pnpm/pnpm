@@ -22,6 +22,7 @@ pacquet-pnpr-client                       = { workspace = true }
 pacquet-env-installer                     = { workspace = true }
 pacquet-executor                          = { workspace = true }
 pacquet-fs                                = { workspace = true }
+pacquet-global                            = { workspace = true }
 pacquet-graph-hasher                      = { workspace = true }
 pacquet-hooks                             = { workspace = true }
 pacquet-lockfile                          = { workspace = true }
