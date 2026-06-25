@@ -390,4 +390,12 @@ async fn body_read_failure_retries_and_writes_mirror() {
         get_pkg_mirror_path(cache.path(), FULL_META_DIR, &registry, "acme").expect("path");
     let headers = load_meta_headers(&mirror_path).expect("headers readable");
     assert_eq!(headers.etag.as_deref(), Some(r#"W/"after-retry""#));
+
+    // A follow-up conditional GET answered 304 proves the persisted body is
+    // a usable mirror, not just freshened headers over a missing/stale body.
+    let not_modified = server.mock("GET", "/acme").with_status(304).expect(1).create_async().await;
+    let cached_pkg =
+        fetch_full_metadata_cached("acme", &opts).await.expect("mirror body readable after retry");
+    assert_eq!(cached_pkg.name, "acme");
+    not_modified.assert_async().await;
 }

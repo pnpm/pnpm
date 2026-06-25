@@ -149,3 +149,6 @@ pub struct GuardRepickLimitError {
     pub limit: usize,
     pub reason: String,
 }
+
+#[cfg(test)]
+mod tests;

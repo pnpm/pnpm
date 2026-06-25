@@ -160,7 +160,7 @@ pub async fn send_with_retry<'client>(
                 tracing::warn!(
                     target: "pacquet_network::retry",
                     url = %redact_url_credentials(url),
-                    ?error,
+                    error = %redact_url_credentials(&format!("{error:?}")),
                     attempt = attempt + 1,
                     max_attempts = retry_opts.retries + 1,
                     ?delay,
@@ -212,7 +212,7 @@ where
                 tracing::warn!(
                     target: "pacquet_network::retry",
                     url = %redact_url_credentials(url),
-                    ?error,
+                    error = %redact_url_credentials(&format!("{error:?}")),
                     attempt = attempt + 1,
                     max_attempts = retry_opts.retries + 1,
                     ?delay,
