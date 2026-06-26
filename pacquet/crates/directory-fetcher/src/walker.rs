@@ -22,6 +22,12 @@ use std::{
     path::{Path, PathBuf},
 };
 
+#[cfg(windows)]
+use std::os::windows::fs::MetadataExt;
+
+#[cfg(windows)]
+const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0000_0400;
+
 /// Output of [`walk_all_files`] / [`walk_package_files`]: the
 /// relative-path → absolute-source-path map a downstream CAS-write
 /// pass reads from. Forward-slash separators on every host (matches
@@ -41,9 +47,38 @@ pub(crate) fn walk_all_files(
 ) -> Result<FilesMap, DirectoryFetcherError> {
     let mut out = FilesMap::new();
     let mut visited = HashSet::new();
-    let confined_root = if allow_path_escape { None } else { Some(canonicalize_path(dir)?) };
+    let confined_root = if allow_path_escape { None } else { Some(confined_root(dir)?) };
     walk_all_inner(dir, "", resolve_symlinks, confined_root.as_deref(), &mut visited, &mut out)?;
     Ok(out)
+}
+
+pub(crate) fn reject_linked_confined_root(dir: &Path) -> Result<(), DirectoryFetcherError> {
+    let metadata = fs::symlink_metadata(dir)
+        .map_err(|source| DirectoryFetcherError::Io { dir: dir.display().to_string(), source })?;
+    if is_linked_root(&metadata) {
+        return Err(DirectoryFetcherError::PathOutsideDirectory {
+            path: dir.to_path_buf(),
+            directory: dir.to_path_buf(),
+        });
+    }
+    Ok(())
+}
+
+fn confined_root(dir: &Path) -> Result<PathBuf, DirectoryFetcherError> {
+    reject_linked_confined_root(dir)?;
+    canonicalize_path(dir)
+}
+
+fn is_linked_root(metadata: &Metadata) -> bool {
+    #[cfg(windows)]
+    {
+        metadata.file_type().is_symlink()
+            || metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+    }
+    #[cfg(not(windows))]
+    {
+        metadata.file_type().is_symlink()
+    }
 }
 
 fn walk_all_inner(
@@ -223,7 +258,7 @@ pub(crate) fn resolve_paths_in_directory(
     directory: &Path,
     files_map: &mut FilesMap,
 ) -> Result<(), DirectoryFetcherError> {
-    let root = canonicalize_path(directory)?;
+    let root = confined_root(directory)?;
     for path in files_map.values_mut() {
         let original = path.clone();
         let resolved = canonicalize_path(&original)?;

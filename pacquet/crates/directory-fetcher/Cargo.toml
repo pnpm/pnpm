@@ -22,6 +22,7 @@ serde_json  = { workspace = true }
 tracing     = { workspace = true }
 
 [dev-dependencies]
+pacquet-fs            = { workspace = true }
 pacquet-testing-utils = { workspace = true }
 
 pretty_assertions = { workspace = true }

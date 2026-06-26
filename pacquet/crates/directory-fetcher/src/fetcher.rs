@@ -53,6 +53,9 @@ pub struct DirectoryFetchOutput {
 
 impl DirectoryFetcher {
     pub fn run(&self) -> Result<DirectoryFetchOutput, DirectoryFetcherError> {
+        if !self.allow_path_escape {
+            walker::reject_linked_confined_root(&self.directory)?;
+        }
         let files_map = if self.include_only_package_files {
             let mut files_map = walker::walk_package_files(&self.directory)?;
             if !self.allow_path_escape {
