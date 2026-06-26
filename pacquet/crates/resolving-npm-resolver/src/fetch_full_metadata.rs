@@ -63,7 +63,7 @@ pub struct FetchFullMetadataOptions<'a> {
     /// the body re-download. Mirrors upstream's `modified` option at
     /// the same call site.
     pub modified: Option<&'a str>,
-    pub(crate) retry_opts: RetryOpts,
+    pub retry_opts: RetryOpts,
 }
 
 /// Outcome of a [`fetch_full_metadata`] call. Mirrors upstream's
