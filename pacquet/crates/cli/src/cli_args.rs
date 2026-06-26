@@ -4,8 +4,8 @@ pub mod audit;
 pub mod cache;
 pub mod cat_file;
 pub mod cat_index;
-pub mod config;
 pub mod completion;
+pub mod config;
 pub mod create;
 pub mod dedupe;
 pub mod dist_tag;
@@ -299,6 +299,20 @@ pub enum CliCommand {
 }
 
 impl CliArgs {
+    pub fn run_completion_if_requested(&self) -> miette::Result<bool> {
+        match &self.command {
+            CliCommand::Completion(args) => {
+                args.run()?;
+                Ok(true)
+            }
+            CliCommand::CompletionServer(args) => {
+                args.run()?;
+                Ok(true)
+            }
+            _ => Ok(false),
+        }
+    }
+
     /// Try to finish `pacquet install` synchronously through the
     /// repeat-install fast path, before the caller builds the async
     /// runtime. `true` means the install completed (the "Already up to
@@ -353,19 +367,12 @@ impl CliArgs {
         reason = "the run function dispatches all CLI commands and contains large types like Install on the stack"
     )]
     pub async fn run(self, config_overrides: &ConfigOverrides) -> miette::Result<()> {
+        if self.run_completion_if_requested()? {
+            return Ok(());
+        }
+
         let CliArgs { command, dir, npmrc_auth_file, recursive, reporter, filter, filter_prod } =
             self;
-        let command = match command {
-            CliCommand::Completion(args) => {
-                args.run()?;
-                return Ok(());
-            }
-            CliCommand::CompletionServer(args) => {
-                args.run()?;
-                return Ok(());
-            }
-            command => command,
-        };
 
         // Canonicalize `--dir` so the bunyan-envelope `prefix` emitted by
         // the reporter is the same absolute, symlink-resolved path that

@@ -81,7 +81,7 @@ pub fn shell_from_args(
 }
 
 impl CompletionArgs {
-    pub fn run(self) -> miette::Result<()> {
+    pub fn run(&self) -> miette::Result<()> {
         let shell = shell_from_args(self.shell.as_deref(), &self.extra)?;
         generate_completion(shell, &mut std::io::stdout())?;
         Ok(())
@@ -89,7 +89,7 @@ impl CompletionArgs {
 }
 
 impl CompletionServerArgs {
-    pub fn run(self) -> miette::Result<()> {
+    pub fn run(&self) -> miette::Result<()> {
         for completion in complete_words(&self.words) {
             println!("{completion}");
         }
@@ -104,26 +104,33 @@ pub fn generate_completion(shell: CompletionShell, output: &mut dyn Write) -> mi
 pub fn complete_words(words: &[String]) -> Vec<String> {
     let words = words_without_binary(words);
     let (before_current, current_word) = split_current_word(&words);
+    if before_current.iter().any(|word| word == "--") {
+        return Vec::new();
+    }
+
     let command = command_for_completion();
     let context = CompletionContext::new(&command, before_current);
 
-    if let Some(values) = option_values(&context, before_current) {
+    if let Some(values) = equals_option_values(&context, current_word) {
         return values;
     }
 
+    if let Some(values) = option_values(&context, before_current) {
+        return filter_by_prefix(values, current_word);
+    }
+
     if current_word.starts_with('-') {
-        return visible_options(&context);
+        return filter_by_prefix(visible_options(&context), current_word);
     }
 
     if context.command_name == Some("completion") {
-        return SUPPORTED_SHELLS.iter().map(|shell| (*shell).to_string()).collect();
+        return filter_by_prefix(
+            SUPPORTED_SHELLS.iter().map(|shell| (*shell).to_string()).collect(),
+            current_word,
+        );
     }
 
-    if context.command_name.is_none() {
-        return visible_subcommands(&command);
-    }
-
-    Vec::new()
+    filter_by_prefix(visible_subcommands(context.command), current_word)
 }
 
 struct CompletionContext<'a> {
@@ -134,18 +141,26 @@ struct CompletionContext<'a> {
 
 impl<'a> CompletionContext<'a> {
     fn new(root: &'a Command, words: &[String]) -> Self {
+        let mut command = root;
+        let mut command_name = None;
         let mut index = 0;
+
         while let Some(word) = words.get(index) {
-            if let Some(command) = root
+            if let Some(subcommand) = command
                 .get_subcommands()
                 .find(|subcommand| !subcommand.is_hide_set() && command_matches(subcommand, word))
             {
-                return Self { root, command, command_name: Some(command.get_name()) };
+                command = subcommand;
+                command_name = Some(subcommand.get_name());
+                index += 1;
+                continue;
             }
 
             if word.starts_with('-') {
                 if option_has_separate_value(word)
-                    && find_option_argument_in_command(root, word).is_some_and(argument_takes_value)
+                    && find_option_argument_in_command(command, word)
+                        .or_else(|| find_option_argument_in_command(root, word))
+                        .is_some_and(argument_takes_value)
                 {
                     index += 2;
                 } else {
@@ -157,7 +172,7 @@ impl<'a> CompletionContext<'a> {
             index += 1;
         }
 
-        Self { root, command: root, command_name: None }
+        Self { root, command, command_name }
     }
 }
 
@@ -213,6 +228,10 @@ fn visible_options(context: &CompletionContext<'_>) -> Vec<String> {
     options
 }
 
+fn filter_by_prefix(candidates: Vec<String>, prefix: &str) -> Vec<String> {
+    candidates.into_iter().filter(|candidate| candidate.starts_with(prefix)).collect()
+}
+
 fn extend_visible_options(options: &mut Vec<String>, command: &Command) {
     for argument in command.get_arguments().filter(|argument| !argument.is_hide_set()) {
         if let Some(short) = argument.get_short() {
@@ -227,16 +246,32 @@ fn extend_visible_options(options: &mut Vec<String>, command: &Command) {
     }
 }
 
+fn equals_option_values(
+    context: &CompletionContext<'_>,
+    current_word: &str,
+) -> Option<Vec<String>> {
+    let (option, value_prefix) = current_word.split_once('=')?;
+    if !option.starts_with('-') {
+        return None;
+    }
+
+    let argument = find_option_argument(context, option)?;
+    let mut values: Vec<_> = visible_possible_values(argument)
+        .into_iter()
+        .filter(|value| value.starts_with(value_prefix))
+        .map(|value| format!("{option}={value}"))
+        .collect();
+
+    values.sort();
+    values.dedup();
+    Some(values)
+}
+
 fn option_values(context: &CompletionContext<'_>, words: &[String]) -> Option<Vec<String>> {
     let option =
         words.last().filter(|word| word.starts_with('-') && option_has_separate_value(word))?;
     let argument = find_option_argument(context, option)?;
-    let mut values: Vec<_> = argument
-        .get_possible_values()
-        .into_iter()
-        .filter(|value| !value.is_hide_set())
-        .map(|value| value.get_name().to_string())
-        .collect();
+    let mut values = visible_possible_values(argument);
 
     if values.is_empty() {
         return None;
@@ -245,6 +280,15 @@ fn option_values(context: &CompletionContext<'_>, words: &[String]) -> Option<Ve
     values.sort();
     values.dedup();
     Some(values)
+}
+
+fn visible_possible_values(argument: &Arg) -> Vec<String> {
+    argument
+        .get_possible_values()
+        .into_iter()
+        .filter(|value| !value.is_hide_set())
+        .map(|value| value.get_name().to_string())
+        .collect()
 }
 
 fn find_option_argument<'a>(context: &'a CompletionContext<'_>, option: &str) -> Option<&'a Arg> {
@@ -298,7 +342,14 @@ function __pacquet_completion
   set -lx SHELL fish
   set -lx COMP_LINE (commandline -cp)
   set -lx COMP_POINT (string length -- $COMP_LINE)
-  pacquet completion-server -- (commandline -opc)
+  set -l tokens (commandline -opc)
+  set -l current (commandline -ct)
+  if test (count $tokens) -eq 0
+    set -a tokens "$current"
+  else if test "$tokens[-1]" != "$current"
+    set -a tokens "$current"
+  end
+  pacquet completion-server -- $tokens
 end
 complete -c pacquet -f -a "(__pacquet_completion)"
 ###-end-pacquet-completion-###
@@ -310,7 +361,11 @@ Register-ArgumentCompleter -Native -CommandName pacquet -ScriptBlock {
   $env:SHELL = "pwsh"
   $env:COMP_LINE = $commandAst.ToString()
   $env:COMP_POINT = $cursorPosition
-  pacquet completion-server -- @($commandAst.CommandElements | ForEach-Object { $_.Extent.Text })
+  $elements = @($commandAst.CommandElements | ForEach-Object { $_.Extent.Text })
+  if ($elements.Count -eq 0 -or $elements[-1] -ne $wordToComplete) {
+    $elements += $wordToComplete
+  }
+  pacquet completion-server -- @elements
 }
 ###-end-pacquet-completion-###
 "#;

@@ -58,6 +58,17 @@ fn completion_scripts_do_not_expose_redundant_parameter_plumbing() {
 }
 
 #[test]
+fn completion_scripts_preserve_current_token_for_fish_and_pwsh() {
+    let fish =
+        stdout(pacquet().args(["completion", "fish"]).output().expect("run pacquet completion"));
+    assert!(fish.contains("commandline -ct"), "{fish}");
+
+    let pwsh =
+        stdout(pacquet().args(["completion", "pwsh"]).output().expect("run pacquet completion"));
+    assert!(pwsh.contains("$wordToComplete"), "{pwsh}");
+}
+
+#[test]
 fn completion_server_lists_top_level_commands() {
     let output = pacquet()
         .args(["completion-server", "--", "pacquet", ""])
@@ -119,6 +130,73 @@ fn completion_server_does_not_treat_option_values_as_commands() {
 
     assert!(reply.lines().any(|line| line == "add"), "{reply}");
     assert!(!reply.lines().any(|line| line == "--frozen-lockfile"), "{reply}");
+}
+
+#[test]
+fn completion_server_stops_after_double_dash_separator() {
+    let output = pacquet()
+        .args(["completion-server", "--", "pacquet", "--", "--rep"])
+        .output()
+        .expect("run pacquet completion-server");
+    let reply = stdout(output);
+
+    assert_eq!(reply, "");
+}
+
+#[test]
+fn completion_server_lists_nested_subcommands() {
+    let output = pacquet()
+        .args(["completion-server", "--", "pacquet", "store", ""])
+        .output()
+        .expect("run pacquet completion-server");
+    let reply = stdout(output);
+
+    assert!(reply.lines().any(|line| line == "prune"), "{reply}");
+    assert!(reply.lines().any(|line| line == "path"), "{reply}");
+}
+
+#[test]
+fn completion_server_filters_command_prefixes() {
+    let output = pacquet()
+        .args(["completion-server", "--", "pacquet", "inst"])
+        .output()
+        .expect("run pacquet completion-server");
+    let reply = stdout(output);
+
+    assert_eq!(reply.lines().collect::<Vec<_>>(), ["install"]);
+}
+
+#[test]
+fn completion_server_filters_option_prefixes() {
+    let output = pacquet()
+        .args(["completion-server", "--", "pacquet", "--rep"])
+        .output()
+        .expect("run pacquet completion-server");
+    let reply = stdout(output);
+
+    assert_eq!(reply.lines().collect::<Vec<_>>(), ["--reporter"]);
+}
+
+#[test]
+fn completion_server_filters_option_value_prefixes() {
+    let output = pacquet()
+        .args(["completion-server", "--", "pacquet", "--reporter", "a"])
+        .output()
+        .expect("run pacquet completion-server");
+    let reply = stdout(output);
+
+    assert_eq!(reply.lines().collect::<Vec<_>>(), ["append-only"]);
+}
+
+#[test]
+fn completion_server_completes_equals_option_values() {
+    let output = pacquet()
+        .args(["completion-server", "--", "pacquet", "--reporter=de"])
+        .output()
+        .expect("run pacquet completion-server");
+    let reply = stdout(output);
+
+    assert_eq!(reply.lines().collect::<Vec<_>>(), ["--reporter=default"]);
 }
 
 #[test]

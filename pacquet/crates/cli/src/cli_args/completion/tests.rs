@@ -1,5 +1,8 @@
 use miette::Diagnostic as _;
 
+use crate::cli_args::CliArgs;
+use clap::Parser as _;
+
 use super::{CompletionError, CompletionShell, SUPPORTED_SHELLS, shell_from_args};
 
 fn strings(values: &[&str]) -> Vec<String> {
@@ -67,4 +70,12 @@ fn generated_scripts_call_completion_server() {
         let script = String::from_utf8(output).expect("script is utf8");
         assert!(script.contains("pacquet completion-server"), "{script}");
     }
+}
+
+#[test]
+fn completion_can_run_before_async_runtime_setup() {
+    let args =
+        CliArgs::parse_from(["pacquet", "completion-server", "--", "pacquet", "completion", ""]);
+
+    assert!(args.run_completion_if_requested().expect("completion dispatch succeeds"));
 }
