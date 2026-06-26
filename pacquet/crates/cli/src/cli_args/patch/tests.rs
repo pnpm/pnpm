@@ -97,7 +97,7 @@ fn success_message_colors_edit_dir_and_commit_command_when_enabled() {
     assert!(rendered.contains("\u{1b}[34m/tmp/edit-dir\u{1b}[39m"), "{rendered:?}");
     assert!(
         rendered.contains(&format!(
-            "\u{1b}[32mpacquet patch-commit {quote}/tmp/edit-dir{quote}\u{1b}[39m",
+            "\u{1b}[32mpnpm patch-commit {quote}/tmp/edit-dir{quote}\u{1b}[39m",
         )),
         "{rendered:?}",
     );
@@ -112,7 +112,7 @@ fn success_message_is_plain_when_colors_are_disabled() {
     assert_eq!(
         rendered,
         format!(
-            "Patch: You can now edit the package at:\n\n  /tmp/edit-dir\n\nTo commit your changes, run:\n\n  pacquet patch-commit {quote}/tmp/edit-dir{quote}\n\n",
+            "Patch: You can now edit the package at:\n\n  /tmp/edit-dir\n\nTo commit your changes, run:\n\n  pnpm patch-commit {quote}/tmp/edit-dir{quote}\n\n",
         ),
     );
 }
@@ -123,7 +123,7 @@ fn success_message_shell_quotes_single_quotes_in_edit_dir() {
     let edit_dir = Path::new("/tmp/patch user's dir");
     let rendered = render_success(edit_dir, false);
 
-    assert!(rendered.contains(r"pacquet patch-commit '/tmp/patch user'\''s dir'"), "{rendered}");
+    assert!(rendered.contains(r"pnpm patch-commit '/tmp/patch user'\''s dir'"), "{rendered}");
 }
 
 #[cfg(unix)]

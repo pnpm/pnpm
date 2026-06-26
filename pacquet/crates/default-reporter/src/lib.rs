@@ -42,7 +42,7 @@ pub fn set_cwd(cwd: impl Into<String>) {
     let _ = CWD.set(cwd.into());
 }
 
-/// Set the version rendered in the `Done in ... using pacquet v<version>`
+/// Set the version rendered in the `Done in ... using pnpm v<version>`
 /// footer. Call once before the first event; ignored if already set.
 pub fn set_package_version(version: impl Into<String>) {
     let _ = PACKAGE_VERSION.set(version.into());

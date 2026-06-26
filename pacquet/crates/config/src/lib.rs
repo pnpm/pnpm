@@ -1029,7 +1029,7 @@ pub struct Config {
 
     /// Value of the `User-Agent` header sent on every registry request.
     /// Mirrors pnpm's `userAgent`; the default is pnpm's
-    /// `pnpm/pacquet-<version> npm/? node/? <platform> <arch>` format (built by
+    /// `pnpm/<version> npm/? node/? <platform> <arch>` format (built by
     /// `default_user_agent`).
     #[default(_code = "default_user_agent()")]
     pub user_agent: String,

@@ -22,11 +22,11 @@ pub struct LinkArgs {
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum LinkError {
-    #[display("You must provide a parameter. Usage: pacquet link <dir>")]
+    #[display("You must provide a parameter. Usage: pnpm link <dir>")]
     #[diagnostic(code(ERR_PNPM_LINK_BAD_PARAMS))]
     NoParams,
 
-    #[display(r#"Cannot link by package name. Use a relative or absolute path instead, e.g. "pacquet link ./{name}""#)]
+    #[display(r#"Cannot link by package name. Use a relative or absolute path instead, e.g. "pnpm link ./{name}""#)]
     #[diagnostic(code(ERR_PNPM_LINK_BAD_PARAMS))]
     LinkByName {
         #[error(not(source))]

@@ -10,6 +10,7 @@ use config_overrides::ConfigOverrides;
 use miette::set_panic_hook;
 use pacquet_diagnostics::enable_tracing_by_env;
 use state::State;
+use std::{ffi::OsString, path::Path};
 
 pub fn main() -> miette::Result<()> {
     enable_tracing_by_env();
@@ -19,7 +20,7 @@ pub fn main() -> miette::Result<()> {
     // arbitrary, so a `--config.registry=...` from pnpm's forwarded flags
     // would otherwise error out as "unexpected argument". Each extracted
     // token is layered onto `Config` after `.npmrc` / yaml run.
-    let (config_overrides, argv) = ConfigOverrides::extract(std::env::args_os());
+    let (config_overrides, argv) = ConfigOverrides::extract(argv_with_alias_subcommand());
     // The default reporter's `Done in ... using pacquet v<version>` footer needs
     // the version before the first event (including the fast path's).
     pacquet_default_reporter::set_package_version(pacquet_config::PACQUET_VERSION);
@@ -66,6 +67,27 @@ pub fn main() -> miette::Result<()> {
 /// the 8 MiB Linux/macOS default so the deep install call chain has the
 /// same room on every platform, including Windows (1 MiB default).
 const MAIN_STACK_SIZE: usize = 32 * 1024 * 1024;
+
+/// Process argv with a leading `dlx` injected when launched as `pnpx`/`pnx`
+/// (shorthand for `pnpm dlx`), mirroring pnpm's `buildArgv`. Only the Windows
+/// hardlink aliases rely on this — the Unix alias scripts inject `dlx`
+/// themselves — and there `current_exe` is the only signal of the launch name.
+fn argv_with_alias_subcommand() -> Vec<OsString> {
+    let exe = std::env::current_exe().ok();
+    let exe_name =
+        exe.as_deref().and_then(Path::file_stem).map(|stem| stem.to_string_lossy().to_lowercase());
+    inject_alias_subcommand(exe_name.as_deref(), std::env::args_os().collect())
+}
+
+/// Insert a leading `dlx` token after the program name when `exe_name` is a
+/// `pnpx`/`pnx` alias. Split out from [`argv_with_alias_subcommand`] so the
+/// argv rewrite is unit-testable without depending on `current_exe`.
+fn inject_alias_subcommand(exe_name: Option<&str>, mut argv: Vec<OsString>) -> Vec<OsString> {
+    if matches!(exe_name, Some("pnpx" | "pnx")) {
+        argv.insert(argv.len().min(1), OsString::from("dlx"));
+    }
+    argv
+}
 
 /// Size rayon's global pool at `2 × available_parallelism`. The link
 /// phase is dominated by clonefile / hardlink syscalls that block the
@@ -123,3 +145,6 @@ fn configure_rayon_pool() {
         .max(4);
     let _ = rayon::ThreadPoolBuilder::new().num_threads(n).build_global();
 }
+
+#[cfg(test)]
+mod tests;
