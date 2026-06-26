@@ -96,7 +96,7 @@ function generateScopedAliasPackage() {
   fs.rmSync(aliasRoot, { recursive: true, force: true });
   fs.mkdirSync(resolve(aliasRoot, "bin"), { recursive: true });
 
-  // Mirror the JS shim and the postinstall optimizer 1:1. Copying instead of
+  // Mirror the JS shim and the preinstall optimizer 1:1. Copying instead of
   // symlinking keeps the tarball self-contained for `pnpm publish`.
   fs.copyFileSync(
     resolve(PACQUET_ROOT, "bin", BIN_NAME),

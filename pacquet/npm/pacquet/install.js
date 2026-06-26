@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Postinstall optimization. The published `bin/pacquet` is a Node.js launcher
+// Preinstall optimization. The published `bin/pacquet` is a Node.js launcher
 // shim, so every invocation otherwise pays full Node startup (~170ms) just to
 // spawn the real native binary. Here we overwrite that shim file in place with
 // the platform's native binary, so the `.bin/pacquet` entry the package manager
