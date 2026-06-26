@@ -1,5 +1,4 @@
 import fs from 'node:fs'
-import { createRequire } from 'node:module'
 import path from 'node:path'
 import util from 'node:util'
 
@@ -418,23 +417,24 @@ export function linkExePlatformBinary (installDir: string, wrapperPkgName: strin
   const arch = process.arch
   const libcFamily = familySync()
   const executable = platform === 'win32' ? 'pnpm.exe' : 'pnpm'
-  // In pnpm's symlinked node_modules layout the platform package is not hoisted
-  // to the top level; it's a sibling of the wrapper in the virtual store.
-  // Resolve through the wrapper's real path so Node's resolver searches the
-  // store dir where the `@pnpm/<target>` sibling actually lives — a literal
-  // `node_modules` walk from the symlink would miss it.
-  const requireFromWrapper = createRequire(path.join(fs.realpathSync(wrapperDir), 'package.json'))
+  // Resolve the platform binary by its explicit adjacent path in the real
+  // virtual store, not via Node resolution: a `node_modules` walk could be
+  // shadowed by a higher-precedence `@pnpm/<dirName>` in a repo-controlled
+  // `store-dir`. `@pnpm/exe`'s parent is already `@pnpm`; `pnpm` descends into it.
+  const wrapperRealDir = fs.realpathSync(wrapperDir)
+  const scopeDir = wrapperPkgName.startsWith('@')
+    ? path.dirname(wrapperRealDir)
+    : path.join(path.dirname(wrapperRealDir), '@pnpm')
   const candidateDirNames = [
     exePlatformPkgDirName(platform, arch, libcFamily),
     exePlatformPkgDirNameNext(platform, arch, libcFamily),
   ]
   let src: string | undefined
   for (const dirName of candidateDirNames) {
-    try {
-      src = requireFromWrapper.resolve(`@pnpm/${dirName}/${executable}`)
+    const candidate = path.join(scopeDir, dirName, executable)
+    if (fs.existsSync(candidate)) {
+      src = candidate
       break
-    } catch {
-      // Not installed under this name; try the next scheme.
     }
   }
   if (src == null) return
