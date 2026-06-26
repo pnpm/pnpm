@@ -1,6 +1,5 @@
 ---
 "@pnpm/engine.pm.commands": minor
-"@pnpm/installing.commands": patch
 "pnpm": minor
 ---
 

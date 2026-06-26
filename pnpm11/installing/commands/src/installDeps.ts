@@ -221,8 +221,8 @@ export async function installDeps (
   // pacquet consumes. Threaded through both the workspace recursive
   // path and the single-project path below. Two declaration names are
   // accepted: the original unscoped `pacquet` and the official scoped
-  // `@pnpm/pacquet` mirror. Both packages ship the same placeholder bin
-  // and optional `@pnpm/exe.<plat>-<arch>` binary sub-packages, so the
+  // `@pnpm/pacquet` mirror. Both packages ship the same JS shim and
+  // optional `@pacquet/<plat>-<arch>` binary sub-packages, so the
   // resolved \`node_modules/.pnpm-config/<name>\` layout pacquet's
   // wrapper expects is identical either way.
   //
