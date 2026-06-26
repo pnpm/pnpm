@@ -49,6 +49,13 @@ test('without a full graph, resolution is limited to edges among the sorted proj
   expect(sortProjects(select(graph, ['a', 'c']))).toStrictEqual([dirs('a', 'c')])
 })
 
+test('does not reintroduce edges that the selected graph pruned (e.g. prod-only filter)', () => {
+  const fullGraph = makeGraph({ a: ['b'], b: [] })
+  // The selection dropped a's edge to b (as a prod-only filter drops dev edges).
+  const selected = makeGraph({ a: [], b: [] })
+  expect(sortProjects(selected, fullGraph)).toStrictEqual([dirs('a', 'b')])
+})
+
 test('detects a cycle that passes through unselected projects', () => {
   const graph = makeGraph({ a: ['b'], b: ['c'], c: ['a'] })
   expect(sequenceGraph(select(graph, ['a', 'c']), graph).safe).toBe(false)

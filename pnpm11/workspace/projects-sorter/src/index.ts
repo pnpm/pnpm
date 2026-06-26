@@ -21,7 +21,7 @@ export function sequenceGraph (
   const graph = new Map<ProjectRootDir, ProjectRootDir[]>(
     sortedProjectDirs.map((projectDir) => [
       projectDir,
-      sortedDependencies(fullProjectsGraph, projectDir, sorted),
+      sortedDependencies(projectsGraph, fullProjectsGraph, projectDir, sorted),
     ])
   )
   return graphSequencer(graph, sortedProjectDirs)
@@ -36,18 +36,23 @@ export function sortProjects (
 
 /**
  * The dependencies of `projectDir` that are themselves in `sorted`, reached by
- * walking through `fullProjectsGraph` and tunneling past any project outside
- * `sorted`. A transitive dependency between two sorted projects thus becomes a
- * direct edge.
+ * tunneling past any project outside `sorted`. A transitive dependency between
+ * two sorted projects thus becomes a direct edge.
+ *
+ * `projectDir`'s own edges are read from `projectsGraph`, so a selection that
+ * deliberately narrows them (e.g. a prod-only filter that drops dev edges) is
+ * respected; `fullProjectsGraph` is consulted only to walk through projects
+ * outside `sorted`, which are absent from `projectsGraph`.
  */
 function sortedDependencies (
+  projectsGraph: ProjectsGraph,
   fullProjectsGraph: ProjectsGraph,
   projectDir: ProjectRootDir,
   sorted: ReadonlySet<ProjectRootDir>
 ): ProjectRootDir[] {
   const dependencies = new Set<ProjectRootDir>()
   const visited = new Set<ProjectRootDir>()
-  const stack = [...(fullProjectsGraph[projectDir]?.dependencies ?? [])]
+  const stack = [...(projectsGraph[projectDir]?.dependencies ?? [])]
   while (stack.length > 0) {
     const dependencyDir = stack.pop()!
     if (dependencyDir === projectDir || visited.has(dependencyDir)) continue
