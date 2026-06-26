@@ -8,7 +8,7 @@ use pacquet_default_reporter::{
     state::{Output, ReporterState},
 };
 use pacquet_reporter::{
-    AddedRoot, ContextLog, DependencyType, ExecutionTimeLog, GlobalLog, LifecycleLog,
+    AddedRoot, ContextLog, DependencyType, ExecutionTimeLog, GlobalLog, HookLog, LifecycleLog,
     LifecycleMessage, LifecycleStdio, LogEvent, LogLevel, PackageImportMethod,
     PackageImportMethodLog, PnpmLog, ProgressLog, ProgressMessage, RootLog, RootMessage, Stage,
     StageLog, StatsLog, StatsMessage, SummaryLog,
@@ -329,4 +329,20 @@ fn lifecycle_script_output_is_grouped_and_indented() {
     ];
     let frame = render(&mut reporter, events);
     assert_eq!(frame, "deps/foo postinstall$ node build.js\n│ building\n└─ Running...");
+}
+
+#[test]
+fn hook_log_renders_with_magenta_hook_name() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![LogEvent::Hook(HookLog {
+            level: LogLevel::Info,
+            from: "pnpmfile".to_string(),
+            hook: "preResolution".to_string(),
+            message: "Starting resolution".to_string(),
+            prefix: CWD.to_string(),
+        })],
+    );
+    assert_eq!(frame, "preResolution: Starting resolution");
 }

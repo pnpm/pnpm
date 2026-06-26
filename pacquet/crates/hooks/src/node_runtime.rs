@@ -58,8 +58,8 @@ impl NodeJsHooks {
 const hooks = await import({file_path_escaped});
 const ctx = JSON.parse(readFileSync(0, 'utf8'));
 const logger = {{
-  info: (m) => {{ console.log(JSON.stringify({{"level":"info","message":m}})); }},
-  warn: (m) => {{ console.log(JSON.stringify({{"level":"warn","message":m}})); }}
+  info: (m) => {{ console.log(JSON.stringify({{"level":"info","message":String(m)}})); }},
+  warn: (m) => {{ console.log(JSON.stringify({{"level":"warn","message":String(m)}})); }}
 }};
 await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
 "#,
@@ -73,8 +73,8 @@ await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
   const hooks = require({file_path_escaped});
   const ctx = JSON.parse(require('fs').readFileSync(0, 'utf8'));
   const logger = {{
-    info: (m) => {{ console.log(JSON.stringify({{"level":"info","message":m}})); }},
-    warn: (m) => {{ console.log(JSON.stringify({{"level":"warn","message":m}})); }}
+    info: (m) => {{ console.log(JSON.stringify({{"level":"info","message":String(m)}})); }},
+    warn: (m) => {{ console.log(JSON.stringify({{"level":"warn","message":String(m)}})); }}
   }};
   await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
 }})();
@@ -110,11 +110,12 @@ await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
             return;
         };
 
-        // Forward each JSON line from the JS info/warn logger calls to the
-        // Rust-side closures, which emit them as `pnpm:hook` events. The JS
-        // wrapper writes `{"level":"info","message":"..."}` or
-        // `{"level":"warn","message":"..."}` to stdout; everything else is
-        // silently ignored (it may be debug output from Node.js internals).
+        // Forward each JSON line from the JS info/warn logger calls to the Rust-
+        // side closures, which emit them as `pnpm:hook` events. The JS wrapper
+        // writes `{"level":"info","message":String(...)}` or
+        // `{"level":"warn","message":String(...)}` to stdout. Non-JSON lines
+        // (e.g. Node.js debug output) are forwarded as info so they are not
+        // silently lost.
         for line in String::from_utf8_lossy(&output.stdout).lines() {
             let line = line.trim();
             if line.is_empty() {
@@ -122,13 +123,18 @@ await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
             }
             if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(line) {
                 let level = parsed.get("level").and_then(|v| v.as_str());
-                let message =
-                    parsed.get("message").and_then(|v| v.as_str()).unwrap_or_default().to_string();
+                let message = match parsed.get("message") {
+                    Some(v) if v.is_string() => v.as_str().unwrap().to_string(),
+                    Some(v) => v.to_string(),
+                    None => continue,
+                };
                 match level {
                     Some("info") => (logger.info)(message),
                     Some("warn") => (logger.warn)(message),
                     _ => {}
                 }
+            } else {
+                (logger.info)(line.to_string());
             }
         }
 
