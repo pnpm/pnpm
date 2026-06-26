@@ -20,10 +20,17 @@ on:
         required: true
         type: string
       tag:
+        # A `choice` (not free-form) so a typo or a mistaken `latest` can't move
+        # the production `pnpm` dist-tag and ship the Rust v12 preview to every
+        # consumer. `latest` is deliberately absent; promoting v12 to it is a
+        # separate, reviewed decision that would add it here explicitly.
         description: 'npm dist-tag to publish under'
         required: true
         default: 'next-12'
-        type: string
+        type: choice
+        options:
+          - next-12
+          - next
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

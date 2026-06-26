@@ -26,6 +26,7 @@ fn launched_as_pnpx_injects_the_dlx_subcommand() {
     let via_dlx = Command::new(pacquet).args(["dlx", "--help"]).output().expect("run `dlx --help`");
 
     assert!(via_pnpx.status.success(), "`pnpx --help` exited with a failure status");
+    assert!(via_dlx.status.success(), "`dlx --help` (the control) exited with a failure status");
     let pnpx_help = String::from_utf8(via_pnpx.stdout).expect("pnpx help is UTF-8");
     let dlx_help = String::from_utf8(via_dlx.stdout).expect("dlx help is UTF-8");
     assert_eq!(pnpx_help, dlx_help, "`pnpx --help` should equal `dlx --help` (dlx was injected)");
