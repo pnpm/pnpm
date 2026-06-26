@@ -374,6 +374,10 @@ fn allocate_tarball_buffer(
 }
 
 async fn open_local_tarball(path: &Path) -> Result<(tokio::fs::File, u64), TarballError> {
+    let metadata = tokio::fs::metadata(path)
+        .await
+        .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
+    reject_non_file_local_tarball(path, &metadata)?;
     let file = tokio::fs::File::open(path)
         .await
         .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
@@ -381,14 +385,22 @@ async fn open_local_tarball(path: &Path) -> Result<(tokio::fs::File, u64), Tarba
         .metadata()
         .await
         .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
-    if !metadata.is_file() {
-        return Err(read_local_tarball_error(
-            path,
-            io::ErrorKind::InvalidInput,
-            "local tarball path is not a regular file",
-        ));
-    }
+    reject_non_file_local_tarball(path, &metadata)?;
     Ok((file, metadata.len()))
+}
+
+fn reject_non_file_local_tarball(
+    path: &Path,
+    metadata: &std::fs::Metadata,
+) -> Result<(), TarballError> {
+    if metadata.is_file() {
+        return Ok(());
+    }
+    Err(read_local_tarball_error(
+        path,
+        io::ErrorKind::InvalidInput,
+        "local tarball path is not a regular file",
+    ))
 }
 
 async fn read_local_tarball_buffer(
