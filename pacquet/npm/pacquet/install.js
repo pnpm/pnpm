@@ -107,13 +107,21 @@ function placeBinary(nativeBinary, destPath, mode) {
 
 function rewriteBin(binValue) {
   const pkgJsonPath = path.join(__dirname, "package.json");
-  // Best-effort: the binary at the original name already works; this only helps
-  // later-generated shims.
+  // Write a fresh file and rename it over package.json rather than truncating in
+  // place: pnpm hard-links package.json from its content-addressable store, so an
+  // in-place write would mutate the shared store blob. Best-effort — it only
+  // helps shims generated later.
+  const tempPath = `${pkgJsonPath}.pacquet-tmp`;
   try {
     const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, "utf8"));
     pkg.bin = binValue;
-    fs.writeFileSync(pkgJsonPath, JSON.stringify(pkg, null, 2));
-  } catch {}
+    fs.writeFileSync(tempPath, JSON.stringify(pkg, null, 2));
+    fs.renameSync(tempPath, pkgJsonPath);
+  } catch {
+    try {
+      fs.rmSync(tempPath, { force: true });
+    } catch {}
+  }
 }
 
 function fail(message) {
