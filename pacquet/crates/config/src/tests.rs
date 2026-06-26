@@ -15,24 +15,36 @@ use std::{
 };
 use tempfile::tempdir;
 use tracing::Level;
-use tracing_subscriber::{layer::SubscriberExt, Layer};
+use tracing_subscriber::{Layer, layer::SubscriberExt};
 
 /// Capture all tracing WARN messages emitted during a closure.
 fn capture_warnings<F: FnOnce()>(f: F) -> Vec<String> {
     let messages: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
-    let messages_clone = messages.clone();
+    let messages_clone = Arc::clone(&messages);
 
     struct CaptureLayer(Arc<Mutex<Vec<String>>>);
     impl<S: tracing::Subscriber> Layer<S> for CaptureLayer {
-        fn on_event(&self, event: &tracing::Event<'_>, _ctx: tracing_subscriber::layer::Context<'_, S>) {
+        fn on_event(
+            &self,
+            event: &tracing::Event<'_>,
+            _ctx: tracing_subscriber::layer::Context<'_, S>,
+        ) {
             if *event.metadata().level() == Level::WARN {
                 struct Visitor(String);
                 impl tracing::field::Visit for Visitor {
                     fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
-                        if field.name() == "message" { self.0 = value.to_string(); }
+                        if field.name() == "message" {
+                            self.0 = value.to_string();
+                        }
                     }
-                    fn record_debug(&mut self, field: &tracing::field::Field, value: &dyn std::fmt::Debug) {
-                        if field.name() == "message" { self.0 = format!("{value:?}"); }
+                    fn record_debug(
+                        &mut self,
+                        field: &tracing::field::Field,
+                        value: &dyn std::fmt::Debug,
+                    ) {
+                        if field.name() == "message" {
+                            self.0 = format!("{value:?}");
+                        }
                     }
                 }
                 let mut v = Visitor(String::new());
@@ -2161,12 +2173,12 @@ pub fn npmrc_auth_file_pointing_at_project_npmrc_suppresses_warning() {
         ("PNPM_CONFIG_NPMRC_AUTH_FILE", project_npmrc.to_str().unwrap()),
     ]);
 
-    let warnings = capture_warnings(|| { load_with_fake_env(project.path()); });
+    let warnings = capture_warnings(|| {
+        load_with_fake_env(project.path());
+    });
 
-    let auth_warnings: Vec<_> = warnings
-        .iter()
-        .filter(|w| w.contains("Ignored project-level auth setting"))
-        .collect();
+    let auth_warnings: Vec<_> =
+        warnings.iter().filter(|w| w.contains("Ignored project-level auth setting")).collect();
     assert!(
         auth_warnings.is_empty(),
         "expected no auth warning when PNPM_CONFIG_NPMRC_AUTH_FILE points at project .npmrc, got: {auth_warnings:?}",
