@@ -12,7 +12,7 @@ import {
 } from '@pnpm/exec.lifecycle'
 import { groupStart } from '@pnpm/log.group'
 import type { PackageScripts, ProjectRootDir } from '@pnpm/types'
-import { sortProjects } from '@pnpm/workspace.projects-sorter'
+import { sortFilteredProjects } from '@pnpm/workspace.projects-sorter'
 import pLimit from 'p-limit'
 import { realpathMissing } from 'realpath-missing'
 
@@ -38,7 +38,7 @@ export type RecursiveRunOpts = Pick<Config,
 | 'nodeExperimentalPackageMap'
 | 'modulesDir'
 > & Pick<ConfigContext, 'rootProjectManifest' | 'allProjectsGraph'> & Required<Pick<ConfigContext, 'allProjects' | 'selectedProjectsGraph'> & Pick<Config, 'workspaceDir' | 'dir'>> &
-Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'reporter' | 'reverse' | 'sort' | 'workspaceConcurrency'>> &
+Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'reporter' | 'reverse' | 'sort' | 'workspaceConcurrency' | 'filterProd'>> &
 {
   ifPresent?: boolean
   resumeFrom?: string
@@ -56,7 +56,7 @@ export async function runRecursive (
   let hasCommand = 0
 
   const sortedPackageChunks = opts.sort
-    ? sortProjects(opts.selectedProjectsGraph, opts.allProjectsGraph)
+    ? sortFilteredProjects(opts)
     : [(Object.keys(opts.selectedProjectsGraph) as ProjectRootDir[]).sort()]
   let packageChunks: ProjectRootDir[][] = opts.reverse ? sortedPackageChunks.reverse() : sortedPackageChunks
 

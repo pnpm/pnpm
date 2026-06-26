@@ -1,6 +1,6 @@
 import { expect, test } from '@jest/globals'
 import type { ProjectRootDir, ProjectsGraph } from '@pnpm/types'
-import { sequenceGraph, sortProjects } from '@pnpm/workspace.projects-sorter'
+import { sequenceGraph, sortFilteredProjects, sortProjects } from '@pnpm/workspace.projects-sorter'
 
 function makeGraph (adjacency: Record<string, string[]>): ProjectsGraph {
   const graph: ProjectsGraph = {}
@@ -54,6 +54,21 @@ test('does not reintroduce edges that the selected graph pruned (e.g. prod-only 
   // The selection dropped a's edge to b (as a prod-only filter drops dev edges).
   const selected = makeGraph({ a: [], b: [] })
   expect(sortProjects(selected, fullGraph)).toStrictEqual([dirs('a', 'b')])
+})
+
+test('sortFilteredProjects resolves transitive order through unselected projects for regular filters', () => {
+  const fullGraph = makeGraph({ a: ['b'], b: ['c'], c: [] })
+  const selected = select(fullGraph, ['a', 'c'])
+  expect(sortFilteredProjects({ selectedProjectsGraph: selected, allProjectsGraph: fullGraph }))
+    .toStrictEqual([dirs('c'), dirs('a')])
+})
+
+test('sortFilteredProjects does not tunnel through the full graph under a prod-only filter', () => {
+  const fullGraph = makeGraph({ a: ['b'], b: ['c'], c: [] })
+  const selected = select(fullGraph, ['a', 'c'])
+  // With a prod-only filter, b's dev edge to c must not pull c ahead of a.
+  expect(sortFilteredProjects({ selectedProjectsGraph: selected, allProjectsGraph: fullGraph, filterProd: ['a', 'c'] }))
+    .toStrictEqual([dirs('a', 'c')])
 })
 
 test('detects a cycle that passes through unselected projects', () => {

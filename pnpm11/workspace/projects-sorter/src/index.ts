@@ -35,6 +35,25 @@ export function sortProjects (
 }
 
 /**
+ * Topologically chunks the projects selected by a `--filter`ed recursive
+ * command. Order is resolved through `allProjectsGraph` so a relationship
+ * between two selected projects via an unselected one is honored.
+ *
+ * A prod-only filter (`--filter-prod`) builds `selectedProjectsGraph` from a
+ * graph with dev dependencies pruned; tunneling through `allProjectsGraph`,
+ * which keeps them, would reintroduce edges the filter dropped. So when a
+ * prod-only filter is in effect, order is resolved among the selected projects
+ * alone.
+ */
+export function sortFilteredProjects (opts: {
+  selectedProjectsGraph: ProjectsGraph
+  allProjectsGraph?: ProjectsGraph
+  filterProd?: string[]
+}): ProjectRootDir[][] {
+  return sortProjects(opts.selectedProjectsGraph, opts.filterProd?.length ? undefined : opts.allProjectsGraph)
+}
+
+/**
  * The dependencies of `projectDir` that are themselves in `sorted`, reached by
  * tunneling past any project outside `sorted`. A transitive dependency between
  * two sorted projects thus becomes a direct edge.

@@ -15,7 +15,7 @@ import {
 import { logger } from '@pnpm/logger'
 import { createStoreController, type CreateStoreControllerOptions } from '@pnpm/store.connection-manager'
 import type { Project, ProjectManifest, ProjectRootDir } from '@pnpm/types'
-import { sortProjects } from '@pnpm/workspace.projects-sorter'
+import { sortFilteredProjects } from '@pnpm/workspace.projects-sorter'
 import pLimit from 'p-limit'
 
 type RecursiveRebuildOpts = CreateStoreControllerOptions & Pick<Config,
@@ -35,7 +35,7 @@ type RecursiveRebuildOpts = CreateStoreControllerOptions & Pick<Config,
 | 'rootProjectManifestDir'
 > & {
   pending?: boolean
-} & Partial<Pick<Config, 'bail' | 'sort' | 'workspaceConcurrency'>>
+} & Partial<Pick<Config, 'bail' | 'sort' | 'workspaceConcurrency' | 'filterProd'>>
 
 export async function recursiveRebuild (
   allProjects: Project[],
@@ -62,7 +62,7 @@ export async function recursiveRebuild (
   const throwOnFail = throwOnCommandFail.bind(null, 'pnpm recursive rebuild')
 
   const chunks = opts.sort !== false
-    ? sortProjects(opts.selectedProjectsGraph, opts.allProjectsGraph)
+    ? sortFilteredProjects(opts)
     : [Object.keys(opts.selectedProjectsGraph).sort() as ProjectRootDir[]]
 
   const store = await createStoreController(opts)
