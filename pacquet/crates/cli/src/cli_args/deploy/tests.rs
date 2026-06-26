@@ -6,6 +6,15 @@ use pacquet_config::{Config, NodeLinker};
 use pacquet_lockfile::{LockfileResolution, PackageMetadata, TarballResolution};
 use std::path::Path;
 
+#[cfg(unix)]
+use super::{DeployFiles, DeployWorkspaceConfig, write_deploy_files};
+#[cfg(unix)]
+use pacquet_lockfile::Lockfile;
+#[cfg(unix)]
+use serde_json::json;
+#[cfg(unix)]
+use std::os::unix::fs::symlink;
+
 #[cfg(windows)]
 use super::{is_ancestor_path, is_child_path, same_path, validate_deploy_target};
 
@@ -98,6 +107,43 @@ fn convert_package_metadata_rebases_file_tarball_resolution_to_deploy_dir() {
         }
         other => panic!("expected tarball resolution, got {other:?}"),
     }
+}
+
+#[cfg(unix)]
+#[test]
+fn write_deploy_files_replaces_lockfile_symlink() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let deploy_dir = tmp.path().join("deploy");
+    std::fs::create_dir(&deploy_dir).expect("create deploy dir");
+    let outside = tmp.path().join("outside-lockfile-target");
+    std::fs::write(&outside, "do not overwrite\n").expect("write outside target");
+    let lockfile_path = deploy_dir.join(Lockfile::FILE_NAME);
+    symlink(&outside, &lockfile_path).expect("seed lockfile symlink");
+
+    let lockfile: Lockfile =
+        serde_saphyr::from_str("lockfileVersion: '9.0'\n").expect("parse lockfile");
+    let deploy_files = DeployFiles {
+        manifest: json!({ "name": "app" }),
+        lockfile,
+        workspace_manifest: None,
+        workspace_config: DeployWorkspaceConfig {
+            patched_dependencies: None,
+            allow_builds: std::collections::HashMap::new(),
+        },
+    };
+
+    write_deploy_files(&deploy_dir, &deploy_files).expect("write deploy files");
+
+    assert_eq!(
+        std::fs::read_to_string(&outside).expect("read outside target"),
+        "do not overwrite\n",
+    );
+    let metadata = std::fs::symlink_metadata(&lockfile_path).expect("read lockfile metadata");
+    assert!(!metadata.file_type().is_symlink(), "lockfile symlink should be replaced");
+    assert_eq!(
+        std::fs::read_to_string(&lockfile_path).expect("read deployed lockfile"),
+        "lockfileVersion: '9.0'\n",
+    );
 }
 
 #[cfg(windows)]

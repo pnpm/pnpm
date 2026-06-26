@@ -1275,10 +1275,13 @@ fn relative_path(from: &Path, to: &Path) -> String {
 fn write_deploy_files(deploy_dir: &Path, deploy_files: &DeployFiles) -> miette::Result<()> {
     let mut manifest = serde_json::to_string_pretty(&deploy_files.manifest).into_diagnostic()?;
     manifest.push('\n');
-    deploy_files
+    let lockfile = deploy_files
         .lockfile
-        .save_to_path(&deploy_dir.join(Lockfile::FILE_NAME))
+        .to_yaml_string()
         .map_err(miette::Report::new)
+        .wrap_err("serialize deployed lockfile")?;
+    write_atomic(&deploy_dir.join(Lockfile::FILE_NAME), lockfile.as_bytes())
+        .into_diagnostic()
         .wrap_err("write deployed lockfile")?;
     if let Some(workspace_manifest) = &deploy_files.workspace_manifest {
         write_atomic(

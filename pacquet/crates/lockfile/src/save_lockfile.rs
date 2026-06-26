@@ -91,6 +91,11 @@ pub fn save_value_to_path<Document: serde::Serialize>(
 }
 
 impl Lockfile {
+    /// Render lockfile as pnpm-formatted YAML.
+    pub fn to_yaml_string(&self) -> Result<String, SaveLockfileError> {
+        serialize_yaml::to_string(self).map_err(SaveLockfileError::SerializeYaml)
+    }
+
     /// Save lockfile to a specific path.
     pub fn save_to_path(&self, path: &Path) -> Result<(), SaveLockfileError> {
         save_value_to_path(self, path)
@@ -132,8 +137,7 @@ impl Lockfile {
             fs::create_dir_all(virtual_store_dir).map_err(|error| {
                 SaveLockfileError::CreateDir { dir: virtual_store_dir.to_path_buf(), error }
             })?;
-            let content =
-                serialize_yaml::to_string(self).map_err(SaveLockfileError::SerializeYaml)?;
+            let content = self.to_yaml_string()?;
             write_atomic(&target, content.as_bytes())
         }
     }
