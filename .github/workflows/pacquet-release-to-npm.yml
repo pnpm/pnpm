@@ -1,13 +1,13 @@
 name: Release pnpm (Rust)
 
 # Manual-trigger only. Type the version to publish — the workflow patches
-# pacquet/npm/pacquet/package.json with it before generating per-platform
+# pacquet/npm/pnpm/package.json with it before generating per-platform
 # packages and publishing. No git tag is created and no GitHub release
 # asset is uploaded; npm is the authoritative artifact store.
 #
-# The same build is published under three names at the same version: `pnpm`
-# (the Rust port presenting as pnpm), `pacquet`, and the `@pnpm/pacquet`
-# alias. They all depend on the same `@pnpm/exe.<target>` native sub-packages.
+# The same build is published under two names at the same version: `pnpm` and
+# `@pnpm/exe` (the Rust port presenting as pnpm). Both depend on the same
+# `@pnpm/exe.<target>` native sub-packages.
 #
 # The `tag` input defaults to `alpha` so a release never moves the `pnpm`
 # `latest` dist-tag (which serves the production TypeScript pnpm). Override it
@@ -173,18 +173,18 @@ jobs:
             exit 1
           fi
 
-      - name: Inject version into pacquet/npm/pacquet/package.json
+      - name: Inject version into pacquet/npm/pnpm/package.json
         # The committed package.json has no `version` field; the version comes
         # from the workflow_dispatch input. Patching it here means
-        # generate-packages.mjs (which copies the version into each
-        # per-platform manifest) and `pnpm publish` (which reads from
-        # package.json) both see the right value.
+        # generate-packages.mjs (which copies the version into each per-platform
+        # manifest and into the generated `@pnpm/exe` wrapper) and `pnpm publish`
+        # (which reads from package.json) both see the right value.
         env:
           VERSION: ${{ inputs.version }}
         run: |
-          jq --arg v "$VERSION" '.version = $v' pacquet/npm/pacquet/package.json > pacquet/npm/pacquet/package.json.tmp
-          mv pacquet/npm/pacquet/package.json.tmp pacquet/npm/pacquet/package.json
-          cat pacquet/npm/pacquet/package.json
+          jq --arg v "$VERSION" '.version = $v' pacquet/npm/pnpm/package.json > pacquet/npm/pnpm/package.json.tmp
+          mv pacquet/npm/pnpm/package.json.tmp pacquet/npm/pnpm/package.json
+          cat pacquet/npm/pnpm/package.json
 
       - name: Install pnpm and Node
         uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
@@ -208,9 +208,9 @@ jobs:
 
       - name: Generate npm packages
         run: |
-          node pacquet/npm/pacquet/scripts/generate-packages.mjs
-          cat pacquet/npm/pacquet/package.json
-          for package in pacquet/npm/pacquet* pacquet/npm/pnpm*; do cat $package/package.json ; echo ; done
+          node pacquet/npm/pnpm/scripts/generate-packages.mjs
+          cat pacquet/npm/pnpm/package.json
+          for package in pacquet/npm/pacquet-* pacquet/npm/pnpm*; do cat $package/package.json ; echo ; done
 
       - name: Publish npm packages
         # Auth is via npm's trusted publishing: `id-token: write` above grants
@@ -218,17 +218,15 @@ jobs:
         # so no NPM_TOKEN is needed. `--provenance` attaches the same OIDC
         # token to a provenance attestation on each tarball.
         # The trailing slash on $package/ changes it to publishing the directory.
-        # The glob covers: the `pacquet` wrapper and the per-platform native
-        # sub-packages, whose build dirs are still named `pacquet-<target>`
-        # (`pacquet*`) though they publish as `@pnpm/exe.<target>`, plus the
-        # `pnpm` wrapper and the `@pnpm/pacquet` scoped-alias mirror
-        # `pnpm-pacquet` (`pnpm*`). The `pnpm` and `@pnpm/pacquet` wrappers ship
-        # the same placeholder bin and the same `@pnpm/exe.<target>` optional
-        # deps as `pacquet`; only the package name and bin entries differ, so
-        # users can adopt any of the names.
+        # The glob covers: the per-platform native sub-packages, whose build dirs
+        # are named `pacquet-<target>` (`pacquet-*`) though they publish as
+        # `@pnpm/exe.<target>`, plus the `pnpm` wrapper and the generated
+        # `@pnpm/exe` wrapper in `pnpm-exe` (`pnpm*`). Both wrappers ship the same
+        # placeholder bin and the same `@pnpm/exe.<target>` optional deps; only
+        # the package name differs, so users can install either name.
         env:
           TAG: ${{ inputs.tag }}
         run: |
-          for package in pacquet/npm/pacquet* pacquet/npm/pnpm*; do
+          for package in pacquet/npm/pacquet-* pacquet/npm/pnpm*; do
             pnpm publish "$package/" --tag "$TAG" --access public --provenance --no-git-checks
           done

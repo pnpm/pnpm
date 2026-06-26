@@ -1,4 +1,9 @@
-// Code copied from [Rome](https://github.com/rome/tools/blob/392d188a49/npm/rome/scripts/generate-packages.mjs)
+// Code originally adapted from [Rome](https://github.com/rome/tools/blob/392d188a49/npm/rome/scripts/generate-packages.mjs)
+//
+// pnpm v12 (the Rust port) is published under two wrapper names with identical
+// content — `pnpm` and `@pnpm/exe` — plus the per-platform native binary
+// packages `@pnpm/exe.<target>`. Mirroring `@pnpm/exe`'s scheme lets pnpm's
+// built-in `installPnpm` relinker initialize v12 with no v12-specific logic.
 
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -12,16 +17,18 @@ const BIN_NAME = "pacquet";
 // product is pnpm v12, so the file is `pnpm`; `installPnpm`'s
 // `linkExePlatformBinary` hardcodes this name.
 const NATIVE_BIN_FILE = "pnpm";
-// The wrapper package is published under two names: the original
-// `pacquet` (kept for back-compat) and `@pnpm/pacquet` (the official
-// pnpm-scoped alias). Both ship the same placeholder bin + preinstall
-// relinker and depend on the same `@pnpm/exe.<target>` binary sub-packages.
-const SCOPED_ALIAS_NAME = "@pnpm/pacquet";
-const SCOPED_ALIAS_DIR = "pnpm-pacquet";
-const PACQUET_ROOT = resolve(fileURLToPath(import.meta.url), "../..");
-const PACKAGES_ROOT = resolve(PACQUET_ROOT, "..");
+// The `pnpm` wrapper is the committed source of truth; `@pnpm/exe` is generated
+// from it with the same content and a different package name.
+const EXE_WRAPPER_NAME = "@pnpm/exe";
+const EXE_WRAPPER_DIR = "pnpm-exe";
+// The root-level bin files (placeholder `pnpm` + `pn`/`pnpx`/`pnx` aliases) plus
+// the preinstall relinker, shared verbatim by both wrappers.
+const WRAPPER_FILES = ["pnpm", "pn", "pnpx", "pnx", "install.js"];
+
+const PNPM_ROOT = resolve(fileURLToPath(import.meta.url), "../..");
+const PACKAGES_ROOT = resolve(PNPM_ROOT, "..");
 const REPO_ROOT = resolve(PACKAGES_ROOT, "../..");
-const MANIFEST_PATH = resolve(PACQUET_ROOT, "package.json");
+const MANIFEST_PATH = resolve(PNPM_ROOT, "package.json");
 
 const rootManifest = JSON.parse(
   fs.readFileSync(MANIFEST_PATH, "utf-8")
@@ -79,67 +86,52 @@ function generateNativePackage(target) {
   fs.chmodSync(binaryTarget, 0o755);
 }
 
-// Patch a wrapper package's manifest in place with the release version and
-// the full set of `@pnpm/exe.<target>` optional dependencies, preserving every
-// other field (notably its `bin` map). Used for both the `pacquet` wrapper and
-// the `pnpm` wrapper — both ship a placeholder bin + preinstall relinker over
-// the same native sub-packages, only their package name and bin entries differ.
-function patchWrapperManifest(dir) {
-  const manifestPath = resolve(PACKAGES_ROOT, dir, "package.json");
-
-  const manifestData = JSON.parse(
-    fs.readFileSync(manifestPath, "utf-8")
-  );
-
+// Patch the `pnpm` wrapper manifest in place with the release version and the
+// full set of `@pnpm/exe.<target>` optional dependencies, preserving every
+// other field (notably its root-level `bin` map and the preinstall script).
+function patchPnpmWrapperManifest() {
   const nativePackages = TARGETS.map((target) => [
     nativePackageName(target),
     rootManifest.version,
   ]);
 
-  manifestData["version"] = rootManifest.version;
-  manifestData["optionalDependencies"] = Object.fromEntries(nativePackages);
+  rootManifest["version"] = rootManifest.version;
+  rootManifest["optionalDependencies"] = Object.fromEntries(nativePackages);
 
-  console.log(`Update manifest ${manifestPath}`);
-  const content = JSON.stringify(manifestData);
-  fs.writeFileSync(manifestPath, content);
+  console.log(`Update manifest ${MANIFEST_PATH}`);
+  fs.writeFileSync(MANIFEST_PATH, JSON.stringify(rootManifest));
 }
 
-function generateScopedAliasPackage() {
-  const aliasRoot = resolve(PACKAGES_ROOT, SCOPED_ALIAS_DIR);
-  fs.rmSync(aliasRoot, { recursive: true, force: true });
-  fs.mkdirSync(resolve(aliasRoot, "bin"), { recursive: true });
+// Generate the `@pnpm/exe` wrapper as a byte-for-byte copy of the `pnpm`
+// wrapper's bins + preinstall relinker, with only the package name and
+// repository.directory pointer changed. Must run after
+// `patchPnpmWrapperManifest`, so the copied manifest already carries the
+// version and optionalDependencies.
+function generateExeWrapper() {
+  const exeRoot = resolve(PACKAGES_ROOT, EXE_WRAPPER_DIR);
+  fs.rmSync(exeRoot, { recursive: true, force: true });
+  fs.mkdirSync(exeRoot, { recursive: true });
 
-  // Mirror the placeholder bin and the preinstall relinker 1:1. Copying instead
-  // of symlinking keeps the tarball self-contained for `pnpm publish`.
-  fs.copyFileSync(
-    resolve(PACQUET_ROOT, "bin", BIN_NAME),
-    resolve(aliasRoot, "bin", BIN_NAME),
-  );
-  fs.copyFileSync(
-    resolve(PACQUET_ROOT, "install.js"),
-    resolve(aliasRoot, "install.js"),
-  );
+  // Copy instead of symlinking so the tarball is self-contained for publish.
+  for (const file of WRAPPER_FILES) {
+    fs.copyFileSync(resolve(PNPM_ROOT, file), resolve(exeRoot, file));
+    fs.chmodSync(resolve(exeRoot, file), fs.statSync(resolve(PNPM_ROOT, file)).mode);
+  }
 
-  // The pacquet manifest at this point already carries the version and
-  // optionalDependencies that `writeManifest` patched in. Reuse it and
-  // swap only the package name + repo.directory pointer.
   const baseManifest = JSON.parse(fs.readFileSync(MANIFEST_PATH, "utf-8"));
-  const aliasManifest = {
+  const exeManifest = {
     ...baseManifest,
-    name: SCOPED_ALIAS_NAME,
-    repository: { ...baseManifest.repository, directory: `pacquet/npm/${SCOPED_ALIAS_DIR}` },
+    name: EXE_WRAPPER_NAME,
+    repository: { ...baseManifest.repository, directory: `pacquet/npm/${EXE_WRAPPER_DIR}` },
   };
-  fs.writeFileSync(
-    resolve(aliasRoot, "package.json"),
-    JSON.stringify(aliasManifest),
-  );
+  console.log(`Create wrapper ${exeRoot}`);
+  fs.writeFileSync(resolve(exeRoot, "package.json"), JSON.stringify(exeManifest));
 }
 
-// The native binary packages are published under the convention pnpm's
-// built-in `installPnpm` relinker already anticipates
-// (`exePlatformPkgDirNameNext` → `@pnpm/exe.<platform>-<arch>[-musl]`), so a
-// self-update / version-switch to pnpm v12 can relink the bin without any
-// pacquet-specific logic.
+// The native binary packages use the convention pnpm's built-in `installPnpm`
+// relinker already anticipates (`exePlatformPkgDirNameNext` →
+// `@pnpm/exe.<platform>-<arch>[-musl]`), so a self-update / version-switch to
+// pnpm v12 relinks the bin with no v12-specific logic.
 function nativePackageName(target) {
   return `@pnpm/exe.${target.packageTarget}`;
 }
@@ -159,14 +151,8 @@ for (const target of TARGETS) {
   generateNativePackage(target);
 }
 
-// The `pacquet` wrapper, its `@pnpm/pacquet` scoped alias, and the `pnpm`
-// wrapper are all published from the same build at the same version. The
-// `pnpm` wrapper carries its own `bin` map (`pnpm`/`pn`/`pnpx`/`pnx`), so it
-// keeps a committed manifest that we only patch — unlike the alias, which is
-// generated wholesale.
-patchWrapperManifest(BIN_NAME);
-patchWrapperManifest("pnpm");
-// Must run after `patchWrapperManifest(BIN_NAME)`: the alias mirrors the
-// patched pacquet manifest (version + optionalDependencies), so reading it
-// before the patch would copy stale values.
-generateScopedAliasPackage();
+// The `pnpm` and `@pnpm/exe` wrappers ship from the same build at the same
+// version. `pnpm` carries the committed bin map + preinstall, so it is only
+// patched; `@pnpm/exe` is generated wholesale from the patched `pnpm` manifest.
+patchPnpmWrapperManifest();
+generateExeWrapper();

@@ -1,4 +1,4 @@
-// Adapted from pacquet/npm/pacquet/scripts/generate-packages.mjs, which was
+// Adapted from pacquet/npm/pnpm/scripts/generate-packages.mjs, which was
 // itself copied from Rome (https://github.com/rome/tools/blob/392d188a49/npm/rome/scripts/generate-packages.mjs).
 
 import { resolve } from "node:path";

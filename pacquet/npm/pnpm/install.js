@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-// Preinstall for the `pnpm` v12 wrapper. Like pacquet/npm/pacquet/install.js,
-// it replaces the shebang-less placeholder `pnpm` with the platform's native
-// binary so `pnpm` runs the binary directly instead of paying Node.js startup
-// on every call. The package mirrors `@pnpm/exe`'s root-level bin layout
-// (`pnpm`/`pn`/`pnpx`/`pnx`) so pnpm's own `installPnpm` relinker
-// (`linkExePlatformBinary`) can set it up on self-update / version-switch with
-// no pnpm-v12-specific logic.
+// Preinstall for the pnpm v12 wrapper. It replaces the shebang-less placeholder
+// `pnpm` with the platform's native binary so `pnpm` runs the binary directly
+// instead of paying Node.js startup on every call. This file is shared verbatim
+// by both published wrapper names, `pnpm` and `@pnpm/exe`. The package mirrors
+// the historical `@pnpm/exe` root-level bin layout (`pnpm`/`pn`/`pnpx`/`pnx`) so
+// pnpm's own `installPnpm` relinker (`linkExePlatformBinary`) can set it up on
+// self-update / version-switch with no pnpm-v12-specific logic.
 //
 // The `pn` / `pnpx` / `pnx` aliases:
 //  - On Unix, `pn`, `pnpx`, and `pnx` are committed `#!/bin/sh` scripts that

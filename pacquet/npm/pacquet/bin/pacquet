@@ -1,4 +1,0 @@
-This is a placeholder. pacquet's native binary replaces this file during
-installation (see ../install.js). If you are reading this, the install/build
-script did not run — reinstall with build scripts enabled (e.g. allow-list
-pacquet's build under pnpm or Bun, or drop --ignore-scripts).

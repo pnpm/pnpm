@@ -28,9 +28,12 @@ import { symlinkDir } from 'symlink-dir'
 
 import { verifyPnpmEngineIdentity, type VerifyPnpmEngineIdentityOptions } from './verifyPnpmEngineIdentity.js'
 
-// @pnpm/exe has platform-specific binaries, so its GVS hash must
-// include ENGINE_NAME for correct per-platform resolution.
-const PNPM_ALLOW_BUILDS: Record<string, boolean> = { '@pnpm/exe': true }
+// The pnpm executable ships as a wrapper with platform-specific binaries
+// (`@pnpm/exe` for the TypeScript SEA build, the unscoped `pnpm` for the Rust
+// v12 port), so its GVS hash must include ENGINE_NAME for correct per-platform
+// resolution — without it, two platforms would collide on one GVS entry. Both
+// wrapper names get the same treatment so v12 is initialized like @pnpm/exe.
+const PNPM_ALLOW_BUILDS: Record<string, boolean> = { '@pnpm/exe': true, 'pnpm': true }
 
 export interface InstallPnpmResult {
   binDir: string
