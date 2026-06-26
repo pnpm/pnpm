@@ -47,6 +47,20 @@ fn is_modules_yaml_consistent(
     )
 }
 
+/// Reading wrapper over [`super::modules_layout_consistent_with`] — the
+/// purge-gate consistency check, which (unlike [`is_modules_yaml_consistent`])
+/// ignores `included`.
+fn is_modules_yaml_layout_consistent(
+    modules_dir: &std::path::Path,
+    config: &Config,
+    node_linker: pacquet_config::NodeLinker,
+) -> bool {
+    pacquet_modules_yaml::read_modules_layout::<Host>(modules_dir)
+        .ok()
+        .flatten()
+        .is_some_and(|modules| super::modules_layout_consistent_with(&modules, config, node_linker))
+}
+
 const SCOPED_TEST_INTEGRITY: &str = "sha512-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa==";
 
 fn scoped_package_body(registry_url: &str) -> String {
@@ -5838,6 +5852,98 @@ fn is_modules_yaml_consistent_returns_false_when_included_drifts() {
         config,
         pacquet_config::NodeLinker::Isolated,
         with_optional,
+    ));
+}
+
+/// A `--prod`<->full switch changes `.modules.yaml.included`, which the
+/// up-to-date fast path must still notice (so it relinks). But it must NOT
+/// make the *layout* look inconsistent: pnpm never purges the root
+/// project's `node_modules` for an included mismatch (validateModules's
+/// `lockfileDir !== rootDir` guard), and the purge wipes the user's
+/// non-pnpm entries (a vendored dir, custom files). So an included-only
+/// drift keeps the layout consistent — the purge does not run and the
+/// directory is left untouched; relinking adds/removes the right deps.
+#[test]
+fn included_drift_alone_does_not_make_the_layout_inconsistent() {
+    let dir = tempdir().unwrap();
+    let modules_dir = dir.path().join("node_modules");
+
+    let mut config = Config::new();
+    config.store_dir = dir.path().join("pacquet-store").into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = modules_dir.join(".pacquet");
+    let config = config.leak();
+
+    let prod_only = pacquet_modules_yaml::IncludedDependencies {
+        dependencies: true,
+        dev_dependencies: false,
+        optional_dependencies: false,
+    };
+    let with_optional = pacquet_modules_yaml::IncludedDependencies {
+        dependencies: true,
+        dev_dependencies: false,
+        optional_dependencies: true,
+    };
+
+    let seed = Modules {
+        layout_version: Some(LayoutVersion),
+        node_linker: Some(NodeLinker::Isolated),
+        included: prod_only,
+        hoist_pattern: config.hoist_pattern.clone(),
+        public_hoist_pattern: config.public_hoist_pattern.clone(),
+        store_dir: config.store_dir.display().to_string(),
+        virtual_store_dir: config.effective_virtual_store_dir().to_string_lossy().into_owned(),
+        virtual_store_dir_max_length: config.virtual_store_dir_max_length,
+        ..Default::default()
+    };
+    write_modules_manifest::<Host>(&modules_dir, seed).expect("seed .modules.yaml");
+
+    // The fast path still sees the included change and forces a reinstall...
+    assert!(!is_modules_yaml_consistent(
+        &modules_dir,
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        with_optional,
+    ));
+    // ...but the layout is still consistent, so the destructive purge does
+    // not run and the user's node_modules contents survive.
+    assert!(is_modules_yaml_layout_consistent(
+        &modules_dir,
+        config,
+        pacquet_config::NodeLinker::Isolated,
+    ));
+}
+
+/// A real layout setting (here `nodeLinker`) drifting still makes the
+/// layout inconsistent, so the purge that recreates `node_modules` runs —
+/// the included guard above must not suppress genuine layout rebuilds.
+#[test]
+fn layout_drift_still_makes_the_layout_inconsistent() {
+    let dir = tempdir().unwrap();
+    let modules_dir = dir.path().join("node_modules");
+
+    let mut config = Config::new();
+    config.store_dir = dir.path().join("pacquet-store").into();
+    config.modules_dir = modules_dir.clone();
+    config.virtual_store_dir = modules_dir.join(".pacquet");
+    let config = config.leak();
+
+    let seed = Modules {
+        layout_version: Some(LayoutVersion),
+        node_linker: Some(NodeLinker::Hoisted),
+        hoist_pattern: config.hoist_pattern.clone(),
+        public_hoist_pattern: config.public_hoist_pattern.clone(),
+        store_dir: config.store_dir.display().to_string(),
+        virtual_store_dir: config.effective_virtual_store_dir().to_string_lossy().into_owned(),
+        virtual_store_dir_max_length: config.virtual_store_dir_max_length,
+        ..Default::default()
+    };
+    write_modules_manifest::<Host>(&modules_dir, seed).expect("seed .modules.yaml");
+
+    assert!(!is_modules_yaml_layout_consistent(
+        &modules_dir,
+        config,
+        pacquet_config::NodeLinker::Isolated,
     ));
 }
 
