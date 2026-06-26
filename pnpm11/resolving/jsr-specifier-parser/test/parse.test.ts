@@ -42,5 +42,9 @@ describe('parseJsrSpecifier', () => {
     expect(() => parseJsrSpecifier('jsr:@foo')).toThrow(expect.objectContaining({
       code: 'ERR_PNPM_INVALID_JSR_PACKAGE_NAME',
     }))
+    // scope with a trailing slash but empty package name: jsr:@scope/
+    expect(() => parseJsrSpecifier('jsr:@foo/')).toThrow(expect.objectContaining({
+      code: 'ERR_PNPM_INVALID_JSR_PACKAGE_NAME',
+    }))
   })
 })
