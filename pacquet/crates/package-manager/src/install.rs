@@ -1081,9 +1081,13 @@ where
         let old_modules = modules_manifest_res.ok().flatten();
         let modules_manifest = old_modules.as_ref();
 
+        // The purge keys off *layout* drift only, not `included`: an
+        // included (`--prod`<->full) change is handled by relinking, so it
+        // must not wipe the user's `node_modules` contents. See
+        // [`modules_layout_consistent_with`].
         let is_inconsistent = read_failed
             || match &modules_manifest {
-                Some(modules) => !modules_consistent_with(modules, config, node_linker, included),
+                Some(modules) => !modules_layout_consistent_with(modules, config, node_linker),
                 // Treat existence-check errors conservatively as inconsistent.
                 None => config
                     .modules_dir
@@ -1985,9 +1989,28 @@ fn modules_consistent_with(
     node_linker: NodeLinker,
     included: IncludedDependencies,
 ) -> bool {
+    modules.included == included && modules_layout_consistent_with(modules, config, node_linker)
+}
+
+/// The subset of [`modules_consistent_with`] that, when it drifts, requires
+/// **wiping and recreating** `node_modules`. It deliberately excludes
+/// `included`: a `--prod`<->full switch is satisfied by relinking
+/// (`filter_lockfile_for_current` + the removed-alias pruning in
+/// `create_virtual_store`), not by deleting the directory. pnpm never
+/// purges the root project's `node_modules` for an included mismatch — its
+/// `validateModules` only does so for non-root importers
+/// ([`lockfileDir !== rootDir`](https://github.com/pnpm/pnpm/blob/a456dc78fb/installing/deps-installer/src/install/validateModules.ts#L105))
+/// — so purging here would destroy the user's own non-pnpm entries (a
+/// vendored directory, stray files) on a routine flag change. The
+/// up-to-date fast path still compares `included` via
+/// [`modules_consistent_with`], so the relink it triggers stays correct.
+fn modules_layout_consistent_with(
+    modules: &pacquet_modules_yaml::ModulesLayout,
+    config: &Config,
+    node_linker: NodeLinker,
+) -> bool {
     modules.layout_version == Some(LayoutVersion)
         && modules.node_linker == Some(map_node_linker(node_linker))
-        && modules.included == included
         && modules.hoist_pattern == config.hoist_pattern
         && modules.public_hoist_pattern == config.public_hoist_pattern
         && modules.virtual_store_dir_max_length == config.virtual_store_dir_max_length
