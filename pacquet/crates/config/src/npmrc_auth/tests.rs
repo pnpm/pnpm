@@ -1459,3 +1459,48 @@ fn json_env_normalizes_registry_url_key() {
         Some("https://reg.example/"),
     );
 }
+
+// Regression test for pnpm/pnpm#12480: from_project_ini warns and drops
+// auth env vars (correct default); from_ini trusts them (used when
+// PNPM_CONFIG_NPMRC_AUTH_FILE explicitly points at the project .npmrc).
+#[test]
+fn from_project_ini_warns_on_auth_env_placeholder() {
+    static_env!(Env, &[("MY_TOKEN", "secret")]);
+
+    let auth = NpmrcAuth::from_project_ini::<Env>(
+        "//registry.npmjs.org/:_authToken=${MY_TOKEN}\n",
+        Path::new(""),
+    );
+
+    assert!(
+        auth.warnings.iter().any(|w| w.contains("Ignored project-level auth setting")),
+        "expected auth warning but got: {:?}",
+        auth.warnings,
+    );
+    assert_eq!(
+        default_auth_token(&auth, "//registry.npmjs.org/"),
+        None,
+        "token must not be set when project .npmrc is untrusted",
+    );
+}
+
+#[test]
+fn from_ini_expands_auth_env_placeholder_without_warning() {
+    static_env!(Env, &[("MY_TOKEN", "secret")]);
+
+    let auth = NpmrcAuth::from_ini::<Env>(
+        "//registry.npmjs.org/:_authToken=${MY_TOKEN}\n",
+        Path::new(""),
+    );
+
+    assert!(
+        !auth.warnings.iter().any(|w| w.contains("Ignored project-level auth setting")),
+        "unexpected auth warning: {:?}",
+        auth.warnings,
+    );
+    assert_eq!(
+        default_auth_token(&auth, "//registry.npmjs.org/"),
+        Some(Some("secret")),
+        "token must be expanded when the file is trusted via PNPM_CONFIG_NPMRC_AUTH_FILE",
+    );
+}
