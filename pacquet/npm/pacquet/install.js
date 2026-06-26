@@ -1,15 +1,20 @@
 #!/usr/bin/env node
-// Preinstall optimization. The published `bin/pacquet` is a Node.js launcher
-// shim, so every invocation otherwise pays full Node startup (~170ms) just to
-// spawn the real native binary. Here we overwrite that shim file in place with
-// the platform's native binary, so the `.bin/pacquet` entry the package manager
-// already created resolves straight to the binary and no Node process is
-// started.
+// Preinstall step: replace the placeholder `bin/pacquet` with the platform's
+// native binary so the `pacquet` command runs the binary directly, with no
+// Node.js launcher in the way.
 //
-// This is best-effort. When it can't run or can't apply (script blocked by
-// `--ignore-scripts` or pnpm's build gate, Windows, Yarn PnP, unsupported
-// platform, or any I/O error) the original JS shim stays in place and keeps
-// working — just slower.
+// `bin/pacquet` is published as a non-executable placeholder rather than a Node
+// launcher on purpose. A launcher would force every `pacquet` invocation
+// through Node startup (~170ms) just to spawn the ~30ms binary, and on Windows
+// the `.bin` shim generated from its `#!/usr/bin/env node` shebang would
+// hardcode a `node bin/pacquet` call this script could not undo (npm does not
+// re-read package.json after preinstall). So the binary has to be in place
+// before the command is ever resolved.
+//
+// Consequence: when this script does not run — `--ignore-scripts`, or pnpm/Bun
+// blocking build scripts until `pacquet` is allow-listed — `bin/pacquet` stays
+// a placeholder and the command will not work until it does. This mirrors how
+// `@pnpm/exe` ships pnpm's native binary.
 const fs = require("fs");
 const path = require("path");
 const { platform, arch } = process;
@@ -35,54 +40,92 @@ const PLATFORMS = {
   },
 };
 
-optimize();
+setup();
 
-function optimize() {
-  // The `.bin` entry on Windows is a generated `.cmd`/`.ps1` shim that invokes
-  // the shebang target through Node, so swapping the shim file for a binary
-  // wouldn't bypass Node. Leave the JS launcher in place there.
-  if (platform === "win32") {
-    return;
-  }
-
-  // Under Yarn Plug'n'Play there is no real `.bin` symlink pointing at this
-  // file, so there is nothing to relink.
-  if (process.versions.pnp != null) {
-    return;
-  }
-
+function setup() {
   const target = getBinPath();
   if (target == null) {
-    return;
+    fail(`pacquet does not ship a prebuilt binary for ${platform}-${arch}.`);
   }
 
   let nativeBinary;
   try {
     nativeBinary = require.resolve(target);
   } catch {
-    // The platform package isn't installed (e.g. optional deps were skipped).
-    return;
+    const pkgName = target.split("/").slice(0, 2).join("/");
+    fail(
+      `The "${pkgName}" package is not installed, so pacquet has no native binary to run.\n` +
+      "If your package manager skipped optional dependencies or blocked build scripts, " +
+      "enable them and reinstall."
+    );
   }
 
-  const shimPath = path.join(__dirname, "bin", "pacquet");
-  const tempPath = `${shimPath}.pacquet-tmp`;
+  const binDir = path.join(__dirname, "bin");
+  if (platform === "win32") {
+    // The `.bin` shim already points at the original `bin/pacquet` name and npm
+    // won't re-read package.json, so the file at that name must be the binary.
+    // Also drop a `.exe` twin and repoint `bin` at it, so any shim generated
+    // from here on (npm's own linking, a later cmd-shim regeneration) targets
+    // the executable directly.
+    placeBinary(nativeBinary, path.join(binDir, "pacquet.exe"));
+    placeBinary(nativeBinary, path.join(binDir, "pacquet"));
+    rewriteBin("bin/pacquet.exe");
+  } else {
+    // 0o755: the swapped file is what the `.bin/pacquet` entry resolves to.
+    placeBinary(nativeBinary, path.join(binDir, "pacquet"), 0o755);
+  }
+}
+
+/**
+ * Atomically places `nativeBinary` at `destPath` via a temp file + rename, so a
+ * concurrent invocation never sees a half-written file. Hard-links first (no
+ * second copy of the ~13MB binary on disk) and falls back to a copy across
+ * filesystems. Exits the process on failure — without the binary there is no
+ * working `pacquet`.
+ *
+ * @param {string} nativeBinary Absolute path to the resolved native binary.
+ * @param {string} destPath Absolute path to create.
+ * @param {number} [mode] chmod to apply to a copy-created file. Skipped for hard
+ *   links — they share the source inode, which under pnpm is the shared store
+ *   blob other projects link to.
+ */
+function placeBinary(nativeBinary, destPath, mode) {
+  const tempPath = `${destPath}.pacquet-tmp`;
   try {
     fs.rmSync(tempPath, { force: true });
+    let linked = false;
     try {
-      // A hard link avoids a second copy of the ~13MB binary on disk.
       fs.linkSync(nativeBinary, tempPath);
+      linked = true;
     } catch {
-      // Hard links can't cross filesystems; fall back to a copy.
       fs.copyFileSync(nativeBinary, tempPath);
     }
-    fs.chmodSync(tempPath, 0o755);
-    // Atomic swap so a concurrent invocation never sees a half-written file.
-    fs.renameSync(tempPath, shimPath);
-  } catch {
+    if (!linked && mode != null) {
+      fs.chmodSync(tempPath, mode);
+    }
+    fs.renameSync(tempPath, destPath);
+  } catch (err) {
     try {
       fs.rmSync(tempPath, { force: true });
     } catch {}
+    fail(`Could not install the pacquet binary at ${destPath}: ${err.message}`);
   }
+}
+
+function rewriteBin(binValue) {
+  const pkgJsonPath = path.join(__dirname, "package.json");
+  // Non-fatal: the `.exe` twin and the binary at the original name already make
+  // `pacquet` runnable; the rewrite only helps shims regenerated later.
+  try {
+    const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, "utf8"));
+    pkg.bin = binValue;
+    fs.writeFileSync(pkgJsonPath, JSON.stringify(pkg, null, 2));
+  } catch {}
+}
+
+function fail(message) {
+  console.error(message);
+  process.exit(1);
 }
 
 function getBinPath() {
