@@ -205,3 +205,86 @@ fn tarball_url_version_extracts_conventional_names_only() {
     assert_eq!(tarball_url_version("https://r/weird.tgz", "foo"), None);
     assert_eq!(tarball_url_version("https://r/foo/-/foo.tgz", "foo"), None);
 }
+
+#[test]
+fn intern_config_caps_distinct_leaked_configs_but_keeps_serving_known_ones() {
+    use super::intern_config;
+    use pacquet_store_dir::StoreDir;
+    use std::{collections::HashMap, path::PathBuf, sync::Mutex};
+
+    let configs = Mutex::new(HashMap::new());
+    let store_dir = StoreDir::new(PathBuf::from("/tmp/pnpr-intern-test-store"));
+    let cache_dir = PathBuf::from("/tmp/pnpr-intern-test-cache");
+    let max = 2;
+
+    let request = |registry: &str| ResolveRequest {
+        registry: Some(registry.to_string()),
+        ..ResolveRequest::default()
+    };
+    let intern = |registry: &str| {
+        intern_config(&configs, &store_dir, &cache_dir, &request(registry), max, usize::MAX)
+    };
+
+    // Distinct registry configurations are interned up to the cap.
+    assert!(intern("https://a.test/").is_some());
+    assert!(intern("https://b.test/").is_some());
+
+    // A new distinct configuration past the cap is refused, not leaked — this
+    // is the bound on how much an authenticated caller can make the server
+    // leak by varying its registry/policy fields.
+    assert!(intern("https://c.test/").is_none());
+    // ...and nothing was interned beyond the cap (the refusal didn't leak).
+    assert_eq!(configs.lock().expect("config cache poisoned").len(), max);
+
+    // An already-interned configuration is still served even at the cap.
+    assert!(intern("https://a.test/").is_some());
+}
+
+#[test]
+fn intern_config_refuses_a_config_key_larger_than_the_byte_cap() {
+    use super::intern_config;
+    use pacquet_store_dir::StoreDir;
+    use std::{collections::HashMap, path::PathBuf, sync::Mutex};
+
+    let configs = Mutex::new(HashMap::new());
+    let store_dir = StoreDir::new(PathBuf::from("/tmp/pnpr-bytecap-test-store"));
+    let cache_dir = PathBuf::from("/tmp/pnpr-bytecap-test-cache");
+    let request = |registry: &str| ResolveRequest {
+        registry: Some(registry.to_string()),
+        ..ResolveRequest::default()
+    };
+    let intern = |registry: &str| {
+        intern_config(&configs, &store_dir, &cache_dir, &request(registry), 10, 1024)
+    };
+
+    // A normal configuration is interned.
+    assert!(intern("https://a.test/").is_some());
+    // A configuration whose canonical key exceeds the byte cap is refused, so a
+    // caller can't amplify the per-config leak with a giant overrides/registry.
+    let oversized = format!("https://{}.test/", "x".repeat(2048));
+    assert!(intern(&oversized).is_none());
+}
+
+#[test]
+fn intern_config_keys_overrides_canonically_regardless_of_order() {
+    use super::intern_config;
+    use pacquet_store_dir::StoreDir;
+    use std::{collections::HashMap, path::PathBuf, sync::Mutex};
+
+    let configs = Mutex::new(HashMap::new());
+    let store_dir = StoreDir::new(PathBuf::from("/tmp/pnpr-canon-test-store"));
+    let cache_dir = PathBuf::from("/tmp/pnpr-canon-test-cache");
+    let intern = |overrides: serde_json::Value| {
+        let request = ResolveRequest { overrides: Some(overrides), ..ResolveRequest::default() };
+        intern_config(&configs, &store_dir, &cache_dir, &request, 10, usize::MAX)
+    };
+
+    // The same overrides sent with a different JSON key order must dedup to a
+    // single interned config — the second call returns the *same* leaked
+    // config, not a new one, and the map stays at one entry.
+    let first =
+        intern(serde_json::json!({ "a": "1.0.0", "b": "2.0.0" })).expect("first config interned");
+    let second = intern(serde_json::json!({ "b": "2.0.0", "a": "1.0.0" })).expect("config reused");
+    assert!(std::ptr::eq(first, second));
+    assert_eq!(configs.lock().expect("config cache poisoned").len(), 1);
+}
