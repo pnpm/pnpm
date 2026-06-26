@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
-    io::{Cursor, Read},
-    path::{Component, PathBuf},
+    io::{self, Cursor, Read},
+    path::{Component, Path, PathBuf},
     sync::{Arc, LazyLock},
     time::{Duration, Instant, UNIX_EPOCH},
 };
@@ -371,6 +371,81 @@ fn allocate_tarball_buffer(
     let mut buf = Vec::new();
     buf.try_reserve_exact(capacity).map_err(|_| too_large())?;
     Ok(buf)
+}
+
+async fn open_local_tarball(path: &Path) -> Result<(tokio::fs::File, u64), TarballError> {
+    let file = tokio::fs::File::open(path)
+        .await
+        .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
+    let metadata = file
+        .metadata()
+        .await
+        .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
+    if !metadata.is_file() {
+        return Err(read_local_tarball_error(
+            path,
+            io::ErrorKind::InvalidInput,
+            "local tarball path is not a regular file",
+        ));
+    }
+    Ok((file, metadata.len()))
+}
+
+async fn read_local_tarball_buffer(
+    file: tokio::fs::File,
+    path: &Path,
+    package_url: &str,
+    size: u64,
+) -> Result<Vec<u8>, TarballError> {
+    use tokio::io::AsyncReadExt;
+
+    let read_limit = size.checked_add(1).ok_or_else(|| {
+        read_local_tarball_error(
+            path,
+            io::ErrorKind::InvalidData,
+            format!("local tarball is too large to read into memory ({size} bytes)"),
+        )
+    })?;
+    let mut buffer = allocate_local_tarball_buffer(path, package_url, size)?;
+    let mut reader = file.take(read_limit);
+    reader
+        .read_to_end(&mut buffer)
+        .await
+        .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
+    if u64::try_from(buffer.len()).unwrap_or(u64::MAX) > size {
+        return Err(read_local_tarball_error(
+            path,
+            io::ErrorKind::InvalidData,
+            format!("local tarball changed while reading; refused to read past {size} bytes"),
+        ));
+    }
+    Ok(buffer)
+}
+
+fn allocate_local_tarball_buffer(
+    path: &Path,
+    package_url: &str,
+    size: u64,
+) -> Result<Vec<u8>, TarballError> {
+    allocate_tarball_buffer(Some(size), package_url).map_err(|error| match error {
+        TarballError::TarballTooLarge { .. } => read_local_tarball_error(
+            path,
+            io::ErrorKind::InvalidData,
+            format!("local tarball is too large to read into memory ({size} bytes)"),
+        ),
+        other => other,
+    })
+}
+
+fn read_local_tarball_error(
+    path: &Path,
+    kind: io::ErrorKind,
+    message: impl Into<String>,
+) -> TarballError {
+    TarballError::ReadLocalTarball {
+        path: path.to_path_buf(),
+        source: io::Error::new(kind, message.into()),
+    }
 }
 
 #[instrument(skip(gz_data), fields(gz_data_len = gz_data.len()))]
@@ -1621,18 +1696,16 @@ async fn fetch_and_extract_once<Reporter: self::Reporter>(
         |error| TarballError::FetchTarball(NetworkError { url: package_url.to_string(), error });
 
     if let Some(path) = local_file_tarball_path(package_url) {
-        let size = tokio::fs::metadata(&path).await.ok().map(|metadata| metadata.len());
+        let (file, size) = open_local_tarball(&path).await?;
         Reporter::emit(&LogEvent::FetchingProgress(FetchingProgressLog {
             level: LogLevel::Debug,
             message: FetchingProgressMessage::Started {
                 attempt: attempt + 1,
                 package_id: package_id.to_owned(),
-                size,
+                size: Some(size),
             },
         }));
-        let buffer = tokio::fs::read(&path)
-            .await
-            .map_err(|source| TarballError::ReadLocalTarball { path: path.clone(), source })?;
+        let buffer = read_local_tarball_buffer(file, &path, package_url, size).await?;
         return extract_tarball_buffer(
             buffer,
             expected_integrity,

@@ -1,9 +1,10 @@
 use super::{
     DownloadTarballToStore, FetchTarballForResolution, HttpStatusError, MemCache, NetworkError,
     PrefetchedCasPaths, RetryOpts, SharedReportedProgressKeys, TarballError, VerifyChecksumError,
-    allocate_tarball_buffer, download_priority, extract_tarball_entries, extract_zip_entries,
-    fetch_and_extract_with_retry, is_transient_error, local_file_tarball_path,
-    normalize_bundled_manifest, prefetch_cas_paths,
+    allocate_local_tarball_buffer, allocate_tarball_buffer, download_priority,
+    extract_tarball_entries, extract_zip_entries, fetch_and_extract_with_retry, is_transient_error,
+    local_file_tarball_path, normalize_bundled_manifest, open_local_tarball, prefetch_cas_paths,
+    read_local_tarball_buffer,
 };
 use pacquet_network::{AuthHeaders, ThrottledClient, UNPRIORITIZED};
 use pacquet_reporter::SilentReporter;
@@ -14,7 +15,13 @@ use pacquet_store_dir::{
 use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 use ssri::Integrity;
-use std::{collections::HashMap, io::Cursor, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    io::{Cursor, ErrorKind},
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
 use tempfile::{TempDir, tempdir};
 
 fn integrity(integrity_str: &str) -> Integrity {
@@ -1185,6 +1192,57 @@ fn local_file_tarball_path_accepts_relative_file_specs() {
         local_file_tarball_path("file:../vendor/pkg.tgz"),
         Some(PathBuf::from("../vendor/pkg.tgz")),
     );
+}
+
+#[test]
+fn allocate_local_tarball_buffer_rejects_absurd_size_as_local_read_error() {
+    let path = Path::new("pkg.tgz");
+    let err = allocate_local_tarball_buffer(path, "file:pkg.tgz", u64::MAX)
+        .expect_err("local oversized tarballs should fail before reading");
+    match err {
+        TarballError::ReadLocalTarball { path: got_path, source } => {
+            assert_eq!(got_path, path);
+            assert_eq!(source.kind(), ErrorKind::InvalidData);
+            assert!(source.to_string().contains("too large"), "got: {source}");
+        }
+        other => panic!("expected ReadLocalTarball, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn open_local_tarball_rejects_directories() {
+    let local_dir = tempdir().unwrap();
+    let err = open_local_tarball(local_dir.path())
+        .await
+        .expect_err("local tarballs must be regular files");
+    match err {
+        TarballError::ReadLocalTarball { path, source } => {
+            assert_eq!(path, local_dir.path());
+            assert_eq!(source.kind(), ErrorKind::InvalidInput);
+            assert!(source.to_string().contains("regular file"), "got: {source}");
+        }
+        other => panic!("expected ReadLocalTarball, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn read_local_tarball_buffer_rejects_growth_past_checked_size() {
+    let local_dir = tempdir().unwrap();
+    let tarball_path = local_dir.path().join("pkg.tgz");
+    std::fs::write(&tarball_path, b"abcd").unwrap();
+    let file = tokio::fs::File::open(&tarball_path).await.unwrap();
+
+    let err = read_local_tarball_buffer(file, &tarball_path, "file:pkg.tgz", 3)
+        .await
+        .expect_err("local tarball reads must be capped at the checked size");
+    match err {
+        TarballError::ReadLocalTarball { path, source } => {
+            assert_eq!(path, tarball_path);
+            assert_eq!(source.kind(), ErrorKind::InvalidData);
+            assert!(source.to_string().contains("changed while reading"), "got: {source}");
+        }
+        other => panic!("expected ReadLocalTarball, got {other:?}"),
+    }
 }
 
 #[tokio::test]
