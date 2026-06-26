@@ -280,8 +280,11 @@ fn intern_config_keys_overrides_canonically_regardless_of_order() {
     };
 
     // The same overrides sent with a different JSON key order must dedup to a
-    // single interned config, not leak two.
-    assert!(intern(serde_json::json!({ "a": "1.0.0", "b": "2.0.0" })).is_some());
-    assert!(intern(serde_json::json!({ "b": "2.0.0", "a": "1.0.0" })).is_some());
+    // single interned config — the second call returns the *same* leaked
+    // config, not a new one, and the map stays at one entry.
+    let first =
+        intern(serde_json::json!({ "a": "1.0.0", "b": "2.0.0" })).expect("first config interned");
+    let second = intern(serde_json::json!({ "b": "2.0.0", "a": "1.0.0" })).expect("config reused");
+    assert!(std::ptr::eq(first, second));
     assert_eq!(configs.lock().expect("config cache poisoned").len(), 1);
 }
