@@ -1,5 +1,5 @@
 //! Port of pnpm's `pnpm logout`
-//! ([`@pnpm/auth.commands`](https://github.com/pnpm/pnpm/blob/main/pnpm11/auth/commands/src/logout.ts)).
+//! ([`@pnpm/auth.commands`](https://github.com/pnpm/pnpm/blob/fc2f33912e/pnpm11/auth/commands/src/logout.ts)).
 //!
 //! `pnpm logout` revokes the registry auth token on the server and
 //! removes it from `auth.ini`. The token still lives in `.npmrc` or an
