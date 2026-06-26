@@ -43,16 +43,26 @@ const PLATFORMS = {
 setup();
 
 function setup() {
-  const target = getBinPath();
-  if (target == null) {
+  const candidates = getBinCandidates();
+  if (candidates.length === 0) {
     fail(`pacquet does not ship a prebuilt binary for ${platform}-${arch}.`);
   }
 
+  // Resolve whichever candidate the package manager actually installed: it
+  // already filtered the `@pacquet/*` packages by their `os`/`cpu`/`libc`
+  // fields, so trusting that is more reliable than re-deriving the platform.
+  // `getBinCandidates` orders the linux glibc/musl pair by detected libc, which
+  // only matters when both are present (e.g. `npm install --force` installs
+  // every optional dependency regardless of those fields).
   let nativeBinary;
-  try {
-    nativeBinary = require.resolve(target);
-  } catch {
-    const pkgName = target.split("/").slice(0, 2).join("/");
+  for (const target of candidates) {
+    try {
+      nativeBinary = require.resolve(target);
+      break;
+    } catch {}
+  }
+  if (nativeBinary == null) {
+    const pkgName = candidates[0].split("/").slice(0, 2).join("/");
     fail(
       `The "${pkgName}" package is not installed, so pacquet has no native binary to run.\n` +
       "If your package manager skipped optional dependencies or blocked build scripts, " +
@@ -128,14 +138,26 @@ function fail(message) {
   process.exit(1);
 }
 
-function getBinPath() {
+/**
+ * Native binary specifiers to try, most-preferred first. Empty when the host
+ * platform/arch is unsupported. The linux glibc/musl pair is ordered by the
+ * detected libc; the caller resolves whichever is installed, so the order only
+ * decides the winner when both happen to be present.
+ *
+ * @returns {string[]}
+ */
+function getBinCandidates() {
   const platformEntry = PLATFORMS?.[platform]?.[arch];
 
-  if (platformEntry == null || typeof platformEntry === "string") {
-    return platformEntry;
+  if (platformEntry == null) {
+    return [];
+  }
+  if (typeof platformEntry === "string") {
+    return [platformEntry];
   }
 
-  return platformEntry[detectLinuxLibc()];
+  const order = detectLinuxLibc() === "musl" ? ["musl", "glibc"] : ["glibc", "musl"];
+  return order.map((libc) => platformEntry[libc]);
 }
 
 function detectLinuxLibc() {
@@ -143,5 +165,13 @@ function detectLinuxLibc() {
     return null;
   }
 
-  return process.report.getReport().header.glibcVersionRuntime ? "glibc" : "musl";
+  // Node sets `glibcVersionRuntime` to the glibc it links against, and leaves it
+  // unset on musl. Guarded because `process.report` can be unavailable in some
+  // runtimes — when it is, fall back to the default ordering and let resolution
+  // pick the installed package.
+  try {
+    return process.report?.getReport().header.glibcVersionRuntime ? "glibc" : "musl";
+  } catch {
+    return null;
+  }
 }
