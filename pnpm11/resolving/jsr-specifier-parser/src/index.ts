@@ -60,5 +60,8 @@ function jsrToNpmPackageName (jsrPkgName: string): string {
   }
   const scope = jsrPkgName.substring(0, sepIndex)
   const name = jsrPkgName.substring(sepIndex + '/'.length)
+  if (!name) {
+    throw new PnpmError('INVALID_JSR_PACKAGE_NAME', `The package name '${jsrPkgName}' is invalid`)
+  }
   return `@jsr/${scope.substring(1)}__${name}`
 }
