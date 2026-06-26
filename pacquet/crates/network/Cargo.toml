@@ -17,6 +17,7 @@ pipe-trait  = { workspace = true }
 reqwest     = { workspace = true }
 tokio       = { workspace = true, features = ["time"] }
 tracing     = { workspace = true }
+url         = { workspace = true }
 
 [dev-dependencies]
 mockito               = { workspace = true }

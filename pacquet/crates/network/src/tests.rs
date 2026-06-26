@@ -726,3 +726,30 @@ fn default_network_concurrency_stays_within_floor_and_cap() {
     let concurrency = super::default_network_concurrency();
     assert!((64..=96).contains(&concurrency), "got {concurrency}");
 }
+
+/// [`super::is_blocked_request_host`] blocks the link-local instance-metadata
+/// range and well-known metadata hostnames (including the trailing-dot FQDN
+/// form), while allowing public, private, and loopback registries. This is
+/// the predicate the install client's redirect policy and pnpr's
+/// request-boundary check share.
+#[test]
+fn is_blocked_request_host_blocks_link_local_and_metadata_only() {
+    let blocked = |u: &str| super::is_blocked_request_host(&url::Url::parse(u).unwrap());
+
+    // Link-local IPv4 (cloud instance metadata) and the range around it.
+    assert!(blocked("http://169.254.169.254/"));
+    assert!(blocked("http://169.254.0.1:8080/path/"));
+    // Link-local IPv6 (fe80::/10) and an IPv4-mapped link-local address.
+    assert!(blocked("http://[fe80::1]/"));
+    assert!(blocked("http://[::ffff:169.254.169.254]/"));
+    // Metadata hostname: case-insensitive and trailing-dot (root-zone) FQDN.
+    assert!(blocked("https://metadata.google.internal/"));
+    assert!(blocked("https://Metadata.Google.Internal/"));
+    assert!(blocked("https://metadata.google.internal./"));
+
+    // Public, private, and loopback hosts are allowed.
+    assert!(!blocked("https://registry.npmjs.org/"));
+    assert!(!blocked("http://10.0.0.5:4873/"));
+    assert!(!blocked("http://192.168.1.10/"));
+    assert!(!blocked("http://127.0.0.1:4873/"));
+}

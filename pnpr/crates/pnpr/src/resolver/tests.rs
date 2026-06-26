@@ -218,6 +218,8 @@ fn link_local_and_metadata_registries_are_blocked_but_private_ones_are_not() {
     assert!(is_blocked_registry_host("http://[::ffff:169.254.169.254]/"));
     // Well-known metadata hostname, case-insensitively.
     assert!(is_blocked_registry_host("https://Metadata.Google.Internal/"));
+    // A trailing dot (root-zone FQDN) must not bypass the metadata-host match.
+    assert!(is_blocked_registry_host("https://metadata.google.internal./"));
 
     // Private and loopback registries are deliberately allowed — resolving
     // against an internal registry is pnpr's core use case.

@@ -421,6 +421,54 @@ fn default_client_builder(settings: &NetworkSettings) -> reqwest::ClientBuilder 
         .timeout(settings.fetch_timeout)
         .pool_idle_timeout(Duration::from_secs(4))
         .hickory_dns(true)
+        // Reject redirects to link-local / instance-metadata hosts: a
+        // (client-supplied) registry that 302-redirects there must not be
+        // able to turn a server-side metadata fetch into SSRF. Legitimate
+        // redirects to other hosts still follow, up to the default depth.
+        .redirect(reqwest::redirect::Policy::custom(|attempt| {
+            if attempt.previous().len() >= 10 {
+                attempt.error("too many redirects")
+            } else if is_blocked_request_host(attempt.url()) {
+                attempt.error("redirect to a link-local or instance-metadata host is not allowed")
+            } else {
+                attempt.follow()
+            }
+        }))
+}
+
+/// Hostnames that resolve into the link-local instance-metadata range but
+/// don't look like a link-local address. Kept tiny and explicit — the IP
+/// checks in [`is_blocked_request_host`] cover the addresses themselves.
+const BLOCKED_REQUEST_HOSTS: &[&str] = &["metadata.google.internal"];
+
+/// Whether a URL targets a host the install / resolver clients must never
+/// connect to: the link-local range that fronts cloud instance metadata
+/// (`169.254.0.0/16`, `fe80::/10`, and IPv4-mapped link-local addresses)
+/// plus the well-known metadata hostnames that resolve into it.
+///
+/// Used both as a request-boundary check (on a URL a client supplies) and
+/// as the client redirect policy in `default_client_builder`, so a
+/// redirect can't reach a blocked host that a boundary check on the
+/// *original* URL would miss (e.g. an allowed host that `302`s to
+/// `http://169.254.169.254/`). A trailing dot on a domain
+/// (`metadata.google.internal.`) is normalized away before matching.
+/// Private and loopback addresses are deliberately allowed — resolving
+/// against an internal registry (or a loopback dev registry) is legitimate.
+#[must_use]
+pub fn is_blocked_request_host(url: &url::Url) -> bool {
+    match url.host() {
+        Some(url::Host::Ipv4(addr)) => addr.is_link_local(),
+        Some(url::Host::Ipv6(addr)) => {
+            // fe80::/10, plus any IPv4-mapped form of a link-local v4 address.
+            (addr.segments()[0] & 0xffc0) == 0xfe80
+                || addr.to_ipv4_mapped().is_some_and(|v4| v4.is_link_local())
+        }
+        Some(url::Host::Domain(host)) => {
+            let host = host.strip_suffix('.').unwrap_or(host);
+            BLOCKED_REQUEST_HOSTS.iter().any(|blocked| host.eq_ignore_ascii_case(blocked))
+        }
+        None => false,
+    }
 }
 
 /// Load the PEM bundle named by `NODE_EXTRA_CA_CERTS` as extra trust

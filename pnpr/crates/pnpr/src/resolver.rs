@@ -202,33 +202,16 @@ impl Resolver {
 /// Hostnames that resolve into the link-local instance-metadata range but
 /// don't look like a link-local address. Kept tiny and explicit — the IP
 /// check below covers the addresses themselves.
-const BLOCKED_METADATA_HOSTS: &[&str] = &["metadata.google.internal"];
-
-/// Whether a client-supplied registry URL points at a host the resolver
-/// must never fetch from: the link-local range that fronts cloud instance
-/// metadata (`169.254.0.0/16`, `fe80::/10`) plus the well-known metadata
-/// hostnames that resolve into it. Private and loopback addresses are
-/// deliberately *allowed* — resolving against an internal registry is
-/// pnpr's core use case. This is a request-boundary check on the URL the
-/// client sends; a hostname that only *resolves* to a link-local address
-/// at connect time (DNS rebinding) is out of scope here. A value that
-/// doesn't parse as a URL can't drive a fetch, so it isn't blocked.
+/// Whether a client-supplied registry URL string points at a host the
+/// resolver must never fetch from. Delegates to
+/// [`pacquet_network::is_blocked_request_host`] so this request-boundary
+/// check and the install client's redirect policy share one definition —
+/// an attacker can't slip past the boundary by pointing `registry` at an
+/// allowed host that redirects to a link-local / instance-metadata host.
+/// A value that doesn't parse as a URL can't drive a fetch, so it isn't
+/// blocked here.
 fn is_blocked_registry_host(registry: &str) -> bool {
-    let Ok(url) = url::Url::parse(registry) else {
-        return false;
-    };
-    match url.host() {
-        Some(url::Host::Ipv4(addr)) => addr.is_link_local(),
-        Some(url::Host::Ipv6(addr)) => {
-            // fe80::/10, plus any IPv4-mapped form of a link-local v4 address.
-            (addr.segments()[0] & 0xffc0) == 0xfe80
-                || addr.to_ipv4_mapped().is_some_and(|v4| v4.is_link_local())
-        }
-        Some(url::Host::Domain(host)) => {
-            BLOCKED_METADATA_HOSTS.iter().any(|blocked| host.eq_ignore_ascii_case(blocked))
-        }
-        None => false,
-    }
+    url::Url::parse(registry).is_ok_and(|url| pacquet_network::is_blocked_request_host(&url))
 }
 
 /// Reject (as `400`) a request that would point the resolver's
