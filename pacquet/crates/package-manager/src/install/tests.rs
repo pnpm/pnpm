@@ -6005,6 +6005,128 @@ fn layout_drift_still_makes_the_layout_inconsistent() {
     ));
 }
 
+/// Run one install against `modules_dir` for the purge regression below: a
+/// fresh leaked config per call (the install path needs `&'static Config`),
+/// `included` driven by `dependency_groups`, and `virtual_store_dir_max_length`
+/// surfaced so the test can force a layout drift. `disable_optimistic_repeat_install`
+/// keeps every call on the full path so the purge branch is actually evaluated.
+async fn run_purge_regression_install(
+    store_dir: &std::path::Path,
+    modules_dir: &std::path::Path,
+    virtual_store_dir: &std::path::Path,
+    registry: String,
+    manifest: &PackageManifest,
+    dependency_groups: Vec<DependencyGroup>,
+    virtual_store_dir_max_length: u64,
+) {
+    let mut config = Config::new();
+    config.store_dir = store_dir.to_path_buf().into();
+    config.modules_dir = modules_dir.to_path_buf();
+    config.virtual_store_dir = virtual_store_dir.to_path_buf();
+    config.registry = registry;
+    config.virtual_store_dir_max_length = virtual_store_dir_max_length;
+    let config = config.leak();
+    let is_full_install = dependency_groups.contains(&DependencyGroup::Dev);
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        lockfile_path: None,
+        dependency_groups,
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        dry_run: false,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+        catalogs_override: None,
+        disable_optimistic_repeat_install: true,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("install should succeed");
+}
+
+/// Install-level regression for the purge guard: switching `--prod` <-> full
+/// (an `included` drift) must keep a user's own non-pnpm entry in
+/// `node_modules`, while a real layout drift still recreates the directory
+/// from scratch. Without the `modules_layout_consistent_with` split, the
+/// included drift would purge the directory and delete the user's file.
+#[tokio::test]
+async fn included_drift_keeps_user_node_modules_entry_while_layout_drift_wipes_it() {
+    let mock_instance = TestRegistry::start();
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    let manifest_path = dir.path().join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    manifest
+        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
+        .unwrap();
+    manifest.add_dependency("@pnpm/xyz", "1.0.0", DependencyGroup::Dev).unwrap();
+    manifest.save().unwrap();
+
+    let full = || vec![DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional];
+    let prod_only = || vec![DependencyGroup::Prod];
+
+    // 1. A full install creates node_modules + .modules.yaml (included = full).
+    run_purge_regression_install(
+        &store_dir,
+        &modules_dir,
+        &virtual_store_dir,
+        mock_instance.url(),
+        &manifest,
+        full(),
+        DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH,
+    )
+    .await;
+
+    // The user drops their own non-pnpm file directly into node_modules.
+    let vendored = modules_dir.join("vendored-by-user.txt");
+    fs::write(&vendored, b"keep me").unwrap();
+
+    // 2. Switching to --prod is an included drift only, so the file survives.
+    run_purge_regression_install(
+        &store_dir,
+        &modules_dir,
+        &virtual_store_dir,
+        mock_instance.url(),
+        &manifest,
+        prod_only(),
+        DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH,
+    )
+    .await;
+    assert!(vendored.exists(), "included drift must not purge the user's node_modules entry");
+
+    // 3. A real layout drift (virtual-store-dir-max-length) still wipes it.
+    run_purge_regression_install(
+        &store_dir,
+        &modules_dir,
+        &virtual_store_dir,
+        mock_instance.url(),
+        &manifest,
+        prod_only(),
+        DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH - 1,
+    )
+    .await;
+    assert!(!vendored.exists(), "layout drift must still recreate node_modules from scratch");
+}
+
 /// End-to-end: when `.modules.yaml`, `<virtual_store_dir>/lock.yaml`,
 /// and the wanted lockfile all agree, [`Install::run`] must emit the
 /// `name: "pnpm"` "Lockfile is up to date" log and return without
