@@ -96,11 +96,15 @@ function generateScopedAliasPackage() {
   fs.rmSync(aliasRoot, { recursive: true, force: true });
   fs.mkdirSync(resolve(aliasRoot, "bin"), { recursive: true });
 
-  // Mirror the JS shim 1:1. Copying instead of symlinking keeps the
-  // tarball self-contained for `pnpm publish`.
+  // Mirror the JS shim and the postinstall optimizer 1:1. Copying instead of
+  // symlinking keeps the tarball self-contained for `pnpm publish`.
   fs.copyFileSync(
     resolve(PACQUET_ROOT, "bin", BIN_NAME),
     resolve(aliasRoot, "bin", BIN_NAME),
+  );
+  fs.copyFileSync(
+    resolve(PACQUET_ROOT, "install.js"),
+    resolve(aliasRoot, "install.js"),
   );
 
   // The pacquet manifest at this point already carries the version and
