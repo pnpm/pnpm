@@ -441,7 +441,21 @@ export function linkExePlatformBinary (installDir: string, wrapperPkgName: strin
     wrapperPkg.bin.pn = 'pn.exe'
     wrapperPkg.bin.pnpx = 'pnpx.exe'
     wrapperPkg.bin.pnx = 'pnx.exe'
-    fs.writeFileSync(wrapperPkgJsonPath, JSON.stringify(wrapperPkg, null, 2))
+    // Write a temp file and rename over package.json rather than truncating in
+    // place: pnpm hard-links package.json from its content-addressable store, so
+    // an in-place write would mutate the shared store blob, and a mid-write
+    // crash would leave invalid JSON. Mirrors the wrapper's own
+    // `install.js` rewriteBin().
+    const tempPkgJsonPath = `${wrapperPkgJsonPath}.pnpm-tmp`
+    try {
+      fs.writeFileSync(tempPkgJsonPath, JSON.stringify(wrapperPkg, null, 2))
+      fs.renameSync(tempPkgJsonPath, wrapperPkgJsonPath)
+    } catch (err: unknown) {
+      try {
+        fs.rmSync(tempPkgJsonPath, { force: true })
+      } catch {}
+      throw err
+    }
   }
 }
 
