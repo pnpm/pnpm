@@ -687,7 +687,7 @@ test('pnpm recursive run orders selected projects connected only through an unse
       version: '1.0.0',
 
       dependencies: {
-        'project-b': '1',
+        'project-b': 'workspace:*',
       },
       scripts: {
         build: server.sendLineScript('project-a'),
@@ -698,7 +698,7 @@ test('pnpm recursive run orders selected projects connected only through an unse
       version: '1.0.0',
 
       dependencies: {
-        'project-c': '1',
+        'project-c': 'workspace:*',
       },
       scripts: {
         build: server.sendLineScript('project-b'),
