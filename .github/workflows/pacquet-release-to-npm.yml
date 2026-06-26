@@ -9,7 +9,7 @@ name: Release pnpm (Rust)
 # `@pnpm/exe` (the Rust port presenting as pnpm). Both depend on the same
 # `@pnpm/exe.<target>` native sub-packages.
 #
-# The `tag` input defaults to `alpha` so a release never moves the `pnpm`
+# The `tag` input defaults to `next-12` so a release never moves the `pnpm`
 # `latest` dist-tag (which serves the production TypeScript pnpm). Override it
 # deliberately when promoting a release.
 on:
@@ -22,7 +22,7 @@ on:
       tag:
         description: 'npm dist-tag to publish under'
         required: true
-        default: 'alpha'
+        default: 'next-12'
         type: string
 
 concurrency:

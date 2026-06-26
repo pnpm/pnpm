@@ -10,11 +10,11 @@ defaults, error codes, file formats, and directory layout match pnpm exactly.
 
 ## Installation
 
-This release is published under the `alpha` dist-tag so it never replaces the
+This release is published under the `next-12` dist-tag so it never replaces the
 production pnpm on `latest`:
 
 ```sh
-npm install -g pnpm@alpha
+npm install -g pnpm@next-12
 ```
 
 On install, a preinstall script replaces the package's placeholder bin with the
