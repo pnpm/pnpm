@@ -1060,11 +1060,34 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 store_dir: config.store_dir.display().to_string(),
                 registries,
             };
+            let log_prefix = lockfile_dir.to_string_lossy().into_owned();
             hook.pre_resolution(
                 ctx,
                 pacquet_hooks::PreResolutionHookLogger {
-                    info: Arc::new(|_| {}),
-                    warn: Arc::new(|_| {}),
+                    info: {
+                        let prefix = log_prefix.clone();
+                        Arc::new(move |message: String| {
+                            Reporter::emit(&LogEvent::Hook(HookLog {
+                                level: LogLevel::Info,
+                                from: "pnpmfile".to_string(),
+                                hook: "preResolution".to_string(),
+                                message,
+                                prefix: prefix.clone(),
+                            }));
+                        })
+                    },
+                    warn: {
+                        let prefix = log_prefix.clone();
+                        Arc::new(move |message: String| {
+                            Reporter::emit(&LogEvent::Hook(HookLog {
+                                level: LogLevel::Warn,
+                                from: "pnpmfile".to_string(),
+                                hook: "preResolution".to_string(),
+                                message,
+                                prefix: prefix.clone(),
+                            }));
+                        })
+                    },
                 },
             )
             .await;

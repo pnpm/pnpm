@@ -90,6 +90,8 @@ await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
             .arg(&wrapper)
             .kill_on_drop(true)
             .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
             .spawn()
         else {
             (logger.warn)("pnpmfile hook failed to start".to_string());
@@ -107,6 +109,28 @@ await (hooks.hooks && hooks.hooks['{func}'])?.(ctx, logger);
             (logger.warn)("pnpmfile hook timed out or failed to execute".to_string());
             return;
         };
+
+        // Forward each JSON line from the JS info/warn logger calls to the
+        // Rust-side closures, which emit them as `pnpm:hook` events. The JS
+        // wrapper writes `{"level":"info","message":"..."}` or
+        // `{"level":"warn","message":"..."}` to stdout; everything else is
+        // silently ignored (it may be debug output from Node.js internals).
+        for line in String::from_utf8_lossy(&output.stdout).lines() {
+            let line = line.trim();
+            if line.is_empty() {
+                continue;
+            }
+            if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(line) {
+                let level = parsed.get("level").and_then(|v| v.as_str());
+                let message =
+                    parsed.get("message").and_then(|v| v.as_str()).unwrap_or_default().to_string();
+                match level {
+                    Some("info") => (logger.info)(message),
+                    Some("warn") => (logger.warn)(message),
+                    _ => {}
+                }
+            }
+        }
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
