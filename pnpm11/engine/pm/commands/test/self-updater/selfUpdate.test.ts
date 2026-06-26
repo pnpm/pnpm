@@ -24,7 +24,7 @@ jest.unstable_mockModule('@pnpm/cli.meta', () => {
     },
   }
 })
-const { selfUpdate, installPnpm, linkExePlatformBinary, exePlatformPkgDirName, exePlatformPkgDirNameNext } = await import('@pnpm/engine.pm.commands')
+const { selfUpdate, installPnpm, linkExePlatformBinary, exePlatformPkgDirName, exePlatformPkgDirNameNext, pnpmPackageNameToInstall } = await import('@pnpm/engine.pm.commands')
 
 beforeEach(async () => {
   await setupMockAgent()
@@ -1194,6 +1194,21 @@ describe('linkExePlatformBinary', () => {
       // tell `pnpx` apart from `pnpm` and inject `dlx` accordingly.
       expect(fs.statSync(aliasPath).ino).toBe(pnpmIno)
     }
+  })
+})
+
+describe('pnpmPackageNameToInstall', () => {
+  test('installs the unscoped `pnpm` package from v12 onward', () => {
+    expect(pnpmPackageNameToInstall('12.0.0-alpha.0')).toBe('pnpm')
+    expect(pnpmPackageNameToInstall('12.3.4')).toBe('pnpm')
+    expect(pnpmPackageNameToInstall('13.0.0')).toBe('pnpm')
+  })
+
+  test('keeps the running package identity before v12', () => {
+    // getCurrentPackageName() is `pnpm` in the (non-SEA) test runtime, so this
+    // asserts v11 and earlier are not forced onto a different package.
+    expect(pnpmPackageNameToInstall('11.9.0')).toBe('pnpm')
+    expect(pnpmPackageNameToInstall('9.1.0')).toBe('pnpm')
   })
 })
 

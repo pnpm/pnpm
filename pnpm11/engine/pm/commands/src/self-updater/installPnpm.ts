@@ -24,6 +24,7 @@ import type { EnvLockfile, LockfileObject, PackageSnapshot } from '@pnpm/lockfil
 import { registerProject, type StoreController } from '@pnpm/store.controller'
 import type { DepPath, ProjectId, ProjectRootDir, Registries } from '@pnpm/types'
 import { familySync } from 'detect-libc'
+import semver from 'semver'
 import { symlinkDir } from 'symlink-dir'
 
 import { verifyPnpmEngineIdentity, type VerifyPnpmEngineIdentityOptions } from './verifyPnpmEngineIdentity.js'
@@ -34,6 +35,24 @@ import { verifyPnpmEngineIdentity, type VerifyPnpmEngineIdentityOptions } from '
 // resolution — without it, two platforms would collide on one GVS entry. Both
 // wrapper names get the same treatment so v12 is initialized like @pnpm/exe.
 const PNPM_ALLOW_BUILDS: Record<string, boolean> = { '@pnpm/exe': true, 'pnpm': true }
+
+/**
+ * The pnpm package name to install for a self-update / version-switch to
+ * `pnpmVersion`.
+ *
+ * From v12 the unscoped `pnpm` package is itself the native executable (the Rust
+ * port, published with the same content as `@pnpm/exe`), so a switch to v12+
+ * always installs `pnpm` — even from the SEA `@pnpm/exe` build — converging on a
+ * single package. Earlier majors keep `pnpm` (the JS bundle) and `@pnpm/exe`
+ * (the SEA build) as distinct packages, so those preserve the running build's
+ * own identity (a SEA install stays `@pnpm/exe`). Falls back to the running name
+ * when the version can't be parsed.
+ */
+export function pnpmPackageNameToInstall (pnpmVersion: string): string {
+  const parsed = semver.parse(pnpmVersion, { loose: true })
+  if (parsed != null && parsed.major >= 12) return 'pnpm'
+  return getCurrentPackageName()
+}
 
 export interface InstallPnpmResult {
   binDir: string
@@ -55,15 +74,15 @@ export interface InstallPnpmOptions extends GlobalAddOptions {
  * Creates an entry in globalPkgDir that is visible to `pnpm ls -g`.
  */
 export async function installPnpm (pnpmVersion: string, opts: InstallPnpmOptions): Promise<InstallPnpmResult> {
-  const currentPkgName = getCurrentPackageName()
+  const pkgName = pnpmPackageNameToInstall(pnpmVersion)
 
   const wantedLockfile = opts.envLockfile
-    ? buildLockfileFromEnvLockfile(opts.envLockfile, currentPkgName, pnpmVersion)
+    ? buildLockfileFromEnvLockfile(opts.envLockfile, pkgName, pnpmVersion)
     : undefined
 
   const result = await installPnpmToGlobalDir(
     opts,
-    currentPkgName,
+    pkgName,
     pnpmVersion,
     wantedLockfile
   )
@@ -91,13 +110,13 @@ export async function installPnpmToStore (
     packageManager?: { name: string, version: string }
   } & VerifyPnpmEngineIdentityOptions
 ): Promise<{ binDir: string }> {
-  const currentPkgName = getCurrentPackageName()
-  const wantedLockfile = buildLockfileFromEnvLockfile(opts.envLockfile, currentPkgName, pnpmVersion)
+  const pkgName = pnpmPackageNameToInstall(pnpmVersion)
+  const wantedLockfile = buildLockfileFromEnvLockfile(opts.envLockfile, pkgName, pnpmVersion)
   const globalVirtualStoreDir = path.join(opts.storeDir, 'links')
 
   // Compute the GVS hash for the pnpm package to find its path
-  const pnpmGvsPath = findPnpmGvsPath(wantedLockfile, currentPkgName, globalVirtualStoreDir, PNPM_ALLOW_BUILDS)
-  const pnpmPkgDir = path.join(pnpmGvsPath, 'node_modules', currentPkgName)
+  const pnpmGvsPath = findPnpmGvsPath(wantedLockfile, pkgName, globalVirtualStoreDir, PNPM_ALLOW_BUILDS)
+  const pnpmPkgDir = path.join(pnpmGvsPath, 'node_modules', pkgName)
   const binDir = path.join(pnpmGvsPath, 'bin')
 
   // Check if already installed in the GVS
@@ -129,7 +148,7 @@ export async function installPnpmToStore (
     })
 
     // Now the GVS should be populated — create bins alongside the GVS entry
-    linkExePlatformBinary(pnpmGvsPath, currentPkgName)
+    linkExePlatformBinary(pnpmGvsPath, pkgName)
     await linkBins(path.join(pnpmGvsPath, 'node_modules'), binDir, { warn: noop })
 
     return { binDir }
