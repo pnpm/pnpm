@@ -264,3 +264,24 @@ fn intern_config_refuses_a_config_key_larger_than_the_byte_cap() {
     let oversized = format!("https://{}.test/", "x".repeat(2048));
     assert!(intern(&oversized).is_none());
 }
+
+#[test]
+fn intern_config_keys_overrides_canonically_regardless_of_order() {
+    use super::intern_config;
+    use pacquet_store_dir::StoreDir;
+    use std::{collections::HashMap, path::PathBuf, sync::Mutex};
+
+    let configs = Mutex::new(HashMap::new());
+    let store_dir = StoreDir::new(PathBuf::from("/tmp/pnpr-canon-test-store"));
+    let cache_dir = PathBuf::from("/tmp/pnpr-canon-test-cache");
+    let intern = |overrides: serde_json::Value| {
+        let request = ResolveRequest { overrides: Some(overrides), ..ResolveRequest::default() };
+        intern_config(&configs, &store_dir, &cache_dir, &request, 10, usize::MAX)
+    };
+
+    // The same overrides sent with a different JSON key order must dedup to a
+    // single interned config, not leak two.
+    assert!(intern(serde_json::json!({ "a": "1.0.0", "b": "2.0.0" })).is_some());
+    assert!(intern(serde_json::json!({ "b": "2.0.0", "a": "1.0.0" })).is_some());
+    assert_eq!(configs.lock().expect("config cache poisoned").len(), 1);
+}

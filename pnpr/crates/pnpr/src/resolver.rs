@@ -213,11 +213,18 @@ fn intern_config(
     let registry = if registry.ends_with('/') { registry } else { format!("{registry}/") };
     let overrides: Option<IndexMap<String, String>> =
         request.overrides.as_ref().and_then(|value| serde_json::from_value(value.clone()).ok());
+    // Key on a sorted view of `overrides`: serde_json preserves insertion order
+    // and `IndexMap` is insertion-ordered, so the same overrides sent with a
+    // different key order would otherwise hash to distinct cache keys and intern
+    // duplicate leaked configs — defeating dedup and burning the cap faster.
+    let overrides_key: Option<std::collections::BTreeMap<&str, &str>> = overrides
+        .as_ref()
+        .map(|overrides| overrides.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect());
 
     let key = serde_json::json!({
         "registry": registry,
         "namedRegistries": request.named_registries,
-        "overrides": overrides,
+        "overrides": overrides_key,
         "minimumReleaseAge": request.minimum_release_age,
         "minimumReleaseAgeExclude": request.minimum_release_age_exclude,
         "minimumReleaseAgeIgnoreMissingTime": request.minimum_release_age_ignore_missing_time,
