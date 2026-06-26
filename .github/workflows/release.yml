@@ -49,7 +49,7 @@ jobs:
       - name: Install pnpm and Node
         uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
         with:
-          runtime: node@26.3.1
+          runtime: node@26.4.0
       # The publish phase is split into three sequential steps to control which packages
       # use trusted publishing (OIDC) vs. a static token. `pnpm publish` currently bails
       # out of OIDC as soon as a static `_authToken` is configured, so the only way to
