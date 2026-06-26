@@ -4,6 +4,7 @@ pub mod audit;
 pub mod cache;
 pub mod cat_file;
 pub mod cat_index;
+pub mod completion;
 pub mod config;
 pub mod create;
 pub mod dedupe;
@@ -55,6 +56,7 @@ use cache::CacheCommand;
 use cat_file::CatFileArgs;
 use cat_index::CatIndexArgs;
 use clap::{Parser, Subcommand, ValueEnum};
+use completion::{CompletionArgs, CompletionServerArgs};
 use config::ConfigArgs;
 use create::CreateArgs;
 use dedupe::DedupeArgs;
@@ -243,6 +245,11 @@ pub enum CliCommand {
     Dlx(DlxArgs),
     /// Creates a project from a `create-*` starter kit.
     Create(CreateArgs),
+    /// Print shell completion code to stdout.
+    Completion(CompletionArgs),
+    /// Dynamic completion endpoint used by generated shell scripts.
+    #[clap(name = "completion-server", hide = true)]
+    CompletionServer(CompletionServerArgs),
     /// Runs an arbitrary command specified in the package's start property of its scripts object.
     Start,
     /// Runs a package's "stop" script, if one was provided.
@@ -296,6 +303,20 @@ pub enum CliCommand {
 }
 
 impl CliArgs {
+    pub fn run_completion_if_requested(&self) -> miette::Result<bool> {
+        match &self.command {
+            CliCommand::Completion(args) => {
+                args.run()?;
+                Ok(true)
+            }
+            CliCommand::CompletionServer(args) => {
+                args.run()?;
+                Ok(true)
+            }
+            _ => Ok(false),
+        }
+    }
+
     /// Try to finish `pacquet install` synchronously through the
     /// repeat-install fast path, before the caller builds the async
     /// runtime. `true` means the install completed (the "Already up to
@@ -350,8 +371,13 @@ impl CliArgs {
         reason = "the run function dispatches all CLI commands and contains large types like Install on the stack"
     )]
     pub async fn run(self, config_overrides: &ConfigOverrides) -> miette::Result<()> {
+        if self.run_completion_if_requested()? {
+            return Ok(());
+        }
+
         let CliArgs { command, dir, npmrc_auth_file, recursive, reporter, filter, filter_prod } =
             self;
+
         // Canonicalize `--dir` so the bunyan-envelope `prefix` emitted by
         // the reporter is the same absolute, symlink-resolved path that
         // `@pnpm/cli.default-reporter` derives via `process.cwd()`. Without
@@ -1024,6 +1050,9 @@ impl CliArgs {
                 } else {
                     Box::pin(std::future::ready(Ok(())))
                 }
+            }
+            CliCommand::Completion(_) | CliCommand::CompletionServer(_) => {
+                unreachable!("completion returns before configuration")
             }
         };
 

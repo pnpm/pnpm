@@ -29,6 +29,9 @@ pub fn main() -> miette::Result<()> {
     if args.finished_via_install_fast_path(&config_overrides) {
         return Ok(());
     }
+    if args.run_completion_if_requested()? {
+        return Ok(());
+    }
     // Tie any child pacquet spawns (lifecycle scripts and their descendants)
     // to this process so none are orphaned on Windows. Held until `main`
     // returns; see `job_control`.
