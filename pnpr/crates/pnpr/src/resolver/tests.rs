@@ -205,3 +205,54 @@ fn tarball_url_version_extracts_conventional_names_only() {
     assert_eq!(tarball_url_version("https://r/weird.tgz", "foo"), None);
     assert_eq!(tarball_url_version("https://r/foo/-/foo.tgz", "foo"), None);
 }
+
+#[test]
+fn link_local_and_metadata_registries_are_blocked_but_private_ones_are_not() {
+    use super::is_blocked_registry_host;
+
+    // Cloud instance-metadata via link-local IPv4 (and the range around it).
+    assert!(is_blocked_registry_host("http://169.254.169.254/"));
+    assert!(is_blocked_registry_host("http://169.254.0.1:8080/path/"));
+    // Link-local IPv6 (fe80::/10) and an IPv4-mapped link-local address.
+    assert!(is_blocked_registry_host("http://[fe80::1]/"));
+    assert!(is_blocked_registry_host("http://[::ffff:169.254.169.254]/"));
+    // Well-known metadata hostname, case-insensitively.
+    assert!(is_blocked_registry_host("https://Metadata.Google.Internal/"));
+
+    // Private and loopback registries are deliberately allowed — resolving
+    // against an internal registry is pnpr's core use case.
+    assert!(!is_blocked_registry_host("https://registry.npmjs.org/"));
+    assert!(!is_blocked_registry_host("http://10.0.0.5:4873/"));
+    assert!(!is_blocked_registry_host("http://192.168.1.10/"));
+    assert!(!is_blocked_registry_host("http://127.0.0.1:4873/"));
+    // A non-URL can't drive a fetch, so it isn't treated as blocked here.
+    assert!(!is_blocked_registry_host("not-a-url"));
+}
+
+#[test]
+fn reject_blocked_registries_checks_the_default_and_named_registries() {
+    use super::reject_blocked_registries;
+    use std::collections::BTreeMap;
+
+    let clean = ResolveRequest {
+        registry: Some("https://registry.npmjs.org/".to_string()),
+        ..ResolveRequest::default()
+    };
+    assert!(reject_blocked_registries(&clean).is_none());
+
+    let blocked_default = ResolveRequest {
+        registry: Some("http://169.254.169.254/".to_string()),
+        ..ResolveRequest::default()
+    };
+    assert!(reject_blocked_registries(&blocked_default).is_some());
+
+    let blocked_named = ResolveRequest {
+        registry: Some("https://registry.npmjs.org/".to_string()),
+        named_registries: BTreeMap::from([(
+            "@scope".to_string(),
+            "http://169.254.169.254/".to_string(),
+        )]),
+        ..ResolveRequest::default()
+    };
+    assert!(reject_blocked_registries(&blocked_named).is_some());
+}

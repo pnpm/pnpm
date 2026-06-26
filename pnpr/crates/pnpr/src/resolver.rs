@@ -199,6 +199,57 @@ impl Resolver {
     }
 }
 
+/// Hostnames that resolve into the link-local instance-metadata range but
+/// don't look like a link-local address. Kept tiny and explicit — the IP
+/// check below covers the addresses themselves.
+const BLOCKED_METADATA_HOSTS: &[&str] = &["metadata.google.internal"];
+
+/// Whether a client-supplied registry URL points at a host the resolver
+/// must never fetch from: the link-local range that fronts cloud instance
+/// metadata (`169.254.0.0/16`, `fe80::/10`) plus the well-known metadata
+/// hostnames that resolve into it. Private and loopback addresses are
+/// deliberately *allowed* — resolving against an internal registry is
+/// pnpr's core use case. This is a request-boundary check on the URL the
+/// client sends; a hostname that only *resolves* to a link-local address
+/// at connect time (DNS rebinding) is out of scope here. A value that
+/// doesn't parse as a URL can't drive a fetch, so it isn't blocked.
+fn is_blocked_registry_host(registry: &str) -> bool {
+    let Ok(url) = url::Url::parse(registry) else {
+        return false;
+    };
+    match url.host() {
+        Some(url::Host::Ipv4(addr)) => addr.is_link_local(),
+        Some(url::Host::Ipv6(addr)) => {
+            // fe80::/10, plus any IPv4-mapped form of a link-local v4 address.
+            (addr.segments()[0] & 0xffc0) == 0xfe80
+                || addr.to_ipv4_mapped().is_some_and(|v4| v4.is_link_local())
+        }
+        Some(url::Host::Domain(host)) => {
+            BLOCKED_METADATA_HOSTS.iter().any(|blocked| host.eq_ignore_ascii_case(blocked))
+        }
+        None => false,
+    }
+}
+
+/// Reject (as `400`) a request that would point the resolver's
+/// server-side metadata fetches at a blocked host — see
+/// [`is_blocked_registry_host`]. Both the default registry and every
+/// named-registry alias are checked. The message stays generic so a
+/// registry URL carrying credentials isn't echoed back.
+fn reject_blocked_registries(request: &ResolveRequest) -> Option<Response> {
+    let registries =
+        request.registry.iter().chain(request.named_registries.values()).map(String::as_str);
+    for registry in registries {
+        if is_blocked_registry_host(registry) {
+            return Some(json_error(
+                StatusCode::BAD_REQUEST,
+                "registry host is not allowed (link-local and instance-metadata addresses are blocked)",
+            ));
+        }
+    }
+    None
+}
+
 /// Handle `POST /-/pnpr/v0/resolve`: verify the client's input lockfile under
 /// the client's policy, resolve against the client's registries, and
 /// stream the result back as NDJSON.
@@ -220,6 +271,9 @@ pub(crate) async fn handle_resolve(runtime: &Resolver, body: Bytes) -> Response 
     };
 
     // Resolve against the client's registries, not the server's own.
+    if let Some(blocked) = reject_blocked_registries(&request) {
+        return blocked;
+    }
     let config = runtime.config_for(&request);
     let package_version_guard =
         runtime.osv_index.as_ref().map(|index| Arc::clone(index) as Arc<dyn PackageVersionGuard>);
@@ -341,6 +395,9 @@ pub(crate) async fn handle_verify_lockfile(runtime: &Resolver, body: Bytes) -> R
         return verify_done_or_osv_violations(runtime.osv_index.as_ref(), input_lockfile);
     }
 
+    if let Some(blocked) = reject_blocked_registries(&request) {
+        return blocked;
+    }
     let config = runtime.config_for(&request);
     let request_auth = Arc::new(AuthHeaders::from_by_scope(request.auth_headers.clone()));
 
