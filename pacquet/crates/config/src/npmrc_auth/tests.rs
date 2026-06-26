@@ -1458,10 +1458,8 @@ fn from_project_ini_warns_on_auth_env_placeholder() {
 fn from_ini_expands_auth_env_placeholder_without_warning() {
     static_env!(Env, &[("MY_TOKEN", "secret")]);
 
-    let auth = NpmrcAuth::from_ini::<Env>(
-        "//registry.npmjs.org/:_authToken=${MY_TOKEN}\n",
-        Path::new(""),
-    );
+    let auth =
+        NpmrcAuth::from_ini::<Env>("//registry.npmjs.org/:_authToken=${MY_TOKEN}\n", Path::new(""));
 
     assert!(
         !auth.warnings.iter().any(|w| w.contains("Ignored project-level auth setting")),
