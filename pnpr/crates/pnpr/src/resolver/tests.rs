@@ -217,32 +217,50 @@ fn intern_config_caps_distinct_leaked_configs_but_keeps_serving_known_ones() {
     let cache_dir = PathBuf::from("/tmp/pnpr-intern-test-cache");
     let max = 2;
 
-    let registry_request = |registry: &str| ResolveRequest {
+    let request = |registry: &str| ResolveRequest {
         registry: Some(registry.to_string()),
         ..ResolveRequest::default()
     };
+    let intern = |registry: &str| {
+        intern_config(&configs, &store_dir, &cache_dir, &request(registry), max, usize::MAX)
+    };
 
     // Distinct registry configurations are interned up to the cap.
-    assert!(
-        intern_config(&configs, &store_dir, &cache_dir, &registry_request("https://a.test/"), max)
-            .is_some()
-    );
-    assert!(
-        intern_config(&configs, &store_dir, &cache_dir, &registry_request("https://b.test/"), max)
-            .is_some()
-    );
+    assert!(intern("https://a.test/").is_some());
+    assert!(intern("https://b.test/").is_some());
 
     // A new distinct configuration past the cap is refused, not leaked — this
     // is the bound on how much an authenticated caller can make the server
     // leak by varying its registry/policy fields.
-    assert!(
-        intern_config(&configs, &store_dir, &cache_dir, &registry_request("https://c.test/"), max)
-            .is_none()
-    );
+    assert!(intern("https://c.test/").is_none());
+    // ...and nothing was interned beyond the cap (the refusal didn't leak).
+    assert_eq!(configs.lock().expect("config cache poisoned").len(), max);
 
     // An already-interned configuration is still served even at the cap.
-    assert!(
-        intern_config(&configs, &store_dir, &cache_dir, &registry_request("https://a.test/"), max)
-            .is_some()
-    );
+    assert!(intern("https://a.test/").is_some());
+}
+
+#[test]
+fn intern_config_refuses_a_config_key_larger_than_the_byte_cap() {
+    use super::intern_config;
+    use pacquet_store_dir::StoreDir;
+    use std::{collections::HashMap, path::PathBuf, sync::Mutex};
+
+    let configs = Mutex::new(HashMap::new());
+    let store_dir = StoreDir::new(PathBuf::from("/tmp/pnpr-bytecap-test-store"));
+    let cache_dir = PathBuf::from("/tmp/pnpr-bytecap-test-cache");
+    let request = |registry: &str| ResolveRequest {
+        registry: Some(registry.to_string()),
+        ..ResolveRequest::default()
+    };
+    let intern = |registry: &str| {
+        intern_config(&configs, &store_dir, &cache_dir, &request(registry), 10, 1024)
+    };
+
+    // A normal configuration is interned.
+    assert!(intern("https://a.test/").is_some());
+    // A configuration whose canonical key exceeds the byte cap is refused, so a
+    // caller can't amplify the per-config leak with a giant overrides/registry.
+    let oversized = format!("https://{}.test/", "x".repeat(2048));
+    assert!(intern(&oversized).is_none());
 }

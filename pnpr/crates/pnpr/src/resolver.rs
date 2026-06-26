@@ -158,6 +158,7 @@ impl Resolver {
             &self.cache_dir,
             request,
             MAX_INTERNED_CONFIGS,
+            MAX_CONFIG_KEY_BYTES,
         )
     }
 }
@@ -176,19 +177,36 @@ const MAX_INTERNED_CONFIGS: usize = 1024;
 /// a legitimate caller never sees it.
 const TOO_MANY_CONFIGS_MESSAGE: &str = "too many distinct registry configurations";
 
+/// Hard cap on the byte size of a single interned config's canonical key,
+/// which carries its attacker-controlled `registry` / `namedRegistries` /
+/// `overrides` content. [`MAX_INTERNED_CONFIGS`] bounds only the *count* of
+/// leaked configs; without this a caller could pad each distinct config with
+/// a giant overrides/named-registries map and still amplify the per-request
+/// leak (the whole request body is allowed up to the publish-sized limit).
+/// `128 KiB` is far above any real registry/overrides configuration.
+const MAX_CONFIG_KEY_BYTES: usize = 128 * 1024;
+
 /// Build + leak a `&'static Config` for a request's registry
 /// configuration, interned by its canonical JSON so repeat requests reuse
-/// it. Returns `None` once `max_interned` distinct configurations have
-/// been interned: a leaked config can never be reclaimed, so refusing to
-/// leak more is the only real bound on the per-request leak — eviction
-/// would just let the same key be re-leaked. The cap is generous enough
-/// that legitimate clients (which reuse one configuration) never hit it.
+/// it. Returns `None` when the config can't be safely interned:
+///
+/// * once `max_interned` distinct configurations have been interned — a
+///   leaked config can never be reclaimed, so refusing to leak more is the
+///   only real bound on the per-request leak (eviction would just let the
+///   same key be re-leaked); or
+/// * when a single config's canonical key exceeds `max_key_bytes`, which
+///   bounds the *size* of each leaked config so a caller can't amplify the
+///   leak with a giant `overrides` / `namedRegistries` map.
+///
+/// Both caps are generous enough that legitimate clients (which reuse one
+/// small configuration) never hit them.
 fn intern_config(
     configs: &Mutex<HashMap<String, &'static PacquetConfig>>,
     store_dir: &StoreDir,
     cache_dir: &Path,
     request: &ResolveRequest,
     max_interned: usize,
+    max_key_bytes: usize,
 ) -> Option<&'static PacquetConfig> {
     let registry =
         request.registry.clone().unwrap_or_else(|| "https://registry.npmjs.org/".to_string());
@@ -208,6 +226,9 @@ fn intern_config(
         "trustPolicyIgnoreAfter": request.trust_policy_ignore_after,
     })
     .to_string();
+    if key.len() > max_key_bytes {
+        return None;
+    }
 
     let mut configs = configs.lock().expect("config cache poisoned");
     if let Some(config) = configs.get(&key) {
