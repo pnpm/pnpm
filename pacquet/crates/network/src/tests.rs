@@ -753,3 +753,34 @@ fn is_blocked_request_host_blocks_link_local_and_metadata_only() {
     assert!(!blocked("http://192.168.1.10/"));
     assert!(!blocked("http://127.0.0.1:4873/"));
 }
+
+/// End-to-end proof that the redirect policy in `default_client_builder`
+/// actually rejects a redirect to a blocked host — not merely that the
+/// predicate is correct. A loopback mock server (an allowed host)
+/// `302`-redirects to `http://169.254.169.254/`, and the client must fail
+/// the request during redirect handling rather than connect to the
+/// metadata host.
+#[tokio::test]
+async fn redirect_to_a_link_local_host_is_rejected_by_the_client() {
+    let mut server = mockito::Server::new_async().await;
+    let redirect = server
+        .mock("GET", "/pkg")
+        .with_status(302)
+        .with_header("location", "http://169.254.169.254/latest/meta-data/")
+        .create_async()
+        .await;
+
+    let client = super::ThrottledClient::new_for_installs();
+    let guard = client.acquire().await;
+    let err = guard
+        .get(format!("{}/pkg", server.url()))
+        .send()
+        .await
+        .expect_err("redirect to a link-local host must fail");
+
+    let debug = format!("{err:?}");
+    eprintln!("err={debug}");
+    assert!(debug.contains("link-local or instance-metadata host"), "err={debug}");
+    // The initial (allowed) request was made; the blocked redirect was not.
+    redirect.assert_async().await;
+}
