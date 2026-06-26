@@ -73,7 +73,6 @@ rmp-serde            = { workspace = true }
 serde                = { workspace = true }
 serde_json           = { workspace = true }
 tabled               = { workspace = true }
-url                  = { workspace = true }
 tempfile             = { workspace = true }
 tokio                = { workspace = true }
 tracing              = { workspace = true }

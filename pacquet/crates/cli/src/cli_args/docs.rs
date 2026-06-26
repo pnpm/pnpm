@@ -22,7 +22,8 @@ impl DocsArgs {
 
         let parsed = parse_wanted_dependency(raw_spec);
         let name = parsed.alias.as_deref().unwrap_or(raw_spec);
-        let (resolved_name, _range) = PackageManifest::resolve_registry_dependency(name, name);
+        let bare = parsed.bare_specifier.as_deref().unwrap_or(name);
+        let (resolved_name, _range) = PackageManifest::resolve_registry_dependency(name, bare);
 
         let http_client = ThrottledClient::for_installs(
             &config.proxy,
@@ -39,7 +40,7 @@ impl DocsArgs {
 
         let registries: std::collections::HashMap<String, String> =
             config.resolved_registries().into_iter().collect();
-        let registry = pick_registry_for_package(&registries, resolved_name, None);
+        let registry = pick_registry_for_package(&registries, resolved_name, Some(bare));
 
         let outcome = fetch_full_metadata(
             resolved_name,
@@ -125,9 +126,16 @@ fn open_url(url: &str) -> miette::Result<()> {
     match result {
         Ok(_) => Ok(()),
         Err(e) => {
-            // If we can't open the browser, print the URL instead.
+            let redacted = url::Url::parse(url).map_or_else(
+                |_| url.to_string(),
+                |mut u| {
+                    let _ = u.set_username("");
+                    let _ = u.set_password(None);
+                    u.to_string()
+                },
+            );
             eprintln!("Could not open browser: {e}");
-            println!("{url}");
+            println!("{redacted}");
             Ok(())
         }
     }

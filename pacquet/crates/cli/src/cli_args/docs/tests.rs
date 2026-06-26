@@ -1,4 +1,4 @@
-use super::*;
+use super::is_http_url;
 
 #[test]
 fn test_is_http_url_valid_https() {
