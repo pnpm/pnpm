@@ -1505,13 +1505,25 @@ fn is_transient_error(err: &TarballError) -> bool {
 
 fn local_file_tarball_path(package_url: &str) -> Option<PathBuf> {
     let path = package_url.strip_prefix("file:")?;
-    if (path.starts_with('/') || path.starts_with("//"))
+    if is_unc_like_file_payload(path) {
+        return None;
+    }
+    if path.starts_with('/')
         && let Ok(url) = url::Url::parse(package_url)
-        && let Ok(path) = url.to_file_path()
     {
-        return Some(path);
+        if url.scheme() != "file" || url.has_host() {
+            return None;
+        }
+        let path = url.to_file_path().ok()?;
+        return (!is_unc_like_file_payload(&path.to_string_lossy())).then_some(path);
     }
     Some(PathBuf::from(path))
+}
+
+fn is_unc_like_file_payload(path: &str) -> bool {
+    path.starts_with(r"\\")
+        || path.starts_with("////")
+        || (path.starts_with("//") && !path.starts_with("///"))
 }
 
 async fn extract_tarball_buffer(

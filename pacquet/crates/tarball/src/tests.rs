@@ -2,8 +2,8 @@ use super::{
     DownloadTarballToStore, FetchTarballForResolution, HttpStatusError, MemCache, NetworkError,
     PrefetchedCasPaths, RetryOpts, SharedReportedProgressKeys, TarballError, VerifyChecksumError,
     allocate_tarball_buffer, download_priority, extract_tarball_entries, extract_zip_entries,
-    fetch_and_extract_with_retry, is_transient_error, normalize_bundled_manifest,
-    prefetch_cas_paths,
+    fetch_and_extract_with_retry, is_transient_error, local_file_tarball_path,
+    normalize_bundled_manifest, prefetch_cas_paths,
 };
 use pacquet_network::{AuthHeaders, ThrottledClient, UNPRIORITIZED};
 use pacquet_reporter::SilentReporter;
@@ -1166,6 +1166,25 @@ fn fast_retry_opts() -> RetryOpts {
         min_timeout: Duration::from_millis(1),
         max_timeout: Duration::from_millis(1),
     }
+}
+
+#[test]
+fn local_file_tarball_path_rejects_hosted_file_urls() {
+    assert_eq!(local_file_tarball_path("file://server/share/pkg.tgz"), None);
+}
+
+#[test]
+fn local_file_tarball_path_rejects_unc_like_fallback_paths() {
+    assert_eq!(local_file_tarball_path("file:////server/share/pkg.tgz"), None);
+    assert_eq!(local_file_tarball_path(r"file:\\server\share\pkg.tgz"), None);
+}
+
+#[test]
+fn local_file_tarball_path_accepts_relative_file_specs() {
+    assert_eq!(
+        local_file_tarball_path("file:../vendor/pkg.tgz"),
+        Some(PathBuf::from("../vendor/pkg.tgz")),
+    );
 }
 
 #[tokio::test]
