@@ -17,6 +17,7 @@
     "directory": "pacquet/npm/pacquet"
   },
   "bin": "bin/pacquet",
+  "type": "module",
   "scripts": {
     "preinstall": "node install.js"
   },

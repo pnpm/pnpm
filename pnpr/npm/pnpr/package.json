@@ -15,6 +15,7 @@
     "directory": "pnpr/npm/pnpr"
   },
   "bin": "bin/pnpr",
+  "type": "module",
   "scripts": {
     "preinstall": "node install.js"
   },
