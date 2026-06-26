@@ -205,3 +205,44 @@ fn tarball_url_version_extracts_conventional_names_only() {
     assert_eq!(tarball_url_version("https://r/weird.tgz", "foo"), None);
     assert_eq!(tarball_url_version("https://r/foo/-/foo.tgz", "foo"), None);
 }
+
+#[test]
+fn intern_config_caps_distinct_leaked_configs_but_keeps_serving_known_ones() {
+    use super::intern_config;
+    use pacquet_store_dir::StoreDir;
+    use std::{collections::HashMap, path::PathBuf, sync::Mutex};
+
+    let configs = Mutex::new(HashMap::new());
+    let store_dir = StoreDir::new(PathBuf::from("/tmp/pnpr-intern-test-store"));
+    let cache_dir = PathBuf::from("/tmp/pnpr-intern-test-cache");
+    let max = 2;
+
+    let registry_request = |registry: &str| ResolveRequest {
+        registry: Some(registry.to_string()),
+        ..ResolveRequest::default()
+    };
+
+    // Distinct registry configurations are interned up to the cap.
+    assert!(
+        intern_config(&configs, &store_dir, &cache_dir, &registry_request("https://a.test/"), max)
+            .is_some()
+    );
+    assert!(
+        intern_config(&configs, &store_dir, &cache_dir, &registry_request("https://b.test/"), max)
+            .is_some()
+    );
+
+    // A new distinct configuration past the cap is refused, not leaked — this
+    // is the bound on how much an authenticated caller can make the server
+    // leak by varying its registry/policy fields.
+    assert!(
+        intern_config(&configs, &store_dir, &cache_dir, &registry_request("https://c.test/"), max)
+            .is_none()
+    );
+
+    // An already-interned configuration is still served even at the cap.
+    assert!(
+        intern_config(&configs, &store_dir, &cache_dir, &registry_request("https://a.test/"), max)
+            .is_some()
+    );
+}
