@@ -128,10 +128,10 @@ fn open_url(url: &str) -> miette::Result<()> {
         Err(e) => {
             let redacted = url::Url::parse(url).map_or_else(
                 |_| url.to_string(),
-                |mut u| {
-                    let _ = u.set_username("");
-                    let _ = u.set_password(None);
-                    u.to_string()
+                |mut parsed_url| {
+                    let _ = parsed_url.set_username("");
+                    let _ = parsed_url.set_password(None);
+                    parsed_url.to_string()
                 },
             );
             eprintln!("Could not open browser: {e}");
