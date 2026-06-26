@@ -734,7 +734,8 @@ fn default_network_concurrency_stays_within_floor_and_cap() {
 /// request-boundary check share.
 #[test]
 fn is_blocked_request_host_blocks_link_local_and_metadata_only() {
-    let blocked = |u: &str| super::is_blocked_request_host(&url::Url::parse(u).unwrap());
+    let blocked =
+        |url_str: &str| super::is_blocked_request_host(&url::Url::parse(url_str).unwrap());
 
     // Link-local IPv4 (cloud instance metadata) and the range around it.
     assert!(blocked("http://169.254.169.254/"));
