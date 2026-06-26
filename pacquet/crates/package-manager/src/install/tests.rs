@@ -8180,7 +8180,7 @@ async fn pre_resolution_hook_log_is_forwarded_to_pnpm_hook_channel() {
     assert_eq!(info_log.hook, "preResolution");
     assert_eq!(info_log.message, "Starting resolution");
     assert_eq!(info_log.from, "pnpmfile", "preResolution from is hardcoded to 'pnpmfile'");
-    assert!(!info_log.prefix.is_empty(), "prefix must be the project dir");
+    assert_eq!(info_log.prefix, *dir.path().to_string_lossy(), "prefix must be the lockfile dir");
 
     // Find the warn event
     let warn_log = captured
@@ -8195,7 +8195,7 @@ async fn pre_resolution_hook_log_is_forwarded_to_pnpm_hook_channel() {
     assert_eq!(warn_log.hook, "preResolution");
     assert_eq!(warn_log.message, "Some packages may need updates");
     assert_eq!(warn_log.from, "pnpmfile", "preResolution from is hardcoded to 'pnpmfile'");
-    assert!(!warn_log.prefix.is_empty(), "prefix must be the project dir");
+    assert_eq!(warn_log.prefix, *dir.path().to_string_lossy(), "prefix must be the lockfile dir");
 
     drop((dir, registry));
 }
