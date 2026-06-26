@@ -4,11 +4,18 @@ import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fs from "node:fs";
 
+// The cargo bin and the archived per-platform binaries are named `pacquet`;
+// the workflow builds `--bin pacquet` and uploads `pacquet-<codeTarget>`.
 const BIN_NAME = "pacquet";
+// Name of the binary file *inside* each native package, and the bin the
+// wrappers + pnpm's built-in `installPnpm` relinker resolve. The published
+// product is pnpm v12, so the file is `pnpm`; `installPnpm`'s
+// `linkExePlatformBinary` hardcodes this name.
+const NATIVE_BIN_FILE = "pnpm";
 // The wrapper package is published under two names: the original
 // `pacquet` (kept for back-compat) and `@pnpm/pacquet` (the official
 // pnpm-scoped alias). Both ship the same placeholder bin + preinstall
-// relinker and depend on the same `@pacquet/<target>` binary sub-packages.
+// relinker and depend on the same `@pnpm/exe.<target>` binary sub-packages.
 const SCOPED_ALIAS_NAME = "@pnpm/pacquet";
 const SCOPED_ALIAS_DIR = "pnpm-pacquet";
 const PACQUET_ROOT = resolve(fileURLToPath(import.meta.url), "../..");
@@ -38,7 +45,7 @@ function generateNativePackage(target) {
   // publishConfig.executableFiles tells pnpm pack to keep mode 0755
   // on the binary in the published tarball. Without it, pack normalizes
   // every non-bin file to 0644 and the preinstall hard-link inherits a
-  // non-executable inode, so the relinked `pacquet` fails with EACCES.
+  // non-executable inode, so the relinked `pnpm` fails with EACCES.
   const ext = target.platform === "win32" ? ".exe" : "";
   const manifestData = {
     name: packageName,
@@ -50,7 +57,7 @@ function generateNativePackage(target) {
       url: "https://github.com/pnpm/pnpm",
     },
     publishConfig: {
-      executableFiles: [`./${BIN_NAME}${ext}`],
+      executableFiles: [`./${NATIVE_BIN_FILE}${ext}`],
     },
   };
   if (target.libc) {
@@ -62,9 +69,10 @@ function generateNativePackage(target) {
   console.log(`Create manifest ${manifestPath}`);
   fs.writeFileSync(manifestPath, manifest);
 
-  // Copy the binary
+  // Copy the binary. The source is the archived `pacquet-<codeTarget>` build;
+  // inside the package it is published as `pnpm` (see NATIVE_BIN_FILE).
   const binarySource = resolve(REPO_ROOT, `${BIN_NAME}-${target.codeTarget}${ext}`);
-  const binaryTarget = resolve(packageRoot, `${BIN_NAME}${ext}`);
+  const binaryTarget = resolve(packageRoot, `${NATIVE_BIN_FILE}${ext}`);
 
   console.log(`Copy binary ${binaryTarget}`);
   fs.copyFileSync(binarySource, binaryTarget);
@@ -72,10 +80,10 @@ function generateNativePackage(target) {
 }
 
 // Patch a wrapper package's manifest in place with the release version and
-// the full set of `@pacquet/<target>` optional dependencies, preserving every
+// the full set of `@pnpm/exe.<target>` optional dependencies, preserving every
 // other field (notably its `bin` map). Used for both the `pacquet` wrapper and
-// the `pnpm` wrapper — both ship a JS shim that dispatches to the same native
-// sub-packages, only their package name and bin entries differ.
+// the `pnpm` wrapper — both ship a placeholder bin + preinstall relinker over
+// the same native sub-packages, only their package name and bin entries differ.
 function patchWrapperManifest(dir) {
   const manifestPath = resolve(PACKAGES_ROOT, dir, "package.json");
 
@@ -127,8 +135,13 @@ function generateScopedAliasPackage() {
   );
 }
 
+// The native binary packages are published under the convention pnpm's
+// built-in `installPnpm` relinker already anticipates
+// (`exePlatformPkgDirNameNext` → `@pnpm/exe.<platform>-<arch>[-musl]`), so a
+// self-update / version-switch to pnpm v12 can relink the bin without any
+// pacquet-specific logic.
 function nativePackageName(target) {
-  return `@${BIN_NAME}/${target.packageTarget}`;
+  return `@pnpm/exe.${target.packageTarget}`;
 }
 
 const TARGETS = [

@@ -15,16 +15,23 @@
     "directory": "pacquet/npm/pnpm"
   },
   "bin": {
-    "pnpm": "bin/pnpm",
-    "pn": "bin/pnpm",
-    "pnpx": "bin/pnpx",
-    "pnx": "bin/pnpx"
+    "pnpm": "pnpm",
+    "pn": "pn",
+    "pnpx": "pnpx",
+    "pnx": "pnx"
+  },
+  "type": "module",
+  "scripts": {
+    "preinstall": "node install.js"
   },
   "engines": {
     "node": ">=18.*"
   },
   "files": [
-    "bin/pnpm",
-    "bin/pnpx"
+    "pnpm",
+    "pn",
+    "pnpx",
+    "pnx",
+    "install.js"
   ]
 }

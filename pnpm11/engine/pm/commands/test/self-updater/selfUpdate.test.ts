@@ -1122,6 +1122,32 @@ describe('linkExePlatformBinary', () => {
     expect(result).toBe(fakeBinaryContent)
   })
 
+  test('links the pnpm v12 wrapper from its @pnpm/exe.<target> dependency', () => {
+    const dir = tempDir(false)
+
+    // pnpm v12 (the Rust port) is published as the unscoped `pnpm` wrapper that
+    // depends on `@pnpm/exe.<platform>-<arch>[-musl]` — the `exe.<...>` scheme.
+    const nextPkgName = exePlatformPkgDirNameNext(platform, arch, libcFamily)
+    const wrapperDir = path.join(dir, 'node_modules', 'pnpm')
+    const platformDir = path.join(dir, 'node_modules', '@pnpm', nextPkgName)
+
+    fs.mkdirSync(wrapperDir, { recursive: true })
+    fs.mkdirSync(platformDir, { recursive: true })
+
+    fs.writeFileSync(path.join(wrapperDir, executable), 'This is a placeholder.')
+    fs.writeFileSync(path.join(wrapperDir, 'package.json'), JSON.stringify({
+      bin: { pnpm: 'pnpm', pn: 'pn', pnpx: 'pnpx', pnx: 'pnx' },
+    }))
+
+    const fakeBinaryContent = '#!/bin/sh\necho "fake pnpm v12 binary"'
+    fs.writeFileSync(path.join(platformDir, executable), fakeBinaryContent)
+
+    linkExePlatformBinary(dir, 'pnpm')
+
+    const result = fs.readFileSync(path.join(wrapperDir, executable), 'utf8')
+    expect(result).toBe(fakeBinaryContent)
+  })
+
   // Regression coverage for https://github.com/pnpm/pnpm/issues/11486 — the
   // `pn` / `pnpx` / `pnx` aliases were broken in MSYS2 / Git Bash on Windows.
   // Root cause: linkExePlatformBinary pointed those bin entries at .cmd files,

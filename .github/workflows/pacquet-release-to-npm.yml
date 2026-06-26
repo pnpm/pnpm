@@ -7,7 +7,7 @@ name: Release pnpm (Rust)
 #
 # The same build is published under three names at the same version: `pnpm`
 # (the Rust port presenting as pnpm), `pacquet`, and the `@pnpm/pacquet`
-# alias. They all depend on the same `@pacquet/<target>` native sub-packages.
+# alias. They all depend on the same `@pnpm/exe.<target>` native sub-packages.
 #
 # The `tag` input defaults to `alpha` so a release never moves the `pnpm`
 # `latest` dist-tag (which serves the production TypeScript pnpm). Override it
@@ -218,12 +218,14 @@ jobs:
         # so no NPM_TOKEN is needed. `--provenance` attaches the same OIDC
         # token to a provenance attestation on each tarball.
         # The trailing slash on $package/ changes it to publishing the directory.
-        # The glob covers: the `pacquet` wrapper and its `@pacquet/<target>`
-        # native sub-packages (`pacquet*`), plus the `pnpm` wrapper and the
-        # `@pnpm/pacquet` scoped-alias mirror `pnpm-pacquet` (`pnpm*`). The
-        # `pnpm` and `@pnpm/pacquet` wrappers ship the same shim and the same
-        # `@pacquet/<target>` optional deps as `pacquet`; only the package
-        # name and bin entries differ, so users can adopt any of the names.
+        # The glob covers: the `pacquet` wrapper and the per-platform native
+        # sub-packages, whose build dirs are still named `pacquet-<target>`
+        # (`pacquet*`) though they publish as `@pnpm/exe.<target>`, plus the
+        # `pnpm` wrapper and the `@pnpm/pacquet` scoped-alias mirror
+        # `pnpm-pacquet` (`pnpm*`). The `pnpm` and `@pnpm/pacquet` wrappers ship
+        # the same placeholder bin and the same `@pnpm/exe.<target>` optional
+        # deps as `pacquet`; only the package name and bin entries differ, so
+        # users can adopt any of the names.
         env:
           TAG: ${{ inputs.tag }}
         run: |

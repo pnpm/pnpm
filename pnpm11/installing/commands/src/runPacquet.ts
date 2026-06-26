@@ -30,7 +30,7 @@ export interface MakeRunPacquetOpts {
    * original unscoped `pacquet` or the official scoped
    * `@pnpm/pacquet` mirror. Drives the directory we look in under
    * `node_modules/.pnpm-config/<packageName>/`. Both packages ship
-   * the same shim and the same `@pacquet/<plat>-<arch>` binary
+   * the same shim and the same `@pnpm/exe.<plat>-<arch>` binary
    * sub-packages, so the rest of the lookup is identical.
    */
   packageName: 'pacquet' | '@pnpm/pacquet'
@@ -215,7 +215,7 @@ function makePacquetEnv (opts: MakeRunPacquetOpts): NodeJS.ProcessEnv {
 
 /**
  * Path of the platform-specific native pacquet binary for the host. The
- * pacquet npm package declares the `@pacquet/<platform>-<arch>` binary as
+ * pacquet npm package declares the `@pnpm/exe.<platform>-<arch>` binary as
  * an `optionalDependency`, so it lands as a *sibling* of pacquet, not
  * inside its own `node_modules` (pacquet's own `node_modules` is empty
  * after configDependencies install). Resolve it directly here rather than
@@ -228,23 +228,25 @@ function makePacquetEnv (opts: MakeRunPacquetOpts): NodeJS.ProcessEnv {
  * into the global virtual store, and Node's `createRequire` builds its
  * search paths from the *literal* ancestors of the path it's given —
  * it won't follow the symlink up into the store dir where the
- * `@pacquet/<plat>-<arch>` sibling actually lives.
+ * `@pnpm/exe.<plat>-<arch>` sibling actually lives.
  */
 function resolvePacquetBin (lockfileDir: string, packageName: 'pacquet' | '@pnpm/pacquet'): string {
   const ext = process.platform === 'win32' ? '.exe' : ''
   const pacquetPkg = fs.realpathSync(path.join(lockfileDir, 'node_modules/.pnpm-config', packageName, 'package.json'))
-  return createRequire(pacquetPkg).resolve(`${pacquetPlatformPkgName()}/pacquet${ext}`)
+  return createRequire(pacquetPkg).resolve(`${pacquetPlatformPkgName()}/pnpm${ext}`)
 }
 
 /**
- * Name of the `@pacquet/<platform>-<arch>[-musl]` package that holds the
- * native pacquet binary for the host. On linux the binary packages are
+ * Name of the `@pnpm/exe.<platform>-<arch>[-musl]` package that holds the
+ * native pacquet binary for the host. It is published as pnpm v12, so it uses
+ * the same `@pnpm/exe.<target>` convention as the `pnpm` and `@pnpm/exe`
+ * wrappers; the binary file inside is `pnpm`. On linux the binary packages are
  * split by libc and only the matching one is installed, so spawning and
  * signature verification must agree on this exact name.
  */
 export function pacquetPlatformPkgName (): string {
   const libc = process.platform === 'linux' && getLibcFamilySync() === MUSL ? '-musl' : ''
-  return `@pacquet/${process.platform}-${process.arch}${libc}`
+  return `@pnpm/exe.${process.platform}-${process.arch}${libc}`
 }
 
 /**

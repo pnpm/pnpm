@@ -17,9 +17,13 @@ production pnpm on `latest`:
 npm install -g pnpm@alpha
 ```
 
-This package is a thin Node.js wrapper that dispatches to a platform-specific
-native binary for your operating system and architecture. It provides the
-`pnpm`, `pn`, `pnpx`, and `pnx` commands.
+On install, a preinstall script replaces the package's placeholder bin with the
+platform-specific native binary for your operating system and architecture, so
+`pnpm` runs the binary directly with no Node.js startup cost. It provides the
+`pnpm`, `pn`, `pnpx`, and `pnx` commands. (Because the binary is linked by a
+build script, installing with build scripts disabled — `--ignore-scripts`, or
+pnpm's/Bun's default — leaves the placeholder in place until pnpm is
+allow-listed.)
 
 Prebuilt binaries are available for `linux-x64`, `linux-arm64`, `linux-x64-musl`,
 `linux-arm64-musl`, `darwin-x64`, `darwin-arm64`, `win32-x64`, and `win32-arm64`.

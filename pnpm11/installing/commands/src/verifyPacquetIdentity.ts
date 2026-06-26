@@ -31,7 +31,7 @@ export interface VerifyPacquetIdentityOptions extends CreateFetchFromRegistryOpt
  * `configDependencies` and controls the lockfile integrity and the registry
  * the bytes came from — so the declaration alone cannot authorize running a
  * native binary. This verifies that the exact bytes installed on disk (the
- * `pacquet` shim and the host's `@pacquet/<platform>-<arch>` binary, which is
+ * `pacquet` shim and the host's `@pnpm/exe.<platform>-<arch>` binary, which is
  * what actually executes) carry a valid npm registry signature for that
  * `name@version`, checked against npm's embedded public keys. The signature is
  * verified over the *installed* integrity, so substituted or tampered bytes
