@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
-    io::{Cursor, Read},
-    path::{Component, PathBuf},
+    io::{self, Cursor, Read},
+    path::{Component, Path, PathBuf},
     sync::{Arc, LazyLock},
     time::{Duration, Instant, UNIX_EPOCH},
 };
@@ -152,6 +152,15 @@ pub enum TarballError {
     #[from(ignore)]
     #[diagnostic(code(pacquet_tarball::io_error))]
     ReadTarballEntries(std::io::Error),
+
+    #[from(ignore)]
+    #[display("Failed to read local tarball {}: {source}", path.display())]
+    #[diagnostic(code(pacquet_tarball::read_local_tarball))]
+    ReadLocalTarball {
+        path: PathBuf,
+        #[error(source)]
+        source: std::io::Error,
+    },
 
     #[diagnostic(
         code(pacquet_tarball::verify_checksum_error),
@@ -362,6 +371,93 @@ fn allocate_tarball_buffer(
     let mut buf = Vec::new();
     buf.try_reserve_exact(capacity).map_err(|_| too_large())?;
     Ok(buf)
+}
+
+async fn open_local_tarball(path: &Path) -> Result<(tokio::fs::File, u64), TarballError> {
+    let metadata = tokio::fs::metadata(path)
+        .await
+        .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
+    reject_non_file_local_tarball(path, &metadata)?;
+    let file = tokio::fs::File::open(path)
+        .await
+        .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
+    let metadata = file
+        .metadata()
+        .await
+        .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
+    reject_non_file_local_tarball(path, &metadata)?;
+    Ok((file, metadata.len()))
+}
+
+fn reject_non_file_local_tarball(
+    path: &Path,
+    metadata: &std::fs::Metadata,
+) -> Result<(), TarballError> {
+    if metadata.is_file() {
+        return Ok(());
+    }
+    Err(read_local_tarball_error(
+        path,
+        io::ErrorKind::InvalidInput,
+        "local tarball path is not a regular file",
+    ))
+}
+
+async fn read_local_tarball_buffer(
+    file: tokio::fs::File,
+    path: &Path,
+    package_url: &str,
+    size: u64,
+) -> Result<Vec<u8>, TarballError> {
+    use tokio::io::AsyncReadExt;
+
+    let read_limit = size.checked_add(1).ok_or_else(|| {
+        read_local_tarball_error(
+            path,
+            io::ErrorKind::InvalidData,
+            format!("local tarball is too large to read into memory ({size} bytes)"),
+        )
+    })?;
+    let mut buffer = allocate_local_tarball_buffer(path, package_url, size)?;
+    let mut reader = file.take(read_limit);
+    reader
+        .read_to_end(&mut buffer)
+        .await
+        .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
+    if u64::try_from(buffer.len()).unwrap_or(u64::MAX) > size {
+        return Err(read_local_tarball_error(
+            path,
+            io::ErrorKind::InvalidData,
+            format!("local tarball changed while reading; refused to read past {size} bytes"),
+        ));
+    }
+    Ok(buffer)
+}
+
+fn allocate_local_tarball_buffer(
+    path: &Path,
+    package_url: &str,
+    size: u64,
+) -> Result<Vec<u8>, TarballError> {
+    allocate_tarball_buffer(Some(size), package_url).map_err(|error| match error {
+        TarballError::TarballTooLarge { .. } => read_local_tarball_error(
+            path,
+            io::ErrorKind::InvalidData,
+            format!("local tarball is too large to read into memory ({size} bytes)"),
+        ),
+        other => other,
+    })
+}
+
+fn read_local_tarball_error(
+    path: &Path,
+    kind: io::ErrorKind,
+    message: impl Into<String>,
+) -> TarballError {
+    TarballError::ReadLocalTarball {
+        path: path.to_path_buf(),
+        source: io::Error::new(kind, message.into()),
+    }
 }
 
 #[instrument(skip(gz_data), fields(gz_data_len = gz_data.len()))]
@@ -1442,6 +1538,9 @@ fn tarball_error_to_request_retry(err: &TarballError) -> RequestRetryError {
         TarballError::ReadTarballEntries(_) => {
             out.code = Some("ERR_PACQUET_TARBALL_TAR".to_string());
         }
+        TarballError::ReadLocalTarball { .. } => {
+            out.code = Some("ERR_PACQUET_TARBALL_FILE".to_string());
+        }
         TarballError::WriteCasFile(_) | TarballError::WriteStoreIndex(_) => {
             out.code = Some("ERR_PACQUET_TARBALL_STORE".to_string());
         }
@@ -1486,8 +1585,87 @@ fn tarball_error_to_request_retry(err: &TarballError) -> RequestRetryError {
 fn is_transient_error(err: &TarballError) -> bool {
     match err {
         TarballError::HttpStatus(http) => !matches!(http.status, 401 | 403 | 404),
+        TarballError::ReadLocalTarball { .. } => false,
         _ => true,
     }
+}
+
+fn local_file_tarball_path(package_url: &str) -> Option<PathBuf> {
+    let path = package_url.strip_prefix("file:")?;
+    if is_unc_like_file_payload(path) {
+        return None;
+    }
+    if path.starts_with('/')
+        && let Ok(url) = url::Url::parse(package_url)
+    {
+        if url.scheme() != "file" || url.has_host() {
+            return None;
+        }
+        let path = url.to_file_path().ok()?;
+        return (!is_unc_like_file_payload(&path.to_string_lossy())).then_some(path);
+    }
+    Some(PathBuf::from(path))
+}
+
+fn is_unc_like_file_payload(path: &str) -> bool {
+    path.starts_with(r"\\")
+        || path.starts_with("////")
+        || (path.starts_with("//") && !path.starts_with("///"))
+}
+
+async fn extract_tarball_buffer(
+    buffer: Vec<u8>,
+    expected_integrity: Option<&Integrity>,
+    package_unpacked_size: Option<usize>,
+    package_url: &str,
+    store_dir: &'static StoreDir,
+    ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
+) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+    let _post_download_permit = post_download_semaphore()
+        .acquire()
+        .await
+        .expect("post-download semaphore shouldn't be closed this soon");
+
+    tracing::info!(target: "pacquet::download", ?package_url, "Download completed");
+
+    let expected_integrity = expected_integrity.cloned();
+    let package_url_owned = package_url.to_string();
+    let result = tokio::task::spawn_blocking(
+        move || -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+            let integrity = verify_tarball_integrity(
+                &buffer,
+                expected_integrity,
+                package_url_owned,
+            )?;
+            let tar_data = decompress_gzip(&buffer, package_unpacked_size)?;
+            let (cas_paths, pkg_files_idx) =
+                extract_tarball_entries(&tar_data, store_dir, ignore_file_pattern.as_deref())?;
+            Ok((integrity, cas_paths, pkg_files_idx))
+        },
+    )
+    .await
+    .map_err(TarballError::TaskJoin)??;
+
+    tracing::info!(target: "pacquet::download", ?package_url, "Checksum verified");
+
+    Ok(result)
+}
+
+fn verify_tarball_integrity(
+    buffer: &[u8],
+    expected_integrity: Option<Integrity>,
+    package_url: String,
+) -> Result<Integrity, TarballError> {
+    if let Some(expected) = expected_integrity {
+        expected.check(buffer).map_err(|error| {
+            TarballError::Checksum(VerifyChecksumError { url: package_url, error })
+        })?;
+        return Ok(expected);
+    }
+
+    let mut opts = IntegrityOpts::new().algorithm(Algorithm::Sha512);
+    opts.input(buffer);
+    Ok(opts.result())
 }
 
 /// Run one full tarball-fetch attempt: hit the network, drain the body
@@ -1528,6 +1706,28 @@ async fn fetch_and_extract_once<Reporter: self::Reporter>(
 ) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
     let network_error =
         |error| TarballError::FetchTarball(NetworkError { url: package_url.to_string(), error });
+
+    if let Some(path) = local_file_tarball_path(package_url) {
+        let (file, size) = open_local_tarball(&path).await?;
+        Reporter::emit(&LogEvent::FetchingProgress(FetchingProgressLog {
+            level: LogLevel::Debug,
+            message: FetchingProgressMessage::Started {
+                attempt: attempt + 1,
+                package_id: package_id.to_owned(),
+                size: Some(size),
+            },
+        }));
+        let buffer = read_local_tarball_buffer(file, &path, package_url, size).await?;
+        return extract_tarball_buffer(
+            buffer,
+            expected_integrity,
+            package_unpacked_size,
+            package_url,
+            store_dir,
+            ignore_file_pattern,
+        )
+        .await;
+    }
 
     // Acquire the network permit *before* `connect + send` and hold it
     // through body streaming. Releasing earlier would let the next
@@ -1698,61 +1898,15 @@ async fn fetch_and_extract_once<Reporter: self::Reporter>(
     // fixed; don't reintroduce it.
     drop(client);
 
-    // Gate the CPU-heavy decompress + cafs-write pipeline. The blocking
-    // pool is 512-wide by default, which is right for I/O wait but
-    // disastrous for CPU work that can only really run `num_cpus` at a
-    // time, so we cap concurrent `spawn_blocking` bodies. The permit is
-    // held across the `spawn_blocking.await` below and dropped at end
-    // of scope.
-    let _post_download_permit = post_download_semaphore()
-        .acquire()
-        .await
-        .expect("post-download semaphore shouldn't be closed this soon");
-
-    tracing::info!(target: "pacquet::download", ?package_url, "Download completed");
-
-    // Move the CPU-bound work (SHA-512, gzip inflate, per-file SHA-512,
-    // CAFS writes) onto the blocking pool. A plain `tokio::spawn` would
-    // pin a reactor worker for each tarball — on a 2-core runner only
-    // two tarballs could make progress at a time. The post-download
-    // semaphore caps concurrency here.
-    let expected_integrity = expected_integrity.cloned();
-    let package_url_owned = package_url.to_string();
-    let result = tokio::task::spawn_blocking(
-        move || -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
-            // Verify a known integrity, or compute one when the hash
-            // isn't known until after download — remote (non-registry)
-            // https-tarball direct deps, where the resolver learns the
-            // integrity here. Mirrors pnpm's worker
-            // `integrity ?? calcIntegrity(buffer)`
-            // ([worker/src/start.ts](https://github.com/pnpm/pnpm/blob/086c5e91e8/worker/src/start.ts#L232)).
-            let integrity = if let Some(expected) = expected_integrity {
-                expected.check(&buffer).map_err(|error| {
-                    TarballError::Checksum(VerifyChecksumError { url: package_url_owned, error })
-                })?;
-                expected
-            } else {
-                let mut opts = IntegrityOpts::new().algorithm(Algorithm::Sha512);
-                opts.input(&buffer);
-                opts.result()
-            };
-
-            // Extract in a scope so the decompressed buffer + `tar::Archive`
-            // are released before we return — a large package's inflated
-            // bytes can be many MB.
-            let (cas_paths, pkg_files_idx) = {
-                let tar_data = decompress_gzip(&buffer, package_unpacked_size)?;
-                extract_tarball_entries(&tar_data, store_dir, ignore_file_pattern.as_deref())?
-            };
-            Ok((integrity, cas_paths, pkg_files_idx))
-        },
+    extract_tarball_buffer(
+        buffer,
+        expected_integrity,
+        package_unpacked_size,
+        package_url,
+        store_dir,
+        ignore_file_pattern,
     )
     .await
-    .map_err(TarballError::TaskJoin)??;
-
-    tracing::info!(target: "pacquet::download", ?package_url, "Checksum verified");
-
-    Ok(result)
 }
 
 /// Run [`fetch_and_extract_once`] under pnpm's retry policy. Permanent
@@ -2198,7 +2352,7 @@ impl<'a> DownloadTarballToStore<'a> {
         // shape as upstream's `ERR_PNPM_NO_OFFLINE_META`, scoped to
         // tarballs because that's what pacquet's frozen install needs
         // network for.
-        if self.offline {
+        if self.offline && local_file_tarball_path(package_url).is_none() {
             tracing::warn!(
                 target: "pacquet::download",
                 ?package_url,

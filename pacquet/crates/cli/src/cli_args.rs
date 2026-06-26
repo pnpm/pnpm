@@ -7,6 +7,7 @@ pub mod cat_index;
 pub mod config;
 pub mod create;
 pub mod dedupe;
+pub mod deploy;
 pub mod dist_tag;
 pub mod dlx;
 pub mod exec;
@@ -57,6 +58,7 @@ use clap::{Parser, Subcommand, ValueEnum};
 use config::ConfigArgs;
 use create::CreateArgs;
 use dedupe::DedupeArgs;
+use deploy::DeployArgs;
 use dist_tag::DistTagArgs;
 use dlx::DlxArgs;
 use exec::ExecArgs;
@@ -282,6 +284,8 @@ pub enum CliCommand {
     Import(ImportArgs),
     /// Deduplicate packages in the lockfile
     Dedupe(DedupeArgs),
+    /// Deploy a package from a workspace
+    Deploy(DeployArgs),
     /// Remove extraneous packages
     Prune(PruneArgs),
     /// Fetch packages from the lockfile into the virtual store
@@ -376,6 +380,7 @@ impl CliArgs {
                 | CliCommand::Link(_)
                 | CliCommand::Import(_)
                 | CliCommand::Dedupe(_)
+                | CliCommand::Deploy(_)
                 | CliCommand::Prune(_)
                 | CliCommand::Fetch(_)
                 | CliCommand::Unlink(_)
@@ -721,30 +726,7 @@ impl CliArgs {
                     // mutable through `Config::leak`'s
                     // `&'static mut Config` return.
                     let cfg = config()?;
-                    cfg.offline = cfg.offline || args.offline;
-                    cfg.prefer_offline = cfg.prefer_offline || args.prefer_offline;
-                    cfg.frozen_store = cfg.frozen_store || args.frozen_store;
-                    // `--ignore-scripts` enables (never toggles off) the
-                    // config value, matching the "enable" CLI flags above.
-                    cfg.ignore_scripts = cfg.ignore_scripts || args.ignore_scripts;
-                    cfg.workspace_concurrency =
-                        args.resolve_workspace_concurrency(cfg.workspace_concurrency);
-                    // Network overrides: a passed `--network-concurrency` /
-                    // `--fetch-timeout` / `--user-agent` replaces the
-                    // config-resolved value for this invocation, matching
-                    // pnpm's "CLI wins" precedence.
-                    if let Some(network_concurrency) = args.network_concurrency {
-                        cfg.network_concurrency = network_concurrency;
-                    }
-                    if let Some(fetch_timeout) = args.fetch_timeout {
-                        cfg.fetch_timeout = fetch_timeout;
-                    }
-                    if let Some(user_agent) = args.user_agent.clone() {
-                        cfg.user_agent = user_agent;
-                    }
-                    if let Some(pnpr_server) = args.pnpr_server.clone() {
-                        cfg.pnpr_server = Some(pnpr_server);
-                    }
+                    apply_install_cli_config(cfg, &args);
                     let require_lockfile = args.frozen_lockfile;
                     let frozen_lockfile = args.frozen_lockfile;
                     // Config dependencies are workspace-level state: their
@@ -783,6 +765,33 @@ impl CliArgs {
                         }
                         ReporterType::Silent => {
                             Box::pin(pipeline.run::<SilentReporter>()).await?;
+                        }
+                    }
+                }
+                Ok(())
+            }),
+            CliCommand::Deploy(args) => Box::pin(async move {
+                #[allow(
+                    clippy::large_stack_frames,
+                    reason = "the three monomorphized deploy futures would otherwise each reserve their full size in this frame"
+                )]
+                {
+                    let cfg = config()?;
+                    apply_install_cli_config(cfg, &args.install_args);
+                    let (config_root, package_manager_to_sync) =
+                        derive_config_root_and_package_manager_to_sync(cfg, dir_ref)
+                            .wrap_err("derive workspace root and package manager policy")?;
+                    let pipeline =
+                        DeployPipeline { args, cfg, config_root, package_manager_to_sync };
+                    match reporter {
+                        ReporterType::Default | ReporterType::AppendOnly => {
+                            Box::pin(pipeline.run::<DefaultReporter>(dir_ref)).await?;
+                        }
+                        ReporterType::Ndjson => {
+                            Box::pin(pipeline.run::<NdjsonReporter>(dir_ref)).await?;
+                        }
+                        ReporterType::Silent => {
+                            Box::pin(pipeline.run::<SilentReporter>(dir_ref)).await?;
                         }
                     }
                 }
@@ -1079,6 +1088,33 @@ impl InstallPipeline {
     }
 }
 
+struct DeployPipeline {
+    args: DeployArgs,
+    cfg: &'static mut Config,
+    config_root: PathBuf,
+    package_manager_to_sync: Option<PackageManagerToSync>,
+}
+
+impl DeployPipeline {
+    async fn run<Reporter: self::Reporter + 'static>(self, dir_ref: &Path) -> miette::Result<()> {
+        let DeployPipeline { args, cfg, config_root, package_manager_to_sync } = self;
+        if let Some(pm) = package_manager_to_sync.as_ref() {
+            config_deps::sync_package_manager_dependencies(
+                cfg,
+                &config_root,
+                &pm.specifier,
+                &pm.version,
+                false,
+            )
+            .await?;
+        }
+        config_deps::install_config_deps::<Reporter>(cfg, &config_root, false).await?;
+        config_deps::run_update_config_hooks::<Reporter>(cfg, &config_root).await?;
+        let cfg: &'static Config = cfg;
+        Box::pin(args.run::<Reporter>(cfg, dir_ref)).await
+    }
+}
+
 /// Shared workspace-root and package-manager policy derivation used by the
 /// install, dedupe, and prune dispatch paths.
 fn derive_config_root_and_package_manager_to_sync(
@@ -1090,6 +1126,26 @@ fn derive_config_root_and_package_manager_to_sync(
         package_manager_to_sync(&config_root.join("package.json"), &config_root)
             .wrap_err("read package manager policy")?;
     Ok((config_root, package_manager_to_sync))
+}
+
+fn apply_install_cli_config(cfg: &mut Config, args: &InstallArgs) {
+    cfg.offline = cfg.offline || args.offline;
+    cfg.prefer_offline = cfg.prefer_offline || args.prefer_offline;
+    cfg.frozen_store = cfg.frozen_store || args.frozen_store;
+    cfg.ignore_scripts = cfg.ignore_scripts || args.ignore_scripts;
+    cfg.workspace_concurrency = args.resolve_workspace_concurrency(cfg.workspace_concurrency);
+    if let Some(network_concurrency) = args.network_concurrency {
+        cfg.network_concurrency = network_concurrency;
+    }
+    if let Some(fetch_timeout) = args.fetch_timeout {
+        cfg.fetch_timeout = fetch_timeout;
+    }
+    if let Some(user_agent) = args.user_agent.clone() {
+        cfg.user_agent = user_agent;
+    }
+    if let Some(pnpr_server) = args.pnpr_server.clone() {
+        cfg.pnpr_server = Some(pnpr_server);
+    }
 }
 
 /// The reporter-generic body of `pacquet dedupe`: snapshots the lockfile

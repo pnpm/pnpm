@@ -1,5 +1,6 @@
 use derive_more::{Display, Error};
 use pacquet_diagnostics::miette::{self, Diagnostic};
+use std::path::PathBuf;
 
 /// Error type of [`crate::DirectoryFetcher`].
 ///
@@ -23,6 +24,14 @@ pub enum DirectoryFetcherError {
         #[error(source)]
         source: std::io::Error,
     },
+
+    #[display(
+        "path {} resolves outside source directory {}",
+        path.display(),
+        directory.display()
+    )]
+    #[diagnostic(code(pacquet_directory_fetcher::path_escape))]
+    PathOutsideDirectory { path: PathBuf, directory: PathBuf },
 
     #[diagnostic(transparent)]
     Packlist(#[error(source)] pacquet_git_fetcher::PacklistError),

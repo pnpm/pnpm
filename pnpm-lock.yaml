@@ -8357,6 +8357,9 @@ importers:
       execa:
         specifier: 'catalog:'
         version: safe-execa@0.3.0
+      is-subdir:
+        specifier: 'catalog:'
+        version: 2.0.0
       libnpmpublish:
         specifier: 'catalog:'
         version: 11.2.0

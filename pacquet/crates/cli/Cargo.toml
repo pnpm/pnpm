@@ -32,6 +32,7 @@ pacquet-modules-yaml                      = { workspace = true }
 pacquet-network                           = { workspace = true }
 pacquet-config                            = { workspace = true }
 pacquet-default-reporter                  = { workspace = true }
+pacquet-deps-path                         = { workspace = true }
 pacquet-pack                              = { workspace = true }
 pacquet-package-manifest                  = { workspace = true }
 pacquet-package-manager                   = { workspace = true }
@@ -45,9 +46,11 @@ pacquet-resolving-resolver-base           = { workspace = true }
 pacquet-store-dir                         = { workspace = true }
 pacquet-tarball                           = { workspace = true }
 pacquet-diagnostics                       = { workspace = true }
+pacquet-directory-fetcher                 = { workspace = true }
 pacquet-workspace                         = { workspace = true }
 pacquet-workspace-manifest-writer         = { workspace = true }
 pacquet-workspace-projects-graph          = { workspace = true }
+pacquet-workspace-projects-filter         = { workspace = true }
 pacquet-workspace-state                   = { workspace = true }
 
 chrono               = { workspace = true }
@@ -73,6 +76,7 @@ tabled               = { workspace = true }
 tempfile             = { workspace = true }
 tokio                = { workspace = true }
 tracing              = { workspace = true }
+url                  = { workspace = true }
 which                = { workspace = true }
 base64               = { workspace = true }
 wax                  = { workspace = true }

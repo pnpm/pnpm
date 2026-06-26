@@ -566,7 +566,7 @@ where
         //
         // [bunyan]: <https://github.com/trentm/node-bunyan>
         let manifest_dir = manifest.path().parent().expect("manifest path always has a parent dir");
-        let workspace_dir_opt = pacquet_workspace::find_workspace_dir(manifest_dir)
+        let workspace_dir_opt = configured_or_discovered_workspace_dir(config, manifest_dir)
             .map_err(InstallError::FindWorkspaceDir)?;
         let workspace_root =
             workspace_dir_opt.clone().unwrap_or_else(|| manifest_dir.to_path_buf());
@@ -2284,7 +2284,7 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<P
         optional_dependencies: dependency_groups.contains(&DependencyGroup::Optional),
     };
     let manifest_dir = manifest.path().parent()?;
-    let workspace_dir_opt = pacquet_workspace::find_workspace_dir(manifest_dir).ok()?;
+    let workspace_dir_opt = configured_or_discovered_workspace_dir(config, manifest_dir).ok()?;
     let workspace_root = workspace_dir_opt.clone().unwrap_or_else(|| manifest_dir.to_path_buf());
     let workspace_manifest = match workspace_dir_opt.as_deref() {
         Some(dir) => pacquet_workspace::read_workspace_manifest(dir).ok()?,
@@ -2354,6 +2354,16 @@ fn build_project_manifests_list<'a>(
         }
     }
     list
+}
+
+fn configured_or_discovered_workspace_dir(
+    config: &Config,
+    manifest_dir: &Path,
+) -> Result<Option<PathBuf>, pacquet_workspace::FindWorkspaceDirError> {
+    match config.workspace_dir.clone() {
+        Some(workspace_dir) => Ok(Some(workspace_dir)),
+        None => pacquet_workspace::find_workspace_dir(manifest_dir),
+    }
 }
 
 /// Build the `name → version → WorkspacePackage` lookup the npm
