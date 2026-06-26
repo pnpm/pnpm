@@ -114,6 +114,7 @@ export type PackOptions = Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs
 >> & Partial<Pick<ConfigContext,
 | 'hooks'
 | 'selectedProjectsGraph'
+| 'allProjectsGraph'
 >> & {
   argv: {
     original: string[]
@@ -153,7 +154,7 @@ export async function handler (opts: PackOptions): Promise<string> {
       })
     }
 
-    const chunks = sortProjects(selectedProjectsGraph)
+    const chunks = sortProjects(selectedProjectsGraph, opts.allProjectsGraph)
 
     const limitPack = pLimit(getWorkspaceConcurrency(opts.workspaceConcurrency))
     const resolvedOpts = { ...opts }

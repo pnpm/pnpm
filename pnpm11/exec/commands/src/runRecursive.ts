@@ -37,7 +37,7 @@ export type RecursiveRunOpts = Pick<Config,
 | 'workspaceDir'
 | 'nodeExperimentalPackageMap'
 | 'modulesDir'
-> & Pick<ConfigContext, 'rootProjectManifest'> & Required<Pick<ConfigContext, 'allProjects' | 'selectedProjectsGraph'> & Pick<Config, 'workspaceDir' | 'dir'>> &
+> & Pick<ConfigContext, 'rootProjectManifest' | 'allProjectsGraph'> & Required<Pick<ConfigContext, 'allProjects' | 'selectedProjectsGraph'> & Pick<Config, 'workspaceDir' | 'dir'>> &
 Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'reporter' | 'reverse' | 'sort' | 'workspaceConcurrency'>> &
 {
   ifPresent?: boolean
@@ -56,7 +56,7 @@ export async function runRecursive (
   let hasCommand = 0
 
   const sortedPackageChunks = opts.sort
-    ? sortProjects(opts.selectedProjectsGraph)
+    ? sortProjects(opts.selectedProjectsGraph, opts.allProjectsGraph)
     : [(Object.keys(opts.selectedProjectsGraph) as ProjectRootDir[]).sort()]
   let packageChunks: ProjectRootDir[][] = opts.reverse ? sortedPackageChunks.reverse() : sortedPackageChunks
 

@@ -1,0 +1,55 @@
+import { expect, test } from '@jest/globals'
+import type { ProjectRootDir, ProjectsGraph } from '@pnpm/types'
+import { sequenceGraph, sortProjects } from '@pnpm/workspace.projects-sorter'
+
+function makeGraph (adjacency: Record<string, string[]>): ProjectsGraph {
+  const graph: ProjectsGraph = {}
+  for (const [dir, dependencies] of Object.entries(adjacency)) {
+    graph[dir as ProjectRootDir] = {
+      dependencies: dependencies as ProjectRootDir[],
+    } as ProjectsGraph[ProjectRootDir]
+  }
+  return graph
+}
+
+// Mirrors how the real selected graph is built: a subset of nodes that keep
+// their original `dependencies` arrays (still referencing unselected projects).
+function select (graph: ProjectsGraph, names: string[]): ProjectsGraph {
+  const selected: ProjectsGraph = {}
+  for (const name of names) {
+    selected[name as ProjectRootDir] = graph[name as ProjectRootDir]
+  }
+  return selected
+}
+
+const dirs = (...names: string[]): ProjectRootDir[] => names as ProjectRootDir[]
+
+test('sorts every project when only one graph is given', () => {
+  const graph = makeGraph({ a: ['b'], b: ['c'], c: [] })
+  expect(sortProjects(graph)).toStrictEqual([dirs('c'), dirs('b'), dirs('a')])
+})
+
+test('orders selected projects connected only through an unselected project', () => {
+  const graph = makeGraph({ a: ['b'], b: ['c'], c: [] })
+  expect(sortProjects(select(graph, ['a', 'c']), graph)).toStrictEqual([dirs('c'), dirs('a')])
+})
+
+test('keeps independent selected projects in a single chunk', () => {
+  const graph = makeGraph({ a: ['b'], b: [], c: [] })
+  expect(sortProjects(select(graph, ['a', 'c']), graph)).toStrictEqual([dirs('a', 'c')])
+})
+
+test('resolves transitive edges across a diamond of unselected projects', () => {
+  const graph = makeGraph({ a: ['x', 'y'], x: ['c'], y: ['c'], c: [] })
+  expect(sortProjects(select(graph, ['a', 'c']), graph)).toStrictEqual([dirs('c'), dirs('a')])
+})
+
+test('without a full graph, resolution is limited to edges among the sorted projects', () => {
+  const graph = makeGraph({ a: ['b'], b: ['c'], c: [] })
+  expect(sortProjects(select(graph, ['a', 'c']))).toStrictEqual([dirs('a', 'c')])
+})
+
+test('detects a cycle that passes through unselected projects', () => {
+  const graph = makeGraph({ a: ['b'], b: ['c'], c: ['a'] })
+  expect(sequenceGraph(select(graph, ['a', 'c']), graph).safe).toBe(false)
+})

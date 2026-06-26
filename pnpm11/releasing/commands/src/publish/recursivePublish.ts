@@ -56,6 +56,7 @@ Partial<Pick<Config,
 >> &
 Partial<Pick<ConfigContext,
 | 'selectedProjectsGraph'
+| 'allProjectsGraph'
 >> & {
   access?: 'public' | 'restricted'
   argv: {
@@ -113,7 +114,7 @@ export async function recursivePublish (
     if (opts.cliOptions['otp']) {
       appendedArgs.push(`--otp=${opts.cliOptions['otp'] as string}`)
     }
-    const chunks = sortProjects(opts.selectedProjectsGraph)
+    const chunks = sortProjects(opts.selectedProjectsGraph, opts.allProjectsGraph)
     const tag = opts.tag ?? 'latest'
     if (opts.batch) {
       const sortedPkgs = chunks

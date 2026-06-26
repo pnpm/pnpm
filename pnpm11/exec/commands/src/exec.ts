@@ -164,7 +164,7 @@ export type ExecOpts = Required<Pick<ConfigContext, 'selectedProjectsGraph'>> & 
 | 'userAgent'
 | 'verifyDepsBeforeRun'
 | 'workspaceDir'
-> & Pick<ConfigContext, 'cliOptions'> & CheckDepsStatusOptions
+> & Pick<ConfigContext, 'cliOptions' | 'allProjectsGraph'> & CheckDepsStatusOptions
 
 export async function handler (
   opts: ExecOpts,
@@ -186,7 +186,7 @@ export async function handler (
   let chunks!: ProjectRootDir[][]
   if (opts.recursive) {
     chunks = opts.sort
-      ? sortProjects(opts.selectedProjectsGraph)
+      ? sortProjects(opts.selectedProjectsGraph, opts.allProjectsGraph)
       : [(Object.keys(opts.selectedProjectsGraph) as ProjectRootDir[]).sort()]
     if (opts.reverse) {
       chunks = chunks.reverse()
