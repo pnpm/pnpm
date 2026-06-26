@@ -21,9 +21,9 @@ const NATIVE_BIN_FILE = "pnpm";
 // from it with the same content and a different package name.
 const EXE_WRAPPER_NAME = "@pnpm/exe";
 const EXE_WRAPPER_DIR = "pnpm-exe";
-// The root-level bin files (placeholder `pnpm` + `pn`/`pnpx`/`pnx` aliases) plus
-// the preinstall relinker, shared verbatim by both wrappers.
-const WRAPPER_FILES = ["pnpm", "pn", "pnpx", "pnx", "install.js"];
+// The root-level bin files (placeholder `pnpm` + `pn`/`pnpx`/`pnx` aliases),
+// the preinstall relinker, and the README — shared verbatim by both wrappers.
+const WRAPPER_FILES = ["pnpm", "pn", "pnpx", "pnx", "install.js", "README.md"];
 
 const PNPM_ROOT = resolve(fileURLToPath(import.meta.url), "../..");
 const PACKAGES_ROOT = resolve(PNPM_ROOT, "..");
