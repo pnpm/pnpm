@@ -1,17 +1,10 @@
 name: Release pnpm (Rust)
 
-# Manual-trigger only. Type the version to publish — the workflow patches
-# pacquet/npm/pnpm/package.json with it before generating per-platform
-# packages and publishing. No git tag is created and no GitHub release
-# asset is uploaded; npm is the authoritative artifact store.
-#
-# The same build is published under two names at the same version: `pnpm` and
-# `@pnpm/exe` (the Rust port presenting as pnpm). Both depend on the same
-# `@pnpm/exe.<target>` native sub-packages.
-#
-# The `tag` input defaults to `next-12` so a release never moves the `pnpm`
-# `latest` dist-tag (which serves the production TypeScript pnpm). Override it
-# deliberately when promoting a release.
+# Manual-trigger only: patches the version into pacquet/npm/pnpm/package.json,
+# generates the per-platform packages, and publishes (no git tag / release asset
+# — npm is the artifact store). Ships the Rust port under two names, `pnpm` and
+# `@pnpm/exe`, both depending on the `@pnpm/exe.<target>` natives. The `tag`
+# defaults to `next-12` so a release never touches the production `latest`.
 on:
   workflow_dispatch:
     inputs:
@@ -20,10 +13,8 @@ on:
         required: true
         type: string
       tag:
-        # A `choice` (not free-form) so a typo or a mistaken `latest` can't move
-        # the production `pnpm` dist-tag and ship the Rust v12 preview to every
-        # consumer. `latest` is deliberately absent; promoting v12 to it is a
-        # separate, reviewed decision that would add it here explicitly.
+        # A `choice` (not free-form) so a mistaken `latest` can't move the
+        # production `pnpm` dist-tag. `latest` is intentionally omitted.
         description: 'npm dist-tag to publish under'
         required: true
         default: 'next-12'
@@ -181,11 +172,8 @@ jobs:
           fi
 
       - name: Inject version into pacquet/npm/pnpm/package.json
-        # The committed package.json has no `version` field; the version comes
-        # from the workflow_dispatch input. Patching it here means
-        # generate-packages.mjs (which copies the version into each per-platform
-        # manifest and into the generated `@pnpm/exe` wrapper) and `pnpm publish`
-        # (which reads from package.json) both see the right value.
+        # The committed package.json has no `version`; patch it from the input so
+        # generate-packages.mjs and `pnpm publish` both pick it up.
         env:
           VERSION: ${{ inputs.version }}
         run: |
@@ -220,17 +208,11 @@ jobs:
           for package in pacquet/npm/pacquet-* pacquet/npm/pnpm*; do cat $package/package.json ; echo ; done
 
       - name: Publish npm packages
-        # Auth is via npm's trusted publishing: `id-token: write` above grants
-        # this job an OIDC token that pnpm/npm exchange with the registry,
-        # so no NPM_TOKEN is needed. `--provenance` attaches the same OIDC
-        # token to a provenance attestation on each tarball.
-        # The trailing slash on $package/ changes it to publishing the directory.
-        # The glob covers: the per-platform native sub-packages, whose build dirs
-        # are named `pacquet-<target>` (`pacquet-*`) though they publish as
-        # `@pnpm/exe.<target>`, plus the `pnpm` wrapper and the generated
-        # `@pnpm/exe` wrapper in `pnpm-exe` (`pnpm*`). Both wrappers ship the same
-        # placeholder bin and the same `@pnpm/exe.<target>` optional deps; only
-        # the package name differs, so users can install either name.
+        # Auth via npm trusted publishing (the `id-token: write` OIDC token), so
+        # no NPM_TOKEN; `--provenance` attests each tarball. The trailing slash
+        # publishes the directory. The glob covers the native sub-packages (build
+        # dirs `pacquet-*`, published as `@pnpm/exe.<target>`) plus the `pnpm` and
+        # `@pnpm/exe` (`pnpm-exe`) wrappers.
         env:
           TAG: ${{ inputs.tag }}
         run: |

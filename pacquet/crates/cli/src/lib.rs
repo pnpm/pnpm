@@ -68,15 +68,10 @@ pub fn main() -> miette::Result<()> {
 /// same room on every platform, including Windows (1 MiB default).
 const MAIN_STACK_SIZE: usize = 32 * 1024 * 1024;
 
-/// Process argv, with a leading `dlx` subcommand injected when the binary was
-/// launched as `pnpx`/`pnx`.
-///
-/// `pnpx`/`pnx` are shorthand for `pnpm dlx`. The npm `pnpm` package ships them
-/// as bins of the native binary: on Windows the preinstall hardlinks
-/// `pnpx.exe`/`pnx.exe` to it, so the only signal of which name launched us is
-/// the executable path. Mirrors pnpm's `buildArgv` (`pnpm/src/pnpm.ts`). The
-/// Unix alias scripts inject `dlx` themselves before exec'ing the binary, so in
-/// practice this only fires on the Windows hardlink path.
+/// Process argv with a leading `dlx` injected when launched as `pnpx`/`pnx`
+/// (shorthand for `pnpm dlx`), mirroring pnpm's `buildArgv`. Only the Windows
+/// hardlink aliases rely on this — the Unix alias scripts inject `dlx`
+/// themselves — and there `current_exe` is the only signal of the launch name.
 fn argv_with_alias_subcommand() -> Vec<OsString> {
     let exe = std::env::current_exe().ok();
     let exe_name =

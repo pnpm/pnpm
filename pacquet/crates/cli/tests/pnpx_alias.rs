@@ -1,18 +1,12 @@
-//! The `pnpx` / `pnx` bins are the native binary shipped under another name; the
-//! binary detects its launch name via `current_exe` and injects the `dlx`
-//! subcommand (`argv_with_alias_subcommand` in the cli crate). This is the path
-//! pnpm relies on for the Windows alias hardlinks. We exercise it on Unix by
-//! copying the binary under the alias name and running it — the same
-//! `current_exe`-based code runs on every platform, so Unix coverage protects
-//! the Windows wiring too.
+//! Covers the `current_exe`-based `dlx` injection (`argv_with_alias_subcommand`)
+//! that pnpm relies on for the Windows `pnpx`/`pnx` hardlinks, exercised on Unix
+//! by copying the binary under the alias name — the same code runs everywhere.
 #![cfg(unix)]
 
 use std::{fs, os::unix::fs::PermissionsExt, process::Command};
 
 use tempfile::TempDir;
 
-/// Invoking the binary as `pnpx` must behave like `pnpm dlx`: `pnpx --help`
-/// renders the exact same help as `dlx --help`.
 #[test]
 fn launched_as_pnpx_injects_the_dlx_subcommand() {
     let pacquet = env!("CARGO_BIN_EXE_pacquet");

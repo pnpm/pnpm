@@ -28,24 +28,16 @@ import { symlinkDir } from 'symlink-dir'
 
 import { verifyPnpmEngineIdentity, type VerifyPnpmEngineIdentityOptions } from './verifyPnpmEngineIdentity.js'
 
-// The pnpm executable ships as a wrapper with platform-specific binaries
-// (`@pnpm/exe` for the TypeScript SEA build, the unscoped `pnpm` for the Rust
-// v12 port), so its GVS hash must include ENGINE_NAME for correct per-platform
-// resolution — without it, two platforms would collide on one GVS entry. Both
-// wrapper names get the same treatment so v12 is initialized like @pnpm/exe.
+// Both pnpm wrappers (`@pnpm/exe`, unscoped `pnpm`) carry platform-specific
+// binaries; marking them buildable puts ENGINE_NAME in the GVS hash so each
+// platform resolves to its own entry instead of colliding.
 const PNPM_ALLOW_BUILDS: Record<string, boolean> = { '@pnpm/exe': true, 'pnpm': true }
 
 /**
- * The pnpm package name to install for a self-update / version-switch to
- * `pnpmVersion`.
- *
- * From v12 the unscoped `pnpm` package is itself the native executable (the Rust
- * port, published with the same content as `@pnpm/exe`), so a switch to v12+
- * always installs `pnpm` — even from the SEA `@pnpm/exe` build — converging on a
- * single package. Earlier majors keep `pnpm` (the JS bundle) and `@pnpm/exe`
- * (the SEA build) as distinct packages, so those preserve the running build's
- * own identity (a SEA install stays `@pnpm/exe`). Falls back to the running name
- * when the version can't be parsed.
+ * Package name to install for a switch to `pnpmVersion`. From v12 the unscoped
+ * `pnpm` is itself the native exe (equal content to `@pnpm/exe`), so v12+ always
+ * converges on `pnpm`, even from a SEA `@pnpm/exe` build. Earlier majors keep
+ * `pnpm` (JS) and `@pnpm/exe` (SEA) distinct, preserving the running identity.
  */
 export function pnpmPackageNameToInstall (pnpmVersion: string): string {
   const parsed = semver.parse(pnpmVersion, { loose: true })
@@ -401,15 +393,9 @@ export function exePlatformPkgDirNameNext (
   return `exe.${platform}-${normalizedArch}${libcSuffix}`
 }
 
-// The pnpm executable is shipped as a wrapper package (`@pnpm/exe` for the
-// TypeScript SEA build, the unscoped `pnpm` for the Rust v12 port) whose bins
-// are placeholders, plus optional platform-specific packages that hold the real
-// binary (`@pnpm/macos-arm64`, `@pnpm/linuxstatic-x64`, or the newer
-// `@pnpm/exe.darwin-arm64`, `@pnpm/exe.linux-x64-musl`). The wrapper's
-// preinstall normally links the right binary into the wrapper dir, but scripts
-// are disabled during pnpm's own installs, so this replicates that linking —
-// checking both naming schemes so it works across the rename and across both
-// wrappers.
+// The wrapper's preinstall links the platform binary into the wrapper dir, but
+// scripts are disabled during pnpm's own installs, so replicate it here — trying
+// the legacy and the newer `exe.<target>` platform-package names.
 export function linkExePlatformBinary (installDir: string, wrapperPkgName: string = '@pnpm/exe'): void {
   const wrapperDir = path.join(installDir, 'node_modules', ...wrapperPkgName.split('/'))
   if (!fs.existsSync(wrapperDir)) return
@@ -460,11 +446,8 @@ export function linkExePlatformBinary (installDir: string, wrapperPkgName: strin
     wrapperPkg.bin.pn = 'pn.exe'
     wrapperPkg.bin.pnpx = 'pnpx.exe'
     wrapperPkg.bin.pnx = 'pnx.exe'
-    // Write a temp file and rename over package.json rather than truncating in
-    // place: pnpm hard-links package.json from its content-addressable store, so
-    // an in-place write would mutate the shared store blob, and a mid-write
-    // crash would leave invalid JSON. Mirrors the wrapper's own
-    // `install.js` rewriteBin().
+    // Temp file + rename, not in-place: package.json is hard-linked from the
+    // content-addressable store, so writing in place would mutate the shared blob.
     const tempPkgJsonPath = `${wrapperPkgJsonPath}.pnpm-tmp`
     try {
       fs.writeFileSync(tempPkgJsonPath, JSON.stringify(wrapperPkg, null, 2))

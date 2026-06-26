@@ -1,28 +1,20 @@
-// Code originally adapted from [Rome](https://github.com/rome/tools/blob/392d188a49/npm/rome/scripts/generate-packages.mjs)
+// Adapted from Rome (https://github.com/rome/tools/blob/392d188a49/npm/rome/scripts/generate-packages.mjs).
 //
-// pnpm v12 (the Rust port) is published under two wrapper names with identical
-// content — `pnpm` and `@pnpm/exe` — plus the per-platform native binary
-// packages `@pnpm/exe.<target>`. Mirroring `@pnpm/exe`'s scheme lets pnpm's
-// built-in `installPnpm` relinker initialize v12 with no v12-specific logic.
+// Generates the per-platform `@pnpm/exe.<target>` native packages and the
+// `@pnpm/exe` wrapper (an equal-content copy of the committed `pnpm` wrapper).
 
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as fs from "node:fs";
 
-// The cargo bin and the archived per-platform binaries are named `pacquet`;
-// the workflow builds `--bin pacquet` and uploads `pacquet-<codeTarget>`.
+// Cargo bin / archived binary name; the workflow uploads `pacquet-<codeTarget>`.
 const BIN_NAME = "pacquet";
-// Name of the binary file *inside* each native package, and the bin the
-// wrappers + pnpm's built-in `installPnpm` relinker resolve. The published
-// product is pnpm v12, so the file is `pnpm`; `installPnpm`'s
-// `linkExePlatformBinary` hardcodes this name.
+// Binary file name inside each native package; `installPnpm`'s
+// `linkExePlatformBinary` hardcodes `pnpm`, so both must agree.
 const NATIVE_BIN_FILE = "pnpm";
-// The `pnpm` wrapper is the committed source of truth; `@pnpm/exe` is generated
-// from it with the same content and a different package name.
 const EXE_WRAPPER_NAME = "@pnpm/exe";
 const EXE_WRAPPER_DIR = "pnpm-exe";
-// The root-level bin files (placeholder `pnpm` + `pn`/`pnpx`/`pnx` aliases),
-// the preinstall relinker, and the README — shared verbatim by both wrappers.
+// Files shared verbatim by both wrappers: the root-level bins + preinstall + README.
 const WRAPPER_FILES = ["pnpm", "pn", "pnpx", "pnx", "install.js", "README.md"];
 
 const PNPM_ROOT = resolve(fileURLToPath(import.meta.url), "../..");
@@ -42,17 +34,14 @@ function generateNativePackage(target) {
   // so there shouldn't be anything important there anyway)
   fs.rmSync(packageRoot, { recursive: true, force: true });
 
-  // Create the package directory
   console.log(`Create directory ${packageRoot}`);
   fs.mkdirSync(packageRoot);
 
-  // Generate the package.json manifest
   const { version } = rootManifest;
 
-  // publishConfig.executableFiles tells pnpm pack to keep mode 0755
-  // on the binary in the published tarball. Without it, pack normalizes
-  // every non-bin file to 0644 and the preinstall hard-link inherits a
-  // non-executable inode, so the relinked `pnpm` fails with EACCES.
+  // executableFiles keeps the binary at 0755 in the tarball; otherwise pack
+  // normalizes it to 0644 and the preinstall hard-link inherits a non-exec
+  // inode, so the relinked `pnpm` fails with EACCES.
   const ext = target.platform === "win32" ? ".exe" : "";
   const manifestData = {
     name: packageName,
@@ -76,8 +65,6 @@ function generateNativePackage(target) {
   console.log(`Create manifest ${manifestPath}`);
   fs.writeFileSync(manifestPath, manifest);
 
-  // Copy the binary. The source is the archived `pacquet-<codeTarget>` build;
-  // inside the package it is published as `pnpm` (see NATIVE_BIN_FILE).
   const binarySource = resolve(REPO_ROOT, `${BIN_NAME}-${target.codeTarget}${ext}`);
   const binaryTarget = resolve(packageRoot, `${NATIVE_BIN_FILE}${ext}`);
 
@@ -86,9 +73,8 @@ function generateNativePackage(target) {
   fs.chmodSync(binaryTarget, 0o755);
 }
 
-// Patch the `pnpm` wrapper manifest in place with the release version and the
-// full set of `@pnpm/exe.<target>` optional dependencies, preserving every
-// other field (notably its root-level `bin` map and the preinstall script).
+// Patch the committed `pnpm` manifest with the release version + the full set of
+// `@pnpm/exe.<target>` optional dependencies, preserving its other fields.
 function patchPnpmWrapperManifest() {
   const nativePackages = TARGETS.map((target) => [
     nativePackageName(target),
@@ -102,11 +88,9 @@ function patchPnpmWrapperManifest() {
   fs.writeFileSync(MANIFEST_PATH, JSON.stringify(rootManifest));
 }
 
-// Generate the `@pnpm/exe` wrapper as a byte-for-byte copy of the `pnpm`
-// wrapper's bins + preinstall relinker, with only the package name and
-// repository.directory pointer changed. Must run after
-// `patchPnpmWrapperManifest`, so the copied manifest already carries the
-// version and optionalDependencies.
+// Generate the `@pnpm/exe` wrapper as a copy of the `pnpm` wrapper with only the
+// name + repo.directory changed. Must run after `patchPnpmWrapperManifest` so the
+// copied manifest already carries the version and optionalDependencies.
 function generateExeWrapper() {
   const exeRoot = resolve(PACKAGES_ROOT, EXE_WRAPPER_DIR);
   fs.rmSync(exeRoot, { recursive: true, force: true });
@@ -128,10 +112,9 @@ function generateExeWrapper() {
   fs.writeFileSync(resolve(exeRoot, "package.json"), JSON.stringify(exeManifest));
 }
 
-// The native binary packages use the convention pnpm's built-in `installPnpm`
-// relinker already anticipates (`exePlatformPkgDirNameNext` →
-// `@pnpm/exe.<platform>-<arch>[-musl]`), so a self-update / version-switch to
-// pnpm v12 relinks the bin with no v12-specific logic.
+// `@pnpm/exe.<target>` is the convention `installPnpm`'s relinker already
+// anticipates (`exePlatformPkgDirNameNext`), so a switch to v12 needs no special
+// case.
 function nativePackageName(target) {
   return `@pnpm/exe.${target.packageTarget}`;
 }
@@ -151,8 +134,5 @@ for (const target of TARGETS) {
   generateNativePackage(target);
 }
 
-// The `pnpm` and `@pnpm/exe` wrappers ship from the same build at the same
-// version. `pnpm` carries the committed bin map + preinstall, so it is only
-// patched; `@pnpm/exe` is generated wholesale from the patched `pnpm` manifest.
 patchPnpmWrapperManifest();
 generateExeWrapper();

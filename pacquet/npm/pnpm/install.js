@@ -1,26 +1,15 @@
 #!/usr/bin/env node
-// Preinstall for the pnpm v12 wrapper. It replaces the shebang-less placeholder
-// `pnpm` with the platform's native binary so `pnpm` runs the binary directly
-// instead of paying Node.js startup on every call. This file is shared verbatim
-// by both published wrapper names, `pnpm` and `@pnpm/exe`. The package mirrors
-// the historical `@pnpm/exe` root-level bin layout (`pnpm`/`pn`/`pnpx`/`pnx`) so
-// pnpm's own `installPnpm` relinker (`linkExePlatformBinary`) can set it up on
-// self-update / version-switch with no pnpm-v12-specific logic.
+// Preinstall for the pnpm v12 wrapper (shared verbatim by `pnpm` and
+// `@pnpm/exe`): replace the shebang-less placeholder bins with the host's native
+// binary so `pnpm` runs directly, no Node startup per call. A placeholder (not a
+// Node launcher) is required because the Windows shim is generated from the bin
+// file and npm won't re-read package.json after preinstall; the tradeoff is no
+// fallback when build scripts are blocked (`--ignore-scripts`, pnpm/Bun default).
 //
-// The `pn` / `pnpx` / `pnx` aliases:
-//  - On Unix, `pn`, `pnpx`, and `pnx` are committed `#!/bin/sh` scripts that
-//    exec `pnpm` (and `pnpm dlx` for pnpx/pnx), so only `pnpm` needs relinking.
-//  - On Windows the shell scripts can't run, so the native binary is hardlinked
-//    onto each alias too. The binary detects which name launched it (`pnpx` /
-//    `pnx`) and injects `dlx` itself — see `argv_with_alias_subcommand` in
-//    pacquet/crates/cli/src/lib.rs and `@pnpm/exe`'s setup.js.
-//
-// The published bins are shebang-less placeholders: the Windows `.bin` shim is
-// generated from the bin file, so a Node launcher there would bake in a `node
-// pnpm` call this script cannot rewrite (npm does not re-read package.json
-// after preinstall). The cost is that there is no fallback — when build scripts
-// are blocked (`--ignore-scripts`, pnpm/Bun defaults) the placeholder stays
-// until the build is allow-listed.
+// `pn`/`pnpx`/`pnx` are committed `#!/bin/sh` scripts on Unix (so only `pnpm` is
+// relinked); on Windows the native binary is hardlinked onto each and
+// self-detects its launch name to inject `dlx` (see `argv_with_alias_subcommand`
+// in the cli crate).
 import console from 'node:console'
 import fs from 'node:fs'
 import { createRequire } from 'node:module'
@@ -53,8 +42,6 @@ const PLATFORMS = {
   },
 }
 
-// On Windows every bin is the native binary (the binary self-detects pnpx/pnx);
-// on Unix only `pnpm` is, the rest stay shell scripts.
 const BIN_NAMES = ['pnpm', 'pn', 'pnpx', 'pnx']
 
 setup()
@@ -72,9 +59,7 @@ function setup () {
     try {
       nativeBinary = require.resolve(target)
       break
-    } catch {
-      // Not installed for this host; try the next candidate.
-    }
+    } catch {}
   }
   if (nativeBinary == null) {
     const pkgName = candidates[0].split('/').slice(0, 2).join('/')
@@ -88,9 +73,8 @@ function setup () {
   if (platform === 'win32') {
     const newBin = {}
     for (const name of BIN_NAMES) {
-      // The existing shim points at the original-name file, so it must become
-      // the binary; the `.exe` twin and `bin` rewrite are for shims generated
-      // later.
+      // The existing shim points at the no-ext file, so it must become the
+      // binary; the `.exe` twin + bin rewrite are for shims generated later.
       placeBinary(nativeBinary, path.join(ownDir, `${name}.exe`))
       placeBinary(nativeBinary, path.join(ownDir, name))
       newBin[name] = `${name}.exe`
@@ -129,19 +113,14 @@ function placeBinary (nativeBinary, destPath, mode) {
   } catch (err) {
     try {
       fs.rmSync(tempPath, { force: true })
-    } catch {
-      // Nothing to clean up.
-    }
+    } catch {}
     fail(`Could not install the pnpm binary at ${destPath}: ${err.message}`)
   }
 }
 
 function rewriteBin (binMap) {
   const pkgJsonPath = path.join(ownDir, 'package.json')
-  // Write a fresh file and rename it over package.json rather than truncating in
-  // place: pnpm hard-links package.json from its content-addressable store, so an
-  // in-place write would mutate the shared store blob. Best-effort — it only
-  // helps shims generated later.
+  // Temp file + rename, not in-place: package.json is hard-linked from the store.
   const tempPath = `${pkgJsonPath}.pnpm-tmp`
   try {
     const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'))
@@ -151,9 +130,7 @@ function rewriteBin (binMap) {
   } catch {
     try {
       fs.rmSync(tempPath, { force: true })
-    } catch {
-      // Nothing to clean up.
-    }
+    } catch {}
   }
 }
 
