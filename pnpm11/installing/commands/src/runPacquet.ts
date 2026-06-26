@@ -215,13 +215,14 @@ function makePacquetEnv (opts: MakeRunPacquetOpts): NodeJS.ProcessEnv {
 
 /**
  * Path of the platform-specific native pacquet binary for the host. The
- * pacquet npm package ships a Node wrapper at `bin/pacquet` that uses
- * `require.resolve('@pacquet/<platform>-<arch>/pacquet[.exe]')` to find
- * the binary — so the platform package lands as a *sibling* of pacquet,
- * not inside its own `node_modules` (pacquet's own `node_modules` is
- * empty after configDependencies install). Use Node's resolver rooted
- * at pacquet's own `package.json` so we follow the same path the
- * wrapper would have.
+ * pacquet npm package declares the `@pacquet/<platform>-<arch>` binary as
+ * an `optionalDependency`, so it lands as a *sibling* of pacquet, not
+ * inside its own `node_modules` (pacquet's own `node_modules` is empty
+ * after configDependencies install). Resolve it directly here rather than
+ * through pacquet's `bin/pacquet`, which is only a placeholder until the
+ * package's preinstall relinks it to the native binary — a step that does
+ * not run for configDependencies. Use Node's resolver rooted at pacquet's
+ * own `package.json` so we find the same sibling package.
  *
  * The `realpathSync` is required: `.pnpm-config/pacquet` is a symlink
  * into the global virtual store, and Node's `createRequire` builds its
