@@ -1,20 +1,14 @@
 #!/usr/bin/env node
-// Preinstall step: replace the placeholder `bin/pacquet` with the platform's
-// native binary so the `pacquet` command runs the binary directly, with no
-// Node.js launcher in the way.
+// Preinstall: replace the placeholder `bin/pacquet` with the platform's native
+// binary, so the command runs the binary directly instead of paying Node.js
+// startup on every call. Mirrors how `@pnpm/exe` ships pnpm.
 //
-// `bin/pacquet` is published as a non-executable placeholder rather than a Node
-// launcher on purpose. A launcher would force every `pacquet` invocation
-// through Node startup (~170ms) just to spawn the ~30ms binary, and on Windows
-// the `.bin` shim generated from its `#!/usr/bin/env node` shebang would
-// hardcode a `node bin/pacquet` call this script could not undo (npm does not
-// re-read package.json after preinstall). So the binary has to be in place
-// before the command is ever resolved.
-//
-// Consequence: when this script does not run — `--ignore-scripts`, or pnpm/Bun
-// blocking build scripts until `pacquet` is allow-listed — `bin/pacquet` stays
-// a placeholder and the command will not work until it does. This mirrors how
-// `@pnpm/exe` ships pnpm's native binary.
+// The published `bin/pacquet` is a shebang-less placeholder: the Windows `.bin`
+// shim is generated from the bin file, so a Node launcher there would bake in a
+// `node bin/pacquet` call this script cannot rewrite (npm does not re-read
+// package.json after preinstall). The cost is that there is no fallback — when
+// build scripts are blocked (`--ignore-scripts`, pnpm/Bun defaults) the
+// placeholder stays until the build is allow-listed.
 const fs = require("fs");
 const path = require("path");
 const { platform, arch } = process;
@@ -48,12 +42,8 @@ function setup() {
     fail(`pacquet does not ship a prebuilt binary for ${platform}-${arch}.`);
   }
 
-  // Resolve whichever candidate the package manager actually installed: it
-  // already filtered the `@pacquet/*` packages by their `os`/`cpu`/`libc`
-  // fields, so trusting that is more reliable than re-deriving the platform.
-  // `getBinCandidates` orders the linux glibc/musl pair by detected libc, which
-  // only matters when both are present (e.g. `npm install --force` installs
-  // every optional dependency regardless of those fields).
+  // Use whichever platform package the package manager installed: it already
+  // filtered by `os`/`cpu`/`libc`, more reliable than re-deriving the host.
   let nativeBinary;
   for (const target of candidates) {
     try {
@@ -72,32 +62,25 @@ function setup() {
 
   const binDir = path.join(__dirname, "bin");
   if (platform === "win32") {
-    // The `.bin` shim already points at the original `bin/pacquet` name and npm
-    // won't re-read package.json, so the file at that name must be the binary.
-    // Also drop a `.exe` twin and repoint `bin` at it, so any shim generated
-    // from here on (npm's own linking, a later cmd-shim regeneration) targets
-    // the executable directly.
+    // The existing shim points at `bin/pacquet`, so that file must become the
+    // binary; the `.exe` twin and `bin` rewrite are for shims generated later.
     placeBinary(nativeBinary, path.join(binDir, "pacquet.exe"));
     placeBinary(nativeBinary, path.join(binDir, "pacquet"));
     rewriteBin("bin/pacquet.exe");
   } else {
-    // 0o755: the swapped file is what the `.bin/pacquet` entry resolves to.
     placeBinary(nativeBinary, path.join(binDir, "pacquet"), 0o755);
   }
 }
 
 /**
- * Atomically places `nativeBinary` at `destPath` via a temp file + rename, so a
- * concurrent invocation never sees a half-written file. Hard-links first (no
- * second copy of the ~13MB binary on disk) and falls back to a copy across
- * filesystems. Exits the process on failure — without the binary there is no
- * working `pacquet`.
+ * Atomically place `nativeBinary` at `destPath` (hard link, falling back to a
+ * copy across filesystems, via a temp file + rename). Exits the process on
+ * failure — without the binary there is no working `pacquet`.
  *
  * @param {string} nativeBinary Absolute path to the resolved native binary.
  * @param {string} destPath Absolute path to create.
- * @param {number} [mode] chmod to apply to a copy-created file. Skipped for hard
- *   links — they share the source inode, which under pnpm is the shared store
- *   blob other projects link to.
+ * @param {number} [mode] chmod for the copy path only; a hard link shares the
+ *   source inode (the shared store blob under pnpm), so its mode must not change.
  */
 function placeBinary(nativeBinary, destPath, mode) {
   const tempPath = `${destPath}.pacquet-tmp`;
@@ -124,8 +107,8 @@ function placeBinary(nativeBinary, destPath, mode) {
 
 function rewriteBin(binValue) {
   const pkgJsonPath = path.join(__dirname, "package.json");
-  // Non-fatal: the `.exe` twin and the binary at the original name already make
-  // `pacquet` runnable; the rewrite only helps shims regenerated later.
+  // Best-effort: the binary at the original name already works; this only helps
+  // later-generated shims.
   try {
     const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, "utf8"));
     pkg.bin = binValue;
@@ -139,10 +122,9 @@ function fail(message) {
 }
 
 /**
- * Native binary specifiers to try, most-preferred first. Empty when the host
- * platform/arch is unsupported. The linux glibc/musl pair is ordered by the
- * detected libc; the caller resolves whichever is installed, so the order only
- * decides the winner when both happen to be present.
+ * Native binary specifiers to try, most-preferred first; empty when the host is
+ * unsupported. The linux glibc/musl pair is ordered by detected libc, which
+ * only decides the winner when both are installed (e.g. `npm install --force`).
  *
  * @returns {string[]}
  */
@@ -165,10 +147,8 @@ function detectLinuxLibc() {
     return null;
   }
 
-  // Node sets `glibcVersionRuntime` to the glibc it links against, and leaves it
-  // unset on musl. Guarded because `process.report` can be unavailable in some
-  // runtimes — when it is, fall back to the default ordering and let resolution
-  // pick the installed package.
+  // glibc builds set `glibcVersionRuntime`; musl leaves it unset. Guarded —
+  // `process.report` may be unavailable, leaving ordering to the default.
   try {
     return process.report?.getReport().header.glibcVersionRuntime ? "glibc" : "musl";
   } catch {
