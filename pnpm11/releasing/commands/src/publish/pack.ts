@@ -108,7 +108,6 @@ export type PackOptions = Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs
 | 'userAgent'
 > & Partial<Pick<Config, 'extraBinPaths'
 | 'extraEnv'
-| 'filterProd'
 | 'recursive'
 | 'workspaceConcurrency'
 | 'workspaceDir'
@@ -116,6 +115,8 @@ export type PackOptions = Pick<UniversalOptions, 'dir'> & Pick<Config, 'catalogs
 | 'hooks'
 | 'selectedProjectsGraph'
 | 'allProjectsGraph'
+| 'prodAllProjectsGraph'
+| 'prodOnlySelectedProjectDirs'
 >> & {
   argv: {
     original: string[]
@@ -155,7 +156,12 @@ export async function handler (opts: PackOptions): Promise<string> {
       })
     }
 
-    const chunks = sortFilteredProjects({ selectedProjectsGraph, allProjectsGraph: opts.allProjectsGraph, filterProd: opts.filterProd })
+    const chunks = sortFilteredProjects({
+      selectedProjectsGraph,
+      allProjectsGraph: opts.allProjectsGraph,
+      prodAllProjectsGraph: opts.prodAllProjectsGraph,
+      prodOnlySelectedProjectDirs: opts.prodOnlySelectedProjectDirs,
+    })
 
     const limitPack = pLimit(getWorkspaceConcurrency(opts.workspaceConcurrency))
     const resolvedOpts = { ...opts }

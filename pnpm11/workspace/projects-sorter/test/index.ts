@@ -63,12 +63,47 @@ test('sortFilteredProjects resolves transitive order through unselected projects
     .toStrictEqual([dirs('c'), dirs('a')])
 })
 
-test('sortFilteredProjects does not tunnel through the full graph under a prod-only filter', () => {
+test('sortFilteredProjects resolves a prod-only selection through the prod-pruned graph', () => {
+  // A prod-only selection sorts through the prod-pruned graph, where b's dev edge
+  // to c is gone, so c is not pulled ahead of a.
+  const prodGraph = makeGraph({ a: ['b'], b: [], c: [] })
   const fullGraph = makeGraph({ a: ['b'], b: ['c'], c: [] })
-  const selected = select(fullGraph, ['a', 'c'])
-  // With a prod-only filter, b's dev edge to c must not pull c ahead of a.
-  expect(sortFilteredProjects({ selectedProjectsGraph: selected, allProjectsGraph: fullGraph, filterProd: ['a', 'c'] }))
+  const selected = select(prodGraph, ['a', 'c'])
+  expect(sortFilteredProjects({
+    selectedProjectsGraph: selected,
+    allProjectsGraph: fullGraph,
+    prodAllProjectsGraph: prodGraph,
+    prodOnlySelectedProjectDirs: dirs('a', 'c'),
+  }))
     .toStrictEqual([dirs('a', 'c')])
+})
+
+test('sortFilteredProjects orders a prod-only selection by its transitive prod deps', () => {
+  // Every edge is a prod edge, so a transitively depends on c through the
+  // unselected b and must run after it.
+  const prodGraph = makeGraph({ a: ['b'], b: ['c'], c: [] })
+  const selected = select(prodGraph, ['a', 'c'])
+  expect(sortFilteredProjects({
+    selectedProjectsGraph: selected,
+    prodAllProjectsGraph: prodGraph,
+    prodOnlySelectedProjectDirs: dirs('a', 'c'),
+  }))
+    .toStrictEqual([dirs('c'), dirs('a')])
+})
+
+test('sortFilteredProjects keeps prod-only roots on the prod graph in mixed selections', () => {
+  const fullGraph = makeGraph({ a: ['b'], b: ['c'], c: ['x'], x: ['a'], d: [] })
+  const prodGraph = makeGraph({ a: ['b'], b: ['c'], c: ['x'], x: [], d: [] })
+  const selected = {
+    ...select(prodGraph, ['a', 'c']),
+    ...select(fullGraph, ['d']),
+  }
+  expect(sortFilteredProjects({
+    selectedProjectsGraph: selected,
+    allProjectsGraph: fullGraph,
+    prodAllProjectsGraph: prodGraph,
+    prodOnlySelectedProjectDirs: dirs('a', 'c'),
+  })).toStrictEqual([dirs('c', 'd'), dirs('a')])
 })
 
 test('detects a cycle that passes through unselected projects', () => {

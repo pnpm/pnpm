@@ -90,6 +90,8 @@ export type RebuildCommandOpts = Pick<Config,
 > & Pick<ConfigContext,
 | 'allProjects'
 | 'allProjectsGraph'
+| 'prodAllProjectsGraph'
+| 'prodOnlySelectedProjectDirs'
 | 'hooks'
 | 'rootProjectManifest'
 | 'rootProjectManifestDir'

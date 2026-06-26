@@ -16,12 +16,19 @@ export function sequenceGraph (
   projectsGraph: ProjectsGraph,
   fullProjectsGraph: ProjectsGraph = projectsGraph
 ): GraphSequencerResult<ProjectRootDir> {
+  return sequenceGraphByProject(projectsGraph, () => fullProjectsGraph)
+}
+
+function sequenceGraphByProject (
+  projectsGraph: ProjectsGraph,
+  fullProjectsGraphByProject: (projectDir: ProjectRootDir) => ProjectsGraph
+): GraphSequencerResult<ProjectRootDir> {
   const sortedProjectDirs = Object.keys(projectsGraph) as ProjectRootDir[]
   const sorted = new Set(sortedProjectDirs)
   const graph = new Map<ProjectRootDir, ProjectRootDir[]>(
     sortedProjectDirs.map((projectDir) => [
       projectDir,
-      sortedDependencies(projectsGraph, fullProjectsGraph, projectDir, sorted),
+      sortedDependencies(projectsGraph, fullProjectsGraphByProject(projectDir), projectDir, sorted),
     ])
   )
   return graphSequencer(graph, sortedProjectDirs)
@@ -36,21 +43,33 @@ export function sortProjects (
 
 /**
  * Topologically chunks the projects selected by a `--filter`ed recursive
- * command. Order is resolved through `allProjectsGraph` so a relationship
+ * command. Order is resolved through the full workspace graph so a relationship
  * between two selected projects via an unselected one is honored.
  *
- * A prod-only filter (`--filter-prod`) builds `selectedProjectsGraph` from a
- * graph with dev dependencies pruned; tunneling through `allProjectsGraph`,
- * which keeps them, would reintroduce edges the filter dropped. So when a
- * prod-only filter is in effect, order is resolved among the selected projects
- * alone.
+ * `prodAllProjectsGraph` is the prod-pruned full graph. In mixed selections,
+ * `prodOnlySelectedProjectDirs` marks the selected projects that should resolve
+ * through it; regular-selected projects still resolve through `allProjectsGraph`.
  */
 export function sortFilteredProjects (opts: {
   selectedProjectsGraph: ProjectsGraph
   allProjectsGraph?: ProjectsGraph
-  filterProd?: string[]
+  prodAllProjectsGraph?: ProjectsGraph
+  prodOnlySelectedProjectDirs?: ProjectRootDir[]
 }): ProjectRootDir[][] {
-  return sortProjects(opts.selectedProjectsGraph, opts.filterProd?.length ? undefined : opts.allProjectsGraph)
+  const prodAllProjectsGraph = opts.prodAllProjectsGraph
+  if (!prodAllProjectsGraph) {
+    return sortProjects(opts.selectedProjectsGraph, opts.allProjectsGraph)
+  }
+  if (opts.prodOnlySelectedProjectDirs == null) {
+    return sortProjects(opts.selectedProjectsGraph, prodAllProjectsGraph)
+  }
+  const prodOnlySelectedProjectDirs = new Set(opts.prodOnlySelectedProjectDirs)
+  return sequenceGraphByProject(
+    opts.selectedProjectsGraph,
+    (projectDir) => prodOnlySelectedProjectDirs.has(projectDir)
+      ? prodAllProjectsGraph
+      : opts.allProjectsGraph ?? opts.selectedProjectsGraph
+  ).chunks
 }
 
 /**

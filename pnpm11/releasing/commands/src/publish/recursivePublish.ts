@@ -31,7 +31,6 @@ Partial<Pick<Config,
 | 'tag'
 | 'ca'
 | 'catalogs'
-| 'filterProd'
 | 'cert'
 | 'fetchTimeout'
 | 'force'
@@ -58,6 +57,8 @@ Partial<Pick<Config,
 Partial<Pick<ConfigContext,
 | 'selectedProjectsGraph'
 | 'allProjectsGraph'
+| 'prodAllProjectsGraph'
+| 'prodOnlySelectedProjectDirs'
 >> & {
   access?: 'public' | 'restricted'
   argv: {

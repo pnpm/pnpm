@@ -744,6 +744,158 @@ test('pnpm recursive run orders selected projects connected only through an unse
   expect(server.getLines()).toStrictEqual(['project-c', 'project-a'])
 })
 
+test('pnpm recursive run with a prod-only filter orders selected projects by their transitive prod dependencies', async () => {
+  await using server = await createTestIpcServer()
+
+  preparePackages([
+    {
+      name: 'project-a',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-b': 'workspace:*',
+      },
+      scripts: {
+        build: server.sendLineScript('project-a'),
+      },
+    },
+    {
+      name: 'project-b',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-c': 'workspace:*',
+      },
+      scripts: {
+        build: server.sendLineScript('project-b'),
+      },
+    },
+    {
+      name: 'project-c',
+      version: '1.0.0',
+
+      scripts: {
+        build: `node -e "setTimeout(() => {}, 500)" && ${server.sendLineScript('project-c')}`,
+      },
+    },
+  ])
+
+  const { allProjects, allProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  const { selectedProjectsGraph, prodAllProjectsGraph, prodOnlySelectedProjectDirs } = await filterProjectsBySelectorObjects(
+    allProjects,
+    [
+      { namePattern: 'project-a', followProdDepsOnly: true },
+      { namePattern: 'project-c', followProdDepsOnly: true },
+    ],
+    { workspaceDir: process.cwd() }
+  )
+  await execa(pnpmBin, [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY_URL,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+  await run.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    prodAllProjectsGraph,
+    prodOnlySelectedProjectDirs,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceConcurrency: 4,
+    workspaceDir: process.cwd(),
+  }, ['build'])
+
+  // project-c is a transitive prod dependency of project-a through the unselected
+  // project-b, so a prod-only filter must still build it before project-a.
+  expect(server.getLines()).toStrictEqual(['project-c', 'project-a'])
+})
+
+test('pnpm recursive run keeps a regular filter\'s transitive order when an unrelated prod-only filter is present', async () => {
+  await using server = await createTestIpcServer()
+
+  preparePackages([
+    {
+      name: 'project-a',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-b': 'workspace:*',
+      },
+      scripts: {
+        build: server.sendLineScript('project-a'),
+      },
+    },
+    {
+      name: 'project-b',
+      version: '1.0.0',
+
+      dependencies: {
+        'project-c': 'workspace:*',
+      },
+      scripts: {
+        build: server.sendLineScript('project-b'),
+      },
+    },
+    {
+      name: 'project-c',
+      version: '1.0.0',
+
+      scripts: {
+        build: `node -e "setTimeout(() => {}, 500)" && ${server.sendLineScript('project-c')}`,
+      },
+    },
+    {
+      name: 'project-d',
+      version: '1.0.0',
+
+      scripts: {
+        build: server.sendLineScript('project-d'),
+      },
+    },
+  ])
+
+  const { allProjects, allProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  const { selectedProjectsGraph, prodAllProjectsGraph, prodOnlySelectedProjectDirs } = await filterProjectsBySelectorObjects(
+    allProjects,
+    [
+      { namePattern: 'project-a' },
+      { namePattern: 'project-c' },
+      { namePattern: 'project-d', followProdDepsOnly: true },
+    ],
+    { workspaceDir: process.cwd() }
+  )
+  await execa(pnpmBin, [
+    'install',
+    '-r',
+    '--registry',
+    REGISTRY_URL,
+    '--store-dir',
+    path.resolve(DEFAULT_OPTS.storeDir),
+  ])
+  await run.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    allProjectsGraph,
+    prodAllProjectsGraph,
+    prodOnlySelectedProjectDirs,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceConcurrency: 4,
+    workspaceDir: process.cwd(),
+  }, ['build'])
+
+  // The unrelated prod-only filter on project-d must not stop the regular filter
+  // from building project-c (a transitive dep of project-a via the unselected
+  // project-b) before project-a. project-d is independent and runs first.
+  expect(server.getLines()).toStrictEqual(['project-d', 'project-c', 'project-a'])
+})
+
 test('`pnpm recursive run` should always trust the scripts', async () => {
   await using server = await createTestIpcServer()
   preparePackages([

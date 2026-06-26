@@ -37,8 +37,8 @@ export type RecursiveRunOpts = Pick<Config,
 | 'workspaceDir'
 | 'nodeExperimentalPackageMap'
 | 'modulesDir'
-> & Pick<ConfigContext, 'rootProjectManifest' | 'allProjectsGraph'> & Required<Pick<ConfigContext, 'allProjects' | 'selectedProjectsGraph'> & Pick<Config, 'workspaceDir' | 'dir'>> &
-Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'reporter' | 'reverse' | 'sort' | 'workspaceConcurrency' | 'filterProd'>> &
+> & Pick<ConfigContext, 'rootProjectManifest' | 'allProjectsGraph' | 'prodAllProjectsGraph' | 'prodOnlySelectedProjectDirs'> & Required<Pick<ConfigContext, 'allProjects' | 'selectedProjectsGraph'> & Pick<Config, 'workspaceDir' | 'dir'>> &
+Partial<Pick<Config, 'extraBinPaths' | 'extraEnv' | 'bail' | 'reporter' | 'reverse' | 'sort' | 'workspaceConcurrency'>> &
 {
   ifPresent?: boolean
   resumeFrom?: string

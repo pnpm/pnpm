@@ -164,7 +164,7 @@ export type ExecOpts = Required<Pick<ConfigContext, 'selectedProjectsGraph'>> & 
 | 'userAgent'
 | 'verifyDepsBeforeRun'
 | 'workspaceDir'
-> & Pick<ConfigContext, 'cliOptions' | 'allProjectsGraph'> & Partial<Pick<Config, 'filterProd'>> & CheckDepsStatusOptions
+> & Pick<ConfigContext, 'cliOptions' | 'allProjectsGraph' | 'prodAllProjectsGraph' | 'prodOnlySelectedProjectDirs'> & CheckDepsStatusOptions
 
 export async function handler (
   opts: ExecOpts,

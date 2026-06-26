@@ -303,6 +303,8 @@ export async function main (inputArgv: string[]): Promise<void> {
     }
     context.allProjectsGraph = filterResults.allProjectsGraph
     context.selectedProjectsGraph = filterResults.selectedProjectsGraph
+    context.prodAllProjectsGraph = filterResults.prodAllProjectsGraph
+    context.prodOnlySelectedProjectDirs = filterResults.prodOnlySelectedProjectDirs
     if (isEmpty(context.selectedProjectsGraph)) {
       if (printLogs) {
         console.log(`No projects matched the filters in "${wsDir}"`)
