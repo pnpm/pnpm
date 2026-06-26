@@ -18,16 +18,16 @@ use tracing::Level;
 use tracing_subscriber::{Layer, layer::SubscriberExt};
 
 /// Capture all tracing WARN messages emitted during a closure.
-fn capture_warnings<F: FnOnce()>(f: F) -> Vec<String> {
+fn capture_warnings<Func: FnOnce()>(f: Func) -> Vec<String> {
     let messages: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
     let messages_clone = Arc::clone(&messages);
 
     struct CaptureLayer(Arc<Mutex<Vec<String>>>);
-    impl<S: tracing::Subscriber> Layer<S> for CaptureLayer {
+    impl<Sub: tracing::Subscriber> Layer<Sub> for CaptureLayer {
         fn on_event(
             &self,
             event: &tracing::Event<'_>,
-            _ctx: tracing_subscriber::layer::Context<'_, S>,
+            _ctx: tracing_subscriber::layer::Context<'_, Sub>,
         ) {
             if *event.metadata().level() == Level::WARN {
                 struct Visitor(String);
@@ -47,9 +47,9 @@ fn capture_warnings<F: FnOnce()>(f: F) -> Vec<String> {
                         }
                     }
                 }
-                let mut v = Visitor(String::new());
-                event.record(&mut v);
-                self.0.lock().unwrap().push(v.0);
+                let mut visitor = Visitor(String::new());
+                event.record(&mut visitor);
+                self.0.lock().unwrap().push(visitor.0);
             }
         }
     }
