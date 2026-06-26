@@ -3771,6 +3771,7 @@ name = "pacquet-directory-fetcher"
 version = "0.0.1"
 dependencies = [
  "derive_more",
+ "junction",
  "miette 7.6.0",
  "pacquet-diagnostics",
  "pacquet-fs",

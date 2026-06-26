@@ -55,7 +55,7 @@ pub(crate) fn walk_all_files(
 pub(crate) fn reject_linked_confined_root(dir: &Path) -> Result<(), DirectoryFetcherError> {
     let metadata = fs::symlink_metadata(dir)
         .map_err(|source| DirectoryFetcherError::Io { dir: dir.display().to_string(), source })?;
-    if is_linked_root(&metadata) {
+    if is_linked_entry(&metadata) {
         return Err(DirectoryFetcherError::PathOutsideDirectory {
             path: dir.to_path_buf(),
             directory: dir.to_path_buf(),
@@ -69,7 +69,7 @@ fn confined_root(dir: &Path) -> Result<PathBuf, DirectoryFetcherError> {
     canonicalize_path(dir)
 }
 
-fn is_linked_root(metadata: &Metadata) -> bool {
+fn is_linked_entry(metadata: &Metadata) -> bool {
     #[cfg(windows)]
     {
         metadata.file_type().is_symlink()
@@ -166,7 +166,7 @@ fn resolve_entry(
                 return Err(DirectoryFetcherError::Io { dir: path.display().to_string(), source });
             }
         };
-        if !lstat.file_type().is_symlink() {
+        if !is_linked_entry(&lstat) {
             return Ok(Some(ResolvedEntry { path: path.to_path_buf(), metadata: lstat }));
         }
         let real = match fs::canonicalize(path) {
@@ -200,7 +200,7 @@ fn resolve_entry(
                 return Err(DirectoryFetcherError::Io { dir: path.display().to_string(), source });
             }
         };
-        if !lstat.file_type().is_symlink() {
+        if !is_linked_entry(&lstat) {
             return Ok(Some(ResolvedEntry { path: path.to_path_buf(), metadata: lstat }));
         }
         let real = match fs::canonicalize(path) {

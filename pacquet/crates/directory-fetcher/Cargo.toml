@@ -25,6 +25,7 @@ tracing     = { workspace = true }
 pacquet-fs            = { workspace = true }
 pacquet-testing-utils = { workspace = true }
 
+junction          = { workspace = true }
 pretty_assertions = { workspace = true }
 tempfile          = { workspace = true }
 

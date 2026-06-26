@@ -188,6 +188,26 @@ fn walk_all_files_rejects_symlink_escape_when_confined() {
     );
 }
 
+#[cfg(windows)]
+#[test]
+fn walk_all_files_rejects_nested_junction_escape_when_confined() {
+    let dir = tempdir().unwrap();
+    let root = dir.path().join("root");
+    let outside = dir.path().join("outside");
+    fs::create_dir_all(&root).unwrap();
+    fs::create_dir_all(&outside).unwrap();
+    touch(&outside, "secret.txt");
+    let link = root.join("outside");
+    junction::create(&outside, &link).unwrap();
+
+    let err = walk_all_files(&root, false, false).expect_err("outside junction should fail");
+    pacquet_fs::remove_symlink_dir(&link).unwrap();
+    assert!(
+        err.to_string().contains("resolves outside source directory"),
+        "unexpected error: {err}",
+    );
+}
+
 #[cfg(any(unix, windows))]
 #[test]
 fn walk_all_files_rejects_linked_root_when_confined() {
