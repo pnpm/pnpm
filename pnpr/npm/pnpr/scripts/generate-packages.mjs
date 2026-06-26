@@ -37,8 +37,8 @@ function generateNativePackage(target) {
 
   // publishConfig.executableFiles tells pnpm pack to keep mode 0755
   // on the binary in the published tarball. Without it, pack normalizes
-  // every non-bin file to 0644 and the JS shim's spawnSync fails with
-  // EACCES on install.
+  // every non-bin file to 0644 and the preinstall hard-link inherits a
+  // non-executable inode, so the relinked `pnpr` fails with EACCES.
   const ext = target.platform === "win32" ? ".exe" : "";
   const manifestData = {
     name: packageName,

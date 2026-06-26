@@ -7,8 +7,8 @@ import * as fs from "node:fs";
 const BIN_NAME = "pacquet";
 // The wrapper package is published under two names: the original
 // `pacquet` (kept for back-compat) and `@pnpm/pacquet` (the official
-// pnpm-scoped alias). Both ship the same JS shim and depend on the
-// same `@pacquet/<target>` binary sub-packages.
+// pnpm-scoped alias). Both ship the same placeholder bin + preinstall
+// relinker and depend on the same `@pacquet/<target>` binary sub-packages.
 const SCOPED_ALIAS_NAME = "@pnpm/pacquet";
 const SCOPED_ALIAS_DIR = "pnpm-pacquet";
 const PACQUET_ROOT = resolve(fileURLToPath(import.meta.url), "../..");
@@ -37,8 +37,8 @@ function generateNativePackage(target) {
 
   // publishConfig.executableFiles tells pnpm pack to keep mode 0755
   // on the binary in the published tarball. Without it, pack normalizes
-  // every non-bin file to 0644 and the JS shim's spawnSync fails with
-  // EACCES on install.
+  // every non-bin file to 0644 and the preinstall hard-link inherits a
+  // non-executable inode, so the relinked `pacquet` fails with EACCES.
   const ext = target.platform === "win32" ? ".exe" : "";
   const manifestData = {
     name: packageName,
@@ -96,11 +96,15 @@ function generateScopedAliasPackage() {
   fs.rmSync(aliasRoot, { recursive: true, force: true });
   fs.mkdirSync(resolve(aliasRoot, "bin"), { recursive: true });
 
-  // Mirror the JS shim 1:1. Copying instead of symlinking keeps the
-  // tarball self-contained for `pnpm publish`.
+  // Mirror the placeholder bin and the preinstall relinker 1:1. Copying instead
+  // of symlinking keeps the tarball self-contained for `pnpm publish`.
   fs.copyFileSync(
     resolve(PACQUET_ROOT, "bin", BIN_NAME),
     resolve(aliasRoot, "bin", BIN_NAME),
+  );
+  fs.copyFileSync(
+    resolve(PACQUET_ROOT, "install.js"),
+    resolve(aliasRoot, "install.js"),
   );
 
   // The pacquet manifest at this point already carries the version and

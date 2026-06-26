@@ -17,10 +17,15 @@
     "directory": "pacquet/npm/pacquet"
   },
   "bin": "bin/pacquet",
+  "type": "module",
+  "scripts": {
+    "preinstall": "node install.js"
+  },
   "engines": {
     "node": ">=18.*"
   },
   "files": [
-    "bin/pacquet"
+    "bin/pacquet",
+    "install.js"
   ]
 }
