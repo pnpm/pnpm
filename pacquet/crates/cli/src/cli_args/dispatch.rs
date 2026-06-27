@@ -1,0 +1,292 @@
+use super::{
+    cli_command::{CliArgs, CliCommand},
+    dispatch_install, dispatch_query, dispatch_script,
+    reporter::{ReporterType, configure_default_reporter, reporter_emit},
+};
+use crate::{State, config_overrides::ConfigOverrides};
+use miette::{Context, IntoDiagnostic};
+use pacquet_config::{Config, Host};
+use pacquet_reporter::{ExecutionTimeLog, LogEvent, LogLevel};
+use std::{future::Future, path::Path, pin::Pin};
+
+pub(crate) type CommandFuture<'a> = Pin<Box<dyn Future<Output = miette::Result<()>> + Send + 'a>>;
+
+/// The shared context every subcommand handler needs: the canonicalized
+/// `--dir`, the derived `package.json` path, the selected reporter, the
+/// `--recursive` flag, and the two lazily-loaded resources (`config` /
+/// `state`) the handlers pull from on demand.
+///
+/// `config` and `state` are passed as `&dyn Fn` rather than eagerly loaded
+/// so a handler that never needs them (`pacquet init`) doesn't pay for the
+/// `.npmrc` / lockfile read, and so each call re-loads a fresh
+/// `&'static mut Config` (some handlers, like `patch-commit`, deliberately
+/// initialize state more than once). The closures are built in
+/// [`CliArgs::run`]; their `&dyn Fn` shape matches what
+/// [`super::approve_builds::ApproveBuildsArgs::prepare`] already consumes.
+pub(crate) struct RunCtx<'a> {
+    pub(crate) dir: &'a Path,
+    pub(crate) manifest_path: &'a Path,
+    pub(crate) reporter: ReporterType,
+    pub(crate) recursive: bool,
+    pub(crate) config: &'a (dyn Fn() -> miette::Result<&'static mut Config> + Sync),
+    pub(crate) state: &'a (dyn Fn(bool) -> miette::Result<State> + Sync),
+}
+
+impl CliArgs {
+    pub fn run_completion_if_requested(&self) -> miette::Result<bool> {
+        match &self.command {
+            CliCommand::Completion(args) => {
+                args.run()?;
+                Ok(true)
+            }
+            CliCommand::CompletionServer(args) => {
+                args.run()?;
+                Ok(true)
+            }
+            _ => Ok(false),
+        }
+    }
+
+    /// Try to finish `pacquet install` synchronously through the
+    /// repeat-install fast path, before the caller builds the async
+    /// runtime. `true` means the install completed (the "Already up to
+    /// date" events were emitted); `false` means undecided — proceed
+    /// with [`Self::run`], which loads its own config and re-runs the
+    /// same check.
+    ///
+    /// Mirrors the install arm of [`Self::run`]'s dispatch: the same
+    /// canonicalized `--dir`, the same config layering (`.npmrc` auth
+    /// file seed + `--config.<key>` overrides). Workspace-filtered and
+    /// recursive installs always take the full path.
+    pub fn finished_via_install_fast_path(&self, config_overrides: &ConfigOverrides) -> bool {
+        let started_at = now_millis();
+        let CliCommand::Install(install_args) = &self.command else {
+            return false;
+        };
+        if self.recursive || !self.filter.is_empty() || !self.filter_prod.is_empty() {
+            return false;
+        }
+        let Ok(dir) = dunce::canonicalize(&self.dir) else {
+            return false;
+        };
+        let loaded = Config { npmrc_auth_file: self.npmrc_auth_file.clone(), ..Config::default() }
+            .current::<Host>(&dir);
+        let Ok(mut config) = loaded else {
+            return false;
+        };
+        config_overrides.apply(&mut config);
+        configure_default_reporter(self.reporter, &dir);
+        let emit = reporter_emit(self.reporter);
+        let finished = install_args.finished_via_up_to_date_fast_path(&dir, &config, emit);
+        if finished {
+            // The fast path returns from `main` before `run` reaches its
+            // end-of-command emit, so the `Done in ...` footer must be emitted
+            // here too to match the non-fast-path output.
+            emit(&LogEvent::ExecutionTime(ExecutionTimeLog {
+                level: LogLevel::Debug,
+                started_at,
+                ended_at: now_millis(),
+            }));
+        }
+        finished
+    }
+
+    /// Execute the command. `config_overrides` carries `--config.<key>=<value>`
+    /// tokens already stripped from argv by [`ConfigOverrides::extract`];
+    /// they're layered on top of `.npmrc` / `pnpm-workspace.yaml` whenever
+    /// `Config` is loaded, mirroring pnpm 11's
+    /// "CLI > yaml > .npmrc > defaults" precedence.
+    pub async fn run(self, config_overrides: &ConfigOverrides) -> miette::Result<()> {
+        if self.run_completion_if_requested()? {
+            return Ok(());
+        }
+
+        let CliArgs { command, dir, npmrc_auth_file, recursive, reporter, filter, filter_prod } =
+            self;
+
+        // Canonicalize `--dir` so the bunyan-envelope `prefix` emitted by
+        // the reporter is the same absolute, symlink-resolved path that
+        // `@pnpm/cli.default-reporter` derives via `process.cwd()`. Without
+        // this, a default `--dir=.` leaves `prefix` as `"."`, the reporter
+        // never matches it against its `cwd`, and every progress / stats
+        // line gets a redundant `.` path prefix prepended. Mirrors pnpm's
+        // <https://github.com/pnpm/pnpm/blob/8eb1be4988/config/reader/src/index.ts#L270>
+        // `cwd = fs.realpathSync(betterPathResolve(cliOptions.dir ...))`,
+        // later assigned to `pnpmConfig.dir` (used as the install
+        // `lockfileDir`, threaded into every event's `prefix`).
+        let dir = dunce::canonicalize(&dir)
+            .into_diagnostic()
+            .wrap_err_with(|| format!("canonicalizing the `--dir` argument: {}", dir.display()))?;
+        // The default reporter renders paths relative to the install root and
+        // its `Done in ...` footer over the whole command; seed both before any
+        // event can fire.
+        configure_default_reporter(reporter, &dir);
+        let started_at = now_millis();
+        let is_install_family = matches!(
+            &command,
+            CliCommand::Add(_)
+                | CliCommand::Update(_)
+                | CliCommand::Remove(_)
+                | CliCommand::Install(_)
+                | CliCommand::Dlx(_)
+                | CliCommand::Link(_)
+                | CliCommand::Import(_)
+                | CliCommand::Dedupe(_)
+                | CliCommand::Deploy(_)
+                | CliCommand::Prune(_)
+                | CliCommand::Fetch(_)
+                | CliCommand::Unlink(_)
+                | CliCommand::Create(_)
+                | CliCommand::Runtime(_)
+                // `rebuild` drives the frozen-install pipeline and emits
+                // the same progress events, so it shares the `Done in ...`
+                // footer.
+                | CliCommand::Rebuild(_)
+                | CliCommand::PatchCommit(_)
+                | CliCommand::PatchRemove(_),
+        );
+        let manifest_path = dir.join("package.json");
+        // Resolve `.npmrc` / `pnpm-workspace.yaml` from the canonicalized
+        // `--dir` rather than the process cwd, matching pnpm 11 (which
+        // builds its `localPrefix` from `cliOptions.dir`, not `cwd`) —
+        // see [`loadNpmrcConfig`](https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/loadNpmrcFiles.ts#L48-L50).
+        //
+        // Production callers turbofish `Host` explicitly so the
+        // dependency-injection plumbing is visible at the call site.
+        // See [pnpm/pacquet#339](https://github.com/pnpm/pacquet/issues/339)
+        // for the pattern and rationale.
+        let config = || -> miette::Result<&'static mut Config> {
+            // Seed `npmrc_auth_file` from the CLI flag before
+            // `current()` reads `.npmrc`, so the override redirects the
+            // user-level read. Mirrors pnpm's `--npmrc-auth-file`.
+            Config { npmrc_auth_file: npmrc_auth_file.clone(), ..Config::default() }
+                .current::<Host>(&dir)
+                .map(|mut cfg| {
+                    config_overrides.apply(&mut cfg);
+                    // `--recursive` / `-r` is CLI-only upstream (not a
+                    // `.npmrc` / yaml key), so it is set here from the
+                    // global flag rather than through the yaml / env
+                    // overlay. Mirrors pnpm's `Config.recursive`.
+                    cfg.recursive = recursive;
+                    // `--filter` / `--filter-prod` are likewise CLI-only
+                    // (pnpm's `Config.filter` / `Config.filterProd`),
+                    // so the parsed selector strings are threaded in
+                    // from the global flags here.
+                    cfg.filter.clone_from(&filter);
+                    cfg.filter_prod.clone_from(&filter_prod);
+                    Config::leak(cfg)
+                })
+                .map_err(miette::Report::new)
+                .wrap_err("load configuration")
+        };
+        // `require_lockfile` is the "this subcommand cannot run without a
+        // lockfile loaded" signal, used by `State::init` to override
+        // `config.lockfile=false`. Only `install --frozen-lockfile` needs
+        // it today; other subcommands follow `config.lockfile`. Matches
+        // pnpm's CLI: `--frozen-lockfile` is the strongest signal and
+        // must not be silently dropped because `lockfile=false` was set
+        // (or defaulted) in config.
+        let state = |require_lockfile: bool| -> miette::Result<State> {
+            State::init(manifest_path.clone(), config()?, require_lockfile)
+                .wrap_err("initialize the state")
+        };
+
+        let ctx = RunCtx {
+            dir: &dir,
+            manifest_path: &manifest_path,
+            reporter,
+            recursive,
+            config: &config,
+            state: &state,
+        };
+        // `publish` is the one command whose future is not `Send` (its OTP /
+        // web-auth retry callback borrows a `&str`), so it cannot flow through
+        // the `Send` `CommandFuture` that `route` returns. Await it inline here,
+        // where the command future is only ever `block_on`'d, never spawned.
+        match command {
+            CliCommand::Publish(args) => dispatch_query::publish(&ctx, args).await?,
+            command => route(command, &ctx)?.await?,
+        }
+
+        // The `Done in ...` footer covers the whole command, mirroring pnpm's
+        // `pnpm:execution-time` emit in `main.ts`. Only the install-family
+        // commands drive the visual reporter, so the rest stay silent.
+        if is_install_family {
+            reporter_emit(reporter)(&LogEvent::ExecutionTime(ExecutionTimeLog {
+                level: LogLevel::Debug,
+                started_at,
+                ended_at: now_millis(),
+            }));
+        }
+
+        Ok(())
+    }
+}
+
+/// Route a parsed [`CliCommand`] to its handler. The per-command logic lives
+/// in the `dispatch_install` / `dispatch_query` / `dispatch_script` modules,
+/// grouped by what the command does (mutate the install graph, read-only
+/// query, or run a `package.json` script); this match is only the wiring.
+///
+/// `completion` / `completion-server` are handled before configuration in
+/// [`CliArgs::run_completion_if_requested`], so they are unreachable here.
+fn route<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
+    match command {
+        CliCommand::Init => dispatch_script::init(ctx),
+        CliCommand::Add(args) => dispatch_install::add(ctx, args),
+        CliCommand::Install(args) => dispatch_install::install(ctx, args),
+        CliCommand::Update(args) => dispatch_install::update(ctx, args),
+        CliCommand::Outdated(args) => dispatch_query::outdated(ctx, args),
+        CliCommand::Audit(args) => dispatch_query::audit(ctx, args),
+        CliCommand::List(args) => dispatch_query::list(ctx, args),
+        CliCommand::Ll(args) => dispatch_query::ll(ctx, args),
+        CliCommand::Why(args) => dispatch_query::why(ctx, args),
+        CliCommand::Whoami => dispatch_query::whoami(ctx),
+        CliCommand::DistTag(args) => dispatch_query::dist_tag(ctx, args),
+        CliCommand::Ping(args) => dispatch_query::ping(ctx, args),
+        CliCommand::Rebuild(args) => dispatch_install::rebuild(ctx, args),
+        CliCommand::Pack(args) => dispatch_query::pack(ctx, &args),
+        // `publish` returns a non-Send future and so is awaited inline in
+        // [`CliArgs::run`] before `route` is reached (see `dispatch_query::publish`).
+        CliCommand::Publish(_) => unreachable!("publish is awaited inline in CliArgs::run"),
+        CliCommand::Remove(args) => dispatch_install::remove(ctx, args),
+        CliCommand::Patch(args) => dispatch_install::patch(ctx, args),
+        CliCommand::PatchCommit(args) => dispatch_install::patch_commit(ctx, args),
+        CliCommand::PatchRemove(args) => dispatch_install::patch_remove(ctx, args),
+        CliCommand::SetScript(args) => dispatch_script::set_script(ctx, args),
+        CliCommand::Test => dispatch_script::test(ctx),
+        CliCommand::Run(args) => dispatch_script::run(ctx, args),
+        CliCommand::Exec(args) => dispatch_script::exec(ctx, args),
+        CliCommand::Dlx(args) => dispatch_install::dlx(ctx, args),
+        CliCommand::Create(args) => dispatch_install::create(ctx, args),
+        CliCommand::Start => dispatch_script::start(ctx),
+        CliCommand::Stop(args) => dispatch_script::stop(ctx, args),
+        CliCommand::Restart(args) => dispatch_script::restart(ctx, args),
+        CliCommand::FindHash(args) => dispatch_query::find_hash(ctx, args),
+        CliCommand::Runtime(args) => dispatch_install::runtime(ctx, args),
+        CliCommand::Root(args) => dispatch_query::root(ctx, args),
+        CliCommand::Config(args) => dispatch_query::config(ctx, args),
+        CliCommand::PackApp(args) => dispatch_query::pack_app(ctx, args),
+        CliCommand::Store(command) => dispatch_query::store(ctx, command),
+        CliCommand::Cache(command) => dispatch_query::cache(ctx, command),
+        CliCommand::CatFile(args) => dispatch_query::cat_file(ctx, args),
+        CliCommand::CatIndex(args) => dispatch_query::cat_index(ctx, args),
+        CliCommand::IgnoredBuilds(args) => dispatch_query::ignored_builds(ctx, args),
+        CliCommand::ApproveBuilds(args) => dispatch_install::approve_builds(ctx, args),
+        CliCommand::Link(args) => dispatch_install::link(ctx, args),
+        CliCommand::Import(args) => dispatch_install::import(ctx, args),
+        CliCommand::Dedupe(args) => dispatch_install::dedupe(ctx, args),
+        CliCommand::Deploy(args) => dispatch_install::deploy(ctx, args),
+        CliCommand::Prune(args) => dispatch_install::prune(ctx, args),
+        CliCommand::Fetch(args) => dispatch_install::fetch(ctx, args),
+        CliCommand::Unlink(args) => dispatch_install::unlink(ctx, args),
+        CliCommand::Docs(args) => dispatch_query::docs(ctx, args),
+        CliCommand::Completion(_) | CliCommand::CompletionServer(_) => {
+            unreachable!("completion returns before configuration")
+        }
+    }
+}
+
+fn now_millis() -> u128 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis())
+}
