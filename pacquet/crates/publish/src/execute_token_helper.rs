@@ -1,4 +1,4 @@
-//! Port of `executeTokenHelper.ts`: run a configured `tokenHelper` command and
+//! Port of [`executeTokenHelper.ts`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/executeTokenHelper.ts): run a configured `tokenHelper` command and
 //! return the auth token it prints.
 
 use std::io;

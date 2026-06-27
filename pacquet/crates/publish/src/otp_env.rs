@@ -1,4 +1,4 @@
-//! Port of `otpEnv.ts`: let `PNPM_CONFIG_OTP` supply the one-time password
+//! Port of [`otpEnv.ts`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/otpEnv.ts): let `PNPM_CONFIG_OTP` supply the one-time password
 //! when none was passed explicitly.
 
 use crate::capabilities::EnvVar;

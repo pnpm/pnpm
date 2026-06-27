@@ -1,4 +1,4 @@
-//! Port of `displayError`: render a caught error as a short one-line string
+//! Port of [`displayError.ts`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/displayError.ts): render a caught error as a short one-line string
 //! for a warning message.
 
 use pacquet_diagnostics::miette::Diagnostic;

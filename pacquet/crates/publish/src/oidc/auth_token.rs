@@ -1,4 +1,4 @@
-//! Port of `oidc/authToken.ts`: exchange a CI id-token for a registry auth
+//! Port of [`oidc/authToken.ts`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/oidc/authToken.ts): exchange a CI id-token for a registry auth
 //! token via the npm OIDC token-exchange endpoint.
 
 use pacquet_diagnostics::miette::{self, Diagnostic};

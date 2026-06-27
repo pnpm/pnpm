@@ -8,10 +8,10 @@ use pretty_assertions::assert_eq;
 
 const REGISTRY: &str = "https://registry.npmjs.org/";
 
-/// The id-token payload fields [`determine_provenance`] reads. Mirrors the TS
-/// `interface Payload { repository_visibility?: unknown; project_visibility?: unknown }`
-/// — both optional — but typed to the only value the visibility check ever
-/// looks for, a string, so a test constructs a payload without an untyped map.
+/// The id-token payload fields [`determine_provenance`] reads, typed to the
+/// string the visibility check looks for so a test builds one without an
+/// untyped map. Ports the inline `Payload` interface of
+/// [`provenance.ts`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/oidc/provenance.ts#L86-L89).
 #[derive(serde::Serialize)]
 struct Payload {
     #[serde(skip_serializing_if = "Option::is_none")]

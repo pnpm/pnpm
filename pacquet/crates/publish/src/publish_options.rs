@@ -1,4 +1,4 @@
-//! Port of the option-assembly half of `publishPackedPkg.ts`: choose the
+//! Port of the option-assembly half of [`publishPackedPkg.ts`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/publishPackedPkg.ts): choose the
 //! target registry, resolve the access level, and run the per-package OIDC
 //! token / provenance exchange that takes precedence over static credentials.
 

@@ -1,4 +1,4 @@
-//! Port of the request half of `publishPackedPkg.ts` plus the
+//! Port of the request half of [`publishPackedPkg.ts`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/publishPackedPkg.ts) plus the
 //! `libnpmpublish`-equivalent PUT: assemble the publish document, send it
 //! (driving any OTP challenge through [`pacquet_network_web_auth`]), and turn
 //! the registry's response into a [`PublishSummary`].

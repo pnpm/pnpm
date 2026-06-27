@@ -1,4 +1,4 @@
-//! Port of `oidc/provenance.ts`: decide whether to attach provenance based on
+//! Port of [`oidc/provenance.ts`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/oidc/provenance.ts): decide whether to attach provenance based on
 //! the CI context and the package's registry visibility.
 
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
@@ -125,7 +125,7 @@ impl ProvenanceError {
         package_name: &str,
         registry: &str,
     ) -> Self {
-        let parsed = body.pipe(serde_json::from_str::<Value>).ok();
+        let parsed = serde_json::from_str::<Value>(body).ok();
         let code = parsed.as_ref().and_then(|json| json.get("code")?.as_str().map(str::to_owned));
         let detail =
             parsed.as_ref().and_then(|json| json.get("message")?.as_str().map(str::to_owned));

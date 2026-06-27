@@ -1,4 +1,4 @@
-//! Port of `extractManifestFromPacked.ts`: read `package/package.json` out of
+//! Port of [`extractManifestFromPacked.ts`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/extractManifestFromPacked.ts): read `package/package.json` out of
 //! a pre-built `.tgz` so a tarball passed to `pnpm publish <tarball>` can be
 //! published without repacking.
 

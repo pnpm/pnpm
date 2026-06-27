@@ -1,4 +1,4 @@
-//! Port of `oidc/idToken.ts`: retrieve an OIDC id-token from the CI
+//! Port of [`oidc/idToken.ts`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/oidc/idToken.ts): retrieve an OIDC id-token from the CI
 //! environment.
 
 use pacquet_diagnostics::miette::{self, Diagnostic};

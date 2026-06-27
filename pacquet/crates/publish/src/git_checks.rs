@@ -1,5 +1,5 @@
-//! Port of `@pnpm/network.git-utils` plus the git-check orchestration at the
-//! top of `publish.ts`: refuse to publish from an unclean tree, the wrong
+//! Port of [`@pnpm/network.git-utils`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/network/git-utils/src/index.ts) plus the git-check orchestration at the
+//! top of [`publish.ts`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/publish.ts): refuse to publish from an unclean tree, the wrong
 //! branch, or behind the remote.
 
 use std::{fs, path::Path};

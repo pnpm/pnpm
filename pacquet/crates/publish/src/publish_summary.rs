@@ -1,4 +1,4 @@
-//! Port of `tarball/publishSummary.ts`: the per-package summary `pnpm publish`
+//! Port of [`tarball/publishSummary.ts`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/tarball/publishSummary.ts): the per-package summary `pnpm publish`
 //! returns and prints under `--json`, modeled after `npm publish --json`.
 
 use std::path::Path;

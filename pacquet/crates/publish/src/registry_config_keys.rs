@@ -1,4 +1,4 @@
-//! Port of `registryConfigKeys.ts`: parse a registry URL into the `.npmrc`
+//! Port of [`registryConfigKeys.ts`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/registryConfigKeys.ts): parse a registry URL into the `.npmrc`
 //! config-key form (`//host/path/`) and enumerate every config key of the
 //! same host from the longest path to the shortest.
 

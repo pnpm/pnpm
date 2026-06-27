@@ -1,4 +1,4 @@
-//! Port of `FailedToPublishError.ts`: the error raised when the registry
+//! Port of [`FailedToPublishError.ts`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/FailedToPublishError.ts): the error raised when the registry
 //! rejects a publish request.
 
 use std::fmt::Write;
