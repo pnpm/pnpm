@@ -58,7 +58,9 @@ pub async fn fetch_auth_token<Sys: OidcFetch>(
         return Err(AuthTokenError::Exchange { message, http_status: response.status });
     }
 
-    let json: Value = serde_json::from_str(&response.body)
+    let json = response
+        .body
+        .pipe_as_ref(serde_json::from_str::<Value>)
         .map_err(|source| AuthTokenError::JsonInterrupted { source: source.to_string() })?;
 
     match json.get("token").and_then(Value::as_str) {

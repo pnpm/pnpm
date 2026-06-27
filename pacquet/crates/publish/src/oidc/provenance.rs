@@ -3,6 +3,7 @@
 
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use pacquet_diagnostics::miette::{self, Diagnostic};
+use pipe_trait::Pipe;
 use serde_json::Value;
 use url::Url;
 
@@ -77,7 +78,9 @@ where
         .into());
     }
 
-    let public = serde_json::from_str::<Value>(&response.body)
+    let public = response
+        .body
+        .pipe_as_ref(serde_json::from_str::<Value>)
         .ok()
         .and_then(|json| json.get("public").and_then(Value::as_bool))
         .unwrap_or(false);
@@ -122,7 +125,7 @@ impl ProvenanceError {
         package_name: &str,
         registry: &str,
     ) -> Self {
-        let parsed = serde_json::from_str::<Value>(body).ok();
+        let parsed = body.pipe(serde_json::from_str::<Value>).ok();
         let code = parsed.as_ref().and_then(|json| json.get("code")?.as_str().map(str::to_owned));
         let detail =
             parsed.as_ref().and_then(|json| json.get("message")?.as_str().map(str::to_owned));
