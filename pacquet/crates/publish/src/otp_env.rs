@@ -52,7 +52,7 @@ mod tests {
     fn explicit_otp_wins_over_env() {
         assert_eq!(
             resolve_otp_from_env::<EnvOtp>(Some("explicit".to_owned())),
-            Some("explicit".to_owned())
+            Some("explicit".to_owned()),
         );
     }
 
@@ -65,7 +65,7 @@ mod tests {
     fn empty_explicit_otp_is_treated_as_unset() {
         assert_eq!(
             resolve_otp_from_env::<EnvOtp>(Some(String::new())),
-            Some("from-env".to_owned())
+            Some("from-env".to_owned()),
         );
     }
 

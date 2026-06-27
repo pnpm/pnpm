@@ -13,7 +13,7 @@
 //! browser opener, the "press Enter" listener, the classic-OTP prompt) are
 //! *not* re-declared here: they already have a seam in
 //! [`pacquet_network_web_auth`], whose [`pacquet_network_web_auth::Host`] this
-//! crate reuses for [`crate::publish_with_otp_handling`].
+//! crate reuses to drive the publish request's OTP handling.
 
 use std::{
     io,

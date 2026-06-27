@@ -8,7 +8,7 @@ use pacquet_diagnostics::miette::{self, Diagnostic};
 
 use crate::capabilities::{ConfirmPrompt, RunCommand};
 
-const GIT_CHECKS_HINT: &str = "If you want to disable Git checks on publish, set the \"git-checks\" setting to \"false\", or run again with \"--no-git-checks\".";
+const GIT_CHECKS_HINT: &str = r#"If you want to disable Git checks on publish, set the "git-checks" setting to "false", or run again with "--no-git-checks"."#;
 
 /// Run the publish git checks for `cwd`. A no-op when `git_checks_enabled` is
 /// false or `cwd` is not a git repository. Ports the git-check block of TS
@@ -41,7 +41,7 @@ where
 
     if !branches.contains(&current_branch) {
         let message = format!(
-            "You're on branch \"{current_branch}\" but your \"publish-branch\" is set to \"{branches_display}\". Do you want to continue?"
+            "You're on branch \"{current_branch}\" but your \"publish-branch\" is set to \"{branches_display}\". Do you want to continue?",
         );
         if !Sys::confirm(&message) {
             return Err(GitCheckError::NotCorrectBranch { branches: branches_display });

@@ -21,13 +21,13 @@ mod tests;
 ///
 /// `NPM_ID_TOKEN` is honored first as the CI-agnostic injection point; failing
 /// that, only GitHub Actions' request-token endpoint can be driven directly.
-pub async fn get_id_token<Sys, R>(
+pub async fn get_id_token<Sys, Reporter>(
     registry: &str,
     options: &OidcHttpOptions,
 ) -> Result<Option<String>, GetIdTokenError>
 where
     Sys: EnvVar + CiInfo + Clock + OidcFetch,
-    R: Reporter,
+    Reporter: self::Reporter,
 {
     if let Some(token) = truthy_env::<Sys>("NPM_ID_TOKEN") {
         return Ok(Some(token));
@@ -62,7 +62,7 @@ where
     .map_err(GetIdTokenError::Fetch)?;
 
     let elapsed = Sys::now_ms().saturating_sub(start);
-    global_info::<R>(&format!("GET {url} {} {elapsed}ms", response.status));
+    global_info::<Reporter>(&format!("GET {url} {} {elapsed}ms", response.status));
 
     if !response.ok {
         return Err(IdTokenError::GitHubInvalidResponse.into());

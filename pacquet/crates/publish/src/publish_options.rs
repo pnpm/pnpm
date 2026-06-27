@@ -22,7 +22,7 @@ use crate::{
 /// The package access level the registry should record. Ports the
 /// `'public' | 'restricted'` union; `None` leaves it unset (the registry
 /// default). Models the TS string-literal union as a closed enum.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, derive_more::Display)]
+#[derive(Debug, derive_more::Display, Clone, Copy, PartialEq, Eq)]
 pub enum Access {
     #[display("public")]
     Public,
@@ -133,7 +133,7 @@ pub enum FetchTokenAndProvenanceError {
 ///
 /// `provenance_override` is the explicit `--provenance` value: when set, it is
 /// used verbatim and the visibility probe is skipped.
-pub async fn fetch_token_and_provenance_by_oidc<Sys, R>(
+pub async fn fetch_token_and_provenance_by_oidc<Sys, Reporter>(
     package_name: &str,
     registry: &str,
     provenance_override: Option<bool>,
@@ -141,12 +141,12 @@ pub async fn fetch_token_and_provenance_by_oidc<Sys, R>(
 ) -> Result<Option<OidcTokenProvenance>, FetchTokenAndProvenanceError>
 where
     Sys: EnvVar + CiInfo + Clock + OidcFetch,
-    R: Reporter,
+    Reporter: self::Reporter,
 {
-    let id_token = match get_id_token::<Sys, R>(registry, http).await {
+    let id_token = match get_id_token::<Sys, Reporter>(registry, http).await {
         Ok(token) => token,
         Err(GetIdTokenError::IdToken(error)) => {
-            global_warn::<R>(&format!("Skipped OIDC: {}", display_diagnostic(&error)));
+            global_warn::<Reporter>(&format!("Skipped OIDC: {}", display_diagnostic(&error)));
             return Ok(None);
         }
         Err(error) => return Err(FetchTokenAndProvenanceError::IdToken(error)),
@@ -160,7 +160,7 @@ where
     let auth_token = match fetch_auth_token::<Sys>(&id_token, package_name, registry, http).await {
         Ok(token) => token,
         Err(error) => {
-            global_warn::<R>(&format!("Skipped OIDC: {}", display_diagnostic(&error)));
+            global_warn::<Reporter>(&format!("Skipped OIDC: {}", display_diagnostic(&error)));
             return Ok(None);
         }
     };
@@ -174,9 +174,9 @@ where
         Err(DetermineProvenanceError::Provenance(error)) => {
             // Keep the OIDC auth token even when provenance can't be decided —
             // the publish itself can still go through, matching the npm CLI.
-            global_warn::<R>(&format!(
+            global_warn::<Reporter>(&format!(
                 "Skipped setting provenance: {}",
-                display_diagnostic(&error)
+                display_diagnostic(&error),
             ));
             Ok(Some(OidcTokenProvenance { auth_token, provenance: None }))
         }
@@ -214,14 +214,14 @@ pub struct ResolvedPublishOptions {
 /// `oidc_enabled` is `false` the per-package OIDC exchange is skipped (batch
 /// publish sends many packages a package-scoped token cannot authorize). Ports
 /// the option-assembly portion of TS `createPublishOptions`.
-pub async fn create_publish_options<Sys, R>(
+pub async fn create_publish_options<Sys, Reporter>(
     manifest: &Value,
     input: &CreatePublishOptionsInput<'_>,
     oidc_enabled: bool,
 ) -> Result<ResolvedPublishOptions, CreatePublishOptionsError>
 where
     Sys: EnvVar + CiInfo + Clock + OidcFetch,
-    R: Reporter,
+    Reporter: self::Reporter,
 {
     let publish_config_registry = manifest
         .get("publishConfig")
@@ -242,7 +242,7 @@ where
     if oidc_enabled {
         // OIDC takes precedence over a configured static token, mirroring the
         // npm CLI: trusted publishing wins when the registry has it configured.
-        let oidc = fetch_token_and_provenance_by_oidc::<Sys, R>(
+        let oidc = fetch_token_and_provenance_by_oidc::<Sys, Reporter>(
             name,
             registry.as_str(),
             input.provenance,

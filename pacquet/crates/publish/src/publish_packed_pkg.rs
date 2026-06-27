@@ -65,14 +65,14 @@ pub struct PublishNetwork<'a> {
 /// `Sys` carries the OIDC capabilities used while resolving credentials; the
 /// OTP / web-authentication flow always runs against
 /// [`pacquet_network_web_auth::Host`]. Ports TS `publishPackedPkg`.
-pub async fn publish_packed_pkg<Sys, R>(
+pub async fn publish_packed_pkg<Sys, Reporter>(
     pkg: &PackedPkg<'_>,
     opts: &PublishPackedPkgOptions,
     network: &PublishNetwork<'_>,
 ) -> Result<PublishSummary, PublishPackedPkgError>
 where
     Sys: EnvVar + CiInfo + Clock + OidcFetch,
-    R: Reporter,
+    Reporter: self::Reporter,
 {
     let input = CreatePublishOptionsInput {
         default_registry: &opts.default_registry,
@@ -83,14 +83,15 @@ where
         provenance: opts.provenance,
         http: &opts.http,
     };
-    let resolved = create_publish_options::<Sys, R>(pkg.published_manifest, &input, true).await?;
+    let resolved =
+        create_publish_options::<Sys, Reporter>(pkg.published_manifest, &input, true).await?;
 
     let name = manifest_string(pkg.published_manifest, "name");
     let version = manifest_string(pkg.published_manifest, "version");
     let registry = resolved.registry.clone();
     let is_stage = opts.stage;
 
-    global_info::<R>(&format!("📦 {name}@{version} → {}", registry.as_str()));
+    global_info::<Reporter>(&format!("📦 {name}@{version} → {}", registry.as_str()));
 
     let mut summary = create_publish_summary(
         &PackedPkgInfo {
@@ -104,7 +105,7 @@ where
 
     if opts.dry_run {
         let verb = if is_stage { "staging" } else { "publishing" };
-        global_warn::<R>(&format!("Skip {verb} {name}@{version} (dry run)"));
+        global_warn::<Reporter>(&format!("Skip {verb} {name}@{version} (dry run)"));
         return Ok(summary);
     }
 
@@ -133,7 +134,7 @@ where
         .or_else(|| network.auth_headers.for_url_with_package(registry.as_str(), Some(&name)));
     let npm_command = if is_stage { "stage" } else { "publish" };
 
-    let response = publish_with_otp_handling::<R>(
+    let response = publish_with_otp_handling::<Reporter>(
         network.client,
         &put_url,
         authorization.as_deref(),
@@ -150,7 +151,7 @@ where
             summary.stage_id = response.stage_id;
         }
         let verb = if is_stage { "Staged" } else { "Published" };
-        global_info::<R>(&format!("✅ {verb} package {name}@{version}"));
+        global_info::<Reporter>(&format!("✅ {verb} package {name}@{version}"));
         return Ok(summary);
     }
 
@@ -202,8 +203,11 @@ impl OtpError for PublishHttpError {
 /// Send the publish PUT, retrying once under OTP through the web-auth flow.
 /// The operation returns `Ok` for every completed HTTP response (the caller
 /// inspects `ok`) and `Err` only for an OTP challenge or a transport failure.
-#[allow(clippy::too_many_arguments)]
-async fn publish_with_otp_handling<R: Reporter>(
+#[allow(
+    clippy::too_many_arguments,
+    reason = "a single registry request legitimately needs the URL, auth, command, body, OTP, stage flag and retry options"
+)]
+async fn publish_with_otp_handling<Reporter: self::Reporter>(
     client: &ThrottledClient,
     put_url: &str,
     authorization: Option<&str>,
@@ -213,7 +217,7 @@ async fn publish_with_otp_handling<R: Reporter>(
     is_stage: bool,
     fetch_options: WebAuthFetchOptions,
 ) -> Result<PublishResponse, WithOtpError<PublishHttpError>> {
-    with_otp_handling::<WebAuthHost, R, PublishResponse, PublishHttpError, _>(
+    with_otp_handling::<WebAuthHost, Reporter, PublishResponse, PublishHttpError, _>(
         fetch_options,
         async move |challenge_otp: Option<&str>| {
             // The web-auth-provided OTP (a fresh challenge) takes precedence
@@ -238,7 +242,10 @@ async fn publish_with_otp_handling<R: Reporter>(
 }
 
 /// Perform a single publish PUT and classify the response.
-#[allow(clippy::too_many_arguments)]
+#[allow(
+    clippy::too_many_arguments,
+    reason = "a single registry request legitimately needs the URL, auth, command, body, OTP and stage flag"
+)]
 async fn put_publish(
     client: &ThrottledClient,
     put_url: &str,
@@ -507,7 +514,7 @@ mod tests {
         // libnpmpublish stores an http:// tarball URL even for an https registry.
         assert_eq!(
             version["dist"]["tarball"],
-            "http://registry.example/@scope/pkg/-/@scope/pkg-1.0.0.tgz"
+            "http://registry.example/@scope/pkg/-/@scope/pkg-1.0.0.tgz",
         );
         let attachments = document["_attachments"].as_object().unwrap();
         assert!(attachments.contains_key("@scope/pkg-1.0.0.tgz"));

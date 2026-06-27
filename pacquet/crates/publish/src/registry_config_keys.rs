@@ -7,7 +7,7 @@
 /// `NormalizedRegistryUrl` (`` `${'http'|'https'}://${string}/` ``);
 /// constructed only by [`parse_supported_registry_url`], which validates the
 /// scheme.
-#[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
+#[derive(Debug, derive_more::Display, Clone, PartialEq, Eq)]
 pub struct NormalizedRegistryUrl(String);
 
 impl NormalizedRegistryUrl {
@@ -20,7 +20,7 @@ impl NormalizedRegistryUrl {
 /// A registry config key as it appears in `.npmrc`: a `//`-prefixed host and
 /// path that ends with `/` (e.g. `//registry.npmjs.org/`). Ports the branded
 /// TS type `RegistryConfigKey` (`` `//${string}/` ``).
-#[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
+#[derive(Debug, derive_more::Display, Clone, PartialEq, Eq)]
 pub struct RegistryConfigKey(String);
 
 impl RegistryConfigKey {

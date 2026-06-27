@@ -11,10 +11,10 @@ use crate::{capabilities::RunCommand, global_log::global_warn};
 /// bare token. Each non-empty stderr line is surfaced as a warning, and a
 /// leading `Bearer ` scheme is stripped (libnpmpublish adds the scheme
 /// itself). Ports TS `executeTokenHelper`.
-pub fn execute_token_helper<Sys, R>(token_helper: &[String]) -> io::Result<String>
+pub fn execute_token_helper<Sys, Reporter>(token_helper: &[String]) -> io::Result<String>
 where
     Sys: RunCommand,
-    R: Reporter,
+    Reporter: self::Reporter,
 {
     let Some((program, args)) = token_helper.split_first() else {
         return Ok(String::new());
@@ -25,7 +25,7 @@ where
     let stderr = output.stderr.trim_end();
     if !stderr.trim().is_empty() {
         for line in stderr.split('\n') {
-            global_warn::<R>(&format!("(tokenHelper stderr) {line}"));
+            global_warn::<Reporter>(&format!("(tokenHelper stderr) {line}"));
         }
     }
 

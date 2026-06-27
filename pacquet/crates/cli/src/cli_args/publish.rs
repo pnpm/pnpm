@@ -93,7 +93,7 @@ impl PublishArgs {
     /// Publish the package at `dir` (or the given tarball/directory),
     /// returning nothing — output is printed here. Ports pnpm's `publish`
     /// handler for the single-package and tarball paths.
-    pub async fn run<R: Reporter>(
+    pub async fn run<Reporter: self::Reporter>(
         self,
         dir: &Path,
         config: &Config,
@@ -102,7 +102,7 @@ impl PublishArgs {
         if self.batch && !(recursive || self.recursive) {
             return Err(miette::miette!(
                 code = "ERR_PNPM_BATCH_PUBLISH_REQUIRES_RECURSIVE",
-                "--batch can only be used together with --recursive"
+                "--batch can only be used together with --recursive",
             ));
         }
 
@@ -114,7 +114,7 @@ impl PublishArgs {
                 code = "ERR_PNPM_RECURSIVE_PUBLISH_UNSUPPORTED",
                 help =
                     "Run `pnpm publish` in each package directory, or use the TypeScript pnpm CLI.",
-                "Recursive publishing is not yet supported by pacquet"
+                "Recursive publishing is not yet supported by pacquet",
             ));
         }
 
@@ -125,9 +125,9 @@ impl PublishArgs {
 
         let summary_json =
             if let Some(package) = self.package.as_deref().filter(|p| is_tarball_path(p)) {
-                self.publish_tarball::<R>(package, &opts, &network).await?
+                self.publish_tarball::<Reporter>(package, &opts, &network).await?
             } else {
-                self.publish_directory::<R>(
+                self.publish_directory::<Reporter>(
                     self.package.as_deref().unwrap_or_else(|| dir_str(dir)),
                     config,
                     &opts,
@@ -144,7 +144,7 @@ impl PublishArgs {
 
     /// Publish a pre-built tarball: extract its manifest and hand the bytes
     /// straight to the registry (no file listing or unpacked size).
-    async fn publish_tarball<R: Reporter>(
+    async fn publish_tarball<Reporter: self::Reporter>(
         &self,
         tarball_path: &str,
         opts: &PublishPackedPkgOptions,
@@ -154,7 +154,7 @@ impl PublishArgs {
         let tarball_data = std::fs::read(tarball_path)
             .into_diagnostic()
             .wrap_err_with(|| format!("read tarball {tarball_path}"))?;
-        let summary = publish_packed_pkg::<Host, R>(
+        let summary = publish_packed_pkg::<Host, Reporter>(
             &PackedPkg {
                 published_manifest: &manifest,
                 tarball_data: &tarball_data,
@@ -172,7 +172,7 @@ impl PublishArgs {
     /// Publish a project directory: run `prepublishOnly` / `prepublish`, pack
     /// the project into a temporary directory, publish the tarball, then run
     /// `publish` / `postpublish`.
-    async fn publish_directory<R: Reporter>(
+    async fn publish_directory<Reporter: self::Reporter>(
         &self,
         dir: &str,
         config: &Config,
@@ -186,12 +186,12 @@ impl PublishArgs {
             .ok_or_else(|| {
                 miette::miette!(
                     code = "ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND",
-                    "No package.json found in {dir}"
+                    "No package.json found in {dir}",
                 )
             })?;
 
         if !self.ignore_scripts {
-            run_publish_scripts::<R>(
+            run_publish_scripts::<Reporter>(
                 project_dir,
                 config,
                 &manifest,
@@ -201,12 +201,12 @@ impl PublishArgs {
 
         let pack_destination = tempfile::tempdir().into_diagnostic().wrap_err("create temp dir")?;
         let pack_result =
-            self.pack_for_publish::<R>(project_dir, config, pack_destination.path())?;
+            self.pack_for_publish::<Reporter>(project_dir, config, pack_destination.path())?;
         let tarball_data = std::fs::read(&pack_result.tarball_path)
             .into_diagnostic()
             .wrap_err("read packed tarball")?;
 
-        let summary = publish_packed_pkg::<Host, R>(
+        let summary = publish_packed_pkg::<Host, Reporter>(
             &PackedPkg {
                 published_manifest: &pack_result.published_manifest,
                 tarball_data: &tarball_data,
@@ -221,14 +221,19 @@ impl PublishArgs {
         drop(pack_destination);
 
         if !self.ignore_scripts {
-            run_publish_scripts::<R>(project_dir, config, &manifest, &["publish", "postpublish"])?;
+            run_publish_scripts::<Reporter>(
+                project_dir,
+                config,
+                &manifest,
+                &["publish", "postpublish"],
+            )?;
         }
         serde_json::to_string_pretty(&summary).into_diagnostic()
     }
 
     /// Pack the project into `pack_destination` for publishing (never a dry
     /// run; the publish itself honors `--dry-run`).
-    fn pack_for_publish<R: Reporter>(
+    fn pack_for_publish<Reporter: self::Reporter>(
         &self,
         dir: &Path,
         config: &Config,
@@ -251,7 +256,9 @@ impl PublishArgs {
             out: None,
             pack_destination: Some(pack_destination.to_string_lossy().into_owned()),
         };
-        pack_api::<R, PackHost>(&options).map_err(miette::Report::new).wrap_err("pack the package")
+        pack_api::<Reporter, PackHost>(&options)
+            .map_err(miette::Report::new)
+            .wrap_err("pack the package")
     }
 
     /// Map the CLI flags and resolved [`Config`] onto the publish options.
@@ -280,7 +287,7 @@ impl PublishArgs {
 /// Run the publish-lifecycle scripts the manifest declares, in order, with
 /// `unsafe_perm` (publish scripts are run explicitly and assumed trusted).
 /// Mirrors pnpm's `runScriptsIfPresent`.
-fn run_publish_scripts<R: Reporter>(
+fn run_publish_scripts<Reporter: self::Reporter>(
     dir: &Path,
     config: &Config,
     manifest: &Value,
@@ -320,7 +327,7 @@ fn run_publish_scripts<R: Reporter>(
 
     for &name in script_names {
         let Some(script) = declares(name) else { continue };
-        run_lifecycle_hook::<R>(name, script, &run_opts, manifest, &parent_env)
+        run_lifecycle_hook::<Reporter>(name, script, &run_opts, manifest, &parent_env)
             .map_err(miette::Report::new)
             .wrap_err_with(|| format!("run the {name} script"))?;
     }

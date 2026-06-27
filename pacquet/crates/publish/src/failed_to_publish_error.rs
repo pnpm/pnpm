@@ -62,7 +62,7 @@ mod tests {
         );
         assert_eq!(
             err.to_string(),
-            "Failed to publish package foo@1.0.0 (status 403 Forbidden): nope"
+            "Failed to publish package foo@1.0.0 (status 403 Forbidden): nope",
         );
     }
 
@@ -77,7 +77,7 @@ mod tests {
         );
         assert_eq!(
             err.to_string(),
-            "Failed to publish package foo@1.0.0 (status 500)\nDetails:\n    line1\n    line2\n"
+            "Failed to publish package foo@1.0.0 (status 500)\nDetails:\n    line1\n    line2\n",
         );
     }
 
