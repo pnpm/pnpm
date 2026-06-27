@@ -79,6 +79,7 @@ use crate::{
         pick_lowest_version_by_version_range, pick_package_from_meta,
         pick_version_by_version_range,
     },
+    registry_url::to_registry_url,
 };
 
 /// In-memory packument cache the orchestrator consults before any
@@ -395,6 +396,18 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     opts: &PickPackageOptions<'_>,
 ) -> Result<PickPackageResult, PickPackageError> {
     validate_package_name(&spec.name)?;
+
+    // Every layer below — the in-memory cache, the offline / version-spec
+    // / publishedBy disk fast paths, and the network fetch — answers this
+    // pick for the same `(registry, package)` route. The fast paths return
+    // straight from cache without ever reaching the auth-selection point,
+    // so a server route hook would never see this package and its private
+    // footprint would under-report the data the resolve depended on.
+    // Record the route up front, classified exactly as the network fetch
+    // would classify it, so the footprint is complete regardless of which
+    // layer serves the metadata. A no-op for the CLI (no hook installed);
+    // idempotent on the hook, so the network path re-recording it is fine.
+    ctx.auth_headers.record_route(&to_registry_url(opts.registry, &spec.name), Some(&spec.name));
 
     let picker_opts = PickerOpts {
         preferred_version_selectors: opts.preferred_version_selectors,

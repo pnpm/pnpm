@@ -256,6 +256,24 @@ impl AuthHeaders {
         self
     }
 
+    /// Record the route for a metadata/tarball fetch that is about to be
+    /// served from an in-memory or on-disk cache *without* an HTTP
+    /// request, so a server [`UpstreamRouteHook`]'s footprint still
+    /// reflects every private route the resolve depended on. The route is
+    /// classified exactly as the real fetch would have (same `url`, same
+    /// `pkg_name`); the credential the hook selects is discarded because
+    /// no request is sent.
+    ///
+    /// No-op when no route hook is installed (the CLI case): a fetch that
+    /// never happens needs no `Authorization` header, and the CLI keeps no
+    /// footprint. Idempotent for the hook — recording the same route more
+    /// than once collapses to one footprint entry.
+    pub fn record_route(&self, url: &str, pkg_name: Option<&str>) {
+        if let Some(hook) = &self.route_hook {
+            hook.authorize(url, pkg_name);
+        }
+    }
+
     /// Resolve an `Authorization` header for `url`, preferring
     /// package-scope credentials when `pkg_name` is scoped.
     #[must_use]

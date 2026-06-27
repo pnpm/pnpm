@@ -1,4 +1,6 @@
-use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use std::sync::Arc;
+
+use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient, UpstreamRouteHook};
 use pretty_assertions::assert_eq;
 use tempfile::TempDir;
 
@@ -14,6 +16,7 @@ use crate::{
         ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, get_pkg_mirror_path, load_meta,
     },
     pick_package_from_meta::{RegistryPackageSpec, RegistryPackageSpecType},
+    registry_url::to_registry_url,
 };
 
 const PACKAGE_BODY: &str = r#"{
@@ -1141,5 +1144,136 @@ async fn update_checksums_bypasses_warm_in_memory_cache() {
     let second =
         pick_package(&ctx, &version_spec("acme", "1.0.0"), &update_opts).await.expect("ok");
     assert_eq!(second.picked_package.expect("picked").version.to_string(), "1.0.0");
+    mock.assert_async().await;
+}
+
+/// A route hook that records every `(url, package)` it is asked to
+/// classify, so a test can assert a cache-served pick still surfaces its
+/// route to a server footprint even though no HTTP request happened.
+#[derive(Default)]
+struct RouteRecorder {
+    routes: std::sync::Mutex<Vec<(String, Option<String>)>>,
+}
+
+impl UpstreamRouteHook for RouteRecorder {
+    fn authorize(&self, url: &str, package: Option<&str>) -> Option<String> {
+        self.routes
+            .lock()
+            .expect("route recorder poisoned")
+            .push((url.to_string(), package.map(str::to_string)));
+        None
+    }
+}
+
+/// Every fast path that answers a pick from a warm in-memory or on-disk
+/// cache must still record the route through the hook, so a server's
+/// private-footprint stays complete regardless of cache state. Without
+/// the up-front [`AuthHeaders::record_route`] in [`pick_package`], a
+/// private package served from cache would never be recorded and its
+/// resolution would be mis-cached as public.
+#[tokio::test]
+async fn cache_fast_paths_record_route_through_hook() {
+    let preloaded: pacquet_registry::Package =
+        serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+
+    // The mock 500s and expects zero calls: every pick below is served
+    // from cache, so the only signal the route was seen is the recorder.
+    let mut server = mockito::Server::new_async().await;
+    let mock = server.mock("GET", "/acme").with_status(500).expect(0).create_async().await;
+    let registry = format!("{}/", server.url());
+    let expected_url = to_registry_url(&registry, "acme");
+
+    // In-memory cache hit.
+    {
+        let recorder = Arc::new(RouteRecorder::default());
+        let auth_headers = AuthHeaders::default()
+            .with_route_hook(Arc::clone(&recorder) as Arc<dyn UpstreamRouteHook>);
+        let cache_dir = TempDir::new().expect("tempdir");
+        let http_client = ThrottledClient::default();
+        let meta_cache = InMemoryPackageMetaCache::default();
+        meta_cache.set(format!("{registry}\x00acme"), Arc::new(preloaded.clone()));
+        let fetch_locker = shared_packument_fetch_locker();
+        let ctx = PickPackageContext {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            meta_cache: &meta_cache,
+            fetch_locker: &fetch_locker,
+            cache_dir: Some(cache_dir.path()),
+            offline: false,
+            prefer_offline: false,
+            ignore_missing_time_field: false,
+            full_metadata: false,
+            filter_metadata: false,
+            retry_opts: RetryOpts::default(),
+        };
+        pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
+            .await
+            .expect("ok");
+        let routes = recorder.routes.lock().expect("routes");
+        assert_eq!(routes.as_slice(), &[(expected_url.clone(), Some("acme".to_string()))]);
+    }
+
+    // Offline disk fast path.
+    {
+        let recorder = Arc::new(RouteRecorder::default());
+        let auth_headers = AuthHeaders::default()
+            .with_route_hook(Arc::clone(&recorder) as Arc<dyn UpstreamRouteHook>);
+        let cache_dir = TempDir::new().expect("tempdir");
+        persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
+            .expect("warm mirror");
+        let http_client = ThrottledClient::default();
+        let meta_cache = InMemoryPackageMetaCache::default();
+        let fetch_locker = shared_packument_fetch_locker();
+        let ctx = PickPackageContext {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            meta_cache: &meta_cache,
+            fetch_locker: &fetch_locker,
+            cache_dir: Some(cache_dir.path()),
+            offline: true,
+            prefer_offline: false,
+            ignore_missing_time_field: false,
+            full_metadata: false,
+            filter_metadata: false,
+            retry_opts: RetryOpts::default(),
+        };
+        pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
+            .await
+            .expect("ok");
+        let routes = recorder.routes.lock().expect("routes");
+        assert_eq!(routes.as_slice(), &[(expected_url.clone(), Some("acme".to_string()))]);
+    }
+
+    // Version-spec disk fast path (no network, pinned version on disk).
+    {
+        let recorder = Arc::new(RouteRecorder::default());
+        let auth_headers = AuthHeaders::default()
+            .with_route_hook(Arc::clone(&recorder) as Arc<dyn UpstreamRouteHook>);
+        let cache_dir = TempDir::new().expect("tempdir");
+        persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
+            .expect("warm mirror");
+        let http_client = ThrottledClient::default();
+        let meta_cache = InMemoryPackageMetaCache::default();
+        let fetch_locker = shared_packument_fetch_locker();
+        let ctx = PickPackageContext {
+            http_client: &http_client,
+            auth_headers: &auth_headers,
+            meta_cache: &meta_cache,
+            fetch_locker: &fetch_locker,
+            cache_dir: Some(cache_dir.path()),
+            offline: false,
+            prefer_offline: false,
+            ignore_missing_time_field: false,
+            full_metadata: false,
+            filter_metadata: false,
+            retry_opts: RetryOpts::default(),
+        };
+        pick_package(&ctx, &version_spec("acme", "1.0.0"), &default_opts(&registry))
+            .await
+            .expect("ok");
+        let routes = recorder.routes.lock().expect("routes");
+        assert_eq!(routes.as_slice(), &[(expected_url.clone(), Some("acme".to_string()))]);
+    }
+
     mock.assert_async().await;
 }

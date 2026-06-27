@@ -44,6 +44,27 @@ fn route_hook_overrides_client_credentials() {
 }
 
 #[test]
+fn record_route_drives_the_hook_without_a_fetch() {
+    let hook =
+        Arc::new(RecordingHook { answer: Some("Bearer alias".to_string()), ..Default::default() });
+    let hooked =
+        AuthHeaders::default().with_route_hook(Arc::clone(&hook) as Arc<dyn UpstreamRouteHook>);
+    // A cache-served metadata pick records its route through the hook so a
+    // server footprint stays complete, discarding the selected credential
+    // because no request is sent.
+    hooked.record_route("https://reg.com/@scope/pkg", Some("@scope/pkg"));
+    assert_eq!(hook.calls.load(Ordering::Relaxed), 1);
+}
+
+#[test]
+fn record_route_is_a_noop_without_a_hook() {
+    // The CLI never installs a hook: a fetch that doesn't happen needs no
+    // header and there is no footprint to record into. This must not panic
+    // or otherwise touch the client-forwarded credentials.
+    AuthHeaders::default().record_route("https://reg.com/pkg", None);
+}
+
+#[test]
 fn route_hook_suppresses_inline_url_basic_auth() {
     // A bare `AuthHeaders` would synthesize a `Basic` header from inline
     // `user:pass@`; with a hook attached the inline credential must not
