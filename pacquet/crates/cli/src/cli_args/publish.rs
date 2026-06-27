@@ -190,7 +190,7 @@ impl PublishArgs {
                 )
             })?;
 
-        if !self.ignore_scripts {
+        if !self.should_ignore_scripts(config) {
             run_publish_scripts::<Reporter>(
                 project_dir,
                 config,
@@ -220,7 +220,7 @@ impl PublishArgs {
         .await?;
         drop(pack_destination);
 
-        if !self.ignore_scripts {
+        if !self.should_ignore_scripts(config) {
             run_publish_scripts::<Reporter>(
                 project_dir,
                 config,
@@ -229,6 +229,14 @@ impl PublishArgs {
             )?;
         }
         serde_json::to_string_pretty(&summary).into_diagnostic()
+    }
+
+    /// Whether to skip every publish-related lifecycle script. `--ignore-scripts`
+    /// on the publish command and the `ignore-scripts` config setting both
+    /// suppress packing and publish scripts, matching pnpm's single
+    /// `opts.ignoreScripts`.
+    fn should_ignore_scripts(&self, config: &Config) -> bool {
+        self.ignore_scripts || config.ignore_scripts
     }
 
     /// Pack the project into `pack_destination` for publishing (never a dry
@@ -242,7 +250,7 @@ impl PublishArgs {
         let options = PackOptions {
             dir: dir.to_path_buf(),
             catalogs: config.catalogs.clone().unwrap_or_default(),
-            ignore_scripts: config.ignore_scripts,
+            ignore_scripts: self.should_ignore_scripts(config),
             unsafe_perm: config.unsafe_perm,
             embed_readme: false,
             pack_gzip_level: None,

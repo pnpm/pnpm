@@ -293,12 +293,11 @@ async fn put_publish(
         .map(str::to_owned);
     let body = response.text().await.unwrap_or_default();
 
-    // The registry signals an OTP / web-auth challenge with a 401 whose
-    // `WWW-Authenticate` header advertises `otp` (and, for web auth, a body
-    // carrying `authUrl` / `doneUrl`).
-    if status.as_u16() == 401
-        && www_authenticate.as_deref().is_some_and(|value| value.to_lowercase().contains("otp"))
-    {
+    // The registry signals an OTP / web-auth challenge with a 401 that either
+    // advertises the `otp` token in `WWW-Authenticate` or carries a
+    // `one-time pass` body (npm-registry-fetch's two detection paths). For web
+    // auth the body also carries `authUrl` / `doneUrl`.
+    if status.as_u16() == 401 && is_otp_challenge(www_authenticate.as_deref(), &body) {
         return Err(PublishHttpError::Otp { challenge: parse_otp_challenge(&body) });
     }
 
@@ -310,6 +309,16 @@ async fn put_publish(
         body,
         stage_id,
     })
+}
+
+/// Whether a 401 response is an OTP / two-factor challenge. Mirrors
+/// npm-registry-fetch: the `WWW-Authenticate` header lists `otp` as a
+/// comma-separated token, or the body mentions `one-time pass`.
+fn is_otp_challenge(www_authenticate: Option<&str>, body: &str) -> bool {
+    let header_lists_otp = www_authenticate.is_some_and(|value| {
+        value.split(',').any(|token| token.trim().eq_ignore_ascii_case("otp"))
+    });
+    header_lists_otp || body.to_lowercase().contains("one-time pass")
 }
 
 /// Read `authUrl` / `doneUrl` out of a challenge body for the web-auth flow.

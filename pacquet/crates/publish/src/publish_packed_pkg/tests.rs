@@ -1,4 +1,4 @@
-use super::{DistHashes, build_publish_document, clean_version};
+use super::{DistHashes, build_publish_document, clean_version, is_otp_challenge};
 use crate::registry_config_keys::parse_supported_registry_url;
 use pretty_assertions::assert_eq;
 use serde_json::{Value, json};
@@ -39,6 +39,16 @@ fn builds_document_with_dist_and_attachment() {
     let attachments = document["_attachments"].as_object().unwrap();
     assert!(attachments.contains_key("@scope/pkg-1.0.0.tgz"));
     assert_eq!(document["access"], Value::Null);
+}
+
+#[test]
+fn detects_otp_challenge_by_header_token_or_body() {
+    assert!(is_otp_challenge(Some("ipaddress, otp"), ""));
+    assert!(is_otp_challenge(Some("OTP"), ""));
+    assert!(is_otp_challenge(None, "you must provide a one-time pass"));
+    // A bare substring in another token must not over-match.
+    assert!(!is_otp_challenge(Some(r#"Basic realm="notop""#), "denied"));
+    assert!(!is_otp_challenge(None, "forbidden"));
 }
 
 #[test]
