@@ -14,7 +14,7 @@
 //! * scoped names can be public (`@babel/core` on npmjs), and
 //! * unscoped names can be private (a corporate default registry).
 //!
-//! [`classify`] maps one fetch to a [`RouteClass`]. The [`RouteHook`]
+//! [`RouteContext::classify`] maps one fetch to a [`RouteClass`]. The [`RouteHook`]
 //! installed on the resolve's [`AuthHeaders`](pacquet_network::AuthHeaders)
 //! runs that classification at the real auth-selection point, selects the
 //! pnpr-managed credential (never a client-forwarded one), and records the
@@ -157,7 +157,7 @@ impl Footprint {
     }
 }
 
-/// Everything [`classify`] needs, resolved once from the server
+/// Everything [`RouteContext::classify`] needs, resolved once from the server
 /// [`Config`] and reused across every fetch in a resolve.
 #[derive(Debug, Clone)]
 pub struct RouteContext {
