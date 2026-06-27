@@ -102,7 +102,7 @@ pub(crate) struct Resolver {
     /// Held behind an [`Arc`] so the detached streaming-resolve task can
     /// own a clone and record its result after the response body has
     /// already started flowing to the client.
-    resolution_cache: Arc<Mutex<HashMap<String, CachedResolution>>>,
+    resolution_cache: Arc<Mutex<HashMap<String, Vec<CachedResolution>>>>,
     resolution_cache_ttl: Duration,
     /// One leaked `Config` per distinct client registry configuration,
     /// keyed by its canonical JSON. Capped at [`MAX_INTERNED_CONFIGS`] so a
@@ -128,6 +128,9 @@ pub(crate) struct Resolver {
 struct CachedResolution {
     lockfile: Lockfile,
     inserted: Instant,
+    last_used: Instant,
+    footprint: Footprint,
+    descriptor_digest: Option<String>,
 }
 
 impl Resolver {
@@ -393,17 +396,18 @@ pub(crate) async fn handle_resolve(
         frames.push(done_frame(&lockfile));
         return ndjson_frames(&frames);
     }
-    // A no-lockfile resolve is keyed by its inputs (auth excluded). The
-    // entry is written only if the resolution turns out fully public
-    // (empty private footprint), so an authenticated caller's public
-    // install now populates and reuses the shared cache — while a private
-    // resolution is never stored under this auth-excluded key. Keying
-    // private resolutions by their access descriptor is Part 2.
-    let resolution_cache_key =
-        if request.lockfile.is_none() { resolution_cache_key(config, &request) } else { None };
+    // The base key is auth-excluded and shared by every candidate for the
+    // same resolution inputs. Candidate footprints decide which callers
+    // may reuse a stored lockfile.
+    let resolution_cache_key = resolution_cache_key(config, &request);
     if let Some(key) = resolution_cache_key.as_ref()
-        && let Some(lockfile) =
-            cached_resolution(&runtime.resolution_cache, runtime.resolution_cache_ttl, key)
+        && let Some(lockfile) = cached_resolution(
+            &runtime.resolution_cache,
+            runtime.resolution_cache_ttl,
+            key,
+            &runtime.route_context,
+            &identity,
+        )
     {
         // The OSV index is immutable for this resolver instance and a lockfile
         // is only stored after passing the OSV check, so a cache hit is already
@@ -436,23 +440,23 @@ pub(crate) async fn handle_resolve(
                         return;
                     }
                 }
-                // Only a fully-public resolution is safe to share under the
-                // auth-excluded key. A private footprint means the lockfile
-                // carries private versions/URLs that must not be served to a
-                // different caller, so it is left uncached here (Part 2 keys
-                // such entries by their private access descriptor instead).
-                {
-                    let footprint = footprint_for_store.lock().expect("footprint poisoned");
-                    if footprint.is_public() {
-                        if let Some(key) = resolution_cache_key {
-                            store_resolution(&cache, cache_ttl, key, &lockfile);
-                        }
-                    } else {
+                if let Some(key) = resolution_cache_key {
+                    let footprint = footprint_for_store.lock().expect("footprint poisoned").clone();
+                    let descriptor = footprint.digest(&cache_secret);
+                    let cached = store_resolution(
+                        &cache,
+                        cache_ttl,
+                        key,
+                        footprint.clone(),
+                        &cache_secret,
+                        &lockfile,
+                    );
+                    if !footprint.is_public() {
                         tracing::debug!(
                             shareable = footprint.is_shareable(),
-                            descriptor =
-                                footprint.digest(&cache_secret).as_deref().unwrap_or("none"),
-                            "private resolution not shared under the public cache key",
+                            cached,
+                            descriptor = descriptor.as_deref().unwrap_or("none"),
+                            "private resolution cache candidate evaluated",
                         );
                     }
                 }
@@ -516,46 +520,150 @@ pub(crate) async fn handle_verify_lockfile(
 }
 
 const MAX_RESOLUTION_CACHE_ENTRIES: usize = 1024;
+const MAX_RESOLUTION_CACHE_CANDIDATES_PER_KEY: usize = 8;
 
 fn cached_resolution(
-    cache: &Mutex<HashMap<String, CachedResolution>>,
+    cache: &Mutex<HashMap<String, Vec<CachedResolution>>>,
     ttl: Duration,
     key: &str,
+    route_context: &RouteContext,
+    identity: &Identity,
 ) -> Option<Lockfile> {
     if ttl.is_zero() {
         return None;
     }
     let mut cache = cache.lock().expect("resolution cache poisoned");
-    match cache.get(key) {
-        Some(cached) if cached.inserted.elapsed() <= ttl => Some(cached.lockfile.clone()),
-        Some(_) => {
+    let candidates = cache.get_mut(key)?;
+    candidates.retain(|candidate| candidate.inserted.elapsed() <= ttl);
+    let Some((candidate_index, _)) = candidates.iter().enumerate().find(|(_, candidate)| {
+        candidate.footprint.is_public() || candidate.footprint.allows(route_context, identity)
+    }) else {
+        if candidates.is_empty() {
             cache.remove(key);
-            None
         }
-        None => None,
-    }
+        return None;
+    };
+    let candidate = &mut candidates[candidate_index];
+    candidate.last_used = Instant::now();
+    Some(candidate.lockfile.clone())
 }
 
 fn store_resolution(
-    cache: &Mutex<HashMap<String, CachedResolution>>,
+    cache: &Mutex<HashMap<String, Vec<CachedResolution>>>,
     ttl: Duration,
     key: String,
+    footprint: Footprint,
+    secret: &[u8],
     lockfile: &Lockfile,
+) -> bool {
+    if ttl.is_zero() || !footprint.is_shareable() {
+        return false;
+    }
+    let now = Instant::now();
+    let descriptor_digest = footprint.digest(secret);
+    let candidate = CachedResolution {
+        lockfile: lockfile.clone(),
+        inserted: now,
+        last_used: now,
+        footprint,
+        descriptor_digest,
+    };
+    let mut cache = cache.lock().expect("resolution cache poisoned");
+    prune_expired_resolution_cache(&mut cache, ttl);
+    let candidates = cache.entry(key).or_default();
+    if let Some(existing) =
+        candidates.iter_mut().find(|entry| entry.descriptor_digest == candidate.descriptor_digest)
+    {
+        *existing = candidate;
+        return true;
+    }
+    candidates.push(candidate);
+    enforce_candidate_limit(candidates);
+    while count_resolution_candidates(&cache) > MAX_RESOLUTION_CACHE_ENTRIES {
+        if !evict_lru_resolution_candidate(&mut cache, true) {
+            break;
+        }
+    }
+    true
+}
+
+fn prune_expired_resolution_cache(
+    cache: &mut HashMap<String, Vec<CachedResolution>>,
+    ttl: Duration,
 ) {
-    if ttl.is_zero() {
+    cache.retain(|_, candidates| {
+        candidates.retain(|candidate| candidate.inserted.elapsed() <= ttl);
+        !candidates.is_empty()
+    });
+}
+
+fn enforce_candidate_limit(candidates: &mut Vec<CachedResolution>) {
+    while candidates.len() > MAX_RESOLUTION_CACHE_CANDIDATES_PER_KEY {
+        evict_lru_candidate(candidates, true);
+    }
+}
+
+fn evict_lru_candidate(candidates: &mut Vec<CachedResolution>, private_first: bool) {
+    if private_first
+        && let Some(index) = candidates
+            .iter()
+            .enumerate()
+            .filter(|(_, candidate)| !candidate.footprint.is_public())
+            .min_by_key(|(_, candidate)| candidate.last_used)
+            .map(|(index, _)| index)
+    {
+        candidates.remove(index);
         return;
     }
-    let mut cache = cache.lock().expect("resolution cache poisoned");
-    if cache.len() >= MAX_RESOLUTION_CACHE_ENTRIES {
-        cache.retain(|_, cached| cached.inserted.elapsed() <= ttl);
-    }
-    if cache.len() >= MAX_RESOLUTION_CACHE_ENTRIES
-        && let Some(oldest) =
-            cache.iter().min_by_key(|(_, cached)| cached.inserted).map(|(key, _)| key.clone())
+    if let Some(index) = candidates
+        .iter()
+        .enumerate()
+        .min_by_key(|(_, candidate)| candidate.last_used)
+        .map(|(index, _)| index)
     {
-        cache.remove(&oldest);
+        candidates.remove(index);
     }
-    cache.insert(key, CachedResolution { lockfile: lockfile.clone(), inserted: Instant::now() });
+}
+
+fn count_resolution_candidates(cache: &HashMap<String, Vec<CachedResolution>>) -> usize {
+    cache.values().map(Vec::len).sum()
+}
+
+fn evict_lru_resolution_candidate(
+    cache: &mut HashMap<String, Vec<CachedResolution>>,
+    private_first: bool,
+) -> bool {
+    let target = lru_resolution_candidate(cache, private_first)
+        .or_else(|| if private_first { lru_resolution_candidate(cache, false) } else { None });
+    let Some((key, index, _)) = target else {
+        return false;
+    };
+    if let Some(candidates) = cache.get_mut(&key)
+        && index < candidates.len()
+    {
+        candidates.remove(index);
+    }
+    if cache.get(&key).is_some_and(Vec::is_empty) {
+        cache.remove(&key);
+    }
+    true
+}
+
+fn lru_resolution_candidate(
+    cache: &HashMap<String, Vec<CachedResolution>>,
+    private_only: bool,
+) -> Option<(String, usize, Instant)> {
+    cache
+        .iter()
+        .filter_map(|(key, candidates)| {
+            candidates
+                .iter()
+                .enumerate()
+                .filter(|(_, candidate)| !private_only || !candidate.footprint.is_public())
+                .min_by_key(|(_, candidate)| candidate.last_used)
+                .map(|(index, candidate)| (key.clone(), index, candidate.last_used))
+        })
+        .min_by_key(|(_, _, last_used)| *last_used)
 }
 
 fn resolution_cache_key(config: &PacquetConfig, request: &ResolveRequest) -> Option<String> {
@@ -576,7 +684,7 @@ fn resolution_cache_key(config: &PacquetConfig, request: &ResolveRequest) -> Opt
         "namedRegistries": &request.named_registries,
         "overrides": &request.overrides,
         "projects": projects,
-        "lockfile": &request.lockfile,
+        "inputLockfileHash": request.lockfile.as_ref().map(hash_lockfile),
         "frozenLockfile": request.frozen_lockfile,
         "preferFrozenLockfile": request.prefer_frozen_lockfile,
         "ignoreManifestCheck": request.ignore_manifest_check,

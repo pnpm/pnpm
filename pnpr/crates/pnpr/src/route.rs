@@ -61,7 +61,7 @@ pub enum RouteClass {
 /// gets HMAC'd into the cache key; identical inputs from different
 /// callers who share the same access collapse to one shared entry.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
-enum PrivateAccessDescriptor {
+pub(crate) enum PrivateAccessDescriptor {
     /// Proxied route via a pnpr-managed upstream alias. Rotating the
     /// alias bumps `generation`, moving future hits to a new namespace.
     Alias { alias: String, generation: u64 },
@@ -92,7 +92,7 @@ impl PrivateAccessDescriptor {
 ///
 /// An empty footprint with no unknown-private touch means the resolution
 /// is fully public and shareable globally.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Footprint {
     descriptors: BTreeSet<PrivateAccessDescriptor>,
     /// A private/unknown route with no usable descriptor was fetched, so
@@ -102,7 +102,7 @@ pub struct Footprint {
 }
 
 impl Footprint {
-    fn add(&mut self, descriptor: PrivateAccessDescriptor) {
+    pub(crate) fn add(&mut self, descriptor: PrivateAccessDescriptor) {
         self.descriptors.insert(descriptor);
     }
 
@@ -143,6 +143,17 @@ impl Footprint {
             message.push('\n');
         }
         Some(hex(&hmac_sha256(secret, message.as_bytes())))
+    }
+
+    /// Whether every private descriptor in this footprint is still
+    /// authorized for `identity` under the current route context.
+    #[must_use]
+    pub(crate) fn allows(&self, context: &RouteContext, identity: &Identity) -> bool {
+        !self.touched_unknown_private
+            && self
+                .descriptors
+                .iter()
+                .all(|descriptor| context.allows_descriptor(identity, descriptor))
     }
 }
 
@@ -290,6 +301,25 @@ impl RouteContext {
                     .is_none_or(|glob| package.is_some_and(|name| glob.is_match(name)))
                 && alias.access.allows(identity)
         })
+    }
+
+    pub(crate) fn allows_descriptor(
+        &self,
+        identity: &Identity,
+        descriptor: &PrivateAccessDescriptor,
+    ) -> bool {
+        match descriptor {
+            PrivateAccessDescriptor::Alias { alias, generation } => {
+                self.aliases.iter().any(|candidate| {
+                    candidate.name == alias.as_str()
+                        && candidate.generation == *generation
+                        && candidate.access.allows(identity)
+                })
+            }
+            PrivateAccessDescriptor::Hosted { policy_id } => {
+                self.policies.for_package(policy_id).access.allows(identity)
+            }
+        }
     }
 }
 

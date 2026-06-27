@@ -1,12 +1,25 @@
 use pacquet_config::Config as PacquetConfig;
+use pacquet_lockfile::Lockfile;
 use pacquet_resolving_resolver_base::{
     PackageVersionGuard, PackageVersionGuardDecision, PackageVersionGuardFuture,
 };
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    net::SocketAddr,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 use super::{
+    MAX_RESOLUTION_CACHE_CANDIDATES_PER_KEY, cached_resolution,
     protocol::{ResolveRequest, ResolveRequestProject},
-    resolution_cache_key,
+    resolution_cache_key, store_resolution,
+};
+use crate::{
+    config::{Config as RegistryConfig, UpstreamAlias},
+    policy::{AccessList, Identity},
+    route::{Footprint, PrivateAccessDescriptor, RouteContext},
 };
 
 fn config() -> PacquetConfig {
@@ -17,6 +30,51 @@ fn config() -> PacquetConfig {
 
 fn deps(entries: &[(&str, &str)]) -> BTreeMap<String, String> {
     entries.iter().map(|(name, spec)| ((*name).to_string(), (*spec).to_string())).collect()
+}
+
+fn registry_config() -> RegistryConfig {
+    RegistryConfig::proxy(
+        "127.0.0.1:7677".parse::<SocketAddr>().unwrap(),
+        PathBuf::from("/tmp/pnpr-resolver-cache-test"),
+    )
+}
+
+fn user(name: &str) -> Identity {
+    Identity::User { username: name.to_string() }
+}
+
+fn alias(registry: &str, access: &str, generation: u64) -> UpstreamAlias {
+    UpstreamAlias {
+        registry: registry.to_string(),
+        package: None,
+        authorization: "Bearer alias-secret".to_string(),
+        access: AccessList::parse(access),
+        generation,
+    }
+}
+
+fn private_alias_footprint(alias: &str, generation: u64) -> Footprint {
+    let mut footprint = Footprint::default();
+    footprint.add(PrivateAccessDescriptor::Alias { alias: alias.to_string(), generation });
+    footprint
+}
+
+fn lockfile(version: &str) -> Lockfile {
+    let mut packages = serde_json::Map::new();
+    packages.insert(
+        format!("acme@{version}"),
+        serde_json::json!({
+            "resolution": { "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==" }
+        }),
+    );
+    serde_json::from_value(serde_json::json!({
+        "lockfileVersion": "9.0",
+        "importers": {
+            ".": { "dependencies": { "acme": { "specifier": "^1.0.0", "version": version } } }
+        },
+        "packages": packages
+    }))
+    .expect("lockfile parses")
 }
 
 #[derive(Debug)]
@@ -70,6 +128,149 @@ fn resolution_cache_key_changes_with_dependencies_and_policy() {
 
     assert_ne!(base_key, resolution_cache_key(&config, &different_dep));
     assert_ne!(base_key, resolution_cache_key(&config, &different_policy));
+}
+
+#[test]
+fn resolution_cache_key_hashes_input_lockfile_stably() {
+    let first_lockfile: Lockfile = serde_saphyr::from_str(
+        "lockfileVersion: '9.0'
+
+importers:
+  .:
+    dependencies:
+      lodash:
+        specifier: ^4.17.21
+        version: 4.17.21
+      react:
+        specifier: ^17.0.2
+        version: 17.0.2
+",
+    )
+    .unwrap();
+    let reordered_lockfile: Lockfile = serde_saphyr::from_str(
+        "lockfileVersion: '9.0'
+
+importers:
+  .:
+    dependencies:
+      react:
+        specifier: ^17.0.2
+        version: 17.0.2
+      lodash:
+        specifier: ^4.17.21
+        version: 4.17.21
+",
+    )
+    .unwrap();
+    let drifted_lockfile: Lockfile = serde_saphyr::from_str(
+        "lockfileVersion: '9.0'
+
+importers:
+  .:
+    dependencies:
+      lodash:
+        specifier: ^4.17.21
+        version: 4.17.22
+",
+    )
+    .unwrap();
+
+    let request =
+        |lockfile| ResolveRequest { lockfile: Some(lockfile), ..ResolveRequest::default() };
+    let config = config();
+    let first_key = resolution_cache_key(&config, &request(first_lockfile));
+    assert_eq!(first_key, resolution_cache_key(&config, &request(reordered_lockfile)));
+    assert_ne!(first_key, resolution_cache_key(&config, &request(drifted_lockfile)));
+}
+
+#[test]
+fn public_cached_resolution_matches_every_caller() {
+    let cache = Mutex::new(HashMap::new());
+    let key = "base".to_string();
+    let lockfile = lockfile("1.0.0");
+    let context = RouteContext::from_config(&registry_config());
+
+    assert!(store_resolution(
+        &cache,
+        Duration::from_mins(1),
+        key.clone(),
+        Footprint::default(),
+        b"secret",
+        &lockfile,
+    ));
+
+    assert!(
+        cached_resolution(&cache, Duration::from_mins(1), &key, &context, &Identity::Anonymous,)
+            .is_some(),
+    );
+    assert!(
+        cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("alice")).is_some(),
+    );
+}
+
+#[test]
+fn private_cached_resolution_requires_current_alias_authorization() {
+    let cache = Mutex::new(HashMap::new());
+    let key = "base".to_string();
+    let lockfile = lockfile("1.0.0");
+    assert!(store_resolution(
+        &cache,
+        Duration::from_mins(1),
+        key.clone(),
+        private_alias_footprint("corp", 1),
+        b"secret",
+        &lockfile,
+    ));
+
+    let mut config = registry_config();
+    config
+        .upstream_aliases
+        .insert("corp".to_string(), alias("https://npm.corp.example/", "alice", 1));
+    let context = RouteContext::from_config(&config);
+    assert!(
+        cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("alice")).is_some(),
+    );
+    assert!(
+        cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("bob")).is_none(),
+    );
+
+    config
+        .upstream_aliases
+        .insert("corp".to_string(), alias("https://npm.corp.example/", "alice", 2));
+    let rotated = RouteContext::from_config(&config);
+    assert!(
+        cached_resolution(&cache, Duration::from_mins(1), &key, &rotated, &user("alice")).is_none(),
+    );
+}
+
+#[test]
+fn candidate_lists_stay_bounded_and_keep_public_entries() {
+    let cache = Mutex::new(HashMap::new());
+    let key = "base".to_string();
+    let lockfile = lockfile("1.0.0");
+    assert!(store_resolution(
+        &cache,
+        Duration::from_mins(1),
+        key.clone(),
+        Footprint::default(),
+        b"secret",
+        &lockfile,
+    ));
+    for index in 0..(MAX_RESOLUTION_CACHE_CANDIDATES_PER_KEY + 2) {
+        assert!(store_resolution(
+            &cache,
+            Duration::from_mins(1),
+            key.clone(),
+            private_alias_footprint(&format!("corp-{index}"), 1),
+            b"secret",
+            &lockfile,
+        ));
+    }
+
+    let cache = cache.lock().expect("resolution cache poisoned");
+    let candidates = cache.get(&key).expect("base key remains cached");
+    assert_eq!(candidates.len(), MAX_RESOLUTION_CACHE_CANDIDATES_PER_KEY);
+    assert!(candidates.iter().any(|candidate| candidate.footprint.is_public()));
 }
 
 #[test]
