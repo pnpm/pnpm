@@ -1496,11 +1496,14 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
     stage: 'resolution_started',
   })
 
-  const update = projects.some((project) => (project as InstallMutationOptions).update)
+  // Always seed preferred versions from the lockfile, even for update
+  // mutations. Gating this on `update` (the previous behavior) nullified
+  // the seed globally during `pnpm up -r <pkg>`, so unrelated packages
+  // with open ranges lost their pins and re-resolved to newest-in-range
+  // (pnpm/pnpm#10662). The targeted package still bumps: `updateRequested`
+  // at the npm picker strips only the version-pin selectors for it.
   const preferredVersions = opts.preferredVersions ?? (
-    !update
-      ? getPreferredVersionsFromLockfileAndManifests(ctx.wantedLockfile.packages, Object.values(ctx.projects).map(({ manifest }) => manifest))
-      : undefined
+    getPreferredVersionsFromLockfileAndManifests(ctx.wantedLockfile.packages, Object.values(ctx.projects).map(({ manifest }) => manifest))
   )
   const forceFullResolution = ctx.wantedLockfile.lockfileVersion !== LOCKFILE_VERSION ||
     !opts.currentLockfileIsUpToDate ||
