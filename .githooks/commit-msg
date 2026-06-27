@@ -4,7 +4,8 @@
 #
 # Each check is a self-contained Node.js script with no npm dependencies, so
 # the hook works in a fresh clone before `pnpm install` has run.
+set -o errexit -o nounset
 
-node .githooks/reject-bare-issue-refs.mjs "$1" || exit 1
-node .githooks/reject-bare-mentions.mjs "$1" || exit 1
-node .githooks/check-conventional-commit.mjs "$1" || exit 1
+node .githooks/reject-bare-issue-refs.mjs "$1"
+node .githooks/reject-bare-mentions.mjs "$1"
+node .githooks/check-conventional-commit.mjs "$1"
