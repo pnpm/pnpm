@@ -101,12 +101,15 @@ impl WithArgs {
 /// `crossSpawn.sync` at the end of pnpm's `with` handler.
 fn spawn_pnpm(bin_dir: &Path, args: &[String]) -> miette::Result<std::process::ExitStatus> {
     let path = prepend_to_path(bin_dir);
-    let cwd = std::env::current_dir().into_diagnostic().wrap_err("read the current directory")?;
-    // Resolve `pnpm` against the extended PATH so the platform-correct
-    // shim (e.g. `pnpm.cmd` on Windows) is found, matching cross-spawn.
-    let program = which::which_in("pnpm", Some(&path), &cwd)
+    // Resolve `pnpm` strictly within `bin_dir`, never the full PATH, so a
+    // missing or broken shim is an error rather than silently falling
+    // through to a different `pnpm` elsewhere on PATH (which would run the
+    // wrong engine). Mirrors pnpm's `with`, which spawns the explicit
+    // `path.join(binDir, 'pnpm')`; `which_in` is used only to pick the
+    // platform-correct shim name (e.g. `pnpm.cmd` on Windows).
+    let program = which::which_in("pnpm", Some(bin_dir), bin_dir)
         .into_diagnostic()
-        .wrap_err("locate the requested pnpm binary")?;
+        .wrap_err("locate the requested pnpm binary in the engine's bin directory")?;
 
     let mut cmd = Command::new(program);
     cmd.args(args);
