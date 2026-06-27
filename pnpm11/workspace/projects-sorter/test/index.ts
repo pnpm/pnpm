@@ -106,6 +106,41 @@ test('sortFilteredProjects keeps prod-only roots on the prod graph in mixed sele
   })).toStrictEqual([dirs('c', 'd'), dirs('a')])
 })
 
+test('does not order a regular filter across a dev edge pruned by a prod-only selection', () => {
+  // a -> x -> c -> d with x selected prod-only. x's edge to c is a dev edge the
+  // prod selection drops, so it is absent from the ordering graph; a reaches c
+  // only through it and therefore stays concurrent with c rather than after it.
+  const fullGraph = makeGraph({ a: ['x'], x: ['c'], c: ['d'], d: [] })
+  const prodGraph = makeGraph({ a: ['x'], x: [], c: ['d'], d: [] })
+  const selected = {
+    ...select(prodGraph, ['x']),
+    ...select(fullGraph, ['a', 'c', 'd']),
+  }
+  expect(sortFilteredProjects({
+    selectedProjectsGraph: selected,
+    allProjectsGraph: fullGraph,
+    prodAllProjectsGraph: prodGraph,
+    prodOnlySelectedProjectDirs: dirs('x'),
+  })).toStrictEqual([dirs('x', 'd'), dirs('a', 'c')])
+})
+
+test('orders a regular filter across a prod edge kept by a prod-only selection', () => {
+  // Same shape, but x -> c is a prod edge the prod graph keeps, so the full
+  // a -> x -> c -> d chain holds even though x is sorted through the prod graph.
+  const fullGraph = makeGraph({ a: ['x'], x: ['c'], c: ['d'], d: [] })
+  const prodGraph = makeGraph({ a: ['x'], x: ['c'], c: ['d'], d: [] })
+  const selected = {
+    ...select(prodGraph, ['x']),
+    ...select(fullGraph, ['a', 'c', 'd']),
+  }
+  expect(sortFilteredProjects({
+    selectedProjectsGraph: selected,
+    allProjectsGraph: fullGraph,
+    prodAllProjectsGraph: prodGraph,
+    prodOnlySelectedProjectDirs: dirs('x'),
+  })).toStrictEqual([dirs('d'), dirs('c'), dirs('x'), dirs('a')])
+})
+
 test('detects a cycle that passes through unselected projects', () => {
   const graph = makeGraph({ a: ['b'], b: ['c'], c: ['a'] })
   expect(sequenceGraph(select(graph, ['a', 'c']), graph).safe).toBe(false)
