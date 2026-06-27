@@ -1170,7 +1170,7 @@ impl UpstreamRouteHook for RouteRecorder {
 /// private-footprint stays complete regardless of cache state. Without
 /// the up-front [`AuthHeaders::record_route`] in [`pick_package`], a
 /// private package served from cache would never be recorded and its
-/// resolution would be mis-cached as public.
+/// resolution would be wrongly cached as public.
 #[tokio::test]
 async fn cache_fast_paths_record_route_through_hook() {
     let preloaded: pacquet_registry::Package =
