@@ -103,10 +103,23 @@ fn package_manager_from_engine(
     })
 }
 
-fn parse_package_manager(package_manager: &str) -> (String, Option<String>) {
-    let Some((name, reference)) = package_manager.split_once('@') else {
+pub(crate) fn parse_package_manager(package_manager: &str) -> (String, Option<String>) {
+    // Split on the `@` that separates the name from the reference. A leading
+    // `@` belongs to a scoped name (e.g. `@scope/pm@1.2.3`), so skip it;
+    // otherwise the first `@` is the separator. The *first* `@` (not the last)
+    // is used so a reference that is a URL containing `@` (e.g. credentials)
+    // stays intact. Mirrors pnpm's `parsePackageManager`
+    // <https://github.com/pnpm/pnpm/blob/8eb1be4988/config/reader/src/index.ts#L895-L908>.
+    let separator_index = if let Some(rest) = package_manager.strip_prefix('@') {
+        rest.find('@').map(|index| index + 1)
+    } else {
+        package_manager.find('@')
+    };
+    let Some(separator_index) = separator_index else {
         return (package_manager.to_string(), None);
     };
+    let name = &package_manager[..separator_index];
+    let reference = &package_manager[separator_index + 1..];
     if reference.contains(':') {
         return (name.to_string(), None);
     }

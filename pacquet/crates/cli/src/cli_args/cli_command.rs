@@ -108,6 +108,7 @@ pub enum CliCommand {
     /// Add a package
     Add(AddArgs),
     /// Install packages
+    #[clap(visible_alias = "i")]
     Install(InstallArgs),
     /// Update packages to their newest version based on the specified range
     #[clap(visible_aliases = ["up", "upgrade"])]
