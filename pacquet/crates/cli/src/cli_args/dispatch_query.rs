@@ -21,6 +21,7 @@ use super::{
     setup::SetupArgs,
     store::StoreCommand,
     why::WhyArgs,
+    with::WithArgs,
 };
 use pacquet_config::Config;
 use pacquet_default_reporter::DefaultReporter;
@@ -191,6 +192,20 @@ pub(super) fn pack_app<'a>(
 pub(super) fn docs<'a>(ctx: &RunCtx<'a>, args: DocsArgs) -> miette::Result<CommandFuture<'a>> {
     let cfg = (ctx.config)()?;
     Ok(Box::pin(async move { args.run(cfg).await }))
+}
+
+pub(super) fn with<'a>(ctx: &RunCtx<'a>, args: WithArgs) -> miette::Result<CommandFuture<'a>> {
+    let config = (ctx.config)()?;
+    macro_rules! run_with {
+        ($reporter:ty) => {
+            Box::pin(args.run::<$reporter>(config))
+        };
+    }
+    Ok(match ctx.reporter {
+        ReporterType::Default | ReporterType::AppendOnly => run_with!(DefaultReporter),
+        ReporterType::Ndjson => run_with!(NdjsonReporter),
+        ReporterType::Silent => run_with!(SilentReporter),
+    })
 }
 
 pub(super) fn self_update<'a>(

@@ -124,6 +124,28 @@ pub enum TrustPolicy {
     NoDowngrade,
 }
 
+/// What to do when the project's `packageManager` /
+/// `devEngines.packageManager` field doesn't match the running pnpm.
+///
+/// Mirrors pnpm's
+/// [`pmOnFail`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/Config.ts#L272)
+/// setting (`'download' | 'error' | 'warn' | 'ignore'`). `download`
+/// switches to the pinned version, `error` aborts, `warn` prints a
+/// warning, and `ignore` skips the check entirely. The documented
+/// default is `download`, so [`Config::pm_on_fail`] stays optional and the
+/// package-manager check applies the fallback when the setting is unset.
+///
+/// `pnpm with current <cmd>` runs `<cmd>` with `pmOnFail` forced to
+/// [`PmOnFail::Ignore`] via the `pnpm_config_pm_on_fail` env var.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PmOnFail {
+    Download,
+    Error,
+    Warn,
+    Ignore,
+}
+
 /// Minimum advisory severity shown by `pnpm audit`.
 ///
 /// Mirrors `Config.auditLevel` in pnpm's config reader. The command-level
@@ -1414,6 +1436,13 @@ pub struct Config {
     /// Trust-evidence policy applied to lockfile entries; see
     /// [`TrustPolicy`].
     pub trust_policy: TrustPolicy,
+
+    /// `pm-on-fail` / `pmOnFail` config: what to do when the project's
+    /// `packageManager` / `devEngines.packageManager` pin doesn't match the
+    /// running pnpm. See [`PmOnFail`]. Stays optional so the
+    /// package-manager check applies the documented `download` default
+    /// when unset.
+    pub pm_on_fail: Option<PmOnFail>,
 
     /// `audit-level` / `auditLevel` config for `pnpm audit`.
     pub audit_level: Option<AuditLevel>,

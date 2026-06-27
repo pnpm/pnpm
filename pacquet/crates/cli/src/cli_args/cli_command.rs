@@ -45,6 +45,7 @@ use super::{
     unlink::UnlinkArgs,
     update::UpdateArgs,
     why::WhyArgs,
+    with::WithArgs,
 };
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
@@ -230,4 +231,8 @@ pub enum CliCommand {
     Setup(SetupArgs),
     /// Log out of an npm registry.
     Logout(LogoutArgs),
+    /// Runs pnpm at a specific version (or the currently running one) for a
+    /// single invocation, ignoring the "packageManager" and
+    /// "devEngines.packageManager" fields of the project's manifest.
+    With(WithArgs),
 }
