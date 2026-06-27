@@ -32,6 +32,7 @@ use super::{
     prune::PruneArgs,
     rebuild::RebuildArgs,
     remove::RemoveArgs,
+    repo::RepoArgs,
     reporter::ReporterType,
     restart::RestartArgs,
     root::RootArgs,
@@ -225,6 +226,8 @@ pub enum CliCommand {
     /// Opens the documentation of a package in the browser.
     #[clap(visible_alias = "home")]
     Docs(DocsArgs),
+    /// Opens the URL of the package's repository in a browser.
+    Repo(RepoArgs),
     /// Updates pnpm to the latest version (or the one specified)
     SelfUpdate(SelfUpdateArgs),
     /// Sets up pnpm
