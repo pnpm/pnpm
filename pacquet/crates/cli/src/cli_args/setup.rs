@@ -45,6 +45,9 @@ fn handler<Reporter: self::Reporter + 'static>(force: bool, dir: &Path) -> miett
             "Could not determine the pnpm home directory. Set the PNPM_HOME environment variable."
         )
     })?;
+    // Validate before any side effect: an unsafe `PNPM_HOME` must not reach
+    // the self-install subprocess's `PATH` or the alias-script writes.
+    path_extender::validate_pnpm_home_dir(&pnpm_home_dir)?;
     let bin_dir = pnpm_home_dir.join("bin");
 
     let exec_path = std::env::current_exe()

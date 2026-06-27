@@ -49,15 +49,10 @@ fn add_dir_to_windows_env_path_inner(
     dir: &Path,
     opts: &AddDirToEnvPathOpts,
 ) -> Result<Vec<EnvVariableChange>, PathExtenderError> {
+    // Defense in depth: `handler` validates before any side effect; re-check
+    // before writing anything to the registry.
+    super::validate_windows_pnpm_home(dir)?;
     let added_dir = dir.to_string_lossy().replace('/', r"\");
-    // Reject characters that would split the persisted `Path` into extra
-    // entries (`;`), break the `%PNPM_HOME%` indirection (`%`), or corrupt
-    // the value (`\n` / `\r`). See `PathExtenderError::UnsafePnpmHomeForWindows`.
-    if let Some(character) =
-        added_dir.chars().find(|character| matches!(character, ';' | '%' | '\n' | '\r'))
-    {
-        return Err(PathExtenderError::UnsafePnpmHome { dir: added_dir, character });
-    }
     let registry_output = get_registry_output()?;
     let mut changes = Vec::new();
     if let Some(proxy) = opts.proxy_var_name {

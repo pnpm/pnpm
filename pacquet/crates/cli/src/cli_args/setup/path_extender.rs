@@ -12,7 +12,7 @@ mod windows;
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// Where the new directory is inserted into `PATH`. Mirrors pnpm's
 /// `AddingPosition` (defaulting to `start`).
@@ -160,11 +160,40 @@ impl From<pacquet_fs::EnsureFileError> for PathExtenderError {
     }
 }
 
+/// Reject a pnpm home directory whose characters would split or corrupt the
+/// persisted `PATH` on the current platform. Call this *before* any side
+/// effect (the global self-install, the alias scripts) so an unsafe
+/// `PNPM_HOME` can never influence the install subprocess's environment or
+/// leave partial state behind. The platform implementations re-check as
+/// defense in depth.
+pub(super) fn validate_pnpm_home_dir(dir: &Path) -> Result<(), PathExtenderError> {
+    if cfg!(windows) { validate_windows_pnpm_home(dir) } else { validate_posix_pnpm_home(dir) }
+}
+
+/// Reject `:` (the POSIX `PATH` separator), newlines, and NUL.
+pub(super) fn validate_posix_pnpm_home(dir: &Path) -> Result<(), PathExtenderError> {
+    reject_unsafe_chars(dir, &[':', '\n', '\r', '\0'])
+}
+
+/// Reject `;` (the Windows `Path` separator), `%` (`%PNPM_HOME%` expansion),
+/// and newlines. `:` is allowed because Windows paths contain drive letters.
+pub(super) fn validate_windows_pnpm_home(dir: &Path) -> Result<(), PathExtenderError> {
+    reject_unsafe_chars(dir, &[';', '%', '\n', '\r'])
+}
+
+fn reject_unsafe_chars(dir: &Path, unsafe_chars: &[char]) -> Result<(), PathExtenderError> {
+    let dir = dir.to_string_lossy();
+    if let Some(character) = dir.chars().find(|character| unsafe_chars.contains(character)) {
+        return Err(PathExtenderError::UnsafePnpmHome { dir: dir.into_owned(), character });
+    }
+    Ok(())
+}
+
 /// Persistently add `dir` to the user's `PATH`. The proxy-variable
 /// indirection (`PNPM_HOME` → `$PNPM_HOME/bin`) keeps the `PATH` entry
 /// stable when the home directory moves. Mirrors pnpm's `addDirToEnvPath`.
 pub(super) fn add_dir_to_env_path(
-    dir: &std::path::Path,
+    dir: &Path,
     opts: &AddDirToEnvPathOpts,
 ) -> Result<PathExtenderReport, PathExtenderError> {
     if let Some(sub_dir) = opts.proxy_var_sub_dir

@@ -20,16 +20,11 @@ pub(super) fn add_dir_to_posix_env_path(
     dir: &Path,
     opts: &AddDirToEnvPathOpts,
 ) -> Result<PathExtenderReport, PathExtenderError> {
-    // Reject characters that would split the rendered colon-delimited `PATH`
-    // into extra entries (`:`) or corrupt the rc block (`\n` / `\r` / NUL).
-    // Single-quote escaping neutralizes shell expansion but cannot stop a
-    // `:` from acting as a PATH separator once `$PNPM_HOME/bin` expands.
-    let dir_str = dir.to_string_lossy();
-    if let Some(character) =
-        dir_str.chars().find(|character| matches!(character, ':' | '\n' | '\r' | '\0'))
-    {
-        return Err(PathExtenderError::UnsafePnpmHome { dir: dir_str.into_owned(), character });
-    }
+    // Defense in depth: `handler` validates before any side effect, but
+    // re-check here so the renderers never see a `:` that single-quote
+    // escaping cannot neutralize (it would still split the colon-delimited
+    // `PATH` once `$PNPM_HOME/bin` expands).
+    super::validate_posix_pnpm_home(dir)?;
     let current_shell = detect_current_shell();
     update_shell(current_shell.as_deref(), dir, opts)
 }
