@@ -195,6 +195,10 @@ const ENTER_POLL_INTERVAL: Duration = Duration::from_millis(100);
 /// that thread stops within one [`ENTER_POLL_INTERVAL`] — `std`'s blocking
 /// `read_line` cannot be cancelled, so the thread polls with a timeout
 /// instead of blocking forever.
+///
+/// Meant to be raced and dropped when another branch wins (e.g. inside a
+/// `tokio::select!`): on a stdin read error it deliberately never resolves,
+/// so awaiting it on its own would hang.
 pub struct HostEnterHandle {
     enter: tokio::sync::oneshot::Receiver<()>,
     fired: bool,
@@ -246,23 +250,30 @@ impl EnterKeyListener for Host {
         let cancel = Arc::new(AtomicBool::new(false));
         let reader_cancel = Arc::clone(&cancel);
         thread::Builder::new().name("web-auth-enter-listener".to_owned()).spawn(move || {
-            let mut sender = Some(tx);
             while !reader_cancel.load(Ordering::Relaxed) {
                 match event::poll(ENTER_POLL_INTERVAL) {
-                    // Input is ready: in cooked mode that means a line was
-                    // submitted, so drain events until the Enter that ends it.
-                    Ok(true) => match event::read() {
-                        Ok(Event::Key(key))
-                            if key.code == KeyCode::Enter && key.kind != KeyEventKind::Release =>
-                        {
-                            if let Some(sender) = sender.take() {
-                                let _ = sender.send(());
-                            }
+                    // Input is ready, but skip it without consuming when the
+                    // handle was dropped meanwhile — otherwise `read()` would
+                    // steal a keystroke from whatever reads stdin next.
+                    Ok(true) => {
+                        if reader_cancel.load(Ordering::Relaxed) {
                             return;
                         }
-                        Ok(_) => {}
-                        Err(_) => return,
-                    },
+                        // `poll() == Ok(true)` guarantees a complete event is
+                        // ready, so `read()` does not block. In cooked mode the
+                        // line is submitted on Enter, which maps to `Enter`.
+                        match event::read() {
+                            Ok(Event::Key(key))
+                                if key.code == KeyCode::Enter
+                                    && key.kind != KeyEventKind::Release =>
+                            {
+                                let _ = tx.send(());
+                                return;
+                            }
+                            Ok(_) => {}
+                            Err(_) => return,
+                        }
+                    }
                     // Timed out: loop back to re-check the cancel flag.
                     Ok(false) => {}
                     Err(_) => return,
