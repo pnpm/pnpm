@@ -17,15 +17,19 @@ use super::{
     resolution_cache_key, store_resolution,
 };
 use crate::{
-    config::{Config as RegistryConfig, UpstreamAlias},
+    config::{Config as RegistryConfig, PublicRoute, UpstreamAlias},
     policy::{AccessList, Identity},
     route::{Footprint, PrivateAccessDescriptor, RouteContext},
 };
 
-fn config() -> PacquetConfig {
+fn config_for_registry(registry: &str) -> PacquetConfig {
     let mut config = PacquetConfig::new();
-    config.registry = "https://registry.example.test/".to_string();
+    config.registry = registry.to_string();
     config
+}
+
+fn config() -> PacquetConfig {
+    config_for_registry("https://registry.example.test/")
 }
 
 fn deps(entries: &[(&str, &str)]) -> BTreeMap<String, String> {
@@ -36,6 +40,25 @@ fn registry_config() -> RegistryConfig {
     RegistryConfig::proxy(
         "127.0.0.1:7677".parse::<SocketAddr>().unwrap(),
         PathBuf::from("/tmp/pnpr-resolver-cache-test"),
+    )
+}
+
+fn public_registry_config(registry: &str) -> RegistryConfig {
+    let mut config = registry_config();
+    config
+        .route_policy
+        .public
+        .push(PublicRoute { registry: Some(registry.to_string()), package: None });
+    config
+}
+
+fn tarball_router(config: &RegistryConfig, identity: Identity) -> super::TarballRouter {
+    super::TarballRouter::new(
+        RouteContext::from_config(config),
+        identity,
+        config.public_url.clone(),
+        Arc::from(b"test-secret".to_vec()),
+        super::TarballGatewayRoutes::default(),
     )
 }
 
@@ -60,21 +83,33 @@ fn private_alias_footprint(alias: &str, generation: u64) -> Footprint {
 }
 
 fn lockfile(version: &str) -> Lockfile {
+    package_lockfile("acme", version)
+}
+
+fn package_lockfile(name: &str, version: &str) -> Lockfile {
     let mut packages = serde_json::Map::new();
     packages.insert(
-        format!("acme@{version}"),
+        format!("{name}@{version}"),
         serde_json::json!({
             "resolution": { "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==" }
         }),
     );
+    let mut dependencies = serde_json::Map::new();
+    dependencies
+        .insert(name.to_string(), serde_json::json!({ "specifier": "^1.0.0", "version": version }));
     serde_json::from_value(serde_json::json!({
         "lockfileVersion": "9.0",
         "importers": {
-            ".": { "dependencies": { "acme": { "specifier": "^1.0.0", "version": version } } }
+            ".": { "dependencies": dependencies }
         },
         "packages": packages
     }))
     .expect("lockfile parses")
+}
+
+fn lockfile_tarball_url(lockfile: &Lockfile, key: &str) -> String {
+    let value = serde_json::to_value(lockfile).expect("lockfile serializes");
+    value["packages"][key]["resolution"]["tarball"].as_str().expect("tarball URL").to_string()
 }
 
 #[derive(Debug)]
@@ -244,6 +279,121 @@ fn private_cached_resolution_requires_current_alias_authorization() {
 }
 
 #[test]
+fn public_lockfile_routing_keeps_registry_resolutions_compact() {
+    let registry = public_registry_config("https://registry.example.test/");
+    let router = tarball_router(&registry, Identity::Anonymous);
+    let routed = router.route_lockfile(&config(), &lockfile("1.0.0"));
+    let value = serde_json::to_value(&routed).expect("lockfile serializes");
+
+    assert_eq!(
+        value["packages"]["acme@1.0.0"]["resolution"],
+        serde_json::json!({
+            "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+        }),
+    );
+}
+
+#[test]
+fn private_alias_lockfile_routing_uses_gateway_url() {
+    let pacquet_config = config_for_registry("https://npm.corp.example/");
+    let mut registry = registry_config();
+    registry
+        .upstream_aliases
+        .insert("corp".to_string(), alias("https://npm.corp.example/", "$authenticated", 7));
+    let router = tarball_router(&registry, user("alice"));
+
+    let routed = router.route_lockfile(&pacquet_config, &lockfile("1.0.0"));
+    let tarball = lockfile_tarball_url(&routed, "acme@1.0.0");
+
+    assert!(tarball.starts_with(
+        "http://127.0.0.1:7677/-/pnpr/v0/tarballs/alias/corp/7/acme/-/acme-1.0.0.tgz"
+    ));
+    assert!(!tarball.contains("npm.corp.example"));
+
+    let upstream = router.verification_lockfile(&routed);
+    assert_eq!(
+        lockfile_tarball_url(&upstream, "acme@1.0.0"),
+        "https://npm.corp.example/acme/-/acme-1.0.0.tgz",
+    );
+}
+
+#[test]
+fn private_alias_lockfile_routing_encodes_scoped_packages_as_one_gateway_segment() {
+    let pacquet_config = config_for_registry("https://npm.corp.example/");
+    let mut registry = registry_config();
+    registry
+        .upstream_aliases
+        .insert("corp".to_string(), alias("https://npm.corp.example/", "$authenticated", 7));
+    let router = tarball_router(&registry, user("alice"));
+
+    let routed = router.route_lockfile(&pacquet_config, &package_lockfile("@acme/foo", "1.0.0"));
+    let tarball = lockfile_tarball_url(&routed, "@acme/foo@1.0.0");
+
+    assert!(tarball.contains("/alias/corp/7/@acme%2Ffoo/-/foo-1.0.0.tgz"));
+    assert!(!tarball.contains("npm.corp.example"));
+
+    let upstream = router.verification_lockfile(&routed);
+    assert_eq!(
+        lockfile_tarball_url(&upstream, "@acme/foo@1.0.0"),
+        "https://npm.corp.example/@acme/foo/-/foo-1.0.0.tgz",
+    );
+}
+
+#[test]
+fn unknown_lockfile_routing_uses_marked_gateway_url() {
+    let pacquet_config = config_for_registry("https://unknown.example/");
+    let registry = registry_config();
+    let router = tarball_router(&registry, user("alice"));
+
+    let routed = router.route_lockfile(&pacquet_config, &lockfile("1.0.0"));
+    let tarball = lockfile_tarball_url(&routed, "acme@1.0.0");
+
+    assert!(tarball.contains("/-/pnpr/v0/tarballs/unknown/"));
+    assert!(tarball.ends_with("/acme/-/acme-1.0.0.tgz"));
+    assert!(!tarball.contains("unknown.example"));
+
+    let upstream = router.verification_lockfile(&routed);
+    assert_eq!(
+        lockfile_tarball_url(&upstream, "acme@1.0.0"),
+        "https://unknown.example/acme/-/acme-1.0.0.tgz",
+    );
+}
+
+#[test]
+fn private_cached_resolution_keeps_routed_tarball_urls() {
+    let cache = Mutex::new(HashMap::new());
+    let key = "base".to_string();
+    let pacquet_config = config_for_registry("https://npm.corp.example/");
+    let mut registry = registry_config();
+    registry
+        .upstream_aliases
+        .insert("corp".to_string(), alias("https://npm.corp.example/", "alice", 7));
+    let router = tarball_router(&registry, user("alice"));
+    let routed = router.route_lockfile(&pacquet_config, &lockfile("1.0.0"));
+
+    assert!(store_resolution(
+        &cache,
+        Duration::from_mins(1),
+        key.clone(),
+        private_alias_footprint("corp", 7),
+        b"secret",
+        &routed,
+    ));
+    let cached = cached_resolution(
+        &cache,
+        Duration::from_mins(1),
+        &key,
+        &RouteContext::from_config(&registry),
+        &user("alice"),
+    )
+    .expect("authorized caller reuses private cached lockfile");
+    let tarball = lockfile_tarball_url(&cached, "acme@1.0.0");
+
+    assert!(tarball.contains("/-/pnpr/v0/tarballs/alias/corp/7/acme/-/acme-1.0.0.tgz"));
+    assert!(!tarball.contains("npm.corp.example"));
+}
+
+#[test]
 fn candidate_lists_stay_bounded_and_keep_public_entries() {
     let cache = Mutex::new(HashMap::new());
     let key = "base".to_string();
@@ -278,8 +428,12 @@ fn a_package_frame_carries_unpacked_size_and_omits_it_when_unknown() {
     use pacquet_package_manager::{ResolutionObserver, ResolvedPackageHint};
 
     let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-    let observer =
-        super::StreamObserver { tx, package_version_guard: Some(Arc::new(AllowAllVersions)) };
+    let registry = public_registry_config("https://r.test/");
+    let observer = super::StreamObserver {
+        tx,
+        package_version_guard: Some(Arc::new(AllowAllVersions)),
+        tarball_router: tarball_router(&registry, Identity::Anonymous),
+    };
 
     let hint = |unpacked_size, file_count| ResolvedPackageHint {
         id: "acme@1.0.0",
@@ -300,10 +454,36 @@ fn a_package_frame_carries_unpacked_size_and_omits_it_when_unknown() {
 
     let unsized_frame: serde_json::Value =
         serde_json::from_slice(&rx.try_recv().expect("unsized frame sent")).unwrap();
-    dbg!(&unsized_frame);
     assert!(unsized_frame.get("unpackedSize").is_none());
     assert!(unsized_frame.get("fileCount").is_none());
     assert_eq!(unsized_frame["tarball"], serde_json::json!("https://r.test/acme/-/acme-1.0.0.tgz"));
+}
+
+#[test]
+fn package_frames_route_private_alias_tarballs_to_gateway() {
+    use pacquet_package_manager::ResolvedPackageHint;
+
+    let mut registry = registry_config();
+    registry
+        .upstream_aliases
+        .insert("corp".to_string(), alias("https://npm.corp.example/", "$authenticated", 7));
+    let router = tarball_router(&registry, user("alice"));
+    let frame = super::package_frame(
+        &router,
+        &ResolvedPackageHint {
+            id: "acme@1.0.0",
+            name: "acme",
+            version: "1.0.0",
+            integrity: "sha512-abc",
+            tarball_url: "https://npm.corp.example/acme/-/acme-1.0.0.tgz",
+            unpacked_size: None,
+            file_count: None,
+        },
+    );
+    let tarball = frame["tarball"].as_str().expect("tarball URL");
+
+    assert!(tarball.contains("/-/pnpr/v0/tarballs/alias/corp/7/acme/-/acme-1.0.0.tgz"));
+    assert!(!tarball.contains("npm.corp.example"));
 }
 
 #[test]
@@ -333,8 +513,13 @@ fn frozen_package_frames_announce_lockfile_tarballs_with_sizes() {
         DistStats { unpacked_size: Some(123_456), file_count: Some(42) },
     );
 
-    let frames = super::frozen_package_frames(&config(), &lockfile, &stats);
-    dbg!(frames.len());
+    let registry = public_registry_config("https://registry.example.test/");
+    let frames = super::frozen_package_frames(
+        &config(),
+        &tarball_router(&registry, Identity::Anonymous),
+        &lockfile,
+        &stats,
+    );
     assert_eq!(frames.len(), 1);
 
     let frame: serde_json::Value = serde_json::from_slice(&frames[0]).unwrap();
@@ -346,6 +531,31 @@ fn frozen_package_frames_announce_lockfile_tarballs_with_sizes() {
     );
     assert_eq!(frame["unpackedSize"], serde_json::json!(123_456));
     assert_eq!(frame["fileCount"], serde_json::json!(42));
+}
+
+#[test]
+fn frozen_package_frames_route_private_alias_tarballs_to_gateway() {
+    use pacquet_resolving_npm_resolver::observed_dist_stats_sink;
+
+    let pacquet_config = config_for_registry("https://npm.corp.example/");
+    let lockfile = lockfile("1.0.0");
+    let stats = observed_dist_stats_sink();
+    let mut registry = registry_config();
+    registry
+        .upstream_aliases
+        .insert("corp".to_string(), alias("https://npm.corp.example/", "$authenticated", 7));
+
+    let frames = super::frozen_package_frames(
+        &pacquet_config,
+        &tarball_router(&registry, user("alice")),
+        &lockfile,
+        &stats,
+    );
+
+    let frame: serde_json::Value = serde_json::from_slice(&frames[0]).unwrap();
+    let tarball = frame["tarball"].as_str().expect("tarball URL");
+    assert!(tarball.contains("/-/pnpr/v0/tarballs/alias/corp/7/acme/-/acme-1.0.0.tgz"));
+    assert!(!tarball.contains("npm.corp.example"));
 }
 
 #[test]

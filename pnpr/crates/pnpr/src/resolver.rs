@@ -22,10 +22,10 @@
 //!   can start local fetch/materialization immediately and only use this
 //!   endpoint as the trust verdict.
 //!
-//! pnpr is a stateless resolver: it stores no tarballs and serves no file
-//! content. The client fetches every tarball directly from the registry
-//! with its own credentials, so the registry enforces access on the
-//! bytes; pnpr only shapes the lockfile.
+//! pnpr is a stateless resolver: it stores no tarballs. Public tarballs
+//! can still be fetched directly from their upstream registry, while
+//! private or unknown routes are rewritten to pnpr's read-only tarball
+//! gateway so upstream URLs and credentials stay server-side.
 //!
 //! The client's `registry`, `namedRegistries`, `overrides`, and the
 //! verification policy (`minimumReleaseAge`, `trustPolicy`, ...) drive
@@ -56,8 +56,10 @@ use std::{
 
 use crate::{
     config::Config as RegistryConfig,
+    package_name::PackageName,
     policy::Identity,
-    route::{Footprint, RouteContext, RouteHook},
+    route::{Footprint, RouteClass, RouteContext, RouteHook},
+    upstream::tarball_basename,
 };
 
 use axum::{
@@ -67,7 +69,9 @@ use axum::{
 };
 use indexmap::IndexMap;
 use pacquet_config::Config as PacquetConfig;
-use pacquet_lockfile::{Lockfile, LockfileResolution, is_git_hosted_tarball_url};
+use pacquet_lockfile::{
+    Lockfile, LockfileResolution, TarballResolution, is_git_hosted_tarball_url,
+};
 use pacquet_lockfile_verification::{collect_resolution_policy_violations, hash_lockfile};
 use pacquet_network::{AuthHeaders, ThrottledClient, UpstreamRouteHook};
 use pacquet_package_manager::{
@@ -83,6 +87,30 @@ use sha2::{Digest, Sha256};
 pub(crate) use self::osv::{OsvIndex, format_advisory_ids, load_osv_index};
 
 use self::{protocol::ResolveRequest, verdict_cache::VerdictCache};
+
+#[derive(Default, Clone)]
+pub(crate) struct TarballGatewayRoutes {
+    routes: Arc<Mutex<HashMap<String, String>>>,
+}
+
+impl TarballGatewayRoutes {
+    pub(crate) fn insert(&self, key: String, url: String) {
+        let mut routes = self.routes.lock().expect("tarball gateway routes poisoned");
+        if routes.len() >= MAX_TARBALL_GATEWAY_ROUTES
+            && !routes.contains_key(&key)
+            && let Some(evicted) = routes.keys().next().cloned()
+        {
+            routes.remove(&evicted);
+        }
+        routes.insert(key, url);
+    }
+
+    pub(crate) fn get(&self, key: &str) -> Option<String> {
+        self.routes.lock().expect("tarball gateway routes poisoned").get(key).cloned()
+    }
+}
+
+const MAX_TARBALL_GATEWAY_ROUTES: usize = 8192;
 
 /// Per-server engine backing the pnpr install endpoint: it holds the
 /// store, cache, and HTTP client used to resolve a client's project. The
@@ -119,10 +147,14 @@ pub(crate) struct Resolver {
     /// from the server config and combined per request with the caller's
     /// identity to drive auth selection and footprint recording.
     route_context: RouteContext,
+    /// Public URL clients use for pnpr-hosted and resolver-gateway tarball
+    /// URLs.
+    public_url: String,
     /// HMAC secret namespacing a private footprint's cache descriptor.
     /// Part 1 uses it only to label each resolve's cache class in the
     /// operator debug log; Part 2 keys private cache entries by it.
     resolution_cache_secret: Arc<[u8]>,
+    tarball_gateway_routes: TarballGatewayRoutes,
 }
 
 struct CachedResolution {
@@ -138,11 +170,16 @@ impl Resolver {
         cell: &'a OnceLock<Resolver>,
         config: &RegistryConfig,
         osv_index: Option<Arc<OsvIndex>>,
+        tarball_gateway_routes: TarballGatewayRoutes,
     ) -> &'a Resolver {
-        cell.get_or_init(|| Resolver::build(config, osv_index))
+        cell.get_or_init(|| Resolver::build(config, osv_index, tarball_gateway_routes))
     }
 
-    fn build(config: &RegistryConfig, osv_index: Option<Arc<OsvIndex>>) -> Resolver {
+    fn build(
+        config: &RegistryConfig,
+        osv_index: Option<Arc<OsvIndex>>,
+        tarball_gateway_routes: TarballGatewayRoutes,
+    ) -> Resolver {
         let store_dir = config.cache_storage.join("pnpr-store");
         let cache_dir = config.cache_storage.join("pnpr-cache");
         // Best-effort: a real failure here (e.g. a permission problem)
@@ -161,7 +198,9 @@ impl Resolver {
             verdict_cache,
             osv_index,
             route_context: RouteContext::from_config(config),
+            public_url: config.public_url.clone(),
             resolution_cache_secret: Arc::clone(&config.resolution_cache_secret),
+            tarball_gateway_routes,
         }
     }
 
@@ -324,8 +363,8 @@ fn intern_config(
 /// lockfile + stats, `error` if resolution aborts mid-stream, or
 /// `violations` if the input lockfile failed the client's policy. The
 /// short-circuit paths (frozen reuse, cache hit) emit only the terminal
-/// `done` frame. No tarball leaves the server — the client fetches them
-/// itself.
+/// `done` frame. Private or unknown tarballs are announced through
+/// pnpr's read-only gateway rather than their upstream URLs.
 pub(crate) async fn handle_resolve(
     runtime: &Resolver,
     identity: Identity,
@@ -353,6 +392,13 @@ pub(crate) async fn handle_resolve(
     // then decides whether the resolution may populate the shared cache.
     let footprint = Arc::new(Mutex::new(Footprint::default()));
     let request_auth = runtime.hooked_auth(&request, &identity, &footprint);
+    let tarball_router = TarballRouter::new(
+        runtime.route_context.clone(),
+        identity.clone(),
+        runtime.public_url.clone(),
+        Arc::clone(&runtime.resolution_cache_secret),
+        runtime.tarball_gateway_routes.clone(),
+    );
 
     // Verify the *input* lockfile under the client's policy before any
     // package is streamed ([pnpm/pnpm#12139](https://github.com/pnpm/pnpm/issues/12139)).
@@ -367,7 +413,8 @@ pub(crate) async fn handle_resolve(
     if !request.trust_lockfile
         && let Some(input_lockfile) = request.lockfile.as_ref()
     {
-        match verify_input_lockfile(runtime, config, &request_auth, input_lockfile).await {
+        let input_lockfile = tarball_router.verification_lockfile(input_lockfile);
+        match verify_input_lockfile(runtime, config, &request_auth, &input_lockfile).await {
             Ok(stats) => verified_dist_stats = stats,
             Err(VerifyFailure::Internal(response)) => return response,
             Err(VerifyFailure::Violations(violations)) => {
@@ -384,6 +431,8 @@ pub(crate) async fn handle_resolve(
     // fetched, so there's nothing to add and the response is the bare
     // `done` frame.
     if let Some(lockfile) = resolve::fresh_frozen_input_lockfile(config, &request) {
+        let lockfile = tarball_router.verification_lockfile(&lockfile);
+        let lockfile = tarball_router.route_lockfile(config, &lockfile);
         if let Some(osv_index) = runtime.osv_index.as_ref() {
             let violations = osv_violations_for_lockfile(osv_index, &lockfile);
             if !violations.is_empty() {
@@ -391,7 +440,7 @@ pub(crate) async fn handle_resolve(
             }
         }
         let mut frames = verified_dist_stats
-            .map(|sizes| frozen_package_frames(config, &lockfile, &sizes))
+            .map(|sizes| frozen_package_frames(config, &tarball_router, &lockfile, &sizes))
             .unwrap_or_default();
         frames.push(done_frame(&lockfile));
         return ndjson_frames(&frames);
@@ -423,6 +472,7 @@ pub(crate) async fn handle_resolve(
     let observer: Arc<dyn pacquet_package_manager::ResolutionObserver> = Arc::new(StreamObserver {
         tx: tx.clone(),
         package_version_guard: package_version_guard.clone(),
+        tarball_router: tarball_router.clone(),
     });
     let client = Arc::clone(&runtime.client);
     let cache = Arc::clone(&runtime.resolution_cache);
@@ -433,6 +483,7 @@ pub(crate) async fn handle_resolve(
     tokio::spawn(async move {
         match resolve::resolve(config, &client, &request, &request_auth, Some(observer)).await {
             Ok(lockfile) => {
+                let lockfile = tarball_router.route_lockfile(config, &lockfile);
                 if let Some(osv_index) = final_osv_index.as_ref() {
                     let violations = osv_violations_for_lockfile(osv_index, &lockfile);
                     if !violations.is_empty() {
@@ -506,12 +557,20 @@ pub(crate) async fn handle_verify_lockfile(
     // populate a cache scope a resolve wouldn't.
     let footprint = Arc::new(Mutex::new(Footprint::default()));
     let request_auth = runtime.hooked_auth(&request, &identity, &footprint);
+    let tarball_router = TarballRouter::new(
+        runtime.route_context.clone(),
+        identity.clone(),
+        runtime.public_url.clone(),
+        Arc::clone(&runtime.resolution_cache_secret),
+        runtime.tarball_gateway_routes.clone(),
+    );
+    let input_lockfile = tarball_router.verification_lockfile(input_lockfile);
 
-    match verify_input_lockfile(runtime, config, &request_auth, input_lockfile).await {
+    match verify_input_lockfile(runtime, config, &request_auth, &input_lockfile).await {
         // The dist stats the verifier observed feed `/-/pnpr/v0/resolve`'s sized
         // `package` frames; this endpoint's client prefetches from its own
         // lockfile before the verdict arrives, so only the verdict is sent.
-        Ok(_) => verify_done_or_osv_violations(runtime.osv_index.as_ref(), input_lockfile),
+        Ok(_) => verify_done_or_osv_violations(runtime.osv_index.as_ref(), &input_lockfile),
         Err(VerifyFailure::Internal(response)) => response,
         Err(VerifyFailure::Violations(violations)) => {
             ndjson_single_frame(&violations_frame(&violations))
@@ -702,6 +761,256 @@ fn resolution_cache_key(config: &PacquetConfig, request: &ResolveRequest) -> Opt
     Some(format!("{:x}", hasher.finalize()))
 }
 
+#[derive(Clone)]
+struct TarballRouter {
+    context: RouteContext,
+    identity: Identity,
+    public_url: String,
+    secret: Arc<[u8]>,
+    gateway_routes: TarballGatewayRoutes,
+}
+
+impl TarballRouter {
+    fn new(
+        context: RouteContext,
+        identity: Identity,
+        public_url: String,
+        secret: Arc<[u8]>,
+        gateway_routes: TarballGatewayRoutes,
+    ) -> Self {
+        Self { context, identity, public_url, secret, gateway_routes }
+    }
+
+    fn route_lockfile(&self, config: &PacquetConfig, lockfile: &Lockfile) -> Lockfile {
+        let mut routed = lockfile.clone();
+        let Some(packages) = routed.packages.as_mut() else {
+            return routed;
+        };
+        for (package_key, metadata) in packages {
+            if !matches!(
+                metadata.resolution,
+                LockfileResolution::Registry(_) | LockfileResolution::Tarball(_),
+            ) {
+                continue;
+            }
+            let Ok((tarball_url, integrity)) =
+                tarball_url_and_integrity(&metadata.resolution, package_key, config)
+            else {
+                continue;
+            };
+            if !is_http_tarball_url(&tarball_url) || is_git_hosted_tarball_url(&tarball_url) {
+                continue;
+            }
+            let name = package_key.name.to_string();
+            let version = package_key.suffix.version().to_string();
+            let routed_url = self.route_url(&name, &version, &tarball_url);
+            if routed_url == tarball_url.as_ref() {
+                continue;
+            }
+            metadata.resolution = LockfileResolution::Tarball(TarballResolution {
+                tarball: routed_url,
+                integrity: Some(integrity.clone()),
+                git_hosted: None,
+                path: None,
+            });
+        }
+        routed
+    }
+
+    fn verification_lockfile(&self, lockfile: &Lockfile) -> Lockfile {
+        let mut upstream = lockfile.clone();
+        let Some(packages) = upstream.packages.as_mut() else {
+            return upstream;
+        };
+        for (package_key, metadata) in packages {
+            let LockfileResolution::Tarball(resolution) = &mut metadata.resolution else {
+                continue;
+            };
+            if let Some(tarball_url) = self.upstream_alias_tarball_url(&resolution.tarball) {
+                resolution.tarball = tarball_url;
+            } else if let Some(tarball_url) = self
+                .upstream_unknown_tarball_url(&package_key.name.to_string(), &resolution.tarball)
+            {
+                resolution.tarball = tarball_url;
+            }
+        }
+        upstream
+    }
+
+    fn route_url(&self, package: &str, version: &str, tarball_url: &str) -> String {
+        if self.is_alias_gateway_url(tarball_url) {
+            return tarball_url.to_string();
+        }
+        match self.context.classify(&self.identity, tarball_url, Some(package)) {
+            RouteClass::Public => tarball_url.to_string(),
+            RouteClass::Hosted { .. } => pnpr_tarball_url(
+                &self.public_url,
+                package,
+                &tarball_filename(package, version, tarball_url),
+            ),
+            RouteClass::Proxied { alias, generation } => alias_gateway_tarball_url(
+                &self.public_url,
+                &alias,
+                generation,
+                package,
+                &tarball_filename(package, version, tarball_url),
+            ),
+            RouteClass::Unknown => {
+                let filename = tarball_filename(package, version, tarball_url);
+                let key = unknown_gateway_key(&self.secret, tarball_url);
+                self.gateway_routes.insert(key.clone(), tarball_url.to_string());
+                unknown_gateway_tarball_url(&self.public_url, &key, package, &filename)
+            }
+        }
+    }
+
+    fn is_alias_gateway_url(&self, tarball_url: &str) -> bool {
+        tarball_url.starts_with(&format!(
+            "{}/-/pnpr/v0/tarballs/alias/",
+            self.public_url.trim_end_matches('/'),
+        ))
+    }
+
+    fn upstream_alias_tarball_url(&self, tarball_url: &str) -> Option<String> {
+        let url = url::Url::parse(tarball_url).ok()?;
+        let route = url.path().strip_prefix("/-/pnpr/v0/tarballs/alias/")?;
+        let segments: Vec<_> = route.split('/').collect();
+        let [raw_alias, raw_generation, raw_package, "-", raw_filename] = segments.as_slice()
+        else {
+            return None;
+        };
+        let alias = percent_decode(raw_alias)?;
+        let generation = raw_generation.parse::<u64>().ok()?;
+        let package = percent_decode(raw_package)?;
+        let filename = percent_decode(raw_filename)?;
+        let alias_config =
+            self.context.gateway_alias(&self.identity, &alias, generation, &package)?;
+        Some(format!("{}/{}/-/{}", alias_config.registry.trim_end_matches('/'), package, filename))
+    }
+
+    fn upstream_unknown_tarball_url(
+        &self,
+        expected_package: &str,
+        tarball_url: &str,
+    ) -> Option<String> {
+        let url = url::Url::parse(tarball_url).ok()?;
+        let route = url.path().strip_prefix("/-/pnpr/v0/tarballs/unknown/")?;
+        let segments: Vec<_> = route.split('/').collect();
+        let [key, raw_package, "-", raw_filename] = segments.as_slice() else {
+            return None;
+        };
+        let package = percent_decode(raw_package)?;
+        if package != expected_package {
+            return None;
+        }
+        let _filename = percent_decode(raw_filename)?;
+        self.gateway_routes.get(key)
+    }
+}
+
+fn tarball_filename(package: &str, version: &str, tarball_url: &str) -> String {
+    tarball_basename(tarball_url).map_or_else(
+        || {
+            PackageName::parse(package).map_or_else(
+                |_| format!("{package}-{version}.tgz"),
+                |name| name.tarball_name_for_version(version),
+            )
+        },
+        str::to_string,
+    )
+}
+
+fn pnpr_tarball_url(public_url: &str, package: &str, filename: &str) -> String {
+    format!("{}/{package}/-/{filename}", public_url.trim_end_matches('/'))
+}
+
+fn alias_gateway_tarball_url(
+    public_url: &str,
+    alias: &str,
+    generation: u64,
+    package: &str,
+    filename: &str,
+) -> String {
+    let base = format!("{}/", public_url.trim_end_matches('/'));
+    let Ok(mut url) = url::Url::parse(&base) else {
+        return pnpr_tarball_url(public_url, package, filename);
+    };
+    let generation = generation.to_string();
+    {
+        let Ok(mut segments) = url.path_segments_mut() else {
+            return pnpr_tarball_url(public_url, package, filename);
+        };
+        segments.extend([
+            "-",
+            "pnpr",
+            "v0",
+            "tarballs",
+            "alias",
+            alias,
+            generation.as_str(),
+            package,
+            "-",
+            filename,
+        ]);
+    }
+    url.to_string()
+}
+
+fn unknown_gateway_key(secret: &[u8], tarball_url: &str) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(b"pnpr unknown tarball gateway route\0");
+    hasher.update(secret);
+    hasher.update(b"\0");
+    hasher.update(tarball_url.as_bytes());
+    format!("{:x}", hasher.finalize())
+}
+
+fn unknown_gateway_tarball_url(
+    public_url: &str,
+    key: &str,
+    package: &str,
+    filename: &str,
+) -> String {
+    let base = format!("{}/", public_url.trim_end_matches('/'));
+    let Ok(mut url) = url::Url::parse(&base) else {
+        return pnpr_tarball_url(public_url, package, filename);
+    };
+    {
+        let Ok(mut segments) = url.path_segments_mut() else {
+            return pnpr_tarball_url(public_url, package, filename);
+        };
+        segments.extend(["-", "pnpr", "v0", "tarballs", "unknown", key, package, "-", filename]);
+    }
+    url.to_string()
+}
+
+fn percent_decode(input: &str) -> Option<String> {
+    let bytes = input.as_bytes();
+    let mut decoded = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' {
+            let high = hex_value(*bytes.get(index + 1)?)?;
+            let low = hex_value(*bytes.get(index + 2)?)?;
+            decoded.push((high << 4) | low);
+            index += 3;
+        } else {
+            decoded.push(bytes[index]);
+            index += 1;
+        }
+    }
+    String::from_utf8(decoded).ok()
+}
+
+fn hex_value(byte: u8) -> Option<u8> {
+    match byte {
+        b'0'..=b'9' => Some(byte - b'0'),
+        b'a'..=b'f' => Some(byte - b'a' + 10),
+        b'A'..=b'F' => Some(byte - b'A' + 10),
+        _ => None,
+    }
+}
+
 /// NDJSON content type for the `/-/pnpr/v0/resolve` response. One JSON object
 /// per line; the client parses frames as they arrive. Excluded from the
 /// server's gzip [`CompressionLayer`](crate::server) so frames flush to
@@ -716,11 +1025,12 @@ const NDJSON_CONTENT_TYPE: &str = "application/x-ndjson";
 struct StreamObserver {
     tx: tokio::sync::mpsc::UnboundedSender<Vec<u8>>,
     package_version_guard: Option<Arc<dyn PackageVersionGuard>>,
+    tarball_router: TarballRouter,
 }
 
 impl pacquet_package_manager::ResolutionObserver for StreamObserver {
     fn on_resolved(&self, hint: pacquet_package_manager::ResolvedPackageHint<'_>) {
-        if let Ok(line) = ndjson_line(&package_frame(&hint)) {
+        if let Ok(line) = ndjson_line(&package_frame(&self.tarball_router, &hint)) {
             let _ = self.tx.send(line);
         }
     }
@@ -733,14 +1043,15 @@ impl pacquet_package_manager::ResolutionObserver for StreamObserver {
 /// One `package` NDJSON frame. `unpackedSize` is omitted (not null)
 /// when the registry never published a `dist.unpackedSize`, so older
 /// clients parse the frame unchanged.
-fn package_frame(hint: &ResolvedPackageHint<'_>) -> serde_json::Value {
+fn package_frame(router: &TarballRouter, hint: &ResolvedPackageHint<'_>) -> serde_json::Value {
+    let tarball_url = router.route_url(hint.name, hint.version, hint.tarball_url);
     let mut frame = serde_json::json!({
         "type": "package",
         "id": hint.id,
         "name": hint.name,
         "version": hint.version,
         "integrity": hint.integrity,
-        "tarball": hint.tarball_url,
+        "tarball": tarball_url,
     });
     if let Some(size) = hint.unpacked_size {
         frame["unpackedSize"] = serde_json::Value::from(size);
@@ -766,6 +1077,7 @@ fn package_frame(hint: &ResolvedPackageHint<'_>) -> serde_json::Value {
 /// own protocol paths.
 fn frozen_package_frames(
     config: &PacquetConfig,
+    router: &TarballRouter,
     lockfile: &Lockfile,
     dist_stats: &ObservedDistStats,
 ) -> Vec<Vec<u8>> {
@@ -786,23 +1098,27 @@ fn frozen_package_frames(
         else {
             continue;
         };
-        if !seen_urls.insert(tarball_url.to_string()) {
-            continue;
-        }
         let name = package_key.name.to_string();
         let version = package_key.suffix.version().to_string();
+        let tarball_url = router.route_url(&name, &version, &tarball_url);
+        if !seen_urls.insert(tarball_url.clone()) {
+            continue;
+        }
         let id = format!("{name}@{version}");
         let integrity = integrity.to_string();
         let stats = dist_stats.get(&(name.clone(), version.clone())).map(|entry| *entry.value());
-        let frame = package_frame(&ResolvedPackageHint {
-            id: &id,
-            name: &name,
-            version: &version,
-            integrity: &integrity,
-            tarball_url: &tarball_url,
-            unpacked_size: stats.and_then(|stats| stats.unpacked_size),
-            file_count: stats.and_then(|stats| stats.file_count),
-        });
+        let frame = package_frame(
+            router,
+            &ResolvedPackageHint {
+                id: &id,
+                name: &name,
+                version: &version,
+                integrity: &integrity,
+                tarball_url: &tarball_url,
+                unpacked_size: stats.and_then(|stats| stats.unpacked_size),
+                file_count: stats.and_then(|stats| stats.file_count),
+            },
+        );
         if let Ok(line) = ndjson_line(&frame) {
             frames.push(line);
         }

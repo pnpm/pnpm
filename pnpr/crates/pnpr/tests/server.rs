@@ -4,7 +4,10 @@ use axum::{
 };
 use flate2::read::GzDecoder;
 use futures_util::stream;
-use pnpr::{AccessSpec, AuthState, Config, PackageAccess, router, router_with_auth};
+use pnpr::{
+    AccessList, AccessSpec, AuthState, Config, PackageAccess, UpstreamAlias, router,
+    router_with_auth,
+};
 use serde_json::{Value, json};
 use ssri::{Algorithm, IntegrityOpts};
 use std::{
@@ -656,6 +659,51 @@ async fn tarball_is_proxied_and_cached() {
 
     packument_mock.assert_async().await;
     mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn alias_gateway_tarball_uses_pnpr_managed_authorization() {
+    let mut upstream = mockito::Server::new_async().await;
+    let bytes = b"alias-gateway-tarball";
+    let tarball_mock = upstream
+        .mock("GET", "/@acme/foo/-/foo-1.0.0.tgz")
+        .match_header("authorization", "Bearer alias-secret")
+        .with_status(200)
+        .with_header("content-type", "application/octet-stream")
+        .with_body(bytes)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.upstream_aliases.insert(
+        "corp".to_string(),
+        UpstreamAlias {
+            registry: upstream.url(),
+            package: None,
+            authorization: "Bearer alias-secret".to_string(),
+            access: AccessList::parse("alice"),
+            generation: 7,
+        },
+    );
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let app = router_with_auth(config, auth);
+
+    let response = app
+        .oneshot(
+            Request::get("/-/pnpr/v0/tarballs/alias/corp/7/%40acme%2Ffoo/-/foo-1.0.0.tgz")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body_bytes(response.into_body()).await, bytes);
+    tarball_mock.assert_async().await;
 }
 
 /// Builds a packument whose single `1.0.0` version points its tarball at

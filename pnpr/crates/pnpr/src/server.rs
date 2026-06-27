@@ -9,6 +9,7 @@ use crate::{
         PendingAttachment, extract_attachments, iso_from_unix_millis, merge_manifest, now_iso,
         stream_decode_verify_and_write,
     },
+    route::RouteContext,
     storage::{CachedPackument, CachedTarballIntegrity, Storage},
     streaming,
     upstream::{
@@ -32,6 +33,7 @@ use axum::{
 };
 use chrono::Utc;
 use indexmap::IndexMap;
+use pacquet_network::ThrottledClient;
 use serde_json::{Value, json};
 use ssri::Integrity;
 use std::{
@@ -89,6 +91,10 @@ struct AppInner {
     /// Lazily-built engine backing the `/-/pnpr/v0/resolve` endpoint. Built on
     /// first such request so servers that never receive one pay nothing.
     resolver: std::sync::OnceLock<crate::resolver::Resolver>,
+    /// HTTP client used by the resolver's read-only tarball gateway for
+    /// pnpr-managed upstream aliases.
+    gateway_client: Arc<ThrottledClient>,
+    tarball_gateway_routes: crate::resolver::TarballGatewayRoutes,
     /// Local OSV index, loaded before the server accepts requests when
     /// `osv.enabled` is set and a mounted surface consults it.
     osv_index: Option<Arc<crate::resolver::OsvIndex>>,
@@ -255,6 +261,8 @@ fn router_with_auth_and_osv(
             auth,
             package_locks: PackageLocks::new(),
             resolver: std::sync::OnceLock::new(),
+            gateway_client: Arc::new(ThrottledClient::new_for_installs()),
+            tarball_gateway_routes: crate::resolver::TarballGatewayRoutes::default(),
             osv_index,
         }),
     };
@@ -292,6 +300,20 @@ fn router_with_auth_and_osv(
             .route(
                 "/-/pnpr/v0/verify-lockfile",
                 post(serve_verify_lockfile).route_layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    require_resolver_caller,
+                )),
+            )
+            .route(
+                "/-/pnpr/v0/tarballs/alias/{alias}/{generation}/{package}/-/{filename}",
+                get(get_pnpr_alias_tarball).route_layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    require_resolver_caller,
+                )),
+            )
+            .route(
+                "/-/pnpr/v0/tarballs/unknown/{key}/{package}/-/{filename}",
+                get(get_pnpr_unknown_tarball).route_layer(middleware::from_fn_with_state(
                     state.clone(),
                     require_resolver_caller,
                 )),
@@ -574,6 +596,110 @@ async fn get_tarball_scoped(
     }
     let full = format!("{scope}/{name}");
     serve_tarball(&state, &identity, &full, &filename).await
+}
+
+async fn get_pnpr_alias_tarball(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    Path((alias, generation, raw_name, filename)): Path<(String, String, String, String)>,
+) -> Response {
+    let Ok(generation) = generation.parse::<u64>() else {
+        return error_response(&RegistryError::BadRequest {
+            reason: "upstream alias generation is not a valid integer".to_string(),
+        });
+    };
+    let name = match PackageName::parse(&raw_name) {
+        Ok(name) => name,
+        Err(err) => return error_response(&err),
+    };
+    let (filename, version) = match name.parse_tarball_name(&filename) {
+        Ok(parsed) => parsed,
+        Err(err) => return error_response(&err),
+    };
+    if let Err(err) = ensure_osv_allowed(&state, &name, &version) {
+        return error_response(&err);
+    }
+
+    let context = RouteContext::from_config(&state.inner.config);
+    let Some(alias_config) = context.gateway_alias(&identity, &alias, generation, name.as_str())
+    else {
+        let user = require_caller(&identity, "dependency resolution")
+            .unwrap_or_else(|_| "<anonymous>".to_string());
+        return error_response(&RegistryError::Forbidden {
+            user,
+            action: "access",
+            resource: format!("upstream alias {alias:?}"),
+        });
+    };
+
+    let url = alias_tarball_upstream_url(&alias_config.registry, &name, &filename);
+    let client = state.inner.gateway_client.acquire_for_url(&url).await;
+    let response =
+        match client.get(&url).header("authorization", alias_config.authorization).send().await {
+            Ok(response) => response,
+            Err(source) => return error_response(&RegistryError::Upstream { url, source }),
+        };
+    if response.status() == StatusCode::NOT_FOUND {
+        return not_found();
+    }
+    if !response.status().is_success() {
+        tracing::warn!(
+            status = response.status().as_u16(),
+            package = %name.as_str(),
+            %filename,
+            alias = %alias,
+            "upstream alias tarball gateway fetch failed",
+        );
+        return (StatusCode::BAD_GATEWAY, "upstream tarball gateway request failed")
+            .into_response();
+    }
+    let content_length = response.content_length();
+    tarball_response(Body::from_stream(response.bytes_stream()), content_length)
+}
+
+async fn get_pnpr_unknown_tarball(
+    State(state): State<AppState>,
+    Path((key, raw_name, filename)): Path<(String, String, String)>,
+) -> Response {
+    let name = match PackageName::parse(&raw_name) {
+        Ok(name) => name,
+        Err(err) => return error_response(&err),
+    };
+    let (filename, version) = match name.parse_tarball_name(&filename) {
+        Ok(parsed) => parsed,
+        Err(err) => return error_response(&err),
+    };
+    if let Err(err) = ensure_osv_allowed(&state, &name, &version) {
+        return error_response(&err);
+    }
+    let Some(url) = state.inner.tarball_gateway_routes.get(&key) else {
+        return not_found();
+    };
+
+    let client = state.inner.gateway_client.acquire_for_url(&url).await;
+    let response = match client.get(&url).send().await {
+        Ok(response) => response,
+        Err(source) => return error_response(&RegistryError::Upstream { url, source }),
+    };
+    if response.status() == StatusCode::NOT_FOUND {
+        return not_found();
+    }
+    if !response.status().is_success() {
+        tracing::warn!(
+            status = response.status().as_u16(),
+            package = %name.as_str(),
+            %filename,
+            "unknown tarball gateway fetch failed",
+        );
+        return (StatusCode::BAD_GATEWAY, "upstream tarball gateway request failed")
+            .into_response();
+    }
+    let content_length = response.content_length();
+    tarball_response(Body::from_stream(response.bytes_stream()), content_length)
+}
+
+fn alias_tarball_upstream_url(registry: &str, name: &PackageName, filename: &str) -> String {
+    format!("{}/{}/-/{}", registry.trim_end_matches('/'), name.as_str(), filename)
 }
 
 /// 4-segment GET:
@@ -3094,15 +3220,15 @@ async fn serve_resolve(
     AuthedCaller(identity): AuthedCaller,
     body: axum::body::Bytes,
 ) -> Response {
-    // pnpr serves no file content, so there is no per-package read gate
-    // here: the client fetches every tarball directly. But the caller's
-    // identity does drive resolution — it selects which pnpr-managed
-    // upstream credentials and hosted packages the resolve may use, and
-    // gates which cached resolutions it may receive.
+    // The caller's identity drives both resolution and gateway access:
+    // it selects which pnpr-managed upstream credentials and hosted
+    // packages the resolve may use, and gates which cached resolutions
+    // it may receive.
     let runtime = crate::resolver::Resolver::get_or_init(
         &state.inner.resolver,
         &state.inner.config,
         state.inner.osv_index.clone(),
+        state.inner.tarball_gateway_routes.clone(),
     );
     crate::resolver::handle_resolve(runtime, identity, body).await
 }
@@ -3116,6 +3242,7 @@ async fn serve_verify_lockfile(
         &state.inner.resolver,
         &state.inner.config,
         state.inner.osv_index.clone(),
+        state.inner.tarball_gateway_routes.clone(),
     );
     crate::resolver::handle_verify_lockfile(runtime, identity, body).await
 }

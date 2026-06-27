@@ -4,9 +4,9 @@
 //! per-test in-process `pnpr` hosts the `/-/pnpr` handshake +
 //! `/-/pnpr/v0/resolve` endpoints. The client sends the registry it wants
 //! resolved from, so the pnpr server's *own* uplink is left at the
-//! default — proving resolution uses the client-supplied registry. pnpr
-//! serves no file content; the client receives only the resolved
-//! lockfile.
+//! default — proving resolution uses the client-supplied registry. Public
+//! tarballs can stay upstream; private and unknown routes are returned as
+//! pnpr read-only gateway URLs.
 //!
 //! The client authenticates to pnpr with a bearer token but never
 //! forwards its own upstream registry credentials. Private upstream
@@ -264,6 +264,39 @@ async fn resolves_a_package() {
     );
 
     assert!(outcome.stats.total_packages >= 1);
+}
+
+#[tokio::test]
+async fn unknown_gateway_tarball_url_fetches_through_pnpr() {
+    let registry = TestRegistry::start();
+    let (pnpr_url, pnpr_auth, _storage) = start_pnpr().await;
+
+    let outcome = PnprClient::new(pnpr_url)
+        .resolve(options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
+        .await
+        .expect("install should succeed");
+    let lockfile = serde_json::to_value(&outcome.lockfile).expect("lockfile serializes");
+    let tarball = lockfile["packages"]["@foo/no-deps@1.0.0"]["resolution"]["tarball"]
+        .as_str()
+        .expect("routed tarball URL");
+
+    assert!(tarball.contains("/-/pnpr/v0/tarballs/unknown/"));
+    assert!(!tarball.contains(&registry.url()));
+
+    let response = reqwest::Client::new()
+        .get(tarball)
+        .header(reqwest::header::AUTHORIZATION, pnpr_auth)
+        .send()
+        .await
+        .expect("gateway tarball request");
+    assert!(response.status().is_success(), "gateway returned {}", response.status());
+    let body = response.bytes().await.expect("gateway tarball body");
+    let direct = reqwest::get(format!("{}@foo/no-deps/-/no-deps-1.0.0.tgz", registry.url()))
+        .await
+        .expect("direct tarball request");
+    assert!(direct.status().is_success(), "registry returned {}", direct.status());
+    let direct_body = direct.bytes().await.expect("direct tarball body");
+    assert_eq!(body, direct_body);
 }
 
 /// The streaming API surfaces each resolved tarball as a `package`

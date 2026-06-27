@@ -49,7 +49,8 @@ impl From<std::io::Error> for ResolveError {
 
 /// Resolve a request lockfile-only and return the produced lockfile.
 /// The store is intentionally left untouched (no tarball is fetched):
-/// pnpr serves no file content, so the client fetches every tarball.
+/// tarball downloads happen later from upstream URLs or pnpr's read-only
+/// gateway.
 ///
 /// A single-project request resolves one root (`.`) importer. A
 /// multi-project request is reconstructed as a real workspace in the

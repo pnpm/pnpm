@@ -11,8 +11,8 @@
 //! then fetches the rest in parallel like a normal install
 //! ([pnpm/pnpm#12230](https://github.com/pnpm/pnpm/issues/12230)).
 //!
-//! pnpr is a stateless resolver: it stores no tarballs and serves no file
-//! content.
+//! pnpr is a stateless resolver: it stores no tarballs. Resolved tarballs
+//! are fetched from upstream public URLs or pnpr's read-only gateway.
 
 use std::collections::BTreeMap;
 
@@ -230,10 +230,8 @@ impl PnprClient {
     }
 
     /// Resolve a single project against the server and return the
-    /// resolved lockfile, ignoring the streamed per-package frames. The
-    /// server serves no file content — the caller fetches every tarball
-    /// itself. Equivalent to [`Self::resolve_streaming`] with a no-op
-    /// callback.
+    /// resolved lockfile, ignoring the streamed per-package frames.
+    /// Equivalent to [`Self::resolve_streaming`] with a no-op callback.
     pub async fn resolve(&self, opts: ResolveOptions) -> Result<ResolveOutcome, PnprClientError> {
         self.resolve_streaming(opts, |_| {}).await
     }

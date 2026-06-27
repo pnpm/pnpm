@@ -189,6 +189,7 @@ struct RouteMatcher {
 struct ResolvedAlias {
     name: String,
     generation: u64,
+    registry: String,
     /// Nerf-darted upstream origin the alias serves.
     origin: String,
     package: Option<Glob<'static>>,
@@ -197,6 +198,12 @@ struct ResolvedAlias {
     authorization: String,
     /// Which pnpr callers may select this alias.
     access: AccessList,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct GatewayAlias {
+    pub(crate) registry: String,
+    pub(crate) authorization: String,
 }
 
 impl RouteContext {
@@ -321,6 +328,27 @@ impl RouteContext {
             }
         }
     }
+
+    pub(crate) fn gateway_alias(
+        &self,
+        identity: &Identity,
+        alias: &str,
+        generation: u64,
+        package: &str,
+    ) -> Option<GatewayAlias> {
+        self.aliases
+            .iter()
+            .find(|candidate| {
+                candidate.name == alias
+                    && candidate.generation == generation
+                    && candidate.access.allows(identity)
+                    && candidate.package.as_ref().is_none_or(|glob| glob.is_match(package))
+            })
+            .map(|candidate| GatewayAlias {
+                registry: candidate.registry.clone(),
+                authorization: candidate.authorization.clone(),
+            })
+    }
 }
 
 impl RouteMatcher {
@@ -339,6 +367,7 @@ impl ResolvedAlias {
         Some(Self {
             name: name.to_string(),
             generation: alias.generation,
+            registry: alias.registry.clone(),
             origin: nerf_origin(&alias.registry)?,
             package: alias.package.as_deref().and_then(compile_glob),
             authorization: alias.authorization.clone(),
