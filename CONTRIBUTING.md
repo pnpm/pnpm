@@ -67,11 +67,13 @@ One-time setup:
    cd ~/src/pnpm/pnpm
    ```
 
-2. Point Husky at a path that exists inside every worktree (not inside the bare repo's gitdir),
-   so commit and push hooks run when you commit from any worktree:
+2. Point git at the tracked `.githooks` directory so the commit-msg hook runs when you
+   commit from any worktree. The path is relative, so git resolves it inside whichever
+   worktree you commit from. (`pnpm install` does this for you in the next step; run it
+   yourself if you want the hook active before the first install.)
 
    ```shell
-   git config core.hooksPath .husky/_
+   git config core.hooksPath .githooks
    ```
 
 3. Create the first worktree for `main` and install dependencies:

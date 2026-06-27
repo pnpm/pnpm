@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Catch formatter, rustdoc, and dylint violations before they hit CI.
-# Invoked from .husky/pre-push.
+# Run it manually before pushing changes under pacquet/ or pnpr/; CI runs the
+# same checks.
 set -euo pipefail
 
 red()    { printf '\033[0;31m%s\033[0m\n' "$*" >&2; }

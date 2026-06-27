@@ -299,15 +299,6 @@ catalogs:
     '@changesets/cli':
       specifier: ^2.31.0
       version: 2.31.0
-    '@commitlint/cli':
-      specifier: ^21.0.2
-      version: 21.1.0
-    '@commitlint/config-conventional':
-      specifier: ^21.0.2
-      version: 21.1.0
-    '@commitlint/prompt-cli':
-      specifier: ^21.0.2
-      version: 21.1.0
     '@cyclonedx/cyclonedx-library':
       specifier: 10.1.0
       version: 10.1.0
@@ -686,9 +677,6 @@ catalogs:
     https-proxy-server-express:
       specifier: 0.1.2
       version: 0.1.2
-    husky:
-      specifier: ^9.1.7
-      version: 9.1.7
     hyperdrive-schemas:
       specifier: ^2.0.0
       version: 2.0.0
@@ -1086,15 +1074,6 @@ importers:
       '@changesets/cli':
         specifier: 'catalog:'
         version: 2.31.0(@types/node@22.20.0)
-      '@commitlint/cli':
-        specifier: 'catalog:'
-        version: 21.1.0(@types/node@22.20.0)(conventional-commits-parser@6.4.0)(typescript@6.0.3)
-      '@commitlint/config-conventional':
-        specifier: 'catalog:'
-        version: 21.1.0
-      '@commitlint/prompt-cli':
-        specifier: 'catalog:'
-        version: 21.1.0(@types/node@22.20.0)(typescript@6.0.3)
       '@pnpm/eslint-config':
         specifier: workspace:*
         version: link:pnpm11/__utils__/eslint-config
@@ -1140,9 +1119,6 @@ importers:
       eslint-plugin-regexp:
         specifier: 'catalog:'
         version: 3.1.0(eslint@10.5.0(jiti@2.6.1))
-      husky:
-        specifier: 'catalog:'
-        version: 9.1.7
       jest:
         specifier: 'catalog:'
         version: 30.4.2(@babel/types@7.29.7)(@types/node@22.20.0)

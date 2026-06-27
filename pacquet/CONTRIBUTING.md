@@ -80,7 +80,7 @@ Install the project's task tools and the git pre-push hook:
 just init
 ```
 
-`just init` invokes `cargo-binstall` to install `cargo-nextest`, `cargo-watch`, `cargo-insta`, `typos-cli`, `taplo-cli`, `wasm-pack`, and `cargo-llvm-cov`. The repo-wide `pnpm install` wires up husky, whose `pre-push` hook runs `pacquet/scripts/pre-push-rust.sh` (format, doc, dylint) alongside the TypeScript compile and lint checks.
+`just init` invokes `cargo-binstall` to install `cargo-nextest`, `cargo-watch`, `cargo-insta`, `typos-cli`, `taplo-cli`, `wasm-pack`, and `cargo-llvm-cov`. Run `pacquet/scripts/pre-push-rust.sh` (format, doc, dylint) manually before pushing changes under `pacquet/` or `pnpr/`; CI runs the same checks.
 
 Install the test dependencies:
 
