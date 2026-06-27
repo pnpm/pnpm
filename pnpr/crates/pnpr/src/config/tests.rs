@@ -373,7 +373,7 @@ packages:
 }
 
 fn user(name: &str) -> Identity {
-    Identity::User { username: name.to_string() }
+    Identity::user(name)
 }
 
 fn listen() -> SocketAddr {
@@ -1636,6 +1636,41 @@ packages:
     assert!(!team.access.allows(&Identity::Anonymous));
     assert!(team.publish.allows(&user("alice")));
     assert!(!team.publish.allows(&user("bob")));
+}
+
+#[test]
+fn groups_grant_package_and_alias_access() {
+    let yaml = r"
+groups:
+  platform: alice bob
+  release:
+    - carol
+packages:
+  '@team/*':
+    access: platform
+upstreamAliases:
+  corp:
+    registry: https://npm.corp.example/
+    access: platform
+    auth:
+      type: bearer
+      token: corp-token
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let alice = config.identity_for_user("alice");
+    let bob = config.identity_for_user("bob");
+    let carol = config.identity_for_user("carol");
+
+    let team = config.policies.for_package("@team/widget");
+    assert!(team.access.allows(&alice));
+    assert!(team.access.allows(&bob));
+    assert!(!team.access.allows(&carol));
+    assert!(!team.access.allows(&Identity::Anonymous));
+
+    let alias = &config.upstream_aliases["corp"];
+    assert!(alias.access.allows(&alice));
+    assert!(alias.access.allows(&bob));
+    assert!(!alias.access.allows(&carol));
 }
 
 #[test]

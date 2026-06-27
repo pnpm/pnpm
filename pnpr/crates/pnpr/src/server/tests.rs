@@ -6,6 +6,7 @@ use crate::{
     auth::{AuthState, TokenBackend, TokenRecord, UserStore},
     config::Config,
     error::{RegistryError, Result},
+    policy::{AccessList, PackagePolicies, PackagePolicy},
 };
 use async_trait::async_trait;
 use axum::{
@@ -171,10 +172,14 @@ impl TokenBackend for OneToken {
 }
 
 fn app_with_token(tmp: &TempDir, raw: &str, record: TokenRecord) -> axum::Router {
+    let listen = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
+    app_with_config_and_token(Config::static_serve(listen, tmp.path().to_path_buf()), raw, record)
+}
+
+fn app_with_config_and_token(config: Config, raw: &str, record: TokenRecord) -> axum::Router {
     let tokens: Arc<dyn TokenBackend> = Arc::new(OneToken { raw: raw.to_string(), record });
     let auth = AuthState { users: Arc::new(UserStore::in_memory()), tokens };
-    let listen = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
-    router_with_auth(Config::static_serve(listen, tmp.path().to_path_buf()), auth)
+    router_with_auth(config, auth)
 }
 
 fn signed(method: Method, path: &str, raw: &str) -> Request<Body> {
@@ -210,6 +215,30 @@ async fn authenticated_identity_reaches_handlers() {
     // An unknown token resolves to anonymous, so whoami is a 401.
     let anon = app.oneshot(signed(Method::GET, "/-/whoami", "unknown")).await.unwrap();
     assert_eq!(anon.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn configured_groups_reach_package_authorization() {
+    let tmp = TempDir::new().unwrap();
+    let listen = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
+    let mut config = Config::static_serve(listen, tmp.path().to_path_buf());
+    config.groups.add_user_to_group("alice", "platform");
+    config.policies = PackagePolicies::new(vec![
+        PackagePolicy::new(
+            "@team/*",
+            AccessList::parse("platform"),
+            AccessList::default(),
+            AccessList::default(),
+        )
+        .unwrap(),
+    ]);
+    let app = app_with_config_and_token(config, "tok", record(false, &[]));
+
+    let allowed = app.clone().oneshot(signed(Method::GET, "/@team/missing", "tok")).await.unwrap();
+    assert_eq!(allowed.status(), StatusCode::NOT_FOUND);
+
+    let anonymous = app.oneshot(signed(Method::GET, "/@team/missing", "unknown")).await.unwrap();
+    assert_eq!(anonymous.status(), StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]

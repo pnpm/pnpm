@@ -17,7 +17,7 @@ fn anon() -> Identity {
 }
 
 fn user(name: &str) -> Identity {
-    Identity::User { username: name.to_string() }
+    Identity::user(name)
 }
 
 fn alias(registry: &str, package: Option<&str>, access: &str, generation: u64) -> UpstreamAlias {
@@ -104,6 +104,27 @@ fn proxied_alias_requires_authorization() {
     // A package outside the alias's pattern doesn't match it.
     assert_eq!(
         context.classify(&user("alice"), "https://npm.corp.example/lodash", Some("lodash")),
+        RouteClass::Unknown,
+    );
+}
+
+#[test]
+fn proxied_alias_accepts_configured_group_identity() {
+    let mut config = base_config();
+    config.groups.add_user_to_group("alice", "platform");
+    config.upstream_aliases.insert(
+        "corp".to_string(),
+        alias("https://npm.corp.example/", Some("@acme/*"), "platform", 2),
+    );
+    let context = RouteContext::from_config(&config);
+    let url = "https://npm.corp.example/@acme%2fwidget";
+
+    assert_eq!(
+        context.classify(&config.identity_for_user("alice"), url, Some("@acme/widget")),
+        RouteClass::Proxied { alias: "corp".to_string(), generation: 2 },
+    );
+    assert_eq!(
+        context.classify(&config.identity_for_user("bob"), url, Some("@acme/widget")),
         RouteClass::Unknown,
     );
 }

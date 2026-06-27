@@ -56,6 +56,14 @@ auth:
     # (registration disabled); set a non-negative cap to allow registration.
     max_users: -1
 
+# Optional static group/team memberships. Package policies and upstream
+# aliases can use these group names anywhere they already accept usernames.
+#groups:
+#  platform: alice bob
+#  release:
+#    - alice
+#    - carol
+
 plugins: ../node_modules
 
 middlewares:
@@ -66,6 +74,20 @@ middlewares:
 uplinks:
   npmjs:
     url: https://registry.npmjs.org/
+
+# Optional pnpr-owned upstream credentials for private resolver routes.
+# pnpr selects an alias only when the caller satisfies `access`, sends the
+# alias credential upstream, and uses `generation` as part of the private
+# cache namespace during rotations.
+#upstreamAliases:
+#  corp:
+#    registry: https://npm.corp.example/
+#    package: '@acme/*'
+#    access: platform
+#    generation: 1
+#    auth:
+#      type: bearer
+#      tokenEnv: PNPR_CORP_NPM_TOKEN
 
 web:
   enable: false

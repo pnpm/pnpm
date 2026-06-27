@@ -1,6 +1,6 @@
 use crate::{
     error::RegistryError,
-    policy::{AccessList, PackagePolicies, PackagePolicy},
+    policy::{AccessGroups, AccessList, Identity, PackagePolicies, PackagePolicy},
     s3::{S3Settings, build_s3_store},
 };
 use indexmap::IndexMap;
@@ -78,6 +78,9 @@ pub struct Config {
     /// uplink (via `proxy`). Patterns without a `proxy` make the
     /// package storage-only (effectively static for that pattern).
     pub packages: IndexMap<String, PackageAccess>,
+    /// Optional static group memberships used by named access tokens in
+    /// package policies and upstream aliases.
+    pub groups: AccessGroups,
     /// How long a cached packument is considered fresh before it is
     /// re-fetched from the resolved uplink. Ignored when no uplink
     /// matches.
@@ -965,6 +968,10 @@ struct ConfigFile {
     uplinks: IndexMap<String, UplinkFile>,
     #[serde(default)]
     packages: IndexMap<String, PackageAccess>,
+    /// pnpr-only static groups: each key is a group/team name and each
+    /// value is the list of pnpr usernames in that group.
+    #[serde(default)]
+    groups: IndexMap<String, AccessSpec>,
     /// pnpr-only: which fetch routes the resolution cache treats as
     /// public. Absent on a stock verdaccio config (built-in defaults
     /// apply).
@@ -1117,6 +1124,7 @@ impl Config {
             storage,
             uplinks,
             packages,
+            groups: AccessGroups::default(),
             packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
             policies: PackagePolicies::registry_mock_defaults(),
             auth: AuthConfig::default(),
@@ -1143,6 +1151,7 @@ impl Config {
             storage,
             uplinks: IndexMap::new(),
             packages: IndexMap::new(),
+            groups: AccessGroups::default(),
             packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
             policies: PackagePolicies::registry_mock_defaults(),
             auth: AuthConfig::default(),
@@ -1360,6 +1369,7 @@ impl Config {
         let public_url = public_url.unwrap_or_else(|| format!("http://{listen}"));
         let auth = build_auth_config(&file.auth, base_dir);
         let logs = build_log_config(file.log.as_ref());
+        let groups = build_groups(&file.groups);
         let policies = build_policies(&file.packages)?;
         let osv = build_osv_config(&file.osv, base_dir);
         // Effective enablement folds the CLI overrides in here, so the
@@ -1406,6 +1416,7 @@ impl Config {
             cache_storage,
             uplinks,
             packages: file.packages,
+            groups,
             packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
             policies,
             auth,
@@ -1474,6 +1485,13 @@ impl Config {
     pub fn resolve_uplink(&self, package_name: &str) -> Option<(&str, &UplinkConfig)> {
         self.resolve_uplinks(package_name).into_iter().next()
     }
+
+    /// Build the caller identity used by access policies after a bearer
+    /// token has authenticated `username`.
+    #[must_use]
+    pub fn identity_for_user(&self, username: impl Into<String>) -> Identity {
+        self.groups.identity_for(username.into())
+    }
 }
 
 /// Build the runtime [`AuthConfig`] from the YAML `auth:` block.
@@ -1512,6 +1530,16 @@ fn build_route_policy(file: Option<RoutesFile>) -> RoutePolicy {
                 .collect(),
         },
     }
+}
+
+fn build_groups(file: &IndexMap<String, AccessSpec>) -> AccessGroups {
+    let mut groups = AccessGroups::default();
+    for (group, members) in file {
+        for username in members.to_ordered_tokens() {
+            groups.add_user_to_group(username, group);
+        }
+    }
+    groups
 }
 
 /// Compile each `upstreamAliases:` entry into a runtime [`UpstreamAlias`],

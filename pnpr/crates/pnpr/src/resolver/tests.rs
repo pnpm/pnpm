@@ -40,7 +40,7 @@ fn registry_config() -> RegistryConfig {
 }
 
 fn user(name: &str) -> Identity {
-    Identity::User { username: name.to_string() }
+    Identity::user(name)
 }
 
 fn alias(registry: &str, access: &str, generation: u64) -> UpstreamAlias {

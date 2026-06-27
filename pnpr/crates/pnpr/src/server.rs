@@ -1291,7 +1291,7 @@ mod tests;
 /// `resource` names what the 401 is about.
 fn require_caller(identity: &Identity, resource: &str) -> Result<String, RegistryError> {
     match identity {
-        Identity::User { username } => Ok(username.clone()),
+        Identity::User { username, .. } => Ok(username.clone()),
         Identity::Anonymous => {
             Err(RegistryError::Unauthenticated { resource: resource.to_string() })
         }
@@ -2435,7 +2435,7 @@ async fn resolve_caller(
             return Ok(Identity::Anonymous);
         };
         check_token_restrictions(&record, method, peer)?;
-        return Ok(Identity::User { username: record.username });
+        return Ok(state.inner.config.identity_for_user(record.username));
     }
     // Anything that is not a bearer token — Basic, another scheme, or no
     // credentials — carries no request identity. Going through `identify`
@@ -2501,7 +2501,7 @@ fn authorize(
         Identity::Anonymous => {
             Err(RegistryError::Unauthenticated { resource: format!("package {package:?}") })
         }
-        Identity::User { username } => Err(RegistryError::Forbidden {
+        Identity::User { username, .. } => Err(RegistryError::Forbidden {
             user: username.clone(),
             action: action.label(),
             resource: format!("package {package:?}"),
