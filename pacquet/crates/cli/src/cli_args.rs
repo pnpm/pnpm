@@ -30,6 +30,7 @@ pub mod patch_remove;
 pub(crate) mod patch_state;
 pub mod ping;
 pub mod prune;
+pub mod publish;
 pub mod rebuild;
 pub mod recursive;
 pub mod registry_client;
@@ -89,6 +90,7 @@ use patch_commit::PatchCommitArgs;
 use patch_remove::PatchRemoveArgs;
 use ping::PingArgs;
 use prune::PruneArgs;
+use publish::PublishArgs;
 use rebuild::RebuildArgs;
 use remove::RemoveArgs;
 use restart::RestartArgs;
@@ -221,6 +223,8 @@ pub enum CliCommand {
     Rebuild(RebuildArgs),
     /// Create a tarball from a package
     Pack(PackArgs),
+    /// Publish a package to the registry
+    Publish(PublishArgs),
     /// Removes packages from `node_modules` and from the project's `package.json`.
     // Unlike npm, pnpm does not treat "r" as an alias of "remove" to avoid
     // confusion with "run" and "recursive". Mirrors pnpm's `commandNames`.
@@ -641,6 +645,27 @@ impl CliArgs {
                     println!("{output}");
                 }
                 Box::pin(std::future::ready(Ok(())))
+            }
+            // `publish` packs the project and uploads the tarball. Its OTP /
+            // web-auth flow takes the one-time password as a borrowed `&str`,
+            // so the publish future is not `Send`-general enough for the
+            // boxed `CommandFuture`. The top-level `run` future is only ever
+            // `block_on`'d (never `tokio::spawn`'d), so awaiting publish inline
+            // here and yielding a ready future keeps it off the `Send` path.
+            CliCommand::Publish(args) => {
+                let cfg: &Config = config()?;
+                let result = match reporter {
+                    ReporterType::Default | ReporterType::AppendOnly => {
+                        args.run::<DefaultReporter>(dir_ref, cfg, recursive).await
+                    }
+                    ReporterType::Ndjson => {
+                        args.run::<NdjsonReporter>(dir_ref, cfg, recursive).await
+                    }
+                    ReporterType::Silent => {
+                        args.run::<SilentReporter>(dir_ref, cfg, recursive).await
+                    }
+                };
+                Box::pin(std::future::ready(result))
             }
             CliCommand::Remove(args) => {
                 let command_state = state(false)?;

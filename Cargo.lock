@@ -3683,6 +3683,7 @@ dependencies = [
  "pacquet-package-manifest",
  "pacquet-patching",
  "pacquet-pnpr-client",
+ "pacquet-publish",
  "pacquet-registry",
  "pacquet-reporter",
  "pacquet-resolving-npm-resolver",
@@ -4396,6 +4397,33 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "pacquet-publish"
+version = "0.0.1"
+dependencies = [
+ "base64 0.22.1",
+ "derive_more",
+ "dialoguer",
+ "flate2",
+ "miette 7.6.0",
+ "node-semver",
+ "pacquet-diagnostics",
+ "pacquet-executor",
+ "pacquet-network",
+ "pacquet-network-web-auth",
+ "pacquet-pack",
+ "pacquet-reporter",
+ "pretty_assertions",
+ "reqwest 0.13.4",
+ "serde",
+ "serde_json",
+ "ssri",
+ "tar",
+ "tempfile",
+ "tokio",
+ "url",
 ]
 
 [[package]]

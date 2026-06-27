@@ -33,6 +33,7 @@ pacquet-registry                          = { path = "pacquet/crates/registry" }
 pacquet-tarball                           = { path = "pacquet/crates/tarball" }
 pacquet-testing-utils                     = { path = "pacquet/crates/testing-utils" }
 pacquet-pack                              = { path = "pacquet/crates/pack" }
+pacquet-publish                           = { path = "pacquet/crates/publish" }
 pacquet-package-manifest                  = { path = "pacquet/crates/package-manifest" }
 pacquet-package-manager                   = { path = "pacquet/crates/package-manager" }
 pacquet-package-is-installable            = { path = "pacquet/crates/package-is-installable" }
