@@ -56,19 +56,17 @@ export function sortFilteredProjects (opts: {
   prodAllProjectsGraph?: ProjectsGraph
   prodOnlySelectedProjectDirs?: ProjectRootDir[]
 }): ProjectRootDir[][] {
+  const fullProjectsGraph = opts.allProjectsGraph ?? opts.selectedProjectsGraph
   const prodAllProjectsGraph = opts.prodAllProjectsGraph
   if (!prodAllProjectsGraph) {
-    return sortProjects(opts.selectedProjectsGraph, opts.allProjectsGraph)
-  }
-  if (opts.prodOnlySelectedProjectDirs == null) {
-    return sortProjects(opts.selectedProjectsGraph, prodAllProjectsGraph)
+    return sortProjects(opts.selectedProjectsGraph, fullProjectsGraph)
   }
   const prodOnlySelectedProjectDirs = new Set(opts.prodOnlySelectedProjectDirs)
   return sequenceGraphByProject(
     opts.selectedProjectsGraph,
     (projectDir) => prodOnlySelectedProjectDirs.has(projectDir)
       ? prodAllProjectsGraph
-      : opts.allProjectsGraph ?? opts.selectedProjectsGraph
+      : fullProjectsGraph
   ).chunks
 }
 
