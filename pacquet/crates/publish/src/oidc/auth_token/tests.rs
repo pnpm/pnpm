@@ -68,9 +68,10 @@ async fn defaults_exchange_message_when_body_is_unhelpful() {
     let err = fetch_auth_token::<Sys>("id-token", "pkg", REGISTRY, &OidcHttpOptions::default())
         .await
         .unwrap_err();
-    assert!(
-        matches!(err, AuthTokenError::Exchange { ref message, .. } if message == "Unknown error")
-    );
+    assert!(matches!(
+        err,
+        AuthTokenError::Exchange { ref message, .. } if message == "Unknown error"
+    ));
 }
 
 #[tokio::test]
@@ -96,7 +97,8 @@ async fn wraps_fetch_rejection() {
     let err = fetch_auth_token::<Sys>("id-token", "pkg", REGISTRY, &OidcHttpOptions::default())
         .await
         .unwrap_err();
-    assert!(
-        matches!(err, AuthTokenError::Fetch { ref error_source, .. } if error_source == "connection refused")
-    );
+    assert!(matches!(
+        err,
+        AuthTokenError::Fetch { ref error_source, .. } if error_source == "connection refused"
+    ));
 }

@@ -124,7 +124,7 @@ impl PublishArgs {
         let network = PublishNetwork { client: &http_client, auth_headers: &config.auth_headers };
 
         let summary_json =
-            if let Some(package) = self.package.as_deref().filter(|p| is_tarball_path(p)) {
+            if let Some(package) = self.package.as_deref().filter(|path| is_tarball_path(path)) {
                 self.publish_tarball::<Reporter>(package, &opts, &network).await?
             } else {
                 self.publish_directory::<Reporter>(
@@ -298,7 +298,7 @@ fn run_publish_scripts<Reporter: self::Reporter>(
         scripts
             .and_then(|scripts| scripts.get(name))
             .and_then(Value::as_str)
-            .filter(|s| !s.is_empty())
+            .filter(|script| !script.is_empty())
     };
     if !script_names.iter().any(|name| declares(name).is_some()) {
         return Ok(());
