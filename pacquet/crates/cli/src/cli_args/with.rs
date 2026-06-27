@@ -46,6 +46,12 @@ pub enum WithError {
         )
     )]
     NoGlobalDir,
+
+    #[display(
+        "Cannot add {dir} to PATH because it contains the path delimiter character ({delimiter})"
+    )]
+    #[diagnostic(code(ERR_PNPM_BAD_PATH_DIR))]
+    BadPathDir { dir: String, delimiter: char },
 }
 
 #[derive(Debug, Args)]
@@ -100,7 +106,7 @@ impl WithArgs {
 /// child's package-manager check disabled, inheriting stdio. Mirrors the
 /// `crossSpawn.sync` at the end of pnpm's `with` handler.
 fn spawn_pnpm(bin_dir: &Path, args: &[String]) -> miette::Result<std::process::ExitStatus> {
-    let path = prepend_to_path(bin_dir);
+    let path = prepend_to_path(bin_dir)?;
     // Resolve `pnpm` strictly within `bin_dir`, never the full PATH, so a
     // missing or broken shim is an error rather than silently falling
     // through to a different `pnpm` elsewhere on PATH (which would run the
@@ -131,15 +137,22 @@ fn spawn_pnpm(bin_dir: &Path, args: &[String]) -> miette::Result<std::process::E
     cmd.status().into_diagnostic().wrap_err("run the requested pnpm version")
 }
 
-/// Prepend `dir` to the current process `PATH`.
-fn prepend_to_path(dir: &Path) -> OsString {
-    let sep = if cfg!(windows) { ";" } else { ":" };
+/// Prepend `dir` to the current process `PATH`, rejecting a `dir` that
+/// contains the platform path delimiter (it cannot be expressed as a
+/// single `PATH` entry and would silently split into several). Mirrors the
+/// `BAD_PATH_DIR` guard `exec`'s `prepend_dirs_to_path` already applies;
+/// `dir` here is the engine's store-resident `bin` directory.
+fn prepend_to_path(dir: &Path) -> Result<OsString, WithError> {
+    let delimiter = if cfg!(windows) { ';' } else { ':' };
+    if dir.to_string_lossy().contains(delimiter) {
+        return Err(WithError::BadPathDir { dir: dir.to_string_lossy().into_owned(), delimiter });
+    }
     let mut out = OsString::from(dir);
     if let Some(current) = std::env::var_os("PATH").filter(|value| !value.is_empty()) {
-        out.push(sep);
+        out.push(if cfg!(windows) { ";" } else { ":" });
         out.push(current);
     }
-    out
+    Ok(out)
 }
 
 /// `true` when pnpm is running under corepack (which sets `COREPACK_ROOT`
@@ -148,3 +161,6 @@ fn prepend_to_path(dir: &Path) -> OsString {
 fn is_executed_by_corepack() -> bool {
     std::env::var_os("COREPACK_ROOT").is_some()
 }
+
+#[cfg(test)]
+mod tests;
