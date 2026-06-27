@@ -74,8 +74,8 @@ impl ApproveBuildsArgs {
     pub fn prepare(
         self,
         dir: &Path,
-        config: &dyn Fn() -> miette::Result<&'static mut Config>,
-        state: &dyn Fn(bool) -> miette::Result<State>,
+        config: &(dyn Fn() -> miette::Result<&'static mut Config> + Sync),
+        state: &(dyn Fn(bool) -> miette::Result<State> + Sync),
     ) -> miette::Result<Option<(State, Vec<String>)>> {
         let ApproveBuildsArgs { packages, all, global } = self;
 

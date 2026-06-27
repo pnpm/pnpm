@@ -159,7 +159,7 @@ tabled             = { version = "0.21" }
 tar                = { version = "0.4.46" }
 text-block-macros  = { version = "0.2.0" }
 tower              = { version = "0.5.3" }
-tower-http         = { version = "0.6.11", features = ["compression-gzip", "trace"] }
+tower-http         = { version = "0.7.0", features = ["compression-gzip", "trace"] }
 tracing            = { version = "0.1.44" }
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 tokio              = { version = "1", features = ["rt", "rt-multi-thread", "macros", "fs", "io-util", "net", "signal", "sync"] }
