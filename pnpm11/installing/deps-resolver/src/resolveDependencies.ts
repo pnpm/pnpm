@@ -1801,6 +1801,7 @@ async function resolveDependency (
         trustPolicyExclude: ctx.trustPolicyExclude,
         trustPolicyIgnoreAfter: ctx.trustPolicyIgnoreAfter,
         update: options.update,
+        updateRequested: options.updateRequested,
         updateChecksums: options.updateChecksums,
         workspacePackages: ctx.workspacePackages,
         supportedArchitectures: options.supportedArchitectures,
