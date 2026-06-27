@@ -21,7 +21,6 @@ use futures_util::StreamExt as _;
 use pacquet_config::TrustPolicy;
 use pacquet_lockfile::Lockfile;
 use pacquet_lockfile_verification::{RenderedViolation, VerifyError};
-use pacquet_network::AuthHeadersByScope;
 use reqwest::Client;
 use serde::Deserialize;
 
@@ -46,13 +45,10 @@ pub struct ResolveOptions {
     pub registry: String,
     /// The client's named-registry aliases.
     pub named_registries: DepMap,
-    /// The caller's forwarded upstream credentials, keyed by nerf-darted
-    /// registry URI and package scope. The `@` scope stores registry-wide
-    /// auth. Distinct from [`Self::authorization`] (pnpr identity).
-    pub auth_headers: AuthHeadersByScope,
     /// `Authorization` for the pnpr server's own URL (`None` if it needs
-    /// none): identifies the caller to pnpr. Distinct from the upstream
-    /// creds in [`Self::auth_headers`].
+    /// none): identifies the caller to pnpr. The client never forwards its
+    /// own registry credentials — pnpr selects upstream credentials from
+    /// its route policy, so none are placed in the request body.
     pub authorization: Option<String>,
     /// The client's `overrides` (selector -> spec) as raw JSON, applied
     /// at resolve time server-side.
@@ -89,7 +85,6 @@ pub struct ResolveOptions {
 pub struct VerifyLockfileOptions {
     pub registry: String,
     pub named_registries: DepMap,
-    pub auth_headers: AuthHeadersByScope,
     pub authorization: Option<String>,
     pub overrides: Option<serde_json::Value>,
     pub lockfile: Lockfile,
@@ -108,7 +103,6 @@ impl VerifyLockfileOptions {
         Some(Self {
             registry: opts.registry.clone(),
             named_registries: opts.named_registries.clone(),
-            auth_headers: opts.auth_headers.clone(),
             authorization: opts.authorization.clone(),
             overrides: opts.overrides.clone(),
             lockfile: opts.lockfile.clone()?,
@@ -254,7 +248,6 @@ impl PnprClient {
         let request = serde_json::json!({
             "registry": opts.registry,
             "namedRegistries": opts.named_registries,
-            "authHeaders": opts.auth_headers,
             "overrides": opts.overrides,
             "lockfile": opts.lockfile,
             "trustLockfile": opts.trust_lockfile,
@@ -326,7 +319,6 @@ impl PnprClient {
             }],
             "registry": opts.registry,
             "namedRegistries": opts.named_registries,
-            "authHeaders": opts.auth_headers,
             "overrides": opts.overrides,
             "lockfile": opts.lockfile,
             "frozenLockfile": opts.frozen_lockfile,

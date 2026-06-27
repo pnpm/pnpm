@@ -35,9 +35,12 @@
 //! non-frozen → reuse-and-update). A multi-project workspace is resolved
 //! by reconstructing the workspace on disk (root manifest +
 //! `pnpm-workspace.yaml` + member manifests) and letting pacquet's
-//! install path discover and resolve every importer. The client also
-//! forwards its per-registry credentials, so private dependencies resolve
-//! as the caller.
+//! install path discover and resolve every importer. The client
+//! authenticates to pnpr (its request `Authorization` identifies the
+//! caller) but does not forward its own upstream registry credentials:
+//! pnpr selects upstream auth from its route policy (see [`crate::route`]),
+//! so private dependencies resolve via a pnpr-managed credential alias or
+//! fail closed.
 
 pub(crate) mod osv;
 mod protocol;
