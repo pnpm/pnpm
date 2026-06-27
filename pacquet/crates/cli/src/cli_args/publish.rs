@@ -107,8 +107,11 @@ impl PublishArgs {
             ));
         }
 
+        // Upstream gates on `opts.gitChecks !== false`, which folds together
+        // the `git-checks` config setting and the `--no-git-checks` flag.
         let publish_branch = self.publish_branch.as_deref();
-        run_git_checks::<Host>(dir, !self.no_git_checks, publish_branch)?;
+        let git_checks = config.git_checks && !self.no_git_checks;
+        run_git_checks::<Host>(dir, git_checks, publish_branch)?;
 
         if recursive || self.recursive {
             return Err(miette::miette!(

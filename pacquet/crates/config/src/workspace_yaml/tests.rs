@@ -145,6 +145,20 @@ fn parses_ignore_scripts_from_yaml_and_applies() {
     assert!(config.ignore_scripts);
 }
 
+/// `gitChecks: false` parses from `pnpm-workspace.yaml` and `apply_to`
+/// pushes it onto [`Config::git_checks`], so a user can disable the
+/// publish git checks via config exactly as pnpm's own hint instructs.
+#[test]
+fn parses_git_checks_from_yaml_and_applies() {
+    let settings: WorkspaceSettings = serde_saphyr::from_str("gitChecks: false\n").unwrap();
+    assert_eq!(settings.git_checks, Some(false));
+
+    let mut config = Config::new();
+    assert!(config.git_checks, "default is true");
+    settings.apply_to(&mut config, Path::new("/irrelevant"));
+    assert!(!config.git_checks);
+}
+
 /// `networkConcurrency` / `fetchTimeout` / `userAgent` parse from
 /// `pnpm-workspace.yaml` as camelCase keys and `apply_to` pushes them
 /// onto the `Config`, matching pnpm.
