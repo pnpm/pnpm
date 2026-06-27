@@ -123,6 +123,84 @@ pub struct Config {
     /// default; disable it to run a plain registry with no server-side
     /// resolution. See [`ResolverFeature`].
     pub resolver: ResolverFeature,
+    /// Which fetch routes the resolution cache treats as public (fetched
+    /// anonymously and shared globally) vs. private. See
+    /// [`crate::route`].
+    pub route_policy: RoutePolicy,
+    /// pnpr-managed upstream credential aliases, keyed by name. A resolve
+    /// uses one of these for a private proxied route the caller is
+    /// authorized for, instead of forwarding the client's own upstream
+    /// credentials. See [`UpstreamAlias`].
+    pub upstream_aliases: IndexMap<String, UpstreamAlias>,
+    /// Secret keying the HMAC that namespaces private resolution-cache
+    /// entries, so the private key is not correlatable offline. Sourced
+    /// from the YAML `secret:` key when present; otherwise a fresh
+    /// 32-byte value from the OS CSPRNG at startup (private entries then
+    /// live only for this process's lifetime).
+    pub resolution_cache_secret: Arc<[u8]>,
+}
+
+/// Which fetch routes the resolution cache treats as public.
+#[derive(Debug, Clone)]
+pub struct RoutePolicy {
+    /// Treat unscoped packages on the official `registry.npmjs.org` as
+    /// public (the built-in route). `true` by default; operators can
+    /// disable it for a conservative deployment or if npm's policy
+    /// changes. Scoped npmjs packages are *not* covered — npm allows
+    /// private scoped packages — so they stay private unless an operator
+    /// declares the scope public via [`Self::public`].
+    pub npmjs_unscoped_public: bool,
+    /// Operator-declared public routes, matched by registry prefix
+    /// and/or package pattern.
+    pub public: Vec<PublicRoute>,
+}
+
+impl Default for RoutePolicy {
+    fn default() -> Self {
+        Self { npmjs_unscoped_public: true, public: Vec::new() }
+    }
+}
+
+/// One operator-declared public route. A fetch matches when its registry
+/// URL is under `registry` (when set) and its package name matches
+/// `package` (when set); an all-`None` rule matches every fetch.
+#[derive(Debug, Clone)]
+pub struct PublicRoute {
+    pub registry: Option<String>,
+    pub package: Option<String>,
+}
+
+/// A pnpr-managed upstream credential alias: the upstream route it serves,
+/// the resolved `Authorization` header it sends, which pnpr callers may
+/// select it, and a rotation generation. The raw credential never reaches
+/// a cache key or a client — only the `name + generation` descriptor does.
+#[derive(Clone)]
+pub struct UpstreamAlias {
+    /// Upstream registry URL this alias serves (its origin is matched
+    /// against fetch URLs).
+    pub registry: String,
+    /// Optional package pattern restricting the alias to a scope/package.
+    pub package: Option<String>,
+    /// Fully-formed `Authorization` header value sent upstream
+    /// (`Bearer …` / `Basic …`).
+    pub authorization: String,
+    /// Which pnpr callers may select this alias.
+    pub access: AccessList,
+    /// Rotation generation; bumping it moves future private hits to a new
+    /// cache namespace so a rotated credential's old entries age out.
+    pub generation: u64,
+}
+
+impl fmt::Debug for UpstreamAlias {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("UpstreamAlias")
+            .field("registry", &self.registry)
+            .field("package", &self.package)
+            .field("authorization", &"<redacted>")
+            .field("access", &self.access)
+            .field("generation", &self.generation)
+            .finish()
+    }
 }
 
 /// Toggle for the npm-registry surface. A dedicated type — rather than a
@@ -808,6 +886,45 @@ impl AccessSpec {
     }
 }
 
+/// Disk shape of the `routes:` block.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RoutesFile {
+    #[serde(default = "default_true")]
+    npmjs_unscoped_public: bool,
+    #[serde(default)]
+    public: Vec<PublicRouteFile>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PublicRouteFile {
+    #[serde(default)]
+    registry: Option<String>,
+    #[serde(default)]
+    package: Option<String>,
+}
+
+/// Disk shape of one `upstreamAliases:` entry. The `auth:` block reuses
+/// the uplink credential shape (`type` + `token`/`tokenEnv`); `access`
+/// reuses the verdaccio permission-list shape.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct UpstreamAliasFile {
+    registry: String,
+    #[serde(default)]
+    package: Option<String>,
+    #[serde(default)]
+    auth: Option<UplinkAuthFile>,
+    #[serde(default)]
+    access: Option<AccessSpec>,
+    #[serde(default = "default_generation")]
+    generation: u64,
+}
+
+fn default_generation() -> u64 {
+    1
+}
+
 /// Disk shape of the YAML file. Fields verdaccio supports but
 /// pnpr doesn't (`auth`, `web`, `plugins`, `middlewares`,
 /// `logs`, `secret`) are accepted and silently dropped via
@@ -848,6 +965,19 @@ struct ConfigFile {
     uplinks: IndexMap<String, UplinkFile>,
     #[serde(default)]
     packages: IndexMap<String, PackageAccess>,
+    /// pnpr-only: which fetch routes the resolution cache treats as
+    /// public. Absent on a stock verdaccio config (built-in defaults
+    /// apply).
+    #[serde(default)]
+    routes: Option<RoutesFile>,
+    /// pnpr-only: upstream credential aliases for private proxied routes.
+    #[serde(default, rename = "upstreamAliases")]
+    upstream_aliases: IndexMap<String, UpstreamAliasFile>,
+    /// Verdaccio's `secret:` — reused here to key the private
+    /// resolution-cache HMAC. A random per-process secret is used when
+    /// absent.
+    #[serde(default)]
+    secret: Option<String>,
     #[serde(default)]
     auth: AuthFile,
     /// Verdaccio 6+ shape: `log:` is a single object at the top
@@ -996,6 +1126,9 @@ impl Config {
             osv: OsvConfig::default(),
             registry: RegistryFeature::default(),
             resolver: ResolverFeature::default(),
+            route_policy: RoutePolicy::default(),
+            upstream_aliases: IndexMap::new(),
+            resolution_cache_secret: random_secret(),
         }
     }
 
@@ -1019,6 +1152,9 @@ impl Config {
             osv: OsvConfig::default(),
             registry: RegistryFeature::default(),
             resolver: ResolverFeature::default(),
+            route_policy: RoutePolicy::default(),
+            upstream_aliases: IndexMap::new(),
+            resolution_cache_secret: random_secret(),
         }
     }
 
@@ -1253,6 +1389,16 @@ impl Config {
         } else {
             IndexMap::new()
         };
+        let route_policy = build_route_policy(file.routes);
+        // Aliases carry upstream secrets and are consulted only by the
+        // resolver surface; skip their (strict) credential resolution when
+        // the resolver is disabled, mirroring the uplink gating above.
+        let upstream_aliases = if resolver.enabled {
+            build_upstream_aliases(file.upstream_aliases)?
+        } else {
+            IndexMap::new()
+        };
+        let resolution_cache_secret = resolution_secret(file.secret.as_deref());
         let config = Self {
             listen,
             public_url,
@@ -1269,6 +1415,9 @@ impl Config {
             osv,
             registry,
             resolver,
+            route_policy,
+            upstream_aliases,
+            resolution_cache_secret,
         };
         config.ensure_a_feature_is_enabled()?;
         Ok(config)
@@ -1349,6 +1498,92 @@ fn build_auth_config(file: &AuthFile, base_dir: &Path) -> AuthConfig {
         },
         tokens: TokensConfig { file: tokens_file },
     }
+}
+
+fn build_route_policy(file: Option<RoutesFile>) -> RoutePolicy {
+    match file {
+        None => RoutePolicy::default(),
+        Some(file) => RoutePolicy {
+            npmjs_unscoped_public: file.npmjs_unscoped_public,
+            public: file
+                .public
+                .into_iter()
+                .map(|route| PublicRoute { registry: route.registry, package: route.package })
+                .collect(),
+        },
+    }
+}
+
+/// Compile each `upstreamAliases:` entry into a runtime [`UpstreamAlias`],
+/// resolving its credential the same way uplinks do. A missing or
+/// unresolvable `auth:` block is a config error rather than a silent
+/// unauthenticated alias.
+fn build_upstream_aliases(
+    files: IndexMap<String, UpstreamAliasFile>,
+) -> Result<IndexMap<String, UpstreamAlias>, RegistryError> {
+    files
+        .into_iter()
+        .map(|(name, file)| {
+            let authorization =
+                resolve_alias_authorization::<SystemEnv>(&name, file.auth.as_ref())?;
+            let access = file
+                .access
+                .as_ref()
+                .map_or_else(|| AccessList::parse("$authenticated"), AccessSpec::to_access_list);
+            let alias = UpstreamAlias {
+                registry: file.registry,
+                package: file.package,
+                authorization,
+                access,
+                generation: file.generation,
+            };
+            Ok((name, alias))
+        })
+        .collect()
+}
+
+/// Resolve an alias's `auth:` block into the `Authorization` header value
+/// it sends upstream. Reuses the uplink token resolution and
+/// bearer/basic encoding, and validates the result is a usable header
+/// value so a bad credential fails at config load, not mid-resolve.
+fn resolve_alias_authorization<Sys: EnvVar>(
+    name: &str,
+    auth: Option<&UplinkAuthFile>,
+) -> Result<String, RegistryError> {
+    let auth = auth.ok_or_else(|| RegistryError::InvalidConfig {
+        reason: format!("upstream alias {name:?} requires an auth block with a token"),
+    })?;
+    let token = resolve_uplink_token::<Sys>(auth).ok_or_else(|| RegistryError::InvalidConfig {
+        reason: format!(
+            "upstream alias {name:?} has an auth block but no token could be resolved \
+             (set auth.token or point auth.tokenEnv at a set env var)",
+        ),
+    })?;
+    let value = match auth.r#type {
+        UplinkAuthType::Bearer => format!("Bearer {token}"),
+        UplinkAuthType::Basic => format!("Basic {token}"),
+    };
+    HeaderValue::from_str(&value).map_err(|_| RegistryError::InvalidConfig {
+        reason: format!("upstream alias {name:?} auth token is not a valid header value"),
+    })?;
+    Ok(value)
+}
+
+/// The HMAC secret keying private resolution-cache entries: the YAML
+/// `secret:` when set, else a fresh per-process value.
+fn resolution_secret(secret: Option<&str>) -> Arc<[u8]> {
+    match secret {
+        Some(secret) if !secret.is_empty() => Arc::from(secret.as_bytes().to_vec()),
+        _ => random_secret(),
+    }
+}
+
+/// 32 bytes from the OS CSPRNG, for a deployment that configures no
+/// `secret:`. Private cache entries then live only for this process.
+fn random_secret() -> Arc<[u8]> {
+    let mut bytes = [0u8; 32];
+    getrandom::fill(&mut bytes).expect("OS CSPRNG must be available");
+    Arc::from(bytes.to_vec())
 }
 
 fn build_osv_config(file: &OsvFile, base_dir: &Path) -> OsvConfig {

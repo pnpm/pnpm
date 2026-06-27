@@ -1,8 +1,57 @@
 use super::{
-    AuthHeaders, DEFAULT_REGISTRY_SCOPE, base64_encode, nerf_dart, redact_and_sanitize,
-    redact_url_credentials,
+    AuthHeaders, DEFAULT_REGISTRY_SCOPE, UpstreamRouteHook, base64_encode, nerf_dart,
+    redact_and_sanitize, redact_url_credentials,
 };
 use pretty_assertions::assert_eq;
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
+
+/// Records every `(url, package)` it is asked about and answers with a
+/// fixed header, so a test can assert the hook — not the client
+/// credentials — drove the lookup.
+#[derive(Default)]
+struct RecordingHook {
+    calls: AtomicUsize,
+    answer: Option<String>,
+}
+
+impl UpstreamRouteHook for RecordingHook {
+    fn authorize(&self, _url: &str, _package: Option<&str>) -> Option<String> {
+        self.calls.fetch_add(1, Ordering::Relaxed);
+        self.answer.clone()
+    }
+}
+
+#[test]
+fn route_hook_overrides_client_credentials() {
+    let client_creds = AuthHeaders::from_map(
+        std::iter::once(("//reg.com/".to_string(), "Bearer client-token".to_string())).collect(),
+    );
+    // Without a hook the client-forwarded token is returned.
+    assert_eq!(
+        client_creds.for_url("https://reg.com/pkg"),
+        Some("Bearer client-token".to_string())
+    );
+
+    let hook =
+        Arc::new(RecordingHook { answer: Some("Bearer alias".to_string()), ..Default::default() });
+    let hooked = client_creds.with_route_hook(Arc::clone(&hook) as Arc<dyn UpstreamRouteHook>);
+    // With a hook the client token is ignored and the hook decides.
+    assert_eq!(hooked.for_url("https://reg.com/pkg"), Some("Bearer alias".to_string()));
+    assert_eq!(hook.calls.load(Ordering::Relaxed), 1);
+}
+
+#[test]
+fn route_hook_suppresses_inline_url_basic_auth() {
+    // A bare `AuthHeaders` would synthesize a `Basic` header from inline
+    // `user:pass@`; with a hook attached the inline credential must not
+    // leak through — the hook (returning None here) owns the decision.
+    let hook = Arc::new(RecordingHook::default());
+    let hooked = AuthHeaders::default().with_route_hook(hook as Arc<dyn UpstreamRouteHook>);
+    assert_eq!(hooked.for_url("https://user:pass@reg.com/pkg"), None);
+}
 
 #[test]
 fn redact_url_credentials_strips_embedded_basic_auth() {

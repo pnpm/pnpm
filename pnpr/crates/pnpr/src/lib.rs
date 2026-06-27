@@ -15,6 +15,7 @@ mod package_name;
 mod policy;
 mod publish;
 mod resolver;
+mod route;
 mod s3;
 mod search;
 mod server;

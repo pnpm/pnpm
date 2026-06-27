@@ -3089,24 +3089,33 @@ async fn resolver_disabled() -> Response {
     StatusCode::NOT_FOUND.into_response()
 }
 
-async fn serve_resolve(State(state): State<AppState>, body: axum::body::Bytes) -> Response {
-    // pnpr resolves but serves no file content, so there is no per-package
-    // read gate here: the client fetches every tarball directly from the
-    // registry with its own credentials, and resolution uses the client's
-    // forwarded credentials for private packages.
+async fn serve_resolve(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    body: axum::body::Bytes,
+) -> Response {
+    // pnpr serves no file content, so there is no per-package read gate
+    // here: the client fetches every tarball directly. But the caller's
+    // identity does drive resolution — it selects which pnpr-managed
+    // upstream credentials and hosted packages the resolve may use, and
+    // gates which cached resolutions it may receive.
     let runtime = crate::resolver::Resolver::get_or_init(
         &state.inner.resolver,
         &state.inner.config,
         state.inner.osv_index.clone(),
     );
-    crate::resolver::handle_resolve(runtime, body).await
+    crate::resolver::handle_resolve(runtime, identity, body).await
 }
 
-async fn serve_verify_lockfile(State(state): State<AppState>, body: axum::body::Bytes) -> Response {
+async fn serve_verify_lockfile(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    body: axum::body::Bytes,
+) -> Response {
     let runtime = crate::resolver::Resolver::get_or_init(
         &state.inner.resolver,
         &state.inner.config,
         state.inner.osv_index.clone(),
     );
-    crate::resolver::handle_verify_lockfile(runtime, body).await
+    crate::resolver::handle_verify_lockfile(runtime, identity, body).await
 }

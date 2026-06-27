@@ -18,10 +18,35 @@
 //! hosts, no header is attached, matching upstream.
 
 use std::collections::{BTreeMap, HashMap};
+use std::fmt;
+use std::sync::Arc;
 
 pub const DEFAULT_REGISTRY_SCOPE: &str = "@";
 
 pub type AuthHeadersByScope = BTreeMap<String, BTreeMap<String, String>>;
+
+/// Server-side override for upstream auth selection.
+///
+/// A plain [`AuthHeaders`] answers "what `Authorization` header does the
+/// client's `.npmrc` attach to this URL?" — the right question for the
+/// pnpm CLI, which fetches as the user. A server (pnpr) that resolves on
+/// behalf of many callers must instead answer "what credential does *this
+/// deployment's route policy* attach to this fetch, for this caller?" and
+/// record which private route was touched so the result can be cached
+/// without leaking one caller's private resolution to another.
+///
+/// When a hook is attached via [`AuthHeaders::with_route_hook`], every
+/// [`AuthHeaders::for_url`] / [`AuthHeaders::for_url_with_package`] lookup
+/// is delegated to it: the client-forwarded credentials carried by the
+/// [`AuthHeaders`] are ignored, and the hook alone decides the header
+/// (returning `None` for an anonymous/public fetch) and records the
+/// route. A `None` hook (the CLI case) leaves lookup behavior unchanged.
+pub trait UpstreamRouteHook: Send + Sync {
+    /// Decide the `Authorization` header value for a fetch to `url` for
+    /// package `package` (`None` for non-package fetches), and record the
+    /// route the decision selected. `None` means fetch anonymously.
+    fn authorize(&self, url: &str, package: Option<&str>) -> Option<String>;
+}
 
 /// Bag of `Authorization` header values keyed by the nerf-darted form
 /// of each registry URL. Pacquet builds one of these from the parsed
@@ -30,7 +55,7 @@ pub type AuthHeadersByScope = BTreeMap<String, BTreeMap<String, String>>;
 /// Construct via [`AuthHeaders::from_parts`], [`AuthHeaders::from_creds_map`],
 /// [`AuthHeaders::from_map`], or [`AuthHeaders::default`] (empty). Look up via
 /// [`AuthHeaders::for_url`].
-#[derive(Debug, Default, Clone)]
+#[derive(Default, Clone)]
 pub struct AuthHeaders {
     /// Keys are the nerf-darted form (`//host[:port]/path/`). Values
     /// are ready-to-send header values like `Bearer abc123` or
@@ -47,6 +72,23 @@ pub struct AuthHeaders {
     /// The longest registry key per package scope, measured the same
     /// way as `max_parts`.
     max_scoped_parts_by_scope: HashMap<String, usize>,
+    /// Server-side route hook. When set, it owns every auth lookup and
+    /// the client-forwarded credentials above are ignored. See
+    /// [`UpstreamRouteHook`].
+    route_hook: Option<Arc<dyn UpstreamRouteHook>>,
+}
+
+impl fmt::Debug for AuthHeaders {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Header values carry credentials, so the maps' *contents* must
+        // never reach a log line; show only key counts plus whether a
+        // server route hook is overriding lookup.
+        f.debug_struct("AuthHeaders")
+            .field("by_uri", &self.by_uri.len())
+            .field("scoped_by_scope", &self.scoped_by_scope.len())
+            .field("route_hook", &self.route_hook.is_some())
+            .finish_non_exhaustive()
+    }
 }
 
 impl AuthHeaders {
@@ -132,7 +174,13 @@ impl AuthHeaders {
             }
         }
         let max_parts = by_uri.keys().map(|key| key.split('/').count()).max().unwrap_or(0);
-        AuthHeaders { by_uri, scoped_by_scope, max_parts, max_scoped_parts_by_scope }
+        AuthHeaders {
+            by_uri,
+            scoped_by_scope,
+            max_parts,
+            max_scoped_parts_by_scope,
+            route_hook: None,
+        }
     }
 
     /// Build an [`AuthHeaders`] from the structured pnpr wire shape:
@@ -194,10 +242,29 @@ impl AuthHeaders {
         self.for_url_with_package(url, None)
     }
 
+    /// Attach a server-side [`UpstreamRouteHook`] that takes over auth
+    /// selection. The returned [`AuthHeaders`] keeps its
+    /// client-forwarded credentials (so [`Self::to_by_scope`] still
+    /// reflects them) but no longer consults them on lookup — the hook
+    /// decides. Used by pnpr to resolve as the deployment's route policy
+    /// rather than as the calling client.
+    #[must_use]
+    pub fn with_route_hook(mut self, hook: Arc<dyn UpstreamRouteHook>) -> Self {
+        self.route_hook = Some(hook);
+        self
+    }
+
     /// Resolve an `Authorization` header for `url`, preferring
     /// package-scope credentials when `pkg_name` is scoped.
     #[must_use]
     pub fn for_url_with_package(&self, url: &str, pkg_name: Option<&str>) -> Option<String> {
+        // A server route hook owns the decision: ignore the
+        // client-forwarded credentials entirely (including any inline
+        // `user:pass@` in `url`) and let the deployment's policy pick the
+        // credential and record the route.
+        if let Some(hook) = &self.route_hook {
+            return hook.authorize(url, pkg_name);
+        }
         // Append a trailing `/` first, matching pnpm's lookup which
         // does the same before parsing. Without this, a URL like
         // `https://npm.pkg.github.com/pnpm` (registry without

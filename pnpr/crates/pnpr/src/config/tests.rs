@@ -1746,3 +1746,101 @@ fn bundled_default_config_enforces_its_protections() {
     assert!(public.access.allows(&Identity::Anonymous));
     assert!(!public.publish.allows(&Identity::Anonymous));
 }
+
+#[test]
+fn route_policy_defaults_when_absent() {
+    let config = Config::from_yaml_str("{}", Path::new("/x"), listen(), None).unwrap();
+    assert!(config.route_policy.npmjs_unscoped_public);
+    assert!(config.route_policy.public.is_empty());
+}
+
+#[test]
+fn route_policy_parses_builtin_toggle_and_public_routes() {
+    let yaml = r"
+routes:
+  npmjsUnscopedPublic: false
+  public:
+    - registry: https://registry.npmjs.org/
+      package: '@babel/*'
+    - package: '@types/*'
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    assert!(!config.route_policy.npmjs_unscoped_public);
+    assert_eq!(config.route_policy.public.len(), 2);
+    assert_eq!(
+        config.route_policy.public[0].registry.as_deref(),
+        Some("https://registry.npmjs.org/"),
+    );
+    assert_eq!(config.route_policy.public[0].package.as_deref(), Some("@babel/*"));
+    assert_eq!(config.route_policy.public[1].registry, None);
+}
+
+#[test]
+fn upstream_alias_resolves_credential_access_and_generation() {
+    let yaml = r"
+upstreamAliases:
+  corp:
+    registry: https://npm.corp.example/
+    package: '@acme/*'
+    generation: 7
+    access: $authenticated alice
+    auth:
+      type: bearer
+      token: corp-token
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let alias = &config.upstream_aliases["corp"];
+    assert_eq!(alias.registry, "https://npm.corp.example/");
+    assert_eq!(alias.package.as_deref(), Some("@acme/*"));
+    assert_eq!(alias.authorization, "Bearer corp-token");
+    assert_eq!(alias.generation, 7);
+    assert!(alias.access.allows(&user("alice")));
+    assert!(!alias.access.allows(&Identity::Anonymous));
+}
+
+#[test]
+fn upstream_alias_generation_defaults_to_one() {
+    let yaml = r"
+upstreamAliases:
+  corp:
+    registry: https://npm.corp.example/
+    auth:
+      type: basic
+      token: dXNlcjpwYXNz
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let alias = &config.upstream_aliases["corp"];
+    assert_eq!(alias.generation, 1);
+    assert_eq!(alias.authorization, "Basic dXNlcjpwYXNz");
+    // An alias with no explicit access defaults to authenticated callers.
+    assert!(alias.access.allows(&user("bob")));
+    assert!(!alias.access.allows(&Identity::Anonymous));
+}
+
+#[test]
+fn upstream_alias_without_auth_is_a_config_error() {
+    let yaml = r"
+upstreamAliases:
+  corp:
+    registry: https://npm.corp.example/
+";
+    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+        .expect_err("an alias without an auth block must fail to load");
+    assert!(matches!(err, RegistryError::InvalidConfig { .. }));
+}
+
+#[test]
+fn resolution_secret_uses_yaml_secret_then_falls_back_to_random() {
+    let with_secret = Config::from_yaml_str(
+        "secret: pnpm-registry-mock-secret-key-32",
+        Path::new("/x"),
+        listen(),
+        None,
+    )
+    .unwrap();
+    assert_eq!(with_secret.resolution_cache_secret.as_ref(), b"pnpm-registry-mock-secret-key-32",);
+
+    // No `secret:` yields a fresh 32-byte CSPRNG value.
+    let without_secret = Config::from_yaml_str("{}", Path::new("/x"), listen(), None).unwrap();
+    assert_eq!(without_secret.resolution_cache_secret.len(), 32);
+}

@@ -52,6 +52,8 @@ use std::{
 };
 
 use crate::config::Config as RegistryConfig;
+use crate::policy::Identity;
+use crate::route::{Footprint, RouteContext, RouteHook};
 
 use axum::{
     body::{Body, Bytes},
@@ -62,7 +64,7 @@ use indexmap::IndexMap;
 use pacquet_config::Config as PacquetConfig;
 use pacquet_lockfile::{Lockfile, LockfileResolution, is_git_hosted_tarball_url};
 use pacquet_lockfile_verification::{collect_resolution_policy_violations, hash_lockfile};
-use pacquet_network::{AuthHeaders, ThrottledClient};
+use pacquet_network::{AuthHeaders, ThrottledClient, UpstreamRouteHook};
 use pacquet_package_manager::{
     ResolvedPackageHint, build_resolution_verifiers, tarball_url_and_integrity,
 };
@@ -107,6 +109,15 @@ pub(crate) struct Resolver {
     /// every time (uncached) rather than failing the server.
     verdict_cache: Option<VerdictCache>,
     osv_index: Option<Arc<OsvIndex>>,
+    /// Route-classification inputs (public/private rules, upstream
+    /// credential aliases, hosted origin, package policy), resolved once
+    /// from the server config and combined per request with the caller's
+    /// identity to drive auth selection and footprint recording.
+    route_context: RouteContext,
+    /// HMAC secret namespacing a private footprint's cache descriptor.
+    /// Part 1 uses it only to label each resolve's cache class in the
+    /// operator debug log; Part 2 keys private cache entries by it.
+    resolution_cache_secret: Arc<[u8]>,
 }
 
 struct CachedResolution {
@@ -141,7 +152,29 @@ impl Resolver {
             configs: Mutex::new(HashMap::new()),
             verdict_cache,
             osv_index,
+            route_context: RouteContext::from_config(config),
+            resolution_cache_secret: Arc::clone(&config.resolution_cache_secret),
         }
+    }
+
+    /// Build the request's [`AuthHeaders`] with the route hook installed:
+    /// every metadata/tarball fetch is classified against this server's
+    /// route policy for `identity`, the pnpr-managed credential (never the
+    /// client's) is selected, and the touched private routes accumulate in
+    /// `footprint`. The client's forwarded `auth_headers` are kept on the
+    /// value (so `to_by_scope` still reflects them) but no longer consulted.
+    fn hooked_auth(
+        &self,
+        request: &ResolveRequest,
+        identity: &Identity,
+        footprint: &Arc<Mutex<Footprint>>,
+    ) -> Arc<AuthHeaders> {
+        let hook: Arc<dyn UpstreamRouteHook> = Arc::new(RouteHook::new(
+            self.route_context.clone(),
+            identity.clone(),
+            Arc::clone(footprint),
+        ));
+        Arc::new(AuthHeaders::from_by_scope(request.auth_headers.clone()).with_route_hook(hook))
     }
 
     /// Resolve (or build + intern) the `&'static Config` for a request's
@@ -285,11 +318,19 @@ fn intern_config(
 /// short-circuit paths (frozen reuse, cache hit) emit only the terminal
 /// `done` frame. No tarball leaves the server — the client fetches them
 /// itself.
-pub(crate) async fn handle_resolve(runtime: &Resolver, body: Bytes) -> Response {
+pub(crate) async fn handle_resolve(
+    runtime: &Resolver,
+    identity: Identity,
+    body: Bytes,
+) -> Response {
     let request: ResolveRequest = match serde_json::from_slice(&body) {
         Ok(request) => request,
         Err(err) => return json_error(StatusCode::BAD_REQUEST, &err.to_string()),
     };
+
+    if let Some(response) = reject_inline_url_auth(&request) {
+        return response;
+    }
 
     // Resolve against the client's registries, not the server's own.
     let Some(config) = runtime.config_for(&request) else {
@@ -298,10 +339,12 @@ pub(crate) async fn handle_resolve(runtime: &Resolver, body: Bytes) -> Response 
     let package_version_guard =
         runtime.osv_index.as_ref().map(|index| Arc::clone(index) as Arc<dyn PackageVersionGuard>);
 
-    // The caller's forwarded upstream credentials, threaded through
-    // resolve/verify but kept out of the interned `config` so it never
-    // leaks a `&'static Config` per user.
-    let request_auth = Arc::new(AuthHeaders::from_by_scope(request.auth_headers.clone()));
+    // Auth is selected by this server's route policy for the caller, not
+    // forwarded from the client. Every metadata/tarball fetch the
+    // resolve+verify performs records its route into `footprint`, which
+    // then decides whether the resolution may populate the shared cache.
+    let footprint = Arc::new(Mutex::new(Footprint::default()));
+    let request_auth = runtime.hooked_auth(&request, &identity, &footprint);
 
     // Verify the *input* lockfile under the client's policy before any
     // package is streamed ([pnpm/pnpm#12139](https://github.com/pnpm/pnpm/issues/12139)).
@@ -345,11 +388,14 @@ pub(crate) async fn handle_resolve(runtime: &Resolver, body: Bytes) -> Response 
         frames.push(done_frame(&lockfile));
         return ndjson_frames(&frames);
     }
-    let resolution_cache_key = if request.auth_headers.is_empty() && request.lockfile.is_none() {
-        resolution_cache_key(config, &request)
-    } else {
-        None
-    };
+    // A no-lockfile resolve is keyed by its inputs (auth excluded). The
+    // entry is written only if the resolution turns out fully public
+    // (empty private footprint), so an authenticated caller's public
+    // install now populates and reuses the shared cache — while a private
+    // resolution is never stored under this auth-excluded key. Keying
+    // private resolutions by their access descriptor is Part 2.
+    let resolution_cache_key =
+        if request.lockfile.is_none() { resolution_cache_key(config, &request) } else { None };
     if let Some(key) = resolution_cache_key.as_ref()
         && let Some(lockfile) =
             cached_resolution(&runtime.resolution_cache, runtime.resolution_cache_ttl, key)
@@ -373,6 +419,8 @@ pub(crate) async fn handle_resolve(runtime: &Resolver, body: Bytes) -> Response 
     let cache = Arc::clone(&runtime.resolution_cache);
     let cache_ttl = runtime.resolution_cache_ttl;
     let final_osv_index = runtime.osv_index.clone();
+    let footprint_for_store = Arc::clone(&footprint);
+    let cache_secret = Arc::clone(&runtime.resolution_cache_secret);
     tokio::spawn(async move {
         match resolve::resolve(config, &client, &request, &request_auth, Some(observer)).await {
             Ok(lockfile) => {
@@ -383,8 +431,25 @@ pub(crate) async fn handle_resolve(runtime: &Resolver, body: Bytes) -> Response 
                         return;
                     }
                 }
-                if let Some(key) = resolution_cache_key {
-                    store_resolution(&cache, cache_ttl, key, &lockfile);
+                // Only a fully-public resolution is safe to share under the
+                // auth-excluded key. A private footprint means the lockfile
+                // carries private versions/URLs that must not be served to a
+                // different caller, so it is left uncached here (Part 2 keys
+                // such entries by their private access descriptor instead).
+                {
+                    let footprint = footprint_for_store.lock().expect("footprint poisoned");
+                    if footprint.is_public() {
+                        if let Some(key) = resolution_cache_key {
+                            store_resolution(&cache, cache_ttl, key, &lockfile);
+                        }
+                    } else {
+                        tracing::debug!(
+                            shareable = footprint.is_shareable(),
+                            descriptor =
+                                footprint.digest(&cache_secret).as_deref().unwrap_or("none"),
+                            "private resolution not shared under the public cache key",
+                        );
+                    }
                 }
                 let _ = tx.send(done_frame(&lockfile));
             }
@@ -401,11 +466,19 @@ pub(crate) async fn handle_resolve(runtime: &Resolver, body: Bytes) -> Response 
 /// verdict frame. The client already knows the lockfile is fresh for
 /// the current manifests, so this endpoint deliberately does not
 /// resolve or echo the lockfile back.
-pub(crate) async fn handle_verify_lockfile(runtime: &Resolver, body: Bytes) -> Response {
+pub(crate) async fn handle_verify_lockfile(
+    runtime: &Resolver,
+    identity: Identity,
+    body: Bytes,
+) -> Response {
     let request: ResolveRequest = match serde_json::from_slice(&body) {
         Ok(request) => request,
         Err(err) => return json_error(StatusCode::BAD_REQUEST, &err.to_string()),
     };
+
+    if let Some(response) = reject_inline_url_auth(&request) {
+        return response;
+    }
 
     let Some(input_lockfile) = request.lockfile.as_ref() else {
         return json_error(StatusCode::BAD_REQUEST, "`lockfile` is required");
@@ -418,7 +491,12 @@ pub(crate) async fn handle_verify_lockfile(runtime: &Resolver, body: Bytes) -> R
     let Some(config) = runtime.config_for(&request) else {
         return json_error(StatusCode::SERVICE_UNAVAILABLE, TOO_MANY_CONFIGS_MESSAGE);
     };
-    let request_auth = Arc::new(AuthHeaders::from_by_scope(request.auth_headers.clone()));
+    // Verifier packument fetches run under the same route hook, so they
+    // select the same pnpr-managed credentials and are recorded in the
+    // same footprint as a resolve would be — a verifier can't read or
+    // populate a cache scope a resolve wouldn't.
+    let footprint = Arc::new(Mutex::new(Footprint::default()));
+    let request_auth = runtime.hooked_auth(&request, &identity, &footprint);
 
     match verify_input_lockfile(runtime, config, &request_auth, input_lockfile).await {
         // The dist stats the verifier observed feed `/-/pnpr/v0/resolve`'s sized
@@ -925,6 +1003,47 @@ fn merge_policies(
         merged.extend(osv_index.policy());
     }
     merged
+}
+
+/// Reject a request whose client-supplied URLs carry inline
+/// `user:pass@host` credentials, before any fetch or cache write. Covers
+/// the default and named registries, every dependency spec, and override
+/// values — the surfaces a tarball/registry URL can reach the resolver
+/// through. Returns a `400` response when one is found.
+fn reject_inline_url_auth(request: &ResolveRequest) -> Option<Response> {
+    let mut specs: Vec<&str> = Vec::new();
+    if let Some(registry) = request.registry.as_deref() {
+        specs.push(registry);
+    }
+    specs.extend(request.named_registries.values().map(String::as_str));
+    let projects = request.projects_normalized();
+    for project in &projects {
+        for map in
+            [&project.dependencies, &project.dev_dependencies, &project.optional_dependencies]
+        {
+            specs.extend(map.values().map(String::as_str));
+        }
+    }
+    let inline = specs.iter().any(|spec| crate::route::url_has_inline_credentials(spec))
+        || request.overrides.as_ref().is_some_and(overrides_have_inline_url_auth);
+    inline.then(|| {
+        json_error(
+            StatusCode::BAD_REQUEST,
+            "inline URL credentials (user:pass@host) are not allowed; \
+             configure an upstream credential alias instead",
+        )
+    })
+}
+
+/// Recursively scan an `overrides` JSON value for any string leaf that is
+/// a URL carrying inline credentials.
+fn overrides_have_inline_url_auth(value: &serde_json::Value) -> bool {
+    match value {
+        serde_json::Value::String(spec) => crate::route::url_has_inline_credentials(spec),
+        serde_json::Value::Array(items) => items.iter().any(overrides_have_inline_url_auth),
+        serde_json::Value::Object(map) => map.values().any(overrides_have_inline_url_auth),
+        _ => false,
+    }
 }
 
 fn json_error(status: StatusCode, message: &str) -> Response {
