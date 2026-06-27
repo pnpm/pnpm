@@ -15,11 +15,11 @@
 //! zooming) and [`set_package_version`] (rendered in the `Done in ...` line).
 
 pub mod colors;
+mod diff;
 pub mod format;
 pub mod state;
 
 use std::{
-    fmt::Write as _,
     io::{IsTerminal, Write},
     sync::{LazyLock, Mutex, OnceLock},
     time::{Duration, Instant},
@@ -92,8 +92,7 @@ static SINK: LazyLock<Mutex<Sink>> = LazyLock::new(|| Mutex::new(Sink::new()));
 
 struct Sink {
     state: ReporterState,
-    columns: usize,
-    prev_rows: usize,
+    diff: diff::Diff,
     throttle: Duration,
     last_write: Option<Instant>,
 }
@@ -107,10 +106,10 @@ impl Sink {
         let width = if is_tty { columns.saturating_sub(2) } else { 80 };
         let colors = Colors { enabled: is_tty && std::env::var_os("NO_COLOR").is_none() };
         let state = ReporterState::new(cwd(), width, colors, append_only);
-        // pnpm's `throttleProgress`: 200ms in place, 1000ms append-only.
+        let diff = diff::Diff::new(columns);
         let throttle =
             if append_only { Duration::from_secs(1) } else { Duration::from_millis(200) };
-        Sink { state, columns, prev_rows: 0, throttle, last_write: None }
+        Sink { state, diff, throttle, last_write: None }
     }
 
     fn write(&mut self, output: Output, coalesceable: bool) {
@@ -138,39 +137,13 @@ impl Sink {
                 }
             }
             Output::Frame(frame) => {
-                let mut buf = String::new();
-                if self.prev_rows > 0 {
-                    let _ = write!(buf, "\x1b[{}A", self.prev_rows);
-                }
-                // Reset the column to 0 (cursor-up alone keeps the column) so the
-                // redraw starts cleanly even when an external process left the
-                // cursor mid-line.
-                buf.push('\r');
-                buf.push_str("\x1b[0J");
-                buf.push_str(&frame);
-                buf.push('\n');
-                let _ = out.write_all(buf.as_bytes());
-                self.prev_rows = count_rows(&frame, self.columns);
+                let diff_output = self.diff.update(&frame);
+                let _ = out.write_all(format!("\r{diff_output}\x1b[K\x1b[0J").as_bytes());
             }
         }
         let _ = out.flush();
         true
     }
-}
-
-/// Terminal rows a frame occupies, accounting for soft-wrapping at
-/// `columns`. Used to know how far to move the cursor up before redrawing.
-fn count_rows(frame: &str, columns: usize) -> usize {
-    if columns == 0 {
-        return frame.split('\n').count();
-    }
-    frame
-        .split('\n')
-        .map(|line| {
-            let width = format::visible_width(line);
-            if width == 0 { 1 } else { width.div_ceil(columns) }
-        })
-        .sum()
 }
 
 #[cfg(unix)]
