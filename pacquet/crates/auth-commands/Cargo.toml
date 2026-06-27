@@ -19,9 +19,11 @@ miette      = { workspace = true }
 reqwest     = { workspace = true }
 
 [dev-dependencies]
-mockito  = { workspace = true }
-tempfile = { workspace = true }
-tokio    = { workspace = true }
+mockito            = { workspace = true }
+tempfile           = { workspace = true }
+tokio              = { workspace = true }
+tracing            = { workspace = true }
+tracing-subscriber = { workspace = true }
 
 [lints]
 workspace = true

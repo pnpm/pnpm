@@ -157,6 +157,12 @@ pub async fn send_with_retry<'client>(
             Err(error) if attempt < retry_opts.retries => {
                 drop(client);
                 let delay = retry_opts.delay_for(attempt);
+                // reqwest embeds the full request URL in its error, which can
+                // carry a secret in the path (e.g. `logout`'s revoke token).
+                // The `url=` field already logs the URL the caller handed us
+                // (token-free for such callers), so drop the URL from the
+                // error to keep it out of the log.
+                let error = error.without_url();
                 tracing::warn!(
                     target: "pacquet_network::retry",
                     url = %redact_url_credentials(url),

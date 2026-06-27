@@ -20,7 +20,9 @@ use std::{collections::HashMap, future::Future, io, path::PathBuf};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_network::{RetryOpts, ThrottledClient, nerf_dart, send_with_retry};
+use pacquet_network::{
+    RetryOpts, ThrottledClient, nerf_dart, redact_and_sanitize, send_with_retry,
+};
 use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 
 use crate::ini::IniSettings;
@@ -88,7 +90,12 @@ impl RevokeToken for Host {
         retry: RetryOpts,
     ) -> RevokeOutcome {
         let authorization = format!("Bearer {token}");
-        match send_with_retry(http_client, revoke_url, retry, |client| {
+        // The revoke URL carries the token in its final path segment (npm's
+        // `DELETE -/user/token/<token>` API). `send_with_retry` routes and
+        // logs the URL it is handed, so pass the token-free prefix while the
+        // request itself still targets the full `revoke_url`.
+        let log_url = revoke_log_url(revoke_url);
+        match send_with_retry(http_client, log_url, retry, |client| {
             client.delete(revoke_url).header(reqwest::header::AUTHORIZATION, authorization.as_str())
         })
         .await
@@ -135,8 +142,15 @@ where
     let registry_config_key = nerf_dart(&registry);
     let token_key = format!("{registry_config_key}:_authToken");
 
+    // `registry` (raw) is used for the token-key lookup and the revoke URL;
+    // `registry_display` is the only form that reaches stdout, warnings, and
+    // errors. A registry from an untrusted `.npmrc` / `--registry` can embed
+    // `user:pass@` credentials or terminal escape sequences, so redact and
+    // sanitize before it is ever shown. Mirrors `pacquet ping`.
+    let registry_display = redact_and_sanitize(&registry);
+
     let Some(token) = opts.auth_config.get(&token_key) else {
-        return Err(LogoutError::NotLoggedIn { registry });
+        return Err(LogoutError::NotLoggedIn { registry: registry_display });
     };
 
     let revoke_url = format!("{registry}-/user/token/{}", encode_uri_component(token));
@@ -171,17 +185,17 @@ where
             opts.prefix,
             LogLevel::Warn,
             format!(
-                "The auth token for {registry} was not found in {}. \
+                "The auth token for {registry_display} was not found in {}. \
                  It may be configured in .npmrc or another config file. \
                  The token was revoked on the registry but must be removed manually from that config file.",
                 config_path.display(),
             ),
         );
     } else {
-        return Err(LogoutError::LogoutFailed { registry, config_path });
+        return Err(LogoutError::LogoutFailed { registry: registry_display, config_path });
     }
 
-    Ok(format!("Logged out of {registry}"))
+    Ok(format!("Logged out of {registry_display}"))
 }
 
 /// Read `auth.ini`, treating a missing file as empty. Any other read
@@ -202,6 +216,16 @@ fn global<Reporter: self::Reporter>(prefix: &str, level: LogLevel, message: Stri
 /// `normalize-registry-url`.
 fn normalize_registry_url(registry: &str) -> String {
     if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
+}
+
+/// The token-free prefix of a `…/-/user/token/<token>` revoke URL — the
+/// URL with its final, token-bearing path segment dropped. Handed to
+/// `send_with_retry` for routing and logging so the token never reaches the
+/// retry logs; the request itself still targets the full revoke URL. The
+/// token is percent-encoded (so it has no literal `/`), making the last `/`
+/// the segment boundary.
+fn revoke_log_url(revoke_url: &str) -> &str {
+    revoke_url.rsplit_once('/').map_or(revoke_url, |(prefix, _token)| prefix)
 }
 
 /// Percent-encode `value` the way JavaScript's `encodeURIComponent`

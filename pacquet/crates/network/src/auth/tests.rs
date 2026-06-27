@@ -1,5 +1,6 @@
 use super::{
-    AuthHeaders, DEFAULT_REGISTRY_SCOPE, base64_encode, nerf_dart, redact_url_credentials,
+    AuthHeaders, DEFAULT_REGISTRY_SCOPE, base64_encode, nerf_dart, redact_and_sanitize,
+    redact_url_credentials,
 };
 use pretty_assertions::assert_eq;
 
@@ -35,6 +36,13 @@ fn redact_url_credentials_strips_embedded_basic_auth() {
     // A bare "://" with no preceding scheme character is not treated as a URL
     // authority, so an "@" further along is preserved.
     assert_eq!(redact_url_credentials("a :// b@c"), "a :// b@c");
+}
+
+#[test]
+fn redact_and_sanitize_strips_credentials_and_control_chars() {
+    assert_eq!(redact_and_sanitize("https://user:pass@host/pkg\u{7}\r\n"), "https://host/pkg");
+    // A clean URL is returned unchanged.
+    assert_eq!(redact_and_sanitize("https://host/pkg"), "https://host/pkg");
 }
 
 fn build(entries: &[(&str, &str)]) -> AuthHeaders {

@@ -3544,6 +3544,8 @@ dependencies = [
  "reqwest 0.13.4",
  "tempfile",
  "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
