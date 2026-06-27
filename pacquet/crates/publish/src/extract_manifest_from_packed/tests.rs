@@ -57,14 +57,14 @@ fn normalize_entry_path_matches_node_path_normalize() {
     assert_eq!(normalize_entry_path(Path::new("package/./package.json")), "package/package.json");
     assert_eq!(
         normalize_entry_path(Path::new("package/sub/../package.json")),
-        "package/package.json"
+        "package/package.json",
     );
     // Keeps a leading `/` and an unresolvable leading `..`, so neither matches
     // the relative `package/package.json` the lookup compares against.
     assert_eq!(normalize_entry_path(Path::new("/package/package.json")), "/package/package.json");
     assert_eq!(
         normalize_entry_path(Path::new("../package/package.json")),
-        "../package/package.json"
+        "../package/package.json",
     );
 }
 
