@@ -30,7 +30,7 @@ fn bash_settings_with_proxy_variable() {
     let settings = render_posix_settings(HOME, &opts(false));
     assert_eq!(
         settings,
-        r#"export PNPM_HOME="/home/user/.pnpm"
+        r#"export PNPM_HOME='/home/user/.pnpm'
 case ":$PATH:" in
   *":$PNPM_HOME:"*) ;;
   *) export PATH="$PNPM_HOME:$PATH" ;;
@@ -46,8 +46,8 @@ fn bash_settings_without_proxy_variable() {
     assert_eq!(
         settings,
         r#"case ":$PATH:" in
-  *":/home/user/.pnpm:"*) ;;
-  *) export PATH="/home/user/.pnpm:$PATH" ;;
+  *":"'/home/user/.pnpm'":"*) ;;
+  *) export PATH='/home/user/.pnpm':$PATH ;;
 esac"#,
     );
 }
@@ -59,7 +59,7 @@ fn bash_settings_with_proxy_var_sub_dir() {
     let settings = render_posix_settings(HOME, &opts);
     assert_eq!(
         settings,
-        r#"export PNPM_HOME="/home/user/.pnpm"
+        r#"export PNPM_HOME='/home/user/.pnpm'
 case ":$PATH:" in
   *":$PNPM_HOME/bin:"*) ;;
   *) export PATH="$PNPM_HOME/bin:$PATH" ;;
@@ -74,7 +74,7 @@ fn bash_settings_appending_to_the_end_of_path() {
     let settings = render_posix_settings(HOME, &opts);
     assert_eq!(
         settings,
-        r#"export PNPM_HOME="/home/user/.pnpm"
+        r#"export PNPM_HOME='/home/user/.pnpm'
 case ":$PATH:" in
   *":$PNPM_HOME:"*) ;;
   *) export PATH="$PATH:$PNPM_HOME" ;;
@@ -89,7 +89,7 @@ fn fish_settings_with_proxy_var_sub_dir() {
     let settings = render_fish_settings(HOME, &opts);
     assert_eq!(
         settings,
-        r#"set -gx PNPM_HOME "/home/user/.pnpm"
+        r#"set -gx PNPM_HOME '/home/user/.pnpm'
 if not string match -q -- "$PNPM_HOME/bin" $PATH
   set -gx PATH "$PNPM_HOME/bin" $PATH
 end"#,
@@ -103,9 +103,9 @@ fn fish_settings_without_proxy_variable() {
     let settings = render_fish_settings(HOME, &opts);
     assert_eq!(
         settings,
-        r#"if not string match -q -- "/home/user/.pnpm" $PATH
-  set -gx PATH "/home/user/.pnpm" $PATH
-end"#,
+        r"if not string match -q -- '/home/user/.pnpm' $PATH
+  set -gx PATH '/home/user/.pnpm' $PATH
+end",
     );
 }
 
@@ -129,8 +129,18 @@ fn nu_settings_appending_to_the_end_of_path() {
     let settings = render_nu_settings(HOME, &opts);
     assert_eq!(
         settings,
-        "$env.PATH = ($env.PATH | split row (char esep) | append /home/user/.pnpm )",
+        r#"$env.PATH = ($env.PATH | split row (char esep) | append "/home/user/.pnpm" )"#,
     );
+}
+
+#[test]
+fn proxy_value_is_single_quote_escaped_against_injection() {
+    // A command-substitution payload and an embedded single quote must end
+    // up inside a single-quoted literal (the `'` escaped as `'\''`), so the
+    // shell never expands `$(...)` when the rc file is sourced.
+    let settings = render_posix_settings("/home/u/$(touch pwned)/it's", &opts(false));
+    let first_line = settings.lines().next();
+    assert_eq!(first_line, Some(r"export PNPM_HOME='/home/u/$(touch pwned)/it'\''s'"));
 }
 
 #[test]

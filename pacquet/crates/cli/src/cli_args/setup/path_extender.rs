@@ -104,6 +104,16 @@ pub(crate) enum PathExtenderError {
     #[diagnostic(code(ERR_PNPM_INVALID_SUBDIR))]
     InvalidSubDir { sub_dir: String },
 
+    // Hardening beyond pnpm's `@pnpm/os.env.path-extender`: a `;`, `%`, or
+    // newline in `PNPM_HOME` would split the persisted Windows `Path` into
+    // extra entries (or break `%PNPM_HOME%` expansion), so it is rejected
+    // rather than written to the registry.
+    #[display(
+        r#"The pnpm home directory "{dir}" contains a character ({character:?}) that is unsafe for the Windows PATH"#
+    )]
+    #[diagnostic(code(ERR_PNPM_INVALID_PNPM_HOME))]
+    UnsafePnpmHomeForWindows { dir: String, character: char },
+
     #[display("Currently '{env_name}' is set to '{wanted_value}'")]
     #[diagnostic(
         code(ERR_PNPM_BAD_ENV_FOUND),

@@ -78,6 +78,11 @@ fn setup_shell(
 
 /// The `# <section>` body for a POSIX `sh`-family shell. Pure so the
 /// rendering can be unit-tested without touching the filesystem.
+///
+/// `dir` is single-quote escaped before it is interpolated into the shell
+/// code. This hardens beyond pnpm's `@pnpm/os.env.path-extender`, which
+/// interpolates the directory into double quotes — where a value containing
+/// `$(...)` / backticks would execute when the rc file is sourced.
 fn render_posix_settings(dir: &str, opts: &AddDirToEnvPathOpts) -> String {
     if let Some(proxy) = opts.proxy_var_name {
         let path_ref = match opts.proxy_var_sub_dir {
@@ -85,15 +90,23 @@ fn render_posix_settings(dir: &str, opts: &AddDirToEnvPathOpts) -> String {
             None => format!("${proxy}"),
         };
         format!(
-            "export {proxy}=\"{dir}\"\ncase \":$PATH:\" in\n  *\":{path_ref}:\"*) ;;\n  *) export PATH=\"{path_value}\" ;;\nesac",
+            "export {proxy}={value}\ncase \":$PATH:\" in\n  *\":{path_ref}:\"*) ;;\n  *) export PATH=\"{path_value}\" ;;\nesac",
+            value = sh_quote(dir),
             path_value = create_path_value(opts.position, &path_ref),
         )
     } else {
+        let quoted = sh_quote(dir);
         format!(
-            "case \":$PATH:\" in\n  *\":{dir}:\"*) ;;\n  *) export PATH=\"{path_value}\" ;;\nesac",
-            path_value = create_path_value(opts.position, dir),
+            "case \":$PATH:\" in\n  *\":\"{quoted}\":\"*) ;;\n  *) export PATH={path_value} ;;\nesac",
+            path_value = create_path_value(opts.position, &quoted),
         )
     }
+}
+
+/// Wrap `value` in single quotes, escaping any embedded single quote as
+/// `'\''`, so the POSIX shell treats it as a literal with no expansion.
+fn sh_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', r"'\''"))
 }
 
 fn create_path_value(position: AddingPosition, dir: &str) -> String {
@@ -140,21 +153,33 @@ fn render_fish_settings(dir: &str, opts: &AddDirToEnvPathOpts) -> String {
             None => path_ref.clone(),
         };
         format!(
-            "set -gx {proxy} \"{dir}\"\nif not string match -q -- {match_pattern} $PATH\n  set -gx PATH {path_value}\nend",
-            path_value = create_fish_path_value(opts.position, &path_ref),
+            "set -gx {proxy} {value}\nif not string match -q -- {match_pattern} $PATH\n  set -gx PATH {path_value}\nend",
+            value = fish_quote(dir),
+            path_value = create_fish_path_value(opts.position, &format!("\"{path_ref}\"")),
         )
     } else {
+        let quoted = fish_quote(dir);
         format!(
-            "if not string match -q -- \"{dir}\" $PATH\n  set -gx PATH {path_value}\nend",
-            path_value = create_fish_path_value(opts.position, dir),
+            "if not string match -q -- {quoted} $PATH\n  set -gx PATH {path_value}\nend",
+            path_value = create_fish_path_value(opts.position, &quoted),
         )
     }
 }
 
-fn create_fish_path_value(position: AddingPosition, dir: &str) -> String {
+/// Wrap `value` in fish single quotes, escaping `\` and `'` (the only two
+/// characters fish recognizes inside single quotes), so fish treats it as a
+/// literal with no expansion.
+fn fish_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\\', r"\\").replace('\'', r"\'"))
+}
+
+/// Build the fish `PATH` list value from a pre-quoted `entry` (a
+/// double-quoted variable reference for the proxy case, or a single-quoted
+/// literal directory for the no-proxy case).
+fn create_fish_path_value(position: AddingPosition, entry: &str) -> String {
     match position {
-        AddingPosition::Start => format!("\"{dir}\" $PATH"),
-        AddingPosition::End => format!("$PATH \"{dir}\""),
+        AddingPosition::Start => format!("{entry} $PATH"),
+        AddingPosition::End => format!("$PATH {entry}"),
     }
 }
 
@@ -184,9 +209,9 @@ fn render_nu_settings(dir: &str, opts: &AddDirToEnvPathOpts) -> String {
                 Some(sub_dir) => format!("($env.{proxy} | path join \"{sub_dir}\")"),
                 None => format!("$env.{proxy}"),
             };
-            (format!("$env.{proxy} = \"{dir}\"\n"), path_ref)
+            (format!("$env.{proxy} = {value}\n", value = nu_quote(dir)), path_ref)
         }
-        None => (String::new(), dir.to_string()),
+        None => (String::new(), nu_quote(dir)),
     };
     // Built piecewise rather than with one long `format!`: the PATH line
     // exceeds the line-width limit, which would force a multi-line macro
@@ -199,6 +224,14 @@ fn render_nu_settings(dir: &str, opts: &AddDirToEnvPathOpts) -> String {
     settings.push_str(&path_ref);
     settings.push_str(" )");
     settings
+}
+
+/// Wrap `value` in nushell double quotes, escaping `\` and `"`. nushell does
+/// not perform command substitution or variable interpolation inside a plain
+/// double-quoted string (only `$"..."` interpolates), so the result is a
+/// literal with no expansion.
+fn nu_quote(value: &str) -> String {
+    format!(r#""{}""#, value.replace('\\', r"\\").replace('"', r#"\""#))
 }
 
 fn wrap_settings(section_name: &str, settings: &str) -> String {

@@ -3,8 +3,12 @@
 //! before/after report rendering. The registry-mutating commands need a real
 //! Windows host and are exercised by `pacquet setup` end to end there.
 
-use super::{EnvVariableChange, first_number, get_env_value_from_registry};
+use super::{
+    AddDirToEnvPathOpts, AddingPosition, EnvVariableChange, PathExtenderError,
+    add_dir_to_windows_env_path_inner, first_number, get_env_value_from_registry,
+};
 use pretty_assertions::assert_eq;
+use std::path::Path;
 
 const SAMPLE: &str = "\r\nHKEY_CURRENT_USER\\Environment\r\n    Path    REG_EXPAND_SZ    C:\\Users\\me\\bin\r\n    PNPM_HOME    REG_SZ    C:\\pnpm\r\n";
 
@@ -28,6 +32,22 @@ fn missing_value_returns_none() {
 fn first_number_extracts_the_code_page() {
     assert_eq!(first_number("Active code page: 437"), Some(437));
     assert_eq!(first_number("no digits"), None);
+}
+
+#[test]
+fn rejects_pnpm_home_that_would_split_the_path() {
+    // Validation runs before any `reg` command, so this is exercisable off
+    // Windows. A `;` in PNPM_HOME would split the persisted Path.
+    let opts = AddDirToEnvPathOpts {
+        config_section_name: "pnpm",
+        proxy_var_name: Some("PNPM_HOME"),
+        proxy_var_sub_dir: Some("bin"),
+        overwrite: false,
+        position: AddingPosition::Start,
+    };
+    let err = add_dir_to_windows_env_path_inner(Path::new(r"C:\pnpm;C:\evil"), &opts)
+        .expect_err("a semicolon in PNPM_HOME must be rejected");
+    assert!(matches!(err, PathExtenderError::UnsafePnpmHomeForWindows { character: ';', .. }));
 }
 
 #[test]

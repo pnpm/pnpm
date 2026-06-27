@@ -13,6 +13,7 @@ use std::{path::Path, process::Command};
 
 /// The change made to one environment variable, used to render the
 /// before/after report. Mirrors pnpm's `EnvVariableChange`.
+#[derive(Debug)]
 pub(super) struct EnvVariableChange {
     pub variable: String,
     pub old_value: Option<String>,
@@ -48,6 +49,14 @@ fn add_dir_to_windows_env_path_inner(
     opts: &AddDirToEnvPathOpts,
 ) -> Result<Vec<EnvVariableChange>, PathExtenderError> {
     let added_dir = dir.to_string_lossy().replace('/', r"\");
+    // Reject characters that would split the persisted `Path` into extra
+    // entries (`;`), break the `%PNPM_HOME%` indirection (`%`), or corrupt
+    // the value (`\n` / `\r`). See `PathExtenderError::UnsafePnpmHomeForWindows`.
+    if let Some(character) =
+        added_dir.chars().find(|character| matches!(character, ';' | '%' | '\n' | '\r'))
+    {
+        return Err(PathExtenderError::UnsafePnpmHomeForWindows { dir: added_dir, character });
+    }
     let registry_output = get_registry_output()?;
     let mut changes = Vec::new();
     if let Some(proxy) = opts.proxy_var_name {
