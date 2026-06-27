@@ -37,7 +37,7 @@ fn with_current_requires_a_command() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains(r#"Missing command after "current""#),
-        "stderr should explain the gap: {stderr}"
+        "stderr should explain the gap: {stderr}",
     );
 
     drop(root);
@@ -61,7 +61,7 @@ fn with_current_runs_the_inner_command() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
         stderr.contains("this-command-does-not-exist") || stderr.contains("unrecognized"),
-        "the inner command should reach the parser: {stderr}"
+        "the inner command should reach the parser: {stderr}",
     );
 
     drop(root);
