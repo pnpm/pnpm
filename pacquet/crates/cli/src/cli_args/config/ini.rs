@@ -8,11 +8,7 @@
 //! are ignored, and the map round-trips as `key=value` lines.
 
 use indexmap::IndexMap;
-use std::{
-    fs,
-    io::{self, Write as _},
-    path::Path,
-};
+use std::{fs, io, path::Path};
 
 /// Read `path` into an ordered key→value map. A missing file is an empty map;
 /// any other read error propagates.
@@ -39,7 +35,8 @@ fn parse(text: &str) -> IndexMap<String, String> {
 }
 
 /// Write `settings` to `path` as `key=value` lines, creating parent
-/// directories and replacing the file atomically (temp file + rename).
+/// directories and replacing the file atomically and symlink-safely (see
+/// [`pacquet_fs::write_atomic`]).
 pub fn write(path: &Path, settings: &IndexMap<String, String>) -> io::Result<()> {
     let mut contents = String::new();
     for (key, value) in settings {
@@ -48,34 +45,5 @@ pub fn write(path: &Path, settings: &IndexMap<String, String>) -> io::Result<()>
         contents.push_str(value);
         contents.push('\n');
     }
-    if let Some(parent) = path.parent().filter(|parent| !parent.as_os_str().is_empty()) {
-        fs::create_dir_all(parent)?;
-    }
-    let dir = path
-        .parent()
-        .filter(|parent| !parent.as_os_str().is_empty())
-        .unwrap_or_else(|| Path::new("."));
-    let mut tmp = tempfile::NamedTempFile::new_in(dir)?;
-    tmp.write_all(contents.as_bytes())?;
-    tmp.as_file().sync_all()?;
-    // `NamedTempFile` creates with mode 0600 on Unix; persisting it over an
-    // existing regular file would silently tighten that file's permissions, so
-    // carry the target's mode across the rename to preserve it (pnpm's
-    // `write-ini-file` keeps the target's mode too). New files keep the
-    // conservative 0600 default — they may hold credentials.
-    //
-    // `symlink_metadata` (not `metadata`) so a symlinked target is detected
-    // rather than followed: the rename replaces the symlink with a fresh
-    // regular file, and copying the link target's (possibly 0644) mode would
-    // loosen permissions on freshly written credentials. A symlink keeps 0600.
-    #[cfg(unix)]
-    if let Ok(metadata) = fs::symlink_metadata(path)
-        && !metadata.file_type().is_symlink()
-    {
-        use std::os::unix::fs::PermissionsExt as _;
-        let mode = metadata.permissions().mode();
-        tmp.as_file().set_permissions(std::fs::Permissions::from_mode(mode))?;
-    }
-    tmp.persist(path).map_err(|err| err.error)?;
-    Ok(())
+    pacquet_fs::write_atomic(path, contents.as_bytes())
 }

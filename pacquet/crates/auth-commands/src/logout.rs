@@ -36,8 +36,9 @@ pub trait FsReadToString {
     fn read_to_string(path: &std::path::Path) -> io::Result<String>;
 }
 
-/// Write `bytes` to a file, replacing its contents, mirroring
-/// [`std::fs::write`].
+/// Write `bytes` to a file, replacing its contents. The production [`Host`]
+/// provider writes atomically and symlink-safely, since `auth.ini` holds
+/// credentials (see [`pacquet_fs::write_atomic`]).
 pub trait FsWrite {
     fn write(path: &std::path::Path, bytes: &[u8]) -> io::Result<()>;
 }
@@ -78,7 +79,7 @@ impl FsReadToString for Host {
 
 impl FsWrite for Host {
     fn write(path: &std::path::Path, bytes: &[u8]) -> io::Result<()> {
-        std::fs::write(path, bytes)
+        pacquet_fs::write_atomic(path, bytes)
     }
 }
 

@@ -14,10 +14,10 @@ repository.workspace = true
 derive_more = { workspace = true }
 miette      = { workspace = true }
 pathdiff    = { workspace = true }
+tempfile    = { workspace = true }
 
 [dev-dependencies]
-sha2     = { workspace = true }
-tempfile = { workspace = true }
+sha2 = { workspace = true }
 
 [target.'cfg(windows)'.dependencies]
 dunce    = { workspace = true }
