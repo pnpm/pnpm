@@ -19,6 +19,7 @@ use crate::{
     failed_to_publish_error::FailedToPublishError,
     global_log::{global_info, global_warn},
     oidc::{OidcHttpOptions, escaped_package_name},
+    provenance_gen::{ProvenanceGenError, generate_provenance},
     publish_options::{
         Access, CreatePublishOptionsError, CreatePublishOptionsInput, create_publish_options,
     },
@@ -73,14 +74,6 @@ where
     Sys: EnvVar + CiInfo + Clock + OidcFetch,
     Reporter: self::Reporter,
 {
-    // Generating a signed provenance attestation requires sigstore, which
-    // pacquet does not yet bundle, so an explicit `--provenance` is a hard
-    // error: the request cannot be honored. Fail before the OIDC exchange so a
-    // doomed request never performs authenticated network round-trips first.
-    if opts.provenance == Some(true) {
-        return Err(PublishPackedPkgError::ProvenanceUnsupported);
-    }
-
     let input = CreatePublishOptionsInput {
         default_registry: &opts.default_registry,
         scoped_registries: &opts.scoped_registries,
@@ -116,19 +109,9 @@ where
         return Ok(summary);
     }
 
-    // An explicit `--provenance` already hard-errored above. Provenance that
-    // OIDC auto-detected for a public repo is downgraded to a warning so a
-    // trusted-publishing CI run still publishes — without the attestation pnpm
-    // would attach (which needs sigstore, not yet bundled).
-    if resolved.provenance == Some(true) {
-        global_warn::<Reporter>(
-            "Provenance generation is not yet supported by pacquet; publishing without provenance.",
-        );
-    }
-
     // `summary` already hashed the tarball; reuse those digests for the
     // document's `dist` rather than hashing the bytes a second time.
-    let document = build_publish_document(
+    let mut document = build_publish_document(
         pkg.published_manifest,
         pkg.tarball_data,
         &registry,
@@ -136,6 +119,22 @@ where
         &resolved.default_tag,
         &DistHashes { integrity: &summary.integrity, shasum: &summary.shasum },
     )?;
+
+    // Provenance is requested either explicitly (`--provenance`) or by OIDC
+    // auto-detection for a public repo; `resolved.provenance` carries the merged
+    // result. Sign an SLSA attestation with sigstore and splice it into the
+    // document's `_attachments`, mirroring libnpmpublish.
+    if resolved.provenance == Some(true) {
+        let attachment =
+            generate_provenance::<Sys, Reporter>(&name, &version, pkg.tarball_data, &opts.http)
+                .await
+                .map_err(PublishPackedPkgError::Provenance)?;
+        document["_attachments"][attachment.bundle_name.as_str()] = serde_json::json!({
+            "content_type": attachment.content_type,
+            "data": attachment.data,
+            "length": attachment.data.len(),
+        });
+    }
     let body =
         bytes::Bytes::from(serde_json::to_vec(&document).expect("serialize publish document"));
 
@@ -487,14 +486,9 @@ pub enum PublishPackedPkgError {
     #[diagnostic(code(ERR_PNPM_BAD_SEMVER))]
     BadSemver { version: String },
 
-    #[display("Provenance generation is not yet supported by pacquet")]
-    #[diagnostic(
-        code(ERR_PNPM_PROVENANCE_UNSUPPORTED),
-        help(
-            "Publish without provenance, or use the TypeScript pnpm CLI for provenance attestations."
-        )
-    )]
-    ProvenanceUnsupported,
+    #[display("{_0}")]
+    #[diagnostic(transparent)]
+    Provenance(ProvenanceGenError),
 
     #[display("invalid registry URL: {_0}")]
     InvalidUrl(url::ParseError),

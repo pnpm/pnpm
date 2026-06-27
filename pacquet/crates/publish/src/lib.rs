@@ -10,6 +10,7 @@ mod git_checks;
 mod global_log;
 mod oidc;
 mod otp_env;
+mod provenance_gen;
 mod publish_options;
 mod publish_packed_pkg;
 mod publish_summary;
@@ -35,6 +36,7 @@ pub use oidc::{
     ProvenanceError, determine_provenance, fetch_auth_token, get_id_token,
 };
 pub use otp_env::resolve_otp_from_env;
+pub use provenance_gen::{ProvenanceAttachment, ProvenanceGenError, generate_provenance};
 pub use publish_options::{
     Access, CreatePublishOptionsError, CreatePublishOptionsInput, FetchTokenAndProvenanceError,
     OidcTokenProvenance, PublishUnsupportedRegistryProtocolError, ResolvedPublishOptions,

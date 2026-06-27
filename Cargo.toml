@@ -151,6 +151,7 @@ serde-saphyr = { version = "0.0.27" }
 sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio-rustls"] }
 # 0.11 removes the LowerHex impl on Output; revisit after upstream/consumers catch up
 sha2               = { version = "0.10.9" }
+sigstore-sign      = { version = "0.9.0" }
 smart-default      = { version = "0.7.1" }
 split-first-char   = { version = "2.0.1" }
 ssri               = { version = "9.2.0" }
