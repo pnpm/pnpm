@@ -156,15 +156,11 @@ mod real_package_name_of {
 
     #[test]
     fn returns_none_when_bare_specifier_is_missing() {
-        // No bare_specifier → no name can be recovered. The caller treats
-        // this as "not a targeted update."
         assert_eq!(real_package_name_of(&wanted(Some("foo"), None)).as_deref(), None);
     }
 
     #[test]
     fn falls_back_to_alias_for_plain_dep() {
-        // `foo@^1.0.0`: real name equals the install alias. No `npm:`
-        // prefix to parse, so the alias is returned verbatim.
         assert_eq!(
             real_package_name_of(&wanted(Some("foo"), Some("^1.0.0"))).as_deref(),
             Some("foo"),
@@ -173,14 +169,11 @@ mod real_package_name_of {
 
     #[test]
     fn falls_back_to_none_when_alias_is_missing_for_plain_dep() {
-        // Malformed: a bare range with no alias and no `npm:` prefix.
-        // Treat as "not a targeted update."
         assert_eq!(real_package_name_of(&wanted(None, Some("^1.0.0"))).as_deref(), None);
     }
 
     #[test]
     fn parses_real_name_from_npm_alias_with_version_range() {
-        // `foo@npm:bar@^4`: install alias is `foo`, real package is `bar`.
         // Update targeting is keyed by the real name (matches the depPath
         // recorded in the lockfile, not the install alias).
         assert_eq!(
@@ -191,7 +184,6 @@ mod real_package_name_of {
 
     #[test]
     fn parses_real_name_from_npm_alias_without_version() {
-        // Default-tag form `npm:bar`: the whole `rest` is the name.
         assert_eq!(
             real_package_name_of(&wanted(Some("foo"), Some("npm:bar"))).as_deref(),
             Some("bar"),
@@ -200,9 +192,9 @@ mod real_package_name_of {
 
     #[test]
     fn parses_scoped_real_name_from_npm_alias() {
-        // Scoped real name: `@scope/pkg@^4`. The `@` of the scope prefix
-        // is at index 0, so the `idx >= 1` guard skips it and the search
-        // finds the `@` separating name from version.
+        // The `@` of the scope prefix sits at index 0, so the `idx >= 1`
+        // guard skips it and the search finds the `@` separating name
+        // from version.
         assert_eq!(
             real_package_name_of(&wanted(Some("foo"), Some("npm:@scope/pkg@^4"))).as_deref(),
             Some("@scope/pkg"),
@@ -211,9 +203,8 @@ mod real_package_name_of {
 
     #[test]
     fn parses_scoped_real_name_from_npm_alias_without_version() {
-        // Default-tag form for a scoped package: `npm:@scope/pkg`. Only
-        // one `@` (the scope marker) at index 0, which the `idx >= 1`
-        // guard skips — the whole `rest` is returned as the name.
+        // Only one `@` (the scope marker) at index 0, which the
+        // `idx >= 1` guard skips — the whole `rest` is the name.
         assert_eq!(
             real_package_name_of(&wanted(Some("foo"), Some("npm:@scope/pkg"))).as_deref(),
             Some("@scope/pkg"),
@@ -222,8 +213,8 @@ mod real_package_name_of {
 
     #[test]
     fn returns_none_for_empty_npm_alias_target() {
-        // `npm:` with no name after the prefix. Defensive: filtered out
-        // so the caller treats it as "not a targeted update."
+        // Defensive: filtered out so the caller treats this as "not a
+        // targeted update."
         assert_eq!(real_package_name_of(&wanted(Some("foo"), Some("npm:"))).as_deref(), None);
     }
 
@@ -246,6 +237,18 @@ mod real_package_name_of {
         assert_eq!(
             real_package_name_of(&wanted(Some("foo"), Some("jsr:@foo/bar"))).as_deref(),
             Some("@jsr/foo__bar"),
+        );
+    }
+
+    #[test]
+    fn returns_none_for_unparsable_jsr_specifier() {
+        // A `jsr:` specifier that the parser rejects (here: missing scope)
+        // must not fall back to the install alias — otherwise a broken
+        // jsr dep could match an `updateMatching` target by alias and
+        // wrongly bypass preferred versions.
+        assert_eq!(
+            real_package_name_of(&wanted(Some("foo"), Some("jsr:foo@^1.0.0"))).as_deref(),
+            None,
         );
     }
 }

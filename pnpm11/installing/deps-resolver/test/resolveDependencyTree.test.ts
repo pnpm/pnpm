@@ -102,30 +102,12 @@ test('shared package children are resolved from the deterministic shallowest con
 })
 
 test('updateRequested bypasses preferred-version propagation along the dep chain so a deeper caret consumer reaches latest (form-data regression)', async () => {
-  // Regression test for the form-data downgrade (see PR pnpm/pnpm#12558):
-  // when `pnpm up -r <pkg>` targets a transitive package, the deps-resolver
-  // must compute `updateRequested: true` for that package's resolutions
-  // and thread it through to `storeController.requestPackage`. The npm
-  // picker then sets `preferredVersionSelectors: undefined` (verified at
-  // the resolver-unit level in `resolving/npm-resolver/test/index.ts`)
-  // and reaches `latest` instead of honoring an older sibling's
-  // propagated preferred version.
-  //
-  // Topology that triggers the bug deterministically: a single branch
-  // where the targeted package appears at two depths — a shallower
-  // exact-pin (nx → form-data@4.0.5 role) and a deeper caret consumer
-  // (axios → form-data@^4.0.5 role, but reached via a sub-carrier so
-  // it resolves AFTER the exact-pin has propagated preferred down the
-  // chain). Without the fix's `updateRequested` plumbing, the deeper
-  // caret re-resolution honors the propagated preferred (1.0.0) over
-  // `latest` (1.0.1) and the lockfile never bumps — the form-data bug.
-  //
-  // Cross-branch propagation does NOT happen in pnpm's preferredVersions
-  // model (each branch builds its own `newPreferredVersions` chain via
-  // `Object.create(preferredVersions)` at resolveDependencies.ts:754),
-  // so a flat two-carrier topology can't reproduce the bug. The
-  // propagation only flows down a single chain, which is why the
-  // exact-pin must be an ANCESTOR-side sibling of the caret consumer.
+  // The bypass must be scoped per wanted-dependency: true only for the
+  // user's update target, false for every other package on the chain.
+  // The fixture nests an exact-pin carrier above a caret consumer in a
+  // single dep chain — cross-branch propagation does not happen in
+  // pnpm's preferredVersions model, so the targeted package must
+  // appear at two depths in the SAME chain for the bug to surface.
   const requestLog: Array<{
     alias: string | undefined
     bareSpecifier: string | undefined
@@ -142,9 +124,9 @@ test('updateRequested bypasses preferred-version propagation along the dep chain
       alias,
       bareSpecifier,
       updateRequested: options.updateRequested,
-      // Snapshot the boolean at call time. `options.preferredVersions`
-      // is a live object whose later mutations could otherwise make the
-      // sanity assertion below pass even if the value was absent here.
+      // Snapshot at call time: `options.preferredVersions` is a live
+      // object whose later mutations could otherwise make the sanity
+      // assertion below pass even if the value was absent here.
       hadPreferredT100: Boolean(options.preferredVersions.t?.['1.0.0']),
       resolvedId,
     })
@@ -159,24 +141,17 @@ test('updateRequested bypasses preferred-version propagation along the dep chain
         name: 'root',
         version: '0.0.0',
         dependencies: {
-          // Carrier whose own manifest pins t at exactly 1.0.0
-          // (nx → form-data@4.0.5 role) AND pulls in `inner`, whose
-          // own manifest consumes t via caret (axios → form-data@^4.0.5
-          // role). Nesting both under one carrier makes the exact-pin
-          // a depth-1 sibling of `inner`, so its resolved 1.0.0
-          // propagates down the chain to `inner`'s depth-2 caret
-          // re-resolution via the preferredVersions chain built at
-          // resolveDependencies.ts:754-770.
+          // Carrier that pins `t` exactly AND pulls in `inner`, whose
+          // own manifest consumes `t` via caret. The exact-pin becomes
+          // a depth-1 sibling of `inner`, so its resolved version
+          // propagates down to `inner`'s depth-2 caret re-resolution.
           multi: '1.0.0',
         },
       },
       modulesDir: '/project/node_modules',
       rootDir: '/project' as ProjectRootDir,
       updatePackageManifest: false,
-      // Mirror `pnpm up -r t`: target t by name. The deps-resolver
-      // invokes this for every package considered for re-resolution
-      // (see `resolveDependencies.ts:895-899`) and threads the result
-      // through as `updateRequested` to requestPackage.
+      // Mirror `pnpm up -r t`: target t by name.
       updateMatching: (name: string) => name === 't',
       wantedDependencies: [
         {
@@ -185,9 +160,7 @@ test('updateRequested bypasses preferred-version propagation along the dep chain
           dev: false,
           optional: false,
           // Mirror `pnpm up -r`'s default depth (Infinity) so the
-          // targeted update propagates through transitives —
-          // `updateShouldContinue` at line 891 is a `currentDepth ≤
-          // updateDepth` check.
+          // targeted update propagates through transitives.
           updateDepth: Number.POSITIVE_INFINITY,
         },
       ],
@@ -312,9 +285,8 @@ function createLockfile (): LockfileObject {
  * in `inner`), `inner@1.0.0` (whose own manifest consumes t via caret
  * `^1.0.0`), and `t@1.0.0` (the version both branches resolved to
  * under the older `latest` dist-tag). `infoFromLockfile` is only
- * populated when the package is recorded here, which the deps-resolver
- * needs to even invoke `updateMatching` (see
- * `resolveDependencies.ts:895-899`).
+ * populated when the package is recorded here — without it the
+ * deps-resolver never invokes `updateMatching`.
  */
 function createLockfileWithTPinning (): LockfileObject {
   return {
