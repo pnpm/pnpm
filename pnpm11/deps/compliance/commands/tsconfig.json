@@ -35,6 +35,9 @@
       "path": "../../../config/reader"
     },
     {
+      "path": "../../../config/version-policy"
+    },
+    {
       "path": "../../../config/writer"
     },
     {

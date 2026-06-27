@@ -2,9 +2,9 @@
 //! feature-gated `sqlx` drivers.
 
 use super::{
-    DEFAULT_BCRYPT_COST, MAX_USERNAME_CHARS, TokenBackend, TokenRecord, UpsertOutcome, UserBackend,
-    fresh_secret, hash_bcrypt, mint_token, sha256_hex, unix_seconds, validate_username,
-    verify_bcrypt, verify_returning_user,
+    DEFAULT_BCRYPT_COST, TokenBackend, TokenRecord, UpsertOutcome, UserBackend, fresh_secret,
+    hash_bcrypt, mint_token, sha256_hex, unix_seconds, validate_username, verify_returning_user,
+    with_auth_timeout,
 };
 use crate::{
     config::MaxUsers,
@@ -12,7 +12,6 @@ use crate::{
 };
 use async_trait::async_trait;
 use std::{
-    future::Future,
     sync::atomic::{AtomicU64, Ordering},
     time::Duration,
 };
@@ -62,22 +61,6 @@ impl<Db> SqlAuth<Db> {
     }
 }
 
-/// Only use this around read-only request-path work or startup setup. Request-path
-/// writes rely on the backend's statement timeout and must await the database
-/// result so callers do not observe a timeout with an unknown commit state.
-async fn with_auth_timeout<T, E>(
-    timeout: Duration,
-    future: impl Future<Output = std::result::Result<T, E>>,
-) -> Result<T>
-where
-    RegistryError: From<E>,
-{
-    match tokio::time::timeout(timeout, future).await {
-        Ok(result) => result.map_err(RegistryError::from),
-        Err(_) => Err(RegistryError::AuthDatabaseTimeout),
-    }
-}
-
 #[async_trait]
 trait AuthSqlBackend: Send + Sync {
     async fn stored_user(&self, username: &str) -> Result<Option<StoredUser>>;
@@ -118,14 +101,12 @@ where
         username: &str,
         password: &str,
     ) -> Result<(UpsertOutcome, String)> {
-        validate_username_bounds(username)?;
+        validate_username(username)?;
 
         if let Some(stored) = with_auth_timeout(self.timeout, self.db.stored_user(username)).await?
         {
             return verify_returning_user(&stored.username, password, stored.bcrypt_hash).await;
         }
-
-        validate_username(username)?;
 
         match self.max_users {
             MaxUsers::Disabled => return Err(RegistryError::RegistrationDisabled),
@@ -156,39 +137,6 @@ where
             },
         }
     }
-
-    async fn verify(&self, username: &str, password: &str) -> Result<Option<String>> {
-        if username_has_invalid_bounds(username) {
-            return Ok(None);
-        }
-
-        let Some(stored) = with_auth_timeout(self.timeout, self.db.stored_user(username)).await?
-        else {
-            return Ok(None);
-        };
-        let valid = verify_bcrypt(password.to_string(), stored.bcrypt_hash).await?;
-        Ok(valid.then_some(stored.username))
-    }
-}
-
-fn validate_username_bounds(username: &str) -> Result<()> {
-    if username.is_empty() {
-        return Err(RegistryError::BadRequest { reason: "username must not be empty".to_string() });
-    }
-    if username_too_long(username) {
-        return Err(RegistryError::BadRequest {
-            reason: format!("username must be at most {MAX_USERNAME_CHARS} characters"),
-        });
-    }
-    Ok(())
-}
-
-fn username_has_invalid_bounds(username: &str) -> bool {
-    username.is_empty() || username_too_long(username)
-}
-
-fn username_too_long(username: &str) -> bool {
-    username.chars().nth(MAX_USERNAME_CHARS).is_some()
 }
 
 #[async_trait]
@@ -945,6 +893,7 @@ fn timeout_seconds(timeout: Duration) -> u64 {
 
 #[cfg(test)]
 mod tests {
+    use super::super::MAX_USERNAME_CHARS;
     use super::*;
     use std::sync::Arc;
 
@@ -1190,19 +1139,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn verify_returns_the_stored_username() {
-        let bcrypt_hash = bcrypt::hash("secret", 4).unwrap();
-        let auth = SqlAuth::new(
-            CanonicalBackend { user: StoredUser { username: "Alice".to_string(), bcrypt_hash } },
-            MaxUsers::Unlimited,
-            Duration::from_secs(30),
-        );
-
-        assert_eq!(auth.verify("alice", "secret").await.unwrap().as_deref(), Some("Alice"));
-    }
-
-    #[tokio::test]
-    async fn verify_propagates_corrupt_hash_errors() {
+    async fn add_or_login_propagates_corrupt_hash_errors() {
         let auth = SqlAuth::new(
             CanonicalBackend {
                 user: StoredUser {
@@ -1214,24 +1151,9 @@ mod tests {
             Duration::from_secs(30),
         );
 
-        let err = auth.verify("alice", "secret").await.unwrap_err();
+        let err = auth.add_or_login("alice", "secret").await.unwrap_err();
 
         assert!(matches!(err, RegistryError::Bcrypt(_)), "got {err:?}");
-    }
-
-    #[tokio::test]
-    async fn verify_skips_unbounded_usernames_without_db_lookup() {
-        let stored_user_calls = Arc::new(AtomicU64::new(0));
-        let auth = SqlAuth::new(
-            CountingLookupBackend { stored_user_calls: Arc::clone(&stored_user_calls) },
-            MaxUsers::Unlimited,
-            Duration::from_secs(30),
-        );
-        let overlong = "a".repeat(MAX_USERNAME_CHARS + 1);
-
-        assert_eq!(auth.verify("", "secret").await.unwrap(), None);
-        assert_eq!(auth.verify(&overlong, "secret").await.unwrap(), None);
-        assert_eq!(stored_user_calls.load(Ordering::SeqCst), 0);
     }
 
     #[tokio::test]
@@ -1243,14 +1165,14 @@ mod tests {
             Duration::from_secs(30),
         );
 
-        let outcome = auth.add_or_login(" alice", "secret").await.unwrap();
+        let outcome = auth.add_or_login("alice", "secret").await.unwrap();
 
         assert!(matches!(outcome, (UpsertOutcome::LoggedIn, _)));
         assert_eq!(outcome.1, "Alice");
     }
 
     #[tokio::test]
-    async fn add_or_login_rejects_unbounded_usernames_without_db_lookup() {
+    async fn add_or_login_rejects_invalid_usernames_without_db_lookup() {
         let stored_user_calls = Arc::new(AtomicU64::new(0));
         let auth = SqlAuth::new(
             CountingLookupBackend { stored_user_calls: Arc::clone(&stored_user_calls) },
@@ -1259,14 +1181,16 @@ mod tests {
         );
         let overlong = "a".repeat(MAX_USERNAME_CHARS + 1);
 
-        let empty_err = auth.add_or_login("", "secret").await.unwrap_err();
-        assert!(
-            matches!(empty_err, RegistryError::BadRequest { reason } if reason == "username must not be empty")
-        );
-        let overlong_err = auth.add_or_login(&overlong, "secret").await.unwrap_err();
-        assert!(
-            matches!(overlong_err, RegistryError::BadRequest { reason } if reason == format!("username must be at most {MAX_USERNAME_CHARS} characters"))
-        );
+        for username in ["", " alice", "alice ", "#alice", "alice:admin", "alice\nadmin"] {
+            let err = auth.add_or_login(username, "secret").await.unwrap_err();
+            assert_eq!(
+                err.status_code(),
+                axum::http::StatusCode::BAD_REQUEST,
+                "expected {username:?} to be rejected",
+            );
+        }
+        let err = auth.add_or_login(&overlong, "secret").await.unwrap_err();
+        assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST);
         assert_eq!(stored_user_calls.load(Ordering::SeqCst), 0);
     }
 

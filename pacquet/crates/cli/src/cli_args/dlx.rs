@@ -273,6 +273,11 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     // The cache install is always fresh, so no lockfile is loaded from
     // the process working directory.
     config.lockfile = false;
+    // The throwaway cache project is not part of the caller's
+    // workspace. If a caller has a settings-only pnpm-workspace.yaml,
+    // carrying its workspace root here makes the install enumerate that
+    // workspace and fail on the missing root package.json.
+    config.workspace_dir = None;
     // Build a *fresh* allow-list for the throwaway install — the dlx
     // packages themselves plus the CLI `--allow-build` entries — rather
     // than inheriting the caller project's `allow_builds` /
@@ -451,7 +456,28 @@ fn get_valid_cache_dir(
 /// (<https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/commands/src/dlx.ts#L433-L436>).
 fn get_prepare_dir(cache_path: &Path, now: SystemTime, pid: u32) -> PathBuf {
     let millis = now.duration_since(UNIX_EPOCH).map_or(0, |elapsed| elapsed.as_millis());
-    cache_path.join(format!("{millis:x}-{pid:x}"))
+    // base36 (vs hex) keeps this segment short: it sits between the cache key
+    // and pnpm's deep virtual-store layout, and long dlx paths overflow
+    // Windows' MAX_PATH (260), which makes lifecycle scripts fail with a
+    // `spawn cmd.exe ENOENT` (the cwd no longer resolves). time+pid stays
+    // unique across concurrent dlx processes and a process's own retries.
+    cache_path.join(format!("{}-{}", to_base36(millis), to_base36(u128::from(pid))))
+}
+
+/// Lowercase base36 (`0-9a-z`), matching JavaScript's
+/// `Number.prototype.toString(36)` used by `getPrepareDir`.
+fn to_base36(mut n: u128) -> String {
+    const DIGITS: &[u8; 36] = b"0123456789abcdefghijklmnopqrstuvwxyz";
+    if n == 0 {
+        return "0".to_string();
+    }
+    let mut buf = Vec::new();
+    while n > 0 {
+        buf.push(DIGITS[(n % 36) as usize]);
+        n /= 36;
+    }
+    buf.reverse();
+    String::from_utf8(buf).expect("base36 digits are ASCII")
 }
 
 /// Determine the bin to run from the first installed dependency. Ports

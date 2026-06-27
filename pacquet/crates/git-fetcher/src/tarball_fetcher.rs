@@ -32,10 +32,10 @@ use crate::{
     cas_io::{ImportedFiles, import_into_cas, materialize_into, synthesize_files_index},
     error::GitFetcherError,
     fetcher::GitFetchOutput,
-    packlist::packlist,
     prepare_package::{AllowBuildRef, PreparePackageOptions, PreparedPackage, prepare_package},
 };
 use pacquet_executor::ScriptsPrependNodePath;
+use pacquet_fs_packlist::packlist;
 use pacquet_package_manifest::safe_read_package_json_from_dir;
 use pacquet_reporter::Reporter;
 use pacquet_store_dir::{PackageFilesIndex, StoreDir, StoreIndexWriter};

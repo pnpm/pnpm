@@ -1,5 +1,13 @@
 # @pnpm/assert-store
 
+## 1100.0.17
+
+### Patch Changes
+
+- @pnpm/store.cafs@1100.1.11
+- @pnpm/testing.registry-mock@1100.0.7
+- @pnpm/store.index@1100.2.1
+
 ## 1100.0.16
 
 ### Patch Changes

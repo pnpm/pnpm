@@ -566,6 +566,33 @@ impl StoreIndex {
         decode_index_value(&bytes).map(Some)
     }
 
+    /// Look up the first package-files index whose key ends with `\t{pkg_id}`.
+    ///
+    /// This is for read-only inspection commands that only know the local
+    /// package id and must not resolve against a registry to recover the
+    /// integrity half of the key.
+    pub fn get_by_pkg_id(
+        &self,
+        pkg_id: &str,
+    ) -> Result<Option<PackageFilesIndex>, StoreIndexError> {
+        let pattern = format!("%\t{}", escape_like_pattern(pkg_id));
+        let row: Option<Vec<u8>> = self
+            .conn
+            .query_row(
+                r"SELECT data FROM package_index WHERE key LIKE ?1 ESCAPE '\' ORDER BY key LIMIT 1",
+                [pattern],
+                |row| row.get::<_, Vec<u8>>(0),
+            )
+            .map(Some)
+            .or_else(|err| match err {
+                rusqlite::Error::QueryReturnedNoRows => Ok(None),
+                other => Err(StoreIndexError::Read { source: other }),
+            })?;
+
+        let Some(bytes) = row else { return Ok(None) };
+        decode_index_value(&bytes).map(Some)
+    }
+
     /// Look up many keys in one trip across the `SQLite` mutex.
     ///
     /// Returns a `key → PackageFilesIndex` map for every row that exists
@@ -647,6 +674,31 @@ impl StoreIndex {
             }
         }
         Ok(out)
+    }
+
+    /// Visit every raw `package_index` row without first collecting the
+    /// full key set. This mirrors pnpm's `StoreIndex.entries()` shape while
+    /// leaving decode policy to the caller.
+    pub fn for_each_raw<VisitError>(
+        &self,
+        mut visit: impl FnMut(String, Vec<u8>) -> Result<(), VisitError>,
+    ) -> Result<(), VisitError>
+    where
+        VisitError: From<StoreIndexError>,
+    {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT key, data FROM package_index")
+            .map_err(|source| VisitError::from(StoreIndexError::Read { source }))?;
+        let rows = stmt
+            .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?)))
+            .map_err(|source| VisitError::from(StoreIndexError::Read { source }))?;
+        for row in rows {
+            let (key, data) =
+                row.map_err(|source| VisitError::from(StoreIndexError::Read { source }))?;
+            visit(key, data)?;
+        }
+        Ok(())
     }
 
     /// Batched existence probe: the subset of `keys` that have a row in
@@ -808,6 +860,17 @@ fn decode_index_value(bytes: &[u8]) -> Result<PackageFilesIndex, StoreIndexError
     let plain = crate::msgpackr_records::transcode_to_plain_msgpack(bytes)
         .map_err(|source| StoreIndexError::Transcode { source })?;
     rmp_serde::from_slice(&plain).map_err(|source| StoreIndexError::Decode { source })
+}
+
+fn escape_like_pattern(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+    for character in value.chars() {
+        if matches!(character, '\\' | '%' | '_') {
+            escaped.push('\\');
+        }
+        escaped.push(character);
+    }
+    escaped
 }
 
 /// Build the `SQLite` key pnpm uses: `"{integrity}\t{pkg_id}"`. Integrity strings

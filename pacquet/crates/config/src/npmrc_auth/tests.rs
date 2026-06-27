@@ -1122,3 +1122,310 @@ fn url_scoped_env_ignores_non_ascii_names_without_panicking() {
     let auth = NpmrcAuth::from_url_scoped_env::<Env>();
     assert!(auth.creds_by_scope_by_uri.is_empty());
 }
+
+#[test]
+fn json_env_reads_host_keyed_default_auth_token() {
+    static_env!(
+        Env,
+        &[(
+            "pnpm_config__auth",
+            r#"{"https://registry.npmjs.org":{"@":{"authToken":"json-token"}}}"#
+        )]
+    );
+    let auth = NpmrcAuth::from_json_sources::<Env>(None).expect("valid _auth");
+    assert_eq!(default_auth_token(&auth, "//registry.npmjs.org/"), Some(Some("json-token")));
+}
+
+#[test]
+fn json_env_accepts_uppercase_scheme() {
+    // URL schemes are case-insensitive; the TS side parses keys with
+    // `new URL()`, which accepts `HTTPS://...`. pacquet must too.
+    static_env!(
+        Env,
+        &[(
+            "pnpm_config__auth",
+            r#"{"HTTPS://registry.npmjs.org":{"@":{"authToken":"upper-scheme-token"}}}"#
+        )]
+    );
+    let auth = NpmrcAuth::from_json_sources::<Env>(None).expect("valid _auth");
+    assert_eq!(
+        default_auth_token(&auth, "//registry.npmjs.org/"),
+        Some(Some("upper-scheme-token")),
+    );
+}
+
+#[test]
+fn json_env_reads_scoped_auth_tokens_on_shared_host() {
+    static_env!(
+        Env,
+        &[(
+            "pnpm_config__auth",
+            r#"{"https://npm.pkg.github.com":{"@org-a":{"authToken":"a-tok"},"@org-b":{"authToken":"b-tok"}}}"#
+        )]
+    );
+    let auth = NpmrcAuth::from_json_sources::<Env>(None).expect("valid _auth");
+    assert_eq!(scoped_auth_token(&auth, "//npm.pkg.github.com/", "@org-a"), Some(Some("a-tok")));
+    assert_eq!(scoped_auth_token(&auth, "//npm.pkg.github.com/", "@org-b"), Some(Some("b-tok")));
+}
+
+#[test]
+fn json_env_rejects_deprecated_basic_auth_field() {
+    // Only `authToken` is supported; the deprecated `basicAuth` /
+    // `username` + `password` forms are rejected (`deny_unknown_fields`),
+    // which is a hard error.
+    static_env!(
+        Env,
+        &[("pnpm_config__auth", r#"{"https://reg.example":{"@":{"basicAuth":"any-value"}}}"#)]
+    );
+    assert!(NpmrcAuth::from_json_sources::<Env>(None).is_err());
+}
+
+#[test]
+fn json_env_duplicate_route_keeps_last_in_source_order() {
+    // Two hosts both route the default registry; the source-LAST entry wins,
+    // matching pnpm's `Object.entries` iteration. Listed reverse-alphabetically
+    // so a sorted map would pick the wrong host.
+    static_env!(
+        Env,
+        &[(
+            "pnpm_config__auth",
+            r#"{"https://zzz.example":{"@":{"authToken":"z"}},"https://aaa.example":{"@":{"authToken":"a"}}}"#
+        )]
+    );
+    let auth = NpmrcAuth::from_json_sources::<Env>(None).expect("valid _auth");
+    assert_eq!(
+        auth.json_env_registries.get("default").map(String::as_str),
+        Some("https://aaa.example/"),
+    );
+}
+
+#[test]
+fn json_env_default_scope_infers_default_registry_route() {
+    static_env!(
+        Env,
+        &[("pnpm_config__auth", r#"{"https://my-npm-proxy.example":{"@":{"authToken":"tok"}}}"#)]
+    );
+    let auth = NpmrcAuth::from_json_sources::<Env>(None).expect("valid _auth");
+    assert_eq!(
+        auth.json_env_registries.get("default").map(String::as_str),
+        Some("https://my-npm-proxy.example/"),
+    );
+}
+
+#[test]
+fn json_env_package_scope_infers_scoped_registry_route() {
+    static_env!(
+        Env,
+        &[("pnpm_config__auth", r#"{"https://npm.pkg.github.com":{"@org":{"authToken":"tok"}}}"#)]
+    );
+    let auth = NpmrcAuth::from_json_sources::<Env>(None).expect("valid _auth");
+    assert_eq!(
+        auth.json_env_registries.get("@org").map(String::as_str),
+        Some("https://npm.pkg.github.com/"),
+    );
+    assert!(!auth.json_env_registries.contains_key("default"));
+}
+
+#[test]
+fn json_env_honors_upper_case_form() {
+    // Both `pnpm_config__auth` (documented) and `PNPM_CONFIG__AUTH` (the
+    // all-caps shell convention) are accepted — mirrors `read_pnpm_env`'s
+    // two-form lookup shape.
+    static_env!(
+        Env,
+        &[(
+            "PNPM_CONFIG__AUTH",
+            r#"{"https://registry.npmjs.org":{"@":{"authToken":"upper-token"}}}"#
+        )]
+    );
+    let auth = NpmrcAuth::from_json_sources::<Env>(None).expect("valid _auth");
+    assert_eq!(default_auth_token(&auth, "//registry.npmjs.org/"), Some(Some("upper-token")));
+}
+
+#[test]
+fn json_env_lower_case_wins_over_upper_case_when_both_are_set() {
+    // Both forms are accepted; when both are set, the documented
+    // (lowercase) form wins. Mirrors `read_pnpm_env`'s two-form lookup.
+    static_env!(
+        Env,
+        &[
+            (
+                "pnpm_config__auth",
+                r#"{"https://registry.npmjs.org":{"@":{"authToken":"lower-token"}}}"#
+            ),
+            (
+                "PNPM_CONFIG__AUTH",
+                r#"{"https://registry.npmjs.org":{"@":{"authToken":"upper-token"}}}"#
+            ),
+        ]
+    );
+    let auth = NpmrcAuth::from_json_sources::<Env>(None).expect("valid _auth");
+    assert_eq!(default_auth_token(&auth, "//registry.npmjs.org/"), Some(Some("lower-token")));
+}
+
+#[test]
+fn json_env_empty_lowercase_falls_back_to_uppercase() {
+    static_env!(
+        Env,
+        &[
+            ("pnpm_config__auth", ""),
+            (
+                "PNPM_CONFIG__AUTH",
+                r#"{"https://registry.npmjs.org":{"@":{"authToken":"upper-token"}}}"#
+            ),
+        ]
+    );
+    let auth = NpmrcAuth::from_json_sources::<Env>(None).expect("valid _auth");
+    assert_eq!(default_auth_token(&auth, "//registry.npmjs.org/"), Some(Some("upper-token")));
+}
+
+#[test]
+fn json_env_rejects_non_string_auth_token() {
+    static_env!(
+        Env,
+        &[("pnpm_config__auth", r#"{"https://registry.example":{"@":{"authToken":123}}}"#)]
+    );
+    assert!(NpmrcAuth::from_json_sources::<Env>(None).is_err());
+}
+
+#[test]
+fn json_env_rejects_missing_auth_token() {
+    static_env!(Env, &[("pnpm_config__auth", r#"{"https://registry.example":{"@":{}}}"#)]);
+    assert!(NpmrcAuth::from_json_sources::<Env>(None).is_err());
+}
+
+#[test]
+fn json_env_rejects_host_value_that_is_not_a_scope_object() {
+    static_env!(Env, &[("pnpm_config__auth", r#"{"https://registry.example":123}"#)]);
+    assert!(NpmrcAuth::from_json_sources::<Env>(None).is_err());
+}
+
+#[test]
+fn json_env_rejects_host_key_that_is_not_a_registry_url() {
+    static_env!(Env, &[("pnpm_config__auth", r#"{"not a url":{"@":{"authToken":"tok"}}}"#)]);
+    let error = NpmrcAuth::from_json_sources::<Env>(None).unwrap_err().to_string();
+    assert!(!error.contains("not a url"), "raw key must not leak into the error: {error}");
+}
+
+#[test]
+fn json_env_rejects_non_http_scheme() {
+    static_env!(
+        Env,
+        &[("pnpm_config__auth", r#"{"ftp://registry.example":{"@":{"authToken":"tok"}}}"#)]
+    );
+    assert!(NpmrcAuth::from_json_sources::<Env>(None).is_err());
+}
+
+#[test]
+fn json_env_rejects_invalid_scope_name() {
+    static_env!(
+        Env,
+        &[("pnpm_config__auth", r#"{"https://registry.example":{"org":{"authToken":"tok"}}}"#)]
+    );
+    assert!(NpmrcAuth::from_json_sources::<Env>(None).is_err());
+}
+
+#[test]
+fn json_env_rejects_scope_value_that_is_not_an_auth_object() {
+    static_env!(Env, &[("pnpm_config__auth", r#"{"https://registry.example":{"@":"tok"}}"#)]);
+    assert!(NpmrcAuth::from_json_sources::<Env>(None).is_err());
+}
+
+#[test]
+fn json_env_rejects_unsupported_auth_field() {
+    static_env!(
+        Env,
+        &[(
+            "pnpm_config__auth",
+            r#"{"https://registry.example":{"@":{"tokenHelper":"/bin/echo"}}}"#
+        )]
+    );
+    assert!(NpmrcAuth::from_json_sources::<Env>(None).is_err());
+}
+
+#[test]
+fn json_env_error_does_not_leak_url_credentials() {
+    // The URL key carries userinfo and a query-string token — both common
+    // places to embed secrets. The rejection error must not surface them.
+    static_env!(
+        Env,
+        &[(
+            "pnpm_config__auth",
+            r#"{"https://user:pw@registry.example?token=secret":{"@":{"authToken":"tok"}}}"#
+        )]
+    );
+    let error = NpmrcAuth::from_json_sources::<Env>(None).unwrap_err().to_string();
+    for leak in ["user:pw", "pw@", "token=secret", "?token"] {
+        assert!(!error.contains(leak), "secret fragment {leak:?} leaked into the error: {error}");
+    }
+}
+
+#[test]
+fn json_env_rejects_malformed_json() {
+    static_env!(Env, &[("pnpm_config__auth", "{ not valid json")]);
+    assert!(NpmrcAuth::from_json_sources::<Env>(None).is_err());
+}
+
+#[test]
+fn json_env_rejects_non_object_top_level() {
+    // Arrays expose their indices as keys, so reject them outright.
+    static_env!(Env, &[("pnpm_config__auth", r#"["//registry.example/:_authToken","sneaky"]"#)]);
+    assert!(NpmrcAuth::from_json_sources::<Env>(None).is_err());
+}
+
+#[test]
+fn json_env_empty_or_unset_returns_default() {
+    // Unset: `Sys::var` returns `None` for both forms.
+    struct UnsetEnv;
+    impl EnvVar for UnsetEnv {
+        fn var(_: &str) -> Option<String> {
+            None
+        }
+    }
+    let auth = NpmrcAuth::from_json_sources::<UnsetEnv>(None).expect("valid _auth");
+    assert!(auth.creds_by_scope_by_uri.is_empty());
+
+    // Set but empty: filtered out by the `.filter(|v| !v.is_empty())` step.
+    static_env!(EnvWithEmptyAuth, &[("pnpm_config__auth", "")]);
+    let auth = NpmrcAuth::from_json_sources::<EnvWithEmptyAuth>(None).expect("valid _auth");
+    assert!(auth.creds_by_scope_by_uri.is_empty());
+}
+
+#[test]
+fn json_global_value_configures_auth_and_env_wins_on_conflict() {
+    // `_auth` from the global `config.yaml` (the `global_value` argument)
+    // is parsed like the env var; the env var wins on a conflicting host.
+    struct EnvJson;
+    impl EnvVar for EnvJson {
+        fn var(name: &str) -> Option<String> {
+            (name == "pnpm_config__auth").then(|| {
+                r#"{"https://registry.npmjs.org":{"@":{"authToken":"env-token"}}}"#.to_string()
+            })
+        }
+    }
+    let global = serde_json::json!({
+        "https://registry.npmjs.org": { "@": { "authToken": "yaml-token" } },
+        "https://other.example": { "@": { "authToken": "yaml-other" } },
+    });
+    let auth = NpmrcAuth::from_json_sources::<EnvJson>(Some(&global)).expect("valid _auth");
+    // Env wins on the conflicting host.
+    assert_eq!(default_auth_token(&auth, "//registry.npmjs.org/"), Some(Some("env-token")));
+    // The global-only host is preserved.
+    assert_eq!(default_auth_token(&auth, "//other.example/"), Some(Some("yaml-other")));
+}
+
+#[test]
+fn json_env_normalizes_registry_url_key() {
+    // The `url` crate lowercases scheme + host and drops the default port,
+    // matching the TS side's `new URL()`.
+    static_env!(
+        Env,
+        &[("pnpm_config__auth", r#"{"HTTPS://Reg.Example:443":{"@":{"authToken":"tok"}}}"#)]
+    );
+    let auth = NpmrcAuth::from_json_sources::<Env>(None).expect("valid _auth");
+    assert_eq!(default_auth_token(&auth, "//reg.example/"), Some(Some("tok")));
+    assert_eq!(
+        auth.json_env_registries.get("default").map(String::as_str),
+        Some("https://reg.example/"),
+    );
+}

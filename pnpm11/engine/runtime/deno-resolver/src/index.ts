@@ -50,7 +50,7 @@ export async function resolveDenoRuntime (
     }
   }
 
-  const versionSpec = wantedDependency.bareSpecifier.substring('runtime:'.length)
+  const versionSpec = normalizeRuntimeSpec(wantedDependency.bareSpecifier.substring('runtime:'.length))
   // We use the npm registry for version resolution as it is easier than using the GitHub API for releases,
   // which uses pagination (e.g. https://api.github.com/repos/denoland/deno/releases?per_page=100).
   const npmResolution = await ctx.resolveFromNpm({ ...wantedDependency, bareSpecifier: versionSpec }, {})
@@ -105,7 +105,7 @@ export async function resolveLatestDenoRuntime (
 ): Promise<LatestInfo | undefined> {
   const manifestSpec = query.wantedDependency.bareSpecifier
   if (query.wantedDependency.alias !== 'deno' || !manifestSpec?.startsWith('runtime:')) return undefined
-  const versionSpec = query.compatible ? manifestSpec.substring('runtime:'.length) : 'latest'
+  const versionSpec = query.compatible ? normalizeRuntimeSpec(manifestSpec.substring('runtime:'.length)) : 'latest'
   try {
     const npmResolution = await ctx.resolveFromNpm(
       { alias: 'deno', bareSpecifier: versionSpec },
@@ -120,6 +120,11 @@ export async function resolveLatestDenoRuntime (
     }
     throw err
   }
+}
+
+function normalizeRuntimeSpec (versionSpec: string): string {
+  versionSpec = versionSpec.trim()
+  return versionSpec === '' ? 'latest' : versionSpec
 }
 
 function parseAssetName (name: string): PlatformAssetTarget[] | null {

@@ -1,5 +1,37 @@
 # @pnpm/engine.pm.commands
 
+## 1101.1.25
+
+### Patch Changes
+
+- Updated dependencies [25a829e]
+- Updated dependencies [bae694f]
+- Updated dependencies [fbdc0eb]
+- Updated dependencies [fa7004b]
+- Updated dependencies [0ec878d]
+- Updated dependencies [a84d2a1]
+- Updated dependencies [852d537]
+  - @pnpm/config.version-policy@1100.1.6
+  - @pnpm/resolving.npm-resolver@1102.1.0
+  - @pnpm/installing.deps-restorer@1102.1.1
+  - @pnpm/workspace.project-manifest-reader@1100.0.14
+  - @pnpm/installing.env-installer@1102.0.2
+  - @pnpm/error@1100.0.1
+  - @pnpm/building.policy@1100.0.11
+  - @pnpm/installing.client@1100.2.10
+  - @pnpm/deps.graph-hasher@1100.2.6
+  - @pnpm/lockfile.types@1100.0.12
+  - @pnpm/store.connection-manager@1100.3.2
+  - @pnpm/store.controller@1102.0.2
+  - @pnpm/lockfile.fs@1100.1.7
+  - @pnpm/deps.security.signatures@1101.2.3
+  - @pnpm/bins.linker@1100.0.16
+  - @pnpm/cli.utils@1101.0.13
+  - @pnpm/config.reader@1101.10.1
+  - @pnpm/global.commands@1100.0.30
+  - @pnpm/network.auth-header@1101.1.3
+  - @pnpm/global.packages@1100.0.9
+
 ## 1101.1.24
 
 ### Patch Changes

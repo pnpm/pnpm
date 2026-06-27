@@ -50,6 +50,25 @@ impl PickPolicy {
     /// [`Self::from_config`] with an explicit `now`, so callers that derive
     /// the policy more than once within an operation can anchor every
     /// `minimumReleaseAge` cutoff to the same instant.
+    /// [`Self::from_config`] with extra `minimumReleaseAgeExclude` specs
+    /// merged on top of the config value before the exclude policy is
+    /// compiled. `pacquet audit --fix update` uses this to let the resolver
+    /// install patched versions that the maturity cutoff would otherwise
+    /// block. With no extra specs this is exactly [`Self::from_config`].
+    pub(crate) fn from_config_with_extra_excludes(
+        config: &Config,
+        extra_excludes: Option<&[String]>,
+    ) -> Result<Self, VersionPolicyError> {
+        let mut policy = Self::from_config(config)?;
+        let Some(extra) = extra_excludes.filter(|extra| !extra.is_empty()) else {
+            return Ok(policy);
+        };
+        let mut merged = config.minimum_release_age_exclude.clone().unwrap_or_default();
+        merged.extend(extra.iter().cloned());
+        policy.published_by_exclude = Some(create_package_version_policy(&merged)?);
+        Ok(policy)
+    }
+
     pub(crate) fn from_config_at(
         config: &Config,
         now: DateTime<Utc>,

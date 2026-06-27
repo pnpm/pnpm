@@ -1,5 +1,6 @@
 use crate::version_policy::{
     PolicyMatch, VersionPolicyError, create_package_version_policy, expand_package_version_specs,
+    merge_package_version_specs,
 };
 use pretty_assertions::assert_eq;
 
@@ -223,4 +224,34 @@ fn create_policy_version_union_handles_whitespace() {
             "1.0.2".to_string(),
         ]),
     );
+}
+
+#[test]
+fn merge_combines_versions_of_the_same_package_sorted() {
+    let merged = merge_package_version_specs(["foo@2.0.0", "foo@1.0.0"]).unwrap();
+    assert_eq!(merged, vec!["foo@1.0.0 || 2.0.0".to_string()]);
+}
+
+#[test]
+fn merge_deduplicates_repeated_versions() {
+    let merged = merge_package_version_specs(["foo@1.0.0", "foo@1.0.0"]).unwrap();
+    assert_eq!(merged, vec!["foo@1.0.0".to_string()]);
+}
+
+#[test]
+fn merge_keeps_different_packages_in_first_seen_order() {
+    let merged = merge_package_version_specs(["zoo@1.0.0", "abc@2.0.0"]).unwrap();
+    assert_eq!(merged, vec!["zoo@1.0.0".to_string(), "abc@2.0.0".to_string()]);
+}
+
+#[test]
+fn merge_bare_name_absorbs_version_specific_entries() {
+    let merged = merge_package_version_specs(["foo@1.0.0", "foo"]).unwrap();
+    assert_eq!(merged, vec!["foo".to_string()]);
+}
+
+#[test]
+fn merge_handles_union_and_separate_entries_for_the_same_package() {
+    let merged = merge_package_version_specs(["foo@1.0.0 || 2.0.0", "foo@1.5.0"]).unwrap();
+    assert_eq!(merged, vec!["foo@1.0.0 || 1.5.0 || 2.0.0".to_string()]);
 }

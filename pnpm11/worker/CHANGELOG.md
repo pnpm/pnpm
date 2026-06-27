@@ -1,5 +1,18 @@
 # @pnpm/worker
 
+## 1100.2.2
+
+### Patch Changes
+
+- Updated dependencies [852d537]
+  - @pnpm/error@1100.0.1
+  - @pnpm/store.cafs@1100.1.11
+  - @pnpm/store.create-cafs-store@1100.0.16
+  - @pnpm/crypto.integrity@1100.0.1
+  - @pnpm/store.index@1100.2.1
+  - @pnpm/fs.hard-link-dir@1100.0.2
+  - @pnpm/fs.symlink-dependency@1100.0.10
+
 ## 1100.2.1
 
 ### Patch Changes

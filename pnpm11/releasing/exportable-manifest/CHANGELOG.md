@@ -1,5 +1,15 @@
 # @pnpm/exportable-manifest
 
+## 1100.1.8
+
+### Patch Changes
+
+- Updated dependencies [0ec878d]
+- Updated dependencies [852d537]
+  - @pnpm/workspace.project-manifest-reader@1100.0.14
+  - @pnpm/error@1100.0.1
+  - @pnpm/resolving.jsr-specifier-parser@1100.0.1
+
 ## 1100.1.7
 
 ### Patch Changes

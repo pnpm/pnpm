@@ -46,6 +46,10 @@ pub struct RemoveArgs {
     /// and `pnpm-lock.yaml` are updated. Mirrors pnpm's `--lockfile-only`.
     #[clap(long = "lockfile-only")]
     pub lockfile_only: bool,
+    /// Remove the package from the global packages directory and unlink its
+    /// bins. Mirrors pnpm's `remove -g`.
+    #[clap(short = 'g', long)]
+    pub global: bool,
 }
 
 impl RemoveArgs {

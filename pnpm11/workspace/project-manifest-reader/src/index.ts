@@ -246,10 +246,11 @@ function convertDependenciesToEnginesRuntime (
   dependenciesFieldName: 'dependencies' | 'devDependencies',
   enginesFieldName: 'engines' | 'devEngines'
 ): void {
+  const dependencies = readDependenciesField(manifest, dependenciesFieldName)
   for (const runtimeName of ['node', 'deno', 'bun']) {
-    const dep = manifest[dependenciesFieldName]?.[runtimeName]
-    if (typeof dep === 'string' && dep.startsWith('runtime:')) {
-      const version = dep.replace(/^runtime:/, '')
+    const dep = dependencies?.[runtimeName]
+    if (dependencies != null && typeof dep === 'string' && dep.startsWith('runtime:')) {
+      const version = dep.slice('runtime:'.length).trim()
       manifest[enginesFieldName] ??= {}
 
       const runtimeEntry: EngineDependency = {
@@ -276,11 +277,47 @@ function convertDependenciesToEnginesRuntime (
           runtimeEntry,
         ]
       }
-      if (manifest[dependenciesFieldName]) {
-        delete manifest[dependenciesFieldName][runtimeName]
-      }
+      delete dependencies[runtimeName]
+    } else {
+      removeManagedRuntimeEntry(manifest[enginesFieldName], runtimeName)
     }
   }
+}
+
+function readDependenciesField (
+  manifest: ProjectManifest,
+  dependenciesFieldName: 'dependencies' | 'devDependencies'
+): Record<string, unknown> | undefined {
+  const dependencies = manifest[dependenciesFieldName] as unknown
+  if (dependencies === undefined) return undefined
+  if (dependencies === null || typeof dependencies !== 'object' || Array.isArray(dependencies)) {
+    throw new PnpmError('INVALID_DEPENDENCIES_FIELD', `The "${dependenciesFieldName}" field must be an object.`)
+  }
+  return dependencies as Record<string, unknown>
+}
+
+function removeManagedRuntimeEntry (
+  enginesField: ProjectManifest['devEngines'] | ProjectManifest['engines'],
+  runtimeName: string
+): void {
+  if (!enginesField?.runtime) return
+
+  if (Array.isArray(enginesField.runtime)) {
+    const runtimes = enginesField.runtime.filter((runtime) => !isManagedRuntimeEntry(runtime, runtimeName))
+    if (runtimes.length === 0) {
+      delete enginesField.runtime
+    } else {
+      enginesField.runtime = runtimes
+    }
+  } else if (isManagedRuntimeEntry(enginesField.runtime, runtimeName)) {
+    delete enginesField.runtime
+  }
+}
+
+function isManagedRuntimeEntry (runtime: EngineDependency, runtimeName: string): boolean {
+  return runtime.name === runtimeName &&
+    runtime.onFail === 'download' &&
+    typeof runtime.version === 'string'
 }
 
 const dependencyKeys = new Set([
@@ -295,7 +332,12 @@ function normalize (manifest: ProjectManifest): ProjectManifest {
   for (const key in manifest) {
     if (Object.hasOwn(manifest, key)) {
       const value = manifest[key as keyof ProjectManifest]
-      if (typeof value !== 'object' || value === null || !dependencyKeys.has(key)) {
+      if (
+        typeof value !== 'object' ||
+        value === null ||
+        !dependencyKeys.has(key) ||
+        Array.isArray(value)
+      ) {
         result[key] = structuredClone(value)
       } else {
         const keys = Object.keys(value)

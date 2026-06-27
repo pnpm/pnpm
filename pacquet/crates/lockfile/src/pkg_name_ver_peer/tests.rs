@@ -185,6 +185,32 @@ fn without_peer_handles_workspace_link_with_peer_suffix() {
     assert!(!rendered.contains(")("), "peer suffix must be stripped; got {rendered:?}");
 }
 
+/// Nested peer groups must produce `__` at the group boundary, matching pnpm.
+/// See <https://github.com/pnpm/pnpm/issues/12452>
+#[test]
+fn to_virtual_store_name_nested_peer_uses_double_underscore() {
+    fn case(input: &'static str, expected: &'static str) {
+        eprintln!("CASE: {input:?}");
+        let name_ver_peer: PkgNameVerPeer = input.parse().unwrap();
+        let received = name_ver_peer.to_virtual_store_name(DEFAULT_MAX_LENGTH);
+        assert_eq!(received, expected);
+    }
+
+    case(
+        "eslint-plugin-testing-library@7.7.0(eslint@9.35.0(jiti@2.6.1))(typescript@6.0.3)",
+        "eslint-plugin-testing-library@7.7.0_eslint@9.35.0_jiti@2.6.1__typescript@6.0.3",
+    );
+    case("foo@1.0.0(bar@2.0.0(baz@3.0.0))", "foo@1.0.0_bar@2.0.0_baz@3.0.0_");
+    case(
+        "foo@1.0.0(a@1.0.0(b@2.0.0(c@3.0.0)))(d@4.0.0)",
+        "foo@1.0.0_a@1.0.0_b@2.0.0_c@3.0.0___d@4.0.0",
+    );
+    case(
+        "foo@1.0.0(patch_hash=abc)(bar@2.0.0(baz@3.0.0))",
+        "foo@1.0.0_patch_hash=abc_bar@2.0.0_baz@3.0.0_",
+    );
+}
+
 /// The user-reported macOS errno-63 case: a vitest snapshot key whose
 /// escaped filename blows past 120 bytes. The shortening must produce a
 /// name that fits inside `max_length` so `fs::create_dir_all` doesn't

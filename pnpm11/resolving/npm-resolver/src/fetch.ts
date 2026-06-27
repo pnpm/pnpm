@@ -1,4 +1,5 @@
 import url from 'node:url'
+import util from 'node:util'
 
 import { requestRetryLogger } from '@pnpm/core-loggers'
 import {
@@ -6,6 +7,7 @@ import {
   type FetchErrorRequest,
   type FetchErrorResponse,
   PnpmError,
+  redactUrlCredentials,
 } from '@pnpm/error'
 import type { FetchFromRegistry, RetryTimeoutOptions } from '@pnpm/fetching.types'
 import { globalWarn } from '@pnpm/logger'
@@ -143,7 +145,16 @@ export async function fetchMetadataFromFromRegistry (
           timeout: fetchOpts.timeout,
         }) as RegistryResponse
       } catch (error: any) { // eslint-disable-line
-        reject(new PnpmError('META_FETCH_FAIL', `GET ${uri}: ${error.message as string}`, { attempts: attempt, cause: error }))
+        // Redact credentials embedded in the URL from the cause as well, not
+        // just the top-level message: a reporter or debugger that renders
+        // `error.cause` would otherwise print the raw URL-bearing message. The
+        // `stack` string embeds the original (pre-mutation) message, so redact
+        // it too — mutating `message` alone leaves the credentials in `stack`.
+        if (util.types.isNativeError(error)) {
+          if (typeof error.message === 'string') error.message = redactUrlCredentials(error.message)
+          if (typeof error.stack === 'string') error.stack = redactUrlCredentials(error.stack)
+        }
+        reject(new PnpmError('META_FETCH_FAIL', redactUrlCredentials(`GET ${uri}: ${error.message as string}`), { attempts: attempt, cause: error }))
         return
       }
       if (response.status === 304) {

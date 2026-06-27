@@ -21,7 +21,7 @@
 use super::{
     DEFAULT_BCRYPT_COST, TokenBackend, TokenRecord, UpsertOutcome, UserBackend, fresh_secret,
     hash_bcrypt, mint_token, sha256_hex, token_timestamp_from_sql, unix_seconds, validate_username,
-    verify_bcrypt, verify_returning_user,
+    verify_returning_user, with_auth_timeout,
 };
 use crate::{
     config::{LibsqlSettings, MaxUsers},
@@ -39,6 +39,14 @@ use std::{
 const TOKEN_COLUMNS: &str =
     "token_hash, username, created_at, last_used_at, readonly, cidr_whitelist";
 
+/// Deadline for request-path auth reads, beyond which a stalled endpoint
+/// surfaces [`RegistryError::AuthDatabaseTimeout`] rather than hanging.
+const DEFAULT_AUTH_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Deadline for the one-time startup connect and schema setup; more
+/// generous than [`DEFAULT_AUTH_TIMEOUT`] for cold remote DDL.
+const DEFAULT_STARTUP_TIMEOUT: Duration = Duration::from_mins(5);
+
 /// Networked-SQLite auth backend. One [`Connection`] serves both record
 /// stores; the [`Database`] handle is held only to keep the connection
 /// alive.
@@ -51,6 +59,8 @@ pub struct LibsqlAuth {
     secret: [u8; 32],
     counter: AtomicU64,
     max_users: MaxUsers,
+    /// Deadline for each request-path auth read.
+    timeout: Duration,
 }
 
 impl std::fmt::Debug for LibsqlAuth {
@@ -83,9 +93,15 @@ impl LibsqlAuth {
                 if interval > 0 {
                     builder = builder.sync_interval(Duration::from_secs(interval));
                 }
-                builder.build().await?
+                with_auth_timeout(DEFAULT_STARTUP_TIMEOUT, Box::pin(builder.build())).await?
             }
-            None => Builder::new_remote(settings.url.clone(), auth_token).build().await?,
+            None => {
+                with_auth_timeout(
+                    DEFAULT_STARTUP_TIMEOUT,
+                    Box::pin(Builder::new_remote(settings.url.clone(), auth_token).build()),
+                )
+                .await?
+            }
         };
         Self::from_database(db, max_users).await
     }
@@ -94,32 +110,45 @@ impl LibsqlAuth {
     /// [`Self::connect`] and the local-database test setup.
     async fn from_database(db: Database, max_users: MaxUsers) -> Result<Self> {
         let conn = db.connect()?;
-        init_schema(&conn).await?;
-        Ok(Self { _db: db, conn, secret: fresh_secret(), counter: AtomicU64::new(0), max_users })
+        with_auth_timeout(DEFAULT_STARTUP_TIMEOUT, init_schema(&conn)).await?;
+        Ok(Self {
+            _db: db,
+            conn,
+            secret: fresh_secret(),
+            counter: AtomicU64::new(0),
+            max_users,
+            timeout: DEFAULT_AUTH_TIMEOUT,
+        })
     }
 
     /// The bcrypt hash stored for `username`, or `None` when no such
     /// user exists.
     async fn stored_hash(&self, username: &str) -> Result<Option<String>> {
-        let mut rows = self
-            .conn
-            .query("SELECT bcrypt_hash FROM users WHERE username = ?1", params![username])
-            .await?;
-        match rows.next().await? {
-            Some(row) => Ok(Some(row.get::<String>(0)?)),
-            None => Ok(None),
-        }
+        with_auth_timeout::<_, RegistryError>(self.timeout, async {
+            let mut rows = self
+                .conn
+                .query("SELECT bcrypt_hash FROM users WHERE username = ?1", params![username])
+                .await?;
+            match rows.next().await? {
+                Some(row) => Ok(Some(row.get::<String>(0)?)),
+                None => Ok(None),
+            }
+        })
+        .await
     }
 
     /// Current number of registered users — read under the
     /// registration cap, never on the hot path.
     async fn user_count(&self) -> Result<u64> {
-        let mut rows = self.conn.query("SELECT COUNT(*) FROM users", ()).await?;
-        let Some(row) = rows.next().await? else {
-            return Err(missing_count_row());
-        };
-        let count: i64 = row.get(0)?;
-        Ok(count.max(0) as u64)
+        with_auth_timeout::<_, RegistryError>(self.timeout, async {
+            let mut rows = self.conn.query("SELECT COUNT(*) FROM users", ()).await?;
+            let Some(row) = rows.next().await? else {
+                return Err(missing_count_row());
+            };
+            let count: i64 = row.get(0)?;
+            Ok(count.max(0) as u64)
+        })
+        .await
     }
 }
 
@@ -130,11 +159,11 @@ impl UserBackend for LibsqlAuth {
         username: &str,
         password: &str,
     ) -> Result<(UpsertOutcome, String)> {
+        validate_username(username)?;
+
         if let Some(stored) = self.stored_hash(username).await? {
             return verify_returning_user(username, password, stored).await;
         }
-
-        validate_username(username)?;
 
         // Brand-new user. The cheap pre-check avoids the (expensive) hash
         // when the cap is already full; the insert below re-checks the
@@ -220,14 +249,6 @@ impl UserBackend for LibsqlAuth {
             }
         }
     }
-
-    async fn verify(&self, username: &str, password: &str) -> Result<Option<String>> {
-        let Some(stored) = self.stored_hash(username).await? else {
-            return Ok(None);
-        };
-        let valid = verify_bcrypt(password.to_string(), stored).await?;
-        Ok(valid.then(|| username.to_string()))
-    }
 }
 
 #[async_trait]
@@ -250,33 +271,42 @@ impl TokenBackend for LibsqlAuth {
 
     async fn lookup(&self, raw: &str) -> Result<Option<String>> {
         let token_hash = sha256_hex(raw.as_bytes());
-        let mut rows = self
-            .conn
-            .query("SELECT username FROM tokens WHERE token_hash = ?1", params![token_hash])
-            .await?;
-        match rows.next().await? {
-            Some(row) => Ok(Some(row.get::<String>(0)?)),
-            None => Ok(None),
-        }
+        with_auth_timeout::<_, RegistryError>(self.timeout, async {
+            let mut rows = self
+                .conn
+                .query("SELECT username FROM tokens WHERE token_hash = ?1", params![token_hash])
+                .await?;
+            match rows.next().await? {
+                Some(row) => Ok(Some(row.get::<String>(0)?)),
+                None => Ok(None),
+            }
+        })
+        .await
     }
 
     async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
         let query = format!("SELECT {TOKEN_COLUMNS} FROM tokens WHERE token_hash = ?1");
-        let mut rows = self.conn.query(&query, params![key]).await?;
-        match rows.next().await? {
-            Some(row) => Ok(Some(row_to_keyed_record(&row)?.1)),
-            None => Ok(None),
-        }
+        with_auth_timeout::<_, RegistryError>(self.timeout, async {
+            let mut rows = self.conn.query(&query, params![key]).await?;
+            match rows.next().await? {
+                Some(row) => Ok(Some(row_to_keyed_record(&row)?.1)),
+                None => Ok(None),
+            }
+        })
+        .await
     }
 
     async fn list_for_user(&self, username: &str) -> Result<Vec<(String, TokenRecord)>> {
         let query = format!("SELECT {TOKEN_COLUMNS} FROM tokens WHERE username = ?1");
-        let mut rows = self.conn.query(&query, params![username]).await?;
-        let mut out = Vec::new();
-        while let Some(row) = rows.next().await? {
-            out.push(row_to_keyed_record(&row)?);
-        }
-        Ok(out)
+        with_auth_timeout::<_, RegistryError>(self.timeout, async {
+            let mut rows = self.conn.query(&query, params![username]).await?;
+            let mut out = Vec::new();
+            while let Some(row) = rows.next().await? {
+                out.push(row_to_keyed_record(&row)?);
+            }
+            Ok(out)
+        })
+        .await
     }
 
     async fn revoke_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {

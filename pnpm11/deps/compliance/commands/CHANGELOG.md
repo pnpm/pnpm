@@ -1,5 +1,43 @@
 # @pnpm/deps.compliance.commands
 
+## 1101.5.0
+
+### Minor Changes
+
+- 6c35a43: Added `--exclude-peers` to `pnpm sbom`. With `auto-install-peers` (the default), peer dependencies resolve into the lockfile and are otherwise indistinguishable from the package's own dependencies. The flag drops peer dependencies (and any transitive subtree reachable only through them) from the SBOM. CycloneDX 1.7 has no scope or relationship that expresses "consumer-provided peer", so omission is the only spec-clean handling. The flag name matches `pnpm list --exclude-peers`; note the SBOM flag prunes a peer's exclusive subtree, which is stricter than `pnpm list` (which only hides leaf peers).
+
+### Patch Changes
+
+- 25a829e: `pnpm audit --fix` now writes a single combined `minimumReleaseAgeExclude` entry per package (e.g. `axios@0.18.1 || 0.21.1`) instead of one entry per version, matching the format documented for the setting. Existing per-version entries in `pnpm-workspace.yaml` are merged into the combined form rather than left as duplicates. Installs that auto-collect immature versions into `minimumReleaseAgeExclude` now report the same combined entries, so the "Added N entries" message matches what is written to the manifest [#12534](https://github.com/pnpm/pnpm/issues/12534).
+- 17e7f2c: `pnpm sbom` now emits a CycloneDX `issue-tracker` external reference for components (and the root) whose `package.json` declares a `bugs` URL. Email-only `bugs` entries are skipped, since the reference requires a URL.
+- Updated dependencies [25a829e]
+- Updated dependencies [bae694f]
+- Updated dependencies [d3f68e2]
+- Updated dependencies [6545793]
+- Updated dependencies [fbdc0eb]
+- Updated dependencies [0ec878d]
+- Updated dependencies [6c35a43]
+- Updated dependencies [17e7f2c]
+- Updated dependencies [a84d2a1]
+- Updated dependencies [852d537]
+  - @pnpm/installing.commands@1100.10.1
+  - @pnpm/config.version-policy@1100.1.6
+  - @pnpm/lockfile.utils@1100.1.0
+  - @pnpm/deps.compliance.audit@1101.0.18
+  - @pnpm/workspace.project-manifest-reader@1100.0.14
+  - @pnpm/deps.compliance.sbom@1100.3.0
+  - @pnpm/error@1100.0.1
+  - @pnpm/config.writer@1100.0.14
+  - @pnpm/lockfile.types@1100.0.12
+  - @pnpm/deps.compliance.license-scanner@1100.0.21
+  - @pnpm/lockfile.fs@1100.1.7
+  - @pnpm/deps.security.signatures@1101.2.3
+  - @pnpm/cli.utils@1101.0.13
+  - @pnpm/config.reader@1101.10.1
+  - @pnpm/network.auth-header@1101.1.3
+  - @pnpm/store.path@1100.0.2
+  - @pnpm/lockfile.walker@1100.0.12
+
 ## 1101.4.0
 
 ### Minor Changes

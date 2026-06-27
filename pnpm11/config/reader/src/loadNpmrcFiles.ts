@@ -4,6 +4,7 @@ import path from 'node:path'
 
 import { envReplaceLossy } from '@pnpm/config.env-replace'
 import { nerfDart } from '@pnpm/config.nerf-dart'
+import { PnpmError } from '@pnpm/error'
 import normalizeRegistryUrl from 'normalize-registry-url'
 import { readIniFileSync } from 'read-ini-file'
 
@@ -13,7 +14,7 @@ import { npmDefaults } from './npmDefaults.js'
 export interface NpmrcConfigResult {
   /**
    * Merged auth/registry config from all sources.
-   * Priority (lowest to highest): builtin < defaults < user < auth.ini < workspace < env (//-scoped) < CLI
+   * Priority (lowest to highest): builtin < defaults < user < auth.ini < workspace < env (//-scoped + JSON auth) < CLI
    */
   mergedConfig: Record<string, unknown>
   /** Raw config suitable for pnpmConfig.authConfig (filtered through pickIniConfig by consumer) */
@@ -28,6 +29,25 @@ export interface NpmrcConfigResult {
   localPrefix: string
   /** Warnings generated during loading */
   warnings: string[]
+  /** Parsed `_auth` (env var + global config yaml). See {@link JsonAuthResult}. */
+  jsonAuth: JsonAuthResult
+}
+
+/**
+ * Result of parsing the structured `_auth` value.
+ *
+ * - `auth` — `.npmrc`-shaped URL-scoped keys (`//host/:_authToken`, …)
+ *   ready to merge into the existing auth-config pipeline.
+ * - `registries` — trusted scope→URL routes inferred from the same
+ *   value. `"default"` is set by the `"@"` scope; `"@org"` by a package
+ *   scope. Because both the credential and its destination host arrive
+ *   in one trusted value, repo-controlled `pnpm-workspace.yaml` /
+ *   project `.npmrc` cannot redirect these tokens to a different host.
+ *   Merged above workspace yaml but below CLI flags.
+ */
+export interface JsonAuthResult {
+  auth: Record<string, string>
+  registries: Record<string, string>
 }
 
 export interface LoadNpmrcConfigOpts {
@@ -44,6 +64,12 @@ export interface LoadNpmrcConfigOpts {
   /** Module directory for pnpm builtin rc */
   moduleDirname: string
   env?: Record<string, string | undefined>
+  /**
+   * The `_auth` value read from the **global** pnpm config yaml (the only
+   * file source honored for `_auth`). Project `.npmrc` / `pnpm-workspace.yaml`
+   * must not reach this — repo-controlled config may never supply auth.
+   */
+  globalConfigAuth?: unknown
 }
 
 interface ReadAndFilterNpmrcOptions {
@@ -92,6 +118,18 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
   // making them a safe, file-free way to configure registry authentication.
   const envScopedConfig = readUrlScopedEnvConfig(env)
 
+  // Structured `_auth` registry auth from two trusted, non-repo sources:
+  // the `pnpm_config__auth` env var (one JSON object, so it survives CI
+  // runners that silently drop env vars whose names contain `/`, `:`, or
+  // `.` — GitHub Actions, bash, zsh; see pnpm/pnpm#12314) and the `_auth`
+  // key of the global pnpm config yaml. The env var wins on conflict.
+  const envJsonAuth = readJsonAuthEnv(env)
+  const globalConfigJsonAuth = readGlobalConfigAuth(opts.globalConfigAuth)
+  const jsonAuth: JsonAuthResult = {
+    auth: { ...globalConfigJsonAuth.auth, ...envJsonAuth.auth },
+    registries: { ...globalConfigJsonAuth.registries, ...envJsonAuth.registries },
+  }
+
   // Read pnpm builtin rc + inline defaults
   const pnpmBuiltinConfig: Record<string, unknown> = {
     ...readAndFilterNpmrc(
@@ -114,9 +152,9 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
   ])
 
   // Merge all sources (lowest to highest priority):
-  // builtin < defaults < user < auth.ini < workspace < env (//-scoped) < CLI
+  // builtin < defaults < user < auth.ini < workspace < env (//-scoped + JSON auth) < CLI
   const mergedConfig: Record<string, unknown> = {}
-  for (const source of [pnpmBuiltinConfig, opts.defaultOptions, userConfig, pnpmAuthConfig, workspaceNpmrc, envScopedConfig, cliOptions]) {
+  for (const source of [pnpmBuiltinConfig, opts.defaultOptions, userConfig, pnpmAuthConfig, workspaceNpmrc, envScopedConfig, jsonAuth.auth, cliOptions]) {
     for (const [key, value] of Object.entries(source)) {
       if (isNpmrcReadableKey(key)) {
         mergedConfig[key] = value
@@ -127,7 +165,7 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
   // The env-scoped config is trusted (it comes from the environment, not the
   // repository), so it is included here while the workspace .npmrc is not.
   const trustedConfig: Record<string, unknown> = {}
-  for (const source of [pnpmBuiltinConfig, opts.defaultOptions, userConfig, pnpmAuthConfig, envScopedConfig, cliOptions]) {
+  for (const source of [pnpmBuiltinConfig, opts.defaultOptions, userConfig, pnpmAuthConfig, envScopedConfig, jsonAuth.auth, cliOptions]) {
     for (const [key, value] of Object.entries(source)) {
       if (isNpmrcReadableKey(key)) {
         trustedConfig[key] = value
@@ -143,6 +181,7 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
     ...pnpmAuthConfig,
     ...workspaceNpmrc,
     ...envScopedConfig,
+    ...jsonAuth.auth,
     ...cliOptions,
   }
 
@@ -154,6 +193,7 @@ export function loadNpmrcConfig (opts: LoadNpmrcConfigOpts): NpmrcConfigResult {
     userConfig,
     localPrefix,
     warnings,
+    jsonAuth,
   }
 }
 
@@ -190,6 +230,137 @@ function readUrlScopedEnvConfig (env: Record<string, string | undefined>): Recor
     target[key] = value
   }
   return { ...npmScoped, ...pnpmScoped }
+}
+
+function readJsonAuthEnv (env: Record<string, string | undefined>): JsonAuthResult {
+  const value = readJsonAuthEnvValue(env)
+  if (value == null) return { auth: {}, registries: {} }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(value)
+  } catch (err: unknown) {
+    throw new PnpmError('INVALID_AUTH_SETTING', `Failed to parse pnpm_config__auth as JSON: ${err instanceof Error ? err.message : String(err)}`)
+  }
+  return parseJsonAuth(parsed, 'pnpm_config__auth')
+}
+
+/**
+ * Parse a URL-keyed `_auth` object into `.npmrc`-shaped flat auth keys plus
+ * the registry routes inferred from each host. Shared by the env var and the
+ * global config yaml.
+ *
+ * Strict: any malformed entry throws. Both sources are user-controlled, so a
+ * typo should fail fast rather than silently drop auth. `source` names the
+ * origin in errors; raw URL keys are never echoed — they can embed secrets.
+ */
+function parseJsonAuth (parsed: unknown, source: string): JsonAuthResult {
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new PnpmError('INVALID_AUTH_SETTING', `${source} must be a JSON object`)
+  }
+
+  const auth: Record<string, string> = {}
+  const registries: Record<string, string> = {}
+  for (const [index, [url, scopes]] of Object.entries(parsed as Record<string, unknown>).entries()) {
+    const registry = parseJsonAuthRegistry(url, index + 1, source)
+    if (scopes === null || typeof scopes !== 'object' || Array.isArray(scopes)) {
+      throw new PnpmError('INVALID_AUTH_SETTING', `${source}[${registry.label}] must be an object keyed by scope`)
+    }
+    for (const [scope, rawCreds] of Object.entries(scopes as Record<string, unknown>)) {
+      if (!isJsonAuthScope(scope)) {
+        throw new PnpmError('INVALID_AUTH_SETTING', `${source}[${registry.label}][${JSON.stringify(scope)}]: scope must be "@" or a package scope like "@org"`)
+      }
+      if (rawCreds === null || typeof rawCreds !== 'object' || Array.isArray(rawCreds)) {
+        throw new PnpmError('INVALID_AUTH_SETTING', `${source}[${registry.label}][${JSON.stringify(scope)}] must be an auth object`)
+      }
+      const token = jsonAuthToken(rawCreds as Record<string, unknown>, registry, scope, source)
+      auth[`${registry.nerfed}:${scope === '@' ? '' : `${scope}:`}_authToken`] = token
+      // Infer a registry route from the same entry (see JsonAuthResult.registries).
+      // Last write wins on a duplicate scope, matching yaml/CLI.
+      registries[scope === '@' ? 'default' : scope] = registry.normalized
+    }
+  }
+  return { auth, registries }
+}
+
+/** Parse `_auth` from the global pnpm config yaml (already a parsed object). */
+function readGlobalConfigAuth (globalConfigAuth: unknown): JsonAuthResult {
+  if (globalConfigAuth == null) return { auth: {}, registries: {} }
+  return parseJsonAuth(globalConfigAuth, '_auth')
+}
+
+interface JsonAuthRegistry {
+  label: string
+  nerfed: string
+  normalized: string
+}
+
+function parseJsonAuthRegistry (url: string, entryNumber: number, source: string): JsonAuthRegistry {
+  const label = jsonAuthRegistryLabel(url, entryNumber)
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    throw new PnpmError('INVALID_AUTH_SETTING', `${source}[${label}]: key must be an http(s) registry URL`)
+  }
+  if ((parsed.protocol !== 'https:' && parsed.protocol !== 'http:') || parsed.hostname === '') {
+    throw new PnpmError('INVALID_AUTH_SETTING', `${source}[${label}]: key must be an http(s) registry URL`)
+  }
+  if (parsed.username !== '' || parsed.password !== '' || parsed.search !== '' || parsed.hash !== '') {
+    throw new PnpmError('INVALID_AUTH_SETTING', `${source}[${label}]: registry URL must not include credentials, query, or fragment`)
+  }
+
+  const normalized = normalizeRegistryUrl(parsed.href)
+  const nerfed = nerfDart(normalized)
+  if (nerfed === '') {
+    throw new PnpmError('INVALID_AUTH_SETTING', `${source}[${label}]: key must be an http(s) registry URL`)
+  }
+  return { label, nerfed, normalized }
+}
+
+function jsonAuthRegistryLabel (url: string, entryNumber: number): string {
+  const entryLabel = `entry ${entryNumber}`
+  try {
+    const parsed = new URL(url)
+    if ((parsed.protocol === 'https:' || parsed.protocol === 'http:') && parsed.hostname !== '') {
+      return `${entryLabel} (${parsed.protocol}//${parsed.host})`
+    }
+  } catch {}
+  return entryLabel
+}
+
+function readJsonAuthEnvValue (env: Record<string, string | undefined>): string | undefined {
+  return env.pnpm_config__auth !== '' && env.pnpm_config__auth != null
+    ? env.pnpm_config__auth
+    : env.PNPM_CONFIG__AUTH !== '' && env.PNPM_CONFIG__AUTH != null
+      ? env.PNPM_CONFIG__AUTH
+      : undefined
+}
+
+function isJsonAuthScope (scope: string): boolean {
+  return scope === '@' || (scope.startsWith('@') && scope.length > 1 && !scope.includes('/') && !scope.includes(':'))
+}
+
+// Validate one scope's credentials and return its `authToken`. Only
+// `authToken` is supported — the deprecated `basicAuth` / `username` +
+// `password` forms (any other field) are rejected, as is a missing or
+// non-string token.
+function jsonAuthToken (
+  creds: Record<string, unknown>,
+  registry: JsonAuthRegistry,
+  scope: string,
+  source: string
+): string {
+  for (const field of Object.keys(creds)) {
+    if (field !== 'authToken') {
+      throw new PnpmError('INVALID_AUTH_SETTING', `${source}[${registry.label}][${JSON.stringify(scope)}][${JSON.stringify(field)}]: unsupported auth field (only "authToken" is supported)`)
+    }
+  }
+  const token = creds.authToken
+  if (typeof token !== 'string') {
+    throw new PnpmError('INVALID_AUTH_SETTING', `${source}[${registry.label}][${JSON.stringify(scope)}]: "authToken" must be a string`)
+  }
+  return token
 }
 
 // Per-registry rc keys that, when written without a `//host/` prefix, fall

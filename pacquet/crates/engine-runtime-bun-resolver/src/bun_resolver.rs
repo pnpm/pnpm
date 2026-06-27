@@ -75,6 +75,7 @@ impl BunResolver {
         let Some(version_spec) = bare_runtime_spec(wanted_dependency, "bun") else {
             return Ok(None);
         };
+        let version_spec = normalize_runtime_spec(version_spec);
 
         let npm_result = self
             .npm_resolver
@@ -127,7 +128,8 @@ impl BunResolver {
             return Ok(None);
         };
         let version_spec =
-            if query.compatible { manifest_spec.to_string() } else { "latest".to_string() };
+            if query.compatible { normalize_runtime_spec(manifest_spec) } else { "latest" }
+                .to_string();
         let mut resolve_opts = opts.clone();
         if !query.compatible {
             resolve_opts.update = UpdateBehavior::Latest;
@@ -170,6 +172,11 @@ fn bare_runtime_spec<'a>(wanted: &'a WantedDependency, expected_alias: &str) -> 
         return None;
     }
     wanted.bare_specifier.as_deref().and_then(|spec| spec.strip_prefix(BARE_SPEC_PREFIX))
+}
+
+fn normalize_runtime_spec(version_spec: &str) -> &str {
+    let version_spec = version_spec.trim();
+    if version_spec.is_empty() { "latest" } else { version_spec }
 }
 
 fn bun_bin_for_current_os(platform: &str) -> &'static str {

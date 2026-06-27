@@ -6,9 +6,12 @@ mod retry;
 mod tests;
 mod tls;
 
-pub use auth::{AuthHeaders, AuthHeadersByScope, DEFAULT_REGISTRY_SCOPE, base64_encode, nerf_dart};
+pub use auth::{
+    AuthHeaders, AuthHeadersByScope, DEFAULT_REGISTRY_SCOPE, base64_encode, nerf_dart,
+    redact_url_credentials,
+};
 pub use proxy::{NoProxySetting, ProxyConfig, ProxyError};
-pub use retry::{RetryOpts, send_with_retry, should_retry_status};
+pub use retry::{RetryOpts, retry_async, send_with_retry, should_retry_status};
 pub use tls::{PerRegistryTls, RegistryTls, TlsConfig, TlsError};
 
 use priority_semaphore::{Permit, PrioritySemaphore};
@@ -27,10 +30,10 @@ use std::{collections::HashMap, num::NonZeroUsize, ops::Deref, sync::Arc, time::
 ///
 /// Production installs override this with the value resolved by
 /// `pacquet-config` (`userAgent`, defaulting to pnpm's
-/// `pnpm/pacquet-<version> npm/? node/? <platform> <arch>` format — see
-/// `config/reader/src/index.ts`). The `pnpm` token is preserved in
-/// that default so any UA-keyed allow / rate-limit rule that lets pnpm
-/// through also lets pacquet through.
+/// `pnpm/<version> npm/? node/? <platform> <arch>` format — see
+/// `config/reader/src/index.ts`). The leading `pnpm` token matches the
+/// TypeScript CLI exactly, so any UA-keyed allow / rate-limit rule that
+/// lets pnpm through also lets this build through.
 ///
 /// A default `reqwest::Client` sends *no* User-Agent at all, which
 /// some registry CDNs and corporate WAFs treat as a bot signature and

@@ -6,7 +6,7 @@
 //!
 //! * `GET /-/pnpr` — capability handshake; advertises the supported
 //!   protocol versions so a client can negotiate or fail fast.
-//! * `POST /v1/resolve` — resolve a project **against the registries
+//! * `POST /-/pnpr/v0/resolve` — resolve a project **against the registries
 //!   the client sends** (so the server uses the same source of truth as
 //!   the client), verify the client's input lockfile under the client's
 //!   policy, and **stream** the result back as NDJSON: one `package`
@@ -17,7 +17,7 @@
 //!   ([pnpm/pnpm#12234](https://github.com/pnpm/pnpm/issues/12234)),
 //!   then fetches the rest in parallel like a normal install
 //!   ([pnpm/pnpm#12230](https://github.com/pnpm/pnpm/issues/12230)).
-//! * `POST /v1/verify-lockfile` — verify an already-fresh client
+//! * `POST /-/pnpr/v0/verify-lockfile` — verify an already-fresh client
 //!   lockfile under the same policy without resolving. A frozen restore
 //!   can start local fetch/materialization immediately and only use this
 //!   endpoint as the trust verdict.
@@ -46,7 +46,7 @@ mod verdict_cache;
 
 use std::{
     collections::HashMap,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex, OnceLock},
     time::{Duration, Instant},
 };
@@ -98,8 +98,9 @@ pub(crate) struct Resolver {
     resolution_cache: Arc<Mutex<HashMap<String, CachedResolution>>>,
     resolution_cache_ttl: Duration,
     /// One leaked `Config` per distinct client registry configuration,
-    /// keyed by its canonical JSON. Bounds the leak to the number of
-    /// distinct client setups the server sees (typically one).
+    /// keyed by its canonical JSON. Capped at [`MAX_INTERNED_CONFIGS`] so a
+    /// caller varying its registry/policy fields can't grow the leak
+    /// without bound; see [`intern_config`].
     configs: Mutex<HashMap<String, &'static PacquetConfig>>,
     /// SQLite-backed whole-lockfile verification verdict cache. `None`
     /// only if the database couldn't be opened — verification then runs
@@ -147,59 +148,130 @@ impl Resolver {
     /// registry configuration. Pacquet's install path resolves against
     /// `config.registry` / `named_registries` / `overrides`, so a request
     /// from a client with a different registry setup gets its own Config.
-    fn config_for(&self, request: &ResolveRequest) -> &'static PacquetConfig {
-        let registry =
-            request.registry.clone().unwrap_or_else(|| "https://registry.npmjs.org/".to_string());
-        let registry = if registry.ends_with('/') { registry } else { format!("{registry}/") };
-        let overrides: Option<IndexMap<String, String>> =
-            request.overrides.as_ref().and_then(|value| serde_json::from_value(value.clone()).ok());
-
-        let key = serde_json::json!({
-            "registry": registry,
-            "namedRegistries": request.named_registries,
-            "overrides": overrides,
-            "minimumReleaseAge": request.minimum_release_age,
-            "minimumReleaseAgeExclude": request.minimum_release_age_exclude,
-            "minimumReleaseAgeIgnoreMissingTime": request.minimum_release_age_ignore_missing_time,
-            "trustPolicy": request.trust_policy,
-            "trustPolicyExclude": request.trust_policy_exclude,
-            "trustPolicyIgnoreAfter": request.trust_policy_ignore_after,
-        })
-        .to_string();
-
-        let mut configs = self.configs.lock().expect("config cache poisoned");
-        if let Some(config) = configs.get(&key) {
-            return config;
-        }
-
-        let mut config = PacquetConfig::new();
-        config.store_dir = self.store_dir.clone();
-        config.cache_dir.clone_from(&self.cache_dir);
-        config.registry = registry;
-        config.named_registries = request.named_registries.clone();
-        config.overrides = overrides;
-        config.modules_dir = PathBuf::from("node_modules");
-        config.lockfile = true;
-        config.verify_store_integrity = true;
-        // The client's verification policy drives both the input-lockfile
-        // verifier and the resolver's pick-time `minimumReleaseAge` /
-        // `trustPolicy` checks, so newly-resolved entries are held to the
-        // same policy as the reused ones.
-        config.minimum_release_age = request.minimum_release_age;
-        config.minimum_release_age_exclude.clone_from(&request.minimum_release_age_exclude);
-        if let Some(ignore_missing_time) = request.minimum_release_age_ignore_missing_time {
-            config.minimum_release_age_ignore_missing_time = ignore_missing_time;
-        }
-        config.trust_policy = request.trust_policy;
-        config.trust_policy_exclude.clone_from(&request.trust_policy_exclude);
-        config.trust_policy_ignore_after = request.trust_policy_ignore_after;
-        let config: &'static PacquetConfig = config.leak();
-        configs.insert(key, config);
-        config
+    ///
+    /// `None` once [`MAX_INTERNED_CONFIGS`] distinct configurations have
+    /// been interned — see [`intern_config`].
+    fn config_for(&self, request: &ResolveRequest) -> Option<&'static PacquetConfig> {
+        intern_config(
+            &self.configs,
+            &self.store_dir,
+            &self.cache_dir,
+            request,
+            MAX_INTERNED_CONFIGS,
+            MAX_CONFIG_KEY_BYTES,
+        )
     }
 }
 
-/// Handle `POST /v1/resolve`: verify the client's input lockfile under
+/// Hard cap on how many distinct client configurations the server will
+/// intern. Each interned [`PacquetConfig`] is leaked (the install path
+/// requires a `&'static Config`), so without a cap an authenticated
+/// caller could exhaust memory by varying its registry/policy fields on
+/// every request. `1024` is far above the handful of distinct setups a
+/// real fleet produces (typically one), matching
+/// [`MAX_RESOLUTION_CACHE_ENTRIES`].
+const MAX_INTERNED_CONFIGS: usize = 1024;
+
+/// Returned (as a `503`) when [`MAX_INTERNED_CONFIGS`] is reached. The
+/// limit resets on restart and a real client reuses one configuration, so
+/// a legitimate caller never sees it.
+const TOO_MANY_CONFIGS_MESSAGE: &str = "too many distinct registry configurations";
+
+/// Hard cap on the byte size of a single interned config's canonical key,
+/// which carries its attacker-controlled `registry` / `namedRegistries` /
+/// `overrides` content. [`MAX_INTERNED_CONFIGS`] bounds only the *count* of
+/// leaked configs; without this a caller could pad each distinct config with
+/// a giant overrides/named-registries map and still amplify the per-request
+/// leak (the whole request body is allowed up to the publish-sized limit).
+/// `128 KiB` is far above any real registry/overrides configuration.
+const MAX_CONFIG_KEY_BYTES: usize = 128 * 1024;
+
+/// Build + leak a `&'static Config` for a request's registry
+/// configuration, interned by its canonical JSON so repeat requests reuse
+/// it. Returns `None` when the config can't be safely interned:
+///
+/// * once `max_interned` distinct configurations have been interned — a
+///   leaked config can never be reclaimed, so refusing to leak more is the
+///   only real bound on the per-request leak (eviction would just let the
+///   same key be re-leaked); or
+/// * when a single config's canonical key exceeds `max_key_bytes`, which
+///   bounds the *size* of each leaked config so a caller can't amplify the
+///   leak with a giant `overrides` / `namedRegistries` map.
+///
+/// Both caps are generous enough that legitimate clients (which reuse one
+/// small configuration) never hit them.
+fn intern_config(
+    configs: &Mutex<HashMap<String, &'static PacquetConfig>>,
+    store_dir: &StoreDir,
+    cache_dir: &Path,
+    request: &ResolveRequest,
+    max_interned: usize,
+    max_key_bytes: usize,
+) -> Option<&'static PacquetConfig> {
+    let registry =
+        request.registry.clone().unwrap_or_else(|| "https://registry.npmjs.org/".to_string());
+    let registry = if registry.ends_with('/') { registry } else { format!("{registry}/") };
+    let overrides: Option<IndexMap<String, String>> =
+        request.overrides.as_ref().and_then(|value| serde_json::from_value(value.clone()).ok());
+    // Key on a sorted view of `overrides`: serde_json preserves insertion order
+    // and `IndexMap` is insertion-ordered, so the same overrides sent with a
+    // different key order would otherwise hash to distinct cache keys and intern
+    // duplicate leaked configs — defeating dedup and burning the cap faster.
+    let overrides_key: Option<std::collections::BTreeMap<&str, &str>> = overrides
+        .as_ref()
+        .map(|overrides| overrides.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect());
+
+    let key = serde_json::json!({
+        "registry": registry,
+        "namedRegistries": request.named_registries,
+        "overrides": overrides_key,
+        "minimumReleaseAge": request.minimum_release_age,
+        "minimumReleaseAgeExclude": request.minimum_release_age_exclude,
+        "minimumReleaseAgeIgnoreMissingTime": request.minimum_release_age_ignore_missing_time,
+        "trustPolicy": request.trust_policy,
+        "trustPolicyExclude": request.trust_policy_exclude,
+        "trustPolicyIgnoreAfter": request.trust_policy_ignore_after,
+    })
+    .to_string();
+    if key.len() > max_key_bytes {
+        return None;
+    }
+
+    let mut configs = configs.lock().expect("config cache poisoned");
+    if let Some(config) = configs.get(&key) {
+        return Some(config);
+    }
+    if configs.len() >= max_interned {
+        return None;
+    }
+
+    let mut config = PacquetConfig::new();
+    config.store_dir = store_dir.clone();
+    config.cache_dir = cache_dir.to_path_buf();
+    config.registry = registry;
+    config.named_registries = request.named_registries.clone();
+    config.overrides = overrides;
+    config.modules_dir = PathBuf::from("node_modules");
+    config.lockfile = true;
+    config.verify_store_integrity = true;
+    // The client's verification policy drives both the input-lockfile
+    // verifier and the resolver's pick-time `minimumReleaseAge` /
+    // `trustPolicy` checks, so newly-resolved entries are held to the
+    // same policy as the reused ones.
+    config.minimum_release_age = request.minimum_release_age;
+    config.minimum_release_age_exclude.clone_from(&request.minimum_release_age_exclude);
+    if let Some(ignore_missing_time) = request.minimum_release_age_ignore_missing_time {
+        config.minimum_release_age_ignore_missing_time = ignore_missing_time;
+    }
+    config.trust_policy = request.trust_policy;
+    config.trust_policy_exclude.clone_from(&request.trust_policy_exclude);
+    config.trust_policy_ignore_after = request.trust_policy_ignore_after;
+    let config: &'static PacquetConfig = config.leak();
+    configs.insert(key, config);
+    Some(config)
+}
+
+/// Handle `POST /-/pnpr/v0/resolve`: verify the client's input lockfile under
 /// the client's policy, resolve against the client's registries, and
 /// stream the result back as NDJSON.
 ///
@@ -220,7 +292,9 @@ pub(crate) async fn handle_resolve(runtime: &Resolver, body: Bytes) -> Response 
     };
 
     // Resolve against the client's registries, not the server's own.
-    let config = runtime.config_for(&request);
+    let Some(config) = runtime.config_for(&request) else {
+        return json_error(StatusCode::SERVICE_UNAVAILABLE, TOO_MANY_CONFIGS_MESSAGE);
+    };
     let package_version_guard =
         runtime.osv_index.as_ref().map(|index| Arc::clone(index) as Arc<dyn PackageVersionGuard>);
 
@@ -322,7 +396,7 @@ pub(crate) async fn handle_resolve(runtime: &Resolver, body: Bytes) -> Response 
     ndjson_stream_response(rx)
 }
 
-/// Handle `POST /v1/verify-lockfile`: verify the client's input
+/// Handle `POST /-/pnpr/v0/verify-lockfile`: verify the client's input
 /// lockfile under the client's policy, returning only a terminal NDJSON
 /// verdict frame. The client already knows the lockfile is fresh for
 /// the current manifests, so this endpoint deliberately does not
@@ -341,11 +415,13 @@ pub(crate) async fn handle_verify_lockfile(runtime: &Resolver, body: Bytes) -> R
         return verify_done_or_osv_violations(runtime.osv_index.as_ref(), input_lockfile);
     }
 
-    let config = runtime.config_for(&request);
+    let Some(config) = runtime.config_for(&request) else {
+        return json_error(StatusCode::SERVICE_UNAVAILABLE, TOO_MANY_CONFIGS_MESSAGE);
+    };
     let request_auth = Arc::new(AuthHeaders::from_by_scope(request.auth_headers.clone()));
 
     match verify_input_lockfile(runtime, config, &request_auth, input_lockfile).await {
-        // The dist stats the verifier observed feed `/v1/resolve`'s sized
+        // The dist stats the verifier observed feed `/-/pnpr/v0/resolve`'s sized
         // `package` frames; this endpoint's client prefetches from its own
         // lockfile before the verdict arrives, so only the verdict is sent.
         Ok(_) => verify_done_or_osv_violations(runtime.osv_index.as_ref(), input_lockfile),
@@ -435,7 +511,7 @@ fn resolution_cache_key(config: &PacquetConfig, request: &ResolveRequest) -> Opt
     Some(format!("{:x}", hasher.finalize()))
 }
 
-/// NDJSON content type for the `/v1/resolve` response. One JSON object
+/// NDJSON content type for the `/-/pnpr/v0/resolve` response. One JSON object
 /// per line; the client parses frames as they arrive. Excluded from the
 /// server's gzip [`CompressionLayer`](crate::server) so frames flush to
 /// the client incrementally rather than being buffered by the encoder.
@@ -795,7 +871,15 @@ async fn verify_input_lockfile(
         return Ok(None);
     }
 
-    let violations = collect_resolution_policy_violations(lockfile, &verifiers, None).await;
+    // A transport failure verifying an entry (the upstream registry couldn't be
+    // reached/authorized) is a gateway error, not a policy violation — surface
+    // the registry's own (credential-redacted) message to the client.
+    let violations = match collect_resolution_policy_violations(lockfile, &verifiers, None).await {
+        Ok(violations) => violations,
+        Err(message) => {
+            return Err(VerifyFailure::Internal(json_error(StatusCode::BAD_GATEWAY, &message)));
+        }
+    };
     let osv_violations = runtime
         .osv_index
         .as_ref()

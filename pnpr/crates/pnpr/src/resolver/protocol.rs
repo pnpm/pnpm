@@ -27,7 +27,7 @@ fn root_dir() -> String {
     ".".to_string()
 }
 
-/// Body of `POST /v1/resolve`. The registry fields carry the *client's*
+/// Body of `POST /-/pnpr/v0/resolve`. The registry fields carry the *client's*
 /// resolution configuration so the server resolves against the same
 /// registries the client would, and the policy fields carry the
 /// client's verification policy so the server verifies the input

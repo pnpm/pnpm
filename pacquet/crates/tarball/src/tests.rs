@@ -1,8 +1,10 @@
 use super::{
-    DownloadTarballToStore, HttpStatusError, MemCache, NetworkError, PrefetchedCasPaths, RetryOpts,
-    SharedReportedProgressKeys, TarballError, VerifyChecksumError, allocate_tarball_buffer,
-    download_priority, extract_tarball_entries, extract_zip_entries, fetch_and_extract_with_retry,
-    is_transient_error, normalize_bundled_manifest, prefetch_cas_paths,
+    DownloadTarballToStore, FetchTarballForResolution, HttpStatusError, MemCache, NetworkError,
+    PrefetchedCasPaths, RetryOpts, SharedReportedProgressKeys, TarballError, VerifyChecksumError,
+    allocate_local_tarball_buffer, allocate_tarball_buffer, download_priority,
+    extract_tarball_entries, extract_zip_entries, fetch_and_extract_with_retry, is_transient_error,
+    local_file_tarball_path, normalize_bundled_manifest, open_local_tarball, prefetch_cas_paths,
+    read_local_tarball_buffer,
 };
 use pacquet_network::{AuthHeaders, ThrottledClient, UNPRIORITIZED};
 use pacquet_reporter::SilentReporter;
@@ -13,7 +15,13 @@ use pacquet_store_dir::{
 use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 use ssri::Integrity;
-use std::{collections::HashMap, io::Cursor, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    io::{Cursor, ErrorKind},
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
 use tempfile::{TempDir, tempdir};
 
 fn integrity(integrity_str: &str) -> Integrity {
@@ -1167,6 +1175,115 @@ fn fast_retry_opts() -> RetryOpts {
     }
 }
 
+#[test]
+fn local_file_tarball_path_rejects_hosted_file_urls() {
+    assert_eq!(local_file_tarball_path("file://server/share/pkg.tgz"), None);
+}
+
+#[test]
+fn local_file_tarball_path_rejects_unc_like_fallback_paths() {
+    assert_eq!(local_file_tarball_path("file:////server/share/pkg.tgz"), None);
+    assert_eq!(local_file_tarball_path(r"file:\\server\share\pkg.tgz"), None);
+}
+
+#[test]
+fn local_file_tarball_path_accepts_relative_file_specs() {
+    assert_eq!(
+        local_file_tarball_path("file:../vendor/pkg.tgz"),
+        Some(PathBuf::from("../vendor/pkg.tgz")),
+    );
+}
+
+#[test]
+fn allocate_local_tarball_buffer_rejects_absurd_size_as_local_read_error() {
+    let path = Path::new("pkg.tgz");
+    let err = allocate_local_tarball_buffer(path, "file:pkg.tgz", u64::MAX)
+        .expect_err("local oversized tarballs should fail before reading");
+    match err {
+        TarballError::ReadLocalTarball { path: got_path, source } => {
+            assert_eq!(got_path, path);
+            assert_eq!(source.kind(), ErrorKind::InvalidData);
+            assert!(source.to_string().contains("too large"), "got: {source}");
+        }
+        other => panic!("expected ReadLocalTarball, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn open_local_tarball_rejects_directories() {
+    let local_dir = tempdir().unwrap();
+    let err = open_local_tarball(local_dir.path())
+        .await
+        .expect_err("local tarballs must be regular files");
+    match err {
+        TarballError::ReadLocalTarball { path, source } => {
+            assert_eq!(path, local_dir.path());
+            assert_eq!(source.kind(), ErrorKind::InvalidInput);
+            assert!(source.to_string().contains("regular file"), "got: {source}");
+        }
+        other => panic!("expected ReadLocalTarball, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn read_local_tarball_buffer_rejects_growth_past_checked_size() {
+    let local_dir = tempdir().unwrap();
+    let tarball_path = local_dir.path().join("pkg.tgz");
+    std::fs::write(&tarball_path, b"abcd").unwrap();
+    let file = tokio::fs::File::open(&tarball_path).await.unwrap();
+
+    let err = read_local_tarball_buffer(file, &tarball_path, "file:pkg.tgz", 3)
+        .await
+        .expect_err("local tarball reads must be capped at the checked size");
+    match err {
+        TarballError::ReadLocalTarball { path, source } => {
+            assert_eq!(path, tarball_path);
+            assert_eq!(source.kind(), ErrorKind::InvalidData);
+            assert!(source.to_string().contains("changed while reading"), "got: {source}");
+        }
+        other => panic!("expected ReadLocalTarball, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn run_without_mem_cache_reads_local_file_tarball() {
+    let local_dir = tempdir().unwrap();
+    let tarball_path = local_dir.path().join("pkg.tgz");
+    std::fs::write(&tarball_path, FASTIFY_ERROR_TARBALL).unwrap();
+
+    let (store_dir, store_path) = tempdir_with_leaked_path();
+    let package_url = format!("file:{}", tarball_path.display());
+    let client = fast_fail_client();
+    let package_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
+    let cas_paths = DownloadTarballToStore {
+        http_client: &client,
+        store_dir: store_path,
+        store_index: None,
+        store_index_writer: None,
+        verify_store_integrity: true,
+        package_integrity: &package_integrity,
+        package_unpacked_size: Some(16697),
+        package_file_count: None,
+        package_url: &package_url,
+        package_id: "@fastify/error@3.3.0",
+        requester: "",
+        prefetched_cas_paths: None,
+        verified_files_cache: SharedVerifiedFilesCache::default(),
+        retry_opts: test_retry_opts(),
+        auth_headers: &AuthHeaders::default(),
+        ignore_file_pattern: None,
+        offline: true,
+        progress_reported: None,
+    }
+    .run_without_mem_cache::<SilentReporter>()
+    .await
+    .expect("local tarballs should be read from disk without network access");
+
+    assert!(cas_paths.contains_key("package.json"));
+
+    drop((store_dir, local_dir));
+}
+
 #[tokio::test]
 async fn retries_then_succeeds_on_transient_5xx() {
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
@@ -1246,6 +1363,81 @@ async fn retries_integrity_mismatch_until_exhausted() {
     .await
     .expect_err("integrity mismatch should exhaust the retry budget");
     assert!(matches!(err, TarballError::Checksum(_)), "expected Checksum error, got {err:?}");
+    mock.assert_async().await;
+    drop(store_dir_keep);
+}
+
+/// Integrity-less tarball resolutions must be completed from the
+/// downloaded bytes before they are written to the lockfile.
+#[tokio::test]
+async fn fetch_for_resolution_computes_integrity_when_none_is_expected() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(200)
+        .with_body(FASTIFY_ERROR_TARBALL)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let url = format!("{}/pkg.tgz", server.url());
+    let client = ThrottledClient::default();
+
+    let resolved = FetchTarballForResolution {
+        http_client: &client,
+        store_dir: store_path,
+        store_index_writer: None,
+        package_url: &url,
+        package_id: &url,
+        auth_headers: &AuthHeaders::default(),
+        retry_opts: fast_retry_opts(),
+    }
+    .run::<SilentReporter>(None)
+    .await
+    .expect("a registry that omits integrity should get it computed from the bytes");
+
+    assert_eq!(resolved.integrity, integrity(FASTIFY_ERROR_INTEGRITY));
+    mock.assert_async().await;
+    drop(store_dir_keep);
+}
+
+/// `FetchTarballForResolution` must forward its `package_id` (the package's
+/// `name@version`) for auth/scope selection, so a private scoped registry tarball
+/// resolves its scope token while its integrity is computed during resolution.
+#[tokio::test]
+async fn fetch_for_resolution_uses_package_id_for_scoped_auth() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/pkg.tgz")
+        .match_header("authorization", "Bearer scoped-token")
+        .with_status(200)
+        .with_body(FASTIFY_ERROR_TARBALL)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let url = format!("{}/pkg.tgz", server.url());
+    let client = ThrottledClient::default();
+    let registry_key = format!("{}@scope", pacquet_network::nerf_dart(&server.url()));
+    let auth_headers =
+        AuthHeaders::from_creds_map([(registry_key, "Bearer scoped-token".to_owned())], None);
+
+    let resolved = FetchTarballForResolution {
+        http_client: &client,
+        store_dir: store_path,
+        store_index_writer: None,
+        package_url: &url,
+        package_id: "@scope/test-pkg@1.0.0",
+        auth_headers: &auth_headers,
+        retry_opts: fast_retry_opts(),
+    }
+    .run::<SilentReporter>(None)
+    .await
+    .expect("the scope token selected via package_id should let the fetch succeed");
+
+    assert_eq!(resolved.integrity, integrity(FASTIFY_ERROR_INTEGRITY));
     mock.assert_async().await;
     drop(store_dir_keep);
 }

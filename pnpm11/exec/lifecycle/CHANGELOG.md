@@ -1,5 +1,17 @@
 # @pnpm/lifecycle
 
+## 1100.1.1
+
+### Patch Changes
+
+- Updated dependencies [bae694f]
+- Updated dependencies [852d537]
+  - @pnpm/store.controller-types@1100.1.6
+  - @pnpm/error@1100.0.1
+  - @pnpm/fetching.directory-fetcher@1100.0.18
+  - @pnpm/bins.linker@1100.0.16
+  - @pnpm/pkg-manifest.reader@1100.0.9
+
 ## 1100.1.0
 
 ### Minor Changes

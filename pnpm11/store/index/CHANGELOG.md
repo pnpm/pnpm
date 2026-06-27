@@ -1,5 +1,12 @@
 # @pnpm/store.index
 
+## 1100.2.1
+
+### Patch Changes
+
+- Updated dependencies [852d537]
+  - @pnpm/error@1100.0.1
+
 ## 1100.2.0
 
 ### Minor Changes

@@ -1,5 +1,26 @@
 # @pnpm/package-requester
 
+## 1102.1.0
+
+### Minor Changes
+
+- bae694f: Some registries generate tarballs on-demand and cannot provide an integrity checksum in their package metadata. In that case pnpm now computes the integrity from the downloaded tarball and stores it in the lockfile, so the entry is verifiable on subsequent installs instead of being written without an integrity (which would fail the next install). This also applies to `--lockfile-only`: the tarball is downloaded so its integrity can be computed. A lockfile entry that is still missing its integrity is rejected as a `ERR_PNPM_MISSING_TARBALL_INTEGRITY` lockfile verification violation (the install fails closed) rather than being silently re-fetched.
+
+### Patch Changes
+
+- Updated dependencies [bae694f]
+- Updated dependencies [852d537]
+  - @pnpm/resolving.resolver-base@1100.5.0
+  - @pnpm/fetching.fetcher-base@1100.2.0
+  - @pnpm/hooks.types@1100.1.0
+  - @pnpm/fetching.pick-fetcher@1100.0.13
+  - @pnpm/store.controller-types@1100.1.6
+  - @pnpm/error@1100.0.1
+  - @pnpm/store.cafs@1100.1.11
+  - @pnpm/config.package-is-installable@1100.0.12
+  - @pnpm/store.index@1100.2.1
+  - @pnpm/worker@1100.2.2
+
 ## 1102.0.0
 
 ### Minor Changes

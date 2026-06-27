@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/releasing.commands",
-  "version": "1100.5.1",
+  "version": "1100.5.2",
   "description": "Commands for deploy, pack, and publish",
   "keywords": [
     "pnpm",
@@ -69,6 +69,7 @@
     "ci-info": "catalog:",
     "detect-libc": "catalog:",
     "execa": "catalog:",
+    "is-subdir": "catalog:",
     "libnpmpublish": "catalog:",
     "normalize-path": "catalog:",
     "normalize-registry-url": "catalog:",

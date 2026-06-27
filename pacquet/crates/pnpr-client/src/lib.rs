@@ -1,6 +1,6 @@
 //! Client for pnpr's server-side resolver.
 //!
-//! Given a set of dependencies, it `POST`s them to `/v1/resolve`, where
+//! Given a set of dependencies, it `POST`s them to `/-/pnpr/v0/resolve`, where
 //! the server resolves against the client's registries, verifies the
 //! input lockfile under the client's policy, and streams the result back
 //! as NDJSON: one `package` frame per resolved tarball as the server's
@@ -83,7 +83,7 @@ pub struct ResolveOptions {
     pub trust_policy_ignore_after: Option<u64>,
 }
 
-/// Inputs for `/v1/verify-lockfile`, the resolution-free trust verdict
+/// Inputs for `/-/pnpr/v0/verify-lockfile`, the resolution-free trust verdict
 /// used by frozen restores that already know the local lockfile is fresh.
 #[derive(Clone)]
 pub struct VerifyLockfileOptions {
@@ -189,8 +189,8 @@ pub enum PnprClientError {
 }
 
 /// Protocol version this client speaks. The server advertises the
-/// versions it supports at `GET /-/pnpr`; today only v1 exists.
-const PROTOCOL_VERSION: u32 = 1;
+/// versions it supports at `GET /-/pnpr`; today only v0 exists.
+const PROTOCOL_VERSION: u32 = 0;
 
 #[derive(Default, Deserialize)]
 struct HandshakeResponse {
@@ -267,7 +267,7 @@ impl PnprClient {
         });
 
         let mut post =
-            self.http.post(format!("{}v1/verify-lockfile", self.base_url)).json(&request);
+            self.http.post(format!("{}-/pnpr/v0/verify-lockfile", self.base_url)).json(&request);
         if let Some(authorization) = opts.authorization.as_deref() {
             post = post.header("authorization", authorization);
         }
@@ -276,7 +276,7 @@ impl PnprClient {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
             return Err(PnprClientError::Server(format!(
-                "/v1/verify-lockfile returned {status}: {body}",
+                "/-/pnpr/v0/verify-lockfile returned {status}: {body}",
             )));
         }
 
@@ -303,7 +303,7 @@ impl PnprClient {
         }
 
         Err(PnprClientError::Protocol(
-            "/v1/verify-lockfile stream ended without a terminal frame".to_string(),
+            "/-/pnpr/v0/verify-lockfile stream ended without a terminal frame".to_string(),
         ))
     }
 
@@ -341,7 +341,7 @@ impl PnprClient {
             "trustPolicyIgnoreAfter": opts.trust_policy_ignore_after,
         });
 
-        let mut post = self.http.post(format!("{}v1/resolve", self.base_url)).json(&request);
+        let mut post = self.http.post(format!("{}-/pnpr/v0/resolve", self.base_url)).json(&request);
         if let Some(authorization) = opts.authorization.as_deref() {
             post = post.header("authorization", authorization);
         }
@@ -349,7 +349,9 @@ impl PnprClient {
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            return Err(PnprClientError::Server(format!("/v1/resolve returned {status}: {body}")));
+            return Err(PnprClientError::Server(format!(
+                "/-/pnpr/v0/resolve returned {status}: {body}",
+            )));
         }
 
         // Consume the NDJSON stream line by line. `package` frames feed
@@ -398,7 +400,7 @@ impl PnprClient {
             }
         }
         Err(PnprClientError::Protocol(
-            "/v1/resolve stream ended without a terminal frame".to_string(),
+            "/-/pnpr/v0/resolve stream ended without a terminal frame".to_string(),
         ))
     }
 }
@@ -411,7 +413,7 @@ fn parse_verify_frame(line: &[u8]) -> Result<VerifyFrame, PnprClientError> {
     serde_json::from_slice(line).map_err(|err| PnprClientError::Protocol(err.to_string()))
 }
 
-/// One NDJSON frame from `/v1/resolve`. `package` frames stream as the
+/// One NDJSON frame from `/-/pnpr/v0/resolve`. `package` frames stream as the
 /// server resolves; exactly one terminal frame (`done` / `error` /
 /// `violations`) closes the response.
 #[derive(Deserialize)]

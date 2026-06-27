@@ -7,11 +7,12 @@ use miette::Diagnostic;
 use pacquet_config::{Config, NodeLinker};
 use pacquet_directory_fetcher::DirectoryFetcherError;
 use pacquet_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
+use pacquet_fs::lexical_normalize;
 use pacquet_git_fetcher::{GitFetchOutput, GitFetcher, GitFetcherError, GitHostedTarballFetcher};
 use pacquet_graph_hasher::{host_arch, host_libc, host_platform};
 use pacquet_lockfile::{
-    BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PackageKey, PackageMetadata,
-    PlatformSelector, SnapshotEntry, select_platform_variant,
+    BinaryArchive, BinaryResolution, BinarySpec, DirectoryResolution, LockfileResolution,
+    PackageKey, PackageMetadata, PlatformSelector, SnapshotEntry, select_platform_variant,
 };
 use pacquet_network::ThrottledClient;
 use pacquet_reporter::{LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter};
@@ -294,6 +295,7 @@ impl InstallPackageBySnapshot<'_> {
             LockfileResolution::Tarball(_) | LockfileResolution::Registry(_) => {
                 let (tarball_url, integrity) =
                     tarball_url_and_integrity(&metadata.resolution, package_key, config)?;
+                let tarball_url = local_file_tarball_install_url(tarball_url, self.workspace_root);
                 let download = DownloadTarballToStore {
                     http_client,
                     store_dir: &config.store_dir,
@@ -419,15 +421,7 @@ impl InstallPackageBySnapshot<'_> {
                 // follow-up; see the `resolveSymlinksInInjectedDirs`
                 // / `includeOnlyPackageFiles` plumbing tracked in the
                 // directory-fetcher PR description.
-                let directory = workspace_root.join(&dir_resolution.directory);
-                let output = pacquet_directory_fetcher::DirectoryFetcher {
-                    directory,
-                    include_only_package_files: false,
-                    resolve_symlinks: false,
-                }
-                .run()
-                .map_err(InstallPackageBySnapshotError::DirectoryFetch)?;
-                output.files_map
+                fetch_directory_resolution(workspace_root, dir_resolution)?
             }
             // Runtime artifacts (Node.js / Bun / Deno) — `Binary`
             // and `Variations` carry a `BinaryResolution` describing
@@ -572,6 +566,35 @@ impl InstallPackageBySnapshot<'_> {
 
         Ok(cas_paths)
     }
+}
+
+fn fetch_directory_resolution(
+    workspace_root: &Path,
+    dir_resolution: &DirectoryResolution,
+) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
+    let directory = workspace_root.join(&dir_resolution.directory);
+    let output = pacquet_directory_fetcher::DirectoryFetcher {
+        directory,
+        include_only_package_files: false,
+        resolve_symlinks: false,
+        allow_path_escape: false,
+    }
+    .run()
+    .map_err(InstallPackageBySnapshotError::DirectoryFetch)?;
+    Ok(output.files_map)
+}
+
+fn local_file_tarball_install_url<'a>(
+    tarball_url: Cow<'a, str>,
+    workspace_root: &Path,
+) -> Cow<'a, str> {
+    let Some(path) = tarball_url.strip_prefix("file:") else {
+        return tarball_url;
+    };
+    if path.starts_with("//") || Path::new(path).is_absolute() {
+        return tarball_url;
+    }
+    Cow::Owned(format!("file:{}", lexical_normalize(&workspace_root.join(path)).display()))
 }
 
 /// Resolve the tarball URL + integrity for tarball- and registry-shaped

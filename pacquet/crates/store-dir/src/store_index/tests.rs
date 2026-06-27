@@ -1,6 +1,6 @@
 use super::{
-    CafsFileInfo, GET_MANY_CHUNK, PackageFilesIndex, StoreIndex, git_hosted_store_index_key,
-    immutable_sqlite_uri, pick_store_index_key, store_index_key,
+    CafsFileInfo, GET_MANY_CHUNK, PackageFilesIndex, StoreIndex, StoreIndexError,
+    git_hosted_store_index_key, immutable_sqlite_uri, pick_store_index_key, store_index_key,
 };
 use crate::StoreDir;
 use pretty_assertions::assert_eq;
@@ -115,6 +115,26 @@ fn get_returns_none_for_missing_key() {
     let idx = StoreIndex::open(dir.path()).unwrap();
     assert!(idx.get("sha512-never\tnone@0.0.0").unwrap().is_none());
     assert!(!idx.contains_key("sha512-never\tnone@0.0.0").unwrap());
+}
+
+#[test]
+fn get_by_pkg_id_escapes_like_metacharacters() {
+    let dir = tempdir().unwrap();
+    let idx = StoreIndex::open(dir.path()).unwrap();
+    let exact_pkg_id = r"pkg%_\name@1.0.0";
+    let wildcard_neighbor_pkg_id = "pkgXYZname@1.0.0";
+
+    let neighbor_payload = sample_index();
+    idx.set(&store_index_key("sha512-neighbor", wildcard_neighbor_pkg_id), &neighbor_payload)
+        .unwrap();
+
+    assert!(idx.get_by_pkg_id(exact_pkg_id).unwrap().is_none());
+
+    let mut exact_payload = sample_index();
+    exact_payload.algo = "sha512-special".to_string();
+    idx.set(&store_index_key("sha512-exact", exact_pkg_id), &exact_payload).unwrap();
+
+    assert_eq!(idx.get_by_pkg_id(exact_pkg_id).unwrap(), Some(exact_payload));
 }
 
 #[test]
@@ -252,6 +272,30 @@ fn get_many_all_hit_returns_every_row() {
     for key in &keys {
         assert_eq!(out.get(key), Some(&payload));
     }
+}
+
+#[test]
+fn for_each_raw_visits_every_row() {
+    let dir = tempdir().unwrap();
+    let idx = StoreIndex::open(dir.path()).unwrap();
+    let payload = sample_index();
+    let mut keys: Vec<String> =
+        (0..3).map(|index| store_index_key("sha512-x", &format!("pkg{index}@1.0.0"))).collect();
+    for key in &keys {
+        idx.set(key, &payload).unwrap();
+    }
+
+    let mut visited = Vec::new();
+    idx.for_each_raw(|key, data| {
+        assert!(!data.is_empty());
+        visited.push(key);
+        Ok::<(), StoreIndexError>(())
+    })
+    .unwrap();
+
+    keys.sort();
+    visited.sort();
+    assert_eq!(visited, keys);
 }
 
 #[test]

@@ -115,6 +115,42 @@ where
     }
 }
 
+/// The directory-layout version for global installs, appended to the
+/// global packages root. Mirrors pnpm's
+/// [`GLOBAL_LAYOUT_VERSION`](https://github.com/pnpm/pnpm/blob/1819226b51/core/constants/src/index.ts#L10).
+/// Bumping it isolates a new pnpm major's global packages from older ones.
+pub const GLOBAL_LAYOUT_VERSION: &str = "v11";
+
+/// Resolve pnpm's home (data) directory, the root under which global
+/// packages and global bins live.
+///
+/// Mirrors pnpm's
+/// [`getDataDir`](https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/dirs.ts):
+/// `PNPM_HOME` → `XDG_DATA_HOME/pnpm` → `~/Library/pnpm` (macOS) /
+/// `~/.local/share/pnpm` (non-Windows) / `%LOCALAPPDATA%/pnpm` (Windows)
+/// → `~/.pnpm`. Returns `None` only when the home directory cannot be
+/// determined and no env override is set.
+#[must_use]
+pub fn default_pnpm_home_dir<Sys>() -> Option<PathBuf>
+where
+    Sys: EnvVar + GetHomeDir,
+{
+    if let Some(pnpm_home) = Sys::var("PNPM_HOME") {
+        return Some(PathBuf::from(pnpm_home));
+    }
+    if let Some(xdg_data_home) = Sys::var("XDG_DATA_HOME") {
+        return Some(PathBuf::from(xdg_data_home).join("pnpm"));
+    }
+    let home_dir = Sys::home_dir()?;
+    Some(match env::consts::OS {
+        "macos" => home_dir.join("Library/pnpm"),
+        "windows" => Sys::var("LOCALAPPDATA")
+            .map_or_else(|| home_dir.join(".pnpm"), |local| PathBuf::from(local).join("pnpm")),
+        // pnpm treats every non-Windows platform as Unix here.
+        _ => home_dir.join(".local/share/pnpm"),
+    })
+}
+
 pub fn default_modules_dir() -> PathBuf {
     // TODO: find directory with package.json
     env::current_dir().expect("current directory is unavailable").join("node_modules")
@@ -237,11 +273,13 @@ pub fn default_fetch_retry_maxtimeout() -> u64 {
     60_000
 }
 
-/// pacquet's user-facing release version — the same value
-/// `pacquet --version` prints. Single source of truth so the CLI
+/// The CLI's user-facing release version — the same value
+/// `pnpm --version` prints. Single source of truth so the CLI
 /// version string and the default `User-Agent` (`default_user_agent`)
-/// can't drift apart.
-pub const PACQUET_VERSION: &str = "0.2.2";
+/// can't drift apart. The release workflow patches this constant to the
+/// version being published; the committed value tracks the current
+/// pre-release line.
+pub const PACQUET_VERSION: &str = "12.0.0-alpha.0";
 
 pub fn default_fetch_timeout() -> u64 {
     pacquet_network::DEFAULT_FETCH_TIMEOUT_MS
@@ -250,14 +288,14 @@ pub fn default_fetch_timeout() -> u64 {
 /// Default `User-Agent`, mirroring pnpm v11's
 /// [`config/reader/src/index.ts:293`](https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/index.ts#L293)
 /// format `${name}/${version} npm/? node/${nodeVersion} ${platform} ${arch}`.
-/// The `name/version` segment is `pnpm/pacquet-<version>` so registries can
-/// tell pacquet's traffic apart from the TypeScript pnpm CLI. pacquet has no
-/// embedded Node runtime, so the `node/` segment is the `?` placeholder pnpm
-/// already uses for `npm/`. Platform and arch use Node's naming via
+/// The `name/version` segment is `pnpm/<version>`, matching the TypeScript
+/// pnpm CLI exactly. There is no embedded Node runtime, so the `node/`
+/// segment is the `?` placeholder pnpm already uses for `npm/`. Platform and
+/// arch use Node's naming via
 /// [`pacquet_detect_libc::host_platform`] / [`pacquet_detect_libc::host_arch`].
 pub fn default_user_agent() -> String {
     format!(
-        "pnpm/pacquet-{PACQUET_VERSION} npm/? node/? {} {}",
+        "pnpm/{PACQUET_VERSION} npm/? node/? {} {}",
         pacquet_detect_libc::host_platform(),
         pacquet_detect_libc::host_arch(),
     )

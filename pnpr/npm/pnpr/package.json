@@ -15,11 +15,16 @@
     "directory": "pnpr/npm/pnpr"
   },
   "bin": "bin/pnpr",
+  "type": "module",
+  "scripts": {
+    "preinstall": "node install.js"
+  },
   "engines": {
     "node": ">=18.*"
   },
   "files": [
     "bin/pnpr",
+    "install.js",
     "LICENSE.md"
   ]
 }

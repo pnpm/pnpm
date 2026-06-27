@@ -11,5 +11,6 @@ export {
   getInstalledBinNames,
   type GlobalPackageInfo,
   type InstalledGlobalPackage,
+  isValidGlobalDependencyAlias,
   scanGlobalPackages,
 } from './scanGlobalPackages.js'

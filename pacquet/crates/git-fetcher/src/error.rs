@@ -49,20 +49,6 @@ pub enum PreparePackageError {
     Io(#[error(source)] std::io::Error),
 }
 
-/// Error type of [`crate::packlist()`]. Surfaces the subset of npm-packlist
-/// failures the MVP scope can produce.
-#[derive(Debug, Display, Error, Diagnostic)]
-#[non_exhaustive]
-pub enum PacklistError {
-    #[display("I/O error while computing packlist for {pkg_dir}: {source}")]
-    #[diagnostic(code(pacquet_git_fetcher::packlist::io))]
-    Io {
-        pkg_dir: String,
-        #[error(source)]
-        source: std::io::Error,
-    },
-}
-
 /// Error type of the git fetcher itself.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
@@ -106,7 +92,7 @@ pub enum GitFetcherError {
     Prepare(#[error(source)] PreparePackageError),
 
     #[diagnostic(transparent)]
-    Packlist(#[error(source)] PacklistError),
+    Packlist(#[error(source)] pacquet_fs_packlist::PacklistError),
 
     #[diagnostic(transparent)]
     AddFilesFromDir(#[error(source)] pacquet_store_dir::AddFilesFromDirError),

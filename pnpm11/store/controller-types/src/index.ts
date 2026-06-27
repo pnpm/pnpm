@@ -1,4 +1,10 @@
 import type {
+  BinaryFetcher,
+  DirectoryFetcher,
+  FetchFunction,
+  GitFetcher,
+} from '@pnpm/fetching.fetcher-base'
+import type {
   DirectoryResolution,
   PkgResolutionId,
   PreferredVersions,
@@ -63,6 +69,8 @@ export type FetchPackageToStoreFunction = (opts: FetchPackageToStoreOptions) => 
 
 export type FetchPackageToStoreFunctionAsync = (opts: FetchPackageToStoreOptions) => Promise<FetchResponse>
 
+type SelectedFetcher = FetchFunction | DirectoryFetcher | GitFetcher | BinaryFetcher
+
 export type GetFilesIndexFilePath = (opts: Pick<FetchPackageToStoreOptions, 'pkg' | 'ignoreScripts'>) => {
   filesIndexFile: string
   target: string
@@ -77,6 +85,17 @@ export interface FetchPackageToStoreOptions {
   allowBuild?: AllowBuild
   fetchRawManifest?: boolean
   force: boolean
+  /**
+   * The resolution can't be completed without a fresh download (e.g. a registry tarball
+   * whose integrity must be computed from the bytes), so the store copy must not be
+   * reused. Determined by the fetcher's `resolutionNeedsFetch`.
+   */
+  populateMissingIntegrity?: boolean
+  /**
+   * In-process callers may pass the fetcher they already selected for this resolution.
+   * Omitted when the fetcher has to be selected at fetch time, such as `variations`.
+   */
+  pickedFetcher?: SelectedFetcher
   ignoreScripts?: boolean
   lockfileDir: string
   pkg: PkgNameVersion & {
@@ -139,6 +158,13 @@ export type BundledManifestFunction = () => Promise<BundledManifest | undefined>
 export interface PackageResponse {
   fetching?: () => Promise<PkgRequestFetchResult>
   filesIndexFile?: string
+  /**
+   * The resolution can't be completed without awaiting `fetching` — e.g. a registry
+   * tarball whose integrity is computed from the downloaded bytes. Set by the fetcher's
+   * `resolutionNeedsFetch`. Callers that read the resolution before fetching (the lockfile
+   * snapshot, virtual-store paths) must await `fetching` first for these.
+   */
+  resolutionNeedsFetch?: boolean
   body: {
     isLocal: boolean
     isInstallable?: boolean

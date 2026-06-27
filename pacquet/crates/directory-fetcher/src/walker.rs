@@ -22,6 +22,12 @@ use std::{
     path::{Path, PathBuf},
 };
 
+#[cfg(windows)]
+use std::os::windows::fs::MetadataExt;
+
+#[cfg(windows)]
+const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x0000_0400;
+
 /// Output of [`walk_all_files`] / [`walk_package_files`]: the
 /// relative-path → absolute-source-path map a downstream CAS-write
 /// pass reads from. Forward-slash separators on every host (matches
@@ -37,17 +43,49 @@ pub(crate) type FilesMap = HashMap<String, PathBuf>;
 pub(crate) fn walk_all_files(
     dir: &Path,
     resolve_symlinks: bool,
+    allow_path_escape: bool,
 ) -> Result<FilesMap, DirectoryFetcherError> {
     let mut out = FilesMap::new();
     let mut visited = HashSet::new();
-    walk_all_inner(dir, "", resolve_symlinks, &mut visited, &mut out)?;
+    let confined_root = if allow_path_escape { None } else { Some(confined_root(dir)?) };
+    walk_all_inner(dir, "", resolve_symlinks, confined_root.as_deref(), &mut visited, &mut out)?;
     Ok(out)
+}
+
+pub(crate) fn reject_linked_confined_root(dir: &Path) -> Result<(), DirectoryFetcherError> {
+    let metadata = fs::symlink_metadata(dir)
+        .map_err(|source| DirectoryFetcherError::Io { dir: dir.display().to_string(), source })?;
+    if is_linked_entry(&metadata) {
+        return Err(DirectoryFetcherError::PathOutsideDirectory {
+            path: dir.to_path_buf(),
+            directory: dir.to_path_buf(),
+        });
+    }
+    Ok(())
+}
+
+fn confined_root(dir: &Path) -> Result<PathBuf, DirectoryFetcherError> {
+    reject_linked_confined_root(dir)?;
+    canonicalize_path(dir)
+}
+
+fn is_linked_entry(metadata: &Metadata) -> bool {
+    #[cfg(windows)]
+    {
+        metadata.file_type().is_symlink()
+            || metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+    }
+    #[cfg(not(windows))]
+    {
+        metadata.file_type().is_symlink()
+    }
 }
 
 fn walk_all_inner(
     dir: &Path,
     rel_prefix: &str,
     resolve_symlinks: bool,
+    confined_root: Option<&Path>,
     visited: &mut HashSet<PathBuf>,
     out: &mut FilesMap,
 ) -> Result<(), DirectoryFetcherError> {
@@ -89,14 +127,16 @@ fn walk_all_inner(
             continue;
         }
         let entry_path = entry.path();
-        let Some(resolved) = resolve_entry(&entry_path, resolve_symlinks)? else { continue };
+        let Some(resolved) = resolve_entry(&entry_path, resolve_symlinks, confined_root)? else {
+            continue;
+        };
         let rel = if rel_prefix.is_empty() {
             file_name_str.to_string()
         } else {
             format!("{rel_prefix}/{file_name_str}")
         };
         if resolved.metadata.is_dir() {
-            walk_all_inner(&resolved.path, &rel, resolve_symlinks, visited, out)?;
+            walk_all_inner(&resolved.path, &rel, resolve_symlinks, confined_root, visited, out)?;
         } else {
             out.insert(rel, resolved.path);
         }
@@ -116,7 +156,42 @@ struct ResolvedEntry {
 fn resolve_entry(
     path: &Path,
     resolve_symlinks: bool,
+    confined_root: Option<&Path>,
 ) -> Result<Option<ResolvedEntry>, DirectoryFetcherError> {
+    if let Some(root) = confined_root {
+        let lstat = match fs::symlink_metadata(path) {
+            Ok(m) => m,
+            Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(source) => {
+                return Err(DirectoryFetcherError::Io { dir: path.display().to_string(), source });
+            }
+        };
+        if !is_linked_entry(&lstat) {
+            return Ok(Some(ResolvedEntry { path: path.to_path_buf(), metadata: lstat }));
+        }
+        let real = match fs::canonicalize(path) {
+            Ok(path) => path,
+            Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(source) => {
+                return Err(DirectoryFetcherError::Io { dir: path.display().to_string(), source });
+            }
+        };
+        if !real.starts_with(root) {
+            return Err(DirectoryFetcherError::PathOutsideDirectory {
+                path: path.to_path_buf(),
+                directory: root.to_path_buf(),
+            });
+        }
+        let real_meta = match fs::metadata(&real) {
+            Ok(m) => m,
+            Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(source) => {
+                return Err(DirectoryFetcherError::Io { dir: real.display().to_string(), source });
+            }
+        };
+        let path = real;
+        return Ok(Some(ResolvedEntry { path, metadata: real_meta }));
+    }
     if resolve_symlinks {
         let lstat = match fs::symlink_metadata(path) {
             Ok(m) => m,
@@ -125,7 +200,7 @@ fn resolve_entry(
                 return Err(DirectoryFetcherError::Io { dir: path.display().to_string(), source });
             }
         };
-        if !lstat.file_type().is_symlink() {
+        if !is_linked_entry(&lstat) {
             return Ok(Some(ResolvedEntry { path: path.to_path_buf(), metadata: lstat }));
         }
         let real = match fs::canonicalize(path) {
@@ -177,6 +252,30 @@ fn resolve_entry(
             }
         }
     }
+}
+
+pub(crate) fn resolve_paths_in_directory(
+    directory: &Path,
+    files_map: &mut FilesMap,
+) -> Result<(), DirectoryFetcherError> {
+    let root = confined_root(directory)?;
+    for path in files_map.values_mut() {
+        let original = path.clone();
+        let resolved = canonicalize_path(&original)?;
+        if !resolved.starts_with(&root) {
+            return Err(DirectoryFetcherError::PathOutsideDirectory {
+                path: original,
+                directory: root,
+            });
+        }
+        *path = resolved;
+    }
+    Ok(())
+}
+
+fn canonicalize_path(path: &Path) -> Result<PathBuf, DirectoryFetcherError> {
+    fs::canonicalize(path)
+        .map_err(|source| DirectoryFetcherError::Io { dir: path.display().to_string(), source })
 }
 
 /// Read the manifest for packlist filtering, run

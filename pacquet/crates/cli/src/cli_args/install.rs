@@ -29,7 +29,7 @@ pub enum NodeLinkerArg {
 
 impl NodeLinkerArg {
     #[inline]
-    fn into_config(self) -> NodeLinker {
+    pub(crate) fn into_config(self) -> NodeLinker {
         match self {
             NodeLinkerArg::Isolated => NodeLinker::Isolated,
             NodeLinkerArg::Hoisted => NodeLinker::Hoisted,
@@ -58,7 +58,7 @@ pub struct InstallDependencyOptions {
 impl InstallDependencyOptions {
     /// Convert the dependency options to an iterator of [`DependencyGroup`]
     /// which filters the types of dependencies to install.
-    fn dependency_groups(&self) -> impl Iterator<Item = DependencyGroup> {
+    pub(crate) fn dependency_groups(&self) -> impl Iterator<Item = DependencyGroup> {
         let &InstallDependencyOptions { prod, dev, no_optional } = self;
         let has_both = prod == dev;
         let has_prod = has_both || prod;
@@ -274,6 +274,36 @@ pub struct InstallArgs {
 }
 
 impl InstallArgs {
+    pub(crate) fn for_patch_manifest_change() -> Self {
+        Self {
+            dependency_options: InstallDependencyOptions {
+                prod: false,
+                dev: false,
+                no_optional: false,
+            },
+            supported_architectures: SupportedArchitecturesArgs::default(),
+            frozen_lockfile: false,
+            lockfile_only: false,
+            dry_run: false,
+            prefer_frozen_lockfile: false,
+            no_prefer_frozen_lockfile: true,
+            ignore_manifest_check: false,
+            no_runtime: false,
+            ignore_scripts: false,
+            node_linker: None,
+            offline: false,
+            frozen_store: false,
+            prefer_offline: false,
+            trust_lockfile: false,
+            update_checksums: false,
+            workspace_concurrency: None,
+            network_concurrency: None,
+            fetch_timeout: None,
+            user_agent: None,
+            pnpr_server: None,
+        }
+    }
+
     /// Run the repeat-install fast path before any of the async install
     /// machinery exists: when every gate below holds and
     /// [`install_already_up_to_date`] confirms nothing changed since the
@@ -480,6 +510,7 @@ impl InstallArgs {
             auth_override: None,
             resolution_observer: None,
             catalogs_override: None,
+            disable_optimistic_repeat_install: false,
         }
         .run::<Reporter>()
         .await
@@ -508,39 +539,40 @@ impl InstallArgs {
 
 /// Per-invocation install knobs forwarded to the frozen link pass,
 /// already resolved from the CLI flags + config by [`InstallArgs::run`].
-struct PnprLink<'a> {
-    dependency_groups: Vec<DependencyGroup>,
-    supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
-    node_linker: NodeLinker,
-    skip_runtimes: bool,
+pub(crate) struct PnprLink<'a> {
+    pub(crate) dependency_groups: Vec<DependencyGroup>,
+    pub(crate) supported_architectures:
+        Option<pacquet_package_is_installable::SupportedArchitectures>,
+    pub(crate) node_linker: NodeLinker,
+    pub(crate) skip_runtimes: bool,
     /// Governs the *server's* resolution behavior (frozen vs
-    /// reuse-and-update); forwarded to `/v1/resolve`. The local
+    /// reuse-and-update); forwarded to `/-/pnpr/v0/resolve`. The local
     /// materialization always runs frozen against the server-produced
     /// lockfile.
-    frozen_lockfile: bool,
+    pub(crate) frozen_lockfile: bool,
     /// The *effective* `preferFrozenLockfile` (the CLI tri-state already
     /// resolved against `config.prefer_frozen_lockfile`, exactly as the
-    /// local `Install` resolves it); forwarded to `/v1/resolve`. `false`
+    /// local `Install` resolves it); forwarded to `/-/pnpr/v0/resolve`. `false`
     /// forces the server to re-resolve. Resolving here — rather than
     /// sending the raw CLI override — keeps a yaml `preferFrozenLockfile:
     /// false` honored on the pnpr path without `--no-prefer-frozen-lockfile`.
-    prefer_frozen_lockfile: bool,
-    /// `--lockfile-only`. Forwarded to `/v1/resolve` so the server
+    pub(crate) prefer_frozen_lockfile: bool,
+    /// `--lockfile-only`. Forwarded to `/-/pnpr/v0/resolve` so the server
     /// resolves only — returning the lockfile without fetching files —
     /// after which `install_via_pnpr` writes the lockfile and skips
     /// materialization, mirroring pnpm's resolve + write, fetch nothing,
     /// link nothing. See
     /// [pnpm/pnpm#12146](https://github.com/pnpm/pnpm/issues/12146).
-    lockfile_only: bool,
+    pub(crate) lockfile_only: bool,
     /// `--ignore-manifest-check`; forwarded so the server's frozen
     /// freshness check and the local materialization both skip the
     /// manifest ↔ lockfile comparison.
-    ignore_manifest_check: bool,
+    pub(crate) ignore_manifest_check: bool,
     /// The effective `trustLockfile` (yaml `trustLockfile` OR
     /// `--trust-lockfile`); forwarded so the server skips verifying the
     /// input lockfile when the user opted out, mirroring the local path.
-    trust_lockfile: bool,
-    lockfile_path: Option<&'a std::path::Path>,
+    pub(crate) trust_lockfile: bool,
+    pub(crate) lockfile_path: Option<&'a std::path::Path>,
 }
 
 /// `frozenStore` was enabled together with a configured `pnprServer`.
@@ -585,7 +617,7 @@ struct DryRunIncompatibleWithPnpr;
 /// `installFromPnpmRegistry` handing off to `headlessInstall`. Under
 /// `--lockfile-only` it stops after writing the lockfile (fetch nothing,
 /// link nothing).
-async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
+pub(crate) async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
     state: &State,
     pnpr_server: &str,
     link: PnprLink<'_>,
@@ -736,6 +768,7 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
             auth_override: None,
             resolution_observer: None,
             catalogs_override: None,
+            disable_optimistic_repeat_install: false,
         };
 
         let result = match lockfile_verification_override {
@@ -864,6 +897,7 @@ async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<Reporter>()
     .await

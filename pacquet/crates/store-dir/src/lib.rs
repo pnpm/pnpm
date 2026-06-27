@@ -5,7 +5,7 @@ mod msgpackr_records;
 mod project_registry;
 mod prune;
 mod store_dir;
-mod store_index;
+pub mod store_index;
 mod upload;
 
 pub use add_files_from_dir::*;

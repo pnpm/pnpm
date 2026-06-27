@@ -164,6 +164,7 @@ async fn should_install_dependencies() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -255,6 +256,7 @@ async fn install_prunes_surplus_virtual_store_dir() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -331,6 +333,7 @@ async fn install_skips_prune_when_virtual_store_escapes_node_modules() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -409,6 +412,7 @@ async fn lockfile_only_routes_scoped_packages_to_configured_scoped_registry() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -463,6 +467,7 @@ async fn should_error_when_frozen_lockfile_is_requested_but_none_exists() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await;
@@ -514,6 +519,7 @@ async fn should_error_when_frozen_lockfile_and_update_checksums_are_both_set() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await;
@@ -594,6 +600,7 @@ async fn frozen_lockfile_flag_overrides_config_lockfile_false() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -667,6 +674,7 @@ async fn npm_alias_dependency_installs_under_alias_key() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -757,6 +765,7 @@ async fn unversioned_npm_alias_defaults_to_latest() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -831,6 +840,7 @@ async fn frozen_lockfile_flag_with_no_lockfile_errors() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await;
@@ -929,6 +939,7 @@ async fn install_emits_pnpm_event_sequence() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<RecordingReporter>()
     .await
@@ -1084,6 +1095,7 @@ async fn install_writes_modules_yaml() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -1199,6 +1211,7 @@ async fn install_writes_workspace_state() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -1442,6 +1455,7 @@ async fn install_optional_failing_postinstall_dep_via_registry_mock_succeeds() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -1522,6 +1536,7 @@ async fn auto_install_peers_does_not_cascade_optional_peers() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -1625,6 +1640,7 @@ async fn auto_install_peers_skips_meta_only_optional_peers() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -1764,6 +1780,7 @@ async fn warm_reinstall_skips_snapshot_when_current_lockfile_matches() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -1869,6 +1886,7 @@ async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<RecordingReporter>()
     .await;
@@ -1982,6 +2000,7 @@ async fn context_log_reflects_current_lockfile_after_first_install() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<RecordingReporter>()
     .await
@@ -2039,6 +2058,7 @@ async fn context_log_reflects_current_lockfile_after_first_install() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<RecordingReporter>()
     .await
@@ -2138,6 +2158,7 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<RecordingReporter>()
     .await
@@ -2247,6 +2268,7 @@ async fn frozen_lockfile_errors_when_manifest_drifts_from_lockfile() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await;
@@ -2318,6 +2340,7 @@ async fn ignore_manifest_check_bypasses_manifest_freshness_gate() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await;
@@ -2390,6 +2413,7 @@ async fn frozen_lockfile_errors_when_overrides_drift_from_lockfile() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await;
@@ -2488,6 +2512,7 @@ async fn frozen_lockfile_applies_overrides_to_manifest_before_freshness_check() 
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await;
@@ -2602,6 +2627,7 @@ async fn frozen_lockfile_resolves_catalog_protocol_in_overrides_before_freshness
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await;
@@ -2670,6 +2696,7 @@ async fn frozen_lockfile_errors_when_lockfile_has_no_root_importer() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await;
@@ -2765,6 +2792,7 @@ async fn frozen_lockfile_under_gvs_registers_project_and_runs_clean() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -2879,6 +2907,7 @@ async fn gvs_persists_global_virtual_store_dir_in_modules_yaml_and_context_log()
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<RecordingReporter>()
     .await
@@ -3000,6 +3029,7 @@ async fn frozen_lockfile_with_gvs_off_skips_project_registry() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -3087,6 +3117,7 @@ async fn frozen_lockfile_under_gvs_registers_workspace_root_only() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -3298,6 +3329,7 @@ async fn frozen_install_preserves_seeded_skipped_across_reinstall() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -3429,6 +3461,7 @@ async fn frozen_install_silently_swallows_unreachable_optional_tarball() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -3536,6 +3569,7 @@ async fn frozen_install_propagates_non_optional_fetch_failure() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await;
@@ -3649,6 +3683,7 @@ async fn frozen_install_no_optional_drops_optional_only_snapshots() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -3746,6 +3781,7 @@ async fn frozen_install_optional_included_surfaces_missing_metadata() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await;
@@ -3847,6 +3883,7 @@ async fn frozen_install_no_optional_keeps_shared_non_optional_snapshot() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await;
@@ -3947,6 +3984,7 @@ async fn hoisted_node_linker_empty_lockfile_writes_modules_yaml() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -4042,6 +4080,7 @@ async fn hoisted_node_linker_does_not_create_virtual_store_root() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -4145,6 +4184,7 @@ async fn frozen_lockfile_install_errors_when_no_variant_matches_host() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -4245,6 +4285,7 @@ async fn frozen_lockfile_install_skips_runtime_when_skip_runtimes_set() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+            disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -4350,6 +4391,7 @@ async fn install_rejects_invalid_minimum_release_age_exclude_pattern() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await;
@@ -4455,6 +4497,7 @@ async fn frozen_lockfile_gate_rejects_under_huge_minimum_release_age() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await;
@@ -4548,6 +4591,7 @@ async fn fresh_install_writes_pnpm_lock_yaml_with_expected_shape() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -4630,6 +4674,7 @@ async fn fresh_install_uses_final_peer_suffix_for_transitive_pending_peer() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -4710,6 +4755,7 @@ async fn fresh_install_splits_dev_and_prod_dependency_sections() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -4787,6 +4833,7 @@ async fn fresh_install_records_user_written_specifier() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -4860,6 +4907,7 @@ async fn fresh_install_lockfile_round_trips_through_load_save_load() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -4932,6 +4980,7 @@ async fn fresh_install_with_lockfile_disabled_does_not_write_a_lockfile() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -5007,6 +5056,7 @@ async fn fresh_install_also_writes_current_lockfile_under_virtual_store() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -5040,6 +5090,107 @@ async fn fresh_install_also_writes_current_lockfile_under_virtual_store() {
     assert_eq!(
         wanted_lockfile, current_lockfile,
         "wanted and current lockfiles must match in the fresh-install path",
+    );
+
+    drop((dir, mock_instance));
+}
+
+#[tokio::test]
+async fn prefer_frozen_install_writes_missing_current_lockfile() {
+    let mock_instance = TestRegistry::start();
+
+    let dir = tempdir().unwrap();
+    let store_dir = dir.path().join("pacquet-store");
+    let project_root = dir.path().join("project");
+    let modules_dir = project_root.join("node_modules");
+    let virtual_store_dir = modules_dir.join(".pacquet");
+
+    fs::create_dir_all(&project_root).unwrap();
+    let manifest_path = project_root.join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(manifest_path).unwrap();
+    manifest
+        .add_dependency("@pnpm.e2e/hello-world-js-bin", "1.0.0", DependencyGroup::Prod)
+        .unwrap();
+    manifest.save().unwrap();
+
+    let mut config = Config::new();
+    config.store_dir = store_dir.into();
+    config.modules_dir = modules_dir;
+    config.virtual_store_dir = virtual_store_dir.clone();
+    config.registry = mock_instance.url();
+    let config = config.leak();
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: None,
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        dry_run: false,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+        catalogs_override: None,
+        disable_optimistic_repeat_install: true,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("first install should succeed");
+
+    let current_lockfile_path = virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME);
+    fs::remove_file(&current_lockfile_path).expect("remove current lockfile");
+    let wanted = Lockfile::load_wanted_from_dir(&project_root)
+        .expect("parse wanted lockfile")
+        .expect("wanted lockfile should exist");
+
+    Install {
+        tarball_mem_cache: Default::default(),
+        http_client: &Default::default(),
+        http_client_arc: std::sync::Arc::new(Default::default()),
+        config,
+        manifest: &manifest,
+        lockfile: MaybeLazyLockfile::Loaded(Some(&wanted)),
+        lockfile_path: None,
+        dependency_groups: [DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional],
+        frozen_lockfile: false,
+        prefer_frozen_lockfile: Some(true),
+        ignore_manifest_check: false,
+        skip_runtimes: false,
+        trust_lockfile: false,
+        update_checksums: false,
+        is_full_install: true,
+        supported_architectures: None,
+        node_linker: pacquet_config::NodeLinker::default(),
+        lockfile_only: false,
+        dry_run: false,
+        resolved_packages: &Default::default(),
+        update_seed_policy: crate::UpdateSeedPolicy::KeepAll,
+        auth_override: None,
+        resolution_observer: None,
+        catalogs_override: None,
+        disable_optimistic_repeat_install: true,
+    }
+    .run::<SilentReporter>()
+    .await
+    .expect("prefer-frozen reinstall should succeed");
+
+    assert!(
+        current_lockfile_path.is_file(),
+        "prefer-frozen reinstall must restore the current lockfile",
     );
 
     drop((dir, mock_instance));
@@ -5098,6 +5249,7 @@ async fn fresh_install_with_lockfile_disabled_skips_current_lockfile_too() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -5167,6 +5319,7 @@ async fn fresh_install_marks_optional_snapshots_in_pnpm_lock_yaml() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -5260,6 +5413,7 @@ async fn fresh_install_hoisted_node_linker_records_modules_yaml() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -5334,6 +5488,7 @@ async fn fresh_install_refuses_skip_runtimes_before_writing_state() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await;
@@ -5412,6 +5567,7 @@ async fn prefer_frozen_lockfile_takes_frozen_path_when_lockfile_is_fresh() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -5491,6 +5647,7 @@ async fn no_prefer_frozen_lockfile_flag_forces_fresh_resolve() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await;
@@ -5564,6 +5721,7 @@ async fn stale_lockfile_under_no_flag_falls_through_to_fresh_resolve() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await;
@@ -5841,6 +5999,7 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<RecordingReporter>()
     .await
@@ -6029,6 +6188,7 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<RecordingReporter>()
     .await
@@ -6267,6 +6427,7 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<RecordingReporter>()
     .await
@@ -6413,6 +6574,7 @@ async fn partial_install_disables_optimistic_short_circuit() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<RecordingReporter>()
     .await
@@ -6555,6 +6717,7 @@ async fn optimistic_repeat_install_does_not_short_circuit_when_lockfile_missing(
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<RecordingReporter>()
     .await;
@@ -6640,6 +6803,7 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -6698,6 +6862,7 @@ async fn optimistic_repeat_install_round_trips_on_single_project_install() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<RecordingReporter>()
     .await
@@ -6788,6 +6953,7 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -6854,6 +7020,7 @@ async fn fresh_install_records_lockfile_verification_for_mtime_bypassed_noop() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<RecordingReporter>()
     .await
@@ -6943,6 +7110,7 @@ async fn install_then_go_offline() -> (tempfile::TempDir, &'static Config, Packa
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -7033,6 +7201,7 @@ async fn optimistic_repeat_install_short_circuits_offline_when_touched_manifest_
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<RecordingReporter>()
     .await
@@ -7115,6 +7284,7 @@ async fn optimistic_repeat_install_restores_missing_lockfile_offline() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<RecordingReporter>()
     .await
@@ -7261,6 +7431,7 @@ async fn fresh_lockfile_only_with_overrides(
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -7367,6 +7538,7 @@ async fn fresh_lockfile_only_with_compatibility_db(
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -7459,6 +7631,7 @@ async fn fresh_install_applies_package_extensions_to_dependency_manifest() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -7561,6 +7734,7 @@ async fn frozen_lockfile_errors_when_package_extensions_drift_from_lockfile() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await;
@@ -7645,6 +7819,7 @@ async fn install_with_pnpmfile_reporter<Reporter: self::Reporter + 'static>(
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<Reporter>()
     .await
@@ -8022,6 +8197,7 @@ async fn test_install_purges_node_modules_on_layout_mismatch() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -8058,6 +8234,7 @@ async fn test_install_purges_node_modules_on_layout_mismatch() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -8130,6 +8307,7 @@ async fn test_install_resolve_only_ignores_layout_mismatch() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await
@@ -8166,6 +8344,7 @@ async fn test_install_resolve_only_ignores_layout_mismatch() {
         auth_override: None,
         resolution_observer: None,
         catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await

@@ -1,5 +1,32 @@
 # @pnpm/plugin-commands-patching
 
+## 1100.1.7
+
+### Patch Changes
+
+- bae694f: Some registries generate tarballs on-demand and cannot provide an integrity checksum in their package metadata. In that case pnpm now computes the integrity from the downloaded tarball and stores it in the lockfile, so the entry is verifiable on subsequent installs instead of being written without an integrity (which would fail the next install). This also applies to `--lockfile-only`: the tarball is downloaded so its integrity can be computed. A lockfile entry that is still missing its integrity is rejected as a `ERR_PNPM_MISSING_TARBALL_INTEGRITY` lockfile verification violation (the install fails closed) rather than being silently re-fetched.
+- 0a154b1: Fixed `pnpm patch` dropping the package name (and leaking internal option fields) when the patched dependency resolves to a single git-hosted version.
+- Updated dependencies [25a829e]
+- Updated dependencies [bae694f]
+- Updated dependencies [6545793]
+- Updated dependencies [0ec878d]
+- Updated dependencies [a84d2a1]
+- Updated dependencies [852d537]
+  - @pnpm/installing.commands@1100.10.1
+  - @pnpm/lockfile.utils@1100.1.0
+  - @pnpm/workspace.project-manifest-reader@1100.0.14
+  - @pnpm/error@1100.0.1
+  - @pnpm/config.writer@1100.0.14
+  - @pnpm/store.connection-manager@1100.3.2
+  - @pnpm/lockfile.fs@1100.1.7
+  - @pnpm/cli.utils@1101.0.13
+  - @pnpm/config.reader@1101.10.1
+  - @pnpm/patching.apply-patch@1100.0.3
+  - @pnpm/pkg-manifest.reader@1100.0.9
+  - @pnpm/store.path@1100.0.2
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.9
+  - @pnpm/crypto.hash@1100.0.1
+
 ## 1100.1.6
 
 ### Patch Changes

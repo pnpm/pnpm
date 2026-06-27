@@ -11,7 +11,7 @@ import { writeYamlFileSync } from 'write-yaml-file'
 import { execPnpm } from '../utils/index.js'
 
 // The pnpr server started by the test harness (see the with-registry jest
-// preset) serves the resolver endpoint (/v1/resolve) on the
+// preset) serves the resolver endpoint (/-/pnpr/v0/resolve) on the
 // registry-mock port, so it doubles as the pnpr server under test.
 const PNPR = `http://localhost:${REGISTRY_MOCK_PORT}`
 
@@ -20,7 +20,7 @@ let serverPort: number
 let requestCount: number
 
 beforeAll(async () => {
-  // Counting proxy — forwards to the pnpr server and counts /v1/resolve
+  // Counting proxy — forwards to the pnpr server and counts /-/pnpr/v0/resolve
   // requests so we can assert that the pnpr server path was actually taken.
   requestCount = 0
   server = http.createServer((req, res) => {
@@ -28,7 +28,7 @@ beforeAll(async () => {
       res.writeHead(400).end()
       return
     }
-    if (req.url === '/v1/resolve') {
+    if (req.url === '/-/pnpr/v0/resolve') {
       requestCount++
     }
     const proxyReq = http.request(`${PNPR}${req.url}`, {
@@ -55,8 +55,24 @@ afterAll(async () => {
   await new Promise<void>((resolve) => server.close(() => resolve()))
 })
 
+function configurePnprAuth (): void {
+  const token = process.env.REGISTRY_MOCK_TOKEN
+  if (!token) throw new Error('REGISTRY_MOCK_TOKEN is required for pnpr integration tests')
+  fs.appendFileSync('.npmrc', `//localhost:${serverPort}/:_authToken=${token}\n`)
+}
+
+function prepareProject (manifest: Parameters<typeof prepare>[0]): void {
+  prepare(manifest)
+  configurePnprAuth()
+}
+
+function prepareWorkspace (packages: Parameters<typeof preparePackages>[0]): void {
+  preparePackages(packages)
+  configurePnprAuth()
+}
+
 test('pnpm install uses pnpr server when configured', async () => {
-  prepare({
+  prepareProject({
     dependencies: {
       'is-positive': '1.0.0',
     },
@@ -79,7 +95,7 @@ test('pnpm install uses pnpr server when configured', async () => {
 })
 
 test('pnpm install resolves optionalDependencies via the pnpr server', async () => {
-  prepare({
+  prepareProject({
     dependencies: {
       'is-positive': '1.0.0',
     },
@@ -102,7 +118,7 @@ test('pnpm install resolves optionalDependencies via the pnpr server', async () 
 })
 
 test('a second resolution forwards the existing lockfile to the pnpr server', async () => {
-  prepare({})
+  prepareProject({})
 
   // First add creates the lockfile.
   await execPnpm(['add', 'is-positive@1.0.0', `--config.pnprServer=http://localhost:${serverPort}`])
@@ -120,7 +136,7 @@ test('a second resolution forwards the existing lockfile to the pnpr server', as
 })
 
 test('pnpm add uses pnpr server when configured', async () => {
-  prepare({
+  prepareProject({
     dependencies: {
       'is-negative': '1.0.0',
     },
@@ -146,7 +162,7 @@ test('pnpm add uses pnpr server when configured', async () => {
 })
 
 test('pnpm remove uses pnpr server when configured', async () => {
-  prepare({
+  prepareProject({
     dependencies: {
       'is-positive': '1.0.0',
       'is-negative': '1.0.0',
@@ -171,7 +187,7 @@ test('pnpm remove uses pnpr server when configured', async () => {
 })
 
 test('pnpm add without a version uses the pnpr server and writes the save-prefix spec from the lockfile', async () => {
-  prepare({})
+  prepareProject({})
 
   requestCount = 0
 
@@ -190,7 +206,7 @@ test('pnpm add without a version uses the pnpr server and writes the save-prefix
 })
 
 test('pnpm add -D uses pnpr server and targets devDependencies', async () => {
-  prepare({})
+  prepareProject({})
 
   requestCount = 0
 
@@ -210,7 +226,7 @@ test('pnpm add -D uses pnpr server and targets devDependencies', async () => {
 })
 
 test('pnpm add with multiple selectors uses pnpr server', async () => {
-  prepare({})
+  prepareProject({})
 
   requestCount = 0
 
@@ -228,7 +244,7 @@ test('pnpm add with multiple selectors uses pnpr server', async () => {
 })
 
 test('pnpm --filter remove inside a workspace uses pnpr server', async () => {
-  preparePackages([
+  prepareWorkspace([
     {
       name: 'project-a',
       version: '1.0.0',
@@ -268,7 +284,7 @@ test('pnpm --filter remove inside a workspace uses pnpr server', async () => {
 })
 
 test('pnpm add inside a workspace project uses pnpr server', async () => {
-  preparePackages([
+  prepareWorkspace([
     {
       name: 'project-a',
       version: '1.0.0',
@@ -303,7 +319,7 @@ test('pnpm add inside a workspace project uses pnpr server', async () => {
 })
 
 test('pnpm install with pnpr server works in a workspace with multiple projects', async () => {
-  preparePackages([
+  prepareWorkspace([
     {
       name: 'project-a',
       version: '1.0.0',

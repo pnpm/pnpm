@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/patching.commands",
-  "version": "1100.1.6",
+  "version": "1100.1.7",
   "description": "Commands for creating patches",
   "keywords": [
     "pnpm",
@@ -40,7 +40,6 @@
     "@pnpm/constants": "workspace:*",
     "@pnpm/crypto.hash": "workspace:*",
     "@pnpm/error": "workspace:*",
-    "@pnpm/fetching.pick-fetcher": "workspace:*",
     "@pnpm/fs.packlist": "workspace:*",
     "@pnpm/installing.commands": "workspace:*",
     "@pnpm/installing.modules-yaml": "workspace:*",

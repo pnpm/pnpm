@@ -31,7 +31,6 @@ use crate::{
     error::{RegistryError, Result},
 };
 use async_trait::async_trait;
-use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 #[cfg(feature = "backend-libsql")]
 use libsql_backend::LibsqlAuth;
 use rusqlite::Connection;
@@ -55,6 +54,25 @@ use std::{
 mod libsql_backend;
 #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
 mod sqlx_backend;
+
+/// Bound a read-only request-path or startup database future with a
+/// deadline, surfacing [`RegistryError::AuthDatabaseTimeout`] on expiry.
+/// Use only around reads and startup setup: request-path writes must
+/// await the database result directly, so a caller never observes a
+/// timeout with an unknown commit state.
+#[cfg(any(feature = "backend-libsql", feature = "backend-postgres", feature = "backend-mysql"))]
+async fn with_auth_timeout<Loaded, DbError>(
+    deadline: std::time::Duration,
+    future: impl std::future::Future<Output = std::result::Result<Loaded, DbError>>,
+) -> Result<Loaded>
+where
+    RegistryError: From<DbError>,
+{
+    match tokio::time::timeout(deadline, future).await {
+        Ok(result) => result.map_err(RegistryError::from),
+        Err(_) => Err(RegistryError::AuthDatabaseTimeout),
+    }
+}
 
 pub(crate) const MAX_USERNAME_CHARS: usize = 255;
 
@@ -86,6 +104,11 @@ pub(crate) fn validate_username(username: &str) -> Result<()> {
     if starts_with_whitespace || ends_with_whitespace {
         return Err(RegistryError::BadRequest {
             reason: "username must not start or end with whitespace".to_string(),
+        });
+    }
+    if username.starts_with('#') {
+        return Err(RegistryError::BadRequest {
+            reason: "username must not start with '#'".to_string(),
         });
     }
     if contains_colon {
@@ -126,13 +149,20 @@ impl std::fmt::Debug for AuthState {
 }
 
 impl AuthState {
-    /// All-in-memory auth state. Used when no record backend is
-    /// configured and neither `auth.htpasswd.file` nor
-    /// `auth.tokens.file` are set, and by tests that don't care about
-    /// persistence.
+    /// All-in-memory auth state with open registration. Used by tests
+    /// and registry-mock-compatible programmatic routers.
     #[must_use]
     pub fn in_memory() -> Self {
-        Self { users: Arc::new(UserStore::in_memory()), tokens: Arc::new(TokenStore::in_memory()) }
+        Self::in_memory_with_max_users(MaxUsers::Unlimited)
+    }
+
+    /// All-in-memory auth state that enforces the resolved registration cap.
+    #[must_use]
+    pub fn in_memory_with_max_users(max_users: MaxUsers) -> Self {
+        Self {
+            users: Arc::new(UserStore::in_memory_with_max_users(max_users)),
+            tokens: Arc::new(TokenStore::in_memory()),
+        }
     }
 
     /// Build the auth state from the resolved config. A configured SQL
@@ -193,7 +223,7 @@ impl AuthState {
         }
         let users: Arc<dyn UserBackend> = match auth.htpasswd.file.clone() {
             Some(path) => Arc::new(UserStore::open(path, auth.htpasswd.max_users)?),
-            None => Arc::new(UserStore::in_memory()),
+            None => Arc::new(UserStore::in_memory_with_max_users(auth.htpasswd.max_users)),
         };
         let tokens: Arc<dyn TokenBackend> = match auth.tokens.file.clone() {
             Some(path) => Arc::new(TokenStore::open(path)?),
@@ -214,27 +244,20 @@ fn backend_not_enabled(name: &str, feature: &str) -> RegistryError {
     }
 }
 
-/// Username + password record store. The hot read is
-/// [`Self::verify`] (the Basic-auth path of [`identify`]); the write
-/// is [`Self::add_or_login`] (npm `adduser` / `login`).
+/// Username + password record store. The only operation is
+/// [`Self::add_or_login`] (npm `adduser` / `login`), which verifies a
+/// password and mints a bearer token. pnpr no longer verifies Basic
+/// credentials on requests, so there is no per-request password check.
 #[async_trait]
 pub trait UserBackend: Send + Sync {
     /// Add a new user or verify a returning one. On success, returns
     /// the outcome plus the canonical stored username to bind follow-up
-    /// token issuance to the same identity that Basic auth would
-    /// resolve. A wrong password for an existing user is
-    /// [`RegistryError::Unauthenticated`], and a new user past the
-    /// registration cap is [`RegistryError::RegistrationDisabled`] /
+    /// token issuance to the same identity. A wrong password for an
+    /// existing user is [`RegistryError::Unauthenticated`], and a new user
+    /// past the registration cap is [`RegistryError::RegistrationDisabled`] /
     /// `TooManyUsers`.
     async fn add_or_login(&self, username: &str, password: &str)
     -> Result<(UpsertOutcome, String)>;
-
-    /// Verify a username+password pair. `Ok(Some(username))` on a match,
-    /// `Ok(None)` when the user is unknown or the password is wrong, and
-    /// `Err` only when the backing store itself fails — so a store
-    /// outage surfaces as a 5xx rather than masquerading as a bad
-    /// password.
-    async fn verify(&self, username: &str, password: &str) -> Result<Option<String>>;
 }
 
 /// Bearer-token record store. The hot read is [`Self::lookup`]
@@ -251,6 +274,16 @@ pub trait TokenBackend: Send + Sync {
     /// store failed — never conflate the two, or a store outage reads as
     /// "not authenticated".
     async fn lookup(&self, raw: &str) -> Result<Option<String>>;
+
+    /// Resolve a raw token to its full record — the username plus the
+    /// `readonly` / `cidr_whitelist` restrictions that [`Self::lookup`]
+    /// drops. The request-time restriction gate needs those, so it goes
+    /// through here. `Ok(None)` for a token that was never issued (or was
+    /// revoked); `Err` only for a backing-store failure, never conflated
+    /// with "no such token".
+    async fn lookup_record(&self, raw: &str) -> Result<Option<TokenRecord>> {
+        self.find_by_key(&sha256_hex(raw.as_bytes())).await
+    }
 
     /// Snapshot the record for a token by its key (SHA-256 hex). Used
     /// to check ownership before revocation. `Ok(None)` if no such
@@ -294,16 +327,20 @@ pub struct UserStore {
 }
 
 impl UserStore {
-    /// In-memory store with no on-disk persistence. Used when
-    /// `auth.htpasswd.file` is unset and by the existing
-    /// `@pnpm/registry-mock` integration where every restart is a
-    /// fresh process.
+    /// In-memory store with no on-disk persistence and open registration.
+    /// Used by registry-mock-compatible programmatic routers.
     #[must_use]
     pub fn in_memory() -> Self {
+        Self::in_memory_with_max_users(MaxUsers::Unlimited)
+    }
+
+    /// In-memory store that enforces the resolved registration cap.
+    #[must_use]
+    pub fn in_memory_with_max_users(max_users: MaxUsers) -> Self {
         Self {
             users: Mutex::new(HashMap::new()),
             path: None,
-            max_users: MaxUsers::Unlimited,
+            max_users,
             bcrypt_cost: DEFAULT_BCRYPT_COST,
         }
     }
@@ -351,6 +388,8 @@ impl UserBackend for UserStore {
         username: &str,
         password: &str,
     ) -> Result<(UpsertOutcome, String)> {
+        validate_username(username)?;
+
         let existing_hash = {
             let users = self.users.lock().expect("UserStore mutex poisoned");
             users.get(username).cloned()
@@ -358,8 +397,6 @@ impl UserBackend for UserStore {
         if let Some(stored) = existing_hash {
             return verify_returning_user(username, password, stored).await;
         }
-
-        validate_username(username)?;
 
         // Brand-new user — check the registration cap before doing
         // the (expensive) bcrypt hash.
@@ -406,22 +443,6 @@ impl UserBackend for UserStore {
                 verify_returning_user(username, password, stored).await
             }
         }
-    }
-
-    async fn verify(&self, username: &str, password: &str) -> Result<Option<String>> {
-        let stored = {
-            let users = self.users.lock().expect("UserStore mutex poisoned");
-            users.get(username).cloned()
-        };
-        let Some(stored) = stored else {
-            return Ok(None);
-        };
-        // The in-memory read can't fail; a bcrypt error is treated as a
-        // non-match (not a store outage), so it stays `Ok(None)`.
-        Ok(verify_bcrypt(password.to_string(), stored)
-            .await
-            .unwrap_or(false)
-            .then(|| username.to_string()))
     }
 }
 
@@ -603,22 +624,24 @@ impl Default for UserStore {
 }
 
 /// Identify the caller behind an HTTP request. Inspects the
-/// `Authorization` header and resolves it to a username via the
-/// token store (for `Bearer`) or the user store (for `Basic`).
-/// Returns `None` for missing/unsupported credentials so the caller
-/// can decide whether anonymous is allowed.
+/// `Authorization` header and resolves it to a username via the token
+/// store. Only `Bearer` tokens are honored: pnpr does not accept Basic
+/// credentials on requests. Clients authenticate with `_authToken`, and a
+/// password login mints a token through [`UserBackend::add_or_login`] — so
+/// request handling never pays a per-request bcrypt. Returns `None` for
+/// missing/unsupported credentials so the caller can decide whether
+/// anonymous is allowed.
 ///
 /// The scheme is matched case-insensitively (RFC 7235 §2.1: "the
 /// scheme is case-insensitive"), so `BEARER`, `bearer`, and `Bearer`
 /// all parse the same.
 /// `Ok(None)` covers every "no usable credentials" case — a missing or
-/// malformed header, an unsupported scheme, or credentials that simply
-/// don't match. `Err` is reserved for a failure of the backing store
-/// (e.g. the networked auth DB is unreachable) so the caller can return
-/// a 5xx instead of a misleading 401.
+/// malformed header, a non-`Bearer` scheme (including legacy `Basic`), or a
+/// token that simply doesn't match. `Err` is reserved for a failure of the
+/// backing store (e.g. the networked auth DB is unreachable) so the caller
+/// can return a 5xx instead of a misleading 401.
 pub async fn identify(
     header_value: Option<&str>,
-    users: &dyn UserBackend,
     tokens: &dyn TokenBackend,
 ) -> Result<Option<String>> {
     let Some(value) = header_value.map(str::trim) else {
@@ -633,18 +656,6 @@ pub async fn identify(
     };
     if scheme.eq_ignore_ascii_case("Bearer") {
         return tokens.lookup(credentials).await;
-    }
-    if scheme.eq_ignore_ascii_case("Basic") {
-        let Ok(decoded) = BASE64.decode(credentials) else {
-            return Ok(None);
-        };
-        let Ok(pair) = std::str::from_utf8(&decoded) else {
-            return Ok(None);
-        };
-        let Some((user, password)) = pair.split_once(':') else {
-            return Ok(None);
-        };
-        return users.verify(user, password).await;
     }
     Ok(None)
 }
@@ -672,6 +683,13 @@ fn parse_htpasswd(raw: &str) -> std::result::Result<HashMap<String, String>, Str
         let hash = hash.trim();
         if user.is_empty() {
             return Err(format!("line {}: empty username", line_no + 1));
+        }
+        if let Err(err) = validate_username(user) {
+            let reason = match err {
+                RegistryError::BadRequest { reason } => reason,
+                err => err.to_string(),
+            };
+            return Err(format!("line {}: invalid username {user:?}: {reason}", line_no + 1));
         }
         if !is_supported_hash(hash) {
             return Err(format!(

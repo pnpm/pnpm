@@ -17,7 +17,7 @@
 //! [`config/reader/src/index.ts:719-722`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts#L719-L722).
 
 use crate::{
-    CatalogMode, HoistingLimits, NodeLinker, NodePackageMapType, PackageImportMethod,
+    AuditLevel, CatalogMode, HoistingLimits, NodeLinker, NodePackageMapType, PackageImportMethod,
     ResolutionMode, ScriptsPrependNodePath, TrustPolicy, WorkspaceSettings, api::EnvVar,
 };
 use serde::de::DeserializeOwned;
@@ -147,6 +147,9 @@ impl WorkspaceSettings {
         json_field!(peers_suffix_max_length, "PEERS_SUFFIX_MAX_LENGTH");
         json_field!(lockfile, "LOCKFILE");
         json_field!(prefer_frozen_lockfile, "PREFER_FROZEN_LOCKFILE");
+        json_field!(deploy_all_files, "DEPLOY_ALL_FILES");
+        json_field!(force_legacy_deploy, "FORCE_LEGACY_DEPLOY");
+        json_field!(shared_workspace_lockfile, "SHARED_WORKSPACE_LOCKFILE");
         json_field!(offline, "OFFLINE");
         json_field!(prefer_offline, "PREFER_OFFLINE");
         json_field!(lockfile_include_tarball_url, "LOCKFILE_INCLUDE_TARBALL_URL");
@@ -178,6 +181,7 @@ impl WorkspaceSettings {
         json_field!(fetch_timeout, "FETCH_TIMEOUT");
         string_field!(user_agent, "USER_AGENT");
         json_field!(patched_dependencies, "PATCHED_DEPENDENCIES");
+        string_field!(patches_dir, "PATCHES_DIR");
         json_field!(allow_builds, "ALLOW_BUILDS");
         json_field!(dangerously_allow_all_builds, "DANGEROUSLY_ALLOW_ALL_BUILDS");
         json_field!(strict_dep_builds, "STRICT_DEP_BUILDS");
@@ -205,6 +209,8 @@ impl WorkspaceSettings {
         json_field!(minimum_release_age_strict, "MINIMUM_RELEASE_AGE_STRICT");
         json_field!(trust_lockfile, "TRUST_LOCKFILE");
         enum_field!(trust_policy, "TRUST_POLICY", TrustPolicy);
+        enum_field!(audit_level, "AUDIT_LEVEL", AuditLevel);
+        json_field!(audit_config, "AUDIT_CONFIG");
         json_field!(trust_policy_exclude, "TRUST_POLICY_EXCLUDE");
         json_field!(trust_policy_ignore_after, "TRUST_POLICY_IGNORE_AFTER");
         enum_field!(resolution_mode, "RESOLUTION_MODE", ResolutionMode);

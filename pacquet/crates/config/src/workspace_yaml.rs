@@ -1,7 +1,7 @@
 use crate::{
-    CatalogMode, Config, HoistingLimits, LinkWorkspacePackages, NodeLinker, NodePackageMapType,
-    PackageImportMethod, ResolutionMode, ScriptsPrependNodePath, TrustPolicy, api::EnvVar,
-    resolve_child_concurrency,
+    AuditConfig, AuditLevel, CatalogMode, Config, HoistingLimits, LinkWorkspacePackages,
+    NodeLinker, NodePackageMapType, PackageImportMethod, ResolutionMode, ScriptsPrependNodePath,
+    TrustPolicy, api::EnvVar, resolve_child_concurrency,
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
@@ -99,6 +99,9 @@ pub struct WorkspaceSettings {
     pub peers_suffix_max_length: Option<u64>,
     pub lockfile: Option<bool>,
     pub prefer_frozen_lockfile: Option<bool>,
+    pub deploy_all_files: Option<bool>,
+    pub force_legacy_deploy: Option<bool>,
+    pub shared_workspace_lockfile: Option<bool>,
     pub offline: Option<bool>,
     pub prefer_offline: Option<bool>,
     pub lockfile_include_tarball_url: Option<bool>,
@@ -113,6 +116,14 @@ pub struct WorkspaceSettings {
     /// [`namedRegistries`](https://github.com/pnpm/pnpm/blob/b61e268d57/config/reader/src/Config.ts#L227)
     /// setting.
     pub named_registries: Option<BTreeMap<String, String>>,
+
+    /// Structured registry auth (`_auth`). Honored **only** from the global
+    /// pnpm `config.yaml` (read via `NpmrcAuth::from_json_sources`, not
+    /// applied in [`Self::apply_to`]) — never a project file, so repo config
+    /// can't supply credentials. A raw [`serde_json::Value`] so the auth
+    /// parser is the single validator of its shape.
+    #[serde(rename = "_auth")]
+    pub auth: Option<serde_json::Value>,
 
     pub auto_install_peers: Option<bool>,
     pub auto_install_peers_from_highest_match: Option<bool>,
@@ -193,6 +204,8 @@ pub struct WorkspaceSettings {
     ///
     /// [`BTreeMap`]: std::collections::BTreeMap
     pub patched_dependencies: Option<IndexMap<String, String>>,
+
+    pub patches_dir: Option<String>,
 
     /// `configDependencies` from `pnpm-workspace.yaml`: package name →
     /// version-with-integrity spec. pnpm records this verbatim in the
@@ -372,6 +385,12 @@ pub struct WorkspaceSettings {
     /// `trustPolicy` from `pnpm-workspace.yaml`. See [`TrustPolicy`].
     pub trust_policy: Option<TrustPolicy>,
 
+    /// `auditLevel` from `pnpm-workspace.yaml`.
+    pub audit_level: Option<AuditLevel>,
+
+    /// `auditConfig` from `pnpm-workspace.yaml`.
+    pub audit_config: Option<AuditConfig>,
+
     /// `trustPolicyExclude` from `pnpm-workspace.yaml`.
     pub trust_policy_exclude: Option<Vec<String>>,
 
@@ -520,6 +539,11 @@ pub enum LoadWorkspaceYamlError {
         #[error(source)]
         source: Box<serde_saphyr::Error>,
     },
+    #[display("Invalid `_auth` setting: {source}")]
+    InvalidJsonAuth {
+        #[error(source)]
+        source: serde_json::Error,
+    },
 }
 
 impl WorkspaceSettings {
@@ -573,6 +597,9 @@ impl WorkspaceSettings {
         self.node_linker = None;
         self.symlink = None;
         self.lockfile = None;
+        self.deploy_all_files = None;
+        self.force_legacy_deploy = None;
+        self.shared_workspace_lockfile = None;
         self.offline = None;
         self.lockfile_include_tarball_url = None;
         self.auto_install_peers = None;
@@ -685,6 +712,7 @@ impl WorkspaceSettings {
         substitute_optional_string::<Sys>(&mut self.global_virtual_store_dir);
         substitute_optional_string::<Sys>(&mut self.user_agent);
         substitute_optional_string::<Sys>(&mut self.npmrc_auth_file);
+        substitute_optional_string::<Sys>(&mut self.patches_dir);
         substitute_optional_string::<Sys>(&mut self.cache_dir);
         substitute_optional_inner_string::<Sys>(&mut self.script_shell);
         substitute_optional_inner_string::<Sys>(&mut self.node_options);
@@ -710,7 +738,9 @@ impl WorkspaceSettings {
             symlink, package_import_method, modules_cache_max_age,
             virtual_store_dir_max_length,
             peers_suffix_max_length,
-            lockfile, prefer_frozen_lockfile, offline, prefer_offline,
+            lockfile, prefer_frozen_lockfile,
+            deploy_all_files, force_legacy_deploy, shared_workspace_lockfile,
+            offline, prefer_offline,
             lockfile_include_tarball_url,
             auto_install_peers, auto_install_peers_from_highest_match,
             exclude_links_from_lockfile,
@@ -789,6 +819,9 @@ impl WorkspaceSettings {
         if let Some(v) = self.patched_dependencies {
             config.patched_dependencies = Some(v);
         }
+        if let Some(v) = self.patches_dir {
+            config.patches_dir = Some(v);
+        }
         if let Some(v) = self.config_dependencies {
             config.config_dependencies = Some(v);
         }
@@ -860,6 +893,12 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.trust_policy {
             config.trust_policy = v;
+        }
+        if let Some(v) = self.audit_level {
+            config.audit_level = Some(v);
+        }
+        if let Some(v) = self.audit_config {
+            config.audit_config = v;
         }
         if let Some(v) = self.trust_policy_exclude {
             config.trust_policy_exclude = Some(v);

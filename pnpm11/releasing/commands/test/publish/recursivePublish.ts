@@ -5,7 +5,7 @@ import { expect, jest, test } from '@jest/globals'
 import { streamParser } from '@pnpm/logger'
 import { preparePackages } from '@pnpm/prepare'
 import { publish } from '@pnpm/releasing.commands'
-import { REGISTRY_MOCK_CREDENTIALS, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
+import { getRegistryMockToken, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import type { ProjectManifest } from '@pnpm/types'
 import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
 import crossSpawn from 'cross-spawn'
@@ -16,7 +16,7 @@ import { checkPkgExists, DEFAULT_OPTS } from './utils/index.js'
 
 const CONFIG_BY_URI = {
   [`//localhost:${REGISTRY_MOCK_PORT}/`]: {
-    '@': { basicAuth: REGISTRY_MOCK_CREDENTIALS },
+    '@': { authToken: getRegistryMockToken() },
   },
 }
 

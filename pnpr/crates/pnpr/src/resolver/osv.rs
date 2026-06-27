@@ -106,8 +106,16 @@ impl OsvIndex {
             == Some(self.fingerprint.as_str())
     }
 
+    pub(crate) fn is_vulnerable(&self, name: &str, version: &str) -> bool {
+        let Some(advisories) = self.advisories(name) else {
+            return false;
+        };
+        let parsed = Version::parse(version).ok();
+        advisories.iter().any(|advisory| advisory.affects(version, parsed.as_ref()))
+    }
+
     pub(crate) fn vulnerability_ids(&self, name: &str, version: &str) -> Vec<String> {
-        let Some(advisories) = self.packages.get(normalized_name(name).as_ref()) else {
+        let Some(advisories) = self.advisories(name) else {
             return Vec::new();
         };
         // Parse the candidate once and share it across every advisory's
@@ -122,6 +130,10 @@ impl OsvIndex {
             .filter(|advisory| seen.insert(advisory.id.as_str()))
             .map(|advisory| advisory.id.clone())
             .collect()
+    }
+
+    fn advisories(&self, name: &str) -> Option<&[Advisory]> {
+        self.packages.get(normalized_name(name).as_ref()).map(Vec::as_slice)
     }
 
     fn decision(&self, name: &str, version: &str) -> PackageVersionGuardDecision {

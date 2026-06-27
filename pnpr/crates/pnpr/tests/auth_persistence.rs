@@ -10,7 +10,7 @@ use axum::{
     http::{Request, StatusCode},
 };
 use pnpr::{
-    AuthConfig, AuthState, Config, HtpasswdConfig, MaxUsers, TokensConfig, router_with_auth,
+    AuthConfig, AuthState, Config, HtpasswdConfig, MaxUsers, TokensConfig, router, router_with_auth,
 };
 use serde_json::{Value, json};
 use std::{
@@ -133,6 +133,53 @@ async fn user_and_token_survive_restart() {
     );
 }
 
+#[tokio::test]
+async fn invalid_usernames_do_not_change_htpasswd_across_restart() {
+    let auth_dir = TempDir::new().unwrap();
+    let storage = TempDir::new().unwrap();
+    let htpasswd = auth_dir.path().join("htpasswd");
+    let tokens_db = auth_dir.path().join("tokens.db");
+
+    let config =
+        persistent_config(storage.path().to_path_buf(), htpasswd.clone(), tokens_db.clone());
+    let auth = AuthState::load(&config.auth, &config.backend).await.expect("first boot");
+    let app = router_with_auth(config.clone(), auth);
+
+    let response = app
+        .clone()
+        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret")))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let original_htpasswd = std::fs::read_to_string(&htpasswd).unwrap();
+
+    for (case, encoded_username, username) in [
+        ("newline", "alice%0Aadmin", "alice\nadmin"),
+        ("carriage return", "alice%0Dadmin", "alice\radmin"),
+        ("colon", "alice%3Aadmin", "alice:admin"),
+        ("comment marker", "%23alice", "#alice"),
+        ("leading whitespace", "%20alice", " alice"),
+        ("trailing whitespace", "alice%20", "alice "),
+    ] {
+        let path = format!("/-/user/org.couchdb.user:{encoded_username}");
+        let response =
+            app.clone().oneshot(put_json(&path, adduser_body(username, "secret"))).await.unwrap();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST, "{case} username");
+        assert_eq!(
+            std::fs::read_to_string(&htpasswd).unwrap(),
+            original_htpasswd,
+            "{case} username must not alter htpasswd",
+        );
+    }
+
+    drop(app);
+    let auth = AuthState::load(&config.auth, &config.backend).await.expect("reload after restart");
+    // The reloaded htpasswd still logs the user in with the original password.
+    let (_, username) = auth.users.add_or_login("alice", "secret").await.unwrap();
+    assert_eq!(username, "alice");
+    assert_eq!(std::fs::read_to_string(&htpasswd).unwrap(), original_htpasswd);
+}
+
 /// Corrupt the htpasswd file → server returns a parse diagnostic on
 /// startup, not a silent empty user list. The acceptance criterion
 /// is that the operator sees an error rather than the server happily
@@ -237,4 +284,44 @@ async fn max_users_minus_one_disables_registration_end_to_end() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn missing_max_users_disables_registration_end_to_end() {
+    let storage = TempDir::new().unwrap();
+    let config = Config::static_serve(listen(), storage.path().to_path_buf());
+    let app = router(config);
+
+    let response = app
+        .oneshot(put_json("/-/user/org.couchdb.user:newbie", adduser_body("newbie", "anything")))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    let body = body_bytes(response.into_body()).await;
+    assert!(
+        !body.windows(b"\"token\"".len()).any(|window| window == b"\"token\""),
+        "registration denial must not issue a token",
+    );
+}
+
+#[tokio::test]
+async fn finite_max_users_reaches_in_memory_backend_end_to_end() {
+    let storage = TempDir::new().unwrap();
+    let mut config = Config::static_serve(listen(), storage.path().to_path_buf());
+    config.auth.htpasswd.max_users = MaxUsers::Limited(1);
+    let auth = AuthState::load(&config.auth, &config.backend).await.unwrap();
+    let app = router_with_auth(config, auth);
+
+    let first = app
+        .clone()
+        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret")))
+        .await
+        .unwrap();
+    assert_eq!(first.status(), StatusCode::CREATED);
+
+    let second = app
+        .oneshot(put_json("/-/user/org.couchdb.user:bob", adduser_body("bob", "secret")))
+        .await
+        .unwrap();
+    assert_eq!(second.status(), StatusCode::FORBIDDEN);
 }

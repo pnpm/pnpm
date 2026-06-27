@@ -31,6 +31,15 @@ pub enum RegistryError {
         uplink: String,
     },
 
+    #[display("EINTEGRITY: tarball {filename:?} for package {package:?}: {reason}")]
+    #[from(skip)]
+    TarballIntegrity {
+        #[error(not(source))]
+        package: String,
+        filename: String,
+        reason: String,
+    },
+
     #[display("Package name {name:?} is not a valid npm package name")]
     InvalidPackageName {
         #[error(not(source))]
@@ -101,10 +110,38 @@ pub enum RegistryError {
         reason: String,
     },
 
-    /// `auth.htpasswd.max_users: -1` blocks new registrations.
-    /// Returned for adduser on a username that doesn't already
-    /// exist; existing-user logins are unaffected.
-    #[display("New user registration is disabled by auth.htpasswd.max_users: -1")]
+    /// A publish targeted a `name@version` that is already hosted.
+    /// Published versions are immutable; npm and verdaccio both answer a
+    /// re-publish with 409 Conflict.
+    #[display("Cannot publish over the previously published version {package}@{version}")]
+    #[from(skip)]
+    VersionAlreadyPublished {
+        #[error(not(source))]
+        package: String,
+        #[error(not(source))]
+        version: String,
+    },
+
+    #[display(
+        "Package {package}@{version} is listed in the local OSV database as vulnerable ({advisories})"
+    )]
+    #[from(skip)]
+    OsvVulnerability {
+        #[error(not(source))]
+        package: String,
+        #[error(not(source))]
+        version: String,
+        #[error(not(source))]
+        advisories: String,
+    },
+
+    /// New-user registration is off: `auth.htpasswd.max_users` is
+    /// unset (the secure default) or set to `-1`. Returned for adduser
+    /// on a username that doesn't already exist; existing-user logins
+    /// are unaffected.
+    #[display(
+        "New user registration is disabled. Set auth.htpasswd.max_users to a positive number to allow sign-ups"
+    )]
     RegistrationDisabled,
 
     /// `auth.htpasswd.max_users: N` cap reached. Returned for
@@ -151,7 +188,11 @@ pub enum RegistryError {
     Sqlx(sqlx::Error),
 
     /// SQL auth backend operation timed out.
-    #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+    #[cfg(any(
+        feature = "backend-libsql",
+        feature = "backend-postgres",
+        feature = "backend-mysql"
+    ))]
     #[display("Auth database timeout")]
     AuthDatabaseTimeout,
 
@@ -173,12 +214,34 @@ pub enum RegistryError {
 }
 
 impl RegistryError {
+    /// Whether a failed upstream fetch may fall through to the next uplink
+    /// in a package's `proxy:` fallback chain. Only *availability* failures
+    /// are retryable this way: a transport error, an open circuit breaker,
+    /// or an upstream `5xx`. Any `4xx` is an authoritative response about
+    /// *this* request — `401`/`403` (auth), `429` (throttle), `400`/`410`,
+    /// etc. — and is **not** eligible: a later uplink must never mask it,
+    /// which would let a public mirror answer for a package the primary
+    /// scoped to an authenticated private uplink, or silently bypass a
+    /// rate-limit. Such an error surfaces immediately.
+    ///
+    /// A `404` never reaches here — it is modeled as a distinct not-found
+    /// outcome, not an error, and the chain walks past it on its own.
+    #[must_use]
+    pub fn allows_uplink_fallthrough(&self) -> bool {
+        match self {
+            RegistryError::Upstream { .. } | RegistryError::UpstreamUnavailable { .. } => true,
+            RegistryError::UpstreamStatus { status, .. } => *status >= 500,
+            _ => false,
+        }
+    }
+
     #[must_use]
     pub fn log_kind(&self) -> &'static str {
         match self {
             RegistryError::Upstream { .. } => "upstream",
             RegistryError::UpstreamStatus { .. } => "upstream_status",
             RegistryError::UpstreamUnavailable { .. } => "upstream_unavailable",
+            RegistryError::TarballIntegrity { .. } => "tarball_integrity",
             RegistryError::InvalidPackageName { .. } => "invalid_package_name",
             RegistryError::InvalidTarballName { .. } => "invalid_tarball_name",
             RegistryError::InvalidPolicyPattern { .. } => "invalid_policy_pattern",
@@ -187,6 +250,8 @@ impl RegistryError {
             RegistryError::Forbidden { .. } => "forbidden",
             RegistryError::InvalidAttachment { .. } => "invalid_attachment",
             RegistryError::BadRequest { .. } => "bad_request",
+            RegistryError::VersionAlreadyPublished { .. } => "version_already_published",
+            RegistryError::OsvVulnerability { .. } => "osv_vulnerability",
             RegistryError::RegistrationDisabled => "registration_disabled",
             RegistryError::TooManyUsers { .. } => "too_many_users",
             RegistryError::Internal { .. } => "internal",
@@ -197,7 +262,11 @@ impl RegistryError {
             RegistryError::Libsql(_) => "libsql",
             #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
             RegistryError::Sqlx(_) => "sqlx",
-            #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+            #[cfg(any(
+                feature = "backend-libsql",
+                feature = "backend-postgres",
+                feature = "backend-mysql"
+            ))]
             RegistryError::AuthDatabaseTimeout => "auth_database_timeout",
             RegistryError::JoinError(_) => "join_error",
             RegistryError::Io(_) => "io",
@@ -246,7 +315,9 @@ impl RegistryError {
                     StatusCode::BAD_GATEWAY
                 }
             }
-            RegistryError::UpstreamStatus { .. } => StatusCode::BAD_GATEWAY,
+            RegistryError::UpstreamStatus { .. } | RegistryError::TarballIntegrity { .. } => {
+                StatusCode::BAD_GATEWAY
+            }
             RegistryError::UpstreamUnavailable { .. } => StatusCode::SERVICE_UNAVAILABLE,
             RegistryError::InvalidPackageName { .. }
             | RegistryError::InvalidTarballName { .. }
@@ -254,8 +325,10 @@ impl RegistryError {
             | RegistryError::InvalidConfig { .. }
             | RegistryError::InvalidAttachment { .. }
             | RegistryError::BadRequest { .. } => StatusCode::BAD_REQUEST,
+            RegistryError::VersionAlreadyPublished { .. } => StatusCode::CONFLICT,
             RegistryError::Unauthenticated { .. } => StatusCode::UNAUTHORIZED,
             RegistryError::Forbidden { .. } => StatusCode::FORBIDDEN,
+            RegistryError::OsvVulnerability { .. } => StatusCode::FORBIDDEN,
             RegistryError::RegistrationDisabled | RegistryError::TooManyUsers { .. } => {
                 StatusCode::FORBIDDEN
             }
@@ -268,7 +341,11 @@ impl RegistryError {
             RegistryError::Libsql(_) => StatusCode::INTERNAL_SERVER_ERROR,
             #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
             RegistryError::Sqlx(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            #[cfg(any(feature = "backend-postgres", feature = "backend-mysql"))]
+            #[cfg(any(
+                feature = "backend-libsql",
+                feature = "backend-postgres",
+                feature = "backend-mysql"
+            ))]
             RegistryError::AuthDatabaseTimeout => StatusCode::GATEWAY_TIMEOUT,
             RegistryError::Io(_) | RegistryError::ObjectStore(_) | RegistryError::Json(_) => {
                 StatusCode::BAD_GATEWAY

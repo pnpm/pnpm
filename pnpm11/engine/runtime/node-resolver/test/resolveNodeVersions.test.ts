@@ -15,6 +15,11 @@ test('resolve latest version', async () => {
   expect(versions).toHaveLength(1)
 })
 
+test.each(['', '  '])('resolve blank version list as latest (%j)', async (spec) => {
+  const versions = await resolveNodeVersions(fetch, spec)
+  expect(versions).toHaveLength(1)
+})
+
 test('resolve all versions', async () => {
   const versions = await resolveNodeVersions(fetch)
   expect(versions.length).toBeGreaterThan(1)

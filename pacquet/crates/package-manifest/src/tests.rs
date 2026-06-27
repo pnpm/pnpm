@@ -9,11 +9,55 @@ use tempfile::{NamedTempFile, tempdir};
 use super::safe_read_package_json_from_dir;
 use super::{
     BundleDependencies, PackageManifest, PackageManifestError,
-    convert_engines_runtime_to_dependencies,
+    convert_dependencies_to_engines_runtime, convert_engines_runtime_to_dependencies,
 };
 use crate::DependencyGroup;
 use serde_json::json;
 use std::io::Write;
+
+#[cfg(unix)]
+#[test]
+fn save_leaves_the_original_intact_when_the_write_cannot_complete() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    let original = r#"{"name":"intact","version":"1.0.0"}"#;
+    std::fs::write(&path, original).unwrap();
+
+    let manifest = PackageManifest::from_path(path.clone()).unwrap();
+
+    // Make the directory read-only so a sibling temp file cannot be created.
+    // An atomic temp-file-then-rename write fails up front and leaves the
+    // original untouched; a non-atomic in-place write would instead truncate
+    // the existing package.json before failing.
+    std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o555)).unwrap();
+    let result = manifest.save();
+    // Restore permissions before the assertions so tempdir cleanup succeeds.
+    std::fs::set_permissions(dir.path(), std::fs::Permissions::from_mode(0o755)).unwrap();
+
+    assert!(result.is_err());
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+}
+
+#[cfg(unix)]
+#[test]
+fn save_preserves_the_existing_package_json_permissions() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    std::fs::write(&path, r#"{"name":"perm","version":"1.0.0"}"#).unwrap();
+    std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o640)).unwrap();
+
+    let manifest = PackageManifest::from_path(path.clone()).unwrap();
+    manifest.save().unwrap();
+
+    // The atomic temp-file-then-rename must keep the original mode, not leave
+    // the NamedTempFile's default 0o600 behind.
+    let mode = std::fs::metadata(&path).unwrap().permissions().mode() & 0o777;
+    assert_eq!(mode, 0o640);
+}
 
 #[test]
 fn test_init_package_json_content() {
@@ -306,6 +350,297 @@ fn convert_engines_runtime_targets_dependencies_for_engines_field() {
         manifest.get("dependencies").and_then(|d| d.get("node")).and_then(|v| v.as_str()),
         Some("runtime:22.0.0"),
     );
+}
+
+#[test]
+fn convert_dependencies_runtime_writes_devengines_runtime() {
+    let mut manifest = json!({
+        "devDependencies": {
+            "node": "runtime:22",
+        },
+    });
+    convert_dependencies_to_engines_runtime(&mut manifest, "devDependencies", "devEngines")
+        .unwrap();
+
+    assert_eq!(
+        manifest.get("devEngines"),
+        Some(&json!({
+            "runtime": {
+                "name": "node",
+                "version": "22",
+                "onFail": "download",
+            },
+        })),
+    );
+    assert_eq!(manifest.get("devDependencies"), Some(&json!({})));
+}
+
+#[test]
+fn convert_dependencies_runtime_trims_runtime_selector() {
+    let mut manifest = json!({
+        "devDependencies": {
+            "node": "runtime:  ",
+        },
+    });
+    convert_dependencies_to_engines_runtime(&mut manifest, "devDependencies", "devEngines")
+        .unwrap();
+
+    assert_eq!(
+        manifest.get("devEngines"),
+        Some(&json!({
+            "runtime": {
+                "name": "node",
+                "version": "",
+                "onFail": "download",
+            },
+        })),
+    );
+    assert_eq!(manifest.get("devDependencies"), Some(&json!({})));
+}
+
+#[test]
+fn convert_dependencies_runtime_updates_existing_single_entry() {
+    let mut manifest = json!({
+        "devEngines": {
+            "runtime": {
+                "name": "node",
+                "version": "16",
+                "onFail": "warn",
+            },
+        },
+        "devDependencies": {
+            "node": "runtime:22",
+        },
+    });
+    convert_dependencies_to_engines_runtime(&mut manifest, "devDependencies", "devEngines")
+        .unwrap();
+
+    assert_eq!(
+        manifest.get("devEngines"),
+        Some(&json!({
+            "runtime": {
+                "name": "node",
+                "version": "22",
+                "onFail": "download",
+            },
+        })),
+    );
+    assert_eq!(manifest.get("devDependencies"), Some(&json!({})));
+}
+
+#[test]
+fn convert_dependencies_runtime_preserves_other_single_runtime_as_array() {
+    let mut manifest = json!({
+        "devEngines": {
+            "runtime": {
+                "name": "deno",
+                "version": "1",
+            },
+        },
+        "devDependencies": {
+            "node": "runtime:22",
+        },
+    });
+    convert_dependencies_to_engines_runtime(&mut manifest, "devDependencies", "devEngines")
+        .unwrap();
+
+    assert_eq!(
+        manifest.get("devEngines"),
+        Some(&json!({
+            "runtime": [
+                {
+                    "name": "deno",
+                    "version": "1",
+                },
+                {
+                    "name": "node",
+                    "version": "22",
+                    "onFail": "download",
+                },
+            ],
+        })),
+    );
+    assert_eq!(manifest.get("devDependencies"), Some(&json!({})));
+}
+
+#[test]
+fn save_converts_runtime_dependencies_before_writing() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(path.clone()).unwrap();
+    manifest.add_dependency("node", "runtime:22", DependencyGroup::Dev).unwrap();
+    manifest.add_dependency("bun", "runtime:1.2.0", DependencyGroup::Prod).unwrap();
+    manifest.save().unwrap();
+
+    let saved: serde_json::Value =
+        serde_json::from_str(&read_to_string(path).unwrap()).expect("parse saved manifest");
+    assert_eq!(
+        saved.get("devEngines"),
+        Some(&json!({
+            "runtime": {
+                "name": "node",
+                "version": "22",
+                "onFail": "download",
+            },
+        })),
+    );
+    assert_eq!(
+        saved.get("engines"),
+        Some(&json!({
+            "runtime": {
+                "name": "bun",
+                "version": "1.2.0",
+                "onFail": "download",
+            },
+        })),
+    );
+    assert_eq!(saved.get("devDependencies"), Some(&json!({})));
+    assert_eq!(saved.get("dependencies"), Some(&json!({})));
+}
+
+#[test]
+fn save_and_get_written_value_returns_saved_manifest() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    let mut manifest = PackageManifest::create_if_needed(path.clone()).unwrap();
+    manifest.add_dependency("node", "runtime:22", DependencyGroup::Dev).unwrap();
+
+    let written = manifest.save_and_get_written_value().unwrap();
+    let saved: serde_json::Value =
+        serde_json::from_str(&read_to_string(path).unwrap()).expect("parse saved manifest");
+
+    assert_eq!(written, saved);
+    assert_eq!(
+        saved.get("devEngines"),
+        Some(&json!({
+            "runtime": {
+                "name": "node",
+                "version": "22",
+                "onFail": "download",
+            },
+        })),
+    );
+    assert_eq!(saved.get("devDependencies"), Some(&json!({})));
+    assert_eq!(manifest.value().get("devDependencies"), Some(&json!({ "node": "runtime:22" })));
+}
+
+#[test]
+fn save_prunes_removed_reified_runtime_entry() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    let raw = json!({
+        "name": "fixture",
+        "devEngines": {
+            "runtime": {
+                "name": "node",
+                "version": "22",
+                "onFail": "download",
+            },
+        },
+    });
+    std::fs::write(&path, serde_json::to_string_pretty(&raw).unwrap()).unwrap();
+
+    let mut manifest = PackageManifest::from_path(path.clone()).unwrap();
+    manifest.remove_dependencies(&["node".to_string()], Some(DependencyGroup::Dev));
+    manifest.save().unwrap();
+
+    let saved: serde_json::Value =
+        serde_json::from_str(&read_to_string(path).unwrap()).expect("parse saved manifest");
+    assert_eq!(saved.get("devEngines"), Some(&json!({})));
+    assert_eq!(saved.get("devDependencies"), Some(&json!({})));
+}
+
+#[test]
+fn save_prunes_only_removed_reified_runtime_entry_from_array() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    let raw = json!({
+        "name": "fixture",
+        "devEngines": {
+            "runtime": [
+                {
+                    "name": "node",
+                    "version": "22",
+                    "onFail": "download",
+                },
+                {
+                    "name": "deno",
+                    "version": "2",
+                    "onFail": "download",
+                },
+            ],
+        },
+    });
+    std::fs::write(&path, serde_json::to_string_pretty(&raw).unwrap()).unwrap();
+
+    let mut manifest = PackageManifest::from_path(path.clone()).unwrap();
+    manifest.remove_dependencies(&["node".to_string()], Some(DependencyGroup::Dev));
+    manifest.save().unwrap();
+
+    let saved: serde_json::Value =
+        serde_json::from_str(&read_to_string(path).unwrap()).expect("parse saved manifest");
+    assert_eq!(
+        saved.get("devEngines"),
+        Some(&json!({
+            "runtime": [
+                {
+                    "name": "deno",
+                    "version": "2",
+                    "onFail": "download",
+                },
+            ],
+        })),
+    );
+    assert_eq!(saved.get("devDependencies"), Some(&json!({})));
+}
+
+#[test]
+fn failed_save_preserves_existing_file_contents() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    let raw = serde_json::to_string_pretty(&json!({
+        "name": "fixture",
+        "devEngines": "invalid",
+        "devDependencies": {
+            "node": "runtime:22",
+        },
+    }))
+    .unwrap();
+    std::fs::write(&path, &raw).unwrap();
+
+    let manifest = PackageManifest::from_path(path.clone()).unwrap();
+    assert!(matches!(manifest.save(), Err(PackageManifestError::InvalidAttribute(_))));
+    assert_eq!(read_to_string(path).unwrap(), raw);
+}
+
+#[test]
+fn failed_save_preserves_existing_file_when_dependency_field_is_malformed() {
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("package.json");
+    let raw = serde_json::to_string_pretty(&json!({
+        "name": "fixture",
+        "devEngines": {
+            "runtime": {
+                "name": "node",
+                "version": "22",
+                "onFail": "download",
+            },
+        },
+    }))
+    .unwrap();
+    std::fs::write(&path, &raw).unwrap();
+
+    let mut manifest = PackageManifest::from_path(path.clone()).unwrap();
+    manifest.value_mut()["devDependencies"] = json!([]);
+    let err =
+        manifest.save().expect_err("malformed devDependencies must reject save before writing");
+    match err {
+        PackageManifestError::InvalidAttribute(msg) => {
+            assert!(msg.contains("devDependencies"), "got: {msg:?}");
+        }
+        other => panic!("expected InvalidAttribute, got {other:?}"),
+    }
+    assert_eq!(read_to_string(path).unwrap(), raw);
 }
 
 /// Reading a manifest with `devEngines.runtime` set must apply the

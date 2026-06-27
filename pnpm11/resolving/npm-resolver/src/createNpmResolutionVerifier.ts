@@ -4,9 +4,10 @@ import { FULL_META_DIR } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import type { GetAuthHeader } from '@pnpm/fetching.types'
 import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.types'
-import type {
-  Resolution,
-  ResolutionVerifier,
+import {
+  isGitHostedTarballUrl,
+  type Resolution,
+  type ResolutionVerifier,
 } from '@pnpm/resolving.resolver-base'
 import type { PackageVersionPolicy, Registries, TrustPolicy } from '@pnpm/types'
 import semver from 'semver'
@@ -25,6 +26,7 @@ import { getPkgMetaCacheKey, getPkgMirrorPath, loadMeta, warnMissingTimeFieldOnc
 import { failIfTrustDowngraded } from './trustChecks.js'
 import {
   MINIMUM_RELEASE_AGE_VIOLATION_CODE,
+  MISSING_TARBALL_INTEGRITY_VIOLATION_CODE,
   TARBALL_URL_MISMATCH_VIOLATION_CODE,
   TRUST_DOWNGRADE_VIOLATION_CODE,
 } from './violationCodes.js'
@@ -178,16 +180,42 @@ export function createNpmResolutionVerifier (
   const trustPolicyIgnoreAfter = opts.trustPolicyIgnoreAfter
 
   const verify: ResolutionVerifier['verify'] = async (resolution, { name, version, nonSemverVersion }) => {
-    if (!isNpmRegistryResolution(resolution)) return { ok: true }
+    if (!isRegistryTarballResolution(resolution)) return { ok: true }
+
+    // Network-free structural checks must run before registry metadata shortcuts.
+    const integrity = (resolution as { integrity?: unknown }).integrity
+    if (typeof integrity !== 'string' || integrity.length === 0) {
+      return {
+        ok: false,
+        code: MISSING_TARBALL_INTEGRITY_VIOLATION_CODE,
+        reason: 'has no "integrity" field, so its downloaded tarball cannot be verified',
+      }
+    }
+
     // URL/git-keyed entries are deliberate non-registry deps. They can still
     // carry a semver `version` copied from the resolved manifest, so the
     // semver guard below isn't enough on its own — the registry policies and
     // the tarball-URL binding don't apply to them, and a registry lookup
     // would 404.
     if (nonSemverVersion != null) return { ok: true }
-    if (!semver.valid(version)) return { ok: true }
 
-    const tarballUrl = (resolution as { tarball?: string }).tarball
+    if (!semver.valid(version)) {
+      return {
+        ok: false,
+        code: TARBALL_URL_MISMATCH_VIOLATION_CODE,
+        reason: `has a non-semver version ("${version}") and so cannot be verified against the registry's published metadata`,
+      }
+    }
+
+    const rawTarball = (resolution as { tarball?: unknown }).tarball
+    if (rawTarball != null && typeof rawTarball !== 'string') {
+      return {
+        ok: false,
+        code: TARBALL_URL_MISMATCH_VIOLATION_CODE,
+        reason: 'has a non-string "tarball" field, so its URL cannot be verified',
+      }
+    }
+    const tarballUrl = typeof rawTarball === 'string' ? rawTarball : undefined
     const registry = pickRegistryForVersion(opts.registries, namedRegistryPrefixes, name, tarballUrl)
 
     // A registry entry that pins an explicit tarball URL must point at the
@@ -242,6 +270,8 @@ export function createNpmResolutionVerifier (
       // applies the binding — otherwise an upgrade could keep trusting a
       // lockfile that was only ever age/trust-checked.
       tarballUrlBinding: true,
+      // Same cache identity rule for the missing-integrity structural check.
+      integrityRequired: true,
       minimumReleaseAge,
       minimumReleaseAgeExclude: sortedMinAgeExcludes,
       trustPolicy: trustPolicy ?? null,
@@ -252,6 +282,10 @@ export function createNpmResolutionVerifier (
       // The tarball-URL binding is unconditional today; a cached run that
       // didn't record it can't be trusted to have enforced it.
       if (cached.tarballUrlBinding !== true) return false
+
+      // The missing-integrity check is also unconditional; older cache records
+      // without the flag cannot prove they rejected unverifiable tarballs.
+      if (cached.integrityRequired !== true) return false
 
       // Maturity: a previously cached run under a larger cutoff
       // (stricter window) is trustworthy under a smaller current one —
@@ -301,16 +335,11 @@ async function runAgeCheck (
   cutoff: number,
   ignoreMissingTimeField: boolean
 ): Promise<{ ok: false, code: string, reason: string } | undefined> {
-  let published: string | undefined
-  try {
-    published = await fetchPublishedAt(context, registry, name, version)
-  } catch (err) {
-    return {
-      ok: false,
-      code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
-      reason: uncheckable('minimumReleaseAge', err instanceof Error ? err.message : String(err)),
-    }
-  }
+  // A transport failure (auth/network/5xx) propagates the registry's own fetch
+  // error (e.g. ERR_PNPM_FETCH_403); the gate aborts the install with it rather
+  // than folding it into a policy violation. A successful fetch that simply
+  // lacks a publish timestamp for this version is handled below.
+  const published = await fetchPublishedAt(context, registry, name, version)
   if (!published) {
     // No source — attestation, local mirror, or full metadata —
     // surfaced a publish timestamp for this version. The resolver's
@@ -366,7 +395,15 @@ async function runTarballUrlCheck (
   version: string,
   lockfileTarball: string
 ): Promise<{ ok: false, code: string, reason: string } | undefined> {
-  const meta = await fetchAbbreviatedMeta(context, registry, name)
+  const { meta, error } = await fetchAbbreviatedMeta(context, registry, name)
+  if (error != null) {
+    // Couldn't reach the registry to verify (auth/network/5xx). Propagate the
+    // registry's own fetch error (e.g. ERR_PNPM_FETCH_403, which already
+    // explains the auth situation) instead of mislabeling a transport failure
+    // as a tampering-style URL mismatch. The gate aborts the install with that
+    // error — still fail-closed, the entry never reaches the filesystem.
+    throw error
+  }
   const registryTarball = meta?.versionTarballs?.get(version)
   if (registryTarball != null && sameTarballUrl(lockfileTarball, registryTarball)) {
     return undefined
@@ -420,19 +457,11 @@ async function runTrustCheck (
     trustPolicyIgnoreAfter?: number
   }
 ): Promise<{ ok: false, code: string, reason: string } | undefined> {
-  let meta: PackageMeta
-  try {
-    meta = await fetchFullMetaForTrust(context, registry, name)
-  } catch (err) {
-    // `fetchFullMetadataCached` rejects (network error, 404, etc.); the
-    // verifier fails closed so a missing manifest can't be mistaken
-    // for a passing trust check.
-    return {
-      ok: false,
-      code: TRUST_DOWNGRADE_VIOLATION_CODE,
-      reason: uncheckable('trustPolicy', err instanceof Error ? err.message : String(err)),
-    }
-  }
+  // A transport failure (auth/network/5xx) propagates the registry's own fetch
+  // error; the gate aborts the install with it rather than folding it into a
+  // policy violation. Still fail-closed: a missing manifest can't be mistaken
+  // for a passing trust check because the install never proceeds.
+  const meta = await fetchFullMetaForTrust(context, registry, name)
 
   try {
     failIfTrustDowngraded(meta, version, opts)
@@ -577,10 +606,11 @@ interface PublishedAtLookupContext {
    * package-level `modified` plus the set of currently-listed version
    * names — so the multi-hundred-KB packument can be GC'd as soon as
    * the fetch returns (the cache only needs to dedupe network/disk
-   * round-trips, not full document storage). Resolves to `undefined`
-   * on failure.
+   * round-trips, not full document storage). Resolves to `{ meta }` on
+   * success or `{ error }` on a fetch failure — it never rejects, so the
+   * cached promise is safe to share between callers.
    */
-  abbreviatedMetaCache: Map<string, Promise<AbbreviatedMetaProjection | undefined>>
+  abbreviatedMetaCache: Map<string, Promise<AbbreviatedMetaResult>>
   /**
    * Per-(registry+name+version) memo of the final published-at answer
    * the verifier hands to the policy check. One install verifies each
@@ -690,7 +720,9 @@ async function tryAbbreviatedModifiedShortcut (
   name: string,
   version: string
 ): Promise<string | undefined> {
-  const meta = await fetchAbbreviatedMeta(context, registry, name)
+  // A fetch failure here is fine: ignore `error` and fall back to per-version
+  // lookups, the same as a successful-but-uninformative metadata response.
+  const { meta } = await fetchAbbreviatedMeta(context, registry, name)
   const modified = meta?.modified
   if (typeof modified !== 'string') return undefined
   const modifiedMs = Date.parse(modified)
@@ -708,7 +740,7 @@ function fetchAbbreviatedMeta (
   context: PublishedAtLookupContext,
   registry: string,
   name: string
-): Promise<AbbreviatedMetaProjection | undefined> {
+): Promise<AbbreviatedMetaResult> {
   const cacheKey = `${registry}\x00${name}`
   let cachedPromise = context.abbreviatedMetaCache.get(cacheKey)
   if (cachedPromise == null) {
@@ -719,13 +751,22 @@ function fetchAbbreviatedMeta (
     // can only return this registry's own packument.
     const shared = readSharedMeta(context.sharedMetaCache, registry, name)
     if (shared != null) {
-      cachedPromise = Promise.resolve(projectAbbreviatedMeta(shared))
+      cachedPromise = Promise.resolve({ meta: projectAbbreviatedMeta(shared) })
     } else {
+      // Carry a fetch failure (auth/network/5xx) as `error` instead of
+      // collapsing it to `undefined`: the tarball-URL check rethrows it (so the
+      // registry's own error surfaces, not a tampering-style mismatch) while
+      // the age shortcut ignores it and falls back to per-version lookups.
+      // Keeping it a resolved value — not a rejected promise — lets the two
+      // callers share one cached promise without an unhandled rejection.
       cachedPromise = fetchAbbreviatedMetadataCached(context.fetchOpts, name, {
         registry,
         authHeaderValue: context.getAuthHeaderValueByURI(registry, { pkgName: name }),
         cacheDir: context.cacheDir,
-      }).then(projectAbbreviatedMeta, () => undefined)
+      }).then(
+        (meta) => ({ meta: projectAbbreviatedMeta(meta) }),
+        (error: unknown) => ({ error })
+      )
     }
     context.abbreviatedMetaCache.set(cacheKey, cachedPromise)
   }
@@ -811,6 +852,21 @@ interface AbbreviatedMetaProjection {
   /** version → `dist.tarball`; key presence means the version is published. */
   versionTarballs?: Map<string, string | undefined>
 }
+
+/**
+ * Result of an abbreviated-metadata fetch. The fetch error is carried as a
+ * value rather than rejected so the per-install cache can hold a single
+ * resolved promise — a cached rejection would surface as an unhandled
+ * rejection and be shared across every caller of the same key. The
+ * tarball-URL check rethrows this error; the age shortcut ignores it and
+ * falls back to per-version lookups.
+ *
+ * Modeled as a discriminated union so a result carries exactly one of `meta`
+ * or `error` — never both, never neither.
+ */
+type AbbreviatedMetaResult =
+  | { meta: AbbreviatedMetaProjection, error?: undefined }
+  | { error: unknown, meta?: undefined }
 
 function readLocalMetaTime (
   context: PublishedAtLookupContext,
@@ -914,20 +970,21 @@ function isExcluded (policy: PackageVersionPolicy | undefined, name: string, ver
   return false
 }
 
-function isNpmRegistryResolution (resolution: Resolution | unknown): boolean {
+function isRegistryTarballResolution (resolution: Resolution | unknown): boolean {
   if (resolution == null || typeof resolution !== 'object') return false
   // Only plain tarball resolutions (npm registry / named registries) have no
   // `type` field. Git / directory / binary / custom resolutions all carry one.
   if ('type' in resolution && (resolution as { type?: unknown }).type != null) return false
-  // Git-hosted tarballs (codeload/gitlab/bitbucket) are special-cased in
-  // the resolver and aren't subject to release-age policy.
-  if ('gitHosted' in resolution && (resolution as { gitHosted?: boolean }).gitHosted) return false
   const tarball = (resolution as { tarball?: unknown }).tarball
   if (typeof tarball === 'string') {
+    // Git-hosted tarballs (codeload/gitlab/bitbucket) are special-cased in
+    // the resolver and aren't subject to registry policy.
+    if (isGitHostedTarballUrl(tarball)) return false
     // Local/non-registry tarballs (for example `file:`) have no packument
     // metadata, so minimumReleaseAge/trustPolicy verification cannot apply.
     const protocol = tryParseUrl(tarball)?.protocol
     if (protocol != null && protocol !== 'http:' && protocol !== 'https:') return false
   }
-  return 'tarball' in resolution || 'integrity' in resolution
+  // Canonical registry entries may omit both `tarball` and `integrity`.
+  return true
 }

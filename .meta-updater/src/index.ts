@@ -29,6 +29,8 @@ const PUBLISH_EXECUTABLE_FILES = [
   './dist/node-gyp-bin/node-gyp',
   './dist/node-gyp-bin/node-gyp.cmd',
   './dist/node_modules/node-gyp/bin/node-gyp.js',
+  './dist/node_modules/node-gyp/gyp/gyp_main.py',
+  './dist/node_modules/node-gyp/gyp/gyp',
 ]
 
 // Packages whose tests spawn the local pnpm CLI binary (pnpm/bin/pnpm.mjs)

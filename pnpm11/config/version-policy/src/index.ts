@@ -56,6 +56,34 @@ export function getPublishedByPolicy (opts: PublishedByPolicyOptions): Published
   }
 }
 
+/**
+ * Merges a list of package version policy specs (e.g. `minimumReleaseAgeExclude`
+ * entries) into one canonical entry per package. Specs for the same package are
+ * combined: a bare name/pattern (no version) excludes every version and absorbs
+ * any version-specific specs for that package, otherwise the exact versions are
+ * deduplicated, sorted by semver, and joined into a single `name@v1 || v2` entry.
+ * Packages keep their first-seen order so the output is stable.
+ */
+export function mergePackageVersionSpecs (specs: string[]): string[] {
+  const byPackage = new Map<string, Set<string> | null>()
+  for (const spec of specs) {
+    const { packageName, exactVersions } = parseVersionPolicyRule(spec)
+    const existing = byPackage.get(packageName)
+    if (existing === undefined) {
+      byPackage.set(packageName, exactVersions.length === 0 ? null : new Set(exactVersions))
+    } else if (existing === null || exactVersions.length === 0) {
+      byPackage.set(packageName, null)
+    } else {
+      for (const version of exactVersions) existing.add(version)
+    }
+  }
+  return Array.from(byPackage.entries()).map(([packageName, versions]) =>
+    versions == null
+      ? packageName
+      : `${packageName}@${Array.from(versions).sort(semver.compare).join(' || ')}`
+  )
+}
+
 export function expandPackageVersionSpecs (specs: string[]): Set<string> {
   const expandedSpecs = new Set<string>()
   for (const spec of specs) {

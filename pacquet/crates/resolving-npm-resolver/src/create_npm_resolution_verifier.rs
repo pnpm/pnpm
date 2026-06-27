@@ -26,7 +26,7 @@ use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use pacquet_config::{TrustPolicy, version_policy::PackageVersionPolicy};
 use pacquet_lockfile::{LockfileResolution, PkgName};
-use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient, redact_url_credentials};
 use pacquet_registry::{Approver, NpmUser, Package, PackageDistribution, PackageVersion};
 use pacquet_resolving_resolver_base::{
     ResolutionVerification, ResolutionVerifier, VerifyCtx, VerifyFuture, parse_packument_timestamp,
@@ -449,7 +449,7 @@ impl NpmResolutionVerifier {
         lockfile_tarball: &str,
     ) -> Option<ResolutionVerification> {
         let registry_tarball = match self.fetch_abbreviated_meta(registry, name).await {
-            Ok(Some(meta)) => {
+            Ok(meta) => {
                 if let Some(sink) = self.observed_dist_stats.as_ref()
                     && let Some(stats) =
                         meta.version_dist_stats.as_ref().and_then(|stats| stats.get(version))
@@ -458,7 +458,15 @@ impl NpmResolutionVerifier {
                 }
                 meta.version_tarballs.and_then(|tarballs| tarballs.get(version).cloned())
             }
-            Ok(None) | Err(_) => None,
+            Err(message) => {
+                // Couldn't reach the registry to verify (auth/network/5xx).
+                // Propagate the registry's own fetch error (already
+                // credential-redacted) so the install aborts with it rather
+                // than mislabeling a transport failure as a tampering-style URL
+                // mismatch. Still fail-closed: the entry never reaches the
+                // filesystem because the install never proceeds.
+                return Some(ResolutionVerification::FetchFailed { message });
+            }
         };
         match registry_tarball {
             Some(url) if same_tarball_url(lockfile_tarball, &url) => None,
@@ -485,12 +493,10 @@ impl NpmResolutionVerifier {
         let cutoff = self.cutoff.expect("cutoff is Some when age check is active");
         let published = match self.fetch_published_at(registry, name, version).await {
             Ok(value) => value,
-            Err(reason) => {
-                return Some(ResolutionVerification::Err {
-                    code: MINIMUM_RELEASE_AGE_VIOLATION_CODE,
-                    reason: uncheckable("minimumReleaseAge", &reason),
-                });
-            }
+            // A transport failure propagates the registry's own fetch error so
+            // the install aborts with it; a successful fetch that merely lacks a
+            // timestamp is handled below.
+            Err(message) => return Some(ResolutionVerification::FetchFailed { message }),
         };
         let Some(published) = published else {
             // No source surfaced a publish timestamp; mirror the
@@ -535,12 +541,10 @@ impl NpmResolutionVerifier {
     ) -> Option<ResolutionVerification> {
         let meta = match self.fetch_full_meta_for_trust(registry, name).await {
             Ok(meta) => meta,
-            Err(reason) => {
-                return Some(ResolutionVerification::Err {
-                    code: TRUST_DOWNGRADE_VIOLATION_CODE,
-                    reason: uncheckable("trustPolicy", &reason),
-                });
-            }
+            // A transport failure propagates the registry's own fetch error so
+            // the install aborts with it rather than folding it into a policy
+            // violation.
+            Err(message) => return Some(ResolutionVerification::FetchFailed { message }),
         };
         let trust_opts = TrustCheckOptions {
             trust_policy_exclude: self.trust_policy_exclude.as_ref(),
@@ -600,8 +604,7 @@ impl NpmResolutionVerifier {
         name: &PkgName,
         version: &str,
     ) -> Result<Option<String>, String> {
-        if let Some(value) = self.try_abbreviated_modified_shortcut(registry, name, version).await?
-        {
+        if let Some(value) = self.try_abbreviated_modified_shortcut(registry, name, version).await {
             return Ok(Some(value));
         }
         if let Some(map) = self.read_local_meta_time(registry, name).await
@@ -632,20 +635,23 @@ impl NpmResolutionVerifier {
         registry: &str,
         name: &PkgName,
         version: &str,
-    ) -> Result<Option<String>, String> {
+    ) -> Option<String> {
         let cutoff = self.cutoff.expect("cutoff is Some when age check is active");
-        let Some(meta) = self.fetch_abbreviated_meta(registry, name).await? else {
-            return Ok(None);
+        // A fetch failure here is fine: ignore the error and fall back to
+        // per-version lookups, the same as a successful-but-uninformative
+        // metadata response.
+        let Ok(meta) = self.fetch_abbreviated_meta(registry, name).await else {
+            return None;
         };
-        let Some(modified) = meta.modified else { return Ok(None) };
-        let Some(parsed) = parse_packument_timestamp(&modified) else { return Ok(None) };
+        let modified = meta.modified?;
+        let parsed = parse_packument_timestamp(&modified)?;
         if parsed >= cutoff {
-            return Ok(None);
+            return None;
         }
         if !meta.version_tarballs.as_ref().is_some_and(|map| map.contains_key(version)) {
-            return Ok(None);
+            return None;
         }
-        Ok(Some(modified))
+        Some(modified)
     }
 
     /// Per-`(registry, name)` abbreviated-meta lookup. The result is
@@ -662,9 +668,11 @@ impl NpmResolutionVerifier {
     /// 2. The on-disk + network cached fetcher
     ///    ([`fetch_full_metadata_cached()`] with `full_metadata: false`)
     ///    when no shared entry is available.
-    /// 3. A failure (decode / network / cache-write IO) caches
-    ///    `None` so subsequent calls fall through to the next layer
-    ///    of [`Self::resolve_published_at`] without retrying.
+    /// 3. A failure (decode / network / cache-write IO) caches a
+    ///    credential-safe `Err(reason)` so subsequent calls reuse the
+    ///    same verdict without retrying. The tarball-URL check surfaces
+    ///    this error; the age shortcut ignores it and falls through to
+    ///    the next layer of [`Self::resolve_published_at`].
     ///
     /// Mirrors upstream's
     /// [`fetchAbbreviatedMeta`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts#L626-L653).
@@ -672,7 +680,7 @@ impl NpmResolutionVerifier {
         &self,
         registry: &str,
         name: &PkgName,
-    ) -> Result<Option<crate::lookup_context::AbbreviatedMetaProjection>, String> {
+    ) -> Result<crate::lookup_context::AbbreviatedMetaProjection, String> {
         let key = package_key(registry, &name.to_string());
         let cell = {
             let mut cache = self.lookup_context.abbreviated_meta.lock().await;
@@ -681,7 +689,7 @@ impl NpmResolutionVerifier {
         let value = cell
             .get_or_init(|| async {
                 if let Some(shared) = self.read_shared_meta(name) {
-                    return Some(project_abbreviated_meta(&shared));
+                    return Ok(project_abbreviated_meta(&shared));
                 }
                 let opts = FetchFullMetadataCachedOptions {
                     registry,
@@ -692,13 +700,18 @@ impl NpmResolutionVerifier {
                     filter_metadata: false,
                     retry_opts: self.retry_opts,
                 };
+                // Carry a fetch failure (auth/network/5xx) as the `Err` value
+                // instead of collapsing it to a missing projection: the
+                // tarball-URL check needs to tell a transport failure apart
+                // from a version genuinely absent from the metadata, otherwise
+                // it reports a 403 as a tampering-style mismatch.
                 match fetch_full_metadata_cached(&name.to_string(), &opts).await {
-                    Ok(meta) => Some(project_abbreviated_meta(&meta)),
-                    Err(_) => None,
+                    Ok(meta) => Ok(project_abbreviated_meta(&meta)),
+                    Err(error) => Err(redact_url_credentials(&error.to_string())),
                 }
             })
             .await;
-        Ok(value.clone())
+        value.clone()
     }
 
     /// Try the resolver's shared [`PackageMetaCache`] for a packument
@@ -771,7 +784,7 @@ impl NpmResolutionVerifier {
         };
         fetch_attestation_published_at(&name.to_string(), version, &opts)
             .await
-            .map_err(|err| err.to_string())
+            .map_err(|err| redact_url_credentials(&err.to_string()))
     }
 
     async fn fetch_full_meta_time(
@@ -852,7 +865,9 @@ impl NpmResolutionVerifier {
             filter_metadata: false,
             retry_opts: self.retry_opts,
         };
-        fetch_full_metadata_cached(&name.to_string(), &opts).await.map_err(|err| err.to_string())
+        fetch_full_metadata_cached(&name.to_string(), &opts)
+            .await
+            .map_err(|err| redact_url_credentials(&err.to_string()))
     }
 }
 

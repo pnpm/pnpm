@@ -8,6 +8,23 @@ async fn local_backend(max_users: MaxUsers) -> LibsqlAuth {
 }
 
 #[tokio::test]
+async fn with_auth_timeout_surfaces_auth_database_timeout_when_a_read_stalls() {
+    let result: Result<()> = with_auth_timeout(Duration::from_millis(5), async {
+        tokio::time::sleep(Duration::from_secs(30)).await;
+        Ok::<(), RegistryError>(())
+    })
+    .await;
+    assert!(matches!(result, Err(RegistryError::AuthDatabaseTimeout)));
+}
+
+#[tokio::test]
+async fn with_auth_timeout_passes_a_fast_read_through() {
+    let result: Result<u32> =
+        with_auth_timeout(Duration::from_secs(30), async { Ok::<_, RegistryError>(7) }).await;
+    assert_eq!(result.unwrap(), 7);
+}
+
+#[tokio::test]
 async fn add_or_login_creates_then_logs_in() {
     let backend = local_backend(MaxUsers::Unlimited).await;
     assert!(matches!(
@@ -18,9 +35,6 @@ async fn add_or_login_creates_then_logs_in() {
         backend.add_or_login("alice", "secret").await.unwrap(),
         (UpsertOutcome::LoggedIn, _),
     ));
-    assert_eq!(backend.verify("alice", "secret").await.unwrap().as_deref(), Some("alice"));
-    assert!(backend.verify("alice", "wrong").await.unwrap().is_none());
-    assert!(backend.verify("bob", "secret").await.unwrap().is_none());
 }
 
 #[tokio::test]
@@ -29,6 +43,13 @@ async fn add_or_login_rejects_existing_user_with_wrong_password() {
     backend.add_or_login("alice", "secret").await.unwrap();
     let err = backend.add_or_login("alice", "different").await.unwrap_err();
     assert_eq!(err.status_code(), axum::http::StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn max_users_disabled_rejects_registration() {
+    let backend = local_backend(MaxUsers::Disabled).await;
+    let err = backend.add_or_login("alice", "x").await.unwrap_err();
+    assert_eq!(err.status_code(), axum::http::StatusCode::FORBIDDEN);
 }
 
 #[tokio::test]
@@ -43,7 +64,7 @@ async fn add_or_login_rejects_invalid_username_before_insert() {
 }
 
 #[tokio::test]
-async fn add_or_login_allows_existing_legacy_username() {
+async fn add_or_login_rejects_existing_invalid_username() {
     let backend = local_backend(MaxUsers::Unlimited).await;
     let hash = bcrypt::hash("secret", 4).unwrap();
     backend
@@ -55,14 +76,13 @@ async fn add_or_login_allows_existing_legacy_username() {
         .await
         .unwrap();
 
-    let outcome = backend.add_or_login("alice ", "secret").await.unwrap();
+    let err = backend.add_or_login("alice ", "secret").await.unwrap_err();
 
-    assert!(matches!(outcome, (UpsertOutcome::LoggedIn, _)));
-    assert_eq!(outcome.1, "alice ");
+    assert_eq!(err.status_code(), axum::http::StatusCode::BAD_REQUEST);
 }
 
 #[tokio::test]
-async fn verify_propagates_corrupt_hash_errors() {
+async fn add_or_login_propagates_corrupt_hash_errors() {
     let backend = local_backend(MaxUsers::Unlimited).await;
     backend
         .conn
@@ -73,7 +93,7 @@ async fn verify_propagates_corrupt_hash_errors() {
         .await
         .unwrap();
 
-    let err = backend.verify("alice", "secret").await.unwrap_err();
+    let err = backend.add_or_login("alice", "secret").await.unwrap_err();
 
     assert!(matches!(err, RegistryError::Bcrypt(_)), "got {err:?}");
 }

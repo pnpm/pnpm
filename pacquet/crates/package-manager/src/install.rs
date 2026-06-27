@@ -1,8 +1,8 @@
 use crate::{
     BuildVerifiersError, HoistedDependencies, InstallFrozenLockfile, InstallFrozenLockfileError,
     InstallWithFreshLockfile, InstallWithFreshLockfileError, LockfileVerificationOverride,
-    OptimisticRepeatInstallCheck, ResolvedPackages, UpdateSeedPolicy, build_resolution_verifiers,
-    check_optimistic_repeat_install,
+    OptimisticRepeatInstallCheck, RebuildOptions, ResolvedPackages, UpdateSeedPolicy,
+    build_resolution_verifiers, check_optimistic_repeat_install,
     optimistic_repeat_install::Decision as OptimisticRepeatInstallDecision,
 };
 use derive_more::{Display, Error};
@@ -244,6 +244,12 @@ where
     /// catalog bump drives resolution even under `--no-save`, where the
     /// bumped entry is intentionally not persisted to disk.
     pub catalogs_override: Option<Catalogs>,
+    /// When `true`, the optimistic repeat-install fast path is
+    /// disabled so the full install pipeline always runs. `pacquet
+    /// prune` sets this because the fast path short-circuits before
+    /// the virtual-store sweep, meaning extraneous packages can
+    /// survive a prune when the lockfile hasn't changed.
+    pub disable_optimistic_repeat_install: bool,
 }
 
 /// Error type of [`Install`].
@@ -454,19 +460,40 @@ where
 {
     /// Execute the subroutine.
     pub async fn run<Reporter: self::Reporter + 'static>(self) -> Result<(), InstallError> {
-        self.run_inner::<Reporter>(None).await
+        self.run_inner::<Reporter>(None, None).await
     }
 
     pub async fn run_with_lockfile_verification<Reporter: self::Reporter + 'static>(
         self,
         lockfile_verification_override: LockfileVerificationOverride<'a>,
     ) -> Result<(), InstallError> {
-        self.run_inner::<Reporter>(Some(lockfile_verification_override)).await
+        self.run_inner::<Reporter>(Some(lockfile_verification_override), None).await
+    }
+
+    /// Execute as a forced rebuild: take the frozen path against the
+    /// already-resolved lockfile + materialized `node_modules`, bypass the
+    /// "up to date" short-circuit, and re-run the lifecycle scripts of the
+    /// selected packages (or every build-needing package when
+    /// `rebuild.selected_names` is `None`). Drives `pacquet rebuild` and
+    /// the rebuild step of `pacquet approve-builds`.
+    ///
+    /// # Panics
+    ///
+    /// Panics unless `frozen_lockfile` is set: a rebuild must take the
+    /// frozen path, since the fresh-resolve path drops the rebuild
+    /// selection and would silently degrade to a plain install.
+    pub async fn run_rebuild<Reporter: self::Reporter + 'static>(
+        self,
+        rebuild: RebuildOptions,
+    ) -> Result<(), InstallError> {
+        assert!(self.frozen_lockfile, "run_rebuild requires frozen_lockfile = true");
+        self.run_inner::<Reporter>(None, Some(rebuild)).await
     }
 
     async fn run_inner<Reporter: self::Reporter + 'static>(
         self,
         lockfile_verification_override: Option<LockfileVerificationOverride<'a>>,
+        rebuild: Option<RebuildOptions>,
     ) -> Result<(), InstallError> {
         let Install {
             tarball_mem_cache,
@@ -493,6 +520,7 @@ where
             auth_override,
             resolution_observer,
             catalogs_override,
+            disable_optimistic_repeat_install,
         } = self;
 
         // `--dry-run` resolves but never materializes, so it borrows the
@@ -538,7 +566,7 @@ where
         //
         // [bunyan]: <https://github.com/trentm/node-bunyan>
         let manifest_dir = manifest.path().parent().expect("manifest path always has a parent dir");
-        let workspace_dir_opt = pacquet_workspace::find_workspace_dir(manifest_dir)
+        let workspace_dir_opt = configured_or_discovered_workspace_dir(config, manifest_dir)
             .map_err(InstallError::FindWorkspaceDir)?;
         let workspace_root =
             workspace_dir_opt.clone().unwrap_or_else(|| manifest_dir.to_path_buf());
@@ -620,6 +648,7 @@ where
         let optimistic_decision = is_full_install
             && matches!(update_seed_policy, UpdateSeedPolicy::KeepAll)
             && !frozen_lockfile
+            && !disable_optimistic_repeat_install
             && check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
                 workspace_root: &workspace_root,
                 config,
@@ -1159,6 +1188,9 @@ where
             // build must rebuild it, even though the lockfile and layout are
             // unchanged. Mirrors pnpm's `runUnignoredDependencyBuilds`.
             && !has_newly_allowed_ignored_builds(modules, config)
+            // An explicit `pacquet rebuild` always re-runs the build phase,
+            // so it never short-circuits here.
+            && rebuild.is_none()
         {
             // Nothing to materialize means no fetch to overlap; verify
             // eagerly before the up-to-date early return.
@@ -1262,6 +1294,7 @@ where
                 node_linker,
                 tarball_mem_cache: Some(&tarball_mem_cache),
                 seed_skipped: modules_manifest.map(|manifest| manifest.skipped.clone()),
+                rebuild: rebuild.as_ref(),
             }
             .run::<Reporter>()
             .await
@@ -1565,7 +1598,7 @@ where
         )
         .map_err(InstallError::WriteModules)?;
 
-        let filtered_current_lockfile = if frozen_lockfile {
+        let filtered_current_lockfile = if take_frozen_path {
             lockfile.map(|lockfile| {
                 crate::filter_lockfile_for_current(lockfile, included, &frozen_skipped)
             })
@@ -1590,7 +1623,7 @@ where
         // <https://github.com/pnpm/pacquet/issues/299>), this needs to narrow to the filtered lockfile
         // (selected importers × engine filter) so the saved current
         // lockfile reflects only what was actually materialized.
-        if frozen_lockfile && let Some(lockfile) = filtered_current_lockfile.as_ref() {
+        if take_frozen_path && let Some(lockfile) = filtered_current_lockfile.as_ref() {
             // Filter the wanted lockfile down to the snapshots that
             // were actually materialized: dep maps the user excluded
             // (`--no-optional`, `--no-dev`) plus snapshots the
@@ -2251,7 +2284,7 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<P
         optional_dependencies: dependency_groups.contains(&DependencyGroup::Optional),
     };
     let manifest_dir = manifest.path().parent()?;
-    let workspace_dir_opt = pacquet_workspace::find_workspace_dir(manifest_dir).ok()?;
+    let workspace_dir_opt = configured_or_discovered_workspace_dir(config, manifest_dir).ok()?;
     let workspace_root = workspace_dir_opt.clone().unwrap_or_else(|| manifest_dir.to_path_buf());
     let workspace_manifest = match workspace_dir_opt.as_deref() {
         Some(dir) => pacquet_workspace::read_workspace_manifest(dir).ok()?,
@@ -2321,6 +2354,16 @@ fn build_project_manifests_list<'a>(
         }
     }
     list
+}
+
+fn configured_or_discovered_workspace_dir(
+    config: &Config,
+    manifest_dir: &Path,
+) -> Result<Option<PathBuf>, pacquet_workspace::FindWorkspaceDirError> {
+    match config.workspace_dir.clone() {
+        Some(workspace_dir) => Ok(Some(workspace_dir)),
+        None => pacquet_workspace::find_workspace_dir(manifest_dir),
+    }
 }
 
 /// Build the `name → version → WorkspacePackage` lookup the npm

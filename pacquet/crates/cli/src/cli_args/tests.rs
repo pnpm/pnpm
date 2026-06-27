@@ -61,6 +61,59 @@ fn filter_flag_split_across_subcommand_keeps_only_subcommand_side() {
 }
 
 #[test]
+fn runtime_alias_and_flags_parse() {
+    let parsed = CliArgs::try_parse_from(["pacquet", "rt", "set", "node", "22", "-P"])
+        .expect("parses runtime alias");
+    let CliCommand::Runtime(args) = parsed.command else {
+        panic!("expected runtime command");
+    };
+    assert!(!args.global);
+    assert!(!args.save_dev);
+    assert!(args.save_prod);
+    assert_eq!(args.params, ["set", "node", "22"]);
+}
+
+#[test]
+fn runtime_global_flag_parses_after_version() {
+    let parsed = CliArgs::try_parse_from(["pacquet", "runtime", "set", "node", "22", "-g"])
+        .expect("parses runtime global flag after params");
+    let CliCommand::Runtime(args) = parsed.command else {
+        panic!("expected runtime command");
+    };
+    assert!(args.global);
+    assert_eq!(args.params, ["set", "node", "22"]);
+}
+
+#[test]
+fn link_command_parses_with_name_and_alias() {
+    let parsed =
+        CliArgs::try_parse_from(["pacquet", "link", "../foo"]).expect("parses pacquet link");
+    let CliCommand::Link(args) = &parsed.command else {
+        panic!("expected Link command, got {:?}", parsed.command);
+    };
+    assert_eq!(args.package_paths, ["../foo"]);
+}
+
+#[test]
+fn link_command_parses_ln_alias() {
+    let parsed = CliArgs::try_parse_from(["pacquet", "ln", "../bar"]).expect("parses pacquet ln");
+    let CliCommand::Link(args) = &parsed.command else {
+        panic!("expected Link command for ln alias, got {:?}", parsed.command);
+    };
+    assert_eq!(args.package_paths, ["../bar"]);
+}
+
+#[test]
+fn link_command_parses_multiple_paths() {
+    let parsed = CliArgs::try_parse_from(["pacquet", "link", "../a", "../b", "../c"])
+        .expect("parses pacquet link with multiple paths");
+    let CliCommand::Link(args) = &parsed.command else {
+        panic!("expected Link command, got {:?}", parsed.command);
+    };
+    assert_eq!(args.package_paths, ["../a", "../b", "../c"]);
+}
+
+#[test]
 fn package_manager_to_sync_preserves_dev_engine_specifier() {
     let root = TempDir::new().expect("tmp dir");
     let manifest_path = root.path().join("package.json");

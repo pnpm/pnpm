@@ -28,11 +28,19 @@ export interface FetchOptions {
   ignoreFilePattern?: string
 }
 
-export type FetchFunction<FetcherResolution = Resolution, Options = FetchOptions, Result = FetchResult> = (
+export interface ResolutionFetchContract {
+  /**
+   * Returns `true` when a resolution is missing data only this fetcher can supply, so
+   * callers must fetch before treating the resolution as complete.
+   */
+  resolutionNeedsFetch?: (resolution: Resolution) => boolean
+}
+
+export type FetchFunction<FetcherResolution = Resolution, Options = FetchOptions, Result = FetchResult> = ((
   cafs: Cafs,
   resolution: FetcherResolution,
   opts: Options
-) => Promise<Result>
+) => Promise<Result>) & ResolutionFetchContract
 
 export interface FetchResult {
   local?: boolean

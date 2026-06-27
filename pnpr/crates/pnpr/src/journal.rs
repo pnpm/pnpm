@@ -235,7 +235,9 @@ async fn roll_forward(storage: &Storage, dir: &Path) -> Result<()> {
             Some(bytes) => Some(serde_json::from_slice(&bytes)?),
             None => None,
         };
-        let merged = merge_manifest(existing.as_ref(), &journaled, &now_iso());
+        // `existing` is the hosted packument here, so it is also the
+        // immutability reference.
+        let merged = merge_manifest(existing.as_ref(), &journaled, existing.as_ref(), &now_iso());
         storage.write_hosted_packument(&name, &serde_json::to_vec_pretty(&merged)?).await?;
     }
     fs::remove_dir_all(dir).await?;

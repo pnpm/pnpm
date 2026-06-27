@@ -6,7 +6,7 @@
 
 use axum::{
     body::{Body, to_bytes},
-    http::{Request, StatusCode},
+    http::{HeaderValue, Request, StatusCode, header},
 };
 use pnpr::{
     AuthConfig, AuthState, Config, HtpasswdConfig, MaxUsers, TokenStore, TokensConfig,
@@ -29,6 +29,7 @@ fn listen() -> SocketAddr {
 fn static_config(storage: PathBuf) -> Config {
     let mut config = Config::static_serve(listen(), storage);
     config.public_url = "http://example.test".to_string();
+    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
     config
 }
 
@@ -112,10 +113,6 @@ impl UserBackend for CanonicalUserBackend {
         assert_eq!(username, "alice");
         Ok((UpsertOutcome::LoggedIn, "Alice".to_string()))
     }
-
-    async fn verify(&self, _username: &str, _password: &str) -> pnpr::Result<Option<String>> {
-        Ok(None)
-    }
 }
 
 #[tokio::test]
@@ -173,6 +170,31 @@ async fn whoami_returns_401_for_unknown_bearer() {
 
     let response = app.oneshot(get_with_bearer("/-/whoami", "not-a-real-token")).await.unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn whoami_rejects_duplicate_authorization_headers() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let mut request = get_with_bearer("/-/whoami", &token);
+    request
+        .headers_mut()
+        .append(header::AUTHORIZATION, HeaderValue::from_static("Bearer invalid-second-value"));
+
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn whoami_rejects_non_text_authorization_header() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+    let mut request = Request::get("/-/whoami").body(Body::empty()).unwrap();
+    request.headers_mut().insert(header::AUTHORIZATION, HeaderValue::from_bytes(&[0xff]).unwrap());
+
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
 
 #[tokio::test]

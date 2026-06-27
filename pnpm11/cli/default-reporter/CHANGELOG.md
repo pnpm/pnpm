@@ -1,5 +1,13 @@
 # @pnpm/default-reporter
 
+## 1100.3.3
+
+### Patch Changes
+
+- Updated dependencies [852d537]
+  - @pnpm/error@1100.0.1
+  - @pnpm/config.reader@1101.10.1
+
 ## 1100.3.2
 
 ### Patch Changes

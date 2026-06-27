@@ -1,4 +1,4 @@
-import type { Fetchers, FetchOptions, FetchResult } from '@pnpm/fetching.fetcher-base'
+import type { Fetchers, FetchOptions, FetchResult, ResolutionFetchContract } from '@pnpm/fetching.fetcher-base'
 import type { LockfileObject, PackageSnapshot } from '@pnpm/lockfile.types'
 import type { Resolution, WantedDependency } from '@pnpm/resolving.resolver-base'
 import type { Cafs } from '@pnpm/store.cafs-types'
@@ -86,7 +86,7 @@ export interface CustomResolver {
   shouldRefreshResolution?: (depPath: string, pkgSnapshot: PackageSnapshot) => boolean | Promise<boolean>
 }
 
-export interface CustomFetcher {
+export interface CustomFetcher extends ResolutionFetchContract {
   /**
    * Called to determine if this fetcher should handle fetching a package.
    * This is called for each package that needs to be fetched.

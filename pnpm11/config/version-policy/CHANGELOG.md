@@ -1,5 +1,14 @@
 # @pnpm/config.version-policy
 
+## 1100.1.6
+
+### Patch Changes
+
+- 25a829e: `pnpm audit --fix` now writes a single combined `minimumReleaseAgeExclude` entry per package (e.g. `axios@0.18.1 || 0.21.1`) instead of one entry per version, matching the format documented for the setting. Existing per-version entries in `pnpm-workspace.yaml` are merged into the combined form rather than left as duplicates. Installs that auto-collect immature versions into `minimumReleaseAgeExclude` now report the same combined entries, so the "Added N entries" message matches what is written to the manifest [#12534](https://github.com/pnpm/pnpm/issues/12534).
+- fbdc0eb: Fixed `minimumReleaseAgeExclude` and `trustPolicyExclude` so multiple exact-version entries for the same package behave the same as a single `||` disjunction entry. Previously only the first matching rule's versions were honored, so a config like `[form-data@4.0.6, form-data@2.5.6]` could still flag `form-data@2.5.6` as violating `minimumReleaseAge`, while `[form-data@4.0.6 || 2.5.6]` worked as expected [#12463](https://github.com/pnpm/pnpm/issues/12463).
+- Updated dependencies [852d537]
+  - @pnpm/error@1100.0.1
+
 ## 1100.1.5
 
 ### Patch Changes

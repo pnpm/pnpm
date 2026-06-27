@@ -1,5 +1,41 @@
-use super::{AuthHeaders, DEFAULT_REGISTRY_SCOPE, base64_encode, nerf_dart};
+use super::{
+    AuthHeaders, DEFAULT_REGISTRY_SCOPE, base64_encode, nerf_dart, redact_url_credentials,
+};
 use pretty_assertions::assert_eq;
+
+#[test]
+fn redact_url_credentials_strips_embedded_basic_auth() {
+    assert_eq!(
+        redact_url_credentials(
+            "Failed to fetch metadata from https://user:pass@host/pkg: timed out"
+        ),
+        "Failed to fetch metadata from https://host/pkg: timed out",
+    );
+    // user-only userinfo (no password) is stripped too.
+    assert_eq!(
+        redact_url_credentials("got https://token@registry.example/foo"),
+        "got https://registry.example/foo",
+    );
+    // A raw "@" inside the password is stripped up to the last "@" in the
+    // authority, so the password tail can't leak.
+    assert_eq!(
+        redact_url_credentials("Failed to fetch metadata from https://user:p@ss@host/pkg: 403"),
+        "Failed to fetch metadata from https://host/pkg: 403",
+    );
+    // An "@" in the path/query (after the authority) is preserved.
+    assert_eq!(
+        redact_url_credentials("got https://host/path?to=a@b"),
+        "got https://host/path?to=a@b",
+    );
+    // A credential-free URL is left untouched.
+    assert_eq!(
+        redact_url_credentials("Failed to fetch metadata from https://host/pkg: timed out"),
+        "Failed to fetch metadata from https://host/pkg: timed out",
+    );
+    // A bare "://" with no preceding scheme character is not treated as a URL
+    // authority, so an "@" further along is preserved.
+    assert_eq!(redact_url_credentials("a :// b@c"), "a :// b@c");
+}
 
 fn build(entries: &[(&str, &str)]) -> AuthHeaders {
     AuthHeaders::from_creds_map(

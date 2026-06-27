@@ -82,9 +82,9 @@ pub struct Config {
     /// re-fetched from the resolved uplink. Ignored when no uplink
     /// matches.
     pub packument_ttl: Duration,
-    /// Per-package access and publish rules. [`Config::from_yaml`]
+    /// Per-package access, publish, and unpublish rules. [`Config::from_yaml`]
     /// compiles these from the YAML `packages:` block (each entry's
-    /// `access` / `publish` tokens); the programmatic
+    /// `access` / `publish` / `unpublish` tokens); the programmatic
     /// [`Config::proxy`] / [`Config::static_serve`] constructors use
     /// [`PackagePolicies::registry_mock_defaults`] instead, enforcing
     /// the `@private/*` and `@pnpm.e2e/needs-auth` rules
@@ -110,9 +110,66 @@ pub struct Config {
     /// switch both stores to one shared SQL database so several
     /// stateless pnpr replicas see a consistent set of accounts.
     pub backend: BackendConfig,
-    /// Optional local OSV database used by the resolver to reject known
-    /// vulnerable npm package versions without live API calls.
+    /// Optional local OSV database used by mounted surfaces to reject
+    /// known vulnerable npm package versions without live API calls.
     pub osv: OsvConfig,
+    /// The npm-registry surface: packument and tarball reads, publish,
+    /// unpublish, dist-tag, search, and the user/login endpoints. Enabled
+    /// by default; disable it to run a stateless resolver tier in front
+    /// of an existing registry. See [`RegistryFeature`].
+    pub registry: RegistryFeature,
+    /// The install-accelerator surface: the `/-/pnpr` handshake and the
+    /// `/-/pnpr/v0/resolve` / `/-/pnpr/v0/verify-lockfile` endpoints. Enabled by
+    /// default; disable it to run a plain registry with no server-side
+    /// resolution. See [`ResolverFeature`].
+    pub resolver: ResolverFeature,
+}
+
+/// Toggle for the npm-registry surface. A dedicated type — rather than a
+/// bare `bool` on [`Config`] — so finer-grained registry sub-features
+/// (e.g. disabling `publish` for a read-only mirror) can be added here
+/// without changing the config shape.
+#[derive(Debug, Clone)]
+pub struct RegistryFeature {
+    /// Master switch for the whole npm-registry surface. When `false`,
+    /// none of the registry routes are mounted.
+    pub enabled: bool,
+}
+
+impl Default for RegistryFeature {
+    fn default() -> Self {
+        Self { enabled: true }
+    }
+}
+
+/// Toggle for the install-accelerator (resolver) surface. Separate from
+/// [`RegistryFeature`] so each surface grows its own sub-features
+/// independently.
+#[derive(Debug, Clone)]
+pub struct ResolverFeature {
+    /// Master switch for the resolver surface (`/-/pnpr`, `/-/pnpr/v0/resolve`,
+    /// `/-/pnpr/v0/verify-lockfile`). When `false`, none of those routes are
+    /// mounted.
+    pub enabled: bool,
+}
+
+impl Default for ResolverFeature {
+    fn default() -> Self {
+        Self { enabled: true }
+    }
+}
+
+/// CLI-level overrides for the feature toggles, applied *during* config
+/// parse so the effective surface enablement is known before any
+/// registry-only work runs. This matters because uplink resolution is
+/// strict (a `uplink.auth` block with an unresolvable token is a config
+/// error): applying `--disable-registry` only after parsing would still
+/// force a resolver-only tier to carry upstream secrets. A `true` field
+/// forces the corresponding surface off regardless of the config file.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct FeatureOverrides {
+    pub disable_registry: bool,
+    pub disable_resolver: bool,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -240,25 +297,30 @@ pub struct TokensConfig {
 
 /// Three-state cap on `auth.htpasswd.max_users`:
 ///
-/// * absent → unlimited (verdaccio's `+infinity` default; the YAML
-///   `+inf` token is a float literal and won't parse into the
-///   `i64` field, so the only way to ask for "no cap" is to omit
-///   the key)
+/// * absent → registration disabled. Self-registration is opt-in:
+///   leaving the key out denies new sign-ups. Verdaccio defaults this
+///   to `+infinity`, but an open default lets any anonymous client
+///   create an account and then publish under an `$authenticated`
+///   policy, so pnpr refuses registration until an operator sets an
+///   explicit positive cap.
 /// * `-1` → registration disabled
 /// * non-negative `n` → at most `n` users
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum MaxUsers {
     #[default]
-    Unlimited,
     Disabled,
+    Unlimited,
     Limited(u64),
 }
 
 impl MaxUsers {
-    /// Translate the YAML value into [`MaxUsers`]. Verdaccio accepts
-    /// any signed integer here; negative anything other than `-1` is
-    /// nonsense and is treated as "disabled" to err on the side of
-    /// rejecting unsafe configs.
+    /// Translate an explicit YAML value into [`MaxUsers`]. Verdaccio
+    /// accepts any signed integer here; negative anything other than
+    /// `-1` is nonsense and is treated as "disabled" to err on the
+    /// side of rejecting unsafe configs. An omitted key never reaches
+    /// this function — it maps to [`MaxUsers::Disabled`] in
+    /// [`build_auth_config`], so there is no YAML spelling for
+    /// "unlimited".
     fn from_yaml(value: i64) -> Self {
         if value < 0 { MaxUsers::Disabled } else { MaxUsers::Limited(value as u64) }
     }
@@ -695,24 +757,24 @@ fn non_empty_token(token: &str) -> Option<String> {
     (!token.trim().is_empty()).then(|| token.to_string())
 }
 
-/// Per-package routing and access rules. `access` / `publish` are
-/// verdaccio permission lists (built-in groups like `$all` /
-/// `$authenticated` / `$anonymous`, plus usernames / group names),
-/// compiled into the [`PackagePolicies`] that gate reads and writes.
-/// `unpublish` is parsed but currently folded into `publish` at
-/// enforcement time. `proxy` selects the [`UplinkConfig`] by name.
+/// Per-package routing and access rules. `access` / `publish` /
+/// `unpublish` are verdaccio permission lists (built-in groups like
+/// `$all` / `$authenticated` / `$anonymous`, plus usernames / group
+/// names), compiled into the [`PackagePolicies`] that gate reads and
+/// writes. `proxy` names the uplinks to fall back through, in order
+/// (`proxy: npmjs private`); see [`Config::resolve_uplinks`].
 #[derive(Debug, Default, Clone, Deserialize)]
 pub struct PackageAccess {
     pub access: Option<AccessSpec>,
     pub publish: Option<AccessSpec>,
     pub unpublish: Option<AccessSpec>,
-    pub proxy: Option<String>,
+    pub proxy: Option<AccessSpec>,
 }
 
-/// A YAML permission value. Verdaccio accepts either a single
-/// space-separated string (`access: $authenticated admin`) or a
-/// sequence (`access: [$authenticated, admin]`); both normalize to the
-/// same token list.
+/// A YAML string-or-list value. Verdaccio accepts either a single
+/// space-separated string (`access: $authenticated admin`,
+/// `proxy: npmjs private`) or a sequence (`access: [$authenticated,
+/// admin]`); both normalize to the same ordered token list.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 pub enum AccessSpec {
@@ -728,6 +790,19 @@ impl AccessSpec {
             // `[a b, c]` and `[a, b, c]` agree.
             AccessSpec::Many(items) => {
                 AccessList::from_tokens(items.iter().flat_map(|item| item.split_whitespace()))
+            }
+        }
+    }
+
+    /// The tokens in declared order, each element flattened on whitespace
+    /// (so `[a b, c]` and `[a, b, c]` agree). Unlike [`Self::to_access_list`]
+    /// — which builds an unordered permission *set* — this preserves order,
+    /// which `proxy:` relies on for its fallback chain.
+    fn to_ordered_tokens(&self) -> Vec<&str> {
+        match self {
+            AccessSpec::One(spec) => spec.split_whitespace().collect(),
+            AccessSpec::Many(items) => {
+                items.iter().flat_map(|item| item.split_whitespace()).collect()
             }
         }
     }
@@ -760,6 +835,15 @@ struct ConfigFile {
     /// pnpr-only local OSV database settings.
     #[serde(default)]
     osv: OsvFile,
+    /// pnpr-only feature toggles for the two server surfaces. Each is on
+    /// unless explicitly disabled; absent on a stock verdaccio config, so
+    /// both stay enabled there. `Option` so a bare `registry:` (which
+    /// YAML parses as null) is accepted as "default" rather than failing
+    /// to deserialize into the struct.
+    #[serde(default)]
+    registry: Option<FeatureFile>,
+    #[serde(default)]
+    resolver: Option<FeatureFile>,
     #[serde(default)]
     uplinks: IndexMap<String, UplinkFile>,
     #[serde(default)]
@@ -845,9 +929,35 @@ struct OsvFile {
     path: Option<String>,
 }
 
+/// Disk shape of a `registry:` / `resolver:` feature block. A bare
+/// `enabled` today; per-surface sub-feature keys can be added later. The
+/// field and the whole-block defaults are both `enabled: true`, so
+/// omitting the block — or writing `registry:` with no body — keeps the
+/// surface on.
+/// `deny_unknown_fields` so a typo like `registry: { enable: false }`
+/// (note: `enable`, not `enabled`) is a loud config error rather than
+/// silently leaving the surface enabled — these toggles scope which
+/// endpoints are exposed, so a silent default-on is a security footgun.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct FeatureFile {
+    #[serde(default = "default_true")]
+    enabled: bool,
+}
+
+impl Default for FeatureFile {
+    fn default() -> Self {
+        Self { enabled: true }
+    }
+}
+
+fn default_true() -> bool {
+    true
+}
+
 impl Config {
     /// Default `listen` when one isn't supplied by the caller.
-    pub const DEFAULT_LISTEN: &'static str = "127.0.0.1:4873";
+    pub const DEFAULT_LISTEN: &'static str = "127.0.0.1:7677";
     /// Default packument TTL — five minutes, matching the historical
     /// proxy-mode default.
     pub const DEFAULT_PACKUMENT_TTL: Duration = Duration::from_mins(5);
@@ -865,7 +975,10 @@ impl Config {
         let mut packages = IndexMap::new();
         packages.insert(
             "**".to_string(),
-            PackageAccess { proxy: Some("npmjs".to_string()), ..Default::default() },
+            PackageAccess {
+                proxy: Some(AccessSpec::One("npmjs".to_string())),
+                ..Default::default()
+            },
         );
         Self {
             listen,
@@ -881,6 +994,8 @@ impl Config {
             hosted_store: HostedStoreConfig::Fs,
             backend: BackendConfig::Local,
             osv: OsvConfig::default(),
+            registry: RegistryFeature::default(),
+            resolver: ResolverFeature::default(),
         }
     }
 
@@ -902,6 +1017,8 @@ impl Config {
             hosted_store: HostedStoreConfig::Fs,
             backend: BackendConfig::Local,
             osv: OsvConfig::default(),
+            registry: RegistryFeature::default(),
+            resolver: ResolverFeature::default(),
         }
     }
 
@@ -918,16 +1035,27 @@ impl Config {
         listen: SocketAddr,
         public_url: Option<String>,
     ) -> std::io::Result<Self> {
+        Self::from_yaml_with_overrides(path, listen, public_url, FeatureOverrides::default())
+    }
+
+    fn from_yaml_with_overrides(
+        path: &Path,
+        listen: SocketAddr,
+        public_url: Option<String>,
+        overrides: FeatureOverrides,
+    ) -> std::io::Result<Self> {
         let raw = std::fs::read_to_string(path).map_err(|err| {
             std::io::Error::new(err.kind(), format!("read {}: {err}", path.display()))
         })?;
         let base = path.parent().unwrap_or_else(|| Path::new("."));
-        Self::from_yaml_str(&raw, base, listen, public_url).map_err(|err| {
-            std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                format!("parse {}: {err}", path.display()),
-            )
-        })
+        Self::from_yaml_str_with_overrides(&raw, base, listen, public_url, overrides).map_err(
+            |err| {
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("parse {}: {err}", path.display()),
+                )
+            },
+        )
     }
 
     /// Parse [`DEFAULT_CONFIG_YAML`] (the verdaccio-shaped YAML
@@ -945,8 +1073,33 @@ impl Config {
         listen: SocketAddr,
         public_url: Option<String>,
     ) -> Self {
-        Self::from_yaml_str(DEFAULT_CONFIG_YAML, base_dir, listen, public_url)
-            .expect("bundled DEFAULT_CONFIG_YAML must always parse")
+        // With default (no) overrides the bundled config keeps both
+        // surfaces enabled, so the only way this errors is a malformed
+        // compiled-in YAML — a build-time bug, hence the `expect`. The
+        // override-taking variant returns `Result` because overrides can
+        // disable every surface (a runtime input error).
+        Self::from_default_yaml_with_overrides(
+            base_dir,
+            listen,
+            public_url,
+            FeatureOverrides::default(),
+        )
+        .expect("bundled DEFAULT_CONFIG_YAML must always parse")
+    }
+
+    fn from_default_yaml_with_overrides(
+        base_dir: &Path,
+        listen: SocketAddr,
+        public_url: Option<String>,
+        overrides: FeatureOverrides,
+    ) -> Result<Self, RegistryError> {
+        Self::from_yaml_str_with_overrides(
+            DEFAULT_CONFIG_YAML,
+            base_dir,
+            listen,
+            public_url,
+            overrides,
+        )
     }
 
     /// Resolve the auto-discovery path for the global `config.yaml`,
@@ -984,22 +1137,71 @@ impl Config {
         listen: SocketAddr,
         public_url: Option<String>,
     ) -> std::io::Result<(Self, ConfigSource)> {
+        Self::resolve_with_overrides(
+            explicit,
+            default_path,
+            listen,
+            public_url,
+            FeatureOverrides::default(),
+        )
+    }
+
+    /// Like [`Self::resolve`] but applies CLI [`FeatureOverrides`] during
+    /// parse, so a surface disabled on the command line skips its parse-time
+    /// work (e.g. strict uplink token resolution) — not just its routes. The
+    /// binary uses this; tests and embedders that don't override features
+    /// call [`Self::resolve`].
+    pub fn resolve_with_overrides(
+        explicit: Option<&Path>,
+        default_path: Option<&Path>,
+        listen: SocketAddr,
+        public_url: Option<String>,
+        overrides: FeatureOverrides,
+    ) -> std::io::Result<(Self, ConfigSource)> {
         if let Some(path) = explicit {
-            let config = Self::from_yaml(path, listen, public_url)?;
+            let config = Self::from_yaml_with_overrides(path, listen, public_url, overrides)?;
             return Ok((config, ConfigSource::Cli(path.to_path_buf())));
         }
         if let Some(path) = default_path {
-            let config = Self::from_yaml(path, listen, public_url)?;
+            let config = Self::from_yaml_with_overrides(path, listen, public_url, overrides)?;
             return Ok((config, ConfigSource::DefaultPath(path.to_path_buf())));
         }
-        Ok((Self::from_default_yaml(Path::new("."), listen, public_url), ConfigSource::Bundled))
+        let config =
+            Self::from_default_yaml_with_overrides(Path::new("."), listen, public_url, overrides)
+                .map_err(|err| {
+                std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!("parse bundled config: {err}"),
+                )
+            })?;
+        Ok((config, ConfigSource::Bundled))
     }
 
+    /// Override-free convenience wrapper used by the test suite's many
+    /// parse cases; the binary path always goes through
+    /// [`Self::from_yaml_str_with_overrides`].
+    #[cfg(test)]
     fn from_yaml_str(
         raw: &str,
         base_dir: &Path,
         listen: SocketAddr,
         public_url: Option<String>,
+    ) -> Result<Self, RegistryError> {
+        Self::from_yaml_str_with_overrides(
+            raw,
+            base_dir,
+            listen,
+            public_url,
+            FeatureOverrides::default(),
+        )
+    }
+
+    fn from_yaml_str_with_overrides(
+        raw: &str,
+        base_dir: &Path,
+        listen: SocketAddr,
+        public_url: Option<String>,
+        overrides: FeatureOverrides,
     ) -> Result<Self, RegistryError> {
         let (substituted, unresolved) = env_replace_lossy::<SystemEnv>(raw);
         if !unresolved.is_empty() {
@@ -1024,15 +1226,34 @@ impl Config {
         let logs = build_log_config(file.log.as_ref());
         let policies = build_policies(&file.packages)?;
         let osv = build_osv_config(&file.osv, base_dir);
-        let uplinks = file
-            .uplinks
-            .into_iter()
-            .map(|(name, uplink)| {
-                let resolved = resolve_uplink::<SystemEnv>(&name, uplink)?;
-                Ok((name, resolved))
-            })
-            .collect::<Result<IndexMap<_, _>, RegistryError>>()?;
-        Ok(Self {
+        // Effective enablement folds the CLI overrides in here, so the
+        // registry-only work below (uplink resolution) is skipped whether
+        // the surface was disabled in the config file or on the command
+        // line.
+        let registry = RegistryFeature {
+            enabled: file.registry.unwrap_or_default().enabled && !overrides.disable_registry,
+        };
+        let resolver = ResolverFeature {
+            enabled: file.resolver.unwrap_or_default().enabled && !overrides.disable_resolver,
+        };
+        // Only the registry surface consults uplinks, and `resolve_uplink`
+        // is strict — a `uplink.auth` block with an unresolvable token is a
+        // config error. A resolver-only server mounts no registry routes,
+        // so skip resolution entirely; otherwise a registry-shaped config
+        // would force the resolver tier to carry upstream secrets it never
+        // uses.
+        let uplinks = if registry.enabled {
+            file.uplinks
+                .into_iter()
+                .map(|(name, uplink)| {
+                    let resolved = resolve_uplink::<SystemEnv>(&name, uplink)?;
+                    Ok((name, resolved))
+                })
+                .collect::<Result<IndexMap<_, _>, RegistryError>>()?
+        } else {
+            IndexMap::new()
+        };
+        let config = Self {
             listen,
             public_url,
             storage,
@@ -1046,23 +1267,63 @@ impl Config {
             hosted_store,
             backend,
             osv,
-        })
+            registry,
+            resolver,
+        };
+        config.ensure_a_feature_is_enabled()?;
+        Ok(config)
     }
 
-    /// Find the uplink for `package_name` by walking [`Self::packages`]
-    /// in declared order: the first pattern that matches is the rule
-    /// that applies. If that rule has no `proxy:`, the package is
-    /// storage-only and this returns `None` — matching verdaccio's
-    /// first-match-wins semantics. The returned tuple's first element
-    /// is the uplink *name* (the key in [`Self::uplinks`]); callers
-    /// that have pre-built per-uplink state can use it as an index.
+    /// At least one top-level surface must be served; a server with both
+    /// `registry` and `resolver` disabled would answer only `/-/ping`.
+    /// Checked at config load and again after CLI overrides.
+    pub fn ensure_a_feature_is_enabled(&self) -> Result<(), RegistryError> {
+        if self.registry.enabled || self.resolver.enabled {
+            Ok(())
+        } else {
+            Err(RegistryError::InvalidConfig {
+                reason: "at least one of `registry` or `resolver` must be enabled".to_string(),
+            })
+        }
+    }
+
+    /// Find the uplink fallback chain for `package_name` by walking
+    /// [`Self::packages`] in declared order: the first pattern that matches
+    /// is the rule that applies (verdaccio's first-match-wins). That rule's
+    /// `proxy:` names the uplinks to try, **in order** — the registry walks
+    /// the returned list as a fallback chain (try the first, fall through to
+    /// the next on failure or 404). A proxy name absent from [`Self::uplinks`]
+    /// is silently skipped (as verdaccio does). An empty result means the
+    /// package is storage-only.
+    ///
+    /// Each tuple's first element is the uplink *name* (the key in
+    /// [`Self::uplinks`]), so callers with pre-built per-uplink state can use
+    /// it as an index.
+    #[must_use]
+    pub fn resolve_uplinks(&self, package_name: &str) -> Vec<(&str, &UplinkConfig)> {
+        let Some(access) = self
+            .packages
+            .iter()
+            .find_map(|(pattern, access)| pattern_matches(pattern, package_name).then_some(access))
+        else {
+            return Vec::new();
+        };
+        let Some(proxy) = &access.proxy else {
+            return Vec::new();
+        };
+        proxy
+            .to_ordered_tokens()
+            .into_iter()
+            .filter_map(|name| self.uplinks.get_key_value(name).map(|(k, v)| (k.as_str(), v)))
+            .collect()
+    }
+
+    /// The primary (first) uplink for `package_name`, or `None` when the
+    /// package is storage-only. A convenience over [`Self::resolve_uplinks`]
+    /// for the single-uplink question.
     #[must_use]
     pub fn resolve_uplink(&self, package_name: &str) -> Option<(&str, &UplinkConfig)> {
-        let access = self.packages.iter().find_map(|(pattern, access)| {
-            pattern_matches(pattern, package_name).then_some(access)
-        })?;
-        let proxy_name = access.proxy.as_deref()?;
-        self.uplinks.get_key_value(proxy_name).map(|(k, v)| (k.as_str(), v))
+        self.resolve_uplinks(package_name).into_iter().next()
     }
 }
 
@@ -1084,7 +1345,7 @@ fn build_auth_config(file: &AuthFile, base_dir: &Path) -> AuthConfig {
     AuthConfig {
         htpasswd: HtpasswdConfig {
             file: htpasswd_file,
-            max_users: file.htpasswd.max_users.map_or(MaxUsers::Unlimited, MaxUsers::from_yaml),
+            max_users: file.htpasswd.max_users.map_or(MaxUsers::Disabled, MaxUsers::from_yaml),
         },
         tokens: TokensConfig { file: tokens_file },
     }
@@ -1204,11 +1465,11 @@ fn build_log_config(entry: Option<&LogEntryFile>) -> LogConfig {
 /// Compile the YAML `packages:` rules into the runtime
 /// [`PackagePolicies`], in declared order (first match wins). A
 /// missing `access` defaults to `$all`, a missing `publish` to
-/// `$authenticated` — the same safe fallback [`PackagePolicies`]
-/// applies to packages no rule matches. `unpublish` is parsed for
-/// config compatibility but not yet enforced separately (it folds
-/// into `publish`). Errors only on an invalid glob pattern — any
-/// token string is a valid group/username, as in verdaccio.
+/// `$authenticated`, and a missing, empty, or null `unpublish` denies
+/// destructive writes. The same safe fallback [`PackagePolicies`]
+/// applies to packages no rule matches. Errors only on an invalid glob
+/// pattern — any token string is a valid group/username, as in
+/// verdaccio.
 fn build_policies(
     packages: &IndexMap<String, PackageAccess>,
 ) -> Result<PackagePolicies, RegistryError> {
@@ -1223,7 +1484,11 @@ fn build_policies(
                 .publish
                 .as_ref()
                 .map_or_else(|| AccessList::parse("$authenticated"), AccessSpec::to_access_list);
-            PackagePolicy::new(pattern, access_list, publish_list)
+            let unpublish_list = access
+                .unpublish
+                .as_ref()
+                .map_or_else(AccessList::default, AccessSpec::to_access_list);
+            PackagePolicy::new(pattern, access_list, publish_list, unpublish_list)
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok(PackagePolicies::new(rules))

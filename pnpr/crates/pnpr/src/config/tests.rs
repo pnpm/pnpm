@@ -1,7 +1,7 @@
 use super::{
-    BackendConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML, HostedStoreConfig, Interval,
-    LogFormat, LogLevel, TokenEnv, UplinkAuthFile, UplinkAuthType, UplinkConfig, UplinkFile,
-    config_file_in, parse_interval, pattern_matches, resolve_relative, resolve_uplink,
+    BackendConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML, FeatureOverrides, HostedStoreConfig,
+    Interval, LogFormat, LogLevel, TokenEnv, UplinkAuthFile, UplinkAuthType, UplinkConfig,
+    UplinkFile, config_file_in, parse_interval, pattern_matches, resolve_relative, resolve_uplink,
 };
 use crate::{error::RegistryError, policy::Identity};
 use indexmap::IndexMap;
@@ -227,6 +227,117 @@ packages:
 }
 
 #[test]
+fn features_default_to_enabled_when_absent() {
+    let config = Config::from_yaml_str("{}", Path::new("/x"), listen(), None).unwrap();
+    assert!(config.registry.enabled);
+    assert!(config.resolver.enabled);
+}
+
+#[test]
+fn feature_blocks_present_but_empty_default_to_enabled() {
+    // A bare `registry:` parses as YAML null and `resolver: {}` as an
+    // empty map; both must mean "enabled", not fail to deserialize.
+    let yaml = "registry:\nresolver: {}\n";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    assert!(config.registry.enabled);
+    assert!(config.resolver.enabled);
+}
+
+#[test]
+fn resolver_only_skips_uplink_resolution() {
+    // With the registry disabled, an uplink whose auth token can't be
+    // resolved must not fail config load — no registry route uses uplinks,
+    // so a resolver-only tier shouldn't need upstream secrets.
+    let yaml = r"
+registry:
+  enabled: false
+uplinks:
+  npmjs:
+    url: https://registry.npmjs.org/
+    auth:
+      type: bearer
+      token_env: PNPR_DEFINITELY_UNSET_TOKEN_VAR
+packages:
+  '**':
+    proxy: npmjs
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    assert!(!config.registry.enabled);
+    assert!(config.uplinks.is_empty());
+}
+
+#[test]
+fn cli_disabling_both_surfaces_with_bundled_config_errors_without_panicking() {
+    // No config file → the bundled branch. Disabling both surfaces via
+    // CLI must surface a clean error, not panic on the bundled `expect`.
+    let overrides = FeatureOverrides { disable_registry: true, disable_resolver: true };
+    let err = Config::resolve_with_overrides(None, None, listen(), None, overrides)
+        .expect_err("both surfaces disabled must error rather than panic");
+    assert_eq!(err.kind(), std::io::ErrorKind::InvalidData);
+}
+
+#[test]
+fn cli_disable_registry_skips_uplink_resolution() {
+    // The config file enables the registry, but `--disable-registry`
+    // (a CLI override) turns it off. Uplink resolution must be skipped
+    // based on the *effective* enablement, so an unresolvable auth token
+    // doesn't fail startup of a resolver-only tier driven by the flag.
+    let yaml = r"
+uplinks:
+  npmjs:
+    url: https://registry.npmjs.org/
+    auth:
+      type: bearer
+      token_env: PNPR_DEFINITELY_UNSET_TOKEN_VAR
+packages:
+  '**':
+    proxy: npmjs
+";
+    let overrides = FeatureOverrides { disable_registry: true, disable_resolver: false };
+    let config =
+        Config::from_yaml_str_with_overrides(yaml, Path::new("/x"), listen(), None, overrides)
+            .expect("a CLI-disabled registry must skip strict uplink resolution");
+    assert!(!config.registry.enabled);
+    assert!(config.uplinks.is_empty());
+}
+
+#[test]
+fn unknown_key_in_feature_block_is_a_config_error() {
+    // A typo'd `enable` (vs `enabled`) must fail loudly rather than
+    // silently leaving the surface enabled.
+    let yaml = "registry:\n  enable: false\n";
+    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+        .expect_err("an unknown key in a feature block must error");
+    assert!(matches!(err, RegistryError::InvalidConfig { .. }));
+}
+
+#[test]
+fn from_yaml_str_parses_feature_toggles() {
+    let yaml = r"
+registry:
+  enabled: false
+resolver:
+  enabled: true
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    assert!(!config.registry.enabled);
+    assert!(config.resolver.enabled);
+}
+
+#[test]
+fn disabling_both_features_is_a_config_error() {
+    let yaml = r"
+registry:
+  enabled: false
+resolver:
+  enabled: false
+";
+    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+        .expect_err("a server with neither surface enabled must error");
+    assert!(matches!(err, RegistryError::InvalidConfig { .. }));
+}
+
+#[test]
 fn from_yaml_str_accepts_string_and_bare_number_intervals() {
     use std::time::Duration;
     // `maxage` is a string, `timeout` a bare number (verdaccio accepts
@@ -332,6 +443,7 @@ fn from_default_yaml_parses_bundled_file() {
     let config = Config::from_default_yaml(Path::new("/tmp"), listen(), None);
     assert!(config.uplinks.contains_key("npmjs"));
     assert_eq!(config.uplinks["npmjs"].url, "https://registry.npmjs.org/");
+    assert_eq!(config.auth.htpasswd.max_users, super::MaxUsers::Disabled);
     // The bundled file routes the catch-all through npmjs.
     let (name, _) = config.resolve_uplink("lodash").expect("** -> npmjs in defaults");
     assert_eq!(name, "npmjs");
@@ -756,6 +868,106 @@ packages:
     assert_eq!(config.resolve_uplink("lodash").unwrap().0, "npmjs");
 }
 
+/// `proxy:` as a space-separated string lists the uplinks as an ordered
+/// fallback chain (verdaccio's `proxy: npmjs private` shape).
+#[test]
+fn from_yaml_str_proxy_string_lists_uplinks_in_order() {
+    let yaml = "\
+storage: ./s
+uplinks:
+  npmjs:   { url: https://registry.npmjs.org/ }
+  private: { url: https://private.example/ }
+packages:
+  '**':
+    proxy: npmjs private
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let names: Vec<_> = config.resolve_uplinks("anything").into_iter().map(|(n, _)| n).collect();
+    assert_eq!(names, ["npmjs", "private"]);
+    // The convenience singular accessor returns the primary (first).
+    assert_eq!(config.resolve_uplink("anything").unwrap().0, "npmjs");
+}
+
+/// `proxy:` as a YAML sequence parses to the same ordered chain as the
+/// space-separated string form.
+#[test]
+fn from_yaml_str_proxy_sequence_lists_uplinks_in_order() {
+    let yaml = "\
+storage: ./s
+uplinks:
+  npmjs:   { url: https://registry.npmjs.org/ }
+  private: { url: https://private.example/ }
+packages:
+  '**':
+    proxy: [private, npmjs]
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let names: Vec<_> = config.resolve_uplinks("anything").into_iter().map(|(n, _)| n).collect();
+    assert_eq!(names, ["private", "npmjs"]);
+}
+
+/// A proxy name with no matching `uplinks:` entry is silently skipped
+/// (verdaccio ignores unknown proxy names), and the rest of the chain is
+/// preserved in order.
+#[test]
+fn from_yaml_str_proxy_skips_unknown_uplink_names() {
+    let yaml = "\
+storage: ./s
+uplinks:
+  npmjs: { url: https://registry.npmjs.org/ }
+packages:
+  '**':
+    proxy: ghost npmjs
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let names: Vec<_> = config.resolve_uplinks("anything").into_iter().map(|(n, _)| n).collect();
+    assert_eq!(names, ["npmjs"]);
+}
+
+/// First-match-wins still selects a single rule, then expands *that* rule's
+/// proxy list — a later catch-all's uplinks don't get appended.
+#[test]
+fn from_yaml_str_resolve_uplinks_expands_only_the_matched_rule() {
+    let yaml = "\
+storage: ./s
+uplinks:
+  mirror:  { url: https://mirror.example/ }
+  npmjs:   { url: https://registry.npmjs.org/ }
+  private: { url: https://private.example/ }
+packages:
+  '@private/*':
+    proxy: private mirror
+  '**':
+    proxy: npmjs
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let scoped: Vec<_> =
+        config.resolve_uplinks("@private/foo").into_iter().map(|(n, _)| n).collect();
+    assert_eq!(scoped, ["private", "mirror"]);
+    let other: Vec<_> = config.resolve_uplinks("lodash").into_iter().map(|(n, _)| n).collect();
+    assert_eq!(other, ["npmjs"]);
+}
+
+/// A matched rule with no `proxy:` (or no matching rule at all) yields an
+/// empty chain — the package is storage-only.
+#[test]
+fn from_yaml_str_resolve_uplinks_empty_when_no_proxy() {
+    let yaml = "\
+storage: ./s
+uplinks:
+  npmjs: { url: https://registry.npmjs.org/ }
+packages:
+  '@private/*':
+    access: $authenticated
+  '**':
+    proxy: npmjs
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    assert!(config.resolve_uplinks("@private/foo").is_empty());
+    let other: Vec<_> = config.resolve_uplinks("lodash").into_iter().map(|(n, _)| n).collect();
+    assert_eq!(other, ["npmjs"]);
+}
+
 #[test]
 fn from_yaml_str_public_url_defaults_to_listen_when_none_passed() {
     let yaml = "storage: ./s\nuplinks: {}\npackages: {}\n";
@@ -820,12 +1032,27 @@ packages: {}
 }
 
 #[test]
-fn auth_block_absent_keeps_in_memory_defaults() {
+fn auth_block_absent_disables_registration_by_default() {
     let yaml = "storage: ./s\nuplinks: {}\npackages: {}\n";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     assert!(config.auth.htpasswd.file.is_none());
     assert!(config.auth.tokens.file.is_none());
-    assert_eq!(config.auth.htpasswd.max_users, super::MaxUsers::Unlimited);
+    // Registration is opt-in: an omitted cap denies new sign-ups.
+    assert_eq!(config.auth.htpasswd.max_users, super::MaxUsers::Disabled);
+}
+
+#[test]
+fn auth_max_users_absent_disables_registration() {
+    let yaml = "\
+storage: ./s
+auth:
+  htpasswd:
+    file: ./htpasswd
+uplinks: {}
+packages: {}
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    assert_eq!(config.auth.htpasswd.max_users, super::MaxUsers::Disabled);
 }
 
 #[test]
@@ -1271,6 +1498,7 @@ packages:
   '@secret/*':
     access: $authenticated
     publish: $authenticated
+    unpublish: admin
   '**':
     access: $all
     publish: $authenticated
@@ -1282,6 +1510,8 @@ packages:
     let public = config.policies.for_package("lodash");
     assert!(public.access.allows(&Identity::Anonymous));
     assert!(!public.publish.allows(&Identity::Anonymous));
+    assert!(!secret.unpublish.allows(&user("alice")));
+    assert!(secret.unpublish.allows(&user("admin")));
 }
 
 #[test]
@@ -1315,6 +1545,60 @@ packages:
     assert!(effective.access.allows(&Identity::Anonymous));
     assert!(!effective.publish.allows(&Identity::Anonymous));
     assert!(effective.publish.allows(&user("alice")));
+    assert!(!effective.unpublish.allows(&Identity::Anonymous));
+    assert!(!effective.unpublish.allows(&user("alice")));
+}
+
+#[test]
+fn policy_missing_unpublish_denies_destructive_writes() {
+    let yaml = "\
+storage: ./s
+uplinks: {}
+packages:
+  '@team/*':
+    publish: alice
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let team = config.policies.for_package("@team/x");
+    assert!(team.publish.allows(&user("alice")));
+    assert!(!team.publish.allows(&user("bob")));
+    assert!(!team.unpublish.allows(&user("alice")));
+    assert!(!team.unpublish.allows(&user("bob")));
+}
+
+#[test]
+fn policy_empty_unpublish_denies_destructive_writes() {
+    let as_null = "\
+storage: ./s
+uplinks: {}
+packages:
+  '@team/*':
+    publish: $authenticated
+    unpublish:
+";
+    let as_empty_string = "\
+storage: ./s
+uplinks: {}
+packages:
+  '@team/*':
+    publish: $authenticated
+    unpublish: ''
+";
+    let as_empty_sequence = "\
+storage: ./s
+uplinks: {}
+packages:
+  '@team/*':
+    publish: $authenticated
+    unpublish: []
+";
+    for yaml in [as_null, as_empty_string, as_empty_sequence] {
+        let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+        let team = config.policies.for_package("@team/x");
+        assert!(team.publish.allows(&user("alice")), "{yaml}");
+        assert!(!team.unpublish.allows(&Identity::Anonymous), "{yaml}");
+        assert!(!team.unpublish.allows(&user("alice")), "{yaml}");
+    }
 }
 
 #[test]

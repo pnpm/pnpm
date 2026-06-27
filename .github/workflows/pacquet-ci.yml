@@ -13,6 +13,7 @@ permissions:
 
 on:
   workflow_dispatch:
+  merge_group:
   pull_request:
     types: [opened, synchronize, reopened]
   push:
@@ -30,18 +31,22 @@ jobs:
     outputs:
       rust: ${{ steps.manual.outputs.rust || steps.filter.outputs.rust }}
     steps:
-      - name: Run Rust CI for manual dispatch
-        if: github.event_name == 'workflow_dispatch'
+      # Force the full Rust suite on manual runs and in the merge queue.
+      # The merge queue tests the merged commit, so path filtering it away
+      # would defeat the point; running unconditionally also guarantees the
+      # `success` gate has a real (non-skipped) result to report.
+      - name: Force Rust CI
+        if: github.event_name == 'workflow_dispatch' || github.event_name == 'merge_group'
         id: manual
         run: echo "rust=true" >> "$GITHUB_OUTPUT"
 
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
-        if: github.event_name != 'workflow_dispatch'
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        if: github.event_name != 'workflow_dispatch' && github.event_name != 'merge_group'
         with:
           persist-credentials: false
 
       - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
-        if: github.event_name != 'workflow_dispatch'
+        if: github.event_name != 'workflow_dispatch' && github.event_name != 'merge_group'
         id: filter
         with:
           filters: |
@@ -67,6 +72,20 @@ jobs:
     name: Rust CI / Test / ${{ matrix.os_label }}
     needs: changes
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
+    # Build the nextest artifacts with line-tables-only debug info. The full
+    # `cargo nextest` build holds a complete set of `--all-targets` debug
+    # binaries for the whole workspace (~60 crates plus heavy C deps like
+    # aws-lc-sys, ring, libsql-ffi, and tree-sitter) in target/, which had
+    # grown close to the hosted runner's free-disk ceiling even after the
+    # cleanup step below — a run can cross ENOSPC mid-link (the linker dies
+    # with "No space left on device"). Line tables keep panic backtraces
+    # file:line-accurate while dropping most of the debuginfo bytes. Set here
+    # in CI rather than in Cargo.toml so local `just test` keeps full debug
+    # info. CARGO_PROFILE_DEV_DEBUG covers dependencies (built dev), _TEST_
+    # covers the test targets.
+    env:
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+      CARGO_PROFILE_TEST_DEBUG: line-tables-only
     strategy:
       fail-fast: false
       matrix:
@@ -79,7 +98,7 @@ jobs:
             os_label: macos
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
 
@@ -100,7 +119,7 @@ jobs:
           save-cache: ${{ github.ref_name == 'main' }}
 
       - name: Install pnpm (for compatibility check)
-        uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
+        uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
         with:
           install: false
 
@@ -118,7 +137,7 @@ jobs:
         continue-on-error: true
 
       - name: Install just
-        uses: taiki-e/install-action@0631aa6515c7d545823c67cfae7ef4fc7f490154 # v2.81.8
+        uses: taiki-e/install-action@b8cecb83565409bcc297b2df6e77f030b2a468d5 # v2.82.0
         with:
           tool: just
 
@@ -126,7 +145,7 @@ jobs:
         run: just install
 
       - name: Install cargo-nextest
-        uses: taiki-e/install-action@0631aa6515c7d545823c67cfae7ef4fc7f490154 # v2.81.8
+        uses: taiki-e/install-action@b8cecb83565409bcc297b2df6e77f030b2a468d5 # v2.82.0
         with:
           tool: cargo-nextest
 
@@ -202,7 +221,7 @@ jobs:
     # type-checked per-OS by the test job's build.)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
 
@@ -228,7 +247,7 @@ jobs:
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
 
@@ -248,7 +267,7 @@ jobs:
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
 
@@ -262,11 +281,12 @@ jobs:
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
 
       - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        if: github.event_name != 'merge_group'
         id: filter
         with:
           filters: |
@@ -275,12 +295,12 @@ jobs:
               - 'deny.toml'
 
       - name: Install cargo-deny
-        if: steps.filter.outputs.src == 'true'
-        uses: taiki-e/install-action@0631aa6515c7d545823c67cfae7ef4fc7f490154 # v2.81.8
+        if: github.event_name == 'merge_group' || steps.filter.outputs.src == 'true'
+        uses: taiki-e/install-action@b8cecb83565409bcc297b2df6e77f030b2a468d5 # v2.82.0
         with:
           tool: cargo-deny
 
-      - if: steps.filter.outputs.src == 'true'
+      - if: github.event_name == 'merge_group' || steps.filter.outputs.src == 'true'
         run: cargo deny check
 
   format:
@@ -289,7 +309,7 @@ jobs:
     if: ${{ !cancelled() && (github.event_name == 'workflow_dispatch' || needs.changes.outputs.rust == 'true') }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
 
@@ -320,7 +340,7 @@ jobs:
           echo "::error::Unable to determine whether Rust CI should run."
           exit 1
 
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
 

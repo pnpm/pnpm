@@ -40,7 +40,7 @@ export async function resolveBunRuntime (
     }
   }
 
-  const versionSpec = wantedDependency.bareSpecifier.substring('runtime:'.length)
+  const versionSpec = normalizeRuntimeSpec(wantedDependency.bareSpecifier.substring('runtime:'.length))
   // We use the npm registry for version resolution as it is easier than using the GitHub API for releases,
   // which uses pagination (e.g. https://api.github.com/repos/oven-sh/bun/releases?per_page=100).
   const npmResolution = await ctx.resolveFromNpm({ ...wantedDependency, bareSpecifier: versionSpec }, {})
@@ -74,7 +74,7 @@ export async function resolveLatestBunRuntime (
 ): Promise<LatestInfo | undefined> {
   const manifestSpec = query.wantedDependency.bareSpecifier
   if (query.wantedDependency.alias !== 'bun' || !manifestSpec?.startsWith('runtime:')) return undefined
-  const versionSpec = query.compatible ? manifestSpec.substring('runtime:'.length) : 'latest'
+  const versionSpec = query.compatible ? normalizeRuntimeSpec(manifestSpec.substring('runtime:'.length)) : 'latest'
   try {
     const npmResolution = await ctx.resolveFromNpm(
       { alias: 'bun', bareSpecifier: versionSpec },
@@ -89,6 +89,11 @@ export async function resolveLatestBunRuntime (
     }
     throw err
   }
+}
+
+function normalizeRuntimeSpec (versionSpec: string): string {
+  versionSpec = versionSpec.trim()
+  return versionSpec === '' ? 'latest' : versionSpec
 }
 
 async function readBunAssets (fetch: FetchFromRegistry, version: string): Promise<PlatformAssetResolution[]> {

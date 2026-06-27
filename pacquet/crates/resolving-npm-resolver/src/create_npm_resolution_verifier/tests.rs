@@ -1073,3 +1073,85 @@ async fn binding_check_records_dist_stats_into_the_sink() {
     assert_eq!(recorded.unpacked_size, Some(123_456));
     assert_eq!(recorded.file_count, Some(42));
 }
+
+/// A 403 on the metadata fetch (e.g. a CI token that is authenticated but not
+/// authorized to read a private package) must not be reported as a lockfile
+/// tarball-URL mismatch: the lockfile is correct, the fetch is the problem. The
+/// verifier propagates the registry's own fetch error so the install aborts.
+#[tokio::test]
+async fn propagates_metadata_fetch_failure_instead_of_a_tampering_mismatch() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let server_url = server.url();
+    let _meta_mock = server
+        .mock("GET", "/private-pkg")
+        .with_status(403)
+        .with_body(r#"{"error":"Forbidden"}"#)
+        .create_async()
+        .await;
+
+    let opts = default_opts(&registry);
+    let verifier = create_npm_resolution_verifier(opts);
+    let resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: format!("{server_url}/private-pkg/-/private-pkg-1.0.0.tgz"),
+        integrity: Some(fake_integrity()),
+        git_hosted: None,
+        path: None,
+    });
+    let name: PkgName = "private-pkg".parse().expect("parse");
+    let result = verifier.verify(&resolution, ctx(&name, "1.0.0")).await;
+
+    // A transport failure aborts via FetchFailed, never a tampering-style
+    // TARBALL_URL_MISMATCH.
+    let ResolutionVerification::FetchFailed { message } = result else {
+        panic!("expected FetchFailed, got {result:?}");
+    };
+    assert!(message.contains("403"), "message: {message}");
+}
+
+/// The metadata fetch succeeds but does not list the pinned version. That is a
+/// genuine verification failure (not a transport error), so it stays
+/// `TARBALL_URL_MISMATCH` rather than aborting via `FetchFailed`.
+#[tokio::test]
+async fn version_absent_from_fetched_metadata_stays_tarball_url_mismatch() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let server_url = server.url();
+    let packument = serde_json::json!({
+        "name": "present-pkg",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "present-pkg",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": FAKE_INTEGRITY,
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": format!("{server_url}/present-pkg/-/present-pkg-1.0.0.tgz"),
+                }
+            }
+        }
+    });
+    let _meta_mock = server
+        .mock("GET", "/present-pkg")
+        .with_status(200)
+        .with_body(packument.to_string())
+        .create_async()
+        .await;
+
+    let opts = default_opts(&registry);
+    let verifier = create_npm_resolution_verifier(opts);
+    let resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: format!("{server_url}/present-pkg/-/present-pkg-2.0.0.tgz"),
+        integrity: Some(fake_integrity()),
+        git_hosted: None,
+        path: None,
+    });
+    let name: PkgName = "present-pkg".parse().expect("parse");
+    let result = verifier.verify(&resolution, ctx(&name, "2.0.0")).await;
+
+    let ResolutionVerification::Err { code, .. } = result else {
+        panic!("expected Err, got {result:?}");
+    };
+    assert_eq!(code, "TARBALL_URL_MISMATCH");
+}

@@ -2591,9 +2591,9 @@ dependencies = [
 
 [[package]]
 name = "insta"
-version = "1.47.2"
+version = "1.48.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b4a6248eb93a4401ed2f37dfe8ea592d3cf05b7cf4f8efa867b6895af7e094e"
+checksum = "86f0f8fee8c926415c58d6ae43a08523a26faccb2323f5e6b644fe7dd4ef6b82"
 dependencies = [
  "console",
  "globset",
@@ -3642,6 +3642,7 @@ version = "0.0.1"
 dependencies = [
  "assert_cmd",
  "base64 0.22.1",
+ "chrono",
  "clap",
  "command-extra",
  "derive_more",
@@ -3656,38 +3657,52 @@ dependencies = [
  "mockito",
  "node-semver",
  "owo-colors",
+ "p256",
  "pacquet-catalogs-config",
  "pacquet-cmd-shim",
  "pacquet-config",
  "pacquet-crypto-hash",
  "pacquet-default-reporter",
+ "pacquet-deps-path",
+ "pacquet-detect-libc",
  "pacquet-diagnostics",
+ "pacquet-directory-fetcher",
+ "pacquet-engine-runtime-node-resolver",
  "pacquet-env-installer",
  "pacquet-executor",
  "pacquet-fs",
+ "pacquet-global",
  "pacquet-graph-hasher",
  "pacquet-hooks",
  "pacquet-lockfile",
+ "pacquet-modules-yaml",
  "pacquet-network",
+ "pacquet-pack",
  "pacquet-package-is-installable",
  "pacquet-package-manager",
  "pacquet-package-manifest",
+ "pacquet-patching",
  "pacquet-pnpr-client",
  "pacquet-registry",
  "pacquet-reporter",
  "pacquet-resolving-npm-resolver",
  "pacquet-resolving-parse-wanted-dependency",
+ "pacquet-resolving-resolver-base",
  "pacquet-store-dir",
  "pacquet-tarball",
  "pacquet-testing-utils",
  "pacquet-workspace",
  "pacquet-workspace-manifest-writer",
+ "pacquet-workspace-projects-filter",
  "pacquet-workspace-projects-graph",
  "pacquet-workspace-state",
+ "pathdiff",
  "pipe-trait",
  "pnpr",
  "pretty_assertions",
  "rayon",
+ "reqwest 0.13.4",
+ "rmp-serde",
  "serde",
  "serde-saphyr",
  "serde_json",
@@ -3695,7 +3710,10 @@ dependencies = [
  "tar",
  "tempfile",
  "tokio",
+ "tracing",
+ "url",
  "walkdir",
+ "wax",
  "which 8.0.4",
  "windows-sys 0.61.2",
 ]
@@ -3743,6 +3761,8 @@ dependencies = [
  "smart-default",
  "tempfile",
  "tracing",
+ "tracing-subscriber",
+ "url",
 ]
 
 [[package]]
@@ -3824,8 +3844,10 @@ name = "pacquet-directory-fetcher"
 version = "0.0.1"
 dependencies = [
  "derive_more",
+ "junction",
  "miette 7.6.0",
  "pacquet-diagnostics",
+ "pacquet-fs",
  "pacquet-git-fetcher",
  "pacquet-package-manifest",
  "pacquet-store-dir",
@@ -3963,7 +3985,10 @@ version = "0.0.1"
 dependencies = [
  "derive_more",
  "miette 7.6.0",
+ "pacquet-catalogs-resolver",
+ "pacquet-catalogs-types",
  "pacquet-package-manifest",
+ "pacquet-resolving-jsr-specifier-parser",
  "serde_json",
  "tempfile",
 ]
@@ -3982,15 +4007,28 @@ dependencies = [
 ]
 
 [[package]]
-name = "pacquet-git-fetcher"
+name = "pacquet-fs-packlist"
 version = "0.0.1"
 dependencies = [
  "derive_more",
  "ignore",
+ "pacquet-diagnostics",
+ "pacquet-package-manifest",
+ "serde_json",
+ "tempfile",
+ "tracing",
+]
+
+[[package]]
+name = "pacquet-git-fetcher"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
  "miette 7.6.0",
  "pacquet-diagnostics",
  "pacquet-executor",
  "pacquet-fs",
+ "pacquet-fs-packlist",
  "pacquet-package-manifest",
  "pacquet-reporter",
  "pacquet-store-dir",
@@ -4001,7 +4039,21 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
- "walkdir",
+]
+
+[[package]]
+name = "pacquet-global"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "owo-colors",
+ "pacquet-cmd-shim",
+ "pacquet-crypto-hash",
+ "pacquet-fs",
+ "pacquet-resolving-deps-resolver",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]
@@ -4180,6 +4232,30 @@ dependencies = [
  "serde_json",
  "tokio",
  "url",
+]
+
+[[package]]
+name = "pacquet-pack"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "flate2",
+ "indexmap 2.14.0",
+ "miette 7.6.0",
+ "pacquet-catalogs-types",
+ "pacquet-cmd-shim",
+ "pacquet-config",
+ "pacquet-executor",
+ "pacquet-exportable-manifest",
+ "pacquet-fs-packlist",
+ "pacquet-package-manifest",
+ "pacquet-reporter",
+ "pacquet-resolving-parse-wanted-dependency",
+ "pathdiff",
+ "serde",
+ "serde_json",
+ "tar",
+ "tempfile",
 ]
 
 [[package]]
@@ -4591,6 +4667,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "tracing",
+ "url",
  "zip",
  "zune-inflate",
 ]
@@ -4637,6 +4714,7 @@ dependencies = [
  "pacquet-catalogs-types",
  "serde",
  "serde-saphyr",
+ "serde_json",
  "tempfile",
  "yaml_serde",
  "yamlpatch",

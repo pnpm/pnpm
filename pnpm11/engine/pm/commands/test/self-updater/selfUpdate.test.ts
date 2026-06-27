@@ -24,7 +24,7 @@ jest.unstable_mockModule('@pnpm/cli.meta', () => {
     },
   }
 })
-const { selfUpdate, installPnpm, linkExePlatformBinary, exePlatformPkgDirName, exePlatformPkgDirNameNext } = await import('@pnpm/engine.pm.commands')
+const { selfUpdate, installPnpm, linkExePlatformBinary, exePlatformPkgDirName, exePlatformPkgDirNameNext, pnpmPackageNameToInstall } = await import('@pnpm/engine.pm.commands')
 
 beforeEach(async () => {
   await setupMockAgent()
@@ -1122,6 +1122,32 @@ describe('linkExePlatformBinary', () => {
     expect(result).toBe(fakeBinaryContent)
   })
 
+  test('links the pnpm v12 wrapper from its @pnpm/exe.<target> dependency', () => {
+    const dir = tempDir(false)
+
+    // pnpm v12 (the Rust port) is published as the unscoped `pnpm` wrapper that
+    // depends on `@pnpm/exe.<platform>-<arch>[-musl]` — the `exe.<...>` scheme.
+    const nextPkgName = exePlatformPkgDirNameNext(platform, arch, libcFamily)
+    const wrapperDir = path.join(dir, 'node_modules', 'pnpm')
+    const platformDir = path.join(dir, 'node_modules', '@pnpm', nextPkgName)
+
+    fs.mkdirSync(wrapperDir, { recursive: true })
+    fs.mkdirSync(platformDir, { recursive: true })
+
+    fs.writeFileSync(path.join(wrapperDir, executable), 'This is a placeholder.')
+    fs.writeFileSync(path.join(wrapperDir, 'package.json'), JSON.stringify({
+      bin: { pnpm: 'pnpm', pn: 'pn', pnpx: 'pnpx', pnx: 'pnx' },
+    }))
+
+    const fakeBinaryContent = '#!/bin/sh\necho "fake pnpm v12 binary"'
+    fs.writeFileSync(path.join(platformDir, executable), fakeBinaryContent)
+
+    linkExePlatformBinary(dir, 'pnpm')
+
+    const result = fs.readFileSync(path.join(wrapperDir, executable), 'utf8')
+    expect(result).toBe(fakeBinaryContent)
+  })
+
   // Regression coverage for https://github.com/pnpm/pnpm/issues/11486 — the
   // `pn` / `pnpx` / `pnx` aliases were broken in MSYS2 / Git Bash on Windows.
   // Root cause: linkExePlatformBinary pointed those bin entries at .cmd files,
@@ -1168,6 +1194,21 @@ describe('linkExePlatformBinary', () => {
       // tell `pnpx` apart from `pnpm` and inject `dlx` accordingly.
       expect(fs.statSync(aliasPath).ino).toBe(pnpmIno)
     }
+  })
+})
+
+describe('pnpmPackageNameToInstall', () => {
+  test('installs the unscoped `pnpm` package from v12 onward', () => {
+    expect(pnpmPackageNameToInstall('12.0.0-alpha.0')).toBe('pnpm')
+    expect(pnpmPackageNameToInstall('12.3.4')).toBe('pnpm')
+    expect(pnpmPackageNameToInstall('13.0.0')).toBe('pnpm')
+  })
+
+  test('keeps the running package identity before v12', () => {
+    // getCurrentPackageName() is `pnpm` in the (non-SEA) test runtime, so this
+    // asserts v11 and earlier are not forced onto a different package.
+    expect(pnpmPackageNameToInstall('11.9.0')).toBe('pnpm')
+    expect(pnpmPackageNameToInstall('9.1.0')).toBe('pnpm')
   })
 })
 

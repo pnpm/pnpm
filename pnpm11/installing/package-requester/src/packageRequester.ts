@@ -11,12 +11,13 @@ import type {
   FetchOptions,
   FetchResult,
 } from '@pnpm/fetching.fetcher-base'
-import { pickFetcher } from '@pnpm/fetching.pick-fetcher'
+import { type PickedFetcher, pickFetcher } from '@pnpm/fetching.pick-fetcher'
 import gfs from '@pnpm/fs.graceful-fs'
 import type { CustomFetcher } from '@pnpm/hooks.types'
 import { logger } from '@pnpm/logger'
 import {
   type AtomicResolution,
+  classifyResolution,
   type DirectoryResolution,
   type PlatformAssetResolution,
   type PreferredVersions,
@@ -132,6 +133,8 @@ export function createPackageRequester (
     requestsQueue,
     resolve: opts.resolve,
     storeDir: opts.storeDir,
+    fetchers: opts.fetchers,
+    customFetchers: opts.customFetchers,
   })
 
   return Object.assign(requestPackage, {
@@ -154,6 +157,8 @@ async function resolveAndFetch (
     resolve: ResolveFunction
     fetchPackageToStore: FetchPackageToStoreFunction
     storeDir: string
+    fetchers: Fetchers
+    customFetchers?: CustomFetcher[]
   },
   wantedDependency: WantedDependency & { optional?: boolean },
   options: RequestPackageOptions
@@ -261,9 +266,19 @@ async function resolveAndFetch (
         })
     )
   )
-  // We can skip fetching the package only if the manifest
-  // is present after resolution AND the content of the package has not changed
-  if ((options.skipFetch === true || isInstallable === false) && !integrityChanged && (manifest != null)) {
+  const fetcherForResolution = resolution.type === 'variations'
+    ? undefined
+    : await pickFetcher(ctx.fetchers, resolution as AtomicResolution, {
+      customFetchers: ctx.customFetchers,
+      packageId: id,
+    })
+  const resolutionNeedsFetchHook = fetcherForResolution?.resolutionNeedsFetch
+  const resolutionNeedsFetch = typeof resolutionNeedsFetchHook === 'function'
+    ? resolutionNeedsFetchHook(resolution)
+    : false
+  // Fetching can be skipped only when the manifest is available, the package content
+  // did not change, and the resolution does not need fetch-derived data.
+  if ((options.skipFetch === true || isInstallable === false) && !resolutionNeedsFetch && !integrityChanged && (manifest != null)) {
     return {
       body: {
         id,
@@ -287,6 +302,8 @@ async function resolveAndFetch (
     allowBuild: options.allowBuild,
     fetchRawManifest: true,
     force: integrityChanged,
+    populateMissingIntegrity: resolutionNeedsFetch,
+    pickedFetcher: fetcherForResolution,
     ignoreScripts: options.ignoreScripts,
     lockfileDir: options.lockfileDir,
     pkg: {
@@ -313,9 +330,28 @@ async function resolveAndFetch (
         manifest = loadedManifest as unknown as DependencyManifest
       }
     }
-    // Add integrity to resolution if it was computed during fetching (only for TarballResolution)
-    if (fetchedResult.integrity && !resolution.type && !(resolution as TarballResolution).integrity) {
+    // Add computed integrity to tarball resolutions. `variations` spans multiple
+    // platform variants, so do not write one machine's integrity into the shared resolution.
+    if (resolution.type !== 'variations' && fetchedResult.integrity != null && getExpectedIntegrity(resolution) == null) {
       (resolution as TarballResolution).integrity = fetchedResult.integrity
+    }
+  }
+
+  let fetching = fetchResult.fetching
+  if (resolutionNeedsFetch) {
+    let populating: Promise<PkgRequestFetchResult> | undefined
+    fetching = () => {
+      populating ??= fetchResult.fetching().then((fetchedResult) => {
+        if (fetchedResult.integrity != null && getExpectedIntegrity(resolution) == null) {
+          (resolution as TarballResolution).integrity = fetchedResult.integrity
+        }
+        return fetchedResult
+      }).catch((err: unknown) => {
+        // Cache only fulfilled fetches; rejected fetches may be retried.
+        populating = undefined
+        throw err
+      })
+      return populating
     }
   }
   // Check installability now that we have the manifest (for git/tarball packages without registry metadata)
@@ -343,8 +379,9 @@ async function resolveAndFetch (
       alias,
       policyViolation,
     },
-    fetching: fetchResult.fetching,
+    fetching,
     filesIndexFile: fetchResult.filesIndexFile,
+    resolutionNeedsFetch,
   }
 }
 
@@ -406,7 +443,8 @@ function fetchToStore (
     fetch: (
       packageId: string,
       resolution: AtomicResolution,
-      opts: FetchOptions
+      opts: FetchOptions,
+      pickedFetcher?: PickedFetcher
     ) => Promise<FetchResult>
     fetchingLocker: Map<string, FetchLock>
     requestsQueue: {
@@ -526,8 +564,16 @@ function fetchToStore (
       const isLocalTarballDep = opts.pkg.id.startsWith('file:')
       const isLocalPkg = resolution.type === 'directory'
 
+      const populateMissingIntegrity = opts.populateMissingIntegrity === true
+      if (!populateMissingIntegrity) {
+        assertFetchableResolution(opts.pkg.id, resolution)
+      }
+
+      let refetchingStoredPackage = false
+
       if (
         !opts.force &&
+        !populateMissingIntegrity &&
         (
           !isLocalTarballDep ||
           await tarballIsUpToDate(opts.pkg.resolution as any, target, opts.lockfileDir) // eslint-disable-line
@@ -545,12 +591,14 @@ function fetchToStore (
           })
           return
         }
-        if ((files?.filesMap) != null) {
-          packageRequestLogger.warn({
-            message: `Refetching ${target} to store. It was either modified or had no integrity checksums`,
-            prefix: opts.lockfileDir,
-          })
-        }
+        refetchingStoredPackage = (files?.filesMap) != null
+      }
+
+      if (refetchingStoredPackage) {
+        packageRequestLogger.warn({
+          message: `Refetching ${target} to store. It was either modified or had no integrity checksums`,
+          prefix: opts.lockfileDir,
+        })
       }
 
       // We fetch into targetStage directory first and then fs.rename() it to the
@@ -589,10 +637,11 @@ function fetchToStore (
             name: opts.pkg.name,
             version: opts.pkg.version,
           },
-        }
+        },
+        opts.pickedFetcher
       ), { priority })
 
-      const integrity = (opts.pkg.resolution as TarballResolution).integrity ?? fetchedPackage.integrity
+      const integrity = getExpectedIntegrity(opts.pkg.resolution) ?? fetchedPackage.integrity
       if (isLocalTarballDep && integrity) {
         await fs.mkdir(target, { recursive: true })
         await gfs.writeFile(path.join(target, TARBALL_INTEGRITY_FILENAME), integrity, 'utf8')
@@ -616,6 +665,20 @@ function fetchToStore (
 
 async function readBundledManifest (pkgJsonPath: string): Promise<BundledManifest | undefined> {
   return normalizeBundledManifest(await loadJsonFile<DependencyManifest>(pkgJsonPath))
+}
+
+function getExpectedIntegrity (resolution: unknown): string | undefined {
+  const integrity = (resolution as { integrity?: unknown }).integrity
+  return typeof integrity === 'string' && integrity.length > 0
+    ? integrity
+    : undefined
+}
+
+function assertFetchableResolution (depPath: string, resolution: AtomicResolution): void {
+  if (classifyResolution(resolution) !== 'remoteTarball') return
+  if (getExpectedIntegrity(resolution) != null) return
+  throw new PnpmError('MISSING_TARBALL_INTEGRITY',
+    `Cannot fetch package "${depPath}" from the lockfile: it has no "integrity" field, so the downloaded tarball cannot be verified. Run a fresh install to repair the lockfile.`)
 }
 
 async function tarballIsUpToDate (
@@ -650,11 +713,11 @@ async function fetcher (
   customFetchers: CustomFetcher[] | undefined,
   packageId: string,
   resolution: AtomicResolution,
-  opts: FetchOptions
+  opts: FetchOptions,
+  pickedFetcher?: PickedFetcher
 ): Promise<FetchResult> {
   try {
-    // pickFetcher now handles custom fetcher hooks internally
-    const fetch = await pickFetcher(fetcherByHostingType, resolution, {
+    const fetch = pickedFetcher ?? await pickFetcher(fetcherByHostingType, resolution, {
       customFetchers,
       packageId,
     })

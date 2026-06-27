@@ -310,6 +310,30 @@ test('retry when integrity check fails', async () => {
   expect(params[1]).toStrictEqual([tarballSize, 2])
 })
 
+test('computes integrity when the expected integrity is not a string', async () => {
+  const tarballContent = fs.readFileSync(tarballPath)
+  const mockPool = mockAgent.get(registry)
+
+  mockPool.intercept({ path: '/foo.tgz', method: 'GET' }).reply(200, tarballContent, {
+    headers: { 'Content-Length': tarballSize.toString() },
+  })
+
+  process.chdir(temporaryDirectory())
+
+  const resolution = {
+    integrity: true,
+    tarball: `${registry}/foo.tgz`,
+  } as unknown as Parameters<typeof fetch.remoteTarball>[1]
+
+  const result = await fetch.remoteTarball(cafs, resolution, {
+    filesIndexFile,
+    lockfileDir: process.cwd(),
+    pkg,
+  })
+
+  expect(result.integrity).toMatch(/^sha512-/)
+})
+
 test('fail when integrity check of local file fails', async () => {
   const storeDir = temporaryDirectory()
   process.chdir(storeDir)
