@@ -1,4 +1,10 @@
-use super::{CliArgs, CliCommand, package_manager_to_sync};
+use super::{
+    CliArgs,
+    cli_command::CliCommand,
+    package_manager::{
+        current_source_pnpm_version, package_manager_to_sync, parse_package_manager,
+    },
+};
 use clap::Parser;
 use tempfile::TempDir;
 
@@ -114,6 +120,45 @@ fn link_command_parses_multiple_paths() {
 }
 
 #[test]
+fn install_command_parses_i_alias() {
+    let parsed = CliArgs::try_parse_from(["pacquet", "i"]).expect("parses pacquet i");
+    assert!(
+        matches!(parsed.command, CliCommand::Install(_)),
+        "`i` is the install alias, got {:?}",
+        parsed.command,
+    );
+}
+
+#[test]
+fn parse_package_manager_handles_unscoped_scoped_and_url_references() {
+    // Unscoped `name@version`.
+    assert_eq!(
+        parse_package_manager("pnpm@10.0.0"),
+        ("pnpm".to_string(), Some("10.0.0".to_string())),
+    );
+    // A leading `@` is a scope, so the separator is the *next* `@`.
+    assert_eq!(
+        parse_package_manager("@scope/pnpm@10.0.0"),
+        ("@scope/pnpm".to_string(), Some("10.0.0".to_string())),
+    );
+    // No `@` separator → bare name, no version.
+    assert_eq!(parse_package_manager("pnpm"), ("pnpm".to_string(), None));
+    assert_eq!(parse_package_manager("@scope/pnpm"), ("@scope/pnpm".to_string(), None));
+    // The integrity hash carried as `+`-suffixed build metadata is dropped.
+    assert_eq!(
+        parse_package_manager("pnpm@10.0.0+sha512.abc"),
+        ("pnpm".to_string(), Some("10.0.0".to_string())),
+    );
+    // A URL reference (contains `:`) yields no version. Splitting on the first
+    // `@` keeps a URL's embedded `@` (e.g. credentials) inside the reference,
+    // so the `:` is still seen and the version is correctly dropped.
+    assert_eq!(
+        parse_package_manager("pnpm@https://user@example.com/pnpm.tgz"),
+        ("pnpm".to_string(), None),
+    );
+}
+
+#[test]
 fn package_manager_to_sync_preserves_dev_engine_specifier() {
     let root = TempDir::new().expect("tmp dir");
     let manifest_path = root.path().join("package.json");
@@ -130,6 +175,6 @@ fn package_manager_to_sync_preserves_dev_engine_specifier() {
     assert_eq!(package_manager.specifier, ">=0.0.0");
     assert_eq!(
         package_manager.version,
-        super::current_source_pnpm_version().expect("source pnpm version"),
+        current_source_pnpm_version().expect("source pnpm version"),
     );
 }
