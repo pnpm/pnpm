@@ -1,0 +1,7 @@
+#!/bin/sh
+# Prevent Claude Code from committing directly on the main branch.
+
+if [ -n "$CLAUDECODE" ] && [ "$(git rev-parse --abbrev-ref HEAD)" = "main" ]; then
+  echo "error: Committing directly to the main branch is not allowed. Create a new branch and open a pull request instead." >&2
+  exit 1
+fi

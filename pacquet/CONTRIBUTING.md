@@ -80,7 +80,7 @@ Install the project's task tools and the git pre-push hook:
 just init
 ```
 
-`just init` invokes `cargo-binstall` to install `cargo-nextest`, `cargo-watch`, `cargo-insta`, `typos-cli`, `taplo-cli`, `wasm-pack`, and `cargo-llvm-cov`. Run `pacquet/scripts/pre-push-rust.sh` (format, doc, dylint) manually before pushing changes under `pacquet/` or `pnpr/`; CI runs the same checks.
+`just init` invokes `cargo-binstall` to install `cargo-nextest`, `cargo-watch`, `cargo-insta`, `typos-cli`, `taplo-cli`, `wasm-pack`, and `cargo-llvm-cov`. Run `just ready` before pushing changes under `pacquet/` or `pnpr/`; CI runs the same format, doc, clippy, and dylint checks.
 
 Install the test dependencies:
 
