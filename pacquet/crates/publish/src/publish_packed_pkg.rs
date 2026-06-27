@@ -116,14 +116,10 @@ where
         return Ok(summary);
     }
 
-    // Generating a signed provenance attestation requires sigstore, which
-    // pacquet does not yet bundle. An explicit `--provenance` is a hard error
-    // (the request cannot be honored); provenance that OIDC auto-detected for a
-    // public repo is downgraded to a warning so a trusted-publishing CI run
-    // still publishes — without the attestation pnpm would attach.
-    if opts.provenance == Some(true) {
-        return Err(PublishPackedPkgError::ProvenanceUnsupported);
-    }
+    // An explicit `--provenance` already hard-errored above. Provenance that
+    // OIDC auto-detected for a public repo is downgraded to a warning so a
+    // trusted-publishing CI run still publishes — without the attestation pnpm
+    // would attach (which needs sigstore, not yet bundled).
     if resolved.provenance == Some(true) {
         global_warn::<Reporter>(
             "Provenance generation is not yet supported by pacquet; publishing without provenance.",
