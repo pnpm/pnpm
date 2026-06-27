@@ -2,6 +2,7 @@
 //! token via the npm OIDC token-exchange endpoint.
 
 use pacquet_diagnostics::miette::{self, Diagnostic};
+use pipe_trait::Pipe;
 use serde_json::Value;
 use url::Url;
 
@@ -48,7 +49,9 @@ pub async fn fetch_auth_token<Sys: OidcFetch>(
     })?;
 
     if !response.ok {
-        let message = serde_json::from_str::<Value>(&response.body)
+        let message = response
+            .body
+            .pipe_as_ref(serde_json::from_str::<Value>)
             .ok()
             .and_then(|json| json.get("body")?.get("message")?.as_str().map(str::to_owned))
             .unwrap_or_else(|| "Unknown error".to_owned());

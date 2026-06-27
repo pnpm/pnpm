@@ -3,17 +3,33 @@ use crate::{
     capabilities::{CiInfo, EnvVar, OidcFetch, OidcFetchError, OidcRequest, OidcResponse},
     oidc::OidcHttpOptions,
 };
-use base64::Engine;
+use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use pretty_assertions::assert_eq;
 
 const REGISTRY: &str = "https://registry.npmjs.org/";
 
-/// Build a JWT-shaped `header.payload.signature` token whose payload is the
-/// given JSON object, base64url-encoded as a real id-token would be.
-fn id_token(payload: &serde_json::Value) -> String {
-    let payload_b64 = base64::engine::general_purpose::URL_SAFE_NO_PAD
-        .encode(serde_json::to_vec(payload).unwrap());
+/// The id-token payload fields [`determine_provenance`] reads. Mirrors the TS
+/// `interface Payload { repository_visibility?: unknown; project_visibility?: unknown }`
+/// — both optional — but typed to the only value the visibility check ever
+/// looks for, a string, so a test constructs a payload without an untyped map.
+#[derive(serde::Serialize)]
+struct Payload {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    repository_visibility: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    project_visibility: Option<&'static str>,
+}
+
+/// Build a JWT-shaped `header.payload.signature` token whose payload is
+/// base64url-encoded as a real id-token would be.
+fn id_token(payload: &Payload) -> String {
+    let payload_b64 = URL_SAFE_NO_PAD.encode(serde_json::to_vec(payload).unwrap());
     format!("header.{payload_b64}.signature")
+}
+
+/// A payload declaring the given repository visibility (the GitHub-Actions field).
+fn repository_visibility(value: &'static str) -> Payload {
+    Payload { repository_visibility: Some(value), project_visibility: None }
 }
 
 macro_rules! github_sys {
@@ -47,7 +63,7 @@ async fn public_github_package_enables_provenance() {
         Ok(OidcResponse { ok: true, status: 200, body: r#"{"public":true}"#.to_owned() })
     });
 
-    let token = id_token(&serde_json::json!({ "repository_visibility": "public" }));
+    let token = id_token(&repository_visibility("public"));
     let result = determine_provenance::<Sys>(
         "auth",
         &token,
@@ -68,7 +84,7 @@ async fn private_visibility_yields_no_provenance() {
         body: r#"{"public":false}"#.to_owned(),
     }));
 
-    let token = id_token(&serde_json::json!({ "repository_visibility": "public" }));
+    let token = id_token(&repository_visibility("public"));
     let result =
         determine_provenance::<Sys>("auth", &token, "pkg", REGISTRY, &OidcHttpOptions::default())
             .await
@@ -98,7 +114,7 @@ async fn private_repo_is_insufficient_information() {
         "visibility is not probed without public CI"
     ));
 
-    let token = id_token(&serde_json::json!({ "repository_visibility": "private" }));
+    let token = id_token(&repository_visibility("private"));
     let err =
         determine_provenance::<Sys>("auth", &token, "pkg", REGISTRY, &OidcHttpOptions::default())
             .await
@@ -117,7 +133,7 @@ async fn visibility_failure_carries_code_and_message() {
         body: r#"{"code":"E404","message":"not found"}"#.to_owned(),
     }));
 
-    let token = id_token(&serde_json::json!({ "repository_visibility": "public" }));
+    let token = id_token(&repository_visibility("public"));
     let err =
         determine_provenance::<Sys>("auth", &token, "pkg", REGISTRY, &OidcHttpOptions::default())
             .await
@@ -139,7 +155,7 @@ async fn visibility_failure_carries_code_and_message() {
 async fn fetch_rejection_is_a_hard_error() {
     github_sys!(Sys, |_: OidcRequest<'_>| Err(OidcFetchError { reason: "timeout".to_owned() }));
 
-    let token = id_token(&serde_json::json!({ "repository_visibility": "public" }));
+    let token = id_token(&repository_visibility("public"));
     let err =
         determine_provenance::<Sys>("auth", &token, "pkg", REGISTRY, &OidcHttpOptions::default())
             .await

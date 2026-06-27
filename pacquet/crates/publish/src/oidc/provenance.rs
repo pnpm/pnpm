@@ -1,7 +1,7 @@
 //! Port of `oidc/provenance.ts`: decide whether to attach provenance based on
 //! the CI context and the package's registry visibility.
 
-use base64::Engine;
+use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use pacquet_diagnostics::miette::{self, Diagnostic};
 use serde_json::Value;
 use url::Url;
@@ -87,7 +87,7 @@ where
 /// Decode the base64url JWT payload into JSON. A decode or parse failure is a
 /// hard error, matching the TS `JSON.parse(...)` that runs unguarded.
 fn decode_jwt_payload(payload_b64: &str) -> Result<Value, DetermineProvenanceError> {
-    let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
+    let bytes = URL_SAFE_NO_PAD
         .decode(payload_b64.trim_end_matches('='))
         .map_err(|error| DetermineProvenanceError::PayloadParse(error.to_string()))?;
     serde_json::from_slice(&bytes)

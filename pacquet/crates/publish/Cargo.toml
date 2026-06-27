@@ -24,6 +24,7 @@ dialoguer   = { workspace = true }
 flate2      = { workspace = true }
 miette      = { workspace = true }
 node-semver = { workspace = true }
+pipe-trait  = { workspace = true }
 reqwest     = { workspace = true }
 serde       = { workspace = true }
 serde_json  = { workspace = true }
