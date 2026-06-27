@@ -1,6 +1,8 @@
-use super::CliArgs;
-use super::cli_command::CliCommand;
-use super::package_manager::{current_source_pnpm_version, package_manager_to_sync};
+use super::{
+    CliArgs,
+    cli_command::CliCommand,
+    package_manager::{current_source_pnpm_version, package_manager_to_sync},
+};
 use clap::Parser;
 use tempfile::TempDir;
 

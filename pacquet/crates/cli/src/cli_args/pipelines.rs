@@ -1,8 +1,10 @@
-use super::dedupe::{self, DedupeArgs};
-use super::deploy::DeployArgs;
-use super::install::InstallArgs;
-use super::package_manager::{PackageManagerToSync, package_manager_to_sync};
-use super::prune::PruneArgs;
+use super::{
+    dedupe::{self, DedupeArgs},
+    deploy::DeployArgs,
+    install::InstallArgs,
+    package_manager::{PackageManagerToSync, package_manager_to_sync},
+    prune::PruneArgs,
+};
 use crate::{State, config_deps};
 use miette::Context;
 use pacquet_config::Config;

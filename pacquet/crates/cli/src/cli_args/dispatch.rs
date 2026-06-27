@@ -1,13 +1,17 @@
-use super::audit::AuditOutcome;
-use super::cli_command::{CliArgs, CliCommand};
-use super::install::InstallArgs;
-use super::outdated::OutdatedOutcome;
-use super::pipelines::{
-    DedupePipeline, DeployPipeline, InstallPipeline, PrunePipeline, apply_install_cli_config,
-    derive_config_root_and_package_manager_to_sync,
+use super::{
+    audit::AuditOutcome,
+    cli_command::{CliArgs, CliCommand},
+    global, ignored_builds,
+    install::InstallArgs,
+    outdated::OutdatedOutcome,
+    pipelines::{
+        DedupePipeline, DeployPipeline, InstallPipeline, PrunePipeline, apply_install_cli_config,
+        derive_config_root_and_package_manager_to_sync,
+    },
+    rebuild,
+    reporter::{ReporterType, configure_default_reporter, reporter_emit},
+    sanitize, whoami,
 };
-use super::reporter::{ReporterType, configure_default_reporter, reporter_emit};
-use super::{global, ignored_builds, rebuild, sanitize, whoami};
 use crate::{State, config_overrides::ConfigOverrides};
 use miette::{Context, IntoDiagnostic};
 use pacquet_config::{Config, Host};
