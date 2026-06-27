@@ -480,6 +480,18 @@ pub fn redact_url_credentials(text: &str) -> String {
     out
 }
 
+/// Make untrusted, URL-bearing text safe to print or log: redact inline
+/// `user:pass@` credentials ([`redact_url_credentials`]) and strip every
+/// control character. Used for registry URLs and network-error messages
+/// alike — both can carry basic-auth or escape sequences from an untrusted
+/// `.npmrc` / `--registry` (or a `reqwest` error that echoes the request URL
+/// back), which must not leak credentials or inject terminal output via raw
+/// escapes / `\r` / `\n`.
+#[must_use]
+pub fn redact_and_sanitize(text: &str) -> String {
+    redact_url_credentials(text).chars().filter(|character| !character.is_control()).collect()
+}
+
 /// If the authority leading `text` contains `userinfo@`, return the slice after
 /// the **last** `@` within it; otherwise `None`. The authority ends at the first
 /// `/`, `?`, `#`, or whitespace. Stripping to the last `@` keeps a raw `@` inside

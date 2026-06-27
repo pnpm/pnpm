@@ -21,6 +21,7 @@ pub mod import;
 pub mod install;
 pub mod link;
 pub mod list;
+pub mod logout;
 pub mod outdated;
 pub mod pack;
 pub mod pack_app;

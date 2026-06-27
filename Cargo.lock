@@ -3533,6 +3533,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacquet-auth-commands"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "miette 7.6.0",
+ "mockito",
+ "pacquet-fs",
+ "pacquet-network",
+ "pacquet-reporter",
+ "reqwest 0.13.4",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "pacquet-catalogs-config"
 version = "0.0.1"
 dependencies = [
@@ -3585,6 +3602,7 @@ dependencies = [
  "node-semver",
  "owo-colors",
  "p256",
+ "pacquet-auth-commands",
  "pacquet-catalogs-config",
  "pacquet-cmd-shim",
  "pacquet-config",
