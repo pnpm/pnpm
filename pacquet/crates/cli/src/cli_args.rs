@@ -51,6 +51,9 @@ pub mod why;
 
 mod cli_command;
 mod dispatch;
+mod dispatch_install;
+mod dispatch_query;
+mod dispatch_script;
 mod package_manager;
 mod pipelines;
 mod reporter;
