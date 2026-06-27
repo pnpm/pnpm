@@ -192,9 +192,9 @@ const ENTER_POLL_INTERVAL: Duration = Duration::from_millis(100);
 
 /// Production [`EnterKeyListener::Handle`]. Resolves once the background
 /// thread observes an Enter keypress; dropping it sets the cancel flag so
-/// that thread stops within one [`ENTER_POLL_INTERVAL`] — `std`'s blocking
-/// `read_line` cannot be cancelled, so the thread polls with a timeout
-/// instead of blocking forever.
+/// that thread stops within one [`ENTER_POLL_INTERVAL`] — crossterm's
+/// blocking `event::read()` cannot be cancelled, so the thread polls with
+/// a timeout instead of blocking forever.
 ///
 /// Meant to be raced and dropped when another branch wins (e.g. inside a
 /// `tokio::select!`): on a stdin read error it deliberately never resolves,
@@ -239,8 +239,8 @@ impl Drop for HostEnterHandle {
 impl EnterKeyListener for Host {
     type Handle = HostEnterHandle;
 
-    /// Watch stdin for an Enter keypress without blocking uninterruptibly
-    /// (the cancellation contract lives on `HostEnterHandle`). `crossterm`
+    /// Watch stdin for an Enter keypress without blocking uninterruptibly;
+    /// the returned handle documents the cancellation contract. `crossterm`
     /// reads in the terminal's default (cooked) mode — no raw mode — matching
     /// pnpm's plain `readline.createInterface({ input: process.stdin })`,
     /// which reacts to a submitted line rather than individual keys.
