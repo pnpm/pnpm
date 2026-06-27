@@ -7,8 +7,8 @@ mod tests;
 mod tls;
 
 pub use auth::{
-    AuthHeaders, AuthHeadersByScope, DEFAULT_REGISTRY_SCOPE, UpstreamRouteHook, base64_encode,
-    nerf_dart, redact_and_sanitize, redact_url_credentials,
+    AuthHeaders, AuthHeadersByScope, DEFAULT_REGISTRY_SCOPE, MetadataCacheScope, UpstreamRouteHook,
+    base64_encode, nerf_dart, redact_and_sanitize, redact_url_credentials,
 };
 pub use proxy::{NoProxySetting, ProxyConfig, ProxyError};
 pub use retry::{RetryOpts, retry_async, send_with_retry, should_retry_status};

@@ -220,6 +220,7 @@ impl Resolver {
             self.route_context.clone(),
             identity.clone(),
             Arc::clone(footprint),
+            Arc::clone(&self.resolution_cache_secret),
         ));
         Arc::new(AuthHeaders::from_by_scope(request.auth_headers.clone()).with_route_hook(hook))
     }

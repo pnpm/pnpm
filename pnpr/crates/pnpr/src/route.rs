@@ -26,7 +26,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use pacquet_network::{UpstreamRouteHook, nerf_dart};
+use pacquet_network::{MetadataCacheScope, UpstreamRouteHook, nerf_dart};
 use sha2::{Digest, Sha256};
 use wax::{Glob, Program};
 
@@ -82,6 +82,16 @@ impl PrivateAccessDescriptor {
             }
             PrivateAccessDescriptor::Hosted { policy_id } => format!("hosted\0{policy_id}"),
         }
+    }
+
+    /// The metadata-namespace id for this single descriptor: an HMAC over
+    /// its [`Self::key_input`] keyed with the server `secret`, so the
+    /// on-disk private-metadata mirror path is not correlatable offline.
+    /// Distinct from [`Footprint::digest`], which combines *all* of a
+    /// resolution's descriptors — metadata is fetched one route at a time,
+    /// so each fetch keys on its own descriptor.
+    fn digest_id(&self, secret: &[u8]) -> String {
+        hex(&hmac_sha256(secret, self.key_input().as_bytes()))
     }
 }
 
@@ -386,6 +396,10 @@ pub struct RouteHook {
     context: RouteContext,
     identity: Identity,
     footprint: Arc<Mutex<Footprint>>,
+    /// HMAC secret keying the per-descriptor metadata namespace
+    /// ([`MetadataCacheScope::Private`]); the same server secret the
+    /// resolution cache keys private footprints with.
+    secret: Arc<[u8]>,
 }
 
 impl RouteHook {
@@ -394,8 +408,9 @@ impl RouteHook {
         context: RouteContext,
         identity: Identity,
         footprint: Arc<Mutex<Footprint>>,
+        secret: Arc<[u8]>,
     ) -> Self {
-        Self { context, identity, footprint }
+        Self { context, identity, footprint, secret }
     }
 }
 
@@ -423,6 +438,23 @@ impl UpstreamRouteHook for RouteHook {
                 self.footprint.lock().expect("footprint poisoned").mark_unknown_private();
                 None
             }
+        }
+    }
+
+    fn metadata_scope(&self, url: &str, package: Option<&str>) -> MetadataCacheScope {
+        // Read-only classification — this must not record into the
+        // footprint (`authorize` already does, at the real fetch point).
+        match self.context.classify(&self.identity, url, package) {
+            RouteClass::Public => MetadataCacheScope::Public,
+            RouteClass::Hosted { policy_id } => MetadataCacheScope::Private {
+                descriptor_id: PrivateAccessDescriptor::Hosted { policy_id }
+                    .digest_id(&self.secret),
+            },
+            RouteClass::Proxied { alias, generation } => MetadataCacheScope::Private {
+                descriptor_id: PrivateAccessDescriptor::Alias { alias, generation }
+                    .digest_id(&self.secret),
+            },
+            RouteClass::Unknown => MetadataCacheScope::Bypass,
         }
     }
 }

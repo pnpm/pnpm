@@ -1,6 +1,6 @@
 use std::{net::SocketAddr, path::PathBuf};
 
-use pacquet_network::UpstreamRouteHook;
+use pacquet_network::{MetadataCacheScope, UpstreamRouteHook};
 
 use super::{Footprint, PrivateAccessDescriptor, RouteClass, RouteContext, RouteHook};
 use crate::{
@@ -207,6 +207,7 @@ fn route_hook_records_routes_and_returns_alias_credential() {
         RouteContext::from_config(&config),
         user("alice"),
         std::sync::Arc::clone(&footprint),
+        std::sync::Arc::from(b"secret".as_slice()),
     );
 
     // Public fetch: no upstream credential, no private footprint entry.
@@ -220,4 +221,55 @@ fn route_hook_records_routes_and_returns_alias_credential() {
     let footprint = footprint.lock().unwrap();
     assert!(!footprint.is_public());
     assert!(footprint.digest(b"secret").is_some());
+}
+
+#[test]
+fn metadata_scope_maps_route_classes() {
+    let mut config = base_config();
+    config
+        .upstream_aliases
+        .insert("corp".to_string(), alias("https://npm.corp.example/", None, "$authenticated", 3));
+    let footprint = std::sync::Arc::new(std::sync::Mutex::new(Footprint::default()));
+    let hook = RouteHook::new(
+        RouteContext::from_config(&config),
+        user("alice"),
+        std::sync::Arc::clone(&footprint),
+        std::sync::Arc::from(b"server-secret".as_slice()),
+    );
+
+    // Public route → the shared global mirror.
+    assert_eq!(
+        hook.metadata_scope("https://registry.npmjs.org/lodash", Some("lodash")),
+        MetadataCacheScope::Public,
+    );
+    // Authorized proxied route → a descriptor-scoped private mirror.
+    let widget =
+        hook.metadata_scope("https://npm.corp.example/@acme%2fwidget", Some("@acme/widget"));
+    let MetadataCacheScope::Private { descriptor_id } = widget else {
+        panic!("proxied route should be private, got {widget:?}");
+    };
+    assert!(!descriptor_id.is_empty());
+    // The id is the HMAC of the alias descriptor; it must be stable.
+    assert_eq!(
+        descriptor_id,
+        PrivateAccessDescriptor::Alias { alias: "corp".to_string(), generation: 3 }
+            .digest_id(b"server-secret"),
+    );
+    // Unknown/private with no usable credential → bypass (request-local).
+    assert_eq!(
+        hook.metadata_scope("https://private.unknown.example/secret", Some("secret")),
+        MetadataCacheScope::Bypass,
+    );
+
+    // metadata_scope is read-only: classifying must not grow the footprint.
+    assert!(footprint.lock().unwrap().is_public());
+}
+
+#[test]
+fn descriptor_digest_id_depends_on_secret() {
+    let descriptor = PrivateAccessDescriptor::Alias { alias: "corp".to_string(), generation: 1 };
+    assert_ne!(descriptor.digest_id(b"secret-a"), descriptor.digest_id(b"secret-b"));
+    // Generation rotation moves the namespace.
+    let rotated = PrivateAccessDescriptor::Alias { alias: "corp".to_string(), generation: 2 };
+    assert_ne!(descriptor.digest_id(b"secret-a"), rotated.digest_id(b"secret-a"));
 }

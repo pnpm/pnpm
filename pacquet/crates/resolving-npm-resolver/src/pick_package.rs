@@ -61,7 +61,7 @@ use dashmap::DashMap;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_config::version_policy::{PackageVersionPolicy, PolicyMatch};
-use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use pacquet_network::{AuthHeaders, MetadataCacheScope, RetryOpts, ThrottledClient};
 use pacquet_registry::{Package, PackageVersion};
 use pacquet_resolving_resolver_base::{VersionSelectors, parse_packument_timestamp};
 use tokio::sync::Semaphore;
@@ -71,7 +71,7 @@ use crate::{
     FetchMetadataError, fetch_full_metadata, fetch_full_metadata_cached,
     mirror::{
         ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, clear_meta,
-        get_pkg_mirror_path, load_meta_async, save_meta_indexed, save_meta_ndjson,
+        get_pkg_mirror_path, load_meta_async, save_meta_indexed, save_meta_ndjson, scoped_meta_dir,
     },
     pick_package_from_meta::{
         PickPackageFromMetaError, PickPackageFromMetaOptions, RegistryPackageSpec,
@@ -407,7 +407,15 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     // would classify it, so the footprint is complete regardless of which
     // layer serves the metadata. A no-op for the CLI (no hook installed);
     // idempotent on the hook, so the network path re-recording it is fine.
-    ctx.auth_headers.record_route(&to_registry_url(opts.registry, &spec.name), Some(&spec.name));
+    let url = to_registry_url(opts.registry, &spec.name);
+    ctx.auth_headers.record_route(&url, Some(&spec.name));
+
+    // Classify the metadata cache scope once. Every layer below — the
+    // in-memory cache, the disk fast paths, and the network fetch — must
+    // agree on the mirror namespace and cache keys this route resolves to,
+    // or a private packument could leak into (or read from) the global
+    // mirror. `Public` for the CLI, leaving the global mirror unchanged.
+    let scope = ctx.auth_headers.metadata_scope(&url, Some(&spec.name));
 
     let picker_opts = PickerOpts {
         preferred_version_selectors: opts.preferred_version_selectors,
@@ -420,42 +428,37 @@ pub async fn pick_package<Cache: PackageMetaCache>(
 
     let full_metadata = opts.optional || ctx.full_metadata;
     let use_filtered_full_metadata = full_metadata && ctx.filter_metadata;
-    let meta_dir = if full_metadata {
+    let base_meta_dir = if full_metadata {
         if use_filtered_full_metadata { FULL_FILTERED_META_DIR } else { FULL_META_DIR }
     } else {
         ABBREVIATED_META_DIR
     };
 
-    let pkg_mirror = ctx
-        .cache_dir
-        .and_then(|dir| get_pkg_mirror_path(dir, meta_dir, opts.registry, &spec.name).ok());
-
-    // Scope the in-memory cache key by registry so the same package
-    // name in two different registries (private + public, scoped
-    // override, etc.) never short-circuits to the wrong packument.
-    // Upstream pnpm gets the same scoping by holding one
-    // `PackageMetaCache` per resolver instance per registry; pacquet
-    // shares one cache across all `pick_package` calls, so the key
-    // has to do the scoping itself.
-    //
-    // The full-mode suffix mirrors upstream's
-    // [cache-key shape](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L206):
-    // a later call with `opts.optional = true` must not satisfy
-    // itself with the abbreviated cache entry an earlier call
-    // populated (the abbreviated form drops `libc`/`cpu`/`os` from
-    // some shapes). Filtered full metadata gets its own suffix
-    // because pacquet stores it in a distinct on-disk mirror shape.
-    let cache_key = if full_metadata {
-        let suffix = if use_filtered_full_metadata { ":full:filtered" } else { ":full" };
-        format!("{}\x00{}{suffix}", opts.registry, spec.name)
-    } else {
-        format!("{}\x00{}", opts.registry, spec.name)
+    // A `Bypass` route resolves to no shared mirror (`scoped_meta_dir`
+    // returns `None`); a `Private` route relocates the mirror under its
+    // descriptor namespace so it can never be read by a caller who doesn't
+    // reproduce the same descriptor.
+    let pkg_mirror = match (ctx.cache_dir, scoped_meta_dir(&scope, base_meta_dir)) {
+        (Some(dir), Some(meta_dir)) => {
+            get_pkg_mirror_path(dir, &meta_dir, opts.registry, &spec.name).ok()
+        }
+        _ => None,
     };
+
+    let cache_key = metadata_cache_key(
+        &scope,
+        opts.registry,
+        &spec.name,
+        full_metadata,
+        use_filtered_full_metadata,
+    );
 
     // updateChecksums must reach the conditional registry request below, so it
     // can't be served from the in-memory cache — which may hold a disk-promoted
     // entry rather than a fresh network fetch (see the `update_checksums` doc).
-    let use_mem_cache = !opts.update_checksums;
+    // A `Bypass` route is request-local: it must not read or populate the
+    // shared in-memory cache either.
+    let use_mem_cache = !opts.update_checksums && !matches!(scope, MetadataCacheScope::Bypass);
 
     // 1. In-memory cache.
     if use_mem_cache && let Some(cached) = ctx.meta_cache.get(&cache_key) {
@@ -642,9 +645,24 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             // returned (when it returned Ok). If it returned Err,
             // try the disk fallback: an existing mirror is good
             // enough to pick from, even if the latest sync failed.
-            let disk_fallback = match meta_cached_in_store {
-                Some(meta) => Some(meta),
-                None => load_meta_async(pkg_mirror.as_deref()).await.map(Arc::new),
+            //
+            // A private/bypass route must fail closed on a `401`/`403`/
+            // private-`404`: a revoked credential or a hidden private
+            // package must not keep serving the last cached packument,
+            // even from its own (same-namespace) mirror. Only a transport
+            // failure (`5xx`/timeout/network) falls back, and only within
+            // the scoped mirror `pkg_mirror` already points at. A public
+            // route (the CLI / public registries) keeps the original
+            // fall-back-on-any-error behavior.
+            let allow_fallback =
+                matches!(scope, MetadataCacheScope::Public) || !error.is_access_denied();
+            let disk_fallback = if allow_fallback {
+                match meta_cached_in_store {
+                    Some(meta) => Some(meta),
+                    None => load_meta_async(pkg_mirror.as_deref()).await.map(Arc::new),
+                }
+            } else {
+                None
             };
             if let Some(disk) = disk_fallback {
                 tracing::debug!(
@@ -679,7 +697,11 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     // suppresses the in-memory cache write. A future
     // refactor that threads `dry_run` into the fetcher can restore
     // upstream's no-disk-side-effect dry-run.
-    if !opts.dry_run {
+    //
+    // A `Bypass` route stays request-local: its packument must not land
+    // in the shared in-memory cache (`update_checksums` still writes back,
+    // so this keeps that case but excludes bypass).
+    if !opts.dry_run && !matches!(scope, MetadataCacheScope::Bypass) {
         ctx.meta_cache.set(cache_key, Arc::clone(&meta));
     }
     let (meta, picked) = pick_from_meta(&picker_opts, spec, meta, opts.blocked_versions)?;
@@ -951,6 +973,44 @@ fn meta_opts<'a>(picker_opts: &'a PickerOpts<'_>) -> PickPackageFromMetaOptions<
         preferred_version_selectors: picker_opts.preferred_version_selectors,
         published_by: picker_opts.published_by,
         published_by_exclude: picker_opts.published_by_exclude,
+    }
+}
+
+/// The in-memory cache + fetch-lock key for a `(registry, package)` pick,
+/// namespaced by its [`MetadataCacheScope`].
+///
+/// A [`MetadataCacheScope::Public`] route keeps the exact upstream-shaped
+/// `{registry}\x00{name}` key (with the `:full` / `:full:filtered` suffix
+/// from upstream's
+/// [cache-key shape](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L206)),
+/// so the CLI and public routes are unchanged. A private or bypass route
+/// prepends its descriptor namespace so one caller's private packument
+/// can't satisfy another caller's pick for the same name.
+///
+/// The registry is part of the key because the same package name can live
+/// in two registries (a public `lodash` and a private one); upstream pnpm
+/// gets that scoping by holding one cache per resolver instance per
+/// registry, while pacquet shares one cache across every pick. The
+/// full-mode suffix keeps a later `optional` pick from reusing an
+/// abbreviated entry that dropped `libc`/`cpu`/`os`.
+fn metadata_cache_key(
+    scope: &MetadataCacheScope,
+    registry: &str,
+    name: &str,
+    full_metadata: bool,
+    use_filtered_full_metadata: bool,
+) -> String {
+    let suffix = if full_metadata {
+        if use_filtered_full_metadata { ":full:filtered" } else { ":full" }
+    } else {
+        ""
+    };
+    match scope {
+        MetadataCacheScope::Public => format!("{registry}\x00{name}{suffix}"),
+        MetadataCacheScope::Private { descriptor_id } => {
+            format!("private\x00{descriptor_id}\x00{registry}\x00{name}{suffix}")
+        }
+        MetadataCacheScope::Bypass => format!("bypass\x00{registry}\x00{name}{suffix}"),
     }
 }
 

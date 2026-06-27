@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
-use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient, UpstreamRouteHook};
+use pacquet_network::{
+    AuthHeaders, MetadataCacheScope, RetryOpts, ThrottledClient, UpstreamRouteHook,
+};
 use pretty_assertions::assert_eq;
 use tempfile::TempDir;
 
@@ -9,7 +11,8 @@ use pacquet_config::version_policy::create_package_version_policy;
 
 use super::{
     InMemoryPackageMetaCache, PackageMetaCache, PickPackageContext, PickPackageError,
-    PickPackageOptions, persist_meta_to_mirror, pick_package, shared_packument_fetch_locker,
+    PickPackageOptions, metadata_cache_key, persist_meta_to_mirror, pick_package,
+    shared_packument_fetch_locker,
 };
 use crate::{
     mirror::{
@@ -1275,5 +1278,239 @@ async fn cache_fast_paths_record_route_through_hook() {
         assert_eq!(routes.as_slice(), &[(expected_url.clone(), Some("acme".to_string()))]);
     }
 
+    mock.assert_async().await;
+}
+
+#[test]
+fn metadata_cache_key_public_matches_upstream_shape() {
+    // The CLI / public route must keep the exact `{registry}\x00{name}`
+    // key (plus the `:full` suffixes) so behavior is unchanged.
+    let scope = MetadataCacheScope::Public;
+    assert_eq!(
+        metadata_cache_key(&scope, "https://reg/", "acme", false, false),
+        "https://reg/\x00acme"
+    );
+    assert_eq!(
+        metadata_cache_key(&scope, "https://reg/", "acme", true, false),
+        "https://reg/\x00acme:full",
+    );
+    assert_eq!(
+        metadata_cache_key(&scope, "https://reg/", "acme", true, true),
+        "https://reg/\x00acme:full:filtered",
+    );
+}
+
+#[test]
+fn metadata_cache_key_private_and_bypass_are_namespaced() {
+    let private = MetadataCacheScope::Private { descriptor_id: "id1".to_string() };
+    assert_eq!(
+        metadata_cache_key(&private, "https://reg/", "acme", false, false),
+        "private\x00id1\x00https://reg/\x00acme",
+    );
+    // A different descriptor never collides with the first.
+    let other = MetadataCacheScope::Private { descriptor_id: "id2".to_string() };
+    assert_ne!(
+        metadata_cache_key(&private, "https://reg/", "acme", false, false),
+        metadata_cache_key(&other, "https://reg/", "acme", false, false),
+    );
+    // Neither private nor bypass can collide with the public key.
+    let public =
+        metadata_cache_key(&MetadataCacheScope::Public, "https://reg/", "acme", false, false);
+    let bypass =
+        metadata_cache_key(&MetadataCacheScope::Bypass, "https://reg/", "acme", false, false);
+    assert_ne!(public, bypass);
+    assert_ne!(public, metadata_cache_key(&private, "https://reg/", "acme", false, false),);
+}
+
+/// A route hook that classifies every fetch into one fixed
+/// [`MetadataCacheScope`], so a test can drive the private/bypass mirror
+/// paths without standing up a full pnpr route policy.
+struct ScopeHook {
+    scope: MetadataCacheScope,
+}
+
+impl UpstreamRouteHook for ScopeHook {
+    fn authorize(&self, _url: &str, _package: Option<&str>) -> Option<String> {
+        None
+    }
+
+    fn metadata_scope(&self, _url: &str, _package: Option<&str>) -> MetadataCacheScope {
+        self.scope.clone()
+    }
+}
+
+/// A `Private` route must persist its packument under the
+/// descriptor-namespaced mirror and never under the global one, so a
+/// caller who can't reproduce the descriptor can't read it.
+#[tokio::test]
+async fn private_scope_writes_descriptor_namespaced_mirror() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_header("etag", r#"W/"fresh""#)
+        .with_body(PACKAGE_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let cache_dir = TempDir::new().expect("tempdir");
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default().with_route_hook(Arc::new(ScopeHook {
+        scope: MetadataCacheScope::Private { descriptor_id: "deadbeef".to_string() },
+    }) as Arc<dyn UpstreamRouteHook>);
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
+    let ctx = PickPackageContext {
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
+        cache_dir: Some(cache_dir.path()),
+        offline: false,
+        prefer_offline: false,
+        ignore_missing_time_field: false,
+        full_metadata: false,
+        filter_metadata: false,
+        retry_opts: RetryOpts::default(),
+    };
+    pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry)).await.expect("ok");
+    mock.assert_async().await;
+
+    let scoped = get_pkg_mirror_path(
+        cache_dir.path(),
+        "v11/metadata-private/deadbeef/metadata",
+        &registry,
+        "acme",
+    )
+    .expect("scoped path");
+    assert!(scoped.exists(), "private packument lands in the descriptor-scoped mirror");
+    let global = get_pkg_mirror_path(cache_dir.path(), ABBREVIATED_META_DIR, &registry, "acme")
+        .expect("global path");
+    assert!(!global.exists(), "private packument must not touch the global mirror");
+}
+
+/// A `Bypass` route (unknown-private) must not write any shared mirror.
+#[tokio::test]
+async fn bypass_scope_writes_no_shared_mirror() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(PACKAGE_BODY)
+        .expect(1)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+    let cache_dir = TempDir::new().expect("tempdir");
+    let http_client = ThrottledClient::default();
+    let auth_headers =
+        AuthHeaders::default()
+            .with_route_hook(Arc::new(ScopeHook { scope: MetadataCacheScope::Bypass })
+                as Arc<dyn UpstreamRouteHook>);
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
+    let ctx = PickPackageContext {
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
+        cache_dir: Some(cache_dir.path()),
+        offline: false,
+        prefer_offline: false,
+        ignore_missing_time_field: false,
+        full_metadata: false,
+        filter_metadata: false,
+        retry_opts: RetryOpts::default(),
+    };
+    pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry)).await.expect("ok");
+    mock.assert_async().await;
+
+    let global = get_pkg_mirror_path(cache_dir.path(), ABBREVIATED_META_DIR, &registry, "acme")
+        .expect("global path");
+    assert!(!global.exists(), "bypass route writes no shared mirror");
+    // The bypass route is also kept out of the shared in-memory cache.
+    assert!(meta_cache.get(&format!("{registry}\x00acme")).is_none());
+}
+
+/// A `Private` route must fail closed on a `401`: a revoked credential
+/// must not keep serving the last cached packument, even from the route's
+/// own descriptor-scoped mirror.
+#[tokio::test]
+async fn private_scope_fails_closed_on_401_without_disk_fallback() {
+    let preloaded: pacquet_registry::Package =
+        serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+    let mut server = mockito::Server::new_async().await;
+    let mock = server.mock("GET", "/acme").with_status(401).create_async().await;
+    let registry = format!("{}/", server.url());
+    let cache_dir = TempDir::new().expect("tempdir");
+    // Warm the descriptor-scoped mirror that the fail-closed path must NOT
+    // serve from.
+    persist_meta_to_mirror(
+        cache_dir.path(),
+        "v11/metadata-private/deadbeef/metadata",
+        &registry,
+        &preloaded,
+    )
+    .expect("warm scoped mirror");
+
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default().with_route_hook(Arc::new(ScopeHook {
+        scope: MetadataCacheScope::Private { descriptor_id: "deadbeef".to_string() },
+    }) as Arc<dyn UpstreamRouteHook>);
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
+    let ctx = PickPackageContext {
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
+        cache_dir: Some(cache_dir.path()),
+        offline: false,
+        prefer_offline: false,
+        ignore_missing_time_field: false,
+        full_metadata: false,
+        filter_metadata: false,
+        retry_opts: RetryOpts::default(),
+    };
+    let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry)).await;
+    assert!(result.is_err(), "private 401 fails closed instead of serving the stale mirror");
+    mock.assert_async().await;
+}
+
+/// A public route keeps its disk fallback on the same `401`, proving the
+/// fail-closed behavior is scoped to private routes only.
+#[tokio::test]
+async fn public_scope_falls_back_to_mirror_on_401() {
+    let preloaded: pacquet_registry::Package =
+        serde_json::from_str(PACKAGE_BODY).expect("parse packument");
+    let mut server = mockito::Server::new_async().await;
+    let mock = server.mock("GET", "/acme").with_status(401).create_async().await;
+    let registry = format!("{}/", server.url());
+    let cache_dir = TempDir::new().expect("tempdir");
+    persist_meta_to_mirror(cache_dir.path(), ABBREVIATED_META_DIR, &registry, &preloaded)
+        .expect("warm global mirror");
+
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let meta_cache = InMemoryPackageMetaCache::default();
+    let fetch_locker = shared_packument_fetch_locker();
+    let ctx = PickPackageContext {
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        meta_cache: &meta_cache,
+        fetch_locker: &fetch_locker,
+        cache_dir: Some(cache_dir.path()),
+        offline: false,
+        prefer_offline: false,
+        ignore_missing_time_field: false,
+        full_metadata: false,
+        filter_metadata: false,
+        retry_opts: RetryOpts::default(),
+    };
+    let result = pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry))
+        .await
+        .expect("ok");
+    assert_eq!(result.picked_package.expect("picked").version.to_string(), "1.1.0");
     mock.assert_async().await;
 }

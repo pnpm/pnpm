@@ -748,14 +748,20 @@ impl NpmResolutionVerifier {
             let mut cache = self.lookup_context.local_meta.lock().await;
             Arc::clone(cache.entry(key).or_insert_with(|| Arc::new(OnceCell::new())))
         };
+        // The verifier reads the *same* scoped mirror a resolve would
+        // populate. A private packument lives under its descriptor
+        // namespace, so a caller who can't reproduce the descriptor (a
+        // `Bypass` route → no mirror) can't read another caller's private
+        // `time` map through the trust-check path.
+        let name_string = name.to_string();
+        let url = crate::registry_url::to_registry_url(registry, &name_string);
+        let scope = self.auth_headers.metadata_scope(&url, Some(&name_string));
         cell.get_or_init(|| async {
-            let mirror_path = crate::mirror::get_pkg_mirror_path(
-                cache_dir,
-                crate::mirror::FULL_META_DIR,
-                registry,
-                &name.to_string(),
-            )
-            .ok();
+            let mirror_path = crate::mirror::scoped_meta_dir(&scope, crate::mirror::FULL_META_DIR)
+                .and_then(|meta_dir| {
+                    crate::mirror::get_pkg_mirror_path(cache_dir, &meta_dir, registry, &name_string)
+                        .ok()
+                });
             crate::mirror::load_meta_async(mirror_path.as_deref()).await.and_then(|pkg| {
                 pkg.time.as_ref().map(|raw| {
                     raw.iter()

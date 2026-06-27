@@ -48,6 +48,44 @@ pub trait UpstreamRouteHook: Send + Sync {
     /// package `package` (`None` for non-package fetches), and record the
     /// route the decision selected. `None` means fetch anonymously.
     fn authorize(&self, url: &str, package: Option<&str>) -> Option<String>;
+
+    /// Classify the metadata cache scope for a fetch to `url` for package
+    /// `package` (`None` for non-package fetches). Unlike [`Self::authorize`]
+    /// this is a read-only query — it must **not** record into the resolve's
+    /// footprint — so the resolver can pick the on-disk mirror namespace and
+    /// in-memory/fetch-lock keys without double-counting a route.
+    ///
+    /// Defaults to [`MetadataCacheScope::Public`] for hooks that don't
+    /// partition metadata by route.
+    fn metadata_scope(&self, _url: &str, _package: Option<&str>) -> MetadataCacheScope {
+        MetadataCacheScope::Public
+    }
+}
+
+/// The cache namespace a metadata fetch for one `(registry, package)` route
+/// belongs to, decided once per fetch from the route policy. A server (pnpr)
+/// that resolves on behalf of many callers must keep one caller's private
+/// metadata out of the global mirror every other caller reads; this enum is
+/// how the route decision reaches the npm resolver's mirror path, in-memory
+/// cache key, and fetch-lock key.
+///
+/// The pnpm CLI has no route hook, so every fetch is [`Self::Public`] and the
+/// global mirror behaves exactly as before.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MetadataCacheScope {
+    /// Public route: the shared, global metadata mirror — current behavior,
+    /// shared by every caller.
+    Public,
+    /// Private route keyed by a private access descriptor. `descriptor_id`
+    /// is a filesystem-safe, server-secret-keyed digest that namespaces the
+    /// on-disk mirror, in-memory cache, and fetch lock, so one caller's
+    /// private metadata never satisfies a fetch for a caller who does not
+    /// reproduce the same descriptor.
+    Private { descriptor_id: String },
+    /// Unknown-private route with no shareable descriptor: never read or
+    /// write a shared mirror or in-memory entry. The fetch is performed
+    /// fresh and its result stays request-local.
+    Bypass,
 }
 
 /// Bag of `Authorization` header values keyed by the nerf-darted form
@@ -271,6 +309,18 @@ impl AuthHeaders {
     pub fn record_route(&self, url: &str, pkg_name: Option<&str>) {
         if let Some(hook) = &self.route_hook {
             hook.authorize(url, pkg_name);
+        }
+    }
+
+    /// The metadata cache scope a fetch to `url` for `pkg_name` belongs to.
+    /// A server route hook owns the decision; without one (the CLI case)
+    /// every fetch is [`MetadataCacheScope::Public`], leaving the global
+    /// mirror unchanged. Read-only — never records into a footprint.
+    #[must_use]
+    pub fn metadata_scope(&self, url: &str, pkg_name: Option<&str>) -> MetadataCacheScope {
+        match &self.route_hook {
+            Some(hook) => hook.metadata_scope(url, pkg_name),
+            None => MetadataCacheScope::Public,
         }
     }
 
