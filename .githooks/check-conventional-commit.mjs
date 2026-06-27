@@ -80,14 +80,14 @@ function collectErrors (header) {
     errors.push(`header is ${header.length} characters; keep it within ${HEADER_MAX_LENGTH}`)
   }
 
-  const match = /^([^():!]+)(\([^)]*\))?(!)?: (.*)$/.exec(header)
+  const match = /^([^():!]+)(?:\([^)]*\))?(?:!)?: (.*)$/.exec(header)
   if (!match) {
     errors.push('header must match "type(optional scope): subject", e.g. "fix(core): handle empty input"')
     return errors
   }
 
   const type = match[1]
-  const subject = match[4]
+  const subject = match[2]
 
   if (type !== type.toLowerCase()) {
     errors.push(`type "${type}" must be lower-case`)
