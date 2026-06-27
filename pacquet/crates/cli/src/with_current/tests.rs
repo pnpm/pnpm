@@ -1,4 +1,4 @@
-use super::{MissingWithCurrentCommand, long_option_consumes_value, plan};
+use super::{MissingWithCurrentCommand, option_consumes_value, plan};
 use std::ffi::OsString;
 
 /// Build an argv (with a leading program name) from string slices.
@@ -61,14 +61,40 @@ fn skips_a_with_consumed_by_a_value_taking_option() {
 }
 
 #[test]
-fn long_option_value_consumption_matches_pnpm() {
-    // Value-takers and unknown options consume their successor.
-    assert!(long_option_consumes_value(&OsString::from("--reporter")));
-    assert!(long_option_consumes_value(&OsString::from("--unknown-flag")));
-    // Booleans, `--no-` negations, and inline `=` values do not.
-    assert!(!long_option_consumes_value(&OsString::from("--recursive")));
-    assert!(!long_option_consumes_value(&OsString::from("--no-something")));
-    assert!(!long_option_consumes_value(&OsString::from("--reporter=ndjson")));
-    // Short options aren't long options.
-    assert!(!long_option_consumes_value(&OsString::from("-r")));
+fn does_not_rewrite_with_current_inside_another_subcommand() {
+    // `with current` as data for another command must be left alone — only
+    // `with` at the subcommand position is the sugar.
+    for tokens in [
+        vec!["exec", "with", "current", "install"],
+        vec!["run", "with", "current"],
+        vec!["dlx", "with", "current", "foo"],
+    ] {
+        let original = argv(&tokens);
+        let (rewritten, force) = plan(original.clone()).expect("plan");
+        assert!(!force, "`with current` as an argument must not force pmOnFail: {tokens:?}");
+        assert_eq!(strings(&rewritten), strings(&original), "argv must be untouched: {tokens:?}");
+    }
+}
+
+#[test]
+fn rewrites_with_current_after_a_value_taking_global_flag() {
+    // `--reporter ndjson` consumes its value, so `with` is the subcommand.
+    let (rewritten, force) =
+        plan(argv(&["--reporter", "ndjson", "with", "current", "install"])).expect("plan");
+    assert!(force);
+    assert_eq!(strings(&rewritten), vec!["pnpm", "--reporter", "ndjson", "install"]);
+}
+
+#[test]
+fn option_value_consumption_matches_pnpm() {
+    // Value-takers and unknown long options consume their successor.
+    assert!(option_consumes_value("--reporter"));
+    assert!(option_consumes_value("--unknown-flag"));
+    assert!(option_consumes_value("-C"));
+    assert!(option_consumes_value("-F"));
+    // Booleans, `--no-` negations, inline `=` values, and boolean shorts do not.
+    assert!(!option_consumes_value("--recursive"));
+    assert!(!option_consumes_value("--no-something"));
+    assert!(!option_consumes_value("--reporter=ndjson"));
+    assert!(!option_consumes_value("-r"));
 }

@@ -15,13 +15,18 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use std::ffi::OsString;
 
-/// Global long options that do **not** take a value, so a following
-/// `with` is the command rather than the option's argument. Every other
-/// long option (known value-takers like `--dir` / `--reporter`, and any
-/// unknown flag) is assumed to consume its successor — matching pnpm's
+/// Global long options that do **not** take a value, so the next token is
+/// the subcommand rather than the option's argument. Every other long
+/// option (known value-takers like `--dir` / `--reporter`, and any unknown
+/// flag) is assumed to consume its successor — matching pnpm's
 /// `longOptionConsumesValue`, which treats a non-boolean (including
 /// unknown) option as value-consuming.
 const BOOLEAN_LONG_OPTIONS: &[&str] = &["recursive"];
+
+/// Global short options that take a value (`-C` = `--dir`, `-F` =
+/// `--filter`), so the next token is the value, not the subcommand. Other
+/// short flags (`-r`) are boolean and consume nothing.
+const VALUE_TAKING_SHORT_OPTIONS: &[&str] = &["-C", "-F"];
 
 /// Raised when `with current` has no command after it.
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -63,35 +68,60 @@ fn plan(mut argv: Vec<OsString>) -> miette::Result<(Vec<OsString>, bool)> {
     Ok((argv, true))
 }
 
-/// The index of the `with` token of the first `with current` command pair
-/// in `argv`, skipping a pair whose `with` is the argument of a preceding
-/// value-taking long option. Mirrors pnpm's `findWithCurrentIndex`.
+/// The index of the `with` token when `with current` is the actual
+/// top-level subcommand, or `None` otherwise.
+///
+/// `with current` is only the sugar when `with` sits at the subcommand
+/// position — `pnpm [global-opts] with current ...`. A `with current`
+/// appearing later as data for another command (`pnpm exec with current
+/// ...`) must be left alone. Mirrors pnpm, which enters the rewrite only
+/// when the parsed command is `with` with first param `current`.
 fn find_with_current_index(argv: &[OsString]) -> Option<usize> {
-    // Start at 1 to skip the program name; stop before the last element so
-    // `index + 1` is always in bounds.
-    for index in 1..argv.len().saturating_sub(1) {
-        if argv[index] != "with" || argv[index + 1] != "current" {
-            continue;
+    let command = command_index(argv)?;
+    let is_with = argv.get(command).is_some_and(|token| token == "with");
+    let is_current = argv.get(command + 1).is_some_and(|token| token == "current");
+    (is_with && is_current).then_some(command)
+}
+
+/// Index of the top-level subcommand token: the first positional after the
+/// program name, skipping global options (and the values they consume) and
+/// honoring `--` as end-of-options. `None` when argv carries no subcommand.
+fn command_index(argv: &[OsString]) -> Option<usize> {
+    let mut index = 1;
+    while index < argv.len() {
+        let Some(token) = argv[index].to_str() else {
+            // A non-UTF-8 token can't be a known option or `with`; treat it
+            // as the subcommand position (it simply won't match `with`).
+            return Some(index);
+        };
+        if token == "--" {
+            let next = index + 1;
+            return (next < argv.len()).then_some(next);
         }
-        if let Some(prev) = argv.get(index - 1)
-            && long_option_consumes_value(prev)
-        {
-            continue;
+        if !token.starts_with('-') {
+            return Some(index);
         }
-        return Some(index);
+        index += if option_consumes_value(token) { 2 } else { 1 };
     }
     None
 }
 
-/// Whether `token` is a long option that consumes the next argv token as
-/// its value. Booleans and `--no-` negations don't; an inline `--opt=val`
-/// carries its own value. Unknown long options are assumed to consume a
-/// value, matching pnpm.
-fn long_option_consumes_value(token: &OsString) -> bool {
-    let Some(token) = token.to_str() else {
-        return false;
-    };
-    if !token.starts_with("--") || token.contains('=') {
+/// Whether the option token `token` consumes the next argv token as its
+/// value.
+fn option_consumes_value(token: &str) -> bool {
+    if token.starts_with("--") {
+        long_option_consumes_value(token)
+    } else {
+        VALUE_TAKING_SHORT_OPTIONS.contains(&token)
+    }
+}
+
+/// Whether a long option consumes the next argv token as its value.
+/// Booleans and `--no-` negations don't; an inline `--opt=val` carries its
+/// own value. Unknown long options are assumed to consume a value, matching
+/// pnpm.
+fn long_option_consumes_value(token: &str) -> bool {
+    if token.contains('=') {
         return false;
     }
     let name = &token[2..];
