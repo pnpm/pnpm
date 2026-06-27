@@ -99,8 +99,11 @@ pub(super) async fn install_pnpm_to_store<Reporter: self::Reporter + 'static>(
     .await
     .and_then(|()| resolve_slot(&tmp_install_dir));
     // The temp directory held only symlinks into the GVS, so removing it
-    // does not touch the installed engine.
-    let _ = fs::remove_dir_all(&tmp_install_dir);
+    // does not touch the installed engine. Refuse to recurse through a
+    // symlink at the temp path as defense-in-depth — even though the store
+    // is within pnpm's trust domain — mirroring the guard `patch-commit`
+    // applies before its own `remove_dir_all`.
+    let _ = remove_dir_if_not_symlink(&tmp_install_dir);
     let slot = slot?;
 
     let pkg_dir = slot.join("node_modules").join(PNPM_PACKAGE_NAME);
@@ -168,6 +171,28 @@ fn link_bins(pkg_dir: &Path, bin_dir: &Path) -> miette::Result<()> {
     link_bins_of_packages::<CmdShimHost>(&[source], bin_dir)
         .map_err(miette::Report::new)
         .wrap_err("link the pnpm bins")
+}
+
+/// Remove `path` and its contents, refusing to recurse through a symlink
+/// at `path` itself. A missing path is success. Mirrors the symlink guard
+/// `patch-commit` applies before `remove_dir_all`.
+fn remove_dir_if_not_symlink(path: &Path) -> std::io::Result<()> {
+    match fs::symlink_metadata(path) {
+        Ok(meta) if meta.file_type().is_symlink() => {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "temporary directory must not be a symbolic link",
+            ));
+        }
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+        Err(error) => return Err(error),
+    }
+    match fs::remove_dir_all(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    }
 }
 
 /// A best-effort unique component for the temporary install directory
