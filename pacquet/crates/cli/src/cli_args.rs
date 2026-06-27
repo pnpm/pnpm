@@ -41,6 +41,7 @@ pub mod runtime;
 pub mod sanitize;
 pub mod self_update;
 pub mod set_script;
+pub mod setup;
 pub mod stop;
 pub mod store;
 pub mod supported_architectures;

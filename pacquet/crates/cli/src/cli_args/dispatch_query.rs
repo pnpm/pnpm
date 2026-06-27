@@ -17,6 +17,7 @@ use super::{
     reporter::ReporterType,
     root::RootArgs,
     self_update::SelfUpdateArgs,
+    setup::SetupArgs,
     store::StoreCommand,
     why::WhyArgs,
 };
@@ -209,6 +210,26 @@ pub(super) fn self_update<'a>(
         ReporterType::Default | ReporterType::AppendOnly => run_self_update!(DefaultReporter),
         ReporterType::Ndjson => run_self_update!(NdjsonReporter),
         ReporterType::Silent => run_self_update!(SilentReporter),
+    })
+}
+
+// `setup` makes pnpm available globally: it installs the CLI into the
+// global packages dir, writes the alias scripts, and persists `PNPM_HOME` /
+// PATH into the user's shell rc file (POSIX) or registry (Windows). It needs
+// a reporter for the "Installing pnpm CLI globally" log but no project
+// config or lockfile, so it dispatches off `ctx.dir` like the other
+// reporter-typed commands.
+pub(super) fn setup<'a>(ctx: &RunCtx<'a>, args: SetupArgs) -> miette::Result<CommandFuture<'a>> {
+    let dir = ctx.dir;
+    macro_rules! run_setup {
+        ($reporter:ty) => {
+            Box::pin(args.run::<$reporter>(dir))
+        };
+    }
+    Ok(match ctx.reporter {
+        ReporterType::Default | ReporterType::AppendOnly => run_setup!(DefaultReporter),
+        ReporterType::Ndjson => run_setup!(NdjsonReporter),
+        ReporterType::Silent => run_setup!(SilentReporter),
     })
 }
 
