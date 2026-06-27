@@ -17,6 +17,22 @@ fn keeps_token_without_whitespace_after_scheme() {
 }
 
 #[test]
+fn errors_when_helper_exits_non_zero() {
+    struct Failing;
+    impl RunCommand for Failing {
+        fn run(_: &str, _: &[&str], _: Option<&Path>) -> io::Result<CommandOutput> {
+            Ok(CommandOutput {
+                success: false,
+                stdout: String::new(),
+                stderr: "auth backend unreachable".to_owned(),
+            })
+        }
+    }
+    let err = execute_token_helper::<Failing, SilentReporter>(&["helper".to_owned()]).unwrap_err();
+    assert!(err.to_string().contains("auth backend unreachable"));
+}
+
+#[test]
 fn returns_trimmed_stdout() {
     struct Helper;
     impl RunCommand for Helper {

@@ -22,6 +22,15 @@ where
     let args: Vec<&str> = args.iter().map(String::as_str).collect();
     let output = Sys::run(program, &args, None)?;
 
+    // `execa.sync` throws on a non-zero exit, aborting the publish rather than
+    // proceeding with an empty token; mirror that with an error.
+    if !output.success {
+        return Err(io::Error::other(format!(
+            "tokenHelper `{program}` exited with a failure: {}",
+            output.stderr.trim(),
+        )));
+    }
+
     let stderr = output.stderr.trim_end();
     if !stderr.trim().is_empty() {
         for line in stderr.split('\n') {

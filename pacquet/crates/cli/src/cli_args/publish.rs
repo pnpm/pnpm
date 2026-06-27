@@ -20,8 +20,8 @@ use pacquet_executor::{RunPostinstallHooks, ScriptsPrependNodePath, run_lifecycl
 use pacquet_pack::{Host as PackHost, PackOptions, PackResult, api as pack_api};
 use pacquet_publish::{
     Access, Host, OidcHttpOptions, PackedPkg, PublishNetwork, PublishPackedPkgOptions,
-    extract_manifest_from_packed, is_tarball_path, publish_packed_pkg, resolve_otp_from_env,
-    run_git_checks,
+    PublishSummary, extract_manifest_from_packed, is_tarball_path, publish_packed_pkg,
+    resolve_otp_from_env, run_git_checks,
 };
 use pacquet_reporter::Reporter;
 use serde_json::Value;
@@ -102,6 +102,7 @@ impl PublishArgs {
         if self.batch && !(recursive || self.recursive) {
             return Err(miette::miette!(
                 code = "ERR_PNPM_BATCH_PUBLISH_REQUIRES_RECURSIVE",
+                help = r#"Run "pnpm publish -r --batch" to publish all workspace packages in a single request."#,
                 "--batch can only be used together with --recursive",
             ));
         }
@@ -123,21 +124,17 @@ impl PublishArgs {
         let http_client = build_registry_client(config)?;
         let network = PublishNetwork { client: &http_client, auth_headers: &config.auth_headers };
 
-        let summary_json =
+        let summary =
             if let Some(package) = self.package.as_deref().filter(|path| is_tarball_path(path)) {
                 self.publish_tarball::<Reporter>(package, &opts, &network).await?
             } else {
-                self.publish_directory::<Reporter>(
-                    self.package.as_deref().unwrap_or_else(|| dir_str(dir)),
-                    config,
-                    &opts,
-                    &network,
-                )
-                .await?
+                let project_dir = self.package.as_deref().map_or(dir, Path::new);
+                self.publish_directory::<Reporter>(project_dir, config, &opts, &network).await?
             };
 
+        // Mirror `pnpm publish --json`: serialize only when asked.
         if self.json {
-            println!("{summary_json}");
+            println!("{}", serde_json::to_string_pretty(&summary).into_diagnostic()?);
         }
         Ok(())
     }
@@ -149,12 +146,12 @@ impl PublishArgs {
         tarball_path: &str,
         opts: &PublishPackedPkgOptions,
         network: &PublishNetwork<'_>,
-    ) -> miette::Result<String> {
+    ) -> miette::Result<PublishSummary> {
         let manifest = extract_manifest_from_packed(tarball_path)?;
         let tarball_data = std::fs::read(tarball_path)
             .into_diagnostic()
             .wrap_err_with(|| format!("read tarball {tarball_path}"))?;
-        let summary = publish_packed_pkg::<Host, Reporter>(
+        publish_packed_pkg::<Host, Reporter>(
             &PackedPkg {
                 published_manifest: &manifest,
                 tarball_data: &tarball_data,
@@ -165,8 +162,8 @@ impl PublishArgs {
             opts,
             network,
         )
-        .await?;
-        serde_json::to_string_pretty(&summary).into_diagnostic()
+        .await
+        .map_err(miette::Report::new)
     }
 
     /// Publish a project directory: run `prepublishOnly` / `prepublish`, pack
@@ -174,16 +171,16 @@ impl PublishArgs {
     /// `publish` / `postpublish`.
     async fn publish_directory<Reporter: self::Reporter>(
         &self,
-        dir: &str,
+        project_dir: &Path,
         config: &Config,
         opts: &PublishPackedPkgOptions,
         network: &PublishNetwork<'_>,
-    ) -> miette::Result<String> {
-        let project_dir = Path::new(dir);
+    ) -> miette::Result<PublishSummary> {
         let manifest = pacquet_package_manifest::safe_read_package_json_from_dir(project_dir)
             .into_diagnostic()
             .wrap_err("read package.json")?
             .ok_or_else(|| {
+                let dir = project_dir.display();
                 miette::miette!(
                     code = "ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND",
                     "No package.json found in {dir}",
@@ -228,7 +225,7 @@ impl PublishArgs {
                 &["publish", "postpublish"],
             )?;
         }
-        serde_json::to_string_pretty(&summary).into_diagnostic()
+        Ok(summary)
     }
 
     /// Whether to skip every publish-related lifecycle script. `--ignore-scripts`
@@ -340,9 +337,4 @@ fn run_publish_scripts<Reporter: self::Reporter>(
             .wrap_err_with(|| format!("run the {name} script"))?;
     }
     Ok(())
-}
-
-/// Borrow `dir` as a `&str` for the default-directory case.
-fn dir_str(dir: &Path) -> &str {
-    dir.to_str().unwrap_or(".")
 }
