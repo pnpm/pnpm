@@ -28,7 +28,8 @@ pub(super) fn add_dir_to_windows_env_path(
 ) -> Result<Vec<EnvVariableChange>, PathExtenderError> {
     // `chcp` makes `reg` use UTF-8 for output. Otherwise non-ASCII
     // characters in environment variables become garbled.
-    let chcp_output = run_capture("chcp", &[])?;
+    let chcp_output = run_capture("chcp", &[])
+        .map_err(|err| PathExtenderError::Chcp { message: err.to_string() })?;
     let cp_bak = first_number(&chcp_output)
         .ok_or_else(|| PathExtenderError::Chcp { message: chcp_output.clone() })?;
     run_capture("chcp", &["65001"])?;
@@ -148,6 +149,20 @@ fn get_registry_output() -> Result<String, PathExtenderError> {
     run_capture("reg", &["query", REG_KEY]).map_err(|_| PathExtenderError::RegRead)
 }
 
+/// Run a command and capture stdout, returning an error if it cannot be
+/// spawned or exits non-zero. Mirrors pnpm's `safe-execa`, which rejects on
+/// a non-zero exit rather than silently continuing with empty output.
+fn run_capture(program: &str, args: &[&str]) -> Result<String, PathExtenderError> {
+    let output = Command::new(program).args(args).output()?;
+    if !output.status.success() {
+        return Err(PathExtenderError::CommandFailed {
+            command: program.to_string(),
+            stderr: String::from_utf8_lossy(&output.stderr).into_owned(),
+        });
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
+}
+
 /// Parse a `reg query` line of the form `    <name>    <type>    <data>`
 /// (four-space separators), matching `name` case-insensitively. Mirrors
 /// pnpm's `getEnvValueFromRegistry` regex.
@@ -201,14 +216,9 @@ fn set_env_var_in_registry(
 /// variable to trigger the broadcast. Mirrors pnpm's `refreshEnvVars`.
 fn refresh_env_vars() -> Result<(), PathExtenderError> {
     const TEMP_ENV_VAR: &str = "REFRESH_ENV_VARS";
-    Command::new("setx").args([TEMP_ENV_VAR, "1"]).output()?;
-    Command::new("reg").args(["delete", REG_KEY, "/v", TEMP_ENV_VAR, "/f"]).output()?;
+    run_capture("setx", &[TEMP_ENV_VAR, "1"])?;
+    run_capture("reg", &["delete", REG_KEY, "/v", TEMP_ENV_VAR, "/f"])?;
     Ok(())
-}
-
-fn run_capture(program: &str, args: &[&str]) -> Result<String, PathExtenderError> {
-    let output = Command::new(program).args(args).output()?;
-    Ok(String::from_utf8_lossy(&output.stdout).into_owned())
 }
 
 fn first_number(text: &str) -> Option<u32> {

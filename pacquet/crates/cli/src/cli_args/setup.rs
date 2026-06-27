@@ -113,25 +113,32 @@ fn install_cli_globally<Reporter: self::Reporter + 'static>(
     // it, and the host may have no `node` to run the scripts. Skipping them
     // also avoids a build-approval prompt for pnpm's own install. See
     // <https://github.com/pnpm/pnpm/issues/12377>.
-    let bin_dir = pnpm_home_dir.join("bin");
     let separator = if cfg!(windows) { ";" } else { ":" };
-    let path_value =
-        format!("{}{separator}{}", bin_dir.display(), std::env::var("PATH").unwrap_or_default());
+    // Build `PATH` as an `OsString` so a non-UTF-8 ambient `PATH` is
+    // preserved verbatim rather than lost to a lossy string conversion.
+    let mut path_value = pnpm_home_dir.join("bin").into_os_string();
+    path_value.push(separator);
+    if let Some(existing) = std::env::var_os("PATH") {
+        path_value.push(existing);
+    }
     let status = Command::new(exec_path)
         .args(["add", "-g", "--ignore-scripts", &format!("file:{}", exec_dir.display())])
         .env("PNPM_HOME", pnpm_home_dir)
         .env("PATH", path_value)
         .status();
 
-    if created_pkg_json {
-        let _ = fs::remove_file(&pkg_json_path);
-    }
+    // Mirror pnpm's `try { spawn } finally { unlink }`: always attempt the
+    // cleanup, but let the install error take precedence over a cleanup error.
+    let cleanup = if created_pkg_json { fs::remove_file(&pkg_json_path) } else { Ok(()) };
 
     let status = status.into_diagnostic().wrap_err("run the global pnpm install")?;
     if !status.success() {
         let code = status.code().map_or_else(|| "unknown".to_string(), |code| code.to_string());
         return Err(miette::miette!("Failed to install pnpm globally (exit code {code})"));
     }
+    cleanup
+        .into_diagnostic()
+        .wrap_err("remove the temporary package.json next to the pnpm executable")?;
     Ok(())
 }
 

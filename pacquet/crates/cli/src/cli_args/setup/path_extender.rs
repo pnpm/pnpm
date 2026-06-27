@@ -125,6 +125,10 @@ pub(crate) enum PathExtenderError {
     #[diagnostic(code(ERR_PNPM_CHCP))]
     Chcp { message: String },
 
+    #[display("`{command}` failed: {stderr}")]
+    #[diagnostic(code(ERR_PNPM_SETUP_COMMAND_FAILED))]
+    CommandFailed { command: String, stderr: String },
+
     #[display("win32 registry environment values could not be retrieved")]
     #[diagnostic(code(ERR_PNPM_REG_READ))]
     RegRead,
