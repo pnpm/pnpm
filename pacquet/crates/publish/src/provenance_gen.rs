@@ -26,8 +26,8 @@ use crate::{
     oidc::OidcHttpOptions,
 };
 
-const INTOTO_STATEMENT_V1_TYPE: &str = "https://in-toto.io/Statement/v1";
-const INTOTO_STATEMENT_V01_TYPE: &str = "https://in-toto.io/Statement/v0.1";
+const IN_TOTO_STATEMENT_V1_TYPE: &str = "https://in-toto.io/Statement/v1";
+const IN_TOTO_STATEMENT_V01_TYPE: &str = "https://in-toto.io/Statement/v0.1";
 const SLSA_PREDICATE_V1_TYPE: &str = "https://slsa.dev/provenance/v1";
 const SLSA_PREDICATE_V02_TYPE: &str = "https://slsa.dev/provenance/v0.2";
 const GITHUB_BUILDER_ID_PREFIX: &str = "https://github.com/actions/runner";
@@ -122,7 +122,7 @@ fn github_statement<Sys: EnvVar>(subject: &Value) -> Value {
         relative_ref.split_once('@').unwrap_or((relative_ref, ""));
 
     json!({
-        "_type": INTOTO_STATEMENT_V1_TYPE,
+        "_type": IN_TOTO_STATEMENT_V1_TYPE,
         "subject": subject,
         "predicateType": SLSA_PREDICATE_V1_TYPE,
         "predicate": {
@@ -166,7 +166,7 @@ fn github_statement<Sys: EnvVar>(subject: &Value) -> Value {
 fn gitlab_statement<Sys: EnvVar>(subject: &Value) -> Value {
     let project_url = env::<Sys>("CI_PROJECT_URL");
     json!({
-        "_type": INTOTO_STATEMENT_V01_TYPE,
+        "_type": IN_TOTO_STATEMENT_V01_TYPE,
         "subject": subject,
         "predicateType": SLSA_PREDICATE_V02_TYPE,
         "predicate": {
