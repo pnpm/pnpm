@@ -78,12 +78,13 @@ where
         .into());
     }
 
-    let public = response
+    // The TS reads `await response.json()` unguarded on the success path, so a
+    // malformed body is a hard error rather than a silent "not public".
+    let visibility = response
         .body
         .pipe_as_ref(serde_json::from_str::<Value>)
-        .ok()
-        .and_then(|json| json.get("public").and_then(Value::as_bool))
-        .unwrap_or(false);
+        .map_err(|error| DetermineProvenanceError::VisibilityParse(error.to_string()))?;
+    let public = visibility.get("public").and_then(Value::as_bool).unwrap_or(false);
     Ok(public.then_some(true))
 }
 
@@ -154,6 +155,9 @@ pub enum DetermineProvenanceError {
 
     #[display("failed to parse the idToken payload: {_0}")]
     PayloadParse(#[error(not(source))] String),
+
+    #[display("failed to parse the package-visibility response: {_0}")]
+    VisibilityParse(#[error(not(source))] String),
 
     #[display("invalid visibility URL: {_0}")]
     InvalidUrl(url::ParseError),

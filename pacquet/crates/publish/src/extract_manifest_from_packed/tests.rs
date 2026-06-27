@@ -41,6 +41,14 @@ fn extracts_manifest() {
 }
 
 #[test]
+fn extracts_manifest_from_non_canonical_entry_path() {
+    let dir = TempDir::new().unwrap();
+    let path = write_tarball(&dir, &[("package/./package.json", r#"{"name":"foo"}"#)]);
+    let manifest = extract_manifest_from_packed(&path).unwrap();
+    assert_eq!(manifest["name"], "foo");
+}
+
+#[test]
 fn errors_when_manifest_missing() {
     let dir = TempDir::new().unwrap();
     let path = write_tarball(&dir, &[("package/index.js", "x")]);

@@ -13,7 +13,6 @@ use pacquet_network_web_auth::{
 };
 use pacquet_reporter::Reporter;
 use serde_json::{Map, Value};
-use ssri::{Algorithm, IntegrityOpts};
 
 use crate::{
     capabilities::{CiInfo, Clock, EnvVar, OidcFetch},
@@ -110,21 +109,31 @@ where
     }
 
     // Generating a signed provenance attestation requires sigstore, which
-    // pacquet does not yet bundle. Refuse rather than silently publishing
-    // without the attestation pnpm would attach.
-    if resolved.provenance == Some(true) {
+    // pacquet does not yet bundle. An explicit `--provenance` is a hard error
+    // (the request cannot be honored); provenance that OIDC auto-detected for a
+    // public repo is downgraded to a warning so a trusted-publishing CI run
+    // still publishes — without the attestation pnpm would attach.
+    if opts.provenance == Some(true) {
         return Err(PublishPackedPkgError::ProvenanceUnsupported);
     }
+    if resolved.provenance == Some(true) {
+        global_warn::<Reporter>(
+            "Provenance generation is not yet supported by pacquet; publishing without provenance.",
+        );
+    }
 
+    // `summary` already hashed the tarball; reuse those digests for the
+    // document's `dist` rather than hashing the bytes a second time.
     let document = build_publish_document(
         pkg.published_manifest,
         pkg.tarball_data,
         &registry,
         resolved.access,
         &resolved.default_tag,
-        is_stage,
+        &DistHashes { integrity: &summary.integrity, shasum: &summary.shasum },
     )?;
-    let document_bytes = serde_json::to_vec(&document).expect("serialize publish document");
+    let body =
+        bytes::Bytes::from(serde_json::to_vec(&document).expect("serialize publish document"));
 
     let put_url = join_registry(&registry, &escaped_package_name(&name))?;
     let authorization = resolved
@@ -139,7 +148,7 @@ where
         &put_url,
         authorization.as_deref(),
         npm_command,
-        &document_bytes,
+        body,
         resolved.otp.as_deref(),
         is_stage,
         web_auth_fetch_options(&opts.http),
@@ -212,7 +221,7 @@ async fn publish_with_otp_handling<Reporter: self::Reporter>(
     put_url: &str,
     authorization: Option<&str>,
     npm_command: &str,
-    document_bytes: &[u8],
+    body: bytes::Bytes,
     otp: Option<&str>,
     is_stage: bool,
     fetch_options: WebAuthFetchOptions,
@@ -226,12 +235,14 @@ async fn publish_with_otp_handling<Reporter: self::Reporter>(
             // challenge argument is not held across it (which would make the
             // returned future's `Send` bound not general enough for the CLI).
             let effective_otp = challenge_otp.map(str::to_owned).or_else(|| otp.map(str::to_owned));
+            // `Bytes::clone` is a cheap refcount bump, so the megabytes-large
+            // body is not re-copied when the OTP retry re-invokes this closure.
             put_publish(
                 client,
                 put_url,
                 authorization,
                 npm_command,
-                document_bytes,
+                body.clone(),
                 effective_otp.as_deref(),
                 is_stage,
             )
@@ -251,7 +262,7 @@ async fn put_publish(
     put_url: &str,
     authorization: Option<&str>,
     npm_command: &str,
-    document_bytes: &[u8],
+    body: bytes::Bytes,
     otp: Option<&str>,
     is_stage: bool,
 ) -> Result<PublishResponse, PublishHttpError> {
@@ -261,7 +272,7 @@ async fn put_publish(
         .header("content-type", "application/json")
         .header("npm-auth-type", "web")
         .header("npm-command", npm_command)
-        .body(document_bytes.to_vec());
+        .body(body);
     if let Some(authorization) = authorization {
         request = request.header("authorization", authorization);
     }
@@ -330,6 +341,15 @@ fn web_auth_fetch_options(http: &OidcHttpOptions) -> WebAuthFetchOptions {
     }
 }
 
+/// The tarball digests written into the document's `dist`, already computed by
+/// [`create_publish_summary`] so the tarball is not hashed twice.
+struct DistHashes<'a> {
+    /// SRI SHA-512 (`sha512-...`).
+    integrity: &'a str,
+    /// Lowercase hex SHA-1.
+    shasum: &'a str,
+}
+
 /// Build the npm publish document — the JSON body `libnpmpublish` would send
 /// as the whole `PUT /:pkg` request. Ports `buildMetadata` (and the matching
 /// `createPublishDocument` used by batch publish).
@@ -339,7 +359,7 @@ fn build_publish_document(
     registry: &NormalizedRegistryUrl,
     access: Option<Access>,
     tag: &str,
-    _is_stage: bool,
+    dist_hashes: &DistHashes<'_>,
 ) -> Result<Value, PublishPackedPkgError> {
     if manifest.get("private").and_then(Value::as_bool) == Some(true) {
         return Err(PublishPackedPkgError::Private);
@@ -351,15 +371,13 @@ fn build_publish_document(
         return Err(PublishPackedPkgError::UnscopedRestricted { name });
     }
 
-    let integrity = IntegrityOpts::new().algorithm(Algorithm::Sha512).chain(tarball_data).result();
-    let shasum = IntegrityOpts::new().algorithm(Algorithm::Sha1).chain(tarball_data).result();
     let tarball_name = format!("{name}-{version}.tgz");
     let tarball_uri = format!("{name}/-/{tarball_name}");
     let tarball_url = join_registry(registry, &tarball_uri)?.replacen("https://", "http://", 1);
 
     let mut dist = Map::new();
-    dist.insert("integrity".to_owned(), Value::String(integrity.to_string()));
-    dist.insert("shasum".to_owned(), Value::String(shasum.to_hex().1));
+    dist.insert("integrity".to_owned(), Value::String(dist_hashes.integrity.to_owned()));
+    dist.insert("shasum".to_owned(), Value::String(dist_hashes.shasum.to_owned()));
     dist.insert("tarball".to_owned(), Value::String(tarball_url));
 
     let mut version_manifest = manifest.as_object().cloned().unwrap_or_default();
@@ -370,6 +388,9 @@ fn build_publish_document(
     let mut versions = Map::new();
     versions.insert(version.clone(), Value::Object(version_manifest));
 
+    // A manifest-level `tag` wins over the default, mirroring libnpmpublish's
+    // `const tag = manifest.tag || defaultTag`.
+    let tag = manifest.get("tag").and_then(Value::as_str).unwrap_or(tag);
     let mut dist_tags = Map::new();
     dist_tags.insert(tag.to_owned(), Value::String(version));
 

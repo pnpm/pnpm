@@ -19,6 +19,7 @@ pacquet-pack             = { workspace = true }
 pacquet-reporter         = { workspace = true }
 
 base64      = { workspace = true }
+bytes       = { workspace = true }
 derive_more = { workspace = true }
 dialoguer   = { workspace = true }
 flate2      = { workspace = true }

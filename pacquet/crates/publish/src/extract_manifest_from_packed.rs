@@ -58,11 +58,22 @@ pub fn extract_manifest_from_packed(tarball_path: &str) -> Result<Value, Extract
     }))
 }
 
-/// Normalize a tar entry path to forward slashes and drop a leading `./`,
-/// mirroring the TS `path.normalize(name).replaceAll('\\', '/')` comparison.
+/// Normalize a tar entry path to forward slashes and collapse `.` / `..`
+/// segments, mirroring the TS `path.normalize(name).replaceAll('\\', '/')`
+/// comparison (so e.g. `package/./package.json` still matches).
 fn normalize_entry_path(path: &Path) -> String {
-    let normalized = path.to_string_lossy().replace('\\', "/");
-    normalized.strip_prefix("./").unwrap_or(&normalized).to_owned()
+    let raw = path.to_string_lossy().replace('\\', "/");
+    let mut segments: Vec<&str> = Vec::new();
+    for segment in raw.split('/') {
+        match segment {
+            "" | "." => {}
+            ".." => {
+                segments.pop();
+            }
+            other => segments.push(other),
+        }
+    }
+    segments.join("/")
 }
 
 /// Failure surface of [`extract_manifest_from_packed`].
