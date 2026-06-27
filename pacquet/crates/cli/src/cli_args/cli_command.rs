@@ -38,6 +38,7 @@ use super::{
     runtime::RuntimeArgs,
     self_update::SelfUpdateArgs,
     set_script::SetScriptArgs,
+    setup::SetupArgs,
     stop::StopArgs,
     store::StoreCommand,
     unlink::UnlinkArgs,
@@ -224,4 +225,6 @@ pub enum CliCommand {
     Docs(DocsArgs),
     /// Updates pnpm to the latest version (or the one specified)
     SelfUpdate(SelfUpdateArgs),
+    /// Sets up pnpm
+    Setup(SetupArgs),
 }
