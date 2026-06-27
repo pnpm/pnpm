@@ -432,7 +432,7 @@ fn compile_glob(pattern: &str) -> Option<Glob<'static>> {
 
 /// Nerf-dart a registry URL down to its host-only origin
 /// (`//host[:port]/`), the prefix every fetch under it shares. `None`
-/// for an unparseable URL.
+/// for an unparsable URL.
 fn nerf_origin(url: &str) -> Option<String> {
     let nerfed = nerf_dart(url);
     if nerfed.is_empty() { None } else { Some(host_prefix(&nerfed)) }
