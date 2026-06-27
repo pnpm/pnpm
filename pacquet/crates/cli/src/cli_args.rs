@@ -51,6 +51,7 @@ pub mod update;
 pub mod update_interactive;
 pub mod whoami;
 pub mod why;
+pub mod with;
 
 mod cli_command;
 mod dispatch;

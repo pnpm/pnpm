@@ -3,6 +3,7 @@ mod config_deps;
 mod config_overrides;
 mod job_control;
 mod state;
+mod with_current;
 
 use clap::Parser;
 use cli_args::CliArgs;
@@ -21,6 +22,11 @@ pub fn main() -> miette::Result<()> {
     // would otherwise error out as "unexpected argument". Each extracted
     // token is layered onto `Config` after `.npmrc` / yaml run.
     let (config_overrides, argv) = ConfigOverrides::extract(argv_with_alias_subcommand());
+    // `pnpm with current <cmd>` is sugar for running `<cmd>` in-process with
+    // the packageManager / devEngines check disabled; rewrite argv before
+    // clap parses it. A version spec (`pnpm with 10 <cmd>`) is left for the
+    // `with` subcommand to handle.
+    let argv = with_current::rewrite(argv)?;
     // The default reporter's `Done in ... using pacquet v<version>` footer needs
     // the version before the first event (including the fast path's).
     pacquet_default_reporter::set_package_version(pacquet_config::PACQUET_VERSION);

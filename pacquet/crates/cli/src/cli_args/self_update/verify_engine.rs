@@ -74,7 +74,7 @@ struct EngineComponent {
 /// component carries no integrity metadata, or when the registry is
 /// unreachable — failing closed in every case, since the lockfile
 /// integrity is project-controlled and not a safe fallback.
-pub(super) async fn verify_pnpm_engine_identity(
+pub(crate) async fn verify_pnpm_engine_identity(
     env: &EnvLockfile,
     pnpm_version: &str,
     config: &Config,

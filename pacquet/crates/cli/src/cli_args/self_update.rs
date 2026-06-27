@@ -10,8 +10,10 @@
 //! directory, its native binary linked, its registry signature verified,
 //! and its bins linked into the global bin directory.
 
-mod install_pnpm;
-mod verify_engine;
+// `pub(crate)` so `pnpm with` can reuse the engine installer and the
+// engine-identity verifier; both commands install the same pnpm engine.
+pub(crate) mod install_pnpm;
+pub(crate) mod verify_engine;
 
 use clap::Args;
 use derive_more::{Display, Error};
