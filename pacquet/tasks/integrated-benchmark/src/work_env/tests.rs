@@ -1,7 +1,7 @@
 use super::{
     BenchmarkScenario, HyperfineCommand, PhaseEvent, collect_pnpr_direct_ratios,
-    non_trivial_cold_batch, pnpr_auth_config_key, read_phase_events, render_diagnostics_markdown,
-    requires_fresh_pnpr_cold_batch_metrics, summarize_phase_events,
+    non_trivial_cold_batch, pnpr_auth_config_key, pnpr_benchmark_config_yaml, read_phase_events,
+    render_diagnostics_markdown, requires_fresh_pnpr_cold_batch_metrics, summarize_phase_events,
 };
 use std::{collections::HashMap, fs};
 
@@ -140,6 +140,33 @@ fn cold_batch_metrics_canary_targets_current_pnpr_revision() {
 fn pnpr_auth_config_key_uses_npmrc_nerf_shape() {
     assert_eq!(pnpr_auth_config_key("http://127.0.0.1:42509"), "//127.0.0.1:42509/");
     assert_eq!(pnpr_auth_config_key("http://localhost:4873/pnpr/"), "//localhost:4873/pnpr/");
+}
+
+#[test]
+fn pnpr_benchmark_config_declares_local_registry_public() {
+    let storage = std::env::temp_dir().join("pnpr-benchmark-config-test-storage");
+
+    let yaml = pnpr_benchmark_config_yaml(
+        &storage,
+        &["http://localhost:4873/", "http://127.0.0.1:61824/"],
+    );
+
+    assert!(yaml.contains("registry: http://localhost:4873/"));
+    assert!(yaml.contains("registry: http://127.0.0.1:61824/"));
+    assert!(yaml.contains("npmjsUnscopedPublic: true"));
+    assert!(yaml.contains("max_users: -1"));
+    assert!(yaml.contains("htpasswd"));
+}
+
+#[test]
+fn pnpr_benchmark_config_keeps_npm_mode_on_builtin_public_rule() {
+    let storage = std::env::temp_dir().join("pnpr-benchmark-config-test-storage");
+
+    let yaml = pnpr_benchmark_config_yaml(&storage, &[]);
+
+    assert!(yaml.contains("npmjsUnscopedPublic: true"));
+    assert!(yaml.contains("public: []"));
+    assert!(!yaml.contains("registry: https://registry.npmjs.org/"));
 }
 
 #[test]
