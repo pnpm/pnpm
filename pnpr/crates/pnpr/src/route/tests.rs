@@ -1,4 +1,8 @@
-use std::{net::SocketAddr, path::PathBuf};
+use std::{
+    net::SocketAddr,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 
 use pacquet_network::{MetadataCacheScope, UpstreamRouteHook};
 
@@ -67,6 +71,26 @@ fn disabling_the_builtin_makes_unscoped_npmjs_private() {
     assert_eq!(
         context.classify(&user("alice"), "https://registry.npmjs.org/lodash", Some("lodash")),
         RouteClass::Unknown,
+    );
+}
+
+#[test]
+fn custom_registry_is_unknown_until_declared_public() {
+    let mut config = base_config();
+    let context = RouteContext::from_config(&config);
+    assert_eq!(
+        context.classify(&user("alice"), "https://custom.registry.example/lodash", Some("lodash"),),
+        RouteClass::Unknown,
+    );
+
+    config.route_policy.public.push(PublicRoute {
+        registry: Some("https://custom.registry.example/".to_string()),
+        package: None,
+    });
+    let context = RouteContext::from_config(&config);
+    assert_eq!(
+        context.classify(&user("alice"), "https://custom.registry.example/lodash", Some("lodash"),),
+        RouteClass::Public,
     );
 }
 
@@ -263,6 +287,42 @@ fn metadata_scope_maps_route_classes() {
 
     // metadata_scope is read-only: classifying must not grow the footprint.
     assert!(footprint.lock().unwrap().is_public());
+}
+
+#[test]
+fn authorized_alias_users_share_metadata_scope() {
+    let mut config = base_config();
+    config
+        .upstream_aliases
+        .insert("corp".to_string(), alias("https://npm.corp.example/", None, "$authenticated", 3));
+    let context = RouteContext::from_config(&config);
+    let secret = Arc::from(b"server-secret".as_slice());
+    let alice = RouteHook::new(
+        context.clone(),
+        user("alice"),
+        Arc::new(Mutex::new(Footprint::default())),
+        Arc::clone(&secret),
+    );
+    let bob = RouteHook::new(
+        context,
+        user("bob"),
+        Arc::new(Mutex::new(Footprint::default())),
+        Arc::clone(&secret),
+    );
+    let url = "https://npm.corp.example/@acme%2fwidget";
+
+    let alice_scope = alice.metadata_scope(url, Some("@acme/widget"));
+    let bob_scope = bob.metadata_scope(url, Some("@acme/widget"));
+    assert_eq!(alice_scope, bob_scope);
+
+    let MetadataCacheScope::Private { descriptor_id } = alice_scope else {
+        panic!("authorized alias route should be private");
+    };
+    assert_eq!(
+        descriptor_id,
+        PrivateAccessDescriptor::Alias { alias: "corp".to_string(), generation: 3 }
+            .digest_id(b"server-secret"),
+    );
 }
 
 #[test]

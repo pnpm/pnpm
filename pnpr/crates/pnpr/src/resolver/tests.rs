@@ -18,7 +18,7 @@ use super::{
 };
 use crate::{
     config::{Config as RegistryConfig, PublicRoute, UpstreamAlias},
-    policy::{AccessList, Identity},
+    policy::{AccessList, Identity, PackagePolicies, PackagePolicy},
     route::{Footprint, PrivateAccessDescriptor, RouteContext},
 };
 
@@ -80,6 +80,24 @@ fn private_alias_footprint(alias: &str, generation: u64) -> Footprint {
     let mut footprint = Footprint::default();
     footprint.add(PrivateAccessDescriptor::Alias { alias: alias.to_string(), generation });
     footprint
+}
+
+fn private_hosted_footprint(policy_id: &str) -> Footprint {
+    let mut footprint = Footprint::default();
+    footprint.add(PrivateAccessDescriptor::Hosted { policy_id: policy_id.to_string() });
+    footprint
+}
+
+fn package_policies(pattern: &str, access: &str) -> PackagePolicies {
+    PackagePolicies::new(vec![
+        PackagePolicy::new(
+            pattern,
+            AccessList::parse(access),
+            AccessList::parse("$authenticated"),
+            AccessList::default(),
+        )
+        .expect("policy parses"),
+    ])
 }
 
 fn lockfile(version: &str) -> Lockfile {
@@ -275,6 +293,107 @@ fn private_cached_resolution_requires_current_alias_authorization() {
     let rotated = RouteContext::from_config(&config);
     assert!(
         cached_resolution(&cache, Duration::from_mins(1), &key, &rotated, &user("alice")).is_none(),
+    );
+}
+
+#[test]
+fn same_alias_authorized_users_share_private_resolution_cache() {
+    let cache = Mutex::new(HashMap::new());
+    let key = "base".to_string();
+    let lockfile = lockfile("1.0.0");
+    assert!(store_resolution(
+        &cache,
+        Duration::from_mins(1),
+        key.clone(),
+        private_alias_footprint("corp", 1),
+        b"secret",
+        &lockfile,
+    ));
+
+    let mut config = registry_config();
+    config
+        .upstream_aliases
+        .insert("corp".to_string(), alias("https://npm.corp.example/", "$authenticated", 1));
+    let context = RouteContext::from_config(&config);
+
+    assert!(
+        cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("alice")).is_some(),
+    );
+    assert!(
+        cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("bob")).is_some(),
+    );
+    assert!(
+        cached_resolution(&cache, Duration::from_mins(1), &key, &context, &Identity::Anonymous,)
+            .is_none(),
+    );
+}
+
+#[test]
+fn revoked_alias_access_stops_matching_private_resolution_hits() {
+    let cache = Mutex::new(HashMap::new());
+    let key = "base".to_string();
+    let lockfile = lockfile("1.0.0");
+    assert!(store_resolution(
+        &cache,
+        Duration::from_mins(1),
+        key.clone(),
+        private_alias_footprint("corp", 1),
+        b"secret",
+        &lockfile,
+    ));
+
+    let mut config = registry_config();
+    config
+        .upstream_aliases
+        .insert("corp".to_string(), alias("https://npm.corp.example/", "alice", 1));
+    let context = RouteContext::from_config(&config);
+    assert!(
+        cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("alice")).is_some(),
+    );
+
+    config
+        .upstream_aliases
+        .insert("corp".to_string(), alias("https://npm.corp.example/", "bob", 1));
+    let context = RouteContext::from_config(&config);
+    assert!(
+        cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("alice")).is_none(),
+    );
+    assert!(
+        cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("bob")).is_some(),
+    );
+}
+
+#[test]
+fn revoked_hosted_package_access_stops_matching_private_resolution_hits() {
+    let cache = Mutex::new(HashMap::new());
+    let key = "base".to_string();
+    let lockfile = lockfile("1.0.0");
+    assert!(store_resolution(
+        &cache,
+        Duration::from_mins(1),
+        key.clone(),
+        private_hosted_footprint("@private/pkg"),
+        b"secret",
+        &lockfile,
+    ));
+
+    let mut config = registry_config();
+    config.policies = package_policies("@private/*", "alice");
+    let context = RouteContext::from_config(&config);
+    assert!(
+        cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("alice")).is_some(),
+    );
+    assert!(
+        cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("bob")).is_none(),
+    );
+
+    config.policies = package_policies("@private/*", "bob");
+    let context = RouteContext::from_config(&config);
+    assert!(
+        cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("alice")).is_none(),
+    );
+    assert!(
+        cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("bob")).is_some(),
     );
 }
 

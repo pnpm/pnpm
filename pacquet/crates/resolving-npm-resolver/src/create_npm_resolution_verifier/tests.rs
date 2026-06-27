@@ -3,13 +3,21 @@ use std::{collections::HashMap, sync::Arc};
 use chrono::{DateTime, Utc};
 use pacquet_config::{TrustPolicy, version_policy::create_package_version_policy};
 use pacquet_lockfile::{LockfileResolution, PkgName, RegistryResolution, TarballResolution};
-use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use pacquet_network::{
+    AuthHeaders, MetadataCacheScope, RetryOpts, ThrottledClient, UpstreamRouteHook,
+};
+use pacquet_registry::Package;
 use pacquet_resolving_resolver_base::{ResolutionVerification, ResolutionVerifier, VerifyCtx};
 use pretty_assertions::assert_eq;
 use ssri::Integrity;
+use tempfile::TempDir;
 
 use super::{
     CreateNpmResolutionVerifierOptions, create_npm_resolution_verifier, observed_dist_stats_sink,
+};
+use crate::{
+    mirror::{ABBREVIATED_META_DIR, get_pkg_mirror_path, load_meta},
+    persist_meta_to_mirror,
 };
 
 const FAKE_INTEGRITY: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
@@ -56,6 +64,20 @@ fn default_opts(registry_url: &str) -> CreateNpmResolutionVerifierOptions {
         retry_opts: RetryOpts { retries: 0, ..RetryOpts::default() },
         now: None,
         observed_dist_stats: None,
+    }
+}
+
+struct ScopeHook {
+    scope: MetadataCacheScope,
+}
+
+impl UpstreamRouteHook for ScopeHook {
+    fn authorize(&self, _url: &str, _package: Option<&str>) -> Option<String> {
+        None
+    }
+
+    fn metadata_scope(&self, _url: &str, _package: Option<&str>) -> MetadataCacheScope {
+        self.scope.clone()
     }
 }
 
@@ -205,6 +227,94 @@ async fn verifies_tarball_url_when_no_policy_active() {
         panic!("expected Err, got {result:?}");
     };
     assert_eq!(code, "TARBALL_URL_MISMATCH");
+}
+
+#[tokio::test]
+async fn private_scope_verifier_ignores_public_mirror_and_writes_private_mirror() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let server_url = server.url();
+    let public_tarball = format!("{server_url}/acme/-/acme-1.0.0.tgz");
+    let private_tarball = format!("{server_url}/acme/-/acme-private-1.0.0.tgz");
+    let public_packument = serde_json::json!({
+        "name": "acme",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "acme",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": FAKE_INTEGRITY,
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": public_tarball,
+                }
+            }
+        }
+    });
+    let private_packument = serde_json::json!({
+        "name": "acme",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "acme",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": FAKE_INTEGRITY,
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": private_tarball,
+                }
+            }
+        }
+    });
+    let _meta_mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(private_packument.to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    let cache = TempDir::new().expect("tempdir");
+    let public_meta: Package = serde_json::from_value(public_packument).expect("package parses");
+    persist_meta_to_mirror(cache.path(), ABBREVIATED_META_DIR, &registry, &public_meta)
+        .expect("warm public mirror");
+
+    let mut opts = default_opts(&registry);
+    opts.cache_dir = Some(cache.path().to_path_buf());
+    opts.auth_headers =
+        Arc::new(AuthHeaders::default().with_route_hook(Arc::new(ScopeHook {
+            scope: MetadataCacheScope::Private { descriptor_id: "private-scope".to_string() },
+        }) as Arc<dyn UpstreamRouteHook>));
+    let verifier = create_npm_resolution_verifier(opts);
+    let resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: public_tarball.clone(),
+        integrity: Some(fake_integrity()),
+        git_hosted: None,
+        path: None,
+    });
+    let name: PkgName = "acme".parse().expect("parse");
+    let result = verifier.verify(&resolution, ctx(&name, "1.0.0")).await;
+
+    let ResolutionVerification::Err { code, .. } = result else {
+        panic!("expected private metadata mismatch, got {result:?}");
+    };
+    assert_eq!(code, "TARBALL_URL_MISMATCH");
+
+    let private_path = get_pkg_mirror_path(
+        cache.path(),
+        "v11/metadata-private/private-scope/metadata",
+        &registry,
+        "acme",
+    )
+    .expect("private mirror path");
+    let private_meta = load_meta(&private_path).expect("private mirror written");
+    let private_version = private_meta.versions.get("1.0.0").expect("private version");
+    assert_eq!(private_version.dist.tarball, private_tarball);
+
+    let public_path =
+        get_pkg_mirror_path(cache.path(), ABBREVIATED_META_DIR, &registry, "acme").expect("path");
+    let public_meta = load_meta(&public_path).expect("public mirror remains readable");
+    let public_version = public_meta.versions.get("1.0.0").expect("public version");
+    assert_eq!(public_version.dist.tarball, public_tarball);
 }
 
 #[tokio::test]
