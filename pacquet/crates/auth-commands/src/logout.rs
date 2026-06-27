@@ -2,9 +2,9 @@
 //! ([`@pnpm/auth.commands`](https://github.com/pnpm/pnpm/blob/fc2f33912e/pnpm11/auth/commands/src/logout.ts)).
 //!
 //! `pnpm logout` revokes the registry auth token on the server and
-//! removes it from `auth.ini`. The token still lives in `.npmrc` or an
-//! env var is left in place, with a warning, because pnpm only owns
-//! `auth.ini`.
+//! removes it from `auth.ini`. A token that instead lives in `.npmrc`
+//! or an env var is left in place, with a warning, because pnpm only
+//! owns `auth.ini`.
 //!
 //! Upstream wires the side effects (`fetch`, `readIniFile`,
 //! `writeIniFile`, `globalInfo`, `globalWarn`) through a `LogoutContext`

@@ -550,7 +550,6 @@ async fn propagates_auth_ini_write_errors() {
 // They cover the side-effecting code the `Sys`-fake tests above
 // deliberately bypass.
 
-/// Token revoked on the registry, and removed from `auth.ini`.
 #[tokio::test]
 async fn host_revokes_and_removes_token() {
     const TOKEN: &str = "secret-token";
@@ -589,7 +588,6 @@ async fn host_revokes_and_removes_token() {
     assert!(remaining.contains("other=keep"), "other settings kept: {remaining:?}");
 }
 
-/// Registry rejects the revocation, but the local token is still removed.
 #[tokio::test]
 async fn host_removes_token_locally_when_registry_rejects() {
     const TOKEN: &str = "old-token";
@@ -624,7 +622,6 @@ async fn host_removes_token_locally_when_registry_rejects() {
     assert!(!remaining.contains(TOKEN), "token should be gone: {remaining:?}");
 }
 
-/// Registry unreachable (connection refused): the local token is still removed.
 #[tokio::test]
 async fn host_removes_token_locally_when_registry_unreachable() {
     const TOKEN: &str = "net-err-token";
