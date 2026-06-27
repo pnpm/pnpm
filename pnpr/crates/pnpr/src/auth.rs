@@ -149,14 +149,21 @@ impl std::fmt::Debug for AuthState {
 }
 
 impl AuthState {
-    /// All-in-memory auth state with open registration. Used by tests
-    /// and registry-mock-compatible programmatic routers.
+    /// All-in-memory auth state with registration left uncapped. For a
+    /// resolver-only deployment (registry disabled, so the adduser route
+    /// is not mounted) and tests that pre-seed users or don't exercise
+    /// the cap. Callers that mount the registry surface from config must
+    /// use [`Self::in_memory_with_max_users`] so the configured cap
+    /// applies; the production path goes through [`Self::load`].
     #[must_use]
     pub fn in_memory() -> Self {
         Self::in_memory_with_max_users(MaxUsers::Unlimited)
     }
 
-    /// All-in-memory auth state that enforces the resolved registration cap.
+    /// All-in-memory auth state that honors `max_users`, so an embedder
+    /// building a registry via [`crate::router`] / [`crate::try_router`]
+    /// gets the same registration cap as the production [`Self::load`]
+    /// path instead of unconditionally open sign-ups.
     #[must_use]
     pub fn in_memory_with_max_users(max_users: MaxUsers) -> Self {
         Self {

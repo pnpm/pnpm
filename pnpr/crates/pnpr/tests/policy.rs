@@ -24,8 +24,10 @@ fn config_from_yaml(packages_block: &str) -> (TempDir, Config) {
     let dir = TempDir::new().unwrap();
     let storage = dir.path().join("storage");
     std::fs::create_dir_all(&storage).unwrap();
+    // Registration is opt-in; these tests create accounts via adduser, so
+    // the config sets an explicit positive cap.
     let yaml = format!(
-        "storage: {}\nuplinks: {{}}\nauth:\n  htpasswd:\n    max_users: 100\n{packages_block}\n",
+        "storage: {}\nuplinks: {{}}\nauth:\n  htpasswd:\n    max_users: 1000\n{packages_block}\n",
         storage.display(),
     );
     let path = dir.path().join("config.yaml");

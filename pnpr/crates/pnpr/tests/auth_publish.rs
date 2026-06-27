@@ -24,6 +24,7 @@ fn static_config(storage: PathBuf) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::static_serve(listen, storage);
     config.public_url = "http://example.test".to_string();
+    // Registration is opt-in; these tests create accounts via adduser.
     config.auth.htpasswd.max_users = MaxUsers::Unlimited;
     config
 }
@@ -38,6 +39,7 @@ fn static_config_with_packages(dir: &TempDir, packages_block: &str) -> (Config, 
     std::fs::write(&config_path, yaml).unwrap();
     let mut config =
         Config::from_yaml(&config_path, listen, Some("http://example.test".to_string())).unwrap();
+    // Registration is opt-in; these tests create accounts via adduser.
     config.auth.htpasswd.max_users = MaxUsers::Unlimited;
     (config, storage)
 }
@@ -90,6 +92,20 @@ async fn adduser_creates_user_and_returns_token() {
     let app = router(static_config(tmp.path().to_path_buf()));
     let (_, token) = add_user_and_get_token(app, "alice", "secret").await;
     assert!(!token.is_empty(), "token should be non-empty");
+}
+
+#[tokio::test]
+async fn router_honors_disabled_registration_cap() {
+    // `router()` builds in-memory auth from config, so the registration
+    // cap must apply to embedders too — not just the `serve()` path.
+    let tmp = TempDir::new().unwrap();
+    let mut config = static_config(tmp.path().to_path_buf());
+    config.auth.htpasswd.max_users = MaxUsers::Disabled;
+    let app = router(config);
+    let path = "/-/user/org.couchdb.user:alice";
+    let body = json!({ "name": "alice", "password": "secret", "type": "user", "roles": [] });
+    let response = app.oneshot(put_json(path, body)).await.unwrap();
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
 }
 
 #[tokio::test]

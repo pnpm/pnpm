@@ -4,7 +4,7 @@ use super::{
 };
 use crate::{
     auth::{AuthState, TokenBackend, TokenRecord, UserStore},
-    config::Config,
+    config::{Config, MaxUsers},
     error::{RegistryError, Result},
 };
 use async_trait::async_trait;
@@ -172,7 +172,10 @@ impl TokenBackend for OneToken {
 
 fn app_with_token(tmp: &TempDir, raw: &str, record: TokenRecord) -> axum::Router {
     let tokens: Arc<dyn TokenBackend> = Arc::new(OneToken { raw: raw.to_string(), record });
-    let auth = AuthState { users: Arc::new(UserStore::in_memory()), tokens };
+    let auth = AuthState {
+        users: Arc::new(UserStore::in_memory_with_max_users(MaxUsers::Unlimited)),
+        tokens,
+    };
     let listen = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
     router_with_auth(Config::static_serve(listen, tmp.path().to_path_buf()), auth)
 }

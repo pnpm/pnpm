@@ -1042,6 +1042,15 @@ fn auth_block_absent_disables_registration_by_default() {
 }
 
 #[test]
+fn max_users_from_explicit_maps_signed_values() {
+    // Shared by the YAML parser and the `--max-users` CLI override.
+    assert_eq!(super::MaxUsers::from_explicit(-1), super::MaxUsers::Disabled);
+    assert_eq!(super::MaxUsers::from_explicit(-5), super::MaxUsers::Disabled);
+    assert_eq!(super::MaxUsers::from_explicit(0), super::MaxUsers::Limited(0));
+    assert_eq!(super::MaxUsers::from_explicit(1000), super::MaxUsers::Limited(1000));
+}
+
+#[test]
 fn auth_max_users_absent_disables_registration() {
     let yaml = "\
 storage: ./s
@@ -1738,6 +1747,8 @@ fn bundled_default_config_enforces_its_protections() {
     // Building from the bundled YAML must reproduce the
     // registry-mock protections that used to be hard-coded.
     let config = Config::from_default_yaml(Path::new("/tmp"), listen(), None);
+    // The bundled fallback config must not re-open anonymous sign-ups.
+    assert_eq!(config.auth.htpasswd.max_users, super::MaxUsers::Disabled);
     let needs_auth = config.policies.for_package("@pnpm.e2e/needs-auth");
     assert!(!needs_auth.access.allows(&Identity::Anonymous));
     assert!(needs_auth.access.allows(&user("alice")));
