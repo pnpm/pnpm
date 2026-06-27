@@ -271,6 +271,7 @@ fn route<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFut
         CliCommand::Fetch(args) => dispatch_install::fetch(ctx, args),
         CliCommand::Unlink(args) => dispatch_install::unlink(ctx, args),
         CliCommand::Docs(args) => dispatch_query::docs(ctx, args),
+        CliCommand::SelfUpdate(args) => dispatch_query::self_update(ctx, args),
         CliCommand::Completion(_) | CliCommand::CompletionServer(_) => {
             unreachable!("completion returns before configuration")
         }

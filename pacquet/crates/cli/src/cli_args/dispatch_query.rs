@@ -16,6 +16,7 @@ use super::{
     ping::PingArgs,
     reporter::ReporterType,
     root::RootArgs,
+    self_update::SelfUpdateArgs,
     store::StoreCommand,
     why::WhyArgs,
 };
@@ -188,6 +189,27 @@ pub(super) fn pack_app<'a>(
 pub(super) fn docs<'a>(ctx: &RunCtx<'a>, args: DocsArgs) -> miette::Result<CommandFuture<'a>> {
     let cfg = (ctx.config)()?;
     Ok(Box::pin(async move { args.run(cfg).await }))
+}
+
+pub(super) fn self_update<'a>(
+    ctx: &RunCtx<'a>,
+    args: SelfUpdateArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    // Refuse corepack before loading project config, so a broken `.npmrc`
+    // / workspace config can't mask the corepack refusal.
+    super::self_update::reject_if_corepack()?;
+    let config = (ctx.config)()?;
+    let dir = ctx.dir;
+    macro_rules! run_self_update {
+        ($reporter:ty) => {
+            Box::pin(args.run::<$reporter>(config, dir))
+        };
+    }
+    Ok(match ctx.reporter {
+        ReporterType::Default | ReporterType::AppendOnly => run_self_update!(DefaultReporter),
+        ReporterType::Ndjson => run_self_update!(NdjsonReporter),
+        ReporterType::Silent => run_self_update!(SilentReporter),
+    })
 }
 
 pub(super) fn store<'a>(

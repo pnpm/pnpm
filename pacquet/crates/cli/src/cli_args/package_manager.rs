@@ -3,11 +3,11 @@ use serde_json::Value;
 use std::{fs, io::ErrorKind, path::Path};
 
 #[derive(Debug)]
-struct WantedPackageManager {
-    name: String,
-    version: Option<String>,
-    from_dev_engines: bool,
-    on_fail: Option<String>,
+pub(crate) struct WantedPackageManager {
+    pub(crate) name: String,
+    pub(crate) version: Option<String>,
+    pub(crate) from_dev_engines: bool,
+    pub(crate) on_fail: Option<String>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -43,7 +43,7 @@ pub(crate) fn package_manager_to_sync(
         .map(|version| PackageManagerToSync { specifier: wanted_version.to_string(), version }))
 }
 
-fn read_manifest_json(path: &Path) -> miette::Result<Option<Value>> {
+pub(crate) fn read_manifest_json(path: &Path) -> miette::Result<Option<Value>> {
     let content = match fs::read_to_string(path) {
         Ok(content) => content,
         Err(error) if error.kind() == ErrorKind::NotFound => return Ok(None),
@@ -52,7 +52,7 @@ fn read_manifest_json(path: &Path) -> miette::Result<Option<Value>> {
     serde_json::from_str(&content).into_diagnostic().map(Some)
 }
 
-fn wanted_package_manager(manifest: &Value) -> Option<WantedPackageManager> {
+pub(crate) fn wanted_package_manager(manifest: &Value) -> Option<WantedPackageManager> {
     if let Some(mut pm) = parse_dev_engines_package_manager(manifest) {
         if pm.version.as_deref().is_some_and(|version| node_semver::Range::parse(version).is_err())
         {
@@ -129,7 +129,7 @@ pub(crate) fn parse_package_manager(package_manager: &str) -> (String, Option<St
     )
 }
 
-fn should_persist_package_manager_lockfile(pm: &WantedPackageManager) -> bool {
+pub(crate) fn should_persist_package_manager_lockfile(pm: &WantedPackageManager) -> bool {
     if pm.on_fail.as_deref().unwrap_or("download") == "ignore" {
         return false;
     }
@@ -153,7 +153,7 @@ fn pnpm_version_from(root_dir: &Path) -> Option<String> {
     value.get("version").and_then(Value::as_str).map(ToString::to_string)
 }
 
-fn exact_version(version: &str) -> Option<String> {
+pub(crate) fn exact_version(version: &str) -> Option<String> {
     let parsed = node_semver::Version::parse(version).ok()?;
     (parsed.to_string() == version).then(|| version.to_string())
 }

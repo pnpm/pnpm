@@ -36,6 +36,7 @@ use super::{
     root::RootArgs,
     run::RunArgs,
     runtime::RuntimeArgs,
+    self_update::SelfUpdateArgs,
     set_script::SetScriptArgs,
     stop::StopArgs,
     store::StoreCommand,
@@ -221,4 +222,6 @@ pub enum CliCommand {
     /// Opens the documentation of a package in the browser.
     #[clap(visible_alias = "home")]
     Docs(DocsArgs),
+    /// Updates pnpm to the latest version (or the one specified)
+    SelfUpdate(SelfUpdateArgs),
 }
