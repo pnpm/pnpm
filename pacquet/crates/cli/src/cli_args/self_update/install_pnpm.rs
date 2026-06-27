@@ -119,6 +119,14 @@ async fn run_install<Reporter: self::Reporter + 'static>(
     cfg.dangerously_allow_all_builds = false;
     cfg.allow_builds.clear();
     cfg.strict_dep_builds = false;
+    // Drop repo-controlled resolution-rewrite settings so a project's
+    // `pnpm-workspace.yaml` can't change the engine's installed dependency
+    // graph. The top-level engine components are signature-verified, but
+    // the installed closure must stay the published one.
+    cfg.overrides = None;
+    cfg.package_extensions = None;
+    cfg.catalogs = None;
+    cfg.patched_dependencies = None;
 
     let config: &'static Config = Config::leak(cfg);
     let manifest_path = install_dir.join("package.json");

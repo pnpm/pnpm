@@ -155,7 +155,8 @@ async fn handler<Reporter: self::Reporter + 'static>(
         // read the resolved version from the env lockfile to drive the
         // hint — otherwise crossing a major would silently skip it.
         Some(pm) if pm.name == "pnpm" => {
-            read_project_pinned_pnpm_version(dir, pm.version.as_deref())
+            let lockfile_dir = config.workspace_dir.as_deref().unwrap_or(dir);
+            read_project_pinned_pnpm_version(lockfile_dir, pm.version.as_deref())
                 .filter(|version| version != &target_version)
         }
         _ if PACQUET_VERSION != target_version => Some(PACQUET_VERSION.to_string()),
@@ -260,9 +261,11 @@ async fn update_project_pin(
     }
 
     // Implicit `latest` must not downgrade a project pinned to a newer
-    // version than the registry's `latest`.
+    // version than the registry's `latest`. The env lockfile lives at the
+    // workspace root, not necessarily the command's `--dir`.
+    let lockfile_dir = config.workspace_dir.as_deref().unwrap_or(dir);
     if is_implicit_latest
-        && let Some(current) = read_project_pinned_pnpm_version(dir, pm.version.as_deref())
+        && let Some(current) = read_project_pinned_pnpm_version(lockfile_dir, pm.version.as_deref())
         && version_lt(target_version, &current)
     {
         return Ok(Some(format!(
@@ -388,8 +391,8 @@ fn update_version_constraint(current: Option<&str>, new_version: &str) -> String
 /// `latest` against downgrading. Prefers the env lockfile's resolved
 /// version (accurate for range pins); falls back to the spec's exact
 /// version. Mirrors pnpm's `readProjectPinnedPnpmVersion`.
-fn read_project_pinned_pnpm_version(dir: &Path, spec: Option<&str>) -> Option<String> {
-    let lockfile_pinned = EnvLockfile::read(dir).ok().flatten().and_then(|env| {
+fn read_project_pinned_pnpm_version(lockfile_dir: &Path, spec: Option<&str>) -> Option<String> {
+    let lockfile_pinned = EnvLockfile::read(lockfile_dir).ok().flatten().and_then(|env| {
         env.importers
             .get(EnvLockfile::ROOT_IMPORTER_KEY)
             .and_then(|importer| importer.package_manager_dependencies.as_ref())
