@@ -23,6 +23,7 @@ use pacquet_resolving_npm_resolver::{
     InMemoryPackageMetaCache, NpmResolver, shared_packument_fetch_locker,
     shared_picked_manifest_cache,
 };
+use pacquet_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
 use pacquet_store_dir::StoreDir;
 use pacquet_workspace_state::ConfigDependency;
 use serde_json::Value;
@@ -67,6 +68,109 @@ pub async fn sync_package_manager_dependencies(
         .await
         .map_err(miette::Report::new)
         .wrap_err("resolve package manager dependencies")
+}
+
+/// The version `pnpm self-update` resolved a specifier to, plus whether
+/// the pick violated the active maturity/trust policy. Mirrors the
+/// `resolution.manifest`-derived values pnpm's self-update reads from
+/// [`createResolver`](https://github.com/pnpm/pnpm/blob/a33eeec9cd/pnpm11/engine/pm/commands/src/self-updater/selfUpdate.ts#L83-L116).
+pub struct ResolvedPnpm {
+    pub version: String,
+    /// `true` when the resolver picked a version despite the maturity
+    /// (`minimumReleaseAge`) or `trustPolicy` gate. Self-update fails
+    /// closed on this under strict resolution, mirroring pnpm's
+    /// `makeResolutionStrict`.
+    pub policy_violation: bool,
+}
+
+/// Resolve `pnpm@<bare_specifier>` against the trusted package-manager
+/// bootstrap registry (never the repository-controlled project
+/// registries), applying the same `minimumReleaseAge` / `trustPolicy`
+/// gates the install path uses. Returns `None` when the specifier cannot
+/// be resolved. Backs `pacquet self-update`'s "check for updates" probe.
+pub async fn resolve_pnpm_version(
+    config: &Config,
+    bare_specifier: &str,
+) -> Result<Option<ResolvedPnpm>> {
+    let context = EnvInstallerContext::for_package_manager(config)?;
+
+    // `minimumReleaseAge` cutoff, computed the same way as the install
+    // path's `PickPolicy::from_config`. When the age is configured, a
+    // failure to compute the cutoff fails closed rather than silently
+    // disabling the maturity gate — self-update is a trust decision.
+    let published_by = match config.resolved_minimum_release_age() {
+        Some(minutes) => {
+            let minutes = i64::try_from(minutes)
+                .into_diagnostic()
+                .wrap_err("convert minimumReleaseAge to minutes")?;
+            let duration = chrono::Duration::try_minutes(minutes)
+                .ok_or_else(|| miette::miette!("minimumReleaseAge is too large"))?;
+            Some(
+                chrono::Utc::now()
+                    .checked_sub_signed(duration)
+                    .ok_or_else(|| miette::miette!("minimumReleaseAge cutoff is out of range"))?,
+            )
+        }
+        None => None,
+    };
+    let published_by_exclude = config
+        .minimum_release_age_exclude
+        .as_deref()
+        .filter(|patterns| !patterns.is_empty())
+        .map(pacquet_config::version_policy::create_package_version_policy)
+        .transpose()
+        .into_diagnostic()
+        .wrap_err("compile the minimum-release-age-exclude policy")?;
+    let trust_policy = match config.trust_policy {
+        pacquet_config::TrustPolicy::Off => None,
+        pacquet_config::TrustPolicy::NoDowngrade => Some(pacquet_config::TrustPolicy::NoDowngrade),
+    };
+    let trust_policy_exclude = config
+        .trust_policy_exclude
+        .as_deref()
+        .filter(|patterns| !patterns.is_empty())
+        .map(pacquet_config::version_policy::create_package_version_policy)
+        .transpose()
+        .into_diagnostic()
+        .wrap_err("compile the trust-policy-exclude policy")?;
+
+    let wanted = WantedDependency {
+        alias: Some("pnpm".to_string()),
+        bare_specifier: Some(bare_specifier.to_string()),
+        ..WantedDependency::default()
+    };
+    let opts = ResolveOptions {
+        default_tag: Some("latest".to_string()),
+        published_by,
+        published_by_exclude,
+        trust_policy,
+        trust_policy_exclude,
+        trust_policy_ignore_after: config.trust_policy_ignore_after,
+        ..ResolveOptions::default()
+    };
+    let result = context
+        .resolver
+        .resolve(&wanted, &opts)
+        .await
+        .map_err(|error| miette::miette!("{error}"))
+        .wrap_err_with(|| format!("resolve pnpm@{bare_specifier}"))?;
+    let Some(result) = result else {
+        return Ok(None);
+    };
+    let Some(name_ver) = result.name_ver else {
+        return Ok(None);
+    };
+    // Fail closed if the specifier resolved to something other than `pnpm`
+    // (e.g. an `npm:other-pkg@x` alias): otherwise the maturity/trust
+    // policy decision would be made against the wrong package's metadata
+    // while self-update still installs `pnpm@<version>`.
+    if name_ver.name.to_string() != "pnpm" {
+        return Ok(None);
+    }
+    Ok(Some(ResolvedPnpm {
+        version: name_ver.suffix.to_string(),
+        policy_violation: result.policy_violation.is_some(),
+    }))
 }
 
 /// Add a single config dependency: resolve + install it (merged with any
