@@ -57,8 +57,7 @@ where
         result = &mut poll => result,
         () = &mut listener => {
             open_in_browser::<Sys, Reporter>(&canonical_url);
-            // The keypress fires once; keep awaiting the poll. The listener
-            // is dropped (closed) when this function returns.
+            // The keypress fires once; keep awaiting the poll.
             poll.await
         }
     }

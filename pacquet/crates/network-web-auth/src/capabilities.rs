@@ -239,12 +239,11 @@ impl Drop for HostEnterHandle {
 impl EnterKeyListener for Host {
     type Handle = HostEnterHandle;
 
-    /// Watch stdin for an Enter keypress without blocking uninterruptibly.
-    /// A background thread polls with a timeout and re-checks the cancel
-    /// flag each tick, so dropping the handle stops it promptly. `crossterm`
+    /// Watch stdin for an Enter keypress without blocking uninterruptibly
+    /// (the cancellation contract lives on `HostEnterHandle`). `crossterm`
     /// reads in the terminal's default (cooked) mode — no raw mode — matching
     /// pnpm's plain `readline.createInterface({ input: process.stdin })`,
-    /// which also reacts to a submitted line rather than individual keys.
+    /// which reacts to a submitted line rather than individual keys.
     fn listen() -> io::Result<HostEnterHandle> {
         let (tx, enter) = tokio::sync::oneshot::channel();
         let cancel = Arc::new(AtomicBool::new(false));
