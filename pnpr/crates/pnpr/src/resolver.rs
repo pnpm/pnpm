@@ -54,9 +54,11 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::config::Config as RegistryConfig;
-use crate::policy::Identity;
-use crate::route::{Footprint, RouteContext, RouteHook};
+use crate::{
+    config::Config as RegistryConfig,
+    policy::Identity,
+    route::{Footprint, RouteContext, RouteHook},
+};
 
 use axum::{
     body::{Body, Bytes},

@@ -124,8 +124,8 @@ pub struct Config {
     /// resolution. See [`ResolverFeature`].
     pub resolver: ResolverFeature,
     /// Which fetch routes the resolution cache treats as public (fetched
-    /// anonymously and shared globally) vs. private. See
-    /// [`crate::route`].
+    /// anonymously and shared globally) vs. private, driving the
+    /// resolver's route classification.
     pub route_policy: RoutePolicy,
     /// pnpr-managed upstream credential aliases, keyed by name. A resolve
     /// uses one of these for a private proxied route the caller is

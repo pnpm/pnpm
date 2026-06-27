@@ -32,7 +32,7 @@ fn route_hook_overrides_client_credentials() {
     // Without a hook the client-forwarded token is returned.
     assert_eq!(
         client_creds.for_url("https://reg.com/pkg"),
-        Some("Bearer client-token".to_string())
+        Some("Bearer client-token".to_string()),
     );
 
     let hook =

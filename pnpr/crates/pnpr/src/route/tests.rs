@@ -156,13 +156,13 @@ fn footprint_digest_is_stable_and_namespaced() {
     assert_ne!(digest, footprint.digest(b"other-secret").unwrap());
 
     // The digest is order-independent (BTreeSet union).
-    let mut a = Footprint::default();
-    a.add(PrivateAccessDescriptor::Alias { alias: "x".to_string(), generation: 1 });
-    a.add(PrivateAccessDescriptor::Hosted { policy_id: "@p/*".to_string() });
-    let mut b = Footprint::default();
-    b.add(PrivateAccessDescriptor::Hosted { policy_id: "@p/*".to_string() });
-    b.add(PrivateAccessDescriptor::Alias { alias: "x".to_string(), generation: 1 });
-    assert_eq!(a.digest(b"k"), b.digest(b"k"));
+    let mut one_order = Footprint::default();
+    one_order.add(PrivateAccessDescriptor::Alias { alias: "x".to_string(), generation: 1 });
+    one_order.add(PrivateAccessDescriptor::Hosted { policy_id: "@p/*".to_string() });
+    let mut other_order = Footprint::default();
+    other_order.add(PrivateAccessDescriptor::Hosted { policy_id: "@p/*".to_string() });
+    other_order.add(PrivateAccessDescriptor::Alias { alias: "x".to_string(), generation: 1 });
+    assert_eq!(one_order.digest(b"k"), other_order.digest(b"k"));
 }
 
 #[test]

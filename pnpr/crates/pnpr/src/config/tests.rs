@@ -1838,7 +1838,7 @@ fn resolution_secret_uses_yaml_secret_then_falls_back_to_random() {
         None,
     )
     .unwrap();
-    assert_eq!(with_secret.resolution_cache_secret.as_ref(), b"pnpm-registry-mock-secret-key-32",);
+    assert_eq!(with_secret.resolution_cache_secret.as_ref(), b"pnpm-registry-mock-secret-key-32");
 
     // No `secret:` yields a fresh 32-byte CSPRNG value.
     let without_secret = Config::from_yaml_str("{}", Path::new("/x"), listen(), None).unwrap();

@@ -17,9 +17,11 @@
 //! key at that host or prefix in `.npmrc`; if it redirects across
 //! hosts, no header is attached, matching upstream.
 
-use std::collections::{BTreeMap, HashMap};
-use std::fmt;
-use std::sync::Arc;
+use std::{
+    collections::{BTreeMap, HashMap},
+    fmt,
+    sync::Arc,
+};
 
 pub const DEFAULT_REGISTRY_SCOPE: &str = "@";
 
