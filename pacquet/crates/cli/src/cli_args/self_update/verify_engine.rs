@@ -14,6 +14,7 @@
 //! Runs only on a genuine download (a store cache miss), so it does not
 //! add a network round trip to every command.
 
+use crate::cli_args::package_name::encode_package_name;
 use base64::Engine as _;
 use p256::{
     ecdsa::{Signature, VerifyingKey, signature::Verifier},
@@ -522,29 +523,6 @@ fn retry_opts(config: &Config) -> RetryOpts {
 
 fn with_trailing_slash(registry: &str) -> String {
     if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
-}
-
-/// Percent-encode a package name for a packument URL (scoped names keep
-/// the leading `@`, the `/` becomes `%2F`).
-fn encode_package_name(name: &str) -> String {
-    match name.strip_prefix('@') {
-        Some(rest) => format!("@{}", encode_uri_component(rest)),
-        None => encode_uri_component(name),
-    }
-}
-
-fn encode_uri_component(input: &str) -> String {
-    use std::fmt::Write as _;
-    const UNRESERVED: &[u8] = b"-_.!~*'()";
-    let mut output = String::with_capacity(input.len());
-    for &byte in input.as_bytes() {
-        if byte.is_ascii_alphanumeric() || UNRESERVED.contains(&byte) {
-            output.push(byte as char);
-        } else {
-            write!(output, "%{byte:02X}").expect("writing to a String never fails");
-        }
-    }
-    output
 }
 
 #[cfg(test)]

@@ -1,6 +1,7 @@
 use super::{
     audit::{AuditArgs, AuditOutcome},
     bin::BinArgs,
+    bugs::BugsArgs,
     cache::CacheCommand,
     cat_file::CatFileArgs,
     cat_index::CatIndexArgs,
@@ -331,6 +332,12 @@ pub(super) fn ignored_builds<'a>(
     let output = super::ignored_builds::render_ignored_builds((ctx.config)()?)?;
     print!("{output}");
     Ok(Box::pin(std::future::ready(Ok(()))))
+}
+
+pub(super) fn bugs<'a>(ctx: &RunCtx<'a>, args: BugsArgs) -> miette::Result<CommandFuture<'a>> {
+    let cfg: &Config = (ctx.config)()?;
+    let dir = ctx.dir;
+    Ok(Box::pin(async move { args.run(cfg, dir).await }))
 }
 
 pub(super) fn find_hash<'a>(
