@@ -61,19 +61,40 @@ pub fn extract_manifest_from_packed(tarball_path: &str) -> Result<Value, Extract
 /// Normalize a tar entry path to forward slashes and collapse `.` / `..`
 /// segments, mirroring the TS `path.normalize(name).replaceAll('\\', '/')`
 /// comparison (so e.g. `package/./package.json` still matches).
+///
+/// `path.normalize` keeps what cannot be resolved: a leading `/` stays
+/// (the result is still absolute) and a `..` with no real segment to pop is
+/// preserved on a relative path. So `/package/package.json` and
+/// `../package/package.json` normalize to themselves and must *not* match the
+/// relative `package/package.json` the loop is looking for, exactly as in pnpm.
 fn normalize_entry_path(path: &Path) -> String {
     let raw = path.to_string_lossy().replace('\\', "/");
+    if raw.is_empty() {
+        return ".".to_owned();
+    }
+    let is_absolute = raw.starts_with('/');
     let mut segments: Vec<&str> = Vec::new();
     for segment in raw.split('/') {
         match segment {
             "" | "." => {}
             ".." => {
-                segments.pop();
+                if matches!(segments.last(), Some(&last) if last != "..") {
+                    segments.pop();
+                } else if !is_absolute {
+                    // A `..` cannot climb above the filesystem root, but on a
+                    // relative path it climbs above the start, so keep it.
+                    segments.push("..");
+                }
             }
             other => segments.push(other),
         }
     }
-    segments.join("/")
+    let joined = segments.join("/");
+    match (is_absolute, joined.is_empty()) {
+        (true, _) => format!("/{joined}"),
+        (false, true) => ".".to_owned(),
+        (false, false) => joined,
+    }
 }
 
 /// Failure surface of [`extract_manifest_from_packed`].

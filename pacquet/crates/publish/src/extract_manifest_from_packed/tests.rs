@@ -1,4 +1,6 @@
-use super::{ExtractManifestError, extract_manifest_from_packed, is_tarball_path};
+use super::{
+    ExtractManifestError, extract_manifest_from_packed, is_tarball_path, normalize_entry_path,
+};
 use flate2::{Compression, write::GzEncoder};
 use pretty_assertions::assert_eq;
 use std::io::Write;
@@ -46,6 +48,24 @@ fn extracts_manifest_from_non_canonical_entry_path() {
     let path = write_tarball(&dir, &[("package/./package.json", r#"{"name":"foo"}"#)]);
     let manifest = extract_manifest_from_packed(&path).unwrap();
     assert_eq!(manifest["name"], "foo");
+}
+
+#[test]
+fn normalize_entry_path_matches_node_path_normalize() {
+    use std::path::Path;
+    // Collapses `.` and resolvable `..`, matching the relative target.
+    assert_eq!(normalize_entry_path(Path::new("package/./package.json")), "package/package.json");
+    assert_eq!(
+        normalize_entry_path(Path::new("package/sub/../package.json")),
+        "package/package.json"
+    );
+    // Keeps a leading `/` and an unresolvable leading `..`, so neither matches
+    // the relative `package/package.json` the lookup compares against.
+    assert_eq!(normalize_entry_path(Path::new("/package/package.json")), "/package/package.json");
+    assert_eq!(
+        normalize_entry_path(Path::new("../package/package.json")),
+        "../package/package.json"
+    );
 }
 
 #[test]
