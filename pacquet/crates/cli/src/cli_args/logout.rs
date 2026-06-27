@@ -7,7 +7,8 @@
 use std::{collections::HashMap, time::Duration};
 
 use clap::Args;
-use miette::IntoDiagnostic;
+use derive_more::{Display, Error};
+use miette::{Diagnostic, IntoDiagnostic};
 use pacquet_auth_commands::logout::{Host as AuthHost, LogoutOptions, logout};
 use pacquet_config::Config;
 use pacquet_network::{NetworkSettings, RetryOpts, ThrottledClient};
@@ -21,6 +22,17 @@ pub struct LogoutArgs {
     pub registry: Option<String>,
 }
 
+#[derive(Debug, Display, Error, Diagnostic)]
+#[non_exhaustive]
+pub enum LogoutCliError {
+    /// pacquet-specific guard: pnpm always resolves a `configDir`, but
+    /// pacquet leaves [`Config::config_dir`] `None` when no home directory
+    /// can be located, and `logout` cannot find `auth.ini` without it.
+    #[display("Could not determine the pnpm config directory to locate auth.ini")]
+    #[diagnostic(code(ERR_PNPM_NO_CONFIG_DIR))]
+    NoConfigDir,
+}
+
 impl LogoutArgs {
     pub async fn run<Reporter: self::Reporter>(
         self,
@@ -28,10 +40,7 @@ impl LogoutArgs {
         prefix: &str,
     ) -> miette::Result<()> {
         let Some(config_dir) = config.config_dir.as_deref() else {
-            return Err(miette::miette!(
-                code = "ERR_PNPM_NO_CONFIG_DIR",
-                "Could not determine the pnpm config directory to locate auth.ini",
-            ));
+            return Err(LogoutCliError::NoConfigDir.into());
         };
 
         let http_client = ThrottledClient::for_installs(
