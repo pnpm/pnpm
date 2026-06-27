@@ -13,6 +13,16 @@ fn no_retry() -> RetryOpts {
     RetryOpts { retries: 0, factor: 1, min_timeout: Duration::ZERO, max_timeout: Duration::ZERO }
 }
 
+/// A `127.0.0.1:<port>` address guaranteed to refuse connections: bind an
+/// ephemeral port, then drop the listener so the OS frees it. Deterministic
+/// across environments, unlike assuming a fixed low port is closed.
+fn refused_local_addr() -> String {
+    let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).expect("bind ephemeral port");
+    let addr = listener.local_addr().expect("read local addr");
+    drop(listener);
+    addr.to_string()
+}
+
 /// A throwaway HTTP client. Every test fakes [`RevokeToken`], so the
 /// client is never used to send — it only satisfies [`logout`]'s
 /// signature.
@@ -626,8 +636,8 @@ async fn host_removes_token_locally_when_registry_rejects() {
 #[tokio::test]
 async fn host_removes_token_locally_when_registry_unreachable() {
     const TOKEN: &str = "net-err-token";
-    // Port 1 has nothing listening, so the connection is refused at once.
-    let registry = "http://127.0.0.1:1";
+    let registry = format!("http://{}", refused_local_addr());
+    let registry = registry.as_str();
     let token_key = format!("{}:_authToken", nerf_dart(&format!("{registry}/")));
 
     let config_dir = TempDir::new().expect("create temp config dir");
@@ -707,13 +717,14 @@ async fn success_message_and_warning_redact_the_registry() {
         read = { Ok(String::new()) },
         revoke = RevokeOutcome::Revoked,
     );
-    // `nerf_dart` drops the userinfo, so the token key is the same as for a
-    // credential-free registry.
+    // `nerf_dart` drops the userinfo and query, so the token key is the same as
+    // for a credential-free registry. The escape sequence sits in the query so
+    // it survives credential redaction and must be removed by sanitization.
     let auth = auth_config(&[("//npm.example.com/:_authToken", "tok")]);
     let result = logout::<Sys, Rep>(
         &unused_client(),
         LogoutOptions {
-            registry: Some("https://user:s3cret@npm.example.com/"),
+            registry: Some("https://user:s3cret@npm.example.com/?e=\u{1b}[31m"),
             auth_config: &auth,
             config_dir: Path::new("/config"),
             retry: no_retry(),
@@ -723,10 +734,11 @@ async fn success_message_and_warning_redact_the_registry() {
     .await
     .unwrap();
 
-    assert_eq!(result, "Logged out of https://npm.example.com/");
-    let warning = warns(&EVENTS).remove(0);
-    assert!(!warning.contains("s3cret"), "credentials must be redacted: {warning:?}");
-    assert!(warning.contains("https://npm.example.com/"), "host should remain: {warning:?}");
+    for output in [&result, &warns(&EVENTS).remove(0)] {
+        assert!(output.contains("https://npm.example.com/"), "host should remain: {output:?}");
+        assert!(!output.contains("s3cret"), "credentials must be redacted: {output:?}");
+        assert!(!output.contains('\u{1b}'), "control characters must be stripped: {output:?}");
+    }
 }
 
 // Regression for the token leaking into retry logs: the revoke URL carries
@@ -736,9 +748,9 @@ async fn success_message_and_warning_redact_the_registry() {
 #[tokio::test]
 async fn retry_logs_do_not_leak_the_token() {
     const TOKEN: &str = "SUPERSECRETTOKEN";
-    // Port 1 has nothing listening, so the connection is refused at once and
-    // the single retry fires a warn log.
-    let revoke_url = format!("http://127.0.0.1:1/-/user/token/{TOKEN}");
+    // A closed local port refuses the connection at once, so the single retry
+    // fires a warn log.
+    let revoke_url = format!("http://{}/-/user/token/{TOKEN}", refused_local_addr());
     let retry = RetryOpts {
         retries: 1,
         factor: 1,
