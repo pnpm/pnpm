@@ -20,6 +20,16 @@ pub(super) fn add_dir_to_posix_env_path(
     dir: &Path,
     opts: &AddDirToEnvPathOpts,
 ) -> Result<PathExtenderReport, PathExtenderError> {
+    // Reject characters that would split the rendered colon-delimited `PATH`
+    // into extra entries (`:`) or corrupt the rc block (`\n` / `\r` / NUL).
+    // Single-quote escaping neutralizes shell expansion but cannot stop a
+    // `:` from acting as a PATH separator once `$PNPM_HOME/bin` expands.
+    let dir_str = dir.to_string_lossy();
+    if let Some(character) =
+        dir_str.chars().find(|character| matches!(character, ':' | '\n' | '\r' | '\0'))
+    {
+        return Err(PathExtenderError::UnsafePnpmHome { dir: dir_str.into_owned(), character });
+    }
     let current_shell = detect_current_shell();
     update_shell(current_shell.as_deref(), dir, opts)
 }
@@ -247,14 +257,14 @@ fn update_shell_config(
         if let Some(parent) = config_file.parent() {
             fs::create_dir_all(parent)?;
         }
-        write_atomic(config_file, &format!("{new_content}\n"))?;
+        write_config(config_file, &format!("{new_content}\n"))?;
         return Ok((ConfigFileChangeType::Created, String::new()));
     }
     let config_content = fs::read_to_string(config_file)?;
     let Some((matched_range, old_settings)) =
         find_section(&config_content, opts.config_section_name)
     else {
-        write_atomic(config_file, &format!("{config_content}\n{new_content}\n"))?;
+        write_config(config_file, &format!("{config_content}\n{new_content}\n"))?;
         return Ok((ConfigFileChangeType::Appended, String::new()));
     };
     if &config_content[matched_range] != new_content {
@@ -266,33 +276,19 @@ fn update_shell_config(
         }
         let new_config_content =
             replace_section(&config_content, new_content, opts.config_section_name);
-        write_atomic(config_file, &new_config_content)?;
+        write_config(config_file, &new_config_content)?;
         return Ok((ConfigFileChangeType::Modified, old_settings));
     }
     Ok((ConfigFileChangeType::Skipped, old_settings))
 }
 
-/// Overwrite `path` crash-safely: write to a sibling temp file, flush it to
-/// disk, then atomically rename it over the target. A crash or disk-full
-/// error mid-write leaves the original rc file intact rather than truncated.
-fn write_atomic(path: &Path, content: &str) -> std::io::Result<()> {
-    use std::io::Write;
-    let file_name = path.file_name().ok_or_else(|| {
-        std::io::Error::new(std::io::ErrorKind::InvalidInput, "config path has no file name")
-    })?;
-    let mut temp_name = file_name.to_os_string();
-    temp_name.push(".pnpm-tmp");
-    let temp_path = path.with_file_name(temp_name);
-    let mut file = fs::File::create(&temp_path)?;
-    let write_result = file.write_all(content.as_bytes()).and_then(|()| file.sync_all());
-    if let Err(err) = write_result {
-        let _ = fs::remove_file(&temp_path);
-        return Err(err);
-    }
-    if let Err(err) = fs::rename(&temp_path, path) {
-        let _ = fs::remove_file(&temp_path);
-        return Err(err);
-    }
+/// Overwrite the rc file crash-safely via [`pacquet_fs::ensure_file`], the
+/// repo's hardened atomic writer: it writes through a unique sibling temp
+/// file opened with `O_CREAT|O_EXCL` (so it never follows a pre-seeded
+/// symlink or truncates an attacker-planted path) and renames it over the
+/// target.
+fn write_config(path: &Path, content: &str) -> Result<(), PathExtenderError> {
+    pacquet_fs::ensure_file(path, content.as_bytes(), None)?;
     Ok(())
 }
 

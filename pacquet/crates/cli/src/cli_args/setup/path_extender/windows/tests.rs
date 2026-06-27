@@ -47,7 +47,7 @@ fn rejects_pnpm_home_that_would_split_the_path() {
     };
     let err = add_dir_to_windows_env_path_inner(Path::new(r"C:\pnpm;C:\evil"), &opts)
         .expect_err("a semicolon in PNPM_HOME must be rejected");
-    assert!(matches!(err, PathExtenderError::UnsafePnpmHomeForWindows { character: ';', .. }));
+    assert!(matches!(err, PathExtenderError::UnsafePnpmHome { character: ';', .. }));
 }
 
 #[test]

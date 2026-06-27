@@ -6,12 +6,12 @@
 //! `add_dir_to_posix_env_path`.
 
 use super::{
-    AddDirToEnvPathOpts, AddingPosition, ConfigFileChangeType, PathExtenderError, find_section,
-    render_fish_settings, render_nu_settings, render_posix_settings, replace_section,
-    update_shell_config, wrap_settings,
+    AddDirToEnvPathOpts, AddingPosition, ConfigFileChangeType, PathExtenderError,
+    add_dir_to_posix_env_path, find_section, render_fish_settings, render_nu_settings,
+    render_posix_settings, replace_section, update_shell_config, wrap_settings,
 };
 use pretty_assertions::assert_eq;
-use std::fs;
+use std::{fs, path::Path};
 
 const HOME: &str = "/home/user/.pnpm";
 
@@ -141,6 +141,15 @@ fn proxy_value_is_single_quote_escaped_against_injection() {
     let settings = render_posix_settings("/home/u/$(touch pwned)/it's", &opts(false));
     let first_line = settings.lines().next();
     assert_eq!(first_line, Some(r"export PNPM_HOME='/home/u/$(touch pwned)/it'\''s'"));
+}
+
+#[test]
+fn rejects_pnpm_home_with_a_path_separator() {
+    // A `:` in PNPM_HOME would split the rendered POSIX PATH into extra
+    // entries, so it is rejected before any rc file is touched.
+    let err = add_dir_to_posix_env_path(Path::new("/home/pnpm:/tmp/evil"), &opts(false))
+        .expect_err("a colon in PNPM_HOME must be rejected");
+    assert!(matches!(err, PathExtenderError::UnsafePnpmHome { character: ':', .. }));
 }
 
 #[test]

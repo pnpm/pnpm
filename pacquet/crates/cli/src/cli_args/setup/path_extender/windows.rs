@@ -56,7 +56,7 @@ fn add_dir_to_windows_env_path_inner(
     if let Some(character) =
         added_dir.chars().find(|character| matches!(character, ';' | '%' | '\n' | '\r'))
     {
-        return Err(PathExtenderError::UnsafePnpmHomeForWindows { dir: added_dir, character });
+        return Err(PathExtenderError::UnsafePnpmHome { dir: added_dir, character });
     }
     let registry_output = get_registry_output()?;
     let mut changes = Vec::new();
