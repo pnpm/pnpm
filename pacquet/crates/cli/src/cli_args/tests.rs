@@ -1,4 +1,6 @@
-use super::{CliArgs, CliCommand, package_manager_to_sync};
+use super::CliArgs;
+use super::cli_command::CliCommand;
+use super::package_manager::{current_source_pnpm_version, package_manager_to_sync};
 use clap::Parser;
 use tempfile::TempDir;
 
@@ -130,6 +132,6 @@ fn package_manager_to_sync_preserves_dev_engine_specifier() {
     assert_eq!(package_manager.specifier, ">=0.0.0");
     assert_eq!(
         package_manager.version,
-        super::current_source_pnpm_version().expect("source pnpm version"),
+        current_source_pnpm_version().expect("source pnpm version"),
     );
 }
