@@ -41,7 +41,7 @@ fn scoped_meta_dir_private_namespaces_by_descriptor() {
     );
     // Distinct descriptors never share a directory.
     let other = MetadataCacheScope::Private { descriptor_id: "def456".to_string() };
-    assert_ne!(scoped_meta_dir(&scope, FULL_META_DIR), scoped_meta_dir(&other, FULL_META_DIR),);
+    assert_ne!(scoped_meta_dir(&scope, FULL_META_DIR), scoped_meta_dir(&other, FULL_META_DIR));
 }
 
 #[test]

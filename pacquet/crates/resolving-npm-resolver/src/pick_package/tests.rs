@@ -1288,7 +1288,7 @@ fn metadata_cache_key_public_matches_upstream_shape() {
     let scope = MetadataCacheScope::Public;
     assert_eq!(
         metadata_cache_key(&scope, "https://reg/", "acme", false, false),
-        "https://reg/\x00acme"
+        "https://reg/\x00acme",
     );
     assert_eq!(
         metadata_cache_key(&scope, "https://reg/", "acme", true, false),
@@ -1319,7 +1319,7 @@ fn metadata_cache_key_private_and_bypass_are_namespaced() {
     let bypass =
         metadata_cache_key(&MetadataCacheScope::Bypass, "https://reg/", "acme", false, false);
     assert_ne!(public, bypass);
-    assert_ne!(public, metadata_cache_key(&private, "https://reg/", "acme", false, false),);
+    assert_ne!(public, metadata_cache_key(&private, "https://reg/", "acme", false, false));
 }
 
 /// A route hook that classifies every fetch into one fixed

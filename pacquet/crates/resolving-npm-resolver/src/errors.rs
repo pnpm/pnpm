@@ -143,7 +143,7 @@ impl FetchMetadataError {
                     reqwest::StatusCode::UNAUTHORIZED
                         | reqwest::StatusCode::FORBIDDEN
                         | reqwest::StatusCode::NOT_FOUND
-                )
+                ),
             ),
             _ => false,
         }
