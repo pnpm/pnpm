@@ -783,7 +783,7 @@ async function pickFromSimpleRegistry (
     publishedByExclude: opts.publishedByExclude,
     authHeaderValue,
     dryRun: opts.dryRun === true,
-    preferredVersionSelectors: opts.updateRequested ? undefined : opts.preferredVersions?.[spec.name],
+    preferredVersionSelectors: preferredVersionSelectorsFor(opts, spec.name),
     registry,
     includeLatestTag: opts.update === 'latest',
     updateChecksums: opts.updateChecksums,

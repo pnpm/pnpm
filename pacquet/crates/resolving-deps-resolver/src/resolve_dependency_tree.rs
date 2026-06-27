@@ -1811,18 +1811,11 @@ where
     if let Some(result) = cached {
         return Ok(result);
     }
-    // Combine two per-package opts adjustments into a single clone:
-    //   1. `preferred_versions_overlay` — layered when the cache key
-    //      carries peer-overlay context (non-empty `cache_key.8`).
-    //   2. `update_requested` — set per-package when the user's update
-    //      target list (`UpdateReuseScope::Except`) names this package.
-    //      The npm picker then skips `preferred_versions` for the
-    //      targeted package, preventing a sibling's older resolved
-    //      version from pulling the targeted update down.
-    //      For npm-alias dependencies (`foo@npm:bar@^4`), update
-    //      targeting is keyed by the *real* package name (`bar`), so
-    //      we parse the alias target out of `bare_specifier` instead
-    //      of using `wanted.alias` (which is the local install name).
+    // Combine two per-package opts adjustments into one clone. The
+    // `update_requested` flag is scoped per wanted-dependency — true only
+    // when the package's real name (parsed from `bare_specifier` for
+    // npm-aliases, folded from the jsr specifier for jsr deps) is in the
+    // update target list — so siblings keep their preferred-version dedup.
     let needs_overlay = !cache_key.8.is_empty();
     let bypass = should_bypass_preferred(&ctx.workspace.update_reuse_scope, wanted);
     let needs_update = bypass != opts.update_requested;
@@ -2217,12 +2210,17 @@ fn real_package_name_of(wanted: &WantedDependency) -> Option<Cow<'_, str>> {
         };
         return (!name.is_empty()).then_some(Cow::Borrowed(name));
     }
-    if bare.starts_with("jsr:")
-        && let Ok(Some(spec)) = pacquet_resolving_jsr_specifier_parser::parse_jsr_specifier(
+    if bare.starts_with("jsr:") {
+        // An unparsable `jsr:` specifier carries no recoverable real
+        // name — return `None` rather than falling back to the install
+        // alias, which could accidentally match an `updateMatching`
+        // target and mark the broken dep as a targeted update.
+        let spec = pacquet_resolving_jsr_specifier_parser::parse_jsr_specifier(
             bare,
             wanted.alias.as_deref(),
         )
-    {
+        .ok()
+        .flatten()?;
         return Some(Cow::Owned(spec.npm_pkg_name));
     }
     // Plain dep or workspace dep: the install alias is the real name.
