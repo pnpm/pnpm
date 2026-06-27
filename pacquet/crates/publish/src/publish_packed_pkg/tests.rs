@@ -19,6 +19,13 @@ fn cleans_versions() {
 }
 
 #[test]
+fn clean_version_drops_build_metadata_keeps_prerelease() {
+    // `semver.clean` returns SemVer.version, which excludes build metadata.
+    assert_eq!(clean_version("1.2.3+build.5").unwrap(), "1.2.3");
+    assert_eq!(clean_version("1.2.3-rc.1+build").unwrap(), "1.2.3-rc.1");
+}
+
+#[test]
 fn builds_document_with_dist_and_attachment() {
     let manifest = json!({ "name": "@scope/pkg", "version": "1.0.0", "description": "hi" });
     let document =

@@ -73,6 +73,14 @@ where
     Sys: EnvVar + CiInfo + Clock + OidcFetch,
     Reporter: self::Reporter,
 {
+    // Generating a signed provenance attestation requires sigstore, which
+    // pacquet does not yet bundle, so an explicit `--provenance` is a hard
+    // error: the request cannot be honored. Fail before the OIDC exchange so a
+    // doomed request never performs authenticated network round-trips first.
+    if opts.provenance == Some(true) {
+        return Err(PublishPackedPkgError::ProvenanceUnsupported);
+    }
+
     let input = CreatePublishOptionsInput {
         default_registry: &opts.default_registry,
         scoped_registries: &opts.scoped_registries,
@@ -441,10 +449,15 @@ fn join_registry(
 /// Clean a version string, mirroring `semver.clean`.
 fn clean_version(version: &str) -> Result<String, PublishPackedPkgError> {
     let trimmed = version.trim().trim_start_matches(['=', 'v']);
-    trimmed
+    let mut parsed = trimmed
         .parse::<node_semver::Version>()
-        .map(|parsed| parsed.to_string())
-        .map_err(|_| PublishPackedPkgError::BadSemver { version: version.to_owned() })
+        .map_err(|_| PublishPackedPkgError::BadSemver { version: version.to_owned() })?;
+    // `semver.clean` returns `SemVer.version`, which is `major.minor.patch`
+    // plus prerelease but never build metadata. node_semver's `Display`
+    // appends `+build`, so drop it to keep the published version identical to
+    // what pnpm registers (e.g. `1.2.3+build` -> `1.2.3`).
+    parsed.build.clear();
+    Ok(parsed.to_string())
 }
 
 fn base64_standard(data: &[u8]) -> String {
