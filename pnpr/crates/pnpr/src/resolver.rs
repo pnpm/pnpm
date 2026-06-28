@@ -158,16 +158,24 @@ impl Resolver {
         let _ = std::fs::create_dir_all(&store_dir);
         let _ = std::fs::create_dir_all(&cache_dir);
         let verdict_cache = VerdictCache::open(&cache_dir.join("lockfile-verdicts.sqlite")).ok();
+        let route_context = Arc::new(RouteContext::from_config(config));
+        // Re-validate every redirect hop against the same fetch allowlist the
+        // request boundary uses, so an allowlisted registry that redirects to
+        // an off-allowlist host cannot slip a server-side fetch past it (SSRF).
+        let redirect_context = Arc::clone(&route_context);
+        let client = Arc::new(ThrottledClient::new_for_installs_with_redirect_guard(move |url| {
+            redirect_context.allows_registry(url.as_str())
+        }));
         Resolver {
             store_dir: StoreDir::new(store_dir),
             cache_dir,
-            client: Arc::new(ThrottledClient::new_for_installs()),
+            client,
             resolution_cache: Arc::new(Mutex::new(HashMap::new())),
             resolution_cache_ttl: config.packument_ttl,
             configs: Mutex::new(HashMap::new()),
             verdict_cache,
             osv_index,
-            route_context: Arc::new(RouteContext::from_config(config)),
+            route_context,
             public_url: config.public_url.clone(),
             resolution_cache_secret: Arc::clone(&config.resolution_cache_secret),
         }

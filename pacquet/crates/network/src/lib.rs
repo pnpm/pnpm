@@ -280,6 +280,40 @@ impl ThrottledClient {
         per_registry: &PerRegistryTls,
         settings: &NetworkSettings,
     ) -> Result<Self, ForInstallsError> {
+        Self::for_installs_with_redirect(proxy, tls, per_registry, settings, None)
+    }
+
+    /// Like [`Self::new_for_installs`] but installs `redirect_guard` as the
+    /// client's redirect policy: every redirect hop is re-validated by the
+    /// guard, and a hop it rejects fails the request without fetching. pnpr
+    /// resolves on behalf of untrusted callers, so it passes a guard that
+    /// re-checks each redirect target against its fetch allowlist — otherwise
+    /// an allowlisted registry could `302` pnpr onto an internal host, slipping
+    /// a server-side request past the request-boundary allowlist (SSRF). The
+    /// CLI fetches on the user's own behalf and keeps the default follow
+    /// policy via [`Self::new_for_installs`].
+    #[must_use]
+    pub fn new_for_installs_with_redirect_guard(
+        is_allowed: impl Fn(&reqwest::Url) -> bool + Send + Sync + 'static,
+    ) -> Self {
+        let redirect_guard: RedirectGuard = Arc::new(is_allowed);
+        Self::for_installs_with_redirect(
+            &ProxyConfig::default(),
+            &TlsConfig::default(),
+            &PerRegistryTls::default(),
+            &NetworkSettings::default(),
+            Some(&redirect_guard),
+        )
+        .expect("default proxy + TLS configs carry no URLs/PEMs and cannot fail")
+    }
+
+    fn for_installs_with_redirect(
+        proxy: &ProxyConfig,
+        tls: &TlsConfig,
+        per_registry: &PerRegistryTls,
+        settings: &NetworkSettings,
+        redirect_guard: Option<&RedirectGuard>,
+    ) -> Result<Self, ForInstallsError> {
         if settings.network_concurrency == 0 {
             return Err(ForInstallsError::ZeroNetworkConcurrency);
         }
@@ -305,6 +339,9 @@ impl ThrottledClient {
                 builder = builder.add_root_certificate(cert.clone());
             }
             builder = apply_tls(builder, effective_tls)?;
+            if let Some(guard) = redirect_guard {
+                builder = builder.redirect(allowlist_redirect_policy(Arc::clone(guard)));
+            }
             Ok(builder.build().expect("build reqwest client with default timeouts and proxy"))
         };
 
@@ -402,6 +439,43 @@ impl ThrottledClient {
 /// total deadline and undici `connectTimeout = fetchTimeout + 1`).
 /// `settings.user_agent` is sent verbatim; a value that cannot be
 /// encoded as an HTTP header falls back to [`DEFAULT_USER_AGENT`].
+/// A redirect-hop validator: returns `true` to follow a redirect to `url`,
+/// `false` to block it. See
+/// [`ThrottledClient::new_for_installs_with_redirect_guard`].
+pub type RedirectGuard = Arc<dyn Fn(&reqwest::Url) -> bool + Send + Sync>;
+
+/// Cap on redirect hops, matching reqwest's default `Policy::default()` limit
+/// so the guarded client doesn't follow a redirect chain further than the
+/// unguarded one would.
+const MAX_REDIRECT_HOPS: usize = 10;
+
+/// A redirect target the [`RedirectGuard`] rejected. Surfaced as the request
+/// error so a blocked redirect fails loudly rather than silently fetching.
+#[derive(Debug)]
+struct BlockedRedirect(reqwest::Url);
+
+impl std::fmt::Display for BlockedRedirect {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "redirect to {} is not allowed by the fetch allowlist", self.0)
+    }
+}
+
+impl std::error::Error for BlockedRedirect {}
+
+/// A reqwest redirect policy that consults `guard` for every hop: an allowed
+/// target is followed (up to [`MAX_REDIRECT_HOPS`]), a rejected one fails the
+/// request with [`BlockedRedirect`] instead of being fetched.
+fn allowlist_redirect_policy(guard: RedirectGuard) -> reqwest::redirect::Policy {
+    reqwest::redirect::Policy::custom(move |attempt| {
+        let target = attempt.url().clone();
+        if attempt.previous().len() >= MAX_REDIRECT_HOPS || !guard(&target) {
+            attempt.error(BlockedRedirect(target))
+        } else {
+            attempt.follow()
+        }
+    })
+}
+
 fn default_client_builder(settings: &NetworkSettings) -> reqwest::ClientBuilder {
     let user_agent = HeaderValue::from_str(&settings.user_agent)
         .unwrap_or_else(|_| HeaderValue::from_static(DEFAULT_USER_AGENT));
