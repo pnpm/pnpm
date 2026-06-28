@@ -53,10 +53,19 @@ fn public_registry_config(registry: &str) -> RegistryConfig {
 }
 
 fn tarball_router(config: &RegistryConfig, identity: Identity) -> super::TarballRouter {
+    tarball_router_with_registries(config, identity, HashMap::new())
+}
+
+fn tarball_router_with_registries(
+    config: &RegistryConfig,
+    identity: Identity,
+    registries: HashMap<String, String>,
+) -> super::TarballRouter {
     super::TarballRouter::new(
         Arc::new(RouteContext::from_config(config)),
         identity,
         config.public_url.clone(),
+        registries,
     )
 }
 
@@ -697,6 +706,7 @@ fn a_package_frame_carries_unpacked_size_and_omits_it_when_unknown() {
         tarball_url: "https://r.test/acme/-/acme-1.0.0.tgz",
         unpacked_size,
         file_count,
+        from_registry: false,
     };
     observer.on_resolved(hint(Some(123_456), Some(42)));
     observer.on_resolved(hint(None, None));
@@ -733,12 +743,48 @@ fn package_frames_route_private_alias_tarballs_to_gateway() {
             tarball_url: "https://npm.corp.example/acme/-/acme-1.0.0.tgz",
             unpacked_size: None,
             file_count: None,
+            from_registry: false,
         },
     );
     let tarball = frame["tarball"].as_str().expect("tarball URL");
 
     assert!(tarball.contains("/~corp/acme/-/acme-1.0.0.tgz"));
     assert!(!tarball.contains("npm.corp.example"));
+}
+
+#[test]
+fn package_frame_routes_split_domain_registry_tarball_by_registry() {
+    use pacquet_package_manager::ResolvedPackageHint;
+
+    let mut registry = registry_config();
+    registry.uplinks.insert(
+        "corp".to_string(),
+        uplink_with_access("https://npm.corp.example/", "$authenticated", 7),
+    );
+    // The package resolves from the private corp registry, but its packument's
+    // dist.tarball lives on a *different* host (a split-domain CDN).
+    let registries =
+        HashMap::from([("default".to_string(), "https://npm.corp.example/".to_string())]);
+    let router = tarball_router_with_registries(&registry, user("alice"), registries);
+    let frame = super::package_frame(
+        &router,
+        &ResolvedPackageHint {
+            id: "acme@1.0.0",
+            name: "acme",
+            version: "1.0.0",
+            integrity: "sha512-abc",
+            tarball_url: "https://cdn.split-domain.example/acme-1.0.0.tgz",
+            unpacked_size: None,
+            file_count: None,
+            from_registry: true,
+        },
+    );
+    let tarball = frame["tarball"].as_str().expect("tarball URL");
+
+    // Routed by the corp registry, not the CDN host — so the raw upstream CDN
+    // URL is never emitted to the client.
+    assert!(tarball.contains("/~corp/acme/-/acme-1.0.0.tgz"), "got {tarball}");
+    assert!(!tarball.contains("split-domain.example"), "raw CDN URL leaked: {tarball}");
 }
 
 #[test]

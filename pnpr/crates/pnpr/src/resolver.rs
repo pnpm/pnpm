@@ -71,6 +71,7 @@ use indexmap::IndexMap;
 use pacquet_config::Config as PacquetConfig;
 use pacquet_lockfile::{
     Lockfile, LockfileResolution, TarballResolution, is_git_hosted_tarball_url,
+    pick_registry_for_package,
 };
 use pacquet_lockfile_verification::{collect_resolution_policy_violations, hash_lockfile};
 use pacquet_network::{AuthHeaders, ThrottledClient, UpstreamRouteHook};
@@ -378,6 +379,7 @@ pub(crate) async fn handle_resolve(
         Arc::clone(&runtime.route_context),
         identity.clone(),
         runtime.public_url.clone(),
+        config.resolved_registries().into_iter().collect(),
     );
 
     // Verify the *input* lockfile under the client's policy before any
@@ -544,6 +546,7 @@ pub(crate) async fn handle_verify_lockfile(
         Arc::clone(&runtime.route_context),
         identity.clone(),
         runtime.public_url.clone(),
+        config.resolved_registries().into_iter().collect(),
     );
     let input_lockfile = tarball_router.verification_lockfile(input_lockfile);
 
@@ -747,11 +750,45 @@ struct TarballRouter {
     context: Arc<RouteContext>,
     identity: Identity,
     public_url: String,
+    /// Per-scope registry map (`scope -> registry URL`, plus the default) used
+    /// to classify a registry-resolved package by its *registry* route rather
+    /// than its `dist.tarball` host. See [`Self::route_registry_url`].
+    registries: HashMap<String, String>,
 }
 
 impl TarballRouter {
-    fn new(context: Arc<RouteContext>, identity: Identity, public_url: String) -> Self {
-        Self { context, identity, public_url }
+    fn new(
+        context: Arc<RouteContext>,
+        identity: Identity,
+        public_url: String,
+        registries: HashMap<String, String>,
+    ) -> Self {
+        Self { context, identity, public_url, registries }
+    }
+
+    /// Route a registry-resolved package's tarball by the **registry** it came
+    /// from, not its `dist.tarball` URL. A split-domain registry serves the
+    /// tarball from a different host than the packument, so classifying by the
+    /// tarball URL would misread a private package as public and leak its raw
+    /// upstream URL. Classifying by the registry origin keeps a private
+    /// package on its `/~<uplink>/` endpoint; a public one still emits its real
+    /// (anonymously fetchable) tarball URL for a direct CDN download.
+    fn route_registry_url(&self, package: &str, version: &str, tarball_url: &str) -> String {
+        let registry = pick_registry_for_package(&self.registries, package, None);
+        match self.context.classify(&self.identity, &registry, Some(package)) {
+            RouteClass::Public => tarball_url.to_string(),
+            RouteClass::Hosted { .. } => pnpr_tarball_url(
+                &self.public_url,
+                package,
+                &tarball_filename(package, version, tarball_url),
+            ),
+            RouteClass::Proxied { alias, .. } => uplink_endpoint_tarball_url(
+                &self.public_url,
+                &alias,
+                package,
+                &tarball_filename(package, version, tarball_url),
+            ),
+        }
     }
 
     fn route_lockfile(&self, config: &PacquetConfig, lockfile: &Lockfile) -> Lockfile {
@@ -902,7 +939,15 @@ impl pacquet_package_manager::ResolutionObserver for StreamObserver {
 /// when the registry never published a `dist.unpackedSize`, so older
 /// clients parse the frame unchanged.
 fn package_frame(router: &TarballRouter, hint: &ResolvedPackageHint<'_>) -> serde_json::Value {
-    let tarball_url = router.route_url(hint.name, hint.version, hint.tarball_url);
+    // A registry-resolved package's `tarball_url` is the packument's
+    // `dist.tarball`, which a split-domain registry hosts on a different origin
+    // — route it by the registry, not the tarball host, so a private package
+    // never leaks its raw upstream URL. Direct tarball deps keep their own URL.
+    let tarball_url = if hint.from_registry {
+        router.route_registry_url(hint.name, hint.version, hint.tarball_url)
+    } else {
+        router.route_url(hint.name, hint.version, hint.tarball_url)
+    };
     let mut frame = serde_json::json!({
         "type": "package",
         "id": hint.id,
@@ -975,6 +1020,10 @@ fn frozen_package_frames(
                 tarball_url: &tarball_url,
                 unpacked_size: stats.and_then(|stats| stats.unpacked_size),
                 file_count: stats.and_then(|stats| stats.file_count),
+                // The URL is already routed (canonical → endpoint above), so
+                // re-routing by registry would be redundant; route_url is a
+                // no-op on an already-routed URL.
+                from_registry: false,
             },
         );
         if let Ok(line) = ndjson_line(&frame) {
