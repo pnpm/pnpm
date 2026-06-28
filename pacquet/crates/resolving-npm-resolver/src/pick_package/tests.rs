@@ -1301,7 +1301,7 @@ fn metadata_cache_key_public_matches_upstream_shape() {
 }
 
 #[test]
-fn metadata_cache_key_private_and_bypass_are_namespaced() {
+fn metadata_cache_key_private_is_namespaced() {
     let private = MetadataCacheScope::Private { descriptor_id: "id1".to_string() };
     assert_eq!(
         metadata_cache_key(&private, "https://reg/", "acme", false, false),
@@ -1313,18 +1313,15 @@ fn metadata_cache_key_private_and_bypass_are_namespaced() {
         metadata_cache_key(&private, "https://reg/", "acme", false, false),
         metadata_cache_key(&other, "https://reg/", "acme", false, false),
     );
-    // Neither private nor bypass can collide with the public key.
+    // A private key never collides with the public key.
     let public =
         metadata_cache_key(&MetadataCacheScope::Public, "https://reg/", "acme", false, false);
-    let bypass =
-        metadata_cache_key(&MetadataCacheScope::Bypass, "https://reg/", "acme", false, false);
-    assert_ne!(public, bypass);
     assert_ne!(public, metadata_cache_key(&private, "https://reg/", "acme", false, false));
 }
 
 /// A route hook that classifies every fetch into one fixed
-/// [`MetadataCacheScope`], so a test can drive the private/bypass mirror
-/// paths without standing up a full pnpr route policy.
+/// [`MetadataCacheScope`], so a test can drive the private mirror path
+/// without standing up a full pnpr route policy.
 struct ScopeHook {
     scope: MetadataCacheScope,
 }
@@ -1388,49 +1385,6 @@ async fn private_scope_writes_descriptor_namespaced_mirror() {
     let global = get_pkg_mirror_path(cache_dir.path(), ABBREVIATED_META_DIR, &registry, "acme")
         .expect("global path");
     assert!(!global.exists(), "private packument must not touch the global mirror");
-}
-
-/// A `Bypass` route (unknown-private) must not write any shared mirror.
-#[tokio::test]
-async fn bypass_scope_writes_no_shared_mirror() {
-    let mut server = mockito::Server::new_async().await;
-    let mock = server
-        .mock("GET", "/acme")
-        .with_status(200)
-        .with_body(PACKAGE_BODY)
-        .expect(1)
-        .create_async()
-        .await;
-    let registry = format!("{}/", server.url());
-    let cache_dir = TempDir::new().expect("tempdir");
-    let http_client = ThrottledClient::default();
-    let auth_headers =
-        AuthHeaders::default()
-            .with_route_hook(Arc::new(ScopeHook { scope: MetadataCacheScope::Bypass })
-                as Arc<dyn UpstreamRouteHook>);
-    let meta_cache = InMemoryPackageMetaCache::default();
-    let fetch_locker = shared_packument_fetch_locker();
-    let ctx = PickPackageContext {
-        http_client: &http_client,
-        auth_headers: &auth_headers,
-        meta_cache: &meta_cache,
-        fetch_locker: &fetch_locker,
-        cache_dir: Some(cache_dir.path()),
-        offline: false,
-        prefer_offline: false,
-        ignore_missing_time_field: false,
-        full_metadata: false,
-        filter_metadata: false,
-        retry_opts: RetryOpts::default(),
-    };
-    pick_package(&ctx, &range_spec("acme", "^1.0.0"), &default_opts(&registry)).await.expect("ok");
-    mock.assert_async().await;
-
-    let global = get_pkg_mirror_path(cache_dir.path(), ABBREVIATED_META_DIR, &registry, "acme")
-        .expect("global path");
-    assert!(!global.exists(), "bypass route writes no shared mirror");
-    // The bypass route is also kept out of the shared in-memory cache.
-    assert!(meta_cache.get(&format!("{registry}\x00acme")).is_none());
 }
 
 /// A `Private` route must fail closed on a `401`: a revoked credential

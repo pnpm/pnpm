@@ -142,17 +142,14 @@ const PRIVATE_META_ROOT: &str = "v11/metadata-private";
 ///   `v11/metadata-private/<descriptor-id>/` keyed by the descriptor id,
 ///   preserving the abbreviated/full/filtered split via the suffix after
 ///   `v11/`.
-/// * [`MetadataCacheScope::Bypass`] returns `None` — the route must not
-///   touch any shared on-disk mirror.
 #[must_use]
-pub fn scoped_meta_dir(scope: &MetadataCacheScope, base_meta_dir: &str) -> Option<String> {
+pub fn scoped_meta_dir(scope: &MetadataCacheScope, base_meta_dir: &str) -> String {
     match scope {
-        MetadataCacheScope::Public => Some(base_meta_dir.to_string()),
+        MetadataCacheScope::Public => base_meta_dir.to_string(),
         MetadataCacheScope::Private { descriptor_id } => {
             let suffix = base_meta_dir.strip_prefix("v11/").unwrap_or(base_meta_dir);
-            Some(format!("{PRIVATE_META_ROOT}/{descriptor_id}/{suffix}"))
+            format!("{PRIVATE_META_ROOT}/{descriptor_id}/{suffix}")
         }
-        MetadataCacheScope::Bypass => None,
     }
 }
 

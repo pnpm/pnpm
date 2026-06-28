@@ -15,39 +15,27 @@ use super::{
 #[test]
 fn scoped_meta_dir_public_is_unchanged() {
     assert_eq!(
-        scoped_meta_dir(&MetadataCacheScope::Public, ABBREVIATED_META_DIR).as_deref(),
-        Some(ABBREVIATED_META_DIR),
+        scoped_meta_dir(&MetadataCacheScope::Public, ABBREVIATED_META_DIR),
+        ABBREVIATED_META_DIR
     );
-    assert_eq!(
-        scoped_meta_dir(&MetadataCacheScope::Public, FULL_META_DIR).as_deref(),
-        Some(FULL_META_DIR),
-    );
+    assert_eq!(scoped_meta_dir(&MetadataCacheScope::Public, FULL_META_DIR), FULL_META_DIR);
 }
 
 #[test]
 fn scoped_meta_dir_private_namespaces_by_descriptor() {
     let scope = MetadataCacheScope::Private { descriptor_id: "abc123".to_string() };
     assert_eq!(
-        scoped_meta_dir(&scope, ABBREVIATED_META_DIR).as_deref(),
-        Some("v11/metadata-private/abc123/metadata"),
+        scoped_meta_dir(&scope, ABBREVIATED_META_DIR),
+        "v11/metadata-private/abc123/metadata",
     );
+    assert_eq!(scoped_meta_dir(&scope, FULL_META_DIR), "v11/metadata-private/abc123/metadata-full",);
     assert_eq!(
-        scoped_meta_dir(&scope, FULL_META_DIR).as_deref(),
-        Some("v11/metadata-private/abc123/metadata-full"),
-    );
-    assert_eq!(
-        scoped_meta_dir(&scope, FULL_FILTERED_META_DIR).as_deref(),
-        Some("v11/metadata-private/abc123/metadata-full-filtered"),
+        scoped_meta_dir(&scope, FULL_FILTERED_META_DIR),
+        "v11/metadata-private/abc123/metadata-full-filtered",
     );
     // Distinct descriptors never share a directory.
     let other = MetadataCacheScope::Private { descriptor_id: "def456".to_string() };
     assert_ne!(scoped_meta_dir(&scope, FULL_META_DIR), scoped_meta_dir(&other, FULL_META_DIR));
-}
-
-#[test]
-fn scoped_meta_dir_bypass_has_no_shared_mirror() {
-    assert_eq!(scoped_meta_dir(&MetadataCacheScope::Bypass, ABBREVIATED_META_DIR), None);
-    assert_eq!(scoped_meta_dir(&MetadataCacheScope::Bypass, FULL_META_DIR), None);
 }
 
 #[test]

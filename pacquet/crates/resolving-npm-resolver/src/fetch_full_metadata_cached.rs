@@ -80,16 +80,16 @@ pub async fn fetch_full_metadata_cached(
     };
     let url = to_registry_url(opts.registry, pkg_name);
     // Classify the route once so the mirror lands in the namespace the
-    // route policy permits: the global mirror for a public route, a
-    // descriptor-scoped private mirror for a proxied/hosted route, and no
-    // shared mirror at all for an unknown-private (`Bypass`) route.
+    // route policy permits: the global mirror for a public route and a
+    // descriptor-scoped private mirror for a proxied/hosted route.
     let scope = opts.auth_headers.metadata_scope(&url, Some(pkg_name));
     // Encoding the mirror path can fail only on a malformed registry
     // URL (no host, unparsable). Either case is a config bug; we
     // log and proceed without a cache so the user still gets metadata
     // on this install instead of a hard error.
-    let mirror_path = match (opts.cache_dir, scoped_meta_dir(&scope, base_meta_dir)) {
-        (Some(dir), Some(meta_dir)) => {
+    let mirror_path = match opts.cache_dir {
+        Some(dir) => {
+            let meta_dir = scoped_meta_dir(&scope, base_meta_dir);
             match get_pkg_mirror_path(dir, &meta_dir, opts.registry, pkg_name) {
                 Ok(path) => Some(path),
                 Err(error) => {
@@ -105,9 +105,8 @@ pub async fn fetch_full_metadata_cached(
                 }
             }
         }
-        // No cache dir, or a `Bypass` route that must not touch a shared
-        // mirror — fetch fresh without reading or writing one.
-        _ => None,
+        // No cache dir — fetch fresh without reading or writing a mirror.
+        None => None,
     };
     let cache_headers = load_meta_headers_async(mirror_path.as_deref()).await;
     let accept = if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC };

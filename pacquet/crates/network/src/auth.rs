@@ -82,10 +82,6 @@ pub enum MetadataCacheScope {
     /// private metadata never satisfies a fetch for a caller who does not
     /// reproduce the same descriptor.
     Private { descriptor_id: String },
-    /// Unknown-private route with no shareable descriptor: never read or
-    /// write a shared mirror or in-memory entry. The fetch is performed
-    /// fresh and its result stays request-local.
-    Bypass,
 }
 
 /// Bag of `Authorization` header values keyed by the nerf-darted form

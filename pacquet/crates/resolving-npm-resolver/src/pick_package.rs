@@ -434,16 +434,13 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         ABBREVIATED_META_DIR
     };
 
-    // A `Bypass` route resolves to no shared mirror (`scoped_meta_dir`
-    // returns `None`); a `Private` route relocates the mirror under its
-    // descriptor namespace so it can never be read by a caller who doesn't
-    // reproduce the same descriptor.
-    let pkg_mirror = match (ctx.cache_dir, scoped_meta_dir(&scope, base_meta_dir)) {
-        (Some(dir), Some(meta_dir)) => {
-            get_pkg_mirror_path(dir, &meta_dir, opts.registry, &spec.name).ok()
-        }
-        _ => None,
-    };
+    // A `Private` route relocates the mirror under its descriptor namespace
+    // so it can never be read by a caller who doesn't reproduce the same
+    // descriptor; a `Public` route keeps the global mirror.
+    let pkg_mirror = ctx.cache_dir.and_then(|dir| {
+        let meta_dir = scoped_meta_dir(&scope, base_meta_dir);
+        get_pkg_mirror_path(dir, &meta_dir, opts.registry, &spec.name).ok()
+    });
 
     let cache_key = metadata_cache_key(
         &scope,
@@ -456,9 +453,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     // updateChecksums must reach the conditional registry request below, so it
     // can't be served from the in-memory cache — which may hold a disk-promoted
     // entry rather than a fresh network fetch (see the `update_checksums` doc).
-    // A `Bypass` route is request-local: it must not read or populate the
-    // shared in-memory cache either.
-    let use_mem_cache = !opts.update_checksums && !matches!(scope, MetadataCacheScope::Bypass);
+    let use_mem_cache = !opts.update_checksums;
 
     // 1. In-memory cache.
     if use_mem_cache && let Some(cached) = ctx.meta_cache.get(&cache_key) {
@@ -646,7 +641,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             // try the disk fallback: an existing mirror is good
             // enough to pick from, even if the latest sync failed.
             //
-            // A private/bypass route must fail closed on a `401`/`403`/
+            // A private route must fail closed on a `401`/`403`/
             // private-`404`: a revoked credential or a hidden private
             // package must not keep serving the last cached packument,
             // even from its own (same-namespace) mirror. Only a transport
@@ -698,10 +693,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     // refactor that threads `dry_run` into the fetcher can restore
     // upstream's no-disk-side-effect dry-run.
     //
-    // A `Bypass` route stays request-local: its packument must not land
-    // in the shared in-memory cache (`update_checksums` still writes back,
-    // so this keeps that case but excludes bypass).
-    if !opts.dry_run && !matches!(scope, MetadataCacheScope::Bypass) {
+    if !opts.dry_run {
         ctx.meta_cache.set(cache_key, Arc::clone(&meta));
     }
     let (meta, picked) = pick_from_meta(&picker_opts, spec, meta, opts.blocked_versions)?;
@@ -983,9 +975,9 @@ fn meta_opts<'a>(picker_opts: &'a PickerOpts<'_>) -> PickPackageFromMetaOptions<
 /// `{registry}\x00{name}` key (with the `:full` / `:full:filtered` suffix
 /// from upstream's
 /// [cache-key shape](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L206)),
-/// so the CLI and public routes are unchanged. A private or bypass route
-/// prepends its descriptor namespace so one caller's private packument
-/// can't satisfy another caller's pick for the same name.
+/// so the CLI and public routes are unchanged. A private route prepends its
+/// descriptor namespace so one caller's private packument can't satisfy
+/// another caller's pick for the same name.
 ///
 /// The registry is part of the key because the same package name can live
 /// in two registries (a public `lodash` and a private one); upstream pnpm
@@ -1010,7 +1002,6 @@ fn metadata_cache_key(
         MetadataCacheScope::Private { descriptor_id } => {
             format!("private\x00{descriptor_id}\x00{registry}\x00{name}{suffix}")
         }
-        MetadataCacheScope::Bypass => format!("bypass\x00{registry}\x00{name}{suffix}"),
     }
 }
 
