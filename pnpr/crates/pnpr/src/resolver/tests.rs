@@ -476,7 +476,7 @@ fn unknown_lockfile_routing_leaves_resolution_unrewritten() {
     let resolution = &value["packages"]["acme@1.0.0"]["resolution"];
     assert!(
         resolution.get("tarball").is_none(),
-        "unknown route stays integrity-only: {resolution}"
+        "unknown route stays integrity-only: {resolution}",
     );
     assert_eq!(value, serde_json::to_value(&input).expect("lockfile serializes"));
 }
