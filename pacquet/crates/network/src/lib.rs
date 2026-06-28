@@ -456,7 +456,20 @@ struct BlockedRedirect(reqwest::Url);
 
 impl std::fmt::Display for BlockedRedirect {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "redirect to {} is not allowed by the fetch allowlist", self.0)
+        // Surface only `scheme://host[:port]` — never the path, query,
+        // fragment, or userinfo, where a presigned-URL signature/token could
+        // live. This error string can reach a client, so it must not leak the
+        // very credential the redirect was carrying.
+        write!(
+            f,
+            "redirect to {}://{}",
+            self.0.scheme(),
+            self.0.host_str().unwrap_or("<unknown>"),
+        )?;
+        if let Some(port) = self.0.port() {
+            write!(f, ":{port}")?;
+        }
+        write!(f, " is not allowed by the fetch allowlist")
     }
 }
 

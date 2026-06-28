@@ -727,6 +727,20 @@ fn default_network_concurrency_stays_within_floor_and_cap() {
     assert!((64..=96).contains(&concurrency), "got {concurrency}");
 }
 
+/// The blocked-redirect error must name only the origin, never the path or
+/// query/fragment where a presigned-URL signature/token lives — the error can
+/// reach a client.
+#[test]
+fn blocked_redirect_error_redacts_token() {
+    let url = Url::parse("https://cdn.example:8443/asset.tgz?X-Amz-Signature=topsecret#frag")
+        .expect("valid url");
+    let message = super::BlockedRedirect(url).to_string();
+    assert!(message.contains("https://cdn.example:8443"), "got: {message}");
+    assert!(!message.contains("topsecret"), "token leaked: {message}");
+    assert!(!message.contains("asset.tgz"), "path leaked: {message}");
+    assert!(!message.contains("frag"), "fragment leaked: {message}");
+}
+
 /// A redirect to a host the guard rejects must fail the request before the
 /// off-allowlist target is ever contacted — the redirect SSRF boundary.
 #[tokio::test]
