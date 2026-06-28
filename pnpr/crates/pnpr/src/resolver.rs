@@ -23,9 +23,9 @@
 //!   endpoint as the trust verdict.
 //!
 //! pnpr is a stateless resolver: it stores no tarballs. Public tarballs
-//! can still be fetched directly from their upstream registry, while
-//! private or unknown routes are rewritten to pnpr's read-only tarball
-//! gateway so upstream URLs and credentials stay server-side.
+//! can still be fetched directly from their upstream registry, while a
+//! private proxied route is rewritten to the uplink's `/~<uplink>/`
+//! registry endpoint so upstream URLs and credentials stay server-side.
 //!
 //! The client's `registry`, `namedRegistries`, `overrides`, and the
 //! verification policy (`minimumReleaseAge`, `trustPolicy`, ...) drive
@@ -39,7 +39,7 @@
 //! authenticates to pnpr (its request `Authorization` identifies the
 //! caller) but does not forward its own upstream registry credentials:
 //! pnpr selects upstream auth from its route policy (see [`crate::route`]),
-//! so private dependencies resolve via a pnpr-managed credential alias or
+//! so private dependencies resolve via a pnpr-managed uplink credential or
 //! fail closed.
 
 pub(crate) mod osv;
@@ -88,30 +88,6 @@ pub(crate) use self::osv::{OsvIndex, format_advisory_ids, load_osv_index};
 
 use self::{protocol::ResolveRequest, verdict_cache::VerdictCache};
 
-#[derive(Default, Clone)]
-pub(crate) struct TarballGatewayRoutes {
-    routes: Arc<Mutex<HashMap<String, String>>>,
-}
-
-impl TarballGatewayRoutes {
-    pub(crate) fn insert(&self, key: String, url: String) {
-        let mut routes = self.routes.lock().expect("tarball gateway routes poisoned");
-        if routes.len() >= MAX_TARBALL_GATEWAY_ROUTES
-            && !routes.contains_key(&key)
-            && let Some(evicted) = routes.keys().next().cloned()
-        {
-            routes.remove(&evicted);
-        }
-        routes.insert(key, url);
-    }
-
-    pub(crate) fn get(&self, key: &str) -> Option<String> {
-        self.routes.lock().expect("tarball gateway routes poisoned").get(key).cloned()
-    }
-}
-
-const MAX_TARBALL_GATEWAY_ROUTES: usize = 8192;
-
 /// Per-server engine backing the pnpr install endpoint: it holds the
 /// store, cache, and HTTP client used to resolve a client's project. The
 /// store and cache dirs are fixed for the server's lifetime; the
@@ -147,14 +123,13 @@ pub(crate) struct Resolver {
     /// from the server config and combined per request with the caller's
     /// identity to drive auth selection and footprint recording.
     route_context: RouteContext,
-    /// Public URL clients use for pnpr-hosted and resolver-gateway tarball
-    /// URLs.
+    /// Public URL clients use for pnpr-hosted and `/~<uplink>/` endpoint
+    /// tarball URLs.
     public_url: String,
     /// HMAC secret namespacing a private footprint's cache descriptor.
     /// Part 1 uses it only to label each resolve's cache class in the
     /// operator debug log; Part 2 keys private cache entries by it.
     resolution_cache_secret: Arc<[u8]>,
-    tarball_gateway_routes: TarballGatewayRoutes,
 }
 
 struct CachedResolution {
@@ -170,16 +145,11 @@ impl Resolver {
         cell: &'a OnceLock<Resolver>,
         config: &RegistryConfig,
         osv_index: Option<Arc<OsvIndex>>,
-        tarball_gateway_routes: TarballGatewayRoutes,
     ) -> &'a Resolver {
-        cell.get_or_init(|| Resolver::build(config, osv_index, tarball_gateway_routes))
+        cell.get_or_init(|| Resolver::build(config, osv_index))
     }
 
-    fn build(
-        config: &RegistryConfig,
-        osv_index: Option<Arc<OsvIndex>>,
-        tarball_gateway_routes: TarballGatewayRoutes,
-    ) -> Resolver {
+    fn build(config: &RegistryConfig, osv_index: Option<Arc<OsvIndex>>) -> Resolver {
         let store_dir = config.cache_storage.join("pnpr-store");
         let cache_dir = config.cache_storage.join("pnpr-cache");
         // Best-effort: a real failure here (e.g. a permission problem)
@@ -200,7 +170,6 @@ impl Resolver {
             route_context: RouteContext::from_config(config),
             public_url: config.public_url.clone(),
             resolution_cache_secret: Arc::clone(&config.resolution_cache_secret),
-            tarball_gateway_routes,
         }
     }
 
@@ -397,8 +366,6 @@ pub(crate) async fn handle_resolve(
         runtime.route_context.clone(),
         identity.clone(),
         runtime.public_url.clone(),
-        Arc::clone(&runtime.resolution_cache_secret),
-        runtime.tarball_gateway_routes.clone(),
     );
 
     // Verify the *input* lockfile under the client's policy before any
@@ -562,8 +529,6 @@ pub(crate) async fn handle_verify_lockfile(
         runtime.route_context.clone(),
         identity.clone(),
         runtime.public_url.clone(),
-        Arc::clone(&runtime.resolution_cache_secret),
-        runtime.tarball_gateway_routes.clone(),
     );
     let input_lockfile = tarball_router.verification_lockfile(input_lockfile);
 
@@ -767,19 +732,11 @@ struct TarballRouter {
     context: RouteContext,
     identity: Identity,
     public_url: String,
-    secret: Arc<[u8]>,
-    gateway_routes: TarballGatewayRoutes,
 }
 
 impl TarballRouter {
-    fn new(
-        context: RouteContext,
-        identity: Identity,
-        public_url: String,
-        secret: Arc<[u8]>,
-        gateway_routes: TarballGatewayRoutes,
-    ) -> Self {
-        Self { context, identity, public_url, secret, gateway_routes }
+    fn new(context: RouteContext, identity: Identity, public_url: String) -> Self {
+        Self { context, identity, public_url }
     }
 
     fn route_lockfile(&self, config: &PacquetConfig, lockfile: &Lockfile) -> Lockfile {
@@ -823,15 +780,11 @@ impl TarballRouter {
         let Some(packages) = upstream.packages.as_mut() else {
             return upstream;
         };
-        for (package_key, metadata) in packages {
+        for metadata in packages.values_mut() {
             let LockfileResolution::Tarball(resolution) = &mut metadata.resolution else {
                 continue;
             };
-            if let Some(tarball_url) = self.upstream_alias_tarball_url(&resolution.tarball) {
-                resolution.tarball = tarball_url;
-            } else if let Some(tarball_url) = self
-                .upstream_unknown_tarball_url(&package_key.name.to_string(), &resolution.tarball)
-            {
+            if let Some(tarball_url) = self.upstream_endpoint_tarball_url(&resolution.tarball) {
                 resolution.tarball = tarball_url;
             }
         }
@@ -839,73 +792,37 @@ impl TarballRouter {
     }
 
     fn route_url(&self, package: &str, version: &str, tarball_url: &str) -> String {
-        if self.is_alias_gateway_url(tarball_url) {
-            return tarball_url.to_string();
-        }
         match self.context.classify(&self.identity, tarball_url, Some(package)) {
-            RouteClass::Public => tarball_url.to_string(),
+            // A public or unknown route keeps its upstream URL. An unknown
+            // route that produced a resolution was fetched without a managed
+            // credential (anonymously), so its tarball is anonymously
+            // fetchable; pnpr never mints a per-tarball gateway URL.
+            RouteClass::Public | RouteClass::Unknown => tarball_url.to_string(),
             RouteClass::Hosted { .. } => pnpr_tarball_url(
                 &self.public_url,
                 package,
                 &tarball_filename(package, version, tarball_url),
             ),
-            RouteClass::Proxied { alias, generation } => alias_gateway_tarball_url(
+            RouteClass::Proxied { alias, .. } => uplink_endpoint_tarball_url(
                 &self.public_url,
                 &alias,
-                generation,
                 package,
                 &tarball_filename(package, version, tarball_url),
             ),
-            RouteClass::Unknown => {
-                let filename = tarball_filename(package, version, tarball_url);
-                let key = unknown_gateway_key(&self.secret, tarball_url);
-                self.gateway_routes.insert(key.clone(), tarball_url.to_string());
-                unknown_gateway_tarball_url(&self.public_url, &key, package, &filename)
-            }
         }
     }
 
-    fn is_alias_gateway_url(&self, tarball_url: &str) -> bool {
-        tarball_url.starts_with(&format!(
-            "{}/-/pnpr/v0/tarballs/alias/",
-            self.public_url.trim_end_matches('/'),
-        ))
-    }
-
-    fn upstream_alias_tarball_url(&self, tarball_url: &str) -> Option<String> {
-        let url = url::Url::parse(tarball_url).ok()?;
-        let route = url.path().strip_prefix("/-/pnpr/v0/tarballs/alias/")?;
-        let segments: Vec<_> = route.split('/').collect();
-        let [raw_alias, raw_generation, raw_package, "-", raw_filename] = segments.as_slice()
-        else {
-            return None;
-        };
-        let alias = percent_decode(raw_alias)?;
-        let generation = raw_generation.parse::<u64>().ok()?;
-        let package = percent_decode(raw_package)?;
-        let filename = percent_decode(raw_filename)?;
-        let alias_config =
-            self.context.gateway_alias(&self.identity, &alias, generation, &package)?;
-        Some(format!("{}/{}/-/{}", alias_config.registry.trim_end_matches('/'), package, filename))
-    }
-
-    fn upstream_unknown_tarball_url(
-        &self,
-        expected_package: &str,
-        tarball_url: &str,
-    ) -> Option<String> {
-        let url = url::Url::parse(tarball_url).ok()?;
-        let route = url.path().strip_prefix("/-/pnpr/v0/tarballs/unknown/")?;
-        let segments: Vec<_> = route.split('/').collect();
-        let [key, raw_package, "-", raw_filename] = segments.as_slice() else {
-            return None;
-        };
-        let package = percent_decode(raw_package)?;
-        if package != expected_package {
-            return None;
-        }
-        let _filename = percent_decode(raw_filename)?;
-        self.gateway_routes.get(key)
+    /// Reverse a `/~<uplink>/<pkg>/-/<file>` endpoint tarball URL back to its
+    /// upstream URL so an input lockfile carrying endpoint URLs can be verified
+    /// against the real registry. Returns `None` for any other URL, and for an
+    /// endpoint the caller is not authorized for (so verification cannot be
+    /// used as an oracle for an uplink the caller cannot reach).
+    fn upstream_endpoint_tarball_url(&self, tarball_url: &str) -> Option<String> {
+        let prefix = format!("{}/~", self.public_url.trim_end_matches('/'));
+        let route = tarball_url.strip_prefix(&prefix)?;
+        let (uplink, rest) = route.split_once('/')?;
+        let registry = self.context.uplink_registry(&self.identity, uplink)?;
+        Some(format!("{}/{rest}", registry.trim_end_matches('/')))
     }
 }
 
@@ -925,91 +842,17 @@ fn pnpr_tarball_url(public_url: &str, package: &str, filename: &str) -> String {
     format!("{}/{package}/-/{filename}", public_url.trim_end_matches('/'))
 }
 
-fn alias_gateway_tarball_url(
+/// The `/~<uplink>/<package>/-/<filename>` registry-endpoint URL a proxied
+/// route's tarball is served through. Canonical for a client whose scope is
+/// configured at `https://<pnpr>/~<uplink>/`, so the lockfile entry collapses
+/// to integrity-only; the upstream URL and credential stay server-side.
+fn uplink_endpoint_tarball_url(
     public_url: &str,
-    alias: &str,
-    generation: u64,
+    uplink: &str,
     package: &str,
     filename: &str,
 ) -> String {
-    let base = format!("{}/", public_url.trim_end_matches('/'));
-    let Ok(mut url) = url::Url::parse(&base) else {
-        return pnpr_tarball_url(public_url, package, filename);
-    };
-    let generation = generation.to_string();
-    {
-        let Ok(mut segments) = url.path_segments_mut() else {
-            return pnpr_tarball_url(public_url, package, filename);
-        };
-        segments.extend([
-            "-",
-            "pnpr",
-            "v0",
-            "tarballs",
-            "alias",
-            alias,
-            generation.as_str(),
-            package,
-            "-",
-            filename,
-        ]);
-    }
-    url.to_string()
-}
-
-fn unknown_gateway_key(secret: &[u8], tarball_url: &str) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(b"pnpr unknown tarball gateway route\0");
-    hasher.update(secret);
-    hasher.update(b"\0");
-    hasher.update(tarball_url.as_bytes());
-    format!("{:x}", hasher.finalize())
-}
-
-fn unknown_gateway_tarball_url(
-    public_url: &str,
-    key: &str,
-    package: &str,
-    filename: &str,
-) -> String {
-    let base = format!("{}/", public_url.trim_end_matches('/'));
-    let Ok(mut url) = url::Url::parse(&base) else {
-        return pnpr_tarball_url(public_url, package, filename);
-    };
-    {
-        let Ok(mut segments) = url.path_segments_mut() else {
-            return pnpr_tarball_url(public_url, package, filename);
-        };
-        segments.extend(["-", "pnpr", "v0", "tarballs", "unknown", key, package, "-", filename]);
-    }
-    url.to_string()
-}
-
-fn percent_decode(input: &str) -> Option<String> {
-    let bytes = input.as_bytes();
-    let mut decoded = Vec::with_capacity(bytes.len());
-    let mut index = 0;
-    while index < bytes.len() {
-        if bytes[index] == b'%' {
-            let high = hex_value(*bytes.get(index + 1)?)?;
-            let low = hex_value(*bytes.get(index + 2)?)?;
-            decoded.push((high << 4) | low);
-            index += 3;
-        } else {
-            decoded.push(bytes[index]);
-            index += 1;
-        }
-    }
-    String::from_utf8(decoded).ok()
-}
-
-fn hex_value(byte: u8) -> Option<u8> {
-    match byte {
-        b'0'..=b'9' => Some(byte - b'0'),
-        b'a'..=b'f' => Some(byte - b'a' + 10),
-        b'A'..=b'F' => Some(byte - b'A' + 10),
-        _ => None,
-    }
+    format!("{}/~{uplink}/{package}/-/{filename}", public_url.trim_end_matches('/'))
 }
 
 /// NDJSON content type for the `/-/pnpr/v0/resolve` response. One JSON object

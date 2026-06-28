@@ -31,7 +31,7 @@ pub use config::{
     AccessSpec, AuthConfig, BackendConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML,
     FeatureOverrides, HostedStoreConfig, HtpasswdConfig, LibsqlSettings, LogConfig, LogFormat,
     LogLevel, MaxUsers, OsvConfig, PackageAccess, PublicRoute, RegistryFeature, ResolverFeature,
-    RoutePolicy, SqlBackendSettings, TokensConfig, UplinkConfig, UpstreamAlias, default_cache_dir,
+    RoutePolicy, SqlBackendSettings, TokensConfig, UplinkConfig, default_cache_dir,
 };
 pub use error::{RegistryError, Result};
 pub use journal::recover_publish_journal;

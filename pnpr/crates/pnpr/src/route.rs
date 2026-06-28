@@ -32,7 +32,7 @@ use sha2::{Digest, Sha256};
 use wax::{Glob, Program};
 
 use crate::{
-    config::{Config, UplinkConfig, UpstreamAlias},
+    config::{Config, UplinkConfig},
     policy::{AccessList, Identity, PackagePolicies},
 };
 
@@ -211,12 +211,6 @@ struct ResolvedAlias {
     access: AccessList,
 }
 
-#[derive(Debug, Clone)]
-pub(crate) struct GatewayAlias {
-    pub(crate) registry: String,
-    pub(crate) authorization: String,
-}
-
 impl RouteContext {
     /// Resolve route-classification inputs from the server config.
     #[must_use]
@@ -231,20 +225,13 @@ impl RouteContext {
                 package: route.package.as_deref().and_then(compile_glob),
             })
             .collect();
-        // Proxied-route credentials come from two sources during the
-        // `upstreamAliases` → `uplinks` migration: the legacy alias block and
-        // `uplinks:` entries that declare an `access:` policy. Uplink-sourced
-        // entries are matched by origin and exposed at `/~<name>/`.
+        // Proxied-route credentials come from `uplinks:` entries that declare
+        // an `access:` policy. They are matched by registry origin and exposed
+        // to clients at `/~<name>/`.
         let aliases = config
-            .upstream_aliases
+            .uplinks
             .iter()
-            .filter_map(|(name, alias)| ResolvedAlias::from_config(name, alias))
-            .chain(
-                config
-                    .uplinks
-                    .iter()
-                    .filter_map(|(name, uplink)| ResolvedAlias::from_uplink(name, uplink)),
-            )
+            .filter_map(|(name, uplink)| ResolvedAlias::from_uplink(name, uplink))
             .collect();
         Self {
             npmjs_unscoped_public: config.route_policy.npmjs_unscoped_public,
@@ -371,25 +358,15 @@ impl RouteContext {
         }
     }
 
-    pub(crate) fn gateway_alias(
-        &self,
-        identity: &Identity,
-        alias: &str,
-        generation: u64,
-        package: &str,
-    ) -> Option<GatewayAlias> {
+    /// The upstream registry an authorized caller reaches through the
+    /// `/~<uplink>/` endpoint, used to reverse an endpoint tarball URL back to
+    /// its upstream when verifying an input lockfile. Returns `None` when the
+    /// uplink is unknown or the caller is not authorized for it.
+    pub(crate) fn uplink_registry(&self, identity: &Identity, uplink: &str) -> Option<String> {
         self.aliases
             .iter()
-            .find(|candidate| {
-                candidate.name == alias
-                    && candidate.generation == generation
-                    && candidate.access.allows(identity)
-                    && candidate.package.as_ref().is_none_or(|glob| glob.is_match(package))
-            })
-            .map(|candidate| GatewayAlias {
-                registry: candidate.registry.clone(),
-                authorization: candidate.authorization.clone(),
-            })
+            .find(|candidate| candidate.name == uplink && candidate.access.allows(identity))
+            .map(|candidate| candidate.registry.clone())
     }
 }
 
@@ -405,18 +382,6 @@ impl RouteMatcher {
 }
 
 impl ResolvedAlias {
-    fn from_config(name: &str, alias: &UpstreamAlias) -> Option<Self> {
-        Some(Self {
-            name: name.to_string(),
-            generation: alias.generation,
-            registry: alias.registry.clone(),
-            origin: nerf_origin(&alias.registry)?,
-            package: alias.package.as_deref().and_then(compile_glob),
-            authorization: alias.authorization.clone(),
-            access: alias.access.clone(),
-        })
-    }
-
     /// Build a proxied-route alias from a `uplinks:` entry. An uplink
     /// participates in route classification only when it declares both an
     /// `access:` policy and a resolved `Authorization` credential; routing is

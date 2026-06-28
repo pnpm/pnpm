@@ -1650,9 +1650,9 @@ groups:
 packages:
   '@team/*':
     access: platform
-upstreamAliases:
+uplinks:
   corp:
-    registry: https://npm.corp.example/
+    url: https://npm.corp.example/
     access: platform
     auth:
       type: bearer
@@ -1669,10 +1669,10 @@ upstreamAliases:
     assert!(!team.access.allows(&carol));
     assert!(!team.access.allows(&Identity::Anonymous));
 
-    let alias = &config.upstream_aliases["corp"];
-    assert!(alias.access.allows(&alice));
-    assert!(alias.access.allows(&bob));
-    assert!(!alias.access.allows(&carol));
+    let access = config.uplinks["corp"].access.as_ref().expect("uplink declares access");
+    assert!(access.allows(&alice));
+    assert!(access.allows(&bob));
+    assert!(!access.allows(&carol));
 }
 
 #[test]
@@ -1813,12 +1813,11 @@ routes:
 }
 
 #[test]
-fn upstream_alias_resolves_credential_access_and_generation() {
+fn uplink_resolves_access_and_generation() {
     let yaml = r"
-upstreamAliases:
+uplinks:
   corp:
-    registry: https://npm.corp.example/
-    package: '@acme/*'
+    url: https://npm.corp.example/
     generation: 7
     access: $authenticated alice
     auth:
@@ -1826,44 +1825,46 @@ upstreamAliases:
       token: corp-token
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    let alias = &config.upstream_aliases["corp"];
-    assert_eq!(alias.registry, "https://npm.corp.example/");
-    assert_eq!(alias.package.as_deref(), Some("@acme/*"));
-    assert_eq!(alias.authorization, "Bearer corp-token");
-    assert_eq!(alias.generation, 7);
-    assert!(alias.access.allows(&user("alice")));
-    assert!(!alias.access.allows(&Identity::Anonymous));
+    let uplink = &config.uplinks["corp"];
+    assert_eq!(uplink.url, "https://npm.corp.example/");
+    assert_eq!(auth_header(uplink), Some("Bearer corp-token"));
+    assert_eq!(uplink.generation, 7);
+    let access = uplink.access.as_ref().expect("uplink declares access");
+    assert!(access.allows(&user("alice")));
+    assert!(!access.allows(&Identity::Anonymous));
 }
 
 #[test]
-fn upstream_alias_generation_defaults_to_one() {
+fn uplink_generation_defaults_to_one() {
     let yaml = r"
-upstreamAliases:
+uplinks:
   corp:
-    registry: https://npm.corp.example/
+    url: https://npm.corp.example/
+    access: $authenticated
     auth:
       type: basic
       token: dXNlcjpwYXNz
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    let alias = &config.upstream_aliases["corp"];
-    assert_eq!(alias.generation, 1);
-    assert_eq!(alias.authorization, "Basic dXNlcjpwYXNz");
-    // An alias with no explicit access defaults to authenticated callers.
-    assert!(alias.access.allows(&user("bob")));
-    assert!(!alias.access.allows(&Identity::Anonymous));
+    let uplink = &config.uplinks["corp"];
+    assert_eq!(uplink.generation, 1);
+    assert_eq!(auth_header(uplink), Some("Basic dXNlcjpwYXNz"));
+    let access = uplink.access.as_ref().expect("uplink declares access");
+    assert!(access.allows(&user("bob")));
+    assert!(!access.allows(&Identity::Anonymous));
 }
 
 #[test]
-fn upstream_alias_without_auth_is_a_config_error() {
+fn uplink_without_access_is_not_a_private_route_credential() {
     let yaml = r"
-upstreamAliases:
+uplinks:
   corp:
-    registry: https://npm.corp.example/
+    url: https://npm.corp.example/
 ";
-    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
-        .expect_err("an alias without an auth block must fail to load");
-    assert!(matches!(err, RegistryError::InvalidConfig { .. }));
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    // A plain proxy uplink with no `access:` parses fine; it simply carries no
+    // access policy and is never offered as a private-route credential.
+    assert!(config.uplinks["corp"].access.is_none());
 }
 
 #[test]

@@ -17,7 +17,7 @@ use super::{
     resolution_cache_key, store_resolution,
 };
 use crate::{
-    config::{Config as RegistryConfig, PublicRoute, UpstreamAlias},
+    config::{Config as RegistryConfig, PublicRoute, UplinkConfig},
     policy::{AccessList, Identity, PackagePolicies, PackagePolicy},
     route::{Footprint, PrivateAccessDescriptor, RouteContext},
 };
@@ -57,8 +57,6 @@ fn tarball_router(config: &RegistryConfig, identity: Identity) -> super::Tarball
         RouteContext::from_config(config),
         identity,
         config.public_url.clone(),
-        Arc::from(b"test-secret".to_vec()),
-        super::TarballGatewayRoutes::default(),
     )
 }
 
@@ -66,14 +64,16 @@ fn user(name: &str) -> Identity {
     Identity::user(name)
 }
 
-fn alias(registry: &str, access: &str, generation: u64) -> UpstreamAlias {
-    UpstreamAlias {
-        registry: registry.to_string(),
-        package: None,
-        authorization: "Bearer alias-secret".to_string(),
-        access: AccessList::parse(access),
-        generation,
-    }
+fn uplink_with_access(registry: &str, access: &str, generation: u64) -> UplinkConfig {
+    let mut headers = reqwest::header::HeaderMap::new();
+    headers.insert(
+        reqwest::header::AUTHORIZATION,
+        reqwest::header::HeaderValue::from_static("Bearer alias-secret"),
+    );
+    let mut uplink = UplinkConfig::with_defaults(registry.to_string(), headers);
+    uplink.access = Some(AccessList::parse(access));
+    uplink.generation = generation;
+    uplink
 }
 
 fn private_alias_footprint(alias: &str, generation: u64) -> Footprint {
@@ -277,8 +277,8 @@ fn private_cached_resolution_requires_current_alias_authorization() {
 
     let mut config = registry_config();
     config
-        .upstream_aliases
-        .insert("corp".to_string(), alias("https://npm.corp.example/", "alice", 1));
+        .uplinks
+        .insert("corp".to_string(), uplink_with_access("https://npm.corp.example/", "alice", 1));
     let context = RouteContext::from_config(&config);
     assert!(
         cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("alice")).is_some(),
@@ -288,8 +288,8 @@ fn private_cached_resolution_requires_current_alias_authorization() {
     );
 
     config
-        .upstream_aliases
-        .insert("corp".to_string(), alias("https://npm.corp.example/", "alice", 2));
+        .uplinks
+        .insert("corp".to_string(), uplink_with_access("https://npm.corp.example/", "alice", 2));
     let rotated = RouteContext::from_config(&config);
     assert!(
         cached_resolution(&cache, Duration::from_mins(1), &key, &rotated, &user("alice")).is_none(),
@@ -311,9 +311,10 @@ fn same_alias_authorized_users_share_private_resolution_cache() {
     ));
 
     let mut config = registry_config();
-    config
-        .upstream_aliases
-        .insert("corp".to_string(), alias("https://npm.corp.example/", "$authenticated", 1));
+    config.uplinks.insert(
+        "corp".to_string(),
+        uplink_with_access("https://npm.corp.example/", "$authenticated", 1),
+    );
     let context = RouteContext::from_config(&config);
 
     assert!(
@@ -344,16 +345,16 @@ fn revoked_alias_access_stops_matching_private_resolution_hits() {
 
     let mut config = registry_config();
     config
-        .upstream_aliases
-        .insert("corp".to_string(), alias("https://npm.corp.example/", "alice", 1));
+        .uplinks
+        .insert("corp".to_string(), uplink_with_access("https://npm.corp.example/", "alice", 1));
     let context = RouteContext::from_config(&config);
     assert!(
         cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("alice")).is_some(),
     );
 
     config
-        .upstream_aliases
-        .insert("corp".to_string(), alias("https://npm.corp.example/", "bob", 1));
+        .uplinks
+        .insert("corp".to_string(), uplink_with_access("https://npm.corp.example/", "bob", 1));
     let context = RouteContext::from_config(&config);
     assert!(
         cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("alice")).is_none(),
@@ -416,17 +417,16 @@ fn public_lockfile_routing_keeps_registry_resolutions_compact() {
 fn private_alias_lockfile_routing_uses_gateway_url() {
     let pacquet_config = config_for_registry("https://npm.corp.example/");
     let mut registry = registry_config();
-    registry
-        .upstream_aliases
-        .insert("corp".to_string(), alias("https://npm.corp.example/", "$authenticated", 7));
+    registry.uplinks.insert(
+        "corp".to_string(),
+        uplink_with_access("https://npm.corp.example/", "$authenticated", 7),
+    );
     let router = tarball_router(&registry, user("alice"));
 
     let routed = router.route_lockfile(&pacquet_config, &lockfile("1.0.0"));
     let tarball = lockfile_tarball_url(&routed, "acme@1.0.0");
 
-    assert!(tarball.starts_with(
-        "http://127.0.0.1:7677/-/pnpr/v0/tarballs/alias/corp/7/acme/-/acme-1.0.0.tgz"
-    ));
+    assert!(tarball.starts_with("http://127.0.0.1:7677/~corp/acme/-/acme-1.0.0.tgz"));
     assert!(!tarball.contains("npm.corp.example"));
 
     let upstream = router.verification_lockfile(&routed);
@@ -440,15 +440,16 @@ fn private_alias_lockfile_routing_uses_gateway_url() {
 fn private_alias_lockfile_routing_encodes_scoped_packages_as_one_gateway_segment() {
     let pacquet_config = config_for_registry("https://npm.corp.example/");
     let mut registry = registry_config();
-    registry
-        .upstream_aliases
-        .insert("corp".to_string(), alias("https://npm.corp.example/", "$authenticated", 7));
+    registry.uplinks.insert(
+        "corp".to_string(),
+        uplink_with_access("https://npm.corp.example/", "$authenticated", 7),
+    );
     let router = tarball_router(&registry, user("alice"));
 
     let routed = router.route_lockfile(&pacquet_config, &package_lockfile("@acme/foo", "1.0.0"));
     let tarball = lockfile_tarball_url(&routed, "@acme/foo@1.0.0");
 
-    assert!(tarball.contains("/alias/corp/7/@acme%2Ffoo/-/foo-1.0.0.tgz"));
+    assert!(tarball.contains("/~corp/@acme/foo/-/foo-1.0.0.tgz"));
     assert!(!tarball.contains("npm.corp.example"));
 
     let upstream = router.verification_lockfile(&routed);
@@ -459,23 +460,25 @@ fn private_alias_lockfile_routing_encodes_scoped_packages_as_one_gateway_segment
 }
 
 #[test]
-fn unknown_lockfile_routing_uses_marked_gateway_url() {
+fn unknown_lockfile_routing_leaves_resolution_unrewritten() {
     let pacquet_config = config_for_registry("https://unknown.example/");
     let registry = registry_config();
     let router = tarball_router(&registry, user("alice"));
 
-    let routed = router.route_lockfile(&pacquet_config, &lockfile("1.0.0"));
-    let tarball = lockfile_tarball_url(&routed, "acme@1.0.0");
+    let input = lockfile("1.0.0");
+    let routed = router.route_lockfile(&pacquet_config, &input);
 
-    assert!(tarball.contains("/-/pnpr/v0/tarballs/unknown/"));
-    assert!(tarball.ends_with("/acme/-/acme-1.0.0.tgz"));
-    assert!(!tarball.contains("unknown.example"));
-
-    let upstream = router.verification_lockfile(&routed);
-    assert_eq!(
-        lockfile_tarball_url(&upstream, "acme@1.0.0"),
-        "https://unknown.example/acme/-/acme-1.0.0.tgz",
+    // An unknown route has no uplink and no managed credential, so pnpr mints
+    // no gateway URL: the integrity-only registry resolution is left untouched
+    // (the client fetches the upstream tarball directly, as it was resolved
+    // anonymously), never rewritten into an explicit tarball URL.
+    let value = serde_json::to_value(&routed).expect("lockfile serializes");
+    let resolution = &value["packages"]["acme@1.0.0"]["resolution"];
+    assert!(
+        resolution.get("tarball").is_none(),
+        "unknown route stays integrity-only: {resolution}"
     );
+    assert_eq!(value, serde_json::to_value(&input).expect("lockfile serializes"));
 }
 
 #[test]
@@ -485,8 +488,8 @@ fn private_cached_resolution_keeps_routed_tarball_urls() {
     let pacquet_config = config_for_registry("https://npm.corp.example/");
     let mut registry = registry_config();
     registry
-        .upstream_aliases
-        .insert("corp".to_string(), alias("https://npm.corp.example/", "alice", 7));
+        .uplinks
+        .insert("corp".to_string(), uplink_with_access("https://npm.corp.example/", "alice", 7));
     let router = tarball_router(&registry, user("alice"));
     let routed = router.route_lockfile(&pacquet_config, &lockfile("1.0.0"));
 
@@ -508,7 +511,7 @@ fn private_cached_resolution_keeps_routed_tarball_urls() {
     .expect("authorized caller reuses private cached lockfile");
     let tarball = lockfile_tarball_url(&cached, "acme@1.0.0");
 
-    assert!(tarball.contains("/-/pnpr/v0/tarballs/alias/corp/7/acme/-/acme-1.0.0.tgz"));
+    assert!(tarball.contains("/~corp/acme/-/acme-1.0.0.tgz"));
     assert!(!tarball.contains("npm.corp.example"));
 }
 
@@ -583,9 +586,10 @@ fn package_frames_route_private_alias_tarballs_to_gateway() {
     use pacquet_package_manager::ResolvedPackageHint;
 
     let mut registry = registry_config();
-    registry
-        .upstream_aliases
-        .insert("corp".to_string(), alias("https://npm.corp.example/", "$authenticated", 7));
+    registry.uplinks.insert(
+        "corp".to_string(),
+        uplink_with_access("https://npm.corp.example/", "$authenticated", 7),
+    );
     let router = tarball_router(&registry, user("alice"));
     let frame = super::package_frame(
         &router,
@@ -601,7 +605,7 @@ fn package_frames_route_private_alias_tarballs_to_gateway() {
     );
     let tarball = frame["tarball"].as_str().expect("tarball URL");
 
-    assert!(tarball.contains("/-/pnpr/v0/tarballs/alias/corp/7/acme/-/acme-1.0.0.tgz"));
+    assert!(tarball.contains("/~corp/acme/-/acme-1.0.0.tgz"));
     assert!(!tarball.contains("npm.corp.example"));
 }
 
@@ -660,9 +664,10 @@ fn frozen_package_frames_route_private_alias_tarballs_to_gateway() {
     let lockfile = lockfile("1.0.0");
     let stats = observed_dist_stats_sink();
     let mut registry = registry_config();
-    registry
-        .upstream_aliases
-        .insert("corp".to_string(), alias("https://npm.corp.example/", "$authenticated", 7));
+    registry.uplinks.insert(
+        "corp".to_string(),
+        uplink_with_access("https://npm.corp.example/", "$authenticated", 7),
+    );
 
     let frames = super::frozen_package_frames(
         &pacquet_config,
@@ -673,7 +678,7 @@ fn frozen_package_frames_route_private_alias_tarballs_to_gateway() {
 
     let frame: serde_json::Value = serde_json::from_slice(&frames[0]).unwrap();
     let tarball = frame["tarball"].as_str().expect("tarball URL");
-    assert!(tarball.contains("/-/pnpr/v0/tarballs/alias/corp/7/acme/-/acme-1.0.0.tgz"));
+    assert!(tarball.contains("/~corp/acme/-/acme-1.0.0.tgz"));
     assert!(!tarball.contains("npm.corp.example"));
 }
 

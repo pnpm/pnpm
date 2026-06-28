@@ -9,7 +9,7 @@ use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 
 use super::{Footprint, PrivateAccessDescriptor, RouteClass, RouteContext, RouteHook};
 use crate::{
-    config::{Config, PublicRoute, UplinkConfig, UpstreamAlias},
+    config::{Config, PublicRoute, UplinkConfig},
     policy::{AccessList, Identity, PackagePolicies},
 };
 
@@ -23,16 +23,6 @@ fn anon() -> Identity {
 
 fn user(name: &str) -> Identity {
     Identity::user(name)
-}
-
-fn alias(registry: &str, package: Option<&str>, access: &str, generation: u64) -> UpstreamAlias {
-    UpstreamAlias {
-        registry: registry.to_string(),
-        package: package.map(str::to_string),
-        authorization: "Bearer alias-secret".to_string(),
-        access: AccessList::parse(access),
-        generation,
-    }
 }
 
 #[test]
@@ -106,30 +96,6 @@ fn operator_declared_public_route_matches_scope() {
     assert_eq!(
         context.classify(&anon(), "https://registry.npmjs.org/@babel%2fcore", Some("@babel/core")),
         RouteClass::Public,
-    );
-}
-
-#[test]
-fn proxied_alias_requires_authorization() {
-    let mut config = base_config();
-    config.upstream_aliases.insert(
-        "corp".to_string(),
-        alias("https://npm.corp.example/", Some("@acme/*"), "$authenticated", 2),
-    );
-    let context = RouteContext::from_config(&config);
-    let url = "https://npm.corp.example/@acme%2fwidget";
-
-    assert_eq!(
-        context.classify(&user("alice"), url, Some("@acme/widget")),
-        RouteClass::Proxied { alias: "corp".to_string(), generation: 2 },
-    );
-    // An unauthorized caller cannot select the alias, so the route is a
-    // non-shareable unknown rather than the alias's private namespace.
-    assert_eq!(context.classify(&anon(), url, Some("@acme/widget")), RouteClass::Unknown);
-    // A package outside the alias's pattern doesn't match it.
-    assert_eq!(
-        context.classify(&user("alice"), "https://npm.corp.example/lodash", Some("lodash")),
-        RouteClass::Unknown,
     );
 }
 
@@ -219,10 +185,9 @@ fn uplink_without_access_is_not_a_proxied_route() {
 fn proxied_alias_accepts_configured_group_identity() {
     let mut config = base_config();
     config.groups.add_user_to_group("alice", "platform");
-    config.upstream_aliases.insert(
-        "corp".to_string(),
-        alias("https://npm.corp.example/", Some("@acme/*"), "platform", 2),
-    );
+    config
+        .uplinks
+        .insert("corp".to_string(), uplink_with_access("https://npm.corp.example/", "platform", 2));
     let context = RouteContext::from_config(&config);
     let url = "https://npm.corp.example/@acme%2fwidget";
 
@@ -306,9 +271,10 @@ fn footprint_unknown_private_is_not_shareable() {
 #[test]
 fn route_hook_records_routes_and_returns_alias_credential() {
     let mut config = base_config();
-    config
-        .upstream_aliases
-        .insert("corp".to_string(), alias("https://npm.corp.example/", None, "$authenticated", 1));
+    config.uplinks.insert(
+        "corp".to_string(),
+        uplink_with_access("https://npm.corp.example/", "$authenticated", 1),
+    );
     let footprint = std::sync::Arc::new(std::sync::Mutex::new(Footprint::default()));
     let hook = RouteHook::new(
         RouteContext::from_config(&config),
@@ -319,10 +285,10 @@ fn route_hook_records_routes_and_returns_alias_credential() {
 
     // Public fetch: no upstream credential, no private footprint entry.
     assert_eq!(hook.authorize("https://registry.npmjs.org/lodash", Some("lodash")), None);
-    // Private proxied fetch: the alias credential is returned and recorded.
+    // Private proxied fetch: the uplink credential is returned and recorded.
     assert_eq!(
         hook.authorize("https://npm.corp.example/@acme%2fwidget", Some("@acme/widget")),
-        Some("Bearer alias-secret".to_string()),
+        Some("Bearer uplink-secret".to_string()),
     );
 
     let footprint = footprint.lock().unwrap();
@@ -333,9 +299,10 @@ fn route_hook_records_routes_and_returns_alias_credential() {
 #[test]
 fn metadata_scope_maps_route_classes() {
     let mut config = base_config();
-    config
-        .upstream_aliases
-        .insert("corp".to_string(), alias("https://npm.corp.example/", None, "$authenticated", 3));
+    config.uplinks.insert(
+        "corp".to_string(),
+        uplink_with_access("https://npm.corp.example/", "$authenticated", 3),
+    );
     let footprint = std::sync::Arc::new(std::sync::Mutex::new(Footprint::default()));
     let hook = RouteHook::new(
         RouteContext::from_config(&config),
@@ -375,9 +342,10 @@ fn metadata_scope_maps_route_classes() {
 #[test]
 fn authorized_alias_users_share_metadata_scope() {
     let mut config = base_config();
-    config
-        .upstream_aliases
-        .insert("corp".to_string(), alias("https://npm.corp.example/", None, "$authenticated", 3));
+    config.uplinks.insert(
+        "corp".to_string(),
+        uplink_with_access("https://npm.corp.example/", "$authenticated", 3),
+    );
     let context = RouteContext::from_config(&config);
     let secret = Arc::from(b"server-secret".as_slice());
     let alice = RouteHook::new(
