@@ -6,13 +6,12 @@ use node_semver::{Range, Version};
 use owo_colors::{OwoColorize, Stream};
 use serde::Serialize;
 
-use pacquet_config::Config;
-use pacquet_config::PeerDependencyRules;
+use pacquet_config::{Config, PeerDependencyRules};
 use pacquet_lockfile::{Lockfile, PackageMetadata, PkgName, PkgNameVerPeer, SnapshotEntry};
 
 use crate::cli_args::sanitize::sanitize;
 
-#[derive(Debug, Clone, Default, Serialize)]
+#[derive(Debug, Default, Clone, Serialize)]
 struct ParentPkg {
     name: String,
     version: String,
