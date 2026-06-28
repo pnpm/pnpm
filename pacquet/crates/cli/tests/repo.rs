@@ -25,7 +25,9 @@ fn repo_fails_without_package_json() {
     assert!(!output.status.success(), "repo without package.json should fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("does not have a repository URL"),
+        stderr.contains("ERR_PNPM_NO_REPO_URL")
+            && stderr.contains("does not have a repository URL")
+            && stderr.contains("to its manifest"),
         "should show no-repo-url error: {stderr}",
     );
     drop(root);
@@ -40,7 +42,9 @@ fn repo_fails_without_repository_field() {
     assert!(!output.status.success(), "repo without repository field should fail");
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(
-        stderr.contains("does not have a repository URL"),
+        stderr.contains("ERR_PNPM_NO_REPO_URL")
+            && stderr.contains("does not have a repository URL")
+            && stderr.contains("to its manifest"),
         "should show no-repo-url error: {stderr}",
     );
     drop(root);
