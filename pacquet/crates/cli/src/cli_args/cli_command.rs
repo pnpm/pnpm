@@ -2,6 +2,7 @@ use super::{
     add::AddArgs,
     approve_builds::ApproveBuildsArgs,
     audit::AuditArgs,
+    bin::BinArgs,
     cache::CacheCommand,
     cat_file::CatFileArgs,
     cat_index::CatIndexArgs,
@@ -184,6 +185,8 @@ pub enum CliCommand {
     /// Manage runtimes.
     #[clap(visible_alias = "rt")]
     Runtime(RuntimeArgs),
+    /// Print the directory where pnpm will install executables.
+    Bin(BinArgs),
     /// Print the effective `node_modules` directory.
     Root(RootArgs),
     /// Manage the pnpm configuration files.

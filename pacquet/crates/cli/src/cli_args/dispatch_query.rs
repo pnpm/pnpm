@@ -1,5 +1,6 @@
 use super::{
     audit::{AuditArgs, AuditOutcome},
+    bin::BinArgs,
     cache::CacheCommand,
     cat_file::CatFileArgs,
     cat_index::CatIndexArgs,
@@ -162,6 +163,11 @@ pub(super) fn pack<'a>(ctx: &RunCtx<'a>, args: &PackArgs) -> miette::Result<Comm
     if !output.is_empty() {
         println!("{output}");
     }
+    Ok(Box::pin(std::future::ready(Ok(()))))
+}
+
+pub(super) fn bin<'a>(ctx: &RunCtx<'a>, args: BinArgs) -> miette::Result<CommandFuture<'a>> {
+    args.run(ctx.dir, (ctx.config)()?)?;
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 
