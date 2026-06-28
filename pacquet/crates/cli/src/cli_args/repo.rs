@@ -1,6 +1,4 @@
-use std::borrow::Cow;
-use std::collections::HashMap;
-use std::time::Duration;
+use std::{borrow::Cow, collections::HashMap, time::Duration};
 
 use clap::Args;
 use derive_more::{Display, Error};
