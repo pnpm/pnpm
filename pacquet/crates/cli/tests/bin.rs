@@ -53,15 +53,49 @@ fn bin_ignores_a_custom_modules_dir() {
     drop(root);
 }
 
-/// `pacquet bin -g` prints the resolved global executables directory
-/// (`global-bin-dir ?? <pnpm-home>/bin`). This is intentionally NOT a
-/// differential test against real pnpm: pnpm additionally validates the dir is
-/// on `PATH` (erroring otherwise) and creates it, which pacquet's read-only
-/// `-g` commands skip — see `BinArgs::run`. `PNPM_HOME` / `HOME` /
-/// `XDG_CONFIG_HOME` and the `global-bin-dir` config env vars are pinned so the
-/// resolved path is deterministic regardless of the developer's environment.
+/// `pacquet bin -g` resolves the global executables directory
+/// (`global-bin-dir ?? <pnpm-home>/bin`), creates it, and — matching pnpm —
+/// validates it is on `PATH` before printing. `PNPM_HOME` is pinned with its
+/// `bin` prepended to `PATH`; `HOME` / `XDG_CONFIG_HOME` and the
+/// `global-bin-dir` config env vars are pinned so the resolved path is
+/// deterministic. Unix-gated like `global.rs`, since the `PATH` validation is
+/// platform-specific.
+#[cfg(unix)]
 #[test]
-fn bin_global_prints_the_configured_global_bin_dir() {
+fn bin_global_prints_the_global_bin_dir_when_on_path() {
+    let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
+    let pnpm_home = root.path().join("pnpm-home");
+    let global_bin = pnpm_home.join("bin");
+    let existing_path = std::env::var("PATH").unwrap_or_default();
+    let path = format!("{}:{existing_path}", global_bin.display());
+
+    let output = pacquet
+        .with_env("PNPM_HOME", &pnpm_home)
+        .with_env("HOME", root.path())
+        .with_env("XDG_CONFIG_HOME", root.path().join("xdg-config"))
+        .with_env("PNPM_CONFIG_GLOBAL_BIN_DIR", "")
+        .with_env("pnpm_config_global_bin_dir", "")
+        .with_env("PATH", path)
+        .with_args(["bin", "-g"])
+        .output()
+        .expect("run pacquet bin -g");
+    dbg!(&output);
+    assert!(output.status.success(), "pacquet bin -g should succeed when the dir is on PATH");
+
+    let expected = format!("{}\n", global_bin.display());
+    assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
+    // pnpm creates the global bin dir while resolving `--global`; pacquet mirrors that.
+    assert!(global_bin.is_dir(), "pacquet bin -g should create the global bin dir");
+
+    drop(root);
+}
+
+/// `pacquet bin -g` errors like pnpm (`ERR_PNPM_GLOBAL_BIN_DIR_NOT_IN_PATH`)
+/// when the resolved global bin directory is not on `PATH`. Unix-gated for the
+/// same `PATH`-format reason as the success case.
+#[cfg(unix)]
+#[test]
+fn bin_global_errors_when_not_in_path() {
     let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
     let pnpm_home = root.path().join("pnpm-home");
 
@@ -69,20 +103,20 @@ fn bin_global_prints_the_configured_global_bin_dir() {
         .with_env("PNPM_HOME", &pnpm_home)
         .with_env("HOME", root.path())
         .with_env("XDG_CONFIG_HOME", root.path().join("xdg-config"))
-        // Neutralize any inherited `global-bin-dir` override so `global_bin`
-        // resolves purely from the pinned `PNPM_HOME` (empty == unset).
         .with_env("PNPM_CONFIG_GLOBAL_BIN_DIR", "")
         .with_env("pnpm_config_global_bin_dir", "")
+        .with_env("PATH", "/usr/bin:/bin")
         .with_args(["bin", "-g"])
         .output()
         .expect("run pacquet bin -g");
     dbg!(&output);
-    assert!(output.status.success(), "pacquet bin -g should succeed");
+    assert!(!output.status.success(), "pacquet bin -g should fail when the dir is not on PATH");
 
-    // `config.global_bin` resolves to `<PNPM_HOME>/bin`, printed verbatim — no
-    // canonicalization, unlike the cwd-anchored local path.
-    let expected = format!("{}\n", pnpm_home.join("bin").display());
-    assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("not in PATH") || stderr.contains("ERR_PNPM_GLOBAL_BIN_DIR_NOT_IN_PATH"),
+        "stderr should explain the global bin dir is not in PATH: {stderr}",
+    );
 
     drop(root);
 }
@@ -94,7 +128,7 @@ fn bin_global_prints_the_configured_global_bin_dir() {
 /// Skipped on Windows, where pnpm is installed as a `pnpm.cmd` shim and
 /// `std::process::Command` does not honor `PATHEXT`, so `Command::new("pnpm")`
 /// fails with "program not found" (the same reason `pnpm_compatibility.rs` and
-/// `hoist.rs` gate their pnpm-spawning tests). The three tests above spawn only
+/// `hoist.rs` gate their pnpm-spawning tests). The local tests above spawn only
 /// `pacquet`, so they keep running on Windows.
 #[test]
 #[cfg_attr(

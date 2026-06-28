@@ -1,5 +1,5 @@
 use clap::Args;
-use pacquet_config::Config;
+use pacquet_config::{Config, check_global_bin_dir};
 use std::path::Path;
 
 use super::global::GlobalError;
@@ -29,21 +29,32 @@ pub struct BinArgs {
 }
 
 impl BinArgs {
-    /// `--global` prints `config.global_bin` (`global-bin-dir ?? <pnpm-home>/bin`),
-    /// erroring with `ERR_PNPM_NO_GLOBAL_BIN_DIR` when no pnpm home resolves.
-    ///
-    /// Divergence from pnpm worth flagging: pnpm's config reader runs
-    /// `checkGlobalBinDir` (the `PATH`-membership check, plus writability for
-    /// every command except `root`) and creates the directory for *every*
-    /// `--global` invocation — `bin` included — before the handler prints
-    /// (config/reader/src/index.ts). pacquet runs `check_global_bin_dir` only in
-    /// its mutating global handlers (`add` / `remove` / `update -g`), so this
-    /// read-only command neither validates `PATH` nor creates the directory,
-    /// matching the sibling `outdated --global`. Porting that validation to the
-    /// config layer for all read-only `-g` commands is left as a follow-up.
+    /// `--global` resolves the global executables directory
+    /// (`global-bin-dir ?? <pnpm-home>/bin`), creates it, and validates it with
+    /// `check_global_bin_dir` — the `PATH`-membership check plus writability
+    /// (pnpm enforces the write check for every command except `root`) — before
+    /// printing, mirroring pnpm's config reader, which runs the same `mkdir` +
+    /// `checkGlobalBinDir` for every `--global` invocation. It errors with
+    /// `ERR_PNPM_NO_GLOBAL_BIN_DIR` when no pnpm home resolves, and with the
+    /// `checkGlobalBinDir` diagnostics (`ERR_PNPM_GLOBAL_BIN_DIR_NOT_IN_PATH`,
+    /// `ERR_PNPM_NO_PATH_ENV`, `ERR_PNPM_PNPM_DIR_NOT_WRITABLE`) when the
+    /// directory is unusable.
     pub fn run(self, dir: &Path, config: &Config) -> miette::Result<()> {
         let bin = if self.global {
-            config.global_bin.clone().ok_or(GlobalError::NoGlobalBinDir)?
+            let bin = config.global_bin.clone().ok_or(GlobalError::NoGlobalBinDir)?;
+            // pnpm's config reader `mkdir`s the global bin dir and runs
+            // `checkGlobalBinDir` for every `--global` command before the handler
+            // prints; `globalDirShouldAllowWrite` is true for all but `root`, so
+            // `bin` validates writability too.
+            std::fs::create_dir_all(&bin).map_err(|error| {
+                miette::miette!(
+                    "failed to create the global bin directory {}: {error}",
+                    bin.display(),
+                )
+            })?;
+            check_global_bin_dir(&bin, std::env::var("PATH").ok().as_deref(), true)
+                .map_err(miette::Report::new)?;
+            bin
         } else {
             dir.join("node_modules").join(".bin")
         };
