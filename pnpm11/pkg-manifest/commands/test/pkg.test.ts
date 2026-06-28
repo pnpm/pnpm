@@ -314,6 +314,32 @@ describe('pkg command', () => {
       expect(result.name).toBe('test-package')
     })
 
+    test('reads from publishConfig.directory subfolder', async () => {
+      const rootManifest = {
+        name: 'root-package',
+        version: '1.0.0',
+        main: './src/index.ts',
+        publishConfig: {
+          directory: 'dist',
+        },
+      }
+      fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(rootManifest, null, 2))
+
+      const distDir = path.join(tmpDir, 'dist')
+      fs.mkdirSync(distDir, { recursive: true })
+      const distManifest = {
+        name: 'root-package',
+        version: '1.0.0',
+        main: './index.js',
+        types: './index.d.ts',
+      }
+      fs.writeFileSync(path.join(distDir, 'package.json'), JSON.stringify(distManifest, null, 2))
+
+      const result = JSON.parse(await handler({ dir: tmpDir }, ['get-published']) as string)
+      expect(result.main).toBe('./index.js')
+      expect(result.types).toBe('./index.d.ts')
+    })
+
     test('rejects publishConfig.directory that escapes the project', async () => {
       const manifest = {
         name: 'test-package',
