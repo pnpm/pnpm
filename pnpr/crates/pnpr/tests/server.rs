@@ -661,6 +661,130 @@ async fn tarball_is_proxied_and_cached() {
     mock.assert_async().await;
 }
 
+/// A proxy config whose default `npmjs` uplink is promoted to an
+/// access-bearing private-route uplink, reachable at `/~npmjs/`.
+fn uplink_endpoint_config(upstream_url: &str, storage: PathBuf, access: &str) -> Config {
+    let mut config = config_for(upstream_url, storage);
+    config.public_url = "http://example.test".to_string();
+    config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink").access =
+        Some(AccessList::parse(access));
+    config
+}
+
+#[tokio::test]
+async fn uplink_endpoint_serves_packument_with_endpoint_rewritten_tarballs() {
+    let mut upstream = mockito::Server::new_async().await;
+    let packument = json!({
+        "name": "foo",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": { "1.0.0": { "name": "foo", "version": "1.0.0", "dist": {
+            "tarball": format!("{}/foo/-/foo-1.0.0.tgz", upstream.url()),
+            "integrity": "sha512-deadbeef",
+        } } },
+    });
+    let mock = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_body(packument.to_string())
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let config = uplink_endpoint_config(&upstream.url(), tmp.path().to_path_buf(), "alice");
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let app = router_with_auth(config, auth);
+
+    let response = app
+        .oneshot(
+            Request::get("/~npmjs/foo")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
+    // `dist.tarball` is rewritten back onto the same `/~npmjs/` endpoint, so the
+    // URL is canonical for the client's configured registry (integrity-only).
+    assert_eq!(
+        body["versions"]["1.0.0"]["dist"]["tarball"],
+        "http://example.test/~npmjs/foo/-/foo-1.0.0.tgz",
+    );
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn uplink_endpoint_rejects_unauthorized_caller() {
+    let tmp = TempDir::new().unwrap();
+    let config = uplink_endpoint_config("http://127.0.0.1:1", tmp.path().to_path_buf(), "alice");
+    let app = router(config);
+    // Anonymous caller is not admitted by the uplink's access policy, and the
+    // request fails closed before any upstream fetch.
+    let response =
+        app.oneshot(Request::get("/~npmjs/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn uplink_endpoint_tarball_is_verified_and_never_persisted_to_shared_cache() {
+    let mut upstream = mockito::Server::new_async().await;
+    let bytes = b"private-uplink-tarball";
+    let packument = json!({
+        "name": "foo",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": { "1.0.0": { "name": "foo", "version": "1.0.0", "dist": {
+            "tarball": format!("{}/foo/-/foo-1.0.0.tgz", upstream.url()),
+            "integrity": sha512_integrity(bytes),
+        } } },
+    });
+    // Two requests, each re-fetching packument + tarball: a `/~<uplink>/` serve
+    // is fetch-through and writes nothing to the shared proxy mirror, so a
+    // private uplink's bytes never persist where the public path or another
+    // uplink could read them. The `expect(2)` proves the absence of caching.
+    let packument_mock = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_body(packument.to_string())
+        .expect(2)
+        .create_async()
+        .await;
+    let tarball_mock = upstream
+        .mock("GET", "/foo/-/foo-1.0.0.tgz")
+        .with_status(200)
+        .with_header("content-type", "application/octet-stream")
+        .with_body(bytes)
+        .expect(2)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let config = uplink_endpoint_config(&upstream.url(), tmp.path().to_path_buf(), "alice");
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let app = router_with_auth(config, auth);
+
+    for _ in 0..2 {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get("/~npmjs/foo/-/foo-1.0.0.tgz")
+                    .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(body_bytes(response.into_body()).await, bytes);
+    }
+
+    packument_mock.assert_async().await;
+    tarball_mock.assert_async().await;
+}
+
 #[tokio::test]
 async fn alias_gateway_tarball_uses_pnpr_managed_authorization() {
     let mut upstream = mockito::Server::new_async().await;
