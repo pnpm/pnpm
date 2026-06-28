@@ -726,7 +726,7 @@ async fn uplink_endpoint_rejects_unauthorized_caller() {
 }
 
 #[tokio::test]
-async fn uplink_endpoint_tarball_is_verified_and_never_persisted_to_shared_cache() {
+async fn uplink_endpoint_tarball_is_verified_and_cached_per_uplink() {
     let mut upstream = mockito::Server::new_async().await;
     let bytes = b"private-uplink-tarball";
     let packument = json!({
@@ -737,15 +737,14 @@ async fn uplink_endpoint_tarball_is_verified_and_never_persisted_to_shared_cache
             "integrity": sha512_integrity(bytes),
         } } },
     });
-    // Two requests, each re-fetching packument + tarball: a `/~<uplink>/` serve
-    // is fetch-through and writes nothing to the shared proxy mirror, so a
-    // private uplink's bytes never persist where the public path or another
-    // uplink could read them. The `expect(2)` proves the absence of caching.
+    // The packument and verified tarball are cached in the uplink's private
+    // namespace, so two tarball requests hit the upstream exactly once each —
+    // the second is served from the private cache, never re-fetched.
     let packument_mock = upstream
         .mock("GET", "/foo")
         .with_status(200)
         .with_body(packument.to_string())
-        .expect(2)
+        .expect(1)
         .create_async()
         .await;
     let tarball_mock = upstream
@@ -753,7 +752,7 @@ async fn uplink_endpoint_tarball_is_verified_and_never_persisted_to_shared_cache
         .with_status(200)
         .with_header("content-type", "application/octet-stream")
         .with_body(bytes)
-        .expect(2)
+        .expect(1)
         .create_async()
         .await;
 
@@ -780,6 +779,72 @@ async fn uplink_endpoint_tarball_is_verified_and_never_persisted_to_shared_cache
 
     packument_mock.assert_async().await;
     tarball_mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn uplink_cache_does_not_leak_to_the_public_path() {
+    // The public `**` route proxies through the default `npmjs` uplink to the
+    // public upstream; a separate access-bearing `corp` uplink serves a
+    // *different* upstream at `/~corp/`. After the private `/~corp/foo` tarball
+    // is cached, the public `/foo` request must still serve the public bytes —
+    // proving the private uplink's cache is namespaced, not shared.
+    let mut public_upstream = mockito::Server::new_async().await;
+    let mut private_upstream = mockito::Server::new_async().await;
+    let public_bytes = b"public-foo-tarball";
+    let private_bytes = b"private-corp-foo-tarball";
+
+    for (server, body) in
+        [(&mut public_upstream, &public_bytes[..]), (&mut private_upstream, &private_bytes[..])]
+    {
+        let packument = json!({
+            "name": "foo",
+            "dist-tags": { "latest": "1.0.0" },
+            "versions": { "1.0.0": { "name": "foo", "version": "1.0.0", "dist": {
+                "tarball": format!("{}/foo/-/foo-1.0.0.tgz", server.url()),
+                "integrity": sha512_integrity(body),
+            } } },
+        });
+        server.mock("GET", "/foo").with_body(packument.to_string()).create_async().await;
+        server
+            .mock("GET", "/foo/-/foo-1.0.0.tgz")
+            .with_header("content-type", "application/octet-stream")
+            .with_body(body)
+            .create_async()
+            .await;
+    }
+
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&public_upstream.url(), tmp.path().to_path_buf());
+    let mut corp = config.uplinks.get("npmjs").expect("default `npmjs` uplink").clone();
+    corp.url = private_upstream.url();
+    corp.access = Some(AccessList::parse("alice"));
+    config.uplinks.insert("corp".to_string(), corp);
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let app = router_with_auth(config, auth);
+
+    // Prime the private cache via the `/~corp/` endpoint.
+    let private = app
+        .clone()
+        .oneshot(
+            Request::get("/~corp/foo/-/foo-1.0.0.tgz")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(private.status(), StatusCode::OK);
+    assert_eq!(body_bytes(private.into_body()).await, private_bytes);
+
+    // The public path must serve the public upstream's bytes, never the
+    // private uplink's cached copy.
+    let public = app
+        .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(public.status(), StatusCode::OK);
+    assert_eq!(body_bytes(public.into_body()).await, public_bytes);
 }
 
 /// Builds a packument whose single `1.0.0` version points its tarball at

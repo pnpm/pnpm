@@ -457,6 +457,84 @@ impl Storage {
         self.cached.remove_tarball(name, filename).await
     }
 
+    // --- Per-uplink private cache (the `/~<uplink>/` registry endpoint) ----
+    //
+    // A private uplink's packuments and tarballs are cached under a namespace
+    // derived from the uplink and its rotation generation, kept separate from
+    // the shared public mirror so they can never be served on the public path
+    // or under another uplink. A rotation (new generation) moves to a fresh
+    // namespace, so entries fetched with a since-rotated credential age out.
+
+    /// A fresh cached packument for an uplink route, or `None` when it is
+    /// absent or older than `ttl`. The uplink path refetches a stale entry
+    /// rather than conditionally revalidating it.
+    pub async fn read_uplink_packument(
+        &self,
+        namespace: &str,
+        name: &PackageName,
+        ttl: Duration,
+    ) -> Result<Option<Vec<u8>>> {
+        match self.cached.namespaced(namespace).read_packument_entry(name, ttl).await? {
+            Some(CachedPackument::Fresh(bytes)) => Ok(Some(bytes)),
+            Some(CachedPackument::Stale(_)) | None => Ok(None),
+        }
+    }
+
+    pub async fn write_uplink_packument(
+        &self,
+        namespace: &str,
+        name: &PackageName,
+        bytes: &[u8],
+    ) -> Result<()> {
+        self.cached.namespaced(namespace).write_packument(name, bytes).await
+    }
+
+    pub async fn open_uplink_tarball_tmp(
+        &self,
+        namespace: &str,
+        name: &PackageName,
+        filename: &str,
+    ) -> Result<TarballWrite> {
+        self.cached.namespaced(namespace).open_tarball_tmp(name, filename).await
+    }
+
+    pub async fn open_uplink_tarball(
+        &self,
+        namespace: &str,
+        name: &PackageName,
+        filename: &str,
+    ) -> Result<Option<(fs::File, u64)>> {
+        self.cached.namespaced(namespace).open_tarball(name, filename).await
+    }
+
+    pub async fn read_uplink_tarball_integrity(
+        &self,
+        namespace: &str,
+        name: &PackageName,
+        filename: &str,
+    ) -> Option<CachedTarballIntegrity> {
+        self.cached.namespaced(namespace).read_tarball_integrity(name, filename).await
+    }
+
+    pub async fn write_uplink_tarball_integrity(
+        &self,
+        namespace: &str,
+        name: &PackageName,
+        filename: &str,
+        integrity: &CachedTarballIntegrity,
+    ) -> Result<()> {
+        self.cached.namespaced(namespace).write_tarball_integrity(name, filename, integrity).await
+    }
+
+    pub async fn remove_uplink_tarball(
+        &self,
+        namespace: &str,
+        name: &PackageName,
+        filename: &str,
+    ) -> Result<bool> {
+        self.cached.namespaced(namespace).remove_tarball(name, filename).await
+    }
+
     /// Promote a tmp tarball written by the publish flow to its final
     /// home: a rename on the fs backend, an upload on the S3 backend.
     pub async fn finalize_tarball_slot(&self, slot: TarballSlot) -> Result<()> {
@@ -485,6 +563,13 @@ struct Store {
 impl Store {
     fn new(root: PathBuf) -> Self {
         Self { root }
+    }
+
+    /// A disposable store rooted at a sub-path of this one. Used to give a
+    /// private `/~<uplink>/` route its own cache namespace so its packuments
+    /// and tarballs never collide with the public mirror or another uplink.
+    fn namespaced(&self, prefix: &str) -> Store {
+        Store::new(self.root.join(prefix))
     }
 
     async fn read_packument_entry(

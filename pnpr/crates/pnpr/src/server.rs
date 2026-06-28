@@ -893,6 +893,41 @@ fn authorized_uplink<'a>(
 /// Serve a packument through an uplink's `/~<uplink>/` endpoint: fetch the
 /// uplink's own copy fresh (never the shared mirror), rewrite its
 /// `dist.tarball` URLs back onto the same endpoint, and apply OSV filtering.
+/// The disposable cache namespace for an uplink's `/~<uplink>/` route,
+/// keyed by the uplink and its rotation generation so its packuments and
+/// tarballs never collide with the public mirror or another uplink, and so a
+/// credential rotation moves to a fresh namespace.
+fn uplink_cache_namespace(state: &AppState, uplink: &str) -> String {
+    let generation = state.inner.config.uplinks.get(uplink).map_or(1, |uplink| uplink.generation);
+    format!("~uplinks/{uplink}/{generation}")
+}
+
+/// Load an uplink route's packument: a fresh per-uplink cache entry when one
+/// exists, otherwise a fetch through the uplink (with its server-side
+/// credential) written back to the same private namespace.
+async fn load_uplink_packument(
+    state: &AppState,
+    namespace: &str,
+    upstream: &Upstream,
+    name: &PackageName,
+    ttl: Duration,
+) -> Result<Option<Vec<u8>>, RegistryError> {
+    if let Some(bytes) = state.inner.storage.read_uplink_packument(namespace, name, ttl).await? {
+        return Ok(Some(bytes));
+    }
+    match upstream.fetch_packument(name, &CacheValidators::default()).await? {
+        PackumentFetch::Modified(fetched) => {
+            if let Err(err) =
+                state.inner.storage.write_uplink_packument(namespace, name, &fetched.bytes).await
+            {
+                tracing::warn!(?err, package = %name.as_str(), "uplink packument cache write failed");
+            }
+            Ok(Some(fetched.bytes))
+        }
+        PackumentFetch::NotFound | PackumentFetch::NotModified => Ok(None),
+    }
+}
+
 async fn serve_packument_via_uplink(
     state: &AppState,
     identity: &Identity,
@@ -908,9 +943,11 @@ async fn serve_packument_via_uplink(
         Ok(upstream) => upstream,
         Err(response) => return *response,
     };
-    let bytes = match upstream.fetch_packument(&name, &CacheValidators::default()).await {
-        Ok(PackumentFetch::Modified(fetched)) => fetched.bytes,
-        Ok(PackumentFetch::NotFound | PackumentFetch::NotModified) => return not_found(),
+    let namespace = uplink_cache_namespace(state, uplink);
+    let ttl = upstream.maxage().unwrap_or(state.inner.config.packument_ttl);
+    let bytes = match load_uplink_packument(state, &namespace, upstream, &name, ttl).await {
+        Ok(Some(bytes)) => bytes,
+        Ok(None) => return not_found(),
         Err(err) => return error_response(&err),
     };
     let base = uplink_tarball_base(&state.inner.config.public_url, uplink);
@@ -927,10 +964,11 @@ async fn serve_packument_via_uplink(
 }
 
 /// Serve a tarball through an uplink's `/~<uplink>/` endpoint. The version's
-/// `dist.integrity` is read from the uplink's *own* fresh packument and the
-/// bytes are verified against it while streaming, then the temp file is
-/// removed — a private uplink's tarball is never written to the shared proxy
-/// cache.
+/// `dist.integrity` is read from the uplink's own packument (served from the
+/// private cache when fresh), and the bytes are verified against it. Both the
+/// packument and the verified tarball are cached under the uplink's private
+/// namespace, so a private uplink's content never lands in the shared proxy
+/// mirror yet is not re-fetched on every request.
 async fn serve_tarball_via_uplink(
     state: &AppState,
     identity: &Identity,
@@ -953,9 +991,11 @@ async fn serve_tarball_via_uplink(
     if let Err(err) = ensure_osv_allowed(state, &name, &name_version) {
         return error_response(&err);
     }
-    let packument = match upstream.fetch_packument(&name, &CacheValidators::default()).await {
-        Ok(PackumentFetch::Modified(fetched)) => fetched.bytes,
-        Ok(PackumentFetch::NotFound | PackumentFetch::NotModified) => return not_found(),
+    let namespace = uplink_cache_namespace(state, uplink);
+    let ttl = upstream.maxage().unwrap_or(state.inner.config.packument_ttl);
+    let packument = match load_uplink_packument(state, &namespace, upstream, &name, ttl).await {
+        Ok(Some(bytes)) => bytes,
+        Ok(None) => return not_found(),
         Err(err) => return error_response(&err),
     };
     let TarballDist { version, integrity } =
@@ -969,21 +1009,81 @@ async fn serve_tarball_via_uplink(
     {
         return error_response(&err);
     }
+
+    // Serve a verified private-cache hit without touching the upstream.
+    match state.inner.storage.open_uplink_tarball(&namespace, &name, &filename).await {
+        Ok(Some((file, len))) => {
+            let expected = cached_tarball_integrity(&integrity, len);
+            if state
+                .inner
+                .storage
+                .read_uplink_tarball_integrity(&namespace, &name, &filename)
+                .await
+                .is_some_and(|cached| cached == expected)
+            {
+                return tarball_response(streaming::stream_file(file), Some(len));
+            }
+            match streaming::verify_file(file, &integrity).await {
+                Ok(file) => {
+                    let _ = state
+                        .inner
+                        .storage
+                        .write_uplink_tarball_integrity(&namespace, &name, &filename, &expected)
+                        .await;
+                    return tarball_response(streaming::stream_file(file), Some(len));
+                }
+                Err(err) => {
+                    let err = tarball_stream_error(err, &name, &filename);
+                    tracing::warn!(?err, package = %name.as_str(), %filename, "cached uplink tarball failed verification");
+                    let _ = state
+                        .inner
+                        .storage
+                        .remove_uplink_tarball(&namespace, &name, &filename)
+                        .await;
+                }
+            }
+        }
+        Ok(None) => {}
+        Err(err) => {
+            tracing::warn!(?err, package = %name.as_str(), %filename, "uplink tarball cache open failed");
+        }
+    }
+
     let response = match upstream.fetch_tarball_response(&name, &filename).await {
         Ok(FetchOutcome::Ok(response)) => response,
         Ok(FetchOutcome::NotFound) => return not_found(),
         Err(err) => return error_response(&err),
     };
-    let write = match state.inner.storage.open_cached_tarball_tmp(&name, &filename).await {
-        Ok(write) => write,
-        Err(err) => return error_response(&err),
-    };
-    match streaming::download_verified_to_temp(response, write, &integrity, MAX_TARBALL_BYTES).await
-    {
-        Ok((file, len, tmp_path)) => {
-            tarball_response(streaming::stream_file_and_remove(file, tmp_path), Some(len))
-        }
-        Err(err) => error_response(&tarball_stream_error(err, &name, &filename)),
+    let write =
+        match state.inner.storage.open_uplink_tarball_tmp(&namespace, &name, &filename).await {
+            Ok(write) => write,
+            Err(err) => return error_response(&err),
+        };
+    let len =
+        match streaming::download_verified_to_cache(response, write, &integrity, MAX_TARBALL_BYTES)
+            .await
+        {
+            Ok(len) => len,
+            Err(err) => return error_response(&tarball_stream_error(err, &name, &filename)),
+        };
+    let _ = state
+        .inner
+        .storage
+        .write_uplink_tarball_integrity(
+            &namespace,
+            &name,
+            &filename,
+            &cached_tarball_integrity(&integrity, len),
+        )
+        .await;
+    match state.inner.storage.open_uplink_tarball(&namespace, &name, &filename).await {
+        Ok(Some((file, len))) => tarball_response(streaming::stream_file(file), Some(len)),
+        Ok(None) => error_response(&tarball_integrity_error(
+            &name,
+            &filename,
+            "verified uplink cache entry disappeared before it could be served".to_string(),
+        )),
+        Err(err) => error_response(&err),
     }
 }
 
