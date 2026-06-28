@@ -39,6 +39,8 @@ fn uplink_file(auth: Option<UplinkAuthFile>, headers: IndexMap<String, String>) 
         max_fails: None,
         fail_timeout: None,
         cache: None,
+        access: None,
+        generation: super::default_generation(),
     }
 }
 

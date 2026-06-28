@@ -530,6 +530,16 @@ pub struct UplinkConfig {
     /// mirror (verdaccio's `cache`). `false` streams them through
     /// uncached. Defaults to `true`.
     pub cache: bool,
+    /// Which pnpr callers may select this uplink as a proxied private-route
+    /// credential, and reach it through its `/~<name>/` registry endpoint.
+    /// `None` means the uplink is registry-proxy only and is never offered as
+    /// a resolver private-route credential — only uplinks that declare
+    /// `access:` participate in route classification.
+    pub access: Option<AccessList>,
+    /// Rotation generation for the uplink credential; bumping it moves future
+    /// private cache hits to a new namespace. Server-side only — never
+    /// embedded in a client-visible URL.
+    pub generation: u64,
 }
 
 impl UplinkConfig {
@@ -552,6 +562,8 @@ impl UplinkConfig {
             max_fails: Self::DEFAULT_MAX_FAILS,
             fail_timeout: Self::DEFAULT_FAIL_TIMEOUT,
             cache: true,
+            access: None,
+            generation: default_generation(),
         }
     }
 }
@@ -566,6 +578,8 @@ impl fmt::Debug for UplinkConfig {
             .field("max_fails", &self.max_fails)
             .field("fail_timeout", &self.fail_timeout)
             .field("cache", &self.cache)
+            .field("access", &self.access)
+            .field("generation", &self.generation)
             .finish()
     }
 }
@@ -607,6 +621,13 @@ struct UplinkFile {
     fail_timeout: Option<Interval>,
     #[serde(default)]
     cache: Option<bool>,
+    /// Which pnpr callers may select this uplink as a proxied private-route
+    /// credential. Its presence is what promotes a plain proxy uplink into a
+    /// resolver private-route credential exposed at `/~<name>/`.
+    #[serde(default)]
+    access: Option<AccessSpec>,
+    #[serde(default = "default_generation")]
+    generation: u64,
 }
 
 /// A verdaccio interval scalar as written in YAML: either a string
@@ -765,6 +786,8 @@ fn resolve_uplink<Sys: EnvVar>(
         max_fails: file.max_fails.unwrap_or(UplinkConfig::DEFAULT_MAX_FAILS),
         fail_timeout,
         cache: file.cache.unwrap_or(true),
+        access: file.access.as_ref().map(AccessSpec::to_access_list),
+        generation: file.generation,
     })
 }
 
