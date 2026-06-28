@@ -79,6 +79,11 @@ fn allows_registry_is_a_default_deny_allowlist() {
     assert!(!context.allows_registry("http://169.254.169.254/"));
     assert!(!context.allows_registry("https://evil.example/"));
     assert!(!context.allows_registry("not a url"));
+
+    // Rejected: a `..` segment that could escape a path-scoped prefix match
+    // (here pnpr's own `/~corp/` endpoint prefix) onto a sibling path.
+    assert!(!context.allows_registry(&format!("{}/~corp/../admin", config.public_url)));
+    assert!(!context.allows_registry("https://npm.corp.example/../etc"));
 }
 
 #[test]

@@ -325,6 +325,13 @@ impl RouteContext {
         if fetch.is_empty() {
             return false;
         }
+        // A `.`/`..` path segment can slip past a path-scoped prefix match
+        // (`//host/base/../admin` starts_with `//host/base/` yet resolves to
+        // `//host/admin`), escaping the allowlist. Registries never use them,
+        // so any dot-segment fails closed.
+        if contains_dot_segment(&fetch) {
+            return false;
+        }
         if self.npmjs_public && origin_of(&fetch) == Some("registry.npmjs.org") {
             return true;
         }
@@ -606,6 +613,12 @@ fn origin_of(nerfed: &str) -> Option<&str> {
 /// for a value with no scheme.
 fn scheme_of(url: &str) -> Option<&str> {
     url.split_once("://").map(|(scheme, _)| scheme)
+}
+
+/// Whether a nerf-darted key (`//host/path/`) has a `.` or `..` path segment,
+/// which could escape a path-scoped prefix match in [`RouteContext::allows_registry`].
+fn contains_dot_segment(nerfed: &str) -> bool {
+    nerfed.split('/').any(|segment| segment == "." || segment == "..")
 }
 
 /// HMAC-SHA256 (RFC 2104) over the workspace's audited `sha2`, so the
