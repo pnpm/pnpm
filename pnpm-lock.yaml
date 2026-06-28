@@ -7616,6 +7616,9 @@ importers:
 
   pnpm11/pkg-manifest/commands:
     dependencies:
+      '@pnpm/catalogs.types':
+        specifier: workspace:*
+        version: link:../../catalogs/types
       '@pnpm/cli.utils':
         specifier: workspace:*
         version: link:../../cli/utils
@@ -7625,9 +7628,15 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
+      '@pnpm/hooks.pnpmfile':
+        specifier: workspace:*
+        version: link:../../hooks/pnpmfile
       '@pnpm/object.property-path':
         specifier: workspace:*
         version: link:../../object/property-path
+      '@pnpm/releasing.exportable-manifest':
+        specifier: workspace:*
+        version: link:../../releasing/exportable-manifest
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../core/types

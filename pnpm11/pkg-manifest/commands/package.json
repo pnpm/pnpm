@@ -32,10 +32,13 @@
     "prepublishOnly": "tsgo --build"
   },
   "dependencies": {
+    "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/cli.utils": "workspace:*",
     "@pnpm/config.reader": "workspace:*",
     "@pnpm/error": "workspace:*",
+    "@pnpm/hooks.pnpmfile": "workspace:*",
     "@pnpm/object.property-path": "workspace:*",
+    "@pnpm/releasing.exportable-manifest": "workspace:*",
     "@pnpm/types": "workspace:*",
     "render-help": "catalog:"
   },

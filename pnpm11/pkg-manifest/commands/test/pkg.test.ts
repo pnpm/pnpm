@@ -250,6 +250,71 @@ describe('pkg command', () => {
     })
   })
 
+  describe('get --published', () => {
+    test('applies publishConfig overrides', async () => {
+      const manifest = {
+        name: 'test-package',
+        version: '1.0.0',
+        main: './src/index.ts',
+        publishConfig: {
+          main: './dist/index.js',
+        },
+      }
+      fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(manifest, null, 2))
+
+      const result = await handler({ dir: tmpDir, published: true }, ['get', 'main'])
+      expect(result).toBe('./dist/index.js')
+    })
+
+    test('strips publish lifecycle scripts', async () => {
+      const manifest = {
+        name: 'test-package',
+        version: '1.0.0',
+        scripts: {
+          build: 'tsc',
+          prepublishOnly: 'npm run build',
+          prepack: 'echo prepack',
+        },
+      }
+      fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(manifest, null, 2))
+
+      const result = JSON.parse(await handler({ dir: tmpDir, published: true }, ['get', 'scripts']) as string)
+      expect(result.build).toBe('tsc')
+      expect(result.prepublishOnly).toBeUndefined()
+      expect(result.prepack).toBeUndefined()
+    })
+
+    test('strips pnpm field', async () => {
+      const manifest = {
+        name: 'test-package',
+        version: '1.0.0',
+        pnpm: {
+          overrides: { foo: '1.0.0' },
+        },
+      }
+      fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(manifest, null, 2))
+
+      const result = JSON.parse(await handler({ dir: tmpDir, published: true }, ['get']) as string)
+      expect(result.pnpm).toBeUndefined()
+    })
+
+    test('returns full transformed manifest with no field args', async () => {
+      const manifest = {
+        name: 'test-package',
+        version: '1.0.0',
+        main: './src/index.ts',
+        publishConfig: {
+          main: './dist/index.js',
+        },
+      }
+      fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(manifest, null, 2))
+
+      const result = JSON.parse(await handler({ dir: tmpDir, published: true }, ['get']) as string)
+      expect(result.main).toBe('./dist/index.js')
+      expect(result.name).toBe('test-package')
+    })
+  })
+
   describe('error handling', () => {
     test('throws error for unknown subcommand', async () => {
       const manifest = { name: 'test-package' }
