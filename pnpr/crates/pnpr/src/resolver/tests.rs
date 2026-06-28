@@ -552,6 +552,15 @@ fn reject_off_allowlist_fetches_blocks_unconfigured_hosts() {
     };
     assert!(reject_off_allowlist_fetches(&git_dep, &context).is_some());
 
+    // An scp-style git remote (`[user@]host:path`) carries no `://` but still
+    // triggers an ssh git fetch, so it is rejected too.
+    let scp_dep = ResolveRequest {
+        registry: Some("https://registry.npmjs.org/".to_string()),
+        dependencies: Some(deps(&[("foo", "git@169.254.169.254:org/repo.git")])),
+        ..ResolveRequest::default()
+    };
+    assert!(reject_off_allowlist_fetches(&scp_dep, &context).is_some());
+
     // An override whose leaf is an off-allowlist URL is rejected.
     let override_dep = ResolveRequest {
         registry: Some("https://registry.npmjs.org/".to_string()),

@@ -1327,9 +1327,7 @@ fn reject_off_allowlist_fetches(
             }
         }
     }
-    if let Some(off) =
-        url_specs.into_iter().filter_map(fetch_url_of).find(|url| !context.allows_registry(url))
-    {
+    if let Some(off) = url_specs.into_iter().find(|spec| fetch_is_off_allowlist(spec, context)) {
         return Some(forbidden_off_allowlist(off));
     }
 
@@ -1345,15 +1343,38 @@ fn reject_off_allowlist_fetches(
     None
 }
 
-/// The fetchable URL inside a dependency/override spec, if its scheme triggers
-/// a server-side network fetch — an `http(s)` tarball or a `git`/`ssh` git
-/// remote. A `git+` transport prefix is stripped so the origin check sees the
-/// bare URL. `None` for specs that never reach the network (semver ranges,
-/// `npm:`/`workspace:`/`file:`/`link:` aliases, scoped names).
-fn fetch_url_of(spec: &str) -> Option<&str> {
+/// Whether `spec` would trigger a server-side fetch to an origin that is not on
+/// the allowlist. Covers `scheme://host` URLs (`http(s)`/`git`/`ssh`, with a
+/// `git+` transport prefix stripped) and scp-style git remotes
+/// (`[user@]host:path`), which pacquet routes to the ssh git resolver. Specs
+/// that never reach the network — semver ranges, `npm:`/`workspace:`/`file:`/
+/// `link:` aliases, scoped names — return `false`.
+fn fetch_is_off_allowlist(spec: &str, context: &RouteContext) -> bool {
     let url = spec.strip_prefix("git+").unwrap_or(spec);
-    let (scheme, _) = url.split_once("://")?;
-    matches!(scheme, "http" | "https" | "git" | "ssh").then_some(url)
+    if let Some((scheme, _)) = url.split_once("://") {
+        return matches!(scheme, "http" | "https" | "git" | "ssh") && !context.allows_registry(url);
+    }
+    // A scp-style git remote carries no scheme, so normalize its host to an
+    // `ssh://host/` origin the allowlist can match (nerf-darting is
+    // scheme-agnostic, so an operator allowlisting `https://host/` covers it).
+    match scp_git_host(url) {
+        Some(host) => !context.allows_registry(&format!("ssh://{host}/")),
+        None => false,
+    }
+}
+
+/// The host of a scp-style git remote (`[user@]host:path`), or `None`. The
+/// distinguishing shape is a `user@host` authority before the first `:` with a
+/// path after it — generalizing the `git@…` form pacquet's git resolver treats
+/// as ssh. A protocol spec (`npm:…`, `file:…`) has no `@` in its authority, and
+/// a `scheme://…` URL is handled before this is reached.
+fn scp_git_host(spec: &str) -> Option<&str> {
+    let (authority, path) = spec.split_once(':')?;
+    if path.is_empty() || authority.contains('/') {
+        return None;
+    }
+    let (_, host) = authority.rsplit_once('@')?;
+    (!host.is_empty()).then_some(host)
 }
 
 /// The first override URL leaf whose origin is off the fetch allowlist, if any.
@@ -1363,7 +1384,7 @@ fn first_off_allowlist_override(
 ) -> Option<String> {
     match value {
         serde_json::Value::String(spec) => {
-            fetch_url_of(spec).filter(|url| !context.allows_registry(url)).map(str::to_string)
+            fetch_is_off_allowlist(spec, context).then(|| spec.clone())
         }
         serde_json::Value::Array(items) => {
             items.iter().find_map(|item| first_off_allowlist_override(item, context))
