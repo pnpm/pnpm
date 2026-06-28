@@ -243,6 +243,7 @@ fn route<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFut
         CliCommand::Patch(args) => dispatch_install::patch(ctx, args),
         CliCommand::PatchCommit(args) => dispatch_install::patch_commit(ctx, args),
         CliCommand::PatchRemove(args) => dispatch_install::patch_remove(ctx, args),
+        CliCommand::Peers(args) => dispatch_query::peers(ctx, args),
         CliCommand::SetScript(args) => dispatch_script::set_script(ctx, args),
         CliCommand::Test => dispatch_script::test(ctx),
         CliCommand::Run(args) => dispatch_script::run(ctx, args),

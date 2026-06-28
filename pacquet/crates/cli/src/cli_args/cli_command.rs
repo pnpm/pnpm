@@ -28,6 +28,7 @@ use super::{
     patch::PatchArgs,
     patch_commit::PatchCommitArgs,
     patch_remove::PatchRemoveArgs,
+    peers::PeersArgs,
     ping::PingArgs,
     prune::PruneArgs,
     rebuild::RebuildArgs,
@@ -154,6 +155,9 @@ pub enum CliCommand {
     /// Remove existing patch files.
     #[clap(name = "patch-remove")]
     PatchRemove(PatchRemoveArgs),
+    /// Checks for unmet or missing peer dependency issues.
+    #[clap(name = "peers")]
+    Peers(PeersArgs),
     /// Set a script in package.json
     #[clap(visible_alias = "ss")]
     SetScript(SetScriptArgs),
