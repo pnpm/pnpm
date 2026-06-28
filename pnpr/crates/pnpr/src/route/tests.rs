@@ -204,6 +204,29 @@ fn uplink_with_access_is_a_proxied_route_matched_by_origin() {
 }
 
 #[test]
+fn uplink_credential_is_not_attached_over_a_mismatched_scheme() {
+    let mut config = base_config();
+    config.uplinks.insert(
+        "corp".to_string(),
+        uplink_with_access("https://npm.corp.example/", "$authenticated", 1),
+    );
+    let context = RouteContext::from_config(&config);
+
+    // An https fetch matches the https uplink and gets the managed credential.
+    assert_eq!(
+        context.classify(&user("alice"), "https://npm.corp.example/lodash", Some("lodash")),
+        RouteClass::Proxied { alias: "corp".to_string(), generation: 1 },
+    );
+    // A plain-http fetch to the same origin must NOT receive the https uplink's
+    // server-owned token (nerf-darting strips the scheme); it falls through to
+    // an anonymous public fetch instead.
+    assert_eq!(
+        context.classify(&user("alice"), "http://npm.corp.example/lodash", Some("lodash")),
+        RouteClass::Public,
+    );
+}
+
+#[test]
 fn self_uplink_endpoint_url_classifies_as_proxied_for_authorized_caller() {
     let mut config = base_config();
     config.uplinks.insert(

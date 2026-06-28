@@ -561,6 +561,24 @@ fn reject_off_allowlist_fetches_blocks_unconfigured_hosts() {
     };
     assert!(reject_off_allowlist_fetches(&scp_dep, &context).is_some());
 
+    // Every git transport is gated by origin, not just http(s)/git/ssh — and
+    // `file://` (a server-local read) nerf-darts to no host and is rejected.
+    for spec in [
+        "git+rsync://169.254.169.254/repo",
+        "git+ftp://169.254.169.254/repo",
+        "git+file:///etc/passwd",
+    ] {
+        let dep = ResolveRequest {
+            registry: Some("https://registry.npmjs.org/".to_string()),
+            dependencies: Some(deps(&[("foo", spec)])),
+            ..ResolveRequest::default()
+        };
+        assert!(
+            reject_off_allowlist_fetches(&dep, &context).is_some(),
+            "spec {spec:?} not rejected",
+        );
+    }
+
     // An override whose leaf is an off-allowlist URL is rejected.
     let override_dep = ResolveRequest {
         registry: Some("https://registry.npmjs.org/".to_string()),

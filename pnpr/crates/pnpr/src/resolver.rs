@@ -1352,15 +1352,21 @@ fn reject_off_allowlist_fetches(
 }
 
 /// Whether `spec` would trigger a server-side fetch to an origin that is not on
-/// the allowlist. Covers `scheme://host` URLs (`http(s)`/`git`/`ssh`, with a
-/// `git+` transport prefix stripped) and scp-style git remotes
-/// (`[user@]host:path`), which pacquet routes to the ssh git resolver. Specs
-/// that never reach the network — semver ranges, `npm:`/`workspace:`/`file:`/
-/// `link:` aliases, scoped names — return `false`.
+/// the allowlist. Covers any `scheme://host` URL (an `http(s)` tarball and
+/// every git transport — `git`/`ssh`/`rsync`/`ftp`/`file`/... — with a `git+`
+/// prefix stripped) and scp-style git remotes (`[user@]host:path`), which
+/// pacquet routes to the ssh git resolver. Specs that never reach the network —
+/// semver ranges, `npm:`/`workspace:`/`file:`/`link:` aliases (no `://`),
+/// scoped names — return `false`.
 fn fetch_is_off_allowlist(spec: &str, context: &RouteContext) -> bool {
     let url = spec.strip_prefix("git+").unwrap_or(spec);
-    if let Some((scheme, _)) = url.split_once("://") {
-        return matches!(scheme, "http" | "https" | "git" | "ssh") && !context.allows_registry(url);
+    if url.contains("://") {
+        // Gate by origin regardless of scheme: any transport that reaches a
+        // host can be an SSRF vector (every git transport — git/ssh/rsync/ftp/
+        // file/...), and a scheme with no allowlistable host (e.g. `file://`,
+        // which would read a server-local path) nerf-darts to nothing and is
+        // rejected.
+        return !context.allows_registry(url);
     }
     // A scp-style git remote carries no scheme, so normalize its host to an
     // `ssh://host/` origin the allowlist can match (nerf-darting is
@@ -1373,9 +1379,9 @@ fn fetch_is_off_allowlist(spec: &str, context: &RouteContext) -> bool {
 
 /// The host of a scp-style git remote (`[user@]host:path`), or `None`. The
 /// distinguishing shape is a `user@host` authority before the first `:` with a
-/// path after it — generalizing the `git@…` form pacquet's git resolver treats
-/// as ssh. A protocol spec (`npm:…`, `file:…`) has no `@` in its authority, and
-/// a `scheme://…` URL is handled before this is reached.
+/// path after it — generalizing the `git@...` form pacquet's git resolver treats
+/// as ssh. A protocol spec (`npm:...`, `file:...`) has no `@` in its authority, and
+/// a `scheme://...` URL is handled before this is reached.
 fn scp_git_host(spec: &str) -> Option<&str> {
     let (authority, path) = spec.split_once(':')?;
     if path.is_empty() || authority.contains('/') {

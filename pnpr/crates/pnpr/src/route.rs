@@ -183,8 +183,13 @@ struct ResolvedAlias {
     /// Nerf-darted upstream origin the alias serves. Routing is by origin
     /// alone — an uplink credential covers every package on its registry.
     origin: String,
+    /// The uplink registry's URL scheme (`https`/`http`). The credential is
+    /// attached only to a fetch of this same scheme: nerf-darting strips the
+    /// scheme from [`Self::origin`], so without this check an `http://host`
+    /// fetch would match an `https://host` uplink and send its token in clear.
+    scheme: String,
     /// The fully-formed `Authorization` header value the alias sends
-    /// upstream (`Bearer …` / `Basic …`).
+    /// upstream (`Bearer ...` / `Basic ...`).
     authorization: String,
     /// Which pnpr callers may select this alias.
     access: AccessList,
@@ -199,6 +204,7 @@ impl fmt::Debug for ResolvedAlias {
             .field("generation", &self.generation)
             .field("registry", &self.registry)
             .field("origin", &self.origin)
+            .field("scheme", &self.scheme)
             .field("authorization", &"<redacted>")
             .field("access", &self.access)
             .finish()
@@ -281,7 +287,14 @@ impl RouteContext {
             return self.classify_hosted(identity, package);
         }
 
-        if let Some(alias) = self.select_alias(identity, &fetch) {
+        if let Some(alias) = self.select_alias(identity, &fetch)
+            && scheme_of(url) == Some(alias.scheme.as_str())
+        {
+            // Scheme must match the uplink's: nerf-darting strips it, so an
+            // `http://host` fetch would otherwise be handed an `https://host`
+            // uplink's server-owned credential and leak it in cleartext. A
+            // scheme mismatch falls through to an anonymous public fetch (which
+            // fails closed upstream if the resource is actually private).
             return RouteClass::Proxied { alias: alias.name.clone(), generation: alias.generation };
         }
 
@@ -451,6 +464,7 @@ impl ResolvedAlias {
             generation: uplink.generation,
             registry: uplink.url.clone(),
             origin: nerf_prefix(&uplink.url)?,
+            scheme: scheme_of(&uplink.url)?.to_string(),
             authorization,
             access,
         })
@@ -586,6 +600,12 @@ fn nerf_prefix(url: &str) -> Option<String> {
 /// The `host[:port]` of a nerf-darted key (`//host[:port]/path/`).
 fn origin_of(nerfed: &str) -> Option<&str> {
     nerfed.strip_prefix("//")?.split('/').next().filter(|host| !host.is_empty())
+}
+
+/// The URL scheme (`https`, `http`, ...), i.e. the segment before `://`. `None`
+/// for a value with no scheme.
+fn scheme_of(url: &str) -> Option<&str> {
+    url.split_once("://").map(|(scheme, _)| scheme)
 }
 
 /// HMAC-SHA256 (RFC 2104) over the workspace's audited `sha2`, so the
