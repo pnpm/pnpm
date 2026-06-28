@@ -193,7 +193,13 @@ pub(super) fn pack_app<'a>(
 pub(super) fn repo<'a>(ctx: &RunCtx<'a>, args: RepoArgs) -> miette::Result<CommandFuture<'a>> {
     let cfg = (ctx.config)()?;
     let dir = ctx.dir;
-    Ok(Box::pin(async move { args.run(cfg, dir).await }))
+    Ok(match ctx.reporter {
+        ReporterType::Default | ReporterType::AppendOnly => {
+            Box::pin(async move { args.run::<DefaultReporter>(cfg, dir).await })
+        }
+        ReporterType::Ndjson => Box::pin(async move { args.run::<NdjsonReporter>(cfg, dir).await }),
+        ReporterType::Silent => Box::pin(async move { args.run::<SilentReporter>(cfg, dir).await }),
+    })
 }
 
 pub(super) fn docs<'a>(ctx: &RunCtx<'a>, args: DocsArgs) -> miette::Result<CommandFuture<'a>> {
