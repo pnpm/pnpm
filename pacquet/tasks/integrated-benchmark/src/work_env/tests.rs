@@ -153,7 +153,7 @@ fn pnpr_benchmark_config_declares_local_registry_public() {
 
     assert!(yaml.contains("registry: http://localhost:4873/"));
     assert!(yaml.contains("registry: http://127.0.0.1:61824/"));
-    assert!(yaml.contains("npmjsUnscopedPublic: true"));
+    assert!(yaml.contains("npmjsPublic: true"));
     assert!(yaml.contains("max_users: -1"));
     assert!(yaml.contains("htpasswd"));
 }
@@ -164,7 +164,7 @@ fn pnpr_benchmark_config_keeps_npm_mode_on_builtin_public_rule() {
 
     let yaml = pnpr_benchmark_config_yaml(&storage, &[]);
 
-    assert!(yaml.contains("npmjsUnscopedPublic: true"));
+    assert!(yaml.contains("npmjsPublic: true"));
     assert!(yaml.contains("public: []"));
     assert!(!yaml.contains("registry: https://registry.npmjs.org/"));
 }
