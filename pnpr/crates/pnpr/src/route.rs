@@ -612,6 +612,24 @@ pub(crate) fn strip_url_credentials(url: &str) -> String {
     }
 }
 
+/// Sanitize an upstream `dist.tarball` URL for public emission: drop inline
+/// userinfo (via [`strip_url_credentials`]) **and** any query string or
+/// fragment, where a registry could carry a signed-URL / tokenized credential
+/// (`?X-Amz-Signature=…`, `?token=…`). A genuinely public tarball is fetched by
+/// its bare path and verified by SRI regardless, so the sanitized URL still
+/// works; one that truly needed a token was never a public route and must be
+/// configured as an uplink (whose tarballs route through `/~<uplink>/`, keeping
+/// the token server-side). Unlike a client-supplied direct-tarball spec — whose
+/// query is the caller's own intent — this is untrusted upstream metadata.
+#[must_use]
+pub(crate) fn sanitize_registry_tarball_url(url: &str) -> String {
+    let no_creds = strip_url_credentials(url);
+    match no_creds.split_once(['?', '#']) {
+        Some((base, _)) => base.to_string(),
+        None => no_creds,
+    }
+}
+
 /// Compile a package glob, returning `None` for an invalid pattern rather
 /// than failing the whole resolve. [`RouteMatcher::from_public_route`] turns
 /// that `None` into a dropped (never-matching) rule, so an operator typo

@@ -58,7 +58,10 @@ use crate::{
     config::Config as RegistryConfig,
     package_name::PackageName,
     policy::Identity,
-    route::{Footprint, RouteClass, RouteContext, RouteHook, strip_url_credentials},
+    route::{
+        Footprint, RouteClass, RouteContext, RouteHook, sanitize_registry_tarball_url,
+        strip_url_credentials,
+    },
     upstream::tarball_basename,
 };
 
@@ -776,12 +779,12 @@ impl TarballRouter {
     fn route_registry_url(&self, package: &str, version: &str, tarball_url: &str) -> String {
         let registry = pick_registry_for_package(&self.registries, package, None);
         match self.context.classify(&self.identity, &registry, Some(package)) {
-            // Strip any inline userinfo before emitting: a malicious or
-            // compromised allowlisted registry could embed `user:pass@host`
-            // credentials in its `dist.tarball`, and pnpr must never stream or
-            // cache those. A genuinely public tarball is anonymously fetchable,
-            // so the credential-free URL still works.
-            RouteClass::Public => strip_url_credentials(tarball_url),
+            // The `dist.tarball` is untrusted upstream metadata, so sanitize it
+            // before emitting/caching: drop inline `user:pass@host` userinfo and
+            // any query/fragment a registry could use to carry a signed-URL
+            // token. A genuinely public tarball is anonymously fetchable, so the
+            // sanitized URL still works.
+            RouteClass::Public => sanitize_registry_tarball_url(tarball_url),
             RouteClass::Hosted { .. } => pnpr_tarball_url(
                 &self.public_url,
                 package,

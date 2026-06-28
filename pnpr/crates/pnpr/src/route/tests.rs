@@ -45,6 +45,27 @@ fn strip_url_credentials_removes_inline_userinfo() {
 }
 
 #[test]
+fn sanitize_registry_tarball_url_drops_userinfo_query_and_fragment() {
+    use super::sanitize_registry_tarball_url;
+    // A presigned/tokenized upstream URL loses its token.
+    assert_eq!(
+        sanitize_registry_tarball_url(
+            "https://cdn.example/acme-1.0.0.tgz?X-Amz-Signature=secret&token=abc",
+        ),
+        "https://cdn.example/acme-1.0.0.tgz",
+    );
+    assert_eq!(
+        sanitize_registry_tarball_url("https://user:pass@cdn.example/x.tgz#frag"),
+        "https://cdn.example/x.tgz",
+    );
+    // A clean canonical npm URL is unchanged.
+    assert_eq!(
+        sanitize_registry_tarball_url("https://registry.npmjs.org/acme/-/acme-1.0.0.tgz"),
+        "https://registry.npmjs.org/acme/-/acme-1.0.0.tgz",
+    );
+}
+
+#[test]
 fn hmac_sha256_matches_rfc4231_case1() {
     // RFC 4231 test case 1: 20-byte 0x0b key, "Hi There".
     let mac = super::hmac_sha256(&[0x0b; 20], b"Hi There");

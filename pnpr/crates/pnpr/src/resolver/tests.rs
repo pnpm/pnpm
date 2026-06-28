@@ -788,6 +788,34 @@ fn package_frame_routes_split_domain_registry_tarball_by_registry() {
 }
 
 #[test]
+fn package_frame_strips_signed_token_from_public_registry_tarball() {
+    use pacquet_package_manager::ResolvedPackageHint;
+
+    let registry = registry_config();
+    let registries =
+        HashMap::from([("default".to_string(), "https://registry.npmjs.org/".to_string())]);
+    let router = tarball_router_with_registries(&registry, user("alice"), registries);
+    let frame = super::package_frame(
+        &router,
+        &ResolvedPackageHint {
+            id: "acme@1.0.0",
+            name: "acme",
+            version: "1.0.0",
+            integrity: "sha512-abc",
+            // A public registry that fronts a presigned CDN URL with a token.
+            tarball_url: "https://registry.npmjs.org/acme/-/acme-1.0.0.tgz?token=secret",
+            unpacked_size: None,
+            file_count: None,
+            from_registry: true,
+        },
+    );
+    let tarball = frame["tarball"].as_str().expect("tarball URL");
+
+    // The upstream token is never emitted to the client.
+    assert_eq!(tarball, "https://registry.npmjs.org/acme/-/acme-1.0.0.tgz", "got {tarball}");
+}
+
+#[test]
 fn frozen_package_frames_announce_lockfile_tarballs_with_sizes() {
     use pacquet_lockfile::Lockfile;
     use pacquet_resolving_npm_resolver::{DistStats, observed_dist_stats_sink};
