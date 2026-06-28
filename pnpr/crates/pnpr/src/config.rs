@@ -1363,7 +1363,7 @@ impl Config {
             IndexMap::new()
         };
         let route_policy = build_route_policy(file.routes);
-        let resolution_cache_secret = resolution_secret(file.secret.as_deref());
+        let resolution_cache_secret = resolution_secret(file.secret.as_deref())?;
         let config = Self {
             listen,
             public_url,
@@ -1496,12 +1496,29 @@ fn build_groups(file: &IndexMap<String, AccessSpec>) -> AccessGroups {
     groups
 }
 
+/// Minimum length for an operator-configured `secret:`. A shorter value makes
+/// the private-cache descriptor HMAC guessable, defeating its "not
+/// correlatable offline" property; a generated secret is 32 bytes.
+const MIN_RESOLUTION_SECRET_LEN: usize = 16;
+
 /// The HMAC secret keying private resolution-cache entries: the YAML
-/// `secret:` when set, else a fresh per-process value.
-fn resolution_secret(secret: Option<&str>) -> Arc<[u8]> {
+/// `secret:` when set (rejected if too short to be a safe HMAC key), else a
+/// fresh per-process value.
+fn resolution_secret(secret: Option<&str>) -> Result<Arc<[u8]>, RegistryError> {
     match secret {
-        Some(secret) if !secret.is_empty() => Arc::from(secret.as_bytes().to_vec()),
-        _ => random_secret(),
+        Some(secret) if !secret.is_empty() => {
+            if secret.len() < MIN_RESOLUTION_SECRET_LEN {
+                return Err(RegistryError::InvalidConfig {
+                    reason: format!(
+                        "`secret:` must be at least {MIN_RESOLUTION_SECRET_LEN} bytes to key the \
+                         private resolution-cache HMAC (it is {})",
+                        secret.len(),
+                    ),
+                });
+            }
+            Ok(Arc::from(secret.as_bytes().to_vec()))
+        }
+        _ => Ok(random_secret()),
     }
 }
 

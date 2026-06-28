@@ -231,13 +231,13 @@ impl RouteContext {
     /// Resolve route-classification inputs from the server config.
     #[must_use]
     pub fn from_config(config: &Config) -> Self {
-        let hosted_origin = nerf_origin(&config.public_url);
+        let hosted_origin = nerf_prefix(&config.public_url);
         let public_routes = config
             .route_policy
             .public
             .iter()
             .map(|route| RouteMatcher {
-                origin: route.registry.as_deref().and_then(nerf_origin),
+                origin: route.registry.as_deref().and_then(nerf_prefix),
                 package: route.package.as_deref().and_then(compile_glob),
             })
             .collect();
@@ -400,7 +400,7 @@ impl ResolvedAlias {
             name: name.to_string(),
             generation: uplink.generation,
             registry: uplink.url.clone(),
-            origin: nerf_origin(&uplink.url)?,
+            origin: nerf_prefix(&uplink.url)?,
             authorization,
             access,
         })
@@ -527,18 +527,15 @@ fn compile_glob(pattern: &str) -> Option<Glob<'static>> {
 /// Nerf-dart a registry URL down to its host-only origin
 /// (`//host[:port]/`), the prefix every fetch under it shares. `None`
 /// for an unparsable URL.
-fn nerf_origin(url: &str) -> Option<String> {
+/// The nerf-darted registry prefix used to match fetches to a hosted, public,
+/// or proxied-uplink route. Path-preserving (`//host/base/`), unlike a bare
+/// host: a pnpr served under a path prefix (`https://host/pnpr/`) still
+/// recognizes its own `/pnpr/~<uplink>/` endpoints, and a public/uplink route
+/// declared for `https://host/base/` does not also match a sibling
+/// `https://host/other/` path on the same host.
+fn nerf_prefix(url: &str) -> Option<String> {
     let nerfed = nerf_dart(url);
-    if nerfed.is_empty() { None } else { Some(host_prefix(&nerfed)) }
-}
-
-/// The `//host[:port]/` prefix of a nerf-darted key, discarding any
-/// path so an origin comparison ignores path depth.
-fn host_prefix(nerfed: &str) -> String {
-    match origin_of(nerfed) {
-        Some(host) => format!("//{host}/"),
-        None => nerfed.to_string(),
-    }
+    if nerfed.is_empty() { None } else { Some(nerfed) }
 }
 
 /// The `host[:port]` of a nerf-darted key (`//host[:port]/path/`).

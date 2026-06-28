@@ -164,6 +164,28 @@ fn self_uplink_endpoint_url_classifies_as_proxied_for_authorized_caller() {
 }
 
 #[test]
+fn self_endpoint_recognized_when_pnpr_is_served_under_a_path_prefix() {
+    let mut config = base_config();
+    // pnpr deployed behind a reverse proxy under a `/pnpr/` sub-path.
+    config.public_url = "https://host.example/pnpr/".to_string();
+    config.uplinks.insert(
+        "corp".to_string(),
+        uplink_with_access("https://npm.corp.example/", "$authenticated", 5),
+    );
+    let context = RouteContext::from_config(&config);
+    // The path-preserving hosted prefix still recognizes the `/pnpr/~corp/`
+    // endpoint instead of dropping the `/pnpr` path and misclassifying it.
+    assert_eq!(
+        context.classify(
+            &user("alice"),
+            "https://host.example/pnpr/~corp/@acme%2fwidget",
+            Some("@acme/widget"),
+        ),
+        RouteClass::Proxied { alias: "corp".to_string(), generation: 5 },
+    );
+}
+
+#[test]
 fn uplink_without_access_is_not_a_proxied_route() {
     let mut config = base_config();
     let mut headers = HeaderMap::new();

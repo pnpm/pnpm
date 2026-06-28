@@ -814,7 +814,7 @@ auth:
 web:
   enable: false
 plugins: ../node_modules
-secret: hunter2
+secret: a-sufficiently-long-secret-value
 uplinks:
   npmjs:
     url: https://registry.npmjs.org/
@@ -1881,4 +1881,8 @@ fn resolution_secret_uses_yaml_secret_then_falls_back_to_random() {
     // No `secret:` yields a fresh 32-byte CSPRNG value.
     let without_secret = Config::from_yaml_str("{}", Path::new("/x"), listen(), None).unwrap();
     assert_eq!(without_secret.resolution_cache_secret.len(), 32);
+
+    // A too-short `secret:` is a config error rather than a weak HMAC key.
+    let short = Config::from_yaml_str("secret: short", Path::new("/x"), listen(), None);
+    assert!(matches!(short, Err(RegistryError::InvalidConfig { .. })));
 }
