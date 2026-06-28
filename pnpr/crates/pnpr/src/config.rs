@@ -138,26 +138,15 @@ pub struct Config {
     pub resolution_cache_secret: Arc<[u8]>,
 }
 
-/// Which fetch routes the resolution cache treats as public.
-#[derive(Debug, Clone)]
+/// Which fetch routes the resolution cache treats as public. The official
+/// `registry.npmjs.org` host is always a built-in public route (added by the
+/// route layer when it builds its classification context); these are the
+/// *additional* operator-declared ones.
+#[derive(Debug, Default, Clone)]
 pub struct RoutePolicy {
-    /// Treat the official `registry.npmjs.org` host as public (the built-in
-    /// route), so packages resolved from it — scoped or unscoped — are
-    /// fetched anonymously and globally shareable. A *private* scoped npm
-    /// package 404s on the anonymous fetch, so it is never resolved this way;
-    /// a private npm dependency must be fronted by an uplink. `true` by
-    /// default; operators can disable it for a conservative deployment that
-    /// allowlists every registry explicitly, or if npm's policy changes.
-    pub npmjs_public: bool,
     /// Operator-declared public routes, matched by registry prefix
     /// and/or package pattern.
     pub public: Vec<PublicRoute>,
-}
-
-impl Default for RoutePolicy {
-    fn default() -> Self {
-        Self { npmjs_public: true, public: Vec::new() }
-    }
 }
 
 /// One operator-declared public route. A fetch matches when its registry
@@ -879,8 +868,6 @@ impl AccessSpec {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct RoutesFile {
-    #[serde(default = "default_true")]
-    npmjs_public: bool,
     #[serde(default)]
     public: Vec<PublicRouteFile>,
 }
@@ -1477,7 +1464,6 @@ fn build_route_policy(file: Option<RoutesFile>) -> RoutePolicy {
     match file {
         None => RoutePolicy::default(),
         Some(file) => RoutePolicy {
-            npmjs_public: file.npmjs_public,
             public: file
                 .public
                 .into_iter()

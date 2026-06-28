@@ -157,14 +157,12 @@ impl Footprint {
 /// [`Config`] and reused across every fetch in a resolve.
 #[derive(Debug, Clone)]
 pub struct RouteContext {
-    /// Built-in route: unscoped packages on `registry.npmjs.org` are
-    /// public. Operators can disable this for a conservative deployment.
-    npmjs_public: bool,
     /// Nerf-darted origin of this pnpr service (from `public_url`). A
     /// fetch whose URL falls under it is a pnpr-hosted route.
     hosted_origin: Option<String>,
-    /// Operator-declared public routes, matched by nerf-darted registry
-    /// prefix and/or package glob.
+    /// Public routes, matched by nerf-darted registry prefix and/or package
+    /// glob. Always begins with the built-in official-npm route
+    /// ([`RouteMatcher::npmjs`]), followed by the operator-declared ones.
     public_routes: Vec<RouteMatcher>,
     /// pnpr-managed upstream credential aliases, in declared order.
     aliases: Vec<ResolvedAlias>,
@@ -227,8 +225,12 @@ impl RouteContext {
     #[must_use]
     pub fn from_config(config: &Config) -> Self {
         let hosted_origin = nerf_prefix(&config.public_url);
-        let public_routes =
-            config.route_policy.public.iter().filter_map(RouteMatcher::from_public_route).collect();
+        // The official npm registry is a built-in public route, so it is both
+        // allowlisted and classified public without any operator config (and
+        // ahead of any uplink credential for the same origin — public wins).
+        let public_routes = std::iter::once(RouteMatcher::npmjs())
+            .chain(config.route_policy.public.iter().filter_map(RouteMatcher::from_public_route))
+            .collect();
         // Proxied-route credentials come from `uplinks:` entries that declare
         // an `access:` policy. They are matched by registry origin and exposed
         // to clients at `/~<name>/`.
@@ -240,7 +242,6 @@ impl RouteContext {
         let uplink_origins =
             config.uplinks.values().filter_map(|uplink| nerf_prefix(&uplink.url)).collect();
         Self {
-            npmjs_public: config.route_policy.npmjs_public,
             hosted_origin,
             public_routes,
             aliases,
@@ -313,13 +314,6 @@ impl RouteContext {
     }
 
     fn is_public_route(&self, fetch: &str, package: Option<&str>) -> bool {
-        // The official npm registry is public at the host level: an anonymous
-        // fetch returns only public content (a private scoped package 404s),
-        // so a successfully-resolved npmjs route — scoped or not — is public
-        // and globally shareable.
-        if self.npmjs_public && origin_of(fetch) == Some("registry.npmjs.org") {
-            return true;
-        }
         self.public_routes.iter().any(|route| route.matches(fetch, package))
     }
 
@@ -342,9 +336,6 @@ impl RouteContext {
         // so any dot-segment fails closed.
         if contains_dot_segment(&fetch) {
             return false;
-        }
-        if self.npmjs_public && origin_of(&fetch) == Some("registry.npmjs.org") {
-            return true;
         }
         if self.hosted_origin.as_deref().is_some_and(|hosted| fetch.starts_with(hosted)) {
             return true;
@@ -431,7 +422,21 @@ impl RouteContext {
     }
 }
 
+/// Nerf-darted origin of the official npm registry, the built-in public route.
+const NPMJS_ORIGIN: &str = "//registry.npmjs.org/";
+
 impl RouteMatcher {
+    /// The built-in public route: the official npm registry, host-level (no
+    /// package glob, so scoped and unscoped packages alike are public). An
+    /// anonymous fetch returns only public content — a private scoped package
+    /// `404`s — so a successfully-resolved npmjs route is public and globally
+    /// shareable. Prepended to the operator-declared routes in
+    /// [`RouteContext::from_config`], so it is allowlisted and public without
+    /// any config, and ahead of any uplink credential for the same origin.
+    fn npmjs() -> Self {
+        Self { origin: Some(NPMJS_ORIGIN.to_string()), package: None }
+    }
+
     /// Build a matcher from an operator-declared public route, failing
     /// closed. An *omitted* `registry`/`package` field means "match any" —
     /// the intended wildcard — but a field that is *present yet unparsable*
@@ -650,11 +655,6 @@ fn compile_glob(pattern: &str) -> Option<Glob<'static>> {
 fn nerf_prefix(url: &str) -> Option<String> {
     let nerfed = nerf_dart(url);
     if nerfed.is_empty() { None } else { Some(nerfed) }
-}
-
-/// The `host[:port]` of a nerf-darted key (`//host[:port]/path/`).
-fn origin_of(nerfed: &str) -> Option<&str> {
-    nerfed.strip_prefix("//")?.split('/').next().filter(|host| !host.is_empty())
 }
 
 /// The URL scheme (`https`, `http`, ...), i.e. the segment before `://`. `None`

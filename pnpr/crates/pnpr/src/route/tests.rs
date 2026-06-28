@@ -127,20 +127,27 @@ fn allows_registry_is_a_default_deny_allowlist() {
 }
 
 #[test]
-fn disabling_the_builtin_drops_npmjs_from_the_allowlist() {
+fn the_builtin_npmjs_route_is_always_allowlisted_and_public() {
+    // Even a deployment that declares no uplinks and no public routes still
+    // resolves from the official npm registry: it's a built-in public route.
     let mut config = base_config();
-    // A conservative deployment that allowlists every registry explicitly:
-    // no blanket npmjs uplink, and the built-in route disabled. npmjs is then
-    // off the allowlist, so a resolve naming it is rejected at the boundary.
     config.uplinks.clear();
-    config.route_policy.npmjs_public = false;
     let context = RouteContext::from_config(&config);
-    assert!(!context.allows_registry("https://registry.npmjs.org/lodash"));
 
-    // Re-enabling the built-in allowlists npmjs again.
-    config.route_policy.npmjs_public = true;
-    let context = RouteContext::from_config(&config);
     assert!(context.allows_registry("https://registry.npmjs.org/lodash"));
+    assert_eq!(
+        context.classify(&user("alice"), "https://registry.npmjs.org/lodash", Some("lodash")),
+        RouteClass::Public,
+    );
+    // Host-level: scoped npmjs names are public too.
+    assert_eq!(
+        context.classify(
+            &user("alice"),
+            "https://registry.npmjs.org/@babel%2fcore",
+            Some("@babel/core"),
+        ),
+        RouteClass::Public,
+    );
 }
 
 #[test]

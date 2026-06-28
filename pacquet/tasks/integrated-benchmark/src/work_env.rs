@@ -1413,7 +1413,6 @@ fn pnpr_benchmark_config_yaml(pnpr_storage: &Path, public_route_registries: &[&s
             },
         },
         routes: PnprBenchmarkRoutes {
-            npmjs_public: true,
             public: public_route_registries
                 .iter()
                 .map(|registry| PnprBenchmarkPublicRoute { registry: (*registry).to_string() })
@@ -1459,7 +1458,6 @@ struct PnprBenchmarkHtpasswd {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 struct PnprBenchmarkRoutes {
-    npmjs_public: bool,
     public: Vec<PnprBenchmarkPublicRoute>,
 }
 
