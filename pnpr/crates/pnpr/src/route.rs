@@ -413,7 +413,7 @@ impl ResolvedAlias {
 /// the route, records it into the shared [`Footprint`], and returns the
 /// pnpr-managed credential (never a client-forwarded one).
 pub struct RouteHook {
-    context: RouteContext,
+    context: Arc<RouteContext>,
     identity: Identity,
     footprint: Arc<Mutex<Footprint>>,
     /// HMAC secret keying the per-descriptor metadata namespace
@@ -438,7 +438,7 @@ impl fmt::Debug for RouteHook {
 impl RouteHook {
     #[must_use]
     pub fn new(
-        context: RouteContext,
+        context: Arc<RouteContext>,
         identity: Identity,
         footprint: Arc<Mutex<Footprint>>,
         secret: Arc<[u8]>,

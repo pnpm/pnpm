@@ -122,7 +122,7 @@ pub(crate) struct Resolver {
     /// uplink credentials, hosted origin, package policy), resolved once
     /// from the server config and combined per request with the caller's
     /// identity to drive auth selection and footprint recording.
-    route_context: RouteContext,
+    route_context: Arc<RouteContext>,
     /// Public URL clients use for pnpr-hosted and `/~<uplink>/` endpoint
     /// tarball URLs.
     public_url: String,
@@ -167,7 +167,7 @@ impl Resolver {
             configs: Mutex::new(HashMap::new()),
             verdict_cache,
             osv_index,
-            route_context: RouteContext::from_config(config),
+            route_context: Arc::new(RouteContext::from_config(config)),
             public_url: config.public_url.clone(),
             resolution_cache_secret: Arc::clone(&config.resolution_cache_secret),
         }
@@ -186,7 +186,7 @@ impl Resolver {
         footprint: &Arc<Mutex<Footprint>>,
     ) -> Arc<AuthHeaders> {
         let hook: Arc<dyn UpstreamRouteHook> = Arc::new(RouteHook::new(
-            self.route_context.clone(),
+            Arc::clone(&self.route_context),
             identity.clone(),
             Arc::clone(footprint),
             Arc::clone(&self.resolution_cache_secret),
@@ -363,7 +363,7 @@ pub(crate) async fn handle_resolve(
     let footprint = Arc::new(Mutex::new(Footprint::default()));
     let request_auth = runtime.hooked_auth(&request, &identity, &footprint);
     let tarball_router = TarballRouter::new(
-        runtime.route_context.clone(),
+        Arc::clone(&runtime.route_context),
         identity.clone(),
         runtime.public_url.clone(),
     );
@@ -526,7 +526,7 @@ pub(crate) async fn handle_verify_lockfile(
     let footprint = Arc::new(Mutex::new(Footprint::default()));
     let request_auth = runtime.hooked_auth(&request, &identity, &footprint);
     let tarball_router = TarballRouter::new(
-        runtime.route_context.clone(),
+        Arc::clone(&runtime.route_context),
         identity.clone(),
         runtime.public_url.clone(),
     );
@@ -729,13 +729,13 @@ fn resolution_cache_key(config: &PacquetConfig, request: &ResolveRequest) -> Opt
 
 #[derive(Clone)]
 struct TarballRouter {
-    context: RouteContext,
+    context: Arc<RouteContext>,
     identity: Identity,
     public_url: String,
 }
 
 impl TarballRouter {
-    fn new(context: RouteContext, identity: Identity, public_url: String) -> Self {
+    fn new(context: Arc<RouteContext>, identity: Identity, public_url: String) -> Self {
         Self { context, identity, public_url }
     }
 

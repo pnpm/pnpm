@@ -54,7 +54,7 @@ fn public_registry_config(registry: &str) -> RegistryConfig {
 
 fn tarball_router(config: &RegistryConfig, identity: Identity) -> super::TarballRouter {
     super::TarballRouter::new(
-        RouteContext::from_config(config),
+        Arc::new(RouteContext::from_config(config)),
         identity,
         config.public_url.clone(),
     )

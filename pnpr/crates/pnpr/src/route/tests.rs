@@ -299,7 +299,7 @@ fn route_hook_records_routes_and_returns_alias_credential() {
     );
     let footprint = std::sync::Arc::new(std::sync::Mutex::new(Footprint::default()));
     let hook = RouteHook::new(
-        RouteContext::from_config(&config),
+        Arc::new(RouteContext::from_config(&config)),
         user("alice"),
         std::sync::Arc::clone(&footprint),
         std::sync::Arc::from(b"secret".as_slice()),
@@ -327,7 +327,7 @@ fn metadata_scope_maps_route_classes() {
     );
     let footprint = std::sync::Arc::new(std::sync::Mutex::new(Footprint::default()));
     let hook = RouteHook::new(
-        RouteContext::from_config(&config),
+        Arc::new(RouteContext::from_config(&config)),
         user("alice"),
         std::sync::Arc::clone(&footprint),
         std::sync::Arc::from(b"server-secret".as_slice()),
@@ -368,10 +368,10 @@ fn authorized_alias_users_share_metadata_scope() {
         "corp".to_string(),
         uplink_with_access("https://npm.corp.example/", "$authenticated", 3),
     );
-    let context = RouteContext::from_config(&config);
+    let context = Arc::new(RouteContext::from_config(&config));
     let secret = Arc::from(b"server-secret".as_slice());
     let alice = RouteHook::new(
-        context.clone(),
+        Arc::clone(&context),
         user("alice"),
         Arc::new(Mutex::new(Footprint::default())),
         Arc::clone(&secret),
