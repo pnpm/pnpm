@@ -92,6 +92,17 @@ impl PrivateAccessDescriptor {
     }
 }
 
+/// The HMAC digest namespacing an uplink's private cache (packuments and
+/// tarballs), identical to the metadata-mirror descriptor id for the same
+/// `(uplink, generation)`. Keyed by the server `secret` so the on-disk path
+/// reveals neither the uplink name nor its generation, and so a path-unsafe
+/// uplink name (`..`, `/`) can never escape the cache root — the digest is
+/// hex.
+#[must_use]
+pub(crate) fn uplink_cache_digest(uplink: &str, generation: u64, secret: &[u8]) -> String {
+    PrivateAccessDescriptor::Alias { alias: uplink.to_string(), generation }.digest_id(secret)
+}
+
 /// The set of private routes a single resolve actually touched, paired
 /// with the descriptor selected for each. Accumulated during resolution
 /// through the [`RouteHook`]; consumed afterwards to decide how the

@@ -904,10 +904,17 @@ fn authorized_uplink<'a>(
 /// The disposable cache namespace for an uplink's `/~<uplink>/` route,
 /// keyed by the uplink and its rotation generation so its packuments and
 /// tarballs never collide with the public mirror or another uplink, and so a
-/// credential rotation moves to a fresh namespace.
+/// credential rotation moves to a fresh namespace. The `(uplink, generation)`
+/// is HMAC'd with the server secret, so the on-disk path leaks neither, and a
+/// path-unsafe uplink name can't escape the cache root (the digest is hex).
 fn uplink_cache_namespace(state: &AppState, uplink: &str) -> String {
     let generation = state.inner.config.uplinks.get(uplink).map_or(1, |uplink| uplink.generation);
-    format!("~uplinks/{uplink}/{generation}")
+    let digest = crate::route::uplink_cache_digest(
+        uplink,
+        generation,
+        &state.inner.config.resolution_cache_secret,
+    );
+    format!("~uplinks/{digest}")
 }
 
 /// Load an uplink route's packument: a fresh per-uplink cache entry when one
