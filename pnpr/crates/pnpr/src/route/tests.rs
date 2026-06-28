@@ -130,6 +130,37 @@ fn operator_declared_public_route_matches_scope() {
     );
 }
 
+#[test]
+fn public_route_with_an_invalid_field_fails_closed_instead_of_matching_all() {
+    // A typo'd registry URL must not collapse to a match-any public rule
+    // that would classify a private registry's packages as Public.
+    let mut config = base_config();
+    config.uplinks.clear();
+    config.route_policy.public.push(PublicRoute {
+        registry: Some("not a url".to_string()),
+        package: Some("@public/*".to_string()),
+    });
+    let context = RouteContext::from_config(&config);
+    assert_eq!(
+        context.classify(&anon(), "https://npm.corp.example/@secret%2fpkg", Some("@secret/pkg")),
+        RouteClass::Public,
+        "the dropped rule leaves classification to the anonymous fall-through, not a match-all",
+    );
+    // The dropped rule contributes nothing to the allowlist either, so the
+    // private registry is rejected at the request boundary.
+    assert!(!context.allows_registry("https://npm.corp.example/@secret/pkg"));
+
+    // An invalid package glob drops the rule the same way.
+    let mut config = base_config();
+    config.uplinks.clear();
+    config.route_policy.public.push(PublicRoute {
+        registry: Some("https://npm.corp.example/".to_string()),
+        package: Some("[".to_string()),
+    });
+    let context = RouteContext::from_config(&config);
+    assert!(!context.allows_registry("https://npm.corp.example/@secret/pkg"));
+}
+
 fn uplink_with_access(registry: &str, access: &str, generation: u64) -> UplinkConfig {
     let mut headers = HeaderMap::new();
     headers.insert(AUTHORIZATION, HeaderValue::from_static("Bearer uplink-secret"));

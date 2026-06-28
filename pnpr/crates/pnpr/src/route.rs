@@ -33,7 +33,7 @@ use sha2::{Digest, Sha256};
 use wax::{Glob, Program};
 
 use crate::{
-    config::{Config, UplinkConfig},
+    config::{Config, PublicRoute, UplinkConfig},
     policy::{AccessList, Identity, PackagePolicies},
 };
 
@@ -210,15 +210,8 @@ impl RouteContext {
     #[must_use]
     pub fn from_config(config: &Config) -> Self {
         let hosted_origin = nerf_prefix(&config.public_url);
-        let public_routes = config
-            .route_policy
-            .public
-            .iter()
-            .map(|route| RouteMatcher {
-                origin: route.registry.as_deref().and_then(nerf_prefix),
-                package: route.package.as_deref().and_then(compile_glob),
-            })
-            .collect();
+        let public_routes =
+            config.route_policy.public.iter().filter_map(RouteMatcher::from_public_route).collect();
         // Proxied-route credentials come from `uplinks:` entries that declare
         // an `access:` policy. They are matched by registry origin and exposed
         // to clients at `/~<name>/`.
@@ -397,6 +390,32 @@ impl RouteContext {
 }
 
 impl RouteMatcher {
+    /// Build a matcher from an operator-declared public route, failing
+    /// closed. An *omitted* `registry`/`package` field means "match any" —
+    /// the intended wildcard — but a field that is *present yet unparsable*
+    /// (a typo'd registry URL or glob) drops the whole rule (`None`) rather
+    /// than collapsing to a `None` field that [`Self::matches`] would read as
+    /// match-any. A typo must narrow matching, never widen a scoped public
+    /// route into a match-all that leaks private metadata onto the public
+    /// path.
+    fn from_public_route(route: &PublicRoute) -> Option<Self> {
+        let origin = match route.registry.as_deref() {
+            None => None,
+            Some(registry) => Some(nerf_prefix(registry).or_else(|| {
+                tracing::warn!(registry, "ignoring public route with an unparsable registry URL");
+                None
+            })?),
+        };
+        let package = match route.package.as_deref() {
+            None => None,
+            Some(pattern) => Some(compile_glob(pattern).or_else(|| {
+                tracing::warn!(pattern, "ignoring public route with an invalid package glob");
+                None
+            })?),
+        };
+        Some(Self { origin, package })
+    }
+
     fn matches(&self, fetch: &str, package: Option<&str>) -> bool {
         let origin_ok = self.origin.as_deref().is_none_or(|origin| fetch.starts_with(origin));
         let package_ok = self
@@ -531,10 +550,10 @@ pub fn url_has_inline_credentials(spec: &str) -> bool {
     }
 }
 
-/// Compile a package glob, dropping (rather than failing the whole
-/// resolve over) an invalid pattern. An operator typo therefore makes a
-/// route *more* restrictive (the rule never matches) rather than opening
-/// a private route up.
+/// Compile a package glob, returning `None` for an invalid pattern rather
+/// than failing the whole resolve. [`RouteMatcher::from_public_route`] turns
+/// that `None` into a dropped (never-matching) rule, so an operator typo
+/// narrows matching instead of opening a private route up.
 fn compile_glob(pattern: &str) -> Option<Glob<'static>> {
     Glob::new(pattern).ok().map(Glob::into_owned)
 }
