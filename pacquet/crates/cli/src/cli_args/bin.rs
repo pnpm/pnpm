@@ -47,10 +47,8 @@ impl BinArgs {
             // prints; `globalDirShouldAllowWrite` is true for all but `root`, so
             // `bin` validates writability too.
             std::fs::create_dir_all(&bin).map_err(|error| {
-                miette::miette!(
-                    "failed to create the global bin directory {}: {error}",
-                    bin.display(),
-                )
+                let bin_dir = bin.display();
+                miette::miette!("failed to create the global bin directory {bin_dir}: {error}")
             })?;
             check_global_bin_dir(&bin, std::env::var("PATH").ok().as_deref(), true)
                 .map_err(miette::Report::new)?;
