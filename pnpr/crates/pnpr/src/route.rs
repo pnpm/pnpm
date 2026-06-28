@@ -593,6 +593,25 @@ pub fn url_has_inline_credentials(spec: &str) -> bool {
     }
 }
 
+/// Strip an inline `user:pass@`/`user@` userinfo from a `scheme://` URL,
+/// returning the credential-free form. A tarball URL taken from an untrusted
+/// upstream `dist.tarball` must never be emitted to a client or written to a
+/// shared cache with embedded credentials; a genuinely public tarball is
+/// anonymously fetchable, so the stripped URL still works. Returns the input
+/// unchanged when there is no `scheme://` authority or no userinfo.
+#[must_use]
+pub(crate) fn strip_url_credentials(url: &str) -> String {
+    let Some((scheme, after)) = url.split_once("://") else {
+        return url.to_string();
+    };
+    let authority_end = after.find(['/', '?', '#']).unwrap_or(after.len());
+    let (authority, rest) = after.split_at(authority_end);
+    match authority.rsplit_once('@') {
+        Some((_, host)) => format!("{scheme}://{host}{rest}"),
+        None => url.to_string(),
+    }
+}
+
 /// Compile a package glob, returning `None` for an invalid pattern rather
 /// than failing the whole resolve. [`RouteMatcher::from_public_route`] turns
 /// that `None` into a dropped (never-matching) rule, so an operator typo

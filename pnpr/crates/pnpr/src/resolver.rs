@@ -58,7 +58,7 @@ use crate::{
     config::Config as RegistryConfig,
     package_name::PackageName,
     policy::Identity,
-    route::{Footprint, RouteClass, RouteContext, RouteHook},
+    route::{Footprint, RouteClass, RouteContext, RouteHook, strip_url_credentials},
     upstream::tarball_basename,
 };
 
@@ -776,7 +776,12 @@ impl TarballRouter {
     fn route_registry_url(&self, package: &str, version: &str, tarball_url: &str) -> String {
         let registry = pick_registry_for_package(&self.registries, package, None);
         match self.context.classify(&self.identity, &registry, Some(package)) {
-            RouteClass::Public => tarball_url.to_string(),
+            // Strip any inline userinfo before emitting: a malicious or
+            // compromised allowlisted registry could embed `user:pass@host`
+            // credentials in its `dist.tarball`, and pnpr must never stream or
+            // cache those. A genuinely public tarball is anonymously fetchable,
+            // so the credential-free URL still works.
+            RouteClass::Public => strip_url_credentials(tarball_url),
             RouteClass::Hosted { .. } => pnpr_tarball_url(
                 &self.public_url,
                 package,
@@ -847,8 +852,10 @@ impl TarballRouter {
         match self.context.classify(&self.identity, tarball_url, Some(package)) {
             // A public route keeps its upstream URL: it was fetched
             // anonymously, so its tarball is anonymously fetchable and pnpr
-            // never mints a per-tarball gateway URL.
-            RouteClass::Public => tarball_url.to_string(),
+            // never mints a per-tarball gateway URL. Any inline userinfo a
+            // malicious/compromised registry embedded in `dist.tarball` is
+            // stripped first, so pnpr never streams or caches it.
+            RouteClass::Public => strip_url_credentials(tarball_url),
             RouteClass::Hosted { .. } => pnpr_tarball_url(
                 &self.public_url,
                 package,

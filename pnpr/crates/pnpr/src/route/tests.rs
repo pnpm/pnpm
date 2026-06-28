@@ -26,6 +26,25 @@ fn user(name: &str) -> Identity {
 }
 
 #[test]
+fn strip_url_credentials_removes_inline_userinfo() {
+    use super::strip_url_credentials;
+    assert_eq!(
+        strip_url_credentials("https://user:pass@cdn.example/acme-1.0.0.tgz"),
+        "https://cdn.example/acme-1.0.0.tgz",
+    );
+    assert_eq!(
+        strip_url_credentials("https://token@cdn.example/x.tgz?a=1"),
+        "https://cdn.example/x.tgz?a=1",
+    );
+    // No userinfo / no scheme: returned unchanged.
+    assert_eq!(
+        strip_url_credentials("https://registry.npmjs.org/acme/-/acme-1.0.0.tgz"),
+        "https://registry.npmjs.org/acme/-/acme-1.0.0.tgz",
+    );
+    assert_eq!(strip_url_credentials("^1.0.0"), "^1.0.0");
+}
+
+#[test]
 fn hmac_sha256_matches_rfc4231_case1() {
     // RFC 4231 test case 1: 20-byte 0x0b key, "Hi There".
     let mac = super::hmac_sha256(&[0x0b; 20], b"Hi There");
