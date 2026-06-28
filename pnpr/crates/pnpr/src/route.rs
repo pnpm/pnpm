@@ -201,9 +201,9 @@ struct ResolvedAlias {
     name: String,
     generation: u64,
     registry: String,
-    /// Nerf-darted upstream origin the alias serves.
+    /// Nerf-darted upstream origin the alias serves. Routing is by origin
+    /// alone — an uplink credential covers every package on its registry.
     origin: String,
-    package: Option<Glob<'static>>,
     /// The fully-formed `Authorization` header value the alias sends
     /// upstream (`Bearer …` / `Basic …`).
     authorization: String,
@@ -284,7 +284,7 @@ impl RouteContext {
             return self.classify_hosted(identity, package);
         }
 
-        if let Some(alias) = self.select_alias(identity, &fetch, package) {
+        if let Some(alias) = self.select_alias(identity, &fetch) {
             return RouteClass::Proxied { alias: alias.name.clone(), generation: alias.generation };
         }
 
@@ -323,20 +323,10 @@ impl RouteContext {
         }
     }
 
-    fn select_alias(
-        &self,
-        identity: &Identity,
-        fetch: &str,
-        package: Option<&str>,
-    ) -> Option<&ResolvedAlias> {
-        self.aliases.iter().find(|alias| {
-            fetch.starts_with(&alias.origin)
-                && alias
-                    .package
-                    .as_ref()
-                    .is_none_or(|glob| package.is_some_and(|name| glob.is_match(name)))
-                && alias.access.allows(identity)
-        })
+    fn select_alias(&self, identity: &Identity, fetch: &str) -> Option<&ResolvedAlias> {
+        self.aliases
+            .iter()
+            .find(|alias| fetch.starts_with(&alias.origin) && alias.access.allows(identity))
     }
 
     pub(crate) fn allows_descriptor(
@@ -395,7 +385,6 @@ impl ResolvedAlias {
             generation: uplink.generation,
             registry: uplink.url.clone(),
             origin: nerf_origin(&uplink.url)?,
-            package: None,
             authorization,
             access,
         })
