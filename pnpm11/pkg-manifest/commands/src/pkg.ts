@@ -149,19 +149,24 @@ async function readPublishedManifest (opts: PkgCommandOptions): Promise<Record<s
 async function resolvePublishDir (projectDir: string, manifest: ProjectManifest): Promise<string> {
   if (!manifest.publishConfig?.directory) return projectDir
   const resolved = path.resolve(projectDir, manifest.publishConfig.directory)
-  let real: string
-  try {
-    real = await fs.realpath(resolved)
-  } catch {
-    real = resolved
-  }
-  if (!real.startsWith(projectDir + path.sep) && real !== projectDir) {
+  const real = await realpathOrIdentity(resolved)
+  const projectReal = await realpathOrIdentity(projectDir)
+  const rel = path.relative(projectReal, real)
+  if (rel.startsWith('..') || path.isAbsolute(rel)) {
     throw new PnpmError(
       'PUBLISH_DIR_OUTSIDE_PROJECT',
       `publishConfig.directory "${manifest.publishConfig.directory}" resolves outside the project`
     )
   }
   return real
+}
+
+async function realpathOrIdentity (p: string): Promise<string> {
+  try {
+    return await fs.realpath(p)
+  } catch {
+    return p
+  }
 }
 
 function selectFromManifest (manifest: Record<string, unknown>, args: string[]): unknown {
