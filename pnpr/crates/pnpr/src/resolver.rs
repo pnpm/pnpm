@@ -22,10 +22,10 @@
 //!   can start local fetch/materialization immediately and only use this
 //!   endpoint as the trust verdict.
 //!
-//! pnpr is a stateless resolver: it stores no tarballs and serves no file
-//! content. The client fetches every tarball directly from the registry
-//! with its own credentials, so the registry enforces access on the
-//! bytes; pnpr only shapes the lockfile.
+//! pnpr is a stateless resolver: it stores no tarballs. Public tarballs
+//! can still be fetched directly from their upstream registry, while a
+//! private proxied route is rewritten to the uplink's `/~<uplink>/`
+//! registry endpoint so upstream URLs and credentials stay server-side.
 //!
 //! The client's `registry`, `namedRegistries`, `overrides`, and the
 //! verification policy (`minimumReleaseAge`, `trustPolicy`, ...) drive
@@ -35,9 +35,12 @@
 //! non-frozen → reuse-and-update). A multi-project workspace is resolved
 //! by reconstructing the workspace on disk (root manifest +
 //! `pnpm-workspace.yaml` + member manifests) and letting pacquet's
-//! install path discover and resolve every importer. The client also
-//! forwards its per-registry credentials, so private dependencies resolve
-//! as the caller.
+//! install path discover and resolve every importer. The client
+//! authenticates to pnpr (its request `Authorization` identifies the
+//! caller) but does not forward its own upstream registry credentials:
+//! pnpr selects upstream auth from its route policy (see [`crate::route`]),
+//! so private dependencies resolve via a pnpr-managed uplink credential or
+//! fail closed.
 
 pub(crate) mod osv;
 mod protocol;
@@ -51,7 +54,16 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crate::config::Config as RegistryConfig;
+use crate::{
+    config::Config as RegistryConfig,
+    package_name::PackageName,
+    policy::Identity,
+    route::{
+        Footprint, RouteClass, RouteContext, RouteHook, sanitize_registry_tarball_url,
+        strip_url_credentials,
+    },
+    upstream::tarball_basename,
+};
 
 use axum::{
     body::{Body, Bytes},
@@ -60,9 +72,12 @@ use axum::{
 };
 use indexmap::IndexMap;
 use pacquet_config::Config as PacquetConfig;
-use pacquet_lockfile::{Lockfile, LockfileResolution, is_git_hosted_tarball_url};
+use pacquet_lockfile::{
+    Lockfile, LockfileResolution, TarballResolution, is_git_hosted_tarball_url,
+    pick_registry_for_package,
+};
 use pacquet_lockfile_verification::{collect_resolution_policy_violations, hash_lockfile};
-use pacquet_network::{AuthHeaders, ThrottledClient};
+use pacquet_network::{AuthHeaders, ThrottledClient, UpstreamRouteHook};
 use pacquet_package_manager::{
     ResolvedPackageHint, build_resolution_verifiers, tarball_url_and_integrity,
 };
@@ -95,7 +110,7 @@ pub(crate) struct Resolver {
     /// Held behind an [`Arc`] so the detached streaming-resolve task can
     /// own a clone and record its result after the response body has
     /// already started flowing to the client.
-    resolution_cache: Arc<Mutex<HashMap<String, CachedResolution>>>,
+    resolution_cache: Arc<Mutex<HashMap<String, Vec<CachedResolution>>>>,
     resolution_cache_ttl: Duration,
     /// One leaked `Config` per distinct client registry configuration,
     /// keyed by its canonical JSON. Capped at [`MAX_INTERNED_CONFIGS`] so a
@@ -107,11 +122,26 @@ pub(crate) struct Resolver {
     /// every time (uncached) rather than failing the server.
     verdict_cache: Option<VerdictCache>,
     osv_index: Option<Arc<OsvIndex>>,
+    /// Route-classification inputs (public/private rules, pnpr-managed
+    /// uplink credentials, hosted origin, package policy), resolved once
+    /// from the server config and combined per request with the caller's
+    /// identity to drive auth selection and footprint recording.
+    route_context: Arc<RouteContext>,
+    /// Public URL clients use for pnpr-hosted and `/~<uplink>/` endpoint
+    /// tarball URLs.
+    public_url: String,
+    /// HMAC secret namespacing a private footprint's cache descriptor.
+    /// Part 1 uses it only to label each resolve's cache class in the
+    /// operator debug log; Part 2 keys private cache entries by it.
+    resolution_cache_secret: Arc<[u8]>,
 }
 
 struct CachedResolution {
     lockfile: Lockfile,
     inserted: Instant,
+    last_used: Instant,
+    footprint: Footprint,
+    descriptor_digest: Option<String>,
 }
 
 impl Resolver {
@@ -132,16 +162,48 @@ impl Resolver {
         let _ = std::fs::create_dir_all(&store_dir);
         let _ = std::fs::create_dir_all(&cache_dir);
         let verdict_cache = VerdictCache::open(&cache_dir.join("lockfile-verdicts.sqlite")).ok();
+        let route_context = Arc::new(RouteContext::from_config(config));
+        // Re-validate every redirect hop against the same fetch allowlist the
+        // request boundary uses, so an allowlisted registry that redirects to
+        // an off-allowlist host cannot slip a server-side fetch past it (SSRF).
+        let redirect_context = Arc::clone(&route_context);
+        let client = Arc::new(ThrottledClient::new_for_installs_with_redirect_guard(move |url| {
+            redirect_context.allows_registry(url.as_str())
+        }));
         Resolver {
             store_dir: StoreDir::new(store_dir),
             cache_dir,
-            client: Arc::new(ThrottledClient::new_for_installs()),
+            client,
             resolution_cache: Arc::new(Mutex::new(HashMap::new())),
             resolution_cache_ttl: config.packument_ttl,
             configs: Mutex::new(HashMap::new()),
             verdict_cache,
             osv_index,
+            route_context,
+            public_url: config.public_url.clone(),
+            resolution_cache_secret: Arc::clone(&config.resolution_cache_secret),
         }
+    }
+
+    /// Build the request's [`AuthHeaders`] with the route hook installed:
+    /// every metadata/tarball fetch is classified against this server's
+    /// route policy for `identity`, the pnpr-managed credential (never the
+    /// client's) is selected, and the touched private routes accumulate in
+    /// `footprint`. The client's forwarded `auth_headers` are kept on the
+    /// value (so `to_by_scope` still reflects them) but no longer consulted.
+    fn hooked_auth(
+        &self,
+        request: &ResolveRequest,
+        identity: &Identity,
+        footprint: &Arc<Mutex<Footprint>>,
+    ) -> Arc<AuthHeaders> {
+        let hook: Arc<dyn UpstreamRouteHook> = Arc::new(RouteHook::new(
+            Arc::clone(&self.route_context),
+            identity.clone(),
+            Arc::clone(footprint),
+            Arc::clone(&self.resolution_cache_secret),
+        ));
+        Arc::new(AuthHeaders::from_by_scope(request.auth_headers.clone()).with_route_hook(hook))
     }
 
     /// Resolve (or build + intern) the `&'static Config` for a request's
@@ -283,13 +345,25 @@ fn intern_config(
 /// lockfile + stats, `error` if resolution aborts mid-stream, or
 /// `violations` if the input lockfile failed the client's policy. The
 /// short-circuit paths (frozen reuse, cache hit) emit only the terminal
-/// `done` frame. No tarball leaves the server — the client fetches them
-/// itself.
-pub(crate) async fn handle_resolve(runtime: &Resolver, body: Bytes) -> Response {
+/// `done` frame. A private proxied tarball is announced through its
+/// uplink's `/~<uplink>/` registry endpoint rather than its upstream URL.
+pub(crate) async fn handle_resolve(
+    runtime: &Resolver,
+    identity: Identity,
+    body: Bytes,
+) -> Response {
     let request: ResolveRequest = match serde_json::from_slice(&body) {
         Ok(request) => request,
         Err(err) => return json_error(StatusCode::BAD_REQUEST, &err.to_string()),
     };
+
+    if let Some(response) = reject_inline_url_auth(&request) {
+        return response;
+    }
+
+    if let Some(response) = reject_off_allowlist_fetches(&request, &runtime.route_context) {
+        return response;
+    }
 
     // Resolve against the client's registries, not the server's own.
     let Some(config) = runtime.config_for(&request) else {
@@ -298,10 +372,18 @@ pub(crate) async fn handle_resolve(runtime: &Resolver, body: Bytes) -> Response 
     let package_version_guard =
         runtime.osv_index.as_ref().map(|index| Arc::clone(index) as Arc<dyn PackageVersionGuard>);
 
-    // The caller's forwarded upstream credentials, threaded through
-    // resolve/verify but kept out of the interned `config` so it never
-    // leaks a `&'static Config` per user.
-    let request_auth = Arc::new(AuthHeaders::from_by_scope(request.auth_headers.clone()));
+    // Auth is selected by this server's route policy for the caller, not
+    // forwarded from the client. Every metadata/tarball fetch the
+    // resolve+verify performs records its route into `footprint`, which
+    // then decides whether the resolution may populate the shared cache.
+    let footprint = Arc::new(Mutex::new(Footprint::default()));
+    let request_auth = runtime.hooked_auth(&request, &identity, &footprint);
+    let tarball_router = TarballRouter::new(
+        Arc::clone(&runtime.route_context),
+        identity.clone(),
+        runtime.public_url.clone(),
+        config.resolved_registries().into_iter().collect(),
+    );
 
     // Verify the *input* lockfile under the client's policy before any
     // package is streamed ([pnpm/pnpm#12139](https://github.com/pnpm/pnpm/issues/12139)).
@@ -316,7 +398,8 @@ pub(crate) async fn handle_resolve(runtime: &Resolver, body: Bytes) -> Response 
     if !request.trust_lockfile
         && let Some(input_lockfile) = request.lockfile.as_ref()
     {
-        match verify_input_lockfile(runtime, config, &request_auth, input_lockfile).await {
+        let input_lockfile = tarball_router.verification_lockfile(input_lockfile);
+        match verify_input_lockfile(runtime, config, &request_auth, &input_lockfile).await {
             Ok(stats) => verified_dist_stats = stats,
             Err(VerifyFailure::Internal(response)) => return response,
             Err(VerifyFailure::Violations(violations)) => {
@@ -333,6 +416,8 @@ pub(crate) async fn handle_resolve(runtime: &Resolver, body: Bytes) -> Response 
     // fetched, so there's nothing to add and the response is the bare
     // `done` frame.
     if let Some(lockfile) = resolve::fresh_frozen_input_lockfile(config, &request) {
+        let lockfile = tarball_router.verification_lockfile(&lockfile);
+        let lockfile = tarball_router.route_lockfile(config, &lockfile);
         if let Some(osv_index) = runtime.osv_index.as_ref() {
             let violations = osv_violations_for_lockfile(osv_index, &lockfile);
             if !violations.is_empty() {
@@ -340,19 +425,23 @@ pub(crate) async fn handle_resolve(runtime: &Resolver, body: Bytes) -> Response 
             }
         }
         let mut frames = verified_dist_stats
-            .map(|sizes| frozen_package_frames(config, &lockfile, &sizes))
+            .map(|sizes| frozen_package_frames(config, &tarball_router, &lockfile, &sizes))
             .unwrap_or_default();
         frames.push(done_frame(&lockfile));
         return ndjson_frames(&frames);
     }
-    let resolution_cache_key = if request.auth_headers.is_empty() && request.lockfile.is_none() {
-        resolution_cache_key(config, &request)
-    } else {
-        None
-    };
+    // The base key is auth-excluded and shared by every candidate for the
+    // same resolution inputs. Candidate footprints decide which callers
+    // may reuse a stored lockfile.
+    let resolution_cache_key = resolution_cache_key(config, &request);
     if let Some(key) = resolution_cache_key.as_ref()
-        && let Some(lockfile) =
-            cached_resolution(&runtime.resolution_cache, runtime.resolution_cache_ttl, key)
+        && let Some(lockfile) = cached_resolution(
+            &runtime.resolution_cache,
+            runtime.resolution_cache_ttl,
+            key,
+            &runtime.route_context,
+            &identity,
+        )
     {
         // The OSV index is immutable for this resolver instance and a lockfile
         // is only stored after passing the OSV check, so a cache hit is already
@@ -368,14 +457,18 @@ pub(crate) async fn handle_resolve(runtime: &Resolver, body: Bytes) -> Response 
     let observer: Arc<dyn pacquet_package_manager::ResolutionObserver> = Arc::new(StreamObserver {
         tx: tx.clone(),
         package_version_guard: package_version_guard.clone(),
+        tarball_router: tarball_router.clone(),
     });
     let client = Arc::clone(&runtime.client);
     let cache = Arc::clone(&runtime.resolution_cache);
     let cache_ttl = runtime.resolution_cache_ttl;
     let final_osv_index = runtime.osv_index.clone();
+    let footprint_for_store = Arc::clone(&footprint);
+    let cache_secret = Arc::clone(&runtime.resolution_cache_secret);
     tokio::spawn(async move {
         match resolve::resolve(config, &client, &request, &request_auth, Some(observer)).await {
             Ok(lockfile) => {
+                let lockfile = tarball_router.route_lockfile(config, &lockfile);
                 if let Some(osv_index) = final_osv_index.as_ref() {
                     let violations = osv_violations_for_lockfile(osv_index, &lockfile);
                     if !violations.is_empty() {
@@ -384,7 +477,23 @@ pub(crate) async fn handle_resolve(runtime: &Resolver, body: Bytes) -> Response 
                     }
                 }
                 if let Some(key) = resolution_cache_key {
-                    store_resolution(&cache, cache_ttl, key, &lockfile);
+                    let footprint = footprint_for_store.lock().expect("footprint poisoned").clone();
+                    let descriptor = footprint.digest(&cache_secret);
+                    let cached = store_resolution(
+                        &cache,
+                        cache_ttl,
+                        key,
+                        footprint.clone(),
+                        &cache_secret,
+                        &lockfile,
+                    );
+                    if !footprint.is_public() {
+                        tracing::debug!(
+                            cached,
+                            descriptor = descriptor.as_deref().unwrap_or("none"),
+                            "private resolution cache candidate evaluated",
+                        );
+                    }
                 }
                 let _ = tx.send(done_frame(&lockfile));
             }
@@ -401,11 +510,23 @@ pub(crate) async fn handle_resolve(runtime: &Resolver, body: Bytes) -> Response 
 /// verdict frame. The client already knows the lockfile is fresh for
 /// the current manifests, so this endpoint deliberately does not
 /// resolve or echo the lockfile back.
-pub(crate) async fn handle_verify_lockfile(runtime: &Resolver, body: Bytes) -> Response {
+pub(crate) async fn handle_verify_lockfile(
+    runtime: &Resolver,
+    identity: Identity,
+    body: Bytes,
+) -> Response {
     let request: ResolveRequest = match serde_json::from_slice(&body) {
         Ok(request) => request,
         Err(err) => return json_error(StatusCode::BAD_REQUEST, &err.to_string()),
     };
+
+    if let Some(response) = reject_inline_url_auth(&request) {
+        return response;
+    }
+
+    if let Some(response) = reject_off_allowlist_fetches(&request, &runtime.route_context) {
+        return response;
+    }
 
     let Some(input_lockfile) = request.lockfile.as_ref() else {
         return json_error(StatusCode::BAD_REQUEST, "`lockfile` is required");
@@ -418,13 +539,25 @@ pub(crate) async fn handle_verify_lockfile(runtime: &Resolver, body: Bytes) -> R
     let Some(config) = runtime.config_for(&request) else {
         return json_error(StatusCode::SERVICE_UNAVAILABLE, TOO_MANY_CONFIGS_MESSAGE);
     };
-    let request_auth = Arc::new(AuthHeaders::from_by_scope(request.auth_headers.clone()));
+    // Verifier packument fetches run under the same route hook, so they
+    // select the same pnpr-managed credentials and are recorded in the
+    // same footprint as a resolve would be — a verifier can't read or
+    // populate a cache scope a resolve wouldn't.
+    let footprint = Arc::new(Mutex::new(Footprint::default()));
+    let request_auth = runtime.hooked_auth(&request, &identity, &footprint);
+    let tarball_router = TarballRouter::new(
+        Arc::clone(&runtime.route_context),
+        identity.clone(),
+        runtime.public_url.clone(),
+        config.resolved_registries().into_iter().collect(),
+    );
+    let input_lockfile = tarball_router.verification_lockfile(input_lockfile);
 
-    match verify_input_lockfile(runtime, config, &request_auth, input_lockfile).await {
+    match verify_input_lockfile(runtime, config, &request_auth, &input_lockfile).await {
         // The dist stats the verifier observed feed `/-/pnpr/v0/resolve`'s sized
         // `package` frames; this endpoint's client prefetches from its own
         // lockfile before the verdict arrives, so only the verdict is sent.
-        Ok(_) => verify_done_or_osv_violations(runtime.osv_index.as_ref(), input_lockfile),
+        Ok(_) => verify_done_or_osv_violations(runtime.osv_index.as_ref(), &input_lockfile),
         Err(VerifyFailure::Internal(response)) => response,
         Err(VerifyFailure::Violations(violations)) => {
             ndjson_single_frame(&violations_frame(&violations))
@@ -433,46 +566,150 @@ pub(crate) async fn handle_verify_lockfile(runtime: &Resolver, body: Bytes) -> R
 }
 
 const MAX_RESOLUTION_CACHE_ENTRIES: usize = 1024;
+const MAX_RESOLUTION_CACHE_CANDIDATES_PER_KEY: usize = 8;
 
 fn cached_resolution(
-    cache: &Mutex<HashMap<String, CachedResolution>>,
+    cache: &Mutex<HashMap<String, Vec<CachedResolution>>>,
     ttl: Duration,
     key: &str,
+    route_context: &RouteContext,
+    identity: &Identity,
 ) -> Option<Lockfile> {
     if ttl.is_zero() {
         return None;
     }
     let mut cache = cache.lock().expect("resolution cache poisoned");
-    match cache.get(key) {
-        Some(cached) if cached.inserted.elapsed() <= ttl => Some(cached.lockfile.clone()),
-        Some(_) => {
+    let candidates = cache.get_mut(key)?;
+    candidates.retain(|candidate| candidate.inserted.elapsed() <= ttl);
+    let Some((candidate_index, _)) = candidates.iter().enumerate().find(|(_, candidate)| {
+        candidate.footprint.is_public() || candidate.footprint.allows(route_context, identity)
+    }) else {
+        if candidates.is_empty() {
             cache.remove(key);
-            None
         }
-        None => None,
-    }
+        return None;
+    };
+    let candidate = &mut candidates[candidate_index];
+    candidate.last_used = Instant::now();
+    Some(candidate.lockfile.clone())
 }
 
 fn store_resolution(
-    cache: &Mutex<HashMap<String, CachedResolution>>,
+    cache: &Mutex<HashMap<String, Vec<CachedResolution>>>,
     ttl: Duration,
     key: String,
+    footprint: Footprint,
+    secret: &[u8],
     lockfile: &Lockfile,
-) {
+) -> bool {
     if ttl.is_zero() {
+        return false;
+    }
+    let now = Instant::now();
+    let descriptor_digest = footprint.digest(secret);
+    let candidate = CachedResolution {
+        lockfile: lockfile.clone(),
+        inserted: now,
+        last_used: now,
+        footprint,
+        descriptor_digest,
+    };
+    let mut cache = cache.lock().expect("resolution cache poisoned");
+    prune_expired_resolution_cache(&mut cache, ttl);
+    let candidates = cache.entry(key).or_default();
+    if let Some(existing) =
+        candidates.iter_mut().find(|entry| entry.descriptor_digest == candidate.descriptor_digest)
+    {
+        *existing = candidate;
+        return true;
+    }
+    candidates.push(candidate);
+    enforce_candidate_limit(candidates);
+    while count_resolution_candidates(&cache) > MAX_RESOLUTION_CACHE_ENTRIES {
+        if !evict_lru_resolution_candidate(&mut cache, true) {
+            break;
+        }
+    }
+    true
+}
+
+fn prune_expired_resolution_cache(
+    cache: &mut HashMap<String, Vec<CachedResolution>>,
+    ttl: Duration,
+) {
+    cache.retain(|_, candidates| {
+        candidates.retain(|candidate| candidate.inserted.elapsed() <= ttl);
+        !candidates.is_empty()
+    });
+}
+
+fn enforce_candidate_limit(candidates: &mut Vec<CachedResolution>) {
+    while candidates.len() > MAX_RESOLUTION_CACHE_CANDIDATES_PER_KEY {
+        evict_lru_candidate(candidates, true);
+    }
+}
+
+fn evict_lru_candidate(candidates: &mut Vec<CachedResolution>, private_first: bool) {
+    if private_first
+        && let Some(index) = candidates
+            .iter()
+            .enumerate()
+            .filter(|(_, candidate)| !candidate.footprint.is_public())
+            .min_by_key(|(_, candidate)| candidate.last_used)
+            .map(|(index, _)| index)
+    {
+        candidates.remove(index);
         return;
     }
-    let mut cache = cache.lock().expect("resolution cache poisoned");
-    if cache.len() >= MAX_RESOLUTION_CACHE_ENTRIES {
-        cache.retain(|_, cached| cached.inserted.elapsed() <= ttl);
-    }
-    if cache.len() >= MAX_RESOLUTION_CACHE_ENTRIES
-        && let Some(oldest) =
-            cache.iter().min_by_key(|(_, cached)| cached.inserted).map(|(key, _)| key.clone())
+    if let Some(index) = candidates
+        .iter()
+        .enumerate()
+        .min_by_key(|(_, candidate)| candidate.last_used)
+        .map(|(index, _)| index)
     {
-        cache.remove(&oldest);
+        candidates.remove(index);
     }
-    cache.insert(key, CachedResolution { lockfile: lockfile.clone(), inserted: Instant::now() });
+}
+
+fn count_resolution_candidates(cache: &HashMap<String, Vec<CachedResolution>>) -> usize {
+    cache.values().map(Vec::len).sum()
+}
+
+fn evict_lru_resolution_candidate(
+    cache: &mut HashMap<String, Vec<CachedResolution>>,
+    private_first: bool,
+) -> bool {
+    let target = lru_resolution_candidate(cache, private_first)
+        .or_else(|| if private_first { lru_resolution_candidate(cache, false) } else { None });
+    let Some((key, index, _)) = target else {
+        return false;
+    };
+    if let Some(candidates) = cache.get_mut(&key)
+        && index < candidates.len()
+    {
+        candidates.remove(index);
+    }
+    if cache.get(&key).is_some_and(Vec::is_empty) {
+        cache.remove(&key);
+    }
+    true
+}
+
+fn lru_resolution_candidate(
+    cache: &HashMap<String, Vec<CachedResolution>>,
+    private_only: bool,
+) -> Option<(String, usize, Instant)> {
+    cache
+        .iter()
+        .filter_map(|(key, candidates)| {
+            candidates
+                .iter()
+                .enumerate()
+                .filter(|(_, candidate)| !private_only || !candidate.footprint.is_public())
+                .min_by_key(|(_, candidate)| candidate.last_used)
+                .map(|(index, candidate)| (key.clone(), index, candidate.last_used))
+        })
+        .min_by_key(|(_, _, last_used)| *last_used)
 }
 
 fn resolution_cache_key(config: &PacquetConfig, request: &ResolveRequest) -> Option<String> {
@@ -493,7 +730,7 @@ fn resolution_cache_key(config: &PacquetConfig, request: &ResolveRequest) -> Opt
         "namedRegistries": &request.named_registries,
         "overrides": &request.overrides,
         "projects": projects,
-        "lockfile": &request.lockfile,
+        "inputLockfileHash": request.lockfile.as_ref().map(hash_lockfile),
         "frozenLockfile": request.frozen_lockfile,
         "preferFrozenLockfile": request.prefer_frozen_lockfile,
         "ignoreManifestCheck": request.ignore_manifest_check,
@@ -511,6 +748,174 @@ fn resolution_cache_key(config: &PacquetConfig, request: &ResolveRequest) -> Opt
     Some(format!("{:x}", hasher.finalize()))
 }
 
+#[derive(Clone)]
+struct TarballRouter {
+    context: Arc<RouteContext>,
+    identity: Identity,
+    public_url: String,
+    /// Per-scope registry map (`scope -> registry URL`, plus the default) used
+    /// to classify a registry-resolved package by its *registry* route rather
+    /// than its `dist.tarball` host. See [`Self::route_registry_url`].
+    registries: HashMap<String, String>,
+}
+
+impl TarballRouter {
+    fn new(
+        context: Arc<RouteContext>,
+        identity: Identity,
+        public_url: String,
+        registries: HashMap<String, String>,
+    ) -> Self {
+        Self { context, identity, public_url, registries }
+    }
+
+    /// Route a registry-resolved package's tarball by the **registry** it came
+    /// from, not its `dist.tarball` URL. A split-domain registry serves the
+    /// tarball from a different host than the packument, so classifying by the
+    /// tarball URL would misread a private package as public and leak its raw
+    /// upstream URL. Classifying by the registry origin keeps a private
+    /// package on its `/~<uplink>/` endpoint; a public one still emits its real
+    /// (anonymously fetchable) tarball URL for a direct CDN download.
+    fn route_registry_url(&self, package: &str, version: &str, tarball_url: &str) -> String {
+        let registry = pick_registry_for_package(&self.registries, package, None);
+        match self.context.classify(&self.identity, &registry, Some(package)) {
+            // The `dist.tarball` is untrusted upstream metadata, so sanitize it
+            // before emitting/caching: drop inline `user:pass@host` userinfo and
+            // any query/fragment a registry could use to carry a signed-URL
+            // token. A genuinely public tarball is anonymously fetchable, so the
+            // sanitized URL still works.
+            RouteClass::Public => sanitize_registry_tarball_url(tarball_url),
+            RouteClass::Hosted { .. } => pnpr_tarball_url(
+                &self.public_url,
+                package,
+                &tarball_filename(package, version, tarball_url),
+            ),
+            RouteClass::Proxied { alias, .. } => uplink_endpoint_tarball_url(
+                &self.public_url,
+                &alias,
+                package,
+                &tarball_filename(package, version, tarball_url),
+            ),
+        }
+    }
+
+    fn route_lockfile(&self, config: &PacquetConfig, lockfile: &Lockfile) -> Lockfile {
+        let mut routed = lockfile.clone();
+        let Some(packages) = routed.packages.as_mut() else {
+            return routed;
+        };
+        for (package_key, metadata) in packages {
+            if !matches!(
+                metadata.resolution,
+                LockfileResolution::Registry(_) | LockfileResolution::Tarball(_),
+            ) {
+                continue;
+            }
+            let Ok((tarball_url, integrity)) =
+                tarball_url_and_integrity(&metadata.resolution, package_key, config)
+            else {
+                continue;
+            };
+            if !is_http_tarball_url(&tarball_url) || is_git_hosted_tarball_url(&tarball_url) {
+                continue;
+            }
+            let name = package_key.name.to_string();
+            let version = package_key.suffix.version().to_string();
+            let routed_url = self.route_url(&name, &version, &tarball_url);
+            if routed_url == tarball_url.as_ref() {
+                continue;
+            }
+            metadata.resolution = LockfileResolution::Tarball(TarballResolution {
+                tarball: routed_url,
+                integrity: Some(integrity.clone()),
+                git_hosted: None,
+                path: None,
+            });
+        }
+        routed
+    }
+
+    fn verification_lockfile(&self, lockfile: &Lockfile) -> Lockfile {
+        let mut upstream = lockfile.clone();
+        let Some(packages) = upstream.packages.as_mut() else {
+            return upstream;
+        };
+        for metadata in packages.values_mut() {
+            let LockfileResolution::Tarball(resolution) = &mut metadata.resolution else {
+                continue;
+            };
+            if let Some(tarball_url) = self.upstream_endpoint_tarball_url(&resolution.tarball) {
+                resolution.tarball = tarball_url;
+            }
+        }
+        upstream
+    }
+
+    fn route_url(&self, package: &str, version: &str, tarball_url: &str) -> String {
+        match self.context.classify(&self.identity, tarball_url, Some(package)) {
+            // A public route keeps its upstream URL: it was fetched
+            // anonymously, so its tarball is anonymously fetchable and pnpr
+            // never mints a per-tarball gateway URL. Any inline userinfo a
+            // malicious/compromised registry embedded in `dist.tarball` is
+            // stripped first, so pnpr never streams or caches it.
+            RouteClass::Public => strip_url_credentials(tarball_url),
+            RouteClass::Hosted { .. } => pnpr_tarball_url(
+                &self.public_url,
+                package,
+                &tarball_filename(package, version, tarball_url),
+            ),
+            RouteClass::Proxied { alias, .. } => uplink_endpoint_tarball_url(
+                &self.public_url,
+                &alias,
+                package,
+                &tarball_filename(package, version, tarball_url),
+            ),
+        }
+    }
+
+    /// Reverse a `/~<uplink>/<pkg>/-/<file>` endpoint tarball URL back to its
+    /// upstream URL so an input lockfile carrying endpoint URLs can be verified
+    /// against the real registry. Returns `None` for any other URL, and for an
+    /// endpoint the caller is not authorized for (so verification cannot be
+    /// used as an oracle for an uplink the caller cannot reach).
+    fn upstream_endpoint_tarball_url(&self, tarball_url: &str) -> Option<String> {
+        let prefix = format!("{}/~", self.public_url.trim_end_matches('/'));
+        let route = tarball_url.strip_prefix(&prefix)?;
+        let (uplink, rest) = route.split_once('/')?;
+        let registry = self.context.uplink_registry(&self.identity, uplink)?;
+        Some(format!("{}/{rest}", registry.trim_end_matches('/')))
+    }
+}
+
+fn tarball_filename(package: &str, version: &str, tarball_url: &str) -> String {
+    tarball_basename(tarball_url).map_or_else(
+        || {
+            PackageName::parse(package).map_or_else(
+                |_| format!("{package}-{version}.tgz"),
+                |name| name.tarball_name_for_version(version),
+            )
+        },
+        str::to_string,
+    )
+}
+
+fn pnpr_tarball_url(public_url: &str, package: &str, filename: &str) -> String {
+    format!("{}/{package}/-/{filename}", public_url.trim_end_matches('/'))
+}
+
+/// The `/~<uplink>/<package>/-/<filename>` registry-endpoint URL a proxied
+/// route's tarball is served through. Canonical for a client whose scope is
+/// configured at `https://<pnpr>/~<uplink>/`, so the lockfile entry collapses
+/// to integrity-only; the upstream URL and credential stay server-side.
+fn uplink_endpoint_tarball_url(
+    public_url: &str,
+    uplink: &str,
+    package: &str,
+    filename: &str,
+) -> String {
+    format!("{}/~{uplink}/{package}/-/{filename}", public_url.trim_end_matches('/'))
+}
+
 /// NDJSON content type for the `/-/pnpr/v0/resolve` response. One JSON object
 /// per line; the client parses frames as they arrive. Excluded from the
 /// server's gzip [`CompressionLayer`](crate::server) so frames flush to
@@ -525,11 +930,12 @@ const NDJSON_CONTENT_TYPE: &str = "application/x-ndjson";
 struct StreamObserver {
     tx: tokio::sync::mpsc::UnboundedSender<Vec<u8>>,
     package_version_guard: Option<Arc<dyn PackageVersionGuard>>,
+    tarball_router: TarballRouter,
 }
 
 impl pacquet_package_manager::ResolutionObserver for StreamObserver {
     fn on_resolved(&self, hint: pacquet_package_manager::ResolvedPackageHint<'_>) {
-        if let Ok(line) = ndjson_line(&package_frame(&hint)) {
+        if let Ok(line) = ndjson_line(&package_frame(&self.tarball_router, &hint)) {
             let _ = self.tx.send(line);
         }
     }
@@ -542,14 +948,23 @@ impl pacquet_package_manager::ResolutionObserver for StreamObserver {
 /// One `package` NDJSON frame. `unpackedSize` is omitted (not null)
 /// when the registry never published a `dist.unpackedSize`, so older
 /// clients parse the frame unchanged.
-fn package_frame(hint: &ResolvedPackageHint<'_>) -> serde_json::Value {
+fn package_frame(router: &TarballRouter, hint: &ResolvedPackageHint<'_>) -> serde_json::Value {
+    // A registry-resolved package's `tarball_url` is the packument's
+    // `dist.tarball`, which a split-domain registry hosts on a different origin
+    // — route it by the registry, not the tarball host, so a private package
+    // never leaks its raw upstream URL. Direct tarball deps keep their own URL.
+    let tarball_url = if hint.from_registry {
+        router.route_registry_url(hint.name, hint.version, hint.tarball_url)
+    } else {
+        router.route_url(hint.name, hint.version, hint.tarball_url)
+    };
     let mut frame = serde_json::json!({
         "type": "package",
         "id": hint.id,
         "name": hint.name,
         "version": hint.version,
         "integrity": hint.integrity,
-        "tarball": hint.tarball_url,
+        "tarball": tarball_url,
     });
     if let Some(size) = hint.unpacked_size {
         frame["unpackedSize"] = serde_json::Value::from(size);
@@ -575,6 +990,7 @@ fn package_frame(hint: &ResolvedPackageHint<'_>) -> serde_json::Value {
 /// own protocol paths.
 fn frozen_package_frames(
     config: &PacquetConfig,
+    router: &TarballRouter,
     lockfile: &Lockfile,
     dist_stats: &ObservedDistStats,
 ) -> Vec<Vec<u8>> {
@@ -595,23 +1011,31 @@ fn frozen_package_frames(
         else {
             continue;
         };
-        if !seen_urls.insert(tarball_url.to_string()) {
-            continue;
-        }
         let name = package_key.name.to_string();
         let version = package_key.suffix.version().to_string();
+        let tarball_url = router.route_url(&name, &version, &tarball_url);
+        if !seen_urls.insert(tarball_url.clone()) {
+            continue;
+        }
         let id = format!("{name}@{version}");
         let integrity = integrity.to_string();
         let stats = dist_stats.get(&(name.clone(), version.clone())).map(|entry| *entry.value());
-        let frame = package_frame(&ResolvedPackageHint {
-            id: &id,
-            name: &name,
-            version: &version,
-            integrity: &integrity,
-            tarball_url: &tarball_url,
-            unpacked_size: stats.and_then(|stats| stats.unpacked_size),
-            file_count: stats.and_then(|stats| stats.file_count),
-        });
+        let frame = package_frame(
+            router,
+            &ResolvedPackageHint {
+                id: &id,
+                name: &name,
+                version: &version,
+                integrity: &integrity,
+                tarball_url: &tarball_url,
+                unpacked_size: stats.and_then(|stats| stats.unpacked_size),
+                file_count: stats.and_then(|stats| stats.file_count),
+                // The URL is already routed (canonical → endpoint above), so
+                // re-routing by registry would be redundant; route_url is a
+                // no-op on an already-routed URL.
+                from_registry: false,
+            },
+        );
         if let Ok(line) = ndjson_line(&frame) {
             frames.push(line);
         }
@@ -925,6 +1349,187 @@ fn merge_policies(
         merged.extend(osv_index.policy());
     }
     merged
+}
+
+/// Reject a request that would have pnpr fetch from an origin that is not on
+/// the route allowlist (see [`RouteContext::allows_registry`]) — the
+/// resolver's SSRF boundary, run before any server-side fetch. pnpr fetches
+/// only from operator-configured registries, so a caller cannot point it at
+/// cloud instance metadata, an internal service, or any other off-allowlist
+/// host. Beyond the default/named registries this also covers every fetch a
+/// *direct-URL dependency* would trigger: an `http(s)`/`git` dependency spec,
+/// an override URL leaf, or an input lockfile's tarball URL. A semver range or
+/// `npm:`/`workspace:`/`file:` alias never hits the network, so it is ignored.
+fn reject_off_allowlist_fetches(
+    request: &ResolveRequest,
+    context: &RouteContext,
+) -> Option<Response> {
+    // Registries are fetch targets whatever their scheme.
+    let mut registries: Vec<&str> = Vec::new();
+    if let Some(registry) = request.registry.as_deref() {
+        registries.push(registry);
+    }
+    registries.extend(request.named_registries.values().map(String::as_str));
+    if let Some(off) = registries.into_iter().find(|registry| !context.allows_registry(registry)) {
+        return Some(forbidden_off_allowlist(off));
+    }
+
+    // Direct-URL dependency specs and input-lockfile tarball URLs reach the
+    // network only when they carry an http(s)/git URL.
+    let mut url_specs: Vec<&str> = Vec::new();
+    let projects = request.projects_normalized();
+    for project in &projects {
+        for map in
+            [&project.dependencies, &project.dev_dependencies, &project.optional_dependencies]
+        {
+            url_specs.extend(map.values().map(String::as_str));
+        }
+    }
+    if let Some(packages) =
+        request.lockfile.as_ref().and_then(|lockfile| lockfile.packages.as_ref())
+    {
+        for package in packages.values() {
+            if let LockfileResolution::Tarball(resolution) = &package.resolution {
+                url_specs.push(resolution.tarball.as_str());
+            }
+        }
+    }
+    if let Some(off) = url_specs.into_iter().find(|spec| fetch_is_off_allowlist(spec, context)) {
+        return Some(forbidden_off_allowlist(off));
+    }
+
+    // Override leaves can themselves be direct-URL specs.
+    if let Some(off) = request
+        .overrides
+        .as_ref()
+        .and_then(|overrides| first_off_allowlist_override(overrides, context))
+    {
+        return Some(forbidden_off_allowlist(&off));
+    }
+
+    None
+}
+
+/// Whether `spec` would trigger a server-side fetch to an origin that is not on
+/// the allowlist. Covers any `scheme://host` URL (an `http(s)` tarball and
+/// every git transport — `git`/`ssh`/`rsync`/`ftp`/`file`/... — with a `git+`
+/// prefix stripped) and scp-style git remotes (`[user@]host:path`), which
+/// pacquet routes to the ssh git resolver. Specs that never reach the network —
+/// semver ranges, `npm:`/`workspace:`/`file:`/`link:` aliases (no `://`),
+/// scoped names — return `false`.
+fn fetch_is_off_allowlist(spec: &str, context: &RouteContext) -> bool {
+    let url = spec.strip_prefix("git+").unwrap_or(spec);
+    if url.contains("://") {
+        // Gate by origin regardless of scheme: any transport that reaches a
+        // host can be an SSRF vector (every git transport — git/ssh/rsync/ftp/
+        // file/...), and a scheme with no allowlistable host (e.g. `file://`,
+        // which would read a server-local path) nerf-darts to nothing and is
+        // rejected.
+        return !context.allows_registry(url);
+    }
+    // A scp-style git remote carries no scheme, so normalize its host to an
+    // `ssh://host/` origin the allowlist can match (nerf-darting is
+    // scheme-agnostic, so an operator allowlisting `https://host/` covers it).
+    match scp_git_host(url) {
+        Some(host) => !context.allows_registry(&format!("ssh://{host}/")),
+        None => false,
+    }
+}
+
+/// The host of a scp-style git remote (`[user@]host:path`), or `None`. The
+/// distinguishing shape is a `user@host` authority before the first `:` with a
+/// path after it — generalizing the `git@...` form pacquet's git resolver treats
+/// as ssh. A protocol spec (`npm:...`, `file:...`) has no `@` in its authority, and
+/// a `scheme://...` URL is handled before this is reached.
+fn scp_git_host(spec: &str) -> Option<&str> {
+    let (authority, path) = spec.split_once(':')?;
+    if path.is_empty() || authority.contains('/') {
+        return None;
+    }
+    let (_, host) = authority.rsplit_once('@')?;
+    (!host.is_empty()).then_some(host)
+}
+
+/// The first override URL leaf whose origin is off the fetch allowlist, if any.
+fn first_off_allowlist_override(
+    value: &serde_json::Value,
+    context: &RouteContext,
+) -> Option<String> {
+    match value {
+        serde_json::Value::String(spec) => {
+            fetch_is_off_allowlist(spec, context).then(|| spec.clone())
+        }
+        serde_json::Value::Array(items) => {
+            items.iter().find_map(|item| first_off_allowlist_override(item, context))
+        }
+        serde_json::Value::Object(map) => {
+            map.values().find_map(|item| first_off_allowlist_override(item, context))
+        }
+        _ => None,
+    }
+}
+
+fn forbidden_off_allowlist(target: &str) -> Response {
+    json_error(
+        StatusCode::FORBIDDEN,
+        &format!(
+            "{target:?} is not allowed by this pnpr server; the operator must declare its \
+             registry as a public route or an uplink",
+        ),
+    )
+}
+
+/// Reject a request whose client-supplied URLs carry inline
+/// `user:pass@host` credentials, before any fetch or cache write. Covers
+/// the default and named registries, every dependency spec, override
+/// values, and the tarball URLs of an input lockfile — every surface a
+/// tarball/registry URL can reach the resolver (or be echoed back) through.
+/// Returns a `400` response when one is found.
+fn reject_inline_url_auth(request: &ResolveRequest) -> Option<Response> {
+    let mut specs: Vec<&str> = Vec::new();
+    if let Some(registry) = request.registry.as_deref() {
+        specs.push(registry);
+    }
+    specs.extend(request.named_registries.values().map(String::as_str));
+    let projects = request.projects_normalized();
+    for project in &projects {
+        for map in
+            [&project.dependencies, &project.dev_dependencies, &project.optional_dependencies]
+        {
+            specs.extend(map.values().map(String::as_str));
+        }
+    }
+    // A supplied lockfile can carry `resolution.tarball` URLs that reach the
+    // verify/frozen paths and would otherwise be routed or echoed back.
+    if let Some(packages) =
+        request.lockfile.as_ref().and_then(|lockfile| lockfile.packages.as_ref())
+    {
+        for package in packages.values() {
+            if let LockfileResolution::Tarball(resolution) = &package.resolution {
+                specs.push(resolution.tarball.as_str());
+            }
+        }
+    }
+    let inline = specs.iter().any(|spec| crate::route::url_has_inline_credentials(spec))
+        || request.overrides.as_ref().is_some_and(overrides_have_inline_url_auth);
+    inline.then(|| {
+        json_error(
+            StatusCode::BAD_REQUEST,
+            "inline URL credentials (user:pass@host) are not allowed; \
+             configure an upstream credential alias instead",
+        )
+    })
+}
+
+/// Recursively scan an `overrides` JSON value for any string leaf that is
+/// a URL carrying inline credentials.
+fn overrides_have_inline_url_auth(value: &serde_json::Value) -> bool {
+    match value {
+        serde_json::Value::String(spec) => crate::route::url_has_inline_credentials(spec),
+        serde_json::Value::Array(items) => items.iter().any(overrides_have_inline_url_auth),
+        serde_json::Value::Object(map) => map.values().any(overrides_have_inline_url_auth),
+        _ => false,
+    }
 }
 
 fn json_error(status: StatusCode, message: &str) -> Response {

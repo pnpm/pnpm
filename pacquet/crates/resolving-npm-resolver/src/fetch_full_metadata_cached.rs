@@ -31,7 +31,7 @@ use crate::{
     mirror::{
         ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, clear_meta,
         get_pkg_mirror_path, load_meta_async, load_meta_headers_async, save_meta_indexed,
-        save_meta_ndjson,
+        save_meta_ndjson, scoped_meta_dir,
     },
     registry_url::to_registry_url,
 };
@@ -73,35 +73,42 @@ pub async fn fetch_full_metadata_cached(
     pkg_name: &str,
     opts: &FetchFullMetadataCachedOptions<'_>,
 ) -> Result<Package, FetchMetadataError> {
-    let meta_dir = if opts.full_metadata {
+    let base_meta_dir = if opts.full_metadata {
         if opts.filter_metadata { FULL_FILTERED_META_DIR } else { FULL_META_DIR }
     } else {
         ABBREVIATED_META_DIR
     };
+    let url = to_registry_url(opts.registry, pkg_name);
+    // Classify the route once so the mirror lands in the namespace the
+    // route policy permits: the global mirror for a public route and a
+    // descriptor-scoped private mirror for a proxied/hosted route.
+    let scope = opts.auth_headers.metadata_scope(&url, Some(pkg_name));
     // Encoding the mirror path can fail only on a malformed registry
     // URL (no host, unparsable). Either case is a config bug; we
     // log and proceed without a cache so the user still gets metadata
     // on this install instead of a hard error.
     let mirror_path = match opts.cache_dir {
-        Some(dir) => match get_pkg_mirror_path(dir, meta_dir, opts.registry, pkg_name) {
-            Ok(path) => Some(path),
-            Err(error) => {
-                tracing::debug!(
-                    target: "pacquet_resolving_npm_resolver::cache",
-                    ?error,
-                    registry = opts.registry,
-                    pkg_name,
-                    full_metadata = opts.full_metadata,
-                    "could not encode mirror path; bypassing cache for this call",
-                );
-                None
+        Some(dir) => {
+            let meta_dir = scoped_meta_dir(&scope, base_meta_dir);
+            match get_pkg_mirror_path(dir, &meta_dir, opts.registry, pkg_name) {
+                Ok(path) => Some(path),
+                Err(error) => {
+                    tracing::debug!(
+                        target: "pacquet_resolving_npm_resolver::cache",
+                        ?error,
+                        registry = opts.registry,
+                        pkg_name,
+                        full_metadata = opts.full_metadata,
+                        "could not encode mirror path; bypassing cache for this call",
+                    );
+                    None
+                }
             }
-        },
+        }
+        // No cache dir — fetch fresh without reading or writing a mirror.
         None => None,
     };
     let cache_headers = load_meta_headers_async(mirror_path.as_deref()).await;
-
-    let url = to_registry_url(opts.registry, pkg_name);
     let accept = if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC };
     let should_filter_metadata = opts.full_metadata && opts.filter_metadata;
 

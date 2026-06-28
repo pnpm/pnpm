@@ -676,10 +676,9 @@ pub(crate) async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
         optional_dependencies,
         registry: resolve_registry,
         named_registries: state.config.named_registries.clone(),
-        // Forward the whole credential map: the registries a graph
-        // touches aren't known up front (scope-routed or tarball-URL
-        // sub-deps), so the server attaches the right token per URL.
-        auth_headers: state.config.auth_headers.to_by_scope(),
+        // Only the caller's identity to pnpr is sent. Upstream registry
+        // credentials are never forwarded: pnpr selects them from its own
+        // route policy, so they stay out of the request body.
         authorization: state.config.auth_headers.for_url(pnpr_server),
         overrides,
         lockfile: state

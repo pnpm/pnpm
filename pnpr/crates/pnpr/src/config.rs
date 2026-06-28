@@ -1,6 +1,6 @@
 use crate::{
     error::RegistryError,
-    policy::{AccessList, PackagePolicies, PackagePolicy},
+    policy::{AccessGroups, AccessList, Identity, PackagePolicies, PackagePolicy},
     s3::{S3Settings, build_s3_store},
 };
 use indexmap::IndexMap;
@@ -78,6 +78,9 @@ pub struct Config {
     /// uplink (via `proxy`). Patterns without a `proxy` make the
     /// package storage-only (effectively static for that pattern).
     pub packages: IndexMap<String, PackageAccess>,
+    /// Optional static group memberships used by named access tokens in
+    /// package policies and upstream aliases.
+    pub groups: AccessGroups,
     /// How long a cached packument is considered fresh before it is
     /// re-fetched from the resolved uplink. Ignored when no uplink
     /// matches.
@@ -123,6 +126,36 @@ pub struct Config {
     /// default; disable it to run a plain registry with no server-side
     /// resolution. See [`ResolverFeature`].
     pub resolver: ResolverFeature,
+    /// Which fetch routes the resolution cache treats as public (fetched
+    /// anonymously and shared globally) vs. private, driving the
+    /// resolver's route classification.
+    pub route_policy: RoutePolicy,
+    /// Secret keying the HMAC that namespaces private resolution-cache
+    /// entries, so the private key is not correlatable offline. Sourced
+    /// from the YAML `secret:` key when present; otherwise a fresh
+    /// 32-byte value from the OS CSPRNG at startup (private entries then
+    /// live only for this process's lifetime).
+    pub resolution_cache_secret: Arc<[u8]>,
+}
+
+/// Which fetch routes the resolution cache treats as public. The official
+/// `registry.npmjs.org` host is always a built-in public route (added by the
+/// route layer when it builds its classification context); these are the
+/// *additional* operator-declared ones.
+#[derive(Debug, Default, Clone)]
+pub struct RoutePolicy {
+    /// Operator-declared public routes, matched by registry prefix
+    /// and/or package pattern.
+    pub public: Vec<PublicRoute>,
+}
+
+/// One operator-declared public route. A fetch matches when its registry
+/// URL is under `registry` (when set) and its package name matches
+/// `package` (when set); an all-`None` rule matches every fetch.
+#[derive(Debug, Clone)]
+pub struct PublicRoute {
+    pub registry: Option<String>,
+    pub package: Option<String>,
 }
 
 /// Toggle for the npm-registry surface. A dedicated type — rather than a
@@ -449,6 +482,12 @@ pub struct UplinkConfig {
     /// mirror (verdaccio's `cache`). `false` streams them through
     /// uncached. Defaults to `true`.
     pub cache: bool,
+    /// Which pnpr callers may select this uplink as a proxied private-route
+    /// credential, and reach it through its `/~<name>/` registry endpoint.
+    /// `None` means the uplink is registry-proxy only and is never offered as
+    /// a resolver private-route credential — only uplinks that declare
+    /// `access:` participate in route classification.
+    pub access: Option<AccessList>,
 }
 
 impl UplinkConfig {
@@ -471,6 +510,7 @@ impl UplinkConfig {
             max_fails: Self::DEFAULT_MAX_FAILS,
             fail_timeout: Self::DEFAULT_FAIL_TIMEOUT,
             cache: true,
+            access: None,
         }
     }
 }
@@ -485,6 +525,7 @@ impl fmt::Debug for UplinkConfig {
             .field("max_fails", &self.max_fails)
             .field("fail_timeout", &self.fail_timeout)
             .field("cache", &self.cache)
+            .field("access", &self.access)
             .finish()
     }
 }
@@ -526,6 +567,11 @@ struct UplinkFile {
     fail_timeout: Option<Interval>,
     #[serde(default)]
     cache: Option<bool>,
+    /// Which pnpr callers may select this uplink as a proxied private-route
+    /// credential. Its presence is what promotes a plain proxy uplink into a
+    /// resolver private-route credential exposed at `/~<name>/`.
+    #[serde(default)]
+    access: Option<AccessSpec>,
 }
 
 /// A verdaccio interval scalar as written in YAML: either a string
@@ -684,6 +730,7 @@ fn resolve_uplink<Sys: EnvVar>(
         max_fails: file.max_fails.unwrap_or(UplinkConfig::DEFAULT_MAX_FAILS),
         fail_timeout,
         cache: file.cache.unwrap_or(true),
+        access: file.access.as_ref().map(AccessSpec::to_access_list),
     })
 }
 
@@ -808,6 +855,22 @@ impl AccessSpec {
     }
 }
 
+/// Disk shape of the `routes:` block.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct RoutesFile {
+    #[serde(default)]
+    public: Vec<PublicRouteFile>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PublicRouteFile {
+    #[serde(default)]
+    registry: Option<String>,
+    #[serde(default)]
+    package: Option<String>,
+}
+
 /// Disk shape of the YAML file. Fields verdaccio supports but
 /// pnpr doesn't (`auth`, `web`, `plugins`, `middlewares`,
 /// `logs`, `secret`) are accepted and silently dropped via
@@ -848,6 +911,20 @@ struct ConfigFile {
     uplinks: IndexMap<String, UplinkFile>,
     #[serde(default)]
     packages: IndexMap<String, PackageAccess>,
+    /// pnpr-only static groups: each key is a group/team name and each
+    /// value is the list of pnpr usernames in that group.
+    #[serde(default)]
+    groups: IndexMap<String, AccessSpec>,
+    /// pnpr-only: which fetch routes the resolution cache treats as
+    /// public. Absent on a stock verdaccio config (built-in defaults
+    /// apply).
+    #[serde(default)]
+    routes: Option<RoutesFile>,
+    /// Verdaccio's `secret:` — reused here to key the private
+    /// resolution-cache HMAC. A random per-process secret is used when
+    /// absent.
+    #[serde(default)]
+    secret: Option<String>,
     #[serde(default)]
     auth: AuthFile,
     /// Verdaccio 6+ shape: `log:` is a single object at the top
@@ -987,6 +1064,7 @@ impl Config {
             storage,
             uplinks,
             packages,
+            groups: AccessGroups::default(),
             packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
             policies: PackagePolicies::registry_mock_defaults(),
             auth: AuthConfig::default(),
@@ -996,6 +1074,8 @@ impl Config {
             osv: OsvConfig::default(),
             registry: RegistryFeature::default(),
             resolver: ResolverFeature::default(),
+            route_policy: RoutePolicy::default(),
+            resolution_cache_secret: random_secret(),
         }
     }
 
@@ -1010,6 +1090,7 @@ impl Config {
             storage,
             uplinks: IndexMap::new(),
             packages: IndexMap::new(),
+            groups: AccessGroups::default(),
             packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
             policies: PackagePolicies::registry_mock_defaults(),
             auth: AuthConfig::default(),
@@ -1019,6 +1100,8 @@ impl Config {
             osv: OsvConfig::default(),
             registry: RegistryFeature::default(),
             resolver: ResolverFeature::default(),
+            route_policy: RoutePolicy::default(),
+            resolution_cache_secret: random_secret(),
         }
     }
 
@@ -1224,6 +1307,7 @@ impl Config {
         let public_url = public_url.unwrap_or_else(|| format!("http://{listen}"));
         let auth = build_auth_config(&file.auth, base_dir);
         let logs = build_log_config(file.log.as_ref());
+        let groups = build_groups(&file.groups);
         let policies = build_policies(&file.packages)?;
         let osv = build_osv_config(&file.osv, base_dir);
         // Effective enablement folds the CLI overrides in here, so the
@@ -1253,6 +1337,8 @@ impl Config {
         } else {
             IndexMap::new()
         };
+        let route_policy = build_route_policy(file.routes);
+        let resolution_cache_secret = resolution_secret(file.secret.as_deref())?;
         let config = Self {
             listen,
             public_url,
@@ -1260,6 +1346,7 @@ impl Config {
             cache_storage,
             uplinks,
             packages: file.packages,
+            groups,
             packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
             policies,
             auth,
@@ -1269,6 +1356,8 @@ impl Config {
             osv,
             registry,
             resolver,
+            route_policy,
+            resolution_cache_secret,
         };
         config.ensure_a_feature_is_enabled()?;
         Ok(config)
@@ -1325,6 +1414,13 @@ impl Config {
     pub fn resolve_uplink(&self, package_name: &str) -> Option<(&str, &UplinkConfig)> {
         self.resolve_uplinks(package_name).into_iter().next()
     }
+
+    /// Build the caller identity used by access policies after a bearer
+    /// token has authenticated `username`.
+    #[must_use]
+    pub fn identity_for_user(&self, username: impl Into<String>) -> Identity {
+        self.groups.identity_for(username.into())
+    }
 }
 
 /// Build the runtime [`AuthConfig`] from the YAML `auth:` block.
@@ -1349,6 +1445,63 @@ fn build_auth_config(file: &AuthFile, base_dir: &Path) -> AuthConfig {
         },
         tokens: TokensConfig { file: tokens_file },
     }
+}
+
+fn build_route_policy(file: Option<RoutesFile>) -> RoutePolicy {
+    match file {
+        None => RoutePolicy::default(),
+        Some(file) => RoutePolicy {
+            public: file
+                .public
+                .into_iter()
+                .map(|route| PublicRoute { registry: route.registry, package: route.package })
+                .collect(),
+        },
+    }
+}
+
+fn build_groups(file: &IndexMap<String, AccessSpec>) -> AccessGroups {
+    let mut groups = AccessGroups::default();
+    for (group, members) in file {
+        for username in members.to_ordered_tokens() {
+            groups.add_user_to_group(username, group);
+        }
+    }
+    groups
+}
+
+/// Minimum length for an operator-configured `secret:`. A shorter value makes
+/// the private-cache descriptor HMAC guessable, defeating its "not
+/// correlatable offline" property; a generated secret is 32 bytes.
+const MIN_RESOLUTION_SECRET_LEN: usize = 16;
+
+/// The HMAC secret keying private resolution-cache entries: the YAML
+/// `secret:` when set (rejected if too short to be a safe HMAC key), else a
+/// fresh per-process value.
+fn resolution_secret(secret: Option<&str>) -> Result<Arc<[u8]>, RegistryError> {
+    match secret {
+        Some(secret) if !secret.is_empty() => {
+            if secret.len() < MIN_RESOLUTION_SECRET_LEN {
+                return Err(RegistryError::InvalidConfig {
+                    reason: format!(
+                        "`secret:` must be at least {MIN_RESOLUTION_SECRET_LEN} bytes to key the \
+                         private resolution-cache HMAC (it is {})",
+                        secret.len(),
+                    ),
+                });
+            }
+            Ok(Arc::from(secret.as_bytes().to_vec()))
+        }
+        _ => Ok(random_secret()),
+    }
+}
+
+/// 32 bytes from the OS CSPRNG, for a deployment that configures no
+/// `secret:`. Private cache entries then live only for this process.
+fn random_secret() -> Arc<[u8]> {
+    let mut bytes = [0u8; 32];
+    getrandom::fill(&mut bytes).expect("OS CSPRNG must be available");
+    Arc::from(bytes.to_vec())
 }
 
 fn build_osv_config(file: &OsvFile, base_dir: &Path) -> OsvConfig {

@@ -8,8 +8,6 @@ import type { LockfileFile, LockfileObject } from '@pnpm/lockfile.types'
 
 import type { ResponseMetadata } from './protocol.js'
 
-export type AuthHeadersByScope = Record<string, Record<string, string>>
-
 export interface PnprProject {
   /** Relative dir within the workspace (e.g. "." or "packages/foo") */
   dir: string
@@ -37,15 +35,10 @@ export interface ResolveViaPnprServerOptions {
   /** The client's named-registry aliases (`namedRegistries`). */
   namedRegistries?: Record<string, string>
   /**
-   * The caller's forwarded upstream credentials, keyed by nerf-darted
-   * registry URI and package scope, so the server resolves private
-   * content as the caller. The `@` scope stores registry-wide auth.
-   * Distinct from `authorization` (pnpr identity).
-   */
-  authHeaders?: AuthHeadersByScope
-  /**
    * `Authorization` for the pnpr server's own URL (`undefined` if none):
-   * identifies the caller to pnpr's gate.
+   * identifies the caller to pnpr's gate. The client never forwards its
+   * own upstream registry credentials — pnpr selects upstream credentials
+   * from its route policy, so none are placed in the request body.
    */
   authorization?: string
   /** Overrides */
@@ -105,7 +98,6 @@ export async function resolveViaPnprServer (
     projects,
     registry: opts.registry,
     namedRegistries: opts.namedRegistries,
-    authHeaders: opts.authHeaders,
     overrides: opts.overrides,
     nodeVersion: opts.nodeVersion ?? process.version.slice(1),
     os: process.platform,

@@ -59,6 +59,7 @@ use std::{
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use pacquet_network::MetadataCacheScope;
 use pacquet_registry::{Package, PackageVersions};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -124,6 +125,32 @@ pub enum SaveMetaError {
         #[error(source)]
         error: io::Error,
     },
+}
+
+/// Mirror root for descriptor-scoped private metadata. A
+/// [`MetadataCacheScope::Private`] route stores its packuments under
+/// `<cache_dir>/v11/metadata-private/<descriptor-id>/<meta-suffix>/...`
+/// so one caller's private metadata never lands in the global mirror
+/// every other caller reads.
+const PRIVATE_META_ROOT: &str = "v11/metadata-private";
+
+/// The mirror directory `base_meta_dir` resolves to under `scope`.
+///
+/// * [`MetadataCacheScope::Public`] keeps the global directory unchanged
+///   (the CLI and public routes).
+/// * [`MetadataCacheScope::Private`] relocates it under
+///   `v11/metadata-private/<descriptor-id>/` keyed by the descriptor id,
+///   preserving the abbreviated/full/filtered split via the suffix after
+///   `v11/`.
+#[must_use]
+pub fn scoped_meta_dir(scope: &MetadataCacheScope, base_meta_dir: &str) -> String {
+    match scope {
+        MetadataCacheScope::Public => base_meta_dir.to_string(),
+        MetadataCacheScope::Private { descriptor_id } => {
+            let suffix = base_meta_dir.strip_prefix("v11/").unwrap_or(base_meta_dir);
+            format!("{PRIVATE_META_ROOT}/{descriptor_id}/{suffix}")
+        }
+    }
 }
 
 /// On-disk path of the JSONL document where pacquet (and pnpm)
