@@ -23,7 +23,7 @@ pub struct RepoArgs {
 }
 
 impl RepoArgs {
-    pub async fn run<R: Reporter>(
+    pub async fn run<Rep: Reporter>(
         self,
         config: &Config,
         dir: &std::path::Path,
@@ -70,7 +70,7 @@ impl RepoArgs {
                 Ok(()) => {}
                 Err(e) => {
                     let redacted = redact_url(&url);
-                    R::emit(&LogEvent::Pnpm(PnpmLog {
+                    Rep::emit(&LogEvent::Pnpm(PnpmLog {
                         level: LogLevel::Warn,
                         message: format!("Could not open browser: {e}"),
                         prefix: prefix.clone(),
@@ -99,10 +99,10 @@ pub enum RepoError {
 
 fn get_repo_url_from_current_project(dir: &std::path::Path) -> miette::Result<String> {
     let manifest_path = dir.join("package.json");
-    let manifest = PackageManifest::from_path(manifest_path).map_err(|e| -> miette::Report {
-        match &e {
+    let manifest = PackageManifest::from_path(manifest_path).map_err(|err| -> miette::Report {
+        match &err {
             PackageManifestError::NoImporterManifestFound(_) => RepoError::NoRepoUrlLocal.into(),
-            _ => e.into(),
+            _ => err.into(),
         }
     })?;
     let repository = manifest.value().get("repository");
@@ -147,7 +147,7 @@ async fn get_repo_url_from_registry(
     };
 
     let selected = select_package_version(&package, range);
-    let repository = selected.and_then(|v| v.other.get("repository").cloned());
+    let repository = selected.and_then(|ver| ver.other.get("repository").cloned());
     pick_repo_url(repository.as_ref())
         .ok_or_else(|| RepoError::NoRepoUrlRegistry { name: package.name.clone() }.into())
 }
