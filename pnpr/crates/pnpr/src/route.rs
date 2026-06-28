@@ -23,6 +23,7 @@
 
 use std::{
     collections::BTreeSet,
+    fmt,
     sync::{Arc, Mutex},
 };
 
@@ -196,7 +197,7 @@ struct RouteMatcher {
     package: Option<Glob<'static>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 struct ResolvedAlias {
     name: String,
     generation: u64,
@@ -209,6 +210,21 @@ struct ResolvedAlias {
     authorization: String,
     /// Which pnpr callers may select this alias.
     access: AccessList,
+}
+
+impl fmt::Debug for ResolvedAlias {
+    /// Redacts [`Self::authorization`] — it carries the uplink's server-owned
+    /// upstream credential, which must never reach a log line or panic dump.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ResolvedAlias")
+            .field("name", &self.name)
+            .field("generation", &self.generation)
+            .field("registry", &self.registry)
+            .field("origin", &self.origin)
+            .field("authorization", &"<redacted>")
+            .field("access", &self.access)
+            .finish()
+    }
 }
 
 impl RouteContext {
@@ -396,7 +412,6 @@ impl ResolvedAlias {
 /// fetch routes through [`UpstreamRouteHook::authorize`], which classifies
 /// the route, records it into the shared [`Footprint`], and returns the
 /// pnpr-managed credential (never a client-forwarded one).
-#[derive(Debug)]
 pub struct RouteHook {
     context: RouteContext,
     identity: Identity,
@@ -405,6 +420,19 @@ pub struct RouteHook {
     /// ([`MetadataCacheScope::Private`]); the same server secret the
     /// resolution cache keys private footprints with.
     secret: Arc<[u8]>,
+}
+
+impl fmt::Debug for RouteHook {
+    /// Redacts [`Self::secret`] — the descriptor-HMAC key must never reach a
+    /// log line or panic dump, or the private namespace becomes correlatable.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RouteHook")
+            .field("context", &self.context)
+            .field("identity", &self.identity)
+            .field("footprint", &self.footprint)
+            .field("secret", &"<redacted>")
+            .finish()
+    }
 }
 
 impl RouteHook {

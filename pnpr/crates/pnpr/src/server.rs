@@ -904,7 +904,9 @@ fn uplink_cache_namespace(state: &AppState, uplink: &str) -> String {
 
 /// Load an uplink route's packument: a fresh per-uplink cache entry when one
 /// exists, otherwise a fetch through the uplink (with its server-side
-/// credential) written back to the same private namespace.
+/// credential) written back to the same private namespace. An uplink with
+/// `cache: false` neither reads nor writes the private cache — it streams the
+/// packument through every time, like the public path's `cache: false` knob.
 async fn load_uplink_packument(
     state: &AppState,
     namespace: &str,
@@ -912,13 +914,19 @@ async fn load_uplink_packument(
     name: &PackageName,
     ttl: Duration,
 ) -> Result<Option<Vec<u8>>, RegistryError> {
-    if let Some(bytes) = state.inner.storage.read_uplink_packument(namespace, name, ttl).await? {
+    if upstream.caches()
+        && let Some(bytes) = state.inner.storage.read_uplink_packument(namespace, name, ttl).await?
+    {
         return Ok(Some(bytes));
     }
     match upstream.fetch_packument(name, &CacheValidators::default()).await? {
         PackumentFetch::Modified(fetched) => {
-            if let Err(err) =
-                state.inner.storage.write_uplink_packument(namespace, name, &fetched.bytes).await
+            if upstream.caches()
+                && let Err(err) = state
+                    .inner
+                    .storage
+                    .write_uplink_packument(namespace, name, &fetched.bytes)
+                    .await
             {
                 tracing::warn!(?err, package = %name.as_str(), "uplink packument cache write failed");
             }
@@ -1010,42 +1018,45 @@ async fn serve_tarball_via_uplink(
         return error_response(&err);
     }
 
-    // Serve a verified private-cache hit without touching the upstream.
-    match state.inner.storage.open_uplink_tarball(&namespace, &name, &filename).await {
-        Ok(Some((file, len))) => {
-            let expected = cached_tarball_integrity(&integrity, len);
-            if state
-                .inner
-                .storage
-                .read_uplink_tarball_integrity(&namespace, &name, &filename)
-                .await
-                .is_some_and(|cached| cached == expected)
-            {
-                return tarball_response(streaming::stream_file(file), Some(len));
-            }
-            match streaming::verify_file(file, &integrity).await {
-                Ok(file) => {
-                    let _ = state
-                        .inner
-                        .storage
-                        .write_uplink_tarball_integrity(&namespace, &name, &filename, &expected)
-                        .await;
+    // Serve a verified private-cache hit without touching the upstream. An
+    // uplink with `cache: false` skips the cache entirely and streams through.
+    if upstream.caches() {
+        match state.inner.storage.open_uplink_tarball(&namespace, &name, &filename).await {
+            Ok(Some((file, len))) => {
+                let expected = cached_tarball_integrity(&integrity, len);
+                if state
+                    .inner
+                    .storage
+                    .read_uplink_tarball_integrity(&namespace, &name, &filename)
+                    .await
+                    .is_some_and(|cached| cached == expected)
+                {
                     return tarball_response(streaming::stream_file(file), Some(len));
                 }
-                Err(err) => {
-                    let err = tarball_stream_error(err, &name, &filename);
-                    tracing::warn!(?err, package = %name.as_str(), %filename, "cached uplink tarball failed verification");
-                    let _ = state
-                        .inner
-                        .storage
-                        .remove_uplink_tarball(&namespace, &name, &filename)
-                        .await;
+                match streaming::verify_file(file, &integrity).await {
+                    Ok(file) => {
+                        let _ = state
+                            .inner
+                            .storage
+                            .write_uplink_tarball_integrity(&namespace, &name, &filename, &expected)
+                            .await;
+                        return tarball_response(streaming::stream_file(file), Some(len));
+                    }
+                    Err(err) => {
+                        let err = tarball_stream_error(err, &name, &filename);
+                        tracing::warn!(?err, package = %name.as_str(), %filename, "cached uplink tarball failed verification");
+                        let _ = state
+                            .inner
+                            .storage
+                            .remove_uplink_tarball(&namespace, &name, &filename)
+                            .await;
+                    }
                 }
             }
-        }
-        Ok(None) => {}
-        Err(err) => {
-            tracing::warn!(?err, package = %name.as_str(), %filename, "uplink tarball cache open failed");
+            Ok(None) => {}
+            Err(err) => {
+                tracing::warn!(?err, package = %name.as_str(), %filename, "uplink tarball cache open failed");
+            }
         }
     }
 
@@ -1059,6 +1070,23 @@ async fn serve_tarball_via_uplink(
             Ok(write) => write,
             Err(err) => return error_response(&err),
         };
+    if !upstream.caches() {
+        // Fetch-through: verify and stream from the temp file, then remove it,
+        // so a `cache: false` uplink's tarball is never persisted.
+        return match streaming::download_verified_to_temp(
+            response,
+            write,
+            &integrity,
+            MAX_TARBALL_BYTES,
+        )
+        .await
+        {
+            Ok((file, len, tmp_path)) => {
+                tarball_response(streaming::stream_file_and_remove(file, tmp_path), Some(len))
+            }
+            Err(err) => error_response(&tarball_stream_error(err, &name, &filename)),
+        };
+    }
     let len =
         match streaming::download_verified_to_cache(response, write, &integrity, MAX_TARBALL_BYTES)
             .await

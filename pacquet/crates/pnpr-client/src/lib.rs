@@ -11,9 +11,11 @@
 //! then fetches the rest in parallel like a normal install
 //! ([pnpm/pnpm#12230](https://github.com/pnpm/pnpm/issues/12230)).
 //!
-//! pnpr is a stateless resolver: it stores no tarballs. Resolved tarballs
-//! are fetched from upstream public URLs or an uplink's `/~<uplink>/`
-//! registry endpoint.
+//! The resolver itself is stateless — it materializes no store and the
+//! `/resolve` endpoint persists no tarballs. Resolved tarballs are fetched
+//! from upstream public URLs or, for a private proxied route, an uplink's
+//! `/~<uplink>/` registry endpoint (which may cache them server-side under
+//! its own private namespace).
 
 use std::collections::BTreeMap;
 

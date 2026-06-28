@@ -481,6 +481,47 @@ fn unknown_lockfile_routing_leaves_resolution_unrewritten() {
     assert_eq!(value, serde_json::to_value(&input).expect("lockfile serializes"));
 }
 
+fn lockfile_with_tarball(tarball: &str) -> Lockfile {
+    serde_json::from_value(serde_json::json!({
+        "lockfileVersion": "9.0",
+        "importers": { ".": { "dependencies": { "acme": { "specifier": "^1.0.0", "version": "1.0.0" } } } },
+        "packages": {
+            "acme@1.0.0": {
+                "resolution": {
+                    "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                    "tarball": tarball,
+                },
+            },
+        },
+    }))
+    .expect("lockfile parses")
+}
+
+#[test]
+fn reject_inline_url_auth_scans_input_lockfile_tarballs() {
+    use super::reject_inline_url_auth;
+
+    // A lockfile tarball carrying inline `user:pass@host` credentials is
+    // rejected before any fetch, so it can't reach the verify/frozen paths or
+    // be echoed back.
+    let dirty = ResolveRequest {
+        lockfile: Some(lockfile_with_tarball(
+            "https://user:pass@evil.example/acme/-/acme-1.0.0.tgz",
+        )),
+        ..ResolveRequest::default()
+    };
+    assert!(reject_inline_url_auth(&dirty).is_some());
+
+    // A clean lockfile tarball is accepted.
+    let clean = ResolveRequest {
+        lockfile: Some(lockfile_with_tarball(
+            "https://registry.example.test/acme/-/acme-1.0.0.tgz",
+        )),
+        ..ResolveRequest::default()
+    };
+    assert!(reject_inline_url_auth(&clean).is_none());
+}
+
 #[test]
 fn private_cached_resolution_keeps_routed_tarball_urls() {
     let cache = Mutex::new(HashMap::new());

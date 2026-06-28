@@ -1280,9 +1280,10 @@ fn merge_policies(
 
 /// Reject a request whose client-supplied URLs carry inline
 /// `user:pass@host` credentials, before any fetch or cache write. Covers
-/// the default and named registries, every dependency spec, and override
-/// values — the surfaces a tarball/registry URL can reach the resolver
-/// through. Returns a `400` response when one is found.
+/// the default and named registries, every dependency spec, override
+/// values, and the tarball URLs of an input lockfile — every surface a
+/// tarball/registry URL can reach the resolver (or be echoed back) through.
+/// Returns a `400` response when one is found.
 fn reject_inline_url_auth(request: &ResolveRequest) -> Option<Response> {
     let mut specs: Vec<&str> = Vec::new();
     if let Some(registry) = request.registry.as_deref() {
@@ -1295,6 +1296,17 @@ fn reject_inline_url_auth(request: &ResolveRequest) -> Option<Response> {
             [&project.dependencies, &project.dev_dependencies, &project.optional_dependencies]
         {
             specs.extend(map.values().map(String::as_str));
+        }
+    }
+    // A supplied lockfile can carry `resolution.tarball` URLs that reach the
+    // verify/frozen paths and would otherwise be routed or echoed back.
+    if let Some(packages) =
+        request.lockfile.as_ref().and_then(|lockfile| lockfile.packages.as_ref())
+    {
+        for package in packages.values() {
+            if let LockfileResolution::Tarball(resolution) = &package.resolution {
+                specs.push(resolution.tarball.as_str());
+            }
         }
     }
     let inline = specs.iter().any(|spec| crate::route::url_has_inline_credentials(spec))

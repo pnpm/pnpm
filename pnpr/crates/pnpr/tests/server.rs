@@ -847,6 +847,60 @@ async fn uplink_cache_does_not_leak_to_the_public_path() {
     assert_eq!(body_bytes(public.into_body()).await, public_bytes);
 }
 
+#[tokio::test]
+async fn uplink_endpoint_cache_false_streams_without_caching() {
+    let mut upstream = mockito::Server::new_async().await;
+    let bytes = b"uncached-private-uplink-tarball";
+    let packument = json!({
+        "name": "foo",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": { "1.0.0": { "name": "foo", "version": "1.0.0", "dist": {
+            "tarball": format!("{}/foo/-/foo-1.0.0.tgz", upstream.url()),
+            "integrity": sha512_integrity(bytes),
+        } } },
+    });
+    // A `cache: false` uplink endpoint persists nothing, so each request
+    // re-fetches the packument and tarball — the mocks are hit twice.
+    let packument_mock = upstream
+        .mock("GET", "/foo")
+        .with_body(packument.to_string())
+        .expect(2)
+        .create_async()
+        .await;
+    let tarball_mock = upstream
+        .mock("GET", "/foo/-/foo-1.0.0.tgz")
+        .with_header("content-type", "application/octet-stream")
+        .with_body(bytes)
+        .expect(2)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let mut config = uplink_endpoint_config(&upstream.url(), tmp.path().to_path_buf(), "alice");
+    config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink").cache = false;
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let app = router_with_auth(config, auth);
+
+    for _ in 0..2 {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get("/~npmjs/foo/-/foo-1.0.0.tgz")
+                    .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(body_bytes(response.into_body()).await, bytes);
+    }
+
+    packument_mock.assert_async().await;
+    tarball_mock.assert_async().await;
+}
+
 /// Builds a packument whose single `1.0.0` version points its tarball at
 /// `upstream_url`. Used by the multi-uplink tests, which need to control the
 /// upstream the packument is served from independently of the helper that
