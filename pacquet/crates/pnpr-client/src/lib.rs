@@ -12,7 +12,8 @@
 //! ([pnpm/pnpm#12230](https://github.com/pnpm/pnpm/issues/12230)).
 //!
 //! pnpr is a stateless resolver: it stores no tarballs. Resolved tarballs
-//! are fetched from upstream public URLs or pnpr's read-only gateway.
+//! are fetched from upstream public URLs or an uplink's `/~<uplink>/`
+//! registry endpoint.
 
 use std::collections::BTreeMap;
 

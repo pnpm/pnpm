@@ -75,19 +75,19 @@ uplinks:
   npmjs:
     url: https://registry.npmjs.org/
 
-# Optional pnpr-owned upstream credentials for private resolver routes.
-# pnpr selects an alias only when the caller satisfies `access`, sends the
-# alias credential upstream, and uses `generation` as part of the private
-# cache namespace during rotations.
-#upstreamAliases:
-#  corp:
-#    registry: https://npm.corp.example/
-#    package: '@acme/*'
-#    access: platform
-#    generation: 1
-#    auth:
-#      type: bearer
-#      tokenEnv: PNPR_CORP_NPM_TOKEN
+  # An uplink that declares `access:` becomes a pnpr-managed private-route
+  # credential, exposed as a registry endpoint at `/~<name>/` (here,
+  # `/~corp/`). pnpr selects it only when the caller satisfies `access`, sends
+  # its credential upstream, and uses `generation` as part of the private
+  # cache namespace during rotations. Point a scope at the endpoint to use it,
+  # e.g. `@acme:registry=https://<pnpr>/~corp/`.
+  #corp:
+  #  url: https://npm.corp.example/
+  #  access: platform
+  #  generation: 1
+  #  auth:
+  #    type: bearer
+  #    tokenEnv: PNPR_CORP_NPM_TOKEN
 
 web:
   enable: false

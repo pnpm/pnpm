@@ -118,8 +118,8 @@ pub(crate) struct Resolver {
     /// every time (uncached) rather than failing the server.
     verdict_cache: Option<VerdictCache>,
     osv_index: Option<Arc<OsvIndex>>,
-    /// Route-classification inputs (public/private rules, upstream
-    /// credential aliases, hosted origin, package policy), resolved once
+    /// Route-classification inputs (public/private rules, pnpr-managed
+    /// uplink credentials, hosted origin, package policy), resolved once
     /// from the server config and combined per request with the caller's
     /// identity to drive auth selection and footprint recording.
     route_context: RouteContext,
@@ -333,8 +333,8 @@ fn intern_config(
 /// lockfile + stats, `error` if resolution aborts mid-stream, or
 /// `violations` if the input lockfile failed the client's policy. The
 /// short-circuit paths (frozen reuse, cache hit) emit only the terminal
-/// `done` frame. Private or unknown tarballs are announced through
-/// pnpr's read-only gateway rather than their upstream URLs.
+/// `done` frame. A private proxied tarball is announced through its
+/// uplink's `/~<uplink>/` registry endpoint rather than its upstream URL.
 pub(crate) async fn handle_resolve(
     runtime: &Resolver,
     identity: Identity,
