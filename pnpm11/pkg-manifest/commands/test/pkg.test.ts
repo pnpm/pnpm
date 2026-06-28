@@ -250,7 +250,7 @@ describe('pkg command', () => {
     })
   })
 
-  describe('get --published', () => {
+  describe('get-published subcommand', () => {
     test('applies publishConfig overrides', async () => {
       const manifest = {
         name: 'test-package',
@@ -262,7 +262,7 @@ describe('pkg command', () => {
       }
       fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(manifest, null, 2))
 
-      const result = await handler({ dir: tmpDir, published: true }, ['get', 'main'])
+      const result = await handler({ dir: tmpDir }, ['get-published', 'main'])
       expect(result).toBe('./dist/index.js')
     })
 
@@ -278,7 +278,7 @@ describe('pkg command', () => {
       }
       fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(manifest, null, 2))
 
-      const result = JSON.parse(await handler({ dir: tmpDir, published: true }, ['get', 'scripts']) as string)
+      const result = JSON.parse(await handler({ dir: tmpDir }, ['get-published', 'scripts']) as string)
       expect(result.build).toBe('tsc')
       expect(result.prepublishOnly).toBeUndefined()
       expect(result.prepack).toBeUndefined()
@@ -294,7 +294,7 @@ describe('pkg command', () => {
       }
       fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(manifest, null, 2))
 
-      const result = JSON.parse(await handler({ dir: tmpDir, published: true }, ['get']) as string)
+      const result = JSON.parse(await handler({ dir: tmpDir }, ['get-published']) as string)
       expect(result.pnpm).toBeUndefined()
     })
 
@@ -309,9 +309,23 @@ describe('pkg command', () => {
       }
       fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(manifest, null, 2))
 
-      const result = JSON.parse(await handler({ dir: tmpDir, published: true }, ['get']) as string)
+      const result = JSON.parse(await handler({ dir: tmpDir }, ['get-published']) as string)
       expect(result.main).toBe('./dist/index.js')
       expect(result.name).toBe('test-package')
+    })
+
+    test('rejects publishConfig.directory that escapes the project', async () => {
+      const manifest = {
+        name: 'test-package',
+        version: '1.0.0',
+        publishConfig: {
+          directory: '../../../etc',
+        },
+      }
+      fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(manifest, null, 2))
+
+      await expect(handler({ dir: tmpDir }, ['get-published']))
+        .rejects.toMatchObject({ code: 'ERR_PNPM_PUBLISH_DIR_OUTSIDE_PROJECT' })
     })
   })
 

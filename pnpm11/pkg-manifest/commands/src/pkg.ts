@@ -21,7 +21,6 @@ export function cliOptionsTypes (): Record<string, unknown> {
   return {
     dir: types['dir'],
     json: Boolean,
-    published: Boolean,
     recursive: Boolean,
   }
 }
@@ -31,7 +30,6 @@ export const commandNames = ['pkg']
 interface PkgCommandOptions {
   dir: string
   json?: boolean
-  published?: boolean
   recursive?: boolean
   catalogs?: Catalogs
   hooks?: Hooks
@@ -65,6 +63,8 @@ async function runSubcommand (opts: PkgCommandOptions, subcmd: string, args: str
   switch (subcmd) {
     case 'get':
       return pkgGet(opts, args)
+    case 'get-published':
+      return pkgGetPublished(opts, args)
     case 'set':
       return pkgSet(opts, args)
     case 'delete':
@@ -92,9 +92,10 @@ async function handleRecursiveCommand (opts: PkgCommandOptions, subcmd: string, 
     throw new PnpmError('PKG_RECURSIVE_NO_PACKAGES', 'No workspace packages were selected')
   }
 
-  if (subcmd === 'get') {
+  if (subcmd === 'get' || subcmd === 'get-published') {
+    const readFn = subcmd === 'get-published' ? readPublishedManifest : readRawManifest
     const entries = await Promise.all(selectedProjects.map(async ({ package: pkg }) => {
-      const manifest = await readManifest({ ...opts, dir: pkg.rootDir })
+      const manifest = await readFn({ ...opts, dir: pkg.rootDir })
       const pkgName = String(manifest.name ?? path.relative(workspaceDir, pkg.rootDir))
       return [pkgName, selectFromManifest(manifest, args)] as const
     }))
@@ -107,8 +108,14 @@ async function handleRecursiveCommand (opts: PkgCommandOptions, subcmd: string, 
 }
 
 async function pkgGet (opts: PkgCommandOptions, args: string[]): Promise<string> {
-  const manifest = await readManifest(opts)
+  return formatManifestFields(await readRawManifest(opts), args, opts)
+}
 
+async function pkgGetPublished (opts: PkgCommandOptions, args: string[]): Promise<string> {
+  return formatManifestFields(await readPublishedManifest(opts), args, opts)
+}
+
+function formatManifestFields (manifest: Record<string, unknown>, args: string[], opts: PkgCommandOptions): string {
   if (args.length === 1) {
     const value = getObjectValueByPropertyPathString(manifest, args[0])
     if (value === undefined) return ''
@@ -119,12 +126,13 @@ async function pkgGet (opts: PkgCommandOptions, args: string[]): Promise<string>
   return JSON.stringify(selectFromManifest(manifest, args), undefined, 2)
 }
 
-async function readManifest (opts: PkgCommandOptions): Promise<Record<string, unknown>> {
+async function readRawManifest (opts: PkgCommandOptions): Promise<Record<string, unknown>> {
+  return await readProjectManifestOnly(opts.dir) as Record<string, unknown>
+}
+
+async function readPublishedManifest (opts: PkgCommandOptions): Promise<Record<string, unknown>> {
   const manifest = await readProjectManifestOnly(opts.dir) as ProjectManifest
-  if (!opts.published) return manifest as Record<string, unknown>
-  const dir = manifest.publishConfig?.directory
-    ? path.join(opts.dir, manifest.publishConfig.directory)
-    : opts.dir
+  const dir = resolvePublishDir(opts.dir, manifest)
   const sourceManifest = dir !== opts.dir
     ? await readProjectManifestOnly(dir) as ProjectManifest
     : manifest
@@ -135,6 +143,18 @@ async function readManifest (opts: PkgCommandOptions): Promise<Record<string, un
     modulesDir: path.join(opts.dir, 'node_modules'),
     skipManifestObfuscation: opts.skipManifestObfuscation,
   }) as unknown as Record<string, unknown>
+}
+
+function resolvePublishDir (projectDir: string, manifest: ProjectManifest): string {
+  if (!manifest.publishConfig?.directory) return projectDir
+  const resolved = path.resolve(projectDir, manifest.publishConfig.directory)
+  if (!resolved.startsWith(projectDir + path.sep) && resolved !== projectDir) {
+    throw new PnpmError(
+      'PUBLISH_DIR_OUTSIDE_PROJECT',
+      `publishConfig.directory "${manifest.publishConfig.directory}" resolves outside the project`
+    )
+  }
+  return resolved
 }
 
 function selectFromManifest (manifest: Record<string, unknown>, args: string[]): unknown {
@@ -237,6 +257,10 @@ export function help (): string {
             name: 'get [<key> [<key> ...]]',
           },
           {
+            description: 'Retrieves a value from the publish-transformed package.json (with publishConfig overrides, workspace protocol resolution, script stripping, etc. applied)',
+            name: 'get-published [<key> [<key> ...]]',
+          },
+          {
             description: 'Sets a value in package.json',
             name: 'set <key>=<value> [<key>=<value> ...]',
           },
@@ -258,10 +282,6 @@ export function help (): string {
             name: '--json',
           },
           {
-            description: 'When getting, apply publish-time transformations (workspace protocol resolution, publishConfig overrides, script stripping, etc.) before returning the manifest',
-            name: '--published',
-          },
-          {
             description: 'Run on every workspace project or every project selected by a filter',
             name: '--recursive',
             shortAlias: '-r',
@@ -272,11 +292,13 @@ export function help (): string {
     url: docsUrl('pkg'),
     usages: [
       'pnpm pkg get [<key> [<key> ...]]',
+      'pnpm pkg get-published [<key> [<key> ...]]',
       'pnpm pkg set <key>=<value> [<key>=<value> ...]',
       'pnpm pkg delete <key> [<key> ...]',
       'pnpm pkg fix',
       'pnpm pkg set <key>=<value> --json',
       'pnpm -r pkg get name',
+      'pnpm -r pkg get-published exports',
       'pnpm --filter <selector> pkg get name',
       'pnpm -r pkg set version=1.0.0',
     ],
