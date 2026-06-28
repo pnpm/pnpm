@@ -476,7 +476,6 @@ pub(crate) async fn handle_resolve(
                     );
                     if !footprint.is_public() {
                         tracing::debug!(
-                            shareable = footprint.is_shareable(),
                             cached,
                             descriptor = descriptor.as_deref().unwrap_or("none"),
                             "private resolution cache candidate evaluated",
@@ -589,7 +588,7 @@ fn store_resolution(
     secret: &[u8],
     lockfile: &Lockfile,
 ) -> bool {
-    if ttl.is_zero() || !footprint.is_shareable() {
+    if ttl.is_zero() {
         return false;
     }
     let now = Instant::now();
@@ -801,11 +800,10 @@ impl TarballRouter {
 
     fn route_url(&self, package: &str, version: &str, tarball_url: &str) -> String {
         match self.context.classify(&self.identity, tarball_url, Some(package)) {
-            // A public or unknown route keeps its upstream URL. An unknown
-            // route that produced a resolution was fetched without a managed
-            // credential (anonymously), so its tarball is anonymously
-            // fetchable; pnpr never mints a per-tarball gateway URL.
-            RouteClass::Public | RouteClass::Unknown => tarball_url.to_string(),
+            // A public route keeps its upstream URL: it was fetched
+            // anonymously, so its tarball is anonymously fetchable and pnpr
+            // never mints a per-tarball gateway URL.
+            RouteClass::Public => tarball_url.to_string(),
             RouteClass::Hosted { .. } => pnpr_tarball_url(
                 &self.public_url,
                 package,

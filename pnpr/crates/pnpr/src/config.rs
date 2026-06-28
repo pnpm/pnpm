@@ -141,12 +141,13 @@ pub struct Config {
 /// Which fetch routes the resolution cache treats as public.
 #[derive(Debug, Clone)]
 pub struct RoutePolicy {
-    /// Treat unscoped packages on the official `registry.npmjs.org` as
-    /// public (the built-in route). `true` by default; operators can
-    /// disable it for a conservative deployment or if npm's policy
-    /// changes. Scoped npmjs packages are *not* covered — npm allows
-    /// private scoped packages — so they stay private unless an operator
-    /// declares the scope public via [`Self::public`].
+    /// Treat the official `registry.npmjs.org` host as public (the built-in
+    /// route), so packages resolved from it — scoped or unscoped — are
+    /// fetched anonymously and globally shareable. A *private* scoped npm
+    /// package 404s on the anonymous fetch, so it is never resolved this way;
+    /// a private npm dependency must be fronted by an uplink. `true` by
+    /// default; operators can disable it for a conservative deployment that
+    /// allowlists every registry explicitly, or if npm's policy changes.
     pub npmjs_public: bool,
     /// Operator-declared public routes, matched by registry prefix
     /// and/or package pattern.

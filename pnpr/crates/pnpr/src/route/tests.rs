@@ -82,30 +82,34 @@ fn allows_registry_is_a_default_deny_allowlist() {
 }
 
 #[test]
-fn disabling_the_builtin_makes_unscoped_npmjs_private() {
+fn disabling_the_builtin_drops_npmjs_from_the_allowlist() {
     let mut config = base_config();
+    // A conservative deployment that allowlists every registry explicitly:
+    // no blanket npmjs uplink, and the built-in route disabled. npmjs is then
+    // off the allowlist, so a resolve naming it is rejected at the boundary.
+    config.uplinks.clear();
     config.route_policy.npmjs_public = false;
     let context = RouteContext::from_config(&config);
-    assert_eq!(
-        context.classify(&user("alice"), "https://registry.npmjs.org/lodash", Some("lodash")),
-        RouteClass::Unknown,
-    );
+    assert!(!context.allows_registry("https://registry.npmjs.org/lodash"));
+
+    // Re-enabling the built-in allowlists npmjs again.
+    config.route_policy.npmjs_public = true;
+    let context = RouteContext::from_config(&config);
+    assert!(context.allows_registry("https://registry.npmjs.org/lodash"));
 }
 
 #[test]
-fn custom_registry_is_unknown_until_declared_public() {
+fn custom_registry_is_off_allowlist_until_declared_public() {
     let mut config = base_config();
     let context = RouteContext::from_config(&config);
-    assert_eq!(
-        context.classify(&user("alice"), "https://custom.registry.example/lodash", Some("lodash"),),
-        RouteClass::Unknown,
-    );
+    assert!(!context.allows_registry("https://custom.registry.example/lodash"));
 
     config.route_policy.public.push(PublicRoute {
         registry: Some("https://custom.registry.example/".to_string()),
         package: None,
     });
     let context = RouteContext::from_config(&config);
+    assert!(context.allows_registry("https://custom.registry.example/lodash"));
     assert_eq!(
         context.classify(&user("alice"), "https://custom.registry.example/lodash", Some("lodash"),),
         RouteClass::Public,
@@ -159,10 +163,12 @@ fn uplink_with_access_is_a_proxied_route_matched_by_origin() {
         context.classify(&user("alice"), "https://npm.corp.example/lodash", Some("lodash")),
         RouteClass::Proxied { alias: "corp".to_string(), generation: 3 },
     );
-    // An unauthorized caller cannot select it.
+    // An unauthorized caller cannot select it: it gets no managed credential
+    // (an anonymous public fetch), which the upstream rejects if the package
+    // is private.
     assert_eq!(
         context.classify(&anon(), "https://npm.corp.example/lodash", Some("lodash")),
-        RouteClass::Unknown,
+        RouteClass::Public,
     );
 }
 
@@ -181,13 +187,14 @@ fn self_uplink_endpoint_url_classifies_as_proxied_for_authorized_caller() {
         context.classify(&user("alice"), &url, Some("@acme/widget")),
         RouteClass::Proxied { alias: "corp".to_string(), generation: 5 },
     );
-    // An unauthorized caller fails closed: a `/~<uplink>/` URL is an uplink
-    // endpoint, never a hosted package, so it does not fall through to the
-    // hosted-package policy.
-    assert_eq!(context.classify(&anon(), &url, Some("@acme/widget")), RouteClass::Unknown);
-    // An unknown uplink name also fails closed.
+    // An unauthorized caller gets no managed credential: a `/~<uplink>/` URL
+    // is an uplink endpoint, never a hosted package, so it does not fall
+    // through to the hosted-package policy; the anonymous fetch the endpoint
+    // itself rejects is the fail-closed point.
+    assert_eq!(context.classify(&anon(), &url, Some("@acme/widget")), RouteClass::Public);
+    // An unknown uplink name is treated the same way.
     let ghost = format!("{}/~ghost/@acme%2fwidget", config.public_url);
-    assert_eq!(context.classify(&user("alice"), &ghost, Some("@acme/widget")), RouteClass::Unknown);
+    assert_eq!(context.classify(&user("alice"), &ghost, Some("@acme/widget")), RouteClass::Public);
 }
 
 #[test]
@@ -213,20 +220,22 @@ fn self_endpoint_recognized_when_pnpr_is_served_under_a_path_prefix() {
 }
 
 #[test]
-fn uplink_without_access_is_not_a_proxied_route() {
+fn uplink_without_access_is_an_anonymous_route() {
     let mut config = base_config();
     let mut headers = HeaderMap::new();
     headers.insert(AUTHORIZATION, HeaderValue::from_static("Bearer uplink-secret"));
     // A plain proxy uplink that does not declare `access:` is never offered
-    // as a resolver private-route credential.
+    // as a resolver private-route credential, but its origin is still
+    // allowlisted (a configured registry) and fetched anonymously.
     config.uplinks.insert(
         "mirror".to_string(),
         UplinkConfig::with_defaults("https://npm.corp.example/".to_string(), headers),
     );
     let context = RouteContext::from_config(&config);
+    assert!(context.allows_registry("https://npm.corp.example/lodash"));
     assert_eq!(
         context.classify(&user("alice"), "https://npm.corp.example/lodash", Some("lodash")),
-        RouteClass::Unknown,
+        RouteClass::Public,
     );
 }
 
@@ -244,9 +253,10 @@ fn proxied_alias_accepts_configured_group_identity() {
         context.classify(&config.identity_for_user("alice"), url, Some("@acme/widget")),
         RouteClass::Proxied { alias: "corp".to_string(), generation: 2 },
     );
+    // A caller outside the alias's group gets no managed credential.
     assert_eq!(
         context.classify(&config.identity_for_user("bob"), url, Some("@acme/widget")),
-        RouteClass::Unknown,
+        RouteClass::Public,
     );
 }
 
@@ -257,8 +267,10 @@ fn hosted_route_follows_package_access_policy() {
     config.policies = PackagePolicies::registry_mock_defaults();
     let context = RouteContext::from_config(&config);
 
-    // `@private/*` requires auth: private+gated for an authorized caller,
-    // fail-closed for anonymous.
+    // `@private/*` requires auth: private+gated for an authorized caller. An
+    // anonymous caller gets no managed credential (the hosted-serving
+    // endpoint re-checks the policy and rejects it), so it never matches the
+    // private hosted entry.
     assert_eq!(
         context.classify(
             &user("alice"),
@@ -269,7 +281,7 @@ fn hosted_route_follows_package_access_policy() {
     );
     assert_eq!(
         context.classify(&anon(), "https://pnpr.example/@private%2fpkg", Some("@private/pkg")),
-        RouteClass::Unknown,
+        RouteClass::Public,
     );
     // A package the hosted policy opens to everyone is public.
     assert_eq!(
@@ -282,7 +294,6 @@ fn hosted_route_follows_package_access_policy() {
 fn footprint_digest_is_stable_and_namespaced() {
     let mut footprint = Footprint::default();
     assert!(footprint.is_public());
-    assert!(footprint.is_shareable());
     assert_eq!(footprint.digest(b"secret"), None);
 
     footprint.add(PrivateAccessDescriptor::Alias { alias: "corp".to_string(), generation: 1 });
@@ -305,16 +316,6 @@ fn footprint_digest_is_stable_and_namespaced() {
     other_order.add(PrivateAccessDescriptor::Hosted { policy_id: "@p/*".to_string() });
     other_order.add(PrivateAccessDescriptor::Alias { alias: "x".to_string(), generation: 1 });
     assert_eq!(one_order.digest(b"k"), other_order.digest(b"k"));
-}
-
-#[test]
-fn footprint_unknown_private_is_not_shareable() {
-    let mut footprint = Footprint::default();
-    footprint.mark_unknown_private();
-    assert!(!footprint.is_public());
-    assert!(!footprint.is_shareable());
-    // No descriptor was recorded, so there is nothing to key on.
-    assert_eq!(footprint.digest(b"secret"), None);
 }
 
 #[test]
@@ -378,12 +379,6 @@ fn metadata_scope_maps_route_classes() {
         PrivateAccessDescriptor::Alias { alias: "corp".to_string(), generation: 3 }
             .digest_id(b"server-secret"),
     );
-    // Unknown/private with no usable credential → bypass (request-local).
-    assert_eq!(
-        hook.metadata_scope("https://private.unknown.example/secret", Some("secret")),
-        MetadataCacheScope::Bypass,
-    );
-
     // metadata_scope is read-only: classifying must not grow the footprint.
     assert!(footprint.lock().unwrap().is_public());
 }

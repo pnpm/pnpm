@@ -51,11 +51,6 @@ pub enum RouteClass {
     /// A proxied upstream route served with a pnpr-managed credential
     /// alias the caller is authorized to use.
     Proxied { alias: String, generation: u64 },
-    /// A private/unknown route for which the caller has no usable
-    /// pnpr-managed credential or hosted authorization. Resolved
-    /// anonymously as a *non-shareable* miss; never written to the
-    /// global public cache.
-    Unknown,
 }
 
 /// The cache-namespace identity of a private route: a key input plus
@@ -102,15 +97,11 @@ impl PrivateAccessDescriptor {
 /// through the [`RouteHook`]; consumed afterwards to decide how the
 /// resolution may be cached.
 ///
-/// An empty footprint with no unknown-private touch means the resolution
-/// is fully public and shareable globally.
+/// An empty footprint means the resolution is fully public and shareable
+/// globally; a non-empty one is keyed by its private access descriptors.
 #[derive(Debug, Default, Clone)]
 pub struct Footprint {
     descriptors: BTreeSet<PrivateAccessDescriptor>,
-    /// A private/unknown route with no usable descriptor was fetched, so
-    /// the resolution carries private data that cannot be safely keyed —
-    /// it must not be shared at all.
-    touched_unknown_private: bool,
 }
 
 impl Footprint {
@@ -118,25 +109,11 @@ impl Footprint {
         self.descriptors.insert(descriptor);
     }
 
-    fn mark_unknown_private(&mut self) {
-        self.touched_unknown_private = true;
-    }
-
     /// Whether the resolution touched no private data and may be cached
     /// under the global, auth-excluded key.
     #[must_use]
     pub fn is_public(&self) -> bool {
-        self.descriptors.is_empty() && !self.touched_unknown_private
-    }
-
-    /// Whether the resolution may be cached at all. A resolution that
-    /// touched an unknown-private route carries private data with no
-    /// descriptor to key it, so it can be served only to the caller that
-    /// produced it (i.e. not shared) — Part 2 treats this as
-    /// non-cacheable.
-    #[must_use]
-    pub fn is_shareable(&self) -> bool {
-        !self.touched_unknown_private
+        self.descriptors.is_empty()
     }
 
     /// The private-key component for this footprint: an HMAC over the
@@ -161,11 +138,7 @@ impl Footprint {
     /// authorized for `identity` under the current route context.
     #[must_use]
     pub(crate) fn allows(&self, context: &RouteContext, identity: &Identity) -> bool {
-        !self.touched_unknown_private
-            && self
-                .descriptors
-                .iter()
-                .all(|descriptor| context.allows_descriptor(identity, descriptor))
+        self.descriptors.iter().all(|descriptor| context.allows_descriptor(identity, descriptor))
     }
 }
 
@@ -184,6 +157,11 @@ pub struct RouteContext {
     public_routes: Vec<RouteMatcher>,
     /// pnpr-managed upstream credential aliases, in declared order.
     aliases: Vec<ResolvedAlias>,
+    /// Nerf-darted origin of every configured uplink (access-bearing or a
+    /// plain mirror), forming the uplink half of the fetch allowlist. A
+    /// plain mirror needs no credential, so it has no [`ResolvedAlias`]; it
+    /// is still a configured registry pnpr may fetch from anonymously.
+    uplink_origins: Vec<String>,
     /// Package access policy, used to decide whether a pnpr-hosted route
     /// is public (admits everyone) or private, and to gate hosted hits.
     policies: PackagePolicies,
@@ -249,11 +227,14 @@ impl RouteContext {
             .iter()
             .filter_map(|(name, uplink)| ResolvedAlias::from_uplink(name, uplink))
             .collect();
+        let uplink_origins =
+            config.uplinks.values().filter_map(|uplink| nerf_prefix(&uplink.url)).collect();
         Self {
             npmjs_public: config.route_policy.npmjs_public,
             hosted_origin,
             public_routes,
             aliases,
+            uplink_origins,
             policies: config.policies.clone(),
         }
     }
@@ -261,12 +242,18 @@ impl RouteContext {
     /// Classify a single fetch to `url` for `package` (`None` for a
     /// non-package fetch), for `identity`. Precedence follows the RFC:
     /// public wins and suppresses auth; then pnpr-hosted; then an
-    /// authorized proxied alias; otherwise unknown/private.
+    /// authorized proxied alias; otherwise an anonymous public fetch (no
+    /// managed credential). The fetch allowlist ([`Self::allows_registry`])
+    /// runs first at the request boundary, so a route reaching here is a
+    /// configured registry: an anonymous fall-through either succeeds —
+    /// proving the content is public and globally shareable — or fails
+    /// closed upstream (`401`/`403`) when it actually needed a credential
+    /// the caller is not authorized for.
     #[must_use]
     pub fn classify(&self, identity: &Identity, url: &str, package: Option<&str>) -> RouteClass {
         let fetch = nerf_dart(url);
         if fetch.is_empty() {
-            return RouteClass::Unknown;
+            return RouteClass::Public;
         }
 
         if self.is_public_route(&fetch, package) {
@@ -279,8 +266,9 @@ impl RouteContext {
             // A fetch to pnpr's own `/~<uplink>/` endpoint addresses that
             // uplink, not a hosted package (a package name can never begin
             // with `~`). Authorized callers resolve through the uplink;
-            // everyone else — and an unknown uplink — fails closed rather
-            // than falling through to the hosted-package policy.
+            // everyone else — and an unknown uplink — gets an anonymous
+            // fetch the endpoint itself rejects, rather than falling through
+            // to the hosted-package policy.
             if let Some(rest) = fetch.strip_prefix(hosted)
                 && let Some(uplink) = rest.strip_prefix('~').and_then(|rest| rest.split('/').next())
                 && !uplink.is_empty()
@@ -294,7 +282,7 @@ impl RouteContext {
                         alias: alias.name.clone(),
                         generation: alias.generation,
                     },
-                    None => RouteClass::Unknown,
+                    None => RouteClass::Public,
                 };
             }
             return self.classify_hosted(identity, package);
@@ -304,7 +292,7 @@ impl RouteContext {
             return RouteClass::Proxied { alias: alias.name.clone(), generation: alias.generation };
         }
 
-        RouteClass::Unknown
+        RouteClass::Public
     }
 
     fn is_public_route(&self, fetch: &str, package: Option<&str>) -> bool {
@@ -344,7 +332,7 @@ impl RouteContext {
         {
             return true;
         }
-        self.aliases.iter().any(|alias| fetch.starts_with(&alias.origin))
+        self.uplink_origins.iter().any(|origin| fetch.starts_with(origin))
     }
 
     /// A pnpr-hosted route is public when its package access policy
@@ -363,9 +351,11 @@ impl RouteContext {
         if access.allows(identity) {
             RouteClass::Hosted { policy_id: package.to_string() }
         } else {
-            // The caller can't read this hosted package, so it must not
-            // match any private hosted entry; fail closed.
-            RouteClass::Unknown
+            // The caller can't read this hosted package: classify it as an
+            // anonymous public fetch with no managed credential, which the
+            // hosted-serving endpoint re-checks and rejects, so it never
+            // matches a private hosted entry.
+            RouteClass::Public
         }
     }
 
@@ -497,10 +487,6 @@ impl UpstreamRouteHook for RouteHook {
                 self.record(PrivateAccessDescriptor::Alias { alias, generation });
                 authorization
             }
-            RouteClass::Unknown => {
-                self.footprint.lock().expect("footprint poisoned").mark_unknown_private();
-                None
-            }
         }
     }
 
@@ -517,7 +503,6 @@ impl UpstreamRouteHook for RouteHook {
                 descriptor_id: PrivateAccessDescriptor::Alias { alias, generation }
                     .digest_id(&self.secret),
             },
-            RouteClass::Unknown => MetadataCacheScope::Bypass,
         }
     }
 }
