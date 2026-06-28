@@ -273,6 +273,27 @@ impl RouteContext {
         if let Some(hosted) = self.hosted_origin.as_deref()
             && fetch.starts_with(hosted)
         {
+            // A fetch to pnpr's own `/~<uplink>/` endpoint addresses that
+            // uplink, not a hosted package (a package name can never begin
+            // with `~`). Authorized callers resolve through the uplink;
+            // everyone else — and an unknown uplink — fails closed rather
+            // than falling through to the hosted-package policy.
+            if let Some(rest) = fetch.strip_prefix(hosted)
+                && let Some(uplink) = rest.strip_prefix('~').and_then(|rest| rest.split('/').next())
+                && !uplink.is_empty()
+            {
+                return match self
+                    .aliases
+                    .iter()
+                    .find(|alias| alias.name == uplink && alias.access.allows(identity))
+                {
+                    Some(alias) => RouteClass::Proxied {
+                        alias: alias.name.clone(),
+                        generation: alias.generation,
+                    },
+                    None => RouteClass::Unknown,
+                };
+            }
             return self.classify_hosted(identity, package);
         }
 

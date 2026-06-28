@@ -174,6 +174,30 @@ fn uplink_with_access_is_a_proxied_route_matched_by_origin() {
 }
 
 #[test]
+fn self_uplink_endpoint_url_classifies_as_proxied_for_authorized_caller() {
+    let mut config = base_config();
+    config.uplinks.insert(
+        "corp".to_string(),
+        uplink_with_access("https://npm.corp.example/", "$authenticated", 5),
+    );
+    let context = RouteContext::from_config(&config);
+    // A request to pnpr's own `/~corp/` endpoint resolves through the corp
+    // uplink, using its current generation (the URL carries none).
+    let url = format!("{}/~corp/@acme%2fwidget", config.public_url);
+    assert_eq!(
+        context.classify(&user("alice"), &url, Some("@acme/widget")),
+        RouteClass::Proxied { alias: "corp".to_string(), generation: 5 },
+    );
+    // An unauthorized caller fails closed: a `/~<uplink>/` URL is an uplink
+    // endpoint, never a hosted package, so it does not fall through to the
+    // hosted-package policy.
+    assert_eq!(context.classify(&anon(), &url, Some("@acme/widget")), RouteClass::Unknown);
+    // An unknown uplink name also fails closed.
+    let ghost = format!("{}/~ghost/@acme%2fwidget", config.public_url);
+    assert_eq!(context.classify(&user("alice"), &ghost, Some("@acme/widget")), RouteClass::Unknown);
+}
+
+#[test]
 fn uplink_without_access_is_not_a_proxied_route() {
     let mut config = base_config();
     let mut headers = HeaderMap::new();
