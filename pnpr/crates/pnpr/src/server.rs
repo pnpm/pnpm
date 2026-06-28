@@ -538,7 +538,9 @@ async fn get_two_segments(
     }
     // `/~<uplink>/<pkg>` — unscoped packument through an uplink endpoint.
     if let Some(uplink) = first.strip_prefix('~').filter(|uplink| !uplink.is_empty()) {
-        return serve_packument_via_uplink(&state, &identity, &headers, uplink, &second).await;
+        return private_no_cache(
+            serve_packument_via_uplink(&state, &identity, &headers, uplink, &second).await,
+        );
     }
     if first.starts_with('@') {
         let full = format!("{first}/{second}");
@@ -565,7 +567,9 @@ async fn get_three_segments(
     if let Some(uplink) = first.strip_prefix('~').filter(|uplink| !uplink.is_empty()) {
         if second.starts_with('@') {
             let full = format!("{second}/{third}");
-            return serve_packument_via_uplink(&state, &identity, &headers, uplink, &full).await;
+            return private_no_cache(
+                serve_packument_via_uplink(&state, &identity, &headers, uplink, &full).await,
+            );
         }
         return not_found();
     }
@@ -586,7 +590,9 @@ async fn get_tarball_scoped(
 ) -> Response {
     // `/~<uplink>/<pkg>/-/<file>` — unscoped tarball through an uplink endpoint.
     if let Some(uplink) = scope.strip_prefix('~').filter(|uplink| !uplink.is_empty()) {
-        return serve_tarball_via_uplink(&state, &identity, uplink, &name, &filename).await;
+        return private_no_cache(
+            serve_tarball_via_uplink(&state, &identity, uplink, &name, &filename).await,
+        );
     }
     if !scope.starts_with('@') {
         return not_found();
@@ -630,7 +636,9 @@ async fn get_five_segments(
         && d == "-"
     {
         let full = format!("{b}/{c}");
-        return serve_tarball_via_uplink(&state, &identity, uplink, &full, &e).await;
+        return private_no_cache(
+            serve_tarball_via_uplink(&state, &identity, uplink, &full, &e).await,
+        );
     }
     not_found()
 }
