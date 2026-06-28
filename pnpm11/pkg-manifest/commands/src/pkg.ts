@@ -1,3 +1,4 @@
+import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import type { Catalogs } from '@pnpm/catalogs.types'
@@ -132,7 +133,7 @@ async function readRawManifest (opts: PkgCommandOptions): Promise<Record<string,
 
 async function readPublishedManifest (opts: PkgCommandOptions): Promise<Record<string, unknown>> {
   const manifest = await readProjectManifestOnly(opts.dir) as ProjectManifest
-  const dir = resolvePublishDir(opts.dir, manifest)
+  const dir = await resolvePublishDir(opts.dir, manifest)
   const sourceManifest = dir !== opts.dir
     ? await readProjectManifestOnly(dir) as ProjectManifest
     : manifest
@@ -145,16 +146,22 @@ async function readPublishedManifest (opts: PkgCommandOptions): Promise<Record<s
   }) as unknown as Record<string, unknown>
 }
 
-function resolvePublishDir (projectDir: string, manifest: ProjectManifest): string {
+async function resolvePublishDir (projectDir: string, manifest: ProjectManifest): Promise<string> {
   if (!manifest.publishConfig?.directory) return projectDir
   const resolved = path.resolve(projectDir, manifest.publishConfig.directory)
-  if (!resolved.startsWith(projectDir + path.sep) && resolved !== projectDir) {
+  let real: string
+  try {
+    real = await fs.realpath(resolved)
+  } catch {
+    real = resolved
+  }
+  if (!real.startsWith(projectDir + path.sep) && real !== projectDir) {
     throw new PnpmError(
       'PUBLISH_DIR_OUTSIDE_PROJECT',
       `publishConfig.directory "${manifest.publishConfig.directory}" resolves outside the project`
     )
   }
-  return resolved
+  return real
 }
 
 function selectFromManifest (manifest: Record<string, unknown>, args: string[]): unknown {

@@ -351,7 +351,10 @@ describe('pkg command', () => {
       fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(manifest, null, 2))
 
       await expect(handler({ dir: tmpDir }, ['get-published']))
-        .rejects.toMatchObject({ code: 'ERR_PNPM_PUBLISH_DIR_OUTSIDE_PROJECT' })
+        .rejects.toMatchObject({
+          code: 'ERR_PNPM_PUBLISH_DIR_OUTSIDE_PROJECT',
+          message: expect.stringContaining('../../../etc'),
+        })
     })
   })
 
