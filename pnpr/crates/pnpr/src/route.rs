@@ -365,11 +365,22 @@ impl RouteContext {
     ) -> bool {
         match descriptor {
             PrivateAccessDescriptor::Alias { alias, generation } => {
-                self.aliases.iter().any(|candidate| {
-                    candidate.name == alias.as_str()
-                        && candidate.generation == *generation
-                        && candidate.access.allows(identity)
-                })
+                // Reuse the cached resolution only if `identity` would *select*
+                // this exact alias+generation for its origin — the first
+                // authorized alias [`Self::select_alias`] returns there — not
+                // merely one the caller is authorized for. With overlapping
+                // uplink access (several aliases on one origin a caller can
+                // use), an authorization-only check could replay a lockfile
+                // routed through a different `/~<uplink>/` endpoint than this
+                // caller resolves through. A since-removed alias (`find` →
+                // `None`) or a rotated generation also fails closed here.
+                self.aliases.iter().find(|candidate| candidate.name == alias.as_str()).is_some_and(
+                    |candidate| {
+                        self.select_alias(identity, &candidate.origin).is_some_and(|selected| {
+                            selected.name == alias.as_str() && selected.generation == *generation
+                        })
+                    },
+                )
             }
             PrivateAccessDescriptor::Hosted { policy_id } => {
                 self.policies.for_package(policy_id).access.allows(identity)

@@ -322,6 +322,33 @@ fn hosted_route_follows_package_access_policy() {
 }
 
 #[test]
+fn overlapping_uplink_access_reuses_only_the_selected_alias() {
+    let mut config = base_config();
+    // Two uplinks serving the same origin; `primary` is declared first, so
+    // `select_alias` picks it for a caller authorized for both.
+    config.uplinks.insert(
+        "primary".to_string(),
+        uplink_with_access("https://npm.corp.example/", "$authenticated", 1),
+    );
+    config.uplinks.insert(
+        "secondary".to_string(),
+        uplink_with_access("https://npm.corp.example/", "$authenticated", 1),
+    );
+    let context = RouteContext::from_config(&config);
+
+    let mut via_primary = Footprint::default();
+    via_primary.add(PrivateAccessDescriptor::Alias { alias: "primary".to_string(), generation: 1 });
+    assert!(via_primary.allows(&context, &user("alice")));
+
+    // A lockfile routed through `secondary` must NOT be replayed for alice,
+    // even though she is authorized for it — she resolves through `primary`.
+    let mut via_secondary = Footprint::default();
+    via_secondary
+        .add(PrivateAccessDescriptor::Alias { alias: "secondary".to_string(), generation: 1 });
+    assert!(!via_secondary.allows(&context, &user("alice")));
+}
+
+#[test]
 fn footprint_digest_is_stable_and_namespaced() {
     let mut footprint = Footprint::default();
     assert!(footprint.is_public());

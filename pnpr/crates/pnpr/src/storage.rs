@@ -480,6 +480,24 @@ impl Storage {
         }
     }
 
+    /// The cached uplink packument regardless of freshness (fresh or stale).
+    /// A defensive fallback for an unsolicited upstream `304`: the uplink path
+    /// sends no conditional validators, so a `304` means "unchanged" and the
+    /// cached body — even past `ttl` — is the right thing to serve rather than
+    /// a spurious `404`.
+    pub async fn read_uplink_packument_any(
+        &self,
+        namespace: &str,
+        name: &PackageName,
+    ) -> Result<Option<Vec<u8>>> {
+        // `Duration::MAX` classifies any existing entry as fresh, so its body
+        // is returned regardless of age (the stale arm can't be reached here).
+        match self.cached.namespaced(namespace).read_packument_entry(name, Duration::MAX).await? {
+            Some(CachedPackument::Fresh(bytes)) => Ok(Some(bytes)),
+            Some(CachedPackument::Stale(_)) | None => Ok(None),
+        }
+    }
+
     pub async fn write_uplink_packument(
         &self,
         namespace: &str,

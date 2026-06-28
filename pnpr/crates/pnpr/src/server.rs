@@ -940,7 +940,16 @@ async fn load_uplink_packument(
             }
             Ok(Some(fetched.bytes))
         }
-        PackumentFetch::NotFound | PackumentFetch::NotModified => Ok(None),
+        PackumentFetch::NotFound => Ok(None),
+        // `load_uplink_packument` sends no conditional validators (the uplink
+        // cache refetches stale entries rather than revalidating — see
+        // `Store::read_uplink_packument`), so a well-behaved upstream never
+        // answers 304 here. If one does anyway, "not modified" means the cached
+        // body is current, so serve it (fresh or stale) rather than a spurious
+        // 404 that a client could cache as "package gone".
+        PackumentFetch::NotModified => {
+            state.inner.storage.read_uplink_packument_any(namespace, name).await
+        }
     }
 }
 
