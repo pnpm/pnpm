@@ -267,10 +267,7 @@ async fn a_private_package_fails_without_an_uplink() {
     let Err(PnprClientError::Server(message)) = client.resolve(opts).await else {
         panic!("expected the gated install to fail with a server error");
     };
-    assert!(
-        message.contains("401"),
-        "expected an auth denial without an uplink, got: {message}",
-    );
+    assert!(message.contains("401"), "expected an auth denial without an uplink, got: {message}");
 }
 
 #[tokio::test]
@@ -497,9 +494,11 @@ async fn verify_lockfile_endpoint_uses_uplinks() {
     let token = register_token(&registry.url(), "needs-auth-verifier").await;
     let shared_public_url = "http://pnpr.verify.test";
 
-    let (resolve_pnpr_url, resolve_auth, _resolve_storage) =
-        start_pnpr_with_uplinks_at(shared_public_url, vec![registry_uplink(&registry.url(), &token)])
-            .await;
+    let (resolve_pnpr_url, resolve_auth, _resolve_storage) = start_pnpr_with_uplinks_at(
+        shared_public_url,
+        vec![registry_uplink(&registry.url(), &token)],
+    )
+    .await;
     let mut resolve_opts =
         options(&registry.url(), &resolve_auth, deps([("@pnpm.e2e/needs-auth", "1.0.0")]));
     let first = PnprClient::new(resolve_pnpr_url)
@@ -513,9 +512,11 @@ async fn verify_lockfile_endpoint_uses_uplinks() {
     resolve_opts.minimum_release_age_ignore_missing_time = false;
 
     // A fresh pnpr that carries the uplink verifies the gated entry.
-    let (aliased_pnpr_url, aliased_auth, _aliased_storage) =
-        start_pnpr_with_uplinks_at(shared_public_url, vec![registry_uplink(&registry.url(), &token)])
-            .await;
+    let (aliased_pnpr_url, aliased_auth, _aliased_storage) = start_pnpr_with_uplinks_at(
+        shared_public_url,
+        vec![registry_uplink(&registry.url(), &token)],
+    )
+    .await;
     let mut aliased_opts = resolve_opts.clone();
     aliased_opts.authorization = Some(aliased_auth);
     let verify_opts =
