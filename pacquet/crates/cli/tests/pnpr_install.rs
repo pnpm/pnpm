@@ -2,10 +2,11 @@
 //!
 //! Runs the real `pacquet` binary against a mocked fixtures registry,
 //! with an in-process `pnpr` hosting the fast-path endpoints. The pnpr
-//! server's own uplink is left at the default — the client sends the
-//! registry it wants resolved from (the mock), so a passing test proves
-//! resolution used the client-supplied registry. The client then links
-//! `node_modules` from the server-produced lockfile.
+//! server's own uplink is left at the default; the client sends the
+//! registry it wants resolved from (the mock, which the server allowlists
+//! as a public route), so a passing test proves resolution used the
+//! client-supplied registry. The client then links `node_modules` from the
+//! server-produced lockfile.
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
@@ -24,8 +25,11 @@ use std::{
 };
 
 /// Start an in-process pnpr with the fast-path endpoints on a detached
-/// thread; returns its base URL and a pre-seeded bearer token.
-fn start_pnpr() -> (String, String) {
+/// thread, allowlisting `registry_url` as a public route so the client may
+/// resolve against it (off-allowlist registries are rejected at the request
+/// boundary); returns its base URL and a pre-seeded bearer token.
+fn start_pnpr(registry_url: &str) -> (String, String) {
+    let registry_url = registry_url.to_string();
     // Persisted (not cleaned) because the detached server thread outlives
     // this function.
     let storage = tempfile::tempdir().expect("pnpr storage").keep();
@@ -54,6 +58,10 @@ fn start_pnpr() -> (String, String) {
                 let mut config = pnpr::Config::proxy(addr, storage);
                 config.public_url = format!("http://{addr}");
                 config.auth.tokens.file = Some(tokens_path);
+                config
+                    .route_policy
+                    .public
+                    .push(pnpr::PublicRoute { registry: Some(registry_url), package: None });
                 let listener = tokio::net::TcpListener::from_std(listener).expect("tokio listener");
                 let _ = pnpr::serve_listener(config, listener).await;
             });
@@ -93,7 +101,7 @@ fn install_via_pnpr_links_node_modules() {
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { npmrc_path, store_dir, mock_instance, .. } = npmrc_info;
 
-    let (pnpr_url, token) = start_pnpr();
+    let (pnpr_url, token) = start_pnpr(&mock_instance.url());
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
 
     let manifest_path = workspace.join("package.json");
@@ -128,7 +136,7 @@ fn frozen_install_via_pnpr_verifies_the_local_lockfile_without_resolving_or_redo
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
 
-    let (pnpr_url, token) = start_pnpr();
+    let (pnpr_url, token) = start_pnpr(&mock_instance.url());
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
 
     let manifest_path = workspace.join("package.json");
@@ -198,7 +206,7 @@ fn install_via_pnpr_lockfile_only_writes_lockfile_without_linking() {
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { npmrc_path, store_dir, mock_instance, .. } = npmrc_info;
 
-    let (pnpr_url, token) = start_pnpr();
+    let (pnpr_url, token) = start_pnpr(&mock_instance.url());
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
 
     let manifest_path = workspace.join("package.json");
@@ -232,7 +240,7 @@ fn import_via_pnpr_server_writes_lockfile_without_linking() {
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { npmrc_path, store_dir, mock_instance, .. } = npmrc_info;
 
-    let (pnpr_url, token) = start_pnpr();
+    let (pnpr_url, token) = start_pnpr(&mock_instance.url());
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
 
     let manifest_path = workspace.join("package.json");
