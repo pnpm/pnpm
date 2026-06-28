@@ -16,6 +16,7 @@ use super::{
     outdated::{OutdatedArgs, OutdatedOutcome},
     pack::PackArgs,
     pack_app::PackAppArgs,
+    peers::PeersArgs,
     ping::PingArgs,
     prefix::PrefixArgs,
     repo::RepoArgs,
@@ -106,6 +107,16 @@ pub(super) fn why<'a>(ctx: &RunCtx<'a>, args: WhyArgs) -> miette::Result<Command
 
 pub(super) fn sbom<'a>(ctx: &RunCtx<'a>, args: SbomArgs) -> miette::Result<CommandFuture<'a>> {
     Ok(Box::pin(args.run((ctx.state)(true)?)))
+}
+
+pub(super) fn peers<'a>(ctx: &RunCtx<'a>, args: PeersArgs) -> miette::Result<CommandFuture<'a>> {
+    let cfg: &Config = (ctx.config)()?;
+    let recursive = ctx.recursive;
+    let dir = ctx.dir;
+    Ok(Box::pin(async move {
+        args.run(cfg, dir, recursive)?;
+        Ok(())
+    }))
 }
 
 // `whoami` is a read-only registry query: it resolves the default registry's
