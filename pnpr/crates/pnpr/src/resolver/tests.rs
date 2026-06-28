@@ -498,8 +498,8 @@ fn lockfile_with_tarball(tarball: &str) -> Lockfile {
 }
 
 #[test]
-fn reject_off_allowlist_registries_blocks_unconfigured_hosts() {
-    use super::reject_off_allowlist_registries;
+fn reject_off_allowlist_fetches_blocks_unconfigured_hosts() {
+    use super::reject_off_allowlist_fetches;
     let context = RouteContext::from_config(&registry_config());
 
     // The built-in npm registry is allowlisted.
@@ -507,14 +507,14 @@ fn reject_off_allowlist_registries_blocks_unconfigured_hosts() {
         registry: Some("https://registry.npmjs.org/".to_string()),
         ..ResolveRequest::default()
     };
-    assert!(reject_off_allowlist_registries(&ok, &context).is_none());
+    assert!(reject_off_allowlist_fetches(&ok, &context).is_none());
 
     // An IMDS / off-allowlist default registry is rejected before any fetch.
     let ssrf = ResolveRequest {
         registry: Some("http://169.254.169.254/".to_string()),
         ..ResolveRequest::default()
     };
-    assert!(reject_off_allowlist_registries(&ssrf, &context).is_some());
+    assert!(reject_off_allowlist_fetches(&ssrf, &context).is_some());
 
     // A named registry off the allowlist is rejected too.
     let named = ResolveRequest {
@@ -525,7 +525,40 @@ fn reject_off_allowlist_registries_blocks_unconfigured_hosts() {
         )]),
         ..ResolveRequest::default()
     };
-    assert!(reject_off_allowlist_registries(&named, &context).is_some());
+    assert!(reject_off_allowlist_fetches(&named, &context).is_some());
+
+    // A semver-range dependency never hits the network, so it is ignored.
+    let ranges = ResolveRequest {
+        registry: Some("https://registry.npmjs.org/".to_string()),
+        dependencies: Some(deps(&[("foo", "^1.0.0")])),
+        ..ResolveRequest::default()
+    };
+    assert!(reject_off_allowlist_fetches(&ranges, &context).is_none());
+
+    // A direct http(s) tarball dependency pointing at an off-allowlist host is
+    // rejected before the tarball resolver issues a HEAD/GET.
+    let tarball_dep = ResolveRequest {
+        registry: Some("https://registry.npmjs.org/".to_string()),
+        dependencies: Some(deps(&[("foo", "https://169.254.169.254/foo.tgz")])),
+        ..ResolveRequest::default()
+    };
+    assert!(reject_off_allowlist_fetches(&tarball_dep, &context).is_some());
+
+    // A git dependency to an off-allowlist host is rejected the same way.
+    let git_dep = ResolveRequest {
+        registry: Some("https://registry.npmjs.org/".to_string()),
+        dependencies: Some(deps(&[("foo", "git+https://169.254.169.254/repo.git#main")])),
+        ..ResolveRequest::default()
+    };
+    assert!(reject_off_allowlist_fetches(&git_dep, &context).is_some());
+
+    // An override whose leaf is an off-allowlist URL is rejected.
+    let override_dep = ResolveRequest {
+        registry: Some("https://registry.npmjs.org/".to_string()),
+        overrides: Some(serde_json::json!({ "foo": "https://169.254.169.254/foo.tgz" })),
+        ..ResolveRequest::default()
+    };
+    assert!(reject_off_allowlist_fetches(&override_dep, &context).is_some());
 }
 
 #[test]

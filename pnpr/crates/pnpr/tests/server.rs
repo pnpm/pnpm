@@ -4,7 +4,9 @@ use axum::{
 };
 use flate2::read::GzDecoder;
 use futures_util::stream;
-use pnpr::{AccessList, AccessSpec, AuthState, Config, PackageAccess, router, router_with_auth};
+use pnpr::{
+    AccessList, AccessSpec, AuthState, Config, PackageAccess, PublicRoute, router, router_with_auth,
+};
 use serde_json::{Value, json};
 use ssri::{Algorithm, IntegrityOpts};
 use std::{
@@ -284,7 +286,15 @@ async fn authenticated_resolve_preserves_git_dependencies() {
     let tmp = TempDir::new().unwrap();
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
-    let app = router_with_auth(config_for("http://127.0.0.1:1", tmp.path().to_path_buf()), auth);
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    // A git dependency's host must be on the fetch allowlist for the resolver
+    // to reach it; an off-allowlist URL dependency is rejected at the request
+    // boundary before any fetch.
+    config
+        .route_policy
+        .public
+        .push(PublicRoute { registry: Some(repo_url.clone()), package: None });
+    let app = router_with_auth(config, auth);
     let response = app
         .oneshot(git_resolve_request(&repo_url, Some(&format!("Bearer {token}"))))
         .await

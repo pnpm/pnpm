@@ -349,7 +349,7 @@ pub(crate) async fn handle_resolve(
         return response;
     }
 
-    if let Some(response) = reject_off_allowlist_registries(&request, &runtime.route_context) {
+    if let Some(response) = reject_off_allowlist_fetches(&request, &runtime.route_context) {
         return response;
     }
 
@@ -511,7 +511,7 @@ pub(crate) async fn handle_verify_lockfile(
         return response;
     }
 
-    if let Some(response) = reject_off_allowlist_registries(&request, &runtime.route_context) {
+    if let Some(response) = reject_off_allowlist_fetches(&request, &runtime.route_context) {
         return response;
     }
 
@@ -1284,37 +1284,113 @@ fn merge_policies(
     merged
 }
 
+/// Reject a request that would have pnpr fetch from an origin that is not on
+/// the route allowlist (see [`RouteContext::allows_registry`]) — the
+/// resolver's SSRF boundary, run before any server-side fetch. pnpr fetches
+/// only from operator-configured registries, so a caller cannot point it at
+/// cloud instance metadata, an internal service, or any other off-allowlist
+/// host. Beyond the default/named registries this also covers every fetch a
+/// *direct-URL dependency* would trigger: an `http(s)`/`git` dependency spec,
+/// an override URL leaf, or an input lockfile's tarball URL. A semver range or
+/// `npm:`/`workspace:`/`file:` alias never hits the network, so it is ignored.
+fn reject_off_allowlist_fetches(
+    request: &ResolveRequest,
+    context: &RouteContext,
+) -> Option<Response> {
+    // Registries are fetch targets whatever their scheme.
+    let mut registries: Vec<&str> = Vec::new();
+    if let Some(registry) = request.registry.as_deref() {
+        registries.push(registry);
+    }
+    registries.extend(request.named_registries.values().map(String::as_str));
+    if let Some(off) = registries.into_iter().find(|registry| !context.allows_registry(registry)) {
+        return Some(forbidden_off_allowlist(off));
+    }
+
+    // Direct-URL dependency specs and input-lockfile tarball URLs reach the
+    // network only when they carry an http(s)/git URL.
+    let mut url_specs: Vec<&str> = Vec::new();
+    let projects = request.projects_normalized();
+    for project in &projects {
+        for map in
+            [&project.dependencies, &project.dev_dependencies, &project.optional_dependencies]
+        {
+            url_specs.extend(map.values().map(String::as_str));
+        }
+    }
+    if let Some(packages) =
+        request.lockfile.as_ref().and_then(|lockfile| lockfile.packages.as_ref())
+    {
+        for package in packages.values() {
+            if let LockfileResolution::Tarball(resolution) = &package.resolution {
+                url_specs.push(resolution.tarball.as_str());
+            }
+        }
+    }
+    if let Some(off) =
+        url_specs.into_iter().filter_map(fetch_url_of).find(|url| !context.allows_registry(url))
+    {
+        return Some(forbidden_off_allowlist(off));
+    }
+
+    // Override leaves can themselves be direct-URL specs.
+    if let Some(off) = request
+        .overrides
+        .as_ref()
+        .and_then(|overrides| first_off_allowlist_override(overrides, context))
+    {
+        return Some(forbidden_off_allowlist(&off));
+    }
+
+    None
+}
+
+/// The fetchable URL inside a dependency/override spec, if its scheme triggers
+/// a server-side network fetch — an `http(s)` tarball or a `git`/`ssh` git
+/// remote. A `git+` transport prefix is stripped so the origin check sees the
+/// bare URL. `None` for specs that never reach the network (semver ranges,
+/// `npm:`/`workspace:`/`file:`/`link:` aliases, scoped names).
+fn fetch_url_of(spec: &str) -> Option<&str> {
+    let url = spec.strip_prefix("git+").unwrap_or(spec);
+    let (scheme, _) = url.split_once("://")?;
+    matches!(scheme, "http" | "https" | "git" | "ssh").then_some(url)
+}
+
+/// The first override URL leaf whose origin is off the fetch allowlist, if any.
+fn first_off_allowlist_override(
+    value: &serde_json::Value,
+    context: &RouteContext,
+) -> Option<String> {
+    match value {
+        serde_json::Value::String(spec) => {
+            fetch_url_of(spec).filter(|url| !context.allows_registry(url)).map(str::to_string)
+        }
+        serde_json::Value::Array(items) => {
+            items.iter().find_map(|item| first_off_allowlist_override(item, context))
+        }
+        serde_json::Value::Object(map) => {
+            map.values().find_map(|item| first_off_allowlist_override(item, context))
+        }
+        _ => None,
+    }
+}
+
+fn forbidden_off_allowlist(target: &str) -> Response {
+    json_error(
+        StatusCode::FORBIDDEN,
+        &format!(
+            "{target:?} is not allowed by this pnpr server; the operator must declare its \
+             registry as a public route or an uplink",
+        ),
+    )
+}
+
 /// Reject a request whose client-supplied URLs carry inline
 /// `user:pass@host` credentials, before any fetch or cache write. Covers
 /// the default and named registries, every dependency spec, override
 /// values, and the tarball URLs of an input lockfile — every surface a
 /// tarball/registry URL can reach the resolver (or be echoed back) through.
 /// Returns a `400` response when one is found.
-/// Reject a request whose client-supplied `registry`/`namedRegistries` would
-/// have pnpr fetch from a host that is not on the route allowlist (see
-/// [`RouteContext::allows_registry`]). This is the resolver's SSRF boundary:
-/// pnpr fetches only from operator-configured registries, so a caller cannot
-/// point it at cloud instance metadata, an internal service, or any other
-/// off-allowlist host. Runs before any server-side fetch.
-fn reject_off_allowlist_registries(
-    request: &ResolveRequest,
-    context: &RouteContext,
-) -> Option<Response> {
-    let mut registries: Vec<&str> = Vec::new();
-    if let Some(registry) = request.registry.as_deref() {
-        registries.push(registry);
-    }
-    registries.extend(request.named_registries.values().map(String::as_str));
-    let off = registries.into_iter().find(|registry| !context.allows_registry(registry))?;
-    Some(json_error(
-        StatusCode::FORBIDDEN,
-        &format!(
-            "registry {off:?} is not allowed by this pnpr server; the operator must declare it \
-             as a public route or an uplink",
-        ),
-    ))
-}
-
 fn reject_inline_url_auth(request: &ResolveRequest) -> Option<Response> {
     let mut specs: Vec<&str> = Vec::new();
     if let Some(registry) = request.registry.as_deref() {
