@@ -16,7 +16,7 @@ use super::{
 fn scoped_meta_dir_public_is_unchanged() {
     assert_eq!(
         scoped_meta_dir(&MetadataCacheScope::Public, ABBREVIATED_META_DIR),
-        ABBREVIATED_META_DIR
+        ABBREVIATED_META_DIR,
     );
     assert_eq!(scoped_meta_dir(&MetadataCacheScope::Public, FULL_META_DIR), FULL_META_DIR);
 }
@@ -28,7 +28,7 @@ fn scoped_meta_dir_private_namespaces_by_descriptor() {
         scoped_meta_dir(&scope, ABBREVIATED_META_DIR),
         "v11/metadata-private/abc123/metadata",
     );
-    assert_eq!(scoped_meta_dir(&scope, FULL_META_DIR), "v11/metadata-private/abc123/metadata-full",);
+    assert_eq!(scoped_meta_dir(&scope, FULL_META_DIR), "v11/metadata-private/abc123/metadata-full");
     assert_eq!(
         scoped_meta_dir(&scope, FULL_FILTERED_META_DIR),
         "v11/metadata-private/abc123/metadata-full-filtered",
