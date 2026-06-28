@@ -27,11 +27,12 @@ use std::{
 };
 
 use pacquet_network::{MetadataCacheScope, UpstreamRouteHook, nerf_dart};
+use reqwest::header::AUTHORIZATION;
 use sha2::{Digest, Sha256};
 use wax::{Glob, Program};
 
 use crate::{
-    config::{Config, UpstreamAlias},
+    config::{Config, UplinkConfig, UpstreamAlias},
     policy::{AccessList, Identity, PackagePolicies},
 };
 
@@ -230,10 +231,20 @@ impl RouteContext {
                 package: route.package.as_deref().and_then(compile_glob),
             })
             .collect();
+        // Proxied-route credentials come from two sources during the
+        // `upstreamAliases` → `uplinks` migration: the legacy alias block and
+        // `uplinks:` entries that declare an `access:` policy. Uplink-sourced
+        // entries are matched by origin and exposed at `/~<name>/`.
         let aliases = config
             .upstream_aliases
             .iter()
             .filter_map(|(name, alias)| ResolvedAlias::from_config(name, alias))
+            .chain(
+                config
+                    .uplinks
+                    .iter()
+                    .filter_map(|(name, uplink)| ResolvedAlias::from_uplink(name, uplink)),
+            )
             .collect();
         Self {
             npmjs_unscoped_public: config.route_policy.npmjs_unscoped_public,
@@ -382,6 +393,25 @@ impl ResolvedAlias {
             package: alias.package.as_deref().and_then(compile_glob),
             authorization: alias.authorization.clone(),
             access: alias.access.clone(),
+        })
+    }
+
+    /// Build a proxied-route alias from a `uplinks:` entry. An uplink
+    /// participates in route classification only when it declares both an
+    /// `access:` policy and a resolved `Authorization` credential; routing is
+    /// by registry origin, so no package glob is attached.
+    fn from_uplink(name: &str, uplink: &UplinkConfig) -> Option<Self> {
+        let access = uplink.access.clone()?;
+        let authorization =
+            uplink.headers.get(AUTHORIZATION).and_then(|value| value.to_str().ok())?.to_string();
+        Some(Self {
+            name: name.to_string(),
+            generation: uplink.generation,
+            registry: uplink.url.clone(),
+            origin: nerf_origin(&uplink.url)?,
+            package: None,
+            authorization,
+            access,
         })
     }
 }

@@ -5,10 +5,11 @@ use std::{
 };
 
 use pacquet_network::{MetadataCacheScope, UpstreamRouteHook};
+use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 
 use super::{Footprint, PrivateAccessDescriptor, RouteClass, RouteContext, RouteHook};
 use crate::{
-    config::{Config, PublicRoute, UpstreamAlias},
+    config::{Config, PublicRoute, UplinkConfig, UpstreamAlias},
     policy::{AccessList, Identity, PackagePolicies},
 };
 
@@ -126,6 +127,64 @@ fn proxied_alias_requires_authorization() {
     // non-shareable unknown rather than the alias's private namespace.
     assert_eq!(context.classify(&anon(), url, Some("@acme/widget")), RouteClass::Unknown);
     // A package outside the alias's pattern doesn't match it.
+    assert_eq!(
+        context.classify(&user("alice"), "https://npm.corp.example/lodash", Some("lodash")),
+        RouteClass::Unknown,
+    );
+}
+
+fn uplink_with_access(registry: &str, access: &str, generation: u64) -> UplinkConfig {
+    let mut headers = HeaderMap::new();
+    headers.insert(AUTHORIZATION, HeaderValue::from_static("Bearer uplink-secret"));
+    let mut uplink = UplinkConfig::with_defaults(registry.to_string(), headers);
+    uplink.access = Some(AccessList::parse(access));
+    uplink.generation = generation;
+    uplink
+}
+
+#[test]
+fn uplink_with_access_is_a_proxied_route_matched_by_origin() {
+    let mut config = base_config();
+    config.uplinks.insert(
+        "corp".to_string(),
+        uplink_with_access("https://npm.corp.example/", "$authenticated", 3),
+    );
+    let context = RouteContext::from_config(&config);
+
+    // An authorized caller selects the uplink as a proxied route.
+    assert_eq!(
+        context.classify(
+            &user("alice"),
+            "https://npm.corp.example/@acme%2fwidget",
+            Some("@acme/widget")
+        ),
+        RouteClass::Proxied { alias: "corp".to_string(), generation: 3 },
+    );
+    // Routing is by registry origin, not a package glob, so any package on
+    // that origin matches the same uplink.
+    assert_eq!(
+        context.classify(&user("alice"), "https://npm.corp.example/lodash", Some("lodash")),
+        RouteClass::Proxied { alias: "corp".to_string(), generation: 3 },
+    );
+    // An unauthorized caller cannot select it.
+    assert_eq!(
+        context.classify(&anon(), "https://npm.corp.example/lodash", Some("lodash")),
+        RouteClass::Unknown,
+    );
+}
+
+#[test]
+fn uplink_without_access_is_not_a_proxied_route() {
+    let mut config = base_config();
+    let mut headers = HeaderMap::new();
+    headers.insert(AUTHORIZATION, HeaderValue::from_static("Bearer uplink-secret"));
+    // A plain proxy uplink that does not declare `access:` is never offered
+    // as a resolver private-route credential.
+    config.uplinks.insert(
+        "mirror".to_string(),
+        UplinkConfig::with_defaults("https://npm.corp.example/".to_string(), headers),
+    );
+    let context = RouteContext::from_config(&config);
     assert_eq!(
         context.classify(&user("alice"), "https://npm.corp.example/lodash", Some("lodash")),
         RouteClass::Unknown,
