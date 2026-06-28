@@ -357,7 +357,7 @@ fn have_common_version(ranges: &[String]) -> bool {
     }
 
     for ver_str in &candidate_versions {
-        if ranges.iter().all(|r| satisfies(ver_str, r)) {
+        if ranges.iter().all(|range| satisfies(ver_str, range)) {
             return true;
         }
     }
@@ -434,14 +434,14 @@ fn filter_peer_issues(
                 .iter()
                 .filter(|issue| {
                     if let Some(ranges) = allow_all_matcher.get(peer_name)
-                        && ranges.iter().any(|r| satisfies(&issue.found_version, r))
+                        && ranges.iter().any(|range| satisfies(&issue.found_version, range))
                     {
                         return false;
                     }
                     if let Some(declaring_parent) = issue.parents.last()
                         && let Some(parent_map) = allow_by_parent.get(&declaring_parent.name)
                         && let Some(ranges) = parent_map.get(peer_name)
-                        && ranges.iter().any(|r| satisfies(&issue.found_version, r))
+                        && ranges.iter().any(|range| satisfies(&issue.found_version, range))
                     {
                         return false;
                     }
@@ -475,7 +475,7 @@ fn parse_allowed_versions(
         if let Some((parent, target)) = selector.split_once('>') {
             let parent_name = parent.trim().to_string();
             let target_name = target.trim().to_string();
-            let ranges: Vec<String> = spec.split("||").map(|s| s.trim().to_string()).collect();
+            let ranges: Vec<String> = spec.split("||").map(|seg| seg.trim().to_string()).collect();
             by_parent
                 .entry(parent_name)
                 .or_default()
@@ -488,7 +488,7 @@ fn parse_allowed_versions(
             } else {
                 selector.clone()
             };
-            let ranges: Vec<String> = spec.split("||").map(|s| s.trim().to_string()).collect();
+            let ranges: Vec<String> = spec.split("||").map(|seg| seg.trim().to_string()).collect();
             match_all.entry(target_name).or_default().extend(ranges);
         }
     }

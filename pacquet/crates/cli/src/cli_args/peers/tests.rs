@@ -421,10 +421,10 @@ fn test_format_range_simple() {
 
 #[test]
 fn test_format_range_with_space() {
-    assert_eq!(format_range(">=1.0.0 <2.0.0"), "\">=1.0.0 <2.0.0\"");
+    assert_eq!(format_range(">=1.0.0 <2.0.0"), r#"">=1.0.0 <2.0.0""#);
 }
 
 #[test]
 fn test_format_range_wildcard() {
-    assert_eq!(format_range("*"), "\"*\"");
+    assert_eq!(format_range("*"), r#""*""#);
 }
