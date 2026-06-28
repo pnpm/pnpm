@@ -100,7 +100,7 @@ fn allows_registry_is_a_default_deny_allowlist() {
     let mut config = base_config();
     config.uplinks.insert(
         "corp".to_string(),
-        uplink_with_access("https://npm.corp.example/", "$authenticated", 1),
+        uplink_with_access("https://npm.corp.example/", "$authenticated"),
     );
     config.route_policy.public.push(PublicRoute {
         registry: Some("https://public.mirror.example/".to_string()),
@@ -213,12 +213,26 @@ fn public_route_with_an_invalid_field_fails_closed_instead_of_matching_all() {
     assert!(!context.allows_registry("https://npm.corp.example/@secret/pkg"));
 }
 
-fn uplink_with_access(registry: &str, access: &str, generation: u64) -> UplinkConfig {
+/// The standard bearer token every test uplink uses, and the credential digest
+/// it produces — what a `RouteClass::Proxied` / `PrivateAccessDescriptor::Alias`
+/// for such an uplink carries.
+const UPLINK_TOKEN: &str = "Bearer uplink-secret";
+
+fn corp_credential() -> String {
+    super::credential_digest(UPLINK_TOKEN)
+}
+
+/// A *different* credential digest, standing in for the same uplink after its
+/// upstream credential has been rotated.
+fn rotated_credential() -> String {
+    super::credential_digest("Bearer rotated-secret")
+}
+
+fn uplink_with_access(registry: &str, access: &str) -> UplinkConfig {
     let mut headers = HeaderMap::new();
     headers.insert(AUTHORIZATION, HeaderValue::from_static("Bearer uplink-secret"));
     let mut uplink = UplinkConfig::with_defaults(registry.to_string(), headers);
     uplink.access = Some(AccessList::parse(access));
-    uplink.generation = generation;
     uplink
 }
 
@@ -227,7 +241,7 @@ fn uplink_with_access_is_a_proxied_route_matched_by_origin() {
     let mut config = base_config();
     config.uplinks.insert(
         "corp".to_string(),
-        uplink_with_access("https://npm.corp.example/", "$authenticated", 3),
+        uplink_with_access("https://npm.corp.example/", "$authenticated"),
     );
     let context = RouteContext::from_config(&config);
 
@@ -238,13 +252,13 @@ fn uplink_with_access_is_a_proxied_route_matched_by_origin() {
             "https://npm.corp.example/@acme%2fwidget",
             Some("@acme/widget")
         ),
-        RouteClass::Proxied { alias: "corp".to_string(), generation: 3 },
+        RouteClass::Proxied { alias: "corp".to_string(), credential_digest: corp_credential() },
     );
     // Routing is by registry origin, not a package glob, so any package on
     // that origin matches the same uplink.
     assert_eq!(
         context.classify(&user("alice"), "https://npm.corp.example/lodash", Some("lodash")),
-        RouteClass::Proxied { alias: "corp".to_string(), generation: 3 },
+        RouteClass::Proxied { alias: "corp".to_string(), credential_digest: corp_credential() },
     );
     // An unauthorized caller cannot select it: it gets no managed credential
     // (an anonymous public fetch), which the upstream rejects if the package
@@ -260,14 +274,14 @@ fn uplink_credential_is_not_attached_over_a_mismatched_scheme() {
     let mut config = base_config();
     config.uplinks.insert(
         "corp".to_string(),
-        uplink_with_access("https://npm.corp.example/", "$authenticated", 1),
+        uplink_with_access("https://npm.corp.example/", "$authenticated"),
     );
     let context = RouteContext::from_config(&config);
 
     // An https fetch matches the https uplink and gets the managed credential.
     assert_eq!(
         context.classify(&user("alice"), "https://npm.corp.example/lodash", Some("lodash")),
-        RouteClass::Proxied { alias: "corp".to_string(), generation: 1 },
+        RouteClass::Proxied { alias: "corp".to_string(), credential_digest: corp_credential() },
     );
     // A plain-http fetch to the same origin must NOT receive the https uplink's
     // server-owned token (nerf-darting strips the scheme); it falls through to
@@ -283,15 +297,15 @@ fn self_uplink_endpoint_url_classifies_as_proxied_for_authorized_caller() {
     let mut config = base_config();
     config.uplinks.insert(
         "corp".to_string(),
-        uplink_with_access("https://npm.corp.example/", "$authenticated", 5),
+        uplink_with_access("https://npm.corp.example/", "$authenticated"),
     );
     let context = RouteContext::from_config(&config);
     // A request to pnpr's own `/~corp/` endpoint resolves through the corp
-    // uplink, using its current generation (the URL carries none).
+    // uplink, using its current credential (the URL carries none).
     let url = format!("{}/~corp/@acme%2fwidget", config.public_url);
     assert_eq!(
         context.classify(&user("alice"), &url, Some("@acme/widget")),
-        RouteClass::Proxied { alias: "corp".to_string(), generation: 5 },
+        RouteClass::Proxied { alias: "corp".to_string(), credential_digest: corp_credential() },
     );
     // An unauthorized caller gets no managed credential: a `/~<uplink>/` URL
     // is an uplink endpoint, never a hosted package, so it does not fall
@@ -310,7 +324,7 @@ fn self_endpoint_recognized_when_pnpr_is_served_under_a_path_prefix() {
     config.public_url = "https://host.example/pnpr/".to_string();
     config.uplinks.insert(
         "corp".to_string(),
-        uplink_with_access("https://npm.corp.example/", "$authenticated", 5),
+        uplink_with_access("https://npm.corp.example/", "$authenticated"),
     );
     let context = RouteContext::from_config(&config);
     // The path-preserving hosted prefix still recognizes the `/pnpr/~corp/`
@@ -321,7 +335,7 @@ fn self_endpoint_recognized_when_pnpr_is_served_under_a_path_prefix() {
             "https://host.example/pnpr/~corp/@acme%2fwidget",
             Some("@acme/widget"),
         ),
-        RouteClass::Proxied { alias: "corp".to_string(), generation: 5 },
+        RouteClass::Proxied { alias: "corp".to_string(), credential_digest: corp_credential() },
     );
 }
 
@@ -351,13 +365,13 @@ fn proxied_alias_accepts_configured_group_identity() {
     config.groups.add_user_to_group("alice", "platform");
     config
         .uplinks
-        .insert("corp".to_string(), uplink_with_access("https://npm.corp.example/", "platform", 2));
+        .insert("corp".to_string(), uplink_with_access("https://npm.corp.example/", "platform"));
     let context = RouteContext::from_config(&config);
     let url = "https://npm.corp.example/@acme%2fwidget";
 
     assert_eq!(
         context.classify(&config.identity_for_user("alice"), url, Some("@acme/widget")),
-        RouteClass::Proxied { alias: "corp".to_string(), generation: 2 },
+        RouteClass::Proxied { alias: "corp".to_string(), credential_digest: corp_credential() },
     );
     // A caller outside the alias's group gets no managed credential.
     assert_eq!(
@@ -403,23 +417,28 @@ fn overlapping_uplink_access_reuses_only_the_selected_alias() {
     // `select_alias` picks it for a caller authorized for both.
     config.uplinks.insert(
         "primary".to_string(),
-        uplink_with_access("https://npm.corp.example/", "$authenticated", 1),
+        uplink_with_access("https://npm.corp.example/", "$authenticated"),
     );
     config.uplinks.insert(
         "secondary".to_string(),
-        uplink_with_access("https://npm.corp.example/", "$authenticated", 1),
+        uplink_with_access("https://npm.corp.example/", "$authenticated"),
     );
     let context = RouteContext::from_config(&config);
 
     let mut via_primary = Footprint::default();
-    via_primary.add(PrivateAccessDescriptor::Alias { alias: "primary".to_string(), generation: 1 });
+    via_primary.add(PrivateAccessDescriptor::Alias {
+        alias: "primary".to_string(),
+        credential_digest: corp_credential(),
+    });
     assert!(via_primary.allows(&context, &user("alice")));
 
     // A lockfile routed through `secondary` must NOT be replayed for alice,
     // even though she is authorized for it — she resolves through `primary`.
     let mut via_secondary = Footprint::default();
-    via_secondary
-        .add(PrivateAccessDescriptor::Alias { alias: "secondary".to_string(), generation: 1 });
+    via_secondary.add(PrivateAccessDescriptor::Alias {
+        alias: "secondary".to_string(),
+        credential_digest: corp_credential(),
+    });
     assert!(!via_secondary.allows(&context, &user("alice")));
 }
 
@@ -429,13 +448,19 @@ fn footprint_digest_is_stable_and_namespaced() {
     assert!(footprint.is_public());
     assert_eq!(footprint.digest(b"secret"), None);
 
-    footprint.add(PrivateAccessDescriptor::Alias { alias: "corp".to_string(), generation: 1 });
+    footprint.add(PrivateAccessDescriptor::Alias {
+        alias: "corp".to_string(),
+        credential_digest: corp_credential(),
+    });
     assert!(!footprint.is_public());
     let digest = footprint.digest(b"secret").expect("private footprint has a digest");
 
-    // Rotating the alias generation moves to a new namespace.
+    // Rotating the alias's credential moves to a new namespace.
     let mut rotated = Footprint::default();
-    rotated.add(PrivateAccessDescriptor::Alias { alias: "corp".to_string(), generation: 2 });
+    rotated.add(PrivateAccessDescriptor::Alias {
+        alias: "corp".to_string(),
+        credential_digest: rotated_credential(),
+    });
     assert_ne!(digest, rotated.digest(b"secret").unwrap());
 
     // A different server secret yields a different (non-correlatable) key.
@@ -443,11 +468,17 @@ fn footprint_digest_is_stable_and_namespaced() {
 
     // The digest is order-independent (BTreeSet union).
     let mut one_order = Footprint::default();
-    one_order.add(PrivateAccessDescriptor::Alias { alias: "x".to_string(), generation: 1 });
+    one_order.add(PrivateAccessDescriptor::Alias {
+        alias: "x".to_string(),
+        credential_digest: corp_credential(),
+    });
     one_order.add(PrivateAccessDescriptor::Hosted { policy_id: "@p/*".to_string() });
     let mut other_order = Footprint::default();
     other_order.add(PrivateAccessDescriptor::Hosted { policy_id: "@p/*".to_string() });
-    other_order.add(PrivateAccessDescriptor::Alias { alias: "x".to_string(), generation: 1 });
+    other_order.add(PrivateAccessDescriptor::Alias {
+        alias: "x".to_string(),
+        credential_digest: corp_credential(),
+    });
     assert_eq!(one_order.digest(b"k"), other_order.digest(b"k"));
 }
 
@@ -456,7 +487,7 @@ fn route_hook_records_routes_and_returns_alias_credential() {
     let mut config = base_config();
     config.uplinks.insert(
         "corp".to_string(),
-        uplink_with_access("https://npm.corp.example/", "$authenticated", 1),
+        uplink_with_access("https://npm.corp.example/", "$authenticated"),
     );
     let footprint = std::sync::Arc::new(std::sync::Mutex::new(Footprint::default()));
     let hook = RouteHook::new(
@@ -484,7 +515,7 @@ fn metadata_scope_maps_route_classes() {
     let mut config = base_config();
     config.uplinks.insert(
         "corp".to_string(),
-        uplink_with_access("https://npm.corp.example/", "$authenticated", 3),
+        uplink_with_access("https://npm.corp.example/", "$authenticated"),
     );
     let footprint = std::sync::Arc::new(std::sync::Mutex::new(Footprint::default()));
     let hook = RouteHook::new(
@@ -509,8 +540,11 @@ fn metadata_scope_maps_route_classes() {
     // The id is the HMAC of the alias descriptor; it must be stable.
     assert_eq!(
         descriptor_id,
-        PrivateAccessDescriptor::Alias { alias: "corp".to_string(), generation: 3 }
-            .digest_id(b"server-secret"),
+        PrivateAccessDescriptor::Alias {
+            alias: "corp".to_string(),
+            credential_digest: corp_credential()
+        }
+        .digest_id(b"server-secret"),
     );
     // metadata_scope is read-only: classifying must not grow the footprint.
     assert!(footprint.lock().unwrap().is_public());
@@ -521,7 +555,7 @@ fn authorized_alias_users_share_metadata_scope() {
     let mut config = base_config();
     config.uplinks.insert(
         "corp".to_string(),
-        uplink_with_access("https://npm.corp.example/", "$authenticated", 3),
+        uplink_with_access("https://npm.corp.example/", "$authenticated"),
     );
     let context = Arc::new(RouteContext::from_config(&config));
     let secret = Arc::from(b"server-secret".as_slice());
@@ -548,16 +582,25 @@ fn authorized_alias_users_share_metadata_scope() {
     };
     assert_eq!(
         descriptor_id,
-        PrivateAccessDescriptor::Alias { alias: "corp".to_string(), generation: 3 }
-            .digest_id(b"server-secret"),
+        PrivateAccessDescriptor::Alias {
+            alias: "corp".to_string(),
+            credential_digest: corp_credential()
+        }
+        .digest_id(b"server-secret"),
     );
 }
 
 #[test]
 fn descriptor_digest_id_depends_on_secret() {
-    let descriptor = PrivateAccessDescriptor::Alias { alias: "corp".to_string(), generation: 1 };
+    let descriptor = PrivateAccessDescriptor::Alias {
+        alias: "corp".to_string(),
+        credential_digest: corp_credential(),
+    };
     assert_ne!(descriptor.digest_id(b"secret-a"), descriptor.digest_id(b"secret-b"));
     // Generation rotation moves the namespace.
-    let rotated = PrivateAccessDescriptor::Alias { alias: "corp".to_string(), generation: 2 };
+    let rotated = PrivateAccessDescriptor::Alias {
+        alias: "corp".to_string(),
+        credential_digest: rotated_credential(),
+    };
     assert_ne!(descriptor.digest_id(b"secret-a"), rotated.digest_id(b"secret-a"));
 }

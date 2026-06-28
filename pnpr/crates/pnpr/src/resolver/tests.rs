@@ -73,21 +73,30 @@ fn user(name: &str) -> Identity {
     Identity::user(name)
 }
 
-fn uplink_with_access(registry: &str, access: &str, generation: u64) -> UplinkConfig {
+/// The standard token test uplinks carry; the credential digest it produces is
+/// what [`private_alias_footprint`] records, so a footprint and an uplink built
+/// with it share a credential epoch.
+const ALIAS_TOKEN: &str = "Bearer alias-secret";
+
+fn uplink_with_access(registry: &str, access: &str) -> UplinkConfig {
+    uplink_with_token(registry, access, ALIAS_TOKEN)
+}
+
+fn uplink_with_token(registry: &str, access: &str, token: &'static str) -> UplinkConfig {
     let mut headers = reqwest::header::HeaderMap::new();
-    headers.insert(
-        reqwest::header::AUTHORIZATION,
-        reqwest::header::HeaderValue::from_static("Bearer alias-secret"),
-    );
+    headers
+        .insert(reqwest::header::AUTHORIZATION, reqwest::header::HeaderValue::from_static(token));
     let mut uplink = UplinkConfig::with_defaults(registry.to_string(), headers);
     uplink.access = Some(AccessList::parse(access));
-    uplink.generation = generation;
     uplink
 }
 
-fn private_alias_footprint(alias: &str, generation: u64) -> Footprint {
+fn private_alias_footprint(alias: &str) -> Footprint {
     let mut footprint = Footprint::default();
-    footprint.add(PrivateAccessDescriptor::Alias { alias: alias.to_string(), generation });
+    footprint.add(PrivateAccessDescriptor::Alias {
+        alias: alias.to_string(),
+        credential_digest: crate::route::credential_digest(ALIAS_TOKEN),
+    });
     footprint
 }
 
@@ -279,7 +288,7 @@ fn private_cached_resolution_requires_current_alias_authorization() {
         &cache,
         Duration::from_mins(1),
         key.clone(),
-        private_alias_footprint("corp", 1),
+        private_alias_footprint("corp"),
         b"secret",
         &lockfile,
     ));
@@ -287,7 +296,7 @@ fn private_cached_resolution_requires_current_alias_authorization() {
     let mut config = registry_config();
     config
         .uplinks
-        .insert("corp".to_string(), uplink_with_access("https://npm.corp.example/", "alice", 1));
+        .insert("corp".to_string(), uplink_with_access("https://npm.corp.example/", "alice"));
     let context = RouteContext::from_config(&config);
     assert!(
         cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("alice")).is_some(),
@@ -296,9 +305,13 @@ fn private_cached_resolution_requires_current_alias_authorization() {
         cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("bob")).is_none(),
     );
 
-    config
-        .uplinks
-        .insert("corp".to_string(), uplink_with_access("https://npm.corp.example/", "alice", 2));
+    // Rotate the upstream credential (new token → new credential digest). The
+    // resolution cached under the old credential must no longer be reused, even
+    // for a still-authorized caller.
+    config.uplinks.insert(
+        "corp".to_string(),
+        uplink_with_token("https://npm.corp.example/", "alice", "Bearer rotated-secret"),
+    );
     let rotated = RouteContext::from_config(&config);
     assert!(
         cached_resolution(&cache, Duration::from_mins(1), &key, &rotated, &user("alice")).is_none(),
@@ -314,7 +327,7 @@ fn same_alias_authorized_users_share_private_resolution_cache() {
         &cache,
         Duration::from_mins(1),
         key.clone(),
-        private_alias_footprint("corp", 1),
+        private_alias_footprint("corp"),
         b"secret",
         &lockfile,
     ));
@@ -322,7 +335,7 @@ fn same_alias_authorized_users_share_private_resolution_cache() {
     let mut config = registry_config();
     config.uplinks.insert(
         "corp".to_string(),
-        uplink_with_access("https://npm.corp.example/", "$authenticated", 1),
+        uplink_with_access("https://npm.corp.example/", "$authenticated"),
     );
     let context = RouteContext::from_config(&config);
 
@@ -347,7 +360,7 @@ fn revoked_alias_access_stops_matching_private_resolution_hits() {
         &cache,
         Duration::from_mins(1),
         key.clone(),
-        private_alias_footprint("corp", 1),
+        private_alias_footprint("corp"),
         b"secret",
         &lockfile,
     ));
@@ -355,7 +368,7 @@ fn revoked_alias_access_stops_matching_private_resolution_hits() {
     let mut config = registry_config();
     config
         .uplinks
-        .insert("corp".to_string(), uplink_with_access("https://npm.corp.example/", "alice", 1));
+        .insert("corp".to_string(), uplink_with_access("https://npm.corp.example/", "alice"));
     let context = RouteContext::from_config(&config);
     assert!(
         cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("alice")).is_some(),
@@ -363,7 +376,7 @@ fn revoked_alias_access_stops_matching_private_resolution_hits() {
 
     config
         .uplinks
-        .insert("corp".to_string(), uplink_with_access("https://npm.corp.example/", "bob", 1));
+        .insert("corp".to_string(), uplink_with_access("https://npm.corp.example/", "bob"));
     let context = RouteContext::from_config(&config);
     assert!(
         cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("alice")).is_none(),
@@ -428,7 +441,7 @@ fn private_alias_lockfile_routing_uses_gateway_url() {
     let mut registry = registry_config();
     registry.uplinks.insert(
         "corp".to_string(),
-        uplink_with_access("https://npm.corp.example/", "$authenticated", 7),
+        uplink_with_access("https://npm.corp.example/", "$authenticated"),
     );
     let router = tarball_router(&registry, user("alice"));
 
@@ -451,7 +464,7 @@ fn private_alias_lockfile_routing_encodes_scoped_packages_as_one_gateway_segment
     let mut registry = registry_config();
     registry.uplinks.insert(
         "corp".to_string(),
-        uplink_with_access("https://npm.corp.example/", "$authenticated", 7),
+        uplink_with_access("https://npm.corp.example/", "$authenticated"),
     );
     let router = tarball_router(&registry, user("alice"));
 
@@ -630,7 +643,7 @@ fn private_cached_resolution_keeps_routed_tarball_urls() {
     let mut registry = registry_config();
     registry
         .uplinks
-        .insert("corp".to_string(), uplink_with_access("https://npm.corp.example/", "alice", 7));
+        .insert("corp".to_string(), uplink_with_access("https://npm.corp.example/", "alice"));
     let router = tarball_router(&registry, user("alice"));
     let routed = router.route_lockfile(&pacquet_config, &lockfile("1.0.0"));
 
@@ -638,7 +651,7 @@ fn private_cached_resolution_keeps_routed_tarball_urls() {
         &cache,
         Duration::from_mins(1),
         key.clone(),
-        private_alias_footprint("corp", 7),
+        private_alias_footprint("corp"),
         b"secret",
         &routed,
     ));
@@ -674,7 +687,7 @@ fn candidate_lists_stay_bounded_and_keep_public_entries() {
             &cache,
             Duration::from_mins(1),
             key.clone(),
-            private_alias_footprint(&format!("corp-{index}"), 1),
+            private_alias_footprint(&format!("corp-{index}")),
             b"secret",
             &lockfile,
         ));
@@ -730,7 +743,7 @@ fn package_frames_route_private_alias_tarballs_to_gateway() {
     let mut registry = registry_config();
     registry.uplinks.insert(
         "corp".to_string(),
-        uplink_with_access("https://npm.corp.example/", "$authenticated", 7),
+        uplink_with_access("https://npm.corp.example/", "$authenticated"),
     );
     let router = tarball_router(&registry, user("alice"));
     let frame = super::package_frame(
@@ -759,7 +772,7 @@ fn package_frame_routes_split_domain_registry_tarball_by_registry() {
     let mut registry = registry_config();
     registry.uplinks.insert(
         "corp".to_string(),
-        uplink_with_access("https://npm.corp.example/", "$authenticated", 7),
+        uplink_with_access("https://npm.corp.example/", "$authenticated"),
     );
     // The package resolves from the private corp registry, but its packument's
     // dist.tarball lives on a *different* host (a split-domain CDN).
@@ -872,7 +885,7 @@ fn frozen_package_frames_route_private_alias_tarballs_to_gateway() {
     let mut registry = registry_config();
     registry.uplinks.insert(
         "corp".to_string(),
-        uplink_with_access("https://npm.corp.example/", "$authenticated", 7),
+        uplink_with_access("https://npm.corp.example/", "$authenticated"),
     );
 
     let frames = super::frozen_package_frames(

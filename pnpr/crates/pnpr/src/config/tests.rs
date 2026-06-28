@@ -40,7 +40,6 @@ fn uplink_file(auth: Option<UplinkAuthFile>, headers: IndexMap<String, String>) 
         fail_timeout: None,
         cache: None,
         access: None,
-        generation: super::default_generation(),
     }
 }
 
@@ -1810,12 +1809,11 @@ routes:
 }
 
 #[test]
-fn uplink_resolves_access_and_generation() {
+fn uplink_resolves_bearer_auth_and_access() {
     let yaml = r"
 uplinks:
   corp:
     url: https://npm.corp.example/
-    generation: 7
     access: $authenticated alice
     auth:
       type: bearer
@@ -1825,14 +1823,13 @@ uplinks:
     let uplink = &config.uplinks["corp"];
     assert_eq!(uplink.url, "https://npm.corp.example/");
     assert_eq!(auth_header(uplink), Some("Bearer corp-token"));
-    assert_eq!(uplink.generation, 7);
     let access = uplink.access.as_ref().expect("uplink declares access");
     assert!(access.allows(&user("alice")));
     assert!(!access.allows(&Identity::Anonymous));
 }
 
 #[test]
-fn uplink_generation_defaults_to_one() {
+fn uplink_resolves_basic_auth_and_access() {
     let yaml = r"
 uplinks:
   corp:
@@ -1844,7 +1841,6 @@ uplinks:
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     let uplink = &config.uplinks["corp"];
-    assert_eq!(uplink.generation, 1);
     assert_eq!(auth_header(uplink), Some("Basic dXNlcjpwYXNz"));
     let access = uplink.access.as_ref().expect("uplink declares access");
     assert!(access.allows(&user("bob")));

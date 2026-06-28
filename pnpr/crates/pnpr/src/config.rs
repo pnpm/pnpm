@@ -488,10 +488,6 @@ pub struct UplinkConfig {
     /// a resolver private-route credential — only uplinks that declare
     /// `access:` participate in route classification.
     pub access: Option<AccessList>,
-    /// Rotation generation for the uplink credential; bumping it moves future
-    /// private cache hits to a new namespace. Server-side only — never
-    /// embedded in a client-visible URL.
-    pub generation: u64,
 }
 
 impl UplinkConfig {
@@ -515,7 +511,6 @@ impl UplinkConfig {
             fail_timeout: Self::DEFAULT_FAIL_TIMEOUT,
             cache: true,
             access: None,
-            generation: default_generation(),
         }
     }
 }
@@ -531,7 +526,6 @@ impl fmt::Debug for UplinkConfig {
             .field("fail_timeout", &self.fail_timeout)
             .field("cache", &self.cache)
             .field("access", &self.access)
-            .field("generation", &self.generation)
             .finish()
     }
 }
@@ -578,8 +572,6 @@ struct UplinkFile {
     /// resolver private-route credential exposed at `/~<name>/`.
     #[serde(default)]
     access: Option<AccessSpec>,
-    #[serde(default = "default_generation")]
-    generation: u64,
 }
 
 /// A verdaccio interval scalar as written in YAML: either a string
@@ -739,7 +731,6 @@ fn resolve_uplink<Sys: EnvVar>(
         fail_timeout,
         cache: file.cache.unwrap_or(true),
         access: file.access.as_ref().map(AccessSpec::to_access_list),
-        generation: file.generation,
     })
 }
 
@@ -878,10 +869,6 @@ struct PublicRouteFile {
     registry: Option<String>,
     #[serde(default)]
     package: Option<String>,
-}
-
-fn default_generation() -> u64 {
-    1
 }
 
 /// Disk shape of the YAML file. Fields verdaccio supports but

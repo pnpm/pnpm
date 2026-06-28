@@ -111,7 +111,6 @@ fn registry_uplink(registry_url: &str, token: &str) -> (String, pnpr::UplinkConf
             fail_timeout: pnpr::UplinkConfig::DEFAULT_FAIL_TIMEOUT,
             cache: true,
             access: Some(pnpr::AccessList::parse("$authenticated")),
-            generation: 1,
         },
     )
 }

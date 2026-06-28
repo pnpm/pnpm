@@ -533,7 +533,6 @@ fn breaking_upstream(url: String, max_fails: u32) -> Upstream {
             fail_timeout: Duration::from_mins(5),
             cache: true,
             access: None,
-            generation: 1,
         },
     )
 }

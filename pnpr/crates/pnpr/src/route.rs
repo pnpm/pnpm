@@ -49,8 +49,10 @@ pub enum RouteClass {
     /// identifies the access-policy rule that produced the entry.
     Hosted { policy_id: String },
     /// A proxied upstream route served with a pnpr-managed credential
-    /// alias the caller is authorized to use.
-    Proxied { alias: String, generation: u64 },
+    /// alias the caller is authorized to use. `credential_digest` is a hash
+    /// of the uplink's `Authorization`, so rotating the credential changes it
+    /// (see [`credential_digest`]).
+    Proxied { alias: String, credential_digest: String },
 }
 
 /// The cache-namespace identity of a private route: a key input plus
@@ -59,9 +61,10 @@ pub enum RouteClass {
 /// callers who share the same access collapse to one shared entry.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum PrivateAccessDescriptor {
-    /// Proxied route via a pnpr-managed upstream alias. Rotating the
-    /// alias bumps `generation`, moving future hits to a new namespace.
-    Alias { alias: String, generation: u64 },
+    /// Proxied route via a pnpr-managed upstream alias. `credential_digest`
+    /// hashes the uplink's `Authorization`, so rotating the credential moves
+    /// future hits to a new namespace — no manual epoch counter to bump.
+    Alias { alias: String, credential_digest: String },
     /// pnpr-hosted route, gated by re-running the named package access
     /// policy for the caller.
     Hosted { policy_id: String },
@@ -74,8 +77,8 @@ impl PrivateAccessDescriptor {
     /// policy of the same text).
     fn key_input(&self) -> String {
         match self {
-            PrivateAccessDescriptor::Alias { alias, generation } => {
-                format!("alias\0{alias}\0{generation}")
+            PrivateAccessDescriptor::Alias { alias, credential_digest } => {
+                format!("alias\0{alias}\0{credential_digest}")
             }
             PrivateAccessDescriptor::Hosted { policy_id } => format!("hosted\0{policy_id}"),
         }
@@ -94,13 +97,31 @@ impl PrivateAccessDescriptor {
 
 /// The HMAC digest namespacing an uplink's private cache (packuments and
 /// tarballs), identical to the metadata-mirror descriptor id for the same
-/// `(uplink, generation)`. Keyed by the server `secret` so the on-disk path
-/// reveals neither the uplink name nor its generation, and so a path-unsafe
+/// `(uplink, credential)`. Keyed by the server `secret` so the on-disk path
+/// reveals neither the uplink name nor its credential, and so a path-unsafe
 /// uplink name (`..`, `/`) can never escape the cache root — the digest is
-/// hex.
+/// hex. `credential_digest` is a [`credential_digest`] of the uplink's
+/// `Authorization`, so a credential rotation moves to a fresh namespace.
 #[must_use]
-pub(crate) fn uplink_cache_digest(uplink: &str, generation: u64, secret: &[u8]) -> String {
-    PrivateAccessDescriptor::Alias { alias: uplink.to_string(), generation }.digest_id(secret)
+pub(crate) fn uplink_cache_digest(
+    uplink: &str,
+    credential_digest: String,
+    secret: &[u8],
+) -> String {
+    PrivateAccessDescriptor::Alias { alias: uplink.to_string(), credential_digest }
+        .digest_id(secret)
+}
+
+/// A hash of an uplink's `Authorization` header value, used as the credential
+/// epoch in [`PrivateAccessDescriptor::Alias`]. Rotating the upstream
+/// credential changes this automatically, re-keying every private cache the
+/// uplink owns — so a rotation invalidates old-credential content with no
+/// manual step to forget. The raw token never appears: it's a one-way SHA-256
+/// (then HMAC-keyed with the server secret by [`PrivateAccessDescriptor::digest_id`]
+/// before it reaches disk).
+#[must_use]
+pub(crate) fn credential_digest(authorization: &str) -> String {
+    hex(&Sha256::digest(authorization.as_bytes()))
 }
 
 /// The set of private routes a single resolve actually touched, paired
@@ -187,7 +208,10 @@ struct RouteMatcher {
 #[derive(Clone)]
 struct ResolvedAlias {
     name: String,
-    generation: u64,
+    /// [`credential_digest`] of [`Self::authorization`]: the credential epoch
+    /// this alias's private cache entries are keyed by. Changes when the
+    /// upstream credential rotates.
+    credential_digest: String,
     registry: String,
     /// Nerf-darted upstream origin the alias serves. Routing is by origin
     /// alone — an uplink credential covers every package on its registry.
@@ -210,7 +234,7 @@ impl fmt::Debug for ResolvedAlias {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ResolvedAlias")
             .field("name", &self.name)
-            .field("generation", &self.generation)
+            .field("credential_digest", &self.credential_digest)
             .field("registry", &self.registry)
             .field("origin", &self.origin)
             .field("scheme", &self.scheme)
@@ -291,7 +315,7 @@ impl RouteContext {
                 {
                     Some(alias) => RouteClass::Proxied {
                         alias: alias.name.clone(),
-                        generation: alias.generation,
+                        credential_digest: alias.credential_digest.clone(),
                     },
                     None => RouteClass::Public,
                 };
@@ -307,7 +331,10 @@ impl RouteContext {
             // uplink's server-owned credential and leak it in cleartext. A
             // scheme mismatch falls through to an anonymous public fetch (which
             // fails closed upstream if the resource is actually private).
-            return RouteClass::Proxied { alias: alias.name.clone(), generation: alias.generation };
+            return RouteClass::Proxied {
+                alias: alias.name.clone(),
+                credential_digest: alias.credential_digest.clone(),
+            };
         }
 
         RouteClass::Public
@@ -386,20 +413,22 @@ impl RouteContext {
         descriptor: &PrivateAccessDescriptor,
     ) -> bool {
         match descriptor {
-            PrivateAccessDescriptor::Alias { alias, generation } => {
+            PrivateAccessDescriptor::Alias { alias, credential_digest } => {
                 // Reuse the cached resolution only if `identity` would *select*
-                // this exact alias+generation for its origin — the first
-                // authorized alias [`Self::select_alias`] returns there — not
-                // merely one the caller is authorized for. With overlapping
-                // uplink access (several aliases on one origin a caller can
-                // use), an authorization-only check could replay a lockfile
-                // routed through a different `/~<uplink>/` endpoint than this
-                // caller resolves through. A since-removed alias (`find` →
-                // `None`) or a rotated generation also fails closed here.
+                // this exact alias for its origin — the first authorized alias
+                // [`Self::select_alias`] returns there — and its credential
+                // still hashes to the same digest. Not merely an alias the
+                // caller is authorized for: with overlapping uplink access
+                // (several aliases on one origin a caller can use), an
+                // authorization-only check could replay a lockfile routed
+                // through a different `/~<uplink>/` endpoint than this caller
+                // resolves through. A since-removed alias (`find` → `None`) or
+                // a rotated credential also fails closed here.
                 self.aliases.iter().find(|candidate| candidate.name == alias.as_str()).is_some_and(
                     |candidate| {
                         self.select_alias(identity, &candidate.origin).is_some_and(|selected| {
-                            selected.name == alias.as_str() && selected.generation == *generation
+                            selected.name == alias.as_str()
+                                && selected.credential_digest == *credential_digest
                         })
                     },
                 )
@@ -484,7 +513,7 @@ impl ResolvedAlias {
             uplink.headers.get(AUTHORIZATION).and_then(|value| value.to_str().ok())?.to_string();
         Some(Self {
             name: name.to_string(),
-            generation: uplink.generation,
+            credential_digest: credential_digest(&authorization),
             registry: uplink.url.clone(),
             origin: nerf_prefix(&uplink.url)?,
             scheme: scheme_of(&uplink.url)?.to_string(),
@@ -544,14 +573,14 @@ impl UpstreamRouteHook for RouteHook {
                 // credential is involved.
                 None
             }
-            RouteClass::Proxied { alias, generation } => {
+            RouteClass::Proxied { alias, credential_digest } => {
                 let authorization = self
                     .context
                     .aliases
                     .iter()
                     .find(|candidate| candidate.name == alias)
                     .map(|candidate| candidate.authorization.clone());
-                self.record(PrivateAccessDescriptor::Alias { alias, generation });
+                self.record(PrivateAccessDescriptor::Alias { alias, credential_digest });
                 authorization
             }
         }
@@ -566,8 +595,8 @@ impl UpstreamRouteHook for RouteHook {
                 descriptor_id: PrivateAccessDescriptor::Hosted { policy_id }
                     .digest_id(&self.secret),
             },
-            RouteClass::Proxied { alias, generation } => MetadataCacheScope::Private {
-                descriptor_id: PrivateAccessDescriptor::Alias { alias, generation }
+            RouteClass::Proxied { alias, credential_digest } => MetadataCacheScope::Private {
+                descriptor_id: PrivateAccessDescriptor::Alias { alias, credential_digest }
                     .digest_id(&self.secret),
             },
         }
