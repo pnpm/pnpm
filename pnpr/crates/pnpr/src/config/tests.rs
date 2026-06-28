@@ -1787,7 +1787,7 @@ fn bundled_default_config_enforces_its_protections() {
 #[test]
 fn route_policy_defaults_when_absent() {
     let config = Config::from_yaml_str("{}", Path::new("/x"), listen(), None).unwrap();
-    assert!(config.route_policy.npmjs_unscoped_public);
+    assert!(config.route_policy.npmjs_public);
     assert!(config.route_policy.public.is_empty());
 }
 
@@ -1795,14 +1795,14 @@ fn route_policy_defaults_when_absent() {
 fn route_policy_parses_builtin_toggle_and_public_routes() {
     let yaml = r"
 routes:
-  npmjsUnscopedPublic: false
+  npmjsPublic: false
   public:
     - registry: https://registry.npmjs.org/
       package: '@babel/*'
     - package: '@types/*'
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    assert!(!config.route_policy.npmjs_unscoped_public);
+    assert!(!config.route_policy.npmjs_public);
     assert_eq!(config.route_policy.public.len(), 2);
     assert_eq!(
         config.route_policy.public[0].registry.as_deref(),

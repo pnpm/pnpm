@@ -36,28 +36,55 @@ fn hmac_sha256_matches_rfc4231_case1() {
 }
 
 #[test]
-fn unscoped_npmjs_is_public_scoped_is_not() {
+fn npmjs_host_is_public_including_scoped() {
     let context = RouteContext::from_config(&base_config());
     assert_eq!(
         context.classify(&user("alice"), "https://registry.npmjs.org/lodash", Some("lodash")),
         RouteClass::Public,
     );
-    // npm allows private scoped packages, so a scoped npmjs name is not
-    // public under the built-in route — it needs an explicit rule.
+    // The npmjs host is public at the host level: an anonymous fetch returns
+    // only public content (a private scoped package 404s), so a scoped npmjs
+    // name resolves as public and globally shareable too.
     assert_eq!(
         context.classify(
             &user("alice"),
             "https://registry.npmjs.org/@babel%2fcore",
             Some("@babel/core"),
         ),
-        RouteClass::Unknown,
+        RouteClass::Public,
     );
+}
+
+#[test]
+fn allows_registry_is_a_default_deny_allowlist() {
+    let mut config = base_config();
+    config.uplinks.insert(
+        "corp".to_string(),
+        uplink_with_access("https://npm.corp.example/", "$authenticated", 1),
+    );
+    config.route_policy.public.push(PublicRoute {
+        registry: Some("https://public.mirror.example/".to_string()),
+        package: None,
+    });
+    let context = RouteContext::from_config(&config);
+
+    // Allowed: the built-in npm host, a declared public route, a uplink
+    // origin, and pnpr's own origin (its `/~<uplink>/` endpoints).
+    assert!(context.allows_registry("https://registry.npmjs.org/"));
+    assert!(context.allows_registry("https://public.mirror.example/@scope/pkg"));
+    assert!(context.allows_registry("https://npm.corp.example/@acme/widget"));
+    assert!(context.allows_registry(&format!("{}/~corp/@acme/widget", config.public_url)));
+
+    // Rejected: cloud instance metadata and any other off-allowlist host.
+    assert!(!context.allows_registry("http://169.254.169.254/"));
+    assert!(!context.allows_registry("https://evil.example/"));
+    assert!(!context.allows_registry("not a url"));
 }
 
 #[test]
 fn disabling_the_builtin_makes_unscoped_npmjs_private() {
     let mut config = base_config();
-    config.route_policy.npmjs_unscoped_public = false;
+    config.route_policy.npmjs_public = false;
     let context = RouteContext::from_config(&config);
     assert_eq!(
         context.classify(&user("alice"), "https://registry.npmjs.org/lodash", Some("lodash")),

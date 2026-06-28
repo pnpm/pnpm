@@ -62,7 +62,9 @@ fn git_resolve_request(repo_url: &str, authorization: Option<&str>) -> Request<B
         "dependencies": {
             "git-dependency": format!("git+{repo_url}#main"),
         },
-        "registry": "http://127.0.0.1:1/",
+        // The built-in npmjs route is allowlisted; this resolve only touches a
+        // git dependency, so the registry is validated but never fetched.
+        "registry": "https://registry.npmjs.org/",
         "trustLockfile": true,
         "preferFrozenLockfile": false,
     });

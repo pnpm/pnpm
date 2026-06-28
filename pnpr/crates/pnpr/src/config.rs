@@ -147,7 +147,7 @@ pub struct RoutePolicy {
     /// changes. Scoped npmjs packages are *not* covered — npm allows
     /// private scoped packages — so they stay private unless an operator
     /// declares the scope public via [`Self::public`].
-    pub npmjs_unscoped_public: bool,
+    pub npmjs_public: bool,
     /// Operator-declared public routes, matched by registry prefix
     /// and/or package pattern.
     pub public: Vec<PublicRoute>,
@@ -155,7 +155,7 @@ pub struct RoutePolicy {
 
 impl Default for RoutePolicy {
     fn default() -> Self {
-        Self { npmjs_unscoped_public: true, public: Vec::new() }
+        Self { npmjs_public: true, public: Vec::new() }
     }
 }
 
@@ -879,7 +879,7 @@ impl AccessSpec {
 #[serde(rename_all = "camelCase")]
 struct RoutesFile {
     #[serde(default = "default_true")]
-    npmjs_unscoped_public: bool,
+    npmjs_public: bool,
     #[serde(default)]
     public: Vec<PublicRouteFile>,
 }
@@ -1476,7 +1476,7 @@ fn build_route_policy(file: Option<RoutesFile>) -> RoutePolicy {
     match file {
         None => RoutePolicy::default(),
         Some(file) => RoutePolicy {
-            npmjs_unscoped_public: file.npmjs_unscoped_public,
+            npmjs_public: file.npmjs_public,
             public: file
                 .public
                 .into_iter()

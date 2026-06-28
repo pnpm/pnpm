@@ -175,7 +175,7 @@ impl Footprint {
 pub struct RouteContext {
     /// Built-in route: unscoped packages on `registry.npmjs.org` are
     /// public. Operators can disable this for a conservative deployment.
-    npmjs_unscoped_public: bool,
+    npmjs_public: bool,
     /// Nerf-darted origin of this pnpr service (from `public_url`). A
     /// fetch whose URL falls under it is a pnpr-hosted route.
     hosted_origin: Option<String>,
@@ -250,7 +250,7 @@ impl RouteContext {
             .filter_map(|(name, uplink)| ResolvedAlias::from_uplink(name, uplink))
             .collect();
         Self {
-            npmjs_unscoped_public: config.route_policy.npmjs_unscoped_public,
+            npmjs_public: config.route_policy.npmjs_public,
             hosted_origin,
             public_routes,
             aliases,
@@ -308,13 +308,43 @@ impl RouteContext {
     }
 
     fn is_public_route(&self, fetch: &str, package: Option<&str>) -> bool {
-        if self.npmjs_unscoped_public
-            && origin_of(fetch) == Some("registry.npmjs.org")
-            && package.is_none_or(|name| !name.starts_with('@'))
-        {
+        // The official npm registry is public at the host level: an anonymous
+        // fetch returns only public content (a private scoped package 404s),
+        // so a successfully-resolved npmjs route — scoped or not — is public
+        // and globally shareable.
+        if self.npmjs_public && origin_of(fetch) == Some("registry.npmjs.org") {
             return true;
         }
         self.public_routes.iter().any(|route| route.matches(fetch, package))
+    }
+
+    /// Whether pnpr is permitted to fetch from `url`'s registry at all. The
+    /// allowlist is the union of every configured route: the built-in npm
+    /// host, operator-declared public routes, configured uplink origins, and
+    /// pnpr's own origin (which serves its hosted packages and `/~<uplink>/`
+    /// endpoints). A client `registry`/`namedRegistries` matching none of
+    /// these is rejected before any server-side fetch — the resolver's SSRF
+    /// boundary — so there is no "unknown registry" to resolve anonymously.
+    #[must_use]
+    pub fn allows_registry(&self, url: &str) -> bool {
+        let fetch = nerf_dart(url);
+        if fetch.is_empty() {
+            return false;
+        }
+        if self.npmjs_public && origin_of(&fetch) == Some("registry.npmjs.org") {
+            return true;
+        }
+        if self.hosted_origin.as_deref().is_some_and(|hosted| fetch.starts_with(hosted)) {
+            return true;
+        }
+        if self
+            .public_routes
+            .iter()
+            .any(|route| route.origin.as_deref().is_some_and(|origin| fetch.starts_with(origin)))
+        {
+            return true;
+        }
+        self.aliases.iter().any(|alias| fetch.starts_with(&alias.origin))
     }
 
     /// A pnpr-hosted route is public when its package access policy

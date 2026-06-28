@@ -498,6 +498,37 @@ fn lockfile_with_tarball(tarball: &str) -> Lockfile {
 }
 
 #[test]
+fn reject_off_allowlist_registries_blocks_unconfigured_hosts() {
+    use super::reject_off_allowlist_registries;
+    let context = RouteContext::from_config(&registry_config());
+
+    // The built-in npm registry is allowlisted.
+    let ok = ResolveRequest {
+        registry: Some("https://registry.npmjs.org/".to_string()),
+        ..ResolveRequest::default()
+    };
+    assert!(reject_off_allowlist_registries(&ok, &context).is_none());
+
+    // An IMDS / off-allowlist default registry is rejected before any fetch.
+    let ssrf = ResolveRequest {
+        registry: Some("http://169.254.169.254/".to_string()),
+        ..ResolveRequest::default()
+    };
+    assert!(reject_off_allowlist_registries(&ssrf, &context).is_some());
+
+    // A named registry off the allowlist is rejected too.
+    let named = ResolveRequest {
+        registry: Some("https://registry.npmjs.org/".to_string()),
+        named_registries: BTreeMap::from([(
+            "@acme".to_string(),
+            "http://169.254.169.254/".to_string(),
+        )]),
+        ..ResolveRequest::default()
+    };
+    assert!(reject_off_allowlist_registries(&named, &context).is_some());
+}
+
+#[test]
 fn reject_inline_url_auth_scans_input_lockfile_tarballs() {
     use super::reject_inline_url_auth;
 

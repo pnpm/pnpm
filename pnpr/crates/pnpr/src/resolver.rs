@@ -349,6 +349,10 @@ pub(crate) async fn handle_resolve(
         return response;
     }
 
+    if let Some(response) = reject_off_allowlist_registries(&request, &runtime.route_context) {
+        return response;
+    }
+
     // Resolve against the client's registries, not the server's own.
     let Some(config) = runtime.config_for(&request) else {
         return json_error(StatusCode::SERVICE_UNAVAILABLE, TOO_MANY_CONFIGS_MESSAGE);
@@ -505,6 +509,10 @@ pub(crate) async fn handle_verify_lockfile(
     };
 
     if let Some(response) = reject_inline_url_auth(&request) {
+        return response;
+    }
+
+    if let Some(response) = reject_off_allowlist_registries(&request, &runtime.route_context) {
         return response;
     }
 
@@ -1284,6 +1292,31 @@ fn merge_policies(
 /// values, and the tarball URLs of an input lockfile — every surface a
 /// tarball/registry URL can reach the resolver (or be echoed back) through.
 /// Returns a `400` response when one is found.
+/// Reject a request whose client-supplied `registry`/`namedRegistries` would
+/// have pnpr fetch from a host that is not on the route allowlist (see
+/// [`RouteContext::allows_registry`]). This is the resolver's SSRF boundary:
+/// pnpr fetches only from operator-configured registries, so a caller cannot
+/// point it at cloud instance metadata, an internal service, or any other
+/// off-allowlist host. Runs before any server-side fetch.
+fn reject_off_allowlist_registries(
+    request: &ResolveRequest,
+    context: &RouteContext,
+) -> Option<Response> {
+    let mut registries: Vec<&str> = Vec::new();
+    if let Some(registry) = request.registry.as_deref() {
+        registries.push(registry);
+    }
+    registries.extend(request.named_registries.values().map(String::as_str));
+    let off = registries.into_iter().find(|registry| !context.allows_registry(registry))?;
+    Some(json_error(
+        StatusCode::FORBIDDEN,
+        &format!(
+            "registry {off:?} is not allowed by this pnpr server; the operator must declare it \
+             as a public route or an uplink",
+        ),
+    ))
+}
+
 fn reject_inline_url_auth(request: &ResolveRequest) -> Option<Response> {
     let mut specs: Vec<&str> = Vec::new();
     if let Some(registry) = request.registry.as_deref() {
