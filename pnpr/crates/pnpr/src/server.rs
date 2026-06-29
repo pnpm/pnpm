@@ -1207,34 +1207,18 @@ async fn serve_tarball(
 
     let upstreams = resolve_upstreams(state, &name);
     // Read the cache if any uplink in the chain mirrors tarballs (or there's
-    // no upstream left at all — a leftover mirror). Reading is harmless: the
-    // bytes are verified against the version's `dist.integrity` before being
-    // served, whichever uplink originally wrote them.
+    // no upstream left at all — a leftover mirror). The cached bytes were
+    // verified against the version's `dist.integrity` when they were written
+    // (see `download_verified_to_cache` below), and every install client
+    // re-verifies the tarball it receives against that same integrity, so
+    // re-hashing the file on every serve is redundant — serve the cached bytes
+    // directly. (Re-hashing here is what made warm-cache cold-store installs
+    // pay an SRI pass per tarball.)
     let should_read_cache = upstreams.is_empty() || upstreams.iter().any(|u| u.caches());
     if should_read_cache {
         match state.inner.storage.open_cached_tarball(&name, &filename).await {
             Ok(Some((file, len))) => {
-                let expected = cached_tarball_integrity(&integrity, len);
-                if state
-                    .inner
-                    .storage
-                    .read_cached_tarball_integrity(&name, &filename)
-                    .await
-                    .is_some_and(|cached| cached == expected)
-                {
-                    return tarball_response(streaming::stream_file(file), Some(len));
-                }
-                match streaming::verify_file(file, &integrity).await {
-                    Ok(file) => {
-                        record_cached_tarball_integrity(state, &name, &filename, expected).await;
-                        return tarball_response(streaming::stream_file(file), Some(len));
-                    }
-                    Err(err) => {
-                        let err = tarball_stream_error(err, &name, &filename);
-                        tracing::warn!(?err, package = %name.as_str(), %filename, "cached tarball failed verification");
-                        discard_cached_tarball(state, &name, &filename).await;
-                    }
-                }
+                return tarball_response(streaming::stream_file(file), Some(len));
             }
             Ok(None) => {}
             Err(err) => {
@@ -1265,24 +1249,16 @@ async fn serve_tarball(
     };
 
     if upstream.caches() {
-        let len = match streaming::download_verified_to_cache(
-            response,
-            write,
-            &integrity,
-            MAX_TARBALL_BYTES,
-        )
-        .await
+        // Verify the freshly-downloaded bytes against `dist.integrity` as they
+        // are written to the cache. That write-time check (plus the install
+        // client's own verification) is why serving cached bytes later needs no
+        // re-hash.
+        if let Err(err) =
+            streaming::download_verified_to_cache(response, write, &integrity, MAX_TARBALL_BYTES)
+                .await
         {
-            Ok(len) => len,
-            Err(err) => return error_response(&tarball_stream_error(err, &name, &filename)),
-        };
-        record_cached_tarball_integrity(
-            state,
-            &name,
-            &filename,
-            cached_tarball_integrity(&integrity, len),
-        )
-        .await;
+            return error_response(&tarball_stream_error(err, &name, &filename));
+        }
 
         match state.inner.storage.open_cached_tarball(&name, &filename).await {
             Ok(Some((file, len))) => tarball_response(streaming::stream_file(file), Some(len)),
@@ -1392,27 +1368,8 @@ fn tarball_integrity_error(name: &PackageName, filename: &str, reason: String) -
     }
 }
 
-async fn discard_cached_tarball(state: &AppState, name: &PackageName, filename: &str) {
-    if let Err(err) = state.inner.storage.remove_cached_tarball(name, filename).await {
-        tracing::warn!(?err, package = %name.as_str(), %filename, "invalid tarball cache removal failed");
-    }
-}
-
 fn cached_tarball_integrity(integrity: &Integrity, len: u64) -> CachedTarballIntegrity {
     CachedTarballIntegrity { integrity: integrity.to_string(), len }
-}
-
-async fn record_cached_tarball_integrity(
-    state: &AppState,
-    name: &PackageName,
-    filename: &str,
-    integrity: CachedTarballIntegrity,
-) {
-    if let Err(err) =
-        state.inner.storage.write_cached_tarball_integrity(name, filename, &integrity).await
-    {
-        tracing::warn!(?err, package = %name.as_str(), %filename, "tarball cache integrity marker write failed");
-    }
 }
 
 /// Add a new user or log in an existing one. Mirrors verdaccio's

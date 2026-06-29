@@ -1389,11 +1389,13 @@ async fn tampered_upstream_tarball_is_rejected_and_not_cached() {
 
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
-    let cache_dir = storage.join(".pnpr-cache").join("poisoned");
-    std::fs::create_dir_all(&cache_dir).unwrap();
-    let cache_path = cache_dir.join("poisoned-1.0.0.tgz");
-    std::fs::write(&cache_path, poison_bytes).unwrap();
+    let cache_path = storage.join(".pnpr-cache").join("poisoned").join("poisoned-1.0.0.tgz");
 
+    // Upstream serves bytes that don't match the version's `dist.integrity`.
+    // Verification happens as the bytes are written to the cache, so the
+    // poisoned tarball is rejected and never lands in the cache. (Serving from
+    // the cache later is trusted precisely because nothing unverified is ever
+    // written to it.)
     let app = router(config_for(&upstream.url(), storage.clone()));
     let packument_response =
         app.clone().oneshot(Request::get("/poisoned").body(Body::empty()).unwrap()).await.unwrap();
@@ -1404,7 +1406,7 @@ async fn tampered_upstream_tarball_is_rejected_and_not_cached() {
         .await
         .unwrap();
     assert_eq!(tarball_response.status(), StatusCode::BAD_GATEWAY);
-    assert!(!cache_path.exists(), "unverified tarball must not remain cached");
+    assert!(!cache_path.exists(), "unverified tarball must not be written to the cache");
 
     let cached_response = router(config_for("http://127.0.0.1:1", storage))
         .oneshot(Request::get("/poisoned/-/poisoned-1.0.0.tgz").body(Body::empty()).unwrap())
