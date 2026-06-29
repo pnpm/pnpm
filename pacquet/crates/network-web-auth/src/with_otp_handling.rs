@@ -21,7 +21,9 @@ mod tests;
 
 /// The `authUrl` / `doneUrl` an OTP challenge may carry. Both are optional
 /// because a registry may send neither (a classic OTP) or a malformed
-/// body. Ports TS `OtpErrorBody`.
+/// body. Ports TS [`OtpErrorBody`][ts-OtpErrorBody].
+///
+/// [ts-OtpErrorBody]: https://github.com/pnpm/pnpm/blob/a06591e349/pnpm11/network/web-auth/src/withOtpHandling.ts#L34-L37
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct OtpErrorBody {
     pub auth_url: Option<String>,
@@ -45,7 +47,9 @@ pub trait OtpError {
 
 /// Synthetic EOTP error meant to be thrown by an operation passed to
 /// [`with_otp_handling`] and caught by it — never to propagate elsewhere.
-/// Ports TS `SyntheticOtpError`.
+/// Ports TS [`SyntheticOtpError`][ts-SyntheticOtpError].
+///
+/// [ts-SyntheticOtpError]: https://github.com/pnpm/pnpm/blob/a06591e349/pnpm11/network/web-auth/src/withOtpHandling.ts#L141-L176
 #[derive(Debug, derive_more::Display, derive_more::Error, Clone)]
 #[display(
     "This error was meant to be caught by `with_otp_handling`, not to propagate to other parts of \
@@ -111,8 +115,10 @@ fn js_typeof(value: &Value) -> &'static str {
 }
 
 /// The registry required additional authentication but the terminal is not
-/// interactive. Ports pnpm's `OtpNonInteractiveError`
+/// interactive. Ports pnpm's [`OtpNonInteractiveError`][ts-OtpNonInteractiveError]
 /// (`ERR_PNPM_OTP_NON_INTERACTIVE`).
+///
+/// [ts-OtpNonInteractiveError]: https://github.com/pnpm/pnpm/blob/a06591e349/pnpm11/network/web-auth/src/withOtpHandling.ts#L178-L184
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 #[display(
     "The registry requires additional authentication, but pnpm is not running in an interactive \
@@ -128,8 +134,10 @@ fn js_typeof(value: &Value) -> &'static str {
 pub struct OtpNonInteractiveError;
 
 /// The registry asked for an OTP a second time after one was already
-/// supplied. Ports pnpm's `OtpSecondChallengeError`
+/// supplied. Ports pnpm's [`OtpSecondChallengeError`][ts-OtpSecondChallengeError]
 /// (`ERR_PNPM_OTP_SECOND_CHALLENGE`).
+///
+/// [ts-OtpSecondChallengeError]: https://github.com/pnpm/pnpm/blob/a06591e349/pnpm11/network/web-auth/src/withOtpHandling.ts#L186-L192
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 #[display(
     "The registry requested a one-time password (OTP) a second time after one was already provided"

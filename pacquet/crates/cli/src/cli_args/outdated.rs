@@ -334,7 +334,7 @@ impl OutdatedArgs {
             let dir = manifest.path().parent().unwrap_or_else(|| manifest.path()).display();
             return Err(miette::miette!(
                 code = "ERR_PNPM_OUTDATED_NO_LOCKFILE",
-                "No lockfile in directory \"{dir}\". Run `pacquet install` to generate one."
+                r#"No lockfile in directory "{dir}". Run `pacquet install` to generate one."#
             ));
         }
 

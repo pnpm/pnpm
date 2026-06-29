@@ -173,15 +173,6 @@ pub enum RegistryMode {
 /// Every current variant starts with `node_modules` wiped — "fresh"
 /// names that target state; future variants that begin with a
 /// populated `node_modules` will use a different action prefix.
-//
-// Five of six variants share the `Isolated` prefix today; the lint
-// will stop firing once the `Hoisted*` and `Pnp*` linker buckets land.
-// Keeping the prefix is intentional — it mirrors the slug's leading
-// segment and makes the linker grouping legible in code.
-#[allow(
-    clippy::enum_variant_names,
-    reason = "the shared `Isolated` prefix mirrors the scenario slug and keeps the linker grouping legible; it stops firing once other linker buckets land"
-)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub enum BenchmarkScenario {
     /// No lockfile, cold cache + cold store. Mirrors `pnpm install` with nothing on disk.

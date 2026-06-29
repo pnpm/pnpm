@@ -712,7 +712,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
 /// Bundling these into a struct would just shuffle the same fields
 /// into a wrapper without removing any work; allowing the lint is
 /// the lower-noise option.
-#[allow(
+#[expect(
     clippy::too_many_arguments,
     reason = "bundling these independent inputs into a struct moves the fields into a wrapper without removing work"
 )]
@@ -1103,7 +1103,7 @@ pub enum MirrorPersistError {
 
 /// Shared-state helper that lets a long-running install build one
 /// [`PackageMetaCache`] and pass it (by [`Arc`]) to every
-/// `pick_package` call.
+/// [`pick_package`] call.
 #[must_use]
 pub fn shared_in_memory_cache() -> Arc<InMemoryPackageMetaCache> {
     Arc::new(InMemoryPackageMetaCache::default())

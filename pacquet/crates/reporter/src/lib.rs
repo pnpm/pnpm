@@ -311,7 +311,7 @@ pub enum PackageImportMethod {
 /// `pnpm:progress` payload. The bunyan-envelope `level` is a fixed
 /// outer field; the rest of the record is a status-tagged union via
 /// `#[serde(flatten)]` so the wire shape stays flat (matching pnpm's
-/// `ProgressMessage` discriminator on `status`).
+/// [`ProgressMessage`] discriminator on `status`).
 #[derive(Debug, Clone, Serialize)]
 pub struct ProgressLog {
     pub level: LogLevel,
@@ -743,10 +743,11 @@ pub struct BrokenModulesLog {
 /// `pnpm:lockfile-verification` payload. The [bunyan]-envelope `level`
 /// is a fixed outer field; the rest of the record is a status-tagged
 /// union via `#[serde(flatten)]` so the wire shape stays flat
-/// (matching pnpm's `LockfileVerificationMessage` discriminator on
+/// (matching pnpm's [`LockfileVerificationMessage`][ts-LockfileVerificationMessage] discriminator on
 /// `status`).
 ///
 /// [bunyan]: https://github.com/trentm/node-bunyan
+/// [ts-LockfileVerificationMessage]: https://github.com/pnpm/pnpm/blob/2a9bd897bf/core/core-loggers/src/lockfileVerificationLogger.ts#L11-L16
 #[derive(Debug, Clone, Serialize)]
 pub struct LockfileVerificationLog {
     pub level: LogLevel,
@@ -878,8 +879,8 @@ pub enum LogLevel {
 /// across tokio workers, all of which can fire reporter events at
 /// once. Implementations must therefore guard any shared state they
 /// touch (`Mutex`, atomic, or write-once initialization). Both
-/// production sinks satisfy this: `SilentReporter` is a no-op, and
-/// `NdjsonReporter` serializes per-event then writes under
+/// production sinks satisfy this: [`SilentReporter`] is a no-op, and
+/// [`NdjsonReporter`] serializes per-event then writes under
 /// `std::io::stderr().lock()`.
 pub trait Reporter {
     fn emit(event: &LogEvent);

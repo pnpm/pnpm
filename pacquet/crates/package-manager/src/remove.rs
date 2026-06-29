@@ -38,7 +38,7 @@ pub struct Remove<'a> {
 /// the manifest is mutated or any install runs.
 ///
 /// Kept separate from [`RemoveError`] so the `validate_removable` guard
-/// returns a small `Result` — folding these into `RemoveError` (which
+/// returns a small `Result` — folding these into [`RemoveError`] (which
 /// carries the large [`InstallError`]) trips `clippy::result_large_err`
 /// on the non-async validator.
 #[derive(Debug, Display, Error, Diagnostic)]

@@ -161,14 +161,14 @@ pub fn generate_sh_shim(
 
     let sh_target = relative_target(target_path, shim_path);
     let quoted_target = if Path::new(&sh_target).is_absolute() {
-        format!("\"{sh_target}\"")
+        format!(r#""{sh_target}""#)
     } else {
-        format!("\"$basedir/{sh_target}\"")
+        format!(r#""$basedir/{sh_target}""#)
     };
     let quoted_target_win = if Path::new(&sh_target).is_absolute() {
-        format!("\"{sh_target}\"")
+        format!(r#""{sh_target}""#)
     } else {
-        format!("\"$basedir_win/{sh_target}\"")
+        format!(r#""$basedir_win/{sh_target}""#)
     };
 
     match runtime {
@@ -176,7 +176,7 @@ pub fn generate_sh_shim(
             let prog_base = strip_exe_suffix(prog).unwrap_or(prog);
             let prog_has_exe = prog_base.len() != prog.len();
             let prog_exe = if prog_has_exe { prog.clone() } else { format!("{prog}.exe") };
-            let sh_long_prog_exe = format!("\"$basedir/{prog_exe}\"");
+            let sh_long_prog_exe = format!(r#""$basedir/{prog_exe}""#);
             let exec_block = |exec_args: &str| {
                 let mut block = String::new();
                 if prog_has_exe {
@@ -186,7 +186,7 @@ pub fn generate_sh_shim(
                     )
                     .unwrap();
                 } else {
-                    let sh_long_prog = format!("\"$basedir/{prog}\"");
+                    let sh_long_prog = format!(r#""$basedir/{prog}""#);
                     writeln!(
                         block,
                         "if [ -n \"$exe\" ] && [ -x {sh_long_prog_exe} ]; then\n  exec {sh_long_prog_exe} {exec_args} {quoted_target_win} \"$@\"\nelif [ -x {sh_long_prog} ]; then\n  exec {sh_long_prog} {exec_args} {quoted_target} \"$@\"\nelif command -v {prog} >/dev/null 2>&1; then\n  exec {prog} {exec_args} {quoted_target} \"$@\"\nelif [ -n \"$exe\" ] && command -v {prog_exe} >/dev/null 2>&1; then\n  exec {prog_exe} {exec_args} {quoted_target_win} \"$@\"\nelse\n  exec {prog} {exec_args} {quoted_target} \"$@\"\nfi",
@@ -239,16 +239,16 @@ pub fn generate_cmd_shim(
 ) -> String {
     let cmd_target_rel = relative_target_windows(target_path, shim_path);
     let quoted_target = if Path::new(&cmd_target_rel).is_absolute() {
-        format!("\"{cmd_target_rel}\"")
+        format!(r#""{cmd_target_rel}""#)
     } else {
-        format!("\"%~dp0\\{cmd_target_rel}\"")
+        format!(r#""%~dp0\{cmd_target_rel}""#)
     };
 
     let mut cmd = String::from("@SETLOCAL\r\n");
 
     match runtime {
         Some(ScriptRuntime { prog: Some(prog), args }) => {
-            let long_prog = format!("\"%~dp0\\{prog}.exe\"");
+            let long_prog = format!(r#""%~dp0\{prog}.exe""#);
             writeln!(
                 cmd,
                 "@IF EXIST {long_prog} (\r\n  {long_prog} {args} {quoted_target} %*\r\n) ELSE (\r\n  @SET PATHEXT=%PATHEXT:;.JS;=;%\r\n  {prog} {args} {quoted_target} %*\r\n)\r",
@@ -277,9 +277,9 @@ pub fn generate_pwsh_shim(
 ) -> String {
     let sh_target = relative_target(target_path, shim_path);
     let quoted_target = if Path::new(&sh_target).is_absolute() {
-        format!("\"{sh_target}\"")
+        format!(r#""{sh_target}""#)
     } else {
-        format!("\"$basedir/{sh_target}\"")
+        format!(r#""$basedir/{sh_target}""#)
     };
 
     use std::fmt::Write;

@@ -314,9 +314,9 @@ fn is_absolute_specifier(spec: &str) -> bool {
 /// - POSIX:   `/^(?:[./]|~\/|[a-z]:)/i`
 ///
 /// Implemented uniformly because pacquet doesn't need the `\\`
-/// alternative outside the bigger normalize step (`is_filespec` is
+/// alternative outside the bigger normalize step ([`is_filespec`] is
 /// only consulted on already-forward-slashed paths in the upstream
-/// flow because `parse_local_path` only inspects `bare_specifier`
+/// flow because [`parse_local_path`] only inspects `bare_specifier`
 /// which hasn't been normalised yet; we accept the backslash for
 /// Windows-host inputs to keep parity).
 fn is_filespec(spec: &str) -> bool {

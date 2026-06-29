@@ -347,7 +347,7 @@ where
 /// non-registry protocols (`git:`/`file:`/`workspace:`/URLs, which
 /// [`parse_bare_specifier`] rejects), `npm:` aliases (resolving them risks
 /// dropping the aliased target), and specifiers that resolve to no version.
-#[allow(
+#[expect(
     clippy::too_many_arguments,
     reason = "a resolve helper threading the install's resolution inputs"
 )]

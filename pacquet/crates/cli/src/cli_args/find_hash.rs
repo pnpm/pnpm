@@ -114,7 +114,7 @@ fn parse_hash(mut hash: String) -> miette::Result<String> {
         };
         if !algo.eq_ignore_ascii_case("sha512") {
             return Err(miette::miette!(
-                "Unsupported hash algorithm \"{algo}\". Only \"sha512\" is supported."
+                r#"Unsupported hash algorithm "{algo}". Only "sha512" is supported."#
             ));
         }
         if base64_part.len() > MAX_SHA512_BASE64_LENGTH {
@@ -156,7 +156,7 @@ fn parse_hash(mut hash: String) -> miette::Result<String> {
     }
     if hash.len() != EXPECTED_HEX_LENGTH {
         return Err(miette::miette!(
-            "Invalid hash format: \"{hash}\" has {} character(s), expected {EXPECTED_HEX_LENGTH}.",
+            r#"Invalid hash format: "{hash}" has {} character(s), expected {EXPECTED_HEX_LENGTH}."#,
             hash.len(),
         ));
     }

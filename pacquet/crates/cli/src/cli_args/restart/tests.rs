@@ -25,9 +25,9 @@ fn restart_runs_stop_restart_start_in_order() {
     setup_project(
         dir,
         &json!({
-            "stop": format!("echo stop >> \"{}\"", log_file.display()),
-            "restart": format!("echo restart >> \"{}\"", log_file.display()),
-            "start": format!("echo start >> \"{}\"", log_file.display()),
+            "stop": format!(r#"echo stop >> "{}""#, log_file.display()),
+            "restart": format!(r#"echo restart >> "{}""#, log_file.display()),
+            "start": format!(r#"echo start >> "{}""#, log_file.display()),
         }),
     );
     let config = pacquet_config::Config::default();
@@ -64,7 +64,7 @@ fn restart_passes_args_to_each_script() {
     let log_file = dir.join("log.txt");
     let append_arg_node = |name: &str| {
         format!(
-            "node -e \"require('fs').appendFileSync('{}', '{} ' + process.argv[1] + '\\n')\"",
+            r#"node -e "require('fs').appendFileSync('{}', '{} ' + process.argv[1] + '\n')""#,
             log_file.display(),
             name,
         )

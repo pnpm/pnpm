@@ -1440,7 +1440,7 @@ where
         // removed. Looping avoids repeating the whole (potentially long) target
         // list three times in the command string.
         parts.push(format!(
-            "for p in {remove_targets}; do rm -rf \"$p\" || (sleep 0.5; rm -rf \"$p\") || (sleep 1; rm -rf \"$p\") || exit 1; done",
+            r#"for p in {remove_targets}; do rm -rf "$p" || (sleep 0.5; rm -rf "$p") || (sleep 1; rm -rf "$p") || exit 1; done"#,
         ));
     }
 

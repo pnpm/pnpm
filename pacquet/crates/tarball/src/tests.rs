@@ -93,7 +93,7 @@ fn fast_fail_client() -> ThrottledClient {
 ///
 /// Uses `127.0.0.1:1` (port 1 is reserved; connect always fails
 /// with a deterministic ECONNREFUSED on every host I've tried)
-/// and `fast_fail_client`'s 1 s bounds, so the test stays
+/// and [`fast_fail_client`]'s 1 s bounds, so the test stays
 /// hermetic and quick.
 #[tokio::test]
 async fn network_error_display_includes_reqwest_inner_chain() {
@@ -141,7 +141,7 @@ async fn network_error_display_includes_reqwest_inner_chain() {
 /// that an unreachable URL eventually fails — every test that
 /// exercises a network call here either short-circuits to a cache
 /// hit or expects the failure path. `retries: 0` keeps the failure
-/// path deterministic and bounded by `fast_fail_client`'s 1 s
+/// path deterministic and bounded by [`fast_fail_client`]'s 1 s
 /// timeouts; tests that specifically want to *prove* the retry
 /// loop runs should construct their own [`RetryOpts`].
 fn test_retry_opts() -> RetryOpts {

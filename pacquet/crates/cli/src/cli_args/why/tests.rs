@@ -1,4 +1,6 @@
-use super::*;
+use super::{
+    DependencyGroup, DependentNode, WhyResult, dep_field_name, normalize_path, render_tree,
+};
 
 #[test]
 fn test_dep_field_name() {

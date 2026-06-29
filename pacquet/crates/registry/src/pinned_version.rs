@@ -1,11 +1,12 @@
 /// How a resolved version is pinned into a manifest's version range when a
 /// dependency is added or updated.
 ///
-/// Mirrors pnpm's `PinnedVersion` string-literal union
-/// (<https://github.com/pnpm/pnpm/blob/086c5e91e8/core/types/src/misc.ts#L71-L75>).
+/// Mirrors pnpm's [`PinnedVersion`][ts-PinnedVersion] string-literal union.
 /// [`PinnedVersion::None`] is part of that union; the `--save-exact` /
 /// `--save-prefix` interpreter in [`PinnedVersion::from_save_options`] never
 /// produces it, matching pnpm's `getPinnedVersion`.
+///
+/// [ts-PinnedVersion]: https://github.com/pnpm/pnpm/blob/086c5e91e8/core/types/src/misc.ts#L71-L75
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum PinnedVersion {
     /// Save with a caret range (`^version`), allowing same-major updates.

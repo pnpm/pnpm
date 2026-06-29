@@ -41,7 +41,7 @@ pub fn verify_env_lockfile(env_lockfile: &EnvLockfile) -> Result<(), ConfigDepEr
             continue;
         };
         let description =
-            format!("The optionalDependencies of config dependency \"{name}\" in pnpm-lock.yaml");
+            format!(r#"The optionalDependencies of config dependency "{name}" in pnpm-lock.yaml"#);
         for (subdep_name, dep_ref) in optionals {
             let subdep_name = subdep_name.to_string();
             assert_valid_name(&subdep_name, &description)?;

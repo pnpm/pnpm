@@ -38,7 +38,7 @@ pub struct VersionsOverrider {
     generic: Vec<ResolvedOverride>,
 }
 
-/// `VersionOverride` augmented with a pre-parsed `LocalTarget` for
+/// `VersionOverride` augmented with a pre-parsed [`LocalTarget`] for
 /// the local-protocol forms. Splitting once at construction time
 /// avoids re-parsing the prefix on every manifest read.
 struct ResolvedOverride {

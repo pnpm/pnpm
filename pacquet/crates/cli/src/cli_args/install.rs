@@ -559,7 +559,7 @@ pub(crate) struct PnprLink<'a> {
     pub(crate) prefer_frozen_lockfile: bool,
     /// `--lockfile-only`. Forwarded to `/-/pnpr/v0/resolve` so the server
     /// resolves only — returning the lockfile without fetching files —
-    /// after which `install_via_pnpr` writes the lockfile and skips
+    /// after which [`install_via_pnpr`] writes the lockfile and skips
     /// materialization, mirroring pnpm's resolve + write, fetch nothing,
     /// link nothing. See
     /// [pnpm/pnpm#12146](https://github.com/pnpm/pnpm/issues/12146).

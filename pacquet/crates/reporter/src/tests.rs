@@ -205,7 +205,7 @@ fn package_import_method_event_matches_pnpm_wire_shape() {
         (PackageImportMethod::Copy, "copy"),
     ] {
         let json = serde_json::to_string(&method).expect("serialize method");
-        assert_eq!(json, format!("\"{expected}\""));
+        assert_eq!(json, format!(r#""{expected}""#));
     }
 }
 
@@ -465,7 +465,7 @@ fn root_event_matches_pnpm_wire_shape() {
         (DependencyType::Optional, "optional"),
     ] {
         let json = serde_json::to_string(&ty).expect("serialize dependency type");
-        assert_eq!(json, format!("\"{expected}\""));
+        assert_eq!(json, format!(r#""{expected}""#));
     }
 }
 
@@ -818,7 +818,7 @@ fn skipped_optional_reason_serializes_in_pnpm_form() {
     ];
     for (reason, expected) in cases {
         let json = serde_json::to_string(&reason).expect("serialize reason");
-        assert_eq!(json, format!("\"{expected}\""), "{reason:?} must serialize as {expected:?}");
+        assert_eq!(json, format!(r#""{expected}""#), "{reason:?} must serialize as {expected:?}");
     }
 }
 
@@ -833,7 +833,7 @@ fn stage_phases_serialize_in_pnpm_form() {
     ];
     for (stage, expected) in cases {
         let json = serde_json::to_string(&stage).expect("serialize stage");
-        assert_eq!(json, format!("\"{expected}\""), "phase {expected}");
+        assert_eq!(json, format!(r#""{expected}""#), "phase {expected}");
     }
 }
 

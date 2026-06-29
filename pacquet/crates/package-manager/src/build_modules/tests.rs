@@ -368,7 +368,7 @@ fn build_modules_collects_ignored_builds() {
 }
 
 /// Under `ignore_scripts`, the same default-deny build candidates that
-/// `build_modules_collects_ignored_builds` reports as ignored are
+/// [`build_modules_collects_ignored_builds`] reports as ignored are
 /// instead silently skipped: no script runs and the returned set is
 /// empty, so the install does not fail with `ERR_PNPM_IGNORED_BUILDS`.
 /// Mirrors pnpm leaving `ignoredBuilds` empty when `ignoreScripts` is
@@ -746,7 +746,7 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
 /// echo hello && echo world && exit 1`) is the same upstream's
 /// own tests use; if the gate were broken the build would run and
 /// the install would propagate the exit-1 failure (cf.
-/// `fail_when_failing_postinstall_is_required` below).
+/// [`fail_when_failing_postinstall_is_required`] below).
 ///
 /// [#421]: https://github.com/pnpm/pacquet/issues/421
 #[cfg(unix)]
@@ -1943,7 +1943,7 @@ async fn upload_error_does_not_interrupt_install() {
     }
 }
 
-/// Variant of `create_postinstall_modifies_source_fixture` whose
+/// Variant of [`create_postinstall_modifies_source_fixture`] whose
 /// postinstall additionally produces a 0-permission file. The
 /// WRITE-path walker (`add_files_from_dir`) then fails on
 /// `fs::read("unreadable")` with `EACCES`, surfacing as
