@@ -42,6 +42,7 @@ pub mod root;
 pub mod run;
 pub mod runtime;
 pub mod sanitize;
+pub mod sbom;
 pub mod self_update;
 pub mod set_script;
 pub mod setup;
