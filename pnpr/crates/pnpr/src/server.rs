@@ -1189,17 +1189,12 @@ async fn serve_tarball(
 
     // A cached tarball is verified against `dist.integrity` on the way in
     // (`download_verified_to_cache`) and re-verified by the client on receipt,
-    // so a hit can be served without re-hashing or a version lookup — except
-    // to OSV-screen the resolved version, which only the packument yields, so
-    // resolve it first when OSV is enabled.
-    let resolved_dist = if state.inner.osv_index.is_some() {
-        match resolve_tarball_dist_and_screen(state, &name, &filename, &name_version).await {
-            Ok(dist) => Some(dist),
+    // so a hit can be served without re-hashing.
+    let resolved_dist =
+        match screen_cached_tarball_osv(state, &name, &filename, &name_version).await {
+            Ok(dist) => dist,
             Err(response) => return response,
-        }
-    } else {
-        None
-    };
+        };
 
     // Read the cache if any uplink in the chain mirrors tarballs (or there's
     // no upstream left at all — a leftover mirror).
@@ -1291,10 +1286,27 @@ struct TarballDist {
     integrity: Integrity,
 }
 
+/// OSV-screen a tarball's resolved version before its cached bytes are served.
+/// Returns the resolved [`TarballDist`] (for the cache-miss path to reuse) when
+/// OSV screening is enabled, or `None` when it is disabled — where the resolved
+/// version isn't needed until a cache miss. On a blocked version or a lookup
+/// failure, returns the [`Response`] the handler should return.
+async fn screen_cached_tarball_osv(
+    state: &AppState,
+    name: &PackageName,
+    filename: &str,
+    name_version: &str,
+) -> Result<Option<TarballDist>, Response> {
+    if state.inner.osv_index.is_none() {
+        return Ok(None);
+    }
+    resolve_tarball_dist_and_screen(state, name, filename, name_version).await.map(Some)
+}
+
 /// Resolve a tarball's authoritative [`TarballDist`] from the packument and
 /// OSV-screen the resolved version when it differs from the filename-carried
 /// `name_version` (already screened by the caller). On failure, returns the
-/// [`Response`] the handler should return. Shared by the cache-hit OSV gate
+/// [`Response`] the handler should return. Shared by [`screen_cached_tarball_osv`]
 /// and the cache-miss download path in [`serve_tarball`].
 async fn resolve_tarball_dist_and_screen(
     state: &AppState,
