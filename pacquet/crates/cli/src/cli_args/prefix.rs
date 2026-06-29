@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 /// `pacquet prefix`: print the current package prefix.
 ///
 /// Ports pnpm's `prefix` handler, walking up to find the nearest
-/// package prefix directory (containing package.json, node_modules, etc.).
+/// package prefix directory (containing package.json, `node_modules`, etc.).
 #[derive(Debug, Args)]
 pub struct PrefixArgs {
     /// Print the global prefix
@@ -33,12 +33,12 @@ pub enum PrefixError {
     Io { path: PathBuf, source: std::io::Error },
 }
 
-/// Find the nearest directory containing package.json, node_modules, etc.
+/// Find the nearest directory containing package.json, `node_modules`, etc.
 /// Port of findLocalPrefix from pnpm.
 pub fn find_local_prefix(start_dir: &Path) -> miette::Result<PathBuf> {
     let mut name = start_dir.to_path_buf();
 
-    while name.file_name().map_or(false, |f| f == "node_modules") {
+    while name.file_name().is_some_and(|f| f == "node_modules") {
         if let Some(parent) = name.parent() {
             name = parent.to_path_buf();
         } else {
@@ -58,7 +58,7 @@ fn find_prefix_up(name: &Path, original: &Path) -> miette::Result<PathBuf> {
         for target in &targets {
             let target_path = current.join(target);
             match target_path.try_exists() {
-                Ok(true) => return Ok(current.to_path_buf()),
+                Ok(true) => return Ok(current),
                 Ok(false) => continue,
                 Err(e) => {
                     return Err(PrefixError::Io { path: target_path, source: e }.into());
