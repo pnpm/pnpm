@@ -52,6 +52,7 @@ const { setup } = await import('@pnpm/engine.pm.commands')
 const os = await import('node:os')
 
 const testIfSymlinkSupported = process.platform === 'win32' ? test.skip : test
+const testIfModeSupported = process.platform === 'win32' ? test.skip : test
 
 const originalFishVersion = process.env.FISH_VERSION
 const originalHome = process.env.HOME
@@ -128,6 +129,17 @@ source ~/.bashrc
 `)
 })
 
+function quoteExpectedShellPath (value: string): string {
+  if (/^[\w@%+=:,./~-]+$/.test(value)) {
+    return value
+  }
+  return `"${value
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/\$/g, '\\$')
+    .replace(/`/g, '\\`')}"`
+}
+
 test('setup writes fish config to conf.d', async () => {
   const tempHome = actualFs.mkdtempSync(path.join(actualOs.tmpdir(), 'pnpm-setup-fish-'))
   jest.mocked(os.default.homedir).mockReturnValue(tempHome)
@@ -150,7 +162,7 @@ if not string match -q -- "$PNPM_HOME/bin" $PATH
 end
 
 To start using pnpm, run:
-source ${configFile}
+source ${quoteExpectedShellPath(configFile)}
 `)
   } finally {
     actualFs.rmSync(tempHome, { force: true, recursive: true })
@@ -357,7 +369,7 @@ test('setup refuses to read a non-regular fish config path', async () => {
   }
 })
 
-test('setup preserves an existing fish config mode when force overwrites it', async () => {
+testIfModeSupported('setup preserves an existing fish config mode when force overwrites it', async () => {
   const tempHome = actualFs.mkdtempSync(path.join(actualOs.tmpdir(), 'pnpm-setup-fish-mode-'))
   jest.mocked(os.default.homedir).mockReturnValue(tempHome)
   process.env.FISH_VERSION = '3.7.0'
@@ -393,7 +405,9 @@ test('setup retries fish config overwrite when rename cannot replace destination
     await setup.handler({ force: true, pnpmHomeDir: '/pnpm-home' })
 
     expect(renameSpy).toHaveBeenCalledTimes(2)
-    expect(actualFs.statSync(configFile).mode & 0o777).toBe(0o600)
+    if (process.platform !== 'win32') {
+      expect(actualFs.statSync(configFile).mode & 0o777).toBe(0o600)
+    }
     expect(actualFs.readFileSync(configFile, 'utf8')).toContain('set -gx PNPM_HOME "/pnpm-home"')
   } finally {
     renameSpy.mockRestore()

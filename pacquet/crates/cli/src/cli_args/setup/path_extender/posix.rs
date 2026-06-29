@@ -203,6 +203,7 @@ fn get_fish_config_home() -> Result<PathBuf, PathExtenderError> {
                 reason: "XDG_CONFIG_HOME must be an absolute path",
             });
         }
+        reject_control_chars_in_config_home(&config_home, "XDG_CONFIG_HOME")?;
         return Ok(config_home);
     }
     let config_home = home_dir()?.join(".config");
@@ -212,7 +213,24 @@ fn get_fish_config_home() -> Result<PathBuf, PathExtenderError> {
             reason: "the home directory must resolve to an absolute path",
         });
     }
+    reject_control_chars_in_config_home(&config_home, "the home directory")?;
     Ok(config_home)
+}
+
+fn reject_control_chars_in_config_home(
+    config_home: &Path,
+    source: &'static str,
+) -> Result<(), PathExtenderError> {
+    if config_home.to_string_lossy().chars().any(char::is_control) {
+        return Err(PathExtenderError::UnsafeShellConfig {
+            path: config_home.to_path_buf(),
+            reason: match source {
+                "XDG_CONFIG_HOME" => "XDG_CONFIG_HOME cannot contain control characters",
+                _ => "the home directory config path cannot contain control characters",
+            },
+        });
+    }
+    Ok(())
 }
 
 fn update_fish_confd_config(

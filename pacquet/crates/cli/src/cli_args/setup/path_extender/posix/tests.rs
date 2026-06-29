@@ -229,6 +229,20 @@ fn fish_setup_rejects_relative_xdg_config_home() {
     assert!(matches!(err, PathExtenderError::UnsafeShellConfig { .. }));
 }
 
+#[test]
+fn fish_setup_rejects_control_chars_in_xdg_config_home() {
+    let env = EnvGuard::snapshot(["FISH_VERSION", "XDG_CONFIG_HOME"]);
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let config_home = dir.path().join("xdg\nconfig");
+    env.set("FISH_VERSION", "3.7.0");
+    env.set("XDG_CONFIG_HOME", &config_home);
+
+    let err = add_dir_to_posix_env_path(Path::new(HOME), &opts(false))
+        .expect_err("control characters in XDG_CONFIG_HOME must be rejected");
+
+    assert!(matches!(err, PathExtenderError::UnsafeShellConfig { .. }));
+}
+
 #[cfg(unix)]
 #[test]
 fn fish_setup_rejects_symlinked_conf_d_parent() {
