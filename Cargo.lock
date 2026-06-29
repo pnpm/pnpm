@@ -4399,6 +4399,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "pacquet-network-web-auth-testing"
+version = "0.0.1"
+dependencies = [
+ "derive_more",
+ "pacquet-diagnostics",
+ "pacquet-network-web-auth",
+ "pacquet-reporter",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "pacquet-pack"
 version = "0.0.1"
 dependencies = [

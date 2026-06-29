@@ -44,6 +44,7 @@ pacquet-lockfile-verification             = { path = "pacquet/crates/lockfile-ve
 pacquet-modules-yaml                      = { path = "pacquet/crates/modules-yaml" }
 pacquet-network                           = { path = "pacquet/crates/network" }
 pacquet-network-web-auth                  = { path = "pacquet/crates/network-web-auth" }
+pacquet-network-web-auth-testing          = { path = "pacquet/crates/network-web-auth-testing" }
 pacquet-config                            = { path = "pacquet/crates/config" }
 pacquet-config-dir                        = { path = "pacquet/crates/config-dir" }
 pacquet-config-parse-overrides            = { path = "pacquet/crates/config-parse-overrides" }
