@@ -58,10 +58,12 @@ impl PublishArgs {
         // below, matching pnpm's `recursivePublish`.
         let (projects, _patterns) = discover_workspace_projects(workspace_root)?;
         let graph = select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
-        // A `--filter` that narrows a non-empty workspace to nothing is a
-        // no-op (exit 0), matching pnpm's empty-`selectedProjectsGraph`
-        // dispatch in main.ts.
-        if !projects.is_empty() && graph.is_empty() {
+        // An empty selection is a no-op (exit 0) that writes no summary —
+        // whether the workspace enumerates no project at all or a `--filter`
+        // narrowed it to nothing. Mirrors pnpm's main.ts dispatch, which
+        // returns before the publish handler for both `allProjects.length === 0`
+        // and an empty `selectedProjectsGraph`.
+        if graph.is_empty() {
             return Ok(Vec::new());
         }
 

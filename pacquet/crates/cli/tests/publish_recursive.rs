@@ -226,3 +226,29 @@ fn recursive_publish_short_flag_after_subcommand() {
 
     drop(root);
 }
+
+/// A workspace that enumerates no project is a recursive no-op that writes no
+/// summary, matching pnpm's main.ts (it returns before the publish handler when
+/// `allProjects.length === 0`) — pacquet must not emit an empty
+/// `pnpm-publish-summary.json` for it.
+#[test]
+fn recursive_publish_empty_workspace_writes_no_summary() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages: []\n")
+        .expect("write pnpm-workspace.yaml");
+
+    pacquet
+        .with_arg("publish")
+        .with_arg("-r")
+        .with_arg("--report-summary")
+        .with_arg("--no-git-checks")
+        .assert()
+        .success();
+
+    assert!(
+        !workspace.join("pnpm-publish-summary.json").exists(),
+        "an empty workspace must not write a publish summary",
+    );
+
+    drop(root);
+}
