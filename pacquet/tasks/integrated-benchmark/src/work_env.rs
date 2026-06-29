@@ -19,7 +19,7 @@ use std::{
     collections::HashMap,
     fmt::{self, Write as _},
     fs::{self, File, OpenOptions},
-    io::Write,
+    io::{ErrorKind, Write},
     net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
@@ -1355,27 +1355,30 @@ fn sync_bench_repo(repository: &Path, revision_repo: &Path, commit: &str) {
     Command::new("git").current_dir(revision_repo).arg("branch").pipe(executor("git branch"));
 }
 
-/// Build the `--prepare` shell command for hyperfine: one `rm -rf`
-/// covering every bench dir's removal paths, then a `cp` for each
-/// pristine file that needs restoring. Failures abort the iteration
-/// via `&&`.
-/// `fs::remove_dir_all` that tolerates the transient "Directory not empty" error
-/// macOS/APFS raises while a just-finished install's store writes settle.
+/// `fs::remove_dir_all` that tolerates the transient "Directory not empty"
+/// error macOS/APFS raises while a just-finished install's store writes
+/// settle, retrying only that kind and failing fast on any other.
 fn remove_dir_all_with_retry(path: &Path) -> std::io::Result<()> {
-    let mut last_err = None;
-    for attempt in 0..6 {
+    const MAX_ATTEMPTS: u32 = 6;
+    for attempt in 0..MAX_ATTEMPTS {
         match fs::remove_dir_all(path) {
             Ok(()) => return Ok(()),
             Err(_) if !path.exists() => return Ok(()),
-            Err(err) => {
-                last_err = Some(err);
-                thread::sleep(Duration::from_millis(200 * (attempt + 1)));
-            }
+            // Only the transient "Directory not empty" that APFS raises while a
+            // just-finished install's store writes settle is worth retrying;
+            // fail fast on anything else (permissions, I/O) instead of sleeping
+            // ~4s first.
+            Err(err) if err.kind() != ErrorKind::DirectoryNotEmpty => return Err(err),
+            Err(err) if attempt == MAX_ATTEMPTS - 1 => return Err(err),
+            Err(_) => thread::sleep(Duration::from_millis(200 * u64::from(attempt + 1))),
         }
     }
-    Err(last_err.unwrap_or_else(|| std::io::Error::other("remove_dir_all retry exhausted")))
+    unreachable!("the final attempt returns instead of looping")
 }
 
+/// Build the `--prepare` shell command for hyperfine: wipe every bench dir's
+/// removal paths, then `cp` each pristine file that needs restoring. The
+/// pieces are joined with `&&` so any failure aborts the iteration.
 fn build_cleanup_command<'a, Ids, BenchDir>(
     cleanup: &Cleanup,
     ids: Ids,
@@ -1386,26 +1389,34 @@ where
     BenchDir: FnMut(BenchId<'a>) -> PathBuf,
 {
     let dirs: Vec<PathBuf> = ids.map(&mut bench_dir).collect();
+    let mut parts: Vec<String> = Vec::new();
 
     let remove_targets = dirs
         .iter()
         .flat_map(|dir| cleanup.remove.iter().map(move |name| dir.join(name)))
         .map(|path| path.maybe_quote().to_string())
         .join(" ");
-
-    let mut command = format!(
-        "rm -rf {remove_targets} || (sleep 0.5; rm -rf {remove_targets}) || (sleep 1; rm -rf {remove_targets})",
-    );
+    if !remove_targets.is_empty() {
+        // List each target once and retry per-path: `rm -rf` on a just-emptied
+        // store occasionally hits a transient APFS "Directory not empty", so
+        // two short retries cover the settle window; `|| exit 1` still fails
+        // the `--prepare` step (and the benchmark) if a path genuinely can't be
+        // removed. Looping avoids repeating the whole (potentially long) target
+        // list three times in the command string.
+        parts.push(format!(
+            "for p in {remove_targets}; do rm -rf \"$p\" || (sleep 0.5; rm -rf \"$p\") || (sleep 1; rm -rf \"$p\") || exit 1; done",
+        ));
+    }
 
     for dir in &dirs {
         for (dst, src) in cleanup.restore {
             let src_path = dir.join(src).maybe_quote().to_string();
             let dst_path = dir.join(dst).maybe_quote().to_string();
-            let _ = write!(command, " && cp {src_path} {dst_path}");
+            parts.push(format!("cp {src_path} {dst_path}"));
         }
     }
 
-    command
+    parts.join(" && ")
 }
 
 fn create_package_json(dst_dir: &Path, src_dir: Option<&Path>) {
