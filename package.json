@@ -4,7 +4,7 @@
   "scripts": {
     "bump": "node pnpm11/__utils__/scripts/src/bump.ts && pn update-manifests",
     "changeset": "changeset",
-    "prepare": "husky",
+    "prepare": "node .githooks/install.mjs",
     "pretest": "pn compile-only && pn prepare-fixtures",
     "prepare-fixtures": "pn --dir=pnpm11/__fixtures__ prepareFixtures",
     "lint": "pn spellcheck && pn lint:meta && pn lint:ts",
@@ -36,9 +36,6 @@
   },
   "devDependencies": {
     "@changesets/cli": "catalog:",
-    "@commitlint/cli": "catalog:",
-    "@commitlint/config-conventional": "catalog:",
-    "@commitlint/prompt-cli": "catalog:",
     "@pnpm/eslint-config": "workspace:*",
     "@pnpm/jest-config": "workspace:*",
     "@pnpm/meta-updater": "catalog:",
@@ -54,7 +51,6 @@
     "cspell": "catalog:",
     "eslint": "catalog:",
     "eslint-plugin-regexp": "catalog:",
-    "husky": "catalog:",
     "jest": "catalog:",
     "keyv": "catalog:",
     "lcov-result-merger": "catalog:",

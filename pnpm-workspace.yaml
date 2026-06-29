@@ -78,9 +78,6 @@ catalog:
   '@babel/core': ^7.29.7
   '@babel/plugin-transform-explicit-resource-management': ^7.29.7
   '@changesets/cli': ^2.31.0
-  '@commitlint/cli': ^21.0.2
-  '@commitlint/config-conventional': ^21.0.2
-  '@commitlint/prompt-cli': ^21.0.2
   '@cyclonedx/cyclonedx-library': 10.1.0
   '@eslint/js': ^10.0.1
   '@inquirer/prompts': ^8.4.3
@@ -215,7 +212,6 @@ catalog:
   graph-cycles: 3.0.0
   hosted-git-info: npm:@pnpm/hosted-git-info@1.0.0
   https-proxy-server-express: 0.1.2
-  husky: ^9.1.7
   hyperdrive-schemas: ^2.0.0
   # ini 7.x requires Node.js ^22.22.2 || ^24.15.0 || >=26.0.0, above pnpm's
   # supported floor of Node.js >=22.13.
