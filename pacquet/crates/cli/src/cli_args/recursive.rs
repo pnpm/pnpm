@@ -252,6 +252,10 @@ impl AutoExcludeRoot<'_> {
         let AutoExcludeRoot::Enabled { workspace_patterns } = self else {
             return None;
         };
+        // Upstream additionally suppresses the exclusion under
+        // `--include-workspace-root` and, for `--workspace-root`, pushes
+        // an inclusion `{<root>}` filter instead. pacquet surfaces
+        // neither flag yet, so only this exclusion arm is ported.
         // An inclusion selector already pins the selected set, so the
         // root is kept only if it matches one. Mirrors upstream's
         // `!filters.some(({ filter }) => !filter.startsWith('!'))`.

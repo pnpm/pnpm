@@ -314,6 +314,36 @@ fn recursive_run_all_exclusion_filter_also_drops_root() {
     drop(root);
 }
 
+/// The root auto-exclusion is built relative to `--dir`, so it still
+/// fires when the recursive run is launched from a workspace
+/// subdirectory: with `--dir packages/project-1`, the `!{<workspace-root>}`
+/// selector resolves through a non-trivial relative path (`../..`) rather
+/// than the bare `.`, and the root is still dropped while every non-root
+/// package runs.
+#[test]
+fn recursive_run_from_subdirectory_still_excludes_root() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace_with_root_and_packages(&workspace);
+
+    pacquet
+        .with_arg("--dir")
+        .with_arg("packages/project-1")
+        .with_arg("-r")
+        .with_arg("run")
+        .with_arg("build")
+        .assert()
+        .success();
+
+    assert!(workspace.join("packages/project-1/ran.txt").exists(), "project-1 should run");
+    assert!(workspace.join("packages/project-2/ran.txt").exists(), "project-2 should run");
+    assert!(
+        !workspace.join("root-ran.txt").exists(),
+        "the workspace root must stay excluded even when run from a subdirectory",
+    );
+
+    drop(root);
+}
+
 /// When `--filter` narrows the set and no *selected* package defines the
 /// script, the error keeps pnpm's `ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT` code
 /// but switches to the "None of the selected packages" wording (vs. "None
