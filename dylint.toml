@@ -8,7 +8,7 @@
 # or via the `just dylint` recipe.
 [workspace.metadata.dylint]
 libraries = [
-    { git = "https://github.com/KSXGitHub/perfectionist", tag = "0.0.0-rc.21" },
+    { git = "https://github.com/KSXGitHub/perfectionist", tag = "0.0.0-rc.22" },
 ]
 
 # Project-local DSL / test macros that perfectionist's exactly-once
@@ -46,11 +46,6 @@ disable = [
     "needless_borrowed_parameters",
     "unpinned_repo_ref",
     "clap_help_markdown",
-    # Sound rule, but its autofix blindly turns every doc code span into an
-    # intra-doc link — silently creating false links when the span names an
-    # upstream type that only shares a name with a local item. Re-enable
-    # tracked in <https://github.com/pnpm/pnpm/issues/12722>.
-    "bare_identifier_reference",
 ]
 
 # The codebase collapses imports to one `use` per crate root (shared
@@ -70,6 +65,13 @@ inline_style = "external_only"
 # ambiguous in a plain `//` comment, so lint those too.
 ["perfectionist::bare_issue_reference"]
 include_plain_comments = true
+
+# Narrowed to names that resolve in the documenting item's own module,
+# multi-word only. Widening tracked in
+# <https://github.com/pnpm/pnpm/issues/12716>.
+["perfectionist::bare_identifier_reference"]
+reference_scope = "own_module"
+min_words = 2
 
 ["perfectionist::unordered_derives"]
 style = "prefix_then_alphabetical"
