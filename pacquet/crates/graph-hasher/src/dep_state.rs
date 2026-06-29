@@ -4,8 +4,7 @@ use std::collections::{HashMap, HashSet};
 
 /// Per-node identifier carrying everything [`calc_dep_state`] needs to
 /// hash a snapshot. Mirrors the relevant subset of pnpm's
-/// [`DepsGraphNode`] at
-/// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/deps/graph-hasher/src/index.ts#L12-L19>.
+/// [`DepsGraphNode`][ts-DepsGraphNode].
 ///
 /// `full_pkg_id` is the upstream-shaped fingerprint used as the
 /// `id` field in the recursive hash — `<pkgIdWithPatchHash>:<integrity>`
@@ -23,6 +22,8 @@ use std::collections::{HashMap, HashSet};
 /// Owns its strings so a caller building the graph from a lockfile
 /// doesn't have to keep a separate `String` arena alive for the
 /// duration of the hash walk.
+///
+/// [ts-DepsGraphNode]: https://github.com/pnpm/pnpm/blob/b4f8f47ac2/deps/graph-hasher/src/index.ts#L12-L19
 pub struct DepsGraphNode<Key> {
     pub full_pkg_id: String,
     pub children: HashMap<String, Key>,
