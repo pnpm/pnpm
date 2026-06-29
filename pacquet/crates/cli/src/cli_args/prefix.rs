@@ -28,7 +28,7 @@ pub enum PrefixError {
     GlobalUnsupported,
 
     /// IO error while looking up the prefix.
-    #[display("failed to access {path}: {source}")]
+    #[display("failed to access {}: {source}", path.display())]
     #[diagnostic(code(pacquet_cli::prefix_io_error))]
     Io { path: PathBuf, source: std::io::Error },
 }
@@ -55,10 +55,6 @@ fn find_prefix_up(name: &Path, original: &Path) -> miette::Result<PathBuf> {
         ["node_modules", "package.json", "package.json5", "package.yaml", "pnpm-workspace.yaml"];
 
     loop {
-        if current.parent().is_none() {
-            return Ok(original.to_path_buf());
-        }
-
         for target in &targets {
             let target_path = current.join(target);
             match target_path.try_exists() {

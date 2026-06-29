@@ -100,7 +100,7 @@ export async function main (inputArgv: string[]): Promise<void> {
   try {
     // When we just want to print the location of the global bin directory,
     // we don't need the write permission to it. Related issue: #2700
-    const globalDirShouldAllowWrite = cmd !== 'root'
+    const globalDirShouldAllowWrite = cmd !== 'root' && cmd !== 'prefix'
     const isDlxOrCreateCommand = cmd === 'dlx' || cmd === 'create'
     const isConfigCommand = cmd === 'config' || cmd === 'set' || cmd === 'get'
     if (cmd === 'link' && cliParams.length === 0) {

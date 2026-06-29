@@ -2,6 +2,7 @@ import path from 'node:path'
 
 import { docsUrl } from '@pnpm/cli.utils'
 import { types as allTypes } from '@pnpm/config.reader'
+import { PnpmError } from '@pnpm/error'
 import { pick } from 'ramda'
 import { renderHelp } from 'render-help'
 
@@ -44,7 +45,10 @@ export async function handler (
   }
 ): Promise<string> {
   if (opts.global) {
-    return opts.globalPkgDir ? path.dirname(opts.globalPkgDir) : ''
+    if (!opts.globalPkgDir) {
+      throw new PnpmError('MISSING_GLOBAL_PACKAGE_DIR', 'The global package directory could not be resolved.')
+    }
+    return path.dirname(opts.globalPkgDir)
   }
   return opts.dir
 }
