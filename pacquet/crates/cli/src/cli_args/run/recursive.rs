@@ -91,12 +91,9 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
 
     let projects = discover_workspace_projects(workspace_root)?;
     let graph = select_recursive_projects(&projects, config, dir)?;
-    // A non-empty workspace whose `--filter` selection is empty is a
-    // no-op: pnpm exits 0 from its main dispatch when
-    // `selectedProjectsGraph` is empty (main.ts:306-318), before the
-    // no-script check or `--resume-from` / `--report-summary` runs. An
-    // empty workspace falls through to the no-script path below, as it did
-    // before `--filter` was wired in.
+    // An empty `--filter` selection is a no-op, matching pnpm's exit-0 for
+    // an empty selectedProjectsGraph; an empty workspace instead falls
+    // through to the no-script error below.
     if !projects.is_empty() && graph.is_empty() {
         return Ok(());
     }
@@ -225,10 +222,7 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
     // `test` is exempt because `pnpm test` falls back to a default and
     // should not error on a workspace with no `test` script; otherwise a
     // recursive run that matched nothing is a user error, unless
-    // `--if-present` opted out of it. The message distinguishes "no
-    // package" from "no selected package" the way pnpm's
-    // `runRecursive.ts:203-210` does, keyed on whether `--filter` narrowed
-    // the set (`selectedProjectsGraph.length === allProjects.length`).
+    // `--if-present` opted out of it.
     if script_name != "test" && has_command == 0 && !args.if_present {
         let script_name = script_name.to_string();
         return Err(if graph.len() == projects.len() {

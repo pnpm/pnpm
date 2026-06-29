@@ -62,22 +62,15 @@ pub fn exec_recursive(args: &ExecArgs, config: &Config, dir: &Path) -> miette::R
     let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
 
     let projects = discover_workspace_projects(workspace_root)?;
-    // An empty workspace (no projects discovered) is reported as
-    // `RECURSIVE_EXEC_NO_PACKAGE`; this guard checks the discovered set,
-    // not the filtered one. (pnpm's own recursive path exits 0 here from
-    // its main dispatch rather than throwing — its same-named throw is on
-    // the non-recursive path, exec.ts:211-213 — a pre-existing pacquet
-    // divergence left untouched.)
+    // Empty workspace errors; an empty `--filter` selection (below) is a
+    // no-op — so this guard is on the discovered set, not the filtered.
     if projects.is_empty() {
         return Err(RecursiveExecError::NoPackage.into());
     }
 
     let graph = select_recursive_projects(&projects, config, dir)?;
-    // A non-empty workspace whose `--filter` selection is empty is a
-    // no-op: pnpm exits 0 from its main dispatch when
-    // `selectedProjectsGraph` is empty (main.ts:306-318), before the
-    // command runs — so `--resume-from` must not error on the empty graph
-    // and `--report-summary` must not write an empty summary.
+    // An empty `--filter` selection is a no-op, matching pnpm's exit-0 for
+    // an empty selectedProjectsGraph.
     if graph.is_empty() {
         return Ok(());
     }

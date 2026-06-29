@@ -138,31 +138,20 @@ pub fn discover_workspace_projects(workspace_root: &Path) -> miette::Result<Vec<
         .wrap_err("finding workspace projects")
 }
 
-/// Build the `--filter`-selected workspace graph that the recursive
-/// command runs over.
+/// Build the `--filter`-selected workspace graph the recursive command
+/// runs over: the project graph restricted to the `config.filter` /
+/// `config.filter_prod` selection (every project when no selector is
+/// given). `prefix` is where path selectors resolve.
 ///
-/// Ports the main-dispatch step pnpm performs before handing the
-/// recursive `run` / `exec` handlers their `selectedProjectsGraph`
-/// (<https://github.com/pnpm/pnpm/blob/8eb1be4988/pnpm/src/main.ts#L260-L323>):
-/// build the graph over every workspace project, then restrict it to the
-/// projects `config.filter` / `config.filter_prod` select — include
-/// selectors unioned, `!`-prefixed excludes subtracted (`pick(difference(
-/// include, exclude), allProjectsGraph)`). With no selectors every project
-/// is selected, matching pnpm's `selectedProjectsGraph: graph`
-/// fall-through. `prefix` is the directory path selectors resolve against
-/// (pnpm's `process.cwd()`).
+/// Ports pnpm's `selectedProjectsGraph` main-dispatch step
+/// (<https://github.com/pnpm/pnpm/blob/8eb1be4988/pnpm/src/main.ts#L260-L323>).
 pub fn select_recursive_projects<'a>(
     projects: &'a [Project],
     config: &Config,
     prefix: &Path,
 ) -> miette::Result<ProjectGraph<GraphPkg<'a>>> {
-    // Resolve the selectors against the same graph options the sort below
-    // uses, so the selected set and the topological order agree on edges —
-    // upstream builds one `linkWorkspacePackages`-aware `allProjectsGraph`
-    // that both `filterWorkspaceProjects` and `sortProjects` read, then
-    // `pick`s the selected subset out of it. (`workspace:` edges form
-    // regardless of the option, so the choice only matters for bare-semver
-    // sibling references.)
+    // Filter against the same graph options the sort uses, so the selected
+    // set and the topological order agree on edges.
     let graph_options = CreateProjectsGraphOptions::default();
     let mut graph = create_projects_graph(
         projects.iter().map(|project| GraphPkg { project }).collect(),
