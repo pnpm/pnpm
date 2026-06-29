@@ -26,7 +26,6 @@ use pacquet_network::{
 use serde::{Deserialize, Serialize};
 
 use super::{bold, red, retry_opts_from_config, sanitize_response_body};
-use crate::cli_args::package_name::encode_package_name;
 
 /// One installed package to check, already routed to the registry it was
 /// installed from.

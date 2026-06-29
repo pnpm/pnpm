@@ -27,7 +27,7 @@ pub mod logout;
 pub mod outdated;
 pub mod pack;
 pub mod pack_app;
-pub(crate) mod package_name;
+
 pub mod patch;
 pub mod patch_commit;
 pub mod patch_remove;

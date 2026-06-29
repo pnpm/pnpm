@@ -14,7 +14,6 @@
 //! Runs only on a genuine download (a store cache miss), so it does not
 //! add a network round trip to every command.
 
-use crate::cli_args::package_name::encode_package_name;
 use base64::Engine as _;
 use p256::{
     ecdsa::{Signature, VerifyingKey, signature::Verifier},

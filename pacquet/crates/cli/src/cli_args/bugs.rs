@@ -1,7 +1,8 @@
-use crate::cli_args::{package_name::encode_package_name, registry_client::build_registry_client};
+use crate::cli_args::registry_client::build_registry_client;
 use derive_more::{Display, Error};
 use miette::{Context, Diagnostic, IntoDiagnostic};
 use pacquet_config::Config;
+use pacquet_network::encode_package_name;
 use pacquet_package_manifest::safe_read_package_json_from_dir;
 use pacquet_registry::{PackageTag, PackageVersion};
 use serde_json::Value;
