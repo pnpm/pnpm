@@ -184,9 +184,9 @@ fn resolve_importer_id(lockfile_dir: &std::path::Path, dir: &std::path::Path) ->
 
 fn resolve_link_version(lockfile_dir: &std::path::Path, link_target: &str) -> Option<String> {
     let manifest_path = lockfile_dir.join(link_target).join("package.json");
-    PackageManifest::from_path(manifest_path)
-        .ok()
-        .and_then(|manifest| manifest.value().get("version").and_then(|v| v.as_str()).map(String::from))
+    PackageManifest::from_path(manifest_path).ok().and_then(|manifest| {
+        manifest.value().get("version").and_then(|v| v.as_str()).map(String::from)
+    })
 }
 
 fn check_linked_package_peers(
@@ -201,12 +201,13 @@ fn check_linked_package_peers(
     let linked_pkg_dir = lockfile_dir.join(importer_id).join(link_target);
     let manifest_path = linked_pkg_dir.join("package.json");
     let Ok(manifest) = PackageManifest::from_path(manifest_path) else { return };
-    let Some(peer_deps) = manifest.value().get("peerDependencies").and_then(|v| v.as_object()) else { return };
+    let Some(peer_deps) = manifest.value().get("peerDependencies").and_then(|v| v.as_object())
+    else {
+        return;
+    };
 
-    let current_parents = vec![ParentPkg {
-        name: alias.to_string(),
-        version: linked_version.to_string(),
-    }];
+    let current_parents =
+        vec![ParentPkg { name: alias.to_string(), version: linked_version.to_string() }];
 
     for (peer_name, peer_range_val) in peer_deps {
         let Some(peer_range) = peer_range_val.as_str() else { continue };
@@ -219,9 +220,14 @@ fn check_linked_package_peers(
             .unwrap_or(false);
 
         let Ok(peer_pkg_name) = peer_name.parse::<PkgName>() else { continue };
-        let resolved_ref = importer.dependencies.as_ref().and_then(|d| d.get(&peer_pkg_name))
+        let resolved_ref = importer
+            .dependencies
+            .as_ref()
+            .and_then(|d| d.get(&peer_pkg_name))
             .or_else(|| importer.dev_dependencies.as_ref().and_then(|d| d.get(&peer_pkg_name)))
-            .or_else(|| importer.optional_dependencies.as_ref().and_then(|d| d.get(&peer_pkg_name)));
+            .or_else(|| {
+                importer.optional_dependencies.as_ref().and_then(|d| d.get(&peer_pkg_name))
+            });
 
         match resolved_ref {
             Some(spec) => {
@@ -292,10 +298,8 @@ fn collect_initial_keys(
                 let linked_version = resolve_link_version(lockfile_dir, link_target)
                     .unwrap_or_else(|| "0.0.0".to_string());
                 let mut next_parents = parents.to_owned();
-                next_parents.push(ParentPkg {
-                    name: alias.to_string(),
-                    version: linked_version.clone(),
-                });
+                next_parents
+                    .push(ParentPkg { name: alias.to_string(), version: linked_version.clone() });
 
                 check_linked_package_peers(
                     importer_id,
@@ -369,25 +373,29 @@ fn walk_snapshot(
                         if let Some(ver_peer) = dep_ref.ver_peer() {
                             let version_str = ver_peer.version().to_string();
                             if !satisfies(&version_str, peer_range) {
-                                issues.bad.entry(peer_name.clone()).or_default().push(BadPeerIssue {
-                                    parents: current_parents.clone(),
-                                    optional: is_optional,
-                                    wanted_range: peer_range.clone(),
-                                    found_version: version_str,
-                                    resolved_from: Vec::new(),
-                                });
+                                issues.bad.entry(peer_name.clone()).or_default().push(
+                                    BadPeerIssue {
+                                        parents: current_parents.clone(),
+                                        optional: is_optional,
+                                        wanted_range: peer_range.clone(),
+                                        found_version: version_str,
+                                        resolved_from: Vec::new(),
+                                    },
+                                );
                             }
                         } else if let Some(link_target) = dep_ref.as_link_target() {
                             let found_version = resolve_link_version(lockfile_dir, link_target)
                                 .unwrap_or_else(|| format!("link:{link_target}"));
                             if !satisfies(&found_version, peer_range) {
-                                issues.bad.entry(peer_name.clone()).or_default().push(BadPeerIssue {
-                                    parents: current_parents.clone(),
-                                    optional: is_optional,
-                                    wanted_range: peer_range.clone(),
-                                    found_version,
-                                    resolved_from: Vec::new(),
-                                });
+                                issues.bad.entry(peer_name.clone()).or_default().push(
+                                    BadPeerIssue {
+                                        parents: current_parents.clone(),
+                                        optional: is_optional,
+                                        wanted_range: peer_range.clone(),
+                                        found_version,
+                                        resolved_from: Vec::new(),
+                                    },
+                                );
                             }
                         }
                     }
@@ -510,16 +518,32 @@ fn max_lower(a: &Bound<Version>, b: &Bound<Version>) -> Bound<Version> {
     match (a, b) {
         (Bound::Unbounded, other) | (other, Bound::Unbounded) => other.clone(),
         (Bound::Inclusive(v1), Bound::Inclusive(v2)) => {
-            if v1 >= v2 { Bound::Inclusive(v1.clone()) } else { Bound::Inclusive(v2.clone()) }
+            if v1 >= v2 {
+                Bound::Inclusive(v1.clone())
+            } else {
+                Bound::Inclusive(v2.clone())
+            }
         }
         (Bound::Exclusive(v1), Bound::Exclusive(v2)) => {
-            if v1 >= v2 { Bound::Exclusive(v1.clone()) } else { Bound::Exclusive(v2.clone()) }
+            if v1 >= v2 {
+                Bound::Exclusive(v1.clone())
+            } else {
+                Bound::Exclusive(v2.clone())
+            }
         }
         (Bound::Inclusive(v1), Bound::Exclusive(v2)) => {
-            if v1 > v2 { Bound::Inclusive(v1.clone()) } else { Bound::Exclusive(v2.clone()) }
+            if v1 > v2 {
+                Bound::Inclusive(v1.clone())
+            } else {
+                Bound::Exclusive(v2.clone())
+            }
         }
         (Bound::Exclusive(v1), Bound::Inclusive(v2)) => {
-            if v1 >= v2 { Bound::Exclusive(v1.clone()) } else { Bound::Inclusive(v2.clone()) }
+            if v1 >= v2 {
+                Bound::Exclusive(v1.clone())
+            } else {
+                Bound::Inclusive(v2.clone())
+            }
         }
     }
 }
@@ -528,16 +552,32 @@ fn min_upper(a: &Bound<Version>, b: &Bound<Version>) -> Bound<Version> {
     match (a, b) {
         (Bound::Unbounded, other) | (other, Bound::Unbounded) => other.clone(),
         (Bound::Inclusive(v1), Bound::Inclusive(v2)) => {
-            if v1 <= v2 { Bound::Inclusive(v1.clone()) } else { Bound::Inclusive(v2.clone()) }
+            if v1 <= v2 {
+                Bound::Inclusive(v1.clone())
+            } else {
+                Bound::Inclusive(v2.clone())
+            }
         }
         (Bound::Exclusive(v1), Bound::Exclusive(v2)) => {
-            if v1 <= v2 { Bound::Exclusive(v1.clone()) } else { Bound::Exclusive(v2.clone()) }
+            if v1 <= v2 {
+                Bound::Exclusive(v1.clone())
+            } else {
+                Bound::Exclusive(v2.clone())
+            }
         }
         (Bound::Inclusive(v1), Bound::Exclusive(v2)) => {
-            if v1 < v2 { Bound::Inclusive(v1.clone()) } else { Bound::Exclusive(v2.clone()) }
+            if v1 < v2 {
+                Bound::Inclusive(v1.clone())
+            } else {
+                Bound::Exclusive(v2.clone())
+            }
         }
         (Bound::Exclusive(v1), Bound::Inclusive(v2)) => {
-            if v1 <= v2 { Bound::Exclusive(v1.clone()) } else { Bound::Inclusive(v2.clone()) }
+            if v1 <= v2 {
+                Bound::Exclusive(v1.clone())
+            } else {
+                Bound::Inclusive(v2.clone())
+            }
         }
     }
 }
@@ -558,11 +598,7 @@ fn normalize_version_str(v: &str) -> String {
     match parts.len() {
         1 => {
             let p = parts[0].replace(['x', 'X', '*'], "0");
-            if p.chars().all(|c| c.is_ascii_digit()) {
-                format!("{p}.0.0")
-            } else {
-                v.to_string()
-            }
+            if p.chars().all(|c| c.is_ascii_digit()) { format!("{p}.0.0") } else { v.to_string() }
         }
         2 => {
             let p0 = parts[0].replace(['x', 'X', '*'], "0");
@@ -577,7 +613,10 @@ fn normalize_version_str(v: &str) -> String {
             let p0 = parts[0].replace(['x', 'X', '*'], "0");
             let p1 = parts[1].replace(['x', 'X', '*'], "0");
             let p2 = parts[2].replace(['x', 'X', '*'], "0");
-            if p0.chars().all(|c| c.is_ascii_digit()) && p1.chars().all(|c| c.is_ascii_digit()) && p2.chars().all(|c| c.is_ascii_digit()) {
+            if p0.chars().all(|c| c.is_ascii_digit())
+                && p1.chars().all(|c| c.is_ascii_digit())
+                && p2.chars().all(|c| c.is_ascii_digit())
+            {
                 let rest = if parts.len() > 3 {
                     format!(".{}", parts[3..].join("."))
                 } else {
@@ -621,29 +660,35 @@ fn parse_comparator(comp: &str) -> Option<Interval> {
             lower: Bound::Inclusive(version.clone()),
             upper: Bound::Inclusive(version),
         }),
-        "=>" => Some(Interval {
-            lower: Bound::Inclusive(version),
-            upper: Bound::Unbounded,
-        }),
-        ">" => Some(Interval {
-            lower: Bound::Exclusive(version),
-            upper: Bound::Unbounded,
-        }),
-        "<=" => Some(Interval {
-            lower: Bound::Unbounded,
-            upper: Bound::Inclusive(version),
-        }),
-        "<" => Some(Interval {
-            lower: Bound::Unbounded,
-            upper: Bound::Exclusive(version),
-        }),
+        "=>" => Some(Interval { lower: Bound::Inclusive(version), upper: Bound::Unbounded }),
+        ">" => Some(Interval { lower: Bound::Exclusive(version), upper: Bound::Unbounded }),
+        "<=" => Some(Interval { lower: Bound::Unbounded, upper: Bound::Inclusive(version) }),
+        "<" => Some(Interval { lower: Bound::Unbounded, upper: Bound::Exclusive(version) }),
         "^" => {
             let upper_version = if version.major > 0 {
-                Version { major: version.major + 1, minor: 0, patch: 0, build: Vec::new(), pre_release: Vec::new() }
+                Version {
+                    major: version.major + 1,
+                    minor: 0,
+                    patch: 0,
+                    build: Vec::new(),
+                    pre_release: Vec::new(),
+                }
             } else if version.minor > 0 {
-                Version { major: 0, minor: version.minor + 1, patch: 0, build: Vec::new(), pre_release: Vec::new() }
+                Version {
+                    major: 0,
+                    minor: version.minor + 1,
+                    patch: 0,
+                    build: Vec::new(),
+                    pre_release: Vec::new(),
+                }
             } else {
-                Version { major: 0, minor: 0, patch: version.patch + 1, build: Vec::new(), pre_release: Vec::new() }
+                Version {
+                    major: 0,
+                    minor: 0,
+                    patch: version.patch + 1,
+                    build: Vec::new(),
+                    pre_release: Vec::new(),
+                }
             };
             Some(Interval {
                 lower: Bound::Inclusive(version),
@@ -687,10 +732,7 @@ fn parse_range_to_intervals(range: &str) -> Option<Vec<Interval>> {
         if part.is_empty() {
             continue;
         }
-        let mut part_interval = Interval {
-            lower: Bound::Unbounded,
-            upper: Bound::Unbounded,
-        };
+        let mut part_interval = Interval { lower: Bound::Unbounded, upper: Bound::Unbounded };
         for comp in part.split_whitespace() {
             let comp_interval = parse_comparator(comp)?;
             let lower = max_lower(&part_interval.lower, &comp_interval.lower);
@@ -708,11 +750,7 @@ fn parse_range_to_intervals(range: &str) -> Option<Vec<Interval>> {
             intervals.push(part_interval);
         }
     }
-    if intervals.is_empty() {
-        None
-    } else {
-        Some(intervals)
-    }
+    if intervals.is_empty() { None } else { Some(intervals) }
 }
 
 fn intersect_intervals(a: &[Interval], b: &[Interval]) -> Vec<Interval> {
@@ -741,7 +779,13 @@ fn intersect_multiple_ranges(ranges: &[String]) -> Option<String> {
             return None;
         }
     }
-    Some(current_intervals.iter().map(std::string::ToString::to_string).collect::<Vec<_>>().join(" || "))
+    Some(
+        current_intervals
+            .iter()
+            .map(std::string::ToString::to_string)
+            .collect::<Vec<_>>()
+            .join(" || "),
+    )
 }
 
 #[cfg(test)]
@@ -808,9 +852,7 @@ fn filter_peer_issues(
         let mut filtered_bad: HashMap<String, Vec<BadPeerIssue>> = HashMap::new();
 
         for (peer_name, peer_issues) in &project_issues.missing {
-            if ignore_missing_matcher.matches(peer_name)
-                || peer_issues.iter().all(|i| i.optional)
-            {
+            if ignore_missing_matcher.matches(peer_name) || peer_issues.iter().all(|i| i.optional) {
                 continue;
             }
             filtered_missing.insert(peer_name.clone(), peer_issues.clone());
