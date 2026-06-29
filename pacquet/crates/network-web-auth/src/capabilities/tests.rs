@@ -1,6 +1,7 @@
 use super::{Clock, Host, StdinIsTty, StdoutIsTty};
 
-/// The clock reads a real, post-epoch wall-clock value.
+/// `0` is `Host::now_ms`'s pre-epoch fallback, so a non-zero read confirms
+/// the real wall clock was queried rather than the fallback.
 #[test]
 fn host_clock_reads_a_non_zero_time() {
     let now = Host::now_ms();
