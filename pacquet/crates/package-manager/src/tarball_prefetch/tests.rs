@@ -1,4 +1,4 @@
-use super::{PendingPrefetch, without_store_hits};
+use super::{RegistryPrefetchTarget, without_store_hits};
 use pacquet_store_dir::{CafsFileInfo, PackageFilesIndex, StoreIndex, store_index_key};
 use std::collections::HashMap;
 use tempfile::tempdir;
@@ -23,8 +23,8 @@ fn sample_index() -> PackageFilesIndex {
     }
 }
 
-fn pending(package_id: &str, integrity: &str) -> PendingPrefetch {
-    PendingPrefetch {
+fn pending(package_id: &str, integrity: &str) -> RegistryPrefetchTarget {
+    RegistryPrefetchTarget {
         store_key: store_index_key(integrity, package_id),
         package_id: package_id.to_string(),
         package_url: format!("https://registry.example.com/{package_id}.tgz"),

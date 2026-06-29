@@ -6,11 +6,12 @@ use pacquet_config::NodeLinker;
 use pacquet_lockfile::{Lockfile, LockfileResolution, MaybeLazyLockfile};
 use pacquet_package_manager::{
     Install, InstallFrozenLockfileError, LockfileVerificationOverride, TarballPrefetcher,
-    UpToDateFastPathCheck, UpdateSeedPolicy, install_already_up_to_date,
+    UpToDateFastPathCheck, UpdateSeedPolicy, install_already_up_to_date, registry_prefetch_targets,
 };
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_pnpr_client::{PnprClient, PnprClientError, ResolveOptions, VerifyLockfileOptions};
 use pacquet_reporter::Reporter;
+use std::collections::HashMap;
 
 const BENCHMARK_PNPR_SERVER_REGISTRY_ENV: &str = "PACQUET_BENCHMARK_PNPR_SERVER_REGISTRY";
 const BENCHMARK_PNPR_TARBALL_REWRITE_FROM_ENV: &str = "PACQUET_BENCHMARK_PNPR_TARBALL_REWRITE_FROM";
@@ -711,27 +712,61 @@ pub(crate) async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
             .get()
             .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?
     {
-        let prefetcher = TarballPrefetcher::new(
-            state.config,
-            &state.http_client,
-            &state.tarball_mem_cache,
-            None,
-            &lockfile_dir.to_string_lossy(),
-        )
-        .await;
-        prefetcher.prefetch_lockfile(lockfile, state.config).await;
-        tokio::task::yield_now().await;
+        let prefetcher = std::sync::Arc::new(
+            TarballPrefetcher::new(
+                state.config,
+                &state.http_client,
+                &state.tarball_mem_cache,
+                None,
+                &lockfile_dir.to_string_lossy(),
+            )
+            .await,
+        );
 
         let lockfile_verification_override: Option<LockfileVerificationOverride<'_>> =
             if link.trust_lockfile {
+                // No verification runs, so no sized frames arrive — prefetch the
+                // whole lockfile up front, unprioritized.
+                prefetcher.prefetch_lockfile(lockfile, state.config).await;
+                tokio::task::yield_now().await;
                 None
             } else {
                 let verify_opts = VerifyLockfileOptions::from_resolve_options(&opts)
                     .expect("frozen pnpr verification requires the loaded lockfile");
                 let verify_client = PnprClient::new(pnpr_server);
+                let prefetcher = std::sync::Arc::clone(&prefetcher);
+                let config = state.config;
                 Some(Box::pin(async move {
-                    match verify_client.verify_lockfile(verify_opts).await {
-                        Ok(()) => Ok(()),
+                    // Drive the prefetch from the verify stream's sized `package`
+                    // frames so the largest pending tarballs start first. Each
+                    // frame is joined to the client's own lockfile entry by
+                    // `integrity` — the frame's URL is `route_url`'d and would
+                    // miss the materialization pass's mem-cache key.
+                    let targets = registry_prefetch_targets(lockfile, config);
+                    let by_integrity: HashMap<&str, &_> =
+                        targets.iter().map(|target| (target.integrity.as_str(), target)).collect();
+                    let verdict = verify_client
+                        .verify_lockfile_streaming(verify_opts, |pkg| {
+                            if let Some(target) = by_integrity.get(pkg.integrity.as_str()) {
+                                prefetcher.prefetch(
+                                    target.package_id.clone(),
+                                    target.package_url.clone(),
+                                    &target.integrity,
+                                    pkg.unpacked_size,
+                                    pkg.file_count,
+                                );
+                            }
+                        })
+                        .await;
+                    match verdict {
+                        Ok(()) => {
+                            // Completeness backstop: a verdict-cache hit streams no
+                            // frames and a partial fan-out frames only some entries.
+                            // Cover the rest unprioritized — already-spawned URLs and
+                            // store-resident entries are filtered out.
+                            prefetcher.prefetch_lockfile(lockfile, config).await;
+                            Ok(())
+                        }
                         Err(PnprClientError::Verification(verify_err)) => {
                             Err(InstallFrozenLockfileError::LockfileVerification(verify_err))
                         }
@@ -785,7 +820,13 @@ pub(crate) async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
         // best-effort — a dropped row only costs a later re-download.
         result.wrap_err("restoring dependencies from the local lockfile via pnpr verification")?;
 
-        prefetcher.shutdown().await;
+        // The verification override (the only other strong ref, on the verify
+        // path) has completed and been dropped by the await above, so this
+        // reclaims sole ownership to drain the store-index writer.
+        std::sync::Arc::into_inner(prefetcher)
+            .expect("prefetcher Arc still shared after install completed")
+            .shutdown()
+            .await;
 
         return Ok(());
     }

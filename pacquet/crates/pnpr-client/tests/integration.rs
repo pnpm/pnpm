@@ -460,6 +460,47 @@ async fn verify_lockfile_endpoint_accepts_a_clean_input_lockfile() {
     client.verify_lockfile(verify_opts).await.expect("lockfile should verify");
 }
 
+/// When the verification fan-out fetches packument metadata, the verify
+/// endpoint streams sized `package` frames ahead of the verdict — the same
+/// frames the resolve frozen fast path emits — so a frozen restore can
+/// prioritize its largest pending downloads. A permissive `minimumReleaseAge`
+/// forces the fan-out while still passing.
+#[tokio::test]
+async fn verify_lockfile_endpoint_streams_package_frames_before_the_verdict() {
+    let registry = TestRegistry::start();
+    let (pnpr_url, pnpr_auth, _storage) = start_pnpr(&registry.url()).await;
+
+    let client = PnprClient::new(pnpr_url);
+
+    let first = client
+        .resolve(options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
+        .await
+        .expect("first install");
+
+    let mut opts = options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
+    opts.lockfile = Some(first.lockfile);
+    opts.minimum_release_age = Some(1);
+    opts.minimum_release_age_ignore_missing_time = true;
+    let verify_opts =
+        VerifyLockfileOptions::from_resolve_options(&opts).expect("lockfile is present");
+
+    let mut streamed: Vec<String> = Vec::new();
+    client
+        .verify_lockfile_streaming(verify_opts, |pkg| {
+            assert!(!pkg.integrity.is_empty(), "a package frame carries an integrity");
+            assert!(pkg.tarball.starts_with("http"), "a package frame carries a tarball URL");
+            assert_eq!(pkg.id, format!("{}@{}", pkg.name, pkg.version), "id is name@version");
+            streamed.push(pkg.id);
+        })
+        .await
+        .expect("clean lockfile should verify");
+
+    assert!(
+        !streamed.is_empty(),
+        "verify-lockfile should stream at least one sized package frame before the verdict",
+    );
+}
+
 #[tokio::test]
 async fn verify_lockfile_endpoint_rejects_policy_violation() {
     let registry = TestRegistry::start();

@@ -34,19 +34,59 @@ use std::{collections::HashSet, sync::Arc};
 /// One registry lockfile entry [`TarballPrefetcher::prefetch_lockfile`]
 /// may spawn a download for, staged so the whole batch can be filtered
 /// through a single store-index existence probe first.
-struct PendingPrefetch {
-    store_key: String,
-    package_id: String,
-    package_url: String,
-    integrity: String,
+///
+/// `package_url` is the key the materialization pass looks up in the mem
+/// cache, so a prefetch must spawn under it; `integrity` joins a
+/// `/-/pnpr/v0/verify-lockfile` `package` frame's streamed dist sizes back
+/// to this entry (the frame's own `tarball` URL is `route_url`'d and need
+/// not match `package_url`).
+pub struct RegistryPrefetchTarget {
+    pub store_key: String,
+    pub package_id: String,
+    pub package_url: String,
+    pub integrity: String,
+}
+
+/// Registry-resolved prefetch targets for a frozen lockfile, in iteration
+/// order. Registry resolutions only — the one shape the materialization
+/// pass reuses from the shared mem cache (see
+/// [`TarballPrefetcher::prefetch_lockfile`]). The store-hit filter is
+/// applied separately ([`TarballPrefetcher::prefetch_lockfile`] batches it);
+/// a caller driving prefetch from streamed sizes joins by `integrity` and
+/// relies on the per-download store check instead.
+pub fn registry_prefetch_targets(
+    lockfile: &Lockfile,
+    config: &Config,
+) -> Vec<RegistryPrefetchTarget> {
+    let Some(packages) = lockfile.packages.as_ref() else {
+        return Vec::new();
+    };
+    let mut targets = Vec::with_capacity(packages.len());
+    for (package_key, metadata) in packages {
+        if !matches!(&metadata.resolution, LockfileResolution::Registry(_)) {
+            continue;
+        }
+        let (tarball_url, integrity) =
+            tarball_url_and_integrity(&metadata.resolution, package_key, config)
+                .expect("registry resolutions always carry an integrity");
+        let package_id = package_key.without_peer().to_string();
+        let integrity = integrity.to_string();
+        targets.push(RegistryPrefetchTarget {
+            store_key: store_index_key(&integrity, &package_id),
+            package_id,
+            package_url: tarball_url.into_owned(),
+            integrity,
+        });
+    }
+    targets
 }
 
 /// Drop every pending entry whose `(integrity, package_id)` row already
 /// exists in `index.db`, with one batched existence probe.
 async fn without_store_hits(
     index: Option<SharedReadonlyStoreIndex>,
-    pending: Vec<PendingPrefetch>,
-) -> Vec<PendingPrefetch> {
+    pending: Vec<RegistryPrefetchTarget>,
+) -> Vec<RegistryPrefetchTarget> {
     let Some(index) = index else {
         return pending;
     };
@@ -290,30 +330,16 @@ impl TarballPrefetcher {
     /// gone missing is skipped here too; the materialization pass's
     /// per-snapshot cache-miss fallback re-downloads it.
     pub async fn prefetch_lockfile(&self, lockfile: &Lockfile, config: &Config) {
-        let Some(packages) = lockfile.packages.as_ref() else {
+        let pending = registry_prefetch_targets(lockfile, config);
+        if pending.is_empty() {
             return;
-        };
-        let mut pending = Vec::with_capacity(packages.len());
-        for (package_key, metadata) in packages {
-            if !matches!(&metadata.resolution, LockfileResolution::Registry(_)) {
-                continue;
-            }
-            let (tarball_url, integrity) =
-                tarball_url_and_integrity(&metadata.resolution, package_key, config)
-                    .expect("registry resolutions always carry an integrity");
-            let package_id = package_key.without_peer().to_string();
-            let integrity = integrity.to_string();
-            pending.push(PendingPrefetch {
-                store_key: store_index_key(&integrity, &package_id),
-                package_id,
-                package_url: tarball_url.into_owned(),
-                integrity,
-            });
         }
         for entry in without_store_hits(self.store_index.clone(), pending).await {
-            let PendingPrefetch { package_id, package_url, integrity, .. } = entry;
+            let RegistryPrefetchTarget { package_id, package_url, integrity, .. } = entry;
             // The lockfile records no dist size hints, so the downloads
-            // queue without a work estimate.
+            // queue without a work estimate. A caller with sizes streamed
+            // from `/-/pnpr/v0/verify-lockfile` drives [`Self::prefetch`]
+            // directly instead (joining frames by `integrity`).
             self.prefetch(package_id, package_url, &integrity, None, None);
         }
     }
