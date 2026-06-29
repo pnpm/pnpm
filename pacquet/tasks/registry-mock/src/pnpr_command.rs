@@ -73,15 +73,10 @@ pub fn pnpr_command(port: u16, public_url: Option<&str>) -> Command {
 }
 
 /// Like [`pnpr_command`] but runs an explicit `pnpr` binary instead of the
-/// one resolved from the workspace `target/` dir.
-///
-/// The integrated benchmark uses this to front each compared revision with a
-/// mock built from *that* revision's `pnpr`, so a tarball-serve change shows
-/// up in the per-revision comparison instead of only in the post-merge trend
-/// (the shared-mock blind spot: a single mock built from one revision serves
-/// every arm, so a serve-path delta cancels out). All revisions share the one
-/// runtime storage — serving a warm cache is read-only, so concurrent mocks
-/// don't contend.
+/// one resolved from the workspace `target/` dir, so the integrated benchmark
+/// can front each compared revision with a mock built from its own `pnpr`.
+/// All revisions share the one runtime storage — serving a warm cache is
+/// read-only, so concurrent mocks don't contend.
 #[must_use]
 pub fn pnpr_command_with_binary(bin: &Path, port: u16, public_url: Option<&str>) -> Command {
     assert!(

@@ -1193,9 +1193,7 @@ async fn serve_tarball(
     // verifies the bytes against the version's `dist.integrity` as they are
     // written, so nothing unverified is ever stored; every install client
     // re-verifies whatever it receives against that same integrity too. So a
-    // cache hit needs neither the SRI pass nor the integrity lookup — both of
-    // which pnpm/pnpm#12570 added to *every* serve, making warm-cache
-    // cold-store pay a per-tarball packument parse plus hash.
+    // cache hit needs neither an SRI pass nor the integrity lookup.
     //
     // The exception is OSV screening. When it is enabled, the authoritative
     // version a tarball belongs to can only come from the packument (a

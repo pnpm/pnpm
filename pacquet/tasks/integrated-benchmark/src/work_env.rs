@@ -437,13 +437,11 @@ impl WorkEnv {
             }
         }
 
-        // Front each compared revision with a tarball-serving mock built
-        // from that revision's `pnpr`, so a serve-path change shows up in
-        // the per-revision comparison instead of cancelling out across one
-        // shared mock. Guards kill the mocks (and their latency proxies) on
-        // drop at the end of this method. Empty for non-Verdaccio modes.
-        // Spawned after `build()` (so the per-revision binaries exist) and
-        // after `init()` warmed the shared storage they serve from.
+        // Spawn each revision's own tarball-serving mock (see
+        // `plan_revision_mocks`). Done after `build()` produced the
+        // per-revision binaries and after `init()` warmed the shared storage
+        // they serve from; the guards kill the mocks (and their latency
+        // proxies) on drop at the end of this method.
         let _revision_mocks = self.start_revision_mocks(revision_mocks);
 
         // Start a pnpr server per `pnpr@<rev>` target and keep the guards
@@ -806,9 +804,7 @@ impl WorkEnv {
     ///
     /// When a revision has its own tarball-serving mock (see
     /// [`Self::plan_revision_mocks`]), its `pacquet@<rev>` and `pnpr@<rev>`
-    /// targets fetch from that mock instead of the shared one, so a
-    /// serve-path change is visible in the per-revision comparison rather
-    /// than cancelling out across a single shared mock.
+    /// targets fetch from that mock instead of the shared one.
     fn registry_for<'a>(
         &'a self,
         id: BenchId,
@@ -825,11 +821,17 @@ impl WorkEnv {
     }
 
     /// Assign a per-revision tarball-serving mock to every revision that has
-    /// a `pnpr@<rev>` target (so its `pnpr` binary will be built). Binds the
-    /// client-facing latency-proxy socket now — reserving the port for the
-    /// whole init + build window before `init()` bakes its URL into `.npmrc`
-    /// — and hands the live socket to the proxy when `benchmark()` spawns it.
-    /// Empty for non-Verdaccio modes, which front no local mock at all.
+    /// a `pnpr@<rev>` target (so its `pnpr` binary will be built).
+    ///
+    /// This is what makes a tarball-serve change visible in the `pnpr@HEAD`
+    /// vs `pnpr@main` comparison: the shared registry-mock is built from one
+    /// revision and serves every arm, so a serve-path delta there cancels out;
+    /// giving each revision a mock built from its own `pnpr` exposes the delta.
+    ///
+    /// Binds the client-facing latency-proxy socket now — reserving the port
+    /// for the whole init + build window before `init()` bakes its URL into
+    /// `.npmrc` — and hands the live socket to the proxy when `benchmark()`
+    /// spawns it. Empty for non-Verdaccio modes, which front no local mock.
     fn plan_revision_mocks(&self) -> HashMap<String, RevisionMockRegistry> {
         let mut mocks = HashMap::new();
         if !matches!(self.registry_mode, RegistryMode::Verdaccio) {
