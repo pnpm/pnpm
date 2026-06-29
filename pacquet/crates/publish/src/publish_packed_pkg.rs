@@ -179,6 +179,7 @@ where
 }
 
 /// One completed publish response. Mirrors TS `OtpPublishResponse`.
+#[derive(Debug)]
 struct PublishResponse {
     ok: bool,
     status: u16,

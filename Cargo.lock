@@ -4572,6 +4572,7 @@ dependencies = [
  "dialoguer",
  "flate2",
  "miette 7.6.0",
+ "mockito",
  "node-semver",
  "pacquet-diagnostics",
  "pacquet-executor",
