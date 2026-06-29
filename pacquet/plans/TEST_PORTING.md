@@ -261,8 +261,10 @@ Ported into the new `pacquet-workspace-projects-filter` and
 `pacquet-workspace-projects-graph` crates (the Rust ports of
 `@pnpm/workspace.projects-filter` and `@pnpm/workspace.projects-graph`).
 The CLI `--filter` / `--filter-prod` flags are parsed into
-`Config::filter` / `Config::filter_prod`; narrowing the install to the
-selected projects is still a follow-up (the install fan-out is
+`Config::filter` / `Config::filter_prod`. Recursive `run` / `exec` now
+narrow their selected set through these selectors (via
+`cli_args::recursive::select_recursive_projects`); narrowing the install
+to the selected projects is still a follow-up (the install fan-out is
 unfiltered, so the two `known_failures` hoist stubs below stay).
 
 `parseProjectSelector` (ported as `parse_project_selector::tests`):
