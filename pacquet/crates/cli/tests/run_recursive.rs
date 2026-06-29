@@ -473,6 +473,10 @@ fn recursive_run_diff_selector_is_unsupported() {
         stderr.contains("Changed-package filter selectors"),
         "stderr should explain the diff selector is unsupported, got: {stderr}",
     );
+    assert!(
+        !workspace.join("project-1").join("ran.txt").exists(),
+        "run must reject the selector before invoking the build script, so no marker is written",
+    );
 
     drop(root);
 }

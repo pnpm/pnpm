@@ -147,7 +147,8 @@ fn recursive_exec_diff_selector_is_unsupported() {
         .with_arg("--filter")
         .with_arg("[main]")
         .with_arg("exec")
-        .with_arg("true")
+        .with_arg("touch")
+        .with_arg("ran.txt")
         .output()
         .expect("spawn pacquet");
     assert!(!output.status.success(), "a [<since>] diff selector is unsupported and must fail");
@@ -155,6 +156,10 @@ fn recursive_exec_diff_selector_is_unsupported() {
     assert!(
         stderr.contains("Changed-package filter selectors"),
         "stderr should explain the diff selector is unsupported, got: {stderr}",
+    );
+    assert!(
+        !workspace.join("project-1").join("ran.txt").exists(),
+        "exec must reject the selector before dispatching the command, so no marker is written",
     );
 
     drop(root);
