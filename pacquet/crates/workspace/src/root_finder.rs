@@ -32,7 +32,7 @@ pub(crate) const INVALID_WORKSPACE_MANIFEST_FILENAMES: &[&str] = &[
 /// Env var that overrides the upward walk. Matches upstream's
 /// [`WORKSPACE_DIR_ENV_VAR`][ts-WORKSPACE_DIR_ENV_VAR].
 ///
-/// [ts-WORKSPACE_DIR_ENV_VAR]: https://github.com/pnpm/pnpm/blob/94240bc046/workspace/root-finder/src/index.ts
+/// [ts-WORKSPACE_DIR_ENV_VAR]: https://github.com/pnpm/pnpm/blob/94240bc046/workspace/root-finder/src/index.ts#L7
 pub(crate) const WORKSPACE_DIR_ENV_VAR: &str = "NPM_CONFIG_WORKSPACE_DIR";
 
 /// Lowercase alias for [`WORKSPACE_DIR_ENV_VAR`], pre-allocated so the

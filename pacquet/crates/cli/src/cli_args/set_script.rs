@@ -9,7 +9,7 @@ use std::path::Path;
 /// corrupt an object's prototype chain. Mirrors [`UNSAFE_KEYS`][ts-UNSAFE_KEYS] in
 /// `@pnpm/object.property-path`.
 ///
-/// [ts-UNSAFE_KEYS]: https://github.com/pnpm/pnpm/blob/6fadd7def9/pnpm11/object/property-path/src/unsafeKeys.ts
+/// [ts-UNSAFE_KEYS]: https://github.com/pnpm/pnpm/blob/6fadd7def9/pnpm11/object/property-path/src/unsafeKeys.ts#L3
 const UNSAFE_KEYS: [&str; 3] = ["__proto__", "constructor", "prototype"];
 
 /// Errors from `pacquet set-script`.

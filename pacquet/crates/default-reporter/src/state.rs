@@ -132,7 +132,7 @@ struct ProgressEntry {
 /// One dependency added or removed, ready to render. Ports [`PackageDiff`][ts-PackageDiff]
 /// in `pkgsDiff.ts`.
 ///
-/// [ts-PackageDiff]: https://github.com/pnpm/pnpm/blob/6fadd7def9/pnpm11/cli/default-reporter/src/reporterForClient/pkgsDiff.ts
+/// [ts-PackageDiff]: https://github.com/pnpm/pnpm/blob/6fadd7def9/pnpm11/cli/default-reporter/src/reporterForClient/pkgsDiff.ts#L7-L15
 #[derive(Debug, Clone)]
 struct PackageDiff {
     added: bool,

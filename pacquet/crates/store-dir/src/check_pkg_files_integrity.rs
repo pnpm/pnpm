@@ -69,7 +69,7 @@ pub type FilesMap = HashMap<String, PathBuf>;
 /// `pacquet-graph-hasher`'s `calc_dep_state`) to decide whether
 /// the package is already built.
 ///
-/// [ts-VerifyResult]: https://github.com/pnpm/pnpm/blob/1819226b51/store/cafs/src/checkPkgFilesIntegrity.ts
+/// [ts-VerifyResult]: https://github.com/pnpm/pnpm/blob/1819226b51/store/cafs/src/checkPkgFilesIntegrity.ts#L25-L29
 #[derive(Debug)]
 pub struct VerifyResult {
     pub passed: bool,

@@ -17,7 +17,7 @@ use std::sync::{
 /// for the upstream gate.
 ///
 /// [`DependenciesTree`]: super::resolved_tree::DependenciesTree
-/// [ts-NodeId]: https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/nextNodeId.ts
+/// [ts-NodeId]: https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/nextNodeId.ts#L5
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum NodeId {
     /// Fresh per-occurrence counter value. Allocated by [`NodeId::next`].

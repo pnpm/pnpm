@@ -7,7 +7,7 @@ use std::fmt::Write as _;
 /// Upstream's [`MAX_VIOLATIONS_TO_PRINT`][ts-MAX_VIOLATIONS_TO_PRINT]. Keeps a poisoned lockfile
 /// from flooding the terminal with hundreds of rejection lines.
 ///
-/// [ts-MAX_VIOLATIONS_TO_PRINT]: https://github.com/pnpm/pnpm/blob/6fadd7def9/pnpm11/installing/deps-installer/src/install/verifyLockfileResolutions.ts
+/// [ts-MAX_VIOLATIONS_TO_PRINT]: https://github.com/pnpm/pnpm/blob/6fadd7def9/pnpm11/installing/deps-installer/src/install/verifyLockfileResolutions.ts#L29
 pub const MAX_VIOLATIONS_TO_PRINT: usize = 20;
 
 const HINT: &str = "The lockfile contains entries that the active policies reject. \

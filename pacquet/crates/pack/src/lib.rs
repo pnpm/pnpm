@@ -59,7 +59,7 @@ const MANIFEST_FILE_NAME: &str = "package.json";
 /// pacquet supports. The CLI maps the resolved [`pacquet_config::Config`]
 /// and command-line flags onto this struct.
 ///
-/// [ts-PackOptions]: https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/pack.ts
+/// [ts-PackOptions]: https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/pack.ts#L102-L127
 pub struct PackOptions {
     /// Project directory to pack.
     pub dir: PathBuf,
@@ -116,7 +116,7 @@ pub struct PackResult {
 /// JSON-serializable projection of a [`PackResult`], matching pnpm's
 /// [`PackResultJson`][ts-PackResultJson].
 ///
-/// [ts-PackResultJson]: https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/pack.ts
+/// [ts-PackResultJson]: https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/pack.ts#L129-L134
 #[derive(serde::Serialize)]
 pub struct PackResultJson {
     pub name: String,

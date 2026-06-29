@@ -52,7 +52,7 @@ pub struct Project {
 /// of any individual install entry point doesn't have to translate
 /// option names.
 ///
-/// [ts-FindWorkspaceProjectsOpts]: https://github.com/pnpm/pnpm/blob/94240bc046/workspace/projects-reader/src/index.ts
+/// [ts-FindWorkspaceProjectsOpts]: https://github.com/pnpm/pnpm/blob/94240bc046/workspace/projects-reader/src/index.ts#L11-L24
 #[derive(Debug, Default, Clone)]
 pub struct FindWorkspaceProjectsOpts {
     /// Package discovery patterns. When `None`, this lower-level

@@ -44,7 +44,7 @@ use std::{
 /// upstream's [`CACHE_FILE_NAME`][ts-CACHE_FILE_NAME] so a pnpm-populated cache file is
 /// readable from pacquet and vice versa.
 ///
-/// [ts-CACHE_FILE_NAME]: https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutionsCache.ts
+/// [ts-CACHE_FILE_NAME]: https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutionsCache.ts#L52
 pub const CACHE_FILE_NAME: &str = "lockfile-verified.jsonl";
 
 /// Hard cap on records the cache file holds after compaction.
@@ -52,7 +52,7 @@ pub const CACHE_FILE_NAME: &str = "lockfile-verified.jsonl";
 /// touches a thousand distinct `(path, content)` tuples is far past
 /// steady state.
 ///
-/// [ts-MAX_CACHE_ENTRIES]: https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutionsCache.ts
+/// [ts-MAX_CACHE_ENTRIES]: https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutionsCache.ts#L59
 pub const MAX_CACHE_ENTRIES: usize = 1000;
 
 /// Compaction trigger in bytes. Records cluster around a few hundred
@@ -60,7 +60,7 @@ pub const MAX_CACHE_ENTRIES: usize = 1000;
 /// generous slack so we don't trigger a rewrite on every append once
 /// the cap is crossed. Matches upstream's [`COMPACT_TRIGGER_BYTES`][ts-COMPACT_TRIGGER_BYTES].
 ///
-/// [ts-COMPACT_TRIGGER_BYTES]: https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutionsCache.ts
+/// [ts-COMPACT_TRIGGER_BYTES]: https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutionsCache.ts#L65
 pub const COMPACT_TRIGGER_BYTES: u64 = (MAX_CACHE_ENTRIES as u64) * 1024 * 3 / 2;
 
 /// One verified lockfile snapshot persisted to the JSONL log. Wire
@@ -69,7 +69,7 @@ pub const COMPACT_TRIGGER_BYTES: u64 = (MAX_CACHE_ENTRIES as u64) * 1024 * 3 / 2
 /// versa — even though the hash values are unlikely to collide, the
 /// stat shortcut still hits across both).
 ///
-/// [ts-CacheRecord]: https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutionsCache.ts
+/// [ts-CacheRecord]: https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutionsCache.ts#L67-L105
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CacheRecord {
     pub lockfile: CacheLockfile,

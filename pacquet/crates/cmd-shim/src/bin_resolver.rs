@@ -22,7 +22,7 @@ pub struct Command {
 /// Used by [`pkg_owns_bin`] for conflict resolution between two packages
 /// declaring the same bin name.
 ///
-/// [ts-BIN_OWNER_OVERRIDES]: https://github.com/pnpm/pnpm/blob/4750fd370c/bins/resolver/src/index.ts
+/// [ts-BIN_OWNER_OVERRIDES]: https://github.com/pnpm/pnpm/blob/4750fd370c/bins/resolver/src/index.ts#L16-L22
 const BIN_OWNER_OVERRIDES: &[(&str, &[&str])] = &[
     ("npx", &["npm"]),
     ("pn", &["pnpm", "@pnpm/exe"]),

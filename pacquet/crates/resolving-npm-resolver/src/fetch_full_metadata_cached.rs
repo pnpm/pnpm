@@ -41,7 +41,7 @@ use crate::{
 /// optionality. `cache_dir` is the only addition over the no-cache
 /// [`crate::FetchFullMetadataOptions`].
 ///
-/// [ts-FetchFullMetadataCachedOptions]: https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetchFullMetadataCached.ts
+/// [ts-FetchFullMetadataCachedOptions]: https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetchFullMetadataCached.ts#L20
 #[derive(Debug, Clone)]
 pub struct FetchFullMetadataCachedOptions<'a> {
     pub registry: &'a str,

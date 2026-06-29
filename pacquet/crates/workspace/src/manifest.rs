@@ -74,7 +74,7 @@ pub struct WorkspaceManifest {
 /// `serde_saphyr` rejects a non-array shape before this layer runs.
 /// Only the empty-string-entry check needs a dedicated variant.
 ///
-/// [ts-InvalidWorkspaceManifestError]: https://github.com/pnpm/pnpm/blob/94240bc046/workspace/workspace-manifest-reader/src/index.ts
+/// [ts-InvalidWorkspaceManifestError]: https://github.com/pnpm/pnpm/blob/94240bc046/workspace/workspace-manifest-reader/src/errors/InvalidWorkspaceManifestError.ts#L3-L7
 #[derive(Debug, Display, Error, Diagnostic)]
 #[diagnostic(code(pacquet_workspace::invalid_workspace_configuration))]
 #[non_exhaustive]

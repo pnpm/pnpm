@@ -915,7 +915,7 @@ pub fn pick_store_index_key(
 ///
 /// Mirrors pnpm v11's [`PackageFilesIndex`][ts-PackageFilesIndex] from `store/cafs/src/checkPkgFilesIntegrity.ts`.
 ///
-/// [ts-PackageFilesIndex]: https://github.com/pnpm/pnpm/blob/1819226b51/store/cafs/src/checkPkgFilesIntegrity.ts
+/// [ts-PackageFilesIndex]: https://github.com/pnpm/pnpm/blob/1819226b51/store/cafs/src/checkPkgFilesIntegrity.ts#L31-L37
 #[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PackageFilesIndex {

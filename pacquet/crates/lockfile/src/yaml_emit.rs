@@ -38,7 +38,7 @@ const INDENT: usize = 2;
 /// Per-package / per-snapshot key priority. Mirrors [`ORDERED_KEYS`][ts-ORDERED_KEYS] in pnpm's
 /// [`sortLockfileKeys`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/fs/src/sortLockfileKeys.ts).
 ///
-/// [ts-ORDERED_KEYS]: https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/fs/src/sortLockfileKeys.ts
+/// [ts-ORDERED_KEYS]: https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/fs/src/sortLockfileKeys.ts#L4-L31
 const ORDERED_KEYS: [&str; 20] = [
     "resolution",
     "id",
@@ -64,7 +64,7 @@ const ORDERED_KEYS: [&str; 20] = [
 
 /// Top-level key priority. Mirrors [`ROOT_KEYS`][ts-ROOT_KEYS] in pnpm's `sortLockfileKeys`.
 ///
-/// [ts-ROOT_KEYS]: https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/fs/src/sortLockfileKeys.ts
+/// [ts-ROOT_KEYS]: https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/fs/src/sortLockfileKeys.ts#L34-L44
 const ROOT_KEYS: [&str; 9] = [
     "lockfileVersion",
     "settings",

@@ -37,7 +37,7 @@ pub(crate) const PNPM_PACKAGE_NAME: &str = "pnpm";
 /// colliding. Mirrors pnpm's [`PNPM_ALLOW_BUILDS`][ts-PNPM_ALLOW_BUILDS]
 /// (`{ '@pnpm/exe': true, 'pnpm': true }`).
 ///
-/// [ts-PNPM_ALLOW_BUILDS]: https://github.com/pnpm/pnpm/blob/a33eeec9cd/pnpm11/engine/pm/commands/src/self-updater/installPnpm.ts
+/// [ts-PNPM_ALLOW_BUILDS]: https://github.com/pnpm/pnpm/blob/a33eeec9cd/pnpm11/engine/pm/commands/src/self-updater/installPnpm.ts#L34
 pub(crate) const PNPM_ALLOW_BUILDS: [&str; 2] = ["pnpm", "@pnpm/exe"];
 
 pub(super) struct InstallPnpmResult {
