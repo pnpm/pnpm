@@ -18,6 +18,7 @@ import {
   type ProjectSnapshot,
 } from '@pnpm/lockfile.fs'
 import { getAllDependenciesFromManifest } from '@pnpm/pkg-manifest.utils'
+import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import {
   DEPENDENCIES_FIELDS,
   type DependenciesField,
@@ -58,6 +59,7 @@ export async function outdated (
     publishedBy?: Date
     publishedByExclude?: PackageVersionPolicy
     wantedLockfile: LockfileObject | null
+    workspacePackages?: WorkspacePackages
   }
 ): Promise<OutdatedPackage[]> {
   if (packageHasNoDeps(opts.manifest)) return []
@@ -93,6 +95,7 @@ export async function outdated (
     projectDir: opts.prefix,
     publishedBy: opts.publishedBy,
     publishedByExclude: opts.publishedByExclude,
+    workspacePackages: opts.workspacePackages,
   }
 
   await Promise.all(

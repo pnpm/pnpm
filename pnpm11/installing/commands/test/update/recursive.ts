@@ -119,6 +119,83 @@ test('recursive update prod dependencies only', async () => {
   })
 })
 
+test('recursive interactive update handles spaced workspace specifier', async () => {
+  preparePackages([
+    {
+      name: '@repro/a',
+      version: '1.0.0',
+    },
+    {
+      name: '@repro/b',
+      version: '1.0.0',
+
+      dependencies: {
+        '@repro/a': 'workspace: *',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  })
+
+  await expect(update.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    interactive: true,
+    latest: true,
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  })).resolves.toBe('All of your dependencies are already up to date')
+})
+
+test('filtered recursive interactive update handles spaced workspace specifier', async () => {
+  preparePackages([
+    {
+      name: '@repro/a',
+      version: '1.0.0',
+    },
+    {
+      name: '@repro/b',
+      version: '1.0.0',
+
+      dependencies: {
+        '@repro/a': 'workspace: *',
+      },
+    },
+  ])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [])
+  await install.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    workspaceDir: process.cwd(),
+  })
+
+  const { selectedProjectsGraph: filteredProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(process.cwd(), [{ namePattern: '@repro/b' }])
+  await expect(update.handler({
+    ...DEFAULT_OPTS,
+    allProjects,
+    dir: process.cwd(),
+    interactive: true,
+    latest: true,
+    recursive: true,
+    selectedProjectsGraph: filteredProjectsGraph,
+    workspaceDir: process.cwd(),
+  })).resolves.toBe('All of your dependencies are already up to date')
+})
+
 test('recursive update with pattern', async () => {
   const projects = preparePackages([
     {

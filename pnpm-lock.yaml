@@ -3589,6 +3589,9 @@ importers:
       '@pnpm/installing.client':
         specifier: workspace:*
         version: link:../../../installing/client
+      '@pnpm/installing.context':
+        specifier: workspace:*
+        version: link:../../../installing/context
       '@pnpm/lockfile.fs':
         specifier: workspace:*
         version: link:../../../lockfile/fs
@@ -3601,6 +3604,9 @@ importers:
       '@pnpm/resolving.npm-resolver':
         specifier: workspace:*
         version: link:../../../resolving/npm-resolver
+      '@pnpm/resolving.resolver-base':
+        specifier: workspace:*
+        version: link:../../../resolving/resolver-base
       '@pnpm/types':
         specifier: workspace:*
         version: link:../../../core/types
@@ -3620,9 +3626,6 @@ importers:
       '@pnpm/logger':
         specifier: workspace:*
         version: link:../../../core/logger
-      '@pnpm/resolving.resolver-base':
-        specifier: workspace:*
-        version: link:../../../resolving/resolver-base
       '@types/ramda':
         specifier: 'catalog:'
         version: 0.31.1

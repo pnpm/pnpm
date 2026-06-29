@@ -1,7 +1,8 @@
 import { expect, test } from '@jest/globals'
 import { LOCKFILE_VERSION } from '@pnpm/constants'
 import type { ResolveLatestDispatcher } from '@pnpm/installing.client'
-import type { DepPath, PackageManifest, ProjectId } from '@pnpm/types'
+import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
+import type { DepPath, PackageManifest, ProjectId, ProjectRootDir } from '@pnpm/types'
 
 import { outdated } from '../lib/outdated.js'
 
@@ -1085,5 +1086,61 @@ test('outdated() does not list runtime that is already up to date', async () => 
     wantedLockfile: lockfile,
   })
 
+  expect(outdatedPkgs).toStrictEqual([])
+})
+
+test('outdated() passes workspace packages to resolver for spaced workspace protocol', async () => {
+  const workspacePackages: WorkspacePackages = new Map([
+    ['@repro/a', new Map([
+      ['1.0.0', {
+        rootDir: 'project/packages/a' as ProjectRootDir,
+        manifest: {
+          name: '@repro/a',
+          version: '1.0.0',
+        },
+      }],
+    ])],
+  ])
+  let resolveCalls = 0
+  const resolveLatest: ResolveLatestDispatcher = async (query, resolveOpts) => {
+    resolveCalls++
+    expect(query.wantedDependency).toStrictEqual({
+      alias: '@repro/a',
+      bareSpecifier: 'workspace: *',
+    })
+    expect(resolveOpts.workspacePackages).toBe(workspacePackages)
+    return undefined
+  }
+  const lockfile = {
+    importers: {
+      ['.' as ProjectId]: {
+        dependencies: {
+          '@repro/a': 'link:packages/a',
+        },
+        specifiers: {
+          '@repro/a': 'workspace: *',
+        },
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+  }
+
+  const outdatedPkgs = await outdated({
+    currentLockfile: lockfile,
+    resolveLatest,
+    lockfileDir: 'project',
+    manifest: {
+      name: '@repro/b',
+      version: '1.0.0',
+      dependencies: {
+        '@repro/a': 'workspace: *',
+      },
+    },
+    prefix: 'project',
+    wantedLockfile: lockfile,
+    workspacePackages,
+  })
+
+  expect(resolveCalls).toBe(1)
   expect(outdatedPkgs).toStrictEqual([])
 })

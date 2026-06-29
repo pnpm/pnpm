@@ -4,10 +4,12 @@ import type { Catalogs } from '@pnpm/catalogs.types'
 import { createMatcher } from '@pnpm/config.matcher'
 import { getPublishedByPolicy } from '@pnpm/config.version-policy'
 import { type ClientOptions, createResolver } from '@pnpm/installing.client'
+import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import {
   readCurrentLockfile,
   readWantedLockfile,
 } from '@pnpm/lockfile.fs'
+import type { WorkspacePackages } from '@pnpm/resolving.resolver-base'
 import type {
   IncludedDependencies,
   ProjectManifest,
@@ -28,6 +30,7 @@ export type OutdatedDepsOfProjectsOptions = Omit<ClientOptions, 'configByUri' | 
   minimumReleaseAgeExclude?: string[]
   minimumReleaseAgeIgnoreMissingTime?: boolean
   minimumReleaseAgeStrict?: boolean
+  workspacePackages?: WorkspacePackages
 }
 
 export async function outdatedDepsOfProjects (
@@ -40,10 +43,11 @@ export async function outdatedDepsOfProjects (
     include: IncludedDependencies
   }
 ): Promise<OutdatedPackage[][]> {
+  const workspacePackages = opts.workspacePackages ?? arrayOfWorkspacePackagesToMap(pkgs)
   if (!opts.lockfileDir) {
     return unnest(await Promise.all(
       pkgs.map(async (pkg) =>
-        outdatedDepsOfProjects([pkg], args, { ...opts, lockfileDir: pkg.rootDir })
+        outdatedDepsOfProjects([pkg], args, { ...opts, lockfileDir: pkg.rootDir, workspacePackages })
       )
     ))
   }
@@ -79,6 +83,7 @@ export async function outdatedDepsOfProjects (
       publishedBy,
       publishedByExclude,
       wantedLockfile,
+      workspacePackages,
     })
   }))
 }

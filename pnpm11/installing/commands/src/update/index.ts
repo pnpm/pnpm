@@ -12,6 +12,7 @@ import { types as allTypes } from '@pnpm/config.reader'
 import { outdatedDepsOfProjects } from '@pnpm/deps.inspection.outdated'
 import { PnpmError } from '@pnpm/error'
 import { handleGlobalUpdate } from '@pnpm/global.commands'
+import { arrayOfWorkspacePackagesToMap } from '@pnpm/installing.context'
 import type { UpdateMatchingFunction } from '@pnpm/installing.deps-installer'
 import { globalInfo } from '@pnpm/logger'
 import type { IncludedDependencies, PackageVulnerabilityAudit, ProjectRootDir } from '@pnpm/types'
@@ -224,6 +225,7 @@ async function interactiveUpdate (
       retries: opts.fetchRetries,
     },
     timeout: opts.fetchTimeout,
+    workspacePackages: opts.allProjects ? arrayOfWorkspacePackagesToMap(opts.allProjects) : undefined,
   })
   const workspacesEnabled = !!opts.workspaceDir
   const choiceGroups = getUpdateChoices(unnest(outdatedPkgsOfProjects), workspacesEnabled)

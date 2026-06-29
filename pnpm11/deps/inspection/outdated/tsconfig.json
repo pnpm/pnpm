@@ -43,6 +43,9 @@
       "path": "../../../installing/client"
     },
     {
+      "path": "../../../installing/context"
+    },
+    {
       "path": "../../../lockfile/fs"
     },
     {
