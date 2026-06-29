@@ -1253,6 +1253,82 @@ async fn osv_refuses_vulnerable_tarball_from_cache() {
 }
 
 #[tokio::test]
+async fn osv_refuses_vulnerable_cached_tarball_under_noncanonical_name() {
+    // A cache hit must still be OSV-screened on the tarball's *resolved*
+    // version, not just the filename-carried one. Here version 1.0.0 declares
+    // a non-canonical tarball basename `foo-0.0.1.tgz`, so the request filename
+    // resolves to 1.0.0 — and a cached tarball for a now-blocked 1.0.0 must not
+    // slip past on the filename's unblocked "0.0.1".
+    let mut upstream = mockito::Server::new_async().await;
+    let bytes = b"cached vulnerable tarball";
+    let packument = json!({
+        "name": "foo",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "foo",
+                "version": "1.0.0",
+                "dist": {
+                    "tarball": format!("{}/foo/-/foo-0.0.1.tgz", upstream.url()),
+                    "integrity": sha512_integrity(bytes),
+                },
+            },
+        },
+    });
+    let packument_mock = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(packument.to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    let tarball_mock = upstream
+        .mock("GET", "/foo/-/foo-0.0.1.tgz")
+        .with_status(200)
+        .with_body(bytes)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let cache_dir = tmp.path().to_path_buf();
+    let warming_app = router(config_for(&upstream.url(), cache_dir.clone()));
+    let warmed = warming_app
+        .oneshot(Request::get("/foo/-/foo-0.0.1.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(warmed.status(), StatusCode::OK);
+    assert_eq!(body_bytes(warmed.into_body()).await, bytes);
+
+    // The warm-up must have written the tarball to the proxy cache, so the
+    // screened request below genuinely exercises the cache-hit path rather than
+    // silently falling back to a miss that would be refused anyway.
+    let cached_tarball = cache_dir.join(".pnpr-cache").join("foo").join("foo-0.0.1.tgz");
+    assert!(
+        cached_tarball.is_file(),
+        "warm-up must populate the proxy cache at {cached_tarball:?}",
+    );
+
+    // Block the resolved version 1.0.0; the filename carries the unblocked
+    // 0.0.1, so only a resolved-version screen on the cache hit can refuse.
+    let osv = osv_database("foo", &["1.0.0"]);
+    let mut config = config_for(&upstream.url(), cache_dir);
+    config.resolver.enabled = false;
+    enable_osv(&mut config, osv.path());
+    let screened_app = router(config);
+
+    let response = screened_app
+        .oneshot(Request::get("/foo/-/foo-0.0.1.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+    packument_mock.assert_async().await;
+    tarball_mock.assert_async().await;
+}
+
+#[tokio::test]
 async fn tarball_route_preserves_basename_and_binds_to_declaring_version() {
     // A version's tarball is served, fetched, and cached under the basename
     // its own `dist.tarball` declares (preserved verbatim, so a
@@ -1389,11 +1465,13 @@ async fn tampered_upstream_tarball_is_rejected_and_not_cached() {
 
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
-    let cache_dir = storage.join(".pnpr-cache").join("poisoned");
-    std::fs::create_dir_all(&cache_dir).unwrap();
-    let cache_path = cache_dir.join("poisoned-1.0.0.tgz");
-    std::fs::write(&cache_path, poison_bytes).unwrap();
+    let cache_path = storage.join(".pnpr-cache").join("poisoned").join("poisoned-1.0.0.tgz");
 
+    // Upstream serves bytes that don't match the version's `dist.integrity`.
+    // Verification happens as the bytes are written to the cache, so the
+    // poisoned tarball is rejected and never lands in the cache. (Serving from
+    // the cache later is trusted precisely because nothing unverified is ever
+    // written to it.)
     let app = router(config_for(&upstream.url(), storage.clone()));
     let packument_response =
         app.clone().oneshot(Request::get("/poisoned").body(Body::empty()).unwrap()).await.unwrap();
@@ -1404,7 +1482,7 @@ async fn tampered_upstream_tarball_is_rejected_and_not_cached() {
         .await
         .unwrap();
     assert_eq!(tarball_response.status(), StatusCode::BAD_GATEWAY);
-    assert!(!cache_path.exists(), "unverified tarball must not remain cached");
+    assert!(!cache_path.exists(), "unverified tarball must not be written to the cache");
 
     let cached_response = router(config_for("http://127.0.0.1:1", storage))
         .oneshot(Request::get("/poisoned/-/poisoned-1.0.0.tgz").body(Body::empty()).unwrap())

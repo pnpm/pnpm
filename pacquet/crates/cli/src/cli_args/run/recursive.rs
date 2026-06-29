@@ -13,13 +13,14 @@
 //! (`--filter` / `--filter-prod`, include and exclude selectors) narrow
 //! the selected set via [`select_recursive_projects`]; the selection is
 //! then sorted topologically (upstream's default) and run sequentially.
-//! `--no-sort`, `--reverse`, `--workspace-concurrency` parallelism, the
-//! `RegExp` script selector, and the main-dispatch auto-exclusion of the
-//! workspace root for `run` / `exec` / `add` / `test` are not ported yet.
+//! `--no-sort`, `--reverse`, `--workspace-concurrency` parallelism, and
+//! the `RegExp` script selector are not ported yet. The main-dispatch
+//! auto-exclusion of the workspace root is applied via
+//! [`AutoExcludeRoot::Enabled`].
 
 use super::{RunArgs, RunContext, run_stages};
 use crate::cli_args::recursive::{
-    ExecutionStatus, Status, count_failures, discover_workspace_projects,
+    AutoExcludeRoot, ExecutionStatus, Status, count_failures, discover_workspace_projects,
     get_resumed_package_chunks, select_recursive_projects, sort_projects, write_recursive_summary,
 };
 use derive_more::{Display, Error};
@@ -89,8 +90,13 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
     };
     let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
 
-    let projects = discover_workspace_projects(workspace_root)?;
-    let graph = select_recursive_projects(&projects, config, dir)?;
+    let (projects, patterns) = discover_workspace_projects(workspace_root)?;
+    let graph = select_recursive_projects(
+        &projects,
+        config,
+        dir,
+        AutoExcludeRoot::Enabled { workspace_patterns: patterns.as_deref() },
+    )?;
     // An empty `--filter` selection is a no-op, matching pnpm's exit-0 for
     // an empty selectedProjectsGraph; an empty workspace instead falls
     // through to the no-script error below.

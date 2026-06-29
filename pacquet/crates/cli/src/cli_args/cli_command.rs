@@ -2,6 +2,7 @@ use super::{
     add::AddArgs,
     approve_builds::ApproveBuildsArgs,
     audit::AuditArgs,
+    bin::BinArgs,
     cache::CacheCommand,
     cat_file::CatFileArgs,
     cat_index::CatIndexArgs,
@@ -33,6 +34,7 @@ use super::{
     publish::PublishArgs,
     rebuild::RebuildArgs,
     remove::RemoveArgs,
+    repo::RepoArgs,
     reporter::ReporterType,
     restart::RestartArgs,
     root::RootArgs,
@@ -104,6 +106,25 @@ pub struct CliArgs {
     /// [`pacquet_config::Config::filter_prod`].
     #[clap(long = "filter-prod", global = true)]
     pub filter_prod: Vec<String>,
+}
+
+impl CliArgs {
+    /// Promote the command to recursive mode when a `--filter` /
+    /// `--filter-prod` selector is present, even without an explicit
+    /// `-r` / `--recursive`.
+    ///
+    /// Mirrors pnpm's `parse-cli-args`, which sets `options.recursive =
+    /// true` for any command whenever a filter is given
+    /// (<https://github.com/pnpm/pnpm/blob/8eb1be4988/cli/parse-cli-args/src/index.ts#L211-L219>),
+    /// so the promotion applies CLI-wide rather than being special-cased
+    /// per command. Call once on the parsed args before dispatch; both
+    /// the install fast-path bail and [`Self::run`] then observe the
+    /// promoted flag.
+    pub fn promote_recursive_for_filter(&mut self) {
+        if !self.filter.is_empty() || !self.filter_prod.is_empty() {
+            self.recursive = true;
+        }
+    }
 }
 
 #[derive(Debug, Subcommand)]
@@ -187,6 +208,8 @@ pub enum CliCommand {
     /// Manage runtimes.
     #[clap(visible_alias = "rt")]
     Runtime(RuntimeArgs),
+    /// Print the directory where pnpm will install executables.
+    Bin(BinArgs),
     /// Print the effective `node_modules` directory.
     Root(RootArgs),
     /// Manage the pnpm configuration files.
@@ -228,6 +251,8 @@ pub enum CliCommand {
     /// Opens the documentation of a package in the browser.
     #[clap(visible_alias = "home")]
     Docs(DocsArgs),
+    /// Opens the URL of the package's repository in a browser.
+    Repo(RepoArgs),
     /// Updates pnpm to the latest version (or the one specified)
     SelfUpdate(SelfUpdateArgs),
     /// Sets up pnpm

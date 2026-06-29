@@ -1185,56 +1185,24 @@ async fn serve_tarball(
         }
     }
 
-    let packument = match load_packument_bytes(state, &name).await {
-        PackumentLoad::Ok(bytes) => bytes,
-        PackumentLoad::NotFound => return not_found(),
-        PackumentLoad::Err(err) => return error_response(&err),
-    };
-    let TarballDist { version, integrity } =
-        match expected_tarball_dist(&packument, &name, &filename) {
-            Ok(Some(dist)) => dist,
-            Ok(None) => return not_found(),
-            Err(err) => return error_response(&err),
-        };
-    // Re-screen when the resolved version differs from the filename's: a
-    // non-canonical tarball name slips past the screen above, so this is
-    // where OSV sees the version such a tarball really belongs to.
-    if version != name_version
-        && let Err(err) = ensure_osv_allowed(state, &name, &version)
-    {
-        return error_response(&err);
-    }
-
     let upstreams = resolve_upstreams(state, &name);
+
+    // A cached tarball is verified against `dist.integrity` on the way in
+    // (`download_verified_to_cache`) and re-verified by the client on receipt,
+    // so a hit can be served without re-hashing.
+    let resolved_dist =
+        match screen_cached_tarball_osv(state, &name, &filename, &name_version).await {
+            Ok(dist) => dist,
+            Err(response) => return response,
+        };
+
     // Read the cache if any uplink in the chain mirrors tarballs (or there's
-    // no upstream left at all — a leftover mirror). Reading is harmless: the
-    // bytes are verified against the version's `dist.integrity` before being
-    // served, whichever uplink originally wrote them.
+    // no upstream left at all — a leftover mirror).
     let should_read_cache = upstreams.is_empty() || upstreams.iter().any(|u| u.caches());
     if should_read_cache {
         match state.inner.storage.open_cached_tarball(&name, &filename).await {
             Ok(Some((file, len))) => {
-                let expected = cached_tarball_integrity(&integrity, len);
-                if state
-                    .inner
-                    .storage
-                    .read_cached_tarball_integrity(&name, &filename)
-                    .await
-                    .is_some_and(|cached| cached == expected)
-                {
-                    return tarball_response(streaming::stream_file(file), Some(len));
-                }
-                match streaming::verify_file(file, &integrity).await {
-                    Ok(file) => {
-                        record_cached_tarball_integrity(state, &name, &filename, expected).await;
-                        return tarball_response(streaming::stream_file(file), Some(len));
-                    }
-                    Err(err) => {
-                        let err = tarball_stream_error(err, &name, &filename);
-                        tracing::warn!(?err, package = %name.as_str(), %filename, "cached tarball failed verification");
-                        discard_cached_tarball(state, &name, &filename).await;
-                    }
-                }
+                return tarball_response(streaming::stream_file(file), Some(len));
             }
             Ok(None) => {}
             Err(err) => {
@@ -1246,6 +1214,17 @@ async fn serve_tarball(
     if upstreams.is_empty() {
         return not_found();
     }
+
+    // Cache miss: the download must be verified against `dist.integrity` before
+    // caching — reuse the dist the OSV screen resolved, or resolve it now.
+    let integrity = match resolved_dist {
+        Some(dist) => dist.integrity,
+        None => match resolve_tarball_dist_and_screen(state, &name, &filename, &name_version).await
+        {
+            Ok(dist) => dist.integrity,
+            Err(response) => return response,
+        },
+    };
 
     // Walk the uplink fallback chain in declared order: the first uplink to
     // return the tarball wins; a `NotFound` falls through to the next; a
@@ -1265,24 +1244,16 @@ async fn serve_tarball(
     };
 
     if upstream.caches() {
-        let len = match streaming::download_verified_to_cache(
-            response,
-            write,
-            &integrity,
-            MAX_TARBALL_BYTES,
-        )
-        .await
+        // Verify the freshly-downloaded bytes against `dist.integrity` as they
+        // are written to the cache. That write-time check (plus the install
+        // client's own verification) is why serving cached bytes later needs no
+        // re-hash.
+        if let Err(err) =
+            streaming::download_verified_to_cache(response, write, &integrity, MAX_TARBALL_BYTES)
+                .await
         {
-            Ok(len) => len,
-            Err(err) => return error_response(&tarball_stream_error(err, &name, &filename)),
-        };
-        record_cached_tarball_integrity(
-            state,
-            &name,
-            &filename,
-            cached_tarball_integrity(&integrity, len),
-        )
-        .await;
+            return error_response(&tarball_stream_error(err, &name, &filename));
+        }
 
         match state.inner.storage.open_cached_tarball(&name, &filename).await {
             Ok(Some((file, len))) => tarball_response(streaming::stream_file(file), Some(len)),
@@ -1313,6 +1284,54 @@ async fn serve_tarball(
 struct TarballDist {
     version: String,
     integrity: Integrity,
+}
+
+/// OSV-screen a tarball's resolved version before its cached bytes are served.
+/// Returns the resolved [`TarballDist`] (for the cache-miss path to reuse) when
+/// OSV screening is enabled, or `None` when it is disabled — where the resolved
+/// version isn't needed until a cache miss. On a blocked version or a lookup
+/// failure, returns the [`Response`] the handler should return.
+async fn screen_cached_tarball_osv(
+    state: &AppState,
+    name: &PackageName,
+    filename: &str,
+    name_version: &str,
+) -> Result<Option<TarballDist>, Response> {
+    if state.inner.osv_index.is_none() {
+        return Ok(None);
+    }
+    resolve_tarball_dist_and_screen(state, name, filename, name_version).await.map(Some)
+}
+
+/// Resolve a tarball's authoritative [`TarballDist`] from the packument and
+/// OSV-screen the resolved version when it differs from the filename-carried
+/// `name_version` (already screened by the caller). On failure, returns the
+/// [`Response`] the handler should return. Shared by [`screen_cached_tarball_osv`]
+/// and the cache-miss download path in [`serve_tarball`].
+async fn resolve_tarball_dist_and_screen(
+    state: &AppState,
+    name: &PackageName,
+    filename: &str,
+    name_version: &str,
+) -> Result<TarballDist, Response> {
+    let packument = match load_packument_bytes(state, name).await {
+        PackumentLoad::Ok(bytes) => bytes,
+        PackumentLoad::NotFound => return Err(not_found()),
+        PackumentLoad::Err(err) => return Err(error_response(&err)),
+    };
+    let dist = match expected_tarball_dist(&packument, name, filename) {
+        Ok(Some(dist)) => dist,
+        Ok(None) => return Err(not_found()),
+        Err(err) => return Err(error_response(&err)),
+    };
+    // A non-canonical tarball name slips past the filename-version screen, so
+    // this is where OSV sees the version such a tarball really belongs to.
+    if dist.version != name_version
+        && let Err(err) = ensure_osv_allowed(state, name, &dist.version)
+    {
+        return Err(error_response(&err));
+    }
+    Ok(dist)
 }
 
 fn expected_tarball_dist(
@@ -1392,27 +1411,8 @@ fn tarball_integrity_error(name: &PackageName, filename: &str, reason: String) -
     }
 }
 
-async fn discard_cached_tarball(state: &AppState, name: &PackageName, filename: &str) {
-    if let Err(err) = state.inner.storage.remove_cached_tarball(name, filename).await {
-        tracing::warn!(?err, package = %name.as_str(), %filename, "invalid tarball cache removal failed");
-    }
-}
-
 fn cached_tarball_integrity(integrity: &Integrity, len: u64) -> CachedTarballIntegrity {
     CachedTarballIntegrity { integrity: integrity.to_string(), len }
-}
-
-async fn record_cached_tarball_integrity(
-    state: &AppState,
-    name: &PackageName,
-    filename: &str,
-    integrity: CachedTarballIntegrity,
-) {
-    if let Err(err) =
-        state.inner.storage.write_cached_tarball_integrity(name, filename, &integrity).await
-    {
-        tracing::warn!(?err, package = %name.as_str(), %filename, "tarball cache integrity marker write failed");
-    }
 }
 
 /// Add a new user or log in an existing one. Mirrors verdaccio's

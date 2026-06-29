@@ -27,7 +27,9 @@ use serde_json::Value;
 
 use super::PublishArgs;
 use crate::cli_args::{
-    recursive::{discover_workspace_projects, select_recursive_projects, sort_projects},
+    recursive::{
+        AutoExcludeRoot, discover_workspace_projects, select_recursive_projects, sort_projects,
+    },
     registry_client::build_registry_client,
 };
 
@@ -49,8 +51,12 @@ impl PublishArgs {
         }
 
         let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
-        let projects = discover_workspace_projects(workspace_root)?;
-        let graph = select_recursive_projects(&projects, config, dir)?;
+        // `publish` is not in pnpm's root-auto-exclusion command set
+        // (`run` / `exec` / `add` / `test`), so the workspace root stays in the
+        // selection; its own name/version/private eligibility check drops it
+        // below, matching pnpm's `recursivePublish`.
+        let (projects, _patterns) = discover_workspace_projects(workspace_root)?;
+        let graph = select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
         // A `--filter` that narrows a non-empty workspace to nothing is a
         // no-op (exit 0), matching pnpm's empty-`selectedProjectsGraph`
         // dispatch in main.ts.
