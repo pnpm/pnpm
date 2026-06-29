@@ -200,6 +200,7 @@ fn fish_setup_skips_existing_conf_d_file_with_crlf_line_endings() {
     fs::create_dir_all(config_file.parent().expect("config parent")).expect("create config dir");
     fs::write(&config_file, format!("{}\r\n", settings.replace('\n', "\r\n")))
         .expect("write CRLF fish config");
+    let original_config = fs::read_to_string(&config_file).expect("read original fish config");
     env.set("FISH_VERSION", "3.7.0");
     env.set("XDG_CONFIG_HOME", &config_home);
 
@@ -213,7 +214,7 @@ fn fish_setup_skips_existing_conf_d_file_with_crlf_line_endings() {
         }),
     );
     assert_eq!(report.old_settings, settings);
-    assert!(fs::read_to_string(config_file).expect("read fish config").contains("\r\n"));
+    assert_eq!(fs::read_to_string(config_file).expect("read fish config"), original_config,);
 }
 
 #[test]
@@ -354,7 +355,11 @@ fn fish_setup_preserves_existing_mode_on_overwrite() {
         }),
     );
     assert_eq!(
-        fs::metadata(config_file).expect("stat fish config").permissions().mode() & 0o777,
+        fs::read_to_string(&config_file).expect("read overwritten fish config"),
+        format!("{}\n", render_fish_settings(HOME, &opts(true))),
+    );
+    assert_eq!(
+        fs::metadata(&config_file).expect("stat fish config").permissions().mode() & 0o777,
         0o600,
     );
 }
