@@ -250,3 +250,39 @@ fn parse_spec_strips_version_from_name_with_version() {
     assert_eq!(name, "react");
     assert_eq!(tag, Some("18.2.0"));
 }
+
+#[test]
+fn repo_url_resolves_github_dot_com_shorthand_without_scheme() {
+    assert_eq!(
+        repository_to_issues_url("github.com/owner/repo"),
+        Some("https://github.com/owner/repo/issues".to_string()),
+    );
+}
+
+#[test]
+fn repo_url_retains_ssh_port() {
+    assert_eq!(
+        repository_to_issues_url("ssh://git@git.example.com:2222/owner/repo.git"),
+        Some("https://git.example.com:2222/owner/repo/issues".to_string()),
+    );
+}
+
+#[test]
+fn repo_url_strips_shorthand_fragment_and_query() {
+    assert_eq!(
+        repository_to_issues_url("github:owner/repo#main"),
+        Some("https://github.com/owner/repo/issues".to_string()),
+    );
+    assert_eq!(
+        repository_to_issues_url("owner/repo.git#main"),
+        Some("https://github.com/owner/repo/issues".to_string()),
+    );
+}
+
+#[test]
+fn repo_url_strips_scp_fragment_and_query() {
+    assert_eq!(
+        repository_to_issues_url("git@github.com:owner/repo.git#main"),
+        Some("https://github.com/owner/repo/issues".to_string()),
+    );
+}

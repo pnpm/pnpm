@@ -467,13 +467,19 @@ async fn fetch_packument(
     {
         return Err(format!("{display_url} returned an oversized packument ({length} bytes)"));
     }
-    let body = response.text().await.map_err(|source| {
-        format!("{display_url}: {}", redact_url_credentials(&source.to_string()))
-    })?;
-    if body.len() as u64 > MAX_PACKUMENT_BYTES {
-        return Err(format!("{display_url} returned an oversized packument"));
+    use futures_util::StreamExt as _;
+    let mut stream = response.bytes_stream();
+    let mut body_bytes = Vec::new();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|source| {
+            format!("{display_url}: {}", redact_url_credentials(&source.to_string()))
+        })?;
+        if (body_bytes.len() + chunk.len()) as u64 > MAX_PACKUMENT_BYTES {
+            return Err(format!("{display_url} returned an oversized packument"));
+        }
+        body_bytes.extend_from_slice(&chunk);
     }
-    serde_json::from_str::<Packument>(&body)
+    serde_json::from_slice::<Packument>(&body_bytes)
         .map(Some)
         .map_err(|err| format!("{display_url} returned invalid JSON: {err}"))
 }

@@ -250,7 +250,8 @@ impl PackageVersion {
         // Format once and reuse for the request, the auth-header
         // lookup, and the error mapper. Keeps the auth lookup and
         // request URL byte-identical and saves two formats.
-        let url = format!("{registry}{name}/{tag}");
+        let encoded_name = pacquet_network::encode_package_name(name);
+        let url = format!("{registry}{encoded_name}/{tag}");
         let network_error = |error| NetworkError { error, url: url.clone() };
 
         let mut request = http_client.acquire_for_url(&url).await.get(&url).header(

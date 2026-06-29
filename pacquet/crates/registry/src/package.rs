@@ -101,11 +101,8 @@ impl Package {
         registry: &str,
         auth_headers: &AuthHeaders,
     ) -> Result<Self, RegistryError> {
-        // Format once. The same string is consumed by the GET, the
-        // per-URL `Authorization` lookup, and the error mapper — using
-        // distinct closures risked the auth lookup and request URL
-        // drifting if the format expression ever changed.
-        let url = format!("{registry}{name}"); // TODO: use reqwest URL directly
+        let encoded_name = pacquet_network::encode_package_name(name);
+        let url = format!("{registry}{encoded_name}"); // TODO: use reqwest URL directly
         let network_error = |error| NetworkError { error, url: url.clone() };
         let mut request = http_client.acquire_for_url(&url).await.get(&url).header(
             "accept",

@@ -1,8 +1,7 @@
 use crate::cli_args::registry_client::build_registry_client;
 use derive_more::{Display, Error};
-use miette::{Context, Diagnostic, IntoDiagnostic};
+use miette::{Context, Diagnostic};
 use pacquet_config::Config;
-use pacquet_network::encode_package_name;
 use pacquet_package_manifest::safe_read_package_json_from_dir;
 use pacquet_registry::{PackageTag, PackageVersion};
 use serde_json::Value;
@@ -22,6 +21,10 @@ pub enum BugsError {
     #[display("The package \"{package}\" does not have a bug tracker URL.")]
     #[diagnostic(code(ERR_PNPM_NO_BUGS_URL))]
     NoBugsUrlForPackage { package: String },
+
+    #[display("Registry request to {url} failed: {reason}")]
+    #[diagnostic(code(ERR_PNPM_REGISTRY_ERROR))]
+    RegistryError { url: String, reason: String },
 }
 
 #[derive(Debug, clap::Args)]
@@ -38,20 +41,38 @@ impl BugsArgs {
             let url = get_bugs_url_from_current_project(dir)?;
             open_url(&url);
         } else {
-            let registry_url =
-                normalize_registry_url(self.registry.as_deref().unwrap_or(&config.registry));
             let http_client = build_registry_client(config)
                 .wrap_err("build the network client for registry requests")?;
 
-            for spec in &self.packages {
-                let url = get_bugs_url_from_registry(
-                    spec,
-                    &registry_url,
-                    &http_client,
-                    &config.auth_headers,
-                )
-                .await
-                .wrap_err_with(|| format!("look up bugs URL for \"{spec}\""))?;
+            let registries: std::collections::HashMap<String, String> =
+                config.resolved_registries().into_iter().collect();
+
+            let futures = self.packages.iter().map(|spec| {
+                let (package_name, _tag) = parse_package_spec(spec);
+                let target_registry = if let Some(ref override_registry) = self.registry {
+                    normalize_registry_url(override_registry)
+                } else {
+                    let picked = pacquet_resolving_npm_resolver::pick_registry_for_package(
+                        &registries,
+                        package_name,
+                        Some(spec),
+                    );
+                    normalize_registry_url(&picked)
+                };
+
+                let http_client = &http_client;
+                let auth_headers = &config.auth_headers;
+                async move {
+                    get_bugs_url_from_registry(spec, &target_registry, http_client, auth_headers)
+                        .await
+                        .wrap_err_with(|| format!("look up bugs URL for \"{spec}\""))
+                }
+            });
+
+            let results: Vec<miette::Result<String>> =
+                futures_util::future::join_all(futures).await;
+            for res in results {
+                let url = res?;
                 open_url(&url);
             }
         }
@@ -78,17 +99,32 @@ async fn get_bugs_url_from_registry(
     http_client: &pacquet_network::ThrottledClient,
     auth_headers: &pacquet_network::AuthHeaders,
 ) -> miette::Result<String> {
-    let (package_name, _tag) = parse_package_spec(spec);
-    let encoded_name = encode_package_name(package_name);
+    let (package_name, tag) = parse_package_spec(spec);
+    let package_tag = match tag {
+        None => PackageTag::Latest,
+        Some(t) => t.parse::<PackageTag>().unwrap_or(PackageTag::Latest),
+    };
     let package_version = PackageVersion::fetch_from_registry(
-        &encoded_name,
-        PackageTag::Latest,
+        package_name,
+        package_tag,
         http_client,
         registry_url,
         auth_headers,
     )
     .await
-    .into_diagnostic()
+    .map_err(|err| {
+        let (url, reason) = match err {
+            pacquet_registry::RegistryError::Network(net_err) => (
+                pacquet_network::redact_url_credentials(&net_err.url),
+                pacquet_network::redact_url_credentials(&net_err.error.to_string()),
+            ),
+            other => (
+                pacquet_network::redact_url_credentials(registry_url),
+                pacquet_network::redact_url_credentials(&other.to_string()),
+            ),
+        };
+        BugsError::RegistryError { url, reason }
+    })
     .wrap_err_with(|| format!("fetch package info for \"{package_name}\" from the registry"))?;
 
     let manifest = package_manifest_from_version(&package_version);
@@ -99,8 +135,11 @@ async fn get_bugs_url_from_registry(
 fn package_manifest_from_version(version: &PackageVersion) -> Value {
     let mut map = serde_json::Map::new();
     map.insert("name".to_string(), Value::String(version.name.clone()));
-    for (key, value) in &version.other {
-        map.insert(key.clone(), value.clone());
+    if let Some(bugs) = version.other.get("bugs") {
+        map.insert("bugs".to_string(), bugs.clone());
+    }
+    if let Some(repo) = version.other.get("repository") {
+        map.insert("repository".to_string(), repo.clone());
     }
     Value::Object(map)
 }
@@ -132,7 +171,15 @@ fn pick_bugs_url(manifest: &Value) -> Option<String> {
 }
 
 fn repository_to_issues_url(raw_url: &str) -> Option<String> {
-    let trimmed = raw_url.trim();
+    let mut trimmed = raw_url.trim();
+
+    // Strip fragment and query first to prevent them from leaking into shorthand or SCP paths
+    if let Some(pos) = trimmed.find('#') {
+        trimmed = &trimmed[..pos];
+    }
+    if let Some(pos) = trimmed.find('?') {
+        trimmed = &trimmed[..pos];
+    }
 
     if let Some(url) = try_hosted_git_shorthand(trimmed) {
         return Some(url);
@@ -140,6 +187,7 @@ fn repository_to_issues_url(raw_url: &str) -> Option<String> {
 
     let cleaned = trimmed.strip_prefix("git+").unwrap_or(trimmed);
 
+    // Handle SCP-style SSH URLs: `git@github.com:owner/repo.git`
     if let Some(rest) = cleaned.strip_prefix("git@")
         && let Some(colon_pos) = rest.find(':')
     {
@@ -150,30 +198,53 @@ fn repository_to_issues_url(raw_url: &str) -> Option<String> {
         }
     }
 
-    let parsed = Url::parse(cleaned).ok()?;
+    let parsed_url = if let Ok(parsed) = Url::parse(cleaned) {
+        Some(parsed)
+    } else if cleaned.contains('/') && !cleaned.contains(':') {
+        let slash_pos = cleaned.find('/');
+        let dot_pos = cleaned.find('.');
+        if let Some(slash_pos) = slash_pos
+            && let Some(dot_pos) = dot_pos
+            && dot_pos < slash_pos
+        {
+            Url::parse(&format!("https://{cleaned}")).ok()
+        } else {
+            None
+        }
+    } else {
+        None
+    };
 
-    match parsed.scheme() {
-        "http" | "https" => {
-            let mut url = parsed;
-            url.set_query(None);
-            url.set_fragment(None);
-            let path = url.path().trim_end_matches('/').trim_end_matches(".git");
-            if path.is_empty() {
-                return None;
+    if let Some(parsed) = parsed_url {
+        match parsed.scheme() {
+            "http" | "https" => {
+                let mut url = parsed;
+                url.set_query(None);
+                url.set_fragment(None);
+                let path = url.path().trim_end_matches('/').trim_end_matches(".git");
+                if path.is_empty() {
+                    return None;
+                }
+                let new_path = format!("{path}/issues");
+                url.set_path(&new_path);
+                Some(url.to_string())
             }
-            let new_path = format!("{path}/issues");
-            url.set_path(&new_path);
-            Some(url.to_string())
-        }
-        "ssh" | "git" | "git+ssh" => {
-            let host = parsed.host_str()?;
-            let path = parsed.path().trim_end_matches('/').trim_end_matches(".git");
-            if path.is_empty() {
-                return None;
+            "ssh" | "git" | "git+ssh" => {
+                let host = parsed.host_str()?;
+                let path = parsed.path().trim_end_matches('/').trim_end_matches(".git");
+                if path.is_empty() {
+                    return None;
+                }
+                if let Some(port) = parsed.port() {
+                    Some(format!("https://{host}:{port}{path}/issues"))
+                } else {
+                    Some(format!("https://{host}{path}/issues"))
+                }
             }
-            Some(format!("https://{host}{path}/issues"))
+            _ => None,
         }
-        _ => None,
+    } else {
+        None
     }
 }
 
@@ -195,7 +266,9 @@ fn try_hosted_git_shorthand(input: &str) -> Option<String> {
     // to avoid matching `git+<https://`>, SCP-style SSH, etc.
     if !input.contains(':') && !input.contains("//") && !input.contains('@') {
         let (user, project) = split_user_project(input)?;
-        return Some(format!("https://github.com/{user}/{project}/issues"));
+        if !project.contains('/') {
+            return Some(format!("https://github.com/{user}/{project}/issues"));
+        }
     }
 
     None
@@ -221,8 +294,26 @@ fn normalize_registry_url(url: &str) -> String {
 }
 
 fn open_url(url: &str) {
-    println!("{url}");
-    let result = open_url_in_browser(url);
+    let sanitized = crate::cli_args::sanitize::sanitize(url);
+    let redacted = pacquet_network::redact_url_credentials(&sanitized);
+    println!("{redacted}");
+
+    // Clear username/password before passing to open_url_in_browser:
+    let clean_url_for_browser = if let Ok(mut parsed) = Url::parse(url) {
+        if !parsed.username().is_empty() || parsed.password().is_some() {
+            let _ = parsed.set_username("");
+            let _ = parsed.set_password(None);
+            parsed.to_string()
+        } else {
+            url.to_string()
+        }
+    } else {
+        url.to_string()
+    };
+
+    let clean_url_for_browser = crate::cli_args::sanitize::sanitize(&clean_url_for_browser);
+
+    let result = open_url_in_browser(&clean_url_for_browser);
     if let Err(err) = result {
         tracing::debug!(target: "pacquet_cli", %err, "could not open browser");
     }
@@ -232,6 +323,7 @@ fn open_url(url: &str) {
 fn open_url_in_browser(url: &str) -> std::io::Result<()> {
     std::process::Command::new("xdg-open")
         .arg(url)
+        .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .spawn()?;
@@ -242,6 +334,7 @@ fn open_url_in_browser(url: &str) -> std::io::Result<()> {
 fn open_url_in_browser(url: &str) -> std::io::Result<()> {
     std::process::Command::new("open")
         .arg(url)
+        .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .spawn()?;
@@ -254,6 +347,7 @@ fn open_url_in_browser(url: &str) -> std::io::Result<()> {
     let rundll32 = std::path::Path::new(&system_root).join("System32").join("rundll32.exe");
     std::process::Command::new(rundll32)
         .args(["url.dll,FileProtocolHandler", url])
+        .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
         .spawn()?;
