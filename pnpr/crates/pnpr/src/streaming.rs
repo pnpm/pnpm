@@ -68,8 +68,16 @@ pub fn stream_verified_to_cache(
     integrity: &Integrity,
     max_bytes: u64,
 ) -> Result<Body, TarballStreamError> {
+    // Reject an upstream that already declares an oversize body up front, so it
+    // surfaces as an error response instead of a failure mid-stream.
+    if let Some(received) = response.content_length()
+        && received > max_bytes
+    {
+        return Err(TarballStreamError::TooLarge { limit: max_bytes, received });
+    }
     let checker = integrity_checker(integrity).map_err(TarballStreamError::Integrity)?;
     let state = TeeState {
+        url: response.url().to_string(),
         upstream: Box::pin(response.bytes_stream()),
         write: Some(write),
         checker,
@@ -82,8 +90,14 @@ pub fn stream_verified_to_cache(
             Some(Ok(chunk)) => {
                 let received = state.written.saturating_add(chunk.len() as u64);
                 if received > state.max_bytes {
-                    abandon(state.write.take()).await;
                     let limit = state.max_bytes;
+                    tracing::warn!(
+                        url = %state.url,
+                        received,
+                        limit,
+                        "proxied tarball exceeded the size limit mid-stream",
+                    );
+                    abandon(state.write.take()).await;
                     return Some((
                         Err(io::Error::other(format!("tarball exceeds {limit} bytes"))),
                         None,
@@ -108,13 +122,17 @@ pub fn stream_verified_to_cache(
                 Some((Ok(chunk), Some(state)))
             }
             Some(Err(source)) => {
+                tracing::warn!(url = %state.url, ?source, "upstream tarball stream failed mid-download");
                 abandon(state.write.take()).await;
                 Some((Err(io::Error::other(source)), None))
             }
             None => {
                 match state.checker.result() {
                     Ok(_) => finalize(state.write.take()).await,
-                    Err(_) => abandon(state.write.take()).await,
+                    Err(err) => {
+                        tracing::warn!(url = %state.url, ?err, "proxied tarball failed integrity; not caching it");
+                        abandon(state.write.take()).await;
+                    }
                 }
                 None
             }
@@ -143,6 +161,8 @@ async fn abandon(write: Option<TarballWrite>) {
 /// stream, the cache writer (dropped once caching is abandoned), the running
 /// SRI checker, and the size budget.
 struct TeeState {
+    /// The upstream tarball URL, kept only to tag failure logs.
+    url: String,
     upstream: Pin<Box<dyn Stream<Item = reqwest::Result<Bytes>> + Send>>,
     write: Option<TarballWrite>,
     checker: IntegrityChecker,

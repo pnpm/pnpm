@@ -1,4 +1,4 @@
-use super::{integrity_checker, parse_integrity, stream_verified_to_cache};
+use super::{TarballStreamError, integrity_checker, parse_integrity, stream_verified_to_cache};
 use crate::{config::HostedStoreConfig, package_name::PackageName, storage::Storage};
 use futures_util::StreamExt;
 use ssri::{Algorithm, Integrity, IntegrityOpts};
@@ -162,11 +162,12 @@ async fn oversized_response_is_rejected_and_tmp_is_removed() {
     let name = PackageName::parse("foo").unwrap();
     let write = storage.open_cached_tarball_tmp(&name, "foo-1.0.0.tgz").await.unwrap();
 
-    let body = stream_verified_to_cache(response, write, &integrity, 3).unwrap();
-    // The body errors once the stream exceeds the 3-byte budget...
-    assert!(axum::body::to_bytes(body, usize::MAX).await.is_err());
+    // An upstream that declares an oversize body is rejected up front, before
+    // any bytes stream, so the caller turns it into an error response.
+    let err = stream_verified_to_cache(response, write, &integrity, 3).unwrap_err();
+    assert!(matches!(err, TarballStreamError::TooLarge { limit: 3, received } if received > 3));
 
-    // ...and the partial download is never promoted to the cache.
+    // The temp file the rejected writer held is removed (its `Drop`).
     let package_dir = cache.join("foo");
     assert!(tarball_tmp_entries(&package_dir).is_empty());
     assert!(!package_dir.join("foo-1.0.0.tgz").exists());
