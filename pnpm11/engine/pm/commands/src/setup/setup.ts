@@ -327,8 +327,6 @@ async function writeFileAtomically (filePath: string, content: string, mode = 0o
   try {
     await fs.promises.writeFile(tempPath, content, { encoding: 'utf8', mode })
     await renameReplacingDestination(tempPath, filePath)
-  } catch (err: any) { // eslint-disable-line
-    throw err
   } finally {
     await fs.promises.rm(tempDir, { force: true, recursive: true }).catch(() => undefined)
   }
