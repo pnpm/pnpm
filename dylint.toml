@@ -42,31 +42,6 @@ ignore = [
 
 [perfectionist]
 enable = ["unordered_derives"]
-# `needless_borrowed_parameters` (active by default) flags `&str` / `&Path`
-# parameters whose only use is to produce an owned copy. Acting on it flips
-# ~170 signatures to take owned values and ripples to every call site,
-# churning pacquet's signatures away from their pnpm counterparts (the
-# cardinal parity rule) and against the "prefer borrowed parameters"
-# guidance in pacquet/CODE_STYLE_GUIDE.md. Disabled here pending a dedicated,
-# parity-reviewed pass tracked in
-# <https://github.com/pnpm/pnpm/issues/12715>.
-#
-# `unpinned_repo_ref` (active by default) flags the ~37 doc-comment
-# citations that point at upstream source by branch / tag instead of a
-# commit SHA. SHA-pinning them is the repo's documented convention, but
-# doing it correctly is a dedicated pass: several cited targets are dead
-# (the `pnpm/pnpm@deps` branch, `whitecolor/is-subdir`,
-# `pnpm/util.lex-comparator`) and need repointing, not just pinning.
-# Disabled pending that pass, tracked in
-# <https://github.com/pnpm/pnpm/issues/12717>.
-#
-# `clap_help_markdown` (active by default) flags markdown that leaks into
-# clap `--help` output: ~385 code spans plus ~28 inline / intra-doc links
-# and one HTML tag. Stripping it cleanly without losing the rich rustdoc
-# means giving each command/arg a plain `#[arg(help = "...")]` / `#[command(
-# about = "...")]` string — a user-visible refactor across the CLI surface.
-# Disabled pending that dedicated pass, tracked in
-# <https://github.com/pnpm/pnpm/issues/12718>.
 disable = [
     "needless_borrowed_parameters",
     "unpinned_repo_ref",
@@ -91,13 +66,8 @@ inline_style = "external_only"
 ["perfectionist::bare_issue_reference"]
 include_plain_comments = true
 
-# `bare_identifier_reference` (active by default) turns every backticked
-# identifier that resolves in scope into an intra-doc link. At the default
-# `crate` scope it fires ~400× across the workspace. Narrow it to the
-# highest-signal cases for now — a name that resolves in the documenting
-# item's own module, and multi-word names only (so single words like
-# `Config` or `Host` are left as prose) — pending a dedicated pass to widen
-# the scope, tracked in
+# Narrowed to names that resolve in the documenting item's own module,
+# multi-word only. Widening tracked in
 # <https://github.com/pnpm/pnpm/issues/12716>.
 ["perfectionist::bare_identifier_reference"]
 reference_scope = "own_module"
