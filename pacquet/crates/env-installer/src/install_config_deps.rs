@@ -354,7 +354,7 @@ fn normalize_from_lockfile(
         let pkg_key = format!("{name}@{}", spec.version);
         let key = pkg_key.parse().map_err(|_| ConfigDepError::EnvLockfileCorrupted {
             message: format!(
-                "pnpm-lock.yaml has an unparsable config-dependency key \"{pkg_key}\"",
+                r#"pnpm-lock.yaml has an unparsable config-dependency key "{pkg_key}""#,
             ),
         })?;
         let pkg = env_lockfile.packages.get(&key).ok_or_else(|| {
@@ -376,7 +376,7 @@ fn normalize_from_lockfile(
         )
         .ok_or_else(|| ConfigDepError::EnvLockfileCorrupted {
             message: format!(
-                "pnpm-lock.yaml is corrupted or incomplete: missing integrity for \"{pkg_key}\"",
+                r#"pnpm-lock.yaml is corrupted or incomplete: missing integrity for "{pkg_key}""#,
             ),
         })?;
 
@@ -416,7 +416,7 @@ fn read_optional_subdeps(
         let subdep_name = subdep_name.to_string();
         let subdep_key = format!("{subdep_name}@{version}");
         let key = subdep_key.parse().map_err(|_| ConfigDepError::EnvLockfileCorrupted {
-            message: format!("pnpm-lock.yaml has an unparsable subdep key \"{subdep_key}\""),
+            message: format!(r#"pnpm-lock.yaml has an unparsable subdep key "{subdep_key}""#),
         })?;
         let pkg = env_lockfile.packages.get(&key).ok_or_else(|| {
             ConfigDepError::EnvLockfileCorrupted {

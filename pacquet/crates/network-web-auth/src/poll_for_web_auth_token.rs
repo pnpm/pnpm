@@ -6,11 +6,14 @@ use crate::{
 #[cfg(test)]
 mod tests;
 
-/// Options forwarded to each poll request. Ports TS `WebAuthFetchOptions`
-/// (the `method` is always `GET`, so it is implicit here). `retry` mirrors
-/// the undici retry knobs pnpm passes through; the production
-/// [`Host`](crate::Host) fetch currently applies only `timeout` and leaves
-/// `retry` for the consuming command to wire.
+/// Options forwarded to each poll request. Ports TS
+/// [`WebAuthFetchOptions`][ts-WebAuthFetchOptions] (the `method` is always
+/// `GET`, so it is implicit here). `retry` mirrors the undici retry knobs
+/// pnpm passes through; the production [`Host`](crate::Host) fetch currently
+/// applies only `timeout` and leaves `retry` for the consuming command to
+/// wire.
+///
+/// [ts-WebAuthFetchOptions]: https://github.com/pnpm/pnpm/blob/a06591e349/pnpm11/network/web-auth/src/pollForWebAuthToken.ts#L3-L13
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct WebAuthFetchOptions {
     /// Per-request timeout in milliseconds.
@@ -30,9 +33,11 @@ pub struct WebAuthRetryOptions {
 }
 
 /// A poll response materialized by the [`WebAuthFetch`] capability. Ports
-/// TS `WebAuthFetchResponse`: `ok` / `status`, the one header the poll
-/// reads (`Retry-After`), and the body text that [`token`](Self::token)
-/// parses.
+/// TS [`WebAuthFetchResponse`][ts-WebAuthFetchResponse]: `ok` / `status`, the
+/// one header the poll reads (`Retry-After`), and the body text that
+/// [`token`](Self::token) parses.
+///
+/// [ts-WebAuthFetchResponse]: https://github.com/pnpm/pnpm/blob/a06591e349/pnpm11/network/web-auth/src/pollForWebAuthToken.ts#L19-L24
 #[derive(Debug, Clone)]
 pub struct WebAuthFetchResponse {
     pub ok: bool,

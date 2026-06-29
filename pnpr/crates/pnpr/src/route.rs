@@ -49,7 +49,7 @@ pub enum RouteClass {
     /// identifies the access-policy rule that produced the entry.
     Hosted { policy_id: String },
     /// A proxied upstream route served with a pnpr-managed credential
-    /// alias the caller is authorized to use. `credential_digest` is a hash
+    /// alias the caller is authorized to use. [`credential_digest`] is a hash
     /// of the uplink's `Authorization`, so rotating the credential changes it
     /// (see [`credential_digest`]).
     Proxied { alias: String, credential_digest: String },
@@ -61,7 +61,7 @@ pub enum RouteClass {
 /// callers who share the same access collapse to one shared entry.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum PrivateAccessDescriptor {
-    /// Proxied route via a pnpr-managed upstream alias. `credential_digest`
+    /// Proxied route via a pnpr-managed upstream alias. [`credential_digest`]
     /// hashes the uplink's `Authorization`, so rotating the credential moves
     /// future hits to a new namespace — no manual epoch counter to bump.
     Alias { alias: String, credential_digest: String },
@@ -100,7 +100,7 @@ impl PrivateAccessDescriptor {
 /// `(uplink, credential)`. Keyed by the server `secret` so the on-disk path
 /// reveals neither the uplink name nor its credential, and so a path-unsafe
 /// uplink name (`..`, `/`) can never escape the cache root — the digest is
-/// hex. `credential_digest` is a [`credential_digest`] of the uplink's
+/// hex. [`credential_digest`] is a [`credential_digest`] of the uplink's
 /// `Authorization`, so a credential rotation moves to a fresh namespace.
 #[must_use]
 pub(crate) fn uplink_cache_digest(

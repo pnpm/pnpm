@@ -31,7 +31,7 @@ use std::{
 /// already been verified by package A doesn't get stat'd / re-hashed
 /// again by package B.
 ///
-/// Concurrent: the install fans `check_pkg_files_integrity` calls out
+/// Concurrent: the install fans [`check_pkg_files_integrity`] calls out
 /// across tokio's blocking pool, so the cache must tolerate parallel
 /// readers and writers. `DashSet` gives us that without any external
 /// locking. Race-window duplicate verifies are benign (the `verify_file`
@@ -52,7 +52,7 @@ pub type FilesMap = HashMap<String, PathBuf>;
 
 /// Result of a `PackageFilesIndex`-row verification pass.
 ///
-/// Mirrors pnpm's `VerifyResult`. When `passed` is `false` the caller
+/// Mirrors pnpm's [`VerifyResult`][ts-VerifyResult]. When `passed` is `false` the caller
 /// treats the store entry as stale and falls through to a fresh fetch.
 /// `files_map` is returned either way as a best-effort `in-tarball
 /// filename` → `CAFS path` map; it may be partial or empty, so callers
@@ -68,6 +68,8 @@ pub type FilesMap = HashMap<String, PathBuf>;
 /// (`<engine>` or `<engine>;deps=…;patch=…`, produced by
 /// `pacquet-graph-hasher`'s `calc_dep_state`) to decide whether
 /// the package is already built.
+///
+/// [ts-VerifyResult]: https://github.com/pnpm/pnpm/blob/1819226b51/store/cafs/src/checkPkgFilesIntegrity.ts#L25-L29
 #[derive(Debug)]
 pub struct VerifyResult {
     pub passed: bool,
@@ -159,7 +161,7 @@ pub fn check_pkg_files_integrity(
     VerifyResult { passed: all_verified, files_map, side_effects_maps }
 }
 
-/// Materialize the per-cache-key overlaid `FilesMap`s from a
+/// Materialize the per-cache-key overlaid [`FilesMap`]s from a
 /// `PackageFilesIndex.side_effects` entry. Mirrors upstream's
 /// [`applySideEffectsDiffWithMaps`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/store/create-cafs-store/src/index.ts#L103-L121).
 /// The content of `added` entries is *not* re-verified here — pnpm
@@ -259,7 +261,7 @@ fn is_safe_overlay_path(filename: &str) -> bool {
 /// runs lock-free — it never touches the file's bytes and never
 /// considers a delete, so it cannot race with an in-flight writer.
 /// The slow path (where verification could lead to a
-/// `remove_stale_cafs_entry` call) acquires
+/// [`remove_stale_cafs_entry`] call) acquires
 /// [`pacquet_fs::cas_write_lock`] for `path` before re-stating the
 /// file. This is the same per-path mutex
 /// [`pacquet_fs::ensure_file`] holds across `O_CREAT|O_EXCL` +
@@ -381,7 +383,7 @@ fn remove_stale_cafs_entry(path: &Path) {
 /// instead, which the caller then treats as "verification failed →
 /// re-fetch". That's a safer default for a cache-hint path — we don't
 /// want a transient `EACCES` on a CAS blob to panic the install — and
-/// the content-hash check in `verify_file_integrity` still catches
+/// the content-hash check in [`verify_file_integrity`] still catches
 /// actual corruption. If we ever want pnpm-strict error propagation,
 /// changing the return type to `Result<Option<…>>` is the right shape.
 ///

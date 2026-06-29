@@ -371,7 +371,7 @@ pub(crate) fn importer_root_dir(workspace_root: &Path, importer_id: &str) -> Pat
     }
 }
 
-#[allow(
+#[expect(
     clippy::too_many_arguments,
     reason = "the parameters are independent inputs; bundling them into a struct would not improve clarity"
 )]
@@ -530,7 +530,7 @@ struct ResolvedEntry<'a> {
 
 /// Walk an importer snapshot's dependency groups and emit one
 /// [`ResolvedEntry`] per direct dep, applying the same first-wins /
-/// skipped / link-only filters that `link_one_importer` (private to
+/// skipped / link-only filters that [`link_one_importer`] (private to
 /// this module) uses to drive the symlink + bin-link pass.
 ///
 /// Iterate per group so each emit can label the dependency with its
@@ -601,7 +601,7 @@ fn collect_resolved_entries<'a>(
 }
 
 /// Map a `(name, spec)` to the on-disk path a direct-dep symlink
-/// should point at. Pulled out of the rayon loop so `collect_resolved_targets`
+/// should point at. Pulled out of the rayon loop so [`collect_resolved_targets`]
 /// can reuse the same computation when building the dedupe map.
 fn resolve_target_path(
     layout: &VirtualStoreLayout,

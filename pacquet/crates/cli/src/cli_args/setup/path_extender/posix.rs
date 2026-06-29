@@ -154,13 +154,13 @@ fn render_fish_settings(dir: &str, opts: &AddDirToEnvPathOpts) -> String {
             None => format!("${proxy}"),
         };
         let match_pattern = match opts.proxy_var_sub_dir {
-            Some(_) => format!("\"{path_ref}\""),
+            Some(_) => format!(r#""{path_ref}""#),
             None => path_ref.clone(),
         };
         format!(
             "set -gx {proxy} {value}\nif not string match -q -- {match_pattern} $PATH\n  set -gx PATH {path_value}\nend",
             value = fish_quote(dir),
-            path_value = create_fish_path_value(opts.position, &format!("\"{path_ref}\"")),
+            path_value = create_fish_path_value(opts.position, &format!(r#""{path_ref}""#)),
         )
     } else {
         let quoted = fish_quote(dir);
@@ -211,7 +211,7 @@ fn render_nu_settings(dir: &str, opts: &AddDirToEnvPathOpts) -> String {
     let (prefix, path_ref) = match opts.proxy_var_name {
         Some(proxy) => {
             let path_ref = match opts.proxy_var_sub_dir {
-                Some(sub_dir) => format!("($env.{proxy} | path join \"{sub_dir}\")"),
+                Some(sub_dir) => format!(r#"($env.{proxy} | path join "{sub_dir}")"#),
                 None => format!("$env.{proxy}"),
             };
             (format!("$env.{proxy} = {value}\n", value = nu_quote(dir)), path_ref)

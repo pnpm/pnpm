@@ -309,7 +309,7 @@ fn default_unsafe_perm_on_windows_is_always_true() {
 
 /// Test environments don't usually run as root, so the per-uid
 /// logic is pinned without needing root privileges by the
-/// `is_unsafe_perm_posix_truth_table` test above. Cygwin is excluded
+/// [`is_unsafe_perm_posix_truth_table`] test above. Cygwin is excluded
 /// because `default_unsafe_perm` short-circuits to `true` on Cygwin
 /// regardless of uid.
 #[cfg(all(unix, not(target_os = "cygwin")))]
@@ -341,7 +341,7 @@ fn test_default_store_dir_with_windows_diff_drive() {
     let home_dir = Path::new("C:\\Users\\user");
 
     let store_dir = default_store_dir_windows(home_dir, current_dir);
-    assert_eq!(store_dir, Path::new("D:\\.pnpm-store"));
+    assert_eq!(store_dir, Path::new(r"D:\.pnpm-store"));
 }
 
 #[cfg(windows)]
@@ -351,7 +351,7 @@ fn test_dynamic_default_store_dir_with_windows_same_drive() {
     let home_dir = Path::new("C:\\Users\\user");
 
     let store_dir = default_store_dir_windows(home_dir, current_dir);
-    assert_eq!(store_dir, Path::new("C:\\Users\\user\\AppData\\Local\\pnpm\\store"));
+    assert_eq!(store_dir, Path::new(r"C:\Users\user\AppData\Local\pnpm\store"));
 }
 
 #[test]

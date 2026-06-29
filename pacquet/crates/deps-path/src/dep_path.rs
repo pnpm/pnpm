@@ -1,7 +1,7 @@
 /// Branded depPath string. Mirrors pnpm's
-/// [`DepPath`](https://github.com/pnpm/pnpm/blob/097983fbca/packages/types/src/misc.ts).
+/// [`DepPath`](ts-DepPath).
 ///
-/// Upstream's `DepPath` is a `string` brand — it's never validated at
+/// Upstream's [`DepPath`][ts-DepPath] is a `string` brand — it's never validated at
 /// the boundary, just used to keep depPath strings from getting mixed
 /// up with arbitrary strings in the type system. Pacquet's port
 /// therefore exposes infallible `From<String>` / `From<&str>`
@@ -11,6 +11,8 @@
 /// resolver crate) so that lower-level helpers (peer-id construction,
 /// suffix scanning, filename escaping) can speak in depPath terms
 /// without forcing a back-dependency from `deps-path` to the resolver.
+///
+/// [ts-DepPath]: https://github.com/pnpm/pnpm/blob/1819226b51/core/types/src/misc.ts#L65
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DepPath(String);
 

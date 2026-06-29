@@ -150,7 +150,7 @@ pub fn decide_catalog<Reporter: self::Reporter>(
             Reporter::emit(&LogEvent::Pnpm(PnpmLog {
                 level: LogLevel::Warn,
                 message: format!(
-                    "Catalog version mismatch for \"{}\": using direct version \"{}\" instead of catalog version \"{entry}\".",
+                    r#"Catalog version mismatch for "{}": using direct version "{}" instead of catalog version "{entry}"."#,
                     dep.alias, dep.bare_specifier,
                 ),
                 prefix: prefix.to_string(),

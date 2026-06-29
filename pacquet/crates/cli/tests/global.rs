@@ -43,7 +43,7 @@ fn symlink_entries(dir: &Path) -> Vec<PathBuf> {
 #[cfg(unix)]
 #[test]
 fn global_add_list_remove_round_trip() {
-    use assert_cmd::prelude::OutputAssertExt;
+    use assert_cmd::assert::OutputAssertExt;
 
     let CommandTempCwd { root, workspace, npmrc_info, .. } =
         CommandTempCwd::init().add_mocked_registry();

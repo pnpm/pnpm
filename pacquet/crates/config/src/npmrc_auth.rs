@@ -1139,7 +1139,7 @@ impl TryFrom<String> for JsonAuthScope {
         if is_package_scope(&value) {
             return Ok(JsonAuthScope::Package(value));
         }
-        Err(format!("scope \"{value}\" must be \"@\" or a package scope like \"@org\""))
+        Err(format!(r#"scope "{value}" must be "@" or a package scope like "@org""#))
     }
 }
 

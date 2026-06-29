@@ -3,17 +3,21 @@ use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifest
 use pacquet_registry::PinnedVersion;
 use serde_json::{Map, Value};
 
-/// pnpm's `DEPENDENCIES_FIELDS`, in its canonical order. A direct dependency
+/// pnpm's [`DEPENDENCIES_FIELDS`][ts-DEPENDENCIES_FIELDS], in its canonical order. A direct dependency
 /// is written to exactly one of these and removed from the other two.
+///
+/// [ts-DEPENDENCIES_FIELDS]: https://github.com/pnpm/pnpm/blob/6fadd7def9/pnpm11/core/types/src/misc.ts#L6-L10
 const DEPENDENCIES_FIELDS: [&str; 3] = ["optionalDependencies", "dependencies", "devDependencies"];
 
-/// pnpm's `DEPENDENCIES_OR_PEER_FIELDS`: the three dependency fields plus
-/// `peerDependencies`. `guess_dependency_type` scans them in this order and
+/// pnpm's [`DEPENDENCIES_OR_PEER_FIELDS`][ts-DEPENDENCIES_OR_PEER_FIELDS]: the three dependency fields plus
+/// `peerDependencies`. [`guess_dependency_type`] scans them in this order and
 /// returns the first that already declares the alias.
+///
+/// [ts-DEPENDENCIES_OR_PEER_FIELDS]: https://github.com/pnpm/pnpm/blob/6fadd7def9/pnpm11/core/types/src/misc.ts#L12-L15
 const DEPENDENCIES_OR_PEER_FIELDS: [&str; 4] =
     ["optionalDependencies", "dependencies", "devDependencies", "peerDependencies"];
 
-/// One manifest mutation request. Port of pnpm's `PackageSpecObject`.
+/// One manifest mutation request. Port of pnpm's [`PackageSpecObject`][ts-PackageSpecObject].
 ///
 /// `save_type` and `bare_specifier` together select the behaviour:
 /// * `save_type` set → upsert into that field, deleting the alias from the
@@ -24,6 +28,8 @@ const DEPENDENCIES_OR_PEER_FIELDS: [&str; 4] =
 /// * `save_type` `None` but `bare_specifier` set → write into whichever field
 ///   already declares the alias (defaulting to `dependencies`), without
 ///   moving it between fields.
+///
+/// [ts-PackageSpecObject]: https://github.com/pnpm/pnpm/blob/6fadd7def9/pnpm11/pkg-manifest/utils/src/updateProjectManifestObject.ts#L13-L20
 pub struct PackageSpecObject {
     pub alias: String,
     pub peer: bool,

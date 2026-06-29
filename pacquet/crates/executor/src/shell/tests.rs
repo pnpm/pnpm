@@ -54,7 +54,7 @@ fn custom_script_shell_wins_on_both_platforms() {
 #[test]
 fn batch_file_script_shell_rejected_on_windows() {
     for ext in [".cmd", ".CMD", ".bat", ".BAT"] {
-        let path = format!("C:\\tools\\shell-mock{ext}");
+        let path = format!(r"C:\tools\shell-mock{ext}");
         let err = select_shell(Some(Path::new(&path)), true).expect_err("must reject");
         match err {
             ScriptShellError::BatchFileOnWindows { path: got } => {

@@ -227,7 +227,7 @@ fn run_lifecycle_stages<Reporter: self::Reporter>(
 /// `https://github.com/pnpm/pnpm/blob/80037699fb/exec/lifecycle/src/runLifecycleHook.ts`.
 ///
 /// `parent_env` is captured by the caller so multi-stage callers (the
-/// `run_postinstall_hooks` wrapper and `pacquet-git-fetcher`'s
+/// [`run_postinstall_hooks`] wrapper and `pacquet-git-fetcher`'s
 /// `preparePackage` port) can snapshot once and reuse across stages,
 /// matching upstream's behavior where each stage sees the same parent
 /// env regardless of what siblings wrote into the process's own env.

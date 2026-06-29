@@ -1,4 +1,4 @@
-use super::*;
+use super::{get_repo_url_from_current_project, pick_repo_url, redact_url, repository_to_web_url};
 
 #[test]
 fn test_opens_repository_url_from_local_manifest() {

@@ -25,7 +25,7 @@ fn stop_runs_declared_script() {
     setup_project(
         dir,
         &json!({
-            "stop": format!("touch \"{}\"", marker.display()),
+            "stop": format!(r#"touch "{}""#, marker.display()),
         }),
     );
     let config = pacquet_config::Config::default();

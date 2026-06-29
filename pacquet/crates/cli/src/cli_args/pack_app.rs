@@ -831,7 +831,7 @@ fn validate_app_config(
             None | Some(Value::Null) => Ok(None),
             Some(Value::String(value)) => Ok(Some(value.clone())),
             Some(_) => Err(PackAppError::InvalidConfig {
-                message: format!("\"pnpm.app.{key}\" must be a string."),
+                message: format!(r#""pnpm.app.{key}" must be a string."#),
             }),
         }
     };

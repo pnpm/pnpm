@@ -578,7 +578,7 @@ fn normalize_field_path(path: &str) -> String {
     trimmed.trim_start_matches('/').to_string()
 }
 
-/// Whether a `normalize_field_path`-ed `main` / `bin` value stays inside
+/// Whether a [`normalize_field_path`]-ed `main` / `bin` value stays inside
 /// the package: non-empty, only normal path components (no `..`, root, or
 /// drive/UNC prefix), and no backslash (a separator on Windows, where the
 /// git fetcher may import a package). The packlist feeds both `pack` and

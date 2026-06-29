@@ -1394,7 +1394,7 @@ pub(crate) struct HoistedLinkerOutput {
 }
 
 /// Inputs to [`run_hoisted_linker`]. Bundled so the two install
-/// paths (`InstallFrozenLockfile` and `InstallWithFreshLockfile`)
+/// paths ([`InstallFrozenLockfile`] and `InstallWithFreshLockfile`)
 /// can feed the shared hoisted-linker materialization without a
 /// long positional argument list. The frozen path passes the
 /// loaded `pnpm-lock.yaml`; the fresh path passes the freshly-built

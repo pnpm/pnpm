@@ -1,7 +1,7 @@
 //! TLS + local-address configuration consumed by
 //! [`crate::ThrottledClient::for_installs`].
 //!
-//! `TlsConfig` holds the resolved `(ca, client_identity_pem, strict_ssl,
+//! [`TlsConfig`] holds the resolved `(ca, client_identity_pem, strict_ssl,
 //! local_address)` quadruple. Built by `pacquet-config` from the
 //! `.npmrc` keys `ca`, `cafile`, `cert`, `key`, `strict-ssl`, and
 //! `local-address`. Lives in `pacquet-network` for the same reason
@@ -23,7 +23,7 @@
 //! Node already trusts that bundle implicitly via Node's TLS runtime,
 //! so a native port must read it explicitly to preserve real-world
 //! parity. It is applied at the client-builder layer, never folded
-//! into this `.npmrc`-only `TlsConfig`.
+//! into this `.npmrc`-only [`TlsConfig`].
 
 use crate::auth::nerf_dart;
 use std::{collections::HashMap, net::IpAddr};
@@ -211,7 +211,7 @@ impl PerRegistryTls {
     ///
     /// Returns the **nerf-darted key** that matched (so the network
     /// layer can index into its pre-built per-registry client map),
-    /// not the `RegistryTls` itself.
+    /// not the [`RegistryTls`] itself.
     #[must_use]
     pub fn pick_for_url(&self, url: &str) -> Option<&str> {
         if self.by_uri.is_empty() {

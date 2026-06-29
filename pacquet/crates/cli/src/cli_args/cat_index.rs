@@ -32,7 +32,7 @@ impl CatIndexArgs {
         let parsed = parse_wanted_dependency(&self.wanted_dependency);
         let Some(alias) = parsed.alias else {
             return Err(miette::miette!(
-                "Cannot parse the \"{}\" selector",
+                r#"Cannot parse the "{}" selector"#,
                 self.wanted_dependency
             ));
         };

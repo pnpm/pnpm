@@ -17,8 +17,9 @@ use miette::Diagnostic;
 
 /// Parsed `jsr:` specifier.
 ///
-/// Mirrors upstream's `JsrSpec`
-/// ([source](https://github.com/pnpm/pnpm/blob/05dd45ea82/resolving/jsr-specifier-parser/src/index.ts#L3-L8)).
+/// Mirrors upstream's [`JsrSpec`][ts-JsrSpec].
+///
+/// [ts-JsrSpec]: https://github.com/pnpm/pnpm/blob/05dd45ea82/resolving/jsr-specifier-parser/src/index.ts#L3-L8
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JsrSpec {
     /// Original JSR-style scoped name (e.g. `@foo/bar`). Used by the

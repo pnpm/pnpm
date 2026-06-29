@@ -590,7 +590,7 @@ pub fn save_meta(pkg_mirror: &Path, contents: &[u8]) -> Result<(), SaveMetaError
 }
 
 /// Per-process atomic counter used to disambiguate concurrent
-/// `save_meta` calls writing to sibling temp paths under the same
+/// [`save_meta`] calls writing to sibling temp paths under the same
 /// mirror directory. Pid + counter is enough — pnpm's pathTemp uses
 /// the same shape (`<pid>.<counter>` suffix) for the same reason.
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);

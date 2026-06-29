@@ -31,7 +31,7 @@ pub(super) fn test<'a>(ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
     let manifest = PackageManifest::from_path(ctx.manifest_path.to_path_buf())
         .wrap_err("getting the package.json in current directory")?;
     if let Some(script) = manifest.script("test", false)? {
-        execute_shell(script).wrap_err(format!("executing command: \"{script}\""))?;
+        execute_shell(script).wrap_err(format!(r#"executing command: "{script}""#))?;
     }
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
@@ -58,7 +58,7 @@ pub(super) fn start<'a>(ctx: &RunCtx<'a>) -> miette::Result<CommandFuture<'a>> {
     let manifest = PackageManifest::from_path(ctx.manifest_path.to_path_buf())
         .wrap_err("getting the package.json in current directory")?;
     let command = manifest.script("start", true)?.unwrap_or("node server.js");
-    execute_shell(command).wrap_err(format!("executing command: \"{command}\""))?;
+    execute_shell(command).wrap_err(format!(r#"executing command: "{command}""#))?;
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 

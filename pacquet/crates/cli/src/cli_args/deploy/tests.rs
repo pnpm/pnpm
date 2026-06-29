@@ -149,12 +149,9 @@ fn write_deploy_files_replaces_lockfile_symlink() {
 #[cfg(windows)]
 #[test]
 fn windows_path_comparison_matches_case_variants() {
-    assert!(same_path(Path::new("C:\\Workspace"), Path::new("c:\\workspace")));
-    assert!(is_child_path(Path::new("c:\\workspace\\out"), Path::new("C:\\Workspace"),));
-    assert!(is_ancestor_path(
-        Path::new("c:\\workspace"),
-        Path::new("C:\\Workspace\\packages\\app"),
-    ));
+    assert!(same_path(Path::new(r"C:\Workspace"), Path::new(r"c:\workspace")));
+    assert!(is_child_path(Path::new(r"c:\workspace\out"), Path::new(r"C:\Workspace"),));
+    assert!(is_ancestor_path(Path::new(r"c:\workspace"), Path::new(r"C:\Workspace\packages\app"),));
 }
 
 #[cfg(windows)]

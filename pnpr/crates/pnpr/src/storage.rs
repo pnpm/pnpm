@@ -7,7 +7,6 @@ use crate::{
     upstream::{CacheValidators, ValidatorsByUplink},
 };
 use axum::body::Body;
-use serde::{Deserialize, Serialize};
 use std::{
     io::{ErrorKind, SeekFrom},
     path::{Path, PathBuf},
@@ -30,7 +29,6 @@ const PACKUMENT_FILE: &str = "package.json";
 /// revalidate against. The leading dot keeps it out of the
 /// package-listing walk and any static-serve view.
 const PACKUMENT_META_FILE: &str = ".package.json.meta";
-const TARBALL_INTEGRITY_SUFFIX: &str = ".integrity";
 
 /// Per-process counter feeding [`unique_tmp_path`] so two concurrent
 /// writes to the same path don't collide on the same temp filename.
@@ -160,12 +158,6 @@ impl Drop for TarballWrite {
 pub enum CachedPackument {
     Fresh(Vec<u8>),
     Stale(ValidatorsByUplink),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CachedTarballIntegrity {
-    pub integrity: String,
-    pub len: u64,
 }
 
 /// Verdaccio-shaped storage split into two stores with different
@@ -502,34 +494,6 @@ impl Storage {
         self.cached.namespaced(namespace).open_tarball(name, filename).await
     }
 
-    pub async fn read_uplink_tarball_integrity(
-        &self,
-        namespace: &str,
-        name: &PackageName,
-        filename: &str,
-    ) -> Option<CachedTarballIntegrity> {
-        self.cached.namespaced(namespace).read_tarball_integrity(name, filename).await
-    }
-
-    pub async fn write_uplink_tarball_integrity(
-        &self,
-        namespace: &str,
-        name: &PackageName,
-        filename: &str,
-        integrity: &CachedTarballIntegrity,
-    ) -> Result<()> {
-        self.cached.namespaced(namespace).write_tarball_integrity(name, filename, integrity).await
-    }
-
-    pub async fn remove_uplink_tarball(
-        &self,
-        namespace: &str,
-        name: &PackageName,
-        filename: &str,
-    ) -> Result<bool> {
-        self.cached.namespaced(namespace).remove_tarball(name, filename).await
-    }
-
     /// Promote a tmp tarball written by the publish flow to its final
     /// home: a rename on the fs backend, an upload on the S3 backend.
     pub async fn finalize_tarball_slot(&self, slot: TarballSlot) -> Result<()> {
@@ -672,27 +636,6 @@ impl Store {
         Ok(Some((file, len)))
     }
 
-    async fn read_tarball_integrity(
-        &self,
-        name: &PackageName,
-        filename: &str,
-    ) -> Option<CachedTarballIntegrity> {
-        match fs::read(self.tarball_integrity_path(name, filename)).await {
-            Ok(bytes) => serde_json::from_slice(&bytes).ok(),
-            Err(_) => None,
-        }
-    }
-
-    async fn write_tarball_integrity(
-        &self,
-        name: &PackageName,
-        filename: &str,
-        integrity: &CachedTarballIntegrity,
-    ) -> Result<()> {
-        write_atomic(&self.tarball_integrity_path(name, filename), &serde_json::to_vec(integrity)?)
-            .await
-    }
-
     async fn open_tarball_tmp(&self, name: &PackageName, filename: &str) -> Result<TarballWrite> {
         let final_path = self.tarball_path(name, filename);
         if let Some(parent) = final_path.parent() {
@@ -744,14 +687,7 @@ impl Store {
     /// after the packument-update PUT, and a benign 404 here would
     /// surface as a real error to the caller.
     async fn remove_tarball(&self, name: &PackageName, filename: &str) -> Result<bool> {
-        let path = self.tarball_path(name, filename);
-        let integrity_path = self.tarball_integrity_path(name, filename);
-        match fs::remove_file(&integrity_path).await {
-            Ok(()) => {}
-            Err(err) if err.kind() == ErrorKind::NotFound => {}
-            Err(err) => return Err(err.into()),
-        }
-        match fs::remove_file(&path).await {
+        match fs::remove_file(self.tarball_path(name, filename)).await {
             Ok(()) => Ok(true),
             Err(err) if err.kind() == ErrorKind::NotFound => Ok(false),
             Err(err) => Err(err.into()),
@@ -816,10 +752,6 @@ impl Store {
 
     fn tarball_path(&self, name: &PackageName, filename: &str) -> PathBuf {
         self.package_dir(name).join(filename)
-    }
-
-    fn tarball_integrity_path(&self, name: &PackageName, filename: &str) -> PathBuf {
-        self.package_dir(name).join(format!("{filename}{TARBALL_INTEGRITY_SUFFIX}"))
     }
 }
 

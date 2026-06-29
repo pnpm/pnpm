@@ -37,7 +37,7 @@ pub(crate) struct ImportedFiles {
 /// Safely join a relative path onto a trusted root, rejecting anything
 /// that wouldn't stay under `root`.
 ///
-/// Both `materialize_into` and `import_into_cas` receive their
+/// Both [`materialize_into`] and [`import_into_cas`] receive their
 /// relative paths from the install dispatcher's `cas_paths` map,
 /// which traces back to either a tarball extraction or a packlist
 /// over a freshly-checked-out git tree. Tarball entries on the

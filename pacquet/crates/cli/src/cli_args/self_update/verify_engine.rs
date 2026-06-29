@@ -38,7 +38,7 @@ use super::{
 
 /// npm's public registry signing keys, mirrored from
 /// <https://registry.npmjs.org/-/npm/v1/keys>. Ports pnpm's
-/// `NPM_SIGNING_KEYS`; `expires` is `None` for a key with no expiry.
+/// [`NPM_SIGNING_KEYS`]; `expires` is `None` for a key with no expiry.
 const NPM_SIGNING_KEYS: &[NpmSigningKey] = &[
     NpmSigningKey {
         keyid: "SHA256:jl3bwswu80PjjokCgh0o2w5c2U4LhQAE57gj9cz1kzA",
@@ -378,7 +378,7 @@ fn signature_validates_against(
 
 /// Verify one base64 ECDSA-P256 signature over `message` against a base64
 /// SPKI public key. Malformed key/signature bytes count as a non-match.
-/// Same crypto core as `audit signatures`' `verify_one`.
+/// Same crypto core as `audit signatures`' [`verify_one`].
 fn verify_one(public_key_base64: &str, message: &str, signature_base64: &str) -> bool {
     let engine = base64::engine::general_purpose::STANDARD;
     let Ok(key_der) = engine.decode(public_key_base64) else {

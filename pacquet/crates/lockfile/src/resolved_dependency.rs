@@ -48,7 +48,7 @@ pub struct ResolvedDependencySpec {
 ///   `file:` prefix; the peer suffix, when present, identifies a
 ///   peer-specific snapshot variant in `snapshots:`.
 ///
-/// `ImporterDepVersion` encodes the distinction so consumers (the
+/// [`ImporterDepVersion`] encodes the distinction so consumers (the
 /// installer, the build-sequence builder, the reporter) can branch on
 /// shape without re-parsing the raw string at every call site.
 ///

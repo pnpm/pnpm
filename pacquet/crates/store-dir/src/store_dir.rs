@@ -14,7 +14,7 @@ pub type FileHash = digest::Output<Sha512>;
 ///
 /// The constant is part of the public contract pnpm exposes to every
 /// project's `.modules.yaml` (the recorded `storeDir` is the
-/// `STORE_VERSION`-suffixed path), so changing it requires moving in
+/// [`STORE_VERSION`]-suffixed path), so changing it requires moving in
 /// lockstep with pnpm — otherwise both tools start refusing each
 /// other's stores with `ERR_PNPM_UNEXPECTED_STORE`.
 pub const STORE_VERSION: &str = "v11";
@@ -37,7 +37,7 @@ pub const STORE_VERSION: &str = "v11";
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(from = "PathBuf", into = "PathBuf")]
 pub struct StoreDir {
-    /// The `STORE_VERSION`-suffixed store path, equivalent to pnpm's
+    /// The [`STORE_VERSION`]-suffixed store path, equivalent to pnpm's
     /// [`storeDir`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L39-L42).
     /// Consumers should reach for the purpose-built helpers
     /// ([`Self::files`][], [`Self::tmp`], [`Self::links`],

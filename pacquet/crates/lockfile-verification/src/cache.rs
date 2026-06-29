@@ -41,27 +41,35 @@ use std::{
 };
 
 /// File name of the cache, relative to `cache_dir`. Matches
-/// upstream's `CACHE_FILE_NAME` so a pnpm-populated cache file is
+/// upstream's [`CACHE_FILE_NAME`][ts-CACHE_FILE_NAME] so a pnpm-populated cache file is
 /// readable from pacquet and vice versa.
+///
+/// [ts-CACHE_FILE_NAME]: https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutionsCache.ts#L52
 pub const CACHE_FILE_NAME: &str = "lockfile-verified.jsonl";
 
 /// Hard cap on records the cache file holds after compaction.
-/// Matches upstream's `MAX_CACHE_ENTRIES`. A developer machine that
+/// Matches upstream's [`MAX_CACHE_ENTRIES`][ts-MAX_CACHE_ENTRIES]. A developer machine that
 /// touches a thousand distinct `(path, content)` tuples is far past
 /// steady state.
+///
+/// [ts-MAX_CACHE_ENTRIES]: https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutionsCache.ts#L59
 pub const MAX_CACHE_ENTRIES: usize = 1000;
 
 /// Compaction trigger in bytes. Records cluster around a few hundred
 /// bytes; a 1.5 KiB-per-entry budget translates to ~1.5 MB with
 /// generous slack so we don't trigger a rewrite on every append once
-/// the cap is crossed. Matches upstream's `COMPACT_TRIGGER_BYTES`.
+/// the cap is crossed. Matches upstream's [`COMPACT_TRIGGER_BYTES`][ts-COMPACT_TRIGGER_BYTES].
+///
+/// [ts-COMPACT_TRIGGER_BYTES]: https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutionsCache.ts#L65
 pub const COMPACT_TRIGGER_BYTES: u64 = (MAX_CACHE_ENTRIES as u64) * 1024 * 3 / 2;
 
 /// One verified lockfile snapshot persisted to the JSONL log. Wire
-/// shape matches upstream's `CacheRecord` field-for-field so the two
+/// shape matches upstream's [`CacheRecord`][ts-CacheRecord] field-for-field so the two
 /// stacks share a cache file (pacquet reads pnpm's records and vice
 /// versa — even though the hash values are unlikely to collide, the
 /// stat shortcut still hits across both).
+///
+/// [ts-CacheRecord]: https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutionsCache.ts#L67-L105
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CacheRecord {
     pub lockfile: CacheLockfile,

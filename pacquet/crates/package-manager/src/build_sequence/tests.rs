@@ -184,7 +184,7 @@ fn parallel_build_leaves_share_chunk() {
 /// [`'buildSequence() test 2'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/during-install/test/buildSequence.test.ts#L28-L51).
 ///
 /// This is the subgraph-trim case for [#397] item `#16`. Pacquet's
-/// existing `unrelated_subgraph_excluded` covers a stronger
+/// existing [`unrelated_subgraph_excluded`] covers a stronger
 /// scenario (an entirely unreachable subgraph); this one pins the
 /// upstream-equivalent behavior where an importer that's still in
 /// the install set gets dropped from the build sequence.

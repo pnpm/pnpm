@@ -365,7 +365,7 @@ fn child_sees_stamped_npm_package_and_preserves_user_config() {
             // printf, not echo, so the line endings are deterministic
             // across shells.
             "postinstall": format!(
-                "printf 'stage=%s\\nscript=%s\\nname=%s\\nver=%s\\nconfig=%s\\ninit_cwd=%s\\nuser=%s\\nauth=%s\\n' \"$npm_lifecycle_event\" \"$npm_lifecycle_script\" \"$npm_package_name\" \"$npm_package_version\" \"$npm_package_config_myKey\" \"$INIT_CWD\" \"$npm_config_platform_arch\" \"$npm_config__authtoken\" > {}",
+                r#"printf 'stage=%s\nscript=%s\nname=%s\nver=%s\nconfig=%s\ninit_cwd=%s\nuser=%s\nauth=%s\n' "$npm_lifecycle_event" "$npm_lifecycle_script" "$npm_package_name" "$npm_package_version" "$npm_package_config_myKey" "$INIT_CWD" "$npm_config_platform_arch" "$npm_config__authtoken" > {}"#,
                 dump_path.display(),
             ),
         },
