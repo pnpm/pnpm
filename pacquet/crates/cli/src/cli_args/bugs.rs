@@ -349,15 +349,28 @@ fn open_url_in_browser(url: &str) -> std::io::Result<()> {
 
 #[cfg(target_os = "windows")]
 fn open_url_in_browser(url: &str) -> std::io::Result<()> {
-    let system_root = std::env::var("SystemRoot").unwrap_or_else(|_| "C:\\Windows".into());
-    let rundll32 = std::path::Path::new(&system_root).join("System32").join("rundll32.exe");
-    std::process::Command::new(rundll32)
-        .args(["url.dll,FileProtocolHandler", url])
-        .stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::null())
-        .stderr(std::process::Stdio::null())
-        .spawn()?;
-    Ok(())
+    use std::ffi::OsStr;
+    use std::os::windows::ffi::OsStrExt;
+
+    let url_wide: Vec<u16> =
+        OsStr::new(url).encode_wide().chain(std::iter::once(0)).collect();
+
+    // ShellExecuteW invokes the default handler for the URL protocol
+    // without shell metacharacter injection. The function takes a
+    // fully-qualified path (or registered protocol) so it does not
+    // depend on the executable search path or the SystemRoot env var,
+    // avoiding the hijack vector that rundll32.exe is subject to.
+    let result = unsafe {
+        windows_sys::Win32::UI::Shell::ShellExecuteW(
+            std::ptr::null_mut(), // hwnd
+            std::ptr::null(),     // lpOperation (null => "open")
+            url_wide.as_ptr(),    // lpFile
+            std::ptr::null(),     // lpParameters
+            std::ptr::null(),     // lpDirectory
+            windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL,
+        )
+    };
+    if (result as isize) > 32 { Ok(()) } else { Err(std::io::Error::last_os_error()) }
 }
 
 #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
