@@ -1188,7 +1188,7 @@ async fn serve_tarball(
     let upstreams = resolve_upstreams(state, &name);
 
     // A cached tarball is verified against `dist.integrity` on the way in
-    // (`download_verified_to_cache`) and re-verified by the client on receipt,
+    // (`stream_verified_to_cache`) and re-verified by the client on receipt,
     // so a hit can be served without re-hashing.
     let resolved_dist =
         match screen_cached_tarball_osv(state, &name, &filename, &name_version).await {
@@ -1244,25 +1244,15 @@ async fn serve_tarball(
     };
 
     if upstream.caches() {
-        // Verify the freshly-downloaded bytes against `dist.integrity` as they
-        // are written to the cache. That write-time check (plus the install
-        // client's own verification) is why serving cached bytes later needs no
-        // re-hash.
-        if let Err(err) =
-            streaming::download_verified_to_cache(response, write, &integrity, MAX_TARBALL_BYTES)
-                .await
-        {
-            return error_response(&tarball_stream_error(err, &name, &filename));
-        }
-
-        match state.inner.storage.open_cached_tarball(&name, &filename).await {
-            Ok(Some((file, len))) => tarball_response(streaming::stream_file(file), Some(len)),
-            Ok(None) => error_response(&tarball_integrity_error(
-                &name,
-                &filename,
-                "verified cache entry disappeared before it could be served".to_string(),
-            )),
-            Err(err) => error_response(&err),
+        // Stream the download straight to the client while teeing it into the
+        // cache; the entry is promoted only if the full body matches
+        // `dist.integrity`, and the client re-verifies what it receives. This
+        // overlaps the upstream fetch with the client transfer instead of
+        // buffering the whole tarball at the server to verify it first.
+        let upstream_len = response.content_length();
+        match streaming::stream_verified_to_cache(response, write, &integrity, MAX_TARBALL_BYTES) {
+            Ok(body) => tarball_response(body, upstream_len),
+            Err(err) => error_response(&tarball_stream_error(err, &name, &filename)),
         }
     } else {
         match streaming::download_verified_to_temp(response, write, &integrity, MAX_TARBALL_BYTES)

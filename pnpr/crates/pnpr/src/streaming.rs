@@ -3,19 +3,21 @@
 //! Four flows live here:
 //!
 //! * [`verify_file`] hashes a cache hit before it can be served.
-//! * [`download_verified_to_cache`] hashes an upstream response into a
-//!   temp file and promotes it only after the declared SRI matches.
+//! * [`stream_verified_to_cache`] streams an upstream response to the client
+//!   while teeing it into the cache, promoting the entry only if the SRI
+//!   matches the full body.
 //! * [`download_verified_to_temp`] hashes an upstream response into a
 //!   temp file for mirror-less pass-through.
 //! * [`stream_file`] yields an already verified file to the response.
 
 use crate::storage::TarballWrite;
 use axum::body::{Body, Bytes};
-use futures_util::{StreamExt, stream};
+use futures_util::{Stream, StreamExt, stream};
 use ssri::{Integrity, IntegrityChecker};
 use std::{
     io::{self, SeekFrom},
     path::PathBuf,
+    pin::Pin,
 };
 use tokio::{
     fs::File,
@@ -75,9 +77,86 @@ pub async fn verify_file(
     Ok(file)
 }
 
-/// Download an upstream response into `write`, verify the complete body,
-/// and atomically promote it to the cache. No bytes become cache-visible
-/// until the declared SRI matches.
+/// Stream an upstream response to the client while teeing it into `write`
+/// and hashing it. The client receives bytes as they arrive — it does not
+/// wait for the whole download to land and verify first — and the cache entry
+/// is promoted only once the declared SRI matches the full body.
+///
+/// SRI can only be checked after the last byte, by which point the body has
+/// already been streamed, so a mismatch can't be turned into an error
+/// response. The guarantees that remain are the ones that matter: a
+/// mismatched (or truncated, or oversize) body is never promoted to the cache,
+/// so it can't poison a future client, and every install client re-verifies
+/// what it received against its own expected integrity and rejects bad bytes.
+/// On any such failure — or a dropped client connection — the temp file is
+/// abandoned (and [`TarballWrite`]'s `Drop` removes it as a backstop).
+pub fn stream_verified_to_cache(
+    response: reqwest::Response,
+    write: TarballWrite,
+    integrity: &Integrity,
+    max_bytes: u64,
+) -> Result<Body, TarballStreamError> {
+    let checker = integrity_checker(integrity).map_err(TarballStreamError::Integrity)?;
+    let state = TeeState {
+        upstream: Box::pin(response.bytes_stream()),
+        write: Some(write),
+        checker,
+        written: 0,
+        max_bytes,
+    };
+    let body = stream::unfold(Some(state), |state| async move {
+        let mut state = state?;
+        match state.upstream.next().await {
+            Some(Ok(chunk)) => {
+                let received = state.written.saturating_add(chunk.len() as u64);
+                if received > state.max_bytes {
+                    abandon(state.write.take()).await;
+                    let limit = state.max_bytes;
+                    return Some((
+                        Err(io::Error::other(format!("tarball exceeds {limit} bytes"))),
+                        None,
+                    ));
+                }
+                if let Some(mut write) = state.write.take() {
+                    // The cache is best-effort: if the temp write fails, stop
+                    // caching but keep streaming to the client.
+                    match write.write_all(&chunk).await {
+                        Ok(()) => state.write = Some(write),
+                        Err(err) => {
+                            tracing::warn!(
+                                ?err,
+                                "tarball cache write failed; serving without caching",
+                            );
+                            write.abandon().await;
+                        }
+                    }
+                }
+                state.checker.input(&chunk);
+                state.written = received;
+                Some((Ok(chunk), Some(state)))
+            }
+            Some(Err(source)) => {
+                abandon(state.write.take()).await;
+                Some((Err(io::Error::other(source)), None))
+            }
+            None => {
+                match state.checker.result() {
+                    Ok(_) => finalize(state.write.take()).await,
+                    Err(_) => abandon(state.write.take()).await,
+                }
+                None
+            }
+        }
+    });
+    Ok(Body::from_stream(body))
+}
+
+/// Download an upstream response into `write`, verify the complete body, and
+/// atomically promote it to the cache, returning the byte length. No bytes
+/// become cache-visible until the declared SRI matches. Used by the namespaced
+/// `/~<uplink>/` route, which records a length-keyed integrity sidecar and so
+/// needs the verified body buffered before it serves; the public proxy path
+/// streams instead (see [`stream_verified_to_cache`]).
 pub async fn download_verified_to_cache(
     response: reqwest::Response,
     mut write: TarballWrite,
@@ -93,6 +172,33 @@ pub async fn download_verified_to_cache(
     };
     write.finalize().await.map_err(TarballStreamError::Io)?;
     Ok(len)
+}
+
+/// Promote a fully-streamed, SRI-matched tarball to the cache, logging (not
+/// failing — the client already has the bytes) if the rename can't complete.
+async fn finalize(write: Option<TarballWrite>) {
+    if let Some(write) = write
+        && let Err(err) = write.finalize().await
+    {
+        tracing::warn!(?err, "promoting verified tarball to cache failed");
+    }
+}
+
+async fn abandon(write: Option<TarballWrite>) {
+    if let Some(write) = write {
+        write.abandon().await;
+    }
+}
+
+/// Carries the in-flight tee through [`stream::unfold`]: the upstream byte
+/// stream, the cache writer (dropped once caching is abandoned), the running
+/// SRI checker, and the size budget.
+struct TeeState {
+    upstream: Pin<Box<dyn Stream<Item = reqwest::Result<Bytes>> + Send>>,
+    write: Option<TarballWrite>,
+    checker: IntegrityChecker,
+    written: u64,
+    max_bytes: u64,
 }
 
 pub async fn download_verified_to_temp(
