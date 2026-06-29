@@ -254,7 +254,7 @@ jobs:
         # `pnpr` server from its clone, so this also produces the server
         # binaries the boot step needs. More builds than the pacquet-only
         # bench, hence the larger timeout.
-        timeout-minutes: 25
+        timeout-minutes: 50
         run: just integrated-benchmark --reuse-prebuilt-binaries --build-only $BENCHMARK_TARGETS
 
       - name: 'Benchmark: Isolated linker: fresh restore, cold cache + cold store'
