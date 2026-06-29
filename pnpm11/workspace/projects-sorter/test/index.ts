@@ -34,6 +34,10 @@ test('sortProjects ignores dependencies on projects absent from the graph', () =
   expect(sortProjects(select(graph, ['a', 'c']))).toStrictEqual([dirs('a', 'c')])
 })
 
+test('sequenceGraph does not report a self-referencing project as a cycle', () => {
+  expect(sequenceGraph(makeGraph({ a: ['a'] })).cycles).toStrictEqual([])
+})
+
 test('sequenceGraph flags a dependency cycle as unsafe', () => {
   expect(sequenceGraph(makeGraph({ a: ['b'], b: ['a'] })).safe).toBe(false)
 })
@@ -42,6 +46,12 @@ test('orders selected projects connected only through an unselected project', ()
   const fullGraph = makeGraph({ a: ['b'], b: ['c'], c: [] })
   expect(sortFilteredProjects({ selectedProjectsGraph: select(fullGraph, ['a', 'c']), allProjectsGraph: fullGraph }))
     .toStrictEqual([dirs('c'), dirs('a')])
+})
+
+test('without a full graph, leaves edges to unselected projects unresolved', () => {
+  // No allProjectsGraph, so a's edge to the unselected b cannot be tunneled.
+  expect(sortFilteredProjects({ selectedProjectsGraph: makeGraph({ a: ['b'], c: [] }) }))
+    .toStrictEqual([dirs('a', 'c')])
 })
 
 test('keeps independent selected projects in a single chunk', () => {

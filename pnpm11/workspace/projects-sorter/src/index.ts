@@ -8,7 +8,15 @@ import type { ProjectRootDir, ProjectsGraph } from '@pnpm/types'
  * dependency cycle.
  */
 export function sequenceGraph (projectsGraph: ProjectsGraph): GraphSequencerResult<ProjectRootDir> {
-  return sequenceGraphByProject(projectsGraph, () => projectsGraph)
+  const projectDirs = Object.keys(projectsGraph) as ProjectRootDir[]
+  const sorted = new Set(projectDirs)
+  const graph = new Map<ProjectRootDir, ProjectRootDir[]>(
+    projectDirs.map((projectDir) => [
+      projectDir,
+      projectsGraph[projectDir].dependencies.filter((dep) => dep !== projectDir && sorted.has(dep)),
+    ])
+  )
+  return graphSequencer(graph, projectDirs)
 }
 
 export function sortProjects (projectsGraph: ProjectsGraph): ProjectRootDir[][] {
