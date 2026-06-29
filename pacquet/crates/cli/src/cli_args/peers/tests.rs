@@ -448,3 +448,20 @@ fn test_format_range_with_space() {
 fn test_format_range_wildcard() {
     assert_eq!(format_range("*"), r#""*""#);
 }
+
+#[test]
+fn test_path_is_within() {
+    let temp_dir = tempfile::tempdir().unwrap();
+    let base = temp_dir.path();
+    let sub = base.join("foo");
+    std::fs::create_dir(&sub).unwrap();
+
+    assert!(path_is_within(&sub, base));
+    assert!(path_is_within(base, base));
+
+    let outside = base.join("../bar");
+    assert!(!path_is_within(&outside, base));
+
+    let absolute_outside = std::path::Path::new("/etc");
+    assert!(!path_is_within(absolute_outside, base));
+}
