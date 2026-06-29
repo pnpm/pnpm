@@ -35,6 +35,7 @@ pub mod rebuild;
 pub mod recursive;
 pub mod registry_client;
 pub mod remove;
+pub mod repo;
 pub mod restart;
 pub mod root;
 pub mod run;
