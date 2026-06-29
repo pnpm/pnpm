@@ -450,6 +450,33 @@ fn recursive_run_filter_prod_follows_production_deps_only() {
     drop(root);
 }
 
+/// A `[<since>]` changed-packages selector is not supported by pacquet's
+/// filter engine yet, so a recursive `run` surfaces the
+/// `UnsupportedDiffSelector` error instead of swallowing it. This
+/// exercises the error-propagation (`?`) out of `select_recursive_projects`.
+#[test]
+fn recursive_run_diff_selector_is_unsupported() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &[("project-1", build_writes_marker("project-1"))]);
+
+    let output = pacquet
+        .with_arg("-r")
+        .with_arg("--filter")
+        .with_arg("[main]")
+        .with_arg("run")
+        .with_arg("build")
+        .output()
+        .expect("spawn pacquet");
+    assert!(!output.status.success(), "a [<since>] diff selector is unsupported and must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Changed-package filter selectors"),
+        "stderr should explain the diff selector is unsupported, got: {stderr}",
+    );
+
+    drop(root);
+}
+
 /// A `--filter` that matches no project is a no-op: the run exits 0
 /// without raising the no-selected-packages error, matching pnpm's
 /// main-dispatch exit-0 for an empty `selectedProjectsGraph`.
