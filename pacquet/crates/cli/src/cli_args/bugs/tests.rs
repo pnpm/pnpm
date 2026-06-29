@@ -1,8 +1,9 @@
+use serde_json::json;
+
 use super::{
     is_http_url, parse_package_spec, pick_bugs_url, repository_to_issues_url,
     try_hosted_git_shorthand,
 };
-use serde_json::json;
 
 #[test]
 fn pick_bugs_url_returns_bugs_url_from_object() {

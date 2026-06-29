@@ -1,9 +1,10 @@
-use derive_more::{Display, From, TryInto};
-use node_semver::Version;
 use std::str::FromStr;
 
+use derive_more::{Display, From, TryInto};
+use node_semver::Version;
+
 /// Version or tag that is attachable to a registry URL.
-#[derive(Debug, Display, From, TryInto, Clone)]
+#[derive(Debug, Display, Clone, From, TryInto)]
 pub enum PackageTag {
     /// Literally `latest`.
     #[display("latest")]
