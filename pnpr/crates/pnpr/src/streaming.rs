@@ -77,7 +77,7 @@ pub fn stream_verified_to_cache(
     }
     let checker = integrity_checker(integrity).map_err(TarballStreamError::Integrity)?;
     let state = TeeState {
-        url: response.url().to_string(),
+        url: redact_url(response.url()),
         upstream: Box::pin(response.bytes_stream()),
         write: Some(write),
         checker,
@@ -155,6 +155,17 @@ async fn abandon(write: Option<TarballWrite>) {
     if let Some(write) = write {
         write.abandon().await;
     }
+}
+
+/// A log-safe form of the upstream URL: basic-auth userinfo and the query
+/// string (which can carry presigned-redirect tokens) are stripped, since this
+/// URL is only kept to tag failure logs.
+fn redact_url(url: &reqwest::Url) -> String {
+    let mut url = url.clone();
+    let _ = url.set_username("");
+    let _ = url.set_password(None);
+    url.set_query(None);
+    url.to_string()
 }
 
 /// Carries the in-flight tee through [`stream::unfold`]: the upstream byte

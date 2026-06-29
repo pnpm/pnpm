@@ -423,9 +423,13 @@ impl WorkEnv {
         // store + cache (only present for `pnpr@<rev>` targets) — wiping it
         // upfront (but never per-iteration) makes the hyperfine warmup the
         // run that primes the server, so timed runs measure a warm
-        // long-running server even while the client is cold.
+        // long-running server even while the client is cold. `cold-mock-storage`
+        // (only the cold-pnpr scenario) is wiped here too so the warmup run
+        // starts cold even on a reused work-env, not just the timed iterations.
         for dir in self.benchmarked_ids().map(|id| self.bench_dir(id)) {
-            for name in ["node_modules", "store-dir", "cache-dir", "pnpr-storage"] {
+            for name in
+                ["node_modules", "store-dir", "cache-dir", "pnpr-storage", "cold-mock-storage"]
+            {
                 let path = dir.join(name);
                 if path.exists() {
                     remove_dir_all_with_retry(&path).expect("pre-benchmark wipe");
@@ -1610,6 +1614,12 @@ fn write_pnpr_benchmark_config(
 /// a single `**` proxy uplink at the warm origin, with public reads needing no
 /// auth (matching the bundled mock config).
 fn cold_mock_config_yaml(storage: &Path, origin: &str) -> String {
+    // JSON-encode the two interpolated scalars: a JSON string is a valid
+    // double-quoted YAML scalar, so a `#`, space, or other YAML-significant
+    // character in the path or URL can't break or alter the config.
+    let storage = serde_json::to_string(&storage.display().to_string())
+        .expect("encode cold mock storage path");
+    let origin = serde_json::to_string(origin).expect("encode cold mock origin url");
     format!(
         "storage: {storage}\n\
          uplinks:\n  \
@@ -1625,7 +1635,6 @@ fn cold_mock_config_yaml(storage: &Path, origin: &str) -> String {
            type: stdout\n  \
            format: pretty\n  \
            level: error\n",
-        storage = storage.display(),
     )
 }
 
