@@ -19,8 +19,7 @@
 //!
 //! [#11533]: https://github.com/pnpm/pnpm/issues/11533
 
-use pacquet_network::encode_uri_component;
-use std::fmt;
+use std::fmt::{self, Write};
 
 /// Three host families pacquet recognises. Mirrors upstream's
 /// `gitHosts` keys at
@@ -654,6 +653,23 @@ fn percent_decode(input: &str) -> String {
         idx += 1;
     }
     String::from_utf8(buf).unwrap_or_else(|_| input.to_string())
+}
+
+/// Match Node's `encodeURIComponent`. Percent-encode every byte
+/// outside the safe ASCII set Node keeps unencoded:
+/// `A-Z a-z 0-9 - _ . ! ~ * ' ( )`.
+fn encode_uri_component(input: &str) -> String {
+    let mut out = String::with_capacity(input.len());
+    for byte in input.bytes() {
+        let safe = byte.is_ascii_alphanumeric()
+            || matches!(byte, b'-' | b'_' | b'.' | b'!' | b'~' | b'*' | b'\'' | b'(' | b')');
+        if safe {
+            out.push(byte as char);
+        } else {
+            write!(&mut out, "%{byte:02X}").expect("write to String never fails");
+        }
+    }
+    out
 }
 
 #[cfg(test)]
