@@ -8,10 +8,15 @@
 //! [`libnpmpublish`'s provenance.js](https://github.com/npm/cli/blob/latest/node_modules/libnpmpublish/lib/provenance.js)
 //! and the `_attachments[*.sigstore]` wiring from `libnpmpublish`'s
 //! `publish.js`. The signing itself is delegated to `sigstore_sign`
-//! unmodified, so the emitted bundle is whatever that crate produces (a v0.3
-//! DSSE bundle with a single certificate and a `dsse` Rekor entry) — which is
-//! *not* byte-identical to npm's legacy `legacyCompatibility: true` bundle. The
-//! compiled output is meant to be validated against a real registry.
+//! unmodified, so the emitted bundle is whatever that crate produces: a
+//! **sigstore bundle v0.3** (single certificate, `dsse` Rekor entry). This is
+//! *not* the legacy form npm's own `libnpmpublish` emits under
+//! `legacyCompatibility: true` (bundle v0.2, `x509CertificateChain`, `intoto`
+//! Rekor entry) — pacquet deliberately does not reproduce that legacy shape.
+//! The npm registry accepts the v0.3 bundle: a package published this way was
+//! verified end-to-end against npmjs.com (`@pnpm.e2e/testing-provenance2`,
+//! recorded in the Rekor transparency log), so the modern bundle is sufficient
+//! and no legacy-compatibility path is needed.
 
 use pacquet_diagnostics::miette::{self, Diagnostic};
 use pacquet_reporter::Reporter;
