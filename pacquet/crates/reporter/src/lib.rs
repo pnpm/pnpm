@@ -732,10 +732,11 @@ pub struct BrokenModulesLog {
 /// `pnpm:lockfile-verification` payload. The [bunyan]-envelope `level`
 /// is a fixed outer field; the rest of the record is a status-tagged
 /// union via `#[serde(flatten)]` so the wire shape stays flat
-/// (matching pnpm's [`LockfileVerificationMessage`] discriminator on
+/// (matching pnpm's [`LockfileVerificationMessage`][ts-LockfileVerificationMessage] discriminator on
 /// `status`).
 ///
 /// [bunyan]: https://github.com/trentm/node-bunyan
+/// [ts-LockfileVerificationMessage]: https://github.com/pnpm/pnpm/blob/2a9bd897bf/core/core-loggers/src/lockfileVerificationLogger.ts#L11-L16
 #[derive(Debug, Clone, Serialize)]
 pub struct LockfileVerificationLog {
     pub level: LogLevel,

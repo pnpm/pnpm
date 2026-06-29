@@ -17,11 +17,12 @@ pub struct Command {
 }
 
 /// Bin names that legitimately ship inside a different package than their own
-/// name. Mirrors [`BIN_OWNER_OVERRIDES`] in
-/// <https://github.com/pnpm/pnpm/blob/4750fd370c/bins/resolver/src/index.ts>.
+/// name. Mirrors [`BIN_OWNER_OVERRIDES`][ts-BIN_OWNER_OVERRIDES].
 ///
 /// Used by [`pkg_owns_bin`] for conflict resolution between two packages
 /// declaring the same bin name.
+///
+/// [ts-BIN_OWNER_OVERRIDES]: https://github.com/pnpm/pnpm/blob/4750fd370c/bins/resolver/src/index.ts
 const BIN_OWNER_OVERRIDES: &[(&str, &[&str])] = &[
     ("npx", &["npm"]),
     ("pn", &["pnpm", "@pnpm/exe"]),

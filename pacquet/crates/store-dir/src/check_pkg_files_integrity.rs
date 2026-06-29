@@ -52,7 +52,7 @@ pub type FilesMap = HashMap<String, PathBuf>;
 
 /// Result of a `PackageFilesIndex`-row verification pass.
 ///
-/// Mirrors pnpm's [`VerifyResult`]. When `passed` is `false` the caller
+/// Mirrors pnpm's [`VerifyResult`][ts-VerifyResult]. When `passed` is `false` the caller
 /// treats the store entry as stale and falls through to a fresh fetch.
 /// `files_map` is returned either way as a best-effort `in-tarball
 /// filename` → `CAFS path` map; it may be partial or empty, so callers
@@ -68,6 +68,8 @@ pub type FilesMap = HashMap<String, PathBuf>;
 /// (`<engine>` or `<engine>;deps=…;patch=…`, produced by
 /// `pacquet-graph-hasher`'s `calc_dep_state`) to decide whether
 /// the package is already built.
+///
+/// [ts-VerifyResult]: https://github.com/pnpm/pnpm/blob/1819226b51/store/cafs/src/checkPkgFilesIntegrity.ts
 #[derive(Debug)]
 pub struct VerifyResult {
     pub passed: bool,

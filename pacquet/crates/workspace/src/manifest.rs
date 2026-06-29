@@ -67,12 +67,14 @@ pub struct WorkspaceManifest {
 
 /// Raised when `pnpm-workspace.yaml` parses as YAML but fails an
 /// upstream-mirrored shape check that serde itself can't enforce.
-/// Same error code as upstream's [`InvalidWorkspaceManifestError`].
+/// Same error code as upstream's [`InvalidWorkspaceManifestError`][ts-InvalidWorkspaceManifestError].
 ///
 /// Note: upstream's "packages field is not an array" branch is
 /// covered by [`ReadWorkspaceManifestError::ParseYaml`] in pacquet —
 /// `serde_saphyr` rejects a non-array shape before this layer runs.
 /// Only the empty-string-entry check needs a dedicated variant.
+///
+/// [ts-InvalidWorkspaceManifestError]: https://github.com/pnpm/pnpm/blob/94240bc046/workspace/workspace-manifest-reader/src/index.ts
 #[derive(Debug, Display, Error, Diagnostic)]
 #[diagnostic(code(pacquet_workspace::invalid_workspace_configuration))]
 #[non_exhaustive]

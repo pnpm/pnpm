@@ -913,7 +913,9 @@ pub fn pick_store_index_key(
 /// Per-instance record of what a tarball contributed to the CAFS. Stored as the
 /// value half of each `package_index` row.
 ///
-/// Mirrors pnpm v11's [`PackageFilesIndex`] from `store/cafs/src/checkPkgFilesIntegrity.ts`.
+/// Mirrors pnpm v11's [`PackageFilesIndex`][ts-PackageFilesIndex] from `store/cafs/src/checkPkgFilesIntegrity.ts`.
+///
+/// [ts-PackageFilesIndex]: https://github.com/pnpm/pnpm/blob/1819226b51/store/cafs/src/checkPkgFilesIntegrity.ts
 #[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PackageFilesIndex {

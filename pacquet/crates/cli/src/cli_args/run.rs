@@ -473,8 +473,9 @@ fn render_commands(commands: &[(&str, &str)]) -> String {
 }
 
 /// The lifecycle script names pnpm groups separately in the run listing.
-/// Mirrors [`ALL_LIFECYCLE_SCRIPTS`]
-/// (<https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/commands/src/run.ts#L314-L346>).
+/// Mirrors [`ALL_LIFECYCLE_SCRIPTS`][ts-ALL_LIFECYCLE_SCRIPTS].
+///
+/// [ts-ALL_LIFECYCLE_SCRIPTS]: https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/commands/src/run.ts#L314-L346
 const ALL_LIFECYCLE_SCRIPTS: &[&str] = &[
     "prepublish",
     "prepare",

@@ -27,14 +27,16 @@ use serde_json::{Map, Value};
 use std::cmp::Ordering;
 
 /// Keys whose collection value always renders on a single line (flow style).
-/// Mirrors the fork's [`SINGLE_LINE_KEYS`].
+/// Mirrors the fork's `SINGLE_LINE_KEYS`.
 const SINGLE_LINE_KEYS: [&str; 4] = ["cpu", "engines", "os", "libc"];
 
 /// One indentation level, in spaces (`js-yaml`'s default `indent`).
 const INDENT: usize = 2;
 
-/// Per-package / per-snapshot key priority. Mirrors [`ORDERED_KEYS`] in pnpm's
+/// Per-package / per-snapshot key priority. Mirrors [`ORDERED_KEYS`][ts-ORDERED_KEYS] in pnpm's
 /// [`sortLockfileKeys`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/fs/src/sortLockfileKeys.ts).
+///
+/// [ts-ORDERED_KEYS]: https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/fs/src/sortLockfileKeys.ts
 const ORDERED_KEYS: [&str; 20] = [
     "resolution",
     "id",
@@ -58,7 +60,9 @@ const ORDERED_KEYS: [&str; 20] = [
     "optional",
 ];
 
-/// Top-level key priority. Mirrors [`ROOT_KEYS`] in pnpm's `sortLockfileKeys`.
+/// Top-level key priority. Mirrors [`ROOT_KEYS`][ts-ROOT_KEYS] in pnpm's `sortLockfileKeys`.
+///
+/// [ts-ROOT_KEYS]: https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/fs/src/sortLockfileKeys.ts
 const ROOT_KEYS: [&str; 9] = [
     "lockfileVersion",
     "settings",

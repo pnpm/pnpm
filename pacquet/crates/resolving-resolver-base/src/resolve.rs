@@ -373,7 +373,7 @@ pub struct ResolveOptions {
 /// Today this aliases [`serde_json::Value`] so the seam compiles
 /// without a typed manifest port. The `package-manifest` crate's
 /// `PackageManifest` is a file-handle wrapper, not the value type
-/// upstream's [`DependencyManifest`] denotes; once the typed
+/// upstream's `DependencyManifest` denotes; once the typed
 /// in-memory manifest lands, swap this alias for it.
 pub type DependencyManifest = serde_json::Value;
 

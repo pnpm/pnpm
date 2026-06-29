@@ -6,7 +6,7 @@ use std::sync::{
 /// Per-occurrence identifier for a node in the [`DependenciesTree`].
 /// Mirrors pnpm's [`NodeId`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/nextNodeId.ts).
 ///
-/// Pnpm's [`NodeId`] is a branded `string | number` union: numbers come
+/// Pnpm's [`NodeId`][ts-NodeId] is a branded `string | number` union: numbers come
 /// from a monotonic counter; strings are reused for leaf packages (no
 /// children, no peers) and for `link:<rel-path>` linked local
 /// workspace packages. Pacquet ports the counter and leaf arms;
@@ -17,6 +17,7 @@ use std::sync::{
 /// for the upstream gate.
 ///
 /// [`DependenciesTree`]: super::resolved_tree::DependenciesTree
+/// [ts-NodeId]: https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/nextNodeId.ts
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum NodeId {
     /// Fresh per-occurrence counter value. Allocated by [`NodeId::next`].

@@ -37,9 +37,11 @@ use crate::{
 };
 
 /// Options bundle for [`fetch_full_metadata_cached`]. Mirrors
-/// upstream's [`FetchFullMetadataCachedOptions`] — same fields, same
+/// upstream's [`FetchFullMetadataCachedOptions`][ts-FetchFullMetadataCachedOptions] — same fields, same
 /// optionality. `cache_dir` is the only addition over the no-cache
 /// [`crate::FetchFullMetadataOptions`].
+///
+/// [ts-FetchFullMetadataCachedOptions]: https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetchFullMetadataCached.ts
 #[derive(Debug, Clone)]
 pub struct FetchFullMetadataCachedOptions<'a> {
     pub registry: &'a str,

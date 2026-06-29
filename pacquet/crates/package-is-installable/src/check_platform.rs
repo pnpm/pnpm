@@ -11,8 +11,9 @@ use serde::{Deserialize, Serialize};
 /// config setting and falls back to `['current']` if absent). The
 /// `'current'` sentinel is replaced with the host triple via
 /// `dedupe_current` before the `os` / `cpu` / `libc` lists are
-/// compared. Mirrors upstream's [`SupportedArchitectures`] at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/core/types/src/package.ts#L232-L236>.
+/// compared. Mirrors upstream's [`SupportedArchitectures`][ts-SupportedArchitectures].
+///
+/// [ts-SupportedArchitectures]: https://github.com/pnpm/pnpm/blob/94240bc046/core/types/src/package.ts#L232-L236
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SupportedArchitectures {
     #[serde(skip_serializing_if = "Option::is_none")]

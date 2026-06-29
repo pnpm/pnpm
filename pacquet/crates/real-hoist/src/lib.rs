@@ -22,7 +22,7 @@ use std::{
 };
 
 /// One of the three node categories the `@yarnpkg/nm` hoister
-/// distinguishes. Mirrors [`HoisterDependencyKind`] at the
+/// distinguishes. Mirrors [`HoisterDependencyKind`][yarn-kind] at the
 /// [yarn source][yarn-kind].
 ///
 /// [yarn-kind]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts#L12-L14
@@ -45,7 +45,7 @@ pub enum HoisterDependencyKind {
 
 /// Input node for the hoister. Built by [`hoist`] from the lockfile.
 ///
-/// Mirrors [`HoisterTree`] at the [yarn source][yarn-tree]. Children
+/// Mirrors [`HoisterTree`][yarn-tree] at the [yarn source][yarn-tree]. Children
 /// are stored in an [`IndexSet`] so insertion order is preserved (the
 /// upstream hoister's traversal relies on declaration order to break
 /// ties between equivalent candidates), and so that a node added via
@@ -107,9 +107,9 @@ pub struct HoisterTree {
 /// rebuilding `Rc`s (which would break the shared-by-identity
 /// invariant for any earlier clone).
 ///
-/// Mirrors [`HoisterResult`] at the [yarn source][yarn-result].
+/// Mirrors [`HoisterResult`][yarn-result] at the [yarn source][yarn-result].
 ///
-/// Pacquet extends upstream's [`HoisterResult`] with a `peer_names`
+/// Pacquet extends upstream's [`HoisterResult`][yarn-result] with a `peer_names`
 /// field copied through from [`HoisterTree::peer_names`]. The hoist
 /// algorithm reads it while deciding whether a candidate can hoist
 /// past parents that supply the peer; upstream resolves the same
@@ -123,10 +123,12 @@ pub struct HoisterResult {
     pub name: String,
     pub ident_name: String,
     pub references: RefCell<BTreeSet<String>>,
-    /// Peer-dependency names the upstream [`HoisterTree`] node
+    /// Peer-dependency names the upstream [`HoisterTree`][ts-HoisterTree] node
     /// declared. Read by the hoist algorithm to refuse hoists that
     /// would shadow a peer the candidate's ancestors satisfy with a
     /// different ident.
+    ///
+    /// [ts-HoisterTree]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts#L16-L19
     pub peer_names: BTreeSet<String>,
     pub dependencies: RefCell<IndexSet<RcByPtr<HoisterResult>>>,
 }
@@ -135,9 +137,11 @@ pub struct HoisterResult {
 /// (e.g. `.@`); the inner set lists package aliases that may not be
 /// hoisted past that importer.
 ///
-/// Upstream [`HoistingLimits`] is `Map<string, Set<string>>`. Pacquet
+/// Upstream [`HoistingLimits`][ts-HoistingLimits] is `Map<string, Set<string>>`. Pacquet
 /// uses `BTreeMap` / `BTreeSet` so the order is deterministic for
 /// snapshot tests.
+///
+/// [ts-HoistingLimits]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts
 pub type HoistingLimits = BTreeMap<String, BTreeSet<String>>;
 
 /// Options accepted by [`hoist`]. Mirrors the `opts` object of the

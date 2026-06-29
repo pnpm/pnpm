@@ -41,7 +41,9 @@ impl GlobalPackageInfo {
 }
 
 /// One installed dependency of a group, with its resolved version and
-/// parsed manifest. Mirrors pnpm's [`InstalledGlobalPackage`].
+/// parsed manifest. Mirrors pnpm's [`InstalledGlobalPackage`][ts-InstalledGlobalPackage].
+///
+/// [ts-InstalledGlobalPackage]: https://github.com/pnpm/pnpm/blob/1819226b51/global/packages/src/scanGlobalPackages.ts
 #[derive(Debug, Clone)]
 pub struct InstalledGlobalPackage {
     pub alias: String,

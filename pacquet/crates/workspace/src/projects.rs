@@ -48,9 +48,11 @@ pub struct Project {
 
 /// Options for [`find_workspace_projects`].
 ///
-/// Field names mirror upstream's [`FindWorkspaceProjectsOpts`] so a port
+/// Field names mirror upstream's [`FindWorkspaceProjectsOpts`][ts-FindWorkspaceProjectsOpts] so a port
 /// of any individual install entry point doesn't have to translate
 /// option names.
+///
+/// [ts-FindWorkspaceProjectsOpts]: https://github.com/pnpm/pnpm/blob/94240bc046/workspace/projects-reader/src/index.ts
 #[derive(Debug, Default, Clone)]
 pub struct FindWorkspaceProjectsOpts {
     /// Package discovery patterns. When `None`, this lower-level

@@ -100,8 +100,9 @@ pub fn parse_bare_specifier(
 /// resolver can record the dependency under its JSR alias while
 /// driving the picker against the `@jsr` registry.
 ///
-/// Mirrors upstream's [`JsrRegistryPackageSpec`]
-/// ([source](https://github.com/pnpm/pnpm/blob/1627943d2a/resolving/npm-resolver/src/parseBareSpecifier.ts#L64-L66)).
+/// Mirrors upstream's [`JsrRegistryPackageSpec`][ts-JsrRegistryPackageSpec].
+///
+/// [ts-JsrRegistryPackageSpec]: https://github.com/pnpm/pnpm/blob/1627943d2a/resolving/npm-resolver/src/parseBareSpecifier.ts#L64-L66
 #[derive(Debug, Clone)]
 pub struct JsrRegistryPackageSpec {
     pub spec: RegistryPackageSpec,
@@ -150,8 +151,9 @@ pub fn parse_jsr_specifier_to_registry_package_spec(
 /// route the metadata fetch to the configured registry URL while still
 /// driving the picker against an npm-shaped spec.
 ///
-/// Mirrors upstream's [`NamedRegistryPackageSpec`]
-/// ([source](https://github.com/pnpm/pnpm/blob/b61e268d57/resolving/npm-resolver/src/parseBareSpecifier.ts#L91-L93)).
+/// Mirrors upstream's [`NamedRegistryPackageSpec`][ts-NamedRegistryPackageSpec].
+///
+/// [ts-NamedRegistryPackageSpec]: https://github.com/pnpm/pnpm/blob/b61e268d57/resolving/npm-resolver/src/parseBareSpecifier.ts#L91-L93
 #[derive(Debug, Clone)]
 pub struct NamedRegistryPackageSpec {
     pub spec: RegistryPackageSpec,

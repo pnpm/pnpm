@@ -49,14 +49,16 @@ use std::{fs, io, path::Path};
 
 /// Lifecycle scripts removed from the published manifest's `scripts`
 /// map during obfuscation, so they don't re-run when the package is
-/// installed from the registry. Mirrors upstream's [`PREPUBLISH_SCRIPTS`]
-/// at [`index.ts:19-26`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/releasing/exportable-manifest/src/index.ts#L19-L26).
+/// installed from the registry. Mirrors upstream's [`PREPUBLISH_SCRIPTS`][ts-PREPUBLISH_SCRIPTS].
+///
+/// [ts-PREPUBLISH_SCRIPTS]: https://github.com/pnpm/pnpm/blob/ef87f3ccff/releasing/exportable-manifest/src/index.ts#L19-L26
 const PREPUBLISH_SCRIPTS: &[&str] =
     &["prepublishOnly", "prepack", "prepare", "postpack", "publish", "postpublish"];
 
 /// Manifest keys hoisted from `publishConfig` onto the manifest root.
-/// Mirrors upstream's [`PUBLISH_CONFIG_WHITELIST`] at
-/// [`overridePublishConfig.ts:5-31`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/releasing/exportable-manifest/src/overridePublishConfig.ts#L5-L31).
+/// Mirrors upstream's [`PUBLISH_CONFIG_WHITELIST`][ts-PUBLISH_CONFIG_WHITELIST].
+///
+/// [ts-PUBLISH_CONFIG_WHITELIST]: https://github.com/pnpm/pnpm/blob/ef87f3ccff/releasing/exportable-manifest/src/overridePublishConfig.ts#L5-L31
 const PUBLISH_CONFIG_WHITELIST: &[&str] = &[
     "bin",
     "engines",
