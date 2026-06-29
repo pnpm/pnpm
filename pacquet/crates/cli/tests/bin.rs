@@ -8,10 +8,9 @@ use std::{
     process::Command,
 };
 
-/// Canonicalize a path the way the production CLI does. The CLI runs
-/// `dunce::canonicalize` on `--dir`, so the printed path is the resolved
-/// form — e.g. on macOS a `/var/folders/...` temp dir surfaces as
-/// `/private/var/folders/...`. Mirror that so the expected value matches.
+/// Canonicalize a path the way the production CLI does (`dunce::canonicalize`
+/// on `--dir`), so the expected value matches the resolved form pacquet prints
+/// — e.g. on macOS a `/var/folders/...` temp dir surfaces as `/private/var/...`.
 fn canonicalize(path: &Path) -> PathBuf {
     dunce::canonicalize(path).expect("canonicalize path")
 }
@@ -24,8 +23,6 @@ fn bin_prints_the_local_node_modules_bin_dir() {
     dbg!(&output);
     assert!(output.status.success(), "pacquet bin should succeed");
 
-    // pnpm's `bin` handler prints `config.bin`; the CLI appends a single
-    // trailing newline, the same shape `root` emits.
     let expected =
         format!("{}\n", canonicalize(&workspace).join("node_modules").join(".bin").display());
     assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
@@ -35,9 +32,7 @@ fn bin_prints_the_local_node_modules_bin_dir() {
 
 #[test]
 fn bin_ignores_a_custom_modules_dir() {
-    // pnpm's `bin` hardcodes the `node_modules/.bin` leaf, so a configured
-    // modules-dir must NOT change its output. pacquet matches by anchoring on
-    // `--dir` and never reading `config.modules_dir` in this command.
+    // pnpm hardcodes the `.bin` leaf, so a custom modules-dir is ignored.
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     fs::write(workspace.join("pnpm-workspace.yaml"), "modulesDir: custom_nm\n")
         .expect("write pnpm-workspace.yaml");
@@ -53,12 +48,9 @@ fn bin_ignores_a_custom_modules_dir() {
     drop(root);
 }
 
-/// `pacquet bin -g` resolves the global executables directory
-/// (`global-bin-dir ?? <pnpm-home>/bin`), creates it, and — matching pnpm —
-/// validates it is on `PATH` before printing. `PNPM_HOME` is pinned with its
-/// `bin` prepended to `PATH`; `HOME` / `XDG_CONFIG_HOME` and the
-/// `global-bin-dir` config env vars are pinned so the resolved path is
-/// deterministic. Unix-gated like `global.rs`, since the `PATH` validation is
+/// `pacquet bin -g` resolves, creates, and (matching pnpm) validates the global
+/// bin dir is on `PATH` before printing. The env is pinned so the resolved path
+/// is deterministic. Unix-gated like `global.rs`: the `PATH` validation is
 /// platform-specific.
 #[cfg(unix)]
 #[test]
@@ -84,7 +76,6 @@ fn bin_global_prints_the_global_bin_dir_when_on_path() {
 
     let expected = format!("{}\n", global_bin.display());
     assert_eq!(String::from_utf8_lossy(&output.stdout), expected);
-    // pnpm creates the global bin dir while resolving `--global`; pacquet mirrors that.
     assert!(global_bin.is_dir(), "pacquet bin -g should create the global bin dir");
 
     drop(root);
@@ -123,13 +114,8 @@ fn bin_global_errors_when_not_in_path() {
 
 /// Differential parity: from a workspace subdirectory pnpm's `bin` prints the
 /// cwd's `node_modules/.bin` (its `config.dir` is the cwd, not the workspace
-/// root). pacquet must print byte-identical output.
-///
-/// Skipped on Windows, where pnpm is installed as a `pnpm.cmd` shim and
-/// `std::process::Command` does not honor `PATHEXT`, so `Command::new("pnpm")`
-/// fails with "program not found" (the same reason `pnpm_compatibility.rs` and
-/// `hoist.rs` gate their pnpm-spawning tests). The local tests above spawn only
-/// `pacquet`, so they keep running on Windows.
+/// root). pacquet must match byte-for-byte. Windows-skipped because it spawns
+/// the external `pnpm` shim (see the `ignore` reason).
 #[test]
 #[cfg_attr(
     target_os = "windows",
