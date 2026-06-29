@@ -240,39 +240,36 @@ fn recursive_run_filter_no_matching_script_reports_no_selected_packages() {
     drop(root);
 }
 
-/// `--filter-prod <name>` narrows the recursive run the same way
-/// `--filter` does, exercising the `follow_prod_deps_only` selector
-/// branch of the shared selection path. For a plain name selector the
-/// production-only dependency walk doesn't change the selected set (the
-/// production graph is only consulted for `...`-style walks), so the
-/// observable result matches the `--filter` case.
+/// `--filter-prod <pkg>...` walks production dependencies only, so a
+/// dev-only edge is excluded from the selected set. With `app` depending
+/// on `lib` through `devDependencies`, `--filter-prod app...` runs `app`
+/// but skips `lib` — whereas plain `--filter app...` would run both.
+/// This is what distinguishes `--filter-prod` from `--filter`: the
+/// `follow_prod_deps_only` branch builds the graph with dev edges
+/// dropped, so the `...` dependency walk never reaches `lib`.
 #[test]
-fn recursive_run_filter_prod_selects_only_matching_project() {
+fn recursive_run_filter_prod_follows_production_deps_only() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
-    write_workspace(
-        &workspace,
-        &[
-            ("project-1", build_writes_marker("project-1")),
-            ("project-2", build_writes_marker("project-2")),
-        ],
-    );
+    let mut app = build_writes_marker("app");
+    app["devDependencies"] = json!({ "lib": "1.0.0" });
+    write_workspace(&workspace, &[("lib", build_writes_marker("lib")), ("app", app)]);
 
     pacquet
         .with_arg("-r")
         .with_arg("--filter-prod")
-        .with_arg("project-1")
+        .with_arg("app...")
         .with_arg("run")
         .with_arg("build")
         .assert()
         .success();
 
     assert!(
-        workspace.join("project-1").join("ran.txt").exists(),
-        "the --filter-prod-selected project-1 should run",
+        workspace.join("app").join("ran.txt").exists(),
+        "the --filter-prod-selected app should run",
     );
     assert!(
-        !workspace.join("project-2").join("ran.txt").exists(),
-        "project-2 is not selected by --filter-prod and must not run",
+        !workspace.join("lib").join("ran.txt").exists(),
+        "lib is only a dev dependency of app, so --filter-prod's production-only walk must skip it",
     );
 
     drop(root);
