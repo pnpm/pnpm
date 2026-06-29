@@ -18,12 +18,11 @@ use std::{
 /// Ports pnpm's `exec` command from
 /// <https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/commands/src/exec.ts>.
 /// The recursive variant (selected by the global `-r` / `--recursive`
-/// flag) runs the command in every workspace project, topologically
-/// sorted and sequential, with `--resume-from` / `--report-summary` /
-/// `--no-bail` (see [`recursive`]). The `--filter` package-selector
-/// narrowing and `--workspace-concurrency` parallelism are not ported yet
-/// — the selected set is every workspace project, matching the recursive
-/// `run` runner and pacquet's currently-unfiltered `install`.
+/// flag) runs the command across the `--filter`-selected workspace
+/// projects, topologically sorted and sequential, with `--resume-from` /
+/// `--report-summary` / `--no-bail` (see [`recursive`]).
+/// `--workspace-concurrency` parallelism is not ported yet, matching the
+/// recursive `run` runner.
 #[derive(Debug, Args)]
 pub struct ExecArgs {
     /// The command to run, followed by its arguments.

@@ -129,6 +129,117 @@ fn recursive_run_settings_only_workspace_enumerates_root_only() {
     drop(root);
 }
 
+/// `pacquet -r --filter <name> run <script>` runs the script only in the
+/// `--filter`-selected project, leaving the rest untouched. Threads
+/// `config.filter` through the recursive dispatch the way pnpm builds its
+/// `selectedProjectsGraph`.
+#[test]
+fn recursive_run_filter_selects_only_matching_project() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            ("project-1", build_writes_marker("project-1")),
+            ("project-2", build_writes_marker("project-2")),
+            ("project-3", build_writes_marker("project-3")),
+        ],
+    );
+
+    pacquet
+        .with_arg("-r")
+        .with_arg("--filter")
+        .with_arg("project-1")
+        .with_arg("run")
+        .with_arg("build")
+        .assert()
+        .success();
+
+    assert!(
+        workspace.join("project-1").join("ran.txt").exists(),
+        "the selected project-1 should run",
+    );
+    for name in ["project-2", "project-3"] {
+        assert!(
+            !workspace.join(name).join("ran.txt").exists(),
+            "{name} is not selected by --filter and must not run",
+        );
+    }
+
+    drop(root);
+}
+
+/// An exclude selector (`!<name>`) runs the script in every project
+/// except the excluded one — the shape pnpm's release workflow leans on
+/// with `--filter=!pnpm`.
+#[test]
+fn recursive_run_exclude_filter_skips_excluded_project() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            ("project-1", build_writes_marker("project-1")),
+            ("project-2", build_writes_marker("project-2")),
+            ("project-3", build_writes_marker("project-3")),
+        ],
+    );
+
+    pacquet
+        .with_arg("-r")
+        .with_arg("--filter")
+        .with_arg("!project-2")
+        .with_arg("run")
+        .with_arg("build")
+        .assert()
+        .success();
+
+    assert!(workspace.join("project-1").join("ran.txt").exists(), "project-1 should run");
+    assert!(workspace.join("project-3").join("ran.txt").exists(), "project-3 should run");
+    assert!(
+        !workspace.join("project-2").join("ran.txt").exists(),
+        "project-2 is excluded by !project-2 and must not run",
+    );
+
+    drop(root);
+}
+
+/// When `--filter` narrows the set and no *selected* package defines the
+/// script, the error keeps pnpm's `ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT` code
+/// but switches to the "None of the selected packages" wording (vs. "None
+/// of the packages" when every project is selected). Mirrors pnpm's
+/// `runRecursive.ts:203-210`.
+#[test]
+fn recursive_run_filter_no_matching_script_reports_no_selected_packages() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            ("project-1", build_writes_marker("project-1")),
+            ("project-2", json!({ "name": "project-2", "version": "1.0.0" })),
+        ],
+    );
+
+    let output = pacquet
+        .with_arg("-r")
+        .with_arg("--filter")
+        .with_arg("project-2")
+        .with_arg("run")
+        .with_arg("build")
+        .output()
+        .expect("spawn pacquet");
+    assert!(!output.status.success(), "a selected package without the script must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT"),
+        "stderr should carry the no-script code, got: {stderr}",
+    );
+    assert!(
+        stderr.contains("None of the selected packages"),
+        "stderr should use the selected-packages wording, got: {stderr}",
+    );
+
+    drop(root);
+}
+
 /// `pacquet -r run --resume-from <pkg>` skips every chunk that sorts
 /// before the chunk containing `<pkg>`. With `project-2` and `project-3`
 /// both depending on `project-1`, the sorted chunks are

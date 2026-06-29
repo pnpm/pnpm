@@ -72,6 +72,38 @@ fn recursive_exec_runs_command_in_every_project() {
     drop(root);
 }
 
+/// `pacquet -r --filter <name> exec <command>` runs the command only in
+/// the `--filter`-selected project. Threads `config.filter` through the
+/// recursive exec dispatch.
+#[test]
+fn recursive_exec_filter_selects_only_matching_project() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["project-1", "project-2", "project-3"]);
+
+    pacquet
+        .with_arg("-r")
+        .with_arg("--filter")
+        .with_arg("project-1")
+        .with_arg("exec")
+        .with_arg("touch")
+        .with_arg("ran.txt")
+        .assert()
+        .success();
+
+    assert!(
+        workspace.join("project-1").join("ran.txt").exists(),
+        "the selected project-1 should run the command",
+    );
+    for name in ["project-2", "project-3"] {
+        assert!(
+            !workspace.join(name).join("ran.txt").exists(),
+            "{name} is not selected by --filter and must not run",
+        );
+    }
+
+    drop(root);
+}
+
 /// `--report-summary` writes `pnpm-exec-summary.json` with a `passed`
 /// entry for every project.
 #[test]

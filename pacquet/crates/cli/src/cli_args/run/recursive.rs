@@ -9,28 +9,24 @@
 //! and the `throwOnCommandFail` failure check from
 //! [`@pnpm/cli.utils`](https://github.com/pnpm/pnpm/blob/8eb1be4988/cli/utils/src/recursiveSummary.ts).
 //!
-//! Scope versus upstream: projects are sorted topologically (upstream's
-//! default) and run sequentially. `--no-sort`, `--reverse`,
-//! `--workspace-concurrency` parallelism, `--filter` narrowing of the
-//! selected set, and the `RegExp` script selector are not ported yet — the
-//! selected set is every workspace project, matching pacquet's
-//! currently-unfiltered `install`.
+//! Scope versus upstream: `config.filter` / `config.filter_prod`
+//! (`--filter` / `--filter-prod`, include and exclude selectors) narrow
+//! the selected set via [`select_recursive_projects`]; the selection is
+//! then sorted topologically (upstream's default) and run sequentially.
+//! `--no-sort`, `--reverse`, `--workspace-concurrency` parallelism, the
+//! `RegExp` script selector, and the main-dispatch auto-exclusion of the
+//! workspace root for `run` / `exec` / `add` / `test` are not ported yet.
 
 use super::{RunArgs, RunContext, run_stages};
 use crate::cli_args::recursive::{
-    ExecutionStatus, GraphPkg, Status, count_failures, get_resumed_package_chunks, sort_projects,
-    write_recursive_summary,
+    ExecutionStatus, Status, count_failures, discover_workspace_projects,
+    get_resumed_package_chunks, select_recursive_projects, sort_projects, write_recursive_summary,
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
-use miette::{Context, Diagnostic, IntoDiagnostic};
+use miette::Diagnostic;
 use pacquet_config::Config;
 use pacquet_package_manager::{make_node_package_map_option, package_map_path_for_execution};
-use pacquet_workspace::{
-    FindWorkspaceProjectsOpts, find_workspace_projects, read_workspace_manifest,
-    workspace_package_patterns,
-};
-use pacquet_workspace_projects_graph::{CreateProjectsGraphOptions, create_projects_graph};
 use std::{
     collections::HashMap,
     env,
@@ -47,6 +43,13 @@ pub enum RecursiveRunError {
     #[display("None of the packages has a \"{script_name}\" script")]
     #[diagnostic(code(ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT))]
     NoScript {
+        #[error(not(source))]
+        script_name: String,
+    },
+
+    #[display("None of the selected packages has a \"{script_name}\" script")]
+    #[diagnostic(code(ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT))]
+    NoSelectedScript {
         #[error(not(source))]
         script_name: String,
     },
@@ -86,15 +89,8 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
     };
     let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
 
-    let patterns = read_workspace_manifest(workspace_root)
-        .into_diagnostic()
-        .wrap_err("reading pnpm-workspace.yaml")?
-        .map(|manifest| workspace_package_patterns(&manifest));
-    let projects = find_workspace_projects(workspace_root, &FindWorkspaceProjectsOpts { patterns })
-        .wrap_err("finding workspace projects")?;
-
-    let adapters = projects.iter().map(|project| GraphPkg { project }).collect();
-    let graph = create_projects_graph(adapters, &CreateProjectsGraphOptions::default()).graph;
+    let projects = discover_workspace_projects(workspace_root)?;
+    let graph = select_recursive_projects(&projects, config, dir)?;
 
     let mut chunks = sort_projects(&graph);
     if let Some(resume_from) = &args.resume_from {
@@ -220,9 +216,18 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
     // `test` is exempt because `pnpm test` falls back to a default and
     // should not error on a workspace with no `test` script; otherwise a
     // recursive run that matched nothing is a user error, unless
-    // `--if-present` opted out of it.
+    // `--if-present` opted out of it. The message distinguishes "no
+    // package" from "no selected package" the way pnpm's
+    // `runRecursive.ts:203-210` does, keyed on whether `--filter` narrowed
+    // the set (`selectedProjectsGraph.length === allProjects.length`).
     if script_name != "test" && has_command == 0 && !args.if_present {
-        return Err(RecursiveRunError::NoScript { script_name: script_name.to_string() }.into());
+        let script_name = script_name.to_string();
+        return Err(if graph.len() == projects.len() {
+            RecursiveRunError::NoScript { script_name }
+        } else {
+            RecursiveRunError::NoSelectedScript { script_name }
+        }
+        .into());
     }
 
     if args.report_summary {

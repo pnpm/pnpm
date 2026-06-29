@@ -1,7 +1,7 @@
 //! Shared machinery for the recursive (`-r`) variants of `run` and
-//! `exec`: workspace-project discovery, topological sorting, the
-//! `--resume-from` chunk trimming, and the `pnpm-exec-summary.json`
-//! execution-status report.
+//! `exec`: workspace-project discovery, `--filter` selection,
+//! topological sorting, the `--resume-from` chunk trimming, and the
+//! `pnpm-exec-summary.json` execution-status report.
 //!
 //! Ports the parts of pnpm's
 //! [`exec.ts`](https://github.com/pnpm/pnpm/blob/8eb1be4988/exec/commands/src/exec.ts)
@@ -15,10 +15,17 @@
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::{Context, Diagnostic, IntoDiagnostic};
+use pacquet_config::{Config, LinkWorkspacePackages};
 use pacquet_package_manager::graph_sequencer;
 use pacquet_package_manifest::DependencyGroup;
-use pacquet_workspace::Project;
-use pacquet_workspace_projects_graph::{BaseProject, GraphProject, ProjectGraph};
+use pacquet_workspace::{
+    FindWorkspaceProjectsOpts, Project, find_workspace_projects, read_workspace_manifest,
+    workspace_package_patterns,
+};
+use pacquet_workspace_projects_filter::{FilterProjectsOptions, WorkspaceFilter, filter_projects};
+use pacquet_workspace_projects_graph::{
+    BaseProject, CreateProjectsGraphOptions, GraphProject, ProjectGraph, create_projects_graph,
+};
 use serde::Serialize;
 use std::{
     collections::{HashMap, HashSet},
@@ -119,9 +126,81 @@ pub fn count_failures(summary: &IndexMap<PathBuf, ExecutionStatus>) -> usize {
     summary.values().filter(|status| status.status == Status::Failure).count()
 }
 
+/// Read the workspace manifest at `workspace_root` and enumerate its
+/// projects. Shared by recursive `run` and `exec` so both discover the
+/// same set before [`select_recursive_projects`] narrows it.
+pub fn discover_workspace_projects(workspace_root: &Path) -> miette::Result<Vec<Project>> {
+    let patterns = read_workspace_manifest(workspace_root)
+        .into_diagnostic()
+        .wrap_err("reading pnpm-workspace.yaml")?
+        .map(|manifest| workspace_package_patterns(&manifest));
+    find_workspace_projects(workspace_root, &FindWorkspaceProjectsOpts { patterns })
+        .wrap_err("finding workspace projects")
+}
+
+/// Build the `--filter`-selected workspace graph that the recursive
+/// command runs over.
+///
+/// Ports the main-dispatch step pnpm performs before handing the
+/// recursive `run` / `exec` handlers their `selectedProjectsGraph`
+/// (<https://github.com/pnpm/pnpm/blob/8eb1be4988/pnpm/src/main.ts#L260-L323>):
+/// build the graph over every workspace project, then restrict it to the
+/// projects `config.filter` / `config.filter_prod` select — include
+/// selectors unioned, `!`-prefixed excludes subtracted (`pick(difference(
+/// include, exclude), allProjectsGraph)`). With no selectors every project
+/// is selected, matching pnpm's `selectedProjectsGraph: graph`
+/// fall-through. `prefix` is the directory path selectors resolve against
+/// (pnpm's `process.cwd()`).
+pub fn select_recursive_projects<'a>(
+    projects: &'a [Project],
+    config: &Config,
+    prefix: &Path,
+) -> miette::Result<ProjectGraph<GraphPkg<'a>>> {
+    let mut graph = create_projects_graph(
+        projects.iter().map(|project| GraphPkg { project }).collect(),
+        &CreateProjectsGraphOptions::default(),
+    )
+    .graph;
+
+    if config.filter.is_empty() && config.filter_prod.is_empty() {
+        return Ok(graph);
+    }
+
+    let filters: Vec<WorkspaceFilter> =
+        config
+            .filter
+            .iter()
+            .map(|filter| WorkspaceFilter { filter: filter.clone(), follow_prod_deps_only: false })
+            .chain(config.filter_prod.iter().map(|filter| WorkspaceFilter {
+                filter: filter.clone(),
+                follow_prod_deps_only: true,
+            }))
+            .collect();
+    let selected = filter_projects(
+        projects.iter().map(|project| GraphPkg { project }).collect(),
+        &filters,
+        &FilterProjectsOptions {
+            prefix: prefix.to_path_buf(),
+            link_workspace_packages: Some(
+                config.link_workspace_packages != LinkWorkspacePackages::Off,
+            ),
+            use_glob_dir_filtering: false,
+        },
+    )
+    .map_err(miette::Report::new)
+    .wrap_err("filtering workspace projects")?;
+
+    Ok(selected
+        .selected_projects
+        .iter()
+        .filter_map(|root| graph.swap_remove(root).map(|node| (root.clone(), node)))
+        .collect())
+}
+
 /// Adapter that lets a [`Project`] feed `create_projects_graph`. Owns
 /// nothing beyond a borrow of the project; the graph reads the manifest
 /// name, version, and dependency groups through it.
+#[derive(Clone, Copy)]
 pub struct GraphPkg<'a> {
     pub project: &'a Project,
 }

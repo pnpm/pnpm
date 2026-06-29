@@ -6,26 +6,22 @@
 //! handler, reusing the shared graph / summary machinery in
 //! [`crate::cli_args::recursive`].
 //!
-//! Scope versus upstream: projects are sorted topologically (upstream's
-//! default) and run sequentially. `--filter` narrowing of the selected
-//! set and `--workspace-concurrency` parallelism are not ported yet — the
-//! selected set is every workspace project, matching the recursive `run`
-//! runner.
+//! Scope versus upstream: `config.filter` / `config.filter_prod`
+//! (`--filter` / `--filter-prod`, include and exclude selectors) narrow
+//! the selected set via [`select_recursive_projects`]; the selection is
+//! then sorted topologically (upstream's default) and run sequentially.
+//! `--workspace-concurrency` parallelism is not ported yet, matching the
+//! recursive `run` runner.
 
 use super::{ExecArgs, prepare_command, spawn_in_dir};
 use crate::cli_args::recursive::{
-    ExecutionStatus, GraphPkg, Status, count_failures, get_resumed_package_chunks, sort_projects,
-    write_recursive_summary,
+    ExecutionStatus, Status, count_failures, discover_workspace_projects,
+    get_resumed_package_chunks, select_recursive_projects, sort_projects, write_recursive_summary,
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
-use miette::{Context, Diagnostic, IntoDiagnostic};
+use miette::Diagnostic;
 use pacquet_config::Config;
-use pacquet_workspace::{
-    FindWorkspaceProjectsOpts, find_workspace_projects, read_workspace_manifest,
-    workspace_package_patterns,
-};
-use pacquet_workspace_projects_graph::{CreateProjectsGraphOptions, create_projects_graph};
 use std::{
     path::{Path, PathBuf},
     time::Instant,
@@ -65,20 +61,17 @@ pub fn exec_recursive(args: &ExecArgs, config: &Config, dir: &Path) -> miette::R
     let command = prepare_command(args.command.clone())?;
     let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
 
-    let patterns = read_workspace_manifest(workspace_root)
-        .into_diagnostic()
-        .wrap_err("reading pnpm-workspace.yaml")?
-        .map(|manifest| workspace_package_patterns(&manifest));
-    let projects = find_workspace_projects(workspace_root, &FindWorkspaceProjectsOpts { patterns })
-        .wrap_err("finding workspace projects")?;
-    // pnpm throws `RECURSIVE_EXEC_NO_PACKAGE` when the selected set is
-    // empty (exec.ts:207-209).
+    let projects = discover_workspace_projects(workspace_root)?;
+    // pnpm throws `RECURSIVE_EXEC_NO_PACKAGE` when no package exists in
+    // the workspace at all (exec.ts:211-213). A non-empty workspace whose
+    // `--filter` selection is empty is a no-op (pnpm exits 0 from its main
+    // dispatch before reaching the exec handler), so the check is on the
+    // discovered set, not the filtered one.
     if projects.is_empty() {
         return Err(RecursiveExecError::NoPackage.into());
     }
 
-    let adapters = projects.iter().map(|project| GraphPkg { project }).collect();
-    let graph = create_projects_graph(adapters, &CreateProjectsGraphOptions::default()).graph;
+    let graph = select_recursive_projects(&projects, config, dir)?;
 
     let mut chunks = sort_projects(&graph);
     if let Some(resume_from) = &args.resume_from {
