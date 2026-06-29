@@ -1301,6 +1301,16 @@ async fn osv_refuses_vulnerable_cached_tarball_under_noncanonical_name() {
     assert_eq!(warmed.status(), StatusCode::OK);
     assert_eq!(body_bytes(warmed.into_body()).await, bytes);
 
+    // The warm-up must have written the tarball to the proxy cache, so the
+    // screened request below genuinely exercises the would-be cache hit (which
+    // served unscreened before this fix) rather than silently falling back to
+    // a miss that would be refused anyway.
+    let cached_tarball = cache_dir.join(".pnpr-cache").join("foo").join("foo-0.0.1.tgz");
+    assert!(
+        cached_tarball.is_file(),
+        "warm-up must populate the proxy cache at {cached_tarball:?}",
+    );
+
     // Block the resolved version 1.0.0; the filename carries the unblocked
     // 0.0.1, so only a resolved-version screen on the cache hit can refuse.
     let osv = osv_database("foo", &["1.0.0"]);
