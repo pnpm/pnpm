@@ -5,7 +5,6 @@ import type { CommandDefinition } from './index.js'
 const NOT_IMPLEMENTED_COMMANDS = [
   'access',
   'edit',
-  'issues',
   'profile',
   'set-script',
   'team',
