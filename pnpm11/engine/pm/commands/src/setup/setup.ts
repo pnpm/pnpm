@@ -1,9 +1,11 @@
 import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 
 import { detectIfCurrentPkgIsExecutable, packageManager } from '@pnpm/cli.meta'
 import { docsUrl } from '@pnpm/cli.utils'
+import { PnpmError } from '@pnpm/error'
 import { logger } from '@pnpm/logger'
 import {
   addDirToEnvPath,
@@ -151,13 +153,15 @@ export async function handler (
     createAliasScripts(binDir)
   }
   try {
-    const report = await addDirToEnvPath(opts.pnpmHomeDir, {
-      configSectionName: 'pnpm',
-      proxyVarName: 'PNPM_HOME',
-      proxyVarSubDir: 'bin',
-      overwrite: opts.force,
-      position: 'start',
-    })
+    const report = isFishShell()
+      ? await setupFishConfDir(opts.pnpmHomeDir, opts)
+      : await addDirToEnvPath(opts.pnpmHomeDir, {
+        configSectionName: 'pnpm',
+        proxyVarName: 'PNPM_HOME',
+        proxyVarSubDir: 'bin',
+        overwrite: opts.force,
+        position: 'start',
+      })
     return renderSetupOutput(report)
   } catch (err: any) { // eslint-disable-line
     switch (err.code) {
@@ -170,6 +174,71 @@ export async function handler (
     }
     throw err
   }
+}
+
+function isFishShell (): boolean {
+  return Boolean(process.env.FISH_VERSION) || path.basename(process.env.SHELL ?? '') === 'fish'
+}
+
+async function setupFishConfDir (
+  pnpmHomeDir: string,
+  opts: {
+    force?: boolean
+  }
+): Promise<PathExtenderReport> {
+  const configFile = path.join(os.homedir(), '.config/fish/conf.d/pnpm.fish')
+  const newSettings = `set -gx PNPM_HOME "${pnpmHomeDir}"
+if not string match -q -- "$PNPM_HOME/bin" $PATH
+  set -gx PATH "$PNPM_HOME/bin" $PATH
+end`
+  const newContent = `${newSettings}\n`
+  if (!fs.existsSync(configFile)) {
+    await fs.promises.mkdir(path.dirname(configFile), { recursive: true })
+    await fs.promises.writeFile(configFile, newContent, 'utf8')
+    return {
+      configFile: {
+        path: configFile,
+        changeType: 'created',
+      },
+      oldSettings: '',
+      newSettings,
+    }
+  }
+
+  const oldContent = normalizeLineEndings(await fs.promises.readFile(configFile, 'utf8'))
+  const normalizedNewContent = normalizeLineEndings(newContent)
+  const oldSettings = trimTrailingNewline(oldContent)
+  const normalizedNewSettings = trimTrailingNewline(normalizedNewContent)
+  if (oldContent === normalizedNewContent || oldSettings === normalizedNewSettings) {
+    return {
+      configFile: {
+        path: configFile,
+        changeType: 'skipped',
+      },
+      oldSettings,
+      newSettings,
+    }
+  }
+  if (!opts.force) {
+    throw new PnpmError('BAD_SHELL_SECTION', `The config file at "${configFile}" already contains a pnpm configuration but with other settings`)
+  }
+  await fs.promises.writeFile(configFile, newContent, 'utf8')
+  return {
+    configFile: {
+      path: configFile,
+      changeType: 'modified',
+    },
+    oldSettings,
+    newSettings,
+  }
+}
+
+function normalizeLineEndings (content: string): string {
+  return content.replace(/\r\n/g, '\n')
+}
+
+function trimTrailingNewline (content: string): string {
+  return content.endsWith('\n') ? content.slice(0, -1) : content
 }
 
 function renderSetupOutput (report: PathExtenderReport): string {
