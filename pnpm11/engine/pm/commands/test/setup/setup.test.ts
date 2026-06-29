@@ -226,6 +226,20 @@ test('setup rejects PNPM_HOME with control characters for fish config', async ()
   }
 })
 
+test('setup rejects PNPM_HOME with PATH delimiters for fish config', async () => {
+  const tempHome = actualFs.mkdtempSync(path.join(actualOs.tmpdir(), 'pnpm-setup-fish-path-delimiter-'))
+  jest.mocked(os.default.homedir).mockReturnValue(tempHome)
+  process.env.FISH_VERSION = '3.7.0'
+  try {
+    await expect(setup.handler({ pnpmHomeDir: path.join(actualOs.tmpdir(), `pnpm-home${path.delimiter}evil`) })).rejects.toMatchObject({
+      code: 'ERR_PNPM_UNSAFE_SHELL_CONFIG',
+    })
+    expect(actualFs.existsSync(path.join(tempHome, '.config/fish/conf.d/pnpm.fish'))).toBe(false)
+  } finally {
+    actualFs.rmSync(tempHome, { force: true, recursive: true })
+  }
+})
+
 testIfSymlinkSupported('setup refuses to overwrite a symlinked fish config', async () => {
   const tempHome = actualFs.mkdtempSync(path.join(actualOs.tmpdir(), 'pnpm-setup-fish-symlink-'))
   jest.mocked(os.default.homedir).mockReturnValue(tempHome)

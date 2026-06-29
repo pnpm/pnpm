@@ -258,6 +258,9 @@ function escapeFishString (value: string): string {
   if (hasControlCharacter(value)) {
     throw new PnpmError('UNSAFE_SHELL_CONFIG', 'PNPM_HOME cannot contain control characters when writing fish configuration')
   }
+  if (value.includes(path.delimiter)) {
+    throw new PnpmError('UNSAFE_SHELL_CONFIG', 'PNPM_HOME cannot contain the PATH delimiter when writing fish configuration')
+  }
   return value
     .replace(/\\/g, '\\\\')
     .replace(/"/g, '\\"')
