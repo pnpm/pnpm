@@ -3,10 +3,9 @@
 //! attach provenance.
 //!
 //! Each step is generic over a single `Sys` type parameter carrying only the
-//! capabilities it consumes ([`EnvVar`](crate::EnvVar),
-//! [`CiInfo`](crate::CiInfo), [`Clock`](crate::Clock),
-//! [`OidcFetch`](crate::OidcFetch)), so a test drives the external-service
-//! happy path with `fn`-bound unit-struct fakes instead of a live registry.
+//! capabilities it consumes ([`EnvVar`], [`CiInfo`](crate::CiInfo), [`Clock`],
+//! [`OidcFetch`]), so a test drives the external-service happy path with
+//! `fn`-bound unit-struct fakes instead of a live registry.
 
 mod auth_token;
 mod id_token;
