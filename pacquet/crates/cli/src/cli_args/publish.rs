@@ -122,7 +122,13 @@ impl PublishArgs {
         run_git_checks::<Host>(dir, git_checks, publish_branch)?;
 
         if recursive || self.recursive {
-            return self.run_recursive::<Reporter>(dir, config).await;
+            let published = self.run_recursive::<Reporter>(dir, config).await?;
+            // Mirror `pnpm publish --json`: the recursive path emits the array of
+            // per-package summaries (an empty array when nothing was published).
+            if self.json {
+                println!("{}", serde_json::to_string_pretty(&published).into_diagnostic()?);
+            }
+            return Ok(());
         }
 
         let otp = resolve_otp_from_env::<Host>(self.otp.clone());

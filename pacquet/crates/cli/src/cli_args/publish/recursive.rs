@@ -40,7 +40,7 @@ impl PublishArgs {
         &self,
         dir: &Path,
         config: &Config,
-    ) -> miette::Result<()> {
+    ) -> miette::Result<Vec<PublishSummary>> {
         if self.batch {
             return Err(miette::miette!(
                 help = "Publish without --batch; batched publishing is not yet ported to pacquet.",
@@ -55,7 +55,7 @@ impl PublishArgs {
         // no-op (exit 0), matching pnpm's empty-`selectedProjectsGraph`
         // dispatch in main.ts.
         if !projects.is_empty() && graph.is_empty() {
-            return Ok(());
+            return Ok(Vec::new());
         }
 
         let http_client = build_registry_client(config)?;
@@ -87,7 +87,7 @@ impl PublishArgs {
             if self.report_summary {
                 write_publish_summary(workspace_root, &[])?;
             }
-            return Ok(());
+            return Ok(Vec::new());
         }
 
         // Publish chunk by chunk in dependency order. Publishing cannot run
@@ -107,7 +107,7 @@ impl PublishArgs {
         if self.report_summary {
             write_publish_summary(workspace_root, &published)?;
         }
-        Ok(())
+        Ok(published)
     }
 }
 
