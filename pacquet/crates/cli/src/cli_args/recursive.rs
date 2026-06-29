@@ -239,9 +239,9 @@ pub struct RecursiveSelection<'a> {
 }
 
 impl<'a> RecursiveSelection<'a> {
-    /// The full graph the sort resolves transitive edges through: the
-    /// dedicated `all` graph when the selection was narrowed, or `selected`
-    /// itself (already the full graph) when nothing narrowed the run.
+    /// The full graph the sort resolves transitive edges through: `all` when
+    /// present, otherwise `selected`. See the `all` field for why `selected`
+    /// suffices when nothing narrowed the run.
     pub fn full_graph(&self) -> &ProjectGraph<GraphPkg<'a>> {
         self.all.as_ref().unwrap_or(&self.selected)
     }
@@ -254,10 +254,9 @@ impl<'a> RecursiveSelection<'a> {
 /// `run` / `exec`.
 ///
 /// An unnarrowed run — no `--filter` / `--filter-prod` selector and no root
-/// auto-exclusion — returns every project with no extra graphs (`all` stays
-/// `None`, as `selected` already is the full graph); any narrowing populates
-/// `all` (and `prod_all` for `--filter-prod`) for the sort to resolve order
-/// through.
+/// auto-exclusion — returns every project and leaves `all` unset; any
+/// narrowing populates `all` (and `prod_all` for `--filter-prod`) for the
+/// sort to resolve order through.
 pub fn select_recursive_projects<'a>(
     projects: &'a [Project],
     config: &Config,

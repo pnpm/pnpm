@@ -1,9 +1,7 @@
 //! Topological-sort tests for [`super::sort_projects`] and
 //! [`super::sort_filtered_projects`].
 //!
-//! Ports pnpm's
-//! [`projects-sorter` suite](https://github.com/pnpm/pnpm/blob/91cc6321ee/pnpm11/workspace/projects-sorter/test/index.ts):
-//! a selected subset keeps its original `dependencies`, order is resolved
+//! A selected subset keeps its original `dependencies`, order is resolved
 //! through the full graph so two selected projects connected only through an
 //! unselected one still run in dependency order, and a `--filter-prod`
 //! selection resolves through the prod-pruned graph so the dev edges it
