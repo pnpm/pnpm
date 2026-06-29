@@ -105,6 +105,25 @@ pub struct CliArgs {
     pub filter_prod: Vec<String>,
 }
 
+impl CliArgs {
+    /// Promote the command to recursive mode when a `--filter` /
+    /// `--filter-prod` selector is present, even without an explicit
+    /// `-r` / `--recursive`.
+    ///
+    /// Mirrors pnpm's `parse-cli-args`, which sets `options.recursive =
+    /// true` for any command whenever a filter is given
+    /// (<https://github.com/pnpm/pnpm/blob/8eb1be4988/cli/parse-cli-args/src/index.ts#L211-L219>),
+    /// so the promotion applies CLI-wide rather than being special-cased
+    /// per command. Call once on the parsed args before dispatch; both
+    /// the install fast-path bail and [`Self::run`] then observe the
+    /// promoted flag.
+    pub fn promote_recursive_for_filter(&mut self) {
+        if !self.filter.is_empty() || !self.filter_prod.is_empty() {
+            self.recursive = true;
+        }
+    }
+}
+
 #[derive(Debug, Subcommand)]
 pub enum CliCommand {
     /// Initialize a package.json

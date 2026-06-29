@@ -14,7 +14,7 @@
 //! defaults.
 
 use crate::cli_args::recursive::{
-    discover_workspace_projects, select_recursive_projects, sort_projects,
+    AutoExcludeRoot, discover_workspace_projects, select_recursive_projects, sort_projects,
 };
 use clap::Args;
 use miette::Context;
@@ -108,8 +108,11 @@ impl PackArgs {
             return Err(miette::Report::new(PackError::OutAndPackDestination));
         }
         let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
-        let projects = discover_workspace_projects(workspace_root)?;
-        let graph = select_recursive_projects(&projects, config, dir)?;
+        // `pack` is not in pnpm's root-auto-exclusion command set, so the
+        // workspace root stays in the selection (its own name/version
+        // eligibility check still applies below).
+        let (projects, _patterns) = discover_workspace_projects(workspace_root)?;
+        let graph = select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
         let chunks = sort_projects(&graph);
 
         // In recursive mode upstream resolves `--out` / `--pack-destination`

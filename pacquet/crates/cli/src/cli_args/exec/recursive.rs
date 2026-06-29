@@ -15,7 +15,7 @@
 
 use super::{ExecArgs, prepare_command, spawn_in_dir};
 use crate::cli_args::recursive::{
-    ExecutionStatus, Status, count_failures, discover_workspace_projects,
+    AutoExcludeRoot, ExecutionStatus, Status, count_failures, discover_workspace_projects,
     get_resumed_package_chunks, select_recursive_projects, sort_projects, write_recursive_summary,
 };
 use derive_more::{Display, Error};
@@ -61,14 +61,19 @@ pub fn exec_recursive(args: &ExecArgs, config: &Config, dir: &Path) -> miette::R
     let command = prepare_command(args.command.clone())?;
     let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
 
-    let projects = discover_workspace_projects(workspace_root)?;
+    let (projects, patterns) = discover_workspace_projects(workspace_root)?;
     // Empty workspace errors; an empty `--filter` selection (below) is a
     // no-op — so this guard is on the discovered set, not the filtered.
     if projects.is_empty() {
         return Err(RecursiveExecError::NoPackage.into());
     }
 
-    let graph = select_recursive_projects(&projects, config, dir)?;
+    let graph = select_recursive_projects(
+        &projects,
+        config,
+        dir,
+        AutoExcludeRoot::Enabled { workspace_patterns: patterns.as_deref() },
+    )?;
     // An empty `--filter` selection is a no-op, matching pnpm's exit-0 for
     // an empty selectedProjectsGraph.
     if graph.is_empty() {

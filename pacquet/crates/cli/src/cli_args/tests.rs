@@ -67,6 +67,35 @@ fn filter_flag_split_across_subcommand_keeps_only_subcommand_side() {
 }
 
 #[test]
+fn filter_promotes_recursive_without_explicit_flag() {
+    let mut parsed =
+        CliArgs::try_parse_from(["pacquet", "--filter", "@scope/*", "install"]).expect("parses");
+    assert!(!parsed.recursive, "the raw -r flag is absent");
+    parsed.promote_recursive_for_filter();
+    assert!(parsed.recursive, "a --filter selector promotes to recursive");
+}
+
+#[test]
+fn filter_prod_promotes_recursive_without_explicit_flag() {
+    let mut parsed =
+        CliArgs::try_parse_from(["pacquet", "--filter-prod", "app...", "install"]).expect("parses");
+    parsed.promote_recursive_for_filter();
+    assert!(parsed.recursive, "a --filter-prod selector promotes to recursive");
+}
+
+#[test]
+fn no_filter_leaves_recursive_untouched() {
+    let mut parsed = CliArgs::try_parse_from(["pacquet", "install"]).expect("parses");
+    parsed.promote_recursive_for_filter();
+    assert!(!parsed.recursive, "without a filter the command stays non-recursive");
+
+    let mut explicit =
+        CliArgs::try_parse_from(["pacquet", "-r", "install"]).expect("parses -r install");
+    explicit.promote_recursive_for_filter();
+    assert!(explicit.recursive, "an explicit -r is preserved");
+}
+
+#[test]
 fn runtime_alias_and_flags_parse() {
     let parsed = CliArgs::try_parse_from(["pacquet", "rt", "set", "node", "22", "-P"])
         .expect("parses runtime alias");

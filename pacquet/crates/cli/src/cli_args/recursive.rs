@@ -127,28 +127,42 @@ pub fn count_failures(summary: &IndexMap<PathBuf, ExecutionStatus>) -> usize {
 }
 
 /// Read the workspace manifest at `workspace_root` and enumerate its
-/// projects. Shared by recursive `run` and `exec` so both discover the
-/// same set before [`select_recursive_projects`] narrows it.
-pub fn discover_workspace_projects(workspace_root: &Path) -> miette::Result<Vec<Project>> {
+/// projects, returning them alongside the workspace package patterns
+/// (`config.workspacePackagePatterns`). Shared by recursive `run` /
+/// `exec` / `pack` so all discover the same set before
+/// [`select_recursive_projects`] narrows it. The patterns feed the
+/// root-only guard of [`AutoExcludeRoot`]; `None` means no
+/// `pnpm-workspace.yaml` was found.
+pub fn discover_workspace_projects(
+    workspace_root: &Path,
+) -> miette::Result<(Vec<Project>, Option<Vec<String>>)> {
     let patterns = read_workspace_manifest(workspace_root)
         .into_diagnostic()
         .wrap_err("reading pnpm-workspace.yaml")?
         .map(|manifest| workspace_package_patterns(&manifest));
-    find_workspace_projects(workspace_root, &FindWorkspaceProjectsOpts { patterns })
-        .wrap_err("finding workspace projects")
+    let projects = find_workspace_projects(
+        workspace_root,
+        &FindWorkspaceProjectsOpts { patterns: patterns.clone() },
+    )
+    .wrap_err("finding workspace projects")?;
+    Ok((projects, patterns))
 }
 
 /// Build the `--filter`-selected workspace graph the recursive command
 /// runs over: the project graph restricted to the `config.filter` /
 /// `config.filter_prod` selection (every project when no selector is
-/// given). `prefix` is where path selectors resolve.
+/// given). `prefix` is where path selectors resolve. `auto_exclude_root`
+/// controls the main-dispatch auto-exclusion of the workspace root for
+/// `run` / `exec`.
 ///
 /// Ports pnpm's `selectedProjectsGraph` main-dispatch step
-/// (<https://github.com/pnpm/pnpm/blob/8eb1be4988/pnpm/src/main.ts#L260-L323>).
+/// (<https://github.com/pnpm/pnpm/blob/8eb1be4988/pnpm/src/main.ts#L238-L323>),
+/// including the `!{<workspace-root>}` augmentation.
 pub fn select_recursive_projects<'a>(
     projects: &'a [Project],
     config: &Config,
     prefix: &Path,
+    auto_exclude_root: AutoExcludeRoot<'_>,
 ) -> miette::Result<ProjectGraph<GraphPkg<'a>>> {
     // Filter against the same graph options the sort uses, so the selected
     // set and the topological order agree on edges.
@@ -159,11 +173,7 @@ pub fn select_recursive_projects<'a>(
     )
     .graph;
 
-    if config.filter.is_empty() && config.filter_prod.is_empty() {
-        return Ok(graph);
-    }
-
-    let filters: Vec<WorkspaceFilter> =
+    let mut filters: Vec<WorkspaceFilter> =
         config
             .filter
             .iter()
@@ -173,13 +183,30 @@ pub fn select_recursive_projects<'a>(
                 follow_prod_deps_only: true,
             }))
             .collect();
+    if let Some(root_exclusion) = auto_exclude_root.root_exclusion(config, prefix, &filters) {
+        filters.push(root_exclusion);
+    }
+
+    // No selector (and no auto-exclusion) selects every project.
+    if filters.is_empty() {
+        return Ok(graph);
+    }
+
     let selected = filter_projects(
         projects.iter().map(|project| GraphPkg { project }).collect(),
         &filters,
         &FilterProjectsOptions {
             prefix: prefix.to_path_buf(),
             link_workspace_packages: graph_options.link_workspace_packages,
-            use_glob_dir_filtering: false,
+            // pnpm's main dispatch filters with `useGlobDirFiltering:
+            // !config.legacyDirFiltering`, whose default is glob
+            // matching. It is load-bearing for the `!{<workspace-root>}`
+            // augmentation: glob matching excludes only the project whose
+            // dir equals the workspace root, whereas the legacy
+            // subtree match would also drop every nested package.
+            // `legacyDirFiltering` is not surfaced by `Config` yet, so
+            // this stays at pnpm's default.
+            use_glob_dir_filtering: true,
         },
     )
     .map_err(miette::Report::new)
@@ -190,6 +217,71 @@ pub fn select_recursive_projects<'a>(
         .iter()
         .filter_map(|root| graph.swap_remove(root).map(|node| (root.clone(), node)))
         .collect())
+}
+
+/// Whether a recursive command drops the workspace root from an
+/// all-exclusion (or unfiltered) `--filter` selection.
+///
+/// Mirrors the `cmd === 'run' || cmd === 'exec' || cmd === 'add' ||
+/// cmd === 'test'` arm of pnpm's main dispatch
+/// (<https://github.com/pnpm/pnpm/blob/8eb1be4988/pnpm/src/main.ts#L251-L259>),
+/// which appends a `!{<workspace-root>}` selector so a recursive
+/// `run` / `exec` skips the root project unless it is explicitly
+/// included.
+#[derive(Clone, Copy)]
+pub enum AutoExcludeRoot<'a> {
+    /// `run` / `exec` (upstream also `add` / `test`): exclude the root
+    /// when no inclusion selector is present and the workspace is not
+    /// root-only. `workspace_patterns` is
+    /// `config.workspacePackagePatterns`, used for the root-only guard.
+    Enabled { workspace_patterns: Option<&'a [String]> },
+    /// `pack` (upstream's other recursive commands): never auto-exclude.
+    Disabled,
+}
+
+impl AutoExcludeRoot<'_> {
+    /// The `!{<workspace-root>}` selector to append to `existing` (the
+    /// filters built from `--filter` / `--filter-prod`), or `None` when
+    /// the augmentation does not apply.
+    fn root_exclusion(
+        &self,
+        config: &Config,
+        prefix: &Path,
+        existing: &[WorkspaceFilter],
+    ) -> Option<WorkspaceFilter> {
+        let AutoExcludeRoot::Enabled { workspace_patterns } = self else {
+            return None;
+        };
+        // An inclusion selector already pins the selected set, so the
+        // root is kept only if it matches one. Mirrors upstream's
+        // `!filters.some(({ filter }) => !filter.startsWith('!'))`.
+        if existing.iter().any(|filter| !filter.filter.starts_with('!')) {
+            return None;
+        }
+        // A root-only workspace (patterns === ['.']) has no non-root
+        // project to keep, so excluding the root would empty the
+        // selection. Absent patterns mean no `pnpm-workspace.yaml`.
+        let patterns = (*workspace_patterns)?;
+        if is_root_only_patterns(patterns) {
+            return None;
+        }
+        let workspace_root = config.workspace_dir.as_deref().unwrap_or(prefix);
+        let relative = pathdiff::diff_paths(workspace_root, prefix)
+            .map(|path| path.to_string_lossy().into_owned())
+            .filter(|path| !path.is_empty())
+            .unwrap_or_else(|| ".".to_string());
+        Some(WorkspaceFilter {
+            filter: format!("!{{{relative}}}"),
+            follow_prod_deps_only: !config.filter_prod.is_empty(),
+        })
+    }
+}
+
+/// Port of pnpm's
+/// [`isRootOnlyPatterns`](https://github.com/pnpm/pnpm/blob/8eb1be4988/pnpm/src/main.ts#L40-L42):
+/// the workspace enumerates the root project only.
+fn is_root_only_patterns(patterns: &[String]) -> bool {
+    patterns.len() == 1 && patterns[0] == "."
 }
 
 /// Adapter that lets a [`Project`] feed `create_projects_graph`. Owns

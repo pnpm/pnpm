@@ -30,7 +30,12 @@ pub fn main() -> miette::Result<()> {
     // The default reporter's `Done in ... using pacquet v<version>` footer needs
     // the version before the first event (including the fast path's).
     pacquet_default_reporter::set_package_version(pacquet_config::PACQUET_VERSION);
-    let args = CliArgs::parse_from(argv);
+    let mut args = CliArgs::parse_from(argv);
+    // A bare `--filter` / `--filter-prod` puts the command into recursive
+    // mode even without `-r`, matching pnpm's `parse-cli-args`. Applied
+    // once here so every downstream consumer (the install fast-path bail
+    // and `run`'s dispatch) sees the promoted flag.
+    args.promote_recursive_for_filter();
     // An up-to-date `pacquet install` finishes here, without paying for
     // the runtime, the HTTP client, or any worker threads.
     if args.finished_via_install_fast_path(&config_overrides) {

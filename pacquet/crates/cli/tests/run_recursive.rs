@@ -202,6 +202,118 @@ fn recursive_run_exclude_filter_skips_excluded_project() {
     drop(root);
 }
 
+/// Write a `packages/*` workspace with a root `package.json` (whose
+/// `build` script writes `root-ran.txt`) plus `project-1` / `project-2`
+/// sub-packages, so a recursive run has both a root project and non-root
+/// projects to choose between.
+fn write_workspace_with_root_and_packages(workspace: &Path) {
+    fs::write(workspace.join("pnpm-workspace.yaml"), "packages:\n  - packages/*\n")
+        .expect("write workspace manifest");
+    fs::write(
+        workspace.join("package.json"),
+        json!({
+            "name": "root",
+            "version": "1.0.0",
+            "scripts": { "build": "touch root-ran.txt" },
+        })
+        .to_string(),
+    )
+    .expect("write root package.json");
+    for name in ["project-1", "project-2"] {
+        let dir = workspace.join("packages").join(name);
+        fs::create_dir_all(&dir).expect("create package dir");
+        fs::write(dir.join("package.json"), build_writes_marker(name).to_string())
+            .expect("write package.json");
+    }
+}
+
+/// A bare `--filter` (no `-r`) enters recursive mode CLI-wide, matching
+/// pnpm's `parse-cli-args` promotion: the script runs only in the
+/// selected project even though `-r` was never passed.
+#[test]
+fn filter_without_recursive_flag_enters_recursive_run() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            ("project-1", build_writes_marker("project-1")),
+            ("project-2", build_writes_marker("project-2")),
+        ],
+    );
+
+    pacquet
+        .with_arg("--filter")
+        .with_arg("project-1")
+        .with_arg("run")
+        .with_arg("build")
+        .assert()
+        .success();
+
+    assert!(
+        workspace.join("project-1").join("ran.txt").exists(),
+        "the selected project-1 should run",
+    );
+    assert!(
+        !workspace.join("project-2").join("ran.txt").exists(),
+        "a bare --filter (no -r) should still scope the run to the selection",
+    );
+
+    drop(root);
+}
+
+/// In a workspace with both a root project and sub-packages, a default
+/// recursive `run` (no inclusion filter) auto-excludes the workspace
+/// root, mirroring pnpm's `!{<workspace-root>}` augmentation. The
+/// sub-packages run; the root does not.
+#[test]
+fn recursive_run_auto_excludes_workspace_root() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace_with_root_and_packages(&workspace);
+
+    pacquet.with_arg("-r").with_arg("run").with_arg("build").assert().success();
+
+    assert!(workspace.join("packages/project-1/ran.txt").exists(), "project-1 should run");
+    assert!(workspace.join("packages/project-2/ran.txt").exists(), "project-2 should run");
+    assert!(
+        !workspace.join("root-ran.txt").exists(),
+        "the workspace root must be auto-excluded from a default recursive run",
+    );
+
+    drop(root);
+}
+
+/// An all-exclusion selection (`--filter=!<name>`) also drops the
+/// workspace root, mirroring pnpm's release-workflow shape
+/// (`--filter=!pnpm --filter=!@pnpm/exe`): `-r --filter=!project-2 run
+/// build` runs project-1 only — project-2 is excluded by the selector
+/// and the root by the `!{<workspace-root>}` augmentation.
+#[test]
+fn recursive_run_all_exclusion_filter_also_drops_root() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace_with_root_and_packages(&workspace);
+
+    pacquet
+        .with_arg("-r")
+        .with_arg("--filter")
+        .with_arg("!project-2")
+        .with_arg("run")
+        .with_arg("build")
+        .assert()
+        .success();
+
+    assert!(workspace.join("packages/project-1/ran.txt").exists(), "project-1 should run");
+    assert!(
+        !workspace.join("packages/project-2/ran.txt").exists(),
+        "project-2 is excluded by the !project-2 selector",
+    );
+    assert!(
+        !workspace.join("root-ran.txt").exists(),
+        "an all-exclusion selection must also drop the workspace root",
+    );
+
+    drop(root);
+}
+
 /// When `--filter` narrows the set and no *selected* package defines the
 /// script, the error keeps pnpm's `ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT` code
 /// but switches to the "None of the selected packages" wording (vs. "None
