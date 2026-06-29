@@ -152,7 +152,7 @@ fn check_peer_dependencies_from_lockfile(
             importer_id,
             lockfile,
             lockfile_dir,
-            Vec::new(),
+            &[],
             &mut initial_keys,
             &mut visited_importers,
             &mut issues,
@@ -184,12 +184,9 @@ fn resolve_importer_id(lockfile_dir: &std::path::Path, dir: &std::path::Path) ->
 
 fn resolve_link_version(lockfile_dir: &std::path::Path, link_target: &str) -> Option<String> {
     let manifest_path = lockfile_dir.join(link_target).join("package.json");
-    if let Ok(manifest) = PackageManifest::from_path(manifest_path) {
-        if let Some(ver) = manifest.value().get("version").and_then(|v| v.as_str()) {
-            return Some(ver.to_string());
-        }
-    }
-    None
+    PackageManifest::from_path(manifest_path)
+        .ok()
+        .and_then(|manifest| manifest.value().get("version").and_then(|v| v.as_str()).map(String::from))
 }
 
 fn check_linked_package_peers(
@@ -218,7 +215,7 @@ fn check_linked_package_peers(
             .get("peerDependenciesMeta")
             .and_then(|m| m.get(peer_name))
             .and_then(|m| m.get("optional"))
-            .and_then(|o| o.as_bool())
+            .and_then(serde_json::Value::as_bool)
             .unwrap_or(false);
 
         let Ok(peer_pkg_name) = peer_name.parse::<PkgName>() else { continue };
@@ -270,7 +267,7 @@ fn collect_initial_keys(
     importer_id: &str,
     lockfile: &Lockfile,
     lockfile_dir: &std::path::Path,
-    parents: Vec<ParentPkg>,
+    parents: &[ParentPkg],
     initial_keys: &mut Vec<(PkgNameVerPeer, Vec<ParentPkg>)>,
     visited_importers: &mut HashSet<String>,
     issues: &mut PeerIssues,
@@ -290,11 +287,11 @@ fn collect_initial_keys(
         let Some(dep_map) = dep_map else { continue };
         for (alias, spec) in dep_map {
             if let Some(key) = spec.version.resolved_key(alias) {
-                initial_keys.push((key, parents.clone()));
+                initial_keys.push((key, parents.to_owned()));
             } else if let Some(link_target) = spec.version.as_link_target() {
                 let linked_version = resolve_link_version(lockfile_dir, link_target)
                     .unwrap_or_else(|| "0.0.0".to_string());
-                let mut next_parents = parents.clone();
+                let mut next_parents = parents.to_owned();
                 next_parents.push(ParentPkg {
                     name: alias.to_string(),
                     version: linked_version.clone(),
@@ -316,7 +313,7 @@ fn collect_initial_keys(
                     &linked_importer_id,
                     lockfile,
                     lockfile_dir,
-                    next_parents,
+                    &next_parents,
                     initial_keys,
                     visited_importers,
                     issues,
@@ -584,7 +581,7 @@ fn normalize_version_str(v: &str) -> String {
                 let rest = if parts.len() > 3 {
                     format!(".{}", parts[3..].join("."))
                 } else {
-                    "".to_string()
+                    String::new()
                 };
                 format!("{p0}.{p1}.{p2}{rest}")
             } else {
@@ -744,9 +741,10 @@ fn intersect_multiple_ranges(ranges: &[String]) -> Option<String> {
             return None;
         }
     }
-    Some(current_intervals.iter().map(|i| i.to_string()).collect::<Vec<_>>().join(" || "))
+    Some(current_intervals.iter().map(std::string::ToString::to_string).collect::<Vec<_>>().join(" || "))
 }
 
+#[cfg(test)]
 fn have_common_version(ranges: &[String]) -> bool {
     intersect_multiple_ranges(ranges).is_some()
 }
@@ -830,20 +828,19 @@ fn filter_peer_issues(
                     {
                         return false;
                     }
-                    if let Some(declaring_parent) = issue.parents.last() {
-                        if let Some(rules) = allow_by_parent.get(&declaring_parent.name) {
-                            for rule in rules {
-                                let range_matches = match &rule.parent_range {
-                                    Some(range) => satisfies(&declaring_parent.version, range),
-                                    None => true,
-                                };
-                                if range_matches {
-                                    if let Some(ranges) = rule.peer_rules.get(peer_name) {
-                                        if ranges.iter().any(|range| satisfies(&issue.found_version, range)) {
-                                            return false;
-                                        }
-                                    }
-                                }
+                    if let Some(declaring_parent) = issue.parents.last()
+                        && let Some(rules) = allow_by_parent.get(&declaring_parent.name)
+                    {
+                        for rule in rules {
+                            let range_matches = match &rule.parent_range {
+                                Some(range) => satisfies(&declaring_parent.version, range),
+                                None => true,
+                            };
+                            if range_matches
+                                && let Some(ranges) = rule.peer_rules.get(peer_name)
+                                && ranges.iter().any(|range| satisfies(&issue.found_version, range))
+                            {
+                                return false;
                             }
                         }
                     }
