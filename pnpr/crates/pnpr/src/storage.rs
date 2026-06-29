@@ -434,29 +434,6 @@ impl Storage {
         self.cached.open_tarball(name, filename).await
     }
 
-    pub async fn read_cached_tarball_integrity(
-        &self,
-        name: &PackageName,
-        filename: &str,
-    ) -> Option<CachedTarballIntegrity> {
-        self.cached.read_tarball_integrity(name, filename).await
-    }
-
-    pub async fn write_cached_tarball_integrity(
-        &self,
-        name: &PackageName,
-        filename: &str,
-        integrity: &CachedTarballIntegrity,
-    ) -> Result<()> {
-        self.cached.write_tarball_integrity(name, filename, integrity).await
-    }
-
-    /// Remove a proxy-cache tarball that failed verification so a
-    /// subsequent request cannot repeatedly encounter the same bytes.
-    pub async fn remove_cached_tarball(&self, name: &PackageName, filename: &str) -> Result<bool> {
-        self.cached.remove_tarball(name, filename).await
-    }
-
     // --- Per-uplink private cache (the `/~<uplink>/` registry endpoint) ----
     //
     // A private uplink's packuments and tarballs are cached under a namespace
