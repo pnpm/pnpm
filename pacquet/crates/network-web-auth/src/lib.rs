@@ -2,10 +2,10 @@
 //! challenge handling.
 //!
 //! This is the Rust port of the TypeScript `@pnpm/network.web-auth`
-//! package. It is shared infrastructure for the registry-auth commands
-//! (`pnpm login` / `pnpm publish` and friends) that pacquet has not ported
-//! yet; the crate exists so those features have the flow ready when they
-//! land.
+//! package. It is shared infrastructure for the registry-auth commands:
+//! `pnpm publish` drives its OTP challenges through this crate, and the
+//! commands pacquet has not ported yet (`pnpm login` and friends) will
+//! reuse the same flow when they land.
 //!
 //! # Dependency-injection seam
 //!
