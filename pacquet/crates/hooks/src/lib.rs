@@ -167,7 +167,7 @@ pub trait CustomResolver: Send + Sync {
     ) -> Result<bool, HookError>;
 }
 
-/// A no-op implementation of `PnpmfileHooks`.
+/// A no-op implementation of [`PnpmfileHooks`].
 pub struct NoopHooks;
 
 #[async_trait]

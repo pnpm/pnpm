@@ -9,7 +9,7 @@
 //!   (the newest published build on that channel).
 //! - `lts` — the newest entry tagged with any LTS codename.
 //! - An LTS codename (`argon`, `iron`, ...) — `*` within that codename.
-//! - A semver range — pick the `max_satisfying` version.
+//! - A semver range — pick the [`max_satisfying`] version.
 
 use std::sync::Arc;
 
@@ -195,7 +195,7 @@ fn filter_versions(versions: &[NodeVersion], version_selector: &str) -> (Vec<Str
 /// Mirrors `versionSelectorType(...)?.type === 'tag'` upstream: the
 /// selector is a "tag" only when it parses as neither a `Version` nor
 /// a `Range`. We don't run the `encodeURIComponent` punctuation check
-/// — `filter_versions`'s only consumer is the LTS-codename branch,
+/// — [`filter_versions`]'s only consumer is the LTS-codename branch,
 /// and codenames are alphabetic.
 fn is_dist_tag(selector: &str) -> bool {
     Version::parse(selector).is_err() && Range::parse(selector).is_err()
@@ -231,7 +231,7 @@ fn max_satisfying(versions: &[String], range: &str) -> Option<String> {
 /// with the prerelease suffix stripped when the straight check fails:
 /// if `version` is a prerelease and `MAJOR.MINOR.PATCH` satisfies
 /// `range`, treat the candidate as satisfying. Mirrors the strategy
-/// already used by `satisfies_with_prereleases` in
+/// already used by [`satisfies_with_prereleases`] in
 /// `resolving-deps-resolver`.
 fn satisfies_with_prereleases(version: &Version, range: &Range) -> bool {
     if version.satisfies(range) {

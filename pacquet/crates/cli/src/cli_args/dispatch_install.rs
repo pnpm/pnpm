@@ -100,10 +100,6 @@ pub(super) fn install<'a>(
         // Boxed for `clippy::large_stack_frames`: the three
         // monomorphized install futures would otherwise each reserve
         // their full size in this frame.
-        #[allow(
-            clippy::large_stack_frames,
-            reason = "the three monomorphized install futures would otherwise each reserve their full size in this frame"
-        )]
         {
             // CLI overrides for `offline` / `prefer_offline` live
             // alongside `--frozen-lockfile`: they upgrade an
@@ -166,10 +162,9 @@ pub(super) fn deploy<'a>(ctx: &RunCtx<'a>, args: DeployArgs) -> miette::Result<C
     let reporter = ctx.reporter;
     let config = ctx.config;
     Ok(Box::pin(async move {
-        #[allow(
-            clippy::large_stack_frames,
-            reason = "the three monomorphized deploy futures would otherwise each reserve their full size in this frame"
-        )]
+        // Boxed for `clippy::large_stack_frames`: the three monomorphized
+        // deploy futures would otherwise each reserve their full size in
+        // this frame.
         {
             let cfg = config()?;
             apply_install_cli_config(cfg, &args.install_args);

@@ -62,11 +62,11 @@ pub struct StoreIndexWriter {
 
 /// Messages the writer task processes in arrival order. Coalesced
 /// per-`key` inside each batch so multiple mutations to the same
-/// store-index row apply against the same in-memory `PackageFilesIndex`
+/// store-index row apply against the same in-memory [`PackageFilesIndex`]
 /// before the batch's `INSERT OR REPLACE` flush.
 enum WriteMsg {
     /// Wholesale replace the row at `key`. Used by the prefetch /
-    /// download path that already has the full `PackageFilesIndex`
+    /// download path that already has the full [`PackageFilesIndex`]
     /// in hand.
     Replace { key: String, value: PackageFilesIndex },
     /// Read-modify-write the row at `key`: load the existing row
@@ -199,7 +199,7 @@ impl StoreIndexWriter {
     }
 }
 
-/// Fold one queued `WriteMsg` into the batch's in-flight
+/// Fold one queued [`WriteMsg`] into the batch's in-flight
 /// `pending` map. Pure function on `(&mut StoreIndex, &mut
 /// HashMap, WriteMsg)` so the writer-task closure stays a thin
 /// drain loop; correctness of each variant lives here.
@@ -240,7 +240,7 @@ fn apply_write_msg(
     }
 }
 
-/// Return a mutable reference to the `PackageFilesIndex` row for
+/// Return a mutable reference to the [`PackageFilesIndex`] row for
 /// `key`, loading from `SQLite` when this is the row's first
 /// sighting in the batch. Returns `None` (and logs at `debug!` /
 /// `warn!` as appropriate) when no base row exists or the `SQLite`
@@ -641,7 +641,7 @@ impl StoreIndex {
     /// rows that carry a `manifest` field — msgpackr-records transcode
     /// plus a `rmp_serde::from_slice` of a nested JSON tree per row,
     /// times ~1k rows on a real lockfile. Doing that work under the
-    /// `SharedReadonlyStoreIndex` lock serialises N installs back to
+    /// [`SharedReadonlyStoreIndex`] lock serialises N installs back to
     /// one thread; doing it after the lock releases lets each prefetch
     /// fan out across the rayon pool.
     pub fn get_many_raw(&self, keys: &[String]) -> Result<Vec<(String, Vec<u8>)>, StoreIndexError> {
@@ -760,7 +760,7 @@ impl StoreIndex {
     /// `SQLite` errors during the transaction roll it back before returning,
     /// so a partial apply never leaves the index in a half-written state.
     /// A per-row msgpack encoding error is logged at `warn!` and skipped
-    /// — one malformed `PackageFilesIndex` shouldn't cost every other row
+    /// — one malformed [`PackageFilesIndex`] shouldn't cost every other row
     /// in the batch the chance to commit, matching the "best-effort
     /// index" stance the writer task and the read path already take.
     /// Encoding is done up front into a `Vec<(String, Vec<u8>)>` so the
@@ -913,7 +913,7 @@ pub fn pick_store_index_key(
 /// Per-instance record of what a tarball contributed to the CAFS. Stored as the
 /// value half of each `package_index` row.
 ///
-/// Mirrors pnpm v11's `PackageFilesIndex` from `store/cafs/src/checkPkgFilesIntegrity.ts`.
+/// Mirrors pnpm v11's [`PackageFilesIndex`] from `store/cafs/src/checkPkgFilesIntegrity.ts`.
 #[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PackageFilesIndex {

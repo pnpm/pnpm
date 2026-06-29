@@ -1698,7 +1698,7 @@ const PARTIAL_INSTALL_LOCKFILE: &str = text_block! {
     "  placeholder@1.0.0: {}"
 };
 
-/// Pre-populate the virtual-store slot that `PARTIAL_INSTALL_LOCKFILE`
+/// Pre-populate the virtual-store slot that [`PARTIAL_INSTALL_LOCKFILE`]
 /// describes so the skip path has a directory to point at. Just the
 /// `<virtual_store_dir>/placeholder@1.0.0/node_modules/placeholder`
 /// dirent is enough — the skip check only stats the directory, it
@@ -2286,7 +2286,7 @@ async fn frozen_lockfile_errors_when_manifest_drifts_from_lockfile() {
 /// bypasses the [`satisfies_package_manifest`] gate, so an install
 /// whose manifest has drifted from the lockfile proceeds past the
 /// freshness check. Same setup as
-/// `frozen_lockfile_errors_when_manifest_drifts_from_lockfile`, just
+/// [`frozen_lockfile_errors_when_manifest_drifts_from_lockfile`], just
 /// with the flag flipped: we now expect the install to reach the
 /// fetch site and fail there (network / integrity error against the
 /// bogus tarball URL) rather than abort early with `OutdatedLockfile`.
@@ -5504,7 +5504,7 @@ async fn fresh_install_refuses_skip_runtimes_before_writing_state() {
 /// Dispatch state 2: no `--frozen-lockfile` flag, lockfile present and
 /// fresh, `preferFrozenLockfile: true` (the default) → auto-frozen.
 /// We prove the frozen path was taken the same way
-/// `warm_reinstall_skips_snapshot_when_current_lockfile_matches` does:
+/// [`warm_reinstall_skips_snapshot_when_current_lockfile_matches`] does:
 /// the lockfile points at a bogus tarball URL, and the install is
 /// pre-seeded with a matching current lockfile + virtual-store slot,
 /// so only the snapshot-skip path inside the frozen install can
@@ -6200,7 +6200,7 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
             event,
             LogEvent::Pnpm(log) if log.message == "Already up to date"
         )),
-        "expected `name: \"pnpm\" / level: \"info\"` 'Already up to date' log; got events: {captured:#?}",
+        r#"expected `name: "pnpm" / level: "info"` 'Already up to date' log; got events: {captured:#?}"#,
     );
 
     // The optimistic path runs before any of the install setup, so

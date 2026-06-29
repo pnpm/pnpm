@@ -53,7 +53,7 @@ fn set_ignore_dependencies(workspace: &Path, names: &[&str]) {
     }
     yaml.push_str("updateConfig:\n  ignoreDependencies:\n");
     for name in names {
-        writeln!(yaml, "    - \"{name}\"").unwrap();
+        writeln!(yaml, r#"    - "{name}""#).unwrap();
     }
     fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
 }
@@ -71,7 +71,7 @@ fn virtual_store_has(workspace: &Path, name_at_version: &str) -> bool {
 }
 
 /// List the `node_modules/.pnpm` entries. Logged before
-/// `virtual_store_has` assertions so a failing CI run shows what was
+/// [`virtual_store_has`] assertions so a failing CI run shows what was
 /// actually materialized.
 fn list_virtual_store(workspace: &Path) -> Vec<String> {
     let dir = workspace.join("node_modules").join(".pnpm");
@@ -586,7 +586,7 @@ fn set_strict_catalog(workspace: &Path, entries: &[(&str, &str)]) {
     }
     yaml.push_str("catalogMode: strict\ncatalog:\n");
     for (name, spec) in entries {
-        writeln!(yaml, "  \"{name}\": \"{spec}\"").unwrap();
+        writeln!(yaml, r#"  "{name}": "{spec}""#).unwrap();
     }
     fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
 }
@@ -601,7 +601,7 @@ fn set_named_catalog(workspace: &Path, catalog: &str, entries: &[(&str, &str)]) 
     }
     writeln!(yaml, "catalogs:\n  {catalog}:").unwrap();
     for (name, spec) in entries {
-        writeln!(yaml, "    \"{name}\": \"{spec}\"").unwrap();
+        writeln!(yaml, r#"    "{name}": "{spec}""#).unwrap();
     }
     fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
 }

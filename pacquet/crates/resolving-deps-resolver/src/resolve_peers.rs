@@ -413,7 +413,7 @@ pub fn resolve_peers_workspace(
     }
 }
 
-/// Per-name entry in the propagating `ParentRefs` map. Mirrors upstream's
+/// Per-name entry in the propagating [`ParentRefs`] map. Mirrors upstream's
 /// [`ParentRef`](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolvePeers.ts#L998-L1006).
 #[derive(Debug, Clone)]
 struct ParentRef {
@@ -698,7 +698,7 @@ impl Walker<'_> {
     /// walk because the peer target's `DepPath` hadn't been computed
     /// yet. Each direct dep's subtree is fully walked by the time
     /// `walk()` drains this list, so every peer that was reachable
-    /// from an ancestor's `ParentRefs` has a `DepPath` now. Peers that
+    /// from an ancestor's [`ParentRefs`] has a `DepPath` now. Peers that
     /// still don't resolve here came from a `parent_chain` outside the
     /// walked set — there's nothing to patch, and the absence already
     /// surfaced via [`PeerDependencyIssues::missing`].
@@ -1230,10 +1230,6 @@ impl Walker<'_> {
         }
     }
 
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "splitting these into a struct would only obscure the call site"
-    )]
     /// `true` when a missing-peer issue for `peer_name` under the
     /// given ancestor chain must not be emitted for the hoist input.
     /// See [`ResolvePeersOptions::hoist_missing_scope`].
@@ -2202,7 +2198,7 @@ impl Walker<'_> {
     /// [`parentDepPaths` construction inside `resolvePeersOfChildren`](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolvePeers.ts#L817-L829).
     ///
     /// `link:` parents (upstream's `nodeId.startsWith('link:')`
-    /// branch) don't have a real tree entry; pacquet's `ParentRef`
+    /// branch) don't have a real tree entry; pacquet's [`ParentRef`]
     /// keeps the `NodeId` but the tree-lookup falls back to a pure
     /// `version` comparison the same way upstream does.
     fn parent_dep_paths_from_refs(

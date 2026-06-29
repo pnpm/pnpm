@@ -55,7 +55,7 @@ pub use capabilities::{FsAtomicWrite, FsCreateDirAll, FsFileLen, FsReadFile, Hos
 /// errors, matching pnpm's `manifestFileName`.
 const MANIFEST_FILE_NAME: &str = "package.json";
 
-/// Inputs for [`api`], mirroring the subset of pnpm's `PackOptions`
+/// Inputs for [`api`], mirroring the subset of pnpm's [`PackOptions`]
 /// pacquet supports. The CLI maps the resolved [`pacquet_config::Config`]
 /// and command-line flags onto this struct.
 pub struct PackOptions {
@@ -112,7 +112,7 @@ pub struct PackResult {
 }
 
 /// JSON-serializable projection of a [`PackResult`], matching pnpm's
-/// `PackResultJson`.
+/// [`PackResultJson`].
 #[derive(serde::Serialize)]
 pub struct PackResultJson {
     pub name: String,

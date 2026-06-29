@@ -546,7 +546,7 @@ fn render_success(edit_dir: &Path, colors_enabled: bool) -> String {
 
 fn shell_quote(value: &str) -> String {
     if cfg!(windows) {
-        format!("\"{}\"", value.replace('"', r#"\""#))
+        format!(r#""{}""#, value.replace('"', r#"\""#))
     } else {
         format!("'{}'", value.replace('\'', r"'\''"))
     }

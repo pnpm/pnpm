@@ -6,7 +6,7 @@ use serde_json::{Map, Value};
 use std::path::Path;
 
 /// Keys that must never be written through a property path, because they can
-/// corrupt an object's prototype chain. Mirrors `UNSAFE_KEYS` in
+/// corrupt an object's prototype chain. Mirrors [`UNSAFE_KEYS`] in
 /// `@pnpm/object.property-path`.
 const UNSAFE_KEYS: [&str; 3] = ["__proto__", "constructor", "prototype"];
 

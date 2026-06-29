@@ -7,7 +7,7 @@
 //! document; the main install path preserves it verbatim when it
 //! rewrites the wanted lockfile (see [`crate::save_value_to_path`]).
 //!
-//! Mirrors upstream's `EnvLockfile` type and the
+//! Mirrors upstream's [`EnvLockfile`] type and the
 //! `createEnvLockfile` / `readEnvLockfile` / `writeEnvLockfile`
 //! helpers at
 //! <https://github.com/pnpm/pnpm/blob/31858c544b/lockfile/fs/src/envLockfile.ts>.

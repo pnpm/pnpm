@@ -90,8 +90,8 @@ fn cas_write_pool() -> Option<&'static rayon::ThreadPool> {
 /// leaving the user with the truly opaque `error sending request for
 /// url (URL)` and no clue about what actually failed.
 ///
-/// `walk_reqwest_chain` walks `error.source()` itself and joins every
-/// stage's `Display` with `: ` so the rendered `NetworkError` always
+/// [`walk_reqwest_chain`] walks `error.source()` itself and joins every
+/// stage's `Display` with `: ` so the rendered [`NetworkError`] always
 /// carries the leaf reason (e.g. `Connection refused (os error 61)`,
 /// `tls handshake eof`, `dns error: failed to lookup address`),
 /// regardless of which intermediate `reqwest` / `hyper` / `io::Error`
@@ -307,7 +307,7 @@ pub enum CacheValue {
     /// The owning fetch failed; concurrent waiters wake up to this
     /// instead of `Available` and surface a sibling-fetch-failed
     /// error rather than blocking on the `Notify` forever. The
-    /// originating `TarballError` cannot be cloned past the owner
+    /// originating [`TarballError`] cannot be cloned past the owner
     /// (it's wrapped in `reqwest::Error` / IO chains that aren't
     /// `Clone`), so waiters return their own variant — see
     /// [`TarballError::SiblingFetchFailed`].
@@ -1110,7 +1110,7 @@ pub type PrefetchedManifests = HashMap<String, Arc<serde_json::Value>>;
 /// `calc_dep_state` cache key has a matching entry here.
 ///
 /// Outer values are `Arc`-wrapped for the same cold-batch cheap-clone
-/// reason `PrefetchedCasPaths` is.
+/// reason [`PrefetchedCasPaths`] is.
 pub type PrefetchedSideEffectsMaps =
     HashMap<String, Arc<HashMap<String, HashMap<String, PathBuf>>>>;
 
@@ -1384,7 +1384,7 @@ pub struct DownloadTarballToStore<'a> {
     /// Shared read-only handle to the `SQLite` store index. `None` when the
     /// store does not (yet) have an `index.db`, in which case every cache
     /// lookup short-circuits to a network fetch. Callers open this once per
-    /// install and pass the same handle to every `DownloadTarballToStore`
+    /// install and pass the same handle to every [`DownloadTarballToStore`]
     /// so we don't reopen the DB per package.
     pub store_index: Option<SharedReadonlyStoreIndex>,
     /// Handle to the batched store-index writer. Each successful tarball
@@ -1421,7 +1421,7 @@ pub struct DownloadTarballToStore<'a> {
     /// per-file stat in `check_pkg_files_integrity` once per
     /// (snapshot × file) instead of once per (file). Allocate one
     /// `Arc<DashSet<PathBuf>>` at install bootstrap and pass the same
-    /// handle to every `DownloadTarballToStore`.
+    /// handle to every [`DownloadTarballToStore`].
     pub verified_files_cache: SharedVerifiedFilesCache,
     pub package_integrity: &'a Integrity,
     pub package_unpacked_size: Option<usize>,
@@ -1684,7 +1684,7 @@ fn verify_tarball_integrity(
 /// between attempts doesn't keep one parked. The network permit is
 /// held from `connect + send` through body streaming (matching pnpm's
 /// pQueue and [#281]'s EMFILE fix), then dropped before the
-/// `post_download_semaphore` permit gates the CPU-bound checksum +
+/// [`post_download_semaphore`] permit gates the CPU-bound checksum +
 /// decode + extract step.
 ///
 /// [#281]: https://github.com/pnpm/pacquet/pull/281
@@ -1990,7 +1990,7 @@ pub fn download_priority(unpacked_size: Option<usize>, file_count: Option<usize>
 // hinting, store_dir + retry_opts are install-scoped, and
 // ignore_file_pattern is the per-fetch archive filter. Bundling
 // into a struct would just push the same fields into a wrapper.
-#[allow(
+#[expect(
     clippy::too_many_arguments,
     reason = "the parameters are independent install-scoped inputs; bundling them into a struct only moves the same fields into a wrapper"
 )]
@@ -2539,13 +2539,9 @@ fn manifest_package_id(manifest: Option<&serde_json::Value>) -> Option<String> {
 /// `addFilesFromDir` does on each tempdir file).
 // 8 arguments — over the default clippy threshold, but each is
 // distinct (see the matching note on `fetch_and_extract_zip_with_retry`).
-#[allow(
-    clippy::too_many_arguments,
-    reason = "the parameters are independent install-scoped inputs; bundling them into a struct only moves the same fields into a wrapper"
-)]
 #[expect(
     clippy::too_many_arguments,
-    reason = "arg count is set by upstream pnpm's fetcher signature"
+    reason = "the parameters are independent install-scoped inputs; bundling them into a struct only moves the same fields into a wrapper"
 )]
 async fn fetch_and_extract_zip_once<Reporter: self::Reporter>(
     http_client: &ThrottledClient,

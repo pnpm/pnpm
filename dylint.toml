@@ -50,7 +50,28 @@ enable = ["unordered_derives"]
 # guidance in pacquet/CODE_STYLE_GUIDE.md. Disabled here pending a dedicated,
 # parity-reviewed pass tracked in
 # <https://github.com/pnpm/pnpm/issues/12715>.
-disable = ["needless_borrowed_parameters"]
+#
+# `unpinned_repo_ref` (active by default) flags the ~37 doc-comment
+# citations that point at upstream source by branch / tag instead of a
+# commit SHA. SHA-pinning them is the repo's documented convention, but
+# doing it correctly is a dedicated pass: several cited targets are dead
+# (the `pnpm/pnpm@deps` branch, `whitecolor/is-subdir`,
+# `pnpm/util.lex-comparator`) and need repointing, not just pinning.
+# Disabled pending that pass, tracked in
+# <https://github.com/pnpm/pnpm/issues/12717>.
+#
+# `clap_help_markdown` (active by default) flags markdown that leaks into
+# clap `--help` output: ~385 code spans plus ~28 inline / intra-doc links
+# and one HTML tag. Stripping it cleanly without losing the rich rustdoc
+# means giving each command/arg a plain `#[arg(help = "...")]` / `#[command(
+# about = "...")]` string — a user-visible refactor across the CLI surface.
+# Disabled pending that dedicated pass, tracked in
+# <https://github.com/pnpm/pnpm/issues/12718>.
+disable = [
+    "needless_borrowed_parameters",
+    "unpinned_repo_ref",
+    "clap_help_markdown",
+]
 
 # The codebase collapses imports to one `use` per crate root (shared
 # prefixes in nested braces) — the same granularity rustfmt spells
@@ -81,15 +102,6 @@ include_plain_comments = true
 ["perfectionist::bare_identifier_reference"]
 reference_scope = "own_module"
 min_words = 2
-
-# `clap_help_markdown` (active by default) flags markdown that leaks into
-# clap `--help` output. The code-span (backtick) cases dominate (~385×);
-# stripping every backtick from the CLI's help text is a large, user-visible
-# change left for a dedicated follow-up. The clearer leaks — inline and
-# intra-doc links, which render as raw `[text](url)` in `--help` — stay
-# flagged and are fixed in this change.
-["perfectionist::clap_help_markdown"]
-ignore_constructs = ["code_span"]
 
 ["perfectionist::unordered_derives"]
 style = "prefix_then_alphabetical"

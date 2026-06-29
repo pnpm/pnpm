@@ -27,13 +27,13 @@ use serde_json::{Map, Value};
 use std::cmp::Ordering;
 
 /// Keys whose collection value always renders on a single line (flow style).
-/// Mirrors the fork's `SINGLE_LINE_KEYS`.
+/// Mirrors the fork's [`SINGLE_LINE_KEYS`].
 const SINGLE_LINE_KEYS: [&str; 4] = ["cpu", "engines", "os", "libc"];
 
 /// One indentation level, in spaces (`js-yaml`'s default `indent`).
 const INDENT: usize = 2;
 
-/// Per-package / per-snapshot key priority. Mirrors `ORDERED_KEYS` in pnpm's
+/// Per-package / per-snapshot key priority. Mirrors [`ORDERED_KEYS`] in pnpm's
 /// [`sortLockfileKeys`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/fs/src/sortLockfileKeys.ts).
 const ORDERED_KEYS: [&str; 20] = [
     "resolution",
@@ -58,7 +58,7 @@ const ORDERED_KEYS: [&str; 20] = [
     "optional",
 ];
 
-/// Top-level key priority. Mirrors `ROOT_KEYS` in pnpm's `sortLockfileKeys`.
+/// Top-level key priority. Mirrors [`ROOT_KEYS`] in pnpm's `sortLockfileKeys`.
 const ROOT_KEYS: [&str; 9] = [
     "lockfileVersion",
     "settings",
@@ -336,7 +336,7 @@ fn write_scalar(string: &str, level: usize, single_line: bool, inblock: bool) ->
     match choose_scalar_style(string, single_line, inblock) {
         ScalarStyle::Plain => string.to_string(),
         ScalarStyle::Single => format!("'{}'", string.replace('\'', "''")),
-        ScalarStyle::Double => format!("\"{}\"", escape_string(string)),
+        ScalarStyle::Double => format!(r#""{}""#, escape_string(string)),
         ScalarStyle::Literal => {
             let indent = INDENT * level.max(1);
             format!(
@@ -519,7 +519,7 @@ fn encode_hex(code: u32) -> String {
     } else {
         ('U', 8)
     };
-    format!("\\{handle}{hex:0>width$}")
+    format!(r"\{handle}{hex:0>width$}")
 }
 
 fn block_header(string: &str) -> String {

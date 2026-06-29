@@ -10,7 +10,7 @@
 //!
 //! Ports the routing piece of upstream's
 //! [`createNpmResolutionVerifier.ts`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts#L118-L139)
-//! plus the `BUILTIN_NAMED_REGISTRIES` constant from
+//! plus the [`BUILTIN_NAMED_REGISTRIES`] constant from
 //! [`parseBareSpecifier.ts`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/parseBareSpecifier.ts#L87-L89).
 
 use std::collections::HashMap;
@@ -21,7 +21,7 @@ pub use pacquet_lockfile::pick_registry_for_package;
 use reqwest::Url;
 
 /// Built-in named-registry aliases the resolver recognizes
-/// out of the box. Mirrors upstream's `BUILTIN_NAMED_REGISTRIES`.
+/// out of the box. Mirrors upstream's [`BUILTIN_NAMED_REGISTRIES`].
 pub const BUILTIN_NAMED_REGISTRIES: &[(&str, &str)] = &[("gh", "https://npm.pkg.github.com/")];
 
 /// Failure from [`merge_named_registries`]. Mirrors upstream's

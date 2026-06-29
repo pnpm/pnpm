@@ -223,7 +223,7 @@ fn explicit_hardlink_surfaces_errors() {
 /// `CloneOrCopy` has to succeed on any filesystem because
 /// `clone_or_copy_link` falls back to `fs::copy` when the reflink
 /// attempt fails with a capability error. This hits the match arm
-/// directly — the `existing_target_is_preserved` loop
+/// directly — the [`existing_target_is_preserved`] loop
 /// short-circuits before the arm ever runs, so without this we had
 /// no coverage of the real code path.
 #[test]
@@ -411,7 +411,7 @@ fn auto_respects_cached_hardlink_state() {
 
 /// Same propagate-on-call-error property for `CloneOrCopy`. Uses
 /// `AlreadyExists` trigger for the same reason
-/// `auto_call_errors_propagate_without_downgrading` does —
+/// [`auto_call_errors_propagate_without_downgrading`] does —
 /// `NotFound` gets rewritten to `InvalidInput` inside reflink-copy
 /// on non-macOS and would take the fallback path instead of the
 /// propagation path.
@@ -501,7 +501,7 @@ fn is_call_error_rejects_capability_codes() {
 }
 
 /// Pre-seed `CloneOrCopy` state to `COPY` and verify it uses
-/// `fs::copy` — mirrors `auto_respects_cached_copy_state`. Also
+/// `fs::copy` — mirrors [`auto_respects_cached_copy_state`]. Also
 /// confirms we skip the hardlink tier entirely (pnpm
 /// `createCloneOrCopyImporter` has no hardlink fallback).
 #[test]

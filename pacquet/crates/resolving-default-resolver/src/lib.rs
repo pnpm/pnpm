@@ -72,7 +72,7 @@ impl DefaultResolver {
     }
 }
 
-/// `DefaultResolver` doubles as a [`Resolver`] so callers can compose
+/// [`DefaultResolver`] doubles as a [`Resolver`] so callers can compose
 /// it into another dispatcher (or hand it to a consumer that already
 /// accepts the trait, like `resolve_dependency_tree`). Through the
 /// trait, the "no resolver claimed" branch surfaces as `Ok(None)` so
@@ -161,7 +161,7 @@ fn render_specifier(wanted_dependency: &WantedDependency) -> String {
 /// case bare. Mirrors upstream's
 /// ``if (specifier !== '') specifier = `"${specifier}"` `` step.
 fn quote_specifier(specifier: &str) -> String {
-    if specifier.is_empty() { String::new() } else { format!("\"{specifier}\"") }
+    if specifier.is_empty() { String::new() } else { format!(r#""{specifier}""#) }
 }
 
 #[cfg(test)]

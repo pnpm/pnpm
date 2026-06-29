@@ -97,16 +97,16 @@ impl Clock for Host {
 }
 
 /// Newtype wrapper around a dependency-path string. Mirrors upstream's
-/// `DepPath` branded type at
+/// [`DepPath`] branded type at
 /// <https://github.com/pnpm/pnpm/blob/1819226b51/core/types/src/misc.ts#L65>.
 ///
-/// Upstream's `DepPath` is `string & { __brand: 'DepPath' }`, a branded
+/// Upstream's [`DepPath`] is `string & { __brand: 'DepPath' }`, a branded
 /// string. Every construction site uses an `as DepPath` cast — there are
 /// no validating constructors anywhere in pnpm. The brand exists purely
-/// to stop a plain `string` from being assigned where a `DepPath` is
+/// to stop a plain `string` from being assigned where a [`DepPath`] is
 /// expected at compile time. This Rust wrapper mirrors that contract: no
 /// validation runs at construction, and `#[serde(transparent)]` makes the
-/// wire format identical to `String` so a `DepPath` round-trips through
+/// wire format identical to `String` so a [`DepPath`] round-trips through
 /// JSON / YAML the same way upstream's branded string does.
 #[derive(
     Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, From, Into,
@@ -274,7 +274,7 @@ pub struct ModulesLayout {
 }
 
 /// Which dependency groups the install pipeline included. Mirrors
-/// upstream's `IncludedDependencies` at
+/// upstream's [`IncludedDependencies`] at
 /// <https://github.com/pnpm/pnpm/blob/1819226b51/installing/modules-yaml/src/index.ts#L19-L21>.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

@@ -1,4 +1,4 @@
-use super::*;
+use super::{RegistryError, redacted_report};
 
 #[test]
 fn startup_error_report_redacts_dsn_credentials() {

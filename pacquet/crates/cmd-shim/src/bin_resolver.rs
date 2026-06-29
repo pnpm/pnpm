@@ -17,7 +17,7 @@ pub struct Command {
 }
 
 /// Bin names that legitimately ship inside a different package than their own
-/// name. Mirrors `BIN_OWNER_OVERRIDES` in
+/// name. Mirrors [`BIN_OWNER_OVERRIDES`] in
 /// <https://github.com/pnpm/pnpm/blob/4750fd370c/bins/resolver/src/index.ts>.
 ///
 /// Used by [`pkg_owns_bin`] for conflict resolution between two packages

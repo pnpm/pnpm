@@ -51,10 +51,10 @@ impl UnsupportedEngineError {
 fn engine_json(node: Option<&str>, pnpm: Option<&str>) -> String {
     let mut parts = Vec::new();
     if let Some(n) = node {
-        parts.push(format!("\"node\":{n:?}"));
+        parts.push(format!(r#""node":{n:?}"#));
     }
     if let Some(p) = pnpm {
-        parts.push(format!("\"pnpm\":{p:?}"));
+        parts.push(format!(r#""pnpm":{p:?}"#));
     }
     format!("{{{}}}", parts.join(","))
 }

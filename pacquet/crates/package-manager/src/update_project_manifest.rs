@@ -14,7 +14,7 @@ pub struct CatalogLookup {
 }
 
 /// A direct dependency as it came back from resolution. Port of the subset of
-/// pnpm's `ResolvedDirectDependency` that `updateProjectManifest` consumes.
+/// pnpm's [`ResolvedDirectDependency`] that `updateProjectManifest` consumes.
 pub struct ResolvedDirectDependency {
     /// Install name in `node_modules` (the manifest key to rewrite).
     pub alias: String,

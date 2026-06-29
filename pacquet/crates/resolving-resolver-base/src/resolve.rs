@@ -1,5 +1,5 @@
 //! Dispatcher-side surface of `@pnpm/resolving.resolver-base`. Defines
-//! the `WantedDependency` → `ResolveResult` contract and the
+//! the [`WantedDependency`] → [`ResolveResult`] contract and the
 //! [`Resolver`] trait every per-protocol resolver implements.
 //!
 //! Future per-protocol resolvers (npm, git, tarball, local, jsr,
@@ -77,7 +77,7 @@ impl From<PkgNameVer> for PkgResolutionId {
 /// programming error the type system doesn't catch. The invariant is
 /// upheld by construction sites (the parse-wanted-dependency port
 /// and the deps-resolver's manifest reader); resolvers that walk a
-/// `WantedDependency` with both halves empty should return
+/// [`WantedDependency`] with both halves empty should return
 /// `Ok(None)` so the chain falls through to the
 /// "spec not supported" terminal.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -277,7 +277,7 @@ pub enum UpdateBehavior {
 /// can short-circuit when the install is not requesting an update. Mirrors
 /// upstream's
 /// [`currentPkg`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L303-L309)
-/// field of `ResolveOptions`; the serialized form is the `currentPkg`
+/// field of [`ResolveOptions`]; the serialized form is the `currentPkg`
 /// payload custom resolvers receive.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -303,7 +303,7 @@ pub struct ResolveOptions {
     /// Lockfile + manifest preferred-versions seed the npm picker biases
     /// toward (so pins that still satisfy their range survive a
     /// re-resolve). Held behind [`Arc`] because the tree walker clones
-    /// `ResolveOptions` per depth tier and the install layer clones it
+    /// [`ResolveOptions`] per depth tier and the install layer clones it
     /// per importer — sharing the (potentially large) map keeps those
     /// clones to a refcount bump.
     pub preferred_versions: Arc<PreferredVersions>,
@@ -379,7 +379,7 @@ pub type DependencyManifest = serde_json::Value;
 
 /// `Arc`-shared variant of [`DependencyManifest`], used in
 /// [`ResolveResult::manifest`]. Wrapping the manifest avoids the
-/// deep-clone of the JSON tree every time a `ResolveResult`
+/// deep-clone of the JSON tree every time a [`ResolveResult`]
 /// propagates — the deps-resolver stores one copy in
 /// `ResolvedPackage` and another in each `DependenciesGraph` node,
 /// each `Clone` cost dropped from O(manifest size) to a refcount

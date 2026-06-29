@@ -1,4 +1,4 @@
-use super::*;
+use super::{Body, ObjectStore, S3Settings, S3Store};
 use crate::package_name::PackageName;
 use object_store::memory::InMemory;
 use std::sync::Arc;

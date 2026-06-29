@@ -109,11 +109,11 @@ pub struct DirectDep {
 /// that share a non-leaf resolved package each get their own per-
 /// occurrence tree node with its own children edges; leaves collapse
 /// onto one shared tree node (see [`DependenciesTree`]). Either way,
-/// `ResolvedPackage` is the dedup-shared *envelope*, not a tree node.
+/// [`ResolvedPackage`] is the dedup-shared *envelope*, not a tree node.
 #[derive(Debug, Clone)]
 pub struct ResolvedPackage {
     pub id: String,
-    /// Held as `Arc` so cloning a `ResolvedPackage` (which the
+    /// Held as `Arc` so cloning a [`ResolvedPackage`] (which the
     /// per-occurrence tree walk does on every snapshot, and which
     /// the peer-resolution pass does when it carves
     /// `DependenciesGraphNode`s out of the resolved tree) is an

@@ -693,7 +693,7 @@ impl BuildModules<'_> {
 /// Per-snapshot build work, called once per chunk member by the
 /// bounded-parallelism `par_iter().try_for_each(...)` dispatch in
 /// [`BuildModules::run`].
-#[allow(
+#[expect(
     clippy::too_many_arguments,
     reason = "the parameters are independent inputs; bundling them into a struct would not improve clarity"
 )]

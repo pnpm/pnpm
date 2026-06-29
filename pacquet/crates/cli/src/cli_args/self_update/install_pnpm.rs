@@ -34,7 +34,7 @@ pub(crate) const PNPM_PACKAGE_NAME: &str = "pnpm";
 /// The package-manager components pnpm marks buildable when installing
 /// the engine, so the `ENGINE_NAME` is folded into their global-virtual-
 /// store hash and each platform resolves to its own slot instead of
-/// colliding. Mirrors pnpm's `PNPM_ALLOW_BUILDS`
+/// colliding. Mirrors pnpm's [`PNPM_ALLOW_BUILDS`]
 /// (`{ '@pnpm/exe': true, 'pnpm': true }`).
 pub(crate) const PNPM_ALLOW_BUILDS: [&str; 2] = ["pnpm", "@pnpm/exe"];
 

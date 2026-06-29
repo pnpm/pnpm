@@ -121,7 +121,7 @@ impl RunArgs {
             }
             return Err(RunError::NoScript {
                 script: script_name.clone(),
-                hint: format!("Command \"{script_name}\" not found."),
+                hint: format!(r#"Command "{script_name}" not found."#),
             }
             .into());
         }
@@ -179,7 +179,7 @@ impl RunArgs {
 /// Shared inputs for running a script, threaded through
 /// [`run_stages`] and [`run_stage`] so neither grows an unwieldy
 /// argument list. The submodule `recursive` builds a per-project
-/// [`RunContext`] and reuses `run_stages`, so the type and its
+/// [`RunContext`] and reuses [`run_stages`], so the type and its
 /// fields are visible up to the parent module.
 pub(super) struct RunContext<'a> {
     pub(super) manifest: &'a PackageManifest,
@@ -473,7 +473,7 @@ fn render_commands(commands: &[(&str, &str)]) -> String {
 }
 
 /// The lifecycle script names pnpm groups separately in the run listing.
-/// Mirrors `ALL_LIFECYCLE_SCRIPTS`
+/// Mirrors [`ALL_LIFECYCLE_SCRIPTS`]
 /// (<https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/commands/src/run.ts#L314-L346>).
 const ALL_LIFECYCLE_SCRIPTS: &[&str] = &[
     "prepublish",

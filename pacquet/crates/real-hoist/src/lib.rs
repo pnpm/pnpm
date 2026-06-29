@@ -22,7 +22,7 @@ use std::{
 };
 
 /// One of the three node categories the `@yarnpkg/nm` hoister
-/// distinguishes. Mirrors `HoisterDependencyKind` at the
+/// distinguishes. Mirrors [`HoisterDependencyKind`] at the
 /// [yarn source][yarn-kind].
 ///
 /// [yarn-kind]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts#L12-L14
@@ -45,7 +45,7 @@ pub enum HoisterDependencyKind {
 
 /// Input node for the hoister. Built by [`hoist`] from the lockfile.
 ///
-/// Mirrors `HoisterTree` at the [yarn source][yarn-tree]. Children
+/// Mirrors [`HoisterTree`] at the [yarn source][yarn-tree]. Children
 /// are stored in an [`IndexSet`] so insertion order is preserved (the
 /// upstream hoister's traversal relies on declaration order to break
 /// ties between equivalent candidates), and so that a node added via
@@ -95,9 +95,9 @@ pub struct HoisterTree {
     pub dependencies: RefCell<IndexSet<RcByPtr<HoisterTree>>>,
 }
 
-/// Output node from the hoister. The shape mirrors `HoisterTree`
-/// except that one `HoisterResult` can collect multiple references
-/// (when several `HoisterTree` nodes with the same `ident_name`
+/// Output node from the hoister. The shape mirrors [`HoisterTree`]
+/// except that one [`HoisterResult`] can collect multiple references
+/// (when several [`HoisterTree`] nodes with the same `ident_name`
 /// converged onto the same hoist slot).
 ///
 /// Both `references` and `dependencies` use [`RefCell`] for the same
@@ -107,14 +107,14 @@ pub struct HoisterTree {
 /// rebuilding `Rc`s (which would break the shared-by-identity
 /// invariant for any earlier clone).
 ///
-/// Mirrors `HoisterResult` at the [yarn source][yarn-result].
+/// Mirrors [`HoisterResult`] at the [yarn source][yarn-result].
 ///
-/// Pacquet extends upstream's `HoisterResult` with a `peer_names`
+/// Pacquet extends upstream's [`HoisterResult`] with a `peer_names`
 /// field copied through from [`HoisterTree::peer_names`]. The hoist
 /// algorithm reads it while deciding whether a candidate can hoist
 /// past parents that supply the peer; upstream resolves the same
 /// information against its `HoisterWorkTree` instead, but since
-/// pacquet runs the algorithm directly on `HoisterResult` (no
+/// pacquet runs the algorithm directly on [`HoisterResult`] (no
 /// intermediate work tree), the peer set has to ride along.
 ///
 /// [yarn-result]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts#L20-L23
@@ -123,7 +123,7 @@ pub struct HoisterResult {
     pub name: String,
     pub ident_name: String,
     pub references: RefCell<BTreeSet<String>>,
-    /// Peer-dependency names the upstream `HoisterTree` node
+    /// Peer-dependency names the upstream [`HoisterTree`] node
     /// declared. Read by the hoist algorithm to refuse hoists that
     /// would shadow a peer the candidate's ancestors satisfy with a
     /// different ident.
@@ -135,7 +135,7 @@ pub struct HoisterResult {
 /// (e.g. `.@`); the inner set lists package aliases that may not be
 /// hoisted past that importer.
 ///
-/// Upstream `HoistingLimits` is `Map<string, Set<string>>`. Pacquet
+/// Upstream [`HoistingLimits`] is `Map<string, Set<string>>`. Pacquet
 /// uses `BTreeMap` / `BTreeSet` so the order is deterministic for
 /// snapshot tests.
 pub type HoistingLimits = BTreeMap<String, BTreeSet<String>>;
@@ -205,13 +205,13 @@ pub enum HoistError {
     },
 }
 
-/// Identity-hashed wrapper around `Rc<T>`. Two `RcByPtr` values are
+/// Identity-hashed wrapper around `Rc<T>`. Two [`RcByPtr`] values are
 /// equal iff their underlying `Rc`s point at the same allocation;
 /// hashing uses the pointer address, not `T`'s `Hash` impl.
 ///
 /// This mirrors JS `Set<HoisterTree>` semantics — JS Sets hash by
 /// object identity, so adding the same node via two parent paths
-/// keeps one entry. Cloning a `RcByPtr` only bumps the refcount, so
+/// keeps one entry. Cloning a [`RcByPtr`] only bumps the refcount, so
 /// the dedup property survives parent-to-child propagation.
 ///
 /// Without this wrapper, [`IndexSet<Rc<HoisterTree>>`] would hash on
@@ -560,7 +560,7 @@ pub fn percent_encode_path(text: &str) -> String {
 }
 
 /// Pacquet's port of the `@yarnpkg/nm` hoist algorithm. Walks the
-/// input tree, deep-copies it into a `HoisterResult` shape, then
+/// input tree, deep-copies it into a [`HoisterResult`] shape, then
 /// pulls eligible descendants up to the root via a depth-first
 /// recursion run to a fixed point (see [`hoist_into_root`]) with
 /// parent-wins conflict resolution. Models the common case

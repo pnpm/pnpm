@@ -6,7 +6,7 @@ use std::sync::{
 /// Per-occurrence identifier for a node in the [`DependenciesTree`].
 /// Mirrors pnpm's [`NodeId`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/nextNodeId.ts).
 ///
-/// Pnpm's `NodeId` is a branded `string | number` union: numbers come
+/// Pnpm's [`NodeId`] is a branded `string | number` union: numbers come
 /// from a monotonic counter; strings are reused for leaf packages (no
 /// children, no peers) and for `link:<rel-path>` linked local
 /// workspace packages. Pacquet ports the counter and leaf arms;
@@ -27,15 +27,15 @@ pub enum NodeId {
 }
 
 impl NodeId {
-    /// Allocate a fresh per-occurrence `NodeId`. Mirrors pnpm's
+    /// Allocate a fresh per-occurrence [`NodeId`]. Mirrors pnpm's
     /// [`nextNodeId`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/nextNodeId.ts).
     pub fn next() -> NodeId {
         static COUNTER: AtomicU64 = AtomicU64::new(0);
         NodeId::Counter(COUNTER.fetch_add(1, Ordering::Relaxed))
     }
 
-    /// Build a leaf `NodeId` from a package id. Every occurrence of a
-    /// leaf shares the same `NodeId`, so the tree carries one node
+    /// Build a leaf [`NodeId`] from a package id. Every occurrence of a
+    /// leaf shares the same [`NodeId`], so the tree carries one node
     /// instead of one per parent edge.
     #[must_use]
     pub fn leaf(id: &str) -> NodeId {

@@ -15,7 +15,7 @@ use miette::Diagnostic;
 use std::path::{Path, PathBuf};
 
 /// Where the new directory is inserted into `PATH`. Mirrors pnpm's
-/// `AddingPosition` (defaulting to `start`).
+/// [`AddingPosition`] (defaulting to `start`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum AddingPosition {
     Start,
@@ -26,7 +26,7 @@ pub(super) enum AddingPosition {
     End,
 }
 
-/// How the shell config file changed. Mirrors pnpm's `ConfigFileChangeType`.
+/// How the shell config file changed. Mirrors pnpm's [`ConfigFileChangeType`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum ConfigFileChangeType {
     Skipped,
@@ -36,7 +36,7 @@ pub(super) enum ConfigFileChangeType {
 }
 
 /// The config file that was touched and how. `None` on Windows, where the
-/// registry — not a file — is edited. Mirrors pnpm's `ConfigReport`.
+/// registry — not a file — is edited. Mirrors pnpm's [`ConfigReport`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ConfigReport {
     pub path: PathBuf,
@@ -44,7 +44,7 @@ pub(super) struct ConfigReport {
 }
 
 /// The before/after of a path-extension run. Mirrors pnpm's
-/// `PathExtenderReport`.
+/// [`PathExtenderReport`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct PathExtenderReport {
     pub config_file: Option<ConfigReport>,

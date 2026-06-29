@@ -12,7 +12,7 @@ use super::{AddDirToEnvPathOpts, AddingPosition, PathExtenderError};
 use std::{path::Path, process::Command};
 
 /// The change made to one environment variable, used to render the
-/// before/after report. Mirrors pnpm's `EnvVariableChange`.
+/// before/after report. Mirrors pnpm's [`EnvVariableChange`].
 #[derive(Debug)]
 pub(super) struct EnvVariableChange {
     pub variable: String,
@@ -64,7 +64,7 @@ fn add_dir_to_windows_env_path_inner(
             opts.overwrite,
         )?);
         let path_entry = match opts.proxy_var_sub_dir {
-            Some(sub_dir) => format!("%{proxy}%\\{sub_dir}"),
+            Some(sub_dir) => format!(r"%{proxy}%\{sub_dir}"),
             None => format!("%{proxy}%"),
         };
         changes.push(add_to_path(&registry_output, &path_entry, opts.position)?);
@@ -137,7 +137,7 @@ fn add_to_path(
     })
 }
 
-/// Read every value under `REG_KEY` and pick the one we need, rather than
+/// Read every value under [`REG_KEY`] and pick the one we need, rather than
 /// querying a single value (which fails when the value is absent and hides
 /// the real cause). Mirrors pnpm's `getRegistryOutput`.
 fn get_registry_output() -> Result<String, PathExtenderError> {

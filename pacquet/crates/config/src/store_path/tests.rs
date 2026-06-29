@@ -77,7 +77,7 @@ fn resolve_store_dir_same_volume_uses_home_default() {
 /// the mountpoint deterministically without needing two real
 /// volumes.
 ///
-/// The allowlist lives in `ALLOW_PREFIXES`. To keep two
+/// The allowlist lives in [`ALLOW_PREFIXES`]. To keep two
 /// concurrently-running scenarios from clobbering each other's
 /// allowlist between `set_allow` and the subsequent `resolve_store_dir`
 /// call (nextest runs tests in parallel by default), every scenario
@@ -96,7 +96,7 @@ struct PrefixProbe;
 #[cfg(unix)]
 impl PrefixProbe {
     /// Install `prefixes` as the allowlist, run `body`, then drop
-    /// the scenario lock. Serialises every `PrefixProbe`-driven
+    /// the scenario lock. Serialises every [`PrefixProbe`]-driven
     /// scenario so parallel test execution can't race the allowlist
     /// out from under a `resolve_store_dir` call.
     fn with_allow<Output>(prefixes: &[&Path], body: impl FnOnce() -> Output) -> Output {

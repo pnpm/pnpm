@@ -129,7 +129,7 @@ struct ProgressEntry {
     slot: BlockSlot,
 }
 
-/// One dependency added or removed, ready to render. Ports `PackageDiff` in
+/// One dependency added or removed, ready to render. Ports [`PackageDiff`] in
 /// `pkgsDiff.ts`.
 #[derive(Debug, Clone)]
 struct PackageDiff {

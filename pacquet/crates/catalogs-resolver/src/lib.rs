@@ -13,12 +13,12 @@ use miette::Diagnostic;
 use pacquet_catalogs_protocol_parser::parse_catalog_protocol;
 use pacquet_catalogs_types::Catalogs;
 
-/// Subset of `pacquet-resolving-resolver-base`'s `WantedDependency`
+/// Subset of `pacquet-resolving-resolver-base`'s [`WantedDependency`]
 /// that catalog resolution needs. Modeled as its own type so this
 /// crate doesn't depend on the resolver-base crate; the conversion
 /// is a trivial field copy at the call site.
 ///
-/// Mirrors upstream's `WantedDependency` interface
+/// Mirrors upstream's [`WantedDependency`] interface
 /// ([source](https://github.com/pnpm/pnpm/blob/a8a8cbce6d/catalogs/resolver/src/resolveFromCatalog.ts#L5-L8)).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WantedDependency {
@@ -28,7 +28,7 @@ pub struct WantedDependency {
 
 /// Outcome of [`resolve_from_catalog`].
 ///
-/// Mirrors upstream's `CatalogResolutionResult` discriminated union
+/// Mirrors upstream's [`CatalogResolutionResult`] discriminated union
 /// ([source](https://github.com/pnpm/pnpm/blob/a8a8cbce6d/catalogs/resolver/src/resolveFromCatalog.ts#L19)).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CatalogResolutionResult {
@@ -42,7 +42,7 @@ pub enum CatalogResolutionResult {
 
 /// Successful catalog dereference.
 ///
-/// Mirrors upstream's `CatalogResolutionFound`
+/// Mirrors upstream's [`CatalogResolutionFound`]
 /// ([source](https://github.com/pnpm/pnpm/blob/a8a8cbce6d/catalogs/resolver/src/resolveFromCatalog.ts#L21-L24)).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CatalogResolutionFound {
@@ -51,7 +51,7 @@ pub struct CatalogResolutionFound {
 
 /// Resolved (catalog name, specifier) pair.
 ///
-/// Mirrors upstream's `CatalogResolution`
+/// Mirrors upstream's [`CatalogResolution`]
 /// ([source](https://github.com/pnpm/pnpm/blob/a8a8cbce6d/catalogs/resolver/src/resolveFromCatalog.ts#L26-L38)).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CatalogResolution {
@@ -64,7 +64,7 @@ pub struct CatalogResolution {
 /// A user-misconfigured catalog entry. Carries the error so the call
 /// site can rethrow or render it.
 ///
-/// Mirrors upstream's `CatalogResolutionMisconfiguration`
+/// Mirrors upstream's [`CatalogResolutionMisconfiguration`]
 /// ([source](https://github.com/pnpm/pnpm/blob/a8a8cbce6d/catalogs/resolver/src/resolveFromCatalog.ts#L40-L52)).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CatalogResolutionMisconfiguration {

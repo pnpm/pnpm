@@ -3,17 +3,17 @@ use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifest
 use pacquet_registry::PinnedVersion;
 use serde_json::{Map, Value};
 
-/// pnpm's `DEPENDENCIES_FIELDS`, in its canonical order. A direct dependency
+/// pnpm's [`DEPENDENCIES_FIELDS`], in its canonical order. A direct dependency
 /// is written to exactly one of these and removed from the other two.
 const DEPENDENCIES_FIELDS: [&str; 3] = ["optionalDependencies", "dependencies", "devDependencies"];
 
-/// pnpm's `DEPENDENCIES_OR_PEER_FIELDS`: the three dependency fields plus
-/// `peerDependencies`. `guess_dependency_type` scans them in this order and
+/// pnpm's [`DEPENDENCIES_OR_PEER_FIELDS`]: the three dependency fields plus
+/// `peerDependencies`. [`guess_dependency_type`] scans them in this order and
 /// returns the first that already declares the alias.
 const DEPENDENCIES_OR_PEER_FIELDS: [&str; 4] =
     ["optionalDependencies", "dependencies", "devDependencies", "peerDependencies"];
 
-/// One manifest mutation request. Port of pnpm's `PackageSpecObject`.
+/// One manifest mutation request. Port of pnpm's [`PackageSpecObject`].
 ///
 /// `save_type` and `bare_specifier` together select the behaviour:
 /// * `save_type` set → upsert into that field, deleting the alias from the

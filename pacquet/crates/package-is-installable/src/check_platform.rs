@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 /// config setting and falls back to `['current']` if absent). The
 /// `'current'` sentinel is replaced with the host triple via
 /// `dedupe_current` before the `os` / `cpu` / `libc` lists are
-/// compared. Mirrors upstream's `SupportedArchitectures` at
+/// compared. Mirrors upstream's [`SupportedArchitectures`] at
 /// <https://github.com/pnpm/pnpm/blob/94240bc046/core/types/src/package.ts#L232-L236>.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SupportedArchitectures {
@@ -35,8 +35,8 @@ pub struct WantedPlatform {
 /// Borrow-only view of [`WantedPlatform`] used by [`check_platform`]
 /// on the install hot path. Lets the caller pass `manifest.os.as_deref()`
 /// (etc.) directly without cloning the manifest's owned `Vec<String>`s
-/// into a fresh `WantedPlatform` per snapshot. The owned form is
-/// only materialised inside `check_platform` when an error is
+/// into a fresh [`WantedPlatform`] per snapshot. The owned form is
+/// only materialised inside [`check_platform`] when an error is
 /// produced (for diagnostic display).
 ///
 /// `Copy` so the recursive / per-snapshot call sites don't need an
@@ -84,13 +84,13 @@ fn wanted_json(wanted: &WantedPlatform) -> String {
     // fields actually set appear, and each is a JSON array.
     let mut parts = Vec::new();
     if let Some(os) = &wanted.os {
-        parts.push(format!("\"os\":{}", json_string_array(os)));
+        parts.push(format!(r#""os":{}"#, json_string_array(os)));
     }
     if let Some(cpu) = &wanted.cpu {
-        parts.push(format!("\"cpu\":{}", json_string_array(cpu)));
+        parts.push(format!(r#""cpu":{}"#, json_string_array(cpu)));
     }
     if let Some(libc) = &wanted.libc {
-        parts.push(format!("\"libc\":{}", json_string_array(libc)));
+        parts.push(format!(r#""libc":{}"#, json_string_array(libc)));
     }
     format!("{{{}}}", parts.join(","))
 }
@@ -102,7 +102,7 @@ fn current_json(current: &Platform) -> String {
         values.first().cloned().unwrap_or_default()
     }
     format!(
-        "{{\"os\":{:?},\"cpu\":{:?},\"libc\":{:?}}}",
+        r#"{{"os":{:?},"cpu":{:?},"libc":{:?}}}"#,
         single(&current.os),
         single(&current.cpu),
         single(&current.libc),
@@ -122,7 +122,7 @@ fn json_string_array(values: &[String]) -> String {
 /// honored exactly as upstream's `checkList`.
 ///
 /// The wanted axes are taken as `Option<&[String]>` slices so the
-/// hot path doesn't allocate a `WantedPlatform` per snapshot —
+/// hot path doesn't allocate a [`WantedPlatform`] per snapshot —
 /// callers can pass `manifest.os.as_deref()` directly. The owned
 /// [`WantedPlatform`] form is only built when an error is returned
 /// (for diagnostic display via the

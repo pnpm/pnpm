@@ -48,7 +48,7 @@ pub struct Project {
 
 /// Options for [`find_workspace_projects`].
 ///
-/// Field names mirror upstream's `FindWorkspaceProjectsOpts` so a port
+/// Field names mirror upstream's [`FindWorkspaceProjectsOpts`] so a port
 /// of any individual install entry point doesn't have to translate
 /// option names.
 #[derive(Debug, Default, Clone)]

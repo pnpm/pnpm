@@ -1,7 +1,7 @@
 /// Branded depPath string. Mirrors pnpm's
 /// [`DepPath`](https://github.com/pnpm/pnpm/blob/097983fbca/packages/types/src/misc.ts).
 ///
-/// Upstream's `DepPath` is a `string` brand — it's never validated at
+/// Upstream's [`DepPath`] is a `string` brand — it's never validated at
 /// the boundary, just used to keep depPath strings from getting mixed
 /// up with arbitrary strings in the type system. Pacquet's port
 /// therefore exposes infallible `From<String>` / `From<&str>`

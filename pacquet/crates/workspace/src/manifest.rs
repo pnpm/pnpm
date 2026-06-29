@@ -67,7 +67,7 @@ pub struct WorkspaceManifest {
 
 /// Raised when `pnpm-workspace.yaml` parses as YAML but fails an
 /// upstream-mirrored shape check that serde itself can't enforce.
-/// Same error code as upstream's `InvalidWorkspaceManifestError`.
+/// Same error code as upstream's [`InvalidWorkspaceManifestError`].
 ///
 /// Note: upstream's "packages field is not an array" branch is
 /// covered by [`ReadWorkspaceManifestError::ParseYaml`] in pacquet —

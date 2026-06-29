@@ -30,7 +30,7 @@ pub(crate) const INVALID_WORKSPACE_MANIFEST_FILENAMES: &[&str] = &[
 ];
 
 /// Env var that overrides the upward walk. Matches upstream's
-/// `WORKSPACE_DIR_ENV_VAR`.
+/// [`WORKSPACE_DIR_ENV_VAR`].
 pub(crate) const WORKSPACE_DIR_ENV_VAR: &str = "NPM_CONFIG_WORKSPACE_DIR";
 
 /// Lowercase alias for [`WORKSPACE_DIR_ENV_VAR`], pre-allocated so the

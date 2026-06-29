@@ -361,7 +361,7 @@ fn auto_link<Reporter: self::Reporter>(
 /// as [`auto_link`]. Differs from `Auto` by skipping the hardlink tier
 /// entirely — matches pnpm's `createCloneOrCopyImporter`, which on
 /// first reflink failure reassigns its closure directly to `copyPkg`.
-/// Same error-narrowing as `auto_link`: only capability failures
+/// Same error-narrowing as [`auto_link`]: only capability failures
 /// downgrade; real errors propagate.
 fn clone_or_copy_link<Reporter: self::Reporter>(
     logged: &AtomicU8,

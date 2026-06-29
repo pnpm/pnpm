@@ -399,7 +399,7 @@ const EXCLUDED_PNPM_KEYS: &[&str] = &[
 ];
 
 /// The npm auth settings recognized by [`is_ini_config_key`]
-/// (`NPM_AUTH_SETTINGS` in `localConfig.ts`).
+/// ([`NPM_AUTH_SETTINGS`] in `localConfig.ts`).
 const NPM_AUTH_SETTINGS: &[&str] = &[
     "ca",
     "cafile",

@@ -100,7 +100,7 @@ pub fn parse_bare_specifier(
 /// resolver can record the dependency under its JSR alias while
 /// driving the picker against the `@jsr` registry.
 ///
-/// Mirrors upstream's `JsrRegistryPackageSpec`
+/// Mirrors upstream's [`JsrRegistryPackageSpec`]
 /// ([source](https://github.com/pnpm/pnpm/blob/1627943d2a/resolving/npm-resolver/src/parseBareSpecifier.ts#L64-L66)).
 #[derive(Debug, Clone)]
 pub struct JsrRegistryPackageSpec {
@@ -150,7 +150,7 @@ pub fn parse_jsr_specifier_to_registry_package_spec(
 /// route the metadata fetch to the configured registry URL while still
 /// driving the picker against an npm-shaped spec.
 ///
-/// Mirrors upstream's `NamedRegistryPackageSpec`
+/// Mirrors upstream's [`NamedRegistryPackageSpec`]
 /// ([source](https://github.com/pnpm/pnpm/blob/b61e268d57/resolving/npm-resolver/src/parseBareSpecifier.ts#L91-L93)).
 #[derive(Debug, Clone)]
 pub struct NamedRegistryPackageSpec {
@@ -363,7 +363,7 @@ fn parse_npm_tarball_url(url: &str) -> Option<NpmTarballUrl> {
 /// Percent-decode a URL path segment. Matches JS's `decodeURIComponent`
 /// for the byte ranges that show up in npm tarball URLs (the only
 /// caller). Invalid escapes pass through unchanged, mirroring the
-/// `percent_decode_str` helper in `pacquet-network`'s proxy module.
+/// [`percent_decode_str`] helper in `pacquet-network`'s proxy module.
 fn percent_decode_str(text: &str) -> String {
     let bytes = text.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());

@@ -550,7 +550,7 @@ pub struct WorkspaceTreeCtx {
     node_parent_ids_by_id: Mutex<HashMap<NodeId, Arc<Vec<String>>>>,
     manifest_hook: Option<ManifestHook>,
     /// The previous `pnpm-lock.yaml` the install started from, when one
-    /// exists. Consulted by `resolve_node` to reuse an already-resolved
+    /// exists. Consulted by [`resolve_node`] to reuse an already-resolved
     /// dependency + its transitive subtree instead of re-resolving from
     /// the registry (see `pacquet/plans/LOCKFILE_RESOLUTION_REUSE.md`).
     /// `None` on a first install or when reuse is disabled.
@@ -2594,7 +2594,7 @@ async fn build_pkg_id_with_patch_hash(
 }
 
 /// Render `{alias}@{bare}` (either half dropped when absent) for the
-/// error message. Mirrors upstream's `render_specifier` shape in
+/// error message. Mirrors upstream's [`render_specifier`] shape in
 /// `default-resolver`.
 fn render_specifier(wanted: &WantedDependency) -> String {
     let alias = wanted.alias.as_deref().unwrap_or("");
@@ -2658,9 +2658,9 @@ fn collect_deps(
 
 fn render_parent(result: &pacquet_resolving_resolver_base::ResolveResult) -> String {
     if let Some(name_ver) = result.name_ver.as_ref() {
-        format!("Package \"{}@{}\"", name_ver.name, name_ver.suffix)
+        format!(r#"Package "{}@{}""#, name_ver.name, name_ver.suffix)
     } else {
-        format!("Package \"{}\"", result.id)
+        format!(r#"Package "{}""#, result.id)
     }
 }
 

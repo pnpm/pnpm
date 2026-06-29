@@ -147,8 +147,8 @@ pub struct PlatformAssetTarget {
 /// paired with the host triples it covers. Mirrors pnpm's
 /// [`PlatformAssetResolution`](https://github.com/pnpm/pnpm/blob/94240bc046/resolving/resolver-base/src/index.ts#L66-L69).
 ///
-/// The inner resolution is *atomic* upstream — a `BinaryResolution`,
-/// `TarballResolution`, etc. — never another `VariationsResolution`.
+/// The inner resolution is *atomic* upstream — a [`BinaryResolution`],
+/// [`TarballResolution`], etc. — never another [`VariationsResolution`].
 /// Pacquet's type is wider (the full [`LockfileResolution`]) for serde-
 /// round-trip uniformity, and we trust the lockfile to honor the
 /// upstream contract: [`select_platform_variant`] does not add a
@@ -209,7 +209,7 @@ pub struct PlatformSelector {
 /// [`selectPlatformVariant`](https://github.com/pnpm/pnpm/blob/94240bc046/resolving/resolver-base/src/index.ts#L92-L98).
 ///
 /// Iterates `variants` in declaration order and returns the first
-/// `PlatformAssetResolution` whose `targets[]` contains an `(os, cpu,
+/// [`PlatformAssetResolution`] whose `targets[]` contains an `(os, cpu,
 /// libc?)` triple matching `selector`. Each variant's target list is
 /// scanned linearly — `targets[]` is typically 1–3 entries (one per
 /// architecture combo that shares an artifact), so the nested-loop

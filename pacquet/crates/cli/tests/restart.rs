@@ -115,7 +115,7 @@ fn restart_passes_args_to_scripts() {
     let log_file = workspace.join("log.txt");
     let append_arg_node = |name: &str| {
         format!(
-            "node -e \"require('fs').appendFileSync('{}', '{} ' + process.argv[1] + '\\n')\"",
+            r#"node -e "require('fs').appendFileSync('{}', '{} ' + process.argv[1] + '\n')""#,
             log_file.display(),
             name,
         )

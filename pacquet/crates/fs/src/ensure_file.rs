@@ -212,7 +212,7 @@ pub fn ensure_file(
 /// always receive the same `Mutex<()>`. The hasher is initialised
 /// once per process (`LazyLock<RandomState>`) so the path-to-stripe
 /// mapping stays stable for the lifetime of the process; writers
-/// (`ensure_file`) and verifiers (`check_pkg_files_integrity`) of the
+/// ([`ensure_file`]) and verifiers (`check_pkg_files_integrity`) of the
 /// same path are guaranteed to meet on the same lock and serialise.
 /// Stripe-hash collisions between unrelated paths block each other
 /// too — that false-sharing is bounded by `NUM_CAS_LOCK_STRIPES` and
@@ -261,7 +261,7 @@ static CAS_LOCK_STRIPES: [Mutex<()>; NUM_CAS_LOCK_STRIPES] =
 /// matching bytes would silently return `Ok(())` without ever
 /// materialising a real CAS blob at `file_path`, and downstream
 /// `fs::hard_link` on that path would hardlink the symlink itself
-/// rather than the target. Scrub instead: `write_atomic`'s `rename`
+/// rather than the target. Scrub instead: [`write_atomic`]'s `rename`
 /// atomically replaces the symlink (or any other non-regular dirent
 /// that `rename` can overwrite) with a real regular file. Pnpm v11
 /// doesn't guard against this case either, but pacquet's CAS linking

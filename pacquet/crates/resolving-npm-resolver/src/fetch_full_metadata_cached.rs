@@ -37,7 +37,7 @@ use crate::{
 };
 
 /// Options bundle for [`fetch_full_metadata_cached`]. Mirrors
-/// upstream's `FetchFullMetadataCachedOptions` — same fields, same
+/// upstream's [`FetchFullMetadataCachedOptions`] — same fields, same
 /// optionality. `cache_dir` is the only addition over the no-cache
 /// [`crate::FetchFullMetadataOptions`].
 #[derive(Debug, Clone)]

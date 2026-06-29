@@ -295,11 +295,11 @@ async fn fetcher_blocks_build_when_not_allowed() {
     }
 }
 
-/// Variant of `make_bare_repo` for monorepo-style fixtures: commits
+/// Variant of [`make_bare_repo`] for monorepo-style fixtures: commits
 /// a `packages/sub/package.json` + `packages/sub/index.js` and a
 /// sibling `packages/other/index.js` that must NOT end up in the
 /// fetcher's output when `path: Some("packages/sub")` is set.
-/// Returns `(bare_repo_path, commit_sha)` like `make_bare_repo`.
+/// Returns `(bare_repo_path, commit_sha)` like [`make_bare_repo`].
 fn make_monorepo_bare_repo(tmp: &Path) -> (PathBuf, String) {
     let work = tmp.join("work");
     let bare = tmp.join("repo.git");
@@ -605,7 +605,7 @@ async fn fetcher_surfaces_prepare_failure() {
     );
 }
 
-/// Mirror of `fetcher_blocks_build_when_not_allowed` with
+/// Mirror of [`fetcher_blocks_build_when_not_allowed`] with
 /// `allow_build` returning true. The distinction matters — without
 /// this test, a regression that inverted the gate's polarity
 /// (block-when-allowed) would still keep the block-test green.
@@ -862,7 +862,7 @@ fn position_of(invocations: &[Vec<String>], argv: &[&str]) -> Option<usize> {
 ///
 /// The shim is Unix-only (it's a `/bin/sh` script). Windows hosts
 /// would need a `.cmd` shim and a different process-launch model;
-/// out of scope for this test. The `should_use_shallow_matches_known_host`
+/// out of scope for this test. The [`should_use_shallow_matches_known_host`]
 /// unit test already covers the predicate cross-platform, so this
 /// test only adds end-to-end argv coverage for the shallow path.
 #[cfg(unix)]

@@ -1130,7 +1130,7 @@ fn walk_for_paths(
     }
 }
 
-#[allow(
+#[expect(
     clippy::too_many_arguments,
     reason = "Path traversal carries independent graph, filter, classification, and output state without a useful grouping abstraction"
 )]
@@ -2056,7 +2056,7 @@ fn format_fix_with_update_output(
                         color_severity(advisory.severity, &advisory.title),
                     )
                 };
-                format!("- ({severity}) \"{title}\" {}", blue(&advisory.module_name))
+                format!(r#"- ({severity}) "{title}" {}"#, blue(&advisory.module_name))
             }
             None => format!("- Advisory with ID {id} (details not found in the audit report)"),
         }

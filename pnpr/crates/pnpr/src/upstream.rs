@@ -554,7 +554,7 @@ const ABBREVIATED_VERSION_FIELDS: &[&str] = &[
 ];
 
 /// Strip a parsed packument down to the abbreviated install-v1 form.
-/// Should be called *after* `rewrite_tarball_urls` so the returned
+/// Should be called *after* [`rewrite_tarball_urls`] so the returned
 /// document's `dist.tarball` URLs already point at this server.
 pub fn abbreviate_packument(packument: &Value, now: DateTime<Utc>) -> Value {
     let mut out = serde_json::Map::new();

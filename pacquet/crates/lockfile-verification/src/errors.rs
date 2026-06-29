@@ -4,7 +4,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use std::fmt::Write as _;
 
-/// Upstream's `MAX_VIOLATIONS_TO_PRINT`. Keeps a poisoned lockfile
+/// Upstream's [`MAX_VIOLATIONS_TO_PRINT`]. Keeps a poisoned lockfile
 /// from flooding the terminal with hundreds of rejection lines.
 pub const MAX_VIOLATIONS_TO_PRINT: usize = 20;
 
