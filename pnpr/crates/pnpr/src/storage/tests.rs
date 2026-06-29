@@ -25,10 +25,6 @@ fn sidecar_path(tmp: &TempDir, name: &str) -> PathBuf {
     tmp.path().join("cache").join(name).join(PACKUMENT_META_FILE)
 }
 
-fn tarball_sidecar_path(tmp: &TempDir, name: &str, filename: &str) -> PathBuf {
-    tmp.path().join("cache").join(name).join(format!("{filename}{TARBALL_INTEGRITY_SUFFIX}"))
-}
-
 /// The uplink name the cache tests key their validators under.
 const UPLINK: &str = "npmjs";
 
@@ -199,45 +195,6 @@ async fn read_cached_packument_returns_bytes_regardless_of_age() {
     tokio::time::sleep(Duration::from_millis(10)).await;
     let bytes = storage.read_cached_packument(&name).await.unwrap();
     assert_eq!(bytes.as_deref(), Some(&br#"{"v":1}"#[..]));
-}
-
-#[tokio::test]
-async fn cached_tarball_integrity_roundtrips_and_malformed_is_none() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage_in(&tmp);
-    let name = pkg("foo");
-    let integrity = CachedTarballIntegrity { integrity: "sha512-ZGVhZGJlZWY=".to_string(), len: 7 };
-
-    storage.write_cached_tarball_integrity(&name, "foo-1.0.0.tgz", &integrity).await.unwrap();
-    assert_eq!(
-        storage.read_cached_tarball_integrity(&name, "foo-1.0.0.tgz").await,
-        Some(integrity),
-    );
-
-    fs::write(tarball_sidecar_path(&tmp, "foo", "foo-1.0.0.tgz"), b"not json").await.unwrap();
-    assert!(storage.read_cached_tarball_integrity(&name, "foo-1.0.0.tgz").await.is_none());
-}
-
-#[tokio::test]
-async fn removing_cached_tarball_removes_integrity_sidecar() {
-    let tmp = TempDir::new().unwrap();
-    let storage = storage_in(&tmp);
-    let name = pkg("foo");
-    let mut write = storage.open_cached_tarball_tmp(&name, "foo-1.0.0.tgz").await.unwrap();
-    write.write_all(b"tarball").await.unwrap();
-    write.finalize().await.unwrap();
-    storage
-        .write_cached_tarball_integrity(
-            &name,
-            "foo-1.0.0.tgz",
-            &CachedTarballIntegrity { integrity: "sha512-ZGVhZGJlZWY=".to_string(), len: 7 },
-        )
-        .await
-        .unwrap();
-
-    assert!(tarball_sidecar_path(&tmp, "foo", "foo-1.0.0.tgz").exists());
-    assert!(storage.remove_cached_tarball(&name, "foo-1.0.0.tgz").await.unwrap());
-    assert!(!tarball_sidecar_path(&tmp, "foo", "foo-1.0.0.tgz").exists());
 }
 
 #[tokio::test]

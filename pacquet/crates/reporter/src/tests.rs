@@ -6,11 +6,11 @@ use serde_json::Value;
 
 use crate::{
     AddedRoot, BrokenModulesLog, ContextLog, DependencyType, Envelope, FetchingProgressLog,
-    FetchingProgressMessage, GetHostName, HookLog, Host, IgnoredScriptsLog, LifecycleLog,
-    LifecycleMessage, LifecycleStdio, LockfileVerificationLog, LockfileVerificationMessage,
-    LogEvent, LogLevel, PackageImportMethod, PackageImportMethodLog, PackageManifestLog,
-    PackageManifestMessage, PnpmLog, ProgressLog, ProgressMessage, RemovedRoot, Reporter,
-    RequestRetryError, RequestRetryLog, RootLog, RootMessage, SilentReporter,
+    FetchingProgressMessage, GetHostName, GlobalLog, HookLog, Host, IgnoredScriptsLog,
+    LifecycleLog, LifecycleMessage, LifecycleStdio, LockfileVerificationLog,
+    LockfileVerificationMessage, LogEvent, LogLevel, PackageImportMethod, PackageImportMethodLog,
+    PackageManifestLog, PackageManifestMessage, PnpmLog, ProgressLog, ProgressMessage, RemovedRoot,
+    Reporter, RequestRetryError, RequestRetryLog, RootLog, RootMessage, SilentReporter,
     SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason, Stage, StageLog,
     StatsLog, StatsMessage, SummaryLog,
 };
@@ -119,6 +119,33 @@ fn pnpm_event_matches_pnpm_wire_shape() {
     assert_eq!(json["level"], "info");
     assert_eq!(json["message"], "Lockfile is up to date, resolution step is skipped");
     assert_eq!(json["prefix"], "/some/project");
+}
+
+/// Global-channel (`name: "pnpm:global"`) log carries the
+/// `pnpm:global` channel name and a bare `message` with no `prefix` —
+/// matching pnpm's `bole('pnpm:global')` writes. A `prefix` field would
+/// diverge from the upstream shape `@pnpm/cli.default-reporter` parses.
+#[test]
+fn global_event_matches_pnpm_wire_shape() {
+    let event = LogEvent::Global(GlobalLog {
+        level: LogLevel::Info,
+        message: "Authenticate your account at:\nhttps://registry.npmjs.org/auth/abc".to_string(),
+    });
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
+
+    let json: Value = envelope
+        .pipe_ref(serde_json::to_string)
+        .expect("serialize envelope")
+        .pipe_as_ref(serde_json::from_str)
+        .expect("parse JSON");
+
+    assert_eq!(json["name"], "pnpm:global");
+    assert_eq!(json["level"], "info");
+    assert_eq!(
+        json["message"],
+        "Authenticate your account at:\nhttps://registry.npmjs.org/auth/abc",
+    );
+    assert!(json.get("prefix").is_none(), "pnpm:global must not carry a prefix, got {json:?}");
 }
 
 /// Hook log (`name: "pnpm:hook"`) carries the `from` / `hook` /

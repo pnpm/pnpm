@@ -72,6 +72,72 @@ fn recursive_exec_runs_command_in_every_project() {
     drop(root);
 }
 
+/// `pacquet -r --filter <name> exec <command>` runs the command only in
+/// the `--filter`-selected project. Threads `config.filter` through the
+/// recursive exec dispatch.
+#[test]
+fn recursive_exec_filter_selects_only_matching_project() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["project-1", "project-2", "project-3"]);
+
+    pacquet
+        .with_arg("-r")
+        .with_arg("--filter")
+        .with_arg("project-1")
+        .with_arg("exec")
+        .with_arg("touch")
+        .with_arg("ran.txt")
+        .assert()
+        .success();
+
+    assert!(
+        workspace.join("project-1").join("ran.txt").exists(),
+        "the selected project-1 should run the command",
+    );
+    for name in ["project-2", "project-3"] {
+        assert!(
+            !workspace.join(name).join("ran.txt").exists(),
+            "{name} is not selected by --filter and must not run",
+        );
+    }
+
+    drop(root);
+}
+
+/// A `--filter` that matches no project is a no-op: recursive exec exits
+/// 0 and writes no summary even with `--report-summary`, matching pnpm's
+/// main-dispatch exit-0 for an empty selection — rather than erroring on
+/// `--resume-from` or emitting an empty summary.
+#[test]
+fn recursive_exec_filter_no_match_is_a_noop() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["project-1", "project-2"]);
+
+    pacquet
+        .with_arg("-r")
+        .with_arg("--filter")
+        .with_arg("does-not-exist")
+        .with_arg("exec")
+        .with_arg("--report-summary")
+        .with_arg("touch")
+        .with_arg("ran.txt")
+        .assert()
+        .success();
+
+    for name in ["project-1", "project-2"] {
+        assert!(
+            !workspace.join(name).join("ran.txt").exists(),
+            "no project is selected, so {name} should not run",
+        );
+    }
+    assert!(
+        !workspace.join("pnpm-exec-summary.json").exists(),
+        "an empty selection should not write a summary file",
+    );
+
+    drop(root);
+}
+
 /// `--report-summary` writes `pnpm-exec-summary.json` with a `passed`
 /// entry for every project.
 #[test]

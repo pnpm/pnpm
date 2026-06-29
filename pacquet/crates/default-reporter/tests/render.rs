@@ -8,10 +8,10 @@ use pacquet_default_reporter::{
     state::{Output, ReporterState},
 };
 use pacquet_reporter::{
-    AddedRoot, ContextLog, DependencyType, ExecutionTimeLog, LifecycleLog, LifecycleMessage,
-    LifecycleStdio, LogEvent, LogLevel, PackageImportMethod, PackageImportMethodLog, PnpmLog,
-    ProgressLog, ProgressMessage, RootLog, RootMessage, Stage, StageLog, StatsLog, StatsMessage,
-    SummaryLog,
+    AddedRoot, ContextLog, DependencyType, ExecutionTimeLog, GlobalLog, LifecycleLog,
+    LifecycleMessage, LifecycleStdio, LogEvent, LogLevel, PackageImportMethod,
+    PackageImportMethodLog, PnpmLog, ProgressLog, ProgressMessage, RootLog, RootMessage, Stage,
+    StageLog, StatsLog, StatsMessage, SummaryLog,
 };
 
 const CWD: &str = "/repo";
@@ -221,6 +221,22 @@ fn already_up_to_date_pnpm_log_renders() {
         })],
     );
     assert_eq!(frame, "Already up to date");
+}
+
+/// A `pnpm:global` info message renders as a block, like the prefix-less
+/// `pnpm`-channel path — the web-auth flow surfaces the auth URL this way.
+#[test]
+fn global_info_log_renders() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![LogEvent::Global(GlobalLog {
+            level: LogLevel::Info,
+            message: "Authenticate your account at:\nhttps://registry.npmjs.org/auth/abc"
+                .to_string(),
+        })],
+    );
+    assert_eq!(frame, "Authenticate your account at:\nhttps://registry.npmjs.org/auth/abc");
 }
 
 #[test]
