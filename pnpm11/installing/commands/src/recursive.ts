@@ -65,6 +65,7 @@ import {
   pickUniqueUpdatedWorkspaceOverrides,
   pickUpdatedLockfileWorkspaceOverrides,
   pickUpdatedWorkspaceOverrides,
+  shouldWriteUpdatedLockfileOverrides,
   type WorkspaceOverrideUpdateConflict,
   writeUpdatedLockfileOverrides,
 } from './updateWorkspaceOverrides.js'
@@ -400,7 +401,7 @@ export async function recursive (
         allProjects,
         ...policyUpdates,
       }))
-      if (opts.useLockfile !== false) {
+      if (opts.useLockfile !== false && shouldWriteUpdatedLockfileOverrides(updatedOverrides, workspaceOverrides)) {
         promises.push(writeUpdatedLockfileOverrides(opts.lockfileDir, workspaceOverrides, lockfileOptions))
       }
       await Promise.all(promises)

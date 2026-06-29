@@ -134,6 +134,15 @@ export async function writeUpdatedLockfileOverrides (
   await writeWantedLockfile(lockfileDir, wantedLockfile, opts)
 }
 
+export function shouldWriteUpdatedLockfileOverrides (
+  installerUpdatedOverrides: Record<string, string> | undefined,
+  workspaceOverrides: Record<string, string> | undefined
+): boolean {
+  return installerUpdatedOverrides == null &&
+    workspaceOverrides != null &&
+    Object.keys(workspaceOverrides).length > 0
+}
+
 function getDirectDependenciesForOverrides (manifest: ProjectManifest): Record<string, string> {
   return mergeStringRecords(
     manifest.devDependencies,

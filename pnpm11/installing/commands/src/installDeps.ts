@@ -60,6 +60,7 @@ import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './u
 import {
   pickUpdatedLockfileWorkspaceOverrides,
   pickUpdatedWorkspaceOverrides,
+  shouldWriteUpdatedLockfileOverrides,
   type WorkspaceOverrideUpdateConflict,
   writeUpdatedLockfileOverrides,
 } from './updateWorkspaceOverrides.js'
@@ -458,7 +459,7 @@ export async function installDeps (
           ...policyUpdates,
         }),
       ]
-      if (opts.useLockfile !== false) {
+      if (opts.useLockfile !== false && shouldWriteUpdatedLockfileOverrides(updatedOverrides, workspaceOverrides)) {
         promises.push(writeUpdatedLockfileOverrides(lockfileDir, workspaceOverrides, lockfileOptions))
       }
       await Promise.all(promises)
@@ -523,7 +524,7 @@ export async function installDeps (
           ...policyUpdates,
         }),
       ]
-      if (opts.useLockfile !== false) {
+      if (opts.useLockfile !== false && shouldWriteUpdatedLockfileOverrides(updatedOverrides, workspaceOverrides)) {
         promises.push(writeUpdatedLockfileOverrides(lockfileDir, workspaceOverrides, lockfileOptions))
       }
       await Promise.all(promises)

@@ -8,6 +8,7 @@ import {
   pickUniqueUpdatedWorkspaceOverrides,
   pickUpdatedLockfileWorkspaceOverrides,
   pickUpdatedWorkspaceOverrides,
+  shouldWriteUpdatedLockfileOverrides,
   type WorkspaceOverrideUpdateCandidates,
   type WorkspaceOverrideUpdateConflict,
 } from '../src/updateWorkspaceOverrides.js'
@@ -101,6 +102,24 @@ test('addUpdatedWorkspaceOverrideCandidates skips non-string runtime values', ()
   })
 
   expect(pickUniqueUpdatedWorkspaceOverrides(candidates)).toBeUndefined()
+})
+
+test('shouldWriteUpdatedLockfileOverrides skips installer-provided updates', () => {
+  expect(shouldWriteUpdatedLockfileOverrides({
+    foo: '^1.1.0',
+  }, {
+    foo: '^1.1.0',
+  })).toBe(false)
+})
+
+test('shouldWriteUpdatedLockfileOverrides writes fallback workspace updates', () => {
+  expect(shouldWriteUpdatedLockfileOverrides(undefined, {
+    foo: '^1.1.0',
+  })).toBe(true)
+})
+
+test('shouldWriteUpdatedLockfileOverrides skips empty fallback updates', () => {
+  expect(shouldWriteUpdatedLockfileOverrides(undefined, {})).toBe(false)
 })
 
 test('pickUpdatedLockfileWorkspaceOverrides requires the updated manifest specifier to match the lockfile override', async () => {
