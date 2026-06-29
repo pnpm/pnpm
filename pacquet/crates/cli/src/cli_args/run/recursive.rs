@@ -1,5 +1,5 @@
-//! Recursive `pacquet run` — run a package script in every project of
-//! the workspace, in topological order.
+//! Recursive `pacquet run` — run a package script across the
+//! `--filter`-selected workspace projects, in topological order.
 //!
 //! Port of pnpm's
 //! [`runRecursive`](https://github.com/pnpm/pnpm/blob/8eb1be4988/exec/commands/src/runRecursive.ts)
@@ -73,8 +73,8 @@ pub enum RecursiveRunError {
     ScriptNameRequired,
 }
 
-/// Run `args.command` across every workspace project, sorted
-/// topologically. `dir` is the canonicalized working directory; the
+/// Run `args.command` across the `--filter`-selected workspace projects,
+/// sorted topologically. `dir` is the canonicalized working directory; the
 /// workspace root (and the directory the summary is written to) is
 /// `config.workspace_dir`, falling back to `dir` when no
 /// `pnpm-workspace.yaml` exists.

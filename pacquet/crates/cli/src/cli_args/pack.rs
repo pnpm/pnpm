@@ -92,9 +92,9 @@ impl PackArgs {
         }
     }
 
-    /// Pack every workspace project that declares both a name and a
-    /// version, in topological order. Mirrors the recursive arm of
-    /// pnpm's `handler`.
+    /// Pack each `--filter`-selected workspace project that declares both
+    /// a name and a version, in topological order. Mirrors the recursive
+    /// arm of pnpm's `handler`.
     fn run_recursive<Reporter: self::Reporter>(
         &self,
         dir: &Path,
