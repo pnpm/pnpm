@@ -375,6 +375,32 @@ test('setup preserves an existing fish config mode when force overwrites it', as
   }
 })
 
+test('setup retries fish config overwrite when rename cannot replace destination', async () => {
+  const tempHome = actualFs.mkdtempSync(path.join(actualOs.tmpdir(), 'pnpm-setup-fish-rename-retry-'))
+  const originalRename = actualFs.promises.rename
+  const renameSpy = jest.spyOn(actualFs.promises, 'rename')
+  jest.mocked(os.default.homedir).mockReturnValue(tempHome)
+  process.env.FISH_VERSION = '3.7.0'
+  try {
+    const configFile = path.join(tempHome, '.config/fish/conf.d/pnpm.fish')
+    actualFs.mkdirSync(path.dirname(configFile), { recursive: true })
+    actualFs.writeFileSync(configFile, 'old settings\n', { mode: 0o600 })
+
+    renameSpy
+      .mockRejectedValueOnce(Object.assign(new Error('destination exists'), { code: 'EEXIST' }))
+      .mockImplementationOnce(originalRename)
+
+    await setup.handler({ force: true, pnpmHomeDir: '/pnpm-home' })
+
+    expect(renameSpy).toHaveBeenCalledTimes(2)
+    expect(actualFs.statSync(configFile).mode & 0o777).toBe(0o600)
+    expect(actualFs.readFileSync(configFile, 'utf8')).toContain('set -gx PNPM_HOME "/pnpm-home"')
+  } finally {
+    renameSpy.mockRestore()
+    actualFs.rmSync(tempHome, { force: true, recursive: true })
+  }
+})
+
 test('setup skips existing fish config with CRLF line endings', async () => {
   const tempHome = actualFs.mkdtempSync(path.join(actualOs.tmpdir(), 'pnpm-setup-fish-'))
   jest.mocked(os.default.homedir).mockReturnValue(tempHome)
