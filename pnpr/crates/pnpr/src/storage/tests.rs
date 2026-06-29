@@ -1,7 +1,7 @@
 use super::{
-    AsyncWriteExt, CacheValidators, CachedPackument, CachedTarballIntegrity, Duration, ErrorKind,
-    HostedStoreConfig, PACKUMENT_META_FILE, PackageName, PathBuf, RegistryError, Storage,
-    TARBALL_INTEGRITY_SUFFIX, TarballWrite, create_tmp_file_with, fs,
+    AsyncWriteExt, CacheValidators, CachedPackument, Duration, ErrorKind, HostedStoreConfig,
+    PACKUMENT_META_FILE, PackageName, PathBuf, RegistryError, Storage, TarballWrite,
+    create_tmp_file_with, fs,
 };
 use tempfile::TempDir;
 
