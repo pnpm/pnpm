@@ -21,6 +21,7 @@ impl PackageTag {
     /// URL-encoded path segment for use in a registry request URL.
     /// Special characters in custom tags are percent-encoded so the
     /// path component stays syntactically valid.
+    #[must_use]
     pub fn registry_path_segment(&self) -> String {
         match self {
             PackageTag::Latest => "latest".to_string(),
