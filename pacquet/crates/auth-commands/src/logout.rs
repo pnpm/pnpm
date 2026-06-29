@@ -21,7 +21,8 @@ use std::{collections::HashMap, future::Future, io, path::PathBuf};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_network::{
-    RetryOpts, ThrottledClient, nerf_dart, redact_and_sanitize, send_with_retry,
+    RetryOpts, ThrottledClient, encode_uri_component, nerf_dart, redact_and_sanitize,
+    send_with_retry,
 };
 use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 
@@ -227,29 +228,6 @@ fn normalize_registry_url(registry: &str) -> String {
 /// the segment boundary.
 fn revoke_log_url(revoke_url: &str) -> &str {
     revoke_url.rsplit_once('/').map_or(revoke_url, |(prefix, _token)| prefix)
-}
-
-/// Percent-encode `value` the way JavaScript's `encodeURIComponent`
-/// does: every byte outside the unreserved set `A-Za-z0-9-_.!~*'()` is
-/// escaped as `%XX` with uppercase hex digits.
-fn encode_uri_component(value: &str) -> String {
-    let mut out = String::with_capacity(value.len());
-    for &byte in value.as_bytes() {
-        if byte.is_ascii_alphanumeric()
-            || matches!(byte, b'-' | b'_' | b'.' | b'!' | b'~' | b'*' | b'\'' | b'(' | b')')
-        {
-            out.push(byte as char);
-        } else {
-            out.push('%');
-            out.push(hex_upper(byte >> 4));
-            out.push(hex_upper(byte & 0x0f));
-        }
-    }
-    out
-}
-
-fn hex_upper(nibble: u8) -> char {
-    char::from_digit(u32::from(nibble), 16).expect("nibble is < 16").to_ascii_uppercase()
 }
 
 /// Errors surfaced by [`logout`]. The two user-facing variants carry

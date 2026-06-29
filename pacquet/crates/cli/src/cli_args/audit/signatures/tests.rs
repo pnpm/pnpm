@@ -1,8 +1,9 @@
 use super::{
     PackageSignature, RegistryKey, SignaturePackage, SignatureVerificationResult,
-    encode_package_name, parse_timestamp, render_signature_verification_result, verify_one,
+    parse_timestamp, render_signature_verification_result, verify_one,
     verify_package_signatures,
 };
+use pacquet_network::encode_package_name;
 use base64::Engine as _;
 use p256::ecdsa::SigningKey;
 
