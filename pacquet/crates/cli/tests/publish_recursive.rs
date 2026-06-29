@@ -209,3 +209,20 @@ fn filter_exclusion_without_recursive_flag_publishes_nothing() {
 
     drop(root);
 }
+
+/// The global `-r` short flag works *after* the `publish` subcommand, not only
+/// before it — `pnpm publish -r` is the canonical recursive-publish ordering.
+/// (`publish` must not declare its own `--recursive` arg, which would strip the
+/// global `-r` short from the subcommand.)
+#[test]
+fn recursive_publish_short_flag_after_subcommand() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[("project-1", private_pkg("project-1")), ("project-2", private_pkg("project-2"))],
+    );
+
+    pacquet.with_arg("publish").with_arg("-r").with_arg("--no-git-checks").assert().success();
+
+    drop(root);
+}

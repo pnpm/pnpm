@@ -84,10 +84,6 @@ pub struct PublishArgs {
     #[clap(long)]
     pub force: bool,
 
-    /// Publish all packages from the workspace.
-    #[clap(long)]
-    pub recursive: bool,
-
     /// Send all workspace packages in a single request (requires `--recursive`).
     #[clap(long)]
     pub batch: bool,
@@ -108,7 +104,7 @@ impl PublishArgs {
         config: &Config,
         recursive: bool,
     ) -> miette::Result<()> {
-        if self.batch && !(recursive || self.recursive) {
+        if self.batch && !recursive {
             return Err(miette::miette!(
                 code = "ERR_PNPM_BATCH_PUBLISH_REQUIRES_RECURSIVE",
                 help = r#"Run "pnpm publish -r --batch" to publish all workspace packages in a single request."#,
@@ -122,7 +118,7 @@ impl PublishArgs {
         let git_checks = config.git_checks && !self.no_git_checks;
         run_git_checks::<Host>(dir, git_checks, publish_branch)?;
 
-        if recursive || self.recursive {
+        if recursive {
             let published = self.run_recursive::<Reporter>(dir, config).await?;
             // Mirror `pnpm publish --json`: the recursive path emits the array of
             // per-package summaries (an empty array when nothing was published).
