@@ -40,44 +40,29 @@ fn test_satisfies_non_semver() {
 }
 
 #[test]
-fn test_extract_candidate_version_simple() {
-    assert_eq!(extract_candidate_version("^1.2.3").as_deref(), Some("1.2.3"));
+fn test_normalize_version_str() {
+    assert_eq!(normalize_version_str("1.x"), "1.0.0");
+    assert_eq!(normalize_version_str("1.2.x"), "1.2.0");
+    assert_eq!(normalize_version_str("1"), "1.0.0");
+    assert_eq!(normalize_version_str("1.2.3-beta.0"), "1.2.3-beta.0");
 }
 
 #[test]
-fn test_extract_candidate_version_tilde() {
-    assert_eq!(extract_candidate_version("~4.5.6").as_deref(), Some("4.5.6"));
+fn test_intersect_multiple_ranges_basic() {
+    let r = vec!["^1.2.3".to_string(), ">=1.0.0".to_string()];
+    assert_eq!(intersect_multiple_ranges(&r).as_deref(), Some(">=1.2.3 <2.0.0"));
 }
 
 #[test]
-fn test_extract_candidate_version_exact() {
-    assert_eq!(extract_candidate_version("7.8.9").as_deref(), Some("7.8.9"));
+fn test_intersect_multiple_ranges_conflict() {
+    let r = vec!["^17.0.0".to_string(), "^18.0.0".to_string()];
+    assert_eq!(intersect_multiple_ranges(&r), None);
 }
 
 #[test]
-fn test_extract_candidate_version_star() {
-    assert_eq!(extract_candidate_version("*"), None);
-}
-
-#[test]
-fn test_extract_candidate_version_with_x() {
-    assert_eq!(extract_candidate_version("1.x"), None);
-}
-
-#[test]
-fn test_extract_candidate_version_greater_than() {
-    assert_eq!(extract_candidate_version(">=1.2.3").as_deref(), Some("1.2.3"));
-}
-
-#[test]
-fn test_extract_candidate_version_hyphen_range() {
-    assert_eq!(extract_candidate_version("1.2.3 - 2.0.0").as_deref(), Some("1.2.3"));
-}
-
-#[test]
-fn test_extract_candidate_version_invalid() {
-    assert_eq!(extract_candidate_version("latest"), None);
-    assert_eq!(extract_candidate_version(""), None);
+fn test_intersect_multiple_ranges_exact() {
+    let r = vec!["^16.0.0".to_string(), "16.1.0".to_string()];
+    assert_eq!(intersect_multiple_ranges(&r).as_deref(), Some("16.1.0"));
 }
 
 #[test]
@@ -218,7 +203,7 @@ fn test_parse_allowed_versions_by_parent() {
     let (match_all, by_parent) = parse_allowed_versions(&allowed);
     assert!(match_all.is_empty());
     assert_eq!(by_parent.len(), 1);
-    assert_eq!(by_parent["@foo/bar"]["react"], vec!["^18.0.0"]);
+    assert_eq!(by_parent["@foo/bar"][0].peer_rules["react"], vec!["^18.0.0"]);
 }
 
 #[test]
@@ -412,6 +397,43 @@ fn test_filter_peer_issues_ignore_missing_pattern() {
         },
     );
     assert!(filtered["project"].missing.is_empty());
+}
+
+#[test]
+fn test_filter_peer_issues_allowed_versions_parent_scoped() {
+    let mut issues: IssuesByProjects = HashMap::new();
+    let mut peer = PeerIssues {
+        bad: HashMap::new(),
+        missing: HashMap::new(),
+        conflicts: Vec::new(),
+        intersections: HashMap::new(),
+    };
+    peer.bad.insert(
+        "react".to_string(),
+        vec![BadPeerIssue {
+            parents: vec![
+                ParentPkg { name: "@foo/bar".to_string(), version: "1.2.3".to_string() }
+            ],
+            optional: false,
+            wanted_range: "^18.0.0".to_string(),
+            found_version: "17.0.0".to_string(),
+            resolved_from: Vec::new(),
+        }],
+    );
+    issues.insert("project".to_string(), peer);
+
+    let mut allowed = BTreeMap::new();
+    allowed.insert("@foo/bar@^1.0.0>react".to_string(), "^17.0.0".to_string());
+
+    let filtered = filter_peer_issues(
+        issues,
+        &PeerDependencyRules {
+            ignore_missing: None,
+            allow_any: None,
+            allowed_versions: Some(allowed),
+        },
+    );
+    assert!(filtered["project"].bad.is_empty());
 }
 
 #[test]
