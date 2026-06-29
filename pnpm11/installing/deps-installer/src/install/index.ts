@@ -8,7 +8,7 @@ import { mergeCatalogs } from '@pnpm/catalogs.config'
 import { parseCatalogProtocol } from '@pnpm/catalogs.protocol-parser'
 import { type CatalogResultMatcher, matchCatalogResolveResult, resolveFromCatalog } from '@pnpm/catalogs.resolver'
 import type { Catalogs } from '@pnpm/catalogs.types'
-import { parseOverrides } from '@pnpm/config.parse-overrides'
+import { parseOverrides, type VersionOverride } from '@pnpm/config.parse-overrides'
 import {
   LAYOUT_VERSION,
   LOCKFILE_MAJOR_VERSION,
@@ -168,6 +168,7 @@ export interface InstallResult {
    * merge this object with the current catalog configs in pnpm-workspace.yaml.
    */
   updatedCatalogs: Catalogs | undefined
+  updatedOverrides: Record<string, string> | undefined
   updatedManifest: ProjectManifest
   ignoredBuilds: IgnoredBuilds | undefined
   /** Forwarded from {@link MutateModulesResult.resolutionPolicyViolations}. */
@@ -188,7 +189,7 @@ export async function install (
     return installViaPnprServer(manifest, rootDir, opts)
   }
 
-  const { updatedCatalogs, updatedProjects: projects, ignoredBuilds, resolutionPolicyViolations, dryRunResult } = await mutateModules(
+  const { updatedCatalogs, updatedOverrides, updatedProjects: projects, ignoredBuilds, resolutionPolicyViolations, dryRunResult } = await mutateModules(
     [
       {
         mutation: 'install',
@@ -210,7 +211,7 @@ export async function install (
       }],
     }
   )
-  return { updatedCatalogs, updatedManifest: projects[0].manifest, ignoredBuilds, resolutionPolicyViolations, dryRunResult }
+  return { updatedCatalogs, updatedOverrides, updatedManifest: projects[0].manifest, ignoredBuilds, resolutionPolicyViolations, dryRunResult }
 }
 
 interface ProjectToBeInstalled {
@@ -232,6 +233,7 @@ export type MutateModulesOptions = InstallOptions & {
 
 export interface MutateModulesInSingleProjectResult {
   updatedCatalogs: Catalogs | undefined
+  updatedOverrides: Record<string, string> | undefined
   updatedProject: UpdatedProject
   ignoredBuilds: IgnoredBuilds | undefined
   /** Forwarded from {@link MutateModulesResult.resolutionPolicyViolations}. */
@@ -269,6 +271,7 @@ export async function mutateModulesInSingleProject (
   )
   return {
     updatedCatalogs: result.updatedCatalogs,
+    updatedOverrides: result.updatedOverrides,
     updatedProject: result.updatedProjects[0],
     ignoredBuilds: result.ignoredBuilds,
     resolutionPolicyViolations: result.resolutionPolicyViolations,
@@ -278,6 +281,7 @@ export async function mutateModulesInSingleProject (
 
 export interface MutateModulesResult {
   updatedCatalogs?: Catalogs
+  updatedOverrides?: Record<string, string>
   updatedProjects: UpdatedProject[]
   stats: InstallationResultStats
   depsRequiringBuild?: DepPath[]
@@ -563,6 +567,7 @@ export async function mutateModules (
 
   return {
     updatedCatalogs: result.updatedCatalogs,
+    updatedOverrides: result.updatedOverrides,
     updatedProjects: result.updatedProjects,
     stats: result.stats ?? { added: 0, removed: 0, linkedToRoot: 0 },
     depsRequiringBuild: result.depsRequiringBuild,
@@ -573,6 +578,7 @@ export async function mutateModules (
 
   interface InnerInstallResult {
     readonly updatedCatalogs?: Catalogs
+    readonly updatedOverrides?: Record<string, string>
     readonly updatedProjects: UpdatedProject[]
     readonly stats?: InstallationResultStats
     readonly depsRequiringBuild?: DepPath[]
@@ -1347,7 +1353,7 @@ export async function addDependenciesToPackage (
   } & InstallMutationOptions
 ): Promise<InstallResult> {
   const rootDir = (opts.dir ?? process.cwd()) as ProjectRootDir
-  const { updatedCatalogs, updatedProjects: projects, ignoredBuilds, resolutionPolicyViolations } = await mutateModules(
+  const { updatedCatalogs, updatedOverrides, updatedProjects: projects, ignoredBuilds, resolutionPolicyViolations } = await mutateModules(
     [
       {
         allowNew: opts.allowNew,
@@ -1375,7 +1381,7 @@ export async function addDependenciesToPackage (
         },
       ],
     })
-  return { updatedCatalogs, updatedManifest: projects[0].manifest, ignoredBuilds, resolutionPolicyViolations }
+  return { updatedCatalogs, updatedOverrides, updatedManifest: projects[0].manifest, ignoredBuilds, resolutionPolicyViolations }
 }
 
 export type ImporterToUpdate = {
@@ -1421,6 +1427,7 @@ function isCheckOnlyInstall (opts: { lockfileCheck?: unknown, dryRun?: boolean }
 
 interface InstallFunctionResult {
   updatedCatalogs?: Catalogs
+  updatedOverrides?: Record<string, string>
   newLockfile: LockfileObject
   projects: UpdatedProject[]
   stats?: InstallationResultStats
@@ -1463,6 +1470,15 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   const originalLockfileForCheck = isInstallationOnlyForLockfileCheck
     ? clone(ctx.wantedLockfile)
     : null
+  const canPickUpdatedWorkspaceOverrides = opts.parsedOverrides != null &&
+    opts.parsedOverrides.length > 0 &&
+    opts.overrides != null &&
+    Object.keys(opts.overrides).length > 0
+  const originalManifestsById = canPickUpdatedWorkspaceOverrides
+    ? new Map<ProjectId, ProjectManifest>(
+      projects.map(({ id, manifest, originalManifest }) => [id, clone(originalManifest ?? manifest)])
+    )
+    : undefined
 
   ctx.wantedLockfile.importers = ctx.wantedLockfile.importers || {}
   for (const { id } of projects) {
@@ -1664,9 +1680,15 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
   // lockfile `overrides` keeps pointing at the old version while `catalogs`
   // advances, and a later `--frozen-lockfile` install fails with
   // ERR_PNPM_LOCKFILE_CONFIG_MISMATCH.
-  if (updatedCatalogs != null && opts.overrides != null && Object.keys(opts.overrides).length > 0) {
+  const updatedOverrides = originalManifestsById == null
+    ? undefined
+    : pickUpdatedWorkspaceOverrides(opts.parsedOverrides, opts.overrides, projects, originalManifestsById, newLockfile)
+  if ((updatedCatalogs != null || updatedOverrides != null) && opts.overrides != null && Object.keys(opts.overrides).length > 0) {
+    const overrides = updatedOverrides == null
+      ? opts.overrides
+      : mergeStringRecords(opts.overrides, updatedOverrides)
     newLockfile.overrides = createOverridesMapFromParsed(
-      parseOverrides(opts.overrides, mergeCatalogs(opts.catalogs, updatedCatalogs))
+      parseOverrides(overrides, updatedCatalogs == null ? opts.catalogs : mergeCatalogs(opts.catalogs, updatedCatalogs))
     )
   }
 
@@ -2031,6 +2053,7 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
 
   return {
     updatedCatalogs,
+    updatedOverrides,
     newLockfile,
     projects: projects.map(({ id, manifest, rootDir }) => ({
       manifest,
@@ -2049,6 +2072,88 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
 
 function allMutationsAreInstalls (projects: MutatedProject[]): boolean {
   return projects.every((project) => project.mutation === 'install' && !project.update && !project.updateMatching)
+}
+
+function pickUpdatedWorkspaceOverrides (
+  parsedOverrides: VersionOverride[] | undefined,
+  rawOverrides: Record<string, string> | undefined,
+  projects: ImporterToUpdate[],
+  originalManifestsById: Map<ProjectId, ProjectManifest>,
+  lockfile: LockfileObject
+): Record<string, string> | undefined {
+  if (parsedOverrides == null || parsedOverrides.length === 0 || rawOverrides == null || Object.keys(rawOverrides).length === 0) return undefined
+
+  const candidates = new Map<string, Set<string>>()
+  for (const { id } of projects) {
+    const previousManifest = originalManifestsById.get(id)
+    if (previousManifest == null) continue
+
+    const previousDependencies = getDirectDependenciesForOverrides(previousManifest)
+    const nextSpecifiers = lockfile.importers[id]?.specifiers
+    for (let index = 0; index < parsedOverrides.length; index++) {
+      const versionOverride: VersionOverride = parsedOverrides[index]!
+      if (versionOverride.parentPkg != null) continue
+      const alias = versionOverride.targetPkg.name
+      const nextSpecifier = getOwnString(nextSpecifiers, alias)
+      const previousSpecifier = getOwnString(previousDependencies, alias)
+      if (nextSpecifier == null || previousSpecifier == null || previousSpecifier === nextSpecifier) continue
+      if (versionOverride.selector !== alias || getOwnString(rawOverrides, alias) !== previousSpecifier) continue
+
+      let values = candidates.get(alias)
+      if (values == null) {
+        values = new Set()
+        candidates.set(alias, values)
+      }
+      values.add(nextSpecifier)
+    }
+  }
+
+  const updatedOverrides = createSafeStringRecord()
+  for (const [alias, values] of candidates) {
+    if (values.size !== 1) continue
+    setOwnString(updatedOverrides, alias, Array.from(values)[0]!)
+  }
+
+  return Object.keys(updatedOverrides).length > 0 ? updatedOverrides : undefined
+}
+
+function getDirectDependenciesForOverrides (manifest: ProjectManifest): Record<string, string> {
+  return mergeStringRecords(
+    manifest.devDependencies,
+    manifest.dependencies,
+    manifest.optionalDependencies
+  )
+}
+
+function mergeStringRecords (...records: Array<Record<string, string> | undefined>): Record<string, string> {
+  const result = createSafeStringRecord()
+  for (const record of records) {
+    if (record == null) continue
+    for (const key of Object.keys(record)) {
+      const value = getOwnString(record, key)
+      if (value == null) continue
+      setOwnString(result, key, value)
+    }
+  }
+  return result
+}
+
+function createSafeStringRecord (): Record<string, string> {
+  return Object.create(null) as Record<string, string>
+}
+
+function getOwnString (record: Record<string, string> | undefined, key: string): string | undefined {
+  const value = record != null && Object.prototype.propertyIsEnumerable.call(record, key) ? record[key] : undefined
+  return typeof value === 'string' ? value : undefined
+}
+
+function setOwnString (record: Record<string, string>, key: string, value: string): void {
+  Object.defineProperty(record, key, {
+    value,
+    writable: true,
+    enumerable: true,
+    configurable: true,
+  })
 }
 
 /**
@@ -2688,6 +2793,7 @@ async function installViaPnprServer (
     if (opts.lockfileOnly) {
       return {
         updatedCatalogs: undefined,
+        updatedOverrides: undefined,
         updatedManifest: manifest,
         ignoredBuilds: undefined,
         stats: { added: 0, removed: 0, linkedToRoot: 0 },
@@ -2742,6 +2848,7 @@ async function installViaPnprServer (
 
     return {
       updatedCatalogs: undefined,
+      updatedOverrides: undefined,
       updatedManifest: manifest,
       ignoredBuilds,
       // Pacquet doesn't surface a structured stats return; default to

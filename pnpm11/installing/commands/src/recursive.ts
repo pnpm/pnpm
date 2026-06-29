@@ -53,12 +53,21 @@ import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writ
 import { isSubdir } from 'is-subdir'
 import pFilter from 'p-filter'
 import pLimit from 'p-limit'
+import { clone } from 'ramda'
 
 import { getPinnedVersion } from './getPinnedVersion.js'
 import { getSaveType } from './getSaveType.js'
 import { handleIgnoredBuilds } from './handleIgnoredBuilds.js'
 import { type PolicyViolation, setupPolicyHandlers } from './policyHandlers.js'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies.js'
+import {
+  addUpdatedWorkspaceOverrideCandidates,
+  pickUniqueUpdatedWorkspaceOverrides,
+  pickUpdatedLockfileWorkspaceOverrides,
+  pickUpdatedWorkspaceOverrides,
+  type WorkspaceOverrideUpdateConflict,
+  writeUpdatedLockfileOverrides,
+} from './updateWorkspaceOverrides.js'
 
 export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'bail'
@@ -77,6 +86,7 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'lockfileOnly'
 | 'modulesDir'
 | 'pnprServer'
+| 'overrides'
 | 'allowBuilds'
 | 'registries'
 | 'runtime'
@@ -139,6 +149,9 @@ export type RecursiveOptions = CreateStoreControllerOptions & Pick<Config,
 | 'ci'
 | 'sort'
 | 'strictDepBuilds'
+| 'useGitBranchLockfile'
+| 'useLockfile'
+| 'mergeGitBranchLockfiles'
 | 'workspaceConcurrency'
   >
 > & Required<
@@ -331,8 +344,15 @@ export async function recursive (
       throw new PnpmError('NO_PACKAGE_IN_DEPENDENCIES',
         'None of the specified packages were found in the dependencies of any of the projects.')
     }
+    const canPickUpdatedWorkspaceOverrides = opts.overrides != null && Object.keys(opts.overrides).length > 0
+    const originalManifestsByRootDir = canPickUpdatedWorkspaceOverrides
+      ? new Map<ProjectRootDir, ProjectManifest>(
+        mutatedImporters.map(({ rootDir }) => [rootDir, clone(manifestsByPath[rootDir].manifest)])
+      )
+      : undefined
     const {
       updatedCatalogs,
+      updatedOverrides,
       updatedProjects: mutatedPkgs,
       ignoredBuilds,
       resolutionPolicyViolations,
@@ -348,15 +368,41 @@ export async function recursive (
       // manifest never saw, and the next install would re-prompt or
       // fail verification.
       const policyUpdates = policyHandlers?.pickManifestUpdates(resolutionPolicyViolations)
+      const projectsForOverrides = canPickUpdatedWorkspaceOverrides
+        ? mutatedPkgs.map(({ originalManifest, manifest, rootDir }) => ({
+          before: originalManifestsByRootDir?.get(rootDir) ?? manifestsByPath[rootDir].manifest,
+          after: originalManifest ?? manifest,
+        }))
+        : []
+      const lockfileOptions = {
+        useGitBranchLockfile: opts.useGitBranchLockfile,
+        mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+      }
+      const onConflict = createWorkspaceOverrideConflictLogger(opts.workspaceDir)
+      const workspaceOverrides = updatedOverrides ??
+        (canPickUpdatedWorkspaceOverrides ? pickUpdatedWorkspaceOverrides(opts.overrides, projectsForOverrides, { onConflict }) : undefined) ??
+        (opts.useLockfile !== false && canPickUpdatedWorkspaceOverrides
+          ? await pickUpdatedLockfileWorkspaceOverrides({
+            lockfileDir: opts.lockfileDir,
+            overrides: opts.overrides,
+            projects: projectsForOverrides,
+            ...lockfileOptions,
+            onConflict,
+          })
+          : undefined)
       const promises: Array<Promise<void>> = mutatedPkgs.map(async ({ originalManifest, manifest, rootDir }) => {
         return manifestsByPath[rootDir].writeProjectManifest(originalManifest ?? manifest)
       })
       promises.push(updateWorkspaceManifest(opts.workspaceDir, {
         updatedCatalogs,
+        updatedOverrides: workspaceOverrides,
         cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
         allProjects,
         ...policyUpdates,
       }))
+      if (opts.useLockfile !== false) {
+        promises.push(writeUpdatedLockfileOverrides(opts.lockfileDir, workspaceOverrides, lockfileOptions))
+      }
       await Promise.all(promises)
     }
     await handleIgnoredBuilds(opts, ignoredBuilds)
@@ -366,6 +412,8 @@ export async function recursive (
   const pkgPaths = (Object.keys(opts.selectedProjectsGraph) as ProjectRootDir[]).sort()
 
   let updatedCatalogs: Catalogs | undefined
+  const updatedOverrideCandidates = new Map<string, Set<string>>()
+  const canPickUpdatedWorkspaceOverrides = opts.overrides != null && Object.keys(opts.overrides).length > 0
 
   const allIgnoredBuilds = new Set<DepPath>()
   // Each per-project install returns its own slice of lockfile-resolution
@@ -407,6 +455,7 @@ export async function recursive (
             currentInput = createWorkspaceSpecs(currentInput, workspacePackages)
           }
         }
+        const manifestBeforeMutation = canPickUpdatedWorkspaceOverrides ? clone(manifest) : manifest
 
         type ActionOpts =
           & Omit<InstallOptions, 'allProjects'>
@@ -417,6 +466,7 @@ export async function recursive (
 
         interface ActionResult {
           updatedCatalogs?: Catalogs
+          updatedOverrides?: Record<string, string>
           updatedManifest: ProjectManifest
           ignoredBuilds: IgnoredBuilds | undefined
           resolutionPolicyViolations?: PolicyViolation[]
@@ -437,6 +487,7 @@ export async function recursive (
               ], opts)
               return {
                 updatedCatalogs: undefined, // there's no reason to add new or update catalogs on `pnpm remove`
+                updatedOverrides: undefined,
                 updatedManifest: mutationResult.updatedProjects[0].manifest,
                 ignoredBuilds: mutationResult.ignoredBuilds,
                 resolutionPolicyViolations: mutationResult.resolutionPolicyViolations,
@@ -453,6 +504,7 @@ export async function recursive (
         const localConfig = getProjectConfig(manifest) ?? {}
         const {
           updatedCatalogs: newCatalogsAddition,
+          updatedOverrides: newOverrides,
           updatedManifest: newManifest,
           ignoredBuilds,
           resolutionPolicyViolations,
@@ -475,7 +527,7 @@ export async function recursive (
             resolutionVerifiers: store.resolutionVerifiers,
           }
         )
-        if (opts.save !== false) {
+        if (opts.save !== false && !opts.dryRun) {
           await writeProjectManifest(newManifest)
           if (newCatalogsAddition) {
             // Per-project additions are partial maps keyed by catalog name then
@@ -483,6 +535,14 @@ export async function recursive (
             // different entries of the same catalog don't clobber each other.
             updatedCatalogs = mergeCatalogs(updatedCatalogs, newCatalogsAddition)
           }
+          const workspaceOverrides = newOverrides ??
+            (canPickUpdatedWorkspaceOverrides
+              ? pickUpdatedWorkspaceOverrides(opts.overrides, [{
+                before: manifestBeforeMutation,
+                after: newManifest,
+              }], { onConflict: createWorkspaceOverrideConflictLogger(rootDir) })
+              : undefined)
+          addUpdatedWorkspaceOverrideCandidates(updatedOverrideCandidates, workspaceOverrides)
         }
         if (ignoredBuilds?.size) {
           for (const depPath of ignoredBuilds) {
@@ -514,13 +574,17 @@ export async function recursive (
     })
   ))
   await handleIgnoredBuilds(opts, allIgnoredBuilds.size ? allIgnoredBuilds : undefined)
-  if (opts.save !== false) {
+  if (opts.save !== false && !opts.dryRun) {
     // Only pick entries when we'll actually persist. Otherwise the
     // info log would claim entries were added that the workspace
     // manifest never saw, mirroring the gate the shared-lockfile
     // branch + installDeps already apply.
+    const updatedOverrides = pickUniqueUpdatedWorkspaceOverrides(updatedOverrideCandidates, {
+      onConflict: createWorkspaceOverrideConflictLogger(opts.workspaceDir),
+    })
     await updateWorkspaceManifest(opts.workspaceDir, {
       updatedCatalogs,
+      updatedOverrides,
       cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
       allProjects,
       ...policyHandlers?.pickManifestUpdates(allResolutionPolicyViolations),
@@ -655,4 +719,13 @@ function getImporters (opts: Pick<RecursiveOptions, 'selectedProjectsGraph' | 'i
     rootDirs = rootDirs.filter((rootDir) => !opts.ignoredPackages!.has(rootDir))
   }
   return rootDirs.map((rootDir) => ({ rootDir, rootDirRealPath: opts.selectedProjectsGraph[rootDir].package.rootDirRealPath }))
+}
+
+function createWorkspaceOverrideConflictLogger (prefix: string): (conflict: WorkspaceOverrideUpdateConflict) => void {
+  return ({ alias, specifiers }) => {
+    logger.warn({
+      message: `Skipping workspace override update for "${alias}" because it resolved to multiple specifiers: ${specifiers.join(', ')}.`,
+      prefix,
+    })
+  }
 }

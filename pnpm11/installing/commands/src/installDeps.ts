@@ -40,6 +40,7 @@ import { findWorkspaceProjects } from '@pnpm/workspace.projects-reader'
 import { sequenceGraph } from '@pnpm/workspace.projects-sorter'
 import { updateWorkspaceState, type WorkspaceStateSettings } from '@pnpm/workspace.state'
 import { updateWorkspaceManifest } from '@pnpm/workspace.workspace-manifest-writer'
+import { clone } from 'ramda'
 
 import { getPinnedVersion } from './getPinnedVersion.js'
 import { getSaveType } from './getSaveType.js'
@@ -56,6 +57,12 @@ import {
 } from './recursive.js'
 import { makeRunPacquet } from './runPacquet.js'
 import { createWorkspaceSpecs, updateToWorkspacePackagesFromManifest } from './updateWorkspaceDependencies.js'
+import {
+  pickUpdatedLockfileWorkspaceOverrides,
+  pickUpdatedWorkspaceOverrides,
+  type WorkspaceOverrideUpdateConflict,
+  writeUpdatedLockfileOverrides,
+} from './updateWorkspaceOverrides.js'
 import { verifyPacquetIdentity } from './verifyPacquetIdentity.js'
 
 const OVERWRITE_UPDATE_OPTIONS = {
@@ -113,6 +120,7 @@ export type InstallDepsOptions = Pick<Config,
 | 'trustLockfile'
 | 'allowBuilds'
 | 'optional'
+| 'overrides'
 | 'workspaceConcurrency'
 | 'workspaceDir'
 | 'workspacePackagePatterns'
@@ -399,6 +407,7 @@ export async function installDeps (
     }
   }
   if (params?.length) {
+    const manifestBeforeMutation = clone(manifest)
     const mutatedProject = {
       allowNew: opts.allowNew,
       binsDir: opts.bin,
@@ -410,22 +419,49 @@ export async function installDeps (
       rootDir: opts.dir as ProjectRootDir,
       targetDependenciesField: getSaveType(opts),
     }
-    const { updatedCatalogs, updatedProject, ignoredBuilds, resolutionPolicyViolations, dryRunResult } = await mutateModulesInSingleProject(mutatedProject, installOpts)
+    const { updatedCatalogs, updatedOverrides, updatedProject, ignoredBuilds, resolutionPolicyViolations, dryRunResult } = await mutateModulesInSingleProject(mutatedProject, installOpts)
     if (opts.save !== false && !opts.dryRun) {
       // Only pick entries when we'll actually persist. Otherwise the
       // info log would claim we added entries the workspace manifest
       // never saw, and the next install would re-prompt or fail
       // verification.
       const policyUpdates = policyHandlers?.pickManifestUpdates(resolutionPolicyViolations)
-      await Promise.all([
+      const projectsForOverrides = [{
+        before: manifestBeforeMutation,
+        after: updatedProject.manifest,
+      }]
+      const workspaceDir = opts.workspaceDir ?? opts.dir
+      const lockfileDir = opts.lockfileDir ?? workspaceDir
+      const lockfileOptions = {
+        useGitBranchLockfile: opts.useGitBranchLockfile,
+        mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+      }
+      const onConflict = createWorkspaceOverrideConflictLogger(workspaceDir)
+      const workspaceOverrides = updatedOverrides ??
+        pickUpdatedWorkspaceOverrides(opts.overrides, projectsForOverrides, { onConflict }) ??
+        (opts.useLockfile !== false
+          ? await pickUpdatedLockfileWorkspaceOverrides({
+            lockfileDir,
+            overrides: opts.overrides,
+            projects: projectsForOverrides,
+            ...lockfileOptions,
+            onConflict,
+          })
+          : undefined)
+      const promises: Array<Promise<void>> = [
         writeProjectManifest(updatedProject.manifest),
-        updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
+        updateWorkspaceManifest(workspaceDir, {
           updatedCatalogs,
+          updatedOverrides: workspaceOverrides,
           cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
           allProjects: opts.allProjects,
           ...policyUpdates,
         }),
-      ])
+      ]
+      if (opts.useLockfile !== false) {
+        promises.push(writeUpdatedLockfileOverrides(lockfileDir, workspaceOverrides, lockfileOptions))
+      }
+      await Promise.all(promises)
     }
     if (!opts.lockfileOnly) {
       await updateWorkspaceState({
@@ -441,7 +477,9 @@ export async function installDeps (
     return dryRunResult
   }
 
-  const { updatedCatalogs, updatedManifest, ignoredBuilds, resolutionPolicyViolations, dryRunResult } = await install(manifest, {
+  const canPickUpdatedWorkspaceOverrides = opts.update === true && opts.overrides != null && Object.keys(opts.overrides).length > 0
+  const manifestBeforeMutation = canPickUpdatedWorkspaceOverrides ? clone(manifest) : manifest
+  const { updatedCatalogs, updatedOverrides, updatedManifest, ignoredBuilds, resolutionPolicyViolations, dryRunResult } = await install(manifest, {
     ...installOpts,
     updatePackageManifest,
     updateMatching,
@@ -453,15 +491,42 @@ export async function installDeps (
   if (opts.save !== false && !opts.dryRun) {
     const policyUpdates = policyHandlers?.pickManifestUpdates(resolutionPolicyViolations)
     if (opts.update === true) {
-      await Promise.all([
+      const projectsForOverrides = [{
+        before: manifestBeforeMutation,
+        after: updatedManifest,
+      }]
+      const workspaceDir = opts.workspaceDir ?? opts.dir
+      const lockfileDir = opts.lockfileDir ?? workspaceDir
+      const lockfileOptions = {
+        useGitBranchLockfile: opts.useGitBranchLockfile,
+        mergeGitBranchLockfiles: opts.mergeGitBranchLockfiles,
+      }
+      const onConflict = createWorkspaceOverrideConflictLogger(workspaceDir)
+      const workspaceOverrides = updatedOverrides ??
+        (canPickUpdatedWorkspaceOverrides ? pickUpdatedWorkspaceOverrides(opts.overrides, projectsForOverrides, { onConflict }) : undefined) ??
+        (opts.useLockfile !== false && canPickUpdatedWorkspaceOverrides
+          ? await pickUpdatedLockfileWorkspaceOverrides({
+            lockfileDir,
+            overrides: opts.overrides,
+            projects: projectsForOverrides,
+            ...lockfileOptions,
+            onConflict,
+          })
+          : undefined)
+      const promises: Array<Promise<void>> = [
         writeProjectManifest(updatedManifest),
-        updateWorkspaceManifest(opts.workspaceDir ?? opts.dir, {
+        updateWorkspaceManifest(workspaceDir, {
           updatedCatalogs,
+          updatedOverrides: workspaceOverrides,
           cleanupUnusedCatalogs: opts.cleanupUnusedCatalogs,
           allProjects,
           ...policyUpdates,
         }),
-      ])
+      ]
+      if (opts.useLockfile !== false) {
+        promises.push(writeUpdatedLockfileOverrides(lockfileDir, workspaceOverrides, lockfileOptions))
+      }
+      await Promise.all(promises)
     } else if (policyUpdates != null) {
       // Plain `pnpm install` (no --update, no params) wouldn't otherwise touch
       // the workspace manifest. Persist the auto-policy patches anyway so any
@@ -638,5 +703,14 @@ async function restoreWantedLockfileIfMissing (
   } catch (error) {
     logger.debug({ msg: 'Failed to restore pnpm-lock.yaml from the current lockfile', error })
     return false
+  }
+}
+
+function createWorkspaceOverrideConflictLogger (prefix: string): (conflict: WorkspaceOverrideUpdateConflict) => void {
+  return ({ alias, specifiers }) => {
+    logger.warn({
+      message: `Skipping workspace override update for "${alias}" because it resolved to multiple specifiers: ${specifiers.join(', ')}.`,
+      prefix,
+    })
   }
 }

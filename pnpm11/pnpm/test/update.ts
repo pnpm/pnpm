@@ -69,6 +69,76 @@ test('update', async () => {
   expect(pkg.dependencies?.['@pnpm.e2e/foo']).toBe('^100.1.0')
 })
 
+test('update --latest syncs matching workspace overrides', async () => {
+  await addDistTag('@pnpm.e2e/foo', '100.0.0', 'latest')
+
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '^100.0.0',
+    },
+  })
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    overrides: {
+      '@pnpm.e2e/foo': '^100.0.0',
+      '@pnpm.e2e/bar': '^100.0.0',
+      '@pnpm.e2e/foo>@pnpm.e2e/bar': '^100.0.0',
+    },
+  })
+
+  await execPnpm(['install', '--lockfile-only'])
+
+  await addDistTag('@pnpm.e2e/foo', '100.1.0', 'latest')
+
+  await execPnpm(['update', '--latest'])
+
+  const pkg = await readPackageJsonFromDir(process.cwd())
+  expect(pkg.dependencies?.['@pnpm.e2e/foo']).toBe('^100.1.0')
+
+  const workspaceManifest = readYamlFileSync<any>('pnpm-workspace.yaml') // eslint-disable-line
+  expect(workspaceManifest.overrides?.['@pnpm.e2e/foo']).toBe('^100.1.0')
+  expect(workspaceManifest.overrides?.['@pnpm.e2e/bar']).toBe('^100.0.0')
+  expect(workspaceManifest.overrides?.['@pnpm.e2e/foo>@pnpm.e2e/bar']).toBe('^100.0.0')
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.overrides?.['@pnpm.e2e/foo']).toBe('^100.1.0')
+
+  await execPnpm(['install', '--frozen-lockfile'])
+})
+
+test('update --latest does not rewrite catalog workspace overrides', async () => {
+  await addDistTag('@pnpm.e2e/foo', '100.0.0', 'latest')
+
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '^100.0.0',
+    },
+  })
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    catalog: {
+      '@pnpm.e2e/foo': '^100.0.0',
+    },
+    overrides: {
+      '@pnpm.e2e/foo': 'catalog:',
+    },
+  })
+
+  await addDistTag('@pnpm.e2e/foo', '100.1.0', 'latest')
+
+  await execPnpm(['update', '--latest'])
+
+  const pkg = await readPackageJsonFromDir(process.cwd())
+  expect(pkg.dependencies?.['@pnpm.e2e/foo']).toBe('catalog:')
+
+  const workspaceManifest = readYamlFileSync<any>('pnpm-workspace.yaml') // eslint-disable-line
+  expect(workspaceManifest.catalog?.['@pnpm.e2e/foo']).toBe('^100.1.0')
+  expect(workspaceManifest.overrides?.['@pnpm.e2e/foo']).toBe('catalog:')
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.overrides?.['@pnpm.e2e/foo']).toBe('^100.1.0')
+})
+
 test('recursive update --no-save', async () => {
   await addDistTag('@pnpm.e2e/foo', '100.1.0', 'latest')
   preparePackages([
