@@ -15,7 +15,7 @@ pub struct PrefixArgs {
 }
 
 /// Errors specific to `pacquet prefix`.
-#[derive(Debug, Display, Error, Diagnostic, PartialEq, Eq)]
+#[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum PrefixError {
     /// `--global` is rejected because the global-dir machinery (pnpm's
@@ -26,50 +26,70 @@ pub enum PrefixError {
     )]
     #[diagnostic(code(pacquet_cli::prefix_global_unsupported))]
     GlobalUnsupported,
+
+    /// IO error while looking up the prefix.
+    #[display("failed to access {path}: {source}")]
+    #[diagnostic(code(pacquet_cli::prefix_io_error))]
+    Io {
+        path: PathBuf,
+        source: std::io::Error,
+    },
 }
 
 /// Find the nearest directory containing package.json, node_modules, etc.
 /// Port of findLocalPrefix from pnpm.
-pub fn find_local_prefix(start_dir: &Path) -> PathBuf {
+pub fn find_local_prefix(start_dir: &Path) -> miette::Result<PathBuf> {
     let mut name = start_dir.to_path_buf();
 
-    let mut walked_up = false;
     while name.file_name().map_or(false, |f| f == "node_modules") {
         if let Some(parent) = name.parent() {
             name = parent.to_path_buf();
-            walked_up = true;
         } else {
             break;
         }
     }
 
-    if walked_up {
-        return name;
+    if name == start_dir {
+        find_prefix_up(&name, &name)
+    } else {
+        Ok(name)
     }
-
-    find_prefix_up(&name, &name)
 }
 
-fn find_prefix_up(name: &Path, original: &Path) -> PathBuf {
-    if name.parent().is_none() {
-        return original.to_path_buf();
-    }
-
+fn find_prefix_up(name: &Path, original: &Path) -> miette::Result<PathBuf> {
+    let mut current = name.to_path_buf();
     let targets =
         ["node_modules", "package.json", "package.json5", "package.yaml", "pnpm-workspace.yaml"];
-    for target in &targets {
-        if name.join(target).exists() {
-            return name.to_path_buf();
-        }
-    }
 
-    if let Some(parent) = name.parent() {
-        if parent == name {
-            return original.to_path_buf();
+    loop {
+        if current.parent().is_none() {
+            return Ok(original.to_path_buf());
         }
-        find_prefix_up(parent, original)
-    } else {
-        original.to_path_buf()
+
+        for target in &targets {
+            let target_path = current.join(target);
+            match target_path.try_exists() {
+                Ok(true) => return Ok(current.to_path_buf()),
+                Ok(false) => continue,
+                Err(e) => {
+                    return Err(PrefixError::Io {
+                        path: target_path,
+                        source: e,
+                    }
+                    .into());
+                }
+            }
+        }
+
+        match current.parent() {
+            Some(parent) => {
+                if parent == current {
+                    return Ok(original.to_path_buf());
+                }
+                current = parent.to_path_buf();
+            }
+            None => return Ok(original.to_path_buf()),
+        }
     }
 }
 
@@ -78,7 +98,7 @@ impl PrefixArgs {
         if self.global {
             return Err(PrefixError::GlobalUnsupported.into());
         }
-        let prefix_dir = find_local_prefix(dir);
+        let prefix_dir = find_local_prefix(dir)?;
         println!("{}", prefix_dir.display());
         Ok(())
     }

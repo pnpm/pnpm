@@ -40,31 +40,11 @@ export async function handler (
   opts: {
     dir: string
     global?: boolean
-    globalPrefix?: string
-    prefix?: string
+    globalPkgDir?: string
   }
 ): Promise<string> {
   if (opts.global) {
-    if (opts.globalPrefix) {
-      return opts.globalPrefix
-    }
-    if (opts.prefix) {
-      return opts.prefix
-    }
-    let prefix = process.env.PREFIX
-    if (!prefix) {
-      if (process.platform === 'win32') {
-        prefix = process.env.APPDATA ? path.join(process.env.APPDATA, 'npm') : path.dirname(process.execPath)
-      } else {
-        const binDir = path.dirname(process.execPath)
-        if (path.basename(binDir) === 'bin') {
-          prefix = path.dirname(binDir)
-        } else {
-          prefix = binDir
-        }
-      }
-    }
-    return prefix
+    return opts.globalPkgDir ? path.dirname(opts.globalPkgDir) : ''
   }
   return opts.dir
 }

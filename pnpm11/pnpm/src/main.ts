@@ -41,7 +41,7 @@ export const REPORTER_INITIALIZED = Symbol('reporterInitialized')
 // path` is meant to be captured with `STORE=$(pnpm store path)` and `pnpm config
 // list --json` to be piped into `jq`; a warning mixed into stdout would corrupt
 // both.
-const COMMANDS_WITH_STDERR_REPORTER = new Set(['dlx', 'create', 'config', 'set', 'get', 'sbom', 'with', 'store'])
+const COMMANDS_WITH_STDERR_REPORTER = new Set(['dlx', 'create', 'config', 'set', 'get', 'sbom', 'with', 'store', 'prefix'])
 
 loudRejection()
 

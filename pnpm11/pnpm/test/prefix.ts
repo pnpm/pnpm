@@ -3,6 +3,7 @@ import path from 'node:path'
 
 import { expect, test } from '@jest/globals'
 import { tempDir } from '@pnpm/prepare'
+import PATH_NAME from 'path-name'
 
 import { execPnpmSync } from './utils/index.js'
 
@@ -35,8 +36,15 @@ test('pnpm prefix inside a subdirectory', async () => {
 
 test('pnpm prefix -g', async () => {
   tempDir()
-  const result = execPnpmSync(['prefix', '-g'])
+
+  const global = path.resolve('global')
+  const pnpmHome = path.join(global, 'pnpm')
+  fs.mkdirSync(global)
+
+  const env = { [PATH_NAME]: path.join(pnpmHome, 'bin'), PNPM_HOME: pnpmHome, XDG_DATA_HOME: global }
+
+  const result = execPnpmSync(['prefix', '-g'], { env })
 
   expect(result.status).toBe(0)
-  expect(result.stdout.toString()).toBeTruthy()
+  expect(result.stdout.toString()).toBe(path.join(global, 'pnpm/global') + '\n')
 })

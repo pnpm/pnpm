@@ -52,6 +52,29 @@ fn prefix_walks_up_to_find_package_json() {
 }
 
 #[test]
+fn prefix_walks_up_from_node_modules() {
+    let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
+    fs::write(workspace.join("package.json"), r#"{ "name": "root-pkg" }"#)
+        .expect("write package.json");
+
+    let nm_dir = workspace.join("node_modules/some-pkg");
+    fs::create_dir_all(&nm_dir).expect("create node_modules/some-pkg dir");
+
+    let pacquet_out = Command::cargo_bin("pacquet")
+        .expect("find the pacquet binary")
+        .with_current_dir(&nm_dir)
+        .with_args(["prefix"])
+        .output()
+        .expect("run pacquet prefix from inside node_modules");
+    assert!(pacquet_out.status.success(), "pacquet prefix should succeed from inside node_modules");
+
+    let expected = format!("{}\n", canonicalize(&workspace).display());
+    assert_eq!(String::from_utf8_lossy(&pacquet_out.stdout), expected);
+
+    drop(root);
+}
+
+#[test]
 fn prefix_global_is_not_supported_yet() {
     let CommandTempCwd { pacquet, root, .. } = CommandTempCwd::init();
 
@@ -66,11 +89,7 @@ fn prefix_global_is_not_supported_yet() {
 }
 
 #[test]
-#[cfg_attr(
-    target_os = "windows",
-    ignore = "spawns the external `pnpm` shim (`pnpm.cmd`); std::process::Command can't resolve it via PATHEXT"
-)]
-fn prefix_matches_pnpm_from_a_workspace_subdir() {
+fn prefix_resolves_from_a_workspace_subdir() {
     let CommandTempCwd { root, workspace, .. } = CommandTempCwd::init();
 
     fs::write(workspace.join("package.json"), r#"{ "name": "wsroot", "version": "1.0.0" }"#)
@@ -91,24 +110,9 @@ fn prefix_matches_pnpm_from_a_workspace_subdir() {
         .expect("run pacquet prefix in the subdir");
     assert!(pacquet_out.status.success(), "pacquet prefix should succeed in the subdir");
 
-    let pnpm_out = Command::new("pnpm")
-        .with_current_dir(&sub_member)
-        .with_args(["prefix"])
-        .output()
-        .expect("run pnpm prefix in the subdir");
-    assert!(
-        pnpm_out.status.success(),
-        "pnpm prefix failed: {}",
-        String::from_utf8_lossy(&pnpm_out.stderr),
-    );
-
-    let pacquet_stdout = String::from_utf8_lossy(&pacquet_out.stdout);
-    let pnpm_stdout = String::from_utf8_lossy(&pnpm_out.stdout);
-    eprintln!("pacquet: {pacquet_stdout:?}\npnpm:    {pnpm_stdout:?}");
-    assert_eq!(
-        pacquet_stdout, pnpm_stdout,
-        "pacquet prefix must match pnpm prefix from a workspace subdir",
-    );
+    // From the workspace subdir the nearest package.json parent is the member
+    let expected = format!("{}\n", canonicalize(&member).display());
+    assert_eq!(String::from_utf8_lossy(&pacquet_out.stdout), expected);
 
     drop(root);
 }
