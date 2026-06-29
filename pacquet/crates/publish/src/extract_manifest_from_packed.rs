@@ -20,33 +20,22 @@ pub fn is_tarball_path(path: &str) -> bool {
 /// Read and parse `package/package.json` from the gzipped tarball at
 /// `tarball_path`. Ports TS `extractManifestFromPacked`.
 pub fn extract_manifest_from_packed(tarball_path: &str) -> Result<Value, ExtractManifestError> {
-    let file = File::open(tarball_path).map_err(|source| ExtractManifestError::Read {
+    let read_err = |source: std::io::Error| ExtractManifestError::Read {
         tarball_path: tarball_path.to_owned(),
         source,
-    })?;
+    };
+    let file = File::open(tarball_path).map_err(read_err)?;
     let mut archive = tar::Archive::new(GzDecoder::new(file));
-    let entries = archive.entries().map_err(|source| ExtractManifestError::Read {
-        tarball_path: tarball_path.to_owned(),
-        source,
-    })?;
+    let entries = archive.entries().map_err(read_err)?;
 
     for entry in entries {
-        let mut entry = entry.map_err(|source| ExtractManifestError::Read {
-            tarball_path: tarball_path.to_owned(),
-            source,
-        })?;
-        let path = entry.path().map_err(|source| ExtractManifestError::Read {
-            tarball_path: tarball_path.to_owned(),
-            source,
-        })?;
+        let mut entry = entry.map_err(read_err)?;
+        let path = entry.path().map_err(read_err)?;
         if normalize_entry_path(&path) != "package/package.json" {
             continue;
         }
         let mut text = String::new();
-        entry.read_to_string(&mut text).map_err(|source| ExtractManifestError::Read {
-            tarball_path: tarball_path.to_owned(),
-            source,
-        })?;
+        entry.read_to_string(&mut text).map_err(read_err)?;
         return serde_json::from_str(&text).map_err(|source| ExtractManifestError::Parse {
             tarball_path: tarball_path.to_owned(),
             source,
