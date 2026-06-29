@@ -84,15 +84,15 @@ test('pack a package with scoped name', async () => {
 test('pack: workspace package respects root gitignore', async () => {
   const workspaceDir = tempDir()
   const pkgDir = path.join(workspaceDir, 'packages/pkg')
-  fs.mkdirSync(pkgDir, { recursive: true })
-  fs.writeFileSync(path.join(workspaceDir, '.gitignore'), 'ignored.txt\n', 'utf8')
+  await fs.promises.mkdir(pkgDir, { recursive: true })
+  await fs.promises.writeFile(path.join(workspaceDir, '.gitignore'), 'ignored.txt\n', 'utf8')
   writeYamlFileSync(path.join(workspaceDir, 'pnpm-workspace.yaml'), { packages: ['packages/*'] })
-  fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({
+  await fs.promises.writeFile(path.join(pkgDir, 'package.json'), JSON.stringify({
     name: 'workspace-pack-gitignore',
     version: '1.0.0',
   }), 'utf8')
-  fs.writeFileSync(path.join(pkgDir, 'index.js'), 'module.exports = true\n', 'utf8')
-  fs.writeFileSync(path.join(pkgDir, 'ignored.txt'), 'ignored\n', 'utf8')
+  await fs.promises.writeFile(path.join(pkgDir, 'index.js'), 'module.exports = true\n', 'utf8')
+  await fs.promises.writeFile(path.join(pkgDir, 'ignored.txt'), 'ignored\n', 'utf8')
 
   const output = await pack.handler({
     ...DEFAULT_OPTS,
@@ -121,14 +121,14 @@ test('pack: unrelated workspaceDir does not apply root gitignore', async () => {
   const workspaceDir = tempDir()
   const unrelatedDir = tempDir()
   const pkgDir = path.join(workspaceDir, 'pkg')
-  fs.mkdirSync(pkgDir, { recursive: true })
-  fs.writeFileSync(path.join(unrelatedDir, '.gitignore'), 'ignored.txt\n', 'utf8')
-  fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({
+  await fs.promises.mkdir(pkgDir, { recursive: true })
+  await fs.promises.writeFile(path.join(unrelatedDir, '.gitignore'), 'ignored.txt\n', 'utf8')
+  await fs.promises.writeFile(path.join(pkgDir, 'package.json'), JSON.stringify({
     name: 'workspace-pack-unrelated-gitignore',
     version: '1.0.0',
   }), 'utf8')
-  fs.writeFileSync(path.join(pkgDir, 'index.js'), 'module.exports = true\n', 'utf8')
-  fs.writeFileSync(path.join(pkgDir, 'ignored.txt'), 'ignored\n', 'utf8')
+  await fs.promises.writeFile(path.join(pkgDir, 'index.js'), 'module.exports = true\n', 'utf8')
+  await fs.promises.writeFile(path.join(pkgDir, 'ignored.txt'), 'ignored\n', 'utf8')
 
   const output = await pack.handler({
     ...DEFAULT_OPTS,
@@ -156,15 +156,15 @@ test('pack: unrelated workspaceDir does not apply root gitignore', async () => {
 test('pack: package npmignore suppresses root gitignore fallback', async () => {
   const workspaceDir = tempDir()
   const pkgDir = path.join(workspaceDir, 'packages/pkg')
-  fs.mkdirSync(pkgDir, { recursive: true })
-  fs.writeFileSync(path.join(workspaceDir, '.gitignore'), 'ignored.txt\n', 'utf8')
-  fs.writeFileSync(path.join(pkgDir, '.npmignore'), 'dist/\n', 'utf8')
-  fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({
+  await fs.promises.mkdir(pkgDir, { recursive: true })
+  await fs.promises.writeFile(path.join(workspaceDir, '.gitignore'), 'ignored.txt\n', 'utf8')
+  await fs.promises.writeFile(path.join(pkgDir, '.npmignore'), 'dist/\n', 'utf8')
+  await fs.promises.writeFile(path.join(pkgDir, 'package.json'), JSON.stringify({
     name: 'workspace-pack-npmignore',
     version: '1.0.0',
   }), 'utf8')
-  fs.writeFileSync(path.join(pkgDir, 'index.js'), 'module.exports = true\n', 'utf8')
-  fs.writeFileSync(path.join(pkgDir, 'ignored.txt'), 'ignored\n', 'utf8')
+  await fs.promises.writeFile(path.join(pkgDir, 'index.js'), 'module.exports = true\n', 'utf8')
+  await fs.promises.writeFile(path.join(pkgDir, 'ignored.txt'), 'ignored\n', 'utf8')
 
   const output = await pack.handler({
     ...DEFAULT_OPTS,

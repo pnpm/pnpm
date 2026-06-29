@@ -435,10 +435,7 @@ fn workspace_ignore_file(pkg_dir: &Path, workspace_dir: Option<&Path>) -> Option
     if pkg_dir.join(".npmignore").is_file() {
         return None;
     }
-    let pkg_dir = fs::canonicalize(pkg_dir).unwrap_or_else(|_| pkg_dir.to_path_buf());
-    let workspace_dir =
-        fs::canonicalize(workspace_dir).unwrap_or_else(|_| workspace_dir.to_path_buf());
-    if pkg_dir == workspace_dir || pkg_dir.strip_prefix(&workspace_dir).is_err() {
+    if pkg_dir == workspace_dir || pkg_dir.strip_prefix(workspace_dir).is_err() {
         return None;
     }
     [".npmignore", ".gitignore"]

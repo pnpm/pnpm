@@ -234,6 +234,32 @@ fn workspace_root_gitignore_excludes_workspace_package_files() {
 }
 
 #[test]
+fn unrelated_workspace_dir_does_not_apply_root_gitignore() {
+    let dir = tempdir().unwrap();
+    let workspace = dir.path();
+    let unrelated = tempdir().unwrap();
+    let pkg = workspace.join("packages/pkg");
+    fs::create_dir_all(&pkg).unwrap();
+    write(unrelated.path(), ".gitignore", "ignored.txt\n");
+    touch(&pkg, "package.json");
+    touch(&pkg, "index.js");
+    touch(&pkg, "ignored.txt");
+
+    let manifest = json!({ "name": "x", "version": "0.0.0" });
+    let with_unrelated_workspace = packlist_with_options(
+        &pkg,
+        &manifest,
+        PacklistOptions { workspace_dir: Some(unrelated.path()) },
+    )
+    .unwrap();
+    assert!(with_unrelated_workspace.contains(&"index.js".to_string()));
+    assert!(
+        with_unrelated_workspace.contains(&"ignored.txt".to_string()),
+        "unrelated workspace root `.gitignore` must not exclude package files: {with_unrelated_workspace:?}",
+    );
+}
+
+#[test]
 fn package_npmignore_suppresses_workspace_root_gitignore() {
     let dir = tempdir().unwrap();
     let workspace = dir.path();

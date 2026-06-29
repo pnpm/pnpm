@@ -44,7 +44,10 @@ export async function packlist (pkgDir: string, opts?: {
 
 function isSubdir (parentDir: string, childDir: string): boolean {
   const relative = path.relative(parentDir, childDir)
-  return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative)
+  return relative !== '' &&
+    relative !== '..' &&
+    !relative.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(relative)
 }
 
 function isFile (file: string): boolean {
