@@ -1,3 +1,7 @@
+// `execute_shell` spawns `sh` and has no Windows equivalent worth covering,
+// so the whole test module is gated to Unix.
+#![cfg(unix)]
+
 use super::execute_shell;
 
 #[test]

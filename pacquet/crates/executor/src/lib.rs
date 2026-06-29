@@ -67,7 +67,5 @@ fn spawn_shell(command: &str, current_dir: Option<&Path>) -> Result<ExitStatus, 
     child.wait().map_err(ExecutorError::WaitProcess)
 }
 
-// `execute_shell` spawns `sh` unconditionally and has no Windows equivalent
-// worth covering, so the test module is Unix-only.
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod tests;
