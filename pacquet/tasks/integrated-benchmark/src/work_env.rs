@@ -527,22 +527,50 @@ impl WorkEnv {
         let stderr = File::create(bench_dir.join("revision-mock.stderr.log"))
             .expect("create revision mock stderr log");
 
-        eprintln!(
-            "Serving {revision}'s tarballs from a mock built from pnpr@{revision} on 127.0.0.1:{mock_port}...",
-        );
         // The mock advertises its tarball URLs at the client-facing proxy
         // URL (`registry.url`), not its own loopback port, so downloads cross
         // the emulated registry link instead of bypassing it.
-        let process = pacquet_registry_mock::pnpr_command_with_binary(
-            &binary,
-            mock_port,
-            Some(&registry.url),
-        )
-        .stdin(Stdio::null())
-        .stdout(stdout)
-        .stderr(stderr)
-        .spawn()
-        .expect("spawn revision mock");
+        let cold = self.scenario.is_some_and(BenchmarkScenario::cold_pnpr_cache);
+        let process = if cold {
+            // Cold pnpr cache: the mock starts with empty, isolated storage
+            // (wiped between iterations) and proxies the warm shared mock as
+            // its origin, so each install refetches and streams every tarball
+            // through the proxy's cold download path.
+            let cold_storage = bench_dir.join("cold-mock-storage");
+            let config_path = bench_dir.join("cold-mock-config.yaml");
+            fs::write(&config_path, cold_mock_config_yaml(&cold_storage, &self.registry))
+                .expect("write cold mock config");
+            eprintln!(
+                "Serving {revision}'s tarballs from a COLD mock built from pnpr@{revision} on 127.0.0.1:{mock_port} (origin {})...",
+                self.registry,
+            );
+            Command::new(&binary)
+                .arg("--config")
+                .arg(&config_path)
+                .arg("--storage")
+                .arg(&cold_storage)
+                .arg("--listen")
+                .arg(format!("127.0.0.1:{mock_port}"))
+                .arg("--public-url")
+                .arg(&registry.url)
+                .arg("--packument-ttl-secs")
+                .arg("31536000")
+                .stdin(Stdio::null())
+                .stdout(stdout)
+                .stderr(stderr)
+                .spawn()
+                .expect("spawn cold revision mock")
+        } else {
+            eprintln!(
+                "Serving {revision}'s tarballs from a mock built from pnpr@{revision} on 127.0.0.1:{mock_port}...",
+            );
+            pacquet_registry_mock::pnpr_command_with_binary(&binary, mock_port, Some(&registry.url))
+                .stdin(Stdio::null())
+                .stdout(stdout)
+                .stderr(stderr)
+                .spawn()
+                .expect("spawn revision mock")
+        };
 
         let mut server = PnprServer { process, latency_proxy: None };
         wait_for_pnpr_ready(mock_port);
@@ -1578,6 +1606,30 @@ fn write_pnpr_benchmark_config(
     let yaml = pnpr_benchmark_config_yaml(pnpr_storage, public_route_registries);
     fs::write(&path, yaml).expect("write pnpr benchmark config");
     path
+}
+
+/// A minimal verdaccio-shaped config for the cold pnpr mock: empty isolated
+/// `storage` and a single `**` proxy uplink pointing at the warm origin, so
+/// every request is a cache miss that refetches (and streams) from origin.
+/// Public reads need no auth, matching the bundled mock config.
+fn cold_mock_config_yaml(storage: &Path, origin: &str) -> String {
+    format!(
+        "storage: {storage}\n\
+         uplinks:\n  \
+           npmjs:\n    \
+             url: {origin}\n\
+         packages:\n  \
+           '**':\n    \
+             access: $all\n    \
+             publish: $authenticated\n    \
+             unpublish: $authenticated\n    \
+             proxy: npmjs\n\
+         log:\n  \
+           type: stdout\n  \
+           format: pretty\n  \
+           level: error\n",
+        storage = storage.display(),
+    )
 }
 
 fn pnpr_benchmark_config_yaml(pnpr_storage: &Path, public_route_registries: &[&str]) -> String {
