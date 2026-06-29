@@ -834,14 +834,11 @@ impl WorkEnv {
     ///
     /// When a revision has its own tarball-serving mock (see
     /// [`Self::plan_revision_mocks`]), its `pacquet@<rev>` and `pnpr@<rev>`
-    /// targets fetch from that mock instead of the shared one.
-    ///
-    /// The cold-pnpr scenario is the exception: there the mock models a cold
-    /// *pnpr* cache, so only `pnpr@<rev>` targets route to it. A direct install
-    /// doesn't go through pnpr, so it keeps using the warm shared mock like
-    /// every other scenario — otherwise it would do a full cold fetch of every
-    /// packument and tarball through the cold mock, which is both wrong and
-    /// extremely noisy.
+    /// targets fetch from that mock instead of the shared one. In the cold-pnpr
+    /// scenario both arms therefore exercise the cold mock's serve path — the
+    /// direct arm hitting it as a cold pnpr *registry*, the pnpr arm through its
+    /// accelerator — and the frozen lockfile keeps that about tarball serving
+    /// rather than (noisy) cold resolution.
     fn registry_for<'a>(
         &'a self,
         id: BenchId,
@@ -851,10 +848,7 @@ impl WorkEnv {
         if id.is_proxy_cache_populator() {
             return &self.registry_cache_populator;
         }
-        let cold_pnpr = self.scenario.is_some_and(BenchmarkScenario::cold_pnpr_cache);
-        let routes_to_mock = if cold_pnpr { id.is_pnpr() } else { id.revision().is_some() };
-        if routes_to_mock && let Some(mock) = id.revision().and_then(|rev| revision_mocks.get(rev))
-        {
+        if let Some(mock) = id.revision().and_then(|rev| revision_mocks.get(rev)) {
             return &mock.url;
         }
         client_registry
@@ -1624,28 +1618,63 @@ fn write_pnpr_benchmark_config(
 /// a single `**` proxy uplink at the warm origin, with public reads needing no
 /// auth (matching the bundled mock config).
 fn cold_mock_config_yaml(storage: &Path, origin: &str) -> String {
-    // JSON-encode the two interpolated scalars: a JSON string is a valid
-    // double-quoted YAML scalar, so a `#`, space, or other YAML-significant
-    // character in the path or URL can't break or alter the config.
-    let storage = serde_json::to_string(&storage.display().to_string())
-        .expect("encode cold mock storage path");
-    let origin = serde_json::to_string(origin).expect("encode cold mock origin url");
-    format!(
-        "storage: {storage}\n\
-         uplinks:\n  \
-           npmjs:\n    \
-             url: {origin}\n\
-         packages:\n  \
-           '**':\n    \
-             access: $all\n    \
-             publish: $authenticated\n    \
-             unpublish: $authenticated\n    \
-             proxy: npmjs\n\
-         log:\n  \
-           type: stdout\n  \
-           format: pretty\n  \
-           level: error\n",
-    )
+    let config = ColdMockConfig {
+        storage: storage.display().to_string(),
+        uplinks: ColdMockUplinks { npmjs: ColdMockUplink { url: origin.to_string() } },
+        packages: ColdMockPackages {
+            all: ColdMockPackage {
+                access: "$all",
+                publish: "$authenticated",
+                unpublish: "$authenticated",
+                proxy: "npmjs",
+            },
+        },
+        log: ColdMockLog { kind: "stdout", format: "pretty", level: "error" },
+    };
+    serde_saphyr::to_string(&config).expect("serialize cold mock config")
+}
+
+/// A minimal verdaccio-shaped config for the cold mock, serialized rather than
+/// string-formatted so the `storage` path and `origin` URL are escaped and the
+/// structure can't drift.
+#[derive(Serialize)]
+struct ColdMockConfig {
+    storage: String,
+    uplinks: ColdMockUplinks,
+    packages: ColdMockPackages,
+    log: ColdMockLog,
+}
+
+#[derive(Serialize)]
+struct ColdMockUplinks {
+    npmjs: ColdMockUplink,
+}
+
+#[derive(Serialize)]
+struct ColdMockUplink {
+    url: String,
+}
+
+#[derive(Serialize)]
+struct ColdMockPackages {
+    #[serde(rename = "**")]
+    all: ColdMockPackage,
+}
+
+#[derive(Serialize)]
+struct ColdMockPackage {
+    access: &'static str,
+    publish: &'static str,
+    unpublish: &'static str,
+    proxy: &'static str,
+}
+
+#[derive(Serialize)]
+struct ColdMockLog {
+    #[serde(rename = "type")]
+    kind: &'static str,
+    format: &'static str,
+    level: &'static str,
 }
 
 fn pnpr_benchmark_config_yaml(pnpr_storage: &Path, public_route_registries: &[&str]) -> String {
