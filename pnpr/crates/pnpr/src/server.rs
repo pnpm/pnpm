@@ -1094,10 +1094,11 @@ async fn serve_tarball_via_uplink(
     }
     // Stream the download to the client while teeing it into the namespaced
     // cache; the entry is promoted only on an SRI match (see
-    // `stream_verified_to_cache`).
-    let upstream_len = response.content_length();
+    // `stream_verified_to_cache`). No `Content-Length` is set: the upstream's
+    // is attacker-controlled and unverifiable before streaming, so the body is
+    // chunked and the client reads to EOF (then re-verifies the integrity).
     match streaming::stream_verified_to_cache(response, write, &integrity, MAX_TARBALL_BYTES) {
-        Ok(body) => tarball_response(body, upstream_len),
+        Ok(body) => tarball_response(body, None),
         Err(err) => error_response(&tarball_stream_error(err, &name, &filename)),
     }
 }
@@ -1202,10 +1203,12 @@ async fn serve_tarball(
     if upstream.caches() {
         // Stream the download to the client (see `stream_verified_to_cache`)
         // rather than buffering the whole tarball at the server to verify it
-        // first, so the upstream fetch and the client transfer overlap.
-        let upstream_len = response.content_length();
+        // first, so the upstream fetch and the client transfer overlap. No
+        // `Content-Length` is set: the upstream's is attacker-controlled and
+        // unverifiable before streaming, so the body is chunked and the client
+        // reads to EOF (then re-verifies the integrity).
         match streaming::stream_verified_to_cache(response, write, &integrity, MAX_TARBALL_BYTES) {
-            Ok(body) => tarball_response(body, upstream_len),
+            Ok(body) => tarball_response(body, None),
             Err(err) => error_response(&tarball_stream_error(err, &name, &filename)),
         }
     } else {
