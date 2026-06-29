@@ -92,7 +92,7 @@ fn gitlab_statement_shapes_the_slsa_v02_predicate() {
     assert_eq!(config_source["entryPoint"], "publish");
     assert_eq!(
         predicate["metadata"]["buildInvocationId"],
-        "https://gitlab.com/pnpm/pnpm/-/jobs/555"
+        "https://gitlab.com/pnpm/pnpm/-/jobs/555",
     );
     assert_eq!(predicate["materials"][0]["uri"], "git+https://gitlab.com/pnpm/pnpm");
     assert_eq!(predicate["materials"][0]["digest"]["sha1"], "abc123");
