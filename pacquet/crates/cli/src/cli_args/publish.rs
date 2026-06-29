@@ -27,6 +27,7 @@ use pacquet_publish::{
     resolve_otp_from_env, run_git_checks,
 };
 use pacquet_reporter::Reporter;
+use pipe_trait::Pipe;
 use serde_json::Value;
 
 use crate::cli_args::registry_client::build_registry_client;
@@ -126,7 +127,7 @@ impl PublishArgs {
             // Mirror `pnpm publish --json`: the recursive path emits the array of
             // per-package summaries (an empty array when nothing was published).
             if self.json {
-                println!("{}", serde_json::to_string_pretty(&published).into_diagnostic()?);
+                println!("{}", published.pipe_ref(serde_json::to_string_pretty).into_diagnostic()?);
             }
             return Ok(());
         }
@@ -146,7 +147,7 @@ impl PublishArgs {
 
         // Mirror `pnpm publish --json`: serialize only when asked.
         if self.json {
-            println!("{}", serde_json::to_string_pretty(&summary).into_diagnostic()?);
+            println!("{}", summary.pipe_ref(serde_json::to_string_pretty).into_diagnostic()?);
         }
         Ok(())
     }

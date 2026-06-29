@@ -7,6 +7,7 @@
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
 use pacquet_testing_utils::bin::CommandTempCwd;
+use pipe_trait::Pipe;
 use serde_json::{Value, json};
 use std::{fs, path::Path};
 
@@ -75,7 +76,9 @@ fn recursive_publish_all_private_writes_empty_summary() {
         .assert()
         .success();
 
-    let summary = fs::read_to_string(workspace.join("pnpm-publish-summary.json"))
+    let summary = workspace
+        .join("pnpm-publish-summary.json")
+        .pipe(fs::read_to_string)
         .expect("read pnpm-publish-summary.json");
     let value: Value = serde_json::from_str(&summary).expect("parse publish summary");
     assert_eq!(
@@ -110,7 +113,7 @@ fn recursive_publish_json_prints_empty_array_when_nothing_published() {
     // (matching pnpm's `logger.info`), so assert on the JSON array line itself
     // rather than the whole stream: it is present only because `--json` prints
     // `publishedPackages`, and disappears if that print is dropped.
-    let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
+    let stdout = assert.get_output().stdout.pipe_as_ref(String::from_utf8_lossy);
     assert!(
         stdout.lines().any(|line| line.trim() == "[]"),
         "recursive --json must print the published-packages array (empty here) on stdout, got: {stdout:?}",
@@ -134,7 +137,7 @@ fn recursive_publish_batch_is_unsupported() {
         .with_arg("--no-git-checks")
         .assert()
         .failure();
-    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    let stderr = assert.get_output().stderr.pipe_as_ref(String::from_utf8_lossy);
     assert!(
         stderr.contains("Batch publishing (--batch) is not yet supported"),
         "expected the batch-unsupported message, got: {stderr}",
@@ -193,7 +196,9 @@ fn filter_exclusion_without_recursive_flag_publishes_nothing() {
         .assert()
         .success();
 
-    let summary = fs::read_to_string(workspace.join("pnpm-publish-summary.json"))
+    let summary = workspace
+        .join("pnpm-publish-summary.json")
+        .pipe(fs::read_to_string)
         .expect("read pnpm-publish-summary.json");
     let value: Value = serde_json::from_str(&summary).expect("parse publish summary");
     assert_eq!(

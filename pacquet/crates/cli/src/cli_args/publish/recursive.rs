@@ -23,6 +23,7 @@ use pacquet_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 use pacquet_resolving_npm_resolver::{
     FetchFullMetadataOptions, FetchFullMetadataOutcome, fetch_full_metadata,
 };
+use pipe_trait::Pipe;
 use serde_json::Value;
 
 use super::PublishArgs;
@@ -186,7 +187,7 @@ async fn is_already_published(
 fn write_publish_summary(dir: &Path, published: &[PublishSummary]) -> miette::Result<()> {
     let path = dir.join("pnpm-publish-summary.json");
     let body = serde_json::json!({ "publishedPackages": published });
-    let json = serde_json::to_string_pretty(&body).into_diagnostic()?;
+    let json = body.pipe_ref(serde_json::to_string_pretty).into_diagnostic()?;
     std::fs::write(&path, json)
         .into_diagnostic()
         .wrap_err_with(|| format!("write {}", path.display()))
