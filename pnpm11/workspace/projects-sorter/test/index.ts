@@ -24,43 +24,44 @@ function select (graph: ProjectsGraph, names: string[]): ProjectsGraph {
 
 const dirs = (...names: string[]): ProjectRootDir[] => names as ProjectRootDir[]
 
-test('sorts every project when only one graph is given', () => {
+test('sortProjects orders every project after its dependencies', () => {
   const graph = makeGraph({ a: ['b'], b: ['c'], c: [] })
   expect(sortProjects(graph)).toStrictEqual([dirs('c'), dirs('b'), dirs('a')])
 })
 
-test('orders selected projects connected only through an unselected project', () => {
+test('sortProjects ignores dependencies on projects absent from the graph', () => {
   const graph = makeGraph({ a: ['b'], b: ['c'], c: [] })
-  expect(sortProjects(select(graph, ['a', 'c']), graph)).toStrictEqual([dirs('c'), dirs('a')])
+  expect(sortProjects(select(graph, ['a', 'c']))).toStrictEqual([dirs('a', 'c')])
+})
+
+test('sequenceGraph flags a dependency cycle as unsafe', () => {
+  expect(sequenceGraph(makeGraph({ a: ['b'], b: ['a'] })).safe).toBe(false)
+})
+
+test('orders selected projects connected only through an unselected project', () => {
+  const fullGraph = makeGraph({ a: ['b'], b: ['c'], c: [] })
+  expect(sortFilteredProjects({ selectedProjectsGraph: select(fullGraph, ['a', 'c']), allProjectsGraph: fullGraph }))
+    .toStrictEqual([dirs('c'), dirs('a')])
 })
 
 test('keeps independent selected projects in a single chunk', () => {
-  const graph = makeGraph({ a: ['b'], b: [], c: [] })
-  expect(sortProjects(select(graph, ['a', 'c']), graph)).toStrictEqual([dirs('a', 'c')])
+  const fullGraph = makeGraph({ a: ['b'], b: [], c: [] })
+  expect(sortFilteredProjects({ selectedProjectsGraph: select(fullGraph, ['a', 'c']), allProjectsGraph: fullGraph }))
+    .toStrictEqual([dirs('a', 'c')])
 })
 
 test('resolves transitive edges across a diamond of unselected projects', () => {
-  const graph = makeGraph({ a: ['x', 'y'], x: ['c'], y: ['c'], c: [] })
-  expect(sortProjects(select(graph, ['a', 'c']), graph)).toStrictEqual([dirs('c'), dirs('a')])
-})
-
-test('without a full graph, resolution is limited to edges among the sorted projects', () => {
-  const graph = makeGraph({ a: ['b'], b: ['c'], c: [] })
-  expect(sortProjects(select(graph, ['a', 'c']))).toStrictEqual([dirs('a', 'c')])
+  const fullGraph = makeGraph({ a: ['x', 'y'], x: ['c'], y: ['c'], c: [] })
+  expect(sortFilteredProjects({ selectedProjectsGraph: select(fullGraph, ['a', 'c']), allProjectsGraph: fullGraph }))
+    .toStrictEqual([dirs('c'), dirs('a')])
 })
 
 test('does not reintroduce edges that the selected graph pruned (e.g. prod-only filter)', () => {
   const fullGraph = makeGraph({ a: ['b'], b: [] })
   // The selection dropped a's edge to b (as a prod-only filter drops dev edges).
   const selected = makeGraph({ a: [], b: [] })
-  expect(sortProjects(selected, fullGraph)).toStrictEqual([dirs('a', 'b')])
-})
-
-test('sortFilteredProjects resolves transitive order through unselected projects for regular filters', () => {
-  const fullGraph = makeGraph({ a: ['b'], b: ['c'], c: [] })
-  const selected = select(fullGraph, ['a', 'c'])
   expect(sortFilteredProjects({ selectedProjectsGraph: selected, allProjectsGraph: fullGraph }))
-    .toStrictEqual([dirs('c'), dirs('a')])
+    .toStrictEqual([dirs('a', 'b')])
 })
 
 test('sortFilteredProjects resolves a prod-only selection through the prod-pruned graph', () => {
@@ -141,7 +142,10 @@ test('orders a regular filter across a prod edge kept by a prod-only selection',
   })).toStrictEqual([dirs('d'), dirs('c'), dirs('x'), dirs('a')])
 })
 
-test('detects a cycle that passes through unselected projects', () => {
+test('collapses a cycle that passes through unselected projects into one chunk', () => {
   const graph = makeGraph({ a: ['b'], b: ['c'], c: ['a'] })
-  expect(sequenceGraph(select(graph, ['a', 'c']), graph).safe).toBe(false)
+  const chunks = sortFilteredProjects({ selectedProjectsGraph: select(graph, ['a', 'c']), allProjectsGraph: graph })
+  // The cycle leaves no valid order, so the two projects share one chunk.
+  expect(chunks).toHaveLength(1)
+  expect(new Set(chunks[0])).toStrictEqual(new Set(dirs('a', 'c')))
 })

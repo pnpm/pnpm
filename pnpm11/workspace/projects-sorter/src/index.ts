@@ -3,48 +3,23 @@ import { graphSequencer } from '@pnpm/deps.graph-sequencer'
 import type { ProjectRootDir, ProjectsGraph } from '@pnpm/types'
 
 /**
- * Topologically sequences the projects in `projectsGraph`.
- *
- * Transitive edges are resolved through `fullProjectsGraph`, so a dependency
- * relationship between two of the sorted projects is honored even when the
- * projects connecting them are absent from `projectsGraph` — e.g. when a
- * `--filter` selects two projects but not the one between them. It defaults to
- * `projectsGraph`, in which case resolution is limited to the edges among the
- * sorted projects themselves.
+ * Topologically sequences the projects in `projectsGraph` into chunks that can
+ * run concurrently. The result's `safe` is false when the projects form a
+ * dependency cycle.
  */
-export function sequenceGraph (
-  projectsGraph: ProjectsGraph,
-  fullProjectsGraph: ProjectsGraph = projectsGraph
-): GraphSequencerResult<ProjectRootDir> {
-  return sequenceGraphByProject(projectsGraph, () => fullProjectsGraph)
+export function sequenceGraph (projectsGraph: ProjectsGraph): GraphSequencerResult<ProjectRootDir> {
+  return sequenceGraphByProject(projectsGraph, () => projectsGraph)
 }
 
-function sequenceGraphByProject (
-  projectsGraph: ProjectsGraph,
-  fullProjectsGraphByProject: (projectDir: ProjectRootDir) => ProjectsGraph
-): GraphSequencerResult<ProjectRootDir> {
-  const sortedProjectDirs = Object.keys(projectsGraph) as ProjectRootDir[]
-  const sorted = new Set(sortedProjectDirs)
-  const graph = new Map<ProjectRootDir, ProjectRootDir[]>(
-    sortedProjectDirs.map((projectDir) => [
-      projectDir,
-      sortedDependencies(projectsGraph, fullProjectsGraphByProject(projectDir), projectDir, sorted),
-    ])
-  )
-  return graphSequencer(graph, sortedProjectDirs)
-}
-
-export function sortProjects (
-  projectsGraph: ProjectsGraph,
-  fullProjectsGraph?: ProjectsGraph
-): ProjectRootDir[][] {
-  return sequenceGraph(projectsGraph, fullProjectsGraph).chunks
+export function sortProjects (projectsGraph: ProjectsGraph): ProjectRootDir[][] {
+  return sequenceGraph(projectsGraph).chunks
 }
 
 /**
  * Topologically chunks the projects selected by a `--filter`ed recursive
  * command. Order is resolved through the full workspace graph so a relationship
- * between two selected projects via an unselected one is honored.
+ * between two selected projects via an unselected one is honored, while
+ * unrelated selected projects stay in one chunk and keep running concurrently.
  *
  * `prodAllProjectsGraph` is the prod-pruned full graph. In mixed selections,
  * `prodOnlySelectedProjectDirs` marks the selected projects that should resolve
@@ -59,7 +34,7 @@ export function sortFilteredProjects (opts: {
   const fullProjectsGraph = opts.allProjectsGraph ?? opts.selectedProjectsGraph
   const prodAllProjectsGraph = opts.prodAllProjectsGraph
   if (!prodAllProjectsGraph) {
-    return sortProjects(opts.selectedProjectsGraph, fullProjectsGraph)
+    return sequenceGraphByProject(opts.selectedProjectsGraph, () => fullProjectsGraph).chunks
   }
   const prodOnlySelectedProjectDirs = new Set(opts.prodOnlySelectedProjectDirs)
   return sequenceGraphByProject(
@@ -68,6 +43,27 @@ export function sortFilteredProjects (opts: {
       ? prodAllProjectsGraph
       : fullProjectsGraph
   ).chunks
+}
+
+/**
+ * Sequences the keys of `projectsGraph`, resolving each project's edges to the
+ * other keys through the graph that `fullProjectsGraphByProject` returns for it.
+ * Letting that graph vary per project lets a prod-only selected project tunnel
+ * through the prod-pruned graph while the rest tunnel through the full one.
+ */
+function sequenceGraphByProject (
+  projectsGraph: ProjectsGraph,
+  fullProjectsGraphByProject: (projectDir: ProjectRootDir) => ProjectsGraph
+): GraphSequencerResult<ProjectRootDir> {
+  const sortedProjectDirs = Object.keys(projectsGraph) as ProjectRootDir[]
+  const sorted = new Set(sortedProjectDirs)
+  const graph = new Map<ProjectRootDir, ProjectRootDir[]>(
+    sortedProjectDirs.map((projectDir) => [
+      projectDir,
+      sortedDependencies(projectsGraph, fullProjectsGraphByProject(projectDir), projectDir, sorted),
+    ])
+  )
+  return graphSequencer(graph, sortedProjectDirs)
 }
 
 /**
