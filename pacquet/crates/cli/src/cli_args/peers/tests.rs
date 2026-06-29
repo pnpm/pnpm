@@ -411,9 +411,7 @@ fn test_filter_peer_issues_allowed_versions_parent_scoped() {
     peer.bad.insert(
         "react".to_string(),
         vec![BadPeerIssue {
-            parents: vec![
-                ParentPkg { name: "@foo/bar".to_string(), version: "1.2.3".to_string() }
-            ],
+            parents: vec![ParentPkg { name: "@foo/bar".to_string(), version: "1.2.3".to_string() }],
             optional: false,
             wanted_range: "^18.0.0".to_string(),
             found_version: "17.0.0".to_string(),
