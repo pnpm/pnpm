@@ -36,7 +36,7 @@ use pacquet_executor::{
 use pacquet_exportable_manifest::{
     CreateExportableManifestError, CreateExportableManifestOptions, create_exportable_manifest,
 };
-use pacquet_fs_packlist::{PacklistError, packlist};
+use pacquet_fs_packlist::{PacklistError, PacklistOptions, packlist_with_options};
 use pacquet_package_manifest::{PackageManifestError, safe_read_package_json_from_dir};
 use pacquet_reporter::Reporter;
 use pacquet_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
@@ -285,7 +285,12 @@ where
     let (tarball_name, pack_destination) =
         resolve_output(opts, &normalized_name, &published_version)?;
 
-    let files = packlist(&dir, &publish_manifest).map_err(PackError::Packlist)?;
+    let files = packlist_with_options(
+        &dir,
+        &publish_manifest,
+        PacklistOptions { workspace_dir: opts.workspace_dir.as_deref() },
+    )
+    .map_err(PackError::Packlist)?;
     let mut files_map = build_files_map(&dir, &files);
     inject_workspace_license(opts, &dir, &files, &mut files_map);
 

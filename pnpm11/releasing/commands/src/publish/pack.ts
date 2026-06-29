@@ -263,6 +263,7 @@ export async function api (opts: PackOptions): Promise<PackResult> {
   }
   const files = await packlist(dir, {
     manifest: publishManifest as Record<string, unknown>,
+    workspaceDir: opts.workspaceDir,
   })
   const filesMap = Object.fromEntries(files.map((file) => [`package/${file}`, path.join(dir, file)]))
   // cspell:disable-next-line

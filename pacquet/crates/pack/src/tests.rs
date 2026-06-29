@@ -309,6 +309,109 @@ fn workspace_license_is_injected_into_a_sub_package() {
     assert!(names.contains(&"package/LICENSE".to_string()));
 }
 
+#[test]
+fn workspace_root_gitignore_excludes_sub_package_files() {
+    let workspace = tempdir().unwrap();
+    std::fs::write(workspace.path().join(".gitignore"), "ignored.txt\n").unwrap();
+    let pkg_dir = workspace.path().join("packages").join("foo");
+    std::fs::create_dir_all(&pkg_dir).unwrap();
+    std::fs::write(
+        pkg_dir.join("package.json"),
+        serde_json::to_string(&json!({ "name": "foo", "version": "1.0.0" })).unwrap(),
+    )
+    .unwrap();
+    touch(&pkg_dir, "index.js", "module.exports = true\n");
+    touch(&pkg_dir, "ignored.txt", "ignored\n");
+
+    let opts = PackOptions {
+        dir: pkg_dir.clone(),
+        catalogs: BTreeMap::new(),
+        ignore_scripts: true,
+        unsafe_perm: true,
+        embed_readme: false,
+        pack_gzip_level: None,
+        node_linker: NodeLinker::Isolated,
+        skip_manifest_obfuscation: false,
+        user_agent: "pacquet".to_string(),
+        extra_bin_paths: Vec::new(),
+        extra_env: HashMap::new(),
+        workspace_dir: Some(workspace.path().to_path_buf()),
+        dry_run: false,
+        pack_destination: None,
+        out: None,
+    };
+
+    let result = api::<SilentReporter, Host>(&opts).unwrap();
+    let mut names = tarball_entry_names(&pkg_dir.join("foo-1.0.0.tgz"));
+    names.sort();
+    assert_eq!(result.contents, vec!["index.js".to_string(), "package.json".to_string()]);
+    assert_eq!(names, vec!["package/index.js".to_string(), "package/package.json".to_string()]);
+    assert!(result.contents.contains(&"index.js".to_string()));
+    assert!(
+        !result.contents.contains(&"ignored.txt".to_string()),
+        "workspace root `.gitignore` must exclude `ignored.txt`: {:?}",
+        result.contents,
+    );
+    assert!(names.contains(&"package/index.js".to_string()));
+    assert!(!names.contains(&"package/ignored.txt".to_string()));
+}
+
+#[test]
+fn package_npmignore_suppresses_workspace_root_gitignore() {
+    let workspace = tempdir().unwrap();
+    std::fs::write(workspace.path().join(".gitignore"), "ignored.txt\n").unwrap();
+    let pkg_dir = workspace.path().join("packages").join("foo");
+    std::fs::create_dir_all(&pkg_dir).unwrap();
+    std::fs::write(
+        pkg_dir.join("package.json"),
+        serde_json::to_string(&json!({ "name": "foo", "version": "1.0.0" })).unwrap(),
+    )
+    .unwrap();
+    touch(&pkg_dir, ".npmignore", "dist/\n");
+    touch(&pkg_dir, "index.js", "module.exports = true\n");
+    touch(&pkg_dir, "ignored.txt", "ignored\n");
+
+    let opts = PackOptions {
+        dir: pkg_dir.clone(),
+        catalogs: BTreeMap::new(),
+        ignore_scripts: true,
+        unsafe_perm: true,
+        embed_readme: false,
+        pack_gzip_level: None,
+        node_linker: NodeLinker::Isolated,
+        skip_manifest_obfuscation: false,
+        user_agent: "pacquet".to_string(),
+        extra_bin_paths: Vec::new(),
+        extra_env: HashMap::new(),
+        workspace_dir: Some(workspace.path().to_path_buf()),
+        dry_run: false,
+        pack_destination: None,
+        out: None,
+    };
+
+    let result = api::<SilentReporter, Host>(&opts).unwrap();
+    let mut names = tarball_entry_names(&pkg_dir.join("foo-1.0.0.tgz"));
+    names.sort();
+    assert_eq!(
+        result.contents,
+        vec![
+            ".npmignore".to_string(),
+            "ignored.txt".to_string(),
+            "index.js".to_string(),
+            "package.json".to_string(),
+        ],
+    );
+    assert_eq!(
+        names,
+        vec![
+            "package/.npmignore".to_string(),
+            "package/ignored.txt".to_string(),
+            "package/index.js".to_string(),
+            "package/package.json".to_string(),
+        ],
+    );
+}
+
 /// A symlinked workspace-root `LICENSE` must not be injected: following
 /// it would leak the target's bytes — potentially a file outside the
 /// workspace — into the published tarball.

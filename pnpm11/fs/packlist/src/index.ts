@@ -17,15 +17,45 @@ interface TreeNode {
   isLink: boolean
   target: TreeNode
   edgesOut: Map<string, Edge>
+  workspaces?: Map<string, string>
 }
 
 export async function packlist (pkgDir: string, opts?: {
   manifest?: Record<string, unknown>
+  workspaceDir?: string
 }): Promise<string[]> {
+  pkgDir = path.resolve(pkgDir)
   const pkg = opts?.manifest ?? readPackageJson(pkgDir)
   const tree = buildRootTree(pkgDir, pkg)
-  const files = await npmPacklist(tree)
+  const workspaceDir = opts?.workspaceDir == null ? undefined : path.resolve(opts.workspaceDir)
+  const workspacePackage = workspaceDir != null && isSubdir(workspaceDir, pkgDir) && !isFile(path.join(pkgDir, '.npmignore'))
+  const npmPacklistOptions = workspacePackage
+    ? {
+      prefix: workspaceDir,
+      workspaces: [pkgDir],
+    }
+    : undefined
+  if (npmPacklistOptions != null) {
+    tree.workspaces = new Map([[pkgDir, pkgDir]])
+  }
+  const files = await npmPacklist(tree, npmPacklistOptions)
   return files.map((file) => file.replace(/^\.[/\\]/, ''))
+}
+
+function isSubdir (parentDir: string, childDir: string): boolean {
+  const relative = path.relative(parentDir, childDir)
+  return relative !== '' && !relative.startsWith('..') && !path.isAbsolute(relative)
+}
+
+function isFile (file: string): boolean {
+  try {
+    return fs.statSync(file).isFile()
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'code' in err && err.code === 'ENOENT') {
+      return false
+    }
+    throw err
+  }
 }
 
 function buildRootTree (pkgDir: string, pkg: Record<string, unknown>): TreeNode {

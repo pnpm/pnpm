@@ -81,6 +81,114 @@ test('pack a package with scoped name', async () => {
   expect(fs.existsSync('pnpm-test-scope-0.0.0.tgz')).toBeTruthy()
 })
 
+test('pack: workspace package respects root gitignore', async () => {
+  const workspaceDir = tempDir()
+  const pkgDir = path.join(workspaceDir, 'packages/pkg')
+  fs.mkdirSync(pkgDir, { recursive: true })
+  fs.writeFileSync(path.join(workspaceDir, '.gitignore'), 'ignored.txt\n', 'utf8')
+  writeYamlFileSync(path.join(workspaceDir, 'pnpm-workspace.yaml'), { packages: ['packages/*'] })
+  fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({
+    name: 'workspace-pack-gitignore',
+    version: '1.0.0',
+  }), 'utf8')
+  fs.writeFileSync(path.join(pkgDir, 'index.js'), 'module.exports = true\n', 'utf8')
+  fs.writeFileSync(path.join(pkgDir, 'ignored.txt'), 'ignored\n', 'utf8')
+
+  const output = await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: pkgDir,
+    extraBinPaths: [],
+    json: true,
+    packDestination: pkgDir,
+    workspaceDir,
+  })
+  const packed = JSON.parse(output) as PackResultJson
+  const packedPaths = packed.files.map(({ path }) => path)
+
+  await tar.x({
+    file: path.join(pkgDir, 'workspace-pack-gitignore-1.0.0.tgz'),
+    cwd: pkgDir,
+  })
+
+  expect(packedPaths).toContain('index.js')
+  expect(packedPaths).not.toContain('ignored.txt')
+  expect(fs.existsSync(path.join(pkgDir, 'package/index.js'))).toBeTruthy()
+  expect(fs.existsSync(path.join(pkgDir, 'package/ignored.txt'))).toBeFalsy()
+})
+
+test('pack: unrelated workspaceDir does not apply root gitignore', async () => {
+  const workspaceDir = tempDir()
+  const unrelatedDir = tempDir()
+  const pkgDir = path.join(workspaceDir, 'pkg')
+  fs.mkdirSync(pkgDir, { recursive: true })
+  fs.writeFileSync(path.join(unrelatedDir, '.gitignore'), 'ignored.txt\n', 'utf8')
+  fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({
+    name: 'workspace-pack-unrelated-gitignore',
+    version: '1.0.0',
+  }), 'utf8')
+  fs.writeFileSync(path.join(pkgDir, 'index.js'), 'module.exports = true\n', 'utf8')
+  fs.writeFileSync(path.join(pkgDir, 'ignored.txt'), 'ignored\n', 'utf8')
+
+  const output = await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: pkgDir,
+    extraBinPaths: [],
+    json: true,
+    packDestination: pkgDir,
+    workspaceDir: unrelatedDir,
+  })
+  const packed = JSON.parse(output) as PackResultJson
+  const packedPaths = packed.files.map(({ path }) => path)
+
+  await tar.x({
+    file: path.join(pkgDir, 'workspace-pack-unrelated-gitignore-1.0.0.tgz'),
+    cwd: pkgDir,
+  })
+
+  expect(packedPaths).toContain('index.js')
+  expect(packedPaths).toContain('ignored.txt')
+  expect(fs.existsSync(path.join(pkgDir, 'package/index.js'))).toBeTruthy()
+  expect(fs.existsSync(path.join(pkgDir, 'package/ignored.txt'))).toBeTruthy()
+})
+
+test('pack: package npmignore suppresses root gitignore fallback', async () => {
+  const workspaceDir = tempDir()
+  const pkgDir = path.join(workspaceDir, 'packages/pkg')
+  fs.mkdirSync(pkgDir, { recursive: true })
+  fs.writeFileSync(path.join(workspaceDir, '.gitignore'), 'ignored.txt\n', 'utf8')
+  fs.writeFileSync(path.join(pkgDir, '.npmignore'), 'dist/\n', 'utf8')
+  fs.writeFileSync(path.join(pkgDir, 'package.json'), JSON.stringify({
+    name: 'workspace-pack-npmignore',
+    version: '1.0.0',
+  }), 'utf8')
+  fs.writeFileSync(path.join(pkgDir, 'index.js'), 'module.exports = true\n', 'utf8')
+  fs.writeFileSync(path.join(pkgDir, 'ignored.txt'), 'ignored\n', 'utf8')
+
+  const output = await pack.handler({
+    ...DEFAULT_OPTS,
+    argv: { original: [] },
+    dir: pkgDir,
+    extraBinPaths: [],
+    json: true,
+    packDestination: pkgDir,
+    workspaceDir,
+  })
+  const packed = JSON.parse(output) as PackResultJson
+  const packedPaths = packed.files.map(({ path }) => path)
+
+  await tar.x({
+    file: path.join(pkgDir, 'workspace-pack-npmignore-1.0.0.tgz'),
+    cwd: pkgDir,
+  })
+
+  expect(packedPaths).toContain('index.js')
+  expect(packedPaths).toContain('ignored.txt')
+  expect(fs.existsSync(path.join(pkgDir, 'package/index.js'))).toBeTruthy()
+  expect(fs.existsSync(path.join(pkgDir, 'package/ignored.txt'))).toBeTruthy()
+})
+
 test('pack: with dry-run', async () => {
   prepare({
     name: 'test-publish-package.json',

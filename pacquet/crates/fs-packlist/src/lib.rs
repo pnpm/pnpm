@@ -118,7 +118,35 @@ const ALWAYS_EXCLUDED_SUFFIXES: &[&str] = &[".orig"];
 /// [`fs/packlist/src/index.ts:24-29`](https://github.com/pnpm/pnpm/blob/94240bc046/fs/packlist/src/index.ts#L24-L29)
 /// (paths relative to `pkg_dir`, no leading `./`).
 pub fn packlist(pkg_dir: &Path, manifest: &Value) -> Result<Vec<String>, PacklistError> {
-    let mut out: BTreeSet<String> = collect_own_files(pkg_dir, manifest)?;
+    packlist_with_options(pkg_dir, manifest, PacklistOptions::default())
+}
+
+/// Optional context for packlist computation.
+///
+/// When `workspace_dir` is an ancestor of `pkg_dir` and the package has no
+/// local `.npmignore`, the workspace root `.npmignore` or `.gitignore` is
+/// applied as a fallback in addition to package-local ignore files. `None`, the
+/// package directory itself, an unrelated directory, or a package-local
+/// `.npmignore` keeps the default per-package behavior and does not search
+/// parent directories.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct PacklistOptions<'a> {
+    /// Workspace root to consult for top-level publish ignore rules.
+    pub workspace_dir: Option<&'a Path>,
+}
+
+/// Walk `pkg_dir` using [`PacklistOptions`] and return publishable file paths.
+///
+/// This is the workspace-aware variant of [`packlist`]. Workspace ignore rules
+/// are opt-in through `options.workspace_dir`; failures while loading an
+/// applicable workspace ignore file are returned as [`PacklistError`] so callers
+/// do not publish a tarball with silently skipped ignore rules.
+pub fn packlist_with_options(
+    pkg_dir: &Path,
+    manifest: &Value,
+    options: PacklistOptions<'_>,
+) -> Result<Vec<String>, PacklistError> {
+    let mut out: BTreeSet<String> = collect_own_files(pkg_dir, manifest, options)?;
     collect_bundled_files(pkg_dir, manifest, &mut out)?;
     Ok(out.into_iter().collect())
 }
@@ -235,7 +263,7 @@ fn collect_bundled_files(
             .ok()
             .flatten()
             .unwrap_or_else(|| Value::Object(serde_json::Map::new()));
-        for rel in collect_own_files(&dep_dir, &dep_manifest)? {
+        for rel in collect_own_files(&dep_dir, &dep_manifest, PacklistOptions::default())? {
             out.insert(format!("{prefix}/{rel}"));
         }
         for name in nested_bundle_dep_names(&dep_manifest) {
@@ -276,7 +304,11 @@ fn resolve_bundled_dependency(name: &str, from_dir: &Path, root: &Path) -> Optio
 /// allowlist, and the always-included / `main` / `bin` force-includes.
 /// This is the per-package packlist with no `bundleDependencies`
 /// traversal; [`collect_bundled_files`] layers the closure on top.
-fn collect_own_files(pkg_dir: &Path, manifest: &Value) -> Result<BTreeSet<String>, PacklistError> {
+fn collect_own_files(
+    pkg_dir: &Path,
+    manifest: &Value,
+    options: PacklistOptions<'_>,
+) -> Result<BTreeSet<String>, PacklistError> {
     let files_field = manifest.get("files").and_then(Value::as_array);
     let files_matcher: Option<Gitignore> =
         files_field.and_then(|arr| build_files_matcher(pkg_dir, arr));
@@ -301,6 +333,7 @@ fn collect_own_files(pkg_dir: &Path, manifest: &Value) -> Result<BTreeSet<String
     // `.gitignore` even though a git-hosted snapshot's `.git/` has
     // already been deleted by [`crate::GitFetcher`] before this point.
     let mut builder = WalkBuilder::new(pkg_dir);
+    builder.current_dir(pkg_dir);
     builder
         .standard_filters(false)
         .hidden(false)
@@ -315,6 +348,11 @@ fn collect_own_files(pkg_dir: &Path, manifest: &Value) -> Result<BTreeSet<String
         // would leak into the published file set.
         .parents(false)
         .add_custom_ignore_filename(".npmignore");
+    if let Some(ignore_file) = workspace_ignore_file(pkg_dir, options.workspace_dir)
+        && let Some(error) = builder.add_ignore(&ignore_file)
+    {
+        return Err(io_error(pkg_dir, into_io(error)));
+    }
 
     for entry in builder.build() {
         let entry = entry.map_err(|err| io_error(pkg_dir, into_io(err)))?;
@@ -390,6 +428,23 @@ fn collect_own_files(pkg_dir: &Path, manifest: &Value) -> Result<BTreeSet<String
     }
 
     Ok(out)
+}
+
+fn workspace_ignore_file(pkg_dir: &Path, workspace_dir: Option<&Path>) -> Option<PathBuf> {
+    let workspace_dir = workspace_dir?;
+    if pkg_dir.join(".npmignore").is_file() {
+        return None;
+    }
+    let pkg_dir = fs::canonicalize(pkg_dir).unwrap_or_else(|_| pkg_dir.to_path_buf());
+    let workspace_dir =
+        fs::canonicalize(workspace_dir).unwrap_or_else(|_| workspace_dir.to_path_buf());
+    if pkg_dir == workspace_dir || pkg_dir.strip_prefix(&workspace_dir).is_err() {
+        return None;
+    }
+    [".npmignore", ".gitignore"]
+        .into_iter()
+        .map(|name| workspace_dir.join(name))
+        .find(|path| path.is_file())
 }
 
 /// Compile the `manifest.files` allowlist into a single `Gitignore`

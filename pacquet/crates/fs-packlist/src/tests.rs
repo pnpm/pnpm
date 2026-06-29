@@ -1,4 +1,4 @@
-use super::packlist;
+use super::{PacklistOptions, packlist, packlist_with_options};
 use serde_json::json;
 use std::{fs, path::Path};
 use tempfile::tempdir;
@@ -202,6 +202,83 @@ fn gitignore_excludes_when_no_npmignore() {
     assert!(
         !out.iter().any(|p| p.starts_with("build/")),
         "`.gitignore` must exclude `build/` when no `.npmignore` exists; received {out:?}",
+    );
+}
+
+#[test]
+fn workspace_root_gitignore_excludes_workspace_package_files() {
+    let dir = tempdir().unwrap();
+    let workspace = dir.path();
+    let pkg = workspace.join("packages/pkg");
+    fs::create_dir_all(&pkg).unwrap();
+    write(workspace, ".gitignore", "ignored.txt\n");
+    touch(&pkg, "package.json");
+    touch(&pkg, "index.js");
+    touch(&pkg, "ignored.txt");
+
+    let manifest = json!({ "name": "x", "version": "0.0.0" });
+    let without_workspace = packlist(&pkg, &manifest).unwrap();
+    assert!(
+        without_workspace.contains(&"ignored.txt".to_string()),
+        "parent ignores must not leak into packlist by default: {without_workspace:?}",
+    );
+
+    let with_workspace =
+        packlist_with_options(&pkg, &manifest, PacklistOptions { workspace_dir: Some(workspace) })
+            .unwrap();
+    assert!(with_workspace.contains(&"index.js".to_string()));
+    assert!(
+        !with_workspace.contains(&"ignored.txt".to_string()),
+        "workspace root `.gitignore` must exclude `ignored.txt`: {with_workspace:?}",
+    );
+}
+
+#[test]
+fn package_npmignore_suppresses_workspace_root_gitignore() {
+    let dir = tempdir().unwrap();
+    let workspace = dir.path();
+    let pkg = workspace.join("packages/pkg");
+    fs::create_dir_all(&pkg).unwrap();
+    write(workspace, ".gitignore", "ignored.txt\n");
+    write(&pkg, ".npmignore", "dist/\n");
+    touch(&pkg, "package.json");
+    touch(&pkg, "index.js");
+    touch(&pkg, "ignored.txt");
+
+    let manifest = json!({ "name": "x", "version": "0.0.0" });
+    let with_workspace =
+        packlist_with_options(&pkg, &manifest, PacklistOptions { workspace_dir: Some(workspace) })
+            .unwrap();
+    assert!(with_workspace.contains(&"index.js".to_string()));
+    assert!(
+        with_workspace.contains(&"ignored.txt".to_string()),
+        "package `.npmignore` must suppress workspace root `.gitignore` fallback: {with_workspace:?}",
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn unreadable_workspace_root_gitignore_is_reported() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempdir().unwrap();
+    let workspace = dir.path();
+    let pkg = workspace.join("packages/pkg");
+    fs::create_dir_all(&pkg).unwrap();
+    write(workspace, ".gitignore", "ignored.txt\n");
+    let mut permissions = fs::metadata(workspace.join(".gitignore")).unwrap().permissions();
+    permissions.set_mode(0o000);
+    fs::set_permissions(workspace.join(".gitignore"), permissions).unwrap();
+    touch(&pkg, "package.json");
+    touch(&pkg, "index.js");
+
+    let manifest = json!({ "name": "x", "version": "0.0.0" });
+    let err =
+        packlist_with_options(&pkg, &manifest, PacklistOptions { workspace_dir: Some(workspace) })
+            .unwrap_err();
+    assert!(
+        err.to_string().contains("I/O error while computing packlist"),
+        "workspace ignore read errors must be returned: {err:?}",
     );
 }
 
