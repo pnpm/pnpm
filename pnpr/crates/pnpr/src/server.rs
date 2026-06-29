@@ -1186,17 +1186,36 @@ async fn serve_tarball(
     }
 
     let upstreams = resolve_upstreams(state, &name);
-    // Serve a cached tarball directly — without re-deriving its version from the
-    // packument or re-hashing the bytes. A tarball only enters the cache through
-    // `download_verified_to_cache` below, which verifies the bytes against the
-    // version's `dist.integrity` as they are written, so nothing unverified is
-    // ever stored; every install client also re-verifies whatever it receives
-    // against that same integrity. So a cache hit needs neither the packument
-    // lookup (the version/integrity binding) nor an SRI pass — both of which
-    // pnpm/pnpm#12570 added to *every* serve, making warm-cache cold-store pay a
-    // per-tarball packument parse plus hash. The OSV screen on the filename's
-    // version already ran above. Read the cache if any uplink in the chain
-    // mirrors tarballs (or there's no upstream left at all — a leftover mirror).
+
+    // A cached tarball can be served directly — without re-hashing the bytes
+    // or, usually, re-deriving its version from the packument. A tarball only
+    // enters the cache through `download_verified_to_cache` below, which
+    // verifies the bytes against the version's `dist.integrity` as they are
+    // written, so nothing unverified is ever stored; every install client
+    // re-verifies whatever it receives against that same integrity too. So a
+    // cache hit needs neither the SRI pass nor the integrity lookup — both of
+    // which pnpm/pnpm#12570 added to *every* serve, making warm-cache
+    // cold-store pay a per-tarball packument parse plus hash.
+    //
+    // The exception is OSV screening. When it is enabled, the authoritative
+    // version a tarball belongs to can only come from the packument (a
+    // non-canonical filename may resolve to a different version than it
+    // carries), and the OSV verdict must use that version — so resolve it and
+    // re-screen before trusting cached bytes, even on a hit. (The filename's
+    // own version was already screened above; this catches the case where the
+    // resolved version differs.) When OSV is disabled the resolution is pure
+    // overhead and is skipped.
+    let resolved_dist = if state.inner.osv_index.is_some() {
+        match resolve_tarball_dist_and_screen(state, &name, &filename, &name_version).await {
+            Ok(dist) => Some(dist),
+            Err(response) => return response,
+        }
+    } else {
+        None
+    };
+
+    // Read the cache if any uplink in the chain mirrors tarballs (or there's
+    // no upstream left at all — a leftover mirror).
     let should_read_cache = upstreams.is_empty() || upstreams.iter().any(|u| u.caches());
     if should_read_cache {
         match state.inner.storage.open_cached_tarball(&name, &filename).await {
@@ -1214,27 +1233,18 @@ async fn serve_tarball(
         return not_found();
     }
 
-    // Cache miss: resolve the version's `dist.integrity` from the packument so
-    // the freshly-downloaded bytes can be verified before they enter the cache.
-    let packument = match load_packument_bytes(state, &name).await {
-        PackumentLoad::Ok(bytes) => bytes,
-        PackumentLoad::NotFound => return not_found(),
-        PackumentLoad::Err(err) => return error_response(&err),
+    // Cache miss: the freshly-downloaded bytes must be verified against the
+    // version's `dist.integrity` before they enter the cache. Reuse the dist
+    // already resolved for the OSV screen above, or resolve (and screen) it
+    // now when OSV was disabled.
+    let integrity = match resolved_dist {
+        Some(dist) => dist.integrity,
+        None => match resolve_tarball_dist_and_screen(state, &name, &filename, &name_version).await
+        {
+            Ok(dist) => dist.integrity,
+            Err(response) => return response,
+        },
     };
-    let TarballDist { version, integrity } =
-        match expected_tarball_dist(&packument, &name, &filename) {
-            Ok(Some(dist)) => dist,
-            Ok(None) => return not_found(),
-            Err(err) => return error_response(&err),
-        };
-    // Re-screen when the resolved version differs from the filename's: a
-    // non-canonical tarball name slips past the screen above, so this is
-    // where OSV sees the version such a tarball really belongs to.
-    if version != name_version
-        && let Err(err) = ensure_osv_allowed(state, &name, &version)
-    {
-        return error_response(&err);
-    }
 
     // Walk the uplink fallback chain in declared order: the first uplink to
     // return the tarball wins; a `NotFound` falls through to the next; a
@@ -1294,6 +1304,37 @@ async fn serve_tarball(
 struct TarballDist {
     version: String,
     integrity: Integrity,
+}
+
+/// Resolve a tarball's authoritative [`TarballDist`] from the packument and
+/// OSV-screen the resolved version when it differs from the filename-carried
+/// `name_version` (already screened by the caller). On failure, returns the
+/// [`Response`] the handler should return. Shared by the cache-hit OSV gate
+/// and the cache-miss download path in [`serve_tarball`].
+async fn resolve_tarball_dist_and_screen(
+    state: &AppState,
+    name: &PackageName,
+    filename: &str,
+    name_version: &str,
+) -> Result<TarballDist, Response> {
+    let packument = match load_packument_bytes(state, name).await {
+        PackumentLoad::Ok(bytes) => bytes,
+        PackumentLoad::NotFound => return Err(not_found()),
+        PackumentLoad::Err(err) => return Err(error_response(&err)),
+    };
+    let dist = match expected_tarball_dist(&packument, name, filename) {
+        Ok(Some(dist)) => dist,
+        Ok(None) => return Err(not_found()),
+        Err(err) => return Err(error_response(&err)),
+    };
+    // A non-canonical tarball name slips past the filename-version screen, so
+    // this is where OSV sees the version such a tarball really belongs to.
+    if dist.version != name_version
+        && let Err(err) = ensure_osv_allowed(state, name, &dist.version)
+    {
+        return Err(error_response(&err));
+    }
+    Ok(dist)
 }
 
 fn expected_tarball_dist(

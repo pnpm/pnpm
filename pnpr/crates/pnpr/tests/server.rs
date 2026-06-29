@@ -1253,6 +1253,73 @@ async fn osv_refuses_vulnerable_tarball_from_cache() {
 }
 
 #[tokio::test]
+async fn osv_refuses_vulnerable_cached_tarball_under_noncanonical_name() {
+    // A cache hit must still be OSV-screened on the tarball's *resolved*
+    // version, not just the filename-carried one. Here version 1.0.0 declares
+    // a non-canonical tarball basename `foo-0.0.1.tgz`, so the request filename
+    // resolves to 1.0.0 — and a cached tarball for a now-blocked 1.0.0 must not
+    // slip past on the filename's unblocked "0.0.1".
+    let mut upstream = mockito::Server::new_async().await;
+    let bytes = b"cached vulnerable tarball";
+    let packument = json!({
+        "name": "foo",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "foo",
+                "version": "1.0.0",
+                "dist": {
+                    "tarball": format!("{}/foo/-/foo-0.0.1.tgz", upstream.url()),
+                    "integrity": sha512_integrity(bytes),
+                },
+            },
+        },
+    });
+    let packument_mock = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(packument.to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    let tarball_mock = upstream
+        .mock("GET", "/foo/-/foo-0.0.1.tgz")
+        .with_status(200)
+        .with_body(bytes)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let cache_dir = tmp.path().to_path_buf();
+    let warming_app = router(config_for(&upstream.url(), cache_dir.clone()));
+    let warmed = warming_app
+        .oneshot(Request::get("/foo/-/foo-0.0.1.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(warmed.status(), StatusCode::OK);
+    assert_eq!(body_bytes(warmed.into_body()).await, bytes);
+
+    // Block the resolved version 1.0.0; the filename carries the unblocked
+    // 0.0.1, so only a resolved-version screen on the cache hit can refuse.
+    let osv = osv_database("foo", &["1.0.0"]);
+    let mut config = config_for(&upstream.url(), cache_dir);
+    config.resolver.enabled = false;
+    enable_osv(&mut config, osv.path());
+    let screened_app = router(config);
+
+    let response = screened_app
+        .oneshot(Request::get("/foo/-/foo-0.0.1.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+    packument_mock.assert_async().await;
+    tarball_mock.assert_async().await;
+}
+
+#[tokio::test]
 async fn tarball_route_preserves_basename_and_binds_to_declaring_version() {
     // A version's tarball is served, fetched, and cached under the basename
     // its own `dist.tarball` declares (preserved verbatim, so a
