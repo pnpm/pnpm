@@ -21,7 +21,7 @@
 //! so the byte output is independent of pacquet's struct field order — and
 //! finally rendered by a faithful translation of the fork's `dumper.js`.
 //!
-//! [`@zkochan/js-yaml`]: https://github.com/zkochan/js-yaml
+//! [`@zkochan/js-yaml`]: https://github.com/pnpm/js-yaml
 
 use serde_json::{Map, Value};
 use std::cmp::Ordering;
@@ -29,7 +29,7 @@ use std::cmp::Ordering;
 /// Keys whose collection value always renders on a single line (flow style).
 /// Mirrors the fork's [`SINGLE_LINE_KEYS`][fork-single-line-keys].
 ///
-/// [fork-single-line-keys]: https://cdn.jsdelivr.net/npm/@zkochan/js-yaml@0.0.11/lib/dumper.js#L63-L68
+/// [fork-single-line-keys]: https://cdn.jsdelivr.net/npm/@zkochan/js-yaml@0.0.11/lib/dumper.js
 const SINGLE_LINE_KEYS: [&str; 4] = ["cpu", "engines", "os", "libc"];
 
 /// One indentation level, in spaces (`js-yaml`'s default `indent`).
