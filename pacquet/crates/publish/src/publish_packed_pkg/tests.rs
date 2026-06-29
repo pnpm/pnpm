@@ -4,7 +4,7 @@ use super::{
 };
 use crate::registry_config_keys::parse_supported_registry_url;
 use pacquet_network::ThrottledClient;
-use pacquet_network_web_auth::WebAuthFetchOptions;
+use pacquet_network_web_auth::{Host as WebAuthHost, WebAuthFetchOptions};
 use pacquet_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
 use serde_json::{Value, json};
@@ -296,7 +296,7 @@ async fn publish_with_otp_handling_returns_the_response_when_no_otp_is_required(
     let client = ThrottledClient::default();
     let url = format!("{}/pkg", server.url());
 
-    let response = publish_with_otp_handling::<SilentReporter>(
+    let response = publish_with_otp_handling::<WebAuthHost, SilentReporter>(
         &client,
         &url,
         None,

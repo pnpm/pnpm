@@ -8,7 +8,8 @@ use std::collections::BTreeMap;
 use pacquet_diagnostics::miette::{self, Diagnostic};
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_network_web_auth::{
-    Host as WebAuthHost, OtpChallenge, OtpError, OtpErrorBody, WebAuthFetchOptions,
+    Clock as WebAuthClock, EnterKeyListener, Host as WebAuthHost, OpenUrl, OtpChallenge, OtpError,
+    OtpErrorBody, PromptOtp, Sleep, StdinIsTty, StdoutIsTty, WebAuthFetch, WebAuthFetchOptions,
     WebAuthRetryOptions, WithOtpError, with_otp_handling,
 };
 use pacquet_reporter::Reporter;
@@ -148,7 +149,7 @@ where
         .or_else(|| network.auth_headers.for_url_with_package(registry.as_str(), Some(&name)));
     let npm_command = if is_stage { "stage" } else { "publish" };
 
-    let response = publish_with_otp_handling::<Reporter>(
+    let response = publish_with_otp_handling::<WebAuthHost, Reporter>(
         network.client,
         &put_url,
         authorization.as_deref(),
@@ -218,11 +219,15 @@ impl OtpError for PublishHttpError {
 /// Send the publish PUT, retrying once under OTP through the web-auth flow.
 /// The operation returns `Ok` for every completed HTTP response (the caller
 /// inspects `ok`) and `Err` only for an OTP challenge or a transport failure.
+///
+/// `Sys` is the web-auth [host](pacquet_network_web_auth::Host): production
+/// passes the real one, tests pass a fake so the poll / clock / prompt are
+/// scripted while the PUT still goes through a mocked registry.
 #[expect(
     clippy::too_many_arguments,
     reason = "a single registry request legitimately needs the URL, auth, command, body, OTP, stage flag and retry options"
 )]
-async fn publish_with_otp_handling<Reporter: self::Reporter>(
+async fn publish_with_otp_handling<Sys, Reporter>(
     client: &ThrottledClient,
     put_url: &str,
     authorization: Option<&str>,
@@ -231,8 +236,19 @@ async fn publish_with_otp_handling<Reporter: self::Reporter>(
     otp: Option<&str>,
     is_stage: bool,
     fetch_options: WebAuthFetchOptions,
-) -> Result<PublishResponse, WithOtpError<PublishHttpError>> {
-    with_otp_handling::<WebAuthHost, Reporter, PublishResponse, PublishHttpError, _>(
+) -> Result<PublishResponse, WithOtpError<PublishHttpError>>
+where
+    Sys: WebAuthClock
+        + Sleep
+        + WebAuthFetch
+        + StdinIsTty
+        + StdoutIsTty
+        + EnterKeyListener
+        + OpenUrl
+        + PromptOtp,
+    Reporter: self::Reporter,
+{
+    with_otp_handling::<Sys, Reporter, PublishResponse, PublishHttpError, _>(
         fetch_options,
         async move |challenge_otp: Option<&str>| {
             // The web-auth-provided OTP (a fresh challenge) takes precedence
