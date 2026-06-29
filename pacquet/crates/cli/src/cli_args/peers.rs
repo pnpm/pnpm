@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet};
+use std::fmt;
 
 use clap::Args;
 use miette::{Context, IntoDiagnostic};
@@ -8,6 +9,8 @@ use serde::Serialize;
 
 use pacquet_config::{Config, PeerDependencyRules};
 use pacquet_lockfile::{Lockfile, PackageMetadata, PkgName, PkgNameVerPeer, SnapshotEntry};
+use pacquet_package_manifest::PackageManifest;
+use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
 
 use crate::cli_args::sanitize::sanitize;
 
@@ -78,7 +81,12 @@ impl PeersArgs {
         .wrap_err("load lockfile")?;
 
         let Some(lockfile) = lockfile else {
-            println!("No lockfile found in {}", lockfile_dir.display());
+            if self.json {
+                println!("{{}}");
+            } else {
+                let dir_str = lockfile_dir.display().to_string();
+                println!("No lockfile found in {}", sanitize(&dir_str));
+            }
             return Ok(());
         };
 
@@ -119,16 +127,17 @@ fn check_peer_dependencies_from_lockfile(
     let Some(snapshots) = snapshots else { return HashMap::new() };
     let Some(packages) = packages else { return HashMap::new() };
 
-    let importer_ids: Vec<String> = if recursive || config_has_workspace(lockfile_dir, dir) {
+    let mut importer_ids: Vec<String> = if recursive {
         lockfile.importers.keys().cloned().collect()
     } else {
         vec![resolve_importer_id(lockfile_dir, dir)]
     };
+    importer_ids.sort();
 
     let mut result: IssuesByProjects = HashMap::new();
 
     for importer_id in &importer_ids {
-        let Some(importer) = lockfile.importers.get(importer_id.as_str()) else { continue };
+        let Some(_importer) = lockfile.importers.get(importer_id.as_str()) else { continue };
 
         let mut issues = PeerIssues {
             bad: HashMap::new(),
@@ -137,22 +146,19 @@ fn check_peer_dependencies_from_lockfile(
             intersections: HashMap::new(),
         };
 
-        let mut visited = HashSet::new();
+        let mut initial_keys = Vec::new();
+        let mut visited_importers = HashSet::new();
+        collect_initial_keys(
+            importer_id,
+            lockfile,
+            lockfile_dir,
+            Vec::new(),
+            &mut initial_keys,
+            &mut visited_importers,
+            &mut issues,
+        );
 
-        let groups = [
-            (&importer.dependencies, false),
-            (&importer.dev_dependencies, false),
-            (&importer.optional_dependencies, true),
-        ];
-
-        for (dep_map, _is_optional) in &groups {
-            let Some(dep_map) = dep_map else { continue };
-            for (alias, spec) in dep_map {
-                if let Some(key) = spec.version.resolved_key(alias) {
-                    walk_snapshot(&key, snapshots, packages, &[], &mut issues, &mut visited);
-                }
-            }
-        }
+        walk_snapshot(initial_keys, snapshots, packages, lockfile_dir, &mut issues);
 
         let merged = merge_missing_peers(&issues.missing);
         issues.conflicts = merged.conflicts;
@@ -162,10 +168,6 @@ fn check_peer_dependencies_from_lockfile(
     }
 
     result
-}
-
-fn config_has_workspace(lockfile_dir: &std::path::Path, dir: &std::path::Path) -> bool {
-    lockfile_dir != dir || lockfile_dir.parent().is_none()
 }
 
 fn resolve_importer_id(lockfile_dir: &std::path::Path, dir: &std::path::Path) -> String {
@@ -180,95 +182,251 @@ fn resolve_importer_id(lockfile_dir: &std::path::Path, dir: &std::path::Path) ->
     }
 }
 
-fn walk_snapshot(
-    key: &PkgNameVerPeer,
-    snapshots: &HashMap<PkgNameVerPeer, SnapshotEntry>,
-    packages: &HashMap<PkgNameVerPeer, PackageMetadata>,
-    parents: &[ParentPkg],
-    issues: &mut PeerIssues,
-    visited: &mut HashSet<PkgNameVerPeer>,
-) {
-    if !visited.insert(key.clone()) {
-        return;
+fn resolve_link_version(lockfile_dir: &std::path::Path, link_target: &str) -> Option<String> {
+    let manifest_path = lockfile_dir.join(link_target).join("package.json");
+    if let Ok(manifest) = PackageManifest::from_path(manifest_path) {
+        if let Some(ver) = manifest.value().get("version").and_then(|v| v.as_str()) {
+            return Some(ver.to_string());
+        }
     }
+    None
+}
 
-    let Some(snapshot) = snapshots.get(key) else { return };
+fn check_linked_package_peers(
+    importer_id: &str,
+    importer: &pacquet_lockfile::ProjectSnapshot,
+    link_target: &str,
+    alias: &str,
+    linked_version: &str,
+    lockfile_dir: &std::path::Path,
+    issues: &mut PeerIssues,
+) {
+    let linked_pkg_dir = lockfile_dir.join(importer_id).join(link_target);
+    let manifest_path = linked_pkg_dir.join("package.json");
+    let Ok(manifest) = PackageManifest::from_path(manifest_path) else { return };
+    let Some(peer_deps) = manifest.value().get("peerDependencies").and_then(|v| v.as_object()) else { return };
 
-    let pkg_name = key.name.to_string();
-    let pkg_version = get_pkg_version(key, packages);
+    let current_parents = vec![ParentPkg {
+        name: alias.to_string(),
+        version: linked_version.to_string(),
+    }];
 
-    let mut current_parents = parents.to_vec();
-    current_parents.push(ParentPkg { name: pkg_name, version: pkg_version });
+    for (peer_name, peer_range_val) in peer_deps {
+        let Some(peer_range) = peer_range_val.as_str() else { continue };
+        let is_optional = manifest
+            .value()
+            .get("peerDependenciesMeta")
+            .and_then(|m| m.get(peer_name))
+            .and_then(|m| m.get("optional"))
+            .and_then(|o| o.as_bool())
+            .unwrap_or(false);
 
-    let base_key = key.without_peer();
-    if let Some(meta) = packages.get(&base_key)
-        && let Some(peers) = &meta.peer_dependencies
-    {
-        for (peer_name, peer_range) in peers {
-            let is_optional = meta
-                .peer_dependencies_meta
-                .as_ref()
-                .and_then(|m| m.get(peer_name))
-                .is_some_and(|m| m.optional);
+        let Ok(peer_pkg_name) = peer_name.parse::<PkgName>() else { continue };
+        let resolved_ref = importer.dependencies.as_ref().and_then(|d| d.get(&peer_pkg_name))
+            .or_else(|| importer.dev_dependencies.as_ref().and_then(|d| d.get(&peer_pkg_name)))
+            .or_else(|| importer.optional_dependencies.as_ref().and_then(|d| d.get(&peer_pkg_name)));
 
-            let Ok(peer_pkg_name) = peer_name.parse::<PkgName>() else { continue };
-            let resolved_ref =
-                snapshot.dependencies.as_ref().and_then(|deps| deps.get(&peer_pkg_name)).or_else(
-                    || {
-                        snapshot
-                            .optional_dependencies
-                            .as_ref()
-                            .and_then(|deps| deps.get(&peer_pkg_name))
-                    },
-                );
-
-            match resolved_ref {
-                Some(dep_ref) => {
-                    if let Some(ver_peer) = dep_ref.ver_peer() {
-                        let version_str = ver_peer.version().to_string();
-                        if !satisfies(&version_str, peer_range) {
-                            issues.bad.entry(peer_name.clone()).or_default().push(BadPeerIssue {
-                                parents: current_parents.clone(),
-                                optional: is_optional,
-                                wanted_range: peer_range.clone(),
-                                found_version: version_str,
-                                resolved_from: Vec::new(),
-                            });
-                        }
-                    } else if let Some(link_target) = dep_ref.as_link_target() {
+        match resolved_ref {
+            Some(spec) => {
+                if let Some(ver_peer) = spec.version.ver_peer() {
+                    let version_str = ver_peer.version().to_string();
+                    if !satisfies(&version_str, peer_range) {
                         issues.bad.entry(peer_name.clone()).or_default().push(BadPeerIssue {
                             parents: current_parents.clone(),
                             optional: is_optional,
-                            wanted_range: peer_range.clone(),
-                            found_version: format!("link:{link_target}"),
+                            wanted_range: peer_range.to_string(),
+                            found_version: version_str,
+                            resolved_from: Vec::new(),
+                        });
+                    }
+                } else if let Some(link_target) = spec.version.as_link_target() {
+                    let found_version = resolve_link_version(lockfile_dir, link_target)
+                        .unwrap_or_else(|| format!("link:{link_target}"));
+                    if !satisfies(&found_version, peer_range) {
+                        issues.bad.entry(peer_name.clone()).or_default().push(BadPeerIssue {
+                            parents: current_parents.clone(),
+                            optional: is_optional,
+                            wanted_range: peer_range.to_string(),
+                            found_version,
                             resolved_from: Vec::new(),
                         });
                     }
                 }
-                None => {
-                    if !is_optional {
-                        issues.missing.entry(peer_name.clone()).or_default().push(
-                            MissingPeerIssue {
-                                parents: current_parents.clone(),
-                                optional: is_optional,
-                                wanted_range: peer_range.clone(),
-                            },
-                        );
-                    }
+            }
+            None => {
+                if !is_optional {
+                    issues.missing.entry(peer_name.clone()).or_default().push(MissingPeerIssue {
+                        parents: current_parents.clone(),
+                        optional: is_optional,
+                        wanted_range: peer_range.to_string(),
+                    });
                 }
             }
         }
     }
+}
 
-    let all_deps = snapshot
-        .dependencies
-        .iter()
-        .flat_map(|d| d.iter())
-        .chain(snapshot.optional_dependencies.iter().flat_map(|d| d.iter()));
+fn collect_initial_keys(
+    importer_id: &str,
+    lockfile: &Lockfile,
+    lockfile_dir: &std::path::Path,
+    parents: Vec<ParentPkg>,
+    initial_keys: &mut Vec<(PkgNameVerPeer, Vec<ParentPkg>)>,
+    visited_importers: &mut HashSet<String>,
+    issues: &mut PeerIssues,
+) {
+    if !visited_importers.insert(importer_id.to_string()) {
+        return;
+    }
+    let Some(importer) = lockfile.importers.get(importer_id) else { return };
 
-    for (alias, dep_ref) in all_deps {
-        if let Some(child_key) = dep_ref.resolve(alias) {
-            walk_snapshot(&child_key, snapshots, packages, &current_parents, issues, visited);
+    let groups = [
+        (&importer.dependencies, false),
+        (&importer.dev_dependencies, false),
+        (&importer.optional_dependencies, true),
+    ];
+
+    for (dep_map, _is_optional) in &groups {
+        let Some(dep_map) = dep_map else { continue };
+        for (alias, spec) in dep_map {
+            if let Some(key) = spec.version.resolved_key(alias) {
+                initial_keys.push((key, parents.clone()));
+            } else if let Some(link_target) = spec.version.as_link_target() {
+                let linked_version = resolve_link_version(lockfile_dir, link_target)
+                    .unwrap_or_else(|| "0.0.0".to_string());
+                let mut next_parents = parents.clone();
+                next_parents.push(ParentPkg {
+                    name: alias.to_string(),
+                    version: linked_version.clone(),
+                });
+
+                check_linked_package_peers(
+                    importer_id,
+                    importer,
+                    link_target,
+                    &alias.to_string(),
+                    &linked_version,
+                    lockfile_dir,
+                    issues,
+                );
+
+                let linked_importer_path = lockfile_dir.join(importer_id).join(link_target);
+                let linked_importer_id = resolve_importer_id(lockfile_dir, &linked_importer_path);
+                collect_initial_keys(
+                    &linked_importer_id,
+                    lockfile,
+                    lockfile_dir,
+                    next_parents,
+                    initial_keys,
+                    visited_importers,
+                    issues,
+                );
+            }
+        }
+    }
+}
+
+fn walk_snapshot(
+    initial_keys: Vec<(PkgNameVerPeer, Vec<ParentPkg>)>,
+    snapshots: &HashMap<PkgNameVerPeer, SnapshotEntry>,
+    packages: &HashMap<PkgNameVerPeer, PackageMetadata>,
+    lockfile_dir: &std::path::Path,
+    issues: &mut PeerIssues,
+) {
+    let mut visited = HashSet::new();
+    let mut stack = initial_keys;
+
+    while let Some((key, parents)) = stack.pop() {
+        let pkg_name = key.name.to_string();
+        let pkg_version = get_pkg_version(&key, packages);
+
+        let mut current_parents = parents.clone();
+        current_parents.push(ParentPkg { name: pkg_name, version: pkg_version });
+
+        // 1. Evaluate peer dependencies of the current package
+        let base_key = key.without_peer();
+        if let Some(meta) = packages.get(&base_key)
+            && let Some(peers) = &meta.peer_dependencies
+        {
+            let snapshot = snapshots.get(&key);
+            for (peer_name, peer_range) in peers {
+                let is_optional = meta
+                    .peer_dependencies_meta
+                    .as_ref()
+                    .and_then(|m| m.get(peer_name))
+                    .is_some_and(|m| m.optional);
+
+                let Ok(peer_pkg_name) = peer_name.parse::<PkgName>() else { continue };
+                let resolved_ref = snapshot.and_then(|s| {
+                    s.dependencies.as_ref().and_then(|deps| deps.get(&peer_pkg_name)).or_else(
+                        || {
+                            s.optional_dependencies
+                                .as_ref()
+                                .and_then(|deps| deps.get(&peer_pkg_name))
+                        },
+                    )
+                });
+
+                match resolved_ref {
+                    Some(dep_ref) => {
+                        if let Some(ver_peer) = dep_ref.ver_peer() {
+                            let version_str = ver_peer.version().to_string();
+                            if !satisfies(&version_str, peer_range) {
+                                issues.bad.entry(peer_name.clone()).or_default().push(BadPeerIssue {
+                                    parents: current_parents.clone(),
+                                    optional: is_optional,
+                                    wanted_range: peer_range.clone(),
+                                    found_version: version_str,
+                                    resolved_from: Vec::new(),
+                                });
+                            }
+                        } else if let Some(link_target) = dep_ref.as_link_target() {
+                            let found_version = resolve_link_version(lockfile_dir, link_target)
+                                .unwrap_or_else(|| format!("link:{link_target}"));
+                            if !satisfies(&found_version, peer_range) {
+                                issues.bad.entry(peer_name.clone()).or_default().push(BadPeerIssue {
+                                    parents: current_parents.clone(),
+                                    optional: is_optional,
+                                    wanted_range: peer_range.clone(),
+                                    found_version,
+                                    resolved_from: Vec::new(),
+                                });
+                            }
+                        }
+                    }
+                    None => {
+                        if !is_optional {
+                            issues.missing.entry(peer_name.clone()).or_default().push(
+                                MissingPeerIssue {
+                                    parents: current_parents.clone(),
+                                    optional: is_optional,
+                                    wanted_range: peer_range.clone(),
+                                },
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Only recurse if we haven't visited this node yet
+        if !visited.insert(key.clone()) {
+            continue;
+        }
+
+        // 3. Push children to stack
+        if let Some(snapshot) = snapshots.get(&key) {
+            let all_deps = snapshot
+                .dependencies
+                .iter()
+                .flat_map(|d| d.iter())
+                .chain(snapshot.optional_dependencies.iter().flat_map(|d| d.iter()));
+
+            for (alias, dep_ref) in all_deps {
+                if let Some(child_key) = dep_ref.resolve(alias) {
+                    stack.push((child_key, current_parents.clone()));
+                }
+            }
         }
     }
 }
@@ -310,6 +468,289 @@ fn satisfies(version: &str, range: &str) -> bool {
     base.satisfies(&parsed_range)
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Bound<V> {
+    Inclusive(V),
+    Exclusive(V),
+    Unbounded,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Interval {
+    lower: Bound<Version>,
+    upper: Bound<Version>,
+}
+
+impl fmt::Display for Interval {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match (&self.lower, &self.upper) {
+            (Bound::Unbounded, Bound::Unbounded) => write!(f, "*"),
+            (Bound::Inclusive(vl), Bound::Unbounded) => write!(f, ">={vl}"),
+            (Bound::Exclusive(vl), Bound::Unbounded) => write!(f, ">{vl}"),
+            (Bound::Unbounded, Bound::Inclusive(vu)) => write!(f, "<={vu}"),
+            (Bound::Unbounded, Bound::Exclusive(vu)) => write!(f, "<{vu}"),
+            (Bound::Inclusive(vl), Bound::Inclusive(vu)) => {
+                if vl == vu {
+                    write!(f, "{vl}")
+                } else {
+                    write!(f, ">={vl} <={vu}")
+                }
+            }
+            (Bound::Inclusive(vl), Bound::Exclusive(vu)) => {
+                write!(f, ">={vl} <{vu}")
+            }
+            (Bound::Exclusive(vl), Bound::Inclusive(vu)) => {
+                write!(f, ">{vl} <={vu}")
+            }
+            (Bound::Exclusive(vl), Bound::Exclusive(vu)) => {
+                write!(f, ">{vl} <{vu}")
+            }
+        }
+    }
+}
+
+fn max_lower(a: &Bound<Version>, b: &Bound<Version>) -> Bound<Version> {
+    match (a, b) {
+        (Bound::Unbounded, other) | (other, Bound::Unbounded) => other.clone(),
+        (Bound::Inclusive(v1), Bound::Inclusive(v2)) => {
+            if v1 >= v2 { Bound::Inclusive(v1.clone()) } else { Bound::Inclusive(v2.clone()) }
+        }
+        (Bound::Exclusive(v1), Bound::Exclusive(v2)) => {
+            if v1 >= v2 { Bound::Exclusive(v1.clone()) } else { Bound::Exclusive(v2.clone()) }
+        }
+        (Bound::Inclusive(v1), Bound::Exclusive(v2)) => {
+            if v1 > v2 { Bound::Inclusive(v1.clone()) } else { Bound::Exclusive(v2.clone()) }
+        }
+        (Bound::Exclusive(v1), Bound::Inclusive(v2)) => {
+            if v1 >= v2 { Bound::Exclusive(v1.clone()) } else { Bound::Inclusive(v2.clone()) }
+        }
+    }
+}
+
+fn min_upper(a: &Bound<Version>, b: &Bound<Version>) -> Bound<Version> {
+    match (a, b) {
+        (Bound::Unbounded, other) | (other, Bound::Unbounded) => other.clone(),
+        (Bound::Inclusive(v1), Bound::Inclusive(v2)) => {
+            if v1 <= v2 { Bound::Inclusive(v1.clone()) } else { Bound::Inclusive(v2.clone()) }
+        }
+        (Bound::Exclusive(v1), Bound::Exclusive(v2)) => {
+            if v1 <= v2 { Bound::Exclusive(v1.clone()) } else { Bound::Exclusive(v2.clone()) }
+        }
+        (Bound::Inclusive(v1), Bound::Exclusive(v2)) => {
+            if v1 < v2 { Bound::Inclusive(v1.clone()) } else { Bound::Exclusive(v2.clone()) }
+        }
+        (Bound::Exclusive(v1), Bound::Inclusive(v2)) => {
+            if v1 <= v2 { Bound::Exclusive(v1.clone()) } else { Bound::Inclusive(v2.clone()) }
+        }
+    }
+}
+
+fn is_valid_interval(lower: &Bound<Version>, upper: &Bound<Version>) -> bool {
+    match (lower, upper) {
+        (Bound::Unbounded, _) | (_, Bound::Unbounded) => true,
+        (Bound::Inclusive(v1), Bound::Inclusive(v2)) => v1 <= v2,
+        (Bound::Inclusive(v1), Bound::Exclusive(v2)) => v1 < v2,
+        (Bound::Exclusive(v1), Bound::Inclusive(v2)) => v1 < v2,
+        (Bound::Exclusive(v1), Bound::Exclusive(v2)) => v1 < v2,
+    }
+}
+
+fn normalize_version_str(v: &str) -> String {
+    let v = v.trim();
+    let parts: Vec<&str> = v.split('.').collect();
+    match parts.len() {
+        1 => {
+            let p = parts[0].replace(['x', 'X', '*'], "0");
+            if p.chars().all(|c| c.is_ascii_digit()) {
+                format!("{p}.0.0")
+            } else {
+                v.to_string()
+            }
+        }
+        2 => {
+            let p0 = parts[0].replace(['x', 'X', '*'], "0");
+            let p1 = parts[1].replace(['x', 'X', '*'], "0");
+            if p0.chars().all(|c| c.is_ascii_digit()) && p1.chars().all(|c| c.is_ascii_digit()) {
+                format!("{p0}.{p1}.0")
+            } else {
+                v.to_string()
+            }
+        }
+        _ => {
+            let p0 = parts[0].replace(['x', 'X', '*'], "0");
+            let p1 = parts[1].replace(['x', 'X', '*'], "0");
+            let p2 = parts[2].replace(['x', 'X', '*'], "0");
+            if p0.chars().all(|c| c.is_ascii_digit()) && p1.chars().all(|c| c.is_ascii_digit()) && p2.chars().all(|c| c.is_ascii_digit()) {
+                let rest = if parts.len() > 3 {
+                    format!(".{}", parts[3..].join("."))
+                } else {
+                    "".to_string()
+                };
+                format!("{p0}.{p1}.{p2}{rest}")
+            } else {
+                v.to_string()
+            }
+        }
+    }
+}
+
+fn parse_comparator(comp: &str) -> Option<Interval> {
+    let comp = comp.trim();
+    if comp == "*" || comp.is_empty() {
+        return Some(Interval { lower: Bound::Unbounded, upper: Bound::Unbounded });
+    }
+
+    let (op, ver_str) = if let Some(rest) = comp.strip_prefix(">=") {
+        ("=>", rest)
+    } else if let Some(rest) = comp.strip_prefix('>') {
+        (">", rest)
+    } else if let Some(rest) = comp.strip_prefix("<=") {
+        ("<=", rest)
+    } else if let Some(rest) = comp.strip_prefix('<') {
+        ("<", rest)
+    } else if let Some(rest) = comp.strip_prefix('^') {
+        ("^", rest)
+    } else if let Some(rest) = comp.strip_prefix('~') {
+        ("~", rest)
+    } else {
+        ("=", comp)
+    };
+
+    let normalized = normalize_version_str(ver_str);
+    let version = Version::parse(&normalized).ok()?;
+
+    match op {
+        "=" => Some(Interval {
+            lower: Bound::Inclusive(version.clone()),
+            upper: Bound::Inclusive(version),
+        }),
+        "=>" => Some(Interval {
+            lower: Bound::Inclusive(version),
+            upper: Bound::Unbounded,
+        }),
+        ">" => Some(Interval {
+            lower: Bound::Exclusive(version),
+            upper: Bound::Unbounded,
+        }),
+        "<=" => Some(Interval {
+            lower: Bound::Unbounded,
+            upper: Bound::Inclusive(version),
+        }),
+        "<" => Some(Interval {
+            lower: Bound::Unbounded,
+            upper: Bound::Exclusive(version),
+        }),
+        "^" => {
+            let upper_version = if version.major > 0 {
+                Version { major: version.major + 1, minor: 0, patch: 0, build: Vec::new(), pre_release: Vec::new() }
+            } else if version.minor > 0 {
+                Version { major: 0, minor: version.minor + 1, patch: 0, build: Vec::new(), pre_release: Vec::new() }
+            } else {
+                Version { major: 0, minor: 0, patch: version.patch + 1, build: Vec::new(), pre_release: Vec::new() }
+            };
+            Some(Interval {
+                lower: Bound::Inclusive(version),
+                upper: Bound::Exclusive(upper_version),
+            })
+        }
+        "~" => {
+            let upper_version = Version {
+                major: version.major,
+                minor: version.minor + 1,
+                patch: 0,
+                build: Vec::new(),
+                pre_release: Vec::new(),
+            };
+            Some(Interval {
+                lower: Bound::Inclusive(version),
+                upper: Bound::Exclusive(upper_version),
+            })
+        }
+        _ => None,
+    }
+}
+
+fn preprocess_hyphen_ranges(range: &str) -> String {
+    let mut parts = Vec::new();
+    for part in range.split("||") {
+        let part = part.trim();
+        if let Some((start, end)) = part.split_once(" - ") {
+            parts.push(format!(">={} <={}", start.trim(), end.trim()));
+        } else {
+            parts.push(part.to_string());
+        }
+    }
+    parts.join(" || ")
+}
+
+fn parse_range_to_intervals(range: &str) -> Option<Vec<Interval>> {
+    let mut intervals = Vec::new();
+    for part in range.split("||") {
+        let part = part.trim();
+        if part.is_empty() {
+            continue;
+        }
+        let mut part_interval = Interval {
+            lower: Bound::Unbounded,
+            upper: Bound::Unbounded,
+        };
+        for comp in part.split_whitespace() {
+            let comp_interval = parse_comparator(comp)?;
+            let lower = max_lower(&part_interval.lower, &comp_interval.lower);
+            let upper = min_upper(&part_interval.upper, &comp_interval.upper);
+            if !is_valid_interval(&lower, &upper) {
+                part_interval = Interval {
+                    lower: Bound::Inclusive(Version::parse("0.0.0").unwrap()),
+                    upper: Bound::Exclusive(Version::parse("0.0.0").unwrap()),
+                };
+                break;
+            }
+            part_interval = Interval { lower, upper };
+        }
+        if is_valid_interval(&part_interval.lower, &part_interval.upper) {
+            intervals.push(part_interval);
+        }
+    }
+    if intervals.is_empty() {
+        None
+    } else {
+        Some(intervals)
+    }
+}
+
+fn intersect_intervals(a: &[Interval], b: &[Interval]) -> Vec<Interval> {
+    let mut result = Vec::new();
+    for i in a {
+        for j in b {
+            let lower = max_lower(&i.lower, &j.lower);
+            let upper = min_upper(&i.upper, &j.upper);
+            if is_valid_interval(&lower, &upper) {
+                result.push(Interval { lower, upper });
+            }
+        }
+    }
+    result
+}
+
+fn intersect_multiple_ranges(ranges: &[String]) -> Option<String> {
+    if ranges.is_empty() {
+        return Some("*".to_string());
+    }
+    let mut current_intervals = parse_range_to_intervals(&preprocess_hyphen_ranges(&ranges[0]))?;
+    for range in &ranges[1..] {
+        let next_intervals = parse_range_to_intervals(&preprocess_hyphen_ranges(range))?;
+        current_intervals = intersect_intervals(&current_intervals, &next_intervals);
+        if current_intervals.is_empty() {
+            return None;
+        }
+    }
+    Some(current_intervals.iter().map(|i| i.to_string()).collect::<Vec<_>>().join(" || "))
+}
+
+fn have_common_version(ranges: &[String]) -> bool {
+    intersect_multiple_ranges(ranges).is_some()
+}
+
 fn merge_missing_peers(missing: &HashMap<String, Vec<MissingPeerIssue>>) -> MergeResult {
     let mut conflicts = Vec::new();
     let mut intersections = HashMap::new();
@@ -329,8 +770,8 @@ fn merge_missing_peers(missing: &HashMap<String, Vec<MissingPeerIssue>>) -> Merg
             continue;
         }
         let range_owned: Vec<String> = issues.iter().map(|i| i.wanted_range.clone()).collect();
-        if have_common_version(&range_owned) {
-            intersections.insert(peer_name.clone(), issues[0].wanted_range.clone());
+        if let Some(intersection_str) = intersect_multiple_ranges(&range_owned) {
+            intersections.insert(peer_name.clone(), intersection_str);
         } else {
             conflicts.push(peer_name.clone());
         }
@@ -342,53 +783,6 @@ fn merge_missing_peers(missing: &HashMap<String, Vec<MissingPeerIssue>>) -> Merg
 struct MergeResult {
     conflicts: Vec<String>,
     intersections: HashMap<String, String>,
-}
-
-fn have_common_version(ranges: &[String]) -> bool {
-    if ranges.len() <= 1 {
-        return true;
-    }
-
-    let candidate_versions: Vec<String> =
-        ranges.iter().filter_map(|r| extract_candidate_version(r)).collect();
-
-    if candidate_versions.is_empty() {
-        return false;
-    }
-
-    for ver_str in &candidate_versions {
-        if ranges.iter().all(|range| satisfies(ver_str, range)) {
-            return true;
-        }
-    }
-
-    false
-}
-
-fn extract_candidate_version(range_str: &str) -> Option<String> {
-    for segment in range_str.split("||") {
-        let segment = segment.trim();
-        let cleaned = segment
-            .strip_prefix(">=")
-            .or_else(|| segment.strip_prefix('>'))
-            .or_else(|| segment.strip_prefix("<="))
-            .or_else(|| segment.strip_prefix('<'))
-            .or_else(|| segment.strip_prefix('^'))
-            .or_else(|| segment.strip_prefix('~'))
-            .unwrap_or(segment)
-            .trim();
-
-        let cleaned =
-            if let Some((start, _)) = cleaned.split_once(" - ") { start.trim() } else { cleaned };
-
-        let first_word = cleaned.split_whitespace().next().unwrap_or(cleaned);
-        let normalized = first_word.replace(['x', 'X'], "0");
-
-        if normalized != "*" && !normalized.is_empty() && Version::parse(&normalized).is_ok() {
-            return Some(normalized);
-        }
-    }
-    None
 }
 
 fn filter_peer_issues(
@@ -408,26 +802,24 @@ fn filter_peer_issues(
         rules.allowed_versions.clone().unwrap_or_default().into_iter().collect();
 
     let (allow_all_matcher, allow_by_parent) = parse_allowed_versions(&allowed_versions_map);
+    let ignore_missing_matcher = pacquet_config::matcher::create_matcher(&ignore_missing_pats);
+    let allow_any_matcher_rule = pacquet_config::matcher::create_matcher(&allow_any_pats);
 
     for project_issues in issues.values_mut() {
         let mut filtered_missing: HashMap<String, Vec<MissingPeerIssue>> = HashMap::new();
         let mut filtered_bad: HashMap<String, Vec<BadPeerIssue>> = HashMap::new();
-        let mut filtered_intersections: HashMap<String, String> = HashMap::new();
 
         for (peer_name, peer_issues) in &project_issues.missing {
-            if ignore_missing_pats.iter().any(|pat| simple_glob_match(pat, peer_name))
+            if ignore_missing_matcher.matches(peer_name)
                 || peer_issues.iter().all(|i| i.optional)
             {
                 continue;
             }
             filtered_missing.insert(peer_name.clone(), peer_issues.clone());
-            if let Some(range) = project_issues.intersections.get(peer_name) {
-                filtered_intersections.insert(peer_name.clone(), range.clone());
-            }
         }
 
         for (peer_name, peer_issues) in &project_issues.bad {
-            if allow_any_pats.iter().any(|pat| simple_glob_match(pat, peer_name)) {
+            if allow_any_matcher_rule.matches(peer_name) {
                 continue;
             }
             let remaining: Vec<BadPeerIssue> = peer_issues
@@ -438,12 +830,22 @@ fn filter_peer_issues(
                     {
                         return false;
                     }
-                    if let Some(declaring_parent) = issue.parents.last()
-                        && let Some(parent_map) = allow_by_parent.get(&declaring_parent.name)
-                        && let Some(ranges) = parent_map.get(peer_name)
-                        && ranges.iter().any(|range| satisfies(&issue.found_version, range))
-                    {
-                        return false;
+                    if let Some(declaring_parent) = issue.parents.last() {
+                        if let Some(rules) = allow_by_parent.get(&declaring_parent.name) {
+                            for rule in rules {
+                                let range_matches = match &rule.parent_range {
+                                    Some(range) => satisfies(&declaring_parent.version, range),
+                                    None => true,
+                                };
+                                if range_matches {
+                                    if let Some(ranges) = rule.peer_rules.get(peer_name) {
+                                        if ranges.iter().any(|range| satisfies(&issue.found_version, range)) {
+                                            return false;
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                     true
                 })
@@ -456,68 +858,56 @@ fn filter_peer_issues(
 
         project_issues.missing = filtered_missing;
         project_issues.bad = filtered_bad;
-        project_issues.intersections = filtered_intersections;
+        let merged = merge_missing_peers(&project_issues.missing);
+        project_issues.conflicts = merged.conflicts;
+        project_issues.intersections = merged.intersections;
     }
 
     issues
 }
 
 type AllowAllMatcher = HashMap<String, Vec<String>>;
-type AllowByParentMatcher = HashMap<String, HashMap<String, Vec<String>>>;
+type AllowByParentMatcher = HashMap<String, Vec<ParentRule>>;
+
+struct ParentRule {
+    parent_range: Option<String>,
+    peer_rules: HashMap<String, Vec<String>>,
+}
 
 fn parse_allowed_versions(
     allowed: &HashMap<String, String>,
 ) -> (AllowAllMatcher, AllowByParentMatcher) {
     let mut match_all: HashMap<String, Vec<String>> = HashMap::new();
-    let mut by_parent: HashMap<String, HashMap<String, Vec<String>>> = HashMap::new();
+    let mut by_parent: AllowByParentMatcher = HashMap::new();
 
     for (selector, spec) in allowed {
         if let Some((parent, target)) = selector.split_once('>') {
-            let parent_name = parent.trim().to_string();
-            let target_name = target.trim().to_string();
+            let parsed_parent = parse_wanted_dependency(parent.trim());
+            let parent_name = parsed_parent.alias.unwrap_or_else(|| parent.trim().to_string());
+            let parent_range = parsed_parent.bare_specifier;
+
+            let parsed_peer = parse_wanted_dependency(target.trim());
+            let peer_name = parsed_peer.alias.unwrap_or_else(|| target.trim().to_string());
+
             let ranges: Vec<String> = spec.split("||").map(|seg| seg.trim().to_string()).collect();
-            by_parent
-                .entry(parent_name)
-                .or_default()
-                .entry(target_name)
-                .or_default()
-                .extend(ranges);
-        } else {
-            let target_name = if let Some((name, _version)) = selector.split_once('@') {
-                name.to_string()
+
+            let parent_entry = by_parent.entry(parent_name).or_default();
+            if let Some(rule) = parent_entry.iter_mut().find(|r| r.parent_range == parent_range) {
+                rule.peer_rules.entry(peer_name).or_default().extend(ranges);
             } else {
-                selector.clone()
-            };
+                let mut peer_rules = HashMap::new();
+                peer_rules.insert(peer_name, ranges);
+                parent_entry.push(ParentRule { parent_range, peer_rules });
+            }
+        } else {
+            let parsed = parse_wanted_dependency(selector);
+            let target_name = parsed.alias.unwrap_or_else(|| selector.clone());
             let ranges: Vec<String> = spec.split("||").map(|seg| seg.trim().to_string()).collect();
             match_all.entry(target_name).or_default().extend(ranges);
         }
     }
 
     (match_all, by_parent)
-}
-
-fn simple_glob_match(pattern: &str, value: &str) -> bool {
-    if !pattern.contains('*') {
-        return pattern == value;
-    }
-    let segments: Vec<&str> = pattern.split('*').collect();
-    let mut rest = value;
-    for (i, segment) in segments.iter().enumerate() {
-        if segment.is_empty() {
-            continue;
-        }
-        if i == 0 {
-            let Some(stripped) = rest.strip_prefix(segment) else { return false };
-            rest = stripped;
-        } else if i == segments.len() - 1 {
-            return rest.ends_with(segment);
-        } else if let Some(pos) = rest.find(segment) {
-            rest = &rest[pos + segment.len()..];
-        } else {
-            return false;
-        }
-    }
-    true
 }
 
 fn render_peer_issues(issues_by_projects: &IssuesByProjects) -> String {
