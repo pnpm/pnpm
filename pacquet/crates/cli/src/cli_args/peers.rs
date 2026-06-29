@@ -354,8 +354,8 @@ fn walk_snapshot(
                 let is_optional = meta
                     .peer_dependencies_meta
                     .as_ref()
-                    .and_then(|m| m.get(peer_name))
-                    .is_some_and(|m| m.optional);
+                    .and_then(|meta_map| meta_map.get(peer_name))
+                    .is_some_and(|peer_meta| peer_meta.optional);
 
                 let Ok(peer_pkg_name) = peer_name.parse::<PkgName>() else { continue };
                 let resolved_ref = snapshot.and_then(|s| {
@@ -424,8 +424,8 @@ fn walk_snapshot(
             let all_deps = snapshot
                 .dependencies
                 .iter()
-                .flat_map(|d| d.iter())
-                .chain(snapshot.optional_dependencies.iter().flat_map(|d| d.iter()));
+                .flat_map(|deps| deps.iter())
+                .chain(snapshot.optional_dependencies.iter().flat_map(|deps| deps.iter()));
 
             for (alias, dep_ref) in all_deps {
                 if let Some(child_key) = dep_ref.resolve(alias) {
@@ -487,96 +487,104 @@ struct Interval {
 }
 
 impl fmt::Display for Interval {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match (&self.lower, &self.upper) {
-            (Bound::Unbounded, Bound::Unbounded) => write!(f, "*"),
-            (Bound::Inclusive(vl), Bound::Unbounded) => write!(f, ">={vl}"),
-            (Bound::Exclusive(vl), Bound::Unbounded) => write!(f, ">{vl}"),
-            (Bound::Unbounded, Bound::Inclusive(vu)) => write!(f, "<={vu}"),
-            (Bound::Unbounded, Bound::Exclusive(vu)) => write!(f, "<{vu}"),
-            (Bound::Inclusive(vl), Bound::Inclusive(vu)) => {
-                if vl == vu {
-                    write!(f, "{vl}")
+            (Bound::Unbounded, Bound::Unbounded) => write!(formatter, "*"),
+            (Bound::Inclusive(version_lower), Bound::Unbounded) => {
+                write!(formatter, ">={version_lower}")
+            }
+            (Bound::Exclusive(version_lower), Bound::Unbounded) => {
+                write!(formatter, ">{version_lower}")
+            }
+            (Bound::Unbounded, Bound::Inclusive(version_upper)) => {
+                write!(formatter, "<={version_upper}")
+            }
+            (Bound::Unbounded, Bound::Exclusive(version_upper)) => {
+                write!(formatter, "<{version_upper}")
+            }
+            (Bound::Inclusive(version_lower), Bound::Inclusive(version_upper)) => {
+                if version_lower == version_upper {
+                    write!(formatter, "{version_lower}")
                 } else {
-                    write!(f, ">={vl} <={vu}")
+                    write!(formatter, ">={version_lower} <={version_upper}")
                 }
             }
-            (Bound::Inclusive(vl), Bound::Exclusive(vu)) => {
-                write!(f, ">={vl} <{vu}")
+            (Bound::Inclusive(version_lower), Bound::Exclusive(version_upper)) => {
+                write!(formatter, ">={version_lower} <{version_upper}")
             }
-            (Bound::Exclusive(vl), Bound::Inclusive(vu)) => {
-                write!(f, ">{vl} <={vu}")
+            (Bound::Exclusive(version_lower), Bound::Inclusive(version_upper)) => {
+                write!(formatter, ">{version_lower} <={version_upper}")
             }
-            (Bound::Exclusive(vl), Bound::Exclusive(vu)) => {
-                write!(f, ">{vl} <{vu}")
-            }
-        }
-    }
-}
-
-fn max_lower(a: &Bound<Version>, b: &Bound<Version>) -> Bound<Version> {
-    match (a, b) {
-        (Bound::Unbounded, other) | (other, Bound::Unbounded) => other.clone(),
-        (Bound::Inclusive(v1), Bound::Inclusive(v2)) => {
-            if v1 >= v2 {
-                Bound::Inclusive(v1.clone())
-            } else {
-                Bound::Inclusive(v2.clone())
-            }
-        }
-        (Bound::Exclusive(v1), Bound::Exclusive(v2)) => {
-            if v1 >= v2 {
-                Bound::Exclusive(v1.clone())
-            } else {
-                Bound::Exclusive(v2.clone())
-            }
-        }
-        (Bound::Inclusive(v1), Bound::Exclusive(v2)) => {
-            if v1 > v2 {
-                Bound::Inclusive(v1.clone())
-            } else {
-                Bound::Exclusive(v2.clone())
-            }
-        }
-        (Bound::Exclusive(v1), Bound::Inclusive(v2)) => {
-            if v1 >= v2 {
-                Bound::Exclusive(v1.clone())
-            } else {
-                Bound::Inclusive(v2.clone())
+            (Bound::Exclusive(version_lower), Bound::Exclusive(version_upper)) => {
+                write!(formatter, ">{version_lower} <{version_upper}")
             }
         }
     }
 }
 
-fn min_upper(a: &Bound<Version>, b: &Bound<Version>) -> Bound<Version> {
-    match (a, b) {
+fn max_lower(left_bound: &Bound<Version>, right_bound: &Bound<Version>) -> Bound<Version> {
+    match (left_bound, right_bound) {
         (Bound::Unbounded, other) | (other, Bound::Unbounded) => other.clone(),
-        (Bound::Inclusive(v1), Bound::Inclusive(v2)) => {
-            if v1 <= v2 {
-                Bound::Inclusive(v1.clone())
+        (Bound::Inclusive(left_version), Bound::Inclusive(right_version)) => {
+            if left_version >= right_version {
+                Bound::Inclusive(left_version.clone())
             } else {
-                Bound::Inclusive(v2.clone())
+                Bound::Inclusive(right_version.clone())
             }
         }
-        (Bound::Exclusive(v1), Bound::Exclusive(v2)) => {
-            if v1 <= v2 {
-                Bound::Exclusive(v1.clone())
+        (Bound::Exclusive(left_version), Bound::Exclusive(right_version)) => {
+            if left_version >= right_version {
+                Bound::Exclusive(left_version.clone())
             } else {
-                Bound::Exclusive(v2.clone())
+                Bound::Exclusive(right_version.clone())
             }
         }
-        (Bound::Inclusive(v1), Bound::Exclusive(v2)) => {
-            if v1 < v2 {
-                Bound::Inclusive(v1.clone())
+        (Bound::Inclusive(left_version), Bound::Exclusive(right_version)) => {
+            if left_version > right_version {
+                Bound::Inclusive(left_version.clone())
             } else {
-                Bound::Exclusive(v2.clone())
+                Bound::Exclusive(right_version.clone())
             }
         }
-        (Bound::Exclusive(v1), Bound::Inclusive(v2)) => {
-            if v1 <= v2 {
-                Bound::Exclusive(v1.clone())
+        (Bound::Exclusive(left_version), Bound::Inclusive(right_version)) => {
+            if left_version >= right_version {
+                Bound::Exclusive(left_version.clone())
             } else {
-                Bound::Inclusive(v2.clone())
+                Bound::Inclusive(right_version.clone())
+            }
+        }
+    }
+}
+
+fn min_upper(left_bound: &Bound<Version>, right_bound: &Bound<Version>) -> Bound<Version> {
+    match (left_bound, right_bound) {
+        (Bound::Unbounded, other) | (other, Bound::Unbounded) => other.clone(),
+        (Bound::Inclusive(left_version), Bound::Inclusive(right_version)) => {
+            if left_version <= right_version {
+                Bound::Inclusive(left_version.clone())
+            } else {
+                Bound::Inclusive(right_version.clone())
+            }
+        }
+        (Bound::Exclusive(left_version), Bound::Exclusive(right_version)) => {
+            if left_version <= right_version {
+                Bound::Exclusive(left_version.clone())
+            } else {
+                Bound::Exclusive(right_version.clone())
+            }
+        }
+        (Bound::Inclusive(left_version), Bound::Exclusive(right_version)) => {
+            if left_version < right_version {
+                Bound::Inclusive(left_version.clone())
+            } else {
+                Bound::Exclusive(right_version.clone())
+            }
+        }
+        (Bound::Exclusive(left_version), Bound::Inclusive(right_version)) => {
+            if left_version <= right_version {
+                Bound::Exclusive(left_version.clone())
+            } else {
+                Bound::Inclusive(right_version.clone())
             }
         }
     }
@@ -585,77 +593,91 @@ fn min_upper(a: &Bound<Version>, b: &Bound<Version>) -> Bound<Version> {
 fn is_valid_interval(lower: &Bound<Version>, upper: &Bound<Version>) -> bool {
     match (lower, upper) {
         (Bound::Unbounded, _) | (_, Bound::Unbounded) => true,
-        (Bound::Inclusive(v1), Bound::Inclusive(v2)) => v1 <= v2,
-        (Bound::Inclusive(v1), Bound::Exclusive(v2)) => v1 < v2,
-        (Bound::Exclusive(v1), Bound::Inclusive(v2)) => v1 < v2,
-        (Bound::Exclusive(v1), Bound::Exclusive(v2)) => v1 < v2,
+        (Bound::Inclusive(left_version), Bound::Inclusive(right_version)) => {
+            left_version <= right_version
+        }
+        (Bound::Inclusive(left_version), Bound::Exclusive(right_version)) => {
+            left_version < right_version
+        }
+        (Bound::Exclusive(left_version), Bound::Inclusive(right_version)) => {
+            left_version < right_version
+        }
+        (Bound::Exclusive(left_version), Bound::Exclusive(right_version)) => {
+            left_version < right_version
+        }
     }
 }
 
-fn normalize_version_str(v: &str) -> String {
-    let v = v.trim();
-    let parts: Vec<&str> = v.split('.').collect();
-    match parts.len() {
+fn normalize_version_str(version_raw: &str) -> String {
+    let version_raw = version_raw.trim();
+    let version_parts: Vec<&str> = version_raw.split('.').collect();
+    match version_parts.len() {
         1 => {
-            let p = parts[0].replace(['x', 'X', '*'], "0");
-            if p.chars().all(|c| c.is_ascii_digit()) { format!("{p}.0.0") } else { v.to_string() }
+            let major = version_parts[0].replace(['x', 'X', '*'], "0");
+            if major.chars().all(|character| character.is_ascii_digit()) {
+                format!("{major}.0.0")
+            } else {
+                version_raw.to_string()
+            }
         }
         2 => {
-            let p0 = parts[0].replace(['x', 'X', '*'], "0");
-            let p1 = parts[1].replace(['x', 'X', '*'], "0");
-            if p0.chars().all(|c| c.is_ascii_digit()) && p1.chars().all(|c| c.is_ascii_digit()) {
-                format!("{p0}.{p1}.0")
+            let major = version_parts[0].replace(['x', 'X', '*'], "0");
+            let minor = version_parts[1].replace(['x', 'X', '*'], "0");
+            if major.chars().all(|character| character.is_ascii_digit())
+                && minor.chars().all(|character| character.is_ascii_digit())
+            {
+                format!("{major}.{minor}.0")
             } else {
-                v.to_string()
+                version_raw.to_string()
             }
         }
         _ => {
-            let p0 = parts[0].replace(['x', 'X', '*'], "0");
-            let p1 = parts[1].replace(['x', 'X', '*'], "0");
-            let p2 = parts[2].replace(['x', 'X', '*'], "0");
-            if p0.chars().all(|c| c.is_ascii_digit())
-                && p1.chars().all(|c| c.is_ascii_digit())
-                && p2.chars().all(|c| c.is_ascii_digit())
+            let major = version_parts[0].replace(['x', 'X', '*'], "0");
+            let minor = version_parts[1].replace(['x', 'X', '*'], "0");
+            let patch = version_parts[2].replace(['x', 'X', '*'], "0");
+            if major.chars().all(|character| character.is_ascii_digit())
+                && minor.chars().all(|character| character.is_ascii_digit())
+                && patch.chars().all(|character| character.is_ascii_digit())
             {
-                let rest = if parts.len() > 3 {
-                    format!(".{}", parts[3..].join("."))
+                let rest = if version_parts.len() > 3 {
+                    format!(".{}", version_parts[3..].join("."))
                 } else {
                     String::new()
                 };
-                format!("{p0}.{p1}.{p2}{rest}")
+                format!("{major}.{minor}.{patch}{rest}")
             } else {
-                v.to_string()
+                version_raw.to_string()
             }
         }
     }
 }
 
-fn parse_comparator(comp: &str) -> Option<Interval> {
-    let comp = comp.trim();
-    if comp == "*" || comp.is_empty() {
+fn parse_comparator(comparator: &str) -> Option<Interval> {
+    let comparator = comparator.trim();
+    if comparator == "*" || comparator.is_empty() {
         return Some(Interval { lower: Bound::Unbounded, upper: Bound::Unbounded });
     }
 
-    let (op, ver_str) = if let Some(rest) = comp.strip_prefix(">=") {
+    let (operator, version_str) = if let Some(rest) = comparator.strip_prefix(">=") {
         ("=>", rest)
-    } else if let Some(rest) = comp.strip_prefix('>') {
+    } else if let Some(rest) = comparator.strip_prefix('>') {
         (">", rest)
-    } else if let Some(rest) = comp.strip_prefix("<=") {
+    } else if let Some(rest) = comparator.strip_prefix("<=") {
         ("<=", rest)
-    } else if let Some(rest) = comp.strip_prefix('<') {
+    } else if let Some(rest) = comparator.strip_prefix('<') {
         ("<", rest)
-    } else if let Some(rest) = comp.strip_prefix('^') {
+    } else if let Some(rest) = comparator.strip_prefix('^') {
         ("^", rest)
-    } else if let Some(rest) = comp.strip_prefix('~') {
+    } else if let Some(rest) = comparator.strip_prefix('~') {
         ("~", rest)
     } else {
-        ("=", comp)
+        ("=", comparator)
     };
 
-    let normalized = normalize_version_str(ver_str);
+    let normalized = normalize_version_str(version_str);
     let version = Version::parse(&normalized).ok()?;
 
-    match op {
+    match operator {
         "=" => Some(Interval {
             lower: Bound::Inclusive(version.clone()),
             upper: Bound::Inclusive(version),
@@ -753,12 +775,12 @@ fn parse_range_to_intervals(range: &str) -> Option<Vec<Interval>> {
     if intervals.is_empty() { None } else { Some(intervals) }
 }
 
-fn intersect_intervals(a: &[Interval], b: &[Interval]) -> Vec<Interval> {
+fn intersect_intervals(left_intervals: &[Interval], right_intervals: &[Interval]) -> Vec<Interval> {
     let mut result = Vec::new();
-    for i in a {
-        for j in b {
-            let lower = max_lower(&i.lower, &j.lower);
-            let upper = min_upper(&i.upper, &j.upper);
+    for left_interval in left_intervals {
+        for right_interval in right_intervals {
+            let lower = max_lower(&left_interval.lower, &right_interval.lower);
+            let upper = min_upper(&left_interval.upper, &right_interval.upper);
             if is_valid_interval(&lower, &upper) {
                 result.push(Interval { lower, upper });
             }
@@ -767,12 +789,13 @@ fn intersect_intervals(a: &[Interval], b: &[Interval]) -> Vec<Interval> {
     result
 }
 
-fn intersect_multiple_ranges(ranges: &[String]) -> Option<String> {
-    if ranges.is_empty() {
+fn intersect_multiple_ranges(version_ranges: &[String]) -> Option<String> {
+    if version_ranges.is_empty() {
         return Some("*".to_string());
     }
-    let mut current_intervals = parse_range_to_intervals(&preprocess_hyphen_ranges(&ranges[0]))?;
-    for range in &ranges[1..] {
+    let mut current_intervals =
+        parse_range_to_intervals(&preprocess_hyphen_ranges(&version_ranges[0]))?;
+    for range in &version_ranges[1..] {
         let next_intervals = parse_range_to_intervals(&preprocess_hyphen_ranges(range))?;
         current_intervals = intersect_intervals(&current_intervals, &next_intervals);
         if current_intervals.is_empty() {
@@ -789,8 +812,8 @@ fn intersect_multiple_ranges(ranges: &[String]) -> Option<String> {
 }
 
 #[cfg(test)]
-fn have_common_version(ranges: &[String]) -> bool {
-    intersect_multiple_ranges(ranges).is_some()
+fn have_common_version(version_ranges: &[String]) -> bool {
+    intersect_multiple_ranges(version_ranges).is_some()
 }
 
 fn merge_missing_peers(missing: &HashMap<String, Vec<MissingPeerIssue>>) -> MergeResult {
@@ -798,20 +821,21 @@ fn merge_missing_peers(missing: &HashMap<String, Vec<MissingPeerIssue>>) -> Merg
     let mut intersections = HashMap::new();
 
     for (peer_name, issues) in missing {
-        if issues.iter().all(|i| i.optional) {
+        if issues.iter().all(|issue| issue.optional) {
             continue;
         }
         if issues.len() == 1 {
             intersections.insert(peer_name.clone(), issues[0].wanted_range.clone());
             continue;
         }
-        let ranges: Vec<&str> = issues.iter().map(|i| i.wanted_range.as_str()).collect();
+        let ranges: Vec<&str> = issues.iter().map(|issue| issue.wanted_range.as_str()).collect();
         let unique: HashSet<&&str> = ranges.iter().collect();
         if unique.len() == 1 {
             intersections.insert(peer_name.clone(), issues[0].wanted_range.clone());
             continue;
         }
-        let range_owned: Vec<String> = issues.iter().map(|i| i.wanted_range.clone()).collect();
+        let range_owned: Vec<String> =
+            issues.iter().map(|issue| issue.wanted_range.clone()).collect();
         if let Some(intersection_str) = intersect_multiple_ranges(&range_owned) {
             intersections.insert(peer_name.clone(), intersection_str);
         } else {
@@ -852,7 +876,9 @@ fn filter_peer_issues(
         let mut filtered_bad: HashMap<String, Vec<BadPeerIssue>> = HashMap::new();
 
         for (peer_name, peer_issues) in &project_issues.missing {
-            if ignore_missing_matcher.matches(peer_name) || peer_issues.iter().all(|i| i.optional) {
+            if ignore_missing_matcher.matches(peer_name)
+                || peer_issues.iter().all(|issue| issue.optional)
+            {
                 continue;
             }
             filtered_missing.insert(peer_name.clone(), peer_issues.clone());
