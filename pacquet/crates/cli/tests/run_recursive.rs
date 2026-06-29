@@ -344,6 +344,39 @@ fn recursive_run_from_subdirectory_still_excludes_root() {
     drop(root);
 }
 
+/// An all-exclusion `--filter-prod` also drops the workspace root. The
+/// root exclusion inherits `follow_prod_deps_only` from the presence of
+/// `--filter-prod`, so it lands in the same production-only selection
+/// pass as the user's `!project-2`. Both passes are unioned, so if the
+/// exclusion landed in the wrong pass the root (and `project-2`) would be
+/// re-added; this pins them to the same pass.
+#[test]
+fn recursive_run_filter_prod_all_exclusion_also_drops_root() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace_with_root_and_packages(&workspace);
+
+    pacquet
+        .with_arg("-r")
+        .with_arg("--filter-prod")
+        .with_arg("!project-2")
+        .with_arg("run")
+        .with_arg("build")
+        .assert()
+        .success();
+
+    assert!(workspace.join("packages/project-1/ran.txt").exists(), "project-1 should run");
+    assert!(
+        !workspace.join("packages/project-2/ran.txt").exists(),
+        "project-2 is excluded by the !project-2 production selector",
+    );
+    assert!(
+        !workspace.join("root-ran.txt").exists(),
+        "the root exclusion must share the production-only pass, so the root is dropped too",
+    );
+
+    drop(root);
+}
+
 /// When `--filter` narrows the set and no *selected* package defines the
 /// script, the error keeps pnpm's `ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT` code
 /// but switches to the "None of the selected packages" wording (vs. "None
