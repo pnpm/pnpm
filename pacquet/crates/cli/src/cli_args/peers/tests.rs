@@ -2,6 +2,10 @@ use std::collections::BTreeMap;
 
 use super::*;
 
+fn have_common_version(version_ranges: &[String]) -> bool {
+    intersect_multiple_ranges(version_ranges).is_some()
+}
+
 #[test]
 fn test_satisfies_exact_version() {
     assert!(satisfies("1.2.3", "1.2.3"));
@@ -49,20 +53,20 @@ fn test_normalize_version_str() {
 
 #[test]
 fn test_intersect_multiple_ranges_basic() {
-    let r = vec!["^1.2.3".to_string(), ">=1.0.0".to_string()];
-    assert_eq!(intersect_multiple_ranges(&r).as_deref(), Some(">=1.2.3 <2.0.0"));
+    let version_ranges = vec!["^1.2.3".to_string(), ">=1.0.0".to_string()];
+    assert_eq!(intersect_multiple_ranges(&version_ranges).as_deref(), Some(">=1.2.3 <2.0.0"));
 }
 
 #[test]
 fn test_intersect_multiple_ranges_conflict() {
-    let r = vec!["^17.0.0".to_string(), "^18.0.0".to_string()];
-    assert_eq!(intersect_multiple_ranges(&r), None);
+    let version_ranges = vec!["^17.0.0".to_string(), "^18.0.0".to_string()];
+    assert_eq!(intersect_multiple_ranges(&version_ranges), None);
 }
 
 #[test]
 fn test_intersect_multiple_ranges_exact() {
-    let r = vec!["^16.0.0".to_string(), "16.1.0".to_string()];
-    assert_eq!(intersect_multiple_ranges(&r).as_deref(), Some("16.1.0"));
+    let version_ranges = vec!["^16.0.0".to_string(), "16.1.0".to_string()];
+    assert_eq!(intersect_multiple_ranges(&version_ranges).as_deref(), Some("16.1.0"));
 }
 
 #[test]
