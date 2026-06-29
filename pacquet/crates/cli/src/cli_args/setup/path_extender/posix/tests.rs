@@ -214,7 +214,7 @@ fn fish_setup_skips_existing_conf_d_file_with_crlf_line_endings() {
         }),
     );
     assert_eq!(report.old_settings, settings);
-    assert_eq!(fs::read_to_string(config_file).expect("read fish config"), original_config,);
+    assert_eq!(fs::read_to_string(config_file).expect("read fish config"), original_config);
 }
 
 #[test]
