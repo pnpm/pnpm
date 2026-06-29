@@ -2594,10 +2594,10 @@ async fn build_pkg_id_with_patch_hash(
 }
 
 /// Render `{alias}@{bare}` (either half dropped when absent) for the
-/// error message. Mirrors upstream's [`render_specifier`][ts-render_specifier] shape in
-/// `default-resolver`.
+/// error message, matching the specifier string upstream builds for its
+/// [no-resolver error][ts-no-resolver-error] in `default-resolver`.
 ///
-/// [ts-render_specifier]: https://github.com/pnpm/pnpm/blob/097983fbca/resolving/default-resolver/src/index.ts#L148-L156
+/// [ts-no-resolver-error]: https://github.com/pnpm/pnpm/blob/097983fbca/resolving/default-resolver/src/index.ts#L148-L156
 fn render_specifier(wanted: &WantedDependency) -> String {
     let alias = wanted.alias.as_deref().unwrap_or("");
     let bare = wanted.bare_specifier.as_deref().unwrap_or("");

@@ -26,9 +26,8 @@ pub(super) enum AddingPosition {
     End,
 }
 
-/// How the shell config file changed. Mirrors pnpm's [`ConfigFileChangeType`][ts-ConfigFileChangeType].
-///
-/// [ts-ConfigFileChangeType]: https://github.com/pnpm/pnpm/blob/1819226b51/packages/path-extender/src/path-extender.ts
+/// How the shell config file changed. Mirrors the change kinds reported by
+/// pnpm's `@pnpm/os.env.path-extender`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum ConfigFileChangeType {
     Skipped,
@@ -38,9 +37,8 @@ pub(super) enum ConfigFileChangeType {
 }
 
 /// The config file that was touched and how. `None` on Windows, where the
-/// registry — not a file — is edited. Mirrors pnpm's [`ConfigReport`][ts-ConfigReport].
-///
-/// [ts-ConfigReport]: https://github.com/pnpm/pnpm/blob/1819226b51/packages/path-extender/src/path-extender.ts
+/// registry — not a file — is edited. Mirrors the per-file report shape from
+/// pnpm's `@pnpm/os.env.path-extender`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ConfigReport {
     pub path: PathBuf,

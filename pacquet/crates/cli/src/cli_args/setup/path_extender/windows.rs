@@ -12,9 +12,8 @@ use super::{AddDirToEnvPathOpts, AddingPosition, PathExtenderError};
 use std::{path::Path, process::Command};
 
 /// The change made to one environment variable, used to render the
-/// before/after report. Mirrors pnpm's [`EnvVariableChange`][ts-EnvVariableChange].
-///
-/// [ts-EnvVariableChange]: https://github.com/pnpm/pnpm/blob/1819226b51/packages/path-extender-windows/src/path-extender-windows.ts
+/// before/after report. Mirrors the env-variable change report from pnpm's
+/// `@pnpm/os.env.path-extender-windows`.
 #[derive(Debug)]
 pub(super) struct EnvVariableChange {
     pub variable: String,

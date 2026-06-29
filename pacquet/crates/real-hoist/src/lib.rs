@@ -137,11 +137,11 @@ pub struct HoisterResult {
 /// (e.g. `.@`); the inner set lists package aliases that may not be
 /// hoisted past that importer.
 ///
-/// Upstream [`HoistingLimits`][ts-HoistingLimits] is `Map<string, Set<string>>`. Pacquet
-/// uses `BTreeMap` / `BTreeSet` so the order is deterministic for
-/// snapshot tests.
+/// Mirrors yarn's [`hoistingLimits` option][yarn-hoisting-limits]
+/// (`Map<Locator, Set<PackageName>>`). Pacquet uses `BTreeMap` /
+/// `BTreeSet` so the order is deterministic for snapshot tests.
 ///
-/// [ts-HoistingLimits]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts
+/// [yarn-hoisting-limits]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts#L100
 pub type HoistingLimits = BTreeMap<String, BTreeSet<String>>;
 
 /// Options accepted by [`hoist`]. Mirrors the `opts` object of the
