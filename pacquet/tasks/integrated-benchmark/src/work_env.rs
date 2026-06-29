@@ -423,9 +423,13 @@ impl WorkEnv {
         // store + cache (only present for `pnpr@<rev>` targets) — wiping it
         // upfront (but never per-iteration) makes the hyperfine warmup the
         // run that primes the server, so timed runs measure a warm
-        // long-running server even while the client is cold.
+        // long-running server even while the client is cold. `cold-mock-storage`
+        // (only the cold-pnpr scenario) is wiped here too so the warmup run
+        // starts cold even on a reused work-env, not just the timed iterations.
         for dir in self.benchmarked_ids().map(|id| self.bench_dir(id)) {
-            for name in ["node_modules", "store-dir", "cache-dir", "pnpr-storage"] {
+            for name in
+                ["node_modules", "store-dir", "cache-dir", "pnpr-storage", "cold-mock-storage"]
+            {
                 let path = dir.join(name);
                 if path.exists() {
                     remove_dir_all_with_retry(&path).expect("pre-benchmark wipe");
@@ -527,22 +531,48 @@ impl WorkEnv {
         let stderr = File::create(bench_dir.join("revision-mock.stderr.log"))
             .expect("create revision mock stderr log");
 
-        eprintln!(
-            "Serving {revision}'s tarballs from a mock built from pnpr@{revision} on 127.0.0.1:{mock_port}...",
-        );
         // The mock advertises its tarball URLs at the client-facing proxy
         // URL (`registry.url`), not its own loopback port, so downloads cross
         // the emulated registry link instead of bypassing it.
-        let process = pacquet_registry_mock::pnpr_command_with_binary(
-            &binary,
-            mock_port,
-            Some(&registry.url),
-        )
-        .stdin(Stdio::null())
-        .stdout(stdout)
-        .stderr(stderr)
-        .spawn()
-        .expect("spawn revision mock");
+        let cold = self.scenario.is_some_and(BenchmarkScenario::cold_pnpr_cache);
+        let process = if cold {
+            // Empty, isolated storage (wiped between iterations) proxying the
+            // warm shared mock as origin, so every request is a cache miss.
+            let cold_storage = bench_dir.join("cold-mock-storage");
+            let config_path = bench_dir.join("cold-mock-config.yaml");
+            fs::write(&config_path, cold_mock_config_yaml(&cold_storage, &self.registry))
+                .expect("write cold mock config");
+            eprintln!(
+                "Serving {revision}'s tarballs from a COLD mock built from pnpr@{revision} on 127.0.0.1:{mock_port} (origin {})...",
+                self.registry,
+            );
+            Command::new(&binary)
+                .arg("--config")
+                .arg(&config_path)
+                .arg("--storage")
+                .arg(&cold_storage)
+                .arg("--listen")
+                .arg(format!("127.0.0.1:{mock_port}"))
+                .arg("--public-url")
+                .arg(&registry.url)
+                .arg("--packument-ttl-secs")
+                .arg("31536000")
+                .stdin(Stdio::null())
+                .stdout(stdout)
+                .stderr(stderr)
+                .spawn()
+                .expect("spawn cold revision mock")
+        } else {
+            eprintln!(
+                "Serving {revision}'s tarballs from a mock built from pnpr@{revision} on 127.0.0.1:{mock_port}...",
+            );
+            pacquet_registry_mock::pnpr_command_with_binary(&binary, mock_port, Some(&registry.url))
+                .stdin(Stdio::null())
+                .stdout(stdout)
+                .stderr(stderr)
+                .spawn()
+                .expect("spawn revision mock")
+        };
 
         let mut server = PnprServer { process, latency_proxy: None };
         wait_for_pnpr_ready(mock_port);
@@ -804,7 +834,11 @@ impl WorkEnv {
     ///
     /// When a revision has its own tarball-serving mock (see
     /// [`Self::plan_revision_mocks`]), its `pacquet@<rev>` and `pnpr@<rev>`
-    /// targets fetch from that mock instead of the shared one.
+    /// targets fetch from that mock instead of the shared one. In the cold-pnpr
+    /// scenario both arms therefore exercise the cold mock's serve path — the
+    /// direct arm hitting it as a cold pnpr *registry*, the pnpr arm through its
+    /// accelerator — and the frozen lockfile keeps that about tarball serving
+    /// rather than (noisy) cold resolution.
     fn registry_for<'a>(
         &'a self,
         id: BenchId,
@@ -1578,6 +1612,69 @@ fn write_pnpr_benchmark_config(
     let yaml = pnpr_benchmark_config_yaml(pnpr_storage, public_route_registries);
     fs::write(&path, yaml).expect("write pnpr benchmark config");
     path
+}
+
+/// A minimal verdaccio-shaped config for the cold mock: isolated `storage` and
+/// a single `**` proxy uplink at the warm origin, with public reads needing no
+/// auth (matching the bundled mock config).
+fn cold_mock_config_yaml(storage: &Path, origin: &str) -> String {
+    let config = ColdMockConfig {
+        storage: storage.display().to_string(),
+        uplinks: ColdMockUplinks { npmjs: ColdMockUplink { url: origin.to_string() } },
+        packages: ColdMockPackages {
+            all: ColdMockPackage {
+                access: "$all",
+                publish: "$authenticated",
+                unpublish: "$authenticated",
+                proxy: "npmjs",
+            },
+        },
+        log: ColdMockLog { kind: "stdout", format: "pretty", level: "error" },
+    };
+    serde_saphyr::to_string(&config).expect("serialize cold mock config")
+}
+
+/// A minimal verdaccio-shaped config for the cold mock, serialized rather than
+/// string-formatted so the `storage` path and `origin` URL are escaped and the
+/// structure can't drift.
+#[derive(Serialize)]
+struct ColdMockConfig {
+    storage: String,
+    uplinks: ColdMockUplinks,
+    packages: ColdMockPackages,
+    log: ColdMockLog,
+}
+
+#[derive(Serialize)]
+struct ColdMockUplinks {
+    npmjs: ColdMockUplink,
+}
+
+#[derive(Serialize)]
+struct ColdMockUplink {
+    url: String,
+}
+
+#[derive(Serialize)]
+struct ColdMockPackages {
+    #[serde(rename = "**")]
+    all: ColdMockPackage,
+}
+
+#[derive(Serialize)]
+struct ColdMockPackage {
+    access: &'static str,
+    publish: &'static str,
+    unpublish: &'static str,
+    proxy: &'static str,
+}
+
+#[derive(Serialize)]
+struct ColdMockLog {
+    #[serde(rename = "type")]
+    kind: &'static str,
+    format: &'static str,
+    level: &'static str,
 }
 
 fn pnpr_benchmark_config_yaml(pnpr_storage: &Path, public_route_registries: &[&str]) -> String {

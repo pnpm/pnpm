@@ -9,7 +9,7 @@ use crate::{
         PendingAttachment, extract_attachments, iso_from_unix_millis, merge_manifest, now_iso,
         stream_decode_verify_and_write,
     },
-    storage::{CachedPackument, CachedTarballIntegrity, Storage},
+    storage::{CachedPackument, Storage},
     streaming,
     upstream::{
         CacheValidators, FetchOutcome, FetchedPackument, PackumentFetch, Upstream,
@@ -1049,40 +1049,14 @@ async fn serve_tarball_via_uplink(
         return error_response(&err);
     }
 
-    // Serve a verified private-cache hit without touching the upstream. An
-    // uplink with `cache: false` skips the cache entirely and streams through.
+    // Serve a cached private-mirror hit directly: the bytes were verified
+    // against `dist.integrity` when written and the client re-verifies what it
+    // receives, so no re-hash is needed — the same trust model the public proxy
+    // path uses. A `cache: false` uplink skips the cache and streams through.
     if upstream.caches() {
         match state.inner.storage.open_uplink_tarball(&namespace, &name, &filename).await {
             Ok(Some((file, len))) => {
-                let expected = cached_tarball_integrity(&integrity, len);
-                if state
-                    .inner
-                    .storage
-                    .read_uplink_tarball_integrity(&namespace, &name, &filename)
-                    .await
-                    .is_some_and(|cached| cached == expected)
-                {
-                    return tarball_response(streaming::stream_file(file), Some(len));
-                }
-                match streaming::verify_file(file, &integrity).await {
-                    Ok(file) => {
-                        let _ = state
-                            .inner
-                            .storage
-                            .write_uplink_tarball_integrity(&namespace, &name, &filename, &expected)
-                            .await;
-                        return tarball_response(streaming::stream_file(file), Some(len));
-                    }
-                    Err(err) => {
-                        let err = tarball_stream_error(err, &name, &filename);
-                        tracing::warn!(?err, package = %name.as_str(), %filename, "cached uplink tarball failed verification");
-                        let _ = state
-                            .inner
-                            .storage
-                            .remove_uplink_tarball(&namespace, &name, &filename)
-                            .await;
-                    }
-                }
+                return tarball_response(streaming::stream_file(file), Some(len));
             }
             Ok(None) => {}
             Err(err) => {
@@ -1118,31 +1092,14 @@ async fn serve_tarball_via_uplink(
             Err(err) => error_response(&tarball_stream_error(err, &name, &filename)),
         };
     }
-    let len =
-        match streaming::download_verified_to_cache(response, write, &integrity, MAX_TARBALL_BYTES)
-            .await
-        {
-            Ok(len) => len,
-            Err(err) => return error_response(&tarball_stream_error(err, &name, &filename)),
-        };
-    let _ = state
-        .inner
-        .storage
-        .write_uplink_tarball_integrity(
-            &namespace,
-            &name,
-            &filename,
-            &cached_tarball_integrity(&integrity, len),
-        )
-        .await;
-    match state.inner.storage.open_uplink_tarball(&namespace, &name, &filename).await {
-        Ok(Some((file, len))) => tarball_response(streaming::stream_file(file), Some(len)),
-        Ok(None) => error_response(&tarball_integrity_error(
-            &name,
-            &filename,
-            "verified uplink cache entry disappeared before it could be served".to_string(),
-        )),
-        Err(err) => error_response(&err),
+    // Stream the download to the client while teeing it into the namespaced
+    // cache; the entry is promoted only on an SRI match (see
+    // `stream_verified_to_cache`). No `Content-Length` is set: the upstream's
+    // is attacker-controlled and unverifiable before streaming, so the body is
+    // chunked and the client reads to EOF (then re-verifies the integrity).
+    match streaming::stream_verified_to_cache(response, write, &integrity, MAX_TARBALL_BYTES) {
+        Ok(body) => tarball_response(body, None),
+        Err(err) => error_response(&tarball_stream_error(err, &name, &filename)),
     }
 }
 
@@ -1188,7 +1145,7 @@ async fn serve_tarball(
     let upstreams = resolve_upstreams(state, &name);
 
     // A cached tarball is verified against `dist.integrity` on the way in
-    // (`download_verified_to_cache`) and re-verified by the client on receipt,
+    // (`stream_verified_to_cache`) and re-verified by the client on receipt,
     // so a hit can be served without re-hashing.
     let resolved_dist =
         match screen_cached_tarball_osv(state, &name, &filename, &name_version).await {
@@ -1244,25 +1201,15 @@ async fn serve_tarball(
     };
 
     if upstream.caches() {
-        // Verify the freshly-downloaded bytes against `dist.integrity` as they
-        // are written to the cache. That write-time check (plus the install
-        // client's own verification) is why serving cached bytes later needs no
-        // re-hash.
-        if let Err(err) =
-            streaming::download_verified_to_cache(response, write, &integrity, MAX_TARBALL_BYTES)
-                .await
-        {
-            return error_response(&tarball_stream_error(err, &name, &filename));
-        }
-
-        match state.inner.storage.open_cached_tarball(&name, &filename).await {
-            Ok(Some((file, len))) => tarball_response(streaming::stream_file(file), Some(len)),
-            Ok(None) => error_response(&tarball_integrity_error(
-                &name,
-                &filename,
-                "verified cache entry disappeared before it could be served".to_string(),
-            )),
-            Err(err) => error_response(&err),
+        // Stream the download to the client (see `stream_verified_to_cache`)
+        // rather than buffering the whole tarball at the server to verify it
+        // first, so the upstream fetch and the client transfer overlap. No
+        // `Content-Length` is set: the upstream's is attacker-controlled and
+        // unverifiable before streaming, so the body is chunked and the client
+        // reads to EOF (then re-verifies the integrity).
+        match streaming::stream_verified_to_cache(response, write, &integrity, MAX_TARBALL_BYTES) {
+            Ok(body) => tarball_response(body, None),
+            Err(err) => error_response(&tarball_stream_error(err, &name, &filename)),
         }
     } else {
         match streaming::download_verified_to_temp(response, write, &integrity, MAX_TARBALL_BYTES)
@@ -1409,10 +1356,6 @@ fn tarball_integrity_error(name: &PackageName, filename: &str, reason: String) -
         filename: filename.to_string(),
         reason,
     }
-}
-
-fn cached_tarball_integrity(integrity: &Integrity, len: u64) -> CachedTarballIntegrity {
-    CachedTarballIntegrity { integrity: integrity.to_string(), len }
 }
 
 /// Add a new user or log in an existing one. Mirrors verdaccio's

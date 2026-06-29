@@ -104,6 +104,67 @@ fn recursive_exec_filter_selects_only_matching_project() {
     drop(root);
 }
 
+/// A bare `--filter` (no `-r`) enters recursive mode CLI-wide, matching
+/// pnpm's `parse-cli-args` promotion: the command runs only in the
+/// selected project even though `-r` was never passed.
+#[test]
+fn filter_without_recursive_flag_enters_recursive_exec() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["project-1", "project-2"]);
+
+    pacquet
+        .with_arg("--filter")
+        .with_arg("project-1")
+        .with_arg("exec")
+        .with_arg("touch")
+        .with_arg("ran.txt")
+        .assert()
+        .success();
+
+    assert!(
+        workspace.join("project-1").join("ran.txt").exists(),
+        "the selected project-1 should run the command",
+    );
+    assert!(
+        !workspace.join("project-2").join("ran.txt").exists(),
+        "a bare --filter (no -r) should still scope the exec to the selection",
+    );
+
+    drop(root);
+}
+
+/// A `[<since>]` changed-packages selector is not supported by pacquet's
+/// filter engine yet, so a recursive `exec` surfaces the
+/// `UnsupportedDiffSelector` error instead of swallowing it. This
+/// exercises the error-propagation (`?`) out of `select_recursive_projects`.
+#[test]
+fn recursive_exec_diff_selector_is_unsupported() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["project-1"]);
+
+    let output = pacquet
+        .with_arg("-r")
+        .with_arg("--filter")
+        .with_arg("[main]")
+        .with_arg("exec")
+        .with_arg("touch")
+        .with_arg("ran.txt")
+        .output()
+        .expect("spawn pacquet");
+    assert!(!output.status.success(), "a [<since>] diff selector is unsupported and must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Changed-package filter selectors"),
+        "stderr should explain the diff selector is unsupported, got: {stderr}",
+    );
+    assert!(
+        !workspace.join("project-1").join("ran.txt").exists(),
+        "exec must reject the selector before dispatching the command, so no marker is written",
+    );
+
+    drop(root);
+}
+
 /// A `--filter` that matches no project is a no-op: recursive exec exits
 /// 0 and writes no summary even with `--report-summary`, matching pnpm's
 /// main-dispatch exit-0 for an empty selection — rather than erroring on

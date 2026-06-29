@@ -187,6 +187,15 @@ pub enum BenchmarkScenario {
     /// No lockfile, cold cache + cold store. Mirrors `pnpm install` with nothing on disk.
     #[value(name = "isolated-linker.fresh-install.cold-cache.cold-store")]
     IsolatedFreshInstallColdCacheColdStore,
+    /// Frozen lockfile, cold cache + cold store, **and a cold pnpr cache**: the
+    /// tarball-serving mock starts empty each iteration and re-fetches every
+    /// tarball from a warm local origin, so the install exercises the proxy's
+    /// cold download/serve path — the one streaming overlaps, and the only
+    /// scenario that hits it (every other warms the mock). Frozen on purpose:
+    /// no resolution, so the cold path is *just* tarball serving with no
+    /// packument-fetch noise, and both the direct and pnpr arms measure it.
+    #[value(name = "isolated-linker.fresh-restore.cold-cache.cold-store.cold-pnpr")]
+    IsolatedFreshRestoreColdCacheColdStoreColdPnpr,
     /// No lockfile, hot cache + hot store. Resolves everything against an already-populated store.
     #[value(name = "isolated-linker.fresh-install.hot-cache.hot-store")]
     IsolatedFreshInstallHotCacheHotStore,
@@ -232,6 +241,7 @@ impl BenchmarkScenario {
             | BenchmarkScenario::IsolatedFreshInstallHotCacheHotStore
             | BenchmarkScenario::IsolatedFreshInstallColdCacheHotStore => &["install"],
             BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStore
+            | BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStoreColdPnpr
             | BenchmarkScenario::IsolatedFreshRestoreHotCacheHotStore
             | BenchmarkScenario::GvsFreshRestoreHotCacheHotStore => {
                 &["install", "--frozen-lockfile"]
@@ -254,6 +264,7 @@ impl BenchmarkScenario {
             | BenchmarkScenario::IsolatedFreshInstallHotCacheHotStore
             | BenchmarkScenario::IsolatedFreshInstallColdCacheHotStore => false,
             BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStore
+            | BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStoreColdPnpr
             | BenchmarkScenario::IsolatedFreshRestoreHotCacheHotStore
             | BenchmarkScenario::IsolatedFreshAddDepHotCacheHotStore
             | BenchmarkScenario::GvsFreshRestoreHotCacheHotStore => true,
@@ -286,6 +297,15 @@ impl BenchmarkScenario {
                 // stays warm and direct ≈ pnpr.
                 remove: &["node_modules", "pnpm-lock.yaml", "store-dir", "cache-dir"],
                 restore: &[SAVED_PACKAGE_JSON],
+            },
+            // Same as the frozen cold-cache + cold-store restore, but also wipe
+            // the per-revision mock's `cold-mock-storage` so the serving pnpr
+            // refetches (and streams) every tarball from the warm origin each
+            // iteration. (`cold-mock-storage` only exists under a `pnpr@<rev>`
+            // bench dir; it's a harmless no-op for the other ids.)
+            BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStoreColdPnpr => Cleanup {
+                remove: &["node_modules", "store-dir", "cache-dir", "cold-mock-storage"],
+                restore: &[SAVED_LOCKFILE],
             },
             BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStore => Cleanup {
                 remove: &["node_modules", "store-dir", "cache-dir"],
@@ -332,6 +352,12 @@ impl BenchmarkScenario {
             BenchmarkScenario::IsolatedFreshInstallColdCacheColdStore
                 | BenchmarkScenario::IsolatedFreshInstallColdCacheHotStore,
         )
+    }
+
+    /// Whether this scenario gives the serving mock a cold cache (see the
+    /// `…cold-store.cold-pnpr` variant); selects the cold-mock spawn.
+    pub fn cold_pnpr_cache(self) -> bool {
+        matches!(self, BenchmarkScenario::IsolatedFreshRestoreColdCacheColdStoreColdPnpr)
     }
 }
 

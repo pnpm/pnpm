@@ -1,5 +1,6 @@
 use super::{
     audit::{AuditArgs, AuditOutcome},
+    bin::BinArgs,
     cache::CacheCommand,
     cat_file::CatFileArgs,
     cat_index::CatIndexArgs,
@@ -15,6 +16,7 @@ use super::{
     pack::PackArgs,
     pack_app::PackAppArgs,
     ping::PingArgs,
+    repo::RepoArgs,
     reporter::ReporterType,
     root::RootArgs,
     self_update::SelfUpdateArgs,
@@ -165,6 +167,11 @@ pub(super) fn pack<'a>(ctx: &RunCtx<'a>, args: &PackArgs) -> miette::Result<Comm
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
 
+pub(super) fn bin<'a>(ctx: &RunCtx<'a>, args: BinArgs) -> miette::Result<CommandFuture<'a>> {
+    args.run(ctx.dir, (ctx.config)()?)?;
+    Ok(Box::pin(std::future::ready(Ok(()))))
+}
+
 pub(super) fn root<'a>(ctx: &RunCtx<'a>, args: RootArgs) -> miette::Result<CommandFuture<'a>> {
     args.run(ctx.dir)?;
     Ok(Box::pin(std::future::ready(Ok(()))))
@@ -187,6 +194,18 @@ pub(super) fn pack_app<'a>(
     let cfg: &Config = (ctx.config)()?;
     let dir = ctx.dir;
     Ok(Box::pin(async move { args.run(cfg, dir).await }))
+}
+
+pub(super) fn repo<'a>(ctx: &RunCtx<'a>, args: RepoArgs) -> miette::Result<CommandFuture<'a>> {
+    let cfg = (ctx.config)()?;
+    let dir = ctx.dir;
+    Ok(match ctx.reporter {
+        ReporterType::Default | ReporterType::AppendOnly => {
+            Box::pin(async move { args.run::<DefaultReporter>(cfg, dir).await })
+        }
+        ReporterType::Ndjson => Box::pin(async move { args.run::<NdjsonReporter>(cfg, dir).await }),
+        ReporterType::Silent => Box::pin(async move { args.run::<SilentReporter>(cfg, dir).await }),
+    })
 }
 
 pub(super) fn docs<'a>(ctx: &RunCtx<'a>, args: DocsArgs) -> miette::Result<CommandFuture<'a>> {
