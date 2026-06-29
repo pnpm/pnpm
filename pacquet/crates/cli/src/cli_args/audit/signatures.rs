@@ -20,7 +20,9 @@ use p256::{
     pkcs8::DecodePublicKey,
 };
 use pacquet_config::Config;
-use pacquet_network::{ThrottledClient, redact_url_credentials, send_with_retry};
+use pacquet_network::{
+    ThrottledClient, encode_package_name, redact_url_credentials, send_with_retry,
+};
 use serde::{Deserialize, Serialize};
 
 use super::{bold, red, retry_opts_from_config, sanitize_response_body};
