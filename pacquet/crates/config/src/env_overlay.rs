@@ -18,7 +18,7 @@
 
 use crate::{
     AuditLevel, CatalogMode, HoistingLimits, NodeLinker, NodePackageMapType, PackageImportMethod,
-    ResolutionMode, ScriptsPrependNodePath, TrustPolicy, WorkspaceSettings, api::EnvVar,
+    PmOnFail, ResolutionMode, ScriptsPrependNodePath, TrustPolicy, WorkspaceSettings, api::EnvVar,
 };
 use serde::de::DeserializeOwned;
 
@@ -210,6 +210,7 @@ impl WorkspaceSettings {
         json_field!(minimum_release_age_strict, "MINIMUM_RELEASE_AGE_STRICT");
         json_field!(trust_lockfile, "TRUST_LOCKFILE");
         enum_field!(trust_policy, "TRUST_POLICY", TrustPolicy);
+        enum_field!(pm_on_fail, "PM_ON_FAIL", PmOnFail);
         enum_field!(audit_level, "AUDIT_LEVEL", AuditLevel);
         json_field!(audit_config, "AUDIT_CONFIG");
         json_field!(trust_policy_exclude, "TRUST_POLICY_EXCLUDE");

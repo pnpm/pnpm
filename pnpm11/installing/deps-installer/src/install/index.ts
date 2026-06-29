@@ -2621,13 +2621,12 @@ async function installViaPnprServer (
     )
   }
   const { resolveViaPnprServer } = await import('@pnpm/pnpr.client')
-  const { createGetAuthHeaderByURI, getAuthHeadersByScope, getAuthHeadersFromCreds } = await import('@pnpm/network.auth-header')
+  const { createGetAuthHeaderByURI } = await import('@pnpm/network.auth-header')
 
-  // Forward the whole credential map (the registries a graph touches
-  // aren't known up front), so the server attaches the right token per
-  // URL. `authorization` also identifies the caller to pnpr's gate.
+  // Identify the caller to pnpr's gate. The client does not forward its
+  // upstream registry credentials: pnpr selects upstream credentials from
+  // its own route policy, so they never travel in the request body.
   const configByUri = opts.configByUri ?? {}
-  const forwardedAuthHeaders = getAuthHeadersFromCreds(configByUri)
   const pnprAuthorization = createGetAuthHeaderByURI(configByUri)(opts.pnprServer!)
 
   try {
@@ -2663,7 +2662,6 @@ async function installViaPnprServer (
       projects: projectsList,
       registry: opts.registries?.default,
       namedRegistries: opts.namedRegistries,
-      authHeaders: getAuthHeadersByScope(forwardedAuthHeaders),
       authorization: pnprAuthorization,
       overrides: opts.overrides,
       minimumReleaseAge: opts.minimumReleaseAge,

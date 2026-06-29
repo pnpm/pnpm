@@ -726,3 +726,70 @@ fn default_network_concurrency_stays_within_floor_and_cap() {
     let concurrency = super::default_network_concurrency();
     assert!((64..=96).contains(&concurrency), "got {concurrency}");
 }
+
+/// The blocked-redirect error must name only the origin, never the path or
+/// query/fragment where a presigned-URL signature/token lives — the error can
+/// reach a client.
+#[test]
+fn blocked_redirect_error_redacts_token() {
+    let url = Url::parse("https://cdn.example:8443/asset.tgz?X-Amz-Signature=topsecret#frag")
+        .expect("valid url");
+    let message = super::BlockedRedirect(url).to_string();
+    assert!(message.contains("https://cdn.example:8443"), "got: {message}");
+    assert!(!message.contains("topsecret"), "token leaked: {message}");
+    assert!(!message.contains("asset.tgz"), "path leaked: {message}");
+    assert!(!message.contains("frag"), "fragment leaked: {message}");
+}
+
+/// A redirect to a host the guard rejects must fail the request before the
+/// off-allowlist target is ever contacted — the redirect SSRF boundary.
+#[tokio::test]
+async fn redirect_guard_blocks_off_allowlist_redirect_target() {
+    let mut server = mockito::Server::new_async().await;
+    let redirect = server
+        .mock("GET", "/pkg")
+        .with_status(302)
+        .with_header("location", "http://169.254.169.254/internal")
+        .create_async()
+        .await;
+
+    // Allow only the entry server's own origin, never the redirect target.
+    let allowed = format!("{}/", server.url());
+    let client = ThrottledClient::new_for_installs_with_redirect_guard(move |url| {
+        url.as_str().starts_with(&allowed)
+    });
+    let guard = client.acquire().await;
+    let result = guard.get(format!("{}/pkg", server.url())).send().await;
+
+    redirect.assert_async().await;
+    assert!(result.is_err(), "a redirect to an off-allowlist host must be blocked");
+}
+
+/// A redirect whose target the guard allows is followed normally, so an
+/// allowlisted registry that legitimately redirects keeps working.
+#[tokio::test]
+async fn redirect_guard_follows_allowlisted_redirect_target() {
+    let mut target = mockito::Server::new_async().await;
+    let body = target.mock("GET", "/final").with_status(200).with_body("ok").create_async().await;
+    let mut entry = mockito::Server::new_async().await;
+    let redirect = entry
+        .mock("GET", "/pkg")
+        .with_status(302)
+        .with_header("location", &format!("{}/final", target.url()))
+        .create_async()
+        .await;
+
+    let entry_origin = format!("{}/", entry.url());
+    let target_origin = format!("{}/", target.url());
+    let client = ThrottledClient::new_for_installs_with_redirect_guard(move |url| {
+        let url = url.as_str();
+        url.starts_with(&entry_origin) || url.starts_with(&target_origin)
+    });
+    let guard = client.acquire().await;
+    let resp = guard.get(format!("{}/pkg", entry.url())).send().await.expect("redirect followed");
+
+    assert_eq!(resp.status(), 200);
+    assert_eq!(resp.text().await.expect("body"), "ok");
+    redirect.assert_async().await;
+    body.assert_async().await;
+}

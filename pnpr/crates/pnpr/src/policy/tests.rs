@@ -1,7 +1,7 @@
 use super::{AccessList, AccessToken, Identity, PackagePolicies};
 
 fn user(name: &str) -> Identity {
-    Identity::User { username: name.to_string() }
+    Identity::user(name)
 }
 
 #[test]
@@ -44,6 +44,15 @@ fn usernames_grant_per_user_access() {
     assert!(list.allows(&user("alice")));
     assert!(list.allows(&user("bob")));
     assert!(!list.allows(&user("carol")));
+    assert!(!list.allows(&Identity::Anonymous));
+}
+
+#[test]
+fn groups_grant_named_access() {
+    let list = AccessList::parse("platform");
+    assert!(list.allows(&Identity::user_with_groups("alice", ["platform"])));
+    assert!(list.allows(&user("platform")));
+    assert!(!list.allows(&Identity::user_with_groups("bob", ["release"])));
     assert!(!list.allows(&Identity::Anonymous));
 }
 

@@ -10,6 +10,7 @@ use super::{
     find_hash::FindHashArgs,
     ignored_builds::IgnoredBuildsArgs,
     list::ListArgs,
+    logout::LogoutArgs,
     outdated::{OutdatedArgs, OutdatedOutcome},
     pack::PackArgs,
     pack_app::PackAppArgs,
@@ -17,8 +18,11 @@ use super::{
     publish::PublishArgs,
     reporter::ReporterType,
     root::RootArgs,
+    self_update::SelfUpdateArgs,
+    setup::SetupArgs,
     store::StoreCommand,
     why::WhyArgs,
+    with::WithArgs,
 };
 use pacquet_config::Config;
 use pacquet_default_reporter::DefaultReporter;
@@ -209,6 +213,81 @@ pub(super) fn pack_app<'a>(
 pub(super) fn docs<'a>(ctx: &RunCtx<'a>, args: DocsArgs) -> miette::Result<CommandFuture<'a>> {
     let cfg = (ctx.config)()?;
     Ok(Box::pin(async move { args.run(cfg).await }))
+}
+
+pub(super) fn with<'a>(ctx: &RunCtx<'a>, args: WithArgs) -> miette::Result<CommandFuture<'a>> {
+    let config = (ctx.config)()?;
+    macro_rules! run_with {
+        ($reporter:ty) => {
+            Box::pin(args.run::<$reporter>(config))
+        };
+    }
+    Ok(match ctx.reporter {
+        ReporterType::Default | ReporterType::AppendOnly => run_with!(DefaultReporter),
+        ReporterType::Ndjson => run_with!(NdjsonReporter),
+        ReporterType::Silent => run_with!(SilentReporter),
+    })
+}
+
+pub(super) fn self_update<'a>(
+    ctx: &RunCtx<'a>,
+    args: SelfUpdateArgs,
+) -> miette::Result<CommandFuture<'a>> {
+    // Refuse corepack before loading project config, so a broken `.npmrc`
+    // / workspace config can't mask the corepack refusal.
+    super::self_update::reject_if_corepack()?;
+    let config = (ctx.config)()?;
+    let dir = ctx.dir;
+    macro_rules! run_self_update {
+        ($reporter:ty) => {
+            Box::pin(args.run::<$reporter>(config, dir))
+        };
+    }
+    Ok(match ctx.reporter {
+        ReporterType::Default | ReporterType::AppendOnly => run_self_update!(DefaultReporter),
+        ReporterType::Ndjson => run_self_update!(NdjsonReporter),
+        ReporterType::Silent => run_self_update!(SilentReporter),
+    })
+}
+
+// `setup` makes pnpm available globally: it installs the CLI into the
+// global packages dir, writes the alias scripts, and persists `PNPM_HOME` /
+// PATH into the user's shell rc file (POSIX) or registry (Windows). It needs
+// a reporter for the "Installing pnpm CLI globally" log but no project
+// config or lockfile, so it dispatches off `ctx.dir` like the other
+// reporter-typed commands.
+pub(super) fn setup<'a>(ctx: &RunCtx<'a>, args: SetupArgs) -> miette::Result<CommandFuture<'a>> {
+    let dir = ctx.dir;
+    macro_rules! run_setup {
+        ($reporter:ty) => {
+            Box::pin(args.run::<$reporter>(dir))
+        };
+    }
+    Ok(match ctx.reporter {
+        ReporterType::Default | ReporterType::AppendOnly => run_setup!(DefaultReporter),
+        ReporterType::Ndjson => run_setup!(NdjsonReporter),
+        ReporterType::Silent => run_setup!(SilentReporter),
+    })
+}
+
+// `logout` revokes the registry auth token and removes it from `auth.ini`. It
+// needs config (registry, auth tokens, config dir, network settings) and the
+// canonicalized `--dir` as the reporter `prefix`, but no lockfile or install
+// pipeline. The reporter type only routes the `globalInfo` / `globalWarn`
+// channels, so it's threaded through `run` like the other registry commands.
+pub(super) fn logout<'a>(ctx: &RunCtx<'a>, args: LogoutArgs) -> miette::Result<CommandFuture<'a>> {
+    let config: &Config = (ctx.config)()?;
+    let prefix = ctx.dir.to_string_lossy().into_owned();
+    macro_rules! run_logout {
+        ($reporter:ty) => {
+            Box::pin(async move { args.run::<$reporter>(config, &prefix).await })
+        };
+    }
+    Ok(match ctx.reporter {
+        ReporterType::Default | ReporterType::AppendOnly => run_logout!(DefaultReporter),
+        ReporterType::Ndjson => run_logout!(NdjsonReporter),
+        ReporterType::Silent => run_logout!(SilentReporter),
+    })
 }
 
 pub(super) fn store<'a>(

@@ -8,7 +8,7 @@ use clap::Args;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_config::Config;
-use pacquet_network::{RetryOpts, ThrottledClient, redact_url_credentials, send_with_retry};
+use pacquet_network::{RetryOpts, ThrottledClient, redact_and_sanitize, send_with_retry};
 use serde_json::Value;
 use std::time::Instant;
 
@@ -65,16 +65,6 @@ impl PingArgs {
         }
         Ok(report)
     }
-}
-
-/// Make untrusted, network-derived text safe to print: redact inline
-/// `user:pass@` credentials and strip control characters. Applied to the
-/// echoed registry URL and to error messages alike — both can carry
-/// basic-auth or escape sequences from an untrusted `.npmrc` / `--registry`
-/// (or a `reqwest` error that echoes the request URL back), which must not
-/// leak credentials or inject terminal output via raw escapes / `\r` / `\n`.
-fn redact_and_sanitize(text: &str) -> String {
-    redact_url_credentials(text).chars().filter(|character| !character.is_control()).collect()
 }
 
 /// GET `ping_url` with the optional `Authorization` header, timing the

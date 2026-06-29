@@ -507,6 +507,13 @@ impl WorkEnv {
         );
         let pnpr_storage = bench_dir.join("pnpr-storage");
         seed_pnpr_auth(&pnpr_storage);
+        let public_route_registries = if matches!(self.registry_mode, RegistryMode::Npm) {
+            Vec::new()
+        } else {
+            distinct_public_route_registries([self.registry.as_str(), pnpr_server_registry])
+        };
+        let pnpr_config =
+            write_pnpr_benchmark_config(&bench_dir, &pnpr_storage, &public_route_registries);
         let port = pick_unused_port().expect("pick an unused port for the pnpr server");
 
         eprintln!("Starting pnpr server for {id} on 127.0.0.1:{port}...");
@@ -515,6 +522,8 @@ impl WorkEnv {
         let stderr = File::create(bench_dir.join("pnpr-server.stderr.log"))
             .expect("create pnpr server stderr log");
         let process = Command::new(&binary)
+            .arg("--config")
+            .arg(&pnpr_config)
             .arg("--listen")
             .arg(format!("127.0.0.1:{port}"))
             .arg("--storage")
@@ -1380,6 +1389,88 @@ fn seed_pnpr_auth(pnpr_storage: &Path) {
     fs::create_dir_all(pnpr_storage).expect("create pnpr storage before seeding auth");
     fs::write(pnpr_storage.join("htpasswd"), PNPR_BENCHMARK_HTPASSWD)
         .expect("seed pnpr benchmark htpasswd");
+}
+
+fn write_pnpr_benchmark_config(
+    bench_dir: &Path,
+    pnpr_storage: &Path,
+    public_route_registries: &[&str],
+) -> PathBuf {
+    let path = bench_dir.join("pnpr-config.yaml");
+    let yaml = pnpr_benchmark_config_yaml(pnpr_storage, public_route_registries);
+    fs::write(&path, yaml).expect("write pnpr benchmark config");
+    path
+}
+
+fn pnpr_benchmark_config_yaml(pnpr_storage: &Path, public_route_registries: &[&str]) -> String {
+    let config = PnprBenchmarkConfig {
+        storage: pnpr_storage.display().to_string(),
+        secret: "pnpr-integrated-benchmark-secret",
+        auth: PnprBenchmarkAuth {
+            htpasswd: PnprBenchmarkHtpasswd {
+                file: pnpr_storage.join("htpasswd").display().to_string(),
+                max_users: -1,
+            },
+        },
+        routes: PnprBenchmarkRoutes {
+            public: public_route_registries
+                .iter()
+                .map(|registry| PnprBenchmarkPublicRoute { registry: (*registry).to_string() })
+                .collect(),
+        },
+        log: PnprBenchmarkLog { r#type: "stdout", format: "pretty", level: "error" },
+    };
+    serde_saphyr::to_string(&config).expect("serialize pnpr benchmark config")
+}
+
+fn distinct_public_route_registries<const REGISTRY_COUNT: usize>(
+    registries: [&str; REGISTRY_COUNT],
+) -> Vec<&str> {
+    let mut distinct = Vec::with_capacity(registries.len());
+    for registry in registries {
+        if !distinct.contains(&registry) {
+            distinct.push(registry);
+        }
+    }
+    distinct
+}
+
+#[derive(Serialize)]
+struct PnprBenchmarkConfig {
+    storage: String,
+    secret: &'static str,
+    auth: PnprBenchmarkAuth,
+    routes: PnprBenchmarkRoutes,
+    log: PnprBenchmarkLog,
+}
+
+#[derive(Serialize)]
+struct PnprBenchmarkAuth {
+    htpasswd: PnprBenchmarkHtpasswd,
+}
+
+#[derive(Serialize)]
+struct PnprBenchmarkHtpasswd {
+    file: String,
+    max_users: i64,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PnprBenchmarkRoutes {
+    public: Vec<PnprBenchmarkPublicRoute>,
+}
+
+#[derive(Serialize)]
+struct PnprBenchmarkPublicRoute {
+    registry: String,
+}
+
+#[derive(Serialize)]
+struct PnprBenchmarkLog {
+    r#type: &'static str,
+    format: &'static str,
+    level: &'static str,
 }
 
 fn append_pnpr_auth_to_npmrc(dir: &Path, pnpr_server: &str, token: &str) {

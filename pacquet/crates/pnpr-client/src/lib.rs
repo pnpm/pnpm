@@ -11,8 +11,11 @@
 //! then fetches the rest in parallel like a normal install
 //! ([pnpm/pnpm#12230](https://github.com/pnpm/pnpm/issues/12230)).
 //!
-//! pnpr is a stateless resolver: it stores no tarballs and serves no file
-//! content.
+//! The resolver itself is stateless — it materializes no store and the
+//! `/resolve` endpoint persists no tarballs. Resolved tarballs are fetched
+//! from upstream public URLs or, for a private proxied route, an uplink's
+//! `/~<uplink>/` registry endpoint (which may cache them server-side under
+//! its own private namespace).
 
 use std::collections::BTreeMap;
 
@@ -21,7 +24,6 @@ use futures_util::StreamExt as _;
 use pacquet_config::TrustPolicy;
 use pacquet_lockfile::Lockfile;
 use pacquet_lockfile_verification::{RenderedViolation, VerifyError};
-use pacquet_network::AuthHeadersByScope;
 use reqwest::Client;
 use serde::Deserialize;
 
@@ -46,13 +48,10 @@ pub struct ResolveOptions {
     pub registry: String,
     /// The client's named-registry aliases.
     pub named_registries: DepMap,
-    /// The caller's forwarded upstream credentials, keyed by nerf-darted
-    /// registry URI and package scope. The `@` scope stores registry-wide
-    /// auth. Distinct from [`Self::authorization`] (pnpr identity).
-    pub auth_headers: AuthHeadersByScope,
     /// `Authorization` for the pnpr server's own URL (`None` if it needs
-    /// none): identifies the caller to pnpr. Distinct from the upstream
-    /// creds in [`Self::auth_headers`].
+    /// none): identifies the caller to pnpr. The client never forwards its
+    /// own registry credentials — pnpr selects upstream credentials from
+    /// its route policy, so none are placed in the request body.
     pub authorization: Option<String>,
     /// The client's `overrides` (selector -> spec) as raw JSON, applied
     /// at resolve time server-side.
@@ -89,7 +88,6 @@ pub struct ResolveOptions {
 pub struct VerifyLockfileOptions {
     pub registry: String,
     pub named_registries: DepMap,
-    pub auth_headers: AuthHeadersByScope,
     pub authorization: Option<String>,
     pub overrides: Option<serde_json::Value>,
     pub lockfile: Lockfile,
@@ -108,7 +106,6 @@ impl VerifyLockfileOptions {
         Some(Self {
             registry: opts.registry.clone(),
             named_registries: opts.named_registries.clone(),
-            auth_headers: opts.auth_headers.clone(),
             authorization: opts.authorization.clone(),
             overrides: opts.overrides.clone(),
             lockfile: opts.lockfile.clone()?,
@@ -236,10 +233,8 @@ impl PnprClient {
     }
 
     /// Resolve a single project against the server and return the
-    /// resolved lockfile, ignoring the streamed per-package frames. The
-    /// server serves no file content — the caller fetches every tarball
-    /// itself. Equivalent to [`Self::resolve_streaming`] with a no-op
-    /// callback.
+    /// resolved lockfile, ignoring the streamed per-package frames.
+    /// Equivalent to [`Self::resolve_streaming`] with a no-op callback.
     pub async fn resolve(&self, opts: ResolveOptions) -> Result<ResolveOutcome, PnprClientError> {
         self.resolve_streaming(opts, |_| {}).await
     }
@@ -254,7 +249,6 @@ impl PnprClient {
         let request = serde_json::json!({
             "registry": opts.registry,
             "namedRegistries": opts.named_registries,
-            "authHeaders": opts.auth_headers,
             "overrides": opts.overrides,
             "lockfile": opts.lockfile,
             "trustLockfile": opts.trust_lockfile,
@@ -326,7 +320,6 @@ impl PnprClient {
             }],
             "registry": opts.registry,
             "namedRegistries": opts.named_registries,
-            "authHeaders": opts.auth_headers,
             "overrides": opts.overrides,
             "lockfile": opts.lockfile,
             "frozenLockfile": opts.frozen_lockfile,

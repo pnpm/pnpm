@@ -21,6 +21,7 @@ use super::{
     install::InstallArgs,
     link::LinkArgs,
     list::ListArgs,
+    logout::LogoutArgs,
     outdated::OutdatedArgs,
     pack::PackArgs,
     pack_app::PackAppArgs,
@@ -37,12 +38,15 @@ use super::{
     root::RootArgs,
     run::RunArgs,
     runtime::RuntimeArgs,
+    self_update::SelfUpdateArgs,
     set_script::SetScriptArgs,
+    setup::SetupArgs,
     stop::StopArgs,
     store::StoreCommand,
     unlink::UnlinkArgs,
     update::UpdateArgs,
     why::WhyArgs,
+    with::WithArgs,
 };
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
@@ -224,4 +228,14 @@ pub enum CliCommand {
     /// Opens the documentation of a package in the browser.
     #[clap(visible_alias = "home")]
     Docs(DocsArgs),
+    /// Updates pnpm to the latest version (or the one specified)
+    SelfUpdate(SelfUpdateArgs),
+    /// Sets up pnpm
+    Setup(SetupArgs),
+    /// Log out of an npm registry.
+    Logout(LogoutArgs),
+    /// Runs pnpm at a specific version (or the currently running one) for a
+    /// single invocation, ignoring the "packageManager" and
+    /// "devEngines.packageManager" fields of the project's manifest.
+    With(WithArgs),
 }

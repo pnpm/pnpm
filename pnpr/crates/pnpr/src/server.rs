@@ -536,6 +536,12 @@ async fn get_two_segments(
     if first == "-" && second == "whoami" {
         return private_no_cache(serve_whoami(&identity));
     }
+    // `/~<uplink>/<pkg>` — unscoped packument through an uplink endpoint.
+    if let Some(uplink) = first.strip_prefix('~').filter(|uplink| !uplink.is_empty()) {
+        return private_no_cache(
+            serve_packument_via_uplink(&state, &identity, &headers, uplink, &second).await,
+        );
+    }
     if first.starts_with('@') {
         let full = format!("{first}/{second}");
         serve_packument(&state, &identity, &headers, &full).await
@@ -548,11 +554,24 @@ async fn get_three_segments(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     OriginalUri(uri): OriginalUri,
+    headers: HeaderMap,
     Path((first, second, third)): Path<(String, String, String)>,
 ) -> Response {
     if first == "-" && second == "v1" && third == "search" {
         let query = uri.query().unwrap_or("");
         return serve_search(&state, &identity, query).await;
+    }
+    // `/~<uplink>/@scope/<pkg>` — scoped packument through an uplink endpoint.
+    // (A `/~<uplink>/<pkg>/<version>` version-manifest fetch is not served;
+    // clients read the full packument from the endpoint instead.)
+    if let Some(uplink) = first.strip_prefix('~').filter(|uplink| !uplink.is_empty()) {
+        if second.starts_with('@') {
+            let full = format!("{second}/{third}");
+            return private_no_cache(
+                serve_packument_via_uplink(&state, &identity, &headers, uplink, &full).await,
+            );
+        }
+        return not_found();
     }
     if second == "-" {
         serve_tarball(&state, &identity, &first, &third).await
@@ -569,6 +588,12 @@ async fn get_tarball_scoped(
     AuthedCaller(identity): AuthedCaller,
     Path((scope, name, filename)): Path<(String, String, String)>,
 ) -> Response {
+    // `/~<uplink>/<pkg>/-/<file>` — unscoped tarball through an uplink endpoint.
+    if let Some(uplink) = scope.strip_prefix('~').filter(|uplink| !uplink.is_empty()) {
+        return private_no_cache(
+            serve_tarball_via_uplink(&state, &identity, uplink, &name, &filename).await,
+        );
+    }
     if !scope.starts_with('@') {
         return not_found();
     }
@@ -598,13 +623,23 @@ async fn get_four_segments(
     not_found()
 }
 
-/// 5-segment GET: rare for the npm spec — just here as a not-found
-/// catchall so the route compiles and DELETE/PUT can sit on the
-/// same path.
+/// 5-segment GET: `/~<uplink>/@scope/<pkg>/-/<file>` is a scoped tarball
+/// through an uplink endpoint; every other 5-segment GET is a not-found
+/// catchall (the route exists so DELETE/PUT can sit on the same path).
 async fn get_five_segments(
-    State(_state): State<AppState>,
-    Path((_, _, _, _, _)): Path<(String, String, String, String, String)>,
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    Path((a, b, c, d, e)): Path<(String, String, String, String, String)>,
 ) -> Response {
+    if let Some(uplink) = a.strip_prefix('~').filter(|uplink| !uplink.is_empty())
+        && b.starts_with('@')
+        && d == "-"
+    {
+        let full = format!("{b}/{c}");
+        return private_no_cache(
+            serve_tarball_via_uplink(&state, &identity, uplink, &full, &e).await,
+        );
+    }
     not_found()
 }
 
@@ -774,7 +809,7 @@ async fn serve_packument(
             match packument_response(
                 &name,
                 &bytes,
-                &state.inner.config,
+                &state.inner.config.public_url,
                 state.inner.osv_index.as_ref(),
                 abbreviated,
             ) {
@@ -823,6 +858,291 @@ async fn serve_version_manifest(
     match serde_json::to_vec(&manifest) {
         Ok(body) => packument_bytes_response(body, "application/json"),
         Err(err) => error_response(&RegistryError::Json(err)),
+    }
+}
+
+/// The `dist.tarball` rewrite base for an uplink's `/~<uplink>/` registry
+/// endpoint, so a served packument points tarball requests back at the same
+/// endpoint (where this server re-checks access and proxies the bytes).
+fn uplink_tarball_base(public_url: &str, uplink: &str) -> String {
+    format!("{}/~{uplink}", public_url.trim_end_matches('/'))
+}
+
+/// Resolve the upstream behind an authorized `/~<uplink>/` endpoint request.
+///
+/// Fails closed: an uplink that does not exist or carries no `access:` policy
+/// is a `404` (it is not a private-route endpoint), and a caller the policy
+/// does not admit is a `403`. Returns the [`Upstream`] to fetch *through* —
+/// `/~<uplink>/` requests never read or write the shared proxy mirror, so a
+/// private uplink's packuments and tarballs can never leak across the public
+/// path or another uplink.
+fn authorized_uplink<'a>(
+    state: &'a AppState,
+    identity: &Identity,
+    uplink: &str,
+) -> Result<&'a Upstream, Box<Response>> {
+    let Some(access) =
+        state.inner.config.uplinks.get(uplink).and_then(|config| config.access.as_ref())
+    else {
+        return Err(Box::new(not_found()));
+    };
+    if !access.allows(identity) {
+        let user =
+            require_caller(identity, "uplink access").unwrap_or_else(|_| "<anonymous>".to_string());
+        return Err(Box::new(error_response(&RegistryError::Forbidden {
+            user,
+            action: "access",
+            resource: format!("uplink {uplink:?}"),
+        })));
+    }
+    state.inner.upstreams.get(uplink).ok_or_else(|| Box::new(not_found()))
+}
+
+/// Serve a packument through an uplink's `/~<uplink>/` endpoint: fetch the
+/// uplink's own copy fresh (never the shared mirror), rewrite its
+/// `dist.tarball` URLs back onto the same endpoint, and apply OSV filtering.
+/// The disposable cache namespace for an uplink's `/~<uplink>/` route, keyed by
+/// the uplink and a digest of its credential so its packuments and tarballs
+/// never collide with the public mirror or another uplink, and so a credential
+/// rotation moves to a fresh namespace. The `(uplink, credential)` is HMAC'd
+/// with the server secret, so the on-disk path leaks neither, and a path-unsafe
+/// uplink name can't escape the cache root (the digest is hex).
+fn uplink_cache_namespace(state: &AppState, uplink: &str) -> String {
+    let authorization = state
+        .inner
+        .config
+        .uplinks
+        .get(uplink)
+        .and_then(|uplink| uplink.headers.get(reqwest::header::AUTHORIZATION))
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or_default();
+    let digest = crate::route::uplink_cache_digest(
+        uplink,
+        crate::route::credential_digest(authorization),
+        &state.inner.config.resolution_cache_secret,
+    );
+    format!("~uplinks/{digest}")
+}
+
+/// Load an uplink route's packument: a fresh per-uplink cache entry when one
+/// exists, otherwise a fetch through the uplink (with its server-side
+/// credential) written back to the same private namespace. An uplink with
+/// `cache: false` neither reads nor writes the private cache — it streams the
+/// packument through every time, like the public path's `cache: false` knob.
+async fn load_uplink_packument(
+    state: &AppState,
+    namespace: &str,
+    upstream: &Upstream,
+    name: &PackageName,
+    ttl: Duration,
+) -> Result<Option<Vec<u8>>, RegistryError> {
+    if upstream.caches()
+        && let Some(bytes) = state.inner.storage.read_uplink_packument(namespace, name, ttl).await?
+    {
+        return Ok(Some(bytes));
+    }
+    match upstream.fetch_packument(name, &CacheValidators::default()).await? {
+        PackumentFetch::Modified(fetched) => {
+            if upstream.caches()
+                && let Err(err) = state
+                    .inner
+                    .storage
+                    .write_uplink_packument(namespace, name, &fetched.bytes)
+                    .await
+            {
+                tracing::warn!(?err, package = %name.as_str(), "uplink packument cache write failed");
+            }
+            Ok(Some(fetched.bytes))
+        }
+        PackumentFetch::NotFound => Ok(None),
+        // `load_uplink_packument` sends no conditional validators (the uplink
+        // cache refetches stale entries rather than revalidating — see
+        // `Store::read_uplink_packument`), so a well-behaved upstream never
+        // answers 304 here. If one does anyway, "not modified" means the cached
+        // body is current, so serve it (fresh or stale) rather than a spurious
+        // 404 that a client could cache as "package gone".
+        PackumentFetch::NotModified => {
+            state.inner.storage.read_uplink_packument_any(namespace, name).await
+        }
+    }
+}
+
+async fn serve_packument_via_uplink(
+    state: &AppState,
+    identity: &Identity,
+    headers: &HeaderMap,
+    uplink: &str,
+    raw_name: &str,
+) -> Response {
+    let name = match PackageName::parse(raw_name) {
+        Ok(n) => n,
+        Err(err) => return error_response(&err),
+    };
+    let upstream = match authorized_uplink(state, identity, uplink) {
+        Ok(upstream) => upstream,
+        Err(response) => return *response,
+    };
+    let namespace = uplink_cache_namespace(state, uplink);
+    let ttl = upstream.maxage().unwrap_or(state.inner.config.packument_ttl);
+    let bytes = match load_uplink_packument(state, &namespace, upstream, &name, ttl).await {
+        Ok(Some(bytes)) => bytes,
+        Ok(None) => return not_found(),
+        Err(err) => return error_response(&err),
+    };
+    let base = uplink_tarball_base(&state.inner.config.public_url, uplink);
+    match packument_response(
+        &name,
+        &bytes,
+        &base,
+        state.inner.osv_index.as_ref(),
+        wants_abbreviated(headers),
+    ) {
+        Ok(response) => response,
+        Err(err) => error_response(&err),
+    }
+}
+
+/// Serve a tarball through an uplink's `/~<uplink>/` endpoint. The version's
+/// `dist.integrity` is read from the uplink's own packument (served from the
+/// private cache when fresh), and the bytes are verified against it. Both the
+/// packument and the verified tarball are cached under the uplink's private
+/// namespace, so a private uplink's content never lands in the shared proxy
+/// mirror yet is not re-fetched on every request.
+async fn serve_tarball_via_uplink(
+    state: &AppState,
+    identity: &Identity,
+    uplink: &str,
+    raw_name: &str,
+    filename: &str,
+) -> Response {
+    let name = match PackageName::parse(raw_name) {
+        Ok(n) => n,
+        Err(err) => return error_response(&err),
+    };
+    let (filename, name_version) = match name.parse_tarball_name(filename) {
+        Ok(parsed) => parsed,
+        Err(err) => return error_response(&err),
+    };
+    let upstream = match authorized_uplink(state, identity, uplink) {
+        Ok(upstream) => upstream,
+        Err(response) => return *response,
+    };
+    if let Err(err) = ensure_osv_allowed(state, &name, &name_version) {
+        return error_response(&err);
+    }
+    let namespace = uplink_cache_namespace(state, uplink);
+    let ttl = upstream.maxage().unwrap_or(state.inner.config.packument_ttl);
+    let packument = match load_uplink_packument(state, &namespace, upstream, &name, ttl).await {
+        Ok(Some(bytes)) => bytes,
+        Ok(None) => return not_found(),
+        Err(err) => return error_response(&err),
+    };
+    let TarballDist { version, integrity } =
+        match expected_tarball_dist(&packument, &name, &filename) {
+            Ok(Some(dist)) => dist,
+            Ok(None) => return not_found(),
+            Err(err) => return error_response(&err),
+        };
+    if version != name_version
+        && let Err(err) = ensure_osv_allowed(state, &name, &version)
+    {
+        return error_response(&err);
+    }
+
+    // Serve a verified private-cache hit without touching the upstream. An
+    // uplink with `cache: false` skips the cache entirely and streams through.
+    if upstream.caches() {
+        match state.inner.storage.open_uplink_tarball(&namespace, &name, &filename).await {
+            Ok(Some((file, len))) => {
+                let expected = cached_tarball_integrity(&integrity, len);
+                if state
+                    .inner
+                    .storage
+                    .read_uplink_tarball_integrity(&namespace, &name, &filename)
+                    .await
+                    .is_some_and(|cached| cached == expected)
+                {
+                    return tarball_response(streaming::stream_file(file), Some(len));
+                }
+                match streaming::verify_file(file, &integrity).await {
+                    Ok(file) => {
+                        let _ = state
+                            .inner
+                            .storage
+                            .write_uplink_tarball_integrity(&namespace, &name, &filename, &expected)
+                            .await;
+                        return tarball_response(streaming::stream_file(file), Some(len));
+                    }
+                    Err(err) => {
+                        let err = tarball_stream_error(err, &name, &filename);
+                        tracing::warn!(?err, package = %name.as_str(), %filename, "cached uplink tarball failed verification");
+                        let _ = state
+                            .inner
+                            .storage
+                            .remove_uplink_tarball(&namespace, &name, &filename)
+                            .await;
+                    }
+                }
+            }
+            Ok(None) => {}
+            Err(err) => {
+                tracing::warn!(?err, package = %name.as_str(), %filename, "uplink tarball cache open failed");
+            }
+        }
+    }
+
+    let response = match upstream.fetch_tarball_response(&name, &filename).await {
+        Ok(FetchOutcome::Ok(response)) => response,
+        Ok(FetchOutcome::NotFound) => return not_found(),
+        Err(err) => return error_response(&err),
+    };
+    let write =
+        match state.inner.storage.open_uplink_tarball_tmp(&namespace, &name, &filename).await {
+            Ok(write) => write,
+            Err(err) => return error_response(&err),
+        };
+    if !upstream.caches() {
+        // Fetch-through: verify and stream from the temp file, then remove it,
+        // so a `cache: false` uplink's tarball is never persisted.
+        return match streaming::download_verified_to_temp(
+            response,
+            write,
+            &integrity,
+            MAX_TARBALL_BYTES,
+        )
+        .await
+        {
+            Ok((file, len, tmp_path)) => {
+                tarball_response(streaming::stream_file_and_remove(file, tmp_path), Some(len))
+            }
+            Err(err) => error_response(&tarball_stream_error(err, &name, &filename)),
+        };
+    }
+    let len =
+        match streaming::download_verified_to_cache(response, write, &integrity, MAX_TARBALL_BYTES)
+            .await
+        {
+            Ok(len) => len,
+            Err(err) => return error_response(&tarball_stream_error(err, &name, &filename)),
+        };
+    let _ = state
+        .inner
+        .storage
+        .write_uplink_tarball_integrity(
+            &namespace,
+            &name,
+            &filename,
+            &cached_tarball_integrity(&integrity, len),
+        )
+        .await;
+    match state.inner.storage.open_uplink_tarball(&namespace, &name, &filename).await {
+        Ok(Some((file, len))) => tarball_response(streaming::stream_file(file), Some(len)),
+        Ok(None) => error_response(&tarball_integrity_error(
+            &name,
+            &filename,
+            "verified uplink cache entry disappeared before it could be served".to_string(),
+        )),
+        Err(err) => error_response(&err),
     }
 }
 
@@ -1291,7 +1611,7 @@ mod tests;
 /// `resource` names what the 401 is about.
 fn require_caller(identity: &Identity, resource: &str) -> Result<String, RegistryError> {
     match identity {
-        Identity::User { username } => Ok(username.clone()),
+        Identity::User { username, .. } => Ok(username.clone()),
         Identity::Anonymous => {
             Err(RegistryError::Unauthenticated { resource: resource.to_string() })
         }
@@ -2435,7 +2755,7 @@ async fn resolve_caller(
             return Ok(Identity::Anonymous);
         };
         check_token_restrictions(&record, method, peer)?;
-        return Ok(Identity::User { username: record.username });
+        return Ok(state.inner.config.identity_for_user(record.username));
     }
     // Anything that is not a bearer token — Basic, another scheme, or no
     // credentials — carries no request identity. Going through `identify`
@@ -2501,7 +2821,7 @@ fn authorize(
         Identity::Anonymous => {
             Err(RegistryError::Unauthenticated { resource: format!("package {package:?}") })
         }
-        Identity::User { username } => Err(RegistryError::Forbidden {
+        Identity::User { username, .. } => Err(RegistryError::Forbidden {
             user: username.clone(),
             action: action.label(),
             resource: format!("package {package:?}"),
@@ -2907,13 +3227,13 @@ fn record_cache_status(status: &'static str) {
 fn packument_response(
     name: &PackageName,
     bytes: &[u8],
-    config: &Config,
+    tarball_base: &str,
     osv_index: Option<&Arc<crate::resolver::OsvIndex>>,
     abbreviated: bool,
 ) -> Result<Response, RegistryError> {
     let mut doc: Value = serde_json::from_slice(bytes)?;
     filter_osv_vulnerable_versions(&mut doc, name, osv_index);
-    rewrite_tarball_urls(&mut doc, name, &config.public_url);
+    rewrite_tarball_urls(&mut doc, name, tarball_base);
     let (body, content_type) = if abbreviated {
         let trimmed = abbreviate_packument(&doc, Utc::now());
         (serde_json::to_vec(&trimmed)?, ABBREVIATED_CONTENT_TYPE)
@@ -3089,24 +3409,32 @@ async fn resolver_disabled() -> Response {
     StatusCode::NOT_FOUND.into_response()
 }
 
-async fn serve_resolve(State(state): State<AppState>, body: axum::body::Bytes) -> Response {
-    // pnpr resolves but serves no file content, so there is no per-package
-    // read gate here: the client fetches every tarball directly from the
-    // registry with its own credentials, and resolution uses the client's
-    // forwarded credentials for private packages.
+async fn serve_resolve(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    body: axum::body::Bytes,
+) -> Response {
+    // The caller's identity drives both resolution and gateway access:
+    // it selects which pnpr-managed upstream credentials and hosted
+    // packages the resolve may use, and gates which cached resolutions
+    // it may receive.
     let runtime = crate::resolver::Resolver::get_or_init(
         &state.inner.resolver,
         &state.inner.config,
         state.inner.osv_index.clone(),
     );
-    crate::resolver::handle_resolve(runtime, body).await
+    crate::resolver::handle_resolve(runtime, identity, body).await
 }
 
-async fn serve_verify_lockfile(State(state): State<AppState>, body: axum::body::Bytes) -> Response {
+async fn serve_verify_lockfile(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    body: axum::body::Bytes,
+) -> Response {
     let runtime = crate::resolver::Resolver::get_or_init(
         &state.inner.resolver,
         &state.inner.config,
         state.inner.osv_index.clone(),
     );
-    crate::resolver::handle_verify_lockfile(runtime, body).await
+    crate::resolver::handle_verify_lockfile(runtime, identity, body).await
 }

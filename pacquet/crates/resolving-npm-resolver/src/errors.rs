@@ -123,6 +123,31 @@ impl FetchMetadataError {
     pub fn is_body_retryable(&self) -> bool {
         matches!(self, FetchMetadataError::BodyRead { .. } | FetchMetadataError::Decode { .. })
     }
+
+    /// Whether this failure is a hard access/existence denial — HTTP
+    /// `401`, `403`, or `404` — rather than a transport failure
+    /// (`5xx`/timeout/connection reset).
+    ///
+    /// A private-scope metadata fetch must **fail closed** on a denial:
+    /// never fall back to a cached mirror (stale-or-broader namespace),
+    /// because a revoked credential or a hidden private `404` would
+    /// otherwise keep serving the last private packument. A transport
+    /// failure may still fall back, but only within the same namespace.
+    /// Public-scope fetches keep their existing disk fallback regardless.
+    #[must_use]
+    pub fn is_access_denied(&self) -> bool {
+        match self {
+            FetchMetadataError::Network { error, .. } => matches!(
+                error.status(),
+                Some(
+                    reqwest::StatusCode::UNAUTHORIZED
+                        | reqwest::StatusCode::FORBIDDEN
+                        | reqwest::StatusCode::NOT_FOUND
+                ),
+            ),
+            _ => false,
+        }
+    }
 }
 
 /// Raised when an external `PackageVersionGuard` rejects every

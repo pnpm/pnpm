@@ -1,7 +1,7 @@
 use crate::{
     AuditConfig, AuditLevel, CatalogMode, Config, HoistingLimits, LinkWorkspacePackages,
-    NodeLinker, NodePackageMapType, PackageImportMethod, ResolutionMode, ScriptsPrependNodePath,
-    TrustPolicy, api::EnvVar, resolve_child_concurrency,
+    NodeLinker, NodePackageMapType, PackageImportMethod, PmOnFail, ResolutionMode,
+    ScriptsPrependNodePath, TrustPolicy, api::EnvVar, resolve_child_concurrency,
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
@@ -390,6 +390,9 @@ pub struct WorkspaceSettings {
 
     /// `trustPolicy` from `pnpm-workspace.yaml`. See [`TrustPolicy`].
     pub trust_policy: Option<TrustPolicy>,
+
+    /// `pmOnFail` from `pnpm-workspace.yaml`. See [`PmOnFail`].
+    pub pm_on_fail: Option<PmOnFail>,
 
     /// `auditLevel` from `pnpm-workspace.yaml`.
     pub audit_level: Option<AuditLevel>,
@@ -902,6 +905,9 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.trust_policy {
             config.trust_policy = v;
+        }
+        if let Some(v) = self.pm_on_fail {
+            config.pm_on_fail = Some(v);
         }
         if let Some(v) = self.audit_level {
             config.audit_level = Some(v);

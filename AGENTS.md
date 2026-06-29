@@ -18,7 +18,7 @@ When you change one side, do the equivalent change on the other in the same PR i
 
 "User-visible" means anything that affects the CLI surface or the on-disk contract: command-line flags and defaults, environment-variable handling, lockfile/manifest/state-file format, error codes and messages, log emissions parsed by `@pnpm/cli.default-reporter`, store layout, hook semantics. Pure internal refactors, perf wins, and TS-only test cleanups don't need mirroring.
 
-**Scope caveat:** pacquet's current surface area is the dependency-management commands — `install`, `add`, `update`, and `remove`. Every other command (`publish`, `exec`, `run`, `dlx`, `audit`, etc.) lives only in the TypeScript code, so changes there don't need a pacquet-side port yet. The parity rule will widen as pacquet ports more commands; check what pacquet exposes before deciding whether your change is in scope.
+**Any user-visible change to the TypeScript pnpm CLI must be replicated in pacquet.**
 
 The pacquet-side obligation — pnpm is the source of truth, pacquet ports from it, never the other way around — is spelled out at [`pacquet/AGENTS.md`](./pacquet/AGENTS.md#the-cardinal-rule).
 

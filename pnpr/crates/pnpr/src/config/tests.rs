@@ -39,6 +39,7 @@ fn uplink_file(auth: Option<UplinkAuthFile>, headers: IndexMap<String, String>) 
         max_fails: None,
         fail_timeout: None,
         cache: None,
+        access: None,
     }
 }
 
@@ -373,7 +374,7 @@ packages:
 }
 
 fn user(name: &str) -> Identity {
-    Identity::User { username: name.to_string() }
+    Identity::user(name)
 }
 
 fn listen() -> SocketAddr {
@@ -812,7 +813,7 @@ auth:
 web:
   enable: false
 plugins: ../node_modules
-secret: hunter2
+secret: a-sufficiently-long-secret-value
 uplinks:
   npmjs:
     url: https://registry.npmjs.org/
@@ -1639,6 +1640,41 @@ packages:
 }
 
 #[test]
+fn groups_grant_package_and_alias_access() {
+    let yaml = r"
+groups:
+  platform: alice bob
+  release:
+    - carol
+packages:
+  '@team/*':
+    access: platform
+uplinks:
+  corp:
+    url: https://npm.corp.example/
+    access: platform
+    auth:
+      type: bearer
+      token: corp-token
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let alice = config.identity_for_user("alice");
+    let bob = config.identity_for_user("bob");
+    let carol = config.identity_for_user("carol");
+
+    let team = config.policies.for_package("@team/widget");
+    assert!(team.access.allows(&alice));
+    assert!(team.access.allows(&bob));
+    assert!(!team.access.allows(&carol));
+    assert!(!team.access.allows(&Identity::Anonymous));
+
+    let access = config.uplinks["corp"].access.as_ref().expect("uplink declares access");
+    assert!(access.allows(&alice));
+    assert!(access.allows(&bob));
+    assert!(!access.allows(&carol));
+}
+
+#[test]
 fn policy_access_list_accepts_string_and_sequence_forms() {
     // verdaccio accepts both a space-separated string and a YAML
     // sequence; they must compile to the same token list.
@@ -1745,4 +1781,101 @@ fn bundled_default_config_enforces_its_protections() {
     let public = config.policies.for_package("lodash");
     assert!(public.access.allows(&Identity::Anonymous));
     assert!(!public.publish.allows(&Identity::Anonymous));
+}
+
+#[test]
+fn route_policy_defaults_when_absent() {
+    let config = Config::from_yaml_str("{}", Path::new("/x"), listen(), None).unwrap();
+    assert!(config.route_policy.public.is_empty());
+}
+
+#[test]
+fn route_policy_parses_public_routes() {
+    let yaml = r"
+routes:
+  public:
+    - registry: https://registry.npmjs.org/
+      package: '@babel/*'
+    - package: '@types/*'
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    assert_eq!(config.route_policy.public.len(), 2);
+    assert_eq!(
+        config.route_policy.public[0].registry.as_deref(),
+        Some("https://registry.npmjs.org/"),
+    );
+    assert_eq!(config.route_policy.public[0].package.as_deref(), Some("@babel/*"));
+    assert_eq!(config.route_policy.public[1].registry, None);
+}
+
+#[test]
+fn uplink_resolves_bearer_auth_and_access() {
+    let yaml = r"
+uplinks:
+  corp:
+    url: https://npm.corp.example/
+    access: $authenticated alice
+    auth:
+      type: bearer
+      token: corp-token
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let uplink = &config.uplinks["corp"];
+    assert_eq!(uplink.url, "https://npm.corp.example/");
+    assert_eq!(auth_header(uplink), Some("Bearer corp-token"));
+    let access = uplink.access.as_ref().expect("uplink declares access");
+    assert!(access.allows(&user("alice")));
+    assert!(!access.allows(&Identity::Anonymous));
+}
+
+#[test]
+fn uplink_resolves_basic_auth_and_access() {
+    let yaml = r"
+uplinks:
+  corp:
+    url: https://npm.corp.example/
+    access: $authenticated
+    auth:
+      type: basic
+      token: dXNlcjpwYXNz
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    let uplink = &config.uplinks["corp"];
+    assert_eq!(auth_header(uplink), Some("Basic dXNlcjpwYXNz"));
+    let access = uplink.access.as_ref().expect("uplink declares access");
+    assert!(access.allows(&user("bob")));
+    assert!(!access.allows(&Identity::Anonymous));
+}
+
+#[test]
+fn uplink_without_access_is_not_a_private_route_credential() {
+    let yaml = r"
+uplinks:
+  corp:
+    url: https://npm.corp.example/
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    // A plain proxy uplink with no `access:` parses fine; it simply carries no
+    // access policy and is never offered as a private-route credential.
+    assert!(config.uplinks["corp"].access.is_none());
+}
+
+#[test]
+fn resolution_secret_uses_yaml_secret_then_falls_back_to_random() {
+    let with_secret = Config::from_yaml_str(
+        "secret: pnpm-registry-mock-secret-key-32",
+        Path::new("/x"),
+        listen(),
+        None,
+    )
+    .unwrap();
+    assert_eq!(with_secret.resolution_cache_secret.as_ref(), b"pnpm-registry-mock-secret-key-32");
+
+    // No `secret:` yields a fresh 32-byte CSPRNG value.
+    let without_secret = Config::from_yaml_str("{}", Path::new("/x"), listen(), None).unwrap();
+    assert_eq!(without_secret.resolution_cache_secret.len(), 32);
+
+    // A too-short `secret:` is a config error rather than a weak HMAC key.
+    let short = Config::from_yaml_str("secret: short", Path::new("/x"), listen(), None);
+    assert!(matches!(short, Err(RegistryError::InvalidConfig { .. })));
 }
