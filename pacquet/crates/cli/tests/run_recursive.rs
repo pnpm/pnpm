@@ -240,6 +240,44 @@ fn recursive_run_filter_no_matching_script_reports_no_selected_packages() {
     drop(root);
 }
 
+/// `--filter-prod <name>` narrows the recursive run the same way
+/// `--filter` does, exercising the `follow_prod_deps_only` selector
+/// branch of the shared selection path. For a plain name selector the
+/// production-only dependency walk doesn't change the selected set (the
+/// production graph is only consulted for `...`-style walks), so the
+/// observable result matches the `--filter` case.
+#[test]
+fn recursive_run_filter_prod_selects_only_matching_project() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[
+            ("project-1", build_writes_marker("project-1")),
+            ("project-2", build_writes_marker("project-2")),
+        ],
+    );
+
+    pacquet
+        .with_arg("-r")
+        .with_arg("--filter-prod")
+        .with_arg("project-1")
+        .with_arg("run")
+        .with_arg("build")
+        .assert()
+        .success();
+
+    assert!(
+        workspace.join("project-1").join("ran.txt").exists(),
+        "the --filter-prod-selected project-1 should run",
+    );
+    assert!(
+        !workspace.join("project-2").join("ran.txt").exists(),
+        "project-2 is not selected by --filter-prod and must not run",
+    );
+
+    drop(root);
+}
+
 /// A `--filter` that matches no project is a no-op: the run exits 0
 /// without raising the no-selected-packages error, matching pnpm's
 /// main-dispatch exit-0 for an empty `selectedProjectsGraph`.
