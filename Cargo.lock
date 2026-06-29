@@ -4591,6 +4591,7 @@ dependencies = [
  "pacquet-executor",
  "pacquet-network",
  "pacquet-network-web-auth",
+ "pacquet-network-web-auth-testing",
  "pacquet-pack",
  "pacquet-reporter",
  "pipe-trait",
