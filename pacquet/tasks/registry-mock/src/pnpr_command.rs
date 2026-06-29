@@ -1,7 +1,11 @@
 use crate::{
     port_to_url::port_to_url, runtime_storage, seed_storage::seed_runtime_storage, workspace_root,
 };
-use std::{env, path::PathBuf, process::Command};
+use std::{
+    env,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 /// Locate the `pnpr` binary built into the cargo workspace's
 /// `target/<profile>/` dir.
@@ -65,7 +69,21 @@ fn pnpr_binary() -> PathBuf {
 /// tarball downloads bypass the emulated registry link.
 #[must_use]
 pub fn pnpr_command(port: u16, public_url: Option<&str>) -> Command {
-    let bin = pnpr_binary();
+    pnpr_command_with_binary(&pnpr_binary(), port, public_url)
+}
+
+/// Like [`pnpr_command`] but runs an explicit `pnpr` binary instead of the
+/// one resolved from the workspace `target/` dir.
+///
+/// The integrated benchmark uses this to front each compared revision with a
+/// mock built from *that* revision's `pnpr`, so a tarball-serve change shows
+/// up in the per-revision comparison instead of only in the post-merge trend
+/// (the shared-mock blind spot: a single mock built from one revision serves
+/// every arm, so a serve-path delta cancels out). All revisions share the one
+/// runtime storage — serving a warm cache is read-only, so concurrent mocks
+/// don't contend.
+#[must_use]
+pub fn pnpr_command_with_binary(bin: &Path, port: u16, public_url: Option<&str>) -> Command {
     assert!(
         bin.is_file(),
         "pnpr binary not found at {bin:?} — \
