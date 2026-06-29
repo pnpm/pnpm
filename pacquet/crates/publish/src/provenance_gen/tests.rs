@@ -1,4 +1,4 @@
-use super::{github_statement, npm_purl};
+use super::{github_statement, gitlab_statement, npm_purl};
 use crate::capabilities::EnvVar;
 use pretty_assertions::assert_eq;
 use serde_json::json;
@@ -54,4 +54,46 @@ fn github_statement_shapes_the_slsa_v1_predicate() {
         run["metadata"]["invocationId"],
         "https://github.com/pnpm/pnpm/actions/runs/42/attempts/1",
     );
+}
+
+/// A fake environment that mirrors the variables GitLab CI sets, so the
+/// statement builder can be exercised without a real CI runner.
+struct GlEnv;
+
+impl EnvVar for GlEnv {
+    fn var(name: &str) -> Option<String> {
+        let value = match name {
+            "CI_PROJECT_URL" => "https://gitlab.com/pnpm/pnpm",
+            "CI_RUNNER_ID" => "77",
+            "CI_COMMIT_SHA" => "abc123",
+            "CI_JOB_NAME" => "publish",
+            "CI_JOB_ID" => "555",
+            "CI_PIPELINE_ID" => "999",
+            "CI_CONFIG_PATH" => ".gitlab-ci.yml",
+            "CI_JOB_URL" => "https://gitlab.com/pnpm/pnpm/-/jobs/555",
+            _ => return None,
+        };
+        Some(value.to_owned())
+    }
+}
+
+#[test]
+fn gitlab_statement_shapes_the_slsa_v02_predicate() {
+    let subject = json!([{ "name": "pkg:npm/pkg@1.0.0", "digest": { "sha512": "deadbeef" } }]);
+    let statement = gitlab_statement::<GlEnv>(&subject);
+
+    assert_eq!(statement["_type"], "https://in-toto.io/Statement/v0.1");
+    assert_eq!(statement["predicateType"], "https://slsa.dev/provenance/v0.2");
+    let predicate = &statement["predicate"];
+    assert_eq!(predicate["builder"]["id"], "https://gitlab.com/pnpm/pnpm/-/runners/77");
+    let config_source = &predicate["invocation"]["configSource"];
+    assert_eq!(config_source["uri"], "git+https://gitlab.com/pnpm/pnpm");
+    assert_eq!(config_source["digest"]["sha1"], "abc123");
+    assert_eq!(config_source["entryPoint"], "publish");
+    assert_eq!(
+        predicate["metadata"]["buildInvocationId"],
+        "https://gitlab.com/pnpm/pnpm/-/jobs/555"
+    );
+    assert_eq!(predicate["materials"][0]["uri"], "git+https://gitlab.com/pnpm/pnpm");
+    assert_eq!(predicate["materials"][0]["digest"]["sha1"], "abc123");
 }

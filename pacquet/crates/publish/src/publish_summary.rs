@@ -84,7 +84,10 @@ pub fn create_publish_summary(info: &PackedPkgInfo<'_>, tarball_data: &[u8]) -> 
 /// interpretation. Ports TS `extractBundledDependencies`.
 #[must_use]
 pub fn extract_bundled_dependencies(manifest: &Value) -> Vec<String> {
-    let raw = manifest.get("bundledDependencies").or_else(|| manifest.get("bundleDependencies"));
+    let raw = manifest
+        .get("bundledDependencies")
+        .filter(|value| !value.is_null())
+        .or_else(|| manifest.get("bundleDependencies"));
     match raw {
         Some(Value::Array(items)) => {
             items.iter().filter_map(|item| item.as_str().map(str::to_owned)).collect()

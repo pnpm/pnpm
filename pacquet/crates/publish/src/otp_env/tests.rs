@@ -50,3 +50,8 @@ fn empty_env_otp_is_ignored() {
 fn no_env_keeps_current() {
     assert_eq!(resolve_otp_from_env::<NoEnv>(None), None);
 }
+
+#[test]
+fn empty_explicit_otp_normalizes_to_none_without_env() {
+    assert_eq!(resolve_otp_from_env::<NoEnv>(Some(String::new())), None);
+}

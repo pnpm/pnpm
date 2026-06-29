@@ -1130,9 +1130,9 @@ pub struct Config {
     /// `gitChecks` (`--no-git-checks`). When `true` (the default),
     /// `pnpm publish` verifies the git working tree is clean, on the
     /// expected branch, and up to date with the remote before publishing.
-    /// Setting it to `false` — via `git-checks=false` in `.npmrc` /
-    /// `pnpm-workspace.yaml`, or the `--no-git-checks` flag — skips those
-    /// checks. Mirrors pnpm's `opts.gitChecks !== false` gate.
+    /// Setting it to `false` — via `git-checks=false` in `.npmrc`,
+    /// `gitChecks: false` in `pnpm-workspace.yaml`, or the `--no-git-checks`
+    /// flag — skips those checks. Mirrors pnpm's `opts.gitChecks !== false` gate.
     #[default(true)]
     pub git_checks: bool,
 

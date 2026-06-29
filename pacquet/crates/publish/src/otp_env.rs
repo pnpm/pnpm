@@ -12,12 +12,13 @@ const ENV_KEY: &str = "PNPM_CONFIG_OTP";
 /// Ports TS `optionsWithOtpEnv`.
 #[must_use]
 pub fn resolve_otp_from_env<Sys: EnvVar>(current_otp: Option<String>) -> Option<String> {
-    if current_otp.as_deref().is_some_and(|otp| !otp.is_empty()) {
+    let current_otp = current_otp.filter(|otp| !otp.is_empty());
+    if current_otp.is_some() {
         return current_otp;
     }
     match Sys::var(ENV_KEY) {
         Some(otp) if !otp.is_empty() => Some(otp),
-        _ => current_otp,
+        _ => None,
     }
 }
 

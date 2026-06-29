@@ -13,6 +13,10 @@ use pacquet_diagnostics::miette::Diagnostic;
 ///   degenerate case only needs a stable placeholder).
 #[must_use]
 pub fn display_error(code: Option<&str>, body: Option<&str>) -> String {
+    // TS treats empty strings as absent (`error.code` / `error.message` are
+    // truthy-tested), so normalize `Some("")` to `None` before matching.
+    let code = code.filter(|code| !code.is_empty());
+    let body = body.filter(|body| !body.is_empty());
     match (code, body) {
         (Some(code), Some(body)) => format!("{code}: {body}"),
         (Some(code), None) => code.to_owned(),
