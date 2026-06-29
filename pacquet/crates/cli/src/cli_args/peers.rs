@@ -182,8 +182,21 @@ fn resolve_importer_id(lockfile_dir: &std::path::Path, dir: &std::path::Path) ->
     }
 }
 
+fn path_is_within(path: &std::path::Path, base: &std::path::Path) -> bool {
+    let (Ok(canonical_path), Ok(canonical_base)) =
+        (dunce::canonicalize(path), dunce::canonicalize(base))
+    else {
+        return false;
+    };
+    canonical_path.starts_with(&canonical_base)
+}
+
 fn resolve_link_version(lockfile_dir: &std::path::Path, link_target: &str) -> Option<String> {
-    let manifest_path = lockfile_dir.join(link_target).join("package.json");
+    let target_dir = lockfile_dir.join(link_target);
+    if !path_is_within(&target_dir, lockfile_dir) {
+        return None;
+    }
+    let manifest_path = target_dir.join("package.json");
     PackageManifest::from_path(manifest_path).ok().and_then(|manifest| {
         manifest.value().get("version").and_then(|v| v.as_str()).map(String::from)
     })
@@ -199,6 +212,9 @@ fn check_linked_package_peers(
     issues: &mut PeerIssues,
 ) {
     let linked_pkg_dir = lockfile_dir.join(importer_id).join(link_target);
+    if !path_is_within(&linked_pkg_dir, lockfile_dir) {
+        return;
+    }
     let manifest_path = linked_pkg_dir.join("package.json");
     let Ok(manifest) = PackageManifest::from_path(manifest_path) else { return };
     let Some(peer_deps) = manifest.value().get("peerDependencies").and_then(|v| v.as_object())
@@ -312,6 +328,9 @@ fn collect_initial_keys(
                 );
 
                 let linked_importer_path = lockfile_dir.join(importer_id).join(link_target);
+                if !path_is_within(&linked_importer_path, lockfile_dir) {
+                    continue;
+                }
                 let linked_importer_id = resolve_importer_id(lockfile_dir, &linked_importer_path);
                 collect_initial_keys(
                     &linked_importer_id,
