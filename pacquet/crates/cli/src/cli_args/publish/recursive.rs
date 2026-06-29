@@ -66,21 +66,34 @@ impl PublishArgs {
 
         // Mirror pnpm's `pFilter` over the selected graph: keep only packages
         // that have a name and version, are not private, and — unless
-        // `--force` — are not already on their registry.
-        let mut to_publish: HashSet<PathBuf> = HashSet::new();
-        for (root, node) in &graph {
+        // `--force` — are not already on their registry. The already-published
+        // probes are independent registry reads, so run them concurrently like
+        // pnpm's `pFilter` instead of one round-trip at a time (the
+        // `ThrottledClient` still bounds the actual in-flight fan-out).
+        let http_client_ref = &http_client;
+        let probes = graph.iter().filter_map(|(root, node)| {
             let manifest = node.package.project.manifest.value();
-            let Some((name, version)) = publish_eligible(manifest) else {
-                continue;
-            };
-            if !self.force
-                && is_already_published(name, version, manifest, config, &http_client, retry_opts)
-                    .await
-            {
-                continue;
-            }
-            to_publish.insert(root.clone());
-        }
+            let (name, version) = publish_eligible(manifest)?;
+            Some(async move {
+                let already = !self.force
+                    && is_already_published(
+                        name,
+                        version,
+                        manifest,
+                        config,
+                        http_client_ref,
+                        retry_opts,
+                    )
+                    .await;
+                (root, already)
+            })
+        });
+        let to_publish: HashSet<PathBuf> = futures_util::future::join_all(probes)
+            .await
+            .into_iter()
+            .filter(|(_, already)| !already)
+            .map(|(root, _)| root.clone())
+            .collect();
 
         if to_publish.is_empty() {
             emit_info::<Reporter>("There are no new packages that should be published");
