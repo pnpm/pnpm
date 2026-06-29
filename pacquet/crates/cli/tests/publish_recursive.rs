@@ -142,3 +142,65 @@ fn recursive_publish_batch_is_unsupported() {
 
     drop(root);
 }
+
+/// A bare `--filter` (no `-r`) puts `publish` into recursive mode, matching
+/// pnpm's `parse-cli-args` promotion — the shape `release.yml` drives
+/// publishing with (`pn publish --filter=<pkg>`). A filter that matches no
+/// project is then a recursive no-op (exit 0); without the promotion this
+/// would fall through to the single-package path and fail for lack of a
+/// `package.json` in the workspace-root cwd.
+#[test]
+fn filter_without_recursive_flag_enters_recursive_publish() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[("project-1", private_pkg("project-1")), ("project-2", private_pkg("project-2"))],
+    );
+
+    pacquet
+        .with_arg("publish")
+        .with_arg("--filter=does-not-exist")
+        .with_arg("--no-git-checks")
+        .assert()
+        .success();
+
+    assert!(
+        !workspace.join("pnpm-publish-summary.json").exists(),
+        "an empty selection must not write a publish summary",
+    );
+
+    drop(root);
+}
+
+/// The exact shape `release.yml` publishes the monorepo with — an exclusion
+/// selector and no `-r` (`pn publish --filter=!<pkg> ...`). The promotion
+/// enters recursive mode, the exclusion narrows the set, and because every
+/// remaining package is private the run is a successful no-op that records an
+/// empty `publishedPackages` list.
+#[test]
+fn filter_exclusion_without_recursive_flag_publishes_nothing() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[("project-1", private_pkg("project-1")), ("project-2", private_pkg("project-2"))],
+    );
+
+    pacquet
+        .with_arg("publish")
+        .with_arg("--filter=!project-1")
+        .with_arg("--report-summary")
+        .with_arg("--no-git-checks")
+        .assert()
+        .success();
+
+    let summary = fs::read_to_string(workspace.join("pnpm-publish-summary.json"))
+        .expect("read pnpm-publish-summary.json");
+    let value: Value = serde_json::from_str(&summary).expect("parse publish summary");
+    assert_eq!(
+        value["publishedPackages"].as_array().expect("publishedPackages is an array").len(),
+        0,
+        "every selected package is private, so nothing is published",
+    );
+
+    drop(root);
+}
