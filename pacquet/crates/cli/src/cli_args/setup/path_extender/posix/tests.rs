@@ -6,10 +6,11 @@
 //! `add_dir_to_posix_env_path`.
 
 use super::{
-    AddDirToEnvPathOpts, AddingPosition, ConfigFileChangeType, PathExtenderError,
+    AddDirToEnvPathOpts, AddingPosition, ConfigFileChangeType, ConfigReport, PathExtenderError,
     add_dir_to_posix_env_path, find_section, render_fish_settings, render_nu_settings,
     render_posix_settings, replace_section, update_shell_config, wrap_settings,
 };
+use pacquet_testing_utils::env_guard::EnvGuard;
 use pretty_assertions::assert_eq;
 use std::{fs, path::Path};
 
@@ -150,6 +151,212 @@ fn rejects_pnpm_home_with_a_path_separator() {
     let err = add_dir_to_posix_env_path(Path::new("/home/pnpm:/tmp/evil"), &opts(false))
         .expect_err("a colon in PNPM_HOME must be rejected");
     assert!(matches!(err, PathExtenderError::UnsafePnpmHome { character: ':', .. }));
+}
+
+#[test]
+fn rejects_pnpm_home_with_control_characters() {
+    let err = add_dir_to_posix_env_path(Path::new("/home/pnpm\u{1b}bad"), &opts(false))
+        .expect_err("an escape character in PNPM_HOME must be rejected");
+    assert!(matches!(err, PathExtenderError::UnsafePnpmHome { character: '\u{1b}', .. }));
+}
+
+#[test]
+fn fish_setup_writes_conf_d_file() {
+    let env = EnvGuard::snapshot(["FISH_VERSION", "XDG_CONFIG_HOME"]);
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let config_home = dir.path().join("xdg-config");
+    env.set("FISH_VERSION", "3.7.0");
+    env.set("XDG_CONFIG_HOME", &config_home);
+
+    let mut opts = opts(false);
+    opts.proxy_var_sub_dir = Some("bin");
+    let report = add_dir_to_posix_env_path(Path::new(HOME), &opts).expect("write fish setup");
+    let config_file = config_home.join("fish/conf.d/pnpm.fish");
+
+    assert_eq!(
+        report.config_file,
+        Some(ConfigReport {
+            path: config_file.clone(),
+            change_type: ConfigFileChangeType::Created,
+        }),
+    );
+    assert_eq!(report.old_settings, "");
+    assert_eq!(report.new_settings, render_fish_settings(HOME, &opts));
+    assert_eq!(
+        fs::read_to_string(config_file).expect("read fish config"),
+        format!("{}\n", report.new_settings),
+    );
+}
+
+#[test]
+fn fish_setup_skips_existing_conf_d_file_with_crlf_line_endings() {
+    let env = EnvGuard::snapshot(["FISH_VERSION", "XDG_CONFIG_HOME"]);
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let config_home = dir.path().join("xdg-config");
+    let config_file = config_home.join("fish/conf.d/pnpm.fish");
+    let mut opts = opts(false);
+    opts.proxy_var_sub_dir = Some("bin");
+    let settings = render_fish_settings(HOME, &opts);
+    fs::create_dir_all(config_file.parent().expect("config parent")).expect("create config dir");
+    fs::write(&config_file, format!("{}\r\n", settings.replace('\n', "\r\n")))
+        .expect("write CRLF fish config");
+    env.set("FISH_VERSION", "3.7.0");
+    env.set("XDG_CONFIG_HOME", &config_home);
+
+    let report = add_dir_to_posix_env_path(Path::new(HOME), &opts).expect("skip fish setup");
+
+    assert_eq!(
+        report.config_file,
+        Some(ConfigReport {
+            path: config_file.clone(),
+            change_type: ConfigFileChangeType::Skipped,
+        }),
+    );
+    assert_eq!(report.old_settings, settings);
+    assert!(fs::read_to_string(config_file).expect("read fish config").contains("\r\n"));
+}
+
+#[test]
+fn fish_setup_rejects_relative_xdg_config_home() {
+    let env = EnvGuard::snapshot(["FISH_VERSION", "XDG_CONFIG_HOME"]);
+    env.set("FISH_VERSION", "3.7.0");
+    env.set("XDG_CONFIG_HOME", "relative-config");
+
+    let err = add_dir_to_posix_env_path(Path::new(HOME), &opts(false))
+        .expect_err("relative XDG_CONFIG_HOME must be rejected");
+
+    assert!(matches!(err, PathExtenderError::UnsafeShellConfig { .. }));
+}
+
+#[cfg(unix)]
+#[test]
+fn fish_setup_rejects_symlinked_conf_d_parent() {
+    let env = EnvGuard::snapshot(["FISH_VERSION", "XDG_CONFIG_HOME"]);
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let config_home = dir.path().join("xdg-config");
+    let fish_dir = config_home.join("fish");
+    let outside_dir = dir.path().join("outside");
+    fs::create_dir_all(&fish_dir).expect("create fish dir");
+    fs::create_dir(&outside_dir).expect("create outside dir");
+    std::os::unix::fs::symlink(&outside_dir, fish_dir.join("conf.d")).expect("symlink conf.d");
+    env.set("FISH_VERSION", "3.7.0");
+    env.set("XDG_CONFIG_HOME", &config_home);
+
+    let err = add_dir_to_posix_env_path(Path::new(HOME), &opts(false))
+        .expect_err("symlinked conf.d must be rejected");
+
+    assert!(matches!(err, PathExtenderError::UnsafeShellConfig { .. }));
+    assert!(!outside_dir.join("pnpm.fish").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn fish_setup_rejects_symlinked_config_home() {
+    let env = EnvGuard::snapshot(["FISH_VERSION", "XDG_CONFIG_HOME"]);
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let config_home = dir.path().join("xdg-config");
+    let outside_dir = dir.path().join("outside");
+    fs::create_dir(&outside_dir).expect("create outside dir");
+    std::os::unix::fs::symlink(&outside_dir, &config_home).expect("symlink config home");
+    env.set("FISH_VERSION", "3.7.0");
+    env.set("XDG_CONFIG_HOME", &config_home);
+
+    let err = add_dir_to_posix_env_path(Path::new(HOME), &opts(false))
+        .expect_err("symlinked config home must be rejected");
+
+    assert!(matches!(err, PathExtenderError::UnsafeShellConfig { .. }));
+    assert!(!outside_dir.join("fish/conf.d/pnpm.fish").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn fish_setup_rejects_symlinked_fish_directory() {
+    let env = EnvGuard::snapshot(["FISH_VERSION", "XDG_CONFIG_HOME"]);
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let config_home = dir.path().join("xdg-config");
+    let outside_dir = dir.path().join("outside");
+    fs::create_dir(&config_home).expect("create config home");
+    fs::create_dir(&outside_dir).expect("create outside dir");
+    std::os::unix::fs::symlink(&outside_dir, config_home.join("fish")).expect("symlink fish dir");
+    env.set("FISH_VERSION", "3.7.0");
+    env.set("XDG_CONFIG_HOME", &config_home);
+
+    let err = add_dir_to_posix_env_path(Path::new(HOME), &opts(false))
+        .expect_err("symlinked fish directory must be rejected");
+
+    assert!(matches!(err, PathExtenderError::UnsafeShellConfig { .. }));
+    assert!(!outside_dir.join("conf.d/pnpm.fish").exists());
+}
+
+#[test]
+fn fish_setup_rejects_non_regular_config_path() {
+    let env = EnvGuard::snapshot(["FISH_VERSION", "XDG_CONFIG_HOME"]);
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let config_home = dir.path().join("xdg-config");
+    let config_file = config_home.join("fish/conf.d/pnpm.fish");
+    fs::create_dir_all(&config_file).expect("create directory at config path");
+    env.set("FISH_VERSION", "3.7.0");
+    env.set("XDG_CONFIG_HOME", &config_home);
+
+    let err = add_dir_to_posix_env_path(Path::new(HOME), &opts(false))
+        .expect_err("directory config path must be rejected");
+
+    assert!(matches!(err, PathExtenderError::UnsafeShellConfig { .. }));
+}
+
+#[test]
+fn fish_setup_returns_bad_shell_section_when_existing_differs() {
+    let env = EnvGuard::snapshot(["FISH_VERSION", "XDG_CONFIG_HOME"]);
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let config_home = dir.path().join("xdg-config");
+    let config_file = config_home.join("fish/conf.d/pnpm.fish");
+    fs::create_dir_all(config_file.parent().expect("config parent")).expect("create config dir");
+    fs::write(&config_file, "set -gx PNPM_HOME '/different'\n")
+        .expect("write existing fish config");
+    env.set("FISH_VERSION", "3.7.0");
+    env.set("XDG_CONFIG_HOME", &config_home);
+
+    let err = add_dir_to_posix_env_path(Path::new(HOME), &opts(false))
+        .expect_err("different fish config without --force must error");
+
+    assert!(matches!(err, PathExtenderError::BadShellSection { .. }));
+    assert_eq!(
+        fs::read_to_string(config_file).expect("read fish config"),
+        "set -gx PNPM_HOME '/different'\n",
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn fish_setup_preserves_existing_mode_on_overwrite() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let env = EnvGuard::snapshot(["FISH_VERSION", "XDG_CONFIG_HOME"]);
+    let dir = tempfile::tempdir().expect("create temp dir");
+    let config_home = dir.path().join("xdg-config");
+    let config_file = config_home.join("fish/conf.d/pnpm.fish");
+    fs::create_dir_all(config_file.parent().expect("config parent")).expect("create config dir");
+    fs::write(&config_file, "set -gx PNPM_HOME '/different'\n")
+        .expect("write existing fish config");
+    fs::set_permissions(&config_file, fs::Permissions::from_mode(0o600))
+        .expect("set fish config mode");
+    env.set("FISH_VERSION", "3.7.0");
+    env.set("XDG_CONFIG_HOME", &config_home);
+
+    let report =
+        add_dir_to_posix_env_path(Path::new(HOME), &opts(true)).expect("overwrite fish setup");
+
+    assert_eq!(
+        report.config_file,
+        Some(ConfigReport {
+            path: config_file.clone(),
+            change_type: ConfigFileChangeType::Modified,
+        }),
+    );
+    assert_eq!(
+        fs::metadata(config_file).expect("stat fish config").permissions().mode() & 0o777,
+        0o600
+    );
 }
 
 #[test]

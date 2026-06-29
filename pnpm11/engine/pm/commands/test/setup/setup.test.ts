@@ -181,6 +181,15 @@ test('setup rejects relative XDG_CONFIG_HOME for fish config', async () => {
   })
 })
 
+test('setup rejects relative home directory fallback for fish config', async () => {
+  jest.mocked(os.default.homedir).mockReturnValue('relative-home')
+  process.env.FISH_VERSION = '3.7.0'
+
+  await expect(setup.handler({ pnpmHomeDir: '/pnpm-home' })).rejects.toMatchObject({
+    code: 'ERR_PNPM_UNSAFE_SHELL_CONFIG',
+  })
+})
+
 test('setup escapes PNPM_HOME when writing fish config', async () => {
   const tempHome = actualFs.mkdtempSync(path.join(actualOs.tmpdir(), 'pnpm-setup-fish-escape-'))
   jest.mocked(os.default.homedir).mockReturnValue(tempHome)
@@ -200,6 +209,15 @@ test('setup rejects PNPM_HOME with control characters for fish config', async ()
   process.env.FISH_VERSION = '3.7.0'
   try {
     await expect(setup.handler({ pnpmHomeDir: '/pnpm-home\nset -gx BAD 1' })).rejects.toMatchObject({
+      code: 'ERR_PNPM_UNSAFE_SHELL_CONFIG',
+    })
+    await expect(setup.handler({ pnpmHomeDir: '/pnpm-home\tbad' })).rejects.toMatchObject({
+      code: 'ERR_PNPM_UNSAFE_SHELL_CONFIG',
+    })
+    await expect(setup.handler({ pnpmHomeDir: '/pnpm-home\x1Bbad' })).rejects.toMatchObject({
+      code: 'ERR_PNPM_UNSAFE_SHELL_CONFIG',
+    })
+    await expect(setup.handler({ pnpmHomeDir: '/pnpm-home\u0085bad' })).rejects.toMatchObject({
       code: 'ERR_PNPM_UNSAFE_SHELL_CONFIG',
     })
     expect(actualFs.existsSync(path.join(tempHome, '.config/fish/conf.d/pnpm.fish'))).toBe(false)
@@ -223,6 +241,82 @@ testIfSymlinkSupported('setup refuses to overwrite a symlinked fish config', asy
       code: 'ERR_PNPM_UNSAFE_SHELL_CONFIG',
     })
     expect(actualFs.readFileSync(targetFile, 'utf8')).toBe('original')
+  } finally {
+    actualFs.rmSync(tempHome, { force: true, recursive: true })
+  }
+})
+
+testIfSymlinkSupported('setup refuses to write through a symlinked fish config home', async () => {
+  const tempHome = actualFs.mkdtempSync(path.join(actualOs.tmpdir(), 'pnpm-setup-fish-config-home-link-'))
+  jest.mocked(os.default.homedir).mockReturnValue(tempHome)
+  process.env.FISH_VERSION = '3.7.0'
+  try {
+    const configHome = path.join(tempHome, '.config')
+    const outsideDir = path.join(tempHome, 'outside')
+    actualFs.mkdirSync(outsideDir)
+    actualFs.symlinkSync(outsideDir, configHome, 'dir')
+
+    await expect(setup.handler({ pnpmHomeDir: '/pnpm-home' })).rejects.toMatchObject({
+      code: 'ERR_PNPM_UNSAFE_SHELL_CONFIG',
+    })
+    expect(actualFs.existsSync(path.join(outsideDir, 'fish/conf.d/pnpm.fish'))).toBe(false)
+  } finally {
+    actualFs.rmSync(tempHome, { force: true, recursive: true })
+  }
+})
+
+testIfSymlinkSupported('setup refuses to write through a symlinked fish config directory', async () => {
+  const tempHome = actualFs.mkdtempSync(path.join(actualOs.tmpdir(), 'pnpm-setup-fish-dir-link-'))
+  jest.mocked(os.default.homedir).mockReturnValue(tempHome)
+  process.env.FISH_VERSION = '3.7.0'
+  try {
+    const configHome = path.join(tempHome, '.config')
+    const outsideDir = path.join(tempHome, 'outside')
+    actualFs.mkdirSync(configHome)
+    actualFs.mkdirSync(outsideDir)
+    actualFs.symlinkSync(outsideDir, path.join(configHome, 'fish'), 'dir')
+
+    await expect(setup.handler({ pnpmHomeDir: '/pnpm-home' })).rejects.toMatchObject({
+      code: 'ERR_PNPM_UNSAFE_SHELL_CONFIG',
+    })
+    expect(actualFs.existsSync(path.join(outsideDir, 'conf.d/pnpm.fish'))).toBe(false)
+  } finally {
+    actualFs.rmSync(tempHome, { force: true, recursive: true })
+  }
+})
+
+testIfSymlinkSupported('setup refuses to write through a symlinked fish config parent directory', async () => {
+  const tempHome = actualFs.mkdtempSync(path.join(actualOs.tmpdir(), 'pnpm-setup-fish-parent-link-'))
+  jest.mocked(os.default.homedir).mockReturnValue(tempHome)
+  process.env.FISH_VERSION = '3.7.0'
+  try {
+    const fishDir = path.join(tempHome, '.config/fish')
+    const linkedConfDir = path.join(fishDir, 'conf.d')
+    const outsideDir = path.join(tempHome, 'outside')
+    actualFs.mkdirSync(fishDir, { recursive: true })
+    actualFs.mkdirSync(outsideDir)
+    actualFs.symlinkSync(outsideDir, linkedConfDir, 'dir')
+
+    await expect(setup.handler({ pnpmHomeDir: '/pnpm-home' })).rejects.toMatchObject({
+      code: 'ERR_PNPM_UNSAFE_SHELL_CONFIG',
+    })
+    expect(actualFs.existsSync(path.join(outsideDir, 'pnpm.fish'))).toBe(false)
+  } finally {
+    actualFs.rmSync(tempHome, { force: true, recursive: true })
+  }
+})
+
+test('setup refuses to read a non-regular fish config path', async () => {
+  const tempHome = actualFs.mkdtempSync(path.join(actualOs.tmpdir(), 'pnpm-setup-fish-non-regular-'))
+  jest.mocked(os.default.homedir).mockReturnValue(tempHome)
+  process.env.FISH_VERSION = '3.7.0'
+  try {
+    const configFile = path.join(tempHome, '.config/fish/conf.d/pnpm.fish')
+    actualFs.mkdirSync(configFile, { recursive: true })
+
+    await expect(setup.handler({ pnpmHomeDir: '/pnpm-home' })).rejects.toMatchObject({
+      code: 'ERR_PNPM_UNSAFE_SHELL_CONFIG',
+    })
   } finally {
     actualFs.rmSync(tempHome, { force: true, recursive: true })
   }

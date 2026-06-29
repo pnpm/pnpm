@@ -100,14 +100,18 @@ pub(crate) enum PathExtenderError {
     #[display("Could not determine the home directory")]
     NoHomeDir,
 
+    #[display(r#"Refusing to write shell configuration at "{}": {reason}"#, path.display())]
+    #[diagnostic(code(ERR_PNPM_UNSAFE_SHELL_CONFIG))]
+    UnsafeShellConfig { path: PathBuf, reason: &'static str },
+
     #[display(r#"Invalid proxyVarSubDir: "{sub_dir}""#)]
     #[diagnostic(code(ERR_PNPM_INVALID_SUBDIR))]
     InvalidSubDir { sub_dir: String },
 
     // Hardening beyond pnpm's `@pnpm/os.env.path-extender`: a path-separator
     // (`:` on POSIX, `;` on Windows), a `%` (Windows `%PNPM_HOME%`
-    // expansion), or a newline in `PNPM_HOME` would split the persisted
-    // `PATH` into extra entries, so it is rejected rather than written.
+    // expansion), or a control character in `PNPM_HOME` would split or
+    // corrupt the persisted `PATH`, so it is rejected rather than written.
     #[display(
         r#"The pnpm home directory "{dir}" contains a character ({character:?}) that is unsafe for the PATH"#
     )]
@@ -170,20 +174,22 @@ pub(super) fn validate_pnpm_home_dir(dir: &Path) -> Result<(), PathExtenderError
     if cfg!(windows) { validate_windows_pnpm_home(dir) } else { validate_posix_pnpm_home(dir) }
 }
 
-/// Reject `:` (the POSIX `PATH` separator), newlines, and NUL.
+/// Reject `:` (the POSIX `PATH` separator) and control characters.
 pub(super) fn validate_posix_pnpm_home(dir: &Path) -> Result<(), PathExtenderError> {
-    reject_unsafe_chars(dir, &[':', '\n', '\r', '\0'])
+    reject_unsafe_chars(dir, &[':'])
 }
 
 /// Reject `;` (the Windows `Path` separator), `%` (`%PNPM_HOME%` expansion),
-/// and newlines. `:` is allowed because Windows paths contain drive letters.
+/// and control characters. `:` is allowed because Windows paths contain drive letters.
 pub(super) fn validate_windows_pnpm_home(dir: &Path) -> Result<(), PathExtenderError> {
-    reject_unsafe_chars(dir, &[';', '%', '\n', '\r'])
+    reject_unsafe_chars(dir, &[';', '%'])
 }
 
 fn reject_unsafe_chars(dir: &Path, unsafe_chars: &[char]) -> Result<(), PathExtenderError> {
     let dir = dir.to_string_lossy();
-    if let Some(character) = dir.chars().find(|character| unsafe_chars.contains(character)) {
+    if let Some(character) =
+        dir.chars().find(|character| unsafe_chars.contains(character) || character.is_control())
+    {
         return Err(PathExtenderError::UnsafePnpmHome { dir: dir.into_owned(), character });
     }
     Ok(())

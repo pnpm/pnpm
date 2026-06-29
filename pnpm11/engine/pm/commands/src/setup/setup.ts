@@ -192,6 +192,7 @@ if not string match -q -- "$PNPM_HOME/bin" $PATH
   set -gx PATH "$PNPM_HOME/bin" $PATH
 end`
   const newContent = `${newSettings}\n`
+  await ensureFishConfigDir(configFile)
   const existingConfig = await readExistingFishConfig(configFile)
   if (existingConfig == null) {
     await fs.promises.mkdir(path.dirname(configFile), { recursive: true })
@@ -246,17 +247,52 @@ function getFishConfigHome (): string {
     }
     return process.env.XDG_CONFIG_HOME
   }
-  return path.join(os.homedir(), '.config')
+  const configHome = path.join(os.homedir(), '.config')
+  if (!path.isAbsolute(configHome)) {
+    throw new PnpmError('UNSAFE_SHELL_CONFIG', 'The home directory must resolve to an absolute path when writing fish configuration')
+  }
+  return configHome
 }
 
 function escapeFishString (value: string): string {
-  if (/[\0\r\n]/.test(value)) {
-    throw new PnpmError('UNSAFE_SHELL_CONFIG', 'PNPM_HOME cannot contain NUL or newline characters when writing fish configuration')
+  if (hasControlCharacter(value)) {
+    throw new PnpmError('UNSAFE_SHELL_CONFIG', 'PNPM_HOME cannot contain control characters when writing fish configuration')
   }
   return value
     .replace(/\\/g, '\\\\')
     .replace(/"/g, '\\"')
     .replace(/\$/g, '\\$')
+}
+
+function hasControlCharacter (value: string): boolean {
+  return [...value].some((character) => {
+    const code = character.charCodeAt(0)
+    return code <= 0x1F || (code >= 0x7F && code <= 0x9F)
+  })
+}
+
+async function ensureFishConfigDir (configFile: string): Promise<void> {
+  const configHome = path.dirname(path.dirname(path.dirname(configFile)))
+  await ensureDirectoryWithoutSymlink(configHome)
+  await ensureDirectoryWithoutSymlink(path.join(configHome, 'fish'))
+  await ensureDirectoryWithoutSymlink(path.dirname(configFile))
+}
+
+async function ensureDirectoryWithoutSymlink (dir: string): Promise<void> {
+  let stat: fs.Stats
+  try {
+    stat = await fs.promises.lstat(dir)
+  } catch (err: any) { // eslint-disable-line
+    if (err.code !== 'ENOENT') throw err
+    await fs.promises.mkdir(dir, { recursive: true })
+    stat = await fs.promises.lstat(dir)
+  }
+  if (stat.isSymbolicLink()) {
+    throw new PnpmError('UNSAFE_SHELL_CONFIG', `Refusing to write fish configuration under "${dir}" because it is a symbolic link`)
+  }
+  if (!stat.isDirectory()) {
+    throw new PnpmError('UNSAFE_SHELL_CONFIG', `Refusing to write fish configuration under "${dir}" because it is not a directory`)
+  }
 }
 
 async function readExistingFishConfig (configFile: string): Promise<{ content: string, mode: number } | undefined> {
@@ -269,6 +305,9 @@ async function readExistingFishConfig (configFile: string): Promise<{ content: s
   }
   if (stat.isSymbolicLink()) {
     throw new PnpmError('UNSAFE_SHELL_CONFIG', `Refusing to write fish configuration at "${configFile}" because it is a symbolic link`)
+  }
+  if (!stat.isFile()) {
+    throw new PnpmError('UNSAFE_SHELL_CONFIG', `Refusing to write fish configuration at "${configFile}" because it is not a regular file`)
   }
   return {
     content: await fs.promises.readFile(configFile, 'utf8'),

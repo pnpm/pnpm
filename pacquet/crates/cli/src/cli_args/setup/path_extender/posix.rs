@@ -136,10 +136,10 @@ fn setup_fish_shell(
     dir: &Path,
     opts: &AddDirToEnvPathOpts,
 ) -> Result<PathExtenderReport, PathExtenderError> {
-    let config_file = home_dir()?.join(".config/fish/config.fish");
+    let config_file = get_fish_config_file()?;
     let new_settings = render_fish_settings(&dir.to_string_lossy(), opts);
-    let content = wrap_settings(opts.config_section_name, &new_settings);
-    let (change_type, old_settings) = update_shell_config(&config_file, &content, opts)?;
+    let (change_type, old_settings) =
+        update_fish_confd_config(&config_file, &format!("{new_settings}\n"), opts)?;
     Ok(PathExtenderReport {
         config_file: Some(ConfigReport { path: config_file, change_type }),
         old_settings,
@@ -186,6 +186,163 @@ fn create_fish_path_value(position: AddingPosition, entry: &str) -> String {
         AddingPosition::Start => format!("{entry} $PATH"),
         AddingPosition::End => format!("$PATH {entry}"),
     }
+}
+
+fn get_fish_config_file() -> Result<PathBuf, PathExtenderError> {
+    Ok(get_fish_config_home()?.join("fish/conf.d/pnpm.fish"))
+}
+
+fn get_fish_config_home() -> Result<PathBuf, PathExtenderError> {
+    if let Some(config_home) = std::env::var_os("XDG_CONFIG_HOME")
+        && !config_home.is_empty()
+    {
+        let config_home = PathBuf::from(config_home);
+        if !config_home.is_absolute() {
+            return Err(PathExtenderError::UnsafeShellConfig {
+                path: config_home,
+                reason: "XDG_CONFIG_HOME must be an absolute path",
+            });
+        }
+        return Ok(config_home);
+    }
+    let config_home = home_dir()?.join(".config");
+    if !config_home.is_absolute() {
+        return Err(PathExtenderError::UnsafeShellConfig {
+            path: config_home,
+            reason: "the home directory must resolve to an absolute path",
+        });
+    }
+    Ok(config_home)
+}
+
+fn update_fish_confd_config(
+    config_file: &Path,
+    new_content: &str,
+    opts: &AddDirToEnvPathOpts,
+) -> Result<(ConfigFileChangeType, String), PathExtenderError> {
+    ensure_fish_config_dir(config_file)?;
+    let Some((existing_content, mode)) = read_existing_fish_config(config_file)? else {
+        write_config(config_file, new_content)?;
+        return Ok((ConfigFileChangeType::Created, String::new()));
+    };
+
+    let old_content = normalize_line_endings(&existing_content);
+    let normalized_new_content = normalize_line_endings(new_content);
+    let old_settings = trim_trailing_newline(&old_content).to_string();
+    let new_settings = trim_trailing_newline(&normalized_new_content);
+    if old_content == normalized_new_content || old_settings == new_settings {
+        return Ok((ConfigFileChangeType::Skipped, old_settings));
+    }
+    if !opts.overwrite {
+        return Err(PathExtenderError::BadShellSection {
+            config_file: config_file.to_path_buf(),
+            config_section_name: opts.config_section_name.to_string(),
+        });
+    }
+    write_config_with_mode(config_file, new_content, mode)?;
+    Ok((ConfigFileChangeType::Modified, old_settings))
+}
+
+fn ensure_fish_config_dir(config_file: &Path) -> Result<(), PathExtenderError> {
+    let conf_dir = config_file.parent().ok_or_else(|| PathExtenderError::UnsafeShellConfig {
+        path: config_file.to_path_buf(),
+        reason: "fish configuration path must have a parent directory",
+    })?;
+    let fish_dir = conf_dir.parent().ok_or_else(|| PathExtenderError::UnsafeShellConfig {
+        path: conf_dir.to_path_buf(),
+        reason: "fish configuration path must be under a fish directory",
+    })?;
+    let config_home = fish_dir.parent().ok_or_else(|| PathExtenderError::UnsafeShellConfig {
+        path: fish_dir.to_path_buf(),
+        reason: "fish configuration path must be under a config home",
+    })?;
+
+    ensure_directory_without_symlink(config_home)?;
+    ensure_directory_without_symlink(fish_dir)?;
+    ensure_directory_without_symlink(conf_dir)?;
+    Ok(())
+}
+
+fn ensure_directory_without_symlink(dir: &Path) -> Result<(), PathExtenderError> {
+    let mut metadata = match fs::symlink_metadata(dir) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            fs::create_dir_all(dir)?;
+            fs::symlink_metadata(dir)?
+        }
+        Err(error) => return Err(error.into()),
+    };
+    if metadata.file_type().is_symlink() {
+        return Err(PathExtenderError::UnsafeShellConfig {
+            path: dir.to_path_buf(),
+            reason: "path component is a symbolic link",
+        });
+    }
+    if !metadata.is_dir() {
+        return Err(PathExtenderError::UnsafeShellConfig {
+            path: dir.to_path_buf(),
+            reason: "path component is not a directory",
+        });
+    }
+
+    // `create_dir` can race with another process. If that happened between
+    // the first stat and mkdir, re-read and classify the now-existing path.
+    metadata = fs::symlink_metadata(dir)?;
+    if metadata.file_type().is_symlink() {
+        return Err(PathExtenderError::UnsafeShellConfig {
+            path: dir.to_path_buf(),
+            reason: "path component is a symbolic link",
+        });
+    }
+    if !metadata.is_dir() {
+        return Err(PathExtenderError::UnsafeShellConfig {
+            path: dir.to_path_buf(),
+            reason: "path component is not a directory",
+        });
+    }
+    Ok(())
+}
+
+fn read_existing_fish_config(
+    config_file: &Path,
+) -> Result<Option<(String, Option<u32>)>, PathExtenderError> {
+    let metadata = match fs::symlink_metadata(config_file) {
+        Ok(metadata) => metadata,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error.into()),
+    };
+    if metadata.file_type().is_symlink() {
+        return Err(PathExtenderError::UnsafeShellConfig {
+            path: config_file.to_path_buf(),
+            reason: "configuration file is a symbolic link",
+        });
+    }
+    if !metadata.is_file() {
+        return Err(PathExtenderError::UnsafeShellConfig {
+            path: config_file.to_path_buf(),
+            reason: "configuration path is not a regular file",
+        });
+    }
+    Ok(Some((fs::read_to_string(config_file)?, file_mode(&metadata))))
+}
+
+#[cfg(unix)]
+fn file_mode(metadata: &fs::Metadata) -> Option<u32> {
+    use std::os::unix::fs::PermissionsExt;
+    Some(metadata.permissions().mode() & 0o777)
+}
+
+#[cfg(not(unix))]
+fn file_mode(_metadata: &fs::Metadata) -> Option<u32> {
+    None
+}
+
+fn normalize_line_endings(content: &str) -> String {
+    content.replace("\r\n", "\n")
+}
+
+fn trim_trailing_newline(content: &str) -> &str {
+    content.strip_suffix('\n').unwrap_or(content)
 }
 
 fn setup_nu_shell(
@@ -284,6 +441,15 @@ fn update_shell_config(
 /// target.
 fn write_config(path: &Path, content: &str) -> Result<(), PathExtenderError> {
     pacquet_fs::ensure_file(path, content.as_bytes(), None)?;
+    Ok(())
+}
+
+fn write_config_with_mode(
+    path: &Path,
+    content: &str,
+    mode: Option<u32>,
+) -> Result<(), PathExtenderError> {
+    pacquet_fs::ensure_file(path, content.as_bytes(), mode)?;
     Ok(())
 }
 
