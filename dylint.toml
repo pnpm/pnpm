@@ -8,14 +8,14 @@
 # or via the `just dylint` recipe.
 [workspace.metadata.dylint]
 libraries = [
-    { git = "https://github.com/KSXGitHub/perfectionist", tag = "0.0.0-rc.17" },
+    { git = "https://github.com/KSXGitHub/perfectionist", tag = "0.0.0-rc.21" },
 ]
 
 # Project-local DSL / test macros that perfectionist's exactly-once
-# heuristic cannot peer through. The built-in allow list in rc.14 already
+# heuristic cannot peer through. perfectionist's built-in allow set already
 # covers `concat!`, `json!`, and the `assert_*_snapshot!` family, so they
 # do not need to be repeated here.
-["perfectionist::macro_argument_binding"]
+["perfectionist::impure_macro_arguments"]
 ignore = [
     # `pacquet_testing_utils::allow_known_failure!` binds its argument
     # to a `let` internally before the match, so the expression is
@@ -41,19 +41,28 @@ ignore = [
 ]
 
 [perfectionist]
-enable = ["derive_ordering"]
+enable = ["unordered_derives"]
+# `needless_borrowed_parameters` (active by default) flags `&str` / `&Path`
+# parameters whose only use is to produce an owned copy. Acting on it flips
+# ~170 signatures to take owned values and ripples to every call site,
+# churning pacquet's signatures away from their pnpm counterparts (the
+# cardinal parity rule) and against the "prefer borrowed parameters"
+# guidance in pacquet/CODE_STYLE_GUIDE.md. Disabled here pending a dedicated,
+# parity-reviewed pass tracked in
+# <https://github.com/pnpm/pnpm/issues/12715>.
+disable = ["needless_borrowed_parameters"]
 
 # The codebase collapses imports to one `use` per crate root (shared
 # prefixes in nested braces) — the same granularity rustfmt spells
 # `imports_granularity = "Crate"` and perfectionist spells `"crate"`. Pin
 # the rule to it; its default `module` style would flag every such import.
-["perfectionist::import_granularity"]
+["perfectionist::import_granularity_mismatch"]
 style = "crate"
 
 # Every unit test lives in an external file (shorter production files,
 # less churn). Flag any inline test item, not just the ones over a line
 # budget.
-["perfectionist::unit_test_file_layout"]
+["perfectionist::excessive_inline_tests"]
 inline_style = "external_only"
 
 # Don't rely on the doc-comment-only default: a bare `#NNN` is just as
@@ -61,7 +70,28 @@ inline_style = "external_only"
 ["perfectionist::bare_issue_reference"]
 include_plain_comments = true
 
-["perfectionist::derive_ordering"]
+# `bare_identifier_reference` (active by default) turns every backticked
+# identifier that resolves in scope into an intra-doc link. At the default
+# `crate` scope it fires ~400× across the workspace. Narrow it to the
+# highest-signal cases for now — a name that resolves in the documenting
+# item's own module, and multi-word names only (so single words like
+# `Config` or `Host` are left as prose) — pending a dedicated pass to widen
+# the scope, tracked in
+# <https://github.com/pnpm/pnpm/issues/12716>.
+["perfectionist::bare_identifier_reference"]
+reference_scope = "own_module"
+min_words = 2
+
+# `clap_help_markdown` (active by default) flags markdown that leaks into
+# clap `--help` output. The code-span (backtick) cases dominate (~385×);
+# stripping every backtick from the CLI's help text is a large, user-visible
+# change left for a dedicated follow-up. The clearer leaks — inline and
+# intra-doc links, which render as raw `[text](url)` in `--help` — stay
+# flagged and are fixed in this change.
+["perfectionist::clap_help_markdown"]
+ignore_constructs = ["code_span"]
+
+["perfectionist::unordered_derives"]
 style = "prefix_then_alphabetical"
 prefix = [
     "Debug",
