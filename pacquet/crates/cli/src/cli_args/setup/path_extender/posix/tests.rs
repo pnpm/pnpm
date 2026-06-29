@@ -355,7 +355,7 @@ fn fish_setup_preserves_existing_mode_on_overwrite() {
     );
     assert_eq!(
         fs::metadata(config_file).expect("stat fish config").permissions().mode() & 0o777,
-        0o600
+        0o600,
     );
 }
 
