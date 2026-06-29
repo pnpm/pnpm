@@ -245,6 +245,9 @@ function getFishConfigHome (): string {
     if (!path.isAbsolute(process.env.XDG_CONFIG_HOME)) {
       throw new PnpmError('UNSAFE_SHELL_CONFIG', 'XDG_CONFIG_HOME must be an absolute path when writing fish configuration')
     }
+    if (hasControlCharacter(process.env.XDG_CONFIG_HOME)) {
+      throw new PnpmError('UNSAFE_SHELL_CONFIG', 'XDG_CONFIG_HOME cannot contain control characters when writing fish configuration')
+    }
     return process.env.XDG_CONFIG_HOME
   }
   const configHome = path.join(os.homedir(), '.config')
@@ -339,6 +342,27 @@ function trimTrailingNewline (content: string): string {
   return content.endsWith('\n') ? content.slice(0, -1) : content
 }
 
+function quoteShellPath (value: string): string {
+  if (hasControlCharacter(value)) {
+    throw new PnpmError('UNSAFE_SHELL_CONFIG', 'The configuration path cannot contain control characters')
+  }
+  if (/^[\w@%+=:,./~-]+$/.test(value)) {
+    return value
+  }
+  if (value.startsWith('~/')) {
+    return `~/${quoteShellString(value.slice(2))}`
+  }
+  return quoteShellString(value)
+}
+
+function quoteShellString (value: string): string {
+  return `"${value
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/\$/g, '\\$')
+    .replace(/`/g, '\\`')}"`
+}
+
 function renderSetupOutput (report: PathExtenderReport): string {
   if (report.oldSettings === report.newSettings) {
     return 'No changes to the environment were made. Everything is already up to date.'
@@ -353,7 +377,7 @@ ${report.newSettings}`)
     output.push('Setup complete. Open a new terminal to start using pnpm.')
   } else if (report.configFile.changeType !== 'skipped') {
     output.push(`To start using pnpm, run:
-source ${report.configFile.path}
+source ${quoteShellPath(report.configFile.path)}
 `)
   }
   return output.join('\n\n')

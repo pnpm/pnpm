@@ -172,6 +172,27 @@ test('setup writes fish config under XDG_CONFIG_HOME when set', async () => {
   }
 })
 
+test('setup quotes fish source command for unsafe XDG_CONFIG_HOME characters', async () => {
+  const tempParent = actualFs.mkdtempSync(path.join(actualOs.tmpdir(), 'pnpm setup; $xdg-'))
+  const tempConfigHome = path.join(tempParent, 'config home')
+  actualFs.mkdirSync(tempConfigHome)
+  process.env.XDG_CONFIG_HOME = tempConfigHome
+  process.env.FISH_VERSION = '3.7.0'
+  try {
+    const configFile = path.join(tempConfigHome, 'fish/conf.d/pnpm.fish')
+    const output = await setup.handler({ pnpmHomeDir: '/pnpm-home' })
+    const quotedConfigFile = `"${configFile.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\$/g, '\\$').replace(/`/g, '\\`')}"`
+
+    expect(output).toContain(`To start using pnpm, run:
+source ${quotedConfigFile}
+`)
+    expect(output).not.toContain(`source ${configFile}
+`)
+  } finally {
+    actualFs.rmSync(tempParent, { force: true, recursive: true })
+  }
+})
+
 test('setup rejects relative XDG_CONFIG_HOME for fish config', async () => {
   process.env.XDG_CONFIG_HOME = 'relative-config'
   process.env.FISH_VERSION = '3.7.0'
