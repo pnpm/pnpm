@@ -99,9 +99,9 @@ impl ExecArgs {
         Ok(())
     }
 
-    /// Execute the command for every project in the workspace, in
-    /// topological order. The recursive counterpart of [`Self::run`],
-    /// selected when the global `-r` / `--recursive` flag is set.
+    /// Execute the command across the `--filter`-selected workspace
+    /// projects, in topological order. The recursive counterpart of
+    /// [`Self::run`], selected when the global `-r` / `--recursive` flag is set.
     pub fn run_recursive(&self, config: &Config, dir: &Path) -> miette::Result<()> {
         recursive::exec_recursive(self, config, dir)
     }

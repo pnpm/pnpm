@@ -68,8 +68,8 @@ pub struct PackArgs {
 }
 
 impl PackArgs {
-    /// Pack the project at `dir` (or every workspace project when
-    /// `recursive`), returning the text/JSON the CLI prints.
+    /// Pack the project at `dir` (or the `--filter`-selected workspace
+    /// projects when `recursive`), returning the text/JSON the CLI prints.
     pub fn run<Reporter: self::Reporter>(
         &self,
         dir: &Path,
