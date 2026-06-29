@@ -1,5 +1,5 @@
 /// Branded depPath string. Mirrors pnpm's
-/// [`DepPath`](https://github.com/pnpm/pnpm/blob/1819226b51/core/types/src/misc.ts#L65).
+/// [`DepPath`](ts-DepPath).
 ///
 /// Upstream's [`DepPath`][ts-DepPath] is a `string` brand — it's never validated at
 /// the boundary, just used to keep depPath strings from getting mixed
