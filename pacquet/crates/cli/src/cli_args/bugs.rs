@@ -104,7 +104,7 @@ async fn get_bugs_url_from_registry(
     let (package_name, tag) = parse_package_spec(spec);
     let package_tag = match tag {
         None => PackageTag::Latest,
-        Some(t) => t.parse::<PackageTag>().unwrap_or(PackageTag::Latest),
+        Some(tag_str) => tag_str.parse::<PackageTag>().unwrap_or(PackageTag::Latest),
     };
     let package_version = PackageVersion::fetch_from_registry(
         package_name,
@@ -149,19 +149,23 @@ fn package_manifest_from_version(version: &PackageVersion) -> Value {
 fn pick_bugs_url(manifest: &Value) -> Option<String> {
     if let Some(bugs) = manifest.get("bugs") {
         let url = match bugs {
-            Value::String(s) => Some(s.clone()),
-            Value::Object(m) => m.get("url").and_then(|v| v.as_str()).map(String::from),
+            Value::String(url_str) => Some(url_str.clone()),
+            Value::Object(bugs_obj) => {
+                bugs_obj.get("url").and_then(|val| val.as_str()).map(String::from)
+            }
             _ => None,
         };
-        if url.as_ref().is_some_and(|u| is_http_url(u)) {
+        if url.as_ref().is_some_and(|url_str| is_http_url(url_str)) {
             return url;
         }
     }
 
     if let Some(repo) = manifest.get("repository") {
         let url = match repo {
-            Value::String(s) => Some(s.clone()),
-            Value::Object(m) => m.get("url").and_then(|v| v.as_str()).map(String::from),
+            Value::String(url_str) => Some(url_str.clone()),
+            Value::Object(repo_obj) => {
+                repo_obj.get("url").and_then(|val| val.as_str()).map(String::from)
+            }
             _ => None,
         };
         if let Some(ref url) = url {
