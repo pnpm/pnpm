@@ -1185,6 +1185,37 @@ async fn serve_tarball(
         }
     }
 
+    let upstreams = resolve_upstreams(state, &name);
+    // Serve a cached tarball directly — without re-deriving its version from the
+    // packument or re-hashing the bytes. A tarball only enters the cache through
+    // `download_verified_to_cache` below, which verifies the bytes against the
+    // version's `dist.integrity` as they are written, so nothing unverified is
+    // ever stored; every install client also re-verifies whatever it receives
+    // against that same integrity. So a cache hit needs neither the packument
+    // lookup (the version/integrity binding) nor an SRI pass — both of which
+    // pnpm/pnpm#12570 added to *every* serve, making warm-cache cold-store pay a
+    // per-tarball packument parse plus hash. The OSV screen on the filename's
+    // version already ran above. Read the cache if any uplink in the chain
+    // mirrors tarballs (or there's no upstream left at all — a leftover mirror).
+    let should_read_cache = upstreams.is_empty() || upstreams.iter().any(|u| u.caches());
+    if should_read_cache {
+        match state.inner.storage.open_cached_tarball(&name, &filename).await {
+            Ok(Some((file, len))) => {
+                return tarball_response(streaming::stream_file(file), Some(len));
+            }
+            Ok(None) => {}
+            Err(err) => {
+                tracing::warn!(?err, package = %name.as_str(), %filename, "tarball cache open failed");
+            }
+        }
+    }
+
+    if upstreams.is_empty() {
+        return not_found();
+    }
+
+    // Cache miss: resolve the version's `dist.integrity` from the packument so
+    // the freshly-downloaded bytes can be verified before they enter the cache.
     let packument = match load_packument_bytes(state, &name).await {
         PackumentLoad::Ok(bytes) => bytes,
         PackumentLoad::NotFound => return not_found(),
@@ -1203,32 +1234,6 @@ async fn serve_tarball(
         && let Err(err) = ensure_osv_allowed(state, &name, &version)
     {
         return error_response(&err);
-    }
-
-    let upstreams = resolve_upstreams(state, &name);
-    // Read the cache if any uplink in the chain mirrors tarballs (or there's
-    // no upstream left at all — a leftover mirror). The cached bytes were
-    // verified against the version's `dist.integrity` when they were written
-    // (see `download_verified_to_cache` below), and every install client
-    // re-verifies the tarball it receives against that same integrity, so
-    // re-hashing the file on every serve is redundant — serve the cached bytes
-    // directly. (Re-hashing here is what made warm-cache cold-store installs
-    // pay an SRI pass per tarball.)
-    let should_read_cache = upstreams.is_empty() || upstreams.iter().any(|u| u.caches());
-    if should_read_cache {
-        match state.inner.storage.open_cached_tarball(&name, &filename).await {
-            Ok(Some((file, len))) => {
-                return tarball_response(streaming::stream_file(file), Some(len));
-            }
-            Ok(None) => {}
-            Err(err) => {
-                tracing::warn!(?err, package = %name.as_str(), %filename, "tarball cache open failed");
-            }
-        }
-    }
-
-    if upstreams.is_empty() {
-        return not_found();
     }
 
     // Walk the uplink fallback chain in declared order: the first uplink to
