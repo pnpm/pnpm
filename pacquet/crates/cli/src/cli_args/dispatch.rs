@@ -256,6 +256,7 @@ fn route<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFut
         CliCommand::Runtime(args) => dispatch_install::runtime(ctx, args),
         CliCommand::Bin(args) => dispatch_query::bin(ctx, args),
         CliCommand::Root(args) => dispatch_query::root(ctx, args),
+        CliCommand::Prefix(args) => dispatch_query::prefix(ctx, args),
         CliCommand::Config(args) => dispatch_query::config(ctx, args),
         CliCommand::PackApp(args) => dispatch_query::pack_app(ctx, args),
         CliCommand::Store(command) => dispatch_query::store(ctx, command),
