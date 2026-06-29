@@ -6,7 +6,9 @@ use std::fmt::Write;
 use pacquet_diagnostics::miette::{self, Diagnostic};
 
 /// The registry returned a non-OK response for a publish. Ports pnpm's
-/// `FailedToPublishError` (`ERR_PNPM_FAILED_TO_PUBLISH`).
+/// [`FailedToPublishError`][ts-FailedToPublishError] (`ERR_PNPM_FAILED_TO_PUBLISH`).
+///
+/// [ts-FailedToPublishError]: https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/FailedToPublishError.ts#L12-L42
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 #[display("{message}")]
 #[diagnostic(code(ERR_PNPM_FAILED_TO_PUBLISH))]

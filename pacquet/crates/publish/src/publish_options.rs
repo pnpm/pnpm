@@ -44,8 +44,10 @@ impl Access {
 }
 
 /// The registry has a protocol `pnpm publish` cannot use. Ports pnpm's
-/// `PublishUnsupportedRegistryProtocolError`
+/// [`PublishUnsupportedRegistryProtocolError`][ts-PublishUnsupportedRegistryProtocolError]
 /// (`ERR_PNPM_PUBLISH_UNSUPPORTED_REGISTRY_PROTOCOL`).
+///
+/// [ts-PublishUnsupportedRegistryProtocolError]: https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/publishPackedPkg.ts#L275-L283
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 #[display("Registry {registry_url} has an unsupported protocol")]
 #[diagnostic(

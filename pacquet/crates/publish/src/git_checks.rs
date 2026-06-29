@@ -41,7 +41,7 @@ where
 
     if !branches.contains(&current_branch) {
         let message = format!(
-            "You're on branch \"{current_branch}\" but your \"publish-branch\" is set to \"{branches_display}\". Do you want to continue?",
+            r#"You're on branch "{current_branch}" but your "publish-branch" is set to "{branches_display}". Do you want to continue?"#,
         );
         if !Sys::confirm(&message) {
             return Err(GitCheckError::NotCorrectBranch { branches: branches_display });

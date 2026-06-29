@@ -4,9 +4,11 @@
 
 /// A registry URL normalized to match its [`RegistryConfigKey`]: an HTTP or
 /// HTTPS URL with a guaranteed trailing slash. Ports the branded TS type
-/// `NormalizedRegistryUrl` (`` `${'http'|'https'}://${string}/` ``);
-/// constructed only by [`parse_supported_registry_url`], which validates the
-/// scheme.
+/// [`NormalizedRegistryUrl`][ts-NormalizedRegistryUrl]
+/// (`` `${'http'|'https'}://${string}/` ``); constructed only by
+/// [`parse_supported_registry_url`], which validates the scheme.
+///
+/// [ts-NormalizedRegistryUrl]: https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/registryConfigKeys.ts#L34
 #[derive(Debug, derive_more::Display, Clone, PartialEq, Eq)]
 pub struct NormalizedRegistryUrl(String);
 
@@ -19,7 +21,9 @@ impl NormalizedRegistryUrl {
 
 /// A registry config key as it appears in `.npmrc`: a `//`-prefixed host and
 /// path that ends with `/` (e.g. `//registry.npmjs.org/`). Ports the branded
-/// TS type `RegistryConfigKey` (`` `//${string}/` ``).
+/// TS type [`RegistryConfigKey`][ts-RegistryConfigKey] (`` `//${string}/` ``).
+///
+/// [ts-RegistryConfigKey]: https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/registryConfigKeys.ts#L41
 #[derive(Debug, derive_more::Display, Clone, PartialEq, Eq)]
 pub struct RegistryConfigKey(String);
 
@@ -31,7 +35,9 @@ impl RegistryConfigKey {
 }
 
 /// The longest config key for a registry URL plus the URL normalized to match
-/// it. Ports TS `SupportedRegistryUrlInfo`.
+/// it. Ports TS [`SupportedRegistryUrlInfo`][ts-SupportedRegistryUrlInfo].
+///
+/// [ts-SupportedRegistryUrlInfo]: https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/registryConfigKeys.ts#L43-L46
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SupportedRegistryUrlInfo {
     pub normalized_url: NormalizedRegistryUrl,

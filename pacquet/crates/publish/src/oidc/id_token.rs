@@ -42,8 +42,10 @@ where
 }
 
 /// A skippable id-token error: surfaced as a warning by the publish flow,
-/// which then falls back to static credentials. Ports the `IdTokenError`
-/// hierarchy.
+/// which then falls back to static credentials. Ports the
+/// [`IdTokenError`][ts-IdTokenError] hierarchy.
+///
+/// [ts-IdTokenError]: https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/oidc/idToken.ts#L143
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum IdTokenError {
     #[display("Incorrect permissions for idToken within GitHub Workflows")]

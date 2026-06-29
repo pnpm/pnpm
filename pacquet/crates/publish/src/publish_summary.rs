@@ -8,7 +8,10 @@ use serde_json::Value;
 use ssri::{Algorithm, IntegrityOpts};
 
 /// Per-package summary describing a successful publish. Ports TS
-/// `PublishSummary`; field names serialize to the `npm publish --json` shape.
+/// [`PublishSummary`][ts-PublishSummary]; field names serialize to the
+/// `npm publish --json` shape.
+///
+/// [ts-PublishSummary]: https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/tarball/publishSummary.ts#L10-L33
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PublishSummary {
@@ -44,7 +47,9 @@ pub struct PublishSummaryFile {
 }
 
 /// The packed-package inputs to [`create_publish_summary`]. Ports TS
-/// `PackedPkgInfo`.
+/// [`PackedPkgInfo`][ts-PackedPkgInfo].
+///
+/// [ts-PackedPkgInfo]: https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/tarball/publishSummary.ts#L35-L40
 pub struct PackedPkgInfo<'a> {
     pub published_manifest: &'a Value,
     pub tarball_path: &'a str,

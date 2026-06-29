@@ -99,7 +99,9 @@ fn decode_jwt_payload(payload_b64: &str) -> Result<Value, DetermineProvenanceErr
 }
 
 /// A skippable provenance error: the publish proceeds without provenance.
-/// Ports the `ProvenanceError` hierarchy.
+/// Ports the [`ProvenanceError`][ts-ProvenanceError] hierarchy.
+///
+/// [ts-ProvenanceError]: https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/oidc/provenance.ts#L127
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum ProvenanceError {
     #[display("The received idToken is not a valid JWT")]

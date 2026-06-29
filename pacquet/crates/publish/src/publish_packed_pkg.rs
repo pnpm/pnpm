@@ -39,9 +39,11 @@ pub struct PackedPkg<'a> {
 }
 
 /// The configuration `publishPackedPkg` reads. Ports the relevant subset of TS
-/// `PublishPackedPkgOptions`; credential and TLS resolution is handled by
-/// pacquet's shared [`AuthHeaders`] / [`ThrottledClient`] rather than per-field
-/// options.
+/// [`PublishPackedPkgOptions`][ts-PublishPackedPkgOptions]; credential and TLS
+/// resolution is handled by pacquet's shared [`AuthHeaders`] /
+/// [`ThrottledClient`] rather than per-field options.
+///
+/// [ts-PublishPackedPkgOptions]: https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/publishPackedPkg.ts#L25-L52
 pub struct PublishPackedPkgOptions {
     pub default_registry: String,
     pub scoped_registries: BTreeMap<String, String>,
@@ -215,7 +217,7 @@ impl OtpError for PublishHttpError {
 /// Send the publish PUT, retrying once under OTP through the web-auth flow.
 /// The operation returns `Ok` for every completed HTTP response (the caller
 /// inspects `ok`) and `Err` only for an OTP challenge or a transport failure.
-#[allow(
+#[expect(
     clippy::too_many_arguments,
     reason = "a single registry request legitimately needs the URL, auth, command, body, OTP, stage flag and retry options"
 )]
@@ -256,10 +258,6 @@ async fn publish_with_otp_handling<Reporter: self::Reporter>(
 }
 
 /// Perform a single publish PUT and classify the response.
-#[allow(
-    clippy::too_many_arguments,
-    reason = "a single registry request legitimately needs the URL, auth, command, body, OTP and stage flag"
-)]
 async fn put_publish(
     client: &ThrottledClient,
     put_url: &str,

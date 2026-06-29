@@ -110,7 +110,10 @@ pub enum ExtractManifestError {
 }
 
 /// The archive did not contain `package/package.json`. Ports pnpm's
-/// `PublishArchiveMissingManifestError` (`ERR_PNPM_PUBLISH_ARCHIVE_MISSING_MANIFEST`).
+/// [`PublishArchiveMissingManifestError`][ts-PublishArchiveMissingManifestError]
+/// (`ERR_PNPM_PUBLISH_ARCHIVE_MISSING_MANIFEST`).
+///
+/// [ts-PublishArchiveMissingManifestError]: https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/extractManifestFromPacked.ts#L89-L95
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 #[display("The archive {tarball_path} does not contain package/package.json")]
 #[diagnostic(code(ERR_PNPM_PUBLISH_ARCHIVE_MISSING_MANIFEST))]

@@ -73,7 +73,9 @@ pub async fn fetch_auth_token<Sys: OidcFetch>(
 }
 
 /// A skippable auth-token error: surfaced as a warning by the publish flow.
-/// Ports the `AuthTokenError` hierarchy.
+/// Ports the [`AuthTokenError`][ts-AuthTokenError] hierarchy.
+///
+/// [ts-AuthTokenError]: https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/oidc/authToken.ts#L115
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum AuthTokenError {
     #[display(
