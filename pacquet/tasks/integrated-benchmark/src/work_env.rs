@@ -835,6 +835,13 @@ impl WorkEnv {
     /// When a revision has its own tarball-serving mock (see
     /// [`Self::plan_revision_mocks`]), its `pacquet@<rev>` and `pnpr@<rev>`
     /// targets fetch from that mock instead of the shared one.
+    ///
+    /// The cold-pnpr scenario is the exception: there the mock models a cold
+    /// *pnpr* cache, so only `pnpr@<rev>` targets route to it. A direct install
+    /// doesn't go through pnpr, so it keeps using the warm shared mock like
+    /// every other scenario — otherwise it would do a full cold fetch of every
+    /// packument and tarball through the cold mock, which is both wrong and
+    /// extremely noisy.
     fn registry_for<'a>(
         &'a self,
         id: BenchId,
@@ -844,7 +851,10 @@ impl WorkEnv {
         if id.is_proxy_cache_populator() {
             return &self.registry_cache_populator;
         }
-        if let Some(mock) = id.revision().and_then(|rev| revision_mocks.get(rev)) {
+        let cold_pnpr = self.scenario.is_some_and(BenchmarkScenario::cold_pnpr_cache);
+        let routes_to_mock = if cold_pnpr { id.is_pnpr() } else { id.revision().is_some() };
+        if routes_to_mock && let Some(mock) = id.revision().and_then(|rev| revision_mocks.get(rev))
+        {
             return &mock.url;
         }
         client_registry
