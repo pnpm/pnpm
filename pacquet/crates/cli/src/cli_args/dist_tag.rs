@@ -660,8 +660,6 @@ fn escaped_package_name(package_name: &str) -> String {
     }
 }
 
-
-
 impl AuthType {
     fn header_value(self) -> &'static str {
         match self {

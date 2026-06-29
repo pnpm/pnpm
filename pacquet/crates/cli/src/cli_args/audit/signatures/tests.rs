@@ -1,11 +1,10 @@
 use super::{
-    PackageSignature, RegistryKey, SignaturePackage, SignatureVerificationResult,
-    parse_timestamp, render_signature_verification_result, verify_one,
-    verify_package_signatures,
+    PackageSignature, RegistryKey, SignaturePackage, SignatureVerificationResult, parse_timestamp,
+    render_signature_verification_result, verify_one, verify_package_signatures,
 };
-use pacquet_network::encode_package_name;
 use base64::Engine as _;
 use p256::ecdsa::SigningKey;
+use pacquet_network::encode_package_name;
 
 fn signing_key() -> SigningKey {
     SigningKey::from_slice(&[0x42; 32]).expect("valid P-256 scalar")
