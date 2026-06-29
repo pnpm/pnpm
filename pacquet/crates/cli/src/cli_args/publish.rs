@@ -7,9 +7,12 @@
 //! onto its options, runs the git checks and publish-lifecycle scripts, and
 //! packs the project before handing the tarball off.
 //!
-//! Scope versus upstream: `--recursive` / `--batch` (workspace and batched
-//! publishing) are accepted for surface parity but not yet ported — they error
+//! Scope versus upstream: `--recursive` (workspace publishing) is ported in
+//! [`recursive`]; `--batch` (a single batched request to a pnpr-style
+//! registry) is accepted for surface parity but not yet ported — it errors
 //! rather than silently doing nothing.
+
+mod recursive;
 
 use std::{collections::HashMap, path::Path};
 
@@ -87,6 +90,11 @@ pub struct PublishArgs {
     /// Send all workspace packages in a single request (requires `--recursive`).
     #[clap(long)]
     pub batch: bool,
+
+    /// Recursive only: write a `pnpm-publish-summary.json` report listing the
+    /// packages that were published.
+    #[clap(long = "report-summary")]
+    pub report_summary: bool,
 }
 
 impl PublishArgs {
@@ -114,12 +122,7 @@ impl PublishArgs {
         run_git_checks::<Host>(dir, git_checks, publish_branch)?;
 
         if recursive || self.recursive {
-            return Err(miette::miette!(
-                code = "ERR_PNPM_RECURSIVE_PUBLISH_UNSUPPORTED",
-                help =
-                    "Run `pnpm publish` in each package directory, or use the TypeScript pnpm CLI.",
-                "Recursive publishing is not yet supported by pacquet",
-            ));
+            return self.run_recursive::<Reporter>(dir, config).await;
         }
 
         let otp = resolve_otp_from_env::<Host>(self.otp.clone());

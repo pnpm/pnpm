@@ -1,0 +1,221 @@
+//! `pacquet publish --recursive` — publish every selected workspace package.
+//!
+//! Ports pnpm's
+//! [`recursivePublish`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/recursivePublish.ts).
+//! Selects the workspace projects the `--filter` selectors pick, drops the
+//! private / unnamed / already-published ones (unless `--force`), then
+//! publishes the rest one dependency-ordered chunk at a time, optionally
+//! writing `pnpm-publish-summary.json`.
+
+use std::{
+    collections::HashSet,
+    path::{Path, PathBuf},
+    time::Duration,
+};
+
+use miette::{Context, IntoDiagnostic};
+use pacquet_config::Config;
+use pacquet_network::{RetryOpts, ThrottledClient};
+use pacquet_publish::{
+    Host, PublishNetwork, PublishSummary, find_registry_info, resolve_otp_from_env,
+};
+use pacquet_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use pacquet_resolving_npm_resolver::{
+    FetchFullMetadataOptions, FetchFullMetadataOutcome, fetch_full_metadata,
+};
+use serde_json::Value;
+
+use super::PublishArgs;
+use crate::cli_args::{
+    recursive::{discover_workspace_projects, select_recursive_projects, sort_projects},
+    registry_client::build_registry_client,
+};
+
+impl PublishArgs {
+    /// Publish every package the `--filter` selectors select, in dependency
+    /// order. Git checks have already run once for the workspace in
+    /// [`PublishArgs::run`]; each per-package publish runs with them off,
+    /// matching pnpm's `gitChecks: false` per sub-publish.
+    pub(super) async fn run_recursive<Reporter: self::Reporter>(
+        &self,
+        dir: &Path,
+        config: &Config,
+    ) -> miette::Result<()> {
+        if self.batch {
+            return Err(miette::miette!(
+                help = "Publish without --batch; batched publishing is not yet ported to pacquet.",
+                "Batch publishing (--batch) is not yet supported by pacquet",
+            ));
+        }
+
+        let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
+        let projects = discover_workspace_projects(workspace_root)?;
+        let graph = select_recursive_projects(&projects, config, dir)?;
+        // A `--filter` that narrows a non-empty workspace to nothing is a
+        // no-op (exit 0), matching pnpm's empty-`selectedProjectsGraph`
+        // dispatch in main.ts.
+        if !projects.is_empty() && graph.is_empty() {
+            return Ok(());
+        }
+
+        let http_client = build_registry_client(config)?;
+        let network = PublishNetwork { client: &http_client, auth_headers: &config.auth_headers };
+        let otp = resolve_otp_from_env::<Host>(self.otp.clone());
+        let opts = self.publish_options(config, otp);
+        let retry_opts = retry_opts_from_config(config);
+
+        // Mirror pnpm's `pFilter` over the selected graph: keep only packages
+        // that have a name and version, are not private, and — unless
+        // `--force` — are not already on their registry.
+        let mut to_publish: HashSet<PathBuf> = HashSet::new();
+        for (root, node) in &graph {
+            let manifest = node.package.project.manifest.value();
+            let Some((name, version)) = publish_eligible(manifest) else {
+                continue;
+            };
+            if !self.force
+                && is_already_published(name, version, manifest, config, &http_client, retry_opts)
+                    .await
+            {
+                continue;
+            }
+            to_publish.insert(root.clone());
+        }
+
+        if to_publish.is_empty() {
+            emit_info::<Reporter>("There are no new packages that should be published");
+            if self.report_summary {
+                write_publish_summary(workspace_root, &[])?;
+            }
+            return Ok(());
+        }
+
+        // Publish chunk by chunk in dependency order. Publishing cannot run
+        // concurrently: an OTP challenge is interactive and per-process.
+        let mut published: Vec<PublishSummary> = Vec::new();
+        for chunk in sort_projects(&graph) {
+            for root in chunk {
+                if !to_publish.contains(&root) {
+                    continue;
+                }
+                let summary =
+                    self.publish_directory::<Reporter>(&root, config, &opts, &network).await?;
+                published.push(summary);
+            }
+        }
+
+        if self.report_summary {
+            write_publish_summary(workspace_root, &published)?;
+        }
+        Ok(())
+    }
+}
+
+/// A package's `(name, version)` when it is eligible to be published, or `None`
+/// when it should be skipped before any registry lookup. Mirrors pnpm's
+/// `if (!pkg.manifest.name || !pkg.manifest.version || pkg.manifest.private)
+/// return false`: an unnamed, unversioned, or private package is never
+/// published recursively.
+fn publish_eligible(manifest: &Value) -> Option<(&str, &str)> {
+    if manifest.get("private").and_then(Value::as_bool).unwrap_or(false) {
+        return None;
+    }
+    let name = manifest.get("name").and_then(Value::as_str)?;
+    let version = manifest.get("version").and_then(Value::as_str)?;
+    Some((name, version))
+}
+
+/// Whether `name@version` already exists on its target registry. Any failure —
+/// a 404 for a brand-new package, a transient network error — is treated as
+/// "not published", matching pnpm's `isAlreadyPublished` catch-all (a failed
+/// resolve means the version is absent, so the publish proceeds).
+async fn is_already_published(
+    name: &str,
+    version: &str,
+    manifest: &Value,
+    config: &Config,
+    http_client: &ThrottledClient,
+    retry_opts: RetryOpts,
+) -> bool {
+    let publish_config_registry = manifest
+        .get("publishConfig")
+        .and_then(|publish_config| publish_config.get("registry"))
+        .and_then(Value::as_str);
+    let Ok(registry) =
+        find_registry_info(name, &config.registry, &config.registries, publish_config_registry)
+    else {
+        return false;
+    };
+    let outcome = fetch_full_metadata(
+        name,
+        &FetchFullMetadataOptions {
+            registry: registry.as_str(),
+            http_client,
+            auth_headers: &config.auth_headers,
+            full_metadata: false,
+            etag: None,
+            modified: None,
+            retry_opts,
+        },
+    )
+    .await;
+    matches!(outcome, Ok(FetchFullMetadataOutcome::Modified(package)) if package.versions.contains_key(version))
+}
+
+/// Write `pnpm-publish-summary.json` under `dir` with the `{ publishedPackages }`
+/// shape pnpm emits for `--report-summary`.
+fn write_publish_summary(dir: &Path, published: &[PublishSummary]) -> miette::Result<()> {
+    let path = dir.join("pnpm-publish-summary.json");
+    let body = serde_json::json!({ "publishedPackages": published });
+    let json = serde_json::to_string_pretty(&body).into_diagnostic()?;
+    std::fs::write(&path, json)
+        .into_diagnostic()
+        .wrap_err_with(|| format!("write {}", path.display()))
+}
+
+fn retry_opts_from_config(config: &Config) -> RetryOpts {
+    RetryOpts {
+        retries: config.fetch_retries,
+        factor: config.fetch_retry_factor,
+        min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
+        max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
+    }
+}
+
+fn emit_info<Reporter: self::Reporter>(message: &str) {
+    Reporter::emit(&LogEvent::Global(GlobalLog {
+        level: LogLevel::Info,
+        message: message.to_owned(),
+    }));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::publish_eligible;
+    use serde_json::json;
+
+    #[test]
+    fn named_versioned_public_package_is_eligible() {
+        let manifest = json!({ "name": "pkg", "version": "1.2.3" });
+        assert_eq!(publish_eligible(&manifest), Some(("pkg", "1.2.3")));
+    }
+
+    #[test]
+    fn private_package_is_skipped() {
+        let manifest = json!({ "name": "pkg", "version": "1.2.3", "private": true });
+        assert_eq!(publish_eligible(&manifest), None);
+    }
+
+    #[test]
+    fn explicit_non_private_is_eligible() {
+        let manifest = json!({ "name": "pkg", "version": "1.2.3", "private": false });
+        assert_eq!(publish_eligible(&manifest), Some(("pkg", "1.2.3")));
+    }
+
+    #[test]
+    fn missing_name_or_version_is_skipped() {
+        assert_eq!(publish_eligible(&json!({ "version": "1.2.3" })), None);
+        assert_eq!(publish_eligible(&json!({ "name": "pkg" })), None);
+        assert_eq!(publish_eligible(&json!({})), None);
+    }
+}
