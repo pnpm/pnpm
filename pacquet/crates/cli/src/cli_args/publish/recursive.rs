@@ -19,7 +19,7 @@ use pacquet_network::{RetryOpts, ThrottledClient};
 use pacquet_publish::{
     Host, PublishNetwork, PublishSummary, find_registry_info, resolve_otp_from_env,
 };
-use pacquet_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
+use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 use pacquet_resolving_npm_resolver::{
     FetchFullMetadataOptions, FetchFullMetadataOutcome, fetch_full_metadata,
 };
@@ -105,7 +105,7 @@ impl PublishArgs {
             .collect();
 
         if to_publish.is_empty() {
-            emit_info::<Reporter>("There are no new packages that should be published");
+            emit_info::<Reporter>("There are no new packages that should be published", dir);
             if self.report_summary {
                 write_publish_summary(workspace_root, &[])?;
             }
@@ -204,10 +204,15 @@ fn retry_opts_from_config(config: &Config) -> RetryOpts {
     }
 }
 
-fn emit_info<Reporter: self::Reporter>(message: &str) {
-    Reporter::emit(&LogEvent::Global(GlobalLog {
+/// Emit on the generic `pnpm` channel with a project prefix, matching
+/// pnpm's `recursivePublish` which surfaces this through
+/// `logger.info({ message, prefix: opts.dir })` rather than the
+/// prefix-less `globalInfo` (`pnpm:global`) channel.
+fn emit_info<Reporter: self::Reporter>(message: &str, prefix: &Path) {
+    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
         level: LogLevel::Info,
         message: message.to_owned(),
+        prefix: prefix.display().to_string(),
     }));
 }
 
