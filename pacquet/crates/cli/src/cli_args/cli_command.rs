@@ -141,6 +141,7 @@ pub enum CliCommand {
     /// Checks for known security issues with the installed packages.
     Audit(AuditArgs),
     /// Opens the bug tracker URL of a package in the default browser.
+    #[clap(visible_alias = "issues")]
     Bugs(BugsArgs),
     /// List installed packages.
     #[clap(visible_alias = "ls")]
