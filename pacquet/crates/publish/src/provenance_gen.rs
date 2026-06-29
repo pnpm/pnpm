@@ -23,12 +23,11 @@ use pacquet_reporter::Reporter;
 use serde_json::{Value, json};
 use sha2::{Digest, Sha512};
 use sigstore_sign::{SigningContext, oidc::IdentityToken};
-use url::Url;
 
 use crate::{
-    capabilities::{CiInfo, Clock, EnvVar, OidcFetch, OidcFetchError, OidcMethod, OidcRequest},
+    capabilities::{CiInfo, Clock, EnvVar, OidcFetch, OidcFetchError},
     global_log::global_info,
-    oidc::OidcHttpOptions,
+    oidc::{GitHubRequestTokenError, OidcHttpOptions, github_request_token, truthy_env},
 };
 
 const IN_TOTO_STATEMENT_V1_TYPE: &str = "https://in-toto.io/Statement/v1";
@@ -221,37 +220,9 @@ where
     Reporter: self::Reporter,
 {
     if Sys::github_actions() {
-        let (Some(request_token), Some(request_url)) = (
-            truthy_env::<Sys>("ACTIONS_ID_TOKEN_REQUEST_TOKEN"),
-            truthy_env::<Sys>("ACTIONS_ID_TOKEN_REQUEST_URL"),
-        ) else {
-            return Err(ProvenanceGenError::GitHubIncorrectPermissions);
-        };
-        let mut url = Url::parse(&request_url).map_err(ProvenanceGenError::InvalidRequestUrl)?;
-        url.query_pairs_mut().append_pair("audience", SIGSTORE_AUDIENCE);
-        let url = url.to_string();
-        let authorization = format!("Bearer {request_token}");
-        let start = Sys::now_ms();
-        let response = Sys::fetch(OidcRequest {
-            method: OidcMethod::Get,
-            url: &url,
-            authorization: &authorization,
-            timeout_ms: options.fetch_timeout,
-        })
-        .await
-        .map_err(ProvenanceGenError::Fetch)?;
-        let elapsed = Sys::now_ms().saturating_sub(start);
-        global_info::<Reporter>(&format!("GET {url} {} {elapsed}ms", response.status));
-        if !response.ok {
-            return Err(ProvenanceGenError::GitHubInvalidResponse);
-        }
-        let json: Value = serde_json::from_str(&response.body)
-            .map_err(|source| ProvenanceGenError::TokenJson { source: source.to_string() })?;
-        return json
-            .get("value")
-            .and_then(Value::as_str)
-            .map(ToOwned::to_owned)
-            .ok_or(ProvenanceGenError::GitHubInvalidResponse);
+        return github_request_token::<Sys, Reporter>(SIGSTORE_AUDIENCE, options)
+            .await
+            .map_err(Into::into);
     }
 
     if Sys::gitlab() {
@@ -266,8 +237,24 @@ fn env<Sys: EnvVar>(name: &str) -> String {
     Sys::var(name).unwrap_or_default()
 }
 
-fn truthy_env<Sys: EnvVar>(name: &str) -> Option<String> {
-    Sys::var(name).filter(|value| !value.is_empty())
+impl From<GitHubRequestTokenError> for ProvenanceGenError {
+    fn from(error: GitHubRequestTokenError) -> Self {
+        match error {
+            GitHubRequestTokenError::IncorrectPermissions => {
+                ProvenanceGenError::GitHubIncorrectPermissions
+            }
+            GitHubRequestTokenError::InvalidRequestUrl(error) => {
+                ProvenanceGenError::InvalidRequestUrl(error)
+            }
+            GitHubRequestTokenError::Fetch(error) => ProvenanceGenError::Fetch(error),
+            // A non-2xx response and a missing `value` both surface as the same
+            // "invalid response" error the inline fetch raised for either case.
+            GitHubRequestTokenError::NotOk | GitHubRequestTokenError::MissingValue => {
+                ProvenanceGenError::GitHubInvalidResponse
+            }
+            GitHubRequestTokenError::JsonParse(source) => ProvenanceGenError::TokenJson { source },
+        }
+    }
 }
 
 /// Failure surface of [`generate_provenance`].
