@@ -20,7 +20,7 @@ use std::{
     fmt::{self, Write as _},
     fs::{self, File, OpenOptions},
     io::Write,
-    net::{Ipv4Addr, SocketAddr, TcpStream},
+    net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     thread,
@@ -402,7 +402,7 @@ impl WorkEnv {
     fn benchmark(
         &self,
         pnpr_server_registry: &str,
-        revision_mocks: &HashMap<String, RevisionMockRegistry>,
+        revision_mocks: HashMap<String, RevisionMockRegistry>,
     ) {
         let scenario = self.scenario.expect("scenario set when benchmark() is reached");
 
@@ -507,15 +507,15 @@ impl WorkEnv {
     /// the vec is empty when no revision has its own mock.
     fn start_revision_mocks(
         &self,
-        revision_mocks: &HashMap<String, RevisionMockRegistry>,
+        revision_mocks: HashMap<String, RevisionMockRegistry>,
     ) -> Vec<PnprServer> {
         revision_mocks
-            .iter()
-            .map(|(revision, registry)| self.start_revision_mock(revision, registry))
+            .into_iter()
+            .map(|(revision, registry)| self.start_revision_mock(&revision, registry))
             .collect()
     }
 
-    fn start_revision_mock(&self, revision: &str, registry: &RevisionMockRegistry) -> PnprServer {
+    fn start_revision_mock(&self, revision: &str, registry: RevisionMockRegistry) -> PnprServer {
         let binary = self.pnpr_server_binary(revision);
         assert!(
             binary.is_file(),
@@ -550,16 +550,16 @@ impl WorkEnv {
         wait_for_pnpr_ready(mock_port);
 
         // Front the mock with the same latency + bandwidth profile the shared
-        // registry proxy uses, bound to the port `init()` already baked into
-        // this revision's `.npmrc`.
+        // registry proxy uses, serving the socket reserved at planning time
+        // (and baked into this revision's `.npmrc`) so the port can't have
+        // been stolen during the build.
         let upstream = SocketAddr::from((Ipv4Addr::LOCALHOST, mock_port));
-        let listen = SocketAddr::from((Ipv4Addr::LOCALHOST, registry.listen_port));
         let profile = LinkProfile {
             one_way: Duration::from_millis(self.registry_latency_ms) / 2,
             rate_limit: mbps_to_bytes_per_sec(self.registry_bandwidth_mbps),
             slow_start: self.registry_slow_start,
         };
-        let proxy = LatencyProxy::spawn_on(listen, upstream, profile)
+        let proxy = LatencyProxy::spawn_with_listener(registry.listener, upstream, profile)
             .expect("spawn revision mock latency proxy");
         eprintln!(
             "Fronting mock for {revision} with {}ms round-trip latency + {} download cap (proxy at {})",
@@ -715,7 +715,7 @@ impl WorkEnv {
         let revision_mocks = self.plan_revision_mocks();
         self.init(&client_registry, &revision_mocks);
         self.build();
-        self.benchmark(&pnpr_server_registry, &revision_mocks);
+        self.benchmark(&pnpr_server_registry, revision_mocks);
         drop(pnpr_server_registry_proxy);
         drop(registry_proxy);
         self.verify_pnpr_targets_were_routed();
@@ -825,11 +825,11 @@ impl WorkEnv {
     }
 
     /// Assign a per-revision tarball-serving mock to every revision that has
-    /// a `pnpr@<rev>` target (so its `pnpr` binary will be built). Picks the
-    /// client-facing latency-proxy port now, before `init()` bakes it into
-    /// `.npmrc`; the mock process and proxy are spawned later in
-    /// [`Self::benchmark`]. Empty for non-Verdaccio modes, which front no
-    /// local mock at all.
+    /// a `pnpr@<rev>` target (so its `pnpr` binary will be built). Binds the
+    /// client-facing latency-proxy socket now — reserving the port for the
+    /// whole init + build window before `init()` bakes its URL into `.npmrc`
+    /// — and hands the live socket to the proxy when `benchmark()` spawns it.
+    /// Empty for non-Verdaccio modes, which front no local mock at all.
     fn plan_revision_mocks(&self) -> HashMap<String, RevisionMockRegistry> {
         let mut mocks = HashMap::new();
         if !matches!(self.registry_mode, RegistryMode::Verdaccio) {
@@ -840,12 +840,11 @@ impl WorkEnv {
                 continue;
             }
             mocks.entry(target.rev.clone()).or_insert_with(|| {
+                let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
+                    .expect("bind a port for the revision mock proxy");
                 let listen_port =
-                    pick_unused_port().expect("pick a port for the revision mock proxy");
-                RevisionMockRegistry {
-                    listen_port,
-                    url: format!("http://127.0.0.1:{listen_port}/"),
-                }
+                    listener.local_addr().expect("revision mock proxy local addr").port();
+                RevisionMockRegistry { listener, url: format!("http://127.0.0.1:{listen_port}/") }
             });
         }
         mocks
@@ -1236,21 +1235,22 @@ fn dir_contains_file(dir: &Path) -> bool {
     false
 }
 
-/// A pnpr resolver server spawned for one `pnpr@<rev>`
-/// target. Killed on drop so it never outlives the benchmark run.
-/// Where a revision's tarball-serving mock lives: the latency-proxy port
-/// clients reach it through (baked into the target's `.npmrc` at `init()`,
-/// before the mock itself is spawned in `benchmark()`) and the URL form of
-/// that port.
+/// Where a revision's tarball-serving mock lives: the latency proxy clients
+/// reach it through and the URL form of its port.
 #[derive(Debug)]
 struct RevisionMockRegistry {
-    /// Stable port the client↔registry latency proxy listens on. Picked up
-    /// front so `init()` can write it into `.npmrc` before the mock exists.
-    listen_port: u16,
-    /// `http://127.0.0.1:<listen_port>/` — the registry URL targets use.
+    /// The client↔registry latency proxy's listening socket, **bound at
+    /// planning time** so the port is reserved for the whole init + build
+    /// window and can't be stolen before `benchmark()` hands it to
+    /// [`LatencyProxy::spawn_with_listener`].
+    listener: TcpListener,
+    /// `http://127.0.0.1:<port>/` — the registry URL baked into each target's
+    /// `.npmrc` at `init()`, before the mock itself exists.
     url: String,
 }
 
+/// A pnpr resolver server spawned for one `pnpr@<rev>`
+/// target. Killed on drop so it never outlives the benchmark run.
 struct PnprServer {
     process: Child,
     /// The latency proxy fronting this server, when `--pnpr-latency-ms`
