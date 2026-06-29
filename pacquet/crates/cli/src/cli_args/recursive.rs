@@ -15,7 +15,7 @@
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
 use miette::{Context, Diagnostic, IntoDiagnostic};
-use pacquet_config::{Config, LinkWorkspacePackages};
+use pacquet_config::Config;
 use pacquet_package_manager::graph_sequencer;
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_workspace::{
@@ -156,9 +156,17 @@ pub fn select_recursive_projects<'a>(
     config: &Config,
     prefix: &Path,
 ) -> miette::Result<ProjectGraph<GraphPkg<'a>>> {
+    // Resolve the selectors against the same graph options the sort below
+    // uses, so the selected set and the topological order agree on edges —
+    // upstream builds one `linkWorkspacePackages`-aware `allProjectsGraph`
+    // that both `filterWorkspaceProjects` and `sortProjects` read, then
+    // `pick`s the selected subset out of it. (`workspace:` edges form
+    // regardless of the option, so the choice only matters for bare-semver
+    // sibling references.)
+    let graph_options = CreateProjectsGraphOptions::default();
     let mut graph = create_projects_graph(
         projects.iter().map(|project| GraphPkg { project }).collect(),
-        &CreateProjectsGraphOptions::default(),
+        &graph_options,
     )
     .graph;
 
@@ -181,9 +189,7 @@ pub fn select_recursive_projects<'a>(
         &filters,
         &FilterProjectsOptions {
             prefix: prefix.to_path_buf(),
-            link_workspace_packages: Some(
-                config.link_workspace_packages != LinkWorkspacePackages::Off,
-            ),
+            link_workspace_packages: graph_options.link_workspace_packages,
             use_glob_dir_filtering: false,
         },
     )

@@ -240,6 +240,31 @@ fn recursive_run_filter_no_matching_script_reports_no_selected_packages() {
     drop(root);
 }
 
+/// A `--filter` that matches no project is a no-op: the run exits 0
+/// without raising the no-selected-packages error, matching pnpm's
+/// main-dispatch exit-0 for an empty `selectedProjectsGraph`.
+#[test]
+fn recursive_run_filter_no_match_is_a_noop() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &[("project-1", build_writes_marker("project-1"))]);
+
+    pacquet
+        .with_arg("-r")
+        .with_arg("--filter")
+        .with_arg("does-not-exist")
+        .with_arg("run")
+        .with_arg("build")
+        .assert()
+        .success();
+
+    assert!(
+        !workspace.join("project-1").join("ran.txt").exists(),
+        "no project is selected, so nothing should run",
+    );
+
+    drop(root);
+}
+
 /// `pacquet -r run --resume-from <pkg>` skips every chunk that sorts
 /// before the chunk containing `<pkg>`. With `project-2` and `project-3`
 /// both depending on `project-1`, the sorted chunks are

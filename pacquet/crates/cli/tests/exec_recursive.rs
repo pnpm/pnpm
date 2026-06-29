@@ -104,6 +104,40 @@ fn recursive_exec_filter_selects_only_matching_project() {
     drop(root);
 }
 
+/// A `--filter` that matches no project is a no-op: recursive exec exits
+/// 0 and writes no summary even with `--report-summary`, matching pnpm's
+/// main-dispatch exit-0 for an empty selection — rather than erroring on
+/// `--resume-from` or emitting an empty summary.
+#[test]
+fn recursive_exec_filter_no_match_is_a_noop() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["project-1", "project-2"]);
+
+    pacquet
+        .with_arg("-r")
+        .with_arg("--filter")
+        .with_arg("does-not-exist")
+        .with_arg("exec")
+        .with_arg("--report-summary")
+        .with_arg("touch")
+        .with_arg("ran.txt")
+        .assert()
+        .success();
+
+    for name in ["project-1", "project-2"] {
+        assert!(
+            !workspace.join(name).join("ran.txt").exists(),
+            "no project is selected, so {name} should not run",
+        );
+    }
+    assert!(
+        !workspace.join("pnpm-exec-summary.json").exists(),
+        "an empty selection should not write a summary file",
+    );
+
+    drop(root);
+}
+
 /// `--report-summary` writes `pnpm-exec-summary.json` with a `passed`
 /// entry for every project.
 #[test]

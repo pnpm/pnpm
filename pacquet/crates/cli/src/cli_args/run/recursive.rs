@@ -91,6 +91,15 @@ pub fn run_recursive(args: &RunArgs, config: &Config, dir: &Path) -> miette::Res
 
     let projects = discover_workspace_projects(workspace_root)?;
     let graph = select_recursive_projects(&projects, config, dir)?;
+    // A non-empty workspace whose `--filter` selection is empty is a
+    // no-op: pnpm exits 0 from its main dispatch when
+    // `selectedProjectsGraph` is empty (main.ts:306-318), before the
+    // no-script check or `--resume-from` / `--report-summary` runs. An
+    // empty workspace falls through to the no-script path below, as it did
+    // before `--filter` was wired in.
+    if !projects.is_empty() && graph.is_empty() {
+        return Ok(());
+    }
 
     let mut chunks = sort_projects(&graph);
     if let Some(resume_from) = &args.resume_from {
