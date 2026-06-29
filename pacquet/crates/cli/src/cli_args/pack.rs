@@ -13,7 +13,9 @@
 //! are not surfaced by `Config` yet, so they take their `false` / empty
 //! defaults.
 
-use crate::cli_args::recursive::{GraphPkg, sort_projects};
+use crate::cli_args::recursive::{
+    discover_workspace_projects, select_recursive_projects, sort_projects,
+};
 use clap::Args;
 use miette::Context;
 use pacquet_config::Config;
@@ -21,11 +23,6 @@ use pacquet_pack::{
     Host, PackError, PackOptions, PackResultJson, api, format_pack_output, to_pack_result_json,
 };
 use pacquet_reporter::Reporter;
-use pacquet_workspace::{
-    FindWorkspaceProjectsOpts, find_workspace_projects, read_workspace_manifest,
-    workspace_package_patterns,
-};
-use pacquet_workspace_projects_graph::{CreateProjectsGraphOptions, create_projects_graph};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -111,15 +108,8 @@ impl PackArgs {
             return Err(miette::Report::new(PackError::OutAndPackDestination));
         }
         let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
-        let patterns = read_workspace_manifest(workspace_root)
-            .map_err(miette::Report::new)
-            .wrap_err("reading pnpm-workspace.yaml")?
-            .map(|manifest| workspace_package_patterns(&manifest));
-        let projects =
-            find_workspace_projects(workspace_root, &FindWorkspaceProjectsOpts { patterns })
-                .wrap_err("finding workspace projects")?;
-        let adapters = projects.iter().map(|project| GraphPkg { project }).collect();
-        let graph = create_projects_graph(adapters, &CreateProjectsGraphOptions::default()).graph;
+        let projects = discover_workspace_projects(workspace_root)?;
+        let graph = select_recursive_projects(&projects, config, dir)?;
         let chunks = sort_projects(&graph);
 
         // In recursive mode upstream resolves `--out` / `--pack-destination`
