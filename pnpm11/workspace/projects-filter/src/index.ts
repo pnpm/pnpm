@@ -143,11 +143,12 @@ export async function filterProjectsBySelectorObjects<Pkg extends BaseProject> (
         useGlobDirFiltering: opts.useGlobDirFiltering,
       })
     }
-    const regularSelectedProjectDirs = new Set(Object.keys(filteredGraph?.selectedProjectsGraph ?? {}) as ProjectRootDir[])
-    const prodOnlySelectedProjectDirs = prodFilteredGraph == null
-      ? undefined
-      : (Object.keys(prodFilteredGraph.selectedProjectsGraph) as ProjectRootDir[])
+    let prodOnlySelectedProjectDirs: ProjectRootDir[] | undefined
+    if (prodFilteredGraph != null) {
+      const regularSelectedProjectDirs = new Set(Object.keys(filteredGraph?.selectedProjectsGraph ?? {}) as ProjectRootDir[])
+      prodOnlySelectedProjectDirs = (Object.keys(prodFilteredGraph.selectedProjectsGraph) as ProjectRootDir[])
         .filter((projectDir) => !regularSelectedProjectDirs.has(projectDir))
+    }
 
     return {
       allProjectsGraph: graph,

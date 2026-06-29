@@ -13,7 +13,8 @@
 use super::{ExecArgs, prepare_command, spawn_in_dir};
 use crate::cli_args::recursive::{
     AutoExcludeRoot, ExecutionStatus, Status, count_failures, discover_workspace_projects,
-    get_resumed_package_chunks, select_recursive_projects, sort_projects, write_recursive_summary,
+    get_resumed_package_chunks, select_recursive_projects, sort_filtered_projects,
+    write_recursive_summary,
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
@@ -65,21 +66,26 @@ pub fn exec_recursive(args: &ExecArgs, config: &Config, dir: &Path) -> miette::R
         return Err(RecursiveExecError::NoPackage.into());
     }
 
-    let graph = select_recursive_projects(
+    let selection = select_recursive_projects(
         &projects,
         config,
         dir,
         AutoExcludeRoot::Enabled { workspace_patterns: patterns.as_deref() },
     )?;
-    // An empty `--filter` selection is a no-op, matching pnpm's exit-0 for
-    // an empty selectedProjectsGraph.
+    let graph = &selection.selected;
+    // An empty `--filter` selection is a no-op (exit 0).
     if graph.is_empty() {
         return Ok(());
     }
 
-    let mut chunks = sort_projects(&graph);
+    let mut chunks = sort_filtered_projects(
+        graph,
+        selection.full_graph(),
+        selection.prod_all.as_ref(),
+        &selection.prod_only_selected,
+    );
     if let Some(resume_from) = &args.resume_from {
-        chunks = get_resumed_package_chunks(resume_from, chunks, &graph)?;
+        chunks = get_resumed_package_chunks(resume_from, chunks, graph)?;
     }
 
     let bail = !args.no_bail;
