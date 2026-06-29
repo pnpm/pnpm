@@ -1,8 +1,7 @@
 //! Streaming helpers for the tarball path.
 //!
-//! Four flows live here:
+//! Three flows live here:
 //!
-//! * [`verify_file`] hashes a cache hit before it can be served.
 //! * [`stream_verified_to_cache`] streams an upstream response to the client
 //!   while teeing it into the cache, promoting the entry only if the SRI
 //!   matches the full body.
@@ -14,15 +13,8 @@ use crate::storage::TarballWrite;
 use axum::body::{Body, Bytes};
 use futures_util::{Stream, StreamExt, stream};
 use ssri::{Integrity, IntegrityChecker};
-use std::{
-    io::{self, SeekFrom},
-    path::PathBuf,
-    pin::Pin,
-};
-use tokio::{
-    fs::File,
-    io::{AsyncReadExt, AsyncSeekExt},
-};
+use std::{io, path::PathBuf, pin::Pin};
+use tokio::{fs::File, io::AsyncReadExt};
 
 /// Chunk size for reading from a cached file. 64 KiB keeps syscall
 /// overhead low without buffering a meaningful fraction of a
@@ -55,26 +47,6 @@ pub enum TarballStreamError {
     Io(io::Error),
     Integrity(ssri::Error),
     TooLarge { limit: u64, received: u64 },
-}
-
-/// Hash a cached file against `integrity`, then rewind the same open
-/// file so the caller can stream the exact bytes that were checked.
-pub async fn verify_file(
-    mut file: File,
-    integrity: &Integrity,
-) -> Result<File, TarballStreamError> {
-    let mut checker = integrity_checker(integrity).map_err(TarballStreamError::Integrity)?;
-    let mut buf = vec![0u8; READ_CHUNK];
-    loop {
-        let bytes_read = file.read(&mut buf).await.map_err(TarballStreamError::Io)?;
-        if bytes_read == 0 {
-            break;
-        }
-        checker.input(&buf[..bytes_read]);
-    }
-    checker.result().map_err(TarballStreamError::Integrity)?;
-    file.seek(SeekFrom::Start(0)).await.map_err(TarballStreamError::Io)?;
-    Ok(file)
 }
 
 /// Stream an upstream response to the client while teeing it into `write`
@@ -149,29 +121,6 @@ pub fn stream_verified_to_cache(
         }
     });
     Ok(Body::from_stream(body))
-}
-
-/// Download an upstream response into `write`, verify the complete body, and
-/// atomically promote it to the cache, returning the byte length. No bytes
-/// become cache-visible until the declared SRI matches. Used by the namespaced
-/// `/~<uplink>/` route, which records a length-keyed integrity sidecar and so
-/// needs the verified body buffered before it serves; the public proxy path
-/// streams instead (see [`stream_verified_to_cache`]).
-pub async fn download_verified_to_cache(
-    response: reqwest::Response,
-    mut write: TarballWrite,
-    integrity: &Integrity,
-    max_bytes: u64,
-) -> Result<u64, TarballStreamError> {
-    let len = match download_verified(response, &mut write, integrity, max_bytes).await {
-        Ok(len) => len,
-        Err(err) => {
-            write.abandon().await;
-            return Err(err);
-        }
-    };
-    write.finalize().await.map_err(TarballStreamError::Io)?;
-    Ok(len)
 }
 
 /// Promote a fully-streamed, SRI-matched tarball to the cache, logging (not

@@ -1,5 +1,6 @@
-use super::{TarballStreamError, download_verified_to_cache, integrity_checker, parse_integrity};
+use super::{integrity_checker, parse_integrity, stream_verified_to_cache};
 use crate::{config::HostedStoreConfig, package_name::PackageName, storage::Storage};
+use futures_util::StreamExt;
 use ssri::{Algorithm, Integrity, IntegrityOpts};
 use std::{path::Path, sync::Arc, time::Duration};
 use tempfile::TempDir;
@@ -131,15 +132,17 @@ async fn cancelling_in_flight_response_body_removes_tmp_file() {
     let name = PackageName::parse("foo").unwrap();
     let write = storage.open_cached_tarball_tmp(&name, "foo-1.0.0.tgz").await.unwrap();
 
-    let download = tokio::spawn(async move {
-        download_verified_to_cache(response, write, &integrity, u64::MAX).await
-    });
+    let body = stream_verified_to_cache(response, write, &integrity, u64::MAX).unwrap();
+    let mut chunks = body.into_data_stream();
+    // Pull the first chunk so the tee writes the body's start to the tmp file.
+    chunks.next().await.expect("first chunk").expect("first chunk is ok");
     let package_dir = cache.join("foo");
     let in_flight = await_nonempty_tarball_tmp(&package_dir).await;
     assert_eq!(in_flight.len(), 1, "expected one in-flight tarball writer");
 
-    download.abort();
-    assert!(download.await.unwrap_err().is_cancelled());
+    // Dropping the body mid-stream models a client disconnect: the tee's
+    // `TarballWrite` is dropped and removes the tmp file.
+    drop(chunks);
     assert!(tarball_tmp_entries(&package_dir).is_empty());
     assert!(!package_dir.join("foo-1.0.0.tgz").exists());
 
@@ -159,9 +162,11 @@ async fn oversized_response_is_rejected_and_tmp_is_removed() {
     let name = PackageName::parse("foo").unwrap();
     let write = storage.open_cached_tarball_tmp(&name, "foo-1.0.0.tgz").await.unwrap();
 
-    let err = download_verified_to_cache(response, write, &integrity, 3).await.unwrap_err();
-    assert!(matches!(err, TarballStreamError::TooLarge { limit: 3, received } if received > 3));
+    let body = stream_verified_to_cache(response, write, &integrity, 3).unwrap();
+    // The body errors once the stream exceeds the 3-byte budget...
+    assert!(axum::body::to_bytes(body, usize::MAX).await.is_err());
 
+    // ...and the partial download is never promoted to the cache.
     let package_dir = cache.join("foo");
     assert!(tarball_tmp_entries(&package_dir).is_empty());
     assert!(!package_dir.join("foo-1.0.0.tgz").exists());
