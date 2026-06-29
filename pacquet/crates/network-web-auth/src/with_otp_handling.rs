@@ -16,9 +16,6 @@ use crate::{
     prompt_browser_open::prompt_browser_open,
 };
 
-#[cfg(test)]
-mod tests;
-
 /// The `authUrl` / `doneUrl` an OTP challenge may carry. Both are optional
 /// because a registry may send neither (a classic OTP) or a malformed
 /// body. Ports TS [`OtpErrorBody`][ts-OtpErrorBody].

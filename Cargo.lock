@@ -4388,6 +4388,7 @@ dependencies = [
  "dialoguer",
  "open",
  "pacquet-diagnostics",
+ "pacquet-network-web-auth-testing",
  "pacquet-reporter",
  "pretty_assertions",
  "qrcode",
