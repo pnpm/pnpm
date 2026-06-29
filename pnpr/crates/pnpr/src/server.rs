@@ -1187,22 +1187,11 @@ async fn serve_tarball(
 
     let upstreams = resolve_upstreams(state, &name);
 
-    // A cached tarball can be served directly — without re-hashing the bytes
-    // or, usually, re-deriving its version from the packument. A tarball only
-    // enters the cache through `download_verified_to_cache` below, which
-    // verifies the bytes against the version's `dist.integrity` as they are
-    // written, so nothing unverified is ever stored; every install client
-    // re-verifies whatever it receives against that same integrity too. So a
-    // cache hit needs neither an SRI pass nor the integrity lookup.
-    //
-    // The exception is OSV screening. When it is enabled, the authoritative
-    // version a tarball belongs to can only come from the packument (a
-    // non-canonical filename may resolve to a different version than it
-    // carries), and the OSV verdict must use that version — so resolve it and
-    // re-screen before trusting cached bytes, even on a hit. (The filename's
-    // own version was already screened above; this catches the case where the
-    // resolved version differs.) When OSV is disabled the resolution is pure
-    // overhead and is skipped.
+    // A cached tarball is verified against `dist.integrity` on the way in
+    // (`download_verified_to_cache`) and re-verified by the client on receipt,
+    // so a hit can be served without re-hashing or a version lookup — except
+    // to OSV-screen the resolved version, which only the packument yields, so
+    // resolve it first when OSV is enabled.
     let resolved_dist = if state.inner.osv_index.is_some() {
         match resolve_tarball_dist_and_screen(state, &name, &filename, &name_version).await {
             Ok(dist) => Some(dist),
@@ -1231,10 +1220,8 @@ async fn serve_tarball(
         return not_found();
     }
 
-    // Cache miss: the freshly-downloaded bytes must be verified against the
-    // version's `dist.integrity` before they enter the cache. Reuse the dist
-    // already resolved for the OSV screen above, or resolve (and screen) it
-    // now when OSV was disabled.
+    // Cache miss: the download must be verified against `dist.integrity` before
+    // caching — reuse the dist the OSV screen resolved, or resolve it now.
     let integrity = match resolved_dist {
         Some(dist) => dist.integrity,
         None => match resolve_tarball_dist_and_screen(state, &name, &filename, &name_version).await
