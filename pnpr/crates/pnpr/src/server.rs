@@ -1200,11 +1200,9 @@ async fn serve_tarball(
     };
 
     if upstream.caches() {
-        // Stream the download straight to the client while teeing it into the
-        // cache; the entry is promoted only if the full body matches
-        // `dist.integrity`, and the client re-verifies what it receives. This
-        // overlaps the upstream fetch with the client transfer instead of
-        // buffering the whole tarball at the server to verify it first.
+        // Stream the download to the client (see `stream_verified_to_cache`)
+        // rather than buffering the whole tarball at the server to verify it
+        // first, so the upstream fetch and the client transfer overlap.
         let upstream_len = response.content_length();
         match streaming::stream_verified_to_cache(response, write, &integrity, MAX_TARBALL_BYTES) {
             Ok(body) => tarball_response(body, upstream_len),

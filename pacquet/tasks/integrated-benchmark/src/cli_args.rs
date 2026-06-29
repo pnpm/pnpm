@@ -359,10 +359,8 @@ impl BenchmarkScenario {
         )
     }
 
-    /// Whether the per-revision tarball-serving mock starts with a **cold**
-    /// cache (isolated storage wiped each iteration, proxying the warm shared
-    /// mock as origin) instead of sharing the warm storage. This is what makes
-    /// the client install exercise the proxy's cold download/serve path.
+    /// Whether this scenario gives the serving mock a cold cache (see the
+    /// `…cold-store.cold-pnpr` variant); selects the cold-mock spawn.
     pub fn cold_pnpr_cache(self) -> bool {
         matches!(self, BenchmarkScenario::IsolatedFreshInstallColdCacheColdStoreColdPnpr)
     }

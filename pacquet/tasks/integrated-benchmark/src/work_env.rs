@@ -532,10 +532,8 @@ impl WorkEnv {
         // the emulated registry link instead of bypassing it.
         let cold = self.scenario.is_some_and(BenchmarkScenario::cold_pnpr_cache);
         let process = if cold {
-            // Cold pnpr cache: the mock starts with empty, isolated storage
-            // (wiped between iterations) and proxies the warm shared mock as
-            // its origin, so each install refetches and streams every tarball
-            // through the proxy's cold download path.
+            // Empty, isolated storage (wiped between iterations) proxying the
+            // warm shared mock as origin, so every request is a cache miss.
             let cold_storage = bench_dir.join("cold-mock-storage");
             let config_path = bench_dir.join("cold-mock-config.yaml");
             fs::write(&config_path, cold_mock_config_yaml(&cold_storage, &self.registry))
@@ -1608,10 +1606,9 @@ fn write_pnpr_benchmark_config(
     path
 }
 
-/// A minimal verdaccio-shaped config for the cold pnpr mock: empty isolated
-/// `storage` and a single `**` proxy uplink pointing at the warm origin, so
-/// every request is a cache miss that refetches (and streams) from origin.
-/// Public reads need no auth, matching the bundled mock config.
+/// A minimal verdaccio-shaped config for the cold mock: isolated `storage` and
+/// a single `**` proxy uplink at the warm origin, with public reads needing no
+/// auth (matching the bundled mock config).
 fn cold_mock_config_yaml(storage: &Path, origin: &str) -> String {
     format!(
         "storage: {storage}\n\
