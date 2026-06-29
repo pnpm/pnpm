@@ -87,6 +87,38 @@ fn recursive_publish_all_private_writes_empty_summary() {
     drop(root);
 }
 
+/// `publish -r --json` prints the per-package summaries as a JSON array on
+/// stdout — an empty array when nothing is published — mirroring pnpm's
+/// `JSON.stringify(publishedPackages)` for the recursive path. Exercised on the
+/// all-private no-op path so no registry request is made.
+#[test]
+fn recursive_publish_json_prints_empty_array_when_nothing_published() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[("project-1", private_pkg("project-1")), ("project-2", private_pkg("project-2"))],
+    );
+
+    let assert = pacquet
+        .with_arg("-r")
+        .with_arg("publish")
+        .with_arg("--json")
+        .with_arg("--no-git-checks")
+        .assert()
+        .success();
+    // The global "no new packages" info line shares stdout with the reporter
+    // (matching pnpm's `logger.info`), so assert on the JSON array line itself
+    // rather than the whole stream: it is present only because `--json` prints
+    // `publishedPackages`, and disappears if that print is dropped.
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
+    assert!(
+        stdout.lines().any(|line| line.trim() == "[]"),
+        "recursive --json must print the published-packages array (empty here) on stdout, got: {stdout:?}",
+    );
+
+    drop(root);
+}
+
 /// `--batch` is accepted for surface parity but not yet ported, so a recursive
 /// batch publish fails fast with an explicit message rather than silently
 /// publishing per-package.
