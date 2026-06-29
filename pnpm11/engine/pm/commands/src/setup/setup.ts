@@ -186,15 +186,16 @@ async function setupFishConfDir (
     force?: boolean
   }
 ): Promise<PathExtenderReport> {
-  const configFile = path.join(os.homedir(), '.config/fish/conf.d/pnpm.fish')
-  const newSettings = `set -gx PNPM_HOME "${pnpmHomeDir}"
+  const configFile = getFishConfigFile()
+  const newSettings = `set -gx PNPM_HOME "${escapeFishString(pnpmHomeDir)}"
 if not string match -q -- "$PNPM_HOME/bin" $PATH
   set -gx PATH "$PNPM_HOME/bin" $PATH
 end`
   const newContent = `${newSettings}\n`
-  if (!fs.existsSync(configFile)) {
+  const existingConfig = await readExistingFishConfig(configFile)
+  if (existingConfig == null) {
     await fs.promises.mkdir(path.dirname(configFile), { recursive: true })
-    await fs.promises.writeFile(configFile, newContent, 'utf8')
+    await writeFileAtomically(configFile, newContent)
     return {
       configFile: {
         path: configFile,
@@ -205,7 +206,7 @@ end`
     }
   }
 
-  const oldContent = normalizeLineEndings(await fs.promises.readFile(configFile, 'utf8'))
+  const oldContent = normalizeLineEndings(existingConfig.content)
   const normalizedNewContent = normalizeLineEndings(newContent)
   const oldSettings = trimTrailingNewline(oldContent)
   const normalizedNewSettings = trimTrailingNewline(normalizedNewContent)
@@ -222,7 +223,7 @@ end`
   if (!opts.force) {
     throw new PnpmError('BAD_SHELL_SECTION', `The config file at "${configFile}" already contains a pnpm configuration but with other settings`)
   }
-  await fs.promises.writeFile(configFile, newContent, 'utf8')
+  await writeFileAtomically(configFile, newContent, existingConfig.mode)
   return {
     configFile: {
       path: configFile,
@@ -230,6 +231,61 @@ end`
     },
     oldSettings,
     newSettings,
+  }
+}
+
+function getFishConfigFile (): string {
+  const configHome = getFishConfigHome()
+  return path.join(configHome, 'fish/conf.d/pnpm.fish')
+}
+
+function getFishConfigHome (): string {
+  if (process.env.XDG_CONFIG_HOME) {
+    if (!path.isAbsolute(process.env.XDG_CONFIG_HOME)) {
+      throw new PnpmError('UNSAFE_SHELL_CONFIG', 'XDG_CONFIG_HOME must be an absolute path when writing fish configuration')
+    }
+    return process.env.XDG_CONFIG_HOME
+  }
+  return path.join(os.homedir(), '.config')
+}
+
+function escapeFishString (value: string): string {
+  if (/[\0\r\n]/.test(value)) {
+    throw new PnpmError('UNSAFE_SHELL_CONFIG', 'PNPM_HOME cannot contain NUL or newline characters when writing fish configuration')
+  }
+  return value
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/\$/g, '\\$')
+}
+
+async function readExistingFishConfig (configFile: string): Promise<{ content: string, mode: number } | undefined> {
+  let stat: fs.Stats
+  try {
+    stat = await fs.promises.lstat(configFile)
+  } catch (err: any) { // eslint-disable-line
+    if (err.code === 'ENOENT') return undefined
+    throw err
+  }
+  if (stat.isSymbolicLink()) {
+    throw new PnpmError('UNSAFE_SHELL_CONFIG', `Refusing to write fish configuration at "${configFile}" because it is a symbolic link`)
+  }
+  return {
+    content: await fs.promises.readFile(configFile, 'utf8'),
+    mode: stat.mode & 0o777,
+  }
+}
+
+async function writeFileAtomically (filePath: string, content: string, mode = 0o644): Promise<void> {
+  const tempDir = await fs.promises.mkdtemp(path.join(path.dirname(filePath), `.${path.basename(filePath)}.`))
+  const tempPath = path.join(tempDir, path.basename(filePath))
+  try {
+    await fs.promises.writeFile(tempPath, content, { encoding: 'utf8', mode })
+    await fs.promises.rename(tempPath, filePath)
+  } catch (err: any) { // eslint-disable-line
+    throw err
+  } finally {
+    await fs.promises.rm(tempDir, { force: true, recursive: true }).catch(() => undefined)
   }
 }
 
