@@ -1,5 +1,7 @@
-use std::collections::{HashMap, HashSet};
-use std::fmt;
+use std::{
+    collections::{HashMap, HashSet},
+    fmt,
+};
 
 use clap::Args;
 use miette::{Context, IntoDiagnostic};
@@ -198,7 +200,11 @@ fn resolve_link_version(lockfile_dir: &std::path::Path, link_target: &str) -> Op
     }
     let manifest_path = target_dir.join("package.json");
     PackageManifest::from_path(manifest_path).ok().and_then(|manifest| {
-        manifest.value().get("version").and_then(|v| v.as_str()).map(String::from)
+        manifest
+            .value()
+            .get("version")
+            .and_then(|version_val| version_val.as_str())
+            .map(String::from)
     })
 }
 
@@ -217,7 +223,8 @@ fn check_linked_package_peers(
     }
     let manifest_path = linked_pkg_dir.join("package.json");
     let Ok(manifest) = PackageManifest::from_path(manifest_path) else { return };
-    let Some(peer_deps) = manifest.value().get("peerDependencies").and_then(|v| v.as_object())
+    let Some(peer_deps) =
+        manifest.value().get("peerDependencies").and_then(|deps_val| deps_val.as_object())
     else {
         return;
     };
@@ -230,8 +237,8 @@ fn check_linked_package_peers(
         let is_optional = manifest
             .value()
             .get("peerDependenciesMeta")
-            .and_then(|m| m.get(peer_name))
-            .and_then(|m| m.get("optional"))
+            .and_then(|meta_map| meta_map.get(peer_name))
+            .and_then(|peer_meta| peer_meta.get("optional"))
             .and_then(serde_json::Value::as_bool)
             .unwrap_or(false);
 
@@ -239,10 +246,12 @@ fn check_linked_package_peers(
         let resolved_ref = importer
             .dependencies
             .as_ref()
-            .and_then(|d| d.get(&peer_pkg_name))
-            .or_else(|| importer.dev_dependencies.as_ref().and_then(|d| d.get(&peer_pkg_name)))
+            .and_then(|deps| deps.get(&peer_pkg_name))
             .or_else(|| {
-                importer.optional_dependencies.as_ref().and_then(|d| d.get(&peer_pkg_name))
+                importer.dev_dependencies.as_ref().and_then(|deps| deps.get(&peer_pkg_name))
+            })
+            .or_else(|| {
+                importer.optional_dependencies.as_ref().and_then(|deps| deps.get(&peer_pkg_name))
             });
 
         match resolved_ref {
@@ -377,14 +386,17 @@ fn walk_snapshot(
                     .is_some_and(|peer_meta| peer_meta.optional);
 
                 let Ok(peer_pkg_name) = peer_name.parse::<PkgName>() else { continue };
-                let resolved_ref = snapshot.and_then(|s| {
-                    s.dependencies.as_ref().and_then(|deps| deps.get(&peer_pkg_name)).or_else(
-                        || {
-                            s.optional_dependencies
+                let resolved_ref = snapshot.and_then(|snapshot_entry| {
+                    snapshot_entry
+                        .dependencies
+                        .as_ref()
+                        .and_then(|deps| deps.get(&peer_pkg_name))
+                        .or_else(|| {
+                            snapshot_entry
+                                .optional_dependencies
                                 .as_ref()
                                 .and_then(|deps| deps.get(&peer_pkg_name))
-                        },
-                    )
+                        })
                 });
 
                 match resolved_ref {
@@ -493,9 +505,9 @@ fn satisfies(version: &str, range: &str) -> bool {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum Bound<V> {
-    Inclusive(V),
-    Exclusive(V),
+enum Bound<Value> {
+    Inclusive(Value),
+    Exclusive(Value),
     Unbounded,
 }
 
@@ -830,11 +842,6 @@ fn intersect_multiple_ranges(version_ranges: &[String]) -> Option<String> {
     )
 }
 
-#[cfg(test)]
-fn have_common_version(version_ranges: &[String]) -> bool {
-    intersect_multiple_ranges(version_ranges).is_some()
-}
-
 fn merge_missing_peers(missing: &HashMap<String, Vec<MissingPeerIssue>>) -> MergeResult {
     let mut conflicts = Vec::new();
     let mut intersections = HashMap::new();
@@ -976,7 +983,9 @@ fn parse_allowed_versions(
             let ranges: Vec<String> = spec.split("||").map(|seg| seg.trim().to_string()).collect();
 
             let parent_entry = by_parent.entry(parent_name).or_default();
-            if let Some(rule) = parent_entry.iter_mut().find(|r| r.parent_range == parent_range) {
+            if let Some(rule) =
+                parent_entry.iter_mut().find(|rule_entry| rule_entry.parent_range == parent_range)
+            {
                 rule.peer_rules.entry(peer_name).or_default().extend(ranges);
             } else {
                 let mut peer_rules = HashMap::new();
