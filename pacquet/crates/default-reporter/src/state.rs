@@ -317,6 +317,10 @@ impl ReporterState {
             LogEvent::LockfileVerification(log) => self.on_lockfile_verification(&log.message),
             LogEvent::RequestRetry(log) => self.on_request_retry(log),
             LogEvent::Pnpm(log) => self.on_pnpm(log.level, &log.message, &log.prefix),
+            // `pnpm:global` shares the "other" log stream with the `pnpm`
+            // channel but carries no prefix, so it always renders (the
+            // empty-prefix path in `on_pnpm`).
+            LogEvent::Global(log) => self.on_pnpm(log.level, &log.message, ""),
             LogEvent::ExecutionTime(log) => self.on_execution_time(log),
             // Debug-only / non-rendered channels in pnpm's default reporter.
             LogEvent::Hook(_) | LogEvent::BrokenModules(_) => {}
