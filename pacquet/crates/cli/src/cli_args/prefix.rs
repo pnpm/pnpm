@@ -30,10 +30,7 @@ pub enum PrefixError {
     /// IO error while looking up the prefix.
     #[display("failed to access {path}: {source}")]
     #[diagnostic(code(pacquet_cli::prefix_io_error))]
-    Io {
-        path: PathBuf,
-        source: std::io::Error,
-    },
+    Io { path: PathBuf, source: std::io::Error },
 }
 
 /// Find the nearest directory containing package.json, node_modules, etc.
@@ -49,11 +46,7 @@ pub fn find_local_prefix(start_dir: &Path) -> miette::Result<PathBuf> {
         }
     }
 
-    if name == start_dir {
-        find_prefix_up(&name, &name)
-    } else {
-        Ok(name)
-    }
+    if name == start_dir { find_prefix_up(&name, &name) } else { Ok(name) }
 }
 
 fn find_prefix_up(name: &Path, original: &Path) -> miette::Result<PathBuf> {
@@ -72,11 +65,7 @@ fn find_prefix_up(name: &Path, original: &Path) -> miette::Result<PathBuf> {
                 Ok(true) => return Ok(current.to_path_buf()),
                 Ok(false) => continue,
                 Err(e) => {
-                    return Err(PrefixError::Io {
-                        path: target_path,
-                        source: e,
-                    }
-                    .into());
+                    return Err(PrefixError::Io { path: target_path, source: e }.into());
                 }
             }
         }
