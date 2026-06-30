@@ -216,21 +216,21 @@ fn test_default_config_dir_without_home_returns_none() {
 }
 
 /// Port of upstream
-/// [`'getDefaultWorkspaceConcurrency: cpu num < 4'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.test.ts#L25-L28).
+/// [`'getDefaultWorkspaceConcurrency: cpu num < 4'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/test/concurrency.test.ts#L25-L28).
 #[test]
 fn default_child_concurrency_with_parallelism_below_four() {
     assert_eq!(default_child_concurrency_with_parallelism(1), 1);
 }
 
 /// Port of upstream
-/// [`'getDefaultWorkspaceConcurrency: cpu num > 4'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.test.ts#L30-L33).
+/// [`'getDefaultWorkspaceConcurrency: cpu num > 4'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/test/concurrency.test.ts#L30-L33).
 #[test]
 fn default_child_concurrency_with_parallelism_above_four() {
     assert_eq!(default_child_concurrency_with_parallelism(5), 4);
 }
 
 /// Port of upstream
-/// [`'getDefaultWorkspaceConcurrency: cpu num = 4'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.test.ts#L35-L38).
+/// [`'getDefaultWorkspaceConcurrency: cpu num = 4'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/test/concurrency.test.ts#L35-L38).
 #[test]
 fn default_child_concurrency_with_parallelism_at_four() {
     assert_eq!(default_child_concurrency_with_parallelism(4), 4);
@@ -246,7 +246,7 @@ fn default_workspace_concurrency_matches_default_child_concurrency() {
 }
 
 /// Port of upstream
-/// [`'default workspace concurrency'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.test.ts#L48-L52).
+/// [`'default workspace concurrency'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/test/concurrency.test.ts#L48-L52).
 /// Pin a `>=4` parallelism so the expectation is deterministic.
 #[test]
 fn resolve_child_concurrency_default_with_four_or_more_cores() {
@@ -255,7 +255,7 @@ fn resolve_child_concurrency_default_with_four_or_more_cores() {
 }
 
 /// Port of upstream
-/// [`'match host cores amount'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.test.ts#L58-L62).
+/// [`'match host cores amount'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/test/concurrency.test.ts#L58-L62).
 #[test]
 fn resolve_child_concurrency_zero_returns_full_parallelism() {
     assert_eq!(resolve_child_concurrency_with_parallelism(Some(0), 8), 8);
@@ -263,7 +263,7 @@ fn resolve_child_concurrency_zero_returns_full_parallelism() {
 }
 
 /// Port of upstream
-/// [`'host cores minus X'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.test.ts#L64-L71).
+/// [`'host cores minus X'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/test/concurrency.test.ts#L64-L71).
 #[test]
 fn resolve_child_concurrency_negative_offset_matches_upstream_formula() {
     assert_eq!(resolve_child_concurrency_with_parallelism(Some(-1), 8), 7);

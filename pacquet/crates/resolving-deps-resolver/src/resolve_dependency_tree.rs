@@ -220,7 +220,7 @@ pub enum ResolveDependencyTreeError {
     /// A dependency alias contained a path-separator segment that would
     /// escape the intended `node_modules` directory when joined onto a
     /// modules path. Mirrors pnpm's
-    /// [`INVALID_DEPENDENCY_NAME`](https://github.com/pnpm/pnpm/blob/main/installing/deps-resolver/src/validateDependencyAlias.ts).
+    /// [`INVALID_DEPENDENCY_NAME`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-resolver/src/validateDependencyAlias.ts).
     #[display(
         "{parent} contains a dependency with an invalid name: {alias:?}. Dependency names must be a single package name or \"@scope/name\" — they cannot contain path-separator segments such as \"..\"."
     )]
@@ -304,7 +304,7 @@ where
 /// Collect the names of the importer manifest's `optionalDependencies`
 /// entries so the walker can tag each direct dep with the right
 /// `wanted.optional` flag. Mirrors upstream's per-alias classification
-/// in [`getWantedDependenciesFromGivenSet`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/getWantedDependencies.ts#L57-L72):
+/// in [`getWantedDependenciesFromGivenSet`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-resolver/src/getWantedDependencies.ts#L57-L72):
 /// `optionalDependencies` wins over the other groups when an alias
 /// appears in more than one. Pacquet builds the same set so the
 /// `ResolvedPackage.optional` propagation starts from the right
@@ -315,7 +315,7 @@ pub(crate) fn importer_optional_dependency_names(manifest: &PackageManifest) -> 
 
 /// Collect the names of the importer manifest's `dependenciesMeta` entries
 /// whose `injected` flag is `true`. Mirrors upstream's per-alias
-/// [`injected: opts.dependenciesMeta[alias]?.injected`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/getWantedDependencies.ts#L73)
+/// [`injected: opts.dependenciesMeta[alias]?.injected`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-resolver/src/getWantedDependencies.ts#L73)
 /// thread — the per-dep opt-in that flips a workspace dep onto the
 /// hard-linked `file:` path even when the global
 /// `injectWorkspacePackages` is off. Only importer-level deps are

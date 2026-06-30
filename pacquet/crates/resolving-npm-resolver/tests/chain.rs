@@ -1,7 +1,7 @@
 //! Chain-integration tests for [`NamedRegistryResolver`].
 //!
 //! Mirrors upstream's
-//! [`resolving/default-resolver/test/namedRegistry.ts`](https://github.com/pnpm/pnpm/blob/b61e268d57/resolving/default-resolver/test/namedRegistry.ts):
+//! [`resolving/default-resolver/test/namedRegistry.ts`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/resolving/default-resolver/test/namedRegistry.ts):
 //! once the named-registry resolver lands in the chain, configured
 //! aliases must lose to the explicit local-scheme protocols
 //! (`link:` / `workspace:` / `file:`) so a user who happens to
@@ -66,7 +66,7 @@ fn setup_project_with_pkg() -> TempDir {
 
 /// Explicit `link:./pkg` wins over a `link` named-registry alias.
 /// Mirrors the test.each row in
-/// [`namedRegistry.ts`](https://github.com/pnpm/pnpm/blob/b61e268d57/resolving/default-resolver/test/namedRegistry.ts#L81-L108).
+/// [`namedRegistry.ts`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/resolving/default-resolver/test/namedRegistry.ts#L81-L108).
 #[tokio::test]
 async fn link_scheme_wins_over_named_registry_alias() {
     let project = setup_project_with_pkg();

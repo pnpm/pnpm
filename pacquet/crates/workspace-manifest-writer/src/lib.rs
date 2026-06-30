@@ -39,7 +39,7 @@ mod tests;
 use model::Manifest;
 
 /// Base name of pnpm's workspace manifest, matching pnpm's
-/// [`WORKSPACE_MANIFEST_FILENAME`](https://github.com/pnpm/pnpm/blob/e7e99f04e4/packages/constants/src/index.ts).
+/// [`WORKSPACE_MANIFEST_FILENAME`](https://github.com/pnpm/pnpm/blob/e7e99f04e4/core/constants/src/index.ts).
 pub const WORKSPACE_MANIFEST_FILENAME: &str = "pnpm-workspace.yaml";
 
 /// Error raised while reading, editing, or writing `pnpm-workspace.yaml`.

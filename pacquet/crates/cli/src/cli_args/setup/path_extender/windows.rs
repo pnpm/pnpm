@@ -2,7 +2,7 @@
 //! Windows registry under `HKEY_CURRENT_USER\Environment`.
 //!
 //! Ports pnpm's
-//! [`@pnpm/os.env.path-extender-windows`](https://github.com/pnpm/pnpm/blob/1819226b51/packages/path-extender-windows/src/path-extender-windows.ts):
+//! [`@pnpm/os.env.path-extender-windows`](https://github.com/pnpm/components/blob/a9b32aa67f/os/env/path-extender-windows/path-extender-windows.ts):
 //! the registry is read with `reg query`, the proxy variable and `Path` are
 //! written with `reg add`, and a dummy `setx` forces the new values to be
 //! picked up by future processes. `chcp 65001` makes `reg` emit UTF-8 so

@@ -4530,7 +4530,7 @@ async fn frozen_lockfile_gate_rejects_under_huge_minimum_release_age() {
 // Fresh-install lockfile generation
 //
 // These tests port the parts of
-// [`installing/deps-installer/test/lockfile.ts`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-installer/test/lockfile.ts)
+// [`installing/deps-installer/test/lockfile.ts`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-installer/test/lockfile.ts)
 // that exercise a *fresh* install — the path that converts the
 // resolver's `DependenciesGraph` into a v9 `pnpm-lock.yaml`. Tests that
 // require an existing lockfile (incremental update, repeat install,
@@ -4538,7 +4538,7 @@ async fn frozen_lockfile_gate_rejects_under_huge_minimum_release_age() {
 // pnpm/pnpm#11813 for the broader scope.
 
 /// Pacquet equivalent of upstream's
-/// ["lockfile has correct format"](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-installer/test/lockfile.ts#L38)
+/// ["lockfile has correct format"](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-installer/test/lockfile.ts#L38)
 /// for the smallest fresh-install slice: one direct prod dep produces
 /// a v9 lockfile with the right `lockfileVersion`, an importer entry
 /// under `.`, and matching `packages:` / `snapshots:` rows.
@@ -4701,7 +4701,7 @@ async fn fresh_install_uses_final_peer_suffix_for_transitive_pending_peer() {
 /// Manifest-declared dependency groups land in the matching importer
 /// section in the lockfile. Mirrors upstream's
 /// ["packages are placed in devDependencies even if they are present as
-/// non-dev as well"](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-installer/test/lockfile.ts#L559)
+/// non-dev as well"](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-installer/test/lockfile.ts#L559)
 /// at the surface level — pacquet routes deps through
 /// `manifest_alias_to_group`, so a dep declared in `devDependencies`
 /// lands in the lockfile's `devDependencies` section.
@@ -4780,7 +4780,7 @@ async fn fresh_install_splits_dev_and_prod_dependency_sections() {
 /// Specifiers recorded into each importer-level entry mirror the
 /// user-written `package.json` value, not the resolved version.
 /// Mirrors the per-entry `specifier:` check in upstream's
-/// ["lockfile has correct format"](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-installer/test/lockfile.ts#L38)
+/// ["lockfile has correct format"](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-installer/test/lockfile.ts#L38)
 /// — a `^1.0.0` declared spec round-trips through the lockfile as
 /// `specifier: ^1.0.0` even when the resolved version is exact
 /// (`1.0.0`).
@@ -4928,7 +4928,7 @@ async fn fresh_install_lockfile_round_trips_through_load_save_load() {
 
 /// `config.lockfile = false` opt-out skips the lockfile write but
 /// keeps the install running. Mirrors upstream's
-/// ["lockfile is ignored when lockfile = false"](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-installer/test/lockfile.ts#L660):
+/// ["lockfile is ignored when lockfile = false"](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-installer/test/lockfile.ts#L660):
 /// no `pnpm-lock.yaml` on disk, but `node_modules/` materialized.
 #[tokio::test]
 async fn fresh_install_with_lockfile_disabled_does_not_write_a_lockfile() {

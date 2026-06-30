@@ -78,7 +78,7 @@ pub struct PackageVersion {
     /// to handle both shapes silently. Rust serde is strict, so we
     /// route through a custom deserializer that normalizes the field
     /// to `Option<String>`. Mirrors pnpm's
-    /// [`PackageInRegistry.deprecated`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/packages/types/src/package.ts).
+    /// [`PackageInRegistry.deprecated`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/core/types/src/package.ts).
     #[serde(
         default,
         deserialize_with = "deserialize_deprecated_field",

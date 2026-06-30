@@ -86,7 +86,7 @@ use std::{
 /// so [`Walker::node_dep_paths`] never maps them. The `link:<rel>`
 /// `NodeId` is itself a well-formed pnpm `DepPath`, so the snapshot
 /// child edge can use it verbatim. Mirrors upstream's
-/// [`pathsByNodeId.get(childNodeId) ?? (childNodeId as unknown as DepPath)`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/resolvePeers.ts#L164)
+/// [`pathsByNodeId.get(childNodeId) ?? (childNodeId as unknown as DepPath)`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-resolver/src/resolvePeers.ts#L164)
 /// fallback in `resolveChildren`.
 fn link_node_id_as_dep_path(node_id: &NodeId) -> Option<DepPath> {
     let NodeId::Leaf(id) = node_id else { return None };
@@ -130,7 +130,7 @@ pub struct ResolvePeersOptions {
     /// `link:<rel-from-lockfile_dir-to-modules_dir>/<alias>`, so peer
     /// resolution against those parents stays stable across machines.
     /// Mirrors upstream's
-    /// [exclude-link `target` rewrite](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/index.ts#L232-L244).
+    /// [exclude-link `target` rewrite](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-resolver/src/index.ts#L232-L244).
     pub exclude_links_from_lockfile: bool,
 
     /// Absolute path of the directory `pnpm-lock.yaml` lives in. Used
@@ -729,7 +729,7 @@ impl Walker<'_> {
     /// — keeping the peer-suffix segment stable across machines
     /// regardless of the absolute path of the external link. Mirrors
     /// upstream's
-    /// [`target` rewrite in `index.ts`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/index.ts#L232-L244).
+    /// [`target` rewrite in `index.ts`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-resolver/src/index.ts#L232-L244).
     fn build_importer_parents(&self) -> ParentRefs {
         self.build_importer_parents_from(&self.tree.direct)
     }
@@ -1297,7 +1297,7 @@ impl Walker<'_> {
     /// Build the [`PeerId`] contribution for one resolved peer.
     ///
     /// Precedence (mirrors upstream's
-    /// [`peerNodeIdToPeerId`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/resolvePeers.ts#L976-L998)):
+    /// [`peerNodeIdToPeerId`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-resolver/src/resolvePeers.ts#L976-L998)):
     ///
     /// 1. **`link:<rel>` `NodeIds`** — emit
     ///    `PeerId::Pair { name: peer_alias, version: link_path_to_peer_version(rel) }`
@@ -2076,7 +2076,7 @@ impl Walker<'_> {
             graph_children.insert(alias, dep_path.clone());
         } else if let Some(link_dep_path) = link_node_id_as_dep_path(&node_id) {
             // Mirrors upstream's
-            // [`pathsByNodeId.get(childNodeId) ?? (childNodeId as unknown as DepPath)`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/resolvePeers.ts#L164)
+            // [`pathsByNodeId.get(childNodeId) ?? (childNodeId as unknown as DepPath)`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-resolver/src/resolvePeers.ts#L164)
             // fallback in `resolveChildren`. `topParents` linked-dep
             // NodeIds never enter the tree, so `node_dep_paths` is
             // empty for them; the `link:<rel>` NodeId is itself a
@@ -2626,9 +2626,9 @@ fn version_gte(left: &str, right: &str) -> bool {
 /// On `Some`, the remap encodes `<modules_dir>/<alias>` as a path
 /// relative to `lockfile_dir`, prefixed with `link:`. Mirrors
 /// upstream's
-/// [`target` rewrite in `index.ts`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/index.ts#L232-L244)
+/// [`target` rewrite in `index.ts`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-resolver/src/index.ts#L232-L244)
 /// and the surrounding
-/// [`createNodeIdForLinkedLocalPkg`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/resolveDependencies.ts#L976-L978)
+/// [`createNodeIdForLinkedLocalPkg`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-resolver/src/resolveDependencies.ts#L976-L978)
 /// helper.
 fn remap_link_node_id(
     opts: &ResolvePeersOptions,

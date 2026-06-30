@@ -2093,7 +2093,7 @@ mod peers {
     }
 
     /// Ported from upstream pnpm's
-    /// [`path to external link is not added to the lockfile, when it resolves a peer dependency`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-installer/test/install/excludeLinksFromLockfile.ts#L224-L243)
+    /// [`path to external link is not added to the lockfile, when it resolves a peer dependency`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-installer/test/install/excludeLinksFromLockfile.ts#L224-L243)
     /// e2e test, narrowed to the peer-resolution slice.
     #[tokio::test]
     async fn external_link_peer_remaps_to_node_modules_when_exclude_links_on() {

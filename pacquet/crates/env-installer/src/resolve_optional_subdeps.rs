@@ -1,6 +1,6 @@
 //! Resolve one level of a config dependency's `optionalDependencies`
 //! into the env lockfile. Mirrors pnpm's
-//! [`resolveOptionalSubdeps`](https://github.com/pnpm/pnpm/blob/31858c544b/installing/env-installer/src/resolveOptionalSubdeps.ts).
+//! [`resolveOptionalSubdeps`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/env-installer/src/resolveOptionalSubdeps.ts).
 //!
 //! Only exact versions are accepted: a range or tag would let the
 //! resolved version drift between machines even with a stable parent

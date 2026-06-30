@@ -137,7 +137,7 @@ fn filesystem_root(path: &Path) -> PathBuf {
 
 /// Given `from` (an ancestor of `to`), return `from` with one more
 /// path segment appended along the way to `to`. Port of npm's
-/// [`next-path`](https://github.com/zkochan/packages/blob/main/next-path/index.js).
+/// [`next-path`](https://github.com/sholladay/next-path/blob/ce2c138683/index.js).
 /// Returns `from` unchanged when `from` is not a prefix of `to`.
 fn next_path(from: &Path, to: &Path) -> PathBuf {
     let from_components: Vec<_> = from.components().collect();

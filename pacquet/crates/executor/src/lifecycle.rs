@@ -126,9 +126,9 @@ const DEPENDENCY_LIFECYCLE_STAGES: [&str; 3] = ["preinstall", "install", "postin
 /// The lifecycle stages pnpm runs for each workspace *project* during
 /// `pnpm install`, in execution order. Mirrors the hardcoded list at
 /// the `runLifecycleHooksConcurrently` call sites in
-/// [`pkg-manager/core`](https://github.com/pnpm/pnpm/blob/80037699fb/pkg-manager/core/src/install/index.ts#L1525)
+/// [`installing/deps-installer`](https://github.com/pnpm/pnpm/blob/80037699fb/installing/deps-installer/src/install/index.ts#L1525)
 /// and
-/// [`pkg-manager/headless`](https://github.com/pnpm/pnpm/blob/80037699fb/pkg-manager/headless/src/index.ts#L671).
+/// [`installing/deps-restorer`](https://github.com/pnpm/pnpm/blob/80037699fb/installing/deps-restorer/src/index.ts#L671).
 pub const PROJECT_LIFECYCLE_STAGES: [&str; 6] =
     ["preinstall", "install", "postinstall", "preprepare", "prepare", "postprepare"];
 

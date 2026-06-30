@@ -58,7 +58,7 @@ pub struct CreateVirtualDirBySnapshot<'a> {
     /// uses this to skip dangling symlinks to absent slots. Mirrors
     /// upstream's `!pkg.installable && pkg.optional` short-circuit in
     /// `linkAllModules` at
-    /// <https://github.com/pnpm/pnpm/blob/f2981a316/installing/deps-installer/src/install/link.ts#L540>.
+    /// <https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-installer/src/install/link.ts#L540>.
     pub skipped: &'a SkippedSnapshots,
     /// Child aliases that were linked by a previous install but are no
     /// longer in this snapshot's dependency set. Their stale symlinks

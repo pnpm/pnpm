@@ -367,7 +367,7 @@ pub struct ResolveOptions {
 
 /// In-memory manifest shape a resolver may attach to its
 /// [`ResolveResult`]. Mirrors pnpm's
-/// [`DependencyManifest`](https://github.com/pnpm/pnpm/blob/3687b0e180/packages/types/src/index.ts)
+/// [`DependencyManifest`](https://github.com/pnpm/pnpm/blob/3687b0e180/core/types/src/index.ts)
 /// (sourced from `@pnpm/types` upstream).
 ///
 /// Today this aliases [`serde_json::Value`] so the seam compiles

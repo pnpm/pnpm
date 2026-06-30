@@ -5,10 +5,10 @@ use std::{collections::HashMap, path::Path};
 /// Create symlink layout of dependencies for a package in a virtual dir.
 ///
 /// Mirrors upstream's `linkAllModules` child-selection rules at
-/// <https://github.com/pnpm/pnpm/blob/f2981a316/installing/deps-installer/src/install/link.ts#L521-L549>
+/// <https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-installer/src/install/link.ts#L521-L549>
 /// and the underlying `dependencies` ∪ `optionalDependencies` merge in
 /// `lockfileToDepGraph` at
-/// <https://github.com/pnpm/pnpm/blob/f2981a316/deps/graph-builder/src/lockfileToDepGraph.ts#L150-L156>.
+/// <https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/deps/graph-builder/src/lockfileToDepGraph.ts#L150-L156>.
 ///
 /// Child target paths come from the install-scoped
 /// [`VirtualStoreLayout`]: `layout.slot_dir(&target)` returns either

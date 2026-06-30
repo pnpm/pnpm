@@ -2,7 +2,7 @@
 //! current POSIX shell's rc file.
 //!
 //! Ports pnpm's
-//! [`@pnpm/os.env.path-extender-posix`](https://github.com/pnpm/pnpm/blob/1819226b51/packages/path-extender-posix/src/path-extender-posix.ts):
+//! [`@pnpm/os.env.path-extender-posix`](https://github.com/pnpm/components/blob/a9b32aa67f/os/env/path-extender-posix/path-extender-posix.ts):
 //! the shell is inferred from the environment, the settings block for that
 //! shell is rendered, and a `# <section>` ... `# <section> end` block is
 //! created in / appended to / replaced in the rc file.

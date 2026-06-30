@@ -1,6 +1,6 @@
 //! Environment-variable substitution for pnpm-style `${VAR}` placeholders.
 //!
-//! Ports pnpm's [`@pnpm/config.env-replace`](https://github.com/pnpm/components/blob/9c2bd17/config/env-replace/env-replace.ts):
+//! Ports pnpm's [`@pnpm/config.env-replace`](https://github.com/pnpm/components/blob/a9b32aa67f/config/env-replace/env-replace.ts):
 //! occurrences of `${VAR}` (with optional `${VAR:-default}` fallback) are
 //! replaced with the value the [`EnvVar`] capability returns for `VAR`.
 //! Backslashes immediately preceding the `$` escape the placeholder so

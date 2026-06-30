@@ -59,7 +59,7 @@ pub struct Package {
 
     /// Package-level `homepage` URL, shown in the `Details` column of
     /// `pacquet outdated --long`. Mirrors pnpm's
-    /// [`PackageManifest.homepage`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/packages/types/src/package.ts).
+    /// [`PackageManifest.homepage`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/core/types/src/package.ts).
     ///
     /// Only the full-metadata endpoint (`application/json`) carries this
     /// field; the abbreviated install metadata pacquet fetches by default

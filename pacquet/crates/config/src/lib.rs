@@ -635,7 +635,7 @@ pub struct Config {
     ///
     /// Defaults to `true` so a fresh `pacquet install` writes a
     /// lockfile by default — matching upstream pnpm's
-    /// [`useLockfile`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-installer/src/install/extendInstallOptions.ts#L323)
+    /// [`useLockfile`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-installer/src/install/extendInstallOptions.ts#L323)
     /// default.
     #[default = true]
     pub lockfile: bool,
@@ -787,9 +787,9 @@ pub struct Config {
     /// are excluded from `pnpm-lock.yaml`. Workspace-protocol
     /// dependencies (`workspace:`), which also resolve to a link,
     /// are still recorded. Mirrors pnpm's
-    /// [`excludeLinksFromLockfile`](https://github.com/pnpm/pnpm/blob/094aa6e57b/config/reader/src/Config.ts#L71)
+    /// [`excludeLinksFromLockfile`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/config/reader/src/Config.ts#L71)
     /// (default `false` per
-    /// [`config/reader/src/index.ts`](https://github.com/pnpm/pnpm/blob/094aa6e57b/config/reader/src/index.ts#L144)).
+    /// [`config/reader/src/index.ts`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/config/reader/src/index.ts#L144)).
     pub exclude_links_from_lockfile: bool,
 
     /// When `true`, conflicting peer-dependency ranges from multiple
@@ -1424,7 +1424,7 @@ pub struct Config {
     /// fully reproducible CI against an already-verified lockfile. A
     /// poisoned lockfile (e.g. one a contributor authored under a
     /// weaker policy than CI enforces) will slip through. Mirrors
-    /// pnpm's [`trustLockfile`](https://github.com/pnpm/pnpm/blob/main/config/reader/src/Config.ts).
+    /// pnpm's [`trustLockfile`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/config/reader/src/Config.ts).
     ///
     /// Added for [#11860](https://github.com/pnpm/pnpm/issues/11860):
     /// on multi-thousand-entry workspaces, the verification pass holds
@@ -2011,7 +2011,7 @@ impl Config {
         // environment, not the repository) and host-scoped by construction, so
         // they sit at the top of the precedence chain — above the project
         // `.npmrc` — mirroring the env-over-workspace ordering in pnpm's
-        // [`loadNpmrcFiles.ts`](https://github.com/pnpm/pnpm/blob/main/config/reader/src/loadNpmrcFiles.ts).
+        // [`loadNpmrcFiles.ts`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/config/reader/src/loadNpmrcFiles.ts).
         let env_scoped_source = {
             let auth = NpmrcAuth::from_url_scoped_env::<Sys>();
             (!auth.creds_by_scope_by_uri.is_empty()).then_some(auth)

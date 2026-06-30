@@ -232,7 +232,7 @@ fn inject_workspace_packages_writes_file_resolutions_and_lockfile_setting() {
 /// dep into the `file:` resolution shape even when the global
 /// `injectWorkspacePackages` setting is off. Mirrors the per-dep
 /// branch of upstream's
-/// [`injected: opts.dependenciesMeta[alias]?.injected`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/getWantedDependencies.ts#L73)
+/// [`injected: opts.dependenciesMeta[alias]?.injected`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-resolver/src/getWantedDependencies.ts#L73)
 /// thread and the upstream
 /// [`'inject local packages'`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-installer/test/install/injectLocalPackages.ts#L14-L216)
 /// integration test scenario (the non-`injectWorkspacePackages`

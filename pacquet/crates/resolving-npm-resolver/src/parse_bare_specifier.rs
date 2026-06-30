@@ -279,7 +279,7 @@ pub fn parse_named_registry_specifier_to_registry_package_spec(
 /// Discriminate between an exact version, a semver range, and a
 /// dist-tag, returning the normalized form alongside the discriminator.
 /// Mirrors npm's
-/// [`version-selector-type`](https://github.com/pnpm/version-selector-type/blob/v3.0.0/index.js):
+/// [`version-selector-type`](https://github.com/pnpm/version-selector-type/blob/95be76337c/index.js):
 /// version first, range second, tag last. Returns `None` only when the
 /// selector contains characters that JS's `encodeURIComponent` would
 /// escape (i.e. not a valid npm tag).
@@ -326,7 +326,7 @@ struct NpmTarballUrl {
 }
 
 /// Pacquet port of npm's
-/// [`parse-npm-tarball-url`](https://github.com/zkochan/packages/blob/main/parse-npm-tarball-url/src/index.ts).
+/// [`parse-npm-tarball-url`](https://github.com/pnpm/parse-npm-tarball-url/blob/c211813224/src/index.ts).
 /// Extracts `(name, version)` from a URL like
 /// `https://registry.npmjs.org/foo/-/foo-1.0.0.tgz`. Returns `None`
 /// when the URL doesn't fit the npm tarball layout or the trailing

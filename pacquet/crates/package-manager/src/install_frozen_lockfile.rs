@@ -1744,7 +1744,7 @@ pub(crate) fn parse_major_from_version(version: &str) -> Option<u32> {
 /// lockfile as a snapshot with key `node@runtime:<version>` (see
 /// [`engine/runtime/node-resolver`](https://github.com/pnpm/pnpm/blob/29a42efc3b/engine/runtime/node-resolver/src/index.ts#L67)).
 /// Pnpm's
-/// [`engineName(nodeVersion)`](https://github.com/pnpm/pnpm/blob/HEAD/engine/runtime/system-node-version/src/index.ts)
+/// [`engineName(nodeVersion)`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/engine/runtime/system-version/src/index.ts)
 /// anchors the GVS hash and the side-effects-cache key prefix to
 /// that pinned major instead of pnpm's own `process.version`. The
 /// helper here is pacquet's mirror — same snapshot-scan, same
@@ -1782,7 +1782,7 @@ pub(crate) fn find_runtime_node_major(
 
 /// Read one snapshot's own `engines.runtime` Node pin from its
 /// `dependencies` map. Mirrors upstream's
-/// [`readSnapshotRuntimePin`](https://github.com/pnpm/pnpm/blob/HEAD/engine/runtime/system-node-version/src/index.ts):
+/// [`readSnapshotRuntimePin`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/engine/runtime/system-version/src/index.ts):
 /// the resolver desugars `engines.runtime` declared on a dep's
 /// manifest into `dependencies.node: 'runtime:<version>'` (see
 /// [`installing/deps-resolver/src/resolveDependencies.ts:1477-1479`](https://github.com/pnpm/pnpm/blob/29a42efc3b/installing/deps-resolver/src/resolveDependencies.ts#L1477-L1479)).

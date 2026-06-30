@@ -165,7 +165,7 @@ where
     /// (`pacquet add`, pnpm's `mutation: 'installSome'`). Gates the
     /// project's own lifecycle scripts: pnpm only runs them for the
     /// full install via the `mutation === 'install'` filter at
-    /// <https://github.com/pnpm/pnpm/blob/80037699fb/pkg-manager/core/src/install/index.ts#L1524>,
+    /// <https://github.com/pnpm/pnpm/blob/80037699fb/installing/deps-installer/src/install/index.ts#L1524>,
     /// so a named install such as `pacquet add foo` does not fire
     /// the root project's preinstall/postinstall/prepare/etc.
     pub is_full_install: bool,
@@ -349,7 +349,7 @@ pub enum InstallError {
     /// `pnpm-lock.yaml` doesn't match the on-disk `package.json` for
     /// the project being installed. Mirrors upstream's
     /// `ERR_PNPM_OUTDATED_LOCKFILE` thrown from
-    /// <https://github.com/pnpm/pnpm/blob/94240bc046/pkg-manager/core/src/install/index.ts#L823>:
+    /// <https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/src/install/index.ts#L823>:
     /// the user (or CI) edited the manifest without regenerating the
     /// lockfile, and a frozen install would silently produce the
     /// wrong shape of `node_modules`. Fail the install instead.
@@ -900,7 +900,7 @@ where
         //    and the freshness check (settings + per-importer specifier
         //    match) must pass, otherwise fail. Mirrors upstream's
         //    headless install at
-        //    <https://github.com/pnpm/pnpm/blob/94240bc046/pkg-manager/core/src/install/index.ts#L815-L832>.
+        //    <https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/src/install/index.ts#L815-L832>.
         //
         // 2. No flag, lockfile present, `prefer_frozen_lockfile == true`,
         //    and the freshness check passes → frozen path (same code as
@@ -1672,7 +1672,7 @@ where
         // `.modules.yaml` / the current lockfile are written. Mirrors
         // pnpm's `runLifecycleHooksConcurrently(['preinstall', ...])`
         // emit point near the end of the install at
-        // <https://github.com/pnpm/pnpm/blob/80037699fb/pkg-manager/core/src/install/index.ts#L1517-L1530>.
+        // <https://github.com/pnpm/pnpm/blob/80037699fb/installing/deps-installer/src/install/index.ts#L1517-L1530>.
         // The `pnpm:lifecycle` events these scripts produce render
         // before the closing `pnpm:summary` below, matching pnpm.
         //
@@ -2165,7 +2165,7 @@ fn manifest_string_field(manifest: &PackageManifest, key: &str) -> Option<String
 /// resolver's `workspace:` lookup) and the per-importer manifest list
 /// the fresh-resolve path iterates over, so the manifests are read
 /// from disk exactly once. Mirrors upstream's
-/// [`findWorkspacePackages`](https://github.com/pnpm/pnpm/blob/3422cecfd3/workspace/find-packages/src/index.ts).
+/// [`findWorkspacePackages`](https://github.com/pnpm/pnpm/blob/3422cecfd3/workspace/projects-reader/src/findPackages.ts).
 fn load_workspace_projects(
     workspace_root: &std::path::Path,
     workspace_manifest: Option<&pacquet_workspace::WorkspaceManifest>,
@@ -2182,7 +2182,7 @@ fn load_workspace_projects(
 /// dependency graph is materialized and bins are linked. Ports the
 /// `runLifecycleHooksConcurrently(['preinstall', ...])` call pnpm fires
 /// near the end of the install, gated on `!ignoreScripts`:
-/// <https://github.com/pnpm/pnpm/blob/80037699fb/pkg-manager/core/src/install/index.ts#L1517-L1530>.
+/// <https://github.com/pnpm/pnpm/blob/80037699fb/installing/deps-installer/src/install/index.ts#L1517-L1530>.
 ///
 /// pacquet has no `ignoreScripts` toggle yet (it hardcodes
 /// `ignore_scripts: false` throughout the dependency-build path), so

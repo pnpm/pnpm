@@ -163,8 +163,8 @@ pub enum LogEvent {
     /// install finds every config dependency already materialized, so a
     /// no-op install emits nothing on this channel.
     ///
-    /// Upstream: <https://github.com/pnpm/pnpm/blob/31858c544b/core/core-loggers/src/installingConfigDeps.ts>.
-    /// Emit site: <https://github.com/pnpm/pnpm/blob/31858c544b/installing/env-installer/src/installConfigDeps.ts#L43-L127>.
+    /// Upstream: <https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/core/core-loggers/src/installingConfigDeps.ts>.
+    /// Emit site: <https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/env-installer/src/installConfigDeps.ts#L43-L127>.
     #[serde(rename = "pnpm:installing-config-deps")]
     InstallingConfigDeps(InstallingConfigDepsLog),
 
@@ -194,7 +194,7 @@ pub enum LogEvent {
     LockfileVerification(LockfileVerificationLog),
 
     /// Generic global-logger message (`name: "pnpm"`). Mirrors
-    /// pnpm's [`globalLogger`](https://github.com/pnpm/pnpm/blob/a456dc78fb/packages/logger/src/index.ts)
+    /// pnpm's [`globalLogger`](https://github.com/pnpm/pnpm/blob/a456dc78fb/core/logger/src/index.ts)
     /// `logger.info({ message, prefix })` emits — for example, the
     /// "Lockfile is up to date, resolution step is skipped" line the
     /// frozen-install short-circuit prints at
@@ -703,7 +703,7 @@ pub enum SkippedOptionalReason {
 /// `pnpm:installing-config-deps` payload. `status` is `started` (no
 /// `deps`) or `done` (with the installed list). Mirrors upstream's
 /// `InstallingConfigDepsMessage` union at
-/// <https://github.com/pnpm/pnpm/blob/31858c544b/core/core-loggers/src/installingConfigDeps.ts#L8-L21>.
+/// <https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/core/core-loggers/src/installingConfigDeps.ts#L8-L21>.
 #[derive(Debug, Clone, Serialize)]
 pub struct InstallingConfigDepsLog {
     pub level: LogLevel,

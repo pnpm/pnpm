@@ -40,7 +40,7 @@ pub struct PackageSpecObject {
 }
 
 /// Apply `specs` to `manifest` in memory, mirroring pnpm's
-/// [`updateProjectManifestObject`](https://github.com/pnpm/pnpm/blob/fc2f33912e/pkg-manifest/utils/src/updateProjectManifestObject.ts).
+/// [`updateProjectManifestObject`](https://github.com/pnpm/pnpm/blob/fc2f33912e/pnpm11/pkg-manifest/utils/src/updateProjectManifestObject.ts).
 ///
 /// Each entry either upserts a dependency into its `save_type` field (removing
 /// the alias from the other dependency fields and, when `peer` is set, also

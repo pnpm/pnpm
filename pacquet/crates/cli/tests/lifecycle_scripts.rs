@@ -795,7 +795,7 @@ mod dependency_build_scripts {
 /// the `dependency_build_scripts` module above exercises.
 ///
 /// Ported from
-/// <https://github.com/pnpm/pnpm/blob/80037699fb/pkg-manager/core/test/install/lifecycleScripts.ts>.
+/// <https://github.com/pnpm/pnpm/blob/80037699fb/installing/deps-installer/test/install/lifecycleScripts.ts>.
 mod project_scripts {
     use assert_cmd::prelude::*;
     use command_extra::CommandExtra;
@@ -904,7 +904,7 @@ mod project_scripts {
     }
 
     /// Ported from
-    /// <https://github.com/pnpm/pnpm/blob/80037699fb/pkg-manager/core/test/install/lifecycleScripts.ts#L155>
+    /// <https://github.com/pnpm/pnpm/blob/80037699fb/installing/deps-installer/test/install/lifecycleScripts.ts#L155>
     /// — the project's scripts run regardless of whether its `name`
     /// matches its directory.
     #[test]
@@ -935,7 +935,7 @@ mod project_scripts {
     }
 
     /// Ported from
-    /// <https://github.com/pnpm/pnpm/blob/80037699fb/pkg-manager/core/test/install/lifecycleScripts.ts#L187>
+    /// <https://github.com/pnpm/pnpm/blob/80037699fb/installing/deps-installer/test/install/lifecycleScripts.ts#L187>
     /// — `INIT_CWD` is set to the lockfile directory for project scripts.
     #[test]
     fn project_script_sees_init_cwd() {

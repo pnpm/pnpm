@@ -43,7 +43,7 @@ impl FetchArgs {
             // Optional dependencies follow production: pnpm's fetch sets
             // `optionalDependencies: opts.production !== false`, so `--dev`
             // (which excludes production) excludes optional deps too.
-            // <https://github.com/pnpm/pnpm/blob/85d9e7708a/installing/commands/src/fetch.ts#L51-L59>
+            // <https://github.com/pnpm/pnpm/blob/85d9e7708a/pnpm11/installing/commands/src/fetch.ts#L51-L59>
             dependency_groups: std::iter::empty()
                 .chain(include_prod.then_some(DependencyGroup::Prod))
                 .chain(include_dev.then_some(DependencyGroup::Dev))

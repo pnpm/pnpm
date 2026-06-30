@@ -10,7 +10,7 @@
 //!    fetches the sibling `.sha256sum`, decodes the hex hash, and
 //!    builds a [`PlatformAssetResolution`].
 //! 3. Sorts the resulting variants lexically by URL — same as upstream's
-//!    [`lexCompare`](https://github.com/pnpm/util.lex-comparator/blob/main/src/index.ts)
+//!    [`lexCompare`](https://github.com/pnpm/components/blob/a9b32aa67f/util/lex-comparator/lex-comparator.ts)
 //!    — so the lockfile stays diff-stable across runs.
 
 use std::sync::Arc;

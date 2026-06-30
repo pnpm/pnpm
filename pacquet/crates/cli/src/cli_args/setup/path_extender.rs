@@ -2,7 +2,7 @@
 //! the user's `PATH` persistently.
 //!
 //! Ports pnpm's
-//! [`@pnpm/os.env.path-extender`](https://github.com/pnpm/pnpm/blob/1819226b51/packages/path-extender/src/path-extender.ts):
+//! [`@pnpm/os.env.path-extender`](https://github.com/pnpm/components/blob/a9b32aa67f/os/env/path-extender/path-extender.ts):
 //! on Windows the user registry is edited; on every other platform the
 //! current shell's rc file is edited. The Windows changes are rendered into
 //! the same `old_settings` / `new_settings` shape the POSIX path reports.

@@ -6,7 +6,7 @@ use crate::lexical_normalize;
 ///
 /// Mirrors npm's [`is-subdir`](https://github.com/zkochan/packages/blob/main/is-subdir/index.js)
 /// — the same helper pnpm uses for guards like
-/// [`isSubdir(opts.lockfileDir, linkedDependency.resolution.directory)`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/index.ts#L235).
+/// [`isSubdir(opts.lockfileDir, linkedDependency.resolution.directory)`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-resolver/src/index.ts#L235).
 /// Filesystem-free: both paths are lexically normalised
 /// (`.` / `..` collapsed) before the prefix check, so callers can
 /// run this against targets that don't exist yet.

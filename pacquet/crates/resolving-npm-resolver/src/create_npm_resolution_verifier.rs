@@ -987,7 +987,7 @@ fn build_policy_snapshot(
 /// bounded by the trust-evidence footprint, not the full packument size.
 ///
 /// Mirrors pnpm's `projectTrustMeta` in
-/// [`createNpmResolutionVerifier.ts`](https://github.com/pnpm/pnpm/blob/main/resolving/npm-resolver/src/createNpmResolutionVerifier.ts).
+/// [`createNpmResolutionVerifier.ts`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/resolving/npm-resolver/src/createNpmResolutionVerifier.ts).
 ///
 /// [`fail_if_trust_downgraded`]: crate::trust_checks::fail_if_trust_downgraded
 fn project_trust_meta(meta: &Package) -> Package {

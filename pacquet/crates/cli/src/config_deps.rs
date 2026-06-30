@@ -2,7 +2,7 @@
 //! install runs.
 //!
 //! Mirrors the install half of pnpm's
-//! [`installConfigDepsAndLoadHooks`](https://github.com/pnpm/pnpm/blob/31858c544b/pnpm/src/getConfig.ts#L45-L99):
+//! [`installConfigDepsAndLoadHooks`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/pnpm/src/getConfig.ts#L45-L99):
 //! config dependencies are materialized at config-finalization time, so
 //! the env lockfile (the first YAML document of `pnpm-lock.yaml`) is
 //! written before the regular install reads or rewrites the wanted
@@ -344,7 +344,7 @@ impl EnvInstallerContext {
 /// Run the `updateConfig` pnpmfile hooks contributed by config-dependency
 /// plugins (and the project's own pnpmfile), applying their result to
 /// `config`. Mirrors the hook half of pnpm's
-/// [`installConfigDepsAndLoadHooks`](https://github.com/pnpm/pnpm/blob/31858c544b/pnpm/src/getConfig.ts#L74-L98):
+/// [`installConfigDepsAndLoadHooks`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/pnpm/src/getConfig.ts#L74-L98):
 /// plugin pnpmfiles run before the project pnpmfile (pnpm `unshift`s
 /// them), each transforming the config object in turn.
 ///

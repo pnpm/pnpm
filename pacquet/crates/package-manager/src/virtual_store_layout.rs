@@ -129,7 +129,7 @@ impl VirtualStoreLayout {
     /// scripts (see
     /// [`bins/linker/src/index.ts:229-237`](https://github.com/pnpm/pnpm/blob/29a42efc3b/bins/linker/src/index.ts#L229-L237)).
     /// Mirrors upstream's
-    /// [`readSnapshotRuntimePin`](https://github.com/pnpm/pnpm/blob/HEAD/engine/runtime/system-node-version/src/index.ts)
+    /// [`readSnapshotRuntimePin`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/engine/runtime/system-version/src/index.ts)
     /// branch in `@pnpm/deps.graph-hasher`.
     ///
     /// `None` propagates straight into
@@ -216,7 +216,7 @@ impl VirtualStoreLayout {
             // `dependencies.node: 'runtime:<version>'` pin, which has
             // to drive the engine portion of *its* hash rather than
             // the install-wide fallback. Match upstream's
-            // [`readSnapshotRuntimePin`](https://github.com/pnpm/pnpm/blob/HEAD/engine/runtime/system-node-version/src/index.ts)
+            // [`readSnapshotRuntimePin`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/engine/runtime/system-version/src/index.ts)
             // precedence: own pin first, install-wide fallback
             // second. Default host platform / arch (`None`, `None`)
             // matches whatever the caller used to format the

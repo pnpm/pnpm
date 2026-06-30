@@ -25,7 +25,7 @@ use std::{
 
 /// Set of CAFS paths whose on-disk integrity has already been verified
 /// during the current install. Mirrors pnpm's
-/// [`verifiedFilesCache: Set<string>`](https://github.com/pnpm/pnpm/blob/main/store/cafs/src/checkPkgFilesIntegrity.ts):
+/// [`verifiedFilesCache: Set<string>`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/store/cafs/src/checkPkgFilesIntegrity.ts):
 /// the caller threads one cache through every
 /// [`check_pkg_files_integrity`] invocation so a CAFS blob that has
 /// already been verified by package A doesn't get stat'd / re-hashed

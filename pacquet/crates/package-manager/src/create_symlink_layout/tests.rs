@@ -135,7 +135,7 @@ fn skips_optional_siblings_that_are_in_skipped() {
 /// A dep whose alias matches the slot's own package name is a
 /// self-link that Node's resolver doesn't need (and upstream
 /// explicitly excludes via `alias === depNode.name` at
-/// <https://github.com/pnpm/pnpm/blob/f2981a316/installing/deps-installer/src/install/link.ts#L540>).
+/// <https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-installer/src/install/link.ts#L540>).
 /// Tests both buckets — `dependencies` and `optionalDependencies` —
 /// because either can list the self-name in the wild.
 #[test]

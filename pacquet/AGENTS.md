@@ -78,6 +78,21 @@ repo (then take the first 10 characters), or by clicking "Copy permalink"
 (`y`) on GitHub and trimming the SHA segment. The rule applies to every
 GitHub repository, including this one.
 
+Pin only to a commit that is **already part of the upstream default branch**
+— `main` for `pnpm/pnpm` and most repositories, `master` for the few that
+still use it. Pinning a SHA is necessary but not sufficient: a commit that
+exists only on a local branch, an unmerged feature branch, or a pull request
+can be rebased, squashed, or garbage-collected away, and once it is its
+permalink 404s exactly like a deleted file — even though you cited a SHA.
+This is the most common way a "permanent" link rots: the author copies the
+SHA they have checked out locally before it has landed upstream. Always
+resolve the SHA from the published branch tip instead — `git ls-remote
+https://github.com/<owner>/<repo>.git refs/heads/main` — or, when you do
+start from a local SHA, confirm it is reachable from the default branch
+first: `git merge-base --is-ancestor <sha> origin/main` (a zero exit status
+means the commit is on `main`). Linking to the current default-branch tip is
+the safe default.
+
 ## Porting branded string types
 
 TypeScript pnpm leans on *branded* string types. A branded string is a

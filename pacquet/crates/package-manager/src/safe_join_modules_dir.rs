@@ -2,7 +2,7 @@
 //! aliases that aren't valid npm package names before the join, because
 //! the alias becomes a directory name inside `node_modules`. Mirrors
 //! pnpm's
-//! [`safeJoinModulesDir`](https://github.com/pnpm/pnpm/blob/main/fs/symlink-dependency/src/safeJoinModulesDir.ts)
+//! [`safeJoinModulesDir`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/fs/symlink-dependency/src/safeJoinModulesDir.ts)
 //! and routes through the same [`is_valid_dependency_alias`]
 //! check pacquet applies to direct-dependency aliases at resolution
 //! time, so the hoisted restore path enforces the boundary the

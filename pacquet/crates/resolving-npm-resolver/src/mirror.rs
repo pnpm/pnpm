@@ -190,7 +190,7 @@ pub enum EncodeRegistryError {
 
 /// `host[:port]` form of a registry URL with `:` rewritten to `+` so
 /// the result is filesystem-safe. Mirrors the npm
-/// [`encode-registry`](https://github.com/zkochan/packages/tree/main/encode-registry)
+/// [`encode-registry`](https://github.com/pnpm/encode-registry/blob/f312572d15/index.js)
 /// package pnpm consumes. Only an explicit port participates; the
 /// implicit-default port stays out of the slug so a registry served
 /// on its scheme default hashes consistently across configs.

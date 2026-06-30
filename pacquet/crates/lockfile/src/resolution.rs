@@ -358,7 +358,7 @@ fn is_canonical_registry_tarball_url(
 }
 
 /// Default-vs-scope routing for an npm package. Mirrors pnpm's
-/// [`pickRegistryForPackage`](https://github.com/pnpm/pnpm/blob/main/config/pick-registry-for-package/src/index.ts).
+/// [`pickRegistryForPackage`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/config/pick-registry-for-package/src/index.ts).
 ///
 /// Routing rules:
 ///

@@ -14,7 +14,7 @@ use std::{io, path::PathBuf};
 #[non_exhaustive]
 pub enum ConfigDepError {
     /// Mirrors pnpm's `CONFIG_DEP_NO_INTEGRITY` at
-    /// <https://github.com/pnpm/pnpm/blob/31858c544b/installing/env-installer/src/parseIntegrity.ts>.
+    /// <https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/env-installer/src/parseIntegrity.ts>.
     #[display(r#"Your config dependency called "{name}" doesn't have an integrity checksum"#)]
     #[diagnostic(code(ERR_PNPM_CONFIG_DEP_NO_INTEGRITY))]
     NoIntegrity { name: String },
@@ -42,7 +42,7 @@ pub enum ConfigDepError {
     EnvLockfileCorrupted { message: String },
 
     /// Mirrors pnpm's `INVALID_DEPENDENCY_NAME`, thrown by
-    /// [`assertValidDependencyAliases`](https://github.com/pnpm/pnpm/blob/main/installing/deps-resolver/src/validateDependencyAlias.ts).
+    /// [`assertValidDependencyAliases`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-resolver/src/validateDependencyAlias.ts).
     #[display(r"{description} contains a dependency with an invalid name: {name:?}")]
     #[diagnostic(
         code(ERR_PNPM_INVALID_DEPENDENCY_NAME),

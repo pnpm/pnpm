@@ -4,7 +4,7 @@
 //! Ports upstream pnpm's
 //! [`updateLockfile`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/updateLockfile.ts)
 //! plus the snapshot-vs-packages split that
-//! [`convertToLockfileFile`](https://github.com/pnpm/pnpm/blob/094aa6e57b/lockfile/fs/src/lockfileFormatConverters.ts)
+//! [`convertToLockfileFile`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/lockfile/fs/src/lockfileFormatConverters.ts)
 //! applies on write — upstream's in-memory `LockfileObject` carries one
 //! merged `PackageSnapshot` per depPath which the writer fans out into
 //! the v9 `packages:` + `snapshots:` pair, while pacquet's
@@ -263,7 +263,7 @@ fn importer_resolved_version(importer: &ProjectSnapshot, alias: &str) -> Option<
 /// still records the resolved workspace-sibling target so the
 /// lockfile stays a complete description of the workspace graph.
 /// Mirrors upstream's
-/// [exclude-link gate](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/index.ts#L449-L456).
+/// [exclude-link gate](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-resolver/src/index.ts#L449-L456).
 fn build_importer(
     input: &ImporterLockfileInput<'_>,
     graph: &DependenciesGraph,
@@ -351,7 +351,7 @@ fn manifest_alias_to_group(manifest: &PackageManifest) -> HashMap<String, Depend
 /// Look up the user-written specifier for `alias` in the manifest's
 /// `optionalDependencies` / `dependencies` / `devDependencies` /
 /// `peerDependencies` maps in pnpm's
-/// [`DEPENDENCIES_FIELDS`](https://github.com/pnpm/pnpm/blob/097983fbca/packages/types/src/misc.ts)
+/// [`DEPENDENCIES_FIELDS`](https://github.com/pnpm/pnpm/blob/097983fbca/core/types/src/misc.ts)
 /// precedence order. Returns `None` for a peer-only entry that was
 /// auto-installed but isn't recorded as a direct dep in the manifest —
 /// such entries don't go into the importer's `specifiers` map.

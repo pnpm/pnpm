@@ -1912,7 +1912,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
 
         // Write `pnpm-lock.yaml` from the resolved graph. Mirrors
         // upstream's
-        // [`writeLockfiles`](https://github.com/pnpm/pnpm/blob/094aa6e57b/lockfile/fs/src/write.ts#L133)
+        // [`writeLockfiles`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/lockfile/fs/src/write.ts#L133)
         // call at the tail of `deps-installer/src/install/index.ts`:
         // every non-frozen install lands a wanted lockfile so the next
         // pnpm / pacquet invocation can either go headless or diff
@@ -2126,7 +2126,7 @@ fn compose_manifest_hooks(
 /// Mirrors upstream's
 /// [`updateLockfile`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/updateLockfile.ts)
 /// then the
-/// [`writeLockfiles`](https://github.com/pnpm/pnpm/blob/094aa6e57b/lockfile/fs/src/write.ts#L133)
+/// [`writeLockfiles`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/lockfile/fs/src/write.ts#L133)
 /// fan-out, with [`dependencies_graph_to_lockfile()`] doing the wire-shape lifting.
 struct FreshLockfileBuildOptions<'a> {
     config: &'a Config,

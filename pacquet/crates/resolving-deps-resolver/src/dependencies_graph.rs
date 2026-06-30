@@ -64,7 +64,7 @@ pub struct DependenciesGraphNode {
 
 /// One issue collected during peer resolution. Mirrors upstream's per-
 /// project
-/// [`PeerDependencyIssues`](https://github.com/pnpm/pnpm/blob/097983fbca/packages/types/src/peerDependencyIssues.ts)
+/// [`PeerDependencyIssues`](https://github.com/pnpm/pnpm/blob/097983fbca/core/types/src/peerDependencyIssues.ts)
 /// shape, simplified to the surface pacquet exposes today.
 #[derive(Debug, Default, Clone)]
 pub struct PeerDependencyIssues {

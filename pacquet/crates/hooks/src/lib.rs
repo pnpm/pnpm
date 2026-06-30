@@ -82,7 +82,7 @@ pub trait PnpmfileHooks: Send + Sync {
     /// Returns the (possibly modified) config object. A hook-less
     /// pnpmfile returns `config` unchanged. A throwing hook yields a
     /// [`HookError`] and aborts the install. Mirrors pnpm's
-    /// [`updateConfig` hook](https://github.com/pnpm/pnpm/blob/31858c544b/pnpm/src/getConfig.ts#L86-L91).
+    /// [`updateConfig` hook](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/pnpm/src/getConfig.ts#L86-L91).
     async fn update_config(&self, config: Value, ctx: HookContext) -> Result<Value, HookError> {
         let _ = ctx;
         // The default no-op returns the config unchanged. Returning it

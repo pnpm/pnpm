@@ -34,7 +34,7 @@ pub fn load_pnpmfile_at(file: PathBuf) -> Arc<dyn PnpmfileHooks> {
 
 /// Whether `name` is a pnpm plugin package — one whose pnpmfile is
 /// loaded automatically when it's a config dependency. Mirrors pnpm's
-/// [`isPluginName`](https://github.com/pnpm/pnpm/blob/31858c544b/pnpm/src/getConfig.ts#L120-L124):
+/// [`isPluginName`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/pnpm/src/getConfig.ts#L120-L124):
 ///
 /// - unscoped `pnpm-plugin-*`,
 /// - scoped `@pnpm/plugin-*`,
@@ -52,7 +52,7 @@ pub fn is_plugin_name(name: &str) -> bool {
 
 /// Resolve the pnpmfile paths of every plugin among `config_dep_names`,
 /// in lexical order. Mirrors pnpm's
-/// [`calcPnpmfilePathsOfPluginDeps`](https://github.com/pnpm/pnpm/blob/31858c544b/pnpm/src/getConfig.ts#L101-L118):
+/// [`calcPnpmfilePathsOfPluginDeps`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/pnpm/src/getConfig.ts#L101-L118):
 ///
 /// - `config_modules_dir` is `node_modules/.pnpm-config`.
 /// - A plugin whose directory is missing (the config-dep install didn't

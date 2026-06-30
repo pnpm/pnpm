@@ -1,5 +1,5 @@
 //! Ports of pnpm's pack-app validation tests
-//! (<https://github.com/pnpm/pnpm/blob/9f3df6b9b4/pnpm11/releasing/commands/src/pack-app/test/pack-app/index.test.ts>).
+//! (<https://github.com/pnpm/pnpm/blob/9f3df6b9b4/pnpm11/releasing/commands/test/pack-app/index.test.ts>).
 //!
 //! These exercise the fail-fast validation paths that run before any
 //! network or build work — exactly the branches the upstream Jest suite

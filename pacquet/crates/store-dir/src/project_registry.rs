@@ -365,7 +365,7 @@ fn is_enoent_or_einval(error: &io::Error) -> bool {
 /// canonicalized (typically the store dir hasn't been created yet),
 /// fall back to a *lexical* normalization that collapses `.` and `..`
 /// segments — matching upstream's `path.relative`-backed
-/// [`is-subdir`](https://github.com/whitecolor/is-subdir/blob/main/index.js)
+/// [`is-subdir`](https://github.com/zkochan/packages/blob/e65701a6ae/is-subdir/index.js)
 /// check, which is purely lexical. A raw `starts_with` on the
 /// unnormalized path would treat `<workspace>/../pacquet-store` as
 /// inside `<workspace>` even though resolving `..` puts it outside.

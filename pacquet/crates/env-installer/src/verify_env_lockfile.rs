@@ -1,5 +1,5 @@
 //! Offline structural gate for the env lockfile, mirroring pnpm's
-//! [`verifyEnvLockfile`](https://github.com/pnpm/pnpm/blob/main/installing/env-installer/src/verifyEnvLockfile.ts)
+//! [`verifyEnvLockfile`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/env-installer/src/verifyEnvLockfile.ts)
 //! and the always-on alias/shape checks `verifyLockfileResolutions` runs over
 //! the main lockfile.
 

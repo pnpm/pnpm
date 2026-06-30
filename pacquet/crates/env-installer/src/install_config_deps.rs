@@ -2,7 +2,7 @@
 //! `node_modules/.pnpm-config/<name>`.
 //!
 //! Mirrors pnpm's
-//! [`installConfigDeps`](https://github.com/pnpm/pnpm/blob/31858c544b/installing/env-installer/src/installConfigDeps.ts):
+//! [`installConfigDeps`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/env-installer/src/installConfigDeps.ts):
 //! each config dependency is fetched into the global virtual store
 //! (`<store>/links/<gvs-path>/node_modules/<name>`) and symlinked from
 //! `.pnpm-config`. Platform-specific optional subdeps are installed one

@@ -113,7 +113,7 @@ pub fn build_resolution_verifiers(
         // [`pacquet_resolving_npm_resolver::build_named_registry_prefixes()`]
         // inside the verifier, so passing the user map verbatim
         // matches upstream's
-        // [`createNpmResolutionVerifier`](https://github.com/pnpm/pnpm/blob/b61e268d57/resolving/npm-resolver/src/createNpmResolutionVerifier.ts)
+        // [`createNpmResolutionVerifier`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/resolving/npm-resolver/src/createNpmResolutionVerifier.ts)
         // call site, which forwards the same yaml value through.
         named_registries: config
             .named_registries

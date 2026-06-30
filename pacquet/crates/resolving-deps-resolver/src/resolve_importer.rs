@@ -129,7 +129,7 @@ pub struct ResolveImporterOptions {
     /// map with a remapped node id
     /// (`link:<rel-from-lockfile_dir-to-modules_dir>/<alias>`) so the
     /// peer suffix stays stable across machines. Mirrors pnpm's
-    /// [`excludeLinksFromLockfile`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/index.ts#L232-L244)
+    /// [`excludeLinksFromLockfile`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-resolver/src/index.ts#L232-L244)
     /// flow. The remap fires only when [`Self::lockfile_dir`] and
     /// [`Self::modules_dir`] are both set.
     pub exclude_links_from_lockfile: bool,
