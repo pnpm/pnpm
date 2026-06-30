@@ -1,3 +1,4 @@
+import { mergePackageVersionSpecs } from '@pnpm/config.version-policy'
 import { writeSettings } from '@pnpm/config.writer'
 import { type AuditAdvisory, type AuditReport, normalizeGhsaId } from '@pnpm/deps.compliance.audit'
 import { sortDirectKeys } from '@pnpm/object.key-sorting'
@@ -56,14 +57,13 @@ export function caretRangeForPatched (patchedRange: string): string {
 }
 
 export function createMinimumReleaseAgeExcludes (advisories: AuditAdvisory[]): string[] {
-  const excludes = new Set<string>()
+  const specs: string[] = []
   for (const advisory of advisories) {
     const patchedVersions = advisory.patched_versions
     if (!patchedVersions) continue
     const minVersion = semver.minVersion(patchedVersions)
-    if (minVersion) {
-      excludes.add(`${advisory.module_name}@${minVersion.version}`)
-    }
+    if (!minVersion) continue
+    specs.push(`${advisory.module_name}@${minVersion.version}`)
   }
-  return Array.from(excludes)
+  return mergePackageVersionSpecs(specs)
 }

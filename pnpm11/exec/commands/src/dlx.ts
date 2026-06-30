@@ -13,10 +13,11 @@ import { OUTPUT_OPTIONS } from '@pnpm/cli.common-cli-options-help'
 import { docsUrl, readProjectManifestOnly } from '@pnpm/cli.utils'
 import { type Config, types } from '@pnpm/config.reader'
 import { getPublishedByPolicy } from '@pnpm/config.version-policy'
-import { createHexHash } from '@pnpm/crypto.hash'
+import { createShortHash } from '@pnpm/crypto.hash'
 import { PnpmError } from '@pnpm/error'
 import { createResolver, makeResolutionStrict } from '@pnpm/installing.client'
 import { add } from '@pnpm/installing.commands'
+import { logger } from '@pnpm/logger'
 import { readPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import { parseWantedDependency } from '@pnpm/resolving.parse-wanted-dependency'
 import type { PackageManifest, PnpmSettings, SupportedArchitectures } from '@pnpm/types'
@@ -212,8 +213,22 @@ export async function handler (
         cachedDir = completedDir
       } else {
         // Drop the partially-populated cache so a subsequent dlx run starts
-        // clean instead of reusing a broken install.
-        await fs.promises.rm(cachedDir, { recursive: true, force: true })
+        // clean instead of reusing a broken install. This is best-effort: on
+        // Windows the just-run install scripts (or antivirus) can briefly hold
+        // handles on freshly written files, so retry with backoff. A cleanup
+        // failure must never mask the original install error, which is the one
+        // worth surfacing — log it and rethrow err. A leftover prepare dir is
+        // harmless: it has a unique name and findCache only trusts the `pkg`
+        // symlink.
+        try {
+          await fs.promises.rm(cachedDir, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
+        } catch (cleanupErr) {
+          logger.warn({
+            error: cleanupErr as Error,
+            message: `Failed to clean up the dlx cache directory at "${cachedDir}"`,
+            prefix: cachedDir,
+          })
+        }
         throw err
       }
     }
@@ -406,7 +421,12 @@ export function createCacheKey (opts: {
     }
   }
   const hashStr = JSON.stringify(args)
-  return createHexHash(hashStr)
+  // A short (truncated) hash keeps the dlx cache path short. The full
+  // virtual-store path below it (`<key>/<prepare>/node_modules/.pnpm/<pkgId>/
+  // node_modules/<pkg>`) can otherwise blow past Windows' MAX_PATH (260) and
+  // make lifecycle scripts fail with a `spawn cmd.exe ENOENT` (the cwd no
+  // longer resolves). 128 bits is ample collision resistance for a cache key.
+  return createShortHash(hashStr)
 }
 
 function getValidCacheDir (cacheLink: string, dlxCacheMaxAge: number): string | undefined {
@@ -431,7 +451,10 @@ function getValidCacheDir (cacheLink: string, dlxCacheMaxAge: number): string | 
 }
 
 function getPrepareDir (cachePath: string): string {
-  const name = `${new Date().getTime().toString(16)}-${process.pid.toString(16)}`
+  // base36 (vs hex) keeps this segment short — see createCacheKey for why dlx
+  // path length matters on Windows. time+pid stays unique across concurrent
+  // dlx processes and across a process's own retries of a failed install.
+  const name = `${Date.now().toString(36)}-${process.pid.toString(36)}`
   return path.join(cachePath, name)
 }
 

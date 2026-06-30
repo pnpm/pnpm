@@ -77,7 +77,17 @@ impl LatencyProxy {
         upstream: SocketAddr,
         profile: LinkProfile,
     ) -> std::io::Result<LatencyProxy> {
-        let listener = TcpListener::bind(listen)?;
+        Self::spawn_with_listener(TcpListener::bind(listen)?, upstream, profile)
+    }
+
+    /// Front `upstream` with a proxy serving an already-bound `listener`.
+    /// Lets a caller reserve the port up front (binding it) and hand the
+    /// live socket over later, so nothing can claim the port in between.
+    pub fn spawn_with_listener(
+        listener: TcpListener,
+        upstream: SocketAddr,
+        profile: LinkProfile,
+    ) -> std::io::Result<LatencyProxy> {
         let addr = listener.local_addr()?;
         listener.set_nonblocking(true)?;
 

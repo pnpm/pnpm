@@ -1,5 +1,13 @@
 # @pnpm/agent.client
 
+## 1.2.3
+
+### Patch Changes
+
+- 4d3fe4b: The pnpr resolver endpoints moved under the reserved `/-/pnpr` namespace: `POST /v1/resolve` is now `POST /-/pnpr/v0/resolve` and `POST /v1/verify-lockfile` is now `POST /-/pnpr/v0/verify-lockfile`. The capability handshake at `GET /-/pnpr` advertises protocol version `0` to match. This keeps every pnpr-proprietary route in npm's reserved namespace, so it can never collide with a package path.
+  - @pnpm/lockfile.types@1100.0.12
+  - @pnpm/lockfile.fs@1100.1.7
+
 ## 1.2.2
 
 ### Patch Changes

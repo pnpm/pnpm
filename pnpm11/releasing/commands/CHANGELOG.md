@@ -1,5 +1,33 @@
 # @pnpm/releasing.commands
 
+## 1100.5.2
+
+### Patch Changes
+
+- Updated dependencies [25a829e]
+- Updated dependencies [bae694f]
+- Updated dependencies [05b95ab]
+- Updated dependencies [6545793]
+- Updated dependencies [0ec878d]
+- Updated dependencies [852d537]
+  - @pnpm/installing.commands@1100.10.1
+  - @pnpm/resolving.resolver-base@1100.5.0
+  - @pnpm/network.fetch@1100.1.4
+  - @pnpm/engine.runtime.node-resolver@1101.1.9
+  - @pnpm/error@1100.0.1
+  - @pnpm/installing.client@1100.2.10
+  - @pnpm/fetching.directory-fetcher@1100.0.18
+  - @pnpm/lockfile.types@1100.0.12
+  - @pnpm/exec.lifecycle@1100.1.1
+  - @pnpm/fs.indexed-pkg-importer@1100.0.16
+  - @pnpm/lockfile.fs@1100.1.7
+  - @pnpm/engine.runtime.commands@1100.1.7
+  - @pnpm/cli.utils@1101.0.13
+  - @pnpm/config.reader@1101.10.1
+  - @pnpm/releasing.exportable-manifest@1100.1.8
+  - @pnpm/network.auth-header@1101.1.3
+  - @pnpm/network.web-auth@1101.1.2
+
 ## 1100.5.1
 
 ### Patch Changes

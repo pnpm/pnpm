@@ -7,10 +7,10 @@ import { makeEmptyDir } from 'make-empty-dir'
 import * as tar from 'tar'
 import { glob } from 'tinyglobby'
 
-const repoRoot = path.join(import.meta.dirname, '../../..')
+const repoRoot = path.join(import.meta.dirname, '../../../..')
 const dest = path.join(repoRoot, 'dist')
-const artifactsDir = path.join(repoRoot, 'pnpm/artifacts')
-const pnpmDistDir = path.join(repoRoot, 'pnpm/dist')
+const artifactsDir = path.join(repoRoot, 'pnpm11/pnpm/artifacts')
+const pnpmDistDir = path.join(repoRoot, 'pnpm11/pnpm/dist')
 
 ;(async () => {
   await makeEmptyDir(dest)

@@ -31,7 +31,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout Main Branch
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: main # Checkout main first because the cache is warm
           persist-credentials: false
@@ -52,7 +52,7 @@ jobs:
         run: cargo run --bin=micro-benchmark --release -- --save-baseline main
 
       - name: Checkout PR Branch
-        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           clean: false
           ref: ${{ github.event.pull_request.head.sha }}
@@ -86,7 +86,7 @@ jobs:
 
     steps:
       - name: Install critcmp
-        uses: taiki-e/install-action@0631aa6515c7d545823c67cfae7ef4fc7f490154 # v2.81.8
+        uses: taiki-e/install-action@b8cecb83565409bcc297b2df6e77f030b2a468d5 # v2.82.0
         with:
           tool: critcmp
 

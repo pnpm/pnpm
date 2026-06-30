@@ -1,5 +1,17 @@
 # @pnpm/workspace.manifest-writer
 
+## 1100.0.14
+
+### Patch Changes
+
+- 25a829e: `pnpm audit --fix` now writes a single combined `minimumReleaseAgeExclude` entry per package (e.g. `axios@0.18.1 || 0.21.1`) instead of one entry per version, matching the format documented for the setting. Existing per-version entries in `pnpm-workspace.yaml` are merged into the combined form rather than left as duplicates. Installs that auto-collect immature versions into `minimumReleaseAgeExclude` now report the same combined entries, so the "Added N entries" message matches what is written to the manifest [#12534](https://github.com/pnpm/pnpm/issues/12534).
+- Updated dependencies [25a829e]
+- Updated dependencies [fbdc0eb]
+  - @pnpm/config.version-policy@1100.1.6
+  - @pnpm/lockfile.types@1100.0.12
+  - @pnpm/config.parse-overrides@1100.0.2
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.9
+
 ## 1100.0.13
 
 ### Patch Changes

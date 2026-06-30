@@ -101,6 +101,14 @@ pub struct Update<'a> {
     /// `--lockfile-only`: re-resolve and rewrite `pnpm-lock.yaml` without
     /// materializing `node_modules`. Forwarded to the install.
     pub lockfile_only: bool,
+    /// Sink notified for each resolved tarball package, and the source of
+    /// the optional resolver-time [`PackageVersionGuard`]. `None` for a
+    /// plain `pacquet update`; `pacquet audit --fix update` installs one
+    /// whose guard rejects vulnerable versions so the resolver falls back
+    /// to a safe one.
+    ///
+    /// [`PackageVersionGuard`]: pacquet_resolving_resolver_base::PackageVersionGuard
+    pub resolution_observer: Option<Arc<dyn crate::ResolutionObserver>>,
 }
 
 /// Error type of [`Update`].
@@ -204,6 +212,7 @@ impl Update<'_> {
             depth,
             supported_architectures,
             lockfile_only,
+            resolution_observer,
         } = self;
 
         // `pacquet update` has no `--save-prefix` flag yet, so `save_exact`
@@ -560,15 +569,17 @@ impl Update<'_> {
             dry_run: false,
             update_seed_policy: seed_policy,
             auth_override: None,
-            resolution_observer: None,
+            resolution_observer,
             catalogs_override,
+            disable_optimistic_repeat_install: false,
         }
         .run::<Reporter>()
         .await
         .map_err(UpdateError::Install)?;
 
         if persist_manifest {
-            manifest.save().map_err(UpdateError::SaveManifest)?;
+            let updated =
+                manifest.save_and_get_written_value().map_err(UpdateError::SaveManifest)?;
 
             let prefix = manifest
                 .path()
@@ -578,10 +589,7 @@ impl Update<'_> {
                 .into_owned();
             Reporter::emit(&LogEvent::PackageManifest(PackageManifestLog {
                 level: LogLevel::Debug,
-                message: PackageManifestMessage::Updated {
-                    prefix,
-                    updated: manifest.value().clone(),
-                },
+                message: PackageManifestMessage::Updated { prefix, updated },
             }));
         }
 
@@ -710,7 +718,7 @@ async fn fetch_latest(
 /// (the override that derives it from `linkWorkspacePackages` only runs under
 /// `--workspace`, and `--workspace` cannot be combined with `--latest`).
 /// Mirrors [`isWorkspaceLocalPathSpecifier`](https://github.com/pnpm/pnpm/blob/fddb8a4032/installing/deps-resolver/src/updateProjectManifest.ts#L72-L76).
-fn is_workspace_local_path_specifier(bare_specifier: &str) -> bool {
+pub(crate) fn is_workspace_local_path_specifier(bare_specifier: &str) -> bool {
     let Some(pref) = bare_specifier.strip_prefix("workspace:") else {
         return false;
     };

@@ -121,6 +121,11 @@ export interface PkgAddressOrLinkBase {
   optional: boolean
   pkg: PackageManifest
   pkgId: PkgResolutionId
+  /**
+   * The wanted dependency this direct dependency was resolved from, carried so
+   * consumers can recover the request directly. See `updateProjectManifest`.
+   */
+  wantedDependency?: WantedDependency
 }
 
 export interface LinkedDependency extends PkgAddressOrLinkBase {
@@ -292,6 +297,12 @@ export interface ResolvedPackage {
   dev: boolean
   optional: boolean
   fetching: () => Promise<PkgRequestFetchResult>
+  /**
+   * The resolution can't be completed without awaiting `fetching` (e.g. a registry tarball
+   * whose integrity is computed from the downloaded bytes). The lockfile snapshot and the
+   * virtual-store paths derived from the integrity must await `fetching` for these first.
+   */
+  resolutionNeedsFetch?: boolean
   filesIndexFile: string
   name: string
   version: string
@@ -1085,7 +1096,7 @@ function hasActivePackageResolutionBeforeDepth (ctx: ResolutionContext, depth: n
   return false
 }
 
-function claimChildrenResolution (
+export function claimChildrenResolution (
   ctx: ResolutionContext,
   opts: {
     currentDepth: number
@@ -1139,11 +1150,14 @@ function claimChildrenResolution (
     ctx.hoistPeers &&
     !opts.parentIds.includes(opts.pkgId) &&
     existing.missingPeersOfChildren &&
-    (
-      existing.owner.depth >= opts.currentDepth ||
-      existing.missingPeersOfChildren.resolved
-    )
+    existing.owner.depth >= opts.currentDepth
   ) {
+    // Gating reuse on the owner's depth keeps a transitive optional peer's
+    // presence in the resolved suffix a function of graph structure, not of
+    // which occurrence happened to finish resolving first. A strictly shallower
+    // owner is excluded because its promise may still be unsettled here, and
+    // awaiting it can deadlock under auto-install-peers
+    // (https://github.com/pnpm/pnpm/issues/5454).
     missingPeersOfChildren = existing.missingPeersOfChildren
   }
   return {
@@ -1886,6 +1900,7 @@ async function resolveDependency (
         version: pkgResponse.body.manifest.version,
         normalizedBareSpecifier: pkgResponse.body.normalizedBareSpecifier,
         pkg: pkgResponse.body.manifest,
+        wantedDependency,
       }
     }
 
@@ -2091,6 +2106,7 @@ async function resolveDependency (
       resolvedVia: pkgResponse.body.resolvedVia,
       isNew,
       nodeId,
+      wantedDependency,
       normalizedBareSpecifier: pkgResponse.body.normalizedBareSpecifier,
       missingPeersOfChildren,
       childrenResolutionId: childrenResolution.id,
@@ -2183,6 +2199,7 @@ function getResolvedPackage (
     pkgIdWithPatchHash: options.pkgIdWithPatchHash,
     dev: options.wantedDependency.dev,
     fetching: options.pkgResponse.fetching!,
+    resolutionNeedsFetch: options.pkgResponse.resolutionNeedsFetch,
     filesIndexFile: options.pkgResponse.filesIndexFile!,
     hasBin: options.hasBin,
     hasBundledDependencies: !((options.pkg.bundledDependencies ?? options.pkg.bundleDependencies) == null),

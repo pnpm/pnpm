@@ -413,7 +413,7 @@ pub fn resolve_peers_workspace(
     }
 }
 
-/// Per-name entry in the propagating `ParentRefs` map. Mirrors upstream's
+/// Per-name entry in the propagating [`ParentRefs`] map. Mirrors upstream's
 /// [`ParentRef`](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolvePeers.ts#L998-L1006).
 #[derive(Debug, Clone)]
 struct ParentRef {
@@ -597,6 +597,7 @@ struct NodeRecord {
     /// its final depPath.
     edges: BTreeMap<String, NodeId>,
     peer_edges: HashSet<String>,
+    optional_child_aliases: HashSet<String>,
     transitive_peer_dependencies: HashSet<String>,
     depth: i32,
     installable: bool,
@@ -697,7 +698,7 @@ impl Walker<'_> {
     /// walk because the peer target's `DepPath` hadn't been computed
     /// yet. Each direct dep's subtree is fully walked by the time
     /// `walk()` drains this list, so every peer that was reachable
-    /// from an ancestor's `ParentRefs` has a `DepPath` now. Peers that
+    /// from an ancestor's [`ParentRefs`] has a `DepPath` now. Peers that
     /// still don't resolve here came from a `parent_chain` outside the
     /// walked set — there's nothing to patch, and the absence already
     /// surfaced via [`PeerDependencyIssues::missing`].
@@ -1138,6 +1139,7 @@ impl Walker<'_> {
         for (peer_alias, peer_node_id) in &own_resolved_peers {
             record_edges.insert(peer_alias.clone(), peer_node_id.clone());
         }
+        let optional_child_aliases = self.optional_child_aliases(&pkg.id, &record_edges);
         let peer_edges = own_resolved_peers.keys().cloned().collect();
         let record_order = self.next_record_order;
         self.next_record_order += 1;
@@ -1146,6 +1148,7 @@ impl Walker<'_> {
             NodeRecord {
                 edges: record_edges,
                 peer_edges,
+                optional_child_aliases: optional_child_aliases.clone(),
                 transitive_peer_dependencies: transitive_peer_dependencies.clone(),
                 depth: tree_node.depth,
                 installable: tree_node.installable,
@@ -1202,6 +1205,7 @@ impl Walker<'_> {
                 resolved_package_id: pkg.id.clone(),
                 resolve_result: Arc::clone(&pkg.result),
                 children: graph_children,
+                optional_children: optional_child_aliases,
                 peer_dependencies: pkg.peer_dependencies.clone(),
                 transitive_peer_dependencies,
                 resolved_peer_names: all_resolved_peers.keys().cloned().collect(),
@@ -1226,10 +1230,6 @@ impl Walker<'_> {
         }
     }
 
-    #[allow(
-        clippy::too_many_arguments,
-        reason = "splitting these into a struct would only obscure the call site"
-    )]
     /// `true` when a missing-peer issue for `peer_name` under the
     /// given ancestor chain must not be emitted for the hoist input.
     /// See [`ResolvePeersOptions::hoist_missing_scope`].
@@ -1763,6 +1763,7 @@ impl Walker<'_> {
                 resolved_package_id: pkg_id.clone(),
                 resolve_result: Arc::clone(&pkg.result),
                 children,
+                optional_children: record.optional_child_aliases.clone(),
                 peer_dependencies: pkg.peer_dependencies.clone(),
                 transitive_peer_dependencies: record.transitive_peer_dependencies.clone(),
                 resolved_peer_names,
@@ -1786,6 +1787,9 @@ impl Walker<'_> {
                         candidate
                             .transitive_peer_dependencies
                             .extend(existing.transitive_peer_dependencies.iter().cloned());
+                        candidate
+                            .optional_children
+                            .extend(existing.optional_children.iter().cloned());
                         merge_preferred_child_edges(
                             &mut candidate,
                             existing.children.clone(),
@@ -1798,6 +1802,7 @@ impl Walker<'_> {
                         existing
                             .transitive_peer_dependencies
                             .extend(candidate.transitive_peer_dependencies);
+                        existing.optional_children.extend(candidate.optional_children);
                         merge_preferred_child_edges(
                             existing,
                             candidate.children,
@@ -1902,6 +1907,12 @@ impl Walker<'_> {
             }
             children.insert(alias.clone(), self.final_dep_path_of(edge_node_id, final_dep_paths));
         }
+        let optional_children = record
+            .optional_child_aliases
+            .iter()
+            .filter(|alias| children.contains_key(*alias))
+            .cloned()
+            .collect();
         let resolved_peer_names: HashSet<String> = record_resolved_peer_names
             .get(provider_node_id)
             .into_iter()
@@ -1914,6 +1925,7 @@ impl Walker<'_> {
             resolved_package_id: tree_node.resolved_package_id.clone(),
             resolve_result: Arc::clone(&pkg.result),
             children,
+            optional_children,
             peer_dependencies: pkg.peer_dependencies.clone(),
             transitive_peer_dependencies: record.transitive_peer_dependencies.clone(),
             resolved_peer_names,
@@ -1922,6 +1934,21 @@ impl Walker<'_> {
             is_pure: false,
             optional: pkg.optional,
         })
+    }
+
+    fn optional_child_aliases(
+        &self,
+        pkg_id: &str,
+        edges: &BTreeMap<String, NodeId>,
+    ) -> HashSet<String> {
+        self.tree
+            .children_by_id
+            .get(pkg_id)
+            .into_iter()
+            .flat_map(|children| children.iter())
+            .filter(|edge| edge.optional && edges.contains_key(&edge.alias))
+            .map(|edge| edge.alias.clone())
+            .collect()
     }
 
     /// Realize the `(alias → NodeId)` children of `node_id` if it's
@@ -2171,7 +2198,7 @@ impl Walker<'_> {
     /// [`parentDepPaths` construction inside `resolvePeersOfChildren`](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolvePeers.ts#L817-L829).
     ///
     /// `link:` parents (upstream's `nodeId.startsWith('link:')`
-    /// branch) don't have a real tree entry; pacquet's `ParentRef`
+    /// branch) don't have a real tree entry; pacquet's [`ParentRef`]
     /// keeps the `NodeId` but the tree-lookup falls back to a pure
     /// `version` comparison the same way upstream does.
     fn parent_dep_paths_from_refs(

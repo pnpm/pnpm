@@ -23,13 +23,27 @@ import type { EnvLockfile, LockfileObject, PackageSnapshot } from '@pnpm/lockfil
 import { registerProject, type StoreController } from '@pnpm/store.controller'
 import type { DepPath, ProjectId, ProjectRootDir, Registries } from '@pnpm/types'
 import { familySync } from 'detect-libc'
+import semver from 'semver'
 import { symlinkDir } from 'symlink-dir'
 
 import { verifyPnpmEngineIdentity, type VerifyPnpmEngineIdentityOptions } from './verifyPnpmEngineIdentity.js'
 
-// @pnpm/exe has platform-specific binaries, so its GVS hash must
-// include ENGINE_NAME for correct per-platform resolution.
-const PNPM_ALLOW_BUILDS: Record<string, boolean> = { '@pnpm/exe': true }
+// Both pnpm wrappers (`@pnpm/exe`, unscoped `pnpm`) carry platform-specific
+// binaries; marking them buildable puts ENGINE_NAME in the GVS hash so each
+// platform resolves to its own entry instead of colliding.
+const PNPM_ALLOW_BUILDS: Record<string, boolean> = { '@pnpm/exe': true, 'pnpm': true }
+
+/**
+ * Package name to install for a switch to `pnpmVersion`. From v12 the unscoped
+ * `pnpm` is itself the native exe (equal content to `@pnpm/exe`), so v12+ always
+ * converges on `pnpm`, even from a SEA `@pnpm/exe` build. Earlier majors keep
+ * `pnpm` (JS) and `@pnpm/exe` (SEA) distinct, preserving the running identity.
+ */
+export function pnpmPackageNameToInstall (pnpmVersion: string): string {
+  const parsed = semver.parse(pnpmVersion, { loose: true })
+  if (parsed != null && parsed.major >= 12) return 'pnpm'
+  return getCurrentPackageName()
+}
 
 export interface InstallPnpmResult {
   binDir: string
@@ -51,15 +65,15 @@ export interface InstallPnpmOptions extends GlobalAddOptions {
  * Creates an entry in globalPkgDir that is visible to `pnpm ls -g`.
  */
 export async function installPnpm (pnpmVersion: string, opts: InstallPnpmOptions): Promise<InstallPnpmResult> {
-  const currentPkgName = getCurrentPackageName()
+  const pkgName = pnpmPackageNameToInstall(pnpmVersion)
 
   const wantedLockfile = opts.envLockfile
-    ? buildLockfileFromEnvLockfile(opts.envLockfile, currentPkgName, pnpmVersion)
+    ? buildLockfileFromEnvLockfile(opts.envLockfile, pkgName, pnpmVersion)
     : undefined
 
   const result = await installPnpmToGlobalDir(
     opts,
-    currentPkgName,
+    pkgName,
     pnpmVersion,
     wantedLockfile
   )
@@ -87,13 +101,13 @@ export async function installPnpmToStore (
     packageManager?: { name: string, version: string }
   } & VerifyPnpmEngineIdentityOptions
 ): Promise<{ binDir: string }> {
-  const currentPkgName = getCurrentPackageName()
-  const wantedLockfile = buildLockfileFromEnvLockfile(opts.envLockfile, currentPkgName, pnpmVersion)
+  const pkgName = pnpmPackageNameToInstall(pnpmVersion)
+  const wantedLockfile = buildLockfileFromEnvLockfile(opts.envLockfile, pkgName, pnpmVersion)
   const globalVirtualStoreDir = path.join(opts.storeDir, 'links')
 
   // Compute the GVS hash for the pnpm package to find its path
-  const pnpmGvsPath = findPnpmGvsPath(wantedLockfile, currentPkgName, globalVirtualStoreDir, PNPM_ALLOW_BUILDS)
-  const pnpmPkgDir = path.join(pnpmGvsPath, 'node_modules', currentPkgName)
+  const pnpmGvsPath = findPnpmGvsPath(wantedLockfile, pkgName, globalVirtualStoreDir, PNPM_ALLOW_BUILDS)
+  const pnpmPkgDir = path.join(pnpmGvsPath, 'node_modules', pkgName)
   const binDir = path.join(pnpmGvsPath, 'bin')
 
   // Check if already installed in the GVS
@@ -125,7 +139,7 @@ export async function installPnpmToStore (
     })
 
     // Now the GVS should be populated — create bins alongside the GVS entry
-    linkExePlatformBinary(pnpmGvsPath)
+    linkExePlatformBinary(pnpmGvsPath, pkgName)
     await linkBins(path.join(pnpmGvsPath, 'node_modules'), binDir, { warn: noop })
 
     return { binDir }
@@ -219,7 +233,7 @@ async function installPnpmToGlobalDir (
       await installFromResolution(installDir, opts, [`${pkgName}@${version}`])
     }
 
-    linkExePlatformBinary(installDir)
+    linkExePlatformBinary(installDir, pkgName)
     await linkBins(path.join(installDir, 'node_modules'), binDir, { warn: noop })
 
     // Create hash symlink for the global packages system
@@ -360,10 +374,14 @@ function legacyOsSegment (platform: NodeJS.Platform, libcFamily: string | null):
 }
 
 /**
- * Future scope-local directory name of the `@pnpm/exe` platform package, under
- * the `exe.<platform>-<arch>[-musl]` scheme that matches the workspace
- * directory layout. `linkExePlatformBinary` checks this as a fallback so a
- * future rename of the published packages works without touching this logic.
+ * Scope-local directory name of the platform package under the
+ * `exe.<platform>-<arch>[-musl]` scheme, i.e. the published package
+ * `@pnpm/exe.<platform>-<arch>[-musl]`. pnpm v12 (the Rust port) ships its
+ * native binaries under exactly this convention, so `linkExePlatformBinary`
+ * relinks a v12 install with no v12-specific logic. `@pnpm/exe` (the
+ * TypeScript SEA build) is expected to adopt the same scheme in a future
+ * release, which is why the legacy `@pnpm/<os>-<arch>` name is still checked
+ * first as a fallback.
  */
 export function exePlatformPkgDirNameNext (
   platform: NodeJS.Platform,
@@ -375,60 +393,71 @@ export function exePlatformPkgDirNameNext (
   return `exe.${platform}-${normalizedArch}${libcSuffix}`
 }
 
-// @pnpm/exe bundles Node.js via optional platform-specific packages
-// (e.g. @pnpm/macos-arm64, @pnpm/linuxstatic-x64; or, after a future rename,
-// @pnpm/exe.darwin-arm64, @pnpm/exe.linux-x64-musl). Its postinstall script
-// links the correct binary into the @pnpm/exe package dir. Since scripts are
-// disabled during install (to support systems without Node.js), we replicate
-// that linking here, checking both naming schemes so self-update works across
-// the rename.
-export function linkExePlatformBinary (installDir: string): void {
-  const exePkgDir = path.join(installDir, 'node_modules', '@pnpm', 'exe')
-  if (!fs.existsSync(exePkgDir)) return
-  // In pnpm's symlinked node_modules layout, the platform package is not hoisted
-  // to the top-level node_modules. It's a dependency of @pnpm/exe and lives as a
-  // sibling in the virtual store. Resolve through the @pnpm/exe symlink to find it.
-  const exeRealDir = fs.realpathSync(exePkgDir)
+// The wrapper's preinstall links the platform binary into the wrapper dir, but
+// scripts are disabled during pnpm's own installs, so replicate it here — trying
+// the legacy and the newer `exe.<target>` platform-package names.
+export function linkExePlatformBinary (installDir: string, wrapperPkgName: string = '@pnpm/exe'): void {
+  const wrapperDir = path.join(installDir, 'node_modules', ...wrapperPkgName.split('/'))
+  if (!fs.existsSync(wrapperDir)) return
   const platform = process.platform
   const arch = process.arch
   const libcFamily = familySync()
   const executable = platform === 'win32' ? 'pnpm.exe' : 'pnpm'
+  // Resolve the platform binary by its explicit adjacent path in the real
+  // virtual store, not via Node resolution: a `node_modules` walk could be
+  // shadowed by a higher-precedence `@pnpm/<dirName>` in a repo-controlled
+  // `store-dir`. `@pnpm/exe`'s parent is already `@pnpm`; `pnpm` descends into it.
+  const wrapperRealDir = fs.realpathSync(wrapperDir)
+  const scopeDir = wrapperPkgName.startsWith('@')
+    ? path.dirname(wrapperRealDir)
+    : path.join(path.dirname(wrapperRealDir), '@pnpm')
   const candidateDirNames = [
     exePlatformPkgDirName(platform, arch, libcFamily),
     exePlatformPkgDirNameNext(platform, arch, libcFamily),
   ]
   let src: string | undefined
   for (const dirName of candidateDirNames) {
-    const candidate = path.join(path.dirname(exeRealDir), dirName, executable)
+    const candidate = path.join(scopeDir, dirName, executable)
     if (fs.existsSync(candidate)) {
       src = candidate
       break
     }
   }
   if (src == null) return
-  const dest = path.join(exePkgDir, executable)
+  const dest = path.join(wrapperDir, executable)
   forceLink(src, dest)
 
   if (platform === 'win32') {
-    // Aliases (pn / pnpx / pnx) need to be .exe hardlinks of the SEA binary,
+    // Aliases (pn / pnpx / pnx) need to be .exe hardlinks of the native binary,
     // not the .cmd wrappers we ship in the tarball. cmd-shim's Bash shim for
     // a .cmd target wraps it in `exec cmd /C ...`, and MSYS2 / Git Bash
     // mangles `/C` into a Windows path — cmd.exe then falls into interactive
     // mode and prints its banner instead of running the alias. .exe sources
-    // sidestep cmd-shim's wrapper. The SEA binary detects which name it was
+    // sidestep cmd-shim's wrapper. The native binary detects which name it was
     // launched as via process.execPath and prepends `dlx` for pnpx / pnx.
     // See https://github.com/pnpm/pnpm/issues/11486.
     for (const alias of ['pn', 'pnpx', 'pnx']) {
-      forceLink(src, path.join(exePkgDir, `${alias}.exe`))
+      forceLink(src, path.join(wrapperDir, `${alias}.exe`))
     }
 
-    const exePkgJsonPath = path.join(exePkgDir, 'package.json')
-    const exePkg = JSON.parse(fs.readFileSync(exePkgJsonPath, 'utf8'))
-    exePkg.bin.pnpm = 'pnpm.exe'
-    exePkg.bin.pn = 'pn.exe'
-    exePkg.bin.pnpx = 'pnpx.exe'
-    exePkg.bin.pnx = 'pnx.exe'
-    fs.writeFileSync(exePkgJsonPath, JSON.stringify(exePkg, null, 2))
+    const wrapperPkgJsonPath = path.join(wrapperDir, 'package.json')
+    const wrapperPkg = JSON.parse(fs.readFileSync(wrapperPkgJsonPath, 'utf8'))
+    wrapperPkg.bin.pnpm = 'pnpm.exe'
+    wrapperPkg.bin.pn = 'pn.exe'
+    wrapperPkg.bin.pnpx = 'pnpx.exe'
+    wrapperPkg.bin.pnx = 'pnx.exe'
+    // Temp file + rename, not in-place: package.json is hard-linked from the
+    // content-addressable store, so writing in place would mutate the shared blob.
+    const tempPkgJsonPath = `${wrapperPkgJsonPath}.pnpm-tmp`
+    try {
+      fs.writeFileSync(tempPkgJsonPath, JSON.stringify(wrapperPkg, null, 2))
+      fs.renameSync(tempPkgJsonPath, wrapperPkgJsonPath)
+    } catch (err: unknown) {
+      try {
+        fs.rmSync(tempPkgJsonPath, { force: true })
+      } catch {}
+      throw err
+    }
   }
 }
 

@@ -261,8 +261,10 @@ Ported into the new `pacquet-workspace-projects-filter` and
 `pacquet-workspace-projects-graph` crates (the Rust ports of
 `@pnpm/workspace.projects-filter` and `@pnpm/workspace.projects-graph`).
 The CLI `--filter` / `--filter-prod` flags are parsed into
-`Config::filter` / `Config::filter_prod`; narrowing the install to the
-selected projects is still a follow-up (the install fan-out is
+`Config::filter` / `Config::filter_prod`. Recursive `run` / `exec` now
+narrow their selected set through these selectors (via
+`cli_args::recursive::select_recursive_projects`); narrowing the install
+to the selected projects is still a follow-up (the install fan-out is
 unfiltered, so the two `known_failures` hoist stubs below stay).
 
 `parseProjectSelector` (ported as `parse_project_selector::tests`):
@@ -882,3 +884,23 @@ lockfile-parity peer fixes (pnpm/pnpm#12266, pnpm/pnpm#12267).
 - [ ] `resolve peer dependencies with npm aliases` — npm-alias peer suffixes.
 - [ ] `should find peer dependency conflicts when the peer is an optional peer of one of the dependencies`, `should ignore conflicts between missing optional peer dependencies`, `should pick the single wanted peer dependency range`, `should return the intersection of two compatible ranges`, the two prerelease-warning cases — peer-issue reporting edge cases.
 - [ ] The `lockedPeerContext` / `resolvedPeerProviderPaths` series (`prefers a compatible locked provider …`, the six `does not replace …` cases, `does not reuse a locked provider outside the current peer range`) — pacquet hasn't ported `lockedPeerContext`/`resolvedPeerProviderPaths`, so these gate on that feature, not on the lockfile-parity peer fixes.
+
+## `pnpm logout` (`@pnpm/auth.commands`)
+
+Pacquet's port lives in `pacquet-auth-commands` (`logout` module) with the CLI adapter in `pacquet-cli`'s `cli_args::logout`. Upstream injects its side effects (`fetch`, `readIniFile`, `writeIniFile`, `globalInfo`, `globalWarn`) through a `LogoutContext` object of functions; the Rust port threads them through the project's capability-trait seam instead (`FsReadToString` / `FsWrite` / `RevokeToken` on `Sys`, plus `R: Reporter` for the two `global*` channels). The whole upstream suite translates, so every case is a unit test of the ported `logout` function with unit-struct fakes.
+
+### Ported
+
+- [x] `TypeScript repo: pnpm11/auth/commands/test/logout.test.ts:41` `should throw when not logged in` — `logout::tests::throws_when_not_logged_in`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/logout.test.ts:53` `should throw when not logged in to a custom registry` — `logout::tests::throws_when_not_logged_in_to_a_custom_registry`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/logout.test.ts:66` `should revoke token on registry and remove from auth.ini` — `logout::tests::revokes_token_on_registry_and_removes_from_auth_ini`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/logout.test.ts:106` `should logout from a custom registry` — `logout::tests::logs_out_from_a_custom_registry`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/logout.test.ts:142` `should still remove token locally when registry returns non-ok response` — `logout::tests::removes_token_locally_when_registry_returns_non_ok`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/logout.test.ts:172` `should still remove token locally when fetch throws a network error` — `logout::tests::removes_token_locally_when_fetch_errors`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/logout.test.ts:204` `should warn when token is not in auth.ini (e.g. from .npmrc)` — `logout::tests::warns_when_token_is_not_in_auth_ini`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/logout.test.ts:236` `should throw when registry call fails and token is not in auth.ini` — `logout::tests::throws_when_registry_call_fails_and_token_not_in_auth_ini`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/logout.test.ts:270` `should warn when auth.ini does not exist (ENOENT) and token comes from another source` — `logout::tests::warns_when_auth_ini_does_not_exist`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/logout.test.ts:301` `should propagate non-ENOENT errors from readIniFile` — `logout::tests::propagates_non_not_found_read_errors`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/logout.test.ts:322` `should URL-encode the token when revoking` — `logout::tests::url_encodes_the_token_when_revoking`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/logout.test.ts:349` `should normalize the registry URL` — `logout::tests::normalizes_the_registry_url`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/logout.test.ts:377` `should handle registry with a path` — `logout::tests::handles_registry_with_a_path`.

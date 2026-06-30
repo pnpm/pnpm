@@ -1,4 +1,10 @@
-use super::{AllowBuildPolicy, BuildModules, parse_name_version_from_key};
+use super::{
+    AllowBuildPolicy, BuildModules, allow_build_key_from_ignored_build, parse_name_version_from_key,
+};
+// Only the `#[cfg(unix)]` rebuild-selection test uses this; importing it
+// unconditionally would be an unused import on Windows.
+#[cfg(unix)]
+use super::RebuildOptions;
 use crate::{RequiresBuildBySnapshot, SkippedSnapshots, VirtualStoreLayout};
 use pacquet_config::{Config, PackageImportMethod};
 use pacquet_executor::ScriptsPrependNodePath;
@@ -348,6 +354,7 @@ fn build_modules_collects_ignored_builds() {
         ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
     }
     .run::<SilentReporter>()
     .expect("run BuildModules");
@@ -361,7 +368,7 @@ fn build_modules_collects_ignored_builds() {
 }
 
 /// Under `ignore_scripts`, the same default-deny build candidates that
-/// `build_modules_collects_ignored_builds` reports as ignored are
+/// [`build_modules_collects_ignored_builds`] reports as ignored are
 /// instead silently skipped: no script runs and the returned set is
 /// empty, so the install does not fail with `ERR_PNPM_IGNORED_BUILDS`.
 /// Mirrors pnpm leaving `ignoredBuilds` empty when `ignoreScripts` is
@@ -413,6 +420,7 @@ fn ignore_scripts_skips_build_without_collecting_ignored() {
         ignore_scripts: true,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
     }
     .run::<SilentReporter>()
     .expect("run BuildModules");
@@ -466,6 +474,7 @@ fn cached_requires_build_false_skips_package_dir_probe() {
         ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
     }
     .run::<SilentReporter>()
     .expect("run BuildModules");
@@ -539,6 +548,7 @@ fn build_modules_collects_ignored_builds_under_concurrency() {
         ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
     }
     .run::<SilentReporter>()
     .expect("run BuildModules under concurrency");
@@ -605,6 +615,7 @@ fn build_modules_excludes_explicit_deny_from_ignored() {
         ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
     }
     .run::<SilentReporter>()
     .expect("run BuildModules");
@@ -694,6 +705,7 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
         ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
     }
     .run::<RecordingReporter>()
     .expect("optional build failure must NOT abort the install");
@@ -734,7 +746,7 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
 /// echo hello && echo world && exit 1`) is the same upstream's
 /// own tests use; if the gate were broken the build would run and
 /// the install would propagate the exit-1 failure (cf.
-/// `fail_when_failing_postinstall_is_required` below).
+/// [`fail_when_failing_postinstall_is_required`] below).
 ///
 /// [#421]: https://github.com/pnpm/pacquet/issues/421
 #[cfg(unix)]
@@ -856,6 +868,7 @@ fn using_side_effects_cache_skips_rebuild() {
         ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
     }
     .run::<RecordingReporter>()
     .expect("install must succeed when the cache hit skips the rebuild");
@@ -981,6 +994,7 @@ fn corrupt_side_effects_cache_falls_back_to_rebuild() {
         ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
     }
     .run::<SilentReporter>()
     .expect("a corrupt cache overlay must degrade to a rebuild, not abort the install");
@@ -1097,6 +1111,7 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
         ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
     }
     .run::<SilentReporter>();
 
@@ -1164,6 +1179,7 @@ fn side_effects_cache_disabled_bypasses_the_gate() {
         ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
     }
     .run::<SilentReporter>()
     .expect_err("with cache disabled, the failing postinstall must run and the install must fail");
@@ -1230,6 +1246,7 @@ fn fail_when_failing_postinstall_is_required() {
         ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
     }
     .run::<SilentReporter>()
     .expect_err("required build failure must propagate");
@@ -1318,6 +1335,7 @@ fn frozen_backstop_run(
         ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
     }
     .run::<SilentReporter>()
 }
@@ -1642,6 +1660,7 @@ async fn write_path_populates_side_effects_row() {
         ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
     }
     .run::<SilentReporter>()
     .expect("build modules must complete cleanly");
@@ -1762,6 +1781,7 @@ async fn write_path_disabled_skips_upload() {
         ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
     }
     .run::<SilentReporter>()
     .expect("build modules must complete cleanly");
@@ -1890,6 +1910,7 @@ async fn upload_error_does_not_interrupt_install() {
         ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
     }
     .run::<SilentReporter>()
     .expect("upload failure must not propagate; install continues");
@@ -1922,7 +1943,7 @@ async fn upload_error_does_not_interrupt_install() {
     }
 }
 
-/// Variant of `create_postinstall_modifies_source_fixture` whose
+/// Variant of [`create_postinstall_modifies_source_fixture`] whose
 /// postinstall additionally produces a 0-permission file. The
 /// WRITE-path walker (`add_files_from_dir`) then fails on
 /// `fs::read("unreadable")` with `EACCES`, surfacing as
@@ -2126,6 +2147,7 @@ new file mode 100644
         ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
     }
     .run::<SilentReporter>()
     .expect("build modules must complete cleanly");
@@ -2241,6 +2263,7 @@ new file mode 100644
         ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
     }
     .run::<SilentReporter>()
     .expect("build modules must complete cleanly");
@@ -2327,6 +2350,7 @@ async fn missing_patch_file_path_errors_with_diagnostic() {
         ignore_scripts: false,
         import_method: PackageImportMethod::Auto,
         logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: None,
     }
     .run::<SilentReporter>()
     .expect_err("missing patch_file_path must surface as PatchFilePathMissing");
@@ -2480,4 +2504,120 @@ fn pkg_root_for_key_hoisted_missing_returns_none() {
 
     let result = super::pkg_root_for_key(&layout, Some(&map), &key);
     assert!(result.is_none(), "absent key surfaces None, got {result:?}");
+}
+
+#[test]
+fn allow_build_key_strips_version_for_registry_packages() {
+    // Registry depPaths reduce to the bare package name — the
+    // `allowBuilds` key a user would approve them under.
+    assert_eq!(allow_build_key_from_ignored_build("esbuild@0.17.0"), "esbuild");
+    assert_eq!(
+        allow_build_key_from_ignored_build("@pnpm.e2e/install-script-example@1.0.0"),
+        "@pnpm.e2e/install-script-example",
+    );
+}
+
+#[test]
+fn allow_build_key_ignores_patch_hash_when_deriving_name() {
+    // A `(patch_hash=...)` segment is dropped before the version is checked,
+    // so a patched registry package still reduces to its name.
+    assert_eq!(allow_build_key_from_ignored_build("esbuild@0.17.0(patch_hash=abcdef)"), "esbuild");
+}
+
+#[test]
+fn allow_build_key_keeps_full_id_for_non_semver_artifacts() {
+    // Git / tarball artifacts have a non-semver "version", so the whole
+    // pkgId is the key — the name alone must not approve their builds.
+    let git = "foo@github.com/foo/bar#0123456789";
+    assert_eq!(allow_build_key_from_ignored_build(git), git);
+
+    // Ignored-build entries are depPath-shaped (`name@<resolution>`); a
+    // tarball's non-semver resolution keeps the whole pkgId as the key.
+    let tarball = "foo@https://example.com/foo.tgz";
+    assert_eq!(allow_build_key_from_ignored_build(tarball), tarball);
+}
+
+/// Like [`create_buildable_pkg`], but the postinstall writes a `built-marker`
+/// file into the package directory so a test can observe whether the script
+/// actually ran.
+#[cfg(unix)]
+fn create_marker_pkg(virtual_store_dir: &Path, key: &PackageKey) -> PathBuf {
+    let key_str = key.without_peer().to_string();
+    let name_version = key_str.strip_prefix('/').unwrap_or(&key_str);
+    let at_idx = name_version.rfind('@').unwrap_or(name_version.len());
+    let pkg_name = &name_version[..at_idx];
+    let store_name = name_version.replace('/', "+");
+    let pkg_dir = virtual_store_dir.join(&store_name).join("node_modules").join(pkg_name);
+    fs::create_dir_all(&pkg_dir).expect("create pkg dir");
+    let manifest = serde_json::json!({
+        "scripts": { "postinstall": "echo ran > built-marker" },
+    });
+    fs::write(pkg_dir.join("package.json"), manifest.to_string()).expect("write manifest");
+    pkg_dir
+}
+
+/// A `pacquet rebuild <pkg>` with a selection runs scripts ONLY for the
+/// selected package, even with the side-effects cache disabled (so its
+/// `is_built` short-circuit cannot fire). Both packages are allowed to
+/// build, so without the rebuild-selection gate `zzz` would also run.
+#[cfg(unix)]
+#[test]
+fn rebuild_selection_runs_only_selected_scripts() {
+    let snapshots = HashMap::from([
+        (key("aaa", "1.0.0"), SnapshotEntry::default()),
+        (key("zzz", "1.0.0"), SnapshotEntry::default()),
+    ]);
+    let importers = root_importers(&[("aaa", "1.0.0"), ("zzz", "1.0.0")]);
+    let policy = policy_from_specs([("aaa", true), ("zzz", true)], false);
+
+    let virtual_store_dir = tempdir().expect("create temp dir");
+    let modules_dir = tempdir().expect("create temp dir");
+    let lockfile_dir = tempdir().expect("create temp dir");
+
+    let aaa_dir = create_marker_pkg(virtual_store_dir.path(), &key("aaa", "1.0.0"));
+    let zzz_dir = create_marker_pkg(virtual_store_dir.path(), &key("zzz", "1.0.0"));
+
+    let rebuild =
+        RebuildOptions { selected_names: Some(std::iter::once("aaa".to_string()).collect()) };
+
+    BuildModules {
+        layout: &VirtualStoreLayout::legacy(
+            virtual_store_dir.path(),
+            pacquet_config::default_virtual_store_dir_max_length() as usize,
+        ),
+        modules_dir: modules_dir.path(),
+        lockfile_dir: lockfile_dir.path(),
+        snapshots: Some(&snapshots),
+        importers: &importers,
+        packages: None,
+        allow_build_policy: &policy,
+        side_effects_maps_by_snapshot: None,
+        requires_build_by_snapshot: None,
+        engine_name: None,
+        side_effects_cache: false,
+        side_effects_cache_write: false,
+        store_dir: None,
+        store_index_writer: None,
+        patches: None,
+        scripts_prepend_node_path: ScriptsPrependNodePath::Never,
+        extra_env: &HashMap::new(),
+        unsafe_perm: true,
+        child_concurrency: 1,
+        skipped: &SkippedSnapshots::default(),
+        pkg_root_by_key: None,
+        gather_ancestor_bin_paths: false,
+        frozen_store: false,
+        ignore_scripts: false,
+        import_method: PackageImportMethod::Auto,
+        logged_methods: &TEST_LOGGED_METHODS,
+        rebuild: Some(&rebuild),
+    }
+    .run::<SilentReporter>()
+    .expect("rebuild runs");
+
+    assert!(aaa_dir.join("built-marker").exists(), "the selected package's script ran");
+    assert!(
+        !zzz_dir.join("built-marker").exists(),
+        "the non-selected package's script must not run",
+    );
 }

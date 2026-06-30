@@ -1,5 +1,12 @@
 # @pnpm/parse-overrides
 
+## 1100.0.2
+
+### Patch Changes
+
+- Updated dependencies [852d537]
+  - @pnpm/error@1100.0.1
+
 ## 1100.0.1
 
 ### Patch Changes

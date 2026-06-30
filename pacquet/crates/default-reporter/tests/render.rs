@@ -8,10 +8,10 @@ use pacquet_default_reporter::{
     state::{Output, ReporterState},
 };
 use pacquet_reporter::{
-    AddedRoot, ContextLog, DependencyType, ExecutionTimeLog, LifecycleLog, LifecycleMessage,
-    LifecycleStdio, LogEvent, LogLevel, PackageImportMethod, PackageImportMethodLog, PnpmLog,
-    ProgressLog, ProgressMessage, RootLog, RootMessage, Stage, StageLog, StatsLog, StatsMessage,
-    SummaryLog,
+    AddedRoot, ContextLog, DependencyType, ExecutionTimeLog, GlobalLog, LifecycleLog,
+    LifecycleMessage, LifecycleStdio, LogEvent, LogLevel, PackageImportMethod,
+    PackageImportMethodLog, PnpmLog, ProgressLog, ProgressMessage, RootLog, RootMessage, Stage,
+    StageLog, StatsLog, StatsMessage, SummaryLog,
 };
 
 const CWD: &str = "/repo";
@@ -206,7 +206,7 @@ fn execution_time_renders_done_footer() {
             ended_at: 3500,
         })],
     );
-    assert!(frame.starts_with("Done in 2.5s using pacquet v"), "got: {frame}");
+    assert!(frame.starts_with("Done in 2.5s using pnpm v"), "got: {frame}");
 }
 
 #[test]
@@ -221,6 +221,22 @@ fn already_up_to_date_pnpm_log_renders() {
         })],
     );
     assert_eq!(frame, "Already up to date");
+}
+
+/// A `pnpm:global` info message renders as a block, like the prefix-less
+/// `pnpm`-channel path — the web-auth flow surfaces the auth URL this way.
+#[test]
+fn global_info_log_renders() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![LogEvent::Global(GlobalLog {
+            level: LogLevel::Info,
+            message: "Authenticate your account at:\nhttps://registry.npmjs.org/auth/abc"
+                .to_string(),
+        })],
+    );
+    assert_eq!(frame, "Authenticate your account at:\nhttps://registry.npmjs.org/auth/abc");
 }
 
 #[test]
@@ -250,7 +266,7 @@ fn full_install_frame_orders_blocks_like_pnpm() {
         frame,
         "Packages: +1\n+\n\ndependencies:\n+ foo 1.0.0\n\n\
          Progress: resolved 1, reused 1, downloaded 0, added 1, done\n\
-         Done in 1.2s using pacquet v0.0.1",
+         Done in 1.2s using pnpm v0.0.1",
     );
 }
 

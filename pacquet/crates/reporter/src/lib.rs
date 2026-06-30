@@ -205,6 +205,17 @@ pub enum LogEvent {
     #[serde(rename = "pnpm")]
     Pnpm(PnpmLog),
 
+    /// Global-logger message (`name: "pnpm:global"`). Mirrors pnpm's
+    /// [`globalInfo` / `globalWarn`](https://github.com/pnpm/pnpm/blob/fc2f33912e/pnpm11/core/logger/src/logger.ts#L15-L23),
+    /// which write to a `bole('pnpm:global')` logger with just a message
+    /// string — no `prefix`, unlike [`LogEvent::Pnpm`]. The interactive
+    /// web-authentication flow (`pacquet-network-web-auth`) emits on this
+    /// channel to surface the auth URL / QR code and the browser-open
+    /// prompts. `@pnpm/cli.default-reporter` routes these into the "other"
+    /// log stream.
+    #[serde(rename = "pnpm:global")]
+    Global(GlobalLog),
+
     /// One per `context.log(...)` call a pnpmfile hook makes while it
     /// runs (`pnpm:hook`). `readPackage` and `afterAllResolved` hooks
     /// receive a `context` whose `log` forwards here, so a pnpmfile can
@@ -300,7 +311,7 @@ pub enum PackageImportMethod {
 /// `pnpm:progress` payload. The bunyan-envelope `level` is a fixed
 /// outer field; the rest of the record is a status-tagged union via
 /// `#[serde(flatten)]` so the wire shape stays flat (matching pnpm's
-/// `ProgressMessage` discriminator on `status`).
+/// [`ProgressMessage`] discriminator on `status`).
 #[derive(Debug, Clone, Serialize)]
 pub struct ProgressLog {
     pub level: LogLevel,
@@ -732,10 +743,11 @@ pub struct BrokenModulesLog {
 /// `pnpm:lockfile-verification` payload. The [bunyan]-envelope `level`
 /// is a fixed outer field; the rest of the record is a status-tagged
 /// union via `#[serde(flatten)]` so the wire shape stays flat
-/// (matching pnpm's `LockfileVerificationMessage` discriminator on
+/// (matching pnpm's [`LockfileVerificationMessage`][ts-LockfileVerificationMessage] discriminator on
 /// `status`).
 ///
 /// [bunyan]: https://github.com/trentm/node-bunyan
+/// [ts-LockfileVerificationMessage]: https://github.com/pnpm/pnpm/blob/2a9bd897bf/core/core-loggers/src/lockfileVerificationLogger.ts#L11-L16
 #[derive(Debug, Clone, Serialize)]
 pub struct LockfileVerificationLog {
     pub level: LogLevel,
@@ -808,6 +820,15 @@ pub struct PnpmLog {
     pub prefix: String,
 }
 
+/// Global-channel (`name: "pnpm:global"`) payload. Carries only a
+/// severity and a message — pnpm's `bole('pnpm:global')` logger takes a
+/// bare string, with no `prefix`, so this struct has none either.
+#[derive(Debug, Clone, Serialize)]
+pub struct GlobalLog {
+    pub level: LogLevel,
+    pub message: String,
+}
+
 /// `pnpm:hook` payload. Field names match pnpm's `HookMessage` so
 /// `@pnpm/cli.default-reporter` accepts the record unchanged. `from`
 /// is the pnpmfile that defined the hook, `hook` is the hook name
@@ -867,8 +888,8 @@ pub enum LogLevel {
 /// across tokio workers, all of which can fire reporter events at
 /// once. Implementations must therefore guard any shared state they
 /// touch (`Mutex`, atomic, or write-once initialization). Both
-/// production sinks satisfy this: `SilentReporter` is a no-op, and
-/// `NdjsonReporter` serializes per-event then writes under
+/// production sinks satisfy this: [`SilentReporter`] is a no-op, and
+/// [`NdjsonReporter`] serializes per-event then writes under
 /// `std::io::stderr().lock()`.
 pub trait Reporter {
     fn emit(event: &LogEvent);

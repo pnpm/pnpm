@@ -1,8 +1,8 @@
 use crate::{
     BuildVerifiersError, HoistedDependencies, InstallFrozenLockfile, InstallFrozenLockfileError,
     InstallWithFreshLockfile, InstallWithFreshLockfileError, LockfileVerificationOverride,
-    OptimisticRepeatInstallCheck, ResolvedPackages, UpdateSeedPolicy, build_resolution_verifiers,
-    check_optimistic_repeat_install,
+    OptimisticRepeatInstallCheck, RebuildOptions, ResolvedPackages, UpdateSeedPolicy,
+    build_resolution_verifiers, check_optimistic_repeat_install,
     optimistic_repeat_install::Decision as OptimisticRepeatInstallDecision,
 };
 use derive_more::{Display, Error};
@@ -26,7 +26,7 @@ use pacquet_lockfile_verification::{
 };
 use pacquet_modules_yaml::{
     Host, IncludedDependencies, LayoutVersion, Modules, NodeLinker as ModulesNodeLinker,
-    WriteModulesError, read_modules_manifest, write_modules_manifest,
+    WriteModulesError, write_modules_manifest,
 };
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
@@ -244,6 +244,12 @@ where
     /// catalog bump drives resolution even under `--no-save`, where the
     /// bumped entry is intentionally not persisted to disk.
     pub catalogs_override: Option<Catalogs>,
+    /// When `true`, the optimistic repeat-install fast path is
+    /// disabled so the full install pipeline always runs. `pacquet
+    /// prune` sets this because the fast path short-circuits before
+    /// the virtual-store sweep, meaning extraneous packages can
+    /// survive a prune when the lockfile hasn't changed.
+    pub disable_optimistic_repeat_install: bool,
 }
 
 /// Error type of [`Install`].
@@ -335,6 +341,10 @@ pub enum InstallError {
     /// materialized snapshot at `<virtual_store_dir>/lock.yaml`.
     #[diagnostic(transparent)]
     SaveWantedLockfile(#[error(source)] SaveLockfileError),
+
+    #[diagnostic(code(pacquet_package_manager::remove_modules_dir))]
+    #[display("Failed to remove modules directory contents: {_0}")]
+    RemoveModulesDir(#[error(source)] std::io::Error),
 
     /// `pnpm-lock.yaml` doesn't match the on-disk `package.json` for
     /// the project being installed. Mirrors upstream's
@@ -450,19 +460,40 @@ where
 {
     /// Execute the subroutine.
     pub async fn run<Reporter: self::Reporter + 'static>(self) -> Result<(), InstallError> {
-        self.run_inner::<Reporter>(None).await
+        self.run_inner::<Reporter>(None, None).await
     }
 
     pub async fn run_with_lockfile_verification<Reporter: self::Reporter + 'static>(
         self,
         lockfile_verification_override: LockfileVerificationOverride<'a>,
     ) -> Result<(), InstallError> {
-        self.run_inner::<Reporter>(Some(lockfile_verification_override)).await
+        self.run_inner::<Reporter>(Some(lockfile_verification_override), None).await
+    }
+
+    /// Execute as a forced rebuild: take the frozen path against the
+    /// already-resolved lockfile + materialized `node_modules`, bypass the
+    /// "up to date" short-circuit, and re-run the lifecycle scripts of the
+    /// selected packages (or every build-needing package when
+    /// `rebuild.selected_names` is `None`). Drives `pacquet rebuild` and
+    /// the rebuild step of `pacquet approve-builds`.
+    ///
+    /// # Panics
+    ///
+    /// Panics unless `frozen_lockfile` is set: a rebuild must take the
+    /// frozen path, since the fresh-resolve path drops the rebuild
+    /// selection and would silently degrade to a plain install.
+    pub async fn run_rebuild<Reporter: self::Reporter + 'static>(
+        self,
+        rebuild: RebuildOptions,
+    ) -> Result<(), InstallError> {
+        assert!(self.frozen_lockfile, "run_rebuild requires frozen_lockfile = true");
+        self.run_inner::<Reporter>(None, Some(rebuild)).await
     }
 
     async fn run_inner<Reporter: self::Reporter + 'static>(
         self,
         lockfile_verification_override: Option<LockfileVerificationOverride<'a>>,
+        rebuild: Option<RebuildOptions>,
     ) -> Result<(), InstallError> {
         let Install {
             tarball_mem_cache,
@@ -489,6 +520,7 @@ where
             auth_override,
             resolution_observer,
             catalogs_override,
+            disable_optimistic_repeat_install,
         } = self;
 
         // `--dry-run` resolves but never materializes, so it borrows the
@@ -534,7 +566,7 @@ where
         //
         // [bunyan]: <https://github.com/trentm/node-bunyan>
         let manifest_dir = manifest.path().parent().expect("manifest path always has a parent dir");
-        let workspace_dir_opt = pacquet_workspace::find_workspace_dir(manifest_dir)
+        let workspace_dir_opt = configured_or_discovered_workspace_dir(config, manifest_dir)
             .map_err(InstallError::FindWorkspaceDir)?;
         let workspace_root =
             workspace_dir_opt.clone().unwrap_or_else(|| manifest_dir.to_path_buf());
@@ -616,6 +648,7 @@ where
         let optimistic_decision = is_full_install
             && matches!(update_seed_policy, UpdateSeedPolicy::KeepAll)
             && !frozen_lockfile
+            && !disable_optimistic_repeat_install
             && check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
                 workspace_root: &workspace_root,
                 config,
@@ -640,7 +673,7 @@ where
             // to the full install rather than short-circuiting on a
             // swallowed read error.
             let fast_path_safe = if config.strict_dep_builds {
-                match read_modules_manifest::<Host>(&config.modules_dir) {
+                match pacquet_modules_yaml::read_modules_layout::<Host>(&config.modules_dir) {
                     Ok(Some(modules)) => match unapproved_recorded_ignored_builds(&modules, config)
                     {
                         Ok(Some(package_names)) => {
@@ -1031,12 +1064,120 @@ where
         // `allProjectsAreUpToDate` fast path at
         // <https://github.com/pnpm/pnpm/blob/a456dc78fb/installing/deps-installer/src/install/index.ts#L913-L985>.
         // Parse `.modules.yaml` once and share it across the consistency,
-        // newly-allowed, and unapproved-ignored checks below. Only the
-        // frozen path reads it, so the fresh-lockfile/`add` path skips the
-        // file read + YAML parse entirely.
-        let modules_manifest = take_frozen_path
-            .then(|| read_modules_manifest::<Host>(&config.modules_dir).ok().flatten())
-            .flatten();
+        // newly-allowed, and unapproved-ignored checks below.
+        let modules_manifest_res = if !resolve_only || take_frozen_path {
+            pacquet_modules_yaml::read_modules_layout::<Host>(&config.modules_dir)
+        } else {
+            Ok(None)
+        };
+        let read_failed = modules_manifest_res.is_err();
+        if let Err(err) = &modules_manifest_res {
+            tracing::warn!(
+                target: "pacquet::install",
+                ?err,
+                "failed to read .modules.yaml; treating as an inconsistent node_modules directory",
+            );
+        }
+        let old_modules = modules_manifest_res.ok().flatten();
+        let modules_manifest = old_modules.as_ref();
+
+        let is_inconsistent = read_failed
+            || match &modules_manifest {
+                Some(modules) => !modules_consistent_with(modules, config, node_linker, included),
+                // Treat existence-check errors conservatively as inconsistent.
+                None => config
+                    .modules_dir
+                    .join(pacquet_modules_yaml::MODULES_FILENAME)
+                    .try_exists()
+                    .unwrap_or(true),
+            };
+
+        if !resolve_only && is_inconsistent {
+            // Settings mismatch forces a rewrite of node_modules, matching
+            // upstream pnpm's `validateModules` prune side effects.
+            let (is_safe, target_dir) = if config.modules_dir.exists() {
+                match (
+                    std::fs::canonicalize(&config.modules_dir),
+                    std::fs::canonicalize(&workspace_root),
+                ) {
+                    (Ok(modules_canon), Ok(root_canon)) => {
+                        (modules_canon.starts_with(&root_canon), Some(modules_canon))
+                    }
+                    _ => (false, None),
+                }
+            } else {
+                (true, None)
+            };
+            if is_safe {
+                if let Some(target) = target_dir {
+                    match std::fs::read_dir(&target) {
+                        Ok(entries) => {
+                            for entry_res in entries {
+                                let entry = match entry_res {
+                                    Ok(e) => e,
+                                    Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+                                        continue;
+                                    }
+                                    Err(err) => return Err(InstallError::RemoveModulesDir(err)),
+                                };
+                                let file_name = entry.file_name();
+                                let file_name_str = file_name.to_string_lossy();
+
+                                let is_hidden = file_name_str.starts_with('.');
+                                let is_pnpm_hidden = file_name_str == ".bin"
+                                    || file_name_str == ".modules.yaml"
+                                    || config
+                                        .virtual_store_dir
+                                        .file_name()
+                                        .is_some_and(|n| n == file_name_str.as_ref())
+                                    || modules_manifest.as_ref().is_some_and(|manifest| {
+                                        let mut old_vs =
+                                            std::path::PathBuf::from(&manifest.virtual_store_dir);
+                                        if old_vs.is_relative() {
+                                            old_vs = config.modules_dir.join(old_vs);
+                                        }
+                                        old_vs.starts_with(&config.modules_dir)
+                                            && old_vs
+                                                .file_name()
+                                                .is_some_and(|n| n == file_name_str.as_ref())
+                                    });
+
+                                if is_hidden && !is_pnpm_hidden {
+                                    continue;
+                                }
+
+                                if entry.file_type().is_ok_and(|t| t.is_dir()) {
+                                    #[cfg(windows)]
+                                    let is_removed =
+                                        pacquet_fs::remove_symlink_dir(&entry.path()).is_ok();
+                                    #[cfg(not(windows))]
+                                    let is_removed = false;
+
+                                    if !is_removed
+                                        && let Err(err) = std::fs::remove_dir_all(entry.path())
+                                        && err.kind() != std::io::ErrorKind::NotFound
+                                    {
+                                        return Err(InstallError::RemoveModulesDir(err));
+                                    }
+                                } else if let Err(err) = std::fs::remove_file(entry.path())
+                                    && err.kind() != std::io::ErrorKind::NotFound
+                                {
+                                    return Err(InstallError::RemoveModulesDir(err));
+                                }
+                            }
+                        }
+                        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+                        Err(err) => return Err(InstallError::RemoveModulesDir(err)),
+                    }
+                }
+            } else {
+                tracing::warn!(
+                    ?config.modules_dir,
+                    "refusing to remove inconsistent modules directory outside the project root",
+                );
+            }
+        }
+
         if take_frozen_path
             && let Some(wanted_lockfile) = lockfile
             && let Some(current) = current_lockfile.as_ref()
@@ -1047,6 +1188,9 @@ where
             // build must rebuild it, even though the lockfile and layout are
             // unchanged. Mirrors pnpm's `runUnignoredDependencyBuilds`.
             && !has_newly_allowed_ignored_builds(modules, config)
+            // An explicit `pacquet rebuild` always re-runs the build phase,
+            // so it never short-circuits here.
+            && rebuild.is_none()
         {
             // Nothing to materialize means no fetch to overlap; verify
             // eagerly before the up-to-date early return.
@@ -1149,6 +1293,8 @@ where
                 skip_runtimes,
                 node_linker,
                 tarball_mem_cache: Some(&tarball_mem_cache),
+                seed_skipped: modules_manifest.map(|manifest| manifest.skipped.clone()),
+                rebuild: rebuild.as_ref(),
             }
             .run::<Reporter>()
             .await
@@ -1360,13 +1506,7 @@ where
         // A genuine read/parse failure (not `NotFound`) is treated as
         // "no prior manifest" — the safe direction (prune + fresh
         // `prunedAt`) — but logged rather than silently swallowed.
-        let prior_modules = match read_modules_manifest::<Host>(&config.modules_dir) {
-            Ok(modules) => modules,
-            Err(error) => {
-                tracing::warn!(?error, "failed to read .modules.yaml; treating as a fresh install");
-                None
-            }
-        };
+        let prior_modules = modules_manifest;
         let now = SystemTime::now();
         let effective_virtual_store_dir = config.effective_virtual_store_dir();
         // Decide "this is the global store" from the resolved paths, not
@@ -1458,7 +1598,7 @@ where
         )
         .map_err(InstallError::WriteModules)?;
 
-        let filtered_current_lockfile = if frozen_lockfile {
+        let filtered_current_lockfile = if take_frozen_path {
             lockfile.map(|lockfile| {
                 crate::filter_lockfile_for_current(lockfile, included, &frozen_skipped)
             })
@@ -1483,7 +1623,7 @@ where
         // <https://github.com/pnpm/pacquet/issues/299>), this needs to narrow to the filtered lockfile
         // (selected importers × engine filter) so the saved current
         // lockfile reflects only what was actually materialized.
-        if frozen_lockfile && let Some(lockfile) = filtered_current_lockfile.as_ref() {
+        if take_frozen_path && let Some(lockfile) = filtered_current_lockfile.as_ref() {
             // Filter the wanted lockfile down to the snapshots that
             // were actually materialized: dep maps the user excluded
             // (`--no-optional`, `--no-dev`) plus snapshots the
@@ -1838,12 +1978,9 @@ fn map_node_linker(linker: NodeLinker) -> ModulesNodeLinker {
 /// unapproved-ignored checks.
 ///
 /// Mirrors the settings checks in upstream's
-/// [`validateModules`](https://github.com/pnpm/pnpm/blob/a456dc78fb/installing/deps-installer/src/install/validateModules.ts)
-/// minus the prune side effects: a settings mismatch in pnpm forces a
-/// rewrite of `node_modules`, but pacquet's caller falls through to the
-/// regular install path, which rebuilds the layout from scratch anyway.
+/// [`validateModules`](https://github.com/pnpm/pnpm/blob/a456dc78fb/installing/deps-installer/src/install/validateModules.ts).
 fn modules_consistent_with(
-    modules: &Modules,
+    modules: &pacquet_modules_yaml::ModulesLayout,
     config: &Config,
     node_linker: NodeLinker,
     included: IncludedDependencies,
@@ -1870,7 +2007,10 @@ fn modules_consistent_with(
 /// result by letting the full frozen install run, whose `BuildModules`
 /// re-evaluates the policy and rebuilds the now-allowed package (already
 /// built deps are skipped by the side-effects-cache `is_built` gate).
-fn has_newly_allowed_ignored_builds(modules: &Modules, config: &Config) -> bool {
+fn has_newly_allowed_ignored_builds(
+    modules: &pacquet_modules_yaml::ModulesLayout,
+    config: &Config,
+) -> bool {
     let Some(ignored) = modules.ignored_builds.as_ref().filter(|set| !set.is_empty()) else {
         return false;
     };
@@ -1901,7 +2041,7 @@ fn has_newly_allowed_ignored_builds(modules: &Modules, config: &Config) -> bool 
 /// fast-path callers fall through to the full install on `Err`, which
 /// re-evaluates the policy and reports the real error.
 fn unapproved_recorded_ignored_builds(
-    modules: &Modules,
+    modules: &pacquet_modules_yaml::ModulesLayout,
     config: &Config,
 ) -> Result<Option<Vec<String>>, pacquet_config::version_policy::VersionPolicyError> {
     let Some(ignored) = modules.ignored_builds.as_ref().filter(|set| !set.is_empty()) else {
@@ -2144,7 +2284,7 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<P
         optional_dependencies: dependency_groups.contains(&DependencyGroup::Optional),
     };
     let manifest_dir = manifest.path().parent()?;
-    let workspace_dir_opt = pacquet_workspace::find_workspace_dir(manifest_dir).ok()?;
+    let workspace_dir_opt = configured_or_discovered_workspace_dir(config, manifest_dir).ok()?;
     let workspace_root = workspace_dir_opt.clone().unwrap_or_else(|| manifest_dir.to_path_buf());
     let workspace_manifest = match workspace_dir_opt.as_deref() {
         Some(dir) => pacquet_workspace::read_workspace_manifest(dir).ok()?,
@@ -2174,7 +2314,7 @@ pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<P
     // is treated conservatively the same way (its `Err` can't prove the
     // absence of recorded ignored builds).
     if config.strict_dep_builds {
-        match read_modules_manifest::<Host>(&config.modules_dir) {
+        match pacquet_modules_yaml::read_modules_layout::<Host>(&config.modules_dir) {
             Ok(Some(modules)) => match unapproved_recorded_ignored_builds(&modules, config) {
                 Ok(Some(_)) => return None,
                 Ok(None) => {}
@@ -2214,6 +2354,16 @@ fn build_project_manifests_list<'a>(
         }
     }
     list
+}
+
+fn configured_or_discovered_workspace_dir(
+    config: &Config,
+    manifest_dir: &Path,
+) -> Result<Option<PathBuf>, pacquet_workspace::FindWorkspaceDirError> {
+    match config.workspace_dir.clone() {
+        Some(workspace_dir) => Ok(Some(workspace_dir)),
+        None => pacquet_workspace::find_workspace_dir(manifest_dir),
+    }
 }
 
 /// Build the `name → version → WorkspacePackage` lookup the npm

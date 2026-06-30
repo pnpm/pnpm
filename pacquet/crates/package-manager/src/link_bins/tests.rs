@@ -144,7 +144,7 @@ fn link_virtual_store_bins_no_op_when_dir_missing() {
 /// Slot whose name has a `+` (scope separator) resolves to
 /// `node_modules/<scope>/<name>`. Pins [`super::find_slot_own_package_dir`]'s
 /// scoped branch. The un-scoped branch is exercised by the existing
-/// `writes_child_bins_into_slot_own_package_node_modules` test.
+/// [`writes_child_bins_into_slot_own_package_node_modules`] test.
 #[test]
 fn link_virtual_store_bins_handles_scoped_slot_name() {
     let tmp = tempdir().unwrap();

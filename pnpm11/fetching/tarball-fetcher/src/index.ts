@@ -60,6 +60,10 @@ export function createTarballFetcher (
     offline: opts.offline,
     storeIndex: opts.storeIndex,
   }) as FetchFunction
+  // Missing integrity is the only remote-tarball case that must fetch before store reuse.
+  remoteTarballFetcher.resolutionNeedsFetch = (resolution) => {
+    return getExpectedIntegrity(resolution) == null
+  }
 
   return {
     localTarball: createLocalTarballFetcher(opts.storeIndex),
@@ -91,7 +95,7 @@ async function fetchFromTarball (
     getAuthHeaderByURI: ctx.getAuthHeaderByURI,
     cafs,
     storeIndex: ctx.storeIndex,
-    integrity: resolution.integrity,
+    integrity: getExpectedIntegrity(resolution),
     readManifest: opts.readManifest,
     onProgress: opts.onProgress,
     onStart: opts.onStart,
@@ -101,4 +105,11 @@ async function fetchFromTarball (
     appendManifest: opts.appendManifest,
     ignoreFilePattern: opts.ignoreFilePattern,
   })
+}
+
+function getExpectedIntegrity (resolution: unknown): string | undefined {
+  const integrity = (resolution as { integrity?: unknown }).integrity
+  return typeof integrity === 'string' && integrity.length > 0
+    ? integrity
+    : undefined
 }

@@ -1,10 +1,10 @@
 //! Proxy configuration types and helpers consumed by
 //! [`crate::ThrottledClient::for_installs`].
 //!
-//! `ProxyConfig` holds the resolved `(https_proxy, http_proxy, no_proxy)`
+//! [`ProxyConfig`] holds the resolved `(https_proxy, http_proxy, no_proxy)`
 //! triple — typically built by `pacquet-config` from the `.npmrc` keys
 //! `https-proxy`, `http-proxy`, `proxy` (legacy), `no-proxy` and
-//! `noproxy`, plus the env-var fallback cascade. `NoProxyMatcher` and
+//! `noproxy`, plus the env-var fallback cascade. [`NoProxyMatcher`] and
 //! the URL helpers are private to the crate; they're invoked from the
 //! client constructor.
 //!

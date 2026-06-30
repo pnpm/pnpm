@@ -3,6 +3,7 @@ import {
   createPackageVersionPolicy,
   createPackageVersionPolicyOrThrow,
   getPublishedByPolicy,
+  mergePackageVersionSpecs,
 } from '@pnpm/config.version-policy'
 
 test('createPackageVersionPolicy()', () => {
@@ -136,4 +137,51 @@ test('getPublishedByPolicy() rewraps invalid exclude patterns as ERR_PNPM_INVALI
     minimumReleaseAge: 24 * 60,
     minimumReleaseAgeExclude: ['pnpm@^9.0.0'],
   })).toThrow(expect.objectContaining({ code: 'ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE_EXCLUDE' }))
+})
+
+test('mergePackageVersionSpecs() combines versions of the same package into one sorted entry', () => {
+  expect(mergePackageVersionSpecs([
+    'axios@0.21.2',
+    'axios@0.18.1',
+    'axios@0.21.1',
+  ])).toEqual(['axios@0.18.1 || 0.21.1 || 0.21.2'])
+})
+
+test('mergePackageVersionSpecs() merges separate entries and union entries for the same package', () => {
+  expect(mergePackageVersionSpecs([
+    'axios@0.18.1 || 0.21.1',
+    'axios@0.21.2',
+  ])).toEqual(['axios@0.18.1 || 0.21.1 || 0.21.2'])
+})
+
+test('mergePackageVersionSpecs() deduplicates repeated versions', () => {
+  expect(mergePackageVersionSpecs([
+    'axios@0.18.1',
+    'axios@0.18.1',
+  ])).toEqual(['axios@0.18.1'])
+})
+
+test('mergePackageVersionSpecs() keeps different packages as separate first-seen entries', () => {
+  expect(mergePackageVersionSpecs([
+    'lodash@4.17.21',
+    'axios@0.18.1',
+  ])).toEqual(['lodash@4.17.21', 'axios@0.18.1'])
+})
+
+test('mergePackageVersionSpecs() handles scoped packages', () => {
+  expect(mergePackageVersionSpecs([
+    '@scope/pkg@1.0.0',
+    '@scope/pkg@2.0.0',
+  ])).toEqual(['@scope/pkg@1.0.0 || 2.0.0'])
+})
+
+test('mergePackageVersionSpecs() lets a bare package name absorb version-specific entries', () => {
+  expect(mergePackageVersionSpecs([
+    'axios@1.0.0',
+    'axios',
+  ])).toEqual(['axios'])
+  expect(mergePackageVersionSpecs([
+    'is-*',
+    'is-odd@1.0.0',
+  ])).toEqual(['is-*', 'is-odd@1.0.0'])
 })

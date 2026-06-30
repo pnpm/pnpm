@@ -75,7 +75,12 @@ pub(crate) struct PublishedAtLookupContext {
     pub published_at: SingleflightMap<Result<Option<String>, String>>,
     pub full_meta: SingleflightMap<Result<Option<Arc<PublishedAtTimeMap>>, String>>,
     pub full_meta_for_trust: SingleflightMap<Result<Arc<Package>, String>>,
-    pub abbreviated_meta: SingleflightMap<Option<AbbreviatedMetaProjection>>,
+    /// `Ok(projection)` on a successful fetch, `Err(reason)` on a fetch
+    /// failure (auth/network/5xx). The error is carried as a value rather than
+    /// discarded so the tarball-URL check can tell a transport failure apart
+    /// from a version genuinely absent from the metadata; the age shortcut
+    /// ignores it and falls back to per-version lookups.
+    pub abbreviated_meta: SingleflightMap<Result<AbbreviatedMetaProjection, String>>,
     pub local_meta: SingleflightMap<Option<Arc<PublishedAtTimeMap>>>,
 }
 

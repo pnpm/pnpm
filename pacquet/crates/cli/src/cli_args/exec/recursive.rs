@@ -1,31 +1,27 @@
-//! Recursive `pacquet exec` — run a command in every project of the
-//! workspace, in topological order.
+//! Recursive `pacquet exec` — run a command across the `--filter`-selected
+//! workspace projects, in topological order.
 //!
 //! Port of the recursive path of pnpm's
 //! [`exec`](https://github.com/pnpm/pnpm/blob/8eb1be4988/exec/commands/src/exec.ts)
 //! handler, reusing the shared graph / summary machinery in
 //! [`crate::cli_args::recursive`].
 //!
-//! Scope versus upstream: projects are sorted topologically (upstream's
-//! default) and run sequentially. `--filter` narrowing of the selected
-//! set and `--workspace-concurrency` parallelism are not ported yet — the
-//! selected set is every workspace project, matching the recursive `run`
-//! runner.
+//! Scope versus upstream: `config.filter` / `config.filter_prod`
+//! (`--filter` / `--filter-prod`, include and exclude selectors) narrow
+//! the selected set via [`select_recursive_projects`]; the selection is
+//! then sorted topologically (upstream's default) and run sequentially.
+//! `--workspace-concurrency` parallelism is not ported yet, matching the
+//! recursive `run` runner.
 
 use super::{ExecArgs, prepare_command, spawn_in_dir};
 use crate::cli_args::recursive::{
-    ExecutionStatus, GraphPkg, Status, count_failures, get_resumed_package_chunks, sort_projects,
-    write_recursive_summary,
+    AutoExcludeRoot, ExecutionStatus, Status, count_failures, discover_workspace_projects,
+    get_resumed_package_chunks, select_recursive_projects, sort_projects, write_recursive_summary,
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
-use miette::{Context, Diagnostic, IntoDiagnostic};
+use miette::Diagnostic;
 use pacquet_config::Config;
-use pacquet_workspace::{
-    FindWorkspaceProjectsOpts, find_workspace_projects, read_workspace_manifest,
-    workspace_package_patterns,
-};
-use pacquet_workspace_projects_graph::{CreateProjectsGraphOptions, create_projects_graph};
 use std::{
     path::{Path, PathBuf},
     time::Instant,
@@ -56,8 +52,8 @@ pub enum RecursiveExecError {
     },
 }
 
-/// Run `args.command` across every workspace project, sorted
-/// topologically. `dir` is the canonicalized working directory; the
+/// Run `args.command` across the `--filter`-selected workspace projects,
+/// sorted topologically. `dir` is the canonicalized working directory; the
 /// workspace root (and the directory the summary is written to) is
 /// `config.workspace_dir`, falling back to `dir` when no
 /// `pnpm-workspace.yaml` exists.
@@ -65,20 +61,24 @@ pub fn exec_recursive(args: &ExecArgs, config: &Config, dir: &Path) -> miette::R
     let command = prepare_command(args.command.clone())?;
     let workspace_root = config.workspace_dir.as_deref().unwrap_or(dir);
 
-    let patterns = read_workspace_manifest(workspace_root)
-        .into_diagnostic()
-        .wrap_err("reading pnpm-workspace.yaml")?
-        .map(|manifest| workspace_package_patterns(&manifest));
-    let projects = find_workspace_projects(workspace_root, &FindWorkspaceProjectsOpts { patterns })
-        .wrap_err("finding workspace projects")?;
-    // pnpm throws `RECURSIVE_EXEC_NO_PACKAGE` when the selected set is
-    // empty (exec.ts:207-209).
+    let (projects, patterns) = discover_workspace_projects(workspace_root)?;
+    // Empty workspace errors; an empty `--filter` selection (below) is a
+    // no-op — so this guard is on the discovered set, not the filtered.
     if projects.is_empty() {
         return Err(RecursiveExecError::NoPackage.into());
     }
 
-    let adapters = projects.iter().map(|project| GraphPkg { project }).collect();
-    let graph = create_projects_graph(adapters, &CreateProjectsGraphOptions::default()).graph;
+    let graph = select_recursive_projects(
+        &projects,
+        config,
+        dir,
+        AutoExcludeRoot::Enabled { workspace_patterns: patterns.as_deref() },
+    )?;
+    // An empty `--filter` selection is a no-op, matching pnpm's exit-0 for
+    // an empty selectedProjectsGraph.
+    if graph.is_empty() {
+        return Ok(());
+    }
 
     let mut chunks = sort_projects(&graph);
     if let Some(resume_from) = &args.resume_from {

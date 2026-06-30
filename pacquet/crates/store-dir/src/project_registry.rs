@@ -357,7 +357,7 @@ fn is_enoent_or_einval(error: &io::Error) -> bool {
 /// Port of npm `is-subdir` (upstream's `isSubdir(parent, child)`):
 /// returns `true` when `inner` is `outer` itself or any descendant of
 /// it. Named `path_contains(outer, inner)` because the bare `isSubdir`
-/// name reads ambiguously at the call site — `path_contains` reads
+/// name reads ambiguously at the call site — [`path_contains`] reads
 /// unambiguously as "does `outer` contain `inner`".
 ///
 /// Both paths are compared by their canonical (resolved) form so

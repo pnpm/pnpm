@@ -300,6 +300,120 @@ test('createNpmResolutionVerifier() skips file: tarball resolutions', async () =
   expect(result).toEqual({ ok: true })
 })
 
+const REGISTRY_TARBALL = 'https://registry.npmjs.org/foo/-/foo-1.0.0.tgz'
+
+test('createNpmResolutionVerifier() rejects a registry tarball with no integrity', async () => {
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts())
+  const result = await verifier.verify(
+    { tarball: REGISTRY_TARBALL } as unknown as Resolution,
+    { name: 'foo', version: '1.0.0' }
+  )
+  expect(result).toMatchObject({ ok: false, code: 'MISSING_TARBALL_INTEGRITY' })
+})
+
+test('createNpmResolutionVerifier() rejects a canonical registry entry stripped down to {}', async () => {
+  // A tampered lockfile can delete both the tarball URL and integrity from a canonical
+  // registry entry; the URL is reconstructed from name+version, so it must still be rejected.
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts())
+  const result = await verifier.verify({} as unknown as Resolution, { name: 'foo', version: '1.0.0' })
+  expect(result).toMatchObject({ ok: false, code: 'MISSING_TARBALL_INTEGRITY' })
+})
+
+test('createNpmResolutionVerifier() treats an empty-string integrity as missing', async () => {
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts())
+  const result = await verifier.verify(
+    { integrity: '', tarball: REGISTRY_TARBALL } as unknown as Resolution,
+    { name: 'foo', version: '1.0.0' }
+  )
+  expect(result).toMatchObject({ ok: false, code: 'MISSING_TARBALL_INTEGRITY' })
+})
+
+test('createNpmResolutionVerifier() treats a non-string integrity as missing', async () => {
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts())
+  for (const integrity of [true, [], {}] as unknown[]) {
+    // eslint-disable-next-line no-await-in-loop
+    const result = await verifier.verify(
+      { integrity, tarball: REGISTRY_TARBALL } as unknown as Resolution,
+      { name: 'foo', version: '1.0.0' }
+    )
+    expect(result).toMatchObject({ ok: false, code: 'MISSING_TARBALL_INTEGRITY' })
+  }
+})
+
+test('createNpmResolutionVerifier() enforces missing integrity even with a non-semver version', async () => {
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts())
+  const result = await verifier.verify(
+    { tarball: REGISTRY_TARBALL } as unknown as Resolution,
+    { name: 'foo', version: 'not-a-semver' }
+  )
+  expect(result).toMatchObject({ ok: false, code: 'MISSING_TARBALL_INTEGRITY' })
+})
+
+test('createNpmResolutionVerifier() exempts a git-hosted tarball URL recorded without the gitHosted flag', async () => {
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts())
+  const result = await verifier.verify(
+    { tarball: 'https://codeload.github.com/kevva/is-negative/tar.gz/0123456789abcdef0123456789abcdef01234567' } as unknown as Resolution,
+    { name: 'is-negative', version: '1.0.0', nonSemverVersion: 'https+++github.com+kevva+is-negative' }
+  )
+  expect(result).toStrictEqual({ ok: true })
+})
+
+test('createNpmResolutionVerifier() rejects git-host archive URLs that are not pinned to a commit', async () => {
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts())
+  const result = await verifier.verify(
+    { tarball: 'https://codeload.github.com/kevva/is-negative/tar.gz/main' } as unknown as Resolution,
+    { name: 'is-negative', version: '1.0.0', nonSemverVersion: 'https+++github.com+kevva+is-negative' }
+  )
+  expect(result).toMatchObject({ ok: false, code: 'MISSING_TARBALL_INTEGRITY' })
+})
+
+test('createNpmResolutionVerifier() rejects a forged gitHosted flag on a non-git-hosted tarball', async () => {
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts())
+  const result = await verifier.verify(
+    { gitHosted: true, tarball: 'https://attacker.example/evil-1.0.0.tgz' } as unknown as Resolution,
+    { name: 'evil', version: '1.0.0', nonSemverVersion: 'https+++attacker.example+evil' }
+  )
+  expect(result).toMatchObject({ ok: false, code: 'MISSING_TARBALL_INTEGRITY' })
+})
+
+test('createNpmResolutionVerifier() enforces missing integrity on a URL-keyed (nonSemverVersion) tarball', async () => {
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts())
+  const result = await verifier.verify(
+    { tarball: 'https://cdn.example/foo/-/foo-1.0.0.tgz' } as unknown as Resolution,
+    { name: 'foo', version: '1.0.0', nonSemverVersion: 'https://cdn.example/foo/-/foo-1.0.0.tgz' }
+  )
+  expect(result).toMatchObject({ ok: false, code: 'MISSING_TARBALL_INTEGRITY' })
+})
+
+test('createNpmResolutionVerifier() passes a URL-keyed tarball that carries integrity without a registry lookup', async () => {
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts())
+  const result = await verifier.verify(
+    { integrity: FAKE_INTEGRITY, tarball: 'https://cdn.example/foo/-/foo-1.0.0.tgz' } as unknown as Resolution,
+    { name: 'foo', version: '1.0.0', nonSemverVersion: 'https://cdn.example/foo/-/foo-1.0.0.tgz' }
+  )
+  expect(result).toStrictEqual({ ok: true })
+})
+
+test('createNpmResolutionVerifier() fails closed on a non-semver version for a registry tarball', async () => {
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts())
+  const result = await verifier.verify(
+    { integrity: FAKE_INTEGRITY, tarball: REGISTRY_TARBALL } as unknown as Resolution,
+    { name: 'foo', version: 'not-a-semver' }
+  )
+  expect(result).toMatchObject({ ok: false, code: 'TARBALL_URL_MISMATCH' })
+})
+
+test('createNpmResolutionVerifier() rejects a non-string tarball instead of crashing', async () => {
+  // A YAML array `tarball` would otherwise be string-coerced into an attacker URL later;
+  // the verifier fails closed rather than silently skipping the URL-binding check.
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts())
+  const result = await verifier.verify(
+    { integrity: FAKE_INTEGRITY, tarball: ['https://attacker.example/foo-1.0.0.tgz'] } as unknown as Resolution,
+    { name: 'foo', version: '1.0.0' }
+  )
+  expect(result).toMatchObject({ ok: false, code: 'TARBALL_URL_MISMATCH' })
+})
+
 const FAKE_INTEGRITY = 'sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=='
 
 test('createNpmResolutionVerifier() flags a lockfile tarball URL that does not match the registry metadata', async () => {
@@ -431,6 +545,7 @@ test('createNpmResolutionVerifier() canTrustPastCheck rejects when the trust-exc
   // Same policy → trust.
   expect(verifier.canTrustPastCheck({
     tarballUrlBinding: true,
+    integrityRequired: true,
     minimumReleaseAge: 0,
     minimumReleaseAgeExclude: [],
     trustPolicy: 'no-downgrade',
@@ -440,10 +555,55 @@ test('createNpmResolutionVerifier() canTrustPastCheck rejects when the trust-exc
   // Cached run had a wider exclude list (today's is stricter) → invalidate.
   expect(verifier.canTrustPastCheck({
     tarballUrlBinding: true,
+    integrityRequired: true,
     minimumReleaseAge: 0,
     minimumReleaseAgeExclude: [],
     trustPolicy: 'no-downgrade',
     trustPolicyExclude: ['foo', 'bar'],
     trustPolicyIgnoreAfter: null,
   })).toBe(false)
+})
+
+test('createNpmResolutionVerifier() propagates the registry fetch error instead of reporting a tampering-style mismatch', async () => {
+  // A 403 on the metadata fetch (e.g. a CI token that is authenticated but not
+  // authorized to read a private package) must not be reported as a lockfile
+  // tarball-URL mismatch: the lockfile is correct, the fetch is the problem.
+  // The verifier rethrows the registry's own error so the install aborts with
+  // ERR_PNPM_FETCH_403 (which already explains the auth situation).
+  const pool = getMockAgent().get('https://registry.npmjs.org')
+  pool.intercept({ path: '/private-pkg', method: 'GET' }).reply(403, { error: 'Forbidden' }).persist()
+
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts())
+  await expect(verifier.verify(
+    makeTarballResolution('private-pkg', '1.0.0'),
+    { name: 'private-pkg', version: '1.0.0' }
+  )).rejects.toMatchObject({ code: 'ERR_PNPM_FETCH_403' })
+})
+
+test('createNpmResolutionVerifier() still flags a version absent from fetched metadata as TARBALL_URL_MISMATCH', async () => {
+  // The metadata fetch succeeds but does not list the pinned version. That is a
+  // genuine verification failure (not a transport error), so it must stay
+  // TARBALL_URL_MISMATCH — distinct from the new TARBALL_URL_FETCH_FAILED.
+  const meta = {
+    name: 'present-pkg',
+    'dist-tags': { latest: '1.0.0' },
+    versions: {
+      '1.0.0': {
+        name: 'present-pkg',
+        version: '1.0.0',
+        dist: { tarball: 'https://registry.npmjs.org/present-pkg/-/present-pkg-1.0.0.tgz', shasum: 'aa' },
+      },
+    },
+    modified: '2020-01-01T00:00:00.000Z',
+  }
+  const pool = getMockAgent().get('https://registry.npmjs.org')
+  pool.intercept({ path: '/present-pkg', method: 'GET' }).reply(200, meta).persist()
+
+  const verifier = createNpmResolutionVerifier(makeVerifierOpts())
+  const result = await verifier.verify(
+    makeTarballResolution('present-pkg', '2.0.0'),
+    { name: 'present-pkg', version: '2.0.0' }
+  )
+
+  expect(result).toMatchObject({ ok: false, code: 'TARBALL_URL_MISMATCH' })
 })

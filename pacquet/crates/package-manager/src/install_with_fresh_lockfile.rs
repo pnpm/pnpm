@@ -489,6 +489,11 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // The pnpr override when supplied, else the config's npmrc headers;
         // shared by every registry-touching resolver below.
         let auth_headers = auth_override.unwrap_or_else(|| Arc::clone(&config.auth_headers));
+        let package_version_guard =
+            resolution_observer.as_ref().and_then(|observer| observer.package_version_guard());
+        let minimum_release_age_exclude_override = resolution_observer
+            .as_ref()
+            .and_then(|observer| observer.minimum_release_age_exclude_override());
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
         // Materialise the caller's iterator into a `Vec` so the same
         // group set can be replayed into both the resolver (consumes
@@ -550,8 +555,11 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             full_metadata,
             published_by,
             published_by_exclude,
-        } = crate::resolution_policy::PickPolicy::from_config(config)
-            .map_err(InstallWithFreshLockfileError::MinimumReleaseAgeExclude)?;
+        } = crate::resolution_policy::PickPolicy::from_config_with_extra_excludes(
+            config,
+            minimum_release_age_exclude_override.as_deref(),
+        )
+        .map_err(InstallWithFreshLockfileError::MinimumReleaseAgeExclude)?;
 
         // One per-cache-key packument fetch serializer shared between
         // the npm and named-registry resolvers. Ports upstream's
@@ -1160,6 +1168,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                         trust_policy,
                         trust_policy_exclude: trust_policy_exclude.clone(),
                         trust_policy_ignore_after: config.trust_policy_ignore_after,
+                        package_version_guard: package_version_guard.clone(),
                         project_dir,
                         lockfile_dir: lockfile_dir.to_path_buf(),
                         workspace_packages: workspace_packages.clone(),
@@ -1873,6 +1882,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 is_hoisted,
                 publicly_hoisted_for_post_build: &publicly_hoisted_for_post_build,
                 logged_methods,
+                // The fresh-resolve path never serves an explicit
+                // `pacquet rebuild`; rebuilds always take the frozen path.
+                rebuild: None,
             },
         )
         .map_err(InstallWithFreshLockfileError::BuildPhase)?;

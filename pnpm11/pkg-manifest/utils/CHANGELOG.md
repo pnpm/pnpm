@@ -1,5 +1,13 @@
 # @pnpm/manifest-utils
 
+## 1100.2.6
+
+### Patch Changes
+
+- 0ec878d: Removing a runtime dependency now removes the matching `devEngines.runtime` or `engines.runtime` entry that was materialized from it. Blank runtime selectors are normalized to `latest`.
+- Updated dependencies [852d537]
+  - @pnpm/error@1100.0.1
+
 ## 1100.2.5
 
 ### Patch Changes

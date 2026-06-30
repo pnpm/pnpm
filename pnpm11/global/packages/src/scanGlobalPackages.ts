@@ -6,6 +6,42 @@ import { getBinsFromPackageManifest } from '@pnpm/bins.resolver'
 import { readPackageJsonFromDirRawSync, safeReadPackageJsonFromDir } from '@pnpm/pkg-manifest.reader'
 import type { PackageManifest } from '@pnpm/types'
 
+const RESERVED_ALIASES = new Set(['node_modules', 'favicon.ico'])
+
+const isUrlFriendly = (segment: string): boolean => encodeURIComponent(segment) === segment
+
+// A dependency alias from a global group's package.json becomes a directory
+// name under `node_modules` at every join site (list, conflict-check,
+// remove, update). A tampered manifest could use an alias like `../x` or an
+// absolute path to escape the install dir, so only valid npm package names
+// are trusted. This applies the same `validForOldPackages` rules that
+// `validate-npm-package-name` (and `@pnpm/fs.symlink-dependency`'s
+// `safeJoinModulesDir`) enforce — implemented inline to avoid adding a
+// dependency to this low-level package.
+export function isValidGlobalDependencyAlias (alias: string): boolean {
+  if (alias.length === 0) return false
+  if (/^[._-]/.test(alias)) return false
+  if (alias.trim() !== alias) return false
+  if (RESERVED_ALIASES.has(alias.toLowerCase())) return false
+  if (isUrlFriendly(alias)) return true
+  const scoped = /^@([^/]+)\/([^/]+)$/.exec(alias)
+  if (scoped) {
+    const [, scope, name] = scoped
+    return !name.startsWith('.') && isUrlFriendly(scope) && isUrlFriendly(name)
+  }
+  return false
+}
+
+function pickValidDependencies (dependencies: Record<string, string>): Record<string, string> {
+  const result: Record<string, string> = {}
+  for (const [alias, spec] of Object.entries(dependencies)) {
+    if (isValidGlobalDependencyAlias(alias)) {
+      result[alias] = spec
+    }
+  }
+  return result
+}
+
 export interface GlobalPackageInfo {
   hash: string
   installDir: string
@@ -45,11 +81,13 @@ export function scanGlobalPackages (globalDir: string): GlobalPackageInfo[] {
     } catch {
       continue
     }
-    if (!pkgJson.dependencies || Object.keys(pkgJson.dependencies).length === 0) continue
+    if (!pkgJson.dependencies) continue
+    const dependencies = pickValidDependencies(pkgJson.dependencies)
+    if (Object.keys(dependencies).length === 0) continue
     result.push({
       hash: entry.name,
       installDir,
-      dependencies: pkgJson.dependencies,
+      dependencies,
     })
   }
   return result

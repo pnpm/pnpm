@@ -749,6 +749,7 @@ fn final_graph_keeps_first_equal_depth_payload_and_unions_transitive_peers() {
         NodeRecord {
             edges: BTreeMap::from([("peer".to_string(), second_child)]),
             peer_edges: HashSet::new(),
+            optional_child_aliases: HashSet::new(),
             transitive_peer_dependencies: HashSet::from(["debug".to_string()]),
             depth: 1,
             installable: true,
@@ -761,6 +762,7 @@ fn final_graph_keeps_first_equal_depth_payload_and_unions_transitive_peers() {
         NodeRecord {
             edges: BTreeMap::from([("peer".to_string(), first_child)]),
             peer_edges: HashSet::new(),
+            optional_child_aliases: HashSet::new(),
             transitive_peer_dependencies: HashSet::new(),
             depth: 1,
             installable: true,
@@ -816,6 +818,7 @@ fn final_graph_duplicate_parent_prefers_child_variant_matching_parent_peers() {
         NodeRecord {
             edges: BTreeMap::from([("webpack-cli".to_string(), first_child.clone())]),
             peer_edges: HashSet::new(),
+            optional_child_aliases: HashSet::new(),
             transitive_peer_dependencies: HashSet::new(),
             depth: 1,
             installable: true,
@@ -828,6 +831,7 @@ fn final_graph_duplicate_parent_prefers_child_variant_matching_parent_peers() {
         NodeRecord {
             edges: BTreeMap::from([("webpack-cli".to_string(), second_child.clone())]),
             peer_edges: HashSet::new(),
+            optional_child_aliases: HashSet::new(),
             transitive_peer_dependencies: HashSet::new(),
             depth: 1,
             installable: true,
@@ -909,6 +913,7 @@ fn final_graph_peer_edge_uses_provider_variant_without_unavailable_extra_peers()
         NodeRecord {
             edges: BTreeMap::new(),
             peer_edges: HashSet::new(),
+            optional_child_aliases: HashSet::new(),
             transitive_peer_dependencies: HashSet::new(),
             depth: 0,
             installable: true,
@@ -921,6 +926,7 @@ fn final_graph_peer_edge_uses_provider_variant_without_unavailable_extra_peers()
         NodeRecord {
             edges: BTreeMap::new(),
             peer_edges: HashSet::new(),
+            optional_child_aliases: HashSet::new(),
             transitive_peer_dependencies: HashSet::new(),
             depth: 0,
             installable: true,
@@ -933,6 +939,7 @@ fn final_graph_peer_edge_uses_provider_variant_without_unavailable_extra_peers()
         NodeRecord {
             edges: BTreeMap::from([("webpack-cli".to_string(), provider_analyzer.clone())]),
             peer_edges: HashSet::from(["webpack-dev-server".to_string(), "webpack".to_string()]),
+            optional_child_aliases: HashSet::new(),
             transitive_peer_dependencies: HashSet::new(),
             depth: 1,
             installable: true,
@@ -1037,6 +1044,7 @@ fn final_graph_peer_edge_keeps_provider_transitive_peer_suffixes() {
         NodeRecord {
             edges: BTreeMap::new(),
             peer_edges: HashSet::new(),
+            optional_child_aliases: HashSet::new(),
             transitive_peer_dependencies: HashSet::from([
                 "bufferutil".to_string(),
                 "tslib".to_string(),
@@ -1057,6 +1065,7 @@ fn final_graph_peer_edge_keeps_provider_transitive_peer_suffixes() {
                 "webpack-bundle-analyzer".to_string(),
                 "webpack-dev-server".to_string(),
             ]),
+            optional_child_aliases: HashSet::new(),
             transitive_peer_dependencies: HashSet::new(),
             depth: 0,
             installable: true,
@@ -1093,6 +1102,105 @@ fn final_graph_peer_edge_keeps_provider_transitive_peer_suffixes() {
         Some(&provider_dep_path),
     );
     assert!(!graph.contains_key(&trimmed_provider_dep_path));
+}
+
+// Parity check for <https://github.com/pnpm/pnpm/pull/12514>.
+//
+// A shared package (`styled-jsx`) declaring an *optional* peer (`@babel/core`)
+// is reached through two occurrences at different depths: a shallow one whose
+// parent provides `@babel/core`, and a deeper one whose ancestors do not. The
+// shallow occurrence resolves the optional peer into its suffix; the deeper one
+// must not inherit it. The deeper occurrence's suffix must be a function of
+// graph structure alone, so each iteration resolves a freshly built tree
+// (fresh `HashMap`s, whose iteration order varies per process) to catch any
+// hashing order leaking into the result.
+#[test]
+fn shared_package_optional_transitive_peer_resolves_deterministically() {
+    fn build_tree() -> ResolvedTree {
+        let babel = NodeId::leaf("@babel/core@7.0.0");
+        let styled_shallow = NodeId::next();
+        let styled_deep = NodeId::next();
+        let app = NodeId::next();
+        let mid = NodeId::next();
+
+        let mut app_children = BTreeMap::new();
+        app_children.insert("styled-jsx".to_string(), styled_shallow.clone());
+        app_children.insert("@babel/core".to_string(), babel.clone());
+
+        let mut mid_children = BTreeMap::new();
+        mid_children.insert("styled-jsx".to_string(), styled_deep.clone());
+
+        ResolvedTree {
+            direct: vec![
+                DirectDep {
+                    alias: "app".to_string(),
+                    node_id: app.clone(),
+                    id: "app@1.0.0".to_string(),
+                },
+                DirectDep {
+                    alias: "mid".to_string(),
+                    node_id: mid.clone(),
+                    id: "mid@1.0.0".to_string(),
+                },
+            ],
+            packages: HashMap::from([
+                ("@babel/core@7.0.0".to_string(), package("@babel/core", "7.0.0", &[], true)),
+                (
+                    "styled-jsx@1.0.0".to_string(),
+                    package_with_peer_dependencies(
+                        "styled-jsx",
+                        "1.0.0",
+                        &[("@babel/core", "*", true)],
+                        false,
+                    ),
+                ),
+                ("app@1.0.0".to_string(), package("app", "1.0.0", &[], false)),
+                ("mid@1.0.0".to_string(), package("mid", "1.0.0", &[], false)),
+            ]),
+            dependencies_tree: HashMap::from([
+                (babel, tree_node("@babel/core@7.0.0", BTreeMap::new(), 1)),
+                (styled_shallow, tree_node("styled-jsx@1.0.0", BTreeMap::new(), 1)),
+                (styled_deep, tree_node("styled-jsx@1.0.0", BTreeMap::new(), 2)),
+                (app, tree_node("app@1.0.0", app_children, 0)),
+                (mid, tree_node("mid@1.0.0", mid_children, 1)),
+            ]),
+            all_peer_dep_names: HashSet::from(["@babel/core".to_string()]),
+            policy_violations: Vec::new(),
+            applied_patches: HashSet::new(),
+            children_by_id: HashMap::new(),
+        }
+    }
+
+    let styled_with_babel = DepPath::from("styled-jsx@1.0.0(@babel/core@7.0.0)");
+    let styled_without_babel = DepPath::from("styled-jsx@1.0.0");
+    let app_dep_path = DepPath::from("app@1.0.0");
+    let mid_dep_path = DepPath::from("mid@1.0.0");
+
+    let mut first_keys: Option<Vec<String>> = None;
+    for _ in 0..16 {
+        let mut tree = build_tree();
+        let result = resolve_peers(&mut tree, ResolvePeersOptions::default());
+
+        // The shallow occurrence resolves the optional peer from its sibling; the
+        // deeper occurrence, with no provider in scope, keeps the bare suffix.
+        assert_eq!(
+            result.graph[&app_dep_path].children.get("styled-jsx"),
+            Some(&styled_with_babel),
+        );
+        assert_eq!(
+            result.graph[&mid_dep_path].children.get("styled-jsx"),
+            Some(&styled_without_babel),
+        );
+        assert!(result.graph.contains_key(&styled_with_babel));
+        assert!(result.graph.contains_key(&styled_without_babel));
+
+        let mut keys: Vec<String> = result.graph.keys().map(DepPath::to_string).collect();
+        keys.sort();
+        match &first_keys {
+            None => first_keys = Some(keys),
+            Some(expected) => assert_eq!(&keys, expected, "graph keys must not vary across runs"),
+        }
+    }
 }
 
 fn tree_node(pkg_id: &str, children: BTreeMap<String, NodeId>, depth: i32) -> DependenciesTreeNode {

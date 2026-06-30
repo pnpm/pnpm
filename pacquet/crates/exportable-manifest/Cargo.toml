@@ -11,7 +11,10 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-package-manifest = { workspace = true }
+pacquet-catalogs-resolver              = { workspace = true }
+pacquet-catalogs-types                 = { workspace = true }
+pacquet-package-manifest               = { workspace = true }
+pacquet-resolving-jsr-specifier-parser = { workspace = true }
 
 derive_more = { workspace = true }
 miette      = { workspace = true }

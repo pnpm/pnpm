@@ -24,7 +24,7 @@ mod fetch_attestation_published_at;
 mod fetch_full_metadata;
 mod fetch_full_metadata_cached;
 mod lookup_context;
-mod mirror;
+pub mod mirror;
 mod named_registry;
 mod named_registry_resolver;
 mod npm_resolver;

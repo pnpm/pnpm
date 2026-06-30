@@ -9,6 +9,8 @@ import type { ResolutionVerifier } from '@pnpm/resolving.resolver-base'
 
 import { verifyLockfileResolutions } from '../../src/install/verifyLockfileResolutions.js'
 
+const GIT_COMMIT = '0123456789abcdef0123456789abcdef01234567'
+
 function makeLockfile (packages: Record<string, { resolution: unknown, version?: string }>): LockfileObject {
   return {
     lockfileVersion: '9.0',
@@ -69,6 +71,27 @@ test('throws with the verifier-supplied code and reason on a single failure', as
   })
 })
 
+test('propagates a verifier throw (registry fetch failure) instead of folding it into a batch', async () => {
+  // A verifier throws — rather than returning a violation — when it can't reach
+  // the registry to verify an entry. That transport error must surface as-is
+  // (the install aborts with the registry's own error), not be turned into a
+  // lockfile-verification batch.
+  const lockfile = makeLockfile({
+    'is-odd@0.1.2': { resolution: tarballResolution('sha512-a') },
+    'private-pkg@1.0.0': { resolution: tarballResolution('sha512-b') },
+  })
+  const fetchError = Object.assign(new Error('GET https://registry.example/private-pkg: Forbidden - 403'), {
+    code: 'ERR_PNPM_FETCH_403',
+  })
+  const verifier = wrap(async (_, { name }) => {
+    if (name === 'private-pkg') throw fetchError
+    return { ok: false, code: 'MINIMUM_RELEASE_AGE_VIOLATION', reason: 'too fresh' }
+  })
+
+  // The thrown transport error wins over the collected policy violation.
+  await expect(verifyLockfileResolutions(lockfile, [verifier])).rejects.toBe(fetchError)
+})
+
 test('throws a generic code with per-entry codes in the breakdown when violations span policies', async () => {
   const lockfile = makeLockfile({
     'is-odd@0.1.2': { resolution: tarballResolution('sha512-a') },
@@ -83,7 +106,7 @@ test('throws a generic code with per-entry codes in the breakdown when violation
 
   await expect(verifyLockfileResolutions(lockfile, [verifier])).rejects.toMatchObject({
     // Mixed-code batch escalates to the generic LOCKFILE_RESOLUTION_VERIFICATION
-    // code so downstream handlers don't mis-route on whichever entry happened
+    // code so downstream handlers don't branch on whichever entry happened
     // to land first.
     code: 'ERR_PNPM_LOCKFILE_RESOLUTION_VERIFICATION',
     // Per-entry code is included in the breakdown so the user can see
@@ -240,11 +263,14 @@ test('does not emit progress after an unexpected verifier failure', async () => 
   const debugSpy = jest.spyOn(lockfileVerificationLogger, 'debug').mockImplementation(() => {})
 
   try {
-    await expect(verifyLockfileResolutions(lockfile, [verifier], { concurrency: 2 }))
-      .rejects.toThrow('boom')
-
-    releaseSlowTask()
+    const promise = verifyLockfileResolutions(lockfile, [verifier], { concurrency: 2 })
+    // Let `a` throw and set fetchError before `b` settles, so the progress
+    // guard (fetchError == null) suppresses any progress event from `b`.
+    // The fetchError pattern waits for the full fan-out to settle before
+    // rethrowing, so `b` must be released for the promise to reject.
     await new Promise((resolve) => setTimeout(resolve, 0))
+    releaseSlowTask()
+    await expect(promise).rejects.toThrow('boom')
 
     expect(debugSpy.mock.calls.map(([message]) => message?.status)).toEqual(['started', 'failed'])
   } finally {
@@ -393,7 +419,7 @@ test('rejects a registry-style depPath backed by a git resolution, even with no 
 
 test('rejects a registry-style depPath backed by a git-hosted tarball resolution', async () => {
   const lockfile = makeLockfile({
-    'foo@1.0.0': { resolution: { integrity: 'sha512-deadbeef', tarball: 'https://codeload.github.com/org/foo/tar.gz/abc123', gitHosted: true } },
+    'foo@1.0.0': { resolution: { integrity: 'sha512-deadbeef', tarball: `https://codeload.github.com/org/foo/tar.gz/${GIT_COMMIT}`, gitHosted: true } },
   })
   await expect(verifyLockfileResolutions(lockfile, [])).rejects.toMatchObject({
     code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH',
@@ -455,7 +481,7 @@ test('rejects a registry-style depPath whose git-host tarball clears the gitHost
   // dodge a flag-only check. The URL itself must still flag it.
   for (const gitHosted of [false, 'true', 'false', 0, 1]) {
     const lockfile = makeLockfile({
-      'foo@1.0.0': { resolution: { integrity: 'sha512-deadbeef', tarball: 'https://codeload.github.com/org/foo/tar.gz/abc123', gitHosted } as never },
+      'foo@1.0.0': { resolution: { integrity: 'sha512-deadbeef', tarball: `https://codeload.github.com/org/foo/tar.gz/${GIT_COMMIT}`, gitHosted } as never },
     })
     // eslint-disable-next-line no-await-in-loop
     await expect(verifyLockfileResolutions(lockfile, [])).rejects.toMatchObject({
@@ -505,7 +531,7 @@ test('rejects a registry-style depPath whose git-host tarball varies the host ca
   // Hostnames are case-insensitive; an upper-case codeload host paired with
   // gitHosted: false must not pass as registry-shaped.
   const lockfile = makeLockfile({
-    'foo@1.0.0': { resolution: { integrity: 'sha512-deadbeef', tarball: 'https://CODELOAD.GITHUB.COM/org/foo/tar.gz/abc123', gitHosted: false } as never },
+    'foo@1.0.0': { resolution: { integrity: 'sha512-deadbeef', tarball: `https://CODELOAD.GITHUB.COM/org/foo/tar.gz/${GIT_COMMIT}`, gitHosted: false } as never },
   })
   await expect(verifyLockfileResolutions(lockfile, [])).rejects.toMatchObject({
     code: 'ERR_PNPM_RESOLUTION_SHAPE_MISMATCH',

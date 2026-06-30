@@ -1,5 +1,5 @@
 //! Dispatcher-side surface of `@pnpm/resolving.resolver-base`. Defines
-//! the `WantedDependency` → `ResolveResult` contract and the
+//! the [`WantedDependency`] → [`ResolveResult`] contract and the
 //! [`Resolver`] trait every per-protocol resolver implements.
 //!
 //! Future per-protocol resolvers (npm, git, tarball, local, jsr,
@@ -77,7 +77,7 @@ impl From<PkgNameVer> for PkgResolutionId {
 /// programming error the type system doesn't catch. The invariant is
 /// upheld by construction sites (the parse-wanted-dependency port
 /// and the deps-resolver's manifest reader); resolvers that walk a
-/// `WantedDependency` with both halves empty should return
+/// [`WantedDependency`] with both halves empty should return
 /// `Ok(None)` so the chain falls through to the
 /// "spec not supported" terminal.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -225,6 +225,40 @@ pub type WorkspacePackagesByVersion = BTreeMap<String, WorkspacePackage>;
 /// [`WorkspacePackages`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L246).
 pub type WorkspacePackages = BTreeMap<String, WorkspacePackagesByVersion>;
 
+/// Verdict returned by a resolver-time package-version guard.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PackageVersionGuardDecision {
+    /// The candidate may be used.
+    Allow,
+    /// The candidate must be ignored and the resolver should try the
+    /// next matching version, when one exists.
+    Reject { reason: String },
+}
+
+/// Error from a package-version guard. Boxed so guard implementations
+/// can keep their own error shape.
+pub type PackageVersionGuardError = Box<dyn std::error::Error + Send + Sync + 'static>;
+
+/// Boxed-future return type for [`PackageVersionGuard::check`].
+pub type PackageVersionGuardFuture<'a> = Pin<
+    Box<
+        dyn Future<Output = Result<PackageVersionGuardDecision, PackageVersionGuardError>>
+            + Send
+            + 'a,
+    >,
+>;
+
+/// Optional resolver-time policy that can reject a concrete
+/// `name@version` candidate before it is committed to the lockfile.
+///
+/// A guard is expected to be deterministic for the duration of one
+/// resolve call. Callers that consult external services should cache
+/// per `(name, version)` within that operation so repeated graph edges
+/// don't multiply network traffic.
+pub trait PackageVersionGuard: Send + Sync + std::fmt::Debug {
+    fn check<'a>(&'a self, name: &'a str, version: &'a str) -> PackageVersionGuardFuture<'a>;
+}
+
 /// Reload behavior the dispatcher passes per-resolve. Mirrors pnpm's
 /// [`ResolveOptions.update`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L291)
 /// tri-state (`false | 'compatible' | 'latest'`).
@@ -243,7 +277,7 @@ pub enum UpdateBehavior {
 /// can short-circuit when the install is not requesting an update. Mirrors
 /// upstream's
 /// [`currentPkg`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L303-L309)
-/// field of `ResolveOptions`; the serialized form is the `currentPkg`
+/// field of [`ResolveOptions`]; the serialized form is the `currentPkg`
 /// payload custom resolvers receive.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -269,7 +303,7 @@ pub struct ResolveOptions {
     /// Lockfile + manifest preferred-versions seed the npm picker biases
     /// toward (so pins that still satisfy their range survive a
     /// re-resolve). Held behind [`Arc`] because the tree walker clones
-    /// `ResolveOptions` per depth tier and the install layer clones it
+    /// [`ResolveOptions`] per depth tier and the install layer clones it
     /// per importer — sharing the (potentially large) map keeps those
     /// clones to a refcount bump.
     pub preferred_versions: Arc<PreferredVersions>,
@@ -316,6 +350,12 @@ pub struct ResolveOptions {
     /// resolution. Mirrors upstream's `dryRun` flag at the resolver
     /// boundary.
     pub dry_run: bool,
+    /// Optional guard that rejects concrete npm package versions after
+    /// the normal picker selects them. The npm resolvers then exclude
+    /// the rejected version and pick again, so a vulnerable or otherwise
+    /// disallowed high version can fall back to a lower safe version
+    /// instead of aborting the whole resolution.
+    pub package_version_guard: Option<Arc<dyn PackageVersionGuard>>,
     /// When `true`, reject exotic (git, tarball, file, ...) dependencies
     /// appearing anywhere below the importer. Direct dependencies are
     /// still allowed; only transitive deps are gated. The check
@@ -332,14 +372,14 @@ pub struct ResolveOptions {
 ///
 /// Today this aliases [`serde_json::Value`] so the seam compiles
 /// without a typed manifest port. The `package-manifest` crate's
-/// `PackageManifest` is a file-handle wrapper, not the value type
-/// upstream's [`DependencyManifest`] denotes; once the typed
+/// `PackageManifest` is a file-handle wrapper, not the in-memory value
+/// type upstream denotes; once the typed
 /// in-memory manifest lands, swap this alias for it.
 pub type DependencyManifest = serde_json::Value;
 
 /// `Arc`-shared variant of [`DependencyManifest`], used in
 /// [`ResolveResult::manifest`]. Wrapping the manifest avoids the
-/// deep-clone of the JSON tree every time a `ResolveResult`
+/// deep-clone of the JSON tree every time a [`ResolveResult`]
 /// propagates — the deps-resolver stores one copy in
 /// `ResolvedPackage` and another in each `DependenciesGraph` node,
 /// each `Clone` cost dropped from O(manifest size) to a refcount

@@ -30,7 +30,9 @@ fn resolution_verification_err_round_trip() {
             assert_eq!(code, "MINIMUM_RELEASE_AGE_VIOLATION");
             assert_eq!(reason, "was published yesterday");
         }
-        ResolutionVerification::Ok => panic!("expected Err"),
+        ResolutionVerification::Ok | ResolutionVerification::FetchFailed { .. } => {
+            panic!("expected Err")
+        }
     }
 }
 

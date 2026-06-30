@@ -50,7 +50,7 @@ jobs:
 
     steps:
     - name: Checkout
-      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
         fetch-depth: 0
         persist-credentials: false
@@ -67,9 +67,9 @@ jobs:
         echo "Checked out PR #$PR_NUMBER at $(git rev-parse --short HEAD)"
 
     - name: Install pnpm and Node
-      uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
+      uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
       with:
-        runtime: node@26.3.1
+        runtime: node@26.4.0
 
     - name: Install Rust Toolchain
       uses: ./.github/actions/rustup
@@ -95,7 +95,7 @@ jobs:
 
     - name: Install Bencher CLI
       if: steps.bench.outputs.bench_dir != ''
-      uses: bencherdev/bencher@50fb1e138651a46d2fb704fab1adab38c181552e # v0.6.6
+      uses: bencherdev/bencher@ec56bb69a7f34096002ca3384d10e2f6676b063e # v0.6.7
 
     - name: Upload results to Bencher
       if: steps.bench.outputs.bench_dir != ''

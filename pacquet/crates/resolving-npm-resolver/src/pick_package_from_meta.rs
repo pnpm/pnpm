@@ -37,7 +37,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::{Range, Version};
 use pacquet_config::version_policy::{PackageVersionPolicy, PolicyMatch};
-use pacquet_registry::{Package, PackageVersion};
+use pacquet_registry::{Package, PackageVersion, PackageVersions};
 use pacquet_resolving_resolver_base::{
     VersionSelectorEntry, VersionSelectorType, VersionSelectors, parse_packument_timestamp,
 };
@@ -400,9 +400,7 @@ pub fn filter_pkg_metadata_by_publish_date(
          caller must check before invoking",
     );
 
-    // Decide on version strings + the `time` map alone; slots move as
-    // raw fragments, so the filter never hydrates a manifest.
-    let versions_within_date = meta.versions.filtered(|version| {
+    filter_pkg_metadata_versions(meta, |version| {
         let mature = time
             .get(version)
             .and_then(serde_json::Value::as_str)
@@ -411,8 +409,38 @@ pub fn filter_pkg_metadata_by_publish_date(
         let trusted =
             trusted_versions.is_some_and(|allow| allow.iter().any(|allowed| allowed == version));
         mature || trusted
-    });
+    })
+}
 
+/// Filter a packument's versions by string while keeping dist-tags
+/// usable. Tags that still point at a kept version are preserved; tags
+/// whose target was removed are rewritten using the publish-date
+/// filter's dist-tag rules: `latest` may move to the best remaining
+/// version across any major, while other tags stay within the removed
+/// target's major/prerelease lane.
+#[must_use]
+pub fn filter_pkg_metadata_versions(meta: &Package, mut keep: impl FnMut(&str) -> bool) -> Package {
+    // Decide on version strings alone; slots move as raw fragments, so
+    // the filter never hydrates a manifest.
+    let filtered_versions = meta.versions.filtered(|version| keep(version));
+    let dist_tags = repopulate_dist_tags(meta, &filtered_versions);
+
+    Package {
+        name: meta.name.clone(),
+        dist_tags,
+        versions: filtered_versions,
+        time: meta.time.clone(),
+        modified: meta.modified.clone(),
+        etag: meta.etag.clone(),
+        homepage: meta.homepage.clone(),
+        mutex: std::sync::Arc::clone(&meta.mutex),
+    }
+}
+
+fn repopulate_dist_tags(
+    meta: &Package,
+    filtered_versions: &PackageVersions,
+) -> std::collections::HashMap<String, String> {
     let mut dist_tags_within_date = std::collections::HashMap::new();
     // Candidate versions parsed once per filter call and shared by
     // every repopulated tag, with the deprecation flag resolved
@@ -423,14 +451,14 @@ pub fn filter_pkg_metadata_by_publish_date(
     // out-of-cutoff dist-tags.
     let mut parsed_candidates: Option<Vec<(Version, &String, OnceCell<bool>)>> = None;
     for (tag, version) in &meta.dist_tags {
-        if versions_within_date.contains_key(version) {
+        if filtered_versions.contains_key(version) {
             dist_tags_within_date.insert(tag.clone(), version.clone());
             continue;
         }
         let Ok(original) = Version::parse(version) else { continue };
         let original_is_prerelease = !original.pre_release.is_empty();
         let candidates = parsed_candidates.get_or_insert_with(|| {
-            versions_within_date
+            filtered_versions
                 .keys()
                 .filter_map(|raw| {
                     Version::parse(raw).ok().map(|parsed| (parsed, raw, OnceCell::new()))
@@ -438,7 +466,7 @@ pub fn filter_pkg_metadata_by_publish_date(
                 .collect()
         });
         let deprecated = |slot: &(Version, &String, OnceCell<bool>)| -> bool {
-            *slot.2.get_or_init(|| versions_within_date.is_deprecated(slot.1))
+            *slot.2.get_or_init(|| filtered_versions.is_deprecated(slot.1))
         };
         let mut best_index: Option<usize> = None;
         for (index, slot) in candidates.iter().enumerate() {
@@ -468,17 +496,7 @@ pub fn filter_pkg_metadata_by_publish_date(
             dist_tags_within_date.insert(tag.clone(), candidates[best].1.clone());
         }
     }
-
-    Package {
-        name: meta.name.clone(),
-        dist_tags: dist_tags_within_date,
-        versions: versions_within_date,
-        time: meta.time.clone(),
-        modified: meta.modified.clone(),
-        etag: meta.etag.clone(),
-        homepage: meta.homepage.clone(),
-        mutex: std::sync::Arc::clone(&meta.mutex),
-    }
+    dist_tags_within_date
 }
 
 /// Group versions by weight (highest weight first); each group is

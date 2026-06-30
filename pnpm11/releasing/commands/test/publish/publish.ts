@@ -6,7 +6,7 @@ import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { pack, publish } from '@pnpm/releasing.commands'
 import { createTestIpcServer } from '@pnpm/test-ipc-server'
-import { REGISTRY_MOCK_CREDENTIALS, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
+import { getRegistryMockToken, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { isCI } from 'ci-info'
 import crossSpawn from 'cross-spawn'
 import { safeExeca as execa } from 'execa'
@@ -20,7 +20,7 @@ const skipOnWindowsCI = isCI && isWindows() ? test.skip : test
 
 const CONFIG_BY_URI = {
   [`//localhost:${REGISTRY_MOCK_PORT}/`]: {
-    '@': { basicAuth: REGISTRY_MOCK_CREDENTIALS },
+    '@': { authToken: getRegistryMockToken() },
   },
 }
 const pnpmBin = path.join(import.meta.dirname, '../../../../pnpm/bin/pnpm.mjs')

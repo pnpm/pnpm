@@ -574,7 +574,7 @@ where
 /// Returns `None` only when the slot name fails to parse — there's no
 /// filesystem probe for the resolved candidate. The slot's own package
 /// directory is an invariant of [`crate::create_virtual_dir_by_snapshot`];
-/// the downstream `link_bins_excluding` handles `NotFound` from its own
+/// the downstream [`link_bins_excluding`] handles `NotFound` from its own
 /// `read_dir` of `<slot>/node_modules` cleanly when the invariant
 /// ever does break, so a probe here would be pure overhead.
 fn find_slot_own_package_dir(slot_dir: &Path, modules_dir: &Path) -> Option<PathBuf> {

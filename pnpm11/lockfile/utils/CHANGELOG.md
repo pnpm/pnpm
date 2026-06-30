@@ -1,5 +1,28 @@
 # @pnpm/lockfile-utils
 
+## 1100.1.0
+
+### Minor Changes
+
+- bae694f: Some registries generate tarballs on-demand and cannot provide an integrity checksum in their package metadata. In that case pnpm now computes the integrity from the downloaded tarball and stores it in the lockfile, so the entry is verifiable on subsequent installs instead of being written without an integrity (which would fail the next install). This also applies to `--lockfile-only`: the tarball is downloaded so its integrity can be computed. A lockfile entry that is still missing its integrity is rejected as a `ERR_PNPM_MISSING_TARBALL_INTEGRITY` lockfile verification violation (the install fails closed) rather than being silently re-fetched.
+
+### Patch Changes
+
+- a84d2a1: Add `@pnpm/resolving.tarball-url`, which builds and recognizes the canonical npm tarball URL of a package. It vendors `getNpmTarballUrl` (previously the external `get-npm-tarball-url` package) and adds `isCanonicalRegistryTarballUrl`, the predicate the lockfile writer uses to decide whether a tarball URL is derivable from name+version+registry (and can therefore be omitted from `pnpm-lock.yaml`).
+
+  Exposing `isCanonicalRegistryTarballUrl` lets a custom resolver (pnpmfile `resolvers`) fronting a proxy that serves tarballs on a non-canonical path (e.g. an ephemeral `localhost:<port>`) rewrite the resolved tarball to the canonical form, so nothing host-specific is persisted to the lockfile. Previously this logic was private to `@pnpm/lockfile.utils`.
+
+  Two correctness fixes are included while consolidating the logic: the scoped-package unescape now handles uppercase `%2F` as well as `%2f` (percent-encoding is case-insensitive), and protocol-insensitive comparison strips only a leading `http(s)://` scheme instead of splitting on the first `://` (which could truncate URLs containing a later `://`).
+
+- Updated dependencies [bae694f]
+- Updated dependencies [a84d2a1]
+- Updated dependencies [852d537]
+  - @pnpm/resolving.resolver-base@1100.5.0
+  - @pnpm/hooks.types@1100.1.0
+  - @pnpm/resolving.tarball-url@1100.0.0
+  - @pnpm/error@1100.0.1
+  - @pnpm/lockfile.types@1100.0.12
+
 ## 1100.0.13
 
 ### Patch Changes

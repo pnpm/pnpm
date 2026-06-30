@@ -1,5 +1,25 @@
 # @pnpm/audit
 
+## 1101.0.18
+
+### Patch Changes
+
+- d3f68e2: Fix a `pnpm audit` performance regression on lockfiles that contain dependency cycles. The reachable-vulnerability pruning added in pnpm 11.5.1 only memoized acyclic subtrees, so any node whose subtree touched a cycle — together with all of its ancestors — was recomputed on every query, making the path walk quadratic. Reachability is now computed once per node using Tarjan's strongly-connected-components algorithm, so cyclic graphs are handled in linear time [#12212](https://github.com/pnpm/pnpm/issues/12212).
+
+  The audit path walk also no longer recurses, so a deeply nested dependency graph can no longer overflow the call stack, and the install path to each finding is tracked without per-node copying, keeping memory linear in the graph depth.
+
+- Updated dependencies [bae694f]
+- Updated dependencies [05b95ab]
+- Updated dependencies [a84d2a1]
+- Updated dependencies [852d537]
+  - @pnpm/lockfile.utils@1100.1.0
+  - @pnpm/network.fetch@1100.1.4
+  - @pnpm/error@1100.0.1
+  - @pnpm/lockfile.types@1100.0.12
+  - @pnpm/lockfile.fs@1100.1.7
+  - @pnpm/lockfile.detect-dep-types@1100.0.12
+  - @pnpm/lockfile.walker@1100.0.12
+
 ## 1101.0.17
 
 ### Patch Changes

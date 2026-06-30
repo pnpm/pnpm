@@ -20,14 +20,15 @@
 
 use super::{
     DEFAULT_BCRYPT_COST, TokenBackend, TokenRecord, UpsertOutcome, UserBackend, fresh_secret,
-    hash_bcrypt, mint_token, sha256_hex, unix_seconds, verify_bcrypt, verify_returning_user,
+    hash_bcrypt, mint_token, sha256_hex, token_timestamp_from_sql, unix_seconds, validate_username,
+    verify_returning_user, with_auth_timeout,
 };
 use crate::{
     config::{LibsqlSettings, MaxUsers},
     error::{RegistryError, Result},
 };
 use async_trait::async_trait;
-use libsql::{Builder, Connection, Database, Row, params};
+use libsql::{Builder, Connection, Database, Error as LibsqlError, Row, params};
 use std::{
     sync::atomic::{AtomicU64, Ordering},
     time::Duration,
@@ -37,6 +38,14 @@ use std::{
 /// [`row_to_keyed_record`] can decode any of them the same way.
 const TOKEN_COLUMNS: &str =
     "token_hash, username, created_at, last_used_at, readonly, cidr_whitelist";
+
+/// Deadline for request-path auth reads, beyond which a stalled endpoint
+/// surfaces [`RegistryError::AuthDatabaseTimeout`] rather than hanging.
+const DEFAULT_AUTH_TIMEOUT: Duration = Duration::from_secs(30);
+
+/// Deadline for the one-time startup connect and schema setup; more
+/// generous than [`DEFAULT_AUTH_TIMEOUT`] for cold remote DDL.
+const DEFAULT_STARTUP_TIMEOUT: Duration = Duration::from_mins(5);
 
 /// Networked-SQLite auth backend. One [`Connection`] serves both record
 /// stores; the [`Database`] handle is held only to keep the connection
@@ -50,6 +59,8 @@ pub struct LibsqlAuth {
     secret: [u8; 32],
     counter: AtomicU64,
     max_users: MaxUsers,
+    /// Deadline for each request-path auth read.
+    timeout: Duration,
 }
 
 impl std::fmt::Debug for LibsqlAuth {
@@ -82,9 +93,15 @@ impl LibsqlAuth {
                 if interval > 0 {
                     builder = builder.sync_interval(Duration::from_secs(interval));
                 }
-                builder.build().await?
+                with_auth_timeout(DEFAULT_STARTUP_TIMEOUT, Box::pin(builder.build())).await?
             }
-            None => Builder::new_remote(settings.url.clone(), auth_token).build().await?,
+            None => {
+                with_auth_timeout(
+                    DEFAULT_STARTUP_TIMEOUT,
+                    Box::pin(Builder::new_remote(settings.url.clone(), auth_token).build()),
+                )
+                .await?
+            }
         };
         Self::from_database(db, max_users).await
     }
@@ -93,36 +110,57 @@ impl LibsqlAuth {
     /// [`Self::connect`] and the local-database test setup.
     async fn from_database(db: Database, max_users: MaxUsers) -> Result<Self> {
         let conn = db.connect()?;
-        init_schema(&conn).await?;
-        Ok(Self { _db: db, conn, secret: fresh_secret(), counter: AtomicU64::new(0), max_users })
+        with_auth_timeout(DEFAULT_STARTUP_TIMEOUT, init_schema(&conn)).await?;
+        Ok(Self {
+            _db: db,
+            conn,
+            secret: fresh_secret(),
+            counter: AtomicU64::new(0),
+            max_users,
+            timeout: DEFAULT_AUTH_TIMEOUT,
+        })
     }
 
     /// The bcrypt hash stored for `username`, or `None` when no such
     /// user exists.
     async fn stored_hash(&self, username: &str) -> Result<Option<String>> {
-        let mut rows = self
-            .conn
-            .query("SELECT bcrypt_hash FROM users WHERE username = ?1", params![username])
-            .await?;
-        match rows.next().await? {
-            Some(row) => Ok(Some(row.get::<String>(0)?)),
-            None => Ok(None),
-        }
+        with_auth_timeout::<_, RegistryError>(self.timeout, async {
+            let mut rows = self
+                .conn
+                .query("SELECT bcrypt_hash FROM users WHERE username = ?1", params![username])
+                .await?;
+            match rows.next().await? {
+                Some(row) => Ok(Some(row.get::<String>(0)?)),
+                None => Ok(None),
+            }
+        })
+        .await
     }
 
     /// Current number of registered users — read under the
     /// registration cap, never on the hot path.
     async fn user_count(&self) -> Result<u64> {
-        let mut rows = self.conn.query("SELECT COUNT(*) FROM users", ()).await?;
-        let row = rows.next().await?.expect("COUNT(*) returns exactly one row");
-        let count: i64 = row.get(0)?;
-        Ok(count.max(0) as u64)
+        with_auth_timeout::<_, RegistryError>(self.timeout, async {
+            let mut rows = self.conn.query("SELECT COUNT(*) FROM users", ()).await?;
+            let Some(row) = rows.next().await? else {
+                return Err(missing_count_row());
+            };
+            let count: i64 = row.get(0)?;
+            Ok(count.max(0) as u64)
+        })
+        .await
     }
 }
 
 #[async_trait]
 impl UserBackend for LibsqlAuth {
-    async fn add_or_login(&self, username: &str, password: &str) -> Result<UpsertOutcome> {
+    async fn add_or_login(
+        &self,
+        username: &str,
+        password: &str,
+    ) -> Result<(UpsertOutcome, String)> {
+        validate_username(username)?;
+
         if let Some(stored) = self.stored_hash(username).await? {
             return verify_returning_user(username, password, stored).await;
         }
@@ -139,62 +177,77 @@ impl UserBackend for LibsqlAuth {
         }
 
         let hash = hash_bcrypt(password.to_string(), DEFAULT_BCRYPT_COST).await?;
-        // Count-and-insert in one statement so the cap is strict, not
-        // best-effort: the `WHERE (SELECT COUNT(*) ...) < max` guard is
-        // evaluated atomically with the insert, so concurrent registrants
-        // (even on other replicas, since writes serialize on the primary)
-        // can't race past it. `DO NOTHING` absorbs a same-username race.
-        // A zero row-count means either the cap won or another writer
-        // inserted this username first; we disambiguate below.
-        let inserted = match self.max_users {
-            MaxUsers::Limited(max) => {
-                self.conn
-                    .execute(
-                        "INSERT INTO users (username, bcrypt_hash)
-                         SELECT ?1, ?2 WHERE (SELECT COUNT(*) FROM users) < ?3
-                         ON CONFLICT(username) DO NOTHING",
-                        params![username, hash, max as i64],
-                    )
-                    .await?
-            }
-            _ => {
-                self.conn
-                    .execute(
-                        "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)
-                         ON CONFLICT(username) DO NOTHING",
-                        params![username, hash],
-                    )
-                    .await?
-            }
-        };
-        if inserted == 0 {
-            if let Some(stored) = self.stored_hash(username).await? {
-                // A concurrent writer registered this username first.
-                return verify_returning_user(username, password, stored).await;
-            }
-            // Nothing inserted and the user still doesn't exist, so the
-            // only thing that blocked the insert is the cap guard.
-            if let MaxUsers::Limited(max) = self.max_users {
-                return Err(RegistryError::TooManyUsers { max });
-            }
-            // Unbounded yet neither inserted nor present: a concurrent
-            // delete raced the insert. Surface a transient failure rather
-            // than silently report success.
-            return Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") });
+        if matches!(self.max_users, MaxUsers::Unlimited) {
+            let inserted = self
+                .conn
+                .execute(
+                    "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)",
+                    params![username, hash],
+                )
+                .await;
+            return match inserted {
+                Ok(_) => Ok((UpsertOutcome::Created, username.to_string())),
+                Err(err) if is_unique_violation(&err) => {
+                    if let Some(stored) = self.stored_hash(username).await? {
+                        return verify_returning_user(username, password, stored).await;
+                    }
+                    Err(RegistryError::Unauthenticated { resource: format!("user {username:?}") })
+                }
+                Err(err) => Err(err.into()),
+            };
         }
-        Ok(UpsertOutcome::Created)
-    }
 
-    async fn verify(&self, username: &str, password: &str) -> Result<Option<String>> {
-        let Some(stored) = self.stored_hash(username).await? else {
-            return Ok(None);
-        };
-        // A database error already propagated above; a bcrypt error here
-        // is treated as a non-match, not a store outage.
-        Ok(verify_bcrypt(password.to_string(), stored)
-            .await
-            .unwrap_or(false)
-            .then(|| username.to_string()))
+        let mut can_retry_after_reconcile = true;
+        loop {
+            let tx = self.conn.transaction().await?;
+            if let MaxUsers::Limited(max) = self.max_users {
+                let sql_max = i64::try_from(max).map_err(|_| RegistryError::InvalidConfig {
+                    reason: "backend.libsql auth max_users must fit a signed BIGINT".to_string(),
+                })?;
+                let updated = tx
+                    .execute(
+                        "UPDATE auth_counters SET value = value + 1
+                         WHERE name = ?1 AND value < ?2",
+                        params!["users", sql_max],
+                    )
+                    .await?;
+                if updated == 0 {
+                    tx.rollback().await?;
+                    if can_retry_after_reconcile {
+                        can_retry_after_reconcile = false;
+                        if reconcile_user_counter_overcount(&self.conn).await? {
+                            continue;
+                        }
+                    }
+                    if let Some(stored) = self.stored_hash(username).await? {
+                        return verify_returning_user(username, password, stored).await;
+                    }
+                    return Err(RegistryError::TooManyUsers { max });
+                }
+            }
+            let inserted = tx
+                .execute(
+                    "INSERT INTO users (username, bcrypt_hash) VALUES (?1, ?2)",
+                    params![username, hash],
+                )
+                .await;
+            match inserted {
+                Ok(_) => {
+                    tx.commit().await?;
+                    return Ok((UpsertOutcome::Created, username.to_string()));
+                }
+                Err(err) if is_unique_violation(&err) => {
+                    tx.rollback().await?;
+                    if let Some(stored) = self.stored_hash(username).await? {
+                        return verify_returning_user(username, password, stored).await;
+                    }
+                    return Err(RegistryError::Unauthenticated {
+                        resource: format!("user {username:?}"),
+                    });
+                }
+                Err(err) => return Err(err.into()),
+            }
+        }
     }
 }
 
@@ -208,9 +261,8 @@ impl TokenBackend for LibsqlAuth {
         self.conn
             .execute(
                 "INSERT INTO tokens
-                     (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist)
-                 VALUES (?1, ?2, ?3, ?3, 0, '[]')
-                 ON CONFLICT(token_hash) DO UPDATE SET last_used_at = excluded.last_used_at",
+                 (token_hash, username, created_at, last_used_at, readonly, cidr_whitelist)
+             VALUES (?1, ?2, ?3, ?3, 0, '[]')",
                 params![token_hash, username, now],
             )
             .await?;
@@ -219,33 +271,42 @@ impl TokenBackend for LibsqlAuth {
 
     async fn lookup(&self, raw: &str) -> Result<Option<String>> {
         let token_hash = sha256_hex(raw.as_bytes());
-        let mut rows = self
-            .conn
-            .query("SELECT username FROM tokens WHERE token_hash = ?1", params![token_hash])
-            .await?;
-        match rows.next().await? {
-            Some(row) => Ok(Some(row.get::<String>(0)?)),
-            None => Ok(None),
-        }
+        with_auth_timeout::<_, RegistryError>(self.timeout, async {
+            let mut rows = self
+                .conn
+                .query("SELECT username FROM tokens WHERE token_hash = ?1", params![token_hash])
+                .await?;
+            match rows.next().await? {
+                Some(row) => Ok(Some(row.get::<String>(0)?)),
+                None => Ok(None),
+            }
+        })
+        .await
     }
 
     async fn find_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
         let query = format!("SELECT {TOKEN_COLUMNS} FROM tokens WHERE token_hash = ?1");
-        let mut rows = self.conn.query(&query, params![key]).await?;
-        match rows.next().await? {
-            Some(row) => Ok(Some(row_to_keyed_record(&row)?.1)),
-            None => Ok(None),
-        }
+        with_auth_timeout::<_, RegistryError>(self.timeout, async {
+            let mut rows = self.conn.query(&query, params![key]).await?;
+            match rows.next().await? {
+                Some(row) => Ok(Some(row_to_keyed_record(&row)?.1)),
+                None => Ok(None),
+            }
+        })
+        .await
     }
 
     async fn list_for_user(&self, username: &str) -> Result<Vec<(String, TokenRecord)>> {
         let query = format!("SELECT {TOKEN_COLUMNS} FROM tokens WHERE username = ?1");
-        let mut rows = self.conn.query(&query, params![username]).await?;
-        let mut out = Vec::new();
-        while let Some(row) = rows.next().await? {
-            out.push(row_to_keyed_record(&row)?);
-        }
-        Ok(out)
+        with_auth_timeout::<_, RegistryError>(self.timeout, async {
+            let mut rows = self.conn.query(&query, params![username]).await?;
+            let mut out = Vec::new();
+            while let Some(row) = rows.next().await? {
+                out.push(row_to_keyed_record(&row)?);
+            }
+            Ok(out)
+        })
+        .await
     }
 
     async fn revoke_by_key(&self, key: &str) -> Result<Option<TokenRecord>> {
@@ -261,7 +322,83 @@ async fn init_schema(conn: &Connection) -> Result<()> {
     conn.execute(super::USERS_TABLE_SQL, ()).await?;
     conn.execute(super::TOKENS_TABLE_SQL, ()).await?;
     conn.execute(super::TOKENS_INDEX_SQL, ()).await?;
+    conn.execute(super::AUTH_COUNTERS_TABLE_SQL, ()).await?;
+    ensure_user_counter(conn).await
+}
+
+async fn ensure_user_counter(conn: &Connection) -> Result<()> {
+    let mut rows = conn.query("SELECT COUNT(*) FROM users", ()).await?;
+    let Some(row) = rows.next().await? else {
+        return Err(missing_count_row());
+    };
+    let count: i64 = row.get(0)?;
+    let tx = conn.transaction().await?;
+    let inserted = tx
+        .execute("INSERT INTO auth_counters (name, value) VALUES (?1, ?2)", params!["users", count])
+        .await;
+    match inserted {
+        Ok(_) => {}
+        Err(err) if is_unique_violation(&err) => {}
+        Err(err) => {
+            tx.rollback().await?;
+            return Err(err.into());
+        }
+    }
+    tx.execute(
+        "UPDATE auth_counters
+         SET value = CASE WHEN value < ?2 THEN ?2 ELSE value END
+         WHERE name = ?1",
+        params!["users", count],
+    )
+    .await?;
+    tx.commit().await?;
     Ok(())
+}
+
+async fn reconcile_user_counter_overcount(conn: &Connection) -> Result<bool> {
+    let tx = conn.transaction().await?;
+    let mut counter_rows =
+        tx.query("SELECT value FROM auth_counters WHERE name = ?1", params!["users"]).await?;
+    let Some(counter_row) = counter_rows.next().await? else {
+        drop(counter_rows);
+        tx.commit().await?;
+        return Ok(false);
+    };
+    let counter: i64 = counter_row.get(0)?;
+    drop(counter_rows);
+    let mut count_rows = tx.query("SELECT COUNT(*) FROM users", ()).await?;
+    let Some(count_row) = count_rows.next().await? else {
+        return Err(missing_count_row());
+    };
+    let count: i64 = count_row.get(0)?;
+    drop(count_rows);
+    if counter <= count {
+        tx.commit().await?;
+        return Ok(false);
+    }
+    tx.execute(
+        "UPDATE auth_counters SET value = ?2 WHERE name = ?1",
+        params!["users", count.max(0)],
+    )
+    .await?;
+    tx.commit().await?;
+    Ok(true)
+}
+
+fn is_unique_violation(err: &LibsqlError) -> bool {
+    match err {
+        LibsqlError::SqliteFailure(code, message) => {
+            *code == 19 || *code == 2067 || message.contains("UNIQUE constraint failed")
+        }
+        LibsqlError::RemoteSqliteFailure(_, code, message) => {
+            *code == 19 || *code == 2067 || message.contains("UNIQUE constraint failed")
+        }
+        _ => false,
+    }
+}
+
+fn missing_count_row() -> RegistryError {
+    RegistryError::Internal { reason: "auth database COUNT(*) returned no rows".to_string() }
 }
 
 /// Decode a row selecting [`TOKEN_COLUMNS`] into its `(token_hash,
@@ -278,8 +415,8 @@ fn row_to_keyed_record(row: &Row) -> Result<(String, TokenRecord)> {
         token_hash,
         TokenRecord {
             username,
-            created_at: created_at as u64,
-            last_used_at: last_used_at as u64,
+            created_at: token_timestamp_from_sql(created_at),
+            last_used_at: token_timestamp_from_sql(last_used_at),
             readonly: readonly != 0,
             cidr_whitelist,
         },

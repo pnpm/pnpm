@@ -11,7 +11,7 @@ use axum::{
     http::{Request, StatusCode},
 };
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
-use pnpr::{Config, router};
+use pnpr::{Config, MaxUsers, router};
 use serde_json::{Value, json};
 use std::{
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
@@ -24,7 +24,22 @@ fn static_config(storage: PathBuf) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::static_serve(listen, storage);
     config.public_url = "http://example.test".to_string();
+    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
     config
+}
+
+fn static_config_with_packages(dir: &TempDir, packages_block: &str) -> (Config, PathBuf) {
+    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
+    let storage = dir.path().join("storage");
+    std::fs::create_dir_all(&storage).unwrap();
+    let yaml =
+        format!("storage: {}\nuplinks: {{}}\npackages:\n{packages_block}\n", storage.display());
+    let config_path = dir.path().join("config.yaml");
+    std::fs::write(&config_path, yaml).unwrap();
+    let mut config =
+        Config::from_yaml(&config_path, listen, Some("http://example.test".to_string())).unwrap();
+    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    (config, storage)
 }
 
 async fn body_bytes(body: Body) -> Vec<u8> {
@@ -137,11 +152,14 @@ async fn bearer_token_grants_access_to_protected_package() {
 }
 
 #[tokio::test]
-async fn basic_auth_grants_access_to_protected_package() {
+async fn basic_auth_is_rejected_for_protected_package() {
     let storage = common::build_storage();
     let app = router(static_config(storage.path().to_path_buf()));
     let (app, _) = add_user_and_get_token(app, "alice", "secret").await;
 
+    // pnpr no longer accepts Basic credentials on requests: the header is
+    // ignored (treated as anonymous), so a protected package is rejected.
+    // Clients must authenticate with a bearer token.
     let basic = BASE64.encode(b"alice:secret");
     let response = app
         .oneshot(
@@ -152,7 +170,7 @@ async fn basic_auth_grants_access_to_protected_package() {
         )
         .await
         .unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }
 
 #[tokio::test]
@@ -204,6 +222,514 @@ async fn authenticated_publish_writes_manifest_and_tarball() {
         served["versions"]["1.0.0"]["dist"]["tarball"],
         "http://example.test/mypkg/-/mypkg-1.0.0.tgz",
     );
+}
+
+#[tokio::test]
+async fn republishing_an_existing_version_is_rejected_with_conflict() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let publish = |bytes: &[u8]| {
+        let body = serde_json::to_vec(&sample_publish_body("mypkg", "1.0.0", bytes)).unwrap();
+        Request::put("/mypkg")
+            .header("content-type", "application/json")
+            .header("Authorization", format!("Bearer {token}"))
+            .body(Body::from(body))
+            .unwrap()
+    };
+
+    let first = app.clone().oneshot(publish(b"original-bytes")).await.unwrap();
+    assert_eq!(first.status(), StatusCode::CREATED);
+
+    // Re-publishing the same version with different bytes must be refused.
+    let second = app.clone().oneshot(publish(b"backdoored-bytes")).await.unwrap();
+    assert_eq!(second.status(), StatusCode::CONFLICT);
+
+    // The originally published tarball must be untouched on disk.
+    let on_disk = std::fs::read(storage.join("mypkg/mypkg-1.0.0.tgz")).unwrap();
+    assert_eq!(on_disk, b"original-bytes");
+}
+
+#[tokio::test]
+async fn republish_via_a_smuggled_version_entry_without_an_attachment_is_rejected() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    // Publish 1.0.0 normally.
+    let first = Request::put("/mypkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(
+            serde_json::to_vec(&sample_publish_body("mypkg", "1.0.0", b"original")).unwrap(),
+        ))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(first).await.unwrap().status(), StatusCode::CREATED);
+
+    // Publish 1.0.1 (with its own attachment) but smuggle a modified 1.0.0
+    // entry into `versions` with no matching attachment. The conflict check
+    // must still reject it because 1.0.0 is already hosted.
+    let mut body = sample_publish_body("mypkg", "1.0.1", b"new-bytes");
+    body["versions"]["1.0.0"] = json!({
+        "name": "mypkg",
+        "version": "1.0.0",
+        "dist": { "tarball": "http://example.test/mypkg/-/mypkg-1.0.0.tgz", "integrity": "sha512-EVIL" },
+    });
+    let smuggle = Request::put("/mypkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    assert_eq!(app.oneshot(smuggle).await.unwrap().status(), StatusCode::CONFLICT);
+}
+
+#[tokio::test]
+async fn update_packument_rejects_tampering_with_a_published_version_integrity() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let publish = Request::put("/mypkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(
+            serde_json::to_vec(&sample_publish_body("mypkg", "1.0.0", b"real-bytes")).unwrap(),
+        ))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(publish).await.unwrap().status(), StatusCode::CREATED);
+
+    let get =
+        app.clone().oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    let mut packument = body_json(get.into_body()).await;
+    let original_integrity = packument["versions"]["1.0.0"]["dist"]["integrity"].clone();
+    assert!(original_integrity.is_string(), "published version should carry an integrity");
+
+    // Point the already-published version at a bogus integrity and PUT it back
+    // through the partial-unpublish endpoint.
+    packument["versions"]["1.0.0"]["dist"]["integrity"] = json!(
+        "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=="
+    );
+    let tamper = Request::put("/mypkg/-rev/1-0")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&packument).unwrap()))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(tamper).await.unwrap().status(), StatusCode::BAD_REQUEST);
+
+    let after = app.oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    let after = body_json(after.into_body()).await;
+    assert_eq!(after["versions"]["1.0.0"]["dist"]["integrity"], original_integrity);
+}
+
+#[tokio::test]
+async fn update_packument_rejects_a_non_string_dist_integrity() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let publish = Request::put("/mypkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(
+            serde_json::to_vec(&sample_publish_body("mypkg", "1.0.0", b"real")).unwrap(),
+        ))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(publish).await.unwrap().status(), StatusCode::CREATED);
+
+    let get =
+        app.clone().oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    let mut packument = body_json(get.into_body()).await;
+    // A present-but-non-string integrity must be rejected — otherwise it slips
+    // past the string-only immutability check and breaks tarball serving.
+    packument["versions"]["1.0.0"]["dist"]["integrity"] = json!(null);
+    let request = Request::put("/mypkg/-rev/1-0")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&packument).unwrap()))
+        .unwrap();
+    assert_eq!(app.oneshot(request).await.unwrap().status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn update_packument_rejects_a_non_object_dist_for_a_published_version() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let publish = Request::put("/mypkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(
+            serde_json::to_vec(&sample_publish_body("mypkg", "1.0.0", b"real")).unwrap(),
+        ))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(publish).await.unwrap().status(), StatusCode::CREATED);
+
+    let get =
+        app.clone().oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    let mut packument = body_json(get.into_body()).await;
+    let original_integrity = packument["versions"]["1.0.0"]["dist"]["integrity"].clone();
+    // A non-object dist would skip the integrity-restore path and strip the hash,
+    // so it must be rejected rather than silently persisted.
+    packument["versions"]["1.0.0"]["dist"] = json!(null);
+    let request = Request::put("/mypkg/-rev/1-0")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&packument).unwrap()))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::BAD_REQUEST);
+
+    let after = app.oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    let after = body_json(after.into_body()).await;
+    assert_eq!(after["versions"]["1.0.0"]["dist"]["integrity"], original_integrity);
+}
+
+#[tokio::test]
+async fn update_packument_rejects_tampering_with_a_published_version_tarball() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let publish = Request::put("/mypkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(
+            serde_json::to_vec(&sample_publish_body("mypkg", "1.0.0", b"real-bytes")).unwrap(),
+        ))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(publish).await.unwrap().status(), StatusCode::CREATED);
+
+    let get =
+        app.clone().oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    let mut packument = body_json(get.into_body()).await;
+    let original_tarball = packument["versions"]["1.0.0"]["dist"]["tarball"].clone();
+
+    // Repoint the published version at a different tarball basename. The version
+    // keeps its immutable integrity, so this would make clients fetch bytes that
+    // can't match it (or 404) — it must be rejected, not persisted.
+    packument["versions"]["1.0.0"]["dist"]["tarball"] =
+        json!("http://example.test/mypkg/-/mypkg-9.9.9.tgz");
+    let tamper = Request::put("/mypkg/-rev/1-0")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&packument).unwrap()))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(tamper).await.unwrap().status(), StatusCode::BAD_REQUEST);
+
+    let after = app.oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    let after = body_json(after.into_body()).await;
+    assert_eq!(after["versions"]["1.0.0"]["dist"]["tarball"], original_tarball);
+}
+
+#[tokio::test]
+async fn update_packument_rejects_adding_a_version_via_the_unpublish_put() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let publish = Request::put("/mypkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(
+            serde_json::to_vec(&sample_publish_body("mypkg", "1.0.0", b"real-bytes")).unwrap(),
+        ))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(publish).await.unwrap().status(), StatusCode::CREATED);
+
+    let get =
+        app.clone().oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    let mut packument = body_json(get.into_body()).await;
+    let original_versions = packument["versions"].clone();
+
+    // Add a new version whose tarball basename collides with 1.0.0's. A duplicate
+    // basename makes expected_tarball_dist fail closed (502), so the addition must
+    // be rejected — even with an otherwise-valid integrity.
+    packument["versions"]["9.9.9"] = json!({
+        "name": "mypkg",
+        "version": "9.9.9",
+        "dist": {
+            "tarball": "http://example.test/mypkg/-/mypkg-1.0.0.tgz",
+            "integrity": packument["versions"]["1.0.0"]["dist"]["integrity"].clone(),
+        },
+    });
+    let request = Request::put("/mypkg/-rev/1-0")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&packument).unwrap()))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::BAD_REQUEST);
+
+    let after = app.oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    let after = body_json(after.into_body()).await;
+    assert_eq!(after["versions"], original_versions);
+}
+
+#[tokio::test]
+async fn update_packument_protects_a_published_tarball_with_a_basenameless_url() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let publish = Request::put("/mypkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(
+            serde_json::to_vec(&sample_publish_body("mypkg", "1.0.0", b"real-bytes")).unwrap(),
+        ))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(publish).await.unwrap().status(), StatusCode::CREATED);
+
+    // Force the stored dist.tarball to a basename-less URL (ends in `/`), which
+    // rewrite_tarball_urls serves under the version-derived canonical name — so
+    // the served basename is still well-defined and must stay pinned.
+    let packument_path = storage.join("mypkg/package.json");
+    let mut stored: Value =
+        serde_json::from_slice(&std::fs::read(&packument_path).unwrap()).unwrap();
+    stored["versions"]["1.0.0"]["dist"]["tarball"] = json!("http://localhost:4873/mypkg/-/");
+    std::fs::write(&packument_path, serde_json::to_vec(&stored).unwrap()).unwrap();
+
+    let mut tampered = stored.clone();
+    tampered["versions"]["1.0.0"]["dist"]["tarball"] =
+        json!("http://example.test/mypkg/-/mypkg-9.9.9.tgz");
+    let request = Request::put("/mypkg/-rev/1-0")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&tampered).unwrap()))
+        .unwrap();
+    assert_eq!(app.oneshot(request).await.unwrap().status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn update_packument_rejects_seeding_a_package_with_no_published_packument() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    // PUT to the unpublish route with no prior publish would seed an authoritative
+    // version that publish can never overwrite, so it must be rejected.
+    let body = sample_publish_body("ghost", "1.0.0", b"bytes");
+    let request = Request::put("/ghost/-rev/anything")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    assert_eq!(app.oneshot(request).await.unwrap().status(), StatusCode::BAD_REQUEST);
+
+    assert!(!storage.join("ghost/package.json").exists());
+}
+
+#[tokio::test]
+async fn deprecating_an_existing_version_without_an_attachment_is_allowed() {
+    // `pnpm deprecate`/`undeprecate` re-PUT the packument with no attachments
+    // and an unchanged `dist`, only flipping `deprecated`. Regression for
+    // pnpm/pnpm#12646, which 409-rejected that and broke `pnpm deprecate`.
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let first = Request::put("/mypkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(
+            serde_json::to_vec(&sample_publish_body("mypkg", "1.0.0", b"original")).unwrap(),
+        ))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(first).await.unwrap().status(), StatusCode::CREATED);
+
+    let get =
+        app.clone().oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap();
+    let hosted = body_json(get.into_body()).await;
+    let hosted_dist = hosted["versions"]["1.0.0"]["dist"].clone();
+    // Baseline so the dist-preservation assertion below isn't vacuous.
+    assert_eq!(hosted_dist["integrity"].as_str(), Some(sri_sha512(b"original").as_str()));
+    let body = json!({
+        "_id": "mypkg",
+        "name": "mypkg",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "mypkg",
+                "version": "1.0.0",
+                "deprecated": "use 2.0.0 instead",
+                "dist": hosted_dist,
+            }
+        }
+    });
+    let deprecate = Request::put("/mypkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(deprecate).await.unwrap().status(), StatusCode::CREATED);
+
+    let after = body_json(
+        app.oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap().into_body(),
+    )
+    .await;
+    assert_eq!(after["versions"]["1.0.0"]["deprecated"], "use 2.0.0 instead");
+    assert_eq!(after["versions"]["1.0.0"]["dist"], hosted["versions"]["1.0.0"]["dist"]);
+}
+
+#[tokio::test]
+async fn metadata_only_republish_cannot_mutate_resolution_metadata() {
+    // A metadata-only re-PUT (no attachment, unchanged integrity) is allowed
+    // for `deprecated`, but must not be able to rewrite resolution-relevant
+    // fields of an already-hosted version — that would change what clients
+    // install without changing the tarball.
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let mut publish_body = sample_publish_body("mypkg", "1.0.0", b"original");
+    publish_body["versions"]["1.0.0"]["dependencies"] = json!({ "lodash": "^4.0.0" });
+    let first = Request::put("/mypkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&publish_body).unwrap()))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(first).await.unwrap().status(), StatusCode::CREATED);
+
+    let hosted = body_json(
+        app.clone()
+            .oneshot(Request::get("/mypkg").body(Body::empty()).unwrap())
+            .await
+            .unwrap()
+            .into_body(),
+    )
+    .await;
+    let body = json!({
+        "_id": "mypkg",
+        "name": "mypkg",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "mypkg",
+                "version": "1.0.0",
+                "dependencies": { "left-pad": "1.0.0" },
+                "dist": hosted["versions"]["1.0.0"]["dist"].clone(),
+            }
+        }
+    });
+    let tamper = Request::put("/mypkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    // The PUT is accepted (integrity unchanged) but the dependency change is
+    // not applied: the published version's metadata is immutable.
+    assert_eq!(app.clone().oneshot(tamper).await.unwrap().status(), StatusCode::CREATED);
+    let after = body_json(
+        app.oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap().into_body(),
+    )
+    .await;
+    assert_eq!(after["versions"]["1.0.0"]["dependencies"], json!({ "lodash": "^4.0.0" }));
+}
+
+#[tokio::test]
+async fn malformed_version_entry_cannot_corrupt_a_hosted_version() {
+    // A metadata-only PUT that sends a non-object (e.g. `null`) for a hosted
+    // version must not overwrite — and thereby erase the `dist` of — that
+    // version. The hosted manifest is kept untouched.
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let first = Request::put("/mypkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(
+            serde_json::to_vec(&sample_publish_body("mypkg", "1.0.0", b"original")).unwrap(),
+        ))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(first).await.unwrap().status(), StatusCode::CREATED);
+
+    let before = body_json(
+        app.clone()
+            .oneshot(Request::get("/mypkg").body(Body::empty()).unwrap())
+            .await
+            .unwrap()
+            .into_body(),
+    )
+    .await;
+
+    let body = json!({ "_id": "mypkg", "name": "mypkg", "versions": { "1.0.0": null } });
+    let malformed = Request::put("/mypkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    // Accepted (no integrity change to reject) but the malformed entry is ignored.
+    assert_eq!(app.clone().oneshot(malformed).await.unwrap().status(), StatusCode::CREATED);
+
+    // The hosted version is intact — its `dist` was not erased.
+    let after = body_json(
+        app.oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap().into_body(),
+    )
+    .await;
+    assert_eq!(after["versions"]["1.0.0"], before["versions"]["1.0.0"]);
+    assert!(after["versions"]["1.0.0"]["dist"]["integrity"].is_string());
+}
+
+#[tokio::test]
+async fn metadata_put_cannot_inject_a_tarball_less_version() {
+    // A metadata-only PUT must not be able to add a brand-new version entry
+    // with no attachment — that would advertise a version with no hosted
+    // tarball (installs 404) and block a later real publish of it (409).
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let app = router(static_config(storage.clone()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let first = Request::put("/mypkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(
+            serde_json::to_vec(&sample_publish_body("mypkg", "1.0.0", b"original")).unwrap(),
+        ))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(first).await.unwrap().status(), StatusCode::CREATED);
+
+    let body = json!({
+        "_id": "mypkg",
+        "name": "mypkg",
+        "dist-tags": { "latest": "9.9.9" },
+        "versions": {
+            "9.9.9": {
+                "name": "mypkg",
+                "version": "9.9.9",
+                "dist": {
+                    "tarball": "http://example.test/mypkg/-/mypkg-9.9.9.tgz",
+                    "integrity": "sha512-AAAA",
+                },
+            }
+        }
+    });
+    let squat = Request::put("/mypkg")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(squat).await.unwrap().status(), StatusCode::BAD_REQUEST);
+
+    // 9.9.9 was never added.
+    let after = body_json(
+        app.oneshot(Request::get("/mypkg").body(Body::empty()).unwrap()).await.unwrap().into_body(),
+    )
+    .await;
+    assert!(after["versions"].get("9.9.9").is_none());
 }
 
 /// Published packages are the source of truth: they live in the
@@ -1032,6 +1558,15 @@ async fn unpublish_partial_writes_modified_packument() {
         .unwrap();
     let served = body_json(response.into_body()).await;
     assert_eq!(served["versions"].as_object().unwrap().keys().collect::<Vec<_>>(), vec!["2.0.0"]);
+    // The PUT body dropped dist.integrity for the retained version; the server
+    // restores the *exact* published hash (2.0.0 was published with its version
+    // string as the tarball bytes), so the round-trip can neither strip nor
+    // corrupt a published version's integrity.
+    assert_eq!(
+        served["versions"]["2.0.0"]["dist"]["integrity"],
+        json!(sri_sha512(b"2.0.0")),
+        "the original published integrity must be restored, unchanged",
+    );
 
     // DELETE the 1.0.0 tarball next.
     let request = Request::delete("/unpub-partial/-/unpub-partial-1.0.0.tgz/-rev/anything")
@@ -1155,12 +1690,153 @@ async fn unpublish_scoped_tarball_via_six_segment_route() {
 }
 
 #[tokio::test]
-async fn unpublish_requires_publish_auth() {
+async fn missing_unpublish_policy_denies_destructive_writes() {
     let tmp = TempDir::new().unwrap();
-    let app = router(static_config(tmp.path().to_path_buf()));
-    let request = Request::delete("/some-pkg/-rev/anything").body(Body::empty()).unwrap();
-    let response = app.oneshot(request).await.unwrap();
-    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    let (config, storage) = static_config_with_packages(
+        &tmp,
+        "  'missing-unpublish':
+    access: $all
+    publish: alice",
+    );
+    let app = router(config);
+    let (app, alice) = add_user_and_get_token(app, "alice", "secret").await;
+
+    let body = sample_publish_body("missing-unpublish", "1.0.0", b"contents");
+    let request = Request::put("/missing-unpublish")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {alice}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+
+    let request = Request::delete("/missing-unpublish/-rev/anything")
+        .header("Authorization", format!("Bearer {alice}"))
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::FORBIDDEN);
+    assert!(storage.join("missing-unpublish/package.json").exists());
+}
+
+#[tokio::test]
+async fn unpublish_policy_denies_publish_authorized_package_delete() {
+    let tmp = TempDir::new().unwrap();
+    let (config, storage) = static_config_with_packages(
+        &tmp,
+        "  'unpub-policy':
+    access: $all
+    publish: $authenticated
+    unpublish: admin",
+    );
+    let app = router(config);
+    let (app, alice) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, admin) = add_user_and_get_token(app, "admin", "secret").await;
+
+    let body = sample_publish_body("unpub-policy", "1.0.0", b"contents");
+    let request = Request::put("/unpub-policy")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {alice}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+    assert!(storage.join("unpub-policy/package.json").exists());
+
+    let request = Request::delete("/unpub-policy/-rev/anything")
+        .header("Authorization", format!("Bearer {alice}"))
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::FORBIDDEN);
+    assert!(storage.join("unpub-policy/package.json").exists());
+
+    let request = Request::delete("/unpub-policy/-rev/anything")
+        .header("Authorization", format!("Bearer {admin}"))
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+    assert!(!storage.join("unpub-policy").exists());
+}
+
+#[tokio::test]
+async fn unpublish_policy_denies_publish_authorized_tarball_delete() {
+    let tmp = TempDir::new().unwrap();
+    let (config, storage) = static_config_with_packages(
+        &tmp,
+        "  'tarball-policy':
+    access: $all
+    publish: $authenticated
+    unpublish: admin",
+    );
+    let app = router(config);
+    let (app, alice) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, admin) = add_user_and_get_token(app, "admin", "secret").await;
+
+    let body = sample_publish_body("tarball-policy", "1.0.0", b"contents");
+    let request = Request::put("/tarball-policy")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {alice}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+    assert!(storage.join("tarball-policy/tarball-policy-1.0.0.tgz").exists());
+
+    let request = Request::delete("/tarball-policy/-/tarball-policy-1.0.0.tgz/-rev/anything")
+        .header("Authorization", format!("Bearer {alice}"))
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::FORBIDDEN);
+    assert!(storage.join("tarball-policy/tarball-policy-1.0.0.tgz").exists());
+
+    let request = Request::delete("/tarball-policy/-/tarball-policy-1.0.0.tgz/-rev/anything")
+        .header("Authorization", format!("Bearer {admin}"))
+        .body(Body::empty())
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+    assert!(!storage.join("tarball-policy/tarball-policy-1.0.0.tgz").exists());
+}
+
+#[tokio::test]
+async fn packument_replacement_requires_publish_and_unpublish_policy() {
+    let tmp = TempDir::new().unwrap();
+    let (config, storage) = static_config_with_packages(
+        &tmp,
+        "  'replace-policy':
+    access: $all
+    publish: $authenticated
+    unpublish: admin",
+    );
+    let app = router(config);
+    let (app, alice) = add_user_and_get_token(app, "alice", "secret").await;
+    let (app, admin) = add_user_and_get_token(app, "admin", "secret").await;
+
+    let body = sample_publish_body("replace-policy", "1.0.0", b"contents");
+    let request = Request::put("/replace-policy")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {alice}"))
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+
+    let packument_path = storage.join("replace-policy/package.json");
+    let mut replacement: Value =
+        serde_json::from_slice(&std::fs::read(&packument_path).unwrap()).unwrap();
+    replacement["owner"] = json!("admin");
+
+    let request = Request::put("/replace-policy/-rev/anything")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {alice}"))
+        .body(Body::from(serde_json::to_vec(&replacement).unwrap()))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::FORBIDDEN);
+    let on_disk: Value = serde_json::from_slice(&std::fs::read(&packument_path).unwrap()).unwrap();
+    assert!(on_disk.get("owner").is_none());
+
+    let request = Request::put("/replace-policy/-rev/anything")
+        .header("content-type", "application/json")
+        .header("Authorization", format!("Bearer {admin}"))
+        .body(Body::from(serde_json::to_vec(&replacement).unwrap()))
+        .unwrap();
+    assert_eq!(app.clone().oneshot(request).await.unwrap().status(), StatusCode::CREATED);
+    let on_disk: Value = serde_json::from_slice(&std::fs::read(&packument_path).unwrap()).unwrap();
+    assert_eq!(on_disk["owner"], "admin");
 }
 
 /// Two different versions of the same package, published concurrently,

@@ -345,7 +345,7 @@ fn package_deserializes_deprecated_boolean_true() {
     assert_eq!(
         version.deprecated.as_deref(),
         Some(""),
-        "deprecated:true maps to Some(\"\") — recorded as deprecated without a reason",
+        r#"deprecated:true maps to Some("") — recorded as deprecated without a reason"#,
     );
 }
 

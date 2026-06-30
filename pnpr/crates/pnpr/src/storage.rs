@@ -4,11 +4,11 @@ use crate::{
     package_name::PackageName,
     s3::S3Store,
     streaming,
-    upstream::CacheValidators,
+    upstream::{CacheValidators, ValidatorsByUplink},
 };
 use axum::body::Body;
 use std::{
-    io::ErrorKind,
+    io::{ErrorKind, SeekFrom},
     path::{Path, PathBuf},
     sync::{
         Arc,
@@ -16,7 +16,10 @@ use std::{
     },
     time::{Duration, SystemTime},
 };
-use tokio::{fs, io::AsyncWriteExt};
+use tokio::{
+    fs,
+    io::{AsyncSeekExt, AsyncWriteExt},
+};
 
 const PACKUMENT_FILE: &str = "package.json";
 
@@ -29,20 +32,19 @@ const PACKUMENT_META_FILE: &str = ".package.json.meta";
 
 /// Per-process counter feeding [`unique_tmp_path`] so two concurrent
 /// writes to the same path don't collide on the same temp filename.
-/// Combined with the pid the suffix is unique across every writer this
-/// process spawns; the rename is still atomic on POSIX as long as src
-/// and dest sit in the same directory (they do).
+/// Combined with the pid and random suffix, the rename is still atomic
+/// on POSIX as long as src and dest sit in the same directory (they do).
 static TMP_COUNTER: AtomicU64 = AtomicU64::new(0);
+const MAX_TEMP_CREATE_ATTEMPTS: usize = 16;
 
 /// Handle returned from [`Storage::open_cached_tarball_tmp`]. The caller
-/// writes to `file` (and on success calls [`Self::finalize`] to
-/// atomically promote the temp file to the final cache path); dropping
-/// the handle without calling [`Self::finalize`] is treated as abandon
-/// — callers that hit an error mid-write should call [`Self::abandon`]
-/// to actively remove the leftover temp file.
+/// writes through [`Self::write_all`] (and on success calls [`Self::finalize`] to
+/// atomically promote the temp file to the final cache path). The temp
+/// path remains armed until promotion succeeds, so cancellation and
+/// every error path remove it through [`Drop`].
 pub struct TarballWrite {
-    pub file: fs::File,
-    tmp_path: PathBuf,
+    file: Option<fs::File>,
+    tmp_path: Option<PathBuf>,
     final_path: PathBuf,
 }
 
@@ -72,23 +74,73 @@ impl TarballSlot {
 }
 
 impl TarballWrite {
+    pub async fn write_all(&mut self, bytes: &[u8]) -> std::io::Result<()> {
+        match self.file.as_mut() {
+            Some(file) => file.write_all(bytes).await,
+            None => Err(std::io::Error::other("tarball cache writer is closed")),
+        }
+    }
+
     /// Sync the file to disk and rename it to its final cache path.
-    pub async fn finalize(self) -> Result<()> {
-        self.file.sync_all().await?;
-        drop(self.file);
+    pub async fn finalize(mut self) -> std::io::Result<()> {
+        match self.file.as_mut() {
+            Some(file) => file.sync_all().await?,
+            None => return Err(std::io::Error::other("tarball cache writer is closed")),
+        }
+        drop(self.file.take());
         if let Some(parent) = self.final_path.parent() {
             fs::create_dir_all(parent).await?;
         }
-        fs::rename(&self.tmp_path, &self.final_path).await?;
+        let tmp_path = self
+            .tmp_path
+            .as_ref()
+            .ok_or_else(|| std::io::Error::other("tarball cache temp path is missing"))?;
+        fs::rename(tmp_path, &self.final_path).await?;
+        self.tmp_path = None;
         Ok(())
     }
 
-    /// Remove the temp file. Errors are swallowed since the caller
-    /// is already handling a higher-level failure and a leftover
-    /// `*.tmp.*` file is harmless beyond a small amount of disk.
-    pub async fn abandon(self) {
-        drop(self.file);
-        let _ = fs::remove_file(&self.tmp_path).await;
+    /// Rewind the verified write handle so the caller streams the exact
+    /// bytes that were hashed. The handle is opened read+write up front
+    /// and reused here — never dropped and reopened by path — so there is
+    /// no window for an attacker-writable cache directory to swap the
+    /// temp file between verification and streaming.
+    pub async fn into_temp_file(mut self) -> std::io::Result<(fs::File, u64, PathBuf)> {
+        let Some(mut file) = self.file.take() else {
+            return Err(std::io::Error::other("tarball cache writer is closed"));
+        };
+        file.sync_all().await?;
+        let len = file.metadata().await?.len();
+        let tmp_path = self
+            .tmp_path
+            .take()
+            .ok_or_else(|| std::io::Error::other("tarball cache temp path is missing"))?;
+        file.seek(SeekFrom::Start(0)).await?;
+        Ok((file, len, tmp_path))
+    }
+
+    pub async fn abandon(mut self) {
+        drop(self.file.take());
+        let Some(tmp_path) = self.tmp_path.as_ref() else { return };
+        match fs::remove_file(tmp_path).await {
+            Ok(()) => self.tmp_path = None,
+            Err(err) if err.kind() == ErrorKind::NotFound => self.tmp_path = None,
+            Err(_) => {}
+        }
+    }
+}
+
+impl Drop for TarballWrite {
+    fn drop(&mut self) {
+        drop(self.file.take());
+        let Some(tmp_path) = self.tmp_path.take() else { return };
+        match std::fs::remove_file(&tmp_path) {
+            Ok(()) => {}
+            Err(err) if err.kind() == ErrorKind::NotFound => {}
+            Err(err) => {
+                tracing::warn!(?err, path = %tmp_path.display(), "tarball cache temp cleanup failed");
+            }
+        }
     }
 }
 
@@ -97,14 +149,15 @@ impl TarballWrite {
 ///
 /// * `Fresh` — within the TTL; the body is read and ready to serve.
 /// * `Stale` — past the TTL; only the small conditional-GET validators
-///   are loaded. The body is left on disk and pulled on demand by the
-///   caller (via [`Storage::read_cached_packument`]) only if the upstream
-///   answers `304` or is unreachable — the common stale→`200` refresh
-///   discards the old body, so it's never read.
+///   (one set per uplink in the package's fallback chain) are loaded. The
+///   body is left on disk and pulled on demand by the caller (via
+///   [`Storage::read_cached_packument`]) only if the upstream answers `304`
+///   or is unreachable — the common stale→`200` refresh discards the old
+///   body, so it's never read.
 #[derive(Debug)]
 pub enum CachedPackument {
     Fresh(Vec<u8>),
-    Stale(CacheValidators),
+    Stale(ValidatorsByUplink),
 }
 
 /// Verdaccio-shaped storage split into two stores with different
@@ -260,6 +313,17 @@ impl Storage {
         self.hosted.write_packument(name, bytes).await
     }
 
+    /// Open a tarball from the authoritative hosted store. Hosted
+    /// publish writes verify their SRI before finalization, and static
+    /// storage remains operator-controlled rather than an uplink cache.
+    pub async fn open_hosted_tarball(
+        &self,
+        name: &PackageName,
+        filename: &str,
+    ) -> Result<Option<(Body, Option<u64>)>> {
+        self.hosted.open_tarball(name, filename).await
+    }
+
     /// Reserve a staging slot for a tarball this server hosts. The
     /// publish flow streams the decode + hash + write through
     /// `std::fs` inside `spawn_blocking` and only needs the path;
@@ -276,8 +340,8 @@ impl Storage {
     /// Remove a single tarball file from both stores. The
     /// partial-unpublish flow calls this after PUT'ing the modified
     /// packument back; clearing the proxied mirror too stops
-    /// [`Self::open_tarball`]'s cache fallback from serving a stale copy
-    /// of the just-removed version.
+    /// the proxy cache from serving a stale copy of the just-removed
+    /// version.
     pub async fn remove_tarball(&self, name: &PackageName, filename: &str) -> Result<bool> {
         let hosted = self.hosted.remove_tarball(name, filename).await?;
         let cached = self.cached.remove_tarball(name, filename).await?;
@@ -315,17 +379,29 @@ impl Storage {
         self.cached.read_packument_any_age(name).await
     }
 
-    /// Write a cached upstream packument and its validators, refreshing
-    /// the entry's freshness. Called both on a fresh upstream body and
-    /// on a `304` revalidation (re-written with the unchanged bytes to
-    /// bump the cache mtime).
+    /// Write a cached upstream packument, recording **only** `uplink`'s
+    /// validators (the origin of these bytes) and refreshing the entry's
+    /// freshness. Called both on a fresh upstream body and on a `304`
+    /// revalidation (re-written with the unchanged bytes to bump the mtime).
+    ///
+    /// The validator map is *replaced*, not merged: the cache holds a single
+    /// shared packument body, so it must carry validators for exactly the
+    /// uplink that fetched that body. If validators from other uplinks
+    /// survived here, a later `304` from one of them would revalidate *these*
+    /// bytes — which that uplink never served — and we'd keep serving another
+    /// origin's body under its confirmation. Scoping validators to the body's
+    /// origin guarantees a conditional GET only ever goes to that origin, so a
+    /// `304` can only confirm the body actually on disk.
     pub async fn write_cached_packument(
         &self,
         name: &PackageName,
         bytes: &[u8],
+        uplink: &str,
         validators: &CacheValidators,
     ) -> Result<()> {
-        self.cached.write_packument_with_meta(name, bytes, validators).await
+        let mut map = ValidatorsByUplink::default();
+        map.set(uplink, validators.clone());
+        self.cached.write_packument_with_meta(name, bytes, &map).await
     }
 
     /// Create and open a per-request temp file for a proxied tarball.
@@ -340,25 +416,82 @@ impl Storage {
         self.cached.open_tarball_tmp(name, filename).await
     }
 
-    // --- Composed (hosted-first) ----------------------------------------
-
-    /// Open a tarball for streaming, preferring the hosted store over
-    /// the proxy mirror. Returns a response body plus its size (for
-    /// `Content-Length`). `Ok(None)` means neither store has it, so the
-    /// caller can fall through to the upstream fetch.
-    pub async fn open_tarball(
+    /// Open a raw proxy-cache tarball so the caller can verify it before
+    /// constructing a response body.
+    pub async fn open_cached_tarball(
         &self,
         name: &PackageName,
         filename: &str,
-    ) -> Result<Option<(Body, Option<u64>)>> {
-        if let Some(hit) = self.hosted.open_tarball(name, filename).await? {
-            return Ok(Some(hit));
+    ) -> Result<Option<(fs::File, u64)>> {
+        self.cached.open_tarball(name, filename).await
+    }
+
+    // --- Per-uplink private cache (the `/~<uplink>/` registry endpoint) ----
+    //
+    // A private uplink's packuments and tarballs are cached under a namespace
+    // derived from the uplink and its rotation generation, kept separate from
+    // the shared public mirror so they can never be served on the public path
+    // or under another uplink. A rotation (new generation) moves to a fresh
+    // namespace, so entries fetched with a since-rotated credential age out.
+
+    /// A fresh cached packument for an uplink route, or `None` when it is
+    /// absent or older than `ttl`. The uplink path refetches a stale entry
+    /// rather than conditionally revalidating it.
+    pub async fn read_uplink_packument(
+        &self,
+        namespace: &str,
+        name: &PackageName,
+        ttl: Duration,
+    ) -> Result<Option<Vec<u8>>> {
+        match self.cached.namespaced(namespace).read_packument_entry(name, ttl).await? {
+            Some(CachedPackument::Fresh(bytes)) => Ok(Some(bytes)),
+            Some(CachedPackument::Stale(_)) | None => Ok(None),
         }
-        Ok(self
-            .cached
-            .open_tarball(name, filename)
-            .await?
-            .map(|(file, len)| (streaming::stream_file(file), Some(len))))
+    }
+
+    /// The cached uplink packument regardless of freshness (fresh or stale).
+    /// A defensive fallback for an unsolicited upstream `304`: the uplink path
+    /// sends no conditional validators, so a `304` means "unchanged" and the
+    /// cached body — even past `ttl` — is the right thing to serve rather than
+    /// a spurious `404`.
+    pub async fn read_uplink_packument_any(
+        &self,
+        namespace: &str,
+        name: &PackageName,
+    ) -> Result<Option<Vec<u8>>> {
+        // `Duration::MAX` classifies any existing entry as fresh, so its body
+        // is returned regardless of age (the stale arm can't be reached here).
+        match self.cached.namespaced(namespace).read_packument_entry(name, Duration::MAX).await? {
+            Some(CachedPackument::Fresh(bytes)) => Ok(Some(bytes)),
+            Some(CachedPackument::Stale(_)) | None => Ok(None),
+        }
+    }
+
+    pub async fn write_uplink_packument(
+        &self,
+        namespace: &str,
+        name: &PackageName,
+        bytes: &[u8],
+    ) -> Result<()> {
+        self.cached.namespaced(namespace).write_packument(name, bytes).await
+    }
+
+    pub async fn open_uplink_tarball_tmp(
+        &self,
+        namespace: &str,
+        name: &PackageName,
+        filename: &str,
+    ) -> Result<TarballWrite> {
+        self.cached.namespaced(namespace).open_tarball_tmp(name, filename).await
+    }
+
+    pub async fn open_uplink_tarball(
+        &self,
+        namespace: &str,
+        name: &PackageName,
+        filename: &str,
+    ) -> Result<Option<(fs::File, u64)>> {
+        self.cached.namespaced(namespace).open_tarball(name, filename).await
     }
 
     /// Promote a tmp tarball written by the publish flow to its final
@@ -391,6 +524,13 @@ impl Store {
         Self { root }
     }
 
+    /// A disposable store rooted at a sub-path of this one. Used to give a
+    /// private `/~<uplink>/` route its own cache namespace so its packuments
+    /// and tarballs never collide with the public mirror or another uplink.
+    fn namespaced(&self, prefix: &str) -> Store {
+        Store::new(self.root.join(prefix))
+    }
+
     async fn read_packument_entry(
         &self,
         name: &PackageName,
@@ -414,13 +554,14 @@ impl Store {
         }
     }
 
-    /// Best-effort read of the validator sidecar. A missing, unreadable,
-    /// or malformed sidecar yields empty validators so the next refresh
-    /// falls back to an unconditional GET rather than failing.
-    async fn read_validators(&self, name: &PackageName) -> CacheValidators {
+    /// Best-effort read of the validator sidecar. A missing, unreadable, or
+    /// malformed sidecar — including an older single-object sidecar written
+    /// before the per-uplink map shape — yields an empty map so the next
+    /// refresh falls back to an unconditional GET rather than failing.
+    async fn read_validators(&self, name: &PackageName) -> ValidatorsByUplink {
         match fs::read(self.packument_meta_path(name)).await {
             Ok(bytes) => serde_json::from_slice(&bytes).unwrap_or_default(),
-            Err(_) => CacheValidators::default(),
+            Err(_) => ValidatorsByUplink::default(),
         }
     }
 
@@ -447,7 +588,7 @@ impl Store {
         &self,
         name: &PackageName,
         bytes: &[u8],
-        validators: &CacheValidators,
+        validators: &ValidatorsByUplink,
     ) -> Result<()> {
         write_atomic(&self.packument_path(name), bytes).await?;
         let meta_path = self.packument_meta_path(name);
@@ -471,7 +612,24 @@ impl Store {
         let path = self.tarball_path(name, filename);
         let file = match fs::File::open(&path).await {
             Ok(f) => f,
-            Err(err) if err.kind() == ErrorKind::NotFound => return Ok(None),
+            Err(err) if err.kind() == ErrorKind::NotFound => {
+                let package_dir = self.package_dir(name);
+                match fs::metadata(&package_dir).await {
+                    Ok(meta) if meta.is_dir() => return Ok(None),
+                    Ok(_) => {
+                        return Err(std::io::Error::new(
+                            ErrorKind::NotADirectory,
+                            format!(
+                                "package storage path is not a directory: {}",
+                                package_dir.display(),
+                            ),
+                        )
+                        .into());
+                    }
+                    Err(err) if err.kind() == ErrorKind::NotFound => return Ok(None),
+                    Err(err) => return Err(err.into()),
+                }
+            }
             Err(err) => return Err(err.into()),
         };
         let len = file.metadata().await?.len();
@@ -483,9 +641,8 @@ impl Store {
         if let Some(parent) = final_path.parent() {
             fs::create_dir_all(parent).await?;
         }
-        let tmp_path = unique_tmp_path(&final_path);
-        let file = fs::File::create(&tmp_path).await?;
-        Ok(TarballWrite { file, tmp_path, final_path })
+        let (file, tmp_path) = create_tmp_file(&final_path).await?;
+        Ok(TarballWrite { file: Some(file), tmp_path: Some(tmp_path), final_path })
     }
 
     /// Reserve a tmp path in the destination package directory so the
@@ -530,8 +687,7 @@ impl Store {
     /// after the packument-update PUT, and a benign 404 here would
     /// surface as a real error to the caller.
     async fn remove_tarball(&self, name: &PackageName, filename: &str) -> Result<bool> {
-        let path = self.tarball_path(name, filename);
-        match fs::remove_file(&path).await {
+        match fs::remove_file(self.tarball_path(name, filename)).await {
             Ok(()) => Ok(true),
             Err(err) if err.kind() == ErrorKind::NotFound => Ok(false),
             Err(err) => Err(err.into()),
@@ -603,24 +759,64 @@ async fn write_atomic(path: &Path, bytes: &[u8]) -> Result<()> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).await?;
     }
-    let tmp = unique_tmp_path(path);
-    let mut file = fs::File::create(&tmp).await?;
-    file.write_all(bytes).await?;
-    file.sync_all().await?;
+    let (mut file, tmp) = create_tmp_file(path).await?;
+    if let Err(err) = file.write_all(bytes).await {
+        drop(file);
+        let _ = fs::remove_file(&tmp).await;
+        return Err(err.into());
+    }
+    if let Err(err) = file.sync_all().await {
+        drop(file);
+        let _ = fs::remove_file(&tmp).await;
+        return Err(err.into());
+    }
     drop(file);
-    fs::rename(&tmp, path).await?;
+    if let Err(err) = fs::rename(&tmp, path).await {
+        let _ = fs::remove_file(&tmp).await;
+        return Err(err.into());
+    }
     Ok(())
 }
 
-/// A unique sibling of `base` (`<base>.tmp.<pid>.<counter>`). The pid +
-/// per-process counter make the suffix unique across every writer this
-/// process spawns; keeping it in `base`'s directory keeps the eventual
-/// rename atomic on POSIX. Shared with [`crate::s3`]'s staging path.
+async fn create_tmp_file(base: &Path) -> Result<(fs::File, PathBuf)> {
+    create_tmp_file_with(base, unique_tmp_path).await
+}
+
+async fn create_tmp_file_with(
+    base: &Path,
+    mut next_path: impl FnMut(&Path) -> PathBuf,
+) -> Result<(fs::File, PathBuf)> {
+    let mut last_already_exists = None;
+    for _ in 0..MAX_TEMP_CREATE_ATTEMPTS {
+        let tmp_path = next_path(base);
+        match fs::OpenOptions::new().read(true).write(true).create_new(true).open(&tmp_path).await {
+            Ok(file) => return Ok((file, tmp_path)),
+            Err(err) if err.kind() == ErrorKind::AlreadyExists => {
+                last_already_exists = Some(err);
+            }
+            Err(err) => return Err(err.into()),
+        }
+    }
+    Err(last_already_exists
+        .unwrap_or_else(|| {
+            std::io::Error::new(ErrorKind::AlreadyExists, "temporary path creation collided")
+        })
+        .into())
+}
+
+/// A unique sibling of `base` (`<base>.tmp.<pid>.<counter>.<random>`).
+/// Keeping it in `base`'s directory keeps the eventual rename atomic on
+/// POSIX. Shared with [`crate::s3`]'s staging path.
 pub(crate) fn unique_tmp_path(base: &Path) -> PathBuf {
     let counter = TMP_COUNTER.fetch_add(1, Ordering::Relaxed);
     let pid = std::process::id();
+    let mut random = [0u8; 8];
+    let random = match getrandom::fill(&mut random) {
+        Ok(()) => u64::from_ne_bytes(random),
+        Err(_) => 0,
+    };
     let mut name = base.file_name().map(std::ffi::OsStr::to_os_string).unwrap_or_default();
-    name.push(format!(".tmp.{pid}.{counter}"));
+    name.push(format!(".tmp.{pid}.{counter}.{random:016x}"));
     match base.parent() {
         Some(parent) => parent.join(name),
         None => PathBuf::from(name),

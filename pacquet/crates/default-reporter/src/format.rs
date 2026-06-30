@@ -2,7 +2,7 @@
 //! relies on (`pretty-bytes`, `pretty-ms`, `cli-truncate`, `normalize-path`)
 //! and from `utils/formatPrefix.ts` / `utils/zooming.ts`.
 
-/// `outputConstants.ts` `PREFIX_MAX_LENGTH`.
+/// `outputConstants.ts` [`PREFIX_MAX_LENGTH`].
 pub const PREFIX_MAX_LENGTH: usize = 40;
 
 /// Port of `pretty-bytes` with `{ minimumFractionDigits: 2,
@@ -140,7 +140,7 @@ pub fn format_prefix_no_trim(cwd: &str, prefix: &str) -> String {
 }
 
 /// `formatPrefix`: like [`format_prefix_no_trim`] but trims an
-/// over-`PREFIX_MAX_LENGTH` path to a `...` + trailing-segment form.
+/// over-[`PREFIX_MAX_LENGTH`] path to a `...` + trailing-segment form.
 #[must_use]
 pub fn format_prefix(cwd: &str, prefix: &str) -> String {
     let prefix = format_prefix_no_trim(cwd, prefix);

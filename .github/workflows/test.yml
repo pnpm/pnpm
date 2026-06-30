@@ -16,6 +16,14 @@ on:
         required: false
         type: boolean
         default: false
+      test_chunk:
+        required: false
+        type: string
+        default: '1'
+      test_chunk_total:
+        required: false
+        type: string
+        default: '1'
     secrets:
       GARNET_API_TOKEN:
         required: false
@@ -25,18 +33,18 @@ permissions:
 
 jobs:
   test:
-    name: Node ${{ inputs.node_major }}
+    name: Node ${{ inputs.node_major }} / chunk ${{ inputs.test_chunk }}/${{ inputs.test_chunk_total }}
     concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.platform }}-${{ inputs.node }}
+      group: ${{ github.workflow }}-${{ github.ref }}-${{ inputs.platform }}-${{ inputs.node }}-${{ inputs.test_chunk }}-${{ inputs.test_chunk_total }}
       cancel-in-progress: true
 
     runs-on: ${{ inputs.platform }}
 
     steps:
-    # A near-full "affected packages" sweep plus the pnpr Rust build
-    # can exhaust the hosted runner's free disk mid-test (the runner
-    # worker itself dies with "No space left on device"). Drop the
-    # preinstalled toolchains this job never uses (~25 GB) first.
+    # A near-full "affected packages" sweep can exhaust the hosted runner's
+    # free disk mid-test (the runner worker itself dies with "No space left
+    # on device"). Drop the preinstalled toolchains this job never uses
+    # (~25 GB) first.
     - name: Free up runner disk space
       if: ${{ runner.os == 'Linux' }}
       run: |
@@ -48,7 +56,7 @@ jobs:
         git config --global user.name "xyz"
         git config --global user.email "x@y.z"
     - name: Checkout Commit
-      uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
         persist-credentials: false
     - if: ${{ inputs.garnet }}
@@ -56,7 +64,7 @@ jobs:
       with:
         api_token: ${{ secrets.GARNET_API_TOKEN }}
     - name: Install pnpm and Node
-      uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
+      uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
       with:
         runtime: node@${{ inputs.node }}
     - name: Verify Node version
@@ -86,53 +94,25 @@ jobs:
         name: compiled-packages
     - name: Extract compiled artifacts
       run: tar -xzf compiled.tar.gz
-    # The test harness serves package fixtures through the in-repo
-    # `pnpr` server; `pnpr-prepare` turns the raw fixtures under
-    # `pnpr/.fixtures/packages` into the storage the server reads. Both
-    # are built from source so the tests exercise the current server
-    # (e.g. the install-accelerator endpoints) rather than a published
-    # `@pnpm/pnpr` binary that may predate it.
-    #
-    # The built binaries are cached and keyed on the Rust sources that
-    # produce them, so a run that only touches TypeScript restores them
-    # in seconds instead of recompiling. They are copied out of `target/`
-    # into a stable dir so `Swatinem/rust-cache`'s `target/` cleanup
-    # can't strip them before this cache saves.
-    - name: Restore prebuilt pnpr binaries
-      id: pnpr-bins
-      uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+    # The test harness serves package fixtures through the in-repo `pnpr`
+    # server; `pnpr-prepare` turns the raw fixtures under
+    # `pnpr/.fixtures/packages` into the storage the server reads. Both are
+    # built from source (so the tests exercise the current server, not a
+    # published `@pnpm/pnpr` that may predate it) once per OS by the
+    # `build-pnpr` reusable workflow, then shared with every test job/shard
+    # here as an artifact instead of rebuilt per job.
+    - name: Download prebuilt pnpr binaries
+      uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
       with:
+        name: pnpr-bins-${{ runner.os }}
         path: .pnpr-bin
-        key: pnpr-bins-${{ runner.os }}-${{ hashFiles('rust-toolchain.toml', '**/Cargo.lock', '**/Cargo.toml', 'pnpr/**/*.rs', 'pacquet/**/*.rs') }}
-    - name: Install Rust
-      if: steps.pnpr-bins.outputs.cache-hit != 'true'
-      uses: ./.github/actions/rustup
-      with:
-        save-cache: ${{ github.ref_name == 'main' }}
-        shared-key: registry-prepare
-    - name: Build the pnpr server and registry fixture preparer
-      if: steps.pnpr-bins.outputs.cache-hit != 'true'
-      shell: bash
-      run: |
-        cargo build --locked --release -p pnpr --bin pnpr -p pnpr-fixtures --bin pnpr-prepare
-        mkdir -p .pnpr-bin
-        ext=""
-        [ -f target/release/pnpr.exe ] && ext=".exe"
-        cp "target/release/pnpr$ext" "target/release/pnpr-prepare$ext" .pnpr-bin/
-    # Save the binaries to the cache right after they build, not in a post-job
-    # step: a later step failing (e.g. a crashing test) would otherwise skip
-    # the save and force a full Rust rebuild on the next run.
-    - name: Save prebuilt pnpr binaries
-      if: steps.pnpr-bins.outputs.cache-hit != 'true'
-      uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
-      with:
-        path: .pnpr-bin
-        key: ${{ steps.pnpr-bins.outputs.cache-primary-key }}
     - name: Export pnpr binary paths
       shell: bash
       run: |
         ext=""
         [ -f "$PWD/.pnpr-bin/pnpr.exe" ] && ext=".exe"
+        # Artifacts don't preserve the executable bit; restore it on POSIX.
+        [ -z "$ext" ] && chmod +x "$PWD/.pnpr-bin/pnpr" "$PWD/.pnpr-bin/pnpr-prepare"
         echo "PNPR_BIN=$PWD/.pnpr-bin/pnpr$ext" >> "$GITHUB_ENV"
         echo "PNPR_PREPARE_BIN=$PWD/.pnpr-bin/pnpr-prepare$ext" >> "$GITHUB_ENV"
     - name: Determine test scope
@@ -166,6 +146,28 @@ jobs:
             } >> "$GITHUB_OUTPUT"
           fi
         fi
+    - name: Validate test chunk inputs
+      shell: bash
+      env:
+        TEST_CHUNK: ${{ inputs.test_chunk }}
+        TEST_CHUNK_TOTAL: ${{ inputs.test_chunk_total }}
+      run: |
+        case "$TEST_CHUNK" in
+          ''|*[!0-9]*)
+            echo "::error::test_chunk must be a positive integer"
+            exit 1
+            ;;
+        esac
+        case "$TEST_CHUNK_TOTAL" in
+          ''|*[!0-9]*)
+            echo "::error::test_chunk_total must be a positive integer"
+            exit 1
+            ;;
+        esac
+        if (( TEST_CHUNK < 1 || TEST_CHUNK_TOTAL < 1 || TEST_CHUNK > TEST_CHUNK_TOTAL )); then
+          echo "::error::test_chunk must be between 1 and test_chunk_total"
+          exit 1
+        fi
     - name: Run tests (${{ steps.test-scope.outputs.scope }})
       timeout-minutes: 70
       shell: bash
@@ -173,26 +175,63 @@ jobs:
         BENCHMARK: ${{ steps.test-scope.outputs.benchmark }}
         PNPM_WORKERS: 3
         TEST_SCRIPT: ${{ steps.test-scope.outputs.script }}
+        TEST_CHUNK: ${{ inputs.test_chunk }}
+        TEST_CHUNK_TOTAL: ${{ inputs.test_chunk_total }}
       run: |
+        benchmark="$BENCHMARK"
+        command=(pn run "$TEST_SCRIPT")
+        if [ "$TEST_CHUNK_TOTAL" != "1" ]; then
+          benchmark="${BENCHMARK}.chunk${TEST_CHUNK}"
+          command=(
+            node .github/scripts/run-ts-tests-chunk.mjs
+            --script "$TEST_SCRIPT"
+            --chunk "$TEST_CHUNK"
+            --chunks "$TEST_CHUNK_TOTAL"
+          )
+        fi
         node .github/scripts/measure-command.mjs \
-          --name "$BENCHMARK" \
-          --output ".bench/${BENCHMARK}.json" \
-          -- pn run "$TEST_SCRIPT"
+          --name "$benchmark" \
+          --output ".bench/${benchmark}.json" \
+          -- "${command[@]}"
     - name: Extract pnpm CLI e2e test duration
       if: steps.test-scope.outputs.full_tests == 'true'
       shell: bash
+      env:
+        TEST_CHUNK: ${{ inputs.test_chunk }}
+        TEST_CHUNK_TOTAL: ${{ inputs.test_chunk_total }}
       run: |
-        node .github/scripts/bencher-result-from-pnpm-summary.mjs \
-          --name tests.cli \
-          --output .bench/tests.cli.json \
-          --package-dir pnpm
+        benchmark=tests.cli
+        args=(
+          --name "$benchmark"
+          --output ".bench/${benchmark}.json"
+          --package-dir pnpm11/pnpm
+        )
+        if [ "$TEST_CHUNK_TOTAL" != "1" ]; then
+          benchmark="${benchmark}.chunk${TEST_CHUNK}"
+          args=(
+            --name "$benchmark"
+            --output ".bench/${benchmark}.json"
+            --package-dir pnpm11/pnpm
+            --allow-missing
+          )
+        fi
+        node .github/scripts/bencher-result-from-pnpm-summary.mjs "${args[@]}"
     - name: Stage Bencher test durations
       if: steps.test-scope.outputs.full_tests == 'true'
       env:
+        BENCHMARK: ${{ steps.test-scope.outputs.benchmark }}
         NODE_VERSION: ${{ inputs.node }}
         PLATFORM: ${{ inputs.platform }}
+        TEST_CHUNK: ${{ inputs.test_chunk }}
+        TEST_CHUNK_TOTAL: ${{ inputs.test_chunk_total }}
       shell: bash
       run: |
+        benchmark="$BENCHMARK"
+        cli_benchmark=tests.cli
+        if [ "$TEST_CHUNK_TOTAL" != "1" ]; then
+          benchmark="${BENCHMARK}.chunk${TEST_CHUNK}"
+          cli_benchmark="${cli_benchmark}.chunk${TEST_CHUNK}"
+        fi
         platform_slug=${PLATFORM%-latest}
         node_major=${NODE_VERSION%%.*}
         case "$platform_slug" in
@@ -211,22 +250,30 @@ jobs:
         esac
         artifact_dir=.bench/artifact/pnpm
         mkdir -p "$artifact_dir"
+        files=(".bench/${benchmark}.json")
+        if [ -f ".bench/${cli_benchmark}.json" ]; then
+          files+=(".bench/${cli_benchmark}.json")
+        fi
 
         node .github/scripts/merge-bencher-results.mjs \
           --output "$artifact_dir/results.json" \
-          -- .bench/tests.all.json .bench/tests.cli.json
+          -- "${files[@]}"
 
         cat > "$artifact_dir/metadata.json" <<EOF
         {
           "kind": "pnpm",
-          "testbed": "pnpm.${platform_slug}.node${node_major}"
+          "testbed": "pnpm.${platform_slug}.node${node_major}",
+          "chunk": {
+            "index": ${TEST_CHUNK},
+            "total": ${TEST_CHUNK_TOTAL}
+          }
         }
         EOF
     - name: Upload Bencher test duration artifact
       if: steps.test-scope.outputs.full_tests == 'true'
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
-        name: ci-performance-pnpm-${{ inputs.platform }}-node-${{ inputs.node }}
+        name: ci-performance-pnpm-${{ inputs.platform }}-node-${{ inputs.node }}-chunk-${{ inputs.test_chunk }}-of-${{ inputs.test_chunk_total }}
         path: .bench/artifact/pnpm/
         if-no-files-found: error
         retention-days: 14

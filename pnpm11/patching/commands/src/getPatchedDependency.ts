@@ -3,9 +3,8 @@ import path from 'node:path'
 import { confirm, select } from '@inquirer/prompts'
 import type { Config } from '@pnpm/config.reader'
 import { PnpmError } from '@pnpm/error'
-import { isGitHostedPkgUrl } from '@pnpm/fetching.pick-fetcher'
 import { readCurrentLockfile, type TarballResolution } from '@pnpm/lockfile.fs'
-import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
+import { isGitHostedTarballUrl, nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { parseWantedDependency, type ParseWantedDependencyResult } from '@pnpm/resolving.parse-wanted-dependency'
 import { realpathMissing } from 'realpath-missing'
 import semver from 'semver'
@@ -60,7 +59,7 @@ export async function getPatchedDependency (rawDependency: string, opts: GetPatc
     const preferred = preferredVersions[0]
     if (preferred.gitTarballUrl) {
       return {
-        ...opts,
+        ...dep,
         applyToAll: false,
         bareSpecifier: preferred.gitTarballUrl,
       }
@@ -117,7 +116,7 @@ export async function getVersionsFromLockfile (dep: ParseWantedDependencyResult,
       const tarball = (pkgSnapshot.resolution as TarballResolution)?.tarball ?? ''
       return {
         ...nameVerFromPkgSnapshot(depPath, pkgSnapshot),
-        gitTarballUrl: (isGitHostedPkgUrl(tarball) || isPkgPrNewUrl(tarball)) ? tarball : undefined,
+        gitTarballUrl: (isGitHostedTarballUrl(tarball) || isPkgPrNewUrl(tarball)) ? tarball : undefined,
       }
     })
     .filter(({ name }) => name === pkgName)

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolving.resolver-base",
-  "version": "1100.4.2",
+  "version": "1100.5.0",
   "description": "Types for pnpm-compatible resolvers",
   "keywords": [
     "pnpm",
@@ -26,8 +26,9 @@
   ],
   "scripts": {
     "start": "tsgo --watch",
-    "lint": "eslint \"src/**/*.ts\"",
-    "test": "pn compile",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "pn compile && pn .test",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest",
     "prepublishOnly": "tsgo --build",
     "compile": "tsgo --build && pn lint --fix"
   },
@@ -35,6 +36,7 @@
     "@pnpm/types": "workspace:*"
   },
   "devDependencies": {
+    "@jest/globals": "catalog:",
     "@pnpm/resolving.resolver-base": "workspace:*"
   },
   "engines": {

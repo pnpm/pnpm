@@ -7,15 +7,16 @@
 //! document; the main install path preserves it verbatim when it
 //! rewrites the wanted lockfile (see [`crate::save_value_to_path`]).
 //!
-//! Mirrors upstream's `EnvLockfile` type and the
+//! Mirrors upstream's [`EnvLockfile`][ts-EnvLockfile] type and the
 //! `createEnvLockfile` / `readEnvLockfile` / `writeEnvLockfile`
-//! helpers at
-//! <https://github.com/pnpm/pnpm/blob/31858c544b/lockfile/fs/src/envLockfile.ts>.
+//! helpers.
 //! The `packages:` and `snapshots:` maps reuse the same
 //! [`PackageMetadata`] / [`SnapshotEntry`] types as the main lockfile —
 //! upstream uses the identical `LockfilePackageInfo` /
 //! `LockfilePackageSnapshot` shapes — so the env document inherits the
 //! main lockfile's byte-for-byte serialization parity.
+//!
+//! [ts-EnvLockfile]: https://github.com/pnpm/pnpm/blob/31858c544b/lockfile/types/src/index.ts#L168-L178
 
 use crate::{
     LoadLockfileError, Lockfile, PackageKey, PackageMetadata, SaveLockfileError, SnapshotEntry,

@@ -1,5 +1,54 @@
 # @pnpm/plugin-commands-installation
 
+## 1100.10.1
+
+### Patch Changes
+
+- 25a829e: `pnpm audit --fix` now writes a single combined `minimumReleaseAgeExclude` entry per package (e.g. `axios@0.18.1 || 0.21.1`) instead of one entry per version, matching the format documented for the setting. Existing per-version entries in `pnpm-workspace.yaml` are merged into the combined form rather than left as duplicates. Installs that auto-collect immature versions into `minimumReleaseAgeExclude` now report the same combined entries, so the "Added N entries" message matches what is written to the manifest [#12534](https://github.com/pnpm/pnpm/issues/12534).
+- 6545793: Fixed `pnpm install --ignore-workspace` overwriting the `allowBuilds` map in `pnpm-workspace.yaml`. The ignored builds of a package with a build script were auto-populated into `allowBuilds` even though `--ignore-workspace` was passed, clobbering committed `true`/`false` values with the `set this to true or false` placeholder [#12469](https://github.com/pnpm/pnpm/issues/12469).
+- Updated dependencies [25a829e]
+- Updated dependencies [bae694f]
+- Updated dependencies [05b95ab]
+- Updated dependencies [fbdc0eb]
+- Updated dependencies [fa7004b]
+- Updated dependencies [0ec878d]
+- Updated dependencies [a84d2a1]
+- Updated dependencies [852d537]
+  - @pnpm/workspace.workspace-manifest-writer@1100.0.14
+  - @pnpm/config.version-policy@1100.1.6
+  - @pnpm/resolving.npm-resolver@1102.1.0
+  - @pnpm/resolving.resolver-base@1100.5.0
+  - @pnpm/installing.context@1100.0.20
+  - @pnpm/network.fetch@1100.1.4
+  - @pnpm/workspace.project-manifest-reader@1100.0.14
+  - @pnpm/pkg-manifest.utils@1100.2.6
+  - @pnpm/installing.env-installer@1102.0.2
+  - @pnpm/installing.deps-installer@1102.1.1
+  - @pnpm/error@1100.0.1
+  - @pnpm/config.writer@1100.0.14
+  - @pnpm/building.policy@1100.0.11
+  - @pnpm/deps.inspection.outdated@1100.1.10
+  - @pnpm/workspace.projects-graph@1100.0.20
+  - @pnpm/deps.status@1100.1.3
+  - @pnpm/lockfile.types@1100.0.12
+  - @pnpm/store.connection-manager@1100.3.2
+  - @pnpm/store.controller@1102.0.2
+  - @pnpm/hooks.pnpmfile@1100.0.16
+  - @pnpm/building.after-install@1102.0.2
+  - @pnpm/lockfile.fs@1100.1.7
+  - @pnpm/deps.security.signatures@1101.2.3
+  - @pnpm/cli.utils@1101.0.13
+  - @pnpm/config.reader@1101.10.1
+  - @pnpm/workspace.projects-reader@1101.0.13
+  - @pnpm/global.commands@1100.0.30
+  - @pnpm/catalogs.config@1100.0.2
+  - @pnpm/installing.dedupe.check@1100.1.1
+  - @pnpm/network.auth-header@1101.1.3
+  - @pnpm/pkg-manifest.reader@1100.0.9
+  - @pnpm/workspace.projects-filter@1100.0.23
+  - @pnpm/workspace.root-finder@1100.0.3
+  - @pnpm/workspace.state@1100.0.24
+
 ## 1100.10.0
 
 ### Minor Changes

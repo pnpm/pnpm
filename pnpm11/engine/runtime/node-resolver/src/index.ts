@@ -56,7 +56,7 @@ export async function resolveNodeRuntime (
   }
 
   if (ctx.offline) throw new PnpmError('NO_OFFLINE_NODEJS_RESOLUTION', 'Offline Node.js resolution is not supported')
-  const versionSpec = wantedDependency.bareSpecifier.substring('runtime:'.length)
+  const versionSpec = normalizeRuntimeSpec(wantedDependency.bareSpecifier.substring('runtime:'.length))
   const { releaseChannel, versionSpecifier } = parseNodeSpecifier(versionSpec)
   const nodeMirrorBaseUrl = getNodeMirror(ctx.nodeDownloadMirrors, releaseChannel)
   const version = await resolveNodeVersion(ctx.fetchFromRegistry, versionSpecifier, nodeMirrorBaseUrl)
@@ -88,7 +88,7 @@ export async function resolveLatestNodeRuntime (
 ): Promise<LatestInfo | undefined> {
   const manifestSpec = query.wantedDependency.bareSpecifier
   if (query.wantedDependency.alias !== 'node' || !manifestSpec?.startsWith('runtime:')) return undefined
-  const versionSpec = query.compatible ? manifestSpec.substring('runtime:'.length) : 'latest'
+  const versionSpec = query.compatible ? normalizeRuntimeSpec(manifestSpec.substring('runtime:'.length)) : 'latest'
   const { releaseChannel, versionSpecifier } = parseNodeSpecifier(versionSpec)
   const nodeMirrorBaseUrl = getNodeMirror(ctx.nodeDownloadMirrors, releaseChannel)
   const version = await resolveNodeVersion(ctx.fetchFromRegistry, versionSpecifier, nodeMirrorBaseUrl)
@@ -215,6 +215,7 @@ export async function resolveNodeVersion (
   nodeMirrorBaseUrl?: string
 ): Promise<string | null> {
   const allVersions = await fetchAllVersions(fetch, nodeMirrorBaseUrl)
+  versionSpec = normalizeRuntimeSpec(versionSpec)
   if (versionSpec === 'latest') {
     return allVersions[0].version
   }
@@ -228,14 +229,20 @@ export async function resolveNodeVersions (
   nodeMirrorBaseUrl?: string
 ): Promise<string[]> {
   const allVersions = await fetchAllVersions(fetch, nodeMirrorBaseUrl)
-  if (!versionSpec) {
+  if (versionSpec == null) {
     return allVersions.map(({ version }) => version)
   }
+  versionSpec = normalizeRuntimeSpec(versionSpec)
   if (versionSpec === 'latest') {
     return [allVersions[0].version]
   }
   const { versions, versionRange } = filterVersions(allVersions, versionSpec)
   return versions.filter(version => semver.satisfies(version, versionRange, SEMVER_OPTS))
+}
+
+function normalizeRuntimeSpec (versionSpec: string): string {
+  versionSpec = versionSpec.trim()
+  return versionSpec === '' ? 'latest' : versionSpec
 }
 
 async function fetchAllVersions (fetch: FetchFromRegistry, nodeMirrorBaseUrl?: string): Promise<NodeVersion[]> {

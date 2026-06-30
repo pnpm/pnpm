@@ -59,6 +59,7 @@ use std::{
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use pacquet_network::MetadataCacheScope;
 use pacquet_registry::{Package, PackageVersions};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -126,6 +127,32 @@ pub enum SaveMetaError {
     },
 }
 
+/// Mirror root for descriptor-scoped private metadata. A
+/// [`MetadataCacheScope::Private`] route stores its packuments under
+/// `<cache_dir>/v11/metadata-private/<descriptor-id>/<meta-suffix>/...`
+/// so one caller's private metadata never lands in the global mirror
+/// every other caller reads.
+const PRIVATE_META_ROOT: &str = "v11/metadata-private";
+
+/// The mirror directory `base_meta_dir` resolves to under `scope`.
+///
+/// * [`MetadataCacheScope::Public`] keeps the global directory unchanged
+///   (the CLI and public routes).
+/// * [`MetadataCacheScope::Private`] relocates it under
+///   `v11/metadata-private/<descriptor-id>/` keyed by the descriptor id,
+///   preserving the abbreviated/full/filtered split via the suffix after
+///   `v11/`.
+#[must_use]
+pub fn scoped_meta_dir(scope: &MetadataCacheScope, base_meta_dir: &str) -> String {
+    match scope {
+        MetadataCacheScope::Public => base_meta_dir.to_string(),
+        MetadataCacheScope::Private { descriptor_id } => {
+            let suffix = base_meta_dir.strip_prefix("v11/").unwrap_or(base_meta_dir);
+            format!("{PRIVATE_META_ROOT}/{descriptor_id}/{suffix}")
+        }
+    }
+}
+
 /// On-disk path of the JSONL document where pacquet (and pnpm)
 /// mirrors a package's registry metadata. Matches pnpm's
 /// [`getPkgMirrorPath`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L566-L568).
@@ -185,6 +212,7 @@ pub fn get_registry_name(registry: &str) -> Result<String, EncodeRegistryError> 
 /// sha256 hex suffix so case-insensitive filesystems (HFS+, NTFS by
 /// default) can't collide it with a lowercase sibling. Mirrors pnpm's
 /// [`encodePkgName`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L555-L560).
+#[must_use]
 pub fn encode_pkg_name(pkg_name: &str) -> String {
     let lowered = pkg_name.to_lowercase();
     if pkg_name == lowered {
@@ -431,6 +459,7 @@ fn read_mirror_headers(file: &mut File) -> Option<MetaHeaders> {
 /// headers, identical to pnpm's
 /// [`loadMetaHeaders`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L627-L644)
 /// catch-and-return-null.
+#[must_use]
 pub fn load_meta_headers(pkg_mirror: &Path) -> Option<MetaHeaders> {
     let mut file = File::open(pkg_mirror).ok()?;
     read_mirror_headers(&mut file)
@@ -444,6 +473,7 @@ pub fn load_meta_headers(pkg_mirror: &Path) -> Option<MetaHeaders> {
 /// catches any error from `readFile` / `JSON.parse` and returns
 /// `null`; we match that contract because the caller's response to
 /// "couldn't read" is the same as "no cache".
+#[must_use]
 pub fn load_meta(pkg_mirror: &Path) -> Option<Package> {
     let contents = fs::read(pkg_mirror).ok()?;
     let newline = contents.iter().position(|&byte| byte == b'\n')?;
@@ -560,7 +590,7 @@ pub fn save_meta(pkg_mirror: &Path, contents: &[u8]) -> Result<(), SaveMetaError
 }
 
 /// Per-process atomic counter used to disambiguate concurrent
-/// `save_meta` calls writing to sibling temp paths under the same
+/// [`save_meta`] calls writing to sibling temp paths under the same
 /// mirror directory. Pid + counter is enough — pnpm's pathTemp uses
 /// the same shape (`<pid>.<counter>` suffix) for the same reason.
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);

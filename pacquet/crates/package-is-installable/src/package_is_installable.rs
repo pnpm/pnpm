@@ -196,7 +196,7 @@ pub fn check_package(
 /// — the caller composes them so log payloads can carry pacquet-
 /// specific context (`prefix`, `requester`, etc.).
 ///
-/// `InstallabilityError` is large (200+ bytes) because it carries the
+/// [`InstallabilityError`] is large (200+ bytes) because it carries the
 /// full wanted/current platform or engine state for diagnostic
 /// rendering. Boxing the `Err` arm keeps `Result<_, _>` small enough
 /// for clippy's `result-large-err` lint on installs where the error

@@ -7,7 +7,7 @@ use crate::{
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_config::{Config, PackageImportMethod};
-use pacquet_deps_path::remove_suffix;
+use pacquet_deps_path::{get_pkg_id_with_patch_hash, index_of_dep_path_suffix, remove_suffix};
 use pacquet_executor::{
     LifecycleScriptError, RunPostinstallHooks, ScriptsPrependNodePath, run_postinstall_hooks,
 };
@@ -234,6 +234,43 @@ pub(crate) fn normalize_build_dep_path(dep_path: &str) -> String {
     remove_suffix(dep_path).to_string()
 }
 
+/// The `allowBuilds` key under which an ignored build should be approved:
+/// the package name for registry packages, the peer-suffix-free depPath for
+/// git/tarball artifacts (whose name alone must not approve builds). Ports
+/// pnpm's
+/// [`allowBuildKeyFromIgnoredBuild`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/policy/src/index.ts#L83-L88).
+#[must_use]
+pub fn allow_build_key_from_ignored_build(dep_path: &str) -> String {
+    let pkg_id_with_patch_hash = get_pkg_id_with_patch_hash(dep_path);
+    match parse_dep_path_name_version(pkg_id_with_patch_hash) {
+        Some((name, version)) if node_semver::Version::parse(version).is_ok() => name.to_string(),
+        _ => pkg_id_with_patch_hash.to_string(),
+    }
+}
+
+/// Split a peer-suffix-free depPath / pkgId into its `name` and `version`
+/// (with any `(patch_hash=…)` segment stripped), mirroring the half of
+/// pnpm's
+/// [`parse`](https://github.com/pnpm/pnpm/blob/097983fbca/deps/path/src/index.ts#L123-L170)
+/// that [`allow_build_key_from_ignored_build`] consumes. Returns `None`
+/// when there is no `@` version separator past position 0 or the version
+/// is empty — the cases pnpm's `parse` reports as a name-less `{}`.
+fn parse_dep_path_name_version(pkg_id: &str) -> Option<(&str, &str)> {
+    let sep = pkg_id.get(1..)?.find('@').map(|off| off + 1)?;
+    let name = &pkg_id[..sep];
+    let mut version = &pkg_id[sep + 1..];
+    if version.is_empty() {
+        return None;
+    }
+    let suffix = index_of_dep_path_suffix(version);
+    if let Some(idx) = suffix.patch_hash_index {
+        version = &version[..idx];
+    } else if let Some(idx) = suffix.peers_index {
+        version = &version[..idx];
+    }
+    Some((name, version))
+}
+
 fn is_dep_path_allow_build_key(spec: &str) -> bool {
     if normalize_build_dep_path(spec) != spec {
         return true;
@@ -250,6 +287,38 @@ fn is_dep_path_allow_build_key(spec: &str) -> bool {
 
 fn is_source_like_dep_path_version(version: &str) -> bool {
     version.contains(':') || version.contains('/') || version.contains('#')
+}
+
+/// Drives a forced rebuild of already-installed packages. Constructed by
+/// `pacquet rebuild` and `pacquet approve-builds`; absent (`None`) for a
+/// normal install. Mirrors the rebuild half of pnpm's
+/// [`buildSelectedPkgs`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/after-install/src/index.ts).
+///
+/// Effect on [`BuildModules`]: a selected package is built even when the
+/// side-effects cache reports it already built (an explicit rebuild always
+/// re-runs the scripts). The allow-policy gate is unchanged — a rebuild
+/// never builds a disallowed package — and non-selected packages keep
+/// their normal install gating so a partial rebuild does not drop the
+/// ignored-builds record for the packages it did not touch.
+#[derive(Debug, Default, Clone)]
+pub struct RebuildOptions {
+    /// Allow-build keys (the package name for registry deps, the full
+    /// pkgId for git/tarball artifacts — see
+    /// [`allow_build_key_from_ignored_build`]) to force past the
+    /// side-effects `is_built` gate. `None` forces every build-needing
+    /// package (`pnpm rebuild` with no arguments); `Some(keys)` forces
+    /// only the matching ones (`pnpm rebuild <pkg>...`). A package matches
+    /// when either its name or its allow-build key is in the set, so a
+    /// `pnpm rebuild <name>` and an `approve-builds` key both select it.
+    pub selected_names: Option<HashSet<String>>,
+}
+
+impl RebuildOptions {
+    /// Whether a package named `name` is in the rebuild selection. An
+    /// absent selection (`None`) matches every package.
+    fn is_selected(&self, name: &str) -> bool {
+        self.selected_names.as_ref().is_none_or(|names| names.contains(name))
+    }
 }
 
 /// Run lifecycle scripts for all packages that require a build.
@@ -411,6 +480,14 @@ pub struct BuildModules<'a> {
     /// re-materialization doesn't re-announce a method the link phase
     /// already reported.
     pub logged_methods: &'a std::sync::atomic::AtomicU8,
+
+    /// Forced-rebuild selection. `None` for a normal install — every
+    /// package follows the standard `requires_build` + allow-policy +
+    /// side-effects-cache gates. `Some` (a `pacquet rebuild` /
+    /// `approve-builds`) restricts the build to the selected names and
+    /// forces them past the side-effects `is_built` gate. See
+    /// [`RebuildOptions`].
+    pub rebuild: Option<&'a RebuildOptions>,
 }
 
 impl BuildModules<'_> {
@@ -448,6 +525,7 @@ impl BuildModules<'_> {
             ignore_scripts,
             import_method,
             logged_methods,
+            rebuild,
         } = self;
 
         let Some(snapshots) = snapshots else { return Ok(Vec::new()) };
@@ -593,6 +671,7 @@ impl BuildModules<'_> {
                         ignore_scripts,
                         import_method,
                         logged_methods,
+                        rebuild,
                     )
                 })
             })?;
@@ -614,7 +693,7 @@ impl BuildModules<'_> {
 /// Per-snapshot build work, called once per chunk member by the
 /// bounded-parallelism `par_iter().try_for_each(...)` dispatch in
 /// [`BuildModules::run`].
-#[allow(
+#[expect(
     clippy::too_many_arguments,
     reason = "the parameters are independent inputs; bundling them into a struct would not improve clarity"
 )]
@@ -646,6 +725,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     ignore_scripts: bool,
     import_method: PackageImportMethod,
     logged_methods: &std::sync::atomic::AtomicU8,
+    rebuild: Option<&RebuildOptions>,
 ) -> Result<(), BuildModulesError> {
     let metadata_key = snapshot_key.without_peer();
     // Look up against the peer-stripped key because patches are
@@ -664,7 +744,25 @@ fn build_one_snapshot<Reporter: self::Reporter>(
         return Ok(());
     }
 
-    let (name, version) = parse_name_version_from_key(&metadata_key.to_string());
+    let dep_path = metadata_key.to_string();
+    let (name, version) = parse_name_version_from_key(&dep_path);
+
+    // An explicit `pacquet rebuild` re-runs the build scripts of the
+    // selected packages even when the side-effects cache reports them
+    // already built; `force_rebuild` marks those so they bypass the
+    // `is_built` gate below. The selection holds allow-build keys (the
+    // package name for registry deps, the full pkgId for git/tarball
+    // artifacts), so match either form — a selected non-registry artifact
+    // is forced past the gate too. The allow-policy gate still applies — a
+    // rebuild never builds a disallowed package — matching pnpm's
+    // `buildModules` honoring `allowBuild` during rebuild. Non-selected
+    // packages still run the allow-policy gate below (so their
+    // `.modules.yaml` ignored-builds record stays intact), but their
+    // scripts are suppressed by the rebuild-selection gate after it.
+    let force_rebuild = rebuild.is_some_and(|rebuild| {
+        rebuild.is_selected(&name)
+            || rebuild.is_selected(&allow_build_key_from_ignored_build(&dep_path))
+    });
 
     // Mirrors upstream's `if (node.requiresBuild) { allowBuild(...) }`
     // at lines 88-101: the allowBuilds gate only applies when the
@@ -677,7 +775,6 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     // `ignoreScripts = true; break` pattern.
     let mut should_run_scripts = requires_build && !ignore_scripts;
     if should_run_scripts {
-        let dep_path = metadata_key.to_string();
         match allow_build_policy.check(&dep_path) {
             Some(false) => {
                 should_run_scripts = false;
@@ -695,6 +792,17 @@ fn build_one_snapshot<Reporter: self::Reporter>(
             }
             Some(true) => {}
         }
+    }
+
+    // A `pacquet rebuild <pkg>` runs scripts only for the selected
+    // packages. Non-selected packages were still evaluated by the policy
+    // gate above (so their ignored-builds state is recorded), but their
+    // scripts are suppressed here. The side-effects `is_built` gate below
+    // is only an optimization and is disabled by default, so this gate —
+    // not that short-circuit — is what bounds script execution to the
+    // selection, matching pnpm's `buildSelectedPkgs`.
+    if rebuild.is_some() && !force_rebuild {
+        should_run_scripts = false;
     }
 
     // Compute the side-effects cache key once per snapshot, before
@@ -750,8 +858,10 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     // otherwise run its scripts — but if the prefetch surfaced a
     // matching side-effects-cache entry, the build is already
     // represented on disk (pnpm seeded it on a previous install)
-    // and we can skip.
-    if side_effects_cache
+    // and we can skip. An explicit `pacquet rebuild` (`force_rebuild`)
+    // always re-runs the scripts, so it bypasses this gate.
+    if !force_rebuild
+        && side_effects_cache
         && let Some(maps_by_snapshot) = side_effects_maps_by_snapshot
         && let Some(maps) = maps_by_snapshot.get(snapshot_key)
         && let Some(key) = cache_key.as_deref()

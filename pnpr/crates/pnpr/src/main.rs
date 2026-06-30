@@ -1,5 +1,5 @@
 use clap::Parser;
-use pnpr::{Config, ConfigSource, LogConfig, LogFormat, default_cache_dir, serve};
+use pnpr::{Config, ConfigSource, LogConfig, LogFormat, RegistryError, default_cache_dir, serve};
 use std::{net::SocketAddr, path::PathBuf, time::Duration};
 use tracing_subscriber::EnvFilter;
 
@@ -14,7 +14,7 @@ struct Args {
     config: Option<PathBuf>,
 
     /// Address to bind to.
-    #[arg(long, default_value = "127.0.0.1:4873")]
+    #[arg(long, default_value = Config::DEFAULT_LISTEN)]
     listen: SocketAddr,
 
     /// Override the storage path from the loaded config (bundled or
@@ -42,17 +42,46 @@ struct Args {
     /// refetched. When omitted, the loaded config's value wins.
     #[arg(long)]
     packument_ttl_secs: Option<u64>,
+
+    /// Enable local OSV npm vulnerability checks. Requires a local OSV
+    /// npm database zip at --osv-db or <cache>/osv/npm/all.zip.
+    #[arg(long)]
+    osv: bool,
+
+    /// Path to the local OSV npm database zip or extracted JSON directory.
+    #[arg(long)]
+    osv_db: Option<PathBuf>,
+
+    /// Disable the npm-registry surface (packument/tarball reads, publish,
+    /// unpublish, dist-tag, search, and the user/login endpoints).
+    /// Overrides `registry.enabled` from the loaded config.
+    #[arg(long)]
+    disable_registry: bool,
+
+    /// Disable the install-accelerator surface (`/-/pnpr`, `/-/pnpr/v0/resolve`,
+    /// `/-/pnpr/v0/verify-lockfile`). Overrides `resolver.enabled` from the
+    /// loaded config.
+    #[arg(long)]
+    disable_resolver: bool,
 }
 
 #[tokio::main]
 async fn main() -> miette::Result<()> {
     let args = Args::parse();
     let auto_path = Config::auto_config_path();
-    let (mut config, source) = Config::resolve(
+    // Pass the surface-disable flags into parsing so a CLI-disabled surface
+    // skips its parse-time work too (e.g. strict uplink token resolution),
+    // not just its routes — applying them after `resolve` would be too late.
+    let overrides = pnpr::FeatureOverrides {
+        disable_registry: args.disable_registry,
+        disable_resolver: args.disable_resolver,
+    };
+    let (mut config, source) = Config::resolve_with_overrides(
         args.config.as_deref(),
         auto_path.as_deref(),
         args.listen,
         args.public_url.clone(),
+        overrides,
     )
     .map_err(|err| miette::miette!("{err}"))?;
     if let Some(storage) = args.storage {
@@ -80,9 +109,22 @@ async fn main() -> miette::Result<()> {
     if let Some(ttl_secs) = args.packument_ttl_secs {
         config.packument_ttl = Duration::from_secs(ttl_secs);
     }
+    if args.osv {
+        config.osv.enabled = true;
+    }
+    if let Some(osv_db) = args.osv_db {
+        config.osv.path = Some(osv_db);
+    }
+    // Surface overrides were folded in during parse; the parse already
+    // enforced that at least one surface stays enabled.
     init_logging(&config.logs);
     log_config_source(&source);
-    serve(config).await.map_err(|err| miette::miette!("{err}"))
+    serve(config).await.map_err(|err| redacted_report(&err))
+}
+
+fn redacted_report(err: &RegistryError) -> miette::Report {
+    let message = err.log_message();
+    miette::miette!("{message}")
 }
 
 /// Install the `tracing-subscriber` for this process based on the
@@ -121,3 +163,6 @@ fn log_config_source(source: &ConfigSource) {
         ConfigSource::Bundled => tracing::info!("loaded bundled default config"),
     }
 }
+
+#[cfg(test)]
+mod tests;

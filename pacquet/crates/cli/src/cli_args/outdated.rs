@@ -304,11 +304,6 @@ impl OutdatedArgs {
     /// Run the check and print the report to stdout. Returns whether any
     /// dependency was outdated; the caller decides the process exit code.
     pub async fn run(self, state: State) -> miette::Result<OutdatedOutcome> {
-        if self.global {
-            return Err(miette::miette!(
-                "`pacquet outdated --global` is not supported yet; global package management has not been ported to pacquet."
-            ));
-        }
         if state.config.recursive {
             return Err(miette::miette!(
                 "`pacquet outdated --recursive` is not supported yet; recursive workspace inspection has not been ported to pacquet."
@@ -339,7 +334,7 @@ impl OutdatedArgs {
             let dir = manifest.path().parent().unwrap_or_else(|| manifest.path()).display();
             return Err(miette::miette!(
                 code = "ERR_PNPM_OUTDATED_NO_LOCKFILE",
-                "No lockfile in directory \"{dir}\". Run `pacquet install` to generate one."
+                r#"No lockfile in directory "{dir}". Run `pacquet install` to generate one."#
             ));
         }
 
@@ -356,6 +351,65 @@ impl OutdatedArgs {
         };
         let mut outdated =
             collect_outdated(manifest, lockfile, config, http_client, &query).await?;
+
+        sort_outdated(&mut outdated, self.sort_by);
+
+        let output = match self.resolve_format() {
+            OutdatedFormat::Table => render_table(&outdated, self.long),
+            OutdatedFormat::List => render_list(&outdated, self.long),
+            OutdatedFormat::Json => render_json(&outdated, self.long),
+        };
+
+        let mut stdout = std::io::stdout();
+        let _ = writeln!(stdout, "{output}");
+        let _ = stdout.flush();
+
+        Ok(if outdated.is_empty() { OutdatedOutcome::UpToDate } else { OutdatedOutcome::Outdated })
+    }
+
+    /// `pnpm outdated -g`: inspect every globally installed package group,
+    /// treating each install dir's `package.json` as a project, and report
+    /// the aggregate. Mirrors pnpm's global branch in `outdated.handler`.
+    pub async fn run_global(self, config: &'static Config) -> miette::Result<OutdatedOutcome> {
+        if config.recursive {
+            return Err(miette::miette!(
+                "`pacquet outdated --recursive` is not supported yet; recursive workspace inspection has not been ported to pacquet."
+            ));
+        }
+        let global_pkg_dir = config.global_pkg_dir.clone().ok_or_else(|| {
+            miette::miette!(
+                code = "ERR_PNPM_NO_GLOBAL_BIN_DIR",
+                "Unable to find the global packages directory"
+            )
+        })?;
+
+        let include = self.dependency_options.include();
+        let target_version =
+            if self.compatible { TargetVersion::WithinRange } else { TargetVersion::Latest };
+        let matcher = (!self.packages.is_empty()).then(|| create_matcher(&self.packages));
+        let query = OutdatedQuery {
+            target_version,
+            include_direct: &include,
+            match_names: matcher.as_ref(),
+            include_deprecated: true,
+        };
+
+        let mut outdated = Vec::new();
+        let global_packages = pacquet_global::scan_global_packages(&global_pkg_dir)
+            .map_err(|err| miette::miette!("failed to scan global packages: {err}"))?;
+        for pkg in global_packages {
+            let manifest_path = pkg.install_dir.join("package.json");
+            let state = State::init(manifest_path, config, false)
+                .map_err(|err| miette::Report::new(err).wrap_err("initialize global state"))?;
+            let lockfile = state
+                .lockfile
+                .get()
+                .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
+            let result =
+                collect_outdated(&state.manifest, lockfile, config, &state.http_client, &query)
+                    .await?;
+            outdated.extend(result);
+        }
 
         sort_outdated(&mut outdated, self.sort_by);
 

@@ -40,9 +40,6 @@
       "path": "../../crypto/hash"
     },
     {
-      "path": "../../fetching/pick-fetcher"
-    },
-    {
       "path": "../../fs/packlist"
     },
     {

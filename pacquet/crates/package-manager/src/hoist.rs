@@ -6,7 +6,7 @@
 //! shape — into the project's flat `node_modules/.pnpm/node_modules/`
 //! (private hoist) or directly into `<project>/node_modules/` (public
 //! hoist). Two patterns drive the decision: `hoistPattern` and
-//! `publicHoistPattern`. The result is a `HoistedDependencies` map (keyed
+//! `publicHoistPattern`. The result is a [`HoistedDependencies`] map (keyed
 //! by snapshot key) that the install pipeline persists to
 //! `.modules.yaml` and uses to drive symlink creation + bin linking.
 //!

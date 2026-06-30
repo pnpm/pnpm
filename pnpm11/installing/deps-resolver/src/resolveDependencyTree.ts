@@ -61,6 +61,11 @@ export interface ResolvedDirectDependency {
   name: string
   catalogLookup?: CatalogLookupMetadata
   normalizedBareSpecifier?: string
+  /**
+   * The wanted dependency this was resolved from, carried so consumers can
+   * recover the request directly. See `updateProjectManifest`.
+   */
+  wantedDependency?: WantedDependency
 }
 
 /**
@@ -348,6 +353,7 @@ export async function resolveDependencyTree<T> (
             resolution: resolvedPackage.resolution,
             version: resolvedPackage.version,
             normalizedBareSpecifier: dep.normalizedBareSpecifier,
+            wantedDependency: dep.wantedDependency,
           }
         }),
       directNodeIdsByAlias: new Map(directNonLinkedDeps.map(({ alias, nodeId }) => [alias, nodeId])),

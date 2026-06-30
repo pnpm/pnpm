@@ -190,6 +190,30 @@ overrides:
   expect(fs.readFileSync(filePath).toString()).toStrictEqual(expected)
 })
 
+test('updateWorkspaceManifest merges addedMinimumReleaseAgeExcludes into existing entries', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  writeYamlFileSync(filePath, { packages: ['*'], minimumReleaseAgeExclude: ['axios@0.18.1'] })
+  await updateWorkspaceManifest(dir, {
+    addedMinimumReleaseAgeExcludes: ['axios@0.21.1 || 0.21.2', 'lodash@4.17.21'],
+  })
+  expect(readYamlFileSync(filePath)).toStrictEqual({
+    packages: ['*'],
+    minimumReleaseAgeExclude: ['axios@0.18.1 || 0.21.1 || 0.21.2', 'lodash@4.17.21'],
+  })
+})
+
+test('updateWorkspaceManifest does not rewrite when addedMinimumReleaseAgeExcludes introduce no change', async () => {
+  const dir = tempDir(false)
+  const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)
+  const originalContent = 'packages:\n  - \'*\'\nminimumReleaseAgeExclude:\n  - axios@0.18.1 || 0.21.1\n'
+  fs.writeFileSync(filePath, originalContent)
+  await updateWorkspaceManifest(dir, {
+    addedMinimumReleaseAgeExcludes: ['axios@0.18.1'],
+  })
+  expect(fs.readFileSync(filePath).toString()).toStrictEqual(originalContent)
+})
+
 test('updateWorkspaceManifest adds a new catalog', async () => {
   const dir = tempDir(false)
   const filePath = path.join(dir, WORKSPACE_MANIFEST_FILENAME)

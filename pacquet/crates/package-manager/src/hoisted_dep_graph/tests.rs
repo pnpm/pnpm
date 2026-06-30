@@ -274,7 +274,7 @@ fn walker_transitive_dep_flattens_under_root() {
     assert_eq!(
         a_node.children.get("b"),
         Some(&modules.join("b")),
-        "a's `children[\"b\"]` points at the hoisted (root-level) dir",
+        r#"a's `children["b"]` points at the hoisted (root-level) dir"#,
     );
 
     assert_eq!(result.hoisted_locations["a@1.0.0"], vec!["node_modules/a".to_string()]);

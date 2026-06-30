@@ -1,5 +1,12 @@
 # @pnpm/package-is-installable
 
+## 1100.0.12
+
+### Patch Changes
+
+- Updated dependencies [852d537]
+  - @pnpm/error@1100.0.1
+
 ## 1100.0.11
 
 ### Patch Changes

@@ -977,7 +977,7 @@ impl CreateVirtualStore<'_> {
 }
 
 /// Look up the obsolete child aliases for a slot, defaulting to an
-/// empty slice. The extra indirection lets the `SlotLink` builders
+/// empty slice. The extra indirection lets the [`SlotLink`] builders
 /// pass their multiply-borrowed `snapshot_key` straight through —
 /// deref coercion narrows it to `&PackageKey` at the call site.
 fn removed_aliases_for<'a>(

@@ -1,8 +1,9 @@
 name: PR review automation
 
 # Capture PR review approvals from the AI reviewers and the maintainer. This
-# workflow only records the event as an artifact; the privileged follow-up
-# (pr-review-automation-privileged.yml) adds the label and posts to Discord.
+# workflow is intentionally unprivileged; the privileged follow-up
+# (pr-review-automation-privileged.yml) verifies the review through GitHub's API
+# before it adds the label and posts to Discord.
 #
 # The split exists because pull_request_review runs triggered by a forked PR are
 # given a read-only token and no secrets, so the label/Discord steps cannot run
@@ -21,25 +22,6 @@ jobs:
       contains(fromJSON('["coderabbitai[bot]", "qodo-free-for-open-source-projects[bot]", "zkochan"]'), github.event.review.user.login)
     runs-on: ubuntu-latest
     permissions: {}
-    env:
-      # PR fields are written to inert files, never interpolated into a script,
-      # so an attacker-controlled PR title cannot inject shell commands.
-      PR_NUMBER: ${{ github.event.pull_request.number }}
-      PR_TITLE: ${{ github.event.pull_request.title }}
-      PR_URL: ${{ github.event.pull_request.html_url }}
-      REVIEWER: ${{ github.event.review.user.login }}
     steps:
-      - name: Record the review event
-        run: |
-          mkdir -p pr-review-event
-          printf '%s' "$PR_NUMBER" > pr-review-event/pr_number
-          printf '%s' "$REVIEWER" > pr-review-event/reviewer
-          printf '%s' "$PR_TITLE" > pr-review-event/title
-          printf '%s' "$PR_URL" > pr-review-event/url
-
-      - name: Upload the event artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: pr-review-event
-          path: pr-review-event/
-          retention-days: 1
+      - name: Record the review trigger
+        run: echo "Review trigger accepted"

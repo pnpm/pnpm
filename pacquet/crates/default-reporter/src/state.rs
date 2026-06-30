@@ -129,8 +129,10 @@ struct ProgressEntry {
     slot: BlockSlot,
 }
 
-/// One dependency added or removed, ready to render. Ports `PackageDiff` in
-/// `pkgsDiff.ts`.
+/// One dependency added or removed, ready to render. Ports [`PackageDiff`][ts-PackageDiff]
+/// in `pkgsDiff.ts`.
+///
+/// [ts-PackageDiff]: https://github.com/pnpm/pnpm/blob/6fadd7def9/pnpm11/cli/default-reporter/src/reporterForClient/pkgsDiff.ts#L7-L15
 #[derive(Debug, Clone)]
 struct PackageDiff {
     added: bool,
@@ -317,6 +319,10 @@ impl ReporterState {
             LogEvent::LockfileVerification(log) => self.on_lockfile_verification(&log.message),
             LogEvent::RequestRetry(log) => self.on_request_retry(log),
             LogEvent::Pnpm(log) => self.on_pnpm(log.level, &log.message, &log.prefix),
+            // `pnpm:global` shares the "other" log stream with the `pnpm`
+            // channel but carries no prefix, so it always renders (the
+            // empty-prefix path in `on_pnpm`).
+            LogEvent::Global(log) => self.on_pnpm(log.level, &log.message, ""),
             LogEvent::ExecutionTime(log) => self.on_execution_time(log),
             // Debug-only / non-rendered channels in pnpm's default reporter.
             LogEvent::Hook(_) | LogEvent::BrokenModules(_) => {}
@@ -972,7 +978,7 @@ impl ReporterState {
     fn on_execution_time(&mut self, log: &ExecutionTimeLog) {
         let elapsed = log.ended_at.saturating_sub(log.started_at);
         let msg =
-            format!("Done in {} using pacquet v{}", pretty_ms(elapsed), crate::package_version());
+            format!("Done in {} using pnpm v{}", pretty_ms(elapsed), crate::package_version());
         let mut slot = std::mem::take(&mut self.exec_slot);
         self.frame.emit(&mut slot, msg, true);
         self.exec_slot = slot;

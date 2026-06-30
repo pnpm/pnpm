@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/workspace.workspace-manifest-writer",
-  "version": "1100.0.13",
+  "version": "1100.0.14",
   "description": "Updates the workspace manifest file",
   "keywords": [
     "pnpm",
@@ -33,6 +33,7 @@
   "dependencies": {
     "@pnpm/catalogs.types": "workspace:*",
     "@pnpm/config.parse-overrides": "workspace:*",
+    "@pnpm/config.version-policy": "workspace:*",
     "@pnpm/constants": "workspace:*",
     "@pnpm/lockfile.types": "workspace:*",
     "@pnpm/types": "workspace:*",

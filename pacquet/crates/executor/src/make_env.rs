@@ -195,14 +195,14 @@ fn strip_env_prefix<'key>(key: &'key str, prefix: &str, is_windows: bool) -> Opt
 
 /// Look up the `PATH` value from `env` case-insensitively. On
 /// Windows the system variable is typically `Path`, not `PATH`;
-/// returning the value here lets the rest of `build_env` stay
+/// returning the value here lets the rest of [`build_env`] stay
 /// independent of casing.
 pub(crate) fn path_value(env: &HashMap<String, String>) -> Option<String> {
     env.iter().find_map(|(k, v)| k.eq_ignore_ascii_case("PATH").then(|| v.clone()))
 }
 
 /// Look up `node` along the supplied `PATH`. Driven by the filtered
-/// `parent_env`'s PATH (not the process-global env) so `build_env`
+/// `parent_env`'s PATH (not the process-global env) so [`build_env`]
 /// stays deterministic given its inputs — matching the docstring
 /// contract.
 fn find_node_in_path(path: Option<&str>) -> Option<PathBuf> {

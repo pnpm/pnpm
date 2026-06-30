@@ -38,7 +38,7 @@ pub struct Remove<'a> {
 /// the manifest is mutated or any install runs.
 ///
 /// Kept separate from [`RemoveError`] so the `validate_removable` guard
-/// returns a small `Result` — folding these into `RemoveError` (which
+/// returns a small `Result` — folding these into [`RemoveError`] (which
 /// carries the large [`InstallError`]) trips `clippy::result_large_err`
 /// on the non-async validator.
 #[derive(Debug, Display, Error, Diagnostic)]
@@ -134,12 +134,13 @@ impl Remove<'_> {
             auth_override: None,
             resolution_observer: None,
             catalogs_override: None,
+            disable_optimistic_repeat_install: false,
         }
         .run::<Reporter>()
         .await
         .map_err(RemoveError::Install)?;
 
-        manifest.save().map_err(RemoveError::SaveManifest)?;
+        let updated = manifest.save_and_get_written_value().map_err(RemoveError::SaveManifest)?;
 
         // `pnpm:package-manifest updated` mirrors the post-mutation emit
         // pnpm fires after rewriting the manifest. See the parallel emit
@@ -152,7 +153,7 @@ impl Remove<'_> {
             .into_owned();
         Reporter::emit(&LogEvent::PackageManifest(PackageManifestLog {
             level: LogLevel::Debug,
-            message: PackageManifestMessage::Updated { prefix, updated: manifest.value().clone() },
+            message: PackageManifestMessage::Updated { prefix, updated },
         }));
 
         Ok(())

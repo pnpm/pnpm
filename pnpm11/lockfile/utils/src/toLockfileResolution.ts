@@ -1,5 +1,5 @@
 import type { LockfileResolution } from '@pnpm/lockfile.types'
-import type { Resolution, TarballResolution } from '@pnpm/resolving.resolver-base'
+import { isGitHostedTarballUrl, type Resolution, type TarballResolution } from '@pnpm/resolving.resolver-base'
 import { isCanonicalRegistryTarballUrl } from '@pnpm/resolving.tarball-url'
 
 export function toLockfileResolution (
@@ -52,20 +52,4 @@ export function toLockfileResolution (
     ...(gitHosted ? { gitHosted: true } : {}),
     ...(path == null ? {} : { path }),
   }
-}
-
-// Inlined to avoid pulling @pnpm/fetching.pick-fetcher into the lockfile-utils
-// dep graph. Used as a fallback when callers haven't pre-set the
-// `gitHosted` field on TarballResolution.
-export function isGitHostedTarballUrl (url: string): boolean {
-  // Schemes and hostnames are case-insensitive, so match against a lowercased
-  // copy: a tampered `https://CODELOAD.GITHUB.COM/...` must not slip past as a
-  // non-git-hosted (and therefore registry-trusted) tarball. Only the
-  // lowercased copy is inspected; the original URL is never rewritten.
-  const lowerUrl = url.toLowerCase()
-  return (
-    lowerUrl.startsWith('https://codeload.github.com/') ||
-    lowerUrl.startsWith('https://bitbucket.org/') ||
-    lowerUrl.startsWith('https://gitlab.com/')
-  ) && lowerUrl.includes('tar.gz')
 }

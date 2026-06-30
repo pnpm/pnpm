@@ -1,6 +1,6 @@
 use super::{
-    Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe, NodeLinker,
-    NodePackageMapType, PackageImportMethod, fs,
+    Config, EnvVar, EnvVarOs, GetCurrentDir, GetHomeDir, Host, LinkProbe, LoadWorkspaceYamlError,
+    NodeLinker, NodePackageMapType, PackageImportMethod, fs,
 };
 use crate::defaults::default_store_dir;
 use pacquet_store_dir::StoreDir;
@@ -443,6 +443,396 @@ pub fn url_scoped_env_auth_prefix_is_case_insensitive_end_to_end() {
     assert_eq!(
         config.auth_headers.for_url("https://env2e.example.com/pkg").as_deref(),
         Some("Bearer upper-token"),
+    );
+}
+
+#[test]
+pub fn json_env_host_keyed_token_is_used_and_outranks_project_npmrc() {
+    let project = tempdir().expect("project tempdir");
+    write_file(&project.path().join(".npmrc"), "//json2e.example.com/:_authToken=project-token\n");
+    set_fake_env(&[(
+        "pnpm_config__auth",
+        r#"{"https://json2e.example.com":{"@":{"authToken":"env-token"}}}"#,
+    )]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(
+        config.auth_headers.for_url("https://json2e.example.com/pkg").as_deref(),
+        Some("Bearer env-token"),
+    );
+}
+
+#[test]
+pub fn json_env_repo_registry_cannot_redirect_token() {
+    let project = tempdir().expect("project tempdir");
+    write_file(
+        &project.path().join("pnpm-workspace.yaml"),
+        "registries:\n  '@org-a': https://attacker.example/\n",
+    );
+    set_fake_env(&[(
+        "pnpm_config__auth",
+        r#"{"https://npm.pkg.github.com":{"@org-a":{"authToken":"org-a-token"}}}"#,
+    )]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(
+        config
+            .auth_headers
+            .for_url_with_package("https://npm.pkg.github.com/org-a/foo", Some("@org-a/foo"))
+            .as_deref(),
+        Some("Bearer org-a-token"),
+    );
+    // Use the scoped lookup the token is keyed under — `for_url` alone
+    // only checks the default/unscoped path and would pass even if the
+    // `@org-a` token had been rebound to the attacker host.
+    assert!(
+        config
+            .auth_headers
+            .for_url_with_package("https://attacker.example/org-a/foo", Some("@org-a/foo"))
+            .is_none(),
+        "repo-controlled registry URL must not receive the env token",
+    );
+}
+
+#[test]
+pub fn json_env_per_scope_token_on_shared_host() {
+    let project = tempdir().expect("project tempdir");
+    set_fake_env(&[(
+        "pnpm_config__auth",
+        r#"{"https://npm.pkg.github.com":{"@org-a":{"authToken":"a-tok"},"@org-b":{"authToken":"b-tok"}}}"#,
+    )]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(
+        config
+            .auth_headers
+            .for_url_with_package("https://npm.pkg.github.com/org-a/foo", Some("@org-a/foo"))
+            .as_deref(),
+        Some("Bearer a-tok"),
+    );
+    assert_eq!(
+        config
+            .auth_headers
+            .for_url_with_package("https://npm.pkg.github.com/org-b/foo", Some("@org-b/foo"))
+            .as_deref(),
+        Some("Bearer b-tok"),
+    );
+}
+
+/// End-to-end: malformed `pnpm_config__auth` JSON aborts the load with an
+/// error rather than silently dropping the auth.
+#[test]
+pub fn json_env_malformed_json_aborts_the_load() {
+    let project = tempdir().expect("project tempdir");
+    set_fake_env(&[("pnpm_config__auth", "{ not valid json")]);
+
+    let result = Config::default().current::<FakeEnv>(project.path());
+    assert!(matches!(result, Err(LoadWorkspaceYamlError::InvalidJsonAuth { .. })));
+}
+
+/// End-to-end: a non-object top-level `pnpm_config__auth` aborts the load.
+#[test]
+pub fn json_env_non_object_top_level_aborts_the_load() {
+    let project = tempdir().expect("project tempdir");
+    set_fake_env(&[("pnpm_config__auth", r#"["array","is","not","an","object"]"#)]);
+
+    let result = Config::default().current::<FakeEnv>(project.path());
+    assert!(matches!(result, Err(LoadWorkspaceYamlError::InvalidJsonAuth { .. })));
+}
+
+/// End-to-end: the "@" (default) scope in `pnpm_config__auth` routes the
+/// default registry to its host — `pnpm add <pkg>` resolves against the
+/// env-declared host, not the npmjs default. Confirmed semantics in
+/// pnpm/pnpm#12559.
+#[test]
+pub fn json_env_default_scope_routes_default_registry() {
+    let project = tempdir().expect("project tempdir");
+    set_fake_env(&[(
+        "pnpm_config__auth",
+        r#"{"https://my-npm-proxy.example":{"@":{"authToken":"proxy-token"}}}"#,
+    )]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.registry, "https://my-npm-proxy.example/");
+    assert_eq!(
+        config.registries.get("default").map(String::as_str),
+        Some("https://my-npm-proxy.example/"),
+    );
+    assert_eq!(
+        config.auth_headers.for_url("https://my-npm-proxy.example/pkg").as_deref(),
+        Some("Bearer proxy-token"),
+    );
+}
+
+/// End-to-end: a package scope in `pnpm_config__auth` routes that scope
+/// to its host.
+#[test]
+pub fn json_env_scoped_entry_routes_that_scope() {
+    let project = tempdir().expect("project tempdir");
+    set_fake_env(&[(
+        "pnpm_config__auth",
+        r#"{"https://npm.pkg.github.com":{"@org":{"authToken":"org-token"}}}"#,
+    )]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(
+        config.registries.get("@org").map(String::as_str),
+        Some("https://npm.pkg.github.com/"),
+    );
+}
+
+/// End-to-end: the env-inferred default registry wins over a
+/// repo-controlled `pnpm-workspace.yaml` default. The credential and
+/// its destination host come from the same trusted env value, so yaml
+/// cannot redirect the env token to a different registry.
+#[test]
+pub fn json_env_env_default_wins_over_workspace_yaml_default() {
+    let project = tempdir().expect("project tempdir");
+    write_file(
+        &project.path().join("pnpm-workspace.yaml"),
+        "registries:\n  default: https://registry.npmjs.org/\n",
+    );
+    set_fake_env(&[(
+        "pnpm_config__auth",
+        r#"{"https://my-npm-proxy.example":{"@":{"authToken":"proxy-token"}}}"#,
+    )]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.registry, "https://my-npm-proxy.example/");
+    assert_eq!(
+        config.registries.get("default").map(String::as_str),
+        Some("https://my-npm-proxy.example/"),
+    );
+}
+
+/// End-to-end: the `_auth` key of the global pnpm `config.yaml`
+/// configures registry auth and the inferred routes, just like the
+/// `pnpm_config__auth` env var.
+#[test]
+pub fn global_config_yaml_auth_configures_registry_auth() {
+    let xdg = tempdir().expect("xdg tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create config dir");
+    fs::write(
+        config_dir.join("config.yaml"),
+        "_auth:\n  \"https://global-auth.example.com\":\n    \"@\":\n      authToken: yaml-token\n    \"@org\":\n      authToken: org-yaml-token\n",
+    )
+    .expect("write global config.yaml");
+
+    let project = tempdir().expect("project tempdir");
+    set_fake_env(&[("XDG_CONFIG_HOME", xdg.path().to_str().unwrap())]);
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(
+        config.auth_headers.for_url("https://global-auth.example.com/pkg").as_deref(),
+        Some("Bearer yaml-token"),
+    );
+    assert_eq!(config.registry, "https://global-auth.example.com/");
+    assert_eq!(
+        config.registries.get("@org").map(String::as_str),
+        Some("https://global-auth.example.com/"),
+    );
+}
+
+/// End-to-end: the `pnpm_config__auth` env var wins over the global
+/// `config.yaml` `_auth` on a conflicting key.
+#[test]
+pub fn json_env_auth_wins_over_global_config_yaml_auth() {
+    let xdg = tempdir().expect("xdg tempdir");
+    let config_dir = xdg.path().join("pnpm");
+    fs::create_dir_all(&config_dir).expect("create config dir");
+    fs::write(
+        config_dir.join("config.yaml"),
+        "_auth:\n  \"https://shared.example.com\":\n    \"@\":\n      authToken: yaml-token\n",
+    )
+    .expect("write global config.yaml");
+
+    let project = tempdir().expect("project tempdir");
+    set_fake_env(&[
+        ("XDG_CONFIG_HOME", xdg.path().to_str().unwrap()),
+        ("pnpm_config__auth", r#"{"https://shared.example.com":{"@":{"authToken":"env-token"}}}"#),
+    ]);
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(
+        config.auth_headers.for_url("https://shared.example.com/pkg").as_deref(),
+        Some("Bearer env-token"),
+    );
+}
+
+/// End-to-end: `_auth` in a project `pnpm-workspace.yaml` is ignored —
+/// repo-controlled config must never supply registry credentials.
+#[test]
+pub fn project_workspace_yaml_auth_is_ignored() {
+    let project = tempdir().expect("project tempdir");
+    write_file(
+        &project.path().join("pnpm-workspace.yaml"),
+        "_auth:\n  \"https://attacker.example\":\n    \"@\":\n      authToken: attacker-token\n",
+    );
+    set_fake_env(&[]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert!(
+        config.auth_headers.for_url("https://attacker.example/pkg").is_none(),
+        "project pnpm-workspace.yaml _auth must not configure registry auth",
+    );
+    assert_ne!(config.registry, "https://attacker.example/");
+}
+
+/// End-to-end: a `PNPM_CONFIG_REGISTRY` env var (CLI-equivalent) still
+/// wins over the env JSON default — matching pnpm's "CLI > env JSON >
+/// yaml" precedence.
+#[test]
+pub fn json_env_env_registry_flag_wins_over_json_env_default() {
+    let project = tempdir().expect("project tempdir");
+    set_fake_env(&[
+        (
+            "pnpm_config__auth",
+            r#"{"https://my-npm-proxy.example":{"@":{"authToken":"proxy-token"}}}"#,
+        ),
+        ("PNPM_CONFIG_REGISTRY", "https://cli-registry.example/"),
+    ]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.registry, "https://cli-registry.example/");
+    assert_eq!(
+        config.registries.get("default").map(String::as_str),
+        Some("https://cli-registry.example/"),
+    );
+    assert_eq!(
+        config.package_manager_bootstrap.registries.get("default").map(String::as_str),
+        Some("https://cli-registry.example/"),
+    );
+    // Token is still pinned to the env-declared host.
+    assert_eq!(
+        config.auth_headers.for_url("https://my-npm-proxy.example/pkg").as_deref(),
+        Some("Bearer proxy-token"),
+    );
+}
+
+/// End-to-end: env-inferred registry routes flow through to the
+/// package-manager bootstrap path (self-download / version switching).
+#[test]
+pub fn json_env_inferred_registries_flow_to_bootstrap() {
+    let project = tempdir().expect("project tempdir");
+    set_fake_env(&[(
+        "pnpm_config__auth",
+        r#"{"https://my-npm-proxy.example":{"@":{"authToken":"proxy-token"},"@org":{"authToken":"org-token"}}}"#,
+    )]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.package_manager_bootstrap.registry, "https://my-npm-proxy.example/");
+    assert_eq!(
+        config.package_manager_bootstrap.registries.get("@org").map(String::as_str),
+        Some("https://my-npm-proxy.example/"),
+    );
+    assert_eq!(
+        config
+            .package_manager_bootstrap
+            .auth_headers
+            .for_url("https://my-npm-proxy.example/pkg")
+            .as_deref(),
+        Some("Bearer proxy-token"),
+    );
+    assert_eq!(
+        config
+            .package_manager_bootstrap
+            .auth_headers
+            .for_url_with_package("https://my-npm-proxy.example/org/foo", Some("@org/foo"))
+            .as_deref(),
+        Some("Bearer org-token"),
+    );
+}
+
+/// End-to-end: a scoped env JSON entry overrides a repo-controlled
+/// `pnpm-workspace.yaml` scoped registry in the main cascade, and the
+/// token is pinned to the env-declared host. Asserts
+/// `config.registries["@scope"]` — not just auth headers — so a regression
+/// that breaks routing while leaving auth-header pinning intact is caught.
+#[test]
+pub fn json_env_env_scoped_wins_over_workspace_yaml_scoped() {
+    let project = tempdir().expect("project tempdir");
+    write_file(
+        &project.path().join("pnpm-workspace.yaml"),
+        "registries:\n  '@victim-scope': https://attacker.example/\n",
+    );
+    set_fake_env(&[(
+        "pnpm_config__auth",
+        r#"{"https://registry.npmjs.org":{"@victim-scope":{"authToken":"secret-token"}}}"#,
+    )]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(
+        config.registries.get("@victim-scope").map(String::as_str),
+        Some("https://registry.npmjs.org/"),
+    );
+    assert_eq!(
+        config
+            .auth_headers
+            .for_url_with_package(
+                "https://registry.npmjs.org/@victim-scope/foo",
+                Some("@victim-scope/foo")
+            )
+            .as_deref(),
+        Some("Bearer secret-token"),
+    );
+    assert!(
+        config.auth_headers.for_url("https://attacker.example/@victim-scope/foo").is_none(),
+        "repo-controlled registry URL must not receive the env token",
+    );
+}
+
+#[test]
+pub fn json_env_invalid_auth_aborts_the_load() {
+    // An unsupported field and a non-string token are both hard errors, so
+    // no partially-applied routing leaks through.
+    let project = tempdir().expect("project tempdir");
+    set_fake_env(&[(
+        "pnpm_config__auth",
+        r#"{"https://private.example":{"@":{"tokenAuth":"tok"},"@org":{"authToken":123}}}"#,
+    )]);
+
+    let result = Config::default().current::<FakeEnv>(project.path());
+    assert!(matches!(result, Err(LoadWorkspaceYamlError::InvalidJsonAuth { .. })));
+}
+
+/// Env JSON routes override user-level (`~/.npmrc` / `auth.ini`) scoped
+/// registries in the package-manager bootstrap, matching pnpm's TS
+/// `packageManagerRegistries` precedence (env JSON > trusted .npmrc).
+/// CLI scoped overrides still win — applied later by `ConfigOverrides`.
+#[test]
+pub fn json_env_overrides_user_bootstrap_scoped_registry() {
+    let project = tempdir().expect("project tempdir");
+    let auth = tempdir().expect("auth tempdir");
+    let auth_file = auth.path().join("user-npmrc");
+    write_file(&auth_file, "@org:registry=https://user-registry.example/\n");
+    set_fake_env(&[
+        ("PNPM_CONFIG_NPMRC_AUTH_FILE", auth_file.to_str().unwrap()),
+        (
+            "pnpm_config__auth",
+            r#"{"https://my-npm-proxy.example":{"@org":{"authToken":"org-token"}}}"#,
+        ),
+    ]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(
+        config.package_manager_bootstrap.registries.get("@org").map(String::as_str),
+        Some("https://my-npm-proxy.example/"),
+    );
+    assert_eq!(
+        config.registries.get("@org").map(String::as_str),
+        Some("https://my-npm-proxy.example/"),
     );
 }
 
@@ -1359,6 +1749,34 @@ pub fn pnpm_config_env_var_overrides_workspace_yaml() {
     );
 }
 
+#[test]
+pub fn patches_dir_reads_from_env_overlay() {
+    struct HostWithPatchesDirEnv;
+    impl EnvVar for HostWithPatchesDirEnv {
+        fn var(name: &str) -> Option<String> {
+            if name == "PNPM_CONFIG_PATCHES_DIR" {
+                return Some("custom-patches".to_owned());
+            }
+            safe_host_var(name)
+        }
+    }
+    impl EnvVarOs for HostWithPatchesDirEnv {
+        fn var_os(_: &str) -> Option<OsString> {
+            None
+        }
+    }
+    impl GetHomeDir for HostWithPatchesDirEnv {
+        fn home_dir() -> Option<PathBuf> {
+            None
+        }
+    }
+    inert_link_probe!(HostWithPatchesDirEnv);
+
+    let tmp = tempdir().unwrap();
+    let config = Config::new().current::<HostWithPatchesDirEnv>(tmp.path()).expect("loads");
+    assert_eq!(config.patches_dir.as_deref(), Some("custom-patches"));
+}
+
 /// `PNPM_CONFIG_HOIST=false` runs the same post-processing as
 /// yaml-set `hoist: false` — it short-circuits `hoist_pattern`
 /// to `None`, mirroring upstream's
@@ -1675,5 +2093,29 @@ pub fn package_manager_bootstrap_honors_env_registry() {
     assert_eq!(
         config.package_manager_bootstrap.registry, "https://env.example.com/",
         "env registry overrides the package-manager bootstrap default",
+    );
+}
+
+/// When `PNPM_CONFIG_REGISTRY` is set without a trailing slash, the env
+/// override normalizes it before storing — matching pnpm, which treats
+/// `https://r` and `https://r/` as the same registry. The slash must be
+/// appended consistently to `config.registry`, `config.registries`, and
+/// the bootstrap map so downstream lookups (auth-header pinning,
+/// `package_manager_bootstrap`) all key against the normalized form.
+#[test]
+pub fn env_registry_override_appends_missing_trailing_slash() {
+    let project = tempdir().expect("project tempdir");
+    set_fake_env(&[("PNPM_CONFIG_REGISTRY", "https://env.example.com")]);
+
+    let config = load_with_fake_env(project.path());
+
+    assert_eq!(config.registry, "https://env.example.com/");
+    assert_eq!(
+        config.registries.get("default").map(String::as_str),
+        Some("https://env.example.com/"),
+    );
+    assert_eq!(
+        config.package_manager_bootstrap.registries.get("default").map(String::as_str),
+        Some("https://env.example.com/"),
     );
 }

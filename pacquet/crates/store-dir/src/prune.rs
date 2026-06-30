@@ -133,7 +133,7 @@ impl StoreDir {
 /// descends into every non-hidden subdir until it sees `node_modules`,
 /// at which point it records the path and stops descending — the
 /// hoisted deps inside `node_modules/.pnpm` and friends are picked up
-/// by `walk_symlinks_to_store`'s transitive recursion instead.
+/// by [`walk_symlinks_to_store`]'s transitive recursion instead.
 fn find_all_node_modules_dirs(project_dir: &Path) -> Vec<PathBuf> {
     let mut out = Vec::new();
     scan(project_dir, &mut out);
@@ -397,7 +397,7 @@ fn remove_slot_dir(path: &Path) -> Result<(), PruneError> {
 /// [`rimraf`](https://github.com/pnpm/pnpm/blob/94240bc046/store/controller/src/storeController/pruneGlobalVirtualStore.ts#L210-L223)
 /// on the empty `<version>/`, `<name>/`, and `<scope>/` parents — a
 /// concurrent install that materialises a fresh slot in the window
-/// between `list_subdirs` and the parent cleanup would have its
+/// between [`list_subdirs`] and the parent cleanup would have its
 /// just-written tree wiped by upstream's recursive remove. Switching
 /// to `fs::remove_dir` keeps pacquet race-safe (the new slot stays;
 /// only the parent that's truly empty is removed) while producing

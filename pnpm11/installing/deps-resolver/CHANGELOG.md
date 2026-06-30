@@ -1,5 +1,35 @@
 # @pnpm/resolve-dependencies
 
+## 1100.2.5
+
+### Patch Changes
+
+- bae694f: Some registries generate tarballs on-demand and cannot provide an integrity checksum in their package metadata. In that case pnpm now computes the integrity from the downloaded tarball and stores it in the lockfile, so the entry is verifiable on subsequent installs instead of being written without an integrity (which would fail the next install). This also applies to `--lockfile-only`: the tarball is downloaded so its integrity can be computed. A lockfile entry that is still missing its integrity is rejected as a `ERR_PNPM_MISSING_TARBALL_INTEGRITY` lockfile verification violation (the install fails closed) rather than being silently re-fetched.
+- 1cbb5f2: Fixed non-deterministic peer resolution that could add or remove an optional transitive peer — for example `@babel/core`, reached through `styled-jsx` — from a package's peer-dependency suffix across otherwise identical installs, churning the lockfile and causing intermittent `pnpm dedupe --check` failures in CI. When a package's children are resolved by one occurrence (the "owner") and reused by a deeper consumer, whether that consumer inherited the owner's missing peers depended on whether the owner's resolution had finished yet — a race under concurrent resolution. The decision is now a function of the dependency graph's structure rather than resolution-completion order.
+- 322f88f: Fix failed optional dependency updates so they don't rewrite unrelated dependency specs [#11267](https://github.com/pnpm/pnpm/issues/11267).
+- Updated dependencies [25a829e]
+- Updated dependencies [bae694f]
+- Updated dependencies [fbdc0eb]
+- Updated dependencies [fa7004b]
+- Updated dependencies [0ec878d]
+- Updated dependencies [a84d2a1]
+- Updated dependencies [852d537]
+  - @pnpm/config.version-policy@1100.1.6
+  - @pnpm/resolving.npm-resolver@1102.1.0
+  - @pnpm/resolving.resolver-base@1100.5.0
+  - @pnpm/hooks.types@1100.1.0
+  - @pnpm/fetching.pick-fetcher@1100.0.13
+  - @pnpm/store.controller-types@1100.1.6
+  - @pnpm/lockfile.utils@1100.1.0
+  - @pnpm/pkg-manifest.utils@1100.2.6
+  - @pnpm/error@1100.0.1
+  - @pnpm/deps.graph-hasher@1100.2.6
+  - @pnpm/lockfile.preferred-versions@1100.0.17
+  - @pnpm/lockfile.types@1100.0.12
+  - @pnpm/patching.config@1100.0.9
+  - @pnpm/pkg-manifest.reader@1100.0.9
+  - @pnpm/lockfile.pruner@1100.0.12
+
 ## 1100.2.4
 
 ### Patch Changes

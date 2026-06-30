@@ -1,5 +1,119 @@
-use super::{AuthHeaders, DEFAULT_REGISTRY_SCOPE, base64_encode, nerf_dart};
+use super::{
+    AuthHeaders, DEFAULT_REGISTRY_SCOPE, UpstreamRouteHook, base64_encode, nerf_dart,
+    redact_and_sanitize, redact_url_credentials,
+};
 use pretty_assertions::assert_eq;
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
+
+/// Records every `(url, package)` it is asked about and answers with a
+/// fixed header, so a test can assert the hook — not the client
+/// credentials — drove the lookup.
+#[derive(Default)]
+struct RecordingHook {
+    calls: AtomicUsize,
+    answer: Option<String>,
+}
+
+impl UpstreamRouteHook for RecordingHook {
+    fn authorize(&self, _url: &str, _package: Option<&str>) -> Option<String> {
+        self.calls.fetch_add(1, Ordering::Relaxed);
+        self.answer.clone()
+    }
+}
+
+#[test]
+fn route_hook_overrides_client_credentials() {
+    let client_creds = AuthHeaders::from_map(
+        std::iter::once(("//reg.com/".to_string(), "Bearer client-token".to_string())).collect(),
+    );
+    // Without a hook the client-forwarded token is returned.
+    assert_eq!(
+        client_creds.for_url("https://reg.com/pkg"),
+        Some("Bearer client-token".to_string()),
+    );
+
+    let hook =
+        Arc::new(RecordingHook { answer: Some("Bearer alias".to_string()), ..Default::default() });
+    let hooked = client_creds.with_route_hook(Arc::clone(&hook) as Arc<dyn UpstreamRouteHook>);
+    // With a hook the client token is ignored and the hook decides.
+    assert_eq!(hooked.for_url("https://reg.com/pkg"), Some("Bearer alias".to_string()));
+    assert_eq!(hook.calls.load(Ordering::Relaxed), 1);
+}
+
+#[test]
+fn record_route_drives_the_hook_without_a_fetch() {
+    let hook =
+        Arc::new(RecordingHook { answer: Some("Bearer alias".to_string()), ..Default::default() });
+    let hooked =
+        AuthHeaders::default().with_route_hook(Arc::clone(&hook) as Arc<dyn UpstreamRouteHook>);
+    // A cache-served metadata pick records its route through the hook so a
+    // server footprint stays complete, discarding the selected credential
+    // because no request is sent.
+    hooked.record_route("https://reg.com/@scope/pkg", Some("@scope/pkg"));
+    assert_eq!(hook.calls.load(Ordering::Relaxed), 1);
+}
+
+#[test]
+fn record_route_is_a_noop_without_a_hook() {
+    // The CLI never installs a hook: a fetch that doesn't happen needs no
+    // header and there is no footprint to record into. This must not panic
+    // or otherwise touch the client-forwarded credentials.
+    AuthHeaders::default().record_route("https://reg.com/pkg", None);
+}
+
+#[test]
+fn route_hook_suppresses_inline_url_basic_auth() {
+    // A bare `AuthHeaders` would synthesize a `Basic` header from inline
+    // `user:pass@`; with a hook attached the inline credential must not
+    // leak through — the hook (returning None here) owns the decision.
+    let hook = Arc::new(RecordingHook::default());
+    let hooked = AuthHeaders::default().with_route_hook(hook as Arc<dyn UpstreamRouteHook>);
+    assert_eq!(hooked.for_url("https://user:pass@reg.com/pkg"), None);
+}
+
+#[test]
+fn redact_url_credentials_strips_embedded_basic_auth() {
+    assert_eq!(
+        redact_url_credentials(
+            "Failed to fetch metadata from https://user:pass@host/pkg: timed out"
+        ),
+        "Failed to fetch metadata from https://host/pkg: timed out",
+    );
+    // user-only userinfo (no password) is stripped too.
+    assert_eq!(
+        redact_url_credentials("got https://token@registry.example/foo"),
+        "got https://registry.example/foo",
+    );
+    // A raw "@" inside the password is stripped up to the last "@" in the
+    // authority, so the password tail can't leak.
+    assert_eq!(
+        redact_url_credentials("Failed to fetch metadata from https://user:p@ss@host/pkg: 403"),
+        "Failed to fetch metadata from https://host/pkg: 403",
+    );
+    // An "@" in the path/query (after the authority) is preserved.
+    assert_eq!(
+        redact_url_credentials("got https://host/path?to=a@b"),
+        "got https://host/path?to=a@b",
+    );
+    // A credential-free URL is left untouched.
+    assert_eq!(
+        redact_url_credentials("Failed to fetch metadata from https://host/pkg: timed out"),
+        "Failed to fetch metadata from https://host/pkg: timed out",
+    );
+    // A bare "://" with no preceding scheme character is not treated as a URL
+    // authority, so an "@" further along is preserved.
+    assert_eq!(redact_url_credentials("a :// b@c"), "a :// b@c");
+}
+
+#[test]
+fn redact_and_sanitize_strips_credentials_and_control_chars() {
+    assert_eq!(redact_and_sanitize("https://user:pass@host/pkg\u{7}\r\n"), "https://host/pkg");
+    // A clean URL is returned unchanged.
+    assert_eq!(redact_and_sanitize("https://host/pkg"), "https://host/pkg");
+}
 
 fn build(entries: &[(&str, &str)]) -> AuthHeaders {
     AuthHeaders::from_creds_map(

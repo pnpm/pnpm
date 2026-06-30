@@ -18,19 +18,23 @@ export async function updateProjectManifest (
   if (!importer.manifest) {
     throw new Error('Cannot save because no package.json found')
   }
-  const specsToUpsert: PackageSpecObject[] = opts.directDependencies
-    .filter((rdd, index) => importer.wantedDependencies[index]?.updateSpec)
-    .map((rdd, index) => {
-      const wantedDep = importer.wantedDependencies[index]!
-      return {
-        alias: rdd.alias,
-        peer: importer.peer,
-        bareSpecifier: getBareSpecifierToSave(wantedDep, rdd, opts.preserveWorkspaceProtocol),
-        resolvedVersion: rdd.version,
-        pinnedVersion: importer.pinnedVersion,
-        saveType: importer.targetDependenciesField,
-      }
+  const specsToUpsert: PackageSpecObject[] = []
+  for (const rdd of opts.directDependencies) {
+    const wantedDep = rdd.wantedDependency
+    if (wantedDep?.updateSpec !== true) continue
+    specsToUpsert.push({
+      alias: rdd.alias,
+      peer: importer.peer,
+      bareSpecifier: getBareSpecifierToSave(wantedDep, rdd, opts.preserveWorkspaceProtocol),
+      resolvedVersion: rdd.version,
+      pinnedVersion: importer.pinnedVersion,
+      saveType: importer.targetDependenciesField,
     })
+  }
+  // Re-save a dependency flagged for update that failed to resolve (e.g. a
+  // missing optional, hence absent from `directDependencies`) carrying no
+  // specifier, so it keeps its existing version under the importer's target
+  // field (which is unset for a plain install/update, making this a no-op).
   for (const pkgToInstall of importer.wantedDependencies) {
     if (pkgToInstall.updateSpec && pkgToInstall.alias && !specsToUpsert.some(({ alias }) => alias === pkgToInstall.alias)) {
       specsToUpsert.push({
@@ -56,7 +60,7 @@ export async function updateProjectManifest (
 }
 
 function getBareSpecifierToSave (
-  wantedDep: ImporterToResolve['wantedDependencies'][number],
+  wantedDep: { bareSpecifier: string },
   resolvedDep: ResolvedDirectDependency,
   preserveWorkspaceProtocol: boolean
 ): string {

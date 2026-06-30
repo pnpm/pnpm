@@ -399,6 +399,8 @@ export async function resolveDependencies (
     }
   }
 
+  await waitForResolutionFetches(resolvedPkgsById)
+
   const newLockfile = updateLockfile({
     dependenciesGraph,
     lockfile: opts.wantedLockfile,
@@ -527,6 +529,22 @@ function alignDependencyTypes (manifest: ProjectManifest, projectSnapshot: Proje
       projectSnapshot[depTypesOfAliases[alias]]![alias] = ref
       delete projectSnapshot[depType]![alias]
     }
+  }
+}
+
+/**
+ * Waits for fetches that complete resolution data used by the lockfile snapshot and
+ * virtual-store paths. Other package fetches are awaited later by `waitTillAllFetchingsFinish`.
+ */
+async function waitForResolutionFetches (resolvedPkgsById: Record<string, ResolvedPackage>): Promise<void> {
+  const fetches: Array<Promise<unknown>> = []
+  for (const pkg of Object.values(resolvedPkgsById)) {
+    if (pkg.resolutionNeedsFetch && pkg.fetching != null) {
+      fetches.push(pkg.fetching())
+    }
+  }
+  if (fetches.length > 0) {
+    await Promise.all(fetches)
   }
 }
 

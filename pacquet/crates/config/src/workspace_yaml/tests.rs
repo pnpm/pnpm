@@ -470,6 +470,17 @@ patchedDependencies:
     assert_eq!(map.get("lodash@4.17.21").map(String::as_str), Some("patches/lodash@4.17.21.patch"));
 }
 
+#[test]
+fn patches_dir_reads_from_workspace_yaml() {
+    let settings: WorkspaceSettings =
+        serde_saphyr::from_str("patchesDir: custom-patches\n").unwrap();
+    assert_eq!(settings.patches_dir.as_deref(), Some("custom-patches"));
+
+    let mut config = Config::new();
+    settings.apply_to(&mut config, Path::new("/workspace/root"));
+    assert_eq!(config.patches_dir.as_deref(), Some("custom-patches"));
+}
+
 /// `configDependencies` is a map of package name → version-with-integrity
 /// spec. pacquet records it into the workspace-state file so pnpm's
 /// `checkDepsStatus` doesn't treat the install as stale on the next
@@ -521,11 +532,17 @@ configDependencies:
 #[test]
 fn config_dependencies_cleared_as_workspace_only_field() {
     let yaml = r#"
+deployAllFiles: true
+forceLegacyDeploy: true
+sharedWorkspaceLockfile: false
 configDependencies:
   "@pnpm/pacquet": 0.2.2-14
 "#;
     let mut settings: WorkspaceSettings = serde_saphyr::from_str(yaml).unwrap();
     settings.clear_workspace_only_fields();
+    assert!(settings.deploy_all_files.is_none());
+    assert!(settings.force_legacy_deploy.is_none());
+    assert!(settings.shared_workspace_lockfile.is_none());
     assert!(settings.config_dependencies.is_none());
 }
 

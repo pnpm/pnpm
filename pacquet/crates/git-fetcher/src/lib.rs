@@ -20,14 +20,13 @@
 mod cas_io;
 mod error;
 mod fetcher;
-mod packlist;
 mod preferred_pm;
 mod prepare_package;
 mod tarball_fetcher;
 
-pub use error::{GitFetcherError, PacklistError, PreparePackageError};
+pub use error::{GitFetcherError, PreparePackageError};
 pub use fetcher::{GitFetchOutput, GitFetcher};
-pub use packlist::packlist;
+pub use pacquet_fs_packlist::{PacklistError, packlist};
 pub use preferred_pm::{PreferredPm, detect_preferred_pm};
 pub use prepare_package::{PreparePackageOptions, PreparedPackage, prepare_package};
 pub use tarball_fetcher::GitHostedTarballFetcher;

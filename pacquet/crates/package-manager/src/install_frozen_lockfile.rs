@@ -81,7 +81,7 @@ where
     pub resolution_verifiers: &'a [Arc<dyn ResolutionVerifier>],
     /// When set, replaces the local `resolution_verifiers` fan-out as the
     /// trust verdict — used by the pnpr client to delegate verification to
-    /// the server's `/v1/verify-lockfile` while the fetch runs locally. The
+    /// the server's `/-/pnpr/v0/verify-lockfile` while the fetch runs locally. The
     /// same concurrent sequencing and build gate apply.
     pub lockfile_verification_override: Option<LockfileVerificationOverride<'a>>,
     /// Absolute path of the lockfile being verified, for the on-disk
@@ -175,6 +175,12 @@ where
     /// re-fetching every tarball; `None` for installs without a shared
     /// prefetch in flight.
     pub tarball_mem_cache: Option<&'a Arc<MemCache>>,
+    pub seed_skipped: Option<Vec<String>>,
+    /// Forced-rebuild selection threaded from `pacquet rebuild` /
+    /// `approve-builds`; `None` for a normal install. Forwarded to
+    /// `run_build_phase`'s `BuildPhaseInputs`. See
+    /// [`crate::RebuildOptions`].
+    pub rebuild: Option<&'a crate::RebuildOptions>,
 }
 
 /// Error type of [`InstallFrozenLockfile`].
@@ -269,6 +275,9 @@ pub enum InstallFrozenLockfileError {
     #[display("failed to write package map: {_0}")]
     #[diagnostic(code(pacquet_package_manager::write_package_map))]
     WritePackageMap(#[error(source)] crate::WritePackageMapError),
+
+    #[diagnostic(transparent)]
+    InstallError(#[error(source)] Box<crate::InstallError>),
 }
 
 /// Error type of `run_build_phase` and `resolve_snapshot_patches`.
@@ -397,6 +406,10 @@ pub(crate) struct BuildPhaseInputs<'a> {
     /// and when no public-hoist pattern is set.
     pub(crate) publicly_hoisted_for_post_build: &'a [String],
     pub(crate) logged_methods: &'a AtomicU8,
+    /// Forced-rebuild selection threaded from `pacquet rebuild` /
+    /// `approve-builds`; `None` for a normal install. See
+    /// [`crate::RebuildOptions`].
+    pub(crate) rebuild: Option<&'a crate::RebuildOptions>,
 }
 
 /// Run dependency lifecycle scripts, report ignored builds, and
@@ -434,6 +447,7 @@ pub(crate) fn run_build_phase<Reporter: self::Reporter>(
         is_hoisted,
         publicly_hoisted_for_post_build,
         logged_methods,
+        rebuild,
     } = inputs;
 
     let patches = resolve_snapshot_patches(config, patch_groups, snapshots)?;
@@ -479,6 +493,7 @@ pub(crate) fn run_build_phase<Reporter: self::Reporter>(
         ignore_scripts: config.ignore_scripts,
         import_method: config.package_import_method,
         logged_methods,
+        rebuild,
     }
     .run::<Reporter>()
     .map_err(BuildPhaseError::BuildModules)?;
@@ -575,7 +590,10 @@ where
             skip_runtimes,
             node_linker,
             tarball_mem_cache,
+            seed_skipped,
+            rebuild,
         } = self;
+
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
         // Cloned so the iterator can be reused below for hoist's
         // direct-deps map. `Vec<DependencyGroup>` is tiny (≤4 enum
@@ -644,16 +662,20 @@ where
         // A read error (corrupt yaml, permissions) is degraded to
         // an empty seed — `.modules.yaml` is a cache artifact, not
         // an authoritative source. Missing file → empty seed.
-        let seed = match read_modules_manifest::<Host>(&config.modules_dir) {
-            Ok(Some(manifest)) => SkippedSnapshots::from_strings(&manifest.skipped),
-            Ok(None) => SkippedSnapshots::new(),
-            Err(error) => {
-                tracing::warn!(
-                    target: "pacquet::install",
-                    ?error,
-                    "failed to read .modules.yaml for skipped seed; starting from empty",
-                );
-                SkippedSnapshots::new()
+        let seed = if let Some(skipped) = seed_skipped {
+            SkippedSnapshots::from_strings(&skipped)
+        } else {
+            match read_modules_manifest::<Host>(&config.modules_dir) {
+                Ok(Some(manifest)) => SkippedSnapshots::from_strings(&manifest.skipped),
+                Ok(None) => SkippedSnapshots::new(),
+                Err(error) => {
+                    tracing::warn!(
+                        target: "pacquet::install",
+                        ?error,
+                        "failed to read .modules.yaml for skipped seed; starting from empty",
+                    );
+                    SkippedSnapshots::new()
+                }
             }
         };
 
@@ -1286,6 +1308,7 @@ where
             is_hoisted,
             publicly_hoisted_for_post_build: &publicly_hoisted_for_post_build,
             logged_methods,
+            rebuild,
         })
         .map_err(InstallFrozenLockfileError::BuildPhase)?;
 
@@ -1371,7 +1394,7 @@ pub(crate) struct HoistedLinkerOutput {
 }
 
 /// Inputs to [`run_hoisted_linker`]. Bundled so the two install
-/// paths (`InstallFrozenLockfile` and `InstallWithFreshLockfile`)
+/// paths ([`InstallFrozenLockfile`] and `InstallWithFreshLockfile`)
 /// can feed the shared hoisted-linker materialization without a
 /// long positional argument list. The frozen path passes the
 /// loaded `pnpm-lock.yaml`; the fresh path passes the freshly-built

@@ -124,11 +124,12 @@ fn create_cache_key_changes_with_supported_architectures() {
 }
 
 #[test]
-fn get_prepare_dir_encodes_time_and_pid_in_hex() {
+fn get_prepare_dir_encodes_time_and_pid_in_base36() {
     let base = std::path::Path::new("/cache/dlx/key");
-    let now = SystemTime::UNIX_EPOCH + Duration::from_millis(0x1a2b);
-    let dir = get_prepare_dir(base, now, 0xff);
-    assert_eq!(dir, base.join("1a2b-ff"));
+    // 6699 = 5*36^2 + 6*36 + 3 -> "563"; 255 = 7*36 + 3 -> "73".
+    let now = SystemTime::UNIX_EPOCH + Duration::from_millis(6699);
+    let dir = get_prepare_dir(base, now, 255);
+    assert_eq!(dir, base.join("563-73"));
 }
 
 #[test]

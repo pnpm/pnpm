@@ -1,16 +1,19 @@
 use super::{
-    archive_filter_for, emit_progress_resolved, host_platform_selector, node_extras_filter,
-    render_variant_targets, synthesize_runtime_manifest_bytes, tarball_url_and_integrity,
+    InstallPackageBySnapshotError, archive_filter_for, emit_progress_resolved,
+    fetch_directory_resolution, host_platform_selector, local_file_tarball_install_url,
+    node_extras_filter, render_variant_targets, synthesize_runtime_manifest_bytes,
+    tarball_url_and_integrity,
 };
 use pacquet_config::Config;
+use pacquet_directory_fetcher::DirectoryFetcherError;
 use pacquet_graph_hasher::{host_arch, host_libc, host_platform};
 use pacquet_lockfile::{
-    BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PackageKey,
-    PlatformAssetResolution, PlatformAssetTarget, RegistryResolution,
+    BinaryArchive, BinaryResolution, BinarySpec, DirectoryResolution, LockfileResolution,
+    PackageKey, PlatformAssetResolution, PlatformAssetTarget, RegistryResolution,
 };
 use pacquet_reporter::{LogEvent, ProgressMessage, Reporter};
 use pretty_assertions::assert_eq;
-use std::sync::Mutex;
+use std::{borrow::Cow, sync::Mutex};
 
 /// The (`package_id`, `requester`) pair pins pnpm's per-package
 /// counter to the right row.
@@ -56,6 +59,48 @@ fn registry_resolution_uses_scoped_registry_tarball_base() {
         tarball_url_and_integrity(&resolution, &package_key, &config).expect("registry tarball");
 
     assert_eq!(tarball_url.as_ref(), "https://private.example/npm/@private/foo/-/foo-1.0.0.tgz");
+}
+
+#[test]
+fn local_file_tarball_install_url_resolves_relative_specs_against_workspace_root() {
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let workspace_root = tmp.path().join("deploy");
+    let actual =
+        local_file_tarball_install_url(Cow::Borrowed("file:../vendor/pkg.tgz"), &workspace_root);
+    let expected = pacquet_fs::lexical_normalize(&workspace_root.join("../vendor/pkg.tgz"));
+
+    assert_eq!(actual.as_ref(), format!("file:{}", expected.display()));
+}
+
+#[cfg(unix)]
+#[test]
+fn directory_resolution_rejects_symlink_escape() {
+    use std::os::unix::fs::symlink;
+
+    let tmp = tempfile::tempdir().expect("tempdir");
+    let workspace = tmp.path().join("workspace");
+    let package_dir = workspace.join("packages/dep");
+    let outside = tmp.path().join("outside");
+    std::fs::create_dir_all(&package_dir).expect("create package dir");
+    std::fs::create_dir_all(&outside).expect("create outside dir");
+    std::fs::write(outside.join("secret.txt"), b"secret").expect("write outside file");
+    symlink(&outside, package_dir.join("outside")).expect("create outside symlink");
+
+    let err = fetch_directory_resolution(
+        &workspace,
+        &DirectoryResolution { directory: "packages/dep".to_string() },
+    )
+    .expect_err("outside symlink should be rejected");
+
+    assert!(
+        matches!(
+            err,
+            InstallPackageBySnapshotError::DirectoryFetch(
+                DirectoryFetcherError::PathOutsideDirectory { .. },
+            ),
+        ),
+        "expected path_escape error, got {err:?}",
+    );
 }
 
 /// Asserting platform-specific shape directly would mean four

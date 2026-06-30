@@ -1,5 +1,5 @@
 import { expect, test } from '@jest/globals'
-import { createHexHash } from '@pnpm/crypto.hash'
+import { createShortHash } from '@pnpm/crypto.hash'
 
 import { createCacheKey } from '../src/dlx.js'
 
@@ -11,7 +11,7 @@ test('creates a hash', () => {
       '@foo': 'https://example.com/npm-registry/foo/',
     },
   })
-  const expected = createHexHash(JSON.stringify([['@foo/bar', 'shx'], [
+  const expected = createShortHash(JSON.stringify([['@foo/bar', 'shx'], [
     ['@foo', 'https://example.com/npm-registry/foo/'],
     ['default', 'https://registry.npmjs.com/'],
   ]]))

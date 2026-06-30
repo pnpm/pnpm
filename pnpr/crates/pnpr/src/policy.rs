@@ -6,13 +6,13 @@
 //! groups); a request is allowed when the caller's identity satisfies
 //! any token in the list. Tokens are the built-in pseudo-groups
 //! (`$all`, `$authenticated`, `$anonymous`, plus their `@`/bare
-//! aliases) or a *name*. With htpasswd auth a caller's only group is
-//! their own username, so a name token matches an authenticated caller
-//! whose username equals it — group names supplied by other auth
-//! backends would match here too once such a backend lands. This is
-//! verdaccio's model, where the auth plugin owns group membership and
-//! the htpasswd plugin contributes only the username.
+//! aliases) or a *name*. A name token matches either the authenticated
+//! username or any group attached to that identity. pnpr's static
+//! `groups:` config adds group membership on top of htpasswd users,
+//! matching verdaccio's model where access lists do not distinguish
+//! usernames from group names.
 
+use std::collections::{BTreeMap, BTreeSet};
 use wax::{Glob, Program};
 
 use crate::error::RegistryError;
@@ -29,7 +29,7 @@ pub enum AccessToken {
     /// *without* valid credentials.
     Anonymous,
     /// A username or group name. Matches an authenticated caller whose
-    /// username (or, eventually, auth-provided group) equals it.
+    /// username or group membership equals it.
     Named(String),
 }
 
@@ -78,18 +78,54 @@ impl AccessList {
     }
 }
 
+/// Static group memberships layered onto authenticated pnpr users.
+/// Values are keyed by username so resolving a caller identity stays a
+/// single lookup after the bearer token has been validated.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct AccessGroups {
+    by_user: BTreeMap<String, BTreeSet<String>>,
+}
+
+impl AccessGroups {
+    pub(crate) fn add_user_to_group(&mut self, username: &str, group: &str) {
+        self.by_user.entry(username.to_string()).or_default().insert(group.to_string());
+    }
+
+    #[must_use]
+    pub fn identity_for(&self, username: String) -> Identity {
+        let groups = self.by_user.get(&username).cloned().unwrap_or_default();
+        Identity::User { username, groups }
+    }
+}
+
 /// The resolved caller identity an [`AccessList`] is evaluated against.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Identity {
     /// No valid credentials were presented.
     Anonymous,
-    /// Authenticated as `username`. (With htpasswd that's the caller's
-    /// only group beyond the built-ins; a group-providing auth backend
-    /// would widen this.)
-    User { username: String },
+    /// Authenticated as `username`, with any configured static groups.
+    User { username: String, groups: BTreeSet<String> },
 }
 
 impl Identity {
+    #[must_use]
+    pub fn user(username: impl Into<String>) -> Self {
+        Self::User { username: username.into(), groups: BTreeSet::new() }
+    }
+
+    #[must_use]
+    pub fn user_with_groups<User, Groups, Group>(username: User, groups: Groups) -> Self
+    where
+        User: Into<String>,
+        Groups: IntoIterator<Item = Group>,
+        Group: Into<String>,
+    {
+        Self::User {
+            username: username.into(),
+            groups: groups.into_iter().map(Into::into).collect(),
+        }
+    }
+
     #[must_use]
     pub fn is_authenticated(&self) -> bool {
         matches!(self, Identity::User { .. })
@@ -100,7 +136,9 @@ impl Identity {
             (AccessToken::All, _) => true,
             (AccessToken::Authenticated, Identity::User { .. }) => true,
             (AccessToken::Anonymous, Identity::Anonymous) => true,
-            (AccessToken::Named(name), Identity::User { username }) => name == username,
+            (AccessToken::Named(name), Identity::User { username, groups }) => {
+                name == username || groups.contains(name)
+            }
             _ => false,
         }
     }
@@ -110,12 +148,13 @@ impl Identity {
 /// compiled from the verdaccio-style key (e.g. `@private/*`,
 /// `@pnpm.e2e/needs-auth`, `**`). `access` controls who can read the
 /// packument and tarballs; `publish` controls who can publish or
-/// change dist-tags.
+/// change dist-tags; `unpublish` controls destructive writes.
 #[derive(Debug, Clone)]
 pub struct PackagePolicy {
     pattern: Glob<'static>,
     pub access: AccessList,
     pub publish: AccessList,
+    pub unpublish: AccessList,
 }
 
 impl PackagePolicy {
@@ -123,6 +162,7 @@ impl PackagePolicy {
         pattern: &str,
         access: AccessList,
         publish: AccessList,
+        unpublish: AccessList,
     ) -> Result<Self, RegistryError> {
         let glob = Glob::new(pattern)
             .map_err(|err| RegistryError::InvalidPolicyPattern {
@@ -130,7 +170,7 @@ impl PackagePolicy {
                 reason: err.to_string(),
             })?
             .into_owned();
-        Ok(Self { pattern: glob, access, publish })
+        Ok(Self { pattern: glob, access, publish, unpublish })
     }
 
     fn matches(&self, package: &str) -> bool {
@@ -149,6 +189,7 @@ pub struct PackagePolicies {
     /// borrow.
     default_access: AccessList,
     default_publish: AccessList,
+    default_unpublish: AccessList,
 }
 
 impl Default for PackagePolicies {
@@ -163,6 +204,7 @@ impl Default for PackagePolicies {
 pub struct Effective<'a> {
     pub access: &'a AccessList,
     pub publish: &'a AccessList,
+    pub unpublish: &'a AccessList,
 }
 
 impl PackagePolicies {
@@ -172,6 +214,7 @@ impl PackagePolicies {
             rules,
             default_access: AccessList::parse("$all"),
             default_publish: AccessList::parse("$authenticated"),
+            default_unpublish: AccessList::default(),
         }
     }
 
@@ -179,21 +222,26 @@ impl PackagePolicies {
     /// box `Config` already enforces the same access rules verdaccio
     /// did. The relevant patterns from `registry-mock`'s `config.yaml`:
     ///
-    /// * `@private/*` — authenticated access + publish
-    /// * `@pnpm.e2e/needs-auth` — authenticated access + publish
-    /// * everything else — $all access, $authenticated publish
+    /// * `@private/*` — authenticated access + publish + unpublish
+    /// * `@pnpm.e2e/needs-auth` — authenticated access + publish + unpublish
+    /// * everything else — $all access, $authenticated publish + unpublish
     #[must_use]
     pub fn registry_mock_defaults() -> Self {
         let rules = [
-            ("@private/*", "$authenticated", "$authenticated"),
-            ("@pnpm.e2e/needs-auth", "$authenticated", "$authenticated"),
-            ("**", "$all", "$authenticated"),
+            ("@private/*", "$authenticated", "$authenticated", "$authenticated"),
+            ("@pnpm.e2e/needs-auth", "$authenticated", "$authenticated", "$authenticated"),
+            ("**", "$all", "$authenticated", "$authenticated"),
         ];
         let rules = rules
             .into_iter()
-            .map(|(pattern, access, publish)| {
-                PackagePolicy::new(pattern, AccessList::parse(access), AccessList::parse(publish))
-                    .expect("registry-mock defaults compile")
+            .map(|(pattern, access, publish, unpublish)| {
+                PackagePolicy::new(
+                    pattern,
+                    AccessList::parse(access),
+                    AccessList::parse(publish),
+                    AccessList::parse(unpublish),
+                )
+                .expect("registry-mock defaults compile")
             })
             .collect();
         Self::new(rules)
@@ -203,10 +251,18 @@ impl PackagePolicies {
     pub fn for_package(&self, package: &str) -> Effective<'_> {
         for rule in &self.rules {
             if rule.matches(package) {
-                return Effective { access: &rule.access, publish: &rule.publish };
+                return Effective {
+                    access: &rule.access,
+                    publish: &rule.publish,
+                    unpublish: &rule.unpublish,
+                };
             }
         }
-        Effective { access: &self.default_access, publish: &self.default_publish }
+        Effective {
+            access: &self.default_access,
+            publish: &self.default_publish,
+            unpublish: &self.default_unpublish,
+        }
     }
 }
 

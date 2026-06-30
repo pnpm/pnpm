@@ -65,6 +65,38 @@ test('installation fails by default if the lockfile contains a wrong checksum, b
   }, testDefaults({ force: true }, { retry: { retries: 0 } }))).rejects.toThrow(/Got unexpected checksum for/)
 })
 
+test('an install fails closed when a registry tarball entry in the lockfile is missing its integrity', async () => {
+  const project = prepareEmpty()
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({},
+    ['is-positive@1.0.0'],
+    testDefaults()
+  )
+
+  // Simulate a lockfile written by an older pnpm where the registry never
+  // provided an integrity. A missing integrity is indistinguishable from a
+  // tampered lockfile, so it must never be silently healed: both frozen and
+  // non-frozen installs fail closed.
+  const lockfileWithoutIntegrity = clone(project.readLockfile())
+  delete (lockfileWithoutIntegrity.packages['is-positive@1.0.0'].resolution as TarballResolution).integrity
+
+  writeYamlFileSync(WANTED_LOCKFILE, lockfileWithoutIntegrity, { lineWidth: 1000 })
+  rimrafSync('node_modules')
+  await expect(mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({ frozenLockfile: true }, { retry: { retries: 0 } }))).rejects.toThrow(/has no "integrity" field/)
+
+  writeYamlFileSync(WANTED_LOCKFILE, lockfileWithoutIntegrity, { lineWidth: 1000 })
+  rimrafSync('node_modules')
+  await expect(mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({}, { retry: { retries: 0 } }))).rejects.toThrow(/has no "integrity" field/)
+})
+
 test('installation fails by default if the lockfile contains the wrong checksum and the store is clean', async () => {
   await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
   const project = prepareEmpty()

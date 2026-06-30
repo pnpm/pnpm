@@ -1,5 +1,38 @@
 # @pnpm/headless
 
+## 1102.1.1
+
+### Patch Changes
+
+- bae694f: Some registries generate tarballs on-demand and cannot provide an integrity checksum in their package metadata. In that case pnpm now computes the integrity from the downloaded tarball and stores it in the lockfile, so the entry is verifiable on subsequent installs instead of being written without an integrity (which would fail the next install). This also applies to `--lockfile-only`: the tarball is downloaded so its integrity can be computed. A lockfile entry that is still missing its integrity is rejected as a `ERR_PNPM_MISSING_TARBALL_INTEGRITY` lockfile verification violation (the install fails closed) rather than being silently re-fetched.
+- Updated dependencies [bae694f]
+- Updated dependencies [1488db1]
+- Updated dependencies [0ec878d]
+- Updated dependencies [a84d2a1]
+- Updated dependencies [852d537]
+  - @pnpm/installing.package-requester@1102.1.0
+  - @pnpm/store.controller-types@1100.1.6
+  - @pnpm/lockfile.utils@1100.1.0
+  - @pnpm/deps.graph-builder@1100.0.18
+  - @pnpm/installing.linking.hoist@1100.0.16
+  - @pnpm/workspace.project-manifest-reader@1100.0.14
+  - @pnpm/error@1100.0.1
+  - @pnpm/building.policy@1100.0.11
+  - @pnpm/deps.graph-hasher@1100.2.6
+  - @pnpm/building.during-install@1102.0.2
+  - @pnpm/exec.lifecycle@1100.1.1
+  - @pnpm/installing.linking.modules-cleaner@1100.1.9
+  - @pnpm/installing.linking.real-hoist@1100.1.4
+  - @pnpm/lockfile.filtering@1100.1.8
+  - @pnpm/lockfile.fs@1100.1.7
+  - @pnpm/lockfile.to-pnp@1100.1.1
+  - @pnpm/bins.linker@1100.0.16
+  - @pnpm/config.package-is-installable@1100.0.12
+  - @pnpm/patching.config@1100.0.9
+  - @pnpm/pkg-manifest.reader@1100.0.9
+  - @pnpm/worker@1100.2.2
+  - @pnpm/fs.symlink-dependency@1100.0.10
+
 ## 1102.1.0
 
 ### Minor Changes

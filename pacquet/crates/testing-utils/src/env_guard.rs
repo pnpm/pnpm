@@ -67,9 +67,9 @@ impl EnvGuard {
     }
 
     /// Set a variable under the lock the guard holds. Equivalent to
-    /// `unsafe { env::set_var(name, value) }`, but the `EnvGuard`
+    /// `unsafe { env::set_var(name, value) }`, but the [`EnvGuard`]
     /// existence proof tells the reader the call is serialized against
-    /// every other `EnvGuard`-using test in this process.
+    /// every other [`EnvGuard`]-using test in this process.
     ///
     /// The variable must have been listed in [`Self::snapshot`]'s
     /// `vars` so the `Drop` impl will restore it — otherwise the

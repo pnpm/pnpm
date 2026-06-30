@@ -53,7 +53,7 @@ fn set_ignore_dependencies(workspace: &Path, names: &[&str]) {
     }
     yaml.push_str("updateConfig:\n  ignoreDependencies:\n");
     for name in names {
-        writeln!(yaml, "    - \"{name}\"").unwrap();
+        writeln!(yaml, r#"    - "{name}""#).unwrap();
     }
     fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
 }
@@ -71,7 +71,7 @@ fn virtual_store_has(workspace: &Path, name_at_version: &str) -> bool {
 }
 
 /// List the `node_modules/.pnpm` entries. Logged before
-/// `virtual_store_has` assertions so a failing CI run shows what was
+/// [`virtual_store_has`] assertions so a failing CI run shows what was
 /// actually materialized.
 fn list_virtual_store(workspace: &Path) -> Vec<String> {
     let dir = workspace.join("node_modules").join(".pnpm");
@@ -114,6 +114,26 @@ fn update_bumps_within_range() {
     assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("^100.0.0"));
 
     drop((root, anchor));
+}
+
+#[test]
+fn update_runs_with_ndjson_and_silent_reporters() {
+    for reporter in ["--reporter=ndjson", "--reporter=silent"] {
+        let (root, workspace, anchor) = setup();
+
+        write_manifest(&workspace, &format!(r#"{{ "{DEP}": "100.0.0" }}"#));
+        pacquet(&workspace, ["install"]).assert().success();
+        write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+
+        pacquet(&workspace, [reporter, "update"]).assert().success();
+
+        assert!(
+            virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"),
+            "update should bump the dependency when running with {reporter}",
+        );
+
+        drop((root, anchor));
+    }
 }
 
 /// Mixing a transitive selector with a direct dependency selector must
@@ -566,7 +586,7 @@ fn set_strict_catalog(workspace: &Path, entries: &[(&str, &str)]) {
     }
     yaml.push_str("catalogMode: strict\ncatalog:\n");
     for (name, spec) in entries {
-        writeln!(yaml, "  \"{name}\": \"{spec}\"").unwrap();
+        writeln!(yaml, r#"  "{name}": "{spec}""#).unwrap();
     }
     fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
 }
@@ -581,7 +601,7 @@ fn set_named_catalog(workspace: &Path, catalog: &str, entries: &[(&str, &str)]) 
     }
     writeln!(yaml, "catalogs:\n  {catalog}:").unwrap();
     for (name, spec) in entries {
-        writeln!(yaml, "    \"{name}\": \"{spec}\"").unwrap();
+        writeln!(yaml, r#"    "{name}": "{spec}""#).unwrap();
     }
     fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
 }

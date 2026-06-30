@@ -6,16 +6,18 @@
 
 use axum::{
     body::{Body, to_bytes},
-    http::{Request, StatusCode},
+    http::{HeaderValue, Request, StatusCode, header},
 };
 use pnpr::{
-    AuthConfig, AuthState, Config, HtpasswdConfig, MaxUsers, TokensConfig, router, router_with_auth,
+    AuthConfig, AuthState, Config, HtpasswdConfig, MaxUsers, TokenStore, TokensConfig,
+    UpsertOutcome, UserBackend, router, router_with_auth,
 };
 use serde_json::{Value, json};
 use std::{
     fmt::Write as _,
     net::{Ipv4Addr, SocketAddr, SocketAddrV4},
     path::PathBuf,
+    sync::Arc,
 };
 use tempfile::TempDir;
 use tower::ServiceExt;
@@ -27,6 +29,7 @@ fn listen() -> SocketAddr {
 fn static_config(storage: PathBuf) -> Config {
     let mut config = Config::static_serve(listen(), storage);
     config.public_url = "http://example.test".to_string();
+    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
     config
 }
 
@@ -98,6 +101,20 @@ async fn add_user_and_get_token(
     (app, token)
 }
 
+struct CanonicalUserBackend;
+
+#[async_trait::async_trait]
+impl UserBackend for CanonicalUserBackend {
+    async fn add_or_login(
+        &self,
+        username: &str,
+        _password: &str,
+    ) -> pnpr::Result<(UpsertOutcome, String)> {
+        assert_eq!(username, "alice");
+        Ok((UpsertOutcome::LoggedIn, "Alice".to_string()))
+    }
+}
+
 #[tokio::test]
 async fn whoami_returns_username_for_authenticated_caller() {
     let tmp = TempDir::new().unwrap();
@@ -108,6 +125,32 @@ async fn whoami_returns_username_for_authenticated_caller() {
     assert_eq!(response.status(), StatusCode::OK);
     let payload = body_json(response.into_body()).await;
     assert_eq!(payload["username"].as_str(), Some("alice"));
+}
+
+#[tokio::test]
+async fn adduser_issues_token_for_canonical_username() {
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState {
+        users: Arc::new(CanonicalUserBackend),
+        tokens: Arc::new(TokenStore::in_memory()),
+    };
+    let app = router_with_auth(static_config(tmp.path().to_path_buf()), auth);
+
+    let response = app
+        .clone()
+        .oneshot(put_json("/-/user/org.couchdb.user:alice", adduser_body("alice", "secret")))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::CREATED);
+    let payload = body_json(response.into_body()).await;
+    assert_eq!(payload["id"].as_str(), Some("org.couchdb.user:Alice"));
+    assert_eq!(payload["ok"].as_str(), Some("you are authenticated as 'Alice'"));
+    let token = payload["token"].as_str().expect("token in response");
+
+    let response = app.oneshot(get_with_bearer("/-/whoami", token)).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let payload = body_json(response.into_body()).await;
+    assert_eq!(payload["username"].as_str(), Some("Alice"));
 }
 
 #[tokio::test]
@@ -127,6 +170,31 @@ async fn whoami_returns_401_for_unknown_bearer() {
 
     let response = app.oneshot(get_with_bearer("/-/whoami", "not-a-real-token")).await.unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn whoami_rejects_duplicate_authorization_headers() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+    let (app, token) = add_user_and_get_token(app, "alice", "secret").await;
+    let mut request = get_with_bearer("/-/whoami", &token);
+    request
+        .headers_mut()
+        .append(header::AUTHORIZATION, HeaderValue::from_static("Bearer invalid-second-value"));
+
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn whoami_rejects_non_text_authorization_header() {
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+    let mut request = Request::get("/-/whoami").body(Body::empty()).unwrap();
+    request.headers_mut().insert(header::AUTHORIZATION, HeaderValue::from_bytes(&[0xff]).unwrap());
+
+    let response = app.oneshot(request).await.unwrap();
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }
 
 #[tokio::test]
