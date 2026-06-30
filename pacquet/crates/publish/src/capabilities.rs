@@ -196,3 +196,6 @@ impl ConfirmPrompt for Host {
         dialoguer::Confirm::new().with_prompt(message).interact().unwrap_or(false)
     }
 }
+
+#[cfg(test)]
+mod tests;
