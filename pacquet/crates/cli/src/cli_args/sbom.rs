@@ -3,11 +3,17 @@
 //! Ports pnpm's
 //! [`sbom` command](https://github.com/pnpm/pnpm/blob/2b4952e804/pnpm11/deps/compliance/commands/src/sbom/sbom.ts).
 
-use clap::Args;
 use crate::State;
-use pacquet_lockfile::{LockfileResolution, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, SnapshotEntry};
+use clap::Args;
+use pacquet_lockfile::{
+    LockfileResolution, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, SnapshotEntry,
+};
 use pacquet_package_manifest::safe_read_package_json_from_dir;
-use std::{collections::{HashMap, HashSet}, io::Write, path::{Path, PathBuf}};
+use std::{
+    collections::{HashMap, HashSet},
+    io::Write,
+    path::{Path, PathBuf},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub enum SbomFormat {
@@ -219,11 +225,14 @@ fn build_purl(name: &str, version: &str) -> String {
 
 fn is_simple_spdx_id(license: &str) -> bool {
     !license.is_empty()
-        && license.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '.' || ch == '+')
+        && license
+            .chars()
+            .all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '.' || ch == '+')
 }
 
 fn classify_license(license: &str) -> serde_json::Value {
-    let is_expression = license.split_whitespace().any(|word| word == "AND" || word == "OR" || word == "WITH");
+    let is_expression =
+        license.split_whitespace().any(|word| word == "AND" || word == "OR" || word == "WITH");
     if is_expression {
         serde_json::json!({ "expression": license })
     } else if is_simple_spdx_id(license) {
@@ -671,7 +680,12 @@ impl SbomArgs {
         let authors: Vec<String> = self
             .authors
             .as_deref()
-            .map(|csv| csv.split(',').map(|author| author.trim().to_string()).filter(|author| !author.is_empty()).collect())
+            .map(|csv| {
+                csv.split(',')
+                    .map(|author| author.trim().to_string())
+                    .filter(|author| !author.is_empty())
+                    .collect()
+            })
             .unwrap_or_default();
 
         let lockfile = state
