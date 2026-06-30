@@ -1,19 +1,16 @@
 //! Extend the user `Path` (and a proxy variable like `PNPM_HOME`) in the
 //! Windows registry under `HKEY_CURRENT_USER\Environment`.
 //!
-//! Ports pnpm's
-//! [`@pnpm/os.env.path-extender-windows`](https://github.com/pnpm/pnpm/blob/1819226b51/packages/path-extender-windows/src/path-extender-windows.ts):
-//! the registry is read with `reg query`, the proxy variable and `Path` are
-//! written with `reg add`, and a dummy `setx` forces the new values to be
-//! picked up by future processes. `chcp 65001` makes `reg` emit UTF-8 so
-//! non-ASCII values survive the round-trip.
+//! The registry is read with `reg query`, the proxy variable and `Path`
+//! are written with `reg add`, and a dummy `setx` forces the new values to
+//! be picked up by future processes. `chcp 65001` makes `reg` emit UTF-8
+//! so non-ASCII values survive the round-trip.
 
 use super::{AddDirToEnvPathOpts, AddingPosition, PathExtenderError};
 use std::{path::Path, process::Command};
 
 /// The change made to one environment variable, used to render the
-/// before/after report. Mirrors the env-variable change report from pnpm's
-/// `@pnpm/os.env.path-extender-windows`.
+/// before/after report.
 #[derive(Debug)]
 pub(super) struct EnvVariableChange {
     pub variable: String,
@@ -140,14 +137,14 @@ fn add_to_path(
 
 /// Read every value under [`REG_KEY`] and pick the one we need, rather than
 /// querying a single value (which fails when the value is absent and hides
-/// the real cause). Mirrors pnpm's `getRegistryOutput`.
+/// the real cause).
 fn get_registry_output() -> Result<String, PathExtenderError> {
     run_capture("reg", &["query", REG_KEY]).map_err(|_| PathExtenderError::RegRead)
 }
 
 /// Run a command and capture stdout, returning an error if it cannot be
-/// spawned or exits non-zero. Mirrors pnpm's `safe-execa`, which rejects on
-/// a non-zero exit rather than silently continuing with empty output.
+/// spawned or exits non-zero — rather than silently continuing with empty
+/// output.
 fn run_capture(program: &str, args: &[&str]) -> Result<String, PathExtenderError> {
     let output = Command::new(program).args(args).output()?;
     if !output.status.success() {
@@ -160,8 +157,7 @@ fn run_capture(program: &str, args: &[&str]) -> Result<String, PathExtenderError
 }
 
 /// Parse a `reg query` line of the form `    <name>    <type>    <data>`
-/// (four-space separators), matching `name` case-insensitively. Mirrors
-/// pnpm's `getEnvValueFromRegistry` regex.
+/// (four-space separators), matching `name` case-insensitively.
 fn get_env_value_from_registry(registry_output: &str, env_var_name: &str) -> Option<String> {
     for line in registry_output.lines() {
         let Some(rest) = line.strip_prefix("    ") else {
@@ -209,7 +205,7 @@ fn set_env_var_in_registry(
 
 /// Registry writes are not seen by future processes until at least one
 /// variable is set with `setx`. Set and immediately delete a throwaway
-/// variable to trigger the broadcast. Mirrors pnpm's `refreshEnvVars`.
+/// variable to trigger the broadcast.
 fn refresh_env_vars() -> Result<(), PathExtenderError> {
     const TEMP_ENV_VAR: &str = "REFRESH_ENV_VARS";
     run_capture("setx", &[TEMP_ENV_VAR, "1"])?;

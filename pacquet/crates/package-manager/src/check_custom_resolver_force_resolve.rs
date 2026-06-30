@@ -1,6 +1,5 @@
 //! Ask the pnpmfile's custom resolvers whether any lockfile entry must
-//! be re-resolved. Port of pnpm's
-//! [`checkCustomResolverForceResolve`](https://github.com/pnpm/pnpm/blob/1627943d2a/installing/deps-installer/src/install/checkCustomResolverForceResolve.ts).
+//! be re-resolved.
 
 use std::{path::Path, sync::Arc};
 
@@ -13,8 +12,8 @@ use pacquet_lockfile::{Lockfile, PackageKey, SnapshotEntry};
 /// Load the pnpmfile at `lockfile_dir` (if any) and report whether its
 /// custom resolvers force re-resolution of `lockfile`. Used by the
 /// install dispatch to keep the frozen-path optimization from skipping
-/// a forced re-resolve — pnpm folds the hook's verdict into
-/// `needsFullResolution`, which blocks `isFrozenInstallPossible`.
+/// a forced re-resolve — a `true` verdict forces a full resolution,
+/// which makes the frozen install path impossible.
 pub(crate) async fn force_resolve_from_pnpmfile(
     lockfile: &Lockfile,
     lockfile_dir: &Path,
@@ -45,9 +44,8 @@ pub(crate) async fn check_custom_resolver_force_resolve(
     }
 
     // Fire every (package, hook) check up front so the Node worker can
-    // interleave the async hooks, mirroring upstream's `anyTrue` over
-    // eagerly created promises; the first `true` wins and the rest are
-    // dropped.
+    // interleave the async hooks; the first `true` wins and the rest
+    // are dropped.
     let mut checks: FuturesUnordered<_> = snapshots
         .iter()
         .flat_map(|(dep_path, entry)| {

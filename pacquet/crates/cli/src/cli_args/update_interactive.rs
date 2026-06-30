@@ -1,11 +1,9 @@
 //! Interactive selection for `pacquet update --interactive`.
 //!
-//! Ports the data-gathering half of pnpm's
-//! [`interactiveUpdate`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/commands/src/update/index.ts#L195-L280):
-//! find the direct dependencies that have a newer version available
-//! (within the current range, or the `latest` tag under `--latest`),
-//! show them in a checkbox prompt, and return the names the user picked
-//! so the regular update path can run with them as selectors.
+//! The data-gathering half: find the direct dependencies that have a newer
+//! version available (within the current range, or the `latest` tag under
+//! `--latest`), show them in a checkbox prompt, and return the names the
+//! user picked so the regular update path can run with them as selectors.
 //!
 //! The outdated set is computed by the shared
 //! [`collect_outdated`], which also backs `pacquet outdated`. The two
@@ -13,8 +11,7 @@
 //! the [`TargetVersion`] they compare against: `update` targets the
 //! version a bump would move to (the `latest` tag under `--latest`,
 //! otherwise the highest in-range version). The choice list is
-//! intentionally flat (pnpm groups by dependency type); the prompt is a
-//! `dialoguer` multi-select.
+//! intentionally flat; the prompt is a `dialoguer` multi-select.
 
 use crate::cli_args::outdated::{OutdatedQuery, TargetVersion, collect_outdated};
 use dialoguer::MultiSelect;

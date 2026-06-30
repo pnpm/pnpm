@@ -1,12 +1,5 @@
 //! Configuration, matching, and application logic for pnpm's
-//! `patchedDependencies` (pacquet#397 item 9).
-//!
-//! Ports the upstream `@pnpm/patching.types`,
-//! `@pnpm/patching.config`, and `@pnpm/patching.apply-patch`
-//! workspaces (commit
-//! [`b4f8f47ac2`](https://github.com/pnpm/pnpm/tree/b4f8f47ac2))
-//! plus the patch-file hashing in `@pnpm/lockfile.settings-checker`'s
-//! [`calcPatchHashes`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/lockfile/settings-checker/src/calcPatchHashes.ts).
+//! `patchedDependencies`.
 //!
 //! The crate exposes:
 //!
@@ -19,11 +12,8 @@
 //!    `ERR_PNPM_PATCH_KEY_CONFLICT` on ambiguity.
 //! 3. [`apply_patch_to_dir`] for applying a unified-diff patch
 //!    against an extracted package directory before postinstall
-//!    hooks run. Ports upstream's
-//!    [`applyPatchToDir`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/patching/apply-patch/src/index.ts)
-//!    using the pure-Rust [`diffy`] crate (the upstream `@pnpm/patch-package`
-//!    fork serves the same role with `git apply` and `patch` ruled out
-//!    for cross-platform reasons).
+//!    hooks run, using the pure-Rust [`diffy`] crate (`git apply`
+//!    and `patch` are ruled out for cross-platform reasons).
 //! 4. [`verify_patches`] for the `ERR_PNPM_UNUSED_PATCH` diagnostic
 //!    when configured patches don't match any installed dep.
 //!

@@ -1,5 +1,4 @@
-//! Port of pnpm's
-//! [`resolving/npm-resolver/test/workspacePrefToNpm.test.ts`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/test/workspacePrefToNpm.test.ts).
+//! Tests for [`workspace_pref_to_npm`].
 
 use super::workspace_pref_to_npm;
 

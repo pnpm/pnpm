@@ -1,13 +1,11 @@
-//! Value rendering and key-ordering helpers ported from pnpm's writer.
+//! Value rendering and key-ordering helpers for the manifest writer.
 //!
-//! pnpm renders new scalars with eemeli/yaml's `singleQuote: true`: a value
-//! that *needs* quoting uses single quotes, plain-safe values stay unquoted
-//! (`zoo: 4.0.0`, `newPkg: ^2.0.0`). [`yaml_serde`] reproduces that exact
-//! policy (`>=2.0.0` → `'>=2.0.0'`, `@scope/x` → `'@scope/x'`, otherwise
-//! plain), so value text is delegated to it rather than re-derived. Key
-//! ordering reuses
-//! [`detectKeyLayout`](https://github.com/pnpm/pnpm/blob/e7e99f04e4/workspace/workspace-manifest-writer/src/index.ts#L317-L325)
-//! and [`sortKeys`](https://github.com/pnpm/pnpm/blob/e7e99f04e4/workspace/workspace-manifest-writer/src/index.ts#L327-L332).
+//! New scalars are rendered so that a value that *needs* quoting uses single
+//! quotes while plain-safe values stay unquoted (`zoo: 4.0.0`,
+//! `newPkg: ^2.0.0`). [`yaml_serde`] implements that exact policy
+//! (`>=2.0.0` → `'>=2.0.0'`, `@scope/x` → `'@scope/x'`, otherwise plain), so
+//! value text is delegated to it rather than re-derived. Key ordering is
+//! handled by [`detect_key_layout`] and [`sort_keys`].
 
 use std::cmp::Ordering;
 
@@ -22,15 +20,14 @@ pub(crate) enum Layout {
     PackagesFirst,
 }
 
-/// pnpm's `lexCompare`: a plain code-unit comparison. Rust `str::cmp`
-/// compares by Unicode scalar, which matches for the BMP identifiers used as
-/// catalog/field keys.
+/// A plain code-unit comparison. Rust `str::cmp` compares by Unicode scalar,
+/// which matches for the BMP identifiers used as catalog/field keys.
 fn lex_cmp(left: &str, right: &str) -> Ordering {
     left.cmp(right)
 }
 
-/// Classify `keys`, mirroring pnpm's `detectKeyLayout`. Empty input is
-/// `PackagesFirst` (pnpm's convention for brand-new manifests).
+/// Classify `keys` by their existing layout. Empty input is `PackagesFirst`,
+/// the convention for brand-new manifests.
 pub(crate) fn detect_key_layout(keys: &[String]) -> Layout {
     if keys.is_empty() {
         return Layout::PackagesFirst;
@@ -62,9 +59,9 @@ fn sort_keys(keys: &mut [String], layout: Layout) {
 }
 
 /// The order keys should appear in after adding `new_keys` to `existing`,
-/// mirroring pnpm's `reorderRecursive` for a single level: existing order is
-/// preserved when no key is added; otherwise the merged set is re-sorted for a
-/// sorted layout, or new keys are appended for an unordered one.
+/// for a single level: existing order is preserved when no key is added;
+/// otherwise the merged set is re-sorted for a sorted layout, or new keys are
+/// appended for an unordered one.
 pub(crate) fn target_order(existing: &[String], new_keys: &[String]) -> Vec<String> {
     if new_keys.is_empty() {
         return existing.to_vec();
@@ -77,8 +74,8 @@ pub(crate) fn target_order(existing: &[String], new_keys: &[String]) -> Vec<Stri
     merged
 }
 
-/// Render a scalar string value the way pnpm's writer does — plain when safe,
-/// single-quoted otherwise — by delegating to [`yaml_serde`].
+/// Render a scalar string value — plain when safe, single-quoted otherwise —
+/// by delegating to [`yaml_serde`].
 pub(crate) fn render_value(value: &str) -> String {
     yaml_serde::to_string(&yaml_serde::Value::from(value))
         .expect("serializing a string scalar to YAML never fails")

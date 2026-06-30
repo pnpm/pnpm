@@ -1,5 +1,4 @@
-//! Pacquet port of upstream pnpm's
-//! [`pruneGlobalVirtualStore`](https://github.com/pnpm/pnpm/blob/94240bc046/store/controller/src/storeController/pruneGlobalVirtualStore.ts).
+//! Prune the global virtual store.
 //!
 //! Mark-and-sweep over `<store_dir>/links/<scope>/<name>/<version>/<hash>`:
 //!
@@ -16,11 +15,9 @@
 //!    parents are removed in a second pass.
 //!
 //! Pacquet doesn't yet have rayon plumbing in the store-dir crate, so
-//! the port walks sequentially. Prune is a one-shot CLI command (not
+//! the walk runs sequentially. Prune is a one-shot CLI command (not
 //! on the hot install path); parallelism can be added later if
-//! profiling shows it's worth the complexity. The shape mirrors
-//! upstream's `Promise.all`-driven layout so the parallelism graft
-//! is mechanical when it lands.
+//! profiling shows it's worth the complexity.
 
 use crate::{GetRegisteredProjectsError, StoreDir, get_registered_projects};
 use derive_more::{Display, Error};
@@ -66,8 +63,7 @@ pub enum PruneError {
 
 impl StoreDir {
     /// Remove unreferenced packages from the global virtual store at
-    /// `<store_dir>/links`. Mirrors upstream's
-    /// [`pruneGlobalVirtualStore`](https://github.com/pnpm/pnpm/blob/94240bc046/store/controller/src/storeController/pruneGlobalVirtualStore.ts#L21-L58).
+    /// `<store_dir>/links`.
     ///
     /// Pacquet doesn't yet thread the install-time reporter into
     /// store-dir, so the informational messages go to stderr via
@@ -128,10 +124,9 @@ impl StoreDir {
 }
 
 /// Find every `node_modules/` directory under `project_dir`,
-/// including those inside workspace packages. Mirrors upstream's
-/// [`findAllNodeModulesDirs`](https://github.com/pnpm/pnpm/blob/94240bc046/store/controller/src/storeController/pruneGlobalVirtualStore.ts#L64-L97):
-/// descends into every non-hidden subdir until it sees `node_modules`,
-/// at which point it records the path and stops descending — the
+/// including those inside workspace packages. Descends into every
+/// non-hidden subdir until it sees `node_modules`, at which point it
+/// records the path and stops descending — the
 /// hoisted deps inside `node_modules/.pnpm` and friends are picked up
 /// by [`walk_symlinks_to_store`]'s transitive recursion instead.
 fn find_all_node_modules_dirs(project_dir: &Path) -> Vec<PathBuf> {
@@ -140,14 +135,13 @@ fn find_all_node_modules_dirs(project_dir: &Path) -> Vec<PathBuf> {
     return out;
 
     fn scan(dir: &Path, out: &mut Vec<PathBuf>) {
-        // Swallow every `read_dir` error — matches upstream's
-        // [`scan`'s bare `catch { return }`](https://github.com/pnpm/pnpm/blob/94240bc046/store/controller/src/storeController/pruneGlobalVirtualStore.ts#L67-L73).
-        // A permission failure inside a workspace package would make
-        // `prune` over-aggressive (its node_modules wouldn't be
-        // marked), but tightening this without an upstream change
-        // would diverge from pnpm's behaviour — and `pacquet store
-        // prune` shares a store directory with `pnpm store prune`,
-        // so the two must agree on what counts as reachable.
+        // Swallow every `read_dir` error, as pnpm does. A permission
+        // failure inside a workspace package would make `prune`
+        // over-aggressive (its node_modules wouldn't be marked), but
+        // tightening this would diverge from pnpm's behaviour — and
+        // `pacquet store prune` shares a store directory with `pnpm
+        // store prune`, so the two must agree on what counts as
+        // reachable.
         let Ok(entries) = fs::read_dir(dir) else {
             return;
         };
@@ -179,8 +173,6 @@ fn find_all_node_modules_dirs(project_dir: &Path) -> Vec<PathBuf> {
 /// resolves to a slot under `canonical_links`, record the slot's
 /// `<scope>/<name>/<version>/<hash>` segment in `reachable` and
 /// recurse into the slot's `node_modules/` for transitive deps.
-/// Mirrors upstream's
-/// [`walkSymlinksToStore`](https://github.com/pnpm/pnpm/blob/94240bc046/store/controller/src/storeController/pruneGlobalVirtualStore.ts#L103-L163).
 ///
 /// `canonical_links` must already be the canonicalised links root
 /// — [`StoreDir::prune`] does this once and threads it through, so
@@ -188,10 +180,9 @@ fn find_all_node_modules_dirs(project_dir: &Path) -> Vec<PathBuf> {
 /// invariant value.
 ///
 /// `visited` is the cycle guard, keyed by the canonical (real) path
-/// of `dir`. Upstream uses a sha256-base64url hash of the realpath;
-/// in pacquet we can store the canonical `PathBuf` directly — the
-/// extra hashing only helps when serialising the set, which we
-/// don't.
+/// of `dir`. Storing the canonical `PathBuf` directly is enough — the
+/// set is never serialised, so there's no need to hash the realpath
+/// first.
 fn walk_symlinks_to_store(
     dir: &Path,
     canonical_links: &Path,
@@ -203,12 +194,10 @@ fn walk_symlinks_to_store(
         return;
     }
 
-    // Swallow every `read_dir` error — matches upstream's
-    // [`walkSymlinksToStore`'s bare `catch { return }`](https://github.com/pnpm/pnpm/blob/94240bc046/store/controller/src/storeController/pruneGlobalVirtualStore.ts#L116-L121).
-    // Same caveat as in [`find_all_node_modules_dirs`]: tightening
-    // this would diverge from pnpm and risk a `pacquet store
-    // prune` deciding more slots are unreachable than a parallel
-    // `pnpm store prune` would.
+    // Swallow every `read_dir` error, as pnpm does. Same caveat as in
+    // [`find_all_node_modules_dirs`]: tightening this would diverge
+    // from pnpm and risk a `pacquet store prune` deciding more slots
+    // are unreachable than a parallel `pnpm store prune` would.
     let Ok(entries) = fs::read_dir(dir) else {
         return;
     };
@@ -278,9 +267,7 @@ fn walk_symlinks_to_store(
 /// and remove every `<hash>` directory whose
 /// `<scope>/<name>/<version>/<hash>` path isn't in `reachable`.
 /// Cleans up emptied `<version>/`, `<name>/`, and `<scope>/`
-/// parents. Mirrors upstream's
-/// [`removeUnreachablePackages`](https://github.com/pnpm/pnpm/blob/94240bc046/store/controller/src/storeController/pruneGlobalVirtualStore.ts#L187-L226)
-/// + [`removeUnreachableVersions`](https://github.com/pnpm/pnpm/blob/94240bc046/store/controller/src/storeController/pruneGlobalVirtualStore.ts#L232-L271).
+/// parents.
 fn remove_unreachable_packages(
     links_dir: &Path,
     reachable: &HashSet<PathBuf>,
@@ -349,9 +336,7 @@ fn remove_unreachable_versions(
     Ok((count, emptied_versions == versions.len() && !versions.is_empty()))
 }
 
-/// Mirrors upstream's
-/// [`getSubdirsSafely`](https://github.com/pnpm/pnpm/blob/94240bc046/store/controller/src/storeController/pruneGlobalVirtualStore.ts#L282-L299):
-/// returns the names of every directory entry under `dir`, swallowing
+/// Returns the names of every directory entry under `dir`, swallowing
 /// only `NotFound` (the path raced with a parallel install or the
 /// shape just isn't materialised yet) and surfacing other I/O errors
 /// as [`PruneError::ReadSweepDir`]. A permission failure here would
@@ -393,13 +378,12 @@ fn remove_slot_dir(path: &Path) -> Result<(), PruneError> {
 /// (`DirectoryNotEmpty`) or was already missing (`NotFound`), and
 /// propagates any other I/O error.
 ///
-/// Pacquet deliberately diverges from upstream here. Upstream uses
-/// [`rimraf`](https://github.com/pnpm/pnpm/blob/94240bc046/store/controller/src/storeController/pruneGlobalVirtualStore.ts#L210-L223)
-/// on the empty `<version>/`, `<name>/`, and `<scope>/` parents — a
-/// concurrent install that materialises a fresh slot in the window
+/// Pacquet deliberately diverges from pnpm here. pnpm recursively
+/// removes the empty `<version>/`, `<name>/`, and `<scope>/` parents —
+/// a concurrent install that materialises a fresh slot in the window
 /// between [`list_subdirs`] and the parent cleanup would have its
-/// just-written tree wiped by upstream's recursive remove. Switching
-/// to `fs::remove_dir` keeps pacquet race-safe (the new slot stays;
+/// just-written tree wiped by that recursive remove. Using
+/// `fs::remove_dir` keeps pacquet race-safe (the new slot stays;
 /// only the parent that's truly empty is removed) while producing
 /// the same on-disk result in the non-race case. Slot directories
 /// themselves still go through [`remove_slot_dir`] — those are

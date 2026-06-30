@@ -4,8 +4,7 @@ use pacquet_resolving_resolver_base::{
 
 /// The picker's preferred selectors for `name` with the per-level
 /// overlay folded in: each overlay version joins as a plain `version`
-/// selector — the shape upstream's per-level fold writes
-/// ([`resolveDependencies.ts#L731-L733`](https://github.com/pnpm/pnpm/blob/ce9c096e8e/installing/deps-resolver/src/resolveDependencies.ts#L731-L733)).
+/// selector.
 /// `None` when no level resolved this name; callers then borrow the
 /// static map directly, so the owned merge allocates only on the rare
 /// overlay hit.

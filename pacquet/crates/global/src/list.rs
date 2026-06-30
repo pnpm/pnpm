@@ -1,7 +1,5 @@
-//! Port of pnpm's
-//! [`listGlobalPackages`](https://github.com/pnpm/pnpm/blob/1819226b51/global/commands/src/listGlobalPackages.ts)
-//! plus the depth-0 subset of the `@pnpm/deps.inspection.list` renderers
-//! it calls (`renderTree` / `renderJson` / `renderParseable`).
+//! List the globally installed packages, with tree / JSON / parseable
+//! renderers for depth-0 output.
 //!
 //! Only the direct-dependency (depth 0) shape is needed: global installs
 //! list their resolved direct deps under a single private root.
@@ -11,7 +9,7 @@ use owo_colors::{OwoColorize, Stream};
 use serde_json::{Map, Value, json};
 use std::path::{Path, PathBuf};
 
-/// Output format for [`list_global_packages`]. Mirrors pnpm's `reportAs`.
+/// Output format for [`list_global_packages`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ListReportAs {
     Tree,
@@ -32,7 +30,7 @@ struct ListedDep {
 }
 
 /// Render the globally installed packages matching `params` (all when
-/// empty) in the requested format. Mirrors pnpm's `listGlobalPackages`.
+/// empty) in the requested format.
 pub fn list_global_packages(
     global_dir: &Path,
     params: &[String],
@@ -140,8 +138,8 @@ fn render_parseable(global_dir: &str, deps: &[ListedDep], long: bool) -> String 
     lines.join("\n")
 }
 
-/// `--parseable --long` line for one dependency, mirroring pnpm's
-/// alias-aware [`renderParseable`](https://github.com/pnpm/pnpm/blob/1819226b51/deps/inspection/list/src/renderParseable.ts).
+/// `--parseable --long` line for one dependency, using the alias-aware
+/// `path:locator` form.
 fn parseable_long_line(dep: &ListedDep) -> String {
     if dep.alias != dep.name {
         // npm-aliased dependency: emit the alias, plus an `npm:` locator
@@ -191,8 +189,8 @@ fn render_tree(global_dir: &str, deps: &[ListedDep], long: bool) -> String {
     format!("{LEGEND}{}", out.trim_end())
 }
 
-/// Leaf label, mirroring `printLabel` for a non-peer, non-deduped node in
-/// the `dependencies` group (always production color, i.e. uncolored).
+/// Leaf label for a non-peer, non-deduped node in the `dependencies`
+/// group (always production color, i.e. uncolored).
 fn leaf_label(dep: &ListedDep) -> String {
     if dep.alias != dep.name {
         // npm-aliased dependency.
@@ -207,7 +205,7 @@ fn leaf_label(dep: &ListedDep) -> String {
     format!("{}{}", dep.name, gray(&format!("@{}", dep.version)))
 }
 
-// --- archy tree renderer (port of @pnpm/text.tree-renderer) ----------------
+// --- archy tree renderer ----------------------------------------------------
 
 struct TreeNode {
     label: String,

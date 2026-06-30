@@ -209,12 +209,10 @@ pub enum TarballError {
     #[diagnostic(code(pacquet_tarball::sibling_fetch_failed))]
     SiblingFetchFailed { url: String },
 
-    /// Path-traversal rejection on a zip entry. Mirrors upstream's
-    /// `PATH_TRAVERSAL` error in
-    /// [`fetching/binary-fetcher/src/index.ts`](https://github.com/pnpm/pnpm/blob/94240bc046/fetching/binary-fetcher/src/index.ts):
-    /// any entry whose path is absolute or whose normalized form
-    /// would land outside the target directory is rejected before any
-    /// bytes are written to the CAS.
+    /// Path-traversal rejection on a zip entry, carrying the
+    /// `PATH_TRAVERSAL` error code: any entry whose path is absolute
+    /// or whose normalized form would land outside the target
+    /// directory is rejected before any bytes are written to the CAS.
     #[from(ignore)]
     #[display("Refusing to extract zip entry {entry_path:?} from {url} — {reason}")]
     #[diagnostic(code(pacquet_tarball::path_traversal))]
@@ -254,17 +252,14 @@ pub enum TarballError {
 
     /// `offline: true` was set and the package's tarball wasn't
     /// found in the local store. Pacquet refuses to fetch the
-    /// network. Upstream pnpm's `--offline` only gates the metadata
-    /// fetch in [`pickPackage`](https://github.com/pnpm/pnpm/blob/94240bc046/resolving/npm-resolver/src/pickPackage.ts);
+    /// network. pnpm's `--offline` only gates the metadata fetch;
     /// pacquet has no metadata fetch on the frozen-install path, so
     /// the same flag's most useful effect lands here: surface a
     /// clear "the snapshot isn't cached" error rather than letting
     /// the underlying network refusal propagate.
     ///
-    /// `ERR_PACQUET_NO_OFFLINE_TARBALL` is a pacquet-specific code
-    /// (upstream has no exact equivalent); the message shape
-    /// follows upstream's
-    /// [`ERR_PNPM_NO_OFFLINE_META`](https://github.com/pnpm/pnpm/blob/94240bc046/resolving/npm-resolver/src/pickPackage.ts)
+    /// `ERR_PACQUET_NO_OFFLINE_TARBALL` is a pacquet-specific code;
+    /// the message shape follows pnpm's `ERR_PNPM_NO_OFFLINE_META`
     /// — "Failed to resolve `<pkg>` in package mirror `<dir>`".
     #[from(ignore)]
     #[display(
@@ -284,8 +279,7 @@ pub enum TarballError {
 /// `prefix` strip on zip archives, after the `package/` strip on
 /// npm tarballs) should be excluded from the CAS write.
 ///
-/// Mirrors upstream's `ignoreFilePattern` / `archiveFilters` regex
-/// at <https://github.com/pnpm/pnpm/blob/94240bc046/fetching/binary-fetcher/src/index.ts>.
+/// Implements the `ignoreFilePattern` / `archiveFilters` behavior.
 /// Pacquet uses a callback rather than a regex so the caller can
 /// hand-code the filter without pulling a regex engine into
 /// `pacquet-tarball`; the canonical Node-runtime filter lives at
@@ -294,7 +288,7 @@ pub enum TarballError {
 ///
 /// The callback receives the *cleaned* path (post-prefix strip,
 /// `to_string_lossy()` already applied), so its inputs are stable
-/// strings matching what pnpm's regex sees upstream.
+/// strings keyed the same way pnpm keys the equivalent filter.
 pub type IgnoreEntryFilter = dyn Fn(&str) -> bool + Send + Sync;
 
 /// Value of the cache.
@@ -473,9 +467,7 @@ fn decompress_gzip(gz_data: &[u8], unpacked_size: Option<usize>) -> Result<Vec<u
         .map_err(TarballError::DecodeGzip)
 }
 
-/// Mirror of pnpm's `normalizeBundledManifest` at
-/// <https://github.com/pnpm/pnpm/blob/4750fd370c/store/cafs/src/normalizeBundledManifest.ts>:
-/// pick the subset of `package.json` fields that downstream code
+/// Pick the subset of `package.json` fields that downstream code
 /// (bin linking, dependency resolution, build-script detection)
 /// actually reads, and discard the rest. Two reasons for the
 /// subset: (1) `index.db` row size on disk — a full manifest can be
@@ -493,10 +485,9 @@ fn decompress_gzip(gz_data: &[u8], unpacked_size: Option<usize>) -> Result<Vec<u
 /// every field is either absent or `null`. A real `package.json`
 /// from an npm tarball always carries at least `name` and `version`
 /// (both kept by the pick), so the typical npm-published manifest
-/// surfaces as `Some(...)`. Matches upstream's
-/// `if (!result && !scripts) return undefined` shape: empty inputs
-/// degrade to `None` rather than a `Some(Object({}))` that would
-/// round-trip as a zero-field record def.
+/// surfaces as `Some(...)`. Empty inputs degrade to `None` rather
+/// than a `Some(Object({}))` that would round-trip as a zero-field
+/// record def.
 fn normalize_bundled_manifest(value: &serde_json::Value) -> Option<serde_json::Value> {
     /// Fields kept verbatim from the source manifest.
     ///
@@ -504,9 +495,9 @@ fn normalize_bundled_manifest(value: &serde_json::Value) -> Option<serde_json::V
     /// fields in JS object insertion order, and pacquet's encoder
     /// follows the [`serde_json::Map`] iteration order — but it
     /// does *not* matter for property-access correctness on the
-    /// pnpm side. The order below mirrors pnpm's
-    /// `BUNDLED_MANIFEST_FIELDS` array so a side-by-side byte diff
-    /// against a pnpm-written row is shallower.
+    /// pnpm side. The order below matches the field order pnpm
+    /// emits so a side-by-side byte diff against a pnpm-written
+    /// row is shallower.
     const BUNDLED_MANIFEST_FIELDS: &[&str] = &[
         "bin",
         "bundledDependencies",
@@ -734,13 +725,11 @@ fn extract_tarball_entries(
             )));
         }
         let cleaned_entry_path = parts.join("/");
-        // Drop ignored entries before the CAS write. Mirrors
-        // upstream's `ignoreFilePattern` semantics: paths are matched
-        // *after* the top-level prefix strip, so the callback sees
-        // the same strings pnpm's regex does. Bypassing the CAS
-        // write here also keeps the package's
-        // [`PackageFilesIndex`] tight — an ignored entry never
-        // surfaces in `files` or `manifest`.
+        // Drop ignored entries before the CAS write. Paths are matched
+        // *after* the top-level prefix strip, so the callback sees the
+        // cleaned relative path. Bypassing the CAS write here also
+        // keeps the package's [`PackageFilesIndex`] tight — an ignored
+        // entry never surfaces in `files` or `manifest`.
         if let Some(filter) = ignore_file_pattern
             && filter(&cleaned_entry_path)
         {
@@ -750,30 +739,23 @@ fn extract_tarball_entries(
             file_build_hooks = true;
         }
         // Capture the parsed manifest whenever we see `package.json`.
-        // Mirrors pnpm's `bundledManifest` pass-through at
-        // [pnpm/pnpm@4750fd370c]: pnpm stuffs the narrowed manifest
-        // into `pkgFilesIndex.manifest` so install-side consumers
-        // (notably `linkBinsOfDependencies`) can avoid re-reading
-        // the file from disk. The [`normalize_bundled_manifest`]
-        // pick drops fields downstream code doesn't use, keeping
-        // `index.db` rows tight.
+        // The narrowed manifest is stashed in `pkgFilesIndex.manifest`
+        // so install-side consumers (notably bin linking) can avoid
+        // re-reading the file from disk — the same place pnpm keeps it,
+        // so the shared `index.db` row carries it for both tools. The
+        // [`normalize_bundled_manifest`] pick drops fields downstream
+        // code doesn't use, keeping `index.db` rows tight.
         //
-        // **Last-entry wins.** Pnpm's [`addFilesFromTarball`] always
-        // overwrites `manifestBuffer = fileBuffer` per `package.json`
-        // entry (no `if (manifestBuffer === undefined)` guard), so
-        // when a tarball contains duplicate `package.json` entries
-        // the final one is canonical — same shape as
-        // `filesIndex.set(...)` which already overwrites duplicates.
-        // Real npm tarballs never publish multiple `package.json`
-        // entries, but the consistency with the `files` map is what
-        // matters: `manifest` and `files` must describe the same
-        // file. Failed JSON parses degrade the field to `None` (the
+        // **Last-entry wins.** A duplicate `package.json` entry
+        // overwrites any earlier one, so the final entry is canonical
+        // — same shape as the `files` map, which already overwrites
+        // duplicates. Real npm tarballs never publish multiple
+        // `package.json` entries, but the consistency with the `files`
+        // map is what matters: `manifest` and `files` must describe the
+        // same file. Failed JSON parses degrade the field to `None` (the
         // manifest is best-effort; a corrupt `package.json` is the
         // publisher's fault and downstream code can fall back to
         // disk reads).
-        //
-        // [pnpm/pnpm@4750fd370c]: <https://github.com/pnpm/pnpm/blob/4750fd370c/worker/src/start.ts#L218>
-        // [`addFilesFromTarball`]: <https://github.com/pnpm/pnpm/blob/4750fd370c/store/cafs/src/addFilesFromTarball.ts#L41-L43>
         if cleaned_entry_path == "package.json" {
             match serde_json::from_slice::<serde_json::Value>(entry_data) {
                 Ok(parsed) => {
@@ -851,40 +833,31 @@ fn extract_tarball_entries(
 /// Walk a zip archive, writing each regular-file entry into the CAFS
 /// and returning the `{relative-path → CAFS path}` map plus the
 /// per-package [`PackageFilesIndex`] row to hand off to the shared
-/// store-index writer. Mirrors the contract of [`extract_tarball_entries`]
+/// store-index writer. Matches the contract of [`extract_tarball_entries`]
 /// — same outputs, same per-file CAS write — but for binary
 /// `BinaryResolution { archive: zip, prefix: ... }` artifacts (the
 /// shape Node.js / Bun / Deno ships their Windows builds in).
 ///
-/// Ports the inner loop of upstream's `extractZipToTarget` at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/fetching/binary-fetcher/src/index.ts>:
-///
-/// 1. Directory entries are skipped — `AdmZip`'s
-///    `extractEntryTo(dir, ...)` expands a directory entry to every
-///    descendant via `getEntryChildren`, which would bypass the
-///    `ignoreEntry` filter on per-file paths. Iterating only over
-///    file entries achieves the same filter coverage.
+/// 1. Directory entries are skipped; iterating only over file
+///    entries keeps the per-file ignore filter authoritative (a
+///    directory entry would otherwise expand to every descendant
+///    and bypass the filter).
 /// 2. Each entry's path is validated against absolute / `..`
 ///    components via [`zip::read::ZipFile::enclosed_name`]. Any
 ///    rejection is surfaced as [`TarballError::PathTraversal`] —
-///    same `PATH_TRAVERSAL` error code pnpm raises.
+///    carrying the `PATH_TRAVERSAL` error code.
 /// 3. If `archive_prefix` is set and the entry path starts with
 ///    `{prefix}/`, the prefix is stripped before the ignore-filter
-///    check and before the entry is recorded in `cas_paths`.
-///    Mirrors upstream's `basenamePrefix` slice — the regex sees
-///    paths relative to the archive's top-level directory.
+///    check and before the entry is recorded in `cas_paths`, so the
+///    filter sees paths relative to the archive's top-level directory.
 /// 4. The cleaned path then runs through `ignore_file_pattern`;
 ///    matching entries are dropped before any CAS write.
 /// 5. The remaining entry's bytes are read and committed via
-///    [`StoreDir::write_cas_file`], mirroring upstream's
-///    `addFilesFromDir` import step (pnpm extracts to a temp dir then
-///    imports; pacquet writes directly to the CAS).
+///    [`StoreDir::write_cas_file`], writing directly to the CAS.
 ///
 /// Unix mode is read off the central-directory record via
 /// [`zip::read::ZipFile::unix_mode`]; archives written by Windows
-/// tooling don't populate it and we fall back to `0o644`, matching
-/// the implicit mode `addFilesFromDir` ends up with after
-/// `fs.writeFile` on the temp dir.
+/// tooling don't populate it and we fall back to `0o644`.
 fn extract_zip_entries(
     archive: &mut zip::ZipArchive<Cursor<Vec<u8>>>,
     package_url: &str,
@@ -902,10 +875,10 @@ fn extract_zip_entries(
         side_effects: None,
     };
 
-    // Build the `{prefix}/` slice once. Treat `Some("")` as `None`
-    // — upstream's `basename === ''` branch keeps entry paths
-    // verbatim. The trailing slash anchors the strip so a prefix of
-    // `foo` doesn't accidentally consume `foobar/...`.
+    // Build the `{prefix}/` slice once. Treat `Some("")` as `None`,
+    // keeping entry paths verbatim when there is no prefix. The
+    // trailing slash anchors the strip so a prefix of `foo` doesn't
+    // accidentally consume `foobar/...`.
     let basename_prefix: Option<String> =
         archive_prefix.filter(|prefix| !prefix.is_empty()).map(|prefix| format!("{prefix}/"));
 
@@ -925,10 +898,10 @@ fn extract_zip_entries(
         let raw_name = entry.name().to_string();
         // [`zip::read::ZipFile::enclosed_name`] returns `None` for
         // absolute paths and any path with a `..` component — a
-        // single check covers both forms of traversal upstream's
-        // `validatePathSecurity` rejects. The returned `PathBuf` has
-        // every `.` segment collapsed and is what we use below to
-        // build the canonical `cas_paths` / `pkg_files_idx` keys.
+        // single check covers both forms of path traversal. The
+        // returned `PathBuf` has every `.` segment collapsed and is
+        // what we use below to build the canonical `cas_paths` /
+        // `pkg_files_idx` keys.
         let Some(enclosed) = entry.enclosed_name() else {
             return Err(TarballError::PathTraversal {
                 url: package_url.to_string(),
@@ -970,10 +943,9 @@ fn extract_zip_entries(
 
         // Strip the archive's top-level basename (`prefix` on
         // `pacquet_lockfile::BinaryResolution`) so the ignore filter
-        // sees the same relative paths upstream's regex does. If the
-        // entry path doesn't start with `{prefix}/` we use the
-        // normalized form — pnpm's slice does the same (no-op when
-        // the entry already lives at the archive root).
+        // sees paths relative to the archive root. If the entry path
+        // doesn't start with `{prefix}/` we use the normalized form
+        // (a no-op when the entry already lives at the archive root).
         let cleaned = match basename_prefix.as_deref() {
             Some(prefix) => normalized.strip_prefix(prefix).unwrap_or(&normalized).to_string(),
             None => normalized,
@@ -1015,12 +987,10 @@ fn extract_zip_entries(
         // Central-directory record carries a Unix mode only when
         // the archive was built by a Unix tool; Windows-built
         // archives omit it. Fall back to `0o644` so the executable
-        // bit defaults to off — `addFilesFromDir` on pnpm's side
-        // lands at the same mode after `fs.writeFile`. Mask off
-        // the high `st_mode` bits (e.g. `0o100000` for a regular
-        // file) so `CafsFileInfo.mode` stays permission-only,
-        // matching the convention `add_files_from_dir.rs` enforces
-        // for tar / on-disk imports.
+        // bit defaults to off. Mask off the high `st_mode` bits
+        // (e.g. `0o100000` for a regular file) so `CafsFileInfo.mode`
+        // stays permission-only, matching the convention
+        // `add_files_from_dir.rs` enforces for tar / on-disk imports.
         let file_mode = entry.unix_mode().unwrap_or(0o644) & 0o777;
         let file_is_executable = file_mode::is_executable(file_mode);
 
@@ -1064,9 +1034,7 @@ fn extract_zip_entries(
 /// the caller tries to import them.
 ///
 /// Corruption is caught via the content hash, not by gating on the
-/// dirent type, matching upstream's [`checkPkgFilesIntegrity`][1].
-///
-/// [1]: https://github.com/pnpm/pnpm/blob/1819226b51/store/cafs/src/checkPkgFilesIntegrity.ts
+/// dirent type.
 ///
 /// Pre-fetched cas-paths map shared across all per-snapshot futures.
 /// Built once at install start by [`prefetch_cas_paths`]; downloads
@@ -1080,13 +1048,10 @@ pub type PrefetchedCasPaths = HashMap<String, Arc<HashMap<String, PathBuf>>>;
 
 /// Bundled package manifests recovered from the `SQLite` store index,
 /// keyed by the same `<integrity>\t<pkg_id>` string [`PrefetchedCasPaths`]
-/// uses. Mirrors pnpm's `bundledManifest` cache in
-/// [`worker/src/start.ts`](https://github.com/pnpm/pnpm/blob/4750fd370c/worker/src/start.ts#L144):
-/// pnpm reads the parsed manifest out of `pkgFilesIndex.manifest` so
-/// `linkBinsOfDependencies` doesn't have to re-read `package.json`
-/// from disk per child. Each value is `Arc`-wrapped so multiple
-/// bin-link consumers can hold the same parsed manifest without
-/// deep-cloning.
+/// uses. The parsed manifest is read out of the row's `manifest` field so
+/// bin linking doesn't have to re-read `package.json` from disk per child.
+/// Each value is `Arc`-wrapped so multiple bin-link consumers can hold the
+/// same parsed manifest without deep-cloning.
 ///
 /// Only keys whose row carried a manifest blob appear in the map —
 /// a missing key means either "row exists but has no manifest" (old
@@ -1101,9 +1066,8 @@ pub type PrefetchedManifests = HashMap<String, Arc<serde_json::Value>>;
 /// `<integrity>\t<pkg_id>` store-index row key; the inner map is
 /// the per-row `cache_key → FilesMap` table that `VerifyResult`
 /// produces (already with the `added` / `deleted` overlay applied
-/// against the base files). Mirrors the shape pnpm threads through
-/// `PackageFilesResponse.sideEffectsMaps` at
-/// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/store/create-cafs-store/src/index.ts#L83-L100>.
+/// against the base files). Carries the same per-package side-effects
+/// maps pnpm threads through its package-files response.
 ///
 /// Pacquet hands these off to `BuildModules`'s `is_built` gate —
 /// the build-phase skips a snapshot when its computed
@@ -1439,9 +1403,6 @@ pub struct DownloadTarballToStore<'a> {
     /// URL-keyed `Authorization` header lookup, built from the parsed
     /// `.npmrc` creds. Resolved per request so a tarball served from a
     /// different host than the registry still picks up its own header.
-    /// Mirrors pnpm's
-    /// [`getAuthHeaderByURI`](https://github.com/pnpm/pnpm/blob/601317e7a3/network/auth-header/src/index.ts)
-    /// pattern.
     pub auth_headers: &'a AuthHeaders,
     /// Install root the fetch belongs to. Threaded into the
     /// `pnpm:progress` `requester` field on `fetched` /
@@ -1454,21 +1415,19 @@ pub struct DownloadTarballToStore<'a> {
     /// the per-snapshot `SQLite` + integrity-check round-trip is skipped
     /// for every key already resolved by the prefetch.
     pub prefetched_cas_paths: Option<&'a PrefetchedCasPaths>,
-    /// Per-attempt retry budget for the tarball pipeline. Mirrors pnpm's
-    /// `fetch-retries*` knobs (`network/fetch/src/fetch.ts`,
-    /// `fetching/tarball-fetcher/src/remoteTarballFetcher.ts`): every
-    /// failure retries except HTTP 401, 403, 404 — including arbitrary
-    /// 4xx / 5xx, network resets, timeouts, mid-stream body errors,
-    /// integrity mismatches, and gzip / tar parse failures ([#259]).
+    /// Per-attempt retry budget for the tarball pipeline, driven by
+    /// pnpm's `fetch-retries*` knobs: every failure retries except
+    /// HTTP 401, 403, 404 — including arbitrary 4xx / 5xx, network
+    /// resets, timeouts, mid-stream body errors, integrity mismatches,
+    /// and gzip / tar parse failures ([#259]).
     ///
     /// [#259]: https://github.com/pnpm/pacquet/issues/259
     pub retry_opts: RetryOpts,
     /// Per-package archive-entry filter applied during CAS extraction.
     /// Receives the entry's path *after* the top-level
     /// `package/` strip; returning `true` drops the entry before the
-    /// CAS write. Mirrors upstream's `ignoreFilePattern` /
-    /// `archiveFilters` regex at
-    /// <https://github.com/pnpm/pnpm/blob/94240bc046/fetching/binary-fetcher/src/index.ts>.
+    /// CAS write, implementing the `ignoreFilePattern` /
+    /// `archiveFilters` behavior.
     /// `None` (the default for ordinary npm tarballs) writes every
     /// regular-file entry; `Some(filter)` is what the binary fetcher
     /// uses to strip Node's bundled `npm` / `corepack` from the CAS.
@@ -1484,11 +1443,11 @@ pub struct DownloadTarballToStore<'a> {
     /// prefetch (`prefetched_cas_paths`) and the `SQLite` `index.db`
     /// lookup (`load_cached_cas_paths`) miss, the fetcher fails fast
     /// with [`TarballError::NoOfflineTarball`] rather than hitting
-    /// the registry. The upstream `--offline` flag gates the
-    /// metadata-fetch path inside `pickPackage`; pacquet has no
-    /// metadata-fetch path on the frozen-install flow (the lockfile
-    /// pins every resolution), so this gate is pacquet's most useful
-    /// interpretation of the flag for frozen installs.
+    /// the registry. The `--offline` flag gates the metadata-fetch
+    /// path in pnpm; pacquet has no metadata-fetch path on the
+    /// frozen-install flow (the lockfile pins every resolution), so
+    /// this gate is pacquet's most useful interpretation of the flag
+    /// for frozen installs.
     pub offline: bool,
     /// Install-scoped set used to de-duplicate package-status progress.
     /// When `Some`, a `fetched` or `found_in_store` emit records its
@@ -1564,9 +1523,9 @@ fn tarball_error_to_request_retry(err: &TarballError) -> RequestRetryError {
             // were ever placed inside the retry loop (it isn't —
             // `NoOfflineTarball` short-circuits before
             // `fetch_and_extract_with_retry`). The arm exists for
-            // exhaustiveness; the `code` field mirrors the upstream
-            // shape so a future surface that does run this error
-            // through the retry logger renders the right code.
+            // exhaustiveness; the `code` field is set so a future
+            // surface that does run this error through the retry
+            // logger renders the right code.
             out.code = Some("ERR_PACQUET_NO_OFFLINE_TARBALL".to_string());
         }
     }
@@ -1576,12 +1535,11 @@ fn tarball_error_to_request_retry(err: &TarballError) -> RequestRetryError {
 /// Whether a [`TarballError`] from one tarball-fetch attempt should be
 /// retried.
 ///
-/// We retry integrity mismatches and decode errors. pnpm wraps the
-/// body fetch *and* the post-download
-/// `addFilesFromTarball` (integrity check + extraction) in one retried
-/// closure for the same reason: a corrupted byte on the wire that
-/// happens to escape TCP framing can break either the integrity check
-/// or the gzip decode, and a re-fetch is the cheapest way out.
+/// We retry integrity mismatches and decode errors. The body fetch
+/// *and* the post-download integrity check + extraction live in one
+/// retried closure for the same reason: a corrupted byte on the wire
+/// that happens to escape TCP framing can break either the integrity
+/// check or the gzip decode, and a re-fetch is the cheapest way out.
 fn is_transient_error(err: &TarballError) -> bool {
     match err {
         TarballError::HttpStatus(http) => !matches!(http.status, 401 | 403 | 404),
@@ -1674,11 +1632,10 @@ fn verify_tarball_integrity(
 /// per-tarball [`PackageFilesIndex`] row that the caller queues into
 /// the shared store-index writer once the retry loop succeeds.
 ///
-/// The whole pipeline lives in one attempt because pnpm's tarball
-/// fetcher does the same: any failure inside `addFilesFromTarball`
-/// (integrity mismatch, gzip decode, malformed tar) propagates back
-/// to the retry boundary so a re-fetch can recover from a flaky
-/// transfer that happens to checksum or decode wrong.
+/// The whole pipeline lives in one attempt so that any failure in the
+/// post-download step (integrity mismatch, gzip decode, malformed tar)
+/// propagates back to the retry boundary, letting a re-fetch recover
+/// from a flaky transfer that happens to checksum or decode wrong.
 ///
 /// Permits are acquired *inside* this function so a backoff sleep
 /// between attempts doesn't keep one parked. The network permit is
@@ -1688,10 +1645,7 @@ fn verify_tarball_integrity(
 /// decode + extract step.
 ///
 /// [#281]: https://github.com/pnpm/pacquet/pull/281
-#[expect(
-    clippy::too_many_arguments,
-    reason = "arg count is set by upstream pnpm's fetcher signature"
-)]
+#[expect(clippy::too_many_arguments, reason = "arg count is fixed by the fetcher signature")]
 async fn fetch_and_extract_once<Reporter: self::Reporter>(
     http_client: &ThrottledClient,
     package_url: &str,
@@ -1745,21 +1699,17 @@ async fn fetch_and_extract_once<Reporter: self::Reporter>(
     // longest download+extract jobs never start last.
     let client = http_client.acquire_for_url_with_priority(package_url, download_priority).await;
     let mut request = client.get(package_url);
-    // Match pnpm's tarball download path
-    // ([`remoteTarballFetcher.ts`](https://github.com/pnpm/pnpm/blob/601317e7a3/fetching/tarball-fetcher/src/remoteTarballFetcher.ts#L66-L70)):
-    // resolve the per-URL auth header and attach it. Tarball hosts that
+    // Resolve the per-URL auth header and attach it. Tarball hosts that
     // differ from the metadata host still pick up the header keyed at
     // the registry's nerf-darted URI.
     if let Some(value) = auth_headers.for_url_with_package(package_url, Some(package_id)) {
         request = request.header("authorization", value);
     }
 
-    // `pnpm:fetching-progress started` mirrors pnpm's per-attempt
-    // emit at
-    // <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/package-requester/src/packageRequester.ts#L560>.
-    // Fires exactly once per HTTP attempt — including attempts that
-    // fail before the response head arrives (DNS / connect /
-    // timeout) so retried attempts stay visible in the reporter.
+    // `pnpm:fetching-progress started` fires exactly once per HTTP
+    // attempt — including attempts that fail before the response head
+    // arrives (DNS / connect / timeout) so retried attempts stay
+    // visible in the reporter.
     // `size` is the response's `Content-Length` when we have a
     // response head, and JSON `null` (i.e. `None`) when we don't:
     // either because the response is chunked / unknown-length, or
@@ -1768,14 +1718,12 @@ async fn fetch_and_extract_once<Reporter: self::Reporter>(
     // gauge, so this admits "we don't know yet" only when we truly
     // don't know.
     //
-    // `attempt` is one-indexed (the in-flight attempt) to match
-    // pnpm's wire shape — `node-retry`'s `op.attempt(cb)` callback
-    // hands `cb` a 1-indexed counter, which `packageRequester`
-    // forwards verbatim into the `attempt` field. Pacquet's loop
-    // counter is zero-indexed, so emit `attempt + 1`. The default
-    // reporter's `reportBigTarballsProgress` filters on
-    // `log.attempt === 1` (so retries don't reset the progress
-    // line), so a zero would silence every "Downloading ..." line.
+    // `attempt` is one-indexed (the in-flight attempt) to match the
+    // reporter's wire shape, which expects a 1-indexed counter.
+    // Pacquet's loop counter is zero-indexed, so emit `attempt + 1`.
+    // The default reporter filters big-tarball progress on
+    // `attempt == 1` (so retries don't reset the progress line), so a
+    // zero would silence every "Downloading ..." line.
     let send_result = request.send().await;
     let size = send_result.as_ref().ok().and_then(reqwest::Response::content_length);
     Reporter::emit(&LogEvent::FetchingProgress(FetchingProgressLog {
@@ -1815,8 +1763,7 @@ async fn fetch_and_extract_once<Reporter: self::Reporter>(
         let mut buf = allocate_tarball_buffer(expected_size, package_url)?;
         let mut stream = response_head.bytes_stream();
 
-        // `in_progress` is gated and throttled to match pnpm exactly
-        // (see [`remoteTarballFetcher.ts`](https://github.com/pnpm/pnpm/blob/086c5e91e8/fetching/tarball-fetcher/src/remoteTarballFetcher.ts#L143)):
+        // `in_progress` is gated and throttled to match pnpm exactly:
         //
         // 1. Only emit when the tarball size is *known* (i.e. the
         //    response carried a `Content-Length`). Chunked / unknown-
@@ -1920,8 +1867,7 @@ async fn fetch_and_extract_once<Reporter: self::Reporter>(
 /// content-addressed, so re-extracting the same bytes produces
 /// identical paths and `write_cas_file` is idempotent.
 /// Emit `pnpm:progress found_in_store` for a (`package_id`, requester)
-/// pair the cache resolved without a download. Mirrors pnpm's emit at
-/// <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/package-requester/src/packageRequester.ts#L435>.
+/// pair the cache resolved without a download.
 fn emit_progress_found_in_store<Reporter: self::Reporter>(
     package_id: &str,
     requester: &str,
@@ -2025,10 +1971,9 @@ async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
         .await;
         match result {
             Ok(value) => {
-                // `pnpm:progress fetched` mirrors pnpm's emit at
-                // <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/package-requester/src/packageRequester.ts#L435>:
-                // one event per (resolved) package once the tarball
-                // has been pulled from the network and extracted.
+                // `pnpm:progress fetched`: one event per (resolved)
+                // package once the tarball has been pulled from the
+                // network and extracted.
                 emit_progress_fetched::<Reporter>(package_id, requester, progress_key);
                 return Ok(value);
             }
@@ -2054,15 +1999,13 @@ async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
                     ?err,
                     "Tarball fetch failed; retrying after backoff",
                 );
-                // `pnpm:request-retry` mirrors pnpm's emit at
-                // <https://github.com/pnpm/pnpm/blob/086c5e91e8/fetching/tarball-fetcher/src/remoteTarballFetcher.ts#L91>:
-                // one event per failed-and-being-retried HTTP
-                // attempt, before the backoff sleep, so the JS
-                // reporter renders "Will retry in <ms>. <N> retries
-                // left." while pacquet is still waiting. `attempt`
-                // is one-indexed (the failed attempt) to match
-                // pnpm's wire shape; pacquet's loop counter is
-                // zero-indexed.
+                // `pnpm:request-retry`: one event per
+                // failed-and-being-retried HTTP attempt, before the
+                // backoff sleep, so the JS reporter renders "Will retry
+                // in <ms>. <N> retries left." while pacquet is still
+                // waiting. `attempt` is one-indexed (the failed
+                // attempt) to match the reporter's wire shape;
+                // pacquet's loop counter is zero-indexed.
                 Reporter::emit(&LogEvent::RequestRetry(RequestRetryLog {
                     level: LogLevel::Debug,
                     attempt: attempt + 1,
@@ -2094,12 +2037,10 @@ impl<'a> DownloadTarballToStore<'a> {
     ///
     /// In practice this holds because tarball URLs encode
     /// `(name, version, integrity)` and the filter is keyed by
-    /// `pkg.name` upstream (`archiveFilters` in
-    /// [`binary-fetcher/src/index.ts`](https://github.com/pnpm/pnpm/blob/94240bc046/fetching/binary-fetcher/src/index.ts)),
-    /// so the (URL, filter) relation is functional. The dispatcher
-    /// in Slice D constructs filters from the same per-package
-    /// table; nothing else calls this method with a non-`None`
-    /// filter.
+    /// package name, so the (URL, filter) relation is functional. The
+    /// dispatcher in Slice D constructs filters from the same
+    /// per-package table; nothing else calls this method with a
+    /// non-`None` filter.
     ///
     /// [`ignore_file_pattern`]: DownloadTarballToStore::ignore_file_pattern
     pub async fn run_with_mem_cache<Reporter: self::Reporter>(
@@ -2164,11 +2105,8 @@ impl<'a> DownloadTarballToStore<'a> {
         if let Some(cache_lock) = existing {
             // `pnpm:progress` fires exactly once per URL — only the
             // first writer's `run_without_mem_cache` call emits.
-            // Mirrors pnpm's
-            // [`packageRequester`](https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/package-requester/src/packageRequester.ts#L410-L436),
-            // which attaches the emit via `.then()` on the first
-            // writer's promise; later `await`s of the same promise
-            // do not re-trigger the handler.
+            // Later waiters on the same cache slot do not re-trigger
+            // the emit.
             //
             // Read-lock the state read: the variant inspection below
             // doesn't mutate anything, and a `write().await` would
@@ -2345,11 +2283,11 @@ impl<'a> DownloadTarballToStore<'a> {
             return Ok(cas_paths);
         }
 
-        // Offline-mode gate: both cache lookups missed. Upstream pnpm
-        // gates only its metadata path on `--offline`; pacquet has no
+        // Offline-mode gate: both cache lookups missed. pnpm gates
+        // only its metadata path on `--offline`; pacquet has no
         // metadata path on the frozen-install flow, so the gate lands
         // here. Error rather than fall through to the network — same
-        // shape as upstream's `ERR_PNPM_NO_OFFLINE_META`, scoped to
+        // shape as pnpm's `ERR_PNPM_NO_OFFLINE_META`, scoped to
         // tarballs because that's what pacquet's frozen install needs
         // network for.
         if self.offline && local_file_tarball_path(package_url).is_none() {
@@ -2368,12 +2306,11 @@ impl<'a> DownloadTarballToStore<'a> {
         tracing::info!(target: "pacquet::download", ?package_url, "New cache");
 
         // Run the full fetch + integrity + extract pipeline under
-        // pnpm's retry policy. Mirrors
-        // [`remoteTarballFetcher.ts`](https://github.com/pnpm/pnpm/blob/1819226b51/fetching/tarball-fetcher/src/remoteTarballFetcher.ts):
-        // a single retried closure wraps both the network side and the
-        // `addFilesFromTarball` side, so a flaky transfer that survives
-        // TCP framing but fails the SHA-512 hash or trips gzip / tar
-        // parsing recovers via re-fetch instead of aborting the install
+        // pnpm's retry policy: a single retried closure wraps both the
+        // network side and the integrity-check + extract side, so a
+        // flaky transfer that survives TCP framing but fails the
+        // SHA-512 hash or trips gzip / tar parsing recovers via
+        // re-fetch instead of aborting the install
         // (<https://github.com/pnpm/pacquet/issues/259>). Only HTTP 401 / 403 / 404 fail fast — see
         // [`is_transient_error`].
         let (_computed_integrity, cas_paths, pkg_files_idx) =
@@ -2433,11 +2370,11 @@ pub struct ResolvedTarball {
 ///
 /// Remote (non-registry) https-tarball direct dependencies carry no
 /// name/version/integrity at resolve time — those live in the tarball's
-/// `package.json`. pnpm learns them in `packageRequester` after the
-/// fetch; pacquet builds the lockfile before the install pass, so the
-/// `TarballResolver` must fetch here to fill `manifest` + `integrity`
-/// into its `ResolveResult`. Passing a `mem_cache` warms it (keyed by
-/// URL) so the install pass's
+/// `package.json`, learned only after the fetch. pacquet builds the
+/// lockfile before the install pass, so the `TarballResolver` must
+/// fetch here to fill `manifest` + `integrity` into its
+/// `ResolveResult`. Passing a `mem_cache` warms it (keyed by URL) so
+/// the install pass's
 /// [`DownloadTarballToStore::run_with_mem_cache`] reuses the extraction
 /// without a second download.
 pub struct FetchTarballForResolution<'a> {
@@ -2531,12 +2468,8 @@ fn manifest_package_id(manifest: Option<&serde_json::Value>) -> Option<String> {
 /// errors) — only the `spawn_blocking` body differs: integrity check
 /// then [`extract_zip_entries`] instead of the gzip + tar path.
 ///
-/// Mirrors upstream's `downloadAndUnpackZip` at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/fetching/binary-fetcher/src/index.ts>,
-/// but writes directly into the CAS rather than going through a
-/// temp dir + `addFilesFromDir` round-trip (pacquet's
-/// [`StoreDir::write_cas_file`] is the same content-addressed write
-/// `addFilesFromDir` does on each tempdir file).
+/// Writes directly into the CAS via [`StoreDir::write_cas_file`]
+/// rather than extracting to a temp dir and importing each file.
 // 8 arguments — over the default clippy threshold, but each is
 // distinct (see the matching note on `fetch_and_extract_zip_with_retry`).
 #[expect(
@@ -2696,10 +2629,7 @@ async fn fetch_and_extract_zip_once<Reporter: self::Reporter>(
 // reason `fetch_and_extract_with_retry` is: each is distinct, and
 // bundling into a struct would just push the same fields into a
 // wrapper.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "arg count is set by upstream pnpm's fetcher signature"
-)]
+#[expect(clippy::too_many_arguments, reason = "arg count is fixed by the fetcher signature")]
 async fn fetch_and_extract_zip_with_retry<Reporter: self::Reporter>(
     http_client: &ThrottledClient,
     package_url: &str,
@@ -2776,12 +2706,10 @@ async fn fetch_and_extract_zip_with_retry<Reporter: self::Reporter>(
 }
 
 /// Counterpart to [`DownloadTarballToStore`] for zip-archive binary
-/// resolutions. Mirrors pnpm's `downloadAndUnpackZip` at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/fetching/binary-fetcher/src/index.ts>:
-/// the zip flow downloads the body, verifies the integrity hash,
-/// then walks zip entries and writes each to the CAFS — with the
-/// `prefix` field stripped from each entry path before the ignore
-/// filter and CAS write so the runtime's top-level
+/// resolutions: the zip flow downloads the body, verifies the
+/// integrity hash, then walks zip entries and writes each to the CAFS
+/// — with the `prefix` field stripped from each entry path before the
+/// ignore filter and CAS write so the runtime's top-level
 /// `node-vX.Y.Z-<platform>-<arch>/` directory doesn't leak into
 /// downstream consumers' paths.
 ///
@@ -2887,7 +2815,7 @@ impl DownloadZipArchiveToStore<'_> {
 
         // Offline-mode gate (zip archive). Same shape as the tarball
         // path above — see the matching comment there for the
-        // upstream rationale.
+        // rationale.
         if self.offline {
             tracing::warn!(
                 target: "pacquet::download",

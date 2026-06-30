@@ -1,8 +1,5 @@
-//! Port of pnpm's
-//! [`resolving/local-resolver/test/index.ts`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/local-resolver/test/index.ts).
-//!
-//! Each `#[tokio::test]` mirrors one upstream `test(...)` block; the
-//! upstream test name is preserved in the Rust function name.
+//! Resolution tests for the local-filesystem resolver, one
+//! `#[tokio::test]` per scenario.
 
 use pacquet_lockfile::{LockfileResolution, TarballResolution};
 use pacquet_resolving_local_resolver::{
@@ -17,8 +14,8 @@ use std::{
 use tempfile::TempDir;
 
 /// Set up a `<tmp>/inner/` directory with a package.json carrying the
-/// `name` upstream's tests assert against. Returns `(tmp, inner)` so
-/// the temp dir lives as long as the test.
+/// `name` the tests assert against. Returns `(tmp, inner)` so the temp
+/// dir lives as long as the test.
 fn fixture() -> (TempDir, PathBuf) {
     let tmp = TempDir::new().expect("tempdir");
     let inner = tmp.path().join("inner");
@@ -209,7 +206,7 @@ async fn resolve_directory_specified_using_the_link_protocol() {
 /// Build a tiny tarball at `path` and return its sha512 SSRI string.
 fn write_tarball(path: &Path) -> String {
     // Any bytes work — the test asserts the integrity round-trips
-    // through the resolver, not a specific upstream-pinned value.
+    // through the resolver, not a specific pinned value.
     let bytes: &[u8] = b"\x1f\x8b\x08\x00fake-tarball-bytes-for-test\n";
     fs::write(path, bytes).expect("write tarball");
     let mut opts = ssri::IntegrityOpts::new().algorithm(ssri::Algorithm::Sha512);
@@ -385,9 +382,7 @@ async fn fail_when_resolving_from_not_existing_directory_an_injected_dependency(
 /// where `compute_tarball_integrity` raises ENOENT. The resolver must
 /// surface the same `LINKED_PKG_DIR_NOT_FOUND` code the directory
 /// branch raises for a missing `file:` target — both kinds of
-/// missing `file:` target share one pnpm-compatible error path
-/// (`resolveSpec` upstream:
-/// <https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/local-resolver/src/index.ts#L108-L141>).
+/// missing `file:` target share one error path.
 #[tokio::test]
 async fn fail_when_resolving_missing_tarball_with_file_protocol() {
     let tmp = TempDir::new().expect("tempdir");
@@ -465,10 +460,9 @@ async fn resolve_from_local_path_ignores_explicit_local_schemes() {
 }
 
 /// Lexically normalize `.` and `..` components without resolving
-/// symlinks — matches Node's `path.resolve` semantics that the
-/// upstream tests compare against. `canonicalize` would resolve
-/// macOS's `/var` → `/private/var` symlink and diverge from the
-/// upstream string-equality assertions.
+/// symlinks — matches Node's `path.resolve` semantics. `canonicalize`
+/// would resolve macOS's `/var` → `/private/var` symlink and diverge
+/// from the string-equality assertions.
 trait LexicalNormalize: Sized {
     fn lexical_normalize(self) -> PathBuf;
 }

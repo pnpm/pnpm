@@ -1,11 +1,9 @@
 //! Drop `packages:` / `snapshots:` entries the env lockfile's
-//! importers no longer reference. Mirrors pnpm's
-//! [`pruneEnvLockfile`](https://github.com/pnpm/pnpm/blob/31858c544b/installing/env-installer/src/pruneEnvLockfile.ts),
-//! which runs the env document through the shared lockfile pruner.
+//! importers no longer reference.
 //!
 //! The env document is smaller than a normal project lockfile, so this
-//! walks the snapshot graph directly instead of porting the general
-//! `pruneSharedLockfile`.
+//! walks the snapshot graph directly rather than running a general
+//! lockfile pruner over it.
 
 use pacquet_lockfile::{EnvLockfile, PackageKey};
 use std::collections::HashSet;

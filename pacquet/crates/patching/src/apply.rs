@@ -10,9 +10,7 @@ use std::{
 
 /// Error from [`apply_patch_to_dir`].
 ///
-/// Mirrors the three diagnostic codes upstream's
-/// [`applyPatchToDir`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/patching/apply-patch/src/index.ts)
-/// surfaces:
+/// Surfaces three diagnostic codes:
 ///
 /// - `ERR_PNPM_PATCH_NOT_FOUND` — the patch file is missing.
 /// - `ERR_PNPM_INVALID_PATCH` — the patch file can't be parsed.
@@ -53,16 +51,11 @@ pub enum PatchApplyError {
 /// Apply a unified-diff patch file to every modified/created/deleted
 /// file inside `patched_dir`.
 ///
-/// Ports upstream's
-/// [`applyPatchToDir`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/patching/apply-patch/src/index.ts),
-/// which delegates to `@pnpm/patch-package`'s `applyPatch`. Pacquet
-/// uses [`diffy`] for parsing and applying — pure Rust, no
-/// subprocess, no Node, cross-platform. The upstream comment notes
-/// "Ideally, we would just run `patch` or `git apply`. However,
-/// `patch` is not available on Windows and `git apply` is hard to
-/// execute on a subdirectory of an existing repository", which is
-/// why pnpm vendored `patch-package`; pacquet sidesteps the same
-/// problem the same way (in-process applier, no subprocess).
+/// Uses [`diffy`] for parsing and applying — pure Rust, no subprocess,
+/// no Node, cross-platform. Running `patch` or `git apply` directly
+/// would be simpler, but `patch` is not available on Windows and
+/// `git apply` is hard to execute on a subdirectory of an existing
+/// repository, so an in-process applier sidesteps both problems.
 ///
 /// Supported file operations: `Modify`, `Create`, `Delete`.
 ///
@@ -94,11 +87,9 @@ pub fn apply_patch_to_dir(
     patched_dir: &Path,
     patch_file_path: &Path,
 ) -> Result<(), PatchApplyError> {
-    // Read the patch file. ENOENT becomes `ERR_PNPM_PATCH_NOT_FOUND`
-    // (mirrors upstream's `if (err.code === 'ENOENT') throw new
-    // PnpmError('PATCH_NOT_FOUND', ...)`). Every other IO error
-    // surfaces with the same diagnostic code but a different
-    // variant so the underlying `io::Error` chain is preserved.
+    // Read the patch file. ENOENT becomes `ERR_PNPM_PATCH_NOT_FOUND`.
+    // Every other IO error surfaces with the same diagnostic code but a
+    // different variant so the underlying `io::Error` chain is preserved.
     let bytes = match fs::read(patch_file_path) {
         Ok(b) => b,
         Err(e) if e.kind() == io::ErrorKind::NotFound => {
@@ -113,8 +104,7 @@ pub fn apply_patch_to_dir(
     };
     // Lossy UTF-8 to match Node `fs.readFile(path, 'utf8')` (the
     // same decoding [`create_hex_hash_from_file`] uses), so a patch
-    // file with stray bytes parses the same way upstream's reader
-    // would see it.
+    // file with stray bytes still parses.
     //
     // [`create_hex_hash_from_file`]: crate::create_hex_hash_from_file
     let text = String::from_utf8_lossy(&bytes);
@@ -168,16 +158,14 @@ fn apply_one_file(
             // it. `fs::write` after `fs::remove_file` creates a fresh
             // inode whose mode is governed by the process umask, which
             // would otherwise drop the executable bit on patched
-            // shebang scripts in `bin/`. Mirrors upstream's
-            // [`fs.writeFileSync(path, ..., { mode })`](https://github.com/ds300/patch-package/blob/master/src/patch/apply.ts).
+            // shebang scripts in `bin/`.
             let permissions = fs::metadata(&target)
                 .map(|m| m.permissions())
                 .map_err(|source| failed(format!("stat {}: {source}", target.display())))?;
             // Read as bytes and lossy-decode so non-UTF-8 bytes
             // turn into U+FFFD rather than failing the patch.
             // Matches how the patch file itself is read (see
-            // [`apply_patch_to_dir`]) and Node `fs.readFile(..., 'utf8')`,
-            // which upstream's patch-package uses end-to-end.
+            // [`apply_patch_to_dir`]) and Node `fs.readFile(..., 'utf8')`.
             let bytes = fs::read(&target)
                 .map_err(|source| failed(format!("read {}: {source}", target.display())))?;
             let original = String::from_utf8_lossy(&bytes).into_owned();
@@ -227,17 +215,15 @@ fn apply_one_file(
                 .ok_or_else(|| failed("binary patch is not supported".to_string()))?;
             let created = diffy::apply("", text_patch)
                 .map_err(|source| failed(format!("create {}: {source}", target.display())))?;
-            // A "new file" patch (`--- /dev/null`) means upstream
-            // expects the target NOT to exist. Refusing to overwrite
-            // matches `patch`'s and `git apply`'s behavior — silently
-            // clobbering a real file would be a data-loss footgun if
-            // the patch was authored against the wrong base.
+            // A "new file" patch (`--- /dev/null`) means the target is
+            // expected NOT to exist. Refusing to overwrite matches
+            // `patch`'s and `git apply`'s behavior — silently clobbering
+            // a real file would be a data-loss footgun if the patch was
+            // authored against the wrong base.
             //
             // Idempotency exception: if the target already contains
             // exactly the post-patch content, the patch has already
-            // been applied (e.g. a re-run) and we no-op. Matches
-            // upstream's reverse-dry-run check in
-            // `@pnpm/patch-package`'s `applyPatch`.
+            // been applied (e.g. a re-run) and we no-op.
             if target.try_exists().unwrap_or(false) {
                 let existing = fs::read(&target)
                     .map_err(|source| failed(format!("read {}: {source}", target.display())))?;
@@ -271,8 +257,7 @@ fn apply_one_file(
             //
             // Idempotency: a missing target means the file was
             // already removed by an earlier apply of the same
-            // patch — treat as no-op. Matches upstream's
-            // reverse-dry-run check in `@pnpm/patch-package`.
+            // patch — treat as no-op.
             let bytes = match fs::read(&target) {
                 Ok(b) => b,
                 Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(()),
@@ -321,10 +306,10 @@ fn apply_one_file(
 /// rewritten one — never an empty dirent. **This is atomic against IO
 /// errors, not against power loss**: we don't `fsync` the temp file
 /// or the parent directory, so a host crash between rename and the
-/// kernel's writeback flush can lose the rename. Matches upstream
-/// `@pnpm/patch-package`'s `fs.writeFileSync` semantics — Node's
-/// writeFileSync doesn't fsync either, and a partially-written patched
-/// install is recoverable by re-running `pnpm install` anyway.
+/// kernel's writeback flush can lose the rename. This matches Node's
+/// `fs.writeFileSync` semantics — it doesn't fsync either, and a
+/// partially-written patched install is recoverable by re-running
+/// `pnpm install` anyway.
 ///
 /// As a side effect, `rename` creates a fresh inode at `target`,
 /// breaking any hardlink the path previously shared with the content-

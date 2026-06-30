@@ -8,8 +8,6 @@ use std::path::Path;
 
 /// Creates a project from a `create-*` starter kit.
 ///
-/// Ports pnpm's `create` command from
-/// <https://github.com/pnpm/pnpm/blob/3687b0e180/exec/commands/src/create.ts>.
 /// The handler converts the user-provided name to a `create-*` package name
 /// and delegates to the existing `dlx` infrastructure.
 #[derive(Debug, Args)]
@@ -58,9 +56,6 @@ pub enum CreateError {
 const CREATE_PREFIX: &str = "create-";
 
 /// Resolves the npm package name for `create-*` packages.
-///
-/// Mirrors the naming algorithm in pnpm's `convertToCreateName`
-/// (<https://github.com/pnpm/pnpm/blob/3687b0e180/exec/commands/src/create.ts#L80-L98>).
 pub fn convert_to_create_name(package_name: &str) -> String {
     if let Some(rest) = package_name.strip_prefix('@') {
         let preferred_version_position = rest.find('@');

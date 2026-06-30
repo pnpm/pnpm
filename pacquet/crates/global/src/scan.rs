@@ -1,6 +1,4 @@
-//! Port of pnpm's
-//! [`scanGlobalPackages`](https://github.com/pnpm/pnpm/blob/1819226b51/global/packages/src/scanGlobalPackages.ts):
-//! enumerate the package groups installed under the global packages
+//! Enumerate the package groups installed under the global packages
 //! directory and the details needed to list, update, and remove them.
 
 use crate::read_package_json;
@@ -41,9 +39,7 @@ impl GlobalPackageInfo {
 }
 
 /// One installed dependency of a group, with its resolved version and
-/// parsed manifest. Mirrors pnpm's [`InstalledGlobalPackage`][ts-InstalledGlobalPackage].
-///
-/// [ts-InstalledGlobalPackage]: https://github.com/pnpm/pnpm/blob/1819226b51/global/packages/src/scanGlobalPackages.ts#L15-L19
+/// parsed manifest.
 #[derive(Debug, Clone)]
 pub struct InstalledGlobalPackage {
     pub alias: String,
@@ -55,8 +51,8 @@ pub struct InstalledGlobalPackage {
 ///
 /// A missing directory yields an empty list; any other read error (e.g.
 /// permission denied) is surfaced so callers don't mistake an unreadable
-/// global dir for "no global packages." Mirrors pnpm's `scanGlobalPackages`,
-/// which returns `[]` only for `ENOENT` and rethrows otherwise.
+/// global dir for "no global packages." Only `ENOENT` returns `[]`; every
+/// other error propagates.
 pub fn scan_global_packages(global_dir: &Path) -> io::Result<Vec<GlobalPackageInfo>> {
     let entries = match std::fs::read_dir(global_dir) {
         Ok(entries) => entries,
@@ -86,8 +82,7 @@ pub fn scan_global_packages(global_dir: &Path) -> io::Result<Vec<GlobalPackageIn
     Ok(result)
 }
 
-/// Find the group that contains `alias`, if any. Mirrors pnpm's
-/// `findGlobalPackage`.
+/// Find the group that contains `alias`, if any.
 pub fn find_global_package(
     global_dir: &Path,
     alias: &str,
@@ -96,7 +91,7 @@ pub fn find_global_package(
 }
 
 /// Read the installed details (alias, version, manifest) for every direct
-/// dependency of `info`. Mirrors pnpm's `getGlobalPackageDetails`.
+/// dependency of `info`.
 #[must_use]
 pub fn get_global_package_details(info: &GlobalPackageInfo) -> Vec<InstalledGlobalPackage> {
     let modules_dir = info.install_dir.join("node_modules");
@@ -111,8 +106,7 @@ pub fn get_global_package_details(info: &GlobalPackageInfo) -> Vec<InstalledGlob
         .collect()
 }
 
-/// The bin names installed by a group (deduplicated). Mirrors pnpm's
-/// `getInstalledBinNames`.
+/// The bin names installed by a group (deduplicated).
 #[must_use]
 pub fn get_installed_bin_names(info: &GlobalPackageInfo) -> Vec<String> {
     let modules_dir = info.install_dir.join("node_modules");
@@ -128,8 +122,7 @@ pub fn get_installed_bin_names(info: &GlobalPackageInfo) -> Vec<String> {
 }
 
 /// Read the directly-installed packages of an install directory as
-/// [`PackageBinSource`]s for bin linking / conflict checks. Mirrors
-/// pnpm's `readInstalledPackages`.
+/// [`PackageBinSource`]s for bin linking / conflict checks.
 #[must_use]
 pub fn read_installed_packages(install_dir: &Path) -> Vec<PackageBinSource> {
     let Some(manifest) = read_package_json(install_dir) else { return Vec::new() };
@@ -145,9 +138,8 @@ pub fn read_installed_packages(install_dir: &Path) -> Vec<PackageBinSource> {
 }
 
 /// Remove install directories under `global_dir` that no hash symlink
-/// points at. Mirrors pnpm's `cleanOrphanedInstallDirs`, including the
-/// 5-minute safety window that avoids racing a concurrent install which
-/// has created its dir but not yet its symlink.
+/// points at. A 5-minute safety window avoids racing a concurrent install
+/// which has created its dir but not yet its symlink.
 pub fn clean_orphaned_install_dirs(global_dir: &Path) {
     let Ok(entries) = std::fs::read_dir(global_dir) else { return };
     let entries: Vec<_> = entries.flatten().collect();
@@ -184,8 +176,8 @@ pub fn clean_orphaned_install_dirs(global_dir: &Path) {
 
 fn recently_created(dir_path: &Path, now: SystemTime, window: Duration) -> bool {
     let Ok(metadata) = std::fs::metadata(dir_path) else { return true };
-    // pnpm uses max(birthtime, ctime); std exposes created()/modified(),
-    // the closest portable proxies.
+    // Use max(created, modified) as the dir's age — the closest portable
+    // proxies std exposes for birthtime / ctime.
     let created = metadata.created().ok();
     let modified = metadata.modified().ok();
     let newest = [created, modified].into_iter().flatten().max();

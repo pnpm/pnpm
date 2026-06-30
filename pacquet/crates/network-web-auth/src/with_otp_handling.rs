@@ -21,35 +21,29 @@ mod tests;
 
 /// The `authUrl` / `doneUrl` an OTP challenge may carry. Both are optional
 /// because a registry may send neither (a classic OTP) or a malformed
-/// body. Ports TS [`OtpErrorBody`][ts-OtpErrorBody].
-///
-/// [ts-OtpErrorBody]: https://github.com/pnpm/pnpm/blob/a06591e349/pnpm11/network/web-auth/src/withOtpHandling.ts#L34-L37
+/// body.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct OtpErrorBody {
     pub auth_url: Option<String>,
     pub done_url: Option<String>,
 }
 
-/// An EOTP challenge surfaced by an operation's error. Ports the
-/// `{ code: 'EOTP', body? }` shape pnpm detects with `isOtpError`.
+/// An EOTP challenge surfaced by an operation's error: the registry
+/// signalled `code: 'EOTP'`, optionally carrying a challenge body.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct OtpChallenge {
     pub body: Option<OtpErrorBody>,
 }
 
 /// Implemented by an operation's error type so [`with_otp_handling`] can
-/// detect an EOTP challenge and read its body. Ports TS `isOtpError` plus
-/// the `error.body` read: returning `Some` is the moral equivalent of
-/// `error.code === 'EOTP'`.
+/// detect an EOTP challenge and read its body. Returning `Some` signals
+/// that the error is an EOTP challenge (`code: 'EOTP'`).
 pub trait OtpError {
     fn as_otp_challenge(&self) -> Option<OtpChallenge>;
 }
 
 /// Synthetic EOTP error meant to be thrown by an operation passed to
 /// [`with_otp_handling`] and caught by it — never to propagate elsewhere.
-/// Ports TS [`SyntheticOtpError`][ts-SyntheticOtpError].
-///
-/// [ts-SyntheticOtpError]: https://github.com/pnpm/pnpm/blob/a06591e349/pnpm11/network/web-auth/src/withOtpHandling.ts#L141-L176
 #[derive(Debug, derive_more::Display, derive_more::Error, Clone)]
 #[display(
     "This error was meant to be caught by `with_otp_handling`, not to propagate to other parts of \
@@ -68,7 +62,6 @@ impl SyntheticOtpError {
     /// Build a challenge from an arbitrary JSON body, keeping only string
     /// `authUrl` / `doneUrl` fields and warning (via the `R: Reporter`
     /// global-warn seam) when either is present with a non-string type.
-    /// Ports TS `SyntheticOtpError.fromUnknownBody`.
     #[must_use]
     pub fn from_unknown_body<Reporter: self::Reporter>(body: Option<&Value>) -> Self {
         let Some(Value::Object(map)) = body else {
@@ -103,8 +96,8 @@ fn extract_url_field<Reporter: self::Reporter>(
     }
 }
 
-/// JavaScript's `typeof` for a JSON value, used to mirror pnpm's warning
-/// text. Note `typeof null === 'object'` and `typeof [] === 'object'`.
+/// JavaScript's `typeof` for a JSON value, used in the warning text.
+/// Note `typeof null === 'object'` and `typeof [] === 'object'`.
 fn js_typeof(value: &Value) -> &'static str {
     match value {
         Value::Null | Value::Array(_) | Value::Object(_) => "object",
@@ -115,10 +108,7 @@ fn js_typeof(value: &Value) -> &'static str {
 }
 
 /// The registry required additional authentication but the terminal is not
-/// interactive. Ports pnpm's [`OtpNonInteractiveError`][ts-OtpNonInteractiveError]
-/// (`ERR_PNPM_OTP_NON_INTERACTIVE`).
-///
-/// [ts-OtpNonInteractiveError]: https://github.com/pnpm/pnpm/blob/a06591e349/pnpm11/network/web-auth/src/withOtpHandling.ts#L178-L184
+/// interactive (`ERR_PNPM_OTP_NON_INTERACTIVE`).
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 #[display(
     "The registry requires additional authentication, but pnpm is not running in an interactive \
@@ -134,10 +124,7 @@ fn js_typeof(value: &Value) -> &'static str {
 pub struct OtpNonInteractiveError;
 
 /// The registry asked for an OTP a second time after one was already
-/// supplied. Ports pnpm's [`OtpSecondChallengeError`][ts-OtpSecondChallengeError]
-/// (`ERR_PNPM_OTP_SECOND_CHALLENGE`).
-///
-/// [ts-OtpSecondChallengeError]: https://github.com/pnpm/pnpm/blob/a06591e349/pnpm11/network/web-auth/src/withOtpHandling.ts#L186-L192
+/// supplied (`ERR_PNPM_OTP_SECOND_CHALLENGE`).
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 #[display(
     "The registry requested a one-time password (OTP) a second time after one was already provided"
@@ -189,8 +176,6 @@ pub enum WithOtpError<Error: Diagnostic + 'static> {
 /// `authUrl` and `doneUrl`) or prompts for a classic OTP, then retries the
 /// operation once with the obtained one-time password. Any non-OTP error,
 /// or an OTP challenge with no usable code, propagates unchanged.
-///
-/// Ports pnpm's `withOtpHandling`.
 pub async fn with_otp_handling<Sys, Reporter, Token, Error, Operation>(
     fetch_options: WebAuthFetchOptions,
     mut operation: Operation,
@@ -239,8 +224,7 @@ where
         }
         _ => match Sys::input("This operation requires a one-time password.\nEnter OTP:").await {
             Ok(value) => value.filter(|otp| !otp.is_empty()),
-            // The user aborted the prompt: re-throw the original challenge,
-            // matching pnpm's `ExitPromptError` handling.
+            // The user aborted the prompt: re-throw the original challenge.
             Err(PromptError::Cancelled) => return Err(WithOtpError::Operation(error)),
             Err(other) => return Err(WithOtpError::Prompt(other)),
         },

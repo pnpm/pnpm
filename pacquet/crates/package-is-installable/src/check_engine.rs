@@ -1,5 +1,4 @@
-//! Port of `checkEngine.ts` from
-//! <https://github.com/pnpm/pnpm/blob/94240bc046/config/package-is-installable/src/checkEngine.ts>.
+//! Checks a package's wanted `engines` against the current runtime.
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -60,8 +59,7 @@ fn engine_json(node: Option<&str>, pnpm: Option<&str>) -> String {
 }
 
 /// Thrown when the configured `nodeVersion` is not a valid exact
-/// semver version. Mirrors pnpm's `ERR_PNPM_INVALID_NODE_VERSION` at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/config/package-is-installable/src/checkEngine.ts#L25-L27>.
+/// semver version. Carries the `ERR_PNPM_INVALID_NODE_VERSION` code.
 #[derive(Debug, Display, Error, Diagnostic, Clone, PartialEq, Eq)]
 #[display("The nodeVersion setting is \"{node_version}\", which is not exact semver version")]
 #[diagnostic(code(ERR_PNPM_INVALID_NODE_VERSION))]

@@ -1,5 +1,5 @@
-//! Pacquet port of pnpm's
-//! [`resolveNodeVersion` / `resolveNodeVersions`](https://github.com/pnpm/pnpm/blob/1627943d2a/engine/runtime/node-resolver/src/index.ts#L185-L221).
+//! Resolves a user-supplied version selector to a concrete Node.js
+//! version (or set of versions).
 //!
 //! Pull nodejs.org's `index.json` for a mirror, filter the listed
 //! versions, and pick the one (or the set) matching a user-supplied
@@ -22,8 +22,7 @@ use serde::Deserialize;
 /// Pattern matched against archive entries pacquet strips out of the
 /// Node.js tarball — `npm`, `npx`, and `corepack` ship with Node but
 /// pnpm manages its own package managers, so the install layer
-/// excludes them per upstream's
-/// [`NODE_EXTRAS_IGNORE_PATTERN`](https://github.com/pnpm/pnpm/blob/1627943d2a/engine/runtime/node-resolver/src/index.ts#L32).
+/// excludes them.
 pub const NODE_EXTRAS_IGNORE_PATTERN: &str = r"^(?:(?:lib/)?node_modules/(?:npm|corepack)(?:/|$)|bin/(?:npm|npx|corepack)$|(?:npm|npx|corepack)(?:\.(?:cmd|ps1))?$)";
 
 /// One row of the `index.json` Node.js publishes for each mirror.
@@ -67,11 +66,9 @@ pub enum ResolveNodeVersionError {
 /// Pick the single best Node.js version for a selector against a mirror.
 ///
 /// `node_mirror_base_url` falls back to the official `release` channel
-/// when `None`; matches upstream's
-/// [`fetchAllVersions` default](https://github.com/pnpm/pnpm/blob/1627943d2a/engine/runtime/node-resolver/src/index.ts#L215).
-/// Returns `Ok(None)` when the index is reachable but no version
-/// satisfies the selector — the caller raises
-/// `NODEJS_VERSION_NOT_FOUND` to mirror upstream.
+/// when `None`. Returns `Ok(None)` when the index is reachable but no
+/// version satisfies the selector — the caller raises
+/// `NODEJS_VERSION_NOT_FOUND`.
 pub async fn resolve_node_version(
     http_client: &ThrottledClient,
     version_spec: &str,
@@ -155,7 +152,7 @@ fn is_latest_selector(version_spec: &str) -> bool {
     version_spec.is_empty() || version_spec == "latest"
 }
 
-/// Decode the `lts` field upstream emits as `false | string`.
+/// Decode the index's `lts` field, which is `false | string`.
 fn lts_codename(value: serde_json::Value) -> Option<String> {
     match value {
         serde_json::Value::String(name) => Some(name),
@@ -164,7 +161,7 @@ fn lts_codename(value: serde_json::Value) -> Option<String> {
 }
 
 /// Reduce the mirror index into the candidate set + matching range
-/// for the user's selector. Mirrors upstream's `filterVersions`.
+/// for the user's selector.
 fn filter_versions(versions: &[NodeVersion], version_selector: &str) -> (Vec<String>, String) {
     if version_selector == "lts" {
         return (
@@ -192,11 +189,10 @@ fn filter_versions(versions: &[NodeVersion], version_selector: &str) -> (Vec<Str
     (versions.iter().map(|version| version.version.clone()).collect(), version_selector.to_string())
 }
 
-/// Mirrors `versionSelectorType(...)?.type === 'tag'` upstream: the
-/// selector is a "tag" only when it parses as neither a `Version` nor
-/// a `Range`. We don't run the `encodeURIComponent` punctuation check
-/// — [`filter_versions`]'s only consumer is the LTS-codename branch,
-/// and codenames are alphabetic.
+/// A selector is a "tag" only when it parses as neither a `Version`
+/// nor a `Range`. The punctuation check that a full dist-tag validator
+/// would run is skipped — [`filter_versions`]'s only consumer is the
+/// LTS-codename branch, and codenames are alphabetic.
 fn is_dist_tag(selector: &str) -> bool {
     Version::parse(selector).is_err() && Range::parse(selector).is_err()
 }
@@ -217,22 +213,20 @@ fn max_satisfying(versions: &[String], range: &str) -> Option<String> {
     best.map(|(_, raw)| raw)
 }
 
-/// Range-satisfaction check that mirrors upstream's
-/// `semver.maxSatisfying(versions, range, { includePrerelease: true, … })`
-/// call at
-/// [`engine/runtime/node-resolver/src/index.ts`](https://github.com/pnpm/pnpm/blob/1627943d2a/engine/runtime/node-resolver/src/index.ts#L185-L196).
+/// Range-satisfaction check with `includePrerelease`-style semantics:
+/// pick the max satisfying version, letting prereleases match
+/// non-prerelease comparators.
 ///
 /// `node-semver`'s [`Version::satisfies`] rejects prerelease versions
 /// against non-prerelease comparators by default — for example
 /// `18.0.0-rc.1` against `^18.0.0` returns `false`. JavaScript's
 /// `semver` library exposes an `includePrerelease` opt-in that lets
-/// that pairing match, which the upstream node-resolver enables
+/// that pairing match, which node version resolution enables
 /// unconditionally. Pacquet approximates the same opt-in by retrying
 /// with the prerelease suffix stripped when the straight check fails:
 /// if `version` is a prerelease and `MAJOR.MINOR.PATCH` satisfies
-/// `range`, treat the candidate as satisfying. Mirrors the strategy
-/// already used by [`satisfies_with_prereleases`] in
-/// `resolving-deps-resolver`.
+/// `range`, treat the candidate as satisfying. Same strategy used by
+/// [`satisfies_with_prereleases`] in `resolving-deps-resolver`.
 fn satisfies_with_prereleases(version: &Version, range: &Range) -> bool {
     if version.satisfies(range) {
         return true;

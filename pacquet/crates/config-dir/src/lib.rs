@@ -5,9 +5,6 @@ use std::path::{Path, PathBuf};
 /// its own `app_name` leaf (`"pnpm"` for pnpm/pacquet, `"pnpr"` for
 /// the registry server).
 ///
-/// Port of pnpm's
-/// [`getConfigDir`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/dirs.ts#L67-L86).
-///
 /// `os`, the env values, and `home` are passed in rather than read
 /// from the process so callers keep their own environment seam and
 /// every branch is unit-testable without mutating process state.

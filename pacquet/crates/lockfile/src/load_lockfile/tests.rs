@@ -34,8 +34,6 @@ const MAIN_DOC: &str = text_block! {
 
 /// Env-document prelude pnpm v11 writes when `packageManager` /
 /// `devEngines.runtime` triggers a package-manager-bootstrap entry.
-/// Shape matches upstream's `EnvLockfile` at
-/// <https://github.com/pnpm/pnpm/blob/31858c544b/lockfile/types/src/index.ts#L187-L194>.
 const ENV_DOC: &str = text_block! {
     "lockfileVersion: '9.0'"
     ""
@@ -98,10 +96,9 @@ fn env_only_lockfile_loads_as_none() {
     assert!(result.is_none(), "expected None for env-only lockfile, got: {result:?}");
 }
 
-/// Parity port of the TS heuristic-boundary test
-/// `lockfile/fs/test/lockfileV6Converters.test.ts::convertToLockfileObject()
-/// reconstructs a dropped directory resolution for a pruned file:
-/// peer-variant, but never for a file: tarball`.
+/// Heuristic-boundary check: a dropped directory resolution is
+/// reconstructed for a pruned `file:` peer-variant, but never for a
+/// `file:` tarball.
 #[test]
 fn reconstructs_dropped_directory_resolution_for_pruned_file_peer_variant() {
     let pruned = text_block! {
@@ -149,9 +146,9 @@ fn reconstructs_dropped_directory_resolution_for_pruned_file_peer_variant() {
 /// Regression for [pnpm/pnpm#11776](https://github.com/pnpm/pnpm/issues/11776):
 /// a lockfile whose importer dependency version is a GitHub codeload
 /// tarball URL used to crash the loader with `Failed to parse the
-/// version part: Failed to parse version`. The URL is the upstream
-/// `nonSemverVersion` shape and must round-trip through the loader as
-/// an `ImporterDepVersion::Regular` with a non-semver version slot,
+/// version part: Failed to parse version`. The URL is a non-semver
+/// version shape and must round-trip through the loader as an
+/// `ImporterDepVersion::Regular` with a non-semver version slot,
 /// plus parse as a `packages:` / `snapshots:` key under the same URL.
 #[test]
 fn loads_importer_dep_with_codeload_tarball_url_version() {
@@ -206,9 +203,8 @@ snapshots:
 /// Regression test for <https://github.com/pnpm/pnpm/issues/11775>.
 /// An injected workspace package's snapshot can hold a `link:<path>`
 /// value in its `dependencies:` map when the dep is a workspace
-/// sibling. Pnpm's own parser accepts the shape — `refToRelative`
-/// short-circuits to `null` for `link:` references at use time — so
-/// pacquet must too.
+/// sibling. The shape is valid — a `link:` reference resolves to
+/// `null` at use time — so pacquet's parser must accept it.
 #[test]
 fn parses_link_dep_in_injected_snapshot() {
     let lockfile_text = text_block! {

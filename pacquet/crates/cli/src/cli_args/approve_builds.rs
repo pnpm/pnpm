@@ -14,8 +14,7 @@ use std::{
 use crate::{State, cli_args::ignored_builds::get_automatically_ignored_builds};
 
 /// `pacquet approve-builds` — approve dependencies for running scripts
-/// during installation. Ports pnpm's
-/// [`approve-builds`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/commands/src/policy/approveBuilds.ts).
+/// during installation.
 #[derive(Debug, Args)]
 pub struct ApproveBuildsArgs {
     /// Packages to approve (`<pkg>`) or deny (`!<pkg>`). With no packages,
@@ -228,7 +227,6 @@ fn confirm_builds(build_packages: &[String]) -> miette::Result<bool> {
 /// later `ignored-builds` / install no longer reports them. With positional
 /// arguments only the decided (approved + denied) packages are removed,
 /// preserving the still-pending ones; otherwise every entry is cleared.
-/// Mirrors pnpm's `writeModulesManifest` block in `approveBuilds`.
 fn clear_decided_ignored_builds(
     modules_manifest: Option<pacquet_modules_yaml::Modules>,
     modules_dir: &Path,

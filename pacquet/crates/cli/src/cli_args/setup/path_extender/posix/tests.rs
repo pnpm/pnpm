@@ -1,5 +1,4 @@
-//! Ports the rendering and config-file-editing cases of pnpm's
-//! [`path-extender-posix.spec.ts`](https://github.com/pnpm/pnpm/blob/1819226b51/packages/path-extender-posix/test/index.ts).
+//! Rendering and config-file-editing tests for the POSIX path extender.
 //! The shell-detection / home-resolution wrapper reads process-global env
 //! state, so the tests exercise the pure renderers and the file editor
 //! directly (with a `tempfile` config file) instead of through

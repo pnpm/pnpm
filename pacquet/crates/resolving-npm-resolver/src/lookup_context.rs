@@ -1,9 +1,7 @@
 //! Per-install dedup caches for the npm verifier's
 //! publish-timestamp and trust-history lookups.
 //!
-//! Ports upstream's
-//! [`PublishedAtLookupContext`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts#L387-L433)
-//! inline struct. Verifying many `(name, version)` pairs in one
+//! Verifying many `(name, version)` pairs in one
 //! install should pay the disk/network costs at most once per
 //! `(registry, name)` pair (for package-scoped lookups) or once per
 //! `(registry, name, version)` triple (for the final published-at
@@ -11,7 +9,7 @@
 //! slot is an [`Arc<tokio::sync::OnceCell<T>>`] so two verifier tasks
 //! that race for the same key share one in-flight fetch — the second
 //! caller awaits the same init future instead of starting a duplicate.
-//! Mirrors upstream's `Map<string, Promise<T>>` singleflight pattern;
+//! This is a `Map<string, Promise<T>>` singleflight pattern;
 //! the outer mutex is dropped before the await so unrelated keys stay
 //! unblocked.
 //!
@@ -34,23 +32,18 @@ pub(crate) type PublishedAtTimeMap = HashMap<String, String>;
 /// tarball-URL binding. Projected off the abbreviated packument so the
 /// verifier can keep the rest of the document GC-able after the
 /// lookup — the full document runs to hundreds of KB per package and
-/// OOMs CI runners on multi-thousand entry installs (see
-/// [`#11860`](https://github.com/pnpm/pnpm/issues/11860)); only the
+/// OOMs CI runners on multi-thousand entry installs; only the
 /// short tarball-URL strings are retained.
-///
-/// Mirrors upstream's
-/// [`AbbreviatedMetaProjection`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts#L709-L712).
 #[derive(Debug, Default, Clone)]
 pub(crate) struct AbbreviatedMetaProjection {
     pub modified: Option<String>,
     /// version → `dist.tarball`; key presence means the version is published.
     pub version_tarballs: Option<HashMap<String, String>>,
     /// version → `dist` work statistics (`unpackedSize`, `fileCount`),
-    /// for the versions whose registry published either. Not part of
-    /// upstream's projection — carried so the verifier can surface
-    /// tarball work estimates to fetch scheduling (the verifier's
-    /// [`ObservedDistStats`] sink) without a second metadata
-    /// round-trip.
+    /// for the versions whose registry published either. Carried so the
+    /// verifier can surface tarball work estimates to fetch scheduling
+    /// (the verifier's [`ObservedDistStats`] sink) without a second
+    /// metadata round-trip.
     ///
     /// [`ObservedDistStats`]: crate::ObservedDistStats
     pub version_dist_stats: Option<HashMap<String, crate::DistStats>>,
@@ -61,15 +54,12 @@ pub(crate) struct AbbreviatedMetaProjection {
 /// same key wait on a single in-flight init.
 pub(crate) type SingleflightMap<Value> = Mutex<HashMap<String, Arc<OnceCell<Value>>>>;
 
-/// Per-install dedup of the lookups the verifier issues. Mirrors
-/// upstream's
-/// [`PublishedAtLookupContext`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts#L387-L433).
+/// Per-install dedup of the lookups the verifier issues.
 ///
 /// Each `HashMap` is keyed by a per-cache string composed from
-/// `registry`, `name`, and (for `published_at`) `version`. Upstream
-/// joins them with a `\x00` separator to sidestep any collision with
-/// legal URL/name characters; we keep the same convention so cache
-/// keys remain identical across stacks.
+/// `registry`, `name`, and (for `published_at`) `version`. They are
+/// joined with a `\x00` separator to sidestep any collision with
+/// legal URL/name characters.
 #[derive(Debug, Default)]
 pub(crate) struct PublishedAtLookupContext {
     pub published_at: SingleflightMap<Result<Option<String>, String>>,
@@ -91,13 +81,13 @@ impl PublishedAtLookupContext {
 }
 
 /// `\x00`-joined cache key for `(registry, name)` package-scoped
-/// lookups. Matches upstream's `${registry}\x00${name}` template.
+/// lookups, of the form `${registry}\x00${name}`.
 pub(crate) fn package_key(registry: &str, name: &str) -> String {
     format!("{registry}\x00{name}")
 }
 
-/// `\x00`-joined cache key for `(registry, name, version)` lookups.
-/// Matches upstream's `${registry}\x00${name}\x00${version}`.
+/// `\x00`-joined cache key for `(registry, name, version)` lookups, of
+/// the form `${registry}\x00${name}\x00${version}`.
 pub(crate) fn version_key(registry: &str, name: &str, version: &str) -> String {
     format!("{registry}\x00{name}\x00{version}")
 }

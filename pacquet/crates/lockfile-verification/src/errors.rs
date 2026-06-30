@@ -4,10 +4,8 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use std::fmt::Write as _;
 
-/// Upstream's [`MAX_VIOLATIONS_TO_PRINT`][ts-MAX_VIOLATIONS_TO_PRINT]. Keeps a poisoned lockfile
-/// from flooding the terminal with hundreds of rejection lines.
-///
-/// [ts-MAX_VIOLATIONS_TO_PRINT]: https://github.com/pnpm/pnpm/blob/6fadd7def9/pnpm11/installing/deps-installer/src/install/verifyLockfileResolutions.ts#L29
+/// Cap on rejection lines printed for a single error. Keeps a poisoned
+/// lockfile from flooding the terminal with hundreds of rejection lines.
 pub const MAX_VIOLATIONS_TO_PRINT: usize = 20;
 
 const HINT: &str = "The lockfile contains entries that the active policies reject. \
@@ -37,9 +35,9 @@ pub struct RenderedViolation {
 }
 
 /// Errors raised by [`crate::verify_lockfile_resolutions()`]. Each
-/// variant maps to the matching upstream `PnpmError` code. The
-/// formatted message includes the count + per-entry breakdown,
-/// trimmed to `MAX_VIOLATIONS_TO_PRINT`.
+/// variant carries its own stable `PnpmError` code. The formatted
+/// message includes the count + per-entry breakdown, trimmed to
+/// `MAX_VIOLATIONS_TO_PRINT`.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum VerifyError {

@@ -1,15 +1,11 @@
-//! The pnpm config-key `types` registry and the file-routing predicates the
+//! The config-key `types` registry and the file-routing predicates the
 //! `pnpm config` command builds on.
 //!
-//! Ports:
-//! - the merged `types` table (`pnpmTypes` ∪ `npmConfigTypes`) from pnpm's
-//!   [`types.ts`](https://github.com/pnpm/pnpm/blob/8eb1be4988/config/reader/src/types.ts)
-//!   and [`npmConfigTypes.ts`](https://github.com/pnpm/pnpm/blob/8eb1be4988/config/reader/src/npmConfigTypes.ts),
+//! Contents:
+//! - the merged `types` table (`pnpmTypes` ∪ `npmConfigTypes`),
 //!   reduced to the only fact the config command reads off a type: whether the
 //!   type list includes `Number` (used by `castField` to coerce a value).
-//! - [`is_ini_config_key`] / [`is_config_file_key`] from
-//!   [`localConfig.ts`](https://github.com/pnpm/pnpm/blob/8eb1be4988/config/reader/src/localConfig.ts)
-//!   and [`configFileKey.ts`](https://github.com/pnpm/pnpm/blob/8eb1be4988/config/reader/src/configFileKey.ts).
+//! - [`is_ini_config_key`] / [`is_config_file_key`].
 
 use std::{collections::HashSet, sync::OnceLock};
 
@@ -166,7 +162,7 @@ const PNPM_TYPES: &[(&str, bool)] = &[
 ];
 
 /// `(kebab-key, type-includes-Number)` for the npm-compatible settings
-/// (`npmConfigTypes`). Spread after [`PNPM_TYPES`] upstream, so on the few
+/// (`npmConfigTypes`). Applied after [`PNPM_TYPES`], so on the few
 /// overlapping keys these definitions win — but none of the overlaps change
 /// number-ness, so the merged "includes Number" answer is the union.
 const NPM_CONFIG_TYPES: &[(&str, bool)] = &[

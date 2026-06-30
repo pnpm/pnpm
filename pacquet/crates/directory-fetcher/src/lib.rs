@@ -1,6 +1,4 @@
-//! Port of pnpm's
-//! [`fetching/directory-fetcher`](https://github.com/pnpm/pnpm/blob/85ceff2383/fetching/directory-fetcher/src/index.ts)
-//! — the fetcher used for `LockfileResolution::Directory` snapshots,
+//! The fetcher used for `LockfileResolution::Directory` snapshots,
 //! i.e. injected workspace packages (`file:./local-pkg` in the
 //! manifest, `dependenciesMeta[*].injected = true`).
 //!

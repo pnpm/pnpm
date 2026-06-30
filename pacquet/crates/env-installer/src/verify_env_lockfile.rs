@@ -1,7 +1,6 @@
-//! Offline structural gate for the env lockfile, mirroring pnpm's
-//! [`verifyEnvLockfile`](https://github.com/pnpm/pnpm/blob/main/installing/env-installer/src/verifyEnvLockfile.ts)
-//! and the always-on alias/shape checks `verifyLockfileResolutions` runs over
-//! the main lockfile.
+//! Offline structural gate for the env lockfile: the always-on
+//! alias/shape checks applied to config-dependency names and versions
+//! before the lockfile is written.
 
 use crate::ConfigDepError;
 use pacquet_lockfile::{EnvLockfile, PackageKey};

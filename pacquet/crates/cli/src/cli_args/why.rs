@@ -1,10 +1,4 @@
 //! `pacquet why` — show the packages that depend on `<pkg>`.
-//!
-//! Ports pnpm's
-//! [`why` command](https://github.com/pnpm/pnpm/blob/deps/inspection/commands/src/listing/why.ts)
-//! and the reverse-tree builder in
-//! [`buildDependentsTree`](https://github.com/pnpm/pnpm/blob/deps/inspection/tree-builder/src/buildDependentsTree.ts).
-//!
 
 use crate::{State, cli_args::sanitize::sanitize};
 use clap::Args;

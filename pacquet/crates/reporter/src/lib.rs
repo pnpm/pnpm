@@ -2,9 +2,8 @@
 //!
 //! Pacquet's progress, lifecycle, summary, and similar output is shaped to
 //! match pnpm's so that emitted NDJSON is consumable by
-//! `@pnpm/cli.default-reporter`. The wire format mirrors what
-//! [`@pnpm/core-loggers`](https://github.com/pnpm/pnpm/tree/3b12eb27de/core/core-loggers/)
-//! defines for each channel.
+//! `@pnpm/cli.default-reporter`. The wire format matches what
+//! `@pnpm/core-loggers` defines for each channel.
 //!
 //! # Adding a channel
 //!
@@ -30,24 +29,16 @@ pub enum LogEvent {
     /// Install context: store directory, virtual-store directory, and
     /// whether a current lockfile (`node_modules/.pnpm/lock.yaml`) was
     /// loaded (`pnpm:context`).
-    ///
-    /// Upstream: <https://github.com/pnpm/pnpm/blob/086c5e91e8/core/core-loggers/src/contextLogger.ts>.
-    /// Emit site: <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/context/src/index.ts#L196>.
     #[serde(rename = "pnpm:context")]
     Context(ContextLog),
 
     /// Coarse install-pipeline phase markers (`pnpm:stage`).
-    ///
-    /// Upstream: <https://github.com/pnpm/pnpm/blob/3b12eb27de/core/core-loggers/src/stageLogger.ts>.
     #[serde(rename = "pnpm:stage")]
     Stage(StageLog),
 
     /// End-of-install marker (`pnpm:summary`). pnpm's reporter combines
     /// this with the accumulated `pnpm:root` events to render the final
     /// "+N -M" block.
-    ///
-    /// Upstream: <https://github.com/pnpm/pnpm/blob/086c5e91e8/core/core-loggers/src/summaryLogger.ts>.
-    /// Emit site: <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/deps-installer/src/install/index.ts#L1663>.
     #[serde(rename = "pnpm:summary")]
     Summary(SummaryLog),
 
@@ -59,26 +50,18 @@ pub enum LogEvent {
     /// post-fallback method rather than the optimistic configured
     /// one. Up to three events per install (one per resolved method)
     /// gated by an install-scoped atomic in `pacquet-package-manager`.
-    ///
-    /// Upstream: <https://github.com/pnpm/pnpm/blob/086c5e91e8/core/core-loggers/src/packageImportMethodLogger.ts>.
-    /// Emit site: <https://github.com/pnpm/pnpm/blob/086c5e91e8/fs/indexed-pkg-importer/src/index.ts#L32>.
     #[serde(rename = "pnpm:package-import-method")]
     PackageImportMethod(PackageImportMethodLog),
 
     /// Per-package status transitions (`pnpm:progress`). Together they
     /// drive the "X/Y resolved, X/Y fetched, X/Y imported" counters in
     /// the default reporter.
-    ///
-    /// Upstream: <https://github.com/pnpm/pnpm/blob/086c5e91e8/core/core-loggers/src/progressLogger.ts>.
     #[serde(rename = "pnpm:progress")]
     Progress(ProgressLog),
 
     /// Per-tarball download progress (`pnpm:fetching-progress`). The
     /// `in_progress` events are throttled to ~200ms while the body
     /// streams.
-    ///
-    /// Upstream: <https://github.com/pnpm/pnpm/blob/086c5e91e8/core/core-loggers/src/fetchingProgressLogger.ts>.
-    /// Emit site: <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/package-requester/src/packageRequester.ts#L560>.
     #[serde(rename = "pnpm:fetching-progress")]
     FetchingProgress(FetchingProgressLog),
 
@@ -87,17 +70,12 @@ pub enum LogEvent {
     /// once at install start with the on-disk manifest) and
     /// `updated` (emitted after the manifest is rewritten — e.g.
     /// `pacquet add` saves a new dependency entry).
-    ///
-    /// Upstream: <https://github.com/pnpm/pnpm/blob/086c5e91e8/core/core-loggers/src/packageManifestLogger.ts>.
     #[serde(rename = "pnpm:package-manifest")]
     PackageManifest(PackageManifestLog),
 
     /// Per-direct-dependency add / remove events (`pnpm:root`). pnpm's
     /// reporter accumulates these and renders the "+N -M" block at
     /// `pnpm:summary` time.
-    ///
-    /// Upstream: <https://github.com/pnpm/pnpm/blob/086c5e91e8/core/core-loggers/src/rootLogger.ts>.
-    /// Emit site: <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/linking/direct-dep-linker/src/linkDirectDeps.ts#L131>.
     #[serde(rename = "pnpm:root")]
     Root(RootLog),
 
@@ -106,9 +84,6 @@ pub enum LogEvent {
     /// `removed` from separate sites; pacquet currently emits both
     /// together because pruning hasn't landed yet — see
     /// [`StatsMessage::Removed`].
-    ///
-    /// Upstream: <https://github.com/pnpm/pnpm/blob/086c5e91e8/core/core-loggers/src/statsLogger.ts>.
-    /// Emit site: <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/deps-installer/src/install/link.ts#L363>.
     #[serde(rename = "pnpm:stats")]
     Stats(StatsLog),
 
@@ -118,18 +93,12 @@ pub enum LogEvent {
     /// `error` payload is what the JS reporter dispatches on
     /// (`httpStatusCode` / `status` / `errno` / `code`) to render the
     /// reason.
-    ///
-    /// Upstream: <https://github.com/pnpm/pnpm/blob/086c5e91e8/core/core-loggers/src/requestRetryLogger.ts>.
-    /// Emit site: <https://github.com/pnpm/pnpm/blob/086c5e91e8/fetching/tarball-fetcher/src/remoteTarballFetcher.ts#L91>.
     #[serde(rename = "pnpm:request-retry")]
     RequestRetry(RequestRetryLog),
 
     /// Per-script lifecycle output (`pnpm:lifecycle`). `Script` fires
     /// once before the script spawns, `Stdio` fires per stdout/stderr
     /// line, and `Exit` fires once after the script returns.
-    ///
-    /// Upstream: <https://github.com/pnpm/pnpm/blob/80037699fb/core/core-loggers/src/lifecycleLogger.ts>.
-    /// Emit site: <https://github.com/pnpm/pnpm/blob/80037699fb/exec/lifecycle/src/runLifecycleHook.ts>.
     #[serde(rename = "pnpm:lifecycle")]
     Lifecycle(LifecycleLog),
 
@@ -137,22 +106,16 @@ pub enum LogEvent {
     /// scripts were skipped because the package was not in
     /// `allowBuilds` (`pnpm:ignored-scripts`). pnpm's reporter renders
     /// the list to remind the user they can opt in.
-    ///
-    /// Upstream: <https://github.com/pnpm/pnpm/blob/80037699fb/core/core-loggers/src/ignoredScriptsLogger.ts>.
-    /// Emit site: <https://github.com/pnpm/pnpm/blob/80037699fb/installing/deps-installer/src/install/index.ts#L414>.
     #[serde(rename = "pnpm:ignored-scripts")]
     IgnoredScripts(IgnoredScriptsLog),
 
-    /// One per optional-dependency that pnpm decided to skip rather
+    /// One per optional-dependency pacquet decided to skip rather
     /// than fail the install over. Reason discriminates the cause —
     /// pacquet currently only emits `build_failure` (from
     /// `BuildModules` when a postinstall fails on an optional dep);
     /// the `unsupported_engine` / `unsupported_platform` /
-    /// `resolution_failure` reasons upstream uses come from earlier
-    /// phases that haven't landed in pacquet yet.
-    ///
-    /// Upstream: <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/core/core-loggers/src/skippedOptionalDependencyLogger.ts>.
-    /// Emit site (`build_failure)`: <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/during-install/src/index.ts#L218-L240>.
+    /// `resolution_failure` reasons come from earlier phases that
+    /// haven't landed in pacquet yet.
     #[serde(rename = "pnpm:skipped-optional-dependency")]
     SkippedOptionalDependency(SkippedOptionalDependencyLog),
 
@@ -162,9 +125,6 @@ pub enum LogEvent {
     /// `{ name, version }` list. Both are suppressed entirely when an
     /// install finds every config dependency already materialized, so a
     /// no-op install emits nothing on this channel.
-    ///
-    /// Upstream: <https://github.com/pnpm/pnpm/blob/31858c544b/core/core-loggers/src/installingConfigDeps.ts>.
-    /// Emit site: <https://github.com/pnpm/pnpm/blob/31858c544b/installing/env-installer/src/installConfigDeps.ts#L43-L127>.
     #[serde(rename = "pnpm:installing-config-deps")]
     InstallingConfigDeps(InstallingConfigDepsLog),
 
@@ -173,11 +133,6 @@ pub enum LogEvent {
     /// records it as installed (`pnpm:_broken_node_modules`). The
     /// frozen-lockfile path emits one of these per missing slot
     /// before falling through to a full re-install of that snapshot.
-    ///
-    /// Upstream: <https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-builder/src/lockfileToDepGraph.ts#L37>
-    /// (channel declaration) and
-    /// <https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-builder/src/lockfileToDepGraph.ts#L258>
-    /// (per-snapshot emit site).
     #[serde(rename = "pnpm:_broken_node_modules")]
     BrokenModules(BrokenModulesLog),
 
@@ -187,28 +142,20 @@ pub enum LogEvent {
     /// unexpected throw). Fires only when the candidate set is
     /// non-empty — a lockfile whose snapshots all fail name/version
     /// extraction produces no events.
-    ///
-    /// Upstream: <https://github.com/pnpm/pnpm/blob/2a9bd897bf/core/core-loggers/src/lockfileVerificationLogger.ts>.
-    /// Emit site: <https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutions.ts#L134-L168>.
     #[serde(rename = "pnpm:lockfile-verification")]
     LockfileVerification(LockfileVerificationLog),
 
-    /// Generic global-logger message (`name: "pnpm"`). Mirrors
-    /// pnpm's [`globalLogger`](https://github.com/pnpm/pnpm/blob/a456dc78fb/packages/logger/src/index.ts)
-    /// `logger.info({ message, prefix })` emits — for example, the
-    /// "Lockfile is up to date, resolution step is skipped" line the
-    /// frozen-install short-circuit prints at
-    /// [`installing/deps-installer/src/install/index.ts:984`](https://github.com/pnpm/pnpm/blob/a456dc78fb/installing/deps-installer/src/install/index.ts#L984).
-    /// `@pnpm/cli.default-reporter` routes these into the "other" log
-    /// stream at
-    /// [`cli/default-reporter/src/index.ts:222`](https://github.com/pnpm/pnpm/blob/a456dc78fb/cli/default-reporter/src/index.ts#L222).
+    /// Generic global-logger message (`name: "pnpm"`). Carries a
+    /// `{ message, prefix }` payload — for example, the "Lockfile is
+    /// up to date, resolution step is skipped" line the frozen-install
+    /// short-circuit prints. `@pnpm/cli.default-reporter` routes these
+    /// into the "other" log stream.
     #[serde(rename = "pnpm")]
     Pnpm(PnpmLog),
 
-    /// Global-logger message (`name: "pnpm:global"`). Mirrors pnpm's
-    /// [`globalInfo` / `globalWarn`](https://github.com/pnpm/pnpm/blob/fc2f33912e/pnpm11/core/logger/src/logger.ts#L15-L23),
-    /// which write to a `bole('pnpm:global')` logger with just a message
-    /// string — no `prefix`, unlike [`LogEvent::Pnpm`]. The interactive
+    /// Global-logger message (`name: "pnpm:global"`). Written to a
+    /// `bole('pnpm:global')` logger with just a message string — no
+    /// `prefix`, unlike [`LogEvent::Pnpm`]. The interactive
     /// web-authentication flow (`pacquet-network-web-auth`) emits on this
     /// channel to surface the auth URL / QR code and the browser-open
     /// prompts. `@pnpm/cli.default-reporter` routes these into the "other"
@@ -221,18 +168,12 @@ pub enum LogEvent {
     /// receive a `context` whose `log` forwards here, so a pnpmfile can
     /// surface why it rewrote a manifest or lockfile. `@pnpm/cli.default-reporter`
     /// routes these into the "other" log stream.
-    ///
-    /// Upstream: <https://github.com/pnpm/pnpm/blob/3b12eb27de/core/core-loggers/src/hookLogger.ts>.
-    /// Emit site: <https://github.com/pnpm/pnpm/blob/3b12eb27de/hooks/pnpmfile/src/requireHooks.ts#L244-L249>.
     #[serde(rename = "pnpm:hook")]
     Hook(HookLog),
 
     /// Total command wall-clock time (`pnpm:execution-time`). Emitted once
     /// per CLI run after the command finishes; the default reporter renders
     /// it as the `Done in <time> using <pkg> v<version>` footer.
-    ///
-    /// Upstream: <https://github.com/pnpm/pnpm/blob/086c5e91e8/core/core-loggers/src/executionTimeLogger.ts>.
-    /// Emit site: <https://github.com/pnpm/pnpm/blob/086c5e91e8/pnpm/src/main.ts>.
     #[serde(rename = "pnpm:execution-time")]
     ExecutionTime(ExecutionTimeLog),
 }
@@ -536,17 +477,15 @@ pub struct LifecycleLog {
     pub message: LifecycleMessage,
 }
 
-/// `pnpm:lifecycle` discriminated payload. pnpm's
-/// [`LifecycleMessage`](https://github.com/pnpm/pnpm/blob/80037699fb/core/core-loggers/src/lifecycleLogger.ts)
-/// is a TypeScript union of three shapes that pnpm's reporter
-/// dispatches on by presence of `script`, `line`, or `exitCode`.
-/// `#[serde(untagged)]` matches that shape so consumers
-/// (notably `@pnpm/cli.default-reporter`) accept the record unchanged.
+/// `pnpm:lifecycle` discriminated payload. A union of three shapes
+/// that pnpm's reporter dispatches on by presence of `script`,
+/// `line`, or `exitCode`. `#[serde(untagged)]` matches that shape so
+/// consumers (notably `@pnpm/cli.default-reporter`) accept the record
+/// unchanged.
 #[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 pub enum LifecycleMessage {
-    /// `ScriptLifecycleMessage` upstream: emitted once before each
-    /// hook spawns.
+    /// Emitted once before each hook spawns.
     Script {
         #[serde(rename = "depPath")]
         dep_path: String,
@@ -555,9 +494,8 @@ pub enum LifecycleMessage {
         stage: String,
         wd: String,
     },
-    /// `StdioLifecycleMessage` upstream: one event per stdout/stderr
-    /// line read from the spawned script. `line` is the raw text of
-    /// the output line.
+    /// One event per stdout/stderr line read from the spawned script.
+    /// `line` is the raw text of the output line.
     Stdio {
         #[serde(rename = "depPath")]
         dep_path: String,
@@ -566,8 +504,8 @@ pub enum LifecycleMessage {
         stdio: LifecycleStdio,
         wd: String,
     },
-    /// `ExitLifecycleMessage` upstream: emitted once after the script
-    /// exits with the resolved exit code.
+    /// Emitted once after the script exits with the resolved exit
+    /// code.
     Exit {
         #[serde(rename = "depPath")]
         dep_path: String,
@@ -589,9 +527,8 @@ pub enum LifecycleStdio {
 
 /// `pnpm:ignored-scripts` payload. Emitted once per install with the
 /// names of every package whose lifecycle scripts were skipped because
-/// the package was not in `allowBuilds`. Names are in `name@version`
-/// form, matching upstream's `dedupePackageNamesFromIgnoredBuilds`
-/// output.
+/// the package was not in `allowBuilds`. Names are deduplicated and in
+/// `name@version` form.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IgnoredScriptsLog {
@@ -610,23 +547,21 @@ pub struct IgnoredScriptsLog {
 
 /// `pnpm:skipped-optional-dependency` payload.
 ///
-/// Upstream's `SkippedOptionalDependencyMessage` is a discriminated
-/// union over `reason` with two distinct `package` shapes:
-/// `build_failure` / `unsupported_engine` / `unsupported_platform`
-/// all carry `package: { id, name, version }`; `resolution_failure`
-/// carries `package: { name?, version?, bareSpecifier }` with no
-/// `id`. See the canonical definition at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/core/core-loggers/src/skippedOptionalDependencyLogger.ts#L10-L31>.
+/// The wire shape is a discriminated union over `reason` with two
+/// distinct `package` shapes: `build_failure` / `unsupported_engine`
+/// / `unsupported_platform` all carry `package: { id, name, version }`;
+/// `resolution_failure` carries `package: { name?, version?,
+/// bareSpecifier }` with no `id`.
 ///
-/// The `reason` and `package` shapes co-vary upstream. The
-/// `package` field below is therefore a `#[serde(untagged)]` enum
-/// that picks the right shape depending on which variant the emit
-/// site constructs. The pairing is not type-enforced against
-/// `reason` (a `BuildFailure` reason with a
-/// `ResolutionFailure` package is constructible in Rust); emit
-/// sites live in `pacquet-package-manager` (`installability.rs`
-/// for the installability skips, `build_modules.rs` for the
-/// build-failure path) and must keep the pairing correct by hand.
+/// The `reason` and `package` shapes co-vary. The `package` field
+/// below is therefore a `#[serde(untagged)]` enum that picks the
+/// right shape depending on which variant the emit site constructs.
+/// The pairing is not type-enforced against `reason` (a
+/// `BuildFailure` reason with a `ResolutionFailure` package is
+/// constructible in Rust); emit sites live in
+/// `pacquet-package-manager` (`installability.rs` for the
+/// installability skips, `build_modules.rs` for the build-failure
+/// path) and must keep the pairing correct by hand.
 /// `CreateVirtualStore`'s slice 4 fetch-failure path is silent on
 /// the reporter wire — it only swallows the error, no event is
 /// emitted from there — so it isn't a constructor site for this
@@ -635,8 +570,7 @@ pub struct IgnoredScriptsLog {
 /// real safety, so it's left to convention until a site actually
 /// pairs the wrong shapes.
 ///
-/// `parents` is a TODO upstream too (see
-/// `during-install/src/index.ts:227`) and is omitted here.
+/// `parents` is a TODO and is omitted here.
 #[derive(Debug, Clone, Serialize)]
 pub struct SkippedOptionalDependencyLog {
     pub level: LogLevel,
@@ -648,7 +582,7 @@ pub struct SkippedOptionalDependencyLog {
 }
 
 /// Package identifier carried on a [`SkippedOptionalDependencyLog`].
-/// Two upstream shapes, depending on `reason`:
+/// Two shapes, depending on `reason`:
 ///
 /// - [`SkippedOptionalPackage::Installed`] — `{ id, name, version }`
 ///   for `build_failure` / `unsupported_engine` /
@@ -657,16 +591,12 @@ pub struct SkippedOptionalDependencyLog {
 ///   `build_modules.rs`.
 /// - [`SkippedOptionalPackage::ResolutionFailure`] —
 ///   `{ name?, version?, bareSpecifier }` for `resolution_failure`.
-///   Defined for the resolver-side emit upstream has at
-///   <https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-resolver/src/resolveDependencies.ts#L1376-L1383>.
-///   Pacquet has no resolver yet so this variant is wire-shape-only
-///   in slice 4 — wired so a future resolver port can land without
-///   re-touching this type.
+///   Defined for the resolver-side emit. Pacquet has no resolver yet
+///   so this variant is wire-shape-only in slice 4 — wired so a
+///   future resolver port can land without re-touching this type.
 ///
 /// `#[serde(untagged)]` so each variant serializes as its own object
-/// shape, matching upstream's union of two `package: { ... }` types
-/// at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/core/core-loggers/src/skippedOptionalDependencyLogger.ts#L15-L30>.
+/// shape — a union of two `package: { ... }` types.
 #[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 pub enum SkippedOptionalPackage {
@@ -675,8 +605,8 @@ pub enum SkippedOptionalPackage {
     Installed { id: String, name: String, version: String },
     /// `{ name?, version?, bareSpecifier }` shape used by the
     /// resolver-side `resolution_failure` emit. `name` and `version`
-    /// are upstream-optional and stay `None` when the resolver fails
-    /// before it could resolve those fields.
+    /// are optional and stay `None` when the resolver fails before it
+    /// could resolve those fields.
     ResolutionFailure {
         #[serde(skip_serializing_if = "Option::is_none")]
         name: Option<String>,
@@ -701,9 +631,7 @@ pub enum SkippedOptionalReason {
 }
 
 /// `pnpm:installing-config-deps` payload. `status` is `started` (no
-/// `deps`) or `done` (with the installed list). Mirrors upstream's
-/// `InstallingConfigDepsMessage` union at
-/// <https://github.com/pnpm/pnpm/blob/31858c544b/core/core-loggers/src/installingConfigDeps.ts#L8-L21>.
+/// `deps`) or `done` (with the installed list).
 #[derive(Debug, Clone, Serialize)]
 pub struct InstallingConfigDepsLog {
     pub level: LogLevel,
@@ -732,8 +660,7 @@ pub struct InstalledConfigDep {
 
 /// `pnpm:_broken_node_modules` payload. `missing` is the absolute
 /// path to the snapshot's `node_modules/<pkg>` slot that the current-
-/// lockfile lookup expected on disk but didn't find. Mirrors the
-/// payload upstream emits at <https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-builder/src/lockfileToDepGraph.ts#L258>.
+/// lockfile lookup expected on disk but didn't find.
 #[derive(Debug, Clone, Serialize)]
 pub struct BrokenModulesLog {
     pub level: LogLevel,
@@ -742,12 +669,10 @@ pub struct BrokenModulesLog {
 
 /// `pnpm:lockfile-verification` payload. The [bunyan]-envelope `level`
 /// is a fixed outer field; the rest of the record is a status-tagged
-/// union via `#[serde(flatten)]` so the wire shape stays flat
-/// (matching pnpm's [`LockfileVerificationMessage`][ts-LockfileVerificationMessage] discriminator on
-/// `status`).
+/// union via `#[serde(flatten)]` so the wire shape stays flat (the
+/// [`LockfileVerificationMessage`] discriminator on `status`).
 ///
 /// [bunyan]: https://github.com/trentm/node-bunyan
-/// [ts-LockfileVerificationMessage]: https://github.com/pnpm/pnpm/blob/2a9bd897bf/core/core-loggers/src/lockfileVerificationLogger.ts#L11-L16
 #[derive(Debug, Clone, Serialize)]
 pub struct LockfileVerificationLog {
     pub level: LogLevel,
@@ -766,8 +691,7 @@ pub struct LockfileVerificationLog {
 /// `lockfile_path` is the absolute path of the lockfile being
 /// verified. It's `Option` because the runner is invoked without a
 /// path in unit tests that skip the cache wiring; production code
-/// paths always supply it. Mirrors upstream's
-/// [`LockfileVerificationMessageBase.lockfilePath`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/core/core-loggers/src/lockfileVerificationLogger.ts#L11-L16).
+/// paths always supply it.
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "status", rename_all = "snake_case")]
 pub enum LockfileVerificationMessage {

@@ -8,9 +8,9 @@ fn bare_name_returns_empty() {
 
 #[test]
 fn bare_scoped_name_returns_empty() {
-    // `@scope/foo` has `@` at index 0; `indexOf('@', 1)` upstream
-    // skips it, and there is no second `@`. Falls into the
-    // wildcard bucket.
+    // `@scope/foo` has `@` at index 0; the search for a version
+    // separator starts at index 1 and finds no second `@`. Falls
+    // into the wildcard bucket.
     assert_eq!(parse_key("@scope/foo"), ParsedKey::default());
 }
 
@@ -38,18 +38,15 @@ fn name_at_range_becomes_non_semver() {
     );
 }
 
-/// Per upstream `parse`: an empty version after the `@` separator
-/// drops back to the empty result. Matches the early `if (version)`
-/// guard at
-/// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/deps/path/src/index.ts#L137>.
+/// An empty version after the `@` separator drops back to the empty
+/// result.
 #[test]
 fn empty_version_returns_empty() {
     assert_eq!(parse_key("lodash@"), ParsedKey::default());
 }
 
 /// `1.x.x` is a valid semver *range* but not a valid semver
-/// *version*. Upstream's `semver.valid()` returns null, so the
-/// parsed result lands in `nonSemverVersion`.
+/// *version*, so the parsed result lands in `non_semver_version`.
 #[test]
 fn version_with_x_is_range() {
     assert_eq!(

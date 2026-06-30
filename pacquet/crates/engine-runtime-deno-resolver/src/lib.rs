@@ -1,6 +1,3 @@
-//! Pacquet port of pnpm's
-//! [`@pnpm/engine.runtime.deno-resolver`](https://github.com/pnpm/pnpm/blob/1627943d2a/engine/runtime/deno-resolver/src/index.ts).
-//!
 //! Resolves `deno@runtime:<spec>` dependencies. Two pieces:
 //!
 //! 1. **Version selection** delegates to the npm resolver — Deno
@@ -13,8 +10,7 @@
 //!    emits one [`PlatformAssetResolution`](pacquet_lockfile::PlatformAssetResolution)
 //!    per `(os, cpu)` triple.
 //!
-//! Architecture differs slightly from upstream: pacquet's resolver
-//! trait owns an [`Arc<dyn Resolver>`](pacquet_resolving_resolver_base::Resolver)
+//! The resolver trait owns an [`Arc<dyn Resolver>`](pacquet_resolving_resolver_base::Resolver)
 //! for the npm side rather than taking a function reference, so the
 //! same instance can plug into the default-resolver chain both
 //! directly and as the version-selection dependency of this resolver.

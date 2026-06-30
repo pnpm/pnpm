@@ -1,5 +1,4 @@
-//! Port of pnpm's
-//! [`createGlobalCacheKey`](https://github.com/pnpm/pnpm/blob/1819226b51/global/packages/src/cacheKey.ts).
+//! Compute the global-install cache key.
 //!
 //! The key names the on-disk symlink under the global packages directory
 //! that points at a group's install directory, so it must hash to exactly
@@ -11,10 +10,10 @@ use serde_json::{Value, json};
 /// Compute the global-install cache key for a group of resolved aliases
 /// and the active registry map.
 ///
-/// Mirrors pnpm: the aliases and the registry entries are each sorted
+/// The aliases and the registry entries are each sorted
 /// lexicographically, JSON-encoded as `[sortedAliases, sortedRegistries]`
 /// (each registry entry a `[key, value]` pair), and hashed with sha256
-/// (full hex digest).
+/// (full hex digest), matching the value pnpm hashes.
 #[must_use]
 pub fn create_global_cache_key(aliases: &[String], registries: &[(String, String)]) -> String {
     let mut sorted_aliases: Vec<&String> = aliases.iter().collect();

@@ -4,29 +4,25 @@
 //! already downloaded the tarball, verified its integrity, and
 //! imported its file set into the CAS — the dispatcher hands us the
 //! resulting `HashMap<String, PathBuf>` mapping relative paths to CAS
-//! file paths. From there we mirror upstream's
-//! [`gitHostedTarballFetcher.ts`](https://github.com/pnpm/pnpm/blob/94240bc046/fetching/tarball-fetcher/src/gitHostedTarballFetcher.ts):
-//! materialize the files into a writable temp dir, run
-//! `preparePackage` to (potentially) execute the dep's build scripts,
-//! run a packlist over the prepared tree, and re-import the resulting
-//! file set into the CAS.
+//! file paths. From there we materialize the files into a writable
+//! temp dir, run `preparePackage` to (potentially) execute the dep's
+//! build scripts, run a packlist over the prepared tree, and
+//! re-import the resulting file set into the CAS.
 //!
-//! Differences from upstream worth flagging:
+//! Implementation notes:
 //!
-//! - **No two-slot store-index row.** Upstream writes a `\traw` row
-//!   from the tarball download and copies it to the prepared key on
-//!   the fast path. Pacquet's tarball download path doesn't write a
-//!   raw row at this key, so on the fast path we synthesize the
-//!   prepared row directly from the input `cas_paths` (no `fs::read`,
-//!   no re-hash). When fast-path triggers and `should_be_built` is
-//!   false, the synthesized row lands at the final key — matches the
-//!   shape upstream's "copy raw→prepared" produces. The skipped
-//!   re-import is the perf win; the orphan raw row (if pacquet-tarball
-//!   ever starts writing one) is a separate cleanup follow-up.
-//! - **`globalWarn` becomes `tracing::warn!`.** When `ignore_scripts`
-//!   suppresses a needed build, both upstream and pacquet log a
-//!   warning — we route through `tracing` since pacquet's reporter
-//!   model doesn't have a `globalWarn` equivalent.
+//! - **No two-slot store-index row.** Pacquet's tarball download path
+//!   doesn't write a `\traw` row at this key, so on the fast path we
+//!   synthesize the prepared row directly from the input `cas_paths`
+//!   (no `fs::read`, no re-hash). When fast-path triggers and
+//!   `should_be_built` is false, the synthesized row lands at the
+//!   final key. The skipped re-import is the perf win; the orphan raw
+//!   row (if pacquet-tarball ever starts writing one) is a separate
+//!   cleanup follow-up.
+//! - **Warnings route through `tracing::warn!`.** When `ignore_scripts`
+//!   suppresses a needed build, pacquet logs a warning through
+//!   `tracing` since pacquet's reporter model doesn't have a global
+//!   warn channel.
 
 use crate::{
     cas_io::{ImportedFiles, import_into_cas, materialize_into, synthesize_files_index},
@@ -57,7 +53,7 @@ pub struct GitHostedTarballFetcher<'a> {
     /// Raw tarball files already in the CAS. Keys are forward-slash
     /// relative paths, values are absolute CAS paths.
     pub cas_paths: HashMap<String, PathBuf>,
-    /// `path` field from the resolution. Pnpm's git-hosted tarball
+    /// `path` field from the resolution. Git-hosted tarball
     /// resolutions can include a sub-path to pack only one directory
     /// of the extracted tree (matches the git fetcher's `path`).
     /// `None` packs the tarball root.
@@ -96,8 +92,7 @@ impl GitHostedTarballFetcher<'_> {
         let temp_location = temp.path();
 
         // Step 1: Materialize the CAS-resident files into a writable
-        // working tree. Upstream calls this via `cafs.importPackage`;
-        // pacquet does it through a per-file `fs::copy` because the
+        // working tree, through a per-file `fs::copy` because the
         // tarball download has already settled the CAS write side.
         materialize_into(&self.cas_paths, temp_location)?;
 
@@ -120,21 +115,18 @@ impl GitHostedTarballFetcher<'_> {
             extra_bin_paths: &[],
             extra_env: &empty_env,
         };
-        // Upstream stamps `err.message = "Failed to prepare git-hosted
-        // package fetched from <url>: <orig>"` at
-        // [`gitHostedTarballFetcher.ts:49-52`](https://github.com/pnpm/pnpm/blob/94240bc046/fetching/tarball-fetcher/src/gitHostedTarballFetcher.ts#L49-L52).
         // Pacquet preserves the underlying error through the miette
-        // source chain instead — the install dispatcher's log line
-        // already includes `package_id`, so the chain renders as
-        // "prepare failed for `<pkg>` → `ERR_PNPM_PREPARE_PACKAGE` →
-        // underlying lifecycle error". A dedicated context variant is
-        // a follow-up if the rendered chain proves unclear.
+        // source chain — the install dispatcher's log line already
+        // includes `package_id`, so the chain renders as "prepare
+        // failed for `<pkg>` → `ERR_PNPM_PREPARE_PACKAGE` → underlying
+        // lifecycle error". A dedicated context variant is a follow-up
+        // if the rendered chain proves unclear.
         let PreparedPackage { pkg_dir, should_be_built } =
             prepare_package::<Reporter>(&prepare_opts, temp_location, self.path)
                 .map_err(GitFetcherError::Prepare)?;
 
-        // Upstream's `globalWarn` at gitHostedTarballFetcher.ts:39
-        // when scripts were ignored on a package that needs building.
+        // Warn when scripts were ignored on a package that needs
+        // building.
         if self.ignore_scripts && should_be_built {
             tracing::warn!(
                 target: "pacquet::git_hosted_tarball_fetcher",
@@ -158,7 +150,7 @@ impl GitHostedTarballFetcher<'_> {
         // ignored), the materialized files are byte-identical to the
         // CAS source. Re-hashing every entry through `import_into_cas`
         // would land them at the same CAS paths via hash-dedup, so the
-        // work is wasted. Mirrors upstream's [`gitHostedTarballFetcher.ts:88-100`](https://github.com/pnpm/pnpm/blob/94240bc046/fetching/tarball-fetcher/src/gitHostedTarballFetcher.ts#L88-L100).
+        // work is wasted.
         //
         // `path.is_none()` is required because a sub-path means
         // `cas_paths` covers the whole monorepo while `files` covers
@@ -166,8 +158,7 @@ impl GitHostedTarballFetcher<'_> {
         // there, not equivalence.
         let fast_path_eligible = self.path.is_none() && files.len() == self.cas_paths.len();
         if fast_path_eligible && !should_be_built {
-            // Upstream copies the raw row to the final key here. We
-            // synthesize it from `cas_paths` instead: pacquet's tarball
+            // Synthesize the row from `cas_paths`: pacquet's tarball
             // download doesn't write a `\traw` row at the same key, so
             // there's nothing to copy — but the CAS files themselves
             // are already in place, which is what `cas_paths` points at.
@@ -190,10 +181,9 @@ impl GitHostedTarballFetcher<'_> {
             // `should_be_built && ignore_scripts`: prepare skipped the
             // scripts (warning already logged above), so the
             // materialized tree is still byte-identical to the source.
-            // Upstream returns the raw filesMap *without* writing a
-            // final-key row, so subsequent installs re-check the build
-            // gate. Matching that behavior keeps `--ignore-scripts`
-            // installs idempotent.
+            // Return the raw filesMap *without* writing a final-key
+            // row, so subsequent installs re-check the build gate. This
+            // keeps `--ignore-scripts` installs idempotent.
             return Ok(GitFetchOutput { cas_paths: self.cas_paths, built: should_be_built });
         }
 
@@ -204,10 +194,9 @@ impl GitHostedTarballFetcher<'_> {
 
         // Step 6: Queue a `PackageFilesIndex` row so a future install's
         // warm prefetch skips the materialize+prepare+packlist+re-import
-        // pass entirely. Upstream writes the final row at
-        // `gitHostedStoreIndexKey(pkgId, { built: shouldBeBuilt })` in
-        // `addFilesFromDir`; the dispatcher already builds the same
-        // key and passes it via `files_index_file`.
+        // pass entirely. The final row lands at the git-hosted
+        // store-index key; the dispatcher already builds that key and
+        // passes it via `files_index_file`.
         if let Some(writer) = self.store_index_writer {
             writer.queue(
                 self.files_index_file.to_string(),

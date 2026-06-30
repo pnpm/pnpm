@@ -15,8 +15,6 @@ use std::{
 
 /// Run a shell command in the context of a project.
 ///
-/// Ports pnpm's `exec` command from
-/// <https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/commands/src/exec.ts>.
 /// The recursive variant (selected by the global `-r` / `--recursive`
 /// flag) runs the command across the `--filter`-selected workspace
 /// projects, topologically sorted and sequential, with `--resume-from` /
@@ -51,11 +49,6 @@ pub struct ExecArgs {
 }
 
 /// Errors from `pacquet exec`.
-///
-/// Mirrors the error codes pnpm raises in `exec.ts`
-/// (<https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/commands/src/exec.ts>)
-/// and the `BAD_PATH_DIR` guard from its `makeEnv`
-/// (<https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/commands/src/makeEnv.ts#L19-L25>).
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum ExecError {
@@ -109,7 +102,6 @@ impl ExecArgs {
 
 /// Strip a surviving leading `--` and reject an empty command.
 ///
-/// Mirrors `if (params[0] === '--') params.shift()` at exec.ts:171-173;
 /// clap normally consumes a bare `--` itself, so this only fires when one
 /// survives as a literal token.
 fn prepare_command(mut command: Vec<String>) -> Result<Vec<String>, ExecError> {
@@ -136,8 +128,8 @@ pub(super) fn spawn_in_dir(
     config: &Config,
     shell_mode: bool,
 ) -> Result<ExitStatus, ExecError> {
-    // pnpm prepends `./node_modules/.bin` (resolved against the project
-    // directory) and then the `extraBinPaths`. See exec.ts:225-228.
+    // Prepend `./node_modules/.bin` (resolved against the project
+    // directory) and then the `extraBinPaths`.
     let mut prepend = Vec::with_capacity(1 + config.extra_bin_paths.len());
     prepend.push(dir.join("node_modules").join(".bin"));
     prepend.extend(config.extra_bin_paths.iter().cloned());
@@ -212,11 +204,7 @@ fn read_package_name(dir: &Path) -> Option<String> {
 
 /// Prepend `dirs` to the current process `PATH`.
 ///
-/// Ports `prependDirsToPath`
-/// (<https://github.com/pnpm/pnpm/blob/d4a2b0364c/shell/path/src/index.ts>)
-/// together with `makeEnv`'s up-front delimiter guard
-/// (<https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/commands/src/makeEnv.ts#L19-L25>):
-/// a directory containing the platform path delimiter cannot be expressed
+/// A directory containing the platform path delimiter cannot be expressed
 /// in `PATH`, so it is rejected with [`ExecError::BadPathDir`] rather than
 /// silently splitting into two entries.
 fn prepend_dirs_to_path(dirs: &[PathBuf]) -> Result<OsString, ExecError> {

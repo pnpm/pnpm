@@ -4,8 +4,7 @@ fn pats<const LEN: usize>(patterns: [&str; LEN]) -> Vec<String> {
     patterns.iter().map(std::string::ToString::to_string).collect()
 }
 
-/// Direct port of upstream's `matcher()` test at
-/// [`config/matcher/test/index.ts`](https://github.com/pnpm/pnpm/blob/94240bc046/config/matcher/test/index.ts#L4-L48).
+/// Boolean `matcher()` semantics across includes, ignores, and ordering.
 #[test]
 fn matcher_boolean_semantics() {
     let matcher = create_matcher(&pats(["*"]));
@@ -37,8 +36,8 @@ fn matcher_boolean_semantics() {
 
     let matcher = create_matcher(&pats(["!eslint-plugin-bar", "eslint-*"]));
     assert!(matcher.matches("eslint-plugin-foo"));
-    // Upstream returns `1` (the include matched, after the ignore
-    // missed) — boolean-side that's "matched".
+    // The include matches at index 1 after the leading ignore misses, so
+    // boolean-side this counts as "matched".
     assert!(matcher.matches("eslint-plugin-bar"));
 
     let matcher = create_matcher(&pats(["eslint-*", "!eslint-plugin-*", "eslint-plugin-bar"]));
@@ -47,8 +46,8 @@ fn matcher_boolean_semantics() {
     assert!(matcher.matches("eslint-plugin-bar"));
 }
 
-/// Direct port of upstream's `createMatcherWithIndex()` test at
-/// [`config/matcher/test/index.ts`](https://github.com/pnpm/pnpm/blob/94240bc046/config/matcher/test/index.ts#L50-L107).
+/// `createMatcherWithIndex()` semantics — the matched include's index, or
+/// `None` when nothing matches.
 #[test]
 fn matcher_with_index_semantics() {
     let matcher = create_matcher_with_index(&pats(["*"]));

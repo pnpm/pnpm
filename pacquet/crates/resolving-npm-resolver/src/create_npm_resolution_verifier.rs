@@ -1,8 +1,5 @@
 //! Npm-side implementation of the [`ResolutionVerifier`] trait.
 //!
-//! Verbatim port of pnpm's
-//! [`createNpmResolutionVerifier.ts`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts).
-//!
 //! The factory takes the install-time policy (cutoff time, exclude
 //! patterns, trust policy, named registries) and returns a verifier.
 //! The verifier inspects each npm-registry-resolved lockfile entry: it
@@ -73,9 +70,7 @@ pub fn observed_dist_stats_sink() -> ObservedDistStats {
     Arc::new(DashMap::new())
 }
 
-/// Options bundle for [`create_npm_resolution_verifier`]. Mirrors
-/// upstream's
-/// [`CreateNpmResolutionVerifierOptions`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts#L28-L84).
+/// Options bundle for [`create_npm_resolution_verifier`].
 ///
 /// The verifier owns the option bag once constructed — these fields
 /// flow into [`NpmResolutionVerifier`] verbatim.
@@ -91,26 +86,23 @@ pub struct CreateNpmResolutionVerifierOptions {
     /// the cache snapshot in `policy()` so the persisted record can be
     /// compared byte-for-byte across runs.
     pub minimum_release_age_exclude_patterns: Vec<String>,
-    /// `true` mirrors the resolver's
-    /// `minimumReleaseAgeIgnoreMissingTime` opt-in: when the registry
-    /// strips per-version `time`, the verifier passes the entry
-    /// instead of failing closed. Default `false`.
+    /// Backs the `minimumReleaseAgeIgnoreMissingTime` opt-in: when
+    /// `true` and the registry strips per-version `time`, the verifier
+    /// passes the entry instead of failing closed. Default `false`.
     pub ignore_missing_time_field: bool,
     /// `'no-downgrade'` enables the trust check;
-    /// [`TrustPolicy::Off`] disables it. Stored as an [`Option`] to
-    /// mirror upstream's `trustPolicy?: 'no-downgrade'` — `None` and
-    /// `Some(Off)` both disable the check, but they're snapshotted
-    /// differently for `policy()` (matching upstream's
-    /// `trustPolicy ?? null`).
+    /// [`TrustPolicy::Off`] disables it. Stored as an [`Option`] so
+    /// `None` and `Some(Off)` both disable the check while still
+    /// snapshotting differently for `policy()` (`null` vs the explicit
+    /// `off`).
     pub trust_policy: Option<TrustPolicy>,
     pub trust_policy_exclude: Option<PackageVersionPolicy>,
     pub trust_policy_exclude_patterns: Vec<String>,
     /// Maximum age (in minutes) before which the trust check still
-    /// applies. `None` ("always check") mirrors upstream's
-    /// `undefined`.
+    /// applies. `None` means "always check".
     pub trust_policy_ignore_after: Option<u64>,
     /// `default` + per-scope registry map. Keyed by `"default"` or
-    /// `"@scope"`; mirrors pnpm's `Registries` shape.
+    /// `"@scope"`.
     pub registries: HashMap<String, String>,
     /// User-defined named-registry aliases (e.g. `gh:` →
     /// `https://npm.pkg.github.com/`). Merged with
@@ -122,7 +114,7 @@ pub struct CreateNpmResolutionVerifierOptions {
     /// reads conditional headers from
     /// `<cache_dir>/v11/metadata-full/<registry>/<pkg>.jsonl` and
     /// writes 200 responses back; when `None`, every fetch is
-    /// unconditional. Mirrors upstream's `cacheDir` option.
+    /// unconditional.
     pub cache_dir: Option<PathBuf>,
     /// Per-install [`PackageMetaCache`] shared with the npm resolver.
     /// When provided, the verifier reads a cached packument before
@@ -196,9 +188,6 @@ impl std::fmt::Debug for NpmResolutionVerifier {
 /// anti-tamper check independent of any policy), and additionally applies
 /// the `minimum_release_age` / `trust_policy='no-downgrade'` checks when
 /// those are configured.
-///
-/// Mirrors upstream's
-/// [`createNpmResolutionVerifier`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts#L98-L253).
 pub fn create_npm_resolution_verifier(
     opts: CreateNpmResolutionVerifierOptions,
 ) -> NpmResolutionVerifier {
@@ -531,8 +520,7 @@ impl NpmResolutionVerifier {
     }
 
     /// Run the resolver-time `failIfTrustDowngraded` check against the
-    /// pinned lockfile version. Mirrors upstream's
-    /// [`runTrustCheck`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts#L325-L359).
+    /// pinned lockfile version.
     async fn run_trust_check(
         &self,
         registry: &str,
@@ -561,8 +549,6 @@ impl NpmResolutionVerifier {
     }
 
     /// Per-`(registry, name, version)` lookup with a layered fallback.
-    /// Ports upstream's
-    /// [`fetchPublishedAt`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts#L456-L491).
     async fn fetch_published_at(
         &self,
         registry: &str,
@@ -579,8 +565,7 @@ impl NpmResolutionVerifier {
             .clone()
     }
 
-    /// Layered publish-timestamp lookup. Ports upstream's
-    /// [`resolvePublishedAt`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts#L471-L491):
+    /// Layered publish-timestamp lookup:
     ///
     /// 1. **Abbreviated-`modified` shortcut.** Abbreviated metadata is
     ///    a small per-name document the resolver typically already
@@ -627,9 +612,6 @@ impl NpmResolutionVerifier {
     /// The version check is the fail-closed contract: an unpublished
     /// or never-published pin must not slip through on a stale
     /// package-level `modified` timestamp.
-    ///
-    /// Mirrors upstream's
-    /// [`tryAbbreviatedModifiedShortcut`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts#L606-L624).
     async fn try_abbreviated_modified_shortcut(
         &self,
         registry: &str,
@@ -673,9 +655,6 @@ impl NpmResolutionVerifier {
     ///    same verdict without retrying. The tarball-URL check surfaces
     ///    this error; the age shortcut ignores it and falls through to
     ///    the next layer of [`Self::resolve_published_at`].
-    ///
-    /// Mirrors upstream's
-    /// [`fetchAbbreviatedMeta`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts#L626-L653).
     async fn fetch_abbreviated_meta(
         &self,
         registry: &str,
@@ -718,8 +697,6 @@ impl NpmResolutionVerifier {
     /// the abbreviated projection can derive from. Prefer the
     /// `name:full` entry: it's a strict superset of the abbreviated
     /// shape, so a hit there subsumes the bare `name` entry.
-    /// Mirrors upstream's
-    /// [`readSharedMeta`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts#L655-L668).
     fn read_shared_meta(&self, name: &PkgName) -> Option<Arc<Package>> {
         let cache = self.meta_cache.as_ref()?;
         let name_str = name.to_string();
@@ -734,9 +711,6 @@ impl NpmResolutionVerifier {
     /// mirror exists yet, no `cache_dir` was supplied, or the mirror
     /// has no `time` payload — the caller then falls through to the
     /// next layer of [`Self::resolve_published_at`].
-    ///
-    /// Mirrors upstream's
-    /// [`readLocalMetaTime`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts#L714-L727).
     async fn read_local_meta_time(
         &self,
         registry: &str,
@@ -831,7 +805,7 @@ impl NpmResolutionVerifier {
         cell.get_or_init(|| async {
             // Fast path: if the resolver already pulled the full packument
             // during the same install (`{registry}\x00{name}:full` key in
-            // the shared metaCache, populated when `pickPackage` upgrades
+            // the shared metaCache, populated when `pick_package` upgrades
             // for `minimumReleaseAge`), reuse it. Abbreviated entries are
             // rejected here — `fail_if_trust_downgraded` needs per-version
             // `time` and per-version trust evidence, both of which only
@@ -986,9 +960,6 @@ fn build_policy_snapshot(
 /// graphs, scripts, READMEs — so the per-install trust-meta cache stays
 /// bounded by the trust-evidence footprint, not the full packument size.
 ///
-/// Mirrors pnpm's `projectTrustMeta` in
-/// [`createNpmResolutionVerifier.ts`](https://github.com/pnpm/pnpm/blob/main/resolving/npm-resolver/src/createNpmResolutionVerifier.ts).
-///
 /// [`fail_if_trust_downgraded`]: crate::trust_checks::fail_if_trust_downgraded
 fn project_trust_meta(meta: &Package) -> Package {
     // Borrowed `meta` so the shared-cache fast path (which only holds
@@ -1041,7 +1012,7 @@ fn project_trust_package_version(version: &PackageVersion) -> PackageVersion {
         // per-version `name`, `version`, and `dist` non-attestation fields
         // are never read, so empty placeholders are fine — clone of the
         // parsed semver keeps the typed shape valid without paying for
-        // the upstream dependency graph.
+        // the registry packument's dependency graph.
         name: String::new(),
         version: version.version.clone(),
         dist: PackageDistribution {
@@ -1067,9 +1038,6 @@ fn project_trust_package_version(version: &PackageVersion) -> PackageVersion {
 /// needs out of a packument document. Works against either the
 /// abbreviated or the full form — both carry `modified` and a
 /// `versions` map with per-version `dist.tarball`.
-///
-/// Mirrors upstream's
-/// [`projectAbbreviatedMeta`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts#L702-L707).
 fn project_abbreviated_meta(meta: &Package) -> crate::lookup_context::AbbreviatedMetaProjection {
     let version_tarballs = meta
         .versions
@@ -1099,12 +1067,11 @@ fn same_tarball_url(left: &str, right: &str) -> bool {
     canonical_tarball_url(left) == canonical_tarball_url(right)
 }
 
-/// Mirror upstream's `canonicalTarballUrl`: parse-and-reserialize to drop
-/// default ports (`:443`/`:80`, what pnpm's `normalizeRegistryUrl` does via
-/// `new URL(...).toString()`), decode the `%2f` scoped-name separator, then
-/// ignore the scheme — so a benign http/https, default-port, or encoding
-/// difference between the lockfile URL and the registry metadata isn't read
-/// as tampering.
+/// Canonicalize a tarball URL: parse-and-reserialize to drop default
+/// ports (`:443`/`:80`), decode the `%2f` scoped-name separator, then
+/// ignore the scheme — so a benign http/https, default-port, or
+/// encoding difference between the lockfile URL and the registry
+/// metadata isn't read as tampering.
 fn canonical_tarball_url(url: &str) -> String {
     let normalized = reqwest::Url::parse(url)
         .map_or_else(|_error| url.to_string(), |parsed| parsed.to_string())

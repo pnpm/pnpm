@@ -6,43 +6,57 @@ Guidance for AI coding agents working in `pacquet/`.
 
 ## What this project is
 
-`pacquet` is a port of the [pnpm](https://github.com/pnpm/pnpm) CLI from
-TypeScript to Rust. It is not a new package manager and not a reimagining —
-its behavior, flags, defaults, error codes, file formats, and directory layout
-are meant to match pnpm exactly.
+`pacquet` is the [pnpm](https://pnpm.io) CLI implemented in Rust. It is one of
+two parallel implementations of the same package manager — the other is the
+TypeScript pnpm CLI (the workspaces outside `pacquet/`). The two are kept
+behaviorally identical: the same commands, flags, defaults, error codes, file
+formats, lockfile shape, and directory layout. pacquet is not a downstream port
+that trails the TypeScript CLI; it is a source of truth in its own right, at
+near-complete feature parity, and the two stacks are developed together.
 
 ## The cardinal rule
 
-**Any change in pacquet must match how the same feature is implemented in
-the TypeScript pnpm CLI (the workspaces outside `pacquet/`).** The inverse
-obligation — user-visible changes to the TypeScript pnpm CLI must also land
-in pacquet — lives in [`../AGENTS.md`](../AGENTS.md#keep-pnpm-and-pacquet-in-sync).
+**pacquet and the TypeScript pnpm CLI must stay behaviorally identical.**
+They are parallel implementations of one package manager, developed together at
+near-complete feature parity. Any user-visible change — a command, flag,
+default, error code or message, lockfile/manifest/state-file format, log
+emission parsed by `@pnpm/cli.default-reporter`, store layout, or hook
+semantic — must land in both stacks at the same time. The repo-wide statement
+of this obligation lives in
+[`../AGENTS.md`](../AGENTS.md#keep-pnpm-and-pacquet-in-sync); this section is the
+pacquet-side detail.
 
-Before writing code for a feature, bug fix, or behavior change:
+Neither stack is downstream of the other. You are not "porting from" the
+TypeScript code: when you implement or change behavior in pacquet, make the
+equivalent change in the TypeScript workspaces in the same PR, and vice versa.
+If you genuinely can't (different expertise, scope too large, or the other
+stack hasn't grown the surrounding feature yet), ship your side and say so in
+the PR description so the matching commits can follow before it lands.
 
-1. Find the equivalent code in the TypeScript pnpm workspaces. They live
-   at the repo root — `pnpm/` (CLI entry), `pkg-manager/`, `resolving/`,
-   `lockfile/`, `store/`, `fetching/`, `config/`, `hooks/`, and so on.
-   See the repo-structure section in
-   [`../AGENTS.md`](../AGENTS.md#repository-structure) for the full list.
-2. Read the pnpm implementation — logic, edge cases, config resolution,
-   error messages, file/lockfile formats, and existing tests.
-3. Port the behavior faithfully. Prefer structural similarity (same function
-   decomposition, same names where reasonable) so future cross-referencing
-   stays cheap.
-4. Do not invent behavior that pnpm does not have. Do not "fix" pnpm quirks
-   unless the same fix has landed in pnpm.
-5. If pnpm and pacquet disagree, pnpm is the source of truth — reconcile
-   toward pnpm, not away from it.
-6. **Log emissions are part of "match pnpm".** When porting a function
-   that fires `pnpm:<channel>` events through `globalLogger` /
-   `logger.debug(...)` / `streamParser.write(...)`, mirror the call
-   site, payload, and ordering so `@pnpm/cli.default-reporter` parses
-   pacquet's NDJSON the same way it parses pnpm's. See
+Working rules:
+
+1. **Keep the two implementations in agreement.** When you touch behavior in
+   pacquet, find the counterpart in the TypeScript workspaces — they live at
+   the repo root (`pnpm/` for the CLI entry, `pkg-manager/`, `resolving/`,
+   `lockfile/`, `store/`, `fetching/`, `config/`, `hooks/`, and so on; see the
+   [repo-structure section](../AGENTS.md#repository-structure)) — and change it
+   there too. The two must agree on logic, edge cases, config resolution, error
+   messages, and file/lockfile formats.
+2. **Match observable behavior, not structure.** Structural similarity (similar
+   function decomposition and names) is a convenience for cross-referencing, not
+   a requirement. What must match is what a user or a downstream tool can
+   observe.
+3. **Don't diverge unilaterally.** Do not add a feature, flag, or quirk to one
+   stack without the other, and do not "fix" a behavior in only one. A genuine
+   bug present in both is fixed in both.
+4. **Log emissions are part of behavioral identity.** A function that fires
+   `pnpm:<channel>` events through the reporter must use the same call site,
+   payload, and ordering in both stacks so `@pnpm/cli.default-reporter` parses
+   pacquet's NDJSON the same way it parses the TypeScript CLI's. See
    [Reporter / log events](./CODE_STYLE_GUIDE.md#reporter--log-events)
    in the style guide for the convention (channel mapping, threading
    `R: Reporter`, emit-site placement, recording-fake tests).
-7. **Prefer real fixtures; reach for the dependency-injection seam
+5. **Prefer real fixtures; reach for the dependency-injection seam
    only when they can't cover the branch.** Most happy paths and
    error paths should be tested with a `tempfile::TempDir`, the
    mocked registry, or an integration test that spawns the actual
@@ -59,37 +73,23 @@ Before writing code for a feature, bug fix, or behavior change:
    `Fs*`, `Clock`, `EnvVar`, …), the eight principles, and the
    `modules-yaml` worked example.
 
-If the pnpm behavior is unclear or looks wrong, stop and ask the user
+If the intended behavior is unclear or looks wrong, stop and ask the user
 rather than guessing.
 
-When citing code anywhere — code comments, doc comments, Markdown docs,
-PR descriptions, or commit messages — link to a specific commit SHA, not
-a branch name. Branch links such as `github.com/<owner>/<repo>/blob/main/...`
-or `.../tree/master/...` are *impermanent*: their target drifts as the branch
-moves and may eventually 404 if the file is renamed or deleted. Permanent
-links pin the commit (`github.com/<owner>/<repo>/blob/<sha>/...`) so the
-reference stays meaningful long after the code changes. Use the **first 10
-hex characters** of the SHA — full 40-character SHAs make URLs unwieldy on
-narrow displays and in commit logs, and 10 characters is more than enough to
-disambiguate a commit in any real-world repository. Resolve the SHA with
-`git log -1 --format=%h` for an in-repo file, or `git ls-remote
-https://github.com/<owner>/<repo>.git refs/heads/<branch>` for an external
-repo (then take the first 10 characters), or by clicking "Copy permalink"
-(`y`) on GitHub and trimming the SHA segment. The rule applies to every
-GitHub repository, including this one.
-
-## Porting branded string types
+## Modeling branded string types
 
 TypeScript pnpm leans on *branded* string types. A branded string is a
 plain string narrowed by a phantom property (for example,
 `type PkgName = string & { __brand: 'PkgName' }`), so the type system can
 track intent that the runtime cannot see. Some brands are stamped through
 a validating constructor. Others are minted with a bare `as` type assertion and
-have no runtime check at all. Pacquet must preserve that distinction,
+have no runtime check at all. Both stacks must preserve that distinction,
 because it is part of the public contract pnpm exposes through manifest,
-lockfile, state, and config files.
+lockfile, state, and config files. The TypeScript brand and the Rust newtype
+must agree on validation policy.
 
-Rules when porting code that uses a branded string type:
+Rules for a Rust newtype standing in for a branded string type ("the
+TypeScript side" below is its TypeScript counterpart):
 
 1. **Declare a newtype wrapper.** Do not collapse the brand into a plain
    `String` or `&str`. Give the type its own struct so misuse is a type
@@ -195,9 +195,10 @@ Warnings are errors (`--deny warnings` in lint). Do not silence them with
 - Tests that need the mocked registry start `pnpr` through
   `pacquet-testing-utils`; `cargo test` / `cargo nextest run` should not
   require a separate `just registry-mock launch` step.
-- When porting behavior from pnpm, port the relevant pnpm tests too (as Rust
-  tests) whenever they translate. Matching test coverage is the easiest way
-  to prove behavioral parity.
+- When a behavior change spans both stacks, keep their tests in sync — give
+  pacquet a Rust test for the same scenario the TypeScript stack covers (and
+  vice versa) whenever it translates. Matching test coverage is the easiest
+  way to prove behavioral parity.
 - The active test-porting plan lives in
   [`plans/TEST_PORTING.md`](./plans/TEST_PORTING.md). It enumerates the
   upstream TypeScript tests scheduled to be ported (with file paths and line
@@ -376,7 +377,9 @@ are part of the public contract, not implementation detail. See
 
 - Keep commits focused. A bug fix commit should not also refactor or
   reformat unrelated code.
-- Reference the upstream pnpm commit/PR you ported from, when applicable.
+- When a change has a counterpart in the TypeScript pnpm CLI, land both
+  together; if they must be split, cross-reference the matching PR so a
+  reviewer can confirm the two stacks stay in sync.
 - Run `just ready` before pushing.
 - The repo-wide husky `pre-push` hook runs `pacquet/scripts/pre-push-rust.sh`,
   which checks `rustfmt`, `taplo`, `cargo clippy` (with `--all-targets -D
@@ -405,9 +408,11 @@ perf(store-dir): share one read-only StoreIndex across cache lookups
 
 ## Things not to do
 
-- Do not add features, flags, or behaviors that pnpm does not have.
+- Do not add a feature, flag, or behavior to one stack without making the
+  same change to the other. The two move together.
 - Do not change lockfile format, store layout, `.npmrc` semantics, or CLI
-  surface unless pnpm changed them first.
+  surface in only one stack — those are the shared contract and must change
+  in both at once.
 - A dependency that is already declared in `[workspace.dependencies]` in the
   root `Cargo.toml` may be added to any crate that needs it.
 - Do not add a dependency that is not already declared in the workspace

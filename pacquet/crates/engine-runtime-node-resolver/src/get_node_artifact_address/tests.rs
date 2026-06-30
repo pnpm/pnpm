@@ -2,9 +2,7 @@ use pretty_assertions::assert_eq;
 
 use super::{GetNodeArtifactAddressOptions, NodeArtifactAddress, get_node_artifact_address};
 
-/// Mirrors the
-/// [`getNodeArtifactAddress`](https://github.com/pnpm/pnpm/blob/1627943d2a/engine/runtime/node-resolver/test/getNodeArtifactAddress.test.ts)
-/// table-driven upstream test.
+/// Table-driven check of the archive-address composition.
 #[test]
 fn matches_upstream_address_table() {
     let cases: &[(&str, &str, &str, &str, NodeArtifactAddress)] = &[
@@ -76,9 +74,6 @@ fn matches_upstream_address_table() {
     }
 }
 
-/// Mirrors upstream's
-/// `getNodeArtifactAddress with libc=musl appends -musl suffix to arch`
-/// test.
 #[test]
 fn libc_musl_appends_suffix_to_arch() {
     let actual = get_node_artifact_address(GetNodeArtifactAddressOptions {

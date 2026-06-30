@@ -7,28 +7,24 @@ use pacquet_package_manager::allow_build_key_from_ignored_build;
 use std::path::PathBuf;
 
 /// `pacquet ignored-builds` — print the list of packages with blocked
-/// build scripts. Ports pnpm's
-/// [`ignored-builds`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/commands/src/policy/ignoredBuilds.ts).
+/// build scripts.
 #[derive(Debug, Args)]
 pub struct IgnoredBuildsArgs {}
 
 /// The automatically-ignored builds recorded in `.modules.yaml`, paired
-/// with the manifest they came from. Mirrors pnpm's
-/// `getAutomaticallyIgnoredBuilds` return at
-/// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/commands/src/policy/getAutomaticallyIgnoredBuilds.ts#L8-L12>.
+/// with the manifest they came from.
 pub(crate) struct IgnoredBuildsScan {
     /// The `allowBuilds` keys of the packages whose build scripts were
     /// ignored, deduplicated in first-seen order. `None` when there is no
-    /// `.modules.yaml` or it records no `ignoredBuilds` field at all —
-    /// upstream's "cannot identify as no `node_modules` found" signal.
+    /// `.modules.yaml` or it records no `ignoredBuilds` field at all — the
+    /// "cannot identify as no `node_modules` found" signal.
     pub names: Option<Vec<String>>,
     pub modules_dir: PathBuf,
     pub modules_manifest: Option<Modules>,
 }
 
 /// Read `.modules.yaml` and project its `ignoredBuilds` depPaths onto the
-/// `allowBuilds` keys a user would approve them under. Ports pnpm's
-/// [`getAutomaticallyIgnoredBuilds`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/commands/src/policy/getAutomaticallyIgnoredBuilds.ts#L14-L32).
+/// `allowBuilds` keys a user would approve them under.
 pub(crate) fn get_automatically_ignored_builds(
     config: &Config,
 ) -> miette::Result<IgnoredBuildsScan> {

@@ -1,7 +1,5 @@
 //! Build the `<registry>/<encoded-pkg>` URL for a metadata fetch.
 //!
-//! Ports upstream's
-//! [`toUri`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetch.ts).
 //! Scoped names are routed as a single path segment by
 //! percent-encoding the `/` (and other non-path-safe characters)
 //! between the `@scope` prefix and the package's bare name —
@@ -14,9 +12,8 @@
 //! names can carry. The grammar at
 //! [the npm package-name spec](https://github.com/npm/validate-npm-package-name#naming-rules)
 //! allows `a-z 0-9 _ . - ~` plus the leading `@scope/`; the leading
-//! `@` is preserved (matching upstream's
-//! `@${encodeURIComponent(pkgName.slice(1))}` shape), and every
-//! other character that `encodeURIComponent` would touch is
+//! `@` is preserved while the rest of the name is percent-encoded, and
+//! every other character that `encodeURIComponent` would touch is
 //! percent-encoded.
 
 use std::fmt::Write as _;
@@ -32,8 +29,7 @@ pub fn to_registry_url(registry: &str, pkg_name: &str) -> String {
 
 /// `encodeURIComponent` clone for the characters npm package names
 /// can carry. For a scoped name the leading `@` is preserved and
-/// the rest of the name is percent-encoded — matching upstream's
-/// `@${encodeURIComponent(pkgName.slice(1))}`.
+/// the rest of the name is percent-encoded.
 pub(crate) fn encode_pkg_name_path(pkg_name: &str) -> String {
     let (prefix, rest) = if let Some(stripped) = pkg_name.strip_prefix('@') {
         ("@", stripped)

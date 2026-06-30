@@ -1,8 +1,6 @@
 //! Reuse gate: decide whether the prior lockfile already satisfies a
 //! wanted dependency, so the tree walker can reuse its recorded
 //! resolution + subtree instead of re-resolving from the registry.
-//! Mirrors pnpm's `satisfiesWanted` / `getInfoFromLockfile` gate in
-//! [`resolveDependencies.ts`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1086-L1248).
 //! See `pacquet/plans/LOCKFILE_RESOLUTION_REUSE.md`.
 
 use std::collections::HashMap;
@@ -19,9 +17,7 @@ use serde_json::{Map, Value};
 use crate::hoist_peers::satisfies_including_prerelease;
 
 /// The `currentPkg` payload for re-resolving `key`'s edge: the prior
-/// lockfile entry in the shape pnpm's `getInfoFromLockfile` +
-/// [`pkgSnapshotToResolution`](https://github.com/pnpm/pnpm/blob/1627943d2a/lockfile/utils/src/pkgSnapshotToResolution.ts)
-/// hand the resolver.
+/// lockfile entry shaped into what the resolver expects.
 pub(crate) fn current_pkg_from_lockfile(
     lockfile: &Lockfile,
     key: &PkgNameVerPeer,
@@ -41,7 +37,7 @@ pub(crate) fn current_pkg_from_lockfile(
                 // No registry map was threaded in (e.g. the
                 // single-importer entry point) — a `Registry` entry
                 // can't be materialized into its tarball URL, and a
-                // URL-less payload would diverge from pnpm's shape.
+                // URL-less payload would diverge from the expected shape.
                 return None;
             }
             let tarball_version = metadata_key.suffix.version().to_string();
@@ -85,8 +81,8 @@ pub(crate) fn prior_child_key(
 
 /// The snapshot key (`snapshots:` / `packages:` map key) the prior
 /// lockfile resolved `alias` to in importer `importer_id`, when the
-/// recorded version still satisfies the manifest's `bare_specifier`
-/// (semver-satisfies, matching pnpm's `satisfiesWanted`).
+/// recorded version still semver-satisfies the manifest's
+/// `bare_specifier`.
 ///
 /// Reuse is limited to semver (registry/tarball) deps; richer shapes
 /// (`link:`/`file:`/`workspace:`/`catalog:`) fall through to a normal
@@ -130,9 +126,8 @@ fn importer_dep<'a>(
 /// entry in `lockfile.packages`. pacquet's npm resolver records every
 /// registry pick as a [`LockfileResolution::Tarball`] carrying the
 /// registry tarball URL + integrity (it never emits the bare
-/// `Registry` shape — see
-/// [`npm_resolver`](https://github.com/pnpm/pnpm/blob/097983fbca/resolving/npm-resolver/src/index.ts)),
-/// so both `Tarball` and `Registry` are accepted here. The
+/// `Registry` shape), so both `Tarball` and `Registry` are accepted
+/// here. The
 /// `version_semver()` gate keeps reuse to registry packages: a remote
 /// (non-registry) tarball or git dep carries a URL-shaped, non-semver
 /// version slot and falls through to a fresh resolve. Git-hosted

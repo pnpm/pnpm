@@ -5,11 +5,10 @@
 //!
 //! ## Why this exists
 //!
-//! pnpm packs every `PackageFilesIndex` with `new Packr({ useRecords: true,
-//! moreTypes: true })` (see
-//! [`store/index/src/index.ts`](https://github.com/pnpm/pnpm/blob/1819226b51/store/index/src/index.ts)
-//! line 12). `useRecords` replaces repeated string keys in same-shape
-//! structs with a compact slot reference — roughly, Protobuf field numbers
+//! pnpm packs every `PackageFilesIndex` with `useRecords: true` and
+//! `moreTypes: true`. `useRecords` replaces repeated string keys in
+//! same-shape structs with a compact slot reference — roughly, Protobuf
+//! field numbers
 //! inline. Plain `rmp_serde` output round-trips through msgpackr badly
 //! in *both* directions:
 //!

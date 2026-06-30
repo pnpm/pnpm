@@ -1,6 +1,3 @@
-//! Ports of `catalogs/protocol-parser/test/parseCatalogProtocol.test.ts`
-//! ([source](https://github.com/pnpm/pnpm/blob/a8a8cbce6d/catalogs/protocol-parser/test/parseCatalogProtocol.test.ts)).
-
 use super::parse_catalog_protocol;
 
 #[test]

@@ -1,6 +1,3 @@
-//! Port of pnpm's
-//! [`@pnpm/lockfile.preferred-versions`](https://github.com/pnpm/pnpm/blob/097983fbca/lockfile/preferred-versions/src/index.ts).
-//!
 //! Seeds the [`PreferredVersions`] map the deps-resolver consults to
 //! break version-pick ties: every spec from a project manifest gets a
 //! [`DIRECT_DEP_SELECTOR_WEIGHT`] entry, every concrete `name@version`
@@ -67,13 +64,11 @@ fn add_preferred_versions_from_lockfile(
     for key in snapshots.keys() {
         let name = key.name.to_string();
         // The lockfile records `file:`-protocol deps with a non-semver
-        // version part; upstream's `nameVerFromPkgSnapshot` returns
-        // those as the raw `file:` string, but the preferred-versions
-        // map only feeds the semver picker — adding a `file:` entry
-        // would either confuse the picker or be silently ignored
-        // depending on the call site. Skip them defensively: the
-        // versioned snapshots are the only useful seeds for the
-        // version picker.
+        // version part. The preferred-versions map only feeds the semver
+        // picker — adding a `file:` entry would either confuse the picker
+        // or be silently ignored depending on the call site. Skip them
+        // defensively: the versioned snapshots are the only useful seeds
+        // for the version picker.
         let Some(version) = key.suffix.version_semver() else { continue };
         unique_name_versions.entry(name).or_default().insert(version.to_string());
     }
@@ -99,7 +94,7 @@ fn add_preferred_versions_from_lockfile(
                     // The lookup was for an exact version — the
                     // existing entry came from a direct-dep selector
                     // typed as `Version` (anything else means our state
-                    // is corrupted, mirroring upstream's throw).
+                    // is corrupted, so this asserts).
                     assert!(
                         matches!(existing_selector_type, VersionSelectorType::Version),
                         "Encountered unexpected version selector '{existing_selector_type:?}' for dependency '{name}@{version}'",
@@ -114,8 +109,8 @@ fn add_preferred_versions_from_lockfile(
 }
 
 /// Bump a selector's weight by `weight`, lifting a `Plain` selector
-/// to `Weighted(weight + 1)` (matches upstream's `weight + 1` for the
-/// string case) and adding `weight` to an existing weighted entry.
+/// to `Weighted(weight + 1)` (the `weight + 1` for the bare-string
+/// case) and adding `weight` to an existing weighted entry.
 fn add_weight_to_version_selector(
     selector: &VersionSelectorEntry,
     weight: u32,

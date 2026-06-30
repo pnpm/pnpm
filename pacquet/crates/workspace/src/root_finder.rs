@@ -1,24 +1,19 @@
 //! Locate the workspace root directory (the dir containing
 //! `pnpm-workspace.yaml`).
 //!
-//! Port of upstream's
-//! [`findWorkspaceDir`](https://github.com/pnpm/pnpm/blob/94240bc046/workspace/root-finder/src/index.ts).
-//!
-//! Pacquet does not yet realpath the start dir like upstream does (used
-//! for case-insensitive filesystems on Windows / macOS). Tracked as a
-//! known divergence — typical workspace installs on those platforms
-//! still resolve correctly because the upward walk operates on the
-//! canonical components Node hands us. Revisit if a regression turns up.
+//! Pacquet does not yet realpath the start dir (used for
+//! case-insensitive filesystems on Windows / macOS). Tracked as a known
+//! divergence — typical workspace installs on those platforms still
+//! resolve correctly because the upward walk operates on canonical path
+//! components. Revisit if a regression turns up.
 
 use crate::{api::EnvVarOs, manifest::WORKSPACE_MANIFEST_FILENAME};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use std::path::{Path, PathBuf};
 
-/// Misnamed `pnpm-workspace.yaml` variants that upstream specifically
-/// rejects rather than silently treating as "no workspace manifest". Order
-/// preserved against upstream's
-/// [`INVALID_WORKSPACE_MANIFEST_FILENAME`](https://github.com/pnpm/pnpm/blob/94240bc046/workspace/root-finder/src/index.ts).
+/// Misnamed `pnpm-workspace.yaml` variants that are rejected rather
+/// than silently treated as "no workspace manifest".
 pub(crate) const INVALID_WORKSPACE_MANIFEST_FILENAMES: &[&str] = &[
     "pnpm-workspaces.yaml",
     "pnpm-workspaces.yml",
@@ -29,10 +24,7 @@ pub(crate) const INVALID_WORKSPACE_MANIFEST_FILENAMES: &[&str] = &[
     ".pnpm-workspaces.yml",
 ];
 
-/// Env var that overrides the upward walk. Matches upstream's
-/// [`WORKSPACE_DIR_ENV_VAR`][ts-WORKSPACE_DIR_ENV_VAR].
-///
-/// [ts-WORKSPACE_DIR_ENV_VAR]: https://github.com/pnpm/pnpm/blob/94240bc046/workspace/root-finder/src/index.ts#L7
+/// Env var that overrides the upward walk.
 pub(crate) const WORKSPACE_DIR_ENV_VAR: &str = "NPM_CONFIG_WORKSPACE_DIR";
 
 /// Lowercase alias for [`WORKSPACE_DIR_ENV_VAR`], pre-allocated so the
@@ -40,8 +32,8 @@ pub(crate) const WORKSPACE_DIR_ENV_VAR: &str = "NPM_CONFIG_WORKSPACE_DIR";
 pub(crate) const WORKSPACE_DIR_ENV_VAR_LOWER: &str = "npm_config_workspace_dir";
 
 /// Raised when an ancestor contains a misnamed workspace manifest
-/// before any `pnpm-workspace.yaml`. Same code as upstream's
-/// `BAD_WORKSPACE_MANIFEST_NAME`.
+/// before any `pnpm-workspace.yaml`. Carries pnpm's
+/// `BAD_WORKSPACE_MANIFEST_NAME` error code.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display(
     "The workspace manifest file should be named \"pnpm-workspace.yaml\". File found: {}",
@@ -76,17 +68,14 @@ pub fn find_workspace_dir(cwd: &Path) -> Result<Option<PathBuf>, FindWorkspaceDi
 /// so callers can record where the workspace dir came from for
 /// debugging and so tests can avoid the upward walk.
 ///
-/// Upstream looks at `process.env[VAR]` and falls through to the
-/// lowercase spelling — Node's process env is case-sensitive on
-/// POSIX but `NPM_CONFIG_*` is conventionally accepted in either
-/// case. The two-step lookup preserves that contract.
+/// The env var is read under its uppercase spelling first, then its
+/// lowercase one — Node's process env is case-sensitive on POSIX but
+/// `NPM_CONFIG_*` is conventionally accepted in either case, so the
+/// two-step lookup preserves that contract.
 ///
-/// An empty value is treated as unset (matches upstream's truthy
-/// `if (workspaceDir)` check in
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/workspace/root-finder/src/index.ts>).
-/// Without this, an exported-but-empty env var would short-circuit
-/// the upward walk and force the install into an invalid empty
-/// workspace dir.
+/// An empty value is treated as unset. Without this, an
+/// exported-but-empty env var would short-circuit the upward walk and
+/// force the install into an invalid empty workspace dir.
 #[must_use]
 pub fn find_workspace_dir_from_env() -> Option<PathBuf> {
     find_workspace_dir_from_env_with::<crate::api::Host>()
@@ -120,11 +109,11 @@ fn find_workspace_dir_by_walk(cwd: &Path) -> Result<Option<PathBuf>, FindWorkspa
             return Ok(Some(dir.to_path_buf()));
         }
 
-        // Upstream's [`findUp`] inspects the correct filename and each
-        // misnamed variant in one shot at every ancestor. The first
-        // hit at a given level wins, but a misnamed hit raises rather
-        // than being silently treated as "no workspace". Mirror that
-        // by checking the variants only after we've confirmed the
+        // At every ancestor, the correct filename and each misnamed
+        // variant are inspected in one shot (the same approach as
+        // [`findUp`]). The first hit at a given level wins, but a
+        // misnamed hit raises rather than being silently treated as
+        // "no workspace". Check the variants only after confirming the
         // correct file isn't here — otherwise a project with
         // `pnpm-workspace.yaml` alongside an accidental `.yml` copy
         // would error instead of working.

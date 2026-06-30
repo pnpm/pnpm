@@ -1,8 +1,6 @@
 //! The `catalogs:` block of a v9 lockfile.
 //!
-//! Ports pnpm's
-//! [`CatalogSnapshots`](https://github.com/pnpm/pnpm/blob/e7e99f04e4/lockfile/types/src/index.ts#L196-L210):
-//! for every catalog-referenced direct dependency, the lockfile records both
+//! For every catalog-referenced direct dependency, the lockfile records both
 //! the workspace-manifest specifier (`^1.2.3`) and the version it resolved to,
 //! so a later install can verify the catalog without re-reading
 //! `pnpm-workspace.yaml`.
@@ -12,7 +10,7 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 
 /// `catalogName → { dependencyName → entry }`. A [`BTreeMap`] so the entries
-/// serialize in pnpm's sorted key order (`sortDirectKeys` / `sortDeepKeys`).
+/// serialize in sorted key order, matching pnpm's lockfile key sort.
 pub type CatalogSnapshots = BTreeMap<String, BTreeMap<String, ResolvedCatalogEntry>>;
 
 /// One resolved catalog entry: the manifest specifier plus the version it

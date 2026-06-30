@@ -11,11 +11,9 @@
 //! the registry mock serves; pre-baking a tiny v9 lockfile by hand
 //! would diverge silently the moment a fixture changes.
 //!
-//! Test ports of upstream's
-//! [`installing/deps-installer/test/install/hoist.ts`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/hoist.ts)
-//! that depend on features pacquet hasn't built yet (partial install
-//! / re-hoist — pnpm/pacquet#433, GVS — pnpm/pacquet#432, peer-dep
-//! details, hoisted node-linker, `hoistWorkspacePackages`,
+//! Tests that depend on features pacquet hasn't built yet (partial
+//! install / re-hoist — pnpm/pacquet#433, GVS — pnpm/pacquet#432,
+//! peer-dep details, hoisted node-linker, `hoistWorkspacePackages`,
 //! `extendNodePath`) live in [`known_failures`] below with
 //! [`pacquet_testing_utils::allow_known_failure`] gating the assertion
 //! against the not-yet-implemented subject under test.
@@ -71,11 +69,10 @@ fn write_manifest(workspace: &Path, deps: serde_json::Value) {
 }
 
 /// Default hoist patterns hoist every transitive into
-/// `<vs>/node_modules/`. Mirrors upstream's
-/// [`hoist.ts:24` "should hoist dependencies"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/hoist.ts#L24).
-/// Single-importer subset — the upstream test also re-runs install
-/// twice to assert the persisted map is preserved; that requires
-/// partial install (pnpm/pacquet#433) and lives in
+/// `<vs>/node_modules/`.
+/// Single-importer subset — asserting the persisted map is preserved
+/// across a repeat install requires partial install (pnpm/pacquet#433)
+/// and lives in
 /// [`known_failures::should_hoist_dependencies_repeat_install_preserves_map`].
 #[test]
 fn private_hoist_default_pattern_hoists_transitives() {
@@ -113,8 +110,7 @@ fn private_hoist_default_pattern_hoists_transitives() {
 }
 
 /// `publicHoistPattern: ["*"]` hoists every transitive into the
-/// project's root `node_modules/`. Mirrors upstream's
-/// [`hoist.ts:53` "should hoist dependencies to the root of node_modules when publicHoistPattern is used"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/hoist.ts#L53).
+/// project's root `node_modules/`.
 #[test]
 fn public_hoist_star_hoists_to_root_node_modules() {
     let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info, .. } =
@@ -143,12 +139,10 @@ fn public_hoist_star_hoists_to_root_node_modules() {
     drop((root, mock_instance));
 }
 
-/// Both patterns empty → no hoist symlinks anywhere. Pacquet-original
-/// scenario covering the issue's "Install with both patterns empty"
-/// item; upstream's hoist.ts has no exact analogue but the same
-/// outcome falls out of `createMatcher([])` returning a never-matches
-/// matcher. The hoist pass still runs (the `is_some()` guard sees
-/// `Some([])`); it just produces no entries.
+/// Both patterns empty → no hoist symlinks anywhere. An empty pattern
+/// list compiles to a never-matches matcher, so the hoist pass still
+/// runs (the `is_some()` guard sees `Some([])`); it just produces no
+/// entries.
 #[test]
 fn both_patterns_empty_produces_no_hoist_symlinks() {
     let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info, .. } =
@@ -181,9 +175,8 @@ fn both_patterns_empty_produces_no_hoist_symlinks() {
 }
 
 /// `shamefullyHoist: true` is the legacy alias for
-/// `publicHoistPattern: ["*"]`. Mirrors upstream's translation in
-/// [`extendInstallOptions`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/src/install/extendInstallOptions.ts)
-/// and pacquet's parallel handling in `WorkspaceSettings::apply_to`.
+/// `publicHoistPattern: ["*"]`, translated in
+/// `WorkspaceSettings::apply_to`.
 #[test]
 fn shamefully_hoist_legacy_publicly_hoists_everything() {
     let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info, .. } =
@@ -212,9 +205,7 @@ fn shamefully_hoist_legacy_publicly_hoists_everything() {
 }
 
 /// `.modules.yaml` records `hoistedDependencies` when the hoist pass
-/// runs. Mirrors the
-/// [`installing/deps-restorer/test/index.ts:569` "installing with hoistPattern=*"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/test/index.ts)
-/// assertion plus the issue's `.modules.yaml` round-trip item.
+/// runs.
 #[test]
 fn modules_yaml_records_hoisted_dependencies() {
     let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info, .. } =
@@ -241,8 +232,8 @@ fn modules_yaml_records_hoisted_dependencies() {
     );
     // Alias-as-stored is the full scoped name, since that's how the
     // dep appears in `@pnpm.e2e/hello-world-js-bin-parent`'s
-    // `dependencies` map. Mirrors upstream's
-    // `hoistedDependencies[depPath][alias] = kind`.
+    // `dependencies` map. The record is keyed by dep path then alias,
+    // mapping to the hoist kind.
     assert!(
         modules_yaml_text.contains(r#""@pnpm.e2e/hello-world-js-bin": "private""#),
         "transitive should be marked as `private` hoist; got:\n{modules_yaml_text}",
@@ -255,10 +246,7 @@ fn modules_yaml_records_hoisted_dependencies() {
 /// pacquet's default `publicHoistPattern` must match pnpm v11's
 /// (empty list) so a follow-up `pnpm` invocation in the same project
 /// doesn't reject the `.modules.yaml` with
-/// `ERR_PNPM_PUBLIC_HOIST_PATTERN_DIFF`. See pnpm's default at
-/// <https://github.com/pnpm/pnpm/blob/1627943d2a/config/reader/src/index.ts#L184>
-/// and the comparison site at
-/// <https://github.com/pnpm/pnpm/blob/1627943d2a/installing/deps-installer/src/install/validateModules.ts#L67-L80>.
+/// `ERR_PNPM_PUBLIC_HOIST_PATTERN_DIFF`.
 #[test]
 fn modules_yaml_public_hoist_pattern_matches_pnpm_default() {
     let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info, .. } =
@@ -284,10 +272,8 @@ fn modules_yaml_public_hoist_pattern_matches_pnpm_default() {
 }
 
 /// `hoistPattern: ["@pnpm.e2e/*"]` — only aliases under the
-/// `@pnpm.e2e` scope hoist privately. Mirrors upstream's
-/// [`hoist.ts:107` "should hoist dependencies by pattern"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/hoist.ts#L107)
-/// shape (different package set; the registry mock doesn't carry the
-/// upstream `express` family).
+/// `@pnpm.e2e` scope hoist privately. (Uses the `@pnpm.e2e` package
+/// set; the registry mock doesn't carry the `express` family.)
 #[test]
 fn private_hoist_pattern_filters_aliases() {
     let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info, .. } =
@@ -347,10 +333,9 @@ fn negation_pattern_excludes_alias_from_hoist() {
     drop((root, mock_instance));
 }
 
-/// Privately-hoisted bins land in `<vs>/node_modules/.bin/`. Mirrors
-/// upstream's
-/// [`deps-restorer/test/index.ts:569` "installing with hoistPattern=*"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/test/index.ts#L569)
-/// assertion that `.pnpm/node_modules/.bin/hello-world-js-bin` exists.
+/// Privately-hoisted bins land in `<vs>/node_modules/.bin/`: the
+/// hoisted bin appears at
+/// `.pnpm/node_modules/.bin/hello-world-js-bin`.
 #[test]
 fn private_hoist_links_bins() {
     let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info, .. } =
@@ -414,9 +399,9 @@ fn public_hoist_bin_is_linked_via_root_bin_dir() {
 /// default `hoistPattern: ["*"]` the transitive must end up
 /// hoisted regardless of which importer dragged it in.
 ///
-/// Pacquet-original — no direct upstream analogue. Closes the
-/// integration gap left by `installing/deps-installer/test/install/hoist.ts:341`
-/// (which uses `mutateModulesInSingleProject` we don't have).
+/// Pacquet-original — covers the multi-importer hoist case directly,
+/// without relying on a single-project mutate-modules API pacquet
+/// doesn't have.
 #[test]
 fn workspace_hoist_walks_every_importer() {
     let CommandTempCwd { pacquet, pnpm, root, workspace, npmrc_info, .. } =
@@ -537,9 +522,8 @@ fn fresh_install_hoisted_node_linker_lands_real_directories() {
 }
 
 mod known_failures {
-    //! Test ports of upstream `hoist.ts` cases blocked on features
-    //! pacquet hasn't built yet. Each entry stubs the not-yet-built
-    //! subject under test through
+    //! Hoist cases blocked on features pacquet hasn't built yet. Each
+    //! entry stubs the not-yet-built subject under test through
     //! [`pacquet_testing_utils::allow_known_failure`] so the test
     //! exits early rather than masking a real bug. The cases here
     //! cover:
@@ -641,7 +625,6 @@ mod known_failures {
         ))
     }
 
-    /// Upstream: [`hoist.ts:24` "should hoist dependencies"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/hoist.ts#L24).
     /// Repeats the install both as non-headless and as
     /// `frozenLockfile: true` to assert `hoistedDependencies` is
     /// preserved verbatim. Pacquet recomputes the map on every
@@ -652,7 +635,6 @@ mod known_failures {
         allow_known_failure!(partial_install_persists_hoisted_map());
     }
 
-    /// Upstream: [`hoist.ts:121` "should remove hoisted dependencies"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/hoist.ts#L121).
     /// Removes a dependency and asserts the hoist symlinks for its
     /// transitives go too. Needs the partial-install / pruning path.
     #[test]
@@ -660,25 +642,21 @@ mod known_failures {
         allow_known_failure!(partial_install_persists_hoisted_map());
     }
 
-    /// Upstream: [`hoist.ts:137` "should not override root packages with hoisted dependencies"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/hoist.ts#L137).
     #[test]
     fn should_not_override_root_packages_with_hoisted_deps() {
         allow_known_failure!(partial_install_persists_hoisted_map());
     }
 
-    /// Upstream: [`hoist.ts:148` "should rehoist when uninstalling a package"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/hoist.ts#L148).
     #[test]
     fn should_rehoist_when_uninstalling_a_package() {
         allow_known_failure!(partial_install_persists_hoisted_map());
     }
 
-    /// Upstream: [`hoist.ts:169` "should rehoist after running a general install"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/hoist.ts#L169).
     #[test]
     fn should_rehoist_after_running_a_general_install() {
         allow_known_failure!(partial_install_persists_hoisted_map());
     }
 
-    /// Upstream: [`hoist.ts:201` "should not override aliased dependencies"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/hoist.ts#L201).
     /// npm-aliases — the alias `foo` resolves to `bar@x` in the
     /// importer, and a transitive `foo` shouldn't override that.
     /// Pacquet's algo handles this via the `currentSpecifiers` seed,
@@ -689,9 +667,8 @@ mod known_failures {
         allow_known_failure!(partial_install_persists_hoisted_map());
     }
 
-    /// Upstream: [`hoist.ts:209` "hoistPattern=* throws exception when executed on node_modules installed w/o the option"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/hoist.ts#L209).
     /// Pattern-change detection between `.modules.yaml` and current
-    /// config triggers `MODULES_BREAKING_CHANGE` upstream. Pacquet
+    /// config triggers a modules-breaking-change error. Pacquet
     /// doesn't yet read the persisted patterns and compare, so
     /// pattern-change detection is a follow-up.
     #[test]
@@ -699,13 +676,11 @@ mod known_failures {
         allow_known_failure!(partial_install_persists_hoisted_map());
     }
 
-    /// Upstream: [`hoist.ts:220` "hoistPattern=undefined throws exception when executed on node_modules installed with hoist-pattern=*"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/hoist.ts#L220).
     #[test]
     fn hoist_pattern_undefined_throws_against_hoisted_modules_yaml() {
         allow_known_failure!(partial_install_persists_hoisted_map());
     }
 
-    /// Upstream: [`hoist.ts:233` "hoist by alias"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/hoist.ts#L233).
     /// Hoisting respects npm-aliased package names — the alias is
     /// the directory name, not the package name. Pacquet's algo
     /// uses the alias correctly (the test in `hoist/tests.rs`
@@ -716,25 +691,21 @@ mod known_failures {
         allow_known_failure!(partial_install_persists_hoisted_map());
     }
 
-    /// Upstream: [`hoist.ts:249` "should remove aliased hoisted dependencies"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/hoist.ts#L249).
     #[test]
     fn should_remove_aliased_hoisted_dependencies() {
         allow_known_failure!(partial_install_persists_hoisted_map());
     }
 
-    /// Upstream: [`hoist.ts:272` "should update .modules.yaml when pruning if we are flattening"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/hoist.ts#L272).
     #[test]
     fn modules_yaml_updated_on_prune_when_flattening() {
         allow_known_failure!(partial_install_persists_hoisted_map());
     }
 
-    /// Upstream: [`hoist.ts:288` "should rehoist after pruning"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/hoist.ts#L288).
     #[test]
     fn should_rehoist_after_pruning() {
         allow_known_failure!(partial_install_persists_hoisted_map());
     }
 
-    /// Upstream: [`hoist.ts:320` "should hoist correctly peer dependencies"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/hoist.ts#L320).
     /// Peer deps split into multiple snapshot keys (one per
     /// peer-resolution variant). Hoist must pick the right variant
     /// per importer. Pacquet's lockfile parser handles peers but
@@ -745,13 +716,11 @@ mod known_failures {
         allow_known_failure!(partial_install_persists_hoisted_map());
     }
 
-    /// Upstream: [`hoist.ts:327` "should uninstall correctly peer dependencies"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/hoist.ts#L327).
     #[test]
     fn should_uninstall_correctly_peer_dependencies() {
         allow_known_failure!(partial_install_persists_hoisted_map());
     }
 
-    /// Upstream: [`hoist.ts:341` "hoist-pattern: hoist all dependencies to the virtual store node_modules"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/hoist.ts#L341).
     /// Workspace install followed by frozen reinstall. Pacquet's
     /// per-importer hoist walk lands the basic shape — covered by
     /// [`super::workspace_hoist_walks_every_importer`] — but the
@@ -764,7 +733,6 @@ mod known_failures {
         allow_known_failure!(partial_install_persists_hoisted_map());
     }
 
-    /// Upstream: [`hoist.ts:423` "hoist when updating in one of the workspace projects"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/hoist.ts#L423).
     /// Mutates the workspace package's `package.json` mid-test and
     /// re-installs — needs `pnpm add`-equivalent manifest mutation.
     #[test]
@@ -772,7 +740,6 @@ mod known_failures {
         allow_known_failure!(manifest_mutation_via_pnpm_add());
     }
 
-    /// Upstream: [`hoist.ts:514` "should recreate node_modules with hoisting"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/hoist.ts#L514).
     /// Removes `node_modules` and re-installs from the lockfile —
     /// needs partial-install state for the rehoist comparison.
     #[test]
@@ -780,47 +747,40 @@ mod known_failures {
         allow_known_failure!(partial_install_persists_hoisted_map());
     }
 
-    /// Upstream: [`hoist.ts:540` "hoisting should not create a broken symlink to a skipped optional dependency"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/hoist.ts#L540).
     #[test]
     fn hoisting_skips_broken_symlink_for_skipped_optional() {
         allow_known_failure!(skipped_optional_deps());
     }
 
-    /// Upstream: [`hoist.ts:567` "the hoisted packages should not override the bin files of the direct dependencies"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/hoist.ts#L567).
     #[test]
     fn hoisted_packages_dont_override_direct_dep_bins() {
         allow_known_failure!(direct_dep_bin_precedence());
     }
 
-    /// Upstream: [`hoist.ts:587` "hoist packages which is in the dependencies tree of the selected projects"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/hoist.ts#L587).
-    /// Uses upstream's `selectedProjectDirs` API to install a
-    /// subset of workspace projects. Pacquet doesn't yet implement
-    /// `--filter` selected-projects installs.
+    /// Installs a subset of workspace projects by selected project
+    /// dirs. Pacquet doesn't yet implement `--filter` selected-projects
+    /// installs.
     #[test]
     fn workspace_hoist_packages_in_selected_projects_tree() {
         allow_known_failure!(workspace_filter_selection());
     }
 
-    /// Upstream: [`hoist.ts:682` "only hoist packages which is in the dependencies tree of the selected projects with sub dependencies"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/hoist.ts#L682).
-    /// Same `selectedProjectDirs` shape as above.
+    /// Same selected-project-dirs shape as above.
     #[test]
     fn workspace_hoist_only_in_selected_projects_with_subdeps() {
         allow_known_failure!(workspace_filter_selection());
     }
 
-    /// Upstream: [`hoist.ts:790` "should add extra node paths to command shims"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/hoist.ts#L790).
     #[test]
     fn should_add_extra_node_paths_to_command_shims() {
         allow_known_failure!(extend_node_path_in_shims());
     }
 
-    /// Upstream: [`hoist.ts:799` "should not add extra node paths to command shims, when extend-node-path is set to false"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/hoist.ts#L799).
     #[test]
     fn should_not_add_extra_node_paths_when_extend_node_path_false() {
         allow_known_failure!(extend_node_path_in_shims());
     }
 
-    /// Upstream: [`hoist.ts:813` "hoistWorkspacePackages should hoist all workspace projects"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/hoist.ts#L813).
     /// Tests the `hoistWorkspacePackages: true` config which links
     /// workspace projects themselves into the hoist tree (separate
     /// from snapshot hoisting). Needs the
@@ -830,12 +790,11 @@ mod known_failures {
         allow_known_failure!(hoist_workspace_packages_unsupported());
     }
 
-    /// Upstream: [`hoist.ts:89` "should hoist some dependencies to the root of node_modules when publicHoistPattern is used and others to the virtual store directory"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/hoist.ts#L89).
     /// Combined-pattern shape — public for some, private for others.
     /// Pacquet's algo handles this (the unit test
     /// `public_pattern_wins_ties` covers the precedence) but the
-    /// upstream end-to-end test uses `express` + the eslint family,
-    /// which the registry mock doesn't carry.
+    /// end-to-end test uses `express` + the eslint family, which the
+    /// registry mock doesn't carry.
     #[test]
     fn combined_public_and_private_hoist_patterns_split_targets() {
         allow_known_failure!(partial_install_persists_hoisted_map());

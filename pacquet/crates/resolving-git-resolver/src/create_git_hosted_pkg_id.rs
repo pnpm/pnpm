@@ -1,9 +1,6 @@
-//! Ports pnpm's
-//! [`createGitHostedPkgId.ts`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/git-resolver/src/createGitHostedPkgId.ts).
-
 /// Build the URL-shaped ID for a `Git` lockfile resolution.
 ///
-/// The output is the `PkgResolutionId` upstream stamps as `id` on a git
+/// The output is the `PkgResolutionId` stamped as `id` on a git
 /// `ResolveResult`.
 #[must_use]
 pub fn create_git_hosted_pkg_id(repo: &str, commit: &str, path: Option<&str>) -> String {

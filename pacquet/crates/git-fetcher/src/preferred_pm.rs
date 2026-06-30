@@ -1,14 +1,11 @@
 //! Detect the package manager a git-hosted dependency expects, by
 //! looking for the lockfile it ships next to its `package.json`.
 //!
-//! Ports the file-sniffing half of the
+//! Implements the file-sniffing half of the
 //! [`preferred-pm`](https://www.npmjs.com/package/preferred-pm) npm
-//! package that
-//! [`exec/prepare-package`](https://github.com/pnpm/pnpm/blob/94240bc046/exec/prepare-package/src/index.ts#L47)
-//! calls. The workspace-root walk (`findYarnWorkspaceRoot` /
-//! `findUpSimple`) is *not* ported — git-hosted snapshots almost always
-//! ship a lockfile at the repo root, and the fall-through to `Npm`
-//! matches upstream's `?? 'npm'` default.
+//! package. The workspace-root walk is *not* implemented — git-hosted
+//! snapshots almost always ship a lockfile at the repo root, and the
+//! fall-through is `Npm`.
 
 use std::path::Path;
 
@@ -38,9 +35,7 @@ impl PreferredPm {
 }
 
 /// Sniff `dir` for a lockfile and return the matching package manager.
-/// Defaults to [`PreferredPm::Npm`] when no lockfile is present —
-/// matches upstream's `(await preferredPM(gitRootDir))?.name ?? 'npm'`
-/// at [`exec/prepare-package/src/index.ts:47`](https://github.com/pnpm/pnpm/blob/94240bc046/exec/prepare-package/src/index.ts#L47).
+/// Defaults to [`PreferredPm::Npm`] when no lockfile is present.
 #[must_use]
 pub fn detect_preferred_pm(dir: &Path) -> PreferredPm {
     if dir.join("pnpm-lock.yaml").exists() {

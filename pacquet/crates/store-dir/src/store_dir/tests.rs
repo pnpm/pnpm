@@ -21,12 +21,10 @@ fn tmp() {
 }
 
 /// `StoreDir::from(PathBuf)` appends [`STORE_VERSION`] to any path
-/// that doesn't already end with it — matching pnpm's
-/// [`getStorePath`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L39-L42)
-/// branch. Both the auto-append happy path and the
-/// already-suffixed idempotent path are pinned here so a regression
-/// would surface as either a missing `v11` (the original bug — pnpm
-/// rejects the resulting `.modules.yaml` with
+/// that doesn't already end with it. Both the auto-append happy path
+/// and the already-suffixed idempotent path are pinned here so a
+/// regression would surface as either a missing `v11` (which makes
+/// pnpm reject the resulting `.modules.yaml` with
 /// `ERR_PNPM_UNEXPECTED_STORE`) or a duplicated `v11/v11` segment.
 #[test]
 fn from_pathbuf_auto_appends_store_version_when_missing() {
@@ -48,10 +46,9 @@ fn from_pathbuf_does_not_double_append_when_already_suffixed() {
 ///
 /// Build the expected value through `Path::join` rather than a
 /// hardcoded `/v11` so the assertion stays valid on Windows: pnpm
-/// uses Node's [`path.join`](https://nodejs.org/api/path.html#pathjoinpaths)
-/// (and [`getStorePath`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L39-L42)
-/// goes through it too), which emits `\v11` on Windows; pacquet's
-/// [`From<PathBuf> for StoreDir`] mirrors that with `PathBuf::join`.
+/// uses Node's [`path.join`](https://nodejs.org/api/path.html#pathjoinpaths),
+/// which emits `\v11` on Windows, and pacquet's
+/// [`From<PathBuf> for StoreDir`] matches that with `PathBuf::join`.
 /// Hardcoding `/` here would compare a backslash-joined left against
 /// a slash-joined right and panic on Windows only.
 #[test]

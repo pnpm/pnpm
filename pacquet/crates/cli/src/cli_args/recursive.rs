@@ -3,11 +3,6 @@
 //! topological sorting, the `--resume-from` chunk trimming, and the
 //! `pnpm-exec-summary.json` execution-status report.
 //!
-//! Ports the parts of pnpm's
-//! [`exec.ts`](https://github.com/pnpm/pnpm/blob/8eb1be4988/exec/commands/src/exec.ts)
-//! and
-//! [`@pnpm/cli.utils`](https://github.com/pnpm/pnpm/blob/8eb1be4988/cli/utils/src/recursiveSummary.ts)
-//! that `runRecursive` and the recursive `exec` handler both rely on.
 //! The per-command pieces (which action runs per project, and the
 //! command-specific error codes) live in `run/recursive.rs` and
 //! `exec/recursive.rs`.
@@ -48,10 +43,8 @@ pub struct ResumeFromNotFound {
 /// project in chunk `i` depends only on projects in earlier chunks, so
 /// chunk `i` may run after chunks `0..i`.
 ///
-/// Port of pnpm's
-/// [`sortProjects`](https://github.com/pnpm/pnpm/blob/8eb1be4988/workspace/projects-sorter/src/index.ts):
-/// build a node → in-set-dependencies map (dropping self-edges and edges
-/// leaving the selected set) and run it through [`graph_sequencer`].
+/// Builds a node → in-set-dependencies map (dropping self-edges and edges
+/// leaving the selected set) and runs it through [`graph_sequencer`].
 pub fn sort_projects(graph: &ProjectGraph<GraphPkg<'_>>) -> Vec<Vec<PathBuf>> {
     let keys: Vec<PathBuf> = graph.keys().cloned().collect();
     let key_set: HashSet<&PathBuf> = keys.iter().collect();
@@ -73,9 +66,7 @@ pub fn sort_projects(graph: &ProjectGraph<GraphPkg<'_>>) -> Vec<Vec<PathBuf>> {
 /// Drop every chunk before the one containing the `resume_from` package,
 /// so execution resumes from that package.
 ///
-/// Port of pnpm's
-/// [`getResumedPackageChunks`](https://github.com/pnpm/pnpm/blob/8eb1be4988/exec/commands/src/exec.ts#L100-L118):
-/// the package is located by manifest name; an unknown name is a
+/// The package is located by manifest name; an unknown name is a
 /// [`ResumeFromNotFound`] error.
 pub fn get_resumed_package_chunks(
     resume_from: &str,
@@ -96,9 +87,7 @@ pub fn get_resumed_package_chunks(
 
 /// Write the recursive summary to `pnpm-exec-summary.json` under `dir`.
 ///
-/// Port of pnpm's
-/// [`writeRecursiveSummary`](https://github.com/pnpm/pnpm/blob/8eb1be4988/exec/commands/src/exec.ts#L120-L124):
-/// the per-package map is nested under an `executionStatus` key.
+/// The per-package map is nested under an `executionStatus` key.
 pub fn write_recursive_summary(
     dir: &Path,
     summary: &IndexMap<PathBuf, ExecutionStatus>,
@@ -118,9 +107,7 @@ pub fn write_recursive_summary(
 
 /// Count the packages whose action failed.
 ///
-/// Port of pnpm's
-/// [`throwOnCommandFail`](https://github.com/pnpm/pnpm/blob/8eb1be4988/cli/utils/src/recursiveSummary.ts#L28-L33);
-/// the caller turns a non-zero count into its command-specific
+/// The caller turns a non-zero count into its command-specific
 /// `ERR_PNPM_RECURSIVE_FAIL` error.
 pub fn count_failures(summary: &IndexMap<PathBuf, ExecutionStatus>) -> usize {
     summary.values().filter(|status| status.status == Status::Failure).count()
@@ -153,11 +140,7 @@ pub fn discover_workspace_projects(
 /// `config.filter_prod` selection (every project when no selector is
 /// given). `prefix` is where path selectors resolve. `auto_exclude_root`
 /// controls the main-dispatch auto-exclusion of the workspace root for
-/// `run` / `exec`.
-///
-/// Ports pnpm's `selectedProjectsGraph` main-dispatch step
-/// (<https://github.com/pnpm/pnpm/blob/8eb1be4988/pnpm/src/main.ts#L238-L323>),
-/// including the `!{<workspace-root>}` augmentation.
+/// `run` / `exec`, including the `!{<workspace-root>}` augmentation.
 pub fn select_recursive_projects<'a>(
     projects: &'a [Project],
     config: &Config,
@@ -198,14 +181,13 @@ pub fn select_recursive_projects<'a>(
         &FilterProjectsOptions {
             prefix: prefix.to_path_buf(),
             link_workspace_packages: graph_options.link_workspace_packages,
-            // pnpm's main dispatch filters with `useGlobDirFiltering:
-            // !config.legacyDirFiltering`, whose default is glob
-            // matching. It is load-bearing for the `!{<workspace-root>}`
-            // augmentation: glob matching excludes only the project whose
-            // dir equals the workspace root, whereas the legacy
-            // subtree match would also drop every nested package.
-            // `legacyDirFiltering` is not surfaced by `Config` yet, so
-            // this stays at pnpm's default.
+            // Glob dir filtering (the default, the inverse of
+            // `legacyDirFiltering`) is load-bearing for the
+            // `!{<workspace-root>}` augmentation: glob matching excludes
+            // only the project whose dir equals the workspace root,
+            // whereas the legacy subtree match would also drop every
+            // nested package. `legacyDirFiltering` is not surfaced by
+            // `Config` yet, so this stays at the default.
             use_glob_dir_filtering: true,
         },
     )
@@ -222,20 +204,17 @@ pub fn select_recursive_projects<'a>(
 /// Whether a recursive command drops the workspace root from an
 /// all-exclusion (or unfiltered) `--filter` selection.
 ///
-/// Mirrors the `cmd === 'run' || cmd === 'exec' || cmd === 'add' ||
-/// cmd === 'test'` arm of pnpm's main dispatch
-/// (<https://github.com/pnpm/pnpm/blob/8eb1be4988/pnpm/src/main.ts#L251-L259>),
-/// which appends a `!{<workspace-root>}` selector so a recursive
-/// `run` / `exec` skips the root project unless it is explicitly
-/// included.
+/// For `run` / `exec` (and `add` / `test`) a `!{<workspace-root>}`
+/// selector is appended so a recursive `run` / `exec` skips the root
+/// project unless it is explicitly included.
 #[derive(Clone, Copy)]
 pub enum AutoExcludeRoot<'a> {
-    /// `run` / `exec` (upstream also `add` / `test`): exclude the root
-    /// when no inclusion selector is present and the workspace is not
-    /// root-only. `workspace_patterns` is
-    /// `config.workspacePackagePatterns`, used for the root-only guard.
+    /// `run` / `exec` (also `add` / `test`): exclude the root when no
+    /// inclusion selector is present and the workspace is not root-only.
+    /// `workspace_patterns` is `config.workspacePackagePatterns`, used for
+    /// the root-only guard.
     Enabled { workspace_patterns: Option<&'a [String]> },
-    /// `pack` (upstream's other recursive commands): never auto-exclude.
+    /// `pack` (and the other recursive commands): never auto-exclude.
     Disabled,
 }
 
@@ -252,13 +231,12 @@ impl AutoExcludeRoot<'_> {
         let AutoExcludeRoot::Enabled { workspace_patterns } = self else {
             return None;
         };
-        // Upstream additionally suppresses the exclusion under
+        // pnpm additionally suppresses the exclusion under
         // `--include-workspace-root` and, for `--workspace-root`, pushes
         // an inclusion `{<root>}` filter instead. pacquet surfaces
-        // neither flag yet, so only this exclusion arm is ported.
+        // neither flag yet, so only this exclusion arm applies.
         // An inclusion selector already pins the selected set, so the
-        // root is kept only if it matches one. Mirrors upstream's
-        // `!filters.some(({ filter }) => !filter.startsWith('!'))`.
+        // root is kept only if it matches one.
         if existing.iter().any(|filter| !filter.filter.starts_with('!')) {
             return None;
         }
@@ -281,9 +259,7 @@ impl AutoExcludeRoot<'_> {
     }
 }
 
-/// Port of pnpm's
-/// [`isRootOnlyPatterns`](https://github.com/pnpm/pnpm/blob/8eb1be4988/pnpm/src/main.ts#L40-L42):
-/// the workspace enumerates the root project only.
+/// Whether the workspace enumerates the root project only.
 fn is_root_only_patterns(patterns: &[String]) -> bool {
     patterns.len() == 1 && patterns[0] == "."
 }
@@ -312,10 +288,9 @@ impl GraphProject for GraphPkg<'_> {
     }
 
     fn merged_dependencies(&self, ignore_dev_deps: bool) -> Vec<(String, String)> {
-        // Precedence mirrors upstream's `createNode` spread: peer, then
-        // dev (unless excluded), then optional, then prod, with a later
-        // group overwriting an earlier duplicate's specifier while
-        // keeping the first-seen position.
+        // Precedence: peer, then dev (unless excluded), then optional,
+        // then prod, with a later group overwriting an earlier
+        // duplicate's specifier while keeping the first-seen position.
         let mut merged: IndexMap<String, String> = IndexMap::new();
         let mut absorb = |group: DependencyGroup| {
             for (name, spec) in self.project.manifest.dependencies([group]) {

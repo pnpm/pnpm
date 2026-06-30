@@ -1,9 +1,7 @@
 //! Install a specific pnpm version into the shared global virtual store
 //! for `pnpm with`.
 //!
-//! Ports pnpm's
-//! [`installPnpmToStore`](https://github.com/pnpm/pnpm/blob/a33eeec9cd/pnpm11/engine/pm/commands/src/self-updater/installPnpm.ts#L93-L151):
-//! the engine lands in `<store>/links/...` (shared across `pnpm with`
+//! The engine lands in `<store>/links/...` (shared across `pnpm with`
 //! invocations and, unlike `self-update`, not registered in the global
 //! packages directory, so `pnpm ls -g` does not see it), its registry
 //! signature is verified on a genuine download, and its native platform
@@ -38,8 +36,8 @@ use crate::{
 /// directory holding the linked `pnpm` binary.
 ///
 /// `env_root` is where the package-manager env lockfile (the resolved
-/// `pnpm` + `@pnpm/exe` closure) is written, mirroring pnpm's
-/// `pnpmHomeDir`. `spec` is the user's bare specifier (a version, range,
+/// `pnpm` + `@pnpm/exe` closure) is written, under the pnpm home
+/// directory. `spec` is the user's bare specifier (a version, range,
 /// or dist-tag) and `version` the exact version it resolved to.
 pub(super) async fn install_pnpm_to_store<Reporter: self::Reporter + 'static>(
     config: &'static Config,
@@ -58,8 +56,8 @@ pub(super) async fn install_pnpm_to_store<Reporter: self::Reporter + 'static>(
         })?;
 
     // Cache hit: when the engine already sits in its GVS slot, skip both
-    // the signature check and the install — exactly as pnpm short-circuits
-    // on `fs.existsSync(pnpmPkgDir/package.json)`. The slot is computed
+    // the signature check and the install — short-circuit on the engine's
+    // `package.json` already existing. The slot is computed
     // with the same hashing the install pipeline uses, so a stale or wrong
     // computation merely misses the cache (the idempotent install below
     // then re-derives the slot from the install's own symlink).
@@ -157,8 +155,7 @@ fn resolve_slot(install_dir: &Path) -> miette::Result<PathBuf> {
         .ok_or_else(|| miette::miette!("could not locate the pnpm global-virtual-store slot"))
 }
 
-/// Link `pnpm`'s declared bins into `bin_dir`. Mirrors pnpm's `linkBins`
-/// call after the engine install.
+/// Link `pnpm`'s declared bins into `bin_dir` after the engine install.
 fn link_bins(pkg_dir: &Path, bin_dir: &Path) -> miette::Result<()> {
     let manifest_path = pkg_dir.join("package.json");
     let text = fs::read_to_string(&manifest_path)

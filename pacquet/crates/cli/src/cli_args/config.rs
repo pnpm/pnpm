@@ -1,10 +1,7 @@
 //! `pacquet config` — manage the pnpm configuration files.
 //!
-//! Port of pnpm's
-//! [`@pnpm/config.commands`](https://github.com/pnpm/pnpm/blob/8eb1be4988/config/commands/src):
-//! the `set` / `get` / `delete` / `list` subcommands, their file routing
-//! (`getConfigFileInfo`), key validation and value casting (`configSet`), and
-//! the read path (`configGet` / `configList` / `configToRecord`).
+//! Provides the `set` / `get` / `delete` / `list` subcommands, their file
+//! routing, key validation and value casting, and the read path.
 //!
 //! pacquet's [`Config`] is the loaded, merged config rather than pnpm's
 //! injected `_config` / `_context`: `pnpm config list` / `get` read the

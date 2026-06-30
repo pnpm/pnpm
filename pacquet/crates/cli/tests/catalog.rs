@@ -1,6 +1,4 @@
-//! End-to-end `pacquet add` / `pacquet update` auto-cataloging tests,
-//! ported from pnpm's
-//! [`installing/deps-installer/test/catalogs.ts`](https://github.com/pnpm/pnpm/blob/e7e99f04e4/installing/deps-installer/test/catalogs.ts).
+//! End-to-end `pacquet add` / `pacquet update` auto-cataloging tests.
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
@@ -221,8 +219,7 @@ fn update_latest_named_catalog_bumps_the_entry() {
 /// direct `catalog:` dependency. If the override is not re-resolved against
 /// the bumped catalog, lockfile `overrides` lags `catalogs` and the
 /// follow-up `--frozen-lockfile` install fails with an overrides/catalogs
-/// mismatch. Ported from pnpm's "overrides that reference a catalog are
-/// updated in the lockfile when the catalog is updated".
+/// mismatch.
 #[test]
 fn update_latest_keeps_catalog_referencing_override_in_sync() {
     let (root, workspace, anchor) = setup();
@@ -265,7 +262,8 @@ fn update_latest_keeps_catalog_referencing_override_in_sync() {
 }
 
 /// `update --latest --no-save` must not persist catalog edits to
-/// `pnpm-workspace.yaml`, matching pnpm's `if (opts.save !== false)` guard.
+/// `pnpm-workspace.yaml`: the save step is skipped unless `--save` is in
+/// effect.
 #[test]
 fn update_latest_no_save_leaves_the_catalog_untouched() {
     let (root, workspace, anchor) = setup();

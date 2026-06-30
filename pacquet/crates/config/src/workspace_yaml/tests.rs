@@ -170,9 +170,7 @@ userAgent: my-agent/2.0
 /// `namedRegistries` is the per-alias registry-URL map from
 /// `pnpm-workspace.yaml`. The deserializer reads the camelCase key
 /// and `apply_to` writes the map onto [`Config::named_registries`]
-/// verbatim. Mirrors upstream's
-/// [`namedRegistries`](https://github.com/pnpm/pnpm/blob/b61e268d57/config/reader/src/Config.ts#L227)
-/// schema.
+/// verbatim.
 #[test]
 fn parses_named_registries_from_yaml_and_applies() {
     let yaml = r"
@@ -390,9 +388,8 @@ fn parses_side_effects_cache_readonly_from_yaml_and_applies() {
     assert!(config.side_effects_cache_readonly, "yaml override wins");
 }
 
-/// READ / WRITE gate helpers must combine the two knobs the way
-/// upstream's [`config/reader/src/index.ts`](https://github.com/pnpm/pnpm/blob/7e3145f9fc/config/reader/src/index.ts#L614-L615)
-/// does for the canonical state combinations:
+/// READ / WRITE gate helpers must combine the two knobs for the
+/// canonical state combinations:
 ///
 /// - default (`cache=true`, `readonly=false`)  → read=on, write=on
 /// - cache off  (`cache=false`, `readonly=false`) → read=off, write=off
@@ -584,11 +581,9 @@ fn parses_dangerously_allow_all_builds_from_yaml_and_applies() {
     assert!(config.dangerously_allow_all_builds);
 }
 
-/// `scriptsPrependNodePath` is the tri-state from upstream
-/// [`Config.scriptsPrependNodePath: boolean | 'warn-only'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/Config.ts#L108).
-/// `true` → Always, `false` → Never, `"warn-only"` → `WarnOnly`.
-/// Pacquet's default is Never (matches upstream's
-/// [`StrictBuildOptions.scriptsPrependNodePath: false`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/after-install/src/extendBuildOptions.ts#L78)).
+/// `scriptsPrependNodePath` is a tri-state
+/// (`boolean | 'warn-only'`): `true` → Always, `false` → Never,
+/// `"warn-only"` → `WarnOnly`. Pacquet's default is Never.
 #[test]
 fn parses_scripts_prepend_node_path_true_from_yaml() {
     let yaml = "scriptsPrependNodePath: true\n";
@@ -621,9 +616,7 @@ fn rejects_invalid_scripts_prepend_node_path() {
     serde_saphyr::from_str::<WorkspaceSettings>(yaml).expect_err("must reject");
 }
 
-/// `linkWorkspacePackages` accepts `true | false | "deep"`. Mirrors
-/// upstream's [`Config.linkWorkspacePackages`](https://github.com/pnpm/pnpm/blob/5353fcbf01/config/reader/src/Config.ts#L189)
-/// shape.
+/// `linkWorkspacePackages` accepts `true | false | "deep"`.
 #[test]
 fn parses_link_workspace_packages_true_from_yaml() {
     let yaml = "linkWorkspacePackages: true\n";
@@ -656,8 +649,7 @@ fn rejects_invalid_link_workspace_packages() {
 }
 
 /// `injectWorkspacePackages: true` propagates from yaml to
-/// `Config.inject_workspace_packages`. Mirrors upstream's
-/// [`Config.injectWorkspacePackages`](https://github.com/pnpm/pnpm/blob/39101f5e37/config/reader/src/Config.ts#L190).
+/// `Config.inject_workspace_packages`.
 #[test]
 fn parses_inject_workspace_packages_true_from_yaml() {
     let yaml = "injectWorkspacePackages: true\n";
@@ -692,9 +684,8 @@ fn inject_workspace_packages_defaults_off_when_absent() {
 }
 
 /// `unsafePerm: false` from yaml propagates to `Config.unsafe_perm`
-/// on POSIX. Mirrors upstream's [`Config.unsafePerm: boolean`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/Config.ts).
-/// The starting `Config::new()` value depends on the runtime uid
-/// (see [`default_unsafe_perm`]) — `true` for non-root, `false`
+/// on POSIX. The starting `Config::new()` value depends on the runtime
+/// uid (see [`default_unsafe_perm`]) — `true` for non-root, `false`
 /// for root. Either way, `apply_to` with `Some(false)` ends in
 /// `false`.
 #[test]
@@ -714,9 +705,8 @@ fn parses_unsafe_perm_from_yaml_and_applies() {
 }
 
 /// On Windows, `apply_to` ignores the yaml value and forces
-/// `unsafe_perm = true`. Mirrors upstream's
-/// [`process.platform === 'win32'` override](https://github.com/pnpm/npm-lifecycle/blob/d2d8e790/index.js#L204-L220)
-/// — running lifecycle scripts under a uid/gid drop is POSIX-only.
+/// `unsafe_perm = true` — running lifecycle scripts under a uid/gid
+/// drop is POSIX-only.
 #[cfg(windows)]
 #[test]
 fn unsafe_perm_force_true_on_windows() {
@@ -727,8 +717,7 @@ fn unsafe_perm_force_true_on_windows() {
     assert!(config.unsafe_perm, "Windows forces unsafe_perm true regardless of yaml");
 }
 
-/// A positive `childConcurrency` is taken verbatim — mirrors
-/// upstream's [`getWorkspaceConcurrency`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.ts#L25-L34).
+/// A positive `childConcurrency` is taken verbatim.
 #[test]
 fn parses_positive_child_concurrency_from_yaml_and_applies() {
     let yaml = "childConcurrency: 8\n";
@@ -759,7 +748,6 @@ fn parses_negative_child_concurrency_from_yaml_and_resolves() {
 }
 
 /// A positive `workspaceConcurrency` is taken verbatim — same
-/// [`getWorkspaceConcurrency`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.ts#L25-L34)
 /// resolution as `childConcurrency`.
 #[test]
 fn parses_positive_workspace_concurrency_from_yaml_and_applies() {
@@ -791,9 +779,7 @@ fn parses_negative_workspace_concurrency_from_yaml_and_resolves() {
 
 /// `workspaceConcurrency` and `childConcurrency` are independent
 /// settings: setting one must not move the other off its default.
-/// Mirrors upstream, where they are separate config keys
-/// ([`config/reader/src/index.ts:208`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/index.ts#L208)
-/// vs the `childConcurrency` build path).
+/// They are separate config keys.
 #[test]
 fn workspace_and_child_concurrency_are_independent() {
     let yaml = "workspaceConcurrency: 7\n";
@@ -999,13 +985,10 @@ fn hoist_patterns_tri_state_round_trip() {
 
 /// `hoist: false` in `pnpm-workspace.yaml` nullifies
 /// `Config.hoist_pattern` even when the user supplied an explicit
-/// `hoistPattern` (or when the default `Some(["*"])` is in place).
-/// Mirrors upstream's
-/// [`projectConfig.ts:72-75`](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/projectConfig.ts#L72-L75)
-/// `result.hoist === false ⇒ hoistPattern: undefined`. The install-
-/// time `is_some() || is_some()` guard then short-circuits private
-/// hoisting; `public_hoist_pattern` is intentionally untouched
-/// (upstream doesn't nullify it either).
+/// `hoistPattern` (or when the default `Some(["*"])` is in place):
+/// `hoist === false ⇒ hoistPattern: undefined`. The install-time
+/// `is_some() || is_some()` guard then short-circuits private
+/// hoisting; `public_hoist_pattern` is intentionally untouched.
 #[test]
 fn hoist_false_disables_private_hoist_pattern() {
     let yaml = "hoist: false\n";
@@ -1031,8 +1014,7 @@ fn hoist_false_disables_private_hoist_pattern() {
 /// strings and applies onto `Config::ignored_optional_dependencies`
 /// verbatim — order preserved, no sorting at apply time (the
 /// freshness check sorts before comparison, but `Config` holds the
-/// user-supplied order). Mirrors upstream's
-/// [`createOptionalDependenciesRemover`](https://github.com/pnpm/pnpm/blob/94240bc046/hooks/read-package-hook/src/createOptionalDependenciesRemover.ts).
+/// user-supplied order).
 #[test]
 fn parses_ignored_optional_dependencies_from_yaml_and_applies() {
     let yaml = r"
@@ -1207,12 +1189,11 @@ fn empty_package_extensions_map_collapses_to_none() {
 }
 
 /// `hoistingLimits` deserializes as one of the `none` / `workspaces`
-/// / `dependencies` modes. Mirrors upstream's
-/// [`HoistingLimits`](https://github.com/pnpm/pnpm/blob/89812a9353/installing/linking/real-hoist/src/index.ts)
-/// shape; the install pipeline translates the mode into the
-/// per-locator border map via `pacquet_package_manager::get_hoisting_limits`.
-/// Yaml-empty / missing keeps the `Config` field at its
-/// [`HoistingLimits::None`] default.
+/// / `dependencies` modes; the install pipeline translates the mode
+/// into the per-locator border map via
+/// `pacquet_package_manager::get_hoisting_limits`. Yaml-empty /
+/// missing keeps the `Config` field at its [`HoistingLimits::None`]
+/// default.
 #[test]
 fn parses_hoisting_limits_from_yaml_and_applies() {
     let yaml = "hoistingLimits: dependencies\n";
@@ -1269,8 +1250,7 @@ fn omitting_hoisting_limits_and_external_dependencies_keeps_defaults() {
 /// introduced by the gate: `cacheDir` (path-resolved against the
 /// workspace dir), `minimumReleaseAge` / `…Exclude` / `…Strict` /
 /// `…IgnoreMissingTime`, and `trustPolicy` / `…Exclude` /
-/// `…IgnoreAfter`. Mirrors the upstream key list at
-/// <https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/Config.ts#L264-L272>.
+/// `…IgnoreAfter`.
 #[test]
 fn parses_supply_chain_policy_settings_from_yaml_and_applies() {
     let yaml = r#"

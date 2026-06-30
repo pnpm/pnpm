@@ -1,5 +1,4 @@
-//! Port of `config/package-is-installable/test/checkEngine.ts`
-//! at <https://github.com/pnpm/pnpm/blob/94240bc046/config/package-is-installable/test/checkEngine.ts>.
+//! Tests for [`check_engine`].
 
 use crate::{Engine, WantedEngine, check_engine};
 

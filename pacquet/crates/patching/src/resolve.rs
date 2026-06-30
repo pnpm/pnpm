@@ -39,21 +39,14 @@ impl From<PatchNonSemverRangeError> for ResolvePatchedDependenciesError {
 /// relative to `workspace_dir` or absolute. The map's iteration
 /// order is preserved end-to-end into [`PatchGroup::range`], so
 /// the order in `PATCH_KEY_CONFLICT` diagnostics matches the order
-/// the user wrote in yaml — matching pnpm's JS-object iteration
-/// behavior. [`IndexMap`] is required for that; a [`BTreeMap`]
-/// would sort the keys and reorder ranges alphabetically.
+/// the user wrote in yaml. [`IndexMap`] is required for that; a
+/// [`BTreeMap`] would sort the keys and reorder ranges
+/// alphabetically.
 ///
-/// Ports the workspace-dir-resolution + grouping half of upstream's
-/// [`getOptionsFromPnpmSettings`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/getOptionsFromRootManifest.ts#L28-L46)
-/// composed with the
-/// [`calcPatchHashes` step](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/deps-installer/src/install/index.ts#L468-L488)
-/// that lifts raw paths into hashed [`PatchInput`] entries before
-/// calling `groupPatchedDependencies`. Upstream's
-/// `getOptionsFromPnpmSettings` is called at
-/// [`config/reader/src/index.ts:814`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/index.ts#L814)
-/// with the *workspace* manifest, not the project manifest — pnpm
-/// v11 stopped reading install settings (including
-/// `patchedDependencies`) from `package.json`'s `pnpm` field.
+/// Each raw path is resolved against `workspace_dir`, hashed into a
+/// [`PatchInput`] entry, and then grouped. pnpm v11 reads install
+/// settings (including `patchedDependencies`) from the *workspace*
+/// manifest, not from `package.json`'s `pnpm` field.
 ///
 /// [`BTreeMap`]: std::collections::BTreeMap
 /// [`PatchGroup::range`]: crate::PatchGroup::range

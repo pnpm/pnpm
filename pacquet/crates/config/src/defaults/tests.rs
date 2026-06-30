@@ -215,55 +215,50 @@ fn test_default_config_dir_without_home_returns_none() {
     assert_eq!(default_config_dir::<NoEnvNoHome>(), None);
 }
 
-/// Port of upstream
-/// [`'getDefaultWorkspaceConcurrency: cpu num < 4'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.test.ts#L25-L28).
+/// Default workspace concurrency when the CPU count is below 4.
 #[test]
 fn default_child_concurrency_with_parallelism_below_four() {
     assert_eq!(default_child_concurrency_with_parallelism(1), 1);
 }
 
-/// Port of upstream
-/// [`'getDefaultWorkspaceConcurrency: cpu num > 4'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.test.ts#L30-L33).
+/// Default workspace concurrency when the CPU count is above 4.
 #[test]
 fn default_child_concurrency_with_parallelism_above_four() {
     assert_eq!(default_child_concurrency_with_parallelism(5), 4);
 }
 
-/// Port of upstream
-/// [`'getDefaultWorkspaceConcurrency: cpu num = 4'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.test.ts#L35-L38).
+/// Default workspace concurrency when the CPU count is exactly 4.
 #[test]
 fn default_child_concurrency_with_parallelism_at_four() {
     assert_eq!(default_child_concurrency_with_parallelism(4), 4);
 }
 
-/// `workspaceConcurrency` and `childConcurrency` default through the
-/// same upstream `getDefaultWorkspaceConcurrency`, so the two pacquet
-/// defaults must agree. This pins that parity so a future change to
-/// one default that forgets the other fails here.
+/// `workspaceConcurrency` and `childConcurrency` resolve through the
+/// same default-concurrency formula, so the two pacquet defaults must
+/// agree. This pins that parity so a future change to one default that
+/// forgets the other fails here.
 #[test]
 fn default_workspace_concurrency_matches_default_child_concurrency() {
     assert_eq!(default_workspace_concurrency(), default_child_concurrency());
 }
 
-/// Port of upstream
-/// [`'default workspace concurrency'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.test.ts#L48-L52).
-/// Pin a `>=4` parallelism so the expectation is deterministic.
+/// Default workspace concurrency resolves to 4 when at least 4 cores
+/// are available. Pin a `>=4` parallelism so the expectation is
+/// deterministic.
 #[test]
 fn resolve_child_concurrency_default_with_four_or_more_cores() {
     assert_eq!(resolve_child_concurrency_with_parallelism(None, 4), 4);
     assert_eq!(resolve_child_concurrency_with_parallelism(None, 8), 4);
 }
 
-/// Port of upstream
-/// [`'match host cores amount'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.test.ts#L58-L62).
+/// A `0` value resolves to the full host core count.
 #[test]
 fn resolve_child_concurrency_zero_returns_full_parallelism() {
     assert_eq!(resolve_child_concurrency_with_parallelism(Some(0), 8), 8);
     assert_eq!(resolve_child_concurrency_with_parallelism(Some(0), 1), 1);
 }
 
-/// Port of upstream
-/// [`'host cores minus X'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.test.ts#L64-L71).
+/// A negative value resolves to the host core count minus that offset.
 #[test]
 fn resolve_child_concurrency_negative_offset_matches_upstream_formula() {
     assert_eq!(resolve_child_concurrency_with_parallelism(Some(-1), 8), 7);

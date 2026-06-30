@@ -1,9 +1,7 @@
 //! Extend the `PATH` (and a proxy variable like `PNPM_HOME`) by editing the
 //! current POSIX shell's rc file.
 //!
-//! Ports pnpm's
-//! [`@pnpm/os.env.path-extender-posix`](https://github.com/pnpm/pnpm/blob/1819226b51/packages/path-extender-posix/src/path-extender-posix.ts):
-//! the shell is inferred from the environment, the settings block for that
+//! The shell is inferred from the environment, the settings block for that
 //! shell is rendered, and a `# <section>` ... `# <section> end` block is
 //! created in / appended to / replaced in the rc file.
 
@@ -29,8 +27,7 @@ pub(super) fn add_dir_to_posix_env_path(
     update_shell(current_shell.as_deref(), dir, opts)
 }
 
-/// Mirrors pnpm's `detectCurrentShell`: a shell-specific version variable
-/// wins, then the basename of `$SHELL`.
+/// A shell-specific version variable wins, then the basename of `$SHELL`.
 fn detect_current_shell() -> Option<String> {
     if std::env::var_os("ZSH_VERSION").is_some() {
         return Some("zsh".to_string());

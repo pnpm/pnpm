@@ -3,23 +3,21 @@ use std::{
     path::{Path, PathBuf},
 };
 
-/// Create a symlink to a directory, matching the on-disk shape that
-/// pnpm's [`symlink-dir`](https://github.com/pnpm/symlink-dir) npm
-/// package produces.
+/// Create a symlink to a directory, matching the on-disk shape pnpm
+/// produces.
 ///
 /// On Unix the symlink contents are stored as a path relative to the
-/// link's parent directory — `path.relative(dirname(link), target)` in
-/// upstream's `resolveSrcOnTrueSymlink`. Relative targets keep
-/// `node_modules` installs survivable across project-directory moves
-/// and match the byte-for-byte symlink contents pnpm writes, so
-/// snapshot tooling and lockfile-parity checks stay aligned.
+/// link's parent directory — `path.relative(dirname(link), target)`.
+/// Relative targets keep `node_modules` installs survivable across
+/// project-directory moves and match the byte-for-byte symlink
+/// contents pnpm writes, so snapshot tooling and lockfile-parity
+/// checks stay aligned.
 ///
 /// On Windows the writer tries a true directory symlink first
 /// (`std::os::windows::fs::symlink_dir`) and falls back to a junction
-/// on `PermissionDenied` — mirroring upstream's `EPERM` arm
-/// ("symbolic links may require elevated privileges; junctions
-/// don't"). The first successful branch is cached process-wide so
-/// subsequent calls skip the EPERM probe.
+/// on `PermissionDenied` (symbolic links may require elevated
+/// privileges; junctions don't). The first successful branch is cached
+/// process-wide so subsequent calls skip the EPERM probe.
 pub fn symlink_dir(original: &Path, link: &Path) -> io::Result<()> {
     #[cfg(unix)]
     {
@@ -33,8 +31,8 @@ pub fn symlink_dir(original: &Path, link: &Path) -> io::Result<()> {
 }
 
 /// Compute the symlink contents for a true symlink: the path from the
-/// link's parent directory to `original`. Mirrors upstream's
-/// `resolveSrcOnTrueSymlink(src, dest) = path.relative(path.dirname(dest), src)`.
+/// link's parent directory to `original`, equivalent to
+/// `path.relative(path.dirname(dest), src)`.
 ///
 /// Returns an absolute path when no relative form exists between the
 /// two arguments.
@@ -141,19 +139,17 @@ pub fn read_symlink_dir(link: &Path) -> io::Result<PathBuf> {
 ///
 /// `reused` is `true` when the symlink at `link` already pointed at
 /// the requested target, so no on-disk write was needed. `warning`
-/// carries the human-readable note pnpm's `symlinkDir` emits when it
-/// had to move an existing non-symlink occupant out of the way to
-/// install the symlink — surface it to the user if your call site
-/// has a reporter.
+/// carries the human-readable note emitted when an existing non-symlink
+/// occupant had to be moved out of the way to install the symlink —
+/// surface it to the user if your call site has a reporter.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct ForceSymlinkOutcome {
     pub reused: bool,
     pub warning: Option<String>,
 }
 
-/// Idempotent, overwrite-on-stale symlink creator that mirrors
-/// pnpm's [`symlinkDir`](https://github.com/pnpm/symlink-dir/blob/v10.0.1/src/index.ts#L22)
-/// with its default `{ overwrite: true }` semantics.
+/// Idempotent, overwrite-on-stale symlink creator with overwrite-on
+/// semantics: an existing occupant at `link` is moved aside.
 ///
 /// When a regular file or directory occupies `link` and the rename
 /// that moves it aside fails because the source disappeared between
@@ -176,7 +172,7 @@ fn force_symlink_inner(
     match initial_err.kind() {
         io::ErrorKind::NotFound => {
             // Wrap the mkdir failure so callers see *which* step
-            // tripped, the same way pnpm's `forceSymlink` does.
+            // tripped.
             if let Some(parent) = link.parent() {
                 fs::create_dir_all(parent).map_err(|mkdir_err| {
                     io::Error::new(
@@ -211,8 +207,7 @@ fn force_symlink_inner(
         // `link` is occupied by a regular file or directory.
         // Move it out of the way, then retry. On the second
         // attempt (`rename_tried`) drop down to a plain unlink
-        // — pnpm carries the same fallback for an intermittent
-        // macOS bug, see
+        // as a fallback for an intermittent macOS bug, see
         // <https://github.com/pnpm/pnpm/issues/5909#issuecomment-1400066890>.
         let parent = link.parent().unwrap_or_else(|| Path::new(""));
         let basename = link.file_name().unwrap_or_default().to_string_lossy().into_owned();
@@ -245,18 +240,16 @@ fn force_symlink_inner(
 }
 
 /// Lexical "does the existing link resolve to the wanted target?"
-/// check. Mirrors upstream's
-/// `path.relative(wantedTarget, existingTarget) === ''`: resolve the
-/// existing link's contents to an absolute path (using `link`'s
-/// parent dir when the contents are relative), then compare lexically
-/// against `wanted`. Single-level — does not follow chained symlinks.
+/// check: resolve the existing link's contents to an absolute path
+/// (using `link`'s parent dir when the contents are relative), then
+/// compare lexically against `wanted`. Single-level — does not follow
+/// chained symlinks.
 ///
-/// Both sides pass through [`fn@crate::lexical_normalize`] before comparing.
-/// Node's `path.relative` resolves its arguments, so the `..`
-/// segments in the relative link contents [`symlink_dir`] writes
-/// collapse on the upstream side; without the same collapse here,
-/// every up-to-date relative symlink reads as stale and pays an
-/// unlink + recreate.
+/// Both sides pass through [`fn@crate::lexical_normalize`] before
+/// comparing. The `..` segments in the relative link contents
+/// [`symlink_dir`] writes must collapse before the comparison;
+/// without that, every up-to-date relative symlink reads as stale and
+/// pays an unlink + recreate.
 fn existing_symlink_up_to_date(wanted: &Path, link: &Path, existing_link_string: &Path) -> bool {
     let existing_absolute = if existing_link_string.is_absolute() {
         existing_link_string.to_path_buf()
@@ -278,9 +271,9 @@ fn remove_occupant(path: &Path) -> io::Result<()> {
 }
 
 /// `fs::rename` that overwrites the destination when it exists.
-/// Mirrors the
+/// Follows the
 /// [`rename-overwrite`](https://github.com/zkochan/packages/tree/main/rename-overwrite)
-/// package upstream uses: if the rename fails because the destination
+/// package's approach: if the rename fails because the destination
 /// is occupied (`AlreadyExists` for files, `DirectoryNotEmpty` for
 /// dirs, `PermissionDenied` on Windows when something holds a handle
 /// to the dest), remove the destination and retry once.
@@ -313,9 +306,8 @@ mod windows {
 
     /// Cached choice of writer. `UNDECIDED` until the first successful
     /// call resolves the EPERM probe; afterward `USE_SYMLINK` or
-    /// `USE_JUNCTION`. Mirrors the way upstream's `symlink-dir`
-    /// rebinds `createSymlinkAsync` / `createSymlinkSync` to the
-    /// winning branch after the first call.
+    /// `USE_JUNCTION`. Caching the winning branch after the first call
+    /// avoids re-probing on every subsequent symlink.
     const UNDECIDED: u8 = 0;
     const USE_SYMLINK: u8 = 1;
     const USE_JUNCTION: u8 = 2;
@@ -329,9 +321,8 @@ mod windows {
         }
     }
 
-    /// True symlinks on Windows take a relative target — pnpm's
-    /// `resolveSrcOnTrueSymlink` (shared between Unix and Windows in
-    /// upstream `symlink-dir`) is `path.relative(dirname(dest), src)`.
+    /// True symlinks on Windows take a relative target —
+    /// `path.relative(dirname(dest), src)`, the same form used on Unix.
     /// Junctions take the absolute path with a trailing backslash, but
     /// the `junction` crate handles that internally so we pass
     /// `original` through unchanged for the junction branch.
@@ -343,8 +334,8 @@ mod windows {
     fn probe_and_cache(original: &Path, link: &Path) -> io::Result<()> {
         // Try the true directory symlink first — that's what users
         // running in Developer Mode (or as Administrator) get, and
-        // it matches pnpm's preference for true symlinks over
-        // junctions when allowed. `CreateSymbolicLinkW` returns
+        // true symlinks are preferred over junctions when allowed.
+        // `CreateSymbolicLinkW` returns
         // `ERROR_PRIVILEGE_NOT_HELD` (`PermissionDenied`) when the
         // process can't create symlinks; junctions don't carry that
         // constraint, so fall back to those.

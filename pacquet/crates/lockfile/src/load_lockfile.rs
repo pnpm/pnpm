@@ -34,18 +34,16 @@ impl Lockfile {
     }
 
     /// Load the *current* lockfile from
-    /// `<virtual_store_dir>/lock.yaml`. Mirrors upstream's
-    /// `readCurrentLockfile` at
-    /// <https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/fs/src/read.ts#L29-L37>:
-    /// the file records what pacquet actually materialized on the
-    /// previous install and is diffed against the wanted lockfile to
-    /// decide which snapshots can be skipped.
+    /// `<virtual_store_dir>/lock.yaml`: the file records what pacquet
+    /// actually materialized on the previous install and is diffed
+    /// against the wanted lockfile to decide which snapshots can be
+    /// skipped.
     ///
     /// Returns `Ok(None)` when the file is absent (a fresh install
-    /// against an empty `node_modules`), matching upstream's
-    /// ENOENT-as-`null` semantics. Same parse / version-check path as
-    /// the wanted lockfile, so a major-version mismatch surfaces as a
-    /// parse error rather than silently dropping the file.
+    /// against an empty `node_modules`), treating ENOENT as `null`.
+    /// Same parse / version-check path as the wanted lockfile, so a
+    /// major-version mismatch surfaces as a parse error rather than
+    /// silently dropping the file.
     pub fn load_current_from_virtual_store_dir(
         virtual_store_dir: &Path,
     ) -> Result<Option<Self>, LoadLockfileError> {
@@ -53,11 +51,11 @@ impl Lockfile {
         Self::load_from_path(&file_path)
     }
 
-    /// Load the wanted lockfile (`<dir>/pnpm-lock.yaml`). Mirrors
-    /// upstream's `readWantedLockfile(dir)` — a directory-addressed
-    /// loader for callers that resolve into a directory other than the
-    /// process's current one. Returns `Ok(None)` when the file is
-    /// absent, same as [`Self::load_from_current_dir`].
+    /// Load the wanted lockfile (`<dir>/pnpm-lock.yaml`) — a
+    /// directory-addressed loader for callers that resolve into a
+    /// directory other than the process's current one. Returns
+    /// `Ok(None)` when the file is absent, same as
+    /// [`Self::load_from_current_dir`].
     pub fn load_wanted_from_dir(dir: &Path) -> Result<Option<Self>, LoadLockfileError> {
         Self::load_from_path(&dir.join(Lockfile::FILE_NAME))
     }

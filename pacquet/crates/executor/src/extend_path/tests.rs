@@ -15,9 +15,6 @@ fn segments(path: &OsString) -> Vec<String> {
     env::split_paths(path).map(|path| path.to_string_lossy().into_owned()).collect()
 }
 
-/// Ports `test('the path to node-gyp should be added after the path
-/// to node_modules/.bin')` from
-/// <https://github.com/pnpm/npm-lifecycle/blob/d2d8e790/test/extendPath.test.js#L5-L8>.
 #[test]
 fn node_gyp_comes_after_node_modules_dot_bin() {
     let wd = Path::new("/Users/x/project");
@@ -45,8 +42,8 @@ fn node_gyp_comes_after_node_modules_dot_bin() {
     );
 }
 
-/// Mirrors the upstream split where `wd.split('/node_modules/')`
-/// returns a single-element array and the loop body never runs.
+/// When `wd` has no `/node_modules/` segment the split yields a single
+/// element and no ancestor `.bin` directories are produced.
 #[test]
 fn no_ancestors_when_wd_has_no_node_modules_segment() {
     let wd = Path::new("/home/me/project");
@@ -102,9 +99,9 @@ fn virtual_store_walk_orders_deepest_first() {
     }
 }
 
-/// Upstream order at lib/extendPath.js:6-19:
-///   `pathArr = [...extraBinPaths]` then unshift node-gyp, then
-///   unshift each .bin → final order [bins..., nodeGyp, ...extraBinPaths].
+/// Final PATH order is `[bins..., nodeGyp, ...extraBinPaths]`: the
+/// `.bin` directories come first, then the bundled node-gyp dir, then
+/// the caller-supplied extra paths.
 #[test]
 fn extra_bin_paths_come_after_bins_and_node_gyp() {
     let wd = Path::new("/proj");
@@ -157,17 +154,16 @@ fn scripts_prepend_node_path_always_appends_dirname_of_node() {
 }
 
 /// Regression: a path component containing the platform separator
-/// must not cause `extend_path` to drop the computed entries.
-/// Upstream's `pathArr.join(':')` produces the embedded-separator
-/// string verbatim; pacquet must match. Skipping on Windows where
-/// `;` is far less likely to appear in real paths, but the
-/// invariant holds there too.
+/// must not cause `extend_path` to drop the computed entries. The
+/// plain string join embeds the separator verbatim. Skipping on
+/// Windows where `;` is far less likely to appear in real paths, but
+/// the invariant holds there too.
 #[cfg(unix)]
 #[test]
 fn separator_in_path_component_does_not_drop_other_entries() {
     // A bin path that itself contains a colon — exotic, but valid
     // on POSIX. `env::join_paths` would reject it; the naive join
-    // mirrors upstream by embedding it verbatim.
+    // embeds it verbatim.
     let wd = Path::new("/proj");
     let weird = PathBuf::from("/tmp/a:b/.bin");
     let path = extend_path(
@@ -183,9 +179,9 @@ fn separator_in_path_component_does_not_drop_other_entries() {
     assert!(text.contains("/tmp/a:b/.bin"), "the weird extra path must survive verbatim: {text:?}");
 }
 
-/// `WarnOnly` would emit a warning upstream; pacquet's reporter-side
-/// emission is decoupled from extendPath, so this function just
-/// skips the prepend like `Never`.
+/// `WarnOnly` would emit a warning; that reporter-side emission is
+/// decoupled from `extend_path`, so this function just skips the
+/// prepend like `Never`.
 #[test]
 fn scripts_prepend_node_path_never_and_warn_only_do_not_prepend() {
     let wd = Path::new("/proj");

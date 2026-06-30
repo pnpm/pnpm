@@ -3,11 +3,9 @@ pub use pacquet_detect_libc::{host_arch, host_platform};
 /// Compute pnpm's `ENGINE_NAME` string — the same value pnpm uses
 /// as the side-effects cache key prefix.
 ///
-/// Ports
-/// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/core/constants/src/index.ts#L7>:
-/// ```js
-/// `${process.platform};${process.arch};node${process.version.split('.')[0].substring(1)}`
-/// ```
+/// The format is `<platform>;<arch>;node<major>`, where `platform`
+/// and `arch` use Node's naming scheme (the JS equivalent is
+/// `` `${process.platform};${process.arch};node${process.version.split('.')[0].substring(1)}` ``).
 ///
 /// `node_major` is the Node major version (e.g. `20`, `22`, `24`).
 /// Callers pass it as a number because the discovery side (spawning
@@ -88,8 +86,7 @@ fn parse_node_version_output(stdout: &str) -> Option<u32> {
 /// - `"glibc"` — glibc-based Linux.
 /// - `"unknown"` — non-Linux host (macOS, Windows, BSD, etc.) or
 ///   detection failure. `check_platform` treats this as "skip libc
-///   constraint" — see the upstream call site at
-///   <https://github.com/pnpm/pnpm/blob/94240bc046/config/package-is-installable/src/checkPlatform.ts#L38>.
+///   constraint".
 ///
 /// Delegates to [`pacquet_detect_libc::detect()`] for the
 /// actual detection; see that function for the fallback chain. The

@@ -1,8 +1,5 @@
 //! Fan-out runner for the lockfile-verification gate.
 //!
-//! Verbatim port of pnpm's
-//! [`verifyLockfileResolutions.ts`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutions.ts).
-//!
 //! Walks every entry in `lockfile.packages`, dedupes by
 //! `(name, version, resolution)`, and asks every active verifier to
 //! evaluate each candidate. Verifiers handle their own protocol
@@ -35,25 +32,22 @@ use crate::{
     hash_lockfile,
 };
 
-/// Default concurrency cap for the per-candidate fan-out. Mirrors
-/// upstream's `DEFAULT_CONCURRENCY = 64` (the floor of pnpm's
-/// `package-requester` network-concurrency formula).
+/// Default concurrency cap for the per-candidate fan-out: `64`, the
+/// floor of the `package-requester` network-concurrency formula.
 const DEFAULT_CONCURRENCY: usize = 64;
 
-/// Options bundle for [`verify_lockfile_resolutions`]. Mirrors
-/// upstream's
-/// [`VerifyLockfileResolutionsOptions`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutions.ts#L34-L47).
+/// Options bundle for [`verify_lockfile_resolutions`].
 #[derive(Debug, Default, Clone)]
 pub struct VerifyLockfileResolutionsOptions<'a> {
     /// Cap on concurrent verifier futures. `None` falls back to
-    /// the internal `DEFAULT_CONCURRENCY` (`64`, matching upstream).
+    /// the internal `DEFAULT_CONCURRENCY` (`64`).
     pub concurrency: Option<usize>,
     /// Absolute path of the lockfile being verified. Required for
     /// the on-disk verification cache (the stat shortcut + per-path
     /// index key off it) and surfaced in the
     /// `pnpm:lockfile-verification` reporter payload.
     pub lockfile_path: Option<&'a Path>,
-    /// Pnpm's on-disk cache directory. When set together with
+    /// The on-disk cache directory. When set together with
     /// `lockfile_path`, a successful run is memoised in
     /// `<cache_dir>/lockfile-verified.jsonl` and the gate
     /// short-circuits on a repeat run against an unchanged lockfile
@@ -112,9 +106,9 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
         );
         if result.hit {
             // A silent short-circuit looks like the policy gate never
-            // ran (pnpm/pnpm#12324), so surface the reused verdict —
-            // but only when policy verifiers are active; the
-            // shape-only run that every install performs stays quiet.
+            // ran, so surface the reused verdict — but only when policy
+            // verifiers are active; the shape-only run that every
+            // install performs stays quiet.
             if !verifiers.is_empty() {
                 emit::<Reporter>(
                     LogLevel::Debug,
@@ -141,9 +135,7 @@ pub async fn verify_lockfile_resolutions<Reporter: self::Reporter>(
     }
     if candidates.is_empty() {
         // Persist the success so the next install can stat-only the
-        // lockfile. Matches upstream's behavior at
-        // `verifyLockfileResolutions.ts:124-132` — empty fan-out is
-        // still a successful run.
+        // lockfile. An empty fan-out is still a successful run.
         if let Some((cache_dir, lockfile_path)) = cache_inputs {
             record_verification(
                 cache_dir,
@@ -282,7 +274,7 @@ impl ResolutionVerifier for OfflineCheckCacheIdentity {
     }
 }
 
-/// Mirrors upstream's `isRegistryShapedResolution`: a plain tarball
+/// Whether a resolution is registry-shaped. A plain tarball
 /// resolution is registry-shaped because the npm verifier unconditionally
 /// binds explicit tarball URLs of semver-keyed entries to the registry's
 /// own `dist.tarball`. A git-hosted tarball is not — and trust is gated on
@@ -318,8 +310,8 @@ fn is_http_tarball_url(url: &str) -> bool {
 }
 
 /// Add every alias in `aliases` that fails
-/// `is_valid_old_npm_package_name` (the `validForOldPackages` rule
-/// pnpm's `isValidDependencyAlias` applies) to `invalid`. Only pass maps
+/// `is_valid_old_npm_package_name` (the `validForOldPackages` rule the
+/// dependency-alias check applies) to `invalid`. Only pass maps
 /// whose keys become `node_modules/<alias>` directories — not
 /// `overrides`, `patched_dependencies`, or peer dependencies.
 fn push_invalid_aliases<'alias>(
@@ -335,8 +327,7 @@ fn push_invalid_aliases<'alias>(
 }
 
 /// One `(name, version, resolution)` tuple deduplicated from
-/// `lockfile.packages`. Mirrors upstream's inline `Candidate`
-/// interface.
+/// `lockfile.packages`.
 struct Candidate {
     name: PkgName,
     version: String,
@@ -344,8 +335,7 @@ struct Candidate {
 }
 
 /// Walk `lockfile.packages` and dedupe by
-/// `(name, version, resolution-json)`. Mirrors upstream's
-/// [`collectCandidates`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutions.ts#L248-L261).
+/// `(name, version, resolution-json)`.
 ///
 /// The serialized resolution is part of the key so two entries that
 /// share a `(name, version)` but differ in *what* was resolved (npm
@@ -512,8 +502,7 @@ async fn evaluate_candidate(
 }
 
 /// Sort violations by `name@version` and build the matching
-/// [`VerifyError`]. Mirrors upstream's
-/// [`buildVerificationError`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutions.ts#L172-L206).
+/// [`VerifyError`].
 fn build_verification_error(mut violations: Vec<ResolutionPolicyViolation>) -> VerifyError {
     violations.sort_by(|left, right| {
         format!("{}@{}", left.name, left.version).cmp(&format!("{}@{}", right.name, right.version))

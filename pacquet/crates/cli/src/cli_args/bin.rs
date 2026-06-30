@@ -9,10 +9,7 @@ use super::global::GlobalError;
 /// Locally this is `<dir>/node_modules/.bin`: the `node_modules/.bin` leaf is
 /// hardcoded, so a configured `modules-dir` is ignored, and the anchor is
 /// `--dir` (pnpm's `config.dir`, the cwd, not the workspace root). `--global`
-/// prints the resolved global bin directory instead. Ports pnpm's `bin`
-/// (<https://github.com/pnpm/pnpm/blob/fc2f33912e/pnpm11/pnpm/src/cmd/bin.ts>)
-/// and its config-reader bin resolution
-/// (<https://github.com/pnpm/pnpm/blob/3425e8011c/pnpm11/config/reader/src/index.ts>).
+/// prints the resolved global bin directory instead.
 #[derive(Debug, Args)]
 pub struct BinArgs {
     /// Print the global executables directory

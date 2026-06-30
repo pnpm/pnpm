@@ -1,14 +1,13 @@
-//! Workspace-protocol rewriting for [`@pnpm/releasing.exportable-manifest`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/releasing/exportable-manifest/src/index.ts#L139-L194).
+//! Workspace-protocol rewriting for the exportable manifest.
 //!
-//! Two free functions match upstream's two `replaceWorkspaceProtocol*`
-//! helpers:
+//! Two free functions:
 //!
 //! - [`replace_workspace_protocol`] — the regular-dependency form.
 //!   Resolves `workspace:` specs against the dependency's already-
 //!   installed `package.json` in `node_modules`.
 //! - [`replace_workspace_protocol_peer_dependency`] — the
 //!   peer-dependency form. Accepts the broader `>=`/`<=`/`>`/`<`
-//!   comparators upstream allows in peer specs and rewrites every
+//!   comparators allowed in peer specs and rewrites every
 //!   `workspace:` segment in place so a compound `a || workspace:>=`
 //!   round-trips correctly.
 
@@ -20,10 +19,9 @@ use pacquet_package_manifest::{PackageManifestError, safe_read_package_json_from
 use serde_json::Value;
 
 /// Error returned when the lookup against the dependency's installed
-/// `package.json` fails. Mirrors pnpm's
-/// [`CANNOT_RESOLVE_WORKSPACE_PROTOCOL`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/releasing/exportable-manifest/src/index.ts#L117-L127)
-/// error code; preserve the public message so reporters that key off
-/// `ERR_PNPM_CANNOT_RESOLVE_WORKSPACE_PROTOCOL` keep matching.
+/// `package.json` fails. Carries the
+/// `ERR_PNPM_CANNOT_RESOLVE_WORKSPACE_PROTOCOL` error code; preserve the
+/// public message so reporters that key off it keep matching.
 #[derive(Debug, Display, Error, Diagnostic, Clone)]
 #[display(
     "Cannot resolve workspace protocol of dependency \"{dep_name}\" \
@@ -50,9 +48,7 @@ pub enum ReplaceWorkspaceProtocolError {
     ReadManifest(#[error(source)] PackageManifestError),
 }
 
-/// Port of upstream's
-/// [`replaceWorkspaceProtocol`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/releasing/exportable-manifest/src/index.ts#L139-L168)
-/// — rewrites a single `dependencies` / `devDependencies` /
+/// Rewrites a single `dependencies` / `devDependencies` /
 /// `optionalDependencies` value at publish time.
 ///
 /// Returns `dep_spec` unchanged when it doesn't start with `workspace:`
@@ -115,9 +111,7 @@ pub fn replace_workspace_protocol(
     Ok(rest.to_string())
 }
 
-/// Port of upstream's
-/// [`replaceWorkspaceProtocolPeerDependency`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/releasing/exportable-manifest/src/index.ts#L170-L194)
-/// — rewrites a `peerDependencies` value.
+/// Rewrites a `peerDependencies` value at publish time.
 ///
 /// `peerDependencies` allows compound ranges (`workspace:>= || ^3.9.0`),
 /// so this helper accepts the broader comparator set (`>=`, `<=`, `>`,
@@ -132,10 +126,10 @@ pub fn replace_workspace_protocol_peer_dependency(
     if !dep_spec.contains("workspace:") {
         return Ok(dep_spec.to_string());
     }
-    // Mirror upstream's JS `.replace('workspace:', '')`, which removes
-    // only the first occurrence. Rust's `str::replace` is all-occurrence;
-    // use `replacen(_, _, 1)` so compound peer specs like
-    // `^1.0.0 || workspace:>=1 || workspace:>=2` keep parity with pnpm.
+    // Only the first `workspace:` occurrence is stripped. Rust's
+    // `str::replace` is all-occurrence; use `replacen(_, _, 1)` so
+    // compound peer specs like `^1.0.0 || workspace:>=1 || workspace:>=2`
+    // keep the right behavior.
     let Some(matched) = find_workspace_peer_segment(dep_spec) else {
         return Ok(dep_spec.replacen("workspace:", "", 1));
     };
@@ -163,9 +157,9 @@ pub fn replace_workspace_protocol_peer_dependency(
 }
 
 /// Read `<dependency_dir>/package.json` and verify the `name` / `version`
-/// fields are present. Surfaces the same
-/// [`CANNOT_RESOLVE_WORKSPACE_PROTOCOL`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/releasing/exportable-manifest/src/index.ts#L117-L127)
-/// error pnpm raises when the dependency hasn't been installed yet.
+/// fields are present. Surfaces the
+/// `ERR_PNPM_CANNOT_RESOLVE_WORKSPACE_PROTOCOL` error when the
+/// dependency hasn't been installed yet.
 fn read_and_check_manifest(
     dep_name: &str,
     dependency_dir: &Path,
@@ -193,29 +187,24 @@ fn read_and_check_manifest(
 }
 
 /// The two fields the rewriters consult on the dependency's manifest.
-/// Mirrors the slice pnpm's `tryReadProjectManifest` returns for this
-/// codepath.
 struct DependencyManifest {
     name: String,
     version: String,
 }
 
 /// Output of [`parse_version_alias_spec`]: the optional sentinel
-/// character (`^`/`~`/`*`). Upstream's regex captures the alias
-/// portion too, but pacquet's branch only consults the version-token
-/// captured by the second group; the alias is implied by the spec
-/// shape and re-read from the dependency manifest, never from the
-/// regex group.
+/// character (`^`/`~`/`*`). The alias portion of the spec is not
+/// captured here — it is implied by the spec shape and re-read from the
+/// dependency manifest.
 struct VersionAliasMatch {
     sentinel: Option<char>,
 }
 
-/// Port of upstream's `^workspace:(?:(.+)@)?([\^~*])?$` regex.
+/// Parse the `workspace:` suffix of the form `(<alias>@)?[\^~*]?`.
 ///
-/// The TS impl uses JS-regex greedy backtracking on `.+@`, so the
-/// alias spans up to (and including) the **last** `@` in the suffix.
-/// Returns `None` when the input has trailing characters past an
-/// optional `^`/`~`/`*` sentinel — same shape as the regex failing.
+/// Greedy backtracking on the alias means it spans up to (and
+/// including) the **last** `@` in the suffix. Returns `None` when the
+/// input has trailing characters past an optional `^`/`~`/`*` sentinel.
 fn parse_version_alias_spec(after_protocol: &str) -> Option<VersionAliasMatch> {
     let after_alias = match after_protocol.rfind('@') {
         Some(idx) if idx >= 1 => &after_protocol[idx + 1..],
@@ -237,8 +226,7 @@ fn parse_version_alias_spec(after_protocol: &str) -> Option<VersionAliasMatch> {
 }
 
 /// Strip the `workspace:` prefix and return the path portion of a
-/// relative `workspace:./` or `workspace:../` spec. Mirrors upstream's
-/// `depSpec.slice(10)` on this branch.
+/// relative `workspace:./` or `workspace:../` spec.
 fn strip_workspace_relative_prefix(dep_spec: &str) -> Option<&str> {
     if dep_spec.starts_with("workspace:./") || dep_spec.starts_with("workspace:../") {
         return Some(&dep_spec["workspace:".len()..]);
@@ -246,19 +234,18 @@ fn strip_workspace_relative_prefix(dep_spec: &str) -> Option<&str> {
     None
 }
 
-/// One match of upstream's peer-dependency regex
+/// One `workspace:`-led peer segment of the form
 /// `workspace:([\^~*]|>=|>|<=|<)?((\d+|[xX*])(\.(\d+|[xX*])){0,2})?`.
 struct WorkspacePeerSegment<'a> {
     /// Byte offset of the leading `workspace:` in the input.
     start: usize,
     /// Byte offset one past the end of the matched region.
     end: usize,
-    /// The semver-range comparator captured by the regex's first
-    /// group, or the empty string when no comparator preceded the
-    /// version component.
+    /// The semver-range comparator, or the empty string when no
+    /// comparator preceded the version component.
     range_group: &'a str,
-    /// The version component, if any. Empty string when the regex's
-    /// second group didn't match.
+    /// The version component, if any. Empty string when no version
+    /// component followed the comparator.
     version: &'a str,
 }
 

@@ -1,5 +1,4 @@
-//! Pacquet port of pnpm's
-//! [`parseBareSpecifier`](https://github.com/pnpm/pnpm/blob/1627943d2a/resolving/npm-resolver/src/parseBareSpecifier.ts).
+//! Bare-specifier parsing for the npm resolver.
 //!
 //! Routes a raw bare specifier (`"^1.0.0"`, `"latest"`,
 //! `"npm:lodash@^4"`, `"https://registry.npmjs.org/foo/-/foo-1.0.0.tgz"`)
@@ -99,10 +98,6 @@ pub fn parse_bare_specifier(
 /// JSR-style scoped name alongside the npm-shaped fields so the
 /// resolver can record the dependency under its JSR alias while
 /// driving the picker against the `@jsr` registry.
-///
-/// Mirrors upstream's [`JsrRegistryPackageSpec`][ts-JsrRegistryPackageSpec].
-///
-/// [ts-JsrRegistryPackageSpec]: https://github.com/pnpm/pnpm/blob/1627943d2a/resolving/npm-resolver/src/parseBareSpecifier.ts#L64-L66
 #[derive(Debug, Clone)]
 pub struct JsrRegistryPackageSpec {
     pub spec: RegistryPackageSpec,
@@ -118,9 +113,6 @@ pub struct JsrRegistryPackageSpec {
 /// to `default_tag` when the specifier omits one). Returns
 /// `Ok(None)` for any non-`jsr:` specifier so the caller can fall
 /// through to the npm bare-specifier parser.
-///
-/// Mirrors upstream's
-/// [`parseJsrSpecifierToRegistryPackageSpec`](https://github.com/pnpm/pnpm/blob/1627943d2a/resolving/npm-resolver/src/parseBareSpecifier.ts#L68-L85).
 pub fn parse_jsr_specifier_to_registry_package_spec(
     raw_specifier: &str,
     alias: Option<&str>,
@@ -150,10 +142,6 @@ pub fn parse_jsr_specifier_to_registry_package_spec(
 /// matched alias alongside the npm-shaped fields so the resolver can
 /// route the metadata fetch to the configured registry URL while still
 /// driving the picker against an npm-shaped spec.
-///
-/// Mirrors upstream's [`NamedRegistryPackageSpec`][ts-NamedRegistryPackageSpec].
-///
-/// [ts-NamedRegistryPackageSpec]: https://github.com/pnpm/pnpm/blob/b61e268d57/resolving/npm-resolver/src/parseBareSpecifier.ts#L91-L93
 #[derive(Debug, Clone)]
 pub struct NamedRegistryPackageSpec {
     pub spec: RegistryPackageSpec,
@@ -163,10 +151,9 @@ pub struct NamedRegistryPackageSpec {
     pub registry_name: String,
 }
 
-/// Failure from [`parse_named_registry_specifier_to_registry_package_spec`].
-///
-/// Mirrors upstream's
-/// [`ERR_PNPM_INVALID_NAMED_REGISTRY_PACKAGE_NAME`](https://github.com/pnpm/pnpm/blob/b61e268d57/resolving/npm-resolver/src/parseBareSpecifier.ts#L131-L136).
+/// Failure from [`parse_named_registry_specifier_to_registry_package_spec`],
+/// surfaced with the `ERR_PNPM_INVALID_NAMED_REGISTRY_PACKAGE_NAME`
+/// code.
 #[derive(Debug, Display, Error, Diagnostic, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ParseNamedRegistrySpecifierError {
@@ -194,9 +181,6 @@ pub enum ParseNamedRegistrySpecifierError {
 /// Supported shapes:
 /// - `<alias>:[@<owner>/]<name>[@<version_selector>]`
 /// - `<alias>:<version_selector>` paired with a package alias
-///
-/// Mirrors upstream's
-/// [`parseNamedRegistrySpecifierToRegistryPackageSpec`](https://github.com/pnpm/pnpm/blob/b61e268d57/resolving/npm-resolver/src/parseBareSpecifier.ts#L101-L164).
 pub fn parse_named_registry_specifier_to_registry_package_spec(
     raw_specifier: &str,
     known_registry_names: &HashSet<String>,
@@ -277,12 +261,10 @@ pub fn parse_named_registry_specifier_to_registry_package_spec(
 }
 
 /// Discriminate between an exact version, a semver range, and a
-/// dist-tag, returning the normalized form alongside the discriminator.
-/// Mirrors npm's
-/// [`version-selector-type`](https://github.com/pnpm/version-selector-type/blob/v3.0.0/index.js):
+/// dist-tag, returning the normalized form alongside the discriminator:
 /// version first, range second, tag last. Returns `None` only when the
-/// selector contains characters that JS's `encodeURIComponent` would
-/// escape (i.e. not a valid npm tag).
+/// selector contains characters that `encodeURIComponent` would escape
+/// (i.e. not a valid npm tag).
 pub(crate) fn get_version_selector_type(selector: &str) -> Option<VersionSelectorMatch> {
     if let Ok(version) = Version::parse(selector) {
         return Some(VersionSelectorMatch {
@@ -305,8 +287,8 @@ pub(crate) fn get_version_selector_type(selector: &str) -> Option<VersionSelecto
     None
 }
 
-/// Mirrors JS's `encodeURIComponent(s) === s` check upstream uses to
-/// reject anything not safe to embed in a URL segment. The unreserved
+/// Mirrors JS's `encodeURIComponent(s) === s` check, rejecting
+/// anything not safe to embed in a URL segment. The unreserved
 /// set is `A-Z a-z 0-9 - _ . ! ~ * ' ( )` — anything else (including
 /// `/`, `:`, spaces) bumps the candidate out of the tag bucket so
 /// protocol-prefixed specifiers fall through to the next resolver.
@@ -325,9 +307,7 @@ struct NpmTarballUrl {
     version: String,
 }
 
-/// Pacquet port of npm's
-/// [`parse-npm-tarball-url`](https://github.com/zkochan/packages/blob/main/parse-npm-tarball-url/src/index.ts).
-/// Extracts `(name, version)` from a URL like
+/// Extract `(name, version)` from an npm tarball URL like
 /// `https://registry.npmjs.org/foo/-/foo-1.0.0.tgz`. Returns `None`
 /// when the URL doesn't fit the npm tarball layout or the trailing
 /// version segment isn't valid semver.

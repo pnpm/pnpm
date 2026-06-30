@@ -1,14 +1,11 @@
 //! Read a project's `package.json`.
 //!
-//! Port of upstream's
-//! [`readProjectManifest` / `tryReadProjectManifest` / `readExactProjectManifest`](https://github.com/pnpm/pnpm/blob/94240bc046/workspace/project-manifest-reader/src/index.ts).
-//!
-//! Upstream also supports `package.json5` and `package.yaml` and
-//! returns a writer closure that preserves formatting. Pacquet doesn't
-//! consume either alternative format yet, and the install pipeline
-//! never writes the manifest back — so this port handles `package.json`
-//! only and drops the writer closure. Adding the other formats is a
-//! follow-up if real workspaces in the wild use them.
+//! pnpm also supports `package.json5` and `package.yaml` and returns a
+//! writer closure that preserves formatting. Pacquet doesn't consume
+//! either alternative format yet, and the install pipeline never writes
+//! the manifest back — so this handles `package.json` only and has no
+//! writer closure. Adding the other formats is a follow-up if real
+//! workspaces in the wild use them.
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -32,7 +29,7 @@ pub enum ReadProjectManifestError {
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum ReadProjectManifestOnlyError {
-    // Upstream's variant of this message lists `package.yaml` and
+    // pnpm's variant of this message lists `package.yaml` and
     // `package.json5` alongside `package.json`. Pacquet only probes
     // `package.json` today, so the diagnostic mentions just that one —
     // bring back the alternatives when the readers do.
@@ -47,10 +44,9 @@ pub enum ReadProjectManifestOnlyError {
 /// Read the manifest under `project_dir`.
 ///
 /// Returns the manifest plus the basename that was loaded. Today the
-/// only supported basename is `package.json`; the function exists in
-/// its current shape to mirror upstream's tri-format probing so callers
-/// can stay structurally the same when `package.json5` / `package.yaml`
-/// support lands.
+/// only supported basename is `package.json`; the function returns the
+/// basename so callers can stay structurally the same when
+/// `package.json5` / `package.yaml` support lands.
 pub fn try_read_project_manifest(
     project_dir: &Path,
 ) -> Result<Option<(&'static str, PackageManifest)>, ReadProjectManifestOnlyError> {
@@ -63,8 +59,7 @@ pub fn try_read_project_manifest(
     Ok(Some(("package.json", manifest)))
 }
 
-/// Strict version: error when no manifest is found. Mirrors upstream's
-/// `readProjectManifest`.
+/// Strict version: error when no manifest is found.
 pub fn read_project_manifest_only(
     project_dir: &Path,
 ) -> Result<PackageManifest, ReadProjectManifestOnlyError> {
@@ -77,18 +72,16 @@ pub fn read_project_manifest_only(
 }
 
 /// Like [`read_project_manifest_only`] but returns `None` instead of
-/// erroring when the manifest is missing. Mirrors upstream's
-/// `safeReadProjectManifestOnly`.
+/// erroring when the manifest is missing.
 pub fn safe_read_project_manifest_only(
     project_dir: &Path,
 ) -> Result<Option<PackageManifest>, ReadProjectManifestOnlyError> {
     Ok(try_read_project_manifest(project_dir)?.map(|(_, m)| m))
 }
 
-/// Read a manifest from an explicit path. Mirrors upstream's
-/// `readExactProjectManifest`, which probes the basename to pick a
-/// parser. Pacquet only supports `package.json`; other basenames are
-/// rejected with the same wording upstream uses.
+/// Read a manifest from an explicit path, probing the basename to pick
+/// a parser. Pacquet only supports `package.json`; other basenames are
+/// rejected with the same wording pnpm uses.
 pub fn read_exact_project_manifest(
     manifest_path: &Path,
 ) -> Result<PackageManifest, ReadProjectManifestError> {

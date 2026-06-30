@@ -67,12 +67,12 @@ pub enum FetchMetadataError {
         error: serde_json::Error,
     },
 
-    /// Mirrors upstream's `META_NOT_MODIFIED_WITHOUT_CACHE`. Surfaces
-    /// only when a stale-but-removed mirror plus an `If-None-Match`
-    /// header the caller-provided cache headers carried (impossible
-    /// in pacquet's chain because we always read headers off a
-    /// present mirror) would trip a 304 reply we have no body to
-    /// satisfy — a defense-in-depth check for hand-edited caches.
+    /// `META_NOT_MODIFIED_WITHOUT_CACHE`. Surfaces only when a
+    /// stale-but-removed mirror plus an `If-None-Match` header the
+    /// caller-provided cache headers carried (impossible in pacquet's
+    /// chain because we always read headers off a present mirror)
+    /// would trip a 304 reply we have no body to satisfy — a
+    /// defense-in-depth check for hand-edited caches.
     #[display("Registry returned 304 for {pkg_name} without an existing cache to refresh.")]
     #[diagnostic(code(pacquet_resolving_npm_resolver::not_modified_without_cache))]
     NotModifiedWithoutCache {
@@ -80,10 +80,9 @@ pub enum FetchMetadataError {
         pkg_name: String,
     },
 
-    /// Mirrors upstream's `META_CACHE_MISSING_AFTER_304`. The mirror
-    /// existed when we read its headers but vanished before the
-    /// full read on a 304 response — concurrent cache cleanup,
-    /// antivirus, etc.
+    /// `META_CACHE_MISSING_AFTER_304`. The mirror existed when we read
+    /// its headers but vanished before the full read on a 304 response
+    /// — concurrent cache cleanup, antivirus, etc.
     #[display("Metadata cache for {pkg_name} disappeared between headers read and full read.")]
     #[diagnostic(code(pacquet_resolving_npm_resolver::cache_missing_after_304))]
     CacheMissingAfter304 {
@@ -109,16 +108,15 @@ impl FetchMetadataError {
     /// ([`FetchMetadataError::BodyRead`]) or a body that parsed as
     /// broken JSON ([`FetchMetadataError::Decode`]). This is the
     /// predicate the fetchers hand to
-    /// [`pacquet_network::retry_async`], mirroring pnpm's metadata
-    /// fetch, which retries exactly `response.text()` and `JSON.parse`
-    /// failures while letting the network library own request retry
-    /// ([`resolving/npm-resolver/src/fetch.ts`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetch.ts#L172-L210)).
+    /// [`pacquet_network::retry_async`]: retry exactly the body-read
+    /// and JSON-parse failures while letting the network library own
+    /// request retry.
     ///
     /// [`FetchMetadataError::Network`] stays non-retryable here: the
     /// request (transport error or a `4xx`/`5xx` status) was already
-    /// retried inside [`pacquet_network::send_with_retry`], exactly as
-    /// pnpm rejects a fetch failure immediately rather than re-running
-    /// its outer operation.
+    /// retried inside [`pacquet_network::send_with_retry`], so a fetch
+    /// failure is rejected immediately rather than re-running the outer
+    /// operation.
     #[must_use]
     pub fn is_body_retryable(&self) -> bool {
         matches!(self, FetchMetadataError::BodyRead { .. } | FetchMetadataError::Decode { .. })

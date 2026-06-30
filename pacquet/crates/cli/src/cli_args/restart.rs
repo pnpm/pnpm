@@ -5,9 +5,6 @@ use super::run::RunArgs;
 /// Restarts a package. Runs a package's "stop", "restart", and "start"
 /// scripts, and associated pre- and post- scripts.
 ///
-/// Ports the `restart` command from
-/// <https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/commands/src/restart.ts>.
-///
 /// Each script is executed through the full [`RunArgs`] pipeline, so
 /// lifecycle hooks (`pre<name>` / `post<name>`) and environment setup
 /// apply when `enablePrePostScripts` is set.

@@ -77,9 +77,8 @@ pub struct InstallArgs {
     pub dependency_options: InstallDependencyOptions,
 
     /// `--cpu` / `--os` / `--libc` overrides for the optional-dep
-    /// platform filter. Mirrors upstream pnpm's CLI flags; merges
-    /// per-axis into `supportedArchitectures` loaded from
-    /// `pnpm-workspace.yaml`.
+    /// platform filter. Merges per-axis into `supportedArchitectures`
+    /// loaded from `pnpm-workspace.yaml`.
     #[clap(flatten)]
     pub supported_architectures: SupportedArchitecturesArgs,
 
@@ -160,8 +159,7 @@ pub struct InstallArgs {
     pub ignore_scripts: bool,
 
     /// Override `nodeLinker` from `pnpm-workspace.yaml` /
-    /// `.npmrc`. Mirrors upstream pnpm's `--node-linker` flag.
-    /// `None` (flag not passed) leaves the config's value
+    /// `.npmrc`. `None` (flag not passed) leaves the config's value
     /// untouched; otherwise the CLI value wins for this invocation
     /// and is what gets written to `.modules.yaml.nodeLinker`.
     /// `isolated` is the default, `hoisted` selects the flat
@@ -173,14 +171,12 @@ pub struct InstallArgs {
     /// When the warm prefetch and the `index.db` lookup both miss
     /// for a package, pacquet fails with
     /// `ERR_PACQUET_NO_OFFLINE_TARBALL` rather than hitting the
-    /// registry. Mirrors pnpm's
-    /// [`--offline`](https://github.com/pnpm/pnpm/blob/94240bc046/resolving/npm-resolver/src/pickPackage.ts)
-    /// in spirit; upstream's flag gates the metadata-fetch path
-    /// (`ERR_PNPM_NO_OFFLINE_META`), which pacquet doesn't have on
-    /// the frozen-install flow (the lockfile pins every
+    /// registry. The `--offline` flag also gates the metadata-fetch
+    /// path (`ERR_PNPM_NO_OFFLINE_META`), which pacquet doesn't have
+    /// on the frozen-install flow (the lockfile pins every
     /// resolution), so this flag is currently scoped to artifact
     /// fetches. Stage 2's resolver will extend the gate to the
-    /// metadata path, matching upstream byte-for-byte.
+    /// metadata path.
     ///
     /// Overrides `offline` from `pnpm-workspace.yaml`: any
     /// `--offline` upgrades a yaml `false` to `true`, but cannot
@@ -201,15 +197,13 @@ pub struct InstallArgs {
     pub frozen_store: bool,
 
     /// Prefer cached artifacts over network fetches when both have
-    /// what's needed. Mirrors pnpm's
-    /// [`--prefer-offline`](https://github.com/pnpm/pnpm/blob/94240bc046/resolving/npm-resolver/src/pickPackage.ts)
-    /// in spirit; upstream's flag biases the metadata resolver to
-    /// the cached copy past the freshness window. Pacquet's
-    /// frozen-install path already prefers the local store via the
-    /// warm prefetch + `index.db` lookups, so the flag is a no-op
-    /// for artifact fetches today. Field exists so yaml / CLI parse
-    /// cleanly; Stage 2's resolver will honor it on the metadata
-    /// path the way upstream does.
+    /// what's needed. The `--prefer-offline` flag biases the
+    /// metadata resolver to the cached copy past the freshness
+    /// window. Pacquet's frozen-install path already prefers the
+    /// local store via the warm prefetch + `index.db` lookups, so
+    /// the flag is a no-op for artifact fetches today. Field exists
+    /// so yaml / CLI parse cleanly; Stage 2's resolver will honor it
+    /// on the metadata path.
     #[clap(long)]
     pub prefer_offline: bool,
 
@@ -231,9 +225,8 @@ pub struct InstallArgs {
     /// `workspaceConcurrency` value resolved from `pnpm-workspace.yaml` /
     /// global `config.yaml` / `PNPM_CONFIG_WORKSPACE_CONCURRENCY` for
     /// this invocation. A non-positive value is read as
-    /// `parallelism - |value|` (floored at 1), matching upstream's
-    /// [`getWorkspaceConcurrency`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.ts#L25-L34).
-    /// `None` (flag absent) leaves the config-resolved value in place.
+    /// `parallelism - |value|` (floored at 1). `None` (flag absent)
+    /// leaves the config-resolved value in place.
     ///
     /// Applied to [`pacquet_config::Config::workspace_concurrency`] at
     /// the CLI dispatch in [`crate::cli_args::CliArgs::run`]; see that
@@ -453,8 +446,7 @@ impl InstallArgs {
 
         // pnpr fast path: when a `pnprServer` URL is configured, offload
         // resolution + fetching to it, then link `node_modules` from the
-        // server-produced lockfile via the normal frozen install. Mirrors
-        // pnpm's `install()` delegating to `installFromPnpmRegistry`.
+        // server-produced lockfile via the normal frozen install.
         if let Some(pnpr_server) = config.pnpr_server.as_deref() {
             // The pnpr path resolves and links through the server, so it
             // can't honor `--dry-run`'s no-write contract. Reject up front,
@@ -525,10 +517,6 @@ impl InstallArgs {
     /// value means `parallelism - |value|`, floored at 1), otherwise
     /// the already-resolved `config_value` from `pnpm-workspace.yaml` /
     /// global `config.yaml` / `PNPM_CONFIG_WORKSPACE_CONCURRENCY`.
-    ///
-    /// Mirrors upstream's final `workspaceConcurrency =
-    /// getWorkspaceConcurrency(...)` pass at
-    /// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/index.ts#L641>.
     pub(crate) fn resolve_workspace_concurrency(&self, config_value: u32) -> u32 {
         match self.workspace_concurrency {
             Some(value) => pacquet_config::resolve_child_concurrency(Some(value)),
@@ -613,10 +601,8 @@ struct DryRunIncompatibleWithPnpr;
 /// them and returns the resolved lockfile; writes that lockfile, then
 /// runs a frozen install to materialize `node_modules` from it — the
 /// frozen install fetches every tarball from the registries itself, like
-/// a normal install. This is the equivalent of pnpm's
-/// `installFromPnpmRegistry` handing off to `headlessInstall`. Under
-/// `--lockfile-only` it stops after writing the lockfile (fetch nothing,
-/// link nothing).
+/// a normal install. Under `--lockfile-only` it stops after writing the
+/// lockfile (fetch nothing, link nothing).
 pub(crate) async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
     state: &State,
     pnpr_server: &str,
@@ -626,8 +612,8 @@ pub(crate) async fn install_via_pnpr<Reporter: self::Reporter + 'static>(
     // straight into the store, so this path inherently writes the store.
     // `frozenStore` promises the store is complete and read-only, so the
     // two are mutually exclusive — refuse up front instead of failing on
-    // the read-only write. Mirrors pnpm's `FROZEN_STORE_INCOMPATIBLE_WITH_PNPR`
-    // guard in `installFromPnpmRegistry`.
+    // the read-only write with the `FROZEN_STORE_INCOMPATIBLE_WITH_PNPR`
+    // guard.
     if state.config.frozen_store {
         return Err(FrozenStoreIncompatibleWithPnpr.into());
     }

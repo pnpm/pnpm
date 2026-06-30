@@ -1,8 +1,6 @@
 //! `pacquet setup` — make pnpm available for global use.
 //!
-//! Ports pnpm's
-//! [`setup` command](https://github.com/pnpm/pnpm/blob/a33eeec9cd/pnpm11/engine/pm/commands/src/setup/setup.ts):
-//! the CLI is installed into the global packages directory, the `pn` /
+//! The CLI is installed into the global packages directory, the `pn` /
 //! `pnpx` / `pnx` alias scripts are written into `$PNPM_HOME/bin`, and
 //! `PNPM_HOME` plus `$PNPM_HOME/bin` are added to the user's environment
 //! (the shell rc file on POSIX, the registry on Windows).
@@ -74,7 +72,7 @@ fn handler<Reporter: self::Reporter + 'static>(force: bool, dir: &Path) -> miett
 
 /// Install the CLI as a global package using `pnpm add -g file:<dir>`,
 /// placing it in the standard global directory alongside other globally
-/// installed packages. Mirrors pnpm's `installCliGlobally`.
+/// installed packages.
 fn install_cli_globally<Reporter: self::Reporter + 'static>(
     exec_path: &Path,
     pnpm_home_dir: &Path,
@@ -114,8 +112,7 @@ fn install_cli_globally<Reporter: self::Reporter + 'static>(
     // of that applies here: this `file:` dependency is the standalone
     // executable itself, the platform packages aren't installed alongside
     // it, and the host may have no `node` to run the scripts. Skipping them
-    // also avoids a build-approval prompt for pnpm's own install. See
-    // <https://github.com/pnpm/pnpm/issues/12377>.
+    // also avoids a build-approval prompt for pnpm's own install.
     let separator = if cfg!(windows) { ";" } else { ":" };
     // Build `PATH` as an `OsString` so a non-UTF-8 ambient `PATH` is
     // preserved verbatim rather than lost to a lossy string conversion.
@@ -130,8 +127,8 @@ fn install_cli_globally<Reporter: self::Reporter + 'static>(
         .env("PATH", path_value)
         .status();
 
-    // Mirror pnpm's `try { spawn } finally { unlink }`: always attempt the
-    // cleanup, but let the install error take precedence over a cleanup error.
+    // Always attempt the cleanup, but let the install error take precedence
+    // over a cleanup error.
     let cleanup = if created_pkg_json { fs::remove_file(&pkg_json_path) } else { Ok(()) };
 
     let status = status.into_diagnostic().wrap_err("run the global pnpm install")?;
@@ -146,7 +143,6 @@ fn install_cli_globally<Reporter: self::Reporter + 'static>(
 }
 
 /// Write the `pn` / `pnpx` / `pnx` wrapper scripts into `$PNPM_HOME/bin`.
-/// Mirrors pnpm's `createAliasScripts`.
 ///
 /// Script files are used instead of shell aliases because aliases don't work
 /// across all shells (Windows `cmd`, POSIX `sh`) or environments
@@ -179,8 +175,7 @@ fn create_shell_script(target_dir: &Path, name: &str, command: &str) -> std::io:
     Ok(())
 }
 
-/// Render the user-facing summary of what changed. Mirrors pnpm's
-/// `renderSetupOutput`.
+/// Render the user-facing summary of what changed.
 fn render_setup_output(report: &PathExtenderReport) -> String {
     if report.old_settings == report.new_settings {
         return "No changes to the environment were made. Everything is already up to date."

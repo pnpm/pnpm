@@ -1,8 +1,7 @@
 //! On-disk packument-mirror helpers.
 //!
-//! Ports the cache-path and IO helpers in pnpm's
-//! [`pickPackage.ts`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts)
-//! the verifier needs to share the resolver's metadata mirror:
+//! The cache-path and IO helpers the verifier needs to share the
+//! resolver's metadata mirror:
 //!
 //! - [`get_pkg_mirror_path`] — `<cache_dir>/<meta_dir>/<registry-encoded>/<encoded-name>.jsonl`.
 //! - [`load_meta_headers`] — read just the headers record (etag,
@@ -41,9 +40,8 @@
 //! - [`encode_pkg_name`] — mixed-case package names get a sha256 hex
 //!   suffix so case-insensitive filesystems (HFS+, NTFS by default)
 //!   can't collide two distinct package names onto one mirror file.
-//! - [`get_registry_name`] — `host[:port]` with `:` → `+` (the
-//!   filesystem-safe encoding the npm `encode-registry` package
-//!   produces).
+//! - [`get_registry_name`] — `host[:port]` with `:` → `+` (a
+//!   filesystem-safe encoding).
 
 use std::{
     collections::HashMap,
@@ -65,19 +63,13 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 
-/// Mirror directory for the **abbreviated** metadata cache. Mirrors
-/// upstream's
-/// [`ABBREVIATED_META_DIR`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/core/constants/src/index.ts#L21).
+/// Mirror directory for the **abbreviated** metadata cache.
 pub const ABBREVIATED_META_DIR: &str = "v11/metadata";
 
-/// Mirror directory for the **full** metadata cache. Mirrors
-/// upstream's
-/// [`FULL_META_DIR`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/core/constants/src/index.ts#L22).
+/// Mirror directory for the **full** metadata cache.
 pub const FULL_META_DIR: &str = "v11/metadata-full";
 
-/// Mirror directory for the filtered full metadata cache. Mirrors
-/// upstream's
-/// [`FULL_FILTERED_META_DIR`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/core/constants/src/index.ts#L23).
+/// Mirror directory for the filtered full metadata cache.
 pub const FULL_FILTERED_META_DIR: &str = "v11/metadata-full-filtered";
 
 /// Cached headers persisted as the mirror's first line. The cached
@@ -153,9 +145,8 @@ pub fn scoped_meta_dir(scope: &MetadataCacheScope, base_meta_dir: &str) -> Strin
     }
 }
 
-/// On-disk path of the JSONL document where pacquet (and pnpm)
-/// mirrors a package's registry metadata. Matches pnpm's
-/// [`getPkgMirrorPath`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L566-L568).
+/// On-disk path of the JSONL document where pacquet mirrors a
+/// package's registry metadata.
 pub fn get_pkg_mirror_path(
     cache_dir: &Path,
     meta_dir: &str,
@@ -189,10 +180,8 @@ pub enum EncodeRegistryError {
 }
 
 /// `host[:port]` form of a registry URL with `:` rewritten to `+` so
-/// the result is filesystem-safe. Mirrors the npm
-/// [`encode-registry`](https://github.com/zkochan/packages/tree/main/encode-registry)
-/// package pnpm consumes. Only an explicit port participates; the
-/// implicit-default port stays out of the slug so a registry served
+/// the result is filesystem-safe. Only an explicit port participates;
+/// the implicit-default port stays out of the slug so a registry served
 /// on its scheme default hashes consistently across configs.
 pub fn get_registry_name(registry: &str) -> Result<String, EncodeRegistryError> {
     let parsed = reqwest::Url::parse(registry).map_err(|error| EncodeRegistryError::ParseUrl {
@@ -210,8 +199,7 @@ pub fn get_registry_name(registry: &str) -> Result<String, EncodeRegistryError> 
 
 /// Filesystem-safe form of a package name. A mixed-case name gets a
 /// sha256 hex suffix so case-insensitive filesystems (HFS+, NTFS by
-/// default) can't collide it with a lowercase sibling. Mirrors pnpm's
-/// [`encodePkgName`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L555-L560).
+/// default) can't collide it with a lowercase sibling.
 #[must_use]
 pub fn encode_pkg_name(pkg_name: &str) -> String {
     let lowered = pkg_name.to_lowercase();
@@ -456,9 +444,7 @@ fn read_mirror_headers(file: &mut File) -> Option<MetaHeaders> {
 ///
 /// Returns `None` on any failure — missing file, unreadable header
 /// line, parse error. The fetcher then proceeds without conditional
-/// headers, identical to pnpm's
-/// [`loadMetaHeaders`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L627-L644)
-/// catch-and-return-null.
+/// headers.
 #[must_use]
 pub fn load_meta_headers(pkg_mirror: &Path) -> Option<MetaHeaders> {
     let mut file = File::open(pkg_mirror).ok()?;
@@ -466,13 +452,10 @@ pub fn load_meta_headers(pkg_mirror: &Path) -> Option<MetaHeaders> {
 }
 
 /// Read the full mirror file and reconstruct a [`Package`] with its
-/// etag back-filled from the headers line. Mirrors pnpm's
-/// [`loadMeta`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L651-L663).
+/// etag back-filled from the headers line.
 ///
-/// Returns `None` on missing file / malformed contents. Upstream
-/// catches any error from `readFile` / `JSON.parse` and returns
-/// `null`; we match that contract because the caller's response to
-/// "couldn't read" is the same as "no cache".
+/// Returns `None` on missing file / malformed contents: the caller's
+/// response to "couldn't read" is the same as "no cache".
 #[must_use]
 pub fn load_meta(pkg_mirror: &Path) -> Option<Package> {
     let contents = fs::read(pkg_mirror).ok()?;
@@ -531,10 +514,7 @@ pub fn load_meta(pkg_mirror: &Path) -> Option<Package> {
 /// worker pool. This wrapper dispatches the work to
 /// [`tokio::task::spawn_blocking`] so the async scheduler keeps
 /// progressing other resolves and HTTP fetches while one packument's
-/// body parses on the blocking pool. Matches upstream's stance:
-/// pnpm's loadMeta is an awaited `fs.readFile` + `JSON.parse` that
-/// runs on libuv's worker pool, the same separation tokio gives us
-/// via `spawn_blocking`.
+/// body parses on the blocking pool.
 ///
 /// `JoinError` (panic in the blocking task) and `None` from
 /// [`load_meta`] (missing / unreadable file) both collapse to
@@ -561,8 +541,7 @@ pub async fn load_meta_headers_async(pkg_mirror: Option<&Path>) -> Option<MetaHe
 }
 
 /// Atomic write: serialize to a sibling temp file, then `rename` it
-/// over the target. Mirrors pnpm's
-/// [`saveMeta`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L667-L676).
+/// over the target.
 ///
 /// The rename is the only atomic step; an observer sees either the
 /// old contents or the new ones, never a torn body line.
@@ -591,8 +570,8 @@ pub fn save_meta(pkg_mirror: &Path, contents: &[u8]) -> Result<(), SaveMetaError
 
 /// Per-process atomic counter used to disambiguate concurrent
 /// [`save_meta`] calls writing to sibling temp paths under the same
-/// mirror directory. Pid + counter is enough — pnpm's pathTemp uses
-/// the same shape (`<pid>.<counter>` suffix) for the same reason.
+/// mirror directory. Pid + counter (a `<pid>.<counter>` suffix) is
+/// enough to keep concurrent writers from colliding.
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 fn temp_sibling_path(target: &Path) -> PathBuf {

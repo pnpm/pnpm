@@ -1,6 +1,4 @@
-//! Port of pnpm's
-//! [`checkGlobalBinConflicts`](https://github.com/pnpm/pnpm/blob/1819226b51/global/commands/src/checkGlobalBinConflicts.ts):
-//! detect bin-name collisions between the packages about to be installed
+//! Detect bin-name collisions between the packages about to be installed
 //! and the packages already installed globally.
 
 use crate::{

@@ -7,9 +7,8 @@ use std::{future::Future, pin::Pin};
 use pacquet_lockfile::{LockfileResolution, PkgName};
 
 /// One verifier's decision about a single `(name, version, resolution)`
-/// entry. Mirrors pnpm's
-/// [`ResolutionVerification`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L92-L94)
-/// discriminated union (`{ ok: true } | { ok: false, code, reason }`).
+/// entry. A discriminated union (`{ ok: true } | { ok: false, code,
+/// reason }`).
 ///
 /// Verifiers short-circuit on resolutions outside their protocol by
 /// returning [`ResolutionVerification::Ok`]; the runner fans out across
@@ -34,8 +33,7 @@ pub enum ResolutionVerification {
     /// is not a per-entry policy pick to collect into the batch — the
     /// verification never completed, so the runner aborts the install
     /// with the registry's own fetch error rather than mislabeling a
-    /// transport failure as lockfile tampering. Mirrors pnpm, where the
-    /// verifier rethrows the underlying `FetchError`.
+    /// transport failure as lockfile tampering.
     FetchFailed {
         /// The registry fetch error, already rendered and stripped of
         /// any credentials embedded in the URL.
@@ -44,8 +42,7 @@ pub enum ResolutionVerification {
 }
 
 /// A [`ResolutionVerifier`]'s rejection materialized for one
-/// `(name, version, resolution)` entry. Mirrors pnpm's
-/// [`ResolutionPolicyViolation`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L145-L151).
+/// `(name, version, resolution)` entry.
 ///
 /// The runner aggregates violations across every active verifier on the
 /// loaded lockfile, sorts them by `name@version` for stable output, and
@@ -62,8 +59,7 @@ pub struct ResolutionPolicyViolation {
     pub reason: String,
 }
 
-/// `ctx` argument bundle for [`ResolutionVerifier::verify`]. Mirrors
-/// upstream's inline `{ name, version }` object on the verify call.
+/// `ctx` argument bundle for [`ResolutionVerifier::verify`].
 #[derive(Debug, Clone, Copy)]
 pub struct VerifyCtx<'a> {
     pub name: &'a PkgName,
@@ -97,9 +93,6 @@ pub type VerifyFuture<'a> = Pin<Box<dyn Future<Output = ResolutionVerification> 
 /// `verify` would. Verifiers that check the same logical policy (e.g.
 /// `minimumReleaseAge` across registries) name it the same and share
 /// the cache slot.
-///
-/// Mirrors pnpm's
-/// [`ResolutionVerifier`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L113-L131).
 pub trait ResolutionVerifier: Send + Sync {
     /// Cheap synchronous filter used before the runner allocates the
     /// verifier future. Returning `false` must be equivalent to

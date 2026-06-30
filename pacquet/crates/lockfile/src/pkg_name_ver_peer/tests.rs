@@ -39,8 +39,7 @@ fn parse() {
     case("@algolia/autocomplete-core@1.9.3", name_peer_ver("@algolia/autocomplete-core", "1.9.3"));
 }
 
-/// Mirrors pnpm's `parse()` test, `file:` leg
-/// ([`deps/path/test/index.ts`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/test/index.ts#L61-L66)).
+/// A `file:` tarball key parses and round-trips.
 #[test]
 fn parse_local_tarball_file_protocol() {
     let key: PkgNameVerPeer =
@@ -48,8 +47,6 @@ fn parse_local_tarball_file_protocol() {
     assert_eq!(key.to_string(), "tar-pkg@file:../tar-pkg-1.0.0.tgz");
 }
 
-/// Mirrors pnpm's `parse()` test, patch-hash + peer leg
-/// ([`deps/path/test/index.ts`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/test/index.ts#L68-L73)).
 /// `PkgVerPeer` lumps `(patch_hash=...)(<peers>)` into the `peer`
 /// field — the raw key still round-trips.
 #[test]
@@ -59,8 +56,8 @@ fn parse_patch_hash_and_peer_suffix_round_trip() {
     assert_eq!(key.to_string(), raw);
 }
 
-/// Mirrors pnpm's `parse()` test, scope-with-parens leg
-/// ([`deps/path/test/index.ts`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/test/index.ts#L54-L59)).
+/// A scoped name containing parentheses round-trips, and `without_peer`
+/// preserves the parens inside the scope.
 #[test]
 fn parse_scope_with_parens_round_trip() {
     let raw = "@(-.-)/foo@1.0.0(@types/babel__core@7.1.14)(foo@1.0.0)";
@@ -99,9 +96,8 @@ fn to_virtual_store_name() {
 
     // `file:` resolution emitted by an injected workspace package.
     // Without escaping `:`, the resulting directory name is invalid
-    // on NTFS / FAT (`ERROR_INVALID_NAME (123)`). Mirrors upstream's
-    // [`depPathToFilename` regex](https://github.com/pnpm/pnpm/blob/1819226b51/deps/path/src/index.ts#L170)
-    // which folds `[\\/:*?"<>|#]` into `+`.
+    // on NTFS / FAT (`ERROR_INVALID_NAME (123)`). The filename
+    // transform folds `[\\/:*?"<>|#]` into `+`.
     case(
         "project-1@file:project-1(is-positive@1.0.0)",
         "project-1@file+project-1_is-positive@1.0.0",
@@ -116,12 +112,8 @@ fn without_peer_strips_peer_suffix() {
     assert_eq!(bare.to_string(), "react-dom@17.0.2");
 }
 
-/// Mirrors pnpm's `removeSuffix` test
-/// ([`deps/path/test/index.ts`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/test/index.ts#L151-L153)).
-/// Pacquet's `PkgVerPeer` lumps the patch-hash and peer segments into
-/// one `peer` field, so `without_peer` strips both. The `packages:`
-/// key shape diverges from `getPkgIdWithPatchHash` here — separate
-/// parity gap, separate PR.
+/// `PkgVerPeer` lumps the patch-hash and peer segments into one
+/// `peer` field, so `without_peer` strips both.
 #[test]
 fn without_peer_strips_patch_hash_alongside_peer_suffix() {
     let key: PkgNameVerPeer = "foo@1.0.0(patch_hash=0000)(@types/babel__core@7.1.14)"
@@ -131,8 +123,7 @@ fn without_peer_strips_patch_hash_alongside_peer_suffix() {
     assert_eq!(bare.to_string(), "foo@1.0.0");
 }
 
-/// Mirrors pnpm's `getPkgIdWithPatchHash` test, scoped-name leg
-/// ([`deps/path/test/index.ts`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/test/index.ts#L140-L143)).
+/// `without_peer` strips the peer suffix from a scoped name.
 #[test]
 fn without_peer_strips_peer_from_scoped_name() {
     let key: PkgNameVerPeer = "@foo/bar@1.0.0(patch_hash=zzzz)(@types/node@18.0.0)"
@@ -142,8 +133,7 @@ fn without_peer_strips_peer_from_scoped_name() {
     assert_eq!(bare.to_string(), "@foo/bar@1.0.0");
 }
 
-/// Mirrors pnpm's `tryGetPackageId` test, nested-peer leg
-/// ([`deps/path/test/index.ts`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/test/index.ts#L112)).
+/// `without_peer` strips a peer suffix that contains nested parens.
 #[test]
 fn without_peer_strips_peer_with_nested_parens() {
     let key: PkgNameVerPeer = "foo@1.0.0(@types/babel__core@7.1.14(is-odd@1.0.0))"
@@ -164,10 +154,9 @@ fn without_peer_preserves_runtime_prefix() {
     assert_eq!(bare.to_string(), "node@runtime:22.0.0");
 }
 
-/// Regression for [#11939](https://github.com/pnpm/pnpm/issues/11939):
-/// the babylon shape `link:<rel-path>(<peers>)` parses into a
-/// `PkgNameVerPeer` whose `version()` retains an unbalanced `)`. Peer
-/// stripping is structural and must not re-parse.
+/// Regression: the babylon shape `link:<rel-path>(<peers>)` parses
+/// into a `PkgNameVerPeer` whose `version()` retains an unbalanced
+/// `)`. Peer stripping is structural and must not re-parse.
 #[test]
 fn without_peer_handles_workspace_link_with_peer_suffix() {
     let key: PkgNameVerPeer = "link:../../../dev/sharedUiComponents(\
@@ -185,8 +174,7 @@ fn without_peer_handles_workspace_link_with_peer_suffix() {
     assert!(!rendered.contains(")("), "peer suffix must be stripped; got {rendered:?}");
 }
 
-/// Nested peer groups must produce `__` at the group boundary, matching pnpm.
-/// See <https://github.com/pnpm/pnpm/issues/12452>
+/// Nested peer groups must produce `__` at the group boundary.
 #[test]
 fn to_virtual_store_name_nested_peer_uses_double_underscore() {
     fn case(input: &'static str, expected: &'static str) {

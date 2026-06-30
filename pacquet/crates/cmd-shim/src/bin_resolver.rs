@@ -7,9 +7,6 @@ use std::path::{Path, PathBuf};
 ///
 /// `name` is the command name as it should appear under `node_modules/.bin/`.
 /// `path` is the absolute path to the script the shim invokes.
-///
-/// Mirrors `Command` in pnpm v11's `@pnpm/bins.resolver`:
-/// <https://github.com/pnpm/pnpm/blob/4750fd370c/bins/resolver/src/index.ts>.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Command {
     pub name: String,
@@ -17,12 +14,10 @@ pub struct Command {
 }
 
 /// Bin names that legitimately ship inside a different package than their own
-/// name. Mirrors [`BIN_OWNER_OVERRIDES`][ts-BIN_OWNER_OVERRIDES].
+/// name.
 ///
 /// Used by [`pkg_owns_bin`] for conflict resolution between two packages
 /// declaring the same bin name.
-///
-/// [ts-BIN_OWNER_OVERRIDES]: https://github.com/pnpm/pnpm/blob/4750fd370c/bins/resolver/src/index.ts#L16-L22
 const BIN_OWNER_OVERRIDES: &[(&str, &[&str])] = &[
     ("npx", &["npm"]),
     ("pn", &["pnpm", "@pnpm/exe"]),
@@ -33,7 +28,7 @@ const BIN_OWNER_OVERRIDES: &[(&str, &[&str])] = &[
 
 /// Whether `pkg_name` is a legitimate owner of the given `bin_name`. The
 /// default rule is "the package named `X` owns the `X` bin"; overrides cover
-/// cases like `npx` shipping inside `npm`. Mirrors `pkgOwnsBin`.
+/// cases like `npx` shipping inside `npm`.
 #[must_use]
 pub fn pkg_owns_bin(bin_name: &str, pkg_name: &str) -> bool {
     if bin_name == pkg_name {
@@ -64,12 +59,9 @@ pub fn get_bins_from_package_manifest<Sys: FsWalkFiles>(
 }
 
 /// Walk every regular file under `<pkg_path>/<bin_dir_rel>` and emit one
-/// [`Command`] per file. Mirrors pnpm's `findFiles` + the `directories.bin`
-/// branch in `getBinsFromPackageManifest`:
-/// <https://github.com/pnpm/pnpm/blob/4750fd370c/bins/resolver/src/index.ts>.
+/// [`Command`] per file, the `directories.bin` branch of bin resolution.
 ///
-/// Symlinks are not followed; pnpm uses `tinyglobby` with
-/// `followSymbolicLinks: false`.
+/// Symlinks are not followed.
 fn commands_from_directories_bin<Sys: FsWalkFiles>(
     bin_dir_rel: &str,
     pkg_path: &Path,
@@ -78,9 +70,8 @@ fn commands_from_directories_bin<Sys: FsWalkFiles>(
     if !is_subdir(pkg_path, &bin_dir) {
         return Vec::new();
     }
-    // Treat a top-level walk error as "no bins". This matches pnpm's
-    // tinyglobby ENOENT short-circuit. The trait's production impl
-    // already drops per-entry errors inside its iterator, so an `Err`
+    // Treat a top-level walk error as "no bins". The trait's production
+    // impl already drops per-entry errors inside its iterator, so an `Err`
     // here only fires when the walker can't even open `bin_dir`.
     let Ok(paths) = Sys::walk_files(&bin_dir) else {
         return Vec::new();

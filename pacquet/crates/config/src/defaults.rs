@@ -9,9 +9,7 @@ pub fn default_hoist_pattern() -> Vec<String> {
     vec!["*".to_string()]
 }
 
-/// Default for `git_shallow_hosts`. Mirrors pnpm v11's default at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/index.ts#L155-L162>,
-/// which follows
+/// Default for `git_shallow_hosts`, following
 /// <https://github.com/npm/git/blob/1e1dbd26bd/lib/clone.js#L13-L19>.
 #[must_use]
 pub fn default_git_shallow_hosts() -> Vec<String> {
@@ -24,14 +22,11 @@ pub fn default_git_shallow_hosts() -> Vec<String> {
     ]
 }
 
-/// Default for `public-hoist-pattern`. Matches pnpm v11's empty-list
-/// default at
-/// <https://github.com/pnpm/pnpm/blob/1627943d2a/config/reader/src/index.ts#L184>.
+/// Default for `public-hoist-pattern`: an empty list.
 /// Writing a non-empty list on a fresh install would record a
 /// `publicHoistPattern` in `.modules.yaml` that the next `pnpm`
 /// invocation in the same project rejects with
-/// `ERR_PNPM_PUBLIC_HOIST_PATTERN_DIFF` — see
-/// [pnpm/pnpm#11750](https://github.com/pnpm/pnpm/issues/11750).
+/// `ERR_PNPM_PUBLIC_HOIST_PATTERN_DIFF`.
 pub fn default_public_hoist_pattern() -> Vec<String> {
     Vec::new()
 }
@@ -64,11 +59,8 @@ fn default_store_dir_windows(home_dir: &Path, current_dir: &Path) -> PathBuf {
 /// Generic over [`EnvVar`], [`GetHomeDir`], and [`GetCurrentDir`]
 /// so unit tests can drive every branch — `PNPM_HOME` set,
 /// `XDG_DATA_HOME` set, neither set — without mutating the process
-/// environment. Mirrors the trait-based DI seam established in
-/// pnpm/pacquet#339 and consolidated in
-/// [pnpm/pnpm#11708](https://github.com/pnpm/pnpm/pull/11708).
-/// Production callers pass [`crate::Host`] for `Sys`, which threads
-/// `home::home_dir` and `env::current_dir` through the
+/// environment. Production callers pass [`crate::Host`] for `Sys`,
+/// which threads `home::home_dir` and `env::current_dir` through the
 /// capability impls — see the `SmartDefault` expression on
 /// [`crate::Config::store_dir`].
 ///
@@ -77,10 +69,8 @@ fn default_store_dir_windows(home_dir: &Path, current_dir: &Path) -> PathBuf {
 /// yaml, and `PNPM_CONFIG_*` env vars, the store is re-resolved
 /// against the project's volume via
 /// [`crate::store_path::resolve_store_dir`] when none of those
-/// sources pinned `storeDir` — mirroring pnpm's
-/// [`getStorePath`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L14-L43),
-/// which falls back to `<mountpoint>/.pnpm-store` when the home
-/// volume can't be hardlinked from the project. Without that
+/// sources pinned `storeDir`, falling back to `<mountpoint>/.pnpm-store`
+/// when the home volume can't be hardlinked from the project. Without that
 /// re-resolution a workspace on a separate case-sensitive volume
 /// would land in the case-insensitive home store, breaking tools
 /// that compare canonicalised file paths (typescript-eslint, for one).
@@ -116,20 +106,17 @@ where
 }
 
 /// The directory-layout version for global installs, appended to the
-/// global packages root. Mirrors pnpm's
-/// [`GLOBAL_LAYOUT_VERSION`](https://github.com/pnpm/pnpm/blob/1819226b51/core/constants/src/index.ts#L10).
-/// Bumping it isolates a new pnpm major's global packages from older ones.
+/// global packages root. Bumping it isolates a new pnpm major's global
+/// packages from older ones.
 pub const GLOBAL_LAYOUT_VERSION: &str = "v11";
 
 /// Resolve pnpm's home (data) directory, the root under which global
 /// packages and global bins live.
 ///
-/// Mirrors pnpm's
-/// [`getDataDir`](https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/dirs.ts):
-/// `PNPM_HOME` → `XDG_DATA_HOME/pnpm` → `~/Library/pnpm` (macOS) /
-/// `~/.local/share/pnpm` (non-Windows) / `%LOCALAPPDATA%/pnpm` (Windows)
-/// → `~/.pnpm`. Returns `None` only when the home directory cannot be
-/// determined and no env override is set.
+/// Resolution order: `PNPM_HOME` → `XDG_DATA_HOME/pnpm` → `~/Library/pnpm`
+/// (macOS) / `~/.local/share/pnpm` (non-Windows) / `%LOCALAPPDATA%/pnpm`
+/// (Windows) → `~/.pnpm`. Returns `None` only when the home directory
+/// cannot be determined and no env override is set.
 #[must_use]
 pub fn default_pnpm_home_dir<Sys>() -> Option<PathBuf>
 where
@@ -158,9 +145,8 @@ pub fn default_modules_dir() -> PathBuf {
 
 /// Resolve the directory pnpm reads `config.yaml` (the global config
 /// file) from. Threads this crate's [`EnvVar`] / [`GetHomeDir`] seam
-/// into [`pacquet_config_dir::config_dir`] — the shared port of
-/// pnpm's `getConfigDir`, also used by the registry server — under
-/// the `pnpm` leaf.
+/// into [`pacquet_config_dir::config_dir`] — the shared resolver, also
+/// used by the registry server — under the `pnpm` leaf.
 pub fn default_config_dir<Sys>() -> Option<PathBuf>
 where
     Sys: EnvVar + GetHomeDir,
@@ -177,9 +163,6 @@ where
 }
 
 /// Resolve the default packument-cache directory.
-///
-/// Port of pnpm's
-/// [`getCacheDir`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/dirs.ts#L4-L23).
 ///
 /// Generic over [`EnvVar`] and [`GetHomeDir`] for the same reason
 /// as [`default_store_dir`]: unit tests drive every branch without
@@ -209,20 +192,12 @@ pub fn default_virtual_store_dir() -> PathBuf {
     env::current_dir().expect("current directory is unavailable").join("node_modules/.pnpm")
 }
 
-/// Default for `enableGlobalVirtualStore`. Matches pnpm v11's
-/// effective default for regular installs: `false`.
+/// Default for `enableGlobalVirtualStore`: `false` for regular installs.
 ///
-/// The `true` assignment at
-/// [`config/reader/src/index.ts:392-394`](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/index.ts#L392-L394)
-/// lives entirely inside the
-/// [`if (cliOptions['global'])` block](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/index.ts#L348-L395)
-/// (the `pnpm install --global` path), surrounded by
-/// `CONFIG_CONFLICT_*_WITH_GLOBAL` errors and closed by
-/// `} else if (!pnpmConfig.bin)`. For regular `pnpm install` the
-/// value stays `null`/unset, which evaluates as `false` everywhere
-/// downstream. Pacquet doesn't have a `--global` CLI flag at all
-/// (only `install --frozen-lockfile`), so the only applicable
-/// upstream default is the `false` one.
+/// It is only enabled by default on the `pnpm install --global` path.
+/// Pacquet doesn't have a `--global` CLI flag at all (only
+/// `install --frozen-lockfile`), so the only applicable default is the
+/// `false` one.
 pub fn default_enable_global_virtual_store() -> bool {
     false
 }
@@ -235,23 +210,20 @@ pub fn default_modules_cache_max_age() -> u64 {
     10080
 }
 
-/// Default `virtualStoreDirMaxLength` matching pnpm's platform-aware
-/// config default at
-/// <https://github.com/pnpm/pnpm/blob/d50d691e5a/config/reader/src/index.ts#L216>.
+/// Default `virtualStoreDirMaxLength`: platform-aware (60 on Windows,
+/// 120 elsewhere).
 #[must_use]
 pub fn default_virtual_store_dir_max_length() -> u64 {
     if cfg!(windows) { 60 } else { 120 }
 }
 
-/// Default `peersSuffixMaxLength` matching pnpm's fallback at
-/// <https://github.com/pnpm/pnpm/blob/39101f5e37/deps/path/src/index.ts#L197>
-/// (parameter default on `createPeerDepGraphHash`).
+/// Default `peersSuffixMaxLength`: the fallback used when computing the
+/// peer-dependency graph hash.
 ///
 /// Kept as a free function (not a re-export of
 /// `pacquet_lockfile::DEFAULT_PEERS_SUFFIX_MAX_LENGTH`) so
 /// `pacquet-config` doesn't pull in the lockfile crate just for one
-/// integer. Both copies must agree; the lockfile side carries the
-/// same upstream link.
+/// integer. Both copies must agree.
 #[must_use]
 pub fn default_peers_suffix_max_length() -> u64 {
     1000
@@ -285,13 +257,11 @@ pub fn default_fetch_timeout() -> u64 {
     pacquet_network::DEFAULT_FETCH_TIMEOUT_MS
 }
 
-/// Default `User-Agent`, mirroring pnpm v11's
-/// [`config/reader/src/index.ts:293`](https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/index.ts#L293)
-/// format `${name}/${version} npm/? node/${nodeVersion} ${platform} ${arch}`.
-/// The `name/version` segment is `pnpm/<version>`, matching the TypeScript
-/// pnpm CLI exactly. There is no embedded Node runtime, so the `node/`
-/// segment is the `?` placeholder pnpm already uses for `npm/`. Platform and
-/// arch use Node's naming via
+/// Default `User-Agent`, in the format
+/// `${name}/${version} npm/? node/${nodeVersion} ${platform} ${arch}`.
+/// The `name/version` segment is `pnpm/<version>`. There is no embedded
+/// Node runtime, so the `node/` segment is the same `?` placeholder used
+/// for `npm/`. Platform and arch use Node's naming via
 /// [`pacquet_detect_libc::host_platform`] / [`pacquet_detect_libc::host_arch`].
 pub fn default_user_agent() -> String {
     format!(
@@ -301,49 +271,38 @@ pub fn default_user_agent() -> String {
     )
 }
 
-/// Default `childConcurrency` matching upstream's
-/// [`getDefaultWorkspaceConcurrency`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.ts#L21-L23):
-/// `min(4, availableParallelism())`. Read at runtime so `cargo test`
-/// and overrides via yaml still resolve to a usable value on
-/// 1-core sandboxes.
+/// Default `childConcurrency`: `min(4, availableParallelism())`. Read at
+/// runtime so `cargo test` and overrides via yaml still resolve to a
+/// usable value on 1-core sandboxes.
 pub fn default_child_concurrency() -> u32 {
     default_child_concurrency_with_parallelism(available_parallelism())
 }
 
 /// Internal helper exposed for tests so they can pin the
-/// `parallelism` input. Upstream's test suite mocks
-/// `os.availableParallelism` via Jest; pacquet injects the value
-/// directly. Mirrors upstream's [`getDefaultWorkspaceConcurrency`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.ts#L21-L23).
+/// `parallelism` input directly rather than reading it from the host.
 pub fn default_child_concurrency_with_parallelism(parallelism: u32) -> u32 {
     parallelism.min(4)
 }
 
-/// Default `workspaceConcurrency` matching upstream's
-/// [`getDefaultWorkspaceConcurrency`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.ts#L21-L23),
-/// the default for `workspace-concurrency` at
-/// [`config/reader/src/index.ts:208`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/index.ts#L208).
+/// Default `workspaceConcurrency`, the default for `workspace-concurrency`.
 ///
-/// Identical in value to `default_child_concurrency` — both pnpm
-/// settings default through the same upstream `getDefaultWorkspaceConcurrency`
-/// — but exposed under its own name so the
-/// [`crate::Config::workspace_concurrency`] field default reads at its
-/// own call site.
+/// Identical in value to `default_child_concurrency` — both settings
+/// resolve through the same default-concurrency formula — but exposed
+/// under its own name so the [`crate::Config::workspace_concurrency`]
+/// field default reads at its own call site.
 #[must_use]
 pub fn default_workspace_concurrency() -> u32 {
     default_child_concurrency()
 }
 
-/// Available CPU parallelism, mirroring upstream's
-/// [`getAvailableParallelism`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.ts#L5-L13).
-/// Floors at 1.
+/// Available CPU parallelism. Floors at 1.
 #[must_use]
 pub fn available_parallelism() -> u32 {
     std::thread::available_parallelism().map_or(1, |count| count.get() as u32).max(1)
 }
 
 /// Resolve `childConcurrency` from a possibly-negative yaml value
-/// to a concrete `u32`. Mirrors upstream's
-/// [`getWorkspaceConcurrency`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.ts#L25-L34).
+/// to a concrete `u32`.
 ///
 /// The negative-offset semantics let users say "use all cores minus
 /// N" without hardcoding the core count.
@@ -353,10 +312,8 @@ pub fn resolve_child_concurrency(option: Option<i32>) -> u32 {
 }
 
 /// Internal helper exposed for tests so they can pin the
-/// `parallelism` input. Mirrors upstream's
-/// [`getWorkspaceConcurrency`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.ts#L25-L34)
-/// — the resolver logic itself, with the parallelism input
-/// injected rather than read from the OS.
+/// `parallelism` input — the resolver logic itself, with the
+/// parallelism input injected rather than read from the OS.
 pub fn resolve_child_concurrency_with_parallelism(option: Option<i32>, parallelism: u32) -> u32 {
     match option {
         None => default_child_concurrency_with_parallelism(parallelism),
@@ -369,33 +326,19 @@ pub fn resolve_child_concurrency_with_parallelism(option: Option<i32>, paralleli
     }
 }
 
-/// Default `unsafePerm` matching upstream's
-/// [`extendBuildOptions`](https://github.com/pnpm/pnpm/blob/94240bc046/building/after-install/src/extendBuildOptions.ts#L83-L86):
-///
-/// ```ts
-/// unsafePerm: process.platform === 'win32' ||
-///   process.platform === 'cygwin' ||
-///   !process.setgid ||
-///   process.getuid?.() !== 0,
-/// ```
+/// Default `unsafePerm`: `true` on Windows and Cygwin, and on POSIX
+/// whenever the process is not running as root (uid != 0).
 ///
 /// Pacquet's executor doesn't currently consume `unsafe_perm` to
-/// actually drop uid/gid (upstream's own [`@pnpm/npm-lifecycle`
-/// implementation](https://github.com/pnpm/npm-lifecycle/blob/d2d8e790/index.js#L236-L239)
-/// is a no-op in practice because `opts.user` / `opts.group` are
-/// never populated), but the TMPDIR-isolation side of the flag is
+/// actually drop uid/gid, but the TMPDIR-isolation side of the flag is
 /// honored — see `pacquet_executor::make_env`.
 ///
 /// Cygwin needs explicit handling because Rust's
 /// [`x86_64-pc-cygwin` target](https://doc.rust-lang.org/rustc/platform-support/x86_64-pc-cygwin.html)
 /// emits `target_os = "cygwin"` with `cfg!(unix)` set and
 /// `cfg!(windows)` *unset*, so a plain `cfg!(windows)` check would
-/// fall through to the uid logic and diverge from upstream's
-/// unconditional-true Cygwin behavior. The `!process.setgid` branch
-/// in upstream is a Node-version compatibility check for older Node
-/// where `setgid` doesn't exist; it doesn't translate to Rust
-/// (libc's `setgid` is always available on POSIX hosts where libc
-/// compiles).
+/// fall through to the uid logic and diverge from the unconditional-true
+/// Cygwin behavior.
 #[must_use]
 pub fn default_unsafe_perm() -> bool {
     platform_unsafe_perm_default()

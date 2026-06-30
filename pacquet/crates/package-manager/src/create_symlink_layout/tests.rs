@@ -27,8 +27,8 @@ fn assert_symlink_shape(
     let target_path =
         layout.slot_dir(target_key).join("node_modules").join(target_key.name.to_string());
     // pacquet writes the symlink contents as a path relative to the
-    // link's parent dir, matching upstream `symlink-dir`. The
-    // expected on-disk contents are the same relative form.
+    // link's parent dir. The expected on-disk contents are the same
+    // relative form.
     let expected = pathdiff::diff_paths(&target_path, virtual_node_modules_dir)
         .expect("compute relative target");
     assert_eq!(read, expected);
@@ -133,9 +133,7 @@ fn skips_optional_siblings_that_are_in_skipped() {
 }
 
 /// A dep whose alias matches the slot's own package name is a
-/// self-link that Node's resolver doesn't need (and upstream
-/// explicitly excludes via `alias === depNode.name` at
-/// <https://github.com/pnpm/pnpm/blob/f2981a316/installing/deps-installer/src/install/link.ts#L540>).
+/// self-link that Node's resolver doesn't need, so it is excluded.
 /// Tests both buckets — `dependencies` and `optionalDependencies` —
 /// because either can list the self-name in the wild.
 #[test]
@@ -233,7 +231,7 @@ fn alias_dep_links_under_alias_but_resolves_via_target() {
         .join("node_modules")
         .join("string-width");
     // The on-disk contents are the path from the link's parent dir
-    // to the slot dir (relative encoding, matching `symlink-dir`).
+    // to the slot dir (relative encoding).
     let expected = pathdiff::diff_paths(&target_path, &virtual_node_modules_dir)
         .expect("compute relative target");
     assert_eq!(read, expected);

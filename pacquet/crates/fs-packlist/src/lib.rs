@@ -1,12 +1,9 @@
 //! Decide which files inside a package directory end up in a published
-//! tarball. Port of [`npm-packlist`](https://github.com/npm/npm-packlist)
-//! and pnpm's
-//! [`fs/packlist`](https://github.com/pnpm/pnpm/blob/94240bc046/fs/packlist/src/index.ts).
+//! tarball. Port of [`npm-packlist`](https://github.com/npm/npm-packlist).
 //!
 //! Both `pacquet pack` (computing a tarball's contents) and the
 //! git / directory fetchers (deciding what to import into the CAS) need
-//! this, so it lives in its own crate matching pnpm's standalone
-//! `@pnpm/fs.packlist` package.
+//! this, so it lives in its own crate.
 //!
 //! The algorithm has four passes:
 //!
@@ -34,7 +31,7 @@
 //!    `node_modules/` be found and spliced in under its real path.
 //!    Port of [`npm-bundled`](https://github.com/npm/npm-bundled).
 //!
-//! Two intentional divergences from upstream:
+//! Two intentional divergences from npm-packlist:
 //!
 //! - The `ignore` crate combines `.npmignore` and `.gitignore` rules
 //!   when both files exist in the same directory; npm-packlist would
@@ -88,15 +85,14 @@ const MAX_BUNDLE_DEPTH: u32 = 32;
 
 /// Case-insensitive prefix matches for files always-included at the
 /// package root regardless of `.npmignore` / `files`. Mirrors
-/// `npm-packlist`'s `alwaysIncluded` plus pnpm's pattern set at
-/// [`fs/packlist/src/index.ts:13`](https://github.com/pnpm/pnpm/blob/94240bc046/fs/packlist/src/index.ts#L13).
+/// `npm-packlist`'s `alwaysIncluded` set.
 const ALWAYS_INCLUDED_PREFIXES: &[&str] =
     &["readme", "license", "licence", "changes", "changelog", "history", "notice"];
 
 /// Version-control directory names that exclude every file under
-/// them at any depth. Matches the upstream behavior of dropping VCS
-/// state from a published package regardless of where in the tree it
-/// happens to sit. Exact-segment match: a path with a literal segment
+/// them at any depth. Drops VCS state from a published package
+/// regardless of where in the tree it happens to sit, the same as
+/// npm-packlist. Exact-segment match: a path with a literal segment
 /// named `.git` / `.svn` / `.hg` / `CVS` is filtered, but a regular
 /// file like `lib/foo.hg-stub` (basename `foo.hg-stub`, not `.hg`) is
 /// not.
@@ -113,10 +109,8 @@ const ALWAYS_EXCLUDED_BASENAMES: &[&str] =
 const ALWAYS_EXCLUDED_SUFFIXES: &[&str] = &[".orig"];
 
 /// Walk `pkg_dir` and return forward-slash relative paths for every
-/// file the published tarball should contain. Mirrors the return
-/// shape of `packlist()` at
-/// [`fs/packlist/src/index.ts:24-29`](https://github.com/pnpm/pnpm/blob/94240bc046/fs/packlist/src/index.ts#L24-L29)
-/// (paths relative to `pkg_dir`, no leading `./`).
+/// file the published tarball should contain. Paths are relative to
+/// `pkg_dir`, with no leading `./`.
 pub fn packlist(pkg_dir: &Path, manifest: &Value) -> Result<Vec<String>, PacklistError> {
     let mut out: BTreeSet<String> = collect_own_files(pkg_dir, manifest)?;
     collect_bundled_files(pkg_dir, manifest, &mut out)?;
@@ -396,10 +390,10 @@ fn collect_own_files(pkg_dir: &Path, manifest: &Value) -> Result<BTreeSet<String
 /// matcher rooted at `pkg_dir`. Returns `None` when no entries
 /// compile (e.g., the field was present but every entry was empty or
 /// malformed) so the caller treats the absence as "include
-/// everything", matching upstream's behavior for an unset / empty
-/// `files`. Lines that fail to parse are dropped with a
-/// `tracing::debug!` — npm-packlist tolerates bad globs the same way
-/// (a bad pattern just doesn't match anything).
+/// everything", the same as an unset / empty `files`. Lines that fail
+/// to parse are dropped with a `tracing::debug!` — npm-packlist
+/// tolerates bad globs the same way (a bad pattern just doesn't match
+/// anything).
 fn build_files_matcher(pkg_dir: &Path, entries: &[Value]) -> Option<Gitignore> {
     let mut builder = ignore::gitignore::GitignoreBuilder::new(pkg_dir);
     let mut added = 0;

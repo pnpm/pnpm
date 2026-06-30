@@ -6,9 +6,6 @@ use std::{
 };
 
 /// Detected runtime for a target script.
-///
-/// Mirrors the return shape of `searchScriptRuntime` in
-/// <https://github.com/pnpm/cmd-shim/blob/e8560a8405/src/index.ts>.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScriptRuntime {
     /// The interpreter to invoke. `None` means "exec the file directly".
@@ -19,7 +16,7 @@ pub struct ScriptRuntime {
 }
 
 /// Map of file extensions to their default runtime when the script lacks a
-/// shebang. Mirrors `extensionToProgramMap` in upstream cmd-shim.
+/// shebang.
 fn extension_program(extension: &str) -> Option<&'static str> {
     match extension {
         "js" | "cjs" | "mjs" => Some("node"),
@@ -93,8 +90,8 @@ pub fn read_head_filled<Sys: FsReadHead>(path: &Path, buf: &mut [u8]) -> io::Res
 /// function over bytes so the caller can plug in any I/O strategy.
 ///
 /// Does **not** trim leading whitespace before looking for `#!`. The
-/// kernel and upstream cmd-shim both treat `#!` as a shebang only when
-/// it sits at byte 0 of the file; trimming would accept inputs like
+/// kernel treats `#!` as a shebang only when it sits at byte 0 of the
+/// file; trimming would accept inputs like
 /// `" \n#!/usr/bin/env node"` as a valid shebang and could select the
 /// wrong runtime for files that just happen to mention `#!` after some
 /// whitespace. The first line is taken exactly as-is (`#!` is matched
@@ -106,22 +103,21 @@ pub fn parse_shebang_from_bytes(bytes: &[u8]) -> Option<ScriptRuntime> {
     parse_shebang(first_line)
 }
 
-/// Mirrors the shebang regex in upstream cmd-shim:
+/// Parses the shebang against the grammar
 /// `^#!\s*(?:/usr/bin/env(?:\s+-S\s*)?)?\s*([^ \t]+)(.*)$`.
 ///
-/// `args` is captured **including the
-/// leading whitespace** that separates it from `prog`. That matches
-/// upstream's regex group 2 (`(.*)`), which captures everything from after
-/// `prog`'s end-of-match to end of line. Preserving the leading whitespace
-/// is what produces the byte-identical shim text upstream emits (e.g. the
-/// double space between `$basedir/sh` and `-e` in the rendered exec line).
+/// `args` is captured **including the leading whitespace** that
+/// separates it from `prog` — everything from after `prog`'s end of
+/// match to end of line. Preserving the leading whitespace is what
+/// produces byte-identical shim text (e.g. the double space between
+/// `$basedir/sh` and `-e` in the rendered exec line).
 fn parse_shebang(line: &str) -> Option<ScriptRuntime> {
     let rest = line.strip_prefix("#!")?.trim_start();
     let (rest, _) = strip_env_prefix(rest);
     let rest = rest.trim_start();
 
     // Slice at the first space or tab; the args slice keeps the separator
-    // so the rendered shim matches upstream byte-for-byte. Using `splitn`
+    // so the rendered shim stays byte-for-byte stable. Using `splitn`
     // would discard the separator and silently drop one space from the
     // `exec` line.
     let (prog, args) = match rest.find([' ', '\t']) {
@@ -150,7 +146,7 @@ fn strip_env_prefix(input: &str) -> (&str, bool) {
 }
 
 /// Generate the Unix shell-shim contents for `target_path`, written to
-/// `shim_path`. Mirrors `generateShShim` in upstream cmd-shim.
+/// `shim_path`.
 #[must_use]
 pub fn generate_sh_shim(
     target_path: &Path,
@@ -212,8 +208,8 @@ pub fn generate_sh_shim(
                 sh.push_str(&exec_block(args));
             }
         }
-        // Upstream still emits `exit $?` on this branch for parity with
-        // non-execve POSIX shells.
+        // Emit `exit $?` on this branch for parity with non-execve
+        // POSIX shells.
         runtime_opt => {
             let args = runtime_opt.map_or("", |runtime| runtime.args.as_str());
             writeln!(sh, "{quoted_target} {args} \"$@\"\nexit $?").unwrap();
@@ -224,10 +220,9 @@ pub fn generate_sh_shim(
     sh
 }
 
-/// Generate the Windows `.cmd` shim contents for `target_path`. Mirrors
-/// `generateCmdShim` in upstream cmd-shim. Pacquet skips the
-/// `nodePath`/`prependToPath`/`nodeExecPath`/`progArgs` features that
-/// upstream supports; we only ever write a "plain" cmd shim.
+/// Generate the Windows `.cmd` shim contents for `target_path`. Pacquet
+/// skips the `nodePath`/`prependToPath`/`nodeExecPath`/`progArgs`
+/// features; we only ever write a "plain" cmd shim.
 ///
 /// CRLF line endings are part of the on-disk contract for `.cmd` files
 /// on Windows, so the template uses literal `\r\n`.
@@ -265,10 +260,9 @@ pub fn generate_cmd_shim(
 }
 
 /// Generate the cross-shell PowerShell `.ps1` shim contents for
-/// `target_path`. Mirrors `generatePwshShim` in upstream cmd-shim,
-/// minus the `nodePath`/`prependToPath`/`nodeExecPath`/`progArgs`
-/// branches we don't use. The shim self-detects Windows vs. POSIX-ish
-/// pwsh and adjusts the executable suffix accordingly.
+/// `target_path`, minus the `nodePath`/`prependToPath`/`nodeExecPath`/
+/// `progArgs` branches we don't use. The shim self-detects Windows vs.
+/// POSIX-ish pwsh and adjusts the executable suffix accordingly.
 #[must_use]
 pub fn generate_pwsh_shim(
     target_path: &Path,
@@ -326,8 +320,7 @@ pub fn generate_pwsh_shim(
     pwsh
 }
 
-/// `.ps1` template prelude. Sets up `$basedir` and `$exe` exactly like
-/// upstream's `generatePwshShim`.
+/// `.ps1` template prelude. Sets up `$basedir` and `$exe`.
 const PWSH_SHIM_HEADER: &str = r#"#!/usr/bin/env pwsh
 $basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent
 
@@ -417,17 +410,16 @@ fn strip_exe_suffix(prog: &str) -> Option<&str> {
     prog.as_bytes()[suffix_start..].eq_ignore_ascii_case(b".exe").then(|| &prog[..suffix_start])
 }
 
-/// Trailing `# cmd-shim-target=<rel>` marker. Upstream uses it to detect
-/// whether an existing shim already targets the same source without
-/// re-parsing its body. Pacquet uses [`is_shim_pointing_at`] for the same
-/// short-circuit on warm reinstalls.
+/// Trailing `# cmd-shim-target=<rel>` marker. [`is_shim_pointing_at`]
+/// reads it to detect whether an existing shim already targets the same
+/// source without re-parsing its body, short-circuiting warm reinstalls.
 fn shim_target_marker(target_path: &Path) -> String {
     format!("cmd-shim-target={}", target_path.to_string_lossy().replace('\\', "/"))
 }
 
-/// Whether an already-on-disk shim targets `target_path`. Mirrors
-/// `isShimPointingAt`. The check looks for the trailing marker line so the
-/// header text never has to be byte-identical between cmd-shim versions.
+/// Whether an already-on-disk shim targets `target_path`. The check looks
+/// for the trailing marker line so the header text never has to be
+/// byte-identical between cmd-shim versions.
 #[must_use]
 pub fn is_shim_pointing_at(shim_content: &str, target_path: &Path) -> bool {
     let marker = format!("# {}", shim_target_marker(target_path));
@@ -436,8 +428,8 @@ pub fn is_shim_pointing_at(shim_content: &str, target_path: &Path) -> bool {
 
 /// Compute the relative path from `shim_path`'s parent directory to
 /// `target_path`. Falls back to the absolute target path if the relative
-/// computation fails. That matches the `path.isAbsolute(shTarget)` guard in
-/// upstream's `generateShShim`.
+/// computation fails, which the sh-shim generator handles via its
+/// `is_absolute` guard on the result.
 fn relative_target(target_path: &Path, shim_path: &Path) -> String {
     let shim_dir = shim_path.parent().unwrap_or_else(|| Path::new(""));
     let rel = relative_path_from(shim_dir, target_path);

@@ -1,15 +1,8 @@
-//! Port of pnpm v11's
-//! [`store/cafs/src/checkPkgFilesIntegrity.ts`](https://github.com/pnpm/pnpm/blob/1819226b51/store/cafs/src/checkPkgFilesIntegrity.ts).
-//!
 //! The store index's `package_index` row lists the CAFS paths a package
 //! expanded into. Before reusing the row the caller checks those files
 //! are still on disk and still match the recorded digests. This module
 //! implements that check — with a fast path that skips filesystem work
 //! entirely when the caller opted out of integrity verification.
-//!
-//! Mirrors the upstream structure function-for-function so a future
-//! cross-reference (or a pnpm-side change we need to match) stays
-//! cheap.
 
 use crate::{CafsFileInfo, PackageFilesIndex, SideEffectsDiff, StoreDir};
 use dashmap::DashSet;
@@ -24,12 +17,10 @@ use std::{
 };
 
 /// Set of CAFS paths whose on-disk integrity has already been verified
-/// during the current install. Mirrors pnpm's
-/// [`verifiedFilesCache: Set<string>`](https://github.com/pnpm/pnpm/blob/main/store/cafs/src/checkPkgFilesIntegrity.ts):
-/// the caller threads one cache through every
-/// [`check_pkg_files_integrity`] invocation so a CAFS blob that has
-/// already been verified by package A doesn't get stat'd / re-hashed
-/// again by package B.
+/// during the current install. The caller threads one cache through
+/// every [`check_pkg_files_integrity`] invocation so a CAFS blob that
+/// has already been verified by package A doesn't get stat'd /
+/// re-hashed again by package B.
 ///
 /// Concurrent: the install fans [`check_pkg_files_integrity`] calls out
 /// across tokio's blocking pool, so the cache must tolerate parallel
@@ -52,24 +43,20 @@ pub type FilesMap = HashMap<String, PathBuf>;
 
 /// Result of a `PackageFilesIndex`-row verification pass.
 ///
-/// Mirrors pnpm's [`VerifyResult`][ts-VerifyResult]. When `passed` is `false` the caller
-/// treats the store entry as stale and falls through to a fresh fetch.
-/// `files_map` is returned either way as a best-effort `in-tarball
-/// filename` → `CAFS path` map; it may be partial or empty, so callers
-/// should gate reuse on `passed` rather than on the map's size.
+/// When `passed` is `false` the caller treats the store entry as stale
+/// and falls through to a fresh fetch. `files_map` is returned either
+/// way as a best-effort `in-tarball filename` → `CAFS path` map; it may
+/// be partial or empty, so callers should gate reuse on `passed` rather
+/// than on the map's size.
 ///
 /// `side_effects_maps` is the optional cache-key → overlaid-FilesMap
 /// table from a populated side-effects cache (typically seeded by
 /// pnpm). Each value is the post-build files map for one cache key:
 /// the base `files_map` with the entry's `added` overlay applied on
-/// top of it and `deleted` entries dropped. Mirrors
-/// [`PackageFilesResponse.sideEffectsMaps`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/store/create-cafs-store/src/index.ts#L83-L100)
-/// — the importer looks up the entry by the dep-state cache key
-/// (`<engine>` or `<engine>;deps=…;patch=…`, produced by
-/// `pacquet-graph-hasher`'s `calc_dep_state`) to decide whether
-/// the package is already built.
-///
-/// [ts-VerifyResult]: https://github.com/pnpm/pnpm/blob/1819226b51/store/cafs/src/checkPkgFilesIntegrity.ts#L25-L29
+/// top of it and `deleted` entries dropped. The importer looks up the
+/// entry by the dep-state cache key (`<engine>` or
+/// `<engine>;deps=…;patch=…`, produced by `pacquet-graph-hasher`'s
+/// `calc_dep_state`) to decide whether the package is already built.
 #[derive(Debug)]
 pub struct VerifyResult {
     pub passed: bool,
@@ -79,11 +66,8 @@ pub struct VerifyResult {
 
 /// Fast path used when `verify-store-integrity` is `false`.
 ///
-/// Port of pnpm's
-/// [`buildFileMapsFromIndex`](https://github.com/pnpm/pnpm/blob/1819226b51/store/cafs/src/checkPkgFilesIntegrity.ts).
 /// No stat syscalls — the caller trusts the index, and any missing /
-/// corrupt CAFS file surfaces lazily at import time (pnpm's `linkOrCopy`
-/// equivalent).
+/// corrupt CAFS file surfaces lazily at import time.
 pub fn build_file_maps_from_index(store_dir: &StoreDir, entry: PackageFilesIndex) -> VerifyResult {
     let PackageFilesIndex { files, side_effects, .. } = entry;
     let mut files_map = HashMap::with_capacity(files.len());
@@ -93,8 +77,8 @@ pub fn build_file_maps_from_index(store_dir: &StoreDir, entry: PackageFilesIndex
     for (filename, info) in files {
         let Some(path) = store_dir.cas_file_path_by_mode(&info.digest, info.mode) else {
             // A malformed digest (non-hex / too short) makes this entry
-            // unreconstructable. pnpm's `getFilePathByModeInCafs` doesn't
-            // validate and would crash at import time; this `None` is a
+            // unreconstructable. pnpm doesn't validate the digest and
+            // would crash at import time; this `None` is a
             // pacquet-specific guardrail.
             tracing::debug!(
                 target: "pacquet::store_index",
@@ -111,15 +95,14 @@ pub fn build_file_maps_from_index(store_dir: &StoreDir, entry: PackageFilesIndex
     VerifyResult { passed, files_map, side_effects_maps }
 }
 
-/// Careful path used when `verify-store-integrity` is `true` (pnpm's
+/// Careful path used when `verify-store-integrity` is `true` (the
 /// default).
 ///
-/// Port of pnpm's `checkPkgFilesIntegrity`. Verifies every CAFS file
-/// the index row references and fails the whole entry — so the caller
-/// re-fetches — when any file no longer matches what the row recorded.
-/// Non-regular-file dirents are *not* rejected preemptively — the
-/// integrity hash catches real corruption, and pnpm doesn't guard
-/// against it in this function either.
+/// Verifies every CAFS file the index row references and fails the
+/// whole entry — so the caller re-fetches — when any file no longer
+/// matches what the row recorded. Non-regular-file dirents are *not*
+/// rejected preemptively — the integrity hash catches real corruption,
+/// and pnpm doesn't guard against it preemptively either.
 pub fn check_pkg_files_integrity(
     store_dir: &StoreDir,
     entry: PackageFilesIndex,
@@ -162,12 +145,10 @@ pub fn check_pkg_files_integrity(
 }
 
 /// Materialize the per-cache-key overlaid [`FilesMap`]s from a
-/// `PackageFilesIndex.side_effects` entry. Mirrors upstream's
-/// [`applySideEffectsDiffWithMaps`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/store/create-cafs-store/src/index.ts#L103-L121).
-/// The content of `added` entries is *not* re-verified here — pnpm
-/// doesn't do that either; corruption in the side-effects layer
-/// would surface at import time via `linkOrCopy` failing on a
-/// missing CAS blob.
+/// `PackageFilesIndex.side_effects` entry. The content of `added`
+/// entries is *not* re-verified here — pnpm doesn't do that either;
+/// corruption in the side-effects layer would surface at import time
+/// as a missing CAS blob.
 fn build_side_effects_maps(
     store_dir: &StoreDir,
     side_effects: Option<HashMap<String, SideEffectsDiff>>,
@@ -213,8 +194,7 @@ fn build_side_effects_maps(
         }
         // Promote `deleted` to a `HashSet` once per cache key so
         // the `base_files` walk stays linear in `|base|` instead of
-        // `O(|base| * |deleted|)`. Pnpm's TS side keeps `deleted`
-        // as a `Set` for the same reason.
+        // `O(|base| * |deleted|)`.
         let deleted_set: std::collections::HashSet<String> =
             deleted.unwrap_or_default().into_iter().collect();
         for (filename, path) in base_files {
@@ -243,9 +223,9 @@ fn is_safe_overlay_path(filename: &str) -> bool {
     path.components().all(|component| matches!(component, Component::Normal(_) | Component::CurDir))
 }
 
-/// Port of pnpm's `verifyFile`. `true` when the on-disk file is either
-/// unmodified since the last verified check or modified but still
-/// content-hashes to the stored digest.
+/// `true` when the on-disk file is either unmodified since the last
+/// verified check or modified but still content-hashes to the stored
+/// digest.
 ///
 /// `filename` is the in-tarball path the caller is trying to reuse; it
 /// doesn't affect behaviour, only the `debug!` log when verification
@@ -346,8 +326,8 @@ fn verify_file(path: &Path, filename: &str, info: &CafsFileInfo, algo: &str) -> 
     passed
 }
 
-/// Remove a CAFS dirent that failed verification, matching pnpm's
-/// `rimrafSync` semantics.
+/// Remove a CAFS dirent that failed verification, with recursive
+/// (`rimraf`-style) semantics that also handle a directory.
 ///
 /// `fs::remove_file` on a directory returns `EISDIR` / `EPERM`, and a
 /// corrupted store that has a directory sitting where a CAFS blob
@@ -374,13 +354,13 @@ fn remove_stale_cafs_entry(path: &Path) {
     }
 }
 
-/// Port of pnpm's `checkFile`. `Some((is_modified, size))` for a file
-/// we can read metadata for; `None` otherwise.
+/// `Some((is_modified, size))` for a file we can read metadata for;
+/// `None` otherwise.
 ///
-/// Pnpm rethrows non-`ENOENT` errors and only returns `null` for
-/// `ENOENT`. This port collapses every metadata error (permission
-/// denied, EIO, platform mtime representation failures) to `None`
-/// instead, which the caller then treats as "verification failed →
+/// Pnpm rethrows non-`ENOENT` metadata errors and only treats `ENOENT`
+/// as a miss. Pacquet instead collapses every metadata error
+/// (permission denied, EIO, platform mtime representation failures) to
+/// `None`, which the caller then treats as "verification failed →
 /// re-fetch". That's a safer default for a cache-hint path — we don't
 /// want a transient `EACCES` on a CAS blob to panic the install — and
 /// the content-hash check in [`verify_file_integrity`] still catches
@@ -392,7 +372,7 @@ fn remove_stale_cafs_entry(path: &Path) {
 /// ≤1 ms drift between when we recorded `checked_at` and when the kernel
 /// actually stamped the inode. A missing `checked_at` deserializes as
 /// `Option<u64>::None` and is treated as `0`, which forces a re-hash the
-/// first time an old-format row is read (same as pnpm's `?? 0`).
+/// first time an old-format row is read (as pnpm also does).
 fn check_file(path: &Path, checked_at: Option<u64>) -> Option<(bool, u64)> {
     let meta = fs::metadata(path).ok()?;
     let mtime_ms = meta
@@ -407,17 +387,14 @@ fn check_file(path: &Path, checked_at: Option<u64>) -> Option<(bool, u64)> {
     Some((is_modified, meta.len()))
 }
 
-/// Port of pnpm's `verifyFileIntegrity`. Streams the file through the
-/// hasher in 64 KiB chunks and compares the digest against the stored
-/// hex `digest`.
+/// Streams the file through the hasher in 64 KiB chunks and compares
+/// the digest against the stored hex `digest`.
 ///
-/// pnpm itself calls `readFileSync` + `crypto.hash`, which loads the
-/// whole blob into a `Buffer` first. On Node that's capped implicitly
-/// by `Buffer.kMaxLength`; in Rust we'd allocate the full file up
-/// front, spiking RSS for multi-MB CAS blobs when an install is
-/// verifying many entries in parallel. A `BufReader` + incremental
-/// `Digest::update` is equivalent on the wire and keeps peak memory
-/// bounded per thread.
+/// Reading the whole blob into memory before hashing would allocate
+/// the full file up front, spiking RSS for multi-MB CAS blobs when an
+/// install is verifying many entries in parallel. A `BufReader` +
+/// incremental `Digest::update` produces the same digest and keeps
+/// peak memory bounded per thread.
 ///
 /// Only `sha512` is supported — pacquet always writes that algo in
 /// [`StoreDir::write_cas_file`]. Any other algo falls through to

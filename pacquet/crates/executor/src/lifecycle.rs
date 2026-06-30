@@ -22,8 +22,6 @@ use std::{
 };
 
 /// Error from running lifecycle scripts.
-///
-/// Ports pnpm's error shape from `exec/lifecycle/src/runLifecycleHook.ts`.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum LifecycleScriptError {
@@ -67,11 +65,8 @@ pub enum LifecycleScriptError {
     },
 }
 
-/// Options for [`run_postinstall_hooks`].
-///
-/// Ports the subset of `RunLifecycleHookOptions` from
-/// `exec/lifecycle/src/runLifecycleHook.ts` that the headless
-/// installer needs.
+/// Options for [`run_postinstall_hooks`] — the subset of lifecycle-hook
+/// inputs the headless installer needs.
 pub struct RunPostinstallHooks<'a> {
     pub dep_path: &'a str,
     pub pkg_root: &'a Path,
@@ -124,19 +119,12 @@ pub struct RunPostinstallHooks<'a> {
 const DEPENDENCY_LIFECYCLE_STAGES: [&str; 3] = ["preinstall", "install", "postinstall"];
 
 /// The lifecycle stages pnpm runs for each workspace *project* during
-/// `pnpm install`, in execution order. Mirrors the hardcoded list at
-/// the `runLifecycleHooksConcurrently` call sites in
-/// [`pkg-manager/core`](https://github.com/pnpm/pnpm/blob/80037699fb/pkg-manager/core/src/install/index.ts#L1525)
-/// and
-/// [`pkg-manager/headless`](https://github.com/pnpm/pnpm/blob/80037699fb/pkg-manager/headless/src/index.ts#L671).
+/// `pnpm install`, in execution order.
 pub const PROJECT_LIFECYCLE_STAGES: [&str; 6] =
     ["preinstall", "install", "postinstall", "preprepare", "prepare", "postprepare"];
 
 /// Run the preinstall, install, and postinstall lifecycle scripts for
 /// a single dependency.
-///
-/// Ports `runPostinstallHooks` from
-/// `https://github.com/pnpm/pnpm/blob/80037699fb/exec/lifecycle/src/index.ts`.
 ///
 /// Returns `true` if any script was present and executed.
 pub fn run_postinstall_hooks<Reporter: self::Reporter>(
@@ -149,8 +137,6 @@ pub fn run_postinstall_hooks<Reporter: self::Reporter>(
 /// `pnpm install` — preinstall, install, postinstall, preprepare,
 /// prepare, postprepare, in that order.
 ///
-/// Ports the per-importer body of `runLifecycleHooksConcurrently` from
-/// `https://github.com/pnpm/pnpm/blob/80037699fb/exec/lifecycle/src/runLifecycleHooksConcurrently.ts`.
 /// The caller fans this out across projects (and is responsible for
 /// linking each project's bins beforehand so a later project's scripts
 /// can resolve binaries built by an earlier one).
@@ -167,9 +153,7 @@ pub fn run_project_lifecycle_scripts<Reporter: self::Reporter>(
 /// and [`run_project_lifecycle_scripts`].
 ///
 /// The `install` stage falls back to `node-gyp rebuild` when neither
-/// `install` nor `preinstall` is defined and a `binding.gyp` exists,
-/// matching `checkBindingGyp` at
-/// <https://github.com/pnpm/pnpm/blob/80037699fb/exec/lifecycle/src/runLifecycleHook.ts#L181-L188>.
+/// `install` nor `preinstall` is defined and a `binding.gyp` exists.
 /// The `npx only-allow pnpm` guard script is skipped — it does nothing
 /// under pnpm/pacquet.
 fn run_lifecycle_stages<Reporter: self::Reporter>(
@@ -223,14 +207,11 @@ fn run_lifecycle_stages<Reporter: self::Reporter>(
 
 /// Run a single lifecycle hook and emit `pnpm:lifecycle` events.
 ///
-/// Ports the core of `runLifecycleHook` from
-/// `https://github.com/pnpm/pnpm/blob/80037699fb/exec/lifecycle/src/runLifecycleHook.ts`.
-///
 /// `parent_env` is captured by the caller so multi-stage callers (the
 /// [`run_postinstall_hooks`] wrapper and `pacquet-git-fetcher`'s
-/// `preparePackage` port) can snapshot once and reuse across stages,
-/// matching upstream's behavior where each stage sees the same parent
-/// env regardless of what siblings wrote into the process's own env.
+/// package-preparation step) can snapshot once and reuse across stages,
+/// so each stage sees the same parent env regardless of what siblings
+/// wrote into the process's own env.
 pub fn run_lifecycle_hook<Reporter: self::Reporter>(
     stage: &str,
     script: &str,
@@ -276,10 +257,9 @@ pub fn run_lifecycle_hook<Reporter: self::Reporter>(
 
     if let Some(tmpdir) = &built.tmpdir {
         // `fs::create_dir_all` is idempotent for existing
-        // directories (it returns `Ok(())`), so the upstream
-        // `EEXIST` swallow at index.js:97-102 doesn't translate.
-        // Treat any error here — including `AlreadyExists`, which
-        // signals a *file* at that path — as a real spawn failure.
+        // directories (it returns `Ok(())`), so no `EEXIST` swallow is
+        // needed. Treat any error here — including `AlreadyExists`,
+        // which signals a *file* at that path — as a real spawn failure.
         fs::create_dir_all(tmpdir).map_err(|error| LifecycleScriptError::Spawn {
             dep_path: opts.dep_path.to_string(),
             stage: stage.to_string(),
@@ -287,9 +267,8 @@ pub fn run_lifecycle_hook<Reporter: self::Reporter>(
         })?;
     }
 
-    // Mirrors the `env[PATH] = extendPath(...)` line in `lifecycle_`
-    // at index.js:116, with the original PATH coming from the
-    // (already-filtered) parent env captured during `build_env`.
+    // Set PATH via `extend_path`, with the original PATH coming from
+    // the (already-filtered) parent env captured during `build_env`.
     // Lookup is case-insensitive because Windows preserves the
     // system casing (typically `Path`) on env keys.
     let original_path = path_value(&built.env).map(OsString::from);
@@ -304,8 +283,8 @@ pub fn run_lifecycle_hook<Reporter: self::Reporter>(
 
     // Pick the shell up front so a misconfigured `scriptShell` fails
     // before we touch the filesystem (TMPDIR etc. already created
-    // above — that's a minor leak, but matches upstream where
-    // `makeEnv` runs before the `runCmd_` shell pick anyway).
+    // above — that's a minor leak, but the env is built before the
+    // shell pick anyway).
     let shell = select_shell(opts.script_shell, cfg!(windows)).map_err(|source| {
         LifecycleScriptError::ScriptShell {
             dep_path: opts.dep_path.to_string(),
@@ -410,12 +389,11 @@ pub fn run_lifecycle_hook<Reporter: self::Reporter>(
 /// On Windows the `cmd /d /s /c` path passes `windows_verbatim_args =
 /// true`; the script is then appended with
 /// `std::os::windows::process::CommandExt::raw_arg` so embedded quoting
-/// (e.g. `node -e "..."`) reaches the child untouched. This mirrors
-/// Node's `windowsVerbatimArguments` at
-/// <https://github.com/pnpm/npm-lifecycle/blob/d2d8e790/index.js#L251>;
-/// the default `arg` quoting would escape the inner `"` and break such
-/// commands under `cmd.exe`. Everywhere else (POSIX `sh -c`, a custom
-/// `scriptShell`) the standard `arg` is correct.
+/// (e.g. `node -e "..."`) reaches the child untouched, the same as
+/// Node's `windowsVerbatimArguments`. The default `arg` quoting would
+/// escape the inner `"` and break such commands under `cmd.exe`.
+/// Everywhere else (POSIX `sh -c`, a custom `scriptShell`) the standard
+/// `arg` is correct.
 #[cfg(windows)]
 pub fn push_script_arg(cmd: &mut Command, script: &str, windows_verbatim_args: bool) {
     use std::os::windows::process::CommandExt;
@@ -432,9 +410,7 @@ pub fn push_script_arg(cmd: &mut Command, script: &str, _windows_verbatim_args: 
 }
 
 /// Spawn a thread that reads `reader` line-by-line and emits a
-/// `LifecycleMessage::Stdio` event per line. Mirrors the per-chunk
-/// logging callback at
-/// <https://github.com/pnpm/pnpm/blob/80037699fb/exec/lifecycle/src/runLifecycleHook.ts#L147>.
+/// `LifecycleMessage::Stdio` event per line.
 fn spawn_line_pump<Reporter: self::Reporter>(
     reader: impl Read + Send + 'static,
     stdio: LifecycleStdio,

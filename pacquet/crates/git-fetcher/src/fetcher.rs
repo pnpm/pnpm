@@ -2,9 +2,6 @@
 //! run [`crate::prepare_package()`], delete `.git`, run [`crate::packlist()`],
 //! and import the resulting file set into the CAS.
 //!
-//! Ports pnpm's
-//! [`fetching/git-fetcher/src/index.ts`](https://github.com/pnpm/pnpm/blob/94240bc046/fetching/git-fetcher/src/index.ts).
-//!
 //! Pacquet, like pnpm, does not bundle git — the user must install it.
 //! `git` operations are sync (no async git client lives in the workspace),
 //! so the work runs under `tokio::task::block_in_place` to keep the
@@ -65,18 +62,15 @@ pub struct GitFetcher<'a> {
     /// skips the write — the install is still correct, just slower
     /// on the next run.
     pub store_index_writer: Option<&'a Arc<StoreIndexWriter>>,
-    /// Cache key the row lands at. Mirrors upstream's
-    /// `pickStoreIndexKey(resolution, pkgId, { built })` shape — for
-    /// git resolutions this is always the `gitHostedStoreIndexKey`
-    /// form (`pkg_id\t{built|not-built}`). The dispatcher computes
-    /// it once and threads it in.
+    /// Cache key the row lands at — for git resolutions this is always
+    /// the git-hosted store-index-key form (`pkg_id\t{built|not-built}`).
+    /// The dispatcher computes it once and threads it in.
     pub files_index_file: &'a str,
     /// Override for the `git` binary path. Production callers leave
-    /// this `None` and the fetcher resolves `git` through `PATH`
-    /// (matches upstream's `execa('git', …)` shape). Tests use it to
-    /// inject a shim binary at an absolute path, so the test can
-    /// observe the fetcher's argv without mutating process-global
-    /// state.
+    /// this `None` and the fetcher resolves `git` through `PATH`.
+    /// Tests use it to inject a shim binary at an absolute path, so
+    /// the test can observe the fetcher's argv without mutating
+    /// process-global state.
     pub git_bin: Option<&'a Path>,
 }
 
@@ -86,7 +80,7 @@ pub struct GitFetcher<'a> {
 #[derive(Debug)]
 pub struct GitFetchOutput {
     /// Relative-path → CAS-path map. Keys use forward slashes regardless
-    /// of host platform (matches upstream's `path/posix` joining).
+    /// of host platform.
     pub cas_paths: HashMap<String, PathBuf>,
     /// `shouldBeBuilt` from `prepare_package`. The caller routes this
     /// into the `built` dimension of [`pacquet_store_dir::pick_store_index_key`].
@@ -135,8 +129,7 @@ impl GitFetcher<'_> {
             });
         }
 
-        // `extra_env` is a borrow rather than `Option<&HashMap>` so the
-        // shape matches upstream's `runLifecycleHook` options exactly.
+        // `extra_env` is a borrow rather than `Option<&HashMap>`.
         // Bind an empty map to a local so the borrow has the same lifetime
         // as `prepare_opts` itself — relying on `&HashMap::new()`'s
         // temporary-lifetime extension here would work today but is
@@ -171,8 +164,7 @@ impl GitFetcher<'_> {
             );
         }
 
-        // Match upstream's "delete .git before computing CAS contents"
-        // step (`fetching/git-fetcher/src/index.ts:60`) so the resulting
+        // Delete `.git` before computing CAS contents so the resulting
         // files-index is git-history-free. Ignore `NotFound` in case
         // `prepare_package` already wiped it on the rare manifests that
         // do so themselves.
@@ -193,9 +185,7 @@ impl GitFetcher<'_> {
 
         // Queue a `PackageFilesIndex` row so a future install's warm
         // prefetch finds the snapshot in `index.db` and skips the
-        // clone+checkout+prepare+packlist re-run. Mirrors the role
-        // of `addFilesFromDir`'s store-index write inside upstream's
-        // `fetching/git-fetcher` at index.ts:65-73.
+        // clone+checkout+prepare+packlist re-run.
         if let Some(writer) = self.store_index_writer {
             writer.queue(
                 self.files_index_file.to_string(),
@@ -213,14 +203,13 @@ impl GitFetcher<'_> {
     }
 }
 
-/// Wrap `PreparePackageError` with the same "Failed to prepare
-/// git-hosted package fetched from `<repo>`" prefix upstream stamps at
-/// [`fetching/git-fetcher/src/index.ts:55-57`](https://github.com/pnpm/pnpm/blob/94240bc046/fetching/git-fetcher/src/index.ts#L55-L57).
+/// Wrap `PreparePackageError` to convey the "Failed to prepare
+/// git-hosted package fetched from `<repo>`" context.
 ///
-/// We do this via the source chain instead of mutating the message
-/// (no JS-style `err.message = ...` available), so the wrapped error
-/// shows up in `miette`'s rendered chain as "Failed to prepare git-
-/// hosted package ... → Failed to prepare package → `ERR_PNPM_PREPARE_PACKAGE`".
+/// We do this via the source chain instead of mutating the message,
+/// so the wrapped error shows up in `miette`'s rendered chain as
+/// "Failed to prepare git-hosted package ... → Failed to prepare
+/// package → `ERR_PNPM_PREPARE_PACKAGE`".
 fn wrap_prepare_error(_repo: &str, err: PreparePackageError) -> GitFetcherError {
     // For the MVP we preserve `err` as the source; the install log
     // line at the dispatcher level already includes the repo URL via
@@ -237,8 +226,7 @@ fn is_valid_commit_hash(commit: &str) -> bool {
 }
 
 /// True iff `repo` parses to a host that pacquet should clone via the
-/// shallow `init` + `fetch --depth 1` path. Mirrors upstream's
-/// [`shouldUseShallow`](https://github.com/pnpm/pnpm/blob/94240bc046/fetching/git-fetcher/src/index.ts#L81-L91).
+/// shallow `init` + `fetch --depth 1` path.
 fn should_use_shallow(repo: &str, allowed_hosts: &[String]) -> bool {
     if allowed_hosts.is_empty() {
         return false;
@@ -248,7 +236,7 @@ fn should_use_shallow(repo: &str, allowed_hosts: &[String]) -> bool {
 }
 
 /// Pluck the host portion out of a git URL. Handles the three forms
-/// pnpm's git resolver produces: `https://host/path/...`,
+/// git resolution produces: `https://host/path/...`,
 /// `git+ssh://user@host/path/...`, and `git://host/path/...`. Falls
 /// through to `None` for `file://` paths and SSH-style
 /// `user@host:path/...` (those don't appear in `git_shallow_hosts`
@@ -269,8 +257,6 @@ fn extract_host(url: &str) -> Option<&str> {
 
 /// On Windows, prepend `-c core.longpaths=true` to every git
 /// invocation so paths beyond 260 characters don't break checkout.
-/// Mirrors upstream's
-/// [`prefixGitArgs`](https://github.com/pnpm/pnpm/blob/94240bc046/fetching/git-fetcher/src/index.ts#L93-L95).
 fn prefix_git_args() -> &'static [&'static str] {
     #[cfg(windows)]
     {

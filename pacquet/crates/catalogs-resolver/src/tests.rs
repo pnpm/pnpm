@@ -1,6 +1,3 @@
-//! Ports of `catalogs/resolver/test/resolveFromCatalog.test.ts`
-//! ([source](https://github.com/pnpm/pnpm/blob/a8a8cbce6d/catalogs/resolver/test/resolveFromCatalog.test.ts)).
-
 use super::{
     CatalogResolution, CatalogResolutionError, CatalogResolutionFound, CatalogResolutionResult,
     WantedDependency, resolve_from_catalog,

@@ -4,9 +4,6 @@ use std::{
 };
 
 /// Output of [`graph_sequencer`].
-///
-/// Ports the `Result<T>` shape from
-/// `https://github.com/pnpm/pnpm/blob/80037699fb/deps/graph-sequencer/src/index.ts`.
 #[derive(Debug)]
 pub struct GraphSequencerResult<Node> {
     /// `false` when at least one cycle of length > 1 was found.
@@ -20,9 +17,6 @@ pub struct GraphSequencerResult<Node> {
 }
 
 /// Topologically sort a graph into chunks.
-///
-/// Ports `graphSequencer` from
-/// `https://github.com/pnpm/pnpm/blob/80037699fb/deps/graph-sequencer/src/index.ts`.
 ///
 /// `graph` is a node → outgoing-edges map. `included` selects the subset of
 /// nodes to be sorted. Edges to nodes outside the included set are ignored.

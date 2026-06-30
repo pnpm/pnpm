@@ -2,11 +2,9 @@
 //! [`pacquet_resolving_resolver_base::Resolver`] over the free
 //! functions in [`super::local_resolver`].
 //!
-//! Upstream's chain at
-//! [`createResolver`](https://github.com/pnpm/pnpm/blob/b61e268d57/resolving/default-resolver/src/index.ts#L97-L173)
-//! interleaves the local-scheme step ahead of the runtime / named-
-//! registry resolvers and runs the local-path step last. Pacquet
-//! mirrors that split with two separate [`Resolver`] impls:
+//! The resolver chain interleaves the local-scheme step ahead of the
+//! runtime / named-registry resolvers and runs the local-path step
+//! last. That split is expressed as two separate [`Resolver`] impls:
 //! [`LocalSchemeResolver`] (claims `link:` / `file:` / `workspace:`)
 //! and [`LocalPathResolver`] (claims bare path-shape specifiers like
 //! `./foo` or `foo.tgz`). [`LocalResolver`] is the combined form
@@ -26,8 +24,7 @@ use pacquet_resolving_resolver_base::{
 
 /// `Resolver` for the local-scheme branch (`link:` / `file:` /
 /// `workspace:`). Sits between the tarball resolver and the runtime
-/// / named-registry resolvers in the chain, mirroring
-/// [`_resolveFromLocalScheme`](https://github.com/pnpm/pnpm/blob/b61e268d57/resolving/default-resolver/src/index.ts#L135).
+/// / named-registry resolvers in the chain.
 ///
 /// `resolve_latest` routes through
 /// [`resolve_latest_from_local`]
@@ -82,12 +79,11 @@ impl Resolver for LocalSchemeResolver {
 /// after named-registry — so a `<alias>:@scope/pkg` specifier reaches
 /// the named-registry resolver instead of being misrouted here on
 /// the strength of an embedded `/` (`contains_path_sep` in
-/// `parse_bare_specifier.rs`). Mirrors
-/// [`_resolveFromLocalPath`](https://github.com/pnpm/pnpm/blob/b61e268d57/resolving/default-resolver/src/index.ts#L146).
+/// `parse_bare_specifier.rs`).
 ///
-/// `resolve_latest` returns `Ok(None)` because the equivalent
-/// upstream step is folded into `resolveLatestFromLocal` and only
-/// fires once for the scheme branch.
+/// `resolve_latest` returns `Ok(None)` because the latest-version
+/// step is handled by [`resolve_latest_from_local`] and only fires
+/// once, for the scheme branch.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct LocalPathResolver {
     pub ctx: LocalResolverContext,
@@ -134,7 +130,7 @@ impl Resolver for LocalPathResolver {
 /// chains that don't need the split, but the production chain in
 /// `install_without_lockfile.rs` uses [`LocalSchemeResolver`] and
 /// [`LocalPathResolver`] separately so the named-registry resolver
-/// can slot in between them — matching upstream's chain order.
+/// can slot in between them — matching the chain order.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct LocalResolver {
     pub ctx: LocalResolverContext,
@@ -217,9 +213,7 @@ fn local_options(opts: &ResolveOptions) -> LocalResolverOptions {
 
 /// Thread the alias from the [`WantedDependency`] onto the chain
 /// result so the install layer can address the resolved package by
-/// the manifest key. Mirrors upstream's
-/// [`alias: wantedDep.alias`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/default-resolver/src/index.ts#L123)
-/// thread.
+/// the manifest key.
 fn into_chain_result(
     result: crate::local_resolver::LocalResolveResult,
     wanted_dependency: &WantedDependency,

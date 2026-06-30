@@ -1,12 +1,10 @@
 //! `pacquet repo` — open the repository URL of a package in the browser.
 //!
-//! Ports the upstream repo tests
-//! (<https://github.com/pnpm/pnpm/blob/fc2f33912e/pnpm11/deps/inspection/commands/test/repo.ts>):
-//! the missing-repository-field error, the missing-package.json error, and the
-//! command structure checks. The URL-normalization logic is covered by the unit
-//! tests on `repository_to_web_url` / `pick_repo_url`; the full integration
-//! path (mock registry + URL open) requires platform-specific browser launcher
-//! mocking and follows the `whoami` pattern.
+//! Covers the missing-repository-field error, the missing-package.json error,
+//! and the command structure checks. The URL-normalization logic is covered by
+//! the unit tests on `repository_to_web_url` / `pick_repo_url`; the full
+//! integration path (mock registry + URL open) requires platform-specific
+//! browser launcher mocking and follows the `whoami` pattern.
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;

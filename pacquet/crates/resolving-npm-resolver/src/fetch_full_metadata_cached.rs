@@ -1,8 +1,5 @@
 //! Cache-aware metadata fetcher.
 //!
-//! Ports pnpm's
-//! [`fetchFullMetadataCached`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetchFullMetadataCached.ts).
-//!
 //! When a cache directory is configured, the fetcher consults a
 //! shared mirror under `<cache_dir>/v11/metadata-full/` (full) or
 //! `<cache_dir>/v11/metadata/` (abbreviated), keyed by
@@ -36,12 +33,9 @@ use crate::{
     registry_url::to_registry_url,
 };
 
-/// Options bundle for [`fetch_full_metadata_cached`]. Mirrors
-/// upstream's [`FetchFullMetadataCachedOptions`][ts-FetchFullMetadataCachedOptions] — same fields, same
-/// optionality. `cache_dir` is the only addition over the no-cache
+/// Options bundle for [`fetch_full_metadata_cached`]. `cache_dir` is
+/// the only addition over the no-cache
 /// [`crate::FetchFullMetadataOptions`].
-///
-/// [ts-FetchFullMetadataCachedOptions]: https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetchFullMetadataCached.ts#L20
 #[derive(Debug, Clone)]
 pub struct FetchFullMetadataCachedOptions<'a> {
     pub registry: &'a str,
@@ -54,12 +48,7 @@ pub struct FetchFullMetadataCachedOptions<'a> {
     pub cache_dir: Option<&'a Path>,
     /// `true` requests the full packument and caches it under
     /// [`FULL_META_DIR`]; `false` requests the abbreviated form
-    /// and caches it under [`ABBREVIATED_META_DIR`]. Mirrors
-    /// upstream's
-    /// [`fetchFullMetadataCached`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetchFullMetadataCached.ts#L30-L36)
-    /// vs.
-    /// [`fetchAbbreviatedMetadataCached`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetchFullMetadataCached.ts#L47-L53)
-    /// dispatch.
+    /// and caches it under [`ABBREVIATED_META_DIR`].
     pub full_metadata: bool,
     /// When full metadata is requested, use pnpm's filtered metadata
     /// mirror and persist the filtered packument shape.
@@ -68,9 +57,7 @@ pub struct FetchFullMetadataCachedOptions<'a> {
 }
 
 /// Fetch the full registry metadata document for `pkg_name`, reusing
-/// the shared on-disk mirror when `cache_dir` is supplied. Ports
-/// upstream's
-/// [`fetchFullMetadataCached`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetchFullMetadataCached.ts#L30-L36).
+/// the shared on-disk mirror when `cache_dir` is supplied.
 pub async fn fetch_full_metadata_cached(
     pkg_name: &str,
     opts: &FetchFullMetadataCachedOptions<'_>,
@@ -147,7 +134,7 @@ pub async fn fetch_full_metadata_cached(
             let Some(path) = mirror_path.as_deref() else {
                 // 304 without an existing cache to fall back on — the
                 // registry over-reached on `If-None-Match: <stale>`.
-                // Mirrors upstream's `META_NOT_MODIFIED_WITHOUT_CACHE`.
+                // Surfaces as `META_NOT_MODIFIED_WITHOUT_CACHE`.
                 return Err(FetchMetadataError::NotModifiedWithoutCache {
                     pkg_name: pkg_name.to_string(),
                 });

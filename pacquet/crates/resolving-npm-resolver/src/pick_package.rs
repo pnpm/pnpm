@@ -1,8 +1,5 @@
 //! Cache+fetch orchestration around [`pick_package_from_meta`].
 //!
-//! Ports pnpm's
-//! [`pickPackage.ts`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts).
-//!
 //! Resolves a [`RegistryPackageSpec`] to a single
 //! [`PackageVersion`] by:
 //!
@@ -17,9 +14,8 @@
 //!    for the actual version pick.
 //!
 //! Full vs. abbreviated metadata is selected per call from
-//! `opts.optional || ctx.full_metadata`, matching upstream's
-//! [`fullMetadata`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L201)
-//! derivation. The orchestrator wires the choice through to the
+//! `opts.optional || ctx.full_metadata`. The orchestrator wires the
+//! choice through to the
 //! mirror directory ([`ABBREVIATED_META_DIR`] vs. [`FULL_META_DIR`]),
 //! the in-memory cache key (`:full` suffix when full), and the
 //! `Accept` header on the registry request. When `published_by` is
@@ -27,21 +23,19 @@
 //! lacks the per-version `time` map, the orchestrator transparently
 //! upgrades to full metadata via a follow-up fetch so the
 //! `minimumReleaseAge` check runs against real timestamps instead of
-//! silently degrading to its warn-and-skip fallback. Ports upstream's
-//! [`maybeUpgradeAbbreviatedMetaForReleaseAge`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L450-L501).
+//! silently degrading to its warn-and-skip fallback (see
+//! [`maybe_upgrade_abbreviated_meta_for_release_age`]).
 //!
-//! Concurrency: upstream's
-//! [`runLimited(pkgMirror, …)`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L52)
-//! wraps the post-cache-miss flow in a `pLimit(1)` keyed by the
-//! mirror path so concurrent picks for the same package coalesce
+//! Concurrency: the post-cache-miss flow is serialized per mirror path
+//! so concurrent picks for the same package coalesce
 //! into a single network fetch — the rest wait, then re-check the
 //! in-memory cache that the winner just populated and short-circuit
-//! without hitting the registry. Pacquet ports this via
+//! without hitting the registry. This is done via
 //! [`PackumentFetchLocker`], a [`DashMap<String, Arc<Semaphore>>`]
 //! threaded through [`PickPackageContext::fetch_locker`]: the first
 //! caller for a given cache key acquires the per-key permit and
 //! does the disk + network work; subsequent callers wait on the
-//! permit and (per pnpm's runLimited semantics) re-check
+//! permit and re-check
 //! [`PackageMetaCache`] after acquiring so the winner's
 //! [`PackageMetaCache::set`] short-circuits the rest. Without this,
 //! pacquet was firing N concurrent HTTP GETs for the same packument
@@ -83,9 +77,7 @@ use crate::{
 };
 
 /// In-memory packument cache the orchestrator consults before any
-/// disk read. Mirrors upstream's
-/// [`PackageMetaCache`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L27-L31)
-/// interface — a thin map abstraction so a long-lived install can
+/// disk read. A thin map abstraction so a long-lived install can
 /// share one cache across many [`pick_package`] calls.
 ///
 /// Implementations must be safe to call concurrently from multiple
@@ -97,9 +89,8 @@ pub trait PackageMetaCache: Send + Sync {
     /// when the cache hasn't seen it. Returned as
     /// [`Arc<Package>`] so cross-resolve sharing of a popular
     /// packument (`react`, `lodash`, ...) doesn't deep-clone the
-    /// full versions map on every consumer's hit. Mirrors JS
-    /// `Map.get` semantics — pnpm's metaCache returns object
-    /// references, not copies, and pacquet matches that contract.
+    /// full versions map on every consumer's hit. Returns shared
+    /// references, not copies.
     fn get(&self, key: &str) -> Option<Arc<Package>>;
     /// Insert/overwrite `meta` under `key`. The orchestrator inserts
     /// after a fresh fetch and after any disk-fast-path that returns
@@ -114,11 +105,9 @@ pub trait PackageMetaCache: Send + Sync {
     fn set(&self, key: String, meta: Arc<Package>);
 }
 
-/// Per-`(registry, package_name)` fetch serializer. Mirrors
-/// upstream's [`metafileOperationLimits`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L42-L44)
-/// — a map of `pLimit(1)` instances keyed on the on-disk mirror
-/// path, used by [`runLimited`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L52-L64)
-/// to coalesce concurrent picks for the same packument.
+/// Per-`(registry, package_name)` fetch serializer: a map of
+/// single-permit limits keyed on the on-disk mirror path, used to
+/// coalesce concurrent picks for the same packument.
 ///
 /// Pacquet stores one [`tokio::sync::Semaphore`] (single-permit) per
 /// in-memory cache key; first caller acquires, runs the
@@ -133,8 +122,7 @@ pub trait PackageMetaCache: Send + Sync {
 /// uses (`{registry}\x00{name}` for abbreviated,
 /// `{registry}\x00{name}:full` for full), so two callers asking for
 /// different forms of the same packument don't accidentally serialize
-/// — pnpm scopes its `runLimited` the same way (per `pkgMirror`,
-/// which embeds the `metaDir` differentiator).
+/// — the `metaDir` differentiator is embedded in the key.
 pub type PackumentFetchLocker = Arc<DashMap<String, Arc<Semaphore>>>;
 
 /// Construct a fresh [`PackumentFetchLocker`] for a new install.
@@ -198,9 +186,7 @@ impl PackageMetaCache for InMemoryPackageMetaCache {
 }
 
 /// Process-shared context every [`pick_package`] call reads from.
-/// One per install. Mirrors the upstream
-/// [`ctx`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L172-L182)
-/// parameter.
+/// One per install.
 pub struct PickPackageContext<'a, Cache: PackageMetaCache> {
     pub http_client: &'a ThrottledClient,
     pub auth_headers: &'a AuthHeaders,
@@ -216,24 +202,21 @@ pub struct PickPackageContext<'a, Cache: PackageMetaCache> {
     pub cache_dir: Option<&'a Path>,
     /// `offline=true` forbids any network access; the picker
     /// surfaces [`PickPackageError::NoOfflineMeta`] when the disk
-    /// mirror is also empty. Mirrors upstream's `ctx.offline`.
+    /// mirror is also empty.
     pub offline: bool,
     /// `prefer_offline=true` reads disk before the network *and*
-    /// returns immediately if disk has a satisfying pick. Mirrors
-    /// upstream's `ctx.preferOffline`.
+    /// returns immediately if disk has a satisfying pick.
     pub prefer_offline: bool,
     /// When [`true`], a `minimumReleaseAge` check that hits an
     /// abbreviated packument (no per-version `time`) warns once and
-    /// falls back to picking without the maturity filter. Mirrors
-    /// upstream's `ctx.ignoreMissingTimeField`.
+    /// falls back to picking without the maturity filter.
     ///
     /// Reachable when the registry-served packument omits `time`
     /// even after a full-metadata fetch (rare; the official npm
     /// registry always populates `time` for full responses) — the
     /// opt-in stays for parity with the resolver option flag.
     pub ignore_missing_time_field: bool,
-    /// Install-wide bias toward full metadata, mirroring upstream's
-    /// [`ctx.fullMetadata`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L175).
+    /// Install-wide bias toward full metadata.
     /// `true` forces every pick to use the full packument; `false`
     /// defers to the per-call `opts.optional` flag, defaulting to
     /// abbreviated metadata. The resolver typically leaves this
@@ -250,9 +233,7 @@ pub struct PickPackageContext<'a, Cache: PackageMetaCache> {
     pub retry_opts: RetryOpts,
 }
 
-/// Per-call options the orchestrator threads to the picker. Mirrors
-/// upstream's
-/// [`PickPackageOptions`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L66-L73).
+/// Per-call options the orchestrator threads to the picker.
 pub struct PickPackageOptions<'a> {
     /// Default registry URL for the package (or the per-scope URL
     /// when the package is scoped). The orchestrator stitches this
@@ -266,26 +247,22 @@ pub struct PickPackageOptions<'a> {
     /// `minimumReleaseAgeExclude` policy. `None` skips exclusion.
     pub published_by_exclude: Option<&'a PackageVersionPolicy>,
     /// Pick the lowest satisfying version instead of the highest.
-    /// Mirrors `pickLowestVersion` on the upstream call site, and
-    /// is forced to `false` when `published_by` is active (the
-    /// maturity filter always picks highest then falls back to
-    /// lowest).
+    /// Forced to `false` when `published_by` is active (the maturity
+    /// filter always picks highest then falls back to lowest).
     pub pick_lowest_version: bool,
     /// Compare the spec-pick against a `latest`-tag pick and keep
     /// the higher of the two. Used by `pnpm add` to make sure a
     /// freshly-added range picks the same version as the
     /// implicit `@latest` would.
     pub include_latest_tag: bool,
-    /// `true` skips the cache write-back on a 200 response.
-    /// Matches the upstream flag — used when the install is a
-    /// pure dry-run (`--lockfile-only`, frozen lockfile, etc.).
+    /// `true` skips the cache write-back on a 200 response — used when
+    /// the install is a pure dry-run (`--lockfile-only`, frozen
+    /// lockfile, etc.).
     pub dry_run: bool,
     /// `true` forces this pick to use the full packument because
     /// the dependency carries `optionalDependencies`-specific
     /// fields (`libc`, `cpu`, `os`) the abbreviated form drops
-    /// some of. Mirrors upstream's
-    /// [`opts.optional`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L72)
-    /// — see [pnpm/pnpm#9950](https://github.com/pnpm/pnpm/issues/9950).
+    /// some of — see [pnpm/pnpm#9950](https://github.com/pnpm/pnpm/issues/9950).
     /// Combined with [`PickPackageContext::full_metadata`] via OR:
     /// either knob set to `true` makes the pick request full
     /// metadata.
@@ -297,7 +274,7 @@ pub struct PickPackageOptions<'a> {
     /// in-memory cache, so an entry there can no longer be assumed to
     /// come from this install's own fresh network fetch — on a shared
     /// resolver it might be disk-sourced, which would short-circuit the
-    /// revalidation. Mirrors pnpm's `--update-checksums`.
+    /// revalidation. Backs the `--update-checksums` flag.
     pub update_checksums: bool,
     /// Concrete versions to ignore while picking. Used by callers that
     /// apply an external resolver-time guard: after the guard rejects a
@@ -306,8 +283,7 @@ pub struct PickPackageOptions<'a> {
     pub blocked_versions: Option<&'a HashSet<String>>,
 }
 
-/// Outcome of a successful [`pick_package`] call. Mirrors
-/// upstream's `{ meta, pickedPackage }`. `meta` is shared as
+/// Outcome of a successful [`pick_package`] call. `meta` is shared as
 /// [`Arc<Package>`] so a hit on the in-memory cache doesn't
 /// deep-clone the packument; the upgrade-on-release-age path
 /// rebuilds the `Arc` only when it actually replaces the body.
@@ -325,19 +301,16 @@ pub struct PickPackageResult {
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum PickPackageError {
-    /// Mirrors upstream's `ERR_PNPM_INVALID_PACKAGE_NAME`. Triggers
-    /// when a package name contains a `/` but doesn't begin with a
-    /// `@scope/` prefix.
+    /// `ERR_PNPM_INVALID_PACKAGE_NAME`: a package name contains a `/`
+    /// but doesn't begin with a `@scope/` prefix.
     #[display("Package name {pkg_name} is invalid, it should have a @scope")]
     #[diagnostic(code(ERR_PNPM_INVALID_PACKAGE_NAME))]
     InvalidPackageName {
         #[error(not(source))]
         pkg_name: String,
     },
-    /// Mirrors upstream's
-    /// [`ERR_PNPM_NO_OFFLINE_META`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L242).
-    /// Offline mode is active and the on-disk mirror doesn't have
-    /// the package.
+    /// `ERR_PNPM_NO_OFFLINE_META`: offline mode is active and the
+    /// on-disk mirror doesn't have the package.
     #[display("Failed to resolve {spec_name}@{spec_fetch_spec} in package mirror {pkg_mirror:?}")]
     #[diagnostic(code(ERR_PNPM_NO_OFFLINE_META))]
     NoOfflineMeta {
@@ -371,8 +344,7 @@ impl From<FetchMetadataError> for PickPackageError {
 }
 
 /// Resolve `spec` to a [`PackageVersion`] backed by the registry
-/// metadata at `opts.registry`. Mirrors upstream's
-/// [`pickPackage`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L172-L432).
+/// metadata at `opts.registry`.
 ///
 /// The orchestrator walks four layers before the network:
 ///
@@ -384,7 +356,7 @@ impl From<FetchMetadataError> for PickPackageError {
 ///    refetching.
 /// 4. **publishedBy mtime shortcut**: if the mirror file was written
 ///    after the maturity cutoff, reuse it before attempting another
-///    conditional fetch. This mirrors pnpm's cache freshness shortcut.
+///    conditional fetch.
 ///
 /// Cache-miss / forced-fetch goes through
 /// [`fetch_full_metadata_cached()`], which sends the conditional
@@ -563,10 +535,10 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             // version. The fast picker can throw MissingTime
             // when publishedBy is active and the cache is
             // abbreviated — swallow that and fall through to a
-            // network fetch, which (in upstream pnpm) would
-            // upgrade abbreviated→full. Pacquet's fetcher is
-            // always full so this branch shouldn't fire today,
-            // but the swallow-and-fall-through matches upstream.
+            // network fetch, which would upgrade abbreviated→full.
+            // Pacquet's fetcher is always full so this branch
+            // shouldn't fire today, but the swallow-and-fall-through
+            // keeps the behavior intact.
             if let Ok((picked_meta, Some(picked))) =
                 pick_from_meta_fast(&picker_opts, spec, Arc::clone(meta), opts.blocked_versions)
             {
@@ -619,9 +591,9 @@ pub async fn pick_package<Cache: PackageMetaCache>(
 
     // 5. Network fetch via the cached fetcher. The cached fetcher
     //    handles conditional headers + 200 cache write internally;
-    //    on a 304 it re-reads the mirror body. The error path here
-    //    mirrors upstream: if a fetch failure has a disk fallback
-    //    we use it; otherwise the error propagates.
+    //    on a 304 it re-reads the mirror body. On the error path, if a
+    //    fetch failure has a disk fallback we use it; otherwise the
+    //    error propagates.
     let fetch_opts = FetchFullMetadataCachedOptions {
         registry: opts.registry,
         http_client: ctx.http_client,
@@ -685,13 +657,12 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         persist_upgraded_to_mirror(path, &meta, use_filtered_full_metadata);
     }
 
-    // Divergence from upstream worth flagging: pnpm's pickPackage
-    // gates the on-disk save behind `!opts.dryRun`. Pacquet's
-    // `fetch_full_metadata_cached` already wrote the response body
-    // to the mirror by the time it returned, so `opts.dry_run` only
-    // suppresses the in-memory cache write. A future
-    // refactor that threads `dry_run` into the fetcher can restore
-    // upstream's no-disk-side-effect dry-run.
+    // Worth flagging: a dry-run is meant to gate the on-disk save, but
+    // `fetch_full_metadata_cached` already wrote the response body to
+    // the mirror by the time it returned, so `opts.dry_run` only
+    // suppresses the in-memory cache write. A future refactor that
+    // threads `dry_run` into the fetcher can restore a fully
+    // no-disk-side-effect dry-run.
     //
     if !opts.dry_run {
         ctx.meta_cache.set(cache_key, Arc::clone(&meta));
@@ -741,8 +712,6 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
     Ok(PickPackageResult { meta, picked_package: picked })
 }
 
-/// Internal mirror of upstream's
-/// [`PickerOptions`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L75-L79).
 /// Same fields as [`PickPackageOptions`] minus the dispatcher-only
 /// ones (registry, `dry_run`); plus the `ignore_missing_time_field`
 /// pull-up from the context.
@@ -759,9 +728,6 @@ struct PickerOpts<'a> {
 /// [`PickPackageFromMetaError::MissingTime`] — orchestrator callers
 /// swallow that on the fast paths so the network fetch can replace
 /// abbreviated metadata with full.
-///
-/// Mirrors upstream's
-/// [`pickMatchingVersionFast`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L138-L146).
 fn pick_matching_version_fast(
     picker_opts: &PickerOpts<'_>,
     spec: &RegistryPackageSpec,
@@ -818,9 +784,7 @@ fn filter_blocked_versions(
 /// Picker used at terminal return sites where there's no further
 /// fall-through. When `ignore_missing_time_field` is on, a
 /// [`PickPackageFromMetaError::MissingTime`] surfaces as a one-shot
-/// warning and the picker retries without `publishedBy`. Mirrors
-/// upstream's
-/// [`pickMatchingVersionFinal`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L152-L170).
+/// warning and the picker retries without `publishedBy`.
 fn pick_matching_version_final(
     picker_opts: &PickerOpts<'_>,
     spec: &RegistryPackageSpec,
@@ -849,8 +813,7 @@ fn pick_matching_version_final(
 /// `publishedBy` is active: try highest mature; if no mature
 /// version satisfies, fall back to lowest (regardless of maturity)
 /// so the orchestrator can report the violation inline and let the
-/// install layer decide what to do. Mirrors upstream's
-/// [`pickRespectingMinReleaseAge`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L111-L123).
+/// install layer decide what to do.
 fn pick_respecting_min_release_age(
     picker_opts: &PickerOpts<'_>,
     spec: &RegistryPackageSpec,
@@ -885,9 +848,7 @@ fn pick_respecting_min_release_age(
     })
 }
 
-/// `publishedBy` is off: respect `pickLowestVersion`. Mirrors
-/// upstream's
-/// [`pickIgnoringReleaseAge`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L126-L133).
+/// `publishedBy` is off: respect `pickLowestVersion`.
 fn pick_ignoring_release_age(
     picker_opts: &PickerOpts<'_>,
     spec: &RegistryPackageSpec,
@@ -914,8 +875,7 @@ fn pick_ignoring_release_age(
 
 /// `include_latest_tag` runner. When the flag is off, just delegate
 /// to the inner picker. When on, additionally pick against the
-/// `latest` tag and return the higher of the two. Matches upstream's
-/// [`runPicker`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L83-L92).
+/// `latest` tag and return the higher of the two.
 fn run_picker<PickOne>(
     picker_opts: &PickerOpts<'_>,
     spec: &RegistryPackageSpec,
@@ -941,8 +901,6 @@ where
 
 /// Higher-version-wins between two optional picks. Treats `None`
 /// as "no pick" so a single satisfying option wins by default.
-/// Mirrors upstream's
-/// [`pickMax`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L95-L102).
 fn pick_max(
     lhs: Option<Arc<PackageVersion>>,
     rhs: Option<Arc<PackageVersion>>,
@@ -971,18 +929,16 @@ fn meta_opts<'a>(picker_opts: &'a PickerOpts<'_>) -> PickPackageFromMetaOptions<
 /// The in-memory cache + fetch-lock key for a `(registry, package)` pick,
 /// namespaced by its [`MetadataCacheScope`].
 ///
-/// A [`MetadataCacheScope::Public`] route keeps the exact upstream-shaped
-/// `{registry}\x00{name}` key (with the `:full` / `:full:filtered` suffix
-/// from upstream's
-/// [cache-key shape](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L206)),
-/// so the CLI and public routes are unchanged. A private route prepends its
-/// descriptor namespace so one caller's private packument can't satisfy
-/// another caller's pick for the same name.
+/// A [`MetadataCacheScope::Public`] route keeps the plain
+/// `{registry}\x00{name}` key (with the `:full` / `:full:filtered`
+/// suffix), so the CLI and public routes are unchanged. A private route
+/// prepends its descriptor namespace so one caller's private packument
+/// can't satisfy another caller's pick for the same name.
 ///
 /// The registry is part of the key because the same package name can live
-/// in two registries (a public `lodash` and a private one); upstream pnpm
-/// gets that scoping by holding one cache per resolver instance per
-/// registry, while pacquet shares one cache across every pick. The
+/// in two registries (a public `lodash` and a private one); pacquet
+/// shares one cache across every pick, so the registry has to be in the
+/// key to scope picks per registry. The
 /// full-mode suffix keeps a later `optional` pick from reusing an
 /// abbreviated entry that dropped `libc`/`cpu`/`os`.
 fn metadata_cache_key(
@@ -1006,9 +962,7 @@ fn metadata_cache_key(
 }
 
 fn validate_package_name(pkg_name: &str) -> Result<(), PickPackageError> {
-    // Mirrors upstream's
-    // [`validatePackageName`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L678-L682):
-    // a slash without a `@scope/` prefix is structurally invalid.
+    // A slash without a `@scope/` prefix is structurally invalid.
     if pkg_name.contains('/') && !pkg_name.starts_with('@') {
         return Err(PickPackageError::InvalidPackageName { pkg_name: pkg_name.to_string() });
     }
@@ -1022,14 +976,11 @@ fn get_file_mtime(path: &Path) -> Option<DateTime<Utc>> {
 }
 
 /// Bounded set of package names we've already warned about for the
-/// missing-`time` field. Matches upstream's
-/// [`warnedMissingTimeFor`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L593-L605)
-/// — a Set capped at 1024 entries to keep long-lived processes
-/// (daemons, store servers) from leaking memory through it.
+/// missing-`time` field. Capped at 1024 entries to keep long-lived
+/// processes (daemons, store servers) from leaking memory through it.
 ///
 /// `IndexSet` (not `Vec`) gives O(1) `contains` + cheap insertion-
-/// ordered eviction via `shift_remove_index(0)`, matching upstream's
-/// JS `Set` which iterates in insertion order.
+/// ordered eviction via `shift_remove_index(0)`.
 const MAX_WARNED_MISSING_TIME: usize = 1024;
 static WARNED_MISSING_TIME: std::sync::LazyLock<Mutex<indexmap::IndexSet<String>>> =
     std::sync::LazyLock::new(|| Mutex::new(indexmap::IndexSet::new()));
@@ -1117,12 +1068,11 @@ struct UpgradeOutcome {
     meta: Arc<Package>,
     /// `true` when the orchestrator should persist `meta` to the
     /// abbreviated mirror and write it back to the in-memory cache.
-    /// Matches upstream's `upgradedFrom != null` branch.
     upgraded: bool,
 }
 
-/// Port of upstream's
-/// [`maybeUpgradeAbbreviatedMetaForReleaseAge`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L450-L501).
+/// Upgrade abbreviated metadata to full when the maturity check needs
+/// per-version timestamps.
 ///
 /// When the resolver default-fetched abbreviated metadata but
 /// `published_by` is active, the per-version `time` map is missing
@@ -1132,7 +1082,7 @@ struct UpgradeOutcome {
 /// touched after the maturity cutoff. Returns the original meta
 /// untouched in every other case.
 ///
-/// The early returns are guard rails that mirror upstream verbatim:
+/// The early returns are guard rails:
 ///
 /// - `ctx.offline`: no network allowed. Stick with what we have.
 /// - `opts.published_by.is_none()`: maturity check disabled.
@@ -1149,17 +1099,14 @@ struct UpgradeOutcome {
 ///
 /// On upgrade the call uses the network-only [`fetch_full_metadata()`]
 /// (not the cached variant) so the response writes back to the
-/// abbreviated mirror via [`persist_upgraded_to_mirror`] — same
-/// shape as upstream's `persistUpgradedMeta`, which intentionally
-/// updates the *abbreviated* cache file with full data so the next
-/// install sees `time` populated and skips the upgrade fetch.
+/// abbreviated mirror via [`persist_upgraded_to_mirror`], which
+/// intentionally updates the *abbreviated* cache file with full data so
+/// the next install sees `time` populated and skips the upgrade fetch.
 ///
 /// The upgrade fetch forwards `meta.etag` and `meta.modified` as
 /// conditional headers. When the registry's full-form representation
 /// hasn't changed it answers `304 Not Modified` and the abbreviated
-/// meta is returned untouched — matches upstream's `notModified`
-/// short-circuit at
-/// [`pickPackage.ts#L488-L499`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L488-L499).
+/// meta is returned untouched.
 async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>(
     ctx: &PickPackageContext<'_, Cache>,
     spec: &RegistryPackageSpec,
@@ -1209,7 +1156,7 @@ async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>
         // headers, so the abbreviated meta is still the freshest
         // signal we have. Keep it and let the downstream picker
         // fall through to its warn-and-skip path on the missing
-        // `time` map — mirrors upstream's `notModified` arm.
+        // `time` map.
         FetchFullMetadataOutcome::NotModified => Ok(UpgradeOutcome { meta, upgraded: false }),
     }
 }
@@ -1218,8 +1165,7 @@ async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>
 /// points at the abbreviated cache because the picker is in
 /// abbreviated mode). Fire-and-forget: a write failure logs at debug
 /// and the install proceeds — the next install simply re-triggers
-/// the upgrade fetch. Mirrors upstream's
-/// [`persistUpgradedMeta`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L507-L524).
+/// the upgrade fetch.
 fn persist_upgraded_to_mirror(pkg_mirror: &Path, meta: &Package, filter_metadata: bool) {
     let save_result = if filter_metadata {
         let meta_for_cache = match clear_meta(meta) {

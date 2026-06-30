@@ -1,5 +1,4 @@
-//! Port of `checkPlatform.ts` from
-//! <https://github.com/pnpm/pnpm/blob/94240bc046/config/package-is-installable/src/checkPlatform.ts>.
+//! Checks a package's wanted `os` / `cpu` / `libc` against the host.
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -7,13 +6,10 @@ use serde::{Deserialize, Serialize};
 
 /// Caller-supplied override for the `os` / `cpu` / `libc` triples
 /// against which a package's wanted platform is evaluated. Each list
-/// defaults to `['current']` at the call site (upstream reads the
-/// config setting and falls back to `['current']` if absent). The
-/// `'current'` sentinel is replaced with the host triple via
-/// `dedupe_current` before the `os` / `cpu` / `libc` lists are
-/// compared. Mirrors upstream's [`SupportedArchitectures`][ts-SupportedArchitectures].
-///
-/// [ts-SupportedArchitectures]: https://github.com/pnpm/pnpm/blob/94240bc046/core/types/src/package.ts#L232-L236
+/// defaults to `['current']` at the call site (read from the config
+/// setting, falling back to `['current']` if absent). The `'current'`
+/// sentinel is replaced with the host triple via `dedupe_current`
+/// before the `os` / `cpu` / `libc` lists are compared.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SupportedArchitectures {
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -81,8 +77,8 @@ impl UnsupportedPlatformError {
 }
 
 fn wanted_json(wanted: &WantedPlatform) -> String {
-    // Mirror upstream's `JSON.stringify(wanted)` shape: only the
-    // fields actually set appear, and each is a JSON array.
+    // Match the `JSON.stringify(wanted)` shape: only the fields
+    // actually set appear, and each is a JSON array.
     let mut parts = Vec::new();
     if let Some(os) = &wanted.os {
         parts.push(format!(r#""os":{}"#, json_string_array(os)));
@@ -97,8 +93,8 @@ fn wanted_json(wanted: &WantedPlatform) -> String {
 }
 
 fn current_json(current: &Platform) -> String {
-    // Upstream constructs `{ os: platform, cpu: arch, libc: currentLibc }`
-    // (single strings, not arrays). Mirror that shape.
+    // The current platform is `{ os, cpu, libc }` with single strings,
+    // not arrays.
     fn single(values: &[String]) -> String {
         values.first().cloned().unwrap_or_default()
     }
@@ -120,7 +116,7 @@ fn json_string_array(values: &[String]) -> String {
 /// Returns `None` when the package is compatible, or
 /// `Some(UnsupportedPlatformError)` when any constraint rejects the
 /// host. Negation entries (`!foo`) and the special `any` sentinel are
-/// honored exactly as upstream's `checkList`.
+/// honored (see `check_list` in this module).
 ///
 /// The wanted axes are taken as `Option<&[String]>` slices so the
 /// hot path doesn't allocate a [`WantedPlatform`] per snapshot —
@@ -131,13 +127,11 @@ fn json_string_array(values: &[String]) -> String {
 ///
 /// `supported_architectures` substitutes for `['current']` per axis;
 /// `'current'` entries are replaced with the host value before
-/// comparison (see `dedupe_current` in this module), matching pnpm
-/// at <https://github.com/pnpm/pnpm/blob/94240bc046/config/package-is-installable/src/checkPlatform.ts#L88-L90>.
+/// comparison (see `dedupe_current` in this module).
 ///
 /// `current_os`, `current_cpu`, and `current_libc` are passed in
 /// rather than read from the environment so this function stays
-/// trivially testable (and the upstream tests that mock `process.platform`
-/// translate directly).
+/// trivially testable.
 pub fn check_platform(
     package_id: &str,
     wanted: WantedPlatformRef<'_>,
@@ -199,8 +193,7 @@ pub fn check_platform(
 }
 
 /// Replace the literal `current` sentinel in `supported` with the
-/// concrete host value. Ports upstream's `dedupeCurrent` at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/config/package-is-installable/src/checkPlatform.ts#L88-L90>.
+/// concrete host value.
 fn dedupe_current(current: &str, supported: &[String]) -> Vec<String> {
     supported
         .iter()
@@ -209,9 +202,6 @@ fn dedupe_current(current: &str, supported: &[String]) -> Vec<String> {
 }
 
 /// Decide whether any element of `value` is allowed by `list`.
-///
-/// Ports `checkList` at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/config/package-is-installable/src/checkPlatform.ts#L56-L86>.
 fn check_list(value: &[String], list: &[String]) -> bool {
     if list.len() == 1 && list[0] == "any" {
         return true;

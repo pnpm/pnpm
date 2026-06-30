@@ -1,6 +1,6 @@
-//! Port of `config/package-is-installable/test/inferPlatformFromPackageName.ts`
-//! from
-//! <https://github.com/pnpm/pnpm/blob/34875b2d7c/config/package-is-installable/test/inferPlatformFromPackageName.ts>.
+//! Tests for inferring a package's target platform (`os` / `cpu` /
+//! `libc`) from its name, and for the installability decisions that
+//! inference drives.
 
 use crate::{
     InstallabilityOptions, InstallabilityVerdict, PackageInstallabilityManifest,

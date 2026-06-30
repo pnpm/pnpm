@@ -25,10 +25,9 @@ const ENFILE: i32 = 23;
 
 /// Run `op`, retrying on `EMFILE` / `ENFILE` with exponential
 /// backoff so a transient fd-table exhaustion under heavy
-/// concurrency doesn't fail the whole install. Matches pnpm's
-/// `graceful-fs` shape — pnpm has run this way for years and the
-/// fan-out shape (many concurrent rayon workers each holding fds
-/// during CAS extraction + verification) is the same in pacquet.
+/// concurrency doesn't fail the whole install. The fan-out shape
+/// (many concurrent rayon workers each holding fds during CAS
+/// extraction + verification) makes fd pressure likely under load.
 ///
 /// Backoff doubles starting at 2 ms and caps at 200 ms; the budget
 /// is 32 sleep-and-retry rounds followed by a final attempt (33
@@ -41,7 +40,7 @@ const ENFILE: i32 = 23;
 /// numeric space) and the runtime fd limits work differently, so
 /// the helper is a thin pass-through there — the trailing `op()`
 /// after the `cfg(unix)` block is the one and only attempt on that
-/// platform. Pacquet's Windows build path otherwise stays unchanged.
+/// platform.
 pub(crate) fn retry_on_fd_pressure<Func, Value>(mut op: Func) -> io::Result<Value>
 where
     Func: FnMut() -> io::Result<Value>,
@@ -111,44 +110,40 @@ pub fn ensure_parent_dir(dir: &Path) -> Result<(), EnsureFileError> {
         .map_err(|error| EnsureFileError::CreateDir { parent_dir: dir.to_path_buf(), error })
 }
 
-/// Write `content` to `file_path` with pnpm v11's `writeBufferToCafs`
-/// semantics.
+/// Write `content` to `file_path` with content-addressable-store
+/// write semantics.
 ///
 /// The parent directory must already exist. Callers that can't
 /// guarantee that should call [`ensure_parent_dir`] first — splitting
 /// the two lets the CAFS writer share one `create_dir_all` per shard
 /// instead of paying it per file.
 ///
-/// Sequence (ports `store/cafs/src/writeBufferToCafs.ts` +
-/// `store/cafs/src/writeFile.ts` on pnpm v11):
+/// Sequence:
 ///
 /// 1. Try `O_CREAT | O_EXCL` open (`OpenOptions::create_new(true)`).
 ///    On success we own the file and write `content` directly.
 /// 2. On `ErrorKind::AlreadyExists` (warm cache or concurrent writer
 ///    race) re-read the file and byte-compare with `content`. CAS
 ///    paths are hash-derived, so matching bytes == matching digest;
-///    this is the pacquet-specific equivalent of pnpm's
-///    `verifyFileIntegrity(fileDest, integrity)` — we already have
-///    the expected bytes in hand, so we skip the extra hash step.
+///    since we already have the expected bytes in hand, comparing
+///    against them verifies integrity without a separate hash step.
 /// 3. If bytes match → `Ok(())`. The file is a live CAS entry; leaving
-///    it alone is correct and matches pnpm's `Date.now()` return there.
+///    it alone is correct.
 /// 4. If bytes mismatch, a prior install crashed mid-write and left a
 ///    torn blob. Recover by writing a fresh temp file next to the
 ///    target and `rename`ing it over. Rename is atomic on Unix
 ///    (`rename(2)`) and replaces-in-place on Windows
 ///    (`SetFileInformationByHandle`/`MoveFileEx`), so an observer
-///    never sees a partial file. Matches pnpm's `writeFileAtomic` +
-///    `renameOverwriteSync`.
+///    never sees a partial file.
 /// 5. Any other open error propagates as `CreateFile`.
 ///
-/// Differences from pnpm v11's shape, deliberate:
+/// Design choices:
 ///
-/// * **No upfront `stat`**: pnpm stats first so it can skip directly
-///   to `verifyFileIntegrity` on exists. We skip the stat and rely on
-///   the `create_new`/`AlreadyExists` signal, which saves one syscall
+/// * **No upfront `stat`**: we rely on the `create_new`/`AlreadyExists`
+///   signal rather than stat-then-verify, which saves one syscall
 ///   per file on cold installs (where every file is new) at the cost
 ///   of a slightly different path ordering on warm hits.
-/// * **Byte-compare instead of `crypto.hash`**: we already have the
+/// * **Byte-compare instead of re-hashing**: we already have the
 ///   buffer we were about to write, so comparing against it
 ///   implicitly verifies the sha512 without a second hash pass. Same
 ///   correctness guarantee, one fewer full-buffer walk.
@@ -157,12 +152,11 @@ pub fn ensure_parent_dir(dir: &Path) -> Result<(), EnsureFileError> {
 ///   (e.g. a shared `LICENSE`) compute the same CAS path and would
 ///   race in `verify_or_rewrite`. The mutex makes the second
 ///   writer wait for the first's `write_all` so the byte-match
-///   fast path always applies. Pacquet's stronger form of pnpm
-///   v11's [`locker: Map<string, number>`](https://github.com/pnpm/pnpm/blob/4750fd370c/store/cafs/src/writeFile.ts).
+///   fast path always applies. See [`cas_write_lock`].
 ///
-/// Matches pnpm's guarantee: a successful return means `file_path`
-/// exists on disk with contents equal to `content`. A torn mid-write
-/// from a previous install is self-healing, not persistent.
+/// Guarantee: a successful return means `file_path` exists on disk
+/// with contents equal to `content`. A torn mid-write from a previous
+/// install is self-healing, not persistent.
 pub fn ensure_file(
     file_path: &Path,
     content: &[u8],
@@ -203,10 +197,7 @@ pub fn ensure_file(
 /// The hot path costs one path hash + one uncontended mutex acquire
 /// per CAFS file written (~170k on the alotta-files fixture), with no
 /// allocations: the path is hashed into one of `NUM_CAS_LOCK_STRIPES`
-/// statically-allocated mutexes. Pnpm's own
-/// [`writeFile`](https://github.com/pnpm/pnpm/blob/4750fd370c/store/cafs/src/writeFile.ts)
-/// uses a refcount `Map<string, number>` for the equivalent
-/// coordination — this is the Rust analogue.
+/// statically-allocated mutexes.
 ///
 /// **Coordination contract.** Callers handing in the same `&Path`
 /// always receive the same `Mutex<()>`. The hasher is initialised
@@ -263,10 +254,9 @@ static CAS_LOCK_STRIPES: [Mutex<()>; NUM_CAS_LOCK_STRIPES] =
 /// `fs::hard_link` on that path would hardlink the symlink itself
 /// rather than the target. Scrub instead: [`write_atomic`]'s `rename`
 /// atomically replaces the symlink (or any other non-regular dirent
-/// that `rename` can overwrite) with a real regular file. Pnpm v11
-/// doesn't guard against this case either, but pacquet's CAS linking
-/// path is stricter about file-type than pnpm's, so the guard is
-/// worth adding here.
+/// that `rename` can overwrite) with a real regular file. Pacquet's
+/// CAS linking path is strict about file-type, so the guard is worth
+/// adding here.
 ///
 /// A `NotFound` on either syscall means the dirent disappeared
 /// between our `create_new` attempt and the metadata / read call —
@@ -353,8 +343,7 @@ fn file_equals_bytes(file_path: &Path, content: &[u8]) -> io::Result<bool> {
 }
 
 /// Write `content` to a unique temporary path next to `file_path` and
-/// `rename` it over the target. Matches pnpm v11's `writeFileAtomic` +
-/// `renameOverwriteSync`. The rename is the only atomic step; an
+/// `rename` it over the target. The rename is the only atomic step; an
 /// observer sees either the old contents or the new ones, never a
 /// half-written blob.
 ///
@@ -450,11 +439,11 @@ fn write_atomic(
 }
 
 /// Total budget for retrying a rename that keeps hitting transient
-/// errors. Matches pnpm's `rename-overwrite` retry window.
+/// errors.
 const RENAME_RETRY_BUDGET: Duration = Duration::from_mins(1);
 
-/// Cap on per-iteration sleep — pnpm grows the backoff by 10 ms each
-/// loop and stops growing at 100 ms.
+/// Cap on per-iteration sleep — the backoff grows by 10 ms each loop
+/// and stops growing at 100 ms.
 const RENAME_RETRY_BACKOFF_CAP: Duration = Duration::from_millis(100);
 
 /// `fs::rename` with the one retry family that actually hits pacquet
@@ -527,16 +516,15 @@ fn is_transient_rename_error(
     }
 }
 
-/// Build a unique temp path next to `file_path`. Mirrors pnpm v11's
-/// `pathTemp` in spirit: `{stripped_basename}{pid}{counter}`. The
-/// counter is a process-local monotonically-increasing `AtomicU64`,
-/// giving uniqueness across rayon / tokio workers in the same process;
-/// combining it with the pid avoids collisions when multiple install
-/// processes share a store dir.
+/// Build a unique temp path next to `file_path`, of the form
+/// `{stripped_basename}{pid}{counter}`. The counter is a process-local
+/// monotonically-increasing `AtomicU64`, giving uniqueness across
+/// rayon / tokio workers in the same process; combining it with the
+/// pid avoids collisions when multiple install processes share a store
+/// dir.
 ///
-/// We drop `-exec` / any dash-suffix the same way pnpm's `removeSuffix`
-/// does, mainly so temp files don't look like executable CAS entries
-/// to any observer scanning the shard.
+/// We drop `-exec` / any dash-suffix, mainly so temp files don't look
+/// like executable CAS entries to any observer scanning the shard.
 fn temp_path_for(file_path: &Path) -> PathBuf {
     static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -553,11 +541,10 @@ fn temp_path_for(file_path: &Path) -> PathBuf {
     parent.join(format!("{base}{pid}{counter}"))
 }
 
-/// Port of pnpm's `removeSuffix` from `store/cafs/src/writeBufferToCafs.ts`:
-/// strip the first `-…` tail; if the tail was `-exec`, append `x`. On
+/// Strip the first `-…` tail; if the tail was `-exec`, append `x`. On
 /// pacquet's CAS names (`{hex}` or `{hex}-exec`) the only real input is
-/// those two shapes, but we stay faithful to the general form so any
-/// future suffix landing upstream doesn't silently diverge.
+/// those two shapes, but the general form is handled so any future
+/// suffix doesn't silently diverge.
 fn strip_dash_suffix(name: &str) -> String {
     let Some(dash_pos) = name.find('-') else {
         return name.to_string();

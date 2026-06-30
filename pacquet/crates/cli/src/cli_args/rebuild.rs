@@ -13,8 +13,7 @@ use std::collections::HashSet;
 use crate::State;
 
 /// `pacquet rebuild` — re-run the lifecycle scripts of installed
-/// dependencies. Ports pnpm's
-/// [`rebuild`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/commands/src/build/rebuild.ts).
+/// dependencies.
 #[derive(Debug, Args)]
 pub struct RebuildArgs {
     /// Rebuild only the named packages. With no names, every dependency
@@ -111,7 +110,7 @@ pub(crate) async fn run_rebuild<Reporter: self::Reporter + 'static>(
         trust_lockfile: config.trust_lockfile,
         update_checksums: false,
         // `rebuild` re-runs dependency build scripts, not the root
-        // project's own lifecycle scripts — matching pnpm's `buildProjects`.
+        // project's own lifecycle scripts.
         is_full_install: false,
         resolved_packages,
         supported_architectures: config.supported_architectures.clone(),

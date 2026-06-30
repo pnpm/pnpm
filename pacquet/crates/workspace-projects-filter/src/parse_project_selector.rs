@@ -3,11 +3,8 @@ use std::path::{Path, PathBuf};
 
 /// A single parsed `--filter` selector.
 ///
-/// Mirrors upstream's
-/// [`ProjectSelector`](https://github.com/pnpm/pnpm/blob/3b62f9da31/workspace/projects-filter/src/parseProjectSelector.ts#L3-L12).
-/// The optional fields map to upstream's `undefined`; the boolean
-/// fields default to `false`, matching how upstream's absent keys read
-/// as falsy.
+/// An absent optional field is `None`; an unset boolean modifier defaults
+/// to `false`.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct ProjectSelector {
     /// The `<since>` ref from a `[<since>]` changed-packages selector.
@@ -34,9 +31,6 @@ pub struct ProjectSelector {
 
 /// Parse one raw `--filter` selector string against `prefix` (the
 /// directory that directory-selectors resolve relative to).
-///
-/// Port of upstream's
-/// [`parseProjectSelector`](https://github.com/pnpm/pnpm/blob/3b62f9da31/workspace/projects-filter/src/parseProjectSelector.ts#L14-L61).
 pub fn parse_project_selector(raw_selector: &str, prefix: &Path) -> ProjectSelector {
     let mut raw = raw_selector;
 
@@ -78,16 +72,14 @@ pub fn parse_project_selector(raw_selector: &str, prefix: &Path) -> ProjectSelec
         },
         None => {
             if is_selector_by_location(raw) {
-                // Location fallback keeps `exclude`; mirrors upstream's
-                // `{ exclude, excludeSelf: false, parentDir }`.
+                // Location fallback keeps `exclude` and sets `parent_dir`.
                 ProjectSelector {
                     exclude,
                     parent_dir: Some(lexical_join(prefix, raw)),
                     ..ProjectSelector::default()
                 }
             } else {
-                // Name fallback drops `exclude`; mirrors upstream's
-                // `{ excludeSelf: false, namePattern }` (no `exclude` key).
+                // Name fallback drops `exclude` and sets `name_pattern`.
                 ProjectSelector {
                     name_pattern: Some(raw.to_string()),
                     ..ProjectSelector::default()
@@ -97,7 +89,7 @@ pub fn parse_project_selector(raw_selector: &str, prefix: &Path) -> ProjectSelec
     }
 }
 
-/// The three optional capture groups of upstream's selector regex
+/// The three optional capture groups of the selector regex
 /// `^([^.][^{}[\]]*)?(\{[^}]+\})?(\[[^\]]+\])?$`, with the brace / bracket
 /// delimiters already stripped.
 struct SelectorParts<'a> {
@@ -109,13 +101,13 @@ struct SelectorParts<'a> {
 /// Hand-rolled equivalent of the selector regex (pacquet carries no
 /// regex dependency). Returns `None` when the regex would not match the
 /// whole input, so the caller falls through to the location / name
-/// branch exactly as upstream does on a `null` match.
+/// branch.
 ///
 /// The name group `[^.][^{}[\]]*` is greedy and the whole expression is
 /// anchored, so the regex backtracks: a leading non-`.` char (including
 /// `{`, `}`, `[`, `]`) is absorbed into the name unless a shorter name
-/// lets the `{...}` / `[...]` groups consume the rest. This mirrors that by
-/// trying every candidate name length from longest to shortest (then no
+/// lets the `{...}` / `[...]` groups consume the rest. This reproduces that
+/// by trying every candidate name length from longest to shortest (then no
 /// name) and keeping the first decomposition that consumes the whole
 /// input.
 fn match_selector_pattern(input: &str) -> Option<SelectorParts<'_>> {
@@ -185,8 +177,7 @@ fn match_delimited(input: &str, open: char, close: char) -> Option<(Option<&str>
 }
 
 /// Whether `raw` is a relative-path selector (`.`, `./x`, `..`, `../x`,
-/// and their backslash variants). Port of upstream's
-/// [`isSelectorByLocation`](https://github.com/pnpm/pnpm/blob/3b62f9da31/workspace/projects-filter/src/parseProjectSelector.ts#L63-L76).
+/// and their backslash variants).
 fn is_selector_by_location(raw: &str) -> bool {
     let bytes = raw.as_bytes();
     if bytes.first() != Some(&b'.') {

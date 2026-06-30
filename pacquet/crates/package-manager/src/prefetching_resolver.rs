@@ -1,11 +1,10 @@
 //! Resolver wrapper that pipelines tarball downloads with resolution.
 //!
-//! Upstream pnpm's [`packageRequester.requestPackage`](https://github.com/pnpm/pnpm/blob/fecaee0b35/installing/package-requester/src/packageRequester.ts#L266)
-//! returns a `pkgResponse` whose `fetching` field is a Promise that is
+//! Package resolution returns a response whose tarball download is
 //! already running by the time the resolver returns. Resolution of
 //! children continues in parallel with that download; the install pass
-//! later `await`s each `fetching` promise (which is usually already
-//! resolved by then).
+//! later awaits each download (which is usually already finished by
+//! then).
 //!
 //! Pacquet's deps-resolver crate stays pure: it walks the manifest tree
 //! and returns a [`ResolveResult`] without doing any tarball I/O. To

@@ -4,10 +4,10 @@
 //! pnpm is the source of truth (see
 //! [`pacquet/AGENTS.md`](../../AGENTS.md#the-cardinal-rule)). Its CLI
 //! defaults live in one object literal, `defaultOptions`, in
-//! [`config/reader/src/index.ts`](https://github.com/pnpm/pnpm/blob/a23956e3ab/config/reader/src/index.ts).
-//! This test reads that literal from source at test time and compares
-//! each value against [`Config::default()`], so a drift on either side
-//! (pnpm changing a default, or pacquet hard-coding the wrong one — the
+//! `config/reader/src/index.ts`. This test reads that literal from
+//! source at test time and compares each value against
+//! [`Config::default()`], so a drift on either side (pnpm changing a
+//! default, or pacquet hard-coding the wrong one — the
 //! `dedupeDirectDeps` regression that broke the v11.5.1 release) fails
 //! here instead of in a release pipeline.
 //!

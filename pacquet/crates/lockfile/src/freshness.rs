@@ -8,12 +8,10 @@
 //! the resolver), pacquet installs the wrong shape of `node_modules`
 //! and the drift goes undiagnosed.
 //!
-//! This module ports upstream's
-//! [`satisfiesPackageManifest`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/verification/src/satisfiesPackageManifest.ts):
-//! a per-importer structural comparison that returns the first
-//! mismatch (if any) as a typed [`StalenessReason`]. The frozen-
-//! lockfile dispatcher surfaces this as `ERR_PNPM_OUTDATED_LOCKFILE`,
-//! matching upstream's CI-correctness contract.
+//! This module runs a per-importer structural comparison that returns
+//! the first mismatch (if any) as a typed [`StalenessReason`]. The
+//! frozen-lockfile dispatcher surfaces this as
+//! `ERR_PNPM_OUTDATED_LOCKFILE`, which is the CI-correctness contract.
 
 use crate::{Lockfile, ProjectSnapshot};
 use derive_more::{Display, Error};
@@ -33,59 +31,48 @@ pub struct LockfileSettingsCheck<'a> {
 }
 
 /// Why an importer's lockfile entry doesn't satisfy the on-disk
-/// `package.json`. Mirrors the discriminated cases upstream's
-/// `satisfiesPackageManifest` returns as `detailedReason` strings,
-/// but as a typed enum so callers can match on the discriminant
-/// without parsing format strings, and tests can assert against the
-/// shape rather than the wording.
+/// `package.json`. A typed enum so callers can match on the
+/// discriminant without parsing format strings, and tests can assert
+/// against the shape rather than the wording.
 #[derive(Debug, Display, Error, PartialEq)]
 #[non_exhaustive]
 pub enum StalenessReason {
     /// A catalog entry recorded in the lockfile's `catalogs:` snapshot
-    /// no longer matches the current workspace catalog config. Mirrors
-    /// upstream's `getOutdatedLockfileSetting` first branch, which
-    /// returns `'catalogs'` when `allCatalogsAreUpToDate` fails.
+    /// no longer matches the current workspace catalog config. This is
+    /// the first drift branch checked, surfaced when
+    /// `all_catalogs_are_up_to_date` fails.
     #[display("`catalogs` in the lockfile don't match the current config")]
     CatalogsChanged { lockfile: Option<crate::CatalogSnapshots>, config: Catalogs },
 
     /// The lockfile has no `importers["."]` (or whatever id) entry,
-    /// so we can't even start the comparison. Mirrors upstream's
-    /// "no importer" reason at
-    /// <https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/verification/src/satisfiesPackageManifest.ts#L20>.
+    /// so we can't even start the comparison.
     #[display(r#"the lockfile has no `importers["{importer_id}"]` entry"#)]
     NoImporter { importer_id: String },
 
     /// The flat union of `dependencies ∪ devDependencies ∪
     /// optionalDependencies` from the manifest doesn't match the
-    /// per-dep specifiers recorded in the importer entry. Mirrors
-    /// upstream's "specifiers in the lockfile don't match specifiers
-    /// in package.json" reason at
-    /// <https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/verification/src/satisfiesPackageManifest.ts#L45>.
+    /// per-dep specifiers recorded in the importer entry: the
+    /// specifiers in the lockfile don't match the specifiers in
+    /// package.json.
     #[display("specifiers in the lockfile don't match specifiers in package.json:{_0}")]
     SpecifiersDiffer(#[error(not(source))] SpecDiff),
 
     /// `publishDirectory` on the importer entry doesn't match
-    /// `publishConfig.directory` on the manifest. Mirrors upstream's
-    /// `publishDirectory` mismatch at
-    /// <https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/verification/src/satisfiesPackageManifest.ts#L51>.
+    /// `publishConfig.directory` on the manifest.
     #[display(
         "`publishDirectory` in the lockfile ({lockfile:?}) doesn't match `publishConfig.directory` in package.json ({manifest:?})"
     )]
     PublishDirectoryMismatch { lockfile: Option<String>, manifest: Option<String> },
 
     /// `dependenciesMeta` on the importer doesn't match
-    /// `dependenciesMeta` on the manifest. Mirrors upstream's check at
-    /// <https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/verification/src/satisfiesPackageManifest.ts#L57>.
+    /// `dependenciesMeta` on the manifest.
     #[display(
         "importer dependencies meta ({lockfile}) doesn't match package manifest dependencies meta ({manifest})"
     )]
     DependenciesMetaMismatch { lockfile: String, manifest: String },
 
     /// The recorded specifier for one dep diverges from the manifest's
-    /// specifier for the same dep. Mirrors upstream's "importer
-    /// dependencies.X specifier Y don't match package manifest
-    /// specifier (Z)" at
-    /// <https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/verification/src/satisfiesPackageManifest.ts#L97>.
+    /// specifier for the same dep.
     #[display(
         "importer {field}.{name} specifier {lockfile:?} doesn't match package manifest specifier ({manifest:?})"
     )]
@@ -93,51 +80,42 @@ pub enum StalenessReason {
 
     /// The lockfile's `ignoredOptionalDependencies` (sorted) differs
     /// from the current install's `Config::ignored_optional_dependencies`
-    /// (sorted). Mirrors upstream's
-    /// [`getOutdatedLockfileSetting.ts:58-60`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts#L58-L60):
-    /// upstream returns `'ignoredOptionalDependencies'` from the
-    /// settings checker and `needsFullResolution` flips on. Pacquet
-    /// has no resolver, so the matching action is to surface this as
-    /// `OutdatedLockfile`. Both values are returned sorted so the
-    /// error message reads stably in CI logs.
+    /// (sorted). This drift would otherwise require a full resolution;
+    /// pacquet has no resolver, so the matching action is to surface
+    /// this as `OutdatedLockfile`. Both values are returned sorted so
+    /// the error message reads stably in CI logs.
     #[display(
         "`ignoredOptionalDependencies` in the lockfile ({lockfile:?}) doesn't match the current config ({config:?})"
     )]
     IgnoredOptionalDependenciesChanged { lockfile: Vec<String>, config: Vec<String> },
 
     /// The lockfile's `overrides` map doesn't match the current
-    /// install's `Config::overrides`. Mirrors upstream's
-    /// [`getOutdatedLockfileSetting.ts:50-52`](https://github.com/pnpm/pnpm/blob/606f53e78f/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts#L50-L52):
-    /// upstream returns `'overrides'` and `needsFullResolution` flips
-    /// on. Pacquet has no resolver, so the matching action is to
-    /// surface this as `OutdatedLockfile`. Both values are normalized
-    /// into a `BTreeMap` so the order-insensitive comparison upstream
-    /// runs through `equals(lockfile.overrides ?? {}, overrides ?? {})`
-    /// is preserved, and the rendered error reads stably.
+    /// install's `Config::overrides`. This drift would otherwise
+    /// require a full resolution; pacquet has no resolver, so the
+    /// matching action is to surface this as `OutdatedLockfile`. Both
+    /// values are normalized into a `BTreeMap` so the comparison is
+    /// order-insensitive (an absent map equals an empty one), and the
+    /// rendered error reads stably.
     #[display(
         "`overrides` in the lockfile ({lockfile:?}) doesn't match the current config ({config:?})"
     )]
     OverridesChanged { lockfile: BTreeMap<String, String>, config: BTreeMap<String, String> },
 
     /// The lockfile's `settings.injectWorkspacePackages` differs from
-    /// the current install's `Config::inject_workspace_packages`.
-    /// Mirrors upstream's
-    /// [`getOutdatedLockfileSetting.ts:80-82`](https://github.com/pnpm/pnpm/blob/39101f5e37/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts#L80-L82):
-    /// the gate normalizes both sides through `Boolean(...)` so an
-    /// absent setting equals an explicit `false`. Pacquet has no
-    /// resolver, so the matching action is to surface this as
-    /// `OutdatedLockfile`.
+    /// the current install's `Config::inject_workspace_packages`. The
+    /// gate normalizes both sides to a boolean so an absent setting
+    /// equals an explicit `false`. This drift would otherwise require a
+    /// full resolution; pacquet has no resolver, so the matching action
+    /// is to surface this as `OutdatedLockfile`.
     #[display(
         "`injectWorkspacePackages` in the lockfile ({lockfile}) doesn't match the current config ({config})"
     )]
     InjectWorkspacePackagesChanged { lockfile: bool, config: bool },
 
     /// `settings.peersSuffixMaxLength` in the lockfile differs from
-    /// the value the current install would use. Mirrors upstream's
-    /// [`getOutdatedLockfileSetting.ts`](https://github.com/pnpm/pnpm/blob/39101f5e37/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts):
-    /// an unset field in the lockfile is treated as the default
-    /// (1000), so drift is "recorded value (or default) doesn't equal
-    /// the current config's value".
+    /// the value the current install would use. An unset field in the
+    /// lockfile is treated as the default (1000), so drift is "recorded
+    /// value (or default) doesn't equal the current config's value".
     #[display(
         "`peersSuffixMaxLength` in the lockfile ({lockfile}) doesn't match the current config ({config})"
     )]
@@ -145,28 +123,23 @@ pub enum StalenessReason {
 
     /// The lockfile's `packageExtensionsChecksum` doesn't match the
     /// checksum derived from the current install's
-    /// `Config::package_extensions`. Mirrors upstream's
-    /// [`getOutdatedLockfileSetting.ts:53-55`](https://github.com/pnpm/pnpm/blob/39101f5e37/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts#L53-L55):
-    /// upstream returns `'packageExtensionsChecksum'` and
-    /// `needsFullResolution` flips on. Pacquet has no resolver, so the
-    /// matching action is to surface this as `OutdatedLockfile`. Both
-    /// values are the prefixed `sha256-…` strings the writer emits.
+    /// `Config::package_extensions`. This drift would otherwise require
+    /// a full resolution; pacquet has no resolver, so the matching
+    /// action is to surface this as `OutdatedLockfile`. Both values are
+    /// the prefixed `sha256-…` strings the writer emits.
     #[display(
         "`packageExtensionsChecksum` in the lockfile ({lockfile:?}) doesn't match the current config ({config:?})"
     )]
     PackageExtensionsChecksumChanged { lockfile: Option<String>, config: Option<String> },
 
     /// The lockfile's `patchedDependencies` (key → patch-file hash)
-    /// doesn't match the map the current install would write. Mirrors
-    /// upstream's
-    /// [`getOutdatedLockfileSetting.ts:61-63`](https://github.com/pnpm/pnpm/blob/39101f5e37/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts#L61-L63):
-    /// upstream returns `'patchedDependencies'` and `needsFullResolution`
-    /// flips on. Pacquet has no resolver, so the matching action is to
-    /// surface this as `OutdatedLockfile`. A changed patch file changes
-    /// its hash here, which is what catches an edited patch whose
-    /// `(patch_hash=...)` depPath suffix would otherwise go stale. Both
-    /// values are normalized into a `BTreeMap` so the comparison is
-    /// order-insensitive (matching upstream's Ramda `equals`).
+    /// doesn't match the map the current install would write. This drift
+    /// would otherwise require a full resolution; pacquet has no resolver,
+    /// so the matching action is to surface this as `OutdatedLockfile`. A
+    /// changed patch file changes its hash here, which is what catches an
+    /// edited patch whose `(patch_hash=...)` depPath suffix would otherwise
+    /// go stale. Both values are normalized into a `BTreeMap` so the
+    /// comparison is order-insensitive.
     #[display(
         "`patchedDependencies` in the lockfile ({lockfile:?}) doesn't match the current config ({config:?})"
     )]
@@ -255,17 +228,14 @@ impl SpecDiff {
 /// was written. Today this covers `catalogs`, `overrides`,
 /// `packageExtensionsChecksum`, `ignoredOptionalDependencies`,
 /// `patchedDependencies`, and the relevant `settings.*` keys (umbrella
-/// [#434] slice 7); the variants below will grow as more upstream
-/// settings land (`pnpmfileChecksum`, etc.).
+/// [#434] slice 7); the variants below will grow as more settings land
+/// (`pnpmfileChecksum`, etc.).
 ///
-/// Mirrors upstream's
-/// [`getOutdatedLockfileSetting`](https://github.com/pnpm/pnpm/blob/606f53e78f/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts).
-/// Upstream uses the return value to flip `needsFullResolution`;
-/// pacquet has no resolver, so the matching action is to abort the
-/// frozen install with `OutdatedLockfile`. The check ordering here
-/// matches upstream's so the *first* drifted field is reported on
-/// both sides — which matters for tests and for CI logs that quote
-/// the reason verbatim.
+/// Drift in any of these settings would otherwise require a full
+/// resolution; pacquet has no resolver, so the matching action is to
+/// abort the frozen install with `OutdatedLockfile`. The check ordering
+/// is deterministic so the *first* drifted field is reported — which
+/// matters for tests and for CI logs that quote the reason verbatim.
 ///
 /// [#434]: https://github.com/pnpm/pacquet/issues/434
 pub fn check_lockfile_settings(
@@ -416,15 +386,11 @@ fn all_catalogs_are_up_to_date(
 ///    same-name-same-specifier-but-listed-under-different-field
 ///    drift the flat-record diff doesn't see.
 ///
-/// Mirrors upstream's
-/// [`satisfiesPackageManifest`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/verification/src/satisfiesPackageManifest.ts).
 /// Scoped to what pacquet supports today: no `auto-install-peers`
 /// pre-pass (pacquet has no separate auto-install-peers mode), no
 /// `excludeLinksFromLockfile` (`link:` resolutions aren't supported
-/// yet — [#431] territory), and no version-range-satisfies check
-/// (covered in pnpm's
-/// `localTarballDepsAreUpToDate` for file: / tarball deps; out of
-/// scope here).
+/// yet — [#431] territory), and no version-range-satisfies check for
+/// file: / tarball deps (out of scope here).
 ///
 /// [#431]: https://github.com/pnpm/pacquet/issues/431
 pub fn satisfies_package_manifest(
@@ -436,10 +402,9 @@ pub fn satisfies_package_manifest(
     let _ = importer_id; // reserved for the multi-importer path once <https://github.com/pnpm/pacquet/issues/431> lands.
 
     // Phase 1: flat-record diff against the manifest's union of
-    // dependency fields. Matches the upstream
-    // `_satisfiesPackageManifest(importer, manifest).satisfies` gate
-    // that compares `importer.specifiers` to `existingDeps` (devs +
-    // prod + optional flattened together).
+    // dependency fields. Compares the importer's specifiers to the
+    // manifest's existing deps (devs + prod + optional flattened
+    // together).
     let manifest_specs = flat_manifest_specs(manifest, is_ignored_optional);
     let importer_specs = flat_importer_specs(importer);
     let diff = diff_flat_records(&importer_specs, &manifest_specs);
@@ -447,8 +412,8 @@ pub fn satisfies_package_manifest(
         return Err(StalenessReason::SpecifiersDiffer(diff));
     }
 
-    // Phase 2: `publishDirectory` parity. Upstream compares
-    // `importer.publishDirectory` to `pkg.publishConfig?.directory`
+    // Phase 2: `publishDirectory` parity. Compares the importer's
+    // `publishDirectory` to the manifest's `publishConfig.directory`
     // verbatim; pacquet's `ProjectSnapshot.publish_directory` is
     // `Option<String>` and the manifest exposes the field via the
     // raw `value()`. Two `None`s match; anything else mismatched
@@ -467,8 +432,7 @@ pub fn satisfies_package_manifest(
     }
 
     // Phase 3: `dependenciesMeta` parity. JSON-equality of the two
-    // maps (or both absent). Upstream uses Ramda's `equals` with
-    // `?? {}` on both sides, so an absent map and an empty map are
+    // maps (or both absent), so an absent map and an empty map are
     // equivalent.
     let manifest_meta = manifest.value().get("dependenciesMeta");
     let importer_meta = importer.dependencies_meta.as_ref();
@@ -559,9 +523,7 @@ pub fn satisfies_package_manifest(
 }
 
 /// Two `dependenciesMeta` maps are equal when both are absent / empty
-/// or both render to the same JSON. Matches upstream's `equals(pkg
-/// .dependenciesMeta ?? {}, importer.dependenciesMeta ?? {})` at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/verification/src/satisfiesPackageManifest.ts#L56-L58>.
+/// or both render to the same JSON.
 fn dependencies_meta_equal(
     importer: Option<&serde_json::Value>,
     manifest: Option<&serde_json::Value>,
@@ -583,8 +545,8 @@ fn dependencies_meta_equal(
 }
 
 /// Build the manifest's `devDependencies ∪ dependencies ∪
-/// optionalDependencies` flat-record. Manifest fields are read in the
-/// same order upstream applies (dev → prod → optional), but the order
+/// optionalDependencies` flat-record. Manifest fields are read in
+/// dev → prod → optional order, but the order
 /// is irrelevant for the diff since duplicates resolve to the same
 /// specifier anyway — if two fields list the same name with different
 /// specifiers the manifest is invalid and pacquet would have rejected
@@ -626,8 +588,6 @@ fn flat_importer_specs(importer: &ProjectSnapshot) -> BTreeMap<String, String> {
 }
 
 /// Bucket entries from two flat records into added/removed/modified.
-/// Mirrors upstream's
-/// [`diffFlatRecords`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/verification/src/diffFlatRecords.ts):
 /// `removed` is what's in `lockfile_specs` but missing from `manifest_specs`,
 /// `added` is the inverse, `modified` are keys present in both but with
 /// different values.

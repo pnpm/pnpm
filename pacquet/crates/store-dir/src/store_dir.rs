@@ -10,7 +10,7 @@ use std::{
 pub type FileHash = digest::Output<Sha512>;
 
 /// Major version of the pnpm store layout that pacquet writes to and reads
-/// from. Mirrors pnpm's [`STORE_VERSION`](https://github.com/pnpm/pnpm/blob/29a42efc3b/core/constants/src/index.ts#L9).
+/// from.
 ///
 /// The constant is part of the public contract pnpm exposes to every
 /// project's `.modules.yaml` (the recorded `storeDir` is the
@@ -38,8 +38,7 @@ pub const STORE_VERSION: &str = "v11";
 #[serde(from = "PathBuf", into = "PathBuf")]
 pub struct StoreDir {
     /// The [`STORE_VERSION`]-suffixed store path, equivalent to pnpm's
-    /// [`storeDir`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L39-L42).
-    /// Consumers should reach for the purpose-built helpers
+    /// `storeDir`. Consumers should reach for the purpose-built helpers
     /// ([`Self::files`][], [`Self::tmp`], [`Self::links`],
     /// [`Self::projects`]) rather than this raw path.
     root: PathBuf,
@@ -85,11 +84,10 @@ impl Eq for StoreDir {}
 
 impl From<PathBuf> for StoreDir {
     /// Wrap a raw path into a [`StoreDir`], appending [`STORE_VERSION`]
-    /// when the path doesn't already end with that segment. Mirrors
-    /// pnpm's [`getStorePath`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L39-L42),
-    /// so both tools record the same `storeDir` string in
-    /// `.modules.yaml` and switching between them stops tripping
-    /// `ERR_PNPM_UNEXPECTED_STORE`.
+    /// when the path doesn't already end with that segment — the same
+    /// rule pnpm applies, so both tools record the same `storeDir`
+    /// string in `.modules.yaml` and switching between them stops
+    /// tripping `ERR_PNPM_UNEXPECTED_STORE`.
     fn from(root: PathBuf) -> Self {
         let root = if root.file_name().and_then(|name| name.to_str()) == Some(STORE_VERSION) {
             root
@@ -164,17 +162,12 @@ impl StoreDir {
     }
 
     /// Path to the shared global-virtual-store directory inside the
-    /// store. Matches pnpm's
-    /// [`extendInstallOptions.ts:350-358`](https://github.com/pnpm/pnpm/blob/29a42efc3b/installing/deps-installer/src/install/extendInstallOptions.ts#L350-L358):
-    /// `globalVirtualStoreDir = path.join(extendedOpts.storeDir, 'links')`.
-    /// `extendedOpts.storeDir` has already been routed through
-    /// [`getStorePath`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L39-L42)
-    /// — which appends [`STORE_VERSION`] (`"v11"`) to whatever the
-    /// user configured — by the time that join runs. Pacquet's
-    /// [`StoreDir::from`] applies the same suffix, so `self.root` is
-    /// already the v11 path and the on-disk location is
-    /// `<root>/links`, identical to pnpm's. Sharing this path across
-    /// pnpm and pacquet is the whole point.
+    /// store, at `<store-dir>/links`. pnpm builds this as
+    /// `<storeDir>/links` where `storeDir` already carries the
+    /// [`STORE_VERSION`] (`"v11"`) suffix. Pacquet's [`StoreDir::from`]
+    /// applies the same suffix, so `self.root` is already the v11 path
+    /// and the on-disk location is `<root>/links`, identical to pnpm's.
+    /// Sharing this path across pnpm and pacquet is the whole point.
     pub fn links(&self) -> PathBuf {
         self.root.join("links")
     }
@@ -182,11 +175,9 @@ impl StoreDir {
     /// Path to the per-store projects registry — a flat directory of
     /// symlinks (`<store>/projects/<short-hash>` → project dir) the
     /// global-virtual-store prune sweep walks when deciding which
-    /// `<store>/links/...` slots are still referenced. Mirrors pnpm
-    /// 11's
-    /// [`{storeDir}/projects/` layout](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/controller/CHANGELOG.md#L136)
-    /// — `<store>` already carries the v11 suffix on both sides per
-    /// [`Self::links`].
+    /// `<store>/links/...` slots are still referenced. Uses the same
+    /// `{storeDir}/projects/` layout pnpm 11 does — `<store>` already
+    /// carries the v11 suffix on both sides per [`Self::links`].
     pub fn projects(&self) -> PathBuf {
         self.root.join("projects")
     }
@@ -206,8 +197,8 @@ impl StoreDir {
     /// (`files/` already a directory) this is a single stat that
     /// returns `Ok(())` without seeding the cache, leaving the lazy
     /// mkdir fallback inside [`StoreDir::write_cas_file`] responsible
-    /// for materializing each shard on first write — the same shape
-    /// pnpm uses via `writeFile.ts`'s `dirs` Set. Seeding the cache on
+    /// for materializing each shard on first write — the same
+    /// lazy-shard shape pnpm uses. Seeding the cache on
     /// a warm store would be incorrect: a store created by an older
     /// pacquet that only lazily materialized shards may be missing some
     /// `files/XX/` directories, and a pre-seeded cache would let a later

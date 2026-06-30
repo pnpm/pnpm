@@ -1,6 +1,3 @@
-//! Pacquet port of pnpm's
-//! [`@pnpm/resolving.parse-wanted-dependency`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/parse-wanted-dependency/src/index.ts).
-//!
 //! Splits a raw dependency string from the manifest (or the CLI's `add`
 //! argument) into its `(alias, bareSpecifier)` halves so the downstream
 //! resolvers can decide which protocol is at play.
@@ -10,10 +7,7 @@ pub mod validate_npm_package_name;
 pub use validate_npm_package_name::is_valid_old_npm_package_name;
 
 /// The `(alias, bareSpecifier)` split for a raw dependency string. At
-/// least one of the two fields is always populated; mirrors upstream's
-/// `ParseWantedDependencyResult`
-/// ([source](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/parse-wanted-dependency/src/index.ts#L8-L13)),
-/// which is a union over the three populated shapes.
+/// least one of the two fields is always populated.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParsedWantedDependency {
     /// The local alias the dep should be installed as in `node_modules`,
@@ -26,9 +20,6 @@ pub struct ParsedWantedDependency {
     pub bare_specifier: Option<String>,
 }
 
-/// Port of pnpm's
-/// [`parseWantedDependency`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/parse-wanted-dependency/src/index.ts#L15-L37).
-///
 /// Searches for the first `@` from index 1 onwards (so the scope-marker
 /// `@` of `@scope/foo` is not treated as a version separator). When the
 /// substring before that `@` parses as a valid (old-style) npm package
@@ -59,9 +50,7 @@ pub fn parse_wanted_dependency(raw_wanted_dependency: &str) -> ParsedWantedDepen
     ParsedWantedDependency { alias: None, bare_specifier: Some(raw_wanted_dependency.to_string()) }
 }
 
-/// Find the first `@` byte index strictly after index 0, mirroring
-/// upstream's
-/// [`indexOf('@', 1)`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/parse-wanted-dependency/src/index.ts#L16).
+/// Find the first `@` byte index strictly after index 0.
 ///
 /// Index 0 is skipped so the scope-prefix `@` of `@scope/foo` does not
 /// split the input.

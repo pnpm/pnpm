@@ -9,9 +9,8 @@
 //! 2. For each asset whose filename matches the deno-release pattern,
 //!    fetches the sibling `.sha256sum`, decodes the hex hash, and
 //!    builds a [`PlatformAssetResolution`].
-//! 3. Sorts the resulting variants lexically by URL — same as upstream's
-//!    [`lexCompare`](https://github.com/pnpm/util.lex-comparator/blob/main/src/index.ts)
-//!    — so the lockfile stays diff-stable across runs.
+//! 3. Sorts the resulting variants lexically by URL, so the lockfile
+//!    stays diff-stable across runs.
 
 use std::sync::Arc;
 
@@ -222,8 +221,8 @@ async fn fetch_sha256(
     extract_sha256(&body).ok_or_else(|| ReadDenoAssetsError::ParseHash { url: url.to_string() })
 }
 
-/// Lift a 64-character hex string out of an arbitrary body. Mirrors
-/// upstream's `txt.match(/([a-f0-9]{64})/i)` regex.
+/// Lift a 64-character hex string out of an arbitrary body, matching
+/// `[a-f0-9]{64}` case-insensitively.
 fn extract_sha256(body: &str) -> Option<String> {
     let bytes = body.as_bytes();
     bytes

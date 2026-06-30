@@ -1,7 +1,6 @@
 //! Environment-variable substitution for pnpm-style `${VAR}` placeholders.
 //!
-//! Ports pnpm's [`@pnpm/config.env-replace`](https://github.com/pnpm/components/blob/9c2bd17/config/env-replace/env-replace.ts):
-//! occurrences of `${VAR}` (with optional `${VAR:-default}` fallback) are
+//! Occurrences of `${VAR}` (with optional `${VAR:-default}` fallback) are
 //! replaced with the value the [`EnvVar`] capability returns for `VAR`.
 //! Backslashes immediately preceding the `$` escape the placeholder so
 //! it is left as-is.
@@ -16,12 +15,10 @@
 
 /// Capability: read a process environment variable as a UTF-8 string.
 ///
-/// `pnpm` resolves `${VAR}` placeholders inside `.npmrc` against the
-/// process environment in
-/// [`loadNpmrcFiles.ts`](https://github.com/pnpm/pnpm/blob/601317e7a3/config/reader/src/loadNpmrcFiles.ts#L156-L162);
-/// the lookup is routed through this trait so unit tests can drive every
-/// branch (set, unset, empty) with local fakes instead of mutating the
-/// real process environment.
+/// `${VAR}` placeholders inside `.npmrc` are resolved against the
+/// process environment; the lookup is routed through this trait so unit
+/// tests can drive every branch (set, unset, empty) with local fakes
+/// instead of mutating the real process environment.
 pub trait EnvVar {
     /// Return the value of the named environment variable, or `None`
     /// when it is unset. Implementations should treat invalid UTF-8
@@ -72,10 +69,10 @@ impl EnvVar for SystemEnv {
 /// are recorded in the returned `Vec` so the caller can surface each one as
 /// a warning.
 ///
-/// Mirrors pnpm's `substituteEnv` fallback in
-/// `config/reader/src/loadNpmrcFiles.ts`: leaving an unresolved `${VAR}` in
-/// an auth value would later be sent as a literal bearer token, notably
-/// under OIDC trusted publishing (<https://github.com/pnpm/pnpm/issues/11513>).
+/// Recording each unresolved placeholder matters because leaving an
+/// unresolved `${VAR}` in an auth value would later be sent as a literal
+/// bearer token, notably under OIDC trusted publishing
+/// (<https://github.com/pnpm/pnpm/issues/11513>).
 ///
 /// [`Sys::var`]: EnvVar::var
 #[must_use]
@@ -94,8 +91,8 @@ pub fn env_replace_lossy<Sys: EnvVar>(text: &str) -> (String, Vec<String>) {
 
         // Count backslashes immediately before this `$` in the *source*.
         // Counting from `output` would conflate trailing `\` in a
-        // previously-substituted env value with literal source escapes.
-        // Upstream's `(?<!\\)(\\*)\$\{...}` runs on the original input.
+        // previously-substituted env value with literal source escapes,
+        // so the escape count must come from the original input.
         let mut backslashes = 0;
         while backslashes < index && bytes[index - 1 - backslashes] == b'\\' {
             backslashes += 1;
@@ -107,11 +104,10 @@ pub fn env_replace_lossy<Sys: EnvVar>(text: &str) -> (String, Vec<String>) {
             continue;
         };
 
-        // Each pair of backslashes collapses to one literal backslash,
-        // matching `(\\*)\$\{...\}` in the JS regex with the escape
-        // semantics from `replaceEnvMatch`. The source backslashes are
-        // already in `output` from the literal-passthrough loop, so we
-        // truncate them off and re-emit half.
+        // Each pair of backslashes collapses to one literal backslash.
+        // The source backslashes are already in `output` from the
+        // literal-passthrough loop, so we truncate them off and re-emit
+        // half.
         output.truncate(output.len() - backslashes);
         for _ in 0..(backslashes / 2) {
             output.push('\\');

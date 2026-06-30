@@ -66,10 +66,8 @@ pub enum SaveLockfileError {
 /// The env lockfile document (the config-dependency snapshot that the
 /// env-installer writes as the *first* YAML document of `pnpm-lock.yaml`)
 /// is preserved: if `path` already begins with one, it is re-prepended
-/// ahead of the freshly serialized main document. Mirrors upstream's
-/// `writeWantedLockfile`, which re-reads the env document and writes
-/// `${YAML_DOCUMENT_START}${envDoc}${YAML_DOCUMENT_SEPARATOR}${mainDoc}`
-/// at <https://github.com/pnpm/pnpm/blob/31858c544b/lockfile/fs/src/write.ts#L73-L80>.
+/// ahead of the freshly serialized main document, writing
+/// `${YAML_DOCUMENT_START}${envDoc}${YAML_DOCUMENT_SEPARATOR}${mainDoc}`.
 /// A lockfile with no env document round-trips byte-for-byte (no
 /// leading `---`).
 pub fn save_value_to_path<Document: serde::Serialize>(
@@ -109,14 +107,11 @@ impl Lockfile {
     }
 
     /// Save the *current* lockfile under
-    /// `<virtual_store_dir>/lock.yaml` at end-of-install. Mirrors
-    /// upstream's `writeCurrentLockfile` at
-    /// <https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/fs/src/write.ts#L41-L51>:
+    /// `<virtual_store_dir>/lock.yaml` at end-of-install:
     ///
     /// - When the lockfile is empty ([`Lockfile::is_empty`]) the
-    ///   existing file is removed and no new content is written.
-    ///   Mirrors upstream's `rimraf` short-circuit so an empty install
-    ///   doesn't leave stale state behind.
+    ///   existing file is removed and no new content is written, so an
+    ///   empty install doesn't leave stale state behind.
     /// - Otherwise the directory is created if missing and the file
     ///   is written atomically: serialize → write next-to + rename.
     ///   The rename is the only step an observer can race against,

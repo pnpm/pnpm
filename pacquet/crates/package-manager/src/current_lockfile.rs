@@ -1,16 +1,12 @@
 //! Filter a wanted lockfile down to the "current" shape pacquet
 //! writes under `<virtual_store_dir>/lock.yaml`.
 //!
-//! Ports upstream's
-//! [`filterLockfileByImportersAndEngine`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/filtering/src/filterLockfileByImportersAndEngine.ts#L46-L94)
-//! with one pacquet-specific simplification: instead of re-running
-//! the engine + `supportedArchitectures` + `skipped` checks at
-//! filter time the way upstream does, reuse the
-//! [`SkippedSnapshots`] set produced during install. Its union of
-//! `installability` (slice 1) + `fetch_failed` (slice 4) +
-//! `optional_excluded` (slice 5) is the exact set upstream's
-//! filter would also drop — just precomputed during the install
-//! pipeline, no duplicated walk.
+//! Rather than re-running the engine + `supportedArchitectures` +
+//! `skipped` checks at filter time, reuse the [`SkippedSnapshots`]
+//! set produced during install. Its union of `installability`
+//! (slice 1) + `fetch_failed` (slice 4) + `optional_excluded`
+//! (slice 5) is the exact set the filter would drop — just
+//! precomputed during the install pipeline, no duplicated walk.
 //!
 //! The output drives the **next** install's diff. Without this
 //! filter, pacquet's current lockfile recorded every snapshot the
@@ -32,14 +28,10 @@ use crate::SkippedSnapshots;
 /// Build the "current lockfile" shape from the wanted lockfile by
 /// applying the install-time `include` set and skip set.
 ///
-/// Mirrors upstream's
-/// [`filterLockfileByImportersAndEngine`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/filtering/src/filterLockfileByImportersAndEngine.ts#L46-L94)
-/// → [`writeCurrentLockfile`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/src/index.ts#L687-L695)
-/// path: importers lose dep maps whose `include` flag is false;
-/// importer `optionalDependencies` lose entries whose resolved
-/// snapshot got skipped; the snapshot + package maps are pruned to
-/// the transitive closure reachable from the surviving importer
-/// roots.
+/// Importers lose dep maps whose `include` flag is false; importer
+/// `optionalDependencies` lose entries whose resolved snapshot got
+/// skipped; the snapshot + package maps are pruned to the transitive
+/// closure reachable from the surviving importer roots.
 #[must_use]
 pub fn filter_lockfile_for_current(
     lockfile: &Lockfile,
@@ -113,11 +105,8 @@ pub fn filter_lockfile_for_current(
 /// false; further trim `optional_dependencies` to entries whose
 /// resolved snapshot survived the reachability walk.
 ///
-/// Mirrors upstream's two-step shape — first
-/// [`filterImporter`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/filtering/src/filterImporter.ts#L4-L16)
-/// clears excluded dep sections, then
-/// [`filterLockfileByImportersAndEngine.ts:75-83`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/filtering/src/filterLockfileByImportersAndEngine.ts#L75-L83)
-/// post-filters `optionalDependencies` against the surviving
+/// Two steps: first clear the excluded dep sections, then
+/// post-filter `optionalDependencies` against the surviving
 /// packages set.
 fn filter_importer(
     importer: &ProjectSnapshot,
@@ -167,14 +156,12 @@ fn collect_reachable(
     let mut queue: VecDeque<PackageKey> = VecDeque::new();
 
     // Seed the queue from every importer-level dep map. The
-    // `include` filter isn't applied here on purpose — upstream
-    // walks all three at this stage (line 49 in
-    // `filterLockfileByImportersAndEngine.ts` is unconditional)
-    // and only the importer-level *output* clears the maps that
-    // were excluded. A snapshot reachable through any importer map
-    // stays in the snapshot graph as long as it's not in `skipped`;
-    // the per-importer clearing happens separately in
-    // [`filter_importer`].
+    // `include` filter isn't applied here on purpose — all three
+    // maps are walked unconditionally at this stage, and only the
+    // importer-level *output* clears the maps that were excluded. A
+    // snapshot reachable through any importer map stays in the
+    // snapshot graph as long as it's not in `skipped`; the
+    // per-importer clearing happens separately in [`filter_importer`].
     for importer in importers.values() {
         for map in [
             importer.dependencies.as_ref(),

@@ -1,17 +1,14 @@
 //! Recursive `pacquet exec` — run a command across the `--filter`-selected
 //! workspace projects, in topological order.
 //!
-//! Port of the recursive path of pnpm's
-//! [`exec`](https://github.com/pnpm/pnpm/blob/8eb1be4988/exec/commands/src/exec.ts)
-//! handler, reusing the shared graph / summary machinery in
+//! Reuses the shared graph / summary machinery in
 //! [`crate::cli_args::recursive`].
 //!
-//! Scope versus upstream: `config.filter` / `config.filter_prod`
-//! (`--filter` / `--filter-prod`, include and exclude selectors) narrow
-//! the selected set via [`select_recursive_projects`]; the selection is
-//! then sorted topologically (upstream's default) and run sequentially.
-//! `--workspace-concurrency` parallelism is not ported yet, matching the
-//! recursive `run` runner.
+//! `config.filter` / `config.filter_prod` (`--filter` / `--filter-prod`,
+//! include and exclude selectors) narrow the selected set via
+//! [`select_recursive_projects`]; the selection is then sorted
+//! topologically and run sequentially. `--workspace-concurrency`
+//! parallelism is not ported yet, matching the recursive `run` runner.
 
 use super::{ExecArgs, prepare_command, spawn_in_dir};
 use crate::cli_args::recursive::{
@@ -94,9 +91,8 @@ pub fn exec_recursive(args: &ExecArgs, config: &Config, dir: &Path) -> miette::R
             result[root].status = Status::Running;
             let start = Instant::now();
             // A spawn / resolution error (e.g. command not found) is a
-            // per-project failure rather than a hard error, matching
-            // pnpm's per-package `try/catch` (exec.ts:296-336): the error
-            // is recorded and the loop bails or continues like any other
+            // per-project failure rather than a hard error: the error is
+            // recorded and the loop bails or continues like any other
             // non-zero result.
             let outcome = spawn_in_dir(&command, root, config, args.shell_mode);
             let duration = start.elapsed().as_secs_f64() * 1e3;

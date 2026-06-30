@@ -1,29 +1,27 @@
-//! Pacquet port of pnpm's npm-registry resolver. Wraps
+//! npm-registry resolver. Wraps
 //! [`parse_bare_specifier`](crate::parse_bare_specifier()) plus
 //! [`pick_package`](crate::pick_package()) behind the chain-friendly
 //! [`Resolver`] trait so the default-resolver dispatcher can dispatch
 //! npm-shaped dependencies through it.
 //!
-//! Mirrors upstream's
-//! [`createNpmResolver` → `resolveNpm`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/index.ts#L192-L611)
-//! pair: the struct owns the registry config + network handles + meta
-//! cache; the trait implementation parses the bare specifier, picks a
-//! version, and maps the result to [`ResolveResult`].
+//! The struct owns the registry config + network handles + meta cache;
+//! the trait implementation parses the bare specifier, picks a version,
+//! and maps the result to [`ResolveResult`].
 //!
-//! Workspace handling intentionally lives on the npm-resolver side
-//! (mirroring upstream): non-path `workspace:` specs route through
+//! Workspace handling intentionally lives on the npm-resolver side:
+//! non-path `workspace:` specs route through
 //! [`try_resolve_from_workspace`](crate::try_resolve_from_workspace())
 //! to a `link:` / `file:` resolution against the install's workspace
 //! package map; the path-relative forms (`workspace:./foo`,
 //! `workspace:../bar`) return `Ok(None)` so the local-resolver in the
 //! chain claims them.
 //!
-//! Out of scope for this port:
+//! Not yet implemented:
 //!
-//! - **`peekManifestFromStore` fast path.** Upstream short-circuits a
+//! - **`peek_manifest_from_store` fast path.** Short-circuiting a
 //!   registry fetch when the lockfile-pinned tarball is already in the
 //!   store. Pacquet today goes through the picker unconditionally;
-//!   restoring the fast path is a separate item.
+//!   adding the fast path is a separate item.
 
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
@@ -54,37 +52,30 @@ use crate::{
     violation_codes::MINIMUM_RELEASE_AGE_VIOLATION_CODE,
 };
 
-/// Default `@jsr` registry URL. Mirrors upstream's
-/// [`DEFAULT_REGISTRIES['@jsr']`](https://github.com/pnpm/pnpm/blob/1627943d2a/config/normalize-registries/src/index.ts#L5-L8):
-/// every `normalizeRegistries` call always populates `'@jsr'`, so the
-/// TS dispatcher reads `ctx.registries['@jsr']!` unconditionally. This
-/// constant is the fallback for pacquet callers that haven't routed
-/// the `@jsr` entry through their `registries` map yet.
+/// Default `@jsr` registry URL. The `registries` map always populates
+/// `@jsr`, so the dispatcher can read it unconditionally; this constant
+/// is the fallback for pacquet callers that haven't routed the `@jsr`
+/// entry through their `registries` map yet.
 const DEFAULT_JSR_REGISTRY: &str = "https://npm.jsr.io/";
 
 /// Provenance tag for [`ResolveResult::resolved_via`] when the picker
-/// drove a JSR-prefixed specifier through the `@jsr` registry. Mirrors
-/// upstream's
-/// [`resolveJsr`](https://github.com/pnpm/pnpm/blob/1627943d2a/resolving/npm-resolver/src/index.ts#L629).
+/// drove a JSR-prefixed specifier through the `@jsr` registry.
 const JSR_REGISTRY_RESOLVED_VIA: &str = "jsr-registry";
 
-/// Provenance tag for npm-registry resolutions. Mirrors upstream's
-/// [`resolveNpm`](https://github.com/pnpm/pnpm/blob/1627943d2a/resolving/npm-resolver/src/index.ts#L595-L601).
+/// Provenance tag for npm-registry resolutions.
 const NPM_REGISTRY_RESOLVED_VIA: &str = "npm-registry";
 
 /// npm-registry resolver.
 ///
-/// One instance per install. Mirrors upstream's
-/// [`createNpmResolver`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/index.ts#L192-L289)
-/// factory return value: registries map, named-registry overrides,
-/// throttled HTTP client, auth-header table, on-disk metadata mirror
-/// root, and the install-shared metadata cache the picker reads
-/// through.
+/// One instance per install. Owns the registries map, named-registry
+/// overrides, throttled HTTP client, auth-header table, on-disk
+/// metadata mirror root, and the install-shared metadata cache the
+/// picker reads through.
 pub struct NpmResolver<Cache: PackageMetaCache> {
-    /// `default` plus per-scope (`@scope`) entries. The keys mirror
-    /// pnpm's `Registries` shape; the picker consults the `default`
-    /// entry as the install-wide default and the scope entry when the
-    /// resolved package name carries one. Pacquet today only populates
+    /// `default` plus per-scope (`@scope`) entries. The picker consults
+    /// the `default` entry as the install-wide default and the scope
+    /// entry when the resolved package name carries one. Pacquet today
+    /// only populates
     /// `default` — per-scope wiring lands when `.npmrc`'s
     /// `<scope>:registry` parsing does.
     pub registries: HashMap<String, String>,
@@ -118,8 +109,7 @@ pub struct NpmResolver<Cache: PackageMetaCache> {
     pub prefer_offline: bool,
     pub ignore_missing_time_field: bool,
     /// Install-wide bias toward full metadata. Threaded through to
-    /// [`PickPackageContext::full_metadata`]. Mirrors upstream's
-    /// [`ctx.fullMetadata`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L175).
+    /// [`PickPackageContext::full_metadata`].
     pub full_metadata: bool,
     /// When full metadata is forced, read and write pnpm's filtered
     /// full-metadata mirror.
@@ -180,10 +170,8 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         }
 
         // `jsr:` resolves through the `@jsr` registry under the
-        // `@jsr/<scope>__<name>` folded name. Mirrors upstream's
-        // [`resolveJsr`](https://github.com/pnpm/pnpm/blob/1627943d2a/resolving/npm-resolver/src/index.ts#L613-L632),
-        // which is dispatched alongside `resolveNpm` from the same
-        // factory.
+        // `@jsr/<scope>__<name>` folded name, dispatched alongside the
+        // plain npm path.
         if let Some(bare) = wanted_dependency.bare_specifier.as_deref()
             && bare.starts_with("jsr:")
         {
@@ -193,8 +181,6 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         // Pick registry from `(alias, bare_specifier)` so an npm-alias
         // entry like `"foo": "npm:@scope/bar@^1"` routes through
         // `registries[@scope]` instead of the alias's own scope.
-        // Mirrors upstream's
-        // [`pickRegistryForPackage`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/pick-registry-for-package/src/index.ts).
         let registry = pick_registry_for_package(
             &self.registries,
             wanted_dependency.alias.as_deref().unwrap_or_default(),
@@ -278,10 +264,9 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         Ok(Some(result))
     }
 
-    /// JSR counterpart to the npm path. Mirrors upstream's
-    /// [`resolveJsr`](https://github.com/pnpm/pnpm/blob/1627943d2a/resolving/npm-resolver/src/index.ts#L613-L632):
-    /// runs the JSR-specifier parser, picks against the `@jsr`
-    /// registry, then stamps `resolved_via = "jsr-registry"` and
+    /// JSR counterpart to the npm path: runs the JSR-specifier parser,
+    /// picks against the `@jsr` registry, then stamps
+    /// `resolved_via = "jsr-registry"` and
     /// `alias = spec.jsr_pkg_name` on the result so the install layer
     /// records the dependency under its JSR-style name.
     async fn resolve_jsr_impl(
@@ -373,19 +358,17 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         .await
     }
 
-    /// Latest-version companion. Mirrors upstream's
-    /// [`createResolveLatest`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/index.ts#L323-L353)
-    /// closure: feed `wanted.bareSpecifier ?? 'latest'` plus
-    /// `update: 'latest'` (or the original opts under `compatible`) back
-    /// through `resolve`, then return the picked manifest.
+    /// Latest-version companion: feed `wanted.bare_specifier` (or
+    /// `latest` when missing) plus `update: latest` (or the original
+    /// opts under `compatible`) back through `resolve`, then return the
+    /// picked manifest.
     async fn resolve_latest_impl(
         &self,
         query: &LatestQuery,
         opts: &ResolveOptions,
     ) -> Result<Option<LatestInfo>, ResolveError> {
-        // Mirror upstream's `createResolveLatest`: only the
-        // `bare_specifier` is rewritten (synthesized to the default
-        // tag when missing). Cloning the rest of the wanted
+        // Only the `bare_specifier` is rewritten (synthesized to the
+        // default tag when missing). Cloning the rest of the wanted
         // dependency preserves `injected` / `prev_specifier` /
         // `optional`, which downstream resolver branches may yet
         // consult even though the npm resolver doesn't today.
@@ -413,12 +396,10 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
 }
 
 /// Registry pick was unavailable (no matching version or fetch
-/// error); try the workspace as a fallback. Mirrors upstream's
-/// `tryResolveFromWorkspacePackages` invocations at
-/// [`index.ts#L505-L523`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/src/index.ts#L505-L523)
-/// and [`index.ts#L528-L543`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/src/index.ts#L528-L543).
-/// Workspace errors (missing name, no matching version) are swallowed
-/// — the caller re-raises the original registry error.
+/// error); try the workspace as a fallback via
+/// [`try_resolve_from_workspace_packages`]. Workspace errors (missing
+/// name, no matching version) are swallowed — the caller re-raises the
+/// original registry error.
 fn try_workspace_fallback(
     workspace_packages: &WorkspacePackages,
     spec: &RegistryPackageSpec,
@@ -430,10 +411,8 @@ fn try_workspace_fallback(
 }
 
 /// Registry pick succeeded; check whether a workspace package
-/// shadows it. Mirrors upstream's
-/// [registry-pick + workspace shadow](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/src/index.ts#L550-L582):
-/// exact `name@version` match wins; otherwise a higher workspace
-/// version wins; otherwise `preferWorkspacePackages` wins.
+/// shadows it: exact `name@version` match wins; otherwise a higher
+/// workspace version wins; otherwise `preferWorkspacePackages` wins.
 fn try_workspace_shadow(
     workspace_packages: &WorkspacePackages,
     spec: &RegistryPackageSpec,
@@ -490,8 +469,7 @@ fn workspace_fallback_options(opts: &ResolveOptions) -> ResolveFromWorkspaceOpti
 }
 
 /// `bare_specifier` is absent but `alias` is present: synthesize a tag
-/// spec pointing at the default tag, mirroring upstream's
-/// [`defaultTagForAlias`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/index.ts#L1000-L1006).
+/// spec pointing at the default tag.
 fn default_tag_spec(alias: &str, default_tag: &str) -> RegistryPackageSpec {
     RegistryPackageSpec {
         name: alias.to_string(),
@@ -736,9 +714,7 @@ pub(crate) fn build_resolve_result(
 /// [`fail_if_trust_downgraded`] against the picked version using the
 /// full packument the picker fetched (forced to full metadata under
 /// this policy by the install layer) and propagates a downgrade as a
-/// hard [`ResolveError`]. Mirrors upstream's resolver-time
-/// [`failIfTrustDowngraded`](https://github.com/pnpm/pnpm/blob/372cae6a55/resolving/npm-resolver/src/index.ts#L548-L550)
-/// call.
+/// hard [`ResolveError`].
 fn fail_if_trust_downgraded_for_pick(
     opts: &ResolveOptions,
     picked: &PickedFromRegistry,
@@ -757,8 +733,7 @@ fn fail_if_trust_downgraded_for_pick(
 
 /// Resolver-time `minimumReleaseAge` check. Returns a violation entry
 /// when the picked version's publish timestamp falls past the policy
-/// cutoff and isn't excluded by name/version. Mirrors upstream's
-/// [`detectMinReleaseAgeViolation`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/index.ts#L1023-L1044).
+/// cutoff and isn't excluded by name/version.
 fn detect_min_release_age_violation(
     name: &PkgName,
     version: &str,

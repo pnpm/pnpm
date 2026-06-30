@@ -1,6 +1,4 @@
-//! Port of pnpm's
-//! [`resolveRootDependencies`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L327-L437)
-//! — the multi-pass loop that hoists missing peers into the importer's
+//! The multi-pass loop that hoists missing peers into the importer's
 //! direct deps until no required peer is missing and no optional peer
 //! is satisfiable from the in-flight preferred-versions map.
 //!
@@ -60,7 +58,7 @@ pub struct ResolveImporterOptions {
 
     /// When true, conflicting peer ranges from multiple consumers are
     /// merged with `||` instead of being dropped on intersection
-    /// failure. Mirrors pnpm's `autoInstallPeersFromHighestMatch`.
+    /// failure. This is the `autoInstallPeersFromHighestMatch` setting.
     pub auto_install_peers_from_highest_match: bool,
 
     /// When true, the importer's direct deps are used as
@@ -81,11 +79,10 @@ pub struct ResolveImporterOptions {
     /// [`VersionSelectorType::Version`] entry so the [`hoist_peers`]
     /// (required-peer) picker can reuse a version a sibling already
     /// brought. The [`get_hoistable_optional_peers`] picker instead
-    /// reads a snapshot taken *before* any run-resolved version is
-    /// folded in — mirroring upstream's static
-    /// [`ctx.allPreferredVersions`](https://github.com/pnpm/pnpm/blob/894ea6af2c/installing/deps-resolver/src/resolveDependencies.ts#L340-L342)
-    /// — so an optional peer is never hoisted against a deep-tree
-    /// provider pnpm can't see. Pass the result of
+    /// reads a snapshot of `allPreferredVersions` taken *before* any
+    /// run-resolved version is folded in, so an optional peer is never
+    /// hoisted against a deep-tree provider pnpm can't see. Pass the
+    /// result of
     /// `get_preferred_versions_from_lockfile_and_manifests` from the
     /// `lockfile-preferred-versions` crate, or an empty map when no
     /// lockfile + manifest seeding is available.
@@ -103,9 +100,6 @@ pub struct ResolveImporterOptions {
     /// When `true`, the importer's direct dependencies are resolved to
     /// their lowest satisfying version (`resolutionMode: time-based` /
     /// `lowest-direct`). Transitive deps are always picked highest.
-    /// Mirrors pnpm's
-    /// [`pickLowestVersion`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/deps-resolver/src/resolveDependencies.ts#L470)
-    /// for importer deps.
     pub pick_lowest_direct: bool,
 
     /// Publish-date cutoff applied to transitive dependencies. Under
@@ -120,18 +114,17 @@ pub struct ResolveImporterOptions {
 
     /// Catalogs parsed from `pnpm-workspace.yaml`. Applied only to the
     /// importer's direct dependencies; transitive `catalog:` entries
-    /// are not resolved through the catalog, matching upstream's
-    /// [importer-only catalog scope](https://github.com/pnpm/pnpm/blob/a8a8cbce6d/installing/deps-resolver/src/resolveDependencies.ts#L592-L600).
+    /// are not resolved through the catalog, keeping the catalog scope
+    /// importer-only.
     pub catalogs: Catalogs,
 
     /// When `true`, `link:` direct deps whose target lives outside
     /// the lockfile root are seeded into the peer-resolution parent
     /// map with a remapped node id
     /// (`link:<rel-from-lockfile_dir-to-modules_dir>/<alias>`) so the
-    /// peer suffix stays stable across machines. Mirrors pnpm's
-    /// [`excludeLinksFromLockfile`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/index.ts#L232-L244)
-    /// flow. The remap fires only when [`Self::lockfile_dir`] and
-    /// [`Self::modules_dir`] are both set.
+    /// peer suffix stays stable across machines. This is the
+    /// `excludeLinksFromLockfile` flow. The remap fires only when
+    /// [`Self::lockfile_dir`] and [`Self::modules_dir`] are both set.
     pub exclude_links_from_lockfile: bool,
 
     /// Absolute path of the directory `pnpm-lock.yaml` lives in.
@@ -146,8 +139,8 @@ pub struct ResolveImporterOptions {
 
     /// Cap on the rendered peer-suffix before the suffix is replaced
     /// with a short hash. Threaded into [`fn@resolve_peers`] via
-    /// [`ResolvePeersOptions`]. Mirrors upstream's
-    /// `peersSuffixMaxLength` (default 1000).
+    /// [`ResolvePeersOptions`]. This is the `peersSuffixMaxLength`
+    /// setting (default 1000).
     pub peers_suffix_max_length: usize,
 
     pub catalog_server: bool,
@@ -282,13 +275,12 @@ where
 /// One importer's resolution state across the workspace's hoist
 /// rounds. The multi-importer orchestrator
 /// [`fn@crate::resolve_workspace`] initializes every importer before
-/// running any hoist round, mirroring upstream's
-/// [`resolveRootDependencies`](https://github.com/pnpm/pnpm/blob/ce9c096e8e/installing/deps-resolver/src/resolveDependencies.ts#L335-L445)
-/// barrier: every importer's initial wave completes first, then
-/// per-round required-peer loops and one optional-peer hoist per
-/// round repeat across all importers until no importer hoists — so an
-/// optional-peer pick sees every importer's resolved versions, not
-/// just the importers processed so far.
+/// running any hoist round, forming a barrier: every importer's
+/// initial wave completes first, then per-round required-peer loops
+/// and one optional-peer hoist per round repeat across all importers
+/// until no importer hoists — so an optional-peer pick sees every
+/// importer's resolved versions, not just the importers processed so
+/// far.
 pub(crate) struct ImporterHoistState {
     importer_id: String,
     ctx: TreeCtx,
@@ -392,8 +384,7 @@ impl ImporterHoistState {
 
     /// Resolve the importer's missing *required* peers to a fixpoint,
     /// rebuilding the missing-*optional* buckets the round's
-    /// [`Self::hoist_optional_round`] consumes. Upstream's inner
-    /// `while` per importer per round.
+    /// [`Self::hoist_optional_round`] consumes.
     pub(crate) async fn run_required_round<Chain>(
         &mut self,
         resolver: &Chain,
@@ -402,19 +393,16 @@ impl ImporterHoistState {
         Chain: Resolver + ?Sized,
     {
         // Both hoists read the run-extended preferred-versions map:
-        // upstream folds every resolved package's version into
-        // `ctx.allPreferredVersions`
-        // ([`resolveDependencies.ts#L1483-L1488`](https://github.com/pnpm/pnpm/blob/01b3d45ddb/installing/deps-resolver/src/resolveDependencies.ts#L1483-L1488))
-        // and consults it for the optional hoist after each wave.
-        // Refreshed per round so it carries every importer's versions,
-        // not just this importer's.
+        // every resolved package's version is folded into
+        // `all_preferred_versions` and consulted for the optional hoist
+        // after each wave. Refreshed per round so it carries every
+        // importer's versions, not just this importer's.
         update_preferred_versions_with_ctx(&self.ctx, &mut self.all_preferred_versions);
         // The hoist input must not see missing peers declared inside a
         // subtree owned by another importer's shared children context —
-        // upstream reuses the owner walk's children report there, so
-        // those peers never reach a non-owner importer's hoist. The
-        // final peer pass keeps the unscoped options so warnings stay
-        // complete.
+        // the owner walk's children report is reused there, so those
+        // peers never reach a non-owner importer's hoist. The final peer
+        // pass keeps the unscoped options so warnings stay complete.
         self.all_missing_optional_peers.clear();
         loop {
             let mut snapshot = self.ctx.snapshot(self.direct.clone());
@@ -489,12 +477,10 @@ impl ImporterHoistState {
             // level as non-optional direct deps — they exist precisely
             // to satisfy a missing required peer, so flipping their
             // own `optional` flag to `true` would defeat the
-            // auto-install. Mirrors upstream's `wantedDependency`
-            // shape inside `hoistPeers`. Hoisted peers don't carry
+            // auto-install. Hoisted peers don't carry
             // `dependenciesMeta` from any manifest, so `injected`
-            // defaults to `false` — matches upstream where the hoist
-            // path constructs a fresh `WantedDependency` without
-            // threading the per-dep meta.
+            // defaults to `false`: the hoist path constructs a fresh
+            // wanted dependency without threading the per-dep meta.
             let new_wanted: Vec<WantedSpec> =
                 hoisted.into_iter().map(|(name, range)| (name, range, false, false)).collect();
             let new_direct =
@@ -536,8 +522,7 @@ impl ImporterHoistState {
     }
 
     /// Hoist this round's missing optional peers; `true` when any were
-    /// installed (the workspace runs another round). Upstream's
-    /// `getHoistableOptionalPeers` arm per importer per round.
+    /// installed (the workspace runs another round).
     pub(crate) async fn hoist_optional_round<Chain>(
         &mut self,
         resolver: &Chain,
@@ -594,11 +579,10 @@ impl ImporterHoistState {
 /// A peer name is **required** for this iteration when at least one of
 /// its consumers declared it non-optional and it isn't already in
 /// `parent_pkg_aliases` (i.e. not already a direct dep that just
-/// hadn't been added to the alias set yet). Its merged range follows
-/// upstream's [`mergePkgsDeps`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L796-L818):
-/// single-range cases pass through, multi-range cases intersect via a
-/// stub (see [`merge_ranges`]) and fall through to `||`-join when
-/// `auto_install_peers_from_highest_match` is set.
+/// hadn't been added to the alias set yet). Its merged range is
+/// computed by [`merge_ranges`]: single-range cases pass through,
+/// multi-range cases intersect via a stub and fall through to `||`-join
+/// when `auto_install_peers_from_highest_match` is set.
 ///
 /// Peers whose consumers are *all* optional are returned as the second
 /// component, keyed by peer name with the deduplicated range list the
@@ -646,15 +630,13 @@ fn partition_missing_peers(
 /// Single-range cases pass through unchanged. Multi-range cases that
 /// reduce to one unique string also pass through. Anything else returns
 /// `Some(joined)` when `auto_install_peers_from_highest_match` is set,
-/// or `None` otherwise — same drop-on-conflict shape as upstream's
-/// `mergePkgsDeps` when `safeIntersect` returns null.
+/// or `None` otherwise — dropping the peer on an unresolvable conflict.
 ///
-/// Pacquet's `safe_intersect` stand-in is exact only for the
-/// "single unique range" case; broader semver-range intersection
-/// would need a port of the `semver-range-intersect` npm package.
-/// In practice the multi-consumer non-identical case is rare enough
-/// that conservative "no merge" matches upstream's `intersection ===
-/// null` arm for the slice.
+/// The intersection here is exact only for the "single unique range"
+/// case; broader semver-range intersection would need the
+/// `semver-range-intersect` npm package. In practice the multi-consumer
+/// non-identical case is rare enough that a conservative "no merge"
+/// (drop on conflict) is sufficient for the slice.
 fn merge_ranges(ranges: &[&str], auto_install_peers_from_highest_match: bool) -> Option<String> {
     if ranges.len() == 1 {
         return Some(ranges[0].to_string());
@@ -696,10 +678,7 @@ fn build_workspace_root_deps(
 }
 
 /// Add every newly-resolved `name@version` from `ctx` to
-/// `preferred` as a plain [`VersionSelectorType::Version`] entry,
-/// mirroring upstream's per-resolve `allPreferredVersions[name][version]
-/// = 'version'` assignment at
-/// [`resolveDependencies.ts:1440`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1440).
+/// `preferred` as a plain [`VersionSelectorType::Version`] entry.
 /// Idempotent: only inserts when no entry exists for `(name, version)`.
 fn update_preferred_versions_with_ctx(ctx: &TreeCtx, preferred: &mut PreferredVersions) {
     for (name, version) in ctx.resolved_versions() {

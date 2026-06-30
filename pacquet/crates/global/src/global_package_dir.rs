@@ -1,6 +1,4 @@
-//! Port of pnpm's
-//! [`globalPackageDir`](https://github.com/pnpm/pnpm/blob/1819226b51/global/packages/src/globalPackageDir.ts):
-//! the hash-symlink path helpers and the temporary install-directory
+//! The hash-symlink path helpers and the temporary install-directory
 //! factory used by global add/update.
 
 use std::{
@@ -17,8 +15,7 @@ pub fn get_hash_link(global_dir: &Path, hash: &str) -> PathBuf {
 }
 
 /// Resolve the install directory a hash symlink points at, or `None` when
-/// the link is absent or is not a symlink. Mirrors pnpm's
-/// `resolveInstallDir`.
+/// the link is absent or is not a symlink.
 pub fn resolve_install_dir(global_dir: &Path, hash: &str) -> io::Result<Option<PathBuf>> {
     let link_path = get_hash_link(global_dir, hash);
     let metadata = match std::fs::symlink_metadata(&link_path) {
@@ -34,9 +31,8 @@ pub fn resolve_install_dir(global_dir: &Path, hash: &str) -> io::Result<Option<P
 
 /// Create and return a fresh, unique install directory under `global_dir`.
 ///
-/// Mirrors pnpm's `createInstallDir` (a per-group dir named from the pid +
-/// time), but hardens it: the name adds high-resolution nanos and an atomic
-/// counter, and the directory is created with exclusive `create_dir`
+/// The directory is a per-group dir named from the pid plus high-resolution
+/// nanos and an atomic counter, and is created with exclusive `create_dir`
 /// (retrying on `AlreadyExists`) rather than `create_dir_all`. This avoids
 /// reusing — or following a pre-existing symlink at — a colliding name when
 /// `global_dir` is shared, so each group's `package.json` / `node_modules`

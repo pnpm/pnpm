@@ -1,6 +1,3 @@
-//! Pacquet port of pnpm's
-//! [`@pnpm/crypto.shasums-file`](https://github.com/pnpm/pnpm/blob/1627943d2a/crypto/shasums-file/src/index.ts).
-//!
 //! Helpers that download and decode the `SHASUMS256.txt` integrity
 //! files Node.js, Bun, and similar runtimes publish alongside their
 //! binary releases. The file's format is one `<hex-sha256>  <filename>`
@@ -205,9 +202,6 @@ pub async fn fetch_verified_node_shasums_file(
 /// Companion to [`fetch_shasums_file`] that returns the raw body so
 /// callers can later pick a single row out with
 /// [`pick_file_checksum_from_shasums_file`].
-///
-/// Mirrors upstream's
-/// [`fetchShasumsFileRaw`](https://github.com/pnpm/pnpm/blob/1627943d2a/crypto/shasums-file/src/index.ts#L29-L42).
 pub async fn fetch_shasums_file_raw(
     http_client: &ThrottledClient,
     shasums_url: &str,

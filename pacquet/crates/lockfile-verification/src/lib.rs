@@ -1,4 +1,4 @@
-//! Pacquet port of pnpm's lockfile-verification gate.
+//! The lockfile-verification gate.
 //!
 //! Runs every active [`ResolutionVerifier`] against every entry in a
 //! lockfile loaded from disk, before any resolver decision or fetch
@@ -7,12 +7,8 @@
 //! that skipped local policy) cannot reach the install path under a
 //! weaker or absent policy.
 //!
-//! Mirrors upstream pnpm at commit `2a9bd897bf`:
-//!
-//! - [`verifyLockfileResolutions.ts`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutions.ts)
-//!   — the fan-out runner.
-//! - [`verifyLockfileResolutionsCache.ts`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutionsCache.ts)
-//!   — the JSONL stat-and-skip cache.
+//! This crate is built from two parts: the fan-out runner and the
+//! JSONL stat-and-skip cache.
 //!
 //! Public surface today: [`verify_lockfile_resolutions()`],
 //! [`collect_resolution_policy_violations()`], [`hash_lockfile()`],

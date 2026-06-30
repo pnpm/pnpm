@@ -124,13 +124,10 @@ impl VirtualStoreLayout {
     /// `engines.runtime` (carried in the lockfile as
     /// `dependencies.node: runtime:<version>`) override the fallback
     /// per-snapshot through `find_own_runtime_node_major` — the
-    /// engine portion of the hash then tracks the Node that pnpm's
+    /// engine portion of the hash then tracks the Node that the
     /// bin linker would spawn for that pinning package's lifecycle
-    /// scripts (see
-    /// [`bins/linker/src/index.ts:229-237`](https://github.com/pnpm/pnpm/blob/29a42efc3b/bins/linker/src/index.ts#L229-L237)).
-    /// Mirrors upstream's
-    /// [`readSnapshotRuntimePin`](https://github.com/pnpm/pnpm/blob/HEAD/engine/runtime/system-node-version/src/index.ts)
-    /// branch in `@pnpm/deps.graph-hasher`.
+    /// scripts. The per-snapshot runtime pin takes precedence over
+    /// the install-wide fallback.
     ///
     /// `None` propagates straight into
     /// [`calc_graph_node_hash`]'s `engine` parameter — `None` and
@@ -152,9 +149,7 @@ impl VirtualStoreLayout {
     /// [`calc_graph_node_hash`]. Pure-JS subgraphs hash with
     /// `engine = null` so their GVS directories survive Node.js
     /// upgrades. When `None`, every snapshot keeps the engine in
-    /// its hash payload — matches upstream's
-    /// [`builtDepPaths === undefined`](https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-hasher/src/index.ts#L140-L142)
-    /// branch.
+    /// its hash payload.
     pub fn new(
         config: &Config,
         engine: Option<&str>,
@@ -190,9 +185,7 @@ impl VirtualStoreLayout {
             };
         };
         let graph = lockfile_to_dep_graph(snapshots, packages);
-        // Build the engine-agnostic gating set once per install,
-        // mirroring upstream's
-        // [`computeBuiltDepPaths`](https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-hasher/src/index.ts#L208-L219).
+        // Build the engine-agnostic gating set once per install.
         // `None` here disables gating so every snapshot still hashes
         // with its engine string.
         let built_dep_paths: Option<HashSet<PackageKey>> = allow_build_policy.map(|policy| {
@@ -206,8 +199,7 @@ impl VirtualStoreLayout {
         // Install-scoped memoization for the `transitivelyRequiresBuild`
         // walk; shared across every snapshot's hash computation so
         // diamond-shaped subgraphs only get visited once. Untouched
-        // when `built_dep_paths` is `None`. Mirrors upstream's
-        // [`buildRequiredCache`](https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-hasher/src/index.ts#L113-L114).
+        // when `built_dep_paths` is `None`.
         let mut build_required_cache: HashMap<PackageKey, bool> = HashMap::new();
         let mut gvs_suffixes: HashMap<PackageKey, String> = HashMap::with_capacity(snapshots.len());
         for (snapshot_key, snapshot) in snapshots {
@@ -215,13 +207,11 @@ impl VirtualStoreLayout {
             // its own `engines.runtime` carries the desugared
             // `dependencies.node: 'runtime:<version>'` pin, which has
             // to drive the engine portion of *its* hash rather than
-            // the install-wide fallback. Match upstream's
-            // [`readSnapshotRuntimePin`](https://github.com/pnpm/pnpm/blob/HEAD/engine/runtime/system-node-version/src/index.ts)
-            // precedence: own pin first, install-wide fallback
-            // second. Default host platform / arch (`None`, `None`)
-            // matches whatever the caller used to format the
-            // fallback `engine` so the two strings remain comparable
-            // across snapshots in one install.
+            // the install-wide fallback. Precedence: own pin first,
+            // install-wide fallback second. Default host platform /
+            // arch (`None`, `None`) matches whatever the caller used
+            // to format the fallback `engine` so the two strings
+            // remain comparable across snapshots in one install.
             let own_engine =
                 find_own_runtime_node_major(snapshot).map(|major| engine_name(major, None, None));
             let snapshot_engine = own_engine.as_deref().or(engine);
@@ -287,19 +277,16 @@ impl VirtualStoreLayout {
     }
 }
 
-/// Version segment of a snapshot's global-virtual-store path. Mirrors
-/// pnpm's
-/// [`nameVerFromPkgSnapshot`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/utils/src/nameVerFromPkgSnapshot.ts#L12-L23)
-/// (`pkgSnapshot.version ?? pkgInfo.version`) feeding
-/// [`formatGlobalVirtualStorePath`](https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-hasher/src/index.ts#L283-L286).
+/// Version segment of a snapshot's global-virtual-store path. Derives
+/// the version as `pkgSnapshot.version ?? pkgInfo.version`, then feeds
+/// it into the global-virtual-store path format.
 ///
 /// An injected `file:` workspace dep carries no `version` field in the
-/// lockfile, and its depPath version is non-semver, so upstream's
-/// `nameVerFromPkgSnapshot` returns `undefined` and the template-literal
-/// `formatGlobalVirtualStorePath` stringifies it to the literal segment
-/// `undefined`. Emitting the raw `file:<path>` here instead would put a
-/// `:` (and embedded `/`) into the slot path — rejected on Windows with
-/// `ERROR_INVALID_NAME` and divergent from pnpm. See pnpm/pnpm#12038.
+/// lockfile, and its depPath version is non-semver, so the version
+/// derivation returns `undefined` and the path format stringifies it to
+/// the literal segment `undefined`. Emitting the raw `file:<path>` here
+/// instead would put a `:` (and embedded `/`) into the slot path —
+/// rejected on Windows with `ERROR_INVALID_NAME`.
 fn gvs_version_segment(suffix: &PkgVerPeer) -> String {
     match suffix.version() {
         VersionPart::File(_) => "undefined".to_string(),
@@ -308,13 +295,11 @@ fn gvs_version_segment(suffix: &PkgVerPeer) -> String {
 }
 
 /// Build the dependency graph from the lockfile's `snapshots` /
-/// `packages` sections. Mirrors upstream's
-/// [`lockfileToDepGraph`](https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-hasher/src/index.ts#L162-L181)
-/// — every entry in `snapshots` becomes a node whose `full_pkg_id` is
-/// `<pkg_id_with_patch_hash>:<integrity>` (for tarball / registry
-/// resolutions) and whose `children` are the alias→snapshot-key edges
-/// pulled from the snapshot's combined `dependencies` +
-/// `optionalDependencies`.
+/// `packages` sections. Every entry in `snapshots` becomes a node whose
+/// `full_pkg_id` is `<pkg_id_with_patch_hash>:<integrity>` (for tarball
+/// / registry resolutions) and whose `children` are the
+/// alias→snapshot-key edges pulled from the snapshot's combined
+/// `dependencies` + `optionalDependencies`.
 ///
 /// Packages whose metadata is missing or whose resolution has no
 /// `integrity` (directory / git) are emitted with the bare
@@ -346,10 +331,8 @@ fn lockfile_to_dep_graph(
 }
 
 /// Combine a snapshot's `dependencies` and `optionalDependencies` into
-/// the graph's alias→key edges. Mirrors
-/// [`lockfileDepsToGraphChildren`](https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-hasher/src/index.ts#L237-L246)
-/// composed with upstream's `{...deps, ...optionalDeps}` spread at the
-/// caller.
+/// the graph's alias→key edges, equivalent to a
+/// `{...deps, ...optionalDeps}` spread.
 fn collect_children(snapshot: &SnapshotEntry) -> HashMap<String, PackageKey> {
     let mut children = HashMap::new();
     if let Some(deps) = &snapshot.dependencies {
@@ -374,12 +357,10 @@ fn merge_into_children(
     }
 }
 
-/// Mirrors upstream's
-/// [`createFullPkgId`](https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-hasher/src/index.ts#L248-L274).
 /// `variations` (cross-platform variant) resolutions don't exist in
 /// pacquet's lockfile model yet — when they're added, this helper
-/// will need the `selectPlatformVariant` branch upstream uses to pick
-/// the right integrity.
+/// will need a `selectPlatformVariant` branch to pick the right
+/// integrity.
 fn create_full_pkg_id(
     pkg_id_with_patch_hash: &PkgIdWithPatchHash,
     resolution: Option<&LockfileResolution>,

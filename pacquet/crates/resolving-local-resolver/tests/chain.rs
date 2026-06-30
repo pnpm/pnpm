@@ -1,7 +1,5 @@
 //! Verify that [`LocalResolver`] composes into the
-//! [`pacquet_resolving_default_resolver::DefaultResolver`] chain the
-//! same way upstream's local resolver composes into pnpm's
-//! [`createResolver`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/default-resolver/src/index.ts#L97-L173).
+//! [`pacquet_resolving_default_resolver::DefaultResolver`] chain.
 
 use pacquet_lockfile::LockfileResolution;
 use pacquet_resolving_default_resolver::{DefaultResolver, SpecNotSupportedByAnyResolverError};

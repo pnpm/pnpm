@@ -47,14 +47,12 @@ pub struct PackageVersion {
     /// `dist.attestations.provenance`, the version was published
     /// through an OIDC-backed trusted-publisher integration *and*
     /// shipped a provenance attestation, which together count as the
-    /// higher (`trustedPublisher`) trust rank that upstream's
-    /// [`getTrustEvidence`](https://github.com/pnpm/pnpm/blob/fea5fd41da/resolving/npm-resolver/src/trustChecks.ts#L119-L127)
-    /// checks before falling back to the `provenance` attestation
-    /// rank. The publisher flag without provenance is ignored.
+    /// higher (`trustedPublisher`) trust rank, checked before falling
+    /// back to the `provenance` attestation rank. The publisher flag
+    /// without provenance is ignored.
     ///
-    /// Mirrors pnpm's
-    /// [`PackageInRegistry._npmUser`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/registry/types/src/index.ts#L29-L36)
-    /// (note the leading underscore on the wire).
+    /// Carried on the wire as `_npmUser` (note the leading
+    /// underscore).
     #[serde(
         default,
         rename = "_npmUser",
@@ -70,15 +68,11 @@ pub struct PackageVersion {
     /// highest version satisfying the range is deprecated, retry the
     /// pick against the non-deprecated subset.
     ///
-    /// **Wire format:** the field is declared as a string upstream
-    /// (`PackageInRegistry.deprecated?: string`) but the real npm
-    /// registry occasionally serves `"deprecated": false` for
-    /// never-deprecated versions — JavaScript stores the boolean and
-    /// the upstream `if (info.deprecated)` truthiness check happens
-    /// to handle both shapes silently. Rust serde is strict, so we
-    /// route through a custom deserializer that normalizes the field
-    /// to `Option<String>`. Mirrors pnpm's
-    /// [`PackageInRegistry.deprecated`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/packages/types/src/package.ts).
+    /// **Wire format:** the field is nominally a string, but the real
+    /// npm registry occasionally serves `"deprecated": false` for
+    /// never-deprecated versions. Rust serde is strict, so we route
+    /// through a custom deserializer that normalizes the field to
+    /// `Option<String>`, treating a `false` boolean as absent.
     #[serde(
         default,
         deserialize_with = "deserialize_deprecated_field",
@@ -87,10 +81,10 @@ pub struct PackageVersion {
     pub deprecated: Option<String>,
 
     /// Every other field of the registry's per-version manifest, captured
-    /// verbatim. pnpm's resolver returns the whole picked manifest, and the
+    /// verbatim. The whole picked manifest is carried through, and the
     /// lockfile writer reads `engines` / `cpu` / `os` / `libc` / `bin` /
     /// `bundleDependencies` off it to populate the `packages:` entry. Keeping a
-    /// flatten catch-all (rather than a typed field per key) mirrors that
+    /// flatten catch-all (rather than a typed field per key) preserves that
     /// passthrough and tolerates the historical shape variance npm serves.
     #[serde(flatten)]
     pub other: HashMap<String, serde_json::Value>,
@@ -100,13 +94,10 @@ impl Eq for PackageVersion {}
 
 /// Deserialize a `Record<string, string>`-shaped dependency map while
 /// tolerating historical npm registry entries whose values are objects
-/// or other non-string shapes. Non-string entries are silently dropped,
-/// matching pnpm's JavaScript path which never validates the value
-/// shape and relies on later `typeof spec === 'string'` checks to
-/// ignore the bad rows (e.g. `deep-diff@0.1.0`'s nested
-/// `devDependencies`). Missing field and JSON `null` both decode to
-/// `None`; a present map (even one whose entries are all dropped)
-/// decodes to `Some`.
+/// or other non-string shapes. Non-string entries are silently dropped
+/// (e.g. `deep-diff@0.1.0`'s nested `devDependencies`). Missing field
+/// and JSON `null` both decode to `None`; a present map (even one whose
+/// entries are all dropped) decodes to `Some`.
 fn deserialize_dependency_map<'de, Deser>(
     deserializer: Deser,
 ) -> Result<Option<HashMap<String, String>>, Deser::Error>

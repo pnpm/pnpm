@@ -1,6 +1,3 @@
-//! Port of pnpm's
-//! [`workspace/range-resolver/test/index.test.ts`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/workspace/range-resolver/test/index.test.ts).
-
 use pacquet_workspace_range_resolver::resolve_workspace_range;
 
 fn versions() -> Vec<String> {

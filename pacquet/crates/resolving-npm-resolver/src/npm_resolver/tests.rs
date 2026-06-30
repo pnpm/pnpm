@@ -108,8 +108,7 @@ fn reject_versions(versions: &[&str]) -> Arc<dyn PackageVersionGuard> {
 }
 
 /// Packument body for `@jsr/foo__bar` — the npm-shaped name JSR
-/// serves `@foo/bar` under
-/// ([source](https://github.com/pnpm/pnpm/blob/1627943d2a/resolving/jsr-specifier-parser/src/index.ts#L53-L64)).
+/// serves `@foo/bar`.
 const JSR_PACKAGE_BODY: &str = r#"{
     "name": "@jsr/foo__bar",
     "dist-tags": { "latest": "1.1.0" },
@@ -658,10 +657,10 @@ async fn jsr_specifier_with_invalid_scope_propagates_parser_error() {
     };
     let err = resolver.resolve(&wanted, &ResolveOptions::default()).await.unwrap_err();
     let msg = err.to_string();
-    // Asserting the upstream-defined error message ties the test to
-    // the public `ERR_PNPM_MISSING_JSR_PACKAGE_SCOPE` contract; the
-    // resolver seam returns the parser error as a boxed `dyn Error`
-    // so we can't downcast to the variant directly.
+    // Asserting the error message ties the test to the public
+    // `ERR_PNPM_MISSING_JSR_PACKAGE_SCOPE` contract; the resolver seam
+    // returns the parser error as a boxed `dyn Error` so we can't
+    // downcast to the variant directly.
     assert_eq!(msg, "Package names from JSR must have a scope", "unexpected error message: {msg}");
 }
 
@@ -835,9 +834,8 @@ fn workspace_resolve_options(packages: WorkspacePackages) -> ResolveOptions {
     }
 }
 
-/// Ports pnpm's [`index.ts#L1442-L1491`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1442-L1491);
-/// this is the case behind [#11929] (babylon's `@dev/build-tools`
-/// isn't on npm, so bare-semver must resolve via the workspace).
+/// The case behind [#11929] (babylon's `@dev/build-tools` isn't on
+/// npm, so bare-semver must resolve via the workspace).
 ///
 /// [#11929]: https://github.com/pnpm/pnpm/issues/11929
 #[tokio::test]
@@ -864,7 +862,6 @@ async fn falls_back_to_workspace_when_registry_returns_404() {
     }
 }
 
-/// Ports pnpm's [`index.ts#L1129-L1166`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1129-L1166).
 #[tokio::test]
 async fn workspace_shadows_registry_when_name_and_version_match() {
     let mut server = mockito::Server::new_async().await;
@@ -896,7 +893,6 @@ async fn workspace_shadows_registry_when_name_and_version_match() {
     assert_eq!(result.latest.as_deref(), Some("1.0.0"));
 }
 
-/// Ports pnpm's [`index.ts#L1208-L1245`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1208-L1245).
 #[tokio::test]
 async fn always_try_workspace_packages_false_skips_workspace_match() {
     let mut server = mockito::Server::new_async().await;
@@ -926,7 +922,6 @@ async fn always_try_workspace_packages_false_skips_workspace_match() {
     assert_eq!(result.id.as_str(), "acme@1.0.0");
 }
 
-/// Ports pnpm's [`index.ts#L1315-L1357`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1315-L1357).
 #[tokio::test]
 async fn registry_version_higher_than_workspace_keeps_registry_pick() {
     let mut server = mockito::Server::new_async().await;
@@ -955,7 +950,6 @@ async fn registry_version_higher_than_workspace_keeps_registry_pick() {
     assert_eq!(result.id.as_str(), "acme@1.1.0");
 }
 
-/// Ports pnpm's [`index.ts#L1358-L1398`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1358-L1398).
 #[tokio::test]
 async fn prefer_workspace_packages_keeps_workspace_over_newer_registry() {
     let mut server = mockito::Server::new_async().await;
@@ -985,7 +979,6 @@ async fn prefer_workspace_packages_keeps_workspace_over_newer_registry() {
     assert_eq!(result.id.as_str(), "link:../acme");
 }
 
-/// Ports pnpm's [`index.ts#L1399-L1441`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1399-L1441).
 #[tokio::test]
 async fn workspace_higher_version_shadows_registry_pick() {
     let mut server = mockito::Server::new_async().await;
@@ -1031,7 +1024,6 @@ fn build_workspace_packages_at(name: &str, entries: &[(&str, &str)]) -> Workspac
     packages
 }
 
-/// Ports pnpm's [`index.ts#L1167-L1206`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1167-L1206).
 #[tokio::test]
 async fn injected_workspace_match_emits_file_resolution() {
     let mut server = mockito::Server::new_async().await;
@@ -1065,7 +1057,6 @@ async fn injected_workspace_match_emits_file_resolution() {
     }
 }
 
-/// Ports pnpm's [`index.ts#L1494-L1544`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1494-L1544).
 #[tokio::test]
 async fn workspace_fallback_picks_highest_version_for_latest_tag() {
     let mut server = mockito::Server::new_async().await;
@@ -1093,8 +1084,7 @@ async fn workspace_fallback_picks_highest_version_for_latest_tag() {
     assert_eq!(result.id.as_str(), "link:../acme-2.0.0");
 }
 
-/// Ports pnpm's [`index.ts#L1546-L1582`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1546-L1582);
-/// exercises the `includePrerelease` arm of `resolve_workspace_range`.
+/// Exercises the `includePrerelease` arm of `resolve_workspace_range`.
 #[tokio::test]
 async fn workspace_fallback_picks_local_prerelease_for_latest_tag() {
     let mut server = mockito::Server::new_async().await;
@@ -1115,7 +1105,6 @@ async fn workspace_fallback_picks_local_prerelease_for_latest_tag() {
     assert_eq!(result.id.as_str(), "link:../acme");
 }
 
-/// Ports pnpm's [`index.ts#L1584-L1634`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1584-L1634).
 #[tokio::test]
 async fn workspace_fallback_resolves_specific_version_request() {
     let mut server = mockito::Server::new_async().await;
@@ -1143,8 +1132,7 @@ async fn workspace_fallback_resolves_specific_version_request() {
     assert_eq!(result.id.as_str(), "link:../acme-1.1.0");
 }
 
-/// Ports pnpm's [`index.ts#L1636-L1672`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L1636-L1672);
-/// covers the `Ok(None)` fallback arm (200 + no matching version),
+/// Covers the `Ok(None)` fallback arm (200 + no matching version),
 /// distinct from the `Err` 404 arm.
 #[tokio::test]
 async fn workspace_fallback_kicks_in_when_registry_lacks_requested_version() {
@@ -1174,7 +1162,6 @@ async fn workspace_fallback_kicks_in_when_registry_lacks_requested_version() {
     assert_eq!(result.id.as_str(), "link:../acme");
 }
 
-/// Ports pnpm's [`index.ts#L2092-L2121`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L2092-L2121).
 #[tokio::test]
 async fn registry_error_propagates_when_workspace_has_no_matching_version() {
     let mut server = mockito::Server::new_async().await;
@@ -1197,7 +1184,6 @@ async fn registry_error_propagates_when_workspace_has_no_matching_version() {
     assert!(err.to_string().contains("404"), "expected the 404 to propagate, got: {err}");
 }
 
-/// Ports pnpm's [`index.ts#L2154-L2183`](https://github.com/pnpm/pnpm/blob/5353fcbf01/resolving/npm-resolver/test/index.ts#L2154-L2183).
 #[tokio::test]
 async fn registry_pick_wins_when_workspace_version_does_not_match() {
     let mut server = mockito::Server::new_async().await;

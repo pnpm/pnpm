@@ -1,8 +1,5 @@
 //! On-disk verification cache.
 //!
-//! Verbatim port of pnpm's
-//! [`verifyLockfileResolutionsCache.ts`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutionsCache.ts).
-//!
 //! Two-index JSONL log at `<cache_dir>/lockfile-verified.jsonl`:
 //!
 //! - **by content hash** — recognizes the same lockfile across paths
@@ -40,36 +37,26 @@ use std::{
     time::SystemTime,
 };
 
-/// File name of the cache, relative to `cache_dir`. Matches
-/// upstream's [`CACHE_FILE_NAME`][ts-CACHE_FILE_NAME] so a pnpm-populated cache file is
-/// readable from pacquet and vice versa.
-///
-/// [ts-CACHE_FILE_NAME]: https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutionsCache.ts#L52
+/// File name of the cache, relative to `cache_dir`. Shared with pnpm so a
+/// pnpm-populated cache file is readable from pacquet and vice versa.
 pub const CACHE_FILE_NAME: &str = "lockfile-verified.jsonl";
 
 /// Hard cap on records the cache file holds after compaction.
-/// Matches upstream's [`MAX_CACHE_ENTRIES`][ts-MAX_CACHE_ENTRIES]. A developer machine that
-/// touches a thousand distinct `(path, content)` tuples is far past
-/// steady state.
-///
-/// [ts-MAX_CACHE_ENTRIES]: https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutionsCache.ts#L59
+/// A developer machine that touches a thousand distinct
+/// `(path, content)` tuples is far past steady state.
 pub const MAX_CACHE_ENTRIES: usize = 1000;
 
 /// Compaction trigger in bytes. Records cluster around a few hundred
 /// bytes; a 1.5 KiB-per-entry budget translates to ~1.5 MB with
 /// generous slack so we don't trigger a rewrite on every append once
-/// the cap is crossed. Matches upstream's [`COMPACT_TRIGGER_BYTES`][ts-COMPACT_TRIGGER_BYTES].
-///
-/// [ts-COMPACT_TRIGGER_BYTES]: https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutionsCache.ts#L65
+/// the cap is crossed.
 pub const COMPACT_TRIGGER_BYTES: u64 = (MAX_CACHE_ENTRIES as u64) * 1024 * 3 / 2;
 
-/// One verified lockfile snapshot persisted to the JSONL log. Wire
-/// shape matches upstream's [`CacheRecord`][ts-CacheRecord] field-for-field so the two
-/// stacks share a cache file (pacquet reads pnpm's records and vice
-/// versa — even though the hash values are unlikely to collide, the
-/// stat shortcut still hits across both).
-///
-/// [ts-CacheRecord]: https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutionsCache.ts#L67-L105
+/// One verified lockfile snapshot persisted to the JSONL log. The wire
+/// shape is shared with pnpm field-for-field so the two stacks share a
+/// cache file (pacquet reads pnpm's records and vice versa — even though
+/// the hash values are unlikely to collide, the stat shortcut still hits
+/// across both).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CacheRecord {
     pub lockfile: CacheLockfile,
@@ -223,8 +210,7 @@ pub fn try_lockfile_verification_cache(
     }
 }
 
-/// Persist a successful verification. Mirrors upstream's
-/// [`recordVerification`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutionsCache.ts#L320-L349).
+/// Persist a successful verification.
 ///
 /// Reuses `precomputed.stat` and `precomputed.hash` from a prior
 /// [`try_lockfile_verification_cache`] call so the miss-then-record
@@ -267,10 +253,9 @@ struct CacheIndexes {
 }
 
 /// Read the cache file, building both indexes in one pass. Records
-/// are walked in file order so the last record for any key wins
-/// — matches upstream's `for (const line of contents.split('\n'))`
-/// reduce. Returns empty indexes on `NotFound`; propagates other
-/// IO errors so the caller can downgrade them to "no cache".
+/// are walked in file order so the last record for any key wins.
+/// Returns empty indexes on `NotFound`; propagates other IO errors so
+/// the caller can downgrade them to "no cache".
 fn read_cache(cache_dir: &Path) -> io::Result<CacheIndexes> {
     let cache_file_path = cache_dir.join(CACHE_FILE_NAME);
     let contents = match fs::read_to_string(&cache_file_path) {
@@ -320,9 +305,8 @@ fn inode_of(metadata: &fs::Metadata) -> String {
 #[cfg(not(unix))]
 fn inode_of(_metadata: &fs::Metadata) -> String {
     // Windows has no inode equivalent the cache wants to compare
-    // against; matching upstream's behavior leaves the slot empty
-    // ("0") so the stat shortcut still works on Unix and degrades
-    // to content-hash on Windows.
+    // against; leaving the slot empty ("0") keeps the stat shortcut
+    // working on Unix and degrades to content-hash on Windows.
     "0".to_string()
 }
 

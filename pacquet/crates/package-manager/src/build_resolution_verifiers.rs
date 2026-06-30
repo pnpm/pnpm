@@ -10,10 +10,8 @@
 //! [`pacquet_config::version_policy::create_package_version_policy()`]
 //! and propagates via [`BuildVerifiersError`].
 //!
-//! Mirrors the install-site wiring at
-//! [`installing/deps-installer/src/install/index.ts:355-383`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/index.ts#L355-L383),
-//! where pnpm builds the verifier list from the same set of config
-//! fields just before invoking `verifyLockfileResolutions`.
+//! The verifier list is built from the install's config fields just
+//! before the lockfile-resolution gate runs over it.
 
 use std::{collections::HashMap, sync::Arc};
 
@@ -36,7 +34,7 @@ use crate::retry_config::retry_opts_from_config;
 /// that can fail is `create_package_version_policy` rejecting an
 /// invalid `minimumReleaseAgeExclude` / `trustPolicyExclude`
 /// pattern. Wraps the inner error so the install command can route
-/// the upstream diagnostic code (`ERR_PNPM_INVALID_VERSION_UNION`,
+/// the diagnostic code (`ERR_PNPM_INVALID_VERSION_UNION`,
 /// `ERR_PNPM_NAME_PATTERN_IN_VERSION_UNION`) without re-wrapping.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
@@ -111,10 +109,7 @@ pub fn build_resolution_verifiers(
         // User-defined aliases from `pnpm-workspace.yaml#namedRegistries`.
         // Built-in aliases are merged in by
         // [`pacquet_resolving_npm_resolver::build_named_registry_prefixes()`]
-        // inside the verifier, so passing the user map verbatim
-        // matches upstream's
-        // [`createNpmResolutionVerifier`](https://github.com/pnpm/pnpm/blob/b61e268d57/resolving/npm-resolver/src/createNpmResolutionVerifier.ts)
-        // call site, which forwards the same yaml value through.
+        // inside the verifier, so the user map is forwarded verbatim.
         named_registries: config
             .named_registries
             .iter()
