@@ -3,15 +3,11 @@
 //! Ports pnpm's
 //! [`sbom` command](https://github.com/pnpm/pnpm/blob/2b4952e804/pnpm11/deps/compliance/commands/src/sbom/sbom.ts).
 
-use crate::State;
 use clap::Args;
-use pacquet_lockfile::{
-    LockfileResolution, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, SnapshotEntry,
-};
+use crate::State;
+use pacquet_lockfile::{LockfileResolution, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, SnapshotEntry};
 use pacquet_package_manifest::safe_read_package_json_from_dir;
-use std::collections::{HashMap, HashSet};
-use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::{collections::{HashMap, HashSet}, io::Write, path::{Path, PathBuf}};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
 pub enum SbomFormat {
@@ -223,11 +219,11 @@ fn build_purl(name: &str, version: &str) -> String {
 
 fn is_simple_spdx_id(license: &str) -> bool {
     !license.is_empty()
-        && license.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.' || c == '+')
+        && license.chars().all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '.' || ch == '+')
 }
 
 fn classify_license(license: &str) -> serde_json::Value {
-    let is_expression = license.split_whitespace().any(|w| w == "AND" || w == "OR" || w == "WITH");
+    let is_expression = license.split_whitespace().any(|word| word == "AND" || word == "OR" || word == "WITH");
     if is_expression {
         serde_json::json!({ "expression": license })
     } else if is_simple_spdx_id(license) {
@@ -666,7 +662,7 @@ impl SbomArgs {
             if !["1.5", "1.6", "1.7"].contains(&spec_ver.as_str()) {
                 return Err(miette::miette!(
                     code = "ERR_PNPM_SBOM_INVALID_SPEC_VERSION",
-                    "Invalid CycloneDX spec version \"{spec_ver}\". Supported versions: 1.5, 1.6, 1.7."
+                    r#"Invalid CycloneDX spec version "{spec_ver}". Supported versions: 1.5, 1.6, 1.7."#
                 ));
             }
         }
@@ -675,7 +671,7 @@ impl SbomArgs {
         let authors: Vec<String> = self
             .authors
             .as_deref()
-            .map(|s| s.split(',').map(|a| a.trim().to_string()).filter(|a| !a.is_empty()).collect())
+            .map(|csv| csv.split(',').map(|author| author.trim().to_string()).filter(|author| !author.is_empty()).collect())
             .unwrap_or_default();
 
         let lockfile = state
@@ -761,7 +757,7 @@ impl SbomArgs {
                     if written_paths.contains(&file_path) {
                         return Err(miette::miette!(
                             code = "ERR_PNPM_SBOM_OUT_PATH_COLLISION",
-                            "Multiple workspace packages resolve to the same output path \"{file_path}\". Include %v in the --out pattern to disambiguate."
+                            r#"Multiple workspace packages resolve to the same output path "{file_path}". Include %v in the --out pattern to disambiguate."#
                         ));
                     }
                     written_paths.insert(file_path.clone());
@@ -909,51 +905,51 @@ fn serialize_cyclonedx(opts: &CycloneDxOpts<'_>) -> String {
     let components: Vec<serde_json::Value> = result
         .components
         .iter()
-        .map(|c| {
-            let (group, name) = split_scoped_name(&c.name);
+        .map(|component| {
+            let (group, name) = split_scoped_name(&component.name);
             let mut comp = serde_json::json!({
                 "type": "library",
                 "name": name,
-                "version": c.version,
-                "purl": c.purl,
-                "bom-ref": c.purl,
+                "version": component.version,
+                "purl": component.purl,
+                "bom-ref": component.purl,
             });
             if let Some(group) = group {
                 comp["group"] = serde_json::Value::String(group.to_string());
             }
-            if c.dep_type == DepType::DevOnly {
+            if component.dep_type == DepType::DevOnly {
                 comp["scope"] = serde_json::Value::String("excluded".to_string());
                 comp["properties"] = serde_json::json!([
                     { "name": "cdx:npm:package:development", "value": "true" }
                 ]);
             }
-            if let Some(ref desc) = c.description {
+            if let Some(ref desc) = component.description {
                 comp["description"] = serde_json::Value::String(desc.clone());
             }
-            if let Some(ref author) = c.author {
+            if let Some(ref author) = component.author {
                 comp["authors"] = serde_json::json!([{ "name": author }]);
             }
-            if let Some(ref license) = c.license {
+            if let Some(ref license) = component.license {
                 comp["licenses"] = serde_json::json!([classify_license(license)]);
             }
 
             let mut ext_refs: Vec<serde_json::Value> = Vec::new();
-            if let Some(ref tarball) = c.tarball_url {
+            if let Some(ref tarball) = component.tarball_url {
                 let mut dist_ref = serde_json::json!({ "type": "distribution", "url": tarball });
-                if let Some(ref integrity) = c.integrity
+                if let Some(ref integrity) = component.integrity
                     && let Some(hashes) = integrity_to_hashes(integrity)
                 {
                     dist_ref["hashes"] = serde_json::Value::Array(hashes);
                 }
                 ext_refs.push(dist_ref);
             }
-            if let Some(ref hp) = c.homepage {
+            if let Some(ref hp) = component.homepage {
                 ext_refs.push(serde_json::json!({ "type": "website", "url": hp }));
             }
-            if let Some(ref repo) = c.repository {
+            if let Some(ref repo) = component.repository {
                 ext_refs.push(serde_json::json!({ "type": "vcs", "url": repo }));
             }
-            if let Some(ref bugs) = c.bugs_url {
+            if let Some(ref bugs) = component.bugs_url {
                 ext_refs.push(serde_json::json!({ "type": "issue-tracker", "url": bugs }));
             }
             if !ext_refs.is_empty() {
@@ -1031,7 +1027,7 @@ fn serialize_cyclonedx(opts: &CycloneDxOpts<'_>) -> String {
 fn sanitize_spdx_id(value: &str) -> String {
     value
         .chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '.' || c == '-' { c } else { '-' })
+        .map(|ch| if ch.is_ascii_alphanumeric() || ch == '.' || ch == '-' { ch } else { '-' })
         .collect()
 }
 
@@ -1217,38 +1213,38 @@ fn generate_uuid_v4() -> String {
     use std::collections::hash_map::RandomState;
     use std::hash::{BuildHasher, Hasher};
     let state = RandomState::new();
-    let mut h = state.build_hasher();
-    h.write_u64(
+    let mut hasher = state.build_hasher();
+    hasher.write_u64(
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_nanos() as u64,
     );
-    let a = h.finish();
-    let mut h2 = state.build_hasher();
-    h2.write_u64(!a);
-    let b = h2.finish();
+    let half_a = hasher.finish();
+    let mut hasher2 = state.build_hasher();
+    hasher2.write_u64(!half_a);
+    let half_b = hasher2.finish();
     let mut bytes = [0u8; 16];
-    bytes[..8].copy_from_slice(&a.to_le_bytes());
-    bytes[8..].copy_from_slice(&b.to_le_bytes());
+    bytes[..8].copy_from_slice(&half_a.to_le_bytes());
+    bytes[8..].copy_from_slice(&half_b.to_le_bytes());
     bytes[6] = (bytes[6] & 0x0f) | 0x40;
     bytes[8] = (bytes[8] & 0x3f) | 0x80;
     use std::fmt::Write;
-    let mut s = String::with_capacity(36);
+    let mut uuid = String::with_capacity(36);
     for (i, byte) in bytes.iter().enumerate() {
         if matches!(i, 4 | 6 | 8 | 10) {
-            s.push('-');
+            uuid.push('-');
         }
-        let _ = write!(s, "{byte:02x}");
+        let _ = write!(uuid, "{byte:02x}");
     }
-    s
+    uuid
 }
 
 fn normalize_link_path(base_importer_id: &str, link_target: &str) -> Option<String> {
     let mut parts: Vec<&str> = if base_importer_id == "." {
         Vec::new()
     } else {
-        base_importer_id.split('/').filter(|s| !s.is_empty()).collect()
+        base_importer_id.split('/').filter(|segment| !segment.is_empty()).collect()
     };
     for segment in link_target.split('/') {
         match segment {
@@ -1269,13 +1265,13 @@ fn sanitize_package_name(name: &str) -> String {
 fn sanitize_path_segment(value: &str) -> String {
     let sanitized: String = value
         .chars()
-        .map(|c| {
-            if matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|')
-                || c.is_ascii_control()
+        .map(|ch| {
+            if matches!(ch, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|')
+                || ch.is_ascii_control()
             {
                 '-'
             } else {
-                c
+                ch
             }
         })
         .collect();

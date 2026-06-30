@@ -123,20 +123,20 @@ fn normalize_link_path_to_root() {
 
 #[test]
 fn classify_license_spdx_id() {
-    let v = classify_license("MIT");
-    assert_eq!(v["license"]["id"], "MIT");
+    let result = classify_license("MIT");
+    assert_eq!(result["license"]["id"], "MIT");
 }
 
 #[test]
 fn classify_license_expression() {
-    let v = classify_license("MIT OR Apache-2.0");
-    assert_eq!(v["expression"], "MIT OR Apache-2.0");
+    let result = classify_license("MIT OR Apache-2.0");
+    assert_eq!(result["expression"], "MIT OR Apache-2.0");
 }
 
 #[test]
 fn classify_license_freetext() {
-    let v = classify_license("Proprietary License");
-    assert_eq!(v["license"]["name"], "Proprietary License");
+    let result = classify_license("Proprietary License");
+    assert_eq!(result["license"]["name"], "Proprietary License");
 }
 
 #[test]
