@@ -1,5 +1,12 @@
-use super::{github_statement, gitlab_statement, npm_purl};
-use crate::capabilities::EnvVar;
+use super::{
+    ProvenanceGenError, build_statement, fetch_sigstore_token, github_statement, gitlab_statement,
+    npm_purl,
+};
+use crate::{
+    capabilities::{CiInfo, Clock, EnvVar, OidcFetch, OidcFetchError, OidcRequest, OidcResponse},
+    oidc::OidcHttpOptions,
+};
+use pacquet_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 
@@ -96,4 +103,228 @@ fn gitlab_statement_shapes_the_slsa_v02_predicate() {
     );
     assert_eq!(predicate["materials"][0]["uri"], "git+https://gitlab.com/pnpm/pnpm");
     assert_eq!(predicate["materials"][0]["digest"]["sha1"], "abc123");
+}
+
+/// A GitHub-Actions provider that reuses `GhEnv`'s variable bodies.
+struct GhProvider;
+
+impl CiInfo for GhProvider {
+    fn github_actions() -> bool {
+        true
+    }
+    fn gitlab() -> bool {
+        false
+    }
+}
+
+impl EnvVar for GhProvider {
+    fn var(name: &str) -> Option<String> {
+        GhEnv::var(name)
+    }
+}
+
+/// A GitLab-CI provider that reuses `GlEnv`'s variable bodies.
+struct GlProvider;
+
+impl CiInfo for GlProvider {
+    fn github_actions() -> bool {
+        false
+    }
+    fn gitlab() -> bool {
+        true
+    }
+}
+
+impl EnvVar for GlProvider {
+    fn var(name: &str) -> Option<String> {
+        GlEnv::var(name)
+    }
+}
+
+/// A provider that is neither GitHub Actions nor GitLab CI.
+struct NoProvider;
+
+impl CiInfo for NoProvider {
+    fn github_actions() -> bool {
+        false
+    }
+    fn gitlab() -> bool {
+        false
+    }
+}
+
+impl EnvVar for NoProvider {
+    fn var(_: &str) -> Option<String> {
+        None
+    }
+}
+
+#[test]
+fn build_statement_dispatches_to_github_on_github_actions() {
+    let subject = json!([{ "name": "pkg:npm/pkg@1.0.0", "digest": { "sha512": "deadbeef" } }]);
+    let statement = build_statement::<GhProvider>(&subject).unwrap();
+    assert_eq!(statement["_type"], "https://in-toto.io/Statement/v1");
+}
+
+#[test]
+fn build_statement_dispatches_to_gitlab_on_gitlab_ci() {
+    let subject = json!([{ "name": "pkg:npm/pkg@1.0.0", "digest": { "sha512": "deadbeef" } }]);
+    let statement = build_statement::<GlProvider>(&subject).unwrap();
+    assert_eq!(statement["_type"], "https://in-toto.io/Statement/v0.1");
+}
+
+#[test]
+fn build_statement_rejects_unsupported_provider() {
+    let subject = json!([{ "name": "pkg:npm/pkg@1.0.0", "digest": { "sha512": "deadbeef" } }]);
+    let err = build_statement::<NoProvider>(&subject).unwrap_err();
+    assert!(matches!(err, ProvenanceGenError::UnsupportedProvider));
+}
+
+/// GitHub-Actions sigstore-token fake: request-token env plus a `fetch` body.
+macro_rules! github_sigstore_sys {
+    ($name:ident, $fetch:expr) => {
+        struct $name;
+        impl CiInfo for $name {
+            fn github_actions() -> bool {
+                true
+            }
+            fn gitlab() -> bool {
+                false
+            }
+        }
+        impl Clock for $name {
+            fn now_ms() -> u64 {
+                0
+            }
+        }
+        impl EnvVar for $name {
+            fn var(name: &str) -> Option<String> {
+                match name {
+                    "ACTIONS_ID_TOKEN_REQUEST_TOKEN" => Some("request-token".to_owned()),
+                    "ACTIONS_ID_TOKEN_REQUEST_URL" => {
+                        Some("https://github.example/token".to_owned())
+                    }
+                    _ => None,
+                }
+            }
+        }
+        impl OidcFetch for $name {
+            async fn fetch(request: OidcRequest<'_>) -> Result<OidcResponse, OidcFetchError> {
+                $fetch(request)
+            }
+        }
+    };
+}
+
+#[tokio::test]
+async fn fetch_sigstore_token_uses_github_request_token() {
+    github_sigstore_sys!(Sys, |request: OidcRequest<'_>| {
+        // The sigstore audience drives the request-token query parameter.
+        assert!(request.url.contains("audience=sigstore"));
+        Ok(OidcResponse {
+            ok: true,
+            status: 200,
+            body: r#"{"value":"gh-sigstore-token"}"#.to_owned(),
+        })
+    });
+
+    let token =
+        fetch_sigstore_token::<Sys, SilentReporter>(&OidcHttpOptions::default()).await.unwrap();
+    assert_eq!(token, "gh-sigstore-token");
+}
+
+#[tokio::test]
+async fn fetch_sigstore_token_reads_gitlab_env_token() {
+    struct Sys;
+    impl CiInfo for Sys {
+        fn github_actions() -> bool {
+            false
+        }
+        fn gitlab() -> bool {
+            true
+        }
+    }
+    impl Clock for Sys {
+        fn now_ms() -> u64 {
+            unreachable!("no request when GitLab forwards the token via env")
+        }
+    }
+    impl EnvVar for Sys {
+        fn var(name: &str) -> Option<String> {
+            (name == "SIGSTORE_ID_TOKEN").then(|| "gl-sigstore-token".to_owned())
+        }
+    }
+    impl OidcFetch for Sys {
+        async fn fetch(_: OidcRequest<'_>) -> Result<OidcResponse, OidcFetchError> {
+            unreachable!("no request when GitLab forwards the token via env")
+        }
+    }
+
+    let token =
+        fetch_sigstore_token::<Sys, SilentReporter>(&OidcHttpOptions::default()).await.unwrap();
+    assert_eq!(token, "gl-sigstore-token");
+}
+
+#[tokio::test]
+async fn fetch_sigstore_token_errors_when_gitlab_token_missing() {
+    struct Sys;
+    impl CiInfo for Sys {
+        fn github_actions() -> bool {
+            false
+        }
+        fn gitlab() -> bool {
+            true
+        }
+    }
+    impl Clock for Sys {
+        fn now_ms() -> u64 {
+            unreachable!()
+        }
+    }
+    impl EnvVar for Sys {
+        fn var(_: &str) -> Option<String> {
+            None
+        }
+    }
+    impl OidcFetch for Sys {
+        async fn fetch(_: OidcRequest<'_>) -> Result<OidcResponse, OidcFetchError> {
+            unreachable!()
+        }
+    }
+
+    let err =
+        fetch_sigstore_token::<Sys, SilentReporter>(&OidcHttpOptions::default()).await.unwrap_err();
+    assert!(matches!(err, ProvenanceGenError::GitLabMissingToken));
+}
+
+#[tokio::test]
+async fn fetch_sigstore_token_rejects_unsupported_provider() {
+    struct Sys;
+    impl CiInfo for Sys {
+        fn github_actions() -> bool {
+            false
+        }
+        fn gitlab() -> bool {
+            false
+        }
+    }
+    impl Clock for Sys {
+        fn now_ms() -> u64 {
+            unreachable!()
+        }
+    }
+    impl EnvVar for Sys {
+        fn var(_: &str) -> Option<String> {
+            None
+        }
+    }
+    impl OidcFetch for Sys {
+        async fn fetch(_: OidcRequest<'_>) -> Result<OidcResponse, OidcFetchError> {
+            unreachable!()
+        }
+    }
+
+    let err =
+        fetch_sigstore_token::<Sys, SilentReporter>(&OidcHttpOptions::default()).await.unwrap_err();
+    assert!(matches!(err, ProvenanceGenError::UnsupportedProvider));
 }
