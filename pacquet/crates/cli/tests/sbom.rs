@@ -100,7 +100,7 @@ fn sbom_prod_excludes_dev() {
     let parsed = run_sbom_json(tmp.path(), "cyclonedx", &["--prod"]);
 
     let components = parsed["components"].as_array().expect("components array");
-    assert!(components.iter().any(|c| c["name"] == "is-positive"), "prod dep should be included",);
+    assert!(components.iter().any(|c| c["name"] == "is-positive"), "prod dep should be included");
     assert!(
         !components.iter().any(|c| c["name"] == "typescript"),
         "dev dep should be excluded with --prod",
@@ -271,5 +271,5 @@ fn sbom_exclude_peers() {
     let tmp = copy_fixture("with-peer-dependency");
     let parsed = run_sbom_json(tmp.path(), "cyclonedx", &["--exclude-peers"]);
     let components = parsed["components"].as_array().expect("components");
-    assert!(components.iter().any(|c| c["name"] == "is-positive"), "non-peer dep should remain",);
+    assert!(components.iter().any(|c| c["name"] == "is-positive"), "non-peer dep should remain");
 }
