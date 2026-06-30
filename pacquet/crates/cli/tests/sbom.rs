@@ -272,11 +272,79 @@ fn sbom_out_writes_file() {
 }
 
 #[test]
-fn sbom_exclude_peers() {
+fn sbom_includes_peers_by_default() {
+    let tmp = copy_fixture("with-peer-dependency");
+    let parsed = run_sbom_json(tmp.path(), "cyclonedx", &[]);
+    let components = parsed["components"].as_array().expect("components");
+    assert!(components.iter().any(|c| c["name"] == "is-positive"));
+    assert!(
+        components.iter().any(|c| c["name"] == "is-odd"),
+        "peer dep should be included by default"
+    );
+    assert!(
+        components.iter().any(|c| c["name"] == "is-number"),
+        "transitive of peer should be included"
+    );
+}
+
+#[test]
+fn sbom_exclude_peers_drops_subtree() {
     let tmp = copy_fixture("with-peer-dependency");
     let parsed = run_sbom_json(tmp.path(), "cyclonedx", &["--exclude-peers"]);
     let components = parsed["components"].as_array().expect("components");
     assert!(components.iter().any(|c| c["name"] == "is-positive"), "non-peer dep should remain");
+    assert!(!components.iter().any(|c| c["name"] == "is-odd"), "peer dep should be excluded");
+    assert!(
+        !components.iter().any(|c| c["name"] == "is-number"),
+        "transitive dep reachable only through peer should be excluded"
+    );
+    let root_ref = parsed["metadata"]["component"]["bom-ref"].as_str().expect("bom-ref");
+    let root_deps = parsed["dependencies"]
+        .as_array()
+        .expect("deps")
+        .iter()
+        .find(|d| d["ref"] == root_ref)
+        .expect("root deps");
+    assert!(
+        !root_deps["dependsOn"]
+            .as_array()
+            .expect("dependsOn")
+            .iter()
+            .any(|d| d.as_str().unwrap().contains("is-odd")),
+        "peer should not appear in root dependency graph"
+    );
+}
+
+#[test]
+fn sbom_exclude_peers_workspace_sub_packages() {
+    let tmp = copy_fixture("with-peer-workspace");
+    let parsed = run_sbom_json(tmp.path(), "cyclonedx", &["--exclude-peers"]);
+    let components = parsed["components"].as_array().expect("components");
+    assert!(components.iter().any(|c| c["name"] == "is-positive"));
+    assert!(
+        !components.iter().any(|c| c["name"] == "is-odd"),
+        "peer in sub-package should be excluded"
+    );
+}
+
+#[test]
+fn sbom_exclude_peers_tolerates_malformed_manifest() {
+    let tmp = copy_fixture("with-peer-workspace");
+    fs::write(tmp.path().join("packages/pkg-a/package.json"), "{ not valid json").unwrap();
+    let parsed = run_sbom_json(tmp.path(), "cyclonedx", &["--exclude-peers"]);
+    let components = parsed["components"].as_array().expect("components");
+    assert!(components.iter().any(|c| c["name"] == "is-positive"), "should still produce output");
+}
+
+#[test]
+fn sbom_exclude_peers_keeps_real_dep_in_other_importer() {
+    let tmp = copy_fixture("with-peer-and-real-dep");
+    let parsed = run_sbom_json(tmp.path(), "cyclonedx", &["--exclude-peers"]);
+    let components = parsed["components"].as_array().expect("components");
+    assert!(
+        components.iter().any(|c| c["name"] == "is-odd"),
+        "is-odd is a peer in pkg-a but a real dep in pkg-b; should be kept"
+    );
 }
 
 #[test]
@@ -439,10 +507,12 @@ fn sbom_supplier_in_metadata() {
 }
 
 #[test]
-fn sbom_no_optional_excludes_optional() {
+fn sbom_no_optional_does_not_break_output() {
     let tmp = copy_fixture("simple-sbom");
     let parsed = run_sbom_json(tmp.path(), "cyclonedx", &["--no-optional"]);
     assert_eq!(parsed["bomFormat"], "CycloneDX");
+    let components = parsed["components"].as_array().expect("components");
+    assert!(components.iter().any(|c| c["name"] == "is-positive"), "prod dep still present");
 }
 
 #[test]
@@ -627,5 +697,67 @@ fn sbom_workspace_spdx_link_deps() {
     assert!(
         packages.iter().any(|p| p["name"] == "shared-lib"),
         "shared-lib should be in SPDX packages"
+    );
+}
+
+#[test]
+fn sbom_missing_lockfile_fails() {
+    let tmp = TempDir::new().expect("create temp dir");
+    fs::write(tmp.path().join("package.json"), r#"{"name":"no-lockfile","version":"1.0.0"}"#)
+        .unwrap();
+    let output = pacquet(tmp.path(), ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only"])
+        .output()
+        .expect("run pacquet");
+    assert!(!output.status.success(), "should fail without lockfile");
+}
+
+#[test]
+fn sbom_prod_scope_undefined_for_prod_components() {
+    let tmp = copy_fixture("with-dev-dependency");
+    let parsed = run_sbom_json(tmp.path(), "cyclonedx", &[]);
+    let components = parsed["components"].as_array().expect("components");
+    let is_positive = components.iter().find(|c| c["name"] == "is-positive").expect("is-positive");
+    assert!(is_positive.get("scope").is_none(), "prod components should not have scope field");
+}
+
+#[test]
+fn sbom_split_single_project_not_triggered() {
+    let tmp = copy_fixture("simple-sbom");
+    let parsed = run_sbom_json(tmp.path(), "cyclonedx", &[]);
+    assert!(
+        parsed["bomFormat"].is_string(),
+        "single project should produce regular JSON, not NDJSON"
+    );
+}
+
+#[test]
+fn sbom_workspace_split_each_line_has_correct_root() {
+    let tmp = copy_fixture("workspace-sbom-populated");
+    let output =
+        pacquet(tmp.path(), ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--split"])
+            .output()
+            .expect("run pacquet");
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let boms: Vec<serde_json::Value> = stdout
+        .lines()
+        .filter(|l| !l.is_empty())
+        .map(|l| serde_json::from_str(l).expect("valid JSON"))
+        .collect();
+    let root_names: Vec<&str> =
+        boms.iter().filter_map(|b| b["metadata"]["component"]["name"].as_str()).collect();
+    assert!(root_names.contains(&"app-a"), "split should include app-a");
+    assert!(root_names.contains(&"app-b"), "split should include app-b");
+}
+
+#[test]
+fn sbom_dev_flag_includes_only_dev() {
+    let tmp = copy_fixture("with-dev-dependency");
+    let parsed = run_sbom_json(tmp.path(), "cyclonedx", &["--dev"]);
+    let components = parsed["components"].as_array().expect("components");
+    assert!(components.iter().any(|c| c["name"] == "typescript"), "dev dep should be included");
+    assert!(
+        !components.iter().any(|c| c["name"] == "is-positive"),
+        "prod dep should be excluded with --dev"
     );
 }
