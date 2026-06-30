@@ -329,3 +329,69 @@ fn apply_to_arc_clones_when_only_a_peer_matches() {
         Some(">=8.18.0"),
     );
 }
+
+#[test]
+fn applied_selectors_records_each_matched_override() {
+    let overrides = parsed(&[
+        ("foo", "1.0.0"),
+        ("parent>bar", "1.5.0"),
+        ("delete-me", "-"),
+        ("never-matches", "9.9.9"),
+    ]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    let mut manifest = manifest_from_value(json!({
+        "name": "parent",
+        "version": "1.0.0",
+        "dependencies": {
+            "foo": "^1.0.0",
+            "delete-me": "^3.0.0",
+            "bar": "^1.0.0",
+        },
+    }));
+    overrider.apply(&mut manifest, Some(Path::new("/workspace")));
+
+    let applied = overrider.applied_selectors();
+    assert_eq!(
+        applied.into_iter().collect::<std::collections::BTreeSet<_>>(),
+        ["delete-me".to_string(), "foo".to_string(), "parent>bar".to_string()]
+            .into_iter()
+            .collect(),
+    );
+}
+
+#[test]
+fn applied_selectors_stays_empty_when_no_override_matches() {
+    let overrides = parsed(&[("foo", "1.0.0")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    let mut manifest = manifest_from_value(json!({
+        "name": "my-app",
+        "version": "1.0.0",
+        "dependencies": { "bar": "^1.0.0" },
+    }));
+    overrider.apply(&mut manifest, Some(Path::new("/workspace")));
+
+    assert!(overrider.applied_selectors().is_empty());
+}
+
+#[test]
+fn applied_selectors_dedupes_across_apply_calls() {
+    // Three `apply` calls hit `foo` once each, but `applied_selectors`
+    // is a Set — the consumer (post-resolution verifier) wants the
+    // distinct set of selectors that matched at least once, not a count.
+    let overrides = parsed(&[("foo", "1.0.0")]);
+    let overrider = VersionsOverrider::new(&overrides, Path::new("/workspace"));
+
+    for _ in 0..3 {
+        let mut manifest = manifest_from_value(json!({
+            "name": "my-app",
+            "version": "1.0.0",
+            "dependencies": { "foo": "^1.0.0" },
+        }));
+        overrider.apply(&mut manifest, Some(Path::new("/workspace")));
+    }
+
+    let applied = overrider.applied_selectors();
+    assert_eq!(applied.iter().collect::<Vec<_>>(), vec![&"foo".to_string()]);
+}

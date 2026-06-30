@@ -94,6 +94,33 @@ test('pnpm install uses pnpr server when configured', async () => {
   expect(fs.existsSync('node_modules/is-positive')).toBe(true)
 })
 
+test('pnpm install with overrides uses pnpr server and skips unused-override warning', async () => {
+  prepareProject({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+
+  writeYamlFileSync('pnpm-workspace.yaml', {
+    packages: ['**', '!store/**'],
+    overrides: {
+      'is-positive': '1.0.0',
+    },
+  })
+  requestCount = 0
+
+  await execPnpm(
+    ['install', `--config.pnprServer=http://localhost:${serverPort}`],
+    { timeout: 60_000 }
+  )
+
+  // pnpr server IS used even with overrides — the performance benefit
+  // is preserved. The unused-override warning is silently skipped.
+  expect(requestCount).toBeGreaterThanOrEqual(1)
+  expect(fs.existsSync(WANTED_LOCKFILE)).toBe(true)
+  expect(fs.existsSync('node_modules/is-positive')).toBe(true)
+})
+
 test('pnpm install resolves optionalDependencies via the pnpr server', async () => {
   prepareProject({
     dependencies: {

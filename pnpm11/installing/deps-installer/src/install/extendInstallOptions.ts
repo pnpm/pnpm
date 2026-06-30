@@ -394,6 +394,7 @@ const defaults = (opts: InstallOptions): StrictInstallOptions => {
 export interface ProcessedInstallOptions extends StrictInstallOptions {
   readPackageHook?: ReadPackageHook
   parsedOverrides: VersionOverride[]
+  appliedOverrides: Set<string>
 }
 
 export function extendOptions (
@@ -408,16 +409,19 @@ export function extendOptions (
   }
 
   const defaultOpts = defaults(opts)
+  const appliedOverrides: Set<string> = new Set()
   const extendedOpts: ProcessedInstallOptions = {
     ...defaultOpts,
     ...opts,
     storeDir: defaultOpts.storeDir,
     parsedOverrides: parseOverrides(opts.overrides ?? {}, opts.catalogs ?? {}),
+    appliedOverrides,
   }
   extendedOpts.readPackageHook = createReadPackageHook({
     ignoreCompatibilityDb: extendedOpts.ignoreCompatibilityDb,
     readPackageHook: extendedOpts.hooks?.readPackage,
     overrides: extendedOpts.parsedOverrides,
+    onOverrideApplied: (override) => appliedOverrides.add(override.selector),
     lockfileDir: extendedOpts.lockfileDir,
     packageExtensions: extendedOpts.packageExtensions,
     ignoredOptionalDependencies: extendedOpts.ignoredOptionalDependencies,

@@ -1,6 +1,6 @@
 import path from 'node:path'
 
-import type { PackageSelector, VersionOverride as VersionOverrideBase } from '@pnpm/config.parse-overrides'
+import type { VersionOverride as VersionOverrideBase } from '@pnpm/config.parse-overrides'
 import { isValidPeerRange } from '@pnpm/deps.peer-range'
 import type { Dependencies, PackageManifest, ReadPackageHook } from '@pnpm/types'
 import normalizePath from 'normalize-path'
@@ -9,11 +9,21 @@ import semver from 'semver'
 
 import { isIntersectingRange } from './isIntersectingRange.js'
 
+/**
+ * @deprecated Kept for backward compatibility with external consumers. New
+ * code should use `VersionOverride` from `@pnpm/config.parse-overrides`
+ * directly — the raw `selector` field is needed for the post-resolution
+ * unused-override check and there is no longer a use case for the stripped
+ * shape inside this repo.
+ */
 export type VersionOverrideWithoutRawSelector = Omit<VersionOverrideBase, 'selector'>
 
+type VersionOverrideInput = VersionOverrideBase | VersionOverrideWithoutRawSelector
+
 export function createVersionsOverrider (
-  overrides: VersionOverrideWithoutRawSelector[],
-  rootDir: string
+  overrides: VersionOverrideInput[],
+  rootDir: string,
+  onApplied?: (override: VersionOverrideBase) => void
 ): ReadPackageHook {
   const [versionOverrides, genericVersionOverrides] = partition(({ parentPkg }) => parentPkg != null,
     overrides.map((override) => ({
@@ -28,7 +38,11 @@ export function createVersionsOverrider (
         (!parentPkg.bareSpecifier || semver.satisfies(manifest.version, parentPkg.bareSpecifier))
       )
     })
-    overrideDepsOfPkg({ manifest, dir }, versionOverridesWithParent, genericVersionOverrides)
+    overrideDepsOfPkg(
+      { manifest, dir, onApplied },
+      versionOverridesWithParent,
+      genericVersionOverrides
+    )
 
     return manifest
   }) as ReadPackageHook
@@ -42,7 +56,7 @@ interface LocalTarget {
 
 type LocalProtocol = 'link:' | 'file:'
 
-function createLocalTarget (override: VersionOverrideWithoutRawSelector, rootDir: string): LocalTarget | undefined {
+function createLocalTarget (override: VersionOverrideInput, rootDir: string): LocalTarget | undefined {
   let protocol: LocalProtocol | undefined
   if (override.newBareSpecifier.startsWith('file:')) {
     protocol = 'file:'
@@ -57,21 +71,25 @@ function createLocalTarget (override: VersionOverrideWithoutRawSelector, rootDir
   return { absolutePath, specifiedViaRelativePath, protocol }
 }
 
-interface VersionOverride extends VersionOverrideBase {
+type VersionOverride = VersionOverrideInput & {
   localTarget?: LocalTarget
 }
 
-interface VersionOverrideWithParent extends VersionOverride {
-  parentPkg: PackageSelector
+type VersionOverrideWithParent = VersionOverride & {
+  parentPkg: NonNullable<VersionOverrideBase['parentPkg']>
 }
 
 function overrideDepsOfPkg (
-  { manifest, dir }: { manifest: PackageManifest, dir: string | undefined },
+  { manifest, dir, onApplied }: {
+    manifest: PackageManifest
+    dir: string | undefined
+    onApplied?: (override: VersionOverrideBase) => void
+  },
   versionOverrides: VersionOverrideWithParent[],
   genericVersionOverrides: VersionOverride[]
 ): void {
   const { dependencies, optionalDependencies, devDependencies, peerDependencies } = manifest
-  const _overrideDeps = overrideDeps.bind(null, { versionOverrides, genericVersionOverrides, dir })
+  const _overrideDeps = overrideDeps.bind(null, { versionOverrides, genericVersionOverrides, dir, onApplied })
   for (const deps of [dependencies, optionalDependencies, devDependencies]) {
     if (deps) {
       _overrideDeps(deps, undefined)
@@ -84,10 +102,11 @@ function overrideDepsOfPkg (
 }
 
 function overrideDeps (
-  { versionOverrides, genericVersionOverrides, dir }: {
+  { versionOverrides, genericVersionOverrides, dir, onApplied }: {
     versionOverrides: VersionOverrideWithParent[]
     genericVersionOverrides: VersionOverride[]
     dir: string | undefined
+    onApplied?: (override: VersionOverrideBase) => void
   },
   deps: Dependencies,
   peerDeps: Dependencies | undefined
@@ -107,6 +126,8 @@ function overrideDeps (
       )
     )
     if (!versionOverride) continue
+
+    if (hasRawSelector(versionOverride)) onApplied?.(versionOverride)
 
     if (versionOverride.newBareSpecifier === '-') {
       if (peerDeps) {
@@ -136,4 +157,8 @@ function resolveLocalOverride ({ specifiedViaRelativePath, absolutePath }: Local
 
 function pickMostSpecificVersionOverride (versionOverrides: VersionOverride[]): VersionOverride | undefined {
   return versionOverrides.sort((a, b) => isIntersectingRange(b.targetPkg.bareSpecifier ?? '', a.targetPkg.bareSpecifier ?? '') ? -1 : 1)[0]
+}
+
+function hasRawSelector (override: VersionOverride): override is VersionOverrideBase & { localTarget?: LocalTarget } {
+  return 'selector' in override
 }

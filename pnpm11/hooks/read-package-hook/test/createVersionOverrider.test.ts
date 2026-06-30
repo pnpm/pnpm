@@ -766,3 +766,66 @@ test('createVersionsOverrider() moves invalid versions from peerDependencies to 
     },
   })
 })
+
+test('createVersionsOverrider() reports each applied override via onApplied', () => {
+  const applied: string[] = []
+  const overrider = createVersionsOverrider([
+    {
+      selector: 'foo',
+      targetPkg: { name: 'foo' },
+      newBareSpecifier: '2.0.0',
+    },
+    {
+      selector: 'parent>bar',
+      parentPkg: { name: 'parent' },
+      targetPkg: { name: 'bar' },
+      newBareSpecifier: '1.5.0',
+    },
+    {
+      selector: 'delete-me',
+      targetPkg: { name: 'delete-me' },
+      newBareSpecifier: '-',
+    },
+    {
+      selector: 'never-matches',
+      targetPkg: { name: 'no-such-dep' },
+      newBareSpecifier: '9.9.9',
+    },
+  ], process.cwd(), (override) => applied.push(override.selector))
+  overrider({
+    name: 'parent',
+    version: '1.0.0',
+    dependencies: {
+      foo: '^1.0.0',
+      'delete-me': '^3.0.0',
+      bar: '^1.0.0',
+    },
+  })
+  expect(applied).toEqual(['foo', 'delete-me', 'parent>bar'])
+})
+
+test('createVersionsOverrider() onApplied fires per matching (manifest × dep group), not per resolved package', () => {
+  // `overrideDepsOfPkg` walks dependencies, optionalDependencies,
+  // devDependencies, and peerDependencies in separate passes, calling
+  // `overrideDeps` for each. The callback fires once per pass that
+  // contains a matching dep name, so a single manifest with `foo` in
+  // both `dependencies` and `peerDependencies` records `foo` twice.
+  // Consumers dedupe via a Set, so this contract is fine — pinning it
+  // here keeps future refactors honest.
+  const applied: string[] = []
+  const overrider = createVersionsOverrider([
+    {
+      selector: 'foo',
+      targetPkg: { name: 'foo' },
+      newBareSpecifier: '2.0.0',
+    },
+  ], process.cwd(), (override) => applied.push(override.selector))
+  overrider({
+    dependencies: { foo: '^1.0.0' },
+    peerDependencies: { foo: '^1.0.0' },
+  })
+  overrider({ dependencies: { foo: '^2.0.0' } })
+  overrider({ dependencies: { foo: '^3.0.0' } })
+  // First manifest fires twice (dep + peer); the next two fire once each.
+  expect(applied).toEqual(['foo', 'foo', 'foo', 'foo'])
+})

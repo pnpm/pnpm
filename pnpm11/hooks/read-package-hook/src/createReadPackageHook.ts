@@ -1,3 +1,4 @@
+import type { VersionOverride } from '@pnpm/config.parse-overrides'
 import type {
   PackageExtension,
   PackageManifest,
@@ -44,13 +45,15 @@ export function createReadPackageHook (
     ignoreCompatibilityDb,
     lockfileDir,
     overrides,
+    onOverrideApplied,
     ignoredOptionalDependencies,
     packageExtensions,
     readPackageHook,
   }: {
     ignoreCompatibilityDb?: boolean
     lockfileDir: string
-    overrides?: VersionOverrideWithoutRawSelector[]
+    overrides?: Array<VersionOverride | VersionOverrideWithoutRawSelector>
+    onOverrideApplied?: (override: VersionOverride) => void
     ignoredOptionalDependencies?: string[]
     packageExtensions?: Record<string, PackageExtension>
     readPackageHook?: ReadPackageHook[] | ReadPackageHook
@@ -70,7 +73,7 @@ export function createReadPackageHook (
     hooks.push(readPackageHook)
   }
   if (!isEmpty(overrides ?? {})) {
-    hooks.push(createVersionsOverrider(overrides!, lockfileDir))
+    hooks.push(createVersionsOverrider(overrides!, lockfileDir, onOverrideApplied))
   }
   if (ignoredOptionalDependencies && !isEmpty(ignoredOptionalDependencies)) {
     hooks.push(createOptionalDependenciesRemover(ignoredOptionalDependencies))

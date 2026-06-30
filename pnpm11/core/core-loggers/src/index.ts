@@ -22,6 +22,7 @@ import type {
   StageLog,
   StatsLog,
   SummaryLog,
+  UnusedOverrideLog,
   UpdateCheckLog,
 } from './all.js'
 
@@ -51,4 +52,5 @@ export type Log =
   | StageLog
   | StatsLog
   | SummaryLog
+  | UnusedOverrideLog
   | UpdateCheckLog

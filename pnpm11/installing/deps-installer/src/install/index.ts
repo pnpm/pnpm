@@ -19,6 +19,7 @@ import {
   ignoredScriptsLogger,
   stageLogger,
   summaryLogger,
+  unusedOverrideLogger,
 } from '@pnpm/core-loggers'
 import { hashObjectNullableWithPrefix } from '@pnpm/crypto.object-hasher'
 import * as dp from '@pnpm/deps.path'
@@ -183,7 +184,10 @@ export async function install (
   const rootDir = (opts.dir ?? process.cwd()) as ProjectRootDir
 
   // When a pnpr server is configured, use server-side resolution
-  // instead of the normal resolution flow.
+  // instead of the normal resolution flow. The pnpr protocol resolves
+  // with overrides but does not report which selectors matched, so
+  // the unused-override warning is silently skipped on this path —
+  // an acceptable tradeoff to preserve pnpr's performance benefit.
   if (opts.pnprServer) {
     return installViaPnprServer(manifest, rootDir, opts)
   }
@@ -324,7 +328,8 @@ export async function mutateModules (
   // When a pnpr server is configured, use server-side resolution. The pnpr server
   // path supports `install`, `installSome` (pnpm add), and `uninstallSome`
   // (pnpm remove). Mutations that need full client-side resolution (update
-  // flags) still fall through to the normal flow.
+  // flags) still fall through to the normal flow. The unused-override
+  // warning is silently skipped on this path — see the comment in `install`.
   if (opts.pnprServer && canUsePnprForMutations(projects)) {
     const pnprResult = await mutateModulesViaPnpr(projects, opts)
     if (pnprResult) return pnprResult
@@ -881,6 +886,7 @@ export async function mutateModules (
         preferredSpecs,
         saveCatalogName: opts.saveCatalogName,
         overrides: opts.overrides,
+        onOverrideApplied: (selector) => opts.appliedOverrides.add(selector),
         defaultCatalog: opts.catalogs?.default,
       })
 
@@ -1647,6 +1653,26 @@ const _installInContext: InstallFunction = async (projects, ctx, opts) => {
           ctx.skipped.add(depPath)
           dependenciesByProjectId[id].delete(alias)
         }
+      }
+    }
+  }
+
+  // Same gate as the patches verifier (deps-resolver/index.ts): only check
+  // when the whole lockfile was reanalyzed, otherwise the applied-override
+  // set is incomplete (resolution short-circuited against the cache) and we
+  // would warn about overrides that are actually in use. Emitted before the
+  // 'resolution_done' stage so the reporter's buffer(resolutionDone$) captures it.
+  if (
+    opts.parsedOverrides.length &&
+    (forceFullResolution || isEmpty(ctx.wantedLockfile.packages ?? {})) &&
+    Object.keys(ctx.wantedLockfile.importers).length === projects.length
+  ) {
+    for (const override of opts.parsedOverrides) {
+      if (!opts.appliedOverrides.has(override.selector)) {
+        unusedOverrideLogger.debug({
+          prefix: ctx.lockfileDir,
+          selector: override.selector,
+        })
       }
     }
   }

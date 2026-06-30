@@ -19,8 +19,9 @@ use pacquet_config_parse_overrides::{PackageSelector, VersionOverride};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use serde_json::Value;
 use std::{
+    collections::HashSet,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{Arc, Mutex},
 };
 
 /// In-memory hook that applies the parsed `pnpm.overrides` set to a
@@ -34,6 +35,13 @@ pub struct VersionsOverrider {
     parent_scoped: Vec<ResolvedOverride>,
     /// Generic overrides (no parent half). Apply to every manifest.
     generic: Vec<ResolvedOverride>,
+    /// Selectors that have been observed to match at least one
+    /// manifest passed through `apply*`. Mirrors pnpm's
+    /// `appliedOverrides` Set threaded via `onApplied` in
+    /// `createVersionsOverrider`; readers (the post-resolution
+    /// unused-override check) call [`Self::applied_selectors`] to
+    /// compute the diff against the configured set.
+    applied: Arc<Mutex<HashSet<String>>>,
 }
 
 /// `VersionOverride` augmented with a pre-parsed [`LocalTarget`] for
@@ -83,13 +91,22 @@ impl VersionsOverrider {
                 generic.push(resolved);
             }
         }
-        VersionsOverrider { parent_scoped, generic }
+        VersionsOverrider { parent_scoped, generic, applied: Arc::new(Mutex::new(HashSet::new())) }
     }
 
     /// `true` when the hook has no entries and can be skipped.
     #[must_use]
     pub fn is_empty(&self) -> bool {
         self.parent_scoped.is_empty() && self.generic.is_empty()
+    }
+
+    /// Snapshot of the selectors that matched at least one manifest
+    /// passed through `apply*` since construction. Mirrors pnpm's
+    /// `appliedOverrides` Set content at the moment the
+    /// post-resolution verifier runs.
+    #[must_use]
+    pub fn applied_selectors(&self) -> HashSet<String> {
+        self.applied.lock().expect("applied overrides mutex not poisoned").clone()
     }
 
     /// Apply the override set to `manifest` in place. `manifest_dir`
@@ -197,6 +214,8 @@ impl VersionsOverrider {
                 continue;
             };
 
+            self.record_applied(chosen);
+
             if chosen.inner.new_bare_specifier == "-" {
                 map.remove(&name);
                 continue;
@@ -233,6 +252,8 @@ impl VersionsOverrider {
             let Some(chosen) = self.choose_override(applicable_parent_scoped, &name, &spec) else {
                 continue;
             };
+
+            self.record_applied(chosen);
 
             if chosen.inner.new_bare_specifier == "-" {
                 if let Some(peers) =
@@ -275,6 +296,19 @@ impl VersionsOverrider {
     ) -> Option<&'b ResolvedOverride> {
         Self::pick_most_specific(applicable_parent_scoped, dep_name, dep_spec)
             .or_else(|| self.pick_most_specific_generic(dep_name, dep_spec))
+    }
+
+    /// Record a hit on `chosen` so the post-resolution
+    /// unused-override verifier can tell it apart from overrides that
+    /// never matched. The selector stored is the raw override key
+    /// (`foo`, `parent>child`, `foo@^1`); pnpm uses the same value
+    /// for its diff. Checked before cloning to avoid repeated
+    /// allocations when the same selector matches many manifests.
+    fn record_applied(&self, chosen: &ResolvedOverride) {
+        let mut guard = self.applied.lock().expect("applied overrides mutex not poisoned");
+        if !guard.contains(&chosen.inner.selector) {
+            guard.insert(chosen.inner.selector.clone());
+        }
     }
 
     fn pick_most_specific<'b>(

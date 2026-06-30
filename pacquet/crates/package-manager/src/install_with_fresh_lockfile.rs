@@ -20,7 +20,7 @@ use pacquet_hooks::finder;
 use pacquet_lockfile::{Lockfile, LockfileResolution, SaveLockfileError};
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
-use pacquet_reporter::{HookLog, LogEvent, LogLevel, Reporter, Stage, StageLog};
+use pacquet_reporter::{HookLog, LogEvent, LogLevel, Reporter, Stage, StageLog, UnusedOverrideLog};
 use pacquet_resolving_default_resolver::DefaultResolver;
 use pacquet_resolving_deps_resolver::{
     ManifestHook, ResolveDependencyTreeError, ResolveImporterError, ResolveImporterOptions,
@@ -1068,6 +1068,22 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             update_reuse_scope = pacquet_resolving_deps_resolver::UpdateReuseScope::None;
         }
 
+        // The prior lockfile, filtered to withhold it when
+        // packageExtensions or overrides drifted (both rewrite
+        // dependency sets, making the recorded subtree stale). When
+        // this is `Some`, the resolver can reuse already-resolved
+        // subtrees and bypass `manifest_hook` for them — which means
+        // `applied_selectors()` is incomplete. The unused-override
+        // check below uses `lockfile_for_reuse.is_some()` to gate
+        // itself the same way pnpm gates with `forceFullResolution`.
+        let lockfile_for_reuse: Option<Arc<Lockfile>> = wanted_lockfile
+            .filter(|lockfile| {
+                lockfile.package_extensions_checksum == package_extensions_checksum
+                    && overrides_match(lockfile.overrides.as_ref(), resolved_overrides.as_ref())
+            })
+            .cloned()
+            .map(Arc::new);
+
         let workspace_opts = pacquet_resolving_deps_resolver::WorkspaceResolveOptions {
             dedupe_peers: config.dedupe_peers,
             dedupe_injected_deps: config.dedupe_injected_deps,
@@ -1088,13 +1104,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             // both settings rewrite package dependency sets, so the
             // recorded subtree is stale. pnpm likewise invalidates the
             // lockfile on these settings changes.
-            wanted_lockfile: wanted_lockfile
-                .filter(|lockfile| {
-                    lockfile.package_extensions_checksum == package_extensions_checksum
-                        && overrides_match(lockfile.overrides.as_ref(), resolved_overrides.as_ref())
-                })
-                .cloned()
-                .map(Arc::new),
+            wanted_lockfile: lockfile_for_reuse.clone(),
             update_reuse_scope,
             auto_install_peers: config.auto_install_peers,
             registries,
@@ -1188,6 +1198,45 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             nodes = total_nodes,
             "phase complete",
         );
+
+        // Emit one `pnpm:unusedOverride` event per override selector that
+        // matched no resolved package, then close the resolution phase with
+        // `pnpm:stage { stage: "resolution_done" }`. The reporter buffers
+        // unused-override events against `resolution_done` and renders a
+        // single grouped warning, so ordering matters — every
+        // `pnpm:unusedOverride` for this install must precede the
+        // `resolution_done` emission.
+        //
+        // Gate: only run the diff when the resolver was forced to do full
+        // resolution (`lockfile_for_reuse.is_none()`). When subtree reuse
+        // is active, reused nodes bypass `manifest_hook`, so
+        // `applied_selectors()` misses overrides whose targets live inside
+        // reused subtrees and the diff would produce false positives.
+        // Mirrors pnpm's `forceFullResolution || !packages.length` gate.
+        if lockfile_for_reuse.is_none()
+            && let Some(overrider) = versions_overrider.as_ref()
+            && let Some(parsed) = parsed_overrides.as_ref()
+        {
+            let applied = overrider.applied_selectors();
+            let mut unused: Vec<&str> = parsed
+                .iter()
+                .map(|override_entry| override_entry.selector.as_str())
+                .filter(|selector| !applied.contains(*selector))
+                .collect();
+            unused.sort_unstable();
+            for selector in unused {
+                Reporter::emit(&LogEvent::UnusedOverride(UnusedOverrideLog {
+                    level: LogLevel::Debug,
+                    prefix: lockfile_dir.to_string_lossy().into_owned(),
+                    selector: selector.to_string(),
+                }));
+            }
+        }
+        Reporter::emit(&LogEvent::Stage(StageLog {
+            level: LogLevel::Debug,
+            prefix: lockfile_dir.to_string_lossy().into_owned(),
+            stage: Stage::ResolutionDone,
+        }));
 
         // Drop the resolver (and its packument cache) before the
         // install pass. Dropping `resolver` releases the

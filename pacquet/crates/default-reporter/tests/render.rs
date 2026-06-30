@@ -11,7 +11,7 @@ use pacquet_reporter::{
     AddedRoot, ContextLog, DependencyType, ExecutionTimeLog, GlobalLog, LifecycleLog,
     LifecycleMessage, LifecycleStdio, LogEvent, LogLevel, PackageImportMethod,
     PackageImportMethodLog, PnpmLog, ProgressLog, ProgressMessage, RootLog, RootMessage, Stage,
-    StageLog, StatsLog, StatsMessage, SummaryLog,
+    StageLog, StatsLog, StatsMessage, SummaryLog, UnusedOverrideLog,
 };
 
 const CWD: &str = "/repo";
@@ -329,4 +329,94 @@ fn lifecycle_script_output_is_grouped_and_indented() {
     ];
     let frame = render(&mut reporter, events);
     assert_eq!(frame, "deps/foo postinstall$ node build.js\n│ building\n└─ Running...");
+}
+
+#[test]
+fn unused_overrides_buffer_until_resolution_done_then_emit_grouped_warning() {
+    let mut reporter = state(false);
+    // Selectors arrive pre-sorted from the emission site
+    // (install_with_fresh_lockfile sorts before emitting), so feed
+    // them in sorted order to match the real wire order.
+    let events = vec![
+        LogEvent::UnusedOverride(UnusedOverrideLog {
+            level: LogLevel::Debug,
+            prefix: CWD.to_string(),
+            selector: "bar@1.0.0".to_string(),
+        }),
+        LogEvent::UnusedOverride(UnusedOverrideLog {
+            level: LogLevel::Debug,
+            prefix: CWD.to_string(),
+            selector: "foo".to_string(),
+        }),
+        LogEvent::UnusedOverride(UnusedOverrideLog {
+            level: LogLevel::Debug,
+            prefix: CWD.to_string(),
+            selector: "parent>child".to_string(),
+        }),
+        LogEvent::Stage(StageLog {
+            level: LogLevel::Debug,
+            prefix: CWD.to_string(),
+            stage: Stage::ResolutionDone,
+        }),
+    ];
+    let frame = render(&mut reporter, events);
+    let lines: Vec<&str> = frame.lines().collect();
+    assert_eq!(
+        lines,
+        vec!["[WARN] 3 overrides matched no dependency: bar@1.0.0, foo, parent>child"],
+    );
+}
+
+#[test]
+fn unused_overrides_uses_singular_form_for_single_unused() {
+    let mut reporter = state(false);
+    let events = vec![
+        LogEvent::UnusedOverride(UnusedOverrideLog {
+            level: LogLevel::Debug,
+            prefix: CWD.to_string(),
+            selector: "foo".to_string(),
+        }),
+        LogEvent::Stage(StageLog {
+            level: LogLevel::Debug,
+            prefix: CWD.to_string(),
+            stage: Stage::ResolutionDone,
+        }),
+    ];
+    let frame = render(&mut reporter, events);
+    let lines: Vec<&str> = frame.lines().collect();
+    assert_eq!(lines, vec!["[WARN] 1 override matched no dependency: foo"]);
+}
+
+#[test]
+fn unused_overrides_no_events_emits_nothing_at_resolution_done() {
+    let mut reporter = state(false);
+    let frame = render(
+        &mut reporter,
+        vec![LogEvent::Stage(StageLog {
+            level: LogLevel::Debug,
+            prefix: CWD.to_string(),
+            stage: Stage::ResolutionDone,
+        })],
+    );
+    assert!(frame.is_empty(), "expected no warning frame, got: {frame}");
+}
+
+#[test]
+fn unused_overrides_strips_control_characters_from_selectors() {
+    let mut reporter = state(false);
+    let events = vec![
+        LogEvent::UnusedOverride(UnusedOverrideLog {
+            level: LogLevel::Debug,
+            prefix: CWD.to_string(),
+            selector: "foo\nbar\x1b[0m".to_string(),
+        }),
+        LogEvent::Stage(StageLog {
+            level: LogLevel::Debug,
+            prefix: CWD.to_string(),
+            stage: Stage::ResolutionDone,
+        }),
+    ];
+    let frame = render(&mut reporter, events);
+    let lines: Vec<&str> = frame.lines().collect();
+    assert_eq!(lines, vec!["[WARN] 1 override matched no dependency: foobar[0m"]);
 }
