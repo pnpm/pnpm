@@ -66,7 +66,7 @@ pub struct CreateVirtualDirBySnapshot<'a> {
     /// a warm reinstall that drops a dependency (e.g. via an override)
     /// doesn't leave a dangling child behind. Mirrors upstream's
     /// `removeObsoleteChild` pass in `linkAllModules` at
-    /// <https://github.com/pnpm/pnpm/blob/5e47dd5e59/installing/deps-installer/src/install/link.ts#L573>.
+    /// <https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-installer/src/install/link.ts#L575>.
     /// Empty for fresh packages and for survivors whose dependency set
     /// only changed by addition.
     pub removed_aliases: &'a [PkgName],
