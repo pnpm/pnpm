@@ -52,7 +52,7 @@ fn run_sbom_json(workspace: &Path, format: &str, extra_args: &[&str]) -> serde_j
     assert!(
         output.status.success(),
         "pacquet sbom failed: {}",
-        String::from_utf8_lossy(&output.stderr)
+        String::from_utf8_lossy(&output.stderr),
     );
     serde_json::from_slice(&output.stdout).expect("parse JSON output")
 }
@@ -124,7 +124,7 @@ fn sbom_dev_only_scope_excluded() {
 
     let props = typescript["properties"].as_array().expect("properties");
     assert!(
-        props.iter().any(|p| p["name"] == "cdx:npm:package:development" && p["value"] == "true")
+        props.iter().any(|p| p["name"] == "cdx:npm:package:development" && p["value"] == "true"),
     );
 }
 
@@ -279,11 +279,11 @@ fn sbom_includes_peers_by_default() {
     assert!(components.iter().any(|c| c["name"] == "is-positive"));
     assert!(
         components.iter().any(|c| c["name"] == "is-odd"),
-        "peer dep should be included by default"
+        "peer dep should be included by default",
     );
     assert!(
         components.iter().any(|c| c["name"] == "is-number"),
-        "transitive of peer should be included"
+        "transitive of peer should be included",
     );
 }
 
@@ -296,7 +296,7 @@ fn sbom_exclude_peers_drops_subtree() {
     assert!(!components.iter().any(|c| c["name"] == "is-odd"), "peer dep should be excluded");
     assert!(
         !components.iter().any(|c| c["name"] == "is-number"),
-        "transitive dep reachable only through peer should be excluded"
+        "transitive dep reachable only through peer should be excluded",
     );
     let root_ref = parsed["metadata"]["component"]["bom-ref"].as_str().expect("bom-ref");
     let root_deps = parsed["dependencies"]
@@ -311,7 +311,7 @@ fn sbom_exclude_peers_drops_subtree() {
             .expect("dependsOn")
             .iter()
             .any(|d| d.as_str().unwrap().contains("is-odd")),
-        "peer should not appear in root dependency graph"
+        "peer should not appear in root dependency graph",
     );
 }
 
@@ -323,7 +323,7 @@ fn sbom_exclude_peers_workspace_sub_packages() {
     assert!(components.iter().any(|c| c["name"] == "is-positive"));
     assert!(
         !components.iter().any(|c| c["name"] == "is-odd"),
-        "peer in sub-package should be excluded"
+        "peer in sub-package should be excluded",
     );
 }
 
@@ -343,7 +343,7 @@ fn sbom_exclude_peers_keeps_real_dep_in_other_importer() {
     let components = parsed["components"].as_array().expect("components");
     assert!(
         components.iter().any(|c| c["name"] == "is-odd"),
-        "is-odd is a peer in pkg-a but a real dep in pkg-b; should be kept"
+        "is-odd is a peer in pkg-a but a real dep in pkg-b; should be kept",
     );
 }
 
@@ -398,7 +398,7 @@ fn sbom_dev_flag_excludes_prod() {
     let components = parsed["components"].as_array().expect("components");
     assert!(
         !components.iter().any(|c| c["name"] == "is-positive"),
-        "prod dep should be excluded with --dev"
+        "prod dep should be excluded with --dev",
     );
     assert!(components.iter().any(|c| c["name"] == "typescript"), "dev dep should be included");
 }
@@ -590,7 +590,7 @@ fn sbom_workspace_split_produces_multiple_lines() {
     assert!(
         lines.len() >= 3,
         "workspace with 4 importers should produce at least 3 NDJSON lines (root may be empty), got {}",
-        lines.len()
+        lines.len(),
     );
     for line in &lines {
         let parsed: serde_json::Value = serde_json::from_str(line).expect("valid JSON");
@@ -651,7 +651,7 @@ fn sbom_workspace_split_out_percent_v() {
         .collect();
     assert!(
         files.iter().any(|f| f.contains("1.0.0")),
-        "filenames should contain version: {files:?}"
+        "filenames should contain version: {files:?}",
     );
 }
 
@@ -667,7 +667,7 @@ fn sbom_workspace_filter_selects_importer() {
     assert!(
         output.status.success(),
         "pacquet sbom with filter failed: {}",
-        String::from_utf8_lossy(&output.stderr)
+        String::from_utf8_lossy(&output.stderr),
     );
     let parsed: serde_json::Value =
         serde_json::from_slice(&output.stdout).expect("parse JSON output");
@@ -696,7 +696,7 @@ fn sbom_workspace_spdx_link_deps() {
     let packages = parsed["packages"].as_array().expect("packages");
     assert!(
         packages.iter().any(|p| p["name"] == "shared-lib"),
-        "shared-lib should be in SPDX packages"
+        "shared-lib should be in SPDX packages",
     );
 }
 
@@ -726,7 +726,7 @@ fn sbom_split_single_project_not_triggered() {
     let parsed = run_sbom_json(tmp.path(), "cyclonedx", &[]);
     assert!(
         parsed["bomFormat"].is_string(),
-        "single project should produce regular JSON, not NDJSON"
+        "single project should produce regular JSON, not NDJSON",
     );
 }
 
@@ -758,6 +758,6 @@ fn sbom_dev_flag_includes_only_dev() {
     assert!(components.iter().any(|c| c["name"] == "typescript"), "dev dep should be included");
     assert!(
         !components.iter().any(|c| c["name"] == "is-positive"),
-        "prod dep should be excluded with --dev"
+        "prod dep should be excluded with --dev",
     );
 }

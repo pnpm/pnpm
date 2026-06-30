@@ -156,7 +156,7 @@ fn is_simple_spdx_id_invalid() {
 fn strip_url_credentials_removes_userinfo() {
     assert_eq!(
         strip_url_credentials("https://user:token@github.com/foo/bar"),
-        "https://github.com/foo/bar"
+        "https://github.com/foo/bar",
     );
 }
 
