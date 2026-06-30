@@ -685,6 +685,7 @@ impl SbomArgs {
         let all_importer_ids: Vec<String> =
             lockfile.as_ref().map(|lf| lf.importers.keys().cloned().collect()).unwrap_or_default();
 
+        let all_count = all_importer_ids.len();
         let importer_ids = if state.config.filter.is_empty() {
             all_importer_ids
         } else {
@@ -792,13 +793,15 @@ impl SbomArgs {
             }
             let _ = stdout.flush();
         } else {
+            let filter_ids: Option<Vec<&str>> = (importer_ids.len() < all_count)
+                .then(|| importer_ids.iter().map(String::as_str).collect());
             let result = collect_components(
                 &state,
                 &include,
                 self.sbom_type,
                 self.exclude_peers,
                 self.lockfile_only,
-                None,
+                filter_ids.as_deref(),
             )?;
 
             let output = match self.format {

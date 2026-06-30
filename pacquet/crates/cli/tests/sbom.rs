@@ -586,7 +586,6 @@ fn sbom_workspace_split_out_percent_v() {
 }
 
 #[test]
-#[ignore = "filter propagation through Config needs investigation"]
 fn sbom_workspace_filter_selects_importer() {
     let tmp = copy_fixture("workspace-sbom-populated");
     let output = pacquet(
