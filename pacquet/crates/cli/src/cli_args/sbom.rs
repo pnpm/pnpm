@@ -5,6 +5,7 @@
 
 use crate::State;
 use clap::Args;
+use indexmap::IndexMap;
 use pacquet_lockfile::{
     LockfileResolution, PackageKey, PackageMetadata, PkgName, PkgNameVerPeer, SnapshotEntry,
 };
@@ -126,6 +127,7 @@ struct WalkContext<'a> {
     default_registry: &'a str,
     virtual_store_dir: Option<PathBuf>,
     virtual_store_dir_max_length: usize,
+    include_optional_transitive: bool,
 }
 
 struct SbomRelationship {
@@ -272,7 +274,10 @@ fn peer_names_from_manifest(manifest: &serde_json::Value) -> HashSet<String> {
         .collect()
 }
 
-fn detect_dep_types(lockfile: &pacquet_lockfile::Lockfile) -> HashMap<PackageKey, DepType> {
+fn detect_dep_types(
+    lockfile: &pacquet_lockfile::Lockfile,
+    include_optional_transitive: bool,
+) -> HashMap<PackageKey, DepType> {
     let snapshots = lockfile.snapshots.as_ref();
     let mut dep_types: HashMap<PackageKey, DepType> = HashMap::new();
     let mut walked: HashSet<(PackageKey, bool)> = HashSet::new();
@@ -298,8 +303,22 @@ fn detect_dep_types(lockfile: &pacquet_lockfile::Lockfile) -> HashMap<PackageKey
         }
     }
 
-    detect_dep_types_walk(snapshots, &mut dep_types, &mut walked, &dev_keys, true);
-    detect_dep_types_walk(snapshots, &mut dep_types, &mut walked, &prod_keys, false);
+    detect_dep_types_walk(
+        snapshots,
+        &mut dep_types,
+        &mut walked,
+        &dev_keys,
+        true,
+        include_optional_transitive,
+    );
+    detect_dep_types_walk(
+        snapshots,
+        &mut dep_types,
+        &mut walked,
+        &prod_keys,
+        false,
+        include_optional_transitive,
+    );
     dep_types
 }
 
@@ -309,6 +328,7 @@ fn detect_dep_types_walk(
     walked: &mut HashSet<(PackageKey, bool)>,
     initial_keys: &[PackageKey],
     is_dev: bool,
+    include_optional_transitive: bool,
 ) {
     let mut queue: Vec<PackageKey> = initial_keys.to_vec();
 
@@ -331,12 +351,11 @@ fn detect_dep_types_walk(
             continue;
         };
 
-        for (alias, dep_ref) in snapshot
-            .dependencies
-            .iter()
-            .flatten()
-            .chain(snapshot.optional_dependencies.iter().flatten())
-        {
+        let optional_iter = include_optional_transitive
+            .then(|| snapshot.optional_dependencies.iter().flatten())
+            .into_iter()
+            .flatten();
+        for (alias, dep_ref) in snapshot.dependencies.iter().flatten().chain(optional_iter) {
             if let Some(child_key) = dep_ref.resolve(alias) {
                 queue.push(child_key);
             }
@@ -391,7 +410,7 @@ fn collect_components(
 
     let root_purl = build_purl(&root_name, &root_version);
 
-    let dep_types = detect_dep_types(lockfile);
+    let dep_types = detect_dep_types(lockfile, include.optional_dependencies);
 
     let virtual_store_dir = (!lockfile_only).then(|| project_root_dir.join("node_modules/.pnpm"));
 
@@ -402,9 +421,10 @@ fn collect_components(
         default_registry: &state.config.registry,
         virtual_store_dir,
         virtual_store_dir_max_length: state.config.virtual_store_dir_max_length as usize,
+        include_optional_transitive: include.optional_dependencies,
     };
 
-    let mut components_map: HashMap<String, SbomComponent> = HashMap::new();
+    let mut components_map: IndexMap<String, SbomComponent> = IndexMap::new();
     let mut relationships: Vec<SbomRelationship> = Vec::new();
     let mut visited: HashSet<PackageKey> = HashSet::new();
     let mut ws_purl_by_importer: HashMap<String, String> = HashMap::new();
@@ -444,6 +464,19 @@ fn collect_components(
         } else {
             HashSet::new()
         };
+
+        let dev_dep_names: HashSet<String> = importer
+            .dev_dependencies
+            .as_ref()
+            .map(|deps| deps.keys().map(ToString::to_string).collect())
+            .unwrap_or_default();
+        let prod_dep_names: HashSet<String> = importer
+            .dependencies
+            .iter()
+            .chain(importer.optional_dependencies.iter())
+            .flat_map(|deps| deps.keys())
+            .map(ToString::to_string)
+            .collect();
 
         let dep_maps: Vec<&HashMap<PkgName, _>> = [
             include.dependencies.then_some(importer.dependencies.as_ref()).flatten(),
@@ -485,18 +518,27 @@ fn collect_components(
                                 .unwrap_or("0.0.0")
                                 .to_string();
                             let ws_purl = build_purl(&ws_name, &ws_version);
+                            let name_str = name.to_string();
+                            let dev_only = dev_dep_names.contains(&name_str)
+                                && !prod_dep_names.contains(&name_str);
                             relationships.push(SbomRelationship {
                                 from: parent_purl.clone(),
                                 to: ws_purl.clone(),
                             });
-                            if !components_map.contains_key(&ws_purl) {
+                            let ws_dep_type =
+                                if dev_only { DepType::DevOnly } else { DepType::ProdOnly };
+                            if let Some(existing) = components_map.get_mut(&ws_purl) {
+                                if !dev_only && existing.dep_type == DepType::DevOnly {
+                                    existing.dep_type = DepType::ProdOnly;
+                                }
+                            } else {
                                 components_map.insert(
                                     ws_purl.clone(),
                                     SbomComponent {
                                         name: ws_name,
                                         version: ws_version,
                                         purl: ws_purl.clone(),
-                                        dep_type: DepType::ProdOnly,
+                                        dep_type: ws_dep_type,
                                         integrity: None,
                                         tarball_url: None,
                                         license: ws_manifest
@@ -590,7 +632,7 @@ fn walk_snapshot(
     initial_key: &PkgNameVerPeer,
     initial_parent_purl: &str,
     ctx: &WalkContext<'_>,
-    components_map: &mut HashMap<String, SbomComponent>,
+    components_map: &mut IndexMap<String, SbomComponent>,
     relationships: &mut Vec<SbomRelationship>,
     visited: &mut HashSet<PackageKey>,
 ) {
@@ -646,12 +688,12 @@ fn walk_snapshot(
             continue;
         };
 
-        for (alias, dep_ref) in snapshot
-            .dependencies
-            .iter()
-            .flatten()
-            .chain(snapshot.optional_dependencies.iter().flatten())
-        {
+        let optional_iter = ctx
+            .include_optional_transitive
+            .then(|| snapshot.optional_dependencies.iter().flatten())
+            .into_iter()
+            .flatten();
+        for (alias, dep_ref) in snapshot.dependencies.iter().flatten().chain(optional_iter) {
             if let Some(child_key) = dep_ref.resolve(alias) {
                 queue.push((child_key, purl.clone()));
             }
