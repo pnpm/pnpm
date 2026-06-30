@@ -1174,7 +1174,7 @@ fn serialize_spdx(result: &SbomResult, compact: bool) -> String {
 fn integrity_to_hashes(integrity: &str) -> Option<Vec<serde_json::Value>> {
     let mut hashes = Vec::new();
     for part in integrity.split_whitespace() {
-        let (alg, hash) = part.split_once('-')?;
+        let Some((alg, hash)) = part.split_once('-') else { continue };
         let cdx_alg = match alg {
             "sha1" => "SHA-1",
             "sha256" => "SHA-256",
@@ -1195,7 +1195,7 @@ fn integrity_to_hashes(integrity: &str) -> Option<Vec<serde_json::Value>> {
 fn integrity_to_spdx_checksums(integrity: &str) -> Option<Vec<serde_json::Value>> {
     let mut checksums = Vec::new();
     for part in integrity.split_whitespace() {
-        let (alg, hash) = part.split_once('-')?;
+        let Some((alg, hash)) = part.split_once('-') else { continue };
         let spdx_alg = match alg {
             "sha1" => "SHA1",
             "sha256" => "SHA256",
