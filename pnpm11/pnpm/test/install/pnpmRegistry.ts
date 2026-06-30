@@ -8,7 +8,7 @@ import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
 import { loadJsonFileSync } from 'load-json-file'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpm } from '../utils/index.js'
+import { execPnpm, spawnPnpm } from '../utils/index.js'
 
 // The pnpr server started by the test harness (see the with-registry jest
 // preset) serves the resolver endpoint (/-/pnpr/v0/resolve) on the
@@ -94,7 +94,7 @@ test('pnpm install uses pnpr server when configured', async () => {
   expect(fs.existsSync('node_modules/is-positive')).toBe(true)
 })
 
-test('pnpm install with overrides uses pnpr server and skips unused-override warning', async () => {
+test('pnpm install with overrides uses pnpr server and emits unused-override warning', async () => {
   prepareProject({
     dependencies: {
       'is-positive': '1.0.0',
@@ -104,21 +104,50 @@ test('pnpm install with overrides uses pnpr server and skips unused-override war
   writeYamlFileSync('pnpm-workspace.yaml', {
     packages: ['**', '!store/**'],
     overrides: {
+      // 'is-positive' matches a real dependency; the other selector
+      // matches nothing — the unused-override scan runs after pnpr
+      // resolves and must flag it.
       'is-positive': '1.0.0',
+      'this-overrides-key-matches-nothing': '1.0.0',
     },
   })
   requestCount = 0
 
-  await execPnpm(
-    ['install', `--config.pnprServer=http://localhost:${serverPort}`],
-    { timeout: 60_000 }
-  )
+  // Use spawnPnpm (async) to capture stdout without blocking the event
+  // loop — the counting proxy is a Node HTTP server that needs the
+  // loop alive to forward pnpr requests.
+  const output = await new Promise<string>((resolve, reject) => {
+    const proc = spawnPnpm(['install', `--config.pnprServer=http://localhost:${serverPort}`])
+    const chunks: Buffer[] = []
+    proc.stdout?.on('data', (chunk: Buffer) => chunks.push(chunk))
+    proc.stderr?.on('data', (chunk: Buffer) => chunks.push(chunk))
+    const timeoutId = setTimeout(() => {
+      proc.kill()
+      reject(new Error('pnpm install timed out'))
+    }, 60_000)
+    proc.on('close', (code) => {
+      clearTimeout(timeoutId)
+      const result = Buffer.concat(chunks).toString()
+      if (code !== 0) {
+        reject(new Error(`Exit code ${code}\n${result}`))
+      } else {
+        resolve(result)
+      }
+    })
+  })
 
-  // pnpr server IS used even with overrides — the performance benefit
-  // is preserved. The unused-override warning is silently skipped.
+  // pnpr server IS used even with overrides.
   expect(requestCount).toBeGreaterThanOrEqual(1)
   expect(fs.existsSync(WANTED_LOCKFILE)).toBe(true)
   expect(fs.existsSync('node_modules/is-positive')).toBe(true)
+
+  // The unused-override warning is emitted from the lockfile scan
+  // that runs after pnpr resolves.
+  const warnLines = output.split('\n').filter((line) => line.includes('[WARN]'))
+  expect(warnLines.some((line) => /overrides? matched no dependency/.test(line))).toBe(true)
+  expect(warnLines.some((line) => line.includes('this-overrides-key-matches-nothing'))).toBe(true)
+  // The applied override must not appear in any unused-override warning line.
+  expect(warnLines.some((line) => /\bis-positive\b/.test(line))).toBe(false)
 })
 
 test('pnpm install resolves optionalDependencies via the pnpr server', async () => {

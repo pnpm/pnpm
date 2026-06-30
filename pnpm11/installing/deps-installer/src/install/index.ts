@@ -49,6 +49,7 @@ import {
   getWantedLockfileName,
   isEmptyLockfile,
   type LockfileObject,
+  type PackageSnapshot,
   type ProjectSnapshot,
   readEnvLockfile,
   readWantedLockfile,
@@ -65,6 +66,7 @@ import {
   getOutdatedLockfileSetting,
 } from '@pnpm/lockfile.settings-checker'
 import { PACKAGE_MAP_FILENAME, writePackageMap, writePnpFile } from '@pnpm/lockfile.to-pnp'
+import { nameVerFromPkgSnapshot } from '@pnpm/lockfile.utils'
 import { allProjectsAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
 import { globalInfo, logger, streamParser } from '@pnpm/logger'
 import { groupPatchedDependencies, type PatchGroupRecord } from '@pnpm/patching.config'
@@ -185,9 +187,9 @@ export async function install (
 
   // When a pnpr server is configured, use server-side resolution
   // instead of the normal resolution flow. The pnpr protocol resolves
-  // with overrides but does not report which selectors matched, so
-  // the unused-override warning is silently skipped on this path —
-  // an acceptable tradeoff to preserve pnpr's performance benefit.
+  // with overrides but does not report which selectors matched; the
+  // unused-override warning is computed by scanning the resolved
+  // lockfile inside installViaPnprServer.
   if (opts.pnprServer) {
     return installViaPnprServer(manifest, rootDir, opts)
   }
@@ -329,7 +331,8 @@ export async function mutateModules (
   // path supports `install`, `installSome` (pnpm add), and `uninstallSome`
   // (pnpm remove). Mutations that need full client-side resolution (update
   // flags) still fall through to the normal flow. The unused-override
-  // warning is silently skipped on this path — see the comment in `install`.
+  // warning is computed by scanning the resolved lockfile — see the
+  // comment in `installViaPnprServer`.
   if (opts.pnprServer && canUsePnprForMutations(projects)) {
     const pnprResult = await mutateModulesViaPnpr(projects, opts)
     if (pnprResult) return pnprResult
@@ -2611,6 +2614,92 @@ async function mutateModulesViaPnpr (
 }
 
 /**
+ * Walk the resolved lockfile to determine which override selectors matched
+ * at least one dependency. Used on the pnpr-server path where the resolver
+ * runs server-side and does not report applied selectors back.
+ *
+ * A selector is considered matched if its target name appears as a
+ * dependency key in any importer or package snapshot. Version-scoped
+ * selectors additionally require the resolved version to satisfy the
+ * target range. Parent-scoped selectors only check packages whose name
+ * matches the parent.
+ */
+function findAppliedOverrideSelectorsFromLockfile (
+  lockfile: LockfileObject,
+  parsedOverrides: Array<{ selector: string, parentPkg?: { name: string, bareSpecifier?: string }, targetPkg: { name: string, bareSpecifier?: string } }>
+): Set<string> {
+  const applied = new Set<string>()
+
+  for (const override of parsedOverrides) {
+    const targetName = override.targetPkg.name
+    const targetRange = override.targetPkg.bareSpecifier
+
+    if (override.parentPkg != null) {
+      const parentName = override.parentPkg.name
+      const parentRange = override.parentPkg.bareSpecifier
+      for (const [depPath, snapshot] of Object.entries(lockfile.packages ?? {}) as Array<[DepPath, PackageSnapshot]>) {
+        const { name, version } = nameVerFromPkgSnapshot(depPath, snapshot)
+        if (name !== parentName) continue
+        if (parentRange != null && version != null && !semver.satisfies(version, parentRange)) continue
+        if (
+          depEntryMatches(snapshot.dependencies, targetName, targetRange) ||
+          depEntryMatches(snapshot.optionalDependencies, targetName, targetRange) ||
+          depEntryMatches(snapshot.peerDependencies, targetName, targetRange)
+        ) {
+          applied.add(override.selector)
+          break
+        }
+      }
+    } else {
+      for (const importer of Object.values(lockfile.importers)) {
+        if (
+          depEntryMatches(importer.dependencies, targetName, targetRange) ||
+          depEntryMatches(importer.devDependencies, targetName, targetRange) ||
+          depEntryMatches(importer.optionalDependencies, targetName, targetRange)
+        ) {
+          applied.add(override.selector)
+          break
+        }
+      }
+      if (applied.has(override.selector)) continue
+      for (const snapshot of Object.values(lockfile.packages ?? {})) {
+        if (
+          depEntryMatches(snapshot.dependencies, targetName, targetRange) ||
+          depEntryMatches(snapshot.optionalDependencies, targetName, targetRange) ||
+          depEntryMatches(snapshot.peerDependencies, targetName, targetRange)
+        ) {
+          applied.add(override.selector)
+          break
+        }
+      }
+    }
+  }
+
+  return applied
+}
+
+/**
+ * Check whether a resolved-dependency map contains `targetName` with a
+ * version that satisfies `targetRange` (when set). Returns `false` for
+ * absent maps or names. Non-semver values (link:, file:, npm: aliases)
+ * are treated as matches when a range is set — the lockfile stores
+ * post-override resolved versions, and we only need to know the override
+ * targeted a real dependency, not that the version chain is exact.
+ */
+function depEntryMatches (
+  deps: Record<string, string> | undefined,
+  targetName: string,
+  targetRange: string | undefined
+): boolean {
+  if (deps == null) return false
+  const version = deps[targetName]
+  if (version == null) return false
+  if (targetRange == null) return true
+  if (!semver.valid(version)) return true
+  return semver.satisfies(version, targetRange)
+}
+
+/**
  * When a pnpr server is configured, resolve dependencies server-side,
  * then run a headless install that fetches tarballs from the registries
  * and links packages into node_modules — like a normal install.
@@ -2706,6 +2795,28 @@ async function installViaPnprServer (
     logger.info({
       message: `Resolved ${pnprStats.totalPackages} packages`,
       prefix: rootDir,
+    })
+
+    // The pnpr protocol resolves with overrides but does not report
+    // which selectors matched. Scan the resolved lockfile to determine
+    // that, then emit unused-override events for unmatched selectors —
+    // same behavior as the local-resolver path. Emitted before
+    // 'resolution_done' so the reporter's buffer captures them.
+    const parsedOverrides = parseOverrides(opts.overrides ?? {}, opts.catalogs ?? {})
+    if (parsedOverrides.length > 0) {
+      const applied = findAppliedOverrideSelectorsFromLockfile(lockfile, parsedOverrides)
+      for (const override of parsedOverrides) {
+        if (!applied.has(override.selector)) {
+          unusedOverrideLogger.debug({
+            prefix: lockfileDir,
+            selector: override.selector,
+          })
+        }
+      }
+    }
+    stageLogger.debug({
+      prefix: lockfileDir,
+      stage: 'resolution_done',
     })
 
     // `--lockfile-only`: the pnpr server resolved and we wrote the lockfile, but
