@@ -70,12 +70,8 @@ async fn fetch_post_sends_a_zero_length_body() {
 #[tokio::test]
 async fn fetch_reports_a_non_success_status_without_erroring() {
     let mut server = mockito::Server::new_async().await;
-    let mock = server
-        .mock("GET", "/token")
-        .with_status(403)
-        .with_body("forbidden")
-        .create_async()
-        .await;
+    let mock =
+        server.mock("GET", "/token").with_status(403).with_body("forbidden").create_async().await;
     let url = format!("{}/token", server.url());
 
     let response = Host::fetch(OidcRequest {

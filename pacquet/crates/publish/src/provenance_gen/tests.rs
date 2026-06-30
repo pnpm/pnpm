@@ -105,7 +105,7 @@ fn gitlab_statement_shapes_the_slsa_v02_predicate() {
     assert_eq!(predicate["materials"][0]["digest"]["sha1"], "abc123");
 }
 
-/// A GitHub-Actions provider that reuses `GhEnv`'s variable bodies.
+/// A GitHub-Actions provider that reuses [`GhEnv`]'s variable bodies.
 struct GhProvider;
 
 impl CiInfo for GhProvider {
@@ -123,7 +123,7 @@ impl EnvVar for GhProvider {
     }
 }
 
-/// A GitLab-CI provider that reuses `GlEnv`'s variable bodies.
+/// A GitLab-CI provider that reuses [`GlEnv`]'s variable bodies.
 struct GlProvider;
 
 impl CiInfo for GlProvider {

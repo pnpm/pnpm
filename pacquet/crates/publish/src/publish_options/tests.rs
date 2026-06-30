@@ -146,8 +146,8 @@ async fn oidc_happy_path_returns_token_and_provenance() {
         result,
         Some(OidcTokenProvenance {
             auth_token: "registry-token".to_owned(),
-            provenance: Some(true)
-        })
+            provenance: Some(true),
+        }),
     );
 }
 
@@ -210,7 +210,7 @@ async fn oidc_override_skips_visibility_probe() {
         Some(OidcTokenProvenance {
             auth_token: "registry-token".to_owned(),
             provenance: Some(false),
-        })
+        }),
     );
 }
 
@@ -255,7 +255,7 @@ async fn oidc_keeps_token_when_provenance_undeterminable() {
     .unwrap();
     assert_eq!(
         result,
-        Some(OidcTokenProvenance { auth_token: "registry-token".to_owned(), provenance: None })
+        Some(OidcTokenProvenance { auth_token: "registry-token".to_owned(), provenance: None }),
     );
 }
 
