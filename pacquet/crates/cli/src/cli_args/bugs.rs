@@ -352,8 +352,7 @@ fn open_url_in_browser(url: &str) -> std::io::Result<()> {
     use std::ffi::OsStr;
     use std::os::windows::ffi::OsStrExt;
 
-    let url_wide: Vec<u16> =
-        OsStr::new(url).encode_wide().chain(std::iter::once(0)).collect();
+    let url_wide: Vec<u16> = OsStr::new(url).encode_wide().chain(std::iter::once(0)).collect();
 
     // ShellExecuteW invokes the default handler for the URL protocol
     // without shell metacharacter injection. The function takes a
