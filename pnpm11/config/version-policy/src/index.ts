@@ -40,40 +40,50 @@ export interface PublishedByPolicy {
 }
 
 /**
+ * Reject `NaN`, `Infinity`, and negative `minimumReleaseAge` values. All three
+ * silently break the supply-chain maturity gate: `NaN` falsies out and disables
+ * the check, `Infinity` produces an invalid `Date` whose `toISOString()` throws,
+ * and a negative pushes the cutoff into the future so every version looks mature.
+ * Shared by the resolver-time and lockfile-verifier paths so neither can bypass it.
+ */
+export function validateMinimumReleaseAge (value: number): void {
+  if (!Number.isFinite(value) || value < 0) {
+    throw new PnpmError(
+      'INVALID_MINIMUM_RELEASE_AGE',
+      `minimumReleaseAge must be a finite, non-negative number of minutes, got ${value}`
+    )
+  }
+}
+
+/**
+ * Normalize a `minimumReleaseAgeExclude` value to `string[]`. The CLI passes a
+ * bare `string` when the flag is given once (`[String, Array]` coercion), while
+ * config and repeated flags yield `string[]`; without normalization the policy
+ * matcher would iterate the string character-by-character. Shared by both the
+ * resolver-time and lockfile-verifier paths.
+ */
+export function coerceExcludeToArray (value: string[] | string): string[] {
+  return Array.isArray(value) ? value : [value]
+}
+
+/**
  * Derives the resolver's `publishedBy` cutoff date and `publishedByExclude`
  * policy from the user's `minimumReleaseAge` / `minimumReleaseAgeExclude`
  * config. Centralized so every call site computes the cutoff at the same
  * instant and surfaces invalid exclude patterns under the same error code.
- *
- * `minimumReleaseAge` must be a finite, non-negative number of minutes.
- * `NaN`/`Infinity` would yield a bogus cutoff (`undefined`/invalid `Date`)
- * and a negative value would push the cutoff into the future, silently
- * disabling the supply-chain maturity gate. `minimumReleaseAgeExclude`
- * arrives as `string[]` from config but as a bare `string` when a single
- * `--minimum-release-age-exclude` flag is passed on the CLI; coerce it to
- * an array so the policy matcher iterates packages, not characters.
  */
 export function getPublishedByPolicy (opts: PublishedByPolicyOptions): PublishedByPolicy {
   if (opts.minimumReleaseAge != null) {
-    if (!Number.isFinite(opts.minimumReleaseAge) || opts.minimumReleaseAge < 0) {
-      throw new PnpmError(
-        'INVALID_MINIMUM_RELEASE_AGE',
-        `minimumReleaseAge must be a finite, non-negative number of minutes, got ${opts.minimumReleaseAge}`
-      )
-    }
+    validateMinimumReleaseAge(opts.minimumReleaseAge)
   }
   return {
     publishedBy: opts.minimumReleaseAge
       ? new Date(Date.now() - opts.minimumReleaseAge * 60 * 1000)
       : undefined,
     publishedByExclude: opts.minimumReleaseAgeExclude != null && opts.minimumReleaseAgeExclude !== ''
-      ? createPackageVersionPolicyOrThrow(coerceToArray(opts.minimumReleaseAgeExclude), 'minimumReleaseAgeExclude')
+      ? createPackageVersionPolicyOrThrow(coerceExcludeToArray(opts.minimumReleaseAgeExclude), 'minimumReleaseAgeExclude')
       : undefined,
   }
-}
-
-function coerceToArray (value: string[] | string): string[] {
-  return Array.isArray(value) ? value : [value]
 }
 
 /**
