@@ -1,6 +1,6 @@
 //! Port of `config/package-is-installable/test/inferPlatformFromPackageName.ts`
 //! from
-//! <https://github.com/pnpm/pnpm/blob/34875b2d7c/config/package-is-installable/test/inferPlatformFromPackageName.ts>.
+//! <https://github.com/pnpm/pnpm/blob/a6f303c2ff6ba83df17a47f10a0fe1d7ff8a083c/pnpm11/config/package-is-installable/test/inferPlatformFromPackageName.ts>.
 
 use crate::{
     InstallabilityOptions, InstallabilityVerdict, PackageInstallabilityManifest,

@@ -1,7 +1,7 @@
 //! Pure version-picking logic over an already-fetched packument.
 //!
 //! Ports pnpm's
-//! [`pickPackageFromMeta.ts`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackageFromMeta.ts).
+//! [`pickPackageFromMeta.ts`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/npm-resolver/src/pickPackageFromMeta.ts).
 //!
 //! Three call sites converge on this module:
 //!
@@ -44,7 +44,7 @@ use pacquet_resolving_resolver_base::{
 
 /// Discriminator for [`RegistryPackageSpec::spec_type`]. Mirrors
 /// upstream's
-/// [`'tag' | 'version' | 'range'`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/parseBareSpecifier.ts#L7-L11)
+/// [`'tag' | 'version' | 'range'`](https://github.com/pnpm/pnpm/blob/a6f303c2ff6ba83df17a47f10a0fe1d7ff8a083c/pnpm11/resolving/npm-resolver/src/parseBareSpecifier.ts#L7-L11)
 /// triple.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RegistryPackageSpecType {
@@ -57,7 +57,7 @@ pub enum RegistryPackageSpecType {
 }
 
 /// Parsed registry spec produced by upstream's
-/// [`parseBareSpecifier`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/parseBareSpecifier.ts#L7-L12).
+/// [`parseBareSpecifier`](https://github.com/pnpm/pnpm/blob/a6f303c2ff6ba83df17a47f10a0fe1d7ff8a083c/pnpm11/resolving/npm-resolver/src/parseBareSpecifier.ts#L7-L12).
 /// The picker (and the cache+fetch wrapper above it) consume this
 /// shape; the parser that produces it is its own port and is not part
 /// of this module.
@@ -74,7 +74,7 @@ pub struct RegistryPackageSpec {
 }
 
 /// Options bundle for [`pick_package_from_meta`]. Mirrors upstream's
-/// [`PickPackageFromMetaOptions`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackageFromMeta.ts#L21-L25).
+/// [`PickPackageFromMetaOptions`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/npm-resolver/src/pickPackageFromMeta.ts#L21-L25).
 #[derive(Debug, Default)]
 pub struct PickPackageFromMetaOptions<'a> {
     /// Per-importer hints biasing the range picker toward previously-
@@ -99,7 +99,7 @@ pub struct PickPackageFromMetaOptions<'a> {
 #[non_exhaustive]
 pub enum PickPackageFromMetaError {
     /// Mirrors upstream's
-    /// [`ERR_PNPM_UNPUBLISHED_PKG`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackageFromMeta.ts#L61):
+    /// [`ERR_PNPM_UNPUBLISHED_PKG`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/npm-resolver/src/pickPackageFromMeta.ts#L61):
     /// the packument has no live versions AND lists unpublished
     /// versions under `time.unpublished`.
     #[display("No versions available for {pkg_name} because it was unpublished")]
@@ -109,7 +109,7 @@ pub enum PickPackageFromMetaError {
         pkg_name: String,
     },
     /// Mirrors upstream's
-    /// [`ERR_PNPM_NO_VERSIONS`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackageFromMeta.ts#L63):
+    /// [`ERR_PNPM_NO_VERSIONS`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/npm-resolver/src/pickPackageFromMeta.ts#L63):
     /// the packument has no versions at all (and no unpublished
     /// marker to disambiguate).
     #[display("No versions available for {pkg_name}. The package may be unpublished.")]
@@ -119,7 +119,7 @@ pub enum PickPackageFromMetaError {
         pkg_name: String,
     },
     /// Mirrors upstream's
-    /// [`ERR_PNPM_MISSING_TIME`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackageFromMeta.ts#L112):
+    /// [`ERR_PNPM_MISSING_TIME`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/npm-resolver/src/pickPackageFromMeta.ts#L112):
     /// `minimumReleaseAge` is active, the packument has no per-version
     /// `time`, and `modified` is missing/invalid or past the cutoff —
     /// the picker can't decide which versions are mature.
@@ -132,7 +132,7 @@ pub enum PickPackageFromMetaError {
 }
 
 /// Pure picker entry point. Mirrors upstream's
-/// [`pickPackageFromMeta`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackageFromMeta.ts#L27-L108).
+/// [`pickPackageFromMeta`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/npm-resolver/src/pickPackageFromMeta.ts#L27-L108).
 ///
 /// `pick_version_by_range` is dependency-injected so the caller can
 /// pick the high-side ([`pick_version_by_version_range`]) or low-side
@@ -273,7 +273,7 @@ fn without_version(meta: &Package, version: &str) -> Package {
 }
 
 /// Per-call inputs to the range-picker pluggable. Mirrors upstream's
-/// [`PickVersionByVersionRangeOptions`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackageFromMeta.ts#L12-L17).
+/// [`PickVersionByVersionRangeOptions`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/npm-resolver/src/pickPackageFromMeta.ts#L12-L17).
 pub struct PickVersionByVersionRangeOptions<'a> {
     pub meta: &'a Package,
     pub version_range: &'a str,
@@ -284,7 +284,7 @@ pub struct PickVersionByVersionRangeOptions<'a> {
     /// filtering already happened in [`pick_package_from_meta`] —
     /// but the field stays on the options so a custom picker (e.g.
     /// the one upstream's
-    /// [`pickRespectingMinReleaseAge`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L111-L123)
+    /// [`pickRespectingMinReleaseAge`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/npm-resolver/src/pickPackage.ts#L111-L123)
     /// uses) can branch on it.
     pub published_by: Option<chrono::DateTime<chrono::Utc>>,
 }
@@ -294,7 +294,7 @@ pub struct PickVersionByVersionRangeOptions<'a> {
 /// when supplied, and falls back to a non-deprecated retry when the
 /// top pick is deprecated and other versions are available. Mirrors
 /// upstream's
-/// [`pickVersionByVersionRange`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackageFromMeta.ts#L168-L203).
+/// [`pickVersionByVersionRange`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/npm-resolver/src/pickPackageFromMeta.ts#L168-L203).
 pub fn pick_version_by_version_range(
     opts: &PickVersionByVersionRangeOptions<'_>,
 ) -> Option<String> {
@@ -350,7 +350,7 @@ pub fn pick_version_by_version_range(
 /// Pick the **lowest** version in `meta.versions` satisfying
 /// `version_range`. Honors the `preferred_version_selectors` bias
 /// when supplied. Mirrors upstream's
-/// [`pickLowestVersionByVersionRange`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackageFromMeta.ts#L150-L166).
+/// [`pickLowestVersionByVersionRange`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/npm-resolver/src/pickPackageFromMeta.ts#L150-L166).
 pub fn pick_lowest_version_by_version_range(
     opts: &PickVersionByVersionRangeOptions<'_>,
 ) -> Option<String> {
@@ -383,7 +383,7 @@ pub fn pick_lowest_version_by_version_range(
 /// for non-`latest` tags, same prerelease/release status, and
 /// preferring non-deprecated versions when both are present).
 /// Mirrors upstream's
-/// [`filterPkgMetadataByPublishDate`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/registry/pkg-metadata-filter/src/index.ts#L5-L82).
+/// [`filterPkgMetadataByPublishDate`](https://github.com/pnpm/pnpm/blob/a6f303c2ff6ba83df17a47f10a0fe1d7ff8a083c/pnpm11/resolving/registry/pkg-metadata-filter/src/index.ts#L5-L82).
 ///
 /// Panics if `meta.time` is `None` — the caller (the publishedBy
 /// branch in [`pick_package_from_meta`]) only invokes this with full
@@ -502,7 +502,7 @@ fn repopulate_dist_tags(
 /// Group versions by weight (highest weight first); each group is
 /// the input to a single max/min-satisfying call. Mirrors
 /// upstream's
-/// [`prioritizePreferredVersions`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackageFromMeta.ts#L205-L249).
+/// [`prioritizePreferredVersions`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/npm-resolver/src/pickPackageFromMeta.ts#L205-L249).
 fn prioritize_preferred_versions(
     meta: &Package,
     version_range: &str,
@@ -557,7 +557,7 @@ fn prioritize_preferred_versions(
 }
 
 /// Group-by-weight accumulator. Matches upstream's JS class
-/// [`PreferredVersionsPrioritizer`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackageFromMeta.ts#L251-L273)
+/// [`PreferredVersionsPrioritizer`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/npm-resolver/src/pickPackageFromMeta.ts#L251-L273)
 /// — including the quirk that weight `0` acts as a sentinel a later
 /// non-zero `add` overwrites rather than sums with.
 #[derive(Default)]
@@ -591,7 +591,7 @@ impl PreferredVersionsPrioritizer {
 
 /// Process-global cache of parsed [`Range`]s keyed by their source
 /// string. Mirrors upstream's
-/// [`semverRangeCache`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackageFromMeta.ts#L123-L148):
+/// [`semverRangeCache`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/npm-resolver/src/pickPackageFromMeta.ts#L123-L148):
 /// most installs hit the same handful of ranges thousands of times
 /// (the `*` from a CLI add, the `^X` from manifest entries, the few
 /// dist-tag fall-backs in `preferred_version_selectors`), and reparsing

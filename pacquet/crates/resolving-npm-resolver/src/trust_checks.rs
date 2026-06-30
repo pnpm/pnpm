@@ -175,7 +175,7 @@ pub fn fail_if_trust_downgraded(
 }
 
 /// Map a [`TrustEvidence`] rank to upstream's numeric weight at
-/// [`trustChecks.ts:10-14`](https://github.com/pnpm/pnpm/blob/372cae6a55/resolving/npm-resolver/src/trustChecks.ts#L10-L14).
+/// [`trustChecks.ts:10-14`](https://github.com/pnpm/pnpm/blob/a6f303c2ff6ba83df17a47f10a0fe1d7ff8a083c/pnpm11/resolving/npm-resolver/src/trustChecks.ts#L10-L14).
 /// Upstream uses `undefined` for "no evidence"; the Rust port uses
 /// `Option<TrustEvidence>` so callers compare ranks via
 /// `Option::map_or(0, trust_rank)`.
@@ -258,7 +258,7 @@ fn detect_strongest_trust_evidence_before(
 
 /// Classify the strongest supply-chain evidence a single version
 /// exposes. Mirrors pnpm's
-/// [`getTrustEvidence`](https://github.com/pnpm/pnpm/blob/372cae6a55/resolving/npm-resolver/src/trustChecks.ts#L123-L134).
+/// [`getTrustEvidence`](https://github.com/pnpm/pnpm/blob/a6f303c2ff6ba83df17a47f10a0fe1d7ff8a083c/pnpm11/resolving/npm-resolver/src/trustChecks.ts#L123-L134).
 #[must_use]
 pub fn get_trust_evidence(version: &PackageVersion) -> Option<TrustEvidence> {
     let has_approver = version.npm_user.as_ref().and_then(|user| user.approver.as_ref()).is_some();

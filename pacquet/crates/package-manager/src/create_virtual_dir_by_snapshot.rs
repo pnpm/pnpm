@@ -220,7 +220,7 @@ pub(crate) fn optimistic_wire_method(method: PackageImportMethod) -> WireImportM
 
 /// Unlink one obsolete child from a slot's `node_modules`, mirroring
 /// pnpm's `removeObsoleteChild` at
-/// <https://github.com/pnpm/pnpm/blob/5e47dd5e59/installing/deps-installer/src/install/link.ts#L641>.
+/// <https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-installer/src/install/link.ts#L668>.
 ///
 /// Removes the `<node_modules>/<alias>` symlink and, for a scoped
 /// alias, drops the now-empty `@scope` directory (ignoring the error

@@ -1,12 +1,12 @@
 //! Pacquet port of pnpm's
-//! [`@pnpm/resolving.npm-resolver`](https://github.com/pnpm/pnpm/tree/f657b5cb44/resolving/npm-resolver/src/).
+//! [`@pnpm/resolving.npm-resolver`](https://github.com/pnpm/pnpm/tree/3687b0e180/resolving/npm-resolver/src).
 //!
 //! Two surfaces:
 //!
 //! - **Resolver.** [`NpmResolver`] implements the
 //!   [`Resolver`](pacquet_resolving_resolver_base::Resolver) trait.
 //!   Ports upstream's
-//!   [`createNpmResolver` → `resolveNpm`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/index.ts#L192-L611):
+//!   [`createNpmResolver` → `resolveNpm`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/npm-resolver/src/index.ts#L192-L611):
 //!   takes a [`WantedDependency`](pacquet_resolving_resolver_base::WantedDependency),
 //!   runs [`parse_bare_specifier()`], picks a version through
 //!   [`pick_package()`], and returns the

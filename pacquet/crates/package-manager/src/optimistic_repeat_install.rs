@@ -939,7 +939,7 @@ fn current_lockfile_file_has_content(virtual_store_dir: &Path) -> bool {
 /// participate in the comparison; the rest are listed at the end of
 /// this function with the reason each is safe to skip.
 ///
-/// pnpm's [`checkDepsStatus`](https://github.com/pnpm/pnpm/blob/20f9362161/deps/status/src/checkDepsStatus.ts#L138)
+/// pnpm's [`checkDepsStatus`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/deps/status/src/checkDepsStatus.ts#L223)
 /// iterates the full `WORKSPACE_STATE_SETTING_KEYS` list, reading a key
 /// absent from the recorded state as `undefined`. So the reverse
 /// scenario (pacquet wrote the state, pnpm reads it next) stays on the
@@ -952,7 +952,7 @@ fn current_lockfile_file_has_content(virtual_store_dir: &Path) -> bool {
 /// pacquet install. `enableGlobalVirtualStore` is `undefined` by
 /// default (concrete only under `--global`/CI), so pacquet's omit-when-
 /// off encoding already matches. The `allowBuilds` coercion mirrors
-/// pnpm's [`opts.allowBuilds ?? {}`](https://github.com/pnpm/pnpm/blob/20f9362161/deps/status/src/checkDepsStatus.ts#L143)
+/// pnpm's [`opts.allowBuilds ?? {}`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/deps/status/src/checkDepsStatus.ts#L228)
 /// on the read side and pnpm's tolerance of an absent `allowBuilds` key
 /// in the recorded state on the write side.
 fn settings_match(

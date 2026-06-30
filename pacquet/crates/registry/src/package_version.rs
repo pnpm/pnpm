@@ -48,7 +48,7 @@ pub struct PackageVersion {
     /// through an OIDC-backed trusted-publisher integration *and*
     /// shipped a provenance attestation, which together count as the
     /// higher (`trustedPublisher`) trust rank that upstream's
-    /// [`getTrustEvidence`](https://github.com/pnpm/pnpm/blob/fea5fd41da/resolving/npm-resolver/src/trustChecks.ts#L119-L127)
+    /// [`getTrustEvidence`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/resolving/npm-resolver/src/trustChecks.ts#L123-L134)
     /// checks before falling back to the `provenance` attestation
     /// rank. The publisher flag without provenance is ignored.
     ///

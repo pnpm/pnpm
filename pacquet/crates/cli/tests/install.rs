@@ -405,7 +405,7 @@ fn auto_install_peers_hoists_missing_peers_at_importer() {
 /// parser to the node's own child when that inherited parser carries a
 /// conflicting peer context.
 /// Mirrors the upstream coverage in
-/// [`installing/deps-installer/test/install/peerDependencies.ts`](https://github.com/pnpm/pnpm/blob/762e80be49/installing/deps-installer/test/install/peerDependencies.ts).
+/// [`installing/deps-installer/test/install/peerDependencies.ts`](https://github.com/pnpm/pnpm/blob/55ba310835/installing/deps-installer/test/install/peerDependencies.ts).
 #[test]
 fn peer_shared_through_a_diamond_is_resolved_consistently() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -1107,7 +1107,7 @@ fn resolution_mode_lowest_direct_picks_lowest_direct_version() {
 /// occurrences onto one (bare) snapshot.
 ///
 /// Mirrors the upstream end-to-end coverage in
-/// [`installing/deps-installer/test/install/peerDependencies.ts`](https://github.com/pnpm/pnpm/blob/4b07ee0228/installing/deps-installer/test/install/peerDependencies.ts).
+/// [`installing/deps-installer/test/install/peerDependencies.ts`](https://github.com/pnpm/pnpm/blob/6d17b669b4/installing/deps-installer/test/install/peerDependencies.ts).
 #[test]
 fn compatible_existing_peer_contexts_survive_writable_lockfile_regeneration() {
     // The binary is re-spawned per install via `new_pacquet_command`, so the

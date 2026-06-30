@@ -439,7 +439,7 @@ struct BfsEntry<'a> {
 /// `private_hoisted_modules_dir`), the stale symlink is replaced.
 /// External symlinks (or non-symlink occupants) are left in place.
 /// Mirrors upstream's `resolveLinkTarget` + `isSubdir` pattern in
-/// [`symlinkHoistedDependency`](https://github.com/pnpm/pnpm/blob/cbe1a171bd/installing/linking/hoist/src/index.ts#L310-L343).
+/// [`symlinkHoistedDependency`](https://github.com/pnpm/pnpm/blob/a6f303c2ff6ba83df17a47f10a0fe1d7ff8a083c/pnpm11/installing/linking/hoist/src/index.ts#L310-L343).
 ///
 /// Two-phase to amortize directory creation:
 ///
@@ -589,7 +589,7 @@ fn name_to_dir(name: &PkgName) -> std::path::PathBuf {
 /// symlinks (and non-symlink occupants) are left in place.
 ///
 /// Mirrors upstream's
-/// [`symlinkHoistedDependency`](https://github.com/pnpm/pnpm/blob/cbe1a171bd/installing/linking/hoist/src/index.ts#L310-L343)
+/// [`symlinkHoistedDependency`](https://github.com/pnpm/pnpm/blob/a6f303c2ff6ba83df17a47f10a0fe1d7ff8a083c/pnpm11/installing/linking/hoist/src/index.ts#L310-L343)
 /// `isSubdir(virtualStoreDir, …) || isSubdir(internalPnpmDir, …)` guard.
 /// The already-correct fast path skips the unlink + recreate churn (and
 /// the transient missing-link window it opens) on warm reinstalls, the

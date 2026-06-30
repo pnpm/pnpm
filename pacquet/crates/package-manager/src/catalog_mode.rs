@@ -3,7 +3,7 @@
 //! Ports both halves of pnpm's catalog-mode handling:
 //!
 //! - the **gate** in
-//!   [`installSome`](https://github.com/pnpm/pnpm/blob/6c65cb5c18/installing/deps-installer/src/install/index.ts#L793-L828):
+//!   [`installSome`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-installer/src/install/index.ts#L887-L922):
 //!   a direct version disagreeing with a matching `catalog:` entry is
 //!   rejected ([`CatalogMode::Strict`]) or kept with a warning
 //!   ([`CatalogMode::Prefer`]);
@@ -26,7 +26,7 @@ use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 /// Wanted dependency outside the version range defined in catalog.
 ///
 /// Ports pnpm's
-/// [`CatalogVersionMismatchError`](https://github.com/pnpm/pnpm/blob/6c65cb5c18/installing/deps-installer/src/install/checkCompatibility/CatalogVersionMismatchError.ts).
+/// [`CatalogVersionMismatchError`](https://github.com/pnpm/pnpm/blob/a6f303c2ff6ba83df17a47f10a0fe1d7ff8a083c/pnpm11/installing/deps-installer/src/install/checkCompatibility/CatalogVersionMismatchError.ts).
 /// Raised under [`CatalogMode::Strict`] when a direct `add` / `update`
 /// version disagrees with the matching catalog entry.
 #[derive(Debug, Display, Error, Diagnostic, Clone, PartialEq, Eq)]
@@ -174,7 +174,7 @@ fn versions_equal(lhs: &str, rhs: &str) -> bool {
 /// The catalog group a dependency belongs to: a previous `catalog:<name>`
 /// specifier pins the named group; otherwise the global `--save-catalog-name`,
 /// falling back to the default catalog. Mirrors pnpm's
-/// [`getPerDepCatalogName`](https://github.com/pnpm/pnpm/blob/6c65cb5c18/installing/deps-installer/src/install/index.ts#L1223-L1234).
+/// [`getPerDepCatalogName`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-installer/src/install/index.ts#L1325-L1336).
 fn per_dep_catalog_name<'a>(
     prev_specifier: Option<&'a str>,
     save_catalog_name: Option<&'a str>,

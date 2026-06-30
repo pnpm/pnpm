@@ -124,12 +124,12 @@ pub fn hoist_peers(
 /// Pick an installable version for each missing optional peer, but only
 /// when at least one preferred version satisfies *every* recorded range.
 /// Returns `peer_name → version`. Mirrors pnpm's
-/// [`getHoistableOptionalPeers`](https://github.com/pnpm/pnpm/blob/a1bda24c4f/installing/deps-resolver/src/hoistPeers.ts#L67-L91).
+/// [`getHoistableOptionalPeers`](https://github.com/pnpm/pnpm/blob/a6f303c2ff6ba83df17a47f10a0fe1d7ff8a083c/pnpm11/installing/deps-resolver/src/hoistPeers.ts#L67-L91).
 ///
 /// Version selectors may be plain entries
-/// [produced while resolving](https://github.com/pnpm/pnpm/blob/a1bda24c4f/installing/deps-resolver/src/resolveDependencies.ts#L1439-L1444)
+/// [produced while resolving](https://github.com/pnpm/pnpm/blob/c5d9d3a8f3/installing/deps-resolver/src/resolveDependencies.ts#L1439-L1444)
 /// or weighted entries
-/// [seeded from the wanted lockfile](https://github.com/pnpm/pnpm/blob/a1bda24c4f/lockfile/preferred-versions/src/index.ts#L35-L55).
+/// [seeded from the wanted lockfile](https://github.com/pnpm/pnpm/blob/a6f303c2ff6ba83df17a47f10a0fe1d7ff8a083c/pnpm11/lockfile/preferred-versions/src/index.ts#L35-L55).
 /// Both are eligible so an already locked optional peer is not discarded
 /// during re-resolution.
 #[must_use]

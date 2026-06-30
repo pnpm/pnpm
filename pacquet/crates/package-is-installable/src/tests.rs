@@ -4,7 +4,7 @@
 //! - `config/package-is-installable/test/inferPlatformFromPackageName.ts`
 //!
 //! All live under
-//! <https://github.com/pnpm/pnpm/tree/34875b2d7c/config/package-is-installable/test>.
+//! <https://github.com/pnpm/pnpm/tree/a6f303c2ff6ba83df17a47f10a0fe1d7ff8a083c/pnpm11/config/package-is-installable/test>.
 
 mod check_engine;
 mod check_platform;

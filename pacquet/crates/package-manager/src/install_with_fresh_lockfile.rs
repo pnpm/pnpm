@@ -563,7 +563,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
 
         // One per-cache-key packument fetch serializer shared between
         // the npm and named-registry resolvers. Ports upstream's
-        // [`metafileOperationLimits`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L42-L44):
+        // [`metafileOperationLimits`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/npm-resolver/src/pickPackage.ts#L42-L44):
         // concurrent picks for the same `(registry, name)` coalesce
         // into a single network fetch instead of firing N parallel
         // HTTP GETs queued behind the `ThrottledClient` semaphore.

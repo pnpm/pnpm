@@ -1208,7 +1208,7 @@ fn empty_package_extensions_map_collapses_to_none() {
 
 /// `hoistingLimits` deserializes as one of the `none` / `workspaces`
 /// / `dependencies` modes. Mirrors upstream's
-/// [`HoistingLimits`](https://github.com/pnpm/pnpm/blob/89812a9353/installing/linking/real-hoist/src/index.ts)
+/// [`HoistingLimits`](https://github.com/pnpm/pnpm/blob/a6f303c2ff6ba83df17a47f10a0fe1d7ff8a083c/pnpm11/installing/linking/real-hoist/src/index.ts)
 /// shape; the install pipeline translates the mode into the
 /// per-locator border map via `pacquet_package_manager::get_hoisting_limits`.
 /// Yaml-empty / missing keeps the `Config` field at its

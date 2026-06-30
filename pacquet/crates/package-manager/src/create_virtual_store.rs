@@ -706,7 +706,7 @@ impl CreateVirtualStore<'_> {
         // here so both the warm and cold `SlotLink` batches can borrow
         // it. Mirrors the `removedAliases` upstream derives in
         // `getChangedChildren` at
-        // <https://github.com/pnpm/pnpm/blob/5e47dd5e59/installing/deps-installer/src/install/link.ts#L611-L615>.
+        // <https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-installer/src/install/link.ts#L634-L638>.
         let removed_aliases_by_key: HashMap<PackageKey, Vec<PkgName>> = match current_snapshots {
             Some(current_snapshots) => snapshot_entries
                 .iter()

@@ -717,7 +717,7 @@ async fn fetch_latest(
 /// `preserveWorkspaceProtocol`, which is always on under `update --latest`
 /// (the override that derives it from `linkWorkspacePackages` only runs under
 /// `--workspace`, and `--workspace` cannot be combined with `--latest`).
-/// Mirrors [`isWorkspaceLocalPathSpecifier`](https://github.com/pnpm/pnpm/blob/fddb8a4032/installing/deps-resolver/src/updateProjectManifest.ts#L72-L76).
+/// Mirrors [`isWorkspaceLocalPathSpecifier`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-resolver/src/updateProjectManifest.ts#L76-L80).
 pub(crate) fn is_workspace_local_path_specifier(bare_specifier: &str) -> bool {
     let Some(pref) = bare_specifier.strip_prefix("workspace:") else {
         return false;

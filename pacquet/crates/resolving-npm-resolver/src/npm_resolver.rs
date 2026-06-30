@@ -5,7 +5,7 @@
 //! npm-shaped dependencies through it.
 //!
 //! Mirrors upstream's
-//! [`createNpmResolver` → `resolveNpm`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/index.ts#L192-L611)
+//! [`createNpmResolver` → `resolveNpm`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/npm-resolver/src/index.ts#L192-L611)
 //! pair: the struct owns the registry config + network handles + meta
 //! cache; the trait implementation parses the bare specifier, picks a
 //! version, and maps the result to [`ResolveResult`].
@@ -75,7 +75,7 @@ const NPM_REGISTRY_RESOLVED_VIA: &str = "npm-registry";
 /// npm-registry resolver.
 ///
 /// One instance per install. Mirrors upstream's
-/// [`createNpmResolver`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/index.ts#L192-L289)
+/// [`createNpmResolver`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/npm-resolver/src/index.ts#L192-L289)
 /// factory return value: registries map, named-registry overrides,
 /// throttled HTTP client, auth-header table, on-disk metadata mirror
 /// root, and the install-shared metadata cache the picker reads
@@ -374,7 +374,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
     }
 
     /// Latest-version companion. Mirrors upstream's
-    /// [`createResolveLatest`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/index.ts#L323-L353)
+    /// [`createResolveLatest`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/npm-resolver/src/index.ts#L323-L353)
     /// closure: feed `wanted.bareSpecifier ?? 'latest'` plus
     /// `update: 'latest'` (or the original opts under `compatible`) back
     /// through `resolve`, then return the picked manifest.
@@ -491,7 +491,7 @@ fn workspace_fallback_options(opts: &ResolveOptions) -> ResolveFromWorkspaceOpti
 
 /// `bare_specifier` is absent but `alias` is present: synthesize a tag
 /// spec pointing at the default tag, mirroring upstream's
-/// [`defaultTagForAlias`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/index.ts#L1000-L1006).
+/// [`defaultTagForAlias`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/npm-resolver/src/index.ts#L1000-L1006).
 fn default_tag_spec(alias: &str, default_tag: &str) -> RegistryPackageSpec {
     RegistryPackageSpec {
         name: alias.to_string(),
@@ -737,7 +737,7 @@ pub(crate) fn build_resolve_result(
 /// full packument the picker fetched (forced to full metadata under
 /// this policy by the install layer) and propagates a downgrade as a
 /// hard [`ResolveError`]. Mirrors upstream's resolver-time
-/// [`failIfTrustDowngraded`](https://github.com/pnpm/pnpm/blob/372cae6a55/resolving/npm-resolver/src/index.ts#L548-L550)
+/// [`failIfTrustDowngraded`](https://github.com/pnpm/pnpm/blob/74dd8ba6e5/resolving/npm-resolver/src/index.ts#L548-L550)
 /// call.
 fn fail_if_trust_downgraded_for_pick(
     opts: &ResolveOptions,
@@ -758,7 +758,7 @@ fn fail_if_trust_downgraded_for_pick(
 /// Resolver-time `minimumReleaseAge` check. Returns a violation entry
 /// when the picked version's publish timestamp falls past the policy
 /// cutoff and isn't excluded by name/version. Mirrors upstream's
-/// [`detectMinReleaseAgeViolation`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/index.ts#L1023-L1044).
+/// [`detectMinReleaseAgeViolation`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/npm-resolver/src/index.ts#L1023-L1044).
 fn detect_min_release_age_violation(
     name: &PkgName,
     version: &str,

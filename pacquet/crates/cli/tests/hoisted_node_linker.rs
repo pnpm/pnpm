@@ -275,7 +275,7 @@ fn installing_in_a_workspace_with_hoisted_node_linker_frozen() {
     drop((root, mock_instance));
 }
 
-/// Upstream: [`install.ts:229` "hoistingLimits should prevent packages to be hoisted"](https://github.com/pnpm/pnpm/blob/89812a9353/installing/deps-installer/test/hoistedNodeLinker/install.ts#L229).
+/// Upstream: [`install.ts:229` "hoistingLimits should prevent packages to be hoisted"](https://github.com/pnpm/pnpm/blob/a6f303c2ff6ba83df17a47f10a0fe1d7ff8a083c/pnpm11/installing/deps-installer/test/hoistedNodeLinker/install.ts#L229).
 ///
 /// `hoistingLimits: dependencies` borders each direct dependency, so
 /// `send`'s transitive `ms` stays nested under `send` instead of

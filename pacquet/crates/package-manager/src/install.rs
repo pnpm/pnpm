@@ -790,7 +790,7 @@ where
         // regenerates `pnpm-lock.yaml` from the synthesized object. Mirrors
         // pnpm's `installing/context/src/readLockfiles.ts` clone of
         // `currentLockfile` into the wanted slot at
-        // <https://github.com/pnpm/pnpm/blob/8a2146b7be/installing/context/src/readLockfiles.ts#L125-L138>.
+        // <https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/context/src/readLockfiles.ts#L131-L144>.
         let synthesized_lockfile: Option<Lockfile> =
             if lockfile.is_none() && !frozen_lockfile && prefer_frozen_lockfile {
                 current_lockfile.as_ref().and_then(|current| {

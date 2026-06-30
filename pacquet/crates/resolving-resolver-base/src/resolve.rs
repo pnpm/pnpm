@@ -336,7 +336,7 @@ pub struct ResolveOptions {
     /// evidence is weaker than an earlier-published version's — the
     /// resolver-time counterpart to the lockfile verifier's check.
     /// `None`/`Some(Off)` disables it. Mirrors pnpm's resolver-time
-    /// [`failIfTrustDowngraded`](https://github.com/pnpm/pnpm/blob/372cae6a55/resolving/npm-resolver/src/index.ts#L548-L550)
+    /// [`failIfTrustDowngraded`](https://github.com/pnpm/pnpm/blob/74dd8ba6e5/resolving/npm-resolver/src/index.ts#L548-L550)
     /// call, gated on `opts.trustPolicy === 'no-downgrade'`.
     pub trust_policy: Option<TrustPolicy>,
     /// Per-package exclude policy for the trust gate. `None` applies
