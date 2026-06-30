@@ -24,8 +24,15 @@ fn config_from_yaml(packages_block: &str) -> (TempDir, Config) {
     let dir = TempDir::new().unwrap();
     let storage = dir.path().join("storage");
     std::fs::create_dir_all(&storage).unwrap();
+    // Route everything to one local hosted-org over the flat storage root (an
+    // empty `org` namespace), so the path-less base resolves and the per-package
+    // ACL in `packages_block` gates the request.
+    let mounts_block = "mounts:\n  \
+        local:\n    hostedOrg:\n      org: \"\"\n      access: $all\n  \
+        main:\n    router:\n      routes:\n        - patterns: ['**']\n          source: local\n\
+        defaultTarget: main\n";
     let yaml = format!(
-        "storage: {}\nuplinks: {{}}\nauth:\n  htpasswd:\n    max_users: 100\n{packages_block}\n",
+        "storage: {}\nauth:\n  htpasswd:\n    max_users: 100\n{mounts_block}{packages_block}\n",
         storage.display(),
     );
     let path = dir.path().join("config.yaml");

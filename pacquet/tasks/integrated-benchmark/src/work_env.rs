@@ -1614,59 +1614,49 @@ fn write_pnpr_benchmark_config(
     path
 }
 
-/// A minimal verdaccio-shaped config for the cold mock: isolated `storage` and
-/// a single `**` proxy uplink at the warm origin, with public reads needing no
-/// auth (matching the bundled mock config).
+/// A minimal mount-model config for the cold mock: isolated `storage` and a
+/// single public upstream mount at the warm origin, aliased by the path-less
+/// base so every request proxies through to it.
 fn cold_mock_config_yaml(storage: &Path, origin: &str) -> String {
     let config = ColdMockConfig {
         storage: storage.display().to_string(),
-        uplinks: ColdMockUplinks { npmjs: ColdMockUplink { url: origin.to_string() } },
-        packages: ColdMockPackages {
-            all: ColdMockPackage {
-                access: "$all",
-                publish: "$authenticated",
-                unpublish: "$authenticated",
-                proxy: "npmjs",
+        mounts: ColdMockMounts {
+            npmjs: ColdMockMount {
+                upstream: ColdMockUpstream { url: origin.to_string(), public: true },
             },
         },
+        default_target: "npmjs",
         log: ColdMockLog { kind: "stdout", format: "pretty", level: "error" },
     };
     serde_saphyr::to_string(&config).expect("serialize cold mock config")
 }
 
-/// A minimal verdaccio-shaped config for the cold mock, serialized rather than
+/// A minimal mount-model config for the cold mock, serialized rather than
 /// string-formatted so the `storage` path and `origin` URL are escaped and the
 /// structure can't drift.
 #[derive(Serialize)]
 struct ColdMockConfig {
     storage: String,
-    uplinks: ColdMockUplinks,
-    packages: ColdMockPackages,
+    mounts: ColdMockMounts,
+    #[serde(rename = "defaultTarget")]
+    default_target: &'static str,
     log: ColdMockLog,
 }
 
 #[derive(Serialize)]
-struct ColdMockUplinks {
-    npmjs: ColdMockUplink,
+struct ColdMockMounts {
+    npmjs: ColdMockMount,
 }
 
 #[derive(Serialize)]
-struct ColdMockUplink {
+struct ColdMockMount {
+    upstream: ColdMockUpstream,
+}
+
+#[derive(Serialize)]
+struct ColdMockUpstream {
     url: String,
-}
-
-#[derive(Serialize)]
-struct ColdMockPackages {
-    #[serde(rename = "**")]
-    all: ColdMockPackage,
-}
-
-#[derive(Serialize)]
-struct ColdMockPackage {
-    access: &'static str,
-    publish: &'static str,
-    unpublish: &'static str,
-    proxy: &'static str,
+    public: bool,
 }
 
 #[derive(Serialize)]

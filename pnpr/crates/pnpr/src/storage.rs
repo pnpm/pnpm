@@ -4,7 +4,6 @@ use crate::{
     package_name::PackageName,
     s3::S3Store,
     streaming,
-    upstream::{CacheValidators, ValidatorsByUplink},
 };
 use axum::body::Body;
 use std::{
@@ -23,13 +22,6 @@ use tokio::{
 
 const PACKUMENT_FILE: &str = "package.json";
 
-/// Sidecar holding the cached packument's conditional-GET validators
-/// (see [`CacheValidators`]). Lives next to [`PACKUMENT_FILE`] in the
-/// disposable cache store only; hosted packuments have no upstream to
-/// revalidate against. The leading dot keeps it out of the
-/// package-listing walk and any static-serve view.
-const PACKUMENT_META_FILE: &str = ".package.json.meta";
-
 /// Per-process counter feeding [`unique_tmp_path`] so two concurrent
 /// writes to the same path don't collide on the same temp filename.
 /// Combined with the pid and random suffix, the rename is still atomic
@@ -37,7 +29,7 @@ const PACKUMENT_META_FILE: &str = ".package.json.meta";
 static TMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 const MAX_TEMP_CREATE_ATTEMPTS: usize = 16;
 
-/// Handle returned from [`Storage::open_cached_tarball_tmp`]. The caller
+/// Handle returned from [`Storage::open_uplink_tarball_tmp`]. The caller
 /// writes through [`Self::write_all`] (and on success calls [`Self::finalize`] to
 /// atomically promote the temp file to the final cache path). The temp
 /// path remains armed until promotion succeeds, so cancellation and
@@ -144,20 +136,17 @@ impl Drop for TarballWrite {
     }
 }
 
-/// A cached upstream packument, read at a granularity that avoids loading
-/// the (potentially multi-MB) body when it isn't needed:
+/// A cached upstream packument, read at a granularity that avoids loading the
+/// (potentially multi-MB) body when it isn't needed:
 ///
 /// * `Fresh` — within the TTL; the body is read and ready to serve.
-/// * `Stale` — past the TTL; only the small conditional-GET validators
-///   (one set per uplink in the package's fallback chain) are loaded. The
-///   body is left on disk and pulled on demand by the caller (via
-///   [`Storage::read_cached_packument`]) only if the upstream answers `304`
-///   or is unreachable — the common stale→`200` refresh discards the old
-///   body, so it's never read.
+/// * `Stale` — past the TTL. The body is left on disk; a per-mount cache
+///   refetches a stale entry rather than revalidating it, so the caller treats
+///   `Stale` as a miss.
 #[derive(Debug)]
 pub enum CachedPackument {
     Fresh(Vec<u8>),
-    Stale(ValidatorsByUplink),
+    Stale,
 }
 
 /// Verdaccio-shaped storage split into two stores with different
@@ -276,6 +265,16 @@ impl HostedStore {
             HostedStore::S3(store) => store.list_package_names().await,
         }
     }
+
+    /// A view rooted under `segment`, giving a hosted-org mount its own
+    /// storage namespace so two orgs hosting the same `name@version` never
+    /// collide on disk (or on object keys).
+    fn namespaced(&self, segment: &str) -> HostedStore {
+        match self {
+            HostedStore::Fs(store) => HostedStore::Fs(store.namespaced(segment)),
+            HostedStore::S3(store) => HostedStore::S3(store.namespaced(segment)),
+        }
+    }
 }
 
 impl Storage {
@@ -299,6 +298,17 @@ impl Storage {
     /// indexes hosted/static packages only, never the proxy mirror).
     pub async fn hosted_package_names(&self) -> Result<Vec<String>> {
         self.hosted.list_package_names().await
+    }
+
+    /// A view whose hosted store is namespaced under `org`, so a hosted-org
+    /// mount's packages live in their own storage namespace — two orgs hosting
+    /// the same `name@version` can't collide. The disposable proxy cache is
+    /// shared (org mounts never touch it). Used by hosted-org serving and the
+    /// org-routed publish flow; the flat (un-namespaced) store remains the
+    /// legacy path-less hosted surface.
+    #[must_use]
+    pub fn for_hosted_org(&self, org: &str) -> Storage {
+        Storage { hosted: self.hosted.namespaced(org), cached: self.cached.clone() }
     }
 
     // --- Authoritative (hosted) store -----------------------------------
@@ -357,75 +367,6 @@ impl Storage {
         Ok(hosted || cached)
     }
 
-    // --- Disposable (proxy) cache store ---------------------------------
-
-    /// Classify the cached upstream packument against `ttl`: a
-    /// [`CachedPackument::Fresh`] entry comes back with its body ready to
-    /// serve; a [`CachedPackument::Stale`] one comes back with only its
-    /// validators, deferring the (possibly large) body read to the caller
-    /// via [`Self::read_cached_packument`]. Returns `Ok(None)` when
-    /// nothing is cached.
-    pub async fn read_cached_packument_entry(
-        &self,
-        name: &PackageName,
-        ttl: Duration,
-    ) -> Result<Option<CachedPackument>> {
-        self.cached.read_packument_entry(name, ttl).await
-    }
-
-    /// Read whatever cached upstream packument is on disk, fresh or
-    /// stale. Used when there's no upstream left to revalidate against.
-    pub async fn read_cached_packument(&self, name: &PackageName) -> Result<Option<Vec<u8>>> {
-        self.cached.read_packument_any_age(name).await
-    }
-
-    /// Write a cached upstream packument, recording **only** `uplink`'s
-    /// validators (the origin of these bytes) and refreshing the entry's
-    /// freshness. Called both on a fresh upstream body and on a `304`
-    /// revalidation (re-written with the unchanged bytes to bump the mtime).
-    ///
-    /// The validator map is *replaced*, not merged: the cache holds a single
-    /// shared packument body, so it must carry validators for exactly the
-    /// uplink that fetched that body. If validators from other uplinks
-    /// survived here, a later `304` from one of them would revalidate *these*
-    /// bytes — which that uplink never served — and we'd keep serving another
-    /// origin's body under its confirmation. Scoping validators to the body's
-    /// origin guarantees a conditional GET only ever goes to that origin, so a
-    /// `304` can only confirm the body actually on disk.
-    pub async fn write_cached_packument(
-        &self,
-        name: &PackageName,
-        bytes: &[u8],
-        uplink: &str,
-        validators: &CacheValidators,
-    ) -> Result<()> {
-        let mut map = ValidatorsByUplink::default();
-        map.set(uplink, validators.clone());
-        self.cached.write_packument_with_meta(name, bytes, &map).await
-    }
-
-    /// Create and open a per-request temp file for a proxied tarball.
-    /// The caller streams bytes into [`TarballWrite::file`] and calls
-    /// [`TarballWrite::finalize`] (or [`TarballWrite::abandon`]) when
-    /// the upstream response ends.
-    pub async fn open_cached_tarball_tmp(
-        &self,
-        name: &PackageName,
-        filename: &str,
-    ) -> Result<TarballWrite> {
-        self.cached.open_tarball_tmp(name, filename).await
-    }
-
-    /// Open a raw proxy-cache tarball so the caller can verify it before
-    /// constructing a response body.
-    pub async fn open_cached_tarball(
-        &self,
-        name: &PackageName,
-        filename: &str,
-    ) -> Result<Option<(fs::File, u64)>> {
-        self.cached.open_tarball(name, filename).await
-    }
-
     // --- Per-uplink private cache (the `/~<uplink>/` registry endpoint) ----
     //
     // A private uplink's packuments and tarballs are cached under a namespace
@@ -445,7 +386,7 @@ impl Storage {
     ) -> Result<Option<Vec<u8>>> {
         match self.cached.namespaced(namespace).read_packument_entry(name, ttl).await? {
             Some(CachedPackument::Fresh(bytes)) => Ok(Some(bytes)),
-            Some(CachedPackument::Stale(_)) | None => Ok(None),
+            Some(CachedPackument::Stale) | None => Ok(None),
         }
     }
 
@@ -463,7 +404,7 @@ impl Storage {
         // is returned regardless of age (the stale arm can't be reached here).
         match self.cached.namespaced(namespace).read_packument_entry(name, Duration::MAX).await? {
             Some(CachedPackument::Fresh(bytes)) => Ok(Some(bytes)),
-            Some(CachedPackument::Stale(_)) | None => Ok(None),
+            Some(CachedPackument::Stale) | None => Ok(None),
         }
     }
 
@@ -550,18 +491,7 @@ impl Store {
         } else {
             // Stale: load only the validators for the conditional refetch.
             // The body is read later, on demand, and only if needed.
-            Ok(Some(CachedPackument::Stale(self.read_validators(name).await)))
-        }
-    }
-
-    /// Best-effort read of the validator sidecar. A missing, unreadable, or
-    /// malformed sidecar — including an older single-object sidecar written
-    /// before the per-uplink map shape — yields an empty map so the next
-    /// refresh falls back to an unconditional GET rather than failing.
-    async fn read_validators(&self, name: &PackageName) -> ValidatorsByUplink {
-        match fs::read(self.packument_meta_path(name)).await {
-            Ok(bytes) => serde_json::from_slice(&bytes).unwrap_or_default(),
-            Err(_) => ValidatorsByUplink::default(),
+            Ok(Some(CachedPackument::Stale))
         }
     }
 
@@ -577,31 +507,6 @@ impl Store {
     async fn write_packument(&self, name: &PackageName, bytes: &[u8]) -> Result<()> {
         let path = self.packument_path(name);
         write_atomic(&path, bytes).await
-    }
-
-    /// Write the packument and persist (or clear) its validator sidecar.
-    /// The packument is written first so a sidecar never points at bytes
-    /// that aren't on disk yet. When `validators` is empty the sidecar is
-    /// removed, so a later read can't replay a stale `ETag` against fresh
-    /// bytes that no longer carry one.
-    async fn write_packument_with_meta(
-        &self,
-        name: &PackageName,
-        bytes: &[u8],
-        validators: &ValidatorsByUplink,
-    ) -> Result<()> {
-        write_atomic(&self.packument_path(name), bytes).await?;
-        let meta_path = self.packument_meta_path(name);
-        if validators.is_empty() {
-            match fs::remove_file(&meta_path).await {
-                Ok(()) => {}
-                Err(err) if err.kind() == ErrorKind::NotFound => {}
-                Err(err) => return Err(err.into()),
-            }
-        } else {
-            write_atomic(&meta_path, &serde_json::to_vec(validators)?).await?;
-        }
-        Ok(())
     }
 
     async fn open_tarball(
@@ -744,10 +649,6 @@ impl Store {
 
     fn packument_path(&self, name: &PackageName) -> PathBuf {
         self.package_dir(name).join(PACKUMENT_FILE)
-    }
-
-    fn packument_meta_path(&self, name: &PackageName) -> PathBuf {
-        self.package_dir(name).join(PACKUMENT_META_FILE)
     }
 
     fn tarball_path(&self, name: &PackageName, filename: &str) -> PathBuf {

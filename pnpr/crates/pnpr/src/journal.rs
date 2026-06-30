@@ -63,6 +63,12 @@ struct Manifest {
 #[derive(Debug, Serialize, Deserialize)]
 struct ManifestPackage {
     name: String,
+    /// Hosted-org storage namespace this package publishes into, or `None` for
+    /// the flat (path-less) hosted store. Recovery namespaces the roll-forward
+    /// by it so a crash mid-commit promotes into the right org. Defaulted for
+    /// back-compat with journals written before org mounts existed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    org: Option<String>,
     /// File inside the transaction directory holding the merged
     /// packument bytes.
     packument_file: String,
@@ -81,6 +87,8 @@ struct ManifestTarball {
 /// handler's staged state.
 pub struct JournaledPublish<'a> {
     pub name: &'a PackageName,
+    /// Hosted-org storage namespace, or `None` for the flat hosted store.
+    pub org: Option<&'a str>,
     pub packument: &'a [u8],
     pub slots: &'a [TarballSlot],
 }
@@ -116,6 +124,7 @@ impl PublishJournal {
             write_synced(&dir.join(&packument_file), package.packument).await?;
             manifest.packages.push(ManifestPackage {
                 name: package.name.as_str().to_string(),
+                org: package.org.map(str::to_string),
                 packument_file,
                 tarballs: package
                     .slots
@@ -212,6 +221,13 @@ async fn roll_forward(storage: &Storage, dir: &Path) -> Result<()> {
     let manifest: Manifest = serde_json::from_slice(&fs::read(dir.join(MANIFEST_FILE)).await?)?;
     for package in &manifest.packages {
         let name = PackageName::parse(&package.name)?;
+        // Roll forward into the package's hosted-org namespace (or the flat
+        // store when it has none), so a crash mid-commit promotes the staged
+        // tarballs and packument into exactly the store the publish targeted.
+        let store = match &package.org {
+            Some(org) => storage.for_hosted_org(org),
+            None => storage.clone(),
+        };
         for tarball in &package.tarballs {
             // A missing tmp file was already promoted before the crash, so
             // skip it. But never read an I/O error as "missing": that would
@@ -225,20 +241,19 @@ async fn roll_forward(storage: &Storage, dir: &Path) -> Result<()> {
                     name.clone(),
                     tarball.filename.clone(),
                 );
-                storage.finalize_tarball_slot(slot).await?;
+                store.finalize_tarball_slot(slot).await?;
             }
         }
         let journaled: serde_json::Value =
             serde_json::from_slice(&fs::read(dir.join(&package.packument_file)).await?)?;
-        let existing: Option<serde_json::Value> = match storage.read_hosted_packument(&name).await?
-        {
+        let existing: Option<serde_json::Value> = match store.read_hosted_packument(&name).await? {
             Some(bytes) => Some(serde_json::from_slice(&bytes)?),
             None => None,
         };
         // `existing` is the hosted packument here, so it is also the
         // immutability reference.
         let merged = merge_manifest(existing.as_ref(), &journaled, existing.as_ref(), &now_iso());
-        storage.write_hosted_packument(&name, &serde_json::to_vec_pretty(&merged)?).await?;
+        store.write_hosted_packument(&name, &serde_json::to_vec_pretty(&merged)?).await?;
     }
     fs::remove_dir_all(dir).await?;
     Ok(())

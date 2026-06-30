@@ -1,5 +1,6 @@
 use crate::{
     error::RegistryError,
+    mount::{MountConfigError, MountKind, Mounts, PackagePattern, Route},
     policy::{AccessGroups, AccessList, Identity, PackagePolicies, PackagePolicy},
     s3::{S3Settings, build_s3_store},
 };
@@ -70,8 +71,9 @@ pub struct Config {
     /// [`Self::storage`]; set the YAML `cache:` key (or `--cache`) to
     /// an absolute path to put it on separate, ephemeral disk.
     pub cache_storage: PathBuf,
-    /// Named upstream npm registries. Referenced by name from
-    /// [`PackageAccess::proxy`].
+    /// Upstream-mount backends, keyed by mount id. Built from the `mounts:`
+    /// `upstream` entries and consumed by the `/~<mount>/` serving and route
+    /// classification.
     pub uplinks: IndexMap<String, UplinkConfig>,
     /// Package routing rules, evaluated in declared order. The first
     /// pattern that matches a requested package supplies its
@@ -136,6 +138,30 @@ pub struct Config {
     /// 32-byte value from the OS CSPRNG at startup (private entries then
     /// live only for this process's lifetime).
     pub resolution_cache_secret: Arc<[u8]>,
+    /// The validated registry-mount routing graph: every addressable origin
+    /// (`/~<mount>/`) plus the optional path-less default target. Concrete
+    /// upstream mounts are backed by [`Self::uplinks`]; hosted-org mounts by
+    /// [`Self::hosted_orgs`]; routers map package patterns to one of those.
+    /// Built and validated at config load — a misordered or self-referential
+    /// router fails startup rather than serving the wrong origin.
+    pub mounts: Mounts,
+    /// Hosted-organization mounts, keyed by mount id. Each owns an `org`
+    /// storage/serving namespace and an access policy gating that org's
+    /// packages. The only mount kind that accepts writes.
+    pub hosted_orgs: IndexMap<String, HostedOrgConfig>,
+}
+
+/// A resolved hosted-organization mount: the org identity it serves and the
+/// access policy applied to every package under it. Per-package ACLs in
+/// [`Config::policies`] compose on top (logical AND) for finer control.
+#[derive(Debug, Clone)]
+pub struct HostedOrgConfig {
+    /// The organization identity. Doubles as the storage/serving namespace so
+    /// two orgs hosting the same `name@version` never collide.
+    pub org: String,
+    /// Who may read this org's packages. Defaults to `$all` (a public hosted
+    /// org) when the mount omits `access:`.
+    pub access: AccessList,
 }
 
 /// Which fetch routes the resolution cache treats as public. The official
@@ -804,18 +830,17 @@ fn non_empty_token(token: &str) -> Option<String> {
     (!token.trim().is_empty()).then(|| token.to_string())
 }
 
-/// Per-package routing and access rules. `access` / `publish` /
-/// `unpublish` are verdaccio permission lists (built-in groups like
-/// `$all` / `$authenticated` / `$anonymous`, plus usernames / group
-/// names), compiled into the [`PackagePolicies`] that gate reads and
-/// writes. `proxy` names the uplinks to fall back through, in order
-/// (`proxy: npmjs private`); see [`Config::resolve_uplinks`].
+/// Per-package access rules: `access` / `publish` / `unpublish` are verdaccio
+/// permission lists (built-in groups like `$all` / `$authenticated` /
+/// `$anonymous`, plus usernames / group names), compiled into the
+/// [`PackagePolicies`] that gate reads and writes. These are an access-control
+/// layer only — routing a package to its origin is the job of the mount graph
+/// (the `mount` module), not of `packages:`.
 #[derive(Debug, Default, Clone, Deserialize)]
 pub struct PackageAccess {
     pub access: Option<AccessSpec>,
     pub publish: Option<AccessSpec>,
     pub unpublish: Option<AccessSpec>,
-    pub proxy: Option<AccessSpec>,
 }
 
 /// A YAML string-or-list value. Verdaccio accepts either a single
@@ -871,6 +896,78 @@ struct PublicRouteFile {
     package: Option<String>,
 }
 
+/// Disk shape of one `mounts:` entry. Exactly one of the three mount kinds
+/// must be set; declaring none or more than one is a config error.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct MountFile {
+    #[serde(default)]
+    hosted_org: Option<HostedOrgFile>,
+    #[serde(default)]
+    upstream: Option<UpstreamFile>,
+    #[serde(default)]
+    router: Option<RouterFile>,
+}
+
+/// Disk shape of a `hostedOrg:` mount.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct HostedOrgFile {
+    org: String,
+    /// Who may read this org's packages. Omitted ⇒ `$all`.
+    #[serde(default)]
+    access: Option<AccessSpec>,
+}
+
+/// Disk shape of an `upstream:` mount — one external origin. Mirrors an
+/// uplink's tuning knobs plus `public` (an anonymous, no-credential origin)
+/// and `access` (which pnpr callers may reach a private one).
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct UpstreamFile {
+    url: String,
+    /// An anonymous, world-readable origin (e.g. the public npm registry).
+    /// Mutually exclusive with `auth`.
+    #[serde(default)]
+    public: bool,
+    #[serde(default)]
+    auth: Option<UplinkAuthFile>,
+    #[serde(default)]
+    headers: IndexMap<String, String>,
+    #[serde(default)]
+    maxage: Option<Interval>,
+    #[serde(default)]
+    timeout: Option<Interval>,
+    #[serde(default)]
+    max_fails: Option<u32>,
+    #[serde(default)]
+    fail_timeout: Option<Interval>,
+    #[serde(default)]
+    cache: Option<bool>,
+    /// Which pnpr callers may reach this mount at `/~<mount>/`. Required for a
+    /// non-`public` upstream (otherwise no one could be authorized to use it).
+    #[serde(default)]
+    access: Option<AccessSpec>,
+}
+
+/// Disk shape of a `router:` mount.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RouterFile {
+    #[serde(default)]
+    routes: Vec<RouteFile>,
+}
+
+/// Disk shape of one router route: package-name patterns mapped to a single
+/// concrete source mount.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RouteFile {
+    #[serde(default)]
+    patterns: Vec<String>,
+    source: String,
+}
+
 /// Disk shape of the YAML file. Fields verdaccio supports but
 /// pnpr doesn't (`auth`, `web`, `plugins`, `middlewares`,
 /// `logs`, `secret`) are accepted and silently dropped via
@@ -907,8 +1004,15 @@ struct ConfigFile {
     registry: Option<FeatureFile>,
     #[serde(default)]
     resolver: Option<FeatureFile>,
+    /// pnpr registry mounts: hosted-org, upstream, and router origins, each
+    /// exposed at `/~<mount>/`. The only routing surface — there is no legacy
+    /// `uplinks:`/`packages: proxy:` fallback.
     #[serde(default)]
-    uplinks: IndexMap<String, UplinkFile>,
+    mounts: IndexMap<String, MountFile>,
+    /// The mount the path-less base URL aliases. Absent ⇒ the bare host has no
+    /// registry and clients must address a `/~<mount>/`.
+    #[serde(default, rename = "defaultTarget")]
+    default_target: Option<String>,
     #[serde(default)]
     packages: IndexMap<String, PackageAccess>,
     /// pnpr-only static groups: each key is a group/team name and each
@@ -1049,13 +1153,11 @@ impl Config {
             "npmjs".to_string(),
             UplinkConfig::with_defaults("https://registry.npmjs.org".to_string(), HeaderMap::new()),
         );
-        let mut packages = IndexMap::new();
-        packages.insert(
-            "**".to_string(),
-            PackageAccess {
-                proxy: Some(AccessSpec::One("npmjs".to_string())),
-                ..Default::default()
-            },
+        // One public upstream mount (`npmjs`) aliased by the path-less base via
+        // the default target — so the bare host proxies everything to npmjs.
+        let mounts = Mounts::new(
+            std::iter::once(("npmjs".to_string(), MountKind::Upstream)).collect(),
+            Some("npmjs".to_string()),
         );
         Self {
             listen,
@@ -1063,7 +1165,7 @@ impl Config {
             cache_storage: default_cache_dir(&storage),
             storage,
             uplinks,
-            packages,
+            packages: IndexMap::new(),
             groups: AccessGroups::default(),
             packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
             policies: PackagePolicies::registry_mock_defaults(),
@@ -1076,13 +1178,35 @@ impl Config {
             resolver: ResolverFeature::default(),
             route_policy: RoutePolicy::default(),
             resolution_cache_secret: random_secret(),
+            mounts,
+            hosted_orgs: IndexMap::new(),
         }
     }
 
-    /// Build a static-mode config that serves `storage` verbatim:
-    /// no uplinks declared, so no package rule resolves to one.
+    /// Build a static-mode config that serves `storage` verbatim: one hosted-org
+    /// mount over the storage root (an empty `org` namespace == the flat root),
+    /// routed to by a `**` router that the path-less base aliases. Every package
+    /// resolves to that one hosted origin — no upstream, no fall-through.
     #[must_use]
     pub fn static_serve(listen: SocketAddr, storage: PathBuf) -> Self {
+        let mut hosted_orgs = IndexMap::new();
+        hosted_orgs.insert(
+            "local".to_string(),
+            HostedOrgConfig { org: String::new(), access: AccessList::parse("$all") },
+        );
+        let graph = [
+            ("local".to_string(), MountKind::HostedOrg),
+            (
+                "main".to_string(),
+                MountKind::Router {
+                    routes: vec![Route {
+                        patterns: vec![PackagePattern::All],
+                        source: "local".to_string(),
+                    }],
+                },
+            ),
+        ];
+        let mounts = Mounts::new(graph.into_iter().collect(), Some("main".to_string()));
         Self {
             listen,
             public_url: format!("http://{listen}"),
@@ -1102,6 +1226,8 @@ impl Config {
             resolver: ResolverFeature::default(),
             route_policy: RoutePolicy::default(),
             resolution_cache_secret: random_secret(),
+            mounts,
+            hosted_orgs,
         }
     }
 
@@ -1320,22 +1446,19 @@ impl Config {
         let resolver = ResolverFeature {
             enabled: file.resolver.unwrap_or_default().enabled && !overrides.disable_resolver,
         };
-        // Only the registry surface consults uplinks, and `resolve_uplink`
-        // is strict — a `uplink.auth` block with an unresolvable token is a
-        // config error. A resolver-only server mounts no registry routes,
-        // so skip resolution entirely; otherwise a registry-shaped config
-        // would force the resolver tier to carry upstream secrets it never
-        // uses.
-        let uplinks = if registry.enabled {
-            file.uplinks
-                .into_iter()
-                .map(|(name, uplink)| {
-                    let resolved = resolve_uplink::<SystemEnv>(&name, uplink)?;
-                    Ok((name, resolved))
-                })
-                .collect::<Result<IndexMap<_, _>, RegistryError>>()?
+        // Upstream mounts (and the credentials some carry) are resolved by
+        // `build_mounts` below into this map. Resolving an upstream mount's
+        // `auth` is strict — an unresolvable token is a config error — so a
+        // resolver-only server (which mounts no registry routes) skips mount
+        // resolution entirely rather than carry upstream secrets it never uses.
+        let mut uplinks: IndexMap<String, UplinkConfig> = IndexMap::new();
+        // Mounts (and the upstream credentials some carry) only matter to the
+        // registry surface; a resolver-only tier skips them, matching the
+        // uplink-resolution skip above.
+        let (hosted_orgs, mounts) = if registry.enabled {
+            build_mounts(&mut uplinks, file.mounts, file.default_target)?
         } else {
-            IndexMap::new()
+            (IndexMap::new(), Mounts::default())
         };
         let route_policy = build_route_policy(file.routes);
         let resolution_cache_secret = resolution_secret(file.secret.as_deref())?;
@@ -1358,6 +1481,8 @@ impl Config {
             resolver,
             route_policy,
             resolution_cache_secret,
+            mounts,
+            hosted_orgs,
         };
         config.ensure_a_feature_is_enabled()?;
         Ok(config)
@@ -1374,45 +1499,6 @@ impl Config {
                 reason: "at least one of `registry` or `resolver` must be enabled".to_string(),
             })
         }
-    }
-
-    /// Find the uplink fallback chain for `package_name` by walking
-    /// [`Self::packages`] in declared order: the first pattern that matches
-    /// is the rule that applies (verdaccio's first-match-wins). That rule's
-    /// `proxy:` names the uplinks to try, **in order** — the registry walks
-    /// the returned list as a fallback chain (try the first, fall through to
-    /// the next on failure or 404). A proxy name absent from [`Self::uplinks`]
-    /// is silently skipped (as verdaccio does). An empty result means the
-    /// package is storage-only.
-    ///
-    /// Each tuple's first element is the uplink *name* (the key in
-    /// [`Self::uplinks`]), so callers with pre-built per-uplink state can use
-    /// it as an index.
-    #[must_use]
-    pub fn resolve_uplinks(&self, package_name: &str) -> Vec<(&str, &UplinkConfig)> {
-        let Some(access) = self
-            .packages
-            .iter()
-            .find_map(|(pattern, access)| pattern_matches(pattern, package_name).then_some(access))
-        else {
-            return Vec::new();
-        };
-        let Some(proxy) = &access.proxy else {
-            return Vec::new();
-        };
-        proxy
-            .to_ordered_tokens()
-            .into_iter()
-            .filter_map(|name| self.uplinks.get_key_value(name).map(|(k, v)| (k.as_str(), v)))
-            .collect()
-    }
-
-    /// The primary (first) uplink for `package_name`, or `None` when the
-    /// package is storage-only. A convenience over [`Self::resolve_uplinks`]
-    /// for the single-uplink question.
-    #[must_use]
-    pub fn resolve_uplink(&self, package_name: &str) -> Option<(&str, &UplinkConfig)> {
-        self.resolve_uplinks(package_name).into_iter().next()
     }
 
     /// Build the caller identity used by access policies after a bearer
@@ -1458,6 +1544,129 @@ fn build_route_policy(file: Option<RoutesFile>) -> RoutePolicy {
                 .collect(),
         },
     }
+}
+
+/// Turn a static [`MountConfigError`] into the server-wide config error so a
+/// bad mount set fails startup and config reload like any other.
+fn mount_err(err: &MountConfigError) -> RegistryError {
+    RegistryError::InvalidConfig { reason: err.to_string() }
+}
+
+/// Build the validated [`Mounts`] graph (and the hosted-org table) from the
+/// resolved uplinks and the `mounts:` block. Every uplink is an upstream
+/// mount; `mounts:` adds hosted-org, further upstream, and router mounts.
+/// Upstream mounts declared under `mounts:` are folded into `uplinks` so they
+/// reuse the same serving and route-classification machinery. Fails closed on
+/// any name collision, malformed mount, or invalid routing graph.
+fn build_mounts(
+    uplinks: &mut IndexMap<String, UplinkConfig>,
+    mount_files: IndexMap<String, MountFile>,
+    default_target: Option<String>,
+) -> Result<(IndexMap<String, HostedOrgConfig>, Mounts), RegistryError> {
+    let mut hosted_orgs = IndexMap::new();
+    let mut graph: IndexMap<String, MountKind> = IndexMap::new();
+    // Every configured uplink is, by definition, an upstream mount addressable
+    // at `/~<uplink>/`.
+    for name in uplinks.keys() {
+        graph.insert(name.clone(), MountKind::Upstream);
+    }
+    for (name, file) in mount_files {
+        let declared = [file.hosted_org.is_some(), file.upstream.is_some(), file.router.is_some()];
+        if declared.iter().filter(|set| **set).count() != 1 {
+            return Err(RegistryError::InvalidConfig {
+                reason: format!(
+                    "mount {name:?} must declare exactly one of `hostedOrg`, `upstream`, or `router`",
+                ),
+            });
+        }
+        if graph.contains_key(&name) {
+            return Err(RegistryError::InvalidConfig {
+                reason: format!(
+                    "mount {name:?} collides with another mount or uplink of the same name",
+                ),
+            });
+        }
+        if let Some(org) = file.hosted_org {
+            let access = org
+                .access
+                .as_ref()
+                .map_or_else(|| AccessList::parse("$all"), AccessSpec::to_access_list);
+            hosted_orgs.insert(name.clone(), HostedOrgConfig { org: org.org, access });
+            graph.insert(name, MountKind::HostedOrg);
+        } else if let Some(upstream) = file.upstream {
+            let resolved = resolve_upstream_mount::<SystemEnv>(&name, upstream)?;
+            uplinks.insert(name.clone(), resolved);
+            graph.insert(name, MountKind::Upstream);
+        } else if let Some(router) = file.router {
+            let routes = build_routes(&name, router.routes)?;
+            graph.insert(name, MountKind::Router { routes });
+        }
+    }
+    let mounts = Mounts::new(graph, default_target);
+    mounts.validate().map_err(|err| mount_err(&err))?;
+    Ok((hosted_orgs, mounts))
+}
+
+/// Compile one router's `routes:` block, parsing each pattern into the decidable
+/// [`PackagePattern`] language. Source-mount validity (defined, concrete, not
+/// self) is checked later by [`Mounts::validate`] once the whole graph exists.
+fn build_routes(router: &str, routes: Vec<RouteFile>) -> Result<Vec<Route>, RegistryError> {
+    routes
+        .into_iter()
+        .map(|route| {
+            let patterns = route
+                .patterns
+                .iter()
+                .map(|pattern| PackagePattern::parse(pattern).map_err(|err| mount_err(&err)))
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|err| RegistryError::InvalidConfig {
+                    reason: format!("router {router:?}: {err}"),
+                })?;
+            Ok(Route { patterns, source: route.source })
+        })
+        .collect()
+}
+
+/// Resolve an `upstream:` mount into the shared [`UplinkConfig`] runtime shape.
+/// A `public` upstream is anonymous and world-readable (no credential, no
+/// access gate); a non-`public` one must declare `access:` naming who may
+/// reach it at `/~<mount>/`. Declaring both `public` and `auth` is rejected —
+/// a public origin sends no credential.
+fn resolve_upstream_mount<Sys: EnvVar>(
+    name: &str,
+    file: UpstreamFile,
+) -> Result<UplinkConfig, RegistryError> {
+    if file.public && file.auth.is_some() {
+        return Err(RegistryError::InvalidConfig {
+            reason: format!(
+                "upstream mount {name:?} is `public` but also declares `auth`; a public origin \
+                 sends no credential",
+            ),
+        });
+    }
+    if !file.public && file.access.is_none() {
+        return Err(RegistryError::InvalidConfig {
+            reason: format!(
+                "upstream mount {name:?} must set `public: true` or declare `access:` (who may \
+                 reach it at /~{name}/)",
+            ),
+        });
+    }
+    // A public origin is allowlisted and fetched anonymously, so it carries no
+    // access list; its `access:` (if any) is dropped above by the public guard.
+    let access = if file.public { None } else { file.access };
+    let uplink_file = UplinkFile {
+        url: file.url,
+        auth: file.auth,
+        headers: file.headers,
+        maxage: file.maxage,
+        timeout: file.timeout,
+        max_fails: file.max_fails,
+        fail_timeout: file.fail_timeout,
+        cache: file.cache,
+        access,
+    };
+    resolve_uplink::<Sys>(name, uplink_file)
 }
 
 fn build_groups(file: &IndexMap<String, AccessSpec>) -> AccessGroups {
@@ -1687,28 +1896,6 @@ fn default_storage_string() -> String {
 #[must_use]
 pub fn default_cache_dir(storage: &Path) -> PathBuf {
     storage.join(".pnpr-cache")
-}
-
-/// Match a verdaccio package pattern against a package name.
-/// Supports:
-///   - `**`        — matches everything
-///   - `@*/*`      — matches all scoped packages
-///   - `@scope/*`  — matches every package in a specific scope
-///   - exact name  — literal match
-fn pattern_matches(pattern: &str, name: &str) -> bool {
-    if pattern == "**" {
-        return true;
-    }
-    if pattern == "@*/*" {
-        return name.starts_with('@');
-    }
-    if let Some(scope) = pattern.strip_suffix("/*").and_then(|p| p.strip_prefix('@')) {
-        let Some(name_scope) = name.strip_prefix('@').and_then(|n| n.split('/').next()) else {
-            return false;
-        };
-        return name_scope == scope;
-    }
-    pattern == name
 }
 
 #[cfg(test)]
