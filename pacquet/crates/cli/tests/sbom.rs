@@ -273,3 +273,145 @@ fn sbom_exclude_peers() {
     let components = parsed["components"].as_array().expect("components");
     assert!(components.iter().any(|c| c["name"] == "is-positive"), "non-peer dep should remain");
 }
+
+#[test]
+fn sbom_out_interpolates_percent_s() {
+    let tmp = copy_fixture("simple-sbom");
+    let out_pattern = tmp.path().join("sbom-out/%s.cdx.json");
+    let output = pacquet(
+        tmp.path(),
+        [
+            "sbom",
+            "--sbom-format",
+            "cyclonedx",
+            "--lockfile-only",
+            "--out",
+            out_pattern.to_str().unwrap(),
+        ],
+    )
+    .output()
+    .expect("run pacquet");
+    assert!(output.status.success());
+    let expected = tmp.path().join("sbom-out/simple-sbom-test.cdx.json");
+    assert!(expected.exists(), "interpolated %s file should exist");
+}
+
+#[test]
+fn sbom_out_interpolates_percent_v() {
+    let tmp = copy_fixture("simple-sbom");
+    let out_pattern = tmp.path().join("sbom-out/%s-%v.cdx.json");
+    let output = pacquet(
+        tmp.path(),
+        [
+            "sbom",
+            "--sbom-format",
+            "cyclonedx",
+            "--lockfile-only",
+            "--out",
+            out_pattern.to_str().unwrap(),
+        ],
+    )
+    .output()
+    .expect("run pacquet");
+    assert!(output.status.success());
+    let expected = tmp.path().join("sbom-out/simple-sbom-test-1.0.0.cdx.json");
+    assert!(expected.exists(), "interpolated %s-%v file should exist");
+}
+
+#[test]
+fn sbom_dev_flag_excludes_prod() {
+    let tmp = copy_fixture("with-dev-dependency");
+    let parsed = run_sbom_json(tmp.path(), "cyclonedx", &["--dev"]);
+    let components = parsed["components"].as_array().expect("components");
+    assert!(
+        !components.iter().any(|c| c["name"] == "is-positive"),
+        "prod dep should be excluded with --dev"
+    );
+    assert!(components.iter().any(|c| c["name"] == "typescript"), "dev dep should be included");
+}
+
+#[test]
+fn sbom_split_outputs_ndjson() {
+    let tmp = copy_fixture("workspace-sbom");
+    let output =
+        pacquet(tmp.path(), ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--split"])
+            .output()
+            .expect("run pacquet");
+    assert!(output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let lines: Vec<&str> = stdout.lines().filter(|l| !l.is_empty()).collect();
+    // Fixture lockfile only has root importer (TS tests install first to populate all importers)
+    assert!(!lines.is_empty(), "should output at least one NDJSON line");
+    for line in &lines {
+        let parsed: serde_json::Value =
+            serde_json::from_str(line).expect("each line should be valid JSON");
+        assert_eq!(parsed["bomFormat"], "CycloneDX");
+    }
+}
+
+#[test]
+fn sbom_split_out_writes_per_package_files() {
+    let tmp = copy_fixture("workspace-sbom");
+    let out_pattern = tmp.path().join("sbom-out/%s.cdx.json");
+    let output = pacquet(
+        tmp.path(),
+        [
+            "sbom",
+            "--sbom-format",
+            "cyclonedx",
+            "--lockfile-only",
+            "--split",
+            "--out",
+            out_pattern.to_str().unwrap(),
+        ],
+    )
+    .output()
+    .expect("run pacquet");
+    assert!(output.status.success());
+    let out_dir = tmp.path().join("sbom-out");
+    assert!(out_dir.exists(), "output directory should be created");
+    let files: Vec<String> = fs::read_dir(&out_dir)
+        .expect("read output dir")
+        .filter_map(|e| e.ok().map(|e| e.file_name().to_string_lossy().to_string()))
+        .collect();
+    assert!(!files.is_empty(), "should write at least one file");
+}
+
+#[test]
+fn sbom_split_out_without_percent_s_fails() {
+    let tmp = copy_fixture("workspace-sbom");
+    let output = pacquet(
+        tmp.path(),
+        ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--split", "--out", "sbom.json"],
+    )
+    .output()
+    .expect("run pacquet");
+    assert!(!output.status.success(), "--split --out without %s should fail");
+}
+
+#[test]
+fn sbom_spdx_license_from_manifest() {
+    let tmp = copy_fixture("simple-sbom");
+    let parsed = run_sbom_json(tmp.path(), "spdx", &[]);
+    let root = &parsed["packages"].as_array().expect("packages")[0];
+    assert_eq!(root["licenseConcluded"], "ISC");
+    assert_eq!(root["licenseDeclared"], "ISC");
+}
+
+#[test]
+fn sbom_lifecycle_pre_build_in_lockfile_only() {
+    let tmp = copy_fixture("simple-sbom");
+    let parsed = run_sbom_json(tmp.path(), "cyclonedx", &[]);
+    let phase = parsed["metadata"]["lifecycles"][0]["phase"].as_str().expect("phase");
+    assert_eq!(phase, "pre-build");
+}
+
+#[test]
+fn sbom_spdx_download_location() {
+    let tmp = copy_fixture("simple-sbom");
+    let parsed = run_sbom_json(tmp.path(), "spdx", &[]);
+    let packages = parsed["packages"].as_array().expect("packages");
+    let is_positive = packages.iter().find(|p| p["name"] == "is-positive").expect("is-positive");
+    let dl = is_positive["downloadLocation"].as_str().expect("downloadLocation");
+    assert!(dl.contains("registry.npmjs.org"), "should have registry URL, got {dl}");
+}
