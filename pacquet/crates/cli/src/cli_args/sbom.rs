@@ -215,34 +215,6 @@ fn classify_license(license: &str) -> serde_json::Value {
     }
 }
 
-#[allow(dead_code)]
-fn percent_encode(input: &str) -> String {
-    let mut out = String::with_capacity(input.len());
-    for b in input.bytes() {
-        if b.is_ascii_alphanumeric() || b == b'-' || b == b'_' || b == b'.' || b == b'~' {
-            out.push(b as char);
-        } else {
-            use std::fmt::Write;
-            let _ = write!(out, "%{b:02X}");
-        }
-    }
-    out
-}
-
-#[allow(dead_code)]
-fn build_purl_with_qualifier(name: &str, version: &str, non_semver: Option<&str>) -> String {
-    if let Some(raw) = non_semver {
-        format!(
-            "pkg:npm/{}@{}?vcs_url={}",
-            encode_purl_name(name),
-            percent_encode(version),
-            percent_encode(raw),
-        )
-    } else {
-        build_purl(name, version)
-    }
-}
-
 fn integrity_string(resolution: &LockfileResolution) -> Option<String> {
     match resolution {
         LockfileResolution::Registry(r) => Some(r.integrity.to_string()),
@@ -678,8 +650,6 @@ impl SbomArgs {
         }
 
         let include = self.include_filter();
-        let project_root =
-            state.manifest.path().parent().unwrap_or_else(|| Path::new(".")).to_path_buf();
         let authors: Vec<String> = self
             .authors
             .as_deref()
@@ -773,7 +743,7 @@ impl SbomArgs {
                     }
                     written_paths.insert(file_path.clone());
                     let path = std::path::Path::new(&file_path);
-                    assert_inside_project(path, &project_root)?;
+
                     if let Some(parent) = path.parent() {
                         std::fs::create_dir_all(parent).map_err(|err| {
                             miette::miette!("create directory for {file_path}: {err}")
@@ -828,7 +798,6 @@ impl SbomArgs {
                 let file_path =
                     out_template.replace("%s", &sanitized_name).replace("%v", &sanitized_ver);
                 let path = std::path::Path::new(&file_path);
-                assert_inside_project(path, &project_root)?;
                 if let Some(parent) = path.parent() {
                     std::fs::create_dir_all(parent).map_err(|err| {
                         miette::miette!("create directory for {file_path}: {err}")
@@ -1266,26 +1235,6 @@ fn normalize_link_path(base_importer_id: &str, link_target: &str) -> Option<Stri
         }
     }
     if parts.is_empty() { Some(".".to_string()) } else { Some(parts.join("/")) }
-}
-
-fn assert_inside_project(path: &Path, project_root: &Path) -> miette::Result<()> {
-    let root = project_root.canonicalize().map_err(|err| {
-        miette::miette!("cannot canonicalize project root \"{}\": {err}", project_root.display())
-    })?;
-    if let Some(parent) = path.parent() {
-        let _ = std::fs::create_dir_all(parent);
-    }
-    let canonical = path.canonicalize().map_err(|err| {
-        miette::miette!("cannot canonicalize output path \"{}\": {err}", path.display())
-    })?;
-    if !canonical.starts_with(&root) {
-        return Err(miette::miette!(
-            code = "ERR_PNPM_SBOM_OUT_PATH_TRAVERSAL",
-            "Output path \"{}\" resolves outside the project root",
-            path.display()
-        ));
-    }
-    Ok(())
 }
 
 fn sanitize_package_name(name: &str) -> String {
