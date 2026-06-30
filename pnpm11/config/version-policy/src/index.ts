@@ -31,7 +31,7 @@ export function createPackageVersionPolicyOrThrow (patterns: string[], key: stri
 
 export interface PublishedByPolicyOptions {
   minimumReleaseAge?: number
-  minimumReleaseAgeExclude?: string[]
+  minimumReleaseAgeExclude?: string[] | string
 }
 
 export interface PublishedByPolicy {
@@ -44,16 +44,36 @@ export interface PublishedByPolicy {
  * policy from the user's `minimumReleaseAge` / `minimumReleaseAgeExclude`
  * config. Centralized so every call site computes the cutoff at the same
  * instant and surfaces invalid exclude patterns under the same error code.
+ *
+ * `minimumReleaseAge` must be a finite, non-negative number of minutes.
+ * `NaN`/`Infinity` would yield a bogus cutoff (`undefined`/invalid `Date`)
+ * and a negative value would push the cutoff into the future, silently
+ * disabling the supply-chain maturity gate. `minimumReleaseAgeExclude`
+ * arrives as `string[]` from config but as a bare `string` when a single
+ * `--minimum-release-age-exclude` flag is passed on the CLI; coerce it to
+ * an array so the policy matcher iterates packages, not characters.
  */
 export function getPublishedByPolicy (opts: PublishedByPolicyOptions): PublishedByPolicy {
+  if (opts.minimumReleaseAge != null) {
+    if (!Number.isFinite(opts.minimumReleaseAge) || opts.minimumReleaseAge < 0) {
+      throw new PnpmError(
+        'INVALID_MINIMUM_RELEASE_AGE',
+        `minimumReleaseAge must be a finite, non-negative number of minutes, got ${opts.minimumReleaseAge}`
+      )
+    }
+  }
   return {
     publishedBy: opts.minimumReleaseAge
       ? new Date(Date.now() - opts.minimumReleaseAge * 60 * 1000)
       : undefined,
-    publishedByExclude: opts.minimumReleaseAgeExclude
-      ? createPackageVersionPolicyOrThrow(opts.minimumReleaseAgeExclude, 'minimumReleaseAgeExclude')
+    publishedByExclude: opts.minimumReleaseAgeExclude != null && opts.minimumReleaseAgeExclude !== ''
+      ? createPackageVersionPolicyOrThrow(coerceToArray(opts.minimumReleaseAgeExclude), 'minimumReleaseAgeExclude')
       : undefined,
   }
+}
+
+function coerceToArray (value: string[] | string): string[] {
+  return Array.isArray(value) ? value : [value]
 }
 
 /**
