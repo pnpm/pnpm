@@ -1,5 +1,4 @@
-//! Ports of `resolving/jsr-specifier-parser/test/parse.test.ts`
-//! ([source](https://github.com/pnpm/pnpm/blob/05dd45ea82/resolving/jsr-specifier-parser/test/parse.test.ts)).
+//! Tests for `parse_jsr_specifier`.
 
 use super::{JsrSpec, ParseJsrSpecifierError, parse_jsr_specifier};
 
@@ -98,10 +97,9 @@ fn version_only_specifier_without_alias_errors() {
 
 #[test]
 fn version_only_specifier_with_empty_alias_errors() {
-    // Mirrors upstream's JS truthiness check `if (!alias)` — an empty
-    // string is falsy in JS so the version-only branch raises
-    // `MissingPackageName` instead of attempting to fold `""` into a
-    // package name.
+    // An empty alias string is treated as absent, so the version-only
+    // branch raises `MissingPackageName` instead of attempting to fold
+    // `""` into a package name.
     assert_eq!(
         parse_jsr_specifier("jsr:^1.0.0", Some("")),
         Err(ParseJsrSpecifierError::MissingPackageName { specifier: "^1.0.0".to_string() }),

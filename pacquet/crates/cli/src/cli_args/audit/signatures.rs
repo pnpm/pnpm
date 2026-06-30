@@ -1,11 +1,6 @@
 //! `pacquet audit signatures` — verify ECDSA registry signatures for the
 //! installed packages.
 //!
-//! Ports pnpm's
-//! [`@pnpm/deps.security.signatures`](https://github.com/pnpm/pnpm/blob/fc2f33912e/pnpm11/deps/security/signatures/src/verifySignatures.ts)
-//! and the
-//! [`audit signatures` command](https://github.com/pnpm/pnpm/blob/fc2f33912e/pnpm11/deps/compliance/commands/src/audit/signatures.ts).
-//!
 //! For every installed `name@version`, the package's own registry is asked
 //! for its signing keys (`/-/npm/v1/keys`) and its full packument. A
 //! package is **verified** as soon as one of its `dist.signatures` validates,

@@ -279,13 +279,10 @@ fn missing_metadata_keeps_source_dep_path_untrusted_for_gvs() {
 /// Per-snapshot `engines.runtime` resolution: two builder
 /// siblings that pin *different* Node majors must land on
 /// different GVS slots even when given the same install-wide
-/// fallback engine. Mirrors the upstream behaviour in
-/// [`@pnpm/deps.graph-hasher`'s `readSnapshotRuntimePin`
-/// branch](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/deps/graph-hasher/src/index.ts).
-/// The bin linker spawns each pinning package's lifecycle scripts
-/// through its own downloaded Node, so anchoring the engine
-/// portion of the hash to a single install-wide value would
-/// produce the wrong side-effects-cache key for cross-pinning
+/// fallback engine. The bin linker spawns each pinning package's
+/// lifecycle scripts through its own downloaded Node, so anchoring
+/// the engine portion of the hash to a single install-wide value
+/// would produce the wrong side-effects-cache key for cross-pinning
 /// installs.
 #[test]
 fn cross_pinning_siblings_get_distinct_slots() {
@@ -342,8 +339,8 @@ fn cross_pinning_siblings_get_distinct_slots() {
     }
 
     // Two builder siblings, each with `dependencies.node:
-    // runtime:<major>` — the desugared form upstream's resolver
-    // writes for a manifest-level `engines.runtime` declaration.
+    // runtime:<major>` — the desugared form the resolver writes
+    // for a manifest-level `engines.runtime` declaration.
     let mut pins_22_deps = HashMap::new();
     pins_22_deps.insert(
         PkgName::parse("node").expect("parse pkg name"),

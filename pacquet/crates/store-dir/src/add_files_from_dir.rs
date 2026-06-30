@@ -2,10 +2,6 @@
 //! writes each file into the content-addressed store, and returns
 //! the resulting `path → file metadata` map.
 //!
-//! Ports pnpm's
-//! [`addFilesFromDir`](https://github.com/pnpm/pnpm/blob/7e3145f9fc/store/cafs/src/addFilesFromDir.ts)
-//! and the surrounding worker-side glue at
-//! [`worker/src/start.ts:312-383`](https://github.com/pnpm/pnpm/blob/7e3145f9fc/worker/src/start.ts#L312-L383).
 //! Used by the side-effects-cache WRITE path: after a postinstall
 //! script modifies the package directory, this function rehashes
 //! the directory so [`upload`](crate::upload()) can diff it against
@@ -22,8 +18,7 @@ use std::{
 };
 
 /// Result of [`add_files_from_dir()`]. The map's key is the file's
-/// path *relative to `pkg_root`*, with forward-slash separators —
-/// matching upstream's `${relativeDir}/${file.name}` shape so the
+/// path *relative to `pkg_root`*, with forward-slash separators, so the
 /// resulting `FilesIndex` round-trips through pnpm without
 /// renormalisation.
 #[derive(Debug)]

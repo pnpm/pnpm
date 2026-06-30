@@ -1,8 +1,7 @@
-//! Ports the ref-resolution helpers from pnpm's
-//! [`index.ts`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/git-resolver/src/index.ts#L116-L200):
-//! `resolveRef` / `getRepoRefs` / `resolveRefFromRefs` / `resolveVTags`,
-//! plus the [`GitCommandRunner`] capability seam the production runner
-//! plugs into.
+//! Ref-resolution helpers: [`resolve_ref`] / [`parse_ls_remote`] /
+//! [`resolve_ref_from_refs`] / [`resolve_v_tags`], plus the
+//! [`GitCommandRunner`] capability seam the production runner plugs
+//! into.
 
 use std::{
     collections::{BTreeSet, HashMap},
@@ -22,9 +21,8 @@ use node_semver::{Range, Version};
 pub trait GitCommandRunner: Send + Sync {
     /// Invoke `git ls-remote <repo> [<ref> <ref>^{}]` (or
     /// `git ls-remote <repo>` when `ref_` is `None`) and return the
-    /// captured stdout on success. Match upstream's `graceful-git`
-    /// retry-of-one behaviour (one attempt + one retry, total two
-    /// attempts at most).
+    /// captured stdout on success. Uses a retry-of-one policy (one
+    /// attempt + one retry, total two attempts at most).
     fn ls_remote<'a>(
         &'a self,
         repo: &'a str,
@@ -48,11 +46,10 @@ pub enum GitResolveRefError {
     #[display("{_0}")]
     Runner(#[error(source)] GitRunError),
 
-    /// Mirrors upstream's `ERR_PNPM_GIT_AMBIGUOUS_REF`. Raised when a
-    /// partial commit reference resolves to a commit whose hash does
-    /// not start with the reference (the resolver picked a branch /
-    /// tag whose tip happened to match the prefix, which is the
-    /// scenario the original `PnpmError` was added for).
+    /// `ERR_PNPM_GIT_AMBIGUOUS_REF`. Raised when a partial commit
+    /// reference resolves to a commit whose hash does not start with
+    /// the reference (the resolver picked a branch / tag whose tip
+    /// happened to match the prefix).
     #[display("resolved commit {commit} from commit-ish reference {ref_}")]
     #[diagnostic(code(ERR_PNPM_GIT_AMBIGUOUS_REF))]
     AmbiguousRef {
@@ -62,8 +59,7 @@ pub enum GitResolveRefError {
         commit: String,
     },
 
-    /// Mirrors upstream's plain `Could not resolve <ref> to a commit
-    /// of <repo>.` error.
+    /// Plain `Could not resolve <ref> to a commit of <repo>.` error.
     #[display("Could not resolve {ref_} to a commit of {repo}.")]
     UnknownRef {
         #[error(not(source))]
@@ -72,8 +68,8 @@ pub enum GitResolveRefError {
         repo: String,
     },
 
-    /// Mirrors upstream's `Could not resolve <range> to a commit of
-    /// <repo>. Available versions are: <v1>, <v2>` error.
+    /// `Could not resolve <range> to a commit of <repo>. Available
+    /// versions are: <v1>, <v2>` error.
     #[display(
         "Could not resolve {range} to a commit of {repo}. Available versions are: {available}"
     )]
@@ -88,9 +84,6 @@ pub enum GitResolveRefError {
 }
 
 /// Pin a git reference to a commit SHA.
-///
-/// Mirrors upstream's
-/// [`resolveRef`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/git-resolver/src/index.ts#L138-L149).
 pub async fn resolve_ref<Runner: GitCommandRunner + ?Sized>(
     runner: &Runner,
     repo: &str,
@@ -101,9 +94,9 @@ pub async fn resolve_ref<Runner: GitCommandRunner + ?Sized>(
     if committish && ref_.len() == 40 {
         return Ok(ref_.to_string());
     }
-    // Upstream passes `null` for `ref` when either `range` is set or
-    // the ref looks like a committish (we don't have a single
-    // canonical ref name to filter on). Mirror that.
+    // Pass `None` for the ref filter when either `range` is set or the
+    // ref looks like a committish: there is no single canonical ref
+    // name to filter on in those cases.
     let filter = if range.is_some() || committish { None } else { Some(ref_) };
     let stdout = runner.ls_remote(repo, filter).await.map_err(GitResolveRefError::Runner)?;
     let refs = parse_ls_remote(&stdout);
@@ -115,7 +108,6 @@ pub async fn resolve_ref<Runner: GitCommandRunner + ?Sized>(
 }
 
 /// `true` when `ref` is a 7-40-character lowercase hex string.
-/// Mirrors upstream's `ref.match(/^[0-9a-f]{7,40}$/)`.
 fn is_committish(ref_: &str) -> bool {
     let bytes = ref_.as_bytes();
     bytes.len() >= 7
@@ -145,7 +137,7 @@ fn resolve_ref_from_refs(
     range: Option<&str>,
 ) -> Result<String, GitResolveRefError> {
     let Some(range) = range else {
-        // Exact-ref lookup order matches upstream verbatim.
+        // Exact-ref lookup, in priority order.
         let lookup_keys = [
             ref_.to_string(),
             format!("refs/{ref_}"),
@@ -179,8 +171,8 @@ fn resolve_ref_from_refs(
         });
     };
 
-    // Semver range: walk tag refs, keep the ones matching upstream's
-    // v?<n.n.n>(-...|+...)? regex, dedupe, semver-sort, return the max
+    // Semver range: walk tag refs, keep the ones shaped like
+    // v?<n.n.n>(-...|+...)?, dedupe, semver-sort, return the max
     // satisfying.
     let mut v_tags: BTreeSet<String> = BTreeSet::new();
     for key in refs.keys() {
@@ -223,8 +215,7 @@ fn strip_v(tag: &str) -> &str {
     tag.strip_prefix('v').unwrap_or(tag)
 }
 
-/// `true` when `key` matches the upstream `refs/tags/v?<n.n.n>(...)?
-/// (^\{\})?` regex.
+/// `true` when `key` is shaped like `refs/tags/v?<n.n.n>(...)?(^\{\})?`.
 fn looks_like_version_tag(key: &str) -> bool {
     let Some(rest) = key.strip_prefix("refs/tags/") else { return false };
     let rest = rest.strip_suffix("^{}").unwrap_or(rest);
@@ -253,8 +244,8 @@ fn looks_like_version_tag(key: &str) -> bool {
     true
 }
 
-/// Return the highest tag in `tags` that satisfies `range`. Mirrors
-/// upstream's `semver.maxSatisfying(vTags, range, /* loose */ true)`.
+/// Return the highest tag in `tags` that satisfies `range`, parsing
+/// tags leniently (with or without a leading `v`).
 fn resolve_v_tags(tags: &BTreeSet<String>, range: &Range) -> Option<String> {
     let mut best: Option<(Version, String)> = None;
     for tag in tags {

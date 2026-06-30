@@ -31,31 +31,26 @@ pub struct RunArgs {
 
     /// Run the script starting from the given package, skipping every
     /// package that sorts before it. Only meaningful together with the
-    /// global `-r` / `--recursive` flag. Mirrors pnpm's `--resume-from`.
+    /// global `-r` / `--recursive` flag (the `--resume-from` flag).
     #[clap(long = "resume-from")]
     pub resume_from: Option<String>,
 
     /// Save the execution result of every package to
     /// `pnpm-exec-summary.json`. Only meaningful together with the
-    /// global `-r` / `--recursive` flag. Mirrors pnpm's
-    /// `--report-summary`.
+    /// global `-r` / `--recursive` flag (the `--report-summary` flag).
     #[clap(long = "report-summary")]
     pub report_summary: bool,
 
     /// Keep running the remaining packages after a script fails instead
     /// of aborting on the first failure. Only meaningful together with
-    /// the global `-r` / `--recursive` flag. Mirrors pnpm's `--no-bail`
-    /// (recursive runs bail by default).
+    /// the global `-r` / `--recursive` flag (the `--no-bail` flag;
+    /// recursive runs bail by default).
     #[clap(long = "no-bail")]
     pub no_bail: bool,
 }
 
-/// Errors from `pacquet run`.
-///
-/// Mirrors the error codes pnpm raises in its run command
-/// (<https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/commands/src/run.ts>)
-/// and `throwOrFilterHiddenScripts`
-/// (<https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/commands/src/hiddenScripts.ts>).
+/// Errors from `pacquet run`, including the hidden-script rejections from
+/// the script filter.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum RunError {
@@ -110,7 +105,7 @@ impl RunArgs {
 
         // Hidden scripts (names starting with `.`) can only be invoked
         // from within another script, detected by an inherited
-        // `npm_lifecycle_event`. Mirrors run.ts:231-233.
+        // `npm_lifecycle_event`.
         if env::var_os("npm_lifecycle_event").is_none() {
             specified = throw_or_filter_hidden_scripts(specified, &script_name)?;
         }
@@ -159,9 +154,8 @@ impl RunArgs {
             }
             let status = run_stages(&ctx, name, &main, &args)?;
             if !status.success() {
-                // Mirror pnpm: a failing script sets the process exit
-                // code. `run_stage` already emitted the `[ELIFECYCLE]`
-                // line.
+                // A failing script sets the process exit code.
+                // `run_stage` already emitted the `[ELIFECYCLE]` line.
                 std::process::exit(status.code().unwrap_or(1));
             }
         }
@@ -192,8 +186,7 @@ pub(super) struct RunContext<'a> {
 
 /// Resolve `name` to a runnable main script body, or `Ok(None)` when
 /// there's nothing to run (the manifest has no truthy `scripts[name]`
-/// and `name` isn't `start`). Mirrors the `start`-fallback path in
-/// `runLifecycleHook.ts:75-83`: an absent (or empty) `start` falls back
+/// and `name` isn't `start`). An absent (or empty) `start` falls back
 /// to `node server.js` provided `server.js` exists in the process cwd;
 /// otherwise [`RunError::NoScriptOrServer`].
 fn resolve_main_script(ctx: &RunContext<'_>, name: &str) -> Result<Option<String>, RunError> {
@@ -237,17 +230,13 @@ fn resolve_main_script(ctx: &RunContext<'_>, name: &str) -> Result<Option<String
 /// On the first non-success stage (pre / main / post) the function
 /// short-circuits and returns that stage's status; the caller decides
 /// what to do with the failure (single-project: `process::exit`;
-/// recursive: record `Failure` and bail or continue). Matches pnpm's
-/// `runScript` (run.ts:399-415), where a throw from `runLifecycleHook`
+/// recursive: record `Failure` and bail or continue). A failing stage
 /// skips the remaining stages.
 ///
-/// Deliberate deviation: for `run start` with no `start` script but a
-/// `prestart`/`poststart` and `enablePrePostScripts`, pnpm dereferences
-/// the undefined `scripts.start` in its `!scripts[name].includes(...)`
-/// guard and throws a `TypeError`; pacquet runs the hooks around the
-/// `node server.js` fallback instead. Replicating the upstream crash
-/// would be wrong, so the `pre`/`post` substring guard runs against
-/// the resolved `main_body` here.
+/// For `run start` with no `start` script but a `prestart`/`poststart`
+/// and `enablePrePostScripts`, the hooks run around the `node server.js`
+/// fallback, so the `pre`/`post` substring guard runs against the
+/// resolved `main_body` here.
 pub(super) fn run_stages(
     ctx: &RunContext<'_>,
     name: &str,
@@ -314,19 +303,17 @@ pub(super) fn run_stage(
     script: &str,
     args: &[String],
 ) -> miette::Result<Option<std::process::ExitStatus>> {
-    // The `npx only-allow pnpm` guard script is a no-op under pnpm, so a
-    // lifecycle stage whose final command is exactly that string is
-    // skipped. pnpm appends args *before* this check
-    // (runLifecycleHook.ts:91-100), so a stage invoked with args (which
-    // lengthen the command past the literal) is never skipped; pre/post
-    // stages always pass `args = &[]`.
+    // The `npx only-allow pnpm` guard script is a no-op, so a lifecycle
+    // stage whose final command is exactly that string is skipped. Args
+    // are appended *before* this check, so a stage invoked with args
+    // (which lengthen the command past the literal) is never skipped;
+    // pre/post stages always pass `args = &[]`.
     if args.is_empty() && script == "npx only-allow pnpm" {
         return Ok(None);
     }
-    // An empty script body is a no-op under pnpm, which skips any stage
-    // whose (post-arg) command is falsy (runLifecycleHook.ts:100). pnpm
-    // also gates pre/post on the body being truthy (run.ts:403,411), so
-    // an empty `pre<name>`/`post<name>` never runs.
+    // An empty script body is a no-op: any stage whose (post-arg) command
+    // is falsy is skipped, and pre/post are gated on the body being
+    // truthy, so an empty `pre<name>`/`post<name>` never runs.
     if script.is_empty() {
         return Ok(None);
     }
@@ -352,8 +339,7 @@ pub(super) fn run_stage(
     .map_err(miette::Report::new)?;
 
     if !status.success() {
-        // Mirror pnpm's reportLifecycleError (reportError.ts:371-378):
-        // the `test` stage gets a fixed message; a numeric exit code is
+        // The `test` stage gets a fixed message; a numeric exit code is
         // reported verbatim; a signal-terminated child (no code) is
         // "Command failed." with no number.
         if stage == "test" {
@@ -377,11 +363,9 @@ fn exec_scripts_prepend_node_path(
     }
 }
 
-/// Resolve which script names to run for `name`. Ports the exact-match
-/// arm of pnpm's `getSpecifiedScripts`
-/// (<https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/commands/src/runRecursive.ts#L222-L237>)
-/// plus the `start` fallback from run.ts:437-439. The `/regexp/` selector
-/// is not ported because pacquet has no regex dependency.
+/// Resolve which script names to run for `name`: the exact-match arm plus
+/// the `start` fallback. The `/regexp/` selector is not supported because
+/// pacquet has no regex dependency.
 fn specified_scripts(manifest: &Value, name: &str) -> Vec<String> {
     let has_script = manifest
         .get("scripts")
@@ -400,8 +384,7 @@ fn specified_scripts(manifest: &Value, name: &str) -> Vec<String> {
 }
 
 /// Drop hidden scripts (names starting with `.`) or reject an explicit
-/// request for one. Ports `throwOrFilterHiddenScripts`
-/// (<https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/commands/src/hiddenScripts.ts>).
+/// request for one.
 fn throw_or_filter_hidden_scripts(
     specified: Vec<String>,
     name: &str,
@@ -423,10 +406,8 @@ fn throw_or_filter_hidden_scripts(
 }
 
 /// Render the script listing printed when `pnpm run` is called without a
-/// script name. Ports `printProjectCommands`
-/// (<https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/commands/src/run.ts#L348-L387>).
-/// The workspace-root section is omitted because pacquet's run has no
-/// workspace context yet.
+/// script name. The workspace-root section is omitted because pacquet's
+/// run has no workspace context yet.
 fn render_project_commands(manifest: &Value) -> String {
     let scripts = manifest.get("scripts").and_then(Value::as_object);
     let mut lifecycle = Vec::new();
@@ -472,10 +453,7 @@ fn render_commands(commands: &[(&str, &str)]) -> String {
         .join("\n")
 }
 
-/// The lifecycle script names pnpm groups separately in the run listing.
-/// Mirrors [`ALL_LIFECYCLE_SCRIPTS`][ts-ALL_LIFECYCLE_SCRIPTS].
-///
-/// [ts-ALL_LIFECYCLE_SCRIPTS]: https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/commands/src/run.ts#L314-L346
+/// The lifecycle script names grouped separately in the run listing.
 const ALL_LIFECYCLE_SCRIPTS: &[&str] = &[
     "prepublish",
     "prepare",

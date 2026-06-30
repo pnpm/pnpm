@@ -1,6 +1,3 @@
-//! Pacquet port of pnpm's
-//! [`@pnpm/releasing.exportable-manifest`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/releasing/exportable-manifest/src/index.ts).
-//!
 //! [`create_exportable_manifest`] turns a project's on-disk manifest
 //! into the manifest that ships inside a published tarball: obfuscation
 //! of pnpm-internal fields, `workspace:` / `catalog:` / `jsr:`
@@ -10,7 +7,7 @@
 //! helpers are also exposed directly for callers that only need the
 //! workspace-protocol rewrite.
 //!
-//! The one upstream step not yet applied is the `beforePacking`
+//! The one step not yet applied is the `beforePacking`
 //! pnpmfile hook — pacquet's pnpmfile bridge does not expose it yet, so
 //! there is no source to feed the hook. See the `create` module for the
 //! gap note.

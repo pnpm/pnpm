@@ -15,8 +15,7 @@ use crate::CustomResolver;
 
 /// Adapts a [`CustomResolver`] (JSON-value-based, from a pnpmfile hook) to the
 /// [`Resolver`] trait (typed structs) so it can be inserted into the resolver
-/// chain. Mirrors `resolveFromCustomResolvers` in
-/// <https://github.com/pnpm/pnpm/blob/1627943d2a/resolving/default-resolver/src/index.ts#L66-L98>.
+/// chain.
 pub struct CustomResolverAdapter {
     resolver: Arc<dyn CustomResolver>,
     can_resolve_cache: Mutex<HashMap<String, bool>>,
@@ -133,9 +132,8 @@ impl Resolver for CustomResolverAdapter {
                 resolve_err
             })?;
 
-            // pnpm spreads the hook's whole result (`{ ...result,
-            // resolvedVia: 'custom-resolver' }`), so a manifest the
-            // resolver returns must survive — without it the installer
+            // The hook's whole result is carried through, so a manifest
+            // the resolver returns must survive — without it the installer
             // would re-fetch the tarball just to read `package.json`.
             let manifest = match result.get("manifest") {
                 Some(manifest_val) => {

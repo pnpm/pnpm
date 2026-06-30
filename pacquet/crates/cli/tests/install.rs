@@ -348,13 +348,13 @@ fn install_ignores_env_var_in_project_npmrc_registry() {
 /// peer-resolution issue list would carry three entries.
 ///
 /// Transitive auto-installed peers are NOT also linked at
-/// `node_modules/<alias>` — pnpm's `addDirectDependenciesToLockfile`
-/// iterates only `getAllDependenciesFromManifest(manifest)`, so
-/// transitive peers live in `snapshots:` / `packages:` only and
-/// consumers reach them through their parent's slot's `node_modules`.
-/// Hoisting them at the importer would require listing them in
-/// `importer.dependencies`, which breaks `satisfiesPackageManifest`
-/// and pushes every later install onto the fresh-resolve path.
+/// `node_modules/<alias>` — only the manifest's own dependencies become
+/// importer-level lockfile entries, so transitive peers live in
+/// `snapshots:` / `packages:` only and consumers reach them through
+/// their parent's slot's `node_modules`. Hoisting them at the importer
+/// would require listing them in `importer.dependencies`, which breaks
+/// the lockfile/manifest satisfaction check and pushes every later
+/// install onto the fresh-resolve path.
 #[test]
 fn auto_install_peers_hoists_missing_peers_at_importer() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -404,8 +404,6 @@ fn auto_install_peers_hoists_missing_peers_at_importer() {
 /// resolves it consistently by switching from the inherited same-version
 /// parser to the node's own child when that inherited parser carries a
 /// conflicting peer context.
-/// Mirrors the upstream coverage in
-/// [`installing/deps-installer/test/install/peerDependencies.ts`](https://github.com/pnpm/pnpm/blob/55ba310835/installing/deps-installer/test/install/peerDependencies.ts).
 #[test]
 fn peer_shared_through_a_diamond_is_resolved_consistently() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -614,9 +612,6 @@ fn peer_dependency_prefers_highest_aliased_subdependency_version() {
 /// `pnpm-workspace.yaml`'s `catalog` section before the npm resolver
 /// sees it. The fetched virtual-store entry is the catalog's resolved
 /// version, not the literal `catalog:` string.
-///
-/// Mirrors the upstream end-to-end coverage in
-/// [`installing/deps-installer/test/catalogs.ts`](https://github.com/pnpm/pnpm/blob/a8a8cbce6d/installing/deps-installer/test/catalogs.ts).
 #[test]
 fn install_resolves_catalog_protocol() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -754,8 +749,7 @@ fn fresh_install_honors_enable_global_virtual_store() {
 /// successful install, deleting `pnpm-lock.yaml` but keeping `node_modules`
 /// (and the materialized `node_modules/.pnpm/lock.yaml`) should let the
 /// next `pacquet install` skip resolution and regenerate the lockfile
-/// from the on-disk snapshot. Mirrors the pnpm-side fix at
-/// <https://github.com/pnpm/pnpm/commit/8a2146b7be>.
+/// from the on-disk snapshot.
 #[test]
 fn install_regenerates_lockfile_from_node_modules_when_wanted_is_missing() {
     use std::process::Command;
@@ -834,8 +828,7 @@ fn install_regenerates_lockfile_from_node_modules_when_wanted_is_missing() {
 /// install, a second `pacquet install --frozen-lockfile` against an
 /// untouched workspace must skip materialization and emit pnpm's
 /// `name: "pnpm" / level: "info"` "Lockfile is up to date, resolution
-/// step is skipped" log. Mirrors upstream pnpm's behavior at
-/// <https://github.com/pnpm/pnpm/blob/a456dc78fb/installing/deps-installer/src/install/index.ts#L984>.
+/// step is skipped" log.
 #[test]
 fn frozen_install_short_circuits_when_node_modules_is_up_to_date() {
     use std::process::Command;
@@ -1061,7 +1054,7 @@ fn resolution_mode_highest_picks_highest_direct_version() {
 /// `minimumReleaseAge: 0` disables the maturity cutoff for this test:
 /// while a cutoff is active the picker prefers the highest mature
 /// version regardless of `resolutionMode`, so the lowest-version pick
-/// would be masked (matching pnpm's `pickRespectingMinReleaseAge`).
+/// would be masked.
 #[test]
 fn resolution_mode_lowest_direct_picks_lowest_direct_version() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -1105,9 +1098,6 @@ fn resolution_mode_lowest_direct_picks_lowest_direct_version() {
 /// `abc-parent-with-ab` in both contexts via the lockfile-reuse path. That
 /// reuse must preserve both contexts instead of collapsing the two
 /// occurrences onto one (bare) snapshot.
-///
-/// Mirrors the upstream end-to-end coverage in
-/// [`installing/deps-installer/test/install/peerDependencies.ts`](https://github.com/pnpm/pnpm/blob/6d17b669b4/installing/deps-installer/test/install/peerDependencies.ts).
 #[test]
 fn compatible_existing_peer_contexts_survive_writable_lockfile_regeneration() {
     // The binary is re-spawned per install via `new_pacquet_command`, so the

@@ -1,9 +1,8 @@
 //! Compute the lockfile importer key for a workspace project.
 //!
-//! Mirrors upstream's
-//! [`(path.relative(lockfileDir, p.rootDir) || '.').split(path.sep).join('/')`](https://github.com/pnpm/pnpm/blob/212315de16/pnpm/src/main.ts#L2469)
-//! call site, used by `pkg-manager/core` to derive the `importers:` keys
-//! the lockfile carries.
+//! Derives the `importers:` keys the lockfile carries: the POSIX
+//! relative path from the lockfile dir to each project's root dir, or
+//! `"."` for the root importer.
 
 use std::path::Path;
 

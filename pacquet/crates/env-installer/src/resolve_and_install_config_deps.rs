@@ -1,8 +1,7 @@
 //! Resolve any config dependencies missing from the env lockfile, then
-//! install them all. Mirrors pnpm's
-//! [`resolveAndInstallConfigDeps`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/env-installer/src/resolveAndInstallConfigDeps.ts).
+//! install them all.
 //!
-//! Handles three input shapes, matching upstream:
+//! Handles three input shapes:
 //! 1. old object form `{ tarball?, integrity }` — migrated inline into
 //!    the lockfile,
 //! 2. old string form `<version>+<integrity>` — migrated inline,

@@ -1,5 +1,3 @@
-//! Pacquet port of pnpm's `@pnpm/installing.env-installer`.
-//!
 //! Resolves and installs *configurational dependencies* — the packages
 //! declared under `configDependencies` in `pnpm-workspace.yaml`. They
 //! are installed ahead of regular dependencies, into
@@ -7,8 +5,6 @@
 //! (the first YAML document of `pnpm-lock.yaml`, see
 //! [`pacquet_lockfile::EnvLockfile`]).
 //!
-//! Mirrors the upstream package at
-//! <https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/env-installer/src>.
 //! The install primitive (`import_indexed_dir`) lives in
 //! `pacquet-package-manager`, so this crate depends on it; the
 //! config-finalization seam in the CLI drives this crate before the

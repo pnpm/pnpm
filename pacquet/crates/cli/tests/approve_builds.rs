@@ -1,8 +1,5 @@
 //! Integration tests for `pacquet ignored-builds`, `approve-builds`, and
-//! `rebuild`. Ports the observable behavior of pnpm's
-//! [`approveBuilds`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/commands/src/policy/approveBuilds.ts)
-//! and [`ignoredBuilds`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/commands/src/policy/ignoredBuilds.ts)
-//! tests: a dependency whose build was ignored is listed by
+//! `rebuild`: a dependency whose build was ignored is listed by
 //! `ignored-builds`, approved by `approve-builds` (which writes
 //! `allowBuilds` and re-runs the build), and re-run by `rebuild`.
 
@@ -255,7 +252,6 @@ fn seed_allow_build(workspace: &Path, name: &str) {
     fs::write(&path, yaml).expect("write pnpm-workspace.yaml");
 }
 
-// Ports pnpm's `approve all builds with --all flag`.
 #[test]
 fn approve_builds_all_flag_builds_everything() {
     let (harness, workspace) = install_two_with_ignored_builds();
@@ -275,7 +271,6 @@ fn approve_builds_all_flag_builds_everything() {
     drop(harness);
 }
 
-// Ports pnpm's `deny builds via !pkg positional arguments`.
 #[test]
 fn approve_builds_approves_and_denies_via_positional_args() {
     let (harness, workspace) = install_two_with_ignored_builds();
@@ -299,7 +294,6 @@ fn approve_builds_approves_and_denies_via_positional_args() {
     drop(harness);
 }
 
-// Ports pnpm's `deny-only via !pkg keeps other builds pending`.
 #[test]
 fn approve_builds_deny_only_keeps_other_pending() {
     let (harness, workspace) = install_two_with_ignored_builds();
@@ -323,7 +317,6 @@ fn approve_builds_deny_only_keeps_other_pending() {
     drop(harness);
 }
 
-// Ports pnpm's `positional args preserve existing allowBuilds entries`.
 #[test]
 fn approve_builds_preserves_existing_allow_builds_entries() {
     let (harness, workspace) = install_two_with_ignored_builds();
@@ -339,7 +332,6 @@ fn approve_builds_preserves_existing_allow_builds_entries() {
     drop(harness);
 }
 
-// Ports pnpm's `--all with positional arguments throws error`.
 #[test]
 fn approve_builds_all_with_args_is_rejected() {
     let CommandTempCwd { workspace, root, .. } = CommandTempCwd::init();

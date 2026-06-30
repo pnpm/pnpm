@@ -39,22 +39,17 @@ pub struct MinimalWorkspaceManifest {
     /// the fresh-resolve install path's
     /// `find_workspace_projects` walk doesn't recurse into the
     /// per-revision `<bench_dir>/pacquet/` clone of `pnpm/pnpm` and
-    /// trip over upstream's intentionally malformed test fixtures
-    /// (e.g. `workspace/project-manifest-reader/__fixtures__/invalid-package-json/package.json`).
-    /// Both pnpm and pacquet default to `[".", "**"]` when the field
-    /// is absent — see pnpm's
-    /// [`findPackages.ts:28`](https://github.com/pnpm/pnpm/blob/9eb632bfbd/workspace/projects-reader/src/findPackages.ts#L28)
-    /// and pacquet's
-    /// [`projects.rs:128`](https://github.com/pnpm/pnpm/blob/9eb632bfbd/pacquet/crates/workspace/src/projects.rs#L128) —
-    /// which is why a synthesized manifest with no `packages:` field
-    /// pulls the source tree into the install's project enumeration.
+    /// trip over the repo's intentionally malformed test fixtures
+    /// (e.g. an `invalid-package-json` fixture). Both pnpm and pacquet
+    /// default to `[".", "**"]` when the field is absent, which is why
+    /// a synthesized manifest with no `packages:` field pulls the
+    /// source tree into the install's project enumeration.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub packages: Option<Vec<String>>,
-    /// Mirrors pnpm's
-    /// [`enableGlobalVirtualStore`](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/index.ts#L392-L394).
-    /// Effective default is `false` for non-`--global` installs in
-    /// both pnpm v11 and pacquet (the `true` assignment in upstream
-    /// lives only inside the `pnpm install --global` branch). The
+    /// The `enableGlobalVirtualStore` setting. Effective default is
+    /// `false` for non-`--global` installs in both pnpm v11 and pacquet
+    /// (the `true` value is forced only by the `pnpm install --global`
+    /// branch). The
     /// benchmark fixture still pins this to `false` so a future
     /// default flip surfaces in CI rather than silently changing
     /// the on-disk layout being measured: with GVS on, slot

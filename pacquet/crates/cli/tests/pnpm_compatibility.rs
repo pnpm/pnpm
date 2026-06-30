@@ -221,8 +221,8 @@ fn pnpm_reads_pacquet_written_rows() {
 /// Filter a full store-dir listing down to the GVS slot subtree.
 ///
 /// pnpm writes GVS slots under `v11/links/<scope>/<name>/<version>/<hash>/...`
-/// because [`getStorePath`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L39-L42)
-/// appends `STORE_VERSION` (`"v11"`) to the user-configured `storeDir`.
+/// because it appends `STORE_VERSION` (`"v11"`) to the user-configured
+/// `storeDir`.
 /// Pacquet's [`StoreDir::links`](../../../../store-dir/src/store_dir.rs)
 /// puts them at `links/<scope>/<name>/<version>/<hash>/...` — one level
 /// shallower. Both prefixes pass through unmodified, so when the two
@@ -281,9 +281,7 @@ fn install_then_compare_gvs(
 
 /// Pure-JS GVS parity: a package with one transitive dep, no install
 /// scripts. With `allowBuilds` left at the GVS default of `{}` —
-/// upstream's
-/// [`extendInstallOptions.ts:354`](https://github.com/pnpm/pnpm/blob/29a42efc3b/installing/deps-installer/src/install/extendInstallOptions.ts#L354)
-/// applies `??= {}` whenever `enableGlobalVirtualStore` is on — every
+/// it defaults to `{}` whenever `enableGlobalVirtualStore` is on — every
 /// snapshot hashes with `engine = null`, so the GVS slot tree is
 /// engine-agnostic and the comparison is independent of the host
 /// Node.js / OS / arch the test runs on.
@@ -320,9 +318,8 @@ fn same_global_virtual_store_layout_pure_js() {
 
 /// Engine-included GVS parity: `pre-and-postinstall-scripts-example`
 /// has install scripts and is explicitly approved via `allowBuilds`,
-/// so it lands in upstream's `builtDepPaths` set and its GVS hash
-/// includes the `ENGINE_NAME` string (see
-/// [`calcGraphNodeHash`](https://github.com/pnpm/pnpm/blob/29a42efc3b/deps/graph-hasher/src/index.ts#L140-L146)).
+/// so it lands in the built-dependency set and its GVS hash
+/// includes the `ENGINE_NAME` string.
 /// Pacquet's
 /// [`calc_graph_node_hash`](../../../../graph-hasher/src/global_virtual_store_path.rs)
 /// must produce the same engine-included digest, or pnpm and pacquet

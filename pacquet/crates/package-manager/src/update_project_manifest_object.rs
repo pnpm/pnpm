@@ -3,21 +3,17 @@ use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifest
 use pacquet_registry::PinnedVersion;
 use serde_json::{Map, Value};
 
-/// pnpm's [`DEPENDENCIES_FIELDS`][ts-DEPENDENCIES_FIELDS], in its canonical order. A direct dependency
+/// The dependency fields, in their canonical order. A direct dependency
 /// is written to exactly one of these and removed from the other two.
-///
-/// [ts-DEPENDENCIES_FIELDS]: https://github.com/pnpm/pnpm/blob/6fadd7def9/pnpm11/core/types/src/misc.ts#L6-L10
 const DEPENDENCIES_FIELDS: [&str; 3] = ["optionalDependencies", "dependencies", "devDependencies"];
 
-/// pnpm's [`DEPENDENCIES_OR_PEER_FIELDS`][ts-DEPENDENCIES_OR_PEER_FIELDS]: the three dependency fields plus
-/// `peerDependencies`. [`guess_dependency_type`] scans them in this order and
+/// The three dependency fields plus `peerDependencies`.
+/// [`guess_dependency_type`] scans them in this order and
 /// returns the first that already declares the alias.
-///
-/// [ts-DEPENDENCIES_OR_PEER_FIELDS]: https://github.com/pnpm/pnpm/blob/6fadd7def9/pnpm11/core/types/src/misc.ts#L12-L15
 const DEPENDENCIES_OR_PEER_FIELDS: [&str; 4] =
     ["optionalDependencies", "dependencies", "devDependencies", "peerDependencies"];
 
-/// One manifest mutation request. Port of pnpm's [`PackageSpecObject`][ts-PackageSpecObject].
+/// One manifest mutation request.
 ///
 /// `save_type` and `bare_specifier` together select the behaviour:
 /// * `save_type` set → upsert into that field, deleting the alias from the
@@ -28,8 +24,6 @@ const DEPENDENCIES_OR_PEER_FIELDS: [&str; 4] =
 /// * `save_type` `None` but `bare_specifier` set → write into whichever field
 ///   already declares the alias (defaulting to `dependencies`), without
 ///   moving it between fields.
-///
-/// [ts-PackageSpecObject]: https://github.com/pnpm/pnpm/blob/6fadd7def9/pnpm11/pkg-manifest/utils/src/updateProjectManifestObject.ts#L13-L20
 pub struct PackageSpecObject {
     pub alias: String,
     pub peer: bool,
@@ -39,18 +33,17 @@ pub struct PackageSpecObject {
     pub save_type: Option<DependencyGroup>,
 }
 
-/// Apply `specs` to `manifest` in memory, mirroring pnpm's
-/// [`updateProjectManifestObject`](https://github.com/pnpm/pnpm/blob/fc2f33912e/pnpm11/pkg-manifest/utils/src/updateProjectManifestObject.ts).
+/// Apply `specs` to `manifest` in memory.
 ///
 /// Each entry either upserts a dependency into its `save_type` field (removing
 /// the alias from the other dependency fields and, when `peer` is set, also
 /// recording a peer range), or — with no `save_type` — rewrites the spec in
 /// whichever field already declares the alias. Empty specifiers are treated as
-/// absent, matching pnpm's truthiness guard.
+/// absent.
 ///
 /// Errors when a dependency field that must be written is present but is not a
-/// JSON object (e.g. `"dependencies": "oops"`), mirroring pnpm throwing on the
-/// same input and [`PackageManifest::add_dependency`]. The mutation is applied
+/// JSON object (e.g. `"dependencies": "oops"`), as does
+/// [`PackageManifest::add_dependency`]. The mutation is applied
 /// atomically — a copy is mutated and committed only on success — so an error
 /// mid-way leaves the manifest untouched rather than partially updated.
 pub fn update_project_manifest_object(
@@ -115,9 +108,9 @@ fn get_peer_specifier(
         .unwrap_or_else(|| "*".to_string())
 }
 
-/// Build a manifest range from a concrete resolved version and a pin operator,
-/// mirroring pnpm's `createVersionSpecFromResolvedVersion`: a prerelease is
-/// pinned exactly, otherwise the [`PinnedVersion`] operator is prepended.
+/// Build a manifest range from a concrete resolved version and a pin operator:
+/// a prerelease is pinned exactly, otherwise the [`PinnedVersion`] operator
+/// is prepended.
 /// Returns `None` when `resolved_version` is not valid semver.
 fn create_version_spec_from_resolved_version(
     resolved_version: &str,
@@ -132,9 +125,8 @@ fn create_version_spec_from_resolved_version(
 }
 
 /// Whether `version` is acceptable as a `peerDependencies` range: a valid
-/// semver range, or a `workspace:` / `catalog:` reference. Mirrors pnpm's
-/// `isValidPeerRange`, which uses `includes` so the protocol can appear inside
-/// a wider range expression.
+/// semver range, or a `workspace:` / `catalog:` reference. The protocol can
+/// appear inside a wider range expression.
 fn is_valid_peer_range(version: &str) -> bool {
     Range::parse(version).is_ok() || version.contains("workspace:") || version.contains("catalog:")
 }
@@ -146,8 +138,8 @@ fn find_spec(alias: &str, root: &Value) -> Option<String> {
     root.get(field)?.get(alias)?.as_str().map(ToString::to_string)
 }
 
-/// The first of pnpm's dependency-or-peer fields that already declares `alias`
-/// with a string spec. Mirrors pnpm's `guessDependencyType`.
+/// The first of the dependency-or-peer fields that already declares `alias`
+/// with a string spec.
 fn guess_dependency_type(alias: &str, root: &Value) -> Option<&'static str> {
     DEPENDENCIES_OR_PEER_FIELDS.into_iter().find(|field| {
         root.get(*field)

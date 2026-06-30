@@ -4,9 +4,7 @@ use std::fs;
 use tempfile::tempdir;
 use text_block_macros::text_block_fnl;
 
-/// Mirrors the upstream `is-positive` fixture at
-/// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/deps-restorer/test/fixtures/simple-with-patch/patches/is-positive.patch>:
-/// a single-hunk Modify on `index.js`.
+/// An `is-positive` patch: a single-hunk Modify on `index.js`.
 const IS_POSITIVE_PATCH: &str = "\
 diff --git a/index.js b/index.js
 index 8e020cac3320e72cb40e66b4c4573cc51c55e1e4..8be55d95c50a2a28e021e586ce5b928d9fea140e 100644
@@ -20,10 +18,10 @@ index 8e020cac3320e72cb40e66b4c4573cc51c55e1e4..8be55d95c50a2a28e021e586ce5b928d
 +// a change
 ";
 
-/// The upstream `is-positive@1.0.0` `index.js` body the patch
-/// applies against. Six lines before the modified region, three
-/// lines of context. Indentation uses tabs because the file
-/// upstream's patch was authored against uses tabs.
+/// The `is-positive@1.0.0` `index.js` body the patch applies against.
+/// Six lines before the modified region, three lines of context.
+/// Indentation uses tabs because the file the patch was authored
+/// against uses tabs.
 const IS_POSITIVE_INDEX_JS: &str = "\
 'use strict';
 module.exports = function (n) {
@@ -35,8 +33,8 @@ module.exports = function (n) {
 };
 ";
 
-/// `is-positive`'s `index.js` after the upstream patch lands:
-/// trailing blank line plus a `// a change` comment.
+/// `is-positive`'s `index.js` after the patch lands: trailing blank
+/// line plus a `// a change` comment.
 const IS_POSITIVE_INDEX_JS_PATCHED: &str = "\
 'use strict';
 module.exports = function (n) {
@@ -408,10 +406,10 @@ fn create_with_unwritable_parent_path_errors() {
 }
 
 /// Re-applying a Modify patch over a file that already contains the
-/// post-patch content must succeed (no-op), matching upstream
-/// `@pnpm/patch-package`'s
+/// post-patch content must succeed (no-op), the same
 /// [retry-with-reverse-in-dry-run](https://github.com/ds300/patch-package/blob/master/src/applyPatches.ts)
-/// idempotency. Triggers in practice when two snapshots of the same
+/// idempotency `patch-package` provides. Triggers in practice when two
+/// snapshots of the same
 /// patched package share a hardlinked store file: the first apply
 /// mutates the store inode through the hardlink, so the second
 /// snapshot's apply sees already-patched content and would otherwise

@@ -6,17 +6,15 @@ use std::collections::HashMap;
 /// `packages:` map. This is the per-version data that does not vary by
 /// peer-dependency context — peer-specific information lives in
 /// [`SnapshotEntry`](crate::SnapshotEntry) instead.
-///
-/// Specification: <https://github.com/pnpm/spec/blob/834f2815cc/lockfile/9.0.md>
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PackageMetadata {
     pub resolution: LockfileResolution,
 
     /// Emitted only for non-registry packages (depPath contains `:`) whose
-    /// manifest carries a version and whose resolution isn't a directory —
-    /// matching pnpm's `toLockfileDependency`. Registry packages omit it
-    /// because the version is already the depPath suffix.
+    /// manifest carries a version and whose resolution isn't a directory.
+    /// Registry packages omit it because the version is already the depPath
+    /// suffix.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
 

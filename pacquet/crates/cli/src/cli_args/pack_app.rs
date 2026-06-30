@@ -1,23 +1,22 @@
-//! Pacquet port of pnpm's
-//! [`pack-app` command](https://github.com/pnpm/pnpm/blob/9f3df6b9b4/pnpm11/releasing/commands/src/pack-app/packApp.ts).
+//! `pacquet pack-app`.
 //!
 //! Packs a `CommonJS` entry file into a standalone executable for one or
 //! more target platforms, embedding a Node.js binary through the Node.js
 //! [Single Executable Applications API](https://nodejs.org/api/single-executable-applications.html).
 //!
-//! Two faithful divergences from the pnpm source, both forced by pacquet
-//! being a Rust binary rather than a Node.js script:
+//! Two behaviors are forced by pacquet being a Rust binary rather than a
+//! Node.js script:
 //!
 //! - **The SEA builder is always downloaded.** pnpm reuses its own
 //!   running interpreter (`process.execPath`) when it already matches the
 //!   embedded runtime version. pacquet has no host Node.js to reuse, so it
 //!   always fetches a host-arch Node.js of the embedded runtime version to
 //!   run `--build-sea`.
-//! - **The runtime install spawns the pacquet binary.** pnpm shells out to
-//!   its own CLI via `runPnpmCli`; pacquet re-invokes itself
-//!   (`std::env::current_exe()`) running `add node@runtime:<version>` with
-//!   the target `--os` / `--cpu` / `--libc` flags into an isolated install
-//!   directory under the pnpm home.
+//! - **The runtime install spawns the pacquet binary.** pacquet
+//!   re-invokes itself (`std::env::current_exe()`) running
+//!   `add node@runtime:<version>` with the target `--os` / `--cpu` /
+//!   `--libc` flags into an isolated install directory under the pnpm
+//!   home.
 
 use std::{
     fs,
@@ -532,8 +531,8 @@ fn builder_version_can_build_sea(version: &str) -> bool {
 /// files are hardlinked from pacquet's content-addressable store, so
 /// repeated calls are cheap.
 ///
-/// Mirrors pnpm's `runPnpmCli(['add', …])` by re-invoking the pacquet
-/// binary against an isolated install directory.
+/// Re-invokes the pacquet binary with `add` against an isolated install
+/// directory.
 fn ensure_node_runtime(
     pacquet_bin: &Path,
     build_root: &Path,
@@ -879,7 +878,6 @@ fn derive_output_name_from_package(
 }
 
 /// pnpm home directory, the base of pack-app's per-target runtime cache.
-/// Mirrors pnpm's `config.pnpmHomeDir`.
 fn pnpm_home_dir() -> miette::Result<PathBuf> {
     pacquet_config::default_pnpm_home_dir::<Host>()
         .ok_or_else(|| miette::miette!("could not determine the pnpm home directory"))

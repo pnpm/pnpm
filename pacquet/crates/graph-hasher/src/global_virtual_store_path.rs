@@ -1,7 +1,5 @@
-//! Pacquet port of pnpm's global-virtual-store directory naming —
-//! [`calcGraphNodeHash`](https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-hasher/src/index.ts#L122-L146)
-//! and
-//! [`formatGlobalVirtualStorePath`](https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-hasher/src/index.ts#L155-L160).
+//! Global-virtual-store directory naming — the GVS hash computation
+//! and path formatting.
 //!
 //! The engine string contribution is gated by
 //! `transitively_requires_build` (private to this crate): when the
@@ -12,10 +10,8 @@
 //! Pure-JS leaves and their pure-JS ancestors hash with
 //! `engine = null`, so their GVS directories survive Node.js
 //! upgrades and architecture moves. Passing `None` for
-//! `built_dep_paths` reproduces the always-include behaviour
-//! (matches upstream's
-//! [`builtDepPaths === undefined`](https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-hasher/src/index.ts#L140-L142)
-//! branch).
+//! `built_dep_paths` reproduces the always-include behaviour (the
+//! `built_dep_paths === undefined` branch).
 
 use crate::{
     HashEncoding,
@@ -26,8 +22,7 @@ use serde_json::{Value, json};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 /// Compute the hex digest that uniquely identifies one snapshot's
-/// position in the global virtual store. Mirrors
-/// [`calcGraphNodeHash`](https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-hasher/src/index.ts#L122-L146).
+/// position in the global virtual store.
 ///
 /// The output is the `hash` segment that
 /// [`format_global_virtual_store_path`] places after `<name>/<version>/`.
@@ -46,13 +41,11 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 /// - `built_dep_paths`: when `Some`, the set of snapshot keys whose
 ///   `allowBuilds` entry evaluates to `true` (or every snapshot when
 ///   `dangerouslyAllowAllBuilds` is on). `None` disables the gating
-///   and forces `include_engine = true` — matches upstream's
-///   `builtDepPaths === undefined` branch.
+///   and forces `include_engine = true` — the
+///   `built_dep_paths === undefined` branch.
 /// - `build_required_cache`: install-scoped memoization for the
 ///   gating walk. Allocated once at the call site and reused across
-///   every snapshot in the install — see
-///   [`iterateHashedGraphNodes`](https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-hasher/src/index.ts#L99-L120)
-///   for the upstream lifecycle. Untouched when `built_dep_paths`
+///   every snapshot in the install. Untouched when `built_dep_paths`
 ///   is `None`; callers that don't care can hold a throwaway
 ///   `let mut cache = HashMap::new();` and pass `&mut cache`.
 pub fn calc_graph_node_hash<Key>(
@@ -93,8 +86,7 @@ where
 }
 
 /// Compute the GVS hash for a config dependency that has no children
-/// at all. Mirrors
-/// [`calcLeafGlobalVirtualStorePath`](https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-hasher/src/index.ts#L162-L166).
+/// at all.
 ///
 /// Unlike [`calc_graph_node_hash`], this doesn't walk a dependency
 /// graph — it hashes a single `{ id: full_pkg_id, deps: {} }` node and
@@ -111,8 +103,7 @@ pub fn calc_leaf_global_virtual_store_path(full_pkg_id: &str, name: &str, versio
 }
 
 /// Compute the GVS hash for a config dependency together with its
-/// one-level optional subdeps. Mirrors
-/// [`calcGlobalVirtualStorePathWithSubdeps`](https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-hasher/src/index.ts#L175-L188).
+/// one-level optional subdeps.
 ///
 /// `subdep_ids` maps each subdep alias to its `full_pkg_id`
 /// (`<name>@<version>:<integrity>`). Folding the subdeps into the
@@ -139,13 +130,11 @@ pub fn calc_global_virtual_store_path_with_subdeps(
     format_global_virtual_store_path(name, version, &hex_digest)
 }
 
-/// Format a global-virtual-store-relative path for a package. Mirrors
-/// upstream's
-/// [`formatGlobalVirtualStorePath`](https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-hasher/src/index.ts#L155-L160)
-/// — the `@/` prefix on unscoped packages keeps every entry in the
-/// shared store at the same `<scope>/<name>/<version>/<hash>` depth,
-/// so a single `readdir` pass per level can enumerate the store
-/// without special-casing the unscoped path layout.
+/// Format a global-virtual-store-relative path for a package. The `@/`
+/// prefix on unscoped packages keeps every entry in the shared store at
+/// the same `<scope>/<name>/<version>/<hash>` depth, so a single
+/// `readdir` pass per level can enumerate the store without
+/// special-casing the unscoped path layout.
 #[must_use]
 pub fn format_global_virtual_store_path(name: &str, version: &str, hex_digest: &str) -> String {
     let prefix = if name.starts_with('@') { "" } else { "@/" };

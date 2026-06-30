@@ -36,8 +36,8 @@ fn hash_object_without_sorting_distinguishes_key_order() {
     assert_ne!(bx, ax);
 }
 
-/// Hex encoding is what `calcGraphNodeHash` uses for the GVS path
-/// at <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/deps/graph-hasher/src/index.ts#L145>.
+/// Hex encoding is what the GVS path hash uses; check it decodes to
+/// the same bytes as the base64 form.
 #[test]
 fn hash_object_with_encoding_hex_matches_decoded_base64() {
     let value = json!({ "b": 1, "a": 2 });
@@ -59,8 +59,8 @@ fn hash_object_empty_object_is_stable() {
 }
 
 /// Nested-object case that matches the shape pacquet's
-/// `calcDepGraphHash` actually feeds into `hash_object`:
-/// `{ id: <string>, deps: <Record<string, string>> }`.
+/// `calc_dep_graph_hash` actually feeds into `hash_object`:
+/// `{ id: <string>, deps: <map of string to string> }`.
 #[test]
 fn hash_object_dep_state_shape_sorts_nested_keys() {
     let first = hash_object(&json!({

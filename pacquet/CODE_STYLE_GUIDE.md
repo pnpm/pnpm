@@ -510,7 +510,7 @@ The dependency-injection seam described below is the **narrow second route**. Re
 - **Filesystem error branches the host OS won't reproduce portably.** `PermissionDenied`, `ENOSPC`, a directory that disappears mid-walk, a chmod that fails after the file exists — provoking these on real disks is platform-specific, racy, or both. A fake that returns the exact `io::ErrorKind` is the only portable way to drive the branch.
 - **Deterministic time.** Asserting that `prunedAt` equals a specific HTTP-date (RFC 7231 IMF-fixdate, what `httpdate::fmt_http_date` emits), or that a throttled emitter fires on the second sample, needs the clock to be a known value. The real `SystemTime::now` makes those assertions flaky.
 - **Shared process-global state that tests would otherwise mutate.** When a branch depends on a single per-process slot — environment variables, the current working directory, the umask, signal handlers, the global allocator — the only way to exercise it without DI is to write to that slot, and the write is observed by every other test in the same process. A serialisation lock (the `EnvGuard` pattern that pnpm/pacquet#343 + pnpm/pnpm#11718 retired from `default_store_dir`) restores correctness only by forcing the affected tests to run single-threaded, and leaves an `unsafe { env::set_var(...) }` block at the call site. A capability-trait fake keeps the read deterministic and the mutation contained to the test that needs it, so nextest's in-process parallelism stays useful and `unsafe` stays out of test code. The reverse follows too: a real-fixture happy path should not be promoted to DI just because it crosses a process-global slot — only the *mutation* side of the slot is the problem; reading whatever the shell already has is fine.
-- **External-service happy paths that can't be staged in CI.** Upstream pnpm has features whose *normal* flow depends on real external systems — `pnpm login`'s 2FA prompt round-trip, the OIDC token exchange and provenance attestation in `pnpm publish`, and similar — where the happy path itself is what needs faking, not just the error path. When pacquet ports those features, DI is the right tool for their tests too. (As of writing, these are not yet ported; this exception is documented so the convention is in place when they land.)
+- **External-service happy paths that can't be staged in CI.** pnpm has features whose *normal* flow depends on real external systems — `pnpm login`'s 2FA prompt round-trip, the OIDC token exchange and provenance attestation in `pnpm publish`, and similar — where the happy path itself is what needs faking, not just the error path. When pacquet grows those features, DI is the right tool for their tests too. (As of writing, these are not yet implemented; this exception is documented so the convention is in place when they land.)
 - **Unreachable-by-design preconditions.** When a function declares a capability bound but a specific test exercises a branch that never reaches that capability, the fake satisfies the bound with `unreachable!` and documents the precondition. See the worked example below.
 
 A function that takes a `<Sys>` generic but is only ever exercised via real fixtures is a smell — either the DI branches are missing coverage, or the generic is over-design. Either add the tests that justify the seam, or drop the generic and let the real fixture cover everything.
@@ -686,23 +686,23 @@ The provider implements each trait independently, so adding a domain to an exist
 
 ### Reporter / log events
 
-Pacquet's user-facing output mirrors pnpm's: every channel pnpm fires must fire from the corresponding pacquet site, with the same payload shape and the same firing cadence. The reporter lives in `crates/reporter` (the `Reporter` capability trait, the `LogEvent` enum, the `NdjsonReporter` and `SilentReporter` sinks); this section is the convention for porting emissions into ported functions.
+Pacquet and the TypeScript pnpm CLI share one reporter wire protocol — the NDJSON stream that `@pnpm/cli.default-reporter` parses. Every channel one stack fires must fire from the corresponding site in the other, with the same payload shape and the same firing cadence. The reporter lives in `crates/reporter` (the `Reporter` capability trait, the `LogEvent` enum, the `NdjsonReporter` and `SilentReporter` sinks); this section is the convention for keeping pacquet's emissions in step with that shared contract.
 
-#### Finding the upstream emit
+#### Where the events come from
 
-In `pnpm/pnpm`, log events come from one of three call shapes:
+In the TypeScript stack, log events come from one of three call shapes — worth knowing when you cross-reference it to keep an emit in sync:
 
 - `globalLogger.<channel>.<level>(...)` — the ergonomic helpers in `core/core-loggers/src/<channel>Logger.ts`.
 - `logger.<level>({ name: 'pnpm:<channel>', ... })` — the raw logger with a name discriminant.
-- Direct `streamParser.write(...)` calls — only in pnpm's reporter internals; when porting, you wouldn't write through this.
+- Direct `streamParser.write(...)` calls — only in the reporter internals; pacquet wouldn't write through this.
 
-When porting a function, grep for those patterns *in the upstream files you're porting from* (not workspace-wide). The emit usually sits immediately before or after the side effect the event describes — e.g., `progressLogger.debug({ status: 'fetched' })` after the tarball finishes downloading, before the import step starts.
+The emit usually sits immediately before or after the side effect the event describes — e.g., `progressLogger.debug({ status: 'fetched' })` after the tarball finishes downloading, before the import step starts.
 
 #### Channel mapping
 
-The channels pacquet currently emits live in `crates/reporter/src/lib.rs`'s `LogEvent` enum. Each variant pins `#[serde(rename = "pnpm:<channel>")]` so the wire string matches upstream byte-for-byte. The enum is *not* an exhaustive list of pnpm's channels — variants are added as pacquet starts emitting them. When porting a function whose upstream emits a channel `LogEvent` doesn't yet have, add the variant first (see "To add a new channel" below). Read the doc comment on each existing variant for the upstream type permalink; channels that fire from a single canonical emit site link that too, while multi-site channels (`Stage` and `Progress`, which span the install lifecycle) only pin the type and let the porter grep the upstream file for the per-status emits.
+The channels pacquet currently emits live in `crates/reporter/src/lib.rs`'s `LogEvent` enum. Each variant pins `#[serde(rename = "pnpm:<channel>")]` so the wire string matches the protocol byte-for-byte. The enum is *not* an exhaustive list of every channel — variants are added as pacquet starts emitting them. When a behavior change needs a channel `LogEvent` doesn't yet have, add the variant first (see "To add a new channel" below). The `Stage` and `Progress` channels span the install lifecycle and fire from multiple sites; the rest each fire from a single canonical emit site.
 
-To add a new channel: extend the enum with a `#[serde(rename = "pnpm:<channel>")]` variant whose payload mirrors the upstream TS shape field-for-field — camelCase via `#[serde(rename_all = "camelCase")]` where applicable, preserving status-tagged-union shapes (see `ProgressMessage` for the pattern). Add a wire-shape unit test to `crates/reporter/src/tests.rs` that asserts the JSON renders exactly what pnpm's TS emitter would.
+To add a new channel: extend the enum with a `#[serde(rename = "pnpm:<channel>")]` variant whose payload matches the wire shape field-for-field — camelCase via `#[serde(rename_all = "camelCase")]` where applicable, preserving status-tagged-union shapes (see `ProgressMessage` for the pattern). Add a wire-shape unit test to `crates/reporter/src/tests.rs` that asserts the JSON renders exactly what the protocol requires, identical to the TypeScript emitter's output.
 
 #### Threading the reporter
 
@@ -731,14 +731,11 @@ The generic monomorphises away — there's no runtime cost. The ergonomic cost i
 
 #### Where to put the emit
 
-Match the upstream call site's position relative to side effects. pnpm's reporter expects events in a specific order (`resolved` before `fetched`, `importing_started` before any per-package events, etc.). Emitting in the wrong order makes the JS reporter render the "X/Y resolved" counter incorrectly or skip animations entirely.
-
-Cite the upstream permalink (pinned SHA per the cardinal rule in [`AGENTS.md`](./AGENTS.md)) in the code comment next to the emit:
+Put the emit at the same position relative to side effects in both stacks. The reporter expects events in a specific order (`resolved` before `fetched`, `importing_started` before any per-package events, etc.). Emitting in the wrong order makes the reporter render the "X/Y resolved" counter incorrectly or skip animations entirely.
 
 ```rust
-// `pnpm:context` carries the directories pnpm's reporter prints
-// in the install header. Mirrors the upstream emit at
-// <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/context/src/index.ts#L196>.
+// `pnpm:context` carries the directories the reporter prints in
+// the install header. Emitted once, before the per-package events.
 R::emit(&LogEvent::Context(ContextLog {
     level: LogLevel::Debug,
     current_lockfile_exists: false,
@@ -785,14 +782,14 @@ Verify the test catches a regression: temporarily comment out the emit, run the 
 
 #### What not to do
 
-- **Don't reformat upstream messages.** Field names and string values are part of the wire contract — change them and `@pnpm/cli.default-reporter` silently drops the record.
-- **Don't invent new channels.** If pnpm doesn't have it, pacquet doesn't either. Channels expand only when upstream adds them.
-- **Don't emit at higher granularity than pnpm.** Throttling and size gates exist for a reason — see `pacquet-tarball`'s `fetch_and_extract_once`, which gates `pnpm:fetching-progress in_progress` on a known `Content-Length` *and* `>= 5 MB` (`BIG_TARBALL_SIZE`), then throttles to 500ms with leading + trailing edges. That mirrors `lodash.throttle(opts.onProgress, 500)` in upstream's [`remoteTarballFetcher.ts:143-144`](https://github.com/pnpm/pnpm/blob/086c5e91e8/fetching/tarball-fetcher/src/remoteTarballFetcher.ts#L143-L144) exactly.
+- **Don't reformat the wire messages.** Field names and string values are part of the wire contract — change them and `@pnpm/cli.default-reporter` silently drops the record.
+- **Don't invent new channels.** The channel set is shared; it expands only when both stacks add a channel together.
+- **Don't emit at higher granularity than the reporter expects.** Throttling and size gates exist for a reason — see `pacquet-tarball`'s `fetch_and_extract_once`, which gates `pnpm:fetching-progress in_progress` on a known `Content-Length` *and* `>= 5 MB` (`BIG_TARBALL_SIZE`), then throttles to 500ms with leading and trailing edges.
 - **Don't emit at lower granularity, either.** Skipping events the consumer expects (`fetched` after a download succeeds, `imported` after `create_cas_files` Ok) breaks pnpm's reporter counters.
 
 #### Worked example: `pnpm:summary` in `Install::run`
 
-The `Install::run` function brackets the install with `pnpm:stage` events and emits `pnpm:summary` after import completes. Upstream emits `summaryLogger.debug({ prefix })` after each importer's link phase finishes, at [`installing/deps-installer/src/install/index.ts:1663`](https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/deps-installer/src/install/index.ts#L1663).
+The `Install::run` function brackets the install with `pnpm:stage` events and emits `pnpm:summary` after import completes — once per importer, after its link phase finishes.
 
 In pacquet, the same emit lives at the bottom of `Install::run`:
 
@@ -805,8 +802,7 @@ R::emit(&LogEvent::Stage(StageLog {
 
 // `pnpm:summary` closes the install and lets the reporter render
 // the accumulated `pnpm:root` events as a "+N -M" block. Must
-// come after `importing_done`, matching pnpm's ordering at
-// <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/deps-installer/src/install/index.ts#L1663>.
+// come after `importing_done`.
 R::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
 ```
 

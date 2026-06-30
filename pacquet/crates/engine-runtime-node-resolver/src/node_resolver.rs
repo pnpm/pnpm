@@ -1,5 +1,5 @@
-//! Pacquet port of upstream's
-//! [`resolveNodeRuntime` / `resolveLatestNodeRuntime`](https://github.com/pnpm/pnpm/blob/1627943d2a/engine/runtime/node-resolver/src/index.ts#L39-L97).
+//! Resolves `node@runtime:<spec>` dependencies, including the
+//! `latest`-channel shortcut.
 //!
 //! [`NodeResolver`] implements [`Resolver`] and ties the per-helper
 //! pieces (parser, mirror picker, asset reader) together so the
@@ -43,7 +43,7 @@ const BARE_SPEC_PREFIX: &str = "runtime:";
 
 /// Errors emitted by [`NodeResolver::resolve`] / [`NodeResolver::resolve_latest`].
 ///
-/// Each variant maps to one of upstream's `node-resolver` codes
+/// Each variant maps to one of the node-resolver error codes
 /// (`NO_OFFLINE_NODEJS_RESOLUTION`, `NODEJS_VERSION_NOT_FOUND`,
 /// `INVALID_NODE_RELEASE_CHANNEL`, plus the network failure modes
 /// surfaced by the shasums-file and release-index fetchers).
@@ -131,11 +131,12 @@ impl NodeResolver {
             return Ok(None);
         };
 
-        // Upstream's `currentPkg && !update` short-circuit reuses the
-        // lockfile-pinned VariationsResolution unchanged. Pacquet
-        // doesn't thread `currentPkg` through `ResolveOptions` yet, so
-        // every resolve re-fetches the asset list. Restore the fast
-        // path once the seam carries `currentPkg`.
+        // A fast path could reuse the lockfile-pinned
+        // VariationsResolution unchanged when the current package is
+        // already pinned and no update is requested. Pacquet doesn't
+        // thread that signal through `ResolveOptions` yet, so every
+        // resolve re-fetches the asset list. Add the fast path once the
+        // seam carries it.
 
         if self.offline {
             return Err(Box::new(NodeResolverError::Offline) as ResolveError);
@@ -219,9 +220,7 @@ impl NodeResolver {
     /// mirror, then optionally augment with musl variants from
     /// unofficial-builds when the active mirror is the official one.
     ///
-    /// Mirrors upstream's
-    /// [`readNodeAssets`](https://github.com/pnpm/pnpm/blob/1627943d2a/engine/runtime/node-resolver/src/index.ts#L99-L113):
-    /// the musl branch only fires when the active mirror is the
+    /// The musl branch only fires when the active mirror is the
     /// default one (custom mirrors are assumed to publish their own
     /// musl-or-not policy), and musl-fetch failures are swallowed
     /// because old releases simply don't have musl builds.
@@ -292,7 +291,8 @@ fn normalize_node_runtime_version_specifier(
 /// Read the asset list for one mirror version and decode each row
 /// into a [`PlatformAssetResolution`].
 ///
-/// The regex mirrors upstream's: `node-v<version>-<platform>-<arch>(-musl)?.(tar.gz|zip)`.
+/// Rows are matched against the nodejs.org artifact pattern
+/// `node-v<version>-<platform>-<arch>(-musl)?.(tar.gz|zip)`.
 /// Files that don't match (e.g. `.pkg`, `.msi`, source tarballs) are
 /// dropped. When `musl_only` is true, glibc builds are filtered out
 /// so the asset list only carries the musl-specific variants the
@@ -366,7 +366,7 @@ struct NodeFileName {
     is_musl: bool,
 }
 
-/// Match upstream's
+/// Match the nodejs.org artifact pattern
 /// `^node-v<version>-([^-.]+)-([^.-]+)(-musl)?\.(tar\.gz|zip)$` —
 /// implemented by hand so the resolver doesn't pay the regex crate
 /// dependency for a single pattern.

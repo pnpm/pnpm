@@ -1,5 +1,4 @@
-//! Port of `inferPlatformFromPackageName.ts` from
-//! <https://github.com/pnpm/pnpm/blob/a6f303c2ff6ba83df17a47f10a0fe1d7ff8a083c/pnpm11/config/package-is-installable/src/inferPlatformFromPackageName.ts>.
+//! Infers a package's supported platforms from the tokens of its name.
 
 use crate::check_platform::{WantedPlatform, WantedPlatformRef};
 
@@ -81,8 +80,7 @@ fn pick_token_values(
 /// platform-specific binary the package name carries the same information.
 ///
 /// Returns `None` when the declared fields stand as-is. The `optional` gate
-/// stays at the call site, mirroring upstream's `effectivePlatform` at
-/// <https://github.com/pnpm/pnpm/blob/a6f303c2ff6ba83df17a47f10a0fe1d7ff8a083c/pnpm11/config/package-is-installable/src/index.ts#L70-L96>.
+/// stays at the call site.
 /// See <https://github.com/pnpm/pnpm/issues/11702>.
 pub fn inferred_platform(name: &str, declared: WantedPlatformRef<'_>) -> Option<WantedPlatform> {
     if declared.os.is_some() && declared.cpu.is_some() && declared.libc.is_some() {

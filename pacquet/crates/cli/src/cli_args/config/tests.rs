@@ -1,6 +1,3 @@
-//! Ports of pnpm's `config` command tests
-//! ([source](https://github.com/pnpm/pnpm/blob/8eb1be4988/config/commands/test/)).
-//!
 //! pnpm's tests inject a `_config` / `_context`; pacquet builds a [`Config`]
 //! and sets the public fields the command reads ([`Config::config_dir`],
 //! [`Config::explicit_settings`], [`Config::raw_auth_config`]) — the same

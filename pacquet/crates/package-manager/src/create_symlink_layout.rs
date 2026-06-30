@@ -4,11 +4,9 @@ use std::{collections::HashMap, path::Path};
 
 /// Create symlink layout of dependencies for a package in a virtual dir.
 ///
-/// Mirrors upstream's `linkAllModules` child-selection rules at
-/// <https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-installer/src/install/link.ts#L521-L549>
-/// and the underlying `dependencies` ∪ `optionalDependencies` merge in
-/// `lockfileToDepGraph` at
-/// <https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/deps/graph-builder/src/lockfileToDepGraph.ts#L150-L156>.
+/// Links the union of the package's `dependencies` and
+/// `optionalDependencies` into the slot's `node_modules`, skipping the
+/// package's own name and any target whose slot was not materialized.
 ///
 /// Child target paths come from the install-scoped
 /// [`VirtualStoreLayout`]: `layout.slot_dir(&target)` returns either
@@ -33,10 +31,8 @@ pub fn create_symlink_layout(
     // Serial iteration: the symlink work per snapshot is small (a
     // handful of entries), so fanning out to rayon here would just add
     // task-scheduling overhead without a wider work queue to amortise
-    // it against. The single-caller policy upstream is to run this
-    // stage single-threaded on a `spawn_blocking` worker (see
-    // `CreateVirtualStore::run`), mirroring pnpm's `symlinkAllModules`
-    // in `worker/src/start.ts`.
+    // it against. This stage runs single-threaded on a `spawn_blocking`
+    // worker (see `CreateVirtualStore::run`).
     let deps = dependencies.into_iter().flatten();
     let opt_deps = optional_dependencies.into_iter().flatten();
     deps.chain(opt_deps).try_for_each(|(alias_name, dep_ref)| {

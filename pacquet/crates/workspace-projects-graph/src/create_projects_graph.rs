@@ -9,23 +9,21 @@ use pacquet_workspace_range_resolver::resolve_workspace_range;
 use pacquet_workspace_spec::WorkspaceSpec;
 use std::{collections::HashMap, path::PathBuf};
 
-/// Options for [`create_projects_graph()`]. Mirrors upstream's
-/// `createProjectsGraph(projects, opts)` second argument.
+/// Options for [`create_projects_graph()`].
 #[derive(Debug, Default, Clone, Copy)]
 pub struct CreateProjectsGraphOptions {
-    /// Exclude `devDependencies` from edge computation. Upstream passes
-    /// this when building the `--filter-prod` graph so dependency walks
-    /// follow production deps only.
+    /// Exclude `devDependencies` from edge computation. Set when building
+    /// the `--filter-prod` graph so dependency walks follow production
+    /// deps only.
     pub ignore_dev_deps: bool,
-    /// Whether workspace packages are linked. Maps to upstream's
-    /// tri-state `linkWorkspacePackages`.
+    /// Whether workspace packages are linked. The tri-state mirrors the
+    /// `linkWorkspacePackages` setting.
     pub link_workspace_packages: Option<bool>,
 }
 
 /// A dependency that named a workspace sibling but whose version range
 /// no sibling satisfied (or that was rejected by strict
-/// `linkWorkspacePackages: false` matching). Mirrors upstream's
-/// `unmatched` entries.
+/// `linkWorkspacePackages: false` matching).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Unmatched {
     pub pkg_name: String,
@@ -42,19 +40,16 @@ pub struct CreateProjectsGraphResult<Pkg> {
 
 /// Build the workspace dependency graph from a project list.
 ///
-/// Port of upstream's
-/// [`createProjectsGraph`](https://github.com/pnpm/pnpm/blob/3b62f9da31/workspace/projects-graph/src/index.ts#L19-L109).
 /// Each project becomes a node keyed by its root directory; its edges
 /// are the root directories of the workspace siblings its dependencies
 /// resolve to.
 ///
-/// One deliberate divergence from upstream: pacquet classifies a
-/// non-`workspace:` specifier with a small local-path / semver check
-/// rather than a full `npm-package-arg` resolve. The cases
-/// `createProjectsGraph` acts on (`directory`, `version`, `range`) are
-/// covered; the on-disk file-vs-directory disambiguation
-/// `npm-package-arg` performs for `file:` tarballs is not, because a
-/// workspace sibling is always a directory.
+/// A non-`workspace:` specifier is classified with a small local-path /
+/// semver check rather than a full `npm-package-arg` resolve. The cases
+/// this graph acts on (`directory`, `version`, `range`) are covered; the
+/// on-disk file-vs-directory disambiguation `npm-package-arg` performs
+/// for `file:` tarballs is not, because a workspace sibling is always a
+/// directory.
 #[must_use]
 pub fn create_projects_graph<Pkg>(
     projects: Vec<Pkg>,

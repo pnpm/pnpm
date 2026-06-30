@@ -331,8 +331,7 @@ async fn dedupes_when_the_same_package_appears_in_two_subtrees() {
 /// Regression for [#11939](https://github.com/pnpm/pnpm/issues/11939):
 /// a workspace-link dependency whose linked package declares peer
 /// dependencies (the babylon `@dev/shared-ui-components` shape) must
-/// short-circuit in the tree builder. Mirrors upstream's
-/// [`isLinkedDependency` arm](https://github.com/pnpm/pnpm/blob/cc4ff817aa/installing/deps-resolver/src/resolveDependencies.ts#L926-L937).
+/// short-circuit in the tree builder.
 ///
 /// The short-circuit is what makes the peer-resolution stage's
 /// `depth == -1` arm kick in so the link node's depPath stays
@@ -404,9 +403,9 @@ async fn workspace_link_node_is_short_circuited_in_tree() {
 /// `Ok(None)`) must NOT silently drop the edge — that would leave
 /// installs missing transitive deps and report success. The walker
 /// surfaces `SpecNotSupported` with the offending specifier
-/// rendered the way upstream's `default-resolver` does, so callers
-/// can produce the same `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER`
-/// diagnostic the chain dispatcher does.
+/// rendered as `alias@specifier`, so callers can produce the
+/// `ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER` diagnostic the chain
+/// dispatcher does.
 #[tokio::test]
 async fn declined_specifier_surfaces_spec_not_supported_error() {
     let resolver = StubResolver { table: HashMap::new(), calls: Mutex::new(Vec::new()) };
@@ -438,8 +437,6 @@ async fn declined_specifier_surfaces_spec_not_supported_error() {
 /// A transitive dependency whose alias contains `..` segments would
 /// escape the `node_modules` directory when joined onto a modules
 /// path. The walker rejects it before any further resolution work.
-/// Mirrors the pnpm-side fix in
-/// `installing/deps-resolver/src/validateDependencyAlias.ts`.
 #[tokio::test]
 async fn transitive_dep_with_traversal_alias_is_rejected() {
     let mut table = HashMap::new();
@@ -954,8 +951,6 @@ mod peers {
     /// With `dedupePeers` on, the peer-id is `name@version` instead, so
     /// the consumer's suffix stays flat:
     /// `@emotion/styled@11.0.0(@emotion/react@11.0.0)(react@18.0.0)`.
-    /// Ports upstream's
-    /// [`'uses version-only peer suffixes without nested dep paths'`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-resolver/test/resolvePeers.ts#L679-L756).
     #[tokio::test]
     async fn dedupe_peers_collapses_nested_peer_suffixes() {
         let result = resolve_emotion_fixture(ResolvePeersOptions {
@@ -999,15 +994,13 @@ mod peers {
     /// has direct `a` + `c`. Even though `a` has no peers itself, its
     /// child `b` carries `c` as an external peer, so `a` propagates `c`
     /// up to its own depPath suffix too. Both `a` and `b` land as
-    /// `…(c@1.0.0)`. Mirrors upstream's
-    /// [`'transitive peers use version-only suffixes'`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-resolver/test/resolvePeers.ts#L758-L833).
+    /// `…(c@1.0.0)`.
     ///
     /// Pacquet's [`DepPath`] uses `name@version` for pure packages, so
     /// the `dedupe_peers=true` vs `false` rendering of a pure peer is
-    /// byte-identical (both produce `(c@1.0.0)`). Upstream's pnpm uses
-    /// `c/1.0.0` for the dep-path form and so observes a difference;
-    /// the contract this test locks down is the transitive-peer
-    /// propagation itself, not the byte shape of the peer-id.
+    /// byte-identical (both produce `(c@1.0.0)`). The contract this
+    /// test locks down is the transitive-peer propagation itself, not
+    /// the byte shape of the peer-id.
     #[tokio::test]
     async fn dedupe_peers_propagates_transitive_peer_to_parent() {
         let mut table = HashMap::new();
@@ -1165,8 +1158,7 @@ mod peers {
         assert_eq!(p_node.depth, 1, "p's graph depth must be the minimum (1), not 2");
     }
 
-    /// Port of upstream's
-    /// [`"a peer's own peer is shared with a sibling that peer-depends both"`](https://github.com/pnpm/pnpm/blob/894ea6af2c/installing/deps-resolver/test/resolvePeers.ts#L1207).
+    /// A peer's own peer is shared with a sibling that peer-depends both.
     /// `plugin` peer-depends both `parser` and `typescript`; `parser`
     /// peer-depends `typescript`. `plugin` and `parser` live under
     /// `umbrella` (under `app`, which also brings `typescript@1.0.0`), while
@@ -1355,8 +1347,7 @@ mod peers {
 
     /// Shared fixture for the `dedupe_peers_*` pair: react@18 plus
     /// `@emotion/react@11` (peer: react) plus `@emotion/styled@11`
-    /// (peers: react, @emotion/react). Mirrors upstream's
-    /// `dedupePeers` test fixture at the linked commit above.
+    /// (peers: react, @emotion/react).
     async fn resolve_emotion_fixture(
         opts: ResolvePeersOptions,
     ) -> crate::resolve_peers::ResolvePeersResult {
@@ -1486,8 +1477,7 @@ mod peers {
     /// `bar` peer-depends on `foo` and `zoo`, `qar` peer-depends on
     /// `foo` and `bar`, `zoo` peer-depends on `qar`. The walker breaks
     /// the cycle and every node lands in the graph with the right
-    /// peer suffix. Ports upstream's `'resolve peer dependencies of
-    /// cyclic dependencies'` (installing/deps-resolver/test/resolvePeers.ts:14).
+    /// peer suffix.
     #[tokio::test]
     async fn cyclic_peer_dependencies_resolve_cleanly() {
         let mut table = HashMap::new();
@@ -1592,11 +1582,9 @@ mod peers {
 
     /// Same package reached via two parent chains where the peer
     /// resolves only via one: both occurrences must land in the
-    /// graph with distinct depPaths. Ports upstream's `'when a
-    /// package is referenced twice in the dependencies graph and one
-    /// of the times it cannot resolve its peers, still try to
-    /// resolve it in the other occurrence'`
-    /// (installing/deps-resolver/test/resolvePeers.ts:128).
+    /// graph with distinct depPaths. When a package is referenced
+    /// twice and one occurrence cannot resolve its peers, the other
+    /// occurrence is still resolved.
     #[tokio::test]
     async fn revisit_resolves_peer_in_one_occurrence_misses_in_other() {
         let mut table = HashMap::new();
@@ -1696,9 +1684,8 @@ mod peers {
 
     /// Two parallel peer chains in one importer — each peer resolves
     /// against its own sibling, no cross-pollination. Stands in for
-    /// upstream's `'resolve peer dependencies with npm aliases'`
-    /// (installing/deps-resolver/test/resolvePeers.ts:573); the
-    /// real alias case needs `npm:` plumbing in the stub resolver.
+    /// the npm-alias peer case; the real alias case needs `npm:`
+    /// plumbing in the stub resolver.
     // TODO(pacquet#?): replace with the real `npm:foo@2` alias once
     // `parse_bare_specifier` routes npm-alias specifiers through the
     // stub resolver in tests.
@@ -1781,12 +1768,9 @@ mod peers {
     }
 
     /// A peer satisfied by a wrong-version sibling inside the
-    /// parent's subtree surfaces as a *bad* peer (not missing).
-    /// Stands in for upstream's `'unmet peer dependency issue
-    /// resolved from subdependency'` describe-block
-    /// (installing/deps-resolver/test/resolvePeers.ts:502); the
-    /// `resolvedFrom` field upstream tracks isn't exposed on
-    /// pacquet's `PeerDependencyIssue` yet.
+    /// parent's subtree surfaces as a *bad* peer (not missing). The
+    /// `resolvedFrom` field isn't exposed on pacquet's
+    /// `PeerDependencyIssue` yet.
     #[tokio::test]
     async fn bad_peer_inside_subtree_records_resolved_from_parent() {
         let mut table = HashMap::new();
@@ -2092,9 +2076,9 @@ mod peers {
         );
     }
 
-    /// Ported from upstream pnpm's
-    /// [`path to external link is not added to the lockfile, when it resolves a peer dependency`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-installer/test/install/excludeLinksFromLockfile.ts#L224-L243)
-    /// e2e test, narrowed to the peer-resolution slice.
+    /// The path to an external link is not added to the lockfile when
+    /// it resolves a peer dependency. Narrowed to the peer-resolution
+    /// slice.
     #[tokio::test]
     async fn external_link_peer_remaps_to_node_modules_when_exclude_links_on() {
         use pacquet_lockfile::{DirectoryResolution, LockfileResolution};
@@ -2391,7 +2375,7 @@ mod optional_propagation {
     };
 
     /// `package.json` builder that takes both `dependencies` and
-    /// `optionalDependencies` blocks — the bundled `fake_manifest`
+    /// `optionalDependencies` blocks — the bundled [`fake_manifest`]
     /// helper only writes to `dependencies` so it can't exercise the
     /// importer-level optional flag.
     #[expect(
@@ -3029,10 +3013,10 @@ mod cycle_edges {
     };
     use crate::resolve_peers::{ResolvePeersOptions, resolve_peers};
 
-    /// A two-package cycle keeps its closing edge: pnpm's `buildTree`
-    /// gate drops only the *second* lap of a cycle, so `b`'s snapshot
-    /// still lists `a` (upstream restores the repeated node's pruned
-    /// children via the previously-resolved-children merge).
+    /// A two-package cycle keeps its closing edge: the tree builder's
+    /// cycle gate drops only the *second* lap of a cycle, so `b`'s
+    /// snapshot still lists `a` (the repeated node's pruned children
+    /// are restored via the previously-resolved-children merge).
     #[tokio::test]
     async fn cycle_closing_edge_reaches_the_graph() {
         let mut table = HashMap::new();

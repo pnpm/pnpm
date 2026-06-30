@@ -1,9 +1,4 @@
-//! Port of pnpm's `dedupePeerDependents` collapse, the
-//! [tail block of `resolvePeers`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-resolver/src/resolvePeers.ts#L214-L222)
-//! and its helpers
-//! [`deduplicateAll`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-resolver/src/resolvePeers.ts#L235-L257)
-//! /
-//! [`deduplicateDepPaths`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-resolver/src/resolvePeers.ts#L264-L310).
+//! Collapse of duplicate peer-dependent variants.
 //!
 //! Runs after [`fn@crate::dedupe_injected_deps::dedupe_injected_deps`]
 //! in the multi-importer [`fn@crate::resolve_peers_workspace`] pass. When
@@ -61,11 +56,9 @@ pub fn dedupe_peer_dependents(
 }
 
 /// Group the graph's depPaths by their `pkgIdWithPatchHash` and keep the
-/// groups with more than one variant. Mirrors upstream's
-/// [`depPathsByPkgId` filtered to `size > 1`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-resolver/src/resolvePeers.ts#L215);
-/// pacquet reconstructs the grouping from the finished graph (each node
-/// carries its `resolved_package_id`) instead of threading a parallel
-/// map through the walk.
+/// groups with more than one variant. The grouping is reconstructed from
+/// the finished graph (each node carries its `resolved_package_id`)
+/// instead of threading a parallel map through the walk.
 ///
 /// Groups are keyed through a `BTreeMap` only to make the outer order
 /// stable for readers — group order does not affect the collapse, since
@@ -84,8 +77,7 @@ fn collect_duplicates(graph: &DependenciesGraph) -> Vec<Vec<DepPath>> {
 /// Run [`deduplicate_dep_paths`] in rounds: after each round, rewrite the
 /// graph's child edges through the collapse map so the next round can see
 /// newly-compatible variants, then recurse on the duplicates that didn't
-/// collapse. Mirrors upstream's
-/// [`deduplicateAll`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-resolver/src/resolvePeers.ts#L235-L257).
+/// collapse.
 fn deduplicate_all(
     graph: &mut DependenciesGraph,
     duplicates: &[Vec<DepPath>],
@@ -120,9 +112,7 @@ fn deduplicate_all(
     merged
 }
 
-/// One round of greedy collapse over each duplicate group. Mirrors
-/// upstream's
-/// [`deduplicateDepPaths`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-resolver/src/resolvePeers.ts#L264-L310).
+/// One round of greedy collapse over each duplicate group.
 ///
 /// Returns the `collapsed → target` map plus the groups that still hold
 /// more than one un-collapsed variant, for the next round.
@@ -176,8 +166,7 @@ fn deduplicate_dep_paths(
 }
 
 /// Number of edges a variant carries: its child dependencies plus the
-/// peers it resolved against its ancestors. Mirrors upstream's
-/// [`nodeDepsCount`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-resolver/src/resolvePeers.ts#L231-L233).
+/// peers it resolved against its ancestors.
 fn node_deps_count(node: &DependenciesGraphNode) -> usize {
     node.children.len() + node.resolved_peer_names.len()
 }
@@ -185,8 +174,7 @@ fn node_deps_count(node: &DependenciesGraphNode) -> usize {
 /// Whether `larger` can absorb `smaller`: it must have at least as many
 /// deps, every one of `smaller`'s child depPaths must appear among
 /// `larger`'s children, and every peer `smaller` resolved must also be
-/// resolved by `larger`. Mirrors upstream's
-/// [`isCompatibleAndHasMoreDeps`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-resolver/src/resolvePeers.ts#L312-L329).
+/// resolved by `larger`.
 fn is_compatible_and_has_more_deps(
     graph: &DependenciesGraph,
     larger: &DepPath,

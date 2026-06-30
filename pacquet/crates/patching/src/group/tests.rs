@@ -14,8 +14,8 @@ fn info(key: &str, hash: &str) -> ExtendedPatchInfo {
     ExtendedPatchInfo { hash: hash.to_string(), patch_file_path: None, key: key.to_string() }
 }
 
-/// Mirrors upstream's
-/// [`'groups patchedDependencies according to names, match types, and versions'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/patching/config/test/groupPatchedDependencies.test.ts#L17-L74).
+/// Groups `patchedDependencies` according to names, match types, and
+/// versions.
 #[test]
 fn groups_by_name_match_type_and_version() {
     let entries: Vec<(String, PatchInput)> = vec![
@@ -57,9 +57,8 @@ fn groups_by_name_match_type_and_version() {
         result.get("version-range-only").expect("version-range-only group present");
     assert!(version_range_only.exact.is_empty());
     // Insertion order matches input order (input listed `~1.2.0` then
-    // `4`). Upstream's test sorts before asserting because JS object
-    // iteration order is implementation-defined; our deterministic
-    // iteration order means the sort would be a no-op.
+    // `4`). Our iteration order is deterministic, so the assertion can
+    // check the items directly without sorting first.
     assert_eq!(
         version_range_only.range,
         vec![
@@ -97,8 +96,7 @@ fn groups_by_name_match_type_and_version() {
     assert_eq!(mixed.all, Some(info("mixed-style", ZERO_HASH)));
 }
 
-/// Mirrors upstream's
-/// [`'errors on invalid version range'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/patching/config/test/groupPatchedDependencies.test.ts#L76-L81).
+/// Errors on an invalid version range.
 #[test]
 fn errors_on_invalid_version_range() {
     let entries = vec![("foo@link:packages/foo".to_string(), input(ZERO_HASH))];

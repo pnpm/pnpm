@@ -1,6 +1,3 @@
-//! Port of pnpm's
-//! [`workspace/spec-parser/test/workspace-spec.test.ts`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/workspace/spec-parser/test/workspace-spec.test.ts).
-
 use super::WorkspaceSpec;
 
 fn ws(version: &str, alias: Option<&str>) -> WorkspaceSpec {
@@ -48,11 +45,8 @@ fn to_string_round_trips() {
     assert_eq!(ws("0.1.2", Some("@foo/bar")).to_string(), "workspace:@foo/bar@0.1.2");
 }
 
-/// Upstream's
-/// [`mutate alias and version`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/workspace/spec-parser/test/workspace-spec.test.ts#L40-L49)
-/// case exercises `delete spec.alias` and `spec.version = ...`. Pacquet
-/// keeps the fields plain (no setters / phantom state), so the port
-/// mutates them directly and re-renders.
+/// The fields are plain (no setters / phantom state), so mutating
+/// `alias` and `version` directly re-renders the spec correctly.
 #[test]
 fn mutate_alias_and_version() {
     let mut spec = WorkspaceSpec::parse("workspace:*").expect("parses");

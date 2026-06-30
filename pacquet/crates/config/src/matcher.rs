@@ -1,22 +1,20 @@
 //! Glob-pattern matcher used by `hoistPattern` and `publicHoistPattern`.
 //!
-//! Port of upstream's [`@pnpm/config.matcher`](https://github.com/pnpm/pnpm/blob/94240bc046/config/matcher/src/index.ts).
 //! The pattern syntax is intentionally tiny: `*` is the only wildcard
 //! (matching any sequence of characters, including empty), every other
 //! character is matched literally, and a leading `!` flips a pattern into
 //! an ignore rule.
 //!
-//! Pacquet skips upstream's `regex` dependency by hand-rolling the
-//! glob matcher: the only wildcard is `*`, so a literal "starts with",
-//! "ends with", and "contains in order" walk is enough.
+//! The glob matcher is hand-rolled rather than backed by a regex engine:
+//! the only wildcard is `*`, so a literal "starts with", "ends with", and
+//! "contains in order" walk is enough.
 
 use std::sync::Arc;
 
 /// Compile a list of patterns into a matcher returning the index of the
 /// first matching include, or `None` when nothing matches.
 ///
-/// Mirrors upstream's [`createMatcherWithIndex`](https://github.com/pnpm/pnpm/blob/94240bc046/config/matcher/src/index.ts#L16-L40).
-/// The numeric index is `Option<usize>` here rather than `i32` /
+/// The match position is an `Option<usize>` rather than an `i32` /
 /// `-1`-sentinel — the same information, idiomatic for Rust.
 #[must_use]
 pub fn create_matcher_with_index(patterns: &[String]) -> MatcherWithIndex {
@@ -28,8 +26,7 @@ pub fn create_matcher_with_index(patterns: &[String]) -> MatcherWithIndex {
 }
 
 /// Compile a list of patterns into a matcher returning `true` whenever
-/// any include matches and no ignore overrides it. Mirrors upstream's
-/// [`createMatcher`](https://github.com/pnpm/pnpm/blob/94240bc046/config/matcher/src/index.ts#L7-L10).
+/// any include matches and no ignore overrides it.
 #[must_use]
 pub fn create_matcher(patterns: &[String]) -> Matcher {
     Matcher(create_matcher_with_index(patterns))
@@ -50,8 +47,7 @@ impl Matcher {
     /// `true` iff this matcher is statically guaranteed to never
     /// match any input — i.e. compiled from an empty pattern list.
     /// Lets callers short-circuit before they walk a graph and call
-    /// [`Self::matches`] for every alias. Mirrors upstream's
-    /// `case 0: return () => -1` fast path.
+    /// [`Self::matches`] for every alias.
     ///
     /// A matcher built from non-empty patterns returns `false` here
     /// even when no realistic input would match (e.g. `["nonexistent-prefix-*"]`)

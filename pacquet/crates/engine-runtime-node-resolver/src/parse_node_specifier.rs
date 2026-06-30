@@ -1,15 +1,15 @@
-//! Pacquet port of
-//! [`parseNodeSpecifier.ts`](https://github.com/pnpm/pnpm/blob/1627943d2a/engine/runtime/node-resolver/src/parseNodeSpecifier.ts).
+//! Parses a `node@runtime:` bare specifier's body into a release
+//! channel plus a version selector.
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 
 /// One of nodejs.org's published release channels.
 ///
-/// Pacquet keeps the value as a `String` (rather than a closed enum)
-/// because the upstream parser passes the channel through to the
-/// mirror URL builder unchanged — the set is closed today but the
-/// validation happens at parse time, not after.
+/// The value is kept as a `String` (rather than a closed enum)
+/// because the parser passes the channel through to the mirror URL
+/// builder unchanged — the set is closed today but the validation
+/// happens at parse time, not after.
 pub const RELEASE_CHANNELS: &[&str] = &["nightly", "rc", "test", "v8-canary", "release"];
 
 /// Parsed form of a `runtime:` bare specifier's body.
@@ -21,8 +21,8 @@ pub struct NodeSpecifier {
 
 /// Errors raised by [`parse_node_specifier`].
 ///
-/// Matches upstream's `INVALID_NODE_RELEASE_CHANNEL` code so log
-/// consumers (e.g. `@pnpm/cli.default-reporter`) parse the same string.
+/// Carries the `INVALID_NODE_RELEASE_CHANNEL` code so log consumers
+/// (e.g. `@pnpm/cli.default-reporter`) parse the same string.
 #[derive(Debug, Display, Error, Diagnostic, Clone, PartialEq, Eq)]
 pub enum ParseNodeSpecifierError {
     #[display("\"{channel}\" is not a valid Node.js release channel")]
@@ -81,7 +81,7 @@ pub fn parse_node_specifier(specifier: &str) -> Result<NodeSpecifier, ParseNodeS
 /// Return the prerelease channel for an exact `X.Y.Z-<channel>...`
 /// version, or `None` if `specifier` is not an exact prerelease.
 ///
-/// Mirrors upstream's regex `^\d+\.\d+\.\d+-(nightly|rc|test|v8-canary)`.
+/// Recognises the `^\d+\.\d+\.\d+-(nightly|rc|test|v8-canary)` shape.
 fn prerelease_channel(specifier: &str) -> Option<&'static str> {
     let (head, suffix) = specifier.split_once('-')?;
     if !is_stable_version(head) {

@@ -1,5 +1,4 @@
-//! URL-keyed lookup of `Authorization` headers, ported from pnpm's
-//! [`@pnpm/network.auth-header`](https://github.com/pnpm/pnpm/blob/601317e7a3/network/auth-header/src/index.ts).
+//! URL-keyed lookup of `Authorization` headers.
 //!
 //! The lookup walks "nerf-darted" forms of a URL (the protocol-stripped
 //! `//host[:port]/path/` representation npm has used for `.npmrc` keys
@@ -12,10 +11,9 @@
 //! walks parts of the *request* URL: a tarball served from a CDN on a
 //! different host than the registry only matches keys keyed at the
 //! CDN's host (or a path prefix on that host). It does *not* fall
-//! through to the registry's host. Pacquet matches pnpm here. If a
-//! private registry redirects to its own subdomain or path, place a
-//! key at that host or prefix in `.npmrc`; if it redirects across
-//! hosts, no header is attached, matching upstream.
+//! through to the registry's host. If a private registry redirects to
+//! its own subdomain or path, place a key at that host or prefix in
+//! `.npmrc`; if it redirects across hosts, no header is attached.
 
 use std::{
     collections::{BTreeMap, HashMap},
@@ -102,8 +100,7 @@ pub struct AuthHeaders {
     /// the nerf-darted registry URL without the trailing scope segment.
     scoped_by_scope: HashMap<String, HashMap<String, String>>,
     /// The longest key in `by_uri` measured in `/`-separated parts. The
-    /// lookup walks from this depth down to 3 (the `//host/` floor),
-    /// matching pnpm's `getMaxParts` precomputation.
+    /// lookup walks from this depth down to 3 (the `//host/` floor).
     max_parts: usize,
     /// The longest registry key per package scope, measured the same
     /// way as `max_parts`.
@@ -135,9 +132,8 @@ impl AuthHeaders {
     /// The `default_registry_url` argument is a full registry URL
     /// (e.g. `"https://registry.npmjs.org/"`, scheme included) that
     /// the constructor nerf-darts internally to derive the key for the
-    /// empty-string ("default") credentials slot. Mirrors
-    /// `createGetAuthHeaderByURI`'s `defaultRegistry` argument; falls
-    /// back to `"//registry.npmjs.org/"` when `None`. Passing an
+    /// empty-string ("default") credentials slot. Falls back to
+    /// `"//registry.npmjs.org/"` when `None`. Passing an
     /// already-nerf-darted `//host/.../` here would re-nerf-dart it to
     /// the empty string, silently masking default creds — pass the
     /// raw URL.
@@ -149,10 +145,9 @@ impl AuthHeaders {
             default_registry_url.map_or_else(|| "//registry.npmjs.org/".into(), nerf_dart);
         let mut by_uri = HashMap::new();
         let mut default_header: Option<String> = None;
-        // Two-phase build, mirroring upstream's
-        // [`getAuthHeadersFromCreds`](https://github.com/pnpm/pnpm/blob/601317e7a3/network/auth-header/src/getAuthHeadersFromConfig.ts):
-        // per-URI entries land first, then the default-registry creds
-        // unconditionally overwrite the slot at `registry_default_key`.
+        // Two-phase build: per-URI entries land first, then the
+        // default-registry creds unconditionally overwrite the slot at
+        // `registry_default_key`.
         // Without the two-phase split, both entries would race through a
         // single HashMap insert and the winner would depend on
         // non-deterministic iteration order.
@@ -261,18 +256,15 @@ impl AuthHeaders {
         result
     }
 
-    /// Resolve an `Authorization` header for `url`, mirroring pnpm's
-    /// `getAuthHeaderByURI`:
+    /// Resolve an `Authorization` header for `url`:
     ///
     /// 1. If `url` has a `user:password@` prefix, return `Basic` of it,
     ///    regardless of whether anything matched in the map.
     /// 2. Otherwise nerf-dart the URL and walk parent path prefixes
     ///    down to the host-only key.
     /// 3. If the URL carried any explicit port, retry the lookup with
-    ///    the port stripped. Mirrors pnpm's
-    ///    [`removePort`](https://github.com/pnpm/pnpm/blob/601317e7a3/network/auth-header/src/helpers/removePort.ts),
-    ///    which strips *any* port (not just protocol defaults) and
-    ///    retries iff the URL changed.
+    ///    the port stripped — stripping *any* port (not just protocol
+    ///    defaults) and retrying iff the URL changed.
     #[must_use]
     pub fn for_url(&self, url: &str) -> Option<String> {
         self.for_url_with_package(url, None)
@@ -331,8 +323,7 @@ impl AuthHeaders {
         if let Some(hook) = &self.route_hook {
             return hook.authorize(url, pkg_name);
         }
-        // Append a trailing `/` first, matching pnpm's lookup which
-        // does the same before parsing. Without this, a URL like
+        // Append a trailing `/` before parsing. Without this, a URL like
         // `https://npm.pkg.github.com/pnpm` (registry without
         // trailing slash) would nerf-dart to `//npm.pkg.github.com/`
         // and miss a `//npm.pkg.github.com/pnpm/` token.
@@ -392,15 +383,14 @@ impl AuthHeaders {
         let nerfed = parsed.nerf_dart();
         let parts: Vec<&str> = nerfed.split('/').collect();
         let upper = parts.len().min(self.max_parts);
-        // Walk from the longest meaningful prefix down to `//host/`,
-        // matching the index range `[maxParts-1, 3]` from
-        // `getAuthHeaderByURI`. `parts[0..3]` is `["", "", host]`, so
-        // joined with `/` it is `//host`; the loop slices through
-        // `parts[..i]` and re-joins, then appends a trailing slash.
-        // Exclusive upper bound mirrors upstream's `Math.min(parts.length,
-        // maxParts) - 1`; the included extra iteration would always build
-        // a key ending in `//` (the trailing empty segment from
-        // `nerfed.split('/')` plus the appended `/`) and never match.
+        // Walk from the longest meaningful prefix down to `//host/`.
+        // `parts[0..3]` is `["", "", host]`, so joined with `/` it is
+        // `//host`; the loop slices through `parts[..i]` and re-joins,
+        // then appends a trailing slash. The exclusive upper bound at
+        // `min(parts.len(), max_parts)` drops the extra iteration that
+        // would always build a key ending in `//` (the trailing empty
+        // segment from `nerfed.split('/')` plus the appended `/`) and
+        // never match.
         for i in (3..upper).rev() {
             let key = format!("{}/", parts[..i].join("/"));
             if let Some(value) = self.by_uri.get(&key) {
@@ -505,13 +495,11 @@ impl<'a> ParsedUrl<'a> {
         let mut out = String::with_capacity(2 + self.host.len() + self.path.len());
         out.push_str("//");
         out.push_str(self.host);
-        // Drop default ports the way upstream's WHATWG `URL.host` does
-        // (`//reg.com:443/` → `//reg.com/`). Without this, a registry
-        // configured as `https://reg.com:443/` keys creds at
-        // `//reg.com:443/` and a request to `https://reg.com/...` (no
-        // port) misses, because the port-strip fallback only fires
-        // when the *request* URL carries a port. See
-        // [`@pnpm/config.nerf-dart`](https://github.com/pnpm/components/blob/a8ba7794d8/config/nerf-dart/nerf-dart.ts).
+        // Drop default ports (`//reg.com:443/` → `//reg.com/`). Without
+        // this, a registry configured as `https://reg.com:443/` keys
+        // creds at `//reg.com:443/` and a request to
+        // `https://reg.com/...` (no port) misses, because the port-strip
+        // fallback only fires when the *request* URL carries a port.
         if let Some(port) = self.port
             && !is_default_port(self.scheme, port)
         {
@@ -554,8 +542,7 @@ fn is_default_port(scheme: &str, port: &str) -> bool {
 }
 
 /// Local base64 encode so this crate doesn't pull in `base64` just for
-/// 4 lines. Standard alphabet, with padding, matching `btoa` /
-/// `Buffer.from(...).toString('base64')` from the JS port.
+/// 4 lines. Standard alphabet, with padding.
 #[must_use]
 pub fn base64_encode(input: &str) -> String {
     const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -594,8 +581,7 @@ pub fn base64_encode(input: &str) -> String {
 /// any message text, e.g. `… https://user:pass@host/pkg …` →
 /// `… https://host/pkg …`. A registry configured as `https://user:pass@host/`
 /// would otherwise leak its embedded basic-auth into a fetch error or a retry
-/// log line. Ports pnpm's
-/// [`redactUrlCredentials`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/core/error/src/index.ts#L78-L101).
+/// log line.
 #[must_use]
 pub fn redact_url_credentials(text: &str) -> String {
     let mut out = String::with_capacity(text.len());

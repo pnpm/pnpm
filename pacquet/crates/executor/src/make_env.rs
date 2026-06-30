@@ -5,13 +5,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-/// Inputs needed to build the env for a single lifecycle hook spawn.
-///
-/// Mirrors the union of `makeEnv` inputs and the per-call additions in
-/// `lifecycle()` from `@pnpm/npm-lifecycle@9e2ac78148` at
-/// <https://github.com/pnpm/npm-lifecycle/blob/9e2ac78148/index.js#L52-L113>
-/// plus the wrapper's `extraEnv` additions at
-/// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/exec/lifecycle/src/runLifecycleHook.ts#L119-L124>.
+/// Inputs needed to build the env for a single lifecycle hook spawn:
+/// the package context, the per-call stamps the hook runner adds, and
+/// the caller-supplied `extra_env` overrides.
 pub struct EnvOptions<'a> {
     pub stage: &'a str,
     pub script: &'a str,
@@ -37,14 +33,10 @@ pub struct EnvBuild {
 /// Build the env for a lifecycle script spawn, given the parent
 /// process env to inherit from.
 ///
-/// Ports `makeEnv` + the surrounding env block in `lifecycle()` from
-/// `@pnpm/npm-lifecycle@9e2ac78148`:
-/// - `index.js:74-104` for the post-`makeEnv` stamping.
-/// - `index.js:354-423` for `makeEnv` itself (parent-env filter,
-///   `npm_package_*` recursion, multi-line escaping).
-///
-/// Plus the wrapper's `extraEnv` additions at
-/// `pnpm/exec/lifecycle/src/runLifecycleHook.ts:119-124`.
+/// Two layers of work: the base env build (parent-env filter,
+/// `npm_package_*` recursion, multi-line escaping) and the per-call
+/// stamping that follows it, then the caller-supplied `extra_env`
+/// overrides applied last.
 ///
 /// `parent_env` is taken by value so the production caller can pass
 /// `env::vars().collect()` and tests can pass a controlled fixture
@@ -59,17 +51,16 @@ pub fn build_env(
     //    keys, plus the per-call stamps we re-derive (`NODE`,
     //    `TMPDIR`, `INIT_CWD`, `PNPM_SCRIPT_SRC_DIR`). User-defined
     //    `npm_config_*` such as `npm_config_platform_arch` are
-    //    preserved. Mirrors the parent-env filter at index.js:359-367
-    //    — `pnpm_*` keys such as `PNPM_HOME` are intentionally NOT in
-    //    the filter (upstream doesn't strip them either).
+    //    preserved. `pnpm_*` keys such as `PNPM_HOME` are intentionally
+    //    NOT in the filter.
     let mut env = filter_parent_env(parent_env);
 
     // 2. `npm_package_*` recursive stamp. Top-level keeps only
     //    name/version/config/engines/bin; recursion below those
-    //    keeps everything. Mirrors index.js:377-411.
+    //    keeps everything.
     stamp_package(&mut env, "npm_package_", manifest);
 
-    // 3. Per-call stamping from `lifecycle()` body (index.js:74-87).
+    // 3. Per-call stamping.
     env.insert("npm_lifecycle_event".into(), opts.stage.to_string());
 
     let parent_path = path_value(&env);
@@ -103,15 +94,15 @@ pub fn build_env(
         env.insert("npm_config_user_agent".into(), ua.to_string());
     }
 
-    // 4. `extraEnv` is applied last among the makeEnv-area writes
-    //    (index.js:88-92), so it overrides anything stamped above.
+    // 4. `extra_env` is applied last among the base env writes, so it
+    //    overrides anything stamped above.
     for (k, v) in opts.extra_env {
         env.insert(k.clone(), v.clone());
     }
 
     // 5. TMPDIR under <wd>/node_modules/.tmp when !unsafe_perm.
-    //    Mirrors index.js:94-104. The caller creates the dir; we
-    //    only record the path and pass it back.
+    //    The caller creates the dir; we only record the path and pass
+    //    it back.
     let tmpdir = if opts.unsafe_perm {
         None
     } else {
@@ -120,9 +111,8 @@ pub fn build_env(
         Some(dir)
     };
 
-    // 6. `npm_lifecycle_script` is set in `lifecycle_` after the
-    //    extraEnv overwrite (index.js:125), so the caller can never
-    //    clobber it.
+    // 6. `npm_lifecycle_script` is set after the `extra_env` overwrite,
+    //    so the caller can never clobber it.
     env.insert("npm_lifecycle_script".into(), opts.script.to_string());
 
     EnvBuild { env, tmpdir }
@@ -214,13 +204,13 @@ fn find_node_in_path(path: Option<&str>) -> Option<PathBuf> {
     })
 }
 
-/// `data[i]` recursion from `makeEnv`. JS arrays iterate as indexed
-/// keys; objects iterate as named keys. The top-level call uses
-/// prefix `npm_package_`; recursion appends `<sanitized-key>_`.
+/// Recursively stamp `npm_package_*` env vars from the manifest. JSON
+/// arrays iterate as indexed keys; objects iterate as named keys. The
+/// top-level call uses prefix `npm_package_`; recursion appends
+/// `<sanitized-key>_`.
 ///
-/// Filter at index.js:380-385: at the top level only
-/// name/version/config/engines/bin are kept; once recursed under
-/// one of those, everything is kept.
+/// At the top level only name/version/config/engines/bin are kept; once
+/// recursed under one of those, everything is kept.
 fn stamp_package(env: &mut HashMap<String, String>, prefix: &str, value: &Value) {
     let pairs: Vec<(String, &Value)> = match value {
         Value::Object(map) => map.iter().map(|(k, v)| (k.clone(), v)).collect(),
@@ -264,14 +254,15 @@ fn stamp_package(env: &mut HashMap<String, String>, prefix: &str, value: &Value)
     }
 }
 
-/// `(prefix + i).replace(/[^a-zA-Z0-9_]/g, '_')` from index.js:379.
+/// Replace every character that is not `[a-zA-Z0-9_]` with `_`, the
+/// sanitization an env key derived from a manifest field needs.
 fn sanitize_env_key(raw: &str) -> String {
     raw.chars().map(|ch| if ch.is_ascii_alphanumeric() || ch == '_' { ch } else { '_' }).collect()
 }
 
-/// `env[envKey].includes('\n') ? JSON.stringify(env[envKey]) : env[envKey]`
-/// from index.js:406-408. JSON-encode multi-line strings so child
-/// shells don't break on embedded newlines.
+/// JSON-encode multi-line strings (those containing `\n`) so child
+/// shells don't break on embedded newlines; single-line strings pass
+/// through unchanged.
 fn escape_newlines(text: &str) -> String {
     if text.contains('\n') { Value::String(text.to_string()).to_string() } else { text.to_string() }
 }

@@ -1,8 +1,7 @@
-//! Ports pnpm's
-//! [`parseBareSpecifier.ts`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/git-resolver/src/parseBareSpecifier.ts).
+//! Recognise and normalise a git-shaped `bareSpecifier`.
 //!
-//! Two-phase API mirrors the upstream split between the sync
-//! protocol-prefix dispatch and the async hosted-repo probe:
+//! Two-phase API splits the sync protocol-prefix dispatch from the
+//! async hosted-repo probe:
 //!
 //! * [`parse_bare_specifier`] runs the synchronous part. Returns
 //!   `None` when the input isn't a git-shaped specifier (so the
@@ -18,9 +17,6 @@ use std::{future::Future, pin::Pin};
 use crate::hosted_git::{HostedGit, HostedOpts};
 
 /// Fully resolved spec consumed by [`crate::git_resolver::GitResolver`].
-///
-/// Mirrors upstream's
-/// [`HostedPackageSpec`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/git-resolver/src/parseBareSpecifier.ts#L8-L21).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct HostedPackageSpec {
     /// URL passed to `git ls-remote`. Always carries no committish —
@@ -76,14 +72,12 @@ pub trait GitProbe: Send + Sync {
     /// `true` when an HTTP HEAD to the given URL returned a 2xx /
     /// 3xx. Used to detect public repos before running `git ls-remote`
     /// (which would otherwise prompt for credentials on a private
-    /// repo). Mirrors upstream's
-    /// [`isRepoPublic`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/git-resolver/src/parseBareSpecifier.ts#L142-L149).
+    /// repo).
     fn https_head_ok<'a>(&'a self, url: &'a str) -> ProbeFuture<'a>;
 
     /// `true` when `git ls-remote --exit-code <url> HEAD` exited zero.
     /// Used as a reachability test on both the https and ssh
-    /// candidates. Mirrors upstream's
-    /// [`accessRepository`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/git-resolver/src/parseBareSpecifier.ts#L151-L158).
+    /// candidates.
     fn ls_remote_exit_code<'a>(&'a self, repo: &'a str) -> ProbeFuture<'a>;
 }
 
@@ -93,9 +87,6 @@ const GIT_PROTOCOLS: &[&str] =
 /// Sync prefilter. Returns `None` when the input isn't a git-shaped
 /// specifier — the resolver chain treats this as "no claim" and falls
 /// through.
-///
-/// Mirrors upstream's
-/// [`parseBareSpecifier`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/git-resolver/src/parseBareSpecifier.ts#L34-L59).
 pub fn parse_bare_specifier(bare: &str) -> Option<PartialSpec> {
     if let Some(hosted) = HostedGit::from_url(bare) {
         return Some(PartialSpec::Hosted(hosted));
@@ -123,7 +114,7 @@ pub fn parse_bare_specifier(bare: &str) -> Option<PartialSpec> {
 }
 
 /// Check whether the input contains `.git` as a path suffix (`.git#` or
-/// `.git` at end-of-string). Mirrors upstream's `/\.git(?:#|$)/` regex.
+/// `.git` at end-of-string).
 fn contains_dot_git_at_end(bare: &str) -> bool {
     let mut iter = bare.match_indices(".git");
     iter.any(|(idx, _)| {
@@ -133,8 +124,7 @@ fn contains_dot_git_at_end(bare: &str) -> bool {
 }
 
 /// Strip the URL's fragment, format it, and drop the `git+` prefix
-/// so the result is a plain transport URL. Mirrors upstream's
-/// [`urlToFetchSpec`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/git-resolver/src/parseBareSpecifier.ts#L61-L68).
+/// so the result is a plain transport URL.
 fn url_to_fetch_spec(parsed: &reqwest::Url) -> String {
     let mut clone = parsed.clone();
     clone.set_fragment(None);
@@ -142,11 +132,9 @@ fn url_to_fetch_spec(parsed: &reqwest::Url) -> String {
     formatted.strip_prefix("git+").map(str::to_string).unwrap_or(formatted)
 }
 
-/// Run upstream's
-/// [`correctUrl`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/git-resolver/src/parseBareSpecifier.ts#L183-L201)
-/// on the input. Strips a leading `git+` and rewrites the SCP-style
-/// `ssh://user@host:path` shape into a standard `ssh://user@host/path`
-/// so `Url::parse` will accept it.
+/// Normalise the input URL: strips a leading `git+` and rewrites the
+/// SCP-style `ssh://user@host:path` shape into a standard
+/// `ssh://user@host/path` so `Url::parse` will accept it.
 fn correct_url(input: &str) -> String {
     let mut url = input.strip_prefix("git+").map_or_else(|| input.to_string(), str::to_string);
     if !url.starts_with("ssh://") {
@@ -210,8 +198,8 @@ struct GitParsedParams {
     path: Option<String>,
 }
 
-/// Mirrors upstream's
-/// [`parseGitParams`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/git-resolver/src/parseBareSpecifier.ts#L162-L179).
+/// Parse the `&`-separated committish parameters (`semver:`, `path:`,
+/// or a bare committish) carried in a git specifier's fragment.
 fn parse_git_params(committish: Option<&str>) -> GitParsedParams {
     let mut out = GitParsedParams::default();
     let Some(committish) = committish else { return out };
@@ -231,8 +219,7 @@ fn parse_git_params(committish: Option<&str>) -> GitParsedParams {
 }
 
 /// Async leg: probe the hosted host for public-vs-private + ssh
-/// reachability, pick a `fetchSpec`. Mirrors upstream's
-/// [`fromHostedGit`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/git-resolver/src/parseBareSpecifier.ts#L70-L132).
+/// reachability, pick a `fetchSpec`.
 async fn from_hosted_git<Probe: GitProbe + ?Sized>(
     hosted: HostedGit,
     probe: &Probe,
@@ -278,11 +265,11 @@ async fn from_hosted_git<Probe: GitProbe + ?Sized>(
                 path: params.path,
             };
         }
-        // Upstream tries an additional HEAD probe on the bare URL
-        // (no `.git` suffix) to confirm the path resolves at all
-        // before falling through to ssh. Pacquet mirrors this only
-        // when there's no `auth`: with auth, the path is the auth-
-        // gated private URL above. Without auth, retest as below.
+        // Try an additional HEAD probe on the bare URL (no `.git`
+        // suffix) to confirm the path resolves at all before falling
+        // through to ssh. Done only when there's no `auth`: with auth,
+        // the path is the auth-gated private URL above. Without auth,
+        // retest as below.
         if !has_auth {
             let stripped = https_url.strip_suffix(".git").unwrap_or(&https_url);
             if probe.https_head_ok(stripped).await {
@@ -291,8 +278,8 @@ async fn from_hosted_git<Probe: GitProbe + ?Sized>(
         }
     }
 
-    // Final fallback: `git+ssh` URL form. Matches upstream's
-    // `fetchSpec = hosted.sshurl({ noCommittish: true })`.
+    // Final fallback: `git+ssh` URL form (the committish-less
+    // ssh URL).
     let fetch_spec = fetch_spec
         .or_else(|| hosted.sshurl(HostedGit::no_committish()))
         .unwrap_or_else(|| hosted.shortcut(HostedOpts::default()));

@@ -4,9 +4,7 @@
 //!
 //! Future per-protocol resolvers (npm, git, tarball, local, jsr,
 //! runtimes, named-registry, workspace) implement [`Resolver`]; the
-//! default-resolver dispatcher composes them into a chain mirroring
-//! pnpm's
-//! [`createResolver`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/default-resolver/src/index.ts#L97-L173).
+//! default-resolver dispatcher composes them into a chain.
 
 use std::{collections::BTreeMap, future::Future, path::PathBuf, pin::Pin, sync::Arc};
 
@@ -19,9 +17,7 @@ use serde::{Deserialize, Serialize};
 use crate::verifier::ResolutionPolicyViolation;
 
 /// Branded resolution identifier the resolver chain emits on every
-/// successful pick. Mirrors pnpm's
-/// [`PkgResolutionId`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/core/types/src/misc.ts#L59)
-/// — a phantom-typed string with no runtime validator.
+/// successful pick — a phantom-typed string with no runtime validator.
 ///
 /// Two shapes appear in the wild:
 /// * `name@version` from the npm-registry resolver.
@@ -65,13 +61,11 @@ impl From<PkgNameVer> for PkgResolutionId {
 }
 
 /// An entry from a project's manifest that the resolver chain will
-/// route to a concrete protocol. Mirrors pnpm's
-/// [`WantedDependency`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L304-L313).
+/// route to a concrete protocol.
 ///
 /// At least one of `alias` and `bare_specifier` is *expected* to be
-/// populated. Upstream models this with a discriminated union;
-/// pacquet keeps both fields as `Option<String>` for ergonomic field
-/// access and uses `#[derive(Default)]` only so call sites can write
+/// populated. Both fields are `Option<String>` for ergonomic field
+/// access, with `#[derive(Default)]` only so call sites can write
 /// `..WantedDependency::default()` in struct literals — a bare
 /// `WantedDependency::default()` with both halves `None` is a
 /// programming error the type system doesn't catch. The invariant is
@@ -111,13 +105,10 @@ pub struct WantedDependency {
 /// produce different lockfile picks.
 pub type PreferredVersions = BTreeMap<String, VersionSelectors>;
 
-/// Per-package set of selectors and their weights. Mirrors pnpm's
-/// [`VersionSelectors`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L264-L266).
+/// Per-package set of selectors and their weights.
 pub type VersionSelectors = BTreeMap<String, VersionSelectorEntry>;
 
-/// Discriminator for how a selector should be interpreted. Mirrors
-/// pnpm's
-/// [`VersionSelectorType`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L262).
+/// Discriminator for how a selector should be interpreted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum VersionSelectorType {
@@ -126,19 +117,15 @@ pub enum VersionSelectorType {
     Tag,
 }
 
-/// One selector with a tie-break weight. Mirrors pnpm's
-/// [`VersionSelectorWithWeight`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L268-L271).
+/// One selector with a tie-break weight.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VersionSelectorWithWeight {
     pub selector_type: VersionSelectorType,
     pub weight: u32,
 }
 
-/// A [`VersionSelectors`] map value: upstream stores either a plain
-/// [`VersionSelectorType`] or a [`VersionSelectorWithWeight`]. Mirrors
-/// pnpm's
-/// [`VersionSelectorWithWeight | VersionSelectorType`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L265)
-/// union.
+/// A [`VersionSelectors`] map value: either a plain
+/// [`VersionSelectorType`] or a [`VersionSelectorWithWeight`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum VersionSelectorEntry {
     Plain(VersionSelectorType),
@@ -146,14 +133,11 @@ pub enum VersionSelectorEntry {
 }
 
 /// One resolution level's preferred-version additions, layered over a
-/// parent level. Mirrors the prototype chain upstream builds per level
-/// with
-/// [`Object.create(preferredVersions)`](https://github.com/pnpm/pnpm/blob/ce9c096e8e/installing/deps-resolver/src/resolveDependencies.ts#L717-L746):
-/// after a package's direct dependencies resolve, their `(name,
-/// version)` pairs become plain `version` selectors for the children's
-/// subtree resolutions, so a child's range prefers a version one of
-/// its parent-level siblings pinned. Layering is O(1); lookups walk
-/// the chain for one name.
+/// parent level: after a package's direct dependencies resolve, their
+/// `(name, version)` pairs become plain `version` selectors for the
+/// children's subtree resolutions, so a child's range prefers a version
+/// one of its parent-level siblings pinned. Layering is O(1); lookups
+/// walk the chain for one name.
 #[derive(Debug)]
 pub struct PreferredVersionsOverlay {
     entries: BTreeMap<String, Vec<String>>,
@@ -194,19 +178,16 @@ impl PreferredVersionsOverlay {
     }
 }
 
-/// Selector weight applied to direct dependencies. Mirrors pnpm's
-/// [`DIRECT_DEP_SELECTOR_WEIGHT`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L250).
+/// Selector weight applied to direct dependencies.
 pub const DIRECT_DEP_SELECTOR_WEIGHT: u32 = 1_000;
 
 /// Selector weight applied to versions already pinned in the wanted
 /// lockfile. Must outrank [`DIRECT_DEP_SELECTOR_WEIGHT`] so that
-/// existing pins stick across an add of a fresh range. Mirrors pnpm's
-/// [`EXISTING_VERSION_SELECTOR_WEIGHT`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L260).
+/// existing pins stick across an add of a fresh range.
 pub const EXISTING_VERSION_SELECTOR_WEIGHT: u32 = 1_000_000;
 
 /// One project in the current workspace that resolution can satisfy
-/// `workspace:`-protocol entries from. Mirrors pnpm's
-/// [`WorkspacePackage`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L239-L242).
+/// `workspace:`-protocol entries from.
 ///
 /// `manifest` is held as an opaque [`DependencyManifest`] alias today
 /// (a thin wrapper around `serde_json::Value`); once `package-manifest`
@@ -217,12 +198,10 @@ pub struct WorkspacePackage {
     pub manifest: DependencyManifest,
 }
 
-/// Workspace packages indexed by version string. Mirrors pnpm's
-/// [`WorkspacePackagesByVersion`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L244).
+/// Workspace packages indexed by version string.
 pub type WorkspacePackagesByVersion = BTreeMap<String, WorkspacePackage>;
 
-/// Workspace packages indexed by name, then by version. Mirrors pnpm's
-/// [`WorkspacePackages`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L246).
+/// Workspace packages indexed by name, then by version.
 pub type WorkspacePackages = BTreeMap<String, WorkspacePackagesByVersion>;
 
 /// Verdict returned by a resolver-time package-version guard.
@@ -259,26 +238,23 @@ pub trait PackageVersionGuard: Send + Sync + std::fmt::Debug {
     fn check<'a>(&'a self, name: &'a str, version: &'a str) -> PackageVersionGuardFuture<'a>;
 }
 
-/// Reload behavior the dispatcher passes per-resolve. Mirrors pnpm's
-/// [`ResolveOptions.update`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L291)
-/// tri-state (`false | 'compatible' | 'latest'`).
+/// Reload behavior the dispatcher passes per-resolve. A tri-state
+/// (`false | 'compatible' | 'latest'`).
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum UpdateBehavior {
-    /// Keep the lockfile-pinned version. Equivalent to upstream's `false`.
+    /// Keep the lockfile-pinned version. The `false` state.
     #[default]
     Off,
-    /// Bump within the current range, mirroring upstream's `'compatible'`.
+    /// Bump within the current range. The `'compatible'` state.
     Compatible,
-    /// Bump to the latest, mirroring upstream's `'latest'`.
+    /// Bump to the latest. The `'latest'` state.
     Latest,
 }
 
 /// Previously-resolved entry from the lockfile, threaded so resolvers
-/// can short-circuit when the install is not requesting an update. Mirrors
-/// upstream's
-/// [`currentPkg`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L303-L309)
-/// field of [`ResolveOptions`]; the serialized form is the `currentPkg`
-/// payload custom resolvers receive.
+/// can short-circuit when the install is not requesting an update. The
+/// serialized form is the `currentPkg` payload custom resolvers
+/// receive.
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CurrentPkg {
@@ -292,13 +268,12 @@ pub struct CurrentPkg {
     pub published_at: Option<String>,
 }
 
-/// Options the dispatcher hands a resolver per-resolve. Mirrors pnpm's
-/// [`ResolveOptions`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L277-L302).
+/// Options the dispatcher hands a resolver per-resolve.
 #[derive(Debug, Default, Clone)]
 pub struct ResolveOptions {
     pub project_dir: PathBuf,
     pub lockfile_dir: PathBuf,
-    /// Previously-resolved lockfile entry. Mirrors upstream's `currentPkg` field.
+    /// Previously-resolved lockfile entry. The `currentPkg` field.
     pub current_pkg: Option<CurrentPkg>,
     /// Lockfile + manifest preferred-versions seed the npm picker biases
     /// toward (so pins that still satisfy their range survive a
@@ -318,8 +293,8 @@ pub struct ResolveOptions {
     pub always_try_workspace_packages: bool,
     pub update: UpdateBehavior,
     /// When `true`, bypass cached metadata fast paths so the registry
-    /// is the authority on integrity values. Mirrors pnpm's
-    /// `--update-checksums`.
+    /// is the authority on integrity values. The `--update-checksums`
+    /// flag.
     pub update_checksums: bool,
     pub inject_workspace_packages: bool,
     pub calc_specifier: bool,
@@ -335,20 +310,17 @@ pub struct ResolveOptions {
     /// npm resolver rejects a freshly picked version whose trust
     /// evidence is weaker than an earlier-published version's — the
     /// resolver-time counterpart to the lockfile verifier's check.
-    /// `None`/`Some(Off)` disables it. Mirrors pnpm's resolver-time
-    /// [`failIfTrustDowngraded`](https://github.com/pnpm/pnpm/blob/74dd8ba6e5/resolving/npm-resolver/src/index.ts#L548-L550)
-    /// call, gated on `opts.trustPolicy === 'no-downgrade'`.
+    /// `None`/`Some(Off)` disables it.
     pub trust_policy: Option<TrustPolicy>,
     /// Per-package exclude policy for the trust gate. `None` applies
     /// the gate uniformly.
     pub trust_policy_exclude: Option<PackageVersionPolicy>,
     /// Max age, in minutes, before which the trust gate still applies.
     /// A picked version older than this skips the check. `None` always
-    /// checks. Mirrors pnpm's `trustPolicyIgnoreAfter`.
+    /// checks. The `trustPolicyIgnoreAfter` setting.
     pub trust_policy_ignore_after: Option<u64>,
     /// `true` suppresses on-disk and in-memory cache write-back during
-    /// resolution. Mirrors upstream's `dryRun` flag at the resolver
-    /// boundary.
+    /// resolution. The `dryRun` flag at the resolver boundary.
     pub dry_run: bool,
     /// Optional guard that rejects concrete npm package versions after
     /// the normal picker selects them. The npm resolvers then exclude
@@ -360,21 +332,19 @@ pub struct ResolveOptions {
     /// appearing anywhere below the importer. Direct dependencies are
     /// still allowed; only transitive deps are gated. The check
     /// consults [`ResolveResult::resolved_via`] against the closed set
-    /// of non-exotic provenance tags. Mirrors pnpm's
-    /// [`blockExoticSubdeps`](https://github.com/pnpm/pnpm/blob/df990fdb51/installing/deps-resolver/src/resolveDependencies.ts#L1420-L1434).
+    /// of non-exotic provenance tags. Implements the `blockExoticSubdeps`
+    /// setting.
     pub block_exotic_subdeps: bool,
 }
 
 /// In-memory manifest shape a resolver may attach to its
-/// [`ResolveResult`]. Mirrors pnpm's
-/// [`DependencyManifest`](https://github.com/pnpm/pnpm/blob/3687b0e180/core/types/src/index.ts)
-/// (sourced from `@pnpm/types` upstream).
+/// [`ResolveResult`].
 ///
 /// Today this aliases [`serde_json::Value`] so the seam compiles
-/// without a typed manifest port. The `package-manifest` crate's
+/// without a typed manifest. The `package-manifest` crate's
 /// `PackageManifest` is a file-handle wrapper, not the in-memory value
-/// type upstream denotes; once the typed
-/// in-memory manifest lands, swap this alias for it.
+/// type; once the typed in-memory manifest lands, swap this alias for
+/// it.
 pub type DependencyManifest = serde_json::Value;
 
 /// `Arc`-shared variant of [`DependencyManifest`], used in
@@ -383,13 +353,11 @@ pub type DependencyManifest = serde_json::Value;
 /// propagates — the deps-resolver stores one copy in
 /// `ResolvedPackage` and another in each `DependenciesGraph` node,
 /// each `Clone` cost dropped from O(manifest size) to a refcount
-/// bump. Mirrors JS object-reference semantics — pnpm's
-/// `resolveResult.manifest` is an object, not a deep copy.
+/// bump.
 pub type SharedDependencyManifest = Arc<DependencyManifest>;
 
 /// Outcome of one [`Resolver::resolve`] call when the resolver claims
-/// the wanted dependency. Mirrors pnpm's
-/// [`ResolveResult`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L212-L237).
+/// the wanted dependency.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ResolveResult {
     /// Branded resolution identifier — see [`PkgResolutionId`].
@@ -399,9 +367,8 @@ pub struct ResolveResult {
     /// resolvers that learn the package name from the manifest only
     /// after the fetch (git / tarball / local) leave it `None` and
     /// downstream consumers (virtual-store layout, dedupe keys) must
-    /// fall back to reading the manifest. Mirrors the upstream
-    /// pattern where `result.manifest.name` and `result.manifest.version`
-    /// are the canonical name/version sources for non-npm resolutions.
+    /// fall back to reading the manifest, whose `name` and `version`
+    /// are the canonical sources for non-npm resolutions.
     pub name_ver: Option<PkgNameVer>,
     /// `latest` tag at the moment of resolution. Filled by the npm
     /// resolver; absent for protocols that have no notion of latest
@@ -417,8 +384,7 @@ pub struct ResolveResult {
     /// don't deep-clone the JSON tree per occurrence.
     pub manifest: Option<SharedDependencyManifest>,
     /// Where the artifact lives. Pacquet reuses
-    /// [`LockfileResolution`] for this — same shape as upstream's
-    /// `Resolution`, which is the discriminated union over
+    /// [`LockfileResolution`] for this — a discriminated union over
     /// tarball/registry/directory/git/binary/variations.
     pub resolution: LockfileResolution,
     /// Provenance tag (`"npm-registry"`, `"git-repository"`,
@@ -431,32 +397,25 @@ pub struct ResolveResult {
     pub normalized_bare_specifier: Option<String>,
     /// Alias from the wanted dependency. Threaded through so the
     /// install layer can address the resolved package by its local
-    /// name. See upstream's
-    /// [`alias` field](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L220).
+    /// name.
     pub alias: Option<String>,
     /// Set when the resolver picked this version despite a policy
-    /// violation (e.g. immature relative to `publishedBy`, trust
-    /// downgrade detected by `failIfTrustDowngraded`). Mirrors
-    /// upstream's
-    /// [`policyViolation`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L221-L236)
-    /// field; the deps-resolver aggregates these across every resolve
-    /// call into a single set the install command can react to.
+    /// violation (e.g. immature relative to `publishedBy`, or a trust
+    /// downgrade). The deps-resolver aggregates these across every
+    /// resolve call into a single set the install command can react to.
     pub policy_violation: Option<ResolutionPolicyViolation>,
 }
 
 /// Input to [`Resolver::resolve_latest`]. The resolver decides whether
 /// it owns this dep purely from `wanted_dependency` — the lockfile-
-/// resolved ref is the caller's concern, not the resolver's. Mirrors
-/// pnpm's
-/// [`LatestQuery`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L323-L326).
+/// resolved ref is the caller's concern, not the resolver's.
 #[derive(Debug, Clone)]
 pub struct LatestQuery {
     pub wanted_dependency: WantedDependency,
     pub compatible: bool,
 }
 
-/// Result of [`Resolver::resolve_latest`]. Mirrors pnpm's
-/// [`LatestInfo`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/resolver-base/src/index.ts#L339-L341).
+/// Result of [`Resolver::resolve_latest`].
 ///
 /// The dispatcher distinguishes "this resolver does not handle this dep"
 /// (`Ok(None)`) from "I claim it but can't say what's latest"
@@ -481,11 +440,9 @@ pub type ResolveFuture<'a> =
 pub type ResolveLatestFuture<'a> =
     Pin<Box<dyn Future<Output = Result<Option<LatestInfo>, ResolveError>> + Send + 'a>>;
 
-/// One per-protocol resolver. Mirrors the per-resolver shape upstream
-/// composes into the chain at
-/// [`createResolver`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/default-resolver/src/index.ts#L97-L173):
-/// each returns `Ok(None)` to defer to the next resolver in the chain
-/// and `Ok(Some(_))` to claim the wanted dependency.
+/// One per-protocol resolver. Each returns `Ok(None)` to defer to the
+/// next resolver in the chain and `Ok(Some(_))` to claim the wanted
+/// dependency.
 ///
 /// `resolve_latest` is the companion `pnpm outdated` / `pnpm update --latest`
 /// path uses; resolvers that have no notion of "latest" (file, link,

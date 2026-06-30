@@ -6,11 +6,9 @@
 //! Exits `0` on success, `1` on error (with the error printed to
 //! stderr).
 //!
-//! Mirrors the per-worker JS script the upstream
-//! [`writeBufferToCafs.test.ts`](https://github.com/pnpm/pnpm/blob/8695496f58/store/cafs/test/writeBufferToCafs.test.ts)
-//! spawns to exercise cross-process behaviour. Pacquet's `cas_write_lock`
-//! is process-local just like upstream's `locker: Map<string, number>`,
-//! so the OS-level mutex tests need real subprocesses to exercise the
+//! Each worker is a separate process so the cross-process tests can
+//! exercise real subprocesses. `cas_write_lock` is process-local, so
+//! the OS-level mutex tests need real subprocesses to exercise the
 //! `O_CREAT | O_EXCL` + `verify_or_rewrite` recovery path that holds the
 //! store together when N processes race on the same blob.
 
@@ -36,11 +34,10 @@ fn main() -> ExitCode {
         }
     };
 
-    // `mode: None` matches the upstream test's `420` (octal `0o644`)
-    // after the umask is applied — pacquet's `ensure_file` on `None`
-    // takes the kernel default, which is the same set of bits a
-    // `0o644` request would survive after a typical umask. The test
-    // only inspects content, not mode, so the simplification is safe.
+    // `mode: None` lets `ensure_file` take the kernel default, which is
+    // the same set of bits a `0o644` request would survive after a
+    // typical umask. The test only inspects content, not mode, so the
+    // simplification is safe.
     if let Err(error) = ensure_file(&target_path, &content, None) {
         eprintln!("ensure_file failed: {error}");
         return ExitCode::from(1);

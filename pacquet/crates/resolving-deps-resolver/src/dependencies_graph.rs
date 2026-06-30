@@ -5,8 +5,7 @@ use pacquet_resolving_resolver_base::ResolveResult;
 
 use crate::resolved_tree::PeerDep;
 
-/// Post-peer-resolution graph keyed by depPath. Mirrors upstream's
-/// [`GenericDependenciesGraphWithResolvedChildren`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolvePeers.ts#L66-L68).
+/// Post-peer-resolution graph keyed by depPath.
 ///
 /// Two snapshots of the same package can coexist here with different
 /// keys (e.g. `react-dom@18.0.0(react@18.0.0)` and
@@ -14,8 +13,7 @@ use crate::resolved_tree::PeerDep;
 /// resolution stage exists to handle.
 pub type DependenciesGraph = HashMap<DepPath, DependenciesGraphNode>;
 
-/// One node in the [`DependenciesGraph`]. Mirrors upstream's
-/// [`GenericDependenciesGraphNodeWithResolvedChildren`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolvePeers.ts#L50-L53).
+/// One node in the [`DependenciesGraph`].
 #[derive(Debug, Clone)]
 pub struct DependenciesGraphNode {
     pub dep_path: DepPath,
@@ -48,24 +46,19 @@ pub struct DependenciesGraphNode {
     pub depth: i32,
     pub installable: bool,
     /// `true` when this snapshot has zero unresolved + missing peers,
-    /// i.e. its depPath equals its `pkgIdWithPatchHash`. Mirrors
-    /// upstream's `isPure` flag.
+    /// i.e. its depPath equals its `pkgIdWithPatchHash`.
     pub is_pure: bool,
     /// Mirrors [`crate::ResolvedPackage::optional`]: `true` when every
     /// path from any importer to this package goes through at least
     /// one `optionalDependencies` edge. Threaded through from the
-    /// tree-walker so the lockfile adapter can set
-    /// `SnapshotEntry.optional` per upstream's
-    /// [`updateLockfile`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/updateLockfile.ts#L99-L101).
+    /// tree-walker so the lockfile adapter can set `SnapshotEntry.optional`.
     /// Every peer-variant of the same `pkgIdWithPatchHash` shares the
     /// same value because they share one [`crate::ResolvedPackage`].
     pub optional: bool,
 }
 
-/// One issue collected during peer resolution. Mirrors upstream's per-
-/// project
-/// [`PeerDependencyIssues`](https://github.com/pnpm/pnpm/blob/097983fbca/core/types/src/peerDependencyIssues.ts)
-/// shape, simplified to the surface pacquet exposes today.
+/// Issues collected during peer resolution, simplified to the surface
+/// pacquet exposes today.
 #[derive(Debug, Default, Clone)]
 pub struct PeerDependencyIssues {
     /// `peerName → entries` where each entry describes a parent that
@@ -77,25 +70,24 @@ pub struct PeerDependencyIssues {
     pub bad: HashMap<String, Vec<PeerDependencyIssue>>,
 }
 
-/// One missing-peer entry. Mirrors upstream's `missing[peerName]` item.
+/// One missing-peer entry, keyed by peer name in
+/// [`PeerDependencyIssues::missing`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MissingPeer {
     pub wanted_range: String,
     pub optional: bool,
     /// `true` when the requiring package declares the peer only via
-    /// `peerDependenciesMeta`. Pacquet-internal (upstream's issue item
-    /// has no such field): the importer hoist loop uses it to keep
-    /// meta-only peers out of the optional-peer hoist, mirroring
-    /// upstream's `getMissingPeers`, which feeds the hoist from
-    /// `peerDependencies` entries only.
+    /// `peerDependenciesMeta`. The importer hoist loop uses it to keep
+    /// meta-only peers out of the optional-peer hoist, since the hoist
+    /// is fed from `peerDependencies` entries only.
     pub meta_only: bool,
     /// Chain of `(name, version)` from the root importer down to the
-    /// parent that declared the peer requirement. Mirrors upstream's
-    /// `parents: ParentPackages`.
+    /// parent that declared the peer requirement.
     pub parents: Vec<ParentPackageRef>,
 }
 
-/// One bad-peer entry. Mirrors upstream's `bad[peerName]` item.
+/// One bad-peer entry, keyed by peer name in
+/// [`PeerDependencyIssues::bad`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PeerDependencyIssue {
     pub wanted_range: String,
@@ -109,7 +101,7 @@ pub struct PeerDependencyIssue {
 }
 
 /// One `(name, version)` link in the chain returned with each peer
-/// issue. Mirrors upstream's `ParentPackages` element.
+/// issue.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParentPackageRef {
     pub name: String,

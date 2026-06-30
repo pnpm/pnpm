@@ -6,34 +6,24 @@ use std::{
 };
 
 /// Per-occurrence tree carried by [`ResolvedTree::dependencies_tree`].
-/// Mirrors upstream's
-/// [`DependenciesTree`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L103-L109)
-/// type alias.
 pub type DependenciesTree = HashMap<NodeId, DependenciesTreeNode>;
 
 /// Output of [`fn@crate::resolve_dependency_tree`].
-///
-/// Mirrors upstream's
-/// [`ResolveDependencyTreeResult`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencyTree.ts#L151-L170)
-/// for the npm-shaped slice pacquet currently exposes.
 ///
 /// The shape carries two indices into the same set of resolved
 /// packages:
 ///
 /// - [`packages`](Self::packages) is the **flat dedup map**, keyed by
 ///   `pkgIdWithPatchHash` (today `name@version`). One entry per
-///   resolved package, no per-occurrence repetition. Upstream calls
-///   the equivalent index `resolvedPkgsById`.
+///   resolved package, no per-occurrence repetition.
 /// - [`dependencies_tree`](Self::dependencies_tree) is the **per-
 ///   occurrence tree**, keyed by [`NodeId`]. Non-leaf nodes get a fresh
 ///   child `NodeId` per parent occurrence so the peer-resolution stage
 ///   can compute different peer suffixes per call site. Leaves (no
 ///   `dependencies`, `optionalDependencies`, `peerDependencies`, or
-///   `peerDependenciesMeta`) collapse onto one shared `NodeId`,
-///   mirroring upstream's
-///   [`pkgIsLeaf` reuse](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1580):
-///   a leaf has no per-occurrence state worth distinguishing, so every
-///   parent that references it points at the same tree node.
+///   `peerDependenciesMeta`) collapse onto one shared `NodeId`: a leaf
+///   has no per-occurrence state worth distinguishing, so every parent
+///   that references it points at the same tree node.
 #[derive(Debug, Default, Clone)]
 pub struct ResolvedTree {
     pub direct: Vec<DirectDep>,
@@ -43,20 +33,14 @@ pub struct ResolvedTree {
     pub policy_violations: Vec<ResolutionPolicyViolation>,
     /// Set of `patchedDependencies` keys (e.g. `lodash@4.17.21`,
     /// `react@^18`) whose patch was actually applied to at least one
-    /// resolved package. Mirrors upstream's
-    /// [`appliedPatches`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1505)
-    /// set, threaded out of the resolver so the orchestrator can pass
-    /// it to [`pacquet_patching::verify_patches`] for the
-    /// `ERR_PNPM_UNUSED_PATCH` diagnostic.
+    /// resolved package. Threaded out of the resolver so the
+    /// orchestrator can pass it to [`pacquet_patching::verify_patches`]
+    /// for the `ERR_PNPM_UNUSED_PATCH` diagnostic.
     pub applied_patches: HashSet<String>,
     /// Per-`pkgIdWithPatchHash` child list: `(install_alias,
     /// resolved_child_pkg_id, optional)`. Populated by the first walk
     /// of each package — every subsequent revisit reuses the same
-    /// entry. Mirrors upstream's
-    /// [`childrenByParentId`](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolveDependencies.ts#L185-L186)
-    /// plus the
-    /// [`buildTree` child enumeration](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolveDependencyTree.ts#L371-L401)
-    /// — the peer-resolver's `realize_children` walks this to
+    /// entry. The peer-resolver's `realize_children` walks this to
     /// allocate per-occurrence `NodeId`s for a
     /// [`TreeChildren::Lazy`] node.
     pub children_by_id: HashMap<String, Arc<Vec<ChildEdge>>>,
@@ -79,9 +63,7 @@ pub struct ChildEdge {
 }
 
 /// One edge in the resolved tree: the local install name (`alias`) and
-/// the resolved node's [`NodeId`]. Mirrors upstream's edge shape on
-/// `directNodeIdsByAlias` plus the `pkgId` field carried on
-/// `ResolvedDirectDependency`.
+/// the resolved node's [`NodeId`], plus the resolved `pkgId`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DirectDep {
     /// Local install name in `node_modules`. For an npm-alias entry
@@ -100,10 +82,7 @@ pub struct DirectDep {
     pub id: String,
 }
 
-/// One resolved package, deduped by `pkgIdWithPatchHash`. Mirrors
-/// upstream's
-/// [`ResolvedPackage`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L248-L279)
-/// for the npm-shaped slice pacquet currently exposes.
+/// One resolved package, deduped by `pkgIdWithPatchHash`.
 ///
 /// **Children live on [`DependenciesTreeNode`], not here.** Two parents
 /// that share a non-leaf resolved package each get their own per-
@@ -122,14 +101,11 @@ pub struct ResolvedPackage {
     pub result: std::sync::Arc<ResolveResult>,
     /// `peerDependencies` from the package's manifest, with names that
     /// also appear in the package's own `dependencies` /
-    /// `optionalDependencies` filtered out (mirrors upstream's
-    /// [`peerDependenciesWithoutOwn`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1791-L1815)).
-    /// `BTreeMap` keeps iteration order stable so peer-suffix
-    /// construction is deterministic.
+    /// `optionalDependencies` filtered out. `BTreeMap` keeps iteration
+    /// order stable so peer-suffix construction is deterministic.
     pub peer_dependencies: BTreeMap<String, PeerDep>,
     /// `true` when every path from any importer to this package goes
-    /// through at least one `optionalDependencies` edge. Mirrors
-    /// upstream's [`ResolvedPackage.optional`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L254)
+    /// through at least one `optionalDependencies` edge, computed by
     /// AND-fold:
     ///
     /// - On the first visit, `optional` is set to
@@ -150,21 +126,14 @@ pub struct ResolvedPackage {
     /// `realize_children` so a lazy-realized child reuses the same
     /// leaf/non-leaf classification the eager walker picked — keeping
     /// `NodeId::leaf` vs `NodeId::next` consistent across both
-    /// realisation paths. Mirrors upstream's
-    /// [`ResolvedPackage.isLeaf`](https://github.com/pnpm/pnpm/blob/b9de85dcb6/installing/deps-resolver/src/resolveDependencies.ts#L250)
-    /// — populated in
-    /// [`getResolvedPackage`](https://github.com/pnpm/pnpm/blob/b9de85dcb6/installing/deps-resolver/src/resolveDependencies.ts#L1771)
-    /// and consumed by
-    /// [`buildTree`](https://github.com/pnpm/pnpm/blob/b9de85dcb6/installing/deps-resolver/src/resolveDependencyTree.ts#L381).
+    /// realisation paths.
     pub is_leaf: bool,
 }
 
-/// One peer-dependency entry on a [`ResolvedPackage`]. Mirrors upstream's
-/// [`PeerDependency`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L246-L247)
-/// shape.
+/// One peer-dependency entry on a [`ResolvedPackage`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PeerDep {
-    /// Semver range from the upstream manifest. May carry a
+    /// Semver range from the package's manifest. May carry a
     /// `workspace:` prefix that the peer matcher strips before
     /// checking.
     pub version: String,
@@ -173,26 +142,23 @@ pub struct PeerDep {
     /// issue but does not block resolution.
     pub optional: bool,
     /// `true` when the peer exists only via `peerDependenciesMeta`
-    /// (no `peerDependencies` entry). Upstream's resolution-stage
-    /// [`getMissingPeers`](https://github.com/pnpm/pnpm/blob/01b3d45ddb/installing/deps-resolver/src/resolveDependencies.ts#L1773-L1782)
-    /// reads `peerDependencies` only, so a meta-only peer never feeds
-    /// the optional-peer hoist — it still resolves in the peer pass
-    /// when a provider is genuinely in scope.
+    /// (no `peerDependencies` entry). The resolution-stage missing-peer
+    /// scan reads `peerDependencies` only, so a meta-only peer never
+    /// feeds the optional-peer hoist — it still resolves in the peer
+    /// pass when a provider is genuinely in scope.
     pub meta_only: bool,
 }
 
-/// One per-occurrence node in the dependencies tree. Mirrors upstream's
-/// [`DependenciesTreeNode`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L92-L103).
+/// One per-occurrence node in the dependencies tree.
 #[derive(Debug, Clone)]
 pub struct DependenciesTreeNode {
     /// Key into [`ResolvedTree::packages`].
     pub resolved_package_id: String,
     /// `alias → child NodeId` edges, possibly deferred.
     pub children: TreeChildren,
-    /// Distance from the root importer (root = 0). Upstream uses
-    /// `depth = -1` to mark linked / pruned nodes; pacquet doesn't
-    /// emit `-1` today because workspace-link resolution hasn't been
-    /// ported.
+    /// Distance from the root importer (root = 0). A `depth = -1` marks
+    /// linked / pruned nodes; pacquet doesn't emit `-1` today because
+    /// workspace-link resolution hasn't been implemented.
     pub depth: i32,
     /// Whether the package may be skipped when an optional dep fails
     /// for its host platform. Always `true` for the npm-shaped slice
@@ -202,8 +168,7 @@ pub struct DependenciesTreeNode {
 
 /// Children edges of a [`DependenciesTreeNode`].
 ///
-/// Mirrors upstream's [`children: (() => ChildrenMap) | ChildrenMap`](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolveDependencies.ts#L92-L94)
-/// sum type. A node enters the tree as [`Self::Lazy`] when the
+/// A node enters the tree as [`Self::Lazy`] when the
 /// dependency-tree walker doesn't need to materialise its children
 /// immediately (the common case for revisits, where the first walk
 /// already populated `ResolvedTree::children_by_id`); the
@@ -218,9 +183,8 @@ pub enum TreeChildren {
     Realized(BTreeMap<String, NodeId>),
     /// Children are known by spec only. `parent_ids` is the chain of
     /// `pkgIdWithPatchHash` ancestors this occurrence reached the
-    /// node through, threaded so the peer resolver's `buildTree`
-    /// equivalent can apply upstream's
-    /// [`parentIdsContainSequence` cycle-break](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolveDependencyTree.ts#L378)
+    /// node through, threaded so the peer resolver's tree builder can
+    /// apply the parent-ids-contain-sequence cycle-break
     /// per-occurrence. Without it, a revisit's subtree would
     /// silently include cycle edges that the first walk correctly
     /// rejected, or omit valid edges the first walk's ancestor

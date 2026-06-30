@@ -2,10 +2,8 @@
 //!
 //! `pnpm [global-opts] with current <cmd> [args]` is sugar for
 //! `pnpm [global-opts] <cmd> [args]` run with the project's
-//! `packageManager` / `devEngines.packageManager` check disabled. Ports
-//! the `with current` branch of pnpm's
-//! [`parseCliArgs`](https://github.com/pnpm/pnpm/blob/a33eeec9cd/pnpm11/pnpm/src/parseCliArgs.ts#L45-L56):
-//! the `with current` tokens are removed in place (so any global flags
+//! `packageManager` / `devEngines.packageManager` check disabled. The
+//! `with current` tokens are removed in place (so any global flags
 //! before `with` are preserved) and the override is propagated via the
 //! `pnpm_config_pm_on_fail` env var rather than an argv flag, so it
 //! survives clap's `-v` / `--version` short-circuit and reaches both the
@@ -18,9 +16,8 @@ use std::ffi::OsString;
 /// Global long options that do **not** take a value, so the next token is
 /// the subcommand rather than the option's argument. Every other long
 /// option (known value-takers like `--dir` / `--reporter`, and any unknown
-/// flag) is assumed to consume its successor — matching pnpm's
-/// `longOptionConsumesValue`, which treats a non-boolean (including
-/// unknown) option as value-consuming.
+/// flag) is assumed to consume its successor: a non-boolean (including
+/// unknown) option is treated as value-consuming.
 const BOOLEAN_LONG_OPTIONS: &[&str] = &["recursive"];
 
 /// Global short options that take a value (`-C` = `--dir`, `-F` =
@@ -74,8 +71,8 @@ fn plan(mut argv: Vec<OsString>) -> miette::Result<(Vec<OsString>, bool)> {
 /// `with current` is only the sugar when `with` sits at the subcommand
 /// position — `pnpm [global-opts] with current ...`. A `with current`
 /// appearing later as data for another command (`pnpm exec with current
-/// ...`) must be left alone. Mirrors pnpm, which enters the rewrite only
-/// when the parsed command is `with` with first param `current`.
+/// ...`) must be left alone: the rewrite only applies when the parsed
+/// command is `with` with first param `current`.
 fn find_with_current_index(argv: &[OsString]) -> Option<usize> {
     let command = command_index(argv)?;
     let is_with = argv.get(command).is_some_and(|token| token == "with");
@@ -118,8 +115,7 @@ fn option_consumes_value(token: &str) -> bool {
 
 /// Whether a long option consumes the next argv token as its value.
 /// Booleans and `--no-` negations don't; an inline `--opt=val` carries its
-/// own value. Unknown long options are assumed to consume a value, matching
-/// pnpm.
+/// own value. Unknown long options are assumed to consume a value.
 fn long_option_consumes_value(token: &str) -> bool {
     if token.contains('=') {
         return false;

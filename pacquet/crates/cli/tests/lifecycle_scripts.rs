@@ -43,7 +43,6 @@ mod dependency_build_scripts {
         fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
     }
 
-    // Ported from <https://github.com/pnpm/pnpm/blob/7e91e4b35f/installing/deps-installer/test/install/lifecycleScripts.ts#L26>
     #[test]
     fn run_pre_and_postinstall_scripts() {
         let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -83,7 +82,6 @@ mod dependency_build_scripts {
         drop((root, mock_instance));
     }
 
-    // Ported from <https://github.com/pnpm/pnpm/blob/7e91e4b35f/installing/deps-installer/test/install/lifecycleScripts.ts#L121>
     #[test]
     fn run_install_scripts() {
         let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -115,7 +113,6 @@ mod dependency_build_scripts {
         drop((root, mock_instance));
     }
 
-    // Ported from <https://github.com/pnpm/pnpm/blob/7e91e4b35f/installing/deps-installer/test/install/lifecycleScripts.ts#L303>
     #[test]
     fn lifecycle_scripts_run_in_dependency_order() {
         let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -171,7 +168,6 @@ mod dependency_build_scripts {
         drop((root, mock_instance));
     }
 
-    // Ported from <https://github.com/pnpm/pnpm/blob/7e91e4b35f/installing/deps-installer/test/install/lifecycleScripts.ts#L331>
     #[test]
     fn lifecycle_scripts_run_before_linking_bins() {
         let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -224,7 +220,6 @@ mod dependency_build_scripts {
         drop((root, mock_instance, frozen_root));
     }
 
-    // Ported from <https://github.com/pnpm/pnpm/blob/7e91e4b35f/installing/deps-installer/test/install/lifecycleScripts.ts#L372>
     #[test]
     fn bins_linked_even_if_scripts_ignored() {
         let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -273,7 +268,6 @@ mod dependency_build_scripts {
         drop((root, mock_instance));
     }
 
-    // Ported from <https://github.com/pnpm/pnpm/blob/7e91e4b35f/installing/deps-installer/test/install/lifecycleScripts.ts#L445>
     #[test]
     fn selectively_ignore_scripts_by_allow_builds() {
         let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -315,7 +309,6 @@ mod dependency_build_scripts {
         drop((root, mock_instance));
     }
 
-    // Ported from <https://github.com/pnpm/pnpm/blob/7e91e4b35f/installing/deps-installer/test/install/lifecycleScripts.ts#L466>
     #[test]
     fn selectively_allow_scripts_by_allow_builds() {
         let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -390,7 +383,6 @@ mod dependency_build_scripts {
         drop((root, mock_instance, frozen_root));
     }
 
-    // Ported from <https://github.com/pnpm/pnpm/blob/7e91e4b35f/installing/deps-installer/test/install/lifecycleScripts.ts#L543>
     #[test]
     fn selectively_allow_scripts_by_allow_builds_exact_versions() {
         let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -432,7 +424,6 @@ mod dependency_build_scripts {
         drop((root, mock_instance));
     }
 
-    // Ported from <https://github.com/pnpm/pnpm/blob/7e91e4b35f/installing/deps-installer/test/install/lifecycleScripts.ts#L552>
     #[test]
     fn lifecycle_scripts_run_after_linking_root_deps() {
         let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -469,7 +460,6 @@ mod dependency_build_scripts {
         drop((root, mock_instance, frozen_root));
     }
 
-    // Ported from <https://github.com/pnpm/pnpm/blob/7e91e4b35f/installing/deps-installer/test/install/lifecycleScripts.ts#L724>
     #[test]
     fn rebuild_after_allow_builds_changes() {
         let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -533,7 +523,6 @@ mod dependency_build_scripts {
         drop((root, mock_instance, frozen_root));
     }
 
-    // Ported from <https://github.com/pnpm/pnpm/blob/7e91e4b35f/installing/deps-restorer/test/index.ts#L362>
     #[test]
     fn headless_run_pre_postinstall_scripts() {
         let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -660,8 +649,8 @@ mod dependency_build_scripts {
     }
 
     /// With `strictDepBuilds: false`, an ignored build is a non-fatal
-    /// warning printed to stdout and the install exits 0 — mirroring
-    /// pnpm's `reportIgnoredBuilds` box.
+    /// warning printed to stdout and the install exits 0 — the
+    /// ignored-build-scripts warning box.
     #[test]
     fn add_warns_without_strict_dep_builds_when_a_build_is_ignored() {
         let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -792,10 +781,7 @@ mod dependency_build_scripts {
 /// Project (workspace/root) lifecycle scripts run during
 /// `pacquet install` — preinstall, install, postinstall, preprepare,
 /// prepare, postprepare — as opposed to the dependency build scripts
-/// the `dependency_build_scripts` module above exercises.
-///
-/// Ported from
-/// <https://github.com/pnpm/pnpm/blob/80037699fb/installing/deps-installer/test/install/lifecycleScripts.ts>.
+/// the [`dependency_build_scripts`] module above exercises.
 mod project_scripts {
     use assert_cmd::prelude::*;
     use command_extra::CommandExtra;
@@ -903,9 +889,7 @@ mod project_scripts {
         drop((root, mock_instance));
     }
 
-    /// Ported from
-    /// <https://github.com/pnpm/pnpm/blob/80037699fb/installing/deps-installer/test/install/lifecycleScripts.ts#L155>
-    /// — the project's scripts run regardless of whether its `name`
+    /// The project's scripts run regardless of whether its `name`
     /// matches its directory.
     #[test]
     fn runs_scripts_when_project_name_differs_from_directory() {
@@ -934,9 +918,7 @@ mod project_scripts {
         drop((root, mock_instance));
     }
 
-    /// Ported from
-    /// <https://github.com/pnpm/pnpm/blob/80037699fb/installing/deps-installer/test/install/lifecycleScripts.ts#L187>
-    /// — `INIT_CWD` is set to the lockfile directory for project scripts.
+    /// `INIT_CWD` is set to the lockfile directory for project scripts.
     #[test]
     fn project_script_sees_init_cwd() {
         let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -966,11 +948,9 @@ mod project_scripts {
         drop((root, mock_instance));
     }
 
-    /// `pacquet add <pkg>` is a partial install (pnpm's
-    /// `mutation: 'installSome'`), so the project's own lifecycle
-    /// scripts must not run. Ported from
-    /// <https://github.com/pnpm/pnpm/blob/80037699fb/pnpm/test/install/lifecycleScripts.ts#L66-L90>
-    /// (`postinstall`/`prepare` are not executed after a named install).
+    /// `pacquet add <pkg>` is a partial install, so the project's own
+    /// lifecycle scripts must not run: `postinstall`/`prepare` are not
+    /// executed after a named install.
     #[test]
     fn add_does_not_run_project_lifecycle_scripts() {
         let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =

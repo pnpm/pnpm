@@ -1,15 +1,10 @@
 //! Surplus virtual-store cleanup: remove the
 //! `node_modules/.pnpm/<dir>` entries the wanted lockfile no longer
-//! references.
+//! references, together with the throttle that decides whether the
+//! sweep runs this install.
 //!
-//! Port of the virtual-store sweep in pnpm's `prune`
-//! (<https://github.com/pnpm/pnpm/blob/e1e29c1520/installing/linking/modules-cleaner/src/prune.ts#L173-L231>)
-//! together with the throttle that decides whether the sweep runs this
-//! install
-//! (<https://github.com/pnpm/pnpm/blob/74a2dc9027/installing/deps-installer/src/install/index.ts#L471-L473>).
-//!
-//! Only the virtual-store sweep is ported here. The rest of upstream's
-//! `prune` — removing changed direct dependencies from importer
+//! Only the virtual-store sweep happens here. The rest of `prune` —
+//! removing changed direct dependencies from importer
 //! `node_modules`, the hoisted-dependency removal (pacquet handles that
 //! in [`crate::link_hoisted_modules()`]), and the `pnpm:stats` `removed`
 //! count derived from the current-vs-wanted orphan diff — is not part
@@ -27,9 +22,6 @@ use pacquet_lockfile::{Lockfile, PkgNameVerPeer};
 use crate::SkippedSnapshots;
 
 /// Decide whether the virtual-store sweep should run this install.
-///
-/// Port of pnpm's `pruneVirtualStore` gate at
-/// <https://github.com/pnpm/pnpm/blob/74a2dc9027/installing/deps-installer/src/install/index.ts#L471-L473>.
 ///
 /// `is_global_virtual_store` is decided by the caller from the resolved
 /// paths (see [`same_dir`]), not the `enableGlobalVirtualStore` flag
@@ -54,9 +46,7 @@ pub fn should_prune_virtual_store(
     }
 }
 
-/// `true` when `pruned_at` is older than `max_age_minutes`. Port of
-/// pnpm's `cacheExpired` at
-/// <https://github.com/pnpm/pnpm/blob/74a2dc9027/installing/deps-installer/src/install/index.ts#L1180-L1182>.
+/// `true` when `pruned_at` is older than `max_age_minutes`.
 fn cache_expired(pruned_at: &str, max_age_minutes: u64, now: SystemTime) -> bool {
     let Ok(pruned_at) = httpdate::parse_http_date(pruned_at) else {
         return false;
@@ -76,9 +66,7 @@ fn cache_expired(pruned_at: &str, max_age_minutes: u64, now: SystemTime) -> bool
 /// avoid stamping a fresh `prunedAt` for a sweep that never actually
 /// ran, which would otherwise throttle the next real sweep.
 ///
-/// Port of the virtual-store sweep in pnpm's `prune`
-/// (<https://github.com/pnpm/pnpm/blob/e1e29c1520/installing/linking/modules-cleaner/src/prune.ts#L180-L190>):
-/// the needed set is `node_modules` plus one
+/// The needed set is `node_modules` plus one
 /// [`PkgNameVerPeer::to_virtual_store_name`] per non-skipped snapshot
 /// key; any other on-disk entry is surplus and removed.
 ///
@@ -167,8 +155,7 @@ pub fn same_dir(left: &Path, right: &Path) -> bool {
 }
 
 /// Build the set of virtual-store subdirectory names the wanted
-/// lockfile needs. Mirrors the `neededPkgs` set at
-/// <https://github.com/pnpm/pnpm/blob/e1e29c1520/installing/linking/modules-cleaner/src/prune.ts#L180-L184>.
+/// lockfile needs.
 fn needed_virtual_store_names<'a>(
     snapshot_keys: impl Iterator<Item = &'a PkgNameVerPeer>,
     skipped: &SkippedSnapshots,
@@ -178,12 +165,13 @@ fn needed_virtual_store_names<'a>(
     // under the virtual store; it is not a package directory and must
     // never be swept.
     //
-    // `lock.yaml` (the current lockfile) also lives here. Upstream's
-    // `prune` deletes it and unconditionally rewrites it afterwards, but
-    // pacquet's current-lockfile write is conditional (skipped when
-    // `config.lockfile` is off, see `install.rs`), so deleting it in the
-    // sweep could orphan it. Keeping it is end-state-equivalent whenever
-    // the rewrite runs and strictly safer when it doesn't.
+    // `lock.yaml` (the current lockfile) also lives here. The
+    // `prune` sweep could delete it and rely on an unconditional
+    // rewrite afterwards, but pacquet's current-lockfile write is
+    // conditional (skipped when `config.lockfile` is off, see
+    // `install.rs`), so deleting it in the sweep could orphan it.
+    // Keeping it is end-state-equivalent whenever the rewrite runs and
+    // strictly safer when it doesn't.
     let mut needed =
         HashSet::from(["node_modules".to_string(), Lockfile::CURRENT_FILE_NAME.to_string()]);
     for key in snapshot_keys {
@@ -196,9 +184,7 @@ fn needed_virtual_store_names<'a>(
 }
 
 /// List the immediate entry names of the virtual store directory.
-/// Mirrors pnpm's `readVirtualStoreDir`
-/// (<https://github.com/pnpm/pnpm/blob/e1e29c1520/installing/linking/modules-cleaner/src/prune.ts#L204-L217>):
-/// a missing directory yields an empty list (a first install has
+/// A missing directory yields an empty list (a first install has
 /// nothing to prune). Any other read error returns `None` so the sweep
 /// can't delete packages it failed to enumerate, and the caller knows
 /// the sweep didn't run.
@@ -224,17 +210,14 @@ fn read_virtual_store_dir(virtual_store_dir: &Path) -> Option<Vec<String>> {
 }
 
 /// `rimraf` a surplus virtual-store entry, returning whether the entry is
-/// gone afterwards. Mirrors pnpm's `tryRemovePkg`
-/// (<https://github.com/pnpm/pnpm/blob/e1e29c1520/installing/linking/modules-cleaner/src/prune.ts#L219-L231>):
-/// a removal failure is logged and swallowed — a leftover entry is less
-/// harmful than aborting the install, and the next sweep retries. A `false`
-/// return lets the caller keep its removed count accurate (it must not
-/// count an entry a swallowed error left behind).
+/// gone afterwards. A removal failure is logged and swallowed — a leftover
+/// entry is less harmful than aborting the install, and the next sweep
+/// retries. A `false` return lets the caller keep its removed count
+/// accurate (it must not count an entry a swallowed error left behind).
 ///
 /// Surplus entries are normally package directories, but a stray file or
-/// symlink could appear; upstream's `rimraf` removes any of them, so this
-/// does too. `symlink_metadata` keeps the file/symlink branch from
-/// following a link into a real directory.
+/// symlink could appear; any of them is removed. `symlink_metadata` keeps
+/// the file/symlink branch from following a link into a real directory.
 fn try_remove_pkg(path: &Path) -> bool {
     let result = match fs::symlink_metadata(path) {
         Ok(metadata) if metadata.is_dir() => fs::remove_dir_all(path),

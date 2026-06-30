@@ -108,8 +108,7 @@ pub(crate) fn parse_package_manager(package_manager: &str) -> (String, Option<St
     // `@` belongs to a scoped name (e.g. `@scope/pm@1.2.3`), so skip it;
     // otherwise the first `@` is the separator. The *first* `@` (not the last)
     // is used so a reference that is a URL containing `@` (e.g. credentials)
-    // stays intact. Mirrors pnpm's `parsePackageManager`
-    // <https://github.com/pnpm/pnpm/blob/8eb1be4988/config/reader/src/index.ts#L895-L908>.
+    // stays intact.
     let separator_index = if let Some(rest) = package_manager.strip_prefix('@') {
         rest.find('@').map(|index| index + 1)
     } else {

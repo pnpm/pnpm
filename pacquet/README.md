@@ -5,7 +5,7 @@
 
 The official pnpm rewrite in Rust.
 
-pacquet is a port of the [pnpm](https://github.com/pnpm/pnpm) CLI from TypeScript to Rust. It is not a new package manager and not a reimagining of pnpm. Its behavior, flags, defaults, error codes, file formats, and directory layout will match pnpm exactly.
+pacquet is the [pnpm](https://pnpm.io) CLI implemented in Rust — one of two parallel implementations of the same package manager, kept behaviorally identical (the same commands, flags, defaults, error codes, file formats, and directory layout). It is developed alongside the TypeScript pnpm CLI at near-complete feature parity, not as a downstream port that trails it.
 
 ## Roadmap
 

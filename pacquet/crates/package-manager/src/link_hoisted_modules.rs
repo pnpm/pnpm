@@ -5,22 +5,16 @@
 //! [`crate::import_indexed_dir()`], and links bins under every
 //! parent's `node_modules/.bin`.
 //!
-//! Ports upstream's
-//! [`installing/deps-restorer/src/linkHoistedModules.ts`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/src/linkHoistedModules.ts).
-//!
 //! Pacquet's linker is synchronous and accepts pre-fetched CAS
-//! paths via `cas_paths_by_pkg_id`. Upstream's linker is async
-//! and calls `storeController.fetchPackage()` inside the walk;
-//! pacquet decouples those layers because pacquet's existing
-//! tarball / store-dir / package-fetch machinery is reused
-//! verbatim by the install pipeline (Slice 6) before the linker
-//! runs. The linker is the final composition step — given a
-//! graph and a fully-populated CAS index for every package, it
-//! materializes the tree.
+//! paths via `cas_paths_by_pkg_id`. It decouples downloading from
+//! linking because pacquet's existing tarball / store-dir /
+//! package-fetch machinery is reused verbatim by the install
+//! pipeline (Slice 6) before the linker runs. The linker is the
+//! final composition step — given a graph and a fully-populated
+//! CAS index for every package, it materializes the tree.
 //!
 //! Concurrency uses [`rayon`]: the hierarchy walk parallelizes
-//! at each level (matching upstream's `await Promise.all(...)`
-//! per level), and `import_indexed_dir` itself is internally
+//! at each level, and `import_indexed_dir` itself is internally
 //! rayon-parallel over CAS entries.
 
 use crate::{
@@ -121,13 +115,10 @@ pub enum LinkHoistedModulesError {
 /// 2. **Per-node import.** The hierarchy is walked top-down,
 ///    parallel at each level. For every node the linker calls
 ///    [`import_indexed_dir()`] with `force: true,
-///    keep_modules_dir: true` (matches upstream's
-///    `importPackage(..., { force: true, keepModulesDir: true })`).
+///    keep_modules_dir: true`.
 /// 3. **Per-`node_modules` bin link.** After a level's children
 ///    are all done, `<parent>/node_modules/.bin` is populated
 ///    from the just-imported direct children's `package.json`.
-///    Matches upstream's `linkBins(modulesDir, binsDir, ...)`
-///    at the bottom of `linkAllPkgsInOrder`.
 pub fn link_hoisted_modules<Reporter: self::Reporter>(
     opts: &LinkHoistedModulesOpts<'_>,
 ) -> Result<(), LinkHoistedModulesError> {
@@ -149,9 +140,9 @@ pub fn link_hoisted_modules<Reporter: self::Reporter>(
 
 /// Phase 1: rimraf every directory that was in the previous
 /// install's graph but isn't in the new one. Errors are swallowed
-/// silently to match upstream's `tryRemoveDir` `EPERM`/`EBUSY`
-/// tolerance — a directory we can't remove right now is no worse
-/// than leaving a stale entry, and the next install will retry.
+/// silently with the same `EPERM`/`EBUSY` tolerance — a directory
+/// we can't remove right now is no worse than leaving a stale
+/// entry, and the next install will retry.
 fn remove_orphans(graph: &DependenciesGraph, prev_graph: Option<&DependenciesGraph>) {
     let Some(prev) = prev_graph else { return };
     let orphan_dirs: Vec<&PathBuf> = prev.keys().filter(|dir| !graph.contains_key(*dir)).collect();
@@ -160,10 +151,8 @@ fn remove_orphans(graph: &DependenciesGraph, prev_graph: Option<&DependenciesGra
     });
 }
 
-/// Single-directory rimraf with the same error-swallowing
-/// semantics upstream's
-/// [`tryRemoveDir`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/src/linkHoistedModules.ts#L70-L86)
-/// uses. `NotFound` is a no-op (someone else already removed it);
+/// Single-directory rimraf with error-swallowing semantics.
+/// `NotFound` is a no-op (someone else already removed it);
 /// everything else (`PermissionDenied`, `Other`) is silently
 /// dropped — a stale directory is less bad than a panicked install.
 fn try_remove_dir(dir: &Path) -> io::Result<()> {
@@ -175,8 +164,7 @@ fn try_remove_dir(dir: &Path) -> io::Result<()> {
 }
 
 /// Phase 2 + 3: recursively import packages then link bins for
-/// each `<parent>/node_modules/.bin`. Mirrors upstream's
-/// [`linkAllPkgsInOrder`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/src/linkHoistedModules.ts#L88-L153).
+/// each `<parent>/node_modules/.bin`.
 ///
 /// Each level of the hierarchy is walked in parallel via
 /// rayon's [`IntoParallelRefIterator::par_iter`]. Children at the

@@ -1,9 +1,6 @@
 //! Verify that the pnpm engine about to be installed and executed is the
 //! genuinely-published `pnpm`.
 //!
-//! Ports pnpm's
-//! [`verifyPnpmEngineIdentity`](https://github.com/pnpm/pnpm/blob/a33eeec9cd/pnpm11/engine/pm/commands/src/self-updater/verifyPnpmEngineIdentity.ts).
-//!
 //! The wanted pnpm version comes from the resolved env lockfile, and the
 //! project controls the lockfile integrity and the registry the bytes are
 //! fetched from — so without this check a cloned repository could make
@@ -37,8 +34,8 @@ use super::{
 };
 
 /// npm's public registry signing keys, mirrored from
-/// <https://registry.npmjs.org/-/npm/v1/keys>. Ports pnpm's
-/// [`NPM_SIGNING_KEYS`]; `expires` is `None` for a key with no expiry.
+/// <https://registry.npmjs.org/-/npm/v1/keys>. `expires` is `None` for a
+/// key with no expiry.
 const NPM_SIGNING_KEYS: &[NpmSigningKey] = &[
     NpmSigningKey {
         keyid: "SHA256:jl3bwswu80PjjokCgh0o2w5c2U4LhQAE57gj9cz1kzA",
@@ -59,7 +56,7 @@ struct NpmSigningKey<'a> {
 }
 
 /// A pnpm-engine component whose registry signature must validate over the
-/// bytes the lockfile pins. Mirrors pnpm's `InstalledPackageToVerify`.
+/// bytes the lockfile pins.
 struct EngineComponent {
     name: String,
     registry: String,
@@ -121,7 +118,7 @@ pub(crate) async fn verify_pnpm_engine_identity(
 /// Collect the engine components to verify from the env lockfile: `pnpm`,
 /// `@pnpm/exe`, and the host's `@pnpm/exe` platform binary (an optional
 /// dependency of `@pnpm/exe`). Errors if a present component carries no
-/// integrity. Mirrors pnpm's `collectEnginePackagesToVerify`.
+/// integrity.
 fn collect_engine_components(
     env: &EnvLockfile,
     config: &Config,
@@ -193,8 +190,8 @@ fn collect_engine_components(
 }
 
 /// Build the [`EngineComponent`] for `name@version`, reading its integrity
-/// from the env lockfile's `packages:` map. Mirrors pnpm's
-/// `engineComponentToVerify`: a missing integrity fails closed.
+/// from the env lockfile's `packages:` map. A missing integrity fails
+/// closed.
 fn engine_component(
     env: &EnvLockfile,
     config: &Config,
@@ -253,9 +250,8 @@ impl SignatureFailure {
     }
 }
 
-/// Per-component verification, mirroring pnpm's `findSignatureFailure`.
-/// Returns `None` when a registry signature validates over the lockfile
-/// bytes.
+/// Per-component verification. Returns `None` when a registry signature
+/// validates over the lockfile bytes.
 async fn find_signature_failure(
     component: &EngineComponent,
     client: &ThrottledClient,
@@ -338,8 +334,7 @@ async fn find_signature_failure(
 }
 
 /// `true` as soon as one signature validates against a trusted, unexpired
-/// npm key over `name@version:integrity`. Mirrors pnpm's
-/// `verifyPackageSignatures` acceptance rule.
+/// npm key over `name@version:integrity`.
 fn signature_validates(
     component: &EngineComponent,
     signatures: &[PackageSignature],
@@ -488,8 +483,7 @@ async fn fetch_packument(
 const MAX_PACKUMENT_BYTES: u64 = 50 * 1024 * 1024;
 
 /// Route a (possibly scoped) engine component to its registry, using the
-/// trusted package-manager bootstrap configuration. Mirrors pnpm's
-/// `pickRegistryForPackage`.
+/// trusted package-manager bootstrap configuration.
 fn pick_registry(name: &str, config: &Config) -> String {
     let bootstrap = &config.package_manager_bootstrap;
     if let Some(scope) = name.strip_prefix('@').and_then(|rest| rest.split('/').next())
@@ -531,7 +525,7 @@ fn with_trailing_slash(registry: &str) -> String {
 }
 
 /// Percent-encode a package name for a packument URL (scoped names keep
-/// the leading `@`, the `/` becomes `%2F`). Mirrors pnpm's `toUri`.
+/// the leading `@`, the `/` becomes `%2F`).
 fn encode_package_name(name: &str) -> String {
     match name.strip_prefix('@') {
         Some(rest) => format!("@{}", encode_uri_component(rest)),

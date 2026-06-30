@@ -1,11 +1,6 @@
 //! `pacquet outdated` — report direct dependencies that have a newer
 //! version available.
 //!
-//! Ports pnpm's
-//! [`outdated` command](https://github.com/pnpm/pnpm/blob/6f382f42ee/deps/inspection/commands/src/outdated/outdated.ts)
-//! and the detection core in
-//! [`@pnpm/deps.inspection.outdated`](https://github.com/pnpm/pnpm/blob/6f382f42ee/deps/inspection/outdated/src/outdated.ts).
-//!
 //! The detection half — [`collect_outdated`] — is shared with
 //! `update --interactive`, which gathers the same "what has a newer
 //! version" list before prompting. The two callers differ only in which
@@ -319,9 +314,8 @@ impl OutdatedArgs {
         let http_client = &state.http_client;
 
         // A manifest with no dependencies at all is reported as up to date
-        // (empty, exit 0) *before* the no-lockfile check — matching pnpm's
-        // `packageHasNoDeps` short-circuit, so an empty project doesn't
-        // error just because it was never installed.
+        // (empty, exit 0) *before* the no-lockfile check, so an empty
+        // project doesn't error just because it was never installed.
         let has_any_dependency = manifest
             .dependencies([DependencyGroup::Prod, DependencyGroup::Dev, DependencyGroup::Optional])
             .next()
@@ -369,7 +363,7 @@ impl OutdatedArgs {
 
     /// `pnpm outdated -g`: inspect every globally installed package group,
     /// treating each install dir's `package.json` as a project, and report
-    /// the aggregate. Mirrors pnpm's global branch in `outdated.handler`.
+    /// the aggregate.
     pub async fn run_global(self, config: &'static Config) -> miette::Result<OutdatedOutcome> {
         if config.recursive {
             return Err(miette::miette!(
@@ -467,8 +461,7 @@ fn classify(current: &Version, target: &Version) -> Change {
 }
 
 /// Ascending sort priority for the default (non-`--sort-by name`) order:
-/// no-change, fix, feature, breaking, then unknown last. Mirrors pnpm's
-/// `pkgPriority`.
+/// no-change, fix, feature, breaking, then unknown last.
 fn change_priority(change: Change) -> u8 {
     match change {
         Change::None => 0,
@@ -593,7 +586,7 @@ fn render_latest(pkg: &OutdatedPackage) -> String {
 
 /// Highlight the version segment that changed: the whole string for a
 /// breaking bump, from the minor field for a feature bump, from the patch
-/// field for a fix. Mirrors pnpm's `colorizeSemverDiff`.
+/// field for a fix.
 fn colorize_version(version: &Version, change: Change) -> String {
     let text = version.to_string();
     let split = match change {
@@ -602,8 +595,8 @@ fn colorize_version(version: &Version, change: Change) -> String {
         Change::Fix => {
             text.find('.').and_then(|i| text[i + 1..].find('.').map(|j| i + 1 + j + 1)).unwrap_or(0)
         }
-        // pnpm's `colorizeSemverDiff` highlights nothing for an `unknown`
-        // (or `null`) change, so the version renders plain.
+        // Nothing is highlighted for an `unknown` (or no) change, so the
+        // version renders plain.
         Change::None | Change::Unknown => return text,
     };
     let (head, tail) = text.split_at(split);

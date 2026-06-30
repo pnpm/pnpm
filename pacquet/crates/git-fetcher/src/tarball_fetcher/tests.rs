@@ -356,9 +356,7 @@ async fn writes_index_row_when_writer_provided() {
 /// Fast path: when there's no sub-path, no build is needed, and the
 /// packlist returns every input file, the fetcher must skip
 /// `import_into_cas` and hand the input `cas_paths` straight back
-/// to the dispatcher. Mirrors upstream's
-/// [`gitHostedTarballFetcher.ts:88-100`](https://github.com/pnpm/pnpm/blob/94240bc046/fetching/tarball-fetcher/src/gitHostedTarballFetcher.ts#L88-L100)
-/// "raw → prepared" promotion.
+/// to the dispatcher (the "raw → prepared" promotion).
 #[tokio::test(flavor = "multi_thread")]
 async fn fast_path_returns_input_cas_paths_when_no_build_needed() {
     let store_root = tempdir().unwrap();
@@ -558,10 +556,10 @@ async fn sub_path_never_takes_fast_path() {
 /// `should_be_built && ignore_scripts` is the second fast-path
 /// branch: scripts were suppressed (a warning fired earlier), the
 /// materialized tree is still untouched, so re-import is wasted
-/// work. Upstream specifically does *not* queue a final-key row
-/// here — subsequent installs must re-check the build gate. This
-/// test pins both halves: the input `cas_paths` is returned
-/// verbatim, and no row lands at the final key.
+/// work. No final-key row is queued here — subsequent installs must
+/// re-check the build gate. This test pins both halves: the input
+/// `cas_paths` is returned verbatim, and no row lands at the final
+/// key.
 #[tokio::test(flavor = "multi_thread")]
 async fn fast_path_ignore_scripts_returns_input_without_queueing_row() {
     let store_root = tempdir().unwrap();
@@ -620,12 +618,9 @@ async fn fast_path_ignore_scripts_returns_input_without_queueing_row() {
     );
 }
 
-/// Ports pnpm's `prevent directory traversal attack when path is
-/// present` at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/fetching/tarball-fetcher/test/fetch.ts#L610>.
 /// A `..`-laden `resolution.path` must be rejected by
 /// `prepare_package`'s `safe_join_path` with `INVALID_PATH` before
-/// any extraction happens.
+/// any extraction happens (directory-traversal guard).
 #[tokio::test(flavor = "multi_thread")]
 async fn tarball_path_traversal_attack_is_rejected() {
     let store_root = tempdir().unwrap();
@@ -663,8 +658,6 @@ async fn tarball_path_traversal_attack_is_rejected() {
     }
 }
 
-/// Ports pnpm's `fail when path is not exists` at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/fetching/tarball-fetcher/test/fetch.ts#L637>.
 /// A `path` pointing at a sub-directory the tarball doesn't contain
 /// must surface as `INVALID_PATH` — silently packing the root would
 /// produce a working install for the wrong package.

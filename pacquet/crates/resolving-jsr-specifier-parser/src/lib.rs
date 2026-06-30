@@ -1,5 +1,4 @@
-//! Pacquet port of pnpm's
-//! [`@pnpm/resolving.jsr-specifier-parser`](https://github.com/pnpm/pnpm/blob/05dd45ea82/resolving/jsr-specifier-parser/src/index.ts).
+//! Parser for `jsr:` specifiers.
 //!
 //! Splits a `jsr:` specifier into its `(jsrPkgName, npmPkgName,
 //! versionSelector)` triple. JSR ships every package on the npm
@@ -16,10 +15,6 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 
 /// Parsed `jsr:` specifier.
-///
-/// Mirrors upstream's [`JsrSpec`][ts-JsrSpec].
-///
-/// [ts-JsrSpec]: https://github.com/pnpm/pnpm/blob/05dd45ea82/resolving/jsr-specifier-parser/src/index.ts#L3-L8
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct JsrSpec {
     /// Original JSR-style scoped name (e.g. `@foo/bar`). Used by the
@@ -36,9 +31,8 @@ pub struct JsrSpec {
     pub version_selector: Option<String>,
 }
 
-/// Failures from [`parse_jsr_specifier`]. Mirrors the three upstream
-/// `PnpmError` codes the TypeScript parser raises
-/// ([source](https://github.com/pnpm/pnpm/blob/05dd45ea82/resolving/jsr-specifier-parser/src/index.ts#L38-L60)).
+/// Failures from [`parse_jsr_specifier`]. Each variant carries one of
+/// the three `ERR_PNPM_*` codes a malformed `jsr:` specifier raises.
 #[derive(Debug, Display, Error, Diagnostic, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ParseJsrSpecifierError {
@@ -75,9 +69,6 @@ pub enum ParseJsrSpecifierError {
 /// `jsr:` so the resolver chain can fall through to the next parser.
 /// `alias` supplies the package name when the specifier is a bare
 /// `jsr:<version_selector>` and would otherwise be unresolvable.
-///
-/// Mirrors upstream's `parseJsrSpecifier`
-/// ([source](https://github.com/pnpm/pnpm/blob/05dd45ea82/resolving/jsr-specifier-parser/src/index.ts#L10-L51)).
 pub fn parse_jsr_specifier(
     raw_specifier: &str,
     alias: Option<&str>,
@@ -89,8 +80,8 @@ pub fn parse_jsr_specifier(
     // Syntax: jsr:@<scope>/<name>[@<version_selector>]
     if rest.starts_with('@') {
         // `rest` starts with `@`, so `rfind` is guaranteed to return
-        // at least `0` — matching upstream's `lastIndexOf('@') === 0`
-        // discriminator between the no-selector and selector cases.
+        // at least `0`. `last_at == 0` discriminates the no-selector
+        // case from the selector case.
         let last_at = rest.rfind('@').expect("rest starts with '@'");
 
         // Syntax: jsr:@<scope>/<name>
@@ -118,10 +109,8 @@ pub fn parse_jsr_specifier(
         return Err(ParseJsrSpecifierError::MissingScope);
     }
 
-    // Match upstream's JS-truthiness check on `alias`
-    // ([source](https://github.com/pnpm/pnpm/blob/05dd45ea82/resolving/jsr-specifier-parser/src/index.ts#L41-L43)):
-    // an empty string is falsy in JS and triggers `MissingPackageName`,
-    // not a fall-through into the version-only branch.
+    // An empty alias triggers `MissingPackageName` rather than
+    // falling through into the version-only branch.
     let Some(alias) = alias.filter(|alias| !alias.is_empty()) else {
         return Err(ParseJsrSpecifierError::MissingPackageName { specifier: rest.to_string() });
     };

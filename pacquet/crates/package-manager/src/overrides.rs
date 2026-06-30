@@ -1,15 +1,13 @@
 //! Apply parsed `pnpm.overrides` to a `PackageManifest` before
 //! downstream consumers read its dependency maps.
 //!
-//! Pacquet port of upstream's
-//! [`createVersionsOverrider`](https://github.com/pnpm/pnpm/blob/0d88df854f/hooks/read-package-hook/src/createVersionsOverrider.ts).
-//! Upstream's hook is a `readPackageHook` that fires on every manifest
+//! The rewrite is a manifest hook that fires on every manifest
 //! read during resolution. Pacquet uses the same rewrite both for
 //! frozen-lockfile freshness checks and for the fresh resolver's
-//! manifest hook. The shape of the rewrite — generic vs.
+//! manifest hook. Its shape — generic vs.
 //! parent-scoped overrides, `-` deletion, `link:` / `file:` local
-//! targets, range intersection via semver — is preserved so the
-//! resolved dependency graph and lockfile match pnpm's post-override
+//! targets, range intersection via semver — drives both the
+//! resolved dependency graph and the lockfile's post-override
 //! manifest view.
 //!
 //! The hook never touches the on-disk `package.json` — mutation
@@ -100,9 +98,6 @@ impl VersionsOverrider {
     /// specified relative to the `root_dir` passed to
     /// [`Self::new`]). For the root project manifest,
     /// `manifest_dir == Some(root_dir)`.
-    ///
-    /// Mirrors upstream's `(manifest, dir) => { ... }` body returned
-    /// by `createVersionsOverrider`.
     pub fn apply(&self, manifest: &mut PackageManifest, manifest_dir: Option<&Path>) {
         self.apply_to_value(manifest.value_mut(), manifest_dir);
     }
@@ -311,40 +306,33 @@ impl VersionsOverrider {
     }
 }
 
-/// Mirrors upstream's
-/// [`isValidPeerRange`](https://github.com/pnpm/pnpm/blob/01b3d45ddb/deps/peer-range/src/index.ts):
-/// a parseable semver range, or any expression containing a
-/// `workspace:` / `catalog:` segment.
+/// A valid peer range is a parseable semver range, or any expression
+/// containing a `workspace:` / `catalog:` segment.
 fn is_valid_peer_range(spec: &str) -> bool {
     Range::parse(spec).is_ok() || spec.contains("workspace:") || spec.contains("catalog:")
 }
 
-/// Mirrors upstream's `targetPkg.name === name && isIntersectingRange(targetPkg.bareSpecifier, bareSpecifier)`.
+/// A target matches when its name equals `dep_name` and its range
+/// intersects `dep_spec`.
 fn matches_target(target: &PackageSelector, dep_name: &str, dep_spec: &str) -> bool {
     target.name == dep_name && is_intersecting_range(target.bare_specifier.as_deref(), dep_spec)
 }
 
 /// Sort overrides so the "most specific" one — the one whose target
-/// range is contained inside the others — sorts first. Mirrors
-/// upstream's
-/// [`pickMostSpecificVersionOverride`](https://github.com/pnpm/pnpm/blob/0d88df854f/hooks/read-package-hook/src/createVersionsOverrider.ts#L137-L139):
-/// `sort((a, b) => isIntersectingRange(b.targetPkg.bareSpecifier ?? '', a.targetPkg.bareSpecifier ?? '') ? -1 : 1)[0]`.
+/// range is contained inside the others — sorts first.
 /// The intuition is `b ⊃ a ⇒ a sorts before b`, so a narrower target
 /// like `foo@1.2.3` wins over the broader `foo@^1`.
 fn sort_by_specificity(matching: &mut [&ResolvedOverride]) {
     matching.sort_by(|lhs, rhs| {
         let lhs_spec = lhs.inner.target_pkg.bare_specifier.as_deref().unwrap_or("");
         let rhs_spec = rhs.inner.target_pkg.bare_specifier.as_deref().unwrap_or("");
-        // Upstream's comparator (`? -1 : 1`) only emits Less/Greater
-        // and relies on V8's lenient sort. Rust's `sort_by` requires
-        // a total order, so we widen to a 3-way result: `lhs` is
+        // Rust's `sort_by` requires a total order, so the comparison
+        // widens to a 3-way result: `lhs` is
         // strictly more specific when `rhs ⊇ lhs` but not vice versa,
         // strictly less specific in the mirror case, and equal when
         // both ranges cover each other (e.g. identical strings, or
-        // mutually-intersecting unions). The strict cases keep the
-        // sort outcome identical to upstream's first match; the
-        // `Equal` arm is what keeps `sort_by`'s preconditions
-        // satisfied.
+        // mutually-intersecting unions). The `Equal` arm is what keeps
+        // `sort_by`'s preconditions satisfied.
         let rhs_covers_lhs = is_intersecting_range(Some(rhs_spec), lhs_spec);
         let lhs_covers_rhs = is_intersecting_range(Some(lhs_spec), rhs_spec);
         match (rhs_covers_lhs, lhs_covers_rhs) {
@@ -355,9 +343,6 @@ fn sort_by_specificity(matching: &mut [&ResolvedOverride]) {
     });
 }
 
-/// Mirrors upstream's
-/// [`isIntersectingRange`](https://github.com/pnpm/pnpm/blob/bcc8eb2622/hooks/read-package-hook/src/isIntersectingRange.ts).
-///
 /// An absent `range1` (or empty target spec) matches everything. An
 /// exact-equal range pair matches without parsing. Otherwise both
 /// sides must parse as semver and have a non-empty intersection.
@@ -372,8 +357,7 @@ fn is_intersecting_range(range1: Option<&str>, range2: &str) -> bool {
 }
 
 /// True when `version` (parsed as a concrete semver) satisfies
-/// `range`. Mirrors upstream's `semver.satisfies(manifest.version,
-/// parentPkg.bareSpecifier)` guard in the parent-scoped filter.
+/// `range`, the guard in the parent-scoped filter.
 /// A non-parseable version OR range fails the match conservatively —
 /// the parent constraint is treated as not applying.
 fn semver_satisfies(version: &str, range: &str) -> bool {
@@ -385,9 +369,6 @@ fn semver_satisfies(version: &str, range: &str) -> bool {
 /// Parse the override's `new_bare_specifier` for the `link:` / `file:`
 /// prefix. Returns `None` for any other shape — semver ranges, tarball
 /// URLs, npm-alias specs, etc.
-///
-/// Mirrors upstream's
-/// [`createLocalTarget`](https://github.com/pnpm/pnpm/blob/0d88df854f/hooks/read-package-hook/src/createVersionsOverrider.ts#L45-L58).
 fn parse_local_target(new_bare_specifier: &str, root_dir: &Path) -> Option<LocalTarget> {
     let (protocol, pkg_path) = if let Some(rest) = new_bare_specifier.strip_prefix("file:") {
         (LocalProtocol::File, rest)
@@ -408,12 +389,11 @@ fn parse_local_target(new_bare_specifier: &str, root_dir: &Path) -> Option<Local
 /// Render a `link:` / `file:` override against the importing
 /// package's directory. Relative-form targets are re-anchored against
 /// `pkg_dir` so they read sensibly from the consumer's perspective;
-/// absolute-form targets are emitted verbatim. Mirrors upstream's
-/// [`resolveLocalOverride`](https://github.com/pnpm/pnpm/blob/0d88df854f/hooks/read-package-hook/src/createVersionsOverrider.ts#L131-L135).
+/// absolute-form targets are emitted verbatim.
 fn resolve_local_override_spec(target: &LocalTarget, pkg_dir: Option<&Path>) -> String {
     // Every branch routes through `normalize_path` so absolute and
     // diff-paths-fallback shapes also get backslash → forward-slash
-    // rewriting on Windows; upstream's `link:` / `file:` specifiers
+    // rewriting on Windows; `link:` / `file:` specifiers
     // must use forward slashes regardless of host OS.
     let path_str = match (target.specified_via_relative_path, pkg_dir) {
         (true, Some(dir)) => pathdiff::diff_paths(&target.absolute_path, dir)
@@ -424,9 +404,9 @@ fn resolve_local_override_spec(target: &LocalTarget, pkg_dir: Option<&Path>) -> 
     format!("{}{path_str}", target.protocol.as_str())
 }
 
-/// Replace `\\` with `/` to match upstream's `normalize-path` step.
+/// Replace `\\` with `/` to normalize the path.
 /// `link:` / `file:` specifiers must use forward slashes regardless
-/// of host OS — pnpm's lockfile and pacquet's downstream consumers
+/// of host OS — the lockfile and pacquet's downstream consumers
 /// expect that shape.
 fn normalize_path(path: &Path) -> String {
     let display = path.display().to_string();

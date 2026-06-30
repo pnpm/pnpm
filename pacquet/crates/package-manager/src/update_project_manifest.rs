@@ -3,7 +3,7 @@ use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifest
 use pacquet_registry::PinnedVersion;
 
 /// Catalog metadata for a direct dependency requested through the `catalog:`
-/// protocol. Port of pnpm's `CatalogLookupMetadata`.
+/// protocol.
 pub struct CatalogLookup {
     pub catalog_name: String,
     pub specifier: String,
@@ -13,10 +13,8 @@ pub struct CatalogLookup {
     pub user_specified_bare_specifier: String,
 }
 
-/// A direct dependency as it came back from resolution. Port of the subset of
-/// pnpm's [`ResolvedDirectDependency`][ts-ResolvedDirectDependency] that `updateProjectManifest` consumes.
-///
-/// [ts-ResolvedDirectDependency]: https://github.com/pnpm/pnpm/blob/6fadd7def9/pnpm11/installing/deps-resolver/src/resolveDependencyTree.ts#L54-L69
+/// A direct dependency as it came back from resolution. Holds the subset of
+/// the resolved direct dependency that [`update_project_manifest`] consumes.
 pub struct ResolvedDirectDependency {
     /// Install name in `node_modules` (the manifest key to rewrite).
     pub alias: String,
@@ -34,8 +32,7 @@ pub struct ResolvedDirectDependency {
 
 /// A wanted dependency carried alongside its resolution and matched against the
 /// failed-to-resolve set. Only entries flagged
-/// [`update_spec`](Self::update_spec) are written, mirroring pnpm's
-/// `wantedDependencies` filter.
+/// [`update_spec`](Self::update_spec) are written.
 #[derive(Clone)]
 pub struct WantedDependencyUpdate {
     /// Install alias, when the request carried one. `None` for a no-alias
@@ -49,9 +46,9 @@ pub struct WantedDependencyUpdate {
 pub struct UpdateProjectManifestOptions<'a> {
     pub wanted_dependencies: &'a [WantedDependencyUpdate],
     pub direct_dependencies: &'a [ResolvedDirectDependency],
-    /// Also record a saved dep in `peerDependencies` (pnpm's `importer.peer`).
-    /// Only takes effect alongside a `target_dependencies_field` write, mirroring
-    /// pnpm, where the peer entry is added inside the `saveType` branch.
+    /// Also record a saved dep in `peerDependencies`. Only takes effect
+    /// alongside a `target_dependencies_field` write, where the peer entry
+    /// is added inside the `saveType` branch.
     pub peer: bool,
     pub pinned_version: Option<PinnedVersion>,
     /// The dependency field the saved deps belong in (pnpm's
@@ -61,17 +58,15 @@ pub struct UpdateProjectManifestOptions<'a> {
     pub preserve_workspace_protocol: bool,
 }
 
-/// Rewrite `manifest`'s dependency specs from a completed resolution, mirroring
-/// pnpm's `updateProjectManifest`
-/// (`installing/deps-resolver/src/updateProjectManifest.ts`), with the
-/// explicit-linkage matching from [pnpm#11373](https://github.com/pnpm/pnpm/pull/11373).
+/// Rewrite `manifest`'s dependency specs from a completed resolution, using
+/// explicit linkage between each resolved dependency and its wanted request.
 ///
 /// Each resolved direct dependency carries the wanted dependency it was resolved
 /// from ([`ResolvedDirectDependency::wanted_dependency`]), so the spec is saved
 /// against the exact request rather than a pairing reconstructed by alias,
 /// specifier shape, or array position. This keeps a failed optional update from
-/// rewriting an unrelated dependency ([#11267](https://github.com/pnpm/pnpm/issues/11267))
-/// and lets aliasless selectors (`pacquet add ./local`, `jsr:@x/y`, a bare
+/// rewriting an unrelated dependency and lets aliasless selectors
+/// (`pacquet add ./local`, `jsr:@x/y`, a bare
 /// `owner/repo#sha`, a GitHub URL) be saved even when they resolve to an alias
 /// already present in the manifest. A wanted dep flagged `update_spec` that
 /// resolved to nothing is re-saved with no specifier, so it keeps its existing

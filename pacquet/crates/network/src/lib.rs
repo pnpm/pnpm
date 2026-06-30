@@ -29,11 +29,10 @@ use std::{collections::HashMap, num::NonZeroUsize, ops::Deref, sync::Arc, time::
 /// value.
 ///
 /// Production installs override this with the value resolved by
-/// `pacquet-config` (`userAgent`, defaulting to pnpm's
-/// `pnpm/<version> npm/? node/? <platform> <arch>` format — see
-/// `config/reader/src/index.ts`). The leading `pnpm` token matches the
-/// TypeScript CLI exactly, so any UA-keyed allow / rate-limit rule that
-/// lets pnpm through also lets this build through.
+/// `pacquet-config` (`userAgent`, defaulting to the
+/// `pnpm/<version> npm/? node/? <platform> <arch>` format). The leading
+/// `pnpm` token is what UA-keyed allow / rate-limit rules expect, so any
+/// rule that lets pnpm through also lets this build through.
 ///
 /// A default `reqwest::Client` sends *no* User-Agent at all, which
 /// some registry CDNs and corporate WAFs treat as a bot signature and
@@ -51,17 +50,16 @@ pub const DEFAULT_USER_AGENT: &str = "pnpm";
 /// docs for the two-class grant policy).
 pub const UNPRIORITIZED: u64 = u64::MAX;
 
-/// Default per-request timeout in milliseconds, matching pnpm v11's
-/// `fetchTimeout` default of `60000`
-/// ([`config/reader/src/index.ts:151`](https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/index.ts#L151)).
-/// Source of truth for `pacquet-config`'s `default_fetch_timeout`.
+/// Default per-request timeout in milliseconds: the `fetchTimeout`
+/// default of `60000`. Source of truth for `pacquet-config`'s
+/// `default_fetch_timeout`.
 pub const DEFAULT_FETCH_TIMEOUT_MS: u64 = 60_000;
 
-/// Tunable network knobs threaded into the install client. Ports
-/// pnpm's `networkConcurrency`, `fetchTimeout`, and `userAgent`
-/// settings; `pacquet-config` owns their defaults and override
-/// sources (`pnpm-workspace.yaml`, `PNPM_CONFIG_*`, CLI flags) and
-/// hands the resolved values here.
+/// Tunable network knobs threaded into the install client: the
+/// `networkConcurrency`, `fetchTimeout`, and `userAgent` settings.
+/// `pacquet-config` owns their defaults and override sources
+/// (`pnpm-workspace.yaml`, `PNPM_CONFIG_*`, CLI flags) and hands the
+/// resolved values here.
 #[derive(Debug, Clone)]
 pub struct NetworkSettings {
     /// Maximum number of concurrent in-flight network requests — the
@@ -69,10 +67,8 @@ pub struct NetworkSettings {
     pub network_concurrency: usize,
 
     /// Per-request total deadline, applied as both reqwest's response
-    /// timeout and its connect timeout — mirroring pnpm, whose
-    /// `AbortSignal.timeout(fetchTimeout)` bounds the whole request and
-    /// whose undici `connectTimeout` is `fetchTimeout + 1`. Default:
-    /// [`DEFAULT_FETCH_TIMEOUT_MS`].
+    /// timeout and its connect timeout, bounding the whole request.
+    /// Default: [`DEFAULT_FETCH_TIMEOUT_MS`].
     pub fetch_timeout: Duration,
 
     /// Value of the `User-Agent` header sent on every request.
@@ -96,9 +92,9 @@ impl Default for NetworkSettings {
 /// Holds a default [`Client`] for the top-level proxy / TLS config
 /// plus an optional map of per-registry clients keyed by nerf-darted
 /// URI. [`Self::acquire_for_url`] picks the right client based on the
-/// request URL (matching pnpm's [`pickSettingByUrl`](https://github.com/pnpm/pnpm/blob/94240bc046/network/fetch/src/dispatcher.ts#L338-L375)
-/// 5-step fallback), and [`Self::acquire`] always uses the default
-/// client. The semaphore is shared across both — bounding the total
+/// request URL (a 5-step fallback), and [`Self::acquire`] always uses
+/// the default client. The semaphore is shared across both — bounding
+/// the total
 /// concurrent socket count regardless of which registry a request
 /// targets.
 ///
@@ -170,24 +166,21 @@ impl ThrottledClient {
 
     /// Construct the default throttled client used for real installs.
     ///
-    /// Network topology is ported from pnpm v11's
-    /// `network/fetch/src/dispatcher.ts` (see [#280](https://github.com/pnpm/pacquet/issues/280)):
+    /// Network topology (see [#280](https://github.com/pnpm/pacquet/issues/280)):
     ///
     /// * **HTTP/1.1 only.** A default `reqwest::Client` upgrades to
     ///   HTTP/2 via ALPN whenever the registry advertises it
-    ///   (registry.npmjs.org does). Pnpm explicitly disables this
-    ///   upstream after benchmarking — multiplexing many tarball
-    ///   streams over 1-2 TCP connections sharing one congestion
-    ///   window was slower than opening ~50 independent HTTP/1.1
-    ///   connections that each get their own congestion window and
-    ///   saturate bandwidth in parallel.
+    ///   (registry.npmjs.org does). HTTP/2 is deliberately disabled —
+    ///   multiplexing many tarball streams over 1-2 TCP connections
+    ///   sharing one congestion window was slower than opening ~50
+    ///   independent HTTP/1.1 connections that each get their own
+    ///   congestion window and saturate bandwidth in parallel.
     /// * **[`NetworkSettings::network_concurrency`] concurrent
-    ///   in-flight requests**, defaulting to pnpm's `networkConcurrency`
-    ///   formula (see [`default_network_concurrency`]). Pnpm uses a
-    ///   50-socket per-host pool ceiling (`DEFAULT_MAX_SOCKETS` in
-    ///   `network/fetch/src/dispatcher.ts`) *and* a smaller
-    ///   request-level cap that bounds how many fetches it actually
-    ///   runs at once; pacquet's semaphore plays the second role.
+    ///   in-flight requests**, defaulting to the `networkConcurrency`
+    ///   formula (see [`default_network_concurrency`]). A 50-socket
+    ///   per-host pool ceiling bounds total sockets, while a smaller
+    ///   request-level cap bounds how many fetches actually run at once;
+    ///   pacquet's semaphore plays the second role.
     /// * **A `User-Agent` header** ([`NetworkSettings::user_agent`],
     ///   defaulting to [`DEFAULT_USER_AGENT`]). A default
     ///   `reqwest::Client` sends no UA, which can trip CDN / WAF rules
@@ -210,10 +203,9 @@ impl ThrottledClient {
     /// not the socket inactivity timeout. A default `reqwest::Client`
     /// has no deadlines at all, so a stalled upstream hangs the install
     /// indefinitely. It is applied as both the response timeout and the
-    /// connect timeout, mirroring pnpm — whose `AbortSignal.timeout`
-    /// bounds the whole fetch and whose undici `connectTimeout` is
-    /// `fetchTimeout + 1`. Default: [`DEFAULT_FETCH_TIMEOUT_MS`] (60s),
-    /// matching pnpm's `fetchTimeout`.
+    /// connect timeout, bounding the whole fetch. Default:
+    /// [`DEFAULT_FETCH_TIMEOUT_MS`] (60s), the `fetchTimeout` setting's
+    /// default.
     ///
     /// `hickory_dns(true)` swaps reqwest's default resolver
     /// (tokio's `lookup_host`, which calls the platform's blocking
@@ -241,36 +233,29 @@ impl ThrottledClient {
     }
 
     /// Construct the install client with proxy + TLS configuration
-    /// applied.
-    ///
-    /// Ports pnpm v11's
-    /// [`getDispatcher`](https://github.com/pnpm/pnpm/blob/94240bc046/network/fetch/src/dispatcher.ts#L23-L31)
-    /// onto reqwest:
+    /// applied onto reqwest:
     /// * **Proxy routing.** HTTPS targets route through `https_proxy`,
     ///   HTTP targets through `http_proxy`, and [`ProxyConfig::no_proxy`]
     ///   short-circuits both via a per-URL custom-proxy closure.
     ///   Basic-auth user/password halves embedded in the proxy URL
     ///   are percent-decoded before being forwarded as the
-    ///   `Proxy-Authorization` header — matching upstream's
-    ///   [decode at dispatcher.ts:180-182](https://github.com/pnpm/pnpm/blob/94240bc046/network/fetch/src/dispatcher.ts#L180-L182).
+    ///   `Proxy-Authorization` header.
     /// * **TLS.** Each PEM in [`TlsConfig::ca`] is added as a trusted
     ///   root via `reqwest::Certificate::from_pem`. When both
     ///   [`TlsConfig::cert`] and [`TlsConfig::key`] are set, they are
     ///   concatenated and passed to `Identity::from_pem` (rustls
     ///   single-buffer form). rustls accepts PKCS#1, PKCS#8, and EC
-    ///   private keys — the same surface Node's `tls` exposes to
-    ///   pnpm. `strict_ssl` defaults to `true` and
-    ///   disables both chain-of-trust and hostname verification when
-    ///   `false` — same as Node's `rejectUnauthorized=false`
-    ///   short-circuit that pnpm forwards through undici
-    ///   ([`dispatcher.ts:191,197,241,295`](https://github.com/pnpm/pnpm/blob/94240bc046/network/fetch/src/dispatcher.ts#L191)).
+    ///   private keys — the same surface Node's `tls` exposes.
+    ///   `strict_ssl` defaults to `true` and disables both
+    ///   chain-of-trust and hostname verification when `false` — same
+    ///   as Node's `rejectUnauthorized=false` short-circuit.
     /// * **`local_address`.** Pinned via
     ///   `reqwest::ClientBuilder::local_address`.
     ///
     /// Returns [`ProxyError::InvalidProxy`] when either configured
     /// proxy URL fails to parse even after the auto-`http://` prefix
-    /// retry (matching upstream's `ERR_PNPM_INVALID_PROXY`), or
-    /// [`TlsError`] when any CA or client identity PEM is malformed.
+    /// retry (the `ERR_PNPM_INVALID_PROXY` code), or [`TlsError`] when
+    /// any CA or client identity PEM is malformed.
     /// pnpm does not define `ERR_PNPM_INVALID_CA` / similar codes —
     /// see [`TlsError`] for why pacquet still surfaces the failure
     /// eagerly rather than at request time.
@@ -348,11 +333,9 @@ impl ThrottledClient {
         let default_client = build_client(tls)?;
         // Build one client per per-registry override. Each gets a
         // merged `TlsConfig` where the per-registry fields shadow
-        // their top-level counterparts (matching pnpm's
-        // `{ ...opts, ...sslConfig }` spread at
-        // [`dispatcher.ts:143,264`](https://github.com/pnpm/pnpm/blob/94240bc046/network/fetch/src/dispatcher.ts#L143)).
-        // `strict_ssl` and `local_address` are top-level-only, so the
-        // per-registry client still honors the top-level values.
+        // their top-level counterparts field-by-field. `strict_ssl` and
+        // `local_address` are top-level-only, so the per-registry client
+        // still honors the top-level values.
         let mut per_registry_clients = HashMap::with_capacity(per_registry.iter().count());
         for (uri, override_) in per_registry.iter() {
             let merged = merge_tls(tls, override_);
@@ -390,11 +373,9 @@ impl ThrottledClient {
     /// socket count stays bounded by [`default_network_concurrency`]
     /// regardless of which registry the request targets.
     ///
-    /// Per-URL routing mirrors pnpm's
-    /// [`pickSettingByUrl`](https://github.com/pnpm/pnpm/blob/94240bc046/network/fetch/src/dispatcher.ts#L338-L375)
-    /// 5-step fallback: exact, then nerf-darted, then host without
-    /// port, then progressively shorter path prefixes, then a
-    /// recursive retry without port. When no per-registry overrides
+    /// Per-URL routing uses a 5-step fallback: exact, then nerf-darted,
+    /// then host without port, then progressively shorter path prefixes,
+    /// then a recursive retry without port. When no per-registry overrides
     /// are configured (the common case), the routing table is empty
     /// and the lookup short-circuits to the default client.
     ///
@@ -435,8 +416,7 @@ impl ThrottledClient {
 /// timeouts, HTTP-version, resolver, and the User-Agent header.
 ///
 /// `settings.fetch_timeout` drives both the per-request response
-/// timeout and the connect timeout (matching pnpm's `AbortSignal`
-/// total deadline and undici `connectTimeout = fetchTimeout + 1`).
+/// timeout and the connect timeout, bounding the whole fetch.
 /// `settings.user_agent` is sent verbatim; a value that cannot be
 /// encoded as an HTTP header falls back to [`DEFAULT_USER_AGENT`].
 /// A redirect-hop validator: returns `true` to follow a redirect to `url`,
@@ -563,18 +543,16 @@ fn load_node_extra_ca_certs() -> Vec<Certificate> {
 /// Build the effective [`TlsConfig`] for a per-registry override:
 /// each scoped field (`ca`, `cert`, `key`) replaces its top-level
 /// counterpart field-by-field; `strict_ssl` and `local_address`
-/// always come from the top-level (pnpm doesn't honor scoped versions
-/// of those keys — see [`getNetworkConfigs.ts`](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/getNetworkConfigs.ts#L94)
-/// which only recognizes `:cert(file)?` / `:key(file)?` / `:ca(file)?`).
+/// always come from the top-level (only `:cert(file)?` / `:key(file)?`
+/// / `:ca(file)?` are recognized as per-registry keys).
 ///
-/// The `ca` field is special: pnpm stores per-registry `ca` as a
-/// single string (`getNetworkConfigs.ts:37`) that may contain multiple
-/// concatenated PEMs, while the top-level `ca` is a `Vec<String>`
-/// (the `cafile` loader split). When the override has a `ca`, the
-/// effective top-level CA list is *replaced* (per pnpm's spread, not
-/// merged) by a one-element list with the scoped PEM blob — which
-/// `Certificate::from_pem` handles fine since it accepts multi-cert
-/// PEM buffers.
+/// The `ca` field is special: a per-registry `ca` is stored as a
+/// single string that may contain multiple concatenated PEMs, while
+/// the top-level `ca` is a `Vec<String>` (the `cafile` loader split).
+/// When the override has a `ca`, the effective top-level CA list is
+/// *replaced* (not merged) by a one-element list with the scoped PEM
+/// blob — which `Certificate::from_pem` handles fine since it accepts
+/// multi-cert PEM buffers.
 fn merge_tls(top: &TlsConfig, override_: &RegistryTls) -> TlsConfig {
     TlsConfig {
         ca: match &override_.ca {
@@ -650,8 +628,8 @@ fn apply_tls(
             .map_err(|source| TlsError::InvalidClientIdentity { reason: source.to_string() })?;
         builder = builder.identity(identity);
     }
-    // pnpm's `strict-ssl` default is `true`, applied at every
-    // dispatcher emit site rather than at parse time.
+    // The `strict-ssl` default is `true`, applied here at client-build
+    // time rather than at config-parse time.
     if !tls.strict_ssl.unwrap_or(true) {
         builder = builder.danger_accept_invalid_certs(true);
     }
@@ -700,8 +678,7 @@ impl From<TlsError> for ForInstallsError {
 /// no-proxy bypass. Userinfo is stripped from the URL and re-attached
 /// via [`Proxy::basic_auth`] after percent-decoding so usernames /
 /// passwords with `%XX` escapes (e.g. `@` in a password) reach the
-/// upstream proxy decoded — matching pnpm's behavior at
-/// [`dispatcher.ts:180-182`](https://github.com/pnpm/pnpm/blob/94240bc046/network/fetch/src/dispatcher.ts#L180-L182).
+/// upstream proxy decoded.
 fn build_scheme_proxy(
     url: reqwest::Url,
     scheme: &'static str,
@@ -722,14 +699,11 @@ fn build_scheme_proxy(
 
 /// Default number of concurrent in-flight network requests.
 ///
-/// Mirrors pnpm's `networkConcurrency` formula in
-/// [`installing/package-requester/src/packageRequester.ts`](https://github.com/pnpm/pnpm/blob/1819226b51/installing/package-requester/src/packageRequester.ts#L97)
-/// and `calcMaxWorkers` in
-/// [`worker/src/index.ts`](https://github.com/pnpm/pnpm/blob/1819226b51/worker/src/index.ts#L63-L72):
+/// The `networkConcurrency` formula:
 ///
-/// ```ts
-/// networkConcurrency = Math.min(96, Math.max(calcMaxWorkers() * 3, 64))
-/// // calcMaxWorkers() = Math.max(1, availableParallelism() - 1)
+/// ```text
+/// networkConcurrency = min(96, max(maxWorkers * 3, 64))
+/// // maxWorkers = max(1, availableParallelism() - 1)
 /// ```
 ///
 /// Concretely: 64 up to a 22-core machine, scaling with cores beyond

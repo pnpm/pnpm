@@ -1,20 +1,15 @@
-//! Pacquet port of pnpm's
-//! [`@pnpm/config.parse-overrides`](https://github.com/pnpm/pnpm/blob/4a36b9a110/config/parse-overrides/src/index.ts).
-//!
 //! Splits each `pnpm.overrides` entry from `pnpm-workspace.yaml`
 //! (or the root manifest's `pnpm.overrides`) into the structured shape
 //! the resolver / read-package hook can act on.
 //!
 //! Catalog protocol: when the override value uses the `catalog:` form
 //! it is resolved against the workspace's named catalogs before being
-//! stored on the parsed entry, matching pnpm's
-//! `parseOverrides(overrides, catalogs)` signature. A `catalog:` value
+//! stored on the parsed entry. A `catalog:` value
 //! that misses (no entry, recursive, or uses a forbidden inner protocol)
-//! surfaces as [`ParseOverridesError::CatalogInOverrides`] (matching
-//! upstream's `ERR_PNPM_CATALOG_IN_OVERRIDES`). Pass an empty
+//! surfaces as [`ParseOverridesError::CatalogInOverrides`]
+//! (`ERR_PNPM_CATALOG_IN_OVERRIDES`). Pass an empty
 //! [`Catalogs`] map when the caller has no catalogs configured — any
-//! `catalog:` value will then fall through to the missing-entry branch,
-//! same as upstream.
+//! `catalog:` value will then fall through to the missing-entry branch.
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -23,8 +18,7 @@ use pacquet_catalogs_types::Catalogs;
 use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use std::collections::HashMap;
 
-/// A parsed `pnpm.overrides` entry. Mirrors upstream's
-/// [`VersionOverride`](https://github.com/pnpm/pnpm/blob/4a36b9a110/config/parse-overrides/src/index.ts#L8-L13).
+/// A parsed `pnpm.overrides` entry.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VersionOverride {
     /// The raw key from the overrides map, preserved verbatim so
@@ -47,9 +41,7 @@ pub struct VersionOverride {
 }
 
 /// A name (and optional version-range scope) used to identify either
-/// the parent or the target of a [`VersionOverride`]. Mirrors
-/// upstream's
-/// [`PackageSelector`](https://github.com/pnpm/pnpm/blob/4a36b9a110/config/parse-overrides/src/index.ts#L15-L18).
+/// the parent or the target of a [`VersionOverride`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageSelector {
     pub name: String,
@@ -60,9 +52,7 @@ pub struct PackageSelector {
 #[derive(Debug, Display, Error, Diagnostic, PartialEq, Eq)]
 pub enum ParseOverridesError {
     /// The selector half (either the parent or the target) doesn't
-    /// resolve to a package name. Mirrors upstream's
-    /// `ERR_PNPM_INVALID_SELECTOR` at
-    /// <https://github.com/pnpm/pnpm/blob/4a36b9a110/config/parse-overrides/src/index.ts#L65>.
+    /// resolve to a package name (`ERR_PNPM_INVALID_SELECTOR`).
     #[display(r#"Cannot parse the "{selector}" selector"#)]
     #[diagnostic(code(ERR_PNPM_INVALID_SELECTOR))]
     InvalidSelector {
@@ -72,9 +62,8 @@ pub enum ParseOverridesError {
 
     /// The override value uses the `catalog:` protocol but the
     /// configured catalogs can't resolve it (missing entry, recursive
-    /// definition, or forbidden inner protocol). Mirrors upstream's
-    /// `ERR_PNPM_CATALOG_IN_OVERRIDES` at
-    /// <https://github.com/pnpm/pnpm/blob/4a36b9a110/config/parse-overrides/src/index.ts#L35>.
+    /// definition, or forbidden inner protocol)
+    /// (`ERR_PNPM_CATALOG_IN_OVERRIDES`).
     #[display("Could not resolve a catalog in the overrides: {message}")]
     #[diagnostic(code(ERR_PNPM_CATALOG_IN_OVERRIDES))]
     CatalogInOverrides {
@@ -83,12 +72,11 @@ pub enum ParseOverridesError {
     },
 }
 
-/// Port of pnpm's
-/// [`parseOverrides`](https://github.com/pnpm/pnpm/blob/4a36b9a110/config/parse-overrides/src/index.ts#L20-L44).
+/// Parse the `pnpm.overrides` map into structured [`VersionOverride`] entries.
 ///
 /// Iteration follows the input map's iterator order. `HashMap` is
 /// unordered, so the returned `Vec` is *not* guaranteed to match
-/// upstream's `Object.entries` insertion order — for that, use
+/// the input's insertion order — for that, use
 /// [`parse_overrides_iter`] with an ordered map (e.g. `IndexMap`)
 /// or pre-sort by key. The functional behavior of each entry —
 /// selector splitting via [`parse_pkg_and_parent_selector`] and
@@ -129,11 +117,10 @@ where
 }
 
 /// Flatten parsed overrides back into the `selector → newBareSpecifier`
-/// map shape used by lockfile freshness checks. Mirrors upstream's
-/// [`createOverridesMapFromParsed`](https://github.com/pnpm/pnpm/blob/4a36b9a110/lockfile/settings-checker/src/createOverridesMapFromParsed.ts).
+/// map shape used by lockfile freshness checks.
 /// The resulting map's values are post-catalog-resolution, so it
-/// compares apples-to-apples against `lockfile.overrides`, which pnpm
-/// writes out with `catalog:` already expanded.
+/// compares apples-to-apples against `lockfile.overrides`, which is
+/// written out with `catalog:` already expanded.
 #[must_use]
 pub fn create_overrides_map_from_parsed(
     parsed_overrides: &[VersionOverride],
@@ -145,8 +132,7 @@ pub fn create_overrides_map_from_parsed(
 }
 
 /// Split a raw selector key into its (optional) parent half and its
-/// target half. Mirrors upstream's
-/// [`parsePkgAndParentSelector`](https://github.com/pnpm/pnpm/blob/4a36b9a110/config/parse-overrides/src/index.ts#L46-L60).
+/// target half.
 pub fn parse_pkg_and_parent_selector(
     selector: &str,
 ) -> Result<(Option<PackageSelector>, PackageSelector), ParseOverridesError> {
@@ -163,8 +149,7 @@ pub fn parse_pkg_and_parent_selector(
 /// the byte immediately before it is not ` `, `|`, or `@`. Returns
 /// `None` for selectors that lack a `parent>child` form.
 ///
-/// Mirrors upstream's `DELIMITER_REGEX = /[^ |@]>/` and the
-/// `delimiterIndex++` adjustment that lands on the `>` itself.
+/// Matches the regex `/[^ |@]>/` and returns the index of the `>` itself.
 fn find_parent_delimiter(selector: &str) -> Option<usize> {
     selector.as_bytes().windows(2).enumerate().find_map(|(idx, window)| {
         if matches!(window[0], b' ' | b'|' | b'@') {
@@ -185,9 +170,7 @@ fn parse_pkg_selector(selector: &str) -> Result<PackageSelector, ParseOverridesE
     Ok(PackageSelector { name, bare_specifier: wanted.bare_specifier })
 }
 
-/// Run the override value through the catalog resolver. Mirrors
-/// upstream's `matchCatalogResolveResult` arm at
-/// <https://github.com/pnpm/pnpm/blob/4a36b9a110/config/parse-overrides/src/index.ts#L28-L41>:
+/// Run the override value through the catalog resolver:
 /// `found` returns the resolved specifier, `unused` (non-`catalog:`)
 /// returns the value verbatim, and `misconfiguration` (missing entry
 /// or recursive / forbidden inner protocol) raises

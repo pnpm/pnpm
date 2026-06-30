@@ -85,10 +85,8 @@ fn omits_settings_that_are_none() {
     assert!(!serialized.contains("configDependencies"), "got: {serialized}");
 }
 
-/// Ports the `packageExtensions` block of
-/// [`createWorkspaceState.test.ts:39-70`](https://github.com/pnpm/pnpm/blob/39101f5e37/workspace/state/test/createWorkspaceState.test.ts#L39-L70):
 /// `packageExtensions` round-trips through `WorkspaceStateSettings`
-/// as a JSON object preserving the upstream wire shape (`<selector>:
+/// as a JSON object preserving the wire shape (`<selector>:
 /// { dependencies: { … } }`). The drift gate in
 /// `optimistic_repeat_install::settings_match` reads this field, so
 /// the on-disk shape has to stay stable for the gate to be byte-

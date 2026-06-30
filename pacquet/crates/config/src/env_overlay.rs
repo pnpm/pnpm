@@ -1,20 +1,15 @@
 //! Read `PNPM_CONFIG_*` / `pnpm_config_*` environment variables into a
 //! [`WorkspaceSettings`] overlay.
 //!
-//! Mirrors pnpm v11's
-//! [`parseEnvVars`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/env.ts#L42)
-//! loop in `config/reader/src/index.ts`, which reads `pnpm_config_<key>`
-//! (or its `PNPM_CONFIG_<KEY>` uppercase form) for every key in the
-//! schema and applies it to the config *after* `pnpm-workspace.yaml`.
-//! That ordering means env vars override yaml — matching the order
-//! upstream's loop runs in.
+//! Reads `pnpm_config_<key>` (or its `PNPM_CONFIG_<KEY>` uppercase form)
+//! for every key in the schema and applies it to the config *after*
+//! `pnpm-workspace.yaml`. That ordering means env vars override yaml.
 //!
 //! Pacquet does NOT read `npm_config_*` / `NPM_CONFIG_*` env vars (with
 //! the exception of `NPM_CONFIG_WORKSPACE_DIR`, which has its own narrow
-//! handler in [`crate::Config::current`]). Pnpm v11 stopped honouring
-//! those too; the only remaining `npm_config_*` lookup in pnpm is
-//! `userconfig` as a low-priority auth-file fallback. See
-//! [`config/reader/src/index.ts:719-722`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts#L719-L722).
+//! handler in [`crate::Config::current`]). pnpm stopped honouring those
+//! too; the only remaining `npm_config_*` lookup in pnpm is `userconfig`
+//! as a low-priority auth-file fallback.
 
 use crate::{
     AuditLevel, CatalogMode, HoistingLimits, NodeLinker, NodePackageMapType, PackageImportMethod,
@@ -23,10 +18,7 @@ use crate::{
 use serde::de::DeserializeOwned;
 
 /// Read an env var by suffix, accepting both `PNPM_CONFIG_<UPPER>` and
-/// `pnpm_config_<lower>`. Empty values are treated as unset, matching
-/// upstream's
-/// [`if (envValue == null) continue`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/env.ts#L46)
-/// + the [`!== ''` filter in `readEnvVar`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts#L713).
+/// `pnpm_config_<lower>`. Empty values are treated as unset.
 fn read_env<Sys: EnvVar>(suffix: &str) -> Option<String> {
     let upper = format!("PNPM_CONFIG_{suffix}");
     let lower = format!("pnpm_config_{}", suffix.to_lowercase());
@@ -56,14 +48,11 @@ fn parse_json_or_string<Target: DeserializeOwned>(value: &str) -> Option<Target>
 /// [`WorkspaceSettings`].
 ///
 /// Env vars cannot express the "explicit null disable" state that yaml
-/// supports — pnpm's
-/// [`parseValueByConstructor`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/env.ts#L111-L115)
-/// for the `Array` schema runs `JSON.parse(envVar)` and then requires
-/// `Array.isArray(value)`. `PNPM_CONFIG_HOIST_PATTERN=null` therefore
-/// fails the `Array.isArray` check upstream and the value is silently
-/// dropped. The tri-state's `Some(None)` branch stays reachable
-/// through yaml only; from env we either return `None` (parse failed,
-/// leave config default) or `Some(Some(vec))` (explicit list).
+/// supports: an array-schema env var is JSON-parsed and then required to
+/// be an array, so `PNPM_CONFIG_HOIST_PATTERN=null` fails the array check
+/// and is silently dropped. The tri-state's `Some(None)` branch stays
+/// reachable through yaml only; from env we either return `None` (parse
+/// failed, leave config default) or `Some(Some(vec))` (explicit list).
 fn parse_tri_array(value: &str) -> Option<Option<Vec<String>>> {
     parse_json::<Vec<String>>(value).map(Some)
 }
@@ -71,13 +60,11 @@ fn parse_tri_array(value: &str) -> Option<Option<Vec<String>>> {
 impl WorkspaceSettings {
     /// Build a [`WorkspaceSettings`] from `PNPM_CONFIG_*` env vars.
     ///
-    /// Pnpm reads env vars for the full schema, not just config-file
+    /// Env vars are read for the full schema, not just config-file
     /// keys — `PNPM_CONFIG_HOIST=false`, `PNPM_CONFIG_NODE_LINKER=hoisted`
-    /// etc. all work upstream, so they work here too (no
-    /// [`Self::clear_workspace_only_fields`] call). Apply the returned
-    /// settings via [`Self::apply_to`] *after* `pnpm-workspace.yaml` so
-    /// env vars win over yaml, mirroring upstream's order at
-    /// [`config/reader/src/index.ts:471-488`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts#L471-L488).
+    /// etc. all work (no [`Self::clear_workspace_only_fields`] call).
+    /// Apply the returned settings via [`Self::apply_to`] *after*
+    /// `pnpm-workspace.yaml` so env vars win over yaml.
     #[must_use]
     pub fn from_pnpm_config_env<Sys: EnvVar>() -> Self {
         let mut settings = WorkspaceSettings::default();

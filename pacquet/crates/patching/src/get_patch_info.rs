@@ -5,10 +5,7 @@ use node_semver::{Range, Version};
 
 /// Raised when a `name@version` pair satisfies more than one
 /// configured version range. The user must add an exact-version
-/// entry to break the tie.
-///
-/// Mirrors upstream's
-/// [`ERR_PNPM_PATCH_KEY_CONFLICT`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/patching/config/src/getPatchInfo.ts#L5-L19).
+/// entry to break the tie. Surfaces as `ERR_PNPM_PATCH_KEY_CONFLICT`.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display(
     "Unable to choose between {n_satisfied} version ranges to patch {pkg_name}@{pkg_version}: {ranges}",
@@ -27,8 +24,6 @@ pub struct PatchKeyConflictError {
 
 /// Look up the patch (if any) that applies to `pkg_name@pkg_version`.
 ///
-/// Ports upstream's
-/// [`getPatchInfo`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/patching/config/src/getPatchInfo.ts#L21-L40).
 /// Match precedence:
 ///
 /// 1. exact version (`exact[pkg_version]`)
@@ -36,9 +31,8 @@ pub struct PatchKeyConflictError {
 /// 3. wildcard (`all`)
 ///
 /// If the configured ranges fail to parse as semver, those entries
-/// are silently skipped — the upstream JS path goes through
-/// `semver.satisfies`, which treats unparsable ranges as
-/// non-matching. Pacquet matches that behavior.
+/// are silently skipped — an unparsable range is treated as
+/// non-matching.
 pub fn get_patch_info<'a>(
     patch_file_groups: Option<&'a PatchGroupRecord>,
     pkg_name: &str,

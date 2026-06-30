@@ -1,6 +1,3 @@
-//! Port of pnpm's
-//! [`hoistPeers`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/hoistPeers.ts).
-//!
 //! Two pure functions that turn a "missing peers" picture into a
 //! "what to add to the importer's direct deps" map. Used by the
 //! orchestrator (`resolve_importer`) inside its hoist loop.
@@ -12,10 +9,7 @@ use pacquet_resolving_resolver_base::{
     PreferredVersions, VersionSelectorEntry, VersionSelectorType,
 };
 
-/// One workspace-root dep the loop can satisfy a peer with. Mirrors
-/// the slice of upstream's
-/// [`PkgAddressOrLink`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L256-L274)
-/// that `hoistPeers` reads.
+/// One workspace-root dep the loop can satisfy a peer with.
 #[derive(Debug, Clone)]
 pub struct WorkspaceRootDep {
     /// The slot name in the importer's `node_modules/`.
@@ -25,20 +19,18 @@ pub struct WorkspaceRootDep {
     pub pkg_name: String,
     /// The specifier pacquet would resolve. `None` for entries with
     /// no normalized form (e.g. linked-from-disk workspace packages
-    /// whose spec is a `link:` path); upstream's check treats those
-    /// the same as "not a candidate" via the `?.` guard.
+    /// whose spec is a `link:` path); those are treated the same as
+    /// "not a candidate".
     pub normalized_bare_specifier: Option<String>,
 }
 
-/// One entry of `missingRequiredPeers`. Mirrors upstream's
-/// [`MissingPeerInfo`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L207-L210)
-/// slice — pacquet only reads `range`.
+/// One entry of `missingRequiredPeers`. Only `range` is read.
 #[derive(Debug, Clone)]
 pub struct MissingPeerInfo {
     pub range: String,
 }
 
-/// Options for [`hoist_peers`]. Mirrors upstream's options bag.
+/// Options for [`hoist_peers`].
 #[derive(Debug)]
 pub struct HoistPeersOptions<'a> {
     pub auto_install_peers: bool,
@@ -48,8 +40,7 @@ pub struct HoistPeersOptions<'a> {
 
 /// Pick a specifier for each missing required peer. Returns a map of
 /// `peer_name → specifier` that the caller will add to the importer's
-/// wanted deps. Mirrors upstream's
-/// [`hoistPeers`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/hoistPeers.ts#L7-L65).
+/// wanted deps.
 #[must_use]
 pub fn hoist_peers(
     opts: &HoistPeersOptions<'_>,
@@ -123,15 +114,12 @@ pub fn hoist_peers(
 
 /// Pick an installable version for each missing optional peer, but only
 /// when at least one preferred version satisfies *every* recorded range.
-/// Returns `peer_name → version`. Mirrors pnpm's
-/// [`getHoistableOptionalPeers`](https://github.com/pnpm/pnpm/blob/a6f303c2ff6ba83df17a47f10a0fe1d7ff8a083c/pnpm11/installing/deps-resolver/src/hoistPeers.ts#L67-L91).
+/// Returns `peer_name → version`.
 ///
-/// Version selectors may be plain entries
-/// [produced while resolving](https://github.com/pnpm/pnpm/blob/c5d9d3a8f3/installing/deps-resolver/src/resolveDependencies.ts#L1439-L1444)
-/// or weighted entries
-/// [seeded from the wanted lockfile](https://github.com/pnpm/pnpm/blob/a6f303c2ff6ba83df17a47f10a0fe1d7ff8a083c/pnpm11/lockfile/preferred-versions/src/index.ts#L35-L55).
-/// Both are eligible so an already locked optional peer is not discarded
-/// during re-resolution.
+/// Version selectors may be plain entries produced while resolving or
+/// weighted entries seeded from the wanted lockfile. Both are eligible
+/// so an already locked optional peer is not discarded during
+/// re-resolution.
 #[must_use]
 pub fn get_hoistable_optional_peers(
     all_missing_optional_peers: &BTreeMap<String, Vec<String>>,
@@ -168,9 +156,8 @@ pub fn get_hoistable_optional_peers(
     optional_dependencies
 }
 
-/// Highest version from `versions` that satisfies `range`. Returns
-/// `None` if no candidate satisfies. Mirrors upstream's
-/// `semver.maxSatisfying(versions, range, { includePrerelease: true })`.
+/// Highest version from `versions` that satisfies `range`, including
+/// prereleases. Returns `None` if no candidate satisfies.
 fn max_satisfying<'a>(versions: &'a [&'a str], range: &str) -> Option<&'a str> {
     let parsed_range = range.parse::<Range>().ok()?;
     let mut best: Option<(&str, Version)> = None;
@@ -186,13 +173,12 @@ fn max_satisfying<'a>(versions: &'a [&'a str], range: &str) -> Option<&'a str> {
     best.map(|(spec, _)| spec)
 }
 
-/// Check whether `version` satisfies `range`, with the
-/// `includePrerelease: true` behavior `semver.maxSatisfying` uses in
-/// upstream's hoist-peers picker. The default `Range::satisfies` skips
-/// prereleases when the range has none of its own (matching strict
+/// Check whether `version` satisfies `range`, accepting prereleases
+/// even when the range carries none of its own. The default
+/// `Range::satisfies` skips prereleases in that case (matching strict
 /// semver semantics); the retry with the prerelease tag stripped
-/// recovers the candidates upstream accepts. Matches the
-/// `satisfies_with_prereleases` pattern in the `resolve_peers` module.
+/// recovers those candidates. Matches the `satisfies_with_prereleases`
+/// pattern in the `resolve_peers` module.
 pub(crate) fn satisfies_including_prerelease(range: &Range, version: &Version) -> bool {
     if range.satisfies(version) {
         return true;
@@ -210,9 +196,8 @@ pub(crate) fn satisfies_including_prerelease(range: &Range, version: &Version) -
     range.satisfies(&base)
 }
 
-/// Highest version overall from `versions` (the `*` range that
-/// upstream passes to `semver.maxSatisfying`). Returns `None` when
-/// no candidate parses as a valid semver.
+/// Highest version overall from `versions` (the `*` range). Returns
+/// `None` when no candidate parses as a valid semver.
 fn max_satisfying_any<'a>(versions: &'a [&'a str]) -> Option<&'a str> {
     let mut best: Option<(&str, Version)> = None;
     for spec in versions {

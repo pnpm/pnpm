@@ -1,5 +1,4 @@
-//! Pacquet port of pnpm's
-//! [`resolveDenoRuntime` / `resolveLatestDenoRuntime`](https://github.com/pnpm/pnpm/blob/1627943d2a/engine/runtime/deno-resolver/src/index.ts#L34-L123).
+//! Resolves `deno@runtime:<spec>` dependencies.
 
 use std::sync::Arc;
 
@@ -18,7 +17,7 @@ use crate::read_deno_assets::{ReadDenoAssetsError, read_deno_assets};
 const RESOLVED_VIA: &str = "github.com/denoland/deno";
 const BARE_SPEC_PREFIX: &str = "runtime:";
 
-/// Errors emitted by [`DenoResolver`]. Mirrors upstream's
+/// Errors emitted by [`DenoResolver`], carrying the
 /// `DENO_RESOLUTION_FAILURE` / `DENO_MISSING_ASSETS` /
 /// `DENO_GITHUB_FAILURE` / `DENO_PARSE_HASH` codes.
 #[derive(Debug, Display, Error, Diagnostic)]

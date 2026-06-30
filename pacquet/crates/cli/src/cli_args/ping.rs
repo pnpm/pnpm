@@ -1,7 +1,4 @@
 //! `pacquet ping` — test connectivity to the configured registry.
-//!
-//! Ports pnpm's
-//! [`ping` command](https://github.com/pnpm/pnpm/blob/fc2f33912e/pnpm11/registry-access/commands/src/ping.ts).
 
 use crate::cli_args::registry_client::build_registry_client;
 use clap::Args;
@@ -15,7 +12,7 @@ use std::time::Instant;
 /// Errors from `pacquet ping`.
 ///
 /// Both a transport failure and a non-success status map to the single
-/// `PING_ERROR` code pnpm raises in `ping.ts`.
+/// `PING_ERROR` code.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum PingError {
@@ -32,13 +29,13 @@ pub struct PingArgs {
 }
 
 impl PingArgs {
-    /// Ports `ping.ts`'s `handler`: resolve the registry (the `--registry`
-    /// override or the configured default), GET `<registry>-/ping?write=true`
-    /// with any resolved auth header, and render pnpm's `PING`/`PONG` report.
+    /// Resolve the registry (the `--registry` override or the configured
+    /// default), GET `<registry>-/ping?write=true` with any resolved auth
+    /// header, and render the `PING`/`PONG` report.
     pub async fn run(&self, config: &Config) -> miette::Result<String> {
         let registry_url = self.registry.as_deref().unwrap_or(&config.registry);
         // Add a trailing slash before joining so a registry with a path
-        // prefix keeps it, matching `new URL('./-/ping', normalizedRegistryUrl)`.
+        // prefix keeps it.
         let normalized_registry_url = if registry_url.ends_with('/') {
             registry_url.to_owned()
         } else {
@@ -48,8 +45,7 @@ impl PingArgs {
         let auth_header = config.auth_headers.for_url(&normalized_registry_url);
         let http_client = build_registry_client(config)?;
 
-        // `ping` issues a single attempt with no retries, matching pnpm's
-        // `retry: { retries: 0 }`.
+        // `ping` issues a single attempt with no retries.
         let (time, body) = fetch_ping(
             &ping_url,
             &http_client,
@@ -68,7 +64,7 @@ impl PingArgs {
 }
 
 /// GET `ping_url` with the optional `Authorization` header, timing the
-/// round trip (request plus body read) the way pnpm measures `Date.now()`.
+/// round trip (request plus body read).
 ///
 /// Errors with `ERR_PNPM_PING_ERROR` on a transport failure, a non-success
 /// status, or a failed body read. Messages from network failures are
@@ -117,9 +113,8 @@ async fn fetch_ping(
 }
 
 /// Pretty-print the ping response body when it is a non-empty JSON object
-/// or array, mirroring `ping.ts`'s `JSON.stringify(parsed, null, 2)` branch
-/// (which fires for any `typeof === 'object'` value with at least one entry).
-/// Returns `None` for an empty body, non-JSON, or an empty/primitive value.
+/// or array (any object value with at least one entry). Returns `None` for
+/// an empty body, non-JSON, or an empty/primitive value.
 fn format_details(body: &str) -> Option<String> {
     if body.is_empty() {
         return None;

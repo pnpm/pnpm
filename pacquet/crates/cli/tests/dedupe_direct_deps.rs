@@ -1,21 +1,16 @@
 //! `dedupeDirectDeps` workspace coverage for `pacquet install`.
 //!
-//! Ports pnpm's
-//! [`installing/deps-installer/test/install/dedupeDirectDeps.ts`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-installer/test/install/dedupeDirectDeps.ts):
-//! when the workspace root provides the same `(alias → resolution)`
+//! When the workspace root provides the same `(alias → resolution)`
 //! a non-root project depends on, the dep must not appear under
 //! that project's `node_modules/`, and a project whose direct deps
 //! are entirely deduped must not have a `node_modules/` created at
 //! all.
 //!
-//! `dedupeDirectDeps` is **off by default** (pnpm's config-reader
-//! default at
-//! [`config/reader/src/index.ts:139`](https://github.com/pnpm/pnpm/blob/a23956e3ab/config/reader/src/index.ts#L139)),
-//! so the dedupe-on tests below set `dedupeDirectDeps: true` in the
-//! workspace yaml explicitly, mirroring upstream's
-//! `testDefaults({ ..., dedupeDirectDeps: true })`. The default-off
-//! behavior — every importer keeps its own per-project symlink — is
-//! covered by [`dedupe_off_by_default_keeps_shared_workspace_link`].
+//! `dedupeDirectDeps` is **off by default**, so the dedupe-on tests
+//! below set `dedupeDirectDeps: true` in the workspace yaml
+//! explicitly. The default-off behavior — every importer keeps its own
+//! per-project symlink — is covered by
+//! [`dedupe_off_by_default_keeps_shared_workspace_link`].
 
 pub mod _utils;
 
@@ -76,10 +71,10 @@ fn dedupes_direct_deps_against_workspace_root() {
     eprintln!("root_dep={root_dep:?} linked={root_dep_linked}");
     assert!(root_dep_linked, "root node_modules direct-dep symlink missing");
 
-    // The deduped sibling has no node_modules at all — pnpm's
-    // `linkDirectDepsAndDedupe` ends with `rimraf(project.modulesDir)`
-    // when every dep was deduped. Pacquet achieves the same effect
-    // by never creating the directory in the first place.
+    // The deduped sibling has no node_modules at all: when every dep
+    // was deduped, the project's modules directory is removed. Pacquet
+    // achieves the same effect by never creating the directory in the
+    // first place.
     let dup_modules = workspace.join("packages/dup/node_modules");
     let dup_modules_exists = dup_modules.exists();
     eprintln!("dup_modules={dup_modules:?} exists={dup_modules_exists}");
@@ -150,11 +145,8 @@ fn dedupe_direct_deps_disabled_keeps_per_project_symlinks() {
     drop((root, mock_instance));
 }
 
-/// A frozen-lockfile install (the headless path) dedupes too.
-/// Mirrors pnpm's second `mutateModules(... frozenLockfile: true)`
-/// call in
-/// [`dedupeDirectDeps.ts:107`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-installer/test/install/dedupeDirectDeps.ts#L107)
-/// which asserts the same on-disk shape after running through the
+/// A frozen-lockfile install (the headless path) dedupes too,
+/// producing the same on-disk shape after running through the
 /// `install_frozen_lockfile` codepath.
 #[test]
 fn dedupes_direct_deps_with_frozen_lockfile() {
@@ -503,8 +495,7 @@ fn dedupes_link_deps_resolving_to_the_same_dir_via_different_segments() {
     drop((root, mock_instance));
 }
 
-/// Mirrors pnpm's [`'dedupe direct dependencies after public hoisting'`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-installer/test/install/dedupeDirectDeps.ts#L113):
-/// a transitive of the root that gets publicly hoisted into root's
+/// A transitive of the root that gets publicly hoisted into root's
 /// `node_modules/` should dedupe a non-root importer's *direct* dep
 /// with the same alias.
 ///
@@ -596,8 +587,7 @@ fn dedupes_direct_dep_against_publicly_hoisted_root_dep() {
     drop((root, mock_instance));
 }
 
-/// Mirrors pnpm's [`'shamefully-hoist + dedupe-direct-deps=true'`](https://github.com/pnpm/pnpm/blob/39101f5e37/pnpm/test/install/hoist.ts#L77):
-/// with `publicHoistPattern: ['*']` (the explicit form of
+/// With `publicHoistPattern: ['*']` (the explicit form of
 /// `shamefullyHoist: true` — pacquet doesn't bridge the legacy flag to
 /// the pattern, see [`hoist::shamefully_hoist_legacy_publicly_hoists_everything`]),
 /// every transitive lands at the workspace root's `node_modules/`. A

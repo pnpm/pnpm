@@ -21,8 +21,7 @@ use std::{
 };
 
 /// One package known to be installed at `location`, with its parsed
-/// `package.json`. Mirrors the per-package input shape of pnpm's
-/// `linkBinsOfPackages`.
+/// `package.json`. The per-package input to [`link_bins_of_packages`].
 ///
 /// The manifest is shared via `Arc` rather than owned by value: the
 /// lockfile-driven bin-link path looks up the same parsed manifest
@@ -35,13 +34,11 @@ use std::{
 pub struct PackageBinSource {
     pub location: PathBuf,
     pub manifest: Arc<Value>,
-    /// Where this candidate came from. Mirrors upstream's
-    /// `isDirectDependency: boolean` flag at
-    /// <https://github.com/pnpm/pnpm/blob/4750fd370c/bins/linker/src/index.ts#L92>:
-    /// when a hoisted (transitive) dep and a direct dep both
-    /// declare the same bin name, the direct dep must win so a
-    /// project never gets its own tooling silently shadowed by a
-    /// transitive's bin. Defaults to [`BinOrigin::Direct`] —
+    /// Where this candidate came from. When a hoisted (transitive)
+    /// dep and a direct dep both declare the same bin name, the
+    /// direct dep must win so a project never gets its own tooling
+    /// silently shadowed by a transitive's bin. Defaults to
+    /// [`BinOrigin::Direct`] —
     /// constructions via [`PackageBinSource::new`] don't have to
     /// supply the field. Pacquet's hoist + hoisted-linker passes use
     /// [`PackageBinSource::with_origin`] to tag transitive
@@ -77,11 +74,8 @@ impl PackageBinSource {
 ///
 /// Used by `pick_winner` (private) as the highest-precedence tier
 /// in the conflict-resolution rule: a direct dep's bin always wins
-/// over a hoisted dep's bin with the same name. Mirrors upstream's
-/// `preferDirectCmds` partition at
-/// <https://github.com/pnpm/pnpm/blob/4750fd370c/bins/linker/src/index.ts#L92>
-/// where direct candidates are kept and hoisted candidates with a
-/// name collision are dropped.
+/// over a hoisted dep's bin with the same name — direct candidates
+/// are kept and hoisted candidates with a name collision are dropped.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum BinOrigin {
     /// The candidate is a direct dependency of the importer
@@ -175,8 +169,7 @@ pub enum LinkBinsError {
 }
 
 /// Read `<location>/package.json` for each entry under `modules_dir` and link
-/// its bins into `bins_dir`. Mirrors pnpm v11's `linkBins(modulesDir, binsDir)`
-/// at <https://github.com/pnpm/pnpm/blob/4750fd370c/bins/linker/src/index.ts>.
+/// its bins into `bins_dir`.
 pub fn link_bins<Sys>(modules_dir: &Path, bins_dir: &Path) -> Result<(), LinkBinsError>
 where
     Sys: FsReadDir
@@ -263,11 +256,11 @@ fn read_package<Sys: FsReadFile>(
     Ok(Some(PackageBinSource::new(location.to_path_buf(), Arc::new(manifest))))
 }
 
-/// Link every bin declared by `packages` into `bins_dir`, applying the same
-/// conflict resolution upstream uses.
+/// Link every bin declared by `packages` into `bins_dir`, applying conflict
+/// resolution between bins of the same name.
 ///
 /// Pacquet's first iteration does not resolve same-package multi-version
-/// conflicts via semver (a feature upstream uses for hoisting), since the
+/// conflicts via semver (used elsewhere for hoisting), since the
 /// virtual-store layout means each bin source is a unique
 /// `(package, version)` slot already.
 pub fn link_bins_of_packages<Sys>(
@@ -291,10 +284,8 @@ where
 }
 
 /// Like [`link_bins_of_packages`] but skips any bin whose name is in
-/// `exclude_bins`. Mirrors the `excludeBins` option of pnpm's
-/// [`linkBinsOfPackages`](https://github.com/pnpm/pnpm/blob/4750fd370c/bins/linker/src/index.ts),
-/// used by global install to leave bins legitimately owned by an
-/// already-installed global package untouched.
+/// `exclude_bins`. Used by global install to leave bins legitimately
+/// owned by an already-installed global package untouched.
 pub fn link_bins_of_packages_with_excludes<Sys>(
     packages: &[PackageBinSource],
     bins_dir: &Path,
@@ -359,8 +350,7 @@ where
 }
 
 /// Return `true` when `candidate` should replace `existing` for `bin_name`.
-/// Matches the three-step direct-then-ownership-then-lexical-compare in
-/// upstream's `preferDirectCmds` + `resolveCommandConflicts`.
+/// Applies a three-step direct-then-ownership-then-lexical comparison.
 fn pick_winner(
     bin_name: &str,
     existing: &str,
@@ -388,8 +378,7 @@ fn pick_winner(
 /// [`is_shim_pointing_at`].
 ///
 /// The chmod step (`set_executable` for the canonical shim and
-/// `ensure_executable_bits` for the target binary, matching pnpm's
-/// `fixBin(cmd.path, 0o755)` and `chmodShim`) is wired through the
+/// `ensure_executable_bits` for the target binary) is wired through the
 /// [`FsSetExecutable`] / [`FsEnsureExecutableBits`] capability traits.
 /// On Unix the production impls run the actual `chmod`; on Windows
 /// they are no-ops (Windows has no equivalent permission concept), so
@@ -400,10 +389,8 @@ where
     Sys: FsReadToString + FsReadHead + FsWrite + FsSetExecutable + FsEnsureExecutableBits,
 {
     // The node runtime binary is special: never wrap it in a shell
-    // shim. Mirrors pnpm v11's `cmd.name === 'node'` short-circuit in
-    // [`bins/linker/src/index.ts`](https://github.com/pnpm/pnpm/blob/06d2d3deb2/bins/linker/src/index.ts#L281-L308),
-    // which symlinks the binary on Unix and hardlinks `node.exe` on
-    // Windows.
+    // shim. The binary is symlinked on Unix and `node.exe` is
+    // hardlinked on Windows.
     //
     // Two reasons this matters:
     //
@@ -493,10 +480,8 @@ where
 
     Sys::set_executable(shim_path)
         .map_err(|error| LinkBinsError::Chmod { path: shim_path.to_path_buf(), error })?;
-    // Make the underlying script executable too. pnpm calls
-    // `fixBin(cmd.path, 0o755)` to do this; we apply the same minimum
-    // mode without rewriting CRLF shebangs (a feature pnpm inherits
-    // from npm's `bin-links/lib/fix-bin.js`). Targets shipped by npm
+    // Make the underlying script executable too: apply a minimum mode
+    // of 0o755 without rewriting CRLF shebangs. Targets shipped by npm
     // already use LF in practice, so the simpler chmod-only path is
     // enough for the install tests this PR ports. `NotFound` is
     // swallowed because the target may legitimately have been
@@ -526,7 +511,7 @@ fn is_node_bin_name(shim_path: &Path) -> bool {
 /// shim-writing path) and `Ok(false)` when it didn't apply and the
 /// caller should fall through (Windows non-`.exe` source).
 ///
-/// Mirrors the two halves of pnpm's `cmd.name === 'node'` branch:
+/// Two halves, by platform:
 ///
 /// - **Unix** symlinks `shim_path` → absolute `target_path`. The
 ///   existing dirent (if any) is removed first because `fs::symlink`
@@ -534,8 +519,8 @@ fn is_node_bin_name(shim_path: &Path) -> bool {
 ///   a stale shim in place.
 /// - **Windows** hardlinks `target_path` to `<shim_path>.exe`, falling
 ///   back to `fs::copy` on hardlink failure (cross-device, ACL deny,
-///   ...). The source must end in `.exe`; otherwise pnpm falls through
-///   to the cmd-shim path and so do we.
+///   ...). The source must end in `.exe`; otherwise the caller falls
+///   through to the cmd-shim path.
 ///
 /// `remove_file` rather than `Sys::write`-style truncation is
 /// load-bearing on both platforms: if `shim_path` is currently a
@@ -566,9 +551,7 @@ fn link_node_bin(target_path: &Path, shim_path: &Path) -> Result<bool, LinkBinsE
     }
     let exe_path = with_extension_appended(shim_path, "exe");
     // Skip the remove + relink churn on warm installs when `node.exe`
-    // already refers to the source binary. Mirrors pnpm's same-file
-    // early-return in
-    // [`bins/linker/src/index.ts`](https://github.com/pnpm/pnpm/blob/06d2d3deb2/bins/linker/src/index.ts#L281-L308).
+    // already refers to the source binary.
     if is_same_file(&exe_path, target_path) {
         return Ok(true);
     }
@@ -588,8 +571,7 @@ fn link_node_bin(target_path: &Path, shim_path: &Path) -> Result<bool, LinkBinsE
 /// volume serial on Windows). When that identity can't be obtained — a missing
 /// file, or a filesystem that doesn't expose a stable index — we fall back to
 /// comparing the file contents after a quick size check, which also treats a
-/// byte-identical copy as the same file. Mirrors `isSameFile` in pnpm's
-/// `bins.linker`.
+/// byte-identical copy as the same file.
 #[cfg(windows)]
 fn is_same_file(a: &Path, b: &Path) -> bool {
     if let (Ok(handle_a), Ok(handle_b)) =
@@ -676,13 +658,12 @@ fn with_extension_appended(path: &Path, ext: &str) -> PathBuf {
 
 /// Remove a bin shim previously written by [`link_bins_of_packages`].
 ///
-/// Ports pnpm's [`removeBin`](https://github.com/pnpm/pnpm/blob/4750fd370c/bins/remover/src/removeBins.ts)
-/// (deletes `<name>`, `<name>.ps1`, `<name>.cmd` on Windows; just `<name>`
-/// elsewhere), and additionally removes the `<name>.exe` flavor on Windows:
-/// the `node` runtime bin is linked as `<name>.exe` by the linker's node
-/// special-case, so without this a `node.exe` would survive `remove -g` /
-/// `update -g` and stay reachable on `PATH`. A missing file is not an error
-/// (rimraf-style).
+/// Deletes `<name>`, plus the `<name>.ps1`, `<name>.cmd`, and `<name>.exe`
+/// flavors on Windows; just `<name>` elsewhere. The `<name>.exe` flavor
+/// matters because the `node` runtime bin is linked as `<name>.exe` by the
+/// linker's node special-case, so without this a `node.exe` would survive
+/// `remove -g` / `update -g` and stay reachable on `PATH`. A missing file is
+/// not an error (rimraf-style).
 pub fn remove_bin(bin_path: &Path) -> io::Result<()> {
     remove_if_exists(bin_path)?;
     if cfg!(windows) {

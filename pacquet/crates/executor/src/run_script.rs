@@ -16,11 +16,8 @@ use std::{
     process::{Command, ExitStatus},
 };
 
-/// Error from running a user script through [`run_script`].
-///
-/// Ports the failure modes of pnpm's `runLifecycleHook` for the
-/// `stdio: 'inherit'` path at
-/// <https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/lifecycle/src/runLifecycleHook.ts>.
+/// Error from running a user script through [`run_script`] — the
+/// failure modes of the `stdio: 'inherit'` foreground path.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum RunScriptError {
@@ -36,11 +33,8 @@ pub enum RunScriptError {
     ScriptShell(#[error(source)] ScriptShellError),
 }
 
-/// Inputs for [`run_script`].
-///
-/// Mirrors the subset of pnpm's `RunLifecycleHookOptions`
-/// (<https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/lifecycle/src/runLifecycleHook.ts#L15-L31>)
-/// that a foreground `pnpm run` invocation needs.
+/// Inputs for [`run_script`] — the subset of lifecycle-hook options a
+/// foreground `pnpm run` invocation needs.
 pub struct RunScript<'a> {
     /// The package manifest, used to stamp `npm_package_*` env vars.
     pub manifest: &'a Value,
@@ -76,9 +70,6 @@ pub struct RunScript<'a> {
 
 /// Run a single user script in the foreground, inheriting the parent's
 /// stdio so the script's output reaches the terminal directly.
-///
-/// Ports the `stdio: 'inherit'` branch of pnpm's `runLifecycleHook`
-/// (<https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/lifecycle/src/runLifecycleHook.ts#L33-L145>).
 pub fn run_script(opts: &RunScript<'_>) -> Result<ExitStatus, RunScriptError> {
     let command = build_command(opts.script, opts.args);
 
@@ -97,8 +88,7 @@ pub fn run_script(opts: &RunScript<'_>) -> Result<ExitStatus, RunScriptError> {
         node_gyp_path: None,
         user_agent: opts.user_agent,
         // Explicit `pnpm run` invocations are trusted, so the temp-dir /
-        // privilege-drop path is skipped. Matches `unsafePerm: true` at
-        // <https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/commands/src/run.ts#L284>.
+        // privilege-drop path is skipped (`unsafe_perm: true`).
         unsafe_perm: true,
         extra_env: opts.extra_env,
     };
@@ -119,9 +109,8 @@ pub fn run_script(opts: &RunScript<'_>) -> Result<ExitStatus, RunScriptError> {
     child_env.insert("PATH".to_string(), path_env.to_string_lossy().into_owned());
 
     if !opts.silent {
-        // Mirrors the `$ <script>` echo pnpm writes to stderr for an
-        // inherited-stdio run at runLifecycleHook.ts:110. The dim styling
-        // upstream applies through chalk is omitted.
+        // Echo `$ <script>` to stderr for an inherited-stdio run, the
+        // same as `pnpm run`. The dim styling is omitted.
         let mut stderr = io::stderr();
         let _ = writeln!(stderr, "$ {command}");
     }
@@ -143,10 +132,8 @@ pub fn run_script(opts: &RunScript<'_>) -> Result<ExitStatus, RunScriptError> {
     Ok(status)
 }
 
-/// Append shell-quoted `args` to `script`, matching the arg escaping in
-/// pnpm's `runLifecycleHook`
-/// (<https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/lifecycle/src/runLifecycleHook.ts#L91-L97>):
-/// `shlex.join` on POSIX and per-argument `JSON.stringify` on Windows.
+/// Append shell-quoted `args` to `script`: `shlex`-style quoting on
+/// POSIX and per-argument `JSON.stringify` on Windows.
 fn build_command(script: &str, args: &[String]) -> String {
     if args.is_empty() {
         return script.to_string();

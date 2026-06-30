@@ -5,12 +5,11 @@ use std::{
 };
 
 /// Controls whether the dir containing the current `node` interpreter
-/// is appended to PATH. Tri-state from
-/// <https://github.com/pnpm/npm-lifecycle/blob/d2d8e790/lib/extendPath.js#L29-L61>.
+/// is appended to PATH. Tri-state, corresponding to the
+/// `scriptsPrependNodePath: boolean | 'warn-only'` config setting.
 ///
 /// `pacquet-config` mirrors this enum with its own yaml-deserializable
-/// type (upstream's `scriptsPrependNodePath: boolean | 'warn-only'`
-/// shape) and converts to this one at the call site, so the executor
+/// type and converts to this one at the call site, so the executor
 /// crate stays free of serde and Config wiring.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum ScriptsPrependNodePath {
@@ -26,9 +25,6 @@ pub enum ScriptsPrependNodePath {
 }
 
 /// Build the `PATH` env value for a lifecycle script spawn.
-///
-/// Ports `extendPath` from
-/// <https://github.com/pnpm/npm-lifecycle/blob/d2d8e790/lib/extendPath.js#L5-L27>.
 ///
 /// Order, highest-priority first:
 /// 1. The wd's own `<wd>/node_modules/.bin`,
@@ -64,10 +60,9 @@ pub fn extend_path(
     path_arr.extend_from_slice(extra_bin_paths);
 
     // 5. dirname(node) when scriptsPrependNodePath is `Always`.
-    //    `WarnOnly` only emits a warning upstream; the actual prepend
-    //    is gated on `cfgsetting === true` at lib/extendPath.js:32.
-    //    We omit the warn-emission here; the caller (with reporter
-    //    context) is a better place for it.
+    //    `WarnOnly` only emits a warning; the actual prepend is gated
+    //    on the setting being `true`. We omit the warn-emission here;
+    //    the caller (with reporter context) is a better place for it.
     if scripts_prepend_node_path == ScriptsPrependNodePath::Always
         && let Some(node) = node_execpath
         && let Some(parent) = node.parent()
@@ -87,14 +82,10 @@ pub fn extend_path(
 }
 
 /// Join `paths` with the platform PATH separator (`;` on Windows,
-/// `:` elsewhere). Mirrors upstream's
-/// `pathArr.join(process.platform === 'win32' ? ';' : ':')` at
-/// <https://github.com/pnpm/npm-lifecycle/blob/d2d8e790/lib/extendPath.js#L26>
-/// exactly — including the lack of validation. If a path component
-/// itself contains the separator the spawned shell sees an embedded
-/// entry, which is the same behavior the upstream string-join
-/// produces. `std::env::join_paths` would have erred and dropped
-/// the entire computed PATH in that case.
+/// `:` elsewhere) by plain string concatenation — no validation. If a
+/// path component itself contains the separator the spawned shell sees
+/// an embedded entry; `std::env::join_paths` would instead have erred
+/// and dropped the entire computed PATH in that case.
 fn join_paths_lossy(paths: &[PathBuf]) -> OsString {
     let sep: &OsStr = if cfg!(windows) { OsStr::new(";") } else { OsStr::new(":") };
     let mut out = OsString::new();
@@ -108,12 +99,11 @@ fn join_paths_lossy(paths: &[PathBuf]) -> OsString {
 }
 
 /// Returns the sequence of `node_modules/.bin` directories implied by
-/// `wd`, ordered deepest-first to match the upstream `unshift` walk
-/// at lib/extendPath.js:14-18.
+/// `wd`, ordered deepest-first.
 ///
-/// The walk mirrors upstream's `wd.split(/[\\/]node_modules[\\/]/)`
-/// scheme: it does *not* walk parent directories beyond the first
-/// `node_modules/` ancestor of `wd`.
+/// The walk splits `wd` on its `node_modules/` segments: it does *not*
+/// walk parent directories beyond the first `node_modules/` ancestor of
+/// `wd`.
 fn ancestor_node_modules_bins(wd: &Path) -> Vec<PathBuf> {
     let normalized = normalize_for_split(wd);
     let parts: Vec<&str> = normalized.split("/node_modules/").collect();
@@ -123,14 +113,13 @@ fn ancestor_node_modules_bins(wd: &Path) -> Vec<PathBuf> {
     // `node_modules/<pp>` slots.
     let (head, tail) = parts.split_first().expect("split always yields at least one element");
 
-    // Match upstream's `path.resolve(p.shift())` at
-    // lib/extendPath.js:8: absolute paths stay as-is, relative
-    // paths anchor against the process cwd, and an empty head
+    // Resolve the head like `path.resolve`: absolute paths stay as-is,
+    // relative paths anchor against the process cwd, and an empty head
     // (which happens when `wd` starts with `node_modules/`) means
-    // "use cwd". This anchoring carries upstream's cwd-dependence
-    // when the caller passes a relative wd — pacquet's production
-    // call sites always pass an absolute pkg_root, so the
-    // dependency is a non-issue in practice.
+    // "use cwd". This anchoring makes the result cwd-dependent when the
+    // caller passes a relative wd — pacquet's production call sites
+    // always pass an absolute pkg_root, so the dependency is a
+    // non-issue in practice.
     let mut acc = if head.is_empty() {
         env::current_dir().unwrap_or_else(|_| PathBuf::new())
     } else {
@@ -150,8 +139,8 @@ fn ancestor_node_modules_bins(wd: &Path) -> Vec<PathBuf> {
     }
     bins.push(acc.join("node_modules").join(".bin"));
 
-    // Upstream `unshift`es each entry so the deepest .bin ends up
-    // first; collect in the natural order then reverse.
+    // The deepest .bin must end up first; collect in the natural order
+    // then reverse.
     bins.reverse();
     bins
 }

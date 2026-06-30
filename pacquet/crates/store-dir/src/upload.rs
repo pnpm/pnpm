@@ -2,11 +2,6 @@
 //! diff it against the pristine `PackageFilesIndex.files` row, and
 //! seed the side-effects cache by re-queueing the mutated row through
 //! [`StoreIndexWriter`].
-//!
-//! Ports pnpm's
-//! [`storeController.upload`](https://github.com/pnpm/pnpm/blob/7e3145f9fc/store/controller/src/storeController/index.ts#L90-L99)
-//! and the worker-side body at
-//! [`worker/src/start.ts:312-383`](https://github.com/pnpm/pnpm/blob/7e3145f9fc/worker/src/start.ts#L312-L383).
 
 use crate::{
     AddFilesFromDirError, CafsFileInfo, SideEffectsDiff, StoreDir, StoreIndexWriter,
@@ -29,9 +24,7 @@ pub enum UploadError {
 
 /// Digest algorithm pacquet writes into `PackageFilesIndex.algo`.
 /// Held as a constant so the read-modify-write path can check the
-/// existing row's algorithm before appending a side-effects diff,
-/// matching upstream's [`ALGO_MISMATCH`](https://github.com/pnpm/pnpm/blob/7e3145f9fc/worker/src/start.ts#L358-L364)
-/// guard.
+/// existing row's algorithm before appending a side-effects diff.
 pub const HASH_ALGORITHM: &str = "sha512";
 
 /// Re-hash the built package directory and queue a side-effects
@@ -43,15 +36,13 @@ pub const HASH_ALGORITHM: &str = "sha512";
 /// second upload to the same row builds on the first's mutation
 /// rather than racing against a stale read.
 ///
-/// Behaviour at the writer side mirrors `pnpm/pnpm@7e3145f9fc:worker/src/start.ts:342-371`:
+/// Behaviour at the writer side:
 ///
-/// - No base row at `files_index_file` → silent skip (upstream's
-///   `if (!existingFilesIndex) return`).
+/// - No base row at `files_index_file` → silent skip.
 /// - Existing row's `algo` differs from [`HASH_ALGORITHM`] → log
-///   at `warn!` and skip (upstream's `ALGO_MISMATCH` error,
-///   demoted to a warning here because at this point in the
-///   install we've already done the build and the cache write is
-///   best-effort).
+///   at `warn!` and skip (an algorithm mismatch is demoted to a
+///   warning here because at this point in the install we've
+///   already done the build and the cache write is best-effort).
 /// - Otherwise the row's `side_effects[side_effects_cache_key] =
 ///   diff` is set and the mutated row gets re-queued for the
 ///   batch flush.
@@ -72,15 +63,14 @@ pub fn upload(
     Ok(())
 }
 
-/// Set-difference over file digests + modes.  Mirrors
-/// `pnpm/pnpm@7e3145f9fc:worker/src/start.ts:411-434`.
+/// Set-difference over file digests + modes.
 ///
 /// `base`     — the pristine `PackageFilesIndex.files` map (pre-build).
 /// `current`  — the rehashed map produced by [`add_files_from_dir()`].
 ///
 /// Both fields of the returned [`SideEffectsDiff`] use `Option<…>` with
 /// `skip_serializing_if = is_none` (see `SideEffectsDiff`), so an empty
-/// side of the diff round-trips through msgpack the same way pnpm's does.
+/// side of the diff round-trips through msgpack the way pnpm expects.
 pub fn calculate_diff(
     base: &HashMap<String, CafsFileInfo>,
     current: &HashMap<String, CafsFileInfo>,

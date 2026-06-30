@@ -5,18 +5,17 @@ use std::{borrow::Cow, fmt, str::FromStr};
 
 /// Version slot of a [`PkgVerPeer`]: a semver, the raw path of an
 /// injected workspace `file:<path>` dep, or an opaque non-semver
-/// reference (typically a tarball or git URL). Mirrors pnpm's
-/// `parseDepPath` `nonSemverVersion` arm in `packages/deps.path/src`.
+/// reference (typically a tarball or git URL).
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum VersionPart {
     Semver(Version),
     /// Path portion of a `file:<path>` dep, scheme stripped.
     File(String),
-    /// Non-semver reference preserved verbatim. Pnpm writes the raw
-    /// reference (e.g. a `https://codeload.github.com/...` tarball URL,
-    /// a `git+...` URL, or a custom resolution id) into the version
-    /// slot of importer entries and `packages:` / `snapshots:` keys
-    /// when no semver applies. Pacquet preserves the string so the
+    /// Non-semver reference preserved verbatim. The raw reference
+    /// (e.g. a `https://codeload.github.com/...` tarball URL, a
+    /// `git+...` URL, or a custom resolution id) is written into the
+    /// version slot of importer entries and `packages:` / `snapshots:`
+    /// keys when no semver applies. Pacquet preserves the string so the
     /// lockfile round-trips byte-for-byte and downstream resolvers
     /// can inspect it.
     NonSemver(String),
@@ -41,9 +40,7 @@ impl fmt::Display for VersionPart {
 /// `bun@runtime:` deps) carry a `runtime:` prefix in front of the
 /// version part (e.g. `runtime:22.0.0`). Pacquet preserves that
 /// prefix through [`Prefix`] so a round-trip stays byte-stable
-/// against pnpm's `pnpm-lock.yaml` output. Mirrors upstream's
-/// depPath shape at
-/// [`engine/runtime/node-resolver`](https://github.com/pnpm/pnpm/blob/94240bc046/engine/runtime/node-resolver/src/index.ts).
+/// against the `pnpm-lock.yaml` output.
 ///
 /// **NOTE:** The peer part isn't guaranteed to be correct. It is only assumed to be.
 #[derive(Debug, Display, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]

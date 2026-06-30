@@ -1,8 +1,5 @@
-//! Pacquet port of pnpm's
-//! [`@pnpm/workspace.projects-filter`](https://github.com/pnpm/pnpm/blob/3b62f9da31/workspace/projects-filter/src/index.ts).
-//!
 //! Turns `--filter` / `--filter-prod` selector strings into the set of
-//! workspace projects they select. The pieces mirror upstream:
+//! workspace projects they select. The pieces are:
 //!
 //! - [`parse_project_selector()`] parses one selector string into a
 //!   [`ProjectSelector`] (name glob, directory, `...`-dependents /

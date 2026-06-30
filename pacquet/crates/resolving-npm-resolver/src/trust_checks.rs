@@ -1,8 +1,5 @@
 //! Trust-downgrade detection.
 //!
-//! Ports pnpm's
-//! [`trustChecks.ts`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/trustChecks.ts).
-//!
 //! The check walks every published version of a package whose
 //! publish time is strictly before the version under inspection,
 //! asking [`get_trust_evidence`] which "rank" of evidence each
@@ -39,13 +36,13 @@ pub enum TrustEvidence {
 }
 
 /// Failure surfaced by [`fail_if_trust_downgraded`]. Each variant
-/// maps to a `TRUST_*` diagnostic code mirroring upstream's
-/// `PnpmError('TRUST_CHECK_FAIL', ...)` / `PnpmError('TRUST_DOWNGRADE', ...)`.
+/// maps to a `TRUST_*` diagnostic code (`TRUST_CHECK_FAIL` /
+/// `TRUST_DOWNGRADE`).
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum TrustViolation {
-    /// Reserved for the metadata-shape failures upstream raises with
-    /// the `TRUST_CHECK_FAIL` code: missing `time` map, missing per-
+    /// Reserved for the metadata-shape failures raised with the
+    /// `TRUST_CHECK_FAIL` code: missing `time` map, missing per-
     /// version manifest, unparsable publish timestamp. Surfaced as
     /// a "could not be checked" violation reason at the verifier
     /// boundary.
@@ -57,8 +54,8 @@ pub enum TrustViolation {
     },
 
     /// Earlier versions had stronger trust evidence than the version
-    /// being verified — supply-chain incident signal. Mirrors
-    /// upstream's `TRUST_DOWNGRADE` code.
+    /// being verified — supply-chain incident signal, surfaced with
+    /// the `TRUST_DOWNGRADE` code.
     #[display("High-risk trust downgrade for \"{name}@{version}\" (possible package takeover)")]
     #[diagnostic(
         code(pacquet_resolving_npm_resolver::trust_downgrade),
@@ -86,8 +83,7 @@ pub struct TrustCheckOptions<'a> {
     /// Maximum age, in minutes, before which the check still
     /// applies. A version older than this skips the check on the
     /// theory that any downgrade would have surfaced by now.
-    /// `None` means "always check"; matches upstream's `undefined`
-    /// for the same field.
+    /// `None` means "always check".
     pub trust_policy_ignore_after_minutes: Option<u64>,
 
     /// Override for "now" when the check evaluates
@@ -98,8 +94,7 @@ pub struct TrustCheckOptions<'a> {
 
 /// Reject `version` of `meta` when its trust evidence is weaker
 /// than the strongest evidence seen on any earlier-published
-/// version. Port of upstream's
-/// [`failIfTrustDowngraded`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/trustChecks.ts#L15-L80).
+/// version.
 pub fn fail_if_trust_downgraded(
     meta: &Package,
     version: &str,
@@ -118,11 +113,9 @@ pub fn fail_if_trust_downgraded(
         }
     }
 
-    // Pull the version's publish time. Upstream's `assertMetaHasTime`
-    // throws if the whole `time` map is missing; we treat both
-    // "no time map" and "no entry for this version" as the same
-    // `TRUST_CHECK_FAIL` shape so the verifier surfaces a single
-    // "could not be checked" reason.
+    // Pull the version's publish time. We treat both "no time map" and
+    // "no entry for this version" as the same `TRUST_CHECK_FAIL` shape
+    // so the verifier surfaces a single "could not be checked" reason.
     let published_at =
         meta.published_at(version).ok_or_else(|| TrustViolation::TrustCheckFailed {
             reason: format!(
@@ -174,10 +167,8 @@ pub fn fail_if_trust_downgraded(
     Ok(())
 }
 
-/// Map a [`TrustEvidence`] rank to upstream's numeric weight at
-/// [`trustChecks.ts:10-14`](https://github.com/pnpm/pnpm/blob/a6f303c2ff6ba83df17a47f10a0fe1d7ff8a083c/pnpm11/resolving/npm-resolver/src/trustChecks.ts#L10-L14).
-/// Upstream uses `undefined` for "no evidence"; the Rust port uses
-/// `Option<TrustEvidence>` so callers compare ranks via
+/// Map a [`TrustEvidence`] rank to its numeric weight. "No evidence"
+/// is modeled as `Option<TrustEvidence>`, so callers compare ranks via
 /// `Option::map_or(0, trust_rank)`.
 fn trust_rank(evidence: TrustEvidence) -> u8 {
     match evidence {
@@ -198,8 +189,7 @@ fn pretty_print_trust_evidence(evidence: Option<TrustEvidence>) -> &'static str 
 
 /// Walk every version older than `before_date` and return the
 /// strongest [`TrustEvidence`] seen. Prereleases are filtered out
-/// when the current version is *not* itself a prerelease — matches
-/// upstream's `semver.prerelease(version, true)` guard.
+/// when the current version is *not* itself a prerelease.
 ///
 /// Fails closed: a prior version whose manifest is listed but does
 /// not decode makes the scan error rather than skip — skipping could
@@ -219,8 +209,7 @@ fn detect_strongest_trust_evidence_before(
         // rather than aborting the entire history walk: a single
         // prior version with no `time` entry would otherwise mask
         // every earlier version's evidence and allow a downgrade
-        // to slip through. Matches the upstream behavior of
-        // checking each timestamp in isolation.
+        // to slip through. Each timestamp is checked in isolation.
         let Some(ts) = meta.published_at(version) else {
             continue;
         };
@@ -257,8 +246,7 @@ fn detect_strongest_trust_evidence_before(
 }
 
 /// Classify the strongest supply-chain evidence a single version
-/// exposes. Mirrors pnpm's
-/// [`getTrustEvidence`](https://github.com/pnpm/pnpm/blob/a6f303c2ff6ba83df17a47f10a0fe1d7ff8a083c/pnpm11/resolving/npm-resolver/src/trustChecks.ts#L123-L134).
+/// exposes.
 #[must_use]
 pub fn get_trust_evidence(version: &PackageVersion) -> Option<TrustEvidence> {
     let has_approver = version.npm_user.as_ref().and_then(|user| user.approver.as_ref()).is_some();

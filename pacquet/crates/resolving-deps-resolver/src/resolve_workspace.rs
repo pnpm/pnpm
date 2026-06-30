@@ -1,10 +1,8 @@
-//! Multi-importer entry point for an install pass. Mirrors pnpm's
-//! [`resolveDependencies`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-resolver/src/index.ts#L128)
-//! shape: take every workspace project the install touches, run the
-//! per-importer hoist + peer-resolution loop with shared cross-importer
-//! caches, and emit the combined `DependenciesGraph` plus the
-//! per-importer `direct_dependencies_by_importer` map the install
-//! layer consumes.
+//! Multi-importer entry point for an install pass: take every workspace
+//! project the install touches, run the per-importer hoist +
+//! peer-resolution loop with shared cross-importer caches, and emit the
+//! combined `DependenciesGraph` plus the per-importer
+//! `direct_dependencies_by_importer` map the install layer consumes.
 //!
 //! The cross-importer cache that matters for performance lives on the
 //! peer walker (`peersCache` + `purePkgs`); making it workspace-wide
@@ -51,11 +49,10 @@ pub struct WorkspaceResolveOptions {
     /// `true` enables [`fn@crate::resolve_peers_workspace`]'s peer-
     /// dependent dedupe pass — peer-suffixed variants of one package
     /// that are a subset of a larger compatible variant collapse into
-    /// it. Mirrors pnpm's `dedupePeerDependents` setting (default
-    /// `true`).
+    /// it. Maps to the `dedupePeerDependents` setting (default `true`).
     pub dedupe_peer_dependents: bool,
     /// When true, non-root importers can resolve peers from the
-    /// workspace root's direct dependencies. Mirrors pnpm's
+    /// workspace root's direct dependencies. Maps to the
     /// `resolvePeersFromWorkspaceRoot` setting.
     pub resolve_peers_from_workspace_root: bool,
     /// Threaded into [`ResolvePeersOptions::exclude_links_from_lockfile`]
@@ -81,9 +78,7 @@ pub struct WorkspaceResolveOptions {
     /// every importer's direct deps to find the newest publication
     /// date, then constrains all transitive deps to versions published
     /// no later than that (plus a one-hour delta), clamped by any
-    /// `minimumReleaseAge` cutoff. Mirrors pnpm's
-    /// [`getPublishedByDate`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/deps-resolver/src/resolveDependencies.ts#L506-L517)
-    /// step.
+    /// `minimumReleaseAge` cutoff.
     pub time_based: bool,
 
     /// The prior `pnpm-lock.yaml` the install started from, when one
@@ -109,10 +104,10 @@ pub struct WorkspaceResolveOptions {
 
     /// The install's `autoInstallPeers` setting, threaded onto the
     /// shared [`WorkspaceTreeCtx`] so the tree walk drops
-    /// peer-shadowed `dependencies` entries the way pnpm does. Also
-    /// overrides every per-importer
+    /// peer-shadowed `dependencies` entries. Also overrides every
+    /// per-importer
     /// [`crate::ResolveImporterOptions::auto_install_peers`] — the
-    /// setting is workspace-wide, like pnpm's `autoInstallPeers`.
+    /// setting is workspace-wide.
     pub auto_install_peers: bool,
     /// Resolved registry map (`"default"` + per-scope), for
     /// materializing a prior `Registry` lockfile resolution back into
@@ -137,9 +132,7 @@ pub struct ResolveWorkspaceResult {
 /// `per_importer_options` is invoked per importer to build that
 /// importer's own [`ResolveImporterOptions`] — the install layer owns
 /// the per-importer wiring (project dir, modules dir, lockfile dir,
-/// exclude-links-from-lockfile, etc.). The closure shape mirrors how
-/// pnpm constructs `ImporterToResolve` per project inside
-/// [`resolveDependencyTree`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-resolver/src/resolveDependencyTree.ts#L236).
+/// exclude-links-from-lockfile, etc.).
 pub async fn resolve_workspace<'a, Chain, BuildImporterOptions>(
     resolver: &Chain,
     importers: &[WorkspaceImporter<'a>],
@@ -182,10 +175,10 @@ where
 
     // Build every importer's options up front so the `time-based`
     // pre-pass and the resolve loop see the same per-importer wiring.
-    // `auto_install_peers` is workspace-wide (one setting per install,
-    // like pnpm's `autoInstallPeers`), so the workspace-level value
-    // overrides whatever the per-importer callback set — the importer
-    // hoist loop and the tree walk's shadow pruning must agree.
+    // `auto_install_peers` is workspace-wide (one setting per install),
+    // so the workspace-level value overrides whatever the per-importer
+    // callback set — the importer hoist loop and the tree walk's shadow
+    // pruning must agree.
     let importer_opts: Vec<ResolveImporterOptions> = importers
         .iter()
         .map(&mut per_importer_options)
@@ -197,8 +190,7 @@ where
 
     // The `minimumReleaseAge` cutoff is set uniformly on every
     // importer's `base_opts.published_by` by the install layer; it is
-    // pnpm's `maximumPublishedBy`, the upper bound on the time-based
-    // cutoff.
+    // the upper bound on the time-based cutoff.
     let maximum_published_by = importer_opts.first().and_then(|opts| opts.base_opts.published_by);
     let subdep_published_by = if time_based {
         compute_time_based_cutoff(
@@ -216,8 +208,8 @@ where
 
     // Phase 1: every importer's initial wave resolves before any peer
     // hoist runs, then hoist rounds repeat across all importers until
-    // none hoists — upstream's `resolveRootDependencies` barrier, so
-    // an optional-peer pick sees every importer's resolved versions.
+    // none hoists — a workspace-wide barrier, so an optional-peer pick
+    // sees every importer's resolved versions.
     let mut states = Vec::with_capacity(importers.len());
     let mut input_dirs = Vec::with_capacity(importers.len());
     for (importer_order, (importer, mut importer_opts)) in
@@ -301,8 +293,6 @@ where
 /// Resolve every importer's direct dependencies and derive the
 /// `time-based` publish-date cutoff for transitive deps.
 ///
-/// Mirrors pnpm's
-/// [`getPublishedByDate` + clamp](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/deps-resolver/src/resolveDependencies.ts#L506-L517).
 /// Only the direct deps' `published_at` is read here, so the throwaway
 /// resolves warm the resolver's packument cache for the real walk that
 /// follows. Resolver errors are ignored here — the real walk surfaces

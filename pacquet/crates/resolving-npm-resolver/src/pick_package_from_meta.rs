@@ -1,8 +1,5 @@
 //! Pure version-picking logic over an already-fetched packument.
 //!
-//! Ports pnpm's
-//! [`pickPackageFromMeta.ts`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/npm-resolver/src/pickPackageFromMeta.ts).
-//!
 //! Three call sites converge on this module:
 //!
 //! - [`pick_package_from_meta`] — given a parsed
@@ -42,10 +39,8 @@ use pacquet_resolving_resolver_base::{
     VersionSelectorEntry, VersionSelectorType, VersionSelectors, parse_packument_timestamp,
 };
 
-/// Discriminator for [`RegistryPackageSpec::spec_type`]. Mirrors
-/// upstream's
-/// [`'tag' | 'version' | 'range'`](https://github.com/pnpm/pnpm/blob/a6f303c2ff6ba83df17a47f10a0fe1d7ff8a083c/pnpm11/resolving/npm-resolver/src/parseBareSpecifier.ts#L7-L11)
-/// triple.
+/// Discriminator for [`RegistryPackageSpec::spec_type`]: the
+/// `tag` / `version` / `range` triple.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RegistryPackageSpecType {
     /// Exact version pin, e.g. `1.2.3`.
@@ -56,11 +51,9 @@ pub enum RegistryPackageSpecType {
     Range,
 }
 
-/// Parsed registry spec produced by upstream's
-/// [`parseBareSpecifier`](https://github.com/pnpm/pnpm/blob/a6f303c2ff6ba83df17a47f10a0fe1d7ff8a083c/pnpm11/resolving/npm-resolver/src/parseBareSpecifier.ts#L7-L12).
-/// The picker (and the cache+fetch wrapper above it) consume this
-/// shape; the parser that produces it is its own port and is not part
-/// of this module.
+/// Parsed registry spec produced by the bare-specifier parser. The
+/// picker (and the cache+fetch wrapper above it) consume this shape;
+/// the parser that produces it lives in its own module.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RegistryPackageSpec {
     pub name: String,
@@ -73,8 +66,7 @@ pub struct RegistryPackageSpec {
     pub normalized_bare_specifier: Option<String>,
 }
 
-/// Options bundle for [`pick_package_from_meta`]. Mirrors upstream's
-/// [`PickPackageFromMetaOptions`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/npm-resolver/src/pickPackageFromMeta.ts#L21-L25).
+/// Options bundle for [`pick_package_from_meta`].
 #[derive(Debug, Default)]
 pub struct PickPackageFromMetaOptions<'a> {
     /// Per-importer hints biasing the range picker toward previously-
@@ -92,37 +84,32 @@ pub struct PickPackageFromMetaOptions<'a> {
     pub published_by_exclude: Option<&'a PackageVersionPolicy>,
 }
 
-/// Error from [`pick_package_from_meta`] and friends. The codes match
-/// upstream's `PnpmError` shape so the install layer's error handler
+/// Error from [`pick_package_from_meta`] and friends. The codes are
+/// part of the public contract so the install layer's error handler
 /// can switch on them by string.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum PickPackageFromMetaError {
-    /// Mirrors upstream's
-    /// [`ERR_PNPM_UNPUBLISHED_PKG`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/npm-resolver/src/pickPackageFromMeta.ts#L61):
-    /// the packument has no live versions AND lists unpublished
-    /// versions under `time.unpublished`.
+    /// `ERR_PNPM_UNPUBLISHED_PKG`: the packument has no live versions
+    /// AND lists unpublished versions under `time.unpublished`.
     #[display("No versions available for {pkg_name} because it was unpublished")]
     #[diagnostic(code(ERR_PNPM_UNPUBLISHED_PKG))]
     Unpublished {
         #[error(not(source))]
         pkg_name: String,
     },
-    /// Mirrors upstream's
-    /// [`ERR_PNPM_NO_VERSIONS`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/npm-resolver/src/pickPackageFromMeta.ts#L63):
-    /// the packument has no versions at all (and no unpublished
-    /// marker to disambiguate).
+    /// `ERR_PNPM_NO_VERSIONS`: the packument has no versions at all
+    /// (and no unpublished marker to disambiguate).
     #[display("No versions available for {pkg_name}. The package may be unpublished.")]
     #[diagnostic(code(ERR_PNPM_NO_VERSIONS))]
     NoVersions {
         #[error(not(source))]
         pkg_name: String,
     },
-    /// Mirrors upstream's
-    /// [`ERR_PNPM_MISSING_TIME`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/npm-resolver/src/pickPackageFromMeta.ts#L112):
-    /// `minimumReleaseAge` is active, the packument has no per-version
-    /// `time`, and `modified` is missing/invalid or past the cutoff —
-    /// the picker can't decide which versions are mature.
+    /// `ERR_PNPM_MISSING_TIME`: `minimumReleaseAge` is active, the
+    /// packument has no per-version `time`, and `modified` is
+    /// missing/invalid or past the cutoff — the picker can't decide
+    /// which versions are mature.
     #[display(r#"The metadata of {pkg_name} is missing the "time" field"#)]
     #[diagnostic(code(ERR_PNPM_MISSING_TIME))]
     MissingTime {
@@ -131,8 +118,7 @@ pub enum PickPackageFromMetaError {
     },
 }
 
-/// Pure picker entry point. Mirrors upstream's
-/// [`pickPackageFromMeta`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/npm-resolver/src/pickPackageFromMeta.ts#L27-L108).
+/// Pure picker entry point.
 ///
 /// `pick_version_by_range` is dependency-injected so the caller can
 /// pick the high-side ([`pick_version_by_version_range`]) or low-side
@@ -154,9 +140,9 @@ pub fn pick_package_from_meta<PickFn>(
 where
     PickFn: Fn(&PickVersionByVersionRangeOptions<'_>) -> Option<String>,
 {
-    // Match upstream's "owned-after-filter" shape: when publishedBy
-    // is active and a maturity filter applies, swap `meta` for a
-    // filtered clone — otherwise borrow the input through.
+    // "Owned-after-filter" shape: when publishedBy is active and a
+    // maturity filter applies, swap `meta` for a filtered clone —
+    // otherwise borrow the input through.
     let filtered;
     let meta_ref: &Package = match opts.published_by {
         Some(cutoff) => {
@@ -238,8 +224,7 @@ where
         if !meta_now.name.is_empty() && manifest.name != meta_now.name {
             // GitHub registry quirk: a scoped package can be published as
             // `@owner/foo` while the per-version `name` is just `foo`.
-            // Match upstream's shim that pins the manifest name to the
-            // packument-level name.
+            // Pin the manifest name to the packument-level name.
             let mut pinned = (*manifest).clone();
             pinned.name.clone_from(&meta_now.name);
             return Ok(Some(Arc::new(pinned)));
@@ -272,29 +257,23 @@ fn without_version(meta: &Package, version: &str) -> Package {
     }
 }
 
-/// Per-call inputs to the range-picker pluggable. Mirrors upstream's
-/// [`PickVersionByVersionRangeOptions`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/npm-resolver/src/pickPackageFromMeta.ts#L12-L17).
+/// Per-call inputs to the range-picker pluggable.
 pub struct PickVersionByVersionRangeOptions<'a> {
     pub meta: &'a Package,
     pub version_range: &'a str,
     pub preferred_version_selectors: Option<&'a VersionSelectors>,
-    /// Threaded through for parity with upstream. Neither
-    /// [`pick_version_by_version_range`] nor
+    /// Neither [`pick_version_by_version_range`] nor
     /// [`pick_lowest_version_by_version_range`] reads it — the
     /// filtering already happened in [`pick_package_from_meta`] —
     /// but the field stays on the options so a custom picker (e.g.
-    /// the one upstream's
-    /// [`pickRespectingMinReleaseAge`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/npm-resolver/src/pickPackage.ts#L111-L123)
-    /// uses) can branch on it.
+    /// the min-release-age picker) can branch on it.
     pub published_by: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 /// Pick the **highest** version in `meta.versions` satisfying
 /// `version_range`. Honors the `preferred_version_selectors` bias
 /// when supplied, and falls back to a non-deprecated retry when the
-/// top pick is deprecated and other versions are available. Mirrors
-/// upstream's
-/// [`pickVersionByVersionRange`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/npm-resolver/src/pickPackageFromMeta.ts#L168-L203).
+/// top pick is deprecated and other versions are available.
 pub fn pick_version_by_version_range(
     opts: &PickVersionByVersionRangeOptions<'_>,
 ) -> Option<String> {
@@ -349,8 +328,7 @@ pub fn pick_version_by_version_range(
 
 /// Pick the **lowest** version in `meta.versions` satisfying
 /// `version_range`. Honors the `preferred_version_selectors` bias
-/// when supplied. Mirrors upstream's
-/// [`pickLowestVersionByVersionRange`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/npm-resolver/src/pickPackageFromMeta.ts#L150-L166).
+/// when supplied.
 pub fn pick_lowest_version_by_version_range(
     opts: &PickVersionByVersionRangeOptions<'_>,
 ) -> Option<String> {
@@ -382,8 +360,6 @@ pub fn pick_lowest_version_by_version_range(
 /// that still belongs to the tag's original "family" (same major
 /// for non-`latest` tags, same prerelease/release status, and
 /// preferring non-deprecated versions when both are present).
-/// Mirrors upstream's
-/// [`filterPkgMetadataByPublishDate`](https://github.com/pnpm/pnpm/blob/a6f303c2ff6ba83df17a47f10a0fe1d7ff8a083c/pnpm11/resolving/registry/pkg-metadata-filter/src/index.ts#L5-L82).
 ///
 /// Panics if `meta.time` is `None` — the caller (the publishedBy
 /// branch in [`pick_package_from_meta`]) only invokes this with full
@@ -444,7 +420,7 @@ fn repopulate_dist_tags(
     let mut dist_tags_within_date = std::collections::HashMap::new();
     // Candidate versions parsed once per filter call and shared by
     // every repopulated tag, with the deprecation flag resolved
-    // lazily per candidate — mirrors upstream's `parsedSemverCache`.
+    // lazily per candidate.
     // Deprecation goes through [`PackageVersions::is_deprecated`]
     // instead of hydrating each candidate's manifest; the hydration
     // per comparison dominated warm-resolve CPU on packuments with
@@ -500,9 +476,7 @@ fn repopulate_dist_tags(
 }
 
 /// Group versions by weight (highest weight first); each group is
-/// the input to a single max/min-satisfying call. Mirrors
-/// upstream's
-/// [`prioritizePreferredVersions`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/npm-resolver/src/pickPackageFromMeta.ts#L205-L249).
+/// the input to a single max/min-satisfying call.
 fn prioritize_preferred_versions(
     meta: &Package,
     version_range: &str,
@@ -556,10 +530,9 @@ fn prioritize_preferred_versions(
     prioritizer.versions_by_priority()
 }
 
-/// Group-by-weight accumulator. Matches upstream's JS class
-/// [`PreferredVersionsPrioritizer`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/npm-resolver/src/pickPackageFromMeta.ts#L251-L273)
-/// — including the quirk that weight `0` acts as a sentinel a later
-/// non-zero `add` overwrites rather than sums with.
+/// Group-by-weight accumulator, including the quirk that weight `0`
+/// acts as a sentinel a later non-zero `add` overwrites rather than
+/// sums with.
 #[derive(Default)]
 struct PreferredVersionsPrioritizer {
     preferred_versions: BTreeMap<String, u32>,
@@ -590,9 +563,7 @@ impl PreferredVersionsPrioritizer {
 }
 
 /// Process-global cache of parsed [`Range`]s keyed by their source
-/// string. Mirrors upstream's
-/// [`semverRangeCache`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/npm-resolver/src/pickPackageFromMeta.ts#L123-L148):
-/// most installs hit the same handful of ranges thousands of times
+/// string. Most installs hit the same handful of ranges thousands of times
 /// (the `*` from a CLI add, the `^X` from manifest entries, the few
 /// dist-tag fall-backs in `preferred_version_selectors`), and reparsing
 /// each is the picker's hottest cost. The cache stores `Option<Arc<Range>>`

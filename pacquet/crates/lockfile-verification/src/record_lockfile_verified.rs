@@ -1,9 +1,6 @@
 //! Thin wrapper around [`record_verification`] for callers that hold
 //! a freshly-written lockfile.
 //!
-//! Mirrors pnpm's
-//! [`recordLockfileVerified.ts`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/recordLockfileVerified.ts).
-//!
 //! After resolution writes a new lockfile, the install path uses this
 //! wrapper to mark the new lockfile as already-verified so the
 //! *next* install can take the cache fast path. Skipping the gate on
@@ -13,7 +10,7 @@
 //!
 //! The function is a no-op when caching is disabled, when no
 //! verifiers are active, or when the lockfile has no `packages:`
-//! section — same guards upstream uses.
+//! section.
 
 use std::{path::Path, sync::Arc};
 
@@ -26,7 +23,6 @@ use crate::{
 };
 
 /// Persist the post-resolution lockfile as already-verified.
-/// Inputs match upstream's `RecordLockfileVerifiedOptions`:
 /// `cache_dir` enables the cache, `lockfile_path` is the absolute
 /// path of the file the next install will read, `lockfile` is the
 /// canonical in-memory shape that round-trips through the writer

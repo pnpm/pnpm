@@ -179,9 +179,7 @@ async fn run_emits_imported_event_after_import_indexed_dir() {
 
 /// A warm reinstall that drops a child dependency unlinks the stale
 /// symlink (and its now-empty `@scope` directory) while leaving the
-/// children it still depends on in place. Ports the "removes obsolete
-/// child links" case from upstream's `relinkingScope.test.ts` at
-/// <https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-installer/test/install/relinkingScope.test.ts#L85>.
+/// children it still depends on in place.
 #[tokio::test]
 async fn run_removes_obsolete_child_links() {
     use pacquet_reporter::SilentReporter;

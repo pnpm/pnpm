@@ -82,9 +82,6 @@ fn duplicate_specs_collapse_in_set() {
 }
 
 // ─── create_package_version_policy ────────────────────────────────────
-//
-// Ports the upstream test cases at
-// <https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/version-policy/test/index.ts#L8-L55>.
 
 #[test]
 fn create_policy_exact_version_match_returns_versions() {

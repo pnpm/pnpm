@@ -1,5 +1,4 @@
-//! Pacquet port of
-//! [`getNodeArtifactAddress.ts`](https://github.com/pnpm/pnpm/blob/1627943d2a/engine/runtime/node-resolver/src/getNodeArtifactAddress.ts).
+//! Composes the archive URL pieces for one Node.js platform variant.
 
 use crate::normalize_arch::get_normalized_arch;
 
@@ -7,10 +6,8 @@ use crate::normalize_arch::get_normalized_arch;
 ///
 /// Splitting them keeps the caller free to compose either the URL
 /// (`{dirname}/{basename}{extname}`) or the zip-prefix
-/// (`{basename}`) — pnpm's
-/// [`BinaryResolution.prefix`](https://github.com/pnpm/pnpm/blob/94240bc046/resolving/resolver-base/src/index.ts#L41-L49)
-/// needs only the basename, while the `url` field needs the full
-/// concatenation.
+/// (`{basename}`) — `BinaryResolution.prefix` needs only the
+/// basename, while the `url` field needs the full concatenation.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NodeArtifactAddress {
     pub basename: String,
@@ -20,8 +17,8 @@ pub struct NodeArtifactAddress {
 
 /// Options bundle for [`get_node_artifact_address`].
 ///
-/// `libc` only ever takes `Some("musl")` upstream — glibc is the
-/// implicit default and is *not* included in the archive name. The
+/// `libc` only ever takes `Some("musl")` — glibc is the implicit
+/// default and is *not* included in the archive name. The
 /// type is `Option<&str>` so future libc additions don't churn the
 /// API.
 #[derive(Debug, Clone, Copy)]

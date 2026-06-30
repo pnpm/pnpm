@@ -100,8 +100,7 @@ impl Remove<'_> {
             lockfile_path,
             // `pnpm remove`'s `include` defaults to every dependency
             // group (`production`/`dev`/`optional` !== false), so the
-            // re-resolve walks all three. Mirrors upstream's `include`
-            // at <https://github.com/pnpm/pnpm/blob/9cad8274fd/installing/commands/src/remove.ts>.
+            // re-resolve walks all three.
             dependency_groups: [
                 DependencyGroup::Prod,
                 DependencyGroup::Dev,
@@ -117,10 +116,10 @@ impl Remove<'_> {
             skip_runtimes: config.skip_runtimes,
             trust_lockfile: config.trust_lockfile,
             update_checksums: false,
-            // `pacquet remove` is a partial install (pnpm's
-            // `mutation: 'uninstallSome'`), so the root project's own
-            // lifecycle scripts must not run — mirroring pnpm's
-            // `mutation === 'install'` filter.
+            // `pacquet remove` is a partial install (an
+            // `uninstallSome` mutation), so the root project's own
+            // lifecycle scripts must not run — they fire only on a full
+            // install.
             is_full_install: false,
             resolved_packages,
             supported_architectures,
@@ -161,9 +160,7 @@ impl Remove<'_> {
 }
 
 /// The up-front guards `pacquet remove` applies before mutating the
-/// manifest or running any install — both fail fast, matching pnpm's
-/// `remove` handler at
-/// <https://github.com/pnpm/pnpm/blob/9cad8274fd/installing/commands/src/remove.ts>.
+/// manifest or running any install — both fail fast.
 fn validate_removable(
     manifest: &PackageManifest,
     package_names: &[String],
@@ -183,9 +180,8 @@ fn validate_removable(
     Err(cannot_remove_missing_deps(&available_dependencies, &non_matched_dependencies, save_type))
 }
 
-/// Build the `ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS` error, mirroring
-/// upstream's `RemoveMissingDepsError` message and hint at
-/// <https://github.com/pnpm/pnpm/blob/9cad8274fd/installing/commands/src/remove.ts>.
+/// Build the `ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS` error, with its
+/// message and hint.
 fn cannot_remove_missing_deps(
     available_dependencies: &[String],
     non_matched_dependencies: &[&String],

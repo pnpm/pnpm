@@ -413,9 +413,8 @@ fn metadata_with_os(os: &str) -> PackageMetadata {
     PackageMetadata { os: Some(vec![os.to_string()]), ..metadata_stub() }
 }
 
-/// Mirrors upstream's
-/// `if (!opts.force && packageIsInstallable(...) === false) {
-/// opts.skipped.add(depPath); return; }`.
+/// When `force` is off and the package is not installable, the
+/// dep path is added to the skipped set and the walk skips it.
 #[test]
 fn walker_skips_optional_dep_on_unsupported_platform() {
     let mut root_deps = ResolvedDependencyMap::new();
@@ -445,10 +444,10 @@ fn walker_skips_optional_dep_on_unsupported_platform() {
 }
 
 /// Required (non-optional) package on an unsupported platform
-/// proceeds with a warning rather than erroring — mirrors
-/// upstream `package_is_installable`'s `true` return for the
-/// required-incompatible case (only `engineStrict + engine
-/// mismatch` and `InvalidNodeVersion` actually throw). The
+/// proceeds with a warning rather than erroring — for the
+/// required-incompatible case `package_is_installable` returns
+/// `true` (only `engineStrict + engine mismatch` and
+/// `InvalidNodeVersion` actually throw). The
 /// warning log emit is out of scope here; the walker proceeds
 /// silently for now.
 #[test]
@@ -460,7 +459,7 @@ fn walker_emits_required_dep_with_unsupported_platform_as_warning() {
     packages.insert(dep_key("a", "1.0.0"), metadata_with_os("darwin"));
 
     let mut snapshots = HashMap::new();
-    // optional: false — upstream's `packageIsInstallable`
+    // optional: false — `package_is_installable`
     // returns `true` (warn but proceed) rather than `false`.
     snapshots.insert(dep_key("a", "1.0.0"), SnapshotEntry::default());
 
@@ -473,9 +472,8 @@ fn walker_emits_required_dep_with_unsupported_platform_as_warning() {
 }
 
 /// `engineStrict = true` + engine mismatch surfaces as
-/// `HoistedDepGraphError::Installability`. Mirrors upstream's
-/// `throw warn` path in `packageIsInstallable` when
-/// `engineStrict && warn instanceof UnsupportedEngineError`.
+/// `HoistedDepGraphError::Installability`: the `engineStrict + engine
+/// mismatch` case throws.
 #[test]
 fn walker_errors_on_engine_strict_mismatch() {
     let mut root_deps = ResolvedDependencyMap::new();
@@ -556,10 +554,9 @@ fn walker_emits_compatible_dep() {
 
 // --- prev_graph tests ------------------------------------------------
 
-/// Mirrors upstream's `prevGraph = {}` fallback when no current
-/// lockfile is supplied — pacquet uses `None` instead of an
-/// empty map, but the linker treats the two the same way (no
-/// orphans to remove on a fresh install).
+/// When no current lockfile is supplied, `prev_graph` is `None`
+/// (the empty-graph fallback) — the linker treats it the same as an
+/// empty map (no orphans to remove on a fresh install).
 #[test]
 fn prev_graph_none_when_current_lockfile_absent() {
     let mut root_deps = ResolvedDependencyMap::new();
@@ -582,7 +579,7 @@ fn prev_graph_none_when_current_lockfile_absent() {
     assert_eq!(result.graph.len(), 1, "wanted lockfile still produces the graph");
 }
 
-/// Mirrors upstream's `currentLockfile?.packages != null` guard.
+/// A current lockfile with no `packages` map yields no `prev_graph`.
 #[test]
 fn prev_graph_none_when_current_lockfile_has_no_packages() {
     let mut root_deps = ResolvedDependencyMap::new();
@@ -701,9 +698,7 @@ fn prev_graph_contains_orphan_from_current_only_lockfile() {
 
 /// The prev-graph walk uses `force: true, skipped: empty` so
 /// the *current* layout is preserved even for packages that
-/// would now fail installability. Mirrors upstream's
-/// `{ ...opts, force: true, skipped: new Set() }` override at
-/// [lockfileToHoistedDepGraph.ts:72-76](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/src/lockfileToHoistedDepGraph.ts#L72-L76).
+/// would now fail installability.
 /// Without this, an orphan that targets an unsupported platform
 /// wouldn't appear in `prev_graph` and the linker would leave
 /// the stale directory in place.
@@ -864,8 +859,8 @@ fn walker_multi_importer_emits_per_importer_hierarchy() {
 /// `Workspace`-kind children to fan out into, so only the
 /// root importer's direct deps + hierarchy are emitted.
 /// Non-root importers stay absent from
-/// `direct_dependencies_by_importer_id`. Mirrors upstream's
-/// per-project independent hoist mode.
+/// `direct_dependencies_by_importer_id` (per-project independent
+/// hoist mode).
 #[test]
 fn walker_hoist_workspace_packages_false_emits_root_only() {
     let mut root_deps = ResolvedDependencyMap::new();
@@ -947,9 +942,8 @@ fn walker_multi_importer_version_conflict_nests_loser() {
 /// root's version wins the top-level `node_modules` slot and the
 /// project's version nests under the project. Locks in the popularity
 /// preference (root deps rank first) together with the per-importer
-/// walk. Mirrors upstream's `installing/deps-restorer/test/index.ts`
-/// workspace-hoisted case where the root's `webpack@5.65.0` lands at
-/// the root and `foo`'s `webpack@2.7.0` nests under `foo`.
+/// walk: in the workspace-hoisted case the root's `webpack@5.65.0`
+/// lands at the root and `foo`'s `webpack@2.7.0` nests under `foo`.
 #[test]
 fn walker_workspace_root_version_wins_root_slot() {
     let mut root_deps = ResolvedDependencyMap::new();
@@ -1033,7 +1027,7 @@ fn walker_forwards_external_dependencies_to_hoister() {
 /// node is inserted or the walker recurses. `PkgName::parse` is
 /// permissive enough to carry such an alias straight out of a
 /// deserialized lockfile, so this is the boundary that stops it.
-/// Mirrors pnpm's `ERR_PNPM_INVALID_DEPENDENCY_NAME`; `force: true`
+/// Surfaces `ERR_PNPM_INVALID_DEPENDENCY_NAME`; `force: true`
 /// skips installability so the walk reaches the alias sink directly.
 #[test]
 fn walker_rejects_invalid_hoisted_alias() {

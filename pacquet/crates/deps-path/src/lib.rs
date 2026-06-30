@@ -1,6 +1,3 @@
-//! Pacquet port of pnpm's
-//! [`@pnpm/deps.path`](https://github.com/pnpm/pnpm/blob/097983fbca/deps/path/src/index.ts).
-//!
 //! String manipulation over depPaths (`name@version(peer1@v)(peer2@v)`).
 //! Pacquet already carries typed parsers for the simple shapes
 //! (`pacquet_lockfile::PkgNameVerPeer` et al. — referenced as plain

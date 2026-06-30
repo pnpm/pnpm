@@ -4,10 +4,9 @@ use crate::lexical_normalize;
 
 /// Whether `child` lexically resolves to a path under `parent`.
 ///
-/// Mirrors npm's [`is-subdir`](https://github.com/zkochan/packages/blob/main/is-subdir/index.js)
-/// — the same helper pnpm uses for guards like
-/// [`isSubdir(opts.lockfileDir, linkedDependency.resolution.directory)`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-resolver/src/index.ts#L235).
-/// Filesystem-free: both paths are lexically normalised
+/// Mirrors npm's [`is-subdir`](https://github.com/zkochan/packages/blob/main/is-subdir/index.js),
+/// used to guard against linking dependencies outside the workspace
+/// root. Filesystem-free: both paths are lexically normalised
 /// (`.` / `..` collapsed) before the prefix check, so callers can
 /// run this against targets that don't exist yet.
 #[must_use]

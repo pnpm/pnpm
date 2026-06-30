@@ -3,13 +3,10 @@
 //!
 //! `BuildModules`'s `is_built` gate needs to call
 //! `calc_dep_state(graph, ...)` per snapshot to compute the
-//! side-effects-cache key. Upstream's `DepsGraph` is built from the
-//! lockfile via `lockfileToDepGraph` at
-//! <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/deps/graph-builder/src/lockfileToDepGraph.ts>;
-//! this module ports the subset pacquet needs — `full_pkg_id`
-//! derivation per [`createFullPkgId`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/deps/graph-hasher/src/index.ts#L263-L292),
-//! and children-link wiring from `SnapshotEntry.dependencies` +
-//! `optional_dependencies`.
+//! side-effects-cache key. This module builds that graph from the
+//! lockfile's `snapshots` + `packages` sections — `full_pkg_id`
+//! derivation plus children-link wiring from `SnapshotEntry.dependencies`
+//! + `optional_dependencies`.
 
 use pacquet_graph_hasher::{DepsGraphNode, HashEncoding, hash_object_with_encoding};
 use pacquet_lockfile::{LockfileResolution, PackageKey, PackageMetadata, SnapshotEntry};
@@ -53,12 +50,8 @@ pub fn build_deps_graph(
 /// keys as the full graph for every root — observable behavior
 /// matches [`build_deps_graph`] for the inputs we care about.
 ///
-/// Upstream's [`lockfileToDepGraph`](https://github.com/pnpm/pnpm/blob/7e3145f9fc/deps/graph-builder/src/lockfileToDepGraph.ts#L123-L170)
-/// always builds the full graph because its consumers extend
-/// beyond cache hashing (hierarchy + hoisting + direct-deps map +
-/// bin linking). Pacquet only uses the graph for cache hashing
-/// today, so the trimmed walk is sound here — same cache keys,
-/// fewer cycles spent.
+/// Pacquet only uses the graph for cache hashing today, so the
+/// trimmed walk is sound here — same cache keys, fewer cycles spent.
 pub fn build_deps_subgraph<Iter>(
     snapshots: &HashMap<PackageKey, SnapshotEntry>,
     packages: &HashMap<PackageKey, PackageMetadata>,
@@ -100,25 +93,21 @@ fn build_node(
     Some(DepsGraphNode { full_pkg_id, children })
 }
 
-/// Mirrors [`createFullPkgId`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/deps/graph-hasher/src/index.ts#L263-L292).
-///
 /// Returns the `pkg_id:<...>` string used as the `id` field in
 /// `calc_dep_graph_hash`'s `{ id, deps }` object.
 fn full_pkg_id_for(pkg_key: &PackageKey, resolution: &LockfileResolution) -> String {
     // `PackageKey`'s `Display` impl produces `<name>@<ver>` — the
-    // same shape upstream's `pkgIdWithPatchHash` carries in pnpm
-    // v9 lockfiles. (Pre-v6 lockfiles used the `/<name>/<ver>`
-    // shape, but pacquet doesn't parse those.)
+    // shape the `pkgIdWithPatchHash` carries in v9 lockfiles. (Pre-v6
+    // lockfiles used the `/<name>/<ver>` shape, but pacquet doesn't
+    // parse those.)
     let pkg_id = pkg_key.to_string();
     if let Some(integrity) = resolution.integrity() {
         return format!("{pkg_id}:{integrity}");
     }
     // Fallback for non-integrity resolutions (git, directory). We
-    // serialize the resolution to a JSON value and hash it the same
-    // way upstream's `hashObject(resolution)` does. Upstream's
-    // `hashObject` defaults to base64; pacquet pins the same
-    // encoding here for byte-for-byte parity of the resulting
-    // `<pkg_id>:<digest>` string.
+    // serialize the resolution to a JSON value and hash it. The hash
+    // is base64-encoded, the encoding the resulting
+    // `<pkg_id>:<digest>` string requires.
     let resolution_value = serde_json::to_value(resolution).unwrap_or(serde_json::Value::Null);
     let hash =
         hash_object_with_encoding(&resolution_value, HashEncoding::Base64, /* sort */ true);
@@ -126,10 +115,8 @@ fn full_pkg_id_for(pkg_key: &PackageKey, resolution: &LockfileResolution) -> Str
 }
 
 /// Flatten `SnapshotEntry`'s `dependencies` + `optional_dependencies`
-/// into an `alias → PackageKey` map. Mirrors
-/// [`lockfileDepsToGraphChildren`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/deps/graph-hasher/src/index.ts#L252-L261)
-/// using pacquet's already-typed `SnapshotDepRef` instead of
-/// upstream's string reference.
+/// into an `alias → PackageKey` map, using pacquet's already-typed
+/// `SnapshotDepRef`.
 fn build_children(snapshot: &SnapshotEntry) -> HashMap<String, PackageKey> {
     let mut children = HashMap::new();
     let dep_entries = snapshot
@@ -140,9 +127,7 @@ fn build_children(snapshot: &SnapshotEntry) -> HashMap<String, PackageKey> {
     for (alias, dep_ref) in dep_entries {
         // `SnapshotDepRef::resolve` returns the `PkgNameVerPeer`
         // (= `PackageKey`) the alias points at in the `snapshots:`
-        // map. `link:` deps don't have a snapshot key — skip them,
-        // mirroring upstream's `if (childDepPath)` guard in
-        // `lockfileDepsToGraphChildren`.
+        // map. `link:` deps don't have a snapshot key — skip them.
         let Some(resolved) = dep_ref.resolve(alias) else {
             continue;
         };

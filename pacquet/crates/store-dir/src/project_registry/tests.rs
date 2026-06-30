@@ -27,11 +27,8 @@ fn path_contains_resolves_parent_components_when_paths_do_not_exist() {
     );
 }
 
-/// `create_short_hash` is sha256-hex truncated to 32 chars.
-/// Matches upstream's
-/// [`createShortHash`](https://github.com/pnpm/pnpm/blob/94240bc046/crypto/hash/src/index.ts):
-/// `crypto.hash('sha256', input, 'hex').substring(0, 32)`. Pinned
-/// vector for parity:
+/// `create_short_hash` is sha256-hex truncated to 32 chars, matching
+/// the short-hash form pnpm records. Pinned vector for parity:
 ///
 /// ```sh
 /// printf pacquet | shasum -a 256 | head -c 32
@@ -59,7 +56,7 @@ fn register_creates_symlink_to_project_dir() {
     assert_eq!(entries.len(), 1, "exactly one entry per project");
     let entry = entries.pop().unwrap().unwrap();
     // `symlink_dir` writes a path relative to the link's parent
-    // (matching upstream `symlink-dir`), so canonicalize via the
+    // (matching the `symlink-dir` package), so canonicalize via the
     // entry path itself rather than the raw `read_link` output.
     assert_eq!(
         dunce::canonicalize(entry.path()).unwrap(),

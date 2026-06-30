@@ -1,7 +1,5 @@
 use super::try_get_package_id;
 
-/// Mirrors pnpm's `tryGetPackageId` test in
-/// [`deps/path/test/index.ts`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/test/index.ts#L110-L115).
 #[test]
 fn matches_pnpm_test_cases() {
     assert_eq!(try_get_package_id("/foo@1.0.0(@types/babel__core@7.1.14)"), "/foo@1.0.0");

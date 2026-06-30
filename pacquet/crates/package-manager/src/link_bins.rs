@@ -25,8 +25,6 @@ use std::{
 /// the real package contents in the virtual store.
 ///
 /// Driven on rayon because each location's read+parse is independent.
-/// Mirrors pnpm v11's `linkBinsOfPackages` call site for direct deps:
-/// <https://github.com/pnpm/pnpm/blob/4750fd370c/installing/deps-installer/src/install/index.ts#L1539>.
 pub fn link_direct_dep_bins(modules_dir: &Path, dep_names: &[String]) -> Result<(), LinkBinsError> {
     let direct_dep_locations: Vec<PathBuf> =
         dep_names.iter().map(|name| modules_dir.join(name)).collect();
@@ -68,11 +66,8 @@ pub fn link_direct_dep_bins(modules_dir: &Path, dep_names: &[String]) -> Result<
 /// (`publicly_hoisted_aliases_with_bins`) candidates in a single
 /// [`link_bins_of_packages`] call so `pacquet_cmd_shim::pick_winner` (private)
 /// can apply [`BinOrigin::Direct`] precedence over
-/// [`BinOrigin::Hoisted`]. Mirrors upstream's
-/// [`linkBinsOfImporter`](https://github.com/pnpm/pnpm/blob/4750fd370c/installing/deps-installer/src/install/index.ts#L1539)
-/// and [`preferDirectCmds`](https://github.com/pnpm/pnpm/blob/4750fd370c/bins/linker/src/index.ts#L92)
-/// — a hoisted (transitive) dep's bin must never shadow a direct
-/// dep's bin with the same name.
+/// [`BinOrigin::Hoisted`] — a hoisted (transitive) dep's bin must
+/// never shadow a direct dep's bin with the same name.
 ///
 /// Two-list shape (rather than a single tagged list) keeps the call
 /// site cheap: callers already have these names in separate
@@ -82,12 +77,11 @@ pub fn link_direct_dep_bins(modules_dir: &Path, dep_names: &[String]) -> Result<
 /// `publicly_hoisted_aliases_with_bins`. Joining them upthread
 /// would force every caller to allocate a tagged `Vec`.
 ///
-/// Ports of upstream pnpm's flow that lifecycle-script-created
-/// bins should pick up the post-install state of `package.json`
-/// (a `postinstall` script can write a binary that didn't exist at
-/// extract time and pacquet must shim it). The caller schedules
-/// this pass *after* `BuildModules` runs so the manifests-on-disk
-/// reflect the post-script state.
+/// Lifecycle-script-created bins must pick up the post-install
+/// state of `package.json` (a `postinstall` script can write a
+/// binary that didn't exist at extract time and pacquet must shim
+/// it). The caller schedules this pass *after* `BuildModules` runs
+/// so the manifests-on-disk reflect the post-script state.
 pub fn link_top_level_bins(
     modules_dir: &Path,
     direct_dep_names: &[String],
@@ -103,11 +97,9 @@ pub fn link_top_level_bins(
     // Skip hoisted aliases that already appear under a direct
     // name. Reading the same `package.json` twice wouldn't change
     // the outcome — `pick_winner` would pick the Direct copy
-    // anyway — but the work is wasted, and de-duplicating here
-    // mirrors upstream's
-    // [`preferDirectCmds`](https://github.com/pnpm/pnpm/blob/4750fd370c/bins/linker/src/index.ts#L92)
-    // partition shape (filter out hoisted candidates whose name
-    // already appears in the direct set).
+    // anyway — but the work is wasted, so de-duplicate here by
+    // filtering out hoisted candidates whose name already appears
+    // in the direct set.
     let direct_set: HashSet<&str> = direct_dep_names.iter().map(String::as_str).collect();
     let hoisted_only: Vec<String> = hoisted_dep_names
         .iter()
@@ -174,17 +166,14 @@ pub enum LinkVirtualStoreBinsError {
 /// link the bins of that slot's child packages into the slot's *own*
 /// `node_modules/.bin` directory.
 ///
-/// This mirrors `linkBinsOfDependencies` in pnpm's `building/during-install`
-/// (see <https://github.com/pnpm/pnpm/blob/4750fd370c/building/during-install/src/index.ts#L258-L309>).
-/// pnpm walks each `depNode`, takes its `children` (its direct deps in the
-/// resolved graph) and writes their bins into
-/// `<depNode.dir>/node_modules/.bin`.
+/// Each slot's children (its direct deps in the resolved graph)
+/// contribute their bins into `<slot.dir>/node_modules/.bin`.
 ///
 /// Pacquet's virtual store layout already exposes a slot's children as
 /// siblings via [`create_symlink_layout`](crate::create_symlink_layout()).
 /// So once the symlinks exist, walking
-/// the slot's `node_modules` and excluding the package itself gives the same
-/// child-set pnpm uses, and the bins go into the package's own
+/// the slot's `node_modules` and excluding the package itself gives the
+/// child-set to link, and the bins go into the package's own
 /// `node_modules/.bin` (i.e. nested *one level deeper* than the slot's
 /// `node_modules` directory).
 ///
@@ -196,10 +185,7 @@ pub enum LinkVirtualStoreBinsError {
 ///
 /// When `snapshots` is `Some` (the frozen-lockfile case), the slot
 /// set is taken from the lockfile and each child's manifest is
-/// looked up in `package_manifests` rather than read off disk —
-/// matching pnpm's `linkBinsOfDependencies` which consumes
-/// `bundledManifest` straight out of the `SQLite` store index (see
-/// <https://github.com/pnpm/pnpm/blob/4750fd370c/building/during-install/src/index.ts#L289>).
+/// looked up in `package_manifests` rather than read off disk.
 /// When `snapshots` is `None` (install without a lockfile), the
 /// linker falls back to enumerating slots and reading manifests via
 /// the filesystem.
@@ -218,9 +204,7 @@ pub struct LinkVirtualStoreBins<'a> {
     pub snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
     /// Lockfile `packages:` section, indexed by `PkgNameVerPeer`
     /// (without peer suffix). Used to filter children by
-    /// `hasBin == true` *before* any per-child IO — mirrors pnpm's
-    /// `dep.hasBin` filter in
-    /// [`linkBinsOfDependencies`](https://github.com/pnpm/pnpm/blob/4750fd370c/building/during-install/src/index.ts#L283).
+    /// `hasBin == true` *before* any per-child IO.
     /// Most packages don't declare a bin, so this short-circuits the
     /// bulk of the per-slot work before any path-building or manifest
     /// lookup happens.
@@ -285,11 +269,9 @@ impl LinkVirtualStoreBins<'_> {
 }
 
 /// Pre-compute the set of package keys whose lockfile metadata sets
-/// `hasBin: true`. Mirrors pnpm's filter at
-/// [`during-install/src/index.ts:283`](https://github.com/pnpm/pnpm/blob/4750fd370c/building/during-install/src/index.ts#L283):
-/// most packages don't declare a bin, so short-circuiting the
-/// per-child manifest lookup with this set is the cheapest win on
-/// warm-cache installs.
+/// `hasBin: true`. Most packages don't declare a bin, so
+/// short-circuiting the per-child manifest lookup with this set is
+/// the cheapest win on warm-cache installs.
 ///
 /// Return-value semantics distinguish "lockfile metadata absent"
 /// from "lockfile metadata says no package has a bin":
@@ -392,14 +374,14 @@ where
         //    lockfile (measured on the integrated-benchmark
         //    fixture).
         //
-        // 2. The slot's own package, when it carries a bin. Pnpm's
-        //    [`linkBinsOfDependencies`](https://github.com/pnpm/pnpm/blob/29a42efc3b/building/during-install/src/index.ts#L272-L298)
-        //    appends `depNode` to the bin-source list unconditionally
-        //    (line 287) and lets the inner reader's manifest check
-        //    drop self when there's nothing to write — so for a
+        // 2. The slot's own package, when it carries a bin. The
+        //    slot's own package is appended to the bin-source list
+        //    unconditionally and the inner reader's manifest check
+        //    drops self when there's nothing to write — so for a
         //    package like `hello-world-js-bin` (no deps, one bin)
-        //    pnpm writes `<slot>/node_modules/<pkg>/node_modules/.bin/<pkg>`
-        //    as a self-shim. Mirror it here.
+        //    this writes
+        //    `<slot>/node_modules/<pkg>/node_modules/.bin/<pkg>`
+        //    as a self-shim.
         let with_bin: Vec<(&PkgName, PackageKey)> = children
             .filter_map(|(alias, dep_ref)| {
                 // `link:` deps live outside the virtual store and

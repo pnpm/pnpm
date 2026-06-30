@@ -1,10 +1,6 @@
-//! Ports of upstream's unit tests:
-//! - `config/package-is-installable/test/checkPlatform.ts`
-//! - `config/package-is-installable/test/checkEngine.ts`
-//! - `config/package-is-installable/test/inferPlatformFromPackageName.ts`
-//!
-//! All live under
-//! <https://github.com/pnpm/pnpm/tree/a6f303c2ff6ba83df17a47f10a0fe1d7ff8a083c/pnpm11/config/package-is-installable/test>.
+//! Unit tests for package-installability checks: platform support,
+//! engine (Node/npm) version constraints, and inferring the platform
+//! from a package name. Each area has its own submodule below.
 
 mod check_engine;
 mod check_platform;

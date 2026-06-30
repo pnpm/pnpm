@@ -1,11 +1,9 @@
 //! `pacquet whoami` resolves the default registry's auth token from config
 //! and prints the username returned by `GET <registry>-/whoami`.
 //!
-//! Ports the upstream whoami tests
-//! (<https://github.com/pnpm/pnpm/blob/fc2f33912e/pnpm11/registry-access/commands/test/whoami.ts>):
-//! the success path, the unauthenticated path, a registry that rejects the
-//! request, and preservation of a registry path prefix. Adds a pacquet-only
-//! guard that control characters in a registry-provided username are stripped.
+//! Covers the success path, the unauthenticated path, a registry that rejects
+//! the request, and preservation of a registry path prefix, plus a guard that
+//! control characters in a registry-provided username are stripped.
 //!
 //! The registry is a `mockito` server the spawned `pacquet` connects to
 //! over loopback. Credentials are supplied through `--npmrc-auth-file`,

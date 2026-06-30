@@ -4,20 +4,16 @@ use std::sync::{
 };
 
 /// Per-occurrence identifier for a node in the [`DependenciesTree`].
-/// Mirrors pnpm's [`NodeId`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/nextNodeId.ts).
 ///
-/// Pnpm's [`NodeId`][ts-NodeId] is a branded `string | number` union: numbers come
-/// from a monotonic counter; strings are reused for leaf packages (no
-/// children, no peers) and for `link:<rel-path>` linked local
-/// workspace packages. Pacquet ports the counter and leaf arms;
-/// workspace-link resolution hasn't been ported yet.
+/// A [`NodeId`] is either a number from a monotonic counter or a string
+/// reused for leaf packages (no children, no peers). String ids for
+/// `link:<rel-path>` linked local workspace packages aren't produced
+/// yet — workspace-link resolution hasn't been implemented.
 ///
 /// Leaves share a single tree node across every parent that references
-/// them — see [`resolveDependencies.ts:1580`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1580)
-/// for the upstream gate.
+/// them.
 ///
 /// [`DependenciesTree`]: super::resolved_tree::DependenciesTree
-/// [ts-NodeId]: https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/nextNodeId.ts#L5
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum NodeId {
     /// Fresh per-occurrence counter value. Allocated by [`NodeId::next`].
@@ -28,8 +24,7 @@ pub enum NodeId {
 }
 
 impl NodeId {
-    /// Allocate a fresh per-occurrence [`NodeId`]. Mirrors pnpm's
-    /// [`nextNodeId`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/nextNodeId.ts).
+    /// Allocate a fresh per-occurrence [`NodeId`].
     pub fn next() -> NodeId {
         static COUNTER: AtomicU64 = AtomicU64::new(0);
         NodeId::Counter(COUNTER.fetch_add(1, Ordering::Relaxed))

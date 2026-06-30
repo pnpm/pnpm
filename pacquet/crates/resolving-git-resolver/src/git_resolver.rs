@@ -1,6 +1,3 @@
-//! Pacquet port of pnpm's
-//! [`createGitResolver`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/git-resolver/src/index.ts#L25-L102).
-//!
 //! [`GitResolver`] wires the parser, the host probe, and the
 //! ls-remote runner into a single [`Resolver`] the dispatcher can
 //! compose into the default-resolver chain.
@@ -75,9 +72,7 @@ impl<Probe: GitProbe + 'static, Runner: GitCommandRunner + 'static> GitResolver<
 
     /// Companion to [`Self::resolve_impl`].
     ///
-    /// Mirrors pnpm's
-    /// [`resolveLatestFromGit`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/git-resolver/src/index.ts#L108-L114):
-    /// claim every dep the parser recognises, but return an empty
+    /// Claims every dep the parser recognises, but returns an empty
     /// [`LatestInfo`] (git has no uniform "latest" notion — a host's
     /// tag list would be the closest proxy and the protocols disagree).
     async fn resolve_latest_impl(
@@ -140,9 +135,7 @@ async fn build_resolve_result<Runner: GitCommandRunner + ?Sized>(
     })
 }
 
-/// Pick between a tarball and a git resolution. Mirrors the
-/// `resolution = …` branch in upstream's
-/// [`resolveFromGit`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/git-resolver/src/index.ts#L60-L83).
+/// Pick between a tarball and a git resolution.
 fn pick_resolution(spec: &HostedPackageSpec, commit: &str) -> LockfileResolution {
     if let Some(hosted) = spec.hosted.as_ref()
         && !is_ssh(&spec.fetch_spec)

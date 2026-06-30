@@ -1,13 +1,10 @@
 //! The catalog merge + format-preserving edit pass.
 //!
-//! Ports pnpm's
-//! [`addCatalogs`](https://github.com/pnpm/pnpm/blob/e7e99f04e4/workspace/workspace-manifest-writer/src/index.ts#L125-L159)
-//! together with the slice of `patchDocument` /
-//! `propagateBlankLinesToNewPairs` it relies on. Because `updatedCatalogs`
-//! only ever inserts new entries/blocks or updates a single value (existing
-//! entries never move relative to each other), the format-preserving edits
-//! are expressed as targeted text splices for inserts and a [`yamlpatch`]
-//! `Op::Replace` for value updates.
+//! Merges a set of updated catalogs into a workspace manifest's catalog
+//! blocks. Because the merge only ever inserts new entries/blocks or updates a
+//! single value (existing entries never move relative to each other), the
+//! format-preserving edits are expressed as targeted text splices for inserts
+//! and a [`yamlpatch`] `Op::Replace` for value updates.
 
 use std::fmt::Write as _;
 
@@ -19,7 +16,7 @@ use yamlpath::{Component, Document, Route};
 use crate::{model::Manifest, render};
 
 /// Merge `updated` into `manifest`'s catalog blocks. Returns whether anything
-/// changed (mirrors pnpm's `shouldBeUpdated`).
+/// changed.
 pub(crate) fn add_catalogs(
     manifest: &mut Manifest,
     updated: &Catalogs,
@@ -216,11 +213,9 @@ fn override_keys_in_text(text: &str) -> Vec<String> {
 
 /// Set `auditConfig.ignoreGhsas:` to `ghsas` (the complete desired list),
 /// creating the `auditConfig:` block or the nested `ignoreGhsas:` key when
-/// absent. An empty `ghsas` removes the `auditConfig:` block. Mirrors the
-/// `auditConfig` half of pnpm's
-/// [`writeSettings`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/writer/src/index.ts),
-/// which `pnpm audit --ignore` calls with the merged ignore list. Returns
-/// whether anything changed.
+/// absent. An empty `ghsas` removes the `auditConfig:` block. `pnpm audit
+/// --ignore` calls this with the merged ignore list. Returns whether anything
+/// changed.
 pub(crate) fn set_audit_ignore_ghsas(
     manifest: &mut Manifest,
     ghsas: &[String],
@@ -272,8 +267,7 @@ pub(crate) fn set_audit_ignore_ghsas(
 /// complete desired list), creating or replacing it, and removing it when
 /// `items` is empty. The caller is responsible for merging with the existing
 /// entries (via `pacquet_config::version_policy::merge_package_version_specs`)
-/// before calling. Mirrors the `minimumReleaseAgeExclude` half of pnpm's
-/// workspace-manifest writer. Returns whether anything changed.
+/// before calling. Returns whether anything changed.
 pub(crate) fn set_minimum_release_age_excludes(manifest: &mut Manifest, items: &[String]) -> bool {
     const BLOCK: &str = "minimumReleaseAgeExclude";
     let current = manifest.minimum_release_age_exclude.as_deref().unwrap_or_default();
@@ -341,7 +335,7 @@ fn render_audit_config_block(ghsas: &[String]) -> String {
 
 /// Upsert a `key:` entry whose value is a block sequence (`items`) into the
 /// existing top-level mapping `block_name`, creating or replacing the entry
-/// in the position pnpm's reorder pass would choose. The mapping at
+/// in the position the reorder pass would choose. The mapping at
 /// `block_name` must already exist. Used to write `auditConfig.ignoreGhsas`.
 fn upsert_sequence_entry(text: &str, block_name: &str, key: &str, items: &[String]) -> String {
     let mapping = locate(text, &[block_name]).expect("block exists");
@@ -440,11 +434,9 @@ fn upsert_top_level_entry(
 }
 
 /// Upsert one `name → bool` entry into the top-level `allowBuilds:` block,
-/// creating the block if absent. Returns whether anything changed. Mirrors
-/// the `allowBuilds` half of pnpm's
-/// [`writeSettings`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/writer/src/index.ts),
-/// which `pnpm approve-builds` calls with each approved package set to
-/// `true` and each denied/unselected package set to `false`.
+/// creating the block if absent. Returns whether anything changed. `pnpm
+/// approve-builds` calls this with each approved package set to `true` and
+/// each denied/unselected package set to `false`.
 pub(crate) fn add_allow_build(manifest: &mut Manifest, name: &str, value: bool) -> bool {
     const BLOCK: &str = "allowBuilds";
     let text = manifest.text();
@@ -639,7 +631,7 @@ fn create_target(
     let dep_key = render::render_value(dep);
     if is_default {
         // A new default catalog always lands in the top-level `catalog:`
-        // shorthand, matching pnpm's `addCatalogs`.
+        // shorthand.
         let block = format!("catalog:\n  {dep_key}: {value}\n");
         let new_text = insert_top_level_block(manifest, "catalog", &block);
         manifest.set_text(new_text);
@@ -744,7 +736,7 @@ fn replace_scalar_at(
 }
 
 /// Insert a new `dep: value` entry into an existing catalog mapping at the
-/// position pnpm's reorder pass would choose (sorted-in when the block is
+/// position the reorder pass would choose (sorted-in when the block is
 /// sorted, appended otherwise).
 fn insert_entry(text: &str, target: &Target, dep: &str, specifier: &str) -> String {
     insert_entry_at(text, &target.path(), dep, specifier)
@@ -835,7 +827,7 @@ fn insert_named_subblock(manifest: &Manifest, name: &str, dep: &str, value: &str
 }
 
 /// Insert a brand-new top-level block (`block_text`, ending in a newline) at
-/// the position pnpm's reorder + blank-line passes would choose.
+/// the position the reorder + blank-line passes would choose.
 fn insert_top_level_block(manifest: &Manifest, new_key: &str, block_text: &str) -> String {
     let text = manifest.text();
     let order = render::target_order(&manifest.top_level_keys, &[new_key.to_string()]);
@@ -1131,8 +1123,7 @@ fn is_comment_line(content: &str) -> bool {
     !trimmed.is_empty() && trimmed.starts_with('#')
 }
 
-/// Whether every original non-first top-level key has a blank line before it
-/// (pnpm's blank-line-style detection).
+/// Whether every original non-first top-level key has a blank line before it.
 fn uses_blank_line_style(text: &str, top_level_keys: &[String]) -> bool {
     if top_level_keys.len() < 2 {
         return false;

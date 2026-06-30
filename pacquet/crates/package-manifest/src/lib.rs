@@ -100,7 +100,7 @@ impl PackageManifest {
     /// Write `contents` to `path` atomically: a sibling temp file is written
     /// and fsynced, then renamed over `path`. A crash or write error therefore
     /// never leaves a truncated or partial `package.json` behind, matching the
-    /// `write-file-atomic` guarantee the TypeScript pnpm CLI relies on.
+    /// `write-file-atomic` guarantee.
     fn write_atomic(path: &Path, contents: &str) -> io::Result<()> {
         let dir = path
             .parent()
@@ -168,10 +168,10 @@ impl PackageManifest {
     /// In-memory mutation handle on the underlying JSON value.
     ///
     /// Used by the read-package-hook layer to rewrite a manifest's
-    /// dependency maps before downstream consumers see it (mirrors
-    /// upstream's `readPackageHook` returning a modified manifest).
-    /// Mutations stay in memory — there is no implicit `save`, so the
-    /// user's on-disk `package.json` is untouched.
+    /// dependency maps before downstream consumers see it (the
+    /// `readPackage` hook returns a modified manifest). Mutations stay
+    /// in memory — there is no implicit `save`, so the user's on-disk
+    /// `package.json` is untouched.
     pub fn value_mut(&mut self) -> &'_ mut Value {
         &mut self.value
     }
@@ -214,9 +214,6 @@ impl PackageManifest {
     /// only used as the directory name under `node_modules`. An
     /// unversioned `npm:bar` (or `npm:@scope/bar`) defaults to the
     /// `latest` tag.
-    ///
-    /// Mirrors pnpm's `parseBareSpecifier`. Reference:
-    /// <https://github.com/pnpm/pnpm/blob/1819226b51/resolving/npm-resolver/src/parseBareSpecifier.ts>
     #[must_use]
     pub fn resolve_registry_dependency<'a>(
         key: &'a str,
@@ -225,7 +222,7 @@ impl PackageManifest {
         let Some(rest) = bare_specifier.strip_prefix("npm:") else {
             return (key, bare_specifier);
         };
-        // pnpm's parseBareSpecifier uses `lastIndexOf('@')` and treats
+        // The bare-specifier parse uses `lastIndexOf('@')` and treats
         // `index < 1` (no `@`, or `@` at position 0 of a scoped name)
         // as "no version" — the spec is just a package name.
         match rest.rfind('@') {
@@ -271,10 +268,8 @@ impl PackageManifest {
     /// When `save_type` is `Some`, the keys of just that field; when
     /// `None`, the union of `dependencies`, `devDependencies`, and
     /// `optionalDependencies` (peer dependencies excluded), preserving
-    /// first-seen order. Mirrors pnpm's `getAllDependenciesFromManifest`
-    /// (called without `autoInstallPeers`) at
-    /// <https://github.com/pnpm/pnpm/blob/9cad8274fd/pkg-manifest/utils/src/getAllDependenciesFromManifest.ts>,
-    /// the set `pnpm remove` validates removal targets against.
+    /// first-seen order. This is the set `pnpm remove` validates removal
+    /// targets against.
     #[must_use]
     pub fn available_dependency_names(&self, save_type: Option<DependencyGroup>) -> Vec<String> {
         let groups: &[DependencyGroup] = match save_type {
@@ -290,12 +285,10 @@ impl PackageManifest {
 
     /// Drop `removed_packages` from the manifest's dependency maps.
     ///
-    /// Ports pnpm's
-    /// [`removeDeps`](https://github.com/pnpm/pnpm/blob/9cad8274fd/installing/deps-installer/src/uninstall/removeDeps.ts):
-    /// when `save_type` is `Some`, only that field is touched; otherwise
-    /// every field in pnpm's `DEPENDENCIES_FIELDS` (`optionalDependencies`,
-    /// `dependencies`, `devDependencies`) is scanned. `peerDependencies`
-    /// and `dependenciesMeta` entries for the removed names are always
+    /// When `save_type` is `Some`, only that field is touched; otherwise
+    /// every dependency field (`optionalDependencies`, `dependencies`,
+    /// `devDependencies`) is scanned. `peerDependencies` and
+    /// `dependenciesMeta` entries for the removed names are always
     /// dropped, regardless of `save_type`.
     pub fn remove_dependencies(
         &mut self,
@@ -339,25 +332,22 @@ impl PackageManifest {
     }
 }
 
-/// Runtime aliases recognised by pnpm's `devEngines.runtime` /
-/// `engines.runtime` reification. Matches upstream's
-/// [`RUNTIME_NAMES`](https://github.com/pnpm/pnpm/blob/9cad8274fd/pkg-manifest/utils/src/convertEnginesRuntimeToDependencies.ts#L8).
+/// Runtime aliases recognised by `devEngines.runtime` /
+/// `engines.runtime` reification.
 const RUNTIME_NAMES: [&str; 3] = ["node", "deno", "bun"];
 
 /// Reify `devEngines.runtime` / `engines.runtime` entries with
 /// `onFail: "download"` into the matching `devDependencies` /
 /// `dependencies` slot as `runtime:<version>` specifiers.
 ///
-/// Ports upstream's
-/// [`convertEnginesRuntimeToDependencies`](https://github.com/pnpm/pnpm/blob/9cad8274fd/pkg-manifest/utils/src/convertEnginesRuntimeToDependencies.ts#L10-L45)
-/// so the lockfile entry the resolver writes
-/// (`node@runtime:24.6.0`, etc.) is visible to the
+/// This makes the lockfile entry the resolver writes
+/// (`node@runtime:24.6.0`, etc.) visible to the
 /// `satisfies_package_manifest` flat-record diff under the manifest's
 /// own dependency map. Without this step a manifest that declares its
 /// runtime exclusively through `devEngines.runtime` fails the frozen-
 /// lockfile staleness check as a spurious "dependency was removed".
 ///
-/// `WebContainer`'s "no runtime download" branch upstream is intentionally
+/// The `WebContainer` "no runtime download" branch is intentionally
 /// omitted: pacquet does not run in `WebContainer`.
 pub fn convert_engines_runtime_to_dependencies(
     manifest: &mut Value,
@@ -415,10 +405,9 @@ pub fn convert_engines_runtime_to_dependencies(
 /// Fold `runtime:<version>` dependency entries back into
 /// `devEngines.runtime` / `engines.runtime` before writing a manifest.
 ///
-/// Mirrors upstream's `convertDependenciesToEnginesRuntime` writer hook in
-/// `workspace/project-manifest-reader`: the in-memory dependency form drives
-/// resolution and lockfile checks, while the on-disk manifest keeps the
-/// `devEngines.runtime` / `engines.runtime` contract.
+/// The in-memory dependency form drives resolution and lockfile checks,
+/// while the on-disk manifest keeps the `devEngines.runtime` /
+/// `engines.runtime` contract.
 ///
 /// Mutates `manifest` in place and removes consumed `runtime:` dependency
 /// entries. Returns `InvalidAttribute` when a field shape prevents a
@@ -554,10 +543,8 @@ fn merge_runtime_entry(
 /// Read `<dir>/package.json` if it exists, returning `Ok(None)` when the file
 /// is absent. Other IO errors and JSON parse errors propagate.
 ///
-/// Mirrors upstream `safeReadPackageJsonFromDir` from
-/// <https://github.com/pnpm/pnpm/blob/80037699fb/pkg-manifest/reader/src/index.ts#L48>.
-/// Upstream returns `null` only on `ENOENT`; malformed JSON surfaces as a
-/// `BAD_PACKAGE_JSON` error and other IO errors propagate.
+/// A missing file is the only case that maps to `Ok(None)`; malformed JSON
+/// surfaces as a `BAD_PACKAGE_JSON` error and other IO errors propagate.
 pub fn safe_read_package_json_from_dir(dir: &Path) -> Result<Option<Value>, PackageManifestError> {
     let path = dir.join("package.json");
     let text = match fs::read_to_string(&path) {
@@ -570,9 +557,7 @@ pub fn safe_read_package_json_from_dir(dir: &Path) -> Result<Option<Value>, Pack
 
 /// Decide whether a package directory needs a build pass.
 ///
-/// Mirrors upstream `pkgRequiresBuild` from
-/// <https://github.com/pnpm/pnpm/blob/80037699fb/building/pkg-requires-build/src/index.ts>:
-/// true when the package's manifest declares any of `preinstall`, `install`,
+/// True when the package's manifest declares any of `preinstall`, `install`,
 /// or `postinstall`, or when the package contains `binding.gyp` or a `.hooks/`
 /// directory. Missing manifests, IO errors, and parse errors all collapse to
 /// `false` — pacquet cannot meaningfully build a package whose extracted

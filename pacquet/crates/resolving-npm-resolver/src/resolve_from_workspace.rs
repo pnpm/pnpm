@@ -1,10 +1,5 @@
-//! Port of pnpm's
-//! [`tryResolveFromWorkspace`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/src/index.ts#L806-L844)
-//! and its inner
-//! [`tryResolveFromWorkspacePackages`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/src/index.ts#L846-L888)
-//! / [`pickMatchingLocalVersionOrNull`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/src/index.ts#L890-L906)
-//! / [`resolveFromLocalPackage`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/src/index.ts#L908-L951)
-//! helpers.
+//! Resolution of `workspace:` wanted dependencies against the project
+//! workspace.
 //!
 //! The npm-resolver intercepts every `workspace:`-shaped wanted
 //! dependency *except* the path-relative forms (`workspace:./foo`,
@@ -30,18 +25,15 @@ use crate::{
     workspace_pref_to_npm::{InvalidWorkspaceSpecError, workspace_pref_to_npm},
 };
 
-/// Options threaded into [`try_resolve_from_workspace`]. Mirrors
-/// upstream's per-call bag at
-/// [`tryResolveFromWorkspace`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/src/index.ts#L808-L819).
+/// Options threaded into [`try_resolve_from_workspace`].
 #[derive(Debug, Clone)]
 pub struct ResolveFromWorkspaceOptions<'a> {
     /// Workspace-relative `<root>/pnpm-workspace.yaml` directory the
     /// `link:` entry's relative path is rendered against.
     pub project_dir: &'a Path,
-    /// Lockfile root. Mirrors upstream's `lockfileDir` argument —
-    /// `link:`-shaped resolutions render relative to `project_dir`
-    /// regardless, but `file:`-shaped (injected) resolutions use this
-    /// as the relativity anchor.
+    /// Lockfile root. `link:`-shaped resolutions render relative to
+    /// `project_dir` regardless, but `file:`-shaped (injected)
+    /// resolutions use this as the relativity anchor.
     pub lockfile_dir: &'a Path,
     /// Registry URL passed through to [`parse_bare_specifier`] so
     /// `npm:<alias>@<version>` outputs flow through the same parsing
@@ -55,34 +47,31 @@ pub struct ResolveFromWorkspaceOptions<'a> {
     /// surfaces as a `WORKSPACE_PACKAGES_NOT_LOADED` error.
     pub workspace_packages: Option<&'a WorkspacePackages>,
     /// `true` materialises the dependency as a `file:` (hard-linked
-    /// copy) resolution instead of a `link:` symlink. Mirrors upstream's
-    /// `injectWorkspacePackages` + per-dep `injected` toggle.
+    /// copy) resolution instead of a `link:` symlink. Driven by the
+    /// `inject-workspace-packages` config plus the per-dep `injected`
+    /// toggle.
     pub inject_workspace_packages: bool,
 }
 
-/// Error envelope for [`try_resolve_from_workspace`]. The two pnpm
+/// Error envelope for [`try_resolve_from_workspace`]. The two error
 /// codes (`WORKSPACE_PKG_NOT_FOUND`, `NO_MATCHING_VERSION_INSIDE_WORKSPACE`)
-/// are reproduced verbatim.
+/// are part of the public contract.
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum ResolveFromWorkspaceError {
-    /// The translated workspace spec failed to parse. Mirrors
-    /// upstream's `throw new Error('Invalid workspace: spec ...')`
-    /// branch — practically unreachable since the caller checks the
-    /// `workspace:` prefix before invoking this entry point.
+    /// The translated workspace spec failed to parse — practically
+    /// unreachable since the caller checks the `workspace:` prefix
+    /// before invoking this entry point.
     #[diagnostic(transparent)]
     InvalidWorkspaceSpec(#[error(source)] InvalidWorkspaceSpecError),
 
-    /// `workspace_packages` was `None`. Mirrors upstream's
-    /// [`Cannot resolve package from workspace because opts.workspacePackages is not defined`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/src/index.ts#L829)
-    /// throw.
+    /// `workspace_packages` was `None`.
     #[display(
         "Cannot resolve package from workspace because workspace packages were not loaded into the resolver"
     )]
     #[diagnostic(code(pacquet_resolving_npm_resolver::workspace_packages_not_loaded))]
     WorkspacePackagesNotLoaded,
 
-    /// The npm parser refused the translated bare specifier. Mirrors
-    /// upstream's `throw new Error('Invalid workspace: spec (${...})')`.
+    /// The npm parser refused the translated bare specifier.
     #[display("Invalid workspace: spec ({bare_specifier})")]
     #[diagnostic(code(pacquet_resolving_npm_resolver::invalid_workspace_translated_spec))]
     UnparsableSpec {
@@ -90,9 +79,8 @@ pub enum ResolveFromWorkspaceError {
         bare_specifier: String,
     },
 
-    /// Workspace map didn't carry the requested package name. Mirrors
-    /// pnpm's
-    /// [`WORKSPACE_PKG_NOT_FOUND`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/src/index.ts#L862-L868).
+    /// Workspace map didn't carry the requested package name
+    /// (`WORKSPACE_PKG_NOT_FOUND`).
     #[display(
         "In {project_dir}: \"{name}@{bare_specifier}\" is in the dependencies but no package named \"{name}\" is present in the workspace"
     )]
@@ -106,8 +94,7 @@ pub enum ResolveFromWorkspaceError {
     },
 
     /// Workspace map carried the name but no version satisfied the
-    /// range. Mirrors pnpm's
-    /// [`NO_MATCHING_VERSION_INSIDE_WORKSPACE`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/src/index.ts#L877-L885).
+    /// range (`NO_MATCHING_VERSION_INSIDE_WORKSPACE`).
     #[display(
         "In {project_dir}: No matching version found for {alias}@{bare_specifier} inside the workspace{available}"
     )]
@@ -126,9 +113,6 @@ pub enum ResolveFromWorkspaceError {
 /// workspace-prefixed (so the caller can fall through to the npm
 /// path); returns `Ok(Some(_))` with a `link:` / `file:` resolution
 /// otherwise.
-///
-/// Mirrors upstream's
-/// [`tryResolveFromWorkspace`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/src/index.ts#L806-L844).
 pub fn try_resolve_from_workspace(
     wanted_dependency: &WantedDependency,
     opts: &ResolveFromWorkspaceOptions<'_>,
@@ -209,8 +193,7 @@ pub(crate) fn try_resolve_from_workspace_packages(
     ))
 }
 
-/// Mirror upstream's
-/// [`pickMatchingLocalVersionOrNull`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/src/index.ts#L890-L906).
+/// Pick the local workspace version that satisfies `spec`, or `None`.
 pub(crate) fn pick_matching_local_version_or_null(
     versions: &WorkspacePackagesByVersion,
     spec: &RegistryPackageSpec,
@@ -230,14 +213,11 @@ pub(crate) fn pick_matching_local_version_or_null(
     }
 }
 
-/// Mirror upstream's
-/// [`resolveFromLocalPackage`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/src/index.ts#L908-L951).
+/// Build a `link:` / `file:` [`ResolveResult`] for a workspace package.
 ///
-/// The TS branch also derives a `normalizedBareSpecifier` for the
-/// add / update paths via `calcSpecifierForWorkspaceDep`; pacquet
-/// doesn't carry the pinned-version / save-workspace-protocol config
-/// through to the resolver yet, so the field stays `None` until those
-/// land.
+/// The `normalized_bare_specifier` field for the add / update paths
+/// stays `None` because pacquet doesn't carry the pinned-version /
+/// save-workspace-protocol config through to the resolver yet.
 pub(crate) fn resolve_from_local_package(
     local_package: &WorkspacePackage,
     wanted_dependency: &WantedDependency,
@@ -271,8 +251,6 @@ pub(crate) fn resolve_from_local_package(
     }
 }
 
-/// Mirror upstream's
-/// [`resolveLocalPackageDir`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/src/index.ts#L992-L998).
 /// Honours `publishConfig.directory` when `publishConfig.linkDirectory`
 /// is unset or `true`; otherwise the project's own `rootDir`.
 fn resolve_local_package_dir(local_package: &WorkspacePackage) -> PathBuf {
@@ -323,9 +301,8 @@ fn pathdiff_string(base: &Path, target: &Path) -> Option<String> {
         out.push(component.as_os_str());
     }
     // `base == target` (a workspace package depending on itself) yields an
-    // empty relative path, which must stay empty: pnpm renders the id as
-    // `link:` (bare), matching `path.relative(projectDir, projectDir) === ''`
-    // — not `link:.`.
+    // empty relative path, which must stay empty: the id renders as
+    // `link:` (bare), not `link:.`.
     Some(out.display().to_string())
 }
 

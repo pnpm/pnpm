@@ -54,13 +54,8 @@ where
 ///
 /// pnpm v11 also reads `patchedDependencies` (and the other install
 /// settings such as `allowBuilds`) from this file rather than from
-/// `package.json`'s `pnpm` field — see upstream's
-/// [`addSettingsFromWorkspaceManifestToConfig`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/index.ts#L803-L831),
-/// which calls `getOptionsFromPnpmSettings` with the workspace
-/// manifest. The misleadingly-named
-/// [`getOptionsFromRootManifest.ts`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/getOptionsFromRootManifest.ts)
-/// is wrapped at that call site, so its `manifestDir` parameter
-/// actually carries the *workspace* dir.
+/// `package.json`'s `pnpm` field, resolving those settings against the
+/// workspace dir.
 #[derive(Debug, Default, PartialEq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct WorkspaceSettings {
@@ -84,9 +79,9 @@ pub struct WorkspaceSettings {
     pub virtual_store_dir: Option<String>,
     /// `enableGlobalVirtualStore` from `pnpm-workspace.yaml`. Default
     /// applied in [`Config`] is `false` — matches pnpm v11's
-    /// effective default for non-`--global` installs (upstream's
-    /// `true` assignment lives only inside the `pnpm install --global`
-    /// branch, and pacquet has no `--global` flow). See
+    /// effective default for non-`--global` installs (the `true`
+    /// default applies only to `pnpm install --global`, and pacquet
+    /// has no `--global` flow). See
     /// [`Config::enable_global_virtual_store`].
     pub enable_global_virtual_store: Option<bool>,
     /// `globalVirtualStoreDir` from `pnpm-workspace.yaml`. Resolved
@@ -112,9 +107,7 @@ pub struct WorkspaceSettings {
     /// User-defined named-registry aliases. Outer key is the alias
     /// name (`gh`, `work`, ...); inner string is the registry URL the
     /// alias resolves against. Merged on top of pnpm's built-in
-    /// defaults at resolver construction. Mirrors upstream's
-    /// [`namedRegistries`](https://github.com/pnpm/pnpm/blob/b61e268d57/config/reader/src/Config.ts#L227)
-    /// setting.
+    /// defaults at resolver construction.
     pub named_registries: Option<BTreeMap<String, String>>,
 
     /// Structured registry auth (`_auth`). Honored **only** from the global
@@ -149,9 +142,8 @@ pub struct WorkspaceSettings {
     pub hoisting_limits: Option<HoistingLimits>,
     /// `externalDependencies` from `pnpm-workspace.yaml`. Names
     /// whose top-level slot is reserved for an external linker
-    /// and stripped from the hoist tree. Mirrors upstream's
-    /// programmatic-only knob shape, exposed here as yaml for
-    /// parity. Empty / missing → no externals.
+    /// and stripped from the hoist tree. Empty / missing → no
+    /// externals.
     pub external_dependencies: Option<BTreeSet<String>>,
     pub dedupe_peer_dependents: Option<bool>,
     pub dedupe_peers: Option<bool>,
@@ -220,8 +212,7 @@ pub struct WorkspaceSettings {
 
     /// Map of `name[@version]` → `true` / `false`. Drives pnpm 11's
     /// default-deny build policy: a package's lifecycle scripts only
-    /// run when an entry here resolves to `true`. Mirrors upstream's
-    /// [`createAllowBuildFunction`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/policy/src/index.ts).
+    /// run when an entry here resolves to `true`.
     ///
     /// pnpm 10+ moved `allowBuilds` out of `package.json#pnpm` into
     /// `pnpm-workspace.yaml` alongside other install settings.
@@ -256,12 +247,11 @@ pub struct WorkspaceSettings {
 
     /// Tri-state `scriptShell` from `pnpm-workspace.yaml`. pnpm reads
     /// workspace settings into an object and assigns each present key
-    /// onto the merged config (`addSettingsFromWorkspaceManifestToConfig`
-    /// at <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/index.ts#L859-L885>),
-    /// so an explicit `scriptShell: null` clears a value inherited from
-    /// global `config.yaml`, while an absent key inherits. The extra
-    /// `Option` layer preserves that distinction (same
-    /// `deserialize_double_option` shape as `hoist_pattern`).
+    /// onto the merged config, so an explicit `scriptShell: null`
+    /// clears a value inherited from global `config.yaml`, while an
+    /// absent key inherits. The extra `Option` layer preserves that
+    /// distinction (same `deserialize_double_option` shape as
+    /// `hoist_pattern`).
     ///
     /// See [`Config::script_shell`].
     #[serde(default, deserialize_with = "deserialize_double_option")]
@@ -275,8 +265,7 @@ pub struct WorkspaceSettings {
     pub node_options: Option<Option<String>>,
 
     /// `unsafePerm` from `pnpm-workspace.yaml`. Forced to `true` on
-    /// Windows in `apply_to` (matches upstream's
-    /// `process.platform === 'win32'` override).
+    /// Windows in `apply_to`, matching pnpm.
     pub unsafe_perm: Option<bool>,
 
     /// `childConcurrency` from `pnpm-workspace.yaml`. Resolved
@@ -288,18 +277,16 @@ pub struct WorkspaceSettings {
     /// `workspaceConcurrency` from `pnpm-workspace.yaml` / global
     /// `config.yaml`. Resolved through
     /// [`crate::resolve_child_concurrency`] in `apply_to`, the same
-    /// way `childConcurrency` is — both upstream settings run through
-    /// [`getWorkspaceConcurrency`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/concurrency.ts#L25-L34).
-    /// Signed `i32` so negative values (interpreted as
-    /// `parallelism - |value|`) round-trip cleanly. A genuine
-    /// config-file key (so it is kept, not cleared, in
+    /// way `childConcurrency` is. Signed `i32` so negative values
+    /// (interpreted as `parallelism - |value|`) round-trip cleanly.
+    /// A genuine config-file key (so it is kept, not cleared, in
     /// [`Self::clear_workspace_only_fields`]).
     pub workspace_concurrency: Option<i32>,
 
     /// `gitShallowHosts` from `pnpm-workspace.yaml`. Overrides
-    /// [`Config::git_shallow_hosts`] wholesale when set (mirrors
-    /// pnpm's settings precedence, where `pnpm-workspace.yaml`
-    /// replaces the built-in defaults rather than merging).
+    /// [`Config::git_shallow_hosts`] wholesale when set —
+    /// `pnpm-workspace.yaml` replaces the built-in defaults rather
+    /// than merging.
     pub git_shallow_hosts: Option<Vec<String>>,
 
     /// `supportedArchitectures` from `pnpm-workspace.yaml`. Drives the
@@ -307,8 +294,7 @@ pub struct WorkspaceSettings {
     /// `name: ['darwin'], cpu: ['arm64']` setting tells pacquet to
     /// keep `darwin-arm64` variants of platform-tagged packages even
     /// on a non-matching host. Per-axis CLI flags (`--cpu`, `--libc`,
-    /// `--os`) override individual axes — mirrors upstream's
-    /// [`overrideSupportedArchitecturesWithCLI`](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/overrideSupportedArchitecturesWithCLI.ts).
+    /// `--os`) override individual axes.
     /// Read from yaml verbatim (no `current` substitution here — that
     /// happens at the [`pacquet_package_is_installable::check_platform`]
     /// call site where the host triple is in scope).
@@ -318,10 +304,8 @@ pub struct WorkspaceSettings {
     /// list of dep-name patterns whose matching entries get
     /// stripped from every manifest's `optionalDependencies` (and
     /// `dependencies`, when a package lists the same name in both)
-    /// before any consumer sees them. Mirrors upstream's
-    /// [`createOptionalDependenciesRemover`](https://github.com/pnpm/pnpm/blob/94240bc046/hooks/read-package-hook/src/createOptionalDependenciesRemover.ts)
-    /// and the lockfile-side drift check at
-    /// [`getOutdatedLockfileSetting.ts:58-60`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts#L58-L60).
+    /// before any consumer sees them. The setting also participates
+    /// in the lockfile-side drift check.
     pub ignored_optional_dependencies: Option<Vec<String>>,
 
     /// `overrides` from `pnpm-workspace.yaml`: a `selector → spec`
@@ -332,13 +316,11 @@ pub struct WorkspaceSettings {
     /// `pacquet_config_parse_overrides`); value is the replacement
     /// spec, or `-` to delete the dep entirely.
     ///
-    /// Mirrors upstream's
-    /// [`overrides`](https://github.com/pnpm/pnpm/blob/6d7903a8b7/config/reader/src/getOptionsFromRootManifest.ts#L18)
-    /// shape — values are validated as strings at load time
+    /// Values are validated as strings at load time
     /// (`ERR_PNPM_INVALID_OVERRIDES`) and `$dep-name` self-references
     /// against the manifest's direct deps are resolved before
     /// downstream code sees them. Empty maps are normalized to
-    /// `None` to match upstream's `delete settings.overrides`.
+    /// `None` so the overrides key is dropped entirely.
     ///
     /// pnpm 10+ moved `overrides` out of `package.json#pnpm` into
     /// `pnpm-workspace.yaml`. Pacquet matches that — the legacy
@@ -348,8 +330,7 @@ pub struct WorkspaceSettings {
     /// `overrides:` field. On a subsequent install,
     /// `pacquet_lockfile::check_lockfile_settings` compares this
     /// against `lockfile.overrides` and raises `OverridesChanged`
-    /// on mismatch. Mirrors upstream's
-    /// [`getOutdatedLockfileSetting.ts:50-52`](https://github.com/pnpm/pnpm/blob/606f53e78f/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts#L50-L52).
+    /// on mismatch.
     pub overrides: Option<IndexMap<String, String>>,
 
     /// `cacheDir` from `pnpm-workspace.yaml`. Resolved against the
@@ -407,10 +388,6 @@ pub struct WorkspaceSettings {
     /// `peerDependencies`, and `peerDependenciesMeta` entries to merge
     /// onto every matching manifest before the resolver walks it.
     ///
-    /// Mirrors upstream's
-    /// [`packageExtensions`](https://github.com/pnpm/pnpm/blob/39101f5e37/core/types/src/package.ts#L145)
-    /// shape and its consumer
-    /// [`createPackageExtender`](https://github.com/pnpm/pnpm/blob/39101f5e37/hooks/read-package-hook/src/createPackageExtender.ts).
     /// `IndexMap` keeps insertion order so the hash-and-checksum side
     /// (a separate slice) can keep the same key ordering pnpm does.
     pub package_extensions: Option<IndexMap<String, PackageExtension>>,
@@ -443,24 +420,21 @@ pub struct WorkspaceSettings {
 }
 
 /// `updateConfig` entry: settings that tune `pnpm update`. Today only
-/// `ignoreDependencies` is modeled. Mirrors pnpm's
-/// [`updateConfig`](https://github.com/pnpm/pnpm/blob/39101f5e37/core/types/src/package.ts#L193-L195)
-/// shape.
+/// `ignoreDependencies` is modeled.
 #[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct UpdateConfig {
-    /// Dependency-name patterns `pnpm update` skips. `createMatcher`
-    /// glob/negation patterns upstream.
+    /// Dependency-name patterns `pnpm update` skips. Glob/negation
+    /// patterns.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ignore_dependencies: Option<Vec<String>>,
 }
 
 /// `peerDependencyRules` entry: customizations applied when reporting
-/// peer-dependency issues. Mirrors pnpm's
-/// [`PeerDependencyRules`](https://github.com/pnpm/pnpm/blob/39101f5e37/core/types/src/package.ts#L147-L151).
+/// peer-dependency issues.
 ///
-/// - `ignoreMissing` / `allowAny` are `createMatcher` glob/negation
-///   pattern lists (matched against the peer package name).
+/// - `ignoreMissing` / `allowAny` are glob/negation pattern lists
+///   (matched against the peer package name).
 /// - `allowedVersions` maps a peer selector (`name`, or the override
 ///   form `parent>name` / `parent@range>name`) to an extra semver range
 ///   that should be accepted.
@@ -477,18 +451,15 @@ pub struct PeerDependencyRules {
 
 /// One `packageExtensions` entry: a subset of a manifest's dependency
 /// groups, merged onto every matching manifest at install time. The
-/// fields mirror pnpm's
-/// [`PackageExtension = Pick<BaseManifest, 'dependencies' |
-/// 'optionalDependencies' | 'peerDependencies' |
-/// 'peerDependenciesMeta'>`](https://github.com/pnpm/pnpm/blob/39101f5e37/core/types/src/package.ts#L145).
+/// fields are `dependencies`, `optionalDependencies`,
+/// `peerDependencies`, and `peerDependenciesMeta`.
 ///
 /// Read directly from yaml — no validation here beyond serde's shape
 /// check. The hook
 /// (`pacquet_package_manager::PackageExtender`) merges these onto
 /// manifests, with the manifest's own fields taking precedence on
 /// conflict so the extension never overwrites a value the package
-/// already declared (mirrors upstream's `{ ...packageExtension[field],
-/// ...manifest[field] }` spread order).
+/// already declared.
 #[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct PackageExtension {
@@ -503,8 +474,6 @@ pub struct PackageExtension {
 }
 
 /// `peerDependenciesMeta` entry shape: a single `optional` flag today.
-/// Mirrors upstream's
-/// [`PeerDependencyMeta`](https://github.com/pnpm/pnpm/blob/39101f5e37/core/types/src/misc.ts).
 #[derive(Debug, Default, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct PeerDependencyMeta {
@@ -515,18 +484,14 @@ pub struct PeerDependencyMeta {
 /// Basename of the file pnpm reads; exported for test use.
 pub const WORKSPACE_MANIFEST_FILENAME: &str = "pnpm-workspace.yaml";
 
-/// Basename of pnpm's global config file inside `<configDir>`. Matches
-/// upstream's
-/// [`GLOBAL_CONFIG_YAML_FILENAME`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/core/constants/src/index.ts#L12).
+/// Basename of pnpm's global config file inside `<configDir>`.
 pub const GLOBAL_CONFIG_YAML_FILENAME: &str = "config.yaml";
 
 /// Error when reading `pnpm-workspace.yaml`.
 ///
-/// Pnpm's
-/// [`workspace-manifest-reader`](https://github.com/pnpm/pnpm/blob/8eb1be4988/workspace/workspace-manifest-reader/src/index.ts)
-/// treats `ENOENT` as "no manifest" and propagates every other failure.
-/// Pacquet mirrors that split. `serde_saphyr::Error` is boxed so the
-/// returned `Result` stays small.
+/// `ENOENT` is treated as "no manifest" and every other failure
+/// propagates. `serde_saphyr::Error` is boxed so the returned
+/// `Result` stays small.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum LoadWorkspaceYamlError {
@@ -553,14 +518,10 @@ impl WorkspaceSettings {
     /// Read the global config.yaml at `<config_dir>/config.yaml`, if
     /// present.
     ///
-    /// Pnpm v11's
-    /// [`index.ts:228`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts#L228)
-    /// reads this file with the same parser as `pnpm-workspace.yaml`,
-    /// but applies it through a key-filter pass
-    /// ([`isConfigFileKey`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/configFileKey.ts#L187))
-    /// so workspace-only knobs (`nodeLinker`, `hoist`, `lockfile`, ...)
-    /// cannot be set globally. Mirrors that filter via
-    /// [`Self::clear_workspace_only_fields`].
+    /// This file uses the same parser as `pnpm-workspace.yaml`, but a
+    /// key-filter pass ([`Self::clear_workspace_only_fields`]) drops
+    /// workspace-only knobs (`nodeLinker`, `hoist`, `lockfile`, ...)
+    /// so they cannot be set globally.
     ///
     /// Returns `Ok(None)` when the file does not exist. Read or parse
     /// failures propagate.
@@ -580,11 +541,9 @@ impl WorkspaceSettings {
 
     /// Zero out fields not permitted in the global `config.yaml`.
     ///
-    /// Mirrors pnpm's
-    /// [`isConfigFileKey`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/configFileKey.ts#L187)
-    /// filter — every field listed here corresponds to a key in
-    /// upstream's `excludedPnpmKeys`, plus the programmatic-only and
-    /// workspace-only knobs (`patchedDependencies`, `allowBuilds`,
+    /// Every field listed here is a key excluded from the global
+    /// config, plus the programmatic-only and workspace-only knobs
+    /// (`patchedDependencies`, `allowBuilds`,
     /// `supportedArchitectures`, `ignoredOptionalDependencies`,
     /// `hoistingLimits`, `externalDependencies`) that pnpm only reads
     /// from `pnpm-workspace.yaml` or the legacy `package.json#pnpm`
@@ -633,8 +592,7 @@ impl WorkspaceSettings {
 
     /// Walk up from `start_dir` looking for a readable `pnpm-workspace.yaml`.
     /// Returns `Ok(None)` if no ancestor has one. Read or parse failures
-    /// other than `ENOENT` propagate, matching pnpm's
-    /// [`readManifestRaw`](https://github.com/pnpm/pnpm/blob/8eb1be4988/workspace/workspace-manifest-reader/src/index.ts).
+    /// other than `ENOENT` propagate, matching pnpm.
     pub fn find_and_load(
         start_dir: &Path,
     ) -> Result<Option<(PathBuf, Self)>, LoadWorkspaceYamlError> {
@@ -682,12 +640,10 @@ impl WorkspaceSettings {
 
     /// Expand `${VAR}` in ordinary string settings, but drop
     /// placeholders inside workspace-controlled request-destination
-    /// fields.
-    /// The upstream
-    /// [`replaceEnvInSettings`](https://github.com/pnpm/pnpm/blob/b61e268d57/config/reader/src/getOptionsFromRootManifest.ts#L66-L84)
-    /// pass still runs `envReplace` on scalar strings while filtering
+    /// fields. Scalar strings still have `${VAR}` expanded, while
     /// `registry`, `registries`, `namedRegistries`, and `pnprServer`
-    /// instead of expanding environment variables into request URLs.
+    /// are filtered instead of expanding environment variables into
+    /// request URLs.
     ///
     /// Call this before [`Self::apply_to`] so expanded values land in
     /// [`Config`] and filtered values do not.
@@ -815,9 +771,7 @@ impl WorkspaceSettings {
         }
 
         // Anchor patch-file path resolution against the workspace dir
-        // (the yaml's parent), matching upstream's
-        // `getOptionsFromPnpmSettings(workspaceDir, ...)` at
-        // <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/getOptionsFromRootManifest.ts#L39-L46>.
+        // (the yaml's parent), matching pnpm.
         config.workspace_dir = Some(base_dir.to_path_buf());
         if let Some(v) = self.patched_dependencies {
             config.patched_dependencies = Some(v);

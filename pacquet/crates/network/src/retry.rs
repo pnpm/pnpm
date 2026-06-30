@@ -1,13 +1,11 @@
 //! Shared request-retry policy for registry network access.
 //!
 //! pnpm wraps every registry request — metadata *and* tarball — in
-//! `@zkochan/retry` with one [`RetryTimeoutOptions`] budget sourced
-//! from the `fetch-retries` family
-//! ([`network/fetch/src/fetch.ts`](https://github.com/pnpm/pnpm/blob/1819226b51/network/fetch/src/fetch.ts)).
-//! This module is pacquet's single home for that budget and its
-//! exponential-backoff math, so the metadata fetchers, pnpr's upstream
-//! proxy, and the tarball downloader all share one [`RetryOpts`] type
-//! and one algorithm.
+//! `@zkochan/retry` with one retry-timeout budget sourced from the
+//! `fetch-retries` family of settings. This module is pacquet's single
+//! home for that budget and its exponential-backoff math, so the
+//! metadata fetchers, pnpr's upstream proxy, and the tarball downloader
+//! all share one [`RetryOpts`] type and one algorithm.
 //!
 //! [`send_with_retry`] is the one-HTTP-round-trip helper the metadata
 //! fetchers and pnpr use. The tarball path keeps its own loop — its
@@ -18,8 +16,6 @@
 //! handed back a `200`, outside its loop; [`retry_async`] is the
 //! companion that re-issues the whole request when consuming or parsing
 //! the body fails. See its docs for why that second layer exists.
-//!
-//! [`RetryTimeoutOptions`]: https://github.com/pnpm/pnpm/blob/1819226b51/network/fetch/src/fetch.ts
 
 use std::{future::Future, time::Duration};
 
@@ -27,10 +23,10 @@ use reqwest::{Client, RequestBuilder, Response, StatusCode};
 
 use crate::{ThrottledClient, ThrottledClientGuard, redact_url_credentials};
 
-/// Settings for the per-request retry loop. Mirrors pnpm's
+/// Settings for the per-request retry loop. Maps to the
 /// `fetch-retries` / `fetch-retry-factor` / `fetch-retry-mintimeout` /
-/// `fetch-retry-maxtimeout` and the `@zkochan/retry` algorithm pnpm
-/// uses in `network/fetch/src/fetch.ts`:
+/// `fetch-retry-maxtimeout` settings and the `@zkochan/retry`
+/// algorithm:
 ///
 /// `delay = min(min_timeout * factor.pow(attempt), max_timeout)`
 ///
@@ -57,9 +53,7 @@ use crate::{ThrottledClient, ThrottledClientGuard, redact_url_credentials};
 /// it belongs above the `Config` boundary, alongside any other npmrc
 /// sanity checks pnpm grows over time.
 ///
-/// Defaults match pnpm's
-/// [`config/reader/src/index.ts`](https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/index.ts#L146-L149)
-/// (2 retries, factor 10, 10 s floor, 60 s cap).
+/// Defaults: 2 retries, factor 10, 10 s floor, 60 s cap.
 #[derive(Debug, Clone, Copy)]
 pub struct RetryOpts {
     pub retries: u32,
@@ -191,9 +185,8 @@ pub async fn send_with_retry<'client>(
 /// resolver re-runs the *whole* fetch when reading or parsing the
 /// response body fails — "error decoding response body" from a
 /// mid-stream reset, or broken JSON — via a second `@zkochan/retry`
-/// operation in
-/// [`resolving/npm-resolver/src/fetch.ts`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetch.ts#L172-L210).
-/// The `attempt` closure issues the request *and* consumes its body,
+/// operation. The `attempt` closure issues the request *and* consumes
+/// its body,
 /// so `is_retryable` should accept only body-read/parse failures:
 /// transport and status failures stay non-retryable here because
 /// [`send_with_retry`] inside the closure already owns that budget,

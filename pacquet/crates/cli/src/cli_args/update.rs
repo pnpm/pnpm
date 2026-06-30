@@ -9,10 +9,8 @@ use pacquet_reporter::Reporter;
 
 /// `--prod` / `--dev` / `--no-optional` for `pacquet update`.
 ///
-/// Ports pnpm's
-/// [`makeIncludeDependenciesFromCLI`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/commands/src/update/index.ts#L330-L340),
-/// which reads the *raw* CLI flags (not the rc-merged config) so an
-/// absent flag is `undefined` rather than a default.
+/// These read the *raw* CLI flags (not the rc-merged config) so an absent
+/// flag is unset rather than a default.
 #[derive(Debug, Args)]
 pub struct UpdateDependencyOptions {
     /// Update packages only in "dependencies" and "optionalDependencies".
@@ -28,14 +26,14 @@ pub struct UpdateDependencyOptions {
 
 impl UpdateDependencyOptions {
     /// The dependency groups whose direct dependencies the update may
-    /// match (pnpm's `includeDirect`). Returns the groups for which the
-    /// corresponding inclusion bit is set.
+    /// match. Returns the groups for which the corresponding inclusion bit
+    /// is set.
     fn include_direct(&self) -> Vec<DependencyGroup> {
-        // `Some(true)` only when the flag was explicitly passed, mirroring
-        // pnpm reading `opts.cliOptions` rather than the merged config.
+        // `Some(true)` only when the flag was explicitly passed: the raw
+        // CLI flags are read rather than the merged config.
         let production = self.prod.then_some(true);
         let dev = self.dev.then_some(true);
-        // pnpm has no positive `--optional` flag for update; `--no-optional`
+        // There is no positive `--optional` flag for update; `--no-optional`
         // sets it to `false`, otherwise it stays unset.
         let optional = self.no_optional.then_some(false);
 
@@ -81,7 +79,7 @@ pub struct UpdateArgs {
     pub save_exact: bool,
 
     /// Do not write the updated ranges back to package.json. The
-    /// lockfile is still updated. Mirrors pnpm's `--no-save`.
+    /// lockfile is still updated (the `--no-save` flag).
     #[clap(long = "no-save")]
     pub no_save: bool,
 

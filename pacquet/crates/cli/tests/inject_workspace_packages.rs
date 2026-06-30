@@ -1,16 +1,13 @@
 //! End-to-end coverage for `injectWorkspacePackages: true` in a
 //! `pnpm-workspace.yaml` monorepo.
 //!
-//! Ports upstream's `'inject local packages using the
-//! injectWorkspacePackages setting'` at
-//! [`installing/deps-installer/test/install/injectLocalPackages.ts:218`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-installer/test/install/injectLocalPackages.ts#L218-L414).
-//! The upstream test asserts the three behavioral consequences of the
-//! global flag: workspace packages materialise as `file:` snapshots
-//! (not `link:`) with peer-dep hash suffixes; `dependenciesMeta` on
-//! the importer is **not** populated (the global flag flips the
-//! resolution scheme without a per-dep opt-in); and the lockfile
-//! records `settings.injectWorkspacePackages: true` so a later
-//! install with the flag flipped re-resolves.
+//! Asserts the three behavioral consequences of the global flag:
+//! workspace packages materialise as `file:` snapshots (not `link:`)
+//! with peer-dep hash suffixes; `dependenciesMeta` on the importer is
+//! **not** populated (the global flag flips the resolution scheme
+//! without a per-dep opt-in); and the lockfile records
+//! `settings.injectWorkspacePackages: true` so a later install with the
+//! flag flipped re-resolves.
 
 pub mod _utils;
 
@@ -48,9 +45,8 @@ fn inject_workspace_packages_writes_file_resolutions_and_lockfile_setting() {
     let AddMockedRegistry { mock_instance, .. } = npmrc_info;
 
     // Flip the workspace yaml: `injectWorkspacePackages: true`,
-    // `autoInstallPeers: false` (matches upstream's `testDefaults`
-    // call), and the `packages:` glob covering the three sibling
-    // projects.
+    // `autoInstallPeers: false`, and the `packages:` glob covering the
+    // three sibling projects.
     let workspace_yaml_path = workspace.join("pnpm-workspace.yaml");
     let mut workspace_yaml =
         fs::read_to_string(&workspace_yaml_path).expect("read pnpm-workspace.yaml");
@@ -118,25 +114,21 @@ fn inject_workspace_packages_writes_file_resolutions_and_lockfile_setting() {
     let lockfile = fs::read_to_string(&lockfile_path).expect("read pnpm-lock.yaml");
 
     // (1) `settings.injectWorkspacePackages: true` round-trips through
-    // the writer. Mirrors upstream's
-    // `expect(lockfile.settings.injectWorkspacePackages).toBe(true)`.
+    // the writer.
     assert!(
         lockfile.contains("injectWorkspacePackages: true"),
         "pnpm-lock.yaml missing `settings.injectWorkspacePackages: true`:\n{lockfile}",
     );
 
     // (2) The workspace dep resolutions are recorded as `file:`, not
-    // `link:`. Slice each consumer's importer block and check the
-    // recorded version. Upstream asserts the same shape via
-    // `lockfile.importers['project-2'].dependencies.project-1.version`
-    // and the analogous project-3 entry — pacquet's wire format is
-    // YAML, so we slice the YAML.
+    // `link:`. Read each consumer's importer block and check the
+    // recorded version of its workspace dep (project-2 → project-1,
+    // project-3 → project-2).
     // The `file:` paths are rendered relative to the *lockfile root*
-    // (the workspace dir), matching pnpm's
-    // [`resolveFromLocalPackage`](https://github.com/pnpm/pnpm/blob/39101f5e37/resolving/npm-resolver/src/index.ts#L908-L951)
-    // — not relative to each consumer project. So `project-2`'s
-    // recorded dep on project-1 reads `project-1@file:project-1(...)`
-    // even though project-2 lives a directory away.
+    // (the workspace dir), not relative to each consumer project. So
+    // `project-2`'s recorded dep on project-1 reads
+    // `project-1@file:project-1(...)` even though project-2 lives a
+    // directory away.
     let parsed: pacquet_lockfile::Lockfile = serde_saphyr::from_str(&lockfile)
         .map_err(|err| {
             format!(
@@ -190,10 +182,9 @@ fn inject_workspace_packages_writes_file_resolutions_and_lockfile_setting() {
     // privately hoists every transitive to `<vs>/node_modules/`).
     // Empirically matches pnpm v11.4.0 with the same
     // `enableGlobalVirtualStore: false` config — pnpm produces the
-    // same nine entries on the equivalent fixture. (Upstream's
-    // `injectLocalPackages.ts:119` asserts `toHaveLength(8)` against
-    // a pre-private-hoist pnpm snapshot; current pnpm matches the
-    // count below.)
+    // same nine entries on the equivalent fixture. (An earlier
+    // pre-private-hoist snapshot had eight entries; current pnpm
+    // matches the count below.)
     let dot_pnpm = workspace.join("node_modules/.pnpm");
     let entries: Vec<String> = fs::read_dir(&dot_pnpm)
         .expect("read node_modules/.pnpm")
@@ -208,9 +199,7 @@ fn inject_workspace_packages_writes_file_resolutions_and_lockfile_setting() {
         entries.len(),
     );
 
-    // (4) The virtual-store slot names must escape `:` to `+`,
-    // matching upstream's
-    // [`depPathToFilename` regex](https://github.com/pnpm/pnpm/blob/1819226b51/deps/path/src/index.ts#L170).
+    // (4) The virtual-store slot names must escape `:` to `+`.
     // Without the escape, Windows refuses the directory name with
     // `ERROR_INVALID_NAME (123)`. Pin this here so a regression on
     // the escape rule fails on every platform, not just NTFS.
@@ -230,13 +219,8 @@ fn inject_workspace_packages_writes_file_resolutions_and_lockfile_setting() {
 
 /// `dependenciesMeta[<name>].injected = true` opts a single workspace
 /// dep into the `file:` resolution shape even when the global
-/// `injectWorkspacePackages` setting is off. Mirrors the per-dep
-/// branch of upstream's
-/// [`injected: opts.dependenciesMeta[alias]?.injected`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/installing/deps-resolver/src/getWantedDependencies.ts#L73)
-/// thread and the upstream
-/// [`'inject local packages'`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-installer/test/install/injectLocalPackages.ts#L14-L216)
-/// integration test scenario (the non-`injectWorkspacePackages`
-/// variant of the same fixture).
+/// `injectWorkspacePackages` setting is off — the per-dep variant of
+/// the same fixture, with the workspace-level flag unset.
 ///
 /// Two-project workspace: project-2 depends on project-1 via
 /// `workspace:1.0.0`, with `dependenciesMeta.project-1.injected =

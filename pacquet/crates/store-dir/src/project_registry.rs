@@ -1,6 +1,3 @@
-//! Pacquet port of upstream pnpm's `@pnpm/store.controller`
-//! [`projectRegistry`](https://github.com/pnpm/pnpm/blob/94240bc046/store/controller/src/storeController/projectRegistry.ts).
-//!
 //! The project registry is a flat directory of symlinks at
 //! `<store_dir>/projects/<short-hash>` that point back to every project
 //! using the global virtual store. The prune sweep walks this directory
@@ -9,8 +6,7 @@
 //! not distinguish abandoned packages from packages a project still uses.
 //!
 //! [`register_project`] (the write half) lives here alongside
-//! [`get_registered_projects`] (the read half ported in pnpm/pacquet#458),
-//! mirroring upstream's `projectRegistry.ts` module layout.
+//! [`get_registered_projects`] (the read half).
 
 use crate::StoreDir;
 use derive_more::{Display, Error};
@@ -72,13 +68,12 @@ pub enum RegisterProjectError {
 /// Register `project_dir` as a user of the global virtual store at
 /// `store_dir` by writing a symlink at
 /// `<store_dir>/projects/<create_short_hash(project_dir)>` pointing
-/// back at `project_dir`. Mirrors upstream's
-/// [`registerProject`](https://github.com/pnpm/pnpm/blob/94240bc046/store/controller/src/storeController/projectRegistry.ts).
+/// back at `project_dir`.
 ///
 /// Skips silently when `store_dir` lives inside `project_dir` — the
 /// "store inside the project" case (legacy `--store-dir node_modules/.pnpm`
 /// setups, or just a typo) would otherwise create a self-referential
-/// symlink. Matches upstream's `isSubdir(projectDir, storeDir)` guard.
+/// symlink. Uses the `is-subdir` semantics for the guard.
 ///
 /// Idempotent: if the symlink already exists pointing at the same
 /// project, the function is a no-op. If a previous entry under the
@@ -89,9 +84,8 @@ pub fn register_project(
     store_dir: &StoreDir,
     project_dir: &Path,
 ) -> Result<(), RegisterProjectError> {
-    // Upstream's `isSubdir(projectDir, storeDir)` is `(parent, child)`
-    // — the npm `is-subdir` package signature. Skip when the store
-    // root lives at or under the project dir.
+    // The npm `is-subdir` check is `(parent, child)`. Skip when the
+    // store root lives at or under the project dir.
     if path_contains(project_dir, store_dir.root()) {
         return Ok(());
     }
@@ -166,10 +160,9 @@ pub enum GetRegisteredProjectsError {
         error: io::Error,
     },
 
-    /// Mirrors upstream's `PROJECT_REGISTRY_ENTRY_INACCESSIBLE`. Fires
+    /// The `PROJECT_REGISTRY_ENTRY_INACCESSIBLE` error code. Fires
     /// only when `read_link` failed with something *other* than
-    /// `ENOENT` / `EINVAL` (those two are silently skipped to match
-    /// upstream).
+    /// `ENOENT` / `EINVAL` (those two are silently skipped).
     #[display("Cannot read project registry entry {link_path:?}: {error}")]
     #[diagnostic(
         code(pacquet_store_dir::get_registered_projects::entry_inaccessible),
@@ -181,7 +174,7 @@ pub enum GetRegisteredProjectsError {
         error: io::Error,
     },
 
-    /// Mirrors upstream's `PROJECT_INACCESSIBLE`. The registry entry
+    /// The `PROJECT_INACCESSIBLE` error code. The registry entry
     /// exists and points at a path that exists according to the
     /// filesystem, but the stat returned a permission / I/O error.
     /// Surfaces instead of silently dropping the entry — pruning on an
@@ -210,16 +203,14 @@ pub enum GetRegisteredProjectsError {
 
 /// List every project that's still registered against `store_dir` and
 /// drop registry entries whose target directory no longer exists.
-/// Mirrors upstream's
-/// [`getRegisteredProjects`](https://github.com/pnpm/pnpm/blob/94240bc046/store/controller/src/storeController/projectRegistry.ts#L37-L100).
 ///
-/// Returns the surviving project root paths (absolute, after the
-/// `path.isAbsolute(target) ? target : path.resolve(path.dirname(linkPath), target)`
-/// normalisation upstream performs — pacquet's [`register_project`]
-/// always writes absolute targets via [`pacquet_fs::symlink_dir`], but
-/// the relative-target branch is preserved so a registry seeded by
-/// pnpm (which uses `symlink-dir`'s "make relative when possible"
-/// behaviour on some platforms) still resolves correctly).
+/// Returns the surviving project root paths (absolute: an absolute
+/// target is used as-is, a relative one is resolved against the link's
+/// parent directory — pacquet's [`register_project`] always writes
+/// absolute targets via [`pacquet_fs::symlink_dir`], but the
+/// relative-target branch is preserved so a registry seeded by pnpm
+/// (which uses `symlink-dir`'s "make relative when possible" behaviour
+/// on some platforms) still resolves correctly).
 ///
 /// Side effects: any registry entry whose target stat returns
 /// `NotFound` is unlinked here, so the projects directory self-heals
@@ -230,7 +221,6 @@ pub enum GetRegisteredProjectsError {
 /// silently dropping the entry.
 ///
 /// `ENOENT` on the registry directory itself returns an empty `Vec`
-/// (matches upstream's `if (err.code === 'ENOENT') return []` branch)
 /// — a store that hasn't seen any GVS install yet has no projects
 /// dir, and that's not an error.
 pub fn get_registered_projects(
@@ -258,7 +248,7 @@ pub fn get_registered_projects(
         };
         let name = entry.file_name();
         let name_str = name.to_string_lossy();
-        // Skip dotfiles — matches upstream's `if (entry.name.startsWith('.')) return`.
+        // Skip dotfiles.
         if name_str.starts_with('.') {
             continue;
         }
@@ -267,10 +257,7 @@ pub fn get_registered_projects(
         // Surfacing `file_type()` errors instead of swallowing them:
         // a permission failure here would otherwise silently drop a
         // live registry entry, and a downstream prune could then
-        // remove slots that project still references. Upstream's
-        // `entry.isSymbolicLink()` cannot fail (Node returns the
-        // bit it already loaded with `withFileTypes: true`), so
-        // there's no upstream analogue to mirror — we err on the
+        // remove slots that project still references. We err on the
         // side of strictness.
         let file_type = entry.file_type().map_err(|error| {
             GetRegisteredProjectsError::EntryInaccessible { link_path: link_path.clone(), error }
@@ -287,7 +274,7 @@ pub fn get_registered_projects(
         // registered project on that platform.
         let target = match read_symlink_dir(&link_path) {
             Ok(target) => target,
-            // Upstream silently skips both ENOENT and EINVAL (the
+            // pnpm silently skips both ENOENT and EINVAL (the
             // "file is not a symlink" errno on Linux). Now that the
             // helper handles junctions, an EINVAL here means the
             // entry is neither a symlink nor a junction (some other
@@ -331,10 +318,10 @@ pub fn get_registered_projects(
     Ok(projects)
 }
 
-/// Match upstream's "silently skip on ENOENT or EINVAL" branch in
-/// `getRegisteredProjects`. `EINVAL` from `readlink` means "not a
-/// symbolic link" on Linux — the entry is benign garbage (e.g. a
-/// stray regular file) and gets ignored. `ErrorKind::InvalidInput`
+/// True for the "silently skip" errnos when reading a registry entry's
+/// symlink. `EINVAL` from `readlink` means "not a symbolic link" on
+/// Linux — the entry is benign garbage (e.g. a stray regular file) and
+/// gets ignored. `ErrorKind::InvalidInput`
 /// is the stable mapping for EINVAL on Unix; the raw errno fallback
 /// covers platforms where the std mapping hasn't been tightened.
 fn is_enoent_or_einval(error: &io::Error) -> bool {
@@ -354,21 +341,21 @@ fn is_enoent_or_einval(error: &io::Error) -> bool {
     false
 }
 
-/// Port of npm `is-subdir` (upstream's `isSubdir(parent, child)`):
-/// returns `true` when `inner` is `outer` itself or any descendant of
-/// it. Named `path_contains(outer, inner)` because the bare `isSubdir`
-/// name reads ambiguously at the call site — [`path_contains`] reads
-/// unambiguously as "does `outer` contain `inner`".
+/// Port of npm `is-subdir`: returns `true` when `inner` is `outer`
+/// itself or any descendant of it. Named `path_contains(outer, inner)`
+/// because the bare `isSubdir` name reads ambiguously at the call site
+/// — [`path_contains`] reads unambiguously as "does `outer` contain
+/// `inner`".
 ///
 /// Both paths are compared by their canonical (resolved) form so
 /// symlinks don't fool the check. When either path can't be
 /// canonicalized (typically the store dir hasn't been created yet),
 /// fall back to a *lexical* normalization that collapses `.` and `..`
-/// segments — matching upstream's `path.relative`-backed
+/// segments — the same purely-lexical check that
 /// [`is-subdir`](https://github.com/zkochan/packages/blob/e65701a6ae/is-subdir/index.js)
-/// check, which is purely lexical. A raw `starts_with` on the
-/// unnormalized path would treat `<workspace>/../pacquet-store` as
-/// inside `<workspace>` even though resolving `..` puts it outside.
+/// performs. A raw `starts_with` on the unnormalized path would treat
+/// `<workspace>/../pacquet-store` as inside `<workspace>` even though
+/// resolving `..` puts it outside.
 fn path_contains(outer: &Path, inner: &Path) -> bool {
     let outer_canonical = dunce::canonicalize(outer).unwrap_or_else(|_| lexical_normalize(outer));
     let inner_canonical = dunce::canonicalize(inner).unwrap_or_else(|_| lexical_normalize(inner));
@@ -378,9 +365,7 @@ fn path_contains(outer: &Path, inner: &Path) -> bool {
 /// Best-effort canonicalization for a symlink target: if the target is
 /// absolute and canonicalizable, return its canonical form; otherwise
 /// resolve it relative to the link's parent dir and try again; on any
-/// failure return the lexically resolved path. Mirrors how upstream's
-/// `getRegisteredProjects` handles `path.isAbsolute(target) ? target :
-/// path.resolve(path.dirname(linkPath), target)`.
+/// failure return the lexically resolved path.
 fn canonicalize_or_join(link_path: &Path, target: &Path) -> PathBuf {
     let absolute = if target.is_absolute() {
         target.to_path_buf()

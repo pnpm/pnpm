@@ -7,7 +7,7 @@ today only feeds the lockfile into preferred-versions seeding). This closes the
 perf gap that the merged tarball warm-store-reuse PR (#12096) only patched for
 remote tarballs, and matches how pnpm avoids re-resolving unchanged trees.
 
-## pnpm reference (source of truth)
+## pnpm reference
 
 `installing/deps-resolver/src/resolveDependencies.ts`:
 - `getInfoFromLockfile(lockfile, registries, reference, alias)` (~L1199) — look up

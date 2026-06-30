@@ -5,14 +5,12 @@
 //! the CAS-import helpers:
 //!
 //! - [`GitFetcher`] handles `LockfileResolution::Git` — shells out to
-//!   the system `git` binary. Ports pnpm's
-//!   [`fetching/git-fetcher`](https://github.com/pnpm/pnpm/blob/94240bc046/fetching/git-fetcher/src/index.ts).
+//!   the system `git` binary.
 //! - [`GitHostedTarballFetcher`] handles
 //!   `TarballResolution { gitHosted: true }` — picks up a tarball the
 //!   pacquet HTTP path has already downloaded into the CAS, materializes
 //!   it into a temp dir, and runs the same `prepare_package` + packlist
-//!   passes. Ports pnpm's
-//!   [`fetching/tarball-fetcher/src/gitHostedTarballFetcher.ts`](https://github.com/pnpm/pnpm/blob/94240bc046/fetching/tarball-fetcher/src/gitHostedTarballFetcher.ts).
+//!   passes.
 //!
 //! `prepare_package` lives in this crate rather than a sibling because
 //! both fetchers above are its only consumers.

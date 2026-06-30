@@ -6,8 +6,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-/// Failure to pick a shell for a lifecycle hook. Ports the pnpm-side
-/// guard at <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/exec/lifecycle/src/runLifecycleHook.ts#L63-L71>.
+/// Failure to pick a shell for a lifecycle hook.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum ScriptShellError {
@@ -45,10 +44,6 @@ pub struct SelectedShell {
 }
 
 /// Pick the shell to spawn a lifecycle script under.
-///
-/// Ports `runCmd_`'s shell-selection block from
-/// <https://github.com/pnpm/npm-lifecycle/blob/d2d8e790/index.js#L241-L252>,
-/// with the `.bat` / `.cmd` guard from `pnpm/exec/lifecycle/src/runLifecycleHook.ts:63-71`.
 ///
 /// `is_windows` lets tests drive both branches without `#[cfg(windows)]`
 /// gating the test bodies. Production callers pass `cfg!(windows)`.

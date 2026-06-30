@@ -1,6 +1,4 @@
-//! Port of upstream's
-//! [`createExportableManifest`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/releasing/exportable-manifest/src/index.ts#L45-L98)
-//! — turns a project's on-disk manifest into the manifest that ships
+//! Turns a project's on-disk manifest into the manifest that ships
 //! inside a published tarball.
 //!
 //! The pipeline:
@@ -20,8 +18,7 @@
 //! 5. **`transform`.** Required-field validation plus `bin` /
 //!    `peerDependenciesMeta` / `repository` normalization.
 //!
-//! Upstream composes the dependency replacers with a `combineConverters`
-//! higher-order function; the Rust port calls them in a straight
+//! The dependency replacers are called in a straight
 //! sequence ([`convert_dependency_for_publish`]) rather than threading
 //! a list of closures.
 //!
@@ -49,16 +46,11 @@ use std::{fs, io, path::Path};
 
 /// Lifecycle scripts removed from the published manifest's `scripts`
 /// map during obfuscation, so they don't re-run when the package is
-/// installed from the registry. Mirrors upstream's [`PREPUBLISH_SCRIPTS`][ts-PREPUBLISH_SCRIPTS].
-///
-/// [ts-PREPUBLISH_SCRIPTS]: https://github.com/pnpm/pnpm/blob/ef87f3ccff/releasing/exportable-manifest/src/index.ts#L19-L26
+/// installed from the registry.
 const PREPUBLISH_SCRIPTS: &[&str] =
     &["prepublishOnly", "prepack", "prepare", "postpack", "publish", "postpublish"];
 
 /// Manifest keys hoisted from `publishConfig` onto the manifest root.
-/// Mirrors upstream's [`PUBLISH_CONFIG_WHITELIST`][ts-PUBLISH_CONFIG_WHITELIST].
-///
-/// [ts-PUBLISH_CONFIG_WHITELIST]: https://github.com/pnpm/pnpm/blob/ef87f3ccff/releasing/exportable-manifest/src/overridePublishConfig.ts#L5-L31
 const PUBLISH_CONFIG_WHITELIST: &[&str] = &[
     "bin",
     "engines",
@@ -80,8 +72,7 @@ const PUBLISH_CONFIG_WHITELIST: &[&str] = &[
     "typesVersions",
 ];
 
-/// Options for [`create_exportable_manifest`], mirroring the subset of
-/// upstream's `MakePublishManifestOptions` pacquet currently supports.
+/// Options for [`create_exportable_manifest`].
 pub struct CreateExportableManifestOptions<'a> {
     /// Parsed workspace catalogs, used to resolve `catalog:` specifiers.
     pub catalogs: &'a Catalogs,
@@ -264,9 +255,7 @@ fn replace_jsr_protocol(
     }
 }
 
-/// Build an `npm:<name>[@<selector>]` specifier. Mirrors upstream's
-/// `createNpmAliasedSpecifier` at
-/// [`index.ts:223-229`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/releasing/exportable-manifest/src/index.ts#L223-L229).
+/// Build an `npm:<name>[@<selector>]` specifier.
 fn create_npm_aliased_specifier(npm_pkg_name: &str, version_selector: Option<&str>) -> String {
     match version_selector {
         Some(selector) if !selector.is_empty() => format!("npm:{npm_pkg_name}@{selector}"),
@@ -276,7 +265,7 @@ fn create_npm_aliased_specifier(npm_pkg_name: &str, version_selector: Option<&st
 
 /// Hoist whitelisted `publishConfig` keys onto the manifest root,
 /// dropping them from `publishConfig` (and removing `publishConfig`
-/// entirely once empty). Mirrors upstream's `overridePublishConfig`.
+/// entirely once empty).
 fn override_publish_config(publish: &mut Map<String, Value>) {
     let Some(publish_config) = publish.get("publishConfig").and_then(Value::as_object).cloned()
     else {
@@ -306,9 +295,7 @@ fn override_publish_config(publish: &mut Map<String, Value>) {
 
 /// Read a root `README.md` (case-insensitive) for embedding. Only a
 /// regular file is embedded — a symlink is skipped so it can't leak
-/// the contents of a target outside the project. Mirrors upstream's
-/// `readReadmeFile` at
-/// [`index.ts:36-43`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/releasing/exportable-manifest/src/index.ts#L36-L43).
+/// the contents of a target outside the project.
 fn read_readme_file(dir: &Path) -> io::Result<Option<String>> {
     for entry in fs::read_dir(dir)? {
         let entry = entry?;
@@ -323,7 +310,7 @@ fn read_readme_file(dir: &Path) -> io::Result<Option<String>> {
 }
 
 /// Clone `map` without the entries named in `keys`, preserving the
-/// order of the surviving entries. Replaces upstream's `ramda.omit`.
+/// order of the surviving entries.
 fn omit_keys(map: &Map<String, Value>, keys: &[&str]) -> Map<String, Value> {
     map.iter()
         .filter(|(key, _)| !keys.contains(&key.as_str()))

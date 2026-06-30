@@ -1,7 +1,6 @@
 /// `true` when `dep_path` is a runtime engine entry of the shape
-/// `(node|bun|deno)@runtime:…`. Mirrors pnpm's
-/// [`isRuntimeDepPath`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/src/index.ts#L215-L219)
-/// — the only three runtimes pnpm v11 recognises as engine deps.
+/// `(node|bun|deno)@runtime:…` — the only three runtimes recognised as
+/// engine deps.
 ///
 /// The check is byte-level (not parsed) so callers that hold the raw
 /// snapshot key can filter without round-tripping through [`crate::DepPath`].

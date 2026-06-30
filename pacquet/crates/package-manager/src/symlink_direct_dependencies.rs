@@ -33,9 +33,7 @@ use std::{
 ///   snapshots (cross-importer `workspace:` deps) get a direct symlink
 ///   to the dependee's `rootDir`.
 /// - Emit one `pnpm:root added` per direct dependency with the
-///   importer's `rootDir` as the event prefix, matching upstream's
-///   per-project emit at
-///   <https://github.com/pnpm/pnpm/blob/94240bc046/installing/linking/direct-dep-linker/src/linkDirectDeps.ts#L131>.
+///   importer's `rootDir` as the event prefix (a per-project emit).
 ///
 /// The virtual store dir (`config.virtual_store_dir`) stays singular
 /// across the install — only the per-project `node_modules/` and its
@@ -59,15 +57,13 @@ where
     /// Workspace root. For a single-project install this is the
     /// directory containing the user's `package.json`; for a real
     /// workspace it's the directory containing `pnpm-workspace.yaml`.
-    /// Same value as the `lockfileDir` upstream pnpm uses for
+    /// Same value as the `lockfileDir` used for
     /// `pnpm:stage` / `pnpm:summary` events.
     pub workspace_root: &'a Path,
     /// Snapshots the installability pass marked optional+incompatible.
     /// A direct dep whose resolved snapshot key is in this set is
     /// omitted from `node_modules/<name>` (no symlink, no
-    /// `pnpm:root added` event, no bin linking). Mirrors pnpm's
-    /// `linkDirectDeps` walk skipping entries whose `depPath` is
-    /// in `skipPkgIds`.
+    /// `pnpm:root added` event, no bin linking).
     pub skipped: &'a SkippedSnapshots,
 
     /// When `true`, skip every direct dep whose resolved version
@@ -81,11 +77,9 @@ where
     /// from the hoisted linker, and re-symlinking them would
     /// either no-op or corrupt the layout.
     ///
-    /// Mirrors upstream's hoisted branch at
-    /// [`installing/deps-restorer/src/index.ts:411-440`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/src/index.ts#L411-L440)
-    /// where `symlinkDirectDependencies` runs after
-    /// `linkHoistedModules` with a filtered `directDependenciesByImporterId`
-    /// containing only `link:`-shaped entries.
+    /// In the hoisted branch this runs after
+    /// `linkHoistedModules` with the direct-dependency map filtered to
+    /// only `link:`-shaped entries.
     pub link_only: bool,
 
     /// `<alias → resolved-target-path>` for every transitive that the
@@ -108,14 +102,14 @@ pub enum SymlinkDirectDependenciesError {
     LinkBins(#[error(source)] LinkBinsError),
 
     /// A lockfile importer key that would escape the workspace root.
-    /// Pnpm's lockfile spec uses POSIX relative paths for importer
+    /// The lockfile spec uses POSIX relative paths for importer
     /// keys (e.g. `packages/web`); a key that is absolute, contains
     /// `..` traversal, or carries a Windows drive prefix is treated
     /// as a malformed lockfile so we don't end up creating
-    /// `node_modules` outside the workspace. Upstream pnpm does not
-    /// guard this explicitly, but the importer keys it writes are
-    /// always relative POSIX paths under the workspace root — so
-    /// this check is parity-preserving on conforming input.
+    /// `node_modules` outside the workspace. The importer keys a
+    /// conforming lockfile writes are always relative POSIX paths
+    /// under the workspace root, so this check never rejects valid
+    /// input.
     #[display("Refusing to install importer with unsafe path key {importer_id:?}")]
     #[diagnostic(
         code(pacquet_package_manager::unsafe_importer_path),
@@ -158,13 +152,11 @@ where
         } = self;
 
         // Collect once so the same group order can drive every importer.
-        // Upstream calls `linkDirectDeps` once with a per-importer
-        // `dependencies` list, so the group order is shared across all
-        // importers anyway.
+        // The group order is shared across all importers.
         let dependency_groups: Vec<DependencyGroup> = dependency_groups.into_iter().collect();
 
         // Each importer's modules dir is `<importer_root>/<modules_dir_basename>`.
-        // Pnpm's `modulesDir` setting is a directory name (a single
+        // The `modulesDir` setting is a directory name (a single
         // component, default `node_modules`) applied uniformly under
         // every importer. Pacquet stores `config.modules_dir` as a
         // full path anchored at the workspace root, so peel off the
@@ -179,15 +171,13 @@ where
 
         // Sorted iteration so `pnpm:root` event order stays
         // deterministic. The wire shape doesn't require this, but a
-        // deterministic order makes assertions in tests (and the
-        // upstream snapshot tests we will be porting) tractable.
+        // deterministic order makes assertions in tests tractable.
         let mut keys: Vec<&str> = importers.keys().map(String::as_str).collect();
         keys.sort_unstable();
 
-        // `dedupeDirectDeps` short-circuits in pnpm when there is no
+        // `dedupeDirectDeps` short-circuits when there is no
         // root importer or only one importer total — there's nothing
-        // to dedupe against. Mirrors the guard at
-        // [`installing/linking/direct-dep-linker/src/linkDirectDeps.ts:34`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/linking/direct-dep-linker/src/linkDirectDeps.ts#L34).
+        // to dedupe against.
         let dedupe = config.dedupe_direct_deps && importers.contains_key(".") && keys.len() > 1;
         let root_targets: Option<BTreeMap<String, PathBuf>> = dedupe.then(|| {
             let root_project_dir = importer_root_dir(workspace_root, ".");
@@ -229,10 +219,9 @@ where
             let project_dir = importer_root_dir(workspace_root, importer_id);
             let modules_dir = project_dir.join(modules_dir_name);
 
-            // Only non-root importers get deduped against root.
-            // Mirrors pnpm's `linkDirectDepsAndDedupe`, which links
-            // the root project unfiltered and then trims each
-            // sibling's list against what root just linked.
+            // Only non-root importers get deduped against root: the
+            // root project is linked unfiltered, then each sibling's
+            // list is trimmed against what root just linked.
             let dedupe_against = match (&root_targets, importer_id) {
                 (Some(targets), id) if id != "." => Some(targets),
                 _ => None,
@@ -397,9 +386,7 @@ fn link_one_importer<Reporter: self::Reporter>(
 
     // `dedupeDirectDeps`: drop any entry whose resolved target dir
     // matches what the root importer resolved the same alias to.
-    // Mirrors `omitDepsFromRoot` at
-    // [`installing/linking/direct-dep-linker/src/linkDirectDeps.ts:66-72`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/linking/direct-dep-linker/src/linkDirectDeps.ts#L66-L72):
-    // pnpm's `pathsEqual` is `path.relative(a, b) === ''`, which on
+    // The path comparison is `path.relative(a, b) === ''`, which on
     // already-absolute paths reduces to lexical equality. Pacquet's
     // target paths are always absolute (slot dirs come from the
     // layout; link targets join against an absolute `project_dir`),
@@ -419,11 +406,10 @@ fn link_one_importer<Reporter: self::Reporter>(
         entries
     };
 
-    // `prefix` for the `pnpm:root` envelope. Upstream uses the
-    // project's `rootDir` so the JS reporter can scope progress to
-    // the right project — `lockfileDir` is reserved for the install-
-    // wide stage / summary events. See
-    // <https://github.com/pnpm/pnpm/blob/94240bc046/installing/linking/direct-dep-linker/src/linkDirectDeps.ts#L131>.
+    // `prefix` for the `pnpm:root` envelope: the project's `rootDir`
+    // so the reporter can scope progress to the right project —
+    // `lockfileDir` is reserved for the install-wide stage / summary
+    // events.
     let prefix = project_dir.to_string_lossy().into_owned();
 
     // `try_for_each` short-circuits on the first error and returns it
@@ -444,11 +430,9 @@ fn link_one_importer<Reporter: self::Reporter>(
             return Ok(());
         }
 
-        // `pnpm:root added` mirrors pnpm's emit at
-        // <https://github.com/pnpm/pnpm/blob/94240bc046/installing/linking/direct-dep-linker/src/linkDirectDeps.ts#L131>:
-        // one event per direct dependency once the symlink has
-        // been created. pacquet's frozen-lockfile snapshot doesn't
-        // preserve npm-alias keys at this layer, so `realName`
+        // `pnpm:root added`: one event per direct dependency once the
+        // symlink has been created. pacquet's frozen-lockfile snapshot
+        // doesn't preserve npm-alias keys at this layer, so `realName`
         // mirrors `name`; the optional `id` / `latest` /
         // `linkedFrom` fields are out of pacquet's reach today
         // and skip from the wire shape rather than serializing as
@@ -463,11 +447,10 @@ fn link_one_importer<Reporter: self::Reporter>(
                 unreachable!("peers are filtered out before this point")
             }
         };
-        // For a `link:` dep, upstream's `version` field is the
-        // resolved `link:<path>` payload (re-prepended on the
-        // wire) so reporters can render the link target. Pacquet
-        // mirrors that here; for `Regular` deps we keep the
-        // semver-only formatting upstream uses on the wire. For
+        // For a `link:` dep, the `version` field is the resolved
+        // `link:<path>` payload (re-prepended on the wire) so
+        // reporters can render the link target; for `Regular` deps
+        // it is the semver-only formatting on the wire. For
         // an `Alias`, the wire shape is the same as `Regular`
         // (the version-without-peer of the alias's resolved
         // suffix); the resolved package name surfaces via
@@ -507,8 +490,7 @@ fn link_one_importer<Reporter: self::Reporter>(
 
     // After the symlinks exist, walk them to discover each
     // direct dep's `package.json` and link declared bins into
-    // `<modules_dir>/.bin`. Mirrors pnpm v11's `linkBinsOfPackages`
-    // call site for direct deps.
+    // `<modules_dir>/.bin`.
     let dep_names: Vec<String> = entries.iter().map(|entry| entry.name_str.clone()).collect();
     link_direct_dep_bins(modules_dir, &dep_names)
         .map_err(SymlinkDirectDependenciesError::LinkBins)?;
@@ -569,8 +551,7 @@ fn collect_resolved_entries<'a>(
         // skipped set. Without this filter, the symlink would
         // either dangle (no virtual-store slot was created) or —
         // worse — point at a half-installed slot from a prior
-        // install. Mirrors pnpm's `linkDirectDeps` walk skipping
-        // entries whose `depPath` is in `skipPkgIds`. `link:` deps
+        // install. `link:` deps
         // never participate in the virtual store, so they are
         // exempt from the skipped check (the resolved snapshot key
         // wouldn't exist in the set anyway).
@@ -630,29 +611,26 @@ fn resolve_target_path(
             // `node_modules/<real-name>` directory is named after that
             // real name (not the importer-map key). The on-disk
             // symlink at `<modules_dir>/<importer-key>` still uses
-            // `name_str` as the link name. Mirrors pnpm's
-            // `linkDirectDeps` behavior for aliased deps.
+            // `name_str` as the link name.
             layout.slot_dir(alias).join("node_modules").join(alias.name.to_string())
         }
         ImporterDepVersion::Link(target) => {
             // `link:<path>` values are relative to the importer's
             // `rootDir` (or absolute). Resolve them here so the
             // on-disk symlink points at the right sibling project.
-            // Pnpm does the same conversion in `lockfileToDepGraph` —
-            // <https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/types/src/index.ts>
-            // — but pacquet's lockfile snapshot already carries the
+            // pacquet's lockfile snapshot already carries the
             // raw `link:` payload, so the resolution lives at the
             // install layer.
             //
             // Run the joined result through `lexical_normalize` so
             // the dedupe pass treats `<workspace>/packages/a` and
             // `<workspace>/packages/foo/../a` as the same target.
-            // Pnpm's `linkDirectDepsAndDedupe` compares stored
-            // symlink targets via `path.relative(a, b) === ''`,
-            // which on absolute paths reduces to lexical equality
-            // *after* both arguments pass through `path.resolve`
-            // (Node normalises by default). `Path::join` does not,
-            // so we have to do it explicitly here.
+            // The dedupe compares stored symlink targets via
+            // `path.relative(a, b) === ''`, which on absolute paths
+            // reduces to lexical equality *after* both arguments pass
+            // through `path.resolve` (Node normalises by default).
+            // `Path::join` does not, so we have to do it explicitly
+            // here.
             let candidate = Path::new(target);
             let joined = if candidate.is_absolute() {
                 candidate.to_path_buf()
@@ -675,13 +653,12 @@ fn resolve_target_path(
 }
 
 /// Build the `<alias → resolved-target>` map a dedupe pass needs
-/// for a single importer (always the root). Mirrors the per-importer
-/// filters in [`collect_resolved_entries`] so the map only contains
-/// aliases that would have been symlinked, matching pnpm's
-/// `readLinkedDeps(rootProject.modulesDir)` — pnpm reads the root's
-/// `node_modules/` after `linkDirectDepsOfProject` runs, which by
-/// then contains exactly the entries that survived its own
-/// skipped / link-only filters.
+/// for a single importer (always the root). Applies the same
+/// per-importer filters as [`collect_resolved_entries`] so the map
+/// only contains aliases that would have been symlinked — equivalent
+/// to reading the root's `node_modules/` after its direct deps are
+/// linked, which by then contains exactly the entries that survived
+/// the skipped / link-only filters.
 fn collect_resolved_targets(
     layout: &VirtualStoreLayout,
     project_snapshot: &ProjectSnapshot,

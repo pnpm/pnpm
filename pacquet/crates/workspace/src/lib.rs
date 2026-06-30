@@ -1,14 +1,7 @@
 //! Workspace discovery and project enumeration.
 //!
-//! Mirrors pnpm's
-//! [`workspace/root-finder`](https://github.com/pnpm/pnpm/blob/94240bc046/workspace/root-finder/src/index.ts),
-//! [`workspace/workspace-manifest-reader`](https://github.com/pnpm/pnpm/blob/94240bc046/workspace/workspace-manifest-reader/src/index.ts),
-//! [`workspace/projects-reader`](https://github.com/pnpm/pnpm/blob/94240bc046/workspace/projects-reader/src/index.ts),
-//! and
-//! [`workspace/project-manifest-reader`](https://github.com/pnpm/pnpm/blob/94240bc046/workspace/project-manifest-reader/src/index.ts).
-//!
-//! Three responsibilities, kept in separate private modules so the
-//! upstream split stays visible while keeping the public surface flat:
+//! Three responsibilities, kept in separate private modules while
+//! keeping the public surface flat:
 //!
 //! - `root_finder` — locate the workspace dir (`pnpm-workspace.yaml`).
 //!   Public entry point: [`find_workspace_dir`].

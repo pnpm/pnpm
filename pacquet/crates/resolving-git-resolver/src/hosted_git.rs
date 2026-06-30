@@ -1,23 +1,20 @@
-//! Pacquet port of the subset of
+//! The subset of
 //! [`hosted-git-info`](https://github.com/npm/hosted-git-info/tree/v4.1.0)
-//! that pnpm's git resolver uses. v4.1.0 is the major pinned in pnpm's
+//! that pacquet's git resolver uses. v4.1.0 is the major pinned in the
 //! root `package.json` (catalog entry `hosted-git-info: ^4.1.0`) and is
-//! what `node_modules/hosted-git-info/` ships at the time of this port.
+//! what `node_modules/hosted-git-info/` ships.
 //!
-//! Deliberate deviations from upstream:
+//! Deliberate deviations from upstream hosted-git-info:
 //!
 //! - The GitLab tarball template emits `/-/archive/<ref>/<project>-<ref>.tar.gz`
-//!   directly, matching pnpm's [`gitlabTarballTemplate`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/git-resolver/src/parseBareSpecifier.ts#L137-L140)
-//!   override (fix [#11533]). Upstream hosted-git-info still emits the
+//!   directly. Upstream hosted-git-info still emits the
 //!   `/api/v4/projects/<user>%2F<project>/repository/archive.tar.gz`
-//!   form; pacquet ports the pnpm override, not the raw template.
-//! - The `gist` host is not implemented. pnpm's test suite never
+//!   form; pacquet uses the override, not the raw template.
+//! - The `gist` host is not implemented. The test suite never
 //!   exercises it and the install path has no gist-shaped store key.
 //! - `browse` / `bugs` / `docs` / `file` / `git` templates are not
 //!   implemented — only `https` / `ssh` / `sshurl` / `tarball` /
 //!   `shortcut` are used by the resolver.
-//!
-//! [#11533]: https://github.com/pnpm/pnpm/issues/11533
 
 use std::fmt::{self, Write};
 
@@ -312,10 +309,8 @@ impl HostedGit {
 
     /// Host-specific tarball URL. Mirrors upstream's `tarballtemplate`
     /// per host, with one deviation: GitLab uses the
-    /// `/-/archive/<ref>/<project>-<ref>.tar.gz` shape pnpm overrides
-    /// the upstream template with at
-    /// [parseBareSpecifier.ts:137-140](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/git-resolver/src/parseBareSpecifier.ts#L137-L140)
-    /// (fix [#11533](https://github.com/pnpm/pnpm/issues/11533)).
+    /// `/-/archive/<ref>/<project>-<ref>.tar.gz` shape instead of the
+    /// upstream template.
     ///
     /// Returns `None` when no committish is set — every supported host
     /// uses an explicit ref or the literal `HEAD` / `master` placeholder

@@ -12,12 +12,10 @@ use tempfile::tempdir;
 
 /// `pnpm:root added` fires once per direct dependency, after the
 /// symlink under `node_modules/` has been created. The captured
-/// payload must mirror pnpm's wire shape: `name` and `realName`
+/// payload must match the wire shape: `name` and `realName`
 /// from the lockfile key, `version` from the resolved snapshot
 /// spec, and `dependencyType` keyed off the originating
-/// [`DependencyGroup`]. `prefix` is the install root, mirroring
-/// pnpm's emit at
-/// <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/linking/direct-dep-linker/src/linkDirectDeps.ts#L131>.
+/// [`DependencyGroup`]. `prefix` is the install root.
 #[test]
 fn emits_pnpm_root_added_per_direct_dependency() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
@@ -245,9 +243,7 @@ fn duplicate_dep_across_groups_collapses_to_one_entry() {
 /// link:<path>` in the lockfile. The symlink-direct-deps stage must
 /// resolve that relative to the importer's `rootDir` and point the
 /// `node_modules/<name>` symlink at the dependee project, NOT into
-/// the virtual store. Mirrors upstream's
-/// [`lockfileToDepGraph`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/types/src/index.ts)
-/// branch for `link:` dependencies.
+/// the virtual store.
 #[test]
 fn cross_importer_link_dep_symlinks_to_sibling_rootdir() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
@@ -375,9 +371,7 @@ fn empty_importers_is_a_no_op() {
 /// A symlink already pointing at its target is "reused", and a reused
 /// symlink is NOT a `pnpm:root added` — so a re-link (e.g. `pacquet add`
 /// over an already-installed project) emits an event only for genuinely
-/// new dependencies, not every previously-linked one. Mirrors pnpm's
-/// `if ((await symlinkDependency(...)).reused) return` at
-/// <https://github.com/pnpm/pnpm/blob/39101f5e37/installing/linking/direct-dep-linker/src/linkDirectDeps.ts#L127-L129>.
+/// new dependencies, not every previously-linked one.
 #[test]
 fn reused_symlinks_do_not_emit_pnpm_root_added() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
@@ -458,8 +452,7 @@ fn count_added(events: &Mutex<Vec<LogEvent>>) -> usize {
 
 /// Two importers under one workspace root each produce their own
 /// `pnpm:root added` event with the importer's `rootDir` as the
-/// event prefix. Mirrors upstream's per-project emit at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/installing/linking/direct-dep-linker/src/linkDirectDeps.ts#L131>.
+/// event prefix (a per-project emit).
 #[test]
 fn per_importer_prefix_in_pnpm_root_events() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
@@ -630,9 +623,8 @@ fn unsafe_importer_keys_error_before_filesystem_writes() {
 /// stage would write under `<importer>/node_modules/` while
 /// `.modules.yaml` writing and bin linking (which still use
 /// `config.modules_dir`) would target the configured name — two
-/// inconsistent layouts for the same install. Mirrors pnpm where
-/// `modulesDir` is one directory-name applied uniformly under every
-/// importer's `rootDir`.
+/// inconsistent layouts for the same install. `modulesDir` is one
+/// directory-name applied uniformly under every importer's `rootDir`.
 #[test]
 fn custom_modules_dir_propagates_to_each_importer() {
     let dir = tempdir().unwrap();

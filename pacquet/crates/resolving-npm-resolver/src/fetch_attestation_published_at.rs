@@ -16,9 +16,6 @@
 //! Real network errors propagate as
 //! [`crate::FetchMetadataError::Network`] so the verifier can fold
 //! them into a violation reason instead of swallowing.
-//!
-//! Verbatim port of upstream's
-//! [`fetchAttestationPublishedAt.ts`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetchAttestationPublishedAt.ts).
 
 use chrono::DateTime;
 use pacquet_network::{AuthHeaders, ThrottledClient};
@@ -49,10 +46,9 @@ pub async fn fetch_attestation_published_at(
     let response = match request.send().await {
         Ok(response) => response,
         Err(error) => {
-            // Mirror upstream's `catch` swallow — return None on
-            // network errors so the caller falls through to the
-            // full-metadata layer. Surfacing the error would be more
-            // informative but inconsistent with upstream.
+            // Swallow the error and return None so the caller falls
+            // through to the full-metadata layer. The attestation
+            // endpoint is an optimization, not a required source.
             tracing::debug!(target: "pacquet_resolving_npm_resolver::attestation", ?error, %url, "attestation fetch failed; falling back");
             return Ok(None);
         }

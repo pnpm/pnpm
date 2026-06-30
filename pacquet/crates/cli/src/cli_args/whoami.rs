@@ -7,9 +7,6 @@ use serde::Deserialize;
 use std::time::Duration;
 
 /// Errors from `pacquet whoami`.
-///
-/// Mirrors the error codes pnpm raises in `whoami.ts`
-/// (<https://github.com/pnpm/pnpm/blob/fc2f33912e/pnpm11/registry-access/commands/src/whoami.ts>).
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum WhoamiError {
@@ -32,9 +29,9 @@ struct WhoamiResponse {
 /// `pacquet whoami` — return the username the configured registry
 /// associates with the current auth token.
 ///
-/// Ports `whoami.ts`'s `handler`: resolve the default registry, look up
-/// its `Authorization` header, and fail with `ERR_PNPM_WHOAMI_UNAUTHORIZED`
-/// when no credentials are configured — before any request is made.
+/// Resolve the default registry, look up its `Authorization` header, and
+/// fail with `ERR_PNPM_WHOAMI_UNAUTHORIZED` when no credentials are
+/// configured — before any request is made.
 pub async fn whoami(config: &Config) -> miette::Result<String> {
     let auth_header =
         config.auth_headers.for_url(&config.registry).ok_or(WhoamiError::Unauthorized)?;
@@ -51,11 +48,10 @@ pub async fn whoami(config: &Config) -> miette::Result<String> {
 /// GET `<registry>-/whoami` with the resolved `Authorization` header and
 /// read `username` from the JSON body.
 ///
-/// Ports `whoami.ts`'s `fetchWhoami`, erroring with
-/// `ERR_PNPM_WHOAMI_FAILED` on any non-success status. `registry_url` is
-/// the config registry, which always carries a trailing slash, so
-/// concatenating `-/whoami` reproduces pnpm's `new URL('./-/whoami', ...)`
-/// join (preserving any registry path prefix).
+/// Errors with `ERR_PNPM_WHOAMI_FAILED` on any non-success status.
+/// `registry_url` is the config registry, which always carries a trailing
+/// slash, so concatenating `-/whoami` resolves it relative to the registry
+/// (preserving any registry path prefix).
 async fn fetch_whoami(
     registry_url: &str,
     http_client: &ThrottledClient,

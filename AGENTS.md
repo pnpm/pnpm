@@ -12,15 +12,15 @@ Sections below marked "(TypeScript only)" apply to TypeScript code only; they do
 
 ## Keep pnpm and pacquet in sync
 
-The two stacks are parallel implementations of the same CLI — pacquet is a Rust port of pnpm whose behavior, flags, defaults, error codes, file formats, and lockfile shape are meant to match pnpm exactly. **Any user-visible change has to land in both.**
+The two stacks are parallel implementations of the same CLI, kept behaviorally identical — the same flags, defaults, error codes, file formats, and lockfile shape. They are now at near-complete feature parity and are developed together, so **any user-visible change has to land in both at the same time.** Neither stack is downstream of the other: pacquet is a source of truth in its own right, not a port that trails the TypeScript CLI.
 
 When you change one side, do the equivalent change on the other in the same PR if you can. If you can't (different expertise, scope too large, or pacquet hasn't ported the surrounding feature yet), open the PR with just your side — call out in the description what still needs porting, and someone else will push the matching commits to the same PR before it lands.
 
 "User-visible" means anything that affects the CLI surface or the on-disk contract: command-line flags and defaults, environment-variable handling, lockfile/manifest/state-file format, error codes and messages, log emissions parsed by `@pnpm/cli.default-reporter`, store layout, hook semantics. Pure internal refactors, perf wins, and TS-only test cleanups don't need mirroring.
 
-**Any user-visible change to the TypeScript pnpm CLI must be replicated in pacquet.**
+**Any user-visible change to either stack must be replicated in the other.**
 
-The pacquet-side obligation — pnpm is the source of truth, pacquet ports from it, never the other way around — is spelled out at [`pacquet/AGENTS.md`](./pacquet/AGENTS.md#the-cardinal-rule).
+The pacquet-side conventions for keeping the two stacks aligned are in [`pacquet/AGENTS.md`](./pacquet/AGENTS.md#the-cardinal-rule).
 
 ## Repository Structure
 

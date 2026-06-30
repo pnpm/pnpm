@@ -1,8 +1,5 @@
 //! `pacquet self-update` — update pnpm to the latest version (or a given one).
 //!
-//! Ports pnpm's
-//! [`self-update` command](https://github.com/pnpm/pnpm/blob/a33eeec9cd/pnpm11/engine/pm/commands/src/self-updater/selfUpdate.ts).
-//!
 //! The target version is resolved from the trusted package-manager
 //! bootstrap registry. When the project pins pnpm via
 //! `packageManager` / `devEngines.packageManager`, that pin is updated in
@@ -32,8 +29,8 @@ use std::{collections::HashSet, path::Path};
 use crate::config_deps;
 
 /// Migration guidance printed once when `self-update` crosses a major
-/// boundary. Mirrors pnpm's `MAJOR_UPGRADE_HINTS`; add an entry per
-/// future major that ships breaking changes users need to act on.
+/// boundary. Add an entry per future major that ships breaking changes
+/// users need to act on.
 fn major_upgrade_hint(target_major: u64) -> Option<&'static str> {
     match target_major {
         11 => Some(
@@ -44,9 +41,9 @@ fn major_upgrade_hint(target_major: u64) -> Option<&'static str> {
     }
 }
 
-/// Errors specific to `self-update`. Codes mirror pnpm's `PnpmError`
-/// codes (pnpm prefixes `ERR_PNPM_`, so a code already starting with
-/// `PNPM_` becomes `ERR_PNPM_PNPM_...`).
+/// Errors specific to `self-update`. The codes carry the shared
+/// `ERR_PNPM_` prefix, so a code already starting with `PNPM_` becomes
+/// `ERR_PNPM_PNPM_...`.
 #[derive(Debug, Display, Error, Diagnostic)]
 pub(crate) enum SelfUpdateError {
     #[display("You should update pnpm with corepack")]
@@ -90,8 +87,7 @@ pub struct SelfUpdateArgs {
 
 /// Refuse to self-update under corepack (which manages its own updates).
 /// Checked in the dispatcher *before* project config is loaded, so a broken
-/// `.npmrc` / workspace config can't mask the corepack refusal. Mirrors
-/// pnpm's `isExecutedByCorepack` guard.
+/// `.npmrc` / workspace config can't mask the corepack refusal.
 pub(crate) fn reject_if_corepack() -> miette::Result<()> {
     if is_executed_by_corepack() {
         return Err(SelfUpdateError::CantSelfUpdateInCorepack.into());
@@ -138,7 +134,7 @@ async fn handler<Reporter: self::Reporter + 'static>(
 
     // Under strict resolution (`minimumReleaseAge` strict, or
     // `trustPolicy='no-downgrade'`), a policy violation must fail closed
-    // rather than silently switch — mirrors pnpm's `makeResolutionStrict`.
+    // rather than silently switch.
     let strict_resolution = (config.resolved_minimum_release_age().is_some()
         && config.resolved_minimum_release_age_strict())
         || config.trust_policy == pacquet_config::TrustPolicy::NoDowngrade;
@@ -246,8 +242,7 @@ async fn handler<Reporter: self::Reporter + 'static>(
 }
 
 /// Update the project's `packageManager` / `devEngines.packageManager`
-/// pin to `target_version`. Mirrors the project-pin branch of pnpm's
-/// `self-update` handler.
+/// pin to `target_version`.
 async fn update_project_pin(
     config: &'static Config,
     dir: &Path,
@@ -359,7 +354,7 @@ fn dev_engines_pnpm_entry_mut(manifest: &mut Value) -> Option<&mut Value> {
 
 /// A [`super::package_manager::WantedPackageManager`] flagged as `fromDevEngines` so
 /// [`super::package_manager::should_persist_package_manager_lockfile`] decides persistence
-/// the same way pnpm's `shouldPersistLockfile` does for a devEngines pin.
+/// the way it does for a devEngines pin.
 fn pm_for_persist(
     pm: &super::package_manager::WantedPackageManager,
 ) -> super::package_manager::WantedPackageManager {
@@ -372,10 +367,9 @@ fn pm_for_persist(
 }
 
 /// Returns the updated `devEngines.packageManager` version constraint.
-/// Mirrors pnpm's `updateVersionConstraint`: a constraint that still
-/// satisfies the new version is left as-is (the lockfile pins the exact
-/// version); otherwise the new version is written with the constraint's
-/// pinning style, falling back to a caret range.
+/// A constraint that still satisfies the new version is left as-is (the
+/// lockfile pins the exact version); otherwise the new version is written
+/// with the constraint's pinning style, falling back to a caret range.
 fn update_version_constraint(current: Option<&str>, new_version: &str) -> String {
     let Some(current) = current else {
         return new_version.to_string();
@@ -392,7 +386,7 @@ fn update_version_constraint(current: Option<&str>, new_version: &str) -> String
 /// The project's currently-pinned pnpm version, used to guard implicit
 /// `latest` against downgrading. Prefers the env lockfile's resolved
 /// version (accurate for range pins); falls back to the spec's exact
-/// version. Mirrors pnpm's `readProjectPinnedPnpmVersion`.
+/// version.
 fn read_project_pinned_pnpm_version(lockfile_dir: &Path, spec: Option<&str>) -> Option<String> {
     let lockfile_pinned = EnvLockfile::read(lockfile_dir).ok().flatten().and_then(|env| {
         env.importers
@@ -412,7 +406,7 @@ fn read_project_pinned_pnpm_version(lockfile_dir: &Path, spec: Option<&str>) -> 
 
 /// Link the installed engine's bins into the global bin directory and
 /// record its cache-keyed hash symlink (so `pnpm ls -g` and `store prune`
-/// see it). Mirrors the linking pnpm's `self-update` does after install.
+/// see it).
 fn link_into_global_bin(config: &Config, install_dir: &Path) -> miette::Result<()> {
     let global_bin = config.global_bin.clone().ok_or(SelfUpdateError::NoGlobalDir)?;
     let global_pkg_dir = config.global_pkg_dir.clone().ok_or(SelfUpdateError::NoGlobalDir)?;
@@ -444,8 +438,7 @@ fn registries_for_cache_key(config: &Config) -> Vec<(String, String)> {
 }
 
 /// `true` when pnpm is running under corepack, which manages its own
-/// updates. Mirrors pnpm's `isExecutedByCorepack` (corepack sets
-/// `COREPACK_ROOT`).
+/// updates (corepack sets `COREPACK_ROOT`).
 fn is_executed_by_corepack() -> bool {
     std::env::var_os("COREPACK_ROOT").is_some()
 }

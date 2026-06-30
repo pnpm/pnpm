@@ -186,8 +186,7 @@ fn returns_up_to_date_when_state_and_manifests_agree() {
 
 /// A `file:` dependency must never short-circuit: nothing the fast
 /// path stats covers the dependency's *contents*, so the full install
-/// path has to run and refetch it
-/// (<https://github.com/pnpm/pnpm/issues/11795>).
+/// path has to run and refetch it.
 #[test]
 fn returns_skipped_when_a_project_has_a_file_dependency() {
     let (dir, config, manifest) = setup_fresh_install(
@@ -695,7 +694,7 @@ fn returns_skipped_when_config_disabled() {
 }
 
 /// No `.pnpm-workspace-state-v1.json` on disk → cannot prove
-/// freshness. Mirrors pnpm's first-return guard.
+/// freshness.
 #[test]
 fn returns_skipped_when_no_state_file() {
     let dir = tempdir().unwrap();
@@ -792,10 +791,6 @@ fn returns_skipped_when_workspace_project_set_changes() {
 }
 
 /// Drift in `overrides` invalidates the cached state.
-///
-/// Ports
-/// [`checkDepsStatus.test.ts:55-83`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/test/checkDepsStatus.test.ts#L55-L83)
-/// `returns upToDate: false when overrides have changed`.
 #[test]
 fn returns_skipped_when_overrides_drift() {
     let dir = tempdir().unwrap();
@@ -843,8 +838,8 @@ fn returns_skipped_when_overrides_drift() {
 /// Toggling the flag changes whether workspace resolutions land as
 /// `link:` symlinks or `file:` hard-linked copies, so the previous
 /// install's virtual store no longer matches what a fresh resolution
-/// would produce. Tracks pnpm/pnpm#12009 — the assertion lives here
-/// so the wiring stays in place.
+/// would produce. The assertion lives here so the wiring stays in
+/// place.
 #[test]
 fn returns_skipped_when_inject_workspace_packages_drifts() {
     let dir = tempdir().unwrap();
@@ -883,9 +878,8 @@ fn returns_skipped_when_inject_workspace_packages_drifts() {
 /// Drift in `enableGlobalVirtualStore` invalidates the cached state.
 /// Toggling it moves the virtual store between `<storeDir>/links` and
 /// each project's `node_modules/.pnpm`, so the previous install's
-/// layout no longer matches a fresh resolution. Mirrors pnpm's fix for
-/// [#12142](https://github.com/pnpm/pnpm/issues/12142): the toggle was
-/// invisible to the freshness check until the key joined the comparison.
+/// layout no longer matches a fresh resolution. The toggle is invisible
+/// to the freshness check unless the key joins the comparison.
 #[test]
 fn returns_skipped_when_enable_global_virtual_store_drifts() {
     let dir = tempdir().unwrap();
@@ -1070,10 +1064,6 @@ fn returns_skipped_when_minimum_release_age_ignore_missing_time_drifts() {
 
 /// Drift in `ignoredOptionalDependencies` invalidates the cached
 /// state.
-///
-/// Ports
-/// [`checkDepsStatus.test.ts:115-143`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/test/checkDepsStatus.test.ts#L115-L143)
-/// `returns upToDate: false when ignoredOptionalDependencies have changed`.
 #[test]
 fn returns_skipped_when_ignored_optional_dependencies_drift() {
     let dir = tempdir().unwrap();
@@ -1110,10 +1100,6 @@ fn returns_skipped_when_ignored_optional_dependencies_drift() {
 }
 
 /// Drift in `patchedDependencies` invalidates the cached state.
-///
-/// Ports
-/// [`checkDepsStatus.test.ts:145-173`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/test/checkDepsStatus.test.ts#L145-L173)
-/// `returns upToDate: false when patchedDependencies have changed`.
 #[test]
 fn returns_skipped_when_patched_dependencies_drift() {
     let dir = tempdir().unwrap();
@@ -1243,10 +1229,8 @@ fn returns_up_to_date_when_patch_file_unchanged() {
     assert_eq!(decision, Decision::UpToDate);
 }
 
-/// Drift in `dedupePeers` invalidates the cached state. Mirrors
-/// pnpm's
-/// [`getOutdatedLockfileSetting` settings.dedupePeers branch](https://github.com/pnpm/pnpm/blob/39101f5e37/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts#L65-L67),
-/// the same condition the optimistic-repeat-install gate checks here.
+/// Drift in `dedupePeers` invalidates the cached state — the condition
+/// the optimistic-repeat-install gate checks here.
 #[test]
 fn returns_skipped_when_dedupe_peers_drift() {
     let dir = tempdir().unwrap();
@@ -1282,11 +1266,8 @@ fn returns_skipped_when_dedupe_peers_drift() {
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("settings")));
 }
 
-/// Drift in `preferWorkspacePackages` invalidates the cached state.
-/// Mirrors pnpm's per-key
-/// [`checkDepsStatus` settings walk](https://github.com/pnpm/pnpm/blob/180aee9ba5/deps/status/src/checkDepsStatus.ts#L138-L149)
-/// — the same condition the optimistic-repeat-install gate checks
-/// here.
+/// Drift in `preferWorkspacePackages` invalidates the cached state —
+/// the condition the optimistic-repeat-install gate checks here.
 #[test]
 fn returns_skipped_when_prefer_workspace_packages_drift() {
     let dir = tempdir().unwrap();
@@ -1323,10 +1304,6 @@ fn returns_skipped_when_prefer_workspace_packages_drift() {
 }
 
 /// Drift in `peersSuffixMaxLength` invalidates the cached state.
-///
-/// Ports
-/// [`checkDepsStatus.test.ts:175-203`](https://github.com/pnpm/pnpm/blob/39101f5e37/deps/status/test/checkDepsStatus.test.ts#L175-L203)
-/// `returns upToDate: false when peersSuffixMaxLength has changed`.
 #[test]
 fn returns_skipped_when_peers_suffix_max_length_drift() {
     let dir = tempdir().unwrap();
@@ -1363,10 +1340,6 @@ fn returns_skipped_when_peers_suffix_max_length_drift() {
 }
 
 /// Drift in `packageExtensions` invalidates the cached state.
-///
-/// Ports
-/// [`checkDepsStatus.test.ts:85-113`](https://github.com/pnpm/pnpm/blob/39101f5e37/deps/status/test/checkDepsStatus.test.ts#L85-L113)
-/// `returns upToDate: false when packageExtensions have changed`.
 #[test]
 fn returns_skipped_when_package_extensions_drift() {
     let dir = tempdir().unwrap();
@@ -1417,10 +1390,6 @@ fn returns_skipped_when_package_extensions_drift() {
 }
 
 /// Drift in `allowBuilds` invalidates the cached state.
-///
-/// Ports
-/// [`checkDepsStatus.test.ts:205-232`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/test/checkDepsStatus.test.ts#L205-L232)
-/// `returns upToDate: false when allowBuilds have changed`.
 #[test]
 fn returns_skipped_when_allow_builds_drift() {
     let dir = tempdir().unwrap();
@@ -1503,12 +1472,12 @@ fn returns_skipped_when_dedupe_direct_deps_drifts() {
 /// pacquet can't actually consume would force a redundant reinstall
 /// every time a user runs `pacquet install` after `pnpm install` in
 /// the same project, which is the scenario the vlt benchmark
-/// exercises (pnpm/pnpm#11992).
+/// exercises.
 ///
 /// As each setting is ported end-to-end (yaml plumbing, `Config`
 /// field, real consumer, and joined into `current_settings`), it
 /// joins [`settings_match`]'s comparison automatically and a
-/// drift on it starts rejecting again. Tracked in pnpm/pnpm#12009.
+/// drift on it starts rejecting again.
 #[test]
 fn returns_up_to_date_when_state_carries_unported_pnpm_settings() {
     let dir = tempdir().unwrap();
@@ -1646,10 +1615,9 @@ fn returns_outdated_when_single_project_catalog_cache_changes() {
 /// an empty configured value differently: pnpm writes `Some({})` for
 /// an empty allow-list, while pacquet's [`current_settings`] writes
 /// `None`. The comparison must treat the two as equivalent —
-/// otherwise the cross-package-manager scenario from pnpm/pnpm#11992
-/// rejects the fast path on every iteration where pnpm wrote the
-/// state. Mirrors pnpm's [`opts.allowBuilds ?? {}`](https://github.com/pnpm/pnpm/blob/72d997cc34/deps/status/src/checkDepsStatus.ts#L141)
-/// coercion on the read side.
+/// otherwise the cross-package-manager scenario rejects the fast path
+/// on every iteration where pnpm wrote the state. The read side
+/// coerces an absent value to an empty map to match.
 #[test]
 fn returns_up_to_date_when_state_has_empty_allow_builds_and_current_has_none() {
     let dir = tempdir().unwrap();
@@ -1687,9 +1655,7 @@ fn returns_up_to_date_when_state_has_empty_allow_builds_and_current_has_none() {
 }
 
 /// Workspace install where a sibling project declares dependencies
-/// but its `node_modules` is missing → not up to date. Mirrors
-/// upstream's
-/// `Workspace package X has dependencies but does not have a modules directory`.
+/// but its `node_modules` is missing → not up to date.
 ///
 /// The check only matters for sibling projects: the root's state
 /// file lives inside `<workspace_root>/node_modules`, so a missing
@@ -1745,14 +1711,13 @@ fn returns_skipped_when_sibling_node_modules_missing_for_project_with_deps() {
 }
 
 /// Regression: a single-project install with `node_modules` present
-/// but no `pnpm-lock.yaml` on disk must NOT short-circuit. Mirrors
-/// pnpm's [single-project branch](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L396-L401)
-/// throwing `RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND`, which the outer
-/// `try`/`catch` converts into `upToDate: false`. Without this gate,
-/// pacquet's fast path fires whenever the workspace-state file and
-/// manifests agree — independent of whether the lockfile exists —
-/// which silently turns `pnpm.io`'s `cache+node_modules` and
-/// `node_modules`-only benchmark scenarios into a 35 ms no-op.
+/// but no `pnpm-lock.yaml` on disk must NOT short-circuit. The
+/// single-project branch raises `RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND`,
+/// which resolves to not-up-to-date. Without this gate, pacquet's fast
+/// path fires whenever the workspace-state file and manifests agree —
+/// independent of whether the lockfile exists — which silently turns
+/// the `cache+node_modules` and `node_modules`-only benchmark
+/// scenarios into a 35 ms no-op.
 #[test]
 fn returns_skipped_when_lockfile_missing_in_single_project_mode() {
     let (dir, config, manifest) =
@@ -1776,14 +1741,11 @@ fn returns_skipped_when_lockfile_missing_in_single_project_mode() {
 }
 
 /// Workspace installs do NOT require `pnpm-lock.yaml` on disk for
-/// the fast path — pnpm's
-/// [workspace branch](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L268-L271)
-/// returns `upToDate: true` purely off the per-manifest mtime check
-/// without any wanted-lockfile probe (its merge-conflict scan,
-/// `findConflictedLockfileDir`, silently `continue`s on ENOENT at
-/// <https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L593-L596>).
-/// Pacquet must match that polarity so a workspace install state
-/// file written by either tool round-trips through the other.
+/// the fast path — the workspace branch reports up to date purely off
+/// the per-manifest mtime check without any wanted-lockfile probe (its
+/// merge-conflict scan silently `continue`s on ENOENT). Pacquet must
+/// match that polarity so a workspace install state file written by
+/// either tool round-trips through the other.
 #[test]
 fn returns_up_to_date_in_workspace_mode_without_lockfile() {
     let (dir, config, manifest) =
@@ -1949,9 +1911,7 @@ fn returns_skipped_when_current_lockfile_is_empty_for_non_empty_wanted_lockfile(
 
 /// A manifest rewrite that leaves the dependency fields intact — the
 /// shape `touch package.json` / `npm pkg set/delete` produce — must
-/// still short-circuit. Ports the contract behind upstream's
-/// `assertWantedLockfileUpToDate` pass at
-/// <https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L420-L447>.
+/// still short-circuit because the wanted lockfile remains up to date.
 #[test]
 fn returns_up_to_date_when_touched_manifest_still_satisfies_lockfile() {
     let (dir, config) = setup_content_check_project();
@@ -1987,8 +1947,7 @@ fn returns_skipped_when_touched_manifest_adds_a_dependency() {
 
 /// A wanted lockfile rewritten after the last install (newer than the
 /// current lockfile, different content) cannot short-circuit: the
-/// modules directory no longer reflects it. Ports upstream's
-/// [`assertLockfilesEqual`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/assertLockfilesEqual.ts)
+/// modules directory no longer reflects it — the
 /// `RUN_CHECK_DEPS_OUTDATED_DEPS` outcome.
 #[test]
 fn returns_skipped_when_wanted_lockfile_diverged_from_current() {
@@ -2009,8 +1968,7 @@ fn returns_skipped_when_wanted_lockfile_diverged_from_current() {
 
 /// Only the wanted lockfile changed (a `git checkout` / stash-restore of
 /// just `pnpm-lock.yaml`), with every manifest left untouched. The
-/// manifest-mtime fast path must not skip the lockfile change. Regression
-/// for pnpm/pnpm#12100.
+/// manifest-mtime fast path must not skip the lockfile change.
 #[test]
 fn returns_skipped_when_only_the_lockfile_changed() {
     let (dir, config) = setup_content_check_project();
@@ -2031,8 +1989,7 @@ fn returns_skipped_when_only_the_lockfile_changed() {
 
 /// Workspace branch: a passing content check refreshes
 /// `lastValidatedTimestamp` so the next run exits on the pure-mtime
-/// path. Mirrors upstream's `updateWorkspaceState` call at
-/// <https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L349-L357>.
+/// path.
 #[test]
 fn workspace_content_check_refreshes_last_validated_timestamp() {
     let (dir, config) = setup_content_check_project();
@@ -2058,8 +2015,7 @@ fn workspace_content_check_refreshes_last_validated_timestamp() {
 /// Workspace lockfile whose root importer links a sibling: the link
 /// stays valid while the sibling's version satisfies the manifest
 /// range, and a bump outside the range falls through to the full
-/// install. Ports upstream's
-/// [`linkedPackagesAreUpToDate`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/lockfile/verification/src/linkedPackagesAreUpToDate.ts).
+/// install.
 fn linked_sibling_decision(sibling_version: &str) -> Decision {
     let dir = tempdir().unwrap();
     let workspace_root = dir.path();

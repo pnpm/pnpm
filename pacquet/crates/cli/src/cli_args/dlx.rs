@@ -26,10 +26,6 @@ use std::{
 
 /// Run a package in a temporary environment.
 ///
-/// Ports the single-package (non-recursive) path of pnpm's `dlx`
-/// command from
-/// <https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/commands/src/dlx.ts>.
-///
 /// Deviations from pnpm, deferred until the surrounding infrastructure
 /// lands:
 /// - The cache key is built from the raw package specs rather than the
@@ -81,9 +77,6 @@ pub struct DlxArgs {
 }
 
 /// Errors from `pacquet dlx`.
-///
-/// Mirrors the error codes pnpm raises in `dlx.ts`
-/// (<https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/commands/src/dlx.ts>).
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum DlxError {
@@ -144,9 +137,8 @@ pub enum DlxError {
 impl DlxArgs {
     /// Execute the subcommand. The package is installed into a cache
     /// directory under `config.cache_dir`, and the resolved bin runs in
-    /// the process working directory (matching pnpm's `cwd: process.cwd()`
-    /// at dlx.ts:231). `dir` is only the fallback when the process cwd
-    /// can't be read.
+    /// the process working directory (`cwd: process.cwd()`). `dir` is only
+    /// the fallback when the process cwd can't be read.
     pub async fn run<Reporter: self::Reporter + 'static>(
         self,
         dir: &Path,
@@ -158,9 +150,8 @@ impl DlxArgs {
             return Err(DlxError::MissingCommand.into());
         };
 
-        // pnpm: `pkgs = opts.package ?? [command]`. With `--package`, the
-        // command names the bin to run; otherwise the command is also the
-        // package. See dlx.ts:107.
+        // `pkgs = package ?? [command]`. With `--package`, the command
+        // names the bin to run; otherwise the command is also the package.
         let pkgs: Vec<String> =
             if package.is_empty() { vec![bin_command.clone()] } else { package.clone() };
 
@@ -174,8 +165,7 @@ impl DlxArgs {
         // is part of the cache key: it changes which platform-tagged
         // optional dependencies get installed, so two invocations that
         // differ only by architecture must not share a cache entry.
-        // Mirrors pnpm feeding `supportedArchitectures` into
-        // `createCacheKey` (dlx.ts).
+        // `supportedArchitectures` is fed into the cache key for this.
         let effective_architectures =
             supported_architectures.apply_to(config.supported_architectures.clone());
         let cache_key =
@@ -212,9 +202,8 @@ impl DlxArgs {
                 .await
                 {
                     // Don't leave a half-installed prepare dir behind to
-                    // accumulate across failed runs. Mirrors pnpm's
-                    // `fs.rm(cachedDir, { recursive: true, force: true })`
-                    // on install failure (dlx.ts). Best-effort cleanup.
+                    // accumulate across failed runs: remove it on install
+                    // failure. Best-effort cleanup.
                     let _ = fs::remove_dir_all(&prepare_dir);
                     return Err(error);
                 }
@@ -229,8 +218,8 @@ impl DlxArgs {
         let bin_name =
             if package.is_empty() { get_bin_name(&cached_dir)? } else { bin_command.clone() };
 
-        // pnpm runs the dlx bin in the process working directory
-        // (`cwd: process.cwd()`, dlx.ts:231), independent of `--dir`.
+        // The dlx bin runs in the process working directory
+        // (`cwd: process.cwd()`), independent of `--dir`.
         let run_cwd = std::env::current_dir().unwrap_or_else(|_| dir.to_path_buf());
         run_bin(&bin_name, args, &run_cwd, bins_dir, &extra_bin_paths, shell_mode)
     }
@@ -238,8 +227,8 @@ impl DlxArgs {
 
 /// Install `pkgs` into `prepare_dir` so their bins land in
 /// `<prepare_dir>/node_modules/.bin`. Anchors `config` at the cache
-/// directory (mirroring pnpm's `dir` / `lockfileDir` / `bin` overrides
-/// at dlx.ts:180-184) and saves each package to `dependencies`.
+/// directory (the `dir` / `lockfileDir` / `bin` overrides) and saves each
+/// package to `dependencies`.
 async fn install_into_cache<Reporter: self::Reporter + 'static>(
     prepare_dir: &Path,
     pkgs: &[String],
@@ -254,8 +243,7 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
         .map_err(|source| DlxError::Cache { dir: manifest_path.display().to_string(), source })?;
 
     // Per-axis CLI overrides (`--cpu` / `--os` / `--libc`) replace the
-    // matching axis of the config-derived value for the dlx install,
-    // mirroring pnpm's `overrideSupportedArchitecturesWithCLI`.
+    // matching axis of the config-derived value for the dlx install.
     config.supported_architectures =
         supported_architectures.apply_to(config.supported_architectures.clone());
 
@@ -264,8 +252,8 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     // Force the project-local virtual store so the whole prepare dir is
     // self-contained and can be symlinked as the cache entry. This is a
     // deliberate deviation from pnpm's dlx, which keeps
-    // `enableGlobalVirtualStore ?? true` (dlx.ts:179): pnpm caches only
-    // the `node_modules` tree and lets the global store back it, whereas
+    // `enableGlobalVirtualStore ?? true`: pnpm caches only the
+    // `node_modules` tree and lets the global store back it, whereas
     // pacquet symlinks the entire prepare dir, so its store must live
     // inside that dir (the installer picks `global_virtual_store_dir`
     // when this is on — see virtual_store_layout.rs).
@@ -281,12 +269,10 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     // Build a *fresh* allow-list for the throwaway install — the dlx
     // packages themselves plus the CLI `--allow-build` entries — rather
     // than inheriting the caller project's `allow_builds` /
-    // `dangerously_allow_all_builds`. Mirrors pnpm's
-    // `allowBuilds = Object.fromEntries([...resolvedPkgAliases, ...allowBuild])`
-    // (dlx.ts:168). Inheriting the caller's policy would run build
-    // scripts the dlx invocation never opted into, and would also leave
-    // the cache key (which hashes only pkgs + CLI allow_build) unable to
-    // distinguish two callers with different policies.
+    // `dangerously_allow_all_builds`. Inheriting the caller's policy would
+    // run build scripts the dlx invocation never opted into, and would
+    // also leave the cache key (which hashes only pkgs + CLI allow_build)
+    // unable to distinguish two callers with different policies.
     config.dangerously_allow_all_builds = false;
     config.allow_builds.clear();
     for spec in pkgs {
@@ -320,7 +306,7 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
 }
 
 /// Resolve and spawn the bin, prepending the cache's `node_modules/.bin`
-/// (and `extraBinPaths`) to `PATH`. Mirrors dlx.ts:222-235.
+/// (and `extraBinPaths`) to `PATH`.
 fn run_bin(
     bin_name: &str,
     args: &[String],
@@ -373,8 +359,8 @@ fn run_bin(
     Ok(())
 }
 
-/// Build the `{ "default": registry, <alias>: url, … }` map pnpm feeds
-/// into the cache key. Mirrors `registries_map` in dlx.ts.
+/// Build the `{ "default": registry, <alias>: url, … }` map fed into the
+/// cache key.
 fn build_registries_map(config: &Config) -> BTreeMap<String, String> {
     let mut map = config.resolved_registries();
     for (name, url) in &config.named_registries {
@@ -383,16 +369,13 @@ fn build_registries_map(config: &Config) -> BTreeMap<String, String> {
     map
 }
 
-/// Build the dlx cache key. Ports the input composition of pnpm's
-/// `createCacheKey`
-/// (<https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/commands/src/dlx.ts#L384-L410>):
-/// the sorted package specs, sorted registries, the optional `allow_build`
-/// list, and each non-empty `supportedArchitectures` axis (deduped +
-/// sorted, in `cpu` / `libc` / `os` order) are hashed together. pacquet
-/// keys on the raw specs (not resolved ids) and uses [`create_short_hash`]
-/// rather than pnpm's full-length hex digest; the dlx caches are not
-/// shared between the two implementations, so the key format is not a
-/// cross-tool contract.
+/// Build the dlx cache key from the sorted package specs, sorted
+/// registries, the optional `allow_build` list, and each non-empty
+/// `supportedArchitectures` axis (deduped + sorted, in `cpu` / `libc` /
+/// `os` order), all hashed together. pacquet keys on the raw specs (not
+/// resolved ids) and uses [`create_short_hash`] rather than a full-length
+/// hex digest; the dlx caches are not shared between the two
+/// implementations, so the key format is not a cross-tool contract.
 fn create_cache_key(
     pkgs: &[String],
     registries: &BTreeMap<String, String>,
@@ -424,8 +407,7 @@ fn create_cache_key(
 }
 
 /// Return the cache target behind `cache_link` when it is a symlink whose
-/// own mtime is within `max_age_minutes` of `now`. Ports `getValidCacheDir`
-/// (<https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/commands/src/dlx.ts#L412-L431>).
+/// own mtime is within `max_age_minutes` of `now`.
 fn get_valid_cache_dir(
     cache_link: &Path,
     max_age_minutes: u64,
@@ -452,8 +434,7 @@ fn get_valid_cache_dir(
 }
 
 /// The timestamped, pid-scoped subdirectory a fresh dlx install is
-/// prepared in. Ports `getPrepareDir`
-/// (<https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/commands/src/dlx.ts#L433-L436>).
+/// prepared in.
 fn get_prepare_dir(cache_path: &Path, now: SystemTime, pid: u32) -> PathBuf {
     let millis = now.duration_since(UNIX_EPOCH).map_or(0, |elapsed| elapsed.as_millis());
     // base36 (vs hex) keeps this segment short: it sits between the cache key
@@ -480,9 +461,7 @@ fn to_base36(mut n: u128) -> String {
     String::from_utf8(buf).expect("base36 digits are ASCII")
 }
 
-/// Determine the bin to run from the first installed dependency. Ports
-/// `getBinName` + `getPkgName`
-/// (<https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/commands/src/dlx.ts#L247-L295>).
+/// Determine the bin to run from the first installed dependency.
 fn get_bin_name(cached_dir: &Path) -> Result<String, DlxError> {
     let pkg_name = get_pkg_name(cached_dir)?;
     let pkg_dir = cached_dir.join("node_modules").join(&pkg_name);
@@ -504,8 +483,7 @@ fn get_bin_name(cached_dir: &Path) -> Result<String, DlxError> {
     }
 }
 
-/// The first key of the installed manifest's `dependencies`. Ports
-/// `getPkgName` (dlx.ts:247-254).
+/// The first key of the installed manifest's `dependencies`.
 fn get_pkg_name(cached_dir: &Path) -> Result<String, DlxError> {
     let manifest = read_json(&cached_dir.join("package.json"))?;
     manifest
@@ -525,8 +503,7 @@ fn read_json(path: &Path) -> Result<Value, DlxError> {
     })
 }
 
-/// The package name with any `@scope/` prefix removed. Ports `scopeless`
-/// (dlx.ts:297-302).
+/// The package name with any `@scope/` prefix removed.
 fn scopeless(pkg_name: &str) -> &str {
     if let Some(rest) = pkg_name.strip_prefix('@') {
         rest.split_once('/').map_or(pkg_name, |(_, name)| name)

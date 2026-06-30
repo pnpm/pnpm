@@ -6,17 +6,10 @@ use serde_json::{Map, Value};
 use std::path::Path;
 
 /// Keys that must never be written through a property path, because they can
-/// corrupt an object's prototype chain. Mirrors [`UNSAFE_KEYS`][ts-UNSAFE_KEYS] in
-/// `@pnpm/object.property-path`.
-///
-/// [ts-UNSAFE_KEYS]: https://github.com/pnpm/pnpm/blob/6fadd7def9/pnpm11/object/property-path/src/unsafeKeys.ts#L3
+/// corrupt an object's prototype chain.
 const UNSAFE_KEYS: [&str; 3] = ["__proto__", "constructor", "prototype"];
 
 /// Errors from `pacquet set-script`.
-///
-/// Mirrors the error codes pnpm raises in `setScript.ts` and the unsafe-key
-/// guard of `@pnpm/object.property-path`
-/// (<https://github.com/pnpm/pnpm/blob/fc2f33912e/pnpm11/pkg-manifest/commands/src/setScript.ts>).
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum SetScriptError {
@@ -45,10 +38,9 @@ impl SetScriptArgs {
     /// Set `scripts[name] = command` on the manifest at `manifest_path`,
     /// reading and rewriting `package.json` in place.
     ///
-    /// Ports `setScript.ts`'s `handler`: a script name and a command are both
-    /// required, the script name is rejected when it is a prototype-pollution
-    /// key, and the name is used as a literal object key (a dot is not
-    /// interpreted as a nested path).
+    /// A script name and a command are both required, the script name is
+    /// rejected when it is a prototype-pollution key, and the name is used as
+    /// a literal object key (a dot is not interpreted as a nested path).
     pub fn run(self, manifest_path: &Path) -> miette::Result<()> {
         let mut params = self.params.into_iter();
         let Some(name) = params.next() else {
@@ -70,7 +62,7 @@ impl SetScriptArgs {
 }
 
 /// Reject a script name that would pollute an object's prototype when used as
-/// a key. Mirrors `rejectUnsafeKeys` in `@pnpm/object.property-path`.
+/// a key.
 fn reject_unsafe_key(key: &str) -> Result<(), SetScriptError> {
     if UNSAFE_KEYS.contains(&key) {
         return Err(SetScriptError::UnsafeKey { key: key.to_string() });
@@ -80,9 +72,8 @@ fn reject_unsafe_key(key: &str) -> Result<(), SetScriptError> {
 
 /// Set `scripts[name] = command` on a manifest JSON value, creating the
 /// `scripts` object when it is absent and replacing it when it is present but
-/// not an object. Mirrors `setObjectValueByPropertyPath(manifest, ['scripts',
-/// name], command)`, which rebuilds an intermediate node whose shape disagrees
-/// with the path.
+/// not an object, rebuilding an intermediate node whose shape disagrees with
+/// the path.
 fn set_script(manifest: &mut Value, name: String, command: String) {
     let Some(manifest) = manifest.as_object_mut() else { return };
     let scripts = manifest.entry("scripts").or_insert_with(|| Value::Object(Map::new()));

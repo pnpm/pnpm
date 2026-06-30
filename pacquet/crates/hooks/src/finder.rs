@@ -33,8 +33,7 @@ pub fn load_pnpmfile_at(file: PathBuf) -> Arc<dyn PnpmfileHooks> {
 }
 
 /// Whether `name` is a pnpm plugin package — one whose pnpmfile is
-/// loaded automatically when it's a config dependency. Mirrors pnpm's
-/// [`isPluginName`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/pnpm/src/getConfig.ts#L120-L124):
+/// loaded automatically when it's a config dependency:
 ///
 /// - unscoped `pnpm-plugin-*`,
 /// - scoped `@pnpm/plugin-*`,
@@ -51,8 +50,7 @@ pub fn is_plugin_name(name: &str) -> bool {
 }
 
 /// Resolve the pnpmfile paths of every plugin among `config_dep_names`,
-/// in lexical order. Mirrors pnpm's
-/// [`calcPnpmfilePathsOfPluginDeps`](https://github.com/pnpm/pnpm/blob/a6f303c2ff/pnpm11/pnpm/src/getConfig.ts#L101-L118):
+/// in lexical order:
 ///
 /// - `config_modules_dir` is `node_modules/.pnpm-config`.
 /// - A plugin whose directory is missing (the config-dep install didn't
@@ -60,7 +58,7 @@ pub fn is_plugin_name(name: &str) -> bool {
 /// - When the directory exists, `pnpmfile.mjs` is preferred, else
 ///   `pnpmfile.cjs` — the `.cjs` path is yielded even when absent so the
 ///   caller surfaces a "pnpmfile not found" error for the misconfigured
-///   plugin, matching upstream.
+///   plugin.
 pub fn calc_pnpmfile_paths_of_plugin_deps<'a>(
     config_modules_dir: &Path,
     config_dep_names: impl IntoIterator<Item = &'a str>,

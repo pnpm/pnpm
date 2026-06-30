@@ -9,8 +9,6 @@
 //! lockfile in memory and the hoisted linker materializes a flat
 //! `node_modules/` of **real directories**.
 //!
-//! Test ports of upstream's
-//! [`installing/deps-installer/test/hoistedNodeLinker/install.ts`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/hoistedNodeLinker/install.ts).
 //! Cases that depend on features pacquet hasn't built yet — `pnpm add`
 //! / update manifest mutation (pnpm/pacquet#433), lifecycle scripts +
 //! bin linking on the fresh path ([#11870]) — live in [`known_failures`]
@@ -53,8 +51,7 @@ fn write_manifest(workspace: &Path, deps: serde_json::Value) {
 /// `true` when `relative` resolves to a real directory (not a symlink
 /// or junction) under `workspace`. This is the hoisted-linker
 /// contract: regular deps are materialized as real directories, not
-/// symlinks into a virtual store. Mirrors upstream's
-/// `realpathSync(p) === resolve(p)` check.
+/// symlinks into a virtual store.
 fn is_real_dir(workspace: &Path, relative: &str) -> bool {
     let path = workspace.join(relative);
     path.is_dir() && !is_symlink_or_junction(&path).unwrap()
@@ -90,8 +87,6 @@ fn read_pkg_version(workspace: &Path, relative: &str) -> String {
     parsed["version"].as_str().expect("package.json has a string version").to_string()
 }
 
-/// Upstream: [`install.ts:16` "installing with hoisted node-linker"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/hoistedNodeLinker/install.ts#L16).
-///
 /// Direct deps land as real directories at the project root and a
 /// version-conflicting transitive nests under its consumer. `send`
 /// pulls `ms@2.x` while the root pins `ms@1.0.0`, so the root keeps
@@ -141,8 +136,6 @@ fn installing_with_hoisted_node_linker() {
     drop((root, mock_instance));
 }
 
-/// Upstream: [`install.ts:45` "installing with hoisted node-linker and no lockfile"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/hoistedNodeLinker/install.ts#L45).
-///
 /// With `lockfile: false` the hoisted install still materializes a
 /// real directory and writes no `pnpm-lock.yaml`.
 #[test]
@@ -165,8 +158,6 @@ fn installing_with_hoisted_node_linker_and_no_lockfile() {
     drop((root, mock_instance));
 }
 
-/// Upstream: [`installing/deps-restorer/test/index.ts:859` "installing with node-linker=hoisted"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/test/index.ts#L859).
-///
 /// The headless (frozen-lockfile) path materializes the hoisted
 /// layout from a pre-existing lockfile, reproducing the same
 /// real-dir + version-conflict-nesting shape as a fresh install.
@@ -208,15 +199,11 @@ fn installing_with_hoisted_node_linker_frozen() {
     drop((root, mock_instance));
 }
 
-/// Upstream: [`installing/deps-restorer/test/index.ts:873` "installing in a workspace with node-linker=hoisted"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/test/index.ts#L873).
-///
 /// Workspace-wide hoisting under the frozen path. When the root
 /// importer and a workspace project pin conflicting versions of one
 /// name, the root's version wins the top-level slot — root deps rank
 /// first in the hoister's preference order — and the project's
-/// version nests under its own `node_modules`. Mirrors the upstream
-/// layout where the root's `webpack@5.65.0` lands at the root and
-/// `foo`'s `webpack@2.7.0` nests under `foo`.
+/// version nests under its own `node_modules`.
 #[test]
 fn installing_in_a_workspace_with_hoisted_node_linker_frozen() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -275,8 +262,6 @@ fn installing_in_a_workspace_with_hoisted_node_linker_frozen() {
     drop((root, mock_instance));
 }
 
-/// Upstream: [`install.ts:229` "hoistingLimits should prevent packages to be hoisted"](https://github.com/pnpm/pnpm/blob/a6f303c2ff6ba83df17a47f10a0fe1d7ff8a083c/pnpm11/installing/deps-installer/test/hoistedNodeLinker/install.ts#L229).
-///
 /// `hoistingLimits: dependencies` borders each direct dependency, so
 /// `send`'s transitive `ms` stays nested under `send` instead of
 /// hoisting to the root.
@@ -303,8 +288,6 @@ fn hoisting_limits_prevents_hoisting() {
     drop((root, mock_instance));
 }
 
-/// Upstream: [`install.ts:247` "externalDependencies should prevent package from being hoisted to the root"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/hoistedNodeLinker/install.ts#L247).
-///
 /// `externalDependencies: [ms]` reserves the root `ms` slot for an
 /// external linker, so `ms` is not hoisted to the root and stays
 /// nested under `send`.
@@ -331,8 +314,6 @@ fn external_dependencies_prevents_hoisting_to_root() {
     drop((root, mock_instance));
 }
 
-/// Upstream: [`install.ts:314` "peerDependencies should be installed when autoInstallPeers is set to true and nodeLinker is set to hoisted"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/hoistedNodeLinker/install.ts#L314).
-///
 /// With `autoInstallPeers: true`, `react-dom`'s `react` peer is
 /// resolved and lands as a real directory at the hoisted root.
 #[test]
@@ -495,9 +476,8 @@ fn node_major() -> u32 {
 }
 
 mod known_failures {
-    //! Ports of upstream `hoistedNodeLinker/install.ts` cases blocked
-    //! on features pacquet hasn't built yet. Each stubs the
-    //! not-yet-built subject through
+    //! Hoisted-node-linker cases blocked on features pacquet hasn't
+    //! built yet. Each stubs the not-yet-built subject through
     //! [`pacquet_testing_utils::allow_known_failure`] so the test exits
     //! early rather than masking a real bug.
 
@@ -525,31 +505,26 @@ mod known_failures {
         ))
     }
 
-    /// Upstream: [`install.ts:61` "overwriting (is-positive@3.0.0 with is-positive@latest)"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/hoistedNodeLinker/install.ts#L61).
     #[test]
     fn overwriting_is_positive_with_latest() {
         allow_known_failure!(manifest_mutation_via_pnpm_add());
     }
 
-    /// Upstream: [`install.ts:83` "overwriting existing files in node_modules"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/hoistedNodeLinker/install.ts#L83).
     #[test]
     fn overwriting_existing_files_in_node_modules() {
         allow_known_failure!(manifest_mutation_via_pnpm_add());
     }
 
-    /// Upstream: [`install.ts:97` "preserve subdeps on update"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/hoistedNodeLinker/install.ts#L97).
     #[test]
     fn preserve_subdeps_on_update() {
         allow_known_failure!(manifest_mutation_via_pnpm_add());
     }
 
-    /// Upstream: [`install.ts:119` "adding a new dependency to one of the workspace projects"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/hoistedNodeLinker/install.ts#L119).
     #[test]
     fn adding_a_new_dependency_to_a_workspace_project() {
         allow_known_failure!(manifest_mutation_via_pnpm_add());
     }
 
-    /// Upstream: [`install.ts:172` "installing the same package with alias and no alias"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/hoistedNodeLinker/install.ts#L172).
     /// Relies on `pnpm add` of multiple specifiers plus a dist-tag
     /// bump to pin the aliased and unaliased copies to the same
     /// version.
@@ -558,7 +533,6 @@ mod known_failures {
         allow_known_failure!(manifest_mutation_via_pnpm_add());
     }
 
-    /// Upstream: [`install.ts:329` "installing with hoisted node-linker a package that is a peer dependency of itself"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/hoistedNodeLinker/install.ts#L329).
     /// Adds the dep via `pnpm add --save` and then introspects the
     /// written lockfile's `peerDependencies` entry.
     #[test]
@@ -566,19 +540,16 @@ mod known_failures {
         allow_known_failure!(manifest_mutation_via_pnpm_add());
     }
 
-    /// Upstream: [`install.ts:187` "run pre/postinstall scripts. bin files should be linked in a hoisted node_modules"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/hoistedNodeLinker/install.ts#L187).
     #[test]
     fn run_pre_and_postinstall_scripts_and_link_bins() {
         allow_known_failure!(lifecycle_scripts_on_fresh_path());
     }
 
-    /// Upstream: [`install.ts:210` "running install scripts in a workspace that has no root project"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/hoistedNodeLinker/install.ts#L210).
     #[test]
     fn running_install_scripts_in_workspace_without_root_project() {
         allow_known_failure!(lifecycle_scripts_on_fresh_path());
     }
 
-    /// Upstream: [`install.ts:264` "linking bins of local projects when node-linker is set to hoisted"](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/hoistedNodeLinker/install.ts#L264).
     #[test]
     fn linking_bins_of_local_projects() {
         allow_known_failure!(lifecycle_scripts_on_fresh_path());

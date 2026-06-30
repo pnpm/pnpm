@@ -1,18 +1,11 @@
-//! Pacquet port of
-//! [`getNodeMirror.ts`](https://github.com/pnpm/pnpm/blob/1627943d2a/engine/runtime/node-resolver/src/getNodeMirror.ts).
+//! Resolves the base URL for a Node.js release channel.
 
 use std::collections::HashMap;
 
 /// Default mirror for the official Node.js releases.
-///
-/// Mirrors upstream's
-/// [`DEFAULT_NODE_MIRROR_BASE_URL`](https://github.com/pnpm/pnpm/blob/1627943d2a/engine/runtime/node-resolver/src/index.ts#L25).
 pub const DEFAULT_NODE_MIRROR_BASE_URL: &str = "https://nodejs.org/download/release/";
 
 /// Mirror for the unofficial Node.js builds (musl variants).
-///
-/// Mirrors upstream's
-/// [`UNOFFICIAL_NODE_MIRROR_BASE_URL`](https://github.com/pnpm/pnpm/blob/1627943d2a/engine/runtime/node-resolver/src/index.ts#L26).
 pub const UNOFFICIAL_NODE_MIRROR_BASE_URL: &str =
     "https://unofficial-builds.nodejs.org/download/release/";
 

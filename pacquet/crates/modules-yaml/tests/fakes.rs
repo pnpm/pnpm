@@ -68,9 +68,7 @@ fn read_propagates_parse_error() {
     assert!(matches!(err, pacquet_modules_yaml::ReadModulesError::ParseYaml { .. }));
 }
 
-/// A YAML document that parses to `null` should yield `Ok(None)`, matching
-/// upstream's `if (!modulesRaw) return modulesRaw;` at
-/// <https://github.com/pnpm/pnpm/blob/1819226b51/installing/modules-yaml/src/index.ts#L55>.
+/// A YAML document that parses to `null` should yield `Ok(None)`.
 #[test]
 fn read_returns_none_for_null_document() {
     use std::io;
@@ -148,11 +146,9 @@ fn write_propagates_write_error() {
 
 /// `LayoutVersion` is a unit type pinned to `5`. A manifest whose
 /// `layoutVersion` is any other number must fail at parse time. This is
-/// stricter than upstream's `readModules`, which accepts any number and
-/// defers the decision to `checkCompatibility` at
-/// <https://github.com/pnpm/pnpm/blob/1819226b51/installing/deps-installer/src/install/checkCompatibility/index.ts#L18-L22>;
-/// the end-to-end behavior matches because both code paths reject
-/// incompatible manifests.
+/// stricter than pnpm, which accepts any number at read time and defers
+/// the decision to a later compatibility check; the end-to-end behavior
+/// matches because both code paths reject incompatible manifests.
 #[test]
 fn read_rejects_incompatible_layout_version() {
     use std::io;
@@ -177,12 +173,10 @@ fn read_rejects_incompatible_layout_version() {
     assert!(matches!(err, pacquet_modules_yaml::ReadModulesError::ParseYaml { .. }));
 }
 
-/// `ignoredBuilds` deserializes into an [`IndexSet`], mirroring upstream's
-/// `new Set<DepPath>(modulesRaw.ignoredBuilds)` normalization at
-/// <https://github.com/pnpm/pnpm/blob/1819226b51/installing/modules-yaml/src/index.ts#L64>.
-/// Duplicates are dropped, and insertion order is preserved so a
-/// write-after-read round-trip leaves the on-disk array byte-stable
-/// against an upstream-written manifest.
+/// `ignoredBuilds` deserializes into an [`IndexSet`]: the on-disk array
+/// is normalized into a set. Duplicates are dropped, and insertion order
+/// is preserved so a write-after-read round-trip leaves the on-disk
+/// array byte-stable against a pnpm-written manifest.
 ///
 /// [`IndexSet`]: indexmap::IndexSet
 #[test]
@@ -227,9 +221,6 @@ fn ignored_builds_dedups_and_preserves_insertion_order() {
 
 /// `read_modules_manifest` fills in a missing `prunedAt` from the
 /// injected [`Clock`] capability, formatting it as an HTTP date.
-/// Mirrors upstream's `if (!modules.prunedAt) modules.prunedAt = new
-/// Date().toUTCString()` at
-/// <https://github.com/pnpm/pnpm/blob/1819226b51/installing/modules-yaml/src/index.ts#L98-L99>.
 /// This test pins the formatted output by faking the clock to a known
 /// instant, since `SystemTime::now()` is otherwise non-deterministic.
 #[test]

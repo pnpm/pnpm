@@ -1,15 +1,11 @@
 //! Read and write pnpm's `node_modules/.pnpm-workspace-state-v1.json`.
 //!
-//! Mirrors pnpm v11's `@pnpm/workspace.state` package. See upstream
-//! <https://github.com/pnpm/pnpm/blob/7ff112bac6/workspace/state/src/index.ts>.
-//!
 //! The file records what an install actually used (project list,
 //! resolved settings, pnpmfiles, ...) so the next `pnpm run` invocation
 //! can decide whether `node_modules` is still up to date without
-//! re-resolving anything. Mirroring the on-disk shape byte-for-byte
-//! lets pnpm read state written by pacquet — that's what closes the
-//! gap that forced
-//! [`verify-deps-before-run=false`](https://github.com/pnpm/pnpm/commit/7ff112bac6).
+//! re-resolving anything. Matching the on-disk shape byte-for-byte lets
+//! pnpm read state written by pacquet, which is what lets
+//! `verify-deps-before-run` stay enabled.
 
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
@@ -25,21 +21,16 @@ use std::{
 use tempfile::NamedTempFile;
 
 /// Basename of the workspace-state file, written inside `node_modules/`.
-///
-/// Matches upstream's filename at
-/// <https://github.com/pnpm/pnpm/blob/7ff112bac6/workspace/state/src/filePath.ts>.
 pub const WORKSPACE_STATE_FILENAME: &str = ".pnpm-workspace-state-v1.json";
 
-/// `<workspace_dir>/node_modules/.pnpm-workspace-state-v1.json`. Same
-/// resolution as upstream's [`getFilePath`](https://github.com/pnpm/pnpm/blob/7ff112bac6/workspace/state/src/filePath.ts).
+/// `<workspace_dir>/node_modules/.pnpm-workspace-state-v1.json`.
 #[must_use]
 pub fn get_file_path(workspace_dir: &Path) -> PathBuf {
     workspace_dir.join("node_modules").join(WORKSPACE_STATE_FILENAME)
 }
 
-/// Per-project entry inside [`WorkspaceState::projects`]. Mirrors
-/// upstream's `{ name?, version? }` shape at
-/// <https://github.com/pnpm/pnpm/blob/7ff112bac6/workspace/state/src/types.ts>.
+/// Per-project entry inside [`WorkspaceState::projects`]: the optional
+/// `name` and `version` of the project.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProjectEntry {
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -48,12 +39,11 @@ pub struct ProjectEntry {
     pub version: Option<String>,
 }
 
-/// A single `configDependencies` value. Mirrors pnpm's
-/// `VersionWithIntegrity | { tarball?, integrity }` at
-/// <https://github.com/pnpm/pnpm/blob/7ff112bac6/core/types/src/package.ts>.
-/// Untagged so it round-trips both shapes verbatim; pnpm compares the
-/// recorded value against the live config with a deep, order-independent
-/// equality check.
+/// A single `configDependencies` value — either a `VersionWithIntegrity`
+/// string or a `{ tarball?, integrity }` object. Untagged so it
+/// round-trips both shapes verbatim; pnpm compares the recorded value
+/// against the live config with a deep, order-independent equality
+/// check.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ConfigDependency {
@@ -71,7 +61,6 @@ pub struct ConfigDependencyDetail {
 
 /// Typed view of `.pnpm-workspace-state-v1.json`.
 ///
-/// Mirrors upstream's [`WorkspaceState`](https://github.com/pnpm/pnpm/blob/7ff112bac6/workspace/state/src/types.ts).
 /// `lastValidatedTimestamp` is JS `Date.now()` — milliseconds since the
 /// Unix epoch — so pnpm's freshness checks (`mtime > lastValidated`)
 /// stay consistent across the two implementations.
@@ -87,13 +76,12 @@ pub struct WorkspaceState {
     pub settings: WorkspaceStateSettings,
 }
 
-/// Subset of pnpm's `Config` keys that `checkDepsStatus` compares to
-/// the live config before allowing the fast-path. Listed at
-/// <https://github.com/pnpm/pnpm/blob/7ff112bac6/workspace/state/src/types.ts>.
+/// Subset of pnpm's config keys that its deps-status check compares to
+/// the live config before allowing the fast-path.
 ///
 /// Every field is `Option` so pacquet can omit settings it does not
-/// track yet. pnpm iterates the full `WORKSPACE_STATE_SETTING_KEYS`
-/// list and reads an omitted key as `undefined`, so a key pacquet omits
+/// track yet. pnpm iterates its full set of workspace-state setting
+/// keys and reads an omitted key as `undefined`, so a key pacquet omits
 /// stays compatible only while pnpm's resolved value for it is also
 /// `undefined`. Match what the install actually used — if pacquet's
 /// resolved value differs from pnpm's, pnpm correctly reinstalls.
@@ -168,10 +156,10 @@ pub struct WorkspaceStateSettings {
     pub workspace_package_patterns: Option<Vec<String>>,
 }
 
-/// Mirrors pnpm's `nodeLinker: 'hoisted' | 'isolated' | 'pnp'`. Same
-/// wire format as [`pacquet_modules_yaml::NodeLinker`](https://github.com/pnpm/pnpm/blob/7ff112bac6/installing/modules-yaml/src/index.ts);
-/// duplicated here rather than depending on `pacquet-modules-yaml` so
-/// `workspace-state` stays independent of the install pipeline.
+/// pnpm's `nodeLinker: 'hoisted' | 'isolated' | 'pnp'`. Same wire
+/// format as `pacquet_modules_yaml::NodeLinker`; duplicated here rather
+/// than depending on `pacquet-modules-yaml` so `workspace-state` stays
+/// independent of the install pipeline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum NodeLinker {
@@ -201,9 +189,7 @@ pub enum UpdateWorkspaceStateError {
 ///
 /// Writes to a temporary file in the same directory, then atomically
 /// renames it into place, so a concurrent reader — pnpm or pacquet —
-/// never observes a half-written file. Mirrors upstream's
-/// [`updateWorkspaceState`](https://github.com/pnpm/pnpm/blob/7ff112bac6/workspace/state/src/updateWorkspaceState.ts),
-/// which writes through `write-file-atomic` for the same reason
+/// never observes a half-written file
 /// ([#12020](https://github.com/pnpm/pnpm/issues/12020)).
 ///
 /// The serialized bytes are `JSON.stringify(state, undefined, 2) + '\n'`:
@@ -238,8 +224,7 @@ pub fn update_workspace_state(
 
 /// Read the workspace state file at `<workspace_dir>/node_modules/.pnpm-workspace-state-v1.json`.
 ///
-/// Returns `Ok(None)` when the file does not exist, matching upstream's
-/// [`loadWorkspaceState`](https://github.com/pnpm/pnpm/blob/7ff112bac6/workspace/state/src/loadWorkspaceState.ts).
+/// Returns `Ok(None)` when the file does not exist.
 pub fn load_workspace_state(
     workspace_dir: &Path,
 ) -> Result<Option<WorkspaceState>, LoadWorkspaceStateError> {
@@ -270,8 +255,7 @@ pub enum LoadWorkspaceStateError {
 }
 
 /// Wall-clock milliseconds since the Unix epoch, matching JS
-/// `Date.now()` and the `lastValidatedTimestamp` value pnpm writes at
-/// <https://github.com/pnpm/pnpm/blob/7ff112bac6/workspace/state/src/createWorkspaceState.ts>.
+/// `Date.now()` and the `lastValidatedTimestamp` value pnpm writes.
 ///
 /// Truncates to `i64` because the JSON field is signed and the year
 /// 2038-pre-292277026596 range is the only one that matters.

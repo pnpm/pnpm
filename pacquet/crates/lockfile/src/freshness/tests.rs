@@ -209,8 +209,7 @@ fn missing_importer_returns_no_importer() {
 /// `dependencies`) should be caught by the per-field follow-up loop.
 /// The flat-record pre-pass would say "specifiers match" because
 /// they do across the union — but the dep-graph install would be
-/// different so we must reject. Mirrors upstream's per-field check
-/// at <https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/verification/src/satisfiesPackageManifest.ts#L67-L100>.
+/// different so we must reject.
 #[test]
 fn dep_moves_between_fields_returns_dep_specifier_mismatch() {
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -289,7 +288,8 @@ fn cross_field_swap_with_same_cardinalities_caught_by_per_field_check() {
     );
 }
 
-/// Mirrors upstream's `publishDirectory` mismatch.
+/// A `publishDirectory` that differs from the manifest's
+/// `publishConfig.directory` surfaces as drift.
 #[test]
 fn publish_directory_mismatch_returns_publish_directory_mismatch() {
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -522,8 +522,7 @@ fn importer_empty_dev_dependencies_equivalent_to_absent() {
 }
 
 // ---------------------------------------------------------------------------
-// `catalogs` drift — pacquet's mirror of upstream's
-// `getOutdatedLockfileSetting` first check
+// `catalogs` drift — the first lockfile-settings check
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -722,8 +721,7 @@ fn check_settings_returns_drift_when_lockfile_has_set_but_config_does_not() {
 }
 
 // ---------------------------------------------------------------------------
-// `overrides` drift — pacquet's lockfile-side mirror of upstream's
-// `getOutdatedLockfileSetting` overrides check
+// `overrides` drift — the lockfile-side overrides check
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -864,8 +862,7 @@ fn check_settings_returns_drift_when_config_has_overrides_but_lockfile_does_not(
 }
 
 // ---------------------------------------------------------------------------
-// `patchedDependencies` drift — pacquet's lockfile-side mirror of
-// upstream's `getOutdatedLockfileSetting` patchedDependencies check
+// `patchedDependencies` drift — the lockfile-side patchedDependencies check
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -992,8 +989,8 @@ fn check_settings_returns_ok_when_package_extensions_checksum_matches() {
     );
 }
 
-/// Mirrors upstream's `lockfile.packageExtensionsChecksum !==
-/// packageExtensionsChecksum` branch.
+/// A changed `packageExtensionsChecksum` between the lockfile and the
+/// current config surfaces as drift.
 #[test]
 fn check_settings_returns_drift_on_package_extensions_checksum_value_change() {
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -1095,8 +1092,7 @@ fn check_settings_reports_overrides_before_ignored_optional() {
 }
 
 // ---------------------------------------------------------------------------
-// `injectWorkspacePackages` drift — pacquet's lockfile-side mirror of
-// upstream's `getOutdatedLockfileSetting.ts:80-82` Boolean-normalized
+// `injectWorkspacePackages` drift — the lockfile-side Boolean-normalized
 // comparison.
 // ---------------------------------------------------------------------------
 
@@ -1197,8 +1193,7 @@ fn check_settings_returns_drift_when_config_disables_inject_workspace_packages()
 }
 
 // ---------------------------------------------------------------------------
-// `peersSuffixMaxLength` drift — pacquet's mirror of upstream's
-// `getOutdatedLockfileSetting` peersSuffixMaxLength check
+// `peersSuffixMaxLength` drift — the lockfile-side peersSuffixMaxLength check
 // ---------------------------------------------------------------------------
 
 #[test]
@@ -1222,13 +1217,10 @@ fn check_settings_passes_when_peers_suffix_max_length_unset_and_config_is_defaul
 }
 
 /// Lockfile carries no `settings.peersSuffixMaxLength` (writer used
-/// the default — pnpm strips the field at that point), but the current
+/// the default — the field is stripped at that point), but the current
 /// config asks for a non-default value. That's drift: the recorded
 /// dep paths assume 1000; re-resolving under a different cap would
-/// produce a different graph. Mirrors upstream's
-/// [`getOutdatedLockfileSetting.ts`](https://github.com/pnpm/pnpm/blob/39101f5e37/lockfile/settings-checker/src/getOutdatedLockfileSetting.ts)
-/// `lockfile.settings?.peersSuffixMaxLength == null && peersSuffixMaxLength !== 1000`
-/// branch.
+/// produce a different graph.
 #[test]
 fn check_settings_returns_drift_when_lockfile_implicit_default_differs_from_config() {
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -1259,9 +1251,8 @@ fn check_settings_passes_when_explicit_peers_suffix_max_length_matches() {
     assert!(check_lockfile_settings(&lockfile, None, None, None, None, false, 10).is_ok());
 }
 
-/// Mirrors upstream's
-/// `lockfile.settings?.peersSuffixMaxLength != null && lockfile.settings.peersSuffixMaxLength !== peersSuffixMaxLength`
-/// branch.
+/// An explicit `settings.peersSuffixMaxLength` in the lockfile that
+/// differs from the current config surfaces as drift.
 #[test]
 fn check_settings_returns_drift_when_explicit_peers_suffix_max_length_differs() {
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -1281,9 +1272,8 @@ fn check_settings_returns_drift_when_explicit_peers_suffix_max_length_differs() 
 /// must apply the same filter on the manifest side so an entry the
 /// user listed in `ignoredOptionalDependencies` doesn't falsely
 /// surface as drift (the lockfile importer correctly doesn't have
-/// it, the manifest still does). Mirrors upstream's
-/// [`createOptionalDependenciesRemover`](https://github.com/pnpm/pnpm/blob/94240bc046/hooks/read-package-hook/src/createOptionalDependenciesRemover.ts)
-/// applied at manifest-read time.
+/// it, the manifest still does). The filter is applied at
+/// manifest-read time.
 #[test]
 fn ignored_optional_filtered_out_of_manifest_diff() {
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {
@@ -1343,9 +1333,7 @@ fn ignored_optional_without_filter_surfaces_as_drift() {
 
 /// Lockfile serde round-trip: the field is at the top level (not
 /// inside `settings`) and round-trips through yaml verbatim, in
-/// declaration order. Mirrors upstream's
-/// [`LockfileBase.ignoredOptionalDependencies`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/types/src/index.ts#L19)
-/// wire shape.
+/// declaration order.
 #[test]
 fn ignored_optional_dependencies_round_trips_through_yaml() {
     let yaml = text_block! {
@@ -1362,13 +1350,11 @@ fn ignored_optional_dependencies_round_trips_through_yaml() {
 }
 
 /// `ignoredOptionalDependencies` must **not** apply to
-/// `devDependencies` — upstream's
-/// [`createOptionalDependenciesRemover`](https://github.com/pnpm/pnpm/blob/94240bc046/hooks/read-package-hook/src/createOptionalDependenciesRemover.ts)
-/// iterates `optionalDependencies` keys and deletes from
-/// `optionalDependencies` + `dependencies` only, never touching
-/// `devDependencies`. Without the group gate, a dev entry sharing a
-/// name with an ignored optional would be filtered too, flagging the
-/// lockfile's dev entry as removed → false drift.
+/// `devDependencies`: the removal iterates `optionalDependencies` keys
+/// and deletes from `optionalDependencies` + `dependencies` only, never
+/// touching `devDependencies`. Without the group gate, a dev entry
+/// sharing a name with an ignored optional would be filtered too,
+/// flagging the lockfile's dev entry as removed → false drift.
 #[test]
 fn ignored_optional_does_not_apply_to_dev_dependencies() {
     let lockfile: Lockfile = serde_saphyr::from_str(text_block! {

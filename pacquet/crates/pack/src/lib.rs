@@ -1,5 +1,4 @@
-//! Pacquet port of pnpm's `pack` command
-//! ([`releasing/commands/src/publish/pack.ts`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/pack.ts)).
+//! The `pack` command.
 //!
 //! [`api`] packs a single project into a `.tgz`: it runs the
 //! `prepack` / `prepare` lifecycle scripts, builds the publish manifest
@@ -55,11 +54,8 @@ pub use capabilities::{FsAtomicWrite, FsCreateDirAll, FsFileLen, FsReadFile, Hos
 /// errors, matching pnpm's `manifestFileName`.
 const MANIFEST_FILE_NAME: &str = "package.json";
 
-/// Inputs for [`api`], mirroring the subset of pnpm's [`PackOptions`][ts-PackOptions]
-/// pacquet supports. The CLI maps the resolved [`pacquet_config::Config`]
+/// Inputs for [`api`]. The CLI maps the resolved [`pacquet_config::Config`]
 /// and command-line flags onto this struct.
-///
-/// [ts-PackOptions]: https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/pack.ts#L102-L127
 pub struct PackOptions {
     /// Project directory to pack.
     pub dir: PathBuf,
@@ -113,10 +109,7 @@ pub struct PackResult {
     pub unpacked_size: u64,
 }
 
-/// JSON-serializable projection of a [`PackResult`], matching pnpm's
-/// [`PackResultJson`][ts-PackResultJson].
-///
-/// [ts-PackResultJson]: https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/pack.ts#L129-L134
+/// JSON-serializable projection of a [`PackResult`].
 #[derive(serde::Serialize)]
 pub struct PackResultJson {
     pub name: String,
@@ -345,8 +338,7 @@ pub fn to_pack_result_json(result: &PackResult) -> PackResultJson {
 
 /// Render packed results the way `pnpm pack` prints them: pretty JSON
 /// under `--json`, otherwise a per-package "Tarball Contents / Details"
-/// block. Mirrors the `handler` return at
-/// [`pack.ts:186-196`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/pack.ts#L186-L196).
+/// block.
 #[must_use]
 pub fn format_pack_output(results: &[PackResultJson], json: bool, unicode: bool) -> String {
     if json {
@@ -604,8 +596,7 @@ fn executable_sources(publish_manifest: &Value, manifest: &Value, dir: &Path) ->
 }
 
 /// Append a workspace-root `LICENSE` to a sub-package tarball that lacks
-/// one. Mirrors upstream's license injection at
-/// [`pack.ts:269-274`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/pack.ts#L269-L274).
+/// one.
 fn inject_workspace_license(
     opts: &PackOptions,
     dir: &Path,

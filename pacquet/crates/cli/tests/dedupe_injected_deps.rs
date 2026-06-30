@@ -1,9 +1,6 @@
 //! End-to-end coverage for the `dedupeInjectedDeps` setting.
 //!
-//! Ports the spirit of pnpm's `'injected local packages are deduped'`
-//! test at
-//! [`installing/deps-installer/test/install/injectLocalPackages.ts:1785`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-installer/test/install/injectLocalPackages.ts#L1785):
-//! a workspace dep marked `dependenciesMeta[<alias>].injected: true`
+//! A workspace dep marked `dependenciesMeta[<alias>].injected: true`
 //! whose target project has no transitive deps must collapse from
 //! `file:<workspace>` back to `link:<rel>` once the dedupe pass
 //! recognizes the children-subset case.

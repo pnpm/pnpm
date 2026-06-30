@@ -3,13 +3,12 @@ use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 
 /// Per-node identifier carrying everything [`calc_dep_state`] needs to
-/// hash a snapshot. Mirrors the relevant subset of pnpm's
-/// [`DepsGraphNode`][ts-DepsGraphNode].
+/// hash a snapshot.
 ///
-/// `full_pkg_id` is the upstream-shaped fingerprint used as the
-/// `id` field in the recursive hash — `<pkgIdWithPatchHash>:<integrity>`
-/// for packages with an integrity (`registry` resolution),
-/// or `<pkgIdWithPatchHash>:<hashObject(resolution)>` for resolutions
+/// `full_pkg_id` is the fingerprint used as the `id` field in the
+/// recursive hash — `<pkgIdWithPatchHash>:<integrity>` for packages with
+/// an integrity (`registry` resolution), or
+/// `<pkgIdWithPatchHash>:<hashObject(resolution)>` for resolutions
 /// without one (e.g. git refs). Pacquet's caller composes this
 /// before passing it in; the hasher itself is opaque to how it was
 /// computed.
@@ -22,21 +21,17 @@ use std::collections::{HashMap, HashSet};
 /// Owns its strings so a caller building the graph from a lockfile
 /// doesn't have to keep a separate `String` arena alive for the
 /// duration of the hash walk.
-///
-/// [ts-DepsGraphNode]: https://github.com/pnpm/pnpm/blob/b4f8f47ac2/deps/graph-hasher/src/index.ts#L12-L19
 pub struct DepsGraphNode<Key> {
     pub full_pkg_id: String,
     pub children: HashMap<String, Key>,
 }
 
-/// Memoized per-depPath state cache. Mirrors pnpm's
-/// [`DepsStateCache`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/deps/graph-hasher/src/index.ts#L21-L23):
-/// the result of `hash_object` for each visited node is stashed so
-/// the recursive walk over diamond-shaped graphs stays linear.
+/// Memoized per-depPath state cache: the result of `hash_object` for
+/// each visited node is stashed so the recursive walk over diamond-shaped
+/// graphs stays linear.
 pub type DepsStateCache<Key> = HashMap<Key, String>;
 
-/// Inputs to [`calc_dep_state`]. Mirrors the option bag at
-/// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/deps/graph-hasher/src/index.ts#L29-L33>.
+/// Inputs to [`calc_dep_state`].
 pub struct CalcDepStateOptions<'a> {
     /// Output of [`crate::engine_name()`] — the platform / arch /
     /// node version prefix. Always part of the result.
@@ -45,14 +40,12 @@ pub struct CalcDepStateOptions<'a> {
     /// Appended as `;patch=<hash>`.
     pub patch_file_hash: Option<&'a str>,
     /// Whether to include the recursive dep-graph hash as
-    /// `;deps=<hash>`. Upstream sets this to `hasSideEffects`
-    /// (i.e. `!ignoreScripts && requiresBuild`) at
-    /// `building/during-install/src/index.ts:202`.
+    /// `;deps=<hash>`. Set to `hasSideEffects`
+    /// (i.e. `!ignoreScripts && requiresBuild`).
     pub include_dep_graph_hash: bool,
 }
 
-/// Mirrors `calcDepState` at
-/// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/deps/graph-hasher/src/index.ts#L25-L44>.
+/// Compute the side-effects cache key for a snapshot.
 ///
 /// Returns the cache key for the side-effects cache. Format:
 /// `<engine_name>[;deps=<hash>][;patch=<hash>]`. Byte-for-byte
@@ -80,22 +73,18 @@ where
     result
 }
 
-/// Recursive helper for the `deps=` portion. Mirrors
-/// `calcDepGraphHash` at
-/// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/deps/graph-hasher/src/index.ts#L46-L80>.
+/// Recursive helper for the `deps=` portion.
 ///
-/// Hashes each node as `hashObject({ id, deps })` where `deps` is
+/// Hashes each node as `hash_object({ id, deps })` where `deps` is
 /// the alias→child-hash map. `parents` breaks dependency cycles —
 /// when a node would re-enter via its own ancestor, the child's
-/// contribution becomes `""` (matching upstream's "node not in
-/// graph" guard at line 55, which returns the empty string).
+/// contribution becomes `""` (the "node not in graph" guard returns
+/// the empty string).
 ///
 /// Exposed at `pub(crate)` so the global-virtual-store path hasher
 /// (`crate::global_virtual_store_path`) can share the same recursion
-/// and cache. Keeping it `pub(crate)` rather than `pub` mirrors the
-/// upstream module layout, where `calcDepGraphHash` is private to
-/// `deps/graph-hasher/src/index.ts` and both `calcDepState` and
-/// `calcGraphNodeHash` are file-internal callers.
+/// and cache — both [`calc_dep_state`] and `calc_graph_node_hash` are
+/// its only callers within this crate.
 pub(crate) fn calc_dep_graph_hash<Key>(
     graph: &HashMap<Key, DepsGraphNode<Key>>,
     cache: &mut DepsStateCache<Key>,
@@ -134,24 +123,21 @@ where
 
 /// Recursive helper used by [`crate::calc_graph_node_hash`] to decide
 /// whether a snapshot's engine string should contribute to its global-
-/// virtual-store hash. Mirrors upstream's
-/// [`transitivelyRequiresBuild`](https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-hasher/src/index.ts#L221-L249).
+/// virtual-store hash.
 ///
 /// Returns `true` if `dep_path` is either in `built_dep_paths`
 /// directly, or transitively depends on a snapshot that is. The
-/// returned boolean drives `includeEngine` at upstream's
-/// [`calcGraphNodeHash`](https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-hasher/src/index.ts#L140-L142)
-/// — pure-JS leaves (and their pure-JS ancestors) get
-/// `engine = null`, so their GVS hashes survive Node.js upgrades and
-/// architecture moves. Snapshots that *might* run a postinstall
-/// script keep `engine = ENGINE_NAME` so the hash partitions them by
-/// host environment.
+/// returned boolean drives whether the engine is included in
+/// [`crate::calc_graph_node_hash`] — pure-JS leaves (and their pure-JS
+/// ancestors) get `engine = null`, so their GVS hashes survive Node.js
+/// upgrades and architecture moves. Snapshots that *might* run a
+/// postinstall script keep `engine = ENGINE_NAME` so the hash
+/// partitions them by host environment.
 ///
 /// The cycle guard uses `dep_path` itself, not `node.full_pkg_id`
-/// (unlike [`calc_dep_graph_hash`]). Upstream picked `depPath`
-/// because the same pkg id reachable through two different peer
-/// contexts is two distinct nodes — once one is mid-walk we still
-/// want to recurse into the other.
+/// (unlike [`calc_dep_graph_hash`]), because the same pkg id reachable
+/// through two different peer contexts is two distinct nodes — once
+/// one is mid-walk we still want to recurse into the other.
 ///
 /// On cycle hit (`parents.contains(dep_path)`) the function returns
 /// `false` *without* caching. The "false in this particular cycle

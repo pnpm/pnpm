@@ -1,19 +1,13 @@
 //! Read `pnpm-workspace.yaml` into a [`WorkspaceManifest`].
 //!
-//! Port of upstream's
-//! [`readWorkspaceManifest`](https://github.com/pnpm/pnpm/blob/94240bc046/workspace/workspace-manifest-reader/src/index.ts).
-//!
 //! Pacquet already has `pacquet_config::WorkspaceSettings` parsing
 //! the file for *settings* (`storeDir`, `registry`, ...). That stays the
 //! authoritative settings parser; this module is concerned only with
 //! the workspace-shape fields (`packages:`, catalogs) that drive
-//! project enumeration. Splitting them mirrors upstream's package
-//! split: `workspace-manifest-reader` returns the typed shape;
-//! settings live elsewhere. (Not a rustdoc link — `pacquet-config`
-//! is not a dependency of this crate.)
-//!
-//! The validation rules mirror upstream's
-//! [`validateWorkspaceManifest`](https://github.com/pnpm/pnpm/blob/94240bc046/workspace/workspace-manifest-reader/src/index.ts).
+//! project enumeration. Keeping the typed shape separate from settings
+//! lets each reader focus on the fields its callers actually need.
+//! (`pacquet_config` is not a dependency of this crate, so it is not
+//! linked here.)
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -25,17 +19,16 @@ use std::{
     path::{Path, PathBuf},
 };
 
-/// Basename of the workspace manifest. Same constant pnpm uses
-/// internally via `@pnpm/constants`.
+/// Basename of the workspace manifest.
 pub const WORKSPACE_MANIFEST_FILENAME: &str = "pnpm-workspace.yaml";
 
 /// Subset of `pnpm-workspace.yaml` consumed by project enumeration.
 ///
 /// The settings half (`storeDir`, `registry`, lifecycle policies, ...)
 /// is read separately by `pacquet_config::WorkspaceSettings`.
-/// Splitting along the upstream package boundary keeps each reader
-/// focused on the shape its callers actually need and avoids a
-/// monolithic struct that has to grow with every new pnpm setting.
+/// Keeping the two readers apart keeps each focused on the shape its
+/// callers actually need and avoids a monolithic struct that has to
+/// grow with every new pnpm setting.
 #[derive(Debug, Default, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceManifest {
@@ -46,10 +39,10 @@ pub struct WorkspaceManifest {
     /// states: `None` (the `packages` key is absent), `Some(vec![])`
     /// (explicit empty array), and `Some(...)` (the user's patterns).
     /// Callers that enumerate a real workspace should pass this through
-    /// [`workspace_package_patterns`], while direct `findPackages`-style
-    /// callers can still choose the lower-level recursive default.
-    /// Collapsing the first two would silently lose the difference
-    /// between omitted and explicitly-empty `packages`.
+    /// [`workspace_package_patterns`], while lower-level callers can
+    /// still choose the recursive default directly. Collapsing the first
+    /// two states would silently lose the difference between omitted and
+    /// explicitly-empty `packages`.
     #[serde(default)]
     pub packages: Option<Vec<String>>,
 
@@ -65,16 +58,14 @@ pub struct WorkspaceManifest {
     pub catalogs: Option<Catalogs>,
 }
 
-/// Raised when `pnpm-workspace.yaml` parses as YAML but fails an
-/// upstream-mirrored shape check that serde itself can't enforce.
-/// Same error code as upstream's [`InvalidWorkspaceManifestError`][ts-InvalidWorkspaceManifestError].
+/// Raised when `pnpm-workspace.yaml` parses as YAML but fails a shape
+/// check that serde itself can't enforce. Carries pnpm's
+/// `invalid_workspace_configuration` error code.
 ///
-/// Note: upstream's "packages field is not an array" branch is
-/// covered by [`ReadWorkspaceManifestError::ParseYaml`] in pacquet —
+/// Note: the "packages field is not an array" case is covered by
+/// [`ReadWorkspaceManifestError::ParseYaml`] in pacquet —
 /// `serde_saphyr` rejects a non-array shape before this layer runs.
 /// Only the empty-string-entry check needs a dedicated variant.
-///
-/// [ts-InvalidWorkspaceManifestError]: https://github.com/pnpm/pnpm/blob/94240bc046/workspace/workspace-manifest-reader/src/errors/InvalidWorkspaceManifestError.ts#L3-L7
 #[derive(Debug, Display, Error, Diagnostic)]
 #[diagnostic(code(pacquet_workspace::invalid_workspace_configuration))]
 #[non_exhaustive]
@@ -103,11 +94,8 @@ pub enum ReadWorkspaceManifestError {
     Invalid(#[error(source)] InvalidWorkspaceManifestError),
 }
 
-/// Resolve `pnpm-workspace.yaml` `packages:` into pnpm's workspace
-/// package pattern default.
-///
-/// Mirrors config-reader's `workspacePackagePatterns` fallback:
-/// `workspaceManifest?.packages ?? ['.']`.
+/// Resolve `pnpm-workspace.yaml` `packages:` into the workspace package
+/// pattern default, falling back to `["."]` when `packages:` is absent.
 #[must_use]
 pub fn workspace_package_patterns(manifest: &WorkspaceManifest) -> Vec<String> {
     manifest.packages.clone().unwrap_or_else(|| vec![".".to_string()])
@@ -115,8 +103,8 @@ pub fn workspace_package_patterns(manifest: &WorkspaceManifest) -> Vec<String> {
 
 /// Read and validate the `pnpm-workspace.yaml` under `dir`.
 ///
-/// Returns `Ok(None)` when the file does not exist (matching upstream's
-/// `ENOENT`-as-undefined contract). Every other read or parse failure
+/// Returns `Ok(None)` when the file does not exist (`ENOENT` means "no
+/// manifest", not an error). Every other read or parse failure
 /// propagates.
 pub fn read_workspace_manifest(
     dir: &Path,
@@ -130,8 +118,7 @@ pub fn read_workspace_manifest(
 
     // An empty workspace manifest is valid and means "no settings, no
     // packages" — same as `{}`. `serde_saphyr` would otherwise reject
-    // an empty document; short-circuit to the default value to match
-    // upstream's behavior.
+    // an empty document; short-circuit to the default value.
     if text.trim().is_empty() {
         return Ok(Some(WorkspaceManifest::default()));
     }
@@ -141,9 +128,9 @@ pub fn read_workspace_manifest(
     })?;
 
     // serde_saphyr already enforces the array shape and string type
-    // for `packages:` at deserialization. The remaining upstream
-    // invariant — entries cannot be empty strings — needs a manual
-    // pass since serde doesn't know about that constraint.
+    // for `packages:` at deserialization. The remaining invariant —
+    // entries cannot be empty strings — needs a manual pass since serde
+    // doesn't know about that constraint.
     if let Some(packages) = &manifest.packages {
         for entry in packages {
             if entry.is_empty() {
