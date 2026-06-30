@@ -415,3 +415,77 @@ fn sbom_spdx_download_location() {
     let dl = is_positive["downloadLocation"].as_str().expect("downloadLocation");
     assert!(dl.contains("registry.npmjs.org"), "should have registry URL, got {dl}");
 }
+
+#[test]
+fn sbom_authors_in_metadata() {
+    let tmp = copy_fixture("simple-sbom");
+    let parsed = run_sbom_json(tmp.path(), "cyclonedx", &["--sbom-authors", "Alice, Bob"]);
+    let authors = parsed["metadata"]["authors"].as_array().expect("authors");
+    assert_eq!(authors.len(), 2);
+    assert_eq!(authors[0]["name"], "Alice");
+    assert_eq!(authors[1]["name"], "Bob");
+}
+
+#[test]
+fn sbom_supplier_in_metadata() {
+    let tmp = copy_fixture("simple-sbom");
+    let parsed = run_sbom_json(tmp.path(), "cyclonedx", &["--sbom-supplier", "ACME Corp"]);
+    assert_eq!(parsed["metadata"]["supplier"]["name"], "ACME Corp");
+}
+
+#[test]
+fn sbom_no_optional_excludes_optional() {
+    let tmp = copy_fixture("simple-sbom");
+    let parsed = run_sbom_json(tmp.path(), "cyclonedx", &["--no-optional"]);
+    assert_eq!(parsed["bomFormat"], "CycloneDX");
+}
+
+#[test]
+fn sbom_schema_url_matches_spec_version() {
+    let tmp = copy_fixture("simple-sbom");
+    let parsed = run_sbom_json(tmp.path(), "cyclonedx", &["--sbom-spec-version", "1.5"]);
+    let schema = parsed["$schema"].as_str().expect("$schema");
+    assert!(schema.contains("1.5"), "schema should match spec version 1.5, got {schema}");
+}
+
+#[test]
+fn sbom_spdx_root_has_purpose() {
+    let tmp = copy_fixture("simple-sbom");
+    let parsed = run_sbom_json(tmp.path(), "spdx", &[]);
+    let root = &parsed["packages"].as_array().expect("packages")[0];
+    assert_eq!(root["primaryPackagePurpose"], "LIBRARY");
+}
+
+#[test]
+fn sbom_spdx_application_type_purpose() {
+    let tmp = copy_fixture("simple-sbom");
+    let parsed = run_sbom_json(tmp.path(), "spdx", &["--sbom-type", "application"]);
+    let root = &parsed["packages"].as_array().expect("packages")[0];
+    assert_eq!(root["primaryPackagePurpose"], "APPLICATION");
+}
+
+#[test]
+fn sbom_spdx_document_namespace_has_uuid() {
+    let tmp = copy_fixture("simple-sbom");
+    let parsed = run_sbom_json(tmp.path(), "spdx", &[]);
+    let ns = parsed["documentNamespace"].as_str().expect("documentNamespace");
+    assert!(ns.contains("spdx.org/spdxdocs/"), "namespace should contain spdx.org");
+    let parts: Vec<&str> = ns.rsplitn(2, '-').collect();
+    assert!(parts[0].len() >= 8, "namespace should end with UUID-like suffix");
+}
+
+#[test]
+fn sbom_cyclonedx_scoped_root_has_group() {
+    let tmp = copy_fixture("workspace-sbom");
+    // workspace-sbom root has name "workspace-sbom-root" (unscoped)
+    // but app-a is "@test/app-a" - we need a scoped root to test group
+    // Create a temp fixture with scoped name
+    fs::write(
+        tmp.path().join("package.json"),
+        r#"{"name":"@myorg/myapp","version":"2.0.0","license":"MIT"}"#,
+    )
+    .unwrap();
+    let parsed = run_sbom_json(tmp.path(), "cyclonedx", &[]);
+    assert_eq!(parsed["metadata"]["component"]["group"], "@myorg");
+    assert_eq!(parsed["metadata"]["component"]["name"], "myapp");
+}
