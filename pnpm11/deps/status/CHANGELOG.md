@@ -1,0 +1,1172 @@
+# @pnpm/deps.status
+
+## 1100.1.3
+
+### Patch Changes
+
+- Updated dependencies [bae694f]
+- Updated dependencies [852d537]
+  - @pnpm/resolving.resolver-base@1100.5.0
+  - @pnpm/installing.context@1100.0.20
+  - @pnpm/error@1100.0.1
+  - @pnpm/lockfile.verification@1100.0.20
+  - @pnpm/lockfile.fs@1100.1.7
+  - @pnpm/config.reader@1101.10.1
+  - @pnpm/workspace.projects-reader@1101.0.13
+  - @pnpm/config.parse-overrides@1100.0.2
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.9
+  - @pnpm/lockfile.settings-checker@1100.0.20
+  - @pnpm/workspace.state@1100.0.24
+
+## 1100.1.2
+
+### Patch Changes
+
+- 61969fb: Fix `pnpm install` with `optimisticRepeatInstall` incorrectly reporting `Already up to date` when `pnpm-lock.yaml` changed but project manifests did not. This affected workflows such as checking out or restoring only the lockfile [#12100](https://github.com/pnpm/pnpm/issues/12100).
+
+  Also fixes `checkDepsStatus` to use the correct lockfile path when `useGitBranchLockfile` is enabled, so the optimistic fast-path and lockfile modification detection work with `pnpm-lock.<branch>.yaml` files instead of always stat'ing `pnpm-lock.yaml`. Merge-conflict detection now reads the resolved lockfile name as well, and with `mergeGitBranchLockfiles` enabled every `pnpm-lock.*.yaml` is scanned for modifications and conflicts. The git branch is now resolved by reading `.git/HEAD` directly (no process spawn) and uses the workspace directory rather than `process.cwd()`.
+
+- 6d35338: `pnpm install` detects changes inside local file dependencies again. The optimistic repeat-install fast path only tracks manifest and lockfile modification times, so edits inside a local dependency's directory (or a repacked local tarball) were reported as "Already up to date". Projects with local file dependencies (`file:` and bare local path or tarball specifiers, declared directly or through `pnpm.overrides`) now always run a full install, which refetches those dependencies, matching pnpm v10 behavior [#11795](https://github.com/pnpm/pnpm/issues/11795).
+- Updated dependencies [302a2f7]
+- Updated dependencies [61969fb]
+- Updated dependencies [0474a9c]
+  - @pnpm/config.reader@1101.10.0
+  - @pnpm/lockfile.fs@1100.1.6
+  - @pnpm/workspace.state@1100.0.23
+  - @pnpm/installing.context@1100.0.19
+  - @pnpm/lockfile.verification@1100.0.19
+  - @pnpm/lockfile.settings-checker@1100.0.19
+
+## 1100.1.1
+
+### Patch Changes
+
+- a31faa7: Updated dependency ranges. Notably:
+
+  - `@pnpm/logger` peer dependency range moved to `^1100.0.0`.
+  - `msgpackr` 1.11.8 → 2.0.4 (store index files remain byte-compatible in both directions).
+  - `open` ^7.4.2 → ^11.0.0, `memoize` ^10 → ^11, `cli-truncate` ^5 → ^6, `pidtree` ^0.6 → ^1.
+  - `@yarnpkg/core` 4.5.0 → 4.8.0, `@rushstack/worker-pool` 0.7.7 → 0.7.18, `@cyclonedx/cyclonedx-library` 10.0.0 → 10.1.0, `@pnpm/config.nerf-dart` ^1 → ^2, `@pnpm/log.group` 3.0.2 → 4.0.1, `@pnpm/util.lex-comparator` ^3 → ^4.
+
+- Updated dependencies [61810aa]
+- Updated dependencies [681b593]
+- Updated dependencies [d50d691]
+- Updated dependencies [a31faa7]
+  - @pnpm/config.reader@1101.9.0
+  - @pnpm/installing.context@1100.0.18
+  - @pnpm/types@1101.3.2
+  - @pnpm/lockfile.fs@1100.1.5
+  - @pnpm/lockfile.verification@1100.0.18
+  - @pnpm/workspace.projects-reader@1101.0.12
+  - @pnpm/workspace.state@1100.0.22
+  - @pnpm/resolving.resolver-base@1100.4.2
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.8
+  - @pnpm/lockfile.settings-checker@1100.0.18
+
+## 1100.1.0
+
+### Minor Changes
+
+- d976edf: `pnpm install` completes without re-resolving when `pnpm-lock.yaml` was deleted but `node_modules` is intact: the up-to-date check now treats the current lockfile (`node_modules/.pnpm/lock.yaml`) — the record of what the previous install materialized — as the wanted lockfile, verifies the manifests still match it, restores `pnpm-lock.yaml` from it, and reports "Already up to date". Previously this scenario triggered a full resolution and a re-verification of every locked package against the registry.
+
+### Patch Changes
+
+- Updated dependencies [bc9ed78]
+- Updated dependencies [615c669]
+  - @pnpm/config.reader@1101.8.0
+  - @pnpm/workspace.state@1100.0.21
+  - @pnpm/installing.context@1100.0.17
+  - @pnpm/lockfile.verification@1100.0.17
+  - @pnpm/workspace.projects-reader@1101.0.11
+  - @pnpm/lockfile.settings-checker@1100.0.17
+
+## 1100.0.23
+
+### Patch Changes
+
+- 97e1982: Fix `pnpm install` ignoring `enableGlobalVirtualStore` toggle by including it in the workspace state settings check [#12142](https://github.com/pnpm/pnpm/issues/12142).
+- Updated dependencies [822beb5]
+- Updated dependencies [3537020]
+- Updated dependencies [894ea6a]
+- Updated dependencies [6b5d91a]
+- Updated dependencies [027196b]
+- Updated dependencies [97e1982]
+- Updated dependencies [1017c36]
+- Updated dependencies [bf1b731]
+  - @pnpm/config.reader@1101.7.0
+  - @pnpm/workspace.state@1100.0.20
+  - @pnpm/types@1101.3.1
+  - @pnpm/installing.context@1100.0.16
+  - @pnpm/lockfile.fs@1100.1.4
+  - @pnpm/lockfile.verification@1100.0.16
+  - @pnpm/resolving.resolver-base@1100.4.1
+  - @pnpm/workspace.projects-reader@1101.0.10
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.7
+  - @pnpm/lockfile.settings-checker@1100.0.16
+
+## 1100.0.22
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+- Updated dependencies [6d17b66]
+  - @pnpm/config.reader@1101.6.0
+  - @pnpm/types@1101.3.0
+  - @pnpm/resolving.resolver-base@1100.4.0
+  - @pnpm/workspace.state@1100.0.19
+  - @pnpm/installing.context@1100.0.15
+  - @pnpm/lockfile.fs@1100.1.3
+  - @pnpm/lockfile.verification@1100.0.15
+  - @pnpm/workspace.projects-reader@1101.0.9
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.6
+  - @pnpm/lockfile.settings-checker@1100.0.15
+
+## 1100.0.21
+
+### Patch Changes
+
+- Updated dependencies [37669c2]
+  - @pnpm/workspace.state@1100.0.18
+
+## 1100.0.20
+
+### Patch Changes
+
+- Updated dependencies [a39a83d]
+- Updated dependencies [a33c4bf]
+  - @pnpm/config.reader@1101.5.0
+  - @pnpm/installing.context@1100.0.14
+  - @pnpm/workspace.state@1100.0.17
+  - @pnpm/lockfile.verification@1100.0.14
+  - @pnpm/lockfile.settings-checker@1100.0.14
+
+## 1100.0.19
+
+### Patch Changes
+
+- Updated dependencies [e8b3ae1]
+- Updated dependencies [a23956e]
+- Updated dependencies [35d2355]
+  - @pnpm/workspace.projects-reader@1101.0.8
+  - @pnpm/config.reader@1101.4.1
+  - @pnpm/types@1101.2.0
+  - @pnpm/workspace.state@1100.0.16
+  - @pnpm/lockfile.fs@1100.1.2
+  - @pnpm/lockfile.verification@1100.0.13
+  - @pnpm/installing.context@1100.0.13
+  - @pnpm/resolving.resolver-base@1100.3.1
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.5
+  - @pnpm/lockfile.settings-checker@1100.0.13
+
+## 1100.0.18
+
+### Patch Changes
+
+- Updated dependencies [3b62f9d]
+- Updated dependencies [212315d]
+  - @pnpm/config.reader@1101.4.0
+  - @pnpm/workspace.projects-reader@1101.0.7
+  - @pnpm/workspace.state@1100.0.15
+
+## 1100.0.17
+
+### Patch Changes
+
+- Updated dependencies [3687b0e]
+- Updated dependencies [ced20cb]
+- Updated dependencies [9cb48bb]
+- Updated dependencies [d1b340f]
+- Updated dependencies [1627943]
+- Updated dependencies [64afc92]
+  - @pnpm/config.reader@1101.3.3
+  - @pnpm/lockfile.fs@1100.1.1
+  - @pnpm/resolving.resolver-base@1100.3.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/workspace.state@1100.0.14
+  - @pnpm/installing.context@1100.0.12
+  - @pnpm/lockfile.verification@1100.0.12
+  - @pnpm/workspace.projects-reader@1101.0.6
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.4
+  - @pnpm/lockfile.settings-checker@1100.0.12
+
+## 1100.0.16
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+- Updated dependencies [020ac45]
+- Updated dependencies [d3f8408]
+- Updated dependencies [6e93f35]
+- Updated dependencies [a62f959]
+- Updated dependencies [ba2c884]
+- Updated dependencies [2a9bd89]
+- Updated dependencies [8df408c]
+  - @pnpm/resolving.resolver-base@1100.2.0
+  - @pnpm/config.reader@1101.3.2
+  - @pnpm/lockfile.fs@1100.1.0
+  - @pnpm/installing.context@1100.0.11
+  - @pnpm/lockfile.verification@1100.0.11
+  - @pnpm/workspace.state@1100.0.13
+  - @pnpm/lockfile.settings-checker@1100.0.11
+  - @pnpm/workspace.projects-reader@1101.0.5
+
+## 1100.0.15
+
+### Patch Changes
+
+- 180aee9: Fixed `optimisticRepeatInstall` skipping `pnpm-lock.yaml` merge conflict resolution when the existing `node_modules` state appears up to date.
+- Updated dependencies [180aee9]
+  - @pnpm/lockfile.fs@1100.0.8
+  - @pnpm/config.reader@1101.3.1
+  - @pnpm/installing.context@1100.0.10
+  - @pnpm/workspace.projects-reader@1101.0.4
+  - @pnpm/workspace.state@1100.0.12
+  - @pnpm/lockfile.verification@1100.0.10
+  - @pnpm/lockfile.settings-checker@1100.0.10
+
+## 1100.0.14
+
+### Patch Changes
+
+- 02e9cf5: Skip installability validation when scanning workspace projects in `checkDepsStatus` (run by `verifyDepsBeforeRun`). Previously the status check called `findWorkspaceProjects`, which validates each project's `engines` and `os`/`cpu`/`libc` and warns about useless fields in non-root manifests — work that the install pipeline already performs. With no `nodeVersion` threaded through, the engine check also fell back to the system Node from `PATH` and emitted spurious "Unsupported engine" warnings before scripts ran. Status-only callers now use `findWorkspaceProjectsNoCheck`; install paths continue to validate.
+
+## 1100.0.13
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+- Updated dependencies [e1e29c1]
+  - @pnpm/config.reader@1101.3.0
+  - @pnpm/types@1101.1.0
+  - @pnpm/workspace.state@1100.0.11
+  - @pnpm/installing.context@1100.0.9
+  - @pnpm/lockfile.fs@1100.0.7
+  - @pnpm/lockfile.verification@1100.0.9
+  - @pnpm/resolving.resolver-base@1100.1.3
+  - @pnpm/workspace.projects-reader@1101.0.3
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.3
+  - @pnpm/lockfile.settings-checker@1100.0.9
+
+## 1100.0.12
+
+### Patch Changes
+
+- Updated dependencies [e9e876c]
+  - @pnpm/config.reader@1101.2.2
+  - @pnpm/workspace.state@1100.0.10
+  - @pnpm/installing.context@1100.0.8
+  - @pnpm/lockfile.verification@1100.0.8
+  - @pnpm/lockfile.settings-checker@1100.0.8
+
+## 1100.0.11
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1100.0.6
+- @pnpm/lockfile.verification@1100.0.7
+- @pnpm/installing.context@1100.0.7
+- @pnpm/lockfile.settings-checker@1100.0.7
+
+## 1100.0.10
+
+### Patch Changes
+
+- Updated dependencies [27425d7]
+- Updated dependencies [707a879]
+  - @pnpm/lockfile.fs@1100.0.5
+  - @pnpm/resolving.resolver-base@1100.1.2
+  - @pnpm/config.reader@1101.2.1
+  - @pnpm/installing.context@1100.0.6
+  - @pnpm/lockfile.settings-checker@1100.0.6
+  - @pnpm/lockfile.verification@1100.0.6
+  - @pnpm/workspace.state@1100.0.9
+
+## 1100.0.9
+
+### Patch Changes
+
+- ab6c42d: Treat `allowBuilds` as an install-state input and clear previously ignored builds when they are explicitly disallowed.
+- Updated dependencies [8fdd9a9]
+- Updated dependencies [5f34a8d]
+- Updated dependencies [c969392]
+- Updated dependencies [ab6c42d]
+- Updated dependencies [817b1b4]
+- Updated dependencies [c969392]
+- Updated dependencies [2de318b]
+  - @pnpm/config.reader@1101.2.0
+  - @pnpm/workspace.state@1100.0.8
+
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies [42a8f29]
+  - @pnpm/config.reader@1101.1.4
+  - @pnpm/workspace.state@1100.0.7
+
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+  - @pnpm/workspace.projects-reader@1101.0.2
+  - @pnpm/resolving.resolver-base@1100.1.1
+  - @pnpm/config.parse-overrides@1100.0.1
+  - @pnpm/installing.context@1100.0.5
+  - @pnpm/config.reader@1101.1.3
+  - @pnpm/lockfile.verification@1100.0.5
+  - @pnpm/lockfile.settings-checker@1100.0.5
+  - @pnpm/lockfile.fs@1100.0.4
+  - @pnpm/workspace.state@1100.0.6
+
+## 1100.0.6
+
+### Patch Changes
+
+- @pnpm/installing.context@1100.0.4
+- @pnpm/workspace.projects-reader@1101.0.1
+- @pnpm/lockfile.verification@1100.0.4
+- @pnpm/lockfile.settings-checker@1100.0.4
+
+## 1100.0.5
+
+### Patch Changes
+
+- Updated dependencies [f543b77]
+- Updated dependencies [0fbcf74]
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.2
+  - @pnpm/config.reader@1101.1.2
+  - @pnpm/workspace.projects-reader@1101.0.0
+  - @pnpm/workspace.state@1100.0.5
+
+## 1100.0.4
+
+### Patch Changes
+
+- @pnpm/installing.context@1100.0.3
+- @pnpm/lockfile.fs@1100.0.3
+- @pnpm/lockfile.verification@1100.0.3
+- @pnpm/config.reader@1101.1.1
+- @pnpm/lockfile.settings-checker@1100.0.3
+- @pnpm/workspace.state@1100.0.4
+
+## 1100.0.3
+
+### Patch Changes
+
+- Updated dependencies [7d25bc1]
+- Updated dependencies [72c1e05]
+- Updated dependencies [9e0833c]
+  - @pnpm/config.reader@1101.1.0
+  - @pnpm/resolving.resolver-base@1100.1.0
+  - @pnpm/workspace.state@1100.0.3
+  - @pnpm/installing.context@1100.0.2
+  - @pnpm/lockfile.verification@1100.0.2
+  - @pnpm/lockfile.fs@1100.0.2
+  - @pnpm/lockfile.settings-checker@1100.0.2
+
+## 1100.0.2
+
+### Patch Changes
+
+- Updated dependencies [cee550a]
+- Updated dependencies [4ab3d9b]
+- Updated dependencies [9af708a]
+- Updated dependencies [ea2a7fb]
+- Updated dependencies [ff7733c]
+  - @pnpm/config.reader@1101.0.0
+  - @pnpm/workspace.projects-reader@1101.0.0
+  - @pnpm/workspace.state@1100.0.2
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/config.reader@1100.0.1
+  - @pnpm/installing.context@1100.0.1
+  - @pnpm/lockfile.fs@1100.0.1
+  - @pnpm/lockfile.verification@1100.0.1
+  - @pnpm/resolving.resolver-base@1100.0.1
+  - @pnpm/workspace.projects-reader@1100.0.1
+  - @pnpm/workspace.state@1100.0.1
+  - @pnpm/workspace.workspace-manifest-reader@1100.0.1
+  - @pnpm/lockfile.settings-checker@1100.0.1
+
+## 1004.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Patch Changes
+
+- 69ebe38: Properly throw a frozen lockfile error when changing catalogs defined in `pnpm-workspace.yaml` and running `pnpm install --frozen-lockfile`. This previously passed silently as reported in [#9369](https://github.com/pnpm/pnpm/issues/9369).
+- Updated dependencies [7730a7f]
+- Updated dependencies [ae8b816]
+- Updated dependencies [facdd71]
+- Updated dependencies [c55c614]
+- Updated dependencies [9b0a460]
+- Updated dependencies [3c72b6b]
+- Updated dependencies [5d130c3]
+- Updated dependencies [9f5c0e3]
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [90bd3c3]
+- Updated dependencies [1cc61e8]
+- Updated dependencies [606f53e]
+- Updated dependencies [c7203b9]
+- Updated dependencies [bb17724]
+- Updated dependencies [da2429d]
+- Updated dependencies [1cc61e8]
+- Updated dependencies [491a84f]
+- Updated dependencies [f0ae1b9]
+- Updated dependencies [521e4a6]
+- Updated dependencies [03c502c]
+- Updated dependencies [7fab2a2]
+- Updated dependencies [cb367b9]
+- Updated dependencies [543c7e4]
+- Updated dependencies [9eddabb]
+- Updated dependencies [075aa99]
+- Updated dependencies [ae43ac7]
+- Updated dependencies [ccec8e7]
+- Updated dependencies [3bf5e21]
+- Updated dependencies [4158906]
+- Updated dependencies [ac944ef]
+- Updated dependencies [d458ab3]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [efb48dc]
+- Updated dependencies [d5d4eed]
+- Updated dependencies [095f659]
+- Updated dependencies [96704a1]
+- Updated dependencies [50fbeca]
+- Updated dependencies [4a36b9a]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [51b04c3]
+- Updated dependencies [69ebe38]
+- Updated dependencies [d01b81f]
+- Updated dependencies [3ed41f4]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [2b14c74]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [38b8e35]
+- Updated dependencies [831f574]
+- Updated dependencies [2df8b71]
+- Updated dependencies [ed1a7fe]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [5bf7768]
+- Updated dependencies [ae43ac7]
+- Updated dependencies [a5fdbf9]
+- Updated dependencies [9d3f00b]
+- Updated dependencies [efb48dc]
+- Updated dependencies [9587dac]
+- Updated dependencies [09a999a]
+- Updated dependencies [559f903]
+- Updated dependencies [3574905]
+  - @pnpm/config.reader@1005.0.0
+  - @pnpm/resolving.resolver-base@1006.0.0
+  - @pnpm/constants@1002.0.0
+  - @pnpm/installing.context@1002.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/lockfile.fs@1002.0.0
+  - @pnpm/workspace.state@1003.0.0
+  - @pnpm/lockfile.settings-checker@1002.0.0
+  - @pnpm/workspace.projects-reader@1001.0.0
+  - @pnpm/workspace.workspace-manifest-reader@1001.0.0
+  - @pnpm/config.parse-overrides@1002.0.0
+  - @pnpm/lockfile.verification@1002.0.0
+  - @pnpm/crypto.object-hasher@1001.0.0
+  - @pnpm/error@1001.0.0
+
+## 1003.0.15
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1000.0.43
+
+## 1003.0.14
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+  - @pnpm/types@1000.9.0
+  - @pnpm/resolver-base@1005.1.0
+  - @pnpm/config@1004.4.2
+  - @pnpm/lockfile.fs@1001.1.21
+  - @pnpm/lockfile.verification@1001.2.9
+  - @pnpm/get-context@1001.1.8
+  - @pnpm/workspace.find-packages@1000.0.42
+  - @pnpm/workspace.read-manifest@1000.2.5
+  - @pnpm/workspace.state@1002.0.7
+  - @pnpm/lockfile.settings-checker@1001.0.16
+
+## 1003.0.13
+
+### Patch Changes
+
+- Updated dependencies [9865167]
+  - @pnpm/config@1004.4.1
+  - @pnpm/workspace.state@1002.0.6
+  - @pnpm/workspace.find-packages@1000.0.41
+
+## 1003.0.12
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1000.0.40
+
+## 1003.0.11
+
+### Patch Changes
+
+- Updated dependencies [fb4da0c]
+  - @pnpm/config@1004.4.0
+  - @pnpm/workspace.state@1002.0.5
+  - @pnpm/lockfile.settings-checker@1001.0.15
+  - @pnpm/lockfile.verification@1001.2.8
+  - @pnpm/workspace.find-packages@1000.0.39
+  - @pnpm/lockfile.fs@1001.1.20
+  - @pnpm/get-context@1001.1.7
+
+## 1003.0.10
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1000.0.38
+
+## 1003.0.9
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1000.0.37
+
+## 1003.0.8
+
+### Patch Changes
+
+- Updated dependencies [6365bc4]
+  - @pnpm/constants@1001.3.1
+  - @pnpm/config@1004.3.1
+  - @pnpm/lockfile.fs@1001.1.19
+  - @pnpm/lockfile.verification@1001.2.7
+  - @pnpm/error@1000.0.5
+  - @pnpm/get-context@1001.1.6
+  - @pnpm/workspace.find-packages@1000.0.36
+  - @pnpm/workspace.read-manifest@1000.2.4
+  - @pnpm/workspace.state@1002.0.4
+  - @pnpm/parse-overrides@1001.0.3
+  - @pnpm/lockfile.settings-checker@1001.0.14
+
+## 1003.0.7
+
+### Patch Changes
+
+- Updated dependencies [38e2599]
+- Updated dependencies [e792927]
+  - @pnpm/config@1004.3.0
+  - @pnpm/types@1000.8.0
+  - @pnpm/lockfile.verification@1001.2.6
+  - @pnpm/workspace.state@1002.0.3
+  - @pnpm/lockfile.fs@1001.1.18
+  - @pnpm/get-context@1001.1.5
+  - @pnpm/resolver-base@1005.0.1
+  - @pnpm/workspace.find-packages@1000.0.35
+  - @pnpm/workspace.read-manifest@1000.2.3
+  - @pnpm/lockfile.settings-checker@1001.0.13
+
+## 1003.0.6
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1000.0.34
+
+## 1003.0.5
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1000.0.33
+
+## 1003.0.4
+
+### Patch Changes
+
+- Updated dependencies [eac7bab]
+  - @pnpm/lockfile.verification@1001.2.5
+  - @pnpm/workspace.find-packages@1000.0.32
+
+## 1003.0.3
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [19b1880]
+- Updated dependencies [86b33e9]
+- Updated dependencies [d1edf73]
+- Updated dependencies [f91922c]
+  - @pnpm/constants@1001.3.0
+  - @pnpm/lockfile.verification@1001.2.4
+  - @pnpm/resolver-base@1005.0.0
+  - @pnpm/lockfile.fs@1001.1.17
+  - @pnpm/config@1004.2.1
+  - @pnpm/error@1000.0.4
+  - @pnpm/get-context@1001.1.4
+  - @pnpm/workspace.find-packages@1000.0.31
+  - @pnpm/workspace.read-manifest@1000.2.2
+  - @pnpm/lockfile.settings-checker@1001.0.12
+  - @pnpm/workspace.state@1002.0.2
+  - @pnpm/parse-overrides@1001.0.2
+
+## 1003.0.2
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [6f7ac0f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/config@1004.2.0
+  - @pnpm/resolver-base@1004.1.0
+  - @pnpm/constants@1001.2.0
+  - @pnpm/lockfile.fs@1001.1.16
+  - @pnpm/lockfile.verification@1001.2.3
+  - @pnpm/get-context@1001.1.3
+  - @pnpm/workspace.find-packages@1000.0.30
+  - @pnpm/workspace.read-manifest@1000.2.1
+  - @pnpm/workspace.state@1002.0.1
+  - @pnpm/lockfile.settings-checker@1001.0.11
+  - @pnpm/error@1000.0.3
+  - @pnpm/parse-overrides@1001.0.1
+
+## 1003.0.1
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1000.0.29
+
+## 1003.0.0
+
+### Major Changes
+
+- cf630a8: Added the possibility to load multiple pnpmfiles. The `pnpmfile` setting can now accept a list of pnpmfile locations [#9702](https://github.com/pnpm/pnpm/pull/9702).
+
+### Patch Changes
+
+- Updated dependencies [623da6f]
+- Updated dependencies [cf630a8]
+  - @pnpm/config@1004.1.0
+  - @pnpm/workspace.state@1002.0.0
+  - @pnpm/workspace.find-packages@1000.0.28
+  - @pnpm/lockfile.settings-checker@1001.0.10
+  - @pnpm/lockfile.verification@1001.2.2
+  - @pnpm/lockfile.fs@1001.1.15
+  - @pnpm/get-context@1001.1.2
+
+## 1002.1.5
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.14
+- @pnpm/lockfile.verification@1001.2.1
+- @pnpm/get-context@1001.1.1
+- @pnpm/workspace.find-packages@1000.0.27
+
+## 1002.1.4
+
+### Patch Changes
+
+- b0ead51: Read the current lockfile from `node_modules/.pnpm/lock.yaml`, when the project uses a global virtual store.
+- Updated dependencies [2721291]
+- Updated dependencies [6acf819]
+- Updated dependencies [86e0016]
+- Updated dependencies [b217bbb]
+- Updated dependencies [b0ead51]
+- Updated dependencies [c8341cc]
+- Updated dependencies [b0ead51]
+- Updated dependencies [b0ead51]
+- Updated dependencies [046af72]
+  - @pnpm/resolver-base@1004.0.0
+  - @pnpm/lockfile.verification@1001.2.0
+  - @pnpm/get-context@1001.1.0
+  - @pnpm/config@1004.0.0
+  - @pnpm/workspace.read-manifest@1000.2.0
+  - @pnpm/crypto.object-hasher@1000.1.0
+  - @pnpm/workspace.state@1001.1.22
+  - @pnpm/workspace.find-packages@1000.0.26
+  - @pnpm/pnpmfile@1001.2.3
+  - @pnpm/lockfile.fs@1001.1.13
+  - @pnpm/lockfile.settings-checker@1001.0.9
+
+## 1002.1.3
+
+### Patch Changes
+
+- Updated dependencies [8d175c0]
+  - @pnpm/config@1003.1.1
+  - @pnpm/workspace.state@1001.1.21
+  - @pnpm/pnpmfile@1001.2.2
+  - @pnpm/workspace.find-packages@1000.0.25
+  - @pnpm/lockfile.settings-checker@1001.0.9
+  - @pnpm/lockfile.verification@1001.1.7
+
+## 1002.1.2
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [b282bd1]
+- Updated dependencies [fdb1d98]
+- Updated dependencies [e4af08c]
+- Updated dependencies [09cf46f]
+- Updated dependencies [36d1448]
+- Updated dependencies [9362b5f]
+- Updated dependencies [c00360b]
+- Updated dependencies [5ec7255]
+- Updated dependencies [6cf010c]
+  - @pnpm/config@1003.1.0
+  - @pnpm/get-context@1001.0.14
+  - @pnpm/workspace.find-packages@1000.0.24
+  - @pnpm/lockfile.verification@1001.1.7
+  - @pnpm/workspace.state@1001.1.20
+  - @pnpm/pnpmfile@1001.2.1
+  - @pnpm/lockfile.fs@1001.1.12
+  - @pnpm/types@1000.6.0
+  - @pnpm/resolver-base@1003.0.1
+  - @pnpm/workspace.read-manifest@1000.1.5
+  - @pnpm/lockfile.settings-checker@1001.0.9
+
+## 1002.1.1
+
+### Patch Changes
+
+- Updated dependencies [e5c58f0]
+  - @pnpm/pnpmfile@1001.2.0
+  - @pnpm/config@1003.0.1
+  - @pnpm/workspace.find-packages@1000.0.23
+  - @pnpm/workspace.state@1001.1.19
+
+## 1002.1.0
+
+### Minor Changes
+
+- 3cf337b: Fix a false negative in `verify-deps-before-run` when `node-linker` is `hoisted` and there is a workspace package without dependencies and `node_modules` directory [#9424](https://github.com/pnpm/pnpm/issues/9424).
+- 3cf337b: Explicitly drop `verify-deps-before-run` support for `node-linker=pnp`. Combining `verify-deps-before-run` and `node-linker=pnp` will now print a warning.
+
+### Patch Changes
+
+- Updated dependencies [56bb69b]
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/config@1003.0.0
+  - @pnpm/resolver-base@1003.0.0
+  - @pnpm/parse-overrides@1001.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/workspace.state@1001.1.18
+  - @pnpm/pnpmfile@1001.1.2
+  - @pnpm/lockfile.verification@1001.1.6
+  - @pnpm/get-context@1001.0.13
+  - @pnpm/lockfile.settings-checker@1001.0.8
+  - @pnpm/lockfile.fs@1001.1.11
+  - @pnpm/workspace.find-packages@1000.0.22
+  - @pnpm/workspace.read-manifest@1000.1.4
+
+## 1002.0.11
+
+### Patch Changes
+
+- Updated dependencies [81f441c]
+  - @pnpm/resolver-base@1002.0.0
+  - @pnpm/lockfile.verification@1001.1.5
+  - @pnpm/get-context@1001.0.12
+  - @pnpm/pnpmfile@1001.1.1
+  - @pnpm/lockfile.fs@1001.1.10
+  - @pnpm/workspace.find-packages@1000.0.21
+  - @pnpm/config@1002.7.2
+  - @pnpm/workspace.state@1001.1.17
+  - @pnpm/lockfile.settings-checker@1001.0.7
+
+## 1002.0.10
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [72cff38]
+- Updated dependencies [5679712]
+- Updated dependencies [01f2bcf]
+- Updated dependencies [1413c25]
+  - @pnpm/types@1000.4.0
+  - @pnpm/resolver-base@1001.0.0
+  - @pnpm/config@1002.7.1
+  - @pnpm/pnpmfile@1001.1.0
+  - @pnpm/lockfile.fs@1001.1.9
+  - @pnpm/lockfile.verification@1001.1.4
+  - @pnpm/get-context@1001.0.11
+  - @pnpm/workspace.find-packages@1000.0.20
+  - @pnpm/workspace.read-manifest@1000.1.3
+  - @pnpm/workspace.state@1001.1.16
+  - @pnpm/lockfile.settings-checker@1001.0.7
+
+## 1002.0.9
+
+### Patch Changes
+
+- Updated dependencies [e57f1df]
+  - @pnpm/config@1002.7.0
+  - @pnpm/workspace.state@1001.1.15
+  - @pnpm/workspace.find-packages@1000.0.19
+
+## 1002.0.8
+
+### Patch Changes
+
+- Updated dependencies [9bcca9f]
+- Updated dependencies [5b35dff]
+- Updated dependencies [9bcca9f]
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/config@1002.6.0
+  - @pnpm/types@1000.3.0
+  - @pnpm/workspace.state@1001.1.14
+  - @pnpm/pnpmfile@1001.0.9
+  - @pnpm/lockfile.fs@1001.1.8
+  - @pnpm/lockfile.verification@1001.1.3
+  - @pnpm/get-context@1001.0.10
+  - @pnpm/resolver-base@1000.2.1
+  - @pnpm/workspace.find-packages@1000.0.18
+  - @pnpm/workspace.read-manifest@1000.1.2
+  - @pnpm/lockfile.settings-checker@1001.0.6
+
+## 1002.0.7
+
+### Patch Changes
+
+- Updated dependencies [936430a]
+- Updated dependencies [3d52365]
+  - @pnpm/config@1002.5.4
+  - @pnpm/resolver-base@1000.2.0
+  - @pnpm/get-context@1001.0.9
+  - @pnpm/workspace.state@1001.1.13
+  - @pnpm/lockfile.verification@1001.1.2
+  - @pnpm/workspace.find-packages@1000.0.17
+  - @pnpm/pnpmfile@1001.0.8
+  - @pnpm/lockfile.fs@1001.1.7
+  - @pnpm/lockfile.settings-checker@1001.0.5
+
+## 1002.0.6
+
+### Patch Changes
+
+- Updated dependencies [9904675]
+  - @pnpm/workspace.state@1001.1.12
+
+## 1002.0.5
+
+### Patch Changes
+
+- Updated dependencies [6e4459c]
+  - @pnpm/config@1002.5.3
+  - @pnpm/workspace.state@1001.1.11
+  - @pnpm/workspace.find-packages@1000.0.16
+
+## 1002.0.4
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1000.0.15
+- @pnpm/pnpmfile@1001.0.7
+- @pnpm/lockfile.settings-checker@1001.0.5
+- @pnpm/lockfile.verification@1001.1.1
+- @pnpm/config@1002.5.2
+- @pnpm/lockfile.fs@1001.1.6
+- @pnpm/workspace.state@1001.1.10
+- @pnpm/get-context@1001.0.8
+
+## 1002.0.3
+
+### Patch Changes
+
+- Updated dependencies [c3aa4d8]
+  - @pnpm/config@1002.5.1
+  - @pnpm/workspace.state@1001.1.9
+  - @pnpm/workspace.find-packages@1000.0.14
+
+## 1002.0.2
+
+### Patch Changes
+
+- Updated dependencies [daf47e9]
+- Updated dependencies [a5e4965]
+- Updated dependencies [d965748]
+  - @pnpm/lockfile.verification@1001.1.0
+  - @pnpm/types@1000.2.1
+  - @pnpm/config@1002.5.0
+  - @pnpm/workspace.find-packages@1000.0.13
+  - @pnpm/pnpmfile@1001.0.6
+  - @pnpm/lockfile.settings-checker@1001.0.4
+  - @pnpm/lockfile.fs@1001.1.5
+  - @pnpm/get-context@1001.0.7
+  - @pnpm/resolver-base@1000.1.4
+  - @pnpm/workspace.read-manifest@1000.1.1
+  - @pnpm/workspace.state@1001.1.8
+
+## 1002.0.1
+
+### Patch Changes
+
+- Updated dependencies [1c2eb8c]
+  - @pnpm/config@1002.4.1
+  - @pnpm/workspace.state@1001.1.7
+  - @pnpm/workspace.find-packages@1000.0.12
+
+## 1002.0.0
+
+### Major Changes
+
+- 8fcc221: Read `configDependencies` from `options`.
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+- Updated dependencies [e32b1a2]
+- Updated dependencies [8fcc221]
+- Updated dependencies [8fcc221]
+- Updated dependencies [8fcc221]
+  - @pnpm/config@1002.4.0
+  - @pnpm/types@1000.2.0
+  - @pnpm/workspace.read-manifest@1000.1.0
+  - @pnpm/workspace.state@1001.1.6
+  - @pnpm/pnpmfile@1001.0.5
+  - @pnpm/lockfile.fs@1001.1.4
+  - @pnpm/lockfile.verification@1001.0.6
+  - @pnpm/get-context@1001.0.6
+  - @pnpm/resolver-base@1000.1.3
+  - @pnpm/workspace.find-packages@1000.0.11
+  - @pnpm/lockfile.settings-checker@1001.0.3
+
+## 1001.2.2
+
+### Patch Changes
+
+- Updated dependencies [fee898f]
+  - @pnpm/config@1002.3.1
+  - @pnpm/workspace.state@1001.1.5
+  - @pnpm/lockfile.fs@1001.1.3
+  - @pnpm/workspace.find-packages@1000.0.10
+  - @pnpm/get-context@1001.0.5
+  - @pnpm/lockfile.verification@1001.0.5
+
+## 1001.2.1
+
+### Patch Changes
+
+- @pnpm/workspace.find-packages@1000.0.9
+
+## 1001.2.0
+
+### Minor Changes
+
+- 265946b: Fix a false negative of `verify-deps-before-run` after `pnpm install --production|--no-optional` [#9019](https://github.com/pnpm/pnpm/issues/9019).
+
+### Patch Changes
+
+- Updated dependencies [f6006f2]
+- Updated dependencies [3717340]
+  - @pnpm/config@1002.3.0
+  - @pnpm/crypto.object-hasher@1000.0.1
+  - @pnpm/workspace.state@1001.1.4
+  - @pnpm/workspace.find-packages@1000.0.8
+
+## 1001.1.3
+
+### Patch Changes
+
+- @pnpm/config@1002.2.1
+- @pnpm/workspace.find-packages@1000.0.7
+- @pnpm/workspace.state@1001.1.3
+
+## 1001.1.2
+
+### Patch Changes
+
+- 5c8654f: Make sure that the deletion of a `node_modules` in a sub-project of a monorepo is detected as out-of-date [#8959](https://github.com/pnpm/pnpm/issues/8959).
+- Updated dependencies [9a44e6c]
+- Updated dependencies [b562deb]
+- Updated dependencies [f3ffaed]
+- Updated dependencies [c96eb2b]
+  - @pnpm/constants@1001.1.0
+  - @pnpm/workspace.find-packages@1000.0.6
+  - @pnpm/types@1000.1.1
+  - @pnpm/config@1002.2.0
+  - @pnpm/lockfile.fs@1001.1.2
+  - @pnpm/lockfile.verification@1001.0.4
+  - @pnpm/error@1000.0.2
+  - @pnpm/get-context@1001.0.4
+  - @pnpm/workspace.read-manifest@1000.0.2
+  - @pnpm/pnpmfile@1001.0.4
+  - @pnpm/resolver-base@1000.1.2
+  - @pnpm/workspace.state@1001.1.2
+  - @pnpm/parse-overrides@1000.0.2
+  - @pnpm/lockfile.settings-checker@1001.0.2
+
+## 1001.1.1
+
+### Patch Changes
+
+- @pnpm/config@1002.1.2
+- @pnpm/pnpmfile@1001.0.3
+- @pnpm/workspace.find-packages@1000.0.5
+- @pnpm/workspace.state@1001.1.1
+- @pnpm/lockfile.settings-checker@1001.0.1
+- @pnpm/lockfile.verification@1001.0.3
+
+## 1001.1.0
+
+### Minor Changes
+
+- 9591a18: Added support for a new type of dependencies called "configurational dependencies". These dependencies are installed before all the other types of dependencies (before "dependencies", "devDependencies", "optionalDependencies").
+
+  Configurational dependencies cannot have dependencies of their own or lifecycle scripts. They should be added using exact version and the integrity checksum. Example:
+
+  ```json
+  {
+    "pnpm": {
+      "configDependencies": {
+        "my-configs": "1.0.0+sha512-30iZtAPgz+LTIYoeivqYo853f02jBYSd5uGnGpkFV0M3xOt9aN73erkgYAmZU43x4VfqcnLxW9Kpg3R5LC4YYw=="
+      }
+    }
+  }
+  ```
+
+  Related RFC: [#8](https://github.com/pnpm/rfcs/pull/8).
+  Related PR: [#8915](https://github.com/pnpm/pnpm/pull/8915).
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+- Updated dependencies [1f5169f]
+  - @pnpm/workspace.state@1001.1.0
+  - @pnpm/types@1000.1.0
+  - @pnpm/config@1002.1.1
+  - @pnpm/pnpmfile@1001.0.2
+  - @pnpm/lockfile.fs@1001.1.1
+  - @pnpm/lockfile.verification@1001.0.3
+  - @pnpm/get-context@1001.0.3
+  - @pnpm/resolver-base@1000.1.1
+  - @pnpm/workspace.find-packages@1000.0.4
+  - @pnpm/lockfile.settings-checker@1001.0.1
+
+## 1001.0.3
+
+### Patch Changes
+
+- Updated dependencies [f90a94b]
+- Updated dependencies [f891288]
+  - @pnpm/config@1002.1.0
+  - @pnpm/workspace.state@1001.0.2
+  - @pnpm/workspace.find-packages@1000.0.3
+
+## 1001.0.2
+
+### Patch Changes
+
+- Updated dependencies [878ea8c]
+  - @pnpm/config@1002.0.0
+  - @pnpm/pnpmfile@1001.0.1
+  - @pnpm/get-context@1001.0.2
+  - @pnpm/workspace.state@1001.0.1
+  - @pnpm/lockfile.verification@1001.0.2
+  - @pnpm/workspace.find-packages@1000.0.2
+  - @pnpm/lockfile.settings-checker@1001.0.0
+
+## 1001.0.1
+
+### Patch Changes
+
+- Updated dependencies [3f0e4f0]
+  - @pnpm/lockfile.fs@1001.1.0
+  - @pnpm/get-context@1001.0.1
+  - @pnpm/lockfile.verification@1001.0.1
+
+## 1001.0.0
+
+### Major Changes
+
+- d47c426: On repeat install perform a fast check if `node_modules` is up to date [#8838](https://github.com/pnpm/pnpm/pull/8838).
+- a76da0c: Removed lockfile conversion from v6 to v9. If you need to convert lockfile v6 to v9, use pnpm CLI v9.
+
+### Minor Changes
+
+- 6483b64: A new setting, `inject-workspace-packages`, has been added to allow hard-linking all local workspace dependencies instead of symlinking them. Previously, this behavior was achievable via the [`dependenciesMeta[].injected`](https://pnpm.io/package_json#dependenciesmetainjected) setting, which remains supported [#8836](https://github.com/pnpm/pnpm/pull/8836).
+
+### Patch Changes
+
+- Updated dependencies [ac5b9d8]
+- Updated dependencies [d2e83b0]
+- Updated dependencies [6483b64]
+- Updated dependencies [d47c426]
+- Updated dependencies [a76da0c]
+  - @pnpm/config@1001.0.0
+  - @pnpm/constants@1001.0.0
+  - @pnpm/lockfile.settings-checker@1001.0.0
+  - @pnpm/resolver-base@1000.1.0
+  - @pnpm/pnpmfile@1001.0.0
+  - @pnpm/workspace.state@1001.0.0
+  - @pnpm/get-context@1001.0.0
+  - @pnpm/lockfile.verification@1001.0.0
+  - @pnpm/lockfile.fs@1001.0.0
+  - @pnpm/error@1000.0.1
+  - @pnpm/workspace.read-manifest@1000.0.1
+  - @pnpm/workspace.find-packages@1000.0.1
+  - @pnpm/parse-overrides@1000.0.1
+
+## 1.0.0
+
+### Major Changes
+
+- 19d5b51: Initial Release
+
+### Patch Changes
+
+- Updated dependencies [19d5b51]
+- Updated dependencies [8108680]
+- Updated dependencies [477e0c1]
+- Updated dependencies [19d5b51]
+- Updated dependencies [dfcf034]
+- Updated dependencies [19d5b51]
+- Updated dependencies [592e2ef]
+- Updated dependencies [9ea8fa4]
+- Updated dependencies [9ea8fa4]
+- Updated dependencies [19d5b51]
+- Updated dependencies [9ea8fa4]
+- Updated dependencies [1dbc56a]
+- Updated dependencies [9ea8fa4]
+- Updated dependencies [501c152]
+- Updated dependencies [9ea8fa4]
+- Updated dependencies [e9985b6]
+- Updated dependencies [c4f5231]
+  - @pnpm/constants@10.0.0
+  - @pnpm/config@22.0.0
+  - @pnpm/workspace.state@1.0.0
+  - @pnpm/lockfile.verification@1.1.0
+  - @pnpm/get-context@13.0.0
+  - @pnpm/crypto.object-hasher@3.0.0
+  - @pnpm/lockfile.fs@1.0.6
+  - @pnpm/error@6.0.3
+  - @pnpm/workspace.read-manifest@2.2.2
+  - @pnpm/lockfile.settings-checker@1.0.2
+  - @pnpm/parse-overrides@5.1.2
+  - @pnpm/workspace.find-packages@4.0.13

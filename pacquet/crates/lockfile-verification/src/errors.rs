@@ -1,26 +1,13 @@
 //! Error surface for the lockfile-verification gate.
-//!
-//! Mirrors the three error codes pnpm raises from
-//! [`buildVerificationError`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutions.ts#L172-L206):
-//!
-//! - `MINIMUM_RELEASE_AGE_VIOLATION` — every violation in the batch
-//!   tripped the maturity check.
-//! - `TRUST_DOWNGRADE` — every violation tripped the trust check.
-//! - `LOCKFILE_RESOLUTION_VERIFICATION` — mixed batch (more than one
-//!   distinct violation code). The per-entry code goes into the
-//!   breakdown so the user can see which policy each entry tripped.
-//!
-//! The breakdown caps visible entries at 20 (matching upstream's
-//! `MAX_VIOLATIONS_TO_PRINT`) and summarizes the remainder. Each
-//! variant carries a `help` string verbatim from upstream so the
-//! `pnpm errors` catalogue text matches.
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use std::fmt::Write as _;
 
-/// Upstream's `MAX_VIOLATIONS_TO_PRINT`. Keeps a poisoned lockfile
+/// Upstream's [`MAX_VIOLATIONS_TO_PRINT`][ts-MAX_VIOLATIONS_TO_PRINT]. Keeps a poisoned lockfile
 /// from flooding the terminal with hundreds of rejection lines.
+///
+/// [ts-MAX_VIOLATIONS_TO_PRINT]: https://github.com/pnpm/pnpm/blob/6fadd7def9/pnpm11/installing/deps-installer/src/install/verifyLockfileResolutions.ts#L29
 pub const MAX_VIOLATIONS_TO_PRINT: usize = 20;
 
 const HINT: &str = "The lockfile contains entries that the active policies reject. \
@@ -56,9 +43,6 @@ pub struct RenderedViolation {
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum VerifyError {
-    /// Every violation in the batch tripped
-    /// `MINIMUM_RELEASE_AGE_VIOLATION`. Per-policy code preserved so
-    /// existing handlers / docs route correctly.
     #[display("{count} lockfile entries failed verification:\n{breakdown}")]
     #[diagnostic(code(ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION), help("{HINT}"))]
     MinimumReleaseAgeViolation {
@@ -67,7 +51,6 @@ pub enum VerifyError {
         breakdown: String,
     },
 
-    /// Every violation tripped `TRUST_DOWNGRADE`.
     #[display("{count} lockfile entries failed verification:\n{breakdown}")]
     #[diagnostic(code(ERR_PNPM_TRUST_DOWNGRADE), help("{HINT}"))]
     TrustDowngrade {
@@ -76,9 +59,18 @@ pub enum VerifyError {
         breakdown: String,
     },
 
-    /// Every violation tripped `RESOLUTION_SHAPE_MISMATCH` — a
-    /// registry-style dependency path backed by a non-registry
-    /// resolution.
+    /// The registry couldn't be reached to verify an entry
+    /// (auth/network/5xx). Surfaces the registry's own fetch error — which
+    /// already explains the auth situation — rather than a tampering-style
+    /// mismatch or a lockfile-policy batch. The message is credential-redacted
+    /// at the verifier before it reaches here.
+    #[display("{message}")]
+    #[diagnostic(code(ERR_PNPM_META_FETCH_FAIL))]
+    RegistryMetaFetchFailed {
+        #[error(not(source))]
+        message: String,
+    },
+
     #[display("{count} lockfile entries failed verification:\n{breakdown}")]
     #[diagnostic(code(ERR_PNPM_RESOLUTION_SHAPE_MISMATCH), help("{HINT}"))]
     ResolutionShapeMismatch {
@@ -87,10 +79,6 @@ pub enum VerifyError {
         breakdown: String,
     },
 
-    /// Mixed batch — at least two distinct violation codes — so the
-    /// throw code escalates to the generic
-    /// `LOCKFILE_RESOLUTION_VERIFICATION` and each entry's code goes
-    /// into the breakdown.
     #[display("{count} lockfile entries failed verification:\n{breakdown}")]
     #[diagnostic(code(ERR_PNPM_LOCKFILE_RESOLUTION_VERIFICATION), help("{HINT}"))]
     LockfileResolutionVerification {

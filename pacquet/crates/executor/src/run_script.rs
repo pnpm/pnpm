@@ -78,14 +78,7 @@ pub struct RunScript<'a> {
 /// stdio so the script's output reaches the terminal directly.
 ///
 /// Ports the `stdio: 'inherit'` branch of pnpm's `runLifecycleHook`
-/// (<https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/lifecycle/src/runLifecycleHook.ts#L33-L145>):
-/// it sets up `node_modules/.bin` on `PATH` and the `npm_*` environment
-/// via [`build_env`] / [`extend_path`], echoes `$ <script>` to stderr
-/// unless `silent`, then spawns the script under the selected shell.
-///
-/// Returns the script's [`ExitStatus`] so the caller can propagate its
-/// exit code, matching pnpm's behavior where a failing script sets the
-/// process exit code.
+/// (<https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/lifecycle/src/runLifecycleHook.ts#L33-L145>).
 pub fn run_script(opts: &RunScript<'_>) -> Result<ExitStatus, RunScriptError> {
     let command = build_command(opts.script, opts.args);
 

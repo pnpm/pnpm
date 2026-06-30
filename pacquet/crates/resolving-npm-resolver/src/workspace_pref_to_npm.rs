@@ -2,13 +2,7 @@
 //! [`workspacePrefToNpm`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/src/workspacePrefToNpm.ts).
 //!
 //! Translates a `workspace:` bare specifier into the npm-shaped form
-//! the [`crate::parse_bare_specifier()`] flow consumes:
-//!
-//! - `workspace:` / `workspace:*` / `workspace:^` / `workspace:~` → `*`
-//! - `workspace:<version>` → `<version>`
-//! - `workspace:<alias>@<version>` → `npm:<alias>@<version-token>`
-//!   (the `^`/`~`/empty sentinels collapse to `*` for the version
-//!   token too).
+//! the [`crate::parse_bare_specifier()`] flow consumes.
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;

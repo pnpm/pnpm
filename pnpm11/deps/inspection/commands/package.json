@@ -1,0 +1,93 @@
+{
+  "name": "@pnpm/deps.inspection.commands",
+  "version": "1100.4.1",
+  "description": "The list, ll, why, and outdated commands of pnpm",
+  "keywords": [
+    "pnpm",
+    "pnpm11"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm11/deps/inspection/commands",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpm11/deps/inspection/commands#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "pn compile && pn --filter=pnpm compile && pn .test",
+    "prepublishOnly": "tsgo --build",
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+  },
+  "dependencies": {
+    "@pnpm/cli.command": "workspace:*",
+    "@pnpm/cli.common-cli-options-help": "workspace:*",
+    "@pnpm/cli.utils": "workspace:*",
+    "@pnpm/colorize-semver-diff": "catalog:",
+    "@pnpm/config.matcher": "workspace:*",
+    "@pnpm/config.pick-registry-for-package": "workspace:*",
+    "@pnpm/config.reader": "workspace:*",
+    "@pnpm/deps.inspection.list": "workspace:*",
+    "@pnpm/deps.inspection.outdated": "workspace:*",
+    "@pnpm/deps.inspection.peers-checker": "workspace:*",
+    "@pnpm/deps.inspection.peers-issues-renderer": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/global.commands": "workspace:*",
+    "@pnpm/global.packages": "workspace:*",
+    "@pnpm/installing.modules-yaml": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/network.auth-header": "workspace:*",
+    "@pnpm/network.fetch": "workspace:*",
+    "@pnpm/npm-package-arg": "catalog:",
+    "@pnpm/resolving.default-resolver": "workspace:*",
+    "@pnpm/resolving.npm-resolver": "workspace:*",
+    "@pnpm/resolving.registry.types": "workspace:*",
+    "@pnpm/semver-diff": "catalog:",
+    "@pnpm/store.path": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.project-manifest-reader": "workspace:*",
+    "@zkochan/table": "catalog:",
+    "chalk": "catalog:",
+    "hosted-git-info": "catalog:",
+    "open": "catalog:",
+    "ramda": "catalog:",
+    "render-help": "catalog:"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
+  "devDependencies": {
+    "@jest/globals": "catalog:",
+    "@pnpm/constants": "workspace:*",
+    "@pnpm/deps.inspection.commands": "workspace:*",
+    "@pnpm/installing.commands": "workspace:*",
+    "@pnpm/prepare": "workspace:*",
+    "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/testing.command-defaults": "workspace:*",
+    "@pnpm/testing.registry-mock": "workspace:*",
+    "@pnpm/workspace.projects-filter": "workspace:*",
+    "@types/hosted-git-info": "catalog:",
+    "@types/ramda": "catalog:",
+    "@types/zkochan__table": "catalog:",
+    "execa": "catalog:",
+    "symlink-dir": "catalog:",
+    "write-yaml-file": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config/with-registry"
+  }
+}

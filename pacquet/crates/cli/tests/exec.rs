@@ -109,7 +109,7 @@ fn exec_shell_mode_runs_shell_command() {
     pacquet
         .with_arg("exec")
         .with_arg("-c")
-        .with_arg(format!("touch \"{}\"", marker_path.display()))
+        .with_arg(format!(r#"touch "{}""#, marker_path.display()))
         .assert()
         .success();
     assert!(marker_path.exists(), "shell-mode command should have run");

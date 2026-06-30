@@ -1,0 +1,147 @@
+# @pnpm/store-path
+
+## 1100.0.2
+
+### Patch Changes
+
+- Updated dependencies [852d537]
+  - @pnpm/error@1100.0.1
+
+## 1100.0.1
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Patch Changes
+
+- Updated dependencies [c55c614]
+- Updated dependencies [a8f016c]
+- Updated dependencies [491a84f]
+- Updated dependencies [075aa99]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [50fbeca]
+- Updated dependencies [71de2b3]
+- Updated dependencies [831f574]
+  - @pnpm/constants@1002.0.0
+  - @pnpm/error@1001.0.0
+
+## 1000.0.5
+
+### Patch Changes
+
+- Updated dependencies [6365bc4]
+  - @pnpm/constants@1001.3.1
+  - @pnpm/error@1000.0.5
+
+## 1000.0.4
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+  - @pnpm/constants@1001.3.0
+  - @pnpm/error@1000.0.4
+
+## 1000.0.3
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+  - @pnpm/constants@1001.2.0
+  - @pnpm/error@1000.0.3
+
+## 1000.0.2
+
+### Patch Changes
+
+- Updated dependencies [9a44e6c]
+  - @pnpm/constants@1001.1.0
+  - @pnpm/error@1000.0.2
+
+## 1000.0.1
+
+### Patch Changes
+
+- Updated dependencies [d2e83b0]
+- Updated dependencies [a76da0c]
+  - @pnpm/constants@1001.0.0
+  - @pnpm/error@1000.0.1
+
+## 9.0.3
+
+### Patch Changes
+
+- Updated dependencies [19d5b51]
+- Updated dependencies [8108680]
+- Updated dependencies [c4f5231]
+  - @pnpm/constants@10.0.0
+  - @pnpm/error@6.0.3
+
+## 9.0.2
+
+### Patch Changes
+
+- @pnpm/error@6.0.2
+
+## 9.0.1
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+
+## 9.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+  - @pnpm/error@6.0.0
+
+## 8.0.2
+
+### Patch Changes
+
+- 37ccff637: Throw an error when calculating the store directory without the pnpm home directory.
+
+## 8.0.1
+
+### Patch Changes
+
+- 7d65d901a: Fix issue when trying to use `pnpm dlx` in the root of a Windows Drive [#7263](https://github.com/pnpm/pnpm/issues/7263).
+
+## 8.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+## 7.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
+## 6.0.0
+
+### Major Changes
+
+- cdeb65203: Changed the location of the global store from `~/.pnpm-store` to `<pnpm home directory>/store`
+
+  On Linux, by default it will be `~/.local/share/pnpm/store`
+  On Windows: `%LOCALAPPDATA%/pnpm/store`
+  On macOS: `~/Library/pnpm/store`
+
+  Related issue: [#2574](https://github.com/pnpm/pnpm/issues/2574)

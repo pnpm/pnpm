@@ -47,20 +47,13 @@ pub fn parse_bare_specifier(
         bare = rest.to_string();
 
         let alias_str = alias;
-        // `npm:<version_selector>` paired with a non-empty alias keeps
-        // the alias as the package name, mirroring the named-registry
-        // shape (`gh:^1.0.0`). Restricted to semver ranges/versions so
-        // unscoped names like `npm:is-positive` keep their npm package-
-        // aliasing meaning instead of being read as a tag.
         if let Some(a) = alias_str
             && !a.is_empty()
             && Range::parse(&bare).is_ok()
         {
             name = Some(a.to_string());
         } else {
-            // Last `@` discriminates `name@version`. `index < 1` covers
-            // both no-`@` (`npm:foo`) and leading-`@` (`npm:@scope/foo`,
-            // no version) cases — both fall back to the default tag.
+            // Last `@` discriminates `name@version`.
             let last_at =
                 bare.bytes().enumerate().rev().find_map(|(i, b)| (b == b'@').then_some(i));
             match last_at {
@@ -107,8 +100,9 @@ pub fn parse_bare_specifier(
 /// resolver can record the dependency under its JSR alias while
 /// driving the picker against the `@jsr` registry.
 ///
-/// Mirrors upstream's `JsrRegistryPackageSpec`
-/// ([source](https://github.com/pnpm/pnpm/blob/1627943d2a/resolving/npm-resolver/src/parseBareSpecifier.ts#L64-L66)).
+/// Mirrors upstream's [`JsrRegistryPackageSpec`][ts-JsrRegistryPackageSpec].
+///
+/// [ts-JsrRegistryPackageSpec]: https://github.com/pnpm/pnpm/blob/1627943d2a/resolving/npm-resolver/src/parseBareSpecifier.ts#L64-L66
 #[derive(Debug, Clone)]
 pub struct JsrRegistryPackageSpec {
     pub spec: RegistryPackageSpec,
@@ -157,8 +151,9 @@ pub fn parse_jsr_specifier_to_registry_package_spec(
 /// route the metadata fetch to the configured registry URL while still
 /// driving the picker against an npm-shaped spec.
 ///
-/// Mirrors upstream's `NamedRegistryPackageSpec`
-/// ([source](https://github.com/pnpm/pnpm/blob/b61e268d57/resolving/npm-resolver/src/parseBareSpecifier.ts#L91-L93)).
+/// Mirrors upstream's [`NamedRegistryPackageSpec`][ts-NamedRegistryPackageSpec].
+///
+/// [ts-NamedRegistryPackageSpec]: https://github.com/pnpm/pnpm/blob/b61e268d57/resolving/npm-resolver/src/parseBareSpecifier.ts#L91-L93
 #[derive(Debug, Clone)]
 pub struct NamedRegistryPackageSpec {
     pub spec: RegistryPackageSpec,
@@ -175,10 +170,9 @@ pub struct NamedRegistryPackageSpec {
 #[derive(Debug, Display, Error, Diagnostic, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ParseNamedRegistrySpecifierError {
-    /// Scope without a `/<name>` segment (e.g. `gh:@acme` or
-    /// `gh:@acme@1.0.0`). Always a configuration bug, refused so the
-    /// user gets an immediate, actionable error instead of a confusing
-    /// downstream 404.
+    /// Scope without a `/<name>` segment. Always a configuration bug,
+    /// refused so the user gets an immediate, actionable error instead
+    /// of a confusing downstream 404.
     #[display("The package name '{pkg_name}' in named registry '{registry_name}:' is invalid")]
     #[diagnostic(code(ERR_PNPM_INVALID_NAMED_REGISTRY_PACKAGE_NAME))]
     InvalidPackageName {
@@ -225,9 +219,6 @@ pub fn parse_named_registry_specifier_to_registry_package_spec(
     let version_selector: Option<String>;
 
     if Range::parse(body).is_ok() {
-        // `<alias>:<version_selector>` — body is a semver range or
-        // version; the package name has to come from the dependency
-        // alias. Without one we cannot resolve.
         let Some(alias) = package_alias.filter(|alias| !alias.is_empty()) else {
             return Ok(None);
         };
@@ -374,7 +365,7 @@ fn parse_npm_tarball_url(url: &str) -> Option<NpmTarballUrl> {
 /// Percent-decode a URL path segment. Matches JS's `decodeURIComponent`
 /// for the byte ranges that show up in npm tarball URLs (the only
 /// caller). Invalid escapes pass through unchanged, mirroring the
-/// `percent_decode_str` helper in `pacquet-network`'s proxy module.
+/// [`percent_decode_str`] helper in `pacquet-network`'s proxy module.
 fn percent_decode_str(text: &str) -> String {
     let bytes = text.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());

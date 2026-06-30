@@ -43,13 +43,9 @@ pub struct PackageBinSource {
     /// project never gets its own tooling silently shadowed by a
     /// transitive's bin. Defaults to [`BinOrigin::Direct`] —
     /// constructions via [`PackageBinSource::new`] don't have to
-    /// supply the field, and existing call sites that don't yet
-    /// distinguish keep the pre-[#342] ownership/lexical-only
-    /// behavior. Pacquet's hoist + hoisted-linker passes use
+    /// supply the field. Pacquet's hoist + hoisted-linker passes use
     /// [`PackageBinSource::with_origin`] to tag transitive
     /// candidates as [`BinOrigin::Hoisted`].
-    ///
-    /// [#342]: https://github.com/pnpm/pacquet/issues/342
     pub origin: BinOrigin,
 }
 
@@ -181,16 +177,6 @@ pub enum LinkBinsError {
 /// Read `<location>/package.json` for each entry under `modules_dir` and link
 /// its bins into `bins_dir`. Mirrors pnpm v11's `linkBins(modulesDir, binsDir)`
 /// at <https://github.com/pnpm/pnpm/blob/4750fd370c/bins/linker/src/index.ts>.
-///
-/// Skips:
-/// - The `.bin` and `.pacquet` directories themselves (and any other
-///   dot-prefixed entry, matching pnpm).
-/// - Entries whose `package.json` cannot be read (legitimate when a directory
-///   under `node_modules` happens to not be a package, e.g. an empty scope
-///   directory).
-///
-/// Scoped packages are recursed: `node_modules/@scope/foo` becomes one
-/// candidate. This mirrors `binNamesAndPaths` in upstream `linkBins`.
 pub fn link_bins<Sys>(modules_dir: &Path, bins_dir: &Path) -> Result<(), LinkBinsError>
 where
     Sys: FsReadDir
@@ -280,18 +266,6 @@ fn read_package<Sys: FsReadFile>(
 /// Link every bin declared by `packages` into `bins_dir`, applying the same
 /// conflict resolution upstream uses.
 ///
-/// Conflict resolution mirrors `resolveCommandConflicts`:
-///
-/// 1. **Direct wins over Hoisted.** If exactly one candidate is
-///    [`BinOrigin::Direct`], it wins outright — a direct dep's bin
-///    must never be shadowed by a transitive's bin with the same
-///    name. Mirrors upstream's `preferDirectCmds` partition at
-///    <https://github.com/pnpm/pnpm/blob/4750fd370c/bins/linker/src/index.ts#L92>.
-/// 2. Ownership wins. If exactly one package owns the bin name (via
-///    [`pkg_owns_bin`]), it wins outright.
-/// 3. Otherwise lexical comparison on the package name, lower wins. Stable
-///    and deterministic regardless of the order packages were discovered.
-///
 /// Pacquet's first iteration does not resolve same-package multi-version
 /// conflicts via semver (a feature upstream uses for hoisting), since the
 /// virtual-store layout means each bin source is a unique
@@ -299,6 +273,32 @@ fn read_package<Sys: FsReadFile>(
 pub fn link_bins_of_packages<Sys>(
     packages: &[PackageBinSource],
     bins_dir: &Path,
+) -> Result<(), LinkBinsError>
+where
+    Sys: FsReadToString
+        + FsReadHead
+        + FsCreateDirAll
+        + FsWalkFiles
+        + FsWrite
+        + FsSetExecutable
+        + FsEnsureExecutableBits,
+{
+    link_bins_of_packages_with_excludes::<Sys>(
+        packages,
+        bins_dir,
+        &std::collections::HashSet::new(),
+    )
+}
+
+/// Like [`link_bins_of_packages`] but skips any bin whose name is in
+/// `exclude_bins`. Mirrors the `excludeBins` option of pnpm's
+/// [`linkBinsOfPackages`](https://github.com/pnpm/pnpm/blob/4750fd370c/bins/linker/src/index.ts),
+/// used by global install to leave bins legitimately owned by an
+/// already-installed global package untouched.
+pub fn link_bins_of_packages_with_excludes<Sys>(
+    packages: &[PackageBinSource],
+    bins_dir: &Path,
+    exclude_bins: &std::collections::HashSet<String>,
 ) -> Result<(), LinkBinsError>
 where
     Sys: FsReadToString
@@ -336,6 +336,10 @@ where
         }
     }
 
+    for excluded in exclude_bins {
+        chosen.remove(excluded);
+    }
+
     if chosen.is_empty() {
         return Ok(());
     }
@@ -364,13 +368,6 @@ fn pick_winner(
     candidate: &str,
     candidate_origin: BinOrigin,
 ) -> bool {
-    // Highest tier: a Direct candidate beats a Hoisted incumbent and
-    // a Direct incumbent shuts out a Hoisted candidate. When both
-    // sides agree (both Direct or both Hoisted), fall through to the
-    // ownership / lexical rules so the existing tier behavior is
-    // unchanged inside each origin bucket. Mirrors upstream's
-    // `preferDirectCmds` partition at
-    // <https://github.com/pnpm/pnpm/blob/4750fd370c/bins/linker/src/index.ts#L92>.
     match (existing_origin, candidate_origin) {
         (BinOrigin::Hoisted, BinOrigin::Direct) => return true,
         (BinOrigin::Direct, BinOrigin::Hoisted) => return false,
@@ -381,8 +378,6 @@ fn pick_winner(
     match (existing_owns, candidate_owns) {
         (true, false) => false,
         (false, true) => true,
-        // Both own (or neither): fall through to lexical compare. Picking the
-        // smaller name keeps results deterministic across input orderings.
         _ => candidate < existing,
     }
 }
@@ -391,25 +386,6 @@ fn pick_winner(
 /// plus the `.cmd` and `.ps1` Windows-style siblings *when the host
 /// is Windows*. Idempotent on warm reinstalls via
 /// [`is_shim_pointing_at`].
-///
-/// Platform gating mirrors pnpm:
-///
-/// - `@zkochan/cmd-shim` defaults `createCmdFile: isWindows`
-///   ([index.js#L32](https://github.com/pnpm/cmd-shim/blob/0d79ca9534/src/index.ts#L32)),
-///   so `.cmd` only lands on Windows.
-/// - pnpm's `bins.linker` overrides `createPwshFile` per call as
-///   `POWER_SHELL_IS_SUPPORTED && manifest.name !== 'pnpm'`, where
-///   [`POWER_SHELL_IS_SUPPORTED = IS_WINDOWS`](https://github.com/pnpm/pnpm/blob/29a42efc3b/bins/linker/src/index.ts#L28).
-///   So `.ps1` also only lands on Windows.
-///
-/// Earlier versions of pacquet emitted all three flavors
-/// unconditionally on the theory that a Linux-installed
-/// `node_modules` should stay usable when carried to Windows via
-/// network share or git clone. That doesn't match pnpm — pnpm's
-/// Windows install rebuilds the shims on extraction — and produced
-/// extra `.cmd`/`.ps1` files in every slot on Unix, splitting the
-/// GVS file lists between the two tools (see the
-/// `same_global_virtual_store_layout_*` parity tests).
 ///
 /// The chmod step (`set_executable` for the canonical shim and
 /// `ensure_executable_bits` for the target binary, matching pnpm's
@@ -471,14 +447,11 @@ where
     // [`is_shim_pointing_at`] reads; the `.cmd` and `.ps1` flavors
     // don't, so we compare them byte-for-byte against the freshly
     // generated body. That catches stale/corrupted siblings that an
-    // existence-only check would let slip through (Copilot flagged
-    // this on
-    // <https://github.com/pnpm/pacquet/pull/333#discussion_r3222744353>):
-    // a manually-edited `.cmd` pointing at a stale target, or an
-    // earlier pacquet write with a different relative path, would
-    // bypass the rewrite under the prior `.is_ok()` gate. Generated
-    // bodies are stable across pacquet versions (only the `<target>`
-    // segment moves), so byte equality is a sound equivalence check.
+    // existence-only check would let slip through: a manually-edited
+    // `.cmd` pointing at a stale target, or a pacquet write with a
+    // different relative path. Generated bodies are stable across
+    // pacquet versions (only the `<target>` segment moves), so byte
+    // equality is a sound equivalence check.
     let sh_marker_ok = matches!(
         Sys::read_to_string(shim_path),
         Ok(existing) if is_shim_pointing_at(&existing, target_path),
@@ -500,11 +473,19 @@ where
     let already_correct = sh_marker_ok && windows_ok;
 
     if !already_correct {
+        // Unlink any pre-existing entry before writing. `Sys::write` opens
+        // through a symlink, so without this a symlink planted at the bin
+        // path (e.g. in a shared/writable global bin dir) would redirect the
+        // write and clobber an arbitrary target. Removing first guarantees we
+        // create a fresh regular file.
+        remove_stale_bin(shim_path)?;
         Sys::write(shim_path, sh_body.as_bytes())
             .map_err(|error| LinkBinsError::WriteShim { path: shim_path.to_path_buf(), error })?;
         if let Some((cmd_path, cmd_body, ps1_path, ps1_body)) = &windows_shims {
+            remove_stale_bin(cmd_path)?;
             Sys::write(cmd_path, cmd_body.as_bytes())
                 .map_err(|error| LinkBinsError::WriteShim { path: cmd_path.clone(), error })?;
+            remove_stale_bin(ps1_path)?;
             Sys::write(ps1_path, ps1_body.as_bytes())
                 .map_err(|error| LinkBinsError::WriteShim { path: ps1_path.clone(), error })?;
         }
@@ -520,10 +501,7 @@ where
     // enough for the install tests this PR ports. `NotFound` is
     // swallowed because the target may legitimately have been
     // removed by an unrelated process between extraction and shim
-    // linking. Everything else (`PermissionDenied`, `EROFS`,
-    // AppArmor deny, foreign uid) surfaces as `LinkBinsError::Chmod`
-    // so real failures don't disappear silently. Mirrors pnpm's
-    // `fixBin` ENOENT guard.
+    // linking.
     match Sys::ensure_executable_bits(target_path) {
         Ok(()) => {}
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
@@ -561,9 +539,8 @@ fn is_node_bin_name(shim_path: &Path) -> bool {
 ///
 /// `remove_file` rather than `Sys::write`-style truncation is
 /// load-bearing on both platforms: if `shim_path` is currently a
-/// regular file hardlinked to the source binary (a state an earlier
-/// pacquet revision could leave behind), truncating through the
-/// hardlink would corrupt the binary itself. Removing the dirent
+/// regular file hardlinked to the source binary, truncating through
+/// the hardlink would corrupt the binary itself. Removing the dirent
 /// leaves the hardlinked content intact.
 #[cfg(unix)]
 fn link_node_bin(target_path: &Path, shim_path: &Path) -> Result<bool, LinkBinsError> {
@@ -588,6 +565,13 @@ fn link_node_bin(target_path: &Path, shim_path: &Path) -> Result<bool, LinkBinsE
         return Ok(false);
     }
     let exe_path = with_extension_appended(shim_path, "exe");
+    // Skip the remove + relink churn on warm installs when `node.exe`
+    // already refers to the source binary. Mirrors pnpm's same-file
+    // early-return in
+    // [`bins/linker/src/index.ts`](https://github.com/pnpm/pnpm/blob/06d2d3deb2/bins/linker/src/index.ts#L281-L308).
+    if is_same_file(&exe_path, target_path) {
+        return Ok(true);
+    }
     remove_stale_bin(&exe_path)?;
     if fs::hard_link(target_path, &exe_path).is_err() {
         fs::copy(target_path, &exe_path).map_err(|error| LinkBinsError::LinkNodeBin {
@@ -597,6 +581,72 @@ fn link_node_bin(target_path: &Path, shim_path: &Path) -> Result<bool, LinkBinsE
         })?;
     }
     Ok(true)
+}
+
+/// Whether `a` and `b` are the same file. [`same_file::Handle`] proves a hard
+/// link cheaply via the OS file identity (device + inode on Unix, file index +
+/// volume serial on Windows). When that identity can't be obtained — a missing
+/// file, or a filesystem that doesn't expose a stable index — we fall back to
+/// comparing the file contents after a quick size check, which also treats a
+/// byte-identical copy as the same file. Mirrors `isSameFile` in pnpm's
+/// `bins.linker`.
+#[cfg(windows)]
+fn is_same_file(a: &Path, b: &Path) -> bool {
+    if let (Ok(handle_a), Ok(handle_b)) =
+        (same_file::Handle::from_path(a), same_file::Handle::from_path(b))
+        && handle_a == handle_b
+    {
+        return true;
+    }
+    match (std::fs::metadata(a), std::fs::metadata(b)) {
+        (Ok(meta_a), Ok(meta_b)) => meta_a.len() == meta_b.len() && have_equal_contents(a, b),
+        _ => false,
+    }
+}
+
+/// Compare two equally-sized files chunk by chunk, so an executable is never
+/// fully buffered in memory and a mismatch returns as early as possible.
+#[cfg(windows)]
+fn have_equal_contents(a: &Path, b: &Path) -> bool {
+    const CHUNK_SIZE: usize = 64 * 1024;
+    let (Ok(mut file_a), Ok(mut file_b)) = (std::fs::File::open(a), std::fs::File::open(b)) else {
+        return false;
+    };
+    let mut buf_a = vec![0u8; CHUNK_SIZE];
+    let mut buf_b = vec![0u8; CHUNK_SIZE];
+    loop {
+        let (Ok(read_a), Ok(read_b)) =
+            (read_chunk(&mut file_a, &mut buf_a), read_chunk(&mut file_b, &mut buf_b))
+        else {
+            return false;
+        };
+        if read_a != read_b {
+            return false;
+        }
+        if read_a == 0 {
+            return true;
+        }
+        if buf_a[..read_a] != buf_b[..read_b] {
+            return false;
+        }
+    }
+}
+
+/// Read up to `buf.len()` bytes, looping over short reads so a full chunk is
+/// only short at end of file. Like [`std::io::Read::read_exact`] but tolerant
+/// of EOF.
+#[cfg(windows)]
+fn read_chunk(reader: &mut impl std::io::Read, buf: &mut [u8]) -> io::Result<usize> {
+    let mut filled = 0;
+    while filled < buf.len() {
+        match reader.read(&mut buf[filled..]) {
+            Ok(0) => break,
+            Ok(n) => filled += n,
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(filled)
 }
 
 /// Remove an existing dirent at `path`, swallowing `NotFound`. Used by
@@ -622,6 +672,33 @@ fn with_extension_appended(path: &Path, ext: &str) -> PathBuf {
     result.push(".");
     result.push(ext);
     result.into()
+}
+
+/// Remove a bin shim previously written by [`link_bins_of_packages`].
+///
+/// Ports pnpm's [`removeBin`](https://github.com/pnpm/pnpm/blob/4750fd370c/bins/remover/src/removeBins.ts)
+/// (deletes `<name>`, `<name>.ps1`, `<name>.cmd` on Windows; just `<name>`
+/// elsewhere), and additionally removes the `<name>.exe` flavor on Windows:
+/// the `node` runtime bin is linked as `<name>.exe` by the linker's node
+/// special-case, so without this a `node.exe` would survive `remove -g` /
+/// `update -g` and stay reachable on `PATH`. A missing file is not an error
+/// (rimraf-style).
+pub fn remove_bin(bin_path: &Path) -> io::Result<()> {
+    remove_if_exists(bin_path)?;
+    if cfg!(windows) {
+        remove_if_exists(&with_extension_appended(bin_path, "ps1"))?;
+        remove_if_exists(&with_extension_appended(bin_path, "cmd"))?;
+        remove_if_exists(&with_extension_appended(bin_path, "exe"))?;
+    }
+    Ok(())
+}
+
+fn remove_if_exists(path: &Path) -> io::Result<()> {
+    match std::fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    }
 }
 
 #[cfg(test)]

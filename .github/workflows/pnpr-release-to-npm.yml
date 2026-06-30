@@ -2,8 +2,10 @@ name: Release @pnpm/pnpr
 
 # Manual-trigger only. Type the version to publish — the workflow patches
 # pnpr/npm/pnpr/package.json with it before generating per-platform
-# packages and publishing. No git tag is created and no GitHub release
-# asset is uploaded; npm is the authoritative artifact store.
+# packages and publishing. It then builds and pushes a multi-arch Docker
+# image (ghcr.io/pnpm/pnpr) from the same static musl binaries. No git tag
+# is created and no GitHub release asset is uploaded; npm and GHCR are the
+# authoritative artifact stores.
 on:
   workflow_dispatch:
     inputs:
@@ -63,12 +65,12 @@ jobs:
     name: Package ${{ matrix.code-target }}
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
 
       - name: Install cross
-        uses: taiki-e/install-action@873c7452cadb7c034694a1282227095d93fbdf92 # v2.79.14
+        uses: taiki-e/install-action@b8cecb83565409bcc297b2df6e77f030b2a468d5 # v2.82.0
         with:
           tool: cross
 
@@ -125,6 +127,9 @@ jobs:
           BIN_NAME=pnpr-${{ matrix.code-target }}
           mv target/${{ matrix.target }}/release/pnpr $BIN_NAME
           tar czf $BIN_NAME.tar.gz $BIN_NAME
+          # Pin the binary's checksum at build time so the Docker job can
+          # verify the artifact it stages into the image context.
+          shasum -a 256 $BIN_NAME > $BIN_NAME.sha256
 
       - name: Attest build provenance
         uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32 # v4.1.0
@@ -140,17 +145,19 @@ jobs:
           path: |
             *.zip
             *.tar.gz
+            *.sha256
 
   publish:
     name: Publish
     runs-on: ubuntu-latest
+    environment: release
     permissions:
       # Required for npm provenance attestations via OIDC.
       id-token: write
     needs:
       - build
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           persist-credentials: false
 
@@ -177,7 +184,7 @@ jobs:
           cat pnpr/npm/pnpr/package.json
 
       - name: Install pnpm and Node
-        uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
+        uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
         with:
           runtime: node@22
           install: false
@@ -212,3 +219,100 @@ jobs:
           for package in pnpr/npm/pnpr*; do
             pnpm publish "$package/" --tag latest --access public --provenance --no-git-checks
           done
+
+  docker:
+    name: Docker
+    runs-on: ubuntu-latest
+    environment: release
+    needs:
+      - build
+      - publish
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/pnpr
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+        with:
+          persist-credentials: false
+
+      - name: Compute image tags
+        id: tags
+        # A version containing a hyphen (e.g. 0.2.3-rc.1) is a prerelease and
+        # must not move the mutable `latest` tag.
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -eu
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Invalid version: '$VERSION' (expected semver like 0.2.3 or 0.2.3-rc.1)"
+            exit 1
+          fi
+          tags="${IMAGE}:${VERSION}"
+          case "$VERSION" in
+            *-*) ;;
+            *) tags="${tags},${IMAGE}:latest" ;;
+          esac
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
+
+      - name: Download Linux musl binaries
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: binaries-linux-*-musl
+          merge-multiple: true
+
+      - name: Stage binaries for the build context
+        id: stage
+        # The static musl binaries match what was just published to npm. The
+        # Dockerfile selects one via the build's TARGETARCH (amd64 / arm64) and
+        # re-verifies it against the build-time checksum surfaced here.
+        #
+        # Extract into a throwaway directory and move only the expected,
+        # checksum-verified regular files into the build context, so a malformed
+        # archive cannot escape it (path traversal, symlinks) and overwrite the
+        # Dockerfile or the staged binaries before they are pushed to GHCR.
+        run: |
+          set -eu
+          rm -rf extracted
+          mkdir extracted
+          for f in pnpr-linux-*-musl.tar.gz; do
+            tar -xzf "$f" -C extracted --no-same-owner
+          done
+          ( cd extracted && sha256sum -c ../pnpr-linux-x64-musl.sha256 ../pnpr-linux-arm64-musl.sha256 )
+          for pair in x64:amd64 arm64:arm64; do
+            bin="extracted/pnpr-linux-${pair%:*}-musl"
+            test -f "$bin" && test ! -L "$bin"
+            mv "$bin" "pnpr/docker/pnpr-${pair#*:}"
+          done
+          {
+            echo "sha_amd64=$(awk '{print $1}' pnpr-linux-x64-musl.sha256)"
+            echo "sha_arm64=$(awk '{print $1}' pnpr-linux-arm64-musl.sha256)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+
+      - name: Login to GHCR
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: ./pnpr/docker
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          build-args: |
+            PNPR_VERSION=${{ inputs.version }}
+            PNPR_SHA256_AMD64=${{ steps.stage.outputs.sha_amd64 }}
+            PNPR_SHA256_ARM64=${{ steps.stage.outputs.sha_arm64 }}
+          provenance: mode=max
+          sbom: true

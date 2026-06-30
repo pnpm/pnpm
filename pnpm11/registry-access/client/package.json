@@ -1,0 +1,48 @@
+{
+  "name": "@pnpm/registry-access.client",
+  "version": "1100.1.5",
+  "description": "Low-level helpers for npm-registry HTTP endpoints (PUT dist-tag, PUT user, etc.)",
+  "keywords": [
+    "pnpm",
+    "pnpm11"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm11/registry-access/client",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpm11/registry-access/client#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "start": "tsgo --watch",
+    "lint": "eslint \"src/**/*.ts\"",
+    "prepublishOnly": "tsgo --build",
+    "compile": "tsgo --build && pn lint --fix",
+    "test": "pn compile"
+  },
+  "dependencies": {
+    "@pnpm/error": "workspace:*",
+    "@pnpm/network.fetch": "workspace:*",
+    "@pnpm/network.web-auth": "workspace:*",
+    "@pnpm/npm-package-arg": "catalog:"
+  },
+  "devDependencies": {
+    "@pnpm/registry-access.client": "workspace:*"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

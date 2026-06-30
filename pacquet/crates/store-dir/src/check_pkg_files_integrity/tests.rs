@@ -18,7 +18,7 @@ fn plant_cafs_file(store_dir: &StoreDir, digest: &str, mode: u32, content: &[u8]
     fs::create_dir_all(path.parent().unwrap()).unwrap();
     let mut file = fs::File::create(&path).unwrap();
     file.write_all(content).unwrap();
-    file.sync_all().ok();
+    let _ = file.sync_all();
     path
 }
 
@@ -44,11 +44,6 @@ fn info(digest: &str, size: u64, mode: u32, checked_at: Option<u64>) -> CafsFile
     CafsFileInfo { checked_at, digest: digest.to_string(), mode, size }
 }
 
-/// `build_file_maps_from_index` never stats the files. With a
-/// valid digest, it returns a populated `files_map` with
-/// `passed = true` regardless of whether anything is on disk —
-/// the sibling `fast_path_fails_when_digest_is_malformed` covers
-/// the "digest was not resolvable" failure case.
 #[test]
 fn fast_path_skips_filesystem_checks() {
     let tmp = tempdir().unwrap();
@@ -63,10 +58,6 @@ fn fast_path_skips_filesystem_checks() {
     assert!(!path.exists(), "no file was planted — fast path didn't care");
 }
 
-/// On-disk file is live, `checked_at` is far in the future so the
-/// 100 ms slack keeps the mtime delta negative and we take the
-/// "unmodified, trust the digest" branch — without any `fs::read`.
-///
 /// We can't easily set `mtime` from the standard library, but
 /// `checked_at` in the row is caller-controlled, so setting it
 /// above the real `mtime` is enough to exercise the trust path.
@@ -88,8 +79,6 @@ fn careful_path_trusts_file_when_mtime_is_within_slack() {
     assert_eq!(result.files_map.len(), 1);
 }
 
-/// Missing on disk → whole entry fails so the caller re-fetches.
-/// `files_map` is still populated for diagnostics.
 #[test]
 fn careful_path_fails_on_missing_cafs_file() {
     let tmp = tempdir().unwrap();
@@ -102,11 +91,8 @@ fn careful_path_fails_on_missing_cafs_file() {
     assert_eq!(result.files_map.len(), 1);
 }
 
-/// File is on disk, the row claims the digest is for *different*
-/// bytes, size matches. `checked_at = None` ≡ 0, so the mtime-slack
-/// delta is "definitely > 100 ms", forcing re-hash → mismatch →
-/// `remove_file` + fail. Ports pnpm's `verifyFile` wrong-digest
-/// branch.
+/// `checked_at = 0` makes the mtime-slack delta "definitely > 100 ms",
+/// forcing a re-hash.
 #[test]
 fn careful_path_removes_file_whose_content_hash_mismatches() {
     let tmp = tempdir().unwrap();
@@ -125,10 +111,8 @@ fn careful_path_removes_file_whose_content_hash_mismatches() {
     assert!(!path.exists(), "mismatched file is removed so the next call re-fetches");
 }
 
-/// Row claims size 999 but the file has 14 bytes. `checked_at = 0`
-/// puts us firmly in the "modified" branch (mtime now > 100 ms past
-/// 0). Size mismatch short-circuits before any re-hash. Ports
-/// pnpm's `currentFile.size !== fstat.size` branch.
+/// `checked_at = 0` puts us firmly in the "modified" branch (mtime now
+/// > 100 ms past 0), so the size check runs.
 #[test]
 fn careful_path_removes_file_whose_size_mismatches_after_touch() {
     let tmp = tempdir().unwrap();
@@ -144,8 +128,6 @@ fn careful_path_removes_file_whose_size_mismatches_after_touch() {
     assert!(!path.exists(), "size mismatch removes the file so a re-fetch starts clean");
 }
 
-/// Two filenames pointing at the same CAFS path verify once, not
-/// twice. Ports the `verifiedFilesCache` behaviour.
 #[test]
 fn careful_path_dedups_by_digest_within_a_single_entry() {
     let tmp = tempdir().unwrap();
@@ -165,11 +147,6 @@ fn careful_path_dedups_by_digest_within_a_single_entry() {
     assert_eq!(result.files_map.len(), 2);
 }
 
-/// A CAFS path verified during one `check_pkg_files_integrity` call
-/// must not be re-verified by the next call when both share the
-/// same `VerifiedFilesCache`. Ports pnpm's install-scoped
-/// `verifiedFilesCache: Set<string>` semantics.
-///
 /// The proof: plant the file, run a successful first verify against
 /// it (populates the cache), then *delete* the file and run a
 /// second verify. If the cache short-circuits the second call, it
@@ -196,9 +173,6 @@ fn careful_path_dedups_across_calls_via_shared_cache() {
     eprintln!("cache.contains(&path)={}", cache.contains(&path));
     assert!(cache.contains(&path), "successful verify populates the shared cache");
 
-    // Pull the rug out from under the second call. Without the
-    // shared cache we'd stat-and-fail; with it, the path is
-    // already in `cache` so the inner `verify_file` is skipped.
     std::fs::remove_file(&path).unwrap();
     let entry_b = index_with("sha512", vec![("b-pkg/index.js", info_shared.clone_for_test())]);
     let result_b = check_pkg_files_integrity(&store_dir, entry_b, &cache);
@@ -210,18 +184,14 @@ fn careful_path_dedups_across_calls_via_shared_cache() {
 }
 
 /// Same digest with different `mode` resolves to two distinct CAFS
-/// paths (`<hex>` vs `<hex>-exec`). Keying dedup by digest alone
-/// would skip verifying the second path — this test plants only
-/// the non-exec half and asserts the install still fails
-/// verification, forcing a re-fetch, instead of returning
-/// `passed: true` with a missing exec blob.
+/// paths (`<hex>` vs `<hex>-exec`), so keying dedup by digest alone
+/// would skip verifying the second path.
 #[test]
 fn careful_path_dedups_per_resolved_path_not_per_digest() {
     let tmp = tempdir().unwrap();
     let store_dir = StoreDir::new(tmp.path());
     let content = b"polymode";
     let digest = sha512_hex(content);
-    // Plant the non-exec variant only; leave the exec path missing.
     let non_exec_path = plant_cafs_file(&store_dir, &digest, 0o644, content);
     let exec_path = store_dir.cas_file_path_by_mode(&digest, 0o755).unwrap();
     eprintln!(
@@ -247,10 +217,8 @@ fn careful_path_dedups_per_resolved_path_not_per_digest() {
     );
 }
 
-/// Unknown algorithm in the row → treat as verification failure,
-/// matching pnpm's "catch any crypto error, return false". The row
-/// is on disk, the mtime delta forces re-hash, and `verify_file_integrity`
-/// returns `false` because the algo isn't sha512.
+/// `checked_at = 0` forces the re-hash path so the unknown algo is
+/// actually exercised rather than skipped on the mtime fast path.
 #[test]
 fn careful_path_fails_unknown_algo_as_verification_failure() {
     let tmp = tempdir().unwrap();
@@ -267,22 +235,16 @@ fn careful_path_fails_unknown_algo_as_verification_failure() {
     assert!(!path.exists(), "unknown algo → treated as corrupt → removed");
 }
 
-/// A CAFS dirent that's a directory (store corruption — stray
-/// `mkdir -p` or interrupted write) must not survive verification:
-/// pacquet used to reject with `remove_file(dir)` → `EISDIR`, which
-/// silently failed and left the directory in place forever. The new
-/// `remove_stale_cafs_entry` falls back to `remove_dir_all` so the
-/// store actually self-heals on the next install.
+/// Plants a directory where a CAFS blob belongs (store corruption —
+/// stray `mkdir -p` or interrupted write) to exercise the dirent-type
+/// fallback in `remove_stale_cafs_entry`.
 #[test]
 fn careful_path_removes_directory_at_cafs_path() {
     let tmp = tempdir().unwrap();
     let store_dir = StoreDir::new(tmp.path());
-    // Plant a directory where a CAFS file belongs.
     let digest = "c".repeat(128);
     let cafs_path = store_dir.cas_file_path_by_mode(&digest, 0o644).unwrap();
     fs::create_dir_all(&cafs_path).unwrap();
-    // Row claims non-zero size; `check_file` stats the dir, size
-    // mismatches the row, we hit the `remove_stale_cafs_entry` path.
     let entry = index_with("sha512", vec![("impostor", info(&digest, 1_000_000, 0o644, Some(0)))]);
     let result = check_pkg_files_integrity(&store_dir, entry, &VerifiedFilesCache::new());
     dbg!(&result);
@@ -294,10 +256,8 @@ fn careful_path_removes_directory_at_cafs_path() {
     );
 }
 
-/// `build_file_maps_from_index` shouldn't silently drop unresolvable
-/// entries — that would give the caller a partial `files_map` and a
-/// cache hit with missing files. Flip `passed` to `false` when any
-/// digest can't be turned into a CAFS path so the caller re-fetches.
+/// Silently dropping an unresolvable entry would give the caller a
+/// partial `files_map` and a cache hit with missing files.
 #[test]
 fn fast_path_fails_when_digest_is_malformed() {
     let tmp = tempdir().unwrap();
@@ -323,10 +283,9 @@ impl CafsFileInfo {
     }
 }
 
-/// No `side_effects` field on the index → `VerifyResult.side_effects_maps`
-/// is `None`. Distinguishes "this package never had a cache entry
-/// written" from "cache configured but empty for this key" — the
-/// importer treats the former as a regular non-built import.
+/// `None` distinguishes "this package never had a cache entry written"
+/// from "cache configured but empty for this key" — the importer treats
+/// the former as a regular non-built import.
 #[test]
 fn no_side_effects_yields_none() {
     let tmp = tempdir().unwrap();
@@ -337,18 +296,12 @@ fn no_side_effects_yields_none() {
     assert!(result.side_effects_maps.is_none());
 }
 
-/// One cache key, one `added` file, one `deleted` file: the
-/// overlay is `added` ∪ (base \ deleted) — entries in `added` win
-/// when both layers name the same filename. Mirrors upstream's
-/// [`applySideEffectsDiffWithMaps`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/store/create-cafs-store/src/index.ts#L103-L121).
 #[test]
 fn side_effects_overlay_adds_and_drops_correctly() {
     let tmp = tempdir().unwrap();
     let store_dir = StoreDir::new(tmp.path());
     let base_digest = sha512_hex(b"base");
     let added_digest = sha512_hex(b"added");
-    // base files: a.js, b.js. Side-effects for one cache key:
-    // add c.js, delete b.js. Overlay should land {a.js, c.js}.
     let mut side_effects = HashMap::new();
     let mut added = HashMap::new();
     added.insert("c.js".to_string(), info(&added_digest, 5, 0o644, None));
@@ -375,8 +328,6 @@ fn side_effects_overlay_adds_and_drops_correctly() {
     assert_eq!(overlay.len(), 2);
 }
 
-/// `added` wins over `base` when the filenames collide. The base
-/// path is shadowed by the side-effects path.
 #[test]
 fn side_effects_overlay_added_shadows_base_on_collision() {
     let tmp = tempdir().unwrap();
@@ -413,11 +364,9 @@ fn side_effects_overlay_added_shadows_base_on_collision() {
     );
 }
 
-/// A malformed digest inside an `added` overlay drops the **whole**
-/// `cache_key` entry — not just the single bad file. Mismatched
-/// overlays would otherwise turn a future `is_built = true` decision
-/// into a silent corruption (build skipped, required artifact
-/// missing). Other `cache_key` entries on the same package survive.
+/// A partial overlay would otherwise turn a future `is_built = true`
+/// decision into a silent corruption (build skipped, required artifact
+/// missing).
 #[test]
 fn side_effects_overlay_malformed_added_digest_drops_cache_key_entry() {
     let tmp = tempdir().unwrap();
@@ -426,8 +375,6 @@ fn side_effects_overlay_malformed_added_digest_drops_cache_key_entry() {
     let good_digest = sha512_hex(b"good-added");
 
     let mut k_bad_added = HashMap::new();
-    // One good file alongside one bad one — the whole entry should
-    // still drop, not just the bad file.
     k_bad_added.insert("good.js".to_string(), info(&good_digest, 4, 0o644, None));
     k_bad_added.insert("bad.js".to_string(), info("not-hex", 4, 0o644, None));
 
@@ -453,8 +400,57 @@ fn side_effects_overlay_malformed_added_digest_drops_cache_key_entry() {
     assert!(maps.contains_key("k-good"), "k-good must survive: {maps:?}");
 }
 
-/// Multiple cache keys produce independent overlays. One entry's
-/// `added` doesn't bleed into another's.
+/// Guards against the importer being tricked into writing outside the
+/// package slot from a poisoned/corrupted index row (store integrity is
+/// not a tamper boundary).
+#[test]
+fn side_effects_overlay_unsafe_added_path_drops_cache_key_entry() {
+    let tmp = tempdir().unwrap();
+    let store_dir = StoreDir::new(tmp.path());
+    let base_digest = sha512_hex(b"base");
+    let good_digest = sha512_hex(b"good-added");
+
+    let mut side_effects = HashMap::new();
+    for (key, unsafe_name) in
+        [("k-parent", "../evil.js"), ("k-abs", "/etc/evil"), ("k-backslash", r"..\evil")]
+    {
+        side_effects.insert(
+            key.to_string(),
+            SideEffectsDiff {
+                added: Some(HashMap::from([
+                    ("ok.js".to_string(), info(&good_digest, 4, 0o644, None)),
+                    (unsafe_name.to_string(), info(&good_digest, 4, 0o644, None)),
+                ])),
+                deleted: None,
+            },
+        );
+    }
+    side_effects.insert(
+        "k-good".to_string(),
+        SideEffectsDiff {
+            added: Some(HashMap::from([(
+                "nested/ok.js".to_string(),
+                info(&good_digest, 4, 0o644, None),
+            )])),
+            deleted: None,
+        },
+    );
+
+    let entry = PackageFilesIndex {
+        manifest: None,
+        requires_build: None,
+        algo: "sha512".into(),
+        files: HashMap::from([("base.js".to_string(), info(&base_digest, 4, 0o644, None))]),
+        side_effects: Some(side_effects),
+    };
+    let result = build_file_maps_from_index(&store_dir, entry);
+    let maps = result.side_effects_maps.expect("populated");
+    for key in ["k-parent", "k-abs", "k-backslash"] {
+        assert!(!maps.contains_key(key), "{key} must drop entirely on an unsafe overlay path");
+    }
+    assert!(maps.contains_key("k-good"), "a safe nested path must survive: {maps:?}");
+}
+
 #[test]
 fn side_effects_overlay_keys_are_independent() {
     let tmp = tempdir().unwrap();
@@ -490,7 +486,6 @@ fn side_effects_overlay_keys_are_independent() {
     let k2 = maps.get("k2").unwrap();
     assert!(k1.contains_key("a.js") && !k1.contains_key("b.js"), "k1: {k1:?}");
     assert!(k2.contains_key("b.js") && !k2.contains_key("a.js"), "k2: {k2:?}");
-    // Both share base.js.
     assert!(k1.contains_key("base.js"));
     assert!(k2.contains_key("base.js"));
 }

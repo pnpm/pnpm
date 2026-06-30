@@ -4,28 +4,13 @@
 //! [`trustChecks.ts`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/trustChecks.ts).
 //!
 //! The check walks every published version of a package whose
-//! publish time is strictly before the version under inspection.
-//! For each it asks [`get_trust_evidence`] which "rank" of evidence
-//! the version exposes:
-//!
-//! - `stagedPublish` (rank 3) — `_npmUser.approver` is present. A
-//!   staged publish required a 2FA publish approval, the strongest
-//!   trust signal.
-//! - `trustedPublisher` (rank 2) — `_npmUser.trustedPublisher` and
-//!   `dist.attestations.provenance` are both present.
-//! - `provenance` (rank 1) — `dist.attestations.provenance` is
-//!   present without a trusted-publisher record.
-//! - `None` (rank 0 / no evidence).
-//!
-//! The strongest rank seen across the prior history is the
-//! "baseline." If the current version's rank is lower than the
+//! publish time is strictly before the version under inspection,
+//! asking [`get_trust_evidence`] which "rank" of evidence each
+//! version exposes. The strongest rank seen across the prior history
+//! is the "baseline." If the current version's rank is lower than the
 //! baseline, that's a trust *downgrade* — supply-chain incident
 //! signal — and the verifier rejects the entry with
 //! [`crate::TRUST_DOWNGRADE_VIOLATION_CODE`].
-//!
-//! Prereleases of the same major-minor-patch are excluded from the
-//! history walk when the current version is *not* a prerelease:
-//! upstream's `semver.prerelease(version, true)` decides this.
 
 use chrono::{DateTime, Utc};
 use derive_more::{Display, Error};
@@ -271,11 +256,8 @@ fn detect_strongest_trust_evidence_before(
     Ok(best)
 }
 
-/// `_npmUser.approver` (a staged publish) outranks everything; failing
-/// that, `_npmUser.trustedPublisher` outranks `dist.attestations.provenance`
-/// only when the version also carries a provenance attestation;
-/// otherwise the publisher flag is ignored and the version falls back
-/// to the provenance rank or `None`. Mirrors pnpm's
+/// Classify the strongest supply-chain evidence a single version
+/// exposes. Mirrors pnpm's
 /// [`getTrustEvidence`](https://github.com/pnpm/pnpm/blob/372cae6a55/resolving/npm-resolver/src/trustChecks.ts#L123-L134).
 #[must_use]
 pub fn get_trust_evidence(version: &PackageVersion) -> Option<TrustEvidence> {

@@ -1,0 +1,98 @@
+import fs from 'node:fs'
+
+import { expect, test } from '@jest/globals'
+import type { PnpmError } from '@pnpm/error'
+import { addDependenciesToPackage, mutateModulesInSingleProject } from '@pnpm/installing.deps-installer'
+import { prepareEmpty } from '@pnpm/prepare'
+import { fixtures } from '@pnpm/test-fixtures'
+import { getMockAgent, setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
+import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
+import type { ProjectRootDir } from '@pnpm/types'
+import { loadJsonFileSync } from 'load-json-file'
+
+import { testDefaults } from '../utils/index.js'
+
+const f = fixtures(import.meta.dirname)
+
+interface PackumentFixture {
+  versions: Record<string, { dist: { tarball: string } }>
+}
+
+// The committed packument fixtures carry tarball URLs whose origin is just a
+// placeholder. Rebuild each one against the live registry mock port so the
+// mock agent (which intercepts `http://localhost:${REGISTRY_MOCK_PORT}`) sees
+// the tarball request — this is what lets the test run on any port instead of
+// pinning PNPM_REGISTRY_MOCK_PORT to match a baked-in value.
+function loadPackument (fixtureName: string): PackumentFixture {
+  const packument = loadJsonFileSync<PackumentFixture>(f.find(fixtureName))
+  for (const version of Object.values(packument.versions)) {
+    version.dist.tarball = `http://localhost:${REGISTRY_MOCK_PORT}${new URL(version.dist.tarball).pathname}`
+  }
+  return packument
+}
+
+test('fail if none of the available resolvers support a version spec', async () => {
+  prepareEmpty()
+
+  let err!: PnpmError
+  try {
+    await mutateModulesInSingleProject({
+      manifest: {
+        dependencies: {
+          '@types/plotly.js': '1.44.29',
+        },
+      },
+      mutation: 'install',
+      rootDir: process.cwd() as ProjectRootDir,
+    }, testDefaults())
+    throw new Error('should have failed')
+  } catch (_err: any) { // eslint-disable-line
+    err = _err
+  }
+  expect(err.code).toBe('ERR_PNPM_SPEC_NOT_SUPPORTED_BY_ANY_RESOLVER')
+  expect(err.prefix).toBe(process.cwd())
+  expect(err.pkgsStack).toStrictEqual(
+    [
+      {
+        id: '@types/plotly.js@1.44.29',
+        name: '@types/plotly.js',
+        version: '1.44.29',
+      },
+    ]
+  )
+})
+
+test('fail if a package cannot be fetched', async () => {
+  prepareEmpty()
+  await setupMockAgent()
+  const mockPool = getMockAgent().get(`http://localhost:${REGISTRY_MOCK_PORT}`)
+  mockPool.intercept({ path: '/@pnpm.e2e%2Fpkg-with-1-dep', method: 'GET' }) // cspell:disable-line
+    .reply(200, loadPackument('pkg-with-1-dep.json'))
+  mockPool.intercept({ path: '/@pnpm.e2e%2Fdep-of-pkg-with-1-dep', method: 'GET' }) // cspell:disable-line
+    .reply(200, loadPackument('dep-of-pkg-with-1-dep.json'))
+  const tarballContent = fs.readFileSync(f.find('pkg-with-1-dep-100.0.0.tgz'))
+  mockPool.intercept({ path: '/@pnpm.e2e/pkg-with-1-dep/-/@pnpm.e2e/pkg-with-1-dep-100.0.0.tgz', method: 'GET' })
+    .reply(200, tarballContent, { headers: { 'content-length': String(tarballContent.length) } })
+  mockPool.intercept({ path: '/@pnpm.e2e/dep-of-pkg-with-1-dep/-/@pnpm.e2e/dep-of-pkg-with-1-dep-100.1.0.tgz', method: 'GET' })
+    .reply(403, 'Forbidden', { headers: { 'content-type': 'text/plain' } })
+
+  let err!: PnpmError
+  try {
+    await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({}, {}, { retry: { retries: 0 } }))
+    throw new Error('should have failed')
+  } catch (_err: any) { // eslint-disable-line
+    await teardownMockAgent()
+    err = _err
+  }
+  expect(err.code).toBe('ERR_PNPM_FETCH_403')
+  expect(err.prefix).toBe(process.cwd())
+  expect(err.pkgsStack).toStrictEqual(
+    [
+      {
+        id: '@pnpm.e2e/pkg-with-1-dep@100.0.0',
+        name: '@pnpm.e2e/pkg-with-1-dep',
+        version: '100.0.0',
+      },
+    ]
+  )
+})

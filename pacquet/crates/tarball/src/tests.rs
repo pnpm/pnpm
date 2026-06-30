@@ -1,8 +1,10 @@
 use super::{
-    DownloadTarballToStore, HttpStatusError, MemCache, NetworkError, PrefetchedCasPaths, RetryOpts,
-    SharedReportedProgressKeys, TarballError, VerifyChecksumError, allocate_tarball_buffer,
-    download_priority, extract_tarball_entries, extract_zip_entries, fetch_and_extract_with_retry,
-    is_transient_error, normalize_bundled_manifest, prefetch_cas_paths,
+    DownloadTarballToStore, FetchTarballForResolution, HttpStatusError, MemCache, NetworkError,
+    PrefetchedCasPaths, RetryOpts, SharedReportedProgressKeys, TarballError, VerifyChecksumError,
+    allocate_local_tarball_buffer, allocate_tarball_buffer, download_priority,
+    extract_tarball_entries, extract_zip_entries, fetch_and_extract_with_retry, is_transient_error,
+    local_file_tarball_path, normalize_bundled_manifest, open_local_tarball, prefetch_cas_paths,
+    read_local_tarball_buffer,
 };
 use pacquet_network::{AuthHeaders, ThrottledClient, UNPRIORITIZED};
 use pacquet_reporter::SilentReporter;
@@ -13,7 +15,13 @@ use pacquet_store_dir::{
 use pipe_trait::Pipe;
 use pretty_assertions::assert_eq;
 use ssri::Integrity;
-use std::{collections::HashMap, io::Cursor, path::PathBuf, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    io::{Cursor, ErrorKind},
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Duration,
+};
 use tempfile::{TempDir, tempdir};
 
 fn integrity(integrity_str: &str) -> Integrity {
@@ -85,7 +93,7 @@ fn fast_fail_client() -> ThrottledClient {
 ///
 /// Uses `127.0.0.1:1` (port 1 is reserved; connect always fails
 /// with a deterministic ECONNREFUSED on every host I've tried)
-/// and `fast_fail_client`'s 1 s bounds, so the test stays
+/// and [`fast_fail_client`]'s 1 s bounds, so the test stays
 /// hermetic and quick.
 #[tokio::test]
 async fn network_error_display_includes_reqwest_inner_chain() {
@@ -133,7 +141,7 @@ async fn network_error_display_includes_reqwest_inner_chain() {
 /// that an unreachable URL eventually fails — every test that
 /// exercises a network call here either short-circuits to a cache
 /// hit or expects the failure path. `retries: 0` keeps the failure
-/// path deterministic and bounded by `fast_fail_client`'s 1 s
+/// path deterministic and bounded by [`fast_fail_client`]'s 1 s
 /// timeouts; tests that specifically want to *prove* the retry
 /// loop runs should construct their own [`RetryOpts`].
 fn test_retry_opts() -> RetryOpts {
@@ -489,6 +497,56 @@ async fn prefetch_cas_paths_returns_hits_for_live_index_rows() {
 
     let map = prefetched.cas_paths.get(&index_key).expect("hit");
     assert_eq!(map.get("package.json"), Some(&pkg_json_path));
+    assert_eq!(prefetched.requires_build.get(&index_key), Some(&false));
+    drop(store_dir);
+}
+
+#[tokio::test]
+async fn prefetch_cas_paths_recomputes_requires_build_for_legacy_rows() {
+    let (store_dir, store_path) = tempdir_with_leaked_path();
+
+    let manifest_bytes = br#"{"name":"fake","scripts":{"postinstall":"node build.js"}}"#;
+    let (pkg_json_path, pkg_json_hash) = store_path.write_cas_file(manifest_bytes, false).unwrap();
+
+    let pkg_integrity = integrity(
+        "sha512-q/IXcMGuF8v7ZLf/JeYfE/pB4Wg1yxT6jXJz8JxRK7a4mJSXV1QKMXDPfZkvMHTZpYxWBDoJiXtptDWFnoCA2w==",
+    );
+    let pkg_id = "fake@1.0.0";
+    let index_key = store_index_key(&pkg_integrity.to_string(), pkg_id);
+
+    let mut files = HashMap::new();
+    files.insert(
+        "package.json".to_string(),
+        CafsFileInfo {
+            digest: format!("{pkg_json_hash:x}"),
+            mode: 0o644,
+            size: manifest_bytes.len() as u64,
+            checked_at: None,
+        },
+    );
+    let entry = PackageFilesIndex {
+        manifest: Some(serde_json::from_slice(manifest_bytes).unwrap()),
+        requires_build: None,
+        algo: "sha512".to_string(),
+        files,
+        side_effects: None,
+    };
+    let index = StoreIndex::open_in(store_path).unwrap();
+    index.set(&index_key, &entry).unwrap();
+    drop(index);
+
+    let prefetched = prefetch_cas_paths(
+        StoreIndex::shared_readonly_in(store_path),
+        store_path,
+        vec![index_key.clone()],
+        true,
+        SharedVerifiedFilesCache::default(),
+    )
+    .await;
+
+    let map = prefetched.cas_paths.get(&index_key).expect("hit");
+    assert_eq!(map.get("package.json"), Some(&pkg_json_path));
+    assert_eq!(prefetched.requires_build.get(&index_key), Some(&true));
     drop(store_dir);
 }
 
@@ -673,9 +731,9 @@ async fn falls_through_when_cafs_file_missing() {
     drop(store_dir);
 }
 
-/// A corrupt row whose digest is empty (or too short / non-hex) used
-/// to panic inside `StoreDir::file_path_by_hex_str` (`hex[..2]`). The
-/// validation in `cas_file_path_by_mode` now rejects such rows, and
+/// A corrupt row whose digest is empty (or too short / non-hex) must
+/// not panic inside `StoreDir::file_path_by_hex_str` (`hex[..2]`).
+/// The validation in `cas_file_path_by_mode` rejects such rows, and
 /// `load_cached_cas_paths` treats that as a cache miss.
 #[tokio::test]
 async fn falls_through_when_digest_is_malformed() {
@@ -690,8 +748,6 @@ async fn falls_through_when_digest_is_malformed() {
     let mut files = HashMap::new();
     files.insert(
         "package.json".to_string(),
-        // Empty digest — pre-fix this would panic in the spawn_blocking
-        // task during `hex[..2]`.
         CafsFileInfo { digest: String::new(), mode: 0o644, size: 0, checked_at: None },
     );
     let entry = PackageFilesIndex {
@@ -878,15 +934,11 @@ async fn falls_through_when_cafs_path_is_a_symlink() {
     drop(store_dir);
 }
 
-/// The per-entry loop used to be a pile of `.unwrap()` /
-/// `.expect()` calls that turned any tar-side failure — corrupt
-/// header, short body read, path decode — into a panic inside a
-/// blocking-pool task (which took the whole install with it and
-/// occasionally left the pool with dangling permits). The loop now
-/// lives in `extract_tarball_entries` and propagates every such
-/// failure as [`TarballError::ReadTarballEntries`]. This test
-/// feeds the function bytes that aren't a valid tar archive and
-/// asserts we get that error rather than a panic.
+/// `extract_tarball_entries` must propagate any tar-side failure —
+/// corrupt header, short body read, path decode — as
+/// [`TarballError::ReadTarballEntries`] rather than panicking inside
+/// a blocking-pool task (which would take the whole install with it
+/// and could leave the pool with dangling permits).
 ///
 /// We don't invoke `decompress_gzip` here: the decompression layer
 /// has its own error path and isn't the code under test. Driving
@@ -1018,7 +1070,34 @@ fn extract_tarball_applies_ignore_filter_dropping_entries_from_both_maps() {
         !pkg_files_idx.files.contains_key("lib/node_modules/npm/package.json"),
         "ignore filter should drop bundled npm from pkg_files_idx.files",
     );
+    assert_eq!(pkg_files_idx.requires_build, Some(false));
 
+    drop(tempdir);
+}
+
+#[test]
+fn extract_tarball_records_requires_build_from_manifest() {
+    let (tempdir, store_path) = tempdir_with_leaked_path();
+
+    let mut tar_bytes = Vec::new();
+    {
+        let mut builder = tar::Builder::new(&mut tar_bytes);
+        let body = br#"{"scripts":{"install":"node-gyp rebuild"}}"#;
+        let mut header = tar::Header::new_gnu();
+        header.set_size(body.len() as u64);
+        header.set_mode(0o644);
+        header.set_entry_type(tar::EntryType::Regular);
+        header.set_cksum();
+        builder
+            .append_data(&mut header, "package/package.json", &body[..])
+            .expect("append manifest");
+        builder.finish().expect("finalize tar");
+    }
+
+    let (_cas_paths, pkg_files_idx) =
+        extract_tarball_entries(&tar_bytes, store_path, None).expect("tarball extraction");
+
+    assert_eq!(pkg_files_idx.requires_build, Some(true));
     drop(tempdir);
 }
 
@@ -1046,27 +1125,15 @@ fn retry_opts_delay_does_not_overflow() {
     assert_eq!(opts.delay_for(u32::MAX), Duration::from_mins(1));
 }
 
-/// pnpm's
-/// [`remoteTarballFetcher.ts`](https://github.com/pnpm/pnpm/blob/1819226b51/fetching/tarball-fetcher/src/remoteTarballFetcher.ts#L76-L84)
-/// rejects only HTTP 401, 403, 404 (and the git-prepare error code,
-/// which doesn't apply to registry tarballs). Every other failure
-/// — arbitrary 4xx, 5xx, network reset, integrity mismatch, gzip
-/// or tar parse error — falls through to `op.retry(error)` and is
-/// retried. Diverging here was the original bug behind [#259].
-///
-/// [#259]: https://github.com/pnpm/pacquet/issues/259
 #[test]
 fn retry_classification_matches_pnpm_policy() {
     let url = "https://example.test/pkg.tgz".to_string();
     let mk_http =
         |status: u16| TarballError::HttpStatus(HttpStatusError { url: url.clone(), status });
 
-    // Fail-fast set — exactly the three codes pnpm short-circuits on.
     for code in [401u16, 403, 404] {
         assert!(!is_transient_error(&mk_http(code)), "HTTP {code} should fail fast");
     }
-    // Everything else, including arbitrary 4xx that pnpm does not
-    // single out, must retry.
     for code in [400u16, 408, 409, 410, 418, 420, 422, 429, 500, 502, 503, 504] {
         assert!(is_transient_error(&mk_http(code)), "HTTP {code} should retry");
     }
@@ -1108,11 +1175,115 @@ fn fast_retry_opts() -> RetryOpts {
     }
 }
 
-/// First request returns 503 (transient per pnpm's policy), the
-/// retry returns 200 with the real fastify-error tarball. The
-/// retry loop must drive the full pipeline — network → integrity
-/// → extract — to completion on the second attempt, which is the
-/// core fix for [#259](https://github.com/pnpm/pacquet/issues/259).
+#[test]
+fn local_file_tarball_path_rejects_hosted_file_urls() {
+    assert_eq!(local_file_tarball_path("file://server/share/pkg.tgz"), None);
+}
+
+#[test]
+fn local_file_tarball_path_rejects_unc_like_fallback_paths() {
+    assert_eq!(local_file_tarball_path("file:////server/share/pkg.tgz"), None);
+    assert_eq!(local_file_tarball_path(r"file:\\server\share\pkg.tgz"), None);
+}
+
+#[test]
+fn local_file_tarball_path_accepts_relative_file_specs() {
+    assert_eq!(
+        local_file_tarball_path("file:../vendor/pkg.tgz"),
+        Some(PathBuf::from("../vendor/pkg.tgz")),
+    );
+}
+
+#[test]
+fn allocate_local_tarball_buffer_rejects_absurd_size_as_local_read_error() {
+    let path = Path::new("pkg.tgz");
+    let err = allocate_local_tarball_buffer(path, "file:pkg.tgz", u64::MAX)
+        .expect_err("local oversized tarballs should fail before reading");
+    match err {
+        TarballError::ReadLocalTarball { path: got_path, source } => {
+            assert_eq!(got_path, path);
+            assert_eq!(source.kind(), ErrorKind::InvalidData);
+            assert!(source.to_string().contains("too large"), "got: {source}");
+        }
+        other => panic!("expected ReadLocalTarball, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn open_local_tarball_rejects_directories() {
+    let local_dir = tempdir().unwrap();
+    let err = open_local_tarball(local_dir.path())
+        .await
+        .expect_err("local tarballs must be regular files");
+    match err {
+        TarballError::ReadLocalTarball { path, source } => {
+            assert_eq!(path, local_dir.path());
+            assert_eq!(source.kind(), ErrorKind::InvalidInput);
+            assert!(source.to_string().contains("regular file"), "got: {source}");
+        }
+        other => panic!("expected ReadLocalTarball, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn read_local_tarball_buffer_rejects_growth_past_checked_size() {
+    let local_dir = tempdir().unwrap();
+    let tarball_path = local_dir.path().join("pkg.tgz");
+    std::fs::write(&tarball_path, b"abcd").unwrap();
+    let file = tokio::fs::File::open(&tarball_path).await.unwrap();
+
+    let err = read_local_tarball_buffer(file, &tarball_path, "file:pkg.tgz", 3)
+        .await
+        .expect_err("local tarball reads must be capped at the checked size");
+    match err {
+        TarballError::ReadLocalTarball { path, source } => {
+            assert_eq!(path, tarball_path);
+            assert_eq!(source.kind(), ErrorKind::InvalidData);
+            assert!(source.to_string().contains("changed while reading"), "got: {source}");
+        }
+        other => panic!("expected ReadLocalTarball, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn run_without_mem_cache_reads_local_file_tarball() {
+    let local_dir = tempdir().unwrap();
+    let tarball_path = local_dir.path().join("pkg.tgz");
+    std::fs::write(&tarball_path, FASTIFY_ERROR_TARBALL).unwrap();
+
+    let (store_dir, store_path) = tempdir_with_leaked_path();
+    let package_url = format!("file:{}", tarball_path.display());
+    let client = fast_fail_client();
+    let package_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
+    let cas_paths = DownloadTarballToStore {
+        http_client: &client,
+        store_dir: store_path,
+        store_index: None,
+        store_index_writer: None,
+        verify_store_integrity: true,
+        package_integrity: &package_integrity,
+        package_unpacked_size: Some(16697),
+        package_file_count: None,
+        package_url: &package_url,
+        package_id: "@fastify/error@3.3.0",
+        requester: "",
+        prefetched_cas_paths: None,
+        verified_files_cache: SharedVerifiedFilesCache::default(),
+        retry_opts: test_retry_opts(),
+        auth_headers: &AuthHeaders::default(),
+        ignore_file_pattern: None,
+        offline: true,
+        progress_reported: None,
+    }
+    .run_without_mem_cache::<SilentReporter>()
+    .await
+    .expect("local tarballs should be read from disk without network access");
+
+    assert!(cas_paths.contains_key("package.json"));
+
+    drop((store_dir, local_dir));
+}
+
 #[tokio::test]
 async fn retries_then_succeeds_on_transient_5xx() {
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
@@ -1154,11 +1325,6 @@ async fn retries_then_succeeds_on_transient_5xx() {
     drop(store_dir_keep);
 }
 
-/// pnpm's tarball fetcher retries integrity mismatches by re-running
-/// the full `addFilesFromTarball` closure on the next attempt. With
-/// a body that never matches the integrity hash, the loop must
-/// retry until the budget is exhausted and then surface a
-/// `Checksum` error — not fail fast on the first mismatch.
 #[tokio::test]
 async fn retries_integrity_mismatch_until_exhausted() {
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
@@ -1201,6 +1367,81 @@ async fn retries_integrity_mismatch_until_exhausted() {
     drop(store_dir_keep);
 }
 
+/// Integrity-less tarball resolutions must be completed from the
+/// downloaded bytes before they are written to the lockfile.
+#[tokio::test]
+async fn fetch_for_resolution_computes_integrity_when_none_is_expected() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/pkg.tgz")
+        .with_status(200)
+        .with_body(FASTIFY_ERROR_TARBALL)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let url = format!("{}/pkg.tgz", server.url());
+    let client = ThrottledClient::default();
+
+    let resolved = FetchTarballForResolution {
+        http_client: &client,
+        store_dir: store_path,
+        store_index_writer: None,
+        package_url: &url,
+        package_id: &url,
+        auth_headers: &AuthHeaders::default(),
+        retry_opts: fast_retry_opts(),
+    }
+    .run::<SilentReporter>(None)
+    .await
+    .expect("a registry that omits integrity should get it computed from the bytes");
+
+    assert_eq!(resolved.integrity, integrity(FASTIFY_ERROR_INTEGRITY));
+    mock.assert_async().await;
+    drop(store_dir_keep);
+}
+
+/// `FetchTarballForResolution` must forward its `package_id` (the package's
+/// `name@version`) for auth/scope selection, so a private scoped registry tarball
+/// resolves its scope token while its integrity is computed during resolution.
+#[tokio::test]
+async fn fetch_for_resolution_uses_package_id_for_scoped_auth() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/pkg.tgz")
+        .match_header("authorization", "Bearer scoped-token")
+        .with_status(200)
+        .with_body(FASTIFY_ERROR_TARBALL)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let url = format!("{}/pkg.tgz", server.url());
+    let client = ThrottledClient::default();
+    let registry_key = format!("{}@scope", pacquet_network::nerf_dart(&server.url()));
+    let auth_headers =
+        AuthHeaders::from_creds_map([(registry_key, "Bearer scoped-token".to_owned())], None);
+
+    let resolved = FetchTarballForResolution {
+        http_client: &client,
+        store_dir: store_path,
+        store_index_writer: None,
+        package_url: &url,
+        package_id: "@scope/test-pkg@1.0.0",
+        auth_headers: &auth_headers,
+        retry_opts: fast_retry_opts(),
+    }
+    .run::<SilentReporter>(None)
+    .await
+    .expect("the scope token selected via package_id should let the fetch succeed");
+
+    assert_eq!(resolved.integrity, integrity(FASTIFY_ERROR_INTEGRITY));
+    mock.assert_async().await;
+    drop(store_dir_keep);
+}
+
 /// 404 is in pnpm's no-retry set. `expect(1)` makes the test fail if
 /// the retry loop fires a second request — that would mean we're
 /// spinning on a permanently-missing tarball.
@@ -1238,10 +1479,6 @@ async fn fails_fast_on_404() {
     drop(store_dir_keep);
 }
 
-/// pnpm retries arbitrary 4xx codes that aren't 401/403/404 (any
-/// `FetchError` throws to the outer catch, which only short-circuits
-/// on the explicit no-retry set). 410 Gone is the canonical example
-/// — semantically permanent but pnpm still hits it `retries+1` times.
 #[tokio::test]
 async fn retries_other_4xx_codes() {
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
@@ -1281,9 +1518,6 @@ async fn retries_other_4xx_codes() {
     drop(store_dir_keep);
 }
 
-/// Persistent 5xx must stop after `retries + 1` total tries. Pairs
-/// with `retries_then_succeeds_on_transient_5xx` to bracket both
-/// success and exhaustion paths.
 #[tokio::test]
 async fn retry_exhaustion_returns_last_error() {
     let (store_dir_keep, store_path) = tempdir_with_leaked_path();
@@ -1318,13 +1552,13 @@ async fn retry_exhaustion_returns_last_error() {
     drop(store_dir_keep);
 }
 
-/// Regression test for the `run_with_mem_cache` deadlock that hung
+/// Regression test for a `run_with_mem_cache` deadlock that hung
 /// `pacquet install` on real-network workloads at high concurrency.
-/// The if-let branch used to hold a `DashMap::Ref` (a synchronous
-/// shard read guard) across two `.await` points; under enough
-/// concurrency another task on the same worker would call
-/// `mem_cache.insert` for a key hashing to the same shard, block
-/// on the `parking_lot` write, and starve every worker.
+/// The if-let branch must not hold a `DashMap::Ref` (a synchronous
+/// shard read guard) across an `.await` point: if it does, under
+/// enough concurrency another task on the same worker calls
+/// `mem_cache.insert` for a key hashing to the same shard, blocks
+/// on the `parking_lot` write, and starves every worker.
 ///
 /// To reproduce end-to-end:
 /// * Mockito serves the real fastify-error tarball with a
@@ -1555,6 +1789,48 @@ async fn fetch_attaches_authorization_header_when_creds_match_tarball_url() {
     )
     .await
     .expect("server should accept the request once the bearer header is attached");
+
+    assert!(cas_paths.contains_key("package.json"));
+    mock.assert_async().await;
+    drop(store_dir_keep);
+}
+
+#[tokio::test]
+async fn fetch_attaches_authorization_header_when_scope_creds_match_package_id() {
+    let (store_dir_keep, store_path) = tempdir_with_leaked_path();
+    let mut server = mockito::Server::new_async().await;
+    let mock = server
+        .mock("GET", "/pkg.tgz")
+        .match_header("authorization", "Bearer scoped-token")
+        .with_status(200)
+        .with_body(FASTIFY_ERROR_TARBALL)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let url = format!("{}/pkg.tgz", server.url());
+    let client = ThrottledClient::default();
+    let pkg_integrity = integrity(FASTIFY_ERROR_INTEGRITY);
+    let registry_key = format!("{}@scope", pacquet_network::nerf_dart(&server.url()));
+    let auth_headers =
+        AuthHeaders::from_creds_map([(registry_key, "Bearer scoped-token".to_owned())], None);
+
+    let (_integrity, cas_paths, _idx) = fetch_and_extract_with_retry::<SilentReporter>(
+        &client,
+        &url,
+        Some(&pkg_integrity),
+        None,
+        0,
+        "@scope/test-pkg@1.0.0",
+        "",
+        store_path,
+        fast_retry_opts(),
+        &auth_headers,
+        None,
+        None,
+    )
+    .await
+    .expect("server should accept the request once the scoped bearer header is attached");
 
     assert!(cas_paths.contains_key("package.json"));
     mock.assert_async().await;
@@ -1871,12 +2147,10 @@ async fn mem_cache_hit_skips_package_status_when_progress_already_reported() {
 }
 
 /// `run_with_mem_cache` must not deadlock when the *owning* fetch
-/// errors. Before the `CacheValue::Failed` fix, the failing task
-/// returned without flipping the cache slot to `Available` or
-/// notifying waiters, so the second requester would park on
-/// `Notify::notified` forever. Now the owner sets `Failed`, removes
-/// the entry from `mem_cache`, and notifies waiters; both requesters
-/// surface a `TarballError`.
+/// errors. The owner must set the slot to `CacheValue::Failed`,
+/// remove the entry from `mem_cache`, and notify waiters — otherwise
+/// a second requester parks on `Notify::notified` forever. Both
+/// requesters surface a `TarballError`.
 ///
 /// Two concurrent `run_with_mem_cache` calls for the same URL,
 /// pointing at a 404 endpoint with `retries: 0` so the failure is
@@ -1935,12 +2209,11 @@ async fn run_with_mem_cache_recovers_from_owning_fetch_error() {
         progress_reported: None,
     };
 
-    // Drive both calls concurrently. Pre-fix: the first to hit the
-    // `else` branch goes through the network, fails, returns
-    // without notifying — the second parks on `Notify` forever.
-    // Post-fix: the owner notifies after setting `Failed`; the
-    // waiter wakes up, observes `Failed`, and surfaces
-    // `SiblingFetchFailed` (or its own attempt's error).
+    // Drive both calls concurrently. One hits the `else` branch and
+    // goes through the network; the other waits on `Notify`. The
+    // owner notifies after setting `Failed`, so the waiter wakes up,
+    // observes `Failed`, and surfaces `SiblingFetchFailed` (or its
+    // own attempt's error).
     let task_a =
         tokio::spawn(
             async move { make_dts().run_with_mem_cache::<SilentReporter>(mem_cache).await },
@@ -2061,9 +2334,9 @@ async fn fetching_progress_and_fetched_events_fire_during_download() {
     assert_eq!(attempts, vec![1, 2], "started must fire once per attempt; got {captured:?}");
     // Both attempts have a response head (mockito sends Content-Length
     // for `with_body(...)` and `with_status(503)` likewise), so both
-    // `started` events must carry a populated `size`. Pinning this
-    // here so the previous regression — emit-before-send leaving
-    // `size` always-`null` — can't sneak back in (Copilot review on
+    // `started` events must carry a populated `size`. This guards
+    // against emitting `started` before the response head arrives,
+    // which would leave `size` always-`null` (Copilot review on
     // <https://github.com/pnpm/pacquet/pull/372>).
     for (attempt, size) in &started {
         assert!(size.is_some(), "attempt {attempt} should expose Content-Length, got null");
@@ -2407,12 +2680,9 @@ fn build_zip(entries: &[(&str, &[u8])]) -> Vec<u8> {
     buf
 }
 
-/// Happy path: a zip with two file entries under a top-level
-/// `node-vX.Y.Z-darwin-arm64/` directory is extracted with the
-/// prefix stripped from each `cas_paths` key. Mirrors upstream's
-/// `basenamePrefix` strip — the install dispatcher will later
-/// resolve `bin/node` against `cas_paths` and that lookup must
-/// hit the stripped form, not the prefixed form.
+/// The install dispatcher will later resolve `bin/node` against
+/// `cas_paths` and that lookup must hit the stripped form, not the
+/// prefixed form.
 #[test]
 fn extract_zip_strips_prefix_from_entry_paths() {
     let (tempdir, store_path) = tempdir_with_leaked_path();
@@ -2561,10 +2831,6 @@ fn extract_zip_rejects_directory_entry_with_parent_component() {
     drop(tempdir);
 }
 
-/// `archive_prefix: None` keeps entry paths verbatim — same as
-/// upstream's `basename === ''` branch in `extractZipToTarget`.
-/// A zip without a top-level wrapper directory must round-trip
-/// each entry's path into `cas_paths` as-is.
 #[test]
 fn extract_zip_uses_entry_path_when_no_prefix() {
     let (tempdir, store_path) = tempdir_with_leaked_path();
@@ -2766,9 +3032,6 @@ mod normalize_bundled_manifest_tests {
 
     #[test]
     fn returns_none_for_non_object() {
-        // Mirrors upstream's type guard at the top of
-        // `normalizeBundledManifest` — a non-object input degrades to
-        // `None` rather than panicking.
         assert_eq!(normalize_bundled_manifest(&json!("not an object")), None);
         assert_eq!(normalize_bundled_manifest(&json!(null)), None);
         assert_eq!(normalize_bundled_manifest(&json!(42)), None);

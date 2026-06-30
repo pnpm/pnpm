@@ -5,16 +5,14 @@ use pacquet_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency
 use pretty_assertions::assert_eq;
 
 use super::{
-    NodeResolver, NodeResolverError, bin_spec_for_platform, parse_node_file_name,
-    read_node_assets_from_mirror,
+    NodeResolver, NodeResolverError, bin_spec_for_platform,
+    normalize_node_runtime_version_specifier, parse_node_file_name, read_node_assets_from_mirror,
 };
 
 fn resolver() -> NodeResolver {
     NodeResolver::new(Arc::new(ThrottledClient::new_for_installs()))
 }
 
-/// A `WantedDependency` whose alias is not `node` is declined (the
-/// dispatcher chain falls through to the next resolver).
 #[tokio::test]
 async fn declines_non_node_alias() {
     let wanted = WantedDependency {
@@ -39,8 +37,6 @@ async fn declines_node_without_runtime_prefix() {
     assert!(outcome.is_none());
 }
 
-/// `offline=true` raises `NO_OFFLINE_NODEJS_RESOLUTION` so the install
-/// stops with the same code pnpm emits.
 #[tokio::test]
 async fn offline_raises_no_offline_nodejs_resolution() {
     let mut resolver = resolver();
@@ -59,9 +55,6 @@ async fn offline_raises_no_offline_nodejs_resolution() {
     );
 }
 
-/// Tarball filename pattern parsing — exercises every branch the
-/// regex covers upstream (Linux glibc, Linux musl, Windows zip, the
-/// unrecognised `.pkg` reject case).
 #[test]
 fn parses_node_file_names() {
     let version = "22.0.0";
@@ -86,10 +79,6 @@ fn parses_node_file_names() {
     assert!(parse_node_file_name("node-v22.0.0-headers.tar.gz", version).is_none());
 }
 
-/// A variant's `bin` is a named map keyed by the executable name — pnpm
-/// writes `bin: { node: bin/node }` on unix and `bin: { node: node.exe }`
-/// on win32, never a bare string. Mirrors the `variants[].resolution.bin`
-/// block in pnpm's runtime lockfile entry.
 #[test]
 fn bin_spec_is_a_named_map() {
     use pacquet_lockfile::BinarySpec;
@@ -103,6 +92,27 @@ fn bin_spec_is_a_named_map() {
         bin_spec_for_platform("win32"),
         BinarySpec::Map(BTreeMap::from([("node".to_string(), "node.exe".to_string())])),
     );
+}
+
+#[test]
+fn normalized_runtime_spec_preserves_version_prefix() {
+    let cases = [
+        ("22", None, "22.11.0"),
+        ("^22", None, "^22.11.0"),
+        ("22", Some("runtime:~22.0.0"), "~22.11.0"),
+        ("^22", Some("runtime:22.0.0"), "22.11.0"),
+        ("rc/^22", None, "^22.11.0"),
+        ("22", Some("runtime:^22.0.0-rc.0"), "^22.11.0"),
+    ];
+    for (version_spec, prev_specifier, expected) in cases {
+        assert_eq!(
+            normalize_node_runtime_version_specifier(version_spec, "22.11.0", prev_specifier),
+            expected,
+            "version_spec={version_spec:?}, prev_specifier={prev_specifier:?}",
+        );
+    }
+
+    assert_eq!(normalize_node_runtime_version_specifier("^22", "22.0.0-rc.0", None), "22.0.0-rc.0");
 }
 
 #[tokio::test]

@@ -6,22 +6,6 @@
 //! Backslashes immediately preceding the `$` escape the placeholder so
 //! it is left as-is.
 //!
-//! The mirrored behaviours are:
-//! * pattern: `${IDENT}` or `${IDENT:-default}`. `IDENT` is any non-empty
-//!   sequence that does not contain `$`, `{`, or `}`.
-//! * even-number-of-backslashes prefix: the placeholder is expanded and
-//!   half of the backslashes are kept (one literal `\\` per pair).
-//! * odd-number-of-backslashes prefix: the placeholder is left literal
-//!   and one backslash is consumed.
-//! * unset variable + no default: the placeholder is substituted with `""`
-//!   and recorded in the returned `Vec` so the caller can surface it as a
-//!   warning, matching `loadNpmrcFiles.ts`'s `substituteEnv` lossy fallback
-//!   (critical for OIDC trusted publishing — see
-//!   <https://github.com/pnpm/pnpm/issues/11513>).
-//! * empty variable + default present: the default wins; this is
-//!   pnpm's behaviour even though plain shell `${VAR:-default}` would
-//!   also use the default for the empty case.
-//!
 //! The env lookup is threaded through the [`EnvVar`] capability trait so
 //! callers can drive every branch (set, unset, empty) with local fakes
 //! instead of mutating the real process environment. Production callers
@@ -92,9 +76,6 @@ impl EnvVar for SystemEnv {
 /// `config/reader/src/loadNpmrcFiles.ts`: leaving an unresolved `${VAR}` in
 /// an auth value would later be sent as a literal bearer token, notably
 /// under OIDC trusted publishing (<https://github.com/pnpm/pnpm/issues/11513>).
-/// Resolvable placeholders and `${VAR:-default}` fallbacks elsewhere in the
-/// same string still expand normally — only the unresolved bare ones are
-/// dropped to `""`.
 ///
 /// [`Sys::var`]: EnvVar::var
 #[must_use]

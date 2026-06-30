@@ -261,8 +261,10 @@ Ported into the new `pacquet-workspace-projects-filter` and
 `pacquet-workspace-projects-graph` crates (the Rust ports of
 `@pnpm/workspace.projects-filter` and `@pnpm/workspace.projects-graph`).
 The CLI `--filter` / `--filter-prod` flags are parsed into
-`Config::filter` / `Config::filter_prod`; narrowing the install to the
-selected projects is still a follow-up (the install fan-out is
+`Config::filter` / `Config::filter_prod`. Recursive `run` / `exec` now
+narrow their selected set through these selectors (via
+`cli_args::recursive::select_recursive_projects`); narrowing the install
+to the selected projects is still a follow-up (the install fan-out is
 unfiltered, so the two `known_failures` hoist stubs below stay).
 
 `parseProjectSelector` (ported as `parse_project_selector::tests`):
@@ -336,8 +338,8 @@ Frozen/headless cross-coverage:
 - [ ] `TypeScript repo: installing/deps-installer/test/install/patch.ts:386` `patch package when the package is not in allowBuilds list` includes frozen hoisted reinstall.
 - [ ] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:579` `run pre/postinstall scripts in a workspace that uses node-linker=hoisted`
 - [ ] `TypeScript repo: installing/deps-installer/test/install/lifecycleScripts.ts:686` `run pre/postinstall scripts in a project that uses node-linker=hoisted. Should not fail on repeat install`
-- [ ] `TypeScript repo: installing/deps-restorer/test/index.ts:859` `installing with node-linker=hoisted`
-- [ ] `TypeScript repo: installing/deps-restorer/test/index.ts:873` `installing in a workspace with node-linker=hoisted`
+- [x] `TypeScript repo: installing/deps-restorer/test/index.ts:859` `installing with node-linker=hoisted`. Ported as `installing_with_hoisted_node_linker_frozen` in `crates/cli/tests/hoisted_node_linker.rs` — seeds the lockfile with a fresh install, tears down `node_modules`, then replays via `--frozen-lockfile` and asserts the real-dir + version-conflict-nesting layout.
+- [x] `TypeScript repo: installing/deps-restorer/test/index.ts:873` `installing in a workspace with node-linker=hoisted`. Ported as `installing_in_a_workspace_with_hoisted_node_linker_frozen` — a frozen workspace replay where the root importer's `ms@2.1.3` wins the top-level slot and a project's conflicting `ms@2.0.0` nests under the project (the root-deps-rank-first preference landed in `real-hoist`).
 
 Rust port notes:
 
@@ -866,9 +868,15 @@ lockfile-parity peer fixes (pnpm/pnpm#12266, pnpm/pnpm#12267).
 - [x] `should return from where the bad peer dependency is resolved` — `bad_peer_inside_subtree_records_resolved_from_parent`.
 - [x] `should find peer dependency conflicts` — covered by `bad_peer_version_is_reported`.
 - [x] `a peer's own peer is shared with a sibling that peer-depends both` — ported as `peers_own_peer_shared_with_sibling_that_peer_depends_both`.
+- [x] `transitive pending peer uses provider final suffix` — ported as `transitive_pending_peer_uses_provider_final_suffix`.
 - [x] Walk-ancestor suffix propagation (no direct upstream case — pacquet-specific manifestation of the deferred `calculateDepPath`) — `ancestor_peer_carries_its_own_suffix`.
 - [x] Optional peer not hoisted from the run-resolved tree (resolveRootDependencies behavior behind `getHoistableOptionalPeers`) — `optional_peer_only_in_resolved_tree_is_not_hoisted`.
 - [x] `build_final_graph` min-depth tie-break across `pure_pkgs`/`find_hit` revisits (pacquet-specific) — `shallower_pure_pkgs_revisit_lowers_graph_depth`.
+
+### High-level install / CLI peer lockfile coverage
+
+- [x] `TypeScript repo: installing/deps-installer/test/install/peerDependencies.ts` `transitive pending peer uses provider final suffix in lockfile` — package-manager port added as `fresh_install_uses_final_peer_suffix_for_transitive_pending_peer`.
+- [x] `TypeScript repo: pnpm/test/install/peerDependencies.ts` `transitive pending peer uses provider final suffix in lockfile` — CLI port added as `transitive_pending_peer_uses_provider_final_suffix_in_lockfile`.
 
 ### `resolvePeers.ts` — not yet ported
 
@@ -876,3 +884,23 @@ lockfile-parity peer fixes (pnpm/pnpm#12266, pnpm/pnpm#12267).
 - [ ] `resolve peer dependencies with npm aliases` — npm-alias peer suffixes.
 - [ ] `should find peer dependency conflicts when the peer is an optional peer of one of the dependencies`, `should ignore conflicts between missing optional peer dependencies`, `should pick the single wanted peer dependency range`, `should return the intersection of two compatible ranges`, the two prerelease-warning cases — peer-issue reporting edge cases.
 - [ ] The `lockedPeerContext` / `resolvedPeerProviderPaths` series (`prefers a compatible locked provider …`, the six `does not replace …` cases, `does not reuse a locked provider outside the current peer range`) — pacquet hasn't ported `lockedPeerContext`/`resolvedPeerProviderPaths`, so these gate on that feature, not on the lockfile-parity peer fixes.
+
+## `pnpm logout` (`@pnpm/auth.commands`)
+
+Pacquet's port lives in `pacquet-auth-commands` (`logout` module) with the CLI adapter in `pacquet-cli`'s `cli_args::logout`. Upstream injects its side effects (`fetch`, `readIniFile`, `writeIniFile`, `globalInfo`, `globalWarn`) through a `LogoutContext` object of functions; the Rust port threads them through the project's capability-trait seam instead (`FsReadToString` / `FsWrite` / `RevokeToken` on `Sys`, plus `R: Reporter` for the two `global*` channels). The whole upstream suite translates, so every case is a unit test of the ported `logout` function with unit-struct fakes.
+
+### Ported
+
+- [x] `TypeScript repo: pnpm11/auth/commands/test/logout.test.ts:41` `should throw when not logged in` — `logout::tests::throws_when_not_logged_in`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/logout.test.ts:53` `should throw when not logged in to a custom registry` — `logout::tests::throws_when_not_logged_in_to_a_custom_registry`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/logout.test.ts:66` `should revoke token on registry and remove from auth.ini` — `logout::tests::revokes_token_on_registry_and_removes_from_auth_ini`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/logout.test.ts:106` `should logout from a custom registry` — `logout::tests::logs_out_from_a_custom_registry`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/logout.test.ts:142` `should still remove token locally when registry returns non-ok response` — `logout::tests::removes_token_locally_when_registry_returns_non_ok`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/logout.test.ts:172` `should still remove token locally when fetch throws a network error` — `logout::tests::removes_token_locally_when_fetch_errors`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/logout.test.ts:204` `should warn when token is not in auth.ini (e.g. from .npmrc)` — `logout::tests::warns_when_token_is_not_in_auth_ini`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/logout.test.ts:236` `should throw when registry call fails and token is not in auth.ini` — `logout::tests::throws_when_registry_call_fails_and_token_not_in_auth_ini`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/logout.test.ts:270` `should warn when auth.ini does not exist (ENOENT) and token comes from another source` — `logout::tests::warns_when_auth_ini_does_not_exist`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/logout.test.ts:301` `should propagate non-ENOENT errors from readIniFile` — `logout::tests::propagates_non_not_found_read_errors`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/logout.test.ts:322` `should URL-encode the token when revoking` — `logout::tests::url_encodes_the_token_when_revoking`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/logout.test.ts:349` `should normalize the registry URL` — `logout::tests::normalizes_the_registry_url`.
+- [x] `TypeScript repo: pnpm11/auth/commands/test/logout.test.ts:377` `should handle registry with a path` — `logout::tests::handles_registry_with_a_path`.

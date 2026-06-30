@@ -73,9 +73,6 @@ fn invalid_version_range_propagates() {
     assert!(matches!(err, ResolvePatchedDependenciesError::Range(_)), "got: {err:?}");
 }
 
-/// Mixed entry types — exact version, range, bare wildcard — all
-/// resolve and hash from the same workspace dir, then bucket via
-/// `group_patched_dependencies`.
 #[test]
 fn mixed_entries_resolve_in_one_call() {
     let workspace = tempdir().unwrap();
@@ -114,11 +111,6 @@ fn range_preserves_user_specified_order() {
     fs::write(patches.join("b.patch"), b"hello\n").unwrap();
     fs::write(patches.join("c.patch"), b"hello\n").unwrap();
 
-    // User-specified order: `~1.2.0`, then `4`, then `>=5 <6`.
-    // Alphabetical order would be: `4`, `>=5 <6`, `~1.2.0` (because
-    // ASCII `4` < `>` < `~`). The assertion below pins the IndexMap
-    // path; a regression to BTreeMap reorders the range vec
-    // alphabetically and would fail.
     let input = raw(&[
         ("foo@~1.2.0", "patches/a.patch"),
         ("foo@4", "patches/b.patch"),

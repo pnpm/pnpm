@@ -18,9 +18,9 @@ use std::{
     borrow::Cow,
     collections::HashMap,
     fmt::{self, Write as _},
-    fs::{self, File},
-    io::Write,
-    net::{Ipv4Addr, SocketAddr, TcpStream},
+    fs::{self, File, OpenOptions},
+    io::{ErrorKind, Write},
+    net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     thread,
@@ -33,6 +33,10 @@ const BENCHMARK_DIAGNOSTICS_MD: &str = "BENCHMARK_DIAGNOSTICS.md";
 const PNPR_DIRECT_RATIO_MAX: f64 = 1.05;
 const PNPR_SERVER_REGISTRY_ENV: &str = "PACQUET_BENCHMARK_PNPR_SERVER_REGISTRY";
 const PNPR_TARBALL_REWRITE_FROM_ENV: &str = "PACQUET_BENCHMARK_PNPR_TARBALL_REWRITE_FROM";
+const PNPR_BENCHMARK_USERNAME: &str = "pnpr-benchmark";
+const PNPR_BENCHMARK_PASSWORD: &str = "password123";
+const PNPR_BENCHMARK_HTPASSWD: &str =
+    "pnpr-benchmark:$2y$04$MpoezfOJSlhn9S4iiOJihue1IMZTZfYclKbajdz.Dt2pvAoBLNAay\n";
 
 #[derive(Debug)]
 pub struct WorkEnv {
@@ -196,7 +200,7 @@ impl WorkEnv {
         }
     }
 
-    fn init(&self, direct_registry: &str) {
+    fn init(&self, direct_registry: &str, revision_mocks: &HashMap<String, RevisionMockRegistry>) {
         let scenario = self.scenario.expect("scenario set when init() is reached");
         eprintln!("Initializing...");
         // The proxy-cache populator only runs against a local
@@ -214,7 +218,7 @@ impl WorkEnv {
         for id in id_list {
             eprintln!("ID: {id}");
             let dir = self.bench_dir(id);
-            let registry = self.registry_for(id, direct_registry);
+            let registry = self.registry_for(id, direct_registry, revision_mocks);
             fs::create_dir_all(&dir).expect("create directory for the revision");
             create_package_json(&dir, self.fixture_dir.as_deref());
             create_pnpm_workspace(&dir, self.fixture_dir.as_deref(), registry, scenario);
@@ -395,7 +399,11 @@ impl WorkEnv {
             .pipe(executor("pnpm run compile-only"));
     }
 
-    fn benchmark(&self, pnpr_server_registry: &str) {
+    fn benchmark(
+        &self,
+        pnpr_server_registry: &str,
+        revision_mocks: HashMap<String, RevisionMockRegistry>,
+    ) {
         let scenario = self.scenario.expect("scenario set when benchmark() is reached");
 
         // Pre-benchmark wipe of `node_modules`, `store-dir`, and
@@ -415,12 +423,16 @@ impl WorkEnv {
         // store + cache (only present for `pnpr@<rev>` targets) — wiping it
         // upfront (but never per-iteration) makes the hyperfine warmup the
         // run that primes the server, so timed runs measure a warm
-        // long-running server even while the client is cold.
+        // long-running server even while the client is cold. `cold-mock-storage`
+        // (only the cold-pnpr scenario) is wiped here too so the warmup run
+        // starts cold even on a reused work-env, not just the timed iterations.
         for dir in self.benchmarked_ids().map(|id| self.bench_dir(id)) {
-            for name in ["node_modules", "store-dir", "cache-dir", "pnpr-storage"] {
+            for name in
+                ["node_modules", "store-dir", "cache-dir", "pnpr-storage", "cold-mock-storage"]
+            {
                 let path = dir.join(name);
                 if path.exists() {
-                    fs::remove_dir_all(&path).expect("pre-benchmark wipe");
+                    remove_dir_all_with_retry(&path).expect("pre-benchmark wipe");
                 }
             }
             let output_log = dir.join(BENCHMARK_OUTPUT_LOG);
@@ -428,6 +440,13 @@ impl WorkEnv {
                 fs::remove_file(output_log).expect("pre-benchmark metrics-log wipe");
             }
         }
+
+        // Spawn each revision's own tarball-serving mock (see
+        // `plan_revision_mocks`). Done after `build()` produced the
+        // per-revision binaries and after `init()` warmed the shared storage
+        // they serve from; the guards kill the mocks (and their latency
+        // proxies) on drop at the end of this method.
+        let _revision_mocks = self.start_revision_mocks(revision_mocks);
 
         // Start a pnpr server per `pnpr@<rev>` target and keep the guards
         // alive for the whole benchmark; they kill the servers on drop at
@@ -451,10 +470,6 @@ impl WorkEnv {
 
         // hyperfine runs `--prepare` before *each* timed invocation, so
         // cleanup must cover every bench dir we're about to measure.
-        // Previously this only wiped the pacquet revisions — if
-        // `--with-pnpm` was set, pnpm's `node_modules` survived between
-        // iterations, and after the warmup pnpm just hit a no-op
-        // "already installed" code path instead of doing real work.
         //
         // Per-iteration cleanup paths come from the scenario: cold-cache
         // scenarios wipe `node_modules` and `store-dir`, hot-cache wipes
@@ -486,6 +501,107 @@ impl WorkEnv {
         self.write_benchmark_diagnostics();
     }
 
+    /// Spawn the tarball-serving mock for every planned revision (see
+    /// [`Self::plan_revision_mocks`]), each running that revision's `pnpr`
+    /// binary in proxy mode against the shared warm runtime storage, fronted
+    /// by the same client↔registry latency + bandwidth link the targets'
+    /// `.npmrc` points at. The guards stop the mocks (and proxies) on drop;
+    /// the vec is empty when no revision has its own mock.
+    fn start_revision_mocks(
+        &self,
+        revision_mocks: HashMap<String, RevisionMockRegistry>,
+    ) -> Vec<PnprServer> {
+        revision_mocks
+            .into_iter()
+            .map(|(revision, registry)| self.start_revision_mock(&revision, registry))
+            .collect()
+    }
+
+    fn start_revision_mock(&self, revision: &str, registry: RevisionMockRegistry) -> PnprServer {
+        let binary = self.pnpr_server_binary(revision);
+        assert!(
+            binary.is_file(),
+            "pnpr binary not found at {binary:?} — the build step did not produce it",
+        );
+        let mock_port = pick_unused_port().expect("pick a port for the revision mock");
+
+        let bench_dir = self.bench_dir(BenchId::PnprRevision(revision));
+        let stdout = File::create(bench_dir.join("revision-mock.stdout.log"))
+            .expect("create revision mock stdout log");
+        let stderr = File::create(bench_dir.join("revision-mock.stderr.log"))
+            .expect("create revision mock stderr log");
+
+        // The mock advertises its tarball URLs at the client-facing proxy
+        // URL (`registry.url`), not its own loopback port, so downloads cross
+        // the emulated registry link instead of bypassing it.
+        let cold = self.scenario.is_some_and(BenchmarkScenario::cold_pnpr_cache);
+        let process = if cold {
+            // Empty, isolated storage (wiped between iterations) proxying the
+            // warm shared mock as origin, so every request is a cache miss.
+            let cold_storage = bench_dir.join("cold-mock-storage");
+            let config_path = bench_dir.join("cold-mock-config.yaml");
+            fs::write(&config_path, cold_mock_config_yaml(&cold_storage, &self.registry))
+                .expect("write cold mock config");
+            eprintln!(
+                "Serving {revision}'s tarballs from a COLD mock built from pnpr@{revision} on 127.0.0.1:{mock_port} (origin {})...",
+                self.registry,
+            );
+            Command::new(&binary)
+                .arg("--config")
+                .arg(&config_path)
+                .arg("--storage")
+                .arg(&cold_storage)
+                .arg("--listen")
+                .arg(format!("127.0.0.1:{mock_port}"))
+                .arg("--public-url")
+                .arg(&registry.url)
+                .arg("--packument-ttl-secs")
+                .arg("31536000")
+                .stdin(Stdio::null())
+                .stdout(stdout)
+                .stderr(stderr)
+                .spawn()
+                .expect("spawn cold revision mock")
+        } else {
+            eprintln!(
+                "Serving {revision}'s tarballs from a mock built from pnpr@{revision} on 127.0.0.1:{mock_port}...",
+            );
+            pacquet_registry_mock::pnpr_command_with_binary(&binary, mock_port, Some(&registry.url))
+                .stdin(Stdio::null())
+                .stdout(stdout)
+                .stderr(stderr)
+                .spawn()
+                .expect("spawn revision mock")
+        };
+
+        let mut server = PnprServer { process, latency_proxy: None };
+        wait_for_pnpr_ready(mock_port);
+
+        // Front the mock with the same latency + bandwidth profile the shared
+        // registry proxy uses, serving the socket reserved at planning time
+        // (and baked into this revision's `.npmrc`) so the port can't have
+        // been stolen during the build.
+        let upstream = SocketAddr::from((Ipv4Addr::LOCALHOST, mock_port));
+        let profile = LinkProfile {
+            one_way: Duration::from_millis(self.registry_latency_ms) / 2,
+            rate_limit: mbps_to_bytes_per_sec(self.registry_bandwidth_mbps),
+            slow_start: self.registry_slow_start,
+        };
+        let proxy = LatencyProxy::spawn_with_listener(registry.listener, upstream, profile)
+            .expect("spawn revision mock latency proxy");
+        eprintln!(
+            "Fronting mock for {revision} with {}ms round-trip latency + {} download cap (proxy at {})",
+            self.registry_latency_ms,
+            match self.registry_bandwidth_mbps {
+                mbps if mbps > 0.0 => format!("{mbps} Mbit/s"),
+                _ => "no".to_string(),
+            },
+            proxy.addr,
+        );
+        server.latency_proxy = Some(proxy);
+        server
+    }
+
     /// Start a pnpr resolver server for every `pnpr@<rev>`
     /// target and write the `.pnpr-env` its `install.bash` sources. Each
     /// server gets an isolated `<bench_dir>/pnpr-storage`. The returned
@@ -505,6 +621,15 @@ impl WorkEnv {
             binary.is_file(),
             "pnpr binary not found at {binary:?} — the build step did not produce it",
         );
+        let pnpr_storage = bench_dir.join("pnpr-storage");
+        seed_pnpr_auth(&pnpr_storage);
+        let public_route_registries = if matches!(self.registry_mode, RegistryMode::Npm) {
+            Vec::new()
+        } else {
+            distinct_public_route_registries([self.registry.as_str(), pnpr_server_registry])
+        };
+        let pnpr_config =
+            write_pnpr_benchmark_config(&bench_dir, &pnpr_storage, &public_route_registries);
         let port = pick_unused_port().expect("pick an unused port for the pnpr server");
 
         eprintln!("Starting pnpr server for {id} on 127.0.0.1:{port}...");
@@ -513,10 +638,12 @@ impl WorkEnv {
         let stderr = File::create(bench_dir.join("pnpr-server.stderr.log"))
             .expect("create pnpr server stderr log");
         let process = Command::new(&binary)
+            .arg("--config")
+            .arg(&pnpr_config)
             .arg("--listen")
             .arg(format!("127.0.0.1:{port}"))
             .arg("--storage")
-            .arg(bench_dir.join("pnpr-storage"))
+            .arg(&pnpr_storage)
             // The resolver resolves against the registry the client
             // sends, caching packuments in its own store. A long TTL keeps
             // those cached packuments authoritative across the run, the
@@ -536,6 +663,13 @@ impl WorkEnv {
         let mut server = PnprServer { process, latency_proxy: None };
 
         wait_for_pnpr_ready(port);
+        // Log in as the seeded benchmark user to mint a bearer token. Real
+        // clients authenticate to a pnpr accelerator with `_authToken`, which
+        // the server resolves with a fast token lookup rather than a bcrypt on
+        // every request (as Basic `_auth` would). Done against the direct port
+        // before the latency proxy is interposed, and once per server, so the
+        // single login bcrypt stays out of the measured install loop.
+        let pnpr_token = mint_pnpr_token(port);
 
         // With `--pnpr-latency-ms`, the client reaches the server through
         // a latency-injecting proxy instead of directly, so the benchmark
@@ -575,6 +709,7 @@ impl WorkEnv {
         // raw upstream tarball URLs even when the server resolves through a
         // latency proxy; the pacquet client rewrites this prefix to its
         // configured registry, which is `client_registry` from `.npmrc`.
+        append_pnpr_auth_to_npmrc(&bench_dir, &client_url, &pnpr_token);
         fs::write(
             bench_dir.join(".pnpr-env"),
             format!(
@@ -605,9 +740,10 @@ impl WorkEnv {
             |proxy| format!("http://{}/", proxy.addr),
         );
 
-        self.init(&client_registry);
+        let revision_mocks = self.plan_revision_mocks();
+        self.init(&client_registry, &revision_mocks);
         self.build();
-        self.benchmark(&pnpr_server_registry);
+        self.benchmark(&pnpr_server_registry, revision_mocks);
         drop(pnpr_server_registry_proxy);
         drop(registry_proxy);
         self.verify_pnpr_targets_were_routed();
@@ -695,8 +831,59 @@ impl WorkEnv {
     /// server receives a separate resolve-registry override in `.pnpr-env`.
     /// The proxy-cache populator may use a separate registry URL for
     /// untimed cache priming.
-    fn registry_for<'a>(&'a self, id: BenchId, client_registry: &'a str) -> &'a str {
-        if id.is_proxy_cache_populator() { &self.registry_cache_populator } else { client_registry }
+    ///
+    /// When a revision has its own tarball-serving mock (see
+    /// [`Self::plan_revision_mocks`]), its `pacquet@<rev>` and `pnpr@<rev>`
+    /// targets fetch from that mock instead of the shared one. In the cold-pnpr
+    /// scenario both arms therefore exercise the cold mock's serve path — the
+    /// direct arm hitting it as a cold pnpr *registry*, the pnpr arm through its
+    /// accelerator — and the frozen lockfile keeps that about tarball serving
+    /// rather than (noisy) cold resolution.
+    fn registry_for<'a>(
+        &'a self,
+        id: BenchId,
+        client_registry: &'a str,
+        revision_mocks: &'a HashMap<String, RevisionMockRegistry>,
+    ) -> &'a str {
+        if id.is_proxy_cache_populator() {
+            return &self.registry_cache_populator;
+        }
+        if let Some(mock) = id.revision().and_then(|rev| revision_mocks.get(rev)) {
+            return &mock.url;
+        }
+        client_registry
+    }
+
+    /// Assign a per-revision tarball-serving mock to every revision that has
+    /// a `pnpr@<rev>` target (so its `pnpr` binary will be built).
+    ///
+    /// This is what makes a tarball-serve change visible in the `pnpr@HEAD`
+    /// vs `pnpr@main` comparison: the shared registry-mock is built from one
+    /// revision and serves every arm, so a serve-path delta there cancels out;
+    /// giving each revision a mock built from its own `pnpr` exposes the delta.
+    ///
+    /// Binds the client-facing latency-proxy socket now — reserving the port
+    /// for the whole init + build window before `init()` bakes its URL into
+    /// `.npmrc` — and hands the live socket to the proxy when `benchmark()`
+    /// spawns it. Empty for non-Verdaccio modes, which front no local mock.
+    fn plan_revision_mocks(&self) -> HashMap<String, RevisionMockRegistry> {
+        let mut mocks = HashMap::new();
+        if !matches!(self.registry_mode, RegistryMode::Verdaccio) {
+            return mocks;
+        }
+        for target in &self.targets {
+            if target.kind != TargetKind::Pnpr {
+                continue;
+            }
+            mocks.entry(target.rev.clone()).or_insert_with(|| {
+                let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))
+                    .expect("bind a port for the revision mock proxy");
+                let listen_port =
+                    listener.local_addr().expect("revision mock proxy local addr").port();
+                RevisionMockRegistry { listener, url: format!("http://127.0.0.1:{listen_port}/") }
+            });
+        }
+        mocks
     }
 
     fn write_benchmark_diagnostics(&self) {
@@ -1084,6 +1271,20 @@ fn dir_contains_file(dir: &Path) -> bool {
     false
 }
 
+/// Where a revision's tarball-serving mock lives: the latency proxy clients
+/// reach it through and the URL form of its port.
+#[derive(Debug)]
+struct RevisionMockRegistry {
+    /// The client↔registry latency proxy's listening socket, **bound at
+    /// planning time** so the port is reserved for the whole init + build
+    /// window and can't be stolen before `benchmark()` hands it to
+    /// [`LatencyProxy::spawn_with_listener`].
+    listener: TcpListener,
+    /// `http://127.0.0.1:<port>/` — the registry URL baked into each target's
+    /// `.npmrc` at `init()`, before the mock itself exists.
+    url: String,
+}
+
 /// A pnpr resolver server spawned for one `pnpr@<rev>`
 /// target. Killed on drop so it never outlives the benchmark run.
 struct PnprServer {
@@ -1190,10 +1391,30 @@ fn sync_bench_repo(repository: &Path, revision_repo: &Path, commit: &str) {
     Command::new("git").current_dir(revision_repo).arg("branch").pipe(executor("git branch"));
 }
 
-/// Build the `--prepare` shell command for hyperfine: one `rm -rf`
-/// covering every bench dir's removal paths, then a `cp` for each
-/// pristine file that needs restoring. Failures abort the iteration
-/// via `&&`.
+/// `fs::remove_dir_all` that tolerates the transient "Directory not empty"
+/// error macOS/APFS raises while a just-finished install's store writes
+/// settle, retrying only that kind and failing fast on any other.
+fn remove_dir_all_with_retry(path: &Path) -> std::io::Result<()> {
+    const MAX_ATTEMPTS: u32 = 6;
+    for attempt in 0..MAX_ATTEMPTS {
+        match fs::remove_dir_all(path) {
+            Ok(()) => return Ok(()),
+            Err(_) if !path.exists() => return Ok(()),
+            // Only the transient "Directory not empty" that APFS raises while a
+            // just-finished install's store writes settle is worth retrying;
+            // fail fast on anything else (permissions, I/O) instead of sleeping
+            // ~4s first.
+            Err(err) if err.kind() != ErrorKind::DirectoryNotEmpty => return Err(err),
+            Err(err) if attempt == MAX_ATTEMPTS - 1 => return Err(err),
+            Err(_) => thread::sleep(Duration::from_millis(200 * u64::from(attempt + 1))),
+        }
+    }
+    unreachable!("the final attempt returns instead of looping")
+}
+
+/// Build the `--prepare` shell command for hyperfine: wipe every bench dir's
+/// removal paths, then `cp` each pristine file that needs restoring. The
+/// pieces are joined with `&&` so any failure aborts the iteration.
 fn build_cleanup_command<'a, Ids, BenchDir>(
     cleanup: &Cleanup,
     ids: Ids,
@@ -1204,24 +1425,34 @@ where
     BenchDir: FnMut(BenchId<'a>) -> PathBuf,
 {
     let dirs: Vec<PathBuf> = ids.map(&mut bench_dir).collect();
+    let mut parts: Vec<String> = Vec::new();
 
     let remove_targets = dirs
         .iter()
         .flat_map(|dir| cleanup.remove.iter().map(move |name| dir.join(name)))
         .map(|path| path.maybe_quote().to_string())
         .join(" ");
-
-    let mut command = format!("rm -rf {remove_targets}");
+    if !remove_targets.is_empty() {
+        // List each target once and retry per-path: `rm -rf` on a just-emptied
+        // store occasionally hits a transient APFS "Directory not empty", so
+        // two short retries cover the settle window; `|| exit 1` still fails
+        // the `--prepare` step (and the benchmark) if a path genuinely can't be
+        // removed. Looping avoids repeating the whole (potentially long) target
+        // list three times in the command string.
+        parts.push(format!(
+            r#"for p in {remove_targets}; do rm -rf "$p" || (sleep 0.5; rm -rf "$p") || (sleep 1; rm -rf "$p") || exit 1; done"#,
+        ));
+    }
 
     for dir in &dirs {
         for (dst, src) in cleanup.restore {
             let src_path = dir.join(src).maybe_quote().to_string();
             let dst_path = dir.join(dst).maybe_quote().to_string();
-            let _ = write!(command, " && cp {src_path} {dst_path}");
+            parts.push(format!("cp {src_path} {dst_path}"));
         }
     }
 
-    command
+    parts.join(" && ")
 }
 
 fn create_package_json(dst_dir: &Path, src_dir: Option<&Path>) {
@@ -1359,12 +1590,216 @@ fn create_npmrc(dir: &Path, registry: &str, scenario: BenchmarkScenario) {
     // pnpm and pacquet, not from `.npmrc`. Pacquet's `.npmrc` parser
     // (`crates/npmrc/src/npmrc_auth.rs`) explicitly ignores `store-dir`
     // and a test there pins that behaviour. The static fixture's
-    // `storeDir: ./store-dir` already resolves to `{bench_dir}/store-dir`
-    // under each per-revision CWD, which gives the same per-revision
-    // isolation the redundant `.npmrc` line was supposedly providing.
+    // `storeDir: ./store-dir` resolves to `{bench_dir}/store-dir`
+    // under each per-revision CWD, which gives per-revision isolation.
     writeln!(file, "auto-install-peers=true").unwrap();
     writeln!(file, "ignore-scripts=true").unwrap();
     writeln!(file, "{}", scenario.npmrc_lockfile_setting()).unwrap();
+}
+
+fn seed_pnpr_auth(pnpr_storage: &Path) {
+    fs::create_dir_all(pnpr_storage).expect("create pnpr storage before seeding auth");
+    fs::write(pnpr_storage.join("htpasswd"), PNPR_BENCHMARK_HTPASSWD)
+        .expect("seed pnpr benchmark htpasswd");
+}
+
+fn write_pnpr_benchmark_config(
+    bench_dir: &Path,
+    pnpr_storage: &Path,
+    public_route_registries: &[&str],
+) -> PathBuf {
+    let path = bench_dir.join("pnpr-config.yaml");
+    let yaml = pnpr_benchmark_config_yaml(pnpr_storage, public_route_registries);
+    fs::write(&path, yaml).expect("write pnpr benchmark config");
+    path
+}
+
+/// A minimal verdaccio-shaped config for the cold mock: isolated `storage` and
+/// a single `**` proxy uplink at the warm origin, with public reads needing no
+/// auth (matching the bundled mock config).
+fn cold_mock_config_yaml(storage: &Path, origin: &str) -> String {
+    let config = ColdMockConfig {
+        storage: storage.display().to_string(),
+        uplinks: ColdMockUplinks { npmjs: ColdMockUplink { url: origin.to_string() } },
+        packages: ColdMockPackages {
+            all: ColdMockPackage {
+                access: "$all",
+                publish: "$authenticated",
+                unpublish: "$authenticated",
+                proxy: "npmjs",
+            },
+        },
+        log: ColdMockLog { kind: "stdout", format: "pretty", level: "error" },
+    };
+    serde_saphyr::to_string(&config).expect("serialize cold mock config")
+}
+
+/// A minimal verdaccio-shaped config for the cold mock, serialized rather than
+/// string-formatted so the `storage` path and `origin` URL are escaped and the
+/// structure can't drift.
+#[derive(Serialize)]
+struct ColdMockConfig {
+    storage: String,
+    uplinks: ColdMockUplinks,
+    packages: ColdMockPackages,
+    log: ColdMockLog,
+}
+
+#[derive(Serialize)]
+struct ColdMockUplinks {
+    npmjs: ColdMockUplink,
+}
+
+#[derive(Serialize)]
+struct ColdMockUplink {
+    url: String,
+}
+
+#[derive(Serialize)]
+struct ColdMockPackages {
+    #[serde(rename = "**")]
+    all: ColdMockPackage,
+}
+
+#[derive(Serialize)]
+struct ColdMockPackage {
+    access: &'static str,
+    publish: &'static str,
+    unpublish: &'static str,
+    proxy: &'static str,
+}
+
+#[derive(Serialize)]
+struct ColdMockLog {
+    #[serde(rename = "type")]
+    kind: &'static str,
+    format: &'static str,
+    level: &'static str,
+}
+
+fn pnpr_benchmark_config_yaml(pnpr_storage: &Path, public_route_registries: &[&str]) -> String {
+    let config = PnprBenchmarkConfig {
+        storage: pnpr_storage.display().to_string(),
+        secret: "pnpr-integrated-benchmark-secret",
+        auth: PnprBenchmarkAuth {
+            htpasswd: PnprBenchmarkHtpasswd {
+                file: pnpr_storage.join("htpasswd").display().to_string(),
+                max_users: -1,
+            },
+        },
+        routes: PnprBenchmarkRoutes {
+            public: public_route_registries
+                .iter()
+                .map(|registry| PnprBenchmarkPublicRoute { registry: (*registry).to_string() })
+                .collect(),
+        },
+        log: PnprBenchmarkLog { r#type: "stdout", format: "pretty", level: "error" },
+    };
+    serde_saphyr::to_string(&config).expect("serialize pnpr benchmark config")
+}
+
+fn distinct_public_route_registries<const REGISTRY_COUNT: usize>(
+    registries: [&str; REGISTRY_COUNT],
+) -> Vec<&str> {
+    let mut distinct = Vec::with_capacity(registries.len());
+    for registry in registries {
+        if !distinct.contains(&registry) {
+            distinct.push(registry);
+        }
+    }
+    distinct
+}
+
+#[derive(Serialize)]
+struct PnprBenchmarkConfig {
+    storage: String,
+    secret: &'static str,
+    auth: PnprBenchmarkAuth,
+    routes: PnprBenchmarkRoutes,
+    log: PnprBenchmarkLog,
+}
+
+#[derive(Serialize)]
+struct PnprBenchmarkAuth {
+    htpasswd: PnprBenchmarkHtpasswd,
+}
+
+#[derive(Serialize)]
+struct PnprBenchmarkHtpasswd {
+    file: String,
+    max_users: i64,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PnprBenchmarkRoutes {
+    public: Vec<PnprBenchmarkPublicRoute>,
+}
+
+#[derive(Serialize)]
+struct PnprBenchmarkPublicRoute {
+    registry: String,
+}
+
+#[derive(Serialize)]
+struct PnprBenchmarkLog {
+    r#type: &'static str,
+    format: &'static str,
+    level: &'static str,
+}
+
+fn append_pnpr_auth_to_npmrc(dir: &Path, pnpr_server: &str, token: &str) {
+    let path = dir.join(".npmrc");
+    let mut file =
+        OpenOptions::new().append(true).open(&path).expect("open benchmark .npmrc for pnpr auth");
+    writeln!(file, "{}:_authToken={token}", pnpr_auth_config_key(pnpr_server))
+        .expect("append pnpr auth to benchmark .npmrc");
+}
+
+/// Log in as the seeded benchmark user and return a bearer token. The login
+/// runs on a dedicated thread with its own runtime so it doesn't reach into the
+/// harness's ambient `#[tokio::main]` runtime (which would make a blocking
+/// client panic).
+fn mint_pnpr_token(port: u16) -> String {
+    std::thread::spawn(move || {
+        let runtime = tokio::runtime::Runtime::new().expect("runtime for pnpr token mint");
+        runtime.block_on(async move {
+            let url = format!(
+                "http://127.0.0.1:{port}/-/user/org.couchdb.user:{PNPR_BENCHMARK_USERNAME}",
+            );
+            let body = serde_json::json!({
+                "_id": format!("org.couchdb.user:{PNPR_BENCHMARK_USERNAME}"),
+                "name": PNPR_BENCHMARK_USERNAME,
+                "password": PNPR_BENCHMARK_PASSWORD,
+                "type": "user",
+                "roles": [],
+            });
+            let response = reqwest::Client::new()
+                .put(&url)
+                .json(&body)
+                .send()
+                .await
+                .expect("log in to pnpr to mint a benchmark token");
+            assert!(
+                response.status().is_success(),
+                "pnpr login returned {} when minting a benchmark token",
+                response.status(),
+            );
+            let payload: Value = response.json().await.expect("parse pnpr login response");
+            payload["token"].as_str().expect("token field in pnpr login response").to_string()
+        })
+    })
+    .join()
+    .expect("pnpr token mint thread panicked")
+}
+
+fn pnpr_auth_config_key(pnpr_server: &str) -> String {
+    let Some(without_scheme) =
+        pnpr_server.strip_prefix("http://").or_else(|| pnpr_server.strip_prefix("https://"))
+    else {
+        panic!("pnpr server URL must include a scheme: {pnpr_server}");
+    };
+    format!("//{}/", without_scheme.trim_end_matches('/'))
 }
 
 fn may_create_lockfile(dst_dir: &Path, scenario: BenchmarkScenario, src_dir: Option<&Path>) {
@@ -1471,6 +1906,16 @@ impl BenchId<'_> {
     /// warms the registry cache), which always uses the real registry.
     fn is_proxy_cache_populator(self) -> bool {
         matches!(self, BenchId::Static(name) if name == INIT_PROXY_CACHE_ID)
+    }
+
+    /// The revision this bench id targets, for the revision-keyed kinds
+    /// (`pacquet@<rev>` / `pnpr@<rev>`). `None` for static ids and pnpm
+    /// targets, which never route to a per-revision mock.
+    fn revision(&self) -> Option<&str> {
+        match *self {
+            BenchId::PacquetRevision(rev) | BenchId::PnprRevision(rev) => Some(rev),
+            BenchId::PnpmRevision(_) | BenchId::Static(_) => None,
+        }
     }
 }
 

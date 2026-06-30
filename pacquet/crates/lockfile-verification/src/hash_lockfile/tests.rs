@@ -34,9 +34,6 @@ fn parse(yaml: &str) -> Lockfile {
     serde_saphyr::from_str(yaml).expect("parse fixture lockfile")
 }
 
-/// The same in-memory `Lockfile` hashes the same regardless of how
-/// many times we ask. This is the floor of the cache contract — a
-/// successive run on the same lockfile must produce the same key.
 #[test]
 fn hash_is_stable_across_calls() {
     let lockfile = parse(LOCKFILE_YAML);
@@ -46,8 +43,6 @@ fn hash_is_stable_across_calls() {
     assert_eq!(first.len(), 64, "sha256 hex digest is 64 chars");
 }
 
-/// Lockfiles that parse to the same logical content but were
-/// written with different YAML key orders produce the same hash.
 /// `HashMap` key iteration is non-deterministic; the normalize step
 /// is what makes the hash stable.
 #[test]
@@ -57,9 +52,8 @@ fn key_order_in_yaml_does_not_affect_hash() {
     assert_eq!(hash_lockfile(&original), hash_lockfile(&reordered));
 }
 
-/// A meaningful change to the lockfile (a new dependency entry)
-/// flips the hash. Without this guarantee the cache could falsely
-/// short-circuit on a drifted lockfile.
+/// Without this guarantee the cache could falsely short-circuit on a
+/// drifted lockfile.
 #[test]
 fn semantic_changes_flip_the_hash() {
     let original = parse(LOCKFILE_YAML);

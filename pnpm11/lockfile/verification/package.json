@@ -1,0 +1,69 @@
+{
+  "name": "@pnpm/lockfile.verification",
+  "version": "1100.0.20",
+  "description": "Checks a lockfile",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "lockfile"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm11/lockfile/verification",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpm11/lockfile/verification#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "pn compile && pn .test",
+    "prepublishOnly": "tsgo --build",
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+  },
+  "dependencies": {
+    "@pnpm/catalogs.types": "workspace:*",
+    "@pnpm/crypto.hash": "workspace:*",
+    "@pnpm/deps.path": "workspace:*",
+    "@pnpm/installing.context": "workspace:*",
+    "@pnpm/lockfile.types": "workspace:*",
+    "@pnpm/lockfile.utils": "workspace:*",
+    "@pnpm/pkg-manifest.reader": "workspace:*",
+    "@pnpm/resolving.resolver-base": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "p-every": "catalog:",
+    "ramda": "catalog:",
+    "semver": "catalog:",
+    "version-selector-type": "catalog:"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
+  "devDependencies": {
+    "@jest/globals": "catalog:",
+    "@pnpm/constants": "workspace:*",
+    "@pnpm/lockfile.verification": "workspace:*",
+    "@pnpm/logger": "workspace:*",
+    "@pnpm/prepare": "workspace:*",
+    "@types/ramda": "catalog:",
+    "@types/semver": "catalog:",
+    "@types/tar-stream": "catalog:",
+    "tar-stream": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

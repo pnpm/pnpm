@@ -1,0 +1,219 @@
+# @pnpm/find-workspace-dir
+
+## 1100.0.3
+
+### Patch Changes
+
+- Updated dependencies [852d537]
+  - @pnpm/error@1100.0.1
+
+## 1100.0.2
+
+### Patch Changes
+
+- 293921a: feat(view): support searching project manifest upward when package name is omitted
+
+  When running `pnpm view` without a package name, the command now searches
+  upward for the nearest project manifest (`package.json`, `package.yaml`, or `package.json5`) and uses its `name` field.
+  If the manifest exists but lacks a `name` field, an error is thrown.
+
+  This change also replaces the `find-up` dependency with `empathic` for
+  improved performance and consistency across workspace tools.
+
+## 1100.0.1
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Patch Changes
+
+- e119c4e: Throw an error message if a `.pnpm-workspace.yaml` or `.pnpm-workspace.yml` file is found instead of a `pnpm-workspace.yaml`.
+- Updated dependencies [491a84f]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [831f574]
+  - @pnpm/error@1001.0.0
+
+## 1000.1.3
+
+### Patch Changes
+
+- @pnpm/error@1000.0.5
+
+## 1000.1.2
+
+### Patch Changes
+
+- @pnpm/error@1000.0.4
+
+## 1000.1.1
+
+### Patch Changes
+
+- @pnpm/error@1000.0.3
+
+## 1000.1.0
+
+### Minor Changes
+
+- 69f922a: Throw an error message if a `pnpm-workspaces.yaml` or `pnpm-workspaces.yml` file is found instead of a `pnpm-workspace.yaml` [#9170](https://github.com/pnpm/pnpm/issues/9170).
+
+## 1000.0.2
+
+### Patch Changes
+
+- @pnpm/error@1000.0.2
+
+## 1000.0.1
+
+### Patch Changes
+
+- @pnpm/error@1000.0.1
+
+## 7.0.3
+
+### Patch Changes
+
+- @pnpm/error@6.0.3
+
+## 7.0.2
+
+### Patch Changes
+
+- @pnpm/error@6.0.2
+
+## 7.0.1
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+
+## 7.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+  - @pnpm/error@6.0.0
+
+## 6.0.2
+
+### Patch Changes
+
+- @pnpm/error@5.0.2
+
+## 6.0.1
+
+### Patch Changes
+
+- @pnpm/error@5.0.1
+
+## 6.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/error@5.0.0
+
+## 5.0.1
+
+### Patch Changes
+
+- @pnpm/error@4.0.1
+
+## 5.0.0
+
+### Major Changes
+
+- 043d988fc: Breaking change to the API. Defaul export is not used.
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [043d988fc]
+- Updated dependencies [f884689e0]
+  - @pnpm/error@4.0.0
+
+## 4.0.3
+
+### Patch Changes
+
+- Updated dependencies [e8a631bf0]
+  - @pnpm/error@3.1.0
+
+## 4.0.2
+
+### Patch Changes
+
+- 6434a8291: Resolve native workspace path for case-insensitive file systems [#4904](https://github.com/pnpm/pnpm/issues/4904).
+
+## 4.0.1
+
+### Patch Changes
+
+- @pnpm/error@3.0.1
+
+## 4.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [542014839]
+  - @pnpm/error@3.0.0
+
+## 3.0.2
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+
+## 3.0.1
+
+### Patch Changes
+
+- 6e8cedb79: Add support for NPM_CONFIG_WORKSPACE_DIR override environment variable when finding the workspace directory
+
+## 3.0.0
+
+### Major Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+
+### Patch Changes
+
+- Updated dependencies [97b986fbc]
+  - @pnpm/error@2.0.0
+
+## 2.0.0
+
+### Major Changes
+
+- ec37069f2: Throw an exception if the workspace manifest is created with the wrong extension.
+
+## 1.0.1
+
+### Patch Changes
+
+- 999f81305: find-up updated to v5.
+
+## 1.0.1

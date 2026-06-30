@@ -1,0 +1,1207 @@
+# @pnpm/deps.graph-builder
+
+## 1100.0.18
+
+### Patch Changes
+
+- bae694f: Some registries generate tarballs on-demand and cannot provide an integrity checksum in their package metadata. In that case pnpm now computes the integrity from the downloaded tarball and stores it in the lockfile, so the entry is verifiable on subsequent installs instead of being written without an integrity (which would fail the next install). This also applies to `--lockfile-only`: the tarball is downloaded so its integrity can be computed. A lockfile entry that is still missing its integrity is rejected as a `ERR_PNPM_MISSING_TARBALL_INTEGRITY` lockfile verification violation (the install fails closed) rather than being silently re-fetched.
+- Updated dependencies [bae694f]
+- Updated dependencies [a84d2a1]
+  - @pnpm/hooks.types@1100.1.0
+  - @pnpm/store.controller-types@1100.1.6
+  - @pnpm/lockfile.utils@1100.1.0
+  - @pnpm/deps.graph-hasher@1100.2.6
+  - @pnpm/lockfile.fs@1100.1.7
+  - @pnpm/config.package-is-installable@1100.0.12
+  - @pnpm/patching.config@1100.0.9
+
+## 1100.0.17
+
+### Patch Changes
+
+- Updated dependencies [61969fb]
+  - @pnpm/lockfile.fs@1100.1.6
+
+## 1100.0.16
+
+### Patch Changes
+
+- a31faa7: Updated dependency ranges. Notably:
+
+  - `@pnpm/logger` peer dependency range moved to `^1100.0.0`.
+  - `msgpackr` 1.11.8 → 2.0.4 (store index files remain byte-compatible in both directions).
+  - `open` ^7.4.2 → ^11.0.0, `memoize` ^10 → ^11, `cli-truncate` ^5 → ^6, `pidtree` ^0.6 → ^1.
+  - `@yarnpkg/core` 4.5.0 → 4.8.0, `@rushstack/worker-pool` 0.7.7 → 0.7.18, `@cyclonedx/cyclonedx-library` 10.0.0 → 10.1.0, `@pnpm/config.nerf-dart` ^1 → ^2, `@pnpm/log.group` 3.0.2 → 4.0.1, `@pnpm/util.lex-comparator` ^3 → ^4.
+
+- Updated dependencies [f20ad8f]
+- Updated dependencies [681b593]
+- Updated dependencies [d50d691]
+- Updated dependencies [a31faa7]
+  - @pnpm/lockfile.utils@1100.0.13
+  - @pnpm/types@1101.3.2
+  - @pnpm/lockfile.fs@1100.1.5
+  - @pnpm/config.package-is-installable@1100.0.11
+  - @pnpm/core-loggers@1100.2.1
+  - @pnpm/deps.path@1100.0.8
+  - @pnpm/patching.config@1100.0.8
+  - @pnpm/deps.graph-hasher@1100.2.5
+  - @pnpm/hooks.types@1100.0.12
+  - @pnpm/installing.modules-yaml@1100.0.9
+  - @pnpm/store.controller-types@1100.1.5
+
+## 1100.0.15
+
+### Patch Changes
+
+- Updated dependencies [f11b4fc]
+- Updated dependencies [52be454]
+  - @pnpm/core-loggers@1100.2.0
+  - @pnpm/config.package-is-installable@1100.0.10
+
+## 1100.0.14
+
+### Patch Changes
+
+- bf1b731: Require trusted package identity before package-name `allowBuilds` entries can approve lifecycle scripts for git, git-hosted tarball, direct tarball, and local directory artifacts. To approve one of those artifacts explicitly, use its peer-suffix-free lockfile depPath as the `allowBuilds` key. Lockfile verification now rejects lockfiles where a registry-style dependency path (`name@semver`) is backed by a git, directory, or git-hosted tarball resolution (`ERR_PNPM_RESOLUTION_SHAPE_MISMATCH`), so the dependency path is a reliable artifact identity by the time scripts can run.
+- Updated dependencies [bf1b731]
+  - @pnpm/deps.graph-hasher@1100.2.4
+  - @pnpm/types@1101.3.1
+  - @pnpm/config.package-is-installable@1100.0.9
+  - @pnpm/core-loggers@1100.1.4
+  - @pnpm/deps.path@1100.0.7
+  - @pnpm/hooks.types@1100.0.11
+  - @pnpm/installing.modules-yaml@1100.0.8
+  - @pnpm/lockfile.fs@1100.1.4
+  - @pnpm/lockfile.utils@1100.0.12
+  - @pnpm/store.controller-types@1100.1.4
+  - @pnpm/patching.config@1100.0.7
+
+## 1100.0.13
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+  - @pnpm/types@1101.3.0
+  - @pnpm/config.package-is-installable@1100.0.8
+  - @pnpm/core-loggers@1100.1.3
+  - @pnpm/deps.graph-hasher@1100.2.3
+  - @pnpm/deps.path@1100.0.6
+  - @pnpm/hooks.types@1100.0.10
+  - @pnpm/installing.modules-yaml@1100.0.7
+  - @pnpm/lockfile.fs@1100.1.3
+  - @pnpm/lockfile.utils@1100.0.11
+  - @pnpm/store.controller-types@1100.1.3
+  - @pnpm/patching.config@1100.0.6
+
+## 1100.0.12
+
+### Patch Changes
+
+- Updated dependencies [e55f4b5]
+- Updated dependencies [35d2355]
+  - @pnpm/lockfile.utils@1100.0.10
+  - @pnpm/types@1101.2.0
+  - @pnpm/deps.graph-hasher@1100.2.2
+  - @pnpm/lockfile.fs@1100.1.2
+  - @pnpm/config.package-is-installable@1100.0.7
+  - @pnpm/core-loggers@1100.1.2
+  - @pnpm/deps.path@1100.0.5
+  - @pnpm/hooks.types@1100.0.9
+  - @pnpm/installing.modules-yaml@1100.0.6
+  - @pnpm/store.controller-types@1100.1.2
+  - @pnpm/patching.config@1100.0.5
+
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [9cb48bb]
+- Updated dependencies [64afc92]
+  - @pnpm/lockfile.fs@1100.1.1
+  - @pnpm/types@1101.1.1
+  - @pnpm/deps.graph-hasher@1100.2.1
+  - @pnpm/hooks.types@1100.0.8
+  - @pnpm/lockfile.utils@1100.0.9
+  - @pnpm/store.controller-types@1100.1.1
+  - @pnpm/config.package-is-installable@1100.0.6
+  - @pnpm/core-loggers@1100.1.1
+  - @pnpm/deps.path@1100.0.4
+  - @pnpm/installing.modules-yaml@1100.0.5
+  - @pnpm/patching.config@1100.0.4
+
+## 1100.0.10
+
+### Patch Changes
+
+- 3ddde2b: **fix**: anchor the side-effects-cache key and global-virtual-store hash to the project's script-runner Node — `engines.runtime` pin when present, shell `node` otherwise — instead of pnpm's own runtime.
+
+  `ENGINE_NAME` (the `<platform>;<arch>;node<major>` prefix used as the side-effects-cache key and the engine portion of the GVS hash) was computed from `process.version` — the Node that runs pnpm itself. That was wrong in two situations:
+
+  1. **`@pnpm/exe` SEA bundle.** The bundle has its own embedded Node, not the `node` on the user's `PATH` that actually spawns lifecycle scripts. Two pnpm installations on the same machine (one SEA, one npm-package) therefore disagreed on the cache key, partitioning the side-effects cache and the global virtual store across two Node majors even though both installs would run scripts on the same shell `node`.
+  2. **`engines.runtime` / `devEngines.runtime` pin.** When a project pins a Node version via `devEngines.runtime` (pnpm v11+), pnpm downloads that Node into `node_modules/node/` and uses it to run lifecycle scripts. But the hash still anchored to whichever Node ran pnpm itself, not to the pinned Node — so two installs of the same project with two different runner Nodes would still disagree on the GVS slot path even though scripts run on the same pinned Node.
+
+  Three changes:
+
+  - `@pnpm/engine.runtime.system-node-version` now exports `engineName(nodeVersion?)`. Resolves the version in this order: explicit override → `getSystemNodeVersion()` (which already prefers `node --version` over `process.version` in SEA contexts) → `process.version`.
+  - `@pnpm/deps.graph-hasher` now exports `findRuntimeNodeVersion(snapshotKeys)` — scans an iterable of lockfile snapshot keys for a `node@runtime:<version>` entry and returns its bare version string. `calcDepState` and `calcGraphNodeHash`/`iterateHashedGraphNodes` accept a `nodeVersion?` (in the options bag for the first, as a trailing parameter / ctx field for the others), forwarded to `engineName()`. The default (no override) preserves the pre-change behaviour. The legacy `ENGINE_NAME` constant in `@pnpm/constants` is unchanged so external consumers and existing tests keep working; in non-SEA, non-pinned contexts every value lines up.
+  - Every install-side caller of the graph-hasher (`@pnpm/installing.deps-resolver`, `@pnpm/installing.deps-restorer`, `@pnpm/installing.deps-installer`, `@pnpm/building.during-install`, `@pnpm/building.after-install`, `@pnpm/deps.graph-builder`) now derives the project's pinned runtime via `findRuntimeNodeVersion(Object.keys(graph))` once per invocation and threads it through.
+
+  On upgrade, two one-time GVS slot churns are possible:
+
+  - **SEA-pnpm users** without a runtime pin: slots that previously hashed under the embedded-Node major (e.g. `node26`) now hash under the shell-Node major (e.g. `node24`), matching what pacquet, the npm-published `pnpm` package, and any other pnpm-compatible tool already produce.
+  - **Projects with a `devEngines.runtime` pin**: slots that previously hashed under the runner's Node major now hash under the pinned Node major, matching what the lifecycle scripts will actually run on.
+
+  In both cases the old slots become prune-eligible.
+
+- Updated dependencies [4195766]
+- Updated dependencies [6e93f35]
+- Updated dependencies [3ddde2b]
+- Updated dependencies [5dc8be8]
+- Updated dependencies [4a79336]
+- Updated dependencies [2a9bd89]
+  - @pnpm/store.controller-types@1100.1.0
+  - @pnpm/lockfile.fs@1100.1.0
+  - @pnpm/deps.graph-hasher@1100.2.0
+  - @pnpm/core-loggers@1100.1.0
+  - @pnpm/hooks.types@1100.0.7
+  - @pnpm/lockfile.utils@1100.0.8
+  - @pnpm/config.package-is-installable@1100.0.5
+
+## 1100.0.9
+
+### Patch Changes
+
+- Updated dependencies [180aee9]
+- Updated dependencies [c2c2890]
+  - @pnpm/lockfile.fs@1100.0.8
+  - @pnpm/store.controller-types@1100.0.7
+
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/config.package-is-installable@1100.0.4
+  - @pnpm/core-loggers@1100.0.2
+  - @pnpm/deps.graph-hasher@1100.1.5
+  - @pnpm/deps.path@1100.0.3
+  - @pnpm/hooks.types@1100.0.6
+  - @pnpm/installing.modules-yaml@1100.0.4
+  - @pnpm/lockfile.fs@1100.0.7
+  - @pnpm/lockfile.utils@1100.0.7
+  - @pnpm/store.controller-types@1100.0.6
+  - @pnpm/patching.config@1100.0.3
+
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [cfa271b]
+  - @pnpm/lockfile.utils@1100.0.6
+  - @pnpm/deps.graph-hasher@1100.1.4
+  - @pnpm/lockfile.fs@1100.0.6
+
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [12313f1]
+- Updated dependencies [27425d7]
+  - @pnpm/installing.modules-yaml@1100.0.3
+  - @pnpm/lockfile.fs@1100.0.5
+  - @pnpm/lockfile.utils@1100.0.5
+  - @pnpm/deps.graph-hasher@1100.1.3
+  - @pnpm/hooks.types@1100.0.5
+  - @pnpm/store.controller-types@1100.0.5
+
+## 1100.0.5
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+- Updated dependencies [6b891a5]
+  - @pnpm/config.package-is-installable@1100.0.3
+  - @pnpm/installing.modules-yaml@1100.0.2
+  - @pnpm/store.controller-types@1100.0.4
+  - @pnpm/deps.graph-hasher@1100.1.2
+  - @pnpm/deps.path@1100.0.2
+  - @pnpm/lockfile.utils@1100.0.4
+  - @pnpm/hooks.types@1100.0.4
+  - @pnpm/lockfile.fs@1100.0.4
+  - @pnpm/patching.config@1100.0.2
+
+## 1100.0.4
+
+### Patch Changes
+
+- Updated dependencies [d96a1bf]
+  - @pnpm/config.package-is-installable@1100.0.2
+
+## 1100.0.3
+
+### Patch Changes
+
+- @pnpm/hooks.types@1100.0.3
+- @pnpm/store.controller-types@1100.0.3
+- @pnpm/lockfile.utils@1100.0.3
+- @pnpm/deps.graph-hasher@1100.1.1
+- @pnpm/lockfile.fs@1100.0.3
+
+## 1100.0.2
+
+### Patch Changes
+
+- 72c1e05: Fix: different platform variants of the same runtime (e.g. `node@runtime:25.9.0` glibc vs. musl) no longer share a single global-virtual-store entry. The virtual store path now incorporates the selected variant's integrity, so installs with different `--os`/`--cpu`/`--libc` end up in separate directories and `pnpm add --libc=musl node@runtime:<v>` reliably fetches the musl binary even when the glibc variant is already cached.
+- Updated dependencies [72c1e05]
+  - @pnpm/deps.graph-hasher@1100.1.0
+  - @pnpm/hooks.types@1100.0.2
+  - @pnpm/lockfile.utils@1100.0.2
+  - @pnpm/store.controller-types@1100.0.2
+  - @pnpm/lockfile.fs@1100.0.2
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/config.package-is-installable@1100.0.1
+  - @pnpm/core-loggers@1100.0.1
+  - @pnpm/deps.graph-hasher@1100.0.1
+  - @pnpm/deps.path@1100.0.1
+  - @pnpm/hooks.types@1100.0.1
+  - @pnpm/installing.modules-yaml@1100.0.1
+  - @pnpm/lockfile.fs@1100.0.1
+  - @pnpm/lockfile.utils@1100.0.1
+  - @pnpm/store.controller-types@1100.0.1
+  - @pnpm/patching.config@1100.0.1
+
+## 1003.0.0
+
+### Major Changes
+
+- 5f73b0f: Runtime dependencies are always linked from the global virtual store [#10233](https://github.com/pnpm/pnpm/pull/10233).
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Minor Changes
+
+- cd743ef: Use `allowBuilds` config to compute engine-agnostic GVS hashes for pure-JS packages [#10837](https://github.com/pnpm/pnpm/issues/10837).
+
+  When the global virtual store is enabled, packages that are not allowed to build (and don't transitively depend on packages that are) now get hashes that don't include the engine name (platform, architecture, Node.js major version). This means ~95% of packages in the GVS survive Node.js upgrades and architecture changes without re-import.
+
+### Patch Changes
+
+- 394d88c: Fixed injected local packages to work correctly with the global virtual store [#10366](https://github.com/pnpm/pnpm/pull/10366).
+
+  When using `nodeLinker: 'isolated'` with `enableGlobalVirtualStore: true`, injected workspace packages now use the correct hash-based paths from the global virtual store instead of project-relative paths.
+
+- 312226c: Skip local `file:` protocol dependencies during `pnpm fetch`. This fixes an issue where `pnpm fetch` would fail in Docker builds when local directory dependencies were not available [#10460](https://github.com/pnpm/pnpm/issues/10460).
+- 97f049f: Skip re-importing packages from the global virtual store when `node_modules` is deleted but the store directories are still warm. The global store directory hash already encodes engine, integrity, and full dependency subgraph, so existence is proof of validity.
+- 38b8e35: Support for custom resolvers and fetchers.
+- Updated dependencies [5f73b0f]
+- Updated dependencies [facdd71]
+- Updated dependencies [c55c614]
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [3cfffaa]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [cd743ef]
+- Updated dependencies [491a84f]
+- Updated dependencies [075aa99]
+- Updated dependencies [c4045fc]
+- Updated dependencies [ba065f6]
+- Updated dependencies [d458ab3]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [56a59df]
+- Updated dependencies [50fbeca]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [38b8e35]
+- Updated dependencies [394d88c]
+- Updated dependencies [1e6de25]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [3cfffaa]
+- Updated dependencies [9d3f00b]
+- Updated dependencies [98a0410]
+- Updated dependencies [efb48dc]
+  - @pnpm/deps.path@1002.0.0
+  - @pnpm/deps.graph-hasher@1003.0.0
+  - @pnpm/store.controller-types@1005.0.0
+  - @pnpm/constants@1002.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/lockfile.fs@1002.0.0
+  - @pnpm/lockfile.utils@1004.0.0
+  - @pnpm/installing.modules-yaml@1001.0.0
+  - @pnpm/config.package-is-installable@1001.0.0
+  - @pnpm/core-loggers@1002.0.0
+  - @pnpm/patching.config@1002.0.0
+  - @pnpm/patching.types@1001.0.0
+  - @pnpm/hooks.types@1002.0.0
+
+## 1002.3.0
+
+### Minor Changes
+
+- dee39ec: You can now allow specific versions of dependencies to run postinstall scripts. `onlyBuiltDependencies` now accepts package names with lists of trusted versions. For example:
+
+  ```yaml
+  onlyBuiltDependencies:
+    - nx@21.6.4 || 21.6.5
+    - esbuild@0.25.1
+  ```
+
+  Related PR: [#10104](https://github.com/pnpm/pnpm/pull/10104).
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+  - @pnpm/types@1000.9.0
+  - @pnpm/store-controller-types@1004.1.0
+  - @pnpm/package-is-installable@1000.0.15
+  - @pnpm/lockfile.fs@1001.1.21
+  - @pnpm/lockfile.utils@1003.0.3
+  - @pnpm/calc-dep-state@1002.0.8
+  - @pnpm/core-loggers@1001.0.4
+  - @pnpm/dependency-path@1001.1.3
+  - @pnpm/modules-yaml@1000.3.6
+  - @pnpm/patching.config@1001.0.11
+
+## 1002.2.6
+
+### Patch Changes
+
+- @pnpm/dependency-path@1001.1.2
+- @pnpm/lockfile.fs@1001.1.20
+- @pnpm/lockfile.utils@1003.0.2
+- @pnpm/calc-dep-state@1002.0.7
+- @pnpm/patching.config@1001.0.10
+
+## 1002.2.5
+
+### Patch Changes
+
+- Updated dependencies [6365bc4]
+  - @pnpm/constants@1001.3.1
+  - @pnpm/lockfile.fs@1001.1.19
+  - @pnpm/calc-dep-state@1002.0.6
+  - @pnpm/package-is-installable@1000.0.14
+  - @pnpm/patching.config@1001.0.9
+
+## 1002.2.4
+
+### Patch Changes
+
+- Updated dependencies [df8d57f]
+- Updated dependencies [e792927]
+  - @pnpm/package-is-installable@1000.0.13
+  - @pnpm/types@1000.8.0
+  - @pnpm/lockfile.fs@1001.1.18
+  - @pnpm/lockfile.utils@1003.0.1
+  - @pnpm/calc-dep-state@1002.0.5
+  - @pnpm/core-loggers@1001.0.3
+  - @pnpm/dependency-path@1001.1.1
+  - @pnpm/modules-yaml@1000.3.5
+  - @pnpm/store-controller-types@1004.0.2
+  - @pnpm/patching.config@1001.0.8
+
+## 1002.2.3
+
+### Patch Changes
+
+- 9908269: Fix an edge case bug causing local tarballs to not re-link into the virtual store. This bug would happen when changing the contents of the tarball without renaming the file and running a filtered install.
+- e9b589c: Add a JSDoc for the `lockfileToDepGraph` function.
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+  - @pnpm/dependency-path@1001.1.0
+  - @pnpm/constants@1001.3.0
+  - @pnpm/lockfile.utils@1003.0.0
+  - @pnpm/lockfile.fs@1001.1.17
+  - @pnpm/calc-dep-state@1002.0.4
+  - @pnpm/patching.config@1001.0.7
+  - @pnpm/store-controller-types@1004.0.1
+  - @pnpm/package-is-installable@1000.0.12
+
+## 1002.2.2
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [2e85f29]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/lockfile.utils@1002.1.0
+  - @pnpm/store-controller-types@1004.0.0
+  - @pnpm/constants@1001.2.0
+  - @pnpm/package-is-installable@1000.0.11
+  - @pnpm/lockfile.fs@1001.1.16
+  - @pnpm/calc-dep-state@1002.0.3
+  - @pnpm/core-loggers@1001.0.2
+  - @pnpm/dependency-path@1001.0.2
+  - @pnpm/modules-yaml@1000.3.4
+  - @pnpm/patching.config@1001.0.6
+
+## 1002.2.1
+
+### Patch Changes
+
+- @pnpm/dependency-path@1001.0.1
+- @pnpm/lockfile.fs@1001.1.15
+- @pnpm/lockfile.utils@1002.0.1
+- @pnpm/calc-dep-state@1002.0.2
+- @pnpm/patching.config@1001.0.5
+
+## 1002.2.0
+
+### Minor Changes
+
+- b982a0d: New option added: includeUnchangedDeps.
+
+### Patch Changes
+
+- Updated dependencies [540986f]
+  - @pnpm/dependency-path@1001.0.0
+  - @pnpm/lockfile.utils@1002.0.0
+  - @pnpm/lockfile.fs@1001.1.14
+  - @pnpm/calc-dep-state@1002.0.1
+  - @pnpm/patching.config@1001.0.4
+
+## 1002.1.0
+
+### Minor Changes
+
+- b0ead51: **Experimental**. Added support for global virtual stores. When the global virtual store is enabled, `node_modules` doesn’t contain regular files, only symlinks to a central virtual store (by default the central store is located at `<store-path>/links`; run `pnpm store path` to find `<store-path>`).
+
+  To enable the global virtual store, add `enableGlobalVirtualStore: true` to your root `pnpm-workspace.yaml`.
+
+  A global virtual store can make installations significantly faster when a warm cache is present. In CI, however, it will probably slow installations because there is usually no cache.
+
+  Related PR: [#8190](https://github.com/pnpm/pnpm/pull/8190).
+
+### Patch Changes
+
+- Updated dependencies [b0ead51]
+- Updated dependencies [b3898db]
+- Updated dependencies [b0ead51]
+  - @pnpm/calc-dep-state@1002.0.0
+  - @pnpm/lockfile.utils@1001.0.12
+  - @pnpm/store-controller-types@1003.0.3
+  - @pnpm/lockfile.fs@1001.1.13
+
+## 1002.0.5
+
+### Patch Changes
+
+- Updated dependencies [509948d]
+  - @pnpm/store-controller-types@1003.0.2
+
+## 1002.0.4
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+- Updated dependencies [5ec7255]
+- Updated dependencies [c24c66e]
+  - @pnpm/package-is-installable@1000.0.10
+  - @pnpm/core-loggers@1001.0.1
+  - @pnpm/patching.config@1001.0.3
+  - @pnpm/lockfile.fs@1001.1.12
+  - @pnpm/types@1000.6.0
+  - @pnpm/store-controller-types@1003.0.1
+  - @pnpm/lockfile.utils@1001.0.11
+  - @pnpm/dependency-path@1000.0.9
+  - @pnpm/modules-yaml@1000.3.3
+
+## 1002.0.3
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/store-controller-types@1003.0.0
+  - @pnpm/core-loggers@1001.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/lockfile.utils@1001.0.10
+  - @pnpm/package-is-installable@1000.0.9
+  - @pnpm/lockfile.fs@1001.1.11
+  - @pnpm/dependency-path@1000.0.8
+  - @pnpm/modules-yaml@1000.3.2
+  - @pnpm/patching.config@1001.0.2
+
+## 1002.0.2
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1001.0.9
+- @pnpm/store-controller-types@1002.0.1
+- @pnpm/lockfile.fs@1001.1.10
+
+## 1002.0.1
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [72cff38]
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/store-controller-types@1002.0.0
+  - @pnpm/core-loggers@1000.2.0
+  - @pnpm/package-is-installable@1000.0.8
+  - @pnpm/lockfile.fs@1001.1.9
+  - @pnpm/lockfile.utils@1001.0.8
+  - @pnpm/dependency-path@1000.0.7
+  - @pnpm/modules-yaml@1000.3.1
+  - @pnpm/patching.config@1001.0.1
+
+## 1002.0.0
+
+### Major Changes
+
+- 5f7be64: Add an ability to patch dependencies by version ranges. Exact versions override version ranges, which in turn override name-only patches. Version range `*` is the same as name-only, except that patch application failure will not be ignored.
+
+  For example:
+
+  ```yaml
+  patchedDependencies:
+    foo: patches/foo-1.patch
+    foo@^2.0.0: patches/foo-2.patch
+    foo@2.1.0: patches/foo-3.patch
+  ```
+
+  The above configuration would apply `patches/foo-3.patch` to `foo@2.1.0`, `patches/foo-2.patch` to all `foo` versions which satisfy `^2.0.0` except `2.1.0`, and `patches/foo-1.patch` to the remaining `foo` versions.
+
+  > [!WARNING]
+  > The version ranges should not overlap. If you want to specialize a sub range, make sure to exclude it from the other keys. For example:
+  >
+  > ```yaml
+  > # pnpm-workspace.yaml
+  > patchedDependencies:
+  >   # the specialized sub range
+  >   'foo@2.2.0-2.8.0': patches/foo.2.2.0-2.8.0.patch
+  >   # the more general patch, excluding the sub range above
+  >   'foo@>=2.0.0 <2.2.0 || >2.8.0': 'patches/foo.gte2.patch
+  > ```
+  >
+  > In most cases, however, it's sufficient to just define an exact version to override the range.
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+- Updated dependencies [64f6b4f]
+- Updated dependencies [5f7be64]
+  - @pnpm/patching.config@1001.0.0
+  - @pnpm/patching.types@1000.1.0
+  - @pnpm/types@1000.3.0
+  - @pnpm/modules-yaml@1000.3.0
+  - @pnpm/package-is-installable@1000.0.7
+  - @pnpm/lockfile.fs@1001.1.8
+  - @pnpm/lockfile.utils@1001.0.7
+  - @pnpm/core-loggers@1000.1.5
+  - @pnpm/dependency-path@1000.0.6
+  - @pnpm/store-controller-types@1001.0.5
+
+## 1001.0.10
+
+### Patch Changes
+
+- Updated dependencies [d612dcf]
+- Updated dependencies [d612dcf]
+  - @pnpm/modules-yaml@1000.2.0
+  - @pnpm/lockfile.utils@1001.0.6
+  - @pnpm/store-controller-types@1001.0.4
+  - @pnpm/lockfile.fs@1001.1.7
+
+## 1001.0.9
+
+### Patch Changes
+
+- @pnpm/dependency-path@1000.0.5
+- @pnpm/lockfile.fs@1001.1.6
+- @pnpm/lockfile.utils@1001.0.5
+
+## 1001.0.8
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+  - @pnpm/dependency-path@1000.0.4
+  - @pnpm/package-is-installable@1000.0.6
+  - @pnpm/lockfile.fs@1001.1.5
+  - @pnpm/lockfile.utils@1001.0.4
+  - @pnpm/core-loggers@1000.1.4
+  - @pnpm/modules-yaml@1000.1.4
+  - @pnpm/store-controller-types@1001.0.3
+
+## 1001.0.7
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/package-is-installable@1000.0.5
+  - @pnpm/lockfile.fs@1001.1.4
+  - @pnpm/lockfile.utils@1001.0.3
+  - @pnpm/core-loggers@1000.1.3
+  - @pnpm/dependency-path@1000.0.3
+  - @pnpm/modules-yaml@1000.1.3
+  - @pnpm/store-controller-types@1001.0.2
+
+## 1001.0.6
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.3
+
+## 1001.0.5
+
+### Patch Changes
+
+- Updated dependencies [9a44e6c]
+- Updated dependencies [b562deb]
+  - @pnpm/constants@1001.1.0
+  - @pnpm/types@1000.1.1
+  - @pnpm/lockfile.fs@1001.1.2
+  - @pnpm/package-is-installable@1000.0.4
+  - @pnpm/lockfile.utils@1001.0.2
+  - @pnpm/core-loggers@1000.1.2
+  - @pnpm/dependency-path@1000.0.2
+  - @pnpm/modules-yaml@1000.1.2
+  - @pnpm/store-controller-types@1001.0.1
+
+## 1001.0.4
+
+### Patch Changes
+
+- Updated dependencies [dde650b]
+  - @pnpm/store-controller-types@1001.0.0
+
+## 1001.0.3
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/package-is-installable@1000.0.3
+  - @pnpm/lockfile.fs@1001.1.1
+  - @pnpm/lockfile.utils@1001.0.1
+  - @pnpm/core-loggers@1000.1.1
+  - @pnpm/dependency-path@1000.0.1
+  - @pnpm/modules-yaml@1000.1.1
+  - @pnpm/store-controller-types@1000.1.1
+
+## 1001.0.2
+
+### Patch Changes
+
+- Updated dependencies [516c4b3]
+- Updated dependencies [4771813]
+  - @pnpm/core-loggers@1000.1.0
+  - @pnpm/modules-yaml@1000.1.0
+  - @pnpm/package-is-installable@1000.0.2
+
+## 1001.0.1
+
+### Patch Changes
+
+- Updated dependencies [3f0e4f0]
+  - @pnpm/lockfile.fs@1001.1.0
+
+## 1001.0.0
+
+### Major Changes
+
+- a76da0c: Removed lockfile conversion from v6 to v9. If you need to convert lockfile v6 to v9, use pnpm CLI v9.
+
+### Patch Changes
+
+- Updated dependencies [d2e83b0]
+- Updated dependencies [6483b64]
+- Updated dependencies [a76da0c]
+  - @pnpm/constants@1001.0.0
+  - @pnpm/store-controller-types@1000.1.0
+  - @pnpm/lockfile.utils@1001.0.0
+  - @pnpm/lockfile.fs@1001.0.0
+  - @pnpm/package-is-installable@1000.0.1
+
+## 2.0.6
+
+### Patch Changes
+
+- Updated dependencies [19d5b51]
+- Updated dependencies [8108680]
+- Updated dependencies [dcd2917]
+- Updated dependencies [e476b07]
+- Updated dependencies [d55b259]
+- Updated dependencies [c4f5231]
+  - @pnpm/constants@10.0.0
+  - @pnpm/dependency-path@6.0.0
+  - @pnpm/package-is-installable@9.0.12
+  - @pnpm/lockfile.fs@1.0.6
+  - @pnpm/lockfile.utils@1.0.5
+  - @pnpm/store-controller-types@18.1.6
+
+## 2.0.5
+
+### Patch Changes
+
+- @pnpm/package-is-installable@9.0.11
+- @pnpm/dependency-path@5.1.7
+- @pnpm/lockfile.fs@1.0.5
+- @pnpm/lockfile.utils@1.0.4
+
+## 2.0.4
+
+### Patch Changes
+
+- Updated dependencies [83681da]
+  - @pnpm/constants@9.0.0
+  - @pnpm/lockfile.fs@1.0.4
+  - @pnpm/package-is-installable@9.0.10
+
+## 2.0.3
+
+### Patch Changes
+
+- Updated dependencies [d500d9f]
+  - @pnpm/types@12.2.0
+  - @pnpm/package-is-installable@9.0.9
+  - @pnpm/lockfile.fs@1.0.3
+  - @pnpm/lockfile.utils@1.0.3
+  - @pnpm/core-loggers@10.0.7
+  - @pnpm/dependency-path@5.1.6
+  - @pnpm/modules-yaml@13.1.7
+  - @pnpm/store-controller-types@18.1.6
+
+## 2.0.2
+
+### Patch Changes
+
+- Updated dependencies [7ee59a1]
+  - @pnpm/types@12.1.0
+  - @pnpm/package-is-installable@9.0.8
+  - @pnpm/lockfile.fs@1.0.2
+  - @pnpm/lockfile.utils@1.0.2
+  - @pnpm/core-loggers@10.0.6
+  - @pnpm/dependency-path@5.1.5
+  - @pnpm/modules-yaml@13.1.6
+  - @pnpm/store-controller-types@18.1.5
+
+## 2.0.1
+
+### Patch Changes
+
+- Updated dependencies [33ba536]
+  - @pnpm/package-is-installable@9.0.7
+
+## 2.0.0
+
+### Major Changes
+
+- cb006df: Add ability to apply patch to all versions:
+  If the key of `pnpm.patchedDependencies` is a package name without a version (e.g. `pkg`), pnpm will attempt to apply the patch to all versions of
+  the package, failure will be skipped.
+  If it is a package name and an exact version (e.g. `pkg@x.y.z`), pnpm will attempt to apply the patch to that exact version only, failure will
+  cause pnpm to fail.
+
+  If there's only one version of `pkg` installed, `pnpm patch pkg` and subsequent `pnpm patch-commit $edit_dir` will create an entry named `pkg` in
+  `pnpm.patchedDependencies`. And pnpm will attempt to apply this patch to other versions of `pkg` in the future.
+
+  If there's multiple versions of `pkg` installed, `pnpm patch pkg` will ask which version to edit and whether to attempt to apply the patch to all.
+  If the user chooses to apply the patch to all, `pnpm patch-commit $edit_dir` would create a `pkg` entry in `pnpm.patchedDependencies`.
+  If the user chooses not to apply the patch to all, `pnpm patch-commit $edit_dir` would create a `pkg@x.y.z` entry in `pnpm.patchedDependencies` with
+  `x.y.z` being the version the user chose to edit.
+
+  If the user runs `pnpm patch pkg@x.y.z` with `x.y.z` being the exact version of `pkg` that has been installed, `pnpm patch-commit $edit_dir` will always
+  create a `pkg@x.y.z` entry in `pnpm.patchedDependencies`.
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/patching.config@1.0.0
+  - @pnpm/patching.types@1.0.0
+  - @pnpm/types@12.0.0
+  - @pnpm/lockfile.fs@1.0.1
+  - @pnpm/lockfile.utils@1.0.1
+  - @pnpm/package-is-installable@9.0.6
+  - @pnpm/core-loggers@10.0.5
+  - @pnpm/dependency-path@5.1.4
+  - @pnpm/modules-yaml@13.1.5
+  - @pnpm/store-controller-types@18.1.4
+
+## 1.1.9
+
+### Patch Changes
+
+- Updated dependencies [c5ef9b0]
+- Updated dependencies [8055a30]
+  - @pnpm/lockfile.utils@1.0.0
+  - @pnpm/lockfile.fs@1.0.0
+
+## 1.1.8
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/package-is-installable@9.0.5
+  - @pnpm/lockfile-file@9.1.3
+  - @pnpm/lockfile-utils@11.0.4
+  - @pnpm/core-loggers@10.0.4
+  - @pnpm/dependency-path@5.1.3
+  - @pnpm/modules-yaml@13.1.4
+  - @pnpm/store-controller-types@18.1.3
+
+## 1.1.7
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/types@11.0.0
+  - @pnpm/lockfile-utils@11.0.3
+  - @pnpm/store-controller-types@18.1.2
+  - @pnpm/package-is-installable@9.0.4
+  - @pnpm/lockfile-file@9.1.2
+  - @pnpm/core-loggers@10.0.3
+  - @pnpm/dependency-path@5.1.2
+  - @pnpm/modules-yaml@13.1.3
+
+## 1.1.6
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+  - @pnpm/package-is-installable@9.0.3
+  - @pnpm/lockfile-file@9.1.1
+  - @pnpm/lockfile-utils@11.0.2
+  - @pnpm/core-loggers@10.0.2
+  - @pnpm/dependency-path@5.1.1
+  - @pnpm/modules-yaml@13.1.2
+  - @pnpm/store-controller-types@18.1.1
+
+## 1.1.5
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/dependency-path@5.1.0
+  - @pnpm/lockfile-file@9.1.0
+  - @pnpm/lockfile-utils@11.0.1
+
+## 1.1.4
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+  - @pnpm/store-controller-types@18.1.0
+
+## 1.1.3
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+- Updated dependencies
+  - @pnpm/types@10.1.0
+  - @pnpm/lockfile-utils@11.0.0
+  - @pnpm/dependency-path@5.0.0
+  - @pnpm/package-is-installable@9.0.2
+  - @pnpm/lockfile-file@9.0.6
+  - @pnpm/core-loggers@10.0.1
+  - @pnpm/modules-yaml@13.1.1
+  - @pnpm/store-controller-types@18.0.1
+
+## 1.1.2
+
+### Patch Changes
+
+- @pnpm/package-is-installable@9.0.1
+- @pnpm/lockfile-file@9.0.5
+
+## 1.1.1
+
+### Patch Changes
+
+- Updated dependencies [7a0536e]
+  - @pnpm/lockfile-utils@10.1.1
+  - @pnpm/lockfile-file@9.0.4
+
+## 1.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/dependency-path@4.0.0
+  - @pnpm/modules-yaml@13.1.0
+  - @pnpm/lockfile-utils@10.1.0
+  - @pnpm/lockfile-file@9.0.3
+
+## 1.0.3
+
+### Patch Changes
+
+- Updated dependencies [c969f37]
+  - @pnpm/lockfile-file@9.0.2
+
+## 1.0.2
+
+### Patch Changes
+
+- Updated dependencies [2cbf7b7]
+- Updated dependencies [6b6ca69]
+  - @pnpm/lockfile-file@9.0.1
+
+## 1.0.1
+
+### Patch Changes
+
+- b7d2ed4: The `engines.pnpm` field in the `package.json` files of dependencies should be ignored [#7965](https://github.com/pnpm/pnpm/issues/7965).
+
+## 1.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Minor Changes
+
+- cdd8365: Package ID does not contain the registry domain.
+- 730929e: Add a field named `ignoredOptionalDependencies`. This is an array of strings. If an optional dependency has its name included in this array, it will be skipped.
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [cdd8365]
+- Updated dependencies [c692f80]
+- Updated dependencies [89b396b]
+- Updated dependencies [43cdd87]
+- Updated dependencies [086b69c]
+- Updated dependencies [d381a60]
+- Updated dependencies [f67ad31]
+- Updated dependencies [730929e]
+- Updated dependencies [98a1266]
+  - @pnpm/types@10.0.0
+  - @pnpm/dependency-path@3.0.0
+  - @pnpm/lockfile-utils@10.0.0
+  - @pnpm/constants@8.0.0
+  - @pnpm/package-is-installable@9.0.0
+  - @pnpm/store-controller-types@18.0.0
+  - @pnpm/modules-yaml@13.0.0
+  - @pnpm/lockfile-file@9.0.0
+  - @pnpm/core-loggers@10.0.0
+
+## 0.2.8
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+  - @pnpm/store-controller-types@17.2.0
+  - @pnpm/lockfile-utils@9.0.5
+
+## 0.2.7
+
+### Patch Changes
+
+- Updated dependencies [d349bc3a2]
+  - @pnpm/modules-yaml@12.1.7
+
+## 0.2.6
+
+### Patch Changes
+
+- Updated dependencies [4d34684f1]
+  - @pnpm/types@9.4.2
+  - @pnpm/lockfile-file@8.1.6
+  - @pnpm/lockfile-utils@9.0.4
+  - @pnpm/package-is-installable@8.1.2
+  - @pnpm/core-loggers@9.0.6
+  - @pnpm/dependency-path@2.1.7
+  - @pnpm/modules-yaml@12.1.6
+  - @pnpm/store-controller-types@17.1.4
+
+## 0.2.5
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+  - @pnpm/lockfile-file@8.1.5
+  - @pnpm/lockfile-utils@9.0.3
+  - @pnpm/package-is-installable@8.1.1
+  - @pnpm/core-loggers@9.0.5
+  - @pnpm/dependency-path@2.1.6
+  - @pnpm/modules-yaml@12.1.5
+  - @pnpm/store-controller-types@17.1.3
+
+## 0.2.4
+
+### Patch Changes
+
+- Updated dependencies [d5a176af7]
+  - @pnpm/lockfile-utils@9.0.2
+
+## 0.2.3
+
+### Patch Changes
+
+- Updated dependencies [b4194fe52]
+  - @pnpm/lockfile-utils@9.0.1
+
+## 0.2.2
+
+### Patch Changes
+
+- fe1f0f734: Fixed a performance regression on running installation on a project with an up to date lockfile [#7297](https://github.com/pnpm/pnpm/issues/7297).
+- Updated dependencies [291607c5a]
+  - @pnpm/store-controller-types@17.1.2
+
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies [4c2450208]
+- Updated dependencies [7ea45afbe]
+  - @pnpm/lockfile-utils@9.0.0
+  - @pnpm/store-controller-types@17.1.1
+
+## 0.2.0
+
+### Minor Changes
+
+- 43ce9e4a6: Support for multiple architectures when installing dependencies [#5965](https://github.com/pnpm/pnpm/issues/5965).
+
+  You can now specify architectures for which you'd like to install optional dependencies, even if they don't match the architecture of the system running the install. Use the `supportedArchitectures` field in `package.json` to define your preferences.
+
+  For example, the following configuration tells pnpm to install optional dependencies for Windows x64:
+
+  ```json
+  {
+    "pnpm": {
+      "supportedArchitectures": {
+        "os": ["win32"],
+        "cpu": ["x64"]
+      }
+    }
+  }
+  ```
+
+  Whereas this configuration will have pnpm install optional dependencies for Windows, macOS, and the architecture of the system currently running the install. It includes artifacts for both x64 and arm64 CPUs:
+
+  ```json
+  {
+    "pnpm": {
+      "supportedArchitectures": {
+        "os": ["win32", "darwin", "current"],
+        "cpu": ["x64", "arm64"]
+      }
+    }
+  }
+  ```
+
+  Additionally, `supportedArchitectures` also supports specifying the `libc` of the system.
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+  - @pnpm/package-is-installable@8.1.0
+  - @pnpm/store-controller-types@17.1.0
+  - @pnpm/types@9.4.0
+  - @pnpm/lockfile-file@8.1.4
+  - @pnpm/lockfile-utils@8.0.7
+  - @pnpm/core-loggers@9.0.4
+  - @pnpm/dependency-path@2.1.5
+  - @pnpm/modules-yaml@12.1.4
+
+## 0.1.5
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+  - @pnpm/types@9.3.0
+  - @pnpm/package-is-installable@8.0.5
+  - @pnpm/lockfile-file@8.1.3
+  - @pnpm/lockfile-utils@8.0.6
+  - @pnpm/core-loggers@9.0.3
+  - @pnpm/dependency-path@2.1.4
+  - @pnpm/modules-yaml@12.1.3
+  - @pnpm/store-controller-types@17.0.1
+
+## 0.1.4
+
+### Patch Changes
+
+- Updated dependencies [f394cfccd]
+  - @pnpm/lockfile-utils@8.0.5
+
+## 0.1.3
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+- Updated dependencies [9caa33d53]
+  - @pnpm/store-controller-types@17.0.0
+
+## 0.1.2
+
+### Patch Changes
+
+- Updated dependencies [03cdccc6e]
+  - @pnpm/store-controller-types@16.1.0
+
+## 0.1.1
+
+### Patch Changes
+
+- @pnpm/store-controller-types@16.0.1
+
+## 0.1.0
+
+### Minor Changes
+
+- 494f87544: Breaking changes to the API.
+
+### Patch Changes
+
+- Updated dependencies [494f87544]
+- Updated dependencies [e9aa6f682]
+  - @pnpm/store-controller-types@16.0.0
+  - @pnpm/lockfile-utils@8.0.4
+
+## 0.0.1
+
+### Patch Changes
+
+- Updated dependencies [aa2ae8fe2]
+  - @pnpm/types@9.2.0
+  - @pnpm/package-is-installable@8.0.4
+  - @pnpm/lockfile-file@8.1.2
+  - @pnpm/lockfile-utils@8.0.3
+  - @pnpm/core-loggers@9.0.2
+  - @pnpm/dependency-path@2.1.3
+  - @pnpm/modules-yaml@12.1.2
+  - @pnpm/store-controller-types@15.0.2

@@ -1,8 +1,10 @@
 use crate::{State, cli_args::supported_architectures::SupportedArchitecturesArgs};
 use clap::Args;
 use miette::Context;
+use pacquet_config::Config;
 use pacquet_package_manager::Update;
 use pacquet_package_manifest::DependencyGroup;
+use pacquet_registry::PinnedVersion;
 use pacquet_reporter::Reporter;
 
 /// `--prod` / `--dev` / `--no-optional` for `pacquet update`.
@@ -10,9 +12,7 @@ use pacquet_reporter::Reporter;
 /// Ports pnpm's
 /// [`makeIncludeDependenciesFromCLI`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/commands/src/update/index.ts#L330-L340),
 /// which reads the *raw* CLI flags (not the rc-merged config) so an
-/// absent flag is `undefined` rather than a default. The quirk that
-/// `--no-optional` only excludes `optionalDependencies` when combined
-/// with `--prod` or `--dev` is preserved verbatim.
+/// absent flag is `undefined` rather than a default.
 #[derive(Debug, Args)]
 pub struct UpdateDependencyOptions {
     /// Update packages only in "dependencies" and "optionalDependencies".
@@ -109,20 +109,14 @@ pub struct UpdateArgs {
 }
 
 impl UpdateArgs {
-    /// Execute the subcommand.
     pub async fn run<Reporter: self::Reporter + 'static>(
         self,
         mut state: State,
     ) -> miette::Result<()> {
-        // Global and workspace-link updates depend on subsystems pacquet
-        // hasn't ported yet (global-dir / `@pnpm/global.commands`, and
-        // workspace version linking). Refuse rather than silently doing
-        // a plain update.
-        if self.global {
-            return Err(miette::miette!(
-                "`pacquet update --global` is not supported yet; global package management has not been ported to pacquet."
-            ));
-        }
+        // Workspace-link updates depend on workspace-protocol version
+        // linking, which pacquet hasn't ported yet. Refuse rather than
+        // silently doing a plain update. (`--global` is routed to
+        // [`Self::run_global`] before `run` is reached.)
         if self.workspace {
             return Err(miette::miette!(
                 "`pacquet update --workspace` is not supported yet; workspace-protocol version linking has not been ported to pacquet."
@@ -131,6 +125,8 @@ impl UpdateArgs {
 
         let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
             &mut state;
+        let lockfile =
+            lockfile.get().map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
 
         let supported_architectures =
             self.supported_architectures.apply_to(config.supported_architectures.clone());
@@ -143,7 +139,7 @@ impl UpdateArgs {
         let packages = if self.interactive {
             match crate::cli_args::update_interactive::select_packages(
                 manifest,
-                lockfile.as_ref(),
+                lockfile,
                 config,
                 http_client,
                 self.latest,
@@ -168,7 +164,7 @@ impl UpdateArgs {
             http_client_arc: std::sync::Arc::clone(http_client),
             config,
             manifest,
-            lockfile: lockfile.as_ref(),
+            lockfile,
             lockfile_path: lockfile_path.as_deref(),
             packages: &packages,
             latest: self.latest,
@@ -178,10 +174,41 @@ impl UpdateArgs {
             depth: self.depth.unwrap_or(usize::MAX),
             supported_architectures,
             lockfile_only: self.lockfile_only,
+            resolution_observer: None,
         }
         .run::<Reporter>()
         .await
         .wrap_err("updating dependencies")
+    }
+
+    /// `pnpm update -g`: reinstall each matching global package group,
+    /// within its existing range or (with `--latest`) to the newest
+    /// version. Delegates to [`crate::cli_args::global::handle_global_update`].
+    pub async fn run_global<Reporter: self::Reporter + 'static>(
+        self,
+        config: &'static Config,
+    ) -> miette::Result<()> {
+        if self.workspace {
+            return Err(miette::miette!(
+                "`pacquet update --workspace` is not supported yet; workspace-protocol version linking has not been ported to pacquet."
+            ));
+        }
+        if self.interactive {
+            return Err(miette::miette!(
+                "`pacquet update --global --interactive` is not supported yet; interactive selection for global updates has not been ported to pacquet."
+            ));
+        }
+        let supported_architectures =
+            self.supported_architectures.apply_to(config.supported_architectures.clone());
+        let pinned_version = PinnedVersion::from_save_options(self.save_exact, None);
+        Box::pin(crate::cli_args::global::handle_global_update::<Reporter>(
+            config,
+            &self.packages,
+            self.latest,
+            pinned_version,
+            supported_architectures,
+        ))
+        .await
     }
 }
 

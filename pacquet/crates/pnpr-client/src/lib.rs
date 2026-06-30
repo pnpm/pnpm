@@ -1,6 +1,6 @@
 //! Client for pnpr's server-side resolver.
 //!
-//! Given a set of dependencies, it `POST`s them to `/v1/resolve`, where
+//! Given a set of dependencies, it `POST`s them to `/-/pnpr/v0/resolve`, where
 //! the server resolves against the client's registries, verifies the
 //! input lockfile under the client's policy, and streams the result back
 //! as NDJSON: one `package` frame per resolved tarball as the server's
@@ -11,8 +11,11 @@
 //! then fetches the rest in parallel like a normal install
 //! ([pnpm/pnpm#12230](https://github.com/pnpm/pnpm/issues/12230)).
 //!
-//! pnpr is a stateless resolver: it stores no tarballs and serves no file
-//! content.
+//! The resolver itself is stateless — it materializes no store and the
+//! `/resolve` endpoint persists no tarballs. Resolved tarballs are fetched
+//! from upstream public URLs or, for a private proxied route, an uplink's
+//! `/~<uplink>/` registry endpoint (which may cache them server-side under
+//! its own private namespace).
 
 use std::collections::BTreeMap;
 
@@ -45,13 +48,10 @@ pub struct ResolveOptions {
     pub registry: String,
     /// The client's named-registry aliases.
     pub named_registries: DepMap,
-    /// The caller's forwarded upstream credentials, keyed by nerf-darted
-    /// registry URI, so the server resolves private content as the
-    /// caller. Distinct from [`Self::authorization`] (pnpr identity).
-    pub auth_headers: DepMap,
     /// `Authorization` for the pnpr server's own URL (`None` if it needs
-    /// none): identifies the caller to pnpr. Distinct from the upstream
-    /// creds in [`Self::auth_headers`].
+    /// none): identifies the caller to pnpr. The client never forwards its
+    /// own registry credentials — pnpr selects upstream credentials from
+    /// its route policy, so none are placed in the request body.
     pub authorization: Option<String>,
     /// The client's `overrides` (selector -> spec) as raw JSON, applied
     /// at resolve time server-side.
@@ -82,13 +82,12 @@ pub struct ResolveOptions {
     pub trust_policy_ignore_after: Option<u64>,
 }
 
-/// Inputs for `/v1/verify-lockfile`, the resolution-free trust verdict
+/// Inputs for `/-/pnpr/v0/verify-lockfile`, the resolution-free trust verdict
 /// used by frozen restores that already know the local lockfile is fresh.
 #[derive(Clone)]
 pub struct VerifyLockfileOptions {
     pub registry: String,
     pub named_registries: DepMap,
-    pub auth_headers: DepMap,
     pub authorization: Option<String>,
     pub overrides: Option<serde_json::Value>,
     pub lockfile: Lockfile,
@@ -107,7 +106,6 @@ impl VerifyLockfileOptions {
         Some(Self {
             registry: opts.registry.clone(),
             named_registries: opts.named_registries.clone(),
-            auth_headers: opts.auth_headers.clone(),
             authorization: opts.authorization.clone(),
             overrides: opts.overrides.clone(),
             lockfile: opts.lockfile.clone()?,
@@ -188,8 +186,8 @@ pub enum PnprClientError {
 }
 
 /// Protocol version this client speaks. The server advertises the
-/// versions it supports at `GET /-/pnpr`; today only v1 exists.
-const PROTOCOL_VERSION: u32 = 1;
+/// versions it supports at `GET /-/pnpr`; today only v0 exists.
+const PROTOCOL_VERSION: u32 = 0;
 
 #[derive(Default, Deserialize)]
 struct HandshakeResponse {
@@ -235,10 +233,8 @@ impl PnprClient {
     }
 
     /// Resolve a single project against the server and return the
-    /// resolved lockfile, ignoring the streamed per-package frames. The
-    /// server serves no file content — the caller fetches every tarball
-    /// itself. Equivalent to [`Self::resolve_streaming`] with a no-op
-    /// callback.
+    /// resolved lockfile, ignoring the streamed per-package frames.
+    /// Equivalent to [`Self::resolve_streaming`] with a no-op callback.
     pub async fn resolve(&self, opts: ResolveOptions) -> Result<ResolveOutcome, PnprClientError> {
         self.resolve_streaming(opts, |_| {}).await
     }
@@ -253,7 +249,6 @@ impl PnprClient {
         let request = serde_json::json!({
             "registry": opts.registry,
             "namedRegistries": opts.named_registries,
-            "authHeaders": opts.auth_headers,
             "overrides": opts.overrides,
             "lockfile": opts.lockfile,
             "trustLockfile": opts.trust_lockfile,
@@ -266,7 +261,7 @@ impl PnprClient {
         });
 
         let mut post =
-            self.http.post(format!("{}v1/verify-lockfile", self.base_url)).json(&request);
+            self.http.post(format!("{}-/pnpr/v0/verify-lockfile", self.base_url)).json(&request);
         if let Some(authorization) = opts.authorization.as_deref() {
             post = post.header("authorization", authorization);
         }
@@ -275,7 +270,7 @@ impl PnprClient {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
             return Err(PnprClientError::Server(format!(
-                "/v1/verify-lockfile returned {status}: {body}",
+                "/-/pnpr/v0/verify-lockfile returned {status}: {body}",
             )));
         }
 
@@ -302,7 +297,7 @@ impl PnprClient {
         }
 
         Err(PnprClientError::Protocol(
-            "/v1/verify-lockfile stream ended without a terminal frame".to_string(),
+            "/-/pnpr/v0/verify-lockfile stream ended without a terminal frame".to_string(),
         ))
     }
 
@@ -325,7 +320,6 @@ impl PnprClient {
             }],
             "registry": opts.registry,
             "namedRegistries": opts.named_registries,
-            "authHeaders": opts.auth_headers,
             "overrides": opts.overrides,
             "lockfile": opts.lockfile,
             "frozenLockfile": opts.frozen_lockfile,
@@ -340,7 +334,7 @@ impl PnprClient {
             "trustPolicyIgnoreAfter": opts.trust_policy_ignore_after,
         });
 
-        let mut post = self.http.post(format!("{}v1/resolve", self.base_url)).json(&request);
+        let mut post = self.http.post(format!("{}-/pnpr/v0/resolve", self.base_url)).json(&request);
         if let Some(authorization) = opts.authorization.as_deref() {
             post = post.header("authorization", authorization);
         }
@@ -348,7 +342,9 @@ impl PnprClient {
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await.unwrap_or_default();
-            return Err(PnprClientError::Server(format!("/v1/resolve returned {status}: {body}")));
+            return Err(PnprClientError::Server(format!(
+                "/-/pnpr/v0/resolve returned {status}: {body}",
+            )));
         }
 
         // Consume the NDJSON stream line by line. `package` frames feed
@@ -397,7 +393,7 @@ impl PnprClient {
             }
         }
         Err(PnprClientError::Protocol(
-            "/v1/resolve stream ended without a terminal frame".to_string(),
+            "/-/pnpr/v0/resolve stream ended without a terminal frame".to_string(),
         ))
     }
 }
@@ -410,7 +406,7 @@ fn parse_verify_frame(line: &[u8]) -> Result<VerifyFrame, PnprClientError> {
     serde_json::from_slice(line).map_err(|err| PnprClientError::Protocol(err.to_string()))
 }
 
-/// One NDJSON frame from `/v1/resolve`. `package` frames stream as the
+/// One NDJSON frame from `/-/pnpr/v0/resolve`. `package` frames stream as the
 /// server resolves; exactly one terminal frame (`done` / `error` /
 /// `violations`) closes the response.
 #[derive(Deserialize)]
@@ -422,9 +418,6 @@ enum Frame {
         version: String,
         integrity: String,
         tarball: String,
-        /// Absent from frames sent by servers that predate the field
-        /// and for packages whose registry never published a
-        /// `dist.unpackedSize`.
         #[serde(rename = "unpackedSize", default)]
         unpacked_size: Option<usize>,
         #[serde(rename = "fileCount", default)]

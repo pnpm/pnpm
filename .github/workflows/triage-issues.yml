@@ -1,0 +1,69 @@
+name: Triage New Issues
+
+# Runs an Oz cloud agent with the repo's "triage" skill whenever a new issue is
+# opened, classifying it into exactly one implementation-readiness state and
+# applying the matching pnpm `state:` label.
+#
+# Setup:
+#   - The WARP_API_KEY repository secret must hold a team-scoped Oz API key.
+#   - The Oz by Warp GitHub App must have access to this repository and the org
+#     must be enabled in Warp's Admin Panel.
+#   - The triage skill lives at .agents/skills/triage/ and is resolved by the
+#     action's `skill` input below.
+
+on:
+  issues:
+    types: [opened]
+
+# Avoid duplicate triage runs if the same issue fires overlapping events.
+concurrency:
+  group: triage-issue-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  triage:
+    name: Triage issue
+    runs-on: ubuntu-latest
+    # Skip automated issues (Renovate, Dependabot, bots) — they are not user
+    # reports and each triage run consumes Warp credits.
+    if: github.event.issue.user.type != 'Bot'
+    permissions:
+      contents: read   # let the agent inspect the checked-out codebase
+      issues: write     # let the agent apply labels and comment
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Triage with Oz agent
+        uses: warpdotdev/oz-agent-action@501d24fbf4d1447e8db60eb0973eeadeb5ff54c2 # v1.0.19
+        id: triage
+        env:
+          # Authenticates the `gh` CLI the agent uses to read/label/comment.
+          GH_TOKEN: ${{ github.token }}
+        with:
+          # Uses .agents/skills/triage/SKILL.md as the base prompt.
+          skill: triage
+          name: "Triage issue #${{ github.event.issue.number }}"
+          # Only inject GitHub-generated, non-freeform values to avoid prompt
+          # injection; the agent fetches title/body/comments itself via `gh`.
+          prompt: |
+            Triage the GitHub issue that was just opened in this repository.
+
+            - Repository: ${{ github.repository }}
+            - Issue number: #${{ github.event.issue.number }}
+            - Issue URL: ${{ github.event.issue.html_url }}
+
+            Follow the triage skill: use the `gh` CLI to fetch the full issue
+            (title, body, comments, existing labels) and related open issues,
+            inspect this checked-out codebase, then choose exactly one
+            implementation-readiness state and apply the matching pnpm `state:`
+            label as defined in the skill's pnpm label mapping. Post status
+            comments as directed by the triage skill, using only an Oz run or Oz
+            session URL as the follow-along link. Do not use the GitHub Actions
+            workflow URL as the follow-along link. After labeling, post your
+            triage result as a comment on the issue using
+            `gh issue comment #${{ github.event.issue.number }}`.
+          warp_api_key: ${{ secrets.WARP_API_KEY }}
+          profile: ${{ vars.WARP_AGENT_PROFILE || '' }}

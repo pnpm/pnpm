@@ -1,4 +1,4 @@
-use super::parse_update_param;
+use super::{is_workspace_local_path_specifier, parse_update_param};
 
 #[test]
 fn parses_bare_name_without_version() {
@@ -37,8 +37,6 @@ fn wildcard_pattern_without_version() {
 
 #[test]
 fn negated_scoped_pattern_is_not_split_on_scope_at() {
-    // The `@` after `!` is the scope marker, not a version separator —
-    // pnpm searches for `@` starting at index 2 for `!`-negated params.
     let parsed = parse_update_param("!@pnpm.e2e/peer-*");
     assert_eq!(parsed.pattern, "!@pnpm.e2e/peer-*");
     assert_eq!(parsed.version, None);
@@ -49,4 +47,35 @@ fn negated_unscoped_pattern_without_version() {
     let parsed = parse_update_param("!foo");
     assert_eq!(parsed.pattern, "!foo");
     assert_eq!(parsed.version, None);
+}
+
+#[test]
+fn workspace_local_path_specifiers_are_detected() {
+    for spec in [
+        "workspace:.",
+        "workspace:./packages/foo",
+        "workspace:../packages/foo/dist",
+        "workspace:/abs/path",
+        "workspace:~/home/path",
+        r"workspace:C:\packages\foo",
+    ] {
+        assert!(is_workspace_local_path_specifier(spec), "expected {spec} to be a local path");
+    }
+}
+
+#[test]
+fn workspace_range_specifiers_are_not_local_paths() {
+    for spec in [
+        "workspace:*",
+        "workspace:^",
+        "workspace:~",
+        "workspace:^1.0.0",
+        "workspace:~1.2.3",
+        "workspace:1.0.0",
+        "workspace:alias@*",
+        "^1.0.0",
+        "link:../foo",
+    ] {
+        assert!(!is_workspace_local_path_specifier(spec), "expected {spec} not to be a local path");
+    }
 }

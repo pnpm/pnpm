@@ -7,11 +7,12 @@ use miette::Diagnostic;
 use pacquet_config::{Config, NodeLinker};
 use pacquet_directory_fetcher::DirectoryFetcherError;
 use pacquet_executor::ScriptsPrependNodePath as ExecScriptsPrependNodePath;
+use pacquet_fs::lexical_normalize;
 use pacquet_git_fetcher::{GitFetchOutput, GitFetcher, GitFetcherError, GitHostedTarballFetcher};
 use pacquet_graph_hasher::{host_arch, host_libc, host_platform};
 use pacquet_lockfile::{
-    BinaryArchive, BinaryResolution, BinarySpec, LockfileResolution, PackageKey, PackageMetadata,
-    PlatformSelector, SnapshotEntry, select_platform_variant,
+    BinaryArchive, BinaryResolution, BinarySpec, DirectoryResolution, LockfileResolution,
+    PackageKey, PackageMetadata, PlatformSelector, SnapshotEntry, select_platform_variant,
 };
 use pacquet_network::ThrottledClient;
 use pacquet_reporter::{LogEvent, LogLevel, ProgressLog, ProgressMessage, Reporter};
@@ -294,6 +295,7 @@ impl InstallPackageBySnapshot<'_> {
             LockfileResolution::Tarball(_) | LockfileResolution::Registry(_) => {
                 let (tarball_url, integrity) =
                     tarball_url_and_integrity(&metadata.resolution, package_key, config)?;
+                let tarball_url = local_file_tarball_install_url(tarball_url, self.workspace_root);
                 let download = DownloadTarballToStore {
                     http_client,
                     store_dir: &config.store_dir,
@@ -343,10 +345,6 @@ impl InstallPackageBySnapshot<'_> {
                         // the shared download failed.
                         match download.clone().run_with_mem_cache::<Reporter>(mem_cache).await {
                             Ok(cas_paths) => Ok((*cas_paths).clone()),
-                            // The prefetch is best-effort: if the sibling
-                            // download for this URL failed (transient
-                            // network, etc.), do our own retried fetch
-                            // rather than inheriting the failure.
                             Err(TarballError::SiblingFetchFailed { .. }) => {
                                 download.run_without_mem_cache::<Reporter>().await
                             }
@@ -368,19 +366,19 @@ impl InstallPackageBySnapshot<'_> {
                 if let LockfileResolution::Tarball(t) = &metadata.resolution
                     && t.git_hosted == Some(true)
                 {
-                    // `built = true` matches the dispatcher's default
-                    // (`ignore_scripts: false` everywhere). When
-                    // pacquet adds a configurable ignore-scripts mode
-                    // this `true` flips to `!ignore_scripts`, in lock-
-                    // step with the key shape `snapshot_cache_key`
-                    // produces — otherwise the prefetch and the write
-                    // would address different slots.
-                    let files_index_file = git_hosted_store_index_key(&package_id, true);
+                    // `built` tracks `!ignore_scripts`, in lock-step
+                    // with the key shape `snapshot_cache_key` produces —
+                    // otherwise the prefetch and the write would address
+                    // different slots. Under `--ignore-scripts` the
+                    // git-hosted `prepare` is suppressed too, matching
+                    // pnpm's `ignoreScripts`.
+                    let built = !config.ignore_scripts;
+                    let files_index_file = git_hosted_store_index_key(&package_id, built);
                     let GitFetchOutput { cas_paths, built: _built } = GitHostedTarballFetcher {
                         cas_paths: raw_cas_paths,
                         path: t.path.as_deref(),
                         allow_build: &allow_build_closure,
-                        ignore_scripts: false,
+                        ignore_scripts: config.ignore_scripts,
                         unsafe_perm: config.unsafe_perm,
                         user_agent: None,
                         scripts_prepend_node_path,
@@ -423,20 +421,8 @@ impl InstallPackageBySnapshot<'_> {
                 // follow-up; see the `resolveSymlinksInInjectedDirs`
                 // / `includeOnlyPackageFiles` plumbing tracked in the
                 // directory-fetcher PR description.
-                let directory = workspace_root.join(&dir_resolution.directory);
-                let output = pacquet_directory_fetcher::DirectoryFetcher {
-                    directory,
-                    include_only_package_files: false,
-                    resolve_symlinks: false,
-                }
-                .run()
-                .map_err(InstallPackageBySnapshotError::DirectoryFetch)?;
-                output.files_map
+                fetch_directory_resolution(workspace_root, dir_resolution)?
             }
-            // Slice A of <https://github.com/pnpm/pacquet/issues/437> wires the lockfile types; the install
-            // dispatch for `Binary` / `Variations` lands in Slice D.
-            // Until then, surface the kind via the typed
-            // `UnsupportedResolution` error so a v11 lockfile with a
             // Runtime artifacts (Node.js / Bun / Deno) — `Binary`
             // and `Variations` carry a `BinaryResolution` describing
             // the archive to fetch. `Variations` is the multi-
@@ -515,17 +501,18 @@ impl InstallPackageBySnapshot<'_> {
                 .await?
             }
             LockfileResolution::Git(git_resolution) => {
-                // Same `built = true` rationale as the git-hosted
-                // tarball branch above — key shape stays in lock-step
-                // with `snapshot_cache_key`.
-                let files_index_file = git_hosted_store_index_key(&package_id, true);
+                // Same `built = !ignore_scripts` rationale as the
+                // git-hosted tarball branch above — key shape stays in
+                // lock-step with `snapshot_cache_key`.
+                let built = !config.ignore_scripts;
+                let files_index_file = git_hosted_store_index_key(&package_id, built);
                 let GitFetchOutput { cas_paths, built: _built } = GitFetcher {
                     repo: &git_resolution.repo,
                     commit: &git_resolution.commit,
                     path: git_resolution.path.as_deref(),
                     git_shallow_hosts: &config.git_shallow_hosts,
                     allow_build: &allow_build_closure,
-                    ignore_scripts: false,
+                    ignore_scripts: config.ignore_scripts,
                     unsafe_perm: config.unsafe_perm,
                     user_agent: None,
                     scripts_prepend_node_path,
@@ -566,6 +553,10 @@ impl InstallPackageBySnapshot<'_> {
                 package_key,
                 snapshot,
                 skipped,
+                // The non-deferred slot link runs only on the fresh
+                // single-package path (no previous install to diff
+                // against), so there are never obsolete children here.
+                removed_aliases: &[],
                 #[cfg(test)]
                 link_concurrency_probe,
             }
@@ -575,6 +566,35 @@ impl InstallPackageBySnapshot<'_> {
 
         Ok(cas_paths)
     }
+}
+
+fn fetch_directory_resolution(
+    workspace_root: &Path,
+    dir_resolution: &DirectoryResolution,
+) -> Result<HashMap<String, PathBuf>, InstallPackageBySnapshotError> {
+    let directory = workspace_root.join(&dir_resolution.directory);
+    let output = pacquet_directory_fetcher::DirectoryFetcher {
+        directory,
+        include_only_package_files: false,
+        resolve_symlinks: false,
+        allow_path_escape: false,
+    }
+    .run()
+    .map_err(InstallPackageBySnapshotError::DirectoryFetch)?;
+    Ok(output.files_map)
+}
+
+fn local_file_tarball_install_url<'a>(
+    tarball_url: Cow<'a, str>,
+    workspace_root: &Path,
+) -> Cow<'a, str> {
+    let Some(path) = tarball_url.strip_prefix("file:") else {
+        return tarball_url;
+    };
+    if path.starts_with("//") || Path::new(path).is_absolute() {
+        return tarball_url;
+    }
+    Cow::Owned(format!("file:{}", lexical_normalize(&workspace_root.join(path)).display()))
 }
 
 /// Resolve the tarball URL + integrity for tarball- and registry-shaped
@@ -633,10 +653,9 @@ pub fn tarball_url_and_integrity<'a>(
 /// dispatch site: `{ os: process.platform, cpu: process.arch, libc:
 /// process.platform === 'linux' ? family : null }`.
 ///
-/// `host_libc()` returns `"unknown"` on every non-Linux host and
-/// `"glibc"` / `"musl"` on Linux. Translate `"unknown"` to `None`
-/// so [`select_platform_variant`]'s asymmetric libc rule applies
-/// the same way upstream's does: `None` and `Some("glibc")` both
+/// Translating `host_libc()`'s `"unknown"` to `None` lets
+/// [`select_platform_variant`]'s asymmetric libc rule apply the
+/// same way upstream's does: `None` and `Some("glibc")` both
 /// require the variant to omit `libc`, and `Some("musl")` requires
 /// an exact match.
 pub(crate) fn host_platform_selector() -> PlatformSelector {
@@ -660,14 +679,8 @@ pub(crate) fn host_platform_selector() -> PlatformSelector {
 ///
 /// Pacquet uses a hand-coded matcher rather than the upstream regex
 /// so [`pacquet_tarball`] doesn't have to pull in a regex engine.
-/// The three branches below mirror the regex alternation exactly;
-/// every path the regex matches is matched here, and nothing else.
 fn node_extras_filter(path: &str) -> bool {
     // ^(?:(?:lib/)?node_modules/(?:npm|corepack)(?:/|$))
-    //
-    // Strip an optional leading `lib/` so the `lib/node_modules/...`
-    // and `node_modules/...` shapes converge into one check; the
-    // `node_modules/` prefix is mandatory after the optional `lib/`.
     let after_lib = path.strip_prefix("lib/").unwrap_or(path);
     if let Some(rest) = after_lib.strip_prefix("node_modules/") {
         for name in ["npm", "corepack"] {
@@ -677,10 +690,6 @@ fn node_extras_filter(path: &str) -> bool {
         }
     }
     // ^bin/(?:npm|npx|corepack)$
-    //
-    // The `$` anchors the regex to an exact match — `bin/npm/foo`
-    // doesn't trip this arm (and the `node_modules` arm above
-    // wouldn't catch it either since it doesn't start with `bin/`).
     if let Some(rest) = path.strip_prefix("bin/")
         && matches!(rest, "npm" | "npx" | "corepack")
     {
@@ -688,8 +697,7 @@ fn node_extras_filter(path: &str) -> bool {
     }
     // ^(?:npm|npx|corepack)(?:\.(?:cmd|ps1))?$
     //
-    // Top-level shim files; `.cmd` / `.ps1` cover Windows. Note
-    // these are *not* under `bin/` — they live at the runtime
+    // These are *not* under `bin/` — they live at the runtime
     // archive root after the `node-vX.Y.Z-<platform>-<arch>/`
     // prefix strip.
     for name in ["npm", "npx", "corepack"] {
@@ -707,13 +715,9 @@ fn node_extras_filter(path: &str) -> bool {
 }
 
 /// Build the per-fetch [`IgnoreEntryFilter`] for the package being
-/// installed. Returns `Some(NODE_EXTRAS_IGNORE_PATTERN)` for
-/// unscoped `node` (matching upstream's
-/// [`archiveFilters: { node: NODE_EXTRAS_IGNORE_PATTERN }`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/client/src/index.ts)
-/// keyed by `pkg.name`); everything else returns `None` and the
-/// full archive contents land in the CAS unfiltered.
+/// installed.
 ///
-/// The filter is cached in a [`std::sync::OnceLock`] so per-snapshot
+/// The filter is cached in a [`std::sync::LazyLock`] so per-snapshot
 /// `Arc::clone`s share one trait object — `IgnoreEntryFilter` is
 /// a `dyn Fn`, so cheap to clone, and we don't want to allocate
 /// the Arc once per runtime install.
@@ -721,8 +725,7 @@ fn archive_filter_for(package_key: &PackageKey) -> Option<Arc<IgnoreEntryFilter>
     if package_key.name.scope.is_some() || package_key.name.bare != "node" {
         return None;
     }
-    static FILTER: std::sync::OnceLock<Arc<IgnoreEntryFilter>> = std::sync::OnceLock::new();
-    let filter = FILTER.get_or_init(|| {
+    static FILTER: std::sync::LazyLock<Arc<IgnoreEntryFilter>> = std::sync::LazyLock::new(|| {
         // `fn(&str) -> bool` implements `Fn(&str) -> bool + Send +
         // Sync`, so an `Arc<fn(...)>` unsizes to
         // `Arc<dyn Fn(...) + Send + Sync>` (the trait-object type
@@ -731,7 +734,7 @@ fn archive_filter_for(package_key: &PackageKey) -> Option<Arc<IgnoreEntryFilter>
         let inner: Arc<IgnoreEntryFilter> = Arc::new(node_extras_filter);
         inner
     });
-    Some(Arc::clone(filter))
+    Some(Arc::clone(&FILTER))
 }
 
 /// Fetch a [`BinaryResolution`] into the CAS, returning the
@@ -746,12 +749,6 @@ fn archive_filter_for(package_key: &PackageKey) -> Option<Arc<IgnoreEntryFilter>
 ///   archive's top-level wrapper (e.g.
 ///   `node-v22.0.0-darwin-arm64/`) is stripped before the CAS keys
 ///   are written.
-///
-/// The Node-runtime `NODE_EXTRAS_IGNORE_PATTERN` filter that strips
-/// bundled `npm` / `corepack` from the archive will land in Slice
-/// D2; for now the filter slot stays `None` and the full archive
-/// contents are imported. Bin-link cmd-shims for the runtime
-/// executables likewise wait for Slice D2.
 #[expect(
     clippy::too_many_arguments,
     reason = "matches the field set DownloadTarballToStore / DownloadZipArchiveToStore need"
@@ -846,14 +843,8 @@ async fn fetch_binary_resolution_to_cas<Reporter: self::Reporter>(
     Ok(cas_paths)
 }
 
-/// Serialize the synthesized runtime `package.json` to bytes. Three
-/// fields, matching the upstream `appendManifest` shape:
-///
-/// - `name` — the package key's display form, scope-aware.
-/// - `version` — the bare semver string from the peer-stripped key.
-/// - `bin` — the lockfile-declared bins ([`BinarySpec`]). `Single`
-///   becomes a JSON string (pnpm's convention: one binary, named
-///   after the package), `Map` becomes a JSON object.
+/// Serialize the synthesized runtime `package.json` to bytes,
+/// matching the upstream `appendManifest` shape.
 ///
 /// `serde_json::to_vec` writes a single-line UTF-8 blob — same
 /// format upstream's worker thread emits. The bytes go straight
@@ -890,8 +881,7 @@ fn synthesize_runtime_manifest_bytes(
 
 /// Render a variant's target list as a human-readable string for
 /// inclusion in the [`InstallPackageBySnapshotError::NoMatchingPlatformVariant`]
-/// error. Each target is rendered as `os/cpu` or `os/cpu+libc`,
-/// joined with `, `.
+/// error.
 fn render_variant_targets(variants: &[pacquet_lockfile::PlatformAssetResolution]) -> String {
     let mut entries: Vec<String> = Vec::new();
     for variant in variants {

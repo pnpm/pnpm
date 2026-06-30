@@ -1,0 +1,49 @@
+{
+  "name": "@pnpm/fetching.fetcher-base",
+  "version": "1100.2.0",
+  "description": "Types for pnpm-compatible fetchers",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "fetcher"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm11/fetching/fetcher-base",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpm11/fetching/fetcher-base#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "start": "tsgo --watch",
+    "lint": "eslint \"src/**/*.ts\"",
+    "test": "pn compile",
+    "prepublishOnly": "tsgo --build",
+    "compile": "tsgo --build && pn lint --fix"
+  },
+  "dependencies": {
+    "@pnpm/resolving.resolver-base": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "@types/ssri": "catalog:"
+  },
+  "devDependencies": {
+    "@pnpm/fetching.fetcher-base": "workspace:*",
+    "@pnpm/store.cafs-types": "workspace:*"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

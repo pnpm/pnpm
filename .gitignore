@@ -57,9 +57,9 @@ RELEASE.md
 .pnpm-typecheck.json
 
 ## custom modules-dir fixture
-__fixtures__/custom-modules-dir/**/fake_modules/
-__fixtures__/custom-modules-dir/cache/
-__fixtures__/custom-modules-dir/patches/
+pnpm11/__fixtures__/custom-modules-dir/**/fake_modules/
+pnpm11/__fixtures__/custom-modules-dir/cache/
+pnpm11/__fixtures__/custom-modules-dir/patches/
 
 ## pacquet (Rust) artifacts
 /target

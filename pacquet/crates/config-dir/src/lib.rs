@@ -7,17 +7,6 @@ use std::path::{Path, PathBuf};
 ///
 /// Port of pnpm's
 /// [`getConfigDir`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/dirs.ts#L67-L86).
-/// Resolution order:
-///
-/// 1. `$XDG_CONFIG_HOME/<app_name>`;
-/// 2. Windows: `%LOCALAPPDATA%/<app_name>/config` (falling back to
-///    `~/.config/<app_name>` when `LOCALAPPDATA` is unset);
-/// 3. macOS: `~/Library/Preferences/<app_name>`;
-/// 4. other: `~/.config/<app_name>`.
-///
-/// Returns `None` only when the home directory is unavailable and the
-/// env vars that bypass it are unset — the caller treats that as "no
-/// global config."
 ///
 /// `os`, the env values, and `home` are passed in rather than read
 /// from the process so callers keep their own environment seam and

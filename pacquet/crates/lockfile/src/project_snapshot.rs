@@ -11,7 +11,7 @@ pub struct ProjectSnapshot {
     /// format does not carry a top-level `specifiers` map — each specifier is
     /// inlined next to its resolved version in the dependency blocks (see
     /// [`ResolvedDependencySpec`]) — so this field is never serialized. pnpm's
-    /// in-memory `ProjectSnapshot` keeps it for catalog-snapshot construction,
+    /// in-memory [`ProjectSnapshot`] keeps it for catalog-snapshot construction,
     /// and pacquet does the same; it also still deserializes from older
     /// lockfiles that recorded it.
     #[serde(default, skip_serializing)]

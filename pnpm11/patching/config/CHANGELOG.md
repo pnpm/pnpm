@@ -1,0 +1,235 @@
+# @pnpm/patching.config
+
+## 1100.0.9
+
+### Patch Changes
+
+- Updated dependencies [852d537]
+  - @pnpm/error@1100.0.1
+
+## 1100.0.8
+
+### Patch Changes
+
+- a31faa7: Updated dependency ranges. Notably:
+
+  - `@pnpm/logger` peer dependency range moved to `^1100.0.0`.
+  - `msgpackr` 1.11.8 → 2.0.4 (store index files remain byte-compatible in both directions).
+  - `open` ^7.4.2 → ^11.0.0, `memoize` ^10 → ^11, `cli-truncate` ^5 → ^6, `pidtree` ^0.6 → ^1.
+  - `@yarnpkg/core` 4.5.0 → 4.8.0, `@rushstack/worker-pool` 0.7.7 → 0.7.18, `@cyclonedx/cyclonedx-library` 10.0.0 → 10.1.0, `@pnpm/config.nerf-dart` ^1 → ^2, `@pnpm/log.group` 3.0.2 → 4.0.1, `@pnpm/util.lex-comparator` ^3 → ^4.
+
+- Updated dependencies [a31faa7]
+  - @pnpm/deps.path@1100.0.8
+
+## 1100.0.7
+
+### Patch Changes
+
+- @pnpm/deps.path@1100.0.7
+
+## 1100.0.6
+
+### Patch Changes
+
+- @pnpm/deps.path@1100.0.6
+
+## 1100.0.5
+
+### Patch Changes
+
+- @pnpm/deps.path@1100.0.5
+
+## 1100.0.4
+
+### Patch Changes
+
+- @pnpm/deps.path@1100.0.4
+
+## 1100.0.3
+
+### Patch Changes
+
+- @pnpm/deps.path@1100.0.3
+
+## 1100.0.2
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+  - @pnpm/deps.path@1100.0.2
+
+## 1100.0.1
+
+### Patch Changes
+
+- @pnpm/deps.path@1100.0.1
+
+## 1002.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+- 7b1c189: Removed the deprecated `allowNonAppliedPatches` completely in favor of `allowUnusedPatches`.
+  Remove `ignorePatchFailures` so all patch application failures should throw an error.
+
+### Patch Changes
+
+- Updated dependencies [5f73b0f]
+- Updated dependencies [491a84f]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [7b1c189]
+- Updated dependencies [1e6de25]
+- Updated dependencies [831f574]
+  - @pnpm/deps.path@1002.0.0
+  - @pnpm/error@1001.0.0
+  - @pnpm/patching.types@1001.0.0
+
+## 1001.0.11
+
+### Patch Changes
+
+- @pnpm/dependency-path@1001.1.3
+
+## 1001.0.10
+
+### Patch Changes
+
+- @pnpm/dependency-path@1001.1.2
+
+## 1001.0.9
+
+### Patch Changes
+
+- @pnpm/error@1000.0.5
+
+## 1001.0.8
+
+### Patch Changes
+
+- @pnpm/dependency-path@1001.1.1
+
+## 1001.0.7
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+  - @pnpm/dependency-path@1001.1.0
+  - @pnpm/error@1000.0.4
+
+## 1001.0.6
+
+### Patch Changes
+
+- @pnpm/dependency-path@1001.0.2
+- @pnpm/error@1000.0.3
+
+## 1001.0.5
+
+### Patch Changes
+
+- @pnpm/dependency-path@1001.0.1
+
+## 1001.0.4
+
+### Patch Changes
+
+- Updated dependencies [540986f]
+  - @pnpm/dependency-path@1001.0.0
+
+## 1001.0.3
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+  - @pnpm/dependency-path@1000.0.9
+
+## 1001.0.2
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+  - @pnpm/logger@1001.0.0
+  - @pnpm/dependency-path@1000.0.8
+
+## 1001.0.1
+
+### Patch Changes
+
+- @pnpm/dependency-path@1000.0.7
+
+## 1001.0.0
+
+### Major Changes
+
+- 5f7be64: Add an ability to patch dependencies by version ranges. Exact versions override version ranges, which in turn override name-only patches. Version range `*` is the same as name-only, except that patch application failure will not be ignored.
+
+  For example:
+
+  ```yaml
+  patchedDependencies:
+    foo: patches/foo-1.patch
+    foo@^2.0.0: patches/foo-2.patch
+    foo@2.1.0: patches/foo-3.patch
+  ```
+
+  The above configuration would apply `patches/foo-3.patch` to `foo@2.1.0`, `patches/foo-2.patch` to all `foo` versions which satisfy `^2.0.0` except `2.1.0`, and `patches/foo-1.patch` to the remaining `foo` versions.
+
+  > [!WARNING]
+  > The version ranges should not overlap. If you want to specialize a sub range, make sure to exclude it from the other keys. For example:
+  >
+  > ```yaml
+  > # pnpm-workspace.yaml
+  > patchedDependencies:
+  >   # the specialized sub range
+  >   'foo@2.2.0-2.8.0': patches/foo.2.2.0-2.8.0.patch
+  >   # the more general patch, excluding the sub range above
+  >   'foo@>=2.0.0 <2.2.0 || >2.8.0': 'patches/foo.gte2.patch
+  > ```
+  >
+  > In most cases, however, it's sufficient to just define an exact version to override the range.
+
+### Minor Changes
+
+- 5f7be64: Rename `pnpm.allowNonAppliedPatches` to `pnpm.allowUnusedPatches`. The old name is still supported but it would print a deprecation warning message.
+- 5f7be64: Add `pnpm.ignorePatchFailures` to manage whether pnpm would ignore patch application failures.
+
+  If `ignorePatchFailures` is not set, pnpm would throw an error when patches with exact versions or version ranges fail to apply, and it would ignore failures from name-only patches.
+
+  If `ignorePatchFailures` is explicitly set to `false`, pnpm would throw an error when any type of patch fails to apply.
+
+  If `ignorePatchFailures` is explicitly set to `true`, pnpm would print a warning when any type of patch fails to apply.
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/patching.types@1000.1.0
+  - @pnpm/dependency-path@1000.0.6
+
+## 1.0.0
+
+### Major Changes
+
+- cb006df: Add ability to apply patch to all versions:
+  If the key of `pnpm.patchedDependencies` is a package name without a version (e.g. `pkg`), pnpm will attempt to apply the patch to all versions of
+  the package, failure will be skipped.
+  If it is a package name and an exact version (e.g. `pkg@x.y.z`), pnpm will attempt to apply the patch to that exact version only, failure will
+  cause pnpm to fail.
+
+  If there's only one version of `pkg` installed, `pnpm patch pkg` and subsequent `pnpm patch-commit $edit_dir` will create an entry named `pkg` in
+  `pnpm.patchedDependencies`. And pnpm will attempt to apply this patch to other versions of `pkg` in the future.
+
+  If there's multiple versions of `pkg` installed, `pnpm patch pkg` will ask which version to edit and whether to attempt to apply the patch to all.
+  If the user chooses to apply the patch to all, `pnpm patch-commit $edit_dir` would create a `pkg` entry in `pnpm.patchedDependencies`.
+  If the user chooses not to apply the patch to all, `pnpm patch-commit $edit_dir` would create a `pkg@x.y.z` entry in `pnpm.patchedDependencies` with
+  `x.y.z` being the version the user chose to edit.
+
+  If the user runs `pnpm patch pkg@x.y.z` with `x.y.z` being the exact version of `pkg` that has been installed, `pnpm patch-commit $edit_dir` will always
+  create a `pkg@x.y.z` entry in `pnpm.patchedDependencies`.
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/patching.types@1.0.0

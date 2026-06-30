@@ -10,23 +10,87 @@ use std::collections::HashMap;
 use node_semver::Range;
 use pacquet_lockfile::{
     Lockfile, LockfileResolution, PkgName, PkgNameVer, PkgNameVerPeer, ProjectSnapshot,
-    ResolvedDependencySpec,
+    ResolvedDependencySpec, SnapshotEntry, TarballResolution, npm_tarball_url,
+    pick_registry_for_package,
 };
-use pacquet_resolving_resolver_base::{PkgResolutionId, ResolveResult};
+use pacquet_resolving_resolver_base::{CurrentPkg, PkgResolutionId, ResolveResult};
 use serde_json::{Map, Value};
 
 use crate::hoist_peers::satisfies_including_prerelease;
+
+/// The `currentPkg` payload for re-resolving `key`'s edge: the prior
+/// lockfile entry in the shape pnpm's `getInfoFromLockfile` +
+/// [`pkgSnapshotToResolution`](https://github.com/pnpm/pnpm/blob/1627943d2a/lockfile/utils/src/pkgSnapshotToResolution.ts)
+/// hand the resolver.
+pub(crate) fn current_pkg_from_lockfile(
+    lockfile: &Lockfile,
+    key: &PkgNameVerPeer,
+    registries: &HashMap<String, String>,
+) -> Option<CurrentPkg> {
+    let metadata_key = key.without_peer();
+    let metadata = lockfile.packages.as_ref()?.get(&metadata_key)?;
+    let name = metadata_key.name.to_string();
+    let version = metadata
+        .version
+        .clone()
+        .or_else(|| metadata_key.suffix.version_semver().map(ToString::to_string));
+    let resolution = match &metadata.resolution {
+        LockfileResolution::Registry(registry_resolution) => {
+            let registry = pick_registry_for_package(registries, &name, None);
+            if registry.is_empty() {
+                // No registry map was threaded in (e.g. the
+                // single-importer entry point) — a `Registry` entry
+                // can't be materialized into its tarball URL, and a
+                // URL-less payload would diverge from pnpm's shape.
+                return None;
+            }
+            let tarball_version = metadata_key.suffix.version().to_string();
+            LockfileResolution::Tarball(TarballResolution {
+                tarball: npm_tarball_url(&name, &tarball_version, &registry),
+                integrity: Some(registry_resolution.integrity.clone()),
+                git_hosted: None,
+                path: None,
+            })
+        }
+        recorded => recorded.clone(),
+    };
+    Some(CurrentPkg {
+        id: PkgResolutionId::from(metadata_key.to_string()),
+        name: Some(name),
+        version,
+        resolution,
+        published_at: None,
+    })
+}
+
+/// The prior snapshot key recorded for child edge `alias` under
+/// `snapshot`'s dependency maps, when the recorded version still
+/// satisfies `bare_specifier`.
+pub(crate) fn prior_child_key(
+    snapshot: &SnapshotEntry,
+    alias: &str,
+    bare_specifier: &str,
+) -> Option<PkgNameVerPeer> {
+    let name: PkgName = alias.parse().ok()?;
+    let dep_ref = snapshot
+        .dependencies
+        .as_ref()
+        .and_then(|deps| deps.get(&name))
+        .or_else(|| snapshot.optional_dependencies.as_ref().and_then(|deps| deps.get(&name)))?;
+    let key = dep_ref.resolve(&name)?;
+    let range = bare_specifier.parse::<Range>().ok()?;
+    let satisfied = satisfies_including_prerelease(&range, key.suffix.version_semver()?);
+    satisfied.then_some(key)
+}
 
 /// The snapshot key (`snapshots:` / `packages:` map key) the prior
 /// lockfile resolved `alias` to in importer `importer_id`, when the
 /// recorded version still satisfies the manifest's `bare_specifier`
 /// (semver-satisfies, matching pnpm's `satisfiesWanted`).
 ///
-/// Returns `None` — so the caller resolves fresh — for a new dependency,
-/// an edited range the locked version no longer satisfies, a non-semver
-/// `bare_specifier`, or a `link:` recorded shape. The first cut reuses
-/// only semver (registry/tarball) deps; richer shapes (`link:`/`file:`/
-/// `workspace:`/`catalog:`) fall through to a normal resolve.
+/// Reuse is limited to semver (registry/tarball) deps; richer shapes
+/// (`link:`/`file:`/`workspace:`/`catalog:`) fall through to a normal
+/// resolve.
 pub(crate) fn reusable_importer_dep(
     importers: &HashMap<String, ProjectSnapshot>,
     importer_id: &str,
@@ -99,7 +163,6 @@ pub(crate) fn synthesize_reused_result(
     let metadata_key = key.without_peer();
     let version = metadata_key.suffix.version_semver()?.clone();
     let metadata = lockfile.packages.as_ref()?.get(&metadata_key)?;
-    // Reuse only registry-resolved packages for now (see the doc above).
     match &metadata.resolution {
         LockfileResolution::Registry(_) => {}
         LockfileResolution::Tarball(tarball)
@@ -171,6 +234,9 @@ fn synthesize_manifest(
     }
     if let Some(libc) = metadata.libc.as_ref() {
         manifest.insert("libc".to_string(), string_array(libc));
+    }
+    if let Some(deprecated) = metadata.deprecated.as_ref() {
+        manifest.insert("deprecated".to_string(), Value::String(deprecated.clone()));
     }
     // `has_bin: Some(true)` round-trips as a truthy `bin` so the
     // bundled-manifest bin linker sees a non-empty bin set; the exact

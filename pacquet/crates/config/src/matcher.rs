@@ -4,29 +4,11 @@
 //! The pattern syntax is intentionally tiny: `*` is the only wildcard
 //! (matching any sequence of characters, including empty), every other
 //! character is matched literally, and a leading `!` flips a pattern into
-//! an ignore rule. There is no `?`, no character class, and no escape;
-//! pnpm's `escapeStringRegexp` step before the regex compile means
-//! every non-`*` byte is literal.
-//!
-//! The semantics mirror [`createMatcher` /
-//! `createMatcherWithIndex`](https://github.com/pnpm/pnpm/blob/94240bc046/config/matcher/src/index.ts#L7-L40):
-//!
-//! - Empty pattern list: nothing matches.
-//! - All-include patterns: first include that matches wins (its index
-//!   is returned).
-//! - All-ignore patterns: input matches when *no* ignore matches (returns
-//!   `0` instead of `-1` to keep `Some(_)` semantics non-empty); when any
-//!   ignore matches the input, the matcher returns `None`.
-//! - Mixed includes + ignores: include's index sticks unless a later
-//!   ignore matches, in which case the index resets to "no match"
-//!   (regardless of whether another include comes after — order matters).
+//! an ignore rule.
 //!
 //! Pacquet skips upstream's `regex` dependency by hand-rolling the
 //! glob matcher: the only wildcard is `*`, so a literal "starts with",
-//! "ends with", and "contains in order" walk is enough. Avoiding regex
-//! also avoids inheriting its char-class quirks (`?`, `.`, `(`, etc.
-//! stay literal here just like upstream's `escapeStringRegexp` ensures
-//! they stay literal there).
+//! "ends with", and "contains in order" walk is enough.
 
 use std::sync::Arc;
 
@@ -81,10 +63,7 @@ impl Matcher {
     }
 }
 
-/// Matcher returning the *index* of the include that matched. Empty
-/// pattern lists return `None`. All-ignore lists return `Some(0)` when
-/// no ignore matched (mirrors upstream's `0` literal in
-/// `matchInputWithoutIgnoreMatchers`).
+/// Matcher returning the *index* of the include that matched.
 #[derive(Clone)]
 pub struct MatcherWithIndex(MatcherImpl);
 
@@ -97,29 +76,15 @@ impl MatcherWithIndex {
 
 #[derive(Clone)]
 enum MatcherImpl {
-    /// Empty pattern list — never matches.
+    /// Empty pattern list.
     Never,
-    /// Single-pattern fast path (matches upstream's
-    /// `matcherWhenOnlyOnePatternWithIndex`). Returns `Some(0)` on
-    /// match, `None` otherwise — including when the lone pattern is
-    /// an ignore that matches.
+    /// Single-pattern fast path.
     Single(SingleMatcher),
-    /// Many-pattern path with no ignore rules. First matching include
-    /// wins.
+    /// Many-pattern path with no ignore rules.
     AllInclude(Arc<[CompiledPattern]>),
-    /// Many-pattern path with no include rules. Matches `Some(0)`
-    /// unless any ignore matches.
+    /// Many-pattern path with no include rules.
     AllIgnore(Arc<[CompiledPattern]>),
-    /// Mixed includes and ignores. Walk in declaration order: a
-    /// matching include claims the sticky slot when it's empty; a
-    /// matching ignore clears it. Once cleared, a later matching
-    /// include can re-take the slot — net result is "first include
-    /// after the last matching ignore wins". Mirrors upstream's
-    /// `matchInputWithMatchersArray` and the
-    /// `eslint-*`, `!eslint-plugin-*`, `eslint-plugin-bar` test
-    /// case where `eslint-plugin-bar` matches via index 2 even
-    /// though earlier `eslint-*` (index 0) was wiped by
-    /// `!eslint-plugin-*`.
+    /// Mixed includes and ignores.
     Mixed(Arc<[CompiledPattern]>),
 }
 
@@ -250,12 +215,8 @@ impl Glob {
 
     fn matches(&self, input: &str) -> bool {
         if !self.had_wildcard {
-            // `segments.len() == 1`. Pattern is a literal — exact
-            // string equality.
             return self.segments[0] == input;
         }
-        // First segment is a prefix; last segment is a suffix; in
-        // between, each segment must appear in order, non-overlapping.
         let first = &self.segments[0];
         let last = &self.segments[self.segments.len() - 1];
         let Some(rest) = input.strip_prefix(first.as_str()) else { return false };

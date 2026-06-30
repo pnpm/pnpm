@@ -73,10 +73,7 @@ struct ExtensionMatch {
     /// (`"is-positive"` — applies to every version). Unparsable
     /// ranges never reach this struct; [`PackageExtender::new`]
     /// surfaces them as [`InvalidPackageExtensionSelector`] before
-    /// the install can start. That matches upstream's
-    /// `semver.satisfies(version, range)` behavior — a malformed
-    /// range throws there too; pacquet just lifts the throw site
-    /// from per-manifest application to install-start validation.
+    /// the install can start.
     range: RangeFilter,
     extension: PackageExtension,
 }
@@ -125,13 +122,7 @@ impl PackageExtender {
         self.by_pkg_name.is_empty()
     }
 
-    /// Apply extensions in place to a single manifest. No-op when the
-    /// manifest's `name` doesn't match any selector, when `name` /
-    /// `version` are absent, or when no entry's range covers the
-    /// manifest's version. Mirrors upstream's
-    /// [`extendPkg`](https://github.com/pnpm/pnpm/blob/39101f5e37/hooks/read-package-hook/src/createPackageExtender.ts#L34-L45)
-    /// merge order: extension fields land under the manifest's own,
-    /// so the manifest's declared entries always win on conflict.
+    /// Apply extensions in place to a single manifest.
     pub fn apply(&self, manifest: &mut Value) {
         let Some(map) = manifest.as_object_mut() else { return };
         let Some(name) = map.get("name").and_then(Value::as_str).map(str::to_string) else {

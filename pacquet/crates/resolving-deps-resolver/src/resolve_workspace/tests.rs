@@ -1,17 +1,14 @@
 //! `resolutionMode: time-based` cutoff tests for
-//! [`fn@super::resolve_workspace`]: the pre-pass resolves each
-//! importer's direct deps, takes the newest publication date plus a
-//! one-hour delta (clamped by `minimumReleaseAge`), and threads that
-//! cutoff onto transitive-dep resolution while direct deps keep the
-//! `minimumReleaseAge` cutoff.
+//! [`fn@super::resolve_workspace`].
 
 use std::{collections::HashMap, str::FromStr, sync::Mutex};
 
 use chrono::{DateTime, TimeZone, Utc};
+use pacquet_lockfile::{DirectoryResolution, LockfileResolution};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
 use pacquet_resolving_resolver_base::{
-    LatestQuery, PreferredVersions, ResolveError, ResolveFuture, ResolveLatestFuture,
-    ResolveOptions, ResolveResult, Resolver, WantedDependency,
+    LatestQuery, PkgResolutionId, PreferredVersions, ResolveError, ResolveFuture,
+    ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver, WantedDependency,
 };
 use pretty_assertions::assert_eq;
 
@@ -48,6 +45,55 @@ impl Resolver for RecordingResolver {
             .insert(alias.clone(), (opts.pick_lowest_version, opts.published_by));
         let result = self.table.get(&(alias, range)).cloned();
         Box::pin(async move { Ok::<_, ResolveError>(result) })
+    }
+
+    fn resolve_latest<'a>(
+        &'a self,
+        _query: &'a LatestQuery,
+        _opts: &'a ResolveOptions,
+    ) -> ResolveLatestFuture<'a> {
+        Box::pin(async { Ok(None) })
+    }
+}
+
+struct ProjectRelativeWorkspaceResolver {
+    target_dir: std::path::PathBuf,
+}
+
+impl Resolver for ProjectRelativeWorkspaceResolver {
+    fn resolve<'a>(
+        &'a self,
+        wanted: &'a WantedDependency,
+        opts: &'a ResolveOptions,
+    ) -> ResolveFuture<'a> {
+        let alias = wanted.alias.clone().unwrap_or_default();
+        let range = wanted.bare_specifier.clone().unwrap_or_default();
+        let target_dir = self.target_dir.clone();
+        let project_dir = opts.project_dir.clone();
+        Box::pin(async move {
+            if alias != "shared" || range != "^1.0.0" {
+                return Ok(None);
+            }
+            let rel = pathdiff::diff_paths(&target_dir, &project_dir)
+                .expect("target can be relativized")
+                .display()
+                .to_string()
+                .replace('\\', "/");
+            Ok(Some(ResolveResult {
+                id: PkgResolutionId::from(format!("link:{rel}")),
+                name_ver: None,
+                latest: None,
+                published_at: None,
+                manifest: Some(std::sync::Arc::new(
+                    serde_json::json!({ "name": "shared", "version": "1.0.0" }),
+                )),
+                resolution: LockfileResolution::Directory(DirectoryResolution { directory: rel }),
+                resolved_via: "workspace".to_string(),
+                normalized_bare_specifier: None,
+                alias: Some(alias),
+                policy_violation: None,
+            }))
+        })
     }
 
     fn resolve_latest<'a>(
@@ -132,6 +178,7 @@ fn workspace_opts(pick_lowest_direct: bool, time_based: bool) -> WorkspaceResolv
         dedupe_peers: false,
         dedupe_injected_deps: false,
         dedupe_peer_dependents: false,
+        resolve_peers_from_workspace_root: false,
         exclude_links_from_lockfile: false,
         lockfile_dir: std::path::PathBuf::from("/lockfile-dir"),
         peers_suffix_max_length: 1000,
@@ -143,13 +190,131 @@ fn workspace_opts(pick_lowest_direct: bool, time_based: bool) -> WorkspaceResolv
         wanted_lockfile: None,
         update_reuse_scope: crate::UpdateReuseScope::All,
         auto_install_peers: false,
+        registries: HashMap::new(),
     }
 }
 
-/// time-based: the subdep cutoff is the newest direct-dep publication
-/// date plus one hour. Direct deps keep picking lowest under the
-/// (here-absent) `minimumReleaseAge` cutoff; the subdep is constrained
-/// to the computed cutoff.
+#[tokio::test]
+async fn workspace_link_results_are_cached_per_importer_project_dir() {
+    let (_a_tmp, a_manifest) = fake_manifest(serde_json::json!({ "shared": "^1.0.0" }));
+    let (_b_tmp, b_manifest) = fake_manifest(serde_json::json!({ "shared": "^1.0.0" }));
+    let resolver = ProjectRelativeWorkspaceResolver {
+        target_dir: std::path::PathBuf::from("/repo/packages/shared"),
+    };
+    let importers = vec![
+        WorkspaceImporter { id: "packages/a".to_string(), manifest: &a_manifest },
+        WorkspaceImporter { id: "apps/b".to_string(), manifest: &b_manifest },
+    ];
+
+    let result = resolve_workspace(
+        &resolver,
+        &importers,
+        &[DependencyGroup::Prod],
+        workspace_opts(false, false),
+        |importer| {
+            let project_dir = match importer.id.as_str() {
+                "packages/a" => std::path::PathBuf::from("/repo/packages/a"),
+                "apps/b" => std::path::PathBuf::from("/repo/apps/b"),
+                _ => unreachable!("unexpected importer"),
+            };
+            let mut opts = importer_opts(project_dir, None);
+            opts.base_opts.always_try_workspace_packages = true;
+            opts.base_opts.workspace_packages = Some(std::collections::BTreeMap::default());
+            opts
+        },
+    )
+    .await
+    .expect("resolve workspace");
+
+    assert_eq!(
+        result.peers.direct_dependencies_by_importer["packages/a"]["shared"].as_str(),
+        "link:../shared",
+    );
+    assert_eq!(
+        result.peers.direct_dependencies_by_importer["apps/b"]["shared"].as_str(),
+        "link:../../packages/shared",
+    );
+}
+
+#[tokio::test]
+async fn workspace_root_direct_deps_resolve_child_importer_peers() {
+    let (_root_tmp, root_manifest) = fake_manifest(serde_json::json!({
+        "typescript": "~5.9.3",
+    }));
+    let (_app_tmp, app_manifest) = fake_manifest(serde_json::json!({
+        "rollup": "^4.0.0",
+        "plugin": "^1.0.0",
+    }));
+    let mut table = HashMap::new();
+    table.insert(
+        ("typescript".to_string(), "~5.9.3".to_string()),
+        fake_result(
+            "typescript",
+            "5.9.3",
+            None,
+            serde_json::json!({ "name": "typescript", "version": "5.9.3" }),
+        ),
+    );
+    table.insert(
+        ("typescript".to_string(), "5.9.3".to_string()),
+        fake_result(
+            "typescript",
+            "5.9.3",
+            None,
+            serde_json::json!({ "name": "typescript", "version": "5.9.3" }),
+        ),
+    );
+    table.insert(
+        ("rollup".to_string(), "^4.0.0".to_string()),
+        fake_result(
+            "rollup",
+            "4.0.0",
+            None,
+            serde_json::json!({ "name": "rollup", "version": "4.0.0" }),
+        ),
+    );
+    table.insert(
+        ("plugin".to_string(), "^1.0.0".to_string()),
+        fake_result(
+            "plugin",
+            "1.0.0",
+            None,
+            serde_json::json!({
+                "name": "plugin",
+                "version": "1.0.0",
+                "peerDependencies": {
+                    "rollup": "^4.0.0",
+                    "typescript": "^5.0.0"
+                }
+            }),
+        ),
+    );
+    let resolver = RecordingResolver { table, seen: Mutex::new(HashMap::new()) };
+    let importers = vec![
+        WorkspaceImporter { id: ".".to_string(), manifest: &root_manifest },
+        WorkspaceImporter { id: "packages/app".to_string(), manifest: &app_manifest },
+    ];
+    let mut opts = workspace_opts(false, false);
+    opts.resolve_peers_from_workspace_root = true;
+
+    let result =
+        resolve_workspace(&resolver, &importers, &[DependencyGroup::Prod], opts, |importer| {
+            let project_dir = match importer.id.as_str() {
+                "." => std::path::PathBuf::from("/repo"),
+                "packages/app" => std::path::PathBuf::from("/repo/packages/app"),
+                _ => unreachable!("unexpected importer"),
+            };
+            importer_opts(project_dir, None)
+        })
+        .await
+        .expect("resolve workspace");
+
+    assert_eq!(
+        result.peers.direct_dependencies_by_importer["packages/app"]["plugin"].as_str(),
+        "plugin@1.0.0(rollup@4.0.0)(typescript@5.9.3)",
+    );
+}
+
 #[tokio::test]
 async fn time_based_cutoff_is_newest_direct_publish_plus_one_hour() {
     let mut table = HashMap::new();
@@ -167,7 +332,6 @@ async fn time_based_cutoff_is_newest_direct_publish_plus_one_hour() {
         fake_result(
             "b",
             "1.0.0",
-            // Newest direct-dep date — this drives the cutoff.
             Some("2024-05-20T08:00:00.000Z"),
             serde_json::json!({ "name": "b", "version": "1.0.0" }),
         ),
@@ -204,9 +368,6 @@ async fn time_based_cutoff_is_newest_direct_publish_plus_one_hour() {
     );
 }
 
-/// time-based: the computed cutoff is clamped down to the
-/// `minimumReleaseAge` cutoff (`maximum_published_by`) when the
-/// newest-direct + 1h would be later.
 #[tokio::test]
 async fn time_based_cutoff_is_clamped_by_minimum_release_age() {
     let maximum = Utc.with_ymd_and_hms(2024, 1, 1, 0, 0, 0).unwrap();
@@ -216,7 +377,6 @@ async fn time_based_cutoff_is_clamped_by_minimum_release_age() {
         fake_result(
             "a",
             "1.0.0",
-            // Later than the minimumReleaseAge cutoff → clamp wins.
             Some("2024-05-20T08:00:00.000Z"),
             serde_json::json!({ "name": "a", "version": "1.0.0", "dependencies": { "sub": "^2.0.0" } }),
         ),
@@ -251,9 +411,6 @@ async fn time_based_cutoff_is_clamped_by_minimum_release_age() {
     );
 }
 
-/// lowest-direct: direct deps pick lowest, transitive deps pick
-/// highest, and no publish-date cutoff is computed (subdeps inherit the
-/// `minimumReleaseAge` cutoff, here absent) — no pre-pass runs.
 #[tokio::test]
 async fn lowest_direct_applies_no_publish_cutoff() {
     let mut table = HashMap::new();
@@ -292,16 +449,15 @@ async fn lowest_direct_applies_no_publish_cutoff() {
     );
 }
 
-/// A package shared across importers keeps the peer context of the
-/// importer that resolved it first: pnpm reuses the first walk's
-/// children missing-peer report, so a later importer never hoists an
-/// optional peer declared inside that shared subtree, and the
-/// workspace-wide peer pass shares the first importer's variant
-/// (verified against pnpm 11.6.0 — root + pkg-a both depending on
-/// `@pnpm/meta-updater` keep root's `@types/node` context while a
-/// third importer pins a higher version).
+/// A package shared across importers keeps the children missing-peer
+/// report from the importer that resolved it first, so a later importer
+/// never hoists an optional peer declared inside that shared subtree.
+/// The final workspace-wide peer pass still uses each importer's actual
+/// provider context, so an importer without the provider gets the
+/// peerless variant instead of reusing the first importer's suffixed
+/// variant.
 #[tokio::test]
-async fn shared_subtree_keeps_first_importers_optional_peer_context() {
+async fn shared_subtree_owner_context_suppresses_later_optional_hoist() {
     let mut table = HashMap::new();
     table.insert(
         ("shared".to_string(), "1.0.0".to_string()),
@@ -391,8 +547,8 @@ async fn shared_subtree_keeps_first_importers_optional_peer_context() {
         result.peers.direct_dependencies_by_importer.get("pkg-a").expect("pkg-a importer");
     assert_eq!(
         a_direct.get("shared").map(std::string::ToString::to_string),
-        Some("shared@1.0.0(opt@18.0.0)".to_string()),
-        "pkg-a shares the first importer's variant instead of hoisting the higher version",
+        Some("shared@1.0.0".to_string()),
+        "pkg-a must not hoist opt, but it also must not reuse root's opt provider",
     );
 }
 

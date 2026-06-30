@@ -209,15 +209,6 @@ pub enum OutdatedFormat {
 }
 
 /// `--prod` / `--dev` / `--no-optional` for `pacquet outdated`.
-///
-/// Ports pnpm's config normalization
-/// ([`config/reader`](https://github.com/pnpm/pnpm/blob/6f382f42ee/config/reader/src/index.ts#L640-L650))
-/// followed by the `include` map the `outdated` handler builds
-/// ([`outdated.ts`](https://github.com/pnpm/pnpm/blob/6f382f42ee/deps/inspection/commands/src/outdated/outdated.ts#L182-L186)):
-/// `--prod` keeps `dependencies` + `optionalDependencies`, `--dev` keeps
-/// only `devDependencies`, and `--no-optional` drops
-/// `optionalDependencies`. Note this differs from `update`'s include
-/// formula.
 #[derive(Debug, Args)]
 pub struct OutdatedDependencyOptions {
     /// Check only "dependencies" and "optionalDependencies".
@@ -313,11 +304,6 @@ impl OutdatedArgs {
     /// Run the check and print the report to stdout. Returns whether any
     /// dependency was outdated; the caller decides the process exit code.
     pub async fn run(self, state: State) -> miette::Result<OutdatedOutcome> {
-        if self.global {
-            return Err(miette::miette!(
-                "`pacquet outdated --global` is not supported yet; global package management has not been ported to pacquet."
-            ));
-        }
         if state.config.recursive {
             return Err(miette::miette!(
                 "`pacquet outdated --recursive` is not supported yet; recursive workspace inspection has not been ported to pacquet."
@@ -326,7 +312,10 @@ impl OutdatedArgs {
 
         let config = state.config;
         let manifest = &state.manifest;
-        let lockfile = &state.lockfile;
+        let lockfile = state
+            .lockfile
+            .get()
+            .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
         let http_client = &state.http_client;
 
         // A manifest with no dependencies at all is reported as up to date
@@ -345,7 +334,7 @@ impl OutdatedArgs {
             let dir = manifest.path().parent().unwrap_or_else(|| manifest.path()).display();
             return Err(miette::miette!(
                 code = "ERR_PNPM_OUTDATED_NO_LOCKFILE",
-                "No lockfile in directory \"{dir}\". Run `pacquet install` to generate one."
+                r#"No lockfile in directory "{dir}". Run `pacquet install` to generate one."#
             ));
         }
 
@@ -361,7 +350,66 @@ impl OutdatedArgs {
             include_deprecated: true,
         };
         let mut outdated =
-            collect_outdated(manifest, lockfile.as_ref(), config, http_client, &query).await?;
+            collect_outdated(manifest, lockfile, config, http_client, &query).await?;
+
+        sort_outdated(&mut outdated, self.sort_by);
+
+        let output = match self.resolve_format() {
+            OutdatedFormat::Table => render_table(&outdated, self.long),
+            OutdatedFormat::List => render_list(&outdated, self.long),
+            OutdatedFormat::Json => render_json(&outdated, self.long),
+        };
+
+        let mut stdout = std::io::stdout();
+        let _ = writeln!(stdout, "{output}");
+        let _ = stdout.flush();
+
+        Ok(if outdated.is_empty() { OutdatedOutcome::UpToDate } else { OutdatedOutcome::Outdated })
+    }
+
+    /// `pnpm outdated -g`: inspect every globally installed package group,
+    /// treating each install dir's `package.json` as a project, and report
+    /// the aggregate. Mirrors pnpm's global branch in `outdated.handler`.
+    pub async fn run_global(self, config: &'static Config) -> miette::Result<OutdatedOutcome> {
+        if config.recursive {
+            return Err(miette::miette!(
+                "`pacquet outdated --recursive` is not supported yet; recursive workspace inspection has not been ported to pacquet."
+            ));
+        }
+        let global_pkg_dir = config.global_pkg_dir.clone().ok_or_else(|| {
+            miette::miette!(
+                code = "ERR_PNPM_NO_GLOBAL_BIN_DIR",
+                "Unable to find the global packages directory"
+            )
+        })?;
+
+        let include = self.dependency_options.include();
+        let target_version =
+            if self.compatible { TargetVersion::WithinRange } else { TargetVersion::Latest };
+        let matcher = (!self.packages.is_empty()).then(|| create_matcher(&self.packages));
+        let query = OutdatedQuery {
+            target_version,
+            include_direct: &include,
+            match_names: matcher.as_ref(),
+            include_deprecated: true,
+        };
+
+        let mut outdated = Vec::new();
+        let global_packages = pacquet_global::scan_global_packages(&global_pkg_dir)
+            .map_err(|err| miette::miette!("failed to scan global packages: {err}"))?;
+        for pkg in global_packages {
+            let manifest_path = pkg.install_dir.join("package.json");
+            let state = State::init(manifest_path, config, false)
+                .map_err(|err| miette::Report::new(err).wrap_err("initialize global state"))?;
+            let lockfile = state
+                .lockfile
+                .get()
+                .map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
+            let result =
+                collect_outdated(&state.manifest, lockfile, config, &state.http_client, &query)
+                    .await?;
+            outdated.extend(result);
+        }
 
         sort_outdated(&mut outdated, self.sort_by);
 
@@ -395,13 +443,6 @@ impl OutdatedArgs {
 
 /// The kind of semver bump from `current` to `target`. Drives the default
 /// sort order and the colorized highlight in the `Latest` column.
-///
-/// Ports pnpm's [`@pnpm/semver-diff`](https://www.npmjs.com/package/@pnpm/semver-diff)
-/// change classification: `None` for exactly-equal versions (pnpm's
-/// `change: null`), `Fix` / `Feature` / `Breaking` for a patch / minor /
-/// major difference, and `Unknown` when the versions differ only beyond
-/// the major.minor.patch core (e.g. a prerelease-only bump), matching
-/// pnpm's `change: 'unknown'`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Change {
     None,
@@ -421,8 +462,6 @@ fn classify(current: &Version, target: &Version) -> Change {
     } else if target.patch != current.patch {
         Change::Fix
     } else {
-        // Same major.minor.patch but not equal: a prerelease/build-only
-        // difference. pnpm classifies this as `unknown`.
         Change::Unknown
     }
 }

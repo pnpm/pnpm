@@ -3,6 +3,7 @@
 
 use std::collections::BTreeMap;
 
+use pacquet_network::AuthHeadersByScope;
 use serde::Deserialize;
 
 pub type DepMap = BTreeMap<String, String>;
@@ -26,7 +27,7 @@ fn root_dir() -> String {
     ".".to_string()
 }
 
-/// Body of `POST /v1/resolve`. The registry fields carry the *client's*
+/// Body of `POST /-/pnpr/v0/resolve`. The registry fields carry the *client's*
 /// resolution configuration so the server resolves against the same
 /// registries the client would, and the policy fields carry the
 /// client's verification policy so the server verifies the input
@@ -52,12 +53,12 @@ pub struct ResolveRequest {
     #[serde(default)]
     pub named_registries: BTreeMap<String, String>,
     /// The caller's forwarded upstream credentials so the server resolves
-    /// and fetches private content as the caller. Keyed by nerf-darted
-    /// registry URI with ready-to-send values, the shape
-    /// [`pacquet_network::AuthHeaders::from_map`] consumes. Distinct from
-    /// the request's HTTP `Authorization` header (pnpr identity).
+    /// and fetches private content as the caller. Keyed as
+    /// `auth_headers[registry_uri][scope]`; the `@` scope stores
+    /// registry-wide auth. Distinct from the request's HTTP
+    /// `Authorization` header (pnpr identity).
     #[serde(default)]
-    pub auth_headers: BTreeMap<String, String>,
+    pub auth_headers: AuthHeadersByScope,
     /// The client's `overrides` (selector -> spec), applied at resolve
     /// time. Kept as raw JSON; reconstructed into pacquet's override map
     /// server-side.

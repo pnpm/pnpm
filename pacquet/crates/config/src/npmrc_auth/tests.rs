@@ -1,9 +1,11 @@
 use std::path::Path;
 
-use super::{EnvVar, NpmrcAuth, RawCreds, base64_decode, base64_encode};
-use crate::Config;
-use pacquet_network::NoProxySetting;
+use pacquet_network::{DEFAULT_REGISTRY_SCOPE, NoProxySetting};
 use pretty_assertions::assert_eq;
+
+use crate::Config;
+
+use super::{EnvVar, NpmrcAuth, RawCreds, base64_decode, base64_encode};
 
 /// Generate a per-test unit struct implementing [`EnvVar`] from a
 /// `&[(&str, &str)]` literal — saves each cascade test from spelling
@@ -32,6 +34,20 @@ impl EnvVar for NoEnv {
     fn var(_: &str) -> Option<String> {
         None
     }
+}
+
+fn default_auth_token<'a>(auth: &'a NpmrcAuth, uri: &str) -> Option<Option<&'a str>> {
+    auth.creds_by_scope_by_uri
+        .get(uri)
+        .and_then(|creds_by_scope| creds_by_scope.get(DEFAULT_REGISTRY_SCOPE))
+        .map(|creds| creds.auth_token.as_deref())
+}
+
+fn scoped_auth_token<'a>(auth: &'a NpmrcAuth, uri: &str, scope: &str) -> Option<Option<&'a str>> {
+    auth.creds_by_scope_by_uri
+        .get(uri)
+        .and_then(|creds_by_scope| creds_by_scope.get(scope))
+        .map(|creds| creds.auth_token.as_deref())
 }
 
 #[test]
@@ -75,10 +91,6 @@ fn parses_scoped_registry_and_applies() {
 
 #[test]
 fn ignores_non_auth_keys() {
-    // These are all project-structural settings that pnpm 11 only reads
-    // from pnpm-workspace.yaml now. Writing them to .npmrc should be a
-    // no-op.
-    //
     // `Config::new()` reads `PNPM_HOME` / `XDG_DATA_HOME` via the
     // SmartDefault expression on `Config::store_dir` —
     // `default_store_dir::<Host, _, _, _>(home::home_dir,
@@ -130,11 +142,75 @@ fn ignores_malformed_lines() {
 fn parses_per_registry_auth_token() {
     let ini = "//npm.pkg.github.com/pnpm/:_authToken=ghp_xxx\n";
     let auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
+    assert_eq!(default_auth_token(&auth, "//npm.pkg.github.com/pnpm/"), Some(Some("ghp_xxx")));
+}
+
+#[test]
+fn parses_package_scope_auth_under_registry_uri() {
+    let ini = "\
+//npm.pkg.github.com/:_authToken=registry-token
+//npm.pkg.github.com/:@orgA:_authToken=org-a-token
+//npm.pkg.github.com/:@orgB:_authToken=org-b-token
+//reg.com/npm/:@orgA:_authToken=org-a-path-token
+//localhost:4873/:@orgC:_authToken=org-c-port-token
+";
+    let auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
+    assert_eq!(default_auth_token(&auth, "//npm.pkg.github.com/"), Some(Some("registry-token")));
     assert_eq!(
-        auth.creds_by_uri
-            .get("//npm.pkg.github.com/pnpm/")
-            .map(|creds| creds.auth_token.as_deref()),
-        Some(Some("ghp_xxx")),
+        scoped_auth_token(&auth, "//npm.pkg.github.com/", "@orgA"),
+        Some(Some("org-a-token")),
+    );
+    assert_eq!(
+        scoped_auth_token(&auth, "//npm.pkg.github.com/", "@orgB"),
+        Some(Some("org-b-token")),
+    );
+    assert_eq!(scoped_auth_token(&auth, "//reg.com/npm/", "@orgA"), Some(Some("org-a-path-token")));
+    assert_eq!(
+        scoped_auth_token(&auth, "//localhost:4873/", "@orgC"),
+        Some(Some("org-c-port-token")),
+    );
+}
+
+#[test]
+fn parses_slash_package_scope_auth_under_registry_uri() {
+    let ini = "\
+//npm.pkg.github.com/@orgA:_authToken=org-a-token
+//npm.pkg.github.com/@orgB/:_authToken=org-b-token
+//reg.com/npm/@orgA:_authToken=org-a-path-token
+";
+    let auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
+    assert_eq!(
+        scoped_auth_token(&auth, "//npm.pkg.github.com/", "@orgA"),
+        Some(Some("org-a-token")),
+    );
+    assert_eq!(
+        scoped_auth_token(&auth, "//npm.pkg.github.com/", "@orgB"),
+        Some(Some("org-b-token")),
+    );
+    assert_eq!(scoped_auth_token(&auth, "//reg.com/npm/", "@orgA"), Some(Some("org-a-path-token")));
+}
+
+#[test]
+fn package_scope_auth_from_npmrc_wins_over_registry_auth() {
+    let ini = "\
+//npm.pkg.github.com/:_authToken=registry-token
+//npm.pkg.github.com/:@orgA:_authToken=org-a-token
+";
+    let mut config = Config::new();
+    NpmrcAuth::from_ini::<NoEnv>(ini, Path::new("")).apply_to::<NoEnv>(&mut config);
+    assert_eq!(
+        config
+            .auth_headers
+            .for_url_with_package("https://npm.pkg.github.com/pkg", Some("@orgA/pkg"))
+            .as_deref(),
+        Some("Bearer org-a-token"),
+    );
+    assert_eq!(
+        config
+            .auth_headers
+            .for_url_with_package("https://npm.pkg.github.com/pkg", Some("@orgB/pkg"))
+            .as_deref(),
+        Some("Bearer registry-token"),
     );
 }
 
@@ -150,6 +226,36 @@ fn parses_default_auth_token_and_keys_to_registry() {
         config.auth_headers.for_url("https://registry.npmjs.org/foo/-/foo-1.0.0.tgz").as_deref(),
         Some("Bearer top-secret"),
     );
+    assert_eq!(
+        config.auth_tokens_by_uri.get("//registry.npmjs.org/").map(String::as_str),
+        Some("top-secret"),
+    );
+}
+
+/// `build_auth_headers` keys *unrescoped* default credentials — both the
+/// `Authorization` header and the raw token — to `config.registry`'s
+/// nerf-darted URI. The full `Config::current` cascade rescopes default
+/// creds onto a per-URI key before this runs, so the branch is reached
+/// only by calling `build_auth_headers` directly.
+#[test]
+fn build_auth_headers_keys_default_token_to_registry_uri() {
+    let mut config = Config::new();
+    let auth = NpmrcAuth {
+        default_creds: RawCreds {
+            auth_token: Some("top-secret".to_string()),
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    auth.build_auth_headers(&mut config);
+    assert_eq!(
+        config.auth_tokens_by_uri.get("//registry.npmjs.org/").map(String::as_str),
+        Some("top-secret"),
+    );
+    assert_eq!(
+        config.auth_headers.for_url("https://registry.npmjs.org/x").as_deref(),
+        Some("Bearer top-secret"),
+    );
 }
 
 #[test]
@@ -162,10 +268,7 @@ fn env_replace_substitutes_token() {
     }
     let ini = "//reg.com/:_authToken=${TOKEN}\n";
     let auth = NpmrcAuth::from_ini::<EnvWithToken>(ini, Path::new(""));
-    assert_eq!(
-        auth.creds_by_uri.get("//reg.com/").map(|creds| creds.auth_token.as_deref()),
-        Some(Some("abc123")),
-    );
+    assert_eq!(default_auth_token(&auth, "//reg.com/"), Some(Some("abc123")));
 }
 
 #[test]
@@ -219,7 +322,7 @@ fn project_ini_ignores_env_placeholders_in_url_scoped_keys() {
         Path::new(""),
     );
 
-    assert!(auth.creds_by_uri.is_empty());
+    assert!(auth.creds_by_scope_by_uri.is_empty());
     assert!(
         auth.warnings
             .iter()
@@ -255,7 +358,7 @@ key=${KEY}
         Path::new(""),
     );
 
-    assert!(auth.creds_by_uri.is_empty());
+    assert!(auth.creds_by_scope_by_uri.is_empty());
     assert!(auth.tls_by_uri.is_empty());
     assert_eq!(auth.default_creds.auth_token, None);
     assert_eq!(auth.default_creds.username, None);
@@ -279,10 +382,7 @@ fn project_ini_keeps_literal_dollar_brace_fragments() {
         Path::new(""),
     );
 
-    assert_eq!(
-        auth.creds_by_uri.get("//attacker.example/").map(|creds| creds.auth_token.as_deref()),
-        Some(Some("literal${token")),
-    );
+    assert_eq!(default_auth_token(&auth, "//attacker.example/"), Some(Some("literal${token")));
     assert_eq!(auth.warnings, Vec::<String>::new());
 }
 
@@ -311,25 +411,15 @@ proxy=http://legacy-proxy.example.com/${SECRET}/
 
 #[test]
 fn env_replace_failure_warns_and_drops_unresolved_to_empty() {
-    // Mirrors pnpm's `substituteEnv` lossy fallback: unresolved `${VAR}` becomes
-    // "" so a downstream `Authorization: Bearer ...` header is never sent with a
-    // literal placeholder. See <https://github.com/pnpm/pnpm/issues/11513>.
     let ini = "//reg.com/:_authToken=${MISSING}\n";
     let auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
-    assert_eq!(
-        auth.creds_by_uri.get("//reg.com/").map(|creds| creds.auth_token.as_deref()),
-        Some(Some("")),
-    );
+    assert_eq!(default_auth_token(&auth, "//reg.com/"), Some(Some("")));
     assert_eq!(auth.warnings.len(), 1);
     assert!(auth.warnings[0].contains("${MISSING}"));
 }
 
 #[test]
 fn env_replace_failure_preserves_resolved_and_default_placeholders() {
-    // Mixed value with one resolvable placeholder, one unresolved bare placeholder,
-    // and one with a `:-default` fallback. Only the bare unresolved one becomes "";
-    // the others must still expand. Guards against an earlier implementation that
-    // stripped every `${...}` on any substitution failure.
     struct EnvWithSet;
     impl EnvVar for EnvWithSet {
         fn var(name: &str) -> Option<String> {
@@ -338,18 +428,13 @@ fn env_replace_failure_preserves_resolved_and_default_placeholders() {
     }
     let ini = "//reg.com/:_authToken=${SET}-${UNSET}-${DEFAULTED:-fallback}\n";
     let auth = NpmrcAuth::from_ini::<EnvWithSet>(ini, Path::new(""));
-    assert_eq!(
-        auth.creds_by_uri.get("//reg.com/").map(|creds| creds.auth_token.as_deref()),
-        Some(Some("AAA--fallback")),
-    );
+    assert_eq!(default_auth_token(&auth, "//reg.com/"), Some(Some("AAA--fallback")));
     assert_eq!(auth.warnings.len(), 1);
     assert!(auth.warnings[0].contains("${UNSET}"));
 }
 
 #[test]
 fn basic_auth_built_from_username_and_password() {
-    // Pnpm's `_password` is base64(raw_password). Header should
-    // be `Basic base64(username:raw_password)`.
     let raw_password = "p@ss";
     let password_b64 = base64_encode(raw_password);
     let ini = format!("//reg.com/:username=alice\n//reg.com/:_password={password_b64}\n");
@@ -374,10 +459,7 @@ fn auth_pair_base64_passes_through_to_basic_header() {
 }
 
 /// `[section]`-style headers are not legal `.npmrc` syntax (npm's
-/// rc files are flat key/value pairs). Smoke-test that they are
-/// dropped silently. They fall through the no-`=` branch in
-/// [`NpmrcAuth::from_ini`] so the parser never tries to interpret
-/// them.
+/// rc files are flat key/value pairs).
 #[test]
 fn ini_section_headers_are_dropped_silently() {
     let ini = "[default]\nregistry=https://r.example\n[other]\n";
@@ -386,24 +468,14 @@ fn ini_section_headers_are_dropped_silently() {
     assert_eq!(auth.warnings, Vec::<String>::new());
 }
 
-/// When a `${VAR}` placeholder appears in the *key* and cannot be
-/// resolved, the parser substitutes it with "" and pushes a warning.
-/// Mirrors `substituteEnv` in pnpm's `loadNpmrcFiles.ts`.
 #[test]
 fn env_replace_failure_on_key_warns_and_drops_unresolved_to_empty() {
-    // `${MISSING}_authToken` resolves to the literal key `_authToken` (the
-    // unresolved placeholder becomes ""), so it lands on `default_creds` as
-    // the typed `_authToken` field. The point of this test is to exercise
-    // the warning + lossy-substitution branch at the top of `from_ini`.
     let ini = "${MISSING}_authToken=abc\n";
     let auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
     assert_eq!(auth.default_creds.auth_token.as_deref(), Some("abc"));
     assert!(auth.warnings.iter().any(|warning| warning.contains("${MISSING}")));
 }
 
-/// Top-level `_auth=`, `username=`, and `_password=` lines should
-/// land on [`NpmrcAuth::default_creds`] so the resolved registry's
-/// nerf-darted URI gets a `Basic` header.
 #[test]
 fn top_level_auth_pair_keys_to_default_registry_basic_header() {
     let pair = base64_encode("bob:hunter2");
@@ -429,9 +501,6 @@ fn top_level_username_password_keys_to_default_registry_basic_header() {
     );
 }
 
-/// A `//host/:_password=…` line on its own (no matching `username`)
-/// produces no `Basic` header. The credential shape needs both
-/// halves. Hits the `None` fallthrough in [`creds_to_header`].
 #[test]
 fn lone_per_registry_password_produces_no_header() {
     let ini = format!("//reg.com/:_password={}\n", base64_encode("solo"));
@@ -440,10 +509,6 @@ fn lone_per_registry_password_produces_no_header() {
     assert_eq!(config.auth_headers.for_url("https://reg.com/"), None);
 }
 
-/// Per-registry creds with a recognisable suffix should be carried
-/// through [`NpmrcAuth::build_auth_headers`] and surface as a
-/// `Basic` header for matching URLs. Exercises the
-/// `auth_header_by_uri.insert(...)` branch.
 #[test]
 fn per_registry_username_password_apply_through_build_auth_headers() {
     let raw_password = "hunter2";
@@ -457,23 +522,15 @@ fn per_registry_username_password_apply_through_build_auth_headers() {
     );
 }
 
-/// `//host/:somethingUnknown=value` lines are dropped silently.
-/// [`split_creds_key`] returns `None` for anything outside
-/// [`CREDS_SUFFIXES`], and the line then falls through to
-/// [`apply_creds_field`] on [`NpmrcAuth::default_creds`] with a
-/// non-matching field. Exercises both no-match arms.
 #[test]
 fn unknown_per_registry_suffix_is_silently_dropped() {
     let ini = "//reg.example/:registry=https://other.example/\n";
     let auth = NpmrcAuth::from_ini::<NoEnv>(ini, Path::new(""));
-    assert!(auth.creds_by_uri.is_empty());
+    assert!(auth.creds_by_scope_by_uri.is_empty());
     assert_eq!(auth.default_creds, RawCreds::default());
     assert_eq!(auth.warnings, Vec::<String>::new());
 }
 
-/// [`NpmrcAuth::apply_registry_and_warn`] should drain the warning
-/// queue. Pnpm's `substituteEnv` writes the same string to stderr
-/// via `globalWarn` once per resolution failure.
 #[test]
 fn apply_registry_and_warn_drains_warnings() {
     let ini = "//reg.com/:_authToken=${MISSING}\n";
@@ -484,16 +541,11 @@ fn apply_registry_and_warn_drains_warnings() {
     assert!(auth.warnings.is_empty(), "warnings should be drained after flush");
 }
 
-/// When `_password` is *not* valid base64, [`creds_to_header`]
-/// falls back to using the raw string verbatim. Mirrors the
-/// `unwrap_or_else` branch inside that function. Pnpm's
-/// `parseBasicAuth` doesn't have this exact fallback (it always
+/// Pnpm's `parseBasicAuth` doesn't have this exact fallback (it always
 /// `atob`s), but pacquet's tolerance avoids losing the credential
 /// for `.npmrc` files where `_password` was already a raw value.
 #[test]
 fn invalid_base64_password_falls_back_to_raw_value() {
-    // `*` is outside the base64 alphabet, so `base64_decode`
-    // returns `None` and the raw string is used as the password.
     let ini = "//reg.com/:username=alice\n//reg.com/:_password=raw*pw\n";
     let mut config = Config::new();
     NpmrcAuth::from_ini::<NoEnv>(ini, Path::new("")).apply_to::<NoEnv>(&mut config);
@@ -503,26 +555,16 @@ fn invalid_base64_password_falls_back_to_raw_value() {
     );
 }
 
-/// Exercises every branch of [`base64_decode`]: the alphanumeric
-/// arms, the `+` arm, the `/` arm, the `=` padding break, and the
-/// "invalid character" return. Without these the password-decode
-/// fallback (`unwrap_or_else(... pass_b64.clone())`) path stays
-/// unreachable from the parser tests.
+/// Without these assertions the password-decode fallback
+/// (`unwrap_or_else(... pass_b64.clone())`) path stays unreachable
+/// from the parser tests.
 #[test]
 fn base64_decode_covers_every_alphabet_branch() {
-    // Standard alphanumeric round-trip.
     assert_eq!(base64_decode(&base64_encode("alice:hunter2")).as_deref(), Some("alice:hunter2"));
-    // `/` arm: `"???"` (three 0x3f bytes) encodes to `"Pz8/"`.
     assert_eq!(base64_decode("Pz8/").as_deref(), Some("???"));
-    // `+` arm: `"~~~"` (three 0x7e bytes) encodes to `"fn5+"`.
     assert_eq!(base64_decode("fn5+").as_deref(), Some("~~~"));
-    // `=` padding short-circuits the loop on a 2-byte input.
     assert_eq!(base64_decode("aGk=").as_deref(), Some("hi"));
-    // Redundant trailing padding is ignored, matching pnpm's tolerant
-    // credential decoder.
     assert_eq!(base64_decode("aGk===").as_deref(), Some("hi"));
-    // Invalid byte returns None so the parser keeps the raw
-    // value verbatim. `*` is not in the alphabet.
     assert_eq!(base64_decode("not*base64"), None);
 }
 
@@ -551,8 +593,6 @@ fn parses_legacy_proxy_key_from_ini() {
 
 #[test]
 fn no_proxy_and_noproxy_aliases_last_wins() {
-    // pnpm pipes both spellings into a single `noProxy` slot — the last
-    // assignment in `.npmrc` order wins, same as upstream's single field.
     let auth = NpmrcAuth::from_ini::<NoEnv>(
         "no-proxy=first.example\nnoproxy=second.example\n",
         Path::new(""),
@@ -568,7 +608,6 @@ fn no_proxy_and_noproxy_aliases_last_wins() {
 
 #[test]
 fn cascade_https_proxy_uses_legacy_proxy_when_unset() {
-    // Mirrors upstream: `httpsProxy ?? proxy ?? env`.
     let auth = NpmrcAuth::from_ini::<NoEnv>("proxy=http://legacy.example:8080\n", Path::new(""));
     let mut config = Config::new();
     auth.apply_to::<NoEnv>(&mut config);
@@ -588,9 +627,6 @@ fn cascade_explicit_https_proxy_wins_over_legacy_key() {
 
 #[test]
 fn cascade_http_proxy_uses_resolved_https_proxy() {
-    // pnpm: `httpProxy ?? httpsProxy ?? env(HTTP_PROXY) ?? env(PROXY)`.
-    // With only `https-proxy` set the http side inherits it — *and* the
-    // env vars are not consulted.
     static_env!(
         EnvHttpButOverridden,
         &[("HTTP_PROXY", "http://env.example:80"), ("PROXY", "http://envproxy.example:80")]
@@ -661,8 +697,6 @@ fn cascade_npmrc_value_wins_over_env() {
 
 #[test]
 fn cascade_http_proxy_env_fallback_chain_proxy_var() {
-    // When neither `.npmrc` nor `https-proxy` is set, http falls through
-    // `HTTP_PROXY` first, then the bare `PROXY` env.
     static_env!(BareProxy, &[("PROXY", "http://barenv.example:80")]);
     let auth = NpmrcAuth::default();
     let mut config = Config::new();
@@ -673,8 +707,6 @@ fn cascade_http_proxy_env_fallback_chain_proxy_var() {
 
 #[test]
 fn cascade_env_var_lowercase_lookup() {
-    // Upstream tries upper then lower case. With only the lowercase env
-    // populated, the lookup must still find it.
     static_env!(LowercaseEnv, &[("https_proxy", "http://lower.example:8080")]);
     let auth = NpmrcAuth::default();
     let mut config = Config::new();
@@ -693,8 +725,7 @@ const TEST_CA_PEM: &str = include_str!("../../../network/tests/fixtures/test-ca.
 fn parses_inline_ca_from_ini() {
     let ini = format!("ca={}\n", TEST_CA_PEM.replace('\n', " "));
     // INI doesn't allow real newlines in values, but for round-trip
-    // through this test we still parse `value` as a single line. The
-    // important assertion is that the value lands on `auth.ca`.
+    // through this test we still parse `value` as a single line.
     let auth = NpmrcAuth::from_ini::<NoEnv>(&ini, Path::new(""));
     assert_eq!(auth.ca.len(), 1, "auth.ca={:?}", auth.ca);
 }
@@ -771,17 +802,13 @@ fn parses_strict_ssl_true_and_false() {
 
 #[test]
 fn strict_ssl_invalid_value_silently_drops() {
-    // pnpm/nopt drops non-boolean values. Pacquet does the same so
-    // the per-emit-site `?? true` default kicks in.
     let auth = NpmrcAuth::from_ini::<NoEnv>("strict-ssl=maybe\n", Path::new(""));
     assert_eq!(auth.strict_ssl, None);
 }
 
 #[test]
 fn strict_ssl_invalid_value_resets_prior_value() {
-    // A later invalid `strict-ssl=` line resets the slot to `None`
-    // so the build-site `unwrap_or(true)` default kicks in. If the
-    // parser silently kept the earlier `false`, a typo on a later
+    // If the parser silently kept the earlier `false`, a typo on a later
     // line would leave TLS verification disabled — silently — until
     // the user noticed.
     let auth = NpmrcAuth::from_ini::<NoEnv>("strict-ssl=false\nstrict-ssl=oops\n", Path::new(""));
@@ -804,11 +831,8 @@ fn applies_inline_ca_to_config() {
     assert!(first.contains("BEGIN CERTIFICATE"), "inline CA missing header: {first:?}");
 }
 
-/// `strict-ssl` stays a top-level toggle, but unscoped `cert`/`key`
-/// are rescoped to the source's registry (the npmjs default here, since
-/// no `registry=` is set) — matching pnpm's `rescopeUnscopedCreds`,
-/// which pins client identity per registry rather than sending it to
-/// every host.
+/// Rescoping pins client identity per registry rather than sending it
+/// to every host.
 #[test]
 fn applies_strict_ssl_to_config_and_rescopes_cert_key() {
     let auth = NpmrcAuth {
@@ -855,7 +879,6 @@ fn invalid_local_address_silently_dropped() {
 fn cafile_reads_and_splits_into_per_cert_pems() {
     use std::io::Write;
     let tmp = tempfile::NamedTempFile::new().expect("create tempfile");
-    // Two certs concatenated — same as a real-world multi-CA bundle.
     let bundle = format!("{TEST_CA_PEM}\n{TEST_CA_PEM}\n");
     tmp.as_file().write_all(bundle.as_bytes()).expect("write bundle");
     let auth = NpmrcAuth {
@@ -876,11 +899,7 @@ fn cafile_reads_and_splits_into_per_cert_pems() {
 
 #[test]
 fn cafile_trailing_garbage_is_preserved_for_downstream_parser() {
-    // Mirrors pnpm's `loadCAFile`: a non-empty chunk after the final
-    // `-----END CERTIFICATE-----` gets the delimiter re-appended
-    // (producing a malformed PEM) so downstream
-    // `Certificate::from_pem` surfaces the parse error. Silently
-    // dropping the trailing chunk would mask a truncated cert
+    // Silently dropping the trailing chunk would mask a truncated cert
     // bundle and leave the user wondering why their CA list is
     // shorter than expected.
     use std::io::Write;
@@ -954,7 +973,7 @@ fn parses_scoped_inline_ca() {
     );
     let entry = auth.tls_by_uri.get("//reg.example.com/").expect("entry present");
     let ca = entry.ca.as_deref().expect("ca set");
-    assert!(ca.contains('\n'), "expected `\\n` → newline expansion: {ca:?}");
+    assert!(ca.contains('\n'), r"expected `\n` → newline expansion: {ca:?}");
     assert!(ca.contains("BEGIN CERTIFICATE"), "expected PEM header: {ca:?}");
 }
 
@@ -1017,8 +1036,6 @@ fn parses_scoped_certfile_and_keyfile() {
 
 #[test]
 fn scoped_inline_and_file_share_same_slot_last_wins() {
-    // pnpm writes `:cert` and `:certfile` to the same `tls.cert`
-    // slot. The last assignment in the .npmrc wins.
     use std::io::Write;
     let tmp = tempfile::NamedTempFile::new().expect("create tempfile");
     tmp.as_file().write_all(b"FROM-FILE").expect("write");
@@ -1033,9 +1050,6 @@ fn scoped_inline_and_file_share_same_slot_last_wins() {
 
 #[test]
 fn scoped_n_escape_expansion_only_on_inline() {
-    // pnpm's `:ca=...` value goes through `.replace(/\\n/g, '\n')`.
-    // The `:cafile` variant reads from disk and doesn't apply the
-    // replacement (the file already has real newlines).
     let auth = NpmrcAuth::from_ini::<NoEnv>("//reg.example.com/:ca=line1\\nline2\n", Path::new(""));
     let entry = auth.tls_by_uri.get("//reg.example.com/").expect("entry present");
     assert_eq!(entry.ca.as_deref(), Some("line1\nline2"));
@@ -1047,8 +1061,6 @@ fn applies_tls_by_uri_to_config_drops_empty() {
         "//keep.example.com/:ca=ca-pem\n//drop.example.com/:registry=https://drop.example/\n",
         Path::new(""),
     );
-    // `//drop.example.com/:registry=` doesn't match any TLS suffix
-    // so no `RegistryTls` entry is ever created for that prefix.
     let mut config = Config::new();
     auth.apply_to::<NoEnv>(&mut config);
     assert!(config.tls_by_uri.get("//keep.example.com/").is_some(), "non-empty entry kept");
@@ -1057,9 +1069,6 @@ fn applies_tls_by_uri_to_config_drops_empty() {
 
 #[test]
 fn scoped_tls_keys_dont_collide_with_top_level() {
-    // Top-level `ca=`, `cert=`, `key=`, `cafile=` arms run *before*
-    // the SSL-suffix matcher. A bare `ca=` line should land on
-    // `auth.ca`, not in `tls_by_uri` as registry=`""`.
     let auth = NpmrcAuth::from_ini::<NoEnv>("ca=top-level\n", Path::new(""));
     assert_eq!(auth.ca, vec!["top-level".to_string()]);
     assert!(auth.tls_by_uri.is_empty(), "top-level `ca=` must not pollute tls_by_uri");
@@ -1088,10 +1097,7 @@ macro_rules! static_env_with_vars {
 fn url_scoped_env_reads_npm_config_auth_token() {
     static_env_with_vars!(Env, &[("npm_config_//registry.npmjs.org/:_authToken", "npm-env-token")]);
     let auth = NpmrcAuth::from_url_scoped_env::<Env>();
-    assert_eq!(
-        auth.creds_by_uri.get("//registry.npmjs.org/").map(|creds| creds.auth_token.as_deref()),
-        Some(Some("npm-env-token")),
-    );
+    assert_eq!(default_auth_token(&auth, "//registry.npmjs.org/"), Some(Some("npm-env-token")));
 }
 
 #[test]
@@ -1101,10 +1107,7 @@ fn url_scoped_env_reads_pnpm_config_auth_token() {
         &[("pnpm_config_//registry.npmjs.org/:_authToken", "pnpm-env-token")]
     );
     let auth = NpmrcAuth::from_url_scoped_env::<Env>();
-    assert_eq!(
-        auth.creds_by_uri.get("//registry.npmjs.org/").map(|creds| creds.auth_token.as_deref()),
-        Some(Some("pnpm-env-token")),
-    );
+    assert_eq!(default_auth_token(&auth, "//registry.npmjs.org/"), Some(Some("pnpm-env-token")));
 }
 
 #[test]
@@ -1117,10 +1120,7 @@ fn url_scoped_env_pnpm_prefix_wins_over_npm() {
         ]
     );
     let auth = NpmrcAuth::from_url_scoped_env::<Env>();
-    assert_eq!(
-        auth.creds_by_uri.get("//registry.npmjs.org/").map(|creds| creds.auth_token.as_deref()),
-        Some(Some("pnpm-env-token")),
-    );
+    assert_eq!(default_auth_token(&auth, "//registry.npmjs.org/"), Some(Some("pnpm-env-token")));
 }
 
 #[test]
@@ -1128,16 +1128,13 @@ fn url_scoped_env_ignores_non_url_and_empty_values() {
     static_env_with_vars!(
         Env,
         &[
-            // Not URL-scoped (no leading `//`) — must be ignored here.
             ("npm_config_registry", "https://example.test/"),
-            // Empty value — treated as unset.
             ("npm_config_//empty.example/:_authToken", ""),
-            // Unrelated env var.
             ("PATH", "/usr/bin"),
         ]
     );
     let auth = NpmrcAuth::from_url_scoped_env::<Env>();
-    assert!(auth.creds_by_uri.is_empty());
+    assert!(auth.creds_by_scope_by_uri.is_empty());
     assert!(auth.registry.is_none());
 }
 
@@ -1153,5 +1150,312 @@ fn url_scoped_env_ignores_non_ascii_names_without_panicking() {
         ]
     );
     let auth = NpmrcAuth::from_url_scoped_env::<Env>();
-    assert!(auth.creds_by_uri.is_empty());
+    assert!(auth.creds_by_scope_by_uri.is_empty());
+}
+
+#[test]
+fn json_env_reads_host_keyed_default_auth_token() {
+    static_env!(
+        Env,
+        &[(
+            "pnpm_config__auth",
+            r#"{"https://registry.npmjs.org":{"@":{"authToken":"json-token"}}}"#
+        )]
+    );
+    let auth = NpmrcAuth::from_json_sources::<Env>(None).expect("valid _auth");
+    assert_eq!(default_auth_token(&auth, "//registry.npmjs.org/"), Some(Some("json-token")));
+}
+
+#[test]
+fn json_env_accepts_uppercase_scheme() {
+    // URL schemes are case-insensitive; the TS side parses keys with
+    // `new URL()`, which accepts `HTTPS://...`. pacquet must too.
+    static_env!(
+        Env,
+        &[(
+            "pnpm_config__auth",
+            r#"{"HTTPS://registry.npmjs.org":{"@":{"authToken":"upper-scheme-token"}}}"#
+        )]
+    );
+    let auth = NpmrcAuth::from_json_sources::<Env>(None).expect("valid _auth");
+    assert_eq!(
+        default_auth_token(&auth, "//registry.npmjs.org/"),
+        Some(Some("upper-scheme-token")),
+    );
+}
+
+#[test]
+fn json_env_reads_scoped_auth_tokens_on_shared_host() {
+    static_env!(
+        Env,
+        &[(
+            "pnpm_config__auth",
+            r#"{"https://npm.pkg.github.com":{"@org-a":{"authToken":"a-tok"},"@org-b":{"authToken":"b-tok"}}}"#
+        )]
+    );
+    let auth = NpmrcAuth::from_json_sources::<Env>(None).expect("valid _auth");
+    assert_eq!(scoped_auth_token(&auth, "//npm.pkg.github.com/", "@org-a"), Some(Some("a-tok")));
+    assert_eq!(scoped_auth_token(&auth, "//npm.pkg.github.com/", "@org-b"), Some(Some("b-tok")));
+}
+
+#[test]
+fn json_env_rejects_deprecated_basic_auth_field() {
+    // Only `authToken` is supported; the deprecated `basicAuth` /
+    // `username` + `password` forms are rejected (`deny_unknown_fields`),
+    // which is a hard error.
+    static_env!(
+        Env,
+        &[("pnpm_config__auth", r#"{"https://reg.example":{"@":{"basicAuth":"any-value"}}}"#)]
+    );
+    assert!(NpmrcAuth::from_json_sources::<Env>(None).is_err());
+}
+
+#[test]
+fn json_env_duplicate_route_keeps_last_in_source_order() {
+    // Two hosts both route the default registry; the source-LAST entry wins,
+    // matching pnpm's `Object.entries` iteration. Listed reverse-alphabetically
+    // so a sorted map would pick the wrong host.
+    static_env!(
+        Env,
+        &[(
+            "pnpm_config__auth",
+            r#"{"https://zzz.example":{"@":{"authToken":"z"}},"https://aaa.example":{"@":{"authToken":"a"}}}"#
+        )]
+    );
+    let auth = NpmrcAuth::from_json_sources::<Env>(None).expect("valid _auth");
+    assert_eq!(
+        auth.json_env_registries.get("default").map(String::as_str),
+        Some("https://aaa.example/"),
+    );
+}
+
+#[test]
+fn json_env_default_scope_infers_default_registry_route() {
+    static_env!(
+        Env,
+        &[("pnpm_config__auth", r#"{"https://my-npm-proxy.example":{"@":{"authToken":"tok"}}}"#)]
+    );
+    let auth = NpmrcAuth::from_json_sources::<Env>(None).expect("valid _auth");
+    assert_eq!(
+        auth.json_env_registries.get("default").map(String::as_str),
+        Some("https://my-npm-proxy.example/"),
+    );
+}
+
+#[test]
+fn json_env_package_scope_infers_scoped_registry_route() {
+    static_env!(
+        Env,
+        &[("pnpm_config__auth", r#"{"https://npm.pkg.github.com":{"@org":{"authToken":"tok"}}}"#)]
+    );
+    let auth = NpmrcAuth::from_json_sources::<Env>(None).expect("valid _auth");
+    assert_eq!(
+        auth.json_env_registries.get("@org").map(String::as_str),
+        Some("https://npm.pkg.github.com/"),
+    );
+    assert!(!auth.json_env_registries.contains_key("default"));
+}
+
+#[test]
+fn json_env_honors_upper_case_form() {
+    // Both `pnpm_config__auth` (documented) and `PNPM_CONFIG__AUTH` (the
+    // all-caps shell convention) are accepted — mirrors `read_pnpm_env`'s
+    // two-form lookup shape.
+    static_env!(
+        Env,
+        &[(
+            "PNPM_CONFIG__AUTH",
+            r#"{"https://registry.npmjs.org":{"@":{"authToken":"upper-token"}}}"#
+        )]
+    );
+    let auth = NpmrcAuth::from_json_sources::<Env>(None).expect("valid _auth");
+    assert_eq!(default_auth_token(&auth, "//registry.npmjs.org/"), Some(Some("upper-token")));
+}
+
+#[test]
+fn json_env_lower_case_wins_over_upper_case_when_both_are_set() {
+    // Both forms are accepted; when both are set, the documented
+    // (lowercase) form wins. Mirrors `read_pnpm_env`'s two-form lookup.
+    static_env!(
+        Env,
+        &[
+            (
+                "pnpm_config__auth",
+                r#"{"https://registry.npmjs.org":{"@":{"authToken":"lower-token"}}}"#
+            ),
+            (
+                "PNPM_CONFIG__AUTH",
+                r#"{"https://registry.npmjs.org":{"@":{"authToken":"upper-token"}}}"#
+            ),
+        ]
+    );
+    let auth = NpmrcAuth::from_json_sources::<Env>(None).expect("valid _auth");
+    assert_eq!(default_auth_token(&auth, "//registry.npmjs.org/"), Some(Some("lower-token")));
+}
+
+#[test]
+fn json_env_empty_lowercase_falls_back_to_uppercase() {
+    static_env!(
+        Env,
+        &[
+            ("pnpm_config__auth", ""),
+            (
+                "PNPM_CONFIG__AUTH",
+                r#"{"https://registry.npmjs.org":{"@":{"authToken":"upper-token"}}}"#
+            ),
+        ]
+    );
+    let auth = NpmrcAuth::from_json_sources::<Env>(None).expect("valid _auth");
+    assert_eq!(default_auth_token(&auth, "//registry.npmjs.org/"), Some(Some("upper-token")));
+}
+
+#[test]
+fn json_env_rejects_non_string_auth_token() {
+    static_env!(
+        Env,
+        &[("pnpm_config__auth", r#"{"https://registry.example":{"@":{"authToken":123}}}"#)]
+    );
+    assert!(NpmrcAuth::from_json_sources::<Env>(None).is_err());
+}
+
+#[test]
+fn json_env_rejects_missing_auth_token() {
+    static_env!(Env, &[("pnpm_config__auth", r#"{"https://registry.example":{"@":{}}}"#)]);
+    assert!(NpmrcAuth::from_json_sources::<Env>(None).is_err());
+}
+
+#[test]
+fn json_env_rejects_host_value_that_is_not_a_scope_object() {
+    static_env!(Env, &[("pnpm_config__auth", r#"{"https://registry.example":123}"#)]);
+    assert!(NpmrcAuth::from_json_sources::<Env>(None).is_err());
+}
+
+#[test]
+fn json_env_rejects_host_key_that_is_not_a_registry_url() {
+    static_env!(Env, &[("pnpm_config__auth", r#"{"not a url":{"@":{"authToken":"tok"}}}"#)]);
+    let error = NpmrcAuth::from_json_sources::<Env>(None).unwrap_err().to_string();
+    assert!(!error.contains("not a url"), "raw key must not leak into the error: {error}");
+}
+
+#[test]
+fn json_env_rejects_non_http_scheme() {
+    static_env!(
+        Env,
+        &[("pnpm_config__auth", r#"{"ftp://registry.example":{"@":{"authToken":"tok"}}}"#)]
+    );
+    assert!(NpmrcAuth::from_json_sources::<Env>(None).is_err());
+}
+
+#[test]
+fn json_env_rejects_invalid_scope_name() {
+    static_env!(
+        Env,
+        &[("pnpm_config__auth", r#"{"https://registry.example":{"org":{"authToken":"tok"}}}"#)]
+    );
+    assert!(NpmrcAuth::from_json_sources::<Env>(None).is_err());
+}
+
+#[test]
+fn json_env_rejects_scope_value_that_is_not_an_auth_object() {
+    static_env!(Env, &[("pnpm_config__auth", r#"{"https://registry.example":{"@":"tok"}}"#)]);
+    assert!(NpmrcAuth::from_json_sources::<Env>(None).is_err());
+}
+
+#[test]
+fn json_env_rejects_unsupported_auth_field() {
+    static_env!(
+        Env,
+        &[(
+            "pnpm_config__auth",
+            r#"{"https://registry.example":{"@":{"tokenHelper":"/bin/echo"}}}"#
+        )]
+    );
+    assert!(NpmrcAuth::from_json_sources::<Env>(None).is_err());
+}
+
+#[test]
+fn json_env_error_does_not_leak_url_credentials() {
+    // The URL key carries userinfo and a query-string token — both common
+    // places to embed secrets. The rejection error must not surface them.
+    static_env!(
+        Env,
+        &[(
+            "pnpm_config__auth",
+            r#"{"https://user:pw@registry.example?token=secret":{"@":{"authToken":"tok"}}}"#
+        )]
+    );
+    let error = NpmrcAuth::from_json_sources::<Env>(None).unwrap_err().to_string();
+    for leak in ["user:pw", "pw@", "token=secret", "?token"] {
+        assert!(!error.contains(leak), "secret fragment {leak:?} leaked into the error: {error}");
+    }
+}
+
+#[test]
+fn json_env_rejects_malformed_json() {
+    static_env!(Env, &[("pnpm_config__auth", "{ not valid json")]);
+    assert!(NpmrcAuth::from_json_sources::<Env>(None).is_err());
+}
+
+#[test]
+fn json_env_rejects_non_object_top_level() {
+    // Arrays expose their indices as keys, so reject them outright.
+    static_env!(Env, &[("pnpm_config__auth", r#"["//registry.example/:_authToken","sneaky"]"#)]);
+    assert!(NpmrcAuth::from_json_sources::<Env>(None).is_err());
+}
+
+#[test]
+fn json_env_empty_or_unset_returns_default() {
+    // Unset: `Sys::var` returns `None` for both forms.
+    struct UnsetEnv;
+    impl EnvVar for UnsetEnv {
+        fn var(_: &str) -> Option<String> {
+            None
+        }
+    }
+    let auth = NpmrcAuth::from_json_sources::<UnsetEnv>(None).expect("valid _auth");
+    assert!(auth.creds_by_scope_by_uri.is_empty());
+
+    // Set but empty: filtered out by the `.filter(|v| !v.is_empty())` step.
+    static_env!(EnvWithEmptyAuth, &[("pnpm_config__auth", "")]);
+    let auth = NpmrcAuth::from_json_sources::<EnvWithEmptyAuth>(None).expect("valid _auth");
+    assert!(auth.creds_by_scope_by_uri.is_empty());
+}
+
+#[test]
+fn json_global_value_configures_auth_and_env_wins_on_conflict() {
+    // `_auth` from the global `config.yaml` (the `global_value` argument)
+    // is parsed like the env var; the env var wins on a conflicting host.
+    struct EnvJson;
+    impl EnvVar for EnvJson {
+        fn var(name: &str) -> Option<String> {
+            (name == "pnpm_config__auth").then(|| {
+                r#"{"https://registry.npmjs.org":{"@":{"authToken":"env-token"}}}"#.to_string()
+            })
+        }
+    }
+    let global = serde_json::json!({
+        "https://registry.npmjs.org": { "@": { "authToken": "yaml-token" } },
+        "https://other.example": { "@": { "authToken": "yaml-other" } },
+    });
+    let auth = NpmrcAuth::from_json_sources::<EnvJson>(Some(&global)).expect("valid _auth");
+    // Env wins on the conflicting host.
+    assert_eq!(default_auth_token(&auth, "//registry.npmjs.org/"), Some(Some("env-token")));
+    // The global-only host is preserved.
+    assert_eq!(default_auth_token(&auth, "//other.example/"), Some(Some("yaml-other")));
+}
+
+#[test]
+fn json_env_normalizes_registry_url_key() {
+    // The `url` crate lowercases scheme + host and drops the default port,
+    // matching the TS side's `new URL()`.
+    static_env!(
+        Env,
+        &[("pnpm_config__auth", r#"{"HTTPS://Reg.Example:443":{"@":{"authToken":"tok"}}}"#)]
+    );
+    let auth = NpmrcAuth::from_json_sources::<Env>(None).expect("valid _auth");
+    assert_eq!(default_auth_token(&auth, "//reg.example/"), Some(Some("tok")));
+    assert_eq!(
+        auth.json_env_registries.get("default").map(String::as_str),
+        Some("https://reg.example/"),
+    );
 }

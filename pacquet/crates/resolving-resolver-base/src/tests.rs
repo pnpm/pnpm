@@ -30,7 +30,9 @@ fn resolution_verification_err_round_trip() {
             assert_eq!(code, "MINIMUM_RELEASE_AGE_VIOLATION");
             assert_eq!(reason, "was published yesterday");
         }
-        ResolutionVerification::Ok => panic!("expected Err"),
+        ResolutionVerification::Ok | ResolutionVerification::FetchFailed { .. } => {
+            panic!("expected Err")
+        }
     }
 }
 
@@ -110,8 +112,6 @@ async fn resolution_verifier_dispatches_through_dyn() {
 /// range doesn't churn the lockfile.
 const _: () = assert!(EXISTING_VERSION_SELECTOR_WEIGHT > DIRECT_DEP_SELECTOR_WEIGHT);
 
-/// [`UpdateBehavior::default`] mirrors upstream's `update?: false`
-/// default — keep the lockfile pin.
 #[test]
 fn update_behavior_defaults_off() {
     assert_eq!(UpdateBehavior::default(), UpdateBehavior::Off);

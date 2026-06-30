@@ -5,7 +5,7 @@
 //! synthesized `<pm>-install` (which transitively runs npm/yarn/pnpm's
 //! built-in `prepare` lifecycle), then any remaining `prepublish*`
 //! scripts. Honors the same `allowBuild` gate pnpm uses, and rejects
-//! sub-paths that escape the git root via `safe_join_path` (mirrors
+//! sub-paths that escape the git root via [`safe_join_path`] (mirrors
 //! upstream's `safeJoinPath` at
 //! [`index.ts:92-103`](https://github.com/pnpm/pnpm/blob/94240bc046/exec/prepare-package/src/index.ts#L92-L103)).
 

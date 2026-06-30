@@ -3,9 +3,8 @@
 //! [`pruneEnvLockfile`](https://github.com/pnpm/pnpm/blob/31858c544b/installing/env-installer/src/pruneEnvLockfile.ts),
 //! which runs the env document through the shared lockfile pruner.
 //!
-//! The env document's reachability graph is shallow — config (and
-//! package-manager) deps plus one level of their optional subdeps — so
-//! this walks that graph directly instead of porting the general
+//! The env document is smaller than a normal project lockfile, so this
+//! walks the snapshot graph directly instead of porting the general
 //! `pruneSharedLockfile`.
 
 use pacquet_lockfile::{EnvLockfile, PackageKey};
@@ -15,6 +14,7 @@ use std::collections::HashSet;
 /// `importers["."]`.
 pub fn prune_env_lockfile(env: &mut EnvLockfile) {
     let mut reachable: HashSet<PackageKey> = HashSet::new();
+    let mut pending: Vec<PackageKey> = Vec::new();
 
     if let Some(importer) = env.importers.get(EnvLockfile::ROOT_IMPORTER_KEY) {
         let direct = importer
@@ -25,21 +25,24 @@ pub fn prune_env_lockfile(env: &mut EnvLockfile) {
             let Ok(key) = format!("{name}@{}", spec.version).parse::<PackageKey>() else {
                 continue;
             };
-            // Pull in one level of optional subdeps before moving the
-            // key, so the borrow on `env.snapshots` ends first.
-            if let Some(snapshot) = env.snapshots.get(&key)
-                && let Some(optionals) = snapshot.optional_dependencies.as_ref()
-            {
-                for (subdep_name, dep_ref) in optionals {
-                    if let Some(ver_peer) = dep_ref.ver_peer()
-                        && let Ok(subkey) =
-                            format!("{subdep_name}@{ver_peer}").parse::<PackageKey>()
-                    {
-                        reachable.insert(subkey);
-                    }
+            pending.push(key);
+        }
+    }
+
+    while let Some(key) = pending.pop() {
+        if !reachable.insert(key.clone()) {
+            continue;
+        }
+        let Some(snapshot) = env.snapshots.get(&key) else {
+            continue;
+        };
+        for deps in [&snapshot.dependencies, &snapshot.optional_dependencies].into_iter().flatten()
+        {
+            for (subdep_name, dep_ref) in deps {
+                if let Some(subkey) = dep_ref.resolve(subdep_name) {
+                    pending.push(subkey);
                 }
             }
-            reachable.insert(key);
         }
     }
 

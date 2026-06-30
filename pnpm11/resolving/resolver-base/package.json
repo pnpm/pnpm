@@ -1,0 +1,48 @@
+{
+  "name": "@pnpm/resolving.resolver-base",
+  "version": "1100.5.0",
+  "description": "Types for pnpm-compatible resolvers",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "resolver"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm11/resolving/resolver-base",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpm11/resolving/resolver-base#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "start": "tsgo --watch",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "pn compile && pn .test",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest",
+    "prepublishOnly": "tsgo --build",
+    "compile": "tsgo --build && pn lint --fix"
+  },
+  "dependencies": {
+    "@pnpm/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@jest/globals": "catalog:",
+    "@pnpm/resolving.resolver-base": "workspace:*"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

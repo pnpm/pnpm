@@ -1,5 +1,6 @@
 use crate::{
-    ConfigDepError, ConfigDepsInstallOptions, prune_env_lockfile, resolve_and_install_config_deps,
+    ConfigDepError, ConfigDepsInstallOptions, install_config_deps, is_package_manager_resolved,
+    prune_env_lockfile, resolve_and_install_config_deps, resolve_package_manager_integrities,
 };
 use pacquet_lockfile::{
     EnvLockfile, LockfileResolution, PackageKey, PackageMetadata, RegistryResolution,
@@ -11,12 +12,15 @@ use pacquet_resolving_npm_resolver::{
     InMemoryPackageMetaCache, NpmResolver, shared_packument_fetch_locker,
     shared_picked_manifest_cache,
 };
-use pacquet_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
+use pacquet_resolving_resolver_base::{
+    LatestInfo, LatestQuery, PkgResolutionId, ResolveFuture, ResolveLatestFuture, ResolveOptions,
+    ResolveResult, Resolver, WantedDependency,
+};
 use pacquet_store_dir::StoreDir;
 use pacquet_testing_utils::registry::TestRegistry;
 use pacquet_workspace_state::ConfigDependency;
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, HashMap},
     path::Path,
     sync::{Arc, Mutex},
 };
@@ -61,6 +65,7 @@ fn build_resolver(registry: &str) -> (NpmResolver<InMemoryPackageMetaCache>, Tem
         prefer_offline: false,
         ignore_missing_time_field: false,
         full_metadata: false,
+        filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
     (resolver, cache_dir)
@@ -116,6 +121,72 @@ fn options<'a>(
 
 fn clean_spec(version: &str) -> ConfigDependency {
     ConfigDependency::VersionWithIntegrity(version.to_string())
+}
+
+#[derive(Default)]
+struct FixtureResolver {
+    packages: HashMap<(String, String), serde_json::Value>,
+}
+
+impl FixtureResolver {
+    fn new() -> Self {
+        Self::default()
+    }
+
+    fn package(mut self, manifest: serde_json::Value) -> Self {
+        let name = manifest["name"].as_str().expect("fixture package name").to_string();
+        let version = manifest["version"].as_str().expect("fixture package version").to_string();
+        self.packages.insert((name, version), manifest);
+        self
+    }
+}
+
+impl Resolver for FixtureResolver {
+    fn resolve<'a>(
+        &'a self,
+        wanted_dependency: &'a WantedDependency,
+        _opts: &'a ResolveOptions,
+    ) -> ResolveFuture<'a> {
+        Box::pin(async move {
+            let Some(alias) = wanted_dependency.alias.as_deref() else {
+                return Ok(None);
+            };
+            let Some(specifier) = wanted_dependency.bare_specifier.as_deref() else {
+                return Ok(None);
+            };
+            let Some(manifest) =
+                self.packages.get(&(alias.to_string(), specifier.to_string())).cloned()
+            else {
+                return Ok(None);
+            };
+            let name = manifest["name"].as_str().expect("fixture package name").to_string();
+            let version =
+                manifest["version"].as_str().expect("fixture package version").to_string();
+            let id = format!("{name}@{version}");
+            Ok(Some(ResolveResult {
+                id: PkgResolutionId::from(id.as_str()),
+                name_ver: Some(id.parse().expect("fixture name/version parses")),
+                latest: Some(version),
+                published_at: None,
+                manifest: Some(Arc::new(manifest)),
+                resolution: LockfileResolution::Registry(RegistryResolution {
+                    integrity: ssri::Integrity::from(id.as_bytes()),
+                }),
+                resolved_via: "npm-registry".to_string(),
+                normalized_bare_specifier: Some(specifier.to_string()),
+                alias: Some(alias.to_string()),
+                policy_violation: None,
+            }))
+        })
+    }
+
+    fn resolve_latest<'a>(
+        &'a self,
+        _query: &'a LatestQuery,
+        _opts: &'a ResolveOptions,
+    ) -> ResolveLatestFuture<'a> {
+        Box::pin(async { Ok(Some(LatestInfo::default())) })
+    }
 }
 
 #[tokio::test]
@@ -177,11 +248,101 @@ async fn records_optional_subdeps_with_platform_fields() {
         .expect("optional subdeps recorded");
     assert_eq!(optionals.len(), 8, "all eight platform variants are recorded");
 
-    // Every recorded subdep keeps its platform fields in `packages:`.
     let only_linux = "@pnpm.e2e/only-linux-x64-glibc@1.0.0".parse().unwrap();
     let metadata = env.packages.get(&only_linux).expect("platform subdep recorded in packages");
     assert_eq!(metadata.os.as_deref(), Some(["linux".to_string()].as_slice()));
     assert_eq!(metadata.cpu.as_deref(), Some(["x64".to_string()].as_slice()));
+    assert_eq!(metadata.libc.as_deref(), Some(["glibc".to_string()].as_slice()));
+}
+
+#[tokio::test]
+async fn resolves_package_manager_dependencies_graph() {
+    let harness = harness();
+    let root = TempDir::new().unwrap();
+    let resolver = FixtureResolver::new()
+        .package(serde_json::json!({
+            "name": "pnpm",
+            "version": "100.0.0",
+            "bin": "bin/pnpm.cjs",
+            "engines": { "node": ">=22.0.0" },
+        }))
+        .package(serde_json::json!({
+            "name": "@pnpm/exe",
+            "version": "100.0.0",
+            "bin": { "pnpm": "bin/pnpm.cjs" },
+            "dependencies": { "detect-libc": "2.0.0" },
+            "optionalDependencies": { "@pnpm/linuxstatic-x64": "100.0.0" },
+        }))
+        .package(serde_json::json!({
+            "name": "detect-libc",
+            "version": "2.0.0",
+            "engines": { "node": ">=8" },
+        }))
+        .package(serde_json::json!({
+            "name": "@pnpm/linuxstatic-x64",
+            "version": "100.0.0",
+            "cpu": ["x64"],
+            "os": ["linux"],
+            "libc": "musl",
+        }));
+
+    resolve_package_manager_integrities(
+        "^100.0.0",
+        "100.0.0",
+        &resolver,
+        &options(&harness, root.path(), false),
+    )
+    .await
+    .unwrap();
+
+    let env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
+    let pm_deps = env.importers[EnvLockfile::ROOT_IMPORTER_KEY]
+        .package_manager_dependencies
+        .as_ref()
+        .expect("package manager deps recorded");
+    assert_eq!(pm_deps["pnpm"].specifier, "^100.0.0");
+    assert_eq!(pm_deps["pnpm"].version, "100.0.0");
+    assert_eq!(pm_deps["@pnpm/exe"].specifier, "^100.0.0");
+    assert_eq!(pm_deps["@pnpm/exe"].version, "100.0.0");
+
+    let pnpm_key: PackageKey = "pnpm@100.0.0".parse().unwrap();
+    let exe_key: PackageKey = "@pnpm/exe@100.0.0".parse().unwrap();
+    let libc_key: PackageKey = "detect-libc@2.0.0".parse().unwrap();
+    let platform_key: PackageKey = "@pnpm/linuxstatic-x64@100.0.0".parse().unwrap();
+
+    assert_eq!(env.packages[&pnpm_key].has_bin, Some(true));
+    assert_eq!(env.packages[&pnpm_key].engines.as_ref().unwrap()["node"], ">=22.0.0");
+    assert_eq!(env.packages[&exe_key].has_bin, Some(true));
+    assert_eq!(env.packages[&platform_key].libc.as_deref(), Some(["musl".to_string()].as_slice()));
+
+    let exe_snapshot = &env.snapshots[&exe_key];
+    let detect_libc_name = "detect-libc".parse().unwrap();
+    let platform_name = "@pnpm/linuxstatic-x64".parse().unwrap();
+    let detect_libc_ref =
+        exe_snapshot.dependencies.as_ref().unwrap()[&detect_libc_name].to_string();
+    assert_eq!(detect_libc_ref, "2.0.0");
+    assert_eq!(
+        exe_snapshot.optional_dependencies.as_ref().unwrap()[&platform_name].to_string(),
+        "100.0.0",
+    );
+    assert!(env.snapshots[&platform_key].optional);
+    assert!(!env.snapshots[&libc_key].optional);
+    assert!(is_package_manager_resolved(&env, "^100.0.0", "100.0.0"));
+    assert!(!is_package_manager_resolved(&env, "~100.0.0", "100.0.0"));
+
+    let mut env_with_extra_pm_dep = env.clone();
+    env_with_extra_pm_dep
+        .importers
+        .get_mut(EnvLockfile::ROOT_IMPORTER_KEY)
+        .unwrap()
+        .package_manager_dependencies
+        .as_mut()
+        .unwrap()
+        .insert(
+            "yarn".to_string(),
+            SpecifierAndResolution { specifier: "1.0.0".to_string(), version: "1.0.0".to_string() },
+        );
+    assert!(!is_package_manager_resolved(&env_with_extra_pm_dep, "^100.0.0", "100.0.0",));
 }
 
 #[tokio::test]
@@ -206,6 +367,277 @@ async fn rejects_optional_subdep_with_non_exact_version() {
         matches!(error, ConfigDepError::OptionalNotExact { .. }),
         "unexpected error: {error:?}",
     );
+}
+
+/// Recursively search `dir` for an entry named `name`, without following
+/// symlinks (so it can't loop through the dir links a successful install leaves).
+fn contains_entry_named(dir: &Path, name: &str) -> bool {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return false;
+    };
+    for entry in entries.flatten() {
+        if entry.file_name() == name {
+            return true;
+        }
+        if entry.file_type().is_ok_and(|file_type| file_type.is_dir())
+            && contains_entry_named(&entry.path(), name)
+        {
+            return true;
+        }
+    }
+    false
+}
+
+#[tokio::test]
+async fn rejects_config_dep_with_path_traversal_name() {
+    let harness = harness();
+    let (resolver, _cache) = build_resolver(&harness.registry_url);
+    let root = TempDir::new().unwrap();
+
+    // Resolve a legit config dep, then re-key its entry under a traversal-shaped
+    // name to mimic a malicious committed lockfile.
+    let mut config_deps = BTreeMap::new();
+    config_deps.insert("@pnpm.e2e/foo".to_string(), clean_spec("100.0.0"));
+    resolve_and_install_config_deps::<SilentReporter>(
+        &config_deps,
+        &resolver,
+        &options(&harness, root.path(), false),
+    )
+    .await
+    .unwrap();
+
+    let mut env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
+    let spec = env.root_importer_mut().config_dependencies.remove("@pnpm.e2e/foo").unwrap();
+    let malicious_name = "../../PWNED_CFGDEP".to_string();
+    env.root_importer_mut().config_dependencies.insert(malicious_name.clone(), spec.clone());
+    let legit_key: PackageKey = "@pnpm.e2e/foo@100.0.0".parse().unwrap();
+    let pkg = env.packages[&legit_key].clone();
+    let malicious_key: PackageKey = format!("{malicious_name}@{}", spec.version).parse().unwrap();
+    env.packages.insert(malicious_key, pkg);
+
+    let error = install_config_deps::<SilentReporter>(&env, &options(&harness, root.path(), false))
+        .await
+        .expect_err("a traversal-shaped config dep name must be rejected");
+    assert!(
+        matches!(error, ConfigDepError::InvalidDependencyName { .. }),
+        "unexpected error: {error:?}",
+    );
+
+    assert!(!contains_entry_named(root.path(), "PWNED_CFGDEP"));
+    assert!(!contains_entry_named(&harness.store_dir.links(), "PWNED_CFGDEP"));
+}
+
+#[tokio::test]
+async fn rejects_optional_subdep_with_path_traversal_name() {
+    let harness = harness();
+    let (resolver, _cache) = build_resolver(&harness.registry_url);
+    let root = TempDir::new().unwrap();
+
+    let mut config_deps = BTreeMap::new();
+    config_deps.insert("@pnpm.e2e/foo".to_string(), clean_spec("100.0.0"));
+    resolve_and_install_config_deps::<SilentReporter>(
+        &config_deps,
+        &resolver,
+        &options(&harness, root.path(), false),
+    )
+    .await
+    .unwrap();
+
+    let mut env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
+    let parent_key: PackageKey = "@pnpm.e2e/foo@100.0.0".parse().unwrap();
+    let pkg = env.packages[&parent_key].clone();
+    let malicious_name = "../../PWNED_SUBDEP".to_string();
+    let malicious_key: PackageKey = format!("{malicious_name}@100.0.0").parse().unwrap();
+    env.packages.insert(malicious_key, pkg);
+    let subdep_name: pacquet_lockfile::PkgName = malicious_name.parse().unwrap();
+    let subdep_ref: SnapshotDepRef = "100.0.0".parse().unwrap();
+    env.snapshots.entry(parent_key).or_default().optional_dependencies =
+        Some(std::iter::once((subdep_name, subdep_ref)).collect());
+
+    let error = install_config_deps::<SilentReporter>(&env, &options(&harness, root.path(), false))
+        .await
+        .expect_err("a traversal-shaped optional subdep name must be rejected");
+    assert!(
+        matches!(error, ConfigDepError::InvalidDependencyName { .. }),
+        "unexpected error: {error:?}",
+    );
+
+    assert!(!contains_entry_named(root.path(), "PWNED_SUBDEP"));
+    assert!(!contains_entry_named(&harness.store_dir.links(), "PWNED_SUBDEP"));
+}
+
+/// `__proto__` is an invalid npm name (leading `_`); Rust's string-keyed maps
+/// reject it with none of the null-prototype handling the JS side needs.
+#[tokio::test]
+async fn rejects_config_dep_named_dunder_proto() {
+    let harness = harness();
+    let (resolver, _cache) = build_resolver(&harness.registry_url);
+    let root = TempDir::new().unwrap();
+
+    let mut config_deps = BTreeMap::new();
+    config_deps.insert("@pnpm.e2e/foo".to_string(), clean_spec("100.0.0"));
+    resolve_and_install_config_deps::<SilentReporter>(
+        &config_deps,
+        &resolver,
+        &options(&harness, root.path(), false),
+    )
+    .await
+    .unwrap();
+
+    let mut env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
+    let spec = env.root_importer_mut().config_dependencies.remove("@pnpm.e2e/foo").unwrap();
+    let malicious_name = "__proto__".to_string();
+    env.root_importer_mut().config_dependencies.insert(malicious_name.clone(), spec.clone());
+    let legit_key: PackageKey = "@pnpm.e2e/foo@100.0.0".parse().unwrap();
+    let pkg = env.packages[&legit_key].clone();
+    let malicious_key: PackageKey = format!("{malicious_name}@{}", spec.version).parse().unwrap();
+    env.packages.insert(malicious_key, pkg);
+
+    let error = install_config_deps::<SilentReporter>(&env, &options(&harness, root.path(), false))
+        .await
+        .expect_err("a config dep named __proto__ must be rejected");
+    assert!(
+        matches!(error, ConfigDepError::InvalidDependencyName { .. }),
+        "unexpected error: {error:?}",
+    );
+}
+
+#[tokio::test]
+async fn rejects_invalid_manifest_config_dep_name_before_writing_lockfile() {
+    let harness = harness();
+    let (resolver, _cache) = build_resolver(&harness.registry_url);
+    let root = TempDir::new().unwrap();
+
+    let mut config_deps = BTreeMap::new();
+    config_deps.insert(
+        "../../PWNED".to_string(),
+        ConfigDependency::VersionWithIntegrity("100.0.0+sha512-deadbeef".to_string()),
+    );
+
+    let error = resolve_and_install_config_deps::<SilentReporter>(
+        &config_deps,
+        &resolver,
+        &options(&harness, root.path(), false),
+    )
+    .await
+    .expect_err("an invalid manifest config dep name must be rejected");
+    assert!(
+        matches!(error, ConfigDepError::InvalidDependencyName { .. }),
+        "unexpected error: {error:?}",
+    );
+
+    assert!(!root.path().join("pnpm-lock.yaml").exists());
+}
+
+#[tokio::test]
+async fn rejects_invalid_manifest_config_dep_version_before_writing_lockfile() {
+    let harness = harness();
+    let (resolver, _cache) = build_resolver(&harness.registry_url);
+    let root = TempDir::new().unwrap();
+
+    let integrity = integrity_of(&resolver, "@pnpm.e2e/foo", "100.0.0").await;
+    let mut config_deps = BTreeMap::new();
+    config_deps.insert(
+        "@pnpm.e2e/foo".to_string(),
+        ConfigDependency::VersionWithIntegrity(format!("../../../PWNED+{integrity}")),
+    );
+
+    let error = resolve_and_install_config_deps::<SilentReporter>(
+        &config_deps,
+        &resolver,
+        &options(&harness, root.path(), false),
+    )
+    .await
+    .expect_err("an invalid manifest config dep version must be rejected");
+    assert!(
+        matches!(error, ConfigDepError::InvalidConfigDepVersion { .. }),
+        "unexpected error: {error:?}",
+    );
+
+    assert!(!root.path().join("pnpm-lock.yaml").exists());
+}
+
+#[tokio::test]
+async fn rejects_config_dep_with_path_traversal_version() {
+    let harness = harness();
+    let (resolver, _cache) = build_resolver(&harness.registry_url);
+    let root = TempDir::new().unwrap();
+
+    let mut config_deps = BTreeMap::new();
+    config_deps.insert("@pnpm.e2e/foo".to_string(), clean_spec("100.0.0"));
+    resolve_and_install_config_deps::<SilentReporter>(
+        &config_deps,
+        &resolver,
+        &options(&harness, root.path(), false),
+    )
+    .await
+    .unwrap();
+
+    let mut env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
+    let malicious_version = "../../../PWNED";
+    env.root_importer_mut().config_dependencies.get_mut("@pnpm.e2e/foo").unwrap().version =
+        malicious_version.to_string();
+    let legit_key: PackageKey = "@pnpm.e2e/foo@100.0.0".parse().unwrap();
+    let pkg = env.packages[&legit_key].clone();
+    let malicious_key: PackageKey = format!("@pnpm.e2e/foo@{malicious_version}").parse().unwrap();
+    env.packages.insert(malicious_key, pkg);
+
+    let error = install_config_deps::<SilentReporter>(&env, &options(&harness, root.path(), false))
+        .await
+        .expect_err("a traversal-shaped config dep version must be rejected");
+    assert!(
+        matches!(error, ConfigDepError::InvalidConfigDepVersion { .. }),
+        "unexpected error: {error:?}",
+    );
+    // Pin the message format (guards against a doubled/dropped quote).
+    let message = error.to_string();
+    assert_eq!(
+        message,
+        r#"The config dependency "@pnpm.e2e/foo" has an invalid version "../../../PWNED""#,
+    );
+
+    assert!(!contains_entry_named(root.path(), "PWNED"));
+    assert!(!contains_entry_named(&harness.store_dir.links(), "PWNED"));
+}
+
+#[tokio::test]
+async fn rejects_optional_subdep_with_path_traversal_version() {
+    let harness = harness();
+    let (resolver, _cache) = build_resolver(&harness.registry_url);
+    let root = TempDir::new().unwrap();
+
+    let mut config_deps = BTreeMap::new();
+    config_deps.insert("@pnpm.e2e/foo".to_string(), clean_spec("100.0.0"));
+    resolve_and_install_config_deps::<SilentReporter>(
+        &config_deps,
+        &resolver,
+        &options(&harness, root.path(), false),
+    )
+    .await
+    .unwrap();
+
+    let mut env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
+    let parent_key: PackageKey = "@pnpm.e2e/foo@100.0.0".parse().unwrap();
+    let pkg = env.packages[&parent_key].clone();
+    let malicious_version = "../../../PWNED";
+    let subdep_name = "@pnpm.e2e/bar";
+    let malicious_key: PackageKey = format!("{subdep_name}@{malicious_version}").parse().unwrap();
+    env.packages.insert(malicious_key, pkg);
+    let subdep_name_parsed: pacquet_lockfile::PkgName = subdep_name.parse().unwrap();
+    let subdep_ref: SnapshotDepRef = malicious_version.parse().unwrap();
+    env.snapshots.entry(parent_key).or_default().optional_dependencies =
+        Some(std::iter::once((subdep_name_parsed, subdep_ref)).collect());
+
+    let error = install_config_deps::<SilentReporter>(&env, &options(&harness, root.path(), false))
+        .await
+        .expect_err("a traversal-shaped optional subdep version must be rejected");
+    assert!(
+        matches!(error, ConfigDepError::InvalidConfigDepVersion { .. }),
+        "unexpected error: {error:?}",
+    );
+
+    assert!(!contains_entry_named(root.path(), "PWNED"));
+    assert!(!contains_entry_named(&harness.store_dir.links(), "PWNED"));
 }
 
 #[tokio::test]
@@ -292,8 +724,6 @@ async fn migrates_old_inline_integrity_format() {
     );
     let env = EnvLockfile::read(root.path()).unwrap().expect("env lockfile written");
     let entry = &env.importers[EnvLockfile::ROOT_IMPORTER_KEY].config_dependencies["@pnpm.e2e/foo"];
-    // The migrated specifier collapses to the bare version (the integrity
-    // moves into the lockfile's packages entry).
     assert_eq!(entry.specifier, "100.0.0");
     assert_eq!(entry.version, "100.0.0");
     assert!(env.packages.contains_key(&"@pnpm.e2e/foo@100.0.0".parse().unwrap()));
@@ -317,8 +747,6 @@ async fn frozen_lockfile_succeeds_when_up_to_date() {
     .await
     .unwrap();
 
-    // A second install under --frozen-lockfile needs no changes, so it
-    // succeeds rather than raising FROZEN_LOCKFILE_WITH_OUTDATED_LOCKFILE.
     resolve_and_install_config_deps::<SilentReporter>(
         &config_deps,
         &resolver,
@@ -334,10 +762,9 @@ async fn frozen_lockfile_rejects_old_format_migration() {
     let (resolver, _cache) = build_resolver(&harness.registry_url);
     let root = TempDir::new().unwrap();
 
-    // An old inline-integrity entry that isn't yet in the env lockfile
-    // needs migrating — which mutates the lockfile, so --frozen-lockfile
-    // must reject it (the `lockfile_changed` branch, distinct from the
-    // clean-specifier resolve branch).
+    // Migrating an old-format entry mutates the lockfile via the
+    // `lockfile_changed` branch, distinct from the clean-specifier
+    // resolve branch that `frozen_lockfile_rejects_new_config_dep` covers.
     let integrity = integrity_of(&resolver, "@pnpm.e2e/foo", "100.0.0").await;
     let mut config_deps = BTreeMap::new();
     config_deps.insert(
@@ -387,8 +814,7 @@ async fn emits_installing_config_deps_events_only_when_work_is_needed() {
     )
     .await
     .unwrap();
-    // First install does work: exactly `started` then `done`, in that
-    // order (the channel is order-sensitive for pnpm compatibility).
+    // The channel is order-sensitive for pnpm compatibility.
     let first = std::mem::take(&mut *CONFIG_DEP_EVENTS.lock().unwrap());
     assert_eq!(
         first,
@@ -403,7 +829,6 @@ async fn emits_installing_config_deps_events_only_when_work_is_needed() {
     )
     .await
     .unwrap();
-    // Everything is already in place — no events on the second install.
     let second = std::mem::take(&mut *CONFIG_DEP_EVENTS.lock().unwrap());
     assert!(second.is_empty(), "a no-op install emits nothing: {second:?}");
 }
@@ -480,8 +905,7 @@ async fn removed_config_dep_is_pruned_from_lockfile_and_pnpm_config() {
     .unwrap();
     assert!(root.path().join("node_modules/.pnpm-config/@pnpm.e2e/foo/package.json").exists());
 
-    // Re-resolve with the dep no longer declared: it must be dropped from
-    // the env lockfile and unlinked from `.pnpm-config`.
+    // Re-resolve with the dep no longer declared.
     let empty = BTreeMap::new();
     resolve_and_install_config_deps::<SilentReporter>(
         &empty,

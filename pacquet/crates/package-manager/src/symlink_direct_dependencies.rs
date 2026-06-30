@@ -129,9 +129,7 @@ pub enum SymlinkDirectDependenciesError {
     },
 
     /// Surfaces a per-package symlink failure (e.g. permission denied,
-    /// disk full, an existing non-symlink file). Replaces the prior
-    /// `expect("symlink pkg")` which panicked inside a rayon task and
-    /// took the whole install down.
+    /// disk full, an existing non-symlink file).
     #[display("Failed to symlink {name:?} for importer {importer_id:?}: {source}")]
     #[diagnostic(code(pacquet_package_manager::symlink_failed))]
     SymlinkPackage {
@@ -373,7 +371,7 @@ pub(crate) fn importer_root_dir(workspace_root: &Path, importer_id: &str) -> Pat
     }
 }
 
-#[allow(
+#[expect(
     clippy::too_many_arguments,
     reason = "the parameters are independent inputs; bundling them into a struct would not improve clarity"
 )]
@@ -429,20 +427,22 @@ fn link_one_importer<Reporter: self::Reporter>(
     let prefix = project_dir.to_string_lossy().into_owned();
 
     // `try_for_each` short-circuits on the first error and returns it
-    // to the caller, replacing the prior `expect("symlink pkg")` that
-    // panicked the rayon worker on any FS failure. The full result
-    // collection forces every task to settle before we surface a
-    // single error.
+    // to the caller. The full result collection forces every task to
+    // settle before we surface a single error.
     entries.par_iter().try_for_each(|entry| -> Result<(), SymlinkDirectDependenciesError> {
         let ResolvedEntry { name, spec, group, name_str, target } = entry;
 
-        symlink_package(target, &modules_dir.join(name_str)).map_err(|source| {
+        let outcome = symlink_package(target, &modules_dir.join(name_str)).map_err(|source| {
             SymlinkDirectDependenciesError::SymlinkPackage {
                 importer_id: importer_id.to_string(),
                 name: name_str.clone(),
                 source,
             }
         })?;
+
+        if outcome.reused {
+            return Ok(());
+        }
 
         // `pnpm:root added` mirrors pnpm's emit at
         // <https://github.com/pnpm/pnpm/blob/94240bc046/installing/linking/direct-dep-linker/src/linkDirectDeps.ts#L131>:
@@ -530,7 +530,7 @@ struct ResolvedEntry<'a> {
 
 /// Walk an importer snapshot's dependency groups and emit one
 /// [`ResolvedEntry`] per direct dep, applying the same first-wins /
-/// skipped / link-only filters that `link_one_importer` (private to
+/// skipped / link-only filters that [`link_one_importer`] (private to
 /// this module) uses to drive the symlink + bin-link pass.
 ///
 /// Iterate per group so each emit can label the dependency with its
@@ -545,19 +545,6 @@ struct ResolvedEntry<'a> {
 /// package, not directly under `node_modules/`), and
 /// [`ProjectSnapshot::get_map_by_group`] also returns `None` for
 /// `Peer` so this filter is belt-and-braces.
-///
-/// First-wins dedup with a `HashSet<&PkgName>`. A v9 lockfile pnpm
-/// itself wrote shouldn't list the same package across multiple
-/// importer sections (pnpm's resolver normalises: a package with
-/// `optional: true` lands in `optionalDependencies` only). But
-/// pacquet ingests user-supplied lockfiles, and a malformed one
-/// with the same key in two sections would race two
-/// `symlink_package` calls to the same `node_modules/<name>` and
-/// emit duplicate `pnpm:root added` events. First-wins picks up
-/// the highest-priority group from the caller-supplied
-/// `dependency_groups` order. The CLI today passes
-/// `[Prod, Dev, Optional]`, matching pnpm's
-/// dependencies-over-optional precedence.
 fn collect_resolved_entries<'a>(
     layout: &VirtualStoreLayout,
     project_snapshot: &'a ProjectSnapshot,
@@ -614,7 +601,7 @@ fn collect_resolved_entries<'a>(
 }
 
 /// Map a `(name, spec)` to the on-disk path a direct-dep symlink
-/// should point at. Pulled out of the rayon loop so `collect_resolved_targets`
+/// should point at. Pulled out of the rayon loop so [`collect_resolved_targets`]
 /// can reuse the same computation when building the dedupe map.
 fn resolve_target_path(
     layout: &VirtualStoreLayout,

@@ -124,3 +124,19 @@
 ## `pacquet init`
 
 [pnpm documentation](https://pnpm.io/cli/init)
+
+## `pacquet pack`
+
+[pnpm documentation](https://pnpm.io/cli/pack)
+
+| Done | Command                      | Notes                                                                          |
+| ---- | ---------------------------- | ------------------------------------------------------------------------------ |
+| ✅   | --dry-run                    |                                                                                |
+| ✅   | --pack-destination <dir>     |                                                                                |
+| ✅   | --json                       |                                                                                |
+| ✅   | --out <path>                 | `%s` expands to the package name, `%v` to the version                          |
+| ✅   | --pack-gzip-level <0-9>      |                                                                                |
+| ✅   | --skip-manifest-obfuscation  |                                                                                |
+| ~    | -r, --recursive              | Packs every workspace project sequentially; `--filter` is accepted but unused  |
+| ~    | --workspace-concurrency      | Accepted for parity; the recursive sweep runs sequentially                     |
+|      | --embed-readme               | Not surfaced by config yet; defaults to off                                    |

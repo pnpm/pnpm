@@ -1,0 +1,99 @@
+{
+  "name": "@pnpm/deps.compliance.commands",
+  "version": "1101.5.0",
+  "description": "pnpm commands for audit, licenses, and sbom",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "audit",
+    "licenses",
+    "sbom"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm11/deps/compliance/commands",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpm11/deps/compliance/commands#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "pn compile && pn .test",
+    "prepublishOnly": "tsgo --build",
+    "compile": "tsgo --build && pn lint --fix",
+    "update-responses": "node test/audit/utils/responses/update.ts",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "catalog:",
+    "@pnpm/cli.command": "workspace:*",
+    "@pnpm/cli.common-cli-options-help": "workspace:*",
+    "@pnpm/cli.meta": "workspace:*",
+    "@pnpm/cli.utils": "workspace:*",
+    "@pnpm/config.pick-registry-for-package": "workspace:*",
+    "@pnpm/config.reader": "workspace:*",
+    "@pnpm/config.version-policy": "workspace:*",
+    "@pnpm/config.writer": "workspace:*",
+    "@pnpm/constants": "workspace:*",
+    "@pnpm/deps.compliance.audit": "workspace:*",
+    "@pnpm/deps.compliance.license-resolver": "workspace:*",
+    "@pnpm/deps.compliance.license-scanner": "workspace:*",
+    "@pnpm/deps.compliance.sbom": "workspace:*",
+    "@pnpm/deps.security.signatures": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/installing.commands": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/lockfile.types": "workspace:*",
+    "@pnpm/lockfile.utils": "workspace:*",
+    "@pnpm/lockfile.walker": "workspace:*",
+    "@pnpm/network.auth-header": "workspace:*",
+    "@pnpm/object.key-sorting": "workspace:*",
+    "@pnpm/store.path": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.project-manifest-reader": "workspace:*",
+    "@zkochan/table": "catalog:",
+    "chalk": "catalog:",
+    "memoize": "catalog:",
+    "p-limit": "catalog:",
+    "ramda": "catalog:",
+    "render-help": "catalog:",
+    "semver": "catalog:"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
+  "devDependencies": {
+    "@jest/globals": "catalog:",
+    "@pnpm/deps.compliance.commands": "workspace:*",
+    "@pnpm/logger": "workspace:*",
+    "@pnpm/pkg-manifest.reader": "workspace:*",
+    "@pnpm/prepare": "workspace:*",
+    "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/testing.command-defaults": "workspace:*",
+    "@pnpm/testing.mock-agent": "workspace:*",
+    "@pnpm/testing.registry-mock": "workspace:*",
+    "@pnpm/workspace.projects-filter": "workspace:*",
+    "@types/ramda": "catalog:",
+    "@types/semver": "catalog:",
+    "@types/zkochan__table": "catalog:",
+    "load-json-file": "catalog:",
+    "read-yaml-file": "catalog:",
+    "tempy": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config/with-registry"
+  }
+}

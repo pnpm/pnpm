@@ -1,0 +1,33 @@
+{
+  "name": "@pnpm/linux-arm64",
+  "version": "11.9.0",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "pnpm-artifact"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm/artifacts/linux-arm64",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpm/artifacts/linux-arm64#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "files": [
+    "pnpm"
+  ],
+  "scripts": {
+    "prepublishOnly": "node ../verify-binary.mjs linux arm64 glibc"
+  },
+  "devDependencies": {
+    "@pnpm/linux-arm64": "workspace:*"
+  },
+  "publishConfig": {
+    "os": [
+      "linux"
+    ],
+    "cpu": [
+      "arm64"
+    ]
+  }
+}

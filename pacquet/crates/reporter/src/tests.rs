@@ -6,11 +6,11 @@ use serde_json::Value;
 
 use crate::{
     AddedRoot, BrokenModulesLog, ContextLog, DependencyType, Envelope, FetchingProgressLog,
-    FetchingProgressMessage, GetHostName, HookLog, Host, IgnoredScriptsLog, LifecycleLog,
-    LifecycleMessage, LifecycleStdio, LockfileVerificationLog, LockfileVerificationMessage,
-    LogEvent, LogLevel, PackageImportMethod, PackageImportMethodLog, PackageManifestLog,
-    PackageManifestMessage, PnpmLog, ProgressLog, ProgressMessage, RemovedRoot, Reporter,
-    RequestRetryError, RequestRetryLog, RootLog, RootMessage, SilentReporter,
+    FetchingProgressMessage, GetHostName, GlobalLog, HookLog, Host, IgnoredScriptsLog,
+    LifecycleLog, LifecycleMessage, LifecycleStdio, LockfileVerificationLog,
+    LockfileVerificationMessage, LogEvent, LogLevel, PackageImportMethod, PackageImportMethodLog,
+    PackageManifestLog, PackageManifestMessage, PnpmLog, ProgressLog, ProgressMessage, RemovedRoot,
+    Reporter, RequestRetryError, RequestRetryLog, RootLog, RootMessage, SilentReporter,
     SkippedOptionalDependencyLog, SkippedOptionalPackage, SkippedOptionalReason, Stage, StageLog,
     StatsLog, StatsMessage, SummaryLog,
 };
@@ -121,6 +121,33 @@ fn pnpm_event_matches_pnpm_wire_shape() {
     assert_eq!(json["prefix"], "/some/project");
 }
 
+/// Global-channel (`name: "pnpm:global"`) log carries the
+/// `pnpm:global` channel name and a bare `message` with no `prefix` —
+/// matching pnpm's `bole('pnpm:global')` writes. A `prefix` field would
+/// diverge from the upstream shape `@pnpm/cli.default-reporter` parses.
+#[test]
+fn global_event_matches_pnpm_wire_shape() {
+    let event = LogEvent::Global(GlobalLog {
+        level: LogLevel::Info,
+        message: "Authenticate your account at:\nhttps://registry.npmjs.org/auth/abc".to_string(),
+    });
+    let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
+
+    let json: Value = envelope
+        .pipe_ref(serde_json::to_string)
+        .expect("serialize envelope")
+        .pipe_as_ref(serde_json::from_str)
+        .expect("parse JSON");
+
+    assert_eq!(json["name"], "pnpm:global");
+    assert_eq!(json["level"], "info");
+    assert_eq!(
+        json["message"],
+        "Authenticate your account at:\nhttps://registry.npmjs.org/auth/abc",
+    );
+    assert!(json.get("prefix").is_none(), "pnpm:global must not carry a prefix, got {json:?}");
+}
+
 /// Hook log (`name: "pnpm:hook"`) carries the `from` / `hook` /
 /// `message` / `prefix` fields pnpm's `hookLogger` emits, at the
 /// `debug` level the hook-context logger uses. `@pnpm/cli.default-reporter`
@@ -178,7 +205,7 @@ fn package_import_method_event_matches_pnpm_wire_shape() {
         (PackageImportMethod::Copy, "copy"),
     ] {
         let json = serde_json::to_string(&method).expect("serialize method");
-        assert_eq!(json, format!("\"{expected}\""));
+        assert_eq!(json, format!(r#""{expected}""#));
     }
 }
 
@@ -438,7 +465,7 @@ fn root_event_matches_pnpm_wire_shape() {
         (DependencyType::Optional, "optional"),
     ] {
         let json = serde_json::to_string(&ty).expect("serialize dependency type");
-        assert_eq!(json, format!("\"{expected}\""));
+        assert_eq!(json, format!(r#""{expected}""#));
     }
 }
 
@@ -620,6 +647,7 @@ fn ignored_scripts_event_matches_pnpm_wire_shape() {
     let event = LogEvent::IgnoredScripts(IgnoredScriptsLog {
         level: LogLevel::Debug,
         package_names: vec!["foo@1.0.0".to_string(), "bar@2.0.0".to_string()],
+        strict_dep_builds: true,
     });
     let envelope = Envelope { time: 1_700_000_000_000, hostname: "host", pid: 4242, event: &event };
     let json: Value = envelope
@@ -631,6 +659,7 @@ fn ignored_scripts_event_matches_pnpm_wire_shape() {
     assert_eq!(json["name"], "pnpm:ignored-scripts");
     assert_eq!(json["level"], "debug");
     assert_eq!(json["packageNames"], serde_json::json!(["foo@1.0.0", "bar@2.0.0"]));
+    assert!(json.get("strictDepBuilds").is_none());
 }
 
 /// `pnpm:skipped-optional-dependency` matches upstream's wire
@@ -789,7 +818,7 @@ fn skipped_optional_reason_serializes_in_pnpm_form() {
     ];
     for (reason, expected) in cases {
         let json = serde_json::to_string(&reason).expect("serialize reason");
-        assert_eq!(json, format!("\"{expected}\""), "{reason:?} must serialize as {expected:?}");
+        assert_eq!(json, format!(r#""{expected}""#), "{reason:?} must serialize as {expected:?}");
     }
 }
 
@@ -804,7 +833,7 @@ fn stage_phases_serialize_in_pnpm_form() {
     ];
     for (stage, expected) in cases {
         let json = serde_json::to_string(&stage).expect("serialize stage");
-        assert_eq!(json, format!("\"{expected}\""), "phase {expected}");
+        assert_eq!(json, format!(r#""{expected}""#), "phase {expected}");
     }
 }
 
@@ -812,8 +841,6 @@ fn stage_phases_serialize_in_pnpm_form() {
 /// to write than just calling it.
 #[test]
 fn silent_reporter_drops_events() {
-    // The point is that no panic, no I/O, and no observable side
-    // effect happens. The test passes by virtue of the call returning.
     SilentReporter::emit(&LogEvent::Stage(StageLog {
         level: LogLevel::Debug,
         prefix: String::new(),

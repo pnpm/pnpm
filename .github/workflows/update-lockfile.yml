@@ -21,7 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Commit
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
         # Don't persist the write-scoped token in .git/config. The full install
         # below runs third-party lifecycle scripts from freshly-bumped
@@ -32,7 +32,7 @@ jobs:
     # The job regenerates the lockfile and runs the meta-updater itself, so the
     # action's auto-install would just be wasted work.
     - name: Install pnpm
-      uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
+      uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
       with:
         install: false
 
@@ -58,7 +58,9 @@ jobs:
         pnpm runtime set node 26
 
         # Refresh the whole lockfile to the latest compatible dependency versions.
-        rm pnpm-lock.yaml
+        # Remove node_modules too so pnpm cannot reuse node_modules/.pnpm/lock.yaml
+        # as the missing wanted lockfile and skip resolution.
+        rm -rf node_modules pnpm-lock.yaml
         pnpm install
 
         # Propagate the new Node.js version into the GitHub Actions workflows,

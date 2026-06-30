@@ -46,7 +46,7 @@ Follow [the Rust API guidelines](https://rust-lang.github.io/api-guidelines/nami
 
 ### Module Organization
 
-- Use the flat file pattern (`module.rs`) rather than `module/mod.rs` for submodules. Enforced by [`clippy::mod_module_files`](https://rust-lang.github.io/rust-clippy/master/index.html#mod_module_files), which bans `mod.rs` files. (`perfectionist::flat_module_pattern` covered this previously and is being retired in favor of the Clippy rule.)
+- Use the flat file pattern (`module.rs`) rather than `module/mod.rs` for submodules. Enforced by [`clippy::mod_module_files`](https://rust-lang.github.io/rust-clippy/master/index.html#mod_module_files), which bans `mod.rs` files. (`perfectionist::flat_module_pattern` covered this previously; perfectionist has since removed it in favor of the Clippy rule, so `mod_module_files` is now the sole enforcer.)
 - List `pub mod` declarations first, then `pub use` re-exports, then private imports and items.
 - Use `pub use` to re-export key types at the module level for convenience.
 
@@ -61,7 +61,7 @@ pub use install_package_from_registry::InstallPackageFromRegistry;
 
 ### Import Organization
 
-Prefer **merged imports**. Combine multiple items from the same crate root into a single `use` statement with nested braces rather than separate `use` lines (the `crate` granularity). Import ordering is enforced by `cargo fmt`; the granularity is enforced by [`perfectionist::import_granularity`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.17/rules/import_granularity.md) (configured to `crate` in `dylint.toml`). Imports gated by a platform attribute such as `#[cfg(unix)]` go in a separate block after the main imports.
+Prefer **merged imports**. Combine multiple items from the same crate root into a single `use` statement with nested braces rather than separate `use` lines (the `crate` granularity). Import ordering is enforced by `cargo fmt`; the granularity is enforced by [`perfectionist::import_granularity_mismatch`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.21/rules/import_granularity_mismatch.md) (configured to `crate` in `dylint.toml`). Imports gated by a platform attribute such as `#[cfg(unix)]` go in a separate block after the main imports.
 
 ```rust
 use crate::{
@@ -486,7 +486,7 @@ If the assertion fails, the value of `received` will appear alongside the error 
 
 ### Unit test file layout
 
-Always place unit tests in a dedicated external `tests` submodule (`#[cfg(test)] mod tests;`) rather than inline in the parent file — for `src/foo.rs` the tests live in `src/foo/tests.rs`. This keeps production and test code in separate files and avoids churning git blame. Enforced by [`perfectionist::unit_test_file_layout`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.17/rules/unit_test_file_layout.md) (configured to `inline_style = "external_only"`, nested layout), which flags inline test code, the flattened `src/foo_tests.rs` sibling, and the skipped-intermediate form.
+Always place unit tests in a dedicated external `tests` submodule (`#[cfg(test)] mod tests;`) rather than inline in the parent file — for `src/foo.rs` the tests live in `src/foo/tests.rs`. This keeps production and test code in separate files and avoids churning git blame. Enforced by [`perfectionist::excessive_inline_tests`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.21/rules/excessive_inline_tests.md) (configured to `inline_style = "external_only"`), which flags any inline test code so it must move to an external `mod tests;`.
 
 ### Cloning `Arc` and `Rc`
 

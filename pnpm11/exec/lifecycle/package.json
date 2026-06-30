@@ -1,0 +1,72 @@
+{
+  "name": "@pnpm/exec.lifecycle",
+  "version": "1100.1.1",
+  "description": "Package lifecycle hook runner",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "lifecycle",
+    "scripts"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm11/exec/lifecycle",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpm11/exec/lifecycle#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "pn compile && pn .test",
+    "prepublishOnly": "tsgo --build",
+    "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+  },
+  "dependencies": {
+    "@pnpm/bins.linker": "workspace:*",
+    "@pnpm/core-loggers": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/fetching.directory-fetcher": "workspace:*",
+    "@pnpm/npm-lifecycle": "catalog:",
+    "@pnpm/pkg-manifest.reader": "workspace:*",
+    "@pnpm/store.cafs-types": "workspace:*",
+    "@pnpm/store.controller-types": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "chalk": "catalog:",
+    "is-windows": "catalog:",
+    "path-exists": "catalog:",
+    "run-groups": "catalog:",
+    "shlex": "catalog:"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
+  "devDependencies": {
+    "@jest/globals": "catalog:",
+    "@pnpm/exec.lifecycle": "workspace:*",
+    "@pnpm/logger": "workspace:*",
+    "@pnpm/prepare": "workspace:*",
+    "@pnpm/test-fixtures": "workspace:*",
+    "@pnpm/test-ipc-server": "workspace:*",
+    "@types/is-windows": "catalog:",
+    "@zkochan/rimraf": "catalog:",
+    "load-json-file": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

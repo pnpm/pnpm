@@ -173,16 +173,14 @@ pub fn transcode_to_plain_msgpack(bytes: &[u8]) -> Result<Vec<u8>, DecodeError> 
     Ok(writer)
 }
 
-/// Parser context threaded through `transcode_value`. Records mode
+/// Parser context threaded through [`transcode_value`]. Records mode
 /// starts off and flips on the first record definition — msgpackr
 /// doesn't re-emit positive fixints in the slot-byte range once records
 /// mode is on, so the flip is one-way for any real stream.
 ///
 /// Slot schemas live under `Rc<[String]>` so reference-path decoding
 /// can bump a refcount instead of deep-cloning the field-name vector
-/// on every record instance. A row with 200 files used to allocate
-/// 200 `Vec<String>`s plus one `String` per field name per clone; now
-/// it allocates once at definition time.
+/// on every record instance.
 #[derive(Default)]
 struct TranscodeState {
     slots: HashMap<u8, Rc<[String]>>,
@@ -636,12 +634,6 @@ fn write_str(writer: &mut Vec<u8>, text: &str) {
 ///   each is included in the schema only when `Some`. The four
 ///   possible shapes (`{added}`, `{deleted}`, `{added, deleted}`,
 ///   `{}`) each get their own slot on first use.
-///
-/// Matching msgpackr's omit-when-absent convention (rather than
-/// padding with `nil`) means pnpm's reader sees the same JS object
-/// shape regardless of which tool wrote the row — a `SideEffectsDiff
-/// { added: Some, deleted: None }` decodes to `{ added: Map }`, not
-/// `{ added: Map, deleted: null }`.
 pub fn encode_package_files_index(index: &PackageFilesIndex) -> Result<Vec<u8>, EncodeError> {
     let mut state = EncodeState::default();
     let mut out = Vec::with_capacity(256);
@@ -671,7 +663,7 @@ pub enum EncodeError {
 /// Slot allocated to the top-level [`PackageFilesIndex`] record.
 /// A single stream always has exactly one of these, so it gets the
 /// base slot. Inner records (`CafsFileInfo`, `SideEffectsDiff`) are
-/// allocated lazily from `FIRST_INNER_SLOT` upwards, one slot per
+/// allocated lazily from [`FIRST_INNER_SLOT`] upwards, one slot per
 /// distinct shape — see [`EncodeState::allocate_slot`].
 const PKG_FILES_INDEX_SLOT: u8 = SLOT_LO; // 0x40
 const FIRST_INNER_SLOT: u8 = SLOT_LO + 1; // 0x41
@@ -685,7 +677,7 @@ const FIRST_INNER_SLOT: u8 = SLOT_LO + 1; // 0x41
 /// correctly without per-instance re-defs.
 ///
 /// Shape keys are small bitmasks over the optional fields of each
-/// record type, see `cafs_shape` / `side_effects_shape`. Each type has
+/// record type, see [`cafs_shape`] / [`side_effects_shape`]. Each type has
 /// at most a handful of possible shapes (2 for `CafsFileInfo`, 4 for
 /// `SideEffectsDiff`), so the 0x40..=0x7f slot range is vastly
 /// over-provisioned for realistic workloads.
@@ -711,7 +703,7 @@ struct EncodeState {
     /// `manifest.bin` / `manifest.directories?.bin` property access.
     json_object_slots: HashMap<Vec<String>, u8>,
     /// Next unused slot in the 0x41..=0x7f range. Starts above
-    /// `PKG_FILES_INDEX_SLOT` because the top-level record always
+    /// [`PKG_FILES_INDEX_SLOT`] because the top-level record always
     /// takes slot 0x40.
     #[default(FIRST_INNER_SLOT)]
     next_slot: u8,
@@ -908,12 +900,6 @@ fn encode_cafs_file_info(
     if let Some(slot) = state.cafs_slots[shape as usize] {
         writer.push(slot); // bare slot = record reference; no def needed
     } else {
-        // New shape for this stream — allocate a slot and emit a
-        // record def inline. `digest`, `mode`, `size` are required;
-        // `checkedAt` is included only when `Some`, matching msgpackr's
-        // field-omit-when-absent behaviour so pnpm's reader sees the
-        // same object shape on round-trip. Field order matches pnpm's
-        // own output.
         let slot = state.allocate_slot()?;
         state.cafs_slots[shape as usize] = Some(slot);
         let fields: &[&str] = if info.checked_at.is_some() {
@@ -949,11 +935,6 @@ fn encode_side_effects_diff(
     if let Some(slot) = state.side_effects_slots[shape as usize] {
         writer.push(slot);
     } else {
-        // Msgpackr omits absent `added` / `deleted` from the schema
-        // rather than writing them as explicit `null`. Match that so
-        // downstream JS code checking `diff.added != null` /
-        // `diff.deleted != null` sees the same shape regardless of
-        // which tool wrote the row.
         let slot = state.allocate_slot()?;
         state.side_effects_slots[shape as usize] = Some(slot);
         let fields: &[&str] = match (diff.added.is_some(), diff.deleted.is_some()) {

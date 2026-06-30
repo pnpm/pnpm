@@ -1,0 +1,167 @@
+name: PR review automation (privileged)
+
+# Privileged follow-up to "PR review automation". A workflow_run trigger always
+# executes from the base repository's default branch with a write-scoped token
+# and access to secrets, even when the originating PR came from a fork (where the
+# pull_request_review run is denied both). This job performs only fixed,
+# repo-controlled actions — adding a known label and posting to Discord — after
+# checking the review through GitHub's API. It never checks out or executes PR
+# content.
+on:
+  # zizmor: ignore[dangerous-triggers]
+  # The capture workflow runs with no token permissions. This workflow runs from
+  # the default branch via workflow_run, validates the requested review against
+  # GitHub's API, then performs fixed repo-controlled actions (label + Discord)
+  # without ever checking out or executing PR content.
+  workflow_run:
+    workflows: ["PR review automation"]
+    types: [requested]
+
+permissions: {}
+
+jobs:
+  act:
+    if: >-
+      github.event.workflow_run.event == 'pull_request_review' &&
+      contains(fromJSON('["coderabbitai[bot]", "qodo-free-for-open-source-projects[bot]", "zkochan"]'), github.event.workflow_run.actor.login)
+    runs-on: ubuntu-latest
+    concurrency:
+      group: pr-review-automation-${{ github.event.workflow_run.head_sha }}-${{ github.event.workflow_run.actor.login }}
+      cancel-in-progress: true
+    permissions:
+      # The POST /issues/{n}/labels endpoint is shared between issues and PRs,
+      # but the governing permission depends on the target: labeling a pull
+      # request needs pull-requests: write (issues: write only covers issues).
+      # The reviews this acts on are always on PRs, so pull-requests: write is
+      # the one that matters; issues: write is kept for completeness.
+      issues: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # The webhook is optional; the Discord step is skipped when it is unset. Only
+      # a non-secret boolean is exposed job-wide — the secret itself is scoped to
+      # the Discord step. (Step-level env is not visible to that step's own `if`.)
+      HAS_DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK != '' }}
+    steps:
+      - name: Resolve the review event
+        id: event
+        env:
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
+          REVIEWER: ${{ github.event.workflow_run.actor.login }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if ! [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "Invalid head SHA: $HEAD_SHA" >&2
+            exit 1
+          fi
+
+          pr_number="${PR_NUMBER:-}"
+          if [ -z "$pr_number" ]; then
+            pr_matches="$(
+              gh api "repos/$GITHUB_REPOSITORY/pulls?state=open&per_page=100" --paginate --jq '.[]' |
+                jq -s --arg sha "$HEAD_SHA" '[.[] | select(.head.sha == $sha) | .number] | unique'
+            )"
+            pr_count="$(printf '%s' "$pr_matches" | jq 'length')"
+            if [ "$pr_count" = "0" ]; then
+              echo "::error::No open PR matches head_sha=$HEAD_SHA in $GITHUB_REPOSITORY"
+              exit 1
+            fi
+            if [ "$pr_count" != "1" ]; then
+              echo "::error::Ambiguous head_sha=$HEAD_SHA matches $pr_count PRs: $pr_matches"
+              exit 1
+            fi
+            pr_number="$(printf '%s' "$pr_matches" | jq -r '.[0]')"
+          fi
+
+          if ! [[ "$pr_number" =~ ^[1-9][0-9]*$ ]]; then
+            echo "Invalid PR number: $pr_number" >&2
+            exit 1
+          fi
+
+          case "$REVIEWER" in
+            'coderabbitai[bot]') label='reviewed: coderabbit'; announce=true ;;
+            'qodo-free-for-open-source-projects[bot]') label='reviewed: qodo'; announce=false ;;
+            'zkochan') label='state: automerge'; announce=false ;;
+            *)
+              echo "::notice::Ignoring review by $REVIEWER"
+              echo "has_approval=false" >> "$GITHUB_OUTPUT"
+              exit 0
+              ;;
+          esac
+
+          latest_review=
+          for _ in 1 2 3 4 5; do
+            latest_review="$(
+              gh api "repos/$GITHUB_REPOSITORY/pulls/$pr_number/reviews" --paginate --jq '.[]' |
+                jq -sr --arg reviewer "$REVIEWER" --arg head_sha "$HEAD_SHA" \
+                  '[.[] | select(.user.login == $reviewer and .commit_id == $head_sha and .state != "COMMENTED")]
+                  | sort_by(.submitted_at // .created_at // "")
+                  | last // empty'
+            )"
+            if [ -n "$latest_review" ]; then
+              break
+            fi
+            sleep 2
+          done
+
+          if [ -z "$latest_review" ]; then
+            echo "::notice::No decision review by $REVIEWER on $HEAD_SHA for PR #$pr_number; nothing to do"
+            echo "has_approval=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          review_state="$(printf '%s' "$latest_review" | jq -r '.state')"
+          if [ "$review_state" != "APPROVED" ]; then
+            echo "::notice::Latest decision review by $REVIEWER on $HEAD_SHA is $review_state; nothing to do"
+            echo "has_approval=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          {
+            echo "has_approval=true"
+            echo "pr_number=$pr_number"
+            echo "label=$label"
+            echo "announce=$announce"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Add the reviewed label
+        if: steps.event.outputs.has_approval == 'true'
+        env:
+          PR_NUMBER: ${{ steps.event.outputs.pr_number }}
+          LABEL: ${{ steps.event.outputs.label }}
+        run: |
+          # gh pr edit --add-label is broken (it errors on the deprecated Projects-v1
+          # GraphQL field), so add the label through the issues REST API instead.
+          gh api --method POST "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/labels" -f "labels[]=$LABEL"
+
+      - name: Announce on Discord
+        if: >-
+          steps.event.outputs.has_approval == 'true' &&
+          steps.event.outputs.announce == 'true' &&
+          env.HAS_DISCORD_WEBHOOK == 'true'
+        env:
+          PR_NUMBER: ${{ steps.event.outputs.pr_number }}
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+        run: |
+          # PR title and URL are read as data and passed via jq --arg, never as code.
+          # allowed_mentions parse:[] stops a PR title like "@everyone" from pinging the Discord server.
+          pr="$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")"
+          title="$(printf '%s' "$pr" | jq -r '.title')"
+          url="$(printf '%s' "$pr" | jq -r '.html_url')"
+          payload="$(jq -n \
+            --arg n "$PR_NUMBER" \
+            --arg t "$title" \
+            --arg u "$url" \
+            '{content: ("✅ CodeRabbit approved PR #" + $n + ": " + $t + "\n" + $u), allowed_mentions: {parse: []}}')"
+          curl -fsS \
+            --connect-timeout 5 \
+            --max-time 20 \
+            --retry 3 \
+            --retry-all-errors \
+            --retry-delay 2 \
+            -H "Content-Type: application/json" \
+            -d "$payload" \
+            "$DISCORD_WEBHOOK"

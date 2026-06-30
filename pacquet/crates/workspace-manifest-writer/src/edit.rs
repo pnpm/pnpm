@@ -9,6 +9,8 @@
 //! are expressed as targeted text splices for inserts and a [`yamlpatch`]
 //! `Op::Replace` for value updates.
 
+use std::fmt::Write as _;
+
 use indexmap::IndexMap;
 use pacquet_catalogs_types::{Catalogs, DEFAULT_CATALOG_NAME};
 use yamlpatch::{Op, Patch};
@@ -45,34 +47,511 @@ pub(crate) fn add_config_dependency(
     specifier: &str,
 ) -> Result<bool, Box<yamlpatch::Error>> {
     const BLOCK: &str = "configDependencies";
-    let text = manifest.text();
-    if let Some(mapping) = locate(text, &[BLOCK]) {
-        let new_text = if mapping.entries.iter().any(|entry| entry.key == name) {
-            // Already present with the same clean specifier — a true
-            // no-op, so don't rewrite the file (which would bump its
-            // mtime and look like a change to freshness checks).
-            if manifest.config_dependencies.as_ref().and_then(|deps| deps.get(name))
-                == Some(&specifier.to_string())
-            {
-                return Ok(false);
+    let current_matches =
+        manifest.config_dependencies.as_ref().and_then(|deps| deps.get(name)).map(String::as_str)
+            == Some(specifier);
+    let changed = upsert_top_level_entry(manifest, BLOCK, name, specifier, current_matches)?;
+    if changed {
+        manifest
+            .config_dependencies
+            .get_or_insert_with(IndexMap::new)
+            .insert(name.to_string(), specifier.to_string());
+    }
+    Ok(changed)
+}
+
+/// Upsert `patchedDependencies:` entries into the workspace manifest,
+/// creating the block when needed.
+pub(crate) fn add_patched_dependencies(
+    manifest: &mut Manifest,
+    patched_dependencies: &IndexMap<String, String>,
+) -> Result<bool, Box<yamlpatch::Error>> {
+    const BLOCK: &str = "patchedDependencies";
+    let mut changed = false;
+
+    if patched_dependencies.is_empty() {
+        let has_block = manifest.top_level_keys.iter().any(|key| key == BLOCK);
+        if manifest.patched_dependencies.is_none() && !has_block {
+            return Ok(false);
+        }
+        manifest.set_text(remove_top_level_block(manifest.text(), BLOCK));
+        manifest.patched_dependencies = None;
+        manifest.top_level_keys.retain(|key| key != BLOCK);
+        return Ok(true);
+    }
+
+    if let Some(existing) = manifest.patched_dependencies.as_ref() {
+        let omitted: Vec<String> = existing
+            .keys()
+            .filter(|key| !patched_dependencies.contains_key(*key))
+            .cloned()
+            .collect();
+        if !omitted.is_empty() {
+            manifest.set_text(remove_mapping_entries(manifest.text(), &[BLOCK], &omitted));
+            let current = manifest
+                .patched_dependencies
+                .as_mut()
+                .expect("existing patched dependencies should remain decoded");
+            for key in &omitted {
+                current.shift_remove(key);
             }
-            replace_value_at(text, &[BLOCK], name, specifier)?
-        } else {
-            insert_entry_at(text, &[BLOCK], name, specifier)
+            changed = true;
+        }
+    }
+
+    for (key, path) in patched_dependencies {
+        let current_matches = manifest
+            .patched_dependencies
+            .as_ref()
+            .and_then(|deps| deps.get(key))
+            .map(String::as_str)
+            == Some(path);
+        let entry_changed = upsert_top_level_entry(manifest, BLOCK, key, path, current_matches)?;
+        if entry_changed {
+            manifest
+                .patched_dependencies
+                .get_or_insert_with(IndexMap::new)
+                .insert(key.clone(), path.clone());
+            changed = true;
+        }
+    }
+    Ok(changed)
+}
+
+/// Upsert one `selector → specifier` entry into the top-level `overrides:`
+/// block, creating the block if absent. Returns whether anything changed.
+/// Used by `pacquet link` and (one entry at a time) by `pnpm audit --fix`.
+pub(crate) fn add_overrides(
+    manifest: &mut Manifest,
+    selector: &str,
+    specifier: &str,
+) -> Result<bool, Box<yamlpatch::Error>> {
+    const BLOCK: &str = "overrides";
+    let current_matches =
+        manifest.overrides.as_ref().and_then(|deps| deps.get(selector)).map(String::as_str)
+            == Some(specifier);
+    let changed = upsert_top_level_entry(manifest, BLOCK, selector, specifier, current_matches)?;
+    if changed {
+        manifest
+            .overrides
+            .get_or_insert_with(IndexMap::new)
+            .insert(selector.to_string(), specifier.to_string());
+    }
+    Ok(changed)
+}
+
+/// Delete the given `selectors` from the top-level `overrides:` block,
+/// dropping the whole block when nothing remains. Selectors absent from the
+/// block are ignored. Returns whether anything changed. The inverse of
+/// [`add_overrides`]; used by `pacquet unlink`.
+pub(crate) fn remove_overrides(manifest: &mut Manifest, selectors: &[String]) -> bool {
+    const BLOCK: &str = "overrides";
+    let present: Vec<String> = match manifest.overrides.as_ref() {
+        Some(overrides) => {
+            selectors.iter().filter(|selector| overrides.contains_key(*selector)).cloned().collect()
+        }
+        None => return false,
+    };
+    if present.is_empty() {
+        return false;
+    }
+
+    // Emptiness is judged from the keys actually in the YAML, not the decoded
+    // map: `Manifest::parse` drops non-string override values, so the decoded
+    // map can be empty while the block still holds other entries. Deleting the
+    // whole block off the decoded map would silently drop that configuration.
+    let all_keys = override_keys_in_text(manifest.text());
+    let remaining_keys: Vec<&String> =
+        all_keys.iter().filter(|key| !present.contains(key)).collect();
+
+    if let Some(overrides) = manifest.overrides.as_mut() {
+        for selector in &present {
+            overrides.shift_remove(selector);
+        }
+    }
+
+    if remaining_keys.is_empty() {
+        manifest.set_text(remove_top_level_block(manifest.text(), BLOCK));
+        manifest.overrides = None;
+        manifest.top_level_keys.retain(|key| key != BLOCK);
+        return true;
+    }
+
+    // A block-style mapping stores each entry on its own line, so the requested
+    // entries can be excised surgically while every other entry (string or not)
+    // is preserved. A flow-style mapping (`overrides: { ... }`) exposes no line
+    // entries, so it can only be rewritten wholesale — which the decoded map can
+    // do faithfully only when it accounts for every remaining key (i.e. the
+    // block has no non-string entries). When it does not, leave the file
+    // untouched rather than drop the entries we cannot reserialize.
+    let line_based =
+        locate(manifest.text(), &[BLOCK]).is_some_and(|mapping| !mapping.entries.is_empty());
+
+    if line_based {
+        manifest.set_text(remove_mapping_entries(manifest.text(), &[BLOCK], &present));
+        true
+    } else if manifest.overrides.as_ref().map_or(0, IndexMap::len) == remaining_keys.len() {
+        rerender_overrides_block(manifest, BLOCK);
+        true
+    } else {
+        false
+    }
+}
+
+/// Every key under the top-level `overrides:` block as written in `text`,
+/// including non-string values that the decoded [`Manifest`] drops. Returns an
+/// empty list when the block is absent or the text does not parse.
+fn override_keys_in_text(text: &str) -> Vec<String> {
+    #[derive(serde::Deserialize)]
+    struct OnlyOverrides {
+        #[serde(default)]
+        overrides: Option<IndexMap<String, serde::de::IgnoredAny>>,
+    }
+    serde_saphyr::from_str::<OnlyOverrides>(text)
+        .ok()
+        .and_then(|parsed| parsed.overrides)
+        .map(|map| map.into_keys().collect())
+        .unwrap_or_default()
+}
+
+/// Set `auditConfig.ignoreGhsas:` to `ghsas` (the complete desired list),
+/// creating the `auditConfig:` block or the nested `ignoreGhsas:` key when
+/// absent. An empty `ghsas` removes the `auditConfig:` block. Mirrors the
+/// `auditConfig` half of pnpm's
+/// [`writeSettings`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/writer/src/index.ts),
+/// which `pnpm audit --ignore` calls with the merged ignore list. Returns
+/// whether anything changed.
+pub(crate) fn set_audit_ignore_ghsas(
+    manifest: &mut Manifest,
+    ghsas: &[String],
+) -> Result<bool, Box<yamlpatch::Error>> {
+    const BLOCK: &str = "auditConfig";
+    let current = manifest.audit_ignore_ghsas.as_deref().unwrap_or_default();
+
+    if ghsas.is_empty() {
+        let text = manifest.text();
+        let Some(mapping) = locate(text, &[BLOCK]) else {
+            return Ok(false);
         };
+        // Nothing to remove if `ignoreGhsas` isn't present — and crucially,
+        // don't touch sibling `auditConfig` keys.
+        if !mapping.entries.iter().any(|entry| entry.key == "ignoreGhsas") {
+            return Ok(false);
+        }
+        let only_ignore_ghsas = mapping.entries.iter().all(|entry| entry.key == "ignoreGhsas");
+        if only_ignore_ghsas {
+            manifest.set_text(remove_top_level_block(text, BLOCK));
+            manifest.top_level_keys.retain(|key| key != BLOCK);
+        } else {
+            manifest.set_text(remove_mapping_entries(text, &[BLOCK], &["ignoreGhsas".to_string()]));
+        }
+        manifest.audit_ignore_ghsas = None;
+        return Ok(true);
+    }
+
+    if current == ghsas {
+        return Ok(false);
+    }
+
+    let text = manifest.text();
+    if locate(text, &[BLOCK]).is_some() {
+        let new_text = upsert_sequence_entry(text, BLOCK, "ignoreGhsas", ghsas);
         manifest.set_text(new_text);
     } else {
-        let block = format!(
-            "{BLOCK}:\n  {}: {}\n",
-            render::render_value(name),
-            render::render_value(specifier),
-        );
+        let block = render_audit_config_block(ghsas);
         let new_text = insert_top_level_block(manifest, BLOCK, &block);
         manifest.set_text(new_text);
         manifest.top_level_keys =
             render::target_order(&manifest.top_level_keys, &[BLOCK.to_string()]);
     }
+    manifest.audit_ignore_ghsas = Some(ghsas.to_vec());
     Ok(true)
+}
+
+/// Set the top-level `minimumReleaseAgeExclude:` block to `items` (the
+/// complete desired list), creating or replacing it, and removing it when
+/// `items` is empty. The caller is responsible for merging with the existing
+/// entries (via `pacquet_config::version_policy::merge_package_version_specs`)
+/// before calling. Mirrors the `minimumReleaseAgeExclude` half of pnpm's
+/// workspace-manifest writer. Returns whether anything changed.
+pub(crate) fn set_minimum_release_age_excludes(manifest: &mut Manifest, items: &[String]) -> bool {
+    const BLOCK: &str = "minimumReleaseAgeExclude";
+    let current = manifest.minimum_release_age_exclude.as_deref().unwrap_or_default();
+
+    if items.is_empty() {
+        let has_block = manifest.top_level_keys.iter().any(|key| key == BLOCK);
+        if !has_block {
+            return false;
+        }
+        manifest.set_text(remove_top_level_block(manifest.text(), BLOCK));
+        manifest.minimum_release_age_exclude = None;
+        manifest.top_level_keys.retain(|key| key != BLOCK);
+        return true;
+    }
+
+    if current == items {
+        return false;
+    }
+
+    let text = manifest.text();
+    let rendered = render_top_level_sequence(BLOCK, items);
+    if let Some(span) = top_level_span(text, BLOCK) {
+        // Preserve a trailing blank line before the next block, since the
+        // span includes it but the freshly rendered block does not.
+        let had_trailing_blank = text[span.key_line_start..span.block_end].ends_with("\n\n");
+        let mut out = text.to_string();
+        let replacement = if had_trailing_blank { format!("{rendered}\n") } else { rendered };
+        out.replace_range(span.key_line_start..span.block_end, &replacement);
+        manifest.set_text(out);
+    } else {
+        let new_text = insert_top_level_block(manifest, BLOCK, &rendered);
+        manifest.set_text(new_text);
+        manifest.top_level_keys =
+            render::target_order(&manifest.top_level_keys, &[BLOCK.to_string()]);
+    }
+    manifest.minimum_release_age_exclude = Some(items.to_vec());
+    true
+}
+
+/// Render a top-level block whose value is a block sequence (`key:` then
+/// `  - item` lines).
+fn render_top_level_sequence(key: &str, items: &[String]) -> String {
+    let mut block = String::new();
+    block.push_str(key);
+    block.push_str(":\n");
+    for item in items {
+        block.push_str("  - ");
+        block.push_str(&render::render_value(item));
+        block.push('\n');
+    }
+    block
+}
+
+/// Render a brand-new `auditConfig:` block holding `ignoreGhsas`. GHSA IDs are
+/// plain scalars, but route through [`render::render_value`] for safety.
+fn render_audit_config_block(ghsas: &[String]) -> String {
+    let mut block = String::from("auditConfig:\n  ignoreGhsas:\n");
+    for ghsa in ghsas {
+        block.push_str("    - ");
+        block.push_str(&render::render_value(ghsa));
+        block.push('\n');
+    }
+    block
+}
+
+/// Upsert a `key:` entry whose value is a block sequence (`items`) into the
+/// existing top-level mapping `block_name`, creating or replacing the entry
+/// in the position pnpm's reorder pass would choose. The mapping at
+/// `block_name` must already exist. Used to write `auditConfig.ignoreGhsas`.
+fn upsert_sequence_entry(text: &str, block_name: &str, key: &str, items: &[String]) -> String {
+    let mapping = locate(text, &[block_name]).expect("block exists");
+    let item_indent = mapping.entry_indent + 2;
+    let mut rendered = String::new();
+    rendered.push_str(&" ".repeat(mapping.entry_indent));
+    rendered.push_str(&render::render_value(key));
+    rendered.push_str(":\n");
+    for item in items {
+        rendered.push_str(&" ".repeat(item_indent));
+        rendered.push_str("- ");
+        rendered.push_str(&render::render_value(item));
+        rendered.push('\n');
+    }
+
+    if let Some(entry) = mapping.entries.iter().find(|entry| entry.key == key) {
+        let mut out = text.to_string();
+        out.replace_range(entry.line_start..entry.block_end, &rendered);
+        return out;
+    }
+
+    let existing: Vec<String> = mapping.entries.iter().map(|entry| entry.key.clone()).collect();
+    let order = render::target_order(&existing, &[key.to_string()]);
+    let position =
+        order.iter().position(|order_key| order_key == key).expect("key is in the order");
+    let offset = if position == 0 {
+        mapping.body_start
+    } else {
+        let predecessor = &order[position - 1];
+        mapping
+            .entries
+            .iter()
+            .find(|entry| &entry.key == predecessor)
+            .expect("predecessor entry exists")
+            .block_end
+    };
+    splice(text, offset, &rendered)
+}
+
+/// Replace the on-disk `overrides:` block with a block-style rendering of the
+/// decoded (already-edited) map. Used when the original block is flow-style and
+/// cannot be edited entry by entry.
+fn rerender_overrides_block(manifest: &mut Manifest, block_name: &str) {
+    let block = {
+        let overrides = manifest.overrides.as_ref().expect("non-empty overrides above");
+        let mut block = format!("{block_name}:\n");
+        for (selector, specifier) in overrides {
+            writeln!(
+                block,
+                "  {}: {}",
+                render::render_value(selector),
+                render::render_value(specifier),
+            )
+            .expect("writing to a String never fails");
+        }
+        block
+    };
+    manifest.set_text(remove_top_level_block(manifest.text(), block_name));
+    manifest.top_level_keys.retain(|key| key != block_name);
+    let new_text = insert_top_level_block(manifest, block_name, &block);
+    manifest.set_text(new_text);
+    manifest.top_level_keys =
+        render::target_order(&manifest.top_level_keys, &[block_name.to_string()]);
+}
+
+fn upsert_top_level_entry(
+    manifest: &mut Manifest,
+    block_name: &str,
+    key: &str,
+    value: &str,
+    current_matches: bool,
+) -> Result<bool, Box<yamlpatch::Error>> {
+    let text = manifest.text();
+    if let Some(mapping) = locate(text, &[block_name]) {
+        let new_text = if mapping.entries.iter().any(|entry| entry.key == key) {
+            if current_matches {
+                return Ok(false);
+            }
+            replace_value_at(text, &[block_name], key, value)?
+        } else {
+            insert_entry_at(text, &[block_name], key, value)
+        };
+        manifest.set_text(new_text);
+    } else {
+        let block = format!(
+            "{block_name}:\n  {}: {}\n",
+            render::render_value(key),
+            render::render_value(value),
+        );
+        let new_text = insert_top_level_block(manifest, block_name, &block);
+        manifest.set_text(new_text);
+        manifest.top_level_keys =
+            render::target_order(&manifest.top_level_keys, &[block_name.to_string()]);
+    }
+    Ok(true)
+}
+
+/// Upsert one `name → bool` entry into the top-level `allowBuilds:` block,
+/// creating the block if absent. Returns whether anything changed. Mirrors
+/// the `allowBuilds` half of pnpm's
+/// [`writeSettings`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/writer/src/index.ts),
+/// which `pnpm approve-builds` calls with each approved package set to
+/// `true` and each denied/unselected package set to `false`.
+pub(crate) fn add_allow_build(manifest: &mut Manifest, name: &str, value: bool) -> bool {
+    const BLOCK: &str = "allowBuilds";
+    let text = manifest.text();
+    let changed = if let Some(mapping) = locate(text, &[BLOCK]) {
+        if mapping.entries.iter().any(|entry| entry.key == name) {
+            // Already present with the same value — a true no-op, so don't
+            // rewrite the file (which would bump its mtime).
+            if manifest.allow_builds.as_ref().and_then(|builds| builds.get(name)) == Some(&value) {
+                return false;
+            }
+            let new_text = replace_bool_value_at(text, &[BLOCK], name, value);
+            manifest.set_text(new_text);
+        } else {
+            let new_text = insert_rendered_entry_at(text, &[BLOCK], name, render_bool(value));
+            manifest.set_text(new_text);
+        }
+        true
+    } else {
+        let block = format!("{BLOCK}:\n  {}: {}\n", render::render_value(name), render_bool(value));
+        let new_text = insert_top_level_block(manifest, BLOCK, &block);
+        manifest.set_text(new_text);
+        manifest.top_level_keys =
+            render::target_order(&manifest.top_level_keys, &[BLOCK.to_string()]);
+        true
+    };
+    // Keep the decoded view in sync so later upserts in the same write see
+    // this entry (for both no-op detection and block-presence checks).
+    manifest.allow_builds.get_or_insert_with(IndexMap::new).insert(name.to_string(), value);
+    changed
+}
+
+fn render_bool(value: bool) -> &'static str {
+    if value { "true" } else { "false" }
+}
+
+/// Set the top-level `key` to `value` (a non-null JSON value), inserting the
+/// block when absent and replacing it when present. Returns whether anything
+/// changed — a deep-equal current value is a no-op. Used by `pnpm config set`
+/// for arbitrary `pnpm-workspace.yaml` / `config.yaml` keys.
+///
+/// The replace path removes the old block and re-inserts the new one at the
+/// reorder position (rather than an in-place value patch), so the same code
+/// handles scalar and nested-object values uniformly; sibling keys and their
+/// comments are preserved.
+pub(crate) fn set_top_level_field(
+    manifest: &mut Manifest,
+    key: &str,
+    value: &serde_json::Value,
+) -> bool {
+    if current_top_level_value(manifest.text(), key).as_ref() == Some(value) {
+        return false;
+    }
+    let block = render_top_level_field(key, value);
+    if manifest.top_level_keys.iter().any(|existing| existing == key) {
+        manifest.set_text(remove_top_level_block(manifest.text(), key));
+        manifest.top_level_keys.retain(|existing| existing != key);
+    }
+    let new_text = insert_top_level_block(manifest, key, &block);
+    manifest.set_text(new_text);
+    manifest.top_level_keys = render::target_order(&manifest.top_level_keys, &[key.to_string()]);
+    true
+}
+
+/// Remove the top-level `key`. Returns whether anything changed (false when the
+/// key is absent). Used by `pnpm config delete` and by `pnpm config set` when
+/// the cast value is null/undefined.
+pub(crate) fn remove_top_level_field(manifest: &mut Manifest, key: &str) -> bool {
+    if !manifest.top_level_keys.iter().any(|existing| existing == key) {
+        return false;
+    }
+    manifest.set_text(remove_top_level_block(manifest.text(), key));
+    manifest.top_level_keys.retain(|existing| existing != key);
+    true
+}
+
+/// Decode the current value of top-level `key` as JSON, or `None` when the key
+/// is absent or the document does not parse. Used for no-op detection.
+fn current_top_level_value(text: &str, key: &str) -> Option<serde_json::Value> {
+    let map: IndexMap<String, serde_json::Value> = serde_saphyr::from_str(text).ok()?;
+    map.get(key).cloned()
+}
+
+/// Render a brand-new top-level block for `key: value`. Scalars render inline;
+/// objects and arrays render as an indented block body via [`yaml_serde`].
+fn render_top_level_field(key: &str, value: &serde_json::Value) -> String {
+    let key_text = render::render_value(key);
+    match value {
+        serde_json::Value::String(s) => format!("{key_text}: {}\n", render::render_value(s)),
+        serde_json::Value::Number(n) => format!("{key_text}: {n}\n"),
+        serde_json::Value::Bool(b) => format!("{key_text}: {b}\n"),
+        serde_json::Value::Null => format!("{key_text}: null\n"),
+        serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
+            let body =
+                yaml_serde::to_string(value).expect("serializing a JSON value to YAML never fails");
+            let mut out = format!("{key_text}:\n");
+            for line in body.trim_end_matches('\n').lines() {
+                if line.is_empty() {
+                    out.push('\n');
+                } else {
+                    out.push_str("  ");
+                    out.push_str(line);
+                    out.push('\n');
+                }
+            }
+            out
+        }
+    }
 }
 
 /// Where a catalog's entries live (or should be created) in the manifest.
@@ -239,6 +718,18 @@ fn replace_value_at(
     dep: &str,
     specifier: &str,
 ) -> Result<String, Box<yamlpatch::Error>> {
+    replace_scalar_at(text, path, dep, yaml_serde::Value::from(specifier))
+}
+
+/// [`replace_value_at`] for an arbitrary scalar value, so non-string blocks
+/// (e.g. `allowBuilds`'s booleans) can reuse the same comment-preserving
+/// splice.
+fn replace_scalar_at(
+    text: &str,
+    path: &[&str],
+    dep: &str,
+    value: yaml_serde::Value,
+) -> Result<String, Box<yamlpatch::Error>> {
     let document =
         Document::new(text.to_string()).map_err(yamlpatch::Error::from).map_err(Box::new)?;
     let components: Vec<Component> = path
@@ -247,10 +738,7 @@ fn replace_value_at(
         .chain(std::iter::once(dep))
         .map(|key| Component::Key(key.into()))
         .collect();
-    let patch = Patch {
-        route: Route::from(components),
-        operation: Op::Replace(yaml_serde::Value::from(specifier)),
-    };
+    let patch = Patch { route: Route::from(components), operation: Op::Replace(value) };
     let patched = yamlpatch::apply_yaml_patches(&document, &[patch]).map_err(Box::new)?;
     Ok(patched.source().to_string())
 }
@@ -265,6 +753,13 @@ fn insert_entry(text: &str, target: &Target, dep: &str, specifier: &str) -> Stri
 /// [`insert_entry`] addressed by an explicit mapping path, so non-catalog
 /// blocks (e.g. `configDependencies`) can reuse the reorder-aware splice.
 fn insert_entry_at(text: &str, path: &[&str], dep: &str, specifier: &str) -> String {
+    insert_rendered_entry_at(text, path, dep, &render::render_value(specifier))
+}
+
+/// [`insert_entry_at`] for an already-rendered value text, so non-string
+/// blocks (e.g. `allowBuilds`'s `true` / `false`) can reuse the
+/// reorder-aware splice without going through [`render::render_value`].
+fn insert_rendered_entry_at(text: &str, path: &[&str], dep: &str, value_text: &str) -> String {
     let mapping = locate(text, path).expect("mapping exists");
     let existing: Vec<String> = mapping.entries.iter().map(|entry| entry.key.clone()).collect();
     let order = render::target_order(&existing, &[dep.to_string()]);
@@ -274,7 +769,7 @@ fn insert_entry_at(text: &str, path: &[&str], dep: &str, specifier: &str) -> Str
         "{}{}: {}\n",
         " ".repeat(mapping.entry_indent),
         render::render_value(dep),
-        render::render_value(specifier),
+        value_text,
     );
     let offset = if position == 0 {
         mapping.body_start
@@ -288,6 +783,26 @@ fn insert_entry_at(text: &str, path: &[&str], dep: &str, specifier: &str) -> Str
             .line_end
     };
     splice(text, offset, &line)
+}
+
+fn remove_mapping_entries(text: &str, path: &[&str], keys: &[String]) -> String {
+    let Some(mapping) = locate(text, path) else {
+        return text.to_string();
+    };
+    let mut out = text.to_string();
+    for entry in mapping.entries.iter().rev().filter(|entry| keys.contains(&entry.key)) {
+        out.replace_range(entry.line_start..entry.block_end, "");
+    }
+    out
+}
+
+fn remove_top_level_block(text: &str, key: &str) -> String {
+    let Some(span) = top_level_span(text, key) else {
+        return text.to_string();
+    };
+    let mut out = text.to_string();
+    out.replace_range(span.key_line_start..span.block_end, "");
+    out
 }
 
 /// Insert a new named catalog (`<name>:` + its first entry) into an existing
@@ -383,6 +898,8 @@ struct Mapping {
 /// One direct child entry of a mapping.
 struct EntryPos {
     key: String,
+    /// Byte offset where this entry's line begins.
+    line_start: usize,
     /// Byte offset just past this entry's line (after its newline).
     line_end: usize,
     /// Byte offset where this entry's whole sub-block ends (for nested maps).
@@ -392,6 +909,7 @@ struct EntryPos {
 /// Span of a top-level block keyed by `key`.
 struct TopLevelSpan {
     key_line_start: usize,
+    block_end: usize,
 }
 
 struct Line<'a> {
@@ -425,13 +943,54 @@ fn structural_indent(content: &str) -> Option<usize> {
 }
 
 /// The mapping-key a structural line declares (`key:` or `key: value`), if any.
+///
+/// The key/value delimiter is the first `:` that ends the line or is followed
+/// by whitespace — a `:` inside the value, or inside a key (quoted or not,
+/// e.g. an `allowBuilds` artifact key like `foo@https://example.com/foo.tgz`),
+/// is not the delimiter. Splitting on the first `:` would truncate such keys.
 fn line_key(content: &str) -> Option<String> {
     let trimmed = content.trim_start();
-    let key = trimmed.split_once(':')?.0.trim_end();
+    let delimiter = structural_colon_index(trimmed)?;
+    let key = trimmed[..delimiter].trim_end();
     if key.is_empty() {
         return None;
     }
     Some(strip_quotes(key))
+}
+
+/// Byte offset of the YAML key/value delimiter in `line`: the first `:` that
+/// ends the line or is followed by whitespace. A `:` inside a value or key
+/// (e.g. `foo@https://...`) is not the delimiter.
+fn structural_colon_index(line: &str) -> Option<usize> {
+    let bytes = line.as_bytes();
+    (0..bytes.len())
+        .find(|&idx| bytes[idx] == b':' && bytes.get(idx + 1).is_none_or(u8::is_ascii_whitespace))
+}
+
+/// Rewrite the scalar value of `key`'s existing entry under `path` in place,
+/// preserving the key's text/quoting and any trailing comment. Used for
+/// `allowBuilds` instead of the `yamlpatch` route, which rejects a key
+/// containing `:` (an artifact pkgId such as `foo@https://example.com/foo.tgz`).
+fn replace_bool_value_at(text: &str, path: &[&str], key: &str, value: bool) -> String {
+    let mapping = locate(text, path).expect("mapping exists");
+    let entry = mapping.entries.iter().find(|entry| entry.key == key).expect("entry exists");
+    let line = &text[entry.line_start..entry.line_end];
+    let content = line.strip_suffix('\n').unwrap_or(line);
+    let indent_len = content.len() - content.trim_start().len();
+    let colon = indent_len
+        + structural_colon_index(&content[indent_len..]).expect("entry line has a delimiter");
+    let key_text = content[..colon].trim_end();
+    // Preserve any trailing comment after the value token.
+    let after = content[colon + 1..].trim_start();
+    let value_end = after.find(char::is_whitespace).unwrap_or(after.len());
+    let trailing = &after[value_end..];
+    let new_line = format!("{key_text}: {}{trailing}\n", render_bool(value));
+
+    let mut out = String::with_capacity(text.len());
+    out.push_str(&text[..entry.line_start]);
+    out.push_str(&new_line);
+    out.push_str(&text[entry.line_end..]);
+    out
 }
 
 fn strip_quotes(key: &str) -> String {
@@ -502,7 +1061,12 @@ fn collect_entries(all: &[Line<'_>], from: usize, to: usize, entry_indent: usize
                 })
                 .unwrap_or(to);
             let block_end = all.get(block_end_idx).map_or(all[to - 1].end, |line| line.start);
-            entries.push(EntryPos { key, line_end: all[idx].end, block_end });
+            entries.push(EntryPos {
+                key,
+                line_start: all[idx].start,
+                line_end: all[idx].end,
+                block_end,
+            });
             idx = block_end_idx;
         } else {
             idx += 1;
@@ -511,15 +1075,60 @@ fn collect_entries(all: &[Line<'_>], from: usize, to: usize, entry_indent: usize
     entries
 }
 
+/// Whether the top-level `key:` carries an inline value (a flow mapping /
+/// flow sequence / scalar) on the same line rather than a block body on the
+/// following lines. The block-style splice writers (e.g.
+/// [`set_audit_ignore_ghsas`]) assume a block body, so a caller can refuse an
+/// inline shape instead of corrupting it. A bare `key:` (optionally with a
+/// trailing comment) is block-style and returns `false`.
+pub(crate) fn top_level_has_inline_value(text: &str, key: &str) -> bool {
+    for line in text.lines() {
+        if structural_indent(line) != Some(0) || line_key(line).as_deref() != Some(key) {
+            continue;
+        }
+        let trimmed = line.trim_start();
+        let Some(colon) = structural_colon_index(trimmed) else { return false };
+        let after = trimmed[colon + 1..].trim_start();
+        return !after.is_empty() && !after.starts_with('#');
+    }
+    false
+}
+
 /// The starting offset of a top-level key's line.
 fn top_level_span(text: &str, key: &str) -> Option<TopLevelSpan> {
     let all = lines(text);
-    all.iter()
-        .find(|line| {
+    let key_idx = all.iter().position(|line| {
+        structural_indent(line.content) == Some(0) && line_key(line.content).as_deref() == Some(key)
+    })?;
+    let next_key_idx = ((key_idx + 1)..all.len())
+        .find(|&idx| structural_indent(all[idx].content) == Some(0))
+        .unwrap_or(all.len());
+    let block_end_idx = leading_comment_start(&all, key_idx + 1, next_key_idx);
+    let block_end = all
+        .get(block_end_idx)
+        .map_or_else(|| all.last().map_or(0, |line| line.end), |line| line.start);
+    all.get(key_idx)
+        .filter(|line| {
             structural_indent(line.content) == Some(0)
                 && line_key(line.content).as_deref() == Some(key)
         })
-        .map(|line| TopLevelSpan { key_line_start: line.start })
+        .map(|line| TopLevelSpan { key_line_start: line.start, block_end })
+}
+
+fn leading_comment_start(all: &[Line<'_>], block_start: usize, next_key_idx: usize) -> usize {
+    if next_key_idx == all.len() {
+        return next_key_idx;
+    }
+    let mut idx = next_key_idx;
+    while idx > block_start && is_comment_line(all[idx - 1].content) {
+        idx -= 1;
+    }
+    idx
+}
+
+fn is_comment_line(content: &str) -> bool {
+    let trimmed = content.trim_start();
+    !trimmed.is_empty() && trimmed.starts_with('#')
 }
 
 /// Whether every original non-first top-level key has a blank line before it

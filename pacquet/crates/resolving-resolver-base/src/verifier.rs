@@ -29,6 +29,18 @@ pub enum ResolutionVerification {
         /// breakdown. Allowed to allocate.
         reason: String,
     },
+    /// The registry couldn't be reached to verify the entry
+    /// (auth/network/5xx). Unlike [`ResolutionVerification::Err`], this
+    /// is not a per-entry policy pick to collect into the batch — the
+    /// verification never completed, so the runner aborts the install
+    /// with the registry's own fetch error rather than mislabeling a
+    /// transport failure as lockfile tampering. Mirrors pnpm, where the
+    /// verifier rethrows the underlying `FetchError`.
+    FetchFailed {
+        /// The registry fetch error, already rendered and stripped of
+        /// any credentials embedded in the URL.
+        message: String,
+    },
 }
 
 /// A [`ResolutionVerifier`]'s rejection materialized for one

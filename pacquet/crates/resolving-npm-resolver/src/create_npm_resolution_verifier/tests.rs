@@ -3,13 +3,21 @@ use std::{collections::HashMap, sync::Arc};
 use chrono::{DateTime, Utc};
 use pacquet_config::{TrustPolicy, version_policy::create_package_version_policy};
 use pacquet_lockfile::{LockfileResolution, PkgName, RegistryResolution, TarballResolution};
-use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use pacquet_network::{
+    AuthHeaders, MetadataCacheScope, RetryOpts, ThrottledClient, UpstreamRouteHook,
+};
+use pacquet_registry::Package;
 use pacquet_resolving_resolver_base::{ResolutionVerification, ResolutionVerifier, VerifyCtx};
 use pretty_assertions::assert_eq;
 use ssri::Integrity;
+use tempfile::TempDir;
 
 use super::{
     CreateNpmResolutionVerifierOptions, create_npm_resolution_verifier, observed_dist_stats_sink,
+};
+use crate::{
+    mirror::{ABBREVIATED_META_DIR, get_pkg_mirror_path, load_meta},
+    persist_meta_to_mirror,
 };
 
 const FAKE_INTEGRITY: &str = "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==";
@@ -56,6 +64,20 @@ fn default_opts(registry_url: &str) -> CreateNpmResolutionVerifierOptions {
         retry_opts: RetryOpts { retries: 0, ..RetryOpts::default() },
         now: None,
         observed_dist_stats: None,
+    }
+}
+
+struct ScopeHook {
+    scope: MetadataCacheScope,
+}
+
+impl UpstreamRouteHook for ScopeHook {
+    fn authorize(&self, _url: &str, _package: Option<&str>) -> Option<String> {
+        None
+    }
+
+    fn metadata_scope(&self, _url: &str, _package: Option<&str>) -> MetadataCacheScope {
+        self.scope.clone()
     }
 }
 
@@ -163,9 +185,6 @@ fn ctx<'a>(name: &'a PkgName, version: &'a str) -> VerifyCtx<'a> {
     VerifyCtx { name, version }
 }
 
-/// The tarball-URL binding is unconditional: even with no
-/// minimumReleaseAge / trustPolicy configured, an entry whose pinned
-/// tarball URL doesn't match the registry metadata is rejected.
 #[tokio::test]
 async fn verifies_tarball_url_when_no_policy_active() {
     let mut server = mockito::Server::new_async().await;
@@ -193,7 +212,6 @@ async fn verifies_tarball_url_when_no_policy_active() {
         .with_body(packument.to_string())
         .create_async()
         .await;
-    // No minimumReleaseAge, no trustPolicy.
     let opts = default_opts(&registry);
     let verifier = create_npm_resolution_verifier(opts);
     let resolution = LockfileResolution::Tarball(TarballResolution {
@@ -209,6 +227,94 @@ async fn verifies_tarball_url_when_no_policy_active() {
         panic!("expected Err, got {result:?}");
     };
     assert_eq!(code, "TARBALL_URL_MISMATCH");
+}
+
+#[tokio::test]
+async fn private_scope_verifier_ignores_public_mirror_and_writes_private_mirror() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let server_url = server.url();
+    let public_tarball = format!("{server_url}/acme/-/acme-1.0.0.tgz");
+    let private_tarball = format!("{server_url}/acme/-/acme-private-1.0.0.tgz");
+    let public_packument = serde_json::json!({
+        "name": "acme",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "acme",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": FAKE_INTEGRITY,
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": public_tarball,
+                }
+            }
+        }
+    });
+    let private_packument = serde_json::json!({
+        "name": "acme",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "acme",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": FAKE_INTEGRITY,
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": private_tarball,
+                }
+            }
+        }
+    });
+    let _meta_mock = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_body(private_packument.to_string())
+        .expect(1)
+        .create_async()
+        .await;
+    let cache = TempDir::new().expect("tempdir");
+    let public_meta: Package = serde_json::from_value(public_packument).expect("package parses");
+    persist_meta_to_mirror(cache.path(), ABBREVIATED_META_DIR, &registry, &public_meta)
+        .expect("warm public mirror");
+
+    let mut opts = default_opts(&registry);
+    opts.cache_dir = Some(cache.path().to_path_buf());
+    opts.auth_headers =
+        Arc::new(AuthHeaders::default().with_route_hook(Arc::new(ScopeHook {
+            scope: MetadataCacheScope::Private { descriptor_id: "private-scope".to_string() },
+        }) as Arc<dyn UpstreamRouteHook>));
+    let verifier = create_npm_resolution_verifier(opts);
+    let resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: public_tarball.clone(),
+        integrity: Some(fake_integrity()),
+        git_hosted: None,
+        path: None,
+    });
+    let name: PkgName = "acme".parse().expect("parse");
+    let result = verifier.verify(&resolution, ctx(&name, "1.0.0")).await;
+
+    let ResolutionVerification::Err { code, .. } = result else {
+        panic!("expected private metadata mismatch, got {result:?}");
+    };
+    assert_eq!(code, "TARBALL_URL_MISMATCH");
+
+    let private_path = get_pkg_mirror_path(
+        cache.path(),
+        "v11/metadata-private/private-scope/metadata",
+        &registry,
+        "acme",
+    )
+    .expect("private mirror path");
+    let private_meta = load_meta(&private_path).expect("private mirror written");
+    let private_version = private_meta.versions.get("1.0.0").expect("private version");
+    assert_eq!(private_version.dist.tarball, private_tarball);
+
+    let public_path =
+        get_pkg_mirror_path(cache.path(), ABBREVIATED_META_DIR, &registry, "acme").expect("path");
+    let public_meta = load_meta(&public_path).expect("public mirror remains readable");
+    let public_version = public_meta.versions.get("1.0.0").expect("public version");
+    assert_eq!(public_version.dist.tarball, public_tarball);
 }
 
 #[tokio::test]
@@ -253,9 +359,6 @@ async fn trust_off_keeps_trust_check_inactive() {
     assert_eq!(result, ResolutionVerification::Ok);
 }
 
-/// A git / directory / binary resolution short-circuits to
-/// `Ok` without issuing any network calls — neither policy applies
-/// outside the npm-registry protocol.
 #[tokio::test]
 async fn verify_short_circuits_non_registry_resolution() {
     let mut opts = default_opts("https://registry.example/");
@@ -269,9 +372,6 @@ async fn verify_short_circuits_non_registry_resolution() {
     assert_eq!(result, ResolutionVerification::Ok);
 }
 
-/// Non-semver version (URL spec, git ref, file: ref) → pass without
-/// asking the registry. Mirrors upstream's `!semver.valid(version)`
-/// gate.
 #[tokio::test]
 async fn verify_short_circuits_non_semver_version() {
     let mut opts = default_opts("https://registry.example/");
@@ -283,8 +383,6 @@ async fn verify_short_circuits_non_semver_version() {
     assert_eq!(result, ResolutionVerification::Ok);
 }
 
-/// `file:` tarball resolutions are local artifacts, not registry
-/// entries, so the verifier must skip minimumReleaseAge/trust checks.
 #[tokio::test]
 async fn verify_short_circuits_file_tarball_resolution() {
     let mut opts = default_opts("http://nonexistent.example.invalid/");
@@ -403,9 +501,6 @@ async fn tarball_url_default_port_and_scheme_difference_is_a_match() {
     assert_eq!(result, ResolutionVerification::Ok);
 }
 
-/// When the exclude policy covers the package, age check skips —
-/// the version is treated as opted out regardless of its publish
-/// timestamp.
 #[tokio::test]
 async fn verify_skips_age_check_when_package_excluded() {
     // No mockito needed: if the exclude were ignored, the verifier
@@ -422,8 +517,6 @@ async fn verify_skips_age_check_when_package_excluded() {
     assert_eq!(result, ResolutionVerification::Ok);
 }
 
-/// Full-metadata path: registry reports a publish time well before
-/// the cutoff → verify returns `Ok`.
 #[tokio::test]
 async fn min_age_pass_when_published_before_cutoff() {
     let mut server = mockito::Server::new_async().await;
@@ -454,8 +547,6 @@ async fn min_age_pass_when_published_before_cutoff() {
     assert_eq!(result, ResolutionVerification::Ok);
 }
 
-/// Within-cutoff publish time → fail with the verifier's
-/// `MINIMUM_RELEASE_AGE_VIOLATION` code.
 #[tokio::test]
 async fn min_age_fail_when_published_within_cutoff() {
     let mut server = mockito::Server::new_async().await;
@@ -487,8 +578,6 @@ async fn min_age_fail_when_published_within_cutoff() {
     assert!(reason.contains("within the minimumReleaseAge cutoff"), "got reason: {reason}");
 }
 
-/// Registry strips per-version `time`. With `ignore_missing_time_field`
-/// off (the default), the verifier fails closed.
 #[tokio::test]
 async fn min_age_missing_time_fails_closed_by_default() {
     let mut server = mockito::Server::new_async().await;
@@ -538,9 +627,6 @@ async fn min_age_missing_time_fails_closed_by_default() {
     );
 }
 
-/// Opting in to `ignore_missing_time_field` flips the missing-time
-/// case from a fail-closed violation to a pass. Mirrors upstream's
-/// `minimumReleaseAgeIgnoreMissingTime` resolver flag.
 #[tokio::test]
 async fn min_age_missing_time_passes_when_ignored() {
     let mut server = mockito::Server::new_async().await;
@@ -584,10 +670,6 @@ async fn min_age_missing_time_passes_when_ignored() {
     assert_eq!(result, ResolutionVerification::Ok);
 }
 
-/// `trust_policy = NoDowngrade` rejects a version whose evidence is
-/// weaker than an earlier-published version's. Earlier 1.0.0 had
-/// `trustedPublisher`; current 1.1.0 has only `provenance` →
-/// `TRUST_DOWNGRADE`.
 #[tokio::test]
 async fn trust_downgrade_publisher_to_provenance_fails() {
     let mut server = mockito::Server::new_async().await;
@@ -613,8 +695,6 @@ async fn trust_downgrade_publisher_to_provenance_fails() {
     assert!(reason.contains("trust downgrade"), "got reason: {reason}");
 }
 
-/// When every prior version's evidence equals or precedes the
-/// current version's, the trust check passes.
 #[tokio::test]
 async fn trust_downgrade_pass_when_no_weaker_evidence() {
     let mut server = mockito::Server::new_async().await;
@@ -636,9 +716,6 @@ async fn trust_downgrade_pass_when_no_weaker_evidence() {
     assert_eq!(result, ResolutionVerification::Ok);
 }
 
-/// Tarball resolutions whose URL falls under a named-registry
-/// prefix route to that registry's metadata endpoint. Here `gh:` →
-/// the mocked GitHub Packages base URL.
 #[tokio::test]
 async fn verify_routes_via_named_registry_prefix() {
     let mut server = mockito::Server::new_async().await;
@@ -1056,9 +1133,6 @@ async fn concurrent_verifications_share_one_fetch() {
     abbreviated_mock.assert_async().await;
 }
 
-/// The binding check records each verified entry's `dist.unpackedSize`
-/// and `dist.fileCount` into the `observed_dist_stats` sink when one is
-/// provided.
 #[tokio::test]
 async fn binding_check_records_dist_stats_into_the_sink() {
     let mut server = mockito::Server::new_async().await;
@@ -1108,4 +1182,86 @@ async fn binding_check_records_dist_stats_into_the_sink() {
         .expect("stats recorded");
     assert_eq!(recorded.unpacked_size, Some(123_456));
     assert_eq!(recorded.file_count, Some(42));
+}
+
+/// A 403 on the metadata fetch (e.g. a CI token that is authenticated but not
+/// authorized to read a private package) must not be reported as a lockfile
+/// tarball-URL mismatch: the lockfile is correct, the fetch is the problem. The
+/// verifier propagates the registry's own fetch error so the install aborts.
+#[tokio::test]
+async fn propagates_metadata_fetch_failure_instead_of_a_tampering_mismatch() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let server_url = server.url();
+    let _meta_mock = server
+        .mock("GET", "/private-pkg")
+        .with_status(403)
+        .with_body(r#"{"error":"Forbidden"}"#)
+        .create_async()
+        .await;
+
+    let opts = default_opts(&registry);
+    let verifier = create_npm_resolution_verifier(opts);
+    let resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: format!("{server_url}/private-pkg/-/private-pkg-1.0.0.tgz"),
+        integrity: Some(fake_integrity()),
+        git_hosted: None,
+        path: None,
+    });
+    let name: PkgName = "private-pkg".parse().expect("parse");
+    let result = verifier.verify(&resolution, ctx(&name, "1.0.0")).await;
+
+    // A transport failure aborts via FetchFailed, never a tampering-style
+    // TARBALL_URL_MISMATCH.
+    let ResolutionVerification::FetchFailed { message } = result else {
+        panic!("expected FetchFailed, got {result:?}");
+    };
+    assert!(message.contains("403"), "message: {message}");
+}
+
+/// The metadata fetch succeeds but does not list the pinned version. That is a
+/// genuine verification failure (not a transport error), so it stays
+/// `TARBALL_URL_MISMATCH` rather than aborting via `FetchFailed`.
+#[tokio::test]
+async fn version_absent_from_fetched_metadata_stays_tarball_url_mismatch() {
+    let mut server = mockito::Server::new_async().await;
+    let registry = format!("{}/", server.url());
+    let server_url = server.url();
+    let packument = serde_json::json!({
+        "name": "present-pkg",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "present-pkg",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": FAKE_INTEGRITY,
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": format!("{server_url}/present-pkg/-/present-pkg-1.0.0.tgz"),
+                }
+            }
+        }
+    });
+    let _meta_mock = server
+        .mock("GET", "/present-pkg")
+        .with_status(200)
+        .with_body(packument.to_string())
+        .create_async()
+        .await;
+
+    let opts = default_opts(&registry);
+    let verifier = create_npm_resolution_verifier(opts);
+    let resolution = LockfileResolution::Tarball(TarballResolution {
+        tarball: format!("{server_url}/present-pkg/-/present-pkg-2.0.0.tgz"),
+        integrity: Some(fake_integrity()),
+        git_hosted: None,
+        path: None,
+    });
+    let name: PkgName = "present-pkg".parse().expect("parse");
+    let result = verifier.verify(&resolution, ctx(&name, "2.0.0")).await;
+
+    let ResolutionVerification::Err { code, .. } = result else {
+        panic!("expected Err, got {result:?}");
+    };
+    assert_eq!(code, "TARBALL_URL_MISMATCH");
 }

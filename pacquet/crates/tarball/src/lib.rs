@@ -1,8 +1,8 @@
 use std::{
     collections::HashMap,
-    io::{Cursor, Read},
-    path::{Component, PathBuf},
-    sync::{Arc, OnceLock},
+    io::{self, Cursor, Read},
+    path::{Component, Path, PathBuf},
+    sync::{Arc, LazyLock},
     time::{Duration, Instant, UNIX_EPOCH},
 };
 
@@ -12,6 +12,7 @@ use miette::Diagnostic;
 use pacquet_fs::file_mode;
 pub use pacquet_network::RetryOpts;
 use pacquet_network::{AuthHeaders, ThrottledClient, UNPRIORITIZED};
+use pacquet_package_manifest::{files_include_install_scripts, manifest_requires_build};
 use pacquet_reporter::{
     FetchingProgressLog, FetchingProgressMessage, LogEvent, LogLevel, ProgressLog, ProgressMessage,
     Reporter, RequestRetryError, RequestRetryLog,
@@ -42,8 +43,9 @@ use zune_inflate::{DeflateDecoder, DeflateOptions, errors::InflateDecodeErrors};
 ///
 /// [#269]: https://github.com/pnpm/pacquet/pull/269
 fn post_download_semaphore() -> &'static Semaphore {
-    static SEM: OnceLock<Semaphore> = OnceLock::new();
-    SEM.get_or_init(|| Semaphore::new(num_cpus::get().saturating_mul(2).max(4)))
+    static SEM: LazyLock<Semaphore> =
+        LazyLock::new(|| Semaphore::new(num_cpus::get().saturating_mul(2).max(4)));
+    &SEM
 }
 
 /// Dedicated rayon pool for the per-file CAS-write phase of extraction
@@ -64,8 +66,7 @@ fn post_download_semaphore() -> &'static Semaphore {
 /// Returns `None` if the pool can't be built, in which case the caller
 /// falls back to the global pool.
 fn cas_write_pool() -> Option<&'static rayon::ThreadPool> {
-    static POOL: OnceLock<Option<rayon::ThreadPool>> = OnceLock::new();
-    POOL.get_or_init(|| {
+    static POOL: LazyLock<Option<rayon::ThreadPool>> = LazyLock::new(|| {
         rayon::ThreadPoolBuilder::new()
             .num_threads(num_cpus::get().max(1))
             .thread_name(|index| format!("cas-write-{index}"))
@@ -78,8 +79,8 @@ fn cas_write_pool() -> Option<&'static rayon::ThreadPool> {
                 );
             })
             .ok()
-    })
-    .as_ref()
+    });
+    POOL.as_ref()
 }
 
 /// Reqwest's own [`std::fmt::Display`] for a request-stage failure renders as
@@ -89,8 +90,8 @@ fn cas_write_pool() -> Option<&'static rayon::ThreadPool> {
 /// leaving the user with the truly opaque `error sending request for
 /// url (URL)` and no clue about what actually failed.
 ///
-/// `walk_reqwest_chain` walks `error.source()` itself and joins every
-/// stage's `Display` with `: ` so the rendered `NetworkError` always
+/// [`walk_reqwest_chain`] walks `error.source()` itself and joins every
+/// stage's `Display` with `: ` so the rendered [`NetworkError`] always
 /// carries the leaf reason (e.g. `Connection refused (os error 61)`,
 /// `tls handshake eof`, `dns error: failed to lookup address`),
 /// regardless of which intermediate `reqwest` / `hyper` / `io::Error`
@@ -151,6 +152,15 @@ pub enum TarballError {
     #[from(ignore)]
     #[diagnostic(code(pacquet_tarball::io_error))]
     ReadTarballEntries(std::io::Error),
+
+    #[from(ignore)]
+    #[display("Failed to read local tarball {}: {source}", path.display())]
+    #[diagnostic(code(pacquet_tarball::read_local_tarball))]
+    ReadLocalTarball {
+        path: PathBuf,
+        #[error(source)]
+        source: std::io::Error,
+    },
 
     #[diagnostic(
         code(pacquet_tarball::verify_checksum_error),
@@ -297,7 +307,7 @@ pub enum CacheValue {
     /// The owning fetch failed; concurrent waiters wake up to this
     /// instead of `Available` and surface a sibling-fetch-failed
     /// error rather than blocking on the `Notify` forever. The
-    /// originating `TarballError` cannot be cloned past the owner
+    /// originating [`TarballError`] cannot be cloned past the owner
     /// (it's wrapped in `reqwest::Error` / IO chains that aren't
     /// `Clone`), so waiters return their own variant — see
     /// [`TarballError::SiblingFetchFailed`].
@@ -361,6 +371,93 @@ fn allocate_tarball_buffer(
     let mut buf = Vec::new();
     buf.try_reserve_exact(capacity).map_err(|_| too_large())?;
     Ok(buf)
+}
+
+async fn open_local_tarball(path: &Path) -> Result<(tokio::fs::File, u64), TarballError> {
+    let metadata = tokio::fs::metadata(path)
+        .await
+        .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
+    reject_non_file_local_tarball(path, &metadata)?;
+    let file = tokio::fs::File::open(path)
+        .await
+        .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
+    let metadata = file
+        .metadata()
+        .await
+        .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
+    reject_non_file_local_tarball(path, &metadata)?;
+    Ok((file, metadata.len()))
+}
+
+fn reject_non_file_local_tarball(
+    path: &Path,
+    metadata: &std::fs::Metadata,
+) -> Result<(), TarballError> {
+    if metadata.is_file() {
+        return Ok(());
+    }
+    Err(read_local_tarball_error(
+        path,
+        io::ErrorKind::InvalidInput,
+        "local tarball path is not a regular file",
+    ))
+}
+
+async fn read_local_tarball_buffer(
+    file: tokio::fs::File,
+    path: &Path,
+    package_url: &str,
+    size: u64,
+) -> Result<Vec<u8>, TarballError> {
+    use tokio::io::AsyncReadExt;
+
+    let read_limit = size.checked_add(1).ok_or_else(|| {
+        read_local_tarball_error(
+            path,
+            io::ErrorKind::InvalidData,
+            format!("local tarball is too large to read into memory ({size} bytes)"),
+        )
+    })?;
+    let mut buffer = allocate_local_tarball_buffer(path, package_url, size)?;
+    let mut reader = file.take(read_limit);
+    reader
+        .read_to_end(&mut buffer)
+        .await
+        .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
+    if u64::try_from(buffer.len()).unwrap_or(u64::MAX) > size {
+        return Err(read_local_tarball_error(
+            path,
+            io::ErrorKind::InvalidData,
+            format!("local tarball changed while reading; refused to read past {size} bytes"),
+        ));
+    }
+    Ok(buffer)
+}
+
+fn allocate_local_tarball_buffer(
+    path: &Path,
+    package_url: &str,
+    size: u64,
+) -> Result<Vec<u8>, TarballError> {
+    allocate_tarball_buffer(Some(size), package_url).map_err(|error| match error {
+        TarballError::TarballTooLarge { .. } => read_local_tarball_error(
+            path,
+            io::ErrorKind::InvalidData,
+            format!("local tarball is too large to read into memory ({size} bytes)"),
+        ),
+        other => other,
+    })
+}
+
+fn read_local_tarball_error(
+    path: &Path,
+    kind: io::ErrorKind,
+    message: impl Into<String>,
+) -> TarballError {
+    TarballError::ReadLocalTarball {
+        path: path.to_path_buf(),
+        source: io::Error::new(kind, message.into()),
+    }
 }
 
 #[instrument(skip(gz_data), fields(gz_data_len = gz_data.len()))]
@@ -526,10 +623,8 @@ fn write_cas_entry(
 /// each file payload as a slice of that buffer instead of allocating a
 /// fresh `Vec<u8>` and `read_to_end`-ing every entry.
 ///
-/// Every tar-side failure — a corrupt entries iterator, a mangled
-/// header (bad mode, bad size), an invalid file offset, a path decode
-/// error, a path whose components would escape the CAFS root — comes
-/// back as [`TarballError::ReadTarballEntries`] instead of panicking.
+/// Every tar-side failure comes back as
+/// [`TarballError::ReadTarballEntries`] instead of panicking.
 /// Non-UTF-8 entry paths are coerced via
 /// [`std::path::Path::to_string_lossy`], matching pnpm's string-based
 /// handling so a mixed install against the shared `index.db` stays
@@ -547,9 +642,7 @@ fn extract_tarball_entries(
         // Keep only regular-file `Ok` entries; anything else in the
         // `Ok` arm (directories, symlinks, hardlinks, pax/gnu
         // extension headers, ...) is dropped. `Err` entries fall
-        // through so the `?` inside the loop below propagates them —
-        // previously this branch did `entry.as_ref().unwrap()` which
-        // panicked on any iterator-level error.
+        // through so the `?` inside the loop below propagates them.
         .filter(|entry| match entry {
             Ok(entry) => entry.header().entry_type().is_file(),
             Err(_) => true,
@@ -565,6 +658,8 @@ fn extract_tarball_entries(
     // manifest is captured here too, off the raw payload slice.
     let mut pending: Vec<PendingFile<'_>> = Vec::with_capacity(capacity);
     let mut manifest = None;
+    let mut manifest_build_scripts = false;
+    let mut file_build_hooks = false;
 
     for entry in entries {
         let entry = entry.map_err(TarballError::ReadTarballEntries)?;
@@ -651,6 +746,9 @@ fn extract_tarball_entries(
         {
             continue;
         }
+        if files_include_install_scripts([cleaned_entry_path.as_str()]) {
+            file_build_hooks = true;
+        }
         // Capture the parsed manifest whenever we see `package.json`.
         // Mirrors pnpm's `bundledManifest` pass-through at
         // [pnpm/pnpm@4750fd370c]: pnpm stuffs the narrowed manifest
@@ -678,12 +776,16 @@ fn extract_tarball_entries(
         // [`addFilesFromTarball`]: <https://github.com/pnpm/pnpm/blob/4750fd370c/store/cafs/src/addFilesFromTarball.ts#L41-L43>
         if cleaned_entry_path == "package.json" {
             match serde_json::from_slice::<serde_json::Value>(entry_data) {
-                Ok(parsed) => manifest = normalize_bundled_manifest(&parsed),
+                Ok(parsed) => {
+                    manifest_build_scripts = manifest_requires_build(&parsed);
+                    manifest = normalize_bundled_manifest(&parsed);
+                }
                 Err(error) => {
                     tracing::debug!(
                         ?error,
                         "package.json in tarball failed to parse as JSON; bundled manifest cleared",
                     );
+                    manifest_build_scripts = false;
                     manifest = None;
                 }
             }
@@ -699,11 +801,11 @@ fn extract_tarball_entries(
     }
 
     // Phase 2: hash and write every file into the content-addressed
-    // store. A tarball used to extract on a single blocking thread, so a
-    // package with thousands of files (e.g. `core-js`) pinned one core
-    // while the rest sat idle — most costly at the makespan tail, when
-    // it's the last extraction still running. `write_cas_entry` is safe
-    // to run concurrently, so large tarballs fan out across the dedicated
+    // store. Extracting a package with thousands of files (e.g.
+    // `core-js`) on a single blocking thread pins one core while the
+    // rest sit idle — most costly at the makespan tail, when it's the
+    // last extraction still running. `write_cas_entry` is safe to run
+    // concurrently, so large tarballs fan out across the dedicated
     // [`cas_write_pool`]; small ones stay serial to skip rayon's per-job
     // dispatch cost when there's nothing to gain. The dedicated pool
     // keeps this off the global pool the linker uses, so an extraction
@@ -724,8 +826,7 @@ fn extract_tarball_entries(
 
     // Phase 3 (serial): assemble the output maps. `written` preserves
     // `pending` order, so a tarball with duplicate paths keeps the last
-    // entry — matching the previous insert-in-order behavior and pnpm's
-    // last-wins `filesIndex.set`.
+    // entry — matching pnpm's last-wins `filesIndex.set`.
     let mut cas_paths = HashMap::<String, PathBuf>::with_capacity(written.len());
     let mut files = HashMap::with_capacity(written.len());
     for (path, file_path, info) in written {
@@ -739,7 +840,7 @@ fn extract_tarball_entries(
 
     let pkg_files_idx = PackageFilesIndex {
         manifest,
-        requires_build: None,
+        requires_build: Some(manifest_build_scripts || file_build_hooks),
         algo: "sha512".to_string(),
         files,
         side_effects: None,
@@ -962,12 +1063,8 @@ fn extract_zip_entries(
 /// filesystem work — missing / corrupt CAFS blobs surface lazily when
 /// the caller tries to import them.
 ///
-/// The previous pacquet implementation unconditionally ran a
-/// `symlink_metadata` per referenced file and rejected any non-regular
-/// dirent outright. That cost a stat syscall per file on every warm
-/// install ([#260]) and still diverged from pnpm: the upstream
-/// [`checkPkgFilesIntegrity`][1] catches corruption via the content hash
-/// and doesn't gate on dirent type.
+/// Corruption is caught via the content hash, not by gating on the
+/// dirent type, matching upstream's [`checkPkgFilesIntegrity`][1].
 ///
 /// [1]: https://github.com/pnpm/pnpm/blob/1819226b51/store/cafs/src/checkPkgFilesIntegrity.ts
 ///
@@ -978,10 +1075,7 @@ fn extract_zip_entries(
 /// Values are `Arc`-wrapped so the cold-batch fallback can hand a hit
 /// back as a cheap pointer-clone rather than memcpy-ing the whole
 /// per-file map (each entry is a `HashMap<String, PathBuf>` with up
-/// to ~hundred entries, and Copilot reasonably flagged the deep clone
-/// as a hot-path cost).
-///
-/// [#260]: https://github.com/pnpm/pacquet/issues/260
+/// to ~hundred entries, so the deep clone is a hot-path cost).
 pub type PrefetchedCasPaths = HashMap<String, Arc<HashMap<String, PathBuf>>>;
 
 /// Bundled package manifests recovered from the `SQLite` store index,
@@ -1016,21 +1110,31 @@ pub type PrefetchedManifests = HashMap<String, Arc<serde_json::Value>>;
 /// `calc_dep_state` cache key has a matching entry here.
 ///
 /// Outer values are `Arc`-wrapped for the same cold-batch cheap-clone
-/// reason `PrefetchedCasPaths` is.
+/// reason [`PrefetchedCasPaths`] is.
 pub type PrefetchedSideEffectsMaps =
     HashMap<String, Arc<HashMap<String, HashMap<String, PathBuf>>>>;
+
+/// `requiresBuild` flags recovered from the same `index.db` rows as
+/// [`PrefetchedCasPaths`]. Missing values in old rows are recomputed
+/// from the bundled manifest plus verified file keys, mirroring
+/// pnpm's worker fallback when `pkgFilesIndex.requiresBuild` is absent.
+pub type PrefetchedRequiresBuild = HashMap<String, bool>;
+
+type DecodedPrefetchRow =
+    (String, Option<Arc<serde_json::Value>>, Option<bool>, pacquet_store_dir::VerifyResult);
 
 /// Output of [`prefetch_cas_paths`]: the warm-cache filesystem map
 /// plus any bundled manifests and side-effects overlays recovered
 /// from the same `index.db` rows. Bundled in a single struct so
-/// callers can destructure all three after one `await`, rather than
-/// the function having to thread three separate `spawn_blocking`
+/// callers can destructure all cached facts after one `await`, rather
+/// than the function having to thread several separate `spawn_blocking`
 /// round-trips through.
 #[derive(Default)]
 pub struct PrefetchResult {
     pub cas_paths: PrefetchedCasPaths,
     pub manifests: PrefetchedManifests,
     pub side_effects_maps: PrefetchedSideEffectsMaps,
+    pub requires_build: PrefetchedRequiresBuild,
 }
 
 /// Batch the entire warm-cache lookup phase into one `spawn_blocking`
@@ -1040,7 +1144,7 @@ pub struct PrefetchResult {
 /// `cache_key → Arc<cas_paths>` map the per-snapshot futures can hit
 /// synchronously.
 ///
-/// **Locking shape (per Copilot review on [#292]):** the `SQLite` mutex
+/// **Locking shape (see [#292]):** the `SQLite` mutex
 /// is held only for the SELECT loop. Integrity checks (`fs::metadata`
 /// per file, optional re-hash) happen after the guard drops, so a
 /// concurrent reader on the same `SharedReadonlyStoreIndex` doesn't
@@ -1124,7 +1228,7 @@ pub async fn prefetch_cas_paths(
         // `Option::take` so it travels back to the caller without
         // an intermediate `Value::clone` of the JSON tree — the
         // verify function only inspects `files`, never `manifest`.
-        let decoded: Vec<(String, Option<Arc<serde_json::Value>>, pacquet_store_dir::VerifyResult)> = raw
+        let decoded: Vec<DecodedPrefetchRow> = raw
             .into_par_iter()
             .filter_map(|(cache_key, bytes)| {
                 let mut entry: PackageFilesIndex = match pacquet_store_dir::decode_package_files_index(&bytes) {
@@ -1139,6 +1243,7 @@ pub async fn prefetch_cas_paths(
                         return None;
                     }
                 };
+                let stored_requires_build = entry.requires_build;
                 let manifest = entry.manifest.take().map(Arc::new);
                 let verify_result = if verify_store_integrity {
                     pacquet_store_dir::check_pkg_files_integrity(
@@ -1149,15 +1254,20 @@ pub async fn prefetch_cas_paths(
                 } else {
                     pacquet_store_dir::build_file_maps_from_index(store_dir, entry)
                 };
-                Some((cache_key, manifest, verify_result))
+                Some((cache_key, manifest, stored_requires_build, verify_result))
             })
             .collect();
 
         let mut cas_paths = HashMap::with_capacity(decoded.len());
         let mut manifests = HashMap::new();
         let mut side_effects_maps = HashMap::new();
-        for (cache_key, manifest, verify_result) in decoded {
+        let mut requires_build = HashMap::with_capacity(decoded.len());
+        for (cache_key, manifest, stored_requires_build, verify_result) in decoded {
             if verify_result.passed {
+                let calculated_requires_build = stored_requires_build.unwrap_or_else(|| {
+                    manifest.as_deref().is_some_and(manifest_requires_build)
+                        || files_include_install_scripts(verify_result.files_map.keys())
+                });
                 if let Some(manifest) = manifest {
                     manifests.insert(cache_key.clone(), manifest);
                 }
@@ -1166,10 +1276,11 @@ pub async fn prefetch_cas_paths(
                 {
                     side_effects_maps.insert(cache_key.clone(), Arc::new(maps));
                 }
+                requires_build.insert(cache_key.clone(), calculated_requires_build);
                 cas_paths.insert(cache_key, Arc::new(verify_result.files_map));
             }
         }
-        PrefetchResult { cas_paths, manifests, side_effects_maps }
+        PrefetchResult { cas_paths, manifests, side_effects_maps, requires_build }
     })
     .await;
     result.unwrap_or_else(|error| {
@@ -1273,7 +1384,7 @@ pub struct DownloadTarballToStore<'a> {
     /// Shared read-only handle to the `SQLite` store index. `None` when the
     /// store does not (yet) have an `index.db`, in which case every cache
     /// lookup short-circuits to a network fetch. Callers open this once per
-    /// install and pass the same handle to every `DownloadTarballToStore`
+    /// install and pass the same handle to every [`DownloadTarballToStore`]
     /// so we don't reopen the DB per package.
     pub store_index: Option<SharedReadonlyStoreIndex>,
     /// Handle to the batched store-index writer. Each successful tarball
@@ -1310,7 +1421,7 @@ pub struct DownloadTarballToStore<'a> {
     /// per-file stat in `check_pkg_files_integrity` once per
     /// (snapshot × file) instead of once per (file). Allocate one
     /// `Arc<DashSet<PathBuf>>` at install bootstrap and pass the same
-    /// handle to every `DownloadTarballToStore`.
+    /// handle to every [`DownloadTarballToStore`].
     pub verified_files_cache: SharedVerifiedFilesCache,
     pub package_integrity: &'a Integrity,
     pub package_unpacked_size: Option<usize>,
@@ -1427,6 +1538,9 @@ fn tarball_error_to_request_retry(err: &TarballError) -> RequestRetryError {
         TarballError::ReadTarballEntries(_) => {
             out.code = Some("ERR_PACQUET_TARBALL_TAR".to_string());
         }
+        TarballError::ReadLocalTarball { .. } => {
+            out.code = Some("ERR_PACQUET_TARBALL_FILE".to_string());
+        }
         TarballError::WriteCasFile(_) | TarballError::WriteStoreIndex(_) => {
             out.code = Some("ERR_PACQUET_TARBALL_STORE".to_string());
         }
@@ -1460,16 +1574,10 @@ fn tarball_error_to_request_retry(err: &TarballError) -> RequestRetryError {
 }
 
 /// Whether a [`TarballError`] from one tarball-fetch attempt should be
-/// retried. Matches pnpm's
-/// [`remoteTarballFetcher.ts`](https://github.com/pnpm/pnpm/blob/1819226b51/fetching/tarball-fetcher/src/remoteTarballFetcher.ts#L76-L84)
-/// policy *exactly*: only HTTP 401, 403, 404 (and the git-prepare
-/// failure code, which doesn't apply to registry tarballs) fail fast.
-/// Every other failure — arbitrary 4xx, 5xx, network reset, timeout,
-/// integrity mismatch, gzip / tar parse error, CAFS write hiccup —
-/// retries until the budget is exhausted.
+/// retried.
 ///
-/// In particular this means we retry integrity mismatches and decode
-/// errors. pnpm wraps the body fetch *and* the post-download
+/// We retry integrity mismatches and decode errors. pnpm wraps the
+/// body fetch *and* the post-download
 /// `addFilesFromTarball` (integrity check + extraction) in one retried
 /// closure for the same reason: a corrupted byte on the wire that
 /// happens to escape TCP framing can break either the integrity check
@@ -1477,8 +1585,87 @@ fn tarball_error_to_request_retry(err: &TarballError) -> RequestRetryError {
 fn is_transient_error(err: &TarballError) -> bool {
     match err {
         TarballError::HttpStatus(http) => !matches!(http.status, 401 | 403 | 404),
+        TarballError::ReadLocalTarball { .. } => false,
         _ => true,
     }
+}
+
+fn local_file_tarball_path(package_url: &str) -> Option<PathBuf> {
+    let path = package_url.strip_prefix("file:")?;
+    if is_unc_like_file_payload(path) {
+        return None;
+    }
+    if path.starts_with('/')
+        && let Ok(url) = url::Url::parse(package_url)
+    {
+        if url.scheme() != "file" || url.has_host() {
+            return None;
+        }
+        let path = url.to_file_path().ok()?;
+        return (!is_unc_like_file_payload(&path.to_string_lossy())).then_some(path);
+    }
+    Some(PathBuf::from(path))
+}
+
+fn is_unc_like_file_payload(path: &str) -> bool {
+    path.starts_with(r"\\")
+        || path.starts_with("////")
+        || (path.starts_with("//") && !path.starts_with("///"))
+}
+
+async fn extract_tarball_buffer(
+    buffer: Vec<u8>,
+    expected_integrity: Option<&Integrity>,
+    package_unpacked_size: Option<usize>,
+    package_url: &str,
+    store_dir: &'static StoreDir,
+    ignore_file_pattern: Option<Arc<IgnoreEntryFilter>>,
+) -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+    let _post_download_permit = post_download_semaphore()
+        .acquire()
+        .await
+        .expect("post-download semaphore shouldn't be closed this soon");
+
+    tracing::info!(target: "pacquet::download", ?package_url, "Download completed");
+
+    let expected_integrity = expected_integrity.cloned();
+    let package_url_owned = package_url.to_string();
+    let result = tokio::task::spawn_blocking(
+        move || -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
+            let integrity = verify_tarball_integrity(
+                &buffer,
+                expected_integrity,
+                package_url_owned,
+            )?;
+            let tar_data = decompress_gzip(&buffer, package_unpacked_size)?;
+            let (cas_paths, pkg_files_idx) =
+                extract_tarball_entries(&tar_data, store_dir, ignore_file_pattern.as_deref())?;
+            Ok((integrity, cas_paths, pkg_files_idx))
+        },
+    )
+    .await
+    .map_err(TarballError::TaskJoin)??;
+
+    tracing::info!(target: "pacquet::download", ?package_url, "Checksum verified");
+
+    Ok(result)
+}
+
+fn verify_tarball_integrity(
+    buffer: &[u8],
+    expected_integrity: Option<Integrity>,
+    package_url: String,
+) -> Result<Integrity, TarballError> {
+    if let Some(expected) = expected_integrity {
+        expected.check(buffer).map_err(|error| {
+            TarballError::Checksum(VerifyChecksumError { url: package_url, error })
+        })?;
+        return Ok(expected);
+    }
+
+    let mut opts = IntegrityOpts::new().algorithm(Algorithm::Sha512);
+    opts.input(buffer);
+    Ok(opts.result())
 }
 
 /// Run one full tarball-fetch attempt: hit the network, drain the body
@@ -1497,7 +1684,7 @@ fn is_transient_error(err: &TarballError) -> bool {
 /// between attempts doesn't keep one parked. The network permit is
 /// held from `connect + send` through body streaming (matching pnpm's
 /// pQueue and [#281]'s EMFILE fix), then dropped before the
-/// `post_download_semaphore` permit gates the CPU-bound checksum +
+/// [`post_download_semaphore`] permit gates the CPU-bound checksum +
 /// decode + extract step.
 ///
 /// [#281]: https://github.com/pnpm/pacquet/pull/281
@@ -1520,6 +1707,28 @@ async fn fetch_and_extract_once<Reporter: self::Reporter>(
     let network_error =
         |error| TarballError::FetchTarball(NetworkError { url: package_url.to_string(), error });
 
+    if let Some(path) = local_file_tarball_path(package_url) {
+        let (file, size) = open_local_tarball(&path).await?;
+        Reporter::emit(&LogEvent::FetchingProgress(FetchingProgressLog {
+            level: LogLevel::Debug,
+            message: FetchingProgressMessage::Started {
+                attempt: attempt + 1,
+                package_id: package_id.to_owned(),
+                size: Some(size),
+            },
+        }));
+        let buffer = read_local_tarball_buffer(file, &path, package_url, size).await?;
+        return extract_tarball_buffer(
+            buffer,
+            expected_integrity,
+            package_unpacked_size,
+            package_url,
+            store_dir,
+            ignore_file_pattern,
+        )
+        .await;
+    }
+
     // Acquire the network permit *before* `connect + send` and hold it
     // through body streaming. Releasing earlier would let the next
     // batch of futures `connect()` while previous bodies are still
@@ -1541,7 +1750,7 @@ async fn fetch_and_extract_once<Reporter: self::Reporter>(
     // resolve the per-URL auth header and attach it. Tarball hosts that
     // differ from the metadata host still pick up the header keyed at
     // the registry's nerf-darted URI.
-    if let Some(value) = auth_headers.for_url(package_url) {
+    if let Some(value) = auth_headers.for_url_with_package(package_url, Some(package_id)) {
         request = request.header("authorization", value);
     }
 
@@ -1689,62 +1898,15 @@ async fn fetch_and_extract_once<Reporter: self::Reporter>(
     // fixed; don't reintroduce it.
     drop(client);
 
-    // Gate the CPU-heavy decompress + cafs-write pipeline. The blocking
-    // pool is 512-wide by default, which is right for I/O wait but
-    // disastrous for CPU work that can only really run `num_cpus` at a
-    // time, so we cap concurrent `spawn_blocking` bodies. The permit is
-    // held across the `spawn_blocking.await` below and dropped at end
-    // of scope.
-    let _post_download_permit = post_download_semaphore()
-        .acquire()
-        .await
-        .expect("post-download semaphore shouldn't be closed this soon");
-
-    tracing::info!(target: "pacquet::download", ?package_url, "Download completed");
-
-    // Move the CPU-bound work (SHA-512, gzip inflate, per-file SHA-512,
-    // CAFS writes) onto the blocking pool. Same reasoning as before the
-    // retry refactor: a plain `tokio::spawn` pinned a reactor worker for
-    // each tarball — on a 2-core runner only two tarballs could make
-    // progress at a time. The post-download semaphore caps concurrency
-    // here.
-    let expected_integrity = expected_integrity.cloned();
-    let package_url_owned = package_url.to_string();
-    let result = tokio::task::spawn_blocking(
-        move || -> Result<(Integrity, HashMap<String, PathBuf>, PackageFilesIndex), TarballError> {
-            // Verify a known integrity, or compute one when the hash
-            // isn't known until after download — remote (non-registry)
-            // https-tarball direct deps, where the resolver learns the
-            // integrity here. Mirrors pnpm's worker
-            // `integrity ?? calcIntegrity(buffer)`
-            // ([worker/src/start.ts](https://github.com/pnpm/pnpm/blob/086c5e91e8/worker/src/start.ts#L232)).
-            let integrity = if let Some(expected) = expected_integrity {
-                expected.check(&buffer).map_err(|error| {
-                    TarballError::Checksum(VerifyChecksumError { url: package_url_owned, error })
-                })?;
-                expected
-            } else {
-                let mut opts = IntegrityOpts::new().algorithm(Algorithm::Sha512);
-                opts.input(&buffer);
-                opts.result()
-            };
-
-            // Extract in a scope so the decompressed buffer + `tar::Archive`
-            // are released before we return — a large package's inflated
-            // bytes can be many MB.
-            let (cas_paths, pkg_files_idx) = {
-                let tar_data = decompress_gzip(&buffer, package_unpacked_size)?;
-                extract_tarball_entries(&tar_data, store_dir, ignore_file_pattern.as_deref())?
-            };
-            Ok((integrity, cas_paths, pkg_files_idx))
-        },
+    extract_tarball_buffer(
+        buffer,
+        expected_integrity,
+        package_unpacked_size,
+        package_url,
+        store_dir,
+        ignore_file_pattern,
     )
     .await
-    .map_err(TarballError::TaskJoin)??;
-
-    tracing::info!(target: "pacquet::download", ?package_url, "Checksum verified");
-
-    Ok(result)
 }
 
 /// Run [`fetch_and_extract_once`] under pnpm's retry policy. Permanent
@@ -1828,7 +1990,7 @@ pub fn download_priority(unpacked_size: Option<usize>, file_count: Option<usize>
 // hinting, store_dir + retry_opts are install-scoped, and
 // ignore_file_pattern is the per-fetch archive filter. Bundling
 // into a struct would just push the same fields into a wrapper.
-#[allow(
+#[expect(
     clippy::too_many_arguments,
     reason = "the parameters are independent install-scoped inputs; bundling them into a struct only moves the same fields into a wrapper"
 )]
@@ -2190,7 +2352,7 @@ impl<'a> DownloadTarballToStore<'a> {
         // shape as upstream's `ERR_PNPM_NO_OFFLINE_META`, scoped to
         // tarballs because that's what pacquet's frozen install needs
         // network for.
-        if self.offline {
+        if self.offline && local_file_tarball_path(package_url).is_none() {
             tracing::warn!(
                 target: "pacquet::download",
                 ?package_url,
@@ -2283,6 +2445,9 @@ pub struct FetchTarballForResolution<'a> {
     pub store_dir: &'static StoreDir,
     pub store_index_writer: Option<Arc<StoreIndexWriter>>,
     pub package_url: &'a str,
+    /// Package identity used for scoped auth lookup and the intermediate
+    /// store-index cache key.
+    pub package_id: &'a str,
     pub auth_headers: &'a AuthHeaders,
     pub retry_opts: RetryOpts,
 }
@@ -2297,25 +2462,21 @@ impl FetchTarballForResolution<'_> {
             store_dir,
             store_index_writer,
             package_url,
+            package_id,
             auth_headers,
             retry_opts,
         } = self;
 
-        // `None` expected-integrity → compute it from the bytes. The
-        // package_id / requester are the post-redirect URL: the real
-        // `name@version` is only known once the manifest is read below,
-        // and the resolve-time fetch is silent (the install pass owns
-        // the reporter ordering), so the placeholder never surfaces.
-        // `UNPRIORITIZED`: this fetch gates the resolver's walk (a
-        // tarball dep's manifest comes from its archive), so like a
-        // packument fetch it must not queue behind sized downloads.
+        // Resolve-time tarball fetches compute integrity from bytes and
+        // gate the dependency walk, so they use the same priority class as
+        // packument requests instead of queuing behind sized downloads.
         let (integrity, cas_paths, pkg_files_idx) = fetch_and_extract_with_retry::<Reporter>(
             http_client,
             package_url,
             None,
             None,
             UNPRIORITIZED,
-            package_url,
+            package_id,
             package_url,
             store_dir,
             retry_opts,
@@ -2378,13 +2539,9 @@ fn manifest_package_id(manifest: Option<&serde_json::Value>) -> Option<String> {
 /// `addFilesFromDir` does on each tempdir file).
 // 8 arguments — over the default clippy threshold, but each is
 // distinct (see the matching note on `fetch_and_extract_zip_with_retry`).
-#[allow(
-    clippy::too_many_arguments,
-    reason = "the parameters are independent install-scoped inputs; bundling them into a struct only moves the same fields into a wrapper"
-)]
 #[expect(
     clippy::too_many_arguments,
-    reason = "arg count is set by upstream pnpm's fetcher signature"
+    reason = "the parameters are independent install-scoped inputs; bundling them into a struct only moves the same fields into a wrapper"
 )]
 async fn fetch_and_extract_zip_once<Reporter: self::Reporter>(
     http_client: &ThrottledClient,
@@ -2410,7 +2567,7 @@ async fn fetch_and_extract_zip_once<Reporter: self::Reporter>(
     // would 401 without this. Keeps parity with pnpm's binary
     // fetcher which goes through the same `fetchFromRegistry` /
     // auth-header plumbing.
-    if let Some(value) = auth_headers.for_url(package_url) {
+    if let Some(value) = auth_headers.for_url_with_package(package_url, Some(package_id)) {
         request = request.header("authorization", value);
     }
 

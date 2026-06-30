@@ -1,0 +1,611 @@
+# @pnpm/modules-yaml
+
+## 1100.0.9
+
+### Patch Changes
+
+- Updated dependencies [681b593]
+  - @pnpm/types@1101.3.2
+
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies [bf1b731]
+  - @pnpm/types@1101.3.1
+
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+  - @pnpm/types@1101.3.0
+
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [35d2355]
+  - @pnpm/types@1101.2.0
+
+## 1100.0.5
+
+### Patch Changes
+
+- Updated dependencies [64afc92]
+  - @pnpm/types@1101.1.1
+
+## 1100.0.4
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+
+## 1100.0.3
+
+### Patch Changes
+
+- 12313f1: Fix `pnpm install` recreating `node_modules` after `pnpm fetch`. `pnpm fetch` records empty `hoistPattern` and `publicHoistPattern` in `.modules.yaml`; since v11 removed the explicit-config gate, the follow-up install treated those as a hoist-pattern change and purged the modules directory. The fetch step now flags the modules manifest with `virtualStoreOnly: true` so the next install skips the hoist-pattern comparison and completes the missing post-import linking in place [#11488](https://github.com/pnpm/pnpm/issues/11488).
+
+## 1100.0.2
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+- Updated dependencies [5a901e7]
+  - @pnpm/fs.graceful-fs@1100.1.0
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+
+## 1001.0.0
+
+### Major Changes
+
+- 3cfffaa: Remove options from writeModulesManifest.
+- 05fb1ae: `ignoreBuilds` is now a set of DepPath.
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Minor Changes
+
+- 3cfffaa: Save node_modules/.modules.yaml in JSON format.
+
+### Patch Changes
+
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [491a84f]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [efb48dc]
+  - @pnpm/types@1001.0.0
+  - @pnpm/fs.graceful-fs@1001.0.0
+
+## 1000.3.6
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+  - @pnpm/types@1000.9.0
+
+## 1000.3.5
+
+### Patch Changes
+
+- Updated dependencies [e792927]
+  - @pnpm/types@1000.8.0
+
+## 1000.3.4
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+
+## 1000.3.3
+
+### Patch Changes
+
+- Updated dependencies [5ec7255]
+  - @pnpm/types@1000.6.0
+
+## 1000.3.2
+
+### Patch Changes
+
+- Updated dependencies [5b73df1]
+  - @pnpm/types@1000.5.0
+
+## 1000.3.1
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+
+## 1000.3.0
+
+### Minor Changes
+
+- 64f6b4f: Add type `StrictModules`.
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+
+## 1000.2.0
+
+### Minor Changes
+
+- d612dcf: Remove warnings after having explicitly approved no builds [#9296](https://github.com/pnpm/pnpm/issues/9296).
+- d612dcf: Add type `StrictModules`.
+
+## 1000.1.4
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+
+## 1000.1.3
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+
+## 1000.1.2
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+
+## 1000.1.1
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+
+## 1000.1.0
+
+### Minor Changes
+
+- 4771813: Store the list of ignored builds in `node_modules/.modules.yaml`.
+
+## 13.1.7
+
+### Patch Changes
+
+- Updated dependencies [d500d9f]
+  - @pnpm/types@12.2.0
+
+## 13.1.6
+
+### Patch Changes
+
+- Updated dependencies [7ee59a1]
+  - @pnpm/types@12.1.0
+
+## 13.1.5
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/types@12.0.0
+
+## 13.1.4
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+
+## 13.1.3
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/types@11.0.0
+
+## 13.1.2
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+
+## 13.1.1
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+
+## 13.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+## 13.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [43cdd87]
+- Updated dependencies [730929e]
+  - @pnpm/types@10.0.0
+
+## 12.1.7
+
+### Patch Changes
+
+- d349bc3a2: readModulesYaml should not crash on empty file.
+
+## 12.1.6
+
+### Patch Changes
+
+- Updated dependencies [4d34684f1]
+  - @pnpm/types@9.4.2
+
+## 12.1.5
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+
+## 12.1.4
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+  - @pnpm/types@9.4.0
+
+## 12.1.3
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+  - @pnpm/types@9.3.0
+
+## 12.1.2
+
+### Patch Changes
+
+- Updated dependencies [aa2ae8fe2]
+  - @pnpm/types@9.2.0
+
+## 12.1.1
+
+### Patch Changes
+
+- Updated dependencies [a9e0b7cbf]
+  - @pnpm/types@9.1.0
+
+## 12.1.0
+
+### Minor Changes
+
+- e6b83c84e: Do not create a `node_modules` folder with a `.modules.yaml` file if there are now dependencies inside `node_modules`.
+
+## 12.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/types@9.0.0
+
+## 11.1.0
+
+### Minor Changes
+
+- 2458741fa: New field saved in the modules state file: `hoistedLocations`. This field maps the locations of dependencies, when `node-linker=hoisted` is used.
+
+### Patch Changes
+
+- Updated dependencies [b77651d14]
+  - @pnpm/types@8.10.0
+
+## 11.0.2
+
+### Patch Changes
+
+- Updated dependencies [702e847c1]
+  - @pnpm/types@8.9.0
+
+## 11.0.1
+
+### Patch Changes
+
+- Updated dependencies [844e82f3a]
+  - @pnpm/types@8.8.0
+
+## 11.0.0
+
+### Major Changes
+
+- 72f7d6b3b: Export readModulesManifest and writeModulesManifest instead of read and write.
+
+## 10.0.8
+
+### Patch Changes
+
+- Updated dependencies [d665f3ff7]
+  - @pnpm/types@8.7.0
+
+## 10.0.7
+
+### Patch Changes
+
+- Updated dependencies [156cc1ef6]
+  - @pnpm/types@8.6.0
+
+## 10.0.6
+
+### Patch Changes
+
+- Updated dependencies [c90798461]
+  - @pnpm/types@8.5.0
+
+## 10.0.5
+
+### Patch Changes
+
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/types@8.4.0
+
+## 10.0.4
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+  - @pnpm/types@8.3.0
+
+## 10.0.3
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+  - @pnpm/types@8.2.0
+
+## 10.0.2
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+
+## 10.0.1
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+
+## 10.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+
+## 9.1.1
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/types@7.10.0
+
+## 9.1.0
+
+### Minor Changes
+
+- cdc521cfa: New field added: injectedDeps.
+
+## 9.0.11
+
+### Patch Changes
+
+- Updated dependencies [26cd01b88]
+  - @pnpm/types@7.9.0
+
+## 9.0.10
+
+### Patch Changes
+
+- 7375396db: Save the value of the active `nodeLinker` to `node_modules/.modules.yaml`.
+
+## 9.0.9
+
+### Patch Changes
+
+- Updated dependencies [b5734a4a7]
+  - @pnpm/types@7.8.0
+
+## 9.0.8
+
+### Patch Changes
+
+- Updated dependencies [6493e0c93]
+  - @pnpm/types@7.7.1
+
+## 9.0.7
+
+### Patch Changes
+
+- Updated dependencies [ba9b2eba1]
+  - @pnpm/types@7.7.0
+
+## 9.0.6
+
+### Patch Changes
+
+- Updated dependencies [302ae4f6f]
+  - @pnpm/types@7.6.0
+
+## 9.0.5
+
+### Patch Changes
+
+- Updated dependencies [4ab87844a]
+  - @pnpm/types@7.5.0
+
+## 9.0.4
+
+### Patch Changes
+
+- Updated dependencies [b734b45ea]
+  - @pnpm/types@7.4.0
+
+## 9.0.3
+
+### Patch Changes
+
+- Updated dependencies [8e76690f4]
+  - @pnpm/types@7.3.0
+
+## 9.0.2
+
+### Patch Changes
+
+- Updated dependencies [724c5abd8]
+  - @pnpm/types@7.2.0
+
+## 9.0.1
+
+### Patch Changes
+
+- Updated dependencies [97c64bae4]
+  - @pnpm/types@7.1.0
+
+## 9.0.0
+
+### Major Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+- 78470a32d: New required option added to the modules meta object: `prunedAt`. `prunedAt` is the stringified UTC date when the virtual store was last cleared.
+
+### Patch Changes
+
+- Updated dependencies [97b986fbc]
+  - @pnpm/types@7.0.0
+
+## 8.0.6
+
+### Patch Changes
+
+- Updated dependencies [9ad8c27bf]
+  - @pnpm/types@6.4.0
+
+## 8.0.5
+
+### Patch Changes
+
+- 09492b7b4: Update write-file-atomic to v3.
+
+## 8.0.4
+
+### Patch Changes
+
+- Updated dependencies [b5d694e7f]
+  - @pnpm/types@6.3.1
+
+## 8.0.3
+
+### Patch Changes
+
+- Updated dependencies [d54043ee4]
+  - @pnpm/types@6.3.0
+
+## 8.0.2
+
+### Patch Changes
+
+- a2ef8084f: Use the same versions of dependencies across the pnpm monorepo.
+
+## 8.0.1
+
+### Patch Changes
+
+- Updated dependencies [db17f6f7b]
+  - @pnpm/types@6.2.0
+
+## 8.0.0
+
+### Major Changes
+
+- 71a8c8ce3: Breaking changes to the `node_modules/.modules.yaml` file:
+  - `hoistedAliases` replaced with `hoistedDependencies`.
+  - `shamefullyHoist` replaced with `publicHoistPattern`.
+
+### Patch Changes
+
+- Updated dependencies [71a8c8ce3]
+  - @pnpm/types@6.1.0
+
+## 7.0.0
+
+### Major Changes
+
+- 3f73eaf0c: Rename `store` to `storeDir` in `node_modules/.modules.yaml`.
+- 802d145fc: Remove `independent-leaves` support.
+
+### Patch Changes
+
+- Updated dependencies [da091c711]
+  - @pnpm/types@6.0.0
+
+## 7.0.0-alpha.0
+
+### Major Changes
+
+- 3f73eaf0: Rename `store` to `storeDir` in `node_modules/.modules.yaml`.
+
+### Patch Changes
+
+- Updated dependencies [da091c71]
+  - @pnpm/types@6.0.0-alpha.0
+
+## 6.0.2
+
+### Patch Changes
+
+- 907c63a48: Dependencies updated.

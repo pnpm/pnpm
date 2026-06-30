@@ -29,22 +29,19 @@ fn base_opts<'a>(
     }
 }
 
-/// Ports `test('makeEnv')` from
-/// <https://github.com/pnpm/npm-lifecycle/blob/d2d8e790/test/index.js#L97-L124>.
-///
-/// Four invariants we mirror:
-/// - top-level `npm_package_name` is set from the manifest's `name`,
-/// - package-local config like `_myPackage` keys are NOT promoted to
-///   `npm_package_config_*`,
-/// - `npm_*` keys leaked from the parent env are stripped (upstream's
-///   `!i.match(/^npm_/)` filter at `index.js:359`),
-/// - everything else passes through — including `pnpm_*` keys like
-///   `PNPM_HOME`, which upstream does not filter.
 #[test]
-fn make_env_stamps_top_level_keys_and_strips_npm_config_leakage() {
+fn make_env_preserves_user_config_and_strips_auth_and_package_leakage() {
     let mut parent = HashMap::new();
     parent.insert("PATH".into(), "/usr/bin".into());
-    parent.insert("npm_config_enteente".into(), "should-be-stripped".into());
+    parent.insert("npm_config_platform_arch".into(), "x64".into());
+    parent.insert("npm_config__auth".into(), "should-not-leak".into());
+    parent.insert("npm_config__authToken".into(), "should-not-leak".into());
+    parent.insert("npm_config__password".into(), "should-not-leak".into());
+    parent.insert("npm_config_//registry.npmjs.org/:_authToken".into(), "should-not-leak".into());
+    parent.insert("npm_config_@scope:registry".into(), "https://example.com".into());
+    parent.insert("pnpm_config__authToken".into(), "should-not-leak".into());
+    parent.insert("pnpm_config_//registry.npmjs.org/:_authToken".into(), "should-not-leak".into());
+    parent.insert("npm_package_name".into(), "should-be-regenerated".into());
     parent.insert("PNPM_HOME".into(), "/opt/pnpm".into());
     parent.insert("HOME".into(), "/home/me".into());
 
@@ -67,11 +64,27 @@ fn make_env_stamps_top_level_keys_and_strips_npm_config_leakage() {
         !built.env.contains_key("npm_package__myPackage_secret"),
         "underscore-prefixed manifest keys must be ignored",
     );
-    assert!(
-        !built.env.contains_key("npm_config_enteente"),
-        "npm_config_* must be stripped from parent env: {:?}",
+    assert_eq!(
+        built.env.get("npm_config_platform_arch").map(String::as_str),
+        Some("x64"),
+        "user-defined npm_config_* vars from the parent env are preserved: {:?}",
         built.env,
     );
+    for stripped in [
+        "npm_config__auth",
+        "npm_config__authToken",
+        "npm_config__password",
+        "npm_config_//registry.npmjs.org/:_authToken",
+        "npm_config_@scope:registry",
+        "pnpm_config__authToken",
+        "pnpm_config_//registry.npmjs.org/:_authToken",
+    ] {
+        assert!(
+            !built.env.contains_key(stripped),
+            "auth config key {stripped} must be stripped: {:?}",
+            built.env,
+        );
+    }
     assert_eq!(
         built.env.get("PNPM_HOME").map(String::as_str),
         Some("/opt/pnpm"),
@@ -84,9 +97,6 @@ fn make_env_stamps_top_level_keys_and_strips_npm_config_leakage() {
     );
 }
 
-/// `scripts` is NOT in the top-level keep-list at index.js:381, so it
-/// must not become `npm_package_scripts_*`. Catches the most common
-/// way the filter could regress.
 #[test]
 fn make_env_drops_non_keep_listed_top_level_keys() {
     let manifest = json!({
@@ -108,10 +118,6 @@ fn make_env_drops_non_keep_listed_top_level_keys() {
     }
 }
 
-/// `npm_lifecycle_event`, `npm_lifecycle_script`, `npm_package_json`,
-/// `INIT_CWD`, and `PNPM_SCRIPT_SRC_DIR` all come from the lifecycle
-/// wrapper, not from the manifest. Mirrors index.js:74-86 + the pnpm
-/// wrapper at runLifecycleHook.ts:119-124.
 #[test]
 fn make_env_stamps_lifecycle_specific_keys() {
     let pkg_root = Path::new("/tmp/y");
@@ -149,9 +155,6 @@ fn make_env_stamps_lifecycle_specific_keys() {
     assert_eq!(built.env.get("PNPM_SCRIPT_SRC_DIR"), Some(&expected_src_dir));
 }
 
-/// `unsafe_perm: true` skips both the TMPDIR creation and the env
-/// stamp; `unsafe_perm: false` records the path but does NOT create
-/// the directory (that's the caller's job).
 #[test]
 fn make_env_tmpdir_gating_mirrors_unsafe_perm() {
     let pkg_root = Path::new("/tmp/z");
@@ -170,11 +173,6 @@ fn make_env_tmpdir_gating_mirrors_unsafe_perm() {
     assert_eq!(built.env.get("TMPDIR"), Some(&expected_tmpdir.to_string_lossy().into_owned()));
 }
 
-/// `extra_env` is applied AFTER the lifecycle-area writes, so it can
-/// override `INIT_CWD` etc. — matches index.js:88-92's `Object.entries(opts.extraEnv)`
-/// loop order. But `npm_lifecycle_script` is stamped *after* extraEnv
-/// (set in lifecycle_ at index.js:125), so the caller can never
-/// clobber it.
 #[test]
 fn extra_env_overrides_writes_except_lifecycle_script() {
     let pkg_root = Path::new("/tmp/w");
@@ -204,8 +202,6 @@ fn extra_env_overrides_writes_except_lifecycle_script() {
     assert_eq!(built.env.get("CUSTOM").map(String::as_str), Some("hello"));
 }
 
-/// Recursion goes one level into `config`, `engines`, `bin` but
-/// keeps everything inside them — including nested objects.
 #[test]
 fn stamp_package_recurses_into_kept_buckets() {
     let mut env = HashMap::new();
@@ -230,9 +226,6 @@ fn stamp_package_recurses_into_kept_buckets() {
     assert_eq!(env.get("npm_package_bin_foo").map(String::as_str), Some("./bin/foo.js"));
 }
 
-/// Array indices become numeric keys (`bin[0]`, `bin[1]`, ...) — JS
-/// iterates `for (i in array)` as strings, and the recursion handles
-/// it the same way as object keys.
 #[test]
 fn stamp_package_handles_arrays() {
     let mut env = HashMap::new();
@@ -241,8 +234,6 @@ fn stamp_package_handles_arrays() {
     assert_eq!(env.get("npm_package_bin_1").map(String::as_str), Some("./b"));
 }
 
-/// `(prefix + i).replace(/[^a-zA-Z0-9_]/g, '_')` from index.js:379.
-/// Scoped names, dashes, dots all collapse to `_`.
 #[test]
 fn sanitize_env_key_matches_upstream_regex() {
     assert_eq!(sanitize_env_key("npm_package_name"), "npm_package_name");
@@ -251,14 +242,21 @@ fn sanitize_env_key_matches_upstream_regex() {
     assert_eq!(sanitize_env_key("npm_package_já"), "npm_package_j_");
 }
 
-/// On POSIX, env keys are case-sensitive: `NPM_CONFIG_FOO` is a
-/// different variable than `npm_config_foo`, so only the lowercase
-/// `npm_` prefix matches — matching upstream's `/^npm_/` regex
-/// exactly.
 #[test]
 fn is_stamping_key_is_case_sensitive_on_posix() {
-    assert!(is_stamping_key("npm_config_user_agent", false));
-    assert!(!is_stamping_key("NPM_CONFIG_USER_AGENT", false));
+    assert!(is_stamping_key("npm_package_name", false));
+    assert!(!is_stamping_key("NPM_PACKAGE_NAME", false));
+    assert!(!is_stamping_key("npm_config_user_agent", false));
+    assert!(!is_stamping_key("npm_config_platform_arch", false));
+    assert!(!is_stamping_key("pnpm_config_registry", false));
+    assert!(is_stamping_key("npm_config__auth", false));
+    assert!(is_stamping_key("npm_config__authToken", false));
+    assert!(is_stamping_key("npm_config_@scope:registry", false));
+    assert!(is_stamping_key("npm_config_//registry.npmjs.org/:_authToken", false));
+    assert!(is_stamping_key("npm_config_foo:_bar", false));
+    assert!(is_stamping_key("pnpm_config__authToken", false));
+    assert!(!is_stamping_key("NPM_CONFIG__AUTH", false));
+    assert!(!is_stamping_key("npm_lifecycle_event", false));
     assert!(!is_stamping_key("Npm_Lifecycle_Event", false));
     assert!(is_stamping_key("NODE", false));
     assert!(!is_stamping_key("Node", false));
@@ -266,7 +264,6 @@ fn is_stamping_key_is_case_sensitive_on_posix() {
     assert!(is_stamping_key("TMPDIR", false));
     assert!(is_stamping_key("INIT_CWD", false));
     assert!(is_stamping_key("PNPM_SCRIPT_SRC_DIR", false));
-    // pnpm_* keys other than the well-known stamps survive.
     assert!(!is_stamping_key("PNPM_HOME", false));
 }
 
@@ -291,36 +288,37 @@ fn is_stamping_key_handles_non_ascii_keys_without_panicking() {
 }
 
 /// On Windows, Rust's `Command::env` treats env keys
-/// case-insensitively, so `NPM_CONFIG_FOO` and `npm_config_foo`
-/// refer to the same variable. We must strip the entire family
-/// case-insensitively or our `npm_*` inserts collide at spawn time
-/// with an unpredictable winner.
+/// case-insensitively, so `NPM_PACKAGE_FOO` and `npm_package_foo`
+/// refer to the same variable. We must strip each stamped family
+/// case-insensitively or our inserts collide at spawn time with an
+/// unpredictable winner.
 #[test]
 fn is_stamping_key_is_case_insensitive_on_windows() {
-    assert!(is_stamping_key("npm_config_user_agent", true));
-    assert!(is_stamping_key("NPM_CONFIG_USER_AGENT", true));
-    assert!(is_stamping_key("Npm_Lifecycle_Event", true));
+    assert!(is_stamping_key("npm_package_name", true));
+    assert!(is_stamping_key("NPM_PACKAGE_NAME", true));
+    assert!(!is_stamping_key("npm_config_platform_arch", true));
+    assert!(!is_stamping_key("NPM_CONFIG_PLATFORM_ARCH", true));
+    // The prefix is matched case-insensitively; the `_`/`/`/`@`/`:_`
+    // markers are ASCII and case-agnostic.
+    assert!(is_stamping_key("npm_config__auth", true));
+    assert!(is_stamping_key("NPM_CONFIG__AUTH", true));
+    assert!(is_stamping_key("npm_config_@scope:registry", true));
+    assert!(!is_stamping_key("Npm_Lifecycle_Event", true));
     assert!(is_stamping_key("NODE", true));
     assert!(is_stamping_key("Node", true));
     assert!(is_stamping_key("node", true));
     assert!(is_stamping_key("tmpdir", true));
     assert!(is_stamping_key("init_cwd", true));
     assert!(is_stamping_key("pnpm_script_src_dir", true));
-    // Edge: short keys shouldn't accidentally match `npm_`.
     assert!(!is_stamping_key("NPM", true));
     assert!(!is_stamping_key("npm", true));
-    // pnpm_* keys other than the well-known stamps still survive.
     assert!(!is_stamping_key("PNPM_HOME", true));
     assert!(!is_stamping_key("pnpm_home", true));
 }
 
-/// Multi-line strings get JSON-encoded so child shells don't see a
-/// literal newline. Mirrors index.js:406-408.
 #[test]
 fn escape_newlines_json_encodes_multi_line_only() {
     assert_eq!(escape_newlines("plain"), "plain");
     assert_eq!(escape_newlines("a\nb"), r#""a\nb""#);
-    // Single-line strings with quotes/backslashes pass through verbatim
-    // — matches the JS `s.includes('\n') ? JSON.stringify(s) : s` exactly.
     assert_eq!(escape_newlines(r#"has "quotes""#), r#"has "quotes""#);
 }

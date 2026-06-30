@@ -1,0 +1,341 @@
+import path from 'node:path'
+
+import { expect, jest, test } from '@jest/globals'
+import type { LockfileObject } from '@pnpm/lockfile.types'
+import { prepare, preparePackages } from '@pnpm/prepare'
+import { addDistTag, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
+import { filterProjectsBySelectorObjectsFromDir } from '@pnpm/workspace.projects-filter'
+import chalk from 'chalk'
+import { readYamlFileSync } from 'read-yaml-file'
+
+jest.unstable_mockModule('@inquirer/prompts', () => {
+  class Separator {
+    separator: string
+    readonly type = 'separator' as const
+    constructor (separator: string) {
+      this.separator = separator
+    }
+  }
+  return {
+    Separator,
+    checkbox: jest.fn(),
+    confirm: jest.fn(),
+    input: jest.fn(),
+    password: jest.fn(),
+    select: jest.fn(),
+  }
+})
+const { checkbox, Separator } = await import('@inquirer/prompts')
+const { add, install, update } = await import('@pnpm/installing.commands')
+
+const mockCheckbox = jest.mocked(checkbox)
+
+const REGISTRY_URL = `http://localhost:${REGISTRY_MOCK_PORT}`
+
+const DEFAULT_OPTIONS = {
+  argv: {
+    original: [],
+  },
+  bail: false,
+  bin: 'node_modules/.bin',
+  excludeLinksFromLockfile: false,
+  extraEnv: {},
+  cliOptions: {},
+  deployAllFiles: false,
+  include: {
+    dependencies: true,
+    devDependencies: true,
+    optionalDependencies: true,
+  },
+  lock: true,
+  pnpmfile: ['.pnpmfile.cjs'],
+  pnpmHomeDir: '',
+  preferWorkspacePackages: true,
+  configByUri: {},
+  registries: {
+    default: REGISTRY_URL,
+  },
+  rootProjectManifestDir: '',
+  sort: true,
+  userConfig: {},
+  workspaceConcurrency: 1,
+  virtualStoreDirMaxLength: process.platform === 'win32' ? 60 : 120,
+}
+
+test('interactively update', async () => {
+  const project = prepare({
+    dependencies: {
+      // has 1.0.0 and 1.0.1 that satisfy this range
+      'is-negative': '^1.0.0',
+      // only 2.0.0 satisfies this range
+      'is-positive': '^2.0.0',
+      // has many versions that satisfy ^3.0.0
+      micromatch: '^3.0.0',
+    },
+  })
+
+  const storeDir = path.resolve('pnpm-store')
+
+  await Promise.all([
+    addDistTag({ package: 'is-negative', version: '2.1.0', distTag: 'latest' }),
+    addDistTag({ package: 'micromatch', version: '4.0.0', distTag: 'latest' }),
+  ])
+
+  await add.handler(
+    {
+      ...DEFAULT_OPTIONS,
+      cacheDir: path.resolve('cache'),
+      dir: process.cwd(),
+      linkWorkspacePackages: true,
+      save: false,
+      storeDir,
+    },
+    ['is-negative@1.0.0', 'is-positive@2.0.0', 'micromatch@3.0.0']
+  )
+
+  mockCheckbox.mockResolvedValue(['is-negative'])
+
+  mockCheckbox.mockClear()
+  // Update to compatible versions
+  await update.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    interactive: true,
+    linkWorkspacePackages: true,
+    storeDir,
+  })
+
+  // eslint-disable-next-line
+  const callArgs = mockCheckbox.mock.calls[0][0] as any
+  const flatChoices = callArgs.choices
+
+  expect(flatChoices).toStrictEqual([
+    new Separator(chalk.bold('── dependencies ──')),
+    new Separator('  Package                                                    Current   Target            URL '),
+    {
+      name: `is-negative                                                  1.0.0 ❯ 1.0.${chalk.greenBright.bold('1')}                 `,
+      value: 'is-negative',
+      short: 'is-negative',
+    },
+    {
+      name: `micromatch                                                   3.0.0 ❯ 3.${chalk.yellowBright.bold('1.10')}                `,
+      value: 'micromatch',
+      short: 'micromatch',
+    },
+  ])
+  expect(mockCheckbox).toHaveBeenCalledWith(
+    expect.objectContaining({
+      message:
+        'Choose which packages to update ' +
+        `(Press ${chalk.cyan('<space>')} to select, ` +
+        `${chalk.cyan('<a>')} to toggle all, ` +
+        `${chalk.cyan('<i>')} to invert selection)\n\nEnter to start updating. Ctrl-c to cancel.`,
+      pageSize: process.stdout.rows == null ? 7 : Math.max(7, process.stdout.rows - 6),
+    })
+  )
+  expect(callArgs.theme.style.highlight('focused row')).toBe('focused row')
+
+  {
+    const lockfile = project.readLockfile()
+
+    expect(lockfile.packages['micromatch@3.0.0']).toBeTruthy()
+    expect(lockfile.packages['is-negative@1.0.1']).toBeTruthy()
+    expect(lockfile.packages['is-positive@2.0.0']).toBeTruthy()
+  }
+
+  // Update to latest versions
+  mockCheckbox.mockClear()
+  mockCheckbox.mockResolvedValue(['is-negative'])
+  await update.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    interactive: true,
+    latest: true,
+    linkWorkspacePackages: true,
+    storeDir,
+  })
+
+  // eslint-disable-next-line
+  const callArgs2 = mockCheckbox.mock.calls[0][0] as any
+  const flatChoices2 = callArgs2.choices
+
+  expect(flatChoices2).toStrictEqual([
+    new Separator(chalk.bold('── dependencies ──')),
+    new Separator('  Package                                                    Current   Target            URL '),
+    {
+      name: `is-negative                                                  1.0.1 ❯ ${chalk.redBright.bold('2.1.0')}                 `,
+      value: 'is-negative',
+      short: 'is-negative',
+    },
+    {
+      name: `is-positive                                                  2.0.0 ❯ ${chalk.redBright.bold('3.1.0')}                 `,
+      value: 'is-positive',
+      short: 'is-positive',
+    },
+    {
+      name: `micromatch                                                   3.0.0 ❯ ${chalk.redBright.bold('4.0.0')}                 `,
+      value: 'micromatch',
+      short: 'micromatch',
+    },
+  ])
+  expect(mockCheckbox).toHaveBeenCalledWith(
+    expect.objectContaining({
+      message:
+        'Choose which packages to update ' +
+        `(Press ${chalk.cyan('<space>')} to select, ` +
+        `${chalk.cyan('<a>')} to toggle all, ` +
+        `${chalk.cyan('<i>')} to invert selection)\n\nEnter to start updating. Ctrl-c to cancel.`,
+    })
+  )
+
+  {
+    const lockfile = project.readLockfile()
+
+    expect(lockfile.packages['micromatch@3.0.0']).toBeTruthy()
+    expect(lockfile.packages['is-negative@2.1.0']).toBeTruthy()
+    expect(lockfile.packages['is-positive@2.0.0']).toBeTruthy()
+  }
+})
+
+test('interactive update of dev dependencies only', async () => {
+  preparePackages([
+    {
+      name: 'project1',
+
+      dependencies: {
+        'is-negative': '^1.0.1',
+      },
+    },
+    {
+      name: 'project2',
+
+      devDependencies: {
+        'is-negative': '^1.0.0',
+      },
+    },
+  ])
+  const storeDir = path.resolve('store')
+
+  mockCheckbox.mockResolvedValue(['is-negative'])
+
+  const { allProjects, selectedProjectsGraph } = await filterProjectsBySelectorObjectsFromDir(
+    process.cwd(),
+    []
+  )
+  await install.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
+    allProjects,
+    dir: process.cwd(),
+    linkWorkspacePackages: true,
+    lockfileDir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    storeDir,
+    workspaceDir: process.cwd(),
+  })
+  await update.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
+    allProjects,
+    cliOptions: {
+      dev: true,
+      optional: false,
+      production: false,
+    },
+    dir: process.cwd(),
+    interactive: true,
+    latest: true,
+    linkWorkspacePackages: true,
+    lockfileDir: process.cwd(),
+    recursive: true,
+    selectedProjectsGraph,
+    storeDir,
+    workspaceDir: process.cwd(),
+  })
+
+  const lockfile = readYamlFileSync<LockfileObject>('pnpm-lock.yaml')
+
+  expect(Object.keys(lockfile.packages ?? {})).toStrictEqual([
+    'is-negative@1.0.1',
+    'is-negative@2.1.0',
+  ])
+})
+
+test('interactively update should ignore dependencies from the ignoreDependencies field', async () => {
+  const project = prepare({
+    dependencies: {
+      // has 1.0.0 and 1.0.1 that satisfy this range
+      'is-negative': '^1.0.0',
+      // only 2.0.0 satisfies this range
+      'is-positive': '^2.0.0',
+      // has many versions that satisfy ^3.0.0
+      micromatch: '^3.0.0',
+    },
+  })
+
+  const storeDir = path.resolve('pnpm-store')
+
+  await add.handler(
+    {
+      ...DEFAULT_OPTIONS,
+      cacheDir: path.resolve('cache'),
+      dir: process.cwd(),
+      linkWorkspacePackages: true,
+      save: false,
+      storeDir,
+    },
+    ['is-negative@1.0.0', 'is-positive@2.0.0', 'micromatch@3.0.0']
+  )
+
+  mockCheckbox.mockResolvedValue(['micromatch'])
+
+  mockCheckbox.mockClear()
+  await update.handler({
+    ...DEFAULT_OPTIONS,
+    cacheDir: path.resolve('cache'),
+    dir: process.cwd(),
+    interactive: true,
+    linkWorkspacePackages: true,
+    storeDir,
+    updateConfig: {
+      ignoreDependencies: ['is-negative'],
+    },
+  })
+
+  // eslint-disable-next-line
+  const callArgs3 = mockCheckbox.mock.calls[0][0] as any
+  const flatChoices3 = callArgs3.choices
+
+  expect(flatChoices3).toStrictEqual(
+    [
+      new Separator(chalk.bold('── dependencies ──')),
+      new Separator('  Package                                                    Current   Target            URL '),
+      {
+        name: `micromatch                                                   3.0.0 ❯ 3.${chalk.yellowBright.bold('1.10')}                `,
+        value: 'micromatch',
+        short: 'micromatch',
+      },
+    ]
+  )
+
+  expect(mockCheckbox).toHaveBeenCalledWith(
+    expect.objectContaining({
+      message:
+        'Choose which packages to update ' +
+        `(Press ${chalk.cyan('<space>')} to select, ` +
+        `${chalk.cyan('<a>')} to toggle all, ` +
+        `${chalk.cyan('<i>')} to invert selection)\n\nEnter to start updating. Ctrl-c to cancel.`,
+    })
+  )
+
+  {
+    const lockfile = project.readLockfile()
+
+    expect(lockfile.packages['micromatch@3.1.10']).toBeTruthy()
+    expect(lockfile.packages['is-negative@1.0.0']).toBeTruthy()
+    expect(lockfile.packages['is-positive@2.0.0']).toBeTruthy()
+  }
+})

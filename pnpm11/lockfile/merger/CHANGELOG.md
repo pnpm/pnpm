@@ -1,0 +1,571 @@
+# @pnpm/merge-lockfile-changes
+
+## 1100.0.12
+
+### Patch Changes
+
+- @pnpm/lockfile.types@1100.0.12
+
+## 1100.0.11
+
+### Patch Changes
+
+- a31faa7: Updated dependency ranges. Notably:
+
+  - `@pnpm/logger` peer dependency range moved to `^1100.0.0`.
+  - `msgpackr` 1.11.8 → 2.0.4 (store index files remain byte-compatible in both directions).
+  - `open` ^7.4.2 → ^11.0.0, `memoize` ^10 → ^11, `cli-truncate` ^5 → ^6, `pidtree` ^0.6 → ^1.
+  - `@yarnpkg/core` 4.5.0 → 4.8.0, `@rushstack/worker-pool` 0.7.7 → 0.7.18, `@cyclonedx/cyclonedx-library` 10.0.0 → 10.1.0, `@pnpm/config.nerf-dart` ^1 → ^2, `@pnpm/log.group` 3.0.2 → 4.0.1, `@pnpm/util.lex-comparator` ^3 → ^4.
+
+- Updated dependencies [681b593]
+  - @pnpm/types@1101.3.2
+  - @pnpm/lockfile.types@1100.0.11
+
+## 1100.0.10
+
+### Patch Changes
+
+- Updated dependencies [bf1b731]
+  - @pnpm/types@1101.3.1
+  - @pnpm/lockfile.types@1100.0.10
+
+## 1100.0.9
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+  - @pnpm/types@1101.3.0
+  - @pnpm/lockfile.types@1100.0.9
+
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies [35d2355]
+  - @pnpm/types@1101.2.0
+  - @pnpm/lockfile.types@1100.0.8
+
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [64afc92]
+  - @pnpm/types@1101.1.1
+  - @pnpm/lockfile.types@1100.0.7
+
+## 1100.0.6
+
+### Patch Changes
+
+- @pnpm/lockfile.types@1100.0.6
+
+## 1100.0.5
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/lockfile.types@1100.0.5
+
+## 1100.0.4
+
+### Patch Changes
+
+- Updated dependencies [27425d7]
+  - @pnpm/lockfile.types@1100.0.4
+
+## 1100.0.3
+
+### Patch Changes
+
+- @pnpm/lockfile.types@1100.0.3
+
+## 1100.0.2
+
+### Patch Changes
+
+- @pnpm/lockfile.types@1100.0.2
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/lockfile.types@1100.0.1
+
+## 1002.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Patch Changes
+
+- 659e0ea: Fixed a crash in the lockfile merger when merging non-semver version strings (e.g. `link:`, `file:`, git URLs).
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [606f53e]
+- Updated dependencies [491a84f]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [50fbeca]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [38b8e35]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [efb48dc]
+  - @pnpm/types@1001.0.0
+  - @pnpm/lockfile.types@1003.0.0
+
+## 1001.0.12
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+  - @pnpm/types@1000.9.0
+  - @pnpm/lockfile.types@1002.0.2
+
+## 1001.0.11
+
+### Patch Changes
+
+- Updated dependencies [e792927]
+  - @pnpm/types@1000.8.0
+  - @pnpm/lockfile.types@1002.0.1
+
+## 1001.0.10
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [f91922c]
+  - @pnpm/lockfile.types@1002.0.0
+
+## 1001.0.9
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/lockfile.types@1001.1.0
+
+## 1001.0.8
+
+### Patch Changes
+
+- Updated dependencies [5ec7255]
+  - @pnpm/types@1000.6.0
+  - @pnpm/lockfile.types@1001.0.8
+
+## 1001.0.7
+
+### Patch Changes
+
+- Updated dependencies [5b73df1]
+  - @pnpm/types@1000.5.0
+  - @pnpm/lockfile.types@1001.0.7
+
+## 1001.0.6
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/lockfile.types@1001.0.6
+
+## 1001.0.5
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/lockfile.types@1001.0.5
+
+## 1001.0.4
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+  - @pnpm/lockfile.types@1001.0.4
+
+## 1001.0.3
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/lockfile.types@1001.0.3
+
+## 1001.0.2
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/lockfile.types@1001.0.2
+
+## 1001.0.1
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/lockfile.types@1001.0.1
+
+## 1001.0.0
+
+### Major Changes
+
+- a76da0c: Removed lockfile conversion from v6 to v9. If you need to convert lockfile v6 to v9, use pnpm CLI v9.
+
+### Patch Changes
+
+- Updated dependencies [6483b64]
+- Updated dependencies [a76da0c]
+  - @pnpm/lockfile.types@1001.0.0
+
+## 1.0.3
+
+### Patch Changes
+
+- Updated dependencies [d500d9f]
+  - @pnpm/types@12.2.0
+  - @pnpm/lockfile.types@1.0.3
+
+## 1.0.2
+
+### Patch Changes
+
+- Updated dependencies [7ee59a1]
+  - @pnpm/types@12.1.0
+  - @pnpm/lockfile.types@1.0.2
+
+## 1.0.1
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/lockfile.types@1.0.1
+  - @pnpm/types@12.0.0
+
+## 1.0.0
+
+### Major Changes
+
+- be0c57c: Package renamed from `@pnpm/merge-lockfile-changes`.
+
+### Patch Changes
+
+- Updated dependencies [797ef0f]
+  - @pnpm/lockfile.types@1.0.0
+
+## 6.0.5
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/lockfile-types@7.1.3
+
+## 6.0.4
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/types@11.0.0
+  - @pnpm/lockfile-types@7.1.2
+
+## 6.0.3
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+  - @pnpm/lockfile-types@7.1.1
+
+## 6.0.2
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/lockfile-types@7.1.0
+
+## 6.0.1
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+- Updated dependencies
+  - @pnpm/types@10.1.0
+  - @pnpm/lockfile-types@7.0.0
+
+## 6.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+- d381a60: Support for lockfile v5 is dropped. Use pnpm v8 to convert lockfile v5 to lockfile v6 [#7470](https://github.com/pnpm/pnpm/pull/7470).
+
+### Minor Changes
+
+- 086b69c: The checksum of the `.pnpmfile.cjs` is saved into the lockfile. If the pnpmfile gets modified, the lockfile is reanalyzed to apply the changes [#7662](https://github.com/pnpm/pnpm/pull/7662).
+- 730929e: Add a field named `ignoredOptionalDependencies`. This is an array of strings. If an optional dependency has its name included in this array, it will be skipped.
+
+### Patch Changes
+
+- Updated dependencies [43cdd87]
+- Updated dependencies [086b69c]
+- Updated dependencies [27a96a8]
+- Updated dependencies [730929e]
+  - @pnpm/lockfile-types@6.0.0
+
+## 5.0.7
+
+### Patch Changes
+
+- Updated dependencies [4d34684f1]
+  - @pnpm/lockfile-types@5.1.5
+
+## 5.0.6
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/lockfile-types@5.1.4
+
+## 5.0.5
+
+### Patch Changes
+
+- @pnpm/lockfile-types@5.1.3
+
+## 5.0.4
+
+### Patch Changes
+
+- @pnpm/lockfile-types@5.1.2
+
+## 5.0.3
+
+### Patch Changes
+
+- @pnpm/lockfile-types@5.1.1
+
+## 5.0.2
+
+### Patch Changes
+
+- Updated dependencies [9c4ae87bd]
+  - @pnpm/lockfile-types@5.1.0
+
+## 5.0.1
+
+### Patch Changes
+
+- c0760128d: bump semver to 7.4.0
+
+## 5.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [c92936158]
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/lockfile-types@5.0.0
+
+## 4.0.3
+
+### Patch Changes
+
+- @pnpm/lockfile-types@4.3.6
+
+## 4.0.2
+
+### Patch Changes
+
+- @pnpm/lockfile-types@4.3.5
+
+## 4.0.1
+
+### Patch Changes
+
+- @pnpm/lockfile-types@4.3.4
+
+## 4.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
+## 3.0.11
+
+### Patch Changes
+
+- @pnpm/lockfile-types@4.3.3
+
+## 3.0.10
+
+### Patch Changes
+
+- @pnpm/lockfile-types@4.3.2
+
+## 3.0.9
+
+### Patch Changes
+
+- 8103f92bd: Use a patched version of ramda to fix deprecation warnings on Node.js 16. Related issue: https://github.com/ramda/ramda/pull/3270
+
+## 3.0.8
+
+### Patch Changes
+
+- @pnpm/lockfile-types@4.3.1
+
+## 3.0.7
+
+### Patch Changes
+
+- Updated dependencies [8dcfbe357]
+  - @pnpm/lockfile-types@4.3.0
+
+## 3.0.6
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+
+## 3.0.5
+
+### Patch Changes
+
+- Updated dependencies [d01c32355]
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/lockfile-types@4.2.0
+
+## 3.0.4
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+  - @pnpm/lockfile-types@4.1.0
+
+## 3.0.3
+
+### Patch Changes
+
+- @pnpm/lockfile-types@4.0.3
+
+## 3.0.2
+
+### Patch Changes
+
+- @pnpm/lockfile-types@4.0.2
+
+## 3.0.1
+
+### Patch Changes
+
+- @pnpm/lockfile-types@4.0.1
+
+## 3.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [542014839]
+  - @pnpm/lockfile-types@4.0.0
+
+## 2.0.8
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/lockfile-types@3.2.0
+
+## 2.0.7
+
+### Patch Changes
+
+- @pnpm/lockfile-types@3.1.5
+
+## 2.0.6
+
+### Patch Changes
+
+- @pnpm/lockfile-types@3.1.4
+
+## 2.0.5
+
+### Patch Changes
+
+- @pnpm/lockfile-types@3.1.3
+
+## 2.0.4
+
+### Patch Changes
+
+- @pnpm/lockfile-types@3.1.2
+
+## 2.0.3
+
+### Patch Changes
+
+- @pnpm/lockfile-types@3.1.1
+
+## 2.0.2
+
+### Patch Changes
+
+- Updated dependencies [4ab87844a]
+  - @pnpm/lockfile-types@3.1.0
+
+## 2.0.1
+
+### Patch Changes
+
+- a1a03d145: Import only the required functions from ramda.
+
+## 2.0.0
+
+### Major Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+
+### Patch Changes
+
+- Updated dependencies [97b986fbc]
+- Updated dependencies [6871d74b2]
+  - @pnpm/lockfile-types@3.0.0
+
+## 1.0.1
+
+### Patch Changes
+
+- Updated dependencies [9ad8c27bf]
+  - @pnpm/lockfile-types@2.2.0
+
+## 1.0.0
+
+### Major Changes
+
+- 3776b5a52: Initial release.

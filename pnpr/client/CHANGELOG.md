@@ -1,5 +1,49 @@
 # @pnpm/agent.client
 
+## 1.2.3
+
+### Patch Changes
+
+- 4d3fe4b: The pnpr resolver endpoints moved under the reserved `/-/pnpr` namespace: `POST /v1/resolve` is now `POST /-/pnpr/v0/resolve` and `POST /v1/verify-lockfile` is now `POST /-/pnpr/v0/verify-lockfile`. The capability handshake at `GET /-/pnpr` advertises protocol version `0` to match. This keeps every pnpr-proprietary route in npm's reserved namespace, so it can never collide with a package path.
+  - @pnpm/lockfile.types@1100.0.12
+  - @pnpm/lockfile.fs@1100.1.7
+
+## 1.2.2
+
+### Patch Changes
+
+- Updated dependencies [61969fb]
+  - @pnpm/lockfile.fs@1100.1.6
+
+## 1.2.1
+
+### Patch Changes
+
+- 681b593: pnpm can now use different auth tokens for different package scopes, even when those scopes use the same registry URL.
+
+  Previously, auth was selected only by registry URL. If `@org-a` and `@org-b` both used `https://npm.pkg.github.com/`, they had to share the same token. This caused problems for registries that issue tokens per organization or per scope.
+
+  Configure a scope-specific token by adding the package scope after the registry URL in the auth key:
+
+  ```ini
+  @org-a:registry=https://npm.pkg.github.com/
+  @org-b:registry=https://npm.pkg.github.com/
+
+  //npm.pkg.github.com/:@org-a:_authToken=${ORG_A_TOKEN}
+  //npm.pkg.github.com/:@org-b:_authToken=${ORG_B_TOKEN}
+
+  //npm.pkg.github.com/:_authToken=${FALLBACK_TOKEN}
+  ```
+
+  `pnpm login --registry=https://npm.pkg.github.com --scope=@org-a` writes the token to the same scope-specific auth key.
+
+  When installing or publishing `@org-a/*`, pnpm uses `ORG_A_TOKEN`. For `@org-b/*`, pnpm uses `ORG_B_TOKEN`. Packages without a matching scope continue to use the registry-wide fallback token.
+
+- Updated dependencies [d50d691]
+- Updated dependencies [a31faa7]
+  - @pnpm/lockfile.fs@1100.1.5
+  - @pnpm/lockfile.types@1100.0.11
+
 ## 1.2.0
 
 ### Minor Changes

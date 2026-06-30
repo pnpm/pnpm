@@ -197,9 +197,6 @@ async fn passes_dep_path_and_merged_package_snapshot() {
     let calls = resolver.calls.lock().unwrap();
     let (dep_path, snapshot) = calls.first().expect("hook called once");
     assert_eq!(dep_path, "test-pkg@1.0.0(peer@2.0.0)");
-    // The `packages:` entry (resolution) and the `snapshots:` entry
-    // (dependencies) arrive merged, like pnpm's in-memory
-    // `PackageSnapshot`.
     assert_eq!(snapshot["resolution"]["tarball"], json!("http://example.com/test-pkg-1.0.0.tgz"));
     assert_eq!(snapshot["dependencies"]["peer"], json!("2.0.0"));
 }

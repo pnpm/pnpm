@@ -12,7 +12,9 @@
 use miette::{IntoDiagnostic, Result, WrapErr};
 use pacquet_catalogs_config::get_catalogs_from_workspace_manifest;
 use pacquet_config::{Config, WorkspaceSettings};
-use pacquet_env_installer::{ConfigDepsInstallOptions, resolve_and_install_config_deps};
+use pacquet_env_installer::{
+    ConfigDepsInstallOptions, resolve_and_install_config_deps, resolve_package_manager_integrities,
+};
 use pacquet_graph_hasher::{detect_node_version, host_arch, host_libc, host_platform};
 use pacquet_hooks::{HookContext, LogFn, finder};
 use pacquet_network::{NetworkSettings, RetryOpts, ThrottledClient};
@@ -21,6 +23,7 @@ use pacquet_resolving_npm_resolver::{
     InMemoryPackageMetaCache, NpmResolver, shared_packument_fetch_locker,
     shared_picked_manifest_cache,
 };
+use pacquet_resolving_resolver_base::{ResolveOptions, Resolver, WantedDependency};
 use pacquet_store_dir::StoreDir;
 use pacquet_workspace_state::ConfigDependency;
 use serde_json::Value;
@@ -47,6 +50,127 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
         return Ok(());
     }
     resolve_and_install::<Reporter>(config, config_dependencies, root_dir, frozen_lockfile).await
+}
+
+/// Resolve `pnpm` / `@pnpm/exe` into the env lockfile's
+/// `packageManagerDependencies` block before the wanted lockfile is
+/// loaded.
+pub async fn sync_package_manager_dependencies(
+    config: &Config,
+    root_dir: &Path,
+    wanted_specifier: &str,
+    pnpm_version: &str,
+    frozen_lockfile: bool,
+) -> Result<()> {
+    let context = EnvInstallerContext::for_package_manager(config)?;
+    let options = context.options(root_dir, frozen_lockfile);
+    resolve_package_manager_integrities(wanted_specifier, pnpm_version, &context.resolver, &options)
+        .await
+        .map_err(miette::Report::new)
+        .wrap_err("resolve package manager dependencies")
+}
+
+/// The version `pnpm self-update` resolved a specifier to, plus whether
+/// the pick violated the active maturity/trust policy. Mirrors the
+/// `resolution.manifest`-derived values pnpm's self-update reads from
+/// [`createResolver`](https://github.com/pnpm/pnpm/blob/a33eeec9cd/pnpm11/engine/pm/commands/src/self-updater/selfUpdate.ts#L83-L116).
+pub struct ResolvedPnpm {
+    pub version: String,
+    /// `true` when the resolver picked a version despite the maturity
+    /// (`minimumReleaseAge`) or `trustPolicy` gate. Self-update fails
+    /// closed on this under strict resolution, mirroring pnpm's
+    /// `makeResolutionStrict`.
+    pub policy_violation: bool,
+}
+
+/// Resolve `pnpm@<bare_specifier>` against the trusted package-manager
+/// bootstrap registry (never the repository-controlled project
+/// registries), applying the same `minimumReleaseAge` / `trustPolicy`
+/// gates the install path uses. Returns `None` when the specifier cannot
+/// be resolved. Backs `pacquet self-update`'s "check for updates" probe.
+pub async fn resolve_pnpm_version(
+    config: &Config,
+    bare_specifier: &str,
+) -> Result<Option<ResolvedPnpm>> {
+    let context = EnvInstallerContext::for_package_manager(config)?;
+
+    // `minimumReleaseAge` cutoff, computed the same way as the install
+    // path's `PickPolicy::from_config`. When the age is configured, a
+    // failure to compute the cutoff fails closed rather than silently
+    // disabling the maturity gate — self-update is a trust decision.
+    let published_by = match config.resolved_minimum_release_age() {
+        Some(minutes) => {
+            let minutes = i64::try_from(minutes)
+                .into_diagnostic()
+                .wrap_err("convert minimumReleaseAge to minutes")?;
+            let duration = chrono::Duration::try_minutes(minutes)
+                .ok_or_else(|| miette::miette!("minimumReleaseAge is too large"))?;
+            Some(
+                chrono::Utc::now()
+                    .checked_sub_signed(duration)
+                    .ok_or_else(|| miette::miette!("minimumReleaseAge cutoff is out of range"))?,
+            )
+        }
+        None => None,
+    };
+    let published_by_exclude = config
+        .minimum_release_age_exclude
+        .as_deref()
+        .filter(|patterns| !patterns.is_empty())
+        .map(pacquet_config::version_policy::create_package_version_policy)
+        .transpose()
+        .into_diagnostic()
+        .wrap_err("compile the minimum-release-age-exclude policy")?;
+    let trust_policy = match config.trust_policy {
+        pacquet_config::TrustPolicy::Off => None,
+        pacquet_config::TrustPolicy::NoDowngrade => Some(pacquet_config::TrustPolicy::NoDowngrade),
+    };
+    let trust_policy_exclude = config
+        .trust_policy_exclude
+        .as_deref()
+        .filter(|patterns| !patterns.is_empty())
+        .map(pacquet_config::version_policy::create_package_version_policy)
+        .transpose()
+        .into_diagnostic()
+        .wrap_err("compile the trust-policy-exclude policy")?;
+
+    let wanted = WantedDependency {
+        alias: Some("pnpm".to_string()),
+        bare_specifier: Some(bare_specifier.to_string()),
+        ..WantedDependency::default()
+    };
+    let opts = ResolveOptions {
+        default_tag: Some("latest".to_string()),
+        published_by,
+        published_by_exclude,
+        trust_policy,
+        trust_policy_exclude,
+        trust_policy_ignore_after: config.trust_policy_ignore_after,
+        ..ResolveOptions::default()
+    };
+    let result = context
+        .resolver
+        .resolve(&wanted, &opts)
+        .await
+        .map_err(|error| miette::miette!("{error}"))
+        .wrap_err_with(|| format!("resolve pnpm@{bare_specifier}"))?;
+    let Some(result) = result else {
+        return Ok(None);
+    };
+    let Some(name_ver) = result.name_ver else {
+        return Ok(None);
+    };
+    // Fail closed if the specifier resolved to something other than `pnpm`
+    // (e.g. an `npm:other-pkg@x` alias): otherwise the maturity/trust
+    // policy decision would be made against the wrong package's metadata
+    // while self-update still installs `pnpm@<version>`.
+    if name_ver.name.to_string() != "pnpm" {
+        return Ok(None);
+    }
+    Ok(Some(ResolvedPnpm {
+        version: name_ver.suffix.to_string(),
+        policy_violation: result.policy_violation.is_some(),
+    }))
 }
 
 /// Add a single config dependency: resolve + install it (merged with any
@@ -79,76 +203,142 @@ async fn resolve_and_install<Reporter: self::Reporter>(
     root_dir: &Path,
     frozen_lockfile: bool,
 ) -> Result<()> {
-    let http_client = Arc::new(
-        ThrottledClient::for_installs(
-            &config.proxy,
-            &config.tls,
-            &config.tls_by_uri,
-            &NetworkSettings {
-                network_concurrency: config.network_concurrency,
-                fetch_timeout: Duration::from_millis(config.fetch_timeout),
-                user_agent: config.user_agent.clone(),
-            },
-        )
-        .into_diagnostic()
-        .wrap_err("create the network client for configurational dependencies")?,
-    );
+    let context = EnvInstallerContext::new(config)?;
+    let options = context.options(root_dir, frozen_lockfile);
 
-    let registries: HashMap<String, String> = config.resolved_registries().into_iter().collect();
-
-    let retry_opts = RetryOpts {
-        retries: config.fetch_retries,
-        factor: config.fetch_retry_factor,
-        min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
-        max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
-    };
-
-    let resolver = NpmResolver {
-        registries: registries.clone(),
-        named_registries: HashMap::new(),
-        http_client: Arc::clone(&http_client),
-        auth_headers: Arc::clone(&config.auth_headers),
-        meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
-        fetch_locker: shared_packument_fetch_locker(),
-        picked_manifest_cache: shared_picked_manifest_cache(),
-        cache_dir: Some(config.cache_dir.clone()),
-        offline: config.offline,
-        prefer_offline: config.prefer_offline,
-        ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
-        full_metadata: false,
-        retry_opts,
-    };
-
-    // `DownloadTarballToStore` needs a `&'static StoreDir`; the config
-    // (and thus its store dir) is itself leaked for the process
-    // lifetime, but we only hold a borrowed `&Config` here so the
-    // caller keeps the unique `&mut Config` for the `updateConfig`
-    // pass. Leak a clone to recover the `'static` borrow — a single
-    // small, one-per-install allocation in a short-lived CLI process.
-    let store_dir: &'static StoreDir = Box::leak(Box::new(config.store_dir.clone()));
-    let node_version = detect_node_version().unwrap_or_else(|| "0.0.0".to_string());
-    let options = ConfigDepsInstallOptions {
-        root_dir,
-        store_dir,
-        http_client: &http_client,
-        auth_headers: config.auth_headers.as_ref(),
-        registries: &registries,
-        verify_store_integrity: config.verify_store_integrity,
-        offline: config.offline,
-        package_import_method: config.package_import_method,
-        retry_opts,
-        frozen_lockfile,
-        supported_architectures: None,
-        current_node_version: &node_version,
-        current_os: host_platform(),
-        current_cpu: host_arch(),
-        current_libc: host_libc(),
-    };
-
-    resolve_and_install_config_deps::<Reporter>(config_dependencies, &resolver, &options)
+    resolve_and_install_config_deps::<Reporter>(config_dependencies, &context.resolver, &options)
         .await
         .map_err(miette::Report::new)
         .wrap_err("install configurational dependencies")
+}
+
+struct EnvInstallerContext {
+    http_client: Arc<ThrottledClient>,
+    auth_headers: Arc<pacquet_network::AuthHeaders>,
+    registries: HashMap<String, String>,
+    retry_opts: RetryOpts,
+    store_dir: &'static StoreDir,
+    node_version: String,
+    verify_store_integrity: bool,
+    offline: bool,
+    package_import_method: pacquet_config::PackageImportMethod,
+    resolver: NpmResolver<InMemoryPackageMetaCache>,
+}
+
+impl EnvInstallerContext {
+    /// Context for resolving the project's `configDependencies`, using the
+    /// project's configured registries and network settings.
+    fn new(config: &Config) -> Result<Self> {
+        Self::build(
+            config,
+            &config.proxy,
+            &config.tls,
+            &config.tls_by_uri,
+            config.resolved_registries(),
+            Arc::clone(&config.auth_headers),
+        )
+    }
+
+    /// Context for resolving the package manager pnpm auto-switches to
+    /// (`pnpm` / `@pnpm/exe`), routed through the trusted
+    /// [`PackageManagerBootstrap`](pacquet_config::PackageManagerBootstrap)
+    /// config instead of the repository-controlled project registries.
+    fn for_package_manager(config: &Config) -> Result<Self> {
+        let bootstrap = &config.package_manager_bootstrap;
+        Self::build(
+            config,
+            &bootstrap.proxy,
+            &bootstrap.tls,
+            &bootstrap.tls_by_uri,
+            bootstrap.resolved_registries(),
+            Arc::clone(&bootstrap.auth_headers),
+        )
+    }
+
+    fn build(
+        config: &Config,
+        proxy: &pacquet_network::ProxyConfig,
+        tls: &pacquet_network::TlsConfig,
+        tls_by_uri: &pacquet_network::PerRegistryTls,
+        registries: std::collections::BTreeMap<String, String>,
+        auth_headers: Arc<pacquet_network::AuthHeaders>,
+    ) -> Result<Self> {
+        let http_client = Arc::new(
+            ThrottledClient::for_installs(
+                proxy,
+                tls,
+                tls_by_uri,
+                &NetworkSettings {
+                    network_concurrency: config.network_concurrency,
+                    fetch_timeout: Duration::from_millis(config.fetch_timeout),
+                    user_agent: config.user_agent.clone(),
+                },
+            )
+            .into_diagnostic()
+            .wrap_err("create the network client for env-installer dependencies")?,
+        );
+
+        let registries: HashMap<String, String> = registries.into_iter().collect();
+        let retry_opts = RetryOpts {
+            retries: config.fetch_retries,
+            factor: config.fetch_retry_factor,
+            min_timeout: Duration::from_millis(config.fetch_retry_mintimeout),
+            max_timeout: Duration::from_millis(config.fetch_retry_maxtimeout),
+        };
+        let resolver = NpmResolver {
+            registries: registries.clone(),
+            named_registries: HashMap::new(),
+            http_client: Arc::clone(&http_client),
+            auth_headers: Arc::clone(&auth_headers),
+            meta_cache: Arc::new(InMemoryPackageMetaCache::default()),
+            fetch_locker: shared_packument_fetch_locker(),
+            picked_manifest_cache: shared_picked_manifest_cache(),
+            cache_dir: Some(config.cache_dir.clone()),
+            offline: config.offline,
+            prefer_offline: config.prefer_offline,
+            ignore_missing_time_field: config.minimum_release_age_ignore_missing_time,
+            full_metadata: false,
+            filter_metadata: false,
+            retry_opts,
+        };
+
+        Ok(Self {
+            http_client,
+            auth_headers,
+            registries,
+            retry_opts,
+            store_dir: Box::leak(Box::new(config.store_dir.clone())),
+            node_version: detect_node_version().unwrap_or_else(|| "0.0.0".to_string()),
+            verify_store_integrity: config.verify_store_integrity,
+            offline: config.offline,
+            package_import_method: config.package_import_method,
+            resolver,
+        })
+    }
+
+    fn options<'a>(
+        &'a self,
+        root_dir: &'a Path,
+        frozen_lockfile: bool,
+    ) -> ConfigDepsInstallOptions<'a> {
+        ConfigDepsInstallOptions {
+            root_dir,
+            store_dir: self.store_dir,
+            http_client: &self.http_client,
+            auth_headers: &self.auth_headers,
+            registries: &self.registries,
+            verify_store_integrity: self.verify_store_integrity,
+            offline: self.offline,
+            package_import_method: self.package_import_method,
+            retry_opts: self.retry_opts,
+            frozen_lockfile,
+            supported_architectures: None,
+            current_node_version: &self.node_version,
+            current_os: host_platform(),
+            current_cpu: host_arch(),
+            current_libc: host_libc(),
+        }
+    }
 }
 
 /// Run the `updateConfig` pnpmfile hooks contributed by config-dependency

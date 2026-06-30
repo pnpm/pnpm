@@ -4,18 +4,6 @@
 //! Splits a raw dependency string from the manifest (or the CLI's `add`
 //! argument) into its `(alias, bareSpecifier)` halves so the downstream
 //! resolvers can decide which protocol is at play.
-//!
-//! Examples (mirrors upstream's behavior):
-//!
-//! - `foo@1.2.3` → `alias = "foo"`, `bare_specifier = "1.2.3"`.
-//! - `@scope/foo@1.2.3` → `alias = "@scope/foo"`, `bare_specifier = "1.2.3"`.
-//! - `foo@npm:lodash@^4` (npm-alias form) → `alias = "foo"`,
-//!   `bare_specifier = "npm:lodash@^4"`.
-//! - `git+ssh://git@github.com/owner/repo` → no alias, the whole string
-//!   stays in `bare_specifier` (the `@` after `git` doesn't split the
-//!   prefix as a valid package name).
-//! - `foo` → `alias = "foo"`, no `bare_specifier`.
-//! - `^1.2.3` → no alias, the whole string stays in `bare_specifier`.
 
 pub mod validate_npm_package_name;
 

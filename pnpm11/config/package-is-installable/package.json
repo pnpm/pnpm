@@ -1,0 +1,60 @@
+{
+  "name": "@pnpm/config.package-is-installable",
+  "version": "1100.0.12",
+  "description": "Checks if a package is installable on the current system",
+  "keywords": [
+    "pnpm",
+    "pnpm11"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm11/config/package-is-installable",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpm11/config/package-is-installable#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "start": "tsgo --watch",
+    "test": "pn compile && pn .test",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "prepublishOnly": "tsgo --build",
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+  },
+  "dependencies": {
+    "@pnpm/cli.meta": "workspace:*",
+    "@pnpm/core-loggers": "workspace:*",
+    "@pnpm/engine.runtime.system-version": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "detect-libc": "catalog:",
+    "execa": "catalog:",
+    "memoize": "catalog:",
+    "semver": "catalog:"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
+  "devDependencies": {
+    "@jest/globals": "catalog:",
+    "@pnpm/config.package-is-installable": "workspace:*",
+    "@pnpm/logger": "workspace:*",
+    "@types/semver": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

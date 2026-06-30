@@ -1,6 +1,7 @@
 use crate::{
-    CatalogMode, Config, HoistingLimits, LinkWorkspacePackages, NodeLinker, PackageImportMethod,
-    ResolutionMode, ScriptsPrependNodePath, TrustPolicy, api::EnvVar, resolve_child_concurrency,
+    AuditConfig, AuditLevel, CatalogMode, Config, HoistingLimits, LinkWorkspacePackages,
+    NodeLinker, NodePackageMapType, PackageImportMethod, PmOnFail, ResolutionMode,
+    ScriptsPrependNodePath, TrustPolicy, api::EnvVar, resolve_child_concurrency,
 };
 use derive_more::{Display, Error};
 use indexmap::IndexMap;
@@ -19,19 +20,7 @@ use std::{
 };
 
 /// `serde` helper for fields that need to distinguish "missing key"
-/// from "explicit null" in YAML / JSON. Used by `hoist_pattern` and
-/// `public_hoist_pattern` so an explicit `hoistPattern: null` in
-/// `pnpm-workspace.yaml` propagates as `Some(None)` (= "disable this
-/// side"), while a missing key falls through to the field's serde
-/// default (`None`, = "leave the config default in place").
-///
-/// Field shape: `Option<Option<Vec<String>>>`.
-/// - `None` — key not present in yaml. `apply_to` skips the field.
-/// - `Some(None)` — explicit `null`. `apply_to` overwrites
-///   `Config.<field>` with `None`, mirroring upstream's
-///   `hoistPattern != null` guard treating null as "feature disabled".
-/// - `Some(Some(vec))` — explicit list. `apply_to` overwrites
-///   `Config.<field>` with `Some(vec)`.
+/// from "explicit null" in YAML / JSON.
 ///
 /// Stand-alone helper rather than reaching for `serde_with` (not in
 /// the workspace deps) — the body is one line.
@@ -77,19 +66,7 @@ where
 pub struct WorkspaceSettings {
     pub hoist: Option<bool>,
 
-    /// Tri-state `hoistPattern`. The deserializer wraps a plain
-    /// `Option<Vec<String>>` in an extra `Some` so the three yaml
-    /// states are distinguishable:
-    ///
-    /// - `None` — key absent in yaml → `apply_to` skips the field
-    ///   (defaults stay).
-    /// - `Some(None)` — explicit `hoistPattern: null` → `apply_to`
-    ///   writes `Config.hoist_pattern = None`, disabling private
-    ///   hoisting and contributing to the install-time
-    ///   `is_some() || is_some()` short-circuit guard. Mirrors
-    ///   upstream's `hoistPattern != null` semantics.
-    /// - `Some(Some(vec))` — explicit list → `apply_to` writes
-    ///   `Config.hoist_pattern = Some(vec)`.
+    /// Tri-state `hoistPattern` — see `deserialize_double_option`.
     #[serde(default, deserialize_with = "deserialize_double_option")]
     pub hoist_pattern: Option<Option<Vec<String>>>,
 
@@ -101,6 +78,8 @@ pub struct WorkspaceSettings {
     pub store_dir: Option<String>,
     pub modules_dir: Option<String>,
     pub node_linker: Option<NodeLinker>,
+    pub node_experimental_package_map: Option<bool>,
+    pub node_package_map_type: Option<NodePackageMapType>,
     pub symlink: Option<bool>,
     pub virtual_store_dir: Option<String>,
     /// `enableGlobalVirtualStore` from `pnpm-workspace.yaml`. Default
@@ -120,6 +99,9 @@ pub struct WorkspaceSettings {
     pub peers_suffix_max_length: Option<u64>,
     pub lockfile: Option<bool>,
     pub prefer_frozen_lockfile: Option<bool>,
+    pub deploy_all_files: Option<bool>,
+    pub force_legacy_deploy: Option<bool>,
+    pub shared_workspace_lockfile: Option<bool>,
     pub offline: Option<bool>,
     pub prefer_offline: Option<bool>,
     pub lockfile_include_tarball_url: Option<bool>,
@@ -134,6 +116,14 @@ pub struct WorkspaceSettings {
     /// [`namedRegistries`](https://github.com/pnpm/pnpm/blob/b61e268d57/config/reader/src/Config.ts#L227)
     /// setting.
     pub named_registries: Option<BTreeMap<String, String>>,
+
+    /// Structured registry auth (`_auth`). Honored **only** from the global
+    /// pnpm `config.yaml` (read via `NpmrcAuth::from_json_sources`, not
+    /// applied in [`Self::apply_to`]) — never a project file, so repo config
+    /// can't supply credentials. A raw [`serde_json::Value`] so the auth
+    /// parser is the single validator of its shape.
+    #[serde(rename = "_auth")]
+    pub auth: Option<serde_json::Value>,
 
     pub auto_install_peers: Option<bool>,
     pub auto_install_peers_from_highest_match: Option<bool>,
@@ -169,6 +159,7 @@ pub struct WorkspaceSettings {
     pub prefer_workspace_packages: Option<bool>,
     pub dedupe_injected_deps: Option<bool>,
     pub strict_peer_dependencies: Option<bool>,
+    pub ignore_compatibility_db: Option<bool>,
     pub resolve_peers_from_workspace_root: Option<bool>,
     pub block_exotic_subdeps: Option<bool>,
     pub verify_store_integrity: Option<bool>,
@@ -214,6 +205,8 @@ pub struct WorkspaceSettings {
     /// [`BTreeMap`]: std::collections::BTreeMap
     pub patched_dependencies: Option<IndexMap<String, String>>,
 
+    pub patches_dir: Option<String>,
+
     /// `configDependencies` from `pnpm-workspace.yaml`: package name →
     /// version-with-integrity spec. pnpm records this verbatim in the
     /// workspace-state file so that `checkDepsStatus` can detect when a
@@ -241,6 +234,17 @@ pub struct WorkspaceSettings {
     /// [`allow_builds`]: Self::allow_builds
     pub dangerously_allow_all_builds: Option<bool>,
 
+    /// `strictDepBuilds` from `pnpm-workspace.yaml`. When `true` (the
+    /// default), an install that ignored any dependency build script
+    /// fails instead of only warning. Default `true`.
+    pub strict_dep_builds: Option<bool>,
+
+    /// `ignoreScripts` from `pnpm-workspace.yaml`. When `true`, no
+    /// lifecycle scripts run and ignored dependency builds aren't
+    /// collected. See [`Config::ignore_scripts`]. The `--ignore-scripts`
+    /// CLI flag ORs on top of this. Default `false`.
+    pub ignore_scripts: Option<bool>,
+
     /// `scriptsPrependNodePath` from `pnpm-workspace.yaml`. Tri-state
     /// — yaml accepts `true` / `false` / `"warn-only"`. Custom serde
     /// shape, see [`ScriptsPrependNodePath`]'s `Deserialize` impl.
@@ -257,14 +261,7 @@ pub struct WorkspaceSettings {
     /// so an explicit `scriptShell: null` clears a value inherited from
     /// global `config.yaml`, while an absent key inherits. The extra
     /// `Option` layer preserves that distinction (same
-    /// `deserialize_double_option` shape as `hoist_pattern`):
-    ///
-    /// - `None` — key absent → `apply_to` skips the field (inherit).
-    /// - `Some(None)` — explicit `null` → `apply_to` writes
-    ///   `Config.script_shell = None` (clear the inherited shell,
-    ///   falling back to the platform default).
-    /// - `Some(Some(s))` — explicit string → `apply_to` writes
-    ///   `Config.script_shell = Some(s)`.
+    /// `deserialize_double_option` shape as `hoist_pattern`).
     ///
     /// See [`Config::script_shell`].
     #[serde(default, deserialize_with = "deserialize_double_option")]
@@ -387,6 +384,15 @@ pub struct WorkspaceSettings {
 
     /// `trustPolicy` from `pnpm-workspace.yaml`. See [`TrustPolicy`].
     pub trust_policy: Option<TrustPolicy>,
+
+    /// `pmOnFail` from `pnpm-workspace.yaml`. See [`PmOnFail`].
+    pub pm_on_fail: Option<PmOnFail>,
+
+    /// `auditLevel` from `pnpm-workspace.yaml`.
+    pub audit_level: Option<AuditLevel>,
+
+    /// `auditConfig` from `pnpm-workspace.yaml`.
+    pub audit_config: Option<AuditConfig>,
 
     /// `trustPolicyExclude` from `pnpm-workspace.yaml`.
     pub trust_policy_exclude: Option<Vec<String>>,
@@ -536,6 +542,11 @@ pub enum LoadWorkspaceYamlError {
         #[error(source)]
         source: Box<serde_saphyr::Error>,
     },
+    #[display("Invalid `_auth` setting: {source}")]
+    InvalidJsonAuth {
+        #[error(source)]
+        source: serde_json::Error,
+    },
 }
 
 impl WorkspaceSettings {
@@ -589,6 +600,9 @@ impl WorkspaceSettings {
         self.node_linker = None;
         self.symlink = None;
         self.lockfile = None;
+        self.deploy_all_files = None;
+        self.force_legacy_deploy = None;
+        self.shared_workspace_lockfile = None;
         self.offline = None;
         self.lockfile_include_tarball_url = None;
         self.auto_install_peers = None;
@@ -603,6 +617,7 @@ impl WorkspaceSettings {
         self.prefer_workspace_packages = None;
         self.dedupe_injected_deps = None;
         self.strict_peer_dependencies = None;
+        self.ignore_compatibility_db = None;
         self.resolve_peers_from_workspace_root = None;
         self.block_exotic_subdeps = None;
         self.hoisting_limits = None;
@@ -700,6 +715,7 @@ impl WorkspaceSettings {
         substitute_optional_string::<Sys>(&mut self.global_virtual_store_dir);
         substitute_optional_string::<Sys>(&mut self.user_agent);
         substitute_optional_string::<Sys>(&mut self.npmrc_auth_file);
+        substitute_optional_string::<Sys>(&mut self.patches_dir);
         substitute_optional_string::<Sys>(&mut self.cache_dir);
         substitute_optional_inner_string::<Sys>(&mut self.script_shell);
         substitute_optional_inner_string::<Sys>(&mut self.node_options);
@@ -721,10 +737,13 @@ impl WorkspaceSettings {
 
         apply! {
             hoist, shamefully_hoist,
-            node_linker, symlink, package_import_method, modules_cache_max_age,
+            node_linker, node_experimental_package_map, node_package_map_type,
+            symlink, package_import_method, modules_cache_max_age,
             virtual_store_dir_max_length,
             peers_suffix_max_length,
-            lockfile, prefer_frozen_lockfile, offline, prefer_offline,
+            lockfile, prefer_frozen_lockfile,
+            deploy_all_files, force_legacy_deploy, shared_workspace_lockfile,
+            offline, prefer_offline,
             lockfile_include_tarball_url,
             auto_install_peers, auto_install_peers_from_highest_match,
             exclude_links_from_lockfile,
@@ -732,7 +751,7 @@ impl WorkspaceSettings {
             hoist_workspace_packages,
             hoisting_limits, external_dependencies,
             dedupe_peer_dependents, dedupe_peers, dedupe_direct_deps, dedupe_injected_deps,
-            strict_peer_dependencies,
+            strict_peer_dependencies, ignore_compatibility_db,
             resolve_peers_from_workspace_root, verify_store_integrity, frozen_store,
             block_exotic_subdeps,
             link_workspace_packages,
@@ -749,16 +768,6 @@ impl WorkspaceSettings {
             enable_pre_post_scripts, dlx_cache_max_age,
         }
 
-        // `hoist_pattern` and `public_hoist_pattern` carry the
-        // tri-state described on [`deserialize_double_option`]:
-        // outer `None` means "key missing — leave config defaults in
-        // place"; outer `Some(inner)` means the user wrote something,
-        // and `inner` is what they wrote (`None` for explicit null,
-        // `Some(vec)` for a list). The inner value is assigned to
-        // `Config.<field>` directly so an explicit `hoistPattern: null`
-        // disables hoisting on that side via the install-time
-        // `is_some() || is_some()` guard, matching upstream's
-        // `!= null` semantics.
         if let Some(inner) = self.hoist_pattern {
             config.hoist_pattern = inner;
         }
@@ -766,18 +775,9 @@ impl WorkspaceSettings {
             config.public_hoist_pattern = inner;
         }
 
-        // `hoist: false` nullifies `hoist_pattern` so the install-time
-        // `is_some() || is_some()` guard short-circuits private hoisting
-        // regardless of any explicit `hoist_pattern` the user (or
-        // pacquet's defaults) supplied. Mirrors upstream's
-        // [`projectConfig.ts`](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/projectConfig.ts#L72-L75)
-        // — `result.hoist === false ⇒ hoistPattern: undefined`.
-        // `publicHoistPattern` intentionally NOT nullified here:
-        // upstream doesn't either; public hoisting is governed by
-        // its own pattern + the legacy `shamefullyHoist` flag.
         // Applied AFTER `hoist_pattern` assignment so a yaml that sets
         // both `hoist: false` and `hoistPattern: ["..."]` still
-        // disables — `hoist: false` wins, matching upstream.
+        // disables — `hoist: false` wins.
         if !config.hoist {
             config.hoist_pattern = None;
         }
@@ -822,6 +822,9 @@ impl WorkspaceSettings {
         if let Some(v) = self.patched_dependencies {
             config.patched_dependencies = Some(v);
         }
+        if let Some(v) = self.patches_dir {
+            config.patches_dir = Some(v);
+        }
         if let Some(v) = self.config_dependencies {
             config.config_dependencies = Some(v);
         }
@@ -831,12 +834,15 @@ impl WorkspaceSettings {
         if let Some(v) = self.dangerously_allow_all_builds {
             config.dangerously_allow_all_builds = v;
         }
+        if let Some(v) = self.strict_dep_builds {
+            config.strict_dep_builds = v;
+        }
+        if let Some(v) = self.ignore_scripts {
+            config.ignore_scripts = v;
+        }
         if let Some(v) = self.scripts_prepend_node_path {
             config.scripts_prepend_node_path = v;
         }
-        // Tri-state: `Some(_)` (present in yaml) overwrites — including
-        // `Some(None)` (explicit `null`), which clears the inherited
-        // value. `None` (absent) leaves the inherited config untouched.
         if let Some(v) = self.script_shell {
             config.script_shell = v;
         }
@@ -846,24 +852,12 @@ impl WorkspaceSettings {
         if let Some(v) = self.unsafe_perm {
             config.unsafe_perm = v;
         }
-        // Windows force-override (matches upstream's
-        // [`process.platform === 'win32'`](https://github.com/pnpm/npm-lifecycle/blob/d2d8e790/index.js#L204-L220)
-        // — running lifecycle scripts under a uid/gid drop is
-        // POSIX-only).
         if cfg!(windows) {
             config.unsafe_perm = true;
         }
-        // `childConcurrency: None` keeps the smart-default
-        // `Config` constructor produced from
-        // [`default_child_concurrency`]; `Some(n)` (including
-        // negative) goes through the upstream resolver.
         if let Some(v) = self.child_concurrency {
             config.child_concurrency = resolve_child_concurrency(Some(v));
         }
-        // `workspaceConcurrency` resolves through the same upstream
-        // `getWorkspaceConcurrency` as `childConcurrency`; `None`
-        // keeps the smart-default, `Some(n)` (including negative)
-        // goes through the resolver.
         if let Some(v) = self.workspace_concurrency {
             config.workspace_concurrency = resolve_child_concurrency(Some(v));
         }
@@ -873,25 +867,12 @@ impl WorkspaceSettings {
         if let Some(v) = self.ignored_optional_dependencies {
             config.ignored_optional_dependencies = Some(v);
         }
-        // Empty overrides map collapses to `None` so the lockfile-side
-        // drift check ignores it — mirrors upstream's
-        // `delete settings.overrides` short-circuit in
-        // [`getOptionsFromPnpmSettings`](https://github.com/pnpm/pnpm/blob/6d7903a8b7/config/reader/src/getOptionsFromRootManifest.ts#L32-L34).
-        // The assignment runs whenever `self.overrides` is `Some(...)`
-        // (even when empty) so an explicit `overrides: {}` at a later
-        // layer (e.g. `PNPM_CONFIG_OVERRIDES={}` overlaid on top of a
-        // non-empty workspace yaml) clears the inherited setting
-        // instead of being a silent no-op. `$dep-name` self-reference
-        // resolution happens elsewhere (the resolver chain), since it
-        // needs the workspace's root manifest and that isn't in scope
-        // here.
+        // `$dep-name` self-reference resolution happens elsewhere (the
+        // resolver chain), since it needs the workspace's root manifest
+        // and that isn't in scope here.
         if let Some(v) = self.overrides {
             config.overrides = (!v.is_empty()).then_some(v);
         }
-        // Empty map collapses to `None` so the workspace-state drift
-        // check ignores it, mirroring the same shape `overrides` uses.
-        // An explicit later-layer `packageExtensions: {}` still clears
-        // a prior non-empty value rather than no-oping.
         if let Some(v) = self.package_extensions {
             config.package_extensions = (!v.is_empty()).then_some(v);
         }
@@ -915,6 +896,15 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.trust_policy {
             config.trust_policy = v;
+        }
+        if let Some(v) = self.pm_on_fail {
+            config.pm_on_fail = Some(v);
+        }
+        if let Some(v) = self.audit_level {
+            config.audit_level = Some(v);
+        }
+        if let Some(v) = self.audit_config {
+            config.audit_config = v;
         }
         if let Some(v) = self.trust_policy_exclude {
             config.trust_policy_exclude = Some(v);

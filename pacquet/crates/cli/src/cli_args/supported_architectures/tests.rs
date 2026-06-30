@@ -13,9 +13,6 @@ fn empty_cli_passes_existing_through() {
     assert_eq!(cli.apply_to(existing.clone()), existing);
 }
 
-/// CLI overrides individual axes wholesale; other axes survive
-/// from config. Mirrors upstream's `targetConfig.supportedArchitectures[key] = values`
-/// per-axis assignment.
 #[test]
 fn cli_cpu_replaces_config_cpu_only() {
     let cli = SupportedArchitecturesArgs { cpu: vec!["x64".to_string()], os: vec![], libc: vec![] };
@@ -30,10 +27,6 @@ fn cli_cpu_replaces_config_cpu_only() {
     assert_eq!(merged.libc, None);
 }
 
-/// CLI without an existing config value still produces a
-/// populated `SupportedArchitectures` — equivalent to upstream's
-/// `targetConfig.supportedArchitectures ??= {}` then per-axis
-/// assignment.
 #[test]
 fn cli_without_existing_creates_supported_architectures() {
     let cli = SupportedArchitecturesArgs {

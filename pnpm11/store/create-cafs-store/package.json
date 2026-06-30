@@ -1,0 +1,69 @@
+{
+  "name": "@pnpm/store.create-cafs-store",
+  "version": "1100.0.16",
+  "description": "Create a CAFS store controller",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "cache",
+    "central storage",
+    "global store",
+    "maching store",
+    "packages",
+    "storage",
+    "store"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm11/store/create-cafs-store",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpm11/store/create-cafs-store#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "start": "tsgo --watch",
+    "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
+    "lint": "eslint \"src/**/*.ts\"",
+    "test": "pn compile",
+    "prepublishOnly": "tsgo --build",
+    "compile": "tsgo --build && pn lint --fix"
+  },
+  "dependencies": {
+    "@pnpm/building.pkg-requires-build": "workspace:*",
+    "@pnpm/fetching.fetcher-base": "workspace:*",
+    "@pnpm/fs.indexed-pkg-importer": "workspace:*",
+    "@pnpm/store.cafs": "workspace:*",
+    "@pnpm/store.controller-types": "workspace:*",
+    "memoize": "catalog:",
+    "ramda": "catalog:"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
+  "devDependencies": {
+    "@pnpm/logger": "workspace:*",
+    "@pnpm/prepare": "workspace:*",
+    "@pnpm/store.cafs-types": "workspace:*",
+    "@pnpm/store.create-cafs-store": "workspace:*",
+    "@types/ramda": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

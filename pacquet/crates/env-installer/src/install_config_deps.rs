@@ -10,6 +10,7 @@
 
 use crate::{
     ConfigDepError, NormalizedConfigDep, NormalizedSubdep, options::ConfigDepsInstallOptions,
+    verify_env_lockfile::verify_env_lockfile,
 };
 use pacquet_graph_hasher::{
     calc_global_virtual_store_path_with_subdeps, calc_leaf_global_virtual_store_path,
@@ -39,6 +40,7 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
     env_lockfile: &EnvLockfile,
     opts: &ConfigDepsInstallOptions<'_>,
 ) -> Result<(), ConfigDepError> {
+    verify_env_lockfile(env_lockfile)?;
     let normalized = normalize_from_lockfile(env_lockfile, opts)?;
     let global_virtual_store_dir = opts.store_dir.links();
     let config_modules_dir = opts.root_dir.join("node_modules").join(".pnpm-config");
@@ -47,7 +49,6 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
 
     let mut started = StartedGate::new();
 
-    // Drop config deps that are no longer declared.
     for name in &existing {
         if !normalized.contains_key(name) {
             started.report::<Reporter>();
@@ -353,7 +354,7 @@ fn normalize_from_lockfile(
         let pkg_key = format!("{name}@{}", spec.version);
         let key = pkg_key.parse().map_err(|_| ConfigDepError::EnvLockfileCorrupted {
             message: format!(
-                "pnpm-lock.yaml has an unparsable config-dependency key \"{pkg_key}\"",
+                r#"pnpm-lock.yaml has an unparsable config-dependency key "{pkg_key}""#,
             ),
         })?;
         let pkg = env_lockfile.packages.get(&key).ok_or_else(|| {
@@ -375,7 +376,7 @@ fn normalize_from_lockfile(
         )
         .ok_or_else(|| ConfigDepError::EnvLockfileCorrupted {
             message: format!(
-                "pnpm-lock.yaml is corrupted or incomplete: missing integrity for \"{pkg_key}\"",
+                r#"pnpm-lock.yaml is corrupted or incomplete: missing integrity for "{pkg_key}""#,
             ),
         })?;
 
@@ -415,7 +416,7 @@ fn read_optional_subdeps(
         let subdep_name = subdep_name.to_string();
         let subdep_key = format!("{subdep_name}@{version}");
         let key = subdep_key.parse().map_err(|_| ConfigDepError::EnvLockfileCorrupted {
-            message: format!("pnpm-lock.yaml has an unparsable subdep key \"{subdep_key}\""),
+            message: format!(r#"pnpm-lock.yaml has an unparsable subdep key "{subdep_key}""#),
         })?;
         let pkg = env_lockfile.packages.get(&key).ok_or_else(|| {
             ConfigDepError::EnvLockfileCorrupted {

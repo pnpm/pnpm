@@ -2,12 +2,12 @@ use pipe_trait::Pipe;
 use std::{
     path::{Path, PathBuf},
     process::Command,
-    sync::OnceLock,
+    sync::LazyLock,
 };
 
+#[must_use]
 pub fn workspace_root() -> &'static Path {
-    static WORKSPACE_ROOT: OnceLock<PathBuf> = OnceLock::new();
-    WORKSPACE_ROOT.get_or_init(|| {
+    static WORKSPACE_ROOT: LazyLock<PathBuf> = LazyLock::new(|| {
         let output = env!("CARGO")
             .pipe(Command::new)
             .arg("locate-project")
@@ -28,7 +28,8 @@ pub fn workspace_root() -> &'static Path {
             .parent()
             .expect("parent of root manifest")
             .to_path_buf()
-    })
+    });
+    WORKSPACE_ROOT.as_path()
 }
 
 /// The verdaccio-shaped storage built from the in-repo package fixtures
@@ -56,9 +57,9 @@ pub fn registry_mock_storage() -> &'static Path {
 ///
 /// The path can be overridden via the `PNPM_REGISTRY_STORAGE` env
 /// var. Defaults to `$HOME/.cache/pnpm-registry/storage`.
+#[must_use]
 pub fn runtime_storage() -> &'static Path {
-    static STORAGE: OnceLock<PathBuf> = OnceLock::new();
-    STORAGE.get_or_init(|| {
+    static STORAGE: LazyLock<PathBuf> = LazyLock::new(|| {
         std::env::var_os("PNPM_REGISTRY_STORAGE")
             .map(PathBuf::from)
             .or_else(|| {
@@ -66,5 +67,6 @@ pub fn runtime_storage() -> &'static Path {
                     .map(|home| home.join(".cache").join("pnpm-registry").join("storage"))
             })
             .expect("locate runtime storage dir: set PNPM_REGISTRY_STORAGE or ensure $HOME is set")
-    })
+    });
+    STORAGE.as_path()
 }

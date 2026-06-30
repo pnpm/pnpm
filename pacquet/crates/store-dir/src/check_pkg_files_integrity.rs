@@ -31,7 +31,7 @@ use std::{
 /// already been verified by package A doesn't get stat'd / re-hashed
 /// again by package B.
 ///
-/// Concurrent: the install fans `check_pkg_files_integrity` calls out
+/// Concurrent: the install fans [`check_pkg_files_integrity`] calls out
 /// across tokio's blocking pool, so the cache must tolerate parallel
 /// readers and writers. `DashSet` gives us that without any external
 /// locking. Race-window duplicate verifies are benign (the `verify_file`
@@ -52,14 +52,11 @@ pub type FilesMap = HashMap<String, PathBuf>;
 
 /// Result of a `PackageFilesIndex`-row verification pass.
 ///
-/// Mirrors pnpm's `VerifyResult`. `passed` is `false` if any referenced
-/// CAFS file is missing, its size disagrees with the index, or its
-/// content hash fails to match — the caller treats that as "this store
-/// entry is stale, fall through to a fresh fetch". `files_map` is
-/// returned either way as a best-effort `in-tarball filename` → `CAFS
-/// path` map; it may be partial or empty when a digest in the index
-/// row couldn't be reconstructed into a CAFS path, so callers should
-/// gate reuse on `passed` rather than on the map's size.
+/// Mirrors pnpm's [`VerifyResult`][ts-VerifyResult]. When `passed` is `false` the caller
+/// treats the store entry as stale and falls through to a fresh fetch.
+/// `files_map` is returned either way as a best-effort `in-tarball
+/// filename` → `CAFS path` map; it may be partial or empty, so callers
+/// should gate reuse on `passed` rather than on the map's size.
 ///
 /// `side_effects_maps` is the optional cache-key → overlaid-FilesMap
 /// table from a populated side-effects cache (typically seeded by
@@ -71,6 +68,8 @@ pub type FilesMap = HashMap<String, PathBuf>;
 /// (`<engine>` or `<engine>;deps=…;patch=…`, produced by
 /// `pacquet-graph-hasher`'s `calc_dep_state`) to decide whether
 /// the package is already built.
+///
+/// [ts-VerifyResult]: https://github.com/pnpm/pnpm/blob/1819226b51/store/cafs/src/checkPkgFilesIntegrity.ts#L25-L29
 #[derive(Debug)]
 pub struct VerifyResult {
     pub passed: bool,
@@ -90,21 +89,13 @@ pub fn build_file_maps_from_index(store_dir: &StoreDir, entry: PackageFilesIndex
     let mut files_map = HashMap::with_capacity(files.len());
     let mut passed = true;
     // Consume `entry.files` so the owned `String` filenames move into
-    // `files_map` without a per-file clone. On a realistic install the
-    // previous borrow-then-clone cost one allocation per file on every
-    // warm cache hit.
+    // `files_map` without a per-file clone.
     for (filename, info) in files {
         let Some(path) = store_dir.cas_file_path_by_mode(&info.digest, info.mode) else {
             // A malformed digest (non-hex / too short) makes this entry
             // unreconstructable. pnpm's `getFilePathByModeInCafs` doesn't
-            // validate and would crash at import time, so a `None` here
-            // is pacquet-specific guardrail. We'd rather silently drop
-            // the row than panic, but a partial `files_map` would leave
-            // the caller with a cache hit missing package files — the
-            // caller would proceed to link and end up with a broken
-            // install. Flipping `passed` to `false` sends the whole
-            // entry back through the re-fetch path so the install stays
-            // consistent.
+            // validate and would crash at import time; this `None` is a
+            // pacquet-specific guardrail.
             tracing::debug!(
                 target: "pacquet::store_index",
                 ?filename,
@@ -123,47 +114,23 @@ pub fn build_file_maps_from_index(store_dir: &StoreDir, entry: PackageFilesIndex
 /// Careful path used when `verify-store-integrity` is `true` (pnpm's
 /// default).
 ///
-/// Port of pnpm's `checkPkgFilesIntegrity`. Per file:
-///
-/// 1. `fs::metadata` the on-disk path to get its mtime + size.
-/// 2. If `mtime - checked_at > 100 ms`, the file has been touched since
-///    we last verified it. Compare sizes: mismatch → delete and fail;
-///    match → re-hash the contents and compare against the stored
-///    digest, deleting on mismatch.
-/// 3. If the mtime is within 100 ms of the stored `checked_at`, trust
-///    the digest and skip the hash — matches pnpm's own comment: "we
-///    assume nobody will manually remove a file in the store and create
-///    a new one".
-///
-/// Missing on disk (`ENOENT`) fails the whole entry so the caller
-/// re-fetches. Unlike the prior pacquet implementation this does *not*
-/// reject non-regular-file dirents preemptively — the integrity hash
-/// catches real corruption, and pnpm doesn't guard against it in this
-/// function either.
+/// Port of pnpm's `checkPkgFilesIntegrity`. Verifies every CAFS file
+/// the index row references and fails the whole entry — so the caller
+/// re-fetches — when any file no longer matches what the row recorded.
+/// Non-regular-file dirents are *not* rejected preemptively — the
+/// integrity hash catches real corruption, and pnpm doesn't guard
+/// against it in this function either.
 pub fn check_pkg_files_integrity(
     store_dir: &StoreDir,
     entry: PackageFilesIndex,
     verified_files_cache: &VerifiedFilesCache,
 ) -> VerifyResult {
     // Destructure so the owned `files` HashMap and `algo` String can be
-    // consumed below; moving beats the extra per-file `filename.clone()`
-    // the old borrow-based signature forced on the hot path.
+    // consumed below, moving the filenames into `files_map` without a
+    // per-file clone on the hot path.
     let PackageFilesIndex { files, algo, side_effects, .. } = entry;
     let mut all_verified = true;
     let mut files_map = HashMap::with_capacity(files.len());
-    // `verified_files_cache` is the install-scoped
-    // [`VerifiedFilesCache`] — pnpm's `verifiedFilesCache: Set<string>`.
-    // Threading it through every call dedups across packages, not just
-    // within one entry: a CAFS blob seen by package A's verify pass
-    // skips the stat / re-hash when package B references it later.
-    //
-    // Key the set by the resolved CAFS path, not by `info.digest`. The
-    // path factors in `info.mode` (via `-exec` suffix for executables
-    // in `cas_file_path_by_mode`), so the same content digest can
-    // legitimately appear under two distinct on-disk paths when the
-    // tarball ships it with different executable bits. Digest-only
-    // dedup would skip verifying the second path and happily return
-    // `passed: true` with a stale / missing blob still on disk.
     for (filename, info) in files {
         let Some(path) = store_dir.cas_file_path_by_mode(&info.digest, info.mode) else {
             tracing::debug!(
@@ -177,10 +144,6 @@ pub fn check_pkg_files_integrity(
         };
         if !verified_files_cache.contains(&path) {
             if verify_file(&path, &filename, &info, &algo) {
-                // One `PathBuf` clone per unique CAFS path we actually
-                // verified; zero for dedup hits. Strictly better than
-                // the per-filename clone the borrow-based version had.
-                //
                 // Concurrency note: another thread may verify the same
                 // path between the `contains` check and our `insert`,
                 // doing the stat twice. That's benign — `verify_file`
@@ -198,20 +161,13 @@ pub fn check_pkg_files_integrity(
     VerifyResult { passed: all_verified, files_map, side_effects_maps }
 }
 
-/// Materialize the per-cache-key overlaid `FilesMap`s from a
+/// Materialize the per-cache-key overlaid [`FilesMap`]s from a
 /// `PackageFilesIndex.side_effects` entry. Mirrors upstream's
-/// [`applySideEffectsDiffWithMaps`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/store/create-cafs-store/src/index.ts#L103-L121):
-/// the overlay is `added` plus base entries that aren't in `deleted`,
-/// with `added` winning when both name the same filename. The
-/// content of `added` entries is *not* re-verified here — pnpm
+/// [`applySideEffectsDiffWithMaps`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/store/create-cafs-store/src/index.ts#L103-L121).
+/// The content of `added` entries is *not* re-verified here — pnpm
 /// doesn't do that either; corruption in the side-effects layer
 /// would surface at import time via `linkOrCopy` failing on a
 /// missing CAS blob.
-///
-/// Returns `None` when the entry has no `side_effects` field (the
-/// common case for pacquet-written rows today) so callers can
-/// trivially distinguish "no cache configured" from "cache configured
-/// but empty".
 fn build_side_effects_maps(
     store_dir: &StoreDir,
     side_effects: Option<HashMap<String, SideEffectsDiff>>,
@@ -224,15 +180,25 @@ fn build_side_effects_maps(
         let mut overlay: FilesMap = HashMap::with_capacity(base_files.len());
         if let Some(added) = added {
             for (filename, info) in added {
+                // The overlay map is later joined onto the package
+                // directory and written during import, so a poisoned /
+                // corrupted index row (store integrity is explicitly not
+                // a tamper boundary — see `verify_file`) could otherwise
+                // escape the slot via a `..` or absolute `added` key.
+                if !is_safe_overlay_path(&filename) {
+                    tracing::debug!(
+                        target: "pacquet::store_index",
+                        ?filename,
+                        cache_key,
+                        "unsafe path in side-effects `added` overlay; dropping this cache_key entry entirely so the importer falls back to rebuild",
+                    );
+                    continue 'next_key;
+                }
                 let Some(path) = store_dir.cas_file_path_by_mode(&info.digest, info.mode) else {
-                    // Skip the entire `cache_key` entry rather than
-                    // returning a partial overlay. A future importer
-                    // that flips `is_built = true` on overlay
-                    // presence would otherwise turn a malformed
-                    // digest into a silent corruption: build skipped
-                    // but a required artifact missing from disk.
-                    // Dropping the whole entry sends the package back
-                    // through the rebuild path, which is safe.
+                    // A future importer that flips `is_built = true` on
+                    // overlay presence would otherwise turn a malformed
+                    // digest into a silent corruption: build skipped but
+                    // a required artifact missing from disk.
                     tracing::debug!(
                         target: "pacquet::store_index",
                         ?filename,
@@ -261,6 +227,22 @@ fn build_side_effects_maps(
     Some(out)
 }
 
+/// Whether `filename` is a safe package-relative path to write under the
+/// package slot. Rejects absolute paths, any `..` component, and `\`
+/// separators (which are `Normal` components on Unix but path separators
+/// on Windows). Mirrors the path-traversal guard the tarball extractor
+/// applies to archive entries — the side-effects overlay reaches the same
+/// `dir.join(key)` import, so the same rule applies to a store row that
+/// can't be trusted not to have been tampered with.
+fn is_safe_overlay_path(filename: &str) -> bool {
+    use std::path::Component;
+    if filename.is_empty() || filename.contains('\\') {
+        return false;
+    }
+    let path = Path::new(filename);
+    path.components().all(|component| matches!(component, Component::Normal(_) | Component::CurDir))
+}
+
 /// Port of pnpm's `verifyFile`. `true` when the on-disk file is either
 /// unmodified since the last verified check or modified but still
 /// content-hashes to the stored digest.
@@ -279,7 +261,7 @@ fn build_side_effects_maps(
 /// runs lock-free — it never touches the file's bytes and never
 /// considers a delete, so it cannot race with an in-flight writer.
 /// The slow path (where verification could lead to a
-/// `remove_stale_cafs_entry` call) acquires
+/// [`remove_stale_cafs_entry`] call) acquires
 /// [`pacquet_fs::cas_write_lock`] for `path` before re-stating the
 /// file. This is the same per-path mutex
 /// [`pacquet_fs::ensure_file`] holds across `O_CREAT|O_EXCL` +
@@ -401,7 +383,7 @@ fn remove_stale_cafs_entry(path: &Path) {
 /// instead, which the caller then treats as "verification failed →
 /// re-fetch". That's a safer default for a cache-hint path — we don't
 /// want a transient `EACCES` on a CAS blob to panic the install — and
-/// the content-hash check in `verify_file_integrity` still catches
+/// the content-hash check in [`verify_file_integrity`] still catches
 /// actual corruption. If we ever want pnpm-strict error propagation,
 /// changing the return type to `Result<Option<…>>` is the right shape.
 ///

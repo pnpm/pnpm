@@ -1,0 +1,27 @@
+name: PR review automation
+
+# Capture PR review approvals from the AI reviewers and the maintainer. This
+# workflow is intentionally unprivileged; the privileged follow-up
+# (pr-review-automation-privileged.yml) verifies the review through GitHub's API
+# before it adds the label and posts to Discord.
+#
+# The split exists because pull_request_review runs triggered by a forked PR are
+# given a read-only token and no secrets, so the label/Discord steps cannot run
+# here. A workflow_run-triggered companion runs in the base-repo context with the
+# permissions and secrets those steps need.
+on:
+  pull_request_review:
+    types: [submitted]
+
+permissions: {}
+
+jobs:
+  capture:
+    if: >-
+      github.event.review.state == 'approved' &&
+      contains(fromJSON('["coderabbitai[bot]", "qodo-free-for-open-source-projects[bot]", "zkochan"]'), github.event.review.user.login)
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Record the review trigger
+        run: echo "Review trigger accepted"

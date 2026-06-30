@@ -1,7 +1,7 @@
 use pnpr::Config;
 use std::{
     net::{Ipv4Addr, TcpListener},
-    sync::OnceLock,
+    sync::LazyLock,
     thread,
 };
 
@@ -29,8 +29,9 @@ struct TestRegistryInstance {
 
 impl TestRegistryInstance {
     fn get() -> &'static Self {
-        static INSTANCE: OnceLock<TestRegistryInstance> = OnceLock::new();
-        INSTANCE.get_or_init(Self::start)
+        static INSTANCE: LazyLock<TestRegistryInstance> =
+            LazyLock::new(TestRegistryInstance::start);
+        &INSTANCE
     }
 
     fn start() -> Self {
@@ -46,6 +47,9 @@ impl TestRegistryInstance {
         // the npm uplink — matching how registry-mock served pacquet's tests.
         let mut config = Config::proxy(listen, storage.to_path_buf());
         config.public_url = url.trim_end_matches('/').to_string();
+        // Registration is opt-in; tests that forward credentials create
+        // accounts via adduser against this registry.
+        config.auth.htpasswd.max_users = pnpr::MaxUsers::Unlimited;
         // A long TTL keeps the fixture packuments (whose `time` values are static)
         // from being treated as stale and refetched from the uplink.
         config.packument_ttl = std::time::Duration::from_hours(8760);

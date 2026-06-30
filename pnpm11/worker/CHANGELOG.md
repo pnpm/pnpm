@@ -1,0 +1,889 @@
+# @pnpm/worker
+
+## 1100.2.2
+
+### Patch Changes
+
+- Updated dependencies [852d537]
+  - @pnpm/error@1100.0.1
+  - @pnpm/store.cafs@1100.1.11
+  - @pnpm/store.create-cafs-store@1100.0.16
+  - @pnpm/crypto.integrity@1100.0.1
+  - @pnpm/store.index@1100.2.1
+  - @pnpm/fs.hard-link-dir@1100.0.2
+  - @pnpm/fs.symlink-dependency@1100.0.10
+
+## 1100.2.1
+
+### Patch Changes
+
+- Updated dependencies [30c7590]
+  - @pnpm/store.create-cafs-store@1100.0.15
+
+## 1100.2.0
+
+### Minor Changes
+
+- 61810aa: Added a new setting `frozenStore` (`--frozen-store`) that lets `pnpm install` run against a package store on a read-only filesystem (e.g. a Nix store, a read-only bind mount, an OCI layer). When enabled, pnpm opens the store's SQLite `index.db` through the `immutable=1` URI — bypassing the WAL/`-shm` sidecar creation that otherwise fails on a read-only directory — and suppresses every store-write path (the `index.db` writer and the project-registry write). Pair it with `--offline --frozen-lockfile` against a fully-populated store. Under the global virtual store, package directories live inside the store, so if the store is missing the build output of a package whose lifecycle scripts are approved (or that has a patch), pnpm fails up front with `ERR_PNPM_FROZEN_STORE_NEEDS_BUILD` rather than crashing mid-build on a read-only write — seed the store with those builds first. Incompatible with `--force` and with a configured pnpr server, since both write into the store; the side-effects cache is likewise not written under `frozenStore`. If the store is missing its content directory, the install fails fast with `ERR_PNPM_FROZEN_STORE_INCOMPLETE` rather than attempting to initialize it. The read-only `immutable=1` open requires Node.js >=22.15.0, >=23.11.0, or >=24.0.0; on older runtimes `--frozen-store` fails with a clear `ERR_PNPM_FROZEN_STORE_UNSUPPORTED_NODE` error. Bin-linking also tolerates a read-only store: under the global virtual store a package's bin source lives inside the store, so the `chmod` that makes it executable would be refused — with `EPERM`/`EACCES`, or with `EROFS` on a genuinely read-only filesystem. That `chmod` is redundant when the seed already ships its bins executable with a normalized shebang, so it is now skipped in that case, while a non-executable bin (or one still carrying a Windows CRLF shebang) on a read-only store still errors.
+
+### Patch Changes
+
+- a31faa7: Updated dependency ranges. Notably:
+
+  - `@pnpm/logger` peer dependency range moved to `^1100.0.0`.
+  - `msgpackr` 1.11.8 → 2.0.4 (store index files remain byte-compatible in both directions).
+  - `open` ^7.4.2 → ^11.0.0, `memoize` ^10 → ^11, `cli-truncate` ^5 → ^6, `pidtree` ^0.6 → ^1.
+  - `@yarnpkg/core` 4.5.0 → 4.8.0, `@rushstack/worker-pool` 0.7.7 → 0.7.18, `@cyclonedx/cyclonedx-library` 10.0.0 → 10.1.0, `@pnpm/config.nerf-dart` ^1 → ^2, `@pnpm/log.group` 3.0.2 → 4.0.1, `@pnpm/util.lex-comparator` ^3 → ^4.
+
+- Updated dependencies [f648e9b]
+- Updated dependencies [61810aa]
+- Updated dependencies [a31faa7]
+  - @pnpm/fs.symlink-dependency@1100.0.10
+  - @pnpm/store.index@1100.2.0
+  - @pnpm/fs.hard-link-dir@1100.0.2
+  - @pnpm/store.cafs@1100.1.10
+  - @pnpm/store.create-cafs-store@1100.0.14
+  - @pnpm/building.pkg-requires-build@1100.0.8
+  - @pnpm/store.cafs-types@1100.0.1
+
+## 1100.1.11
+
+### Patch Changes
+
+- @pnpm/fs.symlink-dependency@1100.0.9
+- @pnpm/store.create-cafs-store@1100.0.13
+- @pnpm/fs.hard-link-dir@1100.0.1
+
+## 1100.1.10
+
+### Patch Changes
+
+- 089484a: The pnpr install accelerator is now used only to create the lockfile. Previously `POST /v1/install` returned the resolved lockfile **and** all missing file contents inline over a single connection, which was bandwidth-bound on cold/WAN installs (one TCP stream can't compete with a registry's parallel CDN fetches). The accelerator is now a two-phase flow: the pnpr server resolves and verifies the lockfile server-side (collapsing resolution's round-trip depth), then the client fetches every tarball directly from the registries in parallel, exactly like a normal install. This makes the accelerated path never slower than a plain install, and turns pnpr into a stateless resolver that stores no tarballs and serves no file content [#12230](https://github.com/pnpm/pnpm/issues/12230).
+  - @pnpm/building.pkg-requires-build@1100.0.7
+  - @pnpm/fs.symlink-dependency@1100.0.8
+  - @pnpm/store.cafs@1100.1.9
+  - @pnpm/store.cafs-types@1100.0.1
+  - @pnpm/fs.hard-link-dir@1100.0.1
+  - @pnpm/store.create-cafs-store@1100.0.12
+
+## 1100.1.9
+
+### Patch Changes
+
+- 3b76b8e: The pnpr install accelerator now serves resolved files only in the single gzipped `POST /v1/install` response and authorizes every package whose bytes it serves against the server's access policy. The separate unauthenticated `POST /v1/files` endpoint has been removed: the client materializes the inlined files straight into its content-addressable store, and a content-addressed digest is no longer a bearer capability for a package the caller cannot read.
+  - @pnpm/store.create-cafs-store@1100.0.11
+  - @pnpm/building.pkg-requires-build@1100.0.6
+  - @pnpm/fs.symlink-dependency@1100.0.7
+  - @pnpm/store.cafs@1100.1.8
+  - @pnpm/store.cafs-types@1100.0.1
+  - @pnpm/fs.hard-link-dir@1100.0.1
+
+## 1100.1.8
+
+### Patch Changes
+
+- aa6149d: Treat tarball-integrity mismatches against the lockfile as a hard failure by default. Previously, `pnpm install` (non-frozen) would log `ERR_PNPM_TARBALL_INTEGRITY`, silently re-resolve from the registry, and overwrite the locked integrity — which meant a compromised registry, proxy, or republished version could substitute attacker-controlled content on a clean machine even though the project shipped a committed lockfile.
+
+  `pnpm install` now exits with `ERR_PNPM_TARBALL_INTEGRITY` and a hint pointing at the new opt-in flag.
+
+  The only opt-in is **`pnpm install --update-checksums`** — narrowly scoped to refreshing the locked integrity values from what the registry currently serves. Mirrors yarn's flag of the same name. A warning still prints when the bypass takes effect so the operation is auditable.
+
+  `--force` and `pnpm update` deliberately do **not** bypass the integrity check. They are routine refresh operations; silently overwriting a locked integrity in those flows would erase the protection a committed lockfile is supposed to provide. `--frozen-lockfile` behavior is unchanged. `--fix-lockfile` keeps its documented purpose (filling in missing lockfile entries) and is also not a bypass.
+
+- Updated dependencies [ad84fff]
+  - @pnpm/fs.symlink-dependency@1100.0.6
+  - @pnpm/building.pkg-requires-build@1100.0.5
+  - @pnpm/store.cafs@1100.1.7
+  - @pnpm/store.cafs-types@1100.0.1
+  - @pnpm/fs.hard-link-dir@1100.0.1
+  - @pnpm/store.create-cafs-store@1100.0.10
+
+## 1100.1.7
+
+### Patch Changes
+
+- @pnpm/building.pkg-requires-build@1100.0.4
+- @pnpm/fs.symlink-dependency@1100.0.5
+- @pnpm/store.cafs@1100.1.6
+- @pnpm/store.cafs-types@1100.0.1
+- @pnpm/store.create-cafs-store@1100.0.9
+- @pnpm/fs.hard-link-dir@1100.0.1
+
+## 1100.1.6
+
+### Patch Changes
+
+- @pnpm/store.cafs@1100.1.5
+- @pnpm/store.create-cafs-store@1100.0.8
+- @pnpm/fs.symlink-dependency@1100.0.4
+- @pnpm/fs.hard-link-dir@1100.0.1
+
+## 1100.1.5
+
+### Patch Changes
+
+- @pnpm/store.cafs@1100.1.4
+- @pnpm/store.create-cafs-store@1100.0.7
+- @pnpm/fs.hard-link-dir@1100.0.1
+- @pnpm/fs.symlink-dependency@1100.0.3
+
+## 1100.1.4
+
+### Patch Changes
+
+- @pnpm/building.pkg-requires-build@1100.0.3
+- @pnpm/fs.symlink-dependency@1100.0.3
+- @pnpm/store.cafs@1100.1.3
+- @pnpm/store.cafs-types@1100.0.1
+- @pnpm/fs.hard-link-dir@1100.0.1
+- @pnpm/store.create-cafs-store@1100.0.6
+
+## 1100.1.3
+
+### Patch Changes
+
+- Updated dependencies [0c67cb5]
+  - @pnpm/store.index@1100.1.0
+  - @pnpm/fs.hard-link-dir@1100.0.1
+  - @pnpm/fs.symlink-dependency@1100.0.2
+  - @pnpm/store.create-cafs-store@1100.0.5
+
+## 1100.1.2
+
+### Patch Changes
+
+- @pnpm/store.cafs@1100.1.2
+- @pnpm/store.create-cafs-store@1100.0.5
+- @pnpm/fs.hard-link-dir@1100.0.1
+- @pnpm/fs.symlink-dependency@1100.0.2
+
+## 1100.1.1
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+- Updated dependencies [5a901e7]
+  - @pnpm/building.pkg-requires-build@1100.0.2
+  - @pnpm/store.create-cafs-store@1100.0.4
+  - @pnpm/fs.symlink-dependency@1100.0.2
+  - @pnpm/store.cafs-types@1100.0.1
+  - @pnpm/fs.graceful-fs@1100.1.0
+  - @pnpm/store.cafs@1100.1.1
+  - @pnpm/fs.hard-link-dir@1100.0.1
+
+## 1100.1.0
+
+### Minor Changes
+
+- 421317c: Installing a Node.js runtime via `node@runtime:<version>` (including `pnpm env use` and `pnpm runtime set node`) no longer extracts the bundled `npm`, `npx`, and `corepack` from the Node.js archive. This cuts roughly half of the files pnpm has to hash, write to the CAS, and link during installation, making runtime installs noticeably faster. Users who still need `npm` can install it as a separate package.
+
+### Patch Changes
+
+- Updated dependencies [421317c]
+  - @pnpm/store.cafs@1100.1.0
+  - @pnpm/store.create-cafs-store@1100.0.3
+  - @pnpm/fs.hard-link-dir@1100.0.0
+  - @pnpm/fs.symlink-dependency@1100.0.1
+
+## 1100.0.2
+
+### Patch Changes
+
+- @pnpm/store.cafs@1100.0.2
+- @pnpm/store.create-cafs-store@1100.0.2
+- @pnpm/fs.hard-link-dir@1100.0.0
+- @pnpm/fs.symlink-dependency@1100.0.1
+
+## 1100.0.1
+
+### Patch Changes
+
+- @pnpm/building.pkg-requires-build@1100.0.1
+- @pnpm/fs.symlink-dependency@1100.0.1
+- @pnpm/store.cafs@1100.0.1
+- @pnpm/store.cafs-types@1100.0.0
+- @pnpm/fs.hard-link-dir@1100.0.0
+- @pnpm/store.create-cafs-store@1100.0.1
+
+## 1001.0.0
+
+### Major Changes
+
+- e2e0a32: Optimized index file format to store the hash algorithm once per file instead of repeating it for every file entry. Each file entry now stores only the hex digest instead of the full integrity string (`<algo>-<digest>`). Using hex format improves performance since file paths in the content-addressable store use hex representation, eliminating base64-to-hex conversion during path lookups.
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+- 56a59df: Store the bundled manifest (name, version, bin, engines, scripts, etc.) directly in the package index file, eliminating the need to read `package.json` from the content-addressable store during resolution and installation. This reduces I/O and speeds up repeat installs [#10473](https://github.com/pnpm/pnpm/pull/10473).
+
+### Minor Changes
+
+- 3bf5e21: Added a way to append a manifest to a package with no package.json file.
+- 4893853: Increase the network concurrency on machines with many CPU cores. We pick a network concurrency that is not less than 16 and not more than 64 and it is calculated by the number of pnpm workers multiplied by 3 [#10068](https://github.com/pnpm/pnpm/issues/10068).
+- b7f0f21: Use SQLite for storing package index in the content-addressable store. Instead of individual `.mpk` files under `$STORE/index/`, package metadata is now stored in a single SQLite database at `$STORE/index.db`. This reduces filesystem syscall overhead, improves space efficiency for small metadata entries, and enables concurrent access via SQLite's WAL mode. Packages missing from the new index are re-fetched on demand [#10826](https://github.com/pnpm/pnpm/issues/10826).
+- 98a0410: Compute integrity hash for HTTP tarball dependencies when fetching, storing it in the lockfile to prevent servers from serving altered content on subsequent installs [#10287](https://github.com/pnpm/pnpm/pull/10287).
+
+### Patch Changes
+
+- 7cec347: `WMIC` has been deprecated and replaced by PowerShell commands.
+- 50fbeca: fix: preserve bundled `node_modules` from Node.js Windows zip so that npm/npx shims are created correctly on Windows.
+
+  The Windows Node.js distribution places npm inside a root-level `node_modules/` directory of the zip archive. `addFilesFromDir` was skipping root-level `node_modules` (to avoid treating a package's own npm dependencies as part of its content), which caused the bundled npm to be missing after installation. This prevented `pnpm env use` from creating the npm and npx shims on Windows.
+
+  Added an `includeNodeModules` option to `addFilesFromDir` and set it to `true` in the binary fetcher so that the complete Node.js distribution, including its bundled npm, is preserved.
+
+- ee9fe58: Skip the staging directory when importing packages into `node_modules`. This avoids the overhead of creating a temp dir and renaming per package. Falls back to the atomic staging path on error.
+
+  Packages that lack a `package.json` now get a synthetic empty one added to the store so that `package.json` can serve as a universal completion marker for the importer.
+
+- 780af09: Fix inconsistent store structure due to race condition.
+- Updated dependencies [e2e0a32]
+- Updated dependencies [2a50b89]
+- Updated dependencies [2fccb03]
+- Updated dependencies [3bf5e21]
+- Updated dependencies [491a84f]
+- Updated dependencies [6656baa]
+- Updated dependencies [2ea6463]
+- Updated dependencies [50fbeca]
+- Updated dependencies [caabba4]
+- Updated dependencies [0fd53e1]
+- Updated dependencies [878a773]
+- Updated dependencies [f8e6774]
+- Updated dependencies [e2e0a32]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [56a59df]
+- Updated dependencies [b09722f]
+- Updated dependencies [b7f0f21]
+- Updated dependencies [831f574]
+  - @pnpm/store.cafs-types@1001.0.0
+  - @pnpm/store.cafs@1001.0.0
+  - @pnpm/fs.hard-link-dir@1001.0.0
+  - @pnpm/building.pkg-requires-build@1000.0.0
+  - @pnpm/store.create-cafs-store@1001.0.0
+  - @pnpm/fs.symlink-dependency@1001.0.0
+  - @pnpm/fs.graceful-fs@1001.0.0
+  - @pnpm/error@1001.0.0
+  - @pnpm/crypto.integrity@1100.0.0
+  - @pnpm/store.index@1000.0.0
+
+## 1000.3.0
+
+### Minor Changes
+
+- 8993f68: Export worker start function.
+
+### Patch Changes
+
+- @pnpm/exec.pkg-requires-build@1000.0.11
+- @pnpm/symlink-dependency@1000.0.12
+- @pnpm/store.cafs@1000.0.19
+- @pnpm/cafs-types@1000.0.0
+- @pnpm/create-cafs-store@1000.0.20
+- @pnpm/fs.hard-link-dir@1000.0.2
+
+## 1000.2.0
+
+### Minor Changes
+
+- 06d2160: Allow to specify the max amount of pnpm workers via the `PNPM_MAX_WORKERS` environment variable [#10056](https://github.com/pnpm/pnpm/pull/10056).
+
+## 1000.1.14
+
+### Patch Changes
+
+- Updated dependencies [9b9faa5]
+  - @pnpm/fs.hard-link-dir@1000.0.2
+  - @pnpm/graceful-fs@1000.0.1
+  - @pnpm/store.cafs@1000.0.18
+  - @pnpm/create-cafs-store@1000.0.19
+  - @pnpm/symlink-dependency@1000.0.11
+
+## 1000.1.13
+
+### Patch Changes
+
+- @pnpm/error@1000.0.5
+- @pnpm/fs.hard-link-dir@1000.0.1
+- @pnpm/symlink-dependency@1000.0.11
+- @pnpm/create-cafs-store@1000.0.18
+
+## 1000.1.12
+
+### Patch Changes
+
+- @pnpm/exec.pkg-requires-build@1000.0.10
+- @pnpm/symlink-dependency@1000.0.11
+- @pnpm/store.cafs@1000.0.17
+- @pnpm/cafs-types@1000.0.0
+- @pnpm/fs.hard-link-dir@1000.0.1
+- @pnpm/create-cafs-store@1000.0.18
+
+## 1000.1.11
+
+### Patch Changes
+
+- @pnpm/error@1000.0.4
+- @pnpm/store.cafs@1000.0.16
+- @pnpm/create-cafs-store@1000.0.17
+- @pnpm/fs.hard-link-dir@1000.0.1
+- @pnpm/symlink-dependency@1000.0.10
+
+## 1000.1.10
+
+### Patch Changes
+
+- @pnpm/exec.pkg-requires-build@1000.0.9
+- @pnpm/symlink-dependency@1000.0.10
+- @pnpm/store.cafs@1000.0.15
+- @pnpm/cafs-types@1000.0.0
+- @pnpm/create-cafs-store@1000.0.16
+- @pnpm/error@1000.0.3
+- @pnpm/fs.hard-link-dir@1000.0.1
+
+## 1000.1.9
+
+### Patch Changes
+
+- 589ac1f: Replaced `shell-quote` with `shlex` for quoting command arguments [#9381](https://github.com/pnpm/pnpm/issues/9381).
+
+## 1000.1.8
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.0.14
+- @pnpm/create-cafs-store@1000.0.15
+- @pnpm/fs.hard-link-dir@1000.0.1
+- @pnpm/symlink-dependency@1000.0.9
+
+## 1000.1.7
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.0.13
+- @pnpm/create-cafs-store@1000.0.14
+- @pnpm/fs.hard-link-dir@1000.0.1
+- @pnpm/symlink-dependency@1000.0.9
+
+## 1000.1.6
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+  - @pnpm/create-cafs-store@1000.0.13
+  - @pnpm/symlink-dependency@1000.0.9
+  - @pnpm/fs.hard-link-dir@1000.0.1
+  - @pnpm/exec.pkg-requires-build@1000.0.8
+  - @pnpm/store.cafs@1000.0.12
+  - @pnpm/cafs-types@1000.0.0
+
+## 1000.1.5
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+  - @pnpm/logger@1001.0.0
+  - @pnpm/store.cafs@1000.0.11
+  - @pnpm/create-cafs-store@1000.0.12
+  - @pnpm/symlink-dependency@1000.0.8
+  - @pnpm/exec.pkg-requires-build@1000.0.7
+  - @pnpm/cafs-types@1000.0.0
+  - @pnpm/fs.hard-link-dir@1000.0.0
+
+## 1000.1.4
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@1000.0.11
+- @pnpm/store.cafs@1000.0.10
+- @pnpm/fs.hard-link-dir@1000.0.0
+- @pnpm/symlink-dependency@1000.0.7
+
+## 1000.1.3
+
+### Patch Changes
+
+- @pnpm/exec.pkg-requires-build@1000.0.6
+- @pnpm/symlink-dependency@1000.0.7
+- @pnpm/store.cafs@1000.0.9
+- @pnpm/cafs-types@1000.0.0
+- @pnpm/create-cafs-store@1000.0.10
+- @pnpm/fs.hard-link-dir@1000.0.0
+
+## 1000.1.2
+
+### Patch Changes
+
+- @pnpm/exec.pkg-requires-build@1000.0.5
+- @pnpm/symlink-dependency@1000.0.6
+- @pnpm/store.cafs@1000.0.8
+- @pnpm/cafs-types@1000.0.0
+- @pnpm/fs.hard-link-dir@1000.0.0
+- @pnpm/create-cafs-store@1000.0.9
+
+## 1000.1.1
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.0.7
+- @pnpm/create-cafs-store@1000.0.8
+- @pnpm/fs.hard-link-dir@1000.0.0
+- @pnpm/symlink-dependency@1000.0.5
+
+## 1000.1.0
+
+### Minor Changes
+
+- 2e05789: The max amount of workers running for linking packages from the store has been reduced to 4 to achieve optimal results [#9286](https://github.com/pnpm/pnpm/issues/9286). The workers are performing many file system operations, so increasing the number of CPUs doesn't help performance after some point.
+
+## 1000.0.8
+
+### Patch Changes
+
+- Updated dependencies [58d8597]
+  - @pnpm/crypto.polyfill@1000.1.0
+
+## 1000.0.7
+
+### Patch Changes
+
+- @pnpm/exec.pkg-requires-build@1000.0.4
+- @pnpm/symlink-dependency@1000.0.5
+- @pnpm/store.cafs@1000.0.6
+- @pnpm/cafs-types@1000.0.0
+- @pnpm/fs.hard-link-dir@1000.0.0
+- @pnpm/create-cafs-store@1000.0.7
+
+## 1000.0.6
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@1000.0.6
+- @pnpm/exec.pkg-requires-build@1000.0.3
+- @pnpm/symlink-dependency@1000.0.4
+- @pnpm/store.cafs@1000.0.5
+- @pnpm/cafs-types@1000.0.0
+- @pnpm/fs.hard-link-dir@1000.0.0
+
+## 1000.0.5
+
+### Patch Changes
+
+- @pnpm/error@1000.0.2
+- @pnpm/exec.pkg-requires-build@1000.0.2
+- @pnpm/symlink-dependency@1000.0.3
+- @pnpm/store.cafs@1000.0.4
+- @pnpm/cafs-types@1000.0.0
+- @pnpm/fs.hard-link-dir@1000.0.0
+- @pnpm/create-cafs-store@1000.0.5
+
+## 1000.0.4
+
+### Patch Changes
+
+- @pnpm/store.cafs@1000.0.3
+- @pnpm/create-cafs-store@1000.0.4
+- @pnpm/fs.hard-link-dir@1000.0.0
+- @pnpm/symlink-dependency@1000.0.2
+
+## 1000.0.3
+
+### Patch Changes
+
+- @pnpm/exec.pkg-requires-build@1000.0.1
+- @pnpm/symlink-dependency@1000.0.2
+- @pnpm/store.cafs@1000.0.2
+- @pnpm/cafs-types@1000.0.0
+- @pnpm/fs.hard-link-dir@1000.0.0
+- @pnpm/create-cafs-store@1000.0.3
+
+## 1000.0.2
+
+### Patch Changes
+
+- 7272992: Print a hint, when installation fails due to an exFAT drive.
+  - @pnpm/symlink-dependency@1000.0.1
+  - @pnpm/create-cafs-store@1000.0.2
+  - @pnpm/fs.hard-link-dir@1000.0.0
+
+## 1000.0.1
+
+### Patch Changes
+
+- @pnpm/error@1000.0.1
+- @pnpm/store.cafs@1000.0.1
+- @pnpm/create-cafs-store@1000.0.1
+- @pnpm/fs.hard-link-dir@1000.0.0
+- @pnpm/symlink-dependency@1000.0.0
+
+## 2.0.0
+
+### Major Changes
+
+- 099e6af: Changed the structure of the index files in the store to store side effects cache information more efficiently. In the new version, side effects do not list all the files of the package but just the differences [#8636](https://github.com/pnpm/pnpm/pull/8636).
+
+### Patch Changes
+
+- Updated dependencies [d433cb9]
+- Updated dependencies [099e6af]
+  - @pnpm/store.cafs@5.0.0
+  - @pnpm/cafs-types@6.0.0
+  - @pnpm/error@6.0.3
+  - @pnpm/create-cafs-store@7.0.12
+  - @pnpm/fs.hard-link-dir@4.0.0
+  - @pnpm/symlink-dependency@8.0.8
+
+## 1.0.13
+
+### Patch Changes
+
+- 222d10a: Use `crypto.hash`, when available, for improved performance [#8629](https://github.com/pnpm/pnpm/pull/8629).
+- Updated dependencies [222d10a]
+- Updated dependencies [222d10a]
+- Updated dependencies [a1f4df2]
+  - @pnpm/crypto.polyfill@1.0.0
+  - @pnpm/store.cafs@4.0.2
+  - @pnpm/create-cafs-store@7.0.11
+  - @pnpm/fs.hard-link-dir@4.0.0
+  - @pnpm/symlink-dependency@8.0.8
+
+## 1.0.12
+
+### Patch Changes
+
+- Updated dependencies [db7ff76]
+  - @pnpm/store.cafs@4.0.1
+  - @pnpm/create-cafs-store@7.0.10
+  - @pnpm/fs.hard-link-dir@4.0.0
+  - @pnpm/symlink-dependency@8.0.8
+
+## 1.0.11
+
+### Patch Changes
+
+- @pnpm/error@6.0.2
+- @pnpm/fs.hard-link-dir@4.0.0
+- @pnpm/symlink-dependency@8.0.8
+- @pnpm/create-cafs-store@7.0.9
+
+## 1.0.10
+
+### Patch Changes
+
+- Updated dependencies [db420ab]
+  - @pnpm/store.cafs@4.0.0
+  - @pnpm/exec.pkg-requires-build@1.0.7
+  - @pnpm/symlink-dependency@8.0.8
+  - @pnpm/cafs-types@5.0.0
+  - @pnpm/create-cafs-store@7.0.9
+  - @pnpm/fs.hard-link-dir@4.0.0
+
+## 1.0.9
+
+### Patch Changes
+
+- @pnpm/exec.pkg-requires-build@1.0.6
+- @pnpm/symlink-dependency@8.0.7
+- @pnpm/store.cafs@3.0.8
+- @pnpm/cafs-types@5.0.0
+- @pnpm/fs.hard-link-dir@4.0.0
+- @pnpm/create-cafs-store@7.0.8
+
+## 1.0.8
+
+### Patch Changes
+
+- @pnpm/exec.pkg-requires-build@1.0.5
+- @pnpm/symlink-dependency@8.0.6
+- @pnpm/store.cafs@3.0.7
+- @pnpm/cafs-types@5.0.0
+- @pnpm/fs.hard-link-dir@4.0.0
+- @pnpm/create-cafs-store@7.0.7
+
+## 1.0.7
+
+### Patch Changes
+
+- @pnpm/exec.pkg-requires-build@1.0.4
+- @pnpm/symlink-dependency@8.0.5
+- @pnpm/store.cafs@3.0.6
+- @pnpm/cafs-types@5.0.0
+- @pnpm/fs.hard-link-dir@4.0.0
+- @pnpm/create-cafs-store@7.0.6
+
+## 1.0.6
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+- Updated dependencies [afe520d]
+  - @pnpm/store.cafs@3.0.5
+  - @pnpm/symlink-dependency@8.0.4
+  - @pnpm/create-cafs-store@7.0.5
+  - @pnpm/fs.hard-link-dir@4.0.0
+
+## 1.0.5
+
+### Patch Changes
+
+- @pnpm/exec.pkg-requires-build@1.0.3
+- @pnpm/symlink-dependency@8.0.3
+- @pnpm/store.cafs@3.0.4
+- @pnpm/cafs-types@5.0.0
+- @pnpm/create-cafs-store@7.0.4
+- @pnpm/fs.hard-link-dir@4.0.0
+
+## 1.0.4
+
+### Patch Changes
+
+- @pnpm/exec.pkg-requires-build@1.0.2
+- @pnpm/symlink-dependency@8.0.2
+- @pnpm/store.cafs@3.0.3
+- @pnpm/cafs-types@5.0.0
+- @pnpm/fs.hard-link-dir@4.0.0
+- @pnpm/create-cafs-store@7.0.3
+
+## 1.0.3
+
+### Patch Changes
+
+- @pnpm/store.cafs@3.0.2
+- @pnpm/create-cafs-store@7.0.2
+- @pnpm/fs.hard-link-dir@4.0.0
+- @pnpm/symlink-dependency@8.0.1
+
+## 1.0.2
+
+### Patch Changes
+
+- @pnpm/exec.pkg-requires-build@1.0.1
+- @pnpm/symlink-dependency@8.0.1
+- @pnpm/store.cafs@3.0.1
+- @pnpm/cafs-types@5.0.0
+- @pnpm/fs.hard-link-dir@4.0.0
+- @pnpm/create-cafs-store@7.0.1
+
+## 1.0.1
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+
+## 1.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Minor Changes
+
+- 730929e: Add a field named `ignoredOptionalDependencies`. This is an array of strings. If an optional dependency has its name included in this array, it will be skipped.
+
+### Patch Changes
+
+- 3ded840: Print the right error code when a package fails to be added to the store [#7679](https://github.com/pnpm/pnpm/issues/7679).
+- 11d9ebd: Always add a name and version field to the index files in the store [#7115](https://github.com/pnpm/pnpm/issues/7115).
+- 36dcaa0: When installing git-hosted dependencies, only pick the files that would be packed with the package [#7638](https://github.com/pnpm/pnpm/pull/7638).
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+- Updated dependencies [6cdbf11]
+- Updated dependencies [36dcaa0]
+- Updated dependencies [0e6b757]
+- Updated dependencies [730929e]
+  - @pnpm/error@6.0.0
+  - @pnpm/create-cafs-store@7.0.0
+  - @pnpm/symlink-dependency@8.0.0
+  - @pnpm/fs.hard-link-dir@4.0.0
+  - @pnpm/cafs-types@5.0.0
+  - @pnpm/graceful-fs@4.0.0
+  - @pnpm/store.cafs@3.0.0
+  - @pnpm/exec.pkg-requires-build@1.0.0
+
+## 0.3.14
+
+### Patch Changes
+
+- @pnpm/store.cafs@2.0.12
+- @pnpm/create-cafs-store@6.0.13
+- @pnpm/fs.hard-link-dir@3.0.0
+- @pnpm/symlink-dependency@7.1.4
+
+## 0.3.13
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.12
+
+## 0.3.12
+
+### Patch Changes
+
+- Updated dependencies [33313d2fd]
+  - @pnpm/store.cafs@2.0.11
+  - @pnpm/create-cafs-store@6.0.11
+  - @pnpm/symlink-dependency@7.1.4
+  - @pnpm/cafs-types@4.0.0
+  - @pnpm/fs.hard-link-dir@3.0.0
+
+## 0.3.11
+
+### Patch Changes
+
+- @pnpm/symlink-dependency@7.1.3
+- @pnpm/store.cafs@2.0.10
+- @pnpm/cafs-types@4.0.0
+- @pnpm/fs.hard-link-dir@3.0.0
+- @pnpm/create-cafs-store@6.0.10
+
+## 0.3.10
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.9
+
+## 0.3.9
+
+### Patch Changes
+
+- 1e7bd4af3: Use availableParallelism, when available.
+
+## 0.3.8
+
+### Patch Changes
+
+- @pnpm/store.cafs@2.0.9
+- @pnpm/create-cafs-store@6.0.8
+- @pnpm/fs.hard-link-dir@3.0.0
+- @pnpm/symlink-dependency@7.1.2
+
+## 0.3.7
+
+### Patch Changes
+
+- Updated dependencies [cfc017ee3]
+  - @pnpm/create-cafs-store@6.0.7
+  - @pnpm/store.cafs@2.0.8
+  - @pnpm/fs.hard-link-dir@3.0.0
+  - @pnpm/symlink-dependency@7.1.2
+
+## 0.3.6
+
+### Patch Changes
+
+- 6390033cd: Directory hard linking moved to the worker.
+- Updated dependencies [6390033cd]
+  - @pnpm/fs.hard-link-dir@3.0.0
+  - @pnpm/store.cafs@2.0.7
+  - @pnpm/create-cafs-store@6.0.6
+  - @pnpm/symlink-dependency@7.1.2
+  - @pnpm/cafs-types@4.0.0
+
+## 0.3.5
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.5
+
+## 0.3.4
+
+### Patch Changes
+
+- 08b65ff78: Update @rushstack/worker-pool.
+- Updated dependencies [01bc58e2c]
+  - @pnpm/store.cafs@2.0.6
+  - @pnpm/create-cafs-store@6.0.4
+  - @pnpm/symlink-dependency@7.1.1
+
+## 0.3.3
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.3
+
+## 0.3.2
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.2
+
+## 0.3.1
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@6.0.1
+- @pnpm/symlink-dependency@7.1.1
+- @pnpm/store.cafs@2.0.5
+- @pnpm/cafs-types@4.0.0
+
+## 0.3.0
+
+### Minor Changes
+
+- 9caa33d53: Remove `disableRelinkFromStore` and `relinkLocalDirDeps`. Replace them with `disableRelinkLocalDirDeps`.
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+- Updated dependencies [9caa33d53]
+  - @pnpm/create-cafs-store@6.0.0
+  - @pnpm/cafs-types@4.0.0
+  - @pnpm/graceful-fs@3.2.0
+  - @pnpm/store.cafs@2.0.4
+  - @pnpm/symlink-dependency@7.1.0
+
+## 0.2.1
+
+### Patch Changes
+
+- @pnpm/create-cafs-store@5.1.1
+
+## 0.2.0
+
+### Minor Changes
+
+- 48dcd108c: Improve performance of installation by using a worker for creating the symlinks inside `node_modules/.pnpm` [#7069](https://github.com/pnpm/pnpm/pull/7069).
+
+### Patch Changes
+
+- 03cdccc6e: New option added: disableRelinkFromStore.
+- Updated dependencies [03cdccc6e]
+- Updated dependencies [48dcd108c]
+  - @pnpm/create-cafs-store@5.1.0
+  - @pnpm/cafs-types@3.1.0
+  - @pnpm/symlink-dependency@7.1.0
+  - @pnpm/store.cafs@2.0.3
+
+## 0.1.2
+
+### Patch Changes
+
+- Updated dependencies [b3947185c]
+  - @pnpm/store.cafs@2.0.2
+  - @pnpm/create-cafs-store@5.0.2
+
+## 0.1.1
+
+### Patch Changes
+
+- Updated dependencies [b548f2f43]
+- Updated dependencies [4a1a9431d]
+  - @pnpm/store.cafs@2.0.1
+  - @pnpm/cafs-types@3.0.1
+  - @pnpm/create-cafs-store@5.0.1
+
+## 0.1.0
+
+### Minor Changes
+
+- 083bbf590: Initial release.
+
+### Patch Changes
+
+- Updated dependencies [0fd9e6a6c]
+- Updated dependencies [f2009d175]
+- Updated dependencies [083bbf590]
+- Updated dependencies [083bbf590]
+  - @pnpm/store.cafs@2.0.0
+  - @pnpm/create-cafs-store@5.0.0
+  - @pnpm/cafs-types@3.0.0
+  - @pnpm/graceful-fs@3.1.0

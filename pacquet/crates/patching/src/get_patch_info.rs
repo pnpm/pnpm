@@ -35,10 +35,6 @@ pub struct PatchKeyConflictError {
 /// 2. unique satisfying range (error if more than one)
 /// 3. wildcard (`all`)
 ///
-/// Returns `Ok(None)` when nothing matches the name *or* when the
-/// name matches but every bucket misses. Returns `Err(...)` only on
-/// rule 2's ambiguity.
-///
 /// If the configured ranges fail to parse as semver, those entries
 /// are silently skipped — the upstream JS path goes through
 /// `semver.satisfies`, which treats unparsable ranges as

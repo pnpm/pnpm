@@ -11,6 +11,7 @@ use pacquet_crypto_hash::create_short_hash;
 use pacquet_fs::force_symlink_dir;
 use pacquet_package_is_installable::SupportedArchitectures;
 use pacquet_package_manifest::DependencyGroup;
+use pacquet_registry::PinnedVersion;
 use pacquet_reporter::Reporter;
 use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use serde_json::{Value, json};
@@ -272,6 +273,11 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
     // The cache install is always fresh, so no lockfile is loaded from
     // the process working directory.
     config.lockfile = false;
+    // The throwaway cache project is not part of the caller's
+    // workspace. If a caller has a settings-only pnpm-workspace.yaml,
+    // carrying its workspace root here makes the install enumerate that
+    // workspace and fail on the missing root package.json.
+    config.workspace_dir = None;
     // Build a *fresh* allow-list for the throwaway install — the dlx
     // packages themselves plus the CLI `--allow-build` entries — rather
     // than inheriting the caller project's `allow_builds` /
@@ -299,7 +305,8 @@ async fn install_into_cache<Reporter: self::Reporter + 'static>(
         add_package::<Reporter, _, _>(
             state,
             pkg,
-            false,
+            // dlx records the default caret range; the spec is throwaway.
+            PinnedVersion::default(),
             // dlx never catalogs.
             None,
             // dlx must download to run the bin, so never lockfile-only.
@@ -357,6 +364,10 @@ fn run_bin(
     let status =
         cmd.status().map_err(|source| DlxError::Spawn { command: bin_name.to_string(), source })?;
     if !status.success() {
+        #[expect(
+            clippy::exit,
+            reason = "dlx propagates the spawned command's exit status, like pnpm"
+        )]
         std::process::exit(status.code().unwrap_or(1));
     }
     Ok(())
@@ -445,7 +456,28 @@ fn get_valid_cache_dir(
 /// (<https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/commands/src/dlx.ts#L433-L436>).
 fn get_prepare_dir(cache_path: &Path, now: SystemTime, pid: u32) -> PathBuf {
     let millis = now.duration_since(UNIX_EPOCH).map_or(0, |elapsed| elapsed.as_millis());
-    cache_path.join(format!("{millis:x}-{pid:x}"))
+    // base36 (vs hex) keeps this segment short: it sits between the cache key
+    // and pnpm's deep virtual-store layout, and long dlx paths overflow
+    // Windows' MAX_PATH (260), which makes lifecycle scripts fail with a
+    // `spawn cmd.exe ENOENT` (the cwd no longer resolves). time+pid stays
+    // unique across concurrent dlx processes and a process's own retries.
+    cache_path.join(format!("{}-{}", to_base36(millis), to_base36(u128::from(pid))))
+}
+
+/// Lowercase base36 (`0-9a-z`), matching JavaScript's
+/// `Number.prototype.toString(36)` used by `getPrepareDir`.
+fn to_base36(mut n: u128) -> String {
+    const DIGITS: &[u8; 36] = b"0123456789abcdefghijklmnopqrstuvwxyz";
+    if n == 0 {
+        return "0".to_string();
+    }
+    let mut buf = Vec::new();
+    while n > 0 {
+        buf.push(DIGITS[(n % 36) as usize]);
+        n /= 36;
+    }
+    buf.reverse();
+    String::from_utf8(buf).expect("base36 digits are ASCII")
 }
 
 /// Determine the bin to run from the first installed dependency. Ports
@@ -461,11 +493,6 @@ fn get_bin_name(cached_dir: &Path) -> Result<String, DlxError> {
         [] => Err(DlxError::NoBin { package: pkg_name }),
         [bin] => Ok(bin.name.clone()),
         bins => {
-            // The default bin is the one named after the installed
-            // package's own `name` field (scopeless), not the dependency
-            // alias it was installed under. Mirrors `scopeless(manifest.name)`
-            // at dlx.ts:286 — they differ for aliased specs such as
-            // `foo@npm:@scope/realtool`.
             let manifest_name = manifest.get("name").and_then(Value::as_str).unwrap_or(&pkg_name);
             let scopeless_name = scopeless(manifest_name);
             if let Some(bin) = bins.iter().find(|bin| bin.name == scopeless_name) {

@@ -44,7 +44,6 @@ pub fn get_all_files(root: &Path) -> Vec<String> {
         .collect()
 }
 
-// Helper function to check if a path is a symlink or junction
 pub fn is_symlink_or_junction(path: &Path) -> io::Result<bool> {
     #[cfg(windows)]
     {

@@ -23,28 +23,46 @@ storage: ./storage
 #  secretAccessKey: ${PNPR_S3_SECRET_ACCESS_KEY}
 #  forcePathStyle: false
 #  allowHttp: false
-# Back the auth record stores (users + tokens) with a networked SQLite
-# database (libsql / Turso) instead of the local htpasswd file + SQLite
-# token db. Lets several stateless pnpr replicas share one consistent set
-# of accounts. When omitted, auth stays on local disk (see `auth:`
-# below). `authToken` is optional for an unauthenticated local `sqld`.
-# Set `replicaPath` to keep a local embedded replica so the auth hot
-# path (token lookups) reads locally instead of over the network;
-# `syncIntervalSecs` bounds how stale a read can be (e.g. revocation lag).
+# Back the auth record stores (users + tokens) with one shared SQL
+# database instead of the local htpasswd file + SQLite token db. Lets
+# several stateless pnpr replicas share one consistent set of accounts.
+# Select exactly one backend below. `backend-libsql` is enabled by
+# default; PostgreSQL and MySQL builds need the matching Cargo feature.
 #backend:
 #  libsql:
 #    url: ${PNPR_LIBSQL_URL}
 #    authToken: ${PNPR_LIBSQL_TOKEN}
 #    replicaPath: ./auth-replica.db
 #    syncIntervalSecs: 60
+#  postgres:
+#    url: ${PNPR_POSTGRES_URL}
+#    maxConnections: 16
+#  mysql:
+#    url: ${PNPR_MYSQL_URL}
+#    maxConnections: 16
+# Feature toggles for pnpr's two surfaces. Both are enabled by default;
+# disable one to carve down what this server exposes. At least one must
+# stay enabled. (`/-/ping` is always served.)
+#registry:          # npm registry: packument/tarball reads, publish,
+#  enabled: true    # unpublish, dist-tag, search, user/login endpoints
+#resolver:          # install accelerator: /-/pnpr, /-/pnpr/v0/resolve,
+#  enabled: true    # and /-/pnpr/v0/verify-lockfile
 secret: pnpm-registry-mock-secret-key-32
 
 auth:
   htpasswd:
     file: ./htpasswd
-    # Maximum amount of users allowed to register, defaults to "+inf".
-    # You can set this to -1 to disable registration.
-    #max_users: 1000
+    # Maximum amount of users allowed to register. The safe default is -1
+    # (registration disabled); set a non-negative cap to allow registration.
+    max_users: -1
+
+# Optional static group/team memberships. Package policies and upstream
+# aliases can use these group names anywhere they already accept usernames.
+#groups:
+#  platform: alice bob
+#  release:
+#    - alice
+#    - carol
 
 plugins: ../node_modules
 
@@ -57,6 +75,20 @@ uplinks:
   npmjs:
     url: https://registry.npmjs.org/
 
+  # An uplink that declares `access:` becomes a pnpr-managed private-route
+  # credential, exposed as a registry endpoint at `/~<name>/` (here,
+  # `/~corp/`). pnpr selects it only when the caller satisfies `access` and
+  # sends its credential upstream. The private cache is namespaced by a hash of
+  # that credential, so rotating it (editing `auth`) automatically moves to a
+  # fresh namespace — no manual epoch to bump. Point a scope at the endpoint to
+  # use it, e.g. `@acme:registry=https://<pnpr>/~corp/`.
+  #corp:
+  #  url: https://npm.corp.example/
+  #  access: platform
+  #  auth:
+  #    type: bearer
+  #    tokenEnv: PNPR_CORP_NPM_TOKEN
+
 web:
   enable: false
 
@@ -64,43 +96,53 @@ packages:
   '@private/*':
     access: $authenticated
     publish: $authenticated
+    unpublish: $authenticated
 
   '@pnpm.e2e/needs-auth':
     access: $authenticated
     publish: $authenticated
+    unpublish: $authenticated
 
   '@*/*':
     access: $all
     publish: $authenticated
+    unpublish: $authenticated
     proxy: npmjs
 
   'plugin-example':
     access: $all
     publish: $authenticated
+    unpublish: $authenticated
 
   'pkg-with-1-dep':
     access: $all
     publish: $authenticated
+    unpublish: $authenticated
 
   'dep-of-pkg-with-1-dep':
     access: $all
     publish: $authenticated
+    unpublish: $authenticated
 
   'foobar':
     access: $all
     publish: $authenticated
+    unpublish: $authenticated
 
   'alpha':
     access: $all
     publish: $authenticated
+    unpublish: $authenticated
 
   'deprecated':
     access: $all
     publish: $authenticated
+    unpublish: $authenticated
 
   '**':
     access: $all
     publish: $authenticated
+    unpublish: $authenticated
     proxy: npmjs
 
 # log settings (verdaccio 6+ shape: a single `log:` object, not a list)

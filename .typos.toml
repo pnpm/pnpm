@@ -9,6 +9,7 @@ extend-exclude = [
 
 [default.extend-words]
 cafs = "cafs"
+ect  = "ect"
 pn   = "pn"
 
 [default.extend-identifiers]

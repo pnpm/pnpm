@@ -1,8 +1,10 @@
 use crate::{State, cli_args::supported_architectures::SupportedArchitecturesArgs, config_deps};
 use clap::Args;
 use miette::Context;
+use pacquet_config::Config;
 use pacquet_package_manager::Add;
 use pacquet_package_manifest::DependencyGroup;
+use pacquet_registry::PinnedVersion;
 use pacquet_reporter::Reporter;
 use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
 use std::path::{Path, PathBuf};
@@ -25,16 +27,12 @@ pub struct AddDependencyOptions {
 
 impl AddDependencyOptions {
     /// Whether to add entry to `"dependencies"`.
-    ///
-    /// **NOTE:** no `--save-*` flags implies save as prod.
     fn save_prod(&self) -> bool {
         let &AddDependencyOptions { save_prod, save_dev, save_optional, save_peer } = self;
         save_prod || (!save_dev && !save_optional && !save_peer)
     }
 
     /// Whether to add entry to `"devDependencies"`.
-    ///
-    /// **NOTE:** `--save-peer` without any other `--save-*` flags implies save as dev.
     fn save_dev(&self) -> bool {
         let &AddDependencyOptions { save_prod, save_dev, save_optional, save_peer } = self;
         save_dev || (!save_prod && !save_optional && save_peer)
@@ -78,6 +76,9 @@ pub struct AddArgs {
     /// the default semver range operator.
     #[clap(short = 'E', long = "save-exact")]
     pub save_exact: bool,
+    /// The prefix of the saved version range: `^` (default), `~`, or empty for an exact version.
+    #[clap(long = "save-prefix", value_name = "prefix")]
+    pub save_prefix: Option<String>,
     /// Save the new dependency to the default catalog: `catalog:` is written
     /// to `package.json` and the specifier to `pnpm-workspace.yaml`'s
     /// `catalog:` block. Shorthand for `--save-catalog-name=default`.
@@ -104,6 +105,11 @@ pub struct AddArgs {
     /// All direct and indirect dependencies of the project are linked into this directory
     #[clap(long = "virtual-store-dir", default_value = "node_modules/.pacquet")]
     pub virtual_store_dir: Option<PathBuf>, // TODO: make use of this
+
+    /// Install the package globally, linking its bins into the global bin
+    /// directory. Mirrors pnpm's `add -g`.
+    #[clap(short = 'g', long)]
+    pub global: bool,
 }
 
 impl AddArgs {
@@ -158,10 +164,16 @@ impl AddArgs {
             .or_else(|| self.save_catalog.then(|| "default".to_string()))
             .or_else(|| state.config.save_catalog_name.clone());
 
+        // Collapse the `--save-exact` / `--save-prefix` flags into the pinned
+        // version that decides the saved range, mirroring pnpm's
+        // `getPinnedVersion`.
+        let pinned_version =
+            PinnedVersion::from_save_options(self.save_exact, self.save_prefix.as_deref());
+
         add_package::<Reporter, _, _>(
             state,
             &self.package_name,
-            self.save_exact,
+            pinned_version,
             save_catalog_name,
             self.lockfile_only,
             supported_architectures,
@@ -169,18 +181,52 @@ impl AddArgs {
         )
         .await
     }
+
+    /// `pnpm add -g`: install the package into the global packages
+    /// directory and link its bins. Delegates to
+    /// [`crate::cli_args::global::handle_global_add`].
+    pub async fn run_global<Reporter: self::Reporter + 'static>(
+        self,
+        config: &'static Config,
+        dir: &Path,
+    ) -> miette::Result<()> {
+        // `--config` (configurational dependency) and `--lockfile-only` have
+        // no meaning for a global install; reject rather than silently ignore.
+        if self.config {
+            return Err(miette::miette!(
+                "`pacquet add --config` cannot be combined with --global."
+            ));
+        }
+        if self.lockfile_only {
+            return Err(miette::miette!(
+                "`pacquet add --lockfile-only` cannot be combined with --global."
+            ));
+        }
+        let supported_architectures =
+            self.supported_architectures.apply_to(config.supported_architectures.clone());
+        let pinned_version =
+            PinnedVersion::from_save_options(self.save_exact, self.save_prefix.as_deref());
+        Box::pin(crate::cli_args::global::handle_global_add::<Reporter>(
+            config,
+            &[self.package_name],
+            pinned_version,
+            supported_architectures,
+            dir,
+        ))
+        .await
+    }
 }
 
 /// Add a single package to `state`'s manifest and install it.
 ///
 /// Shared by `pacquet add` and `pacquet dlx`. dlx points `state` at a
-/// cache directory (via a [`Config`](pacquet_config::Config) whose
+/// cache directory (via a [`Config`] whose
 /// `modules_dir` is anchored there) and saves to `dependencies` so the
 /// package's bin lands in `<cacheDir>/node_modules/.bin`.
 pub(crate) async fn add_package<Reporter, ListDependencyGroups, DependencyGroupList>(
     mut state: State,
     package_name: &str,
-    save_exact: bool,
+    pinned_version: PinnedVersion,
     save_catalog_name: Option<String>,
     lockfile_only: bool,
     supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
@@ -194,6 +240,8 @@ where
     // TODO: if a package already exists in another dependency group, don't remove the existing entry.
     let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
         &mut state;
+    let lockfile =
+        lockfile.get().map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
 
     let lockfile_path =
         manifest.path().parent().map(|parent| parent.join(pacquet_lockfile::Lockfile::FILE_NAME));
@@ -203,11 +251,11 @@ where
         http_client_arc: std::sync::Arc::clone(http_client),
         config,
         manifest,
-        lockfile: lockfile.as_ref(),
+        lockfile,
         lockfile_path: lockfile_path.as_deref(),
         list_dependency_groups,
         package_name,
-        save_exact,
+        pinned_version,
         save_catalog_name,
         resolved_packages,
         supported_architectures,

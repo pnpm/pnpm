@@ -33,10 +33,16 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         store_dir: StoreDir::new(store_dir),
         modules_dir: modules_dir.to_path_buf(),
         node_linker: Default::default(),
+        node_experimental_package_map: false,
+        node_package_map_type: Default::default(),
         symlink: false,
         virtual_store_dir: virtual_store_dir.to_path_buf(),
         enable_global_virtual_store: false,
         global_virtual_store_dir: virtual_store_dir.to_path_buf(),
+        global_dir: None,
+        global_bin_dir: None,
+        global_pkg_dir: None,
+        global_bin: None,
         package_import_method: Default::default(),
         modules_cache_max_age: 0,
         virtual_store_dir_max_length: pacquet_config::default_virtual_store_dir_max_length(),
@@ -45,6 +51,9 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         prefer_frozen_lockfile: false,
         optimistic_repeat_install: false,
         skip_runtimes: false,
+        deploy_all_files: false,
+        force_legacy_deploy: false,
+        shared_workspace_lockfile: true,
         offline: false,
         prefer_offline: false,
         lockfile_include_tarball_url: false,
@@ -66,6 +75,7 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         dedupe_direct_deps: true,
         dedupe_injected_deps: false,
         strict_peer_dependencies: false,
+        ignore_compatibility_db: false,
         resolve_peers_from_workspace_root: false,
         block_exotic_subdeps: false,
         verify_store_integrity: true,
@@ -82,9 +92,12 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         npmrc_auth_file: None,
         workspace_dir: None,
         patched_dependencies: None,
+        patches_dir: None,
         config_dependencies: None,
         allow_builds: Default::default(),
         dangerously_allow_all_builds: false,
+        strict_dep_builds: true,
+        ignore_scripts: false,
         scripts_prepend_node_path: Default::default(),
         enable_pre_post_scripts: false,
         script_shell: None,
@@ -109,6 +122,9 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         minimum_release_age_strict: None,
         trust_lockfile: false,
         trust_policy: Default::default(),
+        pm_on_fail: None,
+        audit_level: None,
+        audit_config: Default::default(),
         trust_policy_exclude: None,
         trust_policy_ignore_after: None,
         resolution_mode: Default::default(),
@@ -120,9 +136,14 @@ fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path)
         update_config: Default::default(),
         peer_dependency_rules: Default::default(),
         auth_headers: Default::default(),
+        auth_tokens_by_uri: Default::default(),
         proxy: Default::default(),
         tls: Default::default(),
         tls_by_uri: Default::default(),
+        package_manager_bootstrap: Default::default(),
+        explicit_settings: Default::default(),
+        raw_auth_config: Default::default(),
+        config_dir: None,
     }
 }
 
@@ -148,6 +169,7 @@ async fn resolve_via_mock(
         prefer_offline: false,
         ignore_missing_time_field: true,
         full_metadata: false,
+        filter_metadata: false,
         retry_opts: RetryOpts::default(),
     };
     let wanted = WantedDependency {
@@ -215,11 +237,10 @@ pub async fn should_install_package_from_pre_resolved_result() {
     let virtual_store_path = slot_dir.join("node_modules").join(&real_name);
     assert!(virtual_store_path.is_dir());
 
-    // Make sure the symlink resolves to the correct path. pacquet
-    // writes the contents as a path relative to the link's parent
-    // (matching upstream `symlink-dir`), so canonicalize via the
-    // link itself rather than comparing `read_link` output against
-    // the absolute store path.
+    // pacquet writes the symlink contents as a path relative to the
+    // link's parent (matching upstream `symlink-dir`), so
+    // canonicalize via the link itself rather than comparing
+    // `read_link` output against the absolute store path.
     let symlink_path = modules_dir.path().join("@pnpm.e2e/hello-world-js-bin");
     assert_eq!(
         dunce::canonicalize(&symlink_path).expect("canonicalize symlink"),
@@ -229,12 +250,9 @@ pub async fn should_install_package_from_pre_resolved_result() {
     drop((store_dir, modules_dir, virtual_store_dir, cache_dir, mock_instance));
 }
 
-/// Second-edge install for the same `(name, version)` must NOT emit
-/// `pnpm:progress resolved` or `pnpm:progress imported` — those are
-/// per-package signals upstream, not per-edge. The second visitor
-/// only refreshes the per-parent symlink. Pin the contract here so a
-/// future refactor that moves the gate can't quietly reintroduce
-/// per-edge spam.
+/// Progress events are per-package signals upstream, not per-edge.
+/// Pin the contract here so a future refactor that moves the gate
+/// can't quietly reintroduce per-edge spam.
 #[tokio::test]
 async fn second_visit_skips_progress_emits_but_still_links() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
@@ -299,7 +317,6 @@ async fn second_visit_skips_progress_emits_but_still_links() {
     .expect("first visit installs cleanly");
     EVENTS.lock().unwrap().clear();
 
-    // Second edge: same `(name, version)`, different parent dir.
     InstallPackageFromRegistry {
         tarball_mem_cache: &Default::default(),
         config,
@@ -336,20 +353,15 @@ async fn second_visit_skips_progress_emits_but_still_links() {
         .collect();
     assert!(kinds.is_empty(), "second visit must not emit progress events, got {kinds:?}");
 
-    // The second-parent symlink must exist after the call.
     let symlink_path = second_parent_dir.path().join("second-alias");
     assert!(symlink_path.exists() || symlink_path.is_symlink(), "per-parent symlink missing");
 
     drop((store_dir, modules_dir, second_parent_dir, virtual_store_dir, cache_dir, mock_instance));
 }
 
-/// `InstallPackageFromRegistry::run` emits the `pnpm:progress` per-
-/// package sequence: `resolved` before the tarball download, then
-/// `fetched` (or `found_in_store` on a cache hit) from inside
-/// `DownloadTarballToStore`, then `imported` after `create_cas_files`
-/// returns Ok. Pin the order with a recording reporter — a regression
-/// in either the sequence or the `package_id`/`requester` payload
-/// would currently slip through since the tarball-side and
+/// Pin the order with a recording reporter — a regression in either
+/// the sequence or the `package_id`/`requester` payload would
+/// currently slip through since the tarball-side and
 /// frozen-lockfile-side tests don't exercise this code path.
 #[tokio::test]
 async fn install_emits_progress_sequence() {
@@ -422,10 +434,8 @@ async fn install_emits_progress_sequence() {
         })
         .collect();
 
-    // Order: resolved → fetched (or found_in_store on a warm rerun)
-    // → imported. The mock store is a tempdir, so the first install
-    // always goes through the network path → `Fetched`. Pin the
-    // shape so a future re-ordering breaks the test.
+    // The mock store is a tempdir, so the first install always goes
+    // through the network path → `Fetched` (not `found_in_store`).
     let kinds: Vec<&'static str> = progress
         .iter()
         .map(|message| match message {
@@ -441,10 +451,6 @@ async fn install_emits_progress_sequence() {
         "unexpected progress sequence: {progress:?}",
     );
 
-    // Pin the (`package_id`, `requester`) on the resolved event —
-    // the install layer threads `requester` here as the install
-    // root; `package_id` is `{name}@{version}` once the version is
-    // resolved.
     match &progress[0] {
         ProgressMessage::Resolved { package_id, requester } => {
             assert_eq!(package_id, "@pnpm.e2e/hello-world-js-bin@1.0.0");
@@ -456,11 +462,10 @@ async fn install_emits_progress_sequence() {
     drop((store_dir, modules_dir, virtual_store_dir, cache_dir, mock_instance));
 }
 
-/// Regression test: a `ResolveResult` whose `name_ver` is `None`
-/// (every non-npm resolver — git / tarball / local) must surface as
-/// [`InstallPackageFromRegistryError::UnsupportedResolution`] rather
-/// than panicking. Pins the install path's contract once the git
-/// resolver is wired into the chain.
+/// A missing `name_ver` (every non-npm resolver — git / tarball /
+/// local) must surface as an error rather than panicking. Pins the
+/// install path's contract once the git resolver is wired into the
+/// chain.
 #[tokio::test]
 async fn install_returns_unsupported_resolution_when_name_ver_missing() {
     let store_dir = tempdir().unwrap();

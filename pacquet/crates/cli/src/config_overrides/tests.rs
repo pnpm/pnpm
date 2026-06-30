@@ -19,6 +19,12 @@ fn extract_separates_config_tokens_from_argv() {
     let mut config = Config::default();
     overrides.apply(&mut config);
     assert_eq!(config.registry, "https://example.test/");
+    assert_eq!(config.package_manager_bootstrap.registry, "https://example.test/");
+    assert_eq!(config.registries.get("default").map(String::as_str), Some("https://example.test/"));
+    assert_eq!(
+        config.package_manager_bootstrap.registries.get("default").map(String::as_str),
+        Some("https://example.test/"),
+    );
 }
 
 #[test]
@@ -35,6 +41,10 @@ fn extract_applies_scoped_registry_overrides() {
         config.registries.get("@private").map(String::as_str),
         Some("https://private.example/npm/"),
     );
+    assert_eq!(
+        config.package_manager_bootstrap.registries.get("@private").map(String::as_str),
+        Some("https://private.example/npm/"),
+    );
 }
 
 #[test]
@@ -43,9 +53,17 @@ fn scoped_registry_override_wins_over_existing_config() {
         ConfigOverrides::extract(argv(["--config.@private:registry=https://cli.example/npm/"]));
     let mut config = Config::default();
     config.registries.insert("@private".to_string(), "https://workspace.example/npm/".to_string());
+    config
+        .package_manager_bootstrap
+        .registries
+        .insert("@private".to_string(), "https://json-env.example/npm/".to_string());
     overrides.apply(&mut config);
     assert_eq!(
         config.registries.get("@private").map(String::as_str),
+        Some("https://cli.example/npm/"),
+    );
+    assert_eq!(
+        config.package_manager_bootstrap.registries.get("@private").map(String::as_str),
         Some("https://cli.example/npm/"),
     );
 }
@@ -77,6 +95,7 @@ fn last_value_wins_for_repeated_keys() {
     let mut config = Config::default();
     overrides.apply(&mut config);
     assert_eq!(config.registry, "https://second.test/");
+    assert_eq!(config.package_manager_bootstrap.registry, "https://second.test/");
 }
 
 #[test]

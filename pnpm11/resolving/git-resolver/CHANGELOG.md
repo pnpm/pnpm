@@ -1,0 +1,980 @@
+# @pnpm/git-resolver
+
+## 1100.1.7
+
+### Patch Changes
+
+- Updated dependencies [bae694f]
+- Updated dependencies [05b95ab]
+- Updated dependencies [852d537]
+  - @pnpm/resolving.resolver-base@1100.5.0
+  - @pnpm/network.fetch@1100.1.4
+  - @pnpm/error@1100.0.1
+
+## 1100.1.6
+
+### Patch Changes
+
+- a31faa7: Updated dependency ranges. Notably:
+
+  - `@pnpm/logger` peer dependency range moved to `^1100.0.0`.
+  - `msgpackr` 1.11.8 → 2.0.4 (store index files remain byte-compatible in both directions).
+  - `open` ^7.4.2 → ^11.0.0, `memoize` ^10 → ^11, `cli-truncate` ^5 → ^6, `pidtree` ^0.6 → ^1.
+  - `@yarnpkg/core` 4.5.0 → 4.8.0, `@rushstack/worker-pool` 0.7.7 → 0.7.18, `@cyclonedx/cyclonedx-library` 10.0.0 → 10.1.0, `@pnpm/config.nerf-dart` ^1 → ^2, `@pnpm/log.group` 3.0.2 → 4.0.1, `@pnpm/util.lex-comparator` ^3 → ^4.
+
+- Updated dependencies [a31faa7]
+  - @pnpm/network.fetch@1100.1.3
+  - @pnpm/resolving.resolver-base@1100.4.2
+
+## 1100.1.5
+
+### Patch Changes
+
+- @pnpm/network.fetch@1100.1.2
+
+## 1100.1.4
+
+### Patch Changes
+
+- @pnpm/network.fetch@1100.1.1
+- @pnpm/resolving.resolver-base@1100.4.1
+
+## 1100.1.3
+
+### Patch Changes
+
+- Updated dependencies [60a1eec]
+- Updated dependencies [6d17b66]
+  - @pnpm/network.fetch@1100.1.0
+  - @pnpm/resolving.resolver-base@1100.4.0
+
+## 1100.1.2
+
+### Patch Changes
+
+- Updated dependencies [b1fa2d5]
+  - @pnpm/network.fetch@1100.0.8
+
+## 1100.1.1
+
+### Patch Changes
+
+- @pnpm/network.fetch@1100.0.7
+- @pnpm/resolving.resolver-base@1100.3.1
+
+## 1100.1.0
+
+### Minor Changes
+
+- 1627943: `pnpm outdated` and `pnpm update --interactive` now report Node.js, Deno, and Bun runtimes installed as project dependencies (`runtime:` specifiers). Previously these were silently skipped because the npm specifier parser did not understand the `runtime:` protocol, so runtime versions never appeared in the outdated table or the interactive update picker.
+
+  Internally, the outdated check is now resolver-driven: `@pnpm/resolving.resolver-base` defines a `ResolveLatestFunction` shape (with `LatestQuery` input — `{ wantedDependency, compatible? }` — and `LatestInfo` result — `{ latestManifest? }`), and every protocol resolver (npm, jsr, named-registry, git, tarball, local, node/bun/deno runtimes) exports its own `resolveLatest*` function alongside its `resolve*`. `@pnpm/resolving.default-resolver` composes them into a single dispatcher, exposed through `@pnpm/installing.client` as `createResolver(...).resolveLatest`.
+
+  Each resolver decides whether it owns the dep and what "latest" means for its protocol; the outdated command derives `current` / `wanted` display values from the lockfile snapshot (`pkgSnapshot.version` for semver protocols, raw ref for URL-shaped ones) and uses raw ref equality for the "lockfile changed" check, so protocol knowledge stays inside each resolver instead of the command.
+
+### Patch Changes
+
+- Updated dependencies [1627943]
+  - @pnpm/resolving.resolver-base@1100.3.0
+  - @pnpm/network.fetch@1100.0.6
+
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+  - @pnpm/resolving.resolver-base@1100.2.0
+  - @pnpm/network.fetch@1100.0.5
+
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [18a464f]
+  - @pnpm/network.fetch@1100.0.4
+
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [20e7aff]
+  - @pnpm/network.fetch@1100.0.3
+  - @pnpm/resolving.resolver-base@1100.1.3
+
+## 1100.0.5
+
+### Patch Changes
+
+- a57f7bd: Fixed installation of GitLab-hosted dependencies. pnpm now downloads the tarball from `https://gitlab.com/<user>/<project>/-/archive/<sha>/<project>-<sha>.tar.gz` instead of the GitLab API endpoint that contained an encoded slash (`%2F`) between user and project. The encoded slash both triggered `406 Not Acceptable` responses from GitLab and produced virtual store directory names that Node refused to import (`ERR_INVALID_MODULE_SPECIFIER`) [#11533](https://github.com/pnpm/pnpm/issues/11533).
+
+## 1100.0.4
+
+### Patch Changes
+
+- 27425d7: Pin the integrity of git-hosted tarballs (codeload.github.com, gitlab.com, bitbucket.org) in the lockfile so that subsequent installs detect a tampered or substituted tarball and refuse to install it. Previously the lockfile only stored the tarball URL for git dependencies, so a compromised git host or a man-in-the-middle could serve arbitrary code on later installs without lockfile changes.
+
+  A new `gitHosted: true` field is recorded on git-hosted tarball resolutions in the lockfile, letting every reader/writer route them by a single typed check instead of pattern-matching the tarball URL in each call site. Lockfiles written by older pnpm versions are enriched on load (URL fallback) so the field can be relied on uniformly across the codebase.
+
+- Updated dependencies [27425d7]
+  - @pnpm/resolving.resolver-base@1100.1.2
+
+## 1100.0.3
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/resolving.resolver-base@1100.1.1
+  - @pnpm/network.fetch@1100.0.2
+
+## 1100.0.2
+
+### Patch Changes
+
+- Updated dependencies [72c1e05]
+  - @pnpm/resolving.resolver-base@1100.1.0
+
+## 1100.0.1
+
+### Patch Changes
+
+- @pnpm/network.fetch@1100.0.1
+- @pnpm/resolving.resolver-base@1100.0.1
+
+## 1002.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Minor Changes
+
+- ec7c5d7: Support plain `http://` and `https://` URLs ending with `.git` as git repository dependencies.
+
+  Previously, URLs like `https://gitea.example.org/user/repo.git#commit` were not recognized as git repositories because they lacked the `git+` prefix (e.g., `git+https://`). This caused issues when installing dependencies from self-hosted git servers like Gitea or Forgejo that don't provide tarball downloads.
+
+  Changes:
+
+  - The git resolver now runs before the tarball resolver, ensuring git URLs are handled by the correct resolver
+  - The git resolver now recognizes plain `http://` and `https://` URLs ending in `.git` as git repositories
+  - Removed the `isRepository` check from the tarball resolver since it's no longer needed with the new resolver order
+
+  Fixes #10468
+
+### Patch Changes
+
+- 01760da: Fix installation of Git dependencies using annotated tags [#10335](https://github.com/pnpm/pnpm/issues/10335).
+
+  Previously, pnpm would store the annotated tag object's SHA in the lockfile instead of the actual commit SHA. This caused `ERR_PNPM_GIT_CHECKOUT_FAILED` errors because the checked-out commit hash didn't match the stored tag object hash.
+
+- c5fbdde: Always resolve git references to full commits and ensure `HEAD` points to the commit after checkout [#10310](https://github.com/pnpm/pnpm/pull/10310).
+- Updated dependencies [facdd71]
+- Updated dependencies [9b0a460]
+- Updated dependencies [491a84f]
+- Updated dependencies [0dfa8b8]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [50fbeca]
+- Updated dependencies [bb8baa7]
+- Updated dependencies [6c480a4]
+- Updated dependencies [10bc391]
+- Updated dependencies [38b8e35]
+- Updated dependencies [831f574]
+- Updated dependencies [9d3f00b]
+- Updated dependencies [6b3d87a]
+  - @pnpm/resolving.resolver-base@1006.0.0
+  - @pnpm/error@1001.0.0
+  - @pnpm/network.fetch@1001.0.0
+
+## 1001.1.5
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+  - @pnpm/resolver-base@1005.1.0
+  - @pnpm/fetch@1000.2.6
+
+## 1001.1.4
+
+### Patch Changes
+
+- @pnpm/fetch@1000.2.5
+- @pnpm/resolver-base@1005.0.1
+
+## 1001.1.3
+
+### Patch Changes
+
+- Updated dependencies [87d3aa8]
+  - @pnpm/fetch@1000.2.4
+
+## 1001.1.2
+
+### Patch Changes
+
+- Updated dependencies [86b33e9]
+- Updated dependencies [d1edf73]
+- Updated dependencies [f91922c]
+  - @pnpm/resolver-base@1005.0.0
+
+## 1001.1.1
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+  - @pnpm/resolver-base@1004.1.0
+  - @pnpm/fetch@1000.2.3
+
+## 1001.1.0
+
+### Minor Changes
+
+- 2721291: Create different resolver result types which provide more information.
+
+### Patch Changes
+
+- Updated dependencies [2721291]
+- Updated dependencies [6acf819]
+  - @pnpm/resolver-base@1004.0.0
+
+## 1001.0.2
+
+### Patch Changes
+
+- 5055399: Fixed the problem of path loss caused by parsing URL address. Fixes a regression shipped in pnpm v10.11 via [#9502](https://github.com/pnpm/pnpm/pull/9502).
+
+## 1001.0.1
+
+### Patch Changes
+
+- 6b6ccf9: Remove `url.parse` usage to fix warning on Node.js 24 [#9492](https://github.com/pnpm/pnpm/issues/9492).
+- Updated dependencies [09cf46f]
+  - @pnpm/fetch@1000.2.2
+  - @pnpm/resolver-base@1003.0.1
+
+## 1001.0.0
+
+### Major Changes
+
+- 8a9f3a4: `pref` renamed to `bareSpecifier`.
+- 5b73df1: Renamed `normalizedPref` to `specifiers`.
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+  - @pnpm/resolver-base@1003.0.0
+  - @pnpm/fetch@1000.2.1
+
+## 1000.0.11
+
+### Patch Changes
+
+- Updated dependencies [81f441c]
+  - @pnpm/resolver-base@1002.0.0
+
+## 1000.0.10
+
+### Patch Changes
+
+- Updated dependencies [72cff38]
+- Updated dependencies [750ae7d]
+  - @pnpm/resolver-base@1001.0.0
+  - @pnpm/fetch@1000.2.0
+
+## 1000.0.9
+
+### Patch Changes
+
+- @pnpm/fetch@1000.1.6
+- @pnpm/resolver-base@1000.2.1
+
+## 1000.0.8
+
+### Patch Changes
+
+- Updated dependencies [3d52365]
+  - @pnpm/resolver-base@1000.2.0
+
+## 1000.0.7
+
+### Patch Changes
+
+- @pnpm/fetch@1000.1.5
+- @pnpm/resolver-base@1000.1.4
+
+## 1000.0.6
+
+### Patch Changes
+
+- @pnpm/fetch@1000.1.4
+- @pnpm/resolver-base@1000.1.3
+
+## 1000.0.5
+
+### Patch Changes
+
+- d6a4ff1: Proxy settings should be respected, when resolving Git-hosted dependencies [#6530](https://github.com/pnpm/pnpm/issues/6530).
+
+## 1000.0.4
+
+### Patch Changes
+
+- @pnpm/fetch@1000.1.3
+- @pnpm/resolver-base@1000.1.2
+
+## 1000.0.3
+
+### Patch Changes
+
+- @pnpm/fetch@1000.1.2
+- @pnpm/resolver-base@1000.1.1
+
+## 1000.0.2
+
+### Patch Changes
+
+- b100962: Do not fall back to SSH, when resolving a git-hosted package if `git ls-remote` works via HTTPS [#8906](https://github.com/pnpm/pnpm/pull/8906).
+  - @pnpm/fetch@1000.1.1
+
+## 1000.0.1
+
+### Patch Changes
+
+- Updated dependencies [6483b64]
+- Updated dependencies [b0f3c71]
+  - @pnpm/resolver-base@1000.1.0
+  - @pnpm/fetch@1000.1.0
+
+## 9.0.8
+
+### Patch Changes
+
+- @pnpm/fetch@8.0.7
+- @pnpm/resolver-base@13.0.4
+
+## 9.0.7
+
+### Patch Changes
+
+- @pnpm/fetch@8.0.6
+- @pnpm/resolver-base@13.0.3
+
+## 9.0.6
+
+### Patch Changes
+
+- @pnpm/fetch@8.0.5
+- @pnpm/resolver-base@13.0.2
+
+## 9.0.5
+
+### Patch Changes
+
+- @pnpm/fetch@8.0.4
+- @pnpm/resolver-base@13.0.1
+
+## 9.0.4
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+  - @pnpm/resolver-base@13.0.0
+  - @pnpm/fetch@8.0.3
+
+## 9.0.3
+
+### Patch Changes
+
+- @pnpm/fetch@8.0.2
+- @pnpm/resolver-base@12.0.2
+
+## 9.0.2
+
+### Patch Changes
+
+- @pnpm/fetch@8.0.1
+- @pnpm/resolver-base@12.0.1
+
+## 9.0.1
+
+### Patch Changes
+
+- c969f37: Lockfiles that have git-hosted dependencies specified should be correctly converted to the new lockfile format [#7990](https://github.com/pnpm/pnpm/issues/7990).
+
+## 9.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Minor Changes
+
+- b13d2dc: It is now possible to install only a subdirectory from a Git repository.
+
+  For example, `pnpm add github:user/repo#path:packages/foo` will add a dependency from the `packages/foo` subdirectory.
+
+  This new parameter may be combined with other supported parameters separated by `&`. For instance, the next command will install the same package from the `dev` branch: `pnpm add github:user/repo#dev&path:packages/bar`.
+
+  Related issue: [#4765](https://github.com/pnpm/pnpm/issues/4765).
+  Related PR: [#7487](https://github.com/pnpm/pnpm/pull/7487).
+
+### Patch Changes
+
+- 985381c: Install gitlab-hosted packages correctly, when they are specified by commit or branch [#7603](https://github.com/pnpm/pnpm/issues/7603).
+- Updated dependencies [7733f3a]
+- Updated dependencies [43cdd87]
+- Updated dependencies [b13d2dc]
+  - @pnpm/fetch@8.0.0
+  - @pnpm/resolver-base@12.0.0
+
+## 8.0.12
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+  - @pnpm/resolver-base@11.1.0
+
+## 8.0.11
+
+### Patch Changes
+
+- @pnpm/resolver-base@11.0.2
+- @pnpm/fetch@7.0.7
+
+## 8.0.10
+
+### Patch Changes
+
+- @pnpm/resolver-base@11.0.1
+- @pnpm/fetch@7.0.6
+
+## 8.0.9
+
+### Patch Changes
+
+- Updated dependencies [4c2450208]
+  - @pnpm/resolver-base@11.0.0
+
+## 8.0.8
+
+### Patch Changes
+
+- @pnpm/resolver-base@10.0.4
+- @pnpm/fetch@7.0.5
+
+## 8.0.7
+
+### Patch Changes
+
+- @pnpm/resolver-base@10.0.3
+- @pnpm/fetch@7.0.4
+
+## 8.0.6
+
+### Patch Changes
+
+- 22bbe9255: Pass the right scheme to `git ls-remote` in order to prevent a fallback to `git+ssh` that would result in a 'host key verification failed' issue [#6806](https://github.com/pnpm/pnpm/issues/6806)
+
+## 8.0.5
+
+### Patch Changes
+
+- de9b6c20d: Temporarily revert the fix to [#6805](https://github.com/pnpm/pnpm/issues/6805) to fix the regression it caused [#6827](https://github.com/pnpm/pnpm/issues/6827).
+
+## 8.0.4
+
+### Patch Changes
+
+- 6fe0b60e6: Fixed a bug in which pnpm passed the wrong scheme to `git ls-remote`, causing a fallback to `git+ssh` and resulting in a 'host key verification failed' issue [#6805](https://github.com/pnpm/pnpm/issues/6805)
+  - @pnpm/resolver-base@10.0.2
+  - @pnpm/fetch@7.0.3
+
+## 8.0.3
+
+### Patch Changes
+
+- @pnpm/resolver-base@10.0.1
+- @pnpm/fetch@7.0.2
+
+## 8.0.2
+
+### Patch Changes
+
+- Updated dependencies [8228c2cb1]
+  - @pnpm/fetch@7.0.1
+
+## 8.0.1
+
+### Patch Changes
+
+- c0760128d: bump semver to 7.4.0
+
+## 8.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- 28796377c: Fix git-hosted dependencies referenced via `git+ssh` that use semver selectors [#6239](https://github.com/pnpm/pnpm/pull/6239).
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/resolver-base@10.0.0
+  - @pnpm/fetch@7.0.0
+
+## 7.0.7
+
+### Patch Changes
+
+- Updated dependencies [673e23060]
+- Updated dependencies [9fa6c7404]
+  - @pnpm/fetch@6.0.6
+
+## 7.0.6
+
+### Patch Changes
+
+- Updated dependencies [029143cff]
+- Updated dependencies [029143cff]
+  - @pnpm/resolver-base@9.2.0
+
+## 7.0.5
+
+### Patch Changes
+
+- @pnpm/resolver-base@9.1.5
+- @pnpm/fetch@6.0.5
+
+## 7.0.4
+
+### Patch Changes
+
+- Updated dependencies [a9d59d8bc]
+  - @pnpm/fetch@6.0.4
+
+## 7.0.3
+
+### Patch Changes
+
+- @pnpm/resolver-base@9.1.4
+- @pnpm/fetch@6.0.3
+
+## 7.0.2
+
+### Patch Changes
+
+- @pnpm/fetch@6.0.2
+
+## 7.0.1
+
+### Patch Changes
+
+- @pnpm/resolver-base@9.1.3
+- @pnpm/fetch@6.0.1
+
+## 7.0.0
+
+### Major Changes
+
+- 043d988fc: Breaking change to the API. Defaul export is not used.
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [043d988fc]
+- Updated dependencies [f884689e0]
+  - @pnpm/fetch@6.0.0
+
+## 6.1.7
+
+### Patch Changes
+
+- @pnpm/fetch@5.0.10
+
+## 6.1.6
+
+### Patch Changes
+
+- @pnpm/resolver-base@9.1.2
+- @pnpm/fetch@5.0.9
+
+## 6.1.5
+
+### Patch Changes
+
+- @pnpm/resolver-base@9.1.1
+- @pnpm/fetch@5.0.8
+
+## 6.1.4
+
+### Patch Changes
+
+- Updated dependencies [23984abd1]
+  - @pnpm/resolver-base@9.1.0
+
+## 6.1.3
+
+### Patch Changes
+
+- 39c040127: upgrade various dependencies
+
+## 6.1.2
+
+### Patch Changes
+
+- @pnpm/resolver-base@9.0.6
+- @pnpm/fetch@5.0.7
+
+## 6.1.1
+
+### Patch Changes
+
+- Updated dependencies [e018a8b14]
+  - @pnpm/fetch@5.0.6
+
+## 6.1.0
+
+### Minor Changes
+
+- 449ccef09: Add `refs/` to git resolution prefixes
+
+## 6.0.6
+
+### Patch Changes
+
+- @pnpm/resolver-base@9.0.5
+- @pnpm/fetch@5.0.5
+
+## 6.0.5
+
+### Patch Changes
+
+- @pnpm/resolver-base@9.0.4
+- @pnpm/fetch@5.0.4
+
+## 6.0.4
+
+### Patch Changes
+
+- Updated dependencies [9d5bf09c0]
+  - @pnpm/fetch@5.0.3
+  - @pnpm/resolver-base@9.0.3
+
+## 6.0.3
+
+### Patch Changes
+
+- @pnpm/resolver-base@9.0.2
+- @pnpm/fetch@5.0.2
+
+## 6.0.2
+
+### Patch Changes
+
+- 0fa446d10: Resolve commits from GitHub via https.
+
+## 6.0.1
+
+### Patch Changes
+
+- @pnpm/resolver-base@9.0.1
+- @pnpm/fetch@5.0.1
+
+## 6.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [542014839]
+  - @pnpm/fetch@5.0.0
+  - @pnpm/resolver-base@9.0.0
+
+## 5.1.17
+
+### Patch Changes
+
+- @pnpm/resolver-base@8.1.6
+- @pnpm/fetch@4.2.5
+
+## 5.1.16
+
+### Patch Changes
+
+- @pnpm/resolver-base@8.1.5
+- @pnpm/fetch@4.2.4
+
+## 5.1.15
+
+### Patch Changes
+
+- @pnpm/resolver-base@8.1.4
+- @pnpm/fetch@4.2.3
+
+## 5.1.14
+
+### Patch Changes
+
+- @pnpm/resolver-base@8.1.3
+- @pnpm/fetch@4.2.2
+
+## 5.1.13
+
+### Patch Changes
+
+- c94104472: Don't make unnecessary retries when fetching Git-hosted packages [#2731](https://github.com/pnpm/pnpm/pull/2731).
+  - @pnpm/fetch@4.2.1
+  - @pnpm/resolver-base@8.1.2
+
+## 5.1.12
+
+### Patch Changes
+
+- Updated dependencies [f1c194ded]
+  - @pnpm/fetch@4.2.0
+
+## 5.1.11
+
+### Patch Changes
+
+- Updated dependencies [12ee3c144]
+  - @pnpm/fetch@4.1.6
+
+## 5.1.10
+
+### Patch Changes
+
+- @pnpm/resolver-base@8.1.1
+- @pnpm/fetch@4.1.5
+
+## 5.1.9
+
+### Patch Changes
+
+- 7da65bd7a: Don't break URLs with ports.
+
+## 5.1.8
+
+### Patch Changes
+
+- Updated dependencies [4ab87844a]
+  - @pnpm/resolver-base@8.1.0
+  - @pnpm/fetch@4.1.4
+
+## 5.1.7
+
+### Patch Changes
+
+- Updated dependencies [782ef2490]
+  - @pnpm/fetch@4.1.3
+
+## 5.1.6
+
+### Patch Changes
+
+- 930e104da: Git URLs containing a colon should work.
+  - @pnpm/fetch@4.1.2
+
+## 5.1.5
+
+### Patch Changes
+
+- 04b7f6086: Use safe-execa instead of execa to prevent binary planting attacks on Windows.
+
+## 5.1.4
+
+### Patch Changes
+
+- Updated dependencies [bab172385]
+  - @pnpm/fetch@4.1.1
+
+## 5.1.3
+
+### Patch Changes
+
+- Updated dependencies [eadf0e505]
+  - @pnpm/fetch@4.1.0
+
+## 5.1.2
+
+### Patch Changes
+
+- @pnpm/resolver-base@8.0.4
+- @pnpm/fetch@4.0.2
+
+## 5.1.1
+
+### Patch Changes
+
+- @pnpm/resolver-base@8.0.3
+- @pnpm/fetch@4.0.1
+
+## 5.1.0
+
+### Minor Changes
+
+- 69ffc4099: It should be possible to install a Git-hosted dependency that names the default branch not "master".
+
+## 5.0.2
+
+### Patch Changes
+
+- Updated dependencies [e7d9cd187]
+- Updated dependencies [eeff424bd]
+  - @pnpm/fetch@4.0.0
+  - @pnpm/resolver-base@8.0.2
+
+## 5.0.1
+
+### Patch Changes
+
+- Updated dependencies [05baaa6e7]
+  - @pnpm/fetch@3.1.0
+  - @pnpm/resolver-base@8.0.1
+
+## 5.0.0
+
+### Major Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+
+### Patch Changes
+
+- Updated dependencies [97b986fbc]
+  - @pnpm/fetch@3.0.0
+  - @pnpm/resolver-base@8.0.0
+
+## 4.1.12
+
+### Patch Changes
+
+- @pnpm/fetch@2.1.11
+
+## 4.1.11
+
+### Patch Changes
+
+- @pnpm/resolver-base@7.1.1
+- @pnpm/fetch@2.1.10
+
+## 4.1.10
+
+### Patch Changes
+
+- 32c9ef4be: execa updated to v5.
+
+## 4.1.9
+
+### Patch Changes
+
+- @pnpm/fetch@2.1.9
+
+## 4.1.8
+
+### Patch Changes
+
+- Updated dependencies [263f5d813]
+  - @pnpm/fetch@2.1.8
+
+## 4.1.7
+
+### Patch Changes
+
+- Updated dependencies [8698a7060]
+  - @pnpm/resolver-base@7.1.0
+
+## 4.1.6
+
+### Patch Changes
+
+- @pnpm/resolver-base@7.0.5
+- @pnpm/fetch@2.1.7
+
+## 4.1.5
+
+### Patch Changes
+
+- @pnpm/resolver-base@7.0.4
+- @pnpm/fetch@2.1.6
+
+## 4.1.4
+
+### Patch Changes
+
+- @pnpm/fetch@2.1.5
+
+## 4.1.3
+
+### Patch Changes
+
+- Updated dependencies [3981f5558]
+  - @pnpm/fetch@2.1.4
+
+## 4.1.2
+
+### Patch Changes
+
+- @pnpm/fetch@2.1.3
+
+## 4.1.1
+
+### Patch Changes
+
+- @pnpm/fetch@2.1.2
+
+## 4.1.0
+
+### Minor Changes
+
+- 2ebcfc38a: Installation of private Git-hosted repositories via HTTPS, using an auth token.
+
+### Patch Changes
+
+- 7b98d16c8: Update lru-cache to v6
+  - @pnpm/fetch@2.1.1
+
+## 4.0.16
+
+### Patch Changes
+
+- Updated dependencies [71aeb9a38]
+  - @pnpm/fetch@2.1.0
+
+## 4.0.15
+
+### Patch Changes
+
+- @pnpm/resolver-base@7.0.3
+- @pnpm/fetch@2.0.2
+
+## 4.0.14
+
+### Patch Changes
+
+- @pnpm/resolver-base@7.0.2
+- @pnpm/fetch@2.0.1
+
+## 4.0.13
+
+### Patch Changes
+
+- Updated dependencies [2ebb7af33]
+  - @pnpm/fetch@2.0.0
+
+## 4.0.12
+
+### Patch Changes
+
+- @pnpm/fetch@1.0.4
+- @pnpm/resolver-base@7.0.1
+
+## 4.0.12-alpha.0
+
+### Patch Changes
+
+- @pnpm/resolver-base@7.0.1-alpha.0

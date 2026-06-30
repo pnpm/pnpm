@@ -1,0 +1,683 @@
+# @pnpm/lockfile.verification
+
+## 1100.0.20
+
+### Patch Changes
+
+- Updated dependencies [bae694f]
+- Updated dependencies [a84d2a1]
+  - @pnpm/resolving.resolver-base@1100.5.0
+  - @pnpm/installing.context@1100.0.20
+  - @pnpm/lockfile.utils@1100.1.0
+  - @pnpm/lockfile.types@1100.0.12
+  - @pnpm/pkg-manifest.reader@1100.0.9
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1100.0.19
+
+### Patch Changes
+
+- @pnpm/installing.context@1100.0.19
+
+## 1100.0.18
+
+### Patch Changes
+
+- a31faa7: Updated dependency ranges. Notably:
+
+  - `@pnpm/logger` peer dependency range moved to `^1100.0.0`.
+  - `msgpackr` 1.11.8 → 2.0.4 (store index files remain byte-compatible in both directions).
+  - `open` ^7.4.2 → ^11.0.0, `memoize` ^10 → ^11, `cli-truncate` ^5 → ^6, `pidtree` ^0.6 → ^1.
+  - `@yarnpkg/core` 4.5.0 → 4.8.0, `@rushstack/worker-pool` 0.7.7 → 0.7.18, `@cyclonedx/cyclonedx-library` 10.0.0 → 10.1.0, `@pnpm/config.nerf-dart` ^1 → ^2, `@pnpm/log.group` 3.0.2 → 4.0.1, `@pnpm/util.lex-comparator` ^3 → ^4.
+
+- Updated dependencies [61810aa]
+- Updated dependencies [f20ad8f]
+- Updated dependencies [681b593]
+- Updated dependencies [a31faa7]
+  - @pnpm/installing.context@1100.0.18
+  - @pnpm/lockfile.utils@1100.0.13
+  - @pnpm/types@1101.3.2
+  - @pnpm/deps.path@1100.0.8
+  - @pnpm/lockfile.types@1100.0.11
+  - @pnpm/pkg-manifest.reader@1100.0.8
+  - @pnpm/resolving.resolver-base@1100.4.2
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1100.0.17
+
+### Patch Changes
+
+- @pnpm/installing.context@1100.0.17
+- @pnpm/crypto.hash@1100.0.1
+
+## 1100.0.16
+
+### Patch Changes
+
+- Updated dependencies [bf1b731]
+  - @pnpm/types@1101.3.1
+  - @pnpm/deps.path@1100.0.7
+  - @pnpm/installing.context@1100.0.16
+  - @pnpm/lockfile.types@1100.0.10
+  - @pnpm/lockfile.utils@1100.0.12
+  - @pnpm/pkg-manifest.reader@1100.0.7
+  - @pnpm/resolving.resolver-base@1100.4.1
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1100.0.15
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+- Updated dependencies [6d17b66]
+  - @pnpm/types@1101.3.0
+  - @pnpm/resolving.resolver-base@1100.4.0
+  - @pnpm/deps.path@1100.0.6
+  - @pnpm/installing.context@1100.0.15
+  - @pnpm/lockfile.types@1100.0.9
+  - @pnpm/lockfile.utils@1100.0.11
+  - @pnpm/pkg-manifest.reader@1100.0.6
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1100.0.14
+
+### Patch Changes
+
+- Updated dependencies [a33c4bf]
+  - @pnpm/installing.context@1100.0.14
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1100.0.13
+
+### Patch Changes
+
+- Updated dependencies [e55f4b5]
+- Updated dependencies [35d2355]
+  - @pnpm/lockfile.utils@1100.0.10
+  - @pnpm/types@1101.2.0
+  - @pnpm/deps.path@1100.0.5
+  - @pnpm/installing.context@1100.0.13
+  - @pnpm/lockfile.types@1100.0.8
+  - @pnpm/pkg-manifest.reader@1100.0.5
+  - @pnpm/resolving.resolver-base@1100.3.1
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1100.0.12
+
+### Patch Changes
+
+- Updated dependencies [1627943]
+- Updated dependencies [64afc92]
+  - @pnpm/resolving.resolver-base@1100.3.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/installing.context@1100.0.12
+  - @pnpm/lockfile.types@1100.0.7
+  - @pnpm/lockfile.utils@1100.0.9
+  - @pnpm/deps.path@1100.0.4
+  - @pnpm/pkg-manifest.reader@1100.0.4
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+  - @pnpm/resolving.resolver-base@1100.2.0
+  - @pnpm/installing.context@1100.0.11
+  - @pnpm/lockfile.types@1100.0.6
+  - @pnpm/lockfile.utils@1100.0.8
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1100.0.10
+
+### Patch Changes
+
+- @pnpm/installing.context@1100.0.10
+- @pnpm/crypto.hash@1100.0.1
+
+## 1100.0.9
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/deps.path@1100.0.3
+  - @pnpm/installing.context@1100.0.9
+  - @pnpm/lockfile.types@1100.0.5
+  - @pnpm/lockfile.utils@1100.0.7
+  - @pnpm/pkg-manifest.reader@1100.0.3
+  - @pnpm/resolving.resolver-base@1100.1.3
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1100.0.8
+
+### Patch Changes
+
+- @pnpm/installing.context@1100.0.8
+- @pnpm/crypto.hash@1100.0.1
+
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [cfa271b]
+  - @pnpm/lockfile.utils@1100.0.6
+  - @pnpm/installing.context@1100.0.7
+
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [27425d7]
+  - @pnpm/lockfile.types@1100.0.4
+  - @pnpm/lockfile.utils@1100.0.5
+  - @pnpm/resolving.resolver-base@1100.1.2
+  - @pnpm/installing.context@1100.0.6
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1100.0.5
+
+### Patch Changes
+
+- Updated dependencies [184ce26]
+- Updated dependencies [6b891a5]
+  - @pnpm/resolving.resolver-base@1100.1.1
+  - @pnpm/pkg-manifest.reader@1100.0.2
+  - @pnpm/installing.context@1100.0.5
+  - @pnpm/deps.path@1100.0.2
+  - @pnpm/lockfile.utils@1100.0.4
+  - @pnpm/lockfile.types@1100.0.3
+  - @pnpm/crypto.hash@1100.0.1
+
+## 1100.0.4
+
+### Patch Changes
+
+- @pnpm/installing.context@1100.0.4
+
+## 1100.0.3
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1100.0.3
+- @pnpm/installing.context@1100.0.3
+- @pnpm/crypto.hash@1100.0.0
+
+## 1100.0.2
+
+### Patch Changes
+
+- Updated dependencies [72c1e05]
+  - @pnpm/resolving.resolver-base@1100.1.0
+  - @pnpm/installing.context@1100.0.2
+  - @pnpm/lockfile.types@1100.0.2
+  - @pnpm/lockfile.utils@1100.0.2
+  - @pnpm/crypto.hash@1100.0.0
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/deps.path@1100.0.1
+  - @pnpm/installing.context@1100.0.1
+  - @pnpm/lockfile.types@1100.0.1
+  - @pnpm/lockfile.utils@1100.0.1
+  - @pnpm/pkg-manifest.reader@1100.0.1
+  - @pnpm/resolving.resolver-base@1100.0.1
+  - @pnpm/crypto.hash@1100.0.0
+
+## 1002.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Patch Changes
+
+- 521e4a6: Fix headless install not being used when a project has an injected self-referencing `file:` dependency that resolves to `link:` in the lockfile.
+- 69ebe38: Properly throw a frozen lockfile error when changing catalogs defined in `pnpm-workspace.yaml` and running `pnpm install --frozen-lockfile`. This previously passed silently as reported in [#9369](https://github.com/pnpm/pnpm/issues/9369).
+- Updated dependencies [5f73b0f]
+- Updated dependencies [facdd71]
+- Updated dependencies [9b0a460]
+- Updated dependencies [5d130c3]
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [606f53e]
+- Updated dependencies [491a84f]
+- Updated dependencies [9eddabb]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [50fbeca]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [38b8e35]
+- Updated dependencies [394d88c]
+- Updated dependencies [1e6de25]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [9d3f00b]
+- Updated dependencies [efb48dc]
+  - @pnpm/deps.path@1002.0.0
+  - @pnpm/resolving.resolver-base@1006.0.0
+  - @pnpm/installing.context@1002.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/lockfile.types@1003.0.0
+  - @pnpm/lockfile.utils@1004.0.0
+  - @pnpm/pkg-manifest.reader@1001.0.0
+  - @pnpm/catalogs.types@1001.0.0
+  - @pnpm/crypto.hash@1001.0.0
+
+## 1001.2.9
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+  - @pnpm/types@1000.9.0
+  - @pnpm/resolver-base@1005.1.0
+  - @pnpm/lockfile.types@1002.0.2
+  - @pnpm/lockfile.utils@1003.0.3
+  - @pnpm/dependency-path@1001.1.3
+  - @pnpm/get-context@1001.1.8
+  - @pnpm/read-package-json@1000.1.2
+  - @pnpm/crypto.hash@1000.2.1
+
+## 1001.2.8
+
+### Patch Changes
+
+- @pnpm/crypto.hash@1000.2.1
+- @pnpm/dependency-path@1001.1.2
+- @pnpm/lockfile.utils@1003.0.2
+- @pnpm/get-context@1001.1.7
+
+## 1001.2.7
+
+### Patch Changes
+
+- @pnpm/get-context@1001.1.6
+- @pnpm/read-package-json@1000.1.1
+- @pnpm/crypto.hash@1000.2.0
+
+## 1001.2.6
+
+### Patch Changes
+
+- Updated dependencies [e792927]
+- Updated dependencies [e792927]
+  - @pnpm/read-package-json@1000.1.0
+  - @pnpm/types@1000.8.0
+  - @pnpm/lockfile.types@1002.0.1
+  - @pnpm/lockfile.utils@1003.0.1
+  - @pnpm/dependency-path@1001.1.1
+  - @pnpm/get-context@1001.1.5
+  - @pnpm/resolver-base@1005.0.1
+  - @pnpm/crypto.hash@1000.2.0
+
+## 1001.2.5
+
+### Patch Changes
+
+- eac7bab: satisfiesPackageManifest also checks if the version in the importer satisfied the range in the `package.json`.
+
+## 1001.2.4
+
+### Patch Changes
+
+- 19b1880: Fix a bug causing `pnpm install` to incorrectly assume the lockfile is up to date after changing a local tarball that has peers dependencies.
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [d1edf73]
+- Updated dependencies [adb097c]
+- Updated dependencies [f91922c]
+  - @pnpm/dependency-path@1001.1.0
+  - @pnpm/lockfile.types@1002.0.0
+  - @pnpm/lockfile.utils@1003.0.0
+  - @pnpm/resolver-base@1005.0.0
+  - @pnpm/read-package-json@1000.0.11
+  - @pnpm/get-context@1001.1.4
+  - @pnpm/crypto.hash@1000.2.0
+
+## 1001.2.3
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [2e85f29]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/lockfile.utils@1002.1.0
+  - @pnpm/resolver-base@1004.1.0
+  - @pnpm/lockfile.types@1001.1.0
+  - @pnpm/dependency-path@1001.0.2
+  - @pnpm/get-context@1001.1.3
+  - @pnpm/read-package-json@1000.0.10
+  - @pnpm/crypto.hash@1000.2.0
+
+## 1001.2.2
+
+### Patch Changes
+
+- Updated dependencies [cf630a8]
+  - @pnpm/crypto.hash@1000.2.0
+  - @pnpm/dependency-path@1001.0.1
+  - @pnpm/lockfile.utils@1002.0.1
+  - @pnpm/get-context@1001.1.2
+
+## 1001.2.1
+
+### Patch Changes
+
+- Updated dependencies [540986f]
+  - @pnpm/dependency-path@1001.0.0
+  - @pnpm/lockfile.utils@1002.0.0
+  - @pnpm/get-context@1001.1.1
+
+## 1001.2.0
+
+### Minor Changes
+
+- 86e0016: Improve the way the error message displays mismatched specifiers. Show differences instead of 2 whole objects [#9598](https://github.com/pnpm/pnpm/pull/9598).
+
+### Patch Changes
+
+- Updated dependencies [2721291]
+- Updated dependencies [6acf819]
+- Updated dependencies [b217bbb]
+- Updated dependencies [b0ead51]
+  - @pnpm/resolver-base@1004.0.0
+  - @pnpm/get-context@1001.1.0
+  - @pnpm/lockfile.utils@1001.0.12
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1001.1.7
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+- Updated dependencies [5ec7255]
+  - @pnpm/get-context@1001.0.14
+  - @pnpm/types@1000.6.0
+  - @pnpm/lockfile.types@1001.0.8
+  - @pnpm/lockfile.utils@1001.0.11
+  - @pnpm/dependency-path@1000.0.9
+  - @pnpm/read-package-json@1000.0.9
+  - @pnpm/resolver-base@1003.0.1
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1001.1.6
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/resolver-base@1003.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/lockfile.utils@1001.0.10
+  - @pnpm/get-context@1001.0.13
+  - @pnpm/lockfile.types@1001.0.7
+  - @pnpm/dependency-path@1000.0.8
+  - @pnpm/read-package-json@1000.0.8
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1001.1.5
+
+### Patch Changes
+
+- Updated dependencies [81f441c]
+  - @pnpm/resolver-base@1002.0.0
+  - @pnpm/lockfile.utils@1001.0.9
+  - @pnpm/get-context@1001.0.12
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1001.1.4
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [72cff38]
+  - @pnpm/types@1000.4.0
+  - @pnpm/resolver-base@1001.0.0
+  - @pnpm/lockfile.types@1001.0.6
+  - @pnpm/lockfile.utils@1001.0.8
+  - @pnpm/dependency-path@1000.0.7
+  - @pnpm/get-context@1001.0.11
+  - @pnpm/read-package-json@1000.0.7
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1001.1.3
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/lockfile.types@1001.0.5
+  - @pnpm/lockfile.utils@1001.0.7
+  - @pnpm/dependency-path@1000.0.6
+  - @pnpm/get-context@1001.0.10
+  - @pnpm/read-package-json@1000.0.6
+  - @pnpm/resolver-base@1000.2.1
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1001.1.2
+
+### Patch Changes
+
+- Updated dependencies [3d52365]
+  - @pnpm/resolver-base@1000.2.0
+  - @pnpm/get-context@1001.0.9
+  - @pnpm/lockfile.utils@1001.0.6
+  - @pnpm/crypto.hash@1000.1.1
+
+## 1001.1.1
+
+### Patch Changes
+
+- @pnpm/crypto.hash@1000.1.1
+- @pnpm/dependency-path@1000.0.5
+- @pnpm/lockfile.utils@1001.0.5
+- @pnpm/get-context@1001.0.8
+
+## 1001.1.0
+
+### Minor Changes
+
+- daf47e9: Projects using a `file:` dependency on a local tarball file (i.e. `.tgz`, `.tar.gz`, `.tar`) will see a performance improvement during installation. Previously, using a `file:` dependency on a tarball caused the lockfile resolution step to always run. The lockfile will now be considered up-to-date if the tarball is unchanged.
+
+### Patch Changes
+
+- Updated dependencies [daf47e9]
+- Updated dependencies [a5e4965]
+  - @pnpm/crypto.hash@1000.1.0
+  - @pnpm/types@1000.2.1
+  - @pnpm/dependency-path@1000.0.4
+  - @pnpm/lockfile.types@1001.0.4
+  - @pnpm/lockfile.utils@1001.0.4
+  - @pnpm/get-context@1001.0.7
+  - @pnpm/read-package-json@1000.0.5
+  - @pnpm/resolver-base@1000.1.4
+
+## 1001.0.6
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/lockfile.types@1001.0.3
+  - @pnpm/lockfile.utils@1001.0.3
+  - @pnpm/dependency-path@1000.0.3
+  - @pnpm/get-context@1001.0.6
+  - @pnpm/read-package-json@1000.0.4
+  - @pnpm/resolver-base@1000.1.3
+
+## 1001.0.5
+
+### Patch Changes
+
+- @pnpm/get-context@1001.0.5
+
+## 1001.0.4
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/get-context@1001.0.4
+  - @pnpm/lockfile.types@1001.0.2
+  - @pnpm/lockfile.utils@1001.0.2
+  - @pnpm/dependency-path@1000.0.2
+  - @pnpm/read-package-json@1000.0.3
+  - @pnpm/resolver-base@1000.1.2
+
+## 1001.0.3
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/lockfile.types@1001.0.1
+  - @pnpm/lockfile.utils@1001.0.1
+  - @pnpm/dependency-path@1000.0.1
+  - @pnpm/get-context@1001.0.3
+  - @pnpm/read-package-json@1000.0.2
+  - @pnpm/resolver-base@1000.1.1
+
+## 1001.0.2
+
+### Patch Changes
+
+- @pnpm/get-context@1001.0.2
+
+## 1001.0.1
+
+### Patch Changes
+
+- @pnpm/get-context@1001.0.1
+
+## 1001.0.0
+
+### Major Changes
+
+- a76da0c: Removed lockfile conversion from v6 to v9. If you need to convert lockfile v6 to v9, use pnpm CLI v9.
+
+### Patch Changes
+
+- Updated dependencies [6483b64]
+- Updated dependencies [a76da0c]
+  - @pnpm/resolver-base@1000.1.0
+  - @pnpm/lockfile.types@1001.0.0
+  - @pnpm/get-context@1001.0.0
+  - @pnpm/lockfile.utils@1001.0.0
+  - @pnpm/read-package-json@1000.0.1
+
+## 1.1.0
+
+### Minor Changes
+
+- 19d5b51: Export `linkedPackagesAreUpToDate` and `getWorkspacePackagesByDirectory`
+
+### Patch Changes
+
+- Updated dependencies [dcd2917]
+- Updated dependencies [9ea8fa4]
+- Updated dependencies [9ea8fa4]
+- Updated dependencies [9ea8fa4]
+- Updated dependencies [9ea8fa4]
+- Updated dependencies [9ea8fa4]
+- Updated dependencies [d55b259]
+  - @pnpm/dependency-path@6.0.0
+  - @pnpm/get-context@13.0.0
+  - @pnpm/lockfile.utils@1.0.5
+  - @pnpm/read-package-json@9.0.10
+
+## 1.0.6
+
+### Patch Changes
+
+- Updated dependencies [f9a095c]
+  - @pnpm/get-context@12.0.7
+  - @pnpm/dependency-path@5.1.7
+  - @pnpm/lockfile.utils@1.0.4
+
+## 1.0.5
+
+### Patch Changes
+
+- @pnpm/get-context@12.0.6
+- @pnpm/read-package-json@9.0.9
+
+## 1.0.4
+
+### Patch Changes
+
+- Updated dependencies [d500d9f]
+  - @pnpm/types@12.2.0
+  - @pnpm/lockfile.types@1.0.3
+  - @pnpm/lockfile.utils@1.0.3
+  - @pnpm/dependency-path@5.1.6
+  - @pnpm/get-context@12.0.5
+  - @pnpm/read-package-json@9.0.8
+  - @pnpm/resolver-base@13.0.4
+
+## 1.0.3
+
+### Patch Changes
+
+- Updated dependencies [7ee59a1]
+  - @pnpm/types@12.1.0
+  - @pnpm/lockfile.types@1.0.2
+  - @pnpm/lockfile.utils@1.0.2
+  - @pnpm/dependency-path@5.1.5
+  - @pnpm/get-context@12.0.4
+  - @pnpm/read-package-json@9.0.7
+  - @pnpm/resolver-base@13.0.3
+
+## 1.0.2
+
+### Patch Changes
+
+- dc902fd: Don't crash when the lockfile doesn't have a project in it during verification.
+
+## 1.0.1
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/lockfile.types@1.0.1
+  - @pnpm/types@12.0.0
+  - @pnpm/lockfile.utils@1.0.1
+  - @pnpm/dependency-path@5.1.4
+  - @pnpm/get-context@12.0.3
+  - @pnpm/read-package-json@9.0.6
+  - @pnpm/resolver-base@13.0.2
+
+## 1.0.0
+
+### Major Changes
+
+- 2e3eae3: Initial release.
+
+### Patch Changes
+
+- Updated dependencies [c5ef9b0]
+- Updated dependencies [797ef0f]
+  - @pnpm/lockfile.utils@1.0.0
+  - @pnpm/lockfile.types@1.0.0
+  - @pnpm/get-context@12.0.2

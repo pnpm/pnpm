@@ -1,0 +1,1984 @@
+# @pnpm/hoist
+
+## 1100.0.16
+
+### Patch Changes
+
+- 1488db1: When `enableGlobalVirtualStore` is toggled on for a project that was previously installed without it, stale hoisted symlinks under `node_modules/.pnpm/node_modules` are now replaced instead of being left pointing at the old per-project virtual store location [#9739](https://github.com/pnpm/pnpm/issues/9739).
+  - @pnpm/bins.linker@1100.0.16
+
+## 1100.0.15
+
+### Patch Changes
+
+- Updated dependencies [3d1fd20]
+  - @pnpm/bins.linker@1100.0.15
+
+## 1100.0.14
+
+### Patch Changes
+
+- a31faa7: Updated dependency ranges. Notably:
+
+  - `@pnpm/logger` peer dependency range moved to `^1100.0.0`.
+  - `msgpackr` 1.11.8 → 2.0.4 (store index files remain byte-compatible in both directions).
+  - `open` ^7.4.2 → ^11.0.0, `memoize` ^10 → ^11, `cli-truncate` ^5 → ^6, `pidtree` ^0.6 → ^1.
+  - `@yarnpkg/core` 4.5.0 → 4.8.0, `@rushstack/worker-pool` 0.7.7 → 0.7.18, `@cyclonedx/cyclonedx-library` 10.0.0 → 10.1.0, `@pnpm/config.nerf-dart` ^1 → ^2, `@pnpm/log.group` 3.0.2 → 4.0.1, `@pnpm/util.lex-comparator` ^3 → ^4.
+
+- Updated dependencies [61810aa]
+- Updated dependencies [681b593]
+- Updated dependencies [a31faa7]
+- Updated dependencies [cd8348c]
+  - @pnpm/bins.linker@1100.0.14
+  - @pnpm/types@1101.3.2
+  - @pnpm/core-loggers@1100.2.1
+
+## 1100.0.13
+
+### Patch Changes
+
+- Updated dependencies [f11b4fc]
+  - @pnpm/core-loggers@1100.2.0
+  - @pnpm/bins.linker@1100.0.13
+
+## 1100.0.12
+
+### Patch Changes
+
+- Updated dependencies [bf1b731]
+  - @pnpm/types@1101.3.1
+  - @pnpm/bins.linker@1100.0.12
+  - @pnpm/core-loggers@1100.1.4
+
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+  - @pnpm/types@1101.3.0
+  - @pnpm/bins.linker@1100.0.11
+  - @pnpm/core-loggers@1100.1.3
+
+## 1100.0.10
+
+### Patch Changes
+
+- Updated dependencies [35d2355]
+  - @pnpm/types@1101.2.0
+  - @pnpm/bins.linker@1100.0.10
+  - @pnpm/core-loggers@1100.1.2
+
+## 1100.0.9
+
+### Patch Changes
+
+- @pnpm/bins.linker@1100.0.9
+
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies [64afc92]
+  - @pnpm/types@1101.1.1
+  - @pnpm/bins.linker@1100.0.8
+  - @pnpm/core-loggers@1100.1.1
+
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [4a79336]
+  - @pnpm/core-loggers@1100.1.0
+  - @pnpm/bins.linker@1100.0.7
+
+## 1100.0.6
+
+### Patch Changes
+
+- @pnpm/bins.linker@1100.0.6
+
+## 1100.0.5
+
+### Patch Changes
+
+- Updated dependencies [b4f8f47]
+  - @pnpm/bins.linker@1100.0.5
+
+## 1100.0.4
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/bins.linker@1100.0.4
+  - @pnpm/core-loggers@1100.0.2
+
+## 1100.0.3
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/config.matcher@1100.0.1
+  - @pnpm/bins.linker@1100.0.3
+
+## 1100.0.2
+
+### Patch Changes
+
+- @pnpm/bins.linker@1100.0.2
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/bins.linker@1100.0.1
+  - @pnpm/core-loggers@1100.0.1
+
+## 1003.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Patch Changes
+
+- Updated dependencies [449dacf]
+- Updated dependencies [c55c614]
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [491a84f]
+- Updated dependencies [62f760e]
+- Updated dependencies [6e9cad3]
+- Updated dependencies [cb228c9]
+- Updated dependencies [075aa99]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [50fbeca]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [f40177f]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [efb48dc]
+  - @pnpm/bins.linker@1001.0.0
+  - @pnpm/constants@1002.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/core-loggers@1002.0.0
+  - @pnpm/config.matcher@1001.0.0
+
+## 1002.0.8
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+- Updated dependencies [7c1382f]
+  - @pnpm/types@1000.9.0
+  - @pnpm/matcher@1000.1.0
+  - @pnpm/core-loggers@1001.0.4
+  - @pnpm/link-bins@1000.2.6
+
+## 1002.0.7
+
+### Patch Changes
+
+- Updated dependencies [a8797c4]
+  - @pnpm/link-bins@1000.2.5
+
+## 1002.0.6
+
+### Patch Changes
+
+- @pnpm/link-bins@1000.2.4
+
+## 1002.0.5
+
+### Patch Changes
+
+- Updated dependencies [6365bc4]
+  - @pnpm/constants@1001.3.1
+  - @pnpm/link-bins@1000.2.3
+
+## 1002.0.4
+
+### Patch Changes
+
+- Updated dependencies [e792927]
+  - @pnpm/types@1000.8.0
+  - @pnpm/link-bins@1000.2.2
+  - @pnpm/core-loggers@1001.0.3
+
+## 1002.0.3
+
+### Patch Changes
+
+- Updated dependencies [affdd5b]
+  - @pnpm/link-bins@1000.2.1
+
+## 1002.0.2
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+  - @pnpm/constants@1001.3.0
+  - @pnpm/link-bins@1000.2.0
+
+## 1002.0.1
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/link-bins@1000.1.0
+  - @pnpm/constants@1001.2.0
+  - @pnpm/core-loggers@1001.0.2
+
+## 1002.0.0
+
+### Major Changes
+
+- b982a0d: Fixed hoisting with `enableGlobalVirtualStore` set to `true` [#9648](https://github.com/pnpm/pnpm/pull/9648).
+
+## 1001.0.16
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1001.0.12
+
+## 1001.0.15
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- c00360b: Update `@pnpm/util.lex-comparator` to v3.0.2.
+- Updated dependencies [09cf46f]
+- Updated dependencies [5ec7255]
+  - @pnpm/core-loggers@1001.0.1
+  - @pnpm/link-bins@1000.0.13
+  - @pnpm/types@1000.6.0
+  - @pnpm/lockfile.types@1001.0.8
+  - @pnpm/lockfile.utils@1001.0.11
+  - @pnpm/lockfile.walker@1001.0.9
+  - @pnpm/dependency-path@1000.0.9
+
+## 1001.0.14
+
+### Patch Changes
+
+- Updated dependencies [fa1e69b]
+  - @pnpm/link-bins@1000.0.12
+
+## 1001.0.13
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+  - @pnpm/core-loggers@1001.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/lockfile.utils@1001.0.10
+  - @pnpm/link-bins@1000.0.11
+  - @pnpm/lockfile.types@1001.0.7
+  - @pnpm/lockfile.walker@1001.0.8
+  - @pnpm/dependency-path@1000.0.8
+
+## 1001.0.12
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1001.0.9
+
+## 1001.0.11
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/core-loggers@1000.2.0
+  - @pnpm/lockfile.types@1001.0.6
+  - @pnpm/lockfile.utils@1001.0.8
+  - @pnpm/lockfile.walker@1001.0.7
+  - @pnpm/dependency-path@1000.0.7
+  - @pnpm/link-bins@1000.0.10
+
+## 1001.0.10
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/lockfile.types@1001.0.5
+  - @pnpm/lockfile.utils@1001.0.7
+  - @pnpm/lockfile.walker@1001.0.6
+  - @pnpm/core-loggers@1000.1.5
+  - @pnpm/dependency-path@1000.0.6
+  - @pnpm/link-bins@1000.0.9
+
+## 1001.0.9
+
+### Patch Changes
+
+- @pnpm/lockfile.utils@1001.0.6
+
+## 1001.0.8
+
+### Patch Changes
+
+- @pnpm/dependency-path@1000.0.5
+- @pnpm/lockfile.utils@1001.0.5
+- @pnpm/lockfile.walker@1001.0.5
+
+## 1001.0.7
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+  - @pnpm/link-bins@1000.0.8
+  - @pnpm/dependency-path@1000.0.4
+  - @pnpm/lockfile.types@1001.0.4
+  - @pnpm/lockfile.utils@1001.0.4
+  - @pnpm/lockfile.walker@1001.0.4
+  - @pnpm/core-loggers@1000.1.4
+
+## 1001.0.6
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/lockfile.types@1001.0.3
+  - @pnpm/lockfile.utils@1001.0.3
+  - @pnpm/lockfile.walker@1001.0.3
+  - @pnpm/core-loggers@1000.1.3
+  - @pnpm/dependency-path@1000.0.3
+  - @pnpm/link-bins@1000.0.7
+
+## 1001.0.5
+
+### Patch Changes
+
+- @pnpm/link-bins@1000.0.6
+
+## 1001.0.4
+
+### Patch Changes
+
+- Updated dependencies [9a44e6c]
+- Updated dependencies [b562deb]
+  - @pnpm/constants@1001.1.0
+  - @pnpm/types@1000.1.1
+  - @pnpm/lockfile.types@1001.0.2
+  - @pnpm/lockfile.utils@1001.0.2
+  - @pnpm/lockfile.walker@1001.0.2
+  - @pnpm/core-loggers@1000.1.2
+  - @pnpm/dependency-path@1000.0.2
+  - @pnpm/link-bins@1000.0.5
+
+## 1001.0.3
+
+### Patch Changes
+
+- @pnpm/link-bins@1000.0.4
+
+## 1001.0.2
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/lockfile.types@1001.0.1
+  - @pnpm/lockfile.utils@1001.0.1
+  - @pnpm/lockfile.walker@1001.0.1
+  - @pnpm/core-loggers@1000.1.1
+  - @pnpm/dependency-path@1000.0.1
+  - @pnpm/link-bins@1000.0.3
+
+## 1001.0.1
+
+### Patch Changes
+
+- Updated dependencies [516c4b3]
+  - @pnpm/core-loggers@1000.1.0
+  - @pnpm/link-bins@1000.0.2
+
+## 1001.0.0
+
+### Major Changes
+
+- a76da0c: Removed lockfile conversion from v6 to v9. If you need to convert lockfile v6 to v9, use pnpm CLI v9.
+
+### Patch Changes
+
+- Updated dependencies [d2e83b0]
+- Updated dependencies [6483b64]
+- Updated dependencies [a76da0c]
+  - @pnpm/constants@1001.0.0
+  - @pnpm/lockfile.types@1001.0.0
+  - @pnpm/lockfile.walker@1001.0.0
+  - @pnpm/lockfile.utils@1001.0.0
+  - @pnpm/link-bins@1000.0.1
+
+## 9.1.16
+
+### Patch Changes
+
+- Updated dependencies [19d5b51]
+- Updated dependencies [8108680]
+- Updated dependencies [dcd2917]
+- Updated dependencies [d55b259]
+- Updated dependencies [c4f5231]
+  - @pnpm/constants@10.0.0
+  - @pnpm/dependency-path@6.0.0
+  - @pnpm/lockfile.utils@1.0.5
+  - @pnpm/lockfile.walker@1.0.5
+  - @pnpm/link-bins@10.0.12
+
+## 9.1.15
+
+### Patch Changes
+
+- @pnpm/dependency-path@5.1.7
+- @pnpm/lockfile.utils@1.0.4
+- @pnpm/lockfile.walker@1.0.4
+- @pnpm/link-bins@10.0.11
+
+## 9.1.14
+
+### Patch Changes
+
+- Updated dependencies [83681da]
+  - @pnpm/constants@9.0.0
+  - @pnpm/link-bins@10.0.11
+
+## 9.1.13
+
+### Patch Changes
+
+- Updated dependencies [d500d9f]
+  - @pnpm/types@12.2.0
+  - @pnpm/lockfile.types@1.0.3
+  - @pnpm/lockfile.utils@1.0.3
+  - @pnpm/lockfile.walker@1.0.3
+  - @pnpm/core-loggers@10.0.7
+  - @pnpm/dependency-path@5.1.6
+  - @pnpm/link-bins@10.0.10
+
+## 9.1.12
+
+### Patch Changes
+
+- Updated dependencies [7ee59a1]
+  - @pnpm/types@12.1.0
+  - @pnpm/lockfile.types@1.0.2
+  - @pnpm/lockfile.utils@1.0.2
+  - @pnpm/lockfile.walker@1.0.2
+  - @pnpm/core-loggers@10.0.6
+  - @pnpm/dependency-path@5.1.5
+  - @pnpm/link-bins@10.0.9
+
+## 9.1.11
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/lockfile.types@1.0.1
+  - @pnpm/types@12.0.0
+  - @pnpm/lockfile.utils@1.0.1
+  - @pnpm/lockfile.walker@1.0.1
+  - @pnpm/core-loggers@10.0.5
+  - @pnpm/dependency-path@5.1.4
+  - @pnpm/link-bins@10.0.8
+
+## 9.1.10
+
+### Patch Changes
+
+- Updated dependencies [c92f4bf]
+- Updated dependencies [c5ef9b0]
+- Updated dependencies [797ef0f]
+  - @pnpm/lockfile.walker@1.0.0
+  - @pnpm/lockfile.utils@1.0.0
+  - @pnpm/lockfile.types@1.0.0
+  - @pnpm/link-bins@10.0.7
+
+## 9.1.9
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/lockfile-types@7.1.3
+  - @pnpm/lockfile-utils@11.0.4
+  - @pnpm/lockfile-walker@9.0.4
+  - @pnpm/core-loggers@10.0.4
+  - @pnpm/dependency-path@5.1.3
+  - @pnpm/link-bins@10.0.7
+
+## 9.1.8
+
+### Patch Changes
+
+- afe520d: Update symlink-dir to v6.0.1.
+- Updated dependencies [afe520d]
+  - @pnpm/link-bins@10.0.6
+
+## 9.1.7
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/types@11.0.0
+  - @pnpm/lockfile-utils@11.0.3
+  - @pnpm/lockfile-types@7.1.2
+  - @pnpm/lockfile-walker@9.0.3
+  - @pnpm/core-loggers@10.0.3
+  - @pnpm/dependency-path@5.1.2
+  - @pnpm/link-bins@10.0.5
+
+## 9.1.6
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+  - @pnpm/lockfile-types@7.1.1
+  - @pnpm/lockfile-utils@11.0.2
+  - @pnpm/lockfile-walker@9.0.2
+  - @pnpm/core-loggers@10.0.2
+  - @pnpm/dependency-path@5.1.1
+  - @pnpm/link-bins@10.0.4
+
+## 9.1.5
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/dependency-path@5.1.0
+  - @pnpm/lockfile-types@7.1.0
+  - @pnpm/lockfile-utils@11.0.1
+  - @pnpm/lockfile-walker@9.0.1
+  - @pnpm/link-bins@10.0.3
+
+## 9.1.4
+
+### Patch Changes
+
+- Updated dependencies [80aaa9f]
+  - @pnpm/link-bins@10.0.3
+
+## 9.1.3
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+- Updated dependencies
+  - @pnpm/types@10.1.0
+  - @pnpm/lockfile-types@7.0.0
+  - @pnpm/lockfile-utils@11.0.0
+  - @pnpm/lockfile-walker@9.0.0
+  - @pnpm/dependency-path@5.0.0
+  - @pnpm/core-loggers@10.0.1
+  - @pnpm/link-bins@10.0.2
+
+## 9.1.2
+
+### Patch Changes
+
+- @pnpm/link-bins@10.0.1
+
+## 9.1.1
+
+### Patch Changes
+
+- Updated dependencies [7a0536e]
+  - @pnpm/lockfile-utils@10.1.1
+
+## 9.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/dependency-path@4.0.0
+  - @pnpm/lockfile-utils@10.1.0
+  - @pnpm/lockfile-walker@8.0.1
+  - @pnpm/link-bins@10.0.0
+
+## 9.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [cdd8365]
+- Updated dependencies [c692f80]
+- Updated dependencies [89b396b]
+- Updated dependencies [43cdd87]
+- Updated dependencies [086b69c]
+- Updated dependencies [d381a60]
+- Updated dependencies [27a96a8]
+- Updated dependencies [730929e]
+- Updated dependencies [98a1266]
+  - @pnpm/types@10.0.0
+  - @pnpm/dependency-path@3.0.0
+  - @pnpm/lockfile-utils@10.0.0
+  - @pnpm/constants@8.0.0
+  - @pnpm/lockfile-walker@8.0.0
+  - @pnpm/lockfile-types@6.0.0
+  - @pnpm/core-loggers@10.0.0
+  - @pnpm/link-bins@10.0.0
+  - @pnpm/matcher@6.0.0
+
+## 8.2.1
+
+### Patch Changes
+
+- @pnpm/lockfile-utils@9.0.5
+- @pnpm/link-bins@9.0.12
+
+## 8.2.0
+
+### Minor Changes
+
+- c597f72ec: A new option added for hoisting packages from the workspace. When `hoist-workspace-packages` is set to `true`, packages from the workspace are symlinked to either `<workspace_root>/node_modules/.pnpm/node_modules` or to `<workspace_root>/node_modules` depending on other hoisting settings (`hoist-pattern` and `public-hoist-pattern`) [#7451](https://github.com/pnpm/pnpm/pull/7451).
+
+## 8.1.5
+
+### Patch Changes
+
+- Updated dependencies [4d34684f1]
+  - @pnpm/lockfile-types@5.1.5
+  - @pnpm/types@9.4.2
+  - @pnpm/lockfile-utils@9.0.4
+  - @pnpm/lockfile-walker@7.0.8
+  - @pnpm/core-loggers@9.0.6
+  - @pnpm/dependency-path@2.1.7
+  - @pnpm/link-bins@9.0.12
+
+## 8.1.4
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/lockfile-types@5.1.4
+  - @pnpm/types@9.4.1
+  - @pnpm/lockfile-utils@9.0.3
+  - @pnpm/lockfile-walker@7.0.7
+  - @pnpm/core-loggers@9.0.5
+  - @pnpm/dependency-path@2.1.6
+  - @pnpm/link-bins@9.0.11
+
+## 8.1.3
+
+### Patch Changes
+
+- Updated dependencies [d5a176af7]
+  - @pnpm/lockfile-utils@9.0.2
+
+## 8.1.2
+
+### Patch Changes
+
+- Updated dependencies [b4194fe52]
+  - @pnpm/lockfile-utils@9.0.1
+
+## 8.1.1
+
+### Patch Changes
+
+- Updated dependencies [4c2450208]
+  - @pnpm/lockfile-utils@9.0.0
+  - @pnpm/link-bins@9.0.10
+
+## 8.1.0
+
+### Minor Changes
+
+- ee4d15fdd: Export `getHoistedDependencies(opts)`.
+
+## 8.0.15
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+  - @pnpm/types@9.4.0
+  - @pnpm/lockfile-types@5.1.3
+  - @pnpm/lockfile-utils@8.0.7
+  - @pnpm/lockfile-walker@7.0.6
+  - @pnpm/core-loggers@9.0.4
+  - @pnpm/dependency-path@2.1.5
+  - @pnpm/link-bins@9.0.10
+
+## 8.0.14
+
+### Patch Changes
+
+- 5c8c9196c: Improved the performance of linking bins of hoisted dependencies to `node_modules/.pnpm/node_modules/.bin` [#7212](https://github.com/pnpm/pnpm/pull/7212).
+- Updated dependencies [5c8c9196c]
+  - @pnpm/link-bins@9.0.9
+
+## 8.0.13
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+  - @pnpm/types@9.3.0
+  - @pnpm/lockfile-types@5.1.2
+  - @pnpm/lockfile-utils@8.0.6
+  - @pnpm/lockfile-walker@7.0.5
+  - @pnpm/core-loggers@9.0.3
+  - @pnpm/dependency-path@2.1.4
+  - @pnpm/link-bins@9.0.8
+
+## 8.0.12
+
+### Patch Changes
+
+- Updated dependencies [f394cfccd]
+  - @pnpm/lockfile-utils@8.0.5
+
+## 8.0.11
+
+### Patch Changes
+
+- @pnpm/link-bins@9.0.7
+
+## 8.0.10
+
+### Patch Changes
+
+- Updated dependencies [e9aa6f682]
+  - @pnpm/lockfile-utils@8.0.4
+  - @pnpm/link-bins@9.0.6
+
+## 8.0.9
+
+### Patch Changes
+
+- Updated dependencies [aa2ae8fe2]
+- Updated dependencies [e26d15c6d]
+  - @pnpm/types@9.2.0
+  - @pnpm/link-bins@9.0.5
+  - @pnpm/lockfile-types@5.1.1
+  - @pnpm/lockfile-utils@8.0.3
+  - @pnpm/lockfile-walker@7.0.4
+  - @pnpm/core-loggers@9.0.2
+  - @pnpm/dependency-path@2.1.3
+
+## 8.0.8
+
+### Patch Changes
+
+- @pnpm/link-bins@9.0.4
+
+## 8.0.7
+
+### Patch Changes
+
+- Updated dependencies [d9da627cd]
+- Updated dependencies [302ebffc5]
+  - @pnpm/lockfile-utils@8.0.2
+  - @pnpm/constants@7.1.1
+  - @pnpm/link-bins@9.0.3
+
+## 8.0.6
+
+### Patch Changes
+
+- @pnpm/link-bins@9.0.2
+
+## 8.0.5
+
+### Patch Changes
+
+- Updated dependencies [9c4ae87bd]
+- Updated dependencies [a9e0b7cbf]
+- Updated dependencies [9c4ae87bd]
+  - @pnpm/lockfile-types@5.1.0
+  - @pnpm/types@9.1.0
+  - @pnpm/constants@7.1.0
+  - @pnpm/lockfile-utils@8.0.1
+  - @pnpm/lockfile-walker@7.0.3
+  - @pnpm/core-loggers@9.0.1
+  - @pnpm/dependency-path@2.1.2
+  - @pnpm/link-bins@9.0.1
+
+## 8.0.4
+
+### Patch Changes
+
+- Updated dependencies [d58cdb962]
+  - @pnpm/lockfile-utils@8.0.0
+
+## 8.0.3
+
+### Patch Changes
+
+- Updated dependencies [c0760128d]
+  - @pnpm/dependency-path@2.1.1
+  - @pnpm/lockfile-utils@7.0.1
+  - @pnpm/lockfile-walker@7.0.2
+
+## 8.0.2
+
+### Patch Changes
+
+- Updated dependencies [72ba638e3]
+  - @pnpm/lockfile-utils@7.0.0
+
+## 8.0.1
+
+### Patch Changes
+
+- Updated dependencies [5087636b6]
+- Updated dependencies [94f94eed6]
+  - @pnpm/dependency-path@2.1.0
+  - @pnpm/lockfile-utils@6.0.1
+  - @pnpm/lockfile-walker@7.0.1
+
+## 8.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [c92936158]
+- Updated dependencies [ca8f51e60]
+- Updated dependencies [eceaa8b8b]
+- Updated dependencies [0e26acb0f]
+  - @pnpm/lockfile-types@5.0.0
+  - @pnpm/lockfile-utils@6.0.0
+  - @pnpm/dependency-path@2.0.0
+  - @pnpm/lockfile-walker@7.0.0
+  - @pnpm/core-loggers@9.0.0
+  - @pnpm/link-bins@9.0.0
+  - @pnpm/constants@7.0.0
+  - @pnpm/matcher@5.0.0
+  - @pnpm/types@9.0.0
+
+## 7.0.18
+
+### Patch Changes
+
+- Updated dependencies [685b3a7ea]
+  - @pnpm/link-bins@8.0.11
+
+## 7.0.17
+
+### Patch Changes
+
+- Updated dependencies [f9c30c6d7]
+  - @pnpm/link-bins@8.0.10
+
+## 7.0.16
+
+### Patch Changes
+
+- @pnpm/link-bins@8.0.9
+
+## 7.0.15
+
+### Patch Changes
+
+- @pnpm/lockfile-utils@5.0.7
+- @pnpm/link-bins@8.0.8
+
+## 7.0.14
+
+### Patch Changes
+
+- Updated dependencies [d89d7a078]
+  - @pnpm/dependency-path@1.1.3
+  - @pnpm/lockfile-utils@5.0.6
+  - @pnpm/lockfile-walker@6.0.8
+
+## 7.0.13
+
+### Patch Changes
+
+- Updated dependencies [9247f6781]
+  - @pnpm/dependency-path@1.1.2
+  - @pnpm/lockfile-utils@5.0.5
+  - @pnpm/lockfile-walker@6.0.7
+
+## 7.0.12
+
+### Patch Changes
+
+- Updated dependencies [90d26c449]
+  - @pnpm/link-bins@8.0.8
+
+## 7.0.11
+
+### Patch Changes
+
+- Updated dependencies [4008a5236]
+  - @pnpm/link-bins@8.0.7
+
+## 7.0.10
+
+### Patch Changes
+
+- Updated dependencies [0f6e95872]
+  - @pnpm/dependency-path@1.1.1
+  - @pnpm/lockfile-utils@5.0.4
+  - @pnpm/lockfile-walker@6.0.6
+
+## 7.0.9
+
+### Patch Changes
+
+- Updated dependencies [3ebce5db7]
+- Updated dependencies [3ebce5db7]
+  - @pnpm/constants@6.2.0
+  - @pnpm/dependency-path@1.1.0
+  - @pnpm/lockfile-utils@5.0.3
+  - @pnpm/lockfile-walker@6.0.5
+  - @pnpm/link-bins@8.0.6
+
+## 7.0.8
+
+### Patch Changes
+
+- Updated dependencies [b77651d14]
+- Updated dependencies [bc18d33fe]
+  - @pnpm/types@8.10.0
+  - @pnpm/link-bins@8.0.5
+  - @pnpm/lockfile-types@4.3.6
+  - @pnpm/lockfile-utils@5.0.2
+  - @pnpm/lockfile-walker@6.0.4
+  - @pnpm/core-loggers@8.0.3
+  - @pnpm/dependency-path@1.0.1
+
+## 7.0.7
+
+### Patch Changes
+
+- Updated dependencies [313702d76]
+  - @pnpm/dependency-path@1.0.0
+  - @pnpm/lockfile-utils@5.0.1
+  - @pnpm/lockfile-walker@6.0.3
+
+## 7.0.6
+
+### Patch Changes
+
+- Updated dependencies [a9d59d8bc]
+  - @pnpm/link-bins@8.0.4
+
+## 7.0.5
+
+### Patch Changes
+
+- @pnpm/link-bins@8.0.3
+
+## 7.0.4
+
+### Patch Changes
+
+- 45c83bfbd: Hoisting with symlinks should not override external symlinks and directories in the root of node_modules.
+- Updated dependencies [969f8a002]
+  - @pnpm/matcher@4.0.1
+
+## 7.0.3
+
+### Patch Changes
+
+- Updated dependencies [ecc8794bb]
+- Updated dependencies [ecc8794bb]
+  - @pnpm/lockfile-utils@5.0.0
+
+## 7.0.2
+
+### Patch Changes
+
+- 2e9790722: Use deterministic sorting.
+- Updated dependencies [702e847c1]
+  - @pnpm/types@8.9.0
+  - dependency-path@9.2.8
+  - @pnpm/link-bins@8.0.2
+  - @pnpm/lockfile-types@4.3.5
+  - @pnpm/lockfile-utils@4.2.8
+  - @pnpm/lockfile-walker@6.0.2
+  - @pnpm/symlink-dependency@6.0.2
+
+## 7.0.1
+
+### Patch Changes
+
+- Updated dependencies [844e82f3a]
+  - @pnpm/types@8.8.0
+  - dependency-path@9.2.7
+  - @pnpm/link-bins@8.0.1
+  - @pnpm/lockfile-types@4.3.4
+  - @pnpm/lockfile-utils@4.2.7
+  - @pnpm/lockfile-walker@6.0.1
+  - @pnpm/symlink-dependency@6.0.1
+
+## 7.0.0
+
+### Major Changes
+
+- 043d988fc: Breaking change to the API. Defaul export is not used.
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [043d988fc]
+- Updated dependencies [f884689e0]
+  - @pnpm/link-bins@8.0.0
+  - @pnpm/lockfile-walker@6.0.0
+  - @pnpm/matcher@4.0.0
+  - @pnpm/symlink-dependency@6.0.0
+
+## 6.2.14
+
+### Patch Changes
+
+- @pnpm/link-bins@7.2.10
+
+## 6.2.13
+
+### Patch Changes
+
+- @pnpm/symlink-dependency@5.0.10
+- @pnpm/link-bins@7.2.9
+
+## 6.2.12
+
+### Patch Changes
+
+- Updated dependencies [5eb41a551]
+  - @pnpm/link-bins@7.2.8
+
+## 6.2.11
+
+### Patch Changes
+
+- Updated dependencies [abb41a626]
+- Updated dependencies [d665f3ff7]
+  - @pnpm/matcher@3.2.0
+  - @pnpm/types@8.7.0
+  - dependency-path@9.2.6
+  - @pnpm/link-bins@7.2.7
+  - @pnpm/lockfile-types@4.3.3
+  - @pnpm/lockfile-utils@4.2.6
+  - @pnpm/lockfile-walker@5.0.15
+  - @pnpm/symlink-dependency@5.0.9
+
+## 6.2.10
+
+### Patch Changes
+
+- Updated dependencies [156cc1ef6]
+- Updated dependencies [9b44d38a4]
+  - @pnpm/types@8.6.0
+  - @pnpm/matcher@3.1.0
+  - dependency-path@9.2.5
+  - @pnpm/link-bins@7.2.6
+  - @pnpm/lockfile-types@4.3.2
+  - @pnpm/lockfile-utils@4.2.5
+  - @pnpm/lockfile-walker@5.0.14
+  - @pnpm/symlink-dependency@5.0.8
+
+## 6.2.9
+
+### Patch Changes
+
+- Updated dependencies [e3b5137d1]
+  - @pnpm/symlink-dependency@5.0.7
+
+## 6.2.8
+
+### Patch Changes
+
+- Updated dependencies [07bc24ad1]
+  - @pnpm/link-bins@7.2.5
+
+## 6.2.7
+
+### Patch Changes
+
+- @pnpm/lockfile-utils@4.2.4
+- @pnpm/link-bins@7.2.4
+
+## 6.2.6
+
+### Patch Changes
+
+- 8103f92bd: Use a patched version of ramda to fix deprecation warnings on Node.js 16. Related issue: https://github.com/ramda/ramda/pull/3270
+- Updated dependencies [8103f92bd]
+  - @pnpm/link-bins@7.2.4
+  - @pnpm/lockfile-utils@4.2.3
+  - @pnpm/lockfile-walker@5.0.13
+
+## 6.2.5
+
+### Patch Changes
+
+- Updated dependencies [c90798461]
+  - @pnpm/types@8.5.0
+  - dependency-path@9.2.4
+  - @pnpm/link-bins@7.2.3
+  - @pnpm/lockfile-types@4.3.1
+  - @pnpm/lockfile-utils@4.2.2
+  - @pnpm/lockfile-walker@5.0.12
+  - @pnpm/symlink-dependency@5.0.6
+
+## 6.2.4
+
+### Patch Changes
+
+- Updated dependencies [c83f40c10]
+  - @pnpm/lockfile-utils@4.2.1
+
+## 6.2.3
+
+### Patch Changes
+
+- Updated dependencies [8dcfbe357]
+  - @pnpm/lockfile-types@4.3.0
+  - @pnpm/lockfile-utils@4.2.0
+  - @pnpm/lockfile-walker@5.0.11
+  - @pnpm/link-bins@7.2.2
+
+## 6.2.2
+
+### Patch Changes
+
+- @pnpm/link-bins@7.2.2
+
+## 6.2.1
+
+### Patch Changes
+
+- Updated dependencies [e3f4d131c]
+  - @pnpm/lockfile-utils@4.1.0
+  - @pnpm/link-bins@7.2.1
+
+## 6.2.0
+
+### Minor Changes
+
+- 28f000509: A new setting supported: `prefer-symlinked-executables`. When `true`, pnpm will create symlinks to executables in
+  `node_modules/.bin` instead of command shims (but on POSIX systems only).
+
+  This setting is `true` by default when `node-linker` is set to `hoisted`.
+
+  Related issue: [#4782](https://github.com/pnpm/pnpm/issues/4782).
+
+### Patch Changes
+
+- Updated dependencies [28f000509]
+  - @pnpm/link-bins@7.2.0
+
+## 6.1.9
+
+### Patch Changes
+
+- @pnpm/link-bins@7.1.7
+- dependency-path@9.2.3
+- @pnpm/lockfile-utils@4.0.10
+- @pnpm/lockfile-walker@5.0.10
+
+## 6.1.8
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- Updated dependencies [5f643f23b]
+  - @pnpm/link-bins@7.1.6
+  - @pnpm/lockfile-utils@4.0.9
+  - @pnpm/lockfile-walker@5.0.9
+
+## 6.1.7
+
+### Patch Changes
+
+- Updated dependencies [fc581d371]
+  - dependency-path@9.2.2
+  - @pnpm/lockfile-utils@4.0.8
+  - @pnpm/lockfile-walker@5.0.8
+
+## 6.1.6
+
+### Patch Changes
+
+- Updated dependencies [d01c32355]
+- Updated dependencies [8e5b77ef6]
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/lockfile-types@4.2.0
+  - @pnpm/types@8.4.0
+  - @pnpm/lockfile-utils@4.0.7
+  - @pnpm/lockfile-walker@5.0.7
+  - dependency-path@9.2.1
+  - @pnpm/link-bins@7.1.5
+  - @pnpm/symlink-dependency@5.0.5
+
+## 6.1.5
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [c635f9fc1]
+  - @pnpm/types@8.3.0
+  - @pnpm/lockfile-types@4.1.0
+  - dependency-path@9.2.0
+  - @pnpm/link-bins@7.1.4
+  - @pnpm/lockfile-utils@4.0.6
+  - @pnpm/lockfile-walker@5.0.6
+  - @pnpm/symlink-dependency@5.0.4
+
+## 6.1.4
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [725636a90]
+  - @pnpm/types@8.2.0
+  - dependency-path@9.1.4
+  - @pnpm/link-bins@7.1.3
+  - @pnpm/lockfile-types@4.0.3
+  - @pnpm/lockfile-utils@4.0.5
+  - @pnpm/lockfile-walker@5.0.5
+  - @pnpm/symlink-dependency@5.0.3
+
+## 6.1.3
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+  - dependency-path@9.1.3
+  - @pnpm/link-bins@7.1.2
+  - @pnpm/lockfile-types@4.0.2
+  - @pnpm/lockfile-utils@4.0.4
+  - @pnpm/lockfile-walker@5.0.4
+  - @pnpm/symlink-dependency@5.0.2
+
+## 6.1.2
+
+### Patch Changes
+
+- Updated dependencies [c57695550]
+  - dependency-path@9.1.2
+  - @pnpm/lockfile-utils@4.0.3
+  - @pnpm/lockfile-walker@5.0.3
+
+## 6.1.1
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - dependency-path@9.1.1
+  - @pnpm/link-bins@7.1.1
+  - @pnpm/lockfile-types@4.0.1
+  - @pnpm/lockfile-utils@4.0.2
+  - @pnpm/lockfile-walker@5.0.2
+  - @pnpm/symlink-dependency@5.0.1
+
+## 6.1.0
+
+### Minor Changes
+
+- 8fa95fd86: New option added: `extraNodePaths`.
+
+### Patch Changes
+
+- Updated dependencies [0a70aedb1]
+- Updated dependencies [8fa95fd86]
+- Updated dependencies [688b0eaff]
+- Updated dependencies [1267e4eff]
+  - dependency-path@9.1.0
+  - @pnpm/link-bins@7.1.0
+  - @pnpm/lockfile-utils@4.0.1
+  - @pnpm/constants@6.1.0
+  - @pnpm/lockfile-walker@5.0.1
+
+## 6.0.0
+
+### Major Changes
+
+- 516859178: `extendNodePath` removed.
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [516859178]
+- Updated dependencies [d504dc380]
+- Updated dependencies [faf830b8f]
+- Updated dependencies [542014839]
+  - @pnpm/link-bins@7.0.0
+  - @pnpm/types@8.0.0
+  - dependency-path@9.0.0
+  - @pnpm/constants@6.0.0
+  - @pnpm/lockfile-types@4.0.0
+  - @pnpm/lockfile-utils@4.0.0
+  - @pnpm/lockfile-walker@5.0.0
+  - @pnpm/matcher@3.0.0
+  - @pnpm/symlink-dependency@5.0.0
+
+## 5.2.15
+
+### Patch Changes
+
+- @pnpm/link-bins@6.2.12
+
+## 5.2.14
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/lockfile-types@3.2.0
+  - @pnpm/types@7.10.0
+  - @pnpm/lockfile-utils@3.2.1
+  - @pnpm/lockfile-walker@4.0.15
+  - dependency-path@8.0.11
+  - @pnpm/link-bins@6.2.11
+  - @pnpm/symlink-dependency@4.0.13
+
+## 5.2.13
+
+### Patch Changes
+
+- Updated dependencies [cdc521cfa]
+  - @pnpm/lockfile-utils@3.2.0
+  - @pnpm/link-bins@6.2.10
+
+## 5.2.12
+
+### Patch Changes
+
+- @pnpm/link-bins@6.2.10
+
+## 5.2.11
+
+### Patch Changes
+
+- Updated dependencies [26cd01b88]
+  - @pnpm/types@7.9.0
+  - dependency-path@8.0.10
+  - @pnpm/link-bins@6.2.9
+  - @pnpm/lockfile-types@3.1.5
+  - @pnpm/lockfile-utils@3.1.6
+  - @pnpm/lockfile-walker@4.0.14
+  - @pnpm/symlink-dependency@4.0.12
+
+## 5.2.10
+
+### Patch Changes
+
+- Updated dependencies [701ea0746]
+- Updated dependencies [b5734a4a7]
+  - @pnpm/link-bins@6.2.8
+  - @pnpm/types@7.8.0
+  - dependency-path@8.0.9
+  - @pnpm/lockfile-types@3.1.4
+  - @pnpm/lockfile-utils@3.1.5
+  - @pnpm/lockfile-walker@4.0.13
+  - @pnpm/symlink-dependency@4.0.11
+
+## 5.2.9
+
+### Patch Changes
+
+- Updated dependencies [6493e0c93]
+  - @pnpm/types@7.7.1
+  - dependency-path@8.0.8
+  - @pnpm/link-bins@6.2.7
+  - @pnpm/lockfile-types@3.1.3
+  - @pnpm/lockfile-utils@3.1.4
+  - @pnpm/lockfile-walker@4.0.12
+  - @pnpm/symlink-dependency@4.0.10
+
+## 5.2.8
+
+### Patch Changes
+
+- Updated dependencies [ba9b2eba1]
+  - @pnpm/types@7.7.0
+  - @pnpm/symlink-dependency@4.0.9
+  - dependency-path@8.0.7
+  - @pnpm/link-bins@6.2.6
+  - @pnpm/lockfile-types@3.1.2
+  - @pnpm/lockfile-utils@3.1.3
+  - @pnpm/lockfile-walker@4.0.11
+
+## 5.2.7
+
+### Patch Changes
+
+- Updated dependencies [3cf543fc1]
+  - @pnpm/lockfile-utils@3.1.2
+
+## 5.2.6
+
+### Patch Changes
+
+- Updated dependencies [631877ebf]
+  - @pnpm/symlink-dependency@4.0.8
+
+## 5.2.5
+
+### Patch Changes
+
+- Updated dependencies [bb0f8bc16]
+  - @pnpm/link-bins@6.2.5
+
+## 5.2.4
+
+### Patch Changes
+
+- Updated dependencies [302ae4f6f]
+  - @pnpm/types@7.6.0
+  - dependency-path@8.0.6
+  - @pnpm/link-bins@6.2.4
+  - @pnpm/lockfile-types@3.1.1
+  - @pnpm/lockfile-utils@3.1.1
+  - @pnpm/lockfile-walker@4.0.10
+  - @pnpm/symlink-dependency@4.0.7
+
+## 5.2.3
+
+### Patch Changes
+
+- Updated dependencies [4ab87844a]
+- Updated dependencies [4ab87844a]
+- Updated dependencies [4ab87844a]
+  - @pnpm/types@7.5.0
+  - @pnpm/lockfile-types@3.1.0
+  - @pnpm/lockfile-utils@3.1.0
+  - dependency-path@8.0.5
+  - @pnpm/link-bins@6.2.3
+  - @pnpm/lockfile-walker@4.0.9
+  - @pnpm/symlink-dependency@4.0.6
+
+## 5.2.2
+
+### Patch Changes
+
+- Updated dependencies [a916accec]
+  - @pnpm/link-bins@6.2.2
+
+## 5.2.1
+
+### Patch Changes
+
+- Updated dependencies [6375cdce0]
+  - @pnpm/link-bins@6.2.1
+
+## 5.2.0
+
+### Minor Changes
+
+- 59a4152ce: allow to hoist packages based on importerIds, only hoist packages that are subdependencies of the specified importerIds
+
+## 5.1.0
+
+### Minor Changes
+
+- c7081cbb4: New option added: `extendNodePath`. When it is set to `false`, pnpm does not set the `NODE_PATH` environment variable in the command shims.
+
+### Patch Changes
+
+- Updated dependencies [0d4a7c69e]
+- Updated dependencies [c7081cbb4]
+  - @pnpm/link-bins@6.2.0
+
+## 5.0.14
+
+### Patch Changes
+
+- Updated dependencies [83e23601e]
+- Updated dependencies [553a5d840]
+  - @pnpm/link-bins@6.1.0
+
+## 5.0.13
+
+### Patch Changes
+
+- @pnpm/link-bins@6.0.8
+
+## 5.0.12
+
+### Patch Changes
+
+- @pnpm/link-bins@6.0.7
+
+## 5.0.11
+
+### Patch Changes
+
+- Updated dependencies [b734b45ea]
+  - @pnpm/types@7.4.0
+  - dependency-path@8.0.4
+  - @pnpm/link-bins@6.0.6
+  - @pnpm/lockfile-utils@3.0.8
+  - @pnpm/lockfile-walker@4.0.8
+  - @pnpm/symlink-dependency@4.0.5
+
+## 5.0.10
+
+### Patch Changes
+
+- Updated dependencies [8e76690f4]
+  - @pnpm/types@7.3.0
+  - dependency-path@8.0.3
+  - @pnpm/link-bins@6.0.5
+  - @pnpm/lockfile-utils@3.0.7
+  - @pnpm/lockfile-walker@4.0.7
+  - @pnpm/symlink-dependency@4.0.4
+
+## 5.0.9
+
+### Patch Changes
+
+- Updated dependencies [6c418943c]
+  - dependency-path@8.0.2
+  - @pnpm/lockfile-utils@3.0.6
+  - @pnpm/lockfile-walker@4.0.6
+
+## 5.0.8
+
+### Patch Changes
+
+- Updated dependencies [724c5abd8]
+  - @pnpm/types@7.2.0
+  - dependency-path@8.0.1
+  - @pnpm/link-bins@6.0.4
+  - @pnpm/lockfile-utils@3.0.5
+  - @pnpm/lockfile-walker@4.0.5
+  - @pnpm/symlink-dependency@4.0.3
+
+## 5.0.7
+
+### Patch Changes
+
+- a1a03d145: Import only the required functions from ramda.
+- Updated dependencies [a1a03d145]
+  - @pnpm/link-bins@6.0.3
+  - @pnpm/lockfile-utils@3.0.4
+  - @pnpm/lockfile-walker@4.0.4
+
+## 5.0.6
+
+### Patch Changes
+
+- 0560ca63f: Do not print a warning if a skipped optional dependency cannot be hoisted.
+
+## 5.0.5
+
+### Patch Changes
+
+- ec097f4ed: Ignore the case of the package name when deciding which dependency to hoist.
+- Updated dependencies [20e2f235d]
+  - dependency-path@8.0.0
+  - @pnpm/lockfile-utils@3.0.3
+  - @pnpm/lockfile-walker@4.0.3
+
+## 5.0.4
+
+### Patch Changes
+
+- @pnpm/link-bins@6.0.2
+
+## 5.0.3
+
+### Patch Changes
+
+- Updated dependencies [97c64bae4]
+  - @pnpm/types@7.1.0
+  - @pnpm/link-bins@6.0.1
+  - dependency-path@7.0.1
+  - @pnpm/lockfile-utils@3.0.2
+  - @pnpm/lockfile-walker@4.0.2
+  - @pnpm/symlink-dependency@4.0.2
+
+## 5.0.2
+
+### Patch Changes
+
+- Updated dependencies [6f198457d]
+  - @pnpm/symlink-dependency@4.0.1
+
+## 5.0.1
+
+### Patch Changes
+
+- Updated dependencies [9ceab68f0]
+  - dependency-path@7.0.0
+  - @pnpm/lockfile-utils@3.0.1
+  - @pnpm/lockfile-walker@4.0.1
+
+## 5.0.0
+
+### Major Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+
+### Patch Changes
+
+- Updated dependencies [6871d74b2]
+- Updated dependencies [06c6c9959]
+- Updated dependencies [97b986fbc]
+- Updated dependencies [6871d74b2]
+- Updated dependencies [e4efddbd2]
+- Updated dependencies [f2bb5cbeb]
+- Updated dependencies [f2bb5cbeb]
+  - @pnpm/constants@5.0.0
+  - @pnpm/link-bins@6.0.0
+  - dependency-path@6.0.0
+  - @pnpm/lockfile-types@3.0.0
+  - @pnpm/lockfile-utils@3.0.0
+  - @pnpm/lockfile-walker@4.0.0
+  - @pnpm/matcher@2.0.0
+  - @pnpm/symlink-dependency@4.0.0
+  - @pnpm/types@7.0.0
+
+## 4.0.26
+
+### Patch Changes
+
+- Updated dependencies [d853fb14a]
+  - @pnpm/link-bins@5.3.25
+
+## 4.0.25
+
+### Patch Changes
+
+- Updated dependencies [6350a3381]
+  - @pnpm/link-bins@5.3.24
+
+## 4.0.24
+
+### Patch Changes
+
+- Updated dependencies [a78e5c47f]
+  - @pnpm/link-bins@5.3.23
+
+## 4.0.23
+
+### Patch Changes
+
+- @pnpm/link-bins@5.3.22
+
+## 4.0.22
+
+### Patch Changes
+
+- Updated dependencies [9ad8c27bf]
+- Updated dependencies [9ad8c27bf]
+  - @pnpm/lockfile-types@2.2.0
+  - @pnpm/types@6.4.0
+  - @pnpm/lockfile-utils@2.0.22
+  - @pnpm/lockfile-walker@3.0.9
+  - dependency-path@5.1.1
+  - @pnpm/link-bins@5.3.21
+  - @pnpm/symlink-dependency@3.0.13
+
+## 4.0.21
+
+### Patch Changes
+
+- Updated dependencies [e27dcf0dc]
+  - dependency-path@5.1.0
+  - @pnpm/lockfile-utils@2.0.21
+  - @pnpm/lockfile-walker@3.0.8
+
+## 4.0.20
+
+### Patch Changes
+
+- @pnpm/lockfile-utils@2.0.20
+
+## 4.0.19
+
+### Patch Changes
+
+- @pnpm/link-bins@5.3.20
+
+## 4.0.18
+
+### Patch Changes
+
+- @pnpm/link-bins@5.3.19
+
+## 4.0.17
+
+### Patch Changes
+
+- Updated dependencies [39142e2ad]
+  - dependency-path@5.0.6
+  - @pnpm/lockfile-utils@2.0.19
+  - @pnpm/lockfile-walker@3.0.7
+  - @pnpm/link-bins@5.3.18
+
+## 4.0.16
+
+### Patch Changes
+
+- Updated dependencies [b5d694e7f]
+  - @pnpm/lockfile-types@2.1.1
+  - @pnpm/types@6.3.1
+  - @pnpm/lockfile-utils@2.0.18
+  - @pnpm/lockfile-walker@3.0.6
+  - dependency-path@5.0.5
+  - @pnpm/link-bins@5.3.17
+  - @pnpm/symlink-dependency@3.0.12
+
+## 4.0.15
+
+### Patch Changes
+
+- Updated dependencies [d54043ee4]
+- Updated dependencies [d54043ee4]
+- Updated dependencies [fcdad632f]
+  - @pnpm/lockfile-types@2.1.0
+  - @pnpm/types@6.3.0
+  - @pnpm/constants@4.1.0
+  - @pnpm/lockfile-utils@2.0.17
+  - @pnpm/lockfile-walker@3.0.5
+  - dependency-path@5.0.4
+  - @pnpm/link-bins@5.3.16
+  - @pnpm/symlink-dependency@3.0.11
+
+## 4.0.14
+
+### Patch Changes
+
+- Updated dependencies [fb863fae4]
+  - @pnpm/link-bins@5.3.15
+
+## 4.0.13
+
+### Patch Changes
+
+- Updated dependencies [51311d3ba]
+  - @pnpm/link-bins@5.3.14
+
+## 4.0.12
+
+### Patch Changes
+
+- @pnpm/symlink-dependency@3.0.10
+
+## 4.0.11
+
+### Patch Changes
+
+- 968c26470: Report an info log instead of a warning when some binaries cannot be linked.
+
+## 4.0.10
+
+### Patch Changes
+
+- @pnpm/link-bins@5.3.13
+
+## 4.0.9
+
+### Patch Changes
+
+- @pnpm/link-bins@5.3.12
+
+## 4.0.8
+
+### Patch Changes
+
+- @pnpm/link-bins@5.3.11
+
+## 4.0.7
+
+### Patch Changes
+
+- @pnpm/link-bins@5.3.10
+
+## 4.0.6
+
+### Patch Changes
+
+- @pnpm/link-bins@5.3.9
+
+## 4.0.5
+
+### Patch Changes
+
+- a2ef8084f: Use the same versions of dependencies across the pnpm monorepo.
+- Updated dependencies [1140ef721]
+- Updated dependencies [a2ef8084f]
+  - @pnpm/lockfile-utils@2.0.16
+  - dependency-path@5.0.3
+  - @pnpm/lockfile-walker@3.0.4
+  - @pnpm/link-bins@5.3.8
+
+## 4.0.4
+
+### Patch Changes
+
+- @pnpm/symlink-dependency@3.0.9
+
+## 4.0.3
+
+### Patch Changes
+
+- Updated dependencies [db17f6f7b]
+  - @pnpm/types@6.2.0
+  - dependency-path@5.0.2
+  - @pnpm/link-bins@5.3.7
+  - @pnpm/lockfile-utils@2.0.15
+  - @pnpm/lockfile-walker@3.0.3
+  - @pnpm/symlink-dependency@3.0.8
+
+## 4.0.2
+
+### Patch Changes
+
+- @pnpm/link-bins@5.3.6
+
+## 4.0.1
+
+### Patch Changes
+
+- 0a2f3ecc6: Hoisting should not fail if some of the aliases cannot be hoisted due to issues with the lockfile.
+
+## 4.0.0
+
+### Major Changes
+
+- 71a8c8ce3: Breaking changes in the API.
+
+### Patch Changes
+
+- Updated dependencies [71a8c8ce3]
+- Updated dependencies [71a8c8ce3]
+- Updated dependencies [e1ca9fc13]
+  - @pnpm/types@6.1.0
+  - @pnpm/matcher@1.0.3
+  - @pnpm/link-bins@5.3.5
+  - dependency-path@5.0.1
+  - @pnpm/lockfile-utils@2.0.14
+  - @pnpm/lockfile-walker@3.0.2
+  - @pnpm/symlink-dependency@3.0.7
+
+## 3.0.2
+
+### Patch Changes
+
+- Updated dependencies [41d92948b]
+  - dependency-path@5.0.0
+  - @pnpm/lockfile-utils@2.0.13
+  - @pnpm/lockfile-walker@3.0.1
+  - @pnpm/link-bins@5.3.4
+
+## 3.0.1
+
+### Patch Changes
+
+- @pnpm/symlink-dependency@3.0.6
+
+## 3.0.0
+
+### Major Changes
+
+- b5f66c0f2: Reduce the number of directories in the virtual store directory. Don't create a subdirectory for the package version. Append the package version to the package name directory.
+- 802d145fc: Remove `independent-leaves` support.
+- 9fbb74ecb: The structure of virtual store directory changed. No subdirectory created with the registry name.
+  So instead of storing packages inside `node_modules/.pnpm/<registry>/<pkg>`, packages are stored
+  inside `node_modules/.pnpm/<pkg>`.
+
+### Patch Changes
+
+- a7d20d927: The peer suffix at the end of local tarball dependency paths is not encoded.
+- Updated dependencies [b5f66c0f2]
+- Updated dependencies [ca9f50844]
+- Updated dependencies [142f8caf7]
+- Updated dependencies [da091c711]
+- Updated dependencies [6a8a97eee]
+- Updated dependencies [4f5801b1c]
+  - @pnpm/constants@4.0.0
+  - @pnpm/lockfile-walker@3.0.0
+  - @pnpm/types@6.0.0
+  - @pnpm/lockfile-types@2.0.1
+  - dependency-path@4.0.7
+  - @pnpm/link-bins@5.3.3
+  - @pnpm/lockfile-utils@2.0.12
+  - @pnpm/symlink-dependency@3.0.5
+
+## 3.0.0-alpha.2
+
+### Patch Changes
+
+- a7d20d927: The peer suffix at the end of local tarball dependency paths is not encoded.
+- Updated dependencies [ca9f50844]
+- Updated dependencies [6a8a97eee]
+  - @pnpm/constants@4.0.0-alpha.1
+  - @pnpm/lockfile-types@2.0.1-alpha.0
+  - @pnpm/lockfile-utils@2.0.12-alpha.1
+  - @pnpm/lockfile-walker@2.0.3-alpha.1
+
+## 3.0.0-alpha.1
+
+### Major Changes
+
+- 9fbb74ec: The structure of virtual store directory changed. No subdirectory created with the registry name.
+  So instead of storing packages inside `node_modules/.pnpm/<registry>/<pkg>`, packages are stored
+  inside `node_modules/.pnpm/<pkg>`.
+
+### Patch Changes
+
+- Updated dependencies [da091c71]
+  - @pnpm/types@6.0.0-alpha.0
+  - dependency-path@4.0.7-alpha.0
+  - @pnpm/link-bins@5.3.3-alpha.0
+  - @pnpm/lockfile-utils@2.0.12-alpha.0
+  - @pnpm/lockfile-walker@2.0.3-alpha.0
+  - @pnpm/symlink-dependency@3.0.5-alpha.0
+
+## 3.0.0-alpha.0
+
+### Major Changes
+
+- b5f66c0f2: Reduce the number of directories in the virtual store directory. Don't create a subdirectory for the package version. Append the package version to the package name directory.
+
+### Patch Changes
+
+- Updated dependencies [b5f66c0f2]
+  - @pnpm/constants@4.0.0-alpha.0
+
+## 2.2.3
+
+### Patch Changes
+
+- Updated dependencies [907c63a48]
+- Updated dependencies [907c63a48]
+- Updated dependencies [907c63a48]
+- Updated dependencies [907c63a48]
+  - @pnpm/symlink-dependency@3.0.4
+  - @pnpm/link-bins@5.3.2
+  - @pnpm/lockfile-utils@2.0.11

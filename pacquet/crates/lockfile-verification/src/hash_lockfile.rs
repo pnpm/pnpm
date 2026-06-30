@@ -1,6 +1,6 @@
 //! Stable content hash of an in-memory [`Lockfile`].
 //!
-//! Used by the verification cache (Phase 6 slice 2) to recognise the
+//! Used by the verification cache to recognise the
 //! same lockfile across paths — committed-then-restored CI checkouts,
 //! parallel git worktrees, lockfile copies. The same parsed
 //! [`Lockfile`] must yield the same hash every time regardless of
@@ -22,10 +22,7 @@ use pacquet_lockfile::Lockfile;
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 
-/// Sha256 hex digest of the lockfile content. Stable across runs:
-/// any two `Lockfile`s that compare equal (deserialized from the
-/// same YAML, or from two YAMLs that parse to the same shape)
-/// produce the same hash.
+/// Sha256 hex digest of the lockfile content.
 #[must_use]
 pub fn hash_lockfile(lockfile: &Lockfile) -> String {
     let value = serde_json::to_value(lockfile)

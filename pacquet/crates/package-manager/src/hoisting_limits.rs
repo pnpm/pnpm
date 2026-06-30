@@ -9,17 +9,6 @@ use std::collections::{BTreeSet, HashMap};
 /// name in a locator's set is a hoisting border: that node's
 /// dependencies are not hoisted above it.
 ///
-/// Ports pnpm's
-/// [`getHoistingLimits`](https://github.com/pnpm/pnpm/blob/89812a9353/installing/linking/real-hoist/src/index.ts):
-///
-/// - [`HoistingLimits::None`] → empty map (hoist as far as possible).
-/// - [`HoistingLimits::Workspaces`] → border every workspace package
-///   (and the root's direct deps) at the root locator, so each
-///   project's dependencies stay within that project.
-/// - [`HoistingLimits::Dependencies`] → additionally border each
-///   workspace package's own direct dependencies, so their
-///   transitives stay nested beneath them.
-///
 /// Pacquet's hoister currently hoists into the single root importer
 /// only, so it consults the `.@` entry; the per-importer entries the
 /// `dependencies` mode emits are produced for parity and become
@@ -51,8 +40,6 @@ pub fn get_hoisting_limits(
 
         root_border.insert(percent_encode_path(importer_id));
         if !matches!(mode, HoistingLimits::Dependencies) {
-            // `workspaces` mode borders each package at the root only;
-            // their own direct deps don't get a per-importer border.
             continue;
         }
 

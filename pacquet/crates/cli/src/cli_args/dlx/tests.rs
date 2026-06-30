@@ -19,9 +19,6 @@ struct DlxArgsWrapper {
     dlx: DlxArgs,
 }
 
-/// The `--cpu` / `--os` / `--libc` overrides take one comma-separable
-/// value per occurrence, so the trailing `command` positional is not
-/// swallowed as extra architecture values.
 #[test]
 fn architecture_flags_do_not_consume_the_trailing_command() {
     let parsed = DlxArgsWrapper::try_parse_from([
@@ -43,8 +40,6 @@ fn architecture_flags_do_not_consume_the_trailing_command() {
     assert_eq!(parsed.dlx.command, ["cowsay", "hello"], "the command must survive after the flags");
 }
 
-/// Repeated `--cpu` occurrences accumulate, and an absent axis stays
-/// empty (so it leaves the config value untouched downstream).
 #[test]
 fn architecture_flags_accumulate_and_default_empty() {
     let parsed = DlxArgsWrapper::try_parse_from(["dlx", "--cpu", "arm64", "--cpu", "x64", "tool"])
@@ -117,7 +112,6 @@ fn create_cache_key_changes_with_supported_architectures() {
     assert_ne!(base, key_arm, "an architecture override must change the key");
     assert_ne!(key_arm, key_x64, "different --cpu values must produce different keys");
 
-    // Dedup + sort make the axis stable: order and duplicates don't matter.
     let arm_dup = SupportedArchitectures {
         cpu: Some(vec!["arm64".to_string(), "arm64".to_string()]),
         ..Default::default()
@@ -130,11 +124,12 @@ fn create_cache_key_changes_with_supported_architectures() {
 }
 
 #[test]
-fn get_prepare_dir_encodes_time_and_pid_in_hex() {
+fn get_prepare_dir_encodes_time_and_pid_in_base36() {
     let base = std::path::Path::new("/cache/dlx/key");
-    let now = SystemTime::UNIX_EPOCH + Duration::from_millis(0x1a2b);
-    let dir = get_prepare_dir(base, now, 0xff);
-    assert_eq!(dir, base.join("1a2b-ff"));
+    // 6699 = 5*36^2 + 6*36 + 3 -> "563"; 255 = 7*36 + 3 -> "73".
+    let now = SystemTime::UNIX_EPOCH + Duration::from_millis(6699);
+    let dir = get_prepare_dir(base, now, 255);
+    assert_eq!(dir, base.join("563-73"));
 }
 
 #[test]
@@ -169,14 +164,12 @@ fn get_valid_cache_dir_honors_max_age() {
 
     let mtime = fs::symlink_metadata(&link).expect("lstat").modified().expect("mtime");
 
-    // Just under the window: still valid.
     let within = mtime + Duration::from_secs(1440 * 60 - 1);
     assert_eq!(
         get_valid_cache_dir(&link, 1440, within).as_deref(),
         Some(fs::canonicalize(&target).expect("canonicalize").as_path()),
     );
 
-    // Past the window: expired.
     let past = mtime + Duration::from_mins(1441);
     assert!(get_valid_cache_dir(&link, 1440, past).is_none(), "an expired link must be rejected");
 }
@@ -226,9 +219,6 @@ fn get_bin_name_picks_the_scopeless_match_among_many() {
 
 #[test]
 fn get_bin_name_uses_installed_manifest_name_not_alias() {
-    // The dependency key (`alias`) differs from the installed package's
-    // own `name`. The default bin among many is selected by the manifest
-    // name (`scopeless("@scope/realtool")` == "realtool"), not the alias.
     let dir = cached_dir_with(
         "alias",
         serde_json::json!({

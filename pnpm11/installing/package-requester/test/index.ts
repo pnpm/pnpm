@@ -1,0 +1,1572 @@
+/// <reference path="../../../__typings__/index.d.ts" />
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { afterAll, afterEach, expect, jest, test } from '@jest/globals'
+import { depPathToFilename } from '@pnpm/deps.path'
+import { createClient } from '@pnpm/installing.client'
+import { createPackageRequester, type PackageResponse } from '@pnpm/installing.package-requester'
+import { streamParser } from '@pnpm/logger'
+import type { PackageFilesIndex } from '@pnpm/store.cafs'
+import type { PkgRequestFetchResult, PkgResolutionId, RequestPackageOptions, Resolution } from '@pnpm/store.controller-types'
+import { createCafsStore } from '@pnpm/store.create-cafs-store'
+import { StoreIndex } from '@pnpm/store.index'
+import { fixtures } from '@pnpm/test-fixtures'
+import { setupMockAgent, teardownMockAgent } from '@pnpm/testing.mock-agent'
+import { REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
+import { restartWorkerPool } from '@pnpm/worker'
+import delay from 'delay'
+import normalize from 'normalize-path'
+import { temporaryDirectory } from 'tempy'
+
+const registry = `http://localhost:${REGISTRY_MOCK_PORT}`
+const f = fixtures(import.meta.dirname)
+const IS_POSITIVE_TARBALL = f.find('is-positive-1.0.0.tgz')
+
+const registries = { default: registry }
+
+const storeIndexes: StoreIndex[] = []
+afterAll(() => {
+  for (const si of storeIndexes) si.close()
+})
+
+const topStoreIndex = new StoreIndex('.store')
+storeIndexes.push(topStoreIndex)
+
+const { resolve, fetchers } = createClient({
+  configByUri: {},
+  cacheDir: '.store',
+  storeDir: '.store',
+  registries,
+  storeIndex: topStoreIndex,
+})
+
+function createFetchersForStore (storeDir: string) {
+  const si = new StoreIndex(storeDir)
+  storeIndexes.push(si)
+  return createClient({
+    configByUri: {},
+    cacheDir: storeDir,
+    storeDir,
+    registries,
+    storeIndex: si,
+  }).fetchers
+}
+
+afterEach(async () => {
+  await teardownMockAgent()
+})
+
+test('request package', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const requestPackage = createPackageRequester({
+    resolve,
+    fetchers,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+  expect(typeof requestPackage).toBe('function')
+
+  const projectDir = temporaryDirectory()
+  const pkgResponse = await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
+    downloadPriority: 0,
+    lockfileDir: projectDir,
+    preferredVersions: {},
+    projectDir,
+  })
+
+  expect(pkgResponse).toBeTruthy()
+  expect(pkgResponse.body).toBeTruthy()
+
+  expect(pkgResponse.body.id).toBe('is-positive@1.0.0')
+  expect(pkgResponse.body.resolvedVia).toBe('npm-registry')
+  expect(pkgResponse.body.isLocal).toBe(false)
+  expect(typeof pkgResponse.body.latest).toBe('string')
+  expect(pkgResponse.body.manifest?.name).toBe('is-positive')
+  expect(!pkgResponse.body.normalizedBareSpecifier).toBeTruthy()
+  expect(pkgResponse.body.resolution).toStrictEqual({
+    integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+    tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+  })
+
+  const { files } = await pkgResponse.fetching!()
+  expect(Array.from(files.filesMap.keys()).sort((a, b) => a.localeCompare(b))).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort((a, b) => a.localeCompare(b)))
+  expect(files.resolvedFrom).toBe('remote')
+})
+
+test('a custom fetcher is selected once per request, not re-picked on the fetch path', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  let canFetchCalls = 0
+  const customFetchers = [{
+    // Claim every registry tarball; `canFetch` is async (the cost this dedup avoids
+    // running twice), so count its calls.
+    canFetch: async (_id: string, resolution: { type?: string, tarball?: string }) => {
+      canFetchCalls++
+      return resolution.type == null && typeof resolution.tarball === 'string'
+    },
+    // Delegate the actual fetch to the standard remote-tarball fetcher.
+    fetch: async (cafs: any, resolution: any, opts: any, fetchers: any) => // eslint-disable-line @typescript-eslint/no-explicit-any
+      fetchers.remoteTarball(cafs, resolution, opts),
+  }]
+  const requestPackage = createPackageRequester({
+    resolve,
+    fetchers,
+    customFetchers: customFetchers as never,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  const projectDir = temporaryDirectory()
+  const pkgResponse = await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
+    downloadPriority: 0,
+    lockfileDir: projectDir,
+    preferredVersions: {},
+    projectDir,
+  })
+  await pkgResponse.fetching!()
+
+  expect(canFetchCalls).toBe(1)
+})
+
+test('request package but skip fetching', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const requestPackage = createPackageRequester({
+    resolve,
+    fetchers,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+  expect(typeof requestPackage).toBe('function')
+
+  const projectDir = temporaryDirectory()
+  const pkgResponse = await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
+    downloadPriority: 0,
+    lockfileDir: projectDir,
+    preferredVersions: {},
+    projectDir,
+    skipFetch: true,
+  })
+
+  expect(pkgResponse).toBeTruthy()
+  expect(pkgResponse.body).toBeTruthy()
+
+  expect(pkgResponse.body.id).toBe('is-positive@1.0.0')
+  expect(pkgResponse.body.isLocal).toBe(false)
+  expect(typeof pkgResponse.body.latest).toBe('string')
+  expect(pkgResponse.body.manifest?.name).toBe('is-positive')
+  expect(!pkgResponse.body.normalizedBareSpecifier).toBeTruthy()
+  expect(pkgResponse.body.resolution).toStrictEqual({
+    integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+    tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+  })
+
+  expect(pkgResponse.fetching).toBeFalsy()
+})
+
+test('request package but skip fetching, when resolution is already available', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const requestPackage = createPackageRequester({
+    resolve,
+    fetchers,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+  expect(typeof requestPackage).toBe('function')
+
+  const projectDir = temporaryDirectory()
+  const pkgResponse = await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
+    currentPkg: {
+      id: 'is-positive@1.0.0' as PkgResolutionId,
+      resolution: {
+        integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+        tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+      },
+    },
+    downloadPriority: 0,
+    lockfileDir: projectDir,
+    preferredVersions: {},
+    projectDir,
+    skipFetch: true,
+    update: false,
+  }) as PackageResponse & {
+    body: {
+      manifest: { name: string }
+    }
+  }
+
+  expect(pkgResponse).toBeTruthy()
+  expect(pkgResponse.body).toBeTruthy()
+
+  expect(pkgResponse.body.id).toBe('is-positive@1.0.0')
+  expect(pkgResponse.body.isLocal).toBe(false)
+  // latest may be undefined when the resolver's fast path resolves from the store cache
+  expect(pkgResponse.body.manifest.name).toBe('is-positive')
+  expect(!pkgResponse.body.normalizedBareSpecifier).toBeTruthy()
+  expect(pkgResponse.body.resolution).toStrictEqual({
+    integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+    tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+  })
+
+  expect(pkgResponse.fetching).toBeFalsy()
+})
+
+test('refetch local tarball if its integrity has changed', async () => {
+  const projectDir = temporaryDirectory()
+  const tarballPath = path.join(projectDir, 'tarball.tgz')
+  const tarballRelativePath = path.relative(projectDir, tarballPath)
+  f.copy('pnpm-package-requester-0.8.1.tgz', tarballPath)
+  const tarball = `file:${tarballRelativePath}`
+  const wantedPackage = { bareSpecifier: tarball }
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const localFetchers = createFetchersForStore(storeDir)
+  const pkgId = `file:${normalize(tarballRelativePath)}`
+  const requestPackageOpts = {
+    downloadPriority: 0,
+    lockfileDir: projectDir,
+    preferredVersions: {},
+    projectDir,
+    skipFetch: true,
+    update: false,
+  } satisfies RequestPackageOptions
+
+  {
+    const requestPackage = createPackageRequester({
+      resolve,
+      fetchers: localFetchers,
+      cafs,
+      storeDir,
+      verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
+    })
+
+    const response = await requestPackage(wantedPackage, {
+      ...requestPackageOpts,
+      currentPkg: {
+        id: pkgId as PkgResolutionId,
+        resolution: {
+          integrity: 'sha512-lqODmYcc/FKOGROEUByd5Sbugqhzgkv+Hij9PXH0sZVQsU2npTQ0x3L81GCtHilFKme8lhBtD31Vxg/AKYrAvg==',
+          tarball,
+        },
+      },
+    }) as PackageResponse & {
+      fetching: () => Promise<PkgRequestFetchResult>
+    }
+    const { files, bundledManifest } = await response.fetching()
+
+    expect(response.body.updated).toBeFalsy()
+    expect(files.resolvedFrom).toBe('remote')
+    expect(bundledManifest).toBeTruthy()
+  }
+
+  f.copy('pnpm-package-requester-4.1.2.tgz', tarballPath)
+  await delay(50)
+
+  {
+    const requestPackage = createPackageRequester({
+      resolve,
+      fetchers: localFetchers,
+      cafs,
+      storeDir,
+      verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
+    })
+
+    const response = await requestPackage(wantedPackage, {
+      ...requestPackageOpts,
+      currentPkg: {
+        id: pkgId as PkgResolutionId,
+        resolution: {
+          integrity: 'sha512-lqODmYcc/FKOGROEUByd5Sbugqhzgkv+Hij9PXH0sZVQsU2npTQ0x3L81GCtHilFKme8lhBtD31Vxg/AKYrAvg==',
+          tarball,
+        },
+      },
+    })
+    const { files, bundledManifest } = await response.fetching!()
+
+    expect(response.body.updated).toBeTruthy()
+    expect(files.resolvedFrom).toBe('remote')
+    expect(bundledManifest).toBeTruthy()
+  }
+
+  {
+    const requestPackage = createPackageRequester({
+      resolve,
+      fetchers: localFetchers,
+      cafs,
+      storeDir,
+      verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
+    })
+
+    const response = await requestPackage(wantedPackage, {
+      ...requestPackageOpts,
+      currentPkg: {
+        id: pkgId as PkgResolutionId,
+        resolution: {
+          integrity: 'sha512-v3uhYkN+Eh3Nus4EZmegjQhrfpdPIH+2FjrkeBc6ueqZJWWRaLnSYIkD0An6m16D3v+6HCE18ox6t95eGxj5Pw==',
+          tarball,
+        },
+      },
+    }) as PackageResponse & {
+      fetching: () => Promise<PkgRequestFetchResult>
+    }
+    const { files, bundledManifest } = await response.fetching()
+
+    expect(response.body.updated).toBeFalsy()
+    expect(files.resolvedFrom).toBe('store')
+    expect(bundledManifest).toBeTruthy()
+  }
+})
+
+test('refetch local tarball if its integrity has changed. The requester does not know the correct integrity', async () => {
+  const projectDir = temporaryDirectory()
+  const tarballPath = path.join(projectDir, 'tarball.tgz')
+  f.copy('pnpm-package-requester-0.8.1.tgz', tarballPath)
+  const tarball = `file:${tarballPath}`
+  const wantedPackage = { bareSpecifier: tarball }
+  const storeDir = path.join(projectDir, 'store')
+  const cafs = createCafsStore(storeDir)
+  const localFetchers = createFetchersForStore(storeDir)
+  const requestPackageOpts = {
+    downloadPriority: 0,
+    lockfileDir: projectDir,
+    preferredVersions: {},
+    projectDir,
+    update: false,
+  } satisfies RequestPackageOptions
+
+  {
+    const requestPackage = createPackageRequester({
+      resolve,
+      fetchers: localFetchers,
+      cafs,
+      storeDir,
+      verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
+    })
+
+    const response = await requestPackage(wantedPackage, requestPackageOpts) as PackageResponse & {
+      fetching: () => Promise<PkgRequestFetchResult>
+    }
+    const { files, bundledManifest } = await response.fetching()
+
+    expect(response.body.updated).toBeTruthy()
+    expect(files.resolvedFrom).toBe('remote')
+    expect(bundledManifest).toBeTruthy()
+  }
+
+  f.copy('pnpm-package-requester-4.1.2.tgz', tarballPath)
+  await delay(50)
+
+  {
+    const requestPackage = createPackageRequester({
+      resolve,
+      fetchers: localFetchers,
+      cafs,
+      storeDir,
+      verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
+    })
+
+    const response = await requestPackage(wantedPackage, requestPackageOpts) as PackageResponse & {
+      fetching: () => Promise<PkgRequestFetchResult>
+    }
+    const { files, bundledManifest } = await response.fetching()
+
+    expect(response.body.updated).toBeTruthy()
+    expect(files.resolvedFrom).toBe('remote')
+    expect(bundledManifest).toBeTruthy()
+  }
+
+  {
+    const requestPackage = createPackageRequester({
+      resolve,
+      fetchers: localFetchers,
+      cafs,
+      storeDir,
+      verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
+    })
+
+    const response = await requestPackage(wantedPackage, requestPackageOpts) as PackageResponse & {
+      fetching: () => Promise<PkgRequestFetchResult>
+    }
+    const { files, bundledManifest } = await response.fetching()
+
+    expect(files.resolvedFrom).toBe('store')
+    expect(bundledManifest).toBeTruthy()
+  }
+})
+
+test('force fetch when resolution integrity differs from current package integrity', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const projectDir = temporaryDirectory()
+
+  // Create a custom resolver that returns a different integrity than the current package
+  const customResolve: typeof resolve = async () => {
+    // Return a resolution with a different integrity than what's in currentPkg
+    return {
+      id: 'is-positive@1.0.0' as PkgResolutionId,
+      latest: '1.0.0',
+      resolution: {
+        integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+        tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+      },
+      manifest: {
+        name: 'is-positive',
+        version: '1.0.0',
+      },
+      resolvedVia: 'npm-registry',
+    }
+  }
+
+  const requestPackage = createPackageRequester({
+    resolve: customResolve,
+    fetchers,
+    cafs,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  // Request with a currentPkg that has a different integrity
+  const response = await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
+    currentPkg: {
+      id: 'is-positive@1.0.0' as PkgResolutionId,
+      resolution: {
+        // Different valid integrity than what the resolver returns
+        integrity: 'sha512-AvAi2XyFuGzKkv+hij9PXH0sZVQsU2npTQ0x3L81GCtHilFKme8lhBtD31Vxg/AKYrAvg==',
+        tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+      },
+    },
+    downloadPriority: 0,
+    lockfileDir: projectDir,
+    preferredVersions: {},
+    projectDir,
+    skipFetch: false,
+    update: false,
+  }) as PackageResponse & {
+    fetching: () => Promise<PkgRequestFetchResult>
+  }
+
+  // The package should be marked as updated because the integrity changed
+  expect(response.body.updated).toBe(true)
+
+  // Fetching should occur because integrity changed
+  const { files } = await response.fetching()
+  expect(files.resolvedFrom).toBe('remote')
+})
+
+// https://github.com/pnpm/pnpm/issues/12001
+test('integrity of a tarball dependency is preserved when the resolver returns no integrity', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const projectDir = temporaryDirectory()
+
+  const tarball = 'https://example.com/foo/-/foo-1.0.0.tgz'
+  const integrity = 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg=='
+
+  // URL/tarball resolvers don't return an integrity, because it is only known
+  // after the tarball is downloaded. This mimics @pnpm/resolving.tarball-resolver.
+  const customResolve: typeof resolve = async () => ({
+    id: tarball as PkgResolutionId,
+    normalizedBareSpecifier: tarball,
+    resolution: { tarball },
+    resolvedVia: 'url',
+    manifest: {
+      name: 'foo',
+      version: '1.0.0',
+    },
+  })
+
+  const requestPackage = createPackageRequester({
+    resolve: customResolve,
+    fetchers,
+    cafs,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  // The package is already in the lockfile (currentPkg) with its integrity, and
+  // it is not re-fetched (skipFetch). The integrity from the resolver is absent,
+  // so it must be carried over from the current package instead of being dropped.
+  const response = await requestPackage({ alias: 'foo', bareSpecifier: tarball }, {
+    currentPkg: {
+      id: tarball as PkgResolutionId,
+      resolution: { tarball, integrity },
+    },
+    downloadPriority: 0,
+    lockfileDir: projectDir,
+    preferredVersions: {},
+    projectDir,
+    skipFetch: true,
+    update: false,
+  })
+
+  expect(response.body.updated).toBe(false)
+  expect(response.body.resolution).toStrictEqual({ tarball, integrity })
+})
+
+test('computed tarball integrity replaces a non-string lockfile integrity', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const projectDir = temporaryDirectory()
+
+  const resolution = {
+    integrity: true,
+    tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+  } as unknown as Resolution
+  const customResolve: typeof resolve = async () => ({
+    id: 'is-positive@1.0.0' as PkgResolutionId,
+    latest: '1.0.0',
+    resolution,
+    manifest: {
+      name: 'is-positive',
+      version: '1.0.0',
+    },
+    resolvedVia: 'npm-registry',
+  })
+  const requestPackage = createPackageRequester({
+    resolve: customResolve,
+    fetchers,
+    cafs,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  const response = await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
+    downloadPriority: 0,
+    lockfileDir: projectDir,
+    preferredVersions: {},
+    projectDir,
+    skipFetch: true,
+  })
+
+  expect(response.fetching).toBeTruthy()
+  expect((response.body.resolution as { integrity?: unknown }).integrity).toBe(true)
+
+  const fetchedResult = await response.fetching!()
+  expect(fetchedResult.integrity).toMatch(/^sha512-/)
+  expect((response.body.resolution as { integrity?: unknown }).integrity).toBe(fetchedResult.integrity)
+})
+
+test('fetchPackageToStore()', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const localFetchers = createFetchersForStore(storeDir)
+  const packageRequester = createPackageRequester({
+    resolve,
+    fetchers: localFetchers,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  const pkgId = 'is-positive@1.0.0'
+  const fetchResult = packageRequester.fetchPackageToStore({
+    force: false,
+    lockfileDir: temporaryDirectory(),
+    pkg: {
+      name: 'is-positive',
+      version: '1.0.0',
+      id: pkgId,
+      resolution: {
+        integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+        tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+      },
+    },
+  })
+
+  const { files, bundledManifest } = await fetchResult.fetching()
+  expect(bundledManifest).toBeTruthy() // we always read the bundled manifest
+  expect(Array.from(files.filesMap.keys()).sort((a, b) => a.localeCompare(b))).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort((a, b) => a.localeCompare(b)))
+  expect(files.resolvedFrom).toBe('remote')
+
+  const storeIndex = new StoreIndex(storeDir)
+  storeIndexes.push(storeIndex)
+  const indexFile = storeIndex.get(fetchResult.filesIndexFile) as PackageFilesIndex
+  expect(indexFile).toBeTruthy()
+  expect(typeof indexFile.files.get('package.json')!.checkedAt).toBeTruthy()
+
+  const fetchResult2 = packageRequester.fetchPackageToStore({
+    fetchRawManifest: true,
+    force: false,
+    lockfileDir: temporaryDirectory(),
+    pkg: {
+      name: 'is-positive',
+      version: '1.0.0',
+      id: pkgId,
+      resolution: {
+        integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+        tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+      },
+    },
+  })
+
+  // This verifies that when a package has been cached with no full manifest
+  // the full manifest is requested and added to the cache
+  expect(
+    (await fetchResult2.fetching()).bundledManifest
+  ).toStrictEqual(
+    {
+      devDependencies: { ava: '^0.0.4' },
+      engines: { node: '>=0.10.0' },
+      name: 'is-positive',
+      version: '1.0.0',
+    }
+  )
+})
+
+test('fetchPackageToStore() rejects remote tarballs without integrity by default', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const packageRequester = createPackageRequester({
+    resolve,
+    fetchers: createFetchersForStore(storeDir),
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  const fetchResult = packageRequester.fetchPackageToStore({
+    force: false,
+    lockfileDir: temporaryDirectory(),
+    pkg: {
+      name: 'is-positive',
+      version: '1.0.0',
+      id: 'is-positive@1.0.0',
+      resolution: {
+        tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+      },
+    },
+  })
+
+  await expect(fetchResult.fetching()).rejects.toMatchObject({
+    code: 'ERR_PNPM_MISSING_TARBALL_INTEGRITY',
+  })
+})
+
+test('fetchPackageToStore() concurrency check', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const packageRequester = createPackageRequester({
+    resolve,
+    fetchers,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  const pkgId = 'is-positive@1.0.0'
+  const projectDir1 = temporaryDirectory()
+  const projectDir2 = temporaryDirectory()
+  const fetchResults = await Promise.all([
+    packageRequester.fetchPackageToStore({
+      force: false,
+      lockfileDir: projectDir1,
+      pkg: {
+        name: 'is-positive',
+        version: '1.0.0',
+        id: pkgId,
+        resolution: {
+          integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+        },
+      },
+    }),
+    packageRequester.fetchPackageToStore({
+      force: false,
+      lockfileDir: projectDir2,
+      pkg: {
+        name: 'is-positive',
+        version: '1.0.0',
+        id: pkgId,
+        resolution: {
+          integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+        },
+      },
+    }),
+  ])
+
+  let ino1!: number
+  let ino2!: number
+
+  {
+    const fetchResult = fetchResults[0]
+    const { files } = await fetchResult.fetching()
+
+    ino1 = fs.statSync(files.filesMap.get('package.json') as string).ino
+
+    expect(Array.from(files.filesMap.keys()).sort((a, b) => a.localeCompare(b))).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort((a, b) => a.localeCompare(b)))
+    expect(files.resolvedFrom).toBe('remote')
+  }
+
+  {
+    const fetchResult = fetchResults[1]
+    const { files } = await fetchResult.fetching()
+
+    ino2 = fs.statSync(files.filesMap.get('package.json') as string).ino
+
+    expect(Array.from(files.filesMap.keys()).sort((a, b) => a.localeCompare(b))).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort((a, b) => a.localeCompare(b)))
+    expect(files.resolvedFrom).toBe('remote')
+  }
+
+  expect(ino1).toBe(ino2)
+})
+
+test('fetchPackageToStore() does not cache errors', async () => {
+  const agent = await setupMockAgent()
+  const mockPool = agent.get(registry)
+  // First request returns 404
+  mockPool.intercept({ path: '/is-positive/-/is-positive-1.0.0.tgz', method: 'GET' }).reply(404, {})
+  // Second request returns the tarball
+  const tarballContent = fs.readFileSync(IS_POSITIVE_TARBALL)
+  mockPool.intercept({ path: '/is-positive/-/is-positive-1.0.0.tgz', method: 'GET' }).reply(200, tarballContent, {
+    headers: { 'content-length': String(tarballContent.length) },
+  })
+
+  const noRetryStoreIndex = new StoreIndex('.store')
+  storeIndexes.push(noRetryStoreIndex)
+  const noRetry = createClient({
+    configByUri: {},
+    retry: { retries: 0 },
+    cacheDir: '.pnpm',
+    storeDir: '.store',
+    registries,
+    storeIndex: topStoreIndex,
+  })
+
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const packageRequester = createPackageRequester({
+    resolve: noRetry.resolve,
+    fetchers: noRetry.fetchers,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  const pkgId = 'is-positive@1.0.0'
+
+  const badRequest = packageRequester.fetchPackageToStore({
+    force: false,
+    lockfileDir: temporaryDirectory(),
+    pkg: {
+      name: 'is-positive',
+      version: '1.0.0',
+      id: pkgId,
+      resolution: {
+        integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+        tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+      },
+    },
+  })
+  await expect(badRequest.fetching()).rejects.toThrow()
+
+  const fetchResult = packageRequester.fetchPackageToStore({
+    force: false,
+    lockfileDir: temporaryDirectory(),
+    pkg: {
+      name: 'is-positive',
+      version: '1.0.0',
+      id: pkgId,
+      resolution: {
+        integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+        tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+      },
+    },
+  })
+  const { files } = await fetchResult.fetching()
+  expect(Array.from(files.filesMap.keys()).sort((a, b) => a.localeCompare(b))).toStrictEqual(['package.json', 'index.js', 'license', 'readme.md'].sort((a, b) => a.localeCompare(b)))
+  expect(files.resolvedFrom).toBe('remote')
+
+  await teardownMockAgent()
+})
+
+// This test was added to cover the issue described here: https://github.com/pnpm/supi/issues/65
+test('always return a package manifest in the response', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const requestPackage = createPackageRequester({
+    resolve,
+    fetchers,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+  expect(typeof requestPackage).toBe('function')
+  const projectDir = temporaryDirectory()
+
+  {
+    const pkgResponse = await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
+      downloadPriority: 0,
+      lockfileDir: projectDir,
+      preferredVersions: {},
+      projectDir,
+    }) as PackageResponse & { body: { manifest: { name: string } } }
+
+    expect(pkgResponse.body).toBeTruthy()
+    expect(pkgResponse.body.manifest.name).toBeTruthy()
+  }
+
+  {
+    const pkgResponse = await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
+      currentPkg: {
+        id: 'is-positive@1.0.0' as PkgResolutionId,
+        resolution: {
+          integrity: 'sha512-xxzPGZ4P2uN6rROUa5N9Z7zTX6ERuE0hs6GUOc/cKBLF2NqKc16UwqHMt3tFg4CO6EBTE5UecUasg+3jZx3Ckg==',
+          tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+        },
+      },
+      downloadPriority: 0,
+      lockfileDir: projectDir,
+      preferredVersions: {},
+      projectDir,
+    }) as PackageResponse & { fetching: () => Promise<PkgRequestFetchResult> }
+
+    expect(pkgResponse.body).toBeTruthy()
+    expect(
+      (await pkgResponse.fetching()).bundledManifest
+    ).toEqual(
+      {
+        devDependencies: { ava: '^0.0.4' },
+        engines: { node: '>=0.10.0' },
+        name: 'is-positive',
+        version: '1.0.0',
+      }
+    )
+  }
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/1293
+test('fetchPackageToStore() fetch raw manifest of cached package', async () => {
+  const agent = await setupMockAgent()
+  const tarballContent = fs.readFileSync(IS_POSITIVE_TARBALL)
+  agent.get(registry)
+    .intercept({ path: '/is-positive/-/is-positive-1.0.0.tgz', method: 'GET' })
+    .reply(200, tarballContent, {
+      headers: { 'content-length': String(tarballContent.length) },
+    })
+
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const packageRequester = createPackageRequester({
+    resolve,
+    fetchers,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  const pkgId = 'is-positive@1.0.0'
+  const resolution = {
+    tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+  }
+  const fetchResults = await Promise.all([
+    packageRequester.fetchPackageToStore({
+      populateMissingIntegrity: true,
+      fetchRawManifest: false,
+      force: false,
+      lockfileDir: temporaryDirectory(),
+      pkg: {
+        name: 'is-positive',
+        version: '1.0.0',
+        id: pkgId,
+        resolution,
+      },
+    }),
+    packageRequester.fetchPackageToStore({
+      populateMissingIntegrity: true,
+      fetchRawManifest: true,
+      force: false,
+      lockfileDir: temporaryDirectory(),
+      pkg: {
+        name: 'is-positive',
+        version: '1.0.0',
+        id: pkgId,
+        resolution,
+      },
+    }),
+  ])
+
+  expect((await fetchResults[1].fetching()).bundledManifest).toBeTruthy()
+  await teardownMockAgent()
+})
+
+test('refetch package to store if it has been modified', async () => {
+  const storeDir = temporaryDirectory()
+  const lockfileDir = temporaryDirectory()
+  const localFetchers = createFetchersForStore(storeDir)
+
+  const pkgId = 'magic-hook@2.0.0'
+  const resolution = (await resolve({ alias: 'magic-hook', bareSpecifier: '2.0.0' }, {
+    lockfileDir,
+    preferredVersions: {},
+    projectDir: lockfileDir,
+  })).resolution
+
+  let indexJsFile!: string
+  {
+    const cafs = createCafsStore(storeDir)
+    const packageRequester = createPackageRequester({
+      resolve,
+      fetchers: localFetchers,
+      cafs,
+      networkConcurrency: 1,
+      storeDir,
+      verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
+    })
+
+    const fetchResult = packageRequester.fetchPackageToStore({
+      fetchRawManifest: false,
+      force: false,
+      lockfileDir,
+      pkg: {
+        name: 'magic-hook',
+        version: '2.0.0',
+        id: pkgId,
+        resolution,
+      },
+    })
+
+    const { filesMap } = (await fetchResult.fetching()).files
+    indexJsFile = filesMap.get('index.js') as string
+  }
+
+  // We should restart the workers otherwise the locker cache will still try to read the file
+  // that will be removed from the store due to integrity change
+  await restartWorkerPool()
+
+  await delay(200)
+  // Adding some content to the file to change its integrity
+  fs.appendFileSync(indexJsFile, '// foobar')
+
+  const reporter = jest.fn()
+  streamParser.on('data', reporter)
+
+  {
+    const cafs = createCafsStore(storeDir)
+    const packageRequester = createPackageRequester({
+      resolve,
+      fetchers: localFetchers,
+      cafs,
+      networkConcurrency: 1,
+      storeDir,
+      verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
+    })
+
+    const fetchResult = packageRequester.fetchPackageToStore({
+      fetchRawManifest: false,
+      force: false,
+      lockfileDir,
+      pkg: {
+        name: 'magic-hook',
+        version: '2.0.0',
+        id: pkgId,
+        resolution,
+      },
+    })
+
+    await fetchResult.fetching()
+  }
+
+  streamParser.removeListener('data', reporter)
+
+  expect(fs.readFileSync(indexJsFile, 'utf8')).not.toContain('// foobar')
+
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    level: 'warn',
+    message: `Refetching ${path.join(storeDir, depPathToFilename(pkgId, 120))} to store. It was either modified or had no integrity checksums`,
+    name: 'pnpm:package-requester',
+    prefix: lockfileDir,
+  }))
+})
+
+test('do not fetch an optional package that is not installable', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const requestPackage = createPackageRequester({
+    resolve,
+    fetchers,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+  expect(typeof requestPackage).toBe('function')
+
+  const projectDir = temporaryDirectory()
+  const pkgResponse = await requestPackage({ alias: '@pnpm.e2e/not-compatible-with-any-os', optional: true, bareSpecifier: '*' }, {
+    downloadPriority: 0,
+    lockfileDir: projectDir,
+    preferredVersions: {},
+    projectDir,
+  })
+
+  expect(pkgResponse).toBeTruthy()
+  expect(pkgResponse.body).toBeTruthy()
+
+  expect(pkgResponse.body.isInstallable).toBe(false)
+  expect(pkgResponse.body.id).toBe('@pnpm.e2e/not-compatible-with-any-os@1.0.0')
+
+  expect(pkgResponse.fetching).toBeFalsy()
+})
+
+// Test case for https://github.com/pnpm/pnpm/issues/11702
+test('do not fetch an optional package whose name declares an unsupported platform when the registry metadata has no platform fields', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const resolveWithoutPlatformFields: typeof resolve = async (wantedDependency, opts) => {
+    const result = await resolve(wantedDependency, opts)
+    if (result.manifest != null) {
+      delete result.manifest.os
+      delete result.manifest.cpu
+      delete result.manifest.libc
+    }
+    return result
+  }
+  const requestPackage = createPackageRequester({
+    resolve: resolveWithoutPlatformFields,
+    fetchers,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  const projectDir = temporaryDirectory()
+  const pkgResponse = await requestPackage({ alias: '@pnpm.e2e/linux-x64', optional: true, bareSpecifier: '*' }, {
+    downloadPriority: 0,
+    lockfileDir: projectDir,
+    preferredVersions: {},
+    projectDir,
+    supportedArchitectures: { os: ['darwin'], cpu: ['arm64'] },
+  })
+
+  expect(pkgResponse.body.isInstallable).toBe(false)
+  expect(pkgResponse.body.id).toBe('@pnpm.e2e/linux-x64@1.0.0')
+  expect(pkgResponse.fetching).toBeFalsy()
+})
+
+// Test case for https://github.com/pnpm/pnpm/issues/1866
+test('fetch a git package without a package.json', async () => {
+  // a small Deno library with a 'denolib.json' instead of a 'package.json'
+  const repo = 'denolib/camelcase'
+  const commit = 'aeb6b15f9c9957c8fa56f9731e914c4d8a6d2f2b'
+
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const requestPackage = createPackageRequester({
+    resolve,
+    fetchers,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+  expect(typeof requestPackage).toBe('function')
+  const projectDir = temporaryDirectory()
+
+  {
+    const pkgResponse = await requestPackage({ alias: 'camelcase', bareSpecifier: `${repo}#${commit}` }, {
+      downloadPriority: 0,
+      lockfileDir: projectDir,
+      preferredVersions: {},
+      projectDir,
+    }) as PackageResponse & { body: { manifest: { name: string } } }
+
+    expect(pkgResponse.body).toBeTruthy()
+    expect(pkgResponse.body.manifest).toBeUndefined()
+    expect(pkgResponse.body.isInstallable).toBeFalsy()
+    expect(pkgResponse.body.id).toBe(`https://codeload.github.com/${repo}/tar.gz/${commit}`)
+  }
+})
+
+test('throw exception if the package data in the store differs from the expected data', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const localFetchers = createFetchersForStore(storeDir)
+  let pkgResponse!: PackageResponse
+
+  {
+    const requestPackage = createPackageRequester({
+      resolve,
+      fetchers: localFetchers,
+      cafs,
+      networkConcurrency: 1,
+      storeDir,
+      verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
+    })
+
+    const projectDir = temporaryDirectory()
+    pkgResponse = await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
+      downloadPriority: 0,
+      lockfileDir: projectDir,
+      preferredVersions: {},
+      projectDir,
+    })
+    await pkgResponse.fetching!()
+  }
+
+  // Fail when the name of the package is different in the store
+  {
+    const requestPackage = createPackageRequester({
+      resolve,
+      fetchers: localFetchers,
+      cafs,
+      networkConcurrency: 1,
+      storeDir,
+      verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
+    })
+    const { fetching } = requestPackage.fetchPackageToStore({
+      force: false,
+      lockfileDir: temporaryDirectory(),
+      pkg: {
+        name: 'is-negative',
+        version: '1.0.0',
+        id: pkgResponse.body.id,
+        resolution: pkgResponse.body.resolution,
+      },
+    })
+    await expect(fetching()).rejects.toThrow(/Package name or version mismatch found while reading/)
+  }
+
+  // Fail when the version of the package is different in the store
+  {
+    const requestPackage = createPackageRequester({
+      resolve,
+      fetchers: localFetchers,
+      cafs,
+      networkConcurrency: 1,
+      storeDir,
+      verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
+    })
+    const { fetching } = requestPackage.fetchPackageToStore({
+      force: false,
+      lockfileDir: temporaryDirectory(),
+      pkg: {
+        name: 'is-negative',
+        version: '2.0.0',
+        id: pkgResponse.body.id,
+        resolution: pkgResponse.body.resolution,
+      },
+    })
+    await expect(fetching()).rejects.toThrow(/Package name or version mismatch found while reading/)
+  }
+
+  // Do not fail when the versions are the same but written in a different format (1.0.0 is the same as v1.0.0)
+  {
+    const requestPackage = createPackageRequester({
+      resolve,
+      fetchers: localFetchers,
+      cafs,
+      networkConcurrency: 1,
+      storeDir,
+      verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
+    })
+    const { fetching } = requestPackage.fetchPackageToStore({
+      force: false,
+      lockfileDir: temporaryDirectory(),
+      pkg: {
+        name: 'is-positive',
+        version: 'v1.0.0',
+        id: pkgResponse.body.id,
+        resolution: pkgResponse.body.resolution,
+      },
+    })
+    await expect(fetching()).resolves.toStrictEqual(expect.anything())
+  }
+
+  {
+    const requestPackage = createPackageRequester({
+      resolve,
+      fetchers,
+      cafs,
+      networkConcurrency: 1,
+      storeDir,
+      verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
+    })
+    const { fetching } = requestPackage.fetchPackageToStore({
+      force: false,
+      lockfileDir: temporaryDirectory(),
+      pkg: {
+        name: 'IS-positive',
+        version: 'v1.0.0',
+        id: pkgResponse.body.id,
+        resolution: pkgResponse.body.resolution,
+      },
+    })
+    await expect(fetching()).resolves.toStrictEqual(expect.anything())
+  }
+})
+
+test("don't throw an error if the package was updated, so the expectedPkg has a different version than the version in the store", async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  {
+    const requestPackage = createPackageRequester({
+      resolve,
+      fetchers,
+      cafs,
+      networkConcurrency: 1,
+      storeDir,
+      verifyStoreIntegrity: true,
+      virtualStoreDirMaxLength: 120,
+    })
+
+    const projectDir = temporaryDirectory()
+    const pkgResponse = await requestPackage({ alias: 'is-positive', bareSpecifier: '3.1.0' }, {
+      downloadPriority: 0,
+      lockfileDir: projectDir,
+      preferredVersions: {},
+      projectDir,
+    })
+    await pkgResponse.fetching!()
+  }
+  const requestPackage = createPackageRequester({
+    resolve,
+    fetchers,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+  const projectDir = temporaryDirectory()
+  const pkgResponse = await requestPackage({ alias: 'is-positive', bareSpecifier: '3.1.0' }, {
+    downloadPriority: 0,
+    lockfileDir: temporaryDirectory(),
+    preferredVersions: {},
+    projectDir,
+    expectedPkg: {
+      name: 'is-positive',
+      version: '3.0.0',
+    },
+  })
+  await expect(pkgResponse.fetching!()).resolves.toStrictEqual(expect.anything())
+})
+
+test('the version in the bundled manifest should be normalized', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+
+  const requestPackage = createPackageRequester({
+    resolve,
+    fetchers,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  const pkgResponse = await requestPackage({ alias: 'react-terminal', bareSpecifier: '1.2.1' }, {
+    downloadPriority: 0,
+    lockfileDir: temporaryDirectory(),
+    preferredVersions: {},
+    projectDir: temporaryDirectory(),
+  })
+  expect((await pkgResponse.fetching!()).bundledManifest?.version).toBe('1.2.1')
+})
+
+test('should skip store integrity check and resolve manifest if fetchRawManifest is true', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+
+  let pkgResponse!: PackageResponse
+
+  {
+    const requestPackage = createPackageRequester({
+      resolve,
+      fetchers,
+      cafs,
+      networkConcurrency: 1,
+      storeDir,
+      verifyStoreIntegrity: false,
+      virtualStoreDirMaxLength: 120,
+    })
+
+    const projectDir = temporaryDirectory()
+
+    pkgResponse = await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
+      downloadPriority: 0,
+      lockfileDir: projectDir,
+      preferredVersions: {},
+      projectDir,
+    })
+
+    await pkgResponse.fetching!()
+  }
+
+  {
+    const requestPackage = createPackageRequester({
+      resolve,
+      fetchers,
+      cafs,
+      networkConcurrency: 1,
+      storeDir,
+      verifyStoreIntegrity: false,
+      virtualStoreDirMaxLength: 120,
+    })
+
+    const fetchResult = requestPackage.fetchPackageToStore({
+      force: false,
+      fetchRawManifest: true,
+      lockfileDir: temporaryDirectory(),
+      pkg: {
+        name: 'is-positive',
+        version: '1.0.0',
+        id: pkgResponse.body.id,
+        resolution: pkgResponse.body.resolution,
+      },
+    })
+
+    await fetchResult.fetching()
+
+    expect((await fetchResult.fetching!()).bundledManifest).toMatchObject({
+      name: 'is-positive',
+      version: '1.0.0',
+      devDependencies: {
+        ava: '^0.0.4',
+      },
+    })
+  }
+})
+
+test('HTTP tarball without integrity gets integrity computed during fetch', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const requestPackage = createPackageRequester({
+    resolve,
+    fetchers,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  const projectDir = temporaryDirectory()
+  // Request a package via HTTP tarball URL (simulated via the local registry)
+  const pkgResponse = await requestPackage(
+    { alias: 'is-positive', bareSpecifier: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz` },
+    {
+      downloadPriority: 0,
+      lockfileDir: projectDir,
+      preferredVersions: {},
+      projectDir,
+    }
+  )
+
+  expect(pkgResponse.body).toBeTruthy()
+  // The resolution should now include an integrity hash computed during fetch
+  expect(pkgResponse.body.resolution).toHaveProperty('integrity')
+  expect((pkgResponse.body.resolution as { integrity?: string }).integrity).toMatch(/^sha512-/)
+})
+
+test('registry tarball without integrity gets integrity computed even when already in the local store', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const projectDir = temporaryDirectory()
+
+  // First, populate the local store with a normal request that has integrity.
+  const seedRequestPackage = createPackageRequester({
+    resolve,
+    fetchers,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+  const seedResponse = await seedRequestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
+    downloadPriority: 0,
+    lockfileDir: projectDir,
+    preferredVersions: {},
+    projectDir,
+  }) as PackageResponse & { fetching: () => Promise<PkgRequestFetchResult> }
+  await seedResponse.fetching()
+
+  // Store hits cannot supply missing lockfile integrity; this path must fetch.
+  const resolveWithoutIntegrity: typeof resolve = async () => ({
+    id: 'is-positive@1.0.0' as PkgResolutionId,
+    latest: '1.0.0',
+    resolution: {
+      tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+    },
+    manifest: {
+      name: 'is-positive',
+      version: '1.0.0',
+    },
+    resolvedVia: 'npm-registry',
+  })
+
+  const requestPackage = createPackageRequester({
+    resolve: resolveWithoutIntegrity,
+    fetchers,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  const pkgResponse = await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
+    downloadPriority: 0,
+    lockfileDir: projectDir,
+    preferredVersions: {},
+    projectDir,
+  }) as PackageResponse & { fetching: () => Promise<PkgRequestFetchResult> }
+  await pkgResponse.fetching()
+
+  expect(pkgResponse.body.resolution).toHaveProperty('integrity')
+  expect((pkgResponse.body.resolution as { integrity?: string }).integrity).toMatch(/^sha512-/)
+})
+
+test('skipFetch still downloads the tarball to compute a missing integrity', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+  const projectDir = temporaryDirectory()
+
+  const resolveWithoutIntegrity: typeof resolve = async () => ({
+    id: 'is-positive@1.0.0' as PkgResolutionId,
+    latest: '1.0.0',
+    resolution: {
+      tarball: `http://localhost:${REGISTRY_MOCK_PORT}/is-positive/-/is-positive-1.0.0.tgz`,
+    },
+    manifest: {
+      name: 'is-positive',
+      version: '1.0.0',
+    },
+    resolvedVia: 'npm-registry',
+  })
+
+  const requestPackage = createPackageRequester({
+    resolve: resolveWithoutIntegrity,
+    fetchers,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  // Even though `skipFetch` would normally avoid a download, a registry tarball with no
+  // integrity must be fetched so the integrity can be computed for the lockfile.
+  const pkgResponse = await requestPackage({ alias: 'is-positive', bareSpecifier: '1.0.0' }, {
+    downloadPriority: 0,
+    lockfileDir: projectDir,
+    preferredVersions: {},
+    projectDir,
+    skipFetch: true,
+  }) as PackageResponse & { fetching: () => Promise<PkgRequestFetchResult> }
+
+  // The integrity is populated when the fetch is awaited (the resolver awaits these before
+  // building the lockfile), not synchronously, so resolution isn't blocked on the download.
+  expect((pkgResponse.body.resolution as { integrity?: string }).integrity).toBeUndefined()
+  await pkgResponse.fetching()
+  expect(pkgResponse.body.resolution).toHaveProperty('integrity')
+  expect((pkgResponse.body.resolution as { integrity?: string }).integrity).toMatch(/^sha512-/)
+})
+
+test('should pass optional flag to resolve function', async () => {
+  const storeDir = temporaryDirectory()
+  const cafs = createCafsStore(storeDir)
+
+  let capturedOptional: boolean | undefined
+  const mockResolve: typeof resolve = async (wantedDependency, _options) => {
+    capturedOptional = wantedDependency.optional
+    return resolve(wantedDependency, _options)
+  }
+
+  const requestPackage = createPackageRequester({
+    resolve: mockResolve,
+    fetchers,
+    cafs,
+    networkConcurrency: 1,
+    storeDir,
+    verifyStoreIntegrity: true,
+    virtualStoreDirMaxLength: 120,
+  })
+
+  const projectDir = temporaryDirectory()
+
+  await requestPackage(
+    { alias: 'is-positive', bareSpecifier: '1.0.0', optional: true },
+    {
+      downloadPriority: 0,
+      lockfileDir: projectDir,
+      preferredVersions: {},
+      projectDir,
+    }
+  )
+
+  expect(capturedOptional).toBe(true)
+
+  await requestPackage(
+    { alias: 'is-positive', bareSpecifier: '1.0.0', optional: false },
+    {
+      downloadPriority: 0,
+      lockfileDir: projectDir,
+      preferredVersions: {},
+      projectDir,
+    }
+  )
+
+  expect(capturedOptional).toBe(false)
+
+  await requestPackage(
+    { alias: 'is-positive', bareSpecifier: '1.0.0' },
+    {
+      downloadPriority: 0,
+      lockfileDir: projectDir,
+      preferredVersions: {},
+      projectDir,
+    }
+  )
+
+  expect(capturedOptional).toBeUndefined()
+})

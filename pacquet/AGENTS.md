@@ -293,10 +293,9 @@ Run `just ready` (full suite) before handing the PR off.
 
 Same baseline as [`../AGENTS.md`](../AGENTS.md#comments): write code that explains itself; comments are for the non-obvious *why*, not a translation of the *what*.
 
-Rust-specific defaults:
+Rust-specific additions:
 
--   **Doc comments (`///`, `//!`) document the contract.** Preconditions, postconditions, panics, the reason the function exists. They are not a re-narration of the body.
--   **Do not restate at call sites what the callee's doc comment already says.** If `///` on the function says "no-op when …", the caller should not repeat that. Update the doc once; let every call site benefit.
+-   **Doc comments (`///`, `//!`) are rustdoc-visible API documentation.** Use them for item contracts. Put implementation-only rationale in regular `//` comments.
 -   **Tests are documentation. Do not duplicate them in prose.** If a behavioral scenario, edge case, failure mode, or worked example is already captured by a test (its name, its setup, its assertions), do not also narrate it in the doc comment on the implementation. The doc comment should state the contract once; the test demonstrates the behavior. The same applies in reverse: a test's own doc comment should not re-explain what the asserts already say, only the *why* if it is not obvious.
 -   **`// SAFETY:`, `// TODO:`, and similar prefixes are the exception.** They signal hidden invariants or known follow-ups that a reader cannot recover from the code alone.
 
@@ -380,8 +379,9 @@ are part of the public contract, not implementation detail. See
 - Reference the upstream pnpm commit/PR you ported from, when applicable.
 - Run `just ready` before pushing.
 - The repo-wide husky `pre-push` hook runs `pacquet/scripts/pre-push-rust.sh`,
-  which checks `rustfmt`, `taplo`, `cargo doc` (with
-  `RUSTDOCFLAGS=-D warnings`), and `cargo dylint`. Make sure your environment
+  which checks `rustfmt`, `taplo`, `cargo clippy` (with `--all-targets -D
+  warnings`), `cargo doc` (with `RUSTDOCFLAGS=-D warnings`), and `cargo
+  dylint`. Make sure your environment
   can run cargo (the hook needs it) before pushing; `cargo-dylint` is
   detected at runtime and skipped with a warning if not installed.
 

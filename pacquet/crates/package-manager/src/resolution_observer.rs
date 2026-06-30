@@ -14,8 +14,8 @@ use crate::install_package_from_registry::{
 };
 use dashmap::DashSet;
 use pacquet_resolving_resolver_base::{
-    LatestQuery, ResolveFuture, ResolveLatestFuture, ResolveOptions, ResolveResult, Resolver,
-    WantedDependency,
+    LatestQuery, PackageVersionGuard, ResolveFuture, ResolveLatestFuture, ResolveOptions,
+    ResolveResult, Resolver, WantedDependency,
 };
 use std::sync::Arc;
 
@@ -43,12 +43,33 @@ pub struct ResolvedPackageHint<'a> {
     /// registry published one. The per-file term of the download
     /// priority's pipeline-work estimate.
     pub file_count: Option<usize>,
+    /// Whether the package resolved from a registry (npm / named / jsr), so
+    /// [`Self::tarball_url`] is the registry packument's `dist.tarball`. A
+    /// server router must classify such a package by its *registry* route, not
+    /// by the tarball host — which can differ for a split-domain registry —
+    /// to avoid emitting (and leaking) a private upstream tarball URL. `false`
+    /// for a direct tarball/git/local dependency, whose tarball URL *is* its
+    /// source.
+    pub from_registry: bool,
 }
 
 /// Sink notified once per resolved tarball package during a resolve.
 /// Implemented by the pnpr server to stream fetch frames to the client.
 pub trait ResolutionObserver: Send + Sync {
     fn on_resolved(&self, hint: ResolvedPackageHint<'_>);
+
+    fn package_version_guard(&self) -> Option<Arc<dyn PackageVersionGuard>> {
+        None
+    }
+
+    /// Extra `minimumReleaseAgeExclude` specs to merge into the resolve's
+    /// maturity-cutoff exclusions for this run. `pacquet audit --fix update`
+    /// returns the patched versions here so the resolver may install them
+    /// even when `minimumReleaseAge` would otherwise block a fresh release.
+    /// `None`/empty leaves the config value untouched.
+    fn minimum_release_age_exclude_override(&self) -> Option<Vec<String>> {
+        None
+    }
 }
 
 /// Wraps an inner [`Resolver`], forwarding each tarball-shaped result to
@@ -97,8 +118,15 @@ impl ObservingResolver {
             tarball_url,
             unpacked_size: manifest_unpacked_size(result.manifest.as_deref()),
             file_count: manifest_file_count(result.manifest.as_deref()),
+            from_registry: is_registry_resolution(&result.resolved_via),
         });
     }
+}
+
+/// Whether `resolved_via` denotes a registry protocol whose `dist.tarball`
+/// comes from a packument (and so can point at a split-domain host).
+fn is_registry_resolution(resolved_via: &str) -> bool {
+    matches!(resolved_via, "npm-registry" | "named-registry" | "jsr-registry")
 }
 
 impl Resolver for ObservingResolver {

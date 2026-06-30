@@ -38,18 +38,6 @@ pub struct PatchNonSemverRangeError {
 ///
 /// Ports upstream's
 /// [`groupPatchedDependencies`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/patching/config/src/groupPatchedDependencies.ts#L6-L49).
-/// For each entry:
-///
-/// 1. Parse the key.
-/// 2. `name@<exact-semver>` → `group.exact[version]`.
-/// 3. `name@<range>` with `range.trim() == "*"` → `group.all`.
-/// 4. `name@<range>` otherwise → push onto `group.range`.
-/// 5. Bare `name` (or unparsable key) → `group.all`.
-///
-/// Rule 2/3/4 order mirrors upstream. Note rule 5's wildcard wins
-/// over a later explicit `name@*`: upstream uses the bare-name branch
-/// last, so a bare `name` key overwrites whatever the `*` branch set.
-/// Pacquet matches that behavior.
 pub fn group_patched_dependencies<Iter>(
     entries: Iter,
 ) -> Result<PatchGroupRecord, PatchNonSemverRangeError>
@@ -88,8 +76,9 @@ where
                 }
             }
             _ => {
-                // Bare name (or unparsable): wildcard for the package
-                // matching the whole key verbatim.
+                // A bare `name` key and a `name@*` key both target
+                // `group.all`. Upstream runs this bare-name branch last,
+                // so a bare `name` overwrites whatever `name@*` set.
                 let group = result.entry(key.clone()).or_default();
                 group.all = Some(extended);
             }

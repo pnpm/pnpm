@@ -72,6 +72,133 @@ fn recursive_exec_runs_command_in_every_project() {
     drop(root);
 }
 
+/// `pacquet -r --filter <name> exec <command>` runs the command only in
+/// the `--filter`-selected project. Threads `config.filter` through the
+/// recursive exec dispatch.
+#[test]
+fn recursive_exec_filter_selects_only_matching_project() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["project-1", "project-2", "project-3"]);
+
+    pacquet
+        .with_arg("-r")
+        .with_arg("--filter")
+        .with_arg("project-1")
+        .with_arg("exec")
+        .with_arg("touch")
+        .with_arg("ran.txt")
+        .assert()
+        .success();
+
+    assert!(
+        workspace.join("project-1").join("ran.txt").exists(),
+        "the selected project-1 should run the command",
+    );
+    for name in ["project-2", "project-3"] {
+        assert!(
+            !workspace.join(name).join("ran.txt").exists(),
+            "{name} is not selected by --filter and must not run",
+        );
+    }
+
+    drop(root);
+}
+
+/// A bare `--filter` (no `-r`) enters recursive mode CLI-wide, matching
+/// pnpm's `parse-cli-args` promotion: the command runs only in the
+/// selected project even though `-r` was never passed.
+#[test]
+fn filter_without_recursive_flag_enters_recursive_exec() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["project-1", "project-2"]);
+
+    pacquet
+        .with_arg("--filter")
+        .with_arg("project-1")
+        .with_arg("exec")
+        .with_arg("touch")
+        .with_arg("ran.txt")
+        .assert()
+        .success();
+
+    assert!(
+        workspace.join("project-1").join("ran.txt").exists(),
+        "the selected project-1 should run the command",
+    );
+    assert!(
+        !workspace.join("project-2").join("ran.txt").exists(),
+        "a bare --filter (no -r) should still scope the exec to the selection",
+    );
+
+    drop(root);
+}
+
+/// A `[<since>]` changed-packages selector is not supported by pacquet's
+/// filter engine yet, so a recursive `exec` surfaces the
+/// `UnsupportedDiffSelector` error instead of swallowing it. This
+/// exercises the error-propagation (`?`) out of `select_recursive_projects`.
+#[test]
+fn recursive_exec_diff_selector_is_unsupported() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["project-1"]);
+
+    let output = pacquet
+        .with_arg("-r")
+        .with_arg("--filter")
+        .with_arg("[main]")
+        .with_arg("exec")
+        .with_arg("touch")
+        .with_arg("ran.txt")
+        .output()
+        .expect("spawn pacquet");
+    assert!(!output.status.success(), "a [<since>] diff selector is unsupported and must fail");
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        stderr.contains("Changed-package filter selectors"),
+        "stderr should explain the diff selector is unsupported, got: {stderr}",
+    );
+    assert!(
+        !workspace.join("project-1").join("ran.txt").exists(),
+        "exec must reject the selector before dispatching the command, so no marker is written",
+    );
+
+    drop(root);
+}
+
+/// A `--filter` that matches no project is a no-op: recursive exec exits
+/// 0 and writes no summary even with `--report-summary`, matching pnpm's
+/// main-dispatch exit-0 for an empty selection — rather than erroring on
+/// `--resume-from` or emitting an empty summary.
+#[test]
+fn recursive_exec_filter_no_match_is_a_noop() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(&workspace, &["project-1", "project-2"]);
+
+    pacquet
+        .with_arg("-r")
+        .with_arg("--filter")
+        .with_arg("does-not-exist")
+        .with_arg("exec")
+        .with_arg("--report-summary")
+        .with_arg("touch")
+        .with_arg("ran.txt")
+        .assert()
+        .success();
+
+    for name in ["project-1", "project-2"] {
+        assert!(
+            !workspace.join(name).join("ran.txt").exists(),
+            "no project is selected, so {name} should not run",
+        );
+    }
+    assert!(
+        !workspace.join("pnpm-exec-summary.json").exists(),
+        "an empty selection should not write a summary file",
+    );
+
+    drop(root);
+}
+
 /// `--report-summary` writes `pnpm-exec-summary.json` with a `passed`
 /// entry for every project.
 #[test]
@@ -142,6 +269,45 @@ fn recursive_exec_bail_stops_at_first_failure() {
         .filter(|name| workspace.join(name).join("ran.txt").exists())
         .count();
     assert!(ran < 3, "bail should stop before every project runs, but {ran}/3 ran");
+
+    drop(root);
+}
+
+/// A settings-only `pnpm-workspace.yaml` (no `packages:`) enumerates the
+/// root project only; it must not recursively pick up vendored fixture
+/// packages.
+#[test]
+fn recursive_exec_settings_only_workspace_enumerates_root_only() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    fs::write(
+        workspace.join("package.json"),
+        json!({ "name": "root", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write root package.json");
+    fs::write(workspace.join("pnpm-workspace.yaml"), "allowBuilds:\n  esbuild: false\n")
+        .expect("write settings-only workspace manifest");
+
+    let nested = workspace.join("test-e2e/fixtures/vendor/preact/.cache/10.10.2");
+    fs::create_dir_all(&nested).expect("create vendored package dir");
+    fs::write(
+        nested.join("package.json"),
+        json!({ "name": "preact", "version": "10.10.2" }).to_string(),
+    )
+    .expect("write vendored package.json");
+
+    pacquet
+        .with_arg("-r")
+        .with_arg("exec")
+        .with_arg("touch")
+        .with_arg("ran.txt")
+        .assert()
+        .success();
+
+    assert!(workspace.join("ran.txt").exists(), "root project should run the command");
+    assert!(
+        !nested.join("ran.txt").exists(),
+        "settings-only workspace manifests must not recursively enumerate vendored packages",
+    );
 
     drop(root);
 }

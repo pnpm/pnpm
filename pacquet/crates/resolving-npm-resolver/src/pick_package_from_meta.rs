@@ -37,7 +37,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::{Range, Version};
 use pacquet_config::version_policy::{PackageVersionPolicy, PolicyMatch};
-use pacquet_registry::{Package, PackageVersion};
+use pacquet_registry::{Package, PackageVersion, PackageVersions};
 use pacquet_resolving_resolver_base::{
     VersionSelectorEntry, VersionSelectorType, VersionSelectors, parse_packument_timestamp,
 };
@@ -164,12 +164,8 @@ where
                 .published_by_exclude
                 .map_or(PolicyMatch::No, |policy| policy.matches(&meta.name));
             if matches!(exclude_result, PolicyMatch::AnyVersion) {
-                // Bare-name match — every version of this package is
-                // covered by the exclude, so the maturity filter is
-                // a no-op. Borrow the input through.
                 meta
             } else if meta.time.is_some() {
-                // Full metadata — filter by per-version `time`.
                 let trusted = match &exclude_result {
                     PolicyMatch::ExactVersions(versions) => Some(versions.as_slice()),
                     _ => None,
@@ -177,13 +173,9 @@ where
                 filtered = filter_pkg_metadata_by_publish_date(meta, cutoff, trusted);
                 &filtered
             } else {
-                // Abbreviated metadata — no per-version `time`. Fall
-                // back to the package-level `modified` shortcut: if
-                // the registry says the whole package hasn't been
-                // touched since the cutoff, every version is old
-                // enough. Otherwise we can't decide and have to
-                // signal a missing-time error to the orchestrator,
-                // which then upgrades the fetch to full metadata.
+                // Abbreviated metadata has no per-version `time`. The
+                // missing-time error signals the orchestrator, which
+                // then upgrades the fetch to full metadata.
                 //
                 // Cutoff is inclusive (`<=`) to match the per-version
                 // filter in `filter_pkg_metadata_by_publish_date`: a
@@ -205,9 +197,6 @@ where
     };
 
     if meta_ref.versions.is_empty() && opts.published_by.is_none() {
-        // Mirrors upstream: with publishedBy off, an empty versions
-        // map is either "unpublished" (when the `time.unpublished`
-        // marker is present) or "no versions at all."
         if has_unpublished_versions(meta_ref) {
             return Err(PickPackageFromMetaError::Unpublished { pkg_name: spec.name.clone() });
         }
@@ -329,10 +318,10 @@ pub fn pick_version_by_version_range(
     }
 
     if let Some(latest) = latest {
-        // The `*` short-circuit matches upstream — `semver.satisfies`
-        // rejects prereleases for `*`, so a package whose only
-        // version is `1.0.0-beta.1` would have `*` return nothing
-        // without this branch. See pnpm/pnpm#865.
+        // `*` is special-cased because `semver.satisfies` rejects
+        // prereleases for `*`: a package whose only version is
+        // `1.0.0-beta.1` would otherwise return nothing for `*`.
+        // See pnpm/pnpm#865.
         if opts.version_range == "*" || semver_satisfies_loose(latest, opts.version_range) {
             return Some(latest.to_string());
         }
@@ -341,10 +330,6 @@ pub fn pick_version_by_version_range(
     let all_versions: Vec<&str> = opts.meta.versions.keys().map(String::as_str).collect();
     let max_pick = max_satisfying(&all_versions, opts.version_range);
 
-    // Deprecated-fallback: if the picked max is deprecated AND the
-    // packument has another version, try again with only the
-    // non-deprecated subset. Matches upstream's loop at
-    // pickPackageFromMeta.ts#L194-L201.
     if let Some(ref picked) = max_pick {
         let picked_is_deprecated = opts.meta.versions.is_deprecated(picked);
         if picked_is_deprecated && all_versions.len() > 1 {
@@ -415,9 +400,7 @@ pub fn filter_pkg_metadata_by_publish_date(
          caller must check before invoking",
     );
 
-    // Decide on version strings + the `time` map alone; slots move as
-    // raw fragments, so the filter never hydrates a manifest.
-    let versions_within_date = meta.versions.filtered(|version| {
+    filter_pkg_metadata_versions(meta, |version| {
         let mature = time
             .get(version)
             .and_then(serde_json::Value::as_str)
@@ -426,8 +409,38 @@ pub fn filter_pkg_metadata_by_publish_date(
         let trusted =
             trusted_versions.is_some_and(|allow| allow.iter().any(|allowed| allowed == version));
         mature || trusted
-    });
+    })
+}
 
+/// Filter a packument's versions by string while keeping dist-tags
+/// usable. Tags that still point at a kept version are preserved; tags
+/// whose target was removed are rewritten using the publish-date
+/// filter's dist-tag rules: `latest` may move to the best remaining
+/// version across any major, while other tags stay within the removed
+/// target's major/prerelease lane.
+#[must_use]
+pub fn filter_pkg_metadata_versions(meta: &Package, mut keep: impl FnMut(&str) -> bool) -> Package {
+    // Decide on version strings alone; slots move as raw fragments, so
+    // the filter never hydrates a manifest.
+    let filtered_versions = meta.versions.filtered(|version| keep(version));
+    let dist_tags = repopulate_dist_tags(meta, &filtered_versions);
+
+    Package {
+        name: meta.name.clone(),
+        dist_tags,
+        versions: filtered_versions,
+        time: meta.time.clone(),
+        modified: meta.modified.clone(),
+        etag: meta.etag.clone(),
+        homepage: meta.homepage.clone(),
+        mutex: std::sync::Arc::clone(&meta.mutex),
+    }
+}
+
+fn repopulate_dist_tags(
+    meta: &Package,
+    filtered_versions: &PackageVersions,
+) -> std::collections::HashMap<String, String> {
     let mut dist_tags_within_date = std::collections::HashMap::new();
     // Candidate versions parsed once per filter call and shared by
     // every repopulated tag, with the deprecation flag resolved
@@ -438,14 +451,14 @@ pub fn filter_pkg_metadata_by_publish_date(
     // out-of-cutoff dist-tags.
     let mut parsed_candidates: Option<Vec<(Version, &String, OnceCell<bool>)>> = None;
     for (tag, version) in &meta.dist_tags {
-        if versions_within_date.contains_key(version) {
+        if filtered_versions.contains_key(version) {
             dist_tags_within_date.insert(tag.clone(), version.clone());
             continue;
         }
         let Ok(original) = Version::parse(version) else { continue };
         let original_is_prerelease = !original.pre_release.is_empty();
         let candidates = parsed_candidates.get_or_insert_with(|| {
-            versions_within_date
+            filtered_versions
                 .keys()
                 .filter_map(|raw| {
                     Version::parse(raw).ok().map(|parsed| (parsed, raw, OnceCell::new()))
@@ -453,7 +466,7 @@ pub fn filter_pkg_metadata_by_publish_date(
                 .collect()
         });
         let deprecated = |slot: &(Version, &String, OnceCell<bool>)| -> bool {
-            *slot.2.get_or_init(|| versions_within_date.is_deprecated(slot.1))
+            *slot.2.get_or_init(|| filtered_versions.is_deprecated(slot.1))
         };
         let mut best_index: Option<usize> = None;
         for (index, slot) in candidates.iter().enumerate() {
@@ -483,17 +496,7 @@ pub fn filter_pkg_metadata_by_publish_date(
             dist_tags_within_date.insert(tag.clone(), candidates[best].1.clone());
         }
     }
-
-    Package {
-        name: meta.name.clone(),
-        dist_tags: dist_tags_within_date,
-        versions: versions_within_date,
-        time: meta.time.clone(),
-        modified: meta.modified.clone(),
-        etag: meta.etag.clone(),
-        homepage: meta.homepage.clone(),
-        mutex: std::sync::Arc::clone(&meta.mutex),
-    }
+    dist_tags_within_date
 }
 
 /// Group versions by weight (highest weight first); each group is
@@ -609,9 +612,61 @@ fn cached_range(range: &str) -> Option<Arc<Range>> {
         // not on the guard.
         return entry.value().clone();
     }
-    let parsed = Range::parse(range).ok().map(Arc::new);
+    let normalized = normalize_partial_lte_comparators(range);
+    let parsed = Range::parse(&normalized).ok().map(Arc::new);
     RANGE_CACHE.insert(range.to_string(), parsed.clone());
     parsed
+}
+
+fn normalize_partial_lte_comparators(range: &str) -> String {
+    let tokens: Vec<&str> = range.split_whitespace().collect();
+    let mut normalized = Vec::with_capacity(tokens.len());
+    let mut cursor = 0;
+    while cursor < tokens.len() {
+        let token = tokens[cursor];
+        if token == "<="
+            && let Some(version) = tokens.get(cursor + 1)
+            && let Some(comparator) = partial_lte_upper_bound(version)
+        {
+            normalized.push(comparator);
+            cursor += 2;
+            continue;
+        }
+        if let Some(version) = token.strip_prefix("<=")
+            && let Some(comparator) = partial_lte_upper_bound(version)
+        {
+            normalized.push(comparator);
+            cursor += 1;
+            continue;
+        }
+        normalized.push(token.to_string());
+        cursor += 1;
+    }
+    normalized.join(" ")
+}
+
+fn partial_lte_upper_bound(version: &str) -> Option<String> {
+    if version.contains('-') || version.contains('+') || version.contains('*') {
+        return None;
+    }
+    let parts: Vec<&str> = version.split('.').collect();
+    match parts.as_slice() {
+        [major] if is_digits(major) => {
+            let major: u64 = major.parse().ok()?;
+            let next_major = major.checked_add(1)?;
+            Some(format!("<{next_major}.0.0-0"))
+        }
+        [major, minor] if is_digits(major) && is_digits(minor) => {
+            let minor: u64 = minor.parse().ok()?;
+            let next_minor = minor.checked_add(1)?;
+            Some(format!("<{major}.{next_minor}.0-0"))
+        }
+        _ => None,
+    }
+}
+
+fn is_digits(value: &str) -> bool {
+    !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit())
 }
 
 /// Check whether `version` satisfies `range` under node-semver's

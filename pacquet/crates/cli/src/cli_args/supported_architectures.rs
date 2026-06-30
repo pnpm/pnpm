@@ -6,22 +6,6 @@ use pacquet_package_is_installable::SupportedArchitectures;
 /// (`--cpu arm64,x64`) — both shapes are wired so the surface
 /// matches every reasonable user expectation.
 ///
-/// Each axis present on the command line REPLACES that axis in the
-/// `config.supported_architectures` value derived from
-/// `pnpm-workspace.yaml`. Absent axes leave their config-supplied
-/// value untouched. Mirrors upstream's
-/// [`overrideSupportedArchitecturesWithCLI`](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/overrideSupportedArchitecturesWithCLI.ts):
-///
-/// ```ts
-/// for (const key of CLI_OPTION_NAMES) {
-///   const values = cliOptions[key]
-///   if (values != null) {
-///     targetConfig.supportedArchitectures ??= {}
-///     targetConfig.supportedArchitectures[key] = typeof values === 'string' ? [values] : values
-///   }
-/// }
-/// ```
-///
 /// Flattened into the `InstallArgs` / `AddArgs` clap derives so the
 /// three flags appear under the regular `--help` output. Shared
 /// between the two so the wire shape is identical.
@@ -48,14 +32,8 @@ pub struct SupportedArchitecturesArgs {
 
 impl SupportedArchitecturesArgs {
     /// Apply the CLI overrides to a config-derived `SupportedArchitectures`
-    /// value, returning the merged result. An axis present on the
-    /// command line replaces the corresponding `existing` axis;
-    /// absent axes pass through unchanged.
-    ///
-    /// Returns `None` only when both the existing config value and
-    /// every CLI axis are empty — same shape as
-    /// `targetConfig.supportedArchitectures` being left `undefined`
-    /// upstream.
+    /// value, returning the merged result. Returns `None` only when both
+    /// the existing config value and every CLI axis are empty.
     pub fn apply_to(
         &self,
         existing: Option<SupportedArchitectures>,

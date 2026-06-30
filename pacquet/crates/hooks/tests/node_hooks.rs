@@ -8,12 +8,10 @@ fn test_find_pnpmfile_uses_mjs() {
     let tmp = TempDir::new().expect("temp dir");
     let root = tmp.path();
 
-    // Create .pnpmfile.mjs first, then .pnpmfile.cjs
     std::fs::write(root.join(".pnpmfile.mjs"), "// mjs").expect("write mjs");
     std::fs::write(root.join(".pnpmfile.cjs"), "// cjs").expect("write cjs");
 
     let found = finder::find_pnpmfile(root);
-    // Should prefer .mjs
     assert!(found.unwrap().ends_with(".pnpmfile.mjs"));
 }
 
@@ -22,7 +20,6 @@ fn test_find_pnpmfile_fallback_to_cjs() {
     let tmp = TempDir::new().expect("temp dir");
     let root = tmp.path();
 
-    // Only create .pnpmfile.cjs (no .mjs)
     std::fs::write(root.join(".pnpmfile.cjs"), "// cjs").expect("write cjs");
 
     let found = finder::find_pnpmfile(root);
@@ -247,7 +244,6 @@ function preResolution(ctx, logger) {
         registries: serde_json::json!({ "default": "http://localhost:1234/" }),
     };
 
-    // The hook should execute without error
     hooks
         .pre_resolution(
             ctx,
@@ -291,7 +287,6 @@ function preResolution(ctx, logger) {
         registries: serde_json::json!({ "default": "http://localhost:1234/" }),
     };
 
-    // The hook should execute without error
     hooks
         .pre_resolution(
             ctx,

@@ -1,0 +1,802 @@
+# @pnpm/fetch
+
+## 1100.1.4
+
+### Patch Changes
+
+- 05b95ab: Fixed `pnpm` hanging (and crashing with an unhandled promise rejection) when a non-retryable network error such as `SELF_SIGNED_CERT_IN_CHAIN` occurs while fetching from a registry. The error is now rejected through the returned promise instead of being thrown inside the detached retry callback.
+- Updated dependencies [852d537]
+  - @pnpm/error@1100.0.1
+
+## 1100.1.3
+
+### Patch Changes
+
+- a31faa7: Updated dependency ranges. Notably:
+
+  - `@pnpm/logger` peer dependency range moved to `^1100.0.0`.
+  - `msgpackr` 1.11.8 → 2.0.4 (store index files remain byte-compatible in both directions).
+  - `open` ^7.4.2 → ^11.0.0, `memoize` ^10 → ^11, `cli-truncate` ^5 → ^6, `pidtree` ^0.6 → ^1.
+  - `@yarnpkg/core` 4.5.0 → 4.8.0, `@rushstack/worker-pool` 0.7.7 → 0.7.18, `@cyclonedx/cyclonedx-library` 10.0.0 → 10.1.0, `@pnpm/config.nerf-dart` ^1 → ^2, `@pnpm/log.group` 3.0.2 → 4.0.1, `@pnpm/util.lex-comparator` ^3 → ^4.
+
+- Updated dependencies [681b593]
+- Updated dependencies [a31faa7]
+  - @pnpm/fetching.types@1100.0.2
+  - @pnpm/types@1101.3.2
+  - @pnpm/core-loggers@1100.2.1
+
+## 1100.1.2
+
+### Patch Changes
+
+- Updated dependencies [f11b4fc]
+  - @pnpm/core-loggers@1100.2.0
+
+## 1100.1.1
+
+### Patch Changes
+
+- Updated dependencies [bf1b731]
+  - @pnpm/types@1101.3.1
+  - @pnpm/core-loggers@1100.1.4
+
+## 1100.1.0
+
+### Minor Changes
+
+- 60a1eec: Avoided a Node.js crash when pnpm exits after network requests on Windows.
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+  - @pnpm/types@1101.3.0
+  - @pnpm/core-loggers@1100.1.3
+
+## 1100.0.8
+
+### Patch Changes
+
+- b1fa2d5: Fix `pnpm dist-tag add` and `pnpm dist-tag rm` against npmjs.org failing without `--otp` with `[ERR_PNPM_UNAUTHORIZED] You must be logged in to set dist-tag … "You must provide a one-time pass. Upgrade your client to npm@latest in order to use 2FA."`. pnpm now sends `npm-auth-type: web` on dist-tag writes and surfaces the resulting OTP challenge through the existing browser-based 2FA flow (the same `withOtpHandling` helper used by `pnpm publish`), so the browser opens, the user authenticates, and the dist-tag is set on retry. `--otp=<code>` continues to work via the classic flow.
+
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [35d2355]
+  - @pnpm/types@1101.2.0
+  - @pnpm/core-loggers@1100.1.2
+
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [64afc92]
+  - @pnpm/types@1101.1.1
+  - @pnpm/core-loggers@1100.1.1
+
+## 1100.0.5
+
+### Patch Changes
+
+- Updated dependencies [4a79336]
+  - @pnpm/core-loggers@1100.1.0
+
+## 1100.0.4
+
+### Patch Changes
+
+- 18a464f: Strip `sec-fetch-*` headers from outgoing HTTP requests. These headers are automatically added by undici's `fetch()` implementation per the Fetch spec but cause Azure DevOps Artifacts to return HTTP 400 for uncached upstream packages, as ADO interprets them as browser requests [#11572](https://github.com/pnpm/pnpm/issues/11572).
+
+## 1100.0.3
+
+### Patch Changes
+
+- 20e7aff: `pnpm publish` now honors the configured HTTP/HTTPS proxy (including `https_proxy`/`http_proxy`/`no_proxy` environment variables) when polling the registry's `doneUrl` during the web-based authentication flow. Previously the poll bypassed the proxy, causing the registry to respond `403` from a different source IP and the login to never complete [#11561](https://github.com/pnpm/pnpm/issues/11561).
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/core-loggers@1100.0.2
+
+## 1100.0.2
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/fetching.types@1100.0.1
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/core-loggers@1100.0.1
+
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+- bb8baa7: Refactored `fullMetadata` option handling. The `fullMetadata` option is no longer accepted by `createFetchFromRegistry()` at construction time - it should only be passed at call time via the fetch options.
+- 6c480a4: Replace node-fetch with undici as the HTTP client [#10537](https://github.com/pnpm/pnpm/pull/10537).
+
+  - Use undici's native `fetch()` with dispatcher-based connection management
+  - Support HTTP, HTTPS, SOCKS4, and SOCKS5 proxies
+  - Cache dispatchers via LRU cache keyed by connection parameters
+  - Handle per-registry client certificates via nerf-dart URL matching
+  - Convert test HTTP mocking from nock to undici MockAgent
+
+### Minor Changes
+
+- 6b3d87a: Improved HTTP performance with Happy Eyeballs (dual-stack), better keep-alive settings, and an optimized global dispatcher. Tarball downloads with known size now pre-allocate memory to avoid double-copy overhead.
+
+### Patch Changes
+
+- 0dfa8b8: When the node-fetch request redirects an installation link and returns a relative path, URL parsing may fail [#10286](https://github.com/pnpm/pnpm/pull/10286).
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [491a84f]
+- Updated dependencies [bb8baa7]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [6c480a4]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [831f574]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [efb48dc]
+  - @pnpm/types@1001.0.0
+  - @pnpm/fetching.types@1001.0.0
+  - @pnpm/core-loggers@1002.0.0
+  - @pnpm/error@1001.0.0
+
+## 1000.2.6
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+  - @pnpm/types@1000.9.0
+  - @pnpm/core-loggers@1001.0.4
+
+## 1000.2.5
+
+### Patch Changes
+
+- Updated dependencies [e792927]
+  - @pnpm/types@1000.8.0
+  - @pnpm/core-loggers@1001.0.3
+
+## 1000.2.4
+
+### Patch Changes
+
+- 87d3aa8: When making requests for the non-abbreviated packument, add `*/*` to the `Accept` header to avoid getting a 406 error on AWS CodeArtifact [#9862](https://github.com/pnpm/pnpm/issues/9862).
+
+## 1000.2.3
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1ba2e15]
+  - @pnpm/types@1000.7.0
+  - @pnpm/fetching-types@1000.2.0
+  - @pnpm/core-loggers@1001.0.2
+
+## 1000.2.2
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+- Updated dependencies [5ec7255]
+  - @pnpm/core-loggers@1001.0.1
+  - @pnpm/types@1000.6.0
+
+## 1000.2.1
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+  - @pnpm/core-loggers@1001.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/types@1000.5.0
+
+## 1000.2.0
+
+### Minor Changes
+
+- 750ae7d: Export `CreateFetchFromRegistryOptions` type.
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/core-loggers@1000.2.0
+
+## 1000.1.6
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/core-loggers@1000.1.5
+
+## 1000.1.5
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+  - @pnpm/core-loggers@1000.1.4
+
+## 1000.1.4
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/core-loggers@1000.1.3
+
+## 1000.1.3
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/core-loggers@1000.1.2
+
+## 1000.1.2
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/core-loggers@1000.1.1
+
+## 1000.1.1
+
+### Patch Changes
+
+- Updated dependencies [516c4b3]
+  - @pnpm/core-loggers@1000.1.0
+
+## 1000.1.0
+
+### Minor Changes
+
+- b0f3c71: The `fetch` function accepts a `method` option now.
+
+### Patch Changes
+
+- Updated dependencies [b0f3c71]
+  - @pnpm/fetching-types@1000.1.0
+
+## 8.0.7
+
+### Patch Changes
+
+- Updated dependencies [d500d9f]
+  - @pnpm/types@12.2.0
+  - @pnpm/core-loggers@10.0.7
+
+## 8.0.6
+
+### Patch Changes
+
+- Updated dependencies [7ee59a1]
+  - @pnpm/types@12.1.0
+  - @pnpm/core-loggers@10.0.6
+
+## 8.0.5
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/types@12.0.0
+  - @pnpm/core-loggers@10.0.5
+
+## 8.0.4
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/core-loggers@10.0.4
+
+## 8.0.3
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/types@11.0.0
+  - @pnpm/core-loggers@10.0.3
+
+## 8.0.2
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+  - @pnpm/core-loggers@10.0.2
+
+## 8.0.1
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/core-loggers@10.0.1
+
+## 8.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Minor Changes
+
+- 7733f3a: Added support for registry-scoped SSL configurations (cert, key, and ca). Three new settings supported: `<registryURL>:certfile`, `<registryURL>:keyfile`, and `<registryURL>:ca`. For instance:
+
+  ```
+  //registry.mycomp.com/:certfile=server-cert.pem
+  //registry.mycomp.com/:keyfile=server-key.pem
+  //registry.mycomp.com/:cafile=client-cert.pem
+  ```
+
+  Related issue: [#7427](https://github.com/pnpm/pnpm/issues/7427).
+  Related PR: [#7626](https://github.com/pnpm/pnpm/pull/7626).
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [43cdd87]
+- Updated dependencies [730929e]
+  - @pnpm/types@10.0.0
+  - @pnpm/fetching-types@6.0.0
+  - @pnpm/core-loggers@10.0.0
+
+## 7.0.7
+
+### Patch Changes
+
+- @pnpm/core-loggers@9.0.6
+
+## 7.0.6
+
+### Patch Changes
+
+- @pnpm/core-loggers@9.0.5
+
+## 7.0.5
+
+### Patch Changes
+
+- @pnpm/core-loggers@9.0.4
+
+## 7.0.4
+
+### Patch Changes
+
+- @pnpm/core-loggers@9.0.3
+
+## 7.0.3
+
+### Patch Changes
+
+- @pnpm/core-loggers@9.0.2
+
+## 7.0.2
+
+### Patch Changes
+
+- @pnpm/core-loggers@9.0.1
+
+## 7.0.1
+
+### Patch Changes
+
+- 8228c2cb1: Patch node-fetch to fix an error that happens on Node.js 20 [#6424](https://github.com/pnpm/pnpm/issues/6424).
+
+## 7.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/fetching-types@5.0.0
+  - @pnpm/core-loggers@9.0.0
+
+## 6.0.6
+
+### Patch Changes
+
+- 673e23060: Fail with a meaningful error message when cannot parse a proxy URL.
+- 9fa6c7404: The `strict-ssl`, `ca`, `key`, and `cert` settings should work with HTTPS proxy servers [#4689](https://github.com/pnpm/pnpm/issues/4689).
+
+## 6.0.5
+
+### Patch Changes
+
+- @pnpm/core-loggers@8.0.3
+
+## 6.0.4
+
+### Patch Changes
+
+- a9d59d8bc: Update dependencies.
+
+## 6.0.3
+
+### Patch Changes
+
+- @pnpm/core-loggers@8.0.2
+
+## 6.0.2
+
+### Patch Changes
+
+- Updated dependencies [804de211e]
+  - @pnpm/fetching-types@4.0.0
+
+## 6.0.1
+
+### Patch Changes
+
+- @pnpm/core-loggers@8.0.1
+
+## 6.0.0
+
+### Major Changes
+
+- 043d988fc: Breaking change to the API. Defaul export is not used.
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [f884689e0]
+  - @pnpm/core-loggers@8.0.0
+
+## 5.0.10
+
+### Patch Changes
+
+- Updated dependencies [3ae888c28]
+  - @pnpm/core-loggers@7.1.0
+
+## 5.0.9
+
+### Patch Changes
+
+- @pnpm/core-loggers@7.0.8
+
+## 5.0.8
+
+### Patch Changes
+
+- @pnpm/core-loggers@7.0.7
+
+## 5.0.7
+
+### Patch Changes
+
+- @pnpm/core-loggers@7.0.6
+
+## 5.0.6
+
+### Patch Changes
+
+- e018a8b14: Some HTTP errors should not be retried [#4917](https://github.com/pnpm/pnpm/pull/4917).
+
+## 5.0.5
+
+### Patch Changes
+
+- @pnpm/core-loggers@7.0.5
+
+## 5.0.4
+
+### Patch Changes
+
+- @pnpm/core-loggers@7.0.4
+
+## 5.0.3
+
+### Patch Changes
+
+- 9d5bf09c0: Use @pnpm/network.agent instead of @pnpm/npm-registry-agent.
+  - @pnpm/core-loggers@7.0.3
+
+## 5.0.2
+
+### Patch Changes
+
+- Updated dependencies [d5730ba81]
+  - @pnpm/npm-registry-agent@6.1.0
+  - @pnpm/core-loggers@7.0.2
+
+## 5.0.1
+
+### Patch Changes
+
+- @pnpm/core-loggers@7.0.1
+
+## 5.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [542014839]
+  - @pnpm/core-loggers@7.0.0
+  - @pnpm/fetching-types@3.0.0
+  - @pnpm/npm-registry-agent@6.0.0
+
+## 4.2.5
+
+### Patch Changes
+
+- @pnpm/core-loggers@6.1.4
+
+## 4.2.4
+
+### Patch Changes
+
+- @pnpm/core-loggers@6.1.3
+
+## 4.2.3
+
+### Patch Changes
+
+- @pnpm/core-loggers@6.1.2
+
+## 4.2.2
+
+### Patch Changes
+
+- @pnpm/core-loggers@6.1.1
+
+## 4.2.1
+
+### Patch Changes
+
+- Updated dependencies [ba9b2eba1]
+  - @pnpm/core-loggers@6.1.0
+
+## 4.2.0
+
+### Minor Changes
+
+- f1c194ded: Add `fetchWithAgent()`.
+
+## 4.1.6
+
+### Patch Changes
+
+- 12ee3c144: HTTP requests should be retried when the server responds with on of 408, 409, 420, 429 status codes.
+
+## 4.1.5
+
+### Patch Changes
+
+- @pnpm/core-loggers@6.0.6
+
+## 4.1.4
+
+### Patch Changes
+
+- @pnpm/core-loggers@6.0.5
+
+## 4.1.3
+
+### Patch Changes
+
+- 782ef2490: Default options should not be overriden by undefined options.
+- Updated dependencies [3c7e5eced]
+  - @pnpm/npm-registry-agent@5.0.2
+
+## 4.1.2
+
+### Patch Changes
+
+- Updated dependencies [6c50af201]
+- Updated dependencies [0beffc2a0]
+  - @pnpm/npm-registry-agent@5.0.1
+
+## 4.1.1
+
+### Patch Changes
+
+- bab172385: The Node.js process should not silently exit on some broken HTTPS requests.
+- Updated dependencies [bab172385]
+  - @pnpm/fetching-types@2.2.1
+
+## 4.1.0
+
+### Minor Changes
+
+- eadf0e505: New optional option added: compress.
+
+### Patch Changes
+
+- Updated dependencies [eadf0e505]
+  - @pnpm/fetching-types@2.2.0
+
+## 4.0.2
+
+### Patch Changes
+
+- @pnpm/core-loggers@6.0.4
+
+## 4.0.1
+
+### Patch Changes
+
+- @pnpm/core-loggers@6.0.3
+
+## 4.0.0
+
+### Major Changes
+
+- e7d9cd187: Do not use fetch does not support unix requests.
+- eeff424bd: strictSSL option renamed to strictSsl.
+
+### Patch Changes
+
+- Updated dependencies [eeff424bd]
+  - @pnpm/npm-registry-agent@5.0.0
+  - @pnpm/core-loggers@6.0.2
+
+## 3.1.0
+
+### Minor Changes
+
+- 05baaa6e7: Add new option: timeout.
+
+### Patch Changes
+
+- Updated dependencies [05baaa6e7]
+  - @pnpm/fetching-types@2.1.0
+  - @pnpm/core-loggers@6.0.1
+
+## 3.0.0
+
+### Major Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+
+### Patch Changes
+
+- Updated dependencies [97b986fbc]
+- Updated dependencies [90487a3a8]
+  - @pnpm/core-loggers@6.0.0
+  - @pnpm/fetching-types@2.0.0
+  - @pnpm/npm-registry-agent@4.0.0
+
+## 2.1.11
+
+### Patch Changes
+
+- Updated dependencies [dd12cf6ec]
+  - @pnpm/npm-registry-agent@3.1.2
+
+## 2.1.10
+
+### Patch Changes
+
+- @pnpm/core-loggers@5.0.3
+
+## 2.1.9
+
+### Patch Changes
+
+- Updated dependencies [dc5a0a102]
+  - @pnpm/npm-registry-agent@3.1.1
+
+## 2.1.8
+
+### Patch Changes
+
+- 263f5d813: Import node-fetch-unix correctly.
+
+## 2.1.7
+
+### Patch Changes
+
+- @pnpm/core-loggers@5.0.2
+
+## 2.1.6
+
+### Patch Changes
+
+- @pnpm/core-loggers@5.0.1
+
+## 2.1.5
+
+### Patch Changes
+
+- Updated dependencies [86cd72de3]
+  - @pnpm/core-loggers@5.0.0
+
+## 2.1.4
+
+### Patch Changes
+
+- 3981f5558: Update node-fetch to v2.6.1.
+
+## 2.1.3
+
+### Patch Changes
+
+- Updated dependencies [46128b5b0]
+  - @pnpm/npm-registry-agent@3.1.0
+
+## 2.1.2
+
+### Patch Changes
+
+- Updated dependencies [9a908bc07]
+- Updated dependencies [9a908bc07]
+  - @pnpm/core-loggers@4.2.0
+
+## 2.1.1
+
+### Patch Changes
+
+- Updated dependencies [7b98d16c8]
+  - @pnpm/npm-registry-agent@3.0.1
+
+## 2.1.0
+
+### Minor Changes
+
+- 71aeb9a38: fetchFromRegistry() added.
+
+### Patch Changes
+
+- Updated dependencies [c3796a71d]
+- Updated dependencies [71aeb9a38]
+  - @pnpm/npm-registry-agent@3.0.0
+  - @pnpm/fetching-types@1.0.0
+
+## 2.0.2
+
+### Patch Changes
+
+- @pnpm/core-loggers@4.1.2
+
+## 2.0.1
+
+### Patch Changes
+
+- @pnpm/core-loggers@4.1.1
+
+## 2.0.0
+
+### Major Changes
+
+- 2ebb7af33: Print a warning when request fails and a retry will happen. Breaking changes in the programmatic API of `@pnpm/fetch`.
+
+### Patch Changes
+
+- Updated dependencies [2ebb7af33]
+  - @pnpm/core-loggers@4.1.0
+
+## 1.0.4

@@ -20,10 +20,16 @@ on:
         type: string
   push:
     # Build Bencher's continuous baseline for the `pnpm` testbed.
-    # Every merge to main re-runs the bench so PR comparisons have
-    # an up-to-date reference; cancel-in-progress stays off below
-    # so we never throw away a partial run.
+    # Every merge to main that touches the TypeScript stack re-runs the
+    # bench so PR comparisons have an up-to-date reference; cancel-in-progress
+    # stays off below so we never throw away a partial run.
     branches: [main]
+    paths:
+      - 'pnpm11/**'
+      - 'package.json'
+      - 'pnpm-workspace.yaml'
+      - 'pnpm-lock.yaml'
+      - '.github/workflows/benchmark.yml'
 
 permissions:
   contents: read
@@ -44,7 +50,7 @@ jobs:
 
     steps:
     - name: Checkout
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
         fetch-depth: 0
         persist-credentials: false
@@ -61,9 +67,9 @@ jobs:
         echo "Checked out PR #$PR_NUMBER at $(git rev-parse --short HEAD)"
 
     - name: Install pnpm and Node
-      uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
+      uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
       with:
-        runtime: node@26.3.0
+        runtime: node@26.4.0
 
     - name: Install Rust Toolchain
       uses: ./.github/actions/rustup
@@ -80,7 +86,7 @@ jobs:
       continue-on-error: true
       run: |
         set -o pipefail
-        ./benchmarks/bench.sh 2>&1 | tee bench-output.txt
+        ./pnpm11/benchmarks/bench.sh 2>&1 | tee bench-output.txt
         BENCH_DIR=$(grep "Temp directory kept at:" bench-output.txt | sed 's/Temp directory kept at: //')
         echo "bench_dir=$BENCH_DIR" >> "$GITHUB_OUTPUT"
       env:
@@ -89,7 +95,7 @@ jobs:
 
     - name: Install Bencher CLI
       if: steps.bench.outputs.bench_dir != ''
-      uses: bencherdev/bencher@50fb1e138651a46d2fb704fab1adab38c181552e # v0.6.6
+      uses: bencherdev/bencher@ec56bb69a7f34096002ca3384d10e2f6676b063e # v0.6.7
 
     - name: Upload results to Bencher
       if: steps.bench.outputs.bench_dir != ''

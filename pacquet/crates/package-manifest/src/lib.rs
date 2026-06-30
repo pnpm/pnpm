@@ -9,6 +9,7 @@ use miette::Diagnostic;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use strum::IntoStaticStr;
+use tempfile::NamedTempFile;
 
 #[derive(Debug, Display, Error, Diagnostic, From)]
 #[non_exhaustive]
@@ -96,16 +97,31 @@ impl PackageManifest {
         Ok((manifest, contents))
     }
 
+    /// Write `contents` to `path` atomically: a sibling temp file is written
+    /// and fsynced, then renamed over `path`. A crash or write error therefore
+    /// never leaves a truncated or partial `package.json` behind, matching the
+    /// `write-file-atomic` guarantee the TypeScript pnpm CLI relies on.
+    fn write_atomic(path: &Path, contents: &str) -> io::Result<()> {
+        let dir = path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."));
+        let mut tmp = NamedTempFile::new_in(dir)?;
+        tmp.write_all(contents.as_bytes())?;
+        tmp.as_file().sync_all()?;
+        // A NamedTempFile is created 0o600; preserve the original file's mode
+        // when overwriting an existing package.json (write-file-atomic does the
+        // same) so the rename doesn't silently tighten its permissions.
+        if let Ok(metadata) = fs::metadata(path) {
+            tmp.as_file().set_permissions(metadata.permissions())?;
+        }
+        tmp.persist(path).map_err(|err| err.error)?;
+        Ok(())
+    }
+
     fn read_from_file(path: &Path) -> Result<Value, PackageManifestError> {
         let contents = fs::read_to_string(path)?;
         let mut value: Value = serde_json::from_str(&contents)?;
-        // Mirror upstream pnpm's `convertManifestAfterRead` at
-        // <https://github.com/pnpm/pnpm/blob/9cad8274fd/workspace/project-manifest-reader/src/index.ts#L227-L231>:
-        // declarations under `devEngines.runtime` / `engines.runtime`
-        // with `onFail: "download"` are reified into the matching
-        // dependencies bucket so the lockfile entry the resolver writes
-        // (e.g. `node@runtime:24.6.0`) lines up with the manifest's
-        // flat-record view during the frozen-lockfile staleness check.
         convert_engines_runtime_to_dependencies(&mut value, "devEngines", "devDependencies");
         convert_engines_runtime_to_dependencies(&mut value, "engines", "dependencies");
         Ok(value)
@@ -160,10 +176,17 @@ impl PackageManifest {
         &mut self.value
     }
 
+    pub fn save_and_get_written_value(&self) -> Result<Value, PackageManifestError> {
+        let mut value = self.value.clone();
+        convert_dependencies_to_engines_runtime(&mut value, "devDependencies", "devEngines")?;
+        convert_dependencies_to_engines_runtime(&mut value, "dependencies", "engines")?;
+        let contents = serde_json::to_string_pretty(&value)?;
+        Self::write_atomic(&self.path, &contents)?;
+        Ok(value)
+    }
+
     pub fn save(&self) -> Result<(), PackageManifestError> {
-        let mut file = fs::File::create(&self.path)?;
-        let contents = serde_json::to_string_pretty(&self.value)?;
-        file.write_all(contents.as_bytes())?;
+        self.save_and_get_written_value()?;
         Ok(())
     }
 
@@ -334,14 +357,6 @@ const RUNTIME_NAMES: [&str; 3] = ["node", "deno", "bun"];
 /// runtime exclusively through `devEngines.runtime` fails the frozen-
 /// lockfile staleness check as a spurious "dependency was removed".
 ///
-/// Runtime entries are skipped when:
-/// - the target dependency slot already has an explicit entry (the
-///   user-declared specifier wins),
-/// - the runtime is declared with `onFail` other than `"download"` (the
-///   download is opt-in upstream), or
-/// - no `version` is set (upstream warns and skips; pacquet skips
-///   silently — the staleness check still surfaces the gap downstream).
-///
 /// `WebContainer`'s "no runtime download" branch upstream is intentionally
 /// omitted: pacquet does not run in `WebContainer`.
 pub fn convert_engines_runtime_to_dependencies(
@@ -397,6 +412,145 @@ pub fn convert_engines_runtime_to_dependencies(
     }
 }
 
+/// Fold `runtime:<version>` dependency entries back into
+/// `devEngines.runtime` / `engines.runtime` before writing a manifest.
+///
+/// Mirrors upstream's `convertDependenciesToEnginesRuntime` writer hook in
+/// `workspace/project-manifest-reader`: the in-memory dependency form drives
+/// resolution and lockfile checks, while the on-disk manifest keeps the
+/// `devEngines.runtime` / `engines.runtime` contract.
+///
+/// Mutates `manifest` in place and removes consumed `runtime:` dependency
+/// entries. Returns `InvalidAttribute` when a field shape prevents a
+/// lossless write.
+pub fn convert_dependencies_to_engines_runtime(
+    manifest: &mut Value,
+    deps_field: &str,
+    engines_field: &str,
+) -> Result<(), PackageManifestError> {
+    if manifest.get(deps_field).is_some_and(|deps| !deps.is_object()) {
+        return Err(PackageManifestError::InvalidAttribute(format!(
+            "the {deps_field} field must be an object",
+        )));
+    }
+    for runtime_name in RUNTIME_NAMES {
+        let version = manifest
+            .get(deps_field)
+            .and_then(Value::as_object)
+            .and_then(|deps| deps.get(runtime_name))
+            .and_then(Value::as_str)
+            .and_then(|dep| dep.strip_prefix("runtime:"))
+            .map(str::trim)
+            .map(str::to_string);
+        if let Some(version) = version {
+            upsert_runtime_entry(manifest, engines_field, runtime_name, &version)?;
+            if let Some(deps) = manifest.get_mut(deps_field).and_then(Value::as_object_mut) {
+                deps.remove(runtime_name);
+            }
+        } else {
+            remove_managed_runtime_entry(manifest, engines_field, runtime_name);
+        }
+    }
+    Ok(())
+}
+
+fn remove_managed_runtime_entry(manifest: &mut Value, engines_field: &str, runtime_name: &str) {
+    let Some(engines) = manifest.get_mut(engines_field).and_then(Value::as_object_mut) else {
+        return;
+    };
+    let remove_runtime = match engines.get_mut("runtime") {
+        Some(Value::Array(runtimes)) => {
+            runtimes.retain(|runtime| !is_managed_runtime_entry(runtime, runtime_name));
+            runtimes.is_empty()
+        }
+        Some(runtime) if is_managed_runtime_entry(runtime, runtime_name) => true,
+        _ => false,
+    };
+    if remove_runtime {
+        engines.remove("runtime");
+    }
+}
+
+fn is_managed_runtime_entry(runtime: &Value, runtime_name: &str) -> bool {
+    runtime.get("name").and_then(Value::as_str) == Some(runtime_name)
+        && runtime.get("onFail").and_then(Value::as_str) == Some("download")
+        && runtime.get("version").and_then(Value::as_str).is_some()
+}
+
+fn upsert_runtime_entry(
+    manifest: &mut Value,
+    engines_field: &str,
+    runtime_name: &str,
+    version: &str,
+) -> Result<(), PackageManifestError> {
+    let runtime_entry = json!({
+        "name": runtime_name,
+        "version": version,
+        "onFail": "download",
+    });
+    let engines = ensure_object_field(manifest, engines_field)?;
+    match engines.get_mut("runtime") {
+        None | Some(Value::Null) => {
+            engines.insert("runtime".to_string(), runtime_entry);
+        }
+        Some(Value::Array(runtimes)) => {
+            if let Some(existing) = runtimes
+                .iter_mut()
+                .find(|runtime| runtime.get("name").and_then(Value::as_str) == Some(runtime_name))
+            {
+                merge_runtime_entry(existing, runtime_name, version)?;
+            } else {
+                runtimes.push(runtime_entry);
+            }
+        }
+        Some(Value::Object(runtime))
+            if runtime.get("name").and_then(Value::as_str) == Some(runtime_name) =>
+        {
+            runtime.insert("name".to_string(), Value::String(runtime_name.to_string()));
+            runtime.insert("version".to_string(), Value::String(version.to_string()));
+            runtime.insert("onFail".to_string(), Value::String("download".to_string()));
+        }
+        Some(existing) => {
+            *existing = Value::Array(vec![existing.clone(), runtime_entry]);
+        }
+    }
+    Ok(())
+}
+
+fn ensure_object_field<'a>(
+    manifest: &'a mut Value,
+    field: &str,
+) -> Result<&'a mut Map<String, Value>, PackageManifestError> {
+    let Some(root) = manifest.as_object_mut() else {
+        return Err(PackageManifestError::InvalidAttribute(
+            "the manifest root must be an object".to_string(),
+        ));
+    };
+    let value = root.entry(field.to_string()).or_insert_with(|| Value::Object(Map::new()));
+    if value.is_null() {
+        *value = Value::Object(Map::new());
+    }
+    value.as_object_mut().ok_or_else(|| {
+        PackageManifestError::InvalidAttribute(format!("the {field} field must be an object"))
+    })
+}
+
+fn merge_runtime_entry(
+    runtime: &mut Value,
+    runtime_name: &str,
+    version: &str,
+) -> Result<(), PackageManifestError> {
+    let Some(runtime) = runtime.as_object_mut() else {
+        return Err(PackageManifestError::InvalidAttribute(
+            "runtime entries must be objects".to_string(),
+        ));
+    };
+    runtime.insert("name".to_string(), Value::String(runtime_name.to_string()));
+    runtime.insert("version".to_string(), Value::String(version.to_string()));
+    runtime.insert("onFail".to_string(), Value::String("download".to_string()));
+    Ok(())
+}
+
 /// Read `<dir>/package.json` if it exists, returning `Ok(None)` when the file
 /// is absent. Other IO errors and JSON parse errors propagate.
 ///
@@ -423,16 +577,42 @@ pub fn safe_read_package_json_from_dir(dir: &Path) -> Result<Option<Value>, Pack
 /// directory. Missing manifests, IO errors, and parse errors all collapse to
 /// `false` — pacquet cannot meaningfully build a package whose extracted
 /// content cannot be inspected.
+#[must_use]
 pub fn pkg_requires_build(pkg_root: &Path) -> bool {
     if pkg_root.join("binding.gyp").exists() || pkg_root.join(".hooks").is_dir() {
         return true;
     }
     let Ok(Some(manifest)) = safe_read_package_json_from_dir(pkg_root) else { return false };
+    manifest_requires_build(&manifest)
+}
+
+/// Decide whether a parsed manifest declares lifecycle scripts that
+/// make its package a build candidate.
+#[must_use]
+pub fn manifest_requires_build(manifest: &Value) -> bool {
     manifest.get("scripts").and_then(Value::as_object).is_some_and(|scripts| {
         scripts.contains_key("preinstall")
             || scripts.contains_key("install")
             || scripts.contains_key("postinstall")
     })
+}
+
+/// Decide whether a store-index file key implies build hooks.
+#[must_use]
+pub fn file_path_requires_build(filename: &str) -> bool {
+    filename == "binding.gyp"
+        || filename
+            .strip_prefix(".hooks")
+            .is_some_and(|suffix| suffix.starts_with('/') || suffix.starts_with('\\'))
+}
+
+#[must_use]
+pub fn files_include_install_scripts<Filenames, Filename>(filenames: Filenames) -> bool
+where
+    Filenames: IntoIterator<Item = Filename>,
+    Filename: AsRef<str>,
+{
+    filenames.into_iter().any(|filename| file_path_requires_build(filename.as_ref()))
 }
 
 #[cfg(test)]

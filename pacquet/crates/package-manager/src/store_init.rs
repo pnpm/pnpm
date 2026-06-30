@@ -11,9 +11,7 @@ use pacquet_store_dir::StoreDir;
 /// fail the install on a bootstrap miss.
 ///
 /// Shared by `InstallWithFreshLockfile::run` and `CreateVirtualStore::run`
-/// so the log text and degradation policy stay in sync — a previous
-/// pass had them drift, which made grepping the install log
-/// frustrating.
+/// so the log text and degradation policy stay in sync.
 pub(crate) async fn init_store_dir_best_effort(store_dir: &'static StoreDir) {
     match tokio::task::spawn_blocking(move || store_dir.init()).await {
         Ok(Ok(())) => {}

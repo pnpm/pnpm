@@ -23,16 +23,6 @@ use std::fs::metadata;
 use std::fs::remove_file;
 use tempfile::tempdir;
 
-/// On Windows pacquet writes all three shim flavors (the canonical
-/// no-extension shim, `.cmd`, `.ps1`) per linked bin. On Unix only
-/// the canonical shim lands — mirrors pnpm's
-/// [`@zkochan/cmd-shim` `createCmdFile: isWindows`](https://github.com/pnpm/cmd-shim/blob/0d79ca9534/src/index.ts#L32)
-/// default and `bins.linker`'s
-/// [`POWER_SHELL_IS_SUPPORTED = IS_WINDOWS`](https://github.com/pnpm/pnpm/blob/29a42efc3b/bins/linker/src/index.ts#L28)
-/// gate on the `createPwshFile` opt. The previous "always write all
-/// three" behavior produced extra `.cmd` / `.ps1` files in every GVS
-/// slot on Unix, splitting the file list between the two tools (see
-/// the `same_global_virtual_store_layout_*` parity tests).
 #[test]
 fn writes_shim_flavors_matching_host_platform() {
     let tmp = tempdir().unwrap();
@@ -79,9 +69,6 @@ fn writes_shim_flavors_matching_host_platform() {
     }
 }
 
-/// End-to-end exercise: a package with a `bin` field has a shim written
-/// into the bins dir, the shim references the correct relative path,
-/// and (on Unix) both the shim and the target are executable.
 #[test]
 fn writes_shim_for_bin_string() {
     let tmp = tempdir().unwrap();
@@ -125,19 +112,14 @@ fn writes_shim_for_bin_string() {
     }
 }
 
-/// [`link_bins::<Host>`](link_bins) walks every package and its scoped
-/// children. Both regular and `@scope/...` packages must contribute their
-/// bins.
 #[test]
 fn link_bins_walks_modules_and_scopes() {
     let tmp = tempdir().unwrap();
     let modules = tmp.path().join("node_modules");
-    // Regular package
     create_dir_all(modules.join("foo")).unwrap();
     write_file(modules.join("foo/package.json"), json!({"name": "foo", "bin": "f.js"}).to_string())
         .unwrap();
     write_file(modules.join("foo/f.js"), "#!/usr/bin/env node\n").unwrap();
-    // Scoped package
     create_dir_all(modules.join("@s/bar")).unwrap();
     write_file(
         modules.join("@s/bar/package.json"),
@@ -145,7 +127,6 @@ fn link_bins_walks_modules_and_scopes() {
     )
     .unwrap();
     write_file(modules.join("@s/bar/b.js"), "#!/usr/bin/env node\n").unwrap();
-    // Non-package directory (no package.json) must be ignored, not error.
     create_dir_all(modules.join("not-a-package")).unwrap();
 
     let bins = modules.join(".bin");
@@ -155,9 +136,6 @@ fn link_bins_walks_modules_and_scopes() {
     assert!(bins.join("bar").exists(), "scoped @s/bar shim must use bare name `bar`");
 }
 
-/// [`link_bins`] on a missing `node_modules` directory must be a no-op
-/// (Ok with empty result), not an error. Real fs returns `NotFound`
-/// which the implementation already degrades.
 #[test]
 fn link_bins_handles_missing_modules_dir() {
     let tmp = tempdir().unwrap();
@@ -166,9 +144,6 @@ fn link_bins_handles_missing_modules_dir() {
     assert!(!bins_dir.exists(), "no shims means no bin dir created");
 }
 
-/// [`link_bins_of_packages`] with no bins to link is a complete no-op.
-/// It must not even create the bins directory. The empty-`chosen`
-/// short-circuit guards a slot whose children have no bin field.
 #[test]
 fn link_bins_of_packages_no_op_when_no_bins() {
     let tmp = tempdir().unwrap();
@@ -183,9 +158,6 @@ fn link_bins_of_packages_no_op_when_no_bins() {
     assert!(!bins.exists(), "bins dir must not be created when nothing to link");
 }
 
-/// Same-name bin from two non-owner packages: lexical-compare picks the
-/// alphabetically smaller package name. Pins the
-/// `resolveCommandConflicts` fallback shape.
 #[test]
 fn lexical_compare_breaks_tie_when_neither_owns() {
     let tmp = tempdir().unwrap();
@@ -230,8 +202,6 @@ fn lexical_compare_breaks_tie_when_neither_owns() {
     );
 }
 
-/// A malformed `package.json` (invalid JSON) under `<modules_dir>` must
-/// surface as a [`LinkBinsError::ParseManifest`] error, not silently skip.
 #[test]
 fn link_bins_propagates_parse_manifest_error() {
     let tmp = tempdir().unwrap();
@@ -247,11 +217,6 @@ fn link_bins_propagates_parse_manifest_error() {
     );
 }
 
-/// [`link_bins`] must idempotently short-circuit when an existing shim
-/// already targets the same bin file. Pins [`is_shim_pointing_at`]'s
-/// integration with the writer. Mirrors pnpm's
-/// "`linkBins()` skips bins that already reference the correct target":
-/// <https://github.com/pnpm/pnpm/blob/4750fd370c/bins/linker/test/index.ts#L79-L99>.
 #[test]
 fn link_bins_skips_existing_shim_with_matching_marker() {
     let tmp = tempdir().unwrap();
@@ -277,9 +242,8 @@ fn link_bins_skips_existing_shim_with_matching_marker() {
 /// The `.cmd` and `.ps1` siblings could be missing because an older
 /// pacquet wrote the canonical shim only or because a partial-write
 /// crash interrupted the writer mid-batch. Gating on the canonical
-/// shim's marker alone (an earlier version of [`super::write_shim`])
-/// caused those upgrade paths to leave the missing siblings
-/// permanently absent.
+/// shim's marker alone would leave those missing siblings permanently
+/// absent.
 ///
 /// Windows-only: on Unix `.cmd` and `.ps1` are not written in the
 /// first place (matches pnpm — see
@@ -311,10 +275,8 @@ fn link_bins_rewrites_when_only_canonical_flavor_exists() {
     assert!(bins.join("foo.ps1").exists(), ".ps1 sibling must be re-created on second pass");
 }
 
-/// [`link_bins_of_packages`] propagates a `create_dir_all` failure on
-/// the destination bins directory as [`LinkBinsError::CreateBinDir`].
-/// Use a fake `Sys` that fails the initial `create_dir_all` to drive
-/// the variant, since the real fs can't trigger it portably.
+/// Uses a fake `Sys` that fails `create_dir_all`, since the real fs
+/// can't trigger this variant portably.
 #[test]
 fn link_bins_propagates_create_bin_dir_error_via_di() {
     use std::io;
@@ -385,8 +347,6 @@ fn link_bins_propagates_create_bin_dir_error_via_di() {
     assert!(matches!(err, LinkBinsError::CreateBinDir { .. }));
 }
 
-/// [`link_bins_of_packages`] propagates a write failure for the `.sh`
-/// shim. Inject a fake [`FsWrite`] that always fails.
 #[test]
 fn link_bins_propagates_write_shim_error_via_di() {
     use std::io;
@@ -458,7 +418,6 @@ fn link_bins_propagates_write_shim_error_via_di() {
     assert!(matches!(err, LinkBinsError::WriteShim { .. }));
 }
 
-/// [`link_bins_of_packages`] propagates a chmod failure on the shim.
 #[test]
 fn link_bins_propagates_chmod_error_via_di() {
     use std::io;
@@ -528,12 +487,6 @@ fn link_bins_propagates_chmod_error_via_di() {
     assert!(matches!(err, LinkBinsError::Chmod { .. }));
 }
 
-/// [`super::write_shim`] propagates a non-`NotFound` IO error from
-/// [`FsSetPermissions::ensure_executable_bits`] (chmod on the *target*
-/// binary, not the shim). `NotFound` is swallowed by design, since the
-/// target may have been removed concurrently. `PermissionDenied`
-/// and friends must instead surface as [`LinkBinsError::Chmod`]. Pins
-/// the guard added in this PR (review finding `#4`).
 #[test]
 fn link_bins_propagates_target_chmod_error_via_di() {
     use std::io;
@@ -576,9 +529,6 @@ fn link_bins_propagates_target_chmod_error_via_di() {
     }
     impl FsEnsureExecutableBits for FailingTargetChmod {
         fn ensure_executable_bits(_: &Path) -> io::Result<()> {
-            // The target chmod returns a non-`NotFound` error; the
-            // implementation must surface it rather than silently
-            // dropping it.
             Err(io::Error::from(io::ErrorKind::PermissionDenied))
         }
     }
@@ -606,11 +556,6 @@ fn link_bins_propagates_target_chmod_error_via_di() {
     assert!(matches!(err, LinkBinsError::Chmod { .. }));
 }
 
-/// [`super::write_shim`] swallows `NotFound` from
-/// [`FsSetPermissions::ensure_executable_bits`] because the target may
-/// legitimately be missing (concurrent removal, race with another
-/// install). Pins this distinction so a future regression that
-/// propagates `NotFound` here would fail the test.
 #[test]
 fn link_bins_swallows_target_chmod_not_found_via_di() {
     use std::io;
@@ -679,11 +624,6 @@ fn link_bins_swallows_target_chmod_not_found_via_di() {
     .expect("NotFound on target chmod must be swallowed silently");
 }
 
-/// [`link_bins_of_packages`] propagates a non-`NotFound` IO error from
-/// [`search_script_runtime`] (the [`LinkBinsError::ProbeShimSource`]
-/// variant). Forced via a fake [`FsReadHead`] that fails with
-/// permission-denied. The wider [`super::write_shim`] →
-/// [`search_script_runtime`] chain remains unchanged.
 #[test]
 fn link_bins_propagates_probe_shim_source_error_via_di() {
     use std::io;
@@ -752,10 +692,6 @@ fn link_bins_propagates_probe_shim_source_error_via_di() {
     assert!(matches!(err, LinkBinsError::ProbeShimSource { .. }));
 }
 
-/// [`link_bins`] propagates a non-`NotFound` IO error from reading a
-/// child `package.json` (the [`LinkBinsError::ReadManifest`] variant).
-/// Forced via a fake [`FsReadFile`] that always returns
-/// `PermissionDenied`.
 #[test]
 fn link_bins_propagates_read_manifest_error_via_di() {
     use std::io;
@@ -817,10 +753,6 @@ fn link_bins_propagates_read_manifest_error_via_di() {
     assert!(matches!(err, LinkBinsError::ReadManifest { .. }));
 }
 
-/// [`super::pick_winner`] `(true, false)` arm. Existing owns, candidate
-/// doesn't, so existing wins. The other arm (`(false, true)`) is
-/// covered by `ownership_breaks_bin_conflicts` further down.
-///
 /// Uses `aaa-other` (lexically less than `npm`) as the non-owner so
 /// the test fails when ownership is broken: with the rule disabled
 /// the lexical fallback picks `aaa-other`, the assertion observes
@@ -864,9 +796,8 @@ fn ownership_breaks_bin_conflicts_when_existing_owns() {
     assert!(body.contains("/npm/npx"), "existing-owns winner must be `npm`, body:\n{body}");
 }
 
-/// [`link_bins`] propagates a non-`NotFound` `read_dir` error on
-/// `<modules_dir>` itself. Real fs can't trigger this portably; the
-/// fake forces the variant.
+/// Real fs can't trigger this `read_dir` error portably; the fake
+/// forces the variant.
 #[test]
 fn link_bins_propagates_modules_dir_read_error_via_di() {
     use std::io;
@@ -929,9 +860,6 @@ fn link_bins_propagates_modules_dir_read_error_via_di() {
     assert!(matches!(err, LinkBinsError::ReadModulesDir { .. }));
 }
 
-/// Conflict resolution: when two packages declare the same bin name, the
-/// owning package wins.
-///
 /// Uses `aaa-other` (lexically less than `npm`) as the non-owner so the
 /// test fails when ownership is broken: with the rule disabled the
 /// lexical fallback picks `aaa-other`, the assertion observes
@@ -970,21 +898,12 @@ fn ownership_breaks_bin_conflicts() {
     .unwrap();
 
     let body = read_to_string(bins.join("npx")).unwrap();
-    // npm's `npx` lives at `<npm>/npx`; the shim must reference that path.
     assert!(
         body.contains("/npm/npx") || is_shim_pointing_at(&body, &npm.join("npx")),
         "ownership-aware resolution should pick npm's npx, body:\n{body}",
     );
 }
 
-/// `BinOrigin::Direct` wins outright over [`BinOrigin::Hoisted`]
-/// regardless of ownership / lexical order. Pins the new top tier
-/// in [`super::pick_winner`] that mirrors upstream's
-/// [`preferDirectCmds`](https://github.com/pnpm/pnpm/blob/4750fd370c/bins/linker/src/index.ts#L92):
-/// a hoisted (transitive) dep's bin must never shadow a direct
-/// dep's bin with the same name, even when the hoisted package's
-/// own name is lexically smaller (which would have won under the
-/// pre-[#342](https://github.com/pnpm/pacquet/issues/342) lexical fallback).
 #[test]
 fn direct_origin_wins_over_hoisted_regardless_of_lexical() {
     let tmp = tempdir().unwrap();
@@ -1031,10 +950,6 @@ fn direct_origin_wins_over_hoisted_regardless_of_lexical() {
     );
 }
 
-/// Inverse direction: `BinOrigin::Hoisted` candidate must lose to
-/// the existing [`BinOrigin::Direct`] incumbent. Pins both arms of
-/// the new tier so a future refactor can't accidentally collapse
-/// the precedence to one-sided.
 #[test]
 fn hoisted_origin_loses_to_existing_direct() {
     let tmp = tempdir().unwrap();
@@ -1083,13 +998,6 @@ fn hoisted_origin_loses_to_existing_direct() {
     );
 }
 
-/// Mirrors pnpm's `linkBinsOfPackages() symlinks node binary directly
-/// instead of creating a shell shim` at
-/// <https://github.com/pnpm/pnpm/blob/06d2d3deb2/bins/linker/test/index.ts#L643>.
-///
-/// The `node` bin must land as a symlink to the real binary, never a
-/// `/bin/sh`-wrapped shim. Wrapping is the recursion trap described in
-/// [`super::link_node_bin`]'s doc comment.
 #[cfg(unix)]
 #[test]
 fn link_node_bin_symlinks_directly_instead_of_writing_shim() {
@@ -1121,7 +1029,6 @@ fn link_node_bin_symlinks_directly_instead_of_writing_shim() {
         std::fs::canonicalize(node_bin_dir.join("node")).unwrap(),
         "symlink must resolve to the real binary",
     );
-    // The target binary must not have been mutated to a sh-shim text.
     assert_eq!(
         read_to_string(node_bin_dir.join("node")).unwrap(),
         "fake-node-binary",
@@ -1129,13 +1036,6 @@ fn link_node_bin_symlinks_directly_instead_of_writing_shim() {
     );
 }
 
-/// Mirrors pnpm's `linkBinsOfPackages() replaces a dangling symlink
-/// when linking node binary` at
-/// <https://github.com/pnpm/pnpm/blob/06d2d3deb2/bins/linker/test/index.ts#L671>.
-///
-/// A previous install can leave a dangling symlink at `bin/node` when
-/// the prior store entry was pruned. The next install must overwrite
-/// it; `fs::symlink` would otherwise error with `AlreadyExists`.
 #[cfg(unix)]
 #[test]
 fn link_node_bin_replaces_dangling_symlink() {
@@ -1223,15 +1123,9 @@ fn link_node_bin_does_not_corrupt_hardlinked_target() {
     );
 }
 
-/// Mirrors pnpm's `linkBinsOfPackages() hardlinks node.exe instead of
-/// creating a cmd-shim` at
-/// <https://github.com/pnpm/pnpm/blob/06d2d3deb2/bins/linker/test/index.ts#L709>.
-///
-/// On Windows the canonical bin dirent for the node runtime is
-/// `<bin_dir>/node.exe` — a hardlink (or copy fallback) of the source
-/// `.exe`. No `.cmd` or `.ps1` shim is emitted, because npm's cmd
-/// shims call `node.exe` from `IF EXIST` blocks that mishandle a
-/// `.cmd` redirection.
+/// No `.cmd` or `.ps1` shim is emitted for the node runtime because
+/// npm's cmd shims call `node.exe` from `IF EXIST` blocks that
+/// mishandle a `.cmd` redirection.
 #[cfg(windows)]
 #[test]
 fn link_node_bin_hardlinks_node_exe_on_windows() {
@@ -1257,7 +1151,6 @@ fn link_node_bin_hardlinks_node_exe_on_windows() {
     let exe = bin_target.join("node.exe");
     assert!(exe.exists(), "node.exe must be created in the bin dir");
     assert_eq!(read_to_string(&exe).unwrap(), "fake-node-binary");
-    // No canonical shim, .cmd, or .ps1 should be written.
     assert!(
         !bin_target.join("node").exists(),
         "canonical shim must not be written for the node special case",
@@ -1272,9 +1165,51 @@ fn link_node_bin_hardlinks_node_exe_on_windows() {
     );
 }
 
-/// Windows-only: when the node manifest declares a non-`.exe` source
-/// (uncommon but possible — e.g. a wrapper script), pnpm falls through
-/// to the regular cmd-shim path. Pacquet must too.
+/// The pre-existing `node.exe` is an independent copy (a different
+/// file identity than the source), so this exercises the
+/// content-comparison fallback rather than the file-identity check.
+#[cfg(windows)]
+#[test]
+fn link_node_bin_skips_relink_when_node_exe_already_correct() {
+    use same_file::Handle;
+    let tmp = tempdir().unwrap();
+    let bin_target = tmp.path().join("bin_target");
+    create_dir_all(&bin_target).unwrap();
+    let node_dir = tmp.path().join("node_pkg");
+    create_dir_all(&node_dir).unwrap();
+    write_file(node_dir.join("node.exe"), "fake-node-binary").unwrap();
+    // Pre-place an independent copy with identical content (a different file
+    // identity), as an earlier copy-fallback install would leave behind.
+    write_file(bin_target.join("node.exe"), "fake-node-binary").unwrap();
+
+    write_file(
+        node_dir.join("package.json"),
+        json!({"name": "node", "version": "20.0.0", "bin": {"node": "node.exe"}}).to_string(),
+    )
+    .unwrap();
+    let manifest: Value =
+        serde_json::from_slice(&read_file(node_dir.join("package.json")).unwrap()).unwrap();
+    link_bins_of_packages::<Host>(
+        &[PackageBinSource::new(node_dir.clone(), Arc::new(manifest))],
+        &bin_target,
+    )
+    .unwrap();
+
+    let exe = bin_target.join("node.exe");
+    assert_eq!(read_to_string(&exe).unwrap(), "fake-node-binary");
+    // When file identity can't be obtained (the production code tolerates
+    // this), treat them as distinct rather than panicking on a failed handle
+    // lookup.
+    let relinked_to_source = matches!(
+        (Handle::from_path(&exe), Handle::from_path(node_dir.join("node.exe"))),
+        (Ok(exe_handle), Ok(source_handle)) if exe_handle == source_handle,
+    );
+    assert!(
+        !relinked_to_source,
+        "node.exe must stay the independent copy, not be relinked to the source",
+    );
+}
+
 #[cfg(windows)]
 #[test]
 fn link_node_bin_falls_through_to_cmd_shim_when_source_is_not_exe() {
@@ -1297,9 +1232,6 @@ fn link_node_bin_falls_through_to_cmd_shim_when_source_is_not_exe() {
     )
     .unwrap();
 
-    // The non-`.exe` node source falls through to the cmd-shim path,
-    // so the canonical sh shim, `.cmd`, and `.ps1` siblings all land
-    // exactly as for any other bin.
     assert!(bin_target.join("node").exists());
     assert!(bin_target.join("node.cmd").exists());
     assert!(bin_target.join("node.ps1").exists());

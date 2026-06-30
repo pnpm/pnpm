@@ -17,7 +17,6 @@ use miette::Diagnostic;
 use std::{
     collections::{BTreeSet, HashMap},
     path::Path,
-    sync::Arc,
 };
 
 /// Error type of [`upload()`].
@@ -61,7 +60,7 @@ pub fn upload(
     built_pkg_location: &Path,
     files_index_file: &str,
     side_effects_cache_key: &str,
-    writer: &Arc<StoreIndexWriter>,
+    writer: &StoreIndexWriter,
 ) -> Result<(), UploadError> {
     let added =
         add_files_from_dir(store_dir, built_pkg_location).map_err(UploadError::AddFilesFromDir)?;
@@ -79,13 +78,9 @@ pub fn upload(
 /// `base`     — the pristine `PackageFilesIndex.files` map (pre-build).
 /// `current`  — the rehashed map produced by [`add_files_from_dir()`].
 ///
-/// Returns a [`SideEffectsDiff`] whose `added` entry covers files
-/// present in `current` that either don't appear in `base` or whose
-/// `digest`/`mode` differ from the base, and whose `deleted` entry
-/// lists files present in `base` but absent in `current`. Both
-/// fields use `Option<…>` with `skip_serializing_if = is_none`
-/// (see `SideEffectsDiff`), so an empty side of the diff
-/// round-trips through msgpack the same way pnpm's does.
+/// Both fields of the returned [`SideEffectsDiff`] use `Option<…>` with
+/// `skip_serializing_if = is_none` (see `SideEffectsDiff`), so an empty
+/// side of the diff round-trips through msgpack the same way pnpm's does.
 pub fn calculate_diff(
     base: &HashMap<String, CafsFileInfo>,
     current: &HashMap<String, CafsFileInfo>,

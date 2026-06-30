@@ -1,5 +1,119 @@
-use super::{AuthHeaders, base64_encode, nerf_dart};
+use super::{
+    AuthHeaders, DEFAULT_REGISTRY_SCOPE, UpstreamRouteHook, base64_encode, nerf_dart,
+    redact_and_sanitize, redact_url_credentials,
+};
 use pretty_assertions::assert_eq;
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
+
+/// Records every `(url, package)` it is asked about and answers with a
+/// fixed header, so a test can assert the hook — not the client
+/// credentials — drove the lookup.
+#[derive(Default)]
+struct RecordingHook {
+    calls: AtomicUsize,
+    answer: Option<String>,
+}
+
+impl UpstreamRouteHook for RecordingHook {
+    fn authorize(&self, _url: &str, _package: Option<&str>) -> Option<String> {
+        self.calls.fetch_add(1, Ordering::Relaxed);
+        self.answer.clone()
+    }
+}
+
+#[test]
+fn route_hook_overrides_client_credentials() {
+    let client_creds = AuthHeaders::from_map(
+        std::iter::once(("//reg.com/".to_string(), "Bearer client-token".to_string())).collect(),
+    );
+    // Without a hook the client-forwarded token is returned.
+    assert_eq!(
+        client_creds.for_url("https://reg.com/pkg"),
+        Some("Bearer client-token".to_string()),
+    );
+
+    let hook =
+        Arc::new(RecordingHook { answer: Some("Bearer alias".to_string()), ..Default::default() });
+    let hooked = client_creds.with_route_hook(Arc::clone(&hook) as Arc<dyn UpstreamRouteHook>);
+    // With a hook the client token is ignored and the hook decides.
+    assert_eq!(hooked.for_url("https://reg.com/pkg"), Some("Bearer alias".to_string()));
+    assert_eq!(hook.calls.load(Ordering::Relaxed), 1);
+}
+
+#[test]
+fn record_route_drives_the_hook_without_a_fetch() {
+    let hook =
+        Arc::new(RecordingHook { answer: Some("Bearer alias".to_string()), ..Default::default() });
+    let hooked =
+        AuthHeaders::default().with_route_hook(Arc::clone(&hook) as Arc<dyn UpstreamRouteHook>);
+    // A cache-served metadata pick records its route through the hook so a
+    // server footprint stays complete, discarding the selected credential
+    // because no request is sent.
+    hooked.record_route("https://reg.com/@scope/pkg", Some("@scope/pkg"));
+    assert_eq!(hook.calls.load(Ordering::Relaxed), 1);
+}
+
+#[test]
+fn record_route_is_a_noop_without_a_hook() {
+    // The CLI never installs a hook: a fetch that doesn't happen needs no
+    // header and there is no footprint to record into. This must not panic
+    // or otherwise touch the client-forwarded credentials.
+    AuthHeaders::default().record_route("https://reg.com/pkg", None);
+}
+
+#[test]
+fn route_hook_suppresses_inline_url_basic_auth() {
+    // A bare `AuthHeaders` would synthesize a `Basic` header from inline
+    // `user:pass@`; with a hook attached the inline credential must not
+    // leak through — the hook (returning None here) owns the decision.
+    let hook = Arc::new(RecordingHook::default());
+    let hooked = AuthHeaders::default().with_route_hook(hook as Arc<dyn UpstreamRouteHook>);
+    assert_eq!(hooked.for_url("https://user:pass@reg.com/pkg"), None);
+}
+
+#[test]
+fn redact_url_credentials_strips_embedded_basic_auth() {
+    assert_eq!(
+        redact_url_credentials(
+            "Failed to fetch metadata from https://user:pass@host/pkg: timed out"
+        ),
+        "Failed to fetch metadata from https://host/pkg: timed out",
+    );
+    // user-only userinfo (no password) is stripped too.
+    assert_eq!(
+        redact_url_credentials("got https://token@registry.example/foo"),
+        "got https://registry.example/foo",
+    );
+    // A raw "@" inside the password is stripped up to the last "@" in the
+    // authority, so the password tail can't leak.
+    assert_eq!(
+        redact_url_credentials("Failed to fetch metadata from https://user:p@ss@host/pkg: 403"),
+        "Failed to fetch metadata from https://host/pkg: 403",
+    );
+    // An "@" in the path/query (after the authority) is preserved.
+    assert_eq!(
+        redact_url_credentials("got https://host/path?to=a@b"),
+        "got https://host/path?to=a@b",
+    );
+    // A credential-free URL is left untouched.
+    assert_eq!(
+        redact_url_credentials("Failed to fetch metadata from https://host/pkg: timed out"),
+        "Failed to fetch metadata from https://host/pkg: timed out",
+    );
+    // A bare "://" with no preceding scheme character is not treated as a URL
+    // authority, so an "@" further along is preserved.
+    assert_eq!(redact_url_credentials("a :// b@c"), "a :// b@c");
+}
+
+#[test]
+fn redact_and_sanitize_strips_credentials_and_control_chars() {
+    assert_eq!(redact_and_sanitize("https://user:pass@host/pkg\u{7}\r\n"), "https://host/pkg");
+    // A clean URL is returned unchanged.
+    assert_eq!(redact_and_sanitize("https://host/pkg"), "https://host/pkg");
+}
 
 fn build(entries: &[(&str, &str)]) -> AuthHeaders {
     AuthHeaders::from_creds_map(
@@ -63,30 +177,16 @@ fn default_https_port_strips_for_lookup() {
     assert_eq!(headers.for_url("http://reg.com:80/").as_deref(), Some("Bearer abc123"));
 }
 
-/// Upstream's
-/// [`removePort`](https://github.com/pnpm/pnpm/blob/601317e7a3/network/auth-header/src/helpers/removePort.ts)
-/// strips *any* port and retries iff the URL changed, not only
-/// protocol defaults. A `.npmrc` keyed at host-only must still match
-/// a request that explicitly carries a non-default port. A dev or
-/// proxy registry on `:8080` matched by a `//host/` token is the
-/// canonical case.
 #[test]
 fn non_default_port_strips_for_fallback_lookup() {
     let headers = build(&[("//reg.com/", "Bearer abc123")]);
     assert_eq!(headers.for_url("https://reg.com:8080/").as_deref(), Some("Bearer abc123"));
 }
 
-/// Upstream's [`@pnpm/config.nerf-dart`](https://github.com/pnpm/components/blob/a8ba7794d8/config/nerf-dart/nerf-dart.ts)
-/// builds keys via WHATWG `URL.host`, which drops protocol-default
-/// ports. A registry configured as `https://reg.com:443/` keys
-/// creds at `//reg.com/` (not `//reg.com:443/`); a request to
-/// `https://reg.com/` (no port) must match without the port-strip
-/// fallback firing on the request side.
 #[test]
 fn nerf_dart_strips_default_ports_when_keying() {
     assert_eq!(nerf_dart("https://reg.com:443/"), "//reg.com/");
     assert_eq!(nerf_dart("http://reg.com:80/"), "//reg.com/");
-    // Non-default ports are preserved.
     assert_eq!(nerf_dart("https://reg.com:8080/"), "//reg.com:8080/");
 }
 
@@ -131,6 +231,123 @@ fn registry_with_pathname_matches_metadata_and_tarballs() {
         headers.for_url("https://npm.pkg.github.com/pnpm/foo/-/foo-1.0.0.tgz").as_deref(),
         Some("Bearer abc123"),
     );
+}
+
+#[test]
+fn package_scope_auth_wins_over_registry_auth() {
+    let headers = build(&[
+        ("//npm.pkg.github.com/", "Bearer registry-token"),
+        ("//npm.pkg.github.com/:@orgA", "Bearer org-a-token"),
+        ("//npm.pkg.github.com/:@orgB", "Bearer org-b-token"),
+    ]);
+    assert_eq!(
+        headers.for_url_with_package("https://npm.pkg.github.com/", Some("@orgA/pkg")).as_deref(),
+        Some("Bearer org-a-token"),
+    );
+    assert_eq!(
+        headers.for_url_with_package("https://npm.pkg.github.com/", Some("@orgB/pkg")).as_deref(),
+        Some("Bearer org-b-token"),
+    );
+    assert_eq!(
+        headers.for_url_with_package("https://npm.pkg.github.com/", Some("@orgC/pkg")).as_deref(),
+        Some("Bearer registry-token"),
+    );
+    assert_eq!(
+        headers.for_url_with_package("https://npm.pkg.github.com/", Some("pkg")).as_deref(),
+        Some("Bearer registry-token"),
+    );
+    assert_eq!(
+        headers
+            .for_url_with_package("https://npm.pkg.github.com/download/pkg.tgz", Some("@orgA/pkg"))
+            .as_deref(),
+        Some("Bearer org-a-token"),
+    );
+}
+
+#[test]
+fn slash_package_scope_auth_wins_over_registry_auth() {
+    let headers = build(&[
+        ("//npm.pkg.github.com/", "Bearer registry-token"),
+        ("//npm.pkg.github.com/@orgA", "Bearer org-a-token"),
+        ("//npm.pkg.github.com/@orgB/", "Bearer org-b-token"),
+    ]);
+    assert_eq!(
+        headers.for_url_with_package("https://npm.pkg.github.com/", Some("@orgA/pkg")).as_deref(),
+        Some("Bearer org-a-token"),
+    );
+    assert_eq!(
+        headers.for_url_with_package("https://npm.pkg.github.com/", Some("@orgB/pkg")).as_deref(),
+        Some("Bearer org-b-token"),
+    );
+}
+
+#[test]
+fn package_scope_auth_keeps_registry_path() {
+    let headers = build(&[
+        ("//reg.com/npm/", "Bearer registry-token"),
+        ("//reg.com/npm/:@orgA", "Bearer org-a-token"),
+    ]);
+    assert_eq!(
+        headers.for_url_with_package("https://reg.com/npm/", Some("@orgA/pkg")).as_deref(),
+        Some("Bearer org-a-token"),
+    );
+    assert_eq!(
+        headers
+            .for_url_with_package("https://reg.com/npm/pkg/-/pkg-1.0.0.tgz", Some("@orgA/pkg"))
+            .as_deref(),
+        Some("Bearer org-a-token"),
+    );
+    assert_eq!(
+        headers.for_url_with_package("https://reg.com/npm/", Some("@orgB/pkg")).as_deref(),
+        Some("Bearer registry-token"),
+    );
+}
+
+#[test]
+fn entries_round_trip_package_scope_auth() {
+    let headers = build(&[
+        ("//npm.pkg.github.com/", "Bearer registry-token"),
+        ("//npm.pkg.github.com/:@orgA", "Bearer org-a-token"),
+        ("//reg.com/npm/:@orgA", "Bearer org-a-path-token"),
+    ]);
+    let by_scope = headers.to_by_scope();
+    assert_eq!(
+        by_scope
+            .get("//npm.pkg.github.com/")
+            .and_then(|scope_headers| scope_headers.get(DEFAULT_REGISTRY_SCOPE))
+            .map(String::as_str),
+        Some("Bearer registry-token"),
+    );
+    assert_eq!(
+        by_scope
+            .get("//npm.pkg.github.com/")
+            .and_then(|scope_headers| scope_headers.get("@orgA"))
+            .map(String::as_str),
+        Some("Bearer org-a-token"),
+    );
+    assert_eq!(
+        by_scope
+            .get("//reg.com/npm/")
+            .and_then(|scope_headers| scope_headers.get("@orgA"))
+            .map(String::as_str),
+        Some("Bearer org-a-path-token"),
+    );
+
+    let round_tripped = AuthHeaders::from_by_scope(by_scope);
+    assert_eq!(
+        round_tripped
+            .for_url_with_package("https://reg.com/npm/pkg/-/pkg-1.0.0.tgz", Some("@orgA/pkg"))
+            .as_deref(),
+        Some("Bearer org-a-path-token"),
+    );
+}
+
+#[test]
+fn basic_auth_in_url_wins_over_package_scope_auth() {
+    let headers = build(&[("//reg.com/:@orgA", "Bearer org-a-token")]);
+    let header =
+        headers.for_url_with_package("https://user:secret@reg.com/", Some("@orgA/pkg")).unwrap();
+    assert_eq!(header, format!("Basic {}", base64_encode("user:secret")));
 }
 
 #[test]
@@ -223,7 +440,6 @@ fn slash_append_branch_lets_path_segment_match() {
 fn nerf_dart_returns_empty_for_malformed_url() {
     assert_eq!(nerf_dart("not-a-url"), "");
     assert_eq!(nerf_dart(""), "");
-    // No URL → no match in any non-empty map.
     let headers = build(&[("//reg.com/", "Bearer abc123")]);
     assert_eq!(headers.for_url("not-a-url"), None);
 }

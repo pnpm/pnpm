@@ -90,10 +90,6 @@ fn pkg_owns_bin_overrides() {
     assert!(!pkg_owns_bin("npx", "anything-else"));
 }
 
-/// Mirrors pnpm's "should allow $ as command name" test
-/// (<https://github.com/pnpm/pnpm/blob/4750fd370c/bins/resolver/test/index.ts#L21-L36>).
-/// `$` is the documented escape hatch for awkward bin names; it must
-/// survive the URL-safe-name guard.
 #[test]
 fn dollar_is_allowed_as_command_name() {
     let manifest = json!({
@@ -106,10 +102,6 @@ fn dollar_is_allowed_as_command_name() {
     assert_eq!(commands[0].name, "$");
 }
 
-/// Mirrors pnpm's "skip dangerous bin names" test
-/// (<https://github.com/pnpm/pnpm/blob/4750fd370c/bins/resolver/test/index.ts#L74-L94>).
-/// Path-traversal characters in the *key* must be filtered, not just the
-/// value.
 #[test]
 fn skip_dangerous_bin_names() {
     let manifest = json!({
@@ -127,9 +119,6 @@ fn skip_dangerous_bin_names() {
     assert_eq!(commands[0].name, "good");
 }
 
-/// Mirrors pnpm's "skip dangerous bin locations" test
-/// (<https://github.com/pnpm/pnpm/blob/4750fd370c/bins/resolver/test/index.ts#L96-L112>).
-/// `../bad` in the *value* must be filtered by the `is_subdir` check.
 #[test]
 fn skip_dangerous_bin_locations() {
     let manifest = json!({
@@ -145,9 +134,6 @@ fn skip_dangerous_bin_locations() {
     assert_eq!(commands[0].name, "good");
 }
 
-/// Mirrors pnpm's "get bin from scoped bin name" test
-/// (<https://github.com/pnpm/pnpm/blob/4750fd370c/bins/resolver/test/index.ts#L114-L130>).
-/// A scoped key like `@foo/a` collapses to `a` before validation.
 #[test]
 fn scoped_bin_name_strips_scope_prefix() {
     let manifest = json!({
@@ -160,11 +146,6 @@ fn scoped_bin_name_strips_scope_prefix() {
     assert_eq!(commands[0].name, "a");
 }
 
-/// Mirrors pnpm's "skip scoped bin names with path traversal" test
-/// (<https://github.com/pnpm/pnpm/blob/4750fd370c/bins/resolver/test/index.ts#L132-L148>).
-/// After the scope strip, the resulting bare name still has to pass the
-/// URL-safe guard. A `@scope/../etc/passwd` collapses to `../etc/passwd`
-/// which must be rejected.
 #[test]
 fn skip_scoped_bin_names_with_path_traversal() {
     let manifest = json!({
@@ -181,9 +162,6 @@ fn skip_scoped_bin_names_with_path_traversal() {
     assert_eq!(commands[0].name, "legit");
 }
 
-/// `bin` as a non-string non-object (number, array, null) is malformed.
-/// Pacquet's port must return an empty list rather than panic, mirroring
-/// pnpm's silent fall-through to the empty default.
 #[test]
 fn malformed_bin_type_returns_empty() {
     for shape in [json!(42), json!(["a", "b"]), json!(null), json!(true)] {
@@ -205,9 +183,6 @@ fn bin_string_with_missing_package_name_returns_empty() {
     assert!(get_bins_from_package_manifest::<Host>(&manifest, Path::new("/p")).is_empty());
 }
 
-/// Object-form bin entries whose values aren't strings (number, null, etc.)
-/// are silently skipped. Same defensive shape pnpm has for malformed
-/// manifests.
 #[test]
 fn bin_object_with_non_string_value_is_skipped() {
     let manifest = json!({
@@ -224,10 +199,6 @@ fn bin_object_with_non_string_value_is_skipped() {
     assert_eq!(commands[0].name, "good");
 }
 
-/// Mirrors pnpm's "find all the bin files from a bin directory"
-/// (<https://github.com/pnpm/pnpm/blob/4750fd370c/bins/resolver/test/index.ts#L37-L57>).
-/// Every regular file under `directories.bin`, including files in
-/// subdirectories, becomes a command.
 #[test]
 fn directories_bin_walks_files_recursively() {
     let tmp = tempdir().unwrap();
@@ -251,10 +222,7 @@ fn directories_bin_walks_files_recursively() {
     assert_eq!(commands[1].path, bin_dir.join("subdir/subBin.js"));
 }
 
-/// Mirrors pnpm's "skip directories.bin with path traversal"
-/// (<https://github.com/pnpm/pnpm/blob/4750fd370c/bins/resolver/test/index.ts#L150-L170>).
-/// `directories.bin: '../sibling'` must be rejected by the `is_subdir`
-/// guard. The sibling directory is populated with a real file so a
+/// The sibling directory is populated with a real file so a
 /// regression that disables `is_subdir` would observably emit that file
 /// as a command. Without the file the test would pass for the wrong
 /// reason (empty dir, hence empty commands).
@@ -283,11 +251,6 @@ fn directories_bin_rejects_path_traversal() {
     );
 }
 
-/// Mirrors pnpm's `path-traversal.test.ts`
-/// (<https://github.com/pnpm/pnpm/blob/4750fd370c/bins/resolver/test/path-traversal.test.ts>).
-/// A `directories.bin` value that resolves outside the package root via
-/// `..` must yield no commands, even though the target dir exists and
-/// has files in it.
 #[test]
 fn directories_bin_rejects_real_path_traversal() {
     let tmp = tempdir().unwrap();
@@ -309,8 +272,6 @@ fn directories_bin_rejects_real_path_traversal() {
     assert!(get_bins_from_package_manifest::<Host>(&manifest, &pkg).is_empty());
 }
 
-/// `directories.bin` pointing at a non-existent subdirectory must
-/// degrade to an empty list (pnpm's `ENOENT` swallowing in `findFiles`).
 #[test]
 fn directories_bin_missing_directory_returns_empty() {
     let tmp = tempdir().unwrap();
@@ -324,10 +285,6 @@ fn directories_bin_missing_directory_returns_empty() {
     assert!(get_bins_from_package_manifest::<Host>(&manifest, &pkg).is_empty());
 }
 
-/// `directories.bin` filters out files whose basename fails the
-/// URL-safe-name guard. Pin via a `..` filename: once the
-/// path-traversal guard already passed (the dir was a real subdir),
-/// a *file* inside it with an unsafe name still gets dropped.
 #[test]
 fn directories_bin_filters_unsafe_file_names() {
     let tmp = tempdir().unwrap();
@@ -348,8 +305,6 @@ fn directories_bin_filters_unsafe_file_names() {
     assert_eq!(commands[0].name, "good");
 }
 
-/// Empty bin name returns false via the `is_empty` guard inside
-/// `is_safe_bin_name`. Exercised via a `bin` object with an empty key.
 #[test]
 fn empty_bin_key_is_rejected() {
     let manifest = json!({
@@ -440,9 +395,6 @@ fn directories_bin_accepts_excess_parent_dirs_that_resolve_inside_pkg() {
     assert_eq!(commands[0].name, "cli");
 }
 
-/// [`lexical_normalize`] `CurDir` branch drops `.` segments. Visible
-/// via [`super::is_subdir`] accepting a target with embedded `./`
-/// that resolves inside the package root.
 #[test]
 fn directories_bin_handles_curdir_in_relative_path() {
     let tmp = tempdir().unwrap();
@@ -501,9 +453,6 @@ fn directories_bin_skips_path_without_usable_file_name() {
     assert_eq!(commands[0].name, "cli");
 }
 
-/// `bin` field takes precedence over `directories.bin` when both are
-/// present. Mirrors upstream's order-of-checks in
-/// `getBinsFromPackageManifest`.
 #[test]
 fn bin_field_takes_precedence_over_directories_bin() {
     let tmp = tempdir().unwrap();

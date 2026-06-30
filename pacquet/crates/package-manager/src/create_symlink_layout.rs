@@ -10,23 +10,6 @@ use std::{collections::HashMap, path::Path};
 /// `lockfileToDepGraph` at
 /// <https://github.com/pnpm/pnpm/blob/f2981a316/deps/graph-builder/src/lockfileToDepGraph.ts#L150-L156>.
 ///
-/// For each entry in `dependencies ∪ optional_dependencies`:
-/// - Skip when the alias matches the slot's own package name
-///   (`alias === depNode.name`), so a package that lists itself as
-///   a dep doesn't get a circular self-link inside its own slot.
-/// - Skip when the target snapshot is in `skipped` — its slot was
-///   never materialized (platform-mismatched optional, `--no-optional`
-///   excluded, or a swallowed optional fetch failure). Mirrors
-///   upstream's `!pkg || (!pkg.installable && pkg.optional)` guard.
-/// - Otherwise create a symlink at
-///   `<virtual_node_modules_dir>/<alias>` pointing to the target's
-///   slot under `<layout.slot_dir(target)>/node_modules/<target-name>`.
-///
-/// For npm-aliased dependencies (e.g.
-/// `string-width-cjs: string-width@4.2.3`), the symlink filename
-/// under `node_modules/` uses the entry key (the alias), while the
-/// virtual-store lookup uses the aliased target.
-///
 /// Child target paths come from the install-scoped
 /// [`VirtualStoreLayout`]: `layout.slot_dir(&target)` returns either
 /// `<virtual_store_dir>/<flat-name>` (legacy) or
@@ -75,6 +58,7 @@ pub fn create_symlink_layout(
             &layout.slot_dir(&target).join("node_modules").join(&target_name_str),
             &virtual_node_modules_dir.join(&alias_name_str),
         )
+        .map(drop)
     })
 }
 

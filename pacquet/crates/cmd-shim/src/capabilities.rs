@@ -172,9 +172,9 @@ impl FsReadToString for Host {
 
 impl FsReadDir for Host {
     fn read_dir(path: &Path) -> io::Result<impl Iterator<Item = PathBuf>> {
-        // `flatten()` silently drops per-entry errors. This matches the
-        // prior collect-then-flatten shape and the `tinyglobby`-style
-        // ENOENT-on-subtree behaviour pacquet's callers expect.
+        // `flatten()` silently drops per-entry errors, matching the
+        // `tinyglobby`-style ENOENT-on-subtree behaviour pacquet's
+        // callers expect.
         std::fs::read_dir(path)?.flatten().map(|entry| entry.path()).pipe(Ok)
     }
 }

@@ -7,7 +7,7 @@ use std::{
     io::ErrorKind,
     mem::forget,
     path::{Path, PathBuf},
-    sync::OnceLock,
+    sync::LazyLock,
 };
 use sysinfo::{Pid, Signal};
 
@@ -34,8 +34,9 @@ pub struct PreparedRegistryInfo {
 
 impl PreparedRegistryInfo {
     fn path() -> &'static Path {
-        static PATH: OnceLock<PathBuf> = OnceLock::new();
-        PATH.get_or_init(|| temp_dir().join("pacquet-registry-mock-prepared-registry-info.json"))
+        static PATH: LazyLock<PathBuf> =
+            LazyLock::new(|| temp_dir().join("pacquet-registry-mock-prepared-registry-info.json"));
+        PATH.as_path()
     }
 
     pub fn try_load() -> Option<Self> {
@@ -70,7 +71,8 @@ impl PreparedRegistryInfo {
         let info = RegistryInfo { port, pid };
         let prepared = PreparedRegistryInfo { info };
         prepared.save();
-        forget(mock_instance); // prevent this process from killing itself on drop
+        #[expect(clippy::mem_forget, reason = "prevent this process from killing itself on drop")]
+        forget(mock_instance);
         prepared
     }
 

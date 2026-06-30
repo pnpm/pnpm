@@ -30,15 +30,22 @@ pub fn create_hash(input: &str) -> String {
 
 /// Read `path` as UTF-8, normalize CRLF line endings to LF, and hash the
 /// result with [`create_hash`].
-///
-/// Matches upstream
-/// [`createHashFromFile`](https://github.com/pnpm/pnpm/blob/1819226b51/crypto/hash/src/index.ts#L27-L38):
-/// the `\r\n` → `\n` normalization keeps the checksum stable across
-/// platforms, so a pnpmfile checked out with CRLF on Windows hashes the
-/// same as the LF copy a Linux CI runner sees.
 pub fn create_hash_from_file(path: &Path) -> io::Result<String> {
     let content = std::fs::read_to_string(path)?;
     Ok(create_hash(&content.replace("\r\n", "\n")))
+}
+
+/// Compute the full sha256 hex digest of `input`.
+///
+/// Matches upstream
+/// [`createHexHash`](https://github.com/pnpm/pnpm/blob/1819226b51/crypto/hash/src/index.ts#L11-L13):
+/// `crypto.hash('sha256', input, 'hex')`. Used for the global-install
+/// cache key (`createGlobalCacheKey`), whose value names an on-disk
+/// symlink, so the full hex digest is part of the directory layout.
+#[must_use]
+pub fn create_hex_hash(input: &str) -> String {
+    let digest = Sha256::digest(input.as_bytes());
+    format!("{digest:x}")
 }
 
 /// Compute the sha256 hex digest of `input` and truncate to the first
@@ -46,15 +53,14 @@ pub fn create_hash_from_file(path: &Path) -> io::Result<String> {
 ///
 /// Matches upstream
 /// [`createShortHash`](https://github.com/pnpm/pnpm/blob/1819226b51/crypto/hash/src/index.ts#L7-L9):
-/// `crypto.hash('sha256', input, 'hex').substring(0, 32)`. The truncation
+/// `createHexHash(input).substring(0, 32)`. The truncation
 /// is part of the on-disk contract — anything written into a path with
 /// this hash (project-registry slugs, virtual-store dirnames that
 /// overflowed `virtualStoreDirMaxLength`, etc.) must use the same 32-char
 /// length so pacquet and pnpm produce the same directory layout.
 #[must_use]
 pub fn create_short_hash(input: &str) -> String {
-    let digest = Sha256::digest(input.as_bytes());
-    let mut hex = format!("{digest:x}");
+    let mut hex = create_hex_hash(input);
     hex.truncate(32);
     hex
 }
@@ -75,8 +81,6 @@ pub fn create_short_hash(input: &str) -> String {
 ///
 /// `max_length` is `Modules.virtual_store_dir_max_length` (default
 /// 120; see `pacquet_modules_yaml::DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH`).
-/// The `file+` early exit keeps file-protocol deps from hashing just
-/// because their on-disk path component carries capitals.
 ///
 /// The caller is responsible for pre-escaping the source string (parens
 /// → underscores, scoped-name slashes → `+`, etc) — this helper only

@@ -2,7 +2,7 @@ use derive_more::{From, TryInto};
 use pipe_trait::Pipe;
 use serde::{Deserialize, Serialize};
 use ssri::Integrity;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 /// For tarball hosted remotely or locally.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -147,8 +147,8 @@ pub struct PlatformAssetTarget {
 /// paired with the host triples it covers. Mirrors pnpm's
 /// [`PlatformAssetResolution`](https://github.com/pnpm/pnpm/blob/94240bc046/resolving/resolver-base/src/index.ts#L66-L69).
 ///
-/// The inner resolution is *atomic* upstream — a `BinaryResolution`,
-/// `TarballResolution`, etc. — never another `VariationsResolution`.
+/// The inner resolution is *atomic* upstream — a [`BinaryResolution`],
+/// [`TarballResolution`], etc. — never another [`VariationsResolution`].
 /// Pacquet's type is wider (the full [`LockfileResolution`]) for serde-
 /// round-trip uniformity, and we trust the lockfile to honor the
 /// upstream contract: [`select_platform_variant`] does not add a
@@ -209,7 +209,7 @@ pub struct PlatformSelector {
 /// [`selectPlatformVariant`](https://github.com/pnpm/pnpm/blob/94240bc046/resolving/resolver-base/src/index.ts#L92-L98).
 ///
 /// Iterates `variants` in declaration order and returns the first
-/// `PlatformAssetResolution` whose `targets[]` contains an `(os, cpu,
+/// [`PlatformAssetResolution`] whose `targets[]` contains an `(os, cpu,
 /// libc?)` triple matching `selector`. Each variant's target list is
 /// scanned linearly — `targets[]` is typically 1–3 entries (one per
 /// architecture combo that shares an artifact), so the nested-loop
@@ -299,24 +299,31 @@ impl LockfileResolution {
 
         let git_hosted =
             tarball.git_hosted == Some(true) || is_git_hosted_tarball_url(&tarball.tarball);
-        let keep_url = || {
-            LockfileResolution::Tarball(TarballResolution {
-                tarball: tarball.tarball.clone(),
-                integrity: Some(integrity.clone()),
-                git_hosted: git_hosted.then_some(true),
-                path: tarball.path.clone(),
-            })
-        };
-
-        if include_tarball_url || tarball.tarball.starts_with("file:") || git_hosted {
-            return keep_url();
+        // A standard registry tarball whose URL can be rebuilt from name+version+
+        // registry is written as just `{integrity}` — pnpm derives the URL on
+        // demand. Every other tarball must keep its URL or it can no longer be
+        // re-fetched on a frozen-lockfile install: `file:` tarballs, git-provider
+        // tarballs, and non-standard registry URLs (npm Enterprise, GitHub Packages
+        // `/download/` URLs). `include_tarball_url` forces the URL to be kept.
+        if !include_tarball_url
+            && !git_hosted
+            && !tarball.tarball.starts_with("file:")
+            && is_canonical_registry_tarball_url(&tarball.tarball, name, version, registry)
+        {
+            return LockfileResolution::Registry(RegistryResolution {
+                integrity: integrity.clone(),
+            });
         }
-        let expected = npm_tarball_url(name, version, registry);
-        let actual = tarball.tarball.replace("%2f", "/");
-        if remove_protocol(&expected) != remove_protocol(&actual) {
-            return keep_url();
-        }
-        LockfileResolution::Registry(RegistryResolution { integrity: integrity.clone() })
+        // The kept-URL form carries the `git_hosted` marker and the subdirectory
+        // `path` (`repo#commit&path:/sub/dir`, only ever set on git-hosted tarballs)
+        // so a git-hosted monorepo tarball still unpacks the right subfolder.
+        // See <https://github.com/pnpm/pnpm/issues/12304>.
+        LockfileResolution::Tarball(TarballResolution {
+            tarball: tarball.tarball.clone(),
+            integrity: Some(integrity.clone()),
+            git_hosted: git_hosted.then_some(true),
+            path: tarball.path.clone(),
+        })
     }
 }
 
@@ -335,10 +342,72 @@ pub fn npm_tarball_url(name: &str, version: &str, registry: &str) -> String {
     format!("{registry}{name}/-/{scopeless}-{version}.tgz")
 }
 
-/// Strip the URL scheme (everything up to and including `://`). Port of pnpm's
-/// `removeProtocol` (`url.split('://')[1]`).
+/// Whether `tarball` is the canonical npm registry URL derived from `name`,
+/// `version`, and `registry` — i.e. it can be dropped from the lockfile and
+/// rebuilt on demand. Percent-encoding is case-insensitive, so the unescape
+/// matches both `%2f` and `%2F` in the URLs npm produces for scoped packages.
+fn is_canonical_registry_tarball_url(
+    tarball: &str,
+    name: &str,
+    version: &str,
+    registry: &str,
+) -> bool {
+    let expected = npm_tarball_url(name, version, registry);
+    let actual = tarball.replace("%2f", "/").replace("%2F", "/");
+    remove_protocol(&expected) == remove_protocol(&actual)
+}
+
+/// Default-vs-scope routing for an npm package. Mirrors pnpm's
+/// [`pickRegistryForPackage`](https://github.com/pnpm/pnpm/blob/main/config/pick-registry-for-package/src/index.ts).
+///
+/// Routing rules:
+///
+/// 1. **`npm:` alias.** When `bare_specifier` is an `npm:` alias the
+///    *alias target* decides routing, not the local key:
+///    - `npm:@scope/name@<spec>` → `registries[@scope]`.
+///    - `npm:name@<spec>` (unscoped target) → `registries["default"]`,
+///      never the local alias's scope, because the fetched package is
+///      unscoped and doesn't live on a scoped registry.
+/// 2. **Plain spec.** Falls back to `pkg_name`'s scope when present;
+///    otherwise `registries["default"]`.
+#[must_use]
+pub fn pick_registry_for_package(
+    registries: &HashMap<String, String>,
+    pkg_name: &str,
+    bare_specifier: Option<&str>,
+) -> String {
+    let scope = match bare_specifier.and_then(|spec| spec.strip_prefix("npm:")) {
+        Some(target) => scope_of(target),
+        None => scope_of(pkg_name),
+    };
+    if let Some(scope) = scope
+        && let Some(url) = registries.get(scope)
+    {
+        return url.clone();
+    }
+    registries.get("default").cloned().unwrap_or_default()
+}
+
+fn scope_of(name: &str) -> Option<&str> {
+    if !name.starts_with('@') {
+        return None;
+    }
+    name.find('/').map(|sep| &name[..sep])
+}
+
+/// Strip only a leading `http://` or `https://` scheme (case-insensitive) so
+/// URLs are compared protocol-insensitively, without truncating on a later
+/// `://` in the path or query. Port of pnpm's `removeProtocol`
+/// (`url.replace(/^https?:\/\//i, '')`).
 fn remove_protocol(url: &str) -> &str {
-    url.split_once("://").map_or(url, |(_, rest)| rest)
+    ["https://", "http://"]
+        .into_iter()
+        .find_map(|scheme| {
+            url.get(..scheme.len())
+                .filter(|head| head.eq_ignore_ascii_case(scheme))
+                .map(|_| &url[scheme.len()..])
+        })
+        .unwrap_or(url)
 }
 
 /// Intermediate helper type for serde.
@@ -383,21 +452,89 @@ impl From<ResolutionSerde> for LockfileResolution {
     }
 }
 
-/// Best-effort URL-prefix check used to back-fill `gitHosted` on tarball
-/// resolutions written by older pnpm versions, and to gate trust on the
-/// tarball URL rather than the (tamper-prone) `gitHosted` flag. Mirrors
-/// upstream's `isGitHostedTarballUrl` at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/fs/src/lockfileFormatConverters.ts#L23-L29>.
+/// Recognizes immutable archive URLs emitted by known git providers. The result
+/// gates integrity exemptions, so path shapes are matched explicitly and refs
+/// must be full commit SHAs.
 #[must_use]
 pub fn is_git_hosted_tarball_url(url: &str) -> bool {
-    // Schemes and hostnames are case-insensitive, so match against a lowercased
-    // copy: a tampered `https://CODELOAD.GITHUB.COM/...` must not slip past as a
-    // non-git-hosted (and therefore registry-trusted) tarball.
-    let lower = url.to_ascii_lowercase();
-    (lower.starts_with("https://codeload.github.com/")
-        || lower.starts_with("https://bitbucket.org/")
-        || lower.starts_with("https://gitlab.com/"))
-        && lower.contains("tar.gz")
+    let Some((host, path, query)) = parse_https_url(url) else { return false };
+    if host.eq_ignore_ascii_case("codeload.github.com") {
+        return is_github_codeload_archive(path);
+    }
+    if host.eq_ignore_ascii_case("bitbucket.org") {
+        return is_bitbucket_archive(path);
+    }
+    if host.eq_ignore_ascii_case("gitlab.com") {
+        return is_gitlab_archive(path, query);
+    }
+    false
+}
+
+fn parse_https_url(url: &str) -> Option<(&str, &str, Option<&str>)> {
+    const HTTPS_SCHEME: &str = "https://";
+    if !url.get(..HTTPS_SCHEME.len())?.eq_ignore_ascii_case(HTTPS_SCHEME) {
+        return None;
+    }
+    let rest = url.get(HTTPS_SCHEME.len()..)?;
+    let (host, path_and_query) = rest.split_once('/')?;
+    let path_and_query = path_and_query.split_once('#').map_or(path_and_query, |(path, _)| path);
+    let (path, query) = path_and_query
+        .split_once('?')
+        .map_or((path_and_query, None), |(path, query)| (path, Some(query)));
+    Some((host, path, query))
+}
+
+fn is_github_codeload_archive(path: &str) -> bool {
+    let segments = path_segments(path);
+    segments.len() == 4 && segments[2] == "tar.gz" && is_full_commit_sha(segments[3])
+}
+
+fn is_bitbucket_archive(path: &str) -> bool {
+    let segments = path_segments(path);
+    if segments.len() != 4 || segments[2] != "get" {
+        return false;
+    }
+    let Some(commit) = segments[3].strip_suffix(".tar.gz") else { return false };
+    is_full_commit_sha(commit)
+}
+
+fn is_gitlab_archive(path: &str, query: Option<&str>) -> bool {
+    let segments = path_segments(path);
+    if segments.len() == 6
+        && segments[0] == "api"
+        && segments[1] == "v4"
+        && segments[2] == "projects"
+        && segments[4] == "repository"
+        && segments[5] == "archive.tar.gz"
+    {
+        return query_param(query, "ref").is_some_and(is_full_commit_sha);
+    }
+    let Some(archive_marker_index) =
+        segments.windows(2).position(|window| window[0] == "-" && window[1] == "archive")
+    else {
+        return false;
+    };
+    if archive_marker_index < 2 || segments.len() != archive_marker_index + 4 {
+        return false;
+    }
+    let commit = segments[archive_marker_index + 2];
+    let archive_name = segments[archive_marker_index + 3];
+    archive_name.ends_with(".tar.gz") && is_full_commit_sha(commit)
+}
+
+fn path_segments(path: &str) -> Vec<&str> {
+    path.split('/').filter(|segment| !segment.is_empty()).collect()
+}
+
+fn query_param<'query>(query: Option<&'query str>, key: &str) -> Option<&'query str> {
+    query?.split('&').find_map(|part| {
+        let (part_key, value) = part.split_once('=')?;
+        (part_key == key).then_some(value)
+    })
+}
+
+fn is_full_commit_sha(value: &str) -> bool {
+    value.len() == 40 && value.as_bytes().iter().all(u8::is_ascii_hexdigit)
 }
 
 impl From<LockfileResolution> for ResolutionSerde {

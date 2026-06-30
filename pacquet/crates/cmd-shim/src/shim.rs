@@ -8,7 +8,7 @@ use std::{
 /// Detected runtime for a target script.
 ///
 /// Mirrors the return shape of `searchScriptRuntime` in
-/// <https://github.com/pnpm/cmd-shim/blob/0d79ca9534/src/index.ts>.
+/// <https://github.com/pnpm/cmd-shim/blob/e8560a8405/src/index.ts>.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScriptRuntime {
     /// The interpreter to invoke. `None` means "exec the file directly".
@@ -32,15 +32,6 @@ fn extension_program(extension: &str) -> Option<&'static str> {
 
 /// Read up to 512 bytes of `path` and infer the runtime.
 ///
-/// Order, mirroring `searchScriptRuntime`:
-///
-/// 1. If the file exists and starts with a shebang, parse `prog` + `args` from
-///    it.
-/// 2. Otherwise look up a default runtime by file extension (e.g. `.js` →
-///    `node`, `.cmd` → `cmd`).
-/// 3. If neither yields a runtime, return `None`. [`generate_sh_shim`]
-///    handles that by exec'ing the target directly.
-///
 /// `NotFound` reading the file degrades to `Ok(None)` so a missing-bin race
 /// doesn't fail the whole install. Other IO errors propagate, since pacquet
 /// has already verified the bin path resolves under the package root by
@@ -54,7 +45,8 @@ pub fn search_script_runtime<Sys: FsReadHead>(path: &Path) -> io::Result<Option<
     }
 
     if let Some(prog) = extension_program(extension) {
-        return Ok(Some(ScriptRuntime { prog: Some(prog.to_string()), args: String::new() }));
+        let args = if prog == "cmd" { "/C" } else { "" };
+        return Ok(Some(ScriptRuntime { prog: Some(prog.to_string()), args: args.to_string() }));
     }
 
     Ok(None)
@@ -102,8 +94,7 @@ pub fn read_head_filled<Sys: FsReadHead>(path: &Path, buf: &mut [u8]) -> io::Res
 ///
 /// Does **not** trim leading whitespace before looking for `#!`. The
 /// kernel and upstream cmd-shim both treat `#!` as a shebang only when
-/// it sits at byte 0 of the file; an earlier
-/// `String::from_utf8_lossy(bytes).trim_start()` accepted inputs like
+/// it sits at byte 0 of the file; trimming would accept inputs like
 /// `" \n#!/usr/bin/env node"` as a valid shebang and could select the
 /// wrong runtime for files that just happen to mention `#!` after some
 /// whitespace. The first line is taken exactly as-is (`#!` is matched
@@ -118,8 +109,7 @@ pub fn parse_shebang_from_bytes(bytes: &[u8]) -> Option<ScriptRuntime> {
 /// Mirrors the shebang regex in upstream cmd-shim:
 /// `^#!\s*(?:/usr/bin/env(?:\s+-S\s*)?)?\s*([^ \t]+)(.*)$`.
 ///
-/// Recognises `#!/usr/bin/env <prog>`, `#!/usr/bin/env -S <prog>`, and any
-/// direct `#!/path/to/<prog>` shebang. `args` is captured **including the
+/// `args` is captured **including the
 /// leading whitespace** that separates it from `prog`. That matches
 /// upstream's regex group 2 (`(.*)`), which captures everything from after
 /// `prog`'s end-of-match to end of line. Preserving the leading whitespace
@@ -161,20 +151,6 @@ fn strip_env_prefix(input: &str) -> (&str, bool) {
 
 /// Generate the Unix shell-shim contents for `target_path`, written to
 /// `shim_path`. Mirrors `generateShShim` in upstream cmd-shim.
-///
-/// The shim is a pure `/bin/sh` script that:
-///
-/// 1. Resolves `basedir` to its own directory (with a `cygpath` fixup for
-///    MSYS-style POSIX shells on Windows).
-/// 2. If the runtime program is colocated at `$basedir/<prog>` (a rare case,
-///    only true when the runtime was bundled alongside the shim), prefer that
-///    binary; otherwise fall through to the system PATH.
-/// 3. Forwards `"$@"` to the resolved interpreter, with the target script as
-///    the first positional argument.
-///
-/// When [`search_script_runtime`] returned `None` (no shebang, unknown
-/// extension), the shim execs the target directly via the second branch
-/// upstream uses for that case.
 #[must_use]
 pub fn generate_sh_shim(
     target_path: &Path,
@@ -185,26 +161,59 @@ pub fn generate_sh_shim(
 
     let sh_target = relative_target(target_path, shim_path);
     let quoted_target = if Path::new(&sh_target).is_absolute() {
-        format!("\"{sh_target}\"")
+        format!(r#""{sh_target}""#)
     } else {
-        format!("\"$basedir/{sh_target}\"")
+        format!(r#""$basedir/{sh_target}""#)
+    };
+    let quoted_target_win = if Path::new(&sh_target).is_absolute() {
+        format!(r#""{sh_target}""#)
+    } else {
+        format!(r#""$basedir_win/{sh_target}""#)
     };
 
     match runtime {
         Some(ScriptRuntime { prog: Some(prog), args }) => {
-            // `sh_long_prog` is the `"$basedir/<prog>"` form upstream uses.
-            // It always carries the leading `$basedir/` and quotes; never
-            // just the program name on its own.
-            let sh_long_prog = format!("\"$basedir/{prog}\"");
-            writeln!(
-                sh,
-                "if [ -x {sh_long_prog} ]; then\n  exec {sh_long_prog} {args} {quoted_target} \"$@\"\nelse\n  exec {prog} {args} {quoted_target} \"$@\"\nfi",
-            )
-            .unwrap();
+            let prog_base = strip_exe_suffix(prog).unwrap_or(prog);
+            let prog_has_exe = prog_base.len() != prog.len();
+            let prog_exe = if prog_has_exe { prog.clone() } else { format!("{prog}.exe") };
+            let sh_long_prog_exe = format!(r#""$basedir/{prog_exe}""#);
+            let exec_block = |exec_args: &str| {
+                let mut block = String::new();
+                if prog_has_exe {
+                    writeln!(
+                        block,
+                        "if [ -x {sh_long_prog_exe} ]; then\n  exec {sh_long_prog_exe} {exec_args} {quoted_target_win} \"$@\"\nelse\n  exec {prog_exe} {exec_args} {quoted_target_win} \"$@\"\nfi",
+                    )
+                    .unwrap();
+                } else {
+                    let sh_long_prog = format!(r#""$basedir/{prog}""#);
+                    writeln!(
+                        block,
+                        "if [ -n \"$exe\" ] && [ -x {sh_long_prog_exe} ]; then\n  exec {sh_long_prog_exe} {exec_args} {quoted_target_win} \"$@\"\nelif [ -x {sh_long_prog} ]; then\n  exec {sh_long_prog} {exec_args} {quoted_target} \"$@\"\nelif command -v {prog} >/dev/null 2>&1; then\n  exec {prog} {exec_args} {quoted_target} \"$@\"\nelif [ -n \"$exe\" ] && command -v {prog_exe} >/dev/null 2>&1; then\n  exec {prog_exe} {exec_args} {quoted_target_win} \"$@\"\nelse\n  exec {prog} {exec_args} {quoted_target} \"$@\"\nfi",
+                    )
+                    .unwrap();
+                }
+                block
+            };
+
+            let msys_args = prog_base
+                .eq_ignore_ascii_case("cmd")
+                .then(|| escape_msys_cmd_switches(args))
+                .filter(|escaped_args| escaped_args != args);
+            if let Some(msys_args) = msys_args {
+                writeln!(
+                    sh,
+                    "if [ -n \"$msys\" ]; then\n{}else\n{}fi",
+                    indent_shell_block(&exec_block(&msys_args)),
+                    indent_shell_block(&exec_block(args)),
+                )
+                .unwrap();
+            } else {
+                sh.push_str(&exec_block(args));
+            }
         }
-        // No runtime detected, so exec the target directly. Upstream still
-        // emits `exit $?` on this branch for parity with non-execve POSIX
-        // shells.
+        // Upstream still emits `exit $?` on this branch for parity with
+        // non-execve POSIX shells.
         runtime_opt => {
             let args = runtime_opt.map_or("", |runtime| runtime.args.as_str());
             writeln!(sh, "{quoted_target} {args} \"$@\"\nexit $?").unwrap();
@@ -230,16 +239,16 @@ pub fn generate_cmd_shim(
 ) -> String {
     let cmd_target_rel = relative_target_windows(target_path, shim_path);
     let quoted_target = if Path::new(&cmd_target_rel).is_absolute() {
-        format!("\"{cmd_target_rel}\"")
+        format!(r#""{cmd_target_rel}""#)
     } else {
-        format!("\"%~dp0\\{cmd_target_rel}\"")
+        format!(r#""%~dp0\{cmd_target_rel}""#)
     };
 
     let mut cmd = String::from("@SETLOCAL\r\n");
 
     match runtime {
         Some(ScriptRuntime { prog: Some(prog), args }) => {
-            let long_prog = format!("\"%~dp0\\{prog}.exe\"");
+            let long_prog = format!(r#""%~dp0\{prog}.exe""#);
             writeln!(
                 cmd,
                 "@IF EXIST {long_prog} (\r\n  {long_prog} {args} {quoted_target} %*\r\n) ELSE (\r\n  @SET PATHEXT=%PATHEXT:;.JS;=;%\r\n  {prog} {args} {quoted_target} %*\r\n)\r",
@@ -248,7 +257,6 @@ pub fn generate_cmd_shim(
         }
         runtime_opt => {
             let args = runtime_opt.map_or("", |runtime| runtime.args.as_str());
-            // No runtime detected, so exec the target directly.
             writeln!(cmd, "@{quoted_target} {args} %*\r").unwrap();
         }
     }
@@ -269,9 +277,9 @@ pub fn generate_pwsh_shim(
 ) -> String {
     let sh_target = relative_target(target_path, shim_path);
     let quoted_target = if Path::new(&sh_target).is_absolute() {
-        format!("\"{sh_target}\"")
+        format!(r#""{sh_target}""#)
     } else {
-        format!("\"$basedir/{sh_target}\"")
+        format!(r#""$basedir/{sh_target}""#)
     };
 
     use std::fmt::Write;
@@ -343,16 +351,71 @@ fn relative_target_windows(target_path: &Path, shim_path: &Path) -> String {
 
 const SH_SHIM_HEADER: &str = r#"#!/bin/sh
 basedir=$(dirname "$(echo "$0" | sed -e 's,\\,/,g')")
+basedir_win="$basedir"
+exe=""
+msys=""
 
-case `uname` in
-    *CYGWIN*|*MINGW*|*MSYS*)
-        if command -v cygpath > /dev/null 2>&1; then
-            basedir=`cygpath -w "$basedir"`
-        fi
-    ;;
+case `uname -a` in
+  *CYGWIN*|*MINGW*|*MSYS*)
+    if command -v cygpath > /dev/null 2>&1; then
+      basedir_win=`cygpath -w "$basedir"`
+    fi
+    exe=".exe"
+    msys="true"
+  ;;
+  *WSL2*)
+    if command -v wslpath > /dev/null 2>&1; then
+      basedir_win="$(wslpath -w "$basedir" 2> /dev/null)"
+      if [ $? -ne 0 ] || [ -z "$basedir_win" ]; then
+        basedir_win="$basedir"
+      else
+        exe=".exe"
+      fi
+    fi
+  ;;
 esac
 
 "#;
+
+fn indent_shell_block(script: &str) -> String {
+    script
+        .split('\n')
+        .map(|line| if line.is_empty() { String::new() } else { format!("  {line}") })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn escape_msys_cmd_switches(args: &str) -> String {
+    let mut escaped = String::with_capacity(args.len());
+    let mut chars = args.char_indices();
+    let mut at_boundary = true;
+
+    while let Some((_, ch)) = chars.next() {
+        if ch == '/' && at_boundary {
+            let mut lookahead = chars.clone();
+            if let Some((_, switch @ ('C' | 'c' | 'K' | 'k'))) = lookahead.next()
+                && lookahead.next().is_none_or(|(_, next)| next.is_whitespace())
+            {
+                escaped.push('/');
+                escaped.push('/');
+                escaped.push(switch);
+                chars.next();
+                at_boundary = false;
+                continue;
+            }
+        }
+
+        escaped.push(ch);
+        at_boundary = ch.is_whitespace();
+    }
+
+    escaped
+}
+
+fn strip_exe_suffix(prog: &str) -> Option<&str> {
+    let suffix_start = prog.len().checked_sub(4)?;
+    prog.as_bytes()[suffix_start..].eq_ignore_ascii_case(b".exe").then(|| &prog[..suffix_start])
+}
 
 /// Trailing `# cmd-shim-target=<rel>` marker. Upstream uses it to detect
 /// whether an existing shim already targets the same source without

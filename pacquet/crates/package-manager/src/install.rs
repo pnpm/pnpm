@@ -1,8 +1,8 @@
 use crate::{
     BuildVerifiersError, HoistedDependencies, InstallFrozenLockfile, InstallFrozenLockfileError,
     InstallWithFreshLockfile, InstallWithFreshLockfileError, LockfileVerificationOverride,
-    OptimisticRepeatInstallCheck, ResolvedPackages, UpdateSeedPolicy, build_resolution_verifiers,
-    check_optimistic_repeat_install,
+    OptimisticRepeatInstallCheck, RebuildOptions, ResolvedPackages, UpdateSeedPolicy,
+    build_resolution_verifiers, check_optimistic_repeat_install,
     optimistic_repeat_install::Decision as OptimisticRepeatInstallDecision,
 };
 use derive_more::{Display, Error};
@@ -17,7 +17,8 @@ use pacquet_executor::{
     ScriptsPrependNodePath as ExecScriptsPrependNodePath, run_project_lifecycle_scripts,
 };
 use pacquet_lockfile::{
-    LoadLockfileError, Lockfile, SaveLockfileError, StalenessReason, satisfies_package_manifest,
+    LazyLockfile, LoadLockfileError, Lockfile, MaybeLazyLockfile, SaveLockfileError,
+    StalenessReason, satisfies_package_manifest,
 };
 use pacquet_lockfile_verification::{
     VerifyError, VerifyLockfileResolutionsOptions, record_lockfile_verified,
@@ -25,7 +26,7 @@ use pacquet_lockfile_verification::{
 };
 use pacquet_modules_yaml::{
     Host, IncludedDependencies, LayoutVersion, Modules, NodeLinker as ModulesNodeLinker,
-    WriteModulesError, read_modules_manifest, write_modules_manifest,
+    WriteModulesError, write_modules_manifest,
 };
 use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};
@@ -41,7 +42,7 @@ use pacquet_workspace_state::{
 };
 use std::{
     collections::BTreeMap,
-    path::Path,
+    path::{Path, PathBuf},
     sync::{Arc, atomic::AtomicU8},
     time::SystemTime,
 };
@@ -106,7 +107,7 @@ where
     pub http_client_arc: Arc<ThrottledClient>,
     pub config: &'static Config,
     pub manifest: &'a PackageManifest,
-    pub lockfile: Option<&'a Lockfile>,
+    pub lockfile: MaybeLazyLockfile<'a>,
     /// Absolute path of the loaded `pnpm-lock.yaml`. Threaded into
     /// the lockfile-verification gate so the per-path stat shortcut
     /// in `<cache_dir>/lockfile-verified.jsonl` can fire on repeat
@@ -207,6 +208,13 @@ where
     /// [`lockfileOnly`](https://github.com/pnpm/pnpm/blob/3b62f9da31/config/reader/src/Config.ts#L170)
     /// (`like npm's --package-lock-only`).
     pub lockfile_only: bool,
+    /// `--dry-run`: resolve fully but write nothing, then report what a
+    /// real install would change. Forces the fresh-resolve path (so the
+    /// would-be lockfile is always computed), suppresses every write —
+    /// `pnpm-lock.yaml`, `node_modules`, `.modules.yaml`, the current
+    /// lockfile, the workspace-state file — and exits 0 regardless of
+    /// whether changes were found. Mirrors pnpm's `install --dry-run`.
+    pub dry_run: bool,
     /// Which lockfile pins to withhold from the preferred-versions seed.
     /// [`UpdateSeedPolicy::KeepAll`] for `install` / `add`; the `DropAll`
     /// / `DropOnly` variants drive `pacquet update`'s compatible bump by
@@ -230,6 +238,18 @@ where
     /// ([pnpm/pnpm#12234](https://github.com/pnpm/pnpm/issues/12234)).
     /// Ignored on the frozen path (no tree walk to observe).
     pub resolution_observer: Option<Arc<dyn crate::ResolutionObserver>>,
+    /// In-memory catalogs to resolve against instead of reading
+    /// `pnpm-workspace.yaml` from disk. `None` (every plain install) reads
+    /// the workspace manifest. `pacquet update` sets this so a `--latest`
+    /// catalog bump drives resolution even under `--no-save`, where the
+    /// bumped entry is intentionally not persisted to disk.
+    pub catalogs_override: Option<Catalogs>,
+    /// When `true`, the optimistic repeat-install fast path is
+    /// disabled so the full install pipeline always runs. `pacquet
+    /// prune` sets this because the fast path short-circuits before
+    /// the virtual-store sweep, meaning extraneous packages can
+    /// survive a prune when the lockfile hasn't changed.
+    pub disable_optimistic_repeat_install: bool,
 }
 
 /// Error type of [`Install`].
@@ -243,6 +263,24 @@ pub enum InstallError {
 
     #[diagnostic(transparent)]
     WithFreshLockfile(#[error(source)] InstallWithFreshLockfileError),
+
+    /// pnpm's `ERR_PNPM_IGNORED_BUILDS`: with `strictDepBuilds` on (the
+    /// default), an install that blocked any dependency build script
+    /// fails so the user explicitly approves the builds. The package
+    /// list is the sorted set of `name@version` keys whose scripts were
+    /// ignored; the `help` hint matches pnpm's.
+    /// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/deps-installer/src/install/index.ts#L2193>
+    #[display("Ignored build scripts: {}", package_names.join(", "))]
+    #[diagnostic(
+        code(ERR_PNPM_IGNORED_BUILDS),
+        help(
+            r#"Run "pnpm approve-builds" to pick which dependencies should be allowed to run scripts."#
+        )
+    )]
+    IgnoredBuilds {
+        #[error(not(source))]
+        package_names: Vec<String>,
+    },
 
     /// A custom resolver hook failed (loading the pnpmfile's resolvers
     /// or running `shouldRefreshResolution`) while deciding whether the
@@ -285,6 +323,12 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     LoadCurrentLockfile(#[error(source)] LoadLockfileError),
 
+    /// Surfaces a `pnpm-lock.yaml` read or parse failure from the
+    /// deferred load that runs once the repeat-install fast path has
+    /// passed on the install (see [`MaybeLazyLockfile`]).
+    #[diagnostic(transparent)]
+    LoadWantedLockfile(#[error(source)] LoadLockfileError),
+
     /// Surfaces a failure to persist the current lockfile so the next
     /// install can diff against it. A best-effort warn would let
     /// silent disk-full or permission issues compound across installs;
@@ -297,6 +341,10 @@ pub enum InstallError {
     /// materialized snapshot at `<virtual_store_dir>/lock.yaml`.
     #[diagnostic(transparent)]
     SaveWantedLockfile(#[error(source)] SaveLockfileError),
+
+    #[diagnostic(code(pacquet_package_manager::remove_modules_dir))]
+    #[display("Failed to remove modules directory contents: {_0}")]
+    RemoveModulesDir(#[error(source)] std::io::Error),
 
     /// `pnpm-lock.yaml` doesn't match the on-disk `package.json` for
     /// the project being installed. Mirrors upstream's
@@ -377,6 +425,13 @@ pub enum InstallError {
     #[diagnostic(transparent)]
     WriteWorkspaceState(#[error(source)] UpdateWorkspaceStateError),
 
+    /// Surfaces a failure to persist `node_modules/.package-map.json`,
+    /// the package-map metadata Node consumes when the user opts into
+    /// `--experimental-package-map`.
+    #[display("Failed to write node_modules/.package-map.json: {_0}")]
+    #[diagnostic(code(pacquet_package_manager::write_package_map))]
+    WritePackageMap(#[error(source)] crate::WritePackageMapError),
+
     /// A value in `pnpm.overrides` couldn't be parsed — the selector
     /// key isn't a recognizable package name, or the override value
     /// uses the `catalog:` protocol (which pacquet doesn't support
@@ -405,19 +460,40 @@ where
 {
     /// Execute the subroutine.
     pub async fn run<Reporter: self::Reporter + 'static>(self) -> Result<(), InstallError> {
-        self.run_inner::<Reporter>(None).await
+        self.run_inner::<Reporter>(None, None).await
     }
 
     pub async fn run_with_lockfile_verification<Reporter: self::Reporter + 'static>(
         self,
         lockfile_verification_override: LockfileVerificationOverride<'a>,
     ) -> Result<(), InstallError> {
-        self.run_inner::<Reporter>(Some(lockfile_verification_override)).await
+        self.run_inner::<Reporter>(Some(lockfile_verification_override), None).await
+    }
+
+    /// Execute as a forced rebuild: take the frozen path against the
+    /// already-resolved lockfile + materialized `node_modules`, bypass the
+    /// "up to date" short-circuit, and re-run the lifecycle scripts of the
+    /// selected packages (or every build-needing package when
+    /// `rebuild.selected_names` is `None`). Drives `pacquet rebuild` and
+    /// the rebuild step of `pacquet approve-builds`.
+    ///
+    /// # Panics
+    ///
+    /// Panics unless `frozen_lockfile` is set: a rebuild must take the
+    /// frozen path, since the fresh-resolve path drops the rebuild
+    /// selection and would silently degrade to a plain install.
+    pub async fn run_rebuild<Reporter: self::Reporter + 'static>(
+        self,
+        rebuild: RebuildOptions,
+    ) -> Result<(), InstallError> {
+        assert!(self.frozen_lockfile, "run_rebuild requires frozen_lockfile = true");
+        self.run_inner::<Reporter>(None, Some(rebuild)).await
     }
 
     async fn run_inner<Reporter: self::Reporter + 'static>(
         self,
         lockfile_verification_override: Option<LockfileVerificationOverride<'a>>,
+        rebuild: Option<RebuildOptions>,
     ) -> Result<(), InstallError> {
         let Install {
             tarball_mem_cache,
@@ -439,10 +515,18 @@ where
             supported_architectures,
             node_linker,
             lockfile_only,
+            dry_run,
             update_seed_policy,
             auth_override,
             resolution_observer,
+            catalogs_override,
+            disable_optimistic_repeat_install,
         } = self;
+
+        // `--dry-run` resolves but never materializes, so it borrows the
+        // lockfile-only plumbing (skip node_modules / `.modules.yaml` /
+        // workspace-state) while additionally skipping the lockfile write.
+        let resolve_only = lockfile_only || dry_run;
 
         // `--lockfile-only` with `lockfile: false` (pnpm's
         // `useLockfile: false`) is a config conflict: the only output the
@@ -482,7 +566,7 @@ where
         //
         // [bunyan]: <https://github.com/trentm/node-bunyan>
         let manifest_dir = manifest.path().parent().expect("manifest path always has a parent dir");
-        let workspace_dir_opt = pacquet_workspace::find_workspace_dir(manifest_dir)
+        let workspace_dir_opt = configured_or_discovered_workspace_dir(config, manifest_dir)
             .map_err(InstallError::FindWorkspaceDir)?;
         let workspace_root =
             workspace_dir_opt.clone().unwrap_or_else(|| manifest_dir.to_path_buf());
@@ -498,12 +582,15 @@ where
                 .map_err(InstallError::ReadWorkspaceManifest)?,
             None => None,
         };
-        // Prefer catalogs an `updateConfig` pnpmfile hook produced
-        // (`config.catalogs`, the complete set after the hook pass) over
-        // the raw workspace-manifest read, mirroring pnpm using the
-        // post-`updateConfig` `config.catalogs`. `None` means no hook
-        // changed them, so fall back to the manifest.
-        let catalogs = match config.catalogs.clone() {
+        // Prefer a caller-supplied in-memory catalogs set
+        // (`catalogs_override`, e.g. `pacquet update --latest --no-save`
+        // resolving a bumped `catalog:` entry that is not written to disk),
+        // then catalogs an `updateConfig` pnpmfile hook produced
+        // (`config.catalogs`, the complete set after the hook pass), and
+        // finally the raw workspace-manifest read. `None` at every layer
+        // falls back to the manifest, mirroring pnpm's post-`updateConfig`
+        // `config.catalogs`.
+        let catalogs = match catalogs_override.or_else(|| config.catalogs.clone()) {
             Some(catalogs) => catalogs,
             None => get_catalogs_from_workspace_manifest(workspace_manifest.as_ref())
                 .map_err(InstallError::InvalidCatalogsConfiguration)?,
@@ -546,14 +633,22 @@ where
         // forcing the frozen path.
         let project_manifests =
             build_project_manifests_list(&workspace_root, manifest, workspace_projects.as_deref());
-        // `pacquet update` must always re-resolve, so it bypasses the
-        // optimistic short-circuit: a compatible bump leaves the
-        // manifest byte-identical, which the repeat-install check would
-        // otherwise read as "nothing changed → already up to date" and
-        // skip the registry re-resolution entirely. Gating on
-        // `KeepAll` keeps `install` / `add` on the fast path.
-        if matches!(update_seed_policy, UpdateSeedPolicy::KeepAll)
+        // Only a full `pacquet install` may short-circuit. `add` and
+        // `remove` mutate the manifest in memory and persist it after
+        // this run returns, so the on-disk mtimes the check reads still
+        // describe the pre-mutation project — without this gate a fresh
+        // workspace state would read as "nothing changed → already up
+        // to date" and the mutation would never be resolved or
+        // materialized. Mirrors upstream `installDeps` calling
+        // `checkDepsStatus` only for the plain-install mutation, never
+        // for `installSome` / `uninstallSome`. `pacquet update` is
+        // excluded through its seed policy: a compatible bump leaves
+        // the manifest byte-identical, which the check would likewise
+        // read as up to date and skip the registry re-resolution.
+        let optimistic_decision = is_full_install
+            && matches!(update_seed_policy, UpdateSeedPolicy::KeepAll)
             && !frozen_lockfile
+            && !disable_optimistic_repeat_install
             && check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
                 workspace_root: &workspace_root,
                 config,
@@ -563,16 +658,52 @@ where
                 is_workspace_install: workspace_manifest.is_some(),
                 lockfile,
                 catalogs: &catalogs,
-            }) == OptimisticRepeatInstallDecision::UpToDate
-        {
-            Reporter::emit(&LogEvent::Pnpm(PnpmLog {
-                level: LogLevel::Info,
-                message: "Already up to date".to_string(),
-                prefix: prefix.clone(),
-            }));
-            Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
-            return Ok(());
+            }) == OptimisticRepeatInstallDecision::UpToDate;
+        if optimistic_decision {
+            // Keep `strictDepBuilds` enforced across reruns: an install
+            // that already recorded unapproved ignored builds must keep
+            // failing until they are approved, not exit 0 via the fast
+            // path. An `allowBuilds` change that newly permits one is
+            // already caught by `settings_match` (the policy is part of
+            // the workspace state), which reports drift and skips this
+            // branch, so the full install runs and rebuilds it.
+            //
+            // A corrupt / unreadable `.modules.yaml` can't prove there are
+            // no recorded ignored builds, so under strict mode fall through
+            // to the full install rather than short-circuiting on a
+            // swallowed read error.
+            let fast_path_safe = if config.strict_dep_builds {
+                match pacquet_modules_yaml::read_modules_layout::<Host>(&config.modules_dir) {
+                    Ok(Some(modules)) => match unapproved_recorded_ignored_builds(&modules, config)
+                    {
+                        Ok(Some(package_names)) => {
+                            return Err(InstallError::IgnoredBuilds { package_names });
+                        }
+                        Ok(None) => true,
+                        // Unreadable state or a malformed `allowBuilds`:
+                        // can't trust the fast path, run the full install.
+                        Err(_) => false,
+                    },
+                    Ok(None) => true,
+                    Err(_) => false,
+                }
+            } else {
+                true
+            };
+            if fast_path_safe {
+                Reporter::emit(&LogEvent::Pnpm(PnpmLog {
+                    level: LogLevel::Info,
+                    message: "Already up to date".to_string(),
+                    prefix: prefix.clone(),
+                }));
+                Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
+                return Ok(());
+            }
         }
+
+        // Past the repeat-install fast path every install flavor needs
+        // the wanted lockfile's contents; force the deferred load here.
+        let lockfile = lockfile.get().map_err(InstallError::LoadWantedLockfile)?;
 
         // Register the project against the shared store for prune
         // tracking, once per install at the workspace root. Mirrors
@@ -677,6 +808,11 @@ where
                 None
             };
         let lockfile_synthesized_from_current = synthesized_lockfile.is_some();
+        // The dry-run diff baseline is the actual on-disk `pnpm-lock.yaml`
+        // (`None` when it is absent), captured before the synthesized-from-
+        // current fallback below. Diffing against the synthesized lockfile
+        // would hide the change of a real install creating `pnpm-lock.yaml`.
+        let existing_wanted_lockfile = lockfile;
         let lockfile = lockfile.or(synthesized_lockfile.as_ref());
 
         // One per-install packument cache shared with both the
@@ -801,7 +937,15 @@ where
         // for both state 1 (--frozen-lockfile) and state 2 (auto-frozen
         // via prefer-frozen-lockfile). The freshness check fires for both
         // — fatal for state 1, fall-through for state 2.
-        let take_frozen_path = if frozen_lockfile {
+        //
+        // `--dry-run` always takes the fresh-resolve path: it must compute
+        // the would-be lockfile to diff against the existing one, and the
+        // frozen freshness gate would otherwise abort on a stale lockfile
+        // instead of reporting the change. Mirrors pnpm disabling its
+        // frozen fast path whenever the lockfile-check callback is set.
+        let take_frozen_path = if dry_run {
+            false
+        } else if frozen_lockfile {
             let Some(lockfile) = lockfile else {
                 return Err(InstallError::NoLockfile);
             };
@@ -919,11 +1063,134 @@ where
         // spuriously, then exit. Mirrors upstream's `validateModules` +
         // `allProjectsAreUpToDate` fast path at
         // <https://github.com/pnpm/pnpm/blob/a456dc78fb/installing/deps-installer/src/install/index.ts#L913-L985>.
+        // Parse `.modules.yaml` once and share it across the consistency,
+        // newly-allowed, and unapproved-ignored checks below.
+        let modules_manifest_res = if !resolve_only || take_frozen_path {
+            pacquet_modules_yaml::read_modules_layout::<Host>(&config.modules_dir)
+        } else {
+            Ok(None)
+        };
+        let read_failed = modules_manifest_res.is_err();
+        if let Err(err) = &modules_manifest_res {
+            tracing::warn!(
+                target: "pacquet::install",
+                ?err,
+                "failed to read .modules.yaml; treating as an inconsistent node_modules directory",
+            );
+        }
+        let old_modules = modules_manifest_res.ok().flatten();
+        let modules_manifest = old_modules.as_ref();
+
+        let is_inconsistent = read_failed
+            || match &modules_manifest {
+                Some(modules) => !modules_consistent_with(modules, config, node_linker, included),
+                // Treat existence-check errors conservatively as inconsistent.
+                None => config
+                    .modules_dir
+                    .join(pacquet_modules_yaml::MODULES_FILENAME)
+                    .try_exists()
+                    .unwrap_or(true),
+            };
+
+        if !resolve_only && is_inconsistent {
+            // Settings mismatch forces a rewrite of node_modules, matching
+            // upstream pnpm's `validateModules` prune side effects.
+            let (is_safe, target_dir) = if config.modules_dir.exists() {
+                match (
+                    std::fs::canonicalize(&config.modules_dir),
+                    std::fs::canonicalize(&workspace_root),
+                ) {
+                    (Ok(modules_canon), Ok(root_canon)) => {
+                        (modules_canon.starts_with(&root_canon), Some(modules_canon))
+                    }
+                    _ => (false, None),
+                }
+            } else {
+                (true, None)
+            };
+            if is_safe {
+                if let Some(target) = target_dir {
+                    match std::fs::read_dir(&target) {
+                        Ok(entries) => {
+                            for entry_res in entries {
+                                let entry = match entry_res {
+                                    Ok(e) => e,
+                                    Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+                                        continue;
+                                    }
+                                    Err(err) => return Err(InstallError::RemoveModulesDir(err)),
+                                };
+                                let file_name = entry.file_name();
+                                let file_name_str = file_name.to_string_lossy();
+
+                                let is_hidden = file_name_str.starts_with('.');
+                                let is_pnpm_hidden = file_name_str == ".bin"
+                                    || file_name_str == ".modules.yaml"
+                                    || config
+                                        .virtual_store_dir
+                                        .file_name()
+                                        .is_some_and(|n| n == file_name_str.as_ref())
+                                    || modules_manifest.as_ref().is_some_and(|manifest| {
+                                        let mut old_vs =
+                                            std::path::PathBuf::from(&manifest.virtual_store_dir);
+                                        if old_vs.is_relative() {
+                                            old_vs = config.modules_dir.join(old_vs);
+                                        }
+                                        old_vs.starts_with(&config.modules_dir)
+                                            && old_vs
+                                                .file_name()
+                                                .is_some_and(|n| n == file_name_str.as_ref())
+                                    });
+
+                                if is_hidden && !is_pnpm_hidden {
+                                    continue;
+                                }
+
+                                if entry.file_type().is_ok_and(|t| t.is_dir()) {
+                                    #[cfg(windows)]
+                                    let is_removed =
+                                        pacquet_fs::remove_symlink_dir(&entry.path()).is_ok();
+                                    #[cfg(not(windows))]
+                                    let is_removed = false;
+
+                                    if !is_removed
+                                        && let Err(err) = std::fs::remove_dir_all(entry.path())
+                                        && err.kind() != std::io::ErrorKind::NotFound
+                                    {
+                                        return Err(InstallError::RemoveModulesDir(err));
+                                    }
+                                } else if let Err(err) = std::fs::remove_file(entry.path())
+                                    && err.kind() != std::io::ErrorKind::NotFound
+                                {
+                                    return Err(InstallError::RemoveModulesDir(err));
+                                }
+                            }
+                        }
+                        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {}
+                        Err(err) => return Err(InstallError::RemoveModulesDir(err)),
+                    }
+                }
+            } else {
+                tracing::warn!(
+                    ?config.modules_dir,
+                    "refusing to remove inconsistent modules directory outside the project root",
+                );
+            }
+        }
+
         if take_frozen_path
             && let Some(wanted_lockfile) = lockfile
             && let Some(current) = current_lockfile.as_ref()
             && wanted_lockfile == current
-            && is_modules_yaml_consistent(&config.modules_dir, config, node_linker, included)
+            && let Some(modules) = modules_manifest.as_ref()
+            && modules_consistent_with(modules, config, node_linker, included)
+            // An `allowBuilds` change that now permits a previously-ignored
+            // build must rebuild it, even though the lockfile and layout are
+            // unchanged. Mirrors pnpm's `runUnignoredDependencyBuilds`.
+            && !has_newly_allowed_ignored_builds(modules, config)
+            // An explicit `pacquet rebuild` always re-runs the build phase,
+            // so it never short-circuits here.
+            && rebuild.is_none()
         {
             // Nothing to materialize means no fetch to overlap; verify
             // eagerly before the up-to-date early return.
@@ -937,6 +1204,22 @@ where
                     &config.cache_dir,
                 )
                 .await?;
+            }
+            // Keep `strictDepBuilds` enforced on the up-to-date path: a
+            // rerun after an `ERR_PNPM_IGNORED_BUILDS` failure must not
+            // exit 0 just because the lockfile and layout are unchanged.
+            // Mirrors pnpm, which seeds `ignoredBuilds` from `.modules.yaml`
+            // and still throws from `handleIgnoredBuilds`. Checked after
+            // verification (a tampered lockfile fails first) and before the
+            // "up to date" log so the command doesn't claim success.
+            // `Err` (malformed `allowBuilds`) is unreachable here — the
+            // `has_newly_allowed_ignored_builds` guard above returns `true`
+            // on the same `from_config` error and skips this block — so a
+            // bad policy is surfaced by the full install instead.
+            if config.strict_dep_builds
+                && let Ok(Some(package_names)) = unapproved_recorded_ignored_builds(modules, config)
+            {
+                return Err(InstallError::IgnoredBuilds { package_names });
             }
             Reporter::emit(&LogEvent::Pnpm(PnpmLog {
                 level: LogLevel::Info,
@@ -960,6 +1243,7 @@ where
                     config,
                     node_linker,
                     included,
+                    &catalogs,
                     &project_manifests,
                 ),
             )
@@ -968,6 +1252,11 @@ where
             return Ok(());
         }
 
+        // Sorted `name@version` keys whose builds were blocked; assigned
+        // by whichever path runs and consumed by the `strictDepBuilds`
+        // gate at the tail. Kept out of the tuple below to avoid a
+        // `clippy::type_complexity` annotation.
+        let ignored_builds: Vec<String>;
         let (hoisted_dependencies, hoisted_locations, frozen_skipped, fresh_lockfile): (
             HoistedDependencies,
             BTreeMap<String, Vec<String>>,
@@ -996,6 +1285,7 @@ where
                     .as_ref()
                     .and_then(|lockfile| lockfile.packages.as_ref()),
                 dependency_groups,
+                project_manifests: &project_manifests,
                 logged_methods: &logged_methods,
                 workspace_root: &workspace_root,
                 requester: &prefix,
@@ -1003,6 +1293,8 @@ where
                 skip_runtimes,
                 node_linker,
                 tarball_mem_cache: Some(&tarball_mem_cache),
+                seed_skipped: modules_manifest.map(|manifest| manifest.skipped.clone()),
+                rebuild: rebuild.as_ref(),
             }
             .run::<Reporter>()
             .await
@@ -1012,6 +1304,7 @@ where
             // is the same gate, just run alongside the fetch.
             .map_err(map_frozen_lockfile_error)?;
 
+            ignored_builds = frozen_result.ignored_builds;
             (
                 frozen_result.hoisted_dependencies,
                 frozen_result.hoisted_locations,
@@ -1054,7 +1347,7 @@ where
             // filter is irrelevant to its output. Mirrors pnpm gating its
             // lockfileOnly-specific handling on `!opts.lockfileOnly` at
             // <https://github.com/pnpm/pnpm/blob/a33c4bfcb0/installing/deps-installer/src/install/index.ts#L1957>.
-            if !lockfile_only && skip_runtimes {
+            if !resolve_only && skip_runtimes {
                 return Err(InstallError::UnsupportedFreshInstallSkipRuntimes);
             }
 
@@ -1111,7 +1404,7 @@ where
                 dependency_groups,
                 logged_methods: &logged_methods,
                 requester: &prefix,
-                catalogs,
+                catalogs: catalogs.clone(),
                 lockfile_dir: &workspace_root,
                 workspace_packages,
                 update_checksums,
@@ -1128,7 +1421,8 @@ where
                 wanted_lockfile: lockfile,
                 node_linker,
                 supported_architectures: supported_architectures.as_ref(),
-                lockfile_only,
+                lockfile_only: resolve_only,
+                dry_run,
                 update_seed_policy,
                 auth_override,
                 resolution_observer,
@@ -1153,6 +1447,7 @@ where
                 );
             }
 
+            ignored_builds = fresh_result.ignored_builds;
             (
                 fresh_result.hoisted_dependencies,
                 fresh_result.hoisted_locations,
@@ -1173,7 +1468,21 @@ where
         // <https://github.com/pnpm/pnpm/blob/a33c4bfcb0/installing/deps-installer/src/install/index.ts#L1784>
         // and skipping `updateWorkspaceState` when `lockfileOnly` at
         // <https://github.com/pnpm/pnpm/blob/a33c4bfcb0/installing/commands/src/installDeps.ts#L515>.
-        if lockfile_only {
+        if resolve_only {
+            // `--dry-run` resolved a fresh lockfile but wrote nothing. Diff
+            // it against the existing on-disk lockfile and print a report,
+            // then exit 0 — npm-style preview semantics.
+            if dry_run {
+                use std::io::Write as _;
+                let report =
+                    crate::dry_run::render_dry_run_report(&crate::dry_run::diff_lockfiles(
+                        existing_wanted_lockfile,
+                        fresh_lockfile.as_ref(),
+                    ));
+                let mut stdout = std::io::stdout();
+                let _ = writeln!(stdout, "{report}");
+                let _ = stdout.flush();
+            }
             Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
             return Ok(());
         }
@@ -1184,6 +1493,87 @@ where
         // subsequent `pnpm:lifecycle` events render after the import
         // progress display has closed. Mirrors upstream's emit point in
         // <https://github.com/pnpm/pnpm/blob/80037699fb/installing/deps-installer/src/install/link.ts#L167>.
+
+        // Remove surplus virtual-store directories the wanted lockfile
+        // no longer references, throttled by `modulesCacheMaxAge`.
+        // Mirrors upstream's `pruneVirtualStore` gate at
+        // <https://github.com/pnpm/pnpm/blob/74a2dc9027/installing/deps-installer/src/install/index.ts#L471-L473>
+        // and the virtual-store sweep inside `prune` at
+        // <https://github.com/pnpm/pnpm/blob/e1e29c1520/installing/linking/modules-cleaner/src/prune.ts#L173-L191>.
+        // The wanted lockfile is `fresh_lockfile` on the resolve path and
+        // `lockfile` on the frozen path; its `snapshots:` keys name the
+        // virtual-store subdirectories that must survive.
+        // A genuine read/parse failure (not `NotFound`) is treated as
+        // "no prior manifest" — the safe direction (prune + fresh
+        // `prunedAt`) — but logged rather than silently swallowed.
+        let prior_modules = modules_manifest;
+        let now = SystemTime::now();
+        let effective_virtual_store_dir = config.effective_virtual_store_dir();
+        // Decide "this is the global store" from the resolved paths, not
+        // the `enableGlobalVirtualStore` flag alone: the global store is
+        // shared across projects, so a config that points `virtualStoreDir`
+        // at it must not be pruned even when the flag is off.
+        let is_global_virtual_store = crate::prune_virtual_store::same_dir(
+            effective_virtual_store_dir,
+            &config.global_virtual_store_dir,
+        );
+        // `did_prune` tracks whether the sweep actually ran (enumerated the
+        // store), not just whether the throttle allowed it. It stays false
+        // when there is no wanted lockfile to derive the needed set from
+        // (e.g. `config.lockfile == false` leaves both `fresh_lockfile` and
+        // a loaded `lockfile` absent), when the target is refused as unsafe,
+        // or when enumeration failed. `prunedAt` must not advance on a run
+        // where nothing was swept, or the next real sweep is throttled off
+        // for `modulesCacheMaxAge`.
+        let did_prune = if crate::prune_virtual_store::should_prune_virtual_store(
+            is_global_virtual_store,
+            prior_modules.as_ref().map(|modules| modules.pruned_at.as_str()),
+            config.modules_cache_max_age,
+            now,
+        ) {
+            match fresh_lockfile.as_ref().or(lockfile) {
+                // Sweep the canonicalized prune target returned by the
+                // containment check, never the raw configured path: deleting
+                // from the validated path closes the time-of-check/time-of-use
+                // gap a symlink swap would otherwise open.
+                Some(wanted) => {
+                    if let Some(prune_dir) = crate::prune_virtual_store::prune_target_within_modules(
+                        effective_virtual_store_dir,
+                        &config.modules_dir,
+                    ) {
+                        crate::prune_virtual_store::prune_virtual_store(
+                            &prune_dir,
+                            wanted.snapshots.iter().flat_map(|snapshots| snapshots.keys()),
+                            &frozen_skipped,
+                            config.virtual_store_dir_max_length as usize,
+                        )
+                        .is_some()
+                    } else {
+                        // A wanted lockfile exists but the store path is unsafe
+                        // (escapes node_modules); refuse the destructive sweep.
+                        tracing::warn!(
+                            virtual_store_dir = %effective_virtual_store_dir.display(),
+                            modules_dir = %config.modules_dir.display(),
+                            "skipping virtual-store prune: the virtual store is not inside node_modules",
+                        );
+                        false
+                    }
+                }
+                None => false,
+            }
+        } else {
+            false
+        };
+
+        // Stamp `prunedAt` only when the sweep ran (or there was no prior
+        // `.modules.yaml`); otherwise preserve the recorded timestamp so
+        // the throttle keeps counting from the last real prune. Mirrors
+        // upstream's write at
+        // <https://github.com/pnpm/pnpm/blob/74a2dc9027/installing/deps-installer/src/install/index.ts#L1828-L1830>.
+        let pruned_at = match (&prior_modules, did_prune) {
+            (Some(prior), false) => prior.pruned_at.clone(),
+            _ => httpdate::fmt_http_date(now),
+        };
 
         // Write `node_modules/.modules.yaml`. Mirrors upstream's
         // `writeModulesManifest` call at
@@ -1202,9 +1592,19 @@ where
                 hoisted_dependencies,
                 hoisted_locations,
                 &frozen_skipped,
+                &ignored_builds,
+                pruned_at,
             ),
         )
         .map_err(InstallError::WriteModules)?;
+
+        let filtered_current_lockfile = if take_frozen_path {
+            lockfile.map(|lockfile| {
+                crate::filter_lockfile_for_current(lockfile, included, &frozen_skipped)
+            })
+        } else {
+            None
+        };
 
         // Write `<virtual_store_dir>/lock.yaml`. Mirrors upstream's
         // `writeCurrentLockfile` call at
@@ -1223,7 +1623,7 @@ where
         // <https://github.com/pnpm/pacquet/issues/299>), this needs to narrow to the filtered lockfile
         // (selected importers × engine filter) so the saved current
         // lockfile reflects only what was actually materialized.
-        if frozen_lockfile && let Some(lockfile) = lockfile {
+        if take_frozen_path && let Some(lockfile) = filtered_current_lockfile.as_ref() {
             // Filter the wanted lockfile down to the snapshots that
             // were actually materialized: dep maps the user excluded
             // (`--no-optional`, `--no-dev`) plus snapshots the
@@ -1235,7 +1635,7 @@ where
             // next install diffs against this filtered shape so
             // dropped snapshots aren't mistaken for already-done
             // work.
-            crate::filter_lockfile_for_current(lockfile, included, &frozen_skipped)
+            lockfile
                 .save_current_to_virtual_store_dir(&config.virtual_store_dir)
                 .map_err(InstallError::SaveCurrentLockfile)?;
         } else if let Some(fresh_lockfile) = fresh_lockfile.as_ref() {
@@ -1279,10 +1679,15 @@ where
         // Skipped for partial installs (`pacquet add`): pnpm filters
         // to `mutation === 'install'` so a named install does not fire
         // the project's own scripts (see [`Install::is_full_install`]).
-        if is_full_install {
+        //
+        // Also skipped under `--ignore-scripts`: pnpm suppresses the
+        // project's own lifecycle scripts alongside dependency build
+        // scripts when `ignoreScripts` is set.
+        if is_full_install && !config.ignore_scripts {
             run_projects_lifecycle_scripts::<Reporter>(
                 &project_manifests,
                 config,
+                node_linker,
                 &workspace_root,
             )?;
         }
@@ -1304,6 +1709,7 @@ where
                 config,
                 node_linker,
                 included,
+                &catalogs,
                 &project_manifests,
             ),
         )
@@ -1314,6 +1720,16 @@ where
         // come after `importing_done`, matching pnpm's ordering at
         // <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/deps-installer/src/install/index.ts#L1663>.
         Reporter::emit(&LogEvent::Summary(SummaryLog { level: LogLevel::Debug, prefix }));
+
+        // Mirror pnpm's `handleIgnoredBuilds`: when `strictDepBuilds` is on
+        // (the default), an install that blocked any dependency build
+        // script fails with `ERR_PNPM_IGNORED_BUILDS` *after* the artifacts
+        // are written, so the package is still added/installed and the user
+        // approves the builds and reinstalls.
+        // <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/commands/src/handleIgnoredBuilds.ts#L22>
+        if config.strict_dep_builds && !ignored_builds.is_empty() {
+            return Err(InstallError::IgnoredBuilds { package_names: ignored_builds });
+        }
 
         Ok(())
     }
@@ -1350,7 +1766,7 @@ fn check_lockfile_freshness(
     ignore_manifest_check: bool,
 ) -> Result<(), FreshnessCheckError> {
     let parsed_overrides_opt = parse_config_overrides(config, catalogs)?;
-    check_lockfile_settings_drift(lockfile, config, parsed_overrides_opt.as_deref())?;
+    check_lockfile_settings_drift(lockfile, config, catalogs, parsed_overrides_opt.as_deref())?;
 
     if ignore_manifest_check {
         return Ok(());
@@ -1399,31 +1815,30 @@ pub(crate) fn parse_config_overrides(
 pub(crate) fn check_lockfile_settings_drift(
     lockfile: &Lockfile,
     config: &Config,
+    catalogs: &Catalogs,
     parsed_overrides: Option<&[pacquet_config_parse_overrides::VersionOverride]>,
 ) -> Result<(), FreshnessCheckError> {
     let overrides_map: Option<std::collections::HashMap<String, String>> =
         parsed_overrides.map(pacquet_config_parse_overrides::create_overrides_map_from_parsed);
-    let package_extensions_checksum = config
-        .package_extensions
-        .as_ref()
-        .filter(|extensions| !extensions.is_empty())
-        .and_then(|extensions| serde_json::to_value(extensions).ok())
-        .as_ref()
-        .and_then(pacquet_graph_hasher::hash_object_nullable_with_prefix);
+    let package_extensions_checksum =
+        crate::install_with_fresh_lockfile::compute_package_extensions_checksum(config);
     // `calcPatchHashes(opts.patchedDependencies)` — reading the patch
     // files here lets `check_lockfile_settings` catch an edited patch
     // whose hash (and thus its `(patch_hash=...)` depPath suffix) drifted
     // from what the lockfile recorded.
     let patched_dependency_hashes =
         config.patched_dependency_hashes().map_err(FreshnessCheckError::CalcPatchHashes)?;
-    pacquet_lockfile::check_lockfile_settings(
+    pacquet_lockfile::check_lockfile_settings_with_catalogs(
         lockfile,
-        overrides_map.as_ref(),
-        package_extensions_checksum.as_deref(),
-        config.ignored_optional_dependencies.as_deref(),
-        patched_dependency_hashes.as_ref(),
-        config.inject_workspace_packages,
-        config.peers_suffix_max_length,
+        pacquet_lockfile::LockfileSettingsCheck {
+            catalogs,
+            overrides: overrides_map.as_ref(),
+            package_extensions_checksum: package_extensions_checksum.as_deref(),
+            ignored_optional_dependencies: config.ignored_optional_dependencies.as_deref(),
+            patched_dependencies: patched_dependency_hashes.as_ref(),
+            inject_workspace_packages: config.inject_workspace_packages,
+            peers_suffix_max_length: config.peers_suffix_max_length,
+        },
     )
     .map_err(FreshnessCheckError::Stale)
 }
@@ -1552,29 +1967,24 @@ fn map_node_linker(linker: NodeLinker) -> ModulesNodeLinker {
     }
 }
 
-/// Check whether `<modules_dir>/.modules.yaml` is present and its
-/// recorded layout settings (`nodeLinker`, hoist patterns, store /
-/// virtual-store paths, `virtualStoreDirMaxLength`, included dep
-/// groups, layout version) match what the current install would
-/// produce. Returns `false` when the file is missing, unreadable, or
-/// records a different layout — both cases that disqualify the no-op
+/// Whether a parsed `.modules.yaml` records the same layout settings
+/// (`nodeLinker`, hoist patterns, store / virtual-store paths,
+/// `virtualStoreDirMaxLength`, included dep groups, layout version) the
+/// current install would produce. A mismatch disqualifies the no-op
 /// short-circuit.
 ///
+/// Takes the already-parsed [`Modules`] so the up-to-date fast path can
+/// share one parse across the consistency, newly-allowed, and
+/// unapproved-ignored checks.
+///
 /// Mirrors the settings checks in upstream's
-/// [`validateModules`](https://github.com/pnpm/pnpm/blob/a456dc78fb/installing/deps-installer/src/install/validateModules.ts)
-/// minus the prune side effects: a settings mismatch in pnpm forces a
-/// rewrite of `node_modules`, but pacquet's caller falls through to
-/// the regular install path, which rebuilds the layout from scratch
-/// anyway.
-fn is_modules_yaml_consistent(
-    modules_dir: &Path,
+/// [`validateModules`](https://github.com/pnpm/pnpm/blob/a456dc78fb/installing/deps-installer/src/install/validateModules.ts).
+fn modules_consistent_with(
+    modules: &pacquet_modules_yaml::ModulesLayout,
     config: &Config,
     node_linker: NodeLinker,
     included: IncludedDependencies,
 ) -> bool {
-    let Some(modules) = read_modules_manifest::<Host>(modules_dir).ok().flatten() else {
-        return false;
-    };
     modules.layout_version == Some(LayoutVersion)
         && modules.node_linker == Some(map_node_linker(node_linker))
         && modules.included == included
@@ -1586,13 +1996,73 @@ fn is_modules_yaml_consistent(
             == config.effective_virtual_store_dir().to_string_lossy().as_ref()
 }
 
+/// Whether `.modules.yaml` records any ignored build that the current
+/// `allowBuilds` policy now allows.
+///
+/// When `true`, the frozen no-op fast path must not short-circuit: the
+/// install has to rebuild the newly-allowed package. Ports pnpm's
+/// [`runUnignoredDependencyBuilds`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/deps-installer/src/install/index.ts#L1153),
+/// which re-runs the builds an `allowBuilds` change un-ignored even on
+/// an otherwise up-to-date install. pacquet achieves the same observable
+/// result by letting the full frozen install run, whose `BuildModules`
+/// re-evaluates the policy and rebuilds the now-allowed package (already
+/// built deps are skipped by the side-effects-cache `is_built` gate).
+fn has_newly_allowed_ignored_builds(
+    modules: &pacquet_modules_yaml::ModulesLayout,
+    config: &Config,
+) -> bool {
+    let Some(ignored) = modules.ignored_builds.as_ref().filter(|set| !set.is_empty()) else {
+        return false;
+    };
+    // A malformed `allowBuilds` can't be evaluated here; let the full
+    // install run so it surfaces the real error instead of silently
+    // staying on the fast path.
+    let Ok(policy) = crate::AllowBuildPolicy::from_config(config) else {
+        return true;
+    };
+    ignored.iter().any(|dep_path| policy.check(dep_path.as_str()) == Some(true))
+}
+
+/// The sorted `name@version` keys `.modules.yaml` recorded as ignored
+/// builds that the current `allowBuilds` policy still leaves unapproved
+/// (`None`), or `None` when there are none.
+///
+/// The up-to-date fast paths use this to keep `strictDepBuilds`
+/// enforced across reruns: pnpm seeds `ignoredBuilds` from `.modules.yaml`
+/// on the up-to-date path and `handleIgnoredBuilds` still throws, so a
+/// rerun after an `ERR_PNPM_IGNORED_BUILDS` failure must not exit 0.
+/// Packages a later policy explicitly denies (`Some(false)`) are excluded
+/// — those are silently skipped, never reported — matching a full
+/// install's `BuildModules`. Newly-allowed packages are handled upstream
+/// by [`has_newly_allowed_ignored_builds`], which skips the fast path.
+///
+/// A malformed `allowBuilds` spec surfaces as `Err` (e.g.
+/// `ERR_PNPM_INVALID_VERSION_UNION`) rather than being swallowed: the
+/// fast-path callers fall through to the full install on `Err`, which
+/// re-evaluates the policy and reports the real error.
+fn unapproved_recorded_ignored_builds(
+    modules: &pacquet_modules_yaml::ModulesLayout,
+    config: &Config,
+) -> Result<Option<Vec<String>>, pacquet_config::version_policy::VersionPolicyError> {
+    let Some(ignored) = modules.ignored_builds.as_ref().filter(|set| !set.is_empty()) else {
+        return Ok(None);
+    };
+    let policy = crate::AllowBuildPolicy::from_config(config)?;
+    let mut names: Vec<String> = ignored
+        .iter()
+        .filter(|dep_path| policy.check(dep_path.as_str()).is_none())
+        .map(|dep_path| dep_path.as_str().to_string())
+        .collect();
+    names.sort();
+    Ok((!names.is_empty()).then_some(names))
+}
+
 /// Assemble the [`Modules`] payload for [`write_modules_manifest`].
 ///
 /// Mirrors upstream's literal at
 /// <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/deps-installer/src/install/index.ts#L1608-L1630>.
 /// Fields pacquet does not populate yet (`pendingBuilds`,
-/// `injectedDeps`, `ignoredBuilds`, `allowBuilds`) default to empty
-/// / unset.
+/// `injectedDeps`, `allowBuilds`) default to empty / unset.
 ///
 /// `hoistedDependencies` is produced by the isolated-linker hoist
 /// pass in [`crate::InstallFrozenLockfile::run`] and threaded in
@@ -1624,6 +2094,10 @@ fn is_modules_yaml_consistent(
 ///
 /// [`PackageKey`]: pacquet_lockfile::PackageKey
 /// [`write_modules_manifest`]: pacquet_modules_yaml::write_modules_manifest
+#[expect(
+    clippy::too_many_arguments,
+    reason = "assembles every field of the .modules.yaml manifest from the install's resolved state"
+)]
 fn build_modules_manifest(
     config: &Config,
     node_linker: NodeLinker,
@@ -1631,8 +2105,17 @@ fn build_modules_manifest(
     hoisted_dependencies: HoistedDependencies,
     hoisted_locations: BTreeMap<String, Vec<String>>,
     skipped: &crate::SkippedSnapshots,
+    ignored_builds: &[String],
+    pruned_at: String,
 ) -> Modules {
     Modules {
+        // The `name@version` keys whose build scripts were blocked, so a
+        // later install can re-run any that an `allowBuilds` change now
+        // allows (see [`has_newly_allowed_ignored_builds`]). `None` when
+        // empty, matching pnpm's omit-when-empty encoding.
+        ignored_builds: (!ignored_builds.is_empty()).then(|| {
+            ignored_builds.iter().cloned().map(pacquet_modules_yaml::DepPath::from).collect()
+        }),
         hoist_pattern: config.hoist_pattern.clone(),
         hoisted_dependencies,
         // `Some(empty)` would round-trip on disk as
@@ -1647,9 +2130,10 @@ fn build_modules_manifest(
         // resolves at compile time to this crate's package version.
         package_manager: concat!("pacquet@", env!("CARGO_PKG_VERSION")).to_string(),
         public_hoist_pattern: config.public_hoist_pattern.clone(),
-        // RFC 1123 / `toUTCString()` format, matching upstream's
-        // `new Date().toUTCString()` at line 1622.
-        pruned_at: httpdate::fmt_http_date(SystemTime::now()),
+        // RFC 1123 / `toUTCString()` format. The caller decides whether
+        // this is a fresh timestamp (a prune ran or first install) or the
+        // preserved prior value, per upstream's `prunedAt` write logic.
+        pruned_at,
         registries: Some(config.resolved_registries()),
         // `iter_installability` excludes fetch-failure entries so they
         // don't get persisted across installs — matches upstream's
@@ -1688,7 +2172,9 @@ fn load_workspace_projects(
 ) -> Result<Option<Vec<pacquet_workspace::Project>>, pacquet_workspace::FindWorkspaceProjectsError>
 {
     let Some(manifest) = workspace_manifest else { return Ok(None) };
-    let opts = pacquet_workspace::FindWorkspaceProjectsOpts { patterns: manifest.packages.clone() };
+    let opts = pacquet_workspace::FindWorkspaceProjectsOpts {
+        patterns: Some(pacquet_workspace::workspace_package_patterns(manifest)),
+    };
     pacquet_workspace::find_workspace_projects(workspace_root, &opts).map(Some)
 }
 
@@ -1711,6 +2197,7 @@ fn load_workspace_projects(
 fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
     project_manifests: &[(std::path::PathBuf, &PackageManifest)],
     config: &Config,
+    node_linker: NodeLinker,
     workspace_root: &Path,
 ) -> Result<(), InstallError> {
     let modules_dir_basename =
@@ -1722,7 +2209,18 @@ fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
         pacquet_config::ScriptsPrependNodePath::Never => ExecScriptsPrependNodePath::Never,
         pacquet_config::ScriptsPrependNodePath::WarnOnly => ExecScriptsPrependNodePath::WarnOnly,
     };
-    let extra_env = std::collections::HashMap::new();
+    let mut extra_env = std::collections::HashMap::new();
+    if let Some(node_options) = &config.node_options {
+        extra_env.insert("NODE_OPTIONS".to_string(), node_options.clone());
+    }
+    if config.node_experimental_package_map && !matches!(node_linker, NodeLinker::Pnp) {
+        let package_map_path = config.modules_dir.join(crate::package_map::PACKAGE_MAP_FILENAME);
+        let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
+        extra_env.insert(
+            "NODE_OPTIONS".to_string(),
+            crate::make_node_package_map_option(&package_map_path, node_options),
+        );
+    }
     for (project_dir, _manifest) in project_manifests {
         let root_modules_dir = project_dir.join(modules_dir_basename);
         let dep_path = project_dir.to_string_lossy();
@@ -1757,6 +2255,90 @@ fn run_projects_lifecycle_scripts<Reporter: self::Reporter>(
 ///
 /// `workspace_projects.is_none()` covers single-project installs (no
 /// `pnpm-workspace.yaml`) — the only manifest is the root one.
+/// Inputs for [`install_already_up_to_date`].
+pub struct UpToDateFastPathCheck<'a> {
+    pub config: &'a Config,
+    pub manifest: &'a PackageManifest,
+    pub dependency_groups: Vec<DependencyGroup>,
+    pub node_linker: NodeLinker,
+}
+
+/// Pre-runtime twin of the repeat-install short-circuit inside
+/// [`Install::run`]: same workspace discovery, same
+/// [`check_optimistic_repeat_install`] inputs, callable from a
+/// synchronous context so the CLI can finish an up-to-date install
+/// before paying for the async runtime, the HTTP client, and the
+/// state setup. Returns the workspace root — the reporter `prefix`
+/// for the "Already up to date" emission — when the install can
+/// short-circuit.
+///
+/// Failures deliberately collapse to `None`: the caller falls through
+/// to the full install path, which reproduces the failure with its
+/// established error shape.
+#[must_use]
+pub fn install_already_up_to_date(check: &UpToDateFastPathCheck<'_>) -> Option<PathBuf> {
+    let UpToDateFastPathCheck { config, manifest, dependency_groups, node_linker } = check;
+    let included = IncludedDependencies {
+        dependencies: dependency_groups.contains(&DependencyGroup::Prod),
+        dev_dependencies: dependency_groups.contains(&DependencyGroup::Dev),
+        optional_dependencies: dependency_groups.contains(&DependencyGroup::Optional),
+    };
+    let manifest_dir = manifest.path().parent()?;
+    let workspace_dir_opt = configured_or_discovered_workspace_dir(config, manifest_dir).ok()?;
+    let workspace_root = workspace_dir_opt.clone().unwrap_or_else(|| manifest_dir.to_path_buf());
+    let workspace_manifest = match workspace_dir_opt.as_deref() {
+        Some(dir) => pacquet_workspace::read_workspace_manifest(dir).ok()?,
+        None => None,
+    };
+    let catalogs = match config.catalogs.clone() {
+        Some(catalogs) => catalogs,
+        None => get_catalogs_from_workspace_manifest(workspace_manifest.as_ref()).ok()?,
+    };
+    let workspace_projects =
+        load_workspace_projects(&workspace_root, workspace_manifest.as_ref()).ok()?;
+    let project_manifests =
+        build_project_manifests_list(&workspace_root, manifest, workspace_projects.as_deref());
+    // Same lockfile source as `State::init`'s (the manifest's
+    // directory), so the pre-runtime check and the in-pipeline check
+    // reach their verdicts from the same file.
+    let lockfile = if config.lockfile {
+        LazyLockfile::deferred(manifest_dir.to_path_buf())
+    } else {
+        LazyLockfile::disabled()
+    };
+    // Under `strictDepBuilds`, a recorded-and-still-unapproved ignored
+    // build must keep the install failing — never let the pre-runtime
+    // fast path report up-to-date and exit 0. Returning `None` falls
+    // through to the full `Install::run`, whose optimistic branch raises
+    // `ERR_PNPM_IGNORED_BUILDS`. A corrupt / unreadable `.modules.yaml`
+    // is treated conservatively the same way (its `Err` can't prove the
+    // absence of recorded ignored builds).
+    if config.strict_dep_builds {
+        match pacquet_modules_yaml::read_modules_layout::<Host>(&config.modules_dir) {
+            Ok(Some(modules)) => match unapproved_recorded_ignored_builds(&modules, config) {
+                Ok(Some(_)) => return None,
+                Ok(None) => {}
+                // Unreadable state or a malformed `allowBuilds`: force the
+                // full install rather than reporting up-to-date.
+                Err(_) => return None,
+            },
+            Ok(None) => {}
+            Err(_) => return None,
+        }
+    }
+    (check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root: &workspace_root,
+        config,
+        node_linker: *node_linker,
+        included,
+        project_manifests: &project_manifests,
+        is_workspace_install: workspace_manifest.is_some(),
+        lockfile: MaybeLazyLockfile::Lazy(&lockfile),
+        catalogs: &catalogs,
+    }) == OptimisticRepeatInstallDecision::UpToDate)
+        .then_some(workspace_root)
+}
+
 fn build_project_manifests_list<'a>(
     workspace_root: &std::path::Path,
     root_manifest: &'a PackageManifest,
@@ -1772,6 +2354,16 @@ fn build_project_manifests_list<'a>(
         }
     }
     list
+}
+
+fn configured_or_discovered_workspace_dir(
+    config: &Config,
+    manifest_dir: &Path,
+) -> Result<Option<PathBuf>, pacquet_workspace::FindWorkspaceDirError> {
+    match config.workspace_dir.clone() {
+        Some(workspace_dir) => Ok(Some(workspace_dir)),
+        None => pacquet_workspace::find_workspace_dir(manifest_dir),
+    }
 }
 
 /// Build the `name → version → WorkspacePackage` lookup the npm
@@ -1806,6 +2398,10 @@ fn build_workspace_packages_map(
         );
     }
     Some(map)
+}
+
+pub(crate) fn should_write_package_map(_config: &Config, node_linker: NodeLinker) -> bool {
+    node_linker == NodeLinker::Isolated
 }
 
 /// Build the `projects` map for [`WorkspaceState`] from the
@@ -1847,6 +2443,7 @@ pub(crate) fn build_workspace_state(
     config: &Config,
     node_linker: NodeLinker,
     included: IncludedDependencies,
+    catalogs: &Catalogs,
     project_manifests: &[(std::path::PathBuf, &PackageManifest)],
 ) -> WorkspaceState {
     WorkspaceState {
@@ -1864,7 +2461,12 @@ pub(crate) fn build_workspace_state(
         // produces. Keeping the construction in one place guarantees
         // adding a field on one side doesn't silently flip the other
         // into "drift" on the next install.
-        settings: crate::optimistic_repeat_install::current_settings(config, node_linker, included),
+        settings: crate::optimistic_repeat_install::current_settings_with_catalogs(
+            config,
+            node_linker,
+            included,
+            catalogs,
+        ),
     }
 }
 

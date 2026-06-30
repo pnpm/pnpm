@@ -38,7 +38,7 @@ pub struct VersionsOverrider {
     generic: Vec<ResolvedOverride>,
 }
 
-/// `VersionOverride` augmented with a pre-parsed `LocalTarget` for
+/// `VersionOverride` augmented with a pre-parsed [`LocalTarget`] for
 /// the local-protocol forms. Splitting once at construction time
 /// avoids re-parsing the prefix on every manifest read.
 struct ResolvedOverride {
@@ -216,13 +216,6 @@ impl VersionsOverrider {
         }
     }
 
-    /// The `peerDependencies` arm of upstream's
-    /// [`overrideDepsOfPkg`](https://github.com/pnpm/pnpm/blob/01b3d45ddb/hooks/read-package-hook/src/createVersionsOverrider.ts#L68-L129):
-    /// a matched peer is deleted on `-`, rewritten in place when the
-    /// override value is a valid peer range, and otherwise written
-    /// into `dependencies` (the peer entry stays as declared, and the
-    /// concrete `link:` / `file:` / alias spec is installed as a
-    /// regular dependency).
     fn override_peer_group(
         &self,
         value: &mut Value,
@@ -398,10 +391,8 @@ fn semver_satisfies(version: &str, range: &str) -> bool {
 fn parse_local_target(new_bare_specifier: &str, root_dir: &Path) -> Option<LocalTarget> {
     let (protocol, pkg_path) = if let Some(rest) = new_bare_specifier.strip_prefix("file:") {
         (LocalProtocol::File, rest)
-    } else if let Some(rest) = new_bare_specifier.strip_prefix("link:") {
-        (LocalProtocol::Link, rest)
     } else {
-        return None;
+        (LocalProtocol::Link, new_bare_specifier.strip_prefix("link:")?)
     };
 
     let candidate = Path::new(pkg_path);

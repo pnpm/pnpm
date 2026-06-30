@@ -97,17 +97,18 @@ impl Clock for Host {
 }
 
 /// Newtype wrapper around a dependency-path string. Mirrors upstream's
-/// `DepPath` branded type at
-/// <https://github.com/pnpm/pnpm/blob/1819226b51/core/types/src/misc.ts#L65>.
+/// [`DepPath`][ts-DepPath] branded type.
 ///
-/// Upstream's `DepPath` is `string & { __brand: 'DepPath' }`, a branded
+/// Upstream's [`DepPath`][ts-DepPath] is `string & { __brand: 'DepPath' }`, a branded
 /// string. Every construction site uses an `as DepPath` cast — there are
 /// no validating constructors anywhere in pnpm. The brand exists purely
-/// to stop a plain `string` from being assigned where a `DepPath` is
+/// to stop a plain `string` from being assigned where a [`DepPath`] is
 /// expected at compile time. This Rust wrapper mirrors that contract: no
 /// validation runs at construction, and `#[serde(transparent)]` makes the
-/// wire format identical to `String` so a `DepPath` round-trips through
+/// wire format identical to `String` so a [`DepPath`] round-trips through
 /// JSON / YAML the same way upstream's branded string does.
+///
+/// [ts-DepPath]: https://github.com/pnpm/pnpm/blob/1819226b51/core/types/src/misc.ts#L65
 #[derive(
     Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, From, Into,
 )]
@@ -229,9 +230,54 @@ pub struct Modules {
     pub allow_builds: Option<BTreeMap<String, AllowBuildValue>>,
 }
 
+/// A lightweight version of [`Modules`] that skips deserializing the potentially
+/// large `hoisted_dependencies` and `hoisted_locations` maps. Used during
+/// the install fast path to check layout consistency without allocating massive
+/// amounts of memory.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModulesLayout {
+    #[serde(default)]
+    pub hoist_pattern: Option<Vec<String>>,
+    #[serde(default)]
+    pub included: IncludedDependencies,
+    #[serde(default)]
+    pub layout_version: Option<LayoutVersion>,
+    #[serde(default)]
+    pub node_linker: Option<NodeLinker>,
+    #[serde(default)]
+    pub package_manager: String,
+    #[serde(default)]
+    pub pending_builds: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ignored_builds: Option<IndexSet<DepPath>>,
+    #[serde(default)]
+    pub pruned_at: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub registries: Option<BTreeMap<String, String>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub public_hoist_pattern: Option<Vec<String>>,
+    /// Legacy: the v5-era flag used to mean "hoist everything publicly."
+    /// Needed by [`read_modules_layout`] to apply the same normalization as
+    /// [`read_modules_manifest`] and avoid false-positive layout mismatches.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shamefully_hoist: Option<bool>,
+    #[serde(default)]
+    pub skipped: Vec<String>,
+    #[serde(default)]
+    pub store_dir: String,
+    #[serde(default)]
+    pub virtual_store_dir: String,
+    #[serde(default)]
+    pub virtual_store_dir_max_length: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub allow_builds: Option<BTreeMap<String, AllowBuildValue>>,
+}
+
 /// Which dependency groups the install pipeline included. Mirrors
-/// upstream's `IncludedDependencies` at
-/// <https://github.com/pnpm/pnpm/blob/1819226b51/installing/modules-yaml/src/index.ts#L19-L21>.
+/// upstream's [`IncludedDependencies`][ts-IncludedDependencies].
+///
+/// [ts-IncludedDependencies]: https://github.com/pnpm/pnpm/blob/1819226b51/installing/modules-yaml/src/index.ts#L19-L21
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IncludedDependencies {
@@ -387,6 +433,53 @@ where
     let Some(mut manifest) = parsed else { return Ok(None) };
     apply_legacy_shamefully_hoist(&mut manifest);
     resolve_virtual_store_dir(&mut manifest, modules_dir);
+    if manifest.pruned_at.is_empty() {
+        manifest.pruned_at = httpdate::fmt_http_date(Sys::now());
+    }
+    if manifest.virtual_store_dir_max_length == 0 {
+        manifest.virtual_store_dir_max_length = DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH;
+    }
+    Ok(Some(manifest))
+}
+
+/// Reads the manifest into the lightweight [`ModulesLayout`] struct, skipping
+/// large maps like `hoisted_dependencies` and `hoisted_locations`.
+pub fn read_modules_layout<Sys>(
+    modules_dir: &Path,
+) -> Result<Option<ModulesLayout>, ReadModulesError>
+where
+    Sys: FsReadToString + Clock,
+{
+    let manifest_path = modules_dir.join(MODULES_FILENAME);
+    let content = match Sys::read_to_string(&manifest_path) {
+        Ok(content) => content,
+        Err(source) if source.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(source) => {
+            return Err(ReadModulesError::ReadFile { path: manifest_path, source });
+        }
+    };
+    let parsed: Option<ModulesLayout> =
+        content.pipe_as_ref(serde_saphyr::from_str).map_err(|source| {
+            ReadModulesError::ParseYaml { path: manifest_path.clone(), source: Box::new(source) }
+        })?;
+    let Some(mut manifest) = parsed else { return Ok(None) };
+
+    // Normalize legacy shamefully_hoist to public_hoist_pattern.
+    if let Some(shamefully_hoist) = manifest.shamefully_hoist
+        && manifest.public_hoist_pattern.is_none()
+    {
+        manifest.public_hoist_pattern =
+            Some(if shamefully_hoist { vec!["*".to_string()] } else { Vec::new() });
+    }
+
+    let stored_path = Path::new(&manifest.virtual_store_dir);
+    let resolved = match (manifest.virtual_store_dir.is_empty(), stored_path.is_absolute()) {
+        (true, _) => modules_dir.join(".pnpm"),
+        (false, true) => stored_path.to_path_buf(),
+        (false, false) => lexical_normalize(&modules_dir.join(stored_path)),
+    };
+    manifest.virtual_store_dir = resolved.display().to_string();
+
     if manifest.pruned_at.is_empty() {
         manifest.pruned_at = httpdate::fmt_http_date(Sys::now());
     }

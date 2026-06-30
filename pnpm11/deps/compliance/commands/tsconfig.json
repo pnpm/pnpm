@@ -1,0 +1,113 @@
+{
+  "extends": "@pnpm/tsconfig",
+  "compilerOptions": {
+    "outDir": "lib",
+    "rootDir": "src",
+    "ignoreDeprecations": "5.0"
+  },
+  "include": [
+    "src/**/*.ts",
+    "../../../__typings__/**/*.d.ts"
+  ],
+  "references": [
+    {
+      "path": "../../../__utils__/prepare"
+    },
+    {
+      "path": "../../../__utils__/test-fixtures"
+    },
+    {
+      "path": "../../../cli/command"
+    },
+    {
+      "path": "../../../cli/common-cli-options-help"
+    },
+    {
+      "path": "../../../cli/meta"
+    },
+    {
+      "path": "../../../cli/utils"
+    },
+    {
+      "path": "../../../config/pick-registry-for-package"
+    },
+    {
+      "path": "../../../config/reader"
+    },
+    {
+      "path": "../../../config/version-policy"
+    },
+    {
+      "path": "../../../config/writer"
+    },
+    {
+      "path": "../../../core/constants"
+    },
+    {
+      "path": "../../../core/error"
+    },
+    {
+      "path": "../../../core/logger"
+    },
+    {
+      "path": "../../../core/types"
+    },
+    {
+      "path": "../../../installing/commands"
+    },
+    {
+      "path": "../../../lockfile/fs"
+    },
+    {
+      "path": "../../../lockfile/types"
+    },
+    {
+      "path": "../../../lockfile/utils"
+    },
+    {
+      "path": "../../../lockfile/walker"
+    },
+    {
+      "path": "../../../network/auth-header"
+    },
+    {
+      "path": "../../../object/key-sorting"
+    },
+    {
+      "path": "../../../pkg-manifest/reader"
+    },
+    {
+      "path": "../../../store/path"
+    },
+    {
+      "path": "../../../testing/command-defaults"
+    },
+    {
+      "path": "../../../testing/mock-agent"
+    },
+    {
+      "path": "../../../testing/registry-mock"
+    },
+    {
+      "path": "../../../workspace/project-manifest-reader"
+    },
+    {
+      "path": "../../../workspace/projects-filter"
+    },
+    {
+      "path": "../../security/signatures"
+    },
+    {
+      "path": "../audit"
+    },
+    {
+      "path": "../license-resolver"
+    },
+    {
+      "path": "../license-scanner"
+    },
+    {
+      "path": "../sbom"
+    }
+  ]
+}

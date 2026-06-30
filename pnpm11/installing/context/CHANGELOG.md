@@ -1,0 +1,1873 @@
+# @pnpm/get-context
+
+## 1100.0.20
+
+### Patch Changes
+
+- bae694f: Some registries generate tarballs on-demand and cannot provide an integrity checksum in their package metadata. In that case pnpm now computes the integrity from the downloaded tarball and stores it in the lockfile, so the entry is verifiable on subsequent installs instead of being written without an integrity (which would fail the next install). This also applies to `--lockfile-only`: the tarball is downloaded so its integrity can be computed. A lockfile entry that is still missing its integrity is rejected as a `ERR_PNPM_MISSING_TARBALL_INTEGRITY` lockfile verification violation (the install fails closed) rather than being silently re-fetched.
+- Updated dependencies [bae694f]
+- Updated dependencies [852d537]
+  - @pnpm/resolving.resolver-base@1100.5.0
+  - @pnpm/error@1100.0.1
+  - @pnpm/store.controller@1102.0.2
+  - @pnpm/lockfile.fs@1100.1.7
+  - @pnpm/installing.read-projects-context@1100.0.17
+
+## 1100.0.19
+
+### Patch Changes
+
+- Updated dependencies [61969fb]
+  - @pnpm/lockfile.fs@1100.1.6
+  - @pnpm/installing.read-projects-context@1100.0.16
+  - @pnpm/store.controller@1102.0.1
+
+## 1100.0.18
+
+### Patch Changes
+
+- 61810aa: Added a new setting `frozenStore` (`--frozen-store`) that lets `pnpm install` run against a package store on a read-only filesystem (e.g. a Nix store, a read-only bind mount, an OCI layer). When enabled, pnpm opens the store's SQLite `index.db` through the `immutable=1` URI — bypassing the WAL/`-shm` sidecar creation that otherwise fails on a read-only directory — and suppresses every store-write path (the `index.db` writer and the project-registry write). Pair it with `--offline --frozen-lockfile` against a fully-populated store. Under the global virtual store, package directories live inside the store, so if the store is missing the build output of a package whose lifecycle scripts are approved (or that has a patch), pnpm fails up front with `ERR_PNPM_FROZEN_STORE_NEEDS_BUILD` rather than crashing mid-build on a read-only write — seed the store with those builds first. Incompatible with `--force` and with a configured pnpr server, since both write into the store; the side-effects cache is likewise not written under `frozenStore`. If the store is missing its content directory, the install fails fast with `ERR_PNPM_FROZEN_STORE_INCOMPLETE` rather than attempting to initialize it. The read-only `immutable=1` open requires Node.js >=22.15.0, >=23.11.0, or >=24.0.0; on older runtimes `--frozen-store` fails with a clear `ERR_PNPM_FROZEN_STORE_UNSUPPORTED_NODE` error. Bin-linking also tolerates a read-only store: under the global virtual store a package's bin source lives inside the store, so the `chmod` that makes it executable would be refused — with `EPERM`/`EACCES`, or with `EROFS` on a genuinely read-only filesystem. That `chmod` is redundant when the seed already ships its bins executable with a normalized shebang, so it is now skipped in that case, while a non-executable bin (or one still carrying a Windows CRLF shebang) on a read-only store still errors.
+- a31faa7: Updated dependency ranges. Notably:
+
+  - `@pnpm/logger` peer dependency range moved to `^1100.0.0`.
+  - `msgpackr` 1.11.8 → 2.0.4 (store index files remain byte-compatible in both directions).
+  - `open` ^7.4.2 → ^11.0.0, `memoize` ^10 → ^11, `cli-truncate` ^5 → ^6, `pidtree` ^0.6 → ^1.
+  - `@yarnpkg/core` 4.5.0 → 4.8.0, `@rushstack/worker-pool` 0.7.7 → 0.7.18, `@cyclonedx/cyclonedx-library` 10.0.0 → 10.1.0, `@pnpm/config.nerf-dart` ^1 → ^2, `@pnpm/log.group` 3.0.2 → 4.0.1, `@pnpm/util.lex-comparator` ^3 → ^4.
+
+- Updated dependencies [61810aa]
+- Updated dependencies [681b593]
+- Updated dependencies [d50d691]
+- Updated dependencies [a31faa7]
+  - @pnpm/store.controller@1102.0.0
+  - @pnpm/types@1101.3.2
+  - @pnpm/lockfile.fs@1100.1.5
+  - @pnpm/core-loggers@1100.2.1
+  - @pnpm/installing.read-projects-context@1100.0.15
+  - @pnpm/installing.modules-yaml@1100.0.9
+  - @pnpm/resolving.resolver-base@1100.4.2
+
+## 1100.0.17
+
+### Patch Changes
+
+- Updated dependencies [f11b4fc]
+  - @pnpm/core-loggers@1100.2.0
+  - @pnpm/store.controller@1101.0.13
+
+## 1100.0.16
+
+### Patch Changes
+
+- Updated dependencies [bf1b731]
+  - @pnpm/types@1101.3.1
+  - @pnpm/core-loggers@1100.1.4
+  - @pnpm/installing.modules-yaml@1100.0.8
+  - @pnpm/installing.read-projects-context@1100.0.14
+  - @pnpm/lockfile.fs@1100.1.4
+  - @pnpm/resolving.resolver-base@1100.4.1
+  - @pnpm/store.controller@1101.0.12
+
+## 1100.0.15
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+- Updated dependencies [6d17b66]
+  - @pnpm/types@1101.3.0
+  - @pnpm/resolving.resolver-base@1100.4.0
+  - @pnpm/core-loggers@1100.1.3
+  - @pnpm/installing.modules-yaml@1100.0.7
+  - @pnpm/installing.read-projects-context@1100.0.13
+  - @pnpm/lockfile.fs@1100.1.3
+  - @pnpm/store.controller@1101.0.11
+
+## 1100.0.14
+
+### Patch Changes
+
+- a33c4bf: Skip dependency re-resolution when `pnpm-lock.yaml` is missing but `node_modules/.pnpm/lock.yaml` exists and still satisfies the manifest. `pnpm install` now reuses the materialized snapshot to regenerate `pnpm-lock.yaml` instead of walking the registry to rebuild it from scratch, turning the cache+node_modules variation into a near-no-op for users who deleted the lockfile but kept the install [#11993](https://github.com/pnpm/pnpm/issues/11993).
+
+  `--frozen-lockfile` still refuses to proceed when `pnpm-lock.yaml` is absent — the regenerated lockfile must be committed, so failing loudly is the correct behavior for CI.
+
+  - @pnpm/store.controller@1101.0.10
+
+## 1100.0.13
+
+### Patch Changes
+
+- Updated dependencies [35d2355]
+  - @pnpm/types@1101.2.0
+  - @pnpm/lockfile.fs@1100.1.2
+  - @pnpm/core-loggers@1100.1.2
+  - @pnpm/installing.modules-yaml@1100.0.6
+  - @pnpm/installing.read-projects-context@1100.0.12
+  - @pnpm/resolving.resolver-base@1100.3.1
+  - @pnpm/store.controller@1101.0.9
+
+## 1100.0.12
+
+### Patch Changes
+
+- Updated dependencies [9cb48bb]
+- Updated dependencies [1627943]
+- Updated dependencies [64afc92]
+  - @pnpm/lockfile.fs@1100.1.1
+  - @pnpm/resolving.resolver-base@1100.3.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/installing.read-projects-context@1100.0.11
+  - @pnpm/store.controller@1101.0.8
+  - @pnpm/core-loggers@1100.1.1
+  - @pnpm/installing.modules-yaml@1100.0.5
+
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+- Updated dependencies [6e93f35]
+- Updated dependencies [4a79336]
+- Updated dependencies [2a9bd89]
+  - @pnpm/resolving.resolver-base@1100.2.0
+  - @pnpm/lockfile.fs@1100.1.0
+  - @pnpm/core-loggers@1100.1.0
+  - @pnpm/store.controller@1101.0.7
+  - @pnpm/installing.read-projects-context@1100.0.10
+
+## 1100.0.10
+
+### Patch Changes
+
+- Updated dependencies [180aee9]
+  - @pnpm/lockfile.fs@1100.0.8
+  - @pnpm/installing.read-projects-context@1100.0.9
+  - @pnpm/store.controller@1101.0.6
+
+## 1100.0.9
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/core-loggers@1100.0.2
+  - @pnpm/installing.modules-yaml@1100.0.4
+  - @pnpm/installing.read-projects-context@1100.0.8
+  - @pnpm/lockfile.fs@1100.0.7
+  - @pnpm/resolving.resolver-base@1100.1.3
+  - @pnpm/store.controller@1101.0.5
+
+## 1100.0.8
+
+### Patch Changes
+
+- @pnpm/store.controller@1101.0.4
+
+## 1100.0.7
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1100.0.6
+- @pnpm/installing.read-projects-context@1100.0.7
+- @pnpm/store.controller@1101.0.3
+
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [12313f1]
+- Updated dependencies [27425d7]
+  - @pnpm/installing.modules-yaml@1100.0.3
+  - @pnpm/lockfile.fs@1100.0.5
+  - @pnpm/resolving.resolver-base@1100.1.2
+  - @pnpm/installing.read-projects-context@1100.0.6
+  - @pnpm/store.controller@1101.0.3
+
+## 1100.0.5
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/installing.read-projects-context@1100.0.5
+  - @pnpm/installing.modules-yaml@1100.0.2
+  - @pnpm/resolving.resolver-base@1100.1.1
+  - @pnpm/store.controller@1101.0.2
+  - @pnpm/lockfile.fs@1100.0.4
+
+## 1100.0.4
+
+### Patch Changes
+
+- Updated dependencies [685a369]
+  - @pnpm/installing.read-projects-context@1100.0.4
+  - @pnpm/store.controller@1101.0.1
+
+## 1100.0.3
+
+### Patch Changes
+
+- @pnpm/store.controller@1101.0.0
+- @pnpm/lockfile.fs@1100.0.3
+- @pnpm/installing.read-projects-context@1100.0.3
+
+## 1100.0.2
+
+### Patch Changes
+
+- Updated dependencies [72c1e05]
+  - @pnpm/resolving.resolver-base@1100.1.0
+  - @pnpm/store.controller@1100.0.2
+  - @pnpm/lockfile.fs@1100.0.2
+  - @pnpm/installing.read-projects-context@1100.0.2
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/core-loggers@1100.0.1
+  - @pnpm/installing.modules-yaml@1100.0.1
+  - @pnpm/installing.read-projects-context@1100.0.1
+  - @pnpm/lockfile.fs@1100.0.1
+  - @pnpm/resolving.resolver-base@1100.0.1
+  - @pnpm/store.controller@1100.0.1
+
+## 1002.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Minor Changes
+
+- 9eddabb: Added project registry for global virtual store prune support.
+
+  Projects using the store are now registered via symlinks in `{storeDir}/v11/projects/`. This enables `pnpm store prune` to track which packages are still in use by active projects and safely remove unused packages from the global virtual store.
+
+### Patch Changes
+
+- 5d130c3: Fail on incompatible lockfiles in CI when frozen lockfile mode is enabled, while preserving non-frozen CI fallback behavior.
+- Updated dependencies [facdd71]
+- Updated dependencies [e2e0a32]
+- Updated dependencies [c55c614]
+- Updated dependencies [9b0a460]
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [5a0ed1d]
+- Updated dependencies [3cfffaa]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [491a84f]
+- Updated dependencies [9eddabb]
+- Updated dependencies [075aa99]
+- Updated dependencies [d458ab3]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [9eddabb]
+- Updated dependencies [efb48dc]
+- Updated dependencies [50fbeca]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [38b8e35]
+- Updated dependencies [b7f0f21]
+- Updated dependencies [2df8b71]
+- Updated dependencies [2f98ec8]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [3cfffaa]
+- Updated dependencies [09bb8db]
+- Updated dependencies [9d3f00b]
+- Updated dependencies [efb48dc]
+  - @pnpm/resolving.resolver-base@1006.0.0
+  - @pnpm/store.controller@1005.0.0
+  - @pnpm/constants@1002.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/lockfile.fs@1002.0.0
+  - @pnpm/installing.modules-yaml@1001.0.0
+  - @pnpm/installing.read-projects-context@1001.0.0
+  - @pnpm/core-loggers@1002.0.0
+
+## 1001.1.8
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+  - @pnpm/types@1000.9.0
+  - @pnpm/resolver-base@1005.1.0
+  - @pnpm/lockfile.fs@1001.1.21
+  - @pnpm/core-loggers@1001.0.4
+  - @pnpm/modules-yaml@1000.3.6
+  - @pnpm/read-projects-context@1000.0.24
+
+## 1001.1.7
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.20
+- @pnpm/read-projects-context@1000.0.23
+
+## 1001.1.6
+
+### Patch Changes
+
+- Updated dependencies [6365bc4]
+  - @pnpm/constants@1001.3.1
+  - @pnpm/lockfile.fs@1001.1.19
+  - @pnpm/read-projects-context@1000.0.22
+
+## 1001.1.5
+
+### Patch Changes
+
+- Updated dependencies [e792927]
+  - @pnpm/types@1000.8.0
+  - @pnpm/lockfile.fs@1001.1.18
+  - @pnpm/core-loggers@1001.0.3
+  - @pnpm/modules-yaml@1000.3.5
+  - @pnpm/read-projects-context@1000.0.21
+  - @pnpm/resolver-base@1005.0.1
+
+## 1001.1.4
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [d1edf73]
+- Updated dependencies [f91922c]
+  - @pnpm/constants@1001.3.0
+  - @pnpm/resolver-base@1005.0.0
+  - @pnpm/lockfile.fs@1001.1.17
+  - @pnpm/read-projects-context@1000.0.20
+
+## 1001.1.3
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/resolver-base@1004.1.0
+  - @pnpm/constants@1001.2.0
+  - @pnpm/lockfile.fs@1001.1.16
+  - @pnpm/core-loggers@1001.0.2
+  - @pnpm/modules-yaml@1000.3.4
+  - @pnpm/read-projects-context@1000.0.19
+
+## 1001.1.2
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.15
+- @pnpm/read-projects-context@1000.0.18
+
+## 1001.1.1
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.14
+- @pnpm/read-projects-context@1000.0.17
+
+## 1001.1.0
+
+### Minor Changes
+
+- b217bbb: Added a new setting called `ci` for explicitly telling pnpm if the current environment is a CI or not.
+- b0ead51: **Experimental**. Added support for global virtual stores. When the global virtual store is enabled, `node_modules` doesn’t contain regular files, only symlinks to a central virtual store (by default the central store is located at `<store-path>/links`; run `pnpm store path` to find `<store-path>`).
+
+  To enable the global virtual store, add `enableGlobalVirtualStore: true` to your root `pnpm-workspace.yaml`.
+
+  A global virtual store can make installations significantly faster when a warm cache is present. In CI, however, it will probably slow installations because there is usually no cache.
+
+  Related PR: [#8190](https://github.com/pnpm/pnpm/pull/8190).
+
+### Patch Changes
+
+- Updated dependencies [2721291]
+- Updated dependencies [6acf819]
+  - @pnpm/resolver-base@1004.0.0
+  - @pnpm/lockfile.fs@1001.1.13
+  - @pnpm/read-projects-context@1000.0.16
+
+## 1001.0.14
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+- Updated dependencies [5ec7255]
+  - @pnpm/read-projects-context@1000.0.15
+  - @pnpm/core-loggers@1001.0.1
+  - @pnpm/lockfile.fs@1001.1.12
+  - @pnpm/types@1000.6.0
+  - @pnpm/modules-yaml@1000.3.3
+  - @pnpm/resolver-base@1003.0.1
+
+## 1001.0.13
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/resolver-base@1003.0.0
+  - @pnpm/core-loggers@1001.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/read-projects-context@1000.0.14
+  - @pnpm/lockfile.fs@1001.1.11
+  - @pnpm/modules-yaml@1000.3.2
+
+## 1001.0.12
+
+### Patch Changes
+
+- Updated dependencies [81f441c]
+  - @pnpm/resolver-base@1002.0.0
+  - @pnpm/lockfile.fs@1001.1.10
+  - @pnpm/read-projects-context@1000.0.13
+
+## 1001.0.11
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [72cff38]
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/resolver-base@1001.0.0
+  - @pnpm/core-loggers@1000.2.0
+  - @pnpm/lockfile.fs@1001.1.9
+  - @pnpm/modules-yaml@1000.3.1
+  - @pnpm/read-projects-context@1000.0.12
+
+## 1001.0.10
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [64f6b4f]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/modules-yaml@1000.3.0
+  - @pnpm/lockfile.fs@1001.1.8
+  - @pnpm/core-loggers@1000.1.5
+  - @pnpm/read-projects-context@1000.0.11
+  - @pnpm/resolver-base@1000.2.1
+
+## 1001.0.9
+
+### Patch Changes
+
+- Updated dependencies [d612dcf]
+- Updated dependencies [d612dcf]
+- Updated dependencies [3d52365]
+  - @pnpm/modules-yaml@1000.2.0
+  - @pnpm/resolver-base@1000.2.0
+  - @pnpm/read-projects-context@1000.0.10
+  - @pnpm/lockfile.fs@1001.1.7
+
+## 1001.0.8
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.6
+- @pnpm/read-projects-context@1000.0.9
+
+## 1001.0.7
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+  - @pnpm/lockfile.fs@1001.1.5
+  - @pnpm/core-loggers@1000.1.4
+  - @pnpm/modules-yaml@1000.1.4
+  - @pnpm/read-projects-context@1000.0.8
+  - @pnpm/resolver-base@1000.1.4
+
+## 1001.0.6
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/lockfile.fs@1001.1.4
+  - @pnpm/core-loggers@1000.1.3
+  - @pnpm/modules-yaml@1000.1.3
+  - @pnpm/read-projects-context@1000.0.7
+  - @pnpm/resolver-base@1000.1.3
+
+## 1001.0.5
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.3
+- @pnpm/read-projects-context@1000.0.6
+
+## 1001.0.4
+
+### Patch Changes
+
+- Updated dependencies [9a44e6c]
+- Updated dependencies [b562deb]
+  - @pnpm/constants@1001.1.0
+  - @pnpm/types@1000.1.1
+  - @pnpm/lockfile.fs@1001.1.2
+  - @pnpm/core-loggers@1000.1.2
+  - @pnpm/modules-yaml@1000.1.2
+  - @pnpm/read-projects-context@1000.0.5
+  - @pnpm/resolver-base@1000.1.2
+
+## 1001.0.3
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/lockfile.fs@1001.1.1
+  - @pnpm/core-loggers@1000.1.1
+  - @pnpm/modules-yaml@1000.1.1
+  - @pnpm/read-projects-context@1000.0.4
+  - @pnpm/resolver-base@1000.1.1
+
+## 1001.0.2
+
+### Patch Changes
+
+- Updated dependencies [516c4b3]
+- Updated dependencies [4771813]
+  - @pnpm/core-loggers@1000.1.0
+  - @pnpm/modules-yaml@1000.1.0
+  - @pnpm/read-projects-context@1000.0.3
+
+## 1001.0.1
+
+### Patch Changes
+
+- Updated dependencies [3f0e4f0]
+  - @pnpm/lockfile.fs@1001.1.0
+  - @pnpm/read-projects-context@1000.0.2
+
+## 1001.0.0
+
+### Major Changes
+
+- a76da0c: Removed lockfile conversion from v6 to v9. If you need to convert lockfile v6 to v9, use pnpm CLI v9.
+
+### Patch Changes
+
+- Updated dependencies [d2e83b0]
+- Updated dependencies [6483b64]
+- Updated dependencies [a76da0c]
+  - @pnpm/constants@1001.0.0
+  - @pnpm/resolver-base@1000.1.0
+  - @pnpm/lockfile.fs@1001.0.0
+  - @pnpm/read-projects-context@1000.0.1
+
+## 13.0.0
+
+### Major Changes
+
+- 9ea8fa4: Don't validate (and possibly purge) modules directory as a side effect of `getContext` and `getContextForSingleImporter` [#8657](https://github.com/pnpm/pnpm/pull/8657).
+- 9ea8fa4: `PnpmContext.hoistPattern` and `PnpmContext.publicHoistPattern` are no longer affected by modules directory state [#8657](https://github.com/pnpm/pnpm/pull/8657). Prior behavior can be recreated with the new properties `PnpmContext.currentHoistPattern` (`_.currentHoistPattern ?? _.hoistPattern`) and `PnpmContext.currentPublicHoistPattern` (`_.currentPublicHoistPattern ?? _.publicHoistPattern`).
+- 9ea8fa4: `PnpmSingleContext.hoistPattern` and `PnpmSingleContext.publicHoistPattern` are no longer affected by modules directory state [#8657](https://github.com/pnpm/pnpm/pull/8657).
+- 9ea8fa4: `UnexpectedStoreError` and `UnexpectedVirtualStoreDirError` are no longer exported [#8657](https://github.com/pnpm/pnpm/pull/8657). They can be imported from `@pnpm/core` instead.
+- 9ea8fa4: Argument `alreadyPurged` removed from `getContextForSingleImporter` [#8657](https://github.com/pnpm/pnpm/pull/8657).
+
+### Patch Changes
+
+- Updated dependencies [19d5b51]
+- Updated dependencies [8108680]
+- Updated dependencies [c4f5231]
+  - @pnpm/constants@10.0.0
+  - @pnpm/lockfile.fs@1.0.6
+  - @pnpm/read-projects-context@9.1.14
+
+## 12.0.7
+
+### Patch Changes
+
+- f9a095c: Don't purge `node_modules`, when typing "n" in the prompt that asks whether to remove `node_modules` before installation [#8655](https://github.com/pnpm/pnpm/pull/8655).
+  - @pnpm/lockfile.fs@1.0.5
+  - @pnpm/read-projects-context@9.1.13
+
+## 12.0.6
+
+### Patch Changes
+
+- Updated dependencies [83681da]
+  - @pnpm/constants@9.0.0
+  - @pnpm/lockfile.fs@1.0.4
+  - @pnpm/error@6.0.2
+  - @pnpm/read-projects-context@9.1.12
+
+## 12.0.5
+
+### Patch Changes
+
+- Updated dependencies [d500d9f]
+  - @pnpm/types@12.2.0
+  - @pnpm/lockfile.fs@1.0.3
+  - @pnpm/core-loggers@10.0.7
+  - @pnpm/modules-yaml@13.1.7
+  - @pnpm/read-projects-context@9.1.11
+  - @pnpm/resolver-base@13.0.4
+
+## 12.0.4
+
+### Patch Changes
+
+- Updated dependencies [7ee59a1]
+  - @pnpm/types@12.1.0
+  - @pnpm/lockfile.fs@1.0.2
+  - @pnpm/core-loggers@10.0.6
+  - @pnpm/modules-yaml@13.1.6
+  - @pnpm/read-projects-context@9.1.10
+  - @pnpm/resolver-base@13.0.3
+
+## 12.0.3
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/types@12.0.0
+  - @pnpm/lockfile.fs@1.0.1
+  - @pnpm/core-loggers@10.0.5
+  - @pnpm/modules-yaml@13.1.5
+  - @pnpm/read-projects-context@9.1.9
+  - @pnpm/resolver-base@13.0.2
+
+## 12.0.2
+
+### Patch Changes
+
+- Updated dependencies [8055a30]
+  - @pnpm/lockfile.fs@1.0.0
+  - @pnpm/read-projects-context@9.1.8
+
+## 12.0.1
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/lockfile-file@9.1.3
+  - @pnpm/core-loggers@10.0.4
+  - @pnpm/modules-yaml@13.1.4
+  - @pnpm/read-projects-context@9.1.7
+  - @pnpm/resolver-base@13.0.1
+
+## 12.0.0
+
+### Major Changes
+
+- dd00eeb: Renamed dir to rootDir in the Project object.
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/resolver-base@13.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/lockfile-file@9.1.2
+  - @pnpm/core-loggers@10.0.3
+  - @pnpm/modules-yaml@13.1.3
+  - @pnpm/read-projects-context@9.1.6
+
+## 11.2.1
+
+### Patch Changes
+
+- 13e55b2: If install is performed on a subset of workspace projects, always create an up-to-date lockfile first. So, a partial install can be performed only on a fully resolved (non-partial) lockfile [#8165](https://github.com/pnpm/pnpm/issues/8165).
+- Updated dependencies [13e55b2]
+  - @pnpm/read-projects-context@9.1.5
+  - @pnpm/types@10.1.1
+  - @pnpm/lockfile-file@9.1.1
+  - @pnpm/core-loggers@10.0.2
+  - @pnpm/modules-yaml@13.1.2
+
+## 11.2.0
+
+### Minor Changes
+
+- 47341e5: **Semi-breaking.** Dependency key names in the lockfile are shortened if they are longer than 1000 characters. We don't expect this change to affect many users. Affected users most probably can't run install successfully at the moment. This change is required to fix some edge cases in which installation fails with an out-of-memory error or "Invalid string length (RangeError: Invalid string length)" error. The max allowed length of the dependency key can be controlled with the `peers-suffix-max-length` setting [#8177](https://github.com/pnpm/pnpm/pull/8177).
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/lockfile-file@9.1.0
+  - @pnpm/read-projects-context@9.1.4
+
+## 11.1.3
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/lockfile-file@9.0.6
+  - @pnpm/core-loggers@10.0.1
+  - @pnpm/modules-yaml@13.1.1
+  - @pnpm/read-projects-context@9.1.3
+
+## 11.1.2
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/lockfile-file@9.0.5
+  - @pnpm/read-projects-context@9.1.2
+
+## 11.1.1
+
+### Patch Changes
+
+- @pnpm/lockfile-file@9.0.4
+- @pnpm/read-projects-context@9.1.1
+
+## 11.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/read-projects-context@9.1.0
+  - @pnpm/modules-yaml@13.1.0
+  - @pnpm/lockfile-file@9.0.3
+
+## 11.0.2
+
+### Patch Changes
+
+- Updated dependencies [c969f37]
+  - @pnpm/lockfile-file@9.0.2
+  - @pnpm/read-projects-context@9.0.2
+
+## 11.0.1
+
+### Patch Changes
+
+- Updated dependencies [2cbf7b7]
+- Updated dependencies [6b6ca69]
+  - @pnpm/lockfile-file@9.0.1
+  - @pnpm/read-projects-context@9.0.1
+
+## 11.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- 19c4b4f: When purging multiple node_modules folders, pnpm will no longer print multiple prompts simultaneously.
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [c692f80]
+- Updated dependencies [43cdd87]
+- Updated dependencies [086b69c]
+- Updated dependencies [d381a60]
+- Updated dependencies [f67ad31]
+- Updated dependencies [730929e]
+  - @pnpm/types@10.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/constants@8.0.0
+  - @pnpm/read-projects-context@9.0.0
+  - @pnpm/modules-yaml@13.0.0
+  - @pnpm/lockfile-file@9.0.0
+  - @pnpm/core-loggers@10.0.0
+
+## 10.0.11
+
+### Patch Changes
+
+- 60bcc797f: Registry configuration from previous installation should not override current settings [#7507](https://github.com/pnpm/pnpm/issues/7507).
+
+## 10.0.10
+
+### Patch Changes
+
+- Updated dependencies [d349bc3a2]
+  - @pnpm/modules-yaml@12.1.7
+  - @pnpm/read-projects-context@8.0.11
+
+## 10.0.9
+
+### Patch Changes
+
+- Updated dependencies [4d34684f1]
+  - @pnpm/types@9.4.2
+  - @pnpm/lockfile-file@8.1.6
+  - @pnpm/core-loggers@9.0.6
+  - @pnpm/modules-yaml@12.1.6
+  - @pnpm/read-projects-context@8.0.10
+
+## 10.0.8
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+  - @pnpm/lockfile-file@8.1.5
+  - @pnpm/core-loggers@9.0.5
+  - @pnpm/modules-yaml@12.1.5
+  - @pnpm/read-projects-context@8.0.9
+
+## 10.0.7
+
+### Patch Changes
+
+- b1fd38cca: The modules directory should not be removed if the registry configuration has changed.
+
+## 10.0.6
+
+### Patch Changes
+
+- 2143a9388: Improve the error message when `node_modules` should be recreated.
+
+## 10.0.5
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+  - @pnpm/types@9.4.0
+  - @pnpm/lockfile-file@8.1.4
+  - @pnpm/core-loggers@9.0.4
+  - @pnpm/modules-yaml@12.1.4
+  - @pnpm/read-projects-context@8.0.8
+
+## 10.0.4
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+  - @pnpm/types@9.3.0
+  - @pnpm/lockfile-file@8.1.3
+  - @pnpm/core-loggers@9.0.3
+  - @pnpm/modules-yaml@12.1.3
+  - @pnpm/read-projects-context@8.0.7
+
+## 10.0.3
+
+### Patch Changes
+
+- Updated dependencies [aa2ae8fe2]
+  - @pnpm/types@9.2.0
+  - @pnpm/lockfile-file@8.1.2
+  - @pnpm/core-loggers@9.0.2
+  - @pnpm/modules-yaml@12.1.2
+  - @pnpm/read-projects-context@8.0.6
+
+## 10.0.2
+
+### Patch Changes
+
+- Updated dependencies [302ebffc5]
+  - @pnpm/constants@7.1.1
+  - @pnpm/lockfile-file@8.1.1
+  - @pnpm/error@5.0.2
+  - @pnpm/read-projects-context@8.0.5
+
+## 10.0.1
+
+### Patch Changes
+
+- 4b97f1f07: Don't use await in loops.
+
+## 10.0.0
+
+### Major Changes
+
+- a53ef4d19: New property returned: `existsNonEmptyWantedLockfile`.
+  The `existsWantedLockfile` now means only that a file existed.
+- 9c4ae87bd: New required options added: autoInstallPeers and excludeLinksFromLockfile.
+
+### Patch Changes
+
+- Updated dependencies [9c4ae87bd]
+- Updated dependencies [a9e0b7cbf]
+- Updated dependencies [9c4ae87bd]
+- Updated dependencies [9c4ae87bd]
+  - @pnpm/lockfile-file@8.1.0
+  - @pnpm/types@9.1.0
+  - @pnpm/constants@7.1.0
+  - @pnpm/read-projects-context@8.0.4
+  - @pnpm/core-loggers@9.0.1
+  - @pnpm/modules-yaml@12.1.1
+  - @pnpm/error@5.0.1
+
+## 9.1.0
+
+### Minor Changes
+
+- 1ffedcb8d: New option added: confirmModulesPurge.
+
+## 9.0.4
+
+### Patch Changes
+
+- 497b0a79c: Ask the user to confirm the removal of node_modules directory unless the `--force` option is passed.
+- Updated dependencies [e6b83c84e]
+  - @pnpm/modules-yaml@12.1.0
+  - @pnpm/read-projects-context@8.0.3
+
+## 9.0.3
+
+### Patch Changes
+
+- Updated dependencies [c0760128d]
+  - @pnpm/lockfile-file@8.0.2
+  - @pnpm/read-projects-context@8.0.2
+
+## 9.0.2
+
+### Patch Changes
+
+- 080fee0b8: Add -g to mismatch registries error info when original command has -g option [#6224](https://github.com/pnpm/pnpm/issues/6224).
+
+## 9.0.1
+
+### Patch Changes
+
+- Updated dependencies [5087636b6]
+- Updated dependencies [94f94eed6]
+  - @pnpm/lockfile-file@8.0.1
+  - @pnpm/read-projects-context@8.0.1
+
+## 9.0.0
+
+### Major Changes
+
+- 158d8cf22: `useLockfileV6` field is deleted. Lockfile v5 cannot be written anymore, only transformed to the new format.
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Minor Changes
+
+- 2a2032810: Return `wantedLockfileIsModified`.
+
+### Patch Changes
+
+- Updated dependencies [158d8cf22]
+- Updated dependencies [eceaa8b8b]
+- Updated dependencies [417c8ac59]
+  - @pnpm/lockfile-file@8.0.0
+  - @pnpm/read-projects-context@8.0.0
+  - @pnpm/modules-yaml@12.0.0
+  - @pnpm/core-loggers@9.0.0
+  - @pnpm/constants@7.0.0
+  - @pnpm/error@5.0.0
+  - @pnpm/types@9.0.0
+
+## 8.2.4
+
+### Patch Changes
+
+- Updated dependencies [787c43dcc]
+  - @pnpm/lockfile-file@7.0.6
+  - @pnpm/read-projects-context@7.0.12
+
+## 8.2.3
+
+### Patch Changes
+
+- Updated dependencies [ed946c73e]
+  - @pnpm/lockfile-file@7.0.5
+  - @pnpm/read-projects-context@7.0.11
+
+## 8.2.2
+
+### Patch Changes
+
+- @pnpm/lockfile-file@7.0.4
+- @pnpm/read-projects-context@7.0.10
+
+## 8.2.1
+
+### Patch Changes
+
+- @pnpm/lockfile-file@7.0.3
+- @pnpm/read-projects-context@7.0.9
+
+## 8.2.0
+
+### Minor Changes
+
+- 28b47a156: When `extend-node-path` is set to `false`, the `NODE_PATH` environment variable is not set in the command shims [#5910](https://github.com/pnpm/pnpm/pull/5910)
+
+## 8.1.2
+
+### Patch Changes
+
+- Updated dependencies [9a68ebbae]
+  - @pnpm/lockfile-file@7.0.2
+  - @pnpm/read-projects-context@7.0.8
+
+## 8.1.1
+
+### Patch Changes
+
+- @pnpm/lockfile-file@7.0.1
+- @pnpm/read-projects-context@7.0.7
+
+## 8.1.0
+
+### Minor Changes
+
+- 3ebce5db7: Added support for `pnpm-lock.yaml` format v6. This new format will be the new lockfile format in pnpm v8. To use the new lockfile format, use the `use-lockfile-v6=true` setting in `.npmrc`. Or run `pnpm install --use-lockfile-v6` [#5810](https://github.com/pnpm/pnpm/pull/5810).
+
+### Patch Changes
+
+- Updated dependencies [3ebce5db7]
+- Updated dependencies [3ebce5db7]
+  - @pnpm/constants@6.2.0
+  - @pnpm/lockfile-file@7.0.0
+  - @pnpm/error@4.0.1
+  - @pnpm/read-projects-context@7.0.6
+
+## 8.0.6
+
+### Patch Changes
+
+- 08ceaf3fc: replace dependency `is-ci` by `ci-info` (`is-ci` is just a simple wrapper around `ci-info`).
+
+## 8.0.5
+
+### Patch Changes
+
+- Updated dependencies [b77651d14]
+- Updated dependencies [2458741fa]
+  - @pnpm/types@8.10.0
+  - @pnpm/modules-yaml@11.1.0
+  - @pnpm/lockfile-file@6.0.5
+  - @pnpm/core-loggers@8.0.3
+  - @pnpm/read-projects-context@7.0.5
+
+## 8.0.4
+
+### Patch Changes
+
+- @pnpm/lockfile-file@6.0.4
+- @pnpm/read-projects-context@7.0.4
+
+## 8.0.3
+
+### Patch Changes
+
+- Updated dependencies [a9d59d8bc]
+  - @pnpm/lockfile-file@6.0.3
+  - @pnpm/read-projects-context@7.0.3
+
+## 8.0.2
+
+### Patch Changes
+
+- Updated dependencies [702e847c1]
+  - @pnpm/types@8.9.0
+  - @pnpm/core-loggers@8.0.2
+  - @pnpm/lockfile-file@6.0.2
+  - @pnpm/modules-yaml@11.0.2
+  - @pnpm/read-projects-context@7.0.2
+
+## 8.0.1
+
+### Patch Changes
+
+- Updated dependencies [844e82f3a]
+  - @pnpm/types@8.8.0
+  - @pnpm/core-loggers@8.0.1
+  - @pnpm/lockfile-file@6.0.1
+  - @pnpm/modules-yaml@11.0.1
+  - @pnpm/read-projects-context@7.0.1
+
+## 8.0.0
+
+### Major Changes
+
+- 645384bfd: Breaking changes to the API.
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [043d988fc]
+- Updated dependencies [72f7d6b3b]
+- Updated dependencies [f884689e0]
+  - @pnpm/error@4.0.0
+  - @pnpm/modules-yaml@11.0.0
+  - @pnpm/core-loggers@8.0.0
+  - @pnpm/lockfile-file@6.0.0
+  - @pnpm/read-projects-context@7.0.0
+
+## 7.0.3
+
+### Patch Changes
+
+- Updated dependencies [7c296fe9b]
+  - @pnpm/lockfile-file@5.3.8
+  - @pnpm/read-projects-context@6.0.19
+
+## 7.0.2
+
+### Patch Changes
+
+- Updated dependencies [3ae888c28]
+  - @pnpm/core-loggers@7.1.0
+
+## 7.0.1
+
+### Patch Changes
+
+- Updated dependencies [e8a631bf0]
+  - @pnpm/error@3.1.0
+  - @pnpm/lockfile-file@5.3.7
+  - @pnpm/read-projects-context@6.0.18
+
+## 7.0.0
+
+### Major Changes
+
+- 51566e34b: Pass readPackageHook as a separate option not as a subproperty of `hooks`.
+
+### Patch Changes
+
+- Updated dependencies [d665f3ff7]
+  - @pnpm/types@8.7.0
+  - @pnpm/core-loggers@7.0.8
+  - @pnpm/lockfile-file@5.3.6
+  - @pnpm/modules-yaml@10.0.8
+  - @pnpm/read-projects-context@6.0.17
+
+## 6.2.11
+
+### Patch Changes
+
+- Updated dependencies [156cc1ef6]
+  - @pnpm/types@8.6.0
+  - @pnpm/core-loggers@7.0.7
+  - @pnpm/lockfile-file@5.3.5
+  - @pnpm/modules-yaml@10.0.7
+  - @pnpm/read-projects-context@6.0.16
+
+## 6.2.10
+
+### Patch Changes
+
+- Updated dependencies [0373af22e]
+  - @pnpm/lockfile-file@5.3.4
+  - @pnpm/read-projects-context@6.0.15
+
+## 6.2.9
+
+### Patch Changes
+
+- Updated dependencies [1e5482da4]
+  - @pnpm/lockfile-file@5.3.3
+  - @pnpm/read-projects-context@6.0.14
+
+## 6.2.8
+
+### Patch Changes
+
+- 8103f92bd: Use a patched version of ramda to fix deprecation warnings on Node.js 16. Related issue: https://github.com/ramda/ramda/pull/3270
+- Updated dependencies [8103f92bd]
+  - @pnpm/lockfile-file@5.3.2
+  - @pnpm/read-projects-context@6.0.13
+
+## 6.2.7
+
+### Patch Changes
+
+- Updated dependencies [44544b493]
+- Updated dependencies [c90798461]
+  - @pnpm/lockfile-file@5.3.1
+  - @pnpm/types@8.5.0
+  - @pnpm/read-projects-context@6.0.12
+  - @pnpm/core-loggers@7.0.6
+  - @pnpm/modules-yaml@10.0.6
+
+## 6.2.6
+
+### Patch Changes
+
+- Updated dependencies [8dcfbe357]
+  - @pnpm/lockfile-file@5.3.0
+  - @pnpm/read-projects-context@6.0.11
+
+## 6.2.5
+
+### Patch Changes
+
+- Updated dependencies [4fa1091c8]
+  - @pnpm/lockfile-file@5.2.0
+  - @pnpm/read-projects-context@6.0.10
+
+## 6.2.4
+
+### Patch Changes
+
+- Updated dependencies [ab684d77e]
+  - @pnpm/lockfile-file@5.1.4
+  - @pnpm/read-projects-context@6.0.9
+
+## 6.2.3
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- Updated dependencies [5f643f23b]
+  - @pnpm/lockfile-file@5.1.3
+  - @pnpm/read-projects-context@6.0.8
+
+## 6.2.2
+
+### Patch Changes
+
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/types@8.4.0
+  - @pnpm/lockfile-file@5.1.2
+  - @pnpm/core-loggers@7.0.5
+  - @pnpm/modules-yaml@10.0.5
+  - @pnpm/read-projects-context@6.0.7
+
+## 6.2.1
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+  - @pnpm/types@8.3.0
+  - @pnpm/core-loggers@7.0.4
+  - @pnpm/lockfile-file@5.1.1
+  - @pnpm/modules-yaml@10.0.4
+  - @pnpm/read-projects-context@6.0.6
+
+## 6.2.0
+
+### Minor Changes
+
+- 56cf04cb3: New settings added: use-git-branch-lockfile, merge-git-branch-lockfiles, merge-git-branch-lockfiles-branch-pattern.
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [56cf04cb3]
+  - @pnpm/types@8.2.0
+  - @pnpm/lockfile-file@5.1.0
+  - @pnpm/core-loggers@7.0.3
+  - @pnpm/modules-yaml@10.0.3
+  - @pnpm/read-projects-context@6.0.5
+
+## 6.1.3
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+  - @pnpm/core-loggers@7.0.2
+  - @pnpm/lockfile-file@5.0.4
+  - @pnpm/modules-yaml@10.0.2
+  - @pnpm/read-projects-context@6.0.4
+
+## 6.1.2
+
+### Patch Changes
+
+- Updated dependencies [52b0576af]
+  - @pnpm/lockfile-file@5.0.3
+  - @pnpm/read-projects-context@6.0.3
+
+## 6.1.1
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - @pnpm/core-loggers@7.0.1
+  - @pnpm/lockfile-file@5.0.2
+  - @pnpm/modules-yaml@10.0.1
+  - @pnpm/read-projects-context@6.0.2
+
+## 6.1.0
+
+### Minor Changes
+
+- 8fa95fd86: `extraNodePaths` added to the context.
+
+### Patch Changes
+
+- Updated dependencies [1267e4eff]
+  - @pnpm/constants@6.1.0
+  - @pnpm/error@3.0.1
+  - @pnpm/lockfile-file@5.0.1
+  - @pnpm/read-projects-context@6.0.1
+
+## 6.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - @pnpm/constants@6.0.0
+  - @pnpm/core-loggers@7.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/lockfile-file@5.0.0
+  - @pnpm/modules-yaml@10.0.0
+  - @pnpm/read-projects-context@6.0.0
+
+## 5.3.8
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+  - @pnpm/lockfile-file@4.3.1
+  - @pnpm/read-projects-context@5.0.19
+
+## 5.3.7
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/lockfile-file@4.3.0
+  - @pnpm/types@7.10.0
+  - @pnpm/read-projects-context@5.0.18
+  - @pnpm/core-loggers@6.1.4
+  - @pnpm/modules-yaml@9.1.1
+
+## 5.3.6
+
+### Patch Changes
+
+- Updated dependencies [cdc521cfa]
+  - @pnpm/modules-yaml@9.1.0
+  - @pnpm/read-projects-context@5.0.17
+
+## 5.3.5
+
+### Patch Changes
+
+- Updated dependencies [26cd01b88]
+  - @pnpm/types@7.9.0
+  - @pnpm/core-loggers@6.1.3
+  - @pnpm/lockfile-file@4.2.6
+  - @pnpm/modules-yaml@9.0.11
+  - @pnpm/read-projects-context@5.0.16
+
+## 5.3.4
+
+### Patch Changes
+
+- Updated dependencies [7375396db]
+  - @pnpm/modules-yaml@9.0.10
+  - @pnpm/read-projects-context@5.0.15
+
+## 5.3.3
+
+### Patch Changes
+
+- Updated dependencies [b5734a4a7]
+  - @pnpm/types@7.8.0
+  - @pnpm/core-loggers@6.1.2
+  - @pnpm/lockfile-file@4.2.5
+  - @pnpm/modules-yaml@9.0.9
+  - @pnpm/read-projects-context@5.0.14
+
+## 5.3.2
+
+### Patch Changes
+
+- Updated dependencies [eb9ebd0f3]
+- Updated dependencies [eb9ebd0f3]
+  - @pnpm/lockfile-file@4.2.4
+  - @pnpm/read-projects-context@5.0.13
+
+## 5.3.1
+
+### Patch Changes
+
+- Updated dependencies [6493e0c93]
+  - @pnpm/types@7.7.1
+  - @pnpm/core-loggers@6.1.1
+  - @pnpm/lockfile-file@4.2.3
+  - @pnpm/modules-yaml@9.0.8
+  - @pnpm/read-projects-context@5.0.12
+
+## 5.3.0
+
+### Minor Changes
+
+- 25f0fa9fa: Export `GetContextOptions`.
+
+### Patch Changes
+
+- Updated dependencies [ba9b2eba1]
+- Updated dependencies [ba9b2eba1]
+  - @pnpm/core-loggers@6.1.0
+  - @pnpm/types@7.7.0
+  - @pnpm/read-projects-context@5.0.11
+  - @pnpm/lockfile-file@4.2.2
+  - @pnpm/modules-yaml@9.0.7
+
+## 5.2.2
+
+### Patch Changes
+
+- @pnpm/read-projects-context@5.0.10
+
+## 5.2.1
+
+### Patch Changes
+
+- @pnpm/read-projects-context@5.0.9
+
+## 5.2.0
+
+### Minor Changes
+
+- 302ae4f6f: Support async hooks
+
+### Patch Changes
+
+- Updated dependencies [302ae4f6f]
+  - @pnpm/types@7.6.0
+  - @pnpm/core-loggers@6.0.6
+  - @pnpm/lockfile-file@4.2.1
+  - @pnpm/modules-yaml@9.0.6
+  - @pnpm/read-projects-context@5.0.8
+
+## 5.1.6
+
+### Patch Changes
+
+- Updated dependencies [4ab87844a]
+- Updated dependencies [4ab87844a]
+  - @pnpm/types@7.5.0
+  - @pnpm/lockfile-file@4.2.0
+  - @pnpm/core-loggers@6.0.5
+  - @pnpm/modules-yaml@9.0.5
+  - @pnpm/read-projects-context@5.0.7
+
+## 5.1.5
+
+### Patch Changes
+
+- Updated dependencies [b734b45ea]
+  - @pnpm/types@7.4.0
+  - @pnpm/core-loggers@6.0.4
+  - @pnpm/lockfile-file@4.1.1
+  - @pnpm/modules-yaml@9.0.4
+  - @pnpm/read-projects-context@5.0.6
+
+## 5.1.4
+
+### Patch Changes
+
+- Updated dependencies [8e76690f4]
+- Updated dependencies [8e76690f4]
+  - @pnpm/lockfile-file@4.1.0
+  - @pnpm/types@7.3.0
+  - @pnpm/read-projects-context@5.0.5
+  - @pnpm/core-loggers@6.0.3
+  - @pnpm/modules-yaml@9.0.3
+
+## 5.1.3
+
+### Patch Changes
+
+- Updated dependencies [2dc5a7a4c]
+  - @pnpm/lockfile-file@4.0.4
+  - @pnpm/read-projects-context@5.0.4
+
+## 5.1.2
+
+### Patch Changes
+
+- Updated dependencies [724c5abd8]
+  - @pnpm/types@7.2.0
+  - @pnpm/core-loggers@6.0.2
+  - @pnpm/lockfile-file@4.0.3
+  - @pnpm/modules-yaml@9.0.2
+  - @pnpm/read-projects-context@5.0.3
+
+## 5.1.1
+
+### Patch Changes
+
+- a1a03d145: Import only the required functions from ramda.
+- Updated dependencies [a1a03d145]
+  - @pnpm/lockfile-file@4.0.2
+  - @pnpm/read-projects-context@5.0.2
+
+## 5.1.0
+
+### Minor Changes
+
+- 97c64bae4: Pass in the location of the project to the `readPackage` hook.
+
+### Patch Changes
+
+- Updated dependencies [97c64bae4]
+  - @pnpm/types@7.1.0
+  - @pnpm/core-loggers@6.0.1
+  - @pnpm/lockfile-file@4.0.1
+  - @pnpm/modules-yaml@9.0.1
+  - @pnpm/read-projects-context@5.0.1
+
+## 5.0.0
+
+### Major Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+
+### Patch Changes
+
+- 7adc6e875: Update dependencies.
+- Updated dependencies [6871d74b2]
+- Updated dependencies [97b986fbc]
+- Updated dependencies [90487a3a8]
+- Updated dependencies [155e70597]
+- Updated dependencies [9c2a878c3]
+- Updated dependencies [8b66f26dc]
+- Updated dependencies [f2bb5cbeb]
+- Updated dependencies [f7750baed]
+- Updated dependencies [78470a32d]
+- Updated dependencies [9c2a878c3]
+  - @pnpm/constants@5.0.0
+  - @pnpm/core-loggers@6.0.0
+  - @pnpm/error@2.0.0
+  - @pnpm/lockfile-file@4.0.0
+  - @pnpm/modules-yaml@9.0.0
+  - @pnpm/read-projects-context@5.0.0
+  - @pnpm/types@7.0.0
+
+## 4.0.0
+
+### Major Changes
+
+- 51e1456dd: `opts.autofixMergeConflicts` is replaced with `opts.frozenLockfile`.
+
+  When `opts.frozenLockfile` is `false`, broken lockfiles are ignored and merge conflicts are automatically resolved.
+
+### Patch Changes
+
+- Updated dependencies [51e1456dd]
+  - @pnpm/lockfile-file@3.2.1
+  - @pnpm/read-projects-context@4.0.16
+
+## 3.3.6
+
+### Patch Changes
+
+- 27a40321c: Update dependencies.
+
+## 3.3.5
+
+### Patch Changes
+
+- Updated dependencies [9ad8c27bf]
+- Updated dependencies [9ad8c27bf]
+  - @pnpm/lockfile-file@3.2.0
+  - @pnpm/types@6.4.0
+  - @pnpm/read-projects-context@4.0.15
+  - @pnpm/core-loggers@5.0.3
+  - @pnpm/modules-yaml@8.0.6
+
+## 3.3.4
+
+### Patch Changes
+
+- Updated dependencies [af897c324]
+  - @pnpm/lockfile-file@3.1.4
+  - @pnpm/read-projects-context@4.0.14
+
+## 3.3.3
+
+### Patch Changes
+
+- Updated dependencies [1e4a3a17a]
+  - @pnpm/lockfile-file@3.1.3
+  - @pnpm/read-projects-context@4.0.13
+
+## 3.3.2
+
+### Patch Changes
+
+- Updated dependencies [fba715512]
+  - @pnpm/lockfile-file@3.1.2
+  - @pnpm/read-projects-context@4.0.12
+
+## 3.3.1
+
+### Patch Changes
+
+- Updated dependencies [0c5f1bcc9]
+  - @pnpm/error@1.4.0
+  - @pnpm/lockfile-file@3.1.1
+  - @pnpm/read-projects-context@4.0.11
+
+## 3.3.0
+
+### Minor Changes
+
+- 3776b5a52: A new option added to the context: lockfileHadConflicts.
+
+### Patch Changes
+
+- Updated dependencies [3776b5a52]
+  - @pnpm/lockfile-file@3.1.0
+  - @pnpm/read-projects-context@4.0.10
+
+## 3.2.11
+
+### Patch Changes
+
+- Updated dependencies [dbcc6c96f]
+- Updated dependencies [09492b7b4]
+  - @pnpm/lockfile-file@3.0.18
+  - @pnpm/modules-yaml@8.0.5
+  - @pnpm/read-projects-context@4.0.9
+
+## 3.2.10
+
+### Patch Changes
+
+- Updated dependencies [aa6bc4f95]
+  - @pnpm/lockfile-file@3.0.17
+  - @pnpm/read-projects-context@4.0.8
+
+## 3.2.9
+
+### Patch Changes
+
+- Updated dependencies [b5d694e7f]
+  - @pnpm/types@6.3.1
+  - @pnpm/lockfile-file@3.0.16
+  - @pnpm/core-loggers@5.0.2
+  - @pnpm/modules-yaml@8.0.4
+  - @pnpm/read-projects-context@4.0.7
+
+## 3.2.8
+
+### Patch Changes
+
+- Updated dependencies [d54043ee4]
+- Updated dependencies [fcdad632f]
+  - @pnpm/types@6.3.0
+  - @pnpm/constants@4.1.0
+  - @pnpm/lockfile-file@3.0.15
+  - @pnpm/core-loggers@5.0.1
+  - @pnpm/modules-yaml@8.0.3
+  - @pnpm/read-projects-context@4.0.6
+
+## 3.2.7
+
+### Patch Changes
+
+- ac3042858: When purging an incompatible modules directory, don't remove `.dot_files` that don't belong to pnpm. (<https://github.com/pnpm/pnpm/issues/2506>)
+
+## 3.2.6
+
+### Patch Changes
+
+- Updated dependencies [86cd72de3]
+  - @pnpm/core-loggers@5.0.0
+
+## 3.2.5
+
+### Patch Changes
+
+- Updated dependencies [75a36deba]
+  - @pnpm/error@1.3.1
+  - @pnpm/lockfile-file@3.0.14
+  - @pnpm/read-projects-context@4.0.5
+
+## 3.2.4
+
+### Patch Changes
+
+- 972864e0d: publicHoistPattern=undefined should be considered to be the same as publicHoistPattern='' (empty string).
+- Updated dependencies [9550b0505]
+  - @pnpm/lockfile-file@3.0.13
+  - @pnpm/read-projects-context@4.0.4
+
+## 3.2.3
+
+### Patch Changes
+
+- 51086e6e4: Fix text in registries mismatch error message.
+- Updated dependencies [6d480dd7a]
+  - @pnpm/error@1.3.0
+  - @pnpm/lockfile-file@3.0.12
+  - @pnpm/read-projects-context@4.0.3
+
+## 3.2.2
+
+### Patch Changes
+
+- a2ef8084f: Use the same versions of dependencies across the pnpm monorepo.
+- Updated dependencies [a2ef8084f]
+  - @pnpm/modules-yaml@8.0.2
+  - @pnpm/read-projects-context@4.0.2
+
+## 3.2.1
+
+### Patch Changes
+
+- 25b425ca2: When purging an incompatible modules directory, don't remove the actual directory, just the contents of it.
+
+## 3.2.0
+
+### Minor Changes
+
+- a01626668: Add `originalManifest` that stores the unmodified.
+
+## 3.1.0
+
+### Minor Changes
+
+- 9a908bc07: Use `contextLogger` to log `virtualStoreDir`, `storeDir`, and `currentLockfileExists`.
+
+### Patch Changes
+
+- Updated dependencies [9a908bc07]
+- Updated dependencies [9a908bc07]
+  - @pnpm/core-loggers@4.2.0
+
+## 3.0.1
+
+### Patch Changes
+
+- Updated dependencies [db17f6f7b]
+  - @pnpm/types@6.2.0
+  - @pnpm/core-loggers@4.1.2
+  - @pnpm/lockfile-file@3.0.11
+  - @pnpm/modules-yaml@8.0.1
+  - @pnpm/read-projects-context@4.0.1
+
+## 3.0.0
+
+### Major Changes
+
+- 71a8c8ce3: `hoistedAliases` replaced with `hoistedDependencies`.
+
+  `shamefullyHoist` replaced with `publicHoistPattern`.
+
+  `forceShamefullyHoist` replaced with `forcePublicHoistPattern`.
+
+### Patch Changes
+
+- Updated dependencies [71a8c8ce3]
+- Updated dependencies [71a8c8ce3]
+- Updated dependencies [71a8c8ce3]
+  - @pnpm/read-projects-context@4.0.0
+  - @pnpm/types@6.1.0
+  - @pnpm/modules-yaml@8.0.0
+  - @pnpm/core-loggers@4.1.1
+  - @pnpm/lockfile-file@3.0.10
+
+## 2.1.2
+
+### Patch Changes
+
+- Updated dependencies [2ebb7af33]
+  - @pnpm/core-loggers@4.1.0
+
+## 2.1.1
+
+### Patch Changes
+
+- 58c02009f: When checking compatibility of the existing modules directory, start with the layout version. Otherwise, it may happen that some of the fields were renamed and other checks will fail.
+
+## 2.1.0
+
+### Minor Changes
+
+- 327bfbf02: Add `currentLockfileIsUpToDate` to the context.
+
+## 2.0.0
+
+### Major Changes
+
+- 3f73eaf0c: Rename `store` to `storeDir` in `node_modules/.modules.yaml`.
+- 802d145fc: Remove `independent-leaves` support.
+- e3990787a: Rename NodeModules to Modules in option names.
+
+### Patch Changes
+
+- Updated dependencies [b5f66c0f2]
+- Updated dependencies [ca9f50844]
+- Updated dependencies [3f73eaf0c]
+- Updated dependencies [da091c711]
+- Updated dependencies [802d145fc]
+- Updated dependencies [4f5801b1c]
+  - @pnpm/constants@4.0.0
+  - @pnpm/modules-yaml@7.0.0
+  - @pnpm/types@6.0.0
+  - @pnpm/read-projects-context@3.0.0
+  - @pnpm/core-loggers@4.0.2
+  - @pnpm/error@1.2.1
+  - @pnpm/lockfile-file@3.0.9
+
+## 2.0.0-alpha.2
+
+### Patch Changes
+
+- Updated dependencies [ca9f50844]
+  - @pnpm/constants@4.0.0-alpha.1
+  - @pnpm/lockfile-file@3.0.9-alpha.2
+  - @pnpm/read-projects-context@2.0.2-alpha.2
+
+## 2.0.0-alpha.1
+
+### Major Changes
+
+- 3f73eaf0: Rename `store` to `storeDir` in `node_modules/.modules.yaml`.
+- e3990787: Rename NodeModules to Modules in option names.
+
+### Patch Changes
+
+- Updated dependencies [3f73eaf0]
+- Updated dependencies [da091c71]
+  - @pnpm/modules-yaml@7.0.0-alpha.0
+  - @pnpm/types@6.0.0-alpha.0
+  - @pnpm/read-projects-context@2.0.2-alpha.1
+  - @pnpm/core-loggers@4.0.2-alpha.0
+  - @pnpm/lockfile-file@3.0.9-alpha.1
+
+## 1.2.2-alpha.0
+
+### Patch Changes
+
+- Updated dependencies [b5f66c0f2]
+  - @pnpm/constants@4.0.0-alpha.0
+  - @pnpm/lockfile-file@3.0.9-alpha.0
+  - @pnpm/read-projects-context@2.0.2-alpha.0
+
+## 1.2.1
+
+### Patch Changes
+
+- 907c63a48: Update dependencies.
+- 907c63a48: Use `fs.mkdir` instead of `make-dir`.
+- Updated dependencies [907c63a48]
+- Updated dependencies [907c63a48]
+- Updated dependencies [907c63a48]
+  - @pnpm/lockfile-file@3.0.8
+  - @pnpm/modules-yaml@6.0.2
+  - @pnpm/read-projects-context@2.0.1

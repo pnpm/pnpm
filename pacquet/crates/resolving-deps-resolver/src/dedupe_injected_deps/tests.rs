@@ -27,6 +27,7 @@ fn make_node(id: &str, children: BTreeMap<String, DepPath>) -> DependenciesGraph
             policy_violation: None,
         }),
         children,
+        optional_children: HashSet::new(),
         peer_dependencies: BTreeMap::new(),
         transitive_peer_dependencies: HashSet::new(),
         resolved_peer_names: HashSet::new(),
@@ -37,10 +38,6 @@ fn make_node(id: &str, children: BTreeMap<String, DepPath>) -> DependenciesGraph
     }
 }
 
-/// Two-project workspace: `project-2` injects `project-1`. The
-/// injected snapshot has no children, so the subset check trivially
-/// holds and the importer entry rewrites to a `link:`, with the
-/// orphaned `file:` snapshot pruned from the graph.
 #[test]
 fn rewrites_childless_injected_dep_to_link() {
     let lockfile_dir = PathBuf::from("/ws");
@@ -66,10 +63,6 @@ fn rewrites_childless_injected_dep_to_link() {
     assert!(graph.is_empty(), "unreachable file: snapshot should be pruned");
 }
 
-/// When the injected snapshot's child set is not a subset of the
-/// target project's direct deps (different version reached
-/// transitively), the dedupe must bail and the `file:` direct dep
-/// must remain in place.
 #[test]
 fn leaves_injected_dep_when_children_differ() {
     let lockfile_dir = PathBuf::from("/ws");
@@ -102,10 +95,6 @@ fn leaves_injected_dep_when_children_differ() {
     assert_eq!(after.as_str(), "file:project-1");
 }
 
-/// The subset check holds when the injected snapshot's children all
-/// match the target project's direct-deps map by alias and depPath
-/// — the rewrite goes through even though the snapshot has
-/// non-empty children.
 #[test]
 fn rewrites_when_children_subset_of_target_direct_deps() {
     let lockfile_dir = PathBuf::from("/ws");
@@ -137,14 +126,10 @@ fn rewrites_when_children_subset_of_target_direct_deps() {
 
     let after = direct.get("project-2").unwrap().get("project-1").unwrap();
     assert_eq!(after.as_str(), "link:../project-1");
-    // `lib` is still reachable through project-1's direct deps.
     assert!(graph.contains_key(&lib));
-    // The injected snapshot is orphaned and gets pruned.
     assert!(!graph.contains_key(&injected));
 }
 
-/// `file:` deps that point outside the workspace (a tarball-shaped
-/// local file dep, not a workspace project) must not be touched.
 #[test]
 fn ignores_non_workspace_file_deps() {
     let lockfile_dir = PathBuf::from("/ws");

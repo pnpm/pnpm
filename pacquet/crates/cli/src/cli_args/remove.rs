@@ -21,10 +21,6 @@ pub struct RemoveDependencyOptions {
 impl RemoveDependencyOptions {
     /// Convert the `--save-*` flags to the targeted [`DependencyGroup`],
     /// or `None` to remove from any field.
-    ///
-    /// Mirrors pnpm's
-    /// [`getSaveType`](https://github.com/pnpm/pnpm/blob/9cad8274fd/installing/commands/src/getSaveType.ts):
-    /// `--save-dev` wins over `--save-optional` over `--save-prod`.
     fn save_type(&self) -> Option<DependencyGroup> {
         let &RemoveDependencyOptions { save_prod, save_dev, save_optional } = self;
         if save_dev {
@@ -50,6 +46,10 @@ pub struct RemoveArgs {
     /// and `pnpm-lock.yaml` are updated. Mirrors pnpm's `--lockfile-only`.
     #[clap(long = "lockfile-only")]
     pub lockfile_only: bool,
+    /// Remove the package from the global packages directory and unlink its
+    /// bins. Mirrors pnpm's `remove -g`.
+    #[clap(short = 'g', long)]
+    pub global: bool,
 }
 
 impl RemoveArgs {
@@ -60,6 +60,8 @@ impl RemoveArgs {
     ) -> miette::Result<()> {
         let State { tarball_mem_cache, http_client, config, manifest, lockfile, resolved_packages } =
             &mut state;
+        let lockfile =
+            lockfile.get().map_err(|err| miette::Report::new(err).wrap_err("load the lockfile"))?;
 
         let lockfile_path = manifest
             .path()
@@ -71,7 +73,7 @@ impl RemoveArgs {
             http_client_arc: std::sync::Arc::clone(http_client),
             config,
             manifest,
-            lockfile: lockfile.as_ref(),
+            lockfile,
             lockfile_path: lockfile_path.as_deref(),
             package_names: &self.package_names,
             save_type: self.dependency_options.save_type(),

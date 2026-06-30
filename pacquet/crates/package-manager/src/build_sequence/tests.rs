@@ -94,9 +94,6 @@ fn no_requires_build_yields_empty() {
 
 #[test]
 fn leaf_with_requires_build_runs_first() {
-    // a depends on b; only b requires build. Both nodes are added to the
-    // build sequence (a is an ancestor of a buildable node), but the order
-    // must be b before a.
     let snapshots = HashMap::from([
         (key("a", "1.0.0"), snap(&[("b", "1.0.0")])),
         (key("b", "1.0.0"), snap(&[])),
@@ -111,7 +108,6 @@ fn leaf_with_requires_build_runs_first() {
 
 #[test]
 fn deep_chain_orders_leaf_first() {
-    // a -> b -> c, only c requires build. Sequence: [c], [b], [a].
     let snapshots = HashMap::from([
         (key("a", "1.0.0"), snap(&[("b", "1.0.0")])),
         (key("b", "1.0.0"), snap(&[("c", "1.0.0")])),
@@ -134,8 +130,6 @@ fn deep_chain_orders_leaf_first() {
 
 #[test]
 fn unrelated_subgraph_excluded() {
-    // a -> b (b builds), x -> y (y builds). Importer only depends on a.
-    // Only the `a` subgraph should appear.
     let snapshots = HashMap::from([
         (key("a", "1.0.0"), snap(&[("b", "1.0.0")])),
         (key("b", "1.0.0"), snap(&[])),
@@ -165,9 +159,6 @@ fn unrelated_subgraph_excluded() {
 
 #[test]
 fn parallel_build_leaves_share_chunk() {
-    // root depends on a and b; both a and b have requires_build but no shared
-    // descendants. Both build leaves should land in the same chunk; root
-    // follows in the next chunk as their ancestor.
     let snapshots = HashMap::from([
         (key("root", "1.0.0"), snap(&[("a", "1.0.0"), ("b", "1.0.0")])),
         (key("a", "1.0.0"), snap(&[])),
@@ -192,15 +183,8 @@ fn parallel_build_leaves_share_chunk() {
 /// Direct port of upstream
 /// [`'buildSequence() test 2'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/during-install/test/buildSequence.test.ts#L28-L51).
 ///
-/// Two importers `a` and `b` both depend on a shared builder leaf
-/// `c`. Only `a` requires its own build; `b` does not. The result
-/// must surface `c` in the first chunk and `a` in the second — `b`
-/// is *trimmed* from the build sequence because it neither needs a
-/// build itself nor has a buildable descendant that's exclusive to
-/// it (its descendant `c` is already scheduled via `a`).
-///
 /// This is the subgraph-trim case for [#397] item `#16`. Pacquet's
-/// existing `unrelated_subgraph_excluded` covers a stronger
+/// existing [`unrelated_subgraph_excluded`] covers a stronger
 /// scenario (an entirely unreachable subgraph); this one pins the
 /// upstream-equivalent behavior where an importer that's still in
 /// the install set gets dropped from the build sequence.
@@ -269,12 +253,6 @@ fn skipped_patched_snapshot_does_not_enter_build_queue() {
 /// `lockfileToDepGraph` removes skipped depPaths from the graph
 /// entirely, so descendants reachable only via that edge are
 /// effectively orphans in the build phase.
-///
-/// Setup: root → S (skipped) → C (`requires_build`). Without the
-/// skip-before-recurse gate, the walk would step through S into C,
-/// see C as buildable, and queue both C and ancestors that look like
-/// they need to be sequenced before C. With the gate, S's subtree
-/// isn't visited; C never enters the queue.
 #[test]
 fn skipped_parent_does_not_drag_descendants_into_build_queue() {
     use std::collections::HashSet;
@@ -306,9 +284,6 @@ fn skipped_parent_does_not_drag_descendants_into_build_queue() {
 /// any other (non-skipped) path. This pins that the
 /// skip-before-recurse gate doesn't accidentally poison `walked` for
 /// the alternate branch.
-///
-/// Setup: root → {S (skipped), B}, both S and B → C (`requires_build`).
-/// Even though S is skipped, B still pulls C into the build graph.
 #[test]
 fn descendant_with_non_skipped_parent_still_builds() {
     use std::collections::HashSet;

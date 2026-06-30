@@ -1,0 +1,52 @@
+{
+  "name": "@pnpm/crypto.shasums-file",
+  "version": "1100.1.2",
+  "description": "Utils for working with shasums files",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "crypto",
+    "shasums-file"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm11/crypto/shasums-file",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpm11/crypto/shasums-file#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "pn compile && pn .test",
+    "prepublishOnly": "tsgo --build",
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+  },
+  "dependencies": {
+    "@pnpm/crypto.hash": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/fetching.types": "workspace:*",
+    "openpgp": "catalog:"
+  },
+  "devDependencies": {
+    "@jest/globals": "catalog:",
+    "@openpgp/web-stream-tools": "catalog:",
+    "@pnpm/crypto.shasums-file": "workspace:*"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

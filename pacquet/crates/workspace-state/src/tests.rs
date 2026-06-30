@@ -79,11 +79,9 @@ fn omits_settings_that_are_none() {
         settings: WorkspaceStateSettings { auto_install_peers: Some(true), ..Default::default() },
     };
     let serialized = serde_json::to_string(&state).expect("serialize");
-    // Only the populated setting should show up.
     assert!(serialized.contains(r#""autoInstallPeers":true"#), "got: {serialized}");
     assert!(!serialized.contains("dedupePeerDependents"), "got: {serialized}");
     assert!(!serialized.contains("nodeLinker"), "got: {serialized}");
-    // Top-level optional keys should also be omitted.
     assert!(!serialized.contains("configDependencies"), "got: {serialized}");
 }
 
@@ -117,7 +115,6 @@ fn package_extensions_round_trip() {
     let loaded = load_workspace_state(tmp.path()).expect("load state").expect("file present");
     assert_eq!(loaded.settings.package_extensions.as_ref(), Some(&extensions));
 
-    // The serialized JSON must carry the camelCase upstream key.
     let on_disk = std::fs::read_to_string(get_file_path(tmp.path())).expect("read state");
     assert!(on_disk.contains(r#""packageExtensions""#), "got: {on_disk}");
 }
@@ -132,16 +129,9 @@ fn node_linker_serializes_lowercase() {
     assert_eq!(value, serde_json::Value::from("pnp"));
 }
 
-/// `update_workspace_state` fails with the typed `CreateDir`
-/// variant when `node_modules` can't be created — here, because
-/// the workspace dir is itself a regular file blocking the
-/// parent path. Pins that the error is classified as a directory
-/// failure and not collapsed into `WriteFile`.
 #[test]
 fn update_surfaces_create_dir_error_when_workspace_is_a_regular_file() {
     let tmp = tempdir().expect("create temp dir");
-    // The "workspace dir" is actually a file, so create_dir_all on
-    // `<file>/node_modules` must fail.
     let blocker = tmp.path().join("blocker");
     std::fs::write(&blocker, b"not a dir").expect("seed blocker file");
 
@@ -173,7 +163,6 @@ fn load_surfaces_read_file_error_when_target_is_a_directory() {
     let workspace_dir = tmp.path();
     let target = get_file_path(workspace_dir);
     std::fs::create_dir_all(target.parent().unwrap()).unwrap();
-    // Plant a directory where the state file should be.
     std::fs::create_dir(&target).expect("seed directory at state path");
 
     let err =
@@ -184,9 +173,6 @@ fn load_surfaces_read_file_error_when_target_is_a_directory() {
     );
 }
 
-/// `load_workspace_state` surfaces malformed JSON via the typed
-/// `ParseJson` variant. Pins that a corrupt state file doesn't
-/// collapse into `ReadFile` or `Ok(None)`.
 #[test]
 fn load_surfaces_parse_json_error_on_malformed_state() {
     let tmp = tempdir().expect("create temp dir");

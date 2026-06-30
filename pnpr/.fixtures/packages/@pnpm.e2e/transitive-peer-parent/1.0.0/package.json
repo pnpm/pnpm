@@ -1,0 +1,9 @@
+{
+  "name": "@pnpm.e2e/transitive-peer-parent",
+  "version": "1.0.0",
+  "dependencies": {
+    "@pnpm.e2e/transitive-peer-carrier-a": "1.0.0",
+    "@pnpm.e2e/transitive-peer-carrier-b": "1.0.0",
+    "is-positive": "1.0.0"
+  }
+}

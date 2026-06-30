@@ -16,7 +16,9 @@
 use crate::{error::Result, package_name::PackageName};
 use axum::body::Body;
 use futures_util::StreamExt;
-use object_store::{ObjectStore, PutPayload, aws::AmazonS3Builder, path::Path as ObjectPath};
+use object_store::{
+    ObjectStore, ObjectStoreExt, PutPayload, aws::AmazonS3Builder, path::Path as ObjectPath,
+};
 use serde::Deserialize;
 use std::{
     io,

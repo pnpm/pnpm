@@ -22,16 +22,15 @@ use std::{
 pub struct ConfigOverrides {
     registry: Option<String>,
     registries: BTreeMap<String, String>,
+    deploy_all_files: Option<bool>,
+    force_legacy_deploy: Option<bool>,
+    shared_workspace_lockfile: Option<bool>,
 }
 
 impl ConfigOverrides {
     /// Pull `--config.<key>=<value>` tokens out of `argv` and collect
     /// them. Returns the parsed overrides together with the remaining
     /// argv tokens (in their original order) for clap to parse.
-    ///
-    /// Malformed tokens — `--config.foo` with no `=`, or `--config.=value`
-    /// with an empty key — are dropped: clap would reject `--config.*` as
-    /// unknown anyway, and the dropped tokens carry no usable signal.
     pub fn extract<Argv>(argv: Argv) -> (Self, Vec<OsString>)
     where
         Argv: IntoIterator<Item = OsString>,
@@ -53,6 +52,18 @@ impl ConfigOverrides {
             self.registry = Some(normalize_registry_url(value));
             return;
         }
+        if key == "deploy-all-files" {
+            self.deploy_all_files = parse_bool(value);
+            return;
+        }
+        if key == "force-legacy-deploy" {
+            self.force_legacy_deploy = parse_bool(value);
+            return;
+        }
+        if key == "shared-workspace-lockfile" {
+            self.shared_workspace_lockfile = parse_bool(value);
+            return;
+        }
         if let Some(scope) = scoped_registry_key(key) {
             self.registries.insert(scope.to_owned(), normalize_registry_url(value));
         }
@@ -64,9 +75,25 @@ impl ConfigOverrides {
     pub fn apply(&self, config: &mut Config) {
         if let Some(registry) = &self.registry {
             config.registry.clone_from(registry);
+            config.registries.insert("default".to_string(), registry.clone());
+            config.package_manager_bootstrap.registry.clone_from(registry);
+            config
+                .package_manager_bootstrap
+                .registries
+                .insert("default".to_string(), registry.clone());
         }
         for (scope, registry) in &self.registries {
             config.registries.insert(scope.clone(), registry.clone());
+            config.package_manager_bootstrap.registries.insert(scope.clone(), registry.clone());
+        }
+        if let Some(value) = self.deploy_all_files {
+            config.deploy_all_files = value;
+        }
+        if let Some(value) = self.force_legacy_deploy {
+            config.force_legacy_deploy = value;
+        }
+        if let Some(value) = self.shared_workspace_lockfile {
+            config.shared_workspace_lockfile = value;
         }
     }
 }
@@ -101,6 +128,14 @@ fn scoped_registry_key(key: &str) -> Option<&str> {
 
 fn normalize_registry_url(registry: &str) -> String {
     if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
+}
+
+fn parse_bool(value: &str) -> Option<bool> {
+    match value.to_ascii_lowercase().as_str() {
+        "true" | "1" => Some(true),
+        "false" | "0" => Some(false),
+        _ => None,
+    }
 }
 
 #[cfg(test)]

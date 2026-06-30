@@ -104,7 +104,7 @@ jobs:
       REGISTRY_BANDWIDTH_MBPS: 200
     steps:
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -216,7 +216,7 @@ jobs:
           save-cache: false # it's insufficient
 
       - name: Install pnpm
-        uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
+        uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
         with:
           install: false
 
@@ -237,7 +237,7 @@ jobs:
           packages: hyperfine@1.18.0
 
       - name: Install just
-        uses: taiki-e/install-action@873c7452cadb7c034694a1282227095d93fbdf92 # v2.79.14
+        uses: taiki-e/install-action@b8cecb83565409bcc297b2df6e77f030b2a468d5 # v2.82.0
         with:
           tool: just
 
@@ -254,7 +254,7 @@ jobs:
         # `pnpr` server from its clone, so this also produces the server
         # binaries the boot step needs. More builds than the pacquet-only
         # bench, hence the larger timeout.
-        timeout-minutes: 25
+        timeout-minutes: 50
         run: just integrated-benchmark --reuse-prebuilt-binaries --build-only $BENCHMARK_TARGETS
 
       - name: 'Benchmark: Isolated linker: fresh restore, cold cache + cold store'
@@ -323,11 +323,35 @@ jobs:
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_HOT_STORE.md
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_HOT_STORE.json
 
+      - name: 'Benchmark: Isolated linker: fresh restore, cold cache + cold store + cold pnpr'
+        shell: bash
+        # The only scenario with a cold pnpr-side cache: the per-revision mock
+        # starts empty each iteration and refetches every tarball from the warm
+        # origin, exercising the proxy's cold download/serve path (which streams
+        # rather than buffering the full tarball before serving). Frozen so it's
+        # just tarball serving — no resolution noise — and both arms measure it.
+        # Most expensive scenario (every iteration re-downloads ~1300 tarballs
+        # through the mock), so it gets the same generous timeout as a fresh
+        # install.
+        timeout-minutes: 35
+        run: |
+          just integrated-benchmark --reuse-prebuilt-binaries --scenario=isolated-linker.fresh-restore.cold-cache.cold-store.cold-pnpr --registry=verdaccio --pnpr-latency-ms=${PNPR_LATENCY_MS} --registry-latency-ms=${REGISTRY_LATENCY_MS} --registry-bandwidth-mbps=${REGISTRY_BANDWIDTH_MBPS} $BENCHMARK_TARGETS
+          cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR.md
+          cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR.json
+
       - name: Generate summary
         shell: bash
+        env:
+          # The PR head SHA for pull_request events, otherwise (push,
+          # workflow_dispatch) the ref's own SHA. Display-only — no
+          # control flow consumes it; the comment workflow resolves the
+          # PR number from the trusted workflow_run payload regardless.
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           (
             echo '## Integrated-Benchmark Report (${{ runner.os }})'
+            echo
+            echo "**Commit:** [\`${SHA:0:12}\`](${{ github.server_url }}/${{ github.repository }}/commit/$SHA)"
             echo
             echo 'Each scenario reports direct installs and pnpr installs. Bencher consumes pacquet@HEAD and pnpr@HEAD.'
             echo
@@ -390,6 +414,18 @@ jobs:
             echo '```'
             echo
             echo '</details>'
+            echo
+            echo '### Scenario: Isolated linker: fresh restore, cold cache + cold store + cold pnpr'
+            echo
+            cat bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR.md
+            echo
+            echo '<details><summary>BENCHMARK_REPORT.json</summary>'
+            echo
+            echo '```json'
+            jq 'del(.results[].exit_codes)' bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR.json
+            echo '```'
+            echo
+            echo '</details>'
           ) > bench-work-env/SUMMARY.md
 
       - name: Build Bencher-shaped report
@@ -428,14 +464,16 @@ jobs:
             'ISOLATED_FRESH_RESTORE_HOT_CACHE_HOT_STORE:isolated-linker.fresh-restore.hot-cache.hot-store' \
             'ISOLATED_FRESH_INSTALL_COLD_CACHE_COLD_STORE:isolated-linker.fresh-install.cold-cache.cold-store' \
             'ISOLATED_FRESH_INSTALL_HOT_CACHE_HOT_STORE:isolated-linker.fresh-install.hot-cache.hot-store' \
-            'ISOLATED_FRESH_INSTALL_COLD_CACHE_HOT_STORE:isolated-linker.fresh-install.cold-cache.hot-store'
+            'ISOLATED_FRESH_INSTALL_COLD_CACHE_HOT_STORE:isolated-linker.fresh-install.cold-cache.hot-store' \
+            'ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR:isolated-linker.fresh-restore.cold-cache.cold-store.cold-pnpr'
 
           build_bencher_file bench-work-env/bencher-results-pnpr.json pnpr@HEAD \
             'ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE:isolated-linker.fresh-restore.cold-cache.cold-store' \
             'ISOLATED_FRESH_RESTORE_HOT_CACHE_HOT_STORE:isolated-linker.fresh-restore.hot-cache.hot-store' \
             'ISOLATED_FRESH_INSTALL_COLD_CACHE_COLD_STORE:isolated-linker.fresh-install.cold-cache.cold-store' \
             'ISOLATED_FRESH_INSTALL_HOT_CACHE_HOT_STORE:isolated-linker.fresh-install.hot-cache.hot-store' \
-            'ISOLATED_FRESH_INSTALL_COLD_CACHE_HOT_STORE:isolated-linker.fresh-install.cold-cache.hot-store'
+            'ISOLATED_FRESH_INSTALL_COLD_CACHE_HOT_STORE:isolated-linker.fresh-install.cold-cache.hot-store' \
+            'ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR:isolated-linker.fresh-restore.cold-cache.cold-store.cold-pnpr'
 
       - name: Stage artifact contents
         # The artifact carries the rendered report plus the
@@ -460,7 +498,7 @@ jobs:
 
       - name: Install Bencher CLI
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-        uses: bencherdev/bencher@50fb1e138651a46d2fb704fab1adab38c181552e # v0.6.6
+        uses: bencherdev/bencher@ec56bb69a7f34096002ca3384d10e2f6676b063e # v0.6.7
 
       - name: Upload results to Bencher
         # Runs on push and workflow_dispatch — both execute in the

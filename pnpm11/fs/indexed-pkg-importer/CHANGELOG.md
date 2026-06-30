@@ -1,0 +1,677 @@
+# @pnpm/fs.indexed-pkg-importer
+
+## 1100.0.16
+
+### Patch Changes
+
+- Updated dependencies [bae694f]
+  - @pnpm/store.controller-types@1100.1.6
+
+## 1100.0.15
+
+### Patch Changes
+
+- 1b02b47: Fix macOS Gatekeeper blocking native binaries (`.node`, `.dylib`, `.so`) by removing the `com.apple.quarantine` extended attribute after importing them from the store.
+
+  When pnpm imports files from its content-addressable store into `node_modules`, macOS preserves extended attributes, including `com.apple.quarantine`. If this xattr is present on a store blob (e.g. it was first written under a Gatekeeper-enabled app such as a Git client), it propagates to `node_modules`, and Gatekeeper blocks the native binary from loading even though pnpm already verified the file's integrity against the lockfile.
+
+  After importing a package, pnpm now strips `com.apple.quarantine` from its native binaries, matching Homebrew's behaviour of dropping quarantine from verified downloads. The cleanup is macOS-only, runs in a single batched `xattr` call per package, is restricted to native binaries (other files are untouched), and is non-fatal (it logs a warning on unexpected errors).
+
+  Fixes #11056
+
+## 1100.0.14
+
+### Patch Changes
+
+- a31faa7: Updated dependency ranges. Notably:
+
+  - `@pnpm/logger` peer dependency range moved to `^1100.0.0`.
+  - `msgpackr` 1.11.8 → 2.0.4 (store index files remain byte-compatible in both directions).
+  - `open` ^7.4.2 → ^11.0.0, `memoize` ^10 → ^11, `cli-truncate` ^5 → ^6, `pidtree` ^0.6 → ^1.
+  - `@yarnpkg/core` 4.5.0 → 4.8.0, `@rushstack/worker-pool` 0.7.7 → 0.7.18, `@cyclonedx/cyclonedx-library` 10.0.0 → 10.1.0, `@pnpm/config.nerf-dart` ^1 → ^2, `@pnpm/log.group` 3.0.2 → 4.0.1, `@pnpm/util.lex-comparator` ^3 → ^4.
+
+- Updated dependencies [a31faa7]
+  - @pnpm/core-loggers@1100.2.1
+  - @pnpm/store.controller-types@1100.1.5
+
+## 1100.0.13
+
+### Patch Changes
+
+- Updated dependencies [f11b4fc]
+  - @pnpm/core-loggers@1100.2.0
+
+## 1100.0.12
+
+### Patch Changes
+
+- @pnpm/core-loggers@1100.1.4
+- @pnpm/store.controller-types@1100.1.4
+
+## 1100.0.11
+
+### Patch Changes
+
+- cbfeeef: Fixed packages being materialized into the virtual store without their root-level files (`package.json`, `LICENSE`, README, root entrypoints) when multiple `pnpm install` processes ran against the same store/workspace concurrently. The fast import path used to destructively empty the shared target directory, so a concurrent importer could wipe files another importer had already written; if the surviving files included the `package.json` completion marker, every later install treated the broken directory as complete and never repaired it. The fast path now imports directly only when it can create the target directory exclusively, and otherwise builds the package in a private temp directory and atomically renames it into place [#12197](https://github.com/pnpm/pnpm/issues/12197).
+  - @pnpm/core-loggers@1100.1.3
+  - @pnpm/store.controller-types@1100.1.3
+
+## 1100.0.10
+
+### Patch Changes
+
+- @pnpm/core-loggers@1100.1.2
+- @pnpm/store.controller-types@1100.1.2
+
+## 1100.0.9
+
+### Patch Changes
+
+- @pnpm/store.controller-types@1100.1.1
+- @pnpm/core-loggers@1100.1.1
+
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [4a79336]
+  - @pnpm/store.controller-types@1100.1.0
+  - @pnpm/core-loggers@1100.1.0
+
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [c2c2890]
+  - @pnpm/store.controller-types@1100.0.7
+
+## 1100.0.6
+
+### Patch Changes
+
+- @pnpm/core-loggers@1100.0.2
+- @pnpm/store.controller-types@1100.0.6
+
+## 1100.0.5
+
+### Patch Changes
+
+- @pnpm/store.controller-types@1100.0.5
+
+## 1100.0.4
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+- Updated dependencies [5a901e7]
+  - @pnpm/store.controller-types@1100.0.4
+  - @pnpm/fs.graceful-fs@1100.1.0
+
+## 1100.0.3
+
+### Patch Changes
+
+- @pnpm/store.controller-types@1100.0.3
+
+## 1100.0.2
+
+### Patch Changes
+
+- @pnpm/store.controller-types@1100.0.2
+
+## 1100.0.1
+
+### Patch Changes
+
+- @pnpm/core-loggers@1100.0.1
+- @pnpm/store.controller-types@1100.0.1
+
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Patch Changes
+
+- 9b1e5da: Fixed a performance regression on Linux where `auto` import mode would copy every file instead of hardlinking on filesystems without reflink support (e.g. ext4).
+
+  The clone error fallback in `createClonePkg()` silently converted clone failures to copies, preventing the auto-importer from detecting that cloning is not supported and falling through to hardlinks. This caused a 2-9x slowdown on Linux CI for install operations.
+
+- 62f760e: Fixed intermittent failures when multiple `pnpm dlx` calls run concurrently for the same package. When the global virtual store is enabled, the importer now verifies file content before skipping a rename, avoiding destructive swap-renames that break concurrent processes. Also tolerates EPERM during bin creation on Windows and properly propagates `enableGlobalVirtualStore` through the install pipeline.
+- cbb366a: Fixed a race condition when multiple worker threads import the same package to the global virtual store concurrently. The rename operation now tolerates `ENOTEMPTY`/`EEXIST` errors if another thread already completed the import.
+- ee9fe58: Skip the staging directory when importing packages into `node_modules`. This avoids the overhead of creating a temp dir and renaming per package. Falls back to the atomic staging path on error.
+
+  Packages that lack a `package.json` now get a synthetic empty one added to the store so that `package.json` can serve as a universal completion marker for the importer.
+
+- 60b5fd1: Packages that don't have a `package.json` file (like Node.js) should not be reimported from the store on every install. Another file from the package should be checked in order to verify its presence in `node_modules`.
+- Updated dependencies [facdd71]
+- Updated dependencies [491a84f]
+- Updated dependencies [ba065f6]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [56a59df]
+- Updated dependencies [10bc391]
+- Updated dependencies [9d3f00b]
+- Updated dependencies [98a0410]
+  - @pnpm/store.controller-types@1005.0.0
+  - @pnpm/core-loggers@1002.0.0
+  - @pnpm/fs.graceful-fs@1001.0.0
+
+## 1000.1.14
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+  - @pnpm/store-controller-types@1004.1.0
+  - @pnpm/core-loggers@1001.0.4
+
+## 1000.1.13
+
+### Patch Changes
+
+- 9b9faa5: Retry filesystem operations on EAGAIN errors [#9959](https://github.com/pnpm/pnpm/pull/9959).
+- Updated dependencies [9b9faa5]
+  - @pnpm/graceful-fs@1000.0.1
+
+## 1000.1.12
+
+### Patch Changes
+
+- @pnpm/core-loggers@1001.0.3
+- @pnpm/store-controller-types@1004.0.2
+
+## 1000.1.11
+
+### Patch Changes
+
+- @pnpm/store-controller-types@1004.0.1
+
+## 1000.1.10
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+  - @pnpm/store-controller-types@1004.0.0
+  - @pnpm/core-loggers@1001.0.2
+
+## 1000.1.9
+
+### Patch Changes
+
+- @pnpm/store-controller-types@1003.0.3
+
+## 1000.1.8
+
+### Patch Changes
+
+- Updated dependencies [509948d]
+  - @pnpm/store-controller-types@1003.0.2
+
+## 1000.1.7
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+- Updated dependencies [c24c66e]
+  - @pnpm/core-loggers@1001.0.1
+  - @pnpm/store-controller-types@1003.0.1
+
+## 1000.1.6
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+  - @pnpm/store-controller-types@1003.0.0
+  - @pnpm/core-loggers@1001.0.0
+  - @pnpm/logger@1001.0.0
+
+## 1000.1.5
+
+### Patch Changes
+
+- 032fff8: Update reflink to support macOS
+  - @pnpm/store-controller-types@1002.0.1
+
+## 1000.1.4
+
+### Patch Changes
+
+- Updated dependencies [72cff38]
+- Updated dependencies [750ae7d]
+  - @pnpm/store-controller-types@1002.0.0
+  - @pnpm/core-loggers@1000.2.0
+
+## 1000.1.3
+
+### Patch Changes
+
+- @pnpm/core-loggers@1000.1.5
+- @pnpm/store-controller-types@1001.0.5
+
+## 1000.1.2
+
+### Patch Changes
+
+- @pnpm/store-controller-types@1001.0.4
+
+## 1000.1.1
+
+### Patch Changes
+
+- @pnpm/core-loggers@1000.1.4
+- @pnpm/store-controller-types@1001.0.3
+
+## 1000.1.0
+
+### Minor Changes
+
+- e32b1a2: Added support for automatically syncing files of injected workspace packages after `pnpm run` [#9081](https://github.com/pnpm/pnpm/issues/9081). Use the `sync-injected-deps-after-scripts` setting to specify which scripts build the workspace package. This tells pnpm when syncing is needed. The setting should be defined in a `.npmrc` file at the root of the workspace. Example:
+
+  ```ini
+  sync-injected-deps-after-scripts[]=compile
+  ```
+
+### Patch Changes
+
+- @pnpm/core-loggers@1000.1.3
+- @pnpm/store-controller-types@1001.0.2
+
+## 1000.0.5
+
+### Patch Changes
+
+- @pnpm/core-loggers@1000.1.2
+- @pnpm/store-controller-types@1001.0.1
+
+## 1000.0.4
+
+### Patch Changes
+
+- Updated dependencies [dde650b]
+  - @pnpm/store-controller-types@1001.0.0
+
+## 1000.0.3
+
+### Patch Changes
+
+- @pnpm/core-loggers@1000.1.1
+- @pnpm/store-controller-types@1000.1.1
+
+## 1000.0.2
+
+### Patch Changes
+
+- Updated dependencies [516c4b3]
+  - @pnpm/core-loggers@1000.1.0
+
+## 1000.0.1
+
+### Patch Changes
+
+- Updated dependencies [6483b64]
+  - @pnpm/store-controller-types@1000.1.0
+
+## 6.0.9
+
+### Patch Changes
+
+- @pnpm/core-loggers@10.0.7
+- @pnpm/store-controller-types@18.1.6
+
+## 6.0.8
+
+### Patch Changes
+
+- @pnpm/core-loggers@10.0.6
+- @pnpm/store-controller-types@18.1.5
+
+## 6.0.7
+
+### Patch Changes
+
+- @pnpm/core-loggers@10.0.5
+- @pnpm/store-controller-types@18.1.4
+
+## 6.0.6
+
+### Patch Changes
+
+- @pnpm/core-loggers@10.0.4
+- @pnpm/store-controller-types@18.1.3
+
+## 6.0.5
+
+### Patch Changes
+
+- afe520d: Update rename-overwrite to v6.
+
+## 6.0.4
+
+### Patch Changes
+
+- @pnpm/store-controller-types@18.1.2
+- @pnpm/core-loggers@10.0.3
+
+## 6.0.3
+
+### Patch Changes
+
+- @pnpm/core-loggers@10.0.2
+- @pnpm/store-controller-types@18.1.1
+
+## 6.0.2
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+  - @pnpm/store-controller-types@18.1.0
+
+## 6.0.1
+
+### Patch Changes
+
+- @pnpm/core-loggers@10.0.1
+- @pnpm/store-controller-types@18.0.1
+
+## 6.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Patch Changes
+
+- Updated dependencies [43cdd87]
+  - @pnpm/store-controller-types@18.0.0
+  - @pnpm/core-loggers@10.0.0
+  - @pnpm/graceful-fs@4.0.0
+
+## 5.0.13
+
+### Patch Changes
+
+- e2e08b98f: Prefer hard links over reflinks on Windows as they perform better [#7564](https://github.com/pnpm/pnpm/pull/7564).
+- df9b16aa9: Don't fail in Windows CoW if the file already exists [#7554](https://github.com/pnpm/pnpm/issues/7554).
+- Updated dependencies [31054a63e]
+  - @pnpm/store-controller-types@17.2.0
+
+## 5.0.12
+
+### Patch Changes
+
+- 19be6b704: Fix copy-on-write on Windows Dev Drives [#7468](https://github.com/pnpm/pnpm/issues/7468).
+
+## 5.0.11
+
+### Patch Changes
+
+- 33313d2fd: Update rename-overwrite to v5.
+  - @pnpm/core-loggers@9.0.6
+  - @pnpm/store-controller-types@17.1.4
+
+## 5.0.10
+
+### Patch Changes
+
+- @pnpm/core-loggers@9.0.5
+- @pnpm/store-controller-types@17.1.3
+
+## 5.0.9
+
+### Patch Changes
+
+- 418866ac0: Bump version of `@reflink/reflink` that avoids empty cloned files when using Copy-on-Write on Windows Dev Drives. (#7186)
+
+## 5.0.8
+
+### Patch Changes
+
+- Updated dependencies [291607c5a]
+  - @pnpm/store-controller-types@17.1.2
+
+## 5.0.7
+
+### Patch Changes
+
+- Updated dependencies [7ea45afbe]
+  - @pnpm/store-controller-types@17.1.1
+
+## 5.0.6
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+  - @pnpm/store-controller-types@17.1.0
+  - @pnpm/core-loggers@9.0.4
+
+## 5.0.5
+
+### Patch Changes
+
+- 2ca756fd2: Don't use reflink on Windows [#7186](https://github.com/pnpm/pnpm/issues/7186).
+
+## 5.0.4
+
+### Patch Changes
+
+- 6dfbca86b: Update reflink.
+
+## 5.0.3
+
+### Patch Changes
+
+- e19de6a59: Fix file cloning to `node_modules` on Windows Dev Drives [#7186](https://github.com/pnpm/pnpm/issues/7186). This is a fix to a regression that was shipped with v8.9.0.
+
+## 5.0.2
+
+### Patch Changes
+
+- 6337dcdbc: Don't fail on reflink creation while importing a package, if the target file already exists.
+
+## 5.0.1
+
+### Patch Changes
+
+- ee6e0734e: Use reflinks instead of hard links by default on macOS and Windows Dev Drives [#5001](https://github.com/pnpm/pnpm/issues/5001).
+  - @pnpm/core-loggers@9.0.3
+  - @pnpm/store-controller-types@17.0.1
+
+## 5.0.0
+
+### Major Changes
+
+- 9caa33d53: `fromStore` replaced with `resolvedFrom`.
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+- Updated dependencies [9caa33d53]
+- Updated dependencies [9caa33d53]
+  - @pnpm/store-controller-types@17.0.0
+  - @pnpm/graceful-fs@3.2.0
+
+## 4.1.1
+
+### Patch Changes
+
+- cb6e4212c: Verify the existence of the package in node_modules, when disableRelinkFromStore is set to true.
+
+## 4.1.0
+
+### Minor Changes
+
+- 03cdccc6e: New option added: disableRelinkFromStore.
+
+### Patch Changes
+
+- Updated dependencies [03cdccc6e]
+  - @pnpm/store-controller-types@16.1.0
+
+## 4.0.1
+
+### Patch Changes
+
+- @pnpm/store-controller-types@16.0.1
+
+## 4.0.0
+
+### Major Changes
+
+- f2009d175: Import packages synchronously.
+
+### Patch Changes
+
+- Updated dependencies [494f87544]
+- Updated dependencies [083bbf590]
+  - @pnpm/store-controller-types@16.0.0
+  - @pnpm/graceful-fs@3.1.0
+
+## 3.0.2
+
+### Patch Changes
+
+- e958707b2: Improve performance by removing cryptographically generated id from temporary file names.
+  - @pnpm/core-loggers@9.0.2
+  - @pnpm/store-controller-types@15.0.2
+
+## 3.0.1
+
+### Patch Changes
+
+- @pnpm/core-loggers@9.0.1
+- @pnpm/store-controller-types@15.0.1
+
+## 3.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/store-controller-types@15.0.0
+  - @pnpm/core-loggers@9.0.0
+  - @pnpm/graceful-fs@3.0.0
+
+## 2.1.4
+
+### Patch Changes
+
+- 955874422: Retry copying file on EBUSY error [#6201](https://github.com/pnpm/pnpm/issues/6201).
+- Updated dependencies [955874422]
+  - @pnpm/graceful-fs@2.1.0
+
+## 2.1.3
+
+### Patch Changes
+
+- @pnpm/store-controller-types@14.3.1
+
+## 2.1.2
+
+### Patch Changes
+
+- 78d4cf1f7: Fix "cross-device link not permitted" error when `node-linker` is set to `hoisted` [#5992](https://github.com/pnpm/pnpm/issues/5992).
+
+## 2.1.1
+
+### Patch Changes
+
+- Updated dependencies [891a8d763]
+- Updated dependencies [c7b05cd9a]
+  - @pnpm/store-controller-types@14.3.0
+
+## 2.1.0
+
+### Minor Changes
+
+- 2458741fa: A new option added to package importer for keeping modules directory: `keepModulesDir`. When this is set to true, if a package already exist at the target location and it has a node_modules directory, then that node_modules directory is moved to the newly imported dependency. This is only needed when node-linker=hoisted is used.
+
+### Patch Changes
+
+- Updated dependencies [2458741fa]
+  - @pnpm/store-controller-types@14.2.0
+  - @pnpm/core-loggers@8.0.3
+
+## 2.0.2
+
+### Patch Changes
+
+- @pnpm/core-loggers@8.0.2
+- @pnpm/store-controller-types@14.1.5
+
+## 2.0.1
+
+### Patch Changes
+
+- @pnpm/core-loggers@8.0.1
+- @pnpm/store-controller-types@14.1.4
+
+## 2.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [f884689e0]
+  - @pnpm/core-loggers@8.0.0
+
+## 1.1.4
+
+### Patch Changes
+
+- Updated dependencies [3ae888c28]
+  - @pnpm/core-loggers@7.1.0
+
+## 1.1.3
+
+### Patch Changes
+
+- @pnpm/core-loggers@7.0.8
+- @pnpm/store-controller-types@14.1.3
+
+## 1.1.2
+
+### Patch Changes
+
+- @pnpm/core-loggers@7.0.7
+- @pnpm/store-controller-types@14.1.2
+
+## 1.1.1
+
+### Patch Changes
+
+- Updated dependencies [32915f0e4]
+  - @pnpm/store-controller-types@14.1.1
+
+## 1.1.0
+
+### Minor Changes
+
+- 65c4260de: Support a new hook for passing a custom package importer to the store controller.
+
+### Patch Changes
+
+- Updated dependencies [65c4260de]
+  - @pnpm/store-controller-types@14.1.0
+
+## 1.0.1
+
+### Patch Changes
+
+- @pnpm/core-loggers@7.0.6
+
+## 1.0.0
+
+### Major Changes
+
+- 7922d6314: Initial release.

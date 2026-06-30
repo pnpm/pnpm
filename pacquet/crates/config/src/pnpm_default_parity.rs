@@ -26,7 +26,8 @@
 //! keeps catching the next default that needs porting.
 
 use crate::{
-    CatalogMode, Config, LinkWorkspacePackages, NodeLinker, ResolutionMode, ScriptsPrependNodePath,
+    CatalogMode, Config, LinkWorkspacePackages, NodeLinker, NodePackageMapType, ResolutionMode,
+    ScriptsPrependNodePath,
 };
 use std::collections::BTreeSet;
 
@@ -66,7 +67,6 @@ const NOT_PORTED: &[&str] = &[
     "bail",
     "ci",
     "color",
-    "deploy-all-files",
     "disallow-workspace-cycles",
     "embed-readme",
     "enable-modules-dir",
@@ -74,7 +74,6 @@ const NOT_PORTED: &[&str] = &[
     "fail-if-no-match",
     "fetch-min-speed-ki-bps",
     "fetch-warn-timeout-ms",
-    "force-legacy-deploy",
     "git-branch-lockfile",
     "ignore-workspace-cycles",
     "ignore-workspace-root-check",
@@ -87,11 +86,9 @@ const NOT_PORTED: &[&str] = &[
     "reverse",
     "save-peer",
     "save-workspace-protocol",
-    "shared-workspace-lockfile",
     "shell-emulator",
     "skip-manifest-obfuscation",
     "sort",
-    "strict-dep-builds",
     "strict-store-pkg-content-check",
     "use-beta-cli",
     "verify-deps-before-run",
@@ -109,12 +106,15 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
         ("auto-install-peers", Bool(cfg.auto_install_peers)),
         ("block-exotic-subdeps", Bool(cfg.block_exotic_subdeps)),
         ("dangerously-allow-all-builds", Bool(cfg.dangerously_allow_all_builds)),
+        ("strict-dep-builds", Bool(cfg.strict_dep_builds)),
         ("dedupe-direct-deps", Bool(cfg.dedupe_direct_deps)),
         ("dedupe-injected-deps", Bool(cfg.dedupe_injected_deps)),
         ("dedupe-peer-dependents", Bool(cfg.dedupe_peer_dependents)),
         ("dedupe-peers", Bool(cfg.dedupe_peers)),
+        ("deploy-all-files", Bool(cfg.deploy_all_files)),
         ("enable-pre-post-scripts", Bool(cfg.enable_pre_post_scripts)),
         ("exclude-links-from-lockfile", Bool(cfg.exclude_links_from_lockfile)),
+        ("force-legacy-deploy", Bool(cfg.force_legacy_deploy)),
         ("hoist", Bool(cfg.hoist)),
         ("hoist-workspace-packages", Bool(cfg.hoist_workspace_packages)),
         ("inject-workspace-packages", Bool(cfg.inject_workspace_packages)),
@@ -128,6 +128,7 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
         ("registry-supports-time-field", Bool(cfg.registry_supports_time_field)),
         ("resolve-peers-from-workspace-root", Bool(cfg.resolve_peers_from_workspace_root)),
         ("side-effects-cache", Bool(cfg.side_effects_cache)),
+        ("shared-workspace-lockfile", Bool(cfg.shared_workspace_lockfile)),
         ("strict-peer-dependencies", Bool(cfg.strict_peer_dependencies)),
         ("symlink", Bool(cfg.symlink)),
         ("verify-store-integrity", Bool(cfg.verify_store_integrity)),
@@ -139,6 +140,8 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
             scripts_prepend_node_path_scalar(cfg.scripts_prepend_node_path),
         ),
         ("node-linker", node_linker_scalar(cfg.node_linker)),
+        ("node-experimental-package-map", Bool(cfg.node_experimental_package_map)),
+        ("node-package-map-type", node_package_map_type_scalar(cfg.node_package_map_type)),
         ("resolution-mode", resolution_mode_scalar(cfg.resolution_mode)),
         ("catalog-mode", catalog_mode_scalar(cfg.catalog_mode)),
         ("save-catalog-name", save_catalog_name_scalar(cfg.save_catalog_name.as_deref())),
@@ -173,6 +176,13 @@ fn node_linker_scalar(value: NodeLinker) -> Scalar {
         NodeLinker::Isolated => s("isolated"),
         NodeLinker::Hoisted => s("hoisted"),
         NodeLinker::Pnp => s("pnp"),
+    }
+}
+
+fn node_package_map_type_scalar(value: NodePackageMapType) -> Scalar {
+    match value {
+        NodePackageMapType::Standard => s("standard"),
+        NodePackageMapType::Loose => s("loose"),
     }
 }
 
@@ -219,7 +229,7 @@ fn scripts_prepend_node_path_scalar(value: ScriptsPrependNodePath) -> Scalar {
 /// config-reader source. Read live so the test tracks pnpm rather than
 /// a checked-in copy that could silently drift.
 fn read_pnpm_default_options() -> String {
-    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../../config/reader/src/index.ts");
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../../pnpm11/config/reader/src/index.ts");
     let src = std::fs::read_to_string(path).unwrap_or_else(|err| {
         panic!(
             "read pnpm config-reader source at {path}: {err}. \

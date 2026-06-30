@@ -14,11 +14,7 @@ enum Evidence {
 
 /// Build a JSON object for a single version with the trust-evidence
 /// shape the verifier reads (`_npmUser.approver`,
-/// `_npmUser.trustedPublisher`, or `dist.attestations.provenance`). A
-/// `TrustedPublisher` fixture includes both fields: per
-/// `get_trust_evidence`, the publisher flag only outranks plain
-/// provenance when the version also ships a provenance attestation. A
-/// `StagedPublish` fixture carries an `approver`, the strongest signal.
+/// `_npmUser.trustedPublisher`, or `dist.attestations.provenance`).
 fn version_json(name: &str, version: &str, evidence: Evidence) -> serde_json::Value {
     let mut dist = serde_json::json!({
         "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
@@ -72,8 +68,6 @@ fn now_at(date: &str) -> DateTime<Utc> {
     DateTime::parse_from_rfc3339(date).expect("parse RFC3339").with_timezone(&Utc)
 }
 
-/// First-ever version of a package: no earlier history, so no
-/// baseline to downgrade from → always passes.
 #[test]
 fn first_version_passes_with_no_history() {
     let meta = make_package("acme", &[("1.0.0", "2025-01-10T00:00:00.000Z", Evidence::None)]);
@@ -81,8 +75,6 @@ fn first_version_passes_with_no_history() {
         .expect("no prior history → no downgrade possible");
 }
 
-/// Earlier version had `trustedPublisher`, current version has
-/// only `provenance` → DOWNGRADE.
 #[test]
 fn trusted_publisher_to_provenance_downgrade_fails() {
     let meta = make_package(
@@ -97,9 +89,6 @@ fn trusted_publisher_to_provenance_downgrade_fails() {
     assert!(matches!(err, TrustViolation::TrustDowngrade { .. }), "got {err:?}");
 }
 
-/// Earlier version had `stagedPublish` (an approver), current version
-/// has only `trustedPublisher` → DOWNGRADE. Staged publish outranks a
-/// trusted publisher.
 #[test]
 fn staged_publish_to_trusted_publisher_downgrade_fails() {
     let meta = make_package(
@@ -114,8 +103,6 @@ fn staged_publish_to_trusted_publisher_downgrade_fails() {
     assert!(matches!(err, TrustViolation::TrustDowngrade { .. }), "got {err:?}");
 }
 
-/// Earlier version had `provenance`, current version has no
-/// evidence at all → DOWNGRADE.
 #[test]
 fn provenance_to_unsigned_downgrade_fails() {
     let meta = make_package(
@@ -130,10 +117,6 @@ fn provenance_to_unsigned_downgrade_fails() {
     assert!(matches!(err, TrustViolation::TrustDowngrade { .. }), "got {err:?}");
 }
 
-/// Earlier version had `trustedPublisher`, current version has no
-/// evidence at all → DOWNGRADE. Mirrors upstream's "downgrading from
-/// trustedPublisher to none" case, with a third unsigned version
-/// before the publisher version to exercise the full history walk.
 #[test]
 fn trusted_publisher_to_unsigned_downgrade_fails() {
     let meta = make_package(
@@ -149,9 +132,6 @@ fn trusted_publisher_to_unsigned_downgrade_fails() {
     assert!(matches!(err, TrustViolation::TrustDowngrade { .. }), "got {err:?}");
 }
 
-/// No version in the history carries any trust evidence, so there is
-/// no baseline to downgrade from → passes. Mirrors upstream's
-/// "succeeds when no versions have attestation".
 #[test]
 fn no_evidence_anywhere_passes() {
     let meta = make_package(
@@ -165,8 +145,6 @@ fn no_evidence_anywhere_passes() {
         .expect("no evidence anywhere → no downgrade possible");
 }
 
-/// Equal-rank evidence (provenance → provenance) is not a
-/// downgrade.
 #[test]
 fn equal_rank_passes() {
     let meta = make_package(
@@ -180,7 +158,6 @@ fn equal_rank_passes() {
         .expect("equal rank should pass");
 }
 
-/// Upgrade (provenance → trusted-publisher) is not a downgrade.
 #[test]
 fn rank_upgrade_passes() {
     let meta = make_package(
@@ -194,9 +171,6 @@ fn rank_upgrade_passes() {
         .expect("rank upgrade should pass");
 }
 
-/// Only later-published versions had stronger evidence: that
-/// can't downgrade an earlier version since the history walk
-/// excludes anything published on/after the target's date.
 #[test]
 fn later_publish_does_not_downgrade_earlier_version() {
     let meta = make_package(
@@ -210,10 +184,6 @@ fn later_publish_does_not_downgrade_earlier_version() {
         .expect("history walk excludes versions newer than the target");
 }
 
-/// Prerelease history is excluded when the current version is
-/// stable. Mirrors upstream's `semver.prerelease(version, true)`
-/// guard: a stable `1.1.0` doesn't get downgraded by a
-/// `1.1.0-alpha.1` that happened to ship with provenance.
 #[test]
 fn stable_version_ignores_prerelease_history() {
     let meta = make_package(
@@ -227,9 +197,6 @@ fn stable_version_ignores_prerelease_history() {
         .expect("prerelease history is excluded when target is stable");
 }
 
-/// Prerelease target inspects prerelease history (the same
-/// upstream guard, inverted: the target itself is a prerelease so
-/// the exclusion doesn't apply).
 #[test]
 fn prerelease_target_compares_against_prerelease_history() {
     let meta = make_package(
@@ -244,10 +211,6 @@ fn prerelease_target_compares_against_prerelease_history() {
     assert!(matches!(err, TrustViolation::TrustDowngrade { .. }), "got {err:?}");
 }
 
-/// `trust_policy_ignore_after_minutes` cuts the check off once a
-/// version is old enough. With `now` set 100 days after publish
-/// and the ignore-cutoff at 7 days (`10_080` minutes), the check
-/// skips even though prior history would have flagged a downgrade.
 #[test]
 fn ignore_after_skips_check_for_settled_versions() {
     let meta = make_package(
@@ -265,9 +228,6 @@ fn ignore_after_skips_check_for_settled_versions() {
     fail_if_trust_downgraded(&meta, "1.1.0", &opts).expect("settled-enough version skips check");
 }
 
-/// Recent versions still get checked when `ignore_after` is set
-/// but the target is younger than the cutoff. Same fixture as
-/// above with `now` close to the publish time.
 #[test]
 fn ignore_after_still_checks_fresh_versions() {
     let meta = make_package(
@@ -287,8 +247,6 @@ fn ignore_after_still_checks_fresh_versions() {
     assert!(matches!(err, TrustViolation::TrustDowngrade { .. }), "got {err:?}");
 }
 
-/// `trust_policy_exclude` opting a whole package out of the check
-/// short-circuits before the history walk.
 #[test]
 fn exclude_any_version_short_circuits_check() {
     let meta = make_package(
@@ -303,8 +261,6 @@ fn exclude_any_version_short_circuits_check() {
     fail_if_trust_downgraded(&meta, "1.1.0", &opts).expect("acme excluded → check short-circuits");
 }
 
-/// `trust_policy_exclude` opting one specific version out of the
-/// check covers just that version.
 #[test]
 fn exclude_exact_version_short_circuits_check() {
     let meta = make_package(
@@ -319,20 +275,10 @@ fn exclude_exact_version_short_circuits_check() {
     fail_if_trust_downgraded(&meta, "1.1.0", &opts)
         .expect("acme@1.1.0 excluded → check short-circuits");
 
-    // A different version of the same package is still checked.
     let err = fail_if_trust_downgraded(&meta, "1.0.0", &opts).err();
-    // 1.0.0 has trusted-publisher itself, so the check still passes
-    // even though it's not excluded — the exclude policy only
-    // matters when there'd otherwise be a downgrade. This test pins
-    // that the exclude is targeted, not blanket.
     assert!(err.is_none(), "1.0.0 has its own trusted-publisher → passes");
 }
 
-/// An excluded `name@version` short-circuits *before* the `time`
-/// lookup, so a packument with no `time` map still passes rather than
-/// surfacing `TrustCheckFailed`. Pins the ordering of the exclude
-/// check ahead of the time assertion. Mirrors upstream's "does not
-/// fail with `ERR_PNPM_MISSING_TIME` when package@version is excluded".
 #[test]
 fn exclude_exact_version_with_missing_time_does_not_fail() {
     let mut meta = make_package("acme", &[("1.0.0", "2025-01-01T00:00:00.000Z", Evidence::None)]);
@@ -345,9 +291,6 @@ fn exclude_exact_version_with_missing_time_does_not_fail() {
         .expect("excluded version short-circuits before the missing-time check");
 }
 
-/// Same as above, but the whole package name is excluded. Mirrors
-/// upstream's "does not fail with `ERR_PNPM_MISSING_TIME` when package
-/// name is excluded".
 #[test]
 fn exclude_package_name_with_missing_time_does_not_fail() {
     let mut meta = make_package(
@@ -366,13 +309,9 @@ fn exclude_package_name_with_missing_time_does_not_fail() {
         .expect("excluded package short-circuits before the missing-time check");
 }
 
-/// Missing `time` entry for the target version surfaces as
-/// `TrustCheckFailed`. Mirrors upstream's
-/// `Missing time for version X of Y` `PnpmError`.
 #[test]
 fn missing_time_surfaces_trust_check_failed() {
     let mut meta = make_package("acme", &[("1.0.0", "2025-01-10T00:00:00.000Z", Evidence::None)]);
-    // Drop the version's time entry.
     if let Some(time) = meta.time.as_mut() {
         time.clear();
     }
@@ -381,8 +320,6 @@ fn missing_time_surfaces_trust_check_failed() {
     assert!(matches!(err, TrustViolation::TrustCheckFailed { .. }), "got {err:?}");
 }
 
-/// A timestamp string that doesn't parse as RFC3339 also surfaces
-/// as `TrustCheckFailed`.
 #[test]
 fn unparsable_timestamp_surfaces_trust_check_failed() {
     let mut meta = make_package("acme", &[("1.0.0", "2025-01-10T00:00:00.000Z", Evidence::None)]);
@@ -411,9 +348,6 @@ fn prior_version_missing_time_does_not_mask_trust_history() {
             ("1.1.0", "2025-02-01T00:00:00.000Z", Evidence::None),
         ],
     );
-    // Drop the middle version's `time` entry so it has a manifest
-    // but no publish timestamp — the exact shape that previously
-    // tripped the early-return.
     if let Some(time) = meta.time.as_mut() {
         time.remove("1.0.1");
     }
@@ -456,9 +390,6 @@ mod get_trust_evidence {
         serde_json::from_value(version).expect("deserialize fixture PackageVersion")
     }
 
-    /// `_npmUser.trustedPublisher` without `dist.attestations.provenance`
-    /// is ignored — the publisher flag alone is metadata a staged
-    /// publish could mint, so it cannot stand in for the attestation.
     #[test]
     fn trusted_publisher_without_provenance_is_none() {
         let mut version = version_json("acme", "1.0.0", Evidence::None);
@@ -468,8 +399,6 @@ mod get_trust_evidence {
         assert!(get_trust_evidence(&parse(version)).is_none());
     }
 
-    /// `_npmUser.trustedPublisher` *with* provenance ranks as
-    /// `TrustedPublisher` (the strongest evidence).
     #[test]
     fn trusted_publisher_with_provenance_ranks_strongest() {
         let version = version_json("acme", "1.0.0", Evidence::TrustedPublisher);
@@ -479,16 +408,12 @@ mod get_trust_evidence {
         ));
     }
 
-    /// `_npmUser.approver` ranks as `StagedPublish`, the strongest
-    /// evidence.
     #[test]
     fn approver_ranks_as_staged_publish() {
         let version = version_json("acme", "1.0.0", Evidence::StagedPublish);
         assert!(matches!(get_trust_evidence(&parse(version)), Some(TrustEvidence::StagedPublish)));
     }
 
-    /// `_npmUser.approver` wins even when `trustedPublisher` and
-    /// provenance are also present — staged publish takes priority.
     #[test]
     fn approver_outranks_trusted_publisher() {
         let mut version = version_json("acme", "1.0.0", Evidence::TrustedPublisher);
@@ -497,22 +422,18 @@ mod get_trust_evidence {
         assert!(matches!(get_trust_evidence(&parse(version)), Some(TrustEvidence::StagedPublish)));
     }
 
-    /// `dist.attestations.provenance` alone ranks as `Provenance`.
     #[test]
     fn provenance_alone_ranks_as_provenance() {
         let version = version_json("acme", "1.0.0", Evidence::Provenance);
         assert!(matches!(get_trust_evidence(&parse(version)), Some(TrustEvidence::Provenance)));
     }
 
-    /// Neither field present → `None`.
     #[test]
     fn no_evidence_returns_none() {
         let version = version_json("acme", "1.0.0", Evidence::None);
         assert!(get_trust_evidence(&parse(version)).is_none());
     }
 
-    /// An `_npmUser` record without a `trustedPublisher` field is
-    /// ignored.
     #[test]
     fn npm_user_without_trusted_publisher_is_none() {
         let mut version = version_json("acme", "1.0.0", Evidence::None);

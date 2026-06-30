@@ -3,6 +3,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_config::Config;
 use pacquet_executor::{RunScript, ScriptsPrependNodePath, run_script};
+use pacquet_package_manager::{make_node_package_map_option, package_map_path_for_execution};
 use pacquet_package_manifest::{PackageManifest, PackageManifestError};
 use serde_json::Value;
 use std::{
@@ -120,7 +121,7 @@ impl RunArgs {
             }
             return Err(RunError::NoScript {
                 script: script_name.clone(),
-                hint: format!("Command \"{script_name}\" not found."),
+                hint: format!(r#"Command "{script_name}" not found."#),
             }
             .into());
         }
@@ -128,6 +129,13 @@ impl RunArgs {
         let mut extra_env = HashMap::new();
         if let Some(node_options) = &config.node_options {
             extra_env.insert("NODE_OPTIONS".to_string(), node_options.clone());
+        }
+        if let Some(package_map_path) = package_map_path_for_execution(config, dir) {
+            let node_options = extra_env.get("NODE_OPTIONS").map(String::as_str);
+            extra_env.insert(
+                "NODE_OPTIONS".to_string(),
+                make_node_package_map_option(&package_map_path, node_options),
+            );
         }
 
         let init_cwd: PathBuf = env::current_dir().unwrap_or_else(|_| dir.to_path_buf());
@@ -160,9 +168,9 @@ impl RunArgs {
         Ok(())
     }
 
-    /// Execute the subcommand for every project in the workspace, in
-    /// topological order. The recursive counterpart of [`Self::run`],
-    /// selected when the global `-r` / `--recursive` flag is set.
+    /// Execute the subcommand across the `--filter`-selected workspace
+    /// projects, in topological order. The recursive counterpart of
+    /// [`Self::run`], selected when the global `-r` / `--recursive` flag is set.
     pub fn run_recursive(&self, config: &Config, dir: &Path) -> miette::Result<()> {
         recursive::run_recursive(self, config, dir)
     }
@@ -171,7 +179,7 @@ impl RunArgs {
 /// Shared inputs for running a script, threaded through
 /// [`run_stages`] and [`run_stage`] so neither grows an unwieldy
 /// argument list. The submodule `recursive` builds a per-project
-/// [`RunContext`] and reuses `run_stages`, so the type and its
+/// [`RunContext`] and reuses [`run_stages`], so the type and its
 /// fields are visible up to the parent module.
 pub(super) struct RunContext<'a> {
     pub(super) manifest: &'a PackageManifest,
@@ -465,8 +473,9 @@ fn render_commands(commands: &[(&str, &str)]) -> String {
 }
 
 /// The lifecycle script names pnpm groups separately in the run listing.
-/// Mirrors `ALL_LIFECYCLE_SCRIPTS`
-/// (<https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/commands/src/run.ts#L314-L346>).
+/// Mirrors [`ALL_LIFECYCLE_SCRIPTS`][ts-ALL_LIFECYCLE_SCRIPTS].
+///
+/// [ts-ALL_LIFECYCLE_SCRIPTS]: https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/commands/src/run.ts#L314-L346
 const ALL_LIFECYCLE_SCRIPTS: &[&str] = &[
     "prepublish",
     "prepare",

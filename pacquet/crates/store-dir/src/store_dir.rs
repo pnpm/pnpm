@@ -14,7 +14,7 @@ pub type FileHash = digest::Output<Sha512>;
 ///
 /// The constant is part of the public contract pnpm exposes to every
 /// project's `.modules.yaml` (the recorded `storeDir` is the
-/// `STORE_VERSION`-suffixed path), so changing it requires moving in
+/// [`STORE_VERSION`]-suffixed path), so changing it requires moving in
 /// lockstep with pnpm — otherwise both tools start refusing each
 /// other's stores with `ERR_PNPM_UNEXPECTED_STORE`.
 pub const STORE_VERSION: &str = "v11";
@@ -33,13 +33,11 @@ pub const STORE_VERSION: &str = "v11";
 // `#[serde(from = "PathBuf", into = "PathBuf")]` routes both
 // directions through the `PathBuf` boundary so deserialization goes
 // back through [`From<PathBuf>`] and the [`STORE_VERSION`] suffix
-// invariant holds for persisted unsuffixed paths too — the previous
-// `#[serde(transparent)]` derive deserialised straight into the
-// `root` field and bypassed the auto-append.
+// invariant holds for persisted unsuffixed paths too.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(from = "PathBuf", into = "PathBuf")]
 pub struct StoreDir {
-    /// The `STORE_VERSION`-suffixed store path, equivalent to pnpm's
+    /// The [`STORE_VERSION`]-suffixed store path, equivalent to pnpm's
     /// [`storeDir`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L39-L42).
     /// Consumers should reach for the purpose-built helpers
     /// ([`Self::files`][], [`Self::tmp`], [`Self::links`],
@@ -204,38 +202,20 @@ impl StoreDir {
     /// On a fresh store, eagerly create `<store>/files/` plus every
     /// `files/XX/` shard (00..ff) and seed the shard cache with the
     /// bytes we just created, so CAFS writes never pay a
-    /// `create_dir_all` syscall in the hot path.
+    /// `create_dir_all` syscall in the hot path. On a warm store
+    /// (`files/` already a directory) this is a single stat that
+    /// returns `Ok(())` without seeding the cache, leaving the lazy
+    /// mkdir fallback inside [`StoreDir::write_cas_file`] responsible
+    /// for materializing each shard on first write — the same shape
+    /// pnpm uses via `writeFile.ts`'s `dirs` Set. Seeding the cache on
+    /// a warm store would be incorrect: a store created by an older
+    /// pacquet that only lazily materialized shards may be missing some
+    /// `files/XX/` directories, and a pre-seeded cache would let a later
+    /// `write_cas_file` skip `ensure_parent_dir` and then fail at `open`
+    /// with `NotFound`.
     ///
-    /// Gated by an `is_dir()` check on `files/` so we only run when the
-    /// store is truly fresh — spiritually matches pnpm's
-    /// [`createPackageStore`](https://github.com/pnpm/pnpm/blob/1819226b51/store/controller/src/storeController/index.ts)
-    /// guard (`if !fs.existsSync(path.join(storeDir, 'files')) initStoreDir(...)`),
-    /// but tightened from `exists()` to `is_dir()` so a non-directory
-    /// entry at `files/` doesn't let `init` silently noop past store
-    /// corruption. On a warm store this is a single stat and we
-    /// return `Ok(())` without seeding the cache: a store created by
-    /// an older pacquet that only lazily materialized shards might
-    /// not have every `files/XX/` on disk, and pre-seeding the cache
-    /// would let a later `write_cas_file` skip `ensure_parent_dir`
-    /// and then fail at `open` with `NotFound`. Leaving the cache
-    /// empty on warm store lets the lazy mkdir fallback inside
-    /// [`StoreDir::write_cas_file`] populate it per shard on first
-    /// write — the same shape pnpm uses via `writeFile.ts`'s `dirs`
-    /// Set.
-    ///
-    /// Errors from individual shard mkdirs are ignored when the error is
-    /// [`AlreadyExists`][std::io::ErrorKind::AlreadyExists] **and** the
-    /// existing entry is actually a directory (via
-    /// [`Path::is_dir`][std::path::Path::is_dir], which follows
-    /// symlinks — a symlink pointing at a real directory
-    /// is accepted, matching what ops folks sometimes do to spread a
-    /// store across disks). This matches pnpm's try/catch per shard
-    /// (parallel process racing the same layout is benign) but
-    /// tightens it slightly: a regular file, a non-directory symlink,
-    /// or a broken symlink squatting on the shard path is rejected
-    /// instead of being cached as ensured. Other errors propagate; the
-    /// caller degrades them to a warning and falls back to the per-
-    /// write lazy mkdir.
+    /// Other errors propagate; the caller degrades them to a warning
+    /// and falls back to the per-write lazy mkdir.
     pub fn init(&self) -> std::io::Result<()> {
         let files = self.files();
         // `is_dir()` rather than `exists()`: if `files` is present but

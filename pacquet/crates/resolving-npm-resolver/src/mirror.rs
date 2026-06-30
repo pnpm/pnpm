@@ -9,13 +9,13 @@
 //!   modified) to feed conditional GETs without touching the rest.
 //! - [`load_meta`] — read the headers + index records and reconstruct
 //!   a [`Package`] whose versions hydrate from byte spans on demand.
-//! - [`save_meta_indexed`] — atomic write via temp + rename so a torn
-//!   write never leaks a half-formed mirror to the next install.
+//! - [`save_meta_indexed`] / [`save_meta_ndjson`] — atomic write via
+//!   temp + rename so a torn write never leaks a half-formed mirror to
+//!   the next install.
 //!
 //! ## File layout
 //!
-//! Pacquet's own indexed format (this cache is no longer byte-shared
-//! with other package managers):
+//! Pacquet's indexed format:
 //!
 //! ```text
 //! pacquet-meta-v1 <headers_len> <index_len>\n
@@ -29,13 +29,15 @@
 //! loader rebases them so each version's slot can read its span
 //! directly. A warm pick therefore costs the two leading records plus
 //! one span read per version it actually hydrates — never the whole
-//! body. Files in the older two-line NDJSON shape read as cache
-//! misses and are rewritten in this format on the next 200.
+//! body.
+//!
+//! pnpm's two-line NDJSON format is also readable and is used when
+//! writing filtered full metadata.
 //!
 //! Plus the constants and name-encoding rules:
 //!
-//! - [`FULL_META_DIR`] / [`ABBREVIATED_META_DIR`] — directory slugs
-//!   pnpm and pacquet share.
+//! - [`FULL_META_DIR`] / [`FULL_FILTERED_META_DIR`] /
+//!   [`ABBREVIATED_META_DIR`] — directory slugs pnpm and pacquet share.
 //! - [`encode_pkg_name`] — mixed-case package names get a sha256 hex
 //!   suffix so case-insensitive filesystems (HFS+, NTFS by default)
 //!   can't collide two distinct package names onto one mirror file.
@@ -57,8 +59,10 @@ use std::{
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use pacquet_network::MetadataCacheScope;
 use pacquet_registry::{Package, PackageVersions};
 use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 
 /// Mirror directory for the **abbreviated** metadata cache. Mirrors
@@ -70,6 +74,11 @@ pub const ABBREVIATED_META_DIR: &str = "v11/metadata";
 /// upstream's
 /// [`FULL_META_DIR`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/core/constants/src/index.ts#L22).
 pub const FULL_META_DIR: &str = "v11/metadata-full";
+
+/// Mirror directory for the filtered full metadata cache. Mirrors
+/// upstream's
+/// [`FULL_FILTERED_META_DIR`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/core/constants/src/index.ts#L23).
+pub const FULL_FILTERED_META_DIR: &str = "v11/metadata-full-filtered";
 
 /// Cached headers persisted as the mirror's first line. The cached
 /// metadata fetcher feeds these into `If-None-Match` /
@@ -118,6 +127,32 @@ pub enum SaveMetaError {
     },
 }
 
+/// Mirror root for descriptor-scoped private metadata. A
+/// [`MetadataCacheScope::Private`] route stores its packuments under
+/// `<cache_dir>/v11/metadata-private/<descriptor-id>/<meta-suffix>/...`
+/// so one caller's private metadata never lands in the global mirror
+/// every other caller reads.
+const PRIVATE_META_ROOT: &str = "v11/metadata-private";
+
+/// The mirror directory `base_meta_dir` resolves to under `scope`.
+///
+/// * [`MetadataCacheScope::Public`] keeps the global directory unchanged
+///   (the CLI and public routes).
+/// * [`MetadataCacheScope::Private`] relocates it under
+///   `v11/metadata-private/<descriptor-id>/` keyed by the descriptor id,
+///   preserving the abbreviated/full/filtered split via the suffix after
+///   `v11/`.
+#[must_use]
+pub fn scoped_meta_dir(scope: &MetadataCacheScope, base_meta_dir: &str) -> String {
+    match scope {
+        MetadataCacheScope::Public => base_meta_dir.to_string(),
+        MetadataCacheScope::Private { descriptor_id } => {
+            let suffix = base_meta_dir.strip_prefix("v11/").unwrap_or(base_meta_dir);
+            format!("{PRIVATE_META_ROOT}/{descriptor_id}/{suffix}")
+        }
+    }
+}
+
 /// On-disk path of the JSONL document where pacquet (and pnpm)
 /// mirrors a package's registry metadata. Matches pnpm's
 /// [`getPkgMirrorPath`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L566-L568).
@@ -156,9 +191,7 @@ pub enum EncodeRegistryError {
 /// `host[:port]` form of a registry URL with `:` rewritten to `+` so
 /// the result is filesystem-safe. Mirrors the npm
 /// [`encode-registry`](https://github.com/zkochan/packages/tree/main/encode-registry)
-/// package pnpm consumes — `https://npm.example:8443/` becomes
-/// `npm.example+8443`, `https://registry.npmjs.org/` becomes
-/// `registry.npmjs.org`. Only an explicit port participates; the
+/// package pnpm consumes. Only an explicit port participates; the
 /// implicit-default port stays out of the slug so a registry served
 /// on its scheme default hashes consistently across configs.
 pub fn get_registry_name(registry: &str) -> Result<String, EncodeRegistryError> {
@@ -175,11 +208,11 @@ pub fn get_registry_name(registry: &str) -> Result<String, EncodeRegistryError> 
     })
 }
 
-/// Filesystem-safe form of a package name. A mixed-case name (e.g.
-/// `LRUCache`) gets a sha256 hex suffix so case-insensitive
-/// filesystems (HFS+, NTFS by default) can't collide it with a
-/// lowercase sibling. Mirrors pnpm's
+/// Filesystem-safe form of a package name. A mixed-case name gets a
+/// sha256 hex suffix so case-insensitive filesystems (HFS+, NTFS by
+/// default) can't collide it with a lowercase sibling. Mirrors pnpm's
 /// [`encodePkgName`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L555-L560).
+#[must_use]
 pub fn encode_pkg_name(pkg_name: &str) -> String {
     let lowered = pkg_name.to_lowercase();
     if pkg_name == lowered {
@@ -217,6 +250,12 @@ struct MirrorIndex {
 #[diagnostic(code(pacquet_resolving_npm_resolver::mirror::encode))]
 pub struct EncodeMetaError(#[error(source)] serde_json::Error);
 
+impl EncodeMetaError {
+    pub(crate) fn into_inner(self) -> serde_json::Error {
+        self.0
+    }
+}
+
 /// Atomically persist `meta` at `pkg_mirror` in the indexed format.
 ///
 /// Version fragments come from [`PackageVersions::fragments`] — for a
@@ -231,7 +270,7 @@ pub fn save_meta_indexed(
 ) -> Result<(), SaveMetaError> {
     let headers = serde_json::to_string(&MetaHeaders {
         etag: etag.map(str::to_string),
-        modified: meta.modified.clone(),
+        modified: meta_modified(meta),
     })
     .map_err(|error| SaveMetaError::Encode(EncodeMetaError(error)))?;
 
@@ -267,20 +306,110 @@ pub fn save_meta_indexed(
     save_meta(pkg_mirror, &bytes)
 }
 
+/// Atomically persist `meta` at `pkg_mirror` in pnpm's two-line
+/// NDJSON mirror format.
+pub fn save_meta_ndjson(
+    pkg_mirror: &Path,
+    meta: &Package,
+    etag: Option<&str>,
+) -> Result<(), SaveMetaError> {
+    let headers = serde_json::to_vec(&MetaHeaders {
+        etag: etag.map(str::to_string),
+        modified: meta_modified(meta),
+    })
+    .map_err(|error| SaveMetaError::Encode(EncodeMetaError(error)))?;
+    let mut body_meta = meta.clone();
+    body_meta.etag = None;
+    let body = serde_json::to_vec(&body_meta)
+        .map_err(|error| SaveMetaError::Encode(EncodeMetaError(error)))?;
+
+    let mut bytes = Vec::with_capacity(headers.len() + 1 + body.len());
+    bytes.extend_from_slice(&headers);
+    bytes.push(b'\n');
+    bytes.extend_from_slice(&body);
+    save_meta(pkg_mirror, &bytes)
+}
+
+/// Strip full packuments down to the fields pnpm keeps when
+/// `filterMetadata` is enabled.
+pub fn clear_meta(meta: &Package) -> Result<Package, EncodeMetaError> {
+    const VERSION_KEYS: &[&str] = &[
+        "name",
+        "version",
+        "bin",
+        "directories",
+        "devDependencies",
+        "optionalDependencies",
+        "dependencies",
+        "peerDependencies",
+        "dist",
+        "engines",
+        "peerDependenciesMeta",
+        "cpu",
+        "os",
+        "libc",
+        "deprecated",
+        "bundleDependencies",
+        "bundledDependencies",
+        "hasInstallScript",
+        "_npmUser",
+    ];
+
+    let mut versions = Map::new();
+    for (version, json) in meta.versions.fragments() {
+        let info: Value = serde_json::from_str(&json).map_err(EncodeMetaError)?;
+        let Value::Object(info) = info else {
+            continue;
+        };
+        let mut filtered = Map::new();
+        for key in VERSION_KEYS {
+            if let Some(value) = info.get(*key) {
+                filtered.insert((*key).to_string(), value.clone());
+            }
+        }
+        versions.insert(version.clone(), Value::Object(filtered));
+    }
+
+    let mut pkg = Map::new();
+    pkg.insert("name".to_string(), Value::String(meta.name.clone()));
+    pkg.insert(
+        "dist-tags".to_string(),
+        serde_json::to_value(&meta.dist_tags).map_err(EncodeMetaError)?,
+    );
+    pkg.insert("versions".to_string(), Value::Object(versions));
+    if let Some(time) = meta.time.as_ref() {
+        pkg.insert("time".to_string(), serde_json::to_value(time).map_err(EncodeMetaError)?);
+    }
+    if let Some(modified) = meta.modified.as_ref() {
+        pkg.insert("modified".to_string(), Value::String(modified.clone()));
+    }
+
+    let mut cleared: Package =
+        serde_json::from_value(Value::Object(pkg)).map_err(EncodeMetaError)?;
+    cleared.etag.clone_from(&meta.etag);
+    Ok(cleared)
+}
+
+fn meta_modified(meta: &Package) -> Option<String> {
+    meta.modified.clone().or_else(|| {
+        meta.time
+            .as_ref()
+            .and_then(|time| time.get("modified"))
+            .and_then(Value::as_str)
+            .map(str::to_string)
+    })
+}
+
 /// Parse the `pacquet-meta-v1 <headers_len> <index_len>` line.
-/// `None` for anything else — including the previous NDJSON format,
-/// which thereby reads as a cache miss and gets rewritten on the next
-/// 200 response.
+/// `None` for anything else, including pnpm's NDJSON format.
 fn parse_mirror_magic(line: &str) -> Option<(usize, usize)> {
     let rest = line.strip_prefix(MIRROR_MAGIC)?.strip_prefix(' ')?;
     let (headers_len, index_len) = rest.split_once(' ')?;
     Some((headers_len.parse().ok()?, index_len.parse().ok()?))
 }
 
-/// Read the headers record off an indexed mirror without touching the
-/// index or fragment sections. `None` for anything unreadable —
-/// including the previous NDJSON format, which thereby reads as a
-/// cache miss.
+/// Read the headers record without touching the full metadata body.
+/// `None` for anything unreadable.
 fn read_mirror_headers(file: &mut File) -> Option<MetaHeaders> {
     // Magic + two decimal lengths fit well inside this; the headers
     // record is ~100 bytes of etag + timestamp.
@@ -296,7 +425,9 @@ fn read_mirror_headers(file: &mut File) -> Option<MetaHeaders> {
     let chunk = &buf[..filled];
     let newline = chunk.iter().position(|&byte| byte == b'\n')?;
     let line = std::str::from_utf8(&chunk[..newline]).ok()?;
-    let (headers_len, _) = parse_mirror_magic(line)?;
+    let Some((headers_len, _)) = parse_mirror_magic(line) else {
+        return serde_json::from_str(line).ok();
+    };
     // The headers record is ~100 bytes of etag + timestamp. Bound the
     // declared length before allocating from it so a corrupted or
     // hostile mirror can't trigger an arbitrarily large allocation.
@@ -328,6 +459,7 @@ fn read_mirror_headers(file: &mut File) -> Option<MetaHeaders> {
 /// headers, identical to pnpm's
 /// [`loadMetaHeaders`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L627-L644)
 /// catch-and-return-null.
+#[must_use]
 pub fn load_meta_headers(pkg_mirror: &Path) -> Option<MetaHeaders> {
     let mut file = File::open(pkg_mirror).ok()?;
     read_mirror_headers(&mut file)
@@ -341,11 +473,18 @@ pub fn load_meta_headers(pkg_mirror: &Path) -> Option<MetaHeaders> {
 /// catches any error from `readFile` / `JSON.parse` and returns
 /// `null`; we match that contract because the caller's response to
 /// "couldn't read" is the same as "no cache".
+#[must_use]
 pub fn load_meta(pkg_mirror: &Path) -> Option<Package> {
     let contents = fs::read(pkg_mirror).ok()?;
     let newline = contents.iter().position(|&byte| byte == b'\n')?;
     let line = std::str::from_utf8(&contents[..newline]).ok()?;
-    let (headers_len, index_len) = parse_mirror_magic(line)?;
+    let Some((headers_len, index_len)) = parse_mirror_magic(line) else {
+        let headers: MetaHeaders = serde_json::from_slice(&contents[..newline]).ok()?;
+        let mut meta: Package = serde_json::from_slice(&contents[newline + 1..]).ok()?;
+        meta.etag = headers.etag;
+        meta.modified = meta.modified.or(headers.modified);
+        return Some(meta);
+    };
     let headers_start = newline + 1;
     let index_start = headers_start.checked_add(headers_len)?;
     let fragment_base = index_start.checked_add(index_len)?;
@@ -451,7 +590,7 @@ pub fn save_meta(pkg_mirror: &Path, contents: &[u8]) -> Result<(), SaveMetaError
 }
 
 /// Per-process atomic counter used to disambiguate concurrent
-/// `save_meta` calls writing to sibling temp paths under the same
+/// [`save_meta`] calls writing to sibling temp paths under the same
 /// mirror directory. Pid + counter is enough — pnpm's pathTemp uses
 /// the same shape (`<pid>.<counter>` suffix) for the same reason.
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);

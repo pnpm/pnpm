@@ -66,7 +66,6 @@ fn lifecycle_emits_script_stdio_and_exit_in_order() {
     let captured = EVENTS.lock().expect("lock").clone();
     dbg!(&captured);
 
-    // Sequence: Script (postinstall) → some Stdio events → Exit (0).
     let first = captured.first().expect("at least one event");
     let LogEvent::Lifecycle(first) = first else {
         panic!("first event must be Lifecycle, got {first:?}");
@@ -120,13 +119,6 @@ fn lifecycle_emits_script_stdio_and_exit_in_order() {
     );
 }
 
-/// `RunPostinstallHooks.optional` is stamped into both the `Script`
-/// and `Exit` `pnpm:lifecycle` events, matching upstream's
-/// `lifecycleLogger.debug({ optional, … })` shape at
-/// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/exec/lifecycle/src/runLifecycleHook.ts#L102>
-/// and `:165`. The two-bit truth on the wire lets the default
-/// reporter dispatch (e.g. quieting optional-dep noise) the same
-/// way it does against pnpm.
 #[cfg(unix)]
 #[test]
 fn lifecycle_events_carry_optional_flag() {
@@ -198,9 +190,6 @@ fn lifecycle_events_carry_optional_flag() {
     assert!(exit_optional, "Exit event must carry optional=true");
 }
 
-/// Failing scripts emit a Script event, the captured stdio, and an Exit
-/// event with the resolved non-zero exit code, then return a
-/// [`LifecycleScriptError::ScriptFailed`].
 #[test]
 fn lifecycle_emits_exit_with_nonzero_code_on_failure() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
@@ -258,9 +247,6 @@ fn lifecycle_emits_exit_with_nonzero_code_on_failure() {
     );
 }
 
-/// `SilentReporter` works as the production no-op. Same script, but no
-/// recording — proves the function compiles and runs under the
-/// production sink without touching the wire.
 #[test]
 fn lifecycle_runs_under_silent_reporter() {
     let dir = tempdir().expect("create temp dir");
@@ -296,15 +282,10 @@ fn lifecycle_runs_under_silent_reporter() {
     assert!(ran, "postinstall script should report executed: ran={ran}");
 }
 
-/// Missing `package.json` is treated as "no scripts to run" — mirrors
-/// upstream `safeReadPackageJsonFromDir` returning `null` on `ENOENT`
-/// and `runPostinstallHooks` returning `false` for `null` packages
-/// (`https://github.com/pnpm/pnpm/blob/80037699fb/exec/lifecycle/src/index.ts#L22-L23`).
 #[test]
 fn missing_manifest_returns_false() {
     let dir = tempdir().expect("create temp dir");
     let pkg_root = dir.path();
-    // No package.json written.
 
     let extra_env: HashMap<String, String> = HashMap::new();
     let extra_bin_paths: Vec<std::path::PathBuf> = vec![];
@@ -330,34 +311,47 @@ fn missing_manifest_returns_false() {
     assert!(!ran, "missing manifest must report no scripts ran: ran={ran}");
 }
 
-/// End-to-end check that the spawned child sees `npm_lifecycle_event`,
-/// `npm_lifecycle_script`, `INIT_CWD`, `npm_package_name`, and
-/// `npm_package_version`, and does NOT see leaked `npm_config_*` keys
-/// from this process's env. Adapts the upstream test at
-/// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/exec/lifecycle/test/index.ts#L65-L77>
-/// to a file-dump model so we don't need an IPC fixture.
-///
 /// Unix-only: relies on `printf` and `$VAR` expansion, which `cmd`
 /// (the Windows default per item `#4`) doesn't speak. Env stamping
 /// itself is platform-agnostic and covered by the unit tests in
 /// [`crate::make_env`].
 #[cfg(unix)]
 #[test]
-fn child_sees_stamped_npm_package_and_no_leaked_npm_config() {
-    /// RAII guard that removes a process env var on drop, so an
-    /// assertion failure can't leak the seed into sibling tests.
-    /// Stdlib `set_var`/`remove_var` are `unsafe` in current Rust;
-    /// SAFETY: nextest runs each test in its own thread, so the
-    /// only risk is sibling tests calling `env::vars()`
-    /// concurrently — the guard's `Drop` still runs on panic.
-    struct EnvGuard(&'static str);
-    impl Drop for EnvGuard {
-        fn drop(&mut self) {
-            unsafe { std::env::remove_var(self.0) }
+fn child_sees_stamped_npm_package_and_preserves_user_config() {
+    /// RAII guard that restores a process env var to its pre-test
+    /// value on drop, so an assertion failure can't leak the seed
+    /// into sibling tests — nor clobber a value the env already had.
+    struct EnvGuard {
+        key: &'static str,
+        prev: Option<std::ffi::OsString>,
+    }
+    impl EnvGuard {
+        fn new(key: &'static str) -> Self {
+            EnvGuard { key, prev: std::env::var_os(key) }
         }
     }
-    let _guard = EnvGuard("npm_config_should_be_stripped");
-    unsafe { std::env::set_var("npm_config_should_be_stripped", "leak") };
+    impl Drop for EnvGuard {
+        fn drop(&mut self) {
+            // SAFETY: nextest runs each test in its own thread, so the
+            // only risk is sibling tests calling `env::vars()`
+            // concurrently — this `Drop` still runs on panic.
+            unsafe {
+                match self.prev.take() {
+                    Some(value) => std::env::set_var(self.key, value),
+                    None => std::env::remove_var(self.key),
+                }
+            }
+        }
+    }
+    let _user_guard = EnvGuard::new("npm_config_platform_arch");
+    let _auth_guard = EnvGuard::new("npm_config__authtoken");
+    // SAFETY: nextest runs each test in its own thread, so the only
+    // risk is sibling tests calling `env::vars()` concurrently — the
+    // guards' `Drop` removes the vars even on panic.
+    unsafe {
+        std::env::set_var("npm_config_platform_arch", "x64");
+        std::env::set_var("npm_config__authtoken", "should-not-leak");
+    }
 
     let dir = tempdir().expect("create temp dir");
     let pkg_root = dir.path();
@@ -368,11 +362,10 @@ fn child_sees_stamped_npm_package_and_no_leaked_npm_config() {
         "version": "9.9.9",
         "config": { "myKey": "myValue" },
         "scripts": {
-            // Write a handful of env vars to the dump file; using
-            // printf so the line endings are deterministic across
-            // shells.
+            // printf, not echo, so the line endings are deterministic
+            // across shells.
             "postinstall": format!(
-                "printf 'stage=%s\\nscript=%s\\nname=%s\\nver=%s\\nconfig=%s\\ninit_cwd=%s\\nleak=%s\\n' \"$npm_lifecycle_event\" \"$npm_lifecycle_script\" \"$npm_package_name\" \"$npm_package_version\" \"$npm_package_config_myKey\" \"$INIT_CWD\" \"$npm_config_should_be_stripped\" > {}",
+                r#"printf 'stage=%s\nscript=%s\nname=%s\nver=%s\nconfig=%s\ninit_cwd=%s\nuser=%s\nauth=%s\n' "$npm_lifecycle_event" "$npm_lifecycle_script" "$npm_package_name" "$npm_package_version" "$npm_package_config_myKey" "$INIT_CWD" "$npm_config_platform_arch" "$npm_config__authtoken" > {}"#,
                 dump_path.display(),
             ),
         },
@@ -411,22 +404,16 @@ fn child_sees_stamped_npm_package_and_no_leaked_npm_config() {
         ("ver", "9.9.9"),
         ("config", "myValue"),
         ("init_cwd", expected_init_cwd.as_ref()),
-        ("leak", ""), // stripped — child sees empty string
+        ("user", "x64"), // user-defined npm_config_* is preserved
+        ("auth", ""),    // auth npm_config_* is stripped — child sees empty string
     ];
     for (k, v) in expected_pairs {
         let line = format!("{k}={v}\n");
         assert!(dump.contains(&line), "missing line {line:?} in dump:\n{dump}");
     }
-    // `script=` line contains the actual script body; just check the
-    // key is there with the printf prefix.
     assert!(dump.contains("script=printf"), "missing script= line in dump:\n{dump}");
 }
 
-/// Malformed `package.json` surfaces as a `ReadManifest` error wrapping
-/// `PackageManifestError::Serialization`. Mirrors upstream which throws
-/// `BAD_PACKAGE_JSON` from `readPackageJson` and lets it propagate
-/// through `safeReadPackageJsonFromDir` (only `ENOENT` is swallowed) at
-/// `https://github.com/pnpm/pnpm/blob/80037699fb/pkg-manifest/reader/src/index.ts#L20-L46`.
 #[test]
 fn malformed_manifest_propagates_error() {
     let dir = tempdir().expect("create temp dir");

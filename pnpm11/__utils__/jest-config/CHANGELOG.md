@@ -1,0 +1,313 @@
+# @pnpm/jest-config
+
+## 1100.0.18
+
+### Patch Changes
+
+- @pnpm/testing.registry-mock@1100.0.7
+- @pnpm/worker@1100.2.2
+
+## 1100.0.17
+
+### Patch Changes
+
+- @pnpm/worker@1100.2.1
+
+## 1100.0.16
+
+### Patch Changes
+
+- Updated dependencies [61810aa]
+- Updated dependencies [a31faa7]
+  - @pnpm/worker@1100.2.0
+  - @pnpm/testing.registry-mock@1100.0.6
+
+## 1100.0.15
+
+### Patch Changes
+
+- @pnpm/worker@1100.1.11
+- @pnpm/testing.registry-mock@1100.0.5
+
+## 1100.0.14
+
+### Patch Changes
+
+- Updated dependencies [089484a]
+  - @pnpm/worker@1100.1.10
+  - @pnpm/testing.registry-mock@1100.0.4
+
+## 1100.0.13
+
+### Patch Changes
+
+- Updated dependencies [3b76b8e]
+  - @pnpm/worker@1100.1.9
+  - @pnpm/testing.registry-mock@1100.0.3
+
+## 1100.0.12
+
+### Patch Changes
+
+- @pnpm/testing.registry-mock@1100.0.2
+
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [aa6149d]
+  - @pnpm/worker@1100.1.8
+  - @pnpm/testing.registry-mock@1100.0.1
+
+## 1100.0.10
+
+### Patch Changes
+
+- @pnpm/worker@1100.1.7
+
+## 1100.0.9
+
+### Patch Changes
+
+- @pnpm/worker@1100.1.6
+
+## 1100.0.8
+
+### Patch Changes
+
+- @pnpm/worker@1100.1.5
+
+## 1100.0.7
+
+### Patch Changes
+
+- @pnpm/worker@1100.1.4
+
+## 1100.0.6
+
+### Patch Changes
+
+- @pnpm/worker@1100.1.3
+
+## 1100.0.5
+
+### Patch Changes
+
+- @pnpm/worker@1100.1.2
+
+## 1100.0.4
+
+### Patch Changes
+
+- @pnpm/worker@1100.1.1
+
+## 1100.0.3
+
+### Patch Changes
+
+- Updated dependencies [421317c]
+  - @pnpm/worker@1100.1.0
+
+## 1100.0.2
+
+### Patch Changes
+
+- @pnpm/worker@1100.0.2
+
+## 1100.0.1
+
+### Patch Changes
+
+- @pnpm/worker@1100.0.1
+
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+
+### Patch Changes
+
+- Updated dependencies [e2e0a32]
+- Updated dependencies [7cec347]
+- Updated dependencies [491a84f]
+- Updated dependencies [50fbeca]
+- Updated dependencies [3bf5e21]
+- Updated dependencies [ee9fe58]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [56a59df]
+- Updated dependencies [780af09]
+- Updated dependencies [4893853]
+- Updated dependencies [b7f0f21]
+- Updated dependencies [98a0410]
+  - @pnpm/worker@1001.0.0
+
+## 1000.0.5
+
+### Patch Changes
+
+- Updated dependencies [8993f68]
+  - @pnpm/worker@1000.3.0
+
+## 1000.0.4
+
+### Patch Changes
+
+- Updated dependencies [06d2160]
+  - @pnpm/worker@1000.2.0
+
+## 1000.0.3
+
+### Patch Changes
+
+- @pnpm/worker@1000.1.14
+
+## 1000.0.2
+
+### Patch Changes
+
+- @pnpm/worker@1000.1.13
+
+## 1000.0.1
+
+### Patch Changes
+
+- @pnpm/worker@1000.1.12
+
+## 1.0.22
+
+### Patch Changes
+
+- @pnpm/worker@1000.1.11
+
+## 1.0.21
+
+### Patch Changes
+
+- @pnpm/worker@1000.1.10
+
+## 1.0.20
+
+### Patch Changes
+
+- Updated dependencies [589ac1f]
+  - @pnpm/worker@1000.1.9
+
+## 1.0.19
+
+### Patch Changes
+
+- @pnpm/worker@1000.1.8
+
+## 1.0.18
+
+### Patch Changes
+
+- @pnpm/worker@1000.1.7
+
+## 1.0.17
+
+### Patch Changes
+
+- Updated dependencies [09cf46f]
+  - @pnpm/worker@1000.1.6
+
+## 1.0.16
+
+### Patch Changes
+
+- @pnpm/worker@1000.1.5
+
+## 1.0.15
+
+### Patch Changes
+
+- @pnpm/worker@1000.1.4
+
+## 1.0.14
+
+### Patch Changes
+
+- @pnpm/worker@1000.1.3
+
+## 1.0.13
+
+### Patch Changes
+
+- @pnpm/worker@1000.1.2
+
+## 1.0.12
+
+### Patch Changes
+
+- @pnpm/worker@1000.1.1
+
+## 1.0.11
+
+### Patch Changes
+
+- Updated dependencies [2e05789]
+  - @pnpm/worker@1000.1.0
+
+## 1.0.10
+
+### Patch Changes
+
+- @pnpm/worker@1000.0.8
+
+## 1.0.9
+
+### Patch Changes
+
+- @pnpm/worker@1000.0.7
+
+## 1.0.8
+
+### Patch Changes
+
+- @pnpm/worker@1000.0.6
+
+## 1.0.7
+
+### Patch Changes
+
+- @pnpm/worker@1000.0.5
+
+## 1.0.6
+
+### Patch Changes
+
+- @pnpm/worker@1000.0.4
+
+## 1.0.5
+
+### Patch Changes
+
+- @pnpm/worker@1000.0.3
+
+## 1.0.4
+
+### Patch Changes
+
+- Updated dependencies [7272992]
+  - @pnpm/worker@1000.0.2
+
+## 1.0.3
+
+### Patch Changes
+
+- @pnpm/worker@1000.0.1
+
+## 1.0.2
+
+### Patch Changes
+
+- Updated dependencies [099e6af]
+  - @pnpm/worker@2.0.0
+
+## 1.0.1
+
+### Patch Changes
+
+- Updated dependencies [222d10a]
+  - @pnpm/worker@1.0.13

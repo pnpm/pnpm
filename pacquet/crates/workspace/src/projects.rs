@@ -6,19 +6,6 @@
 //! and
 //! [`findPackages`](https://github.com/pnpm/pnpm/blob/94240bc046/workspace/projects-reader/src/findPackages.ts).
 //!
-//! Behavior preserved against upstream:
-//!
-//! - Glob-walk the workspace root using the user's `packages:` patterns
-//!   (defaulting to `['.', '**']` when omitted, matching tinyglobby's
-//!   call site upstream).
-//! - Always include the workspace root itself, per
-//!   <https://github.com/pnpm/pnpm/issues/1986>.
-//! - Filter `**/node_modules/**` and `**/bower_components/**` so a
-//!   pre-existing install doesn't surface synthetic projects.
-//! - Dedupe matches (a path can satisfy multiple patterns) and sort
-//!   lexicographically by `rootDir`, matching upstream's
-//!   `lexCompare(path.dirname(path1), path.dirname(path2))`.
-//!
 //! Out of scope (tracked as upstream parity follow-ups):
 //!
 //! - `engines` / `os` / `cpu` installability filtering. Issue [#431]
@@ -61,15 +48,17 @@ pub struct Project {
 
 /// Options for [`find_workspace_projects`].
 ///
-/// Field names mirror upstream's `FindWorkspaceProjectsOpts` so a port
+/// Field names mirror upstream's [`FindWorkspaceProjectsOpts`][ts-FindWorkspaceProjectsOpts] so a port
 /// of any individual install entry point doesn't have to translate
 /// option names.
+///
+/// [ts-FindWorkspaceProjectsOpts]: https://github.com/pnpm/pnpm/blob/94240bc046/workspace/projects-reader/src/index.ts#L11-L24
 #[derive(Debug, Default, Clone)]
 pub struct FindWorkspaceProjectsOpts {
-    /// `packages:` from `pnpm-workspace.yaml`. When `None`, upstream
-    /// falls back to `['.', '**']`. Pacquet mirrors that default so a
-    /// workspace whose manifest only carries settings still enumerates
-    /// projects.
+    /// Package discovery patterns. When `None`, this lower-level
+    /// `findPackages` port falls back to `['.', '**']`. Callers
+    /// enumerating a real workspace manifest should pass
+    /// [`crate::workspace_package_patterns`] instead.
     pub patterns: Option<Vec<String>>,
 }
 
@@ -200,10 +189,6 @@ pub fn find_workspace_projects_no_check(
         }
     }
 
-    // Upstream's `findPackages` always includes the workspace root,
-    // even when no `packages:` pattern matches it
-    // (https://github.com/pnpm/pnpm/issues/1986). Mirror that by
-    // unconditionally adding the root's manifest if present.
     let root_manifest = workspace_root.join("package.json");
     if root_manifest.is_file() {
         manifest_paths.insert(root_manifest);

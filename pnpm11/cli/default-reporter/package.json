@@ -1,0 +1,81 @@
+{
+  "name": "@pnpm/cli.default-reporter",
+  "version": "1100.3.3",
+  "description": "The default reporter of pnpm",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "pnpm-reporter"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm11/cli/default-reporter",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpm11/cli/default-reporter#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map",
+    "bin"
+  ],
+  "bin": {
+    "pnpm-render": "bin/pnpm-render.mjs"
+  },
+  "scripts": {
+    "start": "tsgo --watch",
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "pn compile && pn .test",
+    "prepublishOnly": "tsgo --build",
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+  },
+  "dependencies": {
+    "@pnpm/cli.meta": "workspace:*",
+    "@pnpm/config.reader": "workspace:*",
+    "@pnpm/core-loggers": "workspace:*",
+    "@pnpm/deps.inspection.peers-issues-renderer": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/installing.dedupe.issues-renderer": "workspace:*",
+    "@pnpm/installing.dedupe.types": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "@pnpm/util.lex-comparator": "catalog:",
+    "boxen": "catalog:",
+    "chalk": "catalog:",
+    "cli-truncate": "catalog:",
+    "normalize-path": "catalog:",
+    "pretty-bytes": "catalog:",
+    "pretty-ms": "catalog:",
+    "ramda": "catalog:",
+    "rxjs": "catalog:",
+    "semver": "catalog:",
+    "stacktracey": "catalog:",
+    "string-length": "catalog:"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
+  "devDependencies": {
+    "@jest/globals": "catalog:",
+    "@pnpm/cli.default-reporter": "workspace:*",
+    "@pnpm/logger": "workspace:*",
+    "@types/normalize-path": "catalog:",
+    "@types/ramda": "catalog:",
+    "@types/semver": "catalog:",
+    "ghooks": "catalog:",
+    "load-json-file": "catalog:",
+    "normalize-newline": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

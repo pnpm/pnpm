@@ -10,17 +10,22 @@
 //!
 //! Ports the routing piece of upstream's
 //! [`createNpmResolutionVerifier.ts`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts#L118-L139)
-//! plus the `BUILTIN_NAMED_REGISTRIES` constant from
+//! plus the [`BUILTIN_NAMED_REGISTRIES`][ts-BUILTIN_NAMED_REGISTRIES] constant from
 //! [`parseBareSpecifier.ts`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/parseBareSpecifier.ts#L87-L89).
+//!
+//! [ts-BUILTIN_NAMED_REGISTRIES]: https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/parseBareSpecifier.ts#L87-L89
 
 use std::collections::HashMap;
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+pub use pacquet_lockfile::pick_registry_for_package;
 use reqwest::Url;
 
 /// Built-in named-registry aliases the resolver recognizes
-/// out of the box. Mirrors upstream's `BUILTIN_NAMED_REGISTRIES`.
+/// out of the box. Mirrors upstream's [`BUILTIN_NAMED_REGISTRIES`][ts-BUILTIN_NAMED_REGISTRIES].
+///
+/// [ts-BUILTIN_NAMED_REGISTRIES]: https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/parseBareSpecifier.ts#L87-L89
 pub const BUILTIN_NAMED_REGISTRIES: &[(&str, &str)] = &[("gh", "https://npm.pkg.github.com/")];
 
 /// Failure from [`merge_named_registries`]. Mirrors upstream's
@@ -81,16 +86,12 @@ fn is_valid_http_url(url: &str) -> bool {
 /// Build the sorted-by-length list of registry URL prefixes the
 /// verifier matches a tarball URL against.
 ///
-/// - Merges [`BUILTIN_NAMED_REGISTRIES`] with the user-supplied
-///   `named_registries` (later wins on the same key — matches upstream's
-///   spread semantics).
-/// - Each prefix gets a trailing slash so a tarball URL under
-///   `https://npm.pkg.github.com/@scope/pkg/-/pkg-1.0.0.tgz` matches
-///   `https://npm.pkg.github.com/` but a sibling URL under
-///   `https://npm.pkg.github.com-evil/...` does not.
-/// - Output is sorted longest-first so two registries sharing a host
-///   but differing by path (`https://npm/team-a/` vs
-///   `https://npm/team-b/`) route to the deeper match.
+/// Merges [`BUILTIN_NAMED_REGISTRIES`] with the user-supplied
+/// `named_registries` (later wins on the same key — matches upstream's
+/// spread semantics). Each prefix carries a trailing slash so prefix
+/// matching can't be fooled by a same-host-different-suffix sibling,
+/// and the output is sorted longest-first so the deepest matching
+/// prefix wins.
 #[must_use]
 pub fn build_named_registry_prefixes(named_registries: &HashMap<String, String>) -> Vec<String> {
     let mut merged: HashMap<&str, String> = HashMap::new();
@@ -119,18 +120,13 @@ pub fn build_named_registry_prefixes(named_registries: &HashMap<String, String>)
 }
 
 /// Pick the registry URL the verifier should hit for a given
-/// `(name, tarball)` pair.
+/// `(name, tarball)` pair. A tarball URL under a named-registry prefix
+/// routes to that registry; otherwise routing falls back to scope.
 ///
 /// Mirrors upstream's
-/// [`pickRegistryForVersion`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts#L591-L611):
-///
-/// 1. If the lockfile records a `tarball` URL **and** it starts with
-///    one of the named-registry prefixes, return that prefix
-///    (longest-match wins).
-/// 2. Otherwise fall back to scope routing — `@scope/foo` consults
-///    the `registries[@scope]` entry if present, else
-///    `registries.default`. Ports upstream's
-///    [`pickRegistryForPackage`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/pick-registry-for-package/src/index.ts#L3-L6).
+/// [`pickRegistryForVersion`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts#L591-L611),
+/// falling back to upstream's
+/// [`pickRegistryForPackage`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/pick-registry-for-package/src/index.ts#L3-L6).
 #[must_use]
 pub fn pick_registry_for_version(
     registries: &HashMap<String, String>,
@@ -150,44 +146,6 @@ pub fn pick_registry_for_version(
         }
     }
     pick_registry_for_package(registries, name, None)
-}
-
-/// Default-vs-scope routing for an npm package. Mirrors pnpm's
-/// [`pickRegistryForPackage`](https://github.com/pnpm/pnpm/blob/main/config/pick-registry-for-package/src/index.ts).
-///
-/// Routing rules:
-///
-/// 1. **`npm:` alias.** When `bare_specifier` is an `npm:` alias the
-///    *alias target* decides routing, not the local key:
-///    - `npm:@scope/name@<spec>` → `registries[@scope]`.
-///    - `npm:name@<spec>` (unscoped target) → `registries["default"]`,
-///      never the local alias's scope, because the fetched package is
-///      unscoped and doesn't live on a scoped registry.
-/// 2. **Plain spec.** Falls back to `pkg_name`'s scope when present;
-///    otherwise `registries["default"]`.
-#[must_use]
-pub fn pick_registry_for_package(
-    registries: &HashMap<String, String>,
-    pkg_name: &str,
-    bare_specifier: Option<&str>,
-) -> String {
-    let scope = match bare_specifier.and_then(|spec| spec.strip_prefix("npm:")) {
-        Some(target) => scope_of(target),
-        None => scope_of(pkg_name),
-    };
-    if let Some(scope) = scope
-        && let Some(url) = registries.get(scope)
-    {
-        return url.clone();
-    }
-    registries.get("default").cloned().unwrap_or_default()
-}
-
-fn scope_of(name: &str) -> Option<&str> {
-    if !name.starts_with('@') {
-        return None;
-    }
-    name.find('/').map(|sep| &name[..sep])
 }
 
 #[cfg(test)]

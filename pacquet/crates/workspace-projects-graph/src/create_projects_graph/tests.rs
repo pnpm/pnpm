@@ -122,9 +122,6 @@ fn link_path_resolves_by_directory() {
 
 #[test]
 fn path_style_workspace_spec_resolves_by_directory() {
-    // `workspace:../b` is a path-style token: it resolves by directory
-    // (not by version), so range resolution must not run and no
-    // `unmatched` entry is produced.
     let projects = vec![
         project("/ws/packages/a", "a", "1.0.0", &[("b", "workspace:../b")]),
         project("/ws/packages/b", "b", "2.0.0", &[]),
@@ -136,8 +133,6 @@ fn path_style_workspace_spec_resolves_by_directory() {
 
 #[test]
 fn current_dir_in_path_spec_is_collapsed() {
-    // `file:./b` joins onto the importer root; the `.` segment must be
-    // collapsed before the by-directory lookup, resolving to the sibling.
     let projects = vec![
         project("/ws", "a", "1.0.0", &[("b", "file:./b")]),
         project("/ws/b", "b", "2.0.0", &[]),

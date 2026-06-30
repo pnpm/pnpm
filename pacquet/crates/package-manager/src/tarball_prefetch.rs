@@ -1,7 +1,7 @@
 //! Background tarball downloads for the pnpr client path.
 //!
 //! [`TarballPrefetcher`] fires a download as each `package` frame streams
-//! in from `/v1/resolve` so the fetch overlaps the *server's* resolution
+//! in from `/-/pnpr/v0/resolve` so the fetch overlaps the *server's* resolution
 //! ([pnpm/pnpm#12234](https://github.com/pnpm/pnpm/issues/12234)). It is
 //! the streaming-client analogue of [`crate::PrefetchingResolver`] (the
 //! local fresh-install prefetcher), but independent: the resolver path
@@ -42,9 +42,7 @@ struct PendingPrefetch {
 }
 
 /// Drop every pending entry whose `(integrity, package_id)` row already
-/// exists in `index.db`, with one batched existence probe. Best-effort:
-/// no readable index keeps every entry pending, so the store stays the
-/// only authority over what actually downloads.
+/// exists in `index.db`, with one batched existence probe.
 async fn without_store_hits(
     index: Option<SharedReadonlyStoreIndex>,
     pending: Vec<PendingPrefetch>,
@@ -145,7 +143,7 @@ pub(crate) fn spawn_tarball_download(download: TarballDownload) {
 }
 
 /// Fires background tarball downloads on the pnpr client as resolved
-/// packages stream in from `/v1/resolve`, so each tarball fetch overlaps
+/// packages stream in from `/-/pnpr/v0/resolve`, so each tarball fetch overlaps
 /// the server's still-running resolution rather than waiting for the
 /// finished lockfile.
 ///

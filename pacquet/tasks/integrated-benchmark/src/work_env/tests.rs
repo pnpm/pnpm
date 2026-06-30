@@ -1,7 +1,7 @@
 use super::{
     BenchmarkScenario, HyperfineCommand, PhaseEvent, collect_pnpr_direct_ratios,
-    non_trivial_cold_batch, read_phase_events, render_diagnostics_markdown,
-    requires_fresh_pnpr_cold_batch_metrics, summarize_phase_events,
+    non_trivial_cold_batch, pnpr_auth_config_key, pnpr_benchmark_config_yaml, read_phase_events,
+    render_diagnostics_markdown, requires_fresh_pnpr_cold_batch_metrics, summarize_phase_events,
 };
 use std::{collections::HashMap, fs};
 
@@ -11,13 +11,14 @@ fn phase_event_parser_reads_flat_and_nested_json_trace_fields() {
         .join(format!("pacquet-integrated-benchmark-phase-events-{}.ndjson", std::process::id()));
     fs::write(
         &path,
-        r#"{"target":"pacquet::install::phase","phase":"create_virtual_store_partition","warm":3,"cold":7,"skipped":1,"total":11}"#
-            .to_string()
-            + "\n"
-            + r#"{"target":"pacquet::install::phase","fields":{"phase":"create_virtual_store","elapsed_ms":42}}"#
-            + "\n"
-            + r#"{"name":"pnpm:progress","status":"resolved"}"#
-            + "\n",
+        concat!(
+            r#"{"target":"pacquet::install::phase","phase":"create_virtual_store_partition","warm":3,"cold":7,"skipped":1,"total":11}"#,
+            "\n",
+            r#"{"target":"pacquet::install::phase","fields":{"phase":"create_virtual_store","elapsed_ms":42}}"#,
+            "\n",
+            r#"{"name":"pnpm:progress","status":"resolved"}"#,
+            "\n",
+        ),
     )
     .expect("write phase fixture");
 
@@ -133,6 +134,39 @@ fn cold_batch_metrics_canary_targets_current_pnpr_revision() {
     assert!(requires_fresh_pnpr_cold_batch_metrics("pnpr@HEAD"));
     assert!(!requires_fresh_pnpr_cold_batch_metrics("pnpr@main"));
     assert!(!requires_fresh_pnpr_cold_batch_metrics("pacquet@HEAD"));
+}
+
+#[test]
+fn pnpr_auth_config_key_uses_npmrc_nerf_shape() {
+    assert_eq!(pnpr_auth_config_key("http://127.0.0.1:42509"), "//127.0.0.1:42509/");
+    assert_eq!(pnpr_auth_config_key("http://localhost:4873/pnpr/"), "//localhost:4873/pnpr/");
+}
+
+#[test]
+fn pnpr_benchmark_config_declares_local_registry_public() {
+    let storage = std::env::temp_dir().join("pnpr-benchmark-config-test-storage");
+
+    let yaml = pnpr_benchmark_config_yaml(
+        &storage,
+        &["http://localhost:4873/", "http://127.0.0.1:61824/"],
+    );
+
+    assert!(yaml.contains("registry: http://localhost:4873/"));
+    assert!(yaml.contains("registry: http://127.0.0.1:61824/"));
+    assert!(yaml.contains("max_users: -1"));
+    assert!(yaml.contains("htpasswd"));
+}
+
+#[test]
+fn pnpr_benchmark_config_relies_on_the_builtin_npm_route() {
+    let storage = std::env::temp_dir().join("pnpr-benchmark-config-test-storage");
+
+    let yaml = pnpr_benchmark_config_yaml(&storage, &[]);
+
+    // No operator-declared public routes: npmjs resolution comes from the
+    // built-in route, so the config never spells out an npmjs registry rule.
+    assert!(yaml.contains("public: []"));
+    assert!(!yaml.contains("registry: https://registry.npmjs.org/"));
 }
 
 #[test]

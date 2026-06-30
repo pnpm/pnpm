@@ -79,8 +79,9 @@ pub struct VirtualStoreLayout {
     /// the escaped filename exceeds this many bytes, the tail is
     /// replaced with a 32-char sha256 hash so the directory name fits
     /// within filesystem limits (macOS / ext4 cap component names at
-    /// 255 bytes, but pnpm defaults to 120 to leave headroom for the
-    /// `<name>@<version>/` suffix appended below).
+    /// 255 bytes, but pnpm defaults to 60 on Windows and 120 elsewhere
+    /// to leave headroom for the `<name>@<version>/` suffix appended
+    /// below).
     ///
     /// [`PkgNameVerPeer::to_virtual_store_name`]: pacquet_lockfile::PkgNameVerPeer::to_virtual_store_name
     virtual_store_dir_max_length: usize,
@@ -153,8 +154,7 @@ impl VirtualStoreLayout {
     /// upgrades. When `None`, every snapshot keeps the engine in
     /// its hash payload — matches upstream's
     /// [`builtDepPaths === undefined`](https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-hasher/src/index.ts#L140-L142)
-    /// branch and the existing pacquet behaviour from
-    /// pnpm/pacquet#449.
+    /// branch.
     pub fn new(
         config: &Config,
         engine: Option<&str>,
@@ -194,7 +194,7 @@ impl VirtualStoreLayout {
         // mirroring upstream's
         // [`computeBuiltDepPaths`](https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-hasher/src/index.ts#L208-L219).
         // `None` here disables gating so every snapshot still hashes
-        // with its engine string — the pre-pnpm/pacquet#459 behaviour.
+        // with its engine string.
         let built_dep_paths: Option<HashSet<PackageKey>> = allow_build_policy.map(|policy| {
             snapshots
                 .keys()
@@ -332,11 +332,8 @@ fn lockfile_to_dep_graph(
         .map(|(snapshot_key, snapshot)| {
             let children = collect_children(snapshot);
             let metadata_key = snapshot_key.without_peer();
-            // `pkgIdWithPatchHash` strips only the peer-graph suffix,
-            // not the `(patch_hash=...)` segment. Mirrors upstream's
-            // [`getPkgIdWithPatchHash`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/src/index.ts#L63-L70).
             // The metadata-map key (peer- and patch-hash-stripped) is
-            // still derived via `without_peer` for the `packages:` lookup.
+            // derived via `without_peer` for the `packages:` lookup.
             let pkg_id_with_patch_hash = PkgIdWithPatchHash::from(
                 get_pkg_id_with_patch_hash(&snapshot_key.to_string()).to_string(),
             );

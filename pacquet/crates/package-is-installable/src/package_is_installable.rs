@@ -141,9 +141,6 @@ pub struct InstallabilityOptions<'a> {
 /// the first error a manifest produces, or `None` if compatible.
 /// Mirrors upstream `checkPackage` at
 /// <https://github.com/pnpm/pnpm/blob/94240bc046/config/package-is-installable/src/index.ts#L68-L94>.
-///
-/// Platform is checked first (so an unsupported OS surfaces as a
-/// `Platform` error even if the engine range would also reject).
 pub fn check_package(
     package_id: &str,
     manifest: &PackageInstallabilityManifest,
@@ -199,7 +196,7 @@ pub fn check_package(
 /// — the caller composes them so log payloads can carry pacquet-
 /// specific context (`prefix`, `requester`, etc.).
 ///
-/// `InstallabilityError` is large (200+ bytes) because it carries the
+/// [`InstallabilityError`] is large (200+ bytes) because it carries the
 /// full wanted/current platform or engine state for diagnostic
 /// rendering. Boxing the `Err` arm keeps `Result<_, _>` small enough
 /// for clippy's `result-large-err` lint on installs where the error
@@ -209,10 +206,6 @@ pub fn package_is_installable(
     manifest: &PackageInstallabilityManifest,
     options: &InstallabilityOptions<'_>,
 ) -> Result<InstallabilityVerdict, Box<InstallabilityError>> {
-    // Mirrors upstream's `effectivePlatform(pkg, options.optional)` at
-    // <https://github.com/pnpm/pnpm/blob/34875b2d7c/config/package-is-installable/src/index.ts#L41>:
-    // an optional dependency with incomplete platform fields gets the
-    // missing ones filled from its name before the check runs.
     let effective: PackageInstallabilityManifest;
     let manifest = if options.optional
         && let Some(platform) = inferred_platform(

@@ -1,0 +1,26 @@
+[package]
+name                  = "pacquet-fs-packlist"
+version               = "0.0.1"
+publish               = false
+authors.workspace     = true
+description.workspace = true
+edition.workspace     = true
+homepage.workspace    = true
+keywords.workspace    = true
+license.workspace     = true
+repository.workspace  = true
+
+[dependencies]
+pacquet-diagnostics      = { workspace = true }
+pacquet-package-manifest = { workspace = true }
+
+derive_more = { workspace = true }
+ignore      = { workspace = true }
+serde_json  = { workspace = true }
+tracing     = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

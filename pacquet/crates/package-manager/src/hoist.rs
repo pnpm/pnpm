@@ -6,7 +6,7 @@
 //! shape — into the project's flat `node_modules/.pnpm/node_modules/`
 //! (private hoist) or directly into `<project>/node_modules/` (public
 //! hoist). Two patterns drive the decision: `hoistPattern` and
-//! `publicHoistPattern`. The result is a `HoistedDependencies` map (keyed
+//! `publicHoistPattern`. The result is a [`HoistedDependencies`] map (keyed
 //! by snapshot key) that the install pipeline persists to
 //! `.modules.yaml` and uses to drive symlink creation + bin linking.
 //!
@@ -187,17 +187,11 @@ pub struct HoistInputs<'a> {
     /// Snapshot keys that should not be hoisted because they were
     /// skipped (typically: skipped optional deps). The hoist BFS still
     /// walks into them so the children of a skipped optional dep can
-    /// be considered for hoisting — but the skipped dep itself is
-    /// kept out of `hoistedDependencies` (mirrors upstream's
-    /// `opts.skipped.has(node.depPath)` branch).
+    /// be considered for hoisting.
     pub skipped: &'a HashSet<PackageKey>,
-    /// Boolean matcher built from `Config.hoist_pattern`. Mirrors
-    /// upstream's `createMatcher(privateHoistPattern)`.
+    /// Boolean matcher built from `Config.hoist_pattern`.
     pub private_pattern: Matcher,
     /// Boolean matcher built from `Config.public_hoist_pattern`.
-    /// Public matches override private matches at the per-alias
-    /// decision below — same precedence as upstream's
-    /// `createGetAliasHoistType`.
     pub public_pattern: Matcher,
 }
 
@@ -235,24 +229,7 @@ pub struct HoistResult {
 /// composed with
 /// [`hoistGraph`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/linking/hoist/src/index.ts#L207-L267).
 ///
-/// Algorithm:
-///
-/// 1. Seed BFS from each importer's direct deps. Track depth (root's
-///    direct deps are depth 0; their children depth 1; etc.).
-/// 2. Sort all collected nodes by `(depth, nodeId)` so resolution
-///    is deterministic and matches upstream's `sort` step.
-/// 3. For each child alias of every visited node, ask the matchers
-///    whether to hoist (public wins over private). If the alias was
-///    already taken — case-insensitively, and seeded with the root
-///    importer's direct-dep names — skip.
-/// 4. Record the (node, alias) → kind in
-///    `hoisted_dependencies_by_node_id`. If the target snapshot
-///    is in the graph and not in `skipped`, also record its
-///    `(snapshot_key, alias) → kind` in `hoisted_dependencies` and
-///    claim the alias.
-///
-/// Returns `None` when the graph is empty (mirroring upstream's early
-/// return; spares the symlink pass any work).
+/// Returns `None` when the graph is empty.
 #[must_use]
 pub fn get_hoisted_dependencies<'a>(input: &'a HoistInputs<'a>) -> Option<HoistResult> {
     if input.graph.is_empty() {
@@ -312,15 +289,13 @@ pub fn get_hoisted_dependencies<'a>(input: &'a HoistInputs<'a>) -> Option<HoistR
         let node = &input.graph[node_id];
         entries.push(BfsEntry {
             depth,
-            // Stringifying the node id matches the previous
-            // implementation's lex-on-formatted-key tiebreaker so
-            // sort output stays byte-identical. `PackageKey` itself
-            // doesn't impl `Ord` (lockfile-crate types deliberately
-            // don't carry semantic ordering), and switching to
-            // component-wise lex would diverge from the old order
-            // for scoped names. The dominant per-node cost is the
-            // children HashMap, which is now borrowed; this single
-            // String per node is the cheap part.
+            // Stringify the node id for a lex-on-formatted-key
+            // tiebreaker. `PackageKey` itself doesn't impl `Ord`
+            // (lockfile-crate types deliberately don't carry semantic
+            // ordering), and component-wise lex would diverge for
+            // scoped names. The dominant per-node cost is the children
+            // HashMap, which is borrowed; this single String per node
+            // is the cheap part.
             sort_key: node_id.to_string(),
             children: &node.children,
         });
@@ -340,9 +315,7 @@ pub fn get_hoisted_dependencies<'a>(input: &'a HoistInputs<'a>) -> Option<HoistR
     entries.sort_by(|a, b| a.depth.cmp(&b.depth).then_with(|| a.sort_key.cmp(&b.sort_key)));
 
     // Seed `hoisted_aliases` with every direct-dep name of the root
-    // importer (`"."`). Upstream does the same — names already
-    // present at the root must not be re-hoisted under different
-    // versions. Workspace importers' deps don't seed this set
+    // importer (`"."`). Workspace importers' deps don't seed this set
     // because they live in their own `node_modules` and don't
     // collide with the root.
     let mut hoisted_aliases: HashSet<String> = input
@@ -386,10 +359,8 @@ pub fn get_hoisted_dependencies<'a>(input: &'a HoistInputs<'a>) -> Option<HoistR
             if hoisted_aliases.contains(&alias_norm) {
                 continue;
             }
-            // Record (childNodeId, alias) → kind unconditionally —
-            // upstream does too, even when the target snapshot is
-            // missing or skipped. The symlink pass tolerates
-            // missing nodes via its own guard.
+            // Record (childNodeId, alias) → kind unconditionally; the
+            // symlink pass tolerates missing nodes via its own guard.
             hoisted_dependencies_by_node_id
                 .entry(child_node_id.clone())
                 .or_default()
@@ -438,11 +409,10 @@ pub fn get_hoisted_dependencies<'a>(input: &'a HoistInputs<'a>) -> Option<HoistR
 /// Internal BFS row. `children` borrows from the input graph (or the
 /// importer's direct-deps map for the depth=-1 pseudo-nodes) so the
 /// BFS allocates one `Vec<BfsEntry>` plus the `visited`/`queue`
-/// collections — no per-node `HashMap` clones, which was the dominant
-/// allocation hotspot pre-optimization. `sort_key` is still a
+/// collections — no per-node `HashMap` clones. `sort_key` is a
 /// `String` because `PackageKey` doesn't carry an `Ord` impl that
-/// would match the old `to_string()` lex order; that single
-/// allocation per node is cheap relative to what was a `HashMap` clone.
+/// would match the `to_string()` lex order; that single allocation
+/// per node is cheap relative to a `HashMap` clone.
 struct BfsEntry<'a> {
     depth: i32,
     sort_key: String,
@@ -462,13 +432,14 @@ struct BfsEntry<'a> {
 /// (`<virtual_store_dir>/<key.virtual_store_name>/`); the hoist code
 /// never has to branch on `enable_global_virtual_store` itself.
 ///
-/// Existing symlinks are left in place — `EEXIST` from the underlying
-/// [`pacquet_fs::symlink_dir`] is swallowed, mirroring upstream's
-/// `symlinkDir({ overwrite: false })`. The "overwrite a
-/// virtual-store-resident link" branch upstream additionally does
-/// (via `resolveLinkTarget` + `isSubdir`) is intentionally not
-/// ported — see the `external_symlink_introspection` `known_failure`
-/// reason.
+/// Existing symlinks are introspected — if the existing entry is a
+/// symlink pointing at a target inside the virtual store
+/// (`layout.package_store_dir()` — the GVS links dir or the local
+/// `.pnpm` dir) or inside the internal pnpm directory (the parent of
+/// `private_hoisted_modules_dir`), the stale symlink is replaced.
+/// External symlinks (or non-symlink occupants) are left in place.
+/// Mirrors upstream's `resolveLinkTarget` + `isSubdir` pattern in
+/// [`symlinkHoistedDependency`](https://github.com/pnpm/pnpm/blob/cbe1a171bd/installing/linking/hoist/src/index.ts#L310-L343).
 ///
 /// Two-phase to amortize directory creation:
 ///
@@ -476,10 +447,9 @@ struct BfsEntry<'a> {
 ///    pair plus the set of scope-dir parents (`<root>/@scope`)
 ///    needed by scoped aliases.
 /// 2. `create_dir_all` the two hoisted-modules roots and each
-///    distinct scope dir — once per dir, not per symlink. The
-///    previous version called `create_dir_all` inside
-///    [`crate::symlink_package()`] on every symlink, so a 1k-alias install
-///    paid 1k redundant stats on the same handful of parents.
+///    distinct scope dir — once per dir, not per symlink, so a
+///    1k-alias install doesn't pay 1k redundant stats on the same
+///    handful of parents.
 /// 3. `par_iter` the pair list and issue `symlinkat()` syscalls in
 ///    parallel via rayon. Each pair is now a single syscall — no
 ///    parent-dir prep — so the only contention is the kernel's
@@ -519,15 +489,9 @@ pub fn symlink_hoisted_dependencies(
     for (node_id, alias_map) in hoisted_by_node_id {
         // Skipped snapshots never get a virtual-store slot, so a
         // hoist symlink at their slot path would dangle (Unix) or
-        // fail as a junction (Windows). Mirrors the guard
-        // `get_hoisted_dependencies` already applies before
-        // recording the *parent's* hoisting decisions —
-        // `hoisted_dependencies_by_node_id` records the
-        // (target, alias) pair unconditionally upstream of that
-        // guard (matching pnpm's structure), so the filter has to
-        // run here too. Covers slice 4 (`fetch_failed`), slice 5
-        // (`optional_excluded`), and the slice 1 installability
-        // path uniformly.
+        // fail as a junction (Windows). `hoisted_dependencies_by_node_id`
+        // records the (target, alias) pair unconditionally, so the
+        // filter has to run here too.
         if skipped.contains(node_id) {
             continue;
         }
@@ -586,7 +550,16 @@ pub fn symlink_hoisted_dependencies(
             let dest = target_dir_root.join(alias);
             match pacquet_fs::symlink_dir(dep_dir.as_path(), &dest) {
                 Ok(()) => Ok(()),
-                Err(error) if error.kind() == ErrorKind::AlreadyExists => Ok(()),
+                Err(ref error) if error.kind() == ErrorKind::AlreadyExists => {
+                    update_stale_hoist_symlink(
+                        dep_dir.as_path(),
+                        &dest,
+                        layout.package_store_dir(),
+                        private_hoisted_modules_dir.parent().expect(
+                            "private_hoisted_modules_dir (<vs>/node_modules) always has a parent",
+                        ),
+                    )
+                }
                 Err(error) => Err(crate::SymlinkPackageError::SymlinkDir {
                     symlink_target: dep_dir.as_path().to_path_buf(),
                     symlink_path: dest,
@@ -606,6 +579,56 @@ fn name_to_dir(name: &PkgName) -> std::path::PathBuf {
         Some(scope) => std::path::PathBuf::from(format!("@{scope}")).join(&name.bare),
         None => std::path::PathBuf::from(&name.bare),
     }
+}
+
+/// Read the existing symlink at `dest` and decide whether it should
+/// be replaced. If it already points at `dep_dir`, leave it untouched.
+/// If it points inside `package_store_dir` or `internal_pnpm_dir`
+/// (a pnpm-internal symlink — e.g., a stale link from a prior non-GVS
+/// install), remove it and create a new symlink to `dep_dir`. External
+/// symlinks (and non-symlink occupants) are left in place.
+///
+/// Mirrors upstream's
+/// [`symlinkHoistedDependency`](https://github.com/pnpm/pnpm/blob/cbe1a171bd/installing/linking/hoist/src/index.ts#L310-L343)
+/// `isSubdir(virtualStoreDir, …) || isSubdir(internalPnpmDir, …)` guard.
+/// The already-correct fast path skips the unlink + recreate churn (and
+/// the transient missing-link window it opens) on warm reinstalls, the
+/// same way [`pacquet_fs::force_symlink_dir`] does — see its
+/// `existing_symlink_up_to_date` helper.
+fn update_stale_hoist_symlink(
+    dep_dir: &std::path::Path,
+    dest: &std::path::Path,
+    package_store_dir: &std::path::Path,
+    internal_pnpm_dir: &std::path::Path,
+) -> Result<(), crate::SymlinkPackageError> {
+    let Ok(existing_raw) = pacquet_fs::read_symlink_dir(dest) else {
+        return Ok(());
+    };
+    let existing = if existing_raw.is_relative() {
+        dest.parent().unwrap_or_else(|| std::path::Path::new("")).join(&existing_raw)
+    } else {
+        existing_raw
+    };
+    if pacquet_fs::lexical_normalize(&existing) == pacquet_fs::lexical_normalize(dep_dir) {
+        return Ok(());
+    }
+    if !pacquet_fs::is_subdir(package_store_dir, &existing)
+        && !pacquet_fs::is_subdir(internal_pnpm_dir, &existing)
+    {
+        return Ok(());
+    }
+    pacquet_fs::remove_symlink_dir(dest).map_err(|error| {
+        crate::SymlinkPackageError::SymlinkDir {
+            symlink_target: dep_dir.to_path_buf(),
+            symlink_path: dest.to_path_buf(),
+            error,
+        }
+    })?;
+    pacquet_fs::symlink_dir(dep_dir, dest).map_err(|error| crate::SymlinkPackageError::SymlinkDir {
+        symlink_target: dep_dir.to_path_buf(),
+        symlink_path: dest.to_path_buf(),
+        error,
+    })
 }
 
 #[cfg(test)]

@@ -1,0 +1,991 @@
+# @pnpm/prepare-package
+
+## 1100.0.20
+
+### Patch Changes
+
+- Updated dependencies [852d537]
+  - @pnpm/error@1100.0.1
+  - @pnpm/exec.lifecycle@1100.1.1
+  - @pnpm/pkg-manifest.reader@1100.0.9
+
+## 1100.0.19
+
+### Patch Changes
+
+- Updated dependencies [0474a9c]
+  - @pnpm/exec.lifecycle@1100.1.0
+
+## 1100.0.18
+
+### Patch Changes
+
+- Updated dependencies [23716ed]
+- Updated dependencies [681b593]
+- Updated dependencies [a31faa7]
+  - @pnpm/exec.lifecycle@1100.0.18
+  - @pnpm/types@1101.3.2
+  - @pnpm/pkg-manifest.reader@1100.0.8
+
+## 1100.0.17
+
+### Patch Changes
+
+- @pnpm/exec.lifecycle@1100.0.17
+
+## 1100.0.16
+
+### Patch Changes
+
+- bf1b731: Require trusted package identity before package-name `allowBuilds` entries can approve lifecycle scripts for git, git-hosted tarball, direct tarball, and local directory artifacts. To approve one of those artifacts explicitly, use its peer-suffix-free lockfile depPath as the `allowBuilds` key. Lockfile verification now rejects lockfiles where a registry-style dependency path (`name@semver`) is backed by a git, directory, or git-hosted tarball resolution (`ERR_PNPM_RESOLUTION_SHAPE_MISMATCH`), so the dependency path is a reliable artifact identity by the time scripts can run.
+- Updated dependencies [bf1b731]
+  - @pnpm/types@1101.3.1
+  - @pnpm/exec.lifecycle@1100.0.16
+  - @pnpm/pkg-manifest.reader@1100.0.7
+
+## 1100.0.15
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+  - @pnpm/types@1101.3.0
+  - @pnpm/exec.lifecycle@1100.0.15
+  - @pnpm/pkg-manifest.reader@1100.0.6
+
+## 1100.0.14
+
+### Patch Changes
+
+- Updated dependencies [35d2355]
+  - @pnpm/types@1101.2.0
+  - @pnpm/exec.lifecycle@1100.0.14
+  - @pnpm/pkg-manifest.reader@1100.0.5
+
+## 1100.0.13
+
+### Patch Changes
+
+- @pnpm/exec.lifecycle@1100.0.13
+
+## 1100.0.12
+
+### Patch Changes
+
+- Updated dependencies [9cb48bb]
+- Updated dependencies [64afc92]
+  - @pnpm/exec.lifecycle@1100.0.12
+  - @pnpm/types@1101.1.1
+  - @pnpm/pkg-manifest.reader@1100.0.4
+
+## 1100.0.11
+
+### Patch Changes
+
+- @pnpm/exec.lifecycle@1100.0.11
+
+## 1100.0.10
+
+### Patch Changes
+
+- @pnpm/exec.lifecycle@1100.0.10
+
+## 1100.0.9
+
+### Patch Changes
+
+- @pnpm/exec.lifecycle@1100.0.9
+
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/exec.lifecycle@1100.0.8
+  - @pnpm/pkg-manifest.reader@1100.0.3
+
+## 1100.0.7
+
+### Patch Changes
+
+- @pnpm/exec.lifecycle@1100.0.7
+
+## 1100.0.6
+
+### Patch Changes
+
+- @pnpm/exec.lifecycle@1100.0.6
+
+## 1100.0.5
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/pkg-manifest.reader@1100.0.2
+  - @pnpm/exec.lifecycle@1100.0.5
+
+## 1100.0.4
+
+### Patch Changes
+
+- @pnpm/exec.lifecycle@1100.0.4
+
+## 1100.0.3
+
+### Patch Changes
+
+- @pnpm/exec.lifecycle@1100.0.3
+
+## 1100.0.2
+
+### Patch Changes
+
+- @pnpm/exec.lifecycle@1100.0.2
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/exec.lifecycle@1100.0.1
+  - @pnpm/pkg-manifest.reader@1100.0.1
+
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- ba065f6: Block git-hosted dependencies from running prepare scripts unless explicitly allowed in onlyBuiltDependencies [#10288](https://github.com/pnpm/pnpm/pull/10288).
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Minor Changes
+
+- 96704a1: Renamed `rawConfig` to `authConfig` on the `Config` interface. This field now only contains auth/registry data from `.npmrc` files. Non-auth settings are no longer written to it.
+
+  Added `nodeDownloadMirrors` setting to configure custom Node.js download mirrors in `pnpm-workspace.yaml`:
+
+  ```yaml
+  nodeDownloadMirrors:
+    release: https://my-mirror.example.com/download/release/
+    nightly: https://my-mirror.example.com/download/nightly/
+  ```
+
+  Replaced `rawConfig: object` with `userAgent?: string` in lifecycle hook options. Removed unused `rawConfig` from fetcher and prepare-package options.
+
+  Removed support for the npm `init-module` setting. Custom init scripts via `.pnpm-init.js` are no longer executed by `pnpm init`.
+
+### Patch Changes
+
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [491a84f]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [96704a1]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [831f574]
+- Updated dependencies [366cabe]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [efb48dc]
+- Updated dependencies [f871365]
+  - @pnpm/types@1001.0.0
+  - @pnpm/pkg-manifest.reader@1001.0.0
+  - @pnpm/exec.lifecycle@1002.0.0
+  - @pnpm/error@1001.0.0
+
+## 1000.0.26
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+  - @pnpm/types@1000.9.0
+  - @pnpm/lifecycle@1001.0.25
+  - @pnpm/read-package-json@1000.1.2
+
+## 1000.0.25
+
+### Patch Changes
+
+- @pnpm/lifecycle@1001.0.24
+
+## 1000.0.24
+
+### Patch Changes
+
+- Updated dependencies [a514bc0]
+  - @pnpm/lifecycle@1001.0.23
+
+## 1000.0.23
+
+### Patch Changes
+
+- @pnpm/error@1000.0.5
+- @pnpm/lifecycle@1001.0.22
+- @pnpm/read-package-json@1000.1.1
+
+## 1000.0.22
+
+### Patch Changes
+
+- Updated dependencies [e792927]
+- Updated dependencies [e792927]
+- Updated dependencies [a6856fd]
+  - @pnpm/read-package-json@1000.1.0
+  - @pnpm/types@1000.8.0
+  - @pnpm/lifecycle@1001.0.21
+
+## 1000.0.21
+
+### Patch Changes
+
+- @pnpm/lifecycle@1001.0.20
+
+## 1000.0.20
+
+### Patch Changes
+
+- Updated dependencies [adb097c]
+  - @pnpm/read-package-json@1000.0.11
+  - @pnpm/error@1000.0.4
+  - @pnpm/lifecycle@1001.0.19
+
+## 1000.0.19
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/lifecycle@1001.0.18
+  - @pnpm/read-package-json@1000.0.10
+  - @pnpm/error@1000.0.3
+
+## 1000.0.18
+
+### Patch Changes
+
+- Updated dependencies [589ac1f]
+  - @pnpm/lifecycle@1001.0.17
+
+## 1000.0.17
+
+### Patch Changes
+
+- @pnpm/lifecycle@1001.0.16
+
+## 1000.0.16
+
+### Patch Changes
+
+- @pnpm/lifecycle@1001.0.15
+
+## 1000.0.15
+
+### Patch Changes
+
+- Updated dependencies [09cf46f]
+- Updated dependencies [5ec7255]
+  - @pnpm/lifecycle@1001.0.14
+  - @pnpm/types@1000.6.0
+  - @pnpm/read-package-json@1000.0.9
+
+## 1000.0.14
+
+### Patch Changes
+
+- @pnpm/lifecycle@1001.0.13
+
+## 1000.0.13
+
+### Patch Changes
+
+- Updated dependencies [5b73df1]
+  - @pnpm/types@1000.5.0
+  - @pnpm/lifecycle@1001.0.12
+  - @pnpm/read-package-json@1000.0.8
+
+## 1000.0.12
+
+### Patch Changes
+
+- @pnpm/lifecycle@1001.0.11
+
+## 1000.0.11
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/lifecycle@1001.0.10
+  - @pnpm/read-package-json@1000.0.7
+
+## 1000.0.10
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/lifecycle@1001.0.9
+  - @pnpm/read-package-json@1000.0.6
+
+## 1000.0.9
+
+### Patch Changes
+
+- @pnpm/lifecycle@1001.0.8
+
+## 1000.0.8
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+  - @pnpm/lifecycle@1001.0.7
+  - @pnpm/read-package-json@1000.0.5
+
+## 1000.0.7
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/lifecycle@1001.0.6
+  - @pnpm/read-package-json@1000.0.4
+
+## 1000.0.6
+
+### Patch Changes
+
+- Updated dependencies [c0d1c01]
+  - @pnpm/lifecycle@1001.0.5
+
+## 1000.0.5
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/error@1000.0.2
+  - @pnpm/lifecycle@1001.0.4
+  - @pnpm/read-package-json@1000.0.3
+
+## 1000.0.4
+
+### Patch Changes
+
+- @pnpm/lifecycle@1001.0.3
+
+## 1000.0.3
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/lifecycle@1001.0.2
+  - @pnpm/read-package-json@1000.0.2
+
+## 1000.0.2
+
+### Patch Changes
+
+- @pnpm/lifecycle@1001.0.1
+
+## 1000.0.1
+
+### Patch Changes
+
+- Updated dependencies [3a6a417]
+  - @pnpm/lifecycle@1001.0.0
+  - @pnpm/error@1000.0.1
+  - @pnpm/read-package-json@1000.0.1
+
+## 6.0.15
+
+### Patch Changes
+
+- @pnpm/error@6.0.3
+- @pnpm/lifecycle@17.1.6
+- @pnpm/read-package-json@9.0.10
+
+## 6.0.14
+
+### Patch Changes
+
+- @pnpm/error@6.0.2
+- @pnpm/lifecycle@17.1.5
+- @pnpm/read-package-json@9.0.9
+
+## 6.0.13
+
+### Patch Changes
+
+- Updated dependencies [d500d9f]
+  - @pnpm/types@12.2.0
+  - @pnpm/lifecycle@17.1.4
+  - @pnpm/read-package-json@9.0.8
+
+## 6.0.12
+
+### Patch Changes
+
+- Updated dependencies [7ee59a1]
+  - @pnpm/types@12.1.0
+  - @pnpm/lifecycle@17.1.3
+  - @pnpm/read-package-json@9.0.7
+
+## 6.0.11
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/types@12.0.0
+  - @pnpm/lifecycle@17.1.2
+  - @pnpm/read-package-json@9.0.6
+
+## 6.0.10
+
+### Patch Changes
+
+- Updated dependencies [9899576]
+  - @pnpm/lifecycle@17.1.1
+
+## 6.0.9
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/lifecycle@17.1.0
+  - @pnpm/types@11.1.0
+  - @pnpm/read-package-json@9.0.5
+
+## 6.0.8
+
+### Patch Changes
+
+- @pnpm/lifecycle@17.0.8
+
+## 6.0.7
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/types@11.0.0
+  - @pnpm/lifecycle@17.0.7
+  - @pnpm/read-package-json@9.0.4
+
+## 6.0.6
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+  - @pnpm/lifecycle@17.0.6
+  - @pnpm/read-package-json@9.0.3
+
+## 6.0.5
+
+### Patch Changes
+
+- @pnpm/lifecycle@17.0.5
+
+## 6.0.4
+
+### Patch Changes
+
+- @pnpm/lifecycle@17.0.4
+
+## 6.0.3
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/lifecycle@17.0.3
+  - @pnpm/read-package-json@9.0.2
+
+## 6.0.2
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/lifecycle@17.0.2
+  - @pnpm/read-package-json@9.0.1
+
+## 6.0.1
+
+### Patch Changes
+
+- Updated dependencies [bfadc0a]
+  - @pnpm/lifecycle@17.0.1
+
+## 6.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Minor Changes
+
+- b13d2dc: It is now possible to install only a subdirectory from a Git repository.
+
+  For example, `pnpm add github:user/repo#path:packages/foo` will add a dependency from the `packages/foo` subdirectory.
+
+  This new parameter may be combined with other supported parameters separated by `&`. For instance, the next command will install the same package from the `dev` branch: `pnpm add github:user/repo#dev&path:packages/bar`.
+
+  Related issue: [#4765](https://github.com/pnpm/pnpm/issues/4765).
+  Related PR: [#7487](https://github.com/pnpm/pnpm/pull/7487).
+
+### Patch Changes
+
+- 167ac4d: When building git-hosted dependencies, use the package manager required by the project [#7850](https://github.com/pnpm/pnpm/issues/7850).
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+- Updated dependencies [82aac81]
+- Updated dependencies [730929e]
+  - @pnpm/types@10.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/read-package-json@9.0.0
+  - @pnpm/lifecycle@17.0.0
+
+## 5.0.24
+
+### Patch Changes
+
+- @pnpm/lifecycle@16.0.12
+
+## 5.0.23
+
+### Patch Changes
+
+- @pnpm/lifecycle@16.0.11
+
+## 5.0.22
+
+### Patch Changes
+
+- Updated dependencies [4d34684f1]
+  - @pnpm/types@9.4.2
+  - @pnpm/lifecycle@16.0.10
+  - @pnpm/read-package-json@8.0.7
+
+## 5.0.21
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+  - @pnpm/lifecycle@16.0.9
+  - @pnpm/read-package-json@8.0.6
+
+## 5.0.20
+
+### Patch Changes
+
+- @pnpm/lifecycle@16.0.8
+
+## 5.0.19
+
+### Patch Changes
+
+- @pnpm/lifecycle@16.0.7
+
+## 5.0.18
+
+### Patch Changes
+
+- @pnpm/lifecycle@16.0.6
+
+## 5.0.17
+
+### Patch Changes
+
+- @pnpm/lifecycle@16.0.5
+
+## 5.0.16
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+  - @pnpm/types@9.4.0
+  - @pnpm/lifecycle@16.0.4
+  - @pnpm/read-package-json@8.0.5
+
+## 5.0.15
+
+### Patch Changes
+
+- @pnpm/lifecycle@16.0.3
+
+## 5.0.14
+
+### Patch Changes
+
+- Updated dependencies [84f81c9ae]
+  - @pnpm/lifecycle@16.0.2
+
+## 5.0.13
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+  - @pnpm/types@9.3.0
+  - @pnpm/lifecycle@16.0.1
+  - @pnpm/read-package-json@8.0.4
+
+## 5.0.12
+
+### Patch Changes
+
+- 17d2ddb05: Don't run the `prepublishOnly` scripts of git-hosted dependencies [#7026](https://github.com/pnpm/pnpm/issues/7026).
+
+## 5.0.11
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+  - @pnpm/lifecycle@16.0.0
+
+## 5.0.10
+
+### Patch Changes
+
+- @pnpm/lifecycle@15.0.9
+
+## 5.0.9
+
+### Patch Changes
+
+- @pnpm/lifecycle@15.0.8
+
+## 5.0.8
+
+### Patch Changes
+
+- Updated dependencies [e9aa6f682]
+  - @pnpm/lifecycle@15.0.7
+
+## 5.0.7
+
+### Patch Changes
+
+- Updated dependencies [692197df3]
+  - @pnpm/lifecycle@15.0.6
+
+## 5.0.6
+
+### Patch Changes
+
+- 8452bb2d5: The "postpublish" script of a git-hosted dependency is not executed, while building the dependency [#6822](https://github.com/pnpm/pnpm/issues/6846).
+  - @pnpm/lifecycle@15.0.5
+
+## 5.0.5
+
+### Patch Changes
+
+- Updated dependencies [aa2ae8fe2]
+  - @pnpm/types@9.2.0
+  - @pnpm/lifecycle@15.0.5
+  - @pnpm/read-package-json@8.0.3
+
+## 5.0.4
+
+### Patch Changes
+
+- @pnpm/lifecycle@15.0.4
+
+## 5.0.3
+
+### Patch Changes
+
+- Updated dependencies [dddb8ad71]
+  - @pnpm/lifecycle@15.0.3
+
+## 5.0.2
+
+### Patch Changes
+
+- @pnpm/lifecycle@15.0.2
+- @pnpm/read-package-json@8.0.2
+
+## 5.0.1
+
+### Patch Changes
+
+- Updated dependencies [a9e0b7cbf]
+- Updated dependencies [6ce3424a9]
+  - @pnpm/types@9.1.0
+  - @pnpm/lifecycle@15.0.1
+  - @pnpm/read-package-json@8.0.1
+
+## 5.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/read-package-json@8.0.0
+  - @pnpm/lifecycle@15.0.0
+
+## 4.1.2
+
+### Patch Changes
+
+- @pnpm/lifecycle@14.1.7
+
+## 4.1.1
+
+### Patch Changes
+
+- @pnpm/lifecycle@14.1.6
+
+## 4.1.0
+
+### Minor Changes
+
+- c7b05cd9a: When ignoreScripts=true is passed to the fetcher, do not build git-hosted dependencies.
+
+### Patch Changes
+
+- @pnpm/lifecycle@14.1.5
+- @pnpm/read-package-json@7.0.5
+
+## 4.0.1
+
+### Patch Changes
+
+- ec97a3105: Report to the console when a git-hosted dependency is built [#5847](https://github.com/pnpm/pnpm/pull/5847).
+- 40a481840: Only run prepublish scripts of git-hosted dependencies, if the dependency doesn't have a main file. In this case we can assume that the dependencies has to be built.
+
+## 4.0.0
+
+### Major Changes
+
+- 339c0a704: A new required option added to the prepare package function: rawConfig. It is needed in order to create a proper environment for the package manager executed during the preparation of a git-hosted dependency.
+
+### Patch Changes
+
+- 339c0a704: Run the prepublish scripts of packages installed from Git [#5826](https://github.com/pnpm/pnpm/issues/5826).
+
+## 3.0.4
+
+### Patch Changes
+
+- @pnpm/read-package-json@7.0.4
+
+## 3.0.3
+
+### Patch Changes
+
+- Updated dependencies [a9d59d8bc]
+  - @pnpm/read-package-json@7.0.3
+
+## 3.0.2
+
+### Patch Changes
+
+- @pnpm/read-package-json@7.0.2
+
+## 3.0.1
+
+### Patch Changes
+
+- @pnpm/read-package-json@7.0.1
+
+## 3.0.0
+
+### Major Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [043d988fc]
+- Updated dependencies [f884689e0]
+  - @pnpm/error@4.0.0
+  - @pnpm/read-package-json@7.0.0
+
+## 2.0.11
+
+### Patch Changes
+
+- Updated dependencies [e8a631bf0]
+  - @pnpm/error@3.1.0
+  - @pnpm/read-package-json@6.0.11
+
+## 2.0.10
+
+### Patch Changes
+
+- @pnpm/read-package-json@6.0.10
+
+## 2.0.9
+
+### Patch Changes
+
+- @pnpm/read-package-json@6.0.9
+
+## 2.0.8
+
+### Patch Changes
+
+- Updated dependencies [07bc24ad1]
+  - @pnpm/read-package-json@6.0.8
+
+## 2.0.7
+
+### Patch Changes
+
+- @pnpm/read-package-json@6.0.7
+
+## 2.0.6
+
+### Patch Changes
+
+- @pnpm/read-package-json@6.0.6
+
+## 2.0.5
+
+### Patch Changes
+
+- @pnpm/read-package-json@6.0.5
+
+## 2.0.4
+
+### Patch Changes
+
+- @pnpm/read-package-json@6.0.4
+
+## 2.0.3
+
+### Patch Changes
+
+- @pnpm/read-package-json@6.0.3
+
+## 2.0.2
+
+### Patch Changes
+
+- @pnpm/read-package-json@6.0.2
+
+## 2.0.1
+
+### Patch Changes
+
+- @pnpm/error@3.0.1
+- @pnpm/read-package-json@6.0.1
+
+## 2.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [542014839]
+  - @pnpm/error@3.0.0
+  - @pnpm/read-package-json@6.0.0
+
+## 1.0.13
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+  - @pnpm/read-package-json@5.0.12
+
+## 1.0.12
+
+### Patch Changes
+
+- @pnpm/read-package-json@5.0.11
+
+## 1.0.11
+
+### Patch Changes
+
+- @pnpm/read-package-json@5.0.10
+
+## 1.0.10
+
+### Patch Changes
+
+- @pnpm/read-package-json@5.0.9
+
+## 1.0.9
+
+### Patch Changes
+
+- eec4b195d: Always return an error message when the preparation of a package fails.
+  - @pnpm/read-package-json@5.0.8
+
+## 1.0.8
+
+### Patch Changes
+
+- @pnpm/read-package-json@5.0.7
+
+## 1.0.7
+
+### Patch Changes
+
+- fb1a95a6c: If prepare fails, throw a pnpm error with a known error code.
+
+## 1.0.6
+
+### Patch Changes
+
+- @pnpm/read-package-json@5.0.6
+
+## 1.0.5
+
+### Patch Changes
+
+- @pnpm/read-package-json@5.0.5
+
+## 1.0.4
+
+### Patch Changes
+
+- 4a4d42d8f: Packages that have no `package.json` files should be skipped.
+
+## 1.0.3
+
+### Patch Changes
+
+- @pnpm/read-package-json@5.0.4
+
+## 1.0.2
+
+### Patch Changes
+
+- @pnpm/read-package-json@5.0.3
+
+## 1.0.1
+
+### Patch Changes
+
+- @pnpm/read-package-json@5.0.2
+
+## 1.0.0
+
+### Major Changes
+
+- e6a2654a2: Project created.

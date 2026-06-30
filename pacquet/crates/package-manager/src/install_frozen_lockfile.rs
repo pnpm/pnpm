@@ -21,7 +21,7 @@ use pacquet_lockfile::{
 use pacquet_lockfile_verification::{
     VerifyError, VerifyLockfileResolutionsOptions, verify_lockfile_resolutions,
 };
-use pacquet_modules_yaml::{Host, read_modules_manifest};
+use pacquet_modules_yaml::{Host, IncludedDependencies, read_modules_manifest};
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::DependencyGroup;
 use pacquet_patching::{
@@ -81,7 +81,7 @@ where
     pub resolution_verifiers: &'a [Arc<dyn ResolutionVerifier>],
     /// When set, replaces the local `resolution_verifiers` fan-out as the
     /// trust verdict — used by the pnpr client to delegate verification to
-    /// the server's `/v1/verify-lockfile` while the fetch runs locally. The
+    /// the server's `/-/pnpr/v0/verify-lockfile` while the fetch runs locally. The
     /// same concurrent sequencing and build gate apply.
     pub lockfile_verification_override: Option<LockfileVerificationOverride<'a>>,
     /// Absolute path of the lockfile being verified, for the on-disk
@@ -102,6 +102,7 @@ where
     pub current_snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
     pub current_packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
     pub dependency_groups: DependencyGroupList,
+    pub project_manifests: &'a [(PathBuf, &'a pacquet_package_manifest::PackageManifest)],
     /// Install-scoped dedupe state for `pnpm:package-import-method`.
     /// See `link_file::log_method_once`.
     pub logged_methods: &'a AtomicU8,
@@ -174,6 +175,12 @@ where
     /// re-fetching every tarball; `None` for installs without a shared
     /// prefetch in flight.
     pub tarball_mem_cache: Option<&'a Arc<MemCache>>,
+    pub seed_skipped: Option<Vec<String>>,
+    /// Forced-rebuild selection threaded from `pacquet rebuild` /
+    /// `approve-builds`; `None` for a normal install. Forwarded to
+    /// `run_build_phase`'s `BuildPhaseInputs`. See
+    /// [`crate::RebuildOptions`].
+    pub rebuild: Option<&'a crate::RebuildOptions>,
 }
 
 /// Error type of [`InstallFrozenLockfile`].
@@ -195,11 +202,13 @@ pub enum InstallFrozenLockfileError {
     #[diagnostic(transparent)]
     LinkVirtualStoreBins(#[error(source)] LinkVirtualStoreBinsError),
 
+    /// Surfaces any failure from the shared lifecycle-script build
+    /// phase: `patchedDependencies` resolution, the [`BuildModules`]
+    /// run itself, or the post-build top-level bin link. Shared with
+    /// the fresh-lockfile path via `run_build_phase`, so both install
+    /// modes report the same `ERR_PNPM_*` codes for a failed build.
     #[diagnostic(transparent)]
-    BuildModules(#[error(source)] BuildModulesError),
-
-    #[diagnostic(transparent)]
-    ResolvePatchedDependencies(#[error(source)] ResolvePatchedDependenciesError),
+    BuildPhase(#[error(source)] BuildPhaseError),
 
     /// Surfaces a failure to create one of the hoist symlinks
     /// (`<private_hoisted_modules_dir>/<alias>` or
@@ -215,25 +224,6 @@ pub enum InstallFrozenLockfileError {
     /// the existing direct-deps bin-link pass at the root).
     #[diagnostic(transparent)]
     HoistLinkBins(#[error(source)] LinkBinsError),
-
-    /// Surfaces a failure from the post-`BuildModules` per-importer
-    /// top-level bin link. This pass mixes direct + publicly-hoisted
-    /// candidates so `pacquet_cmd_shim::pick_winner` (private)'s
-    /// [`pacquet_cmd_shim::BinOrigin::Direct`] tier resolves
-    /// conflicts in a single call (pnpm/pacquet#342). Distinct from
-    /// [`Self::HoistLinkBins`] because the failure surface is the
-    /// project-tree top-level `<importer>/node_modules/.bin` rather
-    /// than the virtual store's private-hoisted dir.
-    #[diagnostic(transparent)]
-    TopLevelBinLink(#[error(source)] LinkBinsError),
-
-    /// Surfaces upstream's `ERR_PNPM_PATCH_KEY_CONFLICT` when more
-    /// than one configured version range matches a snapshot. Mirrors
-    /// pnpm's behavior of refusing to silently pick one — the user
-    /// must add an exact-version entry to disambiguate. See
-    /// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/patching/config/src/getPatchInfo.ts#L5-L19>.
-    #[diagnostic(transparent)]
-    PatchKeyConflict(#[error(source)] PatchKeyConflictError),
 
     /// Surfaces upstream's `ERR_PNPM_INVALID_VERSION_UNION` /
     /// `ERR_PNPM_NAME_PATTERN_IN_VERSION_UNION` when an
@@ -281,6 +271,284 @@ pub enum InstallFrozenLockfileError {
     /// bin-link errors.
     #[diagnostic(transparent)]
     LinkHoistedModules(#[error(source)] LinkHoistedModulesError),
+
+    #[display("failed to write package map: {_0}")]
+    #[diagnostic(code(pacquet_package_manager::write_package_map))]
+    WritePackageMap(#[error(source)] crate::WritePackageMapError),
+
+    #[diagnostic(transparent)]
+    InstallError(#[error(source)] Box<crate::InstallError>),
+}
+
+/// Error type of `run_build_phase` and `resolve_snapshot_patches`.
+///
+/// Each variant is `#[diagnostic(transparent)]` so the surfaced
+/// `ERR_PNPM_*` code comes from the wrapped error — the two install
+/// paths embed this in their own error enums (also transparently), so
+/// a failed build reports identically regardless of which path ran it.
+#[derive(Debug, Display, Error, Diagnostic)]
+pub enum BuildPhaseError {
+    /// `patchedDependencies` couldn't be resolved from
+    /// `pnpm-workspace.yaml`.
+    #[diagnostic(transparent)]
+    ResolvePatchedDependencies(#[error(source)] ResolvePatchedDependenciesError),
+
+    /// Surfaces upstream's `ERR_PNPM_PATCH_KEY_CONFLICT` when more
+    /// than one configured version range matches a snapshot. Mirrors
+    /// pnpm's behavior of refusing to silently pick one — the user
+    /// must add an exact-version entry to disambiguate. See
+    /// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/patching/config/src/getPatchInfo.ts#L5-L19>.
+    #[diagnostic(transparent)]
+    PatchKeyConflict(#[error(source)] PatchKeyConflictError),
+
+    /// A lifecycle script (`preinstall` / `install` / `postinstall`)
+    /// failed, or the build phase hit an I/O / frozen-store error.
+    #[diagnostic(transparent)]
+    BuildModules(#[error(source)] BuildModulesError),
+
+    /// Surfaces a failure from the post-`BuildModules` per-importer
+    /// top-level bin link. This pass mixes direct + publicly-hoisted
+    /// candidates so `pacquet_cmd_shim::pick_winner` (private)'s
+    /// [`pacquet_cmd_shim::BinOrigin::Direct`] tier resolves
+    /// conflicts in a single call (pnpm/pacquet#342). The failure
+    /// surface is the project-tree top-level
+    /// `<importer>/node_modules/.bin`.
+    #[diagnostic(transparent)]
+    TopLevelBinLink(#[error(source)] LinkBinsError),
+}
+
+/// Resolve `pnpm-workspace.yaml`'s `patchedDependencies` into a
+/// per-snapshot map keyed by the peer-stripped [`PackageKey`].
+///
+/// Yields `None` when nothing is configured (no yaml, no key, or empty
+/// map) or when there are no snapshots; an empty map when patches exist
+/// but match nothing in the current install. Mirrors upstream's single
+/// `calcPatchHashes` + `groupPatchedDependencies` call at
+/// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/deps-installer/src/install/index.ts#L468-L488>,
+/// adapted for pacquet's lockfile-driven flow: pnpm computes
+/// `node.patch` during resolution, pacquet computes it after the
+/// lockfile is built/loaded.
+pub(crate) fn resolve_snapshot_patches(
+    config: &Config,
+    pre_resolved: Option<&pacquet_patching::PatchGroupRecord>,
+    snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
+) -> Result<Option<HashMap<PackageKey, ExtendedPatchInfo>>, BuildPhaseError> {
+    // Reuse the caller's grouped record when it already resolved it (the
+    // fresh-lockfile path builds it to feed the resolver), so the patch
+    // files aren't re-hashed; otherwise resolve it once here (frozen path).
+    let resolved_owned = match pre_resolved {
+        Some(_) => None,
+        None => config
+            .resolved_patched_dependencies()
+            .map_err(BuildPhaseError::ResolvePatchedDependencies)?,
+    };
+    let patch_groups = pre_resolved.or(resolved_owned.as_ref());
+    let patches = match (patch_groups, snapshots) {
+        (Some(groups), Some(snaps)) => {
+            let mut map = HashMap::new();
+            for key in snaps.keys() {
+                let metadata_key = key.without_peer();
+                let metadata_key_str = metadata_key.to_string();
+                let (name, version) =
+                    crate::build_modules::parse_name_version_from_key(&metadata_key_str);
+                // Propagate `ERR_PNPM_PATCH_KEY_CONFLICT` rather than
+                // silently skipping the snapshot. Upstream fails here so
+                // the user adds an exact-version entry to disambiguate.
+                if let Some(info) = get_patch_info(Some(groups), &name, &version)
+                    .map_err(BuildPhaseError::PatchKeyConflict)?
+                {
+                    map.insert(metadata_key, info.clone());
+                }
+            }
+            Some(map)
+        }
+        _ => None,
+    };
+    Ok(patches)
+}
+
+/// Inputs to [`run_build_phase`]. Bundled so both install paths
+/// ([`InstallFrozenLockfile::run`] and the fresh-lockfile path) can
+/// drive the shared lifecycle-script + post-build top-level bin link
+/// without a long positional argument list.
+pub(crate) struct BuildPhaseInputs<'a> {
+    pub(crate) config: &'static Config,
+    /// Upstream's `lockfileDir` — the project root. Threaded to
+    /// `BuildModules` as `lockfile_dir`, where it sets each script's
+    /// `INIT_CWD` and the lifecycle log prefix.
+    pub(crate) workspace_root: &'a Path,
+    /// Directory each importer's `node_modules/.bin` is anchored under
+    /// in the post-build top-level bin pass. Equals `workspace_root`
+    /// in production (and on the frozen path); the fresh path passes
+    /// its `symlink_root` (`config.modules_dir.parent()`), which can
+    /// differ when a test relocates `modules_dir`.
+    pub(crate) top_level_bin_root: &'a Path,
+    pub(crate) layout: &'a VirtualStoreLayout,
+    pub(crate) snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
+    pub(crate) packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
+    pub(crate) importers: &'a HashMap<String, ProjectSnapshot>,
+    pub(crate) dependency_groups: &'a [DependencyGroup],
+    /// `patchedDependencies` already resolved + grouped by the caller, so
+    /// the build phase doesn't re-hash the patch files. `None` on the
+    /// frozen path, which resolves it inside [`resolve_snapshot_patches`].
+    pub(crate) patch_groups: Option<&'a pacquet_patching::PatchGroupRecord>,
+    pub(crate) allow_build_policy: &'a AllowBuildPolicy,
+    pub(crate) side_effects_maps_by_snapshot: &'a crate::SideEffectsMapsBySnapshot,
+    pub(crate) requires_build_by_snapshot: &'a crate::RequiresBuildBySnapshot,
+    pub(crate) engine_name: Option<&'a str>,
+    pub(crate) extra_env: &'a HashMap<String, String>,
+    pub(crate) store_index_writer: &'a Arc<StoreIndexWriter>,
+    pub(crate) skipped: &'a SkippedSnapshots,
+    pub(crate) hoisted_pkg_root_by_key: Option<&'a HashMap<PackageKey, PathBuf>>,
+    pub(crate) is_hoisted: bool,
+    /// Publicly-hoisted aliases (with bins) competing for the root
+    /// importer's `node_modules/.bin`. Empty under the hoisted linker
+    /// and when no public-hoist pattern is set.
+    pub(crate) publicly_hoisted_for_post_build: &'a [String],
+    pub(crate) logged_methods: &'a AtomicU8,
+    /// Forced-rebuild selection threaded from `pacquet rebuild` /
+    /// `approve-builds`; `None` for a normal install. See
+    /// [`crate::RebuildOptions`].
+    pub(crate) rebuild: Option<&'a crate::RebuildOptions>,
+}
+
+/// Run dependency lifecycle scripts, report ignored builds, and
+/// re-link top-level bins — the shared tail both install paths run
+/// after the virtual store is materialized.
+///
+/// Mirrors upstream's single `buildModules` + `pnpm:ignored-scripts`
+/// emit + `linkBinsOfImporter` sequence at
+/// <https://github.com/pnpm/pnpm/blob/80037699fb/installing/deps-installer/src/install/index.ts#L414>.
+/// Always emits the `IgnoredScripts` event (with an empty list when
+/// nothing was ignored) so the reporter renders a consistent state.
+pub(crate) fn run_build_phase<Reporter: self::Reporter>(
+    inputs: &BuildPhaseInputs,
+) -> Result<Vec<String>, BuildPhaseError> {
+    // Every field is a `Copy` reference / scalar, so destructuring
+    // through the shared borrow copies them out without a move.
+    let &BuildPhaseInputs {
+        config,
+        workspace_root,
+        top_level_bin_root,
+        layout,
+        snapshots,
+        packages,
+        importers,
+        dependency_groups,
+        patch_groups,
+        allow_build_policy,
+        side_effects_maps_by_snapshot,
+        requires_build_by_snapshot,
+        engine_name,
+        extra_env,
+        store_index_writer,
+        skipped,
+        hoisted_pkg_root_by_key,
+        is_hoisted,
+        publicly_hoisted_for_post_build,
+        logged_methods,
+        rebuild,
+    } = inputs;
+
+    let patches = resolve_snapshot_patches(config, patch_groups, snapshots)?;
+
+    // Convert `pacquet-config`'s mirror enum to the executor's
+    // canonical type. Config's enum carries the yaml-deserialize impl;
+    // the executor's stays free of serde wiring.
+    let scripts_prepend_node_path = match config.scripts_prepend_node_path {
+        pacquet_config::ScriptsPrependNodePath::Always => ExecScriptsPrependNodePath::Always,
+        pacquet_config::ScriptsPrependNodePath::Never => ExecScriptsPrependNodePath::Never,
+        pacquet_config::ScriptsPrependNodePath::WarnOnly => ExecScriptsPrependNodePath::WarnOnly,
+    };
+
+    // BuildModules walks per-snapshot package directories and runs
+    // `preinstall` / `install` / `postinstall` lifecycle scripts.
+    // Under isolated, the directories live under the virtual-store slot
+    // layout; under hoisted, they live at the project-tree paths the
+    // walker assigned — threaded in via `pkg_root_by_key`.
+    let ignored_builds = BuildModules {
+        layout,
+        modules_dir: &config.modules_dir,
+        lockfile_dir: workspace_root,
+        snapshots,
+        packages,
+        importers,
+        allow_build_policy,
+        side_effects_maps_by_snapshot: Some(side_effects_maps_by_snapshot),
+        requires_build_by_snapshot: Some(requires_build_by_snapshot),
+        engine_name,
+        side_effects_cache: config.side_effects_cache_read(),
+        side_effects_cache_write: config.side_effects_cache_write(),
+        store_dir: Some(&config.store_dir),
+        store_index_writer: Some(store_index_writer),
+        patches: patches.as_ref(),
+        scripts_prepend_node_path,
+        extra_env,
+        unsafe_perm: config.unsafe_perm,
+        child_concurrency: config.child_concurrency,
+        skipped,
+        pkg_root_by_key: hoisted_pkg_root_by_key,
+        gather_ancestor_bin_paths: is_hoisted,
+        frozen_store: config.frozen_store,
+        ignore_scripts: config.ignore_scripts,
+        import_method: config.package_import_method,
+        logged_methods,
+        rebuild,
+    }
+    .run::<Reporter>()
+    .map_err(BuildPhaseError::BuildModules)?;
+
+    // Always emit the `pnpm:ignored-scripts` event with the package
+    // names, mirroring pnpm's unconditional `ignoredScriptsLogger.debug`
+    // at
+    // <https://github.com/pnpm/pnpm/blob/80037699fb/installing/deps-installer/src/install/index.ts#L526>
+    // so structured / NDJSON consumers always see the list. The event
+    // carries `strict_dep_builds` (the final, post-`updateConfig` value
+    // the strict-failure check also reads) so the default reporter can
+    // suppress the rendered warning box under strict mode — where the
+    // install fails with `ERR_PNPM_IGNORED_BUILDS` and the box would only
+    // duplicate the error — without a stale reporter-side flag. Mirrors
+    // pnpm's split between `reportIgnoredBuilds` (display gated on
+    // `!strictDepBuilds`) and `handleIgnoredBuilds` (throws when strict).
+    Reporter::emit(&LogEvent::IgnoredScripts(IgnoredScriptsLog {
+        level: LogLevel::Debug,
+        package_names: ignored_builds.clone(),
+        strict_dep_builds: config.strict_dep_builds,
+    }));
+
+    // Post-`BuildModules` per-importer top-level bin link
+    // (pnpm/pacquet#342). Resolves direct-over-hoisted precedence and
+    // shims lifecycle-script-created bins that didn't exist at extract
+    // time. Idempotent for unchanged shims. Mirrors upstream's
+    // `linkBinsOfImporter` pass that runs after `buildModules`:
+    // <https://github.com/pnpm/pnpm/blob/4750fd370c/installing/deps-installer/src/install/index.ts#L1539>.
+    let modules_dir_basename: &OsStr =
+        config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
+    for (importer_id, importer_snapshot) in importers {
+        let project_dir = importer_root_dir(top_level_bin_root, importer_id);
+        let modules_dir = project_dir.join(modules_dir_basename);
+        // Same filter the symlink phase used so the post-build pass sees
+        // the same candidate set (skipping installability-skipped deps
+        // avoids dangling shims at a slot that was never extracted).
+        let direct_names = direct_dep_names_for_importer(
+            importer_snapshot,
+            dependency_groups.iter().copied(),
+            skipped,
+            false,
+        );
+        // Public-hoist promotes transitives into the workspace root's
+        // `<root>/node_modules/<alias>`, so only the root importer's
+        // `.bin` sees `BinOrigin::Hoisted` candidates.
+        let hoisted_names: &[String] = if importer_id == Lockfile::ROOT_IMPORTER_KEY {
+            publicly_hoisted_for_post_build
+        } else {
+            &[]
+        };
+        link_top_level_bins(&modules_dir, &direct_names, hoisted_names)
+            .map_err(BuildPhaseError::TopLevelBinLink)?;
+    }
+
+    Ok(ignored_builds)
 }
 
 impl<DependencyGroupList> InstallFrozenLockfile<'_, DependencyGroupList>
@@ -314,6 +582,7 @@ where
             current_snapshots,
             current_packages,
             dependency_groups,
+            project_manifests,
             logged_methods,
             workspace_root,
             requester,
@@ -321,7 +590,10 @@ where
             skip_runtimes,
             node_linker,
             tarball_mem_cache,
+            seed_skipped,
+            rebuild,
         } = self;
+
         let is_hoisted = matches!(node_linker, NodeLinker::Hoisted);
         // Cloned so the iterator can be reused below for hoist's
         // direct-deps map. `Vec<DependencyGroup>` is tiny (≤4 enum
@@ -363,9 +635,7 @@ where
         // [`compute_skipped_snapshots`] entirely. Spawning
         // `node --version` here would otherwise serialize the
         // node-binary startup with `CreateVirtualStore::run` (the
-        // dominant cost of a cold install), giving up the overlap
-        // pacquet had before — see the previous benchmark regression
-        // on this PR.
+        // dominant cost of a cold install), giving up the overlap.
         //
         // When constraints DO exist, the host is needed before
         // extraction (so `CreateVirtualStore` can suppress slots for
@@ -392,16 +662,20 @@ where
         // A read error (corrupt yaml, permissions) is degraded to
         // an empty seed — `.modules.yaml` is a cache artifact, not
         // an authoritative source. Missing file → empty seed.
-        let seed = match read_modules_manifest::<Host>(&config.modules_dir) {
-            Ok(Some(manifest)) => SkippedSnapshots::from_strings(&manifest.skipped),
-            Ok(None) => SkippedSnapshots::new(),
-            Err(error) => {
-                tracing::warn!(
-                    target: "pacquet::install",
-                    ?error,
-                    "failed to read .modules.yaml for skipped seed; starting from empty",
-                );
-                SkippedSnapshots::new()
+        let seed = if let Some(skipped) = seed_skipped {
+            SkippedSnapshots::from_strings(&skipped)
+        } else {
+            match read_modules_manifest::<Host>(&config.modules_dir) {
+                Ok(Some(manifest)) => SkippedSnapshots::from_strings(&manifest.skipped),
+                Ok(None) => SkippedSnapshots::new(),
+                Err(error) => {
+                    tracing::warn!(
+                        target: "pacquet::install",
+                        ?error,
+                        "failed to read .modules.yaml for skipped seed; starting from empty",
+                    );
+                    SkippedSnapshots::new()
+                }
             }
         };
 
@@ -696,6 +970,7 @@ where
         let CreateVirtualStoreOutput {
             package_manifests,
             side_effects_maps_by_snapshot,
+            requires_build_by_snapshot,
             fetch_failed,
             cas_paths_by_pkg_id,
         } = {
@@ -841,6 +1116,7 @@ where
                     layout: &layout,
                     importers,
                     dependency_groups: &dependency_groups,
+                    project_manifests,
                     walker_lockfile_dir: workspace_root,
                     symlink_workspace_root: workspace_root,
                     host_node: host_node.as_ref(),
@@ -933,14 +1209,10 @@ where
             link_direct_dep_bins(&private_dir, &result.hoisted_aliases_with_bins)
                 .map_err(InstallFrozenLockfileError::HoistLinkBins)?;
             // Stash the public-hoist alias list for the
-            // post-`BuildModules` top-level bin link. The
-            // previous in-place `link_direct_dep_bins(&public_dir,
-            // ...)` pass would have written shims with no
-            // knowledge of direct-dep candidates, so a
-            // hoisted bin could shadow a direct one when the
-            // hoisted package's name was lexically smaller.
-            // The post-build pass re-links with the
-            // [`BinOrigin`] tier so direct wins outright.
+            // post-`BuildModules` top-level bin link, which re-links
+            // with the [`BinOrigin`] tier so a direct dep's bin wins
+            // outright over a publicly-hoisted bin with a lexically
+            // smaller name.
             // Mirrors upstream's
             // [`linkBinsOfImporter`](https://github.com/pnpm/pnpm/blob/4750fd370c/installing/deps-installer/src/install/index.ts#L1539)
             // which runs after `buildModules`.
@@ -949,6 +1221,27 @@ where
         } else {
             BTreeMap::new()
         };
+
+        if crate::should_write_package_map(config, node_linker) {
+            let included = IncludedDependencies {
+                dependencies: dependency_groups.contains(&DependencyGroup::Prod),
+                dev_dependencies: dependency_groups.contains(&DependencyGroup::Dev),
+                optional_dependencies: dependency_groups.contains(&DependencyGroup::Optional),
+            };
+            let filtered_lockfile =
+                crate::filter_lockfile_for_current(lockfile, included, &skipped);
+            crate::package_map::write_package_map(
+                &filtered_lockfile,
+                &crate::package_map::PackageMapOptions {
+                    lockfile_dir: workspace_root,
+                    modules_dir: &config.modules_dir,
+                    package_map_type: config.node_package_map_type,
+                    layout: &layout,
+                    project_manifests,
+                },
+            )
+            .map_err(InstallFrozenLockfileError::WritePackageMap)?;
+        }
 
         // Mirrors upstream `link.ts:167-170`: `importing_done` fires once
         // extraction and symlink linking are complete, before any build
@@ -961,76 +1254,6 @@ where
             stage: Stage::ImportingDone,
         }));
 
-        // `manifest_dir` (= upstream's `lockfileDir`) is the workspace
-        // root threaded through `BuildModules`. Use the real `Path`
-        // here rather than reconstructing it from the lossy
-        // `requester` string so non-UTF-8 filenames survive intact.
-        // `allow_build_policy` was already constructed up-front
-        // (before `CreateVirtualStore`) on `main` so the git fetcher
-        // can consult it — no second construction needed here.
-        let manifest_dir: &Path = workspace_root;
-
-        // Resolve `pnpm-workspace.yaml`'s `patchedDependencies` once
-        // per install. Yields `None` when nothing is configured (no
-        // yaml, no key, or empty map). Mirrors upstream's single
-        // `calcPatchHashes` + `groupPatchedDependencies` call at
-        // <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/deps-installer/src/install/index.ts#L468-L488>.
-        let patch_groups = config
-            .resolved_patched_dependencies()
-            .map_err(InstallFrozenLockfileError::ResolvePatchedDependencies)?;
-
-        // Look every snapshot up against the resolved record and
-        // build a per-snapshot map keyed by the peer-stripped
-        // `PackageKey` (patches are configured at name+version
-        // granularity, not per peer-resolution variant). `None` when
-        // no patches are configured at all; an empty map when patches
-        // exist but match nothing in the current install.
-        //
-        // Mirrors upstream's per-node lookup at
-        // <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/pkg-manager/resolve-dependencies/src/resolveDependencies.ts#L1482>,
-        // adapted for pacquet's lockfile-driven flow: pnpm computes
-        // `node.patch` during resolution, pacquet computes it after
-        // lockfile load.
-        let patches: Option<HashMap<PackageKey, ExtendedPatchInfo>> =
-            match (patch_groups.as_ref(), snapshots) {
-                (Some(groups), Some(snaps)) => {
-                    let mut map = HashMap::new();
-                    for key in snaps.keys() {
-                        let metadata_key = key.without_peer();
-                        let metadata_key_str = metadata_key.to_string();
-                        let (name, version) =
-                            crate::build_modules::parse_name_version_from_key(&metadata_key_str);
-                        // Propagate `ERR_PNPM_PATCH_KEY_CONFLICT` rather
-                        // than silently skipping the snapshot. Upstream
-                        // fails the install here so the user adds an
-                        // exact-version entry to disambiguate — silently
-                        // dropping the patch would leave the package
-                        // unpatched (and the cache key unchanged) without
-                        // any signal.
-                        if let Some(info) = get_patch_info(Some(groups), &name, &version)
-                            .map_err(InstallFrozenLockfileError::PatchKeyConflict)?
-                        {
-                            map.insert(metadata_key, info.clone());
-                        }
-                    }
-                    Some(map)
-                }
-                _ => None,
-            };
-
-        // Convert `pacquet-config`'s mirror enum to the executor's
-        // canonical type. Config's enum carries the yaml-deserialize
-        // impl; the executor's stays free of serde wiring. See the
-        // doc on [`pacquet_config::ScriptsPrependNodePath`] for the
-        // rationale.
-        let scripts_prepend_node_path = match config.scripts_prepend_node_path {
-            pacquet_config::ScriptsPrependNodePath::Always => ExecScriptsPrependNodePath::Always,
-            pacquet_config::ScriptsPrependNodePath::Never => ExecScriptsPrependNodePath::Never,
-            pacquet_config::ScriptsPrependNodePath::WarnOnly => {
-                ExecScriptsPrependNodePath::WarnOnly
-            }
-        };
-
         // Resolve the deferred `node --version` detection from the
         // GVS-off path, if any. The handle was spawned before
         // `CreateVirtualStore::run` so the `node` startup cost
@@ -1042,114 +1265,52 @@ where
             None => engine_name,
         };
 
-        // BuildModules walks per-snapshot package directories and
-        // runs `preinstall` / `install` / `postinstall` lifecycle
-        // scripts. Under isolated, the directories live under the
-        // virtual-store slot layout; under hoisted, they live at
-        // the project-tree paths the slice 4 walker assigned —
-        // threaded in via `pkg_root_by_key`. `gather_ancestor_bin_paths`
-        // additionally reroutes `extra_bin_paths` through
-        // `bin_dirs_in_all_parent_dirs` for the hoisted case so
-        // lifecycle scripts can resolve binaries from every
-        // ancestor `node_modules/.bin` up to `lockfile_dir` —
-        // mirrors upstream's
-        // [`after-install:357`](https://github.com/pnpm/pnpm/blob/94240bc046/building/after-install/src/index.ts#L357)
-        // call into `binDirsInAllParentDirs`.
-        let ignored_builds = BuildModules {
+        let mut build_extra_env = HashMap::new();
+        if let Some(node_options) = &config.node_options {
+            build_extra_env.insert("NODE_OPTIONS".to_string(), node_options.clone());
+        }
+        if config.node_experimental_package_map && !matches!(node_linker, NodeLinker::Pnp) {
+            let package_map_path =
+                config.modules_dir.join(crate::package_map::PACKAGE_MAP_FILENAME);
+            let node_options = build_extra_env.get("NODE_OPTIONS").map(String::as_str);
+            build_extra_env.insert(
+                "NODE_OPTIONS".to_string(),
+                crate::make_node_package_map_option(&package_map_path, node_options),
+            );
+        }
+
+        // Run lifecycle scripts, report ignored builds, and re-link
+        // top-level bins. `workspace_root` is upstream's `lockfileDir`;
+        // pass the real `Path` rather than reconstructing it from the
+        // lossy `requester` string so non-UTF-8 filenames survive.
+        // `allow_build_policy` was constructed up-front (before
+        // `CreateVirtualStore`) so the git fetcher could consult it.
+        let ignored_builds = run_build_phase::<Reporter>(&BuildPhaseInputs {
+            config,
+            workspace_root,
+            top_level_bin_root: workspace_root,
             layout: &layout,
-            modules_dir: &config.modules_dir,
-            lockfile_dir: manifest_dir,
             snapshots,
             packages,
             importers,
+            dependency_groups: &dependency_groups,
+            // Resolved once inside `resolve_snapshot_patches`; the frozen
+            // path has no earlier patch resolution to reuse.
+            patch_groups: None,
             allow_build_policy: &allow_build_policy,
-            side_effects_maps_by_snapshot: Some(&side_effects_maps_by_snapshot),
+            side_effects_maps_by_snapshot: &side_effects_maps_by_snapshot,
+            requires_build_by_snapshot: &requires_build_by_snapshot,
             engine_name: engine_name.as_deref(),
-            side_effects_cache: config.side_effects_cache_read(),
-            side_effects_cache_write: config.side_effects_cache_write(),
-            store_dir: Some(&config.store_dir),
-            store_index_writer: Some(&store_index_writer),
-            patches: patches.as_ref(),
-            scripts_prepend_node_path,
-            unsafe_perm: config.unsafe_perm,
-            child_concurrency: config.child_concurrency,
+            extra_env: &build_extra_env,
+            store_index_writer: &store_index_writer,
             skipped: &skipped,
-            pkg_root_by_key: hoisted_pkg_root_by_key.as_ref(),
-            gather_ancestor_bin_paths: is_hoisted,
-            frozen_store: config.frozen_store,
-        }
-        .run::<Reporter>()
-        .map_err(InstallFrozenLockfileError::BuildModules)?;
-
-        // Mirrors upstream's single emit at the end of the build phase:
-        // <https://github.com/pnpm/pnpm/blob/80037699fb/installing/deps-installer/src/install/index.ts#L414>.
-        // Always emitted (with an empty list when nothing was ignored), so
-        // the reporter can display a consistent "no ignored scripts" state.
-        Reporter::emit(&LogEvent::IgnoredScripts(IgnoredScriptsLog {
-            level: LogLevel::Debug,
-            package_names: ignored_builds,
-        }));
-
-        // Post-`BuildModules` per-importer top-level bin link
-        // (pnpm/pacquet#342). Two behaviors:
-        //
-        // 1. **Direct over Hoisted precedence.** The earlier
-        //    [`SymlinkDirectDependencies`] + isolated public-hoist
-        //    bin passes wrote shims separately, so a publicly-hoisted
-        //    bin could shadow a direct dep's bin with the same name
-        //    when the hoisted package's name was lexically smaller.
-        //    This pass collects both candidate lists into one
-        //    [`link_top_level_bins`] call so
-        //    `pacquet_cmd_shim::pick_winner` (private)'s
-        //    [`pacquet_cmd_shim::BinOrigin::Direct`] tier resolves
-        //    the conflict the way upstream's
-        //    [`preferDirectCmds`](https://github.com/pnpm/pnpm/blob/4750fd370c/bins/linker/src/index.ts#L92)
-        //    does.
-        // 2. **Lifecycle-script-created bins.** A package's
-        //    `postinstall` may write a binary file that didn't
-        //    exist at extract time (the `@pnpm.e2e/generated-bins`
-        //    fixture upstream uses to test this). Re-running the
-        //    bin link after [`BuildModules`] re-reads each
-        //    direct dep's `package.json` and shims any newly-found
-        //    bin entries that point at now-existing files. Mirrors
-        //    upstream's [`linkBinsOfImporter`](https://github.com/pnpm/pnpm/blob/4750fd370c/installing/deps-installer/src/install/index.ts#L1539)
-        //    pass that runs after `buildModules`.
-        //
-        // Idempotent for unchanged shims (the
-        // `is_shim_pointing_at` marker check skips writes when the
-        // existing shim already targets the same bin), so the
-        // double-pass overhead is bounded by the already-modest
-        // per-package manifest read cost.
-        let modules_dir_basename: &OsStr =
-            config.modules_dir.file_name().unwrap_or_else(|| OsStr::new("node_modules"));
-        for (importer_id, importer_snapshot) in importers {
-            let project_dir = importer_root_dir(workspace_root, importer_id);
-            let modules_dir = project_dir.join(modules_dir_basename);
-            // Same filter the symlink phase used so the post-build
-            // pass sees the same candidate set (skipping
-            // installability-skipped deps avoids dangling shims at
-            // a slot that was never extracted).
-            let direct_names = direct_dep_names_for_importer(
-                importer_snapshot,
-                dependency_groups.iter().copied(),
-                &skipped,
-                false,
-            );
-            // Public-hoist promotes transitives into the workspace
-            // root's `<root>/node_modules/<alias>`, so only the
-            // root importer's `<root>/node_modules/.bin` sees
-            // `BinOrigin::Hoisted` candidates. Non-root importers
-            // get `<importer>/node_modules/.bin` populated only
-            // from their own direct deps.
-            let hoisted_names: &[String] =
-                if importer_id == pacquet_lockfile::Lockfile::ROOT_IMPORTER_KEY {
-                    &publicly_hoisted_for_post_build
-                } else {
-                    &[]
-                };
-            link_top_level_bins(&modules_dir, &direct_names, hoisted_names)
-                .map_err(InstallFrozenLockfileError::TopLevelBinLink)?;
-        }
+            hoisted_pkg_root_by_key: hoisted_pkg_root_by_key.as_ref(),
+            is_hoisted,
+            publicly_hoisted_for_post_build: &publicly_hoisted_for_post_build,
+            logged_methods,
+            rebuild,
+        })
+        .map_err(InstallFrozenLockfileError::BuildPhase)?;
 
         // Drop the orchestrator's clone of the writer so the channel
         // closes once every per-snapshot clone has also been dropped;
@@ -1172,7 +1333,12 @@ where
             ),
         }
 
-        Ok(InstallFrozenLockfileOutput { hoisted_dependencies, hoisted_locations, skipped })
+        Ok(InstallFrozenLockfileOutput {
+            hoisted_dependencies,
+            hoisted_locations,
+            skipped,
+            ignored_builds,
+        })
     }
 }
 
@@ -1201,6 +1367,11 @@ pub struct InstallFrozenLockfileOutput {
     /// and augmented with snapshots that newly failed the
     /// installability check.
     pub skipped: SkippedSnapshots,
+    /// Sorted `name@version` keys whose build scripts were blocked by
+    /// the `allowBuilds` policy. The caller raises
+    /// `ERR_PNPM_IGNORED_BUILDS` from this list when `strictDepBuilds`
+    /// is on (the default).
+    pub ignored_builds: Vec<String>,
 }
 
 /// Internal handoff between the hoisted-linker walker/linker pass
@@ -1223,7 +1394,7 @@ pub(crate) struct HoistedLinkerOutput {
 }
 
 /// Inputs to [`run_hoisted_linker`]. Bundled so the two install
-/// paths (`InstallFrozenLockfile` and `InstallWithFreshLockfile`)
+/// paths ([`InstallFrozenLockfile`] and `InstallWithFreshLockfile`)
 /// can feed the shared hoisted-linker materialization without a
 /// long positional argument list. The frozen path passes the
 /// loaded `pnpm-lock.yaml`; the fresh path passes the freshly-built
@@ -1241,6 +1412,7 @@ pub(crate) struct HoistedLinkerInputs<'a> {
     pub(crate) layout: &'a VirtualStoreLayout,
     pub(crate) importers: &'a HashMap<String, ProjectSnapshot>,
     pub(crate) dependency_groups: &'a [DependencyGroup],
+    pub(crate) project_manifests: &'a [(PathBuf, &'a pacquet_package_manifest::PackageManifest)],
     /// Lockfile root the walker resolves hoisted directories against.
     pub(crate) walker_lockfile_dir: &'a Path,
     /// Anchor for [`crate::SymlinkDirectDependencies`]'s per-importer
@@ -1274,6 +1446,9 @@ pub(crate) enum HoistedLinkerError {
     LinkHoistedModules(#[error(source)] LinkHoistedModulesError),
     #[diagnostic(transparent)]
     SymlinkDirectDependencies(#[error(source)] SymlinkDirectDependenciesError),
+    #[display("failed to write package map: {_0}")]
+    #[diagnostic(code(pacquet_package_manager::write_package_map))]
+    WritePackageMap(#[error(source)] crate::WritePackageMapError),
 }
 
 impl From<HoistedLinkerError> for InstallFrozenLockfileError {
@@ -1287,6 +1462,9 @@ impl From<HoistedLinkerError> for InstallFrozenLockfileError {
             }
             HoistedLinkerError::SymlinkDirectDependencies(error) => {
                 InstallFrozenLockfileError::SymlinkDirectDependencies(error)
+            }
+            HoistedLinkerError::WritePackageMap(error) => {
+                InstallFrozenLockfileError::WritePackageMap(error)
             }
         }
     }
@@ -1317,6 +1495,7 @@ pub(crate) fn run_hoisted_linker<Reporter: self::Reporter>(
         layout,
         importers,
         dependency_groups,
+        project_manifests,
         walker_lockfile_dir,
         symlink_workspace_root,
         host_node,
@@ -1387,6 +1566,17 @@ pub(crate) fn run_hoisted_linker<Reporter: self::Reporter>(
         requester,
     };
     link_hoisted_modules::<Reporter>(&link_opts).map_err(HoistedLinkerError::LinkHoistedModules)?;
+    crate::package_map::write_hoisted_package_map(
+        lockfile,
+        &walker_result,
+        &crate::package_map::HoistedPackageMapOptions {
+            lockfile_dir: walker_lockfile_dir,
+            modules_dir: &config.modules_dir,
+            package_map_type: config.node_package_map_type,
+            project_manifests,
+        },
+    )
+    .map_err(HoistedLinkerError::WritePackageMap)?;
     // Workspace `link:` deps still need symlinks under each importer's
     // `node_modules/<alias>` even though the regular deps now live as
     // real directories. The hoisted dep-graph walker skips
@@ -1542,7 +1732,7 @@ pub(crate) fn collect_public_hoist_targets(
 /// as `u32`. Used to derive the engine-name string upstream's
 /// side-effects cache lookup expects without re-spawning
 /// `node --version`.
-fn parse_major_from_version(version: &str) -> Option<u32> {
+pub(crate) fn parse_major_from_version(version: &str) -> Option<u32> {
     let after_v = version.strip_prefix('v').unwrap_or(version);
     after_v.split('.').next()?.parse().ok()
 }
@@ -1564,7 +1754,9 @@ fn parse_major_from_version(version: &str) -> Option<u32> {
 /// Returns `None` when no importer pinned a runtime — callers should
 /// then fall through to the host probe (`node --version` or the
 /// cached `host_node`).
-fn find_runtime_node_major(snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>) -> Option<u32> {
+pub(crate) fn find_runtime_node_major(
+    snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
+) -> Option<u32> {
     let snapshots = snapshots?;
     for key in snapshots.keys() {
         if key.suffix.prefix() != Prefix::Runtime {
@@ -1609,10 +1801,6 @@ fn find_runtime_node_major(snapshots: Option<&HashMap<PackageKey, SnapshotEntry>
 pub(crate) fn find_own_runtime_node_major(snapshot: &SnapshotEntry) -> Option<u32> {
     let deps = snapshot.dependencies.as_ref()?;
     for (alias, dep_ref) in deps {
-        // Match upstream's per-snapshot extraction rule — only the
-        // unscoped `node` alias counts, and only when the resolved
-        // ref-value's prefix is `runtime:` (bun/deno runtimes don't
-        // contribute to the Node-shaped engine string).
         if alias.scope.is_some() || alias.bare != "node" {
             continue;
         }

@@ -97,6 +97,10 @@ for Rust-level conventions — imports, naming, ownership, error handling,
 test layout. They are written for pacquet but apply to any Rust code in
 this workspace.
 
+### Comments
+
+Follow the repo-wide comment baseline in [`../AGENTS.md`](../AGENTS.md#comments) and the Rust-specific additions in [`../pacquet/AGENTS.md`](../pacquet/AGENTS.md#comments).
+
 Commit messages use Conventional Commits with `pnpr` as the scope
 (`feat(pnpr): ...`, `fix(pnpr): ...`).
 

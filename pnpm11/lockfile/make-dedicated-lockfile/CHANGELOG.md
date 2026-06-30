@@ -1,0 +1,1716 @@
+# @pnpm/make-dedicated-lockfile
+
+## 1100.0.21
+
+### Patch Changes
+
+- Updated dependencies [0ec878d]
+- Updated dependencies [852d537]
+  - @pnpm/workspace.project-manifest-reader@1100.0.14
+  - @pnpm/error@1100.0.1
+  - @pnpm/lockfile.fs@1100.1.7
+  - @pnpm/releasing.exportable-manifest@1100.1.8
+  - @pnpm/workspace.root-finder@1100.0.3
+  - @pnpm/lockfile.pruner@1100.0.12
+
+## 1100.0.20
+
+### Patch Changes
+
+- Updated dependencies [61969fb]
+- Updated dependencies [e85aea2]
+- Updated dependencies [293921a]
+  - @pnpm/lockfile.fs@1100.1.6
+  - @pnpm/releasing.exportable-manifest@1100.1.7
+  - @pnpm/workspace.root-finder@1100.0.2
+
+## 1100.0.19
+
+### Patch Changes
+
+- Updated dependencies [681b593]
+- Updated dependencies [d50d691]
+- Updated dependencies [a31faa7]
+  - @pnpm/types@1101.3.2
+  - @pnpm/lockfile.fs@1100.1.5
+  - @pnpm/workspace.project-manifest-reader@1100.0.13
+  - @pnpm/lockfile.pruner@1100.0.11
+  - @pnpm/releasing.exportable-manifest@1100.1.6
+
+## 1100.0.18
+
+### Patch Changes
+
+- @pnpm/releasing.exportable-manifest@1100.1.5
+- @pnpm/workspace.project-manifest-reader@1100.0.12
+
+## 1100.0.17
+
+### Patch Changes
+
+- Updated dependencies [bf1b731]
+  - @pnpm/types@1101.3.1
+  - @pnpm/releasing.exportable-manifest@1100.1.4
+  - @pnpm/lockfile.fs@1100.1.4
+  - @pnpm/lockfile.pruner@1100.0.10
+  - @pnpm/workspace.project-manifest-reader@1100.0.11
+
+## 1100.0.16
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+  - @pnpm/types@1101.3.0
+  - @pnpm/lockfile.fs@1100.1.3
+  - @pnpm/lockfile.pruner@1100.0.9
+  - @pnpm/releasing.exportable-manifest@1100.1.3
+  - @pnpm/workspace.project-manifest-reader@1100.0.10
+
+## 1100.0.15
+
+### Patch Changes
+
+- Updated dependencies [33921c8]
+  - @pnpm/releasing.exportable-manifest@1100.1.2
+
+## 1100.0.14
+
+### Patch Changes
+
+- Updated dependencies [a456dc7]
+- Updated dependencies [35d2355]
+  - @pnpm/workspace.project-manifest-reader@1100.0.9
+  - @pnpm/types@1101.2.0
+  - @pnpm/releasing.exportable-manifest@1100.1.1
+  - @pnpm/lockfile.fs@1100.1.2
+  - @pnpm/lockfile.pruner@1100.0.8
+
+## 1100.0.13
+
+### Patch Changes
+
+- Updated dependencies [d7da112]
+- Updated dependencies [3b62f9d]
+  - @pnpm/workspace.project-manifest-reader@1100.0.8
+  - @pnpm/releasing.exportable-manifest@1100.1.0
+
+## 1100.0.12
+
+### Patch Changes
+
+- Updated dependencies [9cb48bb]
+- Updated dependencies [64afc92]
+  - @pnpm/lockfile.fs@1100.1.1
+  - @pnpm/types@1101.1.1
+  - @pnpm/workspace.project-manifest-reader@1100.0.7
+  - @pnpm/lockfile.pruner@1100.0.7
+  - @pnpm/releasing.exportable-manifest@1100.0.7
+
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [6e93f35]
+- Updated dependencies [2a9bd89]
+  - @pnpm/lockfile.fs@1100.1.0
+  - @pnpm/lockfile.pruner@1100.0.6
+  - @pnpm/releasing.exportable-manifest@1100.0.6
+  - @pnpm/workspace.project-manifest-reader@1100.0.6
+
+## 1100.0.10
+
+### Patch Changes
+
+- Updated dependencies [180aee9]
+  - @pnpm/lockfile.fs@1100.0.8
+  - @pnpm/workspace.project-manifest-reader@1100.0.5
+  - @pnpm/releasing.exportable-manifest@1100.0.5
+
+## 1100.0.9
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/lockfile.fs@1100.0.7
+  - @pnpm/lockfile.pruner@1100.0.5
+  - @pnpm/releasing.exportable-manifest@1100.0.4
+  - @pnpm/workspace.project-manifest-reader@1100.0.4
+
+## 1100.0.8
+
+### Patch Changes
+
+- 15e9e35: Upgrade `@pnpm/semver-diff`, `@pnpm/colorize-semver-diff`, `@pnpm/exec`, and `parse-npm-tarball-url` to versions that expose their helpers as named exports instead of CommonJS default exports. This eliminates the `.default` property accesses that broke under Node.js ESM interop in tests and could fail at runtime in some module loaders.
+  - @pnpm/releasing.exportable-manifest@1100.0.3
+
+## 1100.0.7
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1100.0.6
+
+## 1100.0.6
+
+### Patch Changes
+
+- Updated dependencies [27425d7]
+  - @pnpm/lockfile.fs@1100.0.5
+  - @pnpm/lockfile.pruner@1100.0.4
+  - @pnpm/releasing.exportable-manifest@1100.0.3
+
+## 1100.0.5
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/workspace.project-manifest-reader@1100.0.3
+  - @pnpm/releasing.exportable-manifest@1100.0.3
+  - @pnpm/workspace.root-finder@1100.0.1
+  - @pnpm/lockfile.fs@1100.0.4
+  - @pnpm/lockfile.pruner@1100.0.3
+
+## 1100.0.4
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1100.0.3
+- @pnpm/releasing.exportable-manifest@1100.0.2
+
+## 1100.0.3
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1100.0.2
+- @pnpm/lockfile.pruner@1100.0.2
+- @pnpm/releasing.exportable-manifest@1100.0.2
+
+## 1100.0.2
+
+### Patch Changes
+
+- @pnpm/workspace.project-manifest-reader@1100.0.2
+- @pnpm/releasing.exportable-manifest@1100.0.2
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/lockfile.fs@1100.0.1
+  - @pnpm/lockfile.pruner@1100.0.1
+  - @pnpm/releasing.exportable-manifest@1100.0.1
+  - @pnpm/workspace.project-manifest-reader@1100.0.1
+
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Minor Changes
+
+- cc7c0d2: `pnpm publish` now works without the `npm` CLI.
+
+  The One-time Password feature now reads from `PNPM_CONFIG_OTP` instead of `NPM_CONFIG_OTP`:
+
+  ```sh
+  export PNPM_CONFIG_OTP='<your OTP here>'
+  pnpm publish --no-git-checks
+  ```
+
+  If the registry requests OTP and the user has not provided it via the `PNPM_CONFIG_OTP` environment variable or the `--otp` flag, pnpm will prompt the user directly for an OTP code.
+
+  If the registry requests web-based authentication, pnpm will print a scannable QR code along with the URL.
+
+  Since the new `pnpm publish` no longer calls `npm publish`, some undocumented features may have been unknowingly dropped. If you rely on a feature that is now gone, please open an issue at <https://github.com/pnpm/pnpm/issues>. In the meantime, you can use `pnpm pack && npm publish *.tgz` as a workaround.
+
+### Patch Changes
+
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [29764fb]
+- Updated dependencies [491a84f]
+- Updated dependencies [e119c4e]
+- Updated dependencies [98a5f1c]
+- Updated dependencies [0625e20]
+- Updated dependencies [d458ab3]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [831f574]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [efb48dc]
+- Updated dependencies [f03b9ec]
+  - @pnpm/types@1001.0.0
+  - @pnpm/lockfile.fs@1002.0.0
+  - @pnpm/releasing.exportable-manifest@1001.0.0
+  - @pnpm/workspace.project-manifest-reader@1002.0.0
+  - @pnpm/workspace.root-finder@1001.0.0
+  - @pnpm/lockfile.pruner@1002.0.0
+  - @pnpm/logger@1002.0.0
+  - @pnpm/error@1001.0.0
+
+## 1000.0.28
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+  - @pnpm/types@1000.9.0
+  - @pnpm/lockfile.fs@1001.1.21
+  - @pnpm/lockfile.pruner@1001.0.17
+  - @pnpm/exportable-manifest@1000.1.7
+  - @pnpm/read-project-manifest@1001.1.4
+
+## 1000.0.27
+
+### Patch Changes
+
+- Updated dependencies [b9effa2]
+  - @pnpm/logger@1001.0.1
+
+## 1000.0.26
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@1001.1.3
+- @pnpm/exportable-manifest@1000.1.6
+- @pnpm/lockfile.fs@1001.1.20
+- @pnpm/lockfile.pruner@1001.0.16
+
+## 1000.0.25
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.19
+- @pnpm/lockfile.pruner@1001.0.15
+- @pnpm/error@1000.0.5
+- @pnpm/exportable-manifest@1000.1.5
+- @pnpm/read-project-manifest@1001.1.2
+- @pnpm/find-workspace-dir@1000.1.3
+
+## 1000.0.24
+
+### Patch Changes
+
+- Updated dependencies [e792927]
+  - @pnpm/types@1000.8.0
+  - @pnpm/lockfile.fs@1001.1.18
+  - @pnpm/lockfile.pruner@1001.0.14
+  - @pnpm/exportable-manifest@1000.1.4
+  - @pnpm/read-project-manifest@1001.1.1
+
+## 1000.0.23
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+  - @pnpm/read-project-manifest@1001.1.0
+  - @pnpm/lockfile.fs@1001.1.17
+  - @pnpm/lockfile.pruner@1001.0.13
+  - @pnpm/error@1000.0.4
+  - @pnpm/exportable-manifest@1000.1.3
+  - @pnpm/find-workspace-dir@1000.1.2
+
+## 1000.0.22
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/read-project-manifest@1001.0.0
+  - @pnpm/lockfile.fs@1001.1.16
+  - @pnpm/lockfile.pruner@1001.0.12
+  - @pnpm/exportable-manifest@1000.1.2
+  - @pnpm/error@1000.0.3
+  - @pnpm/find-workspace-dir@1000.1.1
+
+## 1000.0.21
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.15
+- @pnpm/lockfile.pruner@1001.0.11
+
+## 1000.0.20
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.14
+- @pnpm/lockfile.pruner@1001.0.10
+
+## 1000.0.19
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.13
+- @pnpm/exportable-manifest@1000.1.1
+
+## 1000.0.18
+
+### Patch Changes
+
+- Updated dependencies [09cf46f]
+- Updated dependencies [5ec7255]
+  - @pnpm/lockfile.fs@1001.1.12
+  - @pnpm/types@1000.6.0
+  - @pnpm/lockfile.pruner@1001.0.9
+  - @pnpm/exportable-manifest@1000.1.1
+  - @pnpm/read-project-manifest@1000.0.11
+
+## 1000.0.17
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/logger@1001.0.0
+  - @pnpm/exportable-manifest@1000.1.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/lockfile.fs@1001.1.11
+  - @pnpm/lockfile.pruner@1001.0.8
+  - @pnpm/read-project-manifest@1000.0.10
+
+## 1000.0.16
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.10
+- @pnpm/exportable-manifest@1000.0.10
+
+## 1000.0.15
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+  - @pnpm/types@1000.4.0
+  - @pnpm/lockfile.fs@1001.1.9
+  - @pnpm/lockfile.pruner@1001.0.7
+  - @pnpm/exportable-manifest@1000.0.10
+  - @pnpm/read-project-manifest@1000.0.9
+
+## 1000.0.14
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/lockfile.fs@1001.1.8
+  - @pnpm/lockfile.pruner@1001.0.6
+  - @pnpm/exportable-manifest@1000.0.9
+  - @pnpm/read-project-manifest@1000.0.8
+
+## 1000.0.13
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.7
+- @pnpm/exportable-manifest@1000.0.8
+
+## 1000.0.12
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.6
+- @pnpm/lockfile.pruner@1001.0.5
+
+## 1000.0.11
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+  - @pnpm/lockfile.fs@1001.1.5
+  - @pnpm/lockfile.pruner@1001.0.4
+  - @pnpm/exportable-manifest@1000.0.8
+  - @pnpm/read-project-manifest@1000.0.7
+
+## 1000.0.10
+
+### Patch Changes
+
+- Updated dependencies [69f922a]
+  - @pnpm/find-workspace-dir@1000.1.0
+
+## 1000.0.9
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/lockfile.fs@1001.1.4
+  - @pnpm/lockfile.pruner@1001.0.3
+  - @pnpm/exportable-manifest@1000.0.7
+  - @pnpm/read-project-manifest@1000.0.6
+
+## 1000.0.8
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1001.1.3
+
+## 1000.0.7
+
+### Patch Changes
+
+- Updated dependencies [1e229d7]
+  - @pnpm/read-project-manifest@1000.0.5
+  - @pnpm/exportable-manifest@1000.0.6
+
+## 1000.0.6
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/lockfile.fs@1001.1.2
+  - @pnpm/lockfile.pruner@1001.0.2
+  - @pnpm/error@1000.0.2
+  - @pnpm/exportable-manifest@1000.0.5
+  - @pnpm/read-project-manifest@1000.0.4
+  - @pnpm/find-workspace-dir@1000.0.2
+
+## 1000.0.5
+
+### Patch Changes
+
+- Updated dependencies [e050221]
+  - @pnpm/read-project-manifest@1000.0.3
+  - @pnpm/exportable-manifest@1000.0.4
+
+## 1000.0.4
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/lockfile.fs@1001.1.1
+  - @pnpm/lockfile.pruner@1001.0.1
+  - @pnpm/exportable-manifest@1000.0.3
+  - @pnpm/read-project-manifest@1000.0.2
+
+## 1000.0.3
+
+### Patch Changes
+
+- Updated dependencies [738d9e4]
+  - @pnpm/exportable-manifest@1000.0.2
+
+## 1000.0.2
+
+### Patch Changes
+
+- Updated dependencies [3f0e4f0]
+  - @pnpm/lockfile.fs@1001.1.0
+
+## 1000.0.1
+
+### Patch Changes
+
+- Updated dependencies [a76da0c]
+  - @pnpm/lockfile.pruner@1001.0.0
+  - @pnpm/lockfile.fs@1001.0.0
+  - @pnpm/error@1000.0.1
+  - @pnpm/exportable-manifest@1000.0.1
+  - @pnpm/read-project-manifest@1000.0.1
+  - @pnpm/find-workspace-dir@1000.0.1
+
+## 0.6.20
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1.0.6
+- @pnpm/lockfile.pruner@0.0.7
+- @pnpm/error@6.0.3
+- @pnpm/exportable-manifest@7.0.7
+- @pnpm/read-project-manifest@6.0.10
+- @pnpm/find-workspace-dir@7.0.3
+
+## 0.6.19
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1.0.5
+- @pnpm/lockfile.pruner@0.0.6
+- @pnpm/exportable-manifest@7.0.6
+
+## 0.6.18
+
+### Patch Changes
+
+- @pnpm/lockfile.fs@1.0.4
+- @pnpm/lockfile.pruner@0.0.5
+- @pnpm/error@6.0.2
+- @pnpm/exportable-manifest@7.0.6
+- @pnpm/read-project-manifest@6.0.9
+- @pnpm/find-workspace-dir@7.0.2
+
+## 0.6.17
+
+### Patch Changes
+
+- Updated dependencies [d500d9f]
+  - @pnpm/types@12.2.0
+  - @pnpm/lockfile.fs@1.0.3
+  - @pnpm/lockfile.pruner@0.0.4
+  - @pnpm/exportable-manifest@7.0.5
+  - @pnpm/read-project-manifest@6.0.8
+
+## 0.6.16
+
+### Patch Changes
+
+- Updated dependencies [7ee59a1]
+  - @pnpm/types@12.1.0
+  - @pnpm/lockfile.fs@1.0.2
+  - @pnpm/lockfile.pruner@0.0.3
+  - @pnpm/exportable-manifest@7.0.4
+  - @pnpm/read-project-manifest@6.0.7
+
+## 0.6.15
+
+### Patch Changes
+
+- Updated dependencies [ecbe2ea]
+  - @pnpm/exportable-manifest@7.0.3
+
+## 0.6.14
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/types@12.0.0
+  - @pnpm/lockfile.fs@1.0.1
+  - @pnpm/lockfile.pruner@0.0.2
+  - @pnpm/exportable-manifest@7.0.2
+  - @pnpm/read-project-manifest@6.0.6
+
+## 0.6.13
+
+### Patch Changes
+
+- Updated dependencies [daa45df]
+- Updated dependencies [8055a30]
+  - @pnpm/lockfile.pruner@0.0.1
+  - @pnpm/lockfile.fs@1.0.0
+  - @pnpm/exportable-manifest@7.0.1
+
+## 0.6.12
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/lockfile-file@9.1.3
+  - @pnpm/prune-lockfile@6.1.4
+  - @pnpm/exportable-manifest@7.0.1
+  - @pnpm/read-project-manifest@6.0.5
+
+## 0.6.11
+
+### Patch Changes
+
+- afe520d: Update rename-overwrite to v6.
+  - @pnpm/exportable-manifest@7.0.0
+
+## 0.6.10
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies [9c63679]
+- Updated dependencies
+  - @pnpm/types@11.0.0
+  - @pnpm/exportable-manifest@7.0.0
+  - @pnpm/lockfile-file@9.1.2
+  - @pnpm/prune-lockfile@6.1.3
+  - @pnpm/read-project-manifest@6.0.4
+
+## 0.6.9
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+- Updated dependencies [398472c]
+  - @pnpm/types@10.1.1
+  - @pnpm/exportable-manifest@6.1.0
+  - @pnpm/lockfile-file@9.1.1
+  - @pnpm/prune-lockfile@6.1.2
+  - @pnpm/read-project-manifest@6.0.3
+
+## 0.6.8
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/lockfile-file@9.1.0
+  - @pnpm/prune-lockfile@6.1.1
+  - @pnpm/exportable-manifest@6.0.2
+
+## 0.6.7
+
+### Patch Changes
+
+- Updated dependencies [27c33f0]
+  - @pnpm/prune-lockfile@6.1.0
+
+## 0.6.6
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+  - @pnpm/types@10.1.0
+  - @pnpm/lockfile-file@9.0.6
+  - @pnpm/prune-lockfile@6.0.2
+  - @pnpm/exportable-manifest@6.0.2
+  - @pnpm/read-project-manifest@6.0.2
+
+## 0.6.5
+
+### Patch Changes
+
+- Updated dependencies [a7aef51]
+  - @pnpm/error@6.0.1
+  - @pnpm/lockfile-file@9.0.5
+  - @pnpm/exportable-manifest@6.0.1
+  - @pnpm/read-project-manifest@6.0.1
+  - @pnpm/find-workspace-dir@7.0.1
+
+## 0.6.4
+
+### Patch Changes
+
+- @pnpm/lockfile-file@9.0.4
+
+## 0.6.3
+
+### Patch Changes
+
+- @pnpm/lockfile-file@9.0.3
+- @pnpm/prune-lockfile@6.0.1
+- @pnpm/exportable-manifest@6.0.0
+
+## 0.6.2
+
+### Patch Changes
+
+- Updated dependencies [c969f37]
+  - @pnpm/lockfile-file@9.0.2
+
+## 0.6.1
+
+### Patch Changes
+
+- Updated dependencies [2cbf7b7]
+- Updated dependencies [6b6ca69]
+  - @pnpm/lockfile-file@9.0.1
+
+## 0.6.0
+
+### Minor Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+- d381a60: Support for lockfile v5 is dropped. Use pnpm v8 to convert lockfile v5 to lockfile v6 [#7470](https://github.com/pnpm/pnpm/pull/7470).
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [3ded840]
+- Updated dependencies [43cdd87]
+- Updated dependencies [086b69c]
+- Updated dependencies [d381a60]
+- Updated dependencies [3477ee5]
+- Updated dependencies [f67ad31]
+- Updated dependencies [730929e]
+  - @pnpm/types@10.0.0
+  - @pnpm/error@6.0.0
+  - @pnpm/read-project-manifest@6.0.0
+  - @pnpm/exportable-manifest@6.0.0
+  - @pnpm/find-workspace-dir@7.0.0
+  - @pnpm/prune-lockfile@6.0.0
+  - @pnpm/lockfile-file@9.0.0
+
+## 0.5.13
+
+### Patch Changes
+
+- 33313d2fd: Update rename-overwrite to v5.
+- Updated dependencies [4d34684f1]
+  - @pnpm/types@9.4.2
+  - @pnpm/lockfile-file@8.1.6
+  - @pnpm/prune-lockfile@5.0.9
+  - @pnpm/exportable-manifest@5.0.11
+  - @pnpm/read-project-manifest@5.0.10
+
+## 0.5.12
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/types@9.4.1
+  - @pnpm/lockfile-file@8.1.5
+  - @pnpm/prune-lockfile@5.0.8
+  - @pnpm/exportable-manifest@5.0.10
+  - @pnpm/read-project-manifest@5.0.9
+
+## 0.5.11
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+  - @pnpm/types@9.4.0
+  - @pnpm/lockfile-file@8.1.4
+  - @pnpm/prune-lockfile@5.0.7
+  - @pnpm/exportable-manifest@5.0.9
+  - @pnpm/read-project-manifest@5.0.8
+
+## 0.5.10
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+  - @pnpm/types@9.3.0
+  - @pnpm/lockfile-file@8.1.3
+  - @pnpm/prune-lockfile@5.0.6
+  - @pnpm/exportable-manifest@5.0.8
+  - @pnpm/read-project-manifest@5.0.7
+
+## 0.5.9
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@5.0.6
+- @pnpm/exportable-manifest@5.0.7
+
+## 0.5.8
+
+### Patch Changes
+
+- Updated dependencies [e9aa6f682]
+  - @pnpm/exportable-manifest@5.0.6
+  - @pnpm/read-project-manifest@5.0.5
+
+## 0.5.7
+
+### Patch Changes
+
+- Updated dependencies [aa2ae8fe2]
+  - @pnpm/types@9.2.0
+  - @pnpm/lockfile-file@8.1.2
+  - @pnpm/prune-lockfile@5.0.5
+  - @pnpm/exportable-manifest@5.0.5
+  - @pnpm/read-project-manifest@5.0.4
+
+## 0.5.6
+
+### Patch Changes
+
+- Updated dependencies [b4892acc5]
+  - @pnpm/read-project-manifest@5.0.3
+  - @pnpm/exportable-manifest@5.0.4
+
+## 0.5.5
+
+### Patch Changes
+
+- @pnpm/lockfile-file@8.1.1
+- @pnpm/prune-lockfile@5.0.4
+- @pnpm/error@5.0.2
+- @pnpm/exportable-manifest@5.0.3
+- @pnpm/read-project-manifest@5.0.2
+- @pnpm/find-workspace-dir@6.0.2
+
+## 0.5.4
+
+### Patch Changes
+
+- Updated dependencies [4b97f1f07]
+  - @pnpm/exportable-manifest@5.0.2
+
+## 0.5.3
+
+### Patch Changes
+
+- Updated dependencies [9c4ae87bd]
+- Updated dependencies [a9e0b7cbf]
+- Updated dependencies [9c4ae87bd]
+  - @pnpm/lockfile-file@8.1.0
+  - @pnpm/types@9.1.0
+  - @pnpm/prune-lockfile@5.0.3
+  - @pnpm/exportable-manifest@5.0.1
+  - @pnpm/read-project-manifest@5.0.1
+  - @pnpm/error@5.0.1
+  - @pnpm/find-workspace-dir@6.0.1
+
+## 0.5.2
+
+### Patch Changes
+
+- Updated dependencies [c0760128d]
+  - @pnpm/lockfile-file@8.0.2
+  - @pnpm/prune-lockfile@5.0.2
+
+## 0.5.1
+
+### Patch Changes
+
+- Updated dependencies [5087636b6]
+- Updated dependencies [94f94eed6]
+  - @pnpm/lockfile-file@8.0.1
+  - @pnpm/prune-lockfile@5.0.1
+
+## 0.5.0
+
+### Minor Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [158d8cf22]
+- Updated dependencies [eceaa8b8b]
+- Updated dependencies [417c8ac59]
+  - @pnpm/lockfile-file@8.0.0
+  - @pnpm/read-project-manifest@5.0.0
+  - @pnpm/exportable-manifest@5.0.0
+  - @pnpm/find-workspace-dir@6.0.0
+  - @pnpm/prune-lockfile@5.0.0
+  - @pnpm/error@5.0.0
+  - @pnpm/types@9.0.0
+
+## 0.4.14
+
+### Patch Changes
+
+- Updated dependencies [787c43dcc]
+  - @pnpm/lockfile-file@7.0.6
+  - @pnpm/read-project-manifest@4.1.4
+  - @pnpm/exportable-manifest@4.0.8
+
+## 0.4.13
+
+### Patch Changes
+
+- Updated dependencies [ed946c73e]
+  - @pnpm/lockfile-file@7.0.5
+
+## 0.4.12
+
+### Patch Changes
+
+- Updated dependencies [b71c6ed74]
+  - @pnpm/exportable-manifest@4.0.7
+
+## 0.4.11
+
+### Patch Changes
+
+- @pnpm/lockfile-file@7.0.4
+- @pnpm/prune-lockfile@4.0.24
+
+## 0.4.10
+
+### Patch Changes
+
+- @pnpm/lockfile-file@7.0.3
+- @pnpm/prune-lockfile@4.0.23
+
+## 0.4.9
+
+### Patch Changes
+
+- Updated dependencies [9a68ebbae]
+  - @pnpm/lockfile-file@7.0.2
+
+## 0.4.8
+
+### Patch Changes
+
+- @pnpm/lockfile-file@7.0.1
+- @pnpm/prune-lockfile@4.0.22
+
+## 0.4.7
+
+### Patch Changes
+
+- Updated dependencies [3ebce5db7]
+  - @pnpm/lockfile-file@7.0.0
+  - @pnpm/prune-lockfile@4.0.21
+  - @pnpm/error@4.0.1
+  - @pnpm/exportable-manifest@4.0.6
+  - @pnpm/read-project-manifest@4.1.3
+  - @pnpm/find-workspace-dir@5.0.1
+
+## 0.4.6
+
+### Patch Changes
+
+- Updated dependencies [b77651d14]
+  - @pnpm/types@8.10.0
+  - @pnpm/lockfile-file@6.0.5
+  - @pnpm/prune-lockfile@4.0.20
+  - @pnpm/exportable-manifest@4.0.5
+  - @pnpm/read-project-manifest@4.1.2
+
+## 0.4.5
+
+### Patch Changes
+
+- @pnpm/lockfile-file@6.0.4
+- @pnpm/prune-lockfile@4.0.19
+
+## 0.4.4
+
+### Patch Changes
+
+- Updated dependencies [a9d59d8bc]
+  - @pnpm/lockfile-file@6.0.3
+  - @pnpm/read-project-manifest@4.1.1
+  - @pnpm/exportable-manifest@4.0.4
+
+## 0.4.3
+
+### Patch Changes
+
+- Updated dependencies [fec9e3149]
+- Updated dependencies [0d12d38fd]
+  - @pnpm/read-project-manifest@4.1.0
+  - @pnpm/exportable-manifest@4.0.3
+
+## 0.4.2
+
+### Patch Changes
+
+- Updated dependencies [702e847c1]
+  - @pnpm/types@8.9.0
+  - @pnpm/exportable-manifest@4.0.2
+  - @pnpm/lockfile-file@6.0.2
+  - @pnpm/prune-lockfile@4.0.18
+  - @pnpm/read-project-manifest@4.0.2
+
+## 0.4.1
+
+### Patch Changes
+
+- Updated dependencies [844e82f3a]
+  - @pnpm/types@8.8.0
+  - @pnpm/exportable-manifest@4.0.1
+  - @pnpm/lockfile-file@6.0.1
+  - @pnpm/prune-lockfile@4.0.17
+  - @pnpm/read-project-manifest@4.0.1
+
+## 0.4.0
+
+### Minor Changes
+
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [043d988fc]
+- Updated dependencies [f884689e0]
+  - @pnpm/error@4.0.0
+  - @pnpm/exportable-manifest@4.0.0
+  - @pnpm/find-workspace-dir@5.0.0
+  - @pnpm/lockfile-file@6.0.0
+  - @pnpm/read-project-manifest@4.0.0
+
+## 0.3.24
+
+### Patch Changes
+
+- Updated dependencies [7c296fe9b]
+  - @pnpm/lockfile-file@5.3.8
+  - @pnpm/read-project-manifest@3.0.13
+  - @pnpm/exportable-manifest@3.1.6
+
+## 0.3.23
+
+### Patch Changes
+
+- Updated dependencies [e8a631bf0]
+  - @pnpm/error@3.1.0
+  - @pnpm/exportable-manifest@3.1.5
+  - @pnpm/find-workspace-dir@4.0.3
+  - @pnpm/lockfile-file@5.3.7
+  - @pnpm/read-project-manifest@3.0.12
+
+## 0.3.22
+
+### Patch Changes
+
+- Updated dependencies [d665f3ff7]
+  - @pnpm/types@8.7.0
+  - @pnpm/exportable-manifest@3.1.4
+  - @pnpm/lockfile-file@5.3.6
+  - @pnpm/prune-lockfile@4.0.16
+  - @pnpm/read-project-manifest@3.0.11
+
+## 0.3.21
+
+### Patch Changes
+
+- Updated dependencies [156cc1ef6]
+  - @pnpm/types@8.6.0
+  - @pnpm/exportable-manifest@3.1.3
+  - @pnpm/lockfile-file@5.3.5
+  - @pnpm/prune-lockfile@4.0.15
+  - @pnpm/read-project-manifest@3.0.10
+
+## 0.3.20
+
+### Patch Changes
+
+- Updated dependencies [0373af22e]
+  - @pnpm/lockfile-file@5.3.4
+
+## 0.3.19
+
+### Patch Changes
+
+- Updated dependencies [1e5482da4]
+  - @pnpm/lockfile-file@5.3.3
+
+## 0.3.18
+
+### Patch Changes
+
+- 8103f92bd: Use a patched version of ramda to fix deprecation warnings on Node.js 16. Related issue: https://github.com/ramda/ramda/pull/3270
+- Updated dependencies [39c040127]
+- Updated dependencies [8103f92bd]
+  - @pnpm/read-project-manifest@3.0.9
+  - @pnpm/exportable-manifest@3.1.2
+  - @pnpm/lockfile-file@5.3.2
+  - @pnpm/prune-lockfile@4.0.14
+
+## 0.3.17
+
+### Patch Changes
+
+- Updated dependencies [44544b493]
+- Updated dependencies [c90798461]
+  - @pnpm/lockfile-file@5.3.1
+  - @pnpm/types@8.5.0
+  - @pnpm/exportable-manifest@3.1.1
+  - @pnpm/prune-lockfile@4.0.13
+  - @pnpm/read-project-manifest@3.0.8
+
+## 0.3.16
+
+### Patch Changes
+
+- Updated dependencies [8dcfbe357]
+  - @pnpm/lockfile-file@5.3.0
+  - @pnpm/prune-lockfile@4.0.12
+
+## 0.3.15
+
+### Patch Changes
+
+- 01c5834bf: Read the dependency versions before moving node_modules.
+- Updated dependencies [eb2426cf8]
+- Updated dependencies [01c5834bf]
+- Updated dependencies [4fa1091c8]
+  - @pnpm/exportable-manifest@3.1.0
+  - @pnpm/read-project-manifest@3.0.7
+  - @pnpm/lockfile-file@5.2.0
+
+## 0.3.14
+
+### Patch Changes
+
+- @pnpm/prune-lockfile@4.0.11
+
+## 0.3.13
+
+### Patch Changes
+
+- Updated dependencies [ab684d77e]
+  - @pnpm/lockfile-file@5.1.4
+
+## 0.3.12
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+- Updated dependencies [5f643f23b]
+  - @pnpm/exportable-manifest@3.0.7
+  - @pnpm/lockfile-file@5.1.3
+  - @pnpm/prune-lockfile@4.0.10
+
+## 0.3.11
+
+### Patch Changes
+
+- @pnpm/prune-lockfile@4.0.9
+
+## 0.3.10
+
+### Patch Changes
+
+- Updated dependencies [6434a8291]
+  - @pnpm/find-workspace-dir@4.0.2
+
+## 0.3.9
+
+### Patch Changes
+
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/types@8.4.0
+  - @pnpm/lockfile-file@5.1.2
+  - @pnpm/prune-lockfile@4.0.8
+  - @pnpm/exportable-manifest@3.0.6
+  - @pnpm/read-project-manifest@3.0.6
+
+## 0.3.8
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+  - @pnpm/types@8.3.0
+  - @pnpm/exportable-manifest@3.0.5
+  - @pnpm/lockfile-file@5.1.1
+  - @pnpm/prune-lockfile@4.0.7
+  - @pnpm/read-project-manifest@3.0.5
+
+## 0.3.7
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [56cf04cb3]
+  - @pnpm/types@8.2.0
+  - @pnpm/lockfile-file@5.1.0
+  - @pnpm/exportable-manifest@3.0.4
+  - @pnpm/prune-lockfile@4.0.6
+  - @pnpm/read-project-manifest@3.0.4
+
+## 0.3.6
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+  - @pnpm/exportable-manifest@3.0.3
+  - @pnpm/lockfile-file@5.0.4
+  - @pnpm/prune-lockfile@4.0.5
+  - @pnpm/read-project-manifest@3.0.3
+
+## 0.3.5
+
+### Patch Changes
+
+- Updated dependencies [190f0b331]
+  - @pnpm/prune-lockfile@4.0.4
+
+## 0.3.4
+
+### Patch Changes
+
+- @pnpm/prune-lockfile@4.0.3
+
+## 0.3.3
+
+### Patch Changes
+
+- Updated dependencies [52b0576af]
+  - @pnpm/lockfile-file@5.0.3
+
+## 0.3.2
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/exportable-manifest@3.0.2
+  - @pnpm/types@8.0.1
+  - @pnpm/lockfile-file@5.0.2
+  - @pnpm/prune-lockfile@4.0.2
+  - @pnpm/read-project-manifest@3.0.2
+
+## 0.3.1
+
+### Patch Changes
+
+- @pnpm/prune-lockfile@4.0.1
+- @pnpm/error@3.0.1
+- @pnpm/lockfile-file@5.0.1
+- @pnpm/exportable-manifest@3.0.1
+- @pnpm/find-workspace-dir@4.0.1
+- @pnpm/read-project-manifest@3.0.1
+
+## 0.3.0
+
+### Minor Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- e5cc47617: Do not re-resolve dependency versions
+- Updated dependencies [d504dc380]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - @pnpm/error@3.0.0
+  - @pnpm/exportable-manifest@3.0.0
+  - @pnpm/find-workspace-dir@4.0.0
+  - @pnpm/lockfile-file@5.0.0
+  - @pnpm/prune-lockfile@4.0.0
+  - @pnpm/read-project-manifest@3.0.0
+
+## 0.2.25
+
+### Patch Changes
+
+- Updated dependencies [70ba51da9]
+  - @pnpm/error@2.1.0
+  - @pnpm/exportable-manifest@2.3.2
+  - @pnpm/find-workspace-dir@3.0.2
+  - @pnpm/lockfile-file@4.3.1
+  - @pnpm/read-project-manifest@2.0.13
+
+## 0.2.24
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/lockfile-file@4.3.0
+  - @pnpm/types@7.10.0
+  - @pnpm/prune-lockfile@3.0.15
+  - @pnpm/exportable-manifest@2.3.1
+  - @pnpm/read-project-manifest@2.0.12
+
+## 0.2.23
+
+### Patch Changes
+
+- 86707aa2e: Do not re-resolve dependency versions
+
+## 0.2.22
+
+### Patch Changes
+
+- Updated dependencies [e1b459008]
+  - @pnpm/exportable-manifest@2.3.0
+
+## 0.2.21
+
+### Patch Changes
+
+- Updated dependencies [26cd01b88]
+  - @pnpm/types@7.9.0
+  - @pnpm/exportable-manifest@2.2.4
+  - @pnpm/lockfile-file@4.2.6
+  - @pnpm/prune-lockfile@3.0.14
+  - @pnpm/read-project-manifest@2.0.11
+
+## 0.2.20
+
+### Patch Changes
+
+- Updated dependencies [b5734a4a7]
+  - @pnpm/types@7.8.0
+  - @pnpm/exportable-manifest@2.2.3
+  - @pnpm/lockfile-file@4.2.5
+  - @pnpm/prune-lockfile@3.0.13
+  - @pnpm/read-project-manifest@2.0.10
+
+## 0.2.19
+
+### Patch Changes
+
+- Updated dependencies [eb9ebd0f3]
+- Updated dependencies [eb9ebd0f3]
+  - @pnpm/lockfile-file@4.2.4
+
+## 0.2.18
+
+### Patch Changes
+
+- Updated dependencies [6493e0c93]
+  - @pnpm/exportable-manifest@2.2.2
+  - @pnpm/types@7.7.1
+  - @pnpm/lockfile-file@4.2.3
+  - @pnpm/prune-lockfile@3.0.12
+  - @pnpm/read-project-manifest@2.0.9
+
+## 0.2.17
+
+### Patch Changes
+
+- Updated dependencies [ba9b2eba1]
+  - @pnpm/types@7.7.0
+  - @pnpm/exportable-manifest@2.2.1
+  - @pnpm/lockfile-file@4.2.2
+  - @pnpm/prune-lockfile@3.0.11
+  - @pnpm/read-project-manifest@2.0.8
+
+## 0.2.16
+
+### Patch Changes
+
+- Updated dependencies [6428690e2]
+  - @pnpm/exportable-manifest@2.2.0
+
+## 0.2.15
+
+### Patch Changes
+
+- Updated dependencies [302ae4f6f]
+  - @pnpm/types@7.6.0
+  - @pnpm/exportable-manifest@2.1.8
+  - @pnpm/lockfile-file@4.2.1
+  - @pnpm/prune-lockfile@3.0.10
+  - @pnpm/read-project-manifest@2.0.7
+
+## 0.2.14
+
+### Patch Changes
+
+- Updated dependencies [4ab87844a]
+- Updated dependencies [4ab87844a]
+  - @pnpm/types@7.5.0
+  - @pnpm/lockfile-file@4.2.0
+  - @pnpm/exportable-manifest@2.1.7
+  - @pnpm/prune-lockfile@3.0.9
+  - @pnpm/read-project-manifest@2.0.6
+
+## 0.2.13
+
+### Patch Changes
+
+- Updated dependencies [b734b45ea]
+  - @pnpm/types@7.4.0
+  - @pnpm/exportable-manifest@2.1.6
+  - @pnpm/lockfile-file@4.1.1
+  - @pnpm/prune-lockfile@3.0.8
+  - @pnpm/read-project-manifest@2.0.5
+
+## 0.2.12
+
+### Patch Changes
+
+- Updated dependencies [8e76690f4]
+- Updated dependencies [8e76690f4]
+  - @pnpm/lockfile-file@4.1.0
+  - @pnpm/types@7.3.0
+  - @pnpm/exportable-manifest@2.1.5
+  - @pnpm/prune-lockfile@3.0.7
+  - @pnpm/read-project-manifest@2.0.4
+
+## 0.2.11
+
+### Patch Changes
+
+- @pnpm/prune-lockfile@3.0.6
+
+## 0.2.10
+
+### Patch Changes
+
+- Updated dependencies [2dc5a7a4c]
+  - @pnpm/lockfile-file@4.0.4
+
+## 0.2.9
+
+### Patch Changes
+
+- Updated dependencies [724c5abd8]
+  - @pnpm/types@7.2.0
+  - @pnpm/exportable-manifest@2.1.4
+  - @pnpm/lockfile-file@4.0.3
+  - @pnpm/prune-lockfile@3.0.5
+  - @pnpm/read-project-manifest@2.0.3
+
+## 0.2.8
+
+### Patch Changes
+
+- a1a03d145: Import only the required functions from ramda.
+- Updated dependencies [a1a03d145]
+  - @pnpm/exportable-manifest@2.1.3
+  - @pnpm/lockfile-file@4.0.2
+  - @pnpm/prune-lockfile@3.0.4
+
+## 0.2.7
+
+### Patch Changes
+
+- Updated dependencies [6e8cedb79]
+  - @pnpm/find-workspace-dir@3.0.1
+
+## 0.2.6
+
+### Patch Changes
+
+- Updated dependencies [6a1468495]
+  - @pnpm/exportable-manifest@2.1.2
+
+## 0.2.5
+
+### Patch Changes
+
+- @pnpm/prune-lockfile@3.0.3
+
+## 0.2.4
+
+### Patch Changes
+
+- @pnpm/read-project-manifest@2.0.2
+- @pnpm/exportable-manifest@2.1.1
+
+## 0.2.3
+
+### Patch Changes
+
+- Updated dependencies [6e9c112af]
+- Updated dependencies [85fb21a83]
+- Updated dependencies [97c64bae4]
+  - @pnpm/read-project-manifest@2.0.1
+  - @pnpm/exportable-manifest@2.1.0
+  - @pnpm/types@7.1.0
+  - @pnpm/lockfile-file@4.0.1
+  - @pnpm/prune-lockfile@3.0.2
+
+## 0.2.2
+
+### Patch Changes
+
+- 6f198457d: Update rename-overwrite.
+- Updated dependencies [561276d2c]
+  - @pnpm/exportable-manifest@2.0.1
+
+## 0.2.1
+
+### Patch Changes
+
+- @pnpm/prune-lockfile@3.0.1
+
+## 0.2.0
+
+### Minor Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+
+### Patch Changes
+
+- Updated dependencies [97b986fbc]
+- Updated dependencies [155e70597]
+- Updated dependencies [9c2a878c3]
+- Updated dependencies [8b66f26dc]
+- Updated dependencies [f7750baed]
+- Updated dependencies [9c2a878c3]
+  - @pnpm/error@2.0.0
+  - @pnpm/exportable-manifest@2.0.0
+  - @pnpm/find-workspace-dir@3.0.0
+  - @pnpm/lockfile-file@4.0.0
+  - @pnpm/prune-lockfile@3.0.0
+  - @pnpm/read-project-manifest@2.0.0
+  - @pnpm/types@7.0.0
+
+## 0.1.21
+
+### Patch Changes
+
+- Updated dependencies [51e1456dd]
+  - @pnpm/lockfile-file@3.2.1
+
+## 0.1.20
+
+### Patch Changes
+
+- Updated dependencies [ad113645b]
+  - @pnpm/read-project-manifest@1.1.7
+  - @pnpm/exportable-manifest@1.2.2
+
+## 0.1.19
+
+### Patch Changes
+
+- Updated dependencies [9ad8c27bf]
+- Updated dependencies [9ad8c27bf]
+  - @pnpm/lockfile-file@3.2.0
+  - @pnpm/types@6.4.0
+  - @pnpm/prune-lockfile@2.0.19
+  - @pnpm/exportable-manifest@1.2.1
+  - @pnpm/read-project-manifest@1.1.6
+
+## 0.1.18
+
+### Patch Changes
+
+- Updated dependencies [af897c324]
+- Updated dependencies [c854f8547]
+  - @pnpm/lockfile-file@3.1.4
+  - @pnpm/exportable-manifest@1.2.0
+
+## 0.1.17
+
+### Patch Changes
+
+- Updated dependencies [1e4a3a17a]
+  - @pnpm/lockfile-file@3.1.3
+
+## 0.1.16
+
+### Patch Changes
+
+- @pnpm/prune-lockfile@2.0.18
+
+## 0.1.15
+
+### Patch Changes
+
+- Updated dependencies [ec37069f2]
+  - @pnpm/find-workspace-dir@2.0.0
+
+## 0.1.14
+
+### Patch Changes
+
+- Updated dependencies [fba715512]
+  - @pnpm/lockfile-file@3.1.2
+
+## 0.1.13
+
+### Patch Changes
+
+- 4bd1cb46f: Shebang added to the bin file.
+
+## 0.1.12
+
+### Patch Changes
+
+- Updated dependencies [284e95c5e]
+- Updated dependencies [084614f55]
+  - @pnpm/exportable-manifest@1.1.0
+
+## 0.1.11
+
+### Patch Changes
+
+- Updated dependencies [0c5f1bcc9]
+  - @pnpm/error@1.4.0
+  - @pnpm/exportable-manifest@1.0.8
+  - @pnpm/lockfile-file@3.1.1
+  - @pnpm/read-project-manifest@1.1.5
+
+## 0.1.10
+
+### Patch Changes
+
+- Updated dependencies [3776b5a52]
+  - @pnpm/lockfile-file@3.1.0
+
+## 0.1.9
+
+### Patch Changes
+
+- Updated dependencies [dbcc6c96f]
+- Updated dependencies [09492b7b4]
+  - @pnpm/lockfile-file@3.0.18
+  - @pnpm/read-project-manifest@1.1.4
+  - @pnpm/exportable-manifest@1.0.7
+
+## 0.1.8
+
+### Patch Changes
+
+- 7cdc64a46: Update @pnpm/exec to v2.
+- Updated dependencies [aa6bc4f95]
+  - @pnpm/lockfile-file@3.0.17
+  - @pnpm/prune-lockfile@2.0.17
+  - @pnpm/read-project-manifest@1.1.3
+  - @pnpm/exportable-manifest@1.0.6
+
+## 0.1.7
+
+### Patch Changes
+
+- Updated dependencies [b5d694e7f]
+  - @pnpm/types@6.3.1
+  - @pnpm/lockfile-file@3.0.16
+  - @pnpm/prune-lockfile@2.0.16
+  - @pnpm/exportable-manifest@1.0.5
+  - @pnpm/read-project-manifest@1.1.2
+
+## 0.1.6
+
+### Patch Changes
+
+- Updated dependencies [d54043ee4]
+  - @pnpm/types@6.3.0
+  - @pnpm/lockfile-file@3.0.15
+  - @pnpm/prune-lockfile@2.0.15
+  - @pnpm/exportable-manifest@1.0.4
+  - @pnpm/read-project-manifest@1.1.1
+
+## 0.1.5
+
+### Patch Changes
+
+- Updated dependencies [2762781cc]
+  - @pnpm/read-project-manifest@1.1.0
+  - @pnpm/exportable-manifest@1.0.3
+
+## 0.1.4
+
+### Patch Changes
+
+- Updated dependencies [75a36deba]
+  - @pnpm/error@1.3.1
+  - @pnpm/exportable-manifest@1.0.2
+  - @pnpm/lockfile-file@3.0.14
+  - @pnpm/read-project-manifest@1.0.13
+
+## 0.1.3
+
+### Patch Changes
+
+- Updated dependencies [9550b0505]
+  - @pnpm/lockfile-file@3.0.13
+
+## 0.1.2
+
+### Patch Changes
+
+- Updated dependencies [999f81305]
+- Updated dependencies [6d480dd7a]
+  - @pnpm/find-workspace-dir@1.0.1
+  - @pnpm/error@1.3.0
+  - @pnpm/exportable-manifest@1.0.1
+  - @pnpm/lockfile-file@3.0.12
+  - @pnpm/read-project-manifest@1.0.12
+
+## 0.1.1
+
+### Patch Changes
+
+- 8a2ad8662: Add missing peer dependency: @pnpm/logger.
+
+## 0.1.0
+
+### Minor Changes
+
+- edf1f412e: Project created.
+
+### Patch Changes
+
+- Updated dependencies [edf1f412e]
+  - @pnpm/exportable-manifest@1.0.0

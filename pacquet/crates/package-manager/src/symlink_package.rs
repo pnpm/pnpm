@@ -1,6 +1,6 @@
 use derive_more::{Display, Error};
 use miette::Diagnostic;
-use pacquet_fs::force_symlink_dir;
+use pacquet_fs::{ForceSymlinkOutcome, force_symlink_dir};
 use std::{
     io,
     path::{Path, PathBuf},
@@ -39,14 +39,14 @@ pub enum SymlinkPackageError {
 ///   `symlink_path` is renamed to
 ///   `<parent>/.ignored_<basename>` and the symlink is created.
 ///
-/// The pre-port version silently swallowed `AlreadyExists` from
-/// `pacquet_fs::symlink_dir`, which left stale symlinks in place
-/// across re-installs that retargeted a dependency — a divergence
-/// from upstream's overwrite-by-default behavior.
+/// Returns the [`ForceSymlinkOutcome`], so callers can mirror pnpm's
+/// `if ((await symlinkDependency(...)).reused) return` — the direct-dependency
+/// linker only emits a `pnpm:root added` event for symlinks it actually
+/// created, not for ones already pointing at the target.
 pub fn symlink_package(
     symlink_target: &Path,
     symlink_path: &Path,
-) -> Result<(), SymlinkPackageError> {
+) -> Result<ForceSymlinkOutcome, SymlinkPackageError> {
     // `force_symlink_dir` handles missing parent dirs via its own
     // `NotFound` retry that calls `create_dir_all` once and reissues
     // the symlink syscall. Pre-creating the parent here would just
@@ -60,6 +60,5 @@ pub fn symlink_package(
             symlink_path: symlink_path.to_path_buf(),
             error,
         }
-    })?;
-    Ok(())
+    })
 }

@@ -1,33 +1,97 @@
-name: CI
+name: TS CI
 
-on: [push, pull_request]
+on:
+  # Run push CI only on the default branch. A branch that lives in this repo
+  # fires both a `push` and a `pull_request` event for the same commit, and
+  # both runs report the `TS CI / Success` context to that commit. Branch
+  # protection then sees two results for the required check, so a cancellation
+  # or flake on the push side (e.g. two pushes racing on the test.yml
+  # concurrency group) blocks the PR even when the pull_request run passed.
+  # Restricting push to `main` means PRs carry `TS CI / Success` only via
+  # their `pull_request` run (and the merge queue via `merge_group`); `main`
+  # is validated pre-merge by `merge_group` and re-checked post-merge here.
+  push:
+    branches:
+      - main
+  pull_request:
+  merge_group:
 
 permissions:
   contents: read # to fetch code (actions/checkout)
 
 jobs:
-  compile-and-lint:
-    # Skip pull_request events from PRs in the same repo. This prevents
-    # duplicate build jobs from running when creating a PR in the original repo.
-    # Exception: chore/update-lockfile PRs (created by automation with GITHUB_TOKEN, which doesn't trigger push events)
-    if: ${{ github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository || github.head_ref == 'chore/update-lockfile' }}
+  changes:
+    name: TS CI / Detect Changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      ts: ${{ steps.force.outputs.ts || steps.filter.outputs.ts }}
+    steps:
+      # In the merge queue the full suite must run: `TS CI / Compile & Lint`
+      # is itself a required check, and a skipped job never reports its
+      # context, which would leave the queue waiting forever. Forcing
+      # detection true also tests the merged result, which is the point of
+      # the queue.
+      - name: Force TS CI for merge queue
+        if: github.event_name == 'merge_group'
+        id: force
+        run: echo "ts=true" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        if: github.event_name != 'merge_group'
+        with:
+          persist-credentials: false
+      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        if: github.event_name != 'merge_group'
+        id: filter
+        with:
+          # The TypeScript pnpm stack lives under pnpm11/, plus the
+          # workspace-root tooling that drives its build/lint/test.
+          filters: |
+            ts:
+              - 'pnpm11/**'
+              - '.meta-updater/**'
+              - '__patches__/**'
+              - 'package.json'
+              - 'pnpm-workspace.yaml'
+              - 'pnpm-lock.yaml'
+              - '.pnpmfile.cjs'
+              - 'eslint.config.mjs'
+              - 'tsconfig.lint.json'
+              - 'cspell.json'
+              - '.github/workflows/ci.yml'
+              - '.github/workflows/test.yml'
+              - '.github/workflows/build-pnpr.yml'
+              - '.github/scripts/**'
 
-    name: Compile & Lint
+  compile-and-lint:
+    needs: changes
+    # Run only when TypeScript-relevant files changed. Every PR (same-repo or
+    # fork) is covered by its pull_request run, and push only fires on main, so
+    # there are no duplicate build jobs to guard against here.
+    if: ${{ !cancelled() && needs.changes.outputs.ts == 'true' }}
+
+    name: TS CI / Compile & Lint
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout Commit
-      uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
         persist-credentials: false
     - name: Install pnpm
-      uses: pnpm/setup@b1cac37306e39c21283b9dd6cb0ac288fb35ba6b
+      uses: pnpm/setup@77cf06832101b3ac8c65caaf76a21643936d07a4
     - name: Compile TypeScript
       run: pn compile-only
     - name: Lint
       run: pn lint
     - name: Package compiled artifacts
-      run: tar -czf compiled.tar.gz --exclude='node_modules' $(find . -type d -name lib -not -path '*/node_modules/*') $(find . -name 'tsconfig.tsbuildinfo' -not -path '*/node_modules/*') pnpm/dist
+      shell: bash
+      run: |
+        mapfile -d '' -t lib_dirs < <(find . -type d -name lib -not -path '*/node_modules/*' -print0)
+        mapfile -d '' -t tsbuildinfo_files < <(find . -name 'tsconfig.tsbuildinfo' -not -path '*/node_modules/*' -print0)
+        tar -czf compiled.tar.gz --exclude='node_modules' "${lib_dirs[@]}" "${tsbuildinfo_files[@]}" pnpm11/pnpm/dist
     - name: Upload compiled artifacts
       uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
       with:
@@ -35,35 +99,123 @@ jobs:
         path: compiled.tar.gz
         retention-days: 1
 
+  # Build the pnpr binaries once per OS via a per-OS reusable workflow (not a
+  # single matrix job) so each platform's test jobs gate only on their own
+  # build. `needs` can only target a whole job, never an individual matrix
+  # leg, so a matrix build would make the ubuntu tests wait for the slower
+  # windows build and vice versa.
+  build-pnpr-linux:
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.ts == 'true' }}
+    name: TS CI / Build pnpr
+    uses: ./.github/workflows/build-pnpr.yml
+    with:
+      os: ubuntu-latest
+
+  build-pnpr-windows:
+    needs: changes
+    if: ${{ !cancelled() && needs.changes.outputs.ts == 'true' }}
+    name: TS CI / Build pnpr
+    uses: ./.github/workflows/build-pnpr.yml
+    with:
+      os: windows-latest
+
   test-smoke:
-    name: ubuntu-latest / Node.js 24
-    needs: compile-and-lint
+    name: TS CI / Test / ubuntu
+    needs: [compile-and-lint, build-pnpr-linux]
     uses: ./.github/workflows/test.yml
     with:
       node: '24.0.0'
+      node_major: '24'
       platform: ubuntu-latest
       garnet: true
     secrets:
       GARNET_API_TOKEN: ${{ secrets.GARNET_API_TOKEN }}
 
   test:
-    name: ${{ matrix.platform }} / Node.js ${{ matrix.node }}
+    name: TS CI / Test / ${{ matrix.platform_label }}
     needs: test-smoke
     strategy:
       fail-fast: false
       matrix:
-        node: ['22.13.0', '24.0.0', '26.3.0']
-        platform: [ubuntu-latest, windows-latest]
-        exclude:
-          - node: '24.0.0'
+        include:
+          - node: '22.13.0'
+            node_major: '22'
             platform: ubuntu-latest
-          # On branches, only run Windows with the lowest supported Node.js.
-          # Exception: main and release branches (release/x, release/x.x) run the full matrix.
-          - node: ${{ (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) && 'none' || '24.0.0' }}
-            platform: windows-latest
-          - node: ${{ (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/')) && 'none' || '26.3.0' }}
-            platform: windows-latest
+            platform_label: ubuntu
+            test_chunk: '1'
+            test_chunk_total: '1'
+          - node: '26.4.0'
+            node_major: '26'
+            platform: ubuntu-latest
+            platform_label: ubuntu
+            test_chunk: '1'
+            test_chunk_total: '1'
     uses: ./.github/workflows/test.yml
     with:
       node: ${{ matrix.node }}
+      node_major: ${{ matrix.node_major }}
       platform: ${{ matrix.platform }}
+      test_chunk: ${{ matrix.test_chunk }}
+      test_chunk_total: ${{ matrix.test_chunk_total }}
+
+  # Windows is the slowest platform. Gate it only on compile-and-lint so its
+  # shards run in parallel with the ubuntu smoke job, instead of waiting for
+  # the smoke job like the other Node.js versions do.
+  test-windows:
+    name: TS CI / Test / ${{ matrix.platform_label }}
+    needs: [compile-and-lint, build-pnpr-windows]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - node: '22.13.0'
+            node_major: '22'
+            platform: windows-latest
+            platform_label: windows 1/3
+            test_chunk: '1'
+            test_chunk_total: '3'
+          - node: '22.13.0'
+            node_major: '22'
+            platform: windows-latest
+            platform_label: windows 2/3
+            test_chunk: '2'
+            test_chunk_total: '3'
+          - node: '22.13.0'
+            node_major: '22'
+            platform: windows-latest
+            platform_label: windows 3/3
+            test_chunk: '3'
+            test_chunk_total: '3'
+    uses: ./.github/workflows/test.yml
+    with:
+      node: ${{ matrix.node }}
+      node_major: ${{ matrix.node_major }}
+      platform: ${{ matrix.platform }}
+      test_chunk: ${{ matrix.test_chunk }}
+      test_chunk_total: ${{ matrix.test_chunk_total }}
+
+  # Single aggregate gate — the only TS CI context branch protection needs
+  # to require. Listing the individual jobs as required checks does not
+  # work: they skip on non-TypeScript PRs, and a matrix job skipped at the
+  # job level never expands its `${{ matrix.* }}` name, so the per-platform
+  # contexts it would report never appear and the PR blocks forever waiting
+  # for them. This job always runs (it reports under a static name in every
+  # state) and fails only if a dependency actually failed or was cancelled —
+  # skipped dependencies count as a pass.
+  success:
+    name: TS CI / Success
+    if: ${{ always() }}
+    needs:
+      - changes
+      - compile-and-lint
+      - build-pnpr-linux
+      - build-pnpr-windows
+      - test-smoke
+      - test
+      - test-windows
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any dependency failed or was cancelled
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: exit 1

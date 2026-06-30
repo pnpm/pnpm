@@ -59,10 +59,6 @@ impl SnapshotDepRef {
     /// Resolve this reference to the `snapshots:` / `packages:` key it points
     /// to. `alias_name` is the key of the dependency entry (the name under
     /// which the package is linked into `node_modules`).
-    ///
-    /// Returns `None` for [`SnapshotDepRef::Link`] entries — `link:` deps
-    /// don't live in the virtual store and have no snapshot key. Mirrors
-    /// upstream's `refToRelative` returning `null` for `link:` references.
     #[must_use]
     pub fn resolve(&self, alias_name: &PkgName) -> Option<PkgNameVerPeer> {
         match self {
@@ -75,9 +71,6 @@ impl SnapshotDepRef {
     }
 
     /// Accessor for the version-with-peer part of this reference.
-    ///
-    /// Returns `None` for [`SnapshotDepRef::Link`] entries — a `link:` dep
-    /// has no version slot.
     #[must_use]
     pub fn ver_peer(&self) -> Option<&'_ PkgVerPeer> {
         match self {

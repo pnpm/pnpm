@@ -18,9 +18,14 @@
 //! [`reorderRecursive`]: https://github.com/pnpm/pnpm/blob/e7e99f04e4/workspace/workspace-manifest-writer/src/index.ts#L290-L313
 //! [`propagateBlankLinesToNewPairs`]: https://github.com/pnpm/pnpm/blob/e7e99f04e4/workspace/workspace-manifest-writer/src/index.ts#L347-L385
 
-use std::{fs, io, path::Path};
+use std::{
+    fs,
+    io::{self, Write as _},
+    path::Path,
+};
 
 use derive_more::{Display, Error};
+use indexmap::IndexMap;
 use miette::Diagnostic;
 use pacquet_catalogs_types::Catalogs;
 
@@ -72,15 +77,45 @@ pub enum UpdateWorkspaceManifestError {
         #[error(source)]
         source: io::Error,
     },
+
+    #[display("Failed to remove {path:?}: {source}")]
+    #[diagnostic(code(pacquet_workspace_manifest_writer::remove))]
+    Remove {
+        path: std::path::PathBuf,
+        #[error(source)]
+        source: io::Error,
+    },
+
+    #[display(
+        "Cannot write the override for {key:?} in {path:?}: it already has a non-string value (a parent-scoped object). Resolve it manually."
+    )]
+    #[diagnostic(code(pacquet_workspace_manifest_writer::override_conflict))]
+    OverrideConflict { path: std::path::PathBuf, key: String },
+
+    #[display(
+        "Cannot edit {key:?} in {path:?}: it uses an inline (flow) YAML value. Reformat it to block style and try again."
+    )]
+    #[diagnostic(code(pacquet_workspace_manifest_writer::unsupported_inline_block))]
+    UnsupportedInlineBlock { path: std::path::PathBuf, key: String },
+
+    #[display(
+        "Cannot write {value:?} to {path:?}: it contains a control character that would corrupt the YAML."
+    )]
+    #[diagnostic(code(pacquet_workspace_manifest_writer::invalid_control_character))]
+    InvalidControlCharacter { path: std::path::PathBuf, value: String },
+}
+
+/// Whether `value` holds a control character (newline, carriage return, etc.).
+/// The block-style writers splice `value` into a single `key: value` / `- item`
+/// line, so a control character would force a multi-line scalar and corrupt the
+/// document. The values these writers handle (GHSA ids, version-policy specs,
+/// override selectors/specifiers) never legitimately contain one.
+fn has_control_char(value: &str) -> bool {
+    value.chars().any(char::is_control)
 }
 
 /// Merge `updated_catalogs` into `dir`'s `pnpm-workspace.yaml`, writing the
 /// file back only when something actually changed.
-///
-/// Mirrors pnpm's `updateWorkspaceManifest(dir, { updatedCatalogs })`:
-/// entries already present with the same specifier are left untouched, so a
-/// no-op call performs no write. A brand-new default catalog is written under
-/// the top-level `catalog:` shorthand; named catalogs under `catalogs:`.
 pub fn update_workspace_manifest(
     dir: &Path,
     updated_catalogs: &Catalogs,
@@ -102,8 +137,7 @@ pub fn update_workspace_manifest(
         return Ok(());
     }
 
-    fs::write(&path, manifest.into_text())
-        .map_err(|source| UpdateWorkspaceManifestError::Write { path, source })
+    write_or_remove_manifest(&path, manifest)
 }
 
 /// Write a `name → specifier` entry into `dir`'s `pnpm-workspace.yaml`
@@ -133,6 +167,330 @@ pub fn set_config_dependency(
         return Ok(());
     }
 
-    fs::write(&path, manifest.into_text())
-        .map_err(|source| UpdateWorkspaceManifestError::Write { path, source })
+    write_or_remove_manifest(&path, manifest)
+}
+
+/// Upsert `name → bool` entries into `dir`'s `pnpm-workspace.yaml`
+/// `allowBuilds:` block (creating the file/block if absent), preserving the
+/// rest of the document's formatting, and write the file back only when
+/// something actually changed. Used by `pnpm approve-builds` to record
+/// which dependencies may (`true`) or may not (`false`) run build scripts.
+///
+/// `entries` is iterated in its own order; pass an ordered map for a
+/// deterministic result.
+pub fn set_allow_builds<'a, Entries>(
+    dir: &Path,
+    entries: Entries,
+) -> Result<(), UpdateWorkspaceManifestError>
+where
+    Entries: IntoIterator<Item = (&'a str, bool)>,
+{
+    let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
+
+    let original = match fs::read_to_string(&path) {
+        Ok(text) => Some(text),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
+        Err(source) => return Err(UpdateWorkspaceManifestError::Read { path, source }),
+    };
+
+    let mut manifest = Manifest::parse(original.as_deref())
+        .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
+
+    let mut changed = false;
+    for (name, value) in entries {
+        changed |= edit::add_allow_build(&mut manifest, name, value);
+    }
+    if !changed {
+        return Ok(());
+    }
+
+    write_or_remove_manifest(&path, manifest)
+}
+
+/// Merge `patched_dependencies` into `dir`'s `pnpm-workspace.yaml`
+/// `patchedDependencies:` block, preserving the rest of the document's
+/// formatting.
+pub fn set_patched_dependencies(
+    dir: &Path,
+    patched_dependencies: &IndexMap<String, String>,
+) -> Result<(), UpdateWorkspaceManifestError> {
+    let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
+
+    let original = match fs::read_to_string(&path) {
+        Ok(text) => Some(text),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
+        Err(source) => return Err(UpdateWorkspaceManifestError::Read { path, source }),
+    };
+
+    let mut manifest = Manifest::parse(original.as_deref())
+        .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
+
+    let changed = edit::add_patched_dependencies(&mut manifest, patched_dependencies)
+        .map_err(|source| UpdateWorkspaceManifestError::Edit { path: path.clone(), source })?;
+    if !changed {
+        return Ok(());
+    }
+
+    write_or_remove_manifest(&path, manifest)
+}
+
+/// Upsert `selector → specifier` entries into `dir`'s `pnpm-workspace.yaml`
+/// `overrides:` block (creating the file/block if absent), preserving the
+/// rest of the document's formatting, and write the file back only when
+/// something actually changed. Used by `pacquet link` to record `link:`
+/// overrides and by `pnpm audit --fix` to force non-vulnerable versions.
+/// A hand-written non-string (parent-scoped object) value is refused rather
+/// than clobbered.
+///
+/// `entries` is iterated in its own order; pass an ordered map for a
+/// deterministic result.
+pub fn set_overrides<'a, Entries>(
+    dir: &Path,
+    entries: Entries,
+) -> Result<(), UpdateWorkspaceManifestError>
+where
+    Entries: IntoIterator<Item = (&'a str, &'a str)>,
+{
+    let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
+
+    let original = match fs::read_to_string(&path) {
+        Ok(text) => Some(text),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
+        Err(source) => return Err(UpdateWorkspaceManifestError::Read { path, source }),
+    };
+
+    let mut manifest = Manifest::parse(original.as_deref())
+        .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
+
+    // The block-style splice can't safely edit an inline (flow) `overrides:`
+    // mapping; refuse rather than corrupt it.
+    if edit::top_level_has_inline_value(manifest.text(), "overrides") {
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock {
+            path,
+            key: "overrides".to_string(),
+        });
+    }
+
+    let mut changed = false;
+    for (selector, specifier) in entries {
+        if has_control_char(selector) || has_control_char(specifier) {
+            let value = if has_control_char(selector) { selector } else { specifier };
+            return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
+                path,
+                value: value.to_string(),
+            });
+        }
+        // Refuse to overwrite a hand-written non-string (parent-scoped
+        // object) override value with a scalar — that would corrupt config.
+        if manifest.non_scalar_overrides.contains(selector) {
+            return Err(UpdateWorkspaceManifestError::OverrideConflict {
+                key: selector.to_string(),
+                path,
+            });
+        }
+        changed |= edit::add_overrides(&mut manifest, selector, specifier)
+            .map_err(|source| UpdateWorkspaceManifestError::Edit { path: path.clone(), source })?;
+    }
+    if !changed {
+        return Ok(());
+    }
+
+    write_or_remove_manifest(&path, manifest)
+}
+
+/// Set `dir`'s `pnpm-workspace.yaml` `auditConfig.ignoreGhsas:` to `ghsas`
+/// (the complete desired list), creating the file/block if absent and
+/// removing the `auditConfig:` block when `ghsas` is empty. Preserves the
+/// rest of the document's formatting and writes the file back only when
+/// something actually changed. Used by `pnpm audit --ignore` /
+/// `--ignore-unfixable` to persist suppressed advisories.
+pub fn set_audit_ignore_ghsas(
+    dir: &Path,
+    ghsas: &[String],
+) -> Result<(), UpdateWorkspaceManifestError> {
+    let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
+
+    let original = match fs::read_to_string(&path) {
+        Ok(text) => Some(text),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
+        Err(source) => return Err(UpdateWorkspaceManifestError::Read { path, source }),
+    };
+
+    let mut manifest = Manifest::parse(original.as_deref())
+        .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
+
+    if let Some(bad) = ghsas.iter().find(|ghsa| has_control_char(ghsa)) {
+        return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
+            path,
+            value: bad.clone(),
+        });
+    }
+
+    // The block-style splice can't safely edit an inline (flow) `auditConfig:`
+    // mapping; refuse rather than corrupt it.
+    if edit::top_level_has_inline_value(manifest.text(), "auditConfig") {
+        return Err(UpdateWorkspaceManifestError::UnsupportedInlineBlock {
+            path,
+            key: "auditConfig".to_string(),
+        });
+    }
+
+    let changed = edit::set_audit_ignore_ghsas(&mut manifest, ghsas)
+        .map_err(|source| UpdateWorkspaceManifestError::Edit { path: path.clone(), source })?;
+    if !changed {
+        return Ok(());
+    }
+
+    write_or_remove_manifest(&path, manifest)
+}
+
+/// Set `dir`'s `pnpm-workspace.yaml` top-level `minimumReleaseAgeExclude:` to
+/// `excludes` (the complete desired list), creating the file/block if absent
+/// and removing the block when `excludes` is empty. The caller merges with any
+/// existing entries (via `pacquet_config::version_policy::merge_package_version_specs`)
+/// before calling. Used by `pnpm audit --fix` to let patched versions through
+/// the `minimumReleaseAge` maturity cutoff.
+pub fn set_minimum_release_age_excludes(
+    dir: &Path,
+    excludes: &[String],
+) -> Result<(), UpdateWorkspaceManifestError> {
+    let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
+
+    let original = match fs::read_to_string(&path) {
+        Ok(text) => Some(text),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
+        Err(source) => return Err(UpdateWorkspaceManifestError::Read { path, source }),
+    };
+
+    if let Some(bad) = excludes.iter().find(|exclude| has_control_char(exclude)) {
+        return Err(UpdateWorkspaceManifestError::InvalidControlCharacter {
+            path,
+            value: bad.clone(),
+        });
+    }
+
+    let mut manifest = Manifest::parse(original.as_deref())
+        .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
+
+    if !edit::set_minimum_release_age_excludes(&mut manifest, excludes) {
+        return Ok(());
+    }
+
+    write_or_remove_manifest(&path, manifest)
+}
+
+/// Delete `selectors` from `dir`'s `pnpm-workspace.yaml` `overrides:` block,
+/// dropping the block (and the file, once it has no other top-level keys)
+/// when nothing remains, and writing back only when something actually
+/// changed. A missing file is a no-op. The inverse of [`set_overrides`];
+/// used by `pacquet unlink` to drop link: overrides.
+pub fn remove_overrides(
+    dir: &Path,
+    selectors: &[String],
+) -> Result<(), UpdateWorkspaceManifestError> {
+    let path = dir.join(WORKSPACE_MANIFEST_FILENAME);
+
+    let original = match fs::read_to_string(&path) {
+        Ok(text) => text,
+        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(()),
+        Err(source) => return Err(UpdateWorkspaceManifestError::Read { path, source }),
+    };
+
+    let mut manifest = Manifest::parse(Some(&original))
+        .map_err(|source| UpdateWorkspaceManifestError::Parse { path: path.clone(), source })?;
+
+    if !edit::remove_overrides(&mut manifest, selectors) {
+        return Ok(());
+    }
+
+    write_or_remove_manifest(&path, manifest)
+}
+
+/// Set or delete an arbitrary top-level field in the YAML manifest at `path`
+/// (a `pnpm-workspace.yaml` or a global `config.yaml`), preserving the rest of
+/// the document's formatting and writing back only when something changed.
+///
+/// A `null` `value` deletes the key (mirroring pnpm's
+/// [`updateWorkspaceManifest`](https://github.com/pnpm/pnpm/blob/e7e99f04e4/workspace/workspace-manifest-writer/src/index.ts#L75-L83),
+/// where `value == null` `delete`s the field); any other value sets it. When the
+/// edit empties the document, the file is removed. Used by `pnpm config set` /
+/// `pnpm config delete` for the keys routed to a YAML config file.
+pub fn update_manifest_field(
+    path: &Path,
+    key: &str,
+    value: &serde_json::Value,
+) -> Result<(), UpdateWorkspaceManifestError> {
+    let original = match fs::read_to_string(path) {
+        Ok(text) => Some(text),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => None,
+        Err(source) => {
+            return Err(UpdateWorkspaceManifestError::Read { path: path.to_path_buf(), source });
+        }
+    };
+
+    let mut manifest = Manifest::parse(original.as_deref()).map_err(|source| {
+        UpdateWorkspaceManifestError::Parse { path: path.to_path_buf(), source }
+    })?;
+
+    let changed = if value.is_null() {
+        edit::remove_top_level_field(&mut manifest, key)
+    } else {
+        edit::set_top_level_field(&mut manifest, key, value)
+    };
+    if !changed {
+        return Ok(());
+    }
+
+    // A `set` may target a config directory that does not exist yet
+    // (`pnpm config set --global`). Mirror pnpm's `fs.mkdir(dir, { recursive:
+    // true })` before the write; a `delete` never needs it (the file, hence its
+    // parent, already exists).
+    if !value.is_null()
+        && let Some(parent) = path.parent().filter(|parent| !parent.as_os_str().is_empty())
+    {
+        fs::create_dir_all(parent).map_err(|source| UpdateWorkspaceManifestError::Write {
+            path: path.to_path_buf(),
+            source,
+        })?;
+    }
+
+    write_or_remove_manifest(path, manifest)
+}
+
+fn write_or_remove_manifest(
+    path: &Path,
+    manifest: Manifest,
+) -> Result<(), UpdateWorkspaceManifestError> {
+    if manifest.top_level_keys.is_empty() {
+        match fs::remove_file(path) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+            Err(source) => {
+                Err(UpdateWorkspaceManifestError::Remove { path: path.to_path_buf(), source })
+            }
+        }
+    } else {
+        write_atomic(path, &manifest.into_text()).map_err(|source| {
+            UpdateWorkspaceManifestError::Write { path: path.to_path_buf(), source }
+        })
+    }
+}
+
+/// Write `contents` to `path` atomically: a sibling temp file in the same
+/// directory is written, flushed to disk, and renamed over `path`. The
+/// rename replaces the destination's directory entry, so a
+/// `pnpm-workspace.yaml` that is a symlink is overwritten rather than
+/// followed, and a crash mid-write cannot leave a torn manifest. Mirrors
+/// pnpm's `writeFileAtomic` use in
+/// [`updateWorkspaceManifest`](https://github.com/pnpm/pnpm/blob/e7e99f04e4/workspace/workspace-manifest-writer/src/index.ts#L32).
+fn write_atomic(path: &Path, contents: &str) -> io::Result<()> {
+    let dir = path
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    let mut tmp = tempfile::NamedTempFile::new_in(dir)?;
+    tmp.write_all(contents.as_bytes())?;
+    tmp.as_file().sync_all()?;
+    tmp.persist(path).map_err(|err| err.error)?;
+    Ok(())
 }

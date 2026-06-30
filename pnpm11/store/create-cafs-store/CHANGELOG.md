@@ -1,0 +1,1099 @@
+# @pnpm/create-cafs-store
+
+## 1100.0.16
+
+### Patch Changes
+
+- Updated dependencies [bae694f]
+  - @pnpm/fetching.fetcher-base@1100.2.0
+  - @pnpm/store.controller-types@1100.1.6
+  - @pnpm/store.cafs@1100.1.11
+  - @pnpm/fs.indexed-pkg-importer@1100.0.16
+
+## 1100.0.15
+
+### Patch Changes
+
+- 30c7590: Create shorter CAFS temporary package directories to leave room for lifecycle scripts that create IPC socket paths under TMPDIR.
+- Updated dependencies [1b02b47]
+  - @pnpm/fs.indexed-pkg-importer@1100.0.15
+
+## 1100.0.14
+
+### Patch Changes
+
+- a31faa7: Updated dependency ranges. Notably:
+
+  - `@pnpm/logger` peer dependency range moved to `^1100.0.0`.
+  - `msgpackr` 1.11.8 → 2.0.4 (store index files remain byte-compatible in both directions).
+  - `open` ^7.4.2 → ^11.0.0, `memoize` ^10 → ^11, `cli-truncate` ^5 → ^6, `pidtree` ^0.6 → ^1.
+  - `@yarnpkg/core` 4.5.0 → 4.8.0, `@rushstack/worker-pool` 0.7.7 → 0.7.18, `@cyclonedx/cyclonedx-library` 10.0.0 → 10.1.0, `@pnpm/config.nerf-dart` ^1 → ^2, `@pnpm/log.group` 3.0.2 → 4.0.1, `@pnpm/util.lex-comparator` ^3 → ^4.
+
+- Updated dependencies [a31faa7]
+  - @pnpm/fs.indexed-pkg-importer@1100.0.14
+  - @pnpm/store.cafs@1100.1.10
+  - @pnpm/building.pkg-requires-build@1100.0.8
+  - @pnpm/fetching.fetcher-base@1100.1.9
+  - @pnpm/store.controller-types@1100.1.5
+
+## 1100.0.13
+
+### Patch Changes
+
+- @pnpm/fs.indexed-pkg-importer@1100.0.13
+
+## 1100.0.12
+
+### Patch Changes
+
+- @pnpm/building.pkg-requires-build@1100.0.7
+- @pnpm/fetching.fetcher-base@1100.1.8
+- @pnpm/store.cafs@1100.1.9
+- @pnpm/store.controller-types@1100.1.4
+- @pnpm/fs.indexed-pkg-importer@1100.0.12
+
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [cbfeeef]
+  - @pnpm/fs.indexed-pkg-importer@1100.0.11
+  - @pnpm/building.pkg-requires-build@1100.0.6
+  - @pnpm/fetching.fetcher-base@1100.1.7
+  - @pnpm/store.cafs@1100.1.8
+  - @pnpm/store.controller-types@1100.1.3
+
+## 1100.0.10
+
+### Patch Changes
+
+- @pnpm/building.pkg-requires-build@1100.0.5
+- @pnpm/fetching.fetcher-base@1100.1.6
+- @pnpm/store.cafs@1100.1.7
+- @pnpm/store.controller-types@1100.1.2
+- @pnpm/fs.indexed-pkg-importer@1100.0.10
+
+## 1100.0.9
+
+### Patch Changes
+
+- @pnpm/fetching.fetcher-base@1100.1.5
+- @pnpm/store.controller-types@1100.1.1
+- @pnpm/building.pkg-requires-build@1100.0.4
+- @pnpm/store.cafs@1100.1.6
+- @pnpm/fs.indexed-pkg-importer@1100.0.9
+
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+  - @pnpm/store.controller-types@1100.1.0
+  - @pnpm/fetching.fetcher-base@1100.1.4
+  - @pnpm/fs.indexed-pkg-importer@1100.0.8
+  - @pnpm/store.cafs@1100.1.5
+
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [c2c2890]
+  - @pnpm/store.controller-types@1100.0.7
+  - @pnpm/fs.indexed-pkg-importer@1100.0.7
+  - @pnpm/store.cafs@1100.1.4
+
+## 1100.0.6
+
+### Patch Changes
+
+- @pnpm/building.pkg-requires-build@1100.0.3
+- @pnpm/fetching.fetcher-base@1100.1.3
+- @pnpm/store.cafs@1100.1.3
+- @pnpm/store.controller-types@1100.0.6
+- @pnpm/fs.indexed-pkg-importer@1100.0.6
+
+## 1100.0.5
+
+### Patch Changes
+
+- @pnpm/fetching.fetcher-base@1100.1.2
+- @pnpm/store.controller-types@1100.0.5
+- @pnpm/store.cafs@1100.1.2
+- @pnpm/fs.indexed-pkg-importer@1100.0.5
+
+## 1100.0.4
+
+### Patch Changes
+
+- 184ce26: Fix the package name in README.md.
+- Updated dependencies [184ce26]
+  - @pnpm/building.pkg-requires-build@1100.0.2
+  - @pnpm/fs.indexed-pkg-importer@1100.0.4
+  - @pnpm/store.controller-types@1100.0.4
+  - @pnpm/fetching.fetcher-base@1100.1.1
+  - @pnpm/store.cafs@1100.1.1
+
+## 1100.0.3
+
+### Patch Changes
+
+- Updated dependencies [421317c]
+  - @pnpm/fetching.fetcher-base@1100.1.0
+  - @pnpm/store.cafs@1100.1.0
+  - @pnpm/store.controller-types@1100.0.3
+  - @pnpm/fs.indexed-pkg-importer@1100.0.3
+
+## 1100.0.2
+
+### Patch Changes
+
+- @pnpm/fetching.fetcher-base@1100.0.2
+- @pnpm/store.controller-types@1100.0.2
+- @pnpm/store.cafs@1100.0.2
+- @pnpm/fs.indexed-pkg-importer@1100.0.2
+
+## 1100.0.1
+
+### Patch Changes
+
+- @pnpm/building.pkg-requires-build@1100.0.1
+- @pnpm/fetching.fetcher-base@1100.0.1
+- @pnpm/store.cafs@1100.0.1
+- @pnpm/store.controller-types@1100.0.1
+- @pnpm/fs.indexed-pkg-importer@1100.0.1
+
+## 1001.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+
+### Patch Changes
+
+- Updated dependencies [facdd71]
+- Updated dependencies [e2e0a32]
+- Updated dependencies [2fccb03]
+- Updated dependencies [3bf5e21]
+- Updated dependencies [491a84f]
+- Updated dependencies [9b1e5da]
+- Updated dependencies [6656baa]
+- Updated dependencies [62f760e]
+- Updated dependencies [cbb366a]
+- Updated dependencies [2ea6463]
+- Updated dependencies [50fbeca]
+- Updated dependencies [caabba4]
+- Updated dependencies [ba065f6]
+- Updated dependencies [3bf5e21]
+- Updated dependencies [878a773]
+- Updated dependencies [f8e6774]
+- Updated dependencies [ee9fe58]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [56a59df]
+- Updated dependencies [10bc391]
+- Updated dependencies [b7f0f21]
+- Updated dependencies [60b5fd1]
+- Updated dependencies [9d3f00b]
+- Updated dependencies [98a0410]
+  - @pnpm/store.controller-types@1005.0.0
+  - @pnpm/store.cafs@1001.0.0
+  - @pnpm/building.pkg-requires-build@1000.0.0
+  - @pnpm/fs.indexed-pkg-importer@1001.0.0
+  - @pnpm/fetching.fetcher-base@1002.0.0
+
+## 1000.0.20
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+  - @pnpm/store-controller-types@1004.1.0
+  - @pnpm/exec.pkg-requires-build@1000.0.11
+  - @pnpm/fetcher-base@1001.0.2
+  - @pnpm/store.cafs@1000.0.19
+  - @pnpm/fs.indexed-pkg-importer@1000.1.14
+
+## 1000.0.19
+
+### Patch Changes
+
+- Updated dependencies [9b9faa5]
+  - @pnpm/fs.indexed-pkg-importer@1000.1.13
+  - @pnpm/store.cafs@1000.0.18
+
+## 1000.0.18
+
+### Patch Changes
+
+- @pnpm/exec.pkg-requires-build@1000.0.10
+- @pnpm/fetcher-base@1001.0.1
+- @pnpm/store.cafs@1000.0.17
+- @pnpm/store-controller-types@1004.0.2
+- @pnpm/fs.indexed-pkg-importer@1000.1.12
+
+## 1000.0.17
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+  - @pnpm/fetcher-base@1001.0.0
+  - @pnpm/store.cafs@1000.0.16
+  - @pnpm/store-controller-types@1004.0.1
+  - @pnpm/fs.indexed-pkg-importer@1000.1.11
+
+## 1000.0.16
+
+### Patch Changes
+
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/store-controller-types@1004.0.0
+  - @pnpm/fetcher-base@1000.1.0
+  - @pnpm/exec.pkg-requires-build@1000.0.9
+  - @pnpm/store.cafs@1000.0.15
+  - @pnpm/fs.indexed-pkg-importer@1000.1.10
+
+## 1000.0.15
+
+### Patch Changes
+
+- @pnpm/fetcher-base@1000.0.12
+- @pnpm/store-controller-types@1003.0.3
+- @pnpm/store.cafs@1000.0.14
+- @pnpm/fs.indexed-pkg-importer@1000.1.9
+
+## 1000.0.14
+
+### Patch Changes
+
+- Updated dependencies [509948d]
+  - @pnpm/store-controller-types@1003.0.2
+  - @pnpm/fs.indexed-pkg-importer@1000.1.8
+  - @pnpm/store.cafs@1000.0.13
+
+## 1000.0.13
+
+### Patch Changes
+
+- 09cf46f: Update `@pnpm/logger` in peer dependencies.
+- Updated dependencies [09cf46f]
+- Updated dependencies [c24c66e]
+  - @pnpm/fs.indexed-pkg-importer@1000.1.7
+  - @pnpm/store-controller-types@1003.0.1
+  - @pnpm/exec.pkg-requires-build@1000.0.8
+  - @pnpm/fetcher-base@1000.0.11
+  - @pnpm/store.cafs@1000.0.12
+
+## 1000.0.12
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+  - @pnpm/store-controller-types@1003.0.0
+  - @pnpm/logger@1001.0.0
+  - @pnpm/fs.indexed-pkg-importer@1000.1.6
+  - @pnpm/store.cafs@1000.0.11
+  - @pnpm/fetcher-base@1000.0.10
+  - @pnpm/exec.pkg-requires-build@1000.0.7
+
+## 1000.0.11
+
+### Patch Changes
+
+- Updated dependencies [032fff8]
+  - @pnpm/fs.indexed-pkg-importer@1000.1.5
+  - @pnpm/fetcher-base@1000.0.9
+  - @pnpm/store-controller-types@1002.0.1
+  - @pnpm/store.cafs@1000.0.10
+
+## 1000.0.10
+
+### Patch Changes
+
+- Updated dependencies [72cff38]
+  - @pnpm/store-controller-types@1002.0.0
+  - @pnpm/exec.pkg-requires-build@1000.0.6
+  - @pnpm/fetcher-base@1000.0.8
+  - @pnpm/store.cafs@1000.0.9
+  - @pnpm/fs.indexed-pkg-importer@1000.1.4
+
+## 1000.0.9
+
+### Patch Changes
+
+- @pnpm/exec.pkg-requires-build@1000.0.5
+- @pnpm/fetcher-base@1000.0.7
+- @pnpm/store.cafs@1000.0.8
+- @pnpm/store-controller-types@1001.0.5
+- @pnpm/fs.indexed-pkg-importer@1000.1.3
+
+## 1000.0.8
+
+### Patch Changes
+
+- @pnpm/fetcher-base@1000.0.6
+- @pnpm/store-controller-types@1001.0.4
+- @pnpm/store.cafs@1000.0.7
+- @pnpm/fs.indexed-pkg-importer@1000.1.2
+
+## 1000.0.7
+
+### Patch Changes
+
+- @pnpm/exec.pkg-requires-build@1000.0.4
+- @pnpm/fetcher-base@1000.0.5
+- @pnpm/store.cafs@1000.0.6
+- @pnpm/store-controller-types@1001.0.3
+- @pnpm/fs.indexed-pkg-importer@1000.1.1
+
+## 1000.0.6
+
+### Patch Changes
+
+- Updated dependencies [e32b1a2]
+  - @pnpm/fs.indexed-pkg-importer@1000.1.0
+  - @pnpm/exec.pkg-requires-build@1000.0.3
+  - @pnpm/fetcher-base@1000.0.4
+  - @pnpm/store.cafs@1000.0.5
+  - @pnpm/store-controller-types@1001.0.2
+
+## 1000.0.5
+
+### Patch Changes
+
+- @pnpm/exec.pkg-requires-build@1000.0.2
+- @pnpm/fetcher-base@1000.0.3
+- @pnpm/store.cafs@1000.0.4
+- @pnpm/store-controller-types@1001.0.1
+- @pnpm/fs.indexed-pkg-importer@1000.0.5
+
+## 1000.0.4
+
+### Patch Changes
+
+- Updated dependencies [dde650b]
+  - @pnpm/store-controller-types@1001.0.0
+  - @pnpm/fs.indexed-pkg-importer@1000.0.4
+  - @pnpm/store.cafs@1000.0.3
+
+## 1000.0.3
+
+### Patch Changes
+
+- @pnpm/exec.pkg-requires-build@1000.0.1
+- @pnpm/fetcher-base@1000.0.2
+- @pnpm/store.cafs@1000.0.2
+- @pnpm/store-controller-types@1000.1.1
+- @pnpm/fs.indexed-pkg-importer@1000.0.3
+
+## 1000.0.2
+
+### Patch Changes
+
+- @pnpm/fs.indexed-pkg-importer@1000.0.2
+
+## 1000.0.1
+
+### Patch Changes
+
+- Updated dependencies [6483b64]
+  - @pnpm/store-controller-types@1000.1.0
+  - @pnpm/fs.indexed-pkg-importer@1000.0.1
+  - @pnpm/store.cafs@1000.0.1
+  - @pnpm/fetcher-base@1000.0.1
+
+## 7.0.12
+
+### Patch Changes
+
+- Updated dependencies [d433cb9]
+- Updated dependencies [099e6af]
+  - @pnpm/store.cafs@5.0.0
+  - @pnpm/fetcher-base@16.0.7
+  - @pnpm/store-controller-types@18.1.6
+  - @pnpm/fs.indexed-pkg-importer@6.0.9
+
+## 7.0.11
+
+### Patch Changes
+
+- Updated dependencies [a1f4df2]
+  - @pnpm/store.cafs@4.0.2
+  - @pnpm/fs.indexed-pkg-importer@6.0.9
+
+## 7.0.10
+
+### Patch Changes
+
+- Updated dependencies [db7ff76]
+  - @pnpm/store.cafs@4.0.1
+  - @pnpm/fs.indexed-pkg-importer@6.0.9
+
+## 7.0.9
+
+### Patch Changes
+
+- Updated dependencies [db420ab]
+  - @pnpm/store.cafs@4.0.0
+  - @pnpm/exec.pkg-requires-build@1.0.7
+  - @pnpm/fetcher-base@16.0.7
+  - @pnpm/store-controller-types@18.1.6
+  - @pnpm/fs.indexed-pkg-importer@6.0.9
+
+## 7.0.8
+
+### Patch Changes
+
+- @pnpm/exec.pkg-requires-build@1.0.6
+- @pnpm/fetcher-base@16.0.6
+- @pnpm/store.cafs@3.0.8
+- @pnpm/store-controller-types@18.1.5
+- @pnpm/fs.indexed-pkg-importer@6.0.8
+
+## 7.0.7
+
+### Patch Changes
+
+- @pnpm/exec.pkg-requires-build@1.0.5
+- @pnpm/fetcher-base@16.0.5
+- @pnpm/store.cafs@3.0.7
+- @pnpm/store-controller-types@18.1.4
+- @pnpm/fs.indexed-pkg-importer@6.0.7
+
+## 7.0.6
+
+### Patch Changes
+
+- @pnpm/exec.pkg-requires-build@1.0.4
+- @pnpm/fetcher-base@16.0.4
+- @pnpm/store.cafs@3.0.6
+- @pnpm/store-controller-types@18.1.3
+- @pnpm/fs.indexed-pkg-importer@6.0.6
+
+## 7.0.5
+
+### Patch Changes
+
+- Updated dependencies [afe520d]
+- Updated dependencies [afe520d]
+  - @pnpm/fs.indexed-pkg-importer@6.0.5
+  - @pnpm/store.cafs@3.0.5
+
+## 7.0.4
+
+### Patch Changes
+
+- @pnpm/fetcher-base@16.0.3
+- @pnpm/store-controller-types@18.1.2
+- @pnpm/exec.pkg-requires-build@1.0.3
+- @pnpm/store.cafs@3.0.4
+- @pnpm/fs.indexed-pkg-importer@6.0.4
+
+## 7.0.3
+
+### Patch Changes
+
+- @pnpm/exec.pkg-requires-build@1.0.2
+- @pnpm/fetcher-base@16.0.2
+- @pnpm/store.cafs@3.0.3
+- @pnpm/store-controller-types@18.1.1
+- @pnpm/fs.indexed-pkg-importer@6.0.3
+
+## 7.0.2
+
+### Patch Changes
+
+- Updated dependencies [0c08e1c]
+  - @pnpm/store-controller-types@18.1.0
+  - @pnpm/fs.indexed-pkg-importer@6.0.2
+  - @pnpm/store.cafs@3.0.2
+
+## 7.0.1
+
+### Patch Changes
+
+- @pnpm/exec.pkg-requires-build@1.0.1
+- @pnpm/fetcher-base@16.0.1
+- @pnpm/store.cafs@3.0.1
+- @pnpm/store-controller-types@18.0.1
+- @pnpm/fs.indexed-pkg-importer@6.0.1
+
+## 7.0.0
+
+### Major Changes
+
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+
+### Minor Changes
+
+- 730929e: Add a field named `ignoredOptionalDependencies`. This is an array of strings. If an optional dependency has its name included in this array, it will be skipped.
+
+### Patch Changes
+
+- Updated dependencies [43cdd87]
+- Updated dependencies [6cdbf11]
+- Updated dependencies [36dcaa0]
+- Updated dependencies [0e6b757]
+- Updated dependencies [730929e]
+  - @pnpm/store-controller-types@18.0.0
+  - @pnpm/fs.indexed-pkg-importer@6.0.0
+  - @pnpm/fetcher-base@16.0.0
+  - @pnpm/store.cafs@3.0.0
+  - @pnpm/exec.pkg-requires-build@1.0.0
+
+## 6.0.13
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+- Updated dependencies [e2e08b98f]
+- Updated dependencies [df9b16aa9]
+  - @pnpm/store-controller-types@17.2.0
+  - @pnpm/fs.indexed-pkg-importer@5.0.13
+  - @pnpm/store.cafs@2.0.12
+  - @pnpm/fetcher-base@15.0.7
+
+## 6.0.12
+
+### Patch Changes
+
+- Updated dependencies [19be6b704]
+  - @pnpm/fs.indexed-pkg-importer@5.0.12
+
+## 6.0.11
+
+### Patch Changes
+
+- Updated dependencies [33313d2fd]
+  - @pnpm/fs.indexed-pkg-importer@5.0.11
+  - @pnpm/store.cafs@2.0.11
+  - @pnpm/fetcher-base@15.0.6
+  - @pnpm/store-controller-types@17.1.4
+
+## 6.0.10
+
+### Patch Changes
+
+- @pnpm/fetcher-base@15.0.5
+- @pnpm/store.cafs@2.0.10
+- @pnpm/store-controller-types@17.1.3
+- @pnpm/fs.indexed-pkg-importer@5.0.10
+
+## 6.0.9
+
+### Patch Changes
+
+- Updated dependencies [418866ac0]
+  - @pnpm/fs.indexed-pkg-importer@5.0.9
+
+## 6.0.8
+
+### Patch Changes
+
+- Updated dependencies [291607c5a]
+  - @pnpm/store-controller-types@17.1.2
+  - @pnpm/fs.indexed-pkg-importer@5.0.8
+  - @pnpm/store.cafs@2.0.9
+
+## 6.0.7
+
+### Patch Changes
+
+- cfc017ee3: Optional dependencies that do not have to be built will be reflinked (or hardlinked) to the store instead of copied [#7046](https://github.com/pnpm/pnpm/issues/7046).
+- Updated dependencies [7ea45afbe]
+- Updated dependencies [cfc017ee3]
+  - @pnpm/store-controller-types@17.1.1
+  - @pnpm/exec.files-include-install-scripts@1.0.0
+  - @pnpm/fetcher-base@15.0.4
+  - @pnpm/fs.indexed-pkg-importer@5.0.7
+  - @pnpm/store.cafs@2.0.8
+
+## 6.0.6
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+  - @pnpm/store-controller-types@17.1.0
+  - @pnpm/fs.indexed-pkg-importer@5.0.6
+  - @pnpm/store.cafs@2.0.7
+  - @pnpm/fetcher-base@15.0.3
+
+## 6.0.5
+
+### Patch Changes
+
+- Updated dependencies [2ca756fd2]
+  - @pnpm/fs.indexed-pkg-importer@5.0.5
+
+## 6.0.4
+
+### Patch Changes
+
+- Updated dependencies [01bc58e2c]
+- Updated dependencies [6dfbca86b]
+  - @pnpm/store.cafs@2.0.6
+  - @pnpm/fs.indexed-pkg-importer@5.0.4
+
+## 6.0.3
+
+### Patch Changes
+
+- Updated dependencies [e19de6a59]
+  - @pnpm/fs.indexed-pkg-importer@5.0.3
+
+## 6.0.2
+
+### Patch Changes
+
+- Updated dependencies [6337dcdbc]
+  - @pnpm/fs.indexed-pkg-importer@5.0.2
+
+## 6.0.1
+
+### Patch Changes
+
+- Updated dependencies [ee6e0734e]
+  - @pnpm/fs.indexed-pkg-importer@5.0.1
+  - @pnpm/fetcher-base@15.0.2
+  - @pnpm/store.cafs@2.0.5
+  - @pnpm/store-controller-types@17.0.1
+
+## 6.0.0
+
+### Major Changes
+
+- 9caa33d53: `fromStore` replaced with `resolvedFrom`.
+
+### Patch Changes
+
+- Updated dependencies [9caa33d53]
+- Updated dependencies [9caa33d53]
+  - @pnpm/store-controller-types@17.0.0
+  - @pnpm/fs.indexed-pkg-importer@5.0.0
+  - @pnpm/store.cafs@2.0.4
+  - @pnpm/fetcher-base@15.0.1
+
+## 5.1.1
+
+### Patch Changes
+
+- Updated dependencies [cb6e4212c]
+  - @pnpm/fs.indexed-pkg-importer@4.1.1
+
+## 5.1.0
+
+### Minor Changes
+
+- 03cdccc6e: New option added: disableRelinkFromStore.
+
+### Patch Changes
+
+- Updated dependencies [03cdccc6e]
+  - @pnpm/store-controller-types@16.1.0
+  - @pnpm/fs.indexed-pkg-importer@4.1.0
+  - @pnpm/store.cafs@2.0.3
+  - @pnpm/fetcher-base@15.0.1
+
+## 5.0.2
+
+### Patch Changes
+
+- Updated dependencies [b3947185c]
+  - @pnpm/store.cafs@2.0.2
+  - @pnpm/fs.indexed-pkg-importer@4.0.1
+
+## 5.0.1
+
+### Patch Changes
+
+- Updated dependencies [b548f2f43]
+- Updated dependencies [4a1a9431d]
+  - @pnpm/store.cafs@2.0.1
+  - @pnpm/fetcher-base@15.0.1
+  - @pnpm/store-controller-types@16.0.1
+  - @pnpm/fs.indexed-pkg-importer@4.0.1
+
+## 5.0.0
+
+### Major Changes
+
+- f2009d175: Import packages synchronously.
+- 083bbf590: Breaking changes to the API.
+
+### Patch Changes
+
+- Updated dependencies [0fd9e6a6c]
+- Updated dependencies [f2009d175]
+- Updated dependencies [494f87544]
+- Updated dependencies [70b2830ac]
+- Updated dependencies [083bbf590]
+- Updated dependencies [083bbf590]
+  - @pnpm/store.cafs@2.0.0
+  - @pnpm/fs.indexed-pkg-importer@4.0.0
+  - @pnpm/store-controller-types@16.0.0
+  - @pnpm/fetcher-base@15.0.0
+
+## 4.0.8
+
+### Patch Changes
+
+- Updated dependencies [73f2b6826]
+  - @pnpm/store.cafs@1.0.2
+  - @pnpm/fs.indexed-pkg-importer@3.0.2
+
+## 4.0.7
+
+### Patch Changes
+
+- Updated dependencies [fe1c5f48d]
+  - @pnpm/store.cafs@1.0.1
+  - @pnpm/fs.indexed-pkg-importer@3.0.2
+
+## 4.0.6
+
+### Patch Changes
+
+- Updated dependencies [4bbf482d1]
+  - @pnpm/store.cafs@1.0.0
+  - @pnpm/fs.indexed-pkg-importer@3.0.2
+
+## 4.0.5
+
+### Patch Changes
+
+- Updated dependencies [250f7e9fe]
+- Updated dependencies [e958707b2]
+  - @pnpm/cafs@7.0.5
+  - @pnpm/fs.indexed-pkg-importer@3.0.2
+  - @pnpm/fetcher-base@14.0.2
+  - @pnpm/store-controller-types@15.0.2
+
+## 4.0.4
+
+### Patch Changes
+
+- Updated dependencies [b81cefdcd]
+  - @pnpm/cafs@7.0.4
+  - @pnpm/fs.indexed-pkg-importer@3.0.1
+
+## 4.0.3
+
+### Patch Changes
+
+- Updated dependencies [e57e2d340]
+  - @pnpm/cafs@7.0.3
+  - @pnpm/fs.indexed-pkg-importer@3.0.1
+
+## 4.0.2
+
+### Patch Changes
+
+- Updated dependencies [d55b41a8b]
+- Updated dependencies [614d5bd72]
+  - @pnpm/cafs@7.0.2
+  - @pnpm/fs.indexed-pkg-importer@3.0.1
+
+## 4.0.1
+
+### Patch Changes
+
+- @pnpm/fetcher-base@14.0.1
+- @pnpm/cafs@7.0.1
+- @pnpm/store-controller-types@15.0.1
+- @pnpm/fs.indexed-pkg-importer@3.0.1
+
+## 4.0.0
+
+### Major Changes
+
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [eceaa8b8b]
+  - @pnpm/store-controller-types@15.0.0
+  - @pnpm/fs.indexed-pkg-importer@3.0.0
+  - @pnpm/fetcher-base@14.0.0
+  - @pnpm/cafs@7.0.0
+
+## 3.1.6
+
+### Patch Changes
+
+- Updated dependencies [955874422]
+  - @pnpm/fs.indexed-pkg-importer@2.1.4
+  - @pnpm/cafs@6.0.2
+
+## 3.1.5
+
+### Patch Changes
+
+- @pnpm/fetcher-base@13.1.6
+- @pnpm/store-controller-types@14.3.1
+- @pnpm/fs.indexed-pkg-importer@2.1.3
+- @pnpm/cafs@6.0.1
+
+## 3.1.4
+
+### Patch Changes
+
+- Updated dependencies [78d4cf1f7]
+  - @pnpm/fs.indexed-pkg-importer@2.1.2
+
+## 3.1.3
+
+### Patch Changes
+
+- Updated dependencies [98d6603f3]
+- Updated dependencies [98d6603f3]
+  - @pnpm/cafs@6.0.0
+  - @pnpm/fs.indexed-pkg-importer@2.1.1
+
+## 3.1.2
+
+### Patch Changes
+
+- Updated dependencies [1e6de89b6]
+  - @pnpm/cafs@5.0.6
+  - @pnpm/fs.indexed-pkg-importer@2.1.1
+
+## 3.1.1
+
+### Patch Changes
+
+- Updated dependencies [891a8d763]
+- Updated dependencies [c7b05cd9a]
+  - @pnpm/store-controller-types@14.3.0
+  - @pnpm/fs.indexed-pkg-importer@2.1.1
+  - @pnpm/cafs@5.0.5
+
+## 3.1.0
+
+### Minor Changes
+
+- 2458741fa: A new option added to package importer for keeping modules directory: `keepModulesDir`. When this is set to true, if a package already exist at the target location and it has a node_modules directory, then that node_modules directory is moved to the newly imported dependency. This is only needed when node-linker=hoisted is used.
+
+### Patch Changes
+
+- Updated dependencies [2458741fa]
+  - @pnpm/fs.indexed-pkg-importer@2.1.0
+  - @pnpm/store-controller-types@14.2.0
+  - @pnpm/fetcher-base@13.1.5
+  - @pnpm/cafs@5.0.4
+
+## 3.0.3
+
+### Patch Changes
+
+- Updated dependencies [a9d59d8bc]
+  - @pnpm/cafs@5.0.3
+  - @pnpm/fs.indexed-pkg-importer@2.0.2
+
+## 3.0.2
+
+### Patch Changes
+
+- @pnpm/cafs@5.0.2
+- @pnpm/fetcher-base@13.1.4
+- @pnpm/store-controller-types@14.1.5
+- @pnpm/fs.indexed-pkg-importer@2.0.2
+
+## 3.0.1
+
+### Patch Changes
+
+- @pnpm/cafs@5.0.1
+- @pnpm/fetcher-base@13.1.3
+- @pnpm/store-controller-types@14.1.4
+- @pnpm/fs.indexed-pkg-importer@2.0.1
+
+## 3.0.0
+
+### Major Changes
+
+- 043d988fc: Breaking change to the API. Defaul export is not used.
+- f884689e0: Require `@pnpm/logger` v5.
+
+### Patch Changes
+
+- Updated dependencies [043d988fc]
+- Updated dependencies [f884689e0]
+  - @pnpm/cafs@5.0.0
+  - @pnpm/fs.indexed-pkg-importer@2.0.0
+
+## 2.2.5
+
+### Patch Changes
+
+- @pnpm/fs.indexed-pkg-importer@1.1.4
+
+## 2.2.4
+
+### Patch Changes
+
+- @pnpm/cafs@4.3.2
+- @pnpm/fetcher-base@13.1.2
+- @pnpm/store-controller-types@14.1.3
+- @pnpm/fs.indexed-pkg-importer@1.1.3
+
+## 2.2.3
+
+### Patch Changes
+
+- @pnpm/cafs@4.3.1
+- @pnpm/fetcher-base@13.1.1
+- @pnpm/store-controller-types@14.1.2
+- @pnpm/fs.indexed-pkg-importer@1.1.2
+
+## 2.2.2
+
+### Patch Changes
+
+- Updated dependencies [745143e79]
+  - @pnpm/cafs@4.3.0
+  - @pnpm/fetcher-base@13.1.0
+  - @pnpm/store-controller-types@14.1.1
+  - @pnpm/fs.indexed-pkg-importer@1.1.1
+
+## 2.2.1
+
+### Patch Changes
+
+- Updated dependencies [dbac0ca01]
+  - @pnpm/cafs@4.2.1
+  - @pnpm/fs.indexed-pkg-importer@1.1.1
+
+## 2.2.0
+
+### Minor Changes
+
+- 32915f0e4: Refactor cafs types into separate package and add additional properties including `cafsDir` and `getFilePathInCafs`.
+
+### Patch Changes
+
+- Updated dependencies [32915f0e4]
+- Updated dependencies [23984abd1]
+  - @pnpm/cafs@4.2.0
+  - @pnpm/fetcher-base@13.1.0
+  - @pnpm/store-controller-types@14.1.1
+  - @pnpm/fs.indexed-pkg-importer@1.1.1
+
+## 2.1.1
+
+### Patch Changes
+
+- Updated dependencies [c191ca7bf]
+  - @pnpm/cafs@4.1.0
+  - @pnpm/fs.indexed-pkg-importer@1.1.0
+
+## 2.1.0
+
+### Minor Changes
+
+- 65c4260de: Support a new hook for passing a custom package importer to the store controller.
+
+### Patch Changes
+
+- Updated dependencies [39c040127]
+- Updated dependencies [65c4260de]
+  - @pnpm/cafs@4.0.9
+  - @pnpm/fs.indexed-pkg-importer@1.1.0
+  - @pnpm/store-controller-types@14.1.0
+
+## 2.0.3
+
+### Patch Changes
+
+- @pnpm/cafs@4.0.8
+- @pnpm/fetcher-base@13.0.2
+- @pnpm/store-controller-types@14.0.2
+- @pnpm/fs.indexed-pkg-importer@1.0.1
+
+## 2.0.2
+
+### Patch Changes
+
+- Updated dependencies [7922d6314]
+  - @pnpm/fs.indexed-pkg-importer@1.0.0
+
+## 2.0.1
+
+### Patch Changes
+
+- @pnpm/cafs@4.0.7
+- @pnpm/core-loggers@7.0.5
+- @pnpm/fetcher-base@13.0.1
+- @pnpm/store-controller-types@14.0.1
+
+## 2.0.0
+
+### Major Changes
+
+- 2a34b21ce: Rename engine and targetEngine fields to sideEffectsCacheKey.
+
+### Minor Changes
+
+- 47b5e45dd: `package-import-method` supports a new option: `clone-or-copy`.
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [47b5e45dd]
+  - @pnpm/fetcher-base@13.0.0
+  - @pnpm/store-controller-types@14.0.0
+  - @pnpm/cafs@4.0.6
+  - @pnpm/core-loggers@7.0.4
+
+## 1.1.0
+
+### Minor Changes
+
+- 0abfe1718: New optional option added to package importer: `requiresBuild`. When `requiresBuild` is `true`, the package should only be imported using cloning or copying.
+- 0abfe1718: New import method added: `clone-or-copy`.
+
+### Patch Changes
+
+- Updated dependencies [0abfe1718]
+  - @pnpm/fetcher-base@12.1.0
+  - @pnpm/cafs@4.0.5
+  - @pnpm/core-loggers@7.0.3
+  - @pnpm/store-controller-types@13.0.4
+
+## 1.0.3
+
+### Patch Changes
+
+- @pnpm/cafs@4.0.4
+- @pnpm/core-loggers@7.0.2
+- @pnpm/fetcher-base@12.0.3
+- @pnpm/store-controller-types@13.0.3
+
+## 1.0.2
+
+### Patch Changes
+
+- Updated dependencies [6756c2b02]
+  - @pnpm/cafs@4.0.3
+  - @pnpm/fetcher-base@12.0.2
+  - @pnpm/store-controller-types@13.0.2
+
+## 1.0.1
+
+### Patch Changes
+
+- Updated dependencies [cadefe5b6]
+  - @pnpm/cafs@4.0.2
+
+## 1.0.0
+
+### Major Changes
+
+- 1ceb632b1: Project created.
+
+### Patch Changes
+
+- @pnpm/core-loggers@7.0.1
+- @pnpm/fetcher-base@12.0.1
+- @pnpm/store-controller-types@13.0.1
+- @pnpm/cafs@4.0.1

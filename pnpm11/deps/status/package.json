@@ -1,0 +1,70 @@
+{
+  "name": "@pnpm/deps.status",
+  "version": "1100.1.3",
+  "description": "Check dependencies status",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "scripts"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm11/deps/status",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpm11/deps/status#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "pn compile && pn .test",
+    "prepublishOnly": "tsgo --build",
+    "start": "tsgo --watch",
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+  },
+  "dependencies": {
+    "@pnpm/catalogs.resolver": "workspace:*",
+    "@pnpm/catalogs.types": "workspace:*",
+    "@pnpm/config.parse-overrides": "workspace:*",
+    "@pnpm/config.reader": "workspace:*",
+    "@pnpm/constants": "workspace:*",
+    "@pnpm/crypto.object-hasher": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/installing.context": "workspace:*",
+    "@pnpm/lockfile.fs": "workspace:*",
+    "@pnpm/lockfile.settings-checker": "workspace:*",
+    "@pnpm/lockfile.verification": "workspace:*",
+    "@pnpm/resolving.resolver-base": "workspace:*",
+    "@pnpm/types": "workspace:*",
+    "@pnpm/workspace.projects-reader": "workspace:*",
+    "@pnpm/workspace.state": "workspace:*",
+    "@pnpm/workspace.workspace-manifest-reader": "workspace:*",
+    "ramda": "catalog:"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "catalog:"
+  },
+  "devDependencies": {
+    "@jest/globals": "catalog:",
+    "@pnpm/deps.status": "workspace:*",
+    "@pnpm/prepare": "workspace:*",
+    "@pnpm/workspace.project-manifest-writer": "workspace:*",
+    "@types/ramda": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

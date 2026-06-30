@@ -4,21 +4,6 @@
 //! root `package.json` (catalog entry `hosted-git-info: ^4.1.0`) and is
 //! what `node_modules/hosted-git-info/` ships at the time of this port.
 //!
-//! Coverage:
-//!
-//! - [`HostedGit::from_url`] recognises the GitHub / GitLab / Bitbucket
-//!   shortcut forms (`github:owner/repo#ref`, the bare `owner/repo#ref`
-//!   shorthand, `gitlab:…`, `bitbucket:…`), full HTTPS/SSH URLs pointed
-//!   at the matching domains, and the `git+ssh:` / `git+https:` / `ssh:` /
-//!   `git:` / `http:` / `https:` protocol families. Anything else
-//!   (Gitea, self-hosted, generic git+file, ...) returns `None` so the
-//!   caller can fall back to the protocol-prefix dispatch in
-//!   [`crate::parse_bare_specifier()`].
-//! - The output exposes the URL templates the resolver consumes —
-//!   `https`, `ssh`, `sshurl`, `tarball`, `shortcut` — each accepting
-//!   the `no_committish` / `no_git_plus` flags upstream's `_fill`
-//!   threads in.
-//!
 //! Deliberate deviations from upstream:
 //!
 //! - The GitLab tarball template emits `/-/archive/<ref>/<project>-<ref>.tar.gz`
@@ -510,7 +495,6 @@ fn correct_url(giturl: &str) -> String {
 /// `isGitHubShorthand` from upstream. Detects the bare `owner/repo`
 /// form that pnpm registers as a github short link.
 fn is_github_shorthand(arg: &str) -> bool {
-    // empty input is not a shortcut
     if arg.is_empty() {
         return false;
     }

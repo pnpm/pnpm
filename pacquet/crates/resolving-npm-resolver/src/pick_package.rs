@@ -51,6 +51,7 @@
 //! 3-5× behind pnpm on the `alotta-files` benchmark.
 
 use std::{
+    collections::HashSet,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
@@ -60,7 +61,7 @@ use dashmap::DashMap;
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_config::version_policy::{PackageVersionPolicy, PolicyMatch};
-use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient};
+use pacquet_network::{AuthHeaders, MetadataCacheScope, RetryOpts, ThrottledClient};
 use pacquet_registry::{Package, PackageVersion};
 use pacquet_resolving_resolver_base::{VersionSelectors, parse_packument_timestamp};
 use tokio::sync::Semaphore;
@@ -69,14 +70,16 @@ use crate::{
     FetchFullMetadataCachedOptions, FetchFullMetadataOptions, FetchFullMetadataOutcome,
     FetchMetadataError, fetch_full_metadata, fetch_full_metadata_cached,
     mirror::{
-        ABBREVIATED_META_DIR, FULL_META_DIR, get_pkg_mirror_path, load_meta_async,
-        save_meta_indexed,
+        ABBREVIATED_META_DIR, FULL_FILTERED_META_DIR, FULL_META_DIR, clear_meta,
+        get_pkg_mirror_path, load_meta_async, save_meta_indexed, save_meta_ndjson, scoped_meta_dir,
     },
     pick_package_from_meta::{
         PickPackageFromMetaError, PickPackageFromMetaOptions, RegistryPackageSpec,
-        RegistryPackageSpecType, pick_lowest_version_by_version_range, pick_package_from_meta,
+        RegistryPackageSpecType, filter_pkg_metadata_versions,
+        pick_lowest_version_by_version_range, pick_package_from_meta,
         pick_version_by_version_range,
     },
+    registry_url::to_registry_url,
 };
 
 /// In-memory packument cache the orchestrator consults before any
@@ -237,6 +240,9 @@ pub struct PickPackageContext<'a, Cache: PackageMetaCache> {
     /// `false`; the verifier-time fetcher sets it `true` because
     /// it needs `time` and trust evidence for every entry.
     pub full_metadata: bool,
+    /// When full metadata is forced, use pnpm's filtered full-metadata
+    /// mirror and filtered packument shape.
+    pub filter_metadata: bool,
     /// Retry budget for the picker's metadata fetches. Sourced from
     /// the same `fetch-retries` config the verifier and tarball paths
     /// use, so a registry flap during a pick retries (and a user who
@@ -284,10 +290,20 @@ pub struct PickPackageOptions<'a> {
     /// either knob set to `true` makes the pick request full
     /// metadata.
     pub optional: bool,
-    /// `true` skips the on-disk exact-version fast path so a stale
-    /// disk packument can't satisfy the call without a conditional
-    /// registry request. Mirrors pnpm's `--update-checksums`.
+    /// `true` forces a conditional registry request so a stale disk
+    /// packument can't satisfy the call: the on-disk exact-version
+    /// fast path is skipped, and the in-memory cache is bypassed too.
+    /// The fast path now promotes disk-loaded packuments into the
+    /// in-memory cache, so an entry there can no longer be assumed to
+    /// come from this install's own fresh network fetch — on a shared
+    /// resolver it might be disk-sourced, which would short-circuit the
+    /// revalidation. Mirrors pnpm's `--update-checksums`.
     pub update_checksums: bool,
+    /// Concrete versions to ignore while picking. Used by callers that
+    /// apply an external resolver-time guard: after the guard rejects a
+    /// candidate, the caller asks the normal picker to try again over
+    /// the same packument with that version filtered out.
+    pub blocked_versions: Option<&'a HashSet<String>>,
 }
 
 /// Outcome of a successful [`pick_package`] call. Mirrors
@@ -381,6 +397,26 @@ pub async fn pick_package<Cache: PackageMetaCache>(
 ) -> Result<PickPackageResult, PickPackageError> {
     validate_package_name(&spec.name)?;
 
+    // Every layer below — the in-memory cache, the offline / version-spec
+    // / publishedBy disk fast paths, and the network fetch — answers this
+    // pick for the same `(registry, package)` route. The fast paths return
+    // straight from cache without ever reaching the auth-selection point,
+    // so a server route hook would never see this package and its private
+    // footprint would under-report the data the resolve depended on.
+    // Record the route up front, classified exactly as the network fetch
+    // would classify it, so the footprint is complete regardless of which
+    // layer serves the metadata. A no-op for the CLI (no hook installed);
+    // idempotent on the hook, so the network path re-recording it is fine.
+    let url = to_registry_url(opts.registry, &spec.name);
+    ctx.auth_headers.record_route(&url, Some(&spec.name));
+
+    // Classify the metadata cache scope once. Every layer below — the
+    // in-memory cache, the disk fast paths, and the network fetch — must
+    // agree on the mirror namespace and cache keys this route resolves to,
+    // or a private packument could leak into (or read from) the global
+    // mirror. `Public` for the CLI, leaving the global mirror unchanged.
+    let scope = ctx.auth_headers.metadata_scope(&url, Some(&spec.name));
+
     let picker_opts = PickerOpts {
         preferred_version_selectors: opts.preferred_version_selectors,
         published_by: opts.published_by,
@@ -390,48 +426,44 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         ignore_missing_time_field: ctx.ignore_missing_time_field,
     };
 
-    // Per upstream's
-    // [`pickPackage`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L201):
-    // `opts.optional` is a per-call escape hatch (needed for
-    // `libc`/`cpu`/`os` filtering on optional deps —
-    // <https://github.com/pnpm/pnpm/issues/9950>); `ctx.full_metadata`
-    // is the install-wide bias. Either being `true` forces the full
-    // packument.
     let full_metadata = opts.optional || ctx.full_metadata;
-    let meta_dir = if full_metadata { FULL_META_DIR } else { ABBREVIATED_META_DIR };
-
-    let pkg_mirror = ctx
-        .cache_dir
-        .and_then(|dir| get_pkg_mirror_path(dir, meta_dir, opts.registry, &spec.name).ok());
-
-    // Scope the in-memory cache key by registry so the same package
-    // name in two different registries (private + public, scoped
-    // override, etc.) never short-circuits to the wrong packument.
-    // Upstream pnpm gets the same scoping by holding one
-    // `PackageMetaCache` per resolver instance per registry; pacquet
-    // shares one cache across all `pick_package` calls, so the key
-    // has to do the scoping itself.
-    //
-    // The `:full` suffix mirrors upstream's
-    // [cache-key shape](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L206):
-    // a later call with `opts.optional = true` must not satisfy
-    // itself with the abbreviated cache entry an earlier call
-    // populated (the abbreviated form drops `libc`/`cpu`/`os` from
-    // some shapes).
-    let cache_key = if full_metadata {
-        format!("{}\x00{}:full", opts.registry, spec.name)
+    let use_filtered_full_metadata = full_metadata && ctx.filter_metadata;
+    let base_meta_dir = if full_metadata {
+        if use_filtered_full_metadata { FULL_FILTERED_META_DIR } else { FULL_META_DIR }
     } else {
-        format!("{}\x00{}", opts.registry, spec.name)
+        ABBREVIATED_META_DIR
     };
 
+    // A `Private` route relocates the mirror under its descriptor namespace
+    // so it can never be read by a caller who doesn't reproduce the same
+    // descriptor; a `Public` route keeps the global mirror.
+    let pkg_mirror = ctx.cache_dir.and_then(|dir| {
+        let meta_dir = scoped_meta_dir(&scope, base_meta_dir);
+        get_pkg_mirror_path(dir, &meta_dir, opts.registry, &spec.name).ok()
+    });
+
+    let cache_key = metadata_cache_key(
+        &scope,
+        opts.registry,
+        &spec.name,
+        full_metadata,
+        use_filtered_full_metadata,
+    );
+
+    // updateChecksums must reach the conditional registry request below, so it
+    // can't be served from the in-memory cache — which may hold a disk-promoted
+    // entry rather than a fresh network fetch (see the `update_checksums` doc).
+    let use_mem_cache = !opts.update_checksums;
+
     // 1. In-memory cache.
-    if let Some(cached) = ctx.meta_cache.get(&cache_key) {
+    if use_mem_cache && let Some(cached) = ctx.meta_cache.get(&cache_key) {
         return handle_cache_hit(
             ctx,
             spec,
             opts,
             &picker_opts,
             full_metadata,
+            use_filtered_full_metadata,
             &cache_key,
             pkg_mirror.as_deref(),
             cached,
@@ -439,20 +471,6 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         .await;
     }
 
-    // Per-cache-key fetch serializer. Mirrors upstream's
-    // [`runLimited(pkgMirror, ...)`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L52-L64)
-    // pLimit(1): concurrent picks for the same packument coalesce
-    // into a single network fetch. The first caller for `cache_key`
-    // acquires the permit and runs steps 2-5; the rest park here
-    // and, after acquiring, re-check the in-memory cache so the
-    // winner's [`PackageMetaCache::set`] short-circuits them
-    // without re-fetching. Without this, `try_join_all` over the
-    // resolved tree fires N concurrent HTTP GETs per shared
-    // packument (e.g. every `react-*` dep racing for `react`), each
-    // queued behind the [`ThrottledClient`] semaphore — the
-    // 3-5× resolve-walk gap the
-    // [`alotta-files` benchmark]([../../../../../pnpm.io/benchmarks/results/pnpm12])
-    // surfaced.
     let limit = {
         let entry = ctx
             .fetch_locker
@@ -467,13 +485,14 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     // this re-check, every duplicate caller would still fall
     // through to the disk + network path even though they were
     // waiting precisely for the winner's fetch to complete.
-    if let Some(cached) = ctx.meta_cache.get(&cache_key) {
+    if use_mem_cache && let Some(cached) = ctx.meta_cache.get(&cache_key) {
         return handle_cache_hit(
             ctx,
             spec,
             opts,
             &picker_opts,
             full_metadata,
+            use_filtered_full_metadata,
             &cache_key,
             pkg_mirror.as_deref(),
             cached,
@@ -489,7 +508,8 @@ pub async fn pick_package<Cache: PackageMetaCache>(
 
         if ctx.offline {
             if let Some(meta) = meta_cached_in_store {
-                let picked = pick_matching_version_final(&picker_opts, spec, &meta)?;
+                let (meta, picked) =
+                    pick_from_meta(&picker_opts, spec, meta, opts.blocked_versions)?;
                 return Ok(PickPackageResult { meta, picked_package: picked });
             }
             return Err(PickPackageError::NoOfflineMeta {
@@ -511,13 +531,14 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             let meta = upgrade.meta;
             if upgrade.upgraded && !opts.dry_run {
                 if let Some(path) = pkg_mirror.as_deref() {
-                    persist_upgraded_to_mirror(path, &meta);
+                    persist_upgraded_to_mirror(path, &meta, use_filtered_full_metadata);
                 }
                 ctx.meta_cache.set(cache_key.clone(), Arc::clone(&meta));
             }
-            let picked = pick_matching_version_final(&picker_opts, spec, &meta)?;
+            let (picked_meta, picked) =
+                pick_from_meta(&picker_opts, spec, Arc::clone(&meta), opts.blocked_versions)?;
             if picked.is_some() {
-                return Ok(PickPackageResult { meta, picked_package: picked });
+                return Ok(PickPackageResult { meta: picked_meta, picked_package: picked });
             }
             // Fall through to fetch when disk had the meta but no
             // version satisfied the spec — the disk copy may be
@@ -546,7 +567,9 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             // upgrade abbreviated→full. Pacquet's fetcher is
             // always full so this branch shouldn't fire today,
             // but the swallow-and-fall-through matches upstream.
-            if let Ok(Some(picked)) = pick_matching_version_fast(&picker_opts, spec, meta) {
+            if let Ok((picked_meta, Some(picked))) =
+                pick_from_meta_fast(&picker_opts, spec, Arc::clone(meta), opts.blocked_versions)
+            {
                 // Promote the disk-loaded packument into the
                 // install-scoped in-memory cache so later resolves
                 // for the same `(registry, name)` skip the
@@ -559,10 +582,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
                 if !opts.dry_run {
                     ctx.meta_cache.set(cache_key.clone(), Arc::clone(meta));
                 }
-                return Ok(PickPackageResult {
-                    meta: Arc::clone(meta),
-                    picked_package: Some(picked),
-                });
+                return Ok(PickPackageResult { meta: picked_meta, picked_package: Some(picked) });
             }
         }
     }
@@ -584,7 +604,8 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             meta_cached_in_store = load_meta_async(pkg_mirror.as_deref()).await.map(Arc::new);
         }
         if let Some(ref meta) = meta_cached_in_store
-            && let Ok(Some(picked)) = pick_matching_version_fast(&picker_opts, spec, meta)
+            && let Ok((picked_meta, Some(picked))) =
+                pick_from_meta_fast(&picker_opts, spec, Arc::clone(meta), opts.blocked_versions)
         {
             // Same rationale as the version-spec fast path above —
             // promote the disk-loaded packument into the
@@ -592,7 +613,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             if !opts.dry_run {
                 ctx.meta_cache.set(cache_key.clone(), Arc::clone(meta));
             }
-            return Ok(PickPackageResult { meta: Arc::clone(meta), picked_package: Some(picked) });
+            return Ok(PickPackageResult { meta: picked_meta, picked_package: Some(picked) });
         }
     }
 
@@ -607,6 +628,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         auth_headers: ctx.auth_headers,
         cache_dir: ctx.cache_dir,
         full_metadata,
+        filter_metadata: use_filtered_full_metadata,
         retry_opts: ctx.retry_opts,
     };
 
@@ -618,9 +640,24 @@ pub async fn pick_package<Cache: PackageMetaCache>(
             // returned (when it returned Ok). If it returned Err,
             // try the disk fallback: an existing mirror is good
             // enough to pick from, even if the latest sync failed.
-            let disk_fallback = match meta_cached_in_store {
-                Some(meta) => Some(meta),
-                None => load_meta_async(pkg_mirror.as_deref()).await.map(Arc::new),
+            //
+            // A private route must fail closed on a `401`/`403`/
+            // private-`404`: a revoked credential or a hidden private
+            // package must not keep serving the last cached packument,
+            // even from its own (same-namespace) mirror. Only a transport
+            // failure (`5xx`/timeout/network) falls back, and only within
+            // the scoped mirror `pkg_mirror` already points at. A public
+            // route (the CLI / public registries) keeps the original
+            // fall-back-on-any-error behavior.
+            let allow_fallback =
+                matches!(scope, MetadataCacheScope::Public) || !error.is_access_denied();
+            let disk_fallback = if allow_fallback {
+                match meta_cached_in_store {
+                    Some(meta) => Some(meta),
+                    None => load_meta_async(pkg_mirror.as_deref()).await.map(Arc::new),
+                }
+            } else {
+                None
             };
             if let Some(disk) = disk_fallback {
                 tracing::debug!(
@@ -629,21 +666,14 @@ pub async fn pick_package<Cache: PackageMetaCache>(
                     pkg_name = %spec.name,
                     "metadata fetch failed; falling back to on-disk mirror",
                 );
-                let picked = pick_matching_version_final(&picker_opts, spec, &disk)?;
-                return Ok(PickPackageResult { meta: disk, picked_package: picked });
+                let (meta, picked) =
+                    pick_from_meta(&picker_opts, spec, disk, opts.blocked_versions)?;
+                return Ok(PickPackageResult { meta, picked_package: picked });
             }
             return Err(error.into());
         }
     };
 
-    // After a fresh fetch we may still need an upgrade: a 304 reused
-    // an abbreviated mirror body, or a 200 returned abbreviated data
-    // for a recently-modified package. Either way, if
-    // `published_by` is active and `meta.time` is missing, re-fetch
-    // full so the maturity check runs on real timestamps. Mirrors
-    // upstream's
-    // [post-304 upgrade](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L333-L347)
-    // and inline upgrade at lines 364-400.
     let upgrade =
         maybe_upgrade_abbreviated_meta_for_release_age(ctx, spec, opts, full_metadata, meta)
             .await?;
@@ -652,7 +682,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
         && !opts.dry_run
         && let Some(path) = pkg_mirror.as_deref()
     {
-        persist_upgraded_to_mirror(path, &meta);
+        persist_upgraded_to_mirror(path, &meta, use_filtered_full_metadata);
     }
 
     // Divergence from upstream worth flagging: pnpm's pickPackage
@@ -662,10 +692,11 @@ pub async fn pick_package<Cache: PackageMetaCache>(
     // suppresses the in-memory cache write. A future
     // refactor that threads `dry_run` into the fetcher can restore
     // upstream's no-disk-side-effect dry-run.
+    //
     if !opts.dry_run {
         ctx.meta_cache.set(cache_key, Arc::clone(&meta));
     }
-    let picked = pick_matching_version_final(&picker_opts, spec, &meta)?;
+    let (meta, picked) = pick_from_meta(&picker_opts, spec, meta, opts.blocked_versions)?;
     Ok(PickPackageResult { meta, picked_package: picked })
 }
 
@@ -681,7 +712,7 @@ pub async fn pick_package<Cache: PackageMetaCache>(
 /// Bundling these into a struct would just shuffle the same fields
 /// into a wrapper without removing any work; allowing the lint is
 /// the lower-noise option.
-#[allow(
+#[expect(
     clippy::too_many_arguments,
     reason = "bundling these independent inputs into a struct moves the fields into a wrapper without removing work"
 )]
@@ -691,6 +722,7 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
     opts: &PickPackageOptions<'_>,
     picker_opts: &PickerOpts<'_>,
     full_metadata: bool,
+    use_filtered_full_metadata: bool,
     cache_key: &str,
     pkg_mirror: Option<&Path>,
     cached: Arc<Package>,
@@ -700,15 +732,12 @@ async fn handle_cache_hit<Cache: PackageMetaCache>(
             .await?;
     let meta = upgrade.meta;
     if upgrade.upgraded && !opts.dry_run {
-        // Persist so a fresh process doesn't re-trigger the upgrade
-        // fetch on its next install. Matches upstream's
-        // [`persistUpgradedMeta`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L507-L524).
         if let Some(path) = pkg_mirror {
-            persist_upgraded_to_mirror(path, &meta);
+            persist_upgraded_to_mirror(path, &meta, use_filtered_full_metadata);
         }
         ctx.meta_cache.set(cache_key.to_string(), Arc::clone(&meta));
     }
-    let picked = pick_matching_version_final(picker_opts, spec, &meta)?;
+    let (meta, picked) = pick_from_meta(picker_opts, spec, meta, opts.blocked_versions)?;
     Ok(PickPackageResult { meta, picked_package: picked })
 }
 
@@ -743,6 +772,47 @@ fn pick_matching_version_fast(
     } else {
         pick_ignoring_release_age(picker_opts, spec, meta)
     }
+}
+
+fn pick_from_meta_fast(
+    picker_opts: &PickerOpts<'_>,
+    spec: &RegistryPackageSpec,
+    meta: Arc<Package>,
+    blocked_versions: Option<&HashSet<String>>,
+) -> Result<(Arc<Package>, Option<Arc<PackageVersion>>), PickPackageFromMetaError> {
+    let meta = filter_blocked_versions(meta, blocked_versions);
+    if meta.versions.is_empty() && blocked_versions.is_some_and(|blocked| !blocked.is_empty()) {
+        return Ok((meta, None));
+    }
+    let picked = pick_matching_version_fast(picker_opts, spec, &meta)?;
+    Ok((meta, picked))
+}
+
+fn pick_from_meta(
+    picker_opts: &PickerOpts<'_>,
+    spec: &RegistryPackageSpec,
+    meta: Arc<Package>,
+    blocked_versions: Option<&HashSet<String>>,
+) -> Result<(Arc<Package>, Option<Arc<PackageVersion>>), PickPackageFromMetaError> {
+    let meta = filter_blocked_versions(meta, blocked_versions);
+    if meta.versions.is_empty() && blocked_versions.is_some_and(|blocked| !blocked.is_empty()) {
+        return Ok((meta, None));
+    }
+    let picked = pick_matching_version_final(picker_opts, spec, &meta)?;
+    Ok((meta, picked))
+}
+
+fn filter_blocked_versions(
+    meta: Arc<Package>,
+    blocked_versions: Option<&HashSet<String>>,
+) -> Arc<Package> {
+    let Some(blocked_versions) = blocked_versions else {
+        return meta;
+    };
+    if blocked_versions.is_empty() {
+        return meta;
+    }
+    Arc::new(filter_pkg_metadata_versions(&meta, |version| !blocked_versions.contains(version)))
 }
 
 /// Picker used at terminal return sites where there's no further
@@ -898,6 +968,43 @@ fn meta_opts<'a>(picker_opts: &'a PickerOpts<'_>) -> PickPackageFromMetaOptions<
     }
 }
 
+/// The in-memory cache + fetch-lock key for a `(registry, package)` pick,
+/// namespaced by its [`MetadataCacheScope`].
+///
+/// A [`MetadataCacheScope::Public`] route keeps the exact upstream-shaped
+/// `{registry}\x00{name}` key (with the `:full` / `:full:filtered` suffix
+/// from upstream's
+/// [cache-key shape](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L206)),
+/// so the CLI and public routes are unchanged. A private route prepends its
+/// descriptor namespace so one caller's private packument can't satisfy
+/// another caller's pick for the same name.
+///
+/// The registry is part of the key because the same package name can live
+/// in two registries (a public `lodash` and a private one); upstream pnpm
+/// gets that scoping by holding one cache per resolver instance per
+/// registry, while pacquet shares one cache across every pick. The
+/// full-mode suffix keeps a later `optional` pick from reusing an
+/// abbreviated entry that dropped `libc`/`cpu`/`os`.
+fn metadata_cache_key(
+    scope: &MetadataCacheScope,
+    registry: &str,
+    name: &str,
+    full_metadata: bool,
+    use_filtered_full_metadata: bool,
+) -> String {
+    let suffix = if full_metadata {
+        if use_filtered_full_metadata { ":full:filtered" } else { ":full" }
+    } else {
+        ""
+    };
+    match scope {
+        MetadataCacheScope::Public => format!("{registry}\x00{name}{suffix}"),
+        MetadataCacheScope::Private { descriptor_id } => {
+            format!("private\x00{descriptor_id}\x00{registry}\x00{name}{suffix}")
+        }
+    }
+}
+
 fn validate_package_name(pkg_name: &str) -> Result<(), PickPackageError> {
     // Mirrors upstream's
     // [`validatePackageName`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L678-L682):
@@ -924,12 +1031,11 @@ fn get_file_mtime(path: &Path) -> Option<DateTime<Utc>> {
 /// ordered eviction via `shift_remove_index(0)`, matching upstream's
 /// JS `Set` which iterates in insertion order.
 const MAX_WARNED_MISSING_TIME: usize = 1024;
-static WARNED_MISSING_TIME: std::sync::OnceLock<Mutex<indexmap::IndexSet<String>>> =
-    std::sync::OnceLock::new();
+static WARNED_MISSING_TIME: std::sync::LazyLock<Mutex<indexmap::IndexSet<String>>> =
+    std::sync::LazyLock::new(|| Mutex::new(indexmap::IndexSet::new()));
 
 fn warn_missing_time_once(pkg_name: &str) {
-    let lock = WARNED_MISSING_TIME.get_or_init(|| Mutex::new(indexmap::IndexSet::new()));
-    let mut warned = lock.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let mut warned = WARNED_MISSING_TIME.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
     if warned.contains(pkg_name) {
         return;
     }
@@ -997,7 +1103,7 @@ pub enum MirrorPersistError {
 
 /// Shared-state helper that lets a long-running install build one
 /// [`PackageMetaCache`] and pass it (by [`Arc`]) to every
-/// `pick_package` call.
+/// [`pick_package`] call.
 #[must_use]
 pub fn shared_in_memory_cache() -> Arc<InMemoryPackageMetaCache> {
     Arc::new(InMemoryPackageMetaCache::default())
@@ -1114,8 +1220,25 @@ async fn maybe_upgrade_abbreviated_meta_for_release_age<Cache: PackageMetaCache>
 /// and the install proceeds — the next install simply re-triggers
 /// the upgrade fetch. Mirrors upstream's
 /// [`persistUpgradedMeta`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L507-L524).
-fn persist_upgraded_to_mirror(pkg_mirror: &Path, meta: &Package) {
-    if let Err(error) = save_meta_indexed(pkg_mirror, meta, meta.etag.as_deref()) {
+fn persist_upgraded_to_mirror(pkg_mirror: &Path, meta: &Package, filter_metadata: bool) {
+    let save_result = if filter_metadata {
+        let meta_for_cache = match clear_meta(meta) {
+            Ok(meta_for_cache) => meta_for_cache,
+            Err(error) => {
+                tracing::debug!(
+                    target: "pacquet_resolving_npm_resolver::pick_package",
+                    ?error,
+                    path = %pkg_mirror.display(),
+                    "could not filter upgraded mirror metadata",
+                );
+                return;
+            }
+        };
+        save_meta_ndjson(pkg_mirror, &meta_for_cache, meta.etag.as_deref())
+    } else {
+        save_meta_indexed(pkg_mirror, meta, meta.etag.as_deref())
+    };
+    if let Err(error) = save_result {
         tracing::debug!(
             target: "pacquet_resolving_npm_resolver::pick_package",
             ?error,

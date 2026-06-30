@@ -65,10 +65,6 @@ pub enum PatchApplyError {
 /// problem the same way (in-process applier, no subprocess).
 ///
 /// Supported file operations: `Modify`, `Create`, `Delete`.
-/// `Rename`/`Copy` operations are reported as `ERR_PNPM_PATCH_FAILED`
-/// with a descriptive message — they don't appear in
-/// `patch-package`-style patches in practice, and the failure mode
-/// is at least loud rather than silent.
 ///
 /// File paths in the patch are stripped one level
 /// (`diffy::FileOperation::strip_prefix(1)`) to drop the conventional
@@ -78,15 +74,6 @@ pub enum PatchApplyError {
 /// `ERR_PNPM_PATCH_FAILED`. A patch file is attacker-controlled
 /// data — an `a/../../outside` header would otherwise let it
 /// read, write, or delete outside the package directory.
-///
-/// `Create` refuses to overwrite an existing file (matches `patch`
-/// and `git apply` semantics for `--- /dev/null` hunks) — unless the
-/// file already contains exactly the post-patch content, in which
-/// case the operation is treated as already applied. `Delete`
-/// validates the hunks via `diffy::apply` and only unlinks when the
-/// result is empty — a stale patch would otherwise silently delete
-/// a file whose contents diverged from what the patch expects. A
-/// missing target on `Delete` is treated as already applied.
 ///
 /// `Modify` writes the patched content via a sibling temp file +
 /// `rename` (the same pattern
@@ -103,18 +90,6 @@ pub enum PatchApplyError {
 /// it. The temp file is chmoded to match the original before rename so
 /// patched shebang scripts in `bin/` keep their executable bit
 /// atomically — no window where the file has the wrong mode.
-///
-/// Apply is **idempotent**: when forward apply fails, the patch is
-/// reverse-applied against the on-disk content. If the reverse
-/// succeeds, the file is already in the post-patch state and the
-/// hunk is treated as no-op. Mirrors upstream
-/// [`@pnpm/patch-package`'s `applyPatch`](https://github.com/ds300/patch-package/blob/master/src/applyPatches.ts),
-/// which on failure retries `executeEffects(reversePatch(patch), { dryRun: true })`
-/// and returns success when the reverse cleanly verifies. Defense in
-/// depth against re-runs that find the directory pre-patched (a side-
-/// effects cache hit that fell through, manual edits, partial install
-/// recovery): the hardlink-break above prevents fresh installs from
-/// ever producing this state in the first place.
 pub fn apply_patch_to_dir(
     patched_dir: &Path,
     patch_file_path: &Path,
@@ -241,9 +216,6 @@ fn apply_one_file(
             //      just leaves a stale temp file (cleaned up best-
             //      effort) and the original target intact, so the next
             //      install can retry from the same baseline.
-            //
-            // CodeRabbit flagged the prior `unlink → write` ordering
-            // during review of pnpm/pnpm#11782.
             write_atomic_with_mode(&target, updated.as_bytes(), &permissions)
                 .map_err(|source| failed(format!("write {}: {source}", target.display())))?;
         }

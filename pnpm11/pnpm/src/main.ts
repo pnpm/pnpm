@@ -1,0 +1,525 @@
+export type Global = typeof globalThis & {
+  pnpm__startedAt?: number
+  [REPORTER_INITIALIZED]?: ReporterType // eslint-disable-line @typescript-eslint/no-use-before-define
+}
+declare const global: Global
+if (!global['pnpm__startedAt']) {
+  global['pnpm__startedAt'] = Date.now()
+}
+import path from 'node:path'
+import { stripVTControlCharacters as stripAnsi } from 'node:util'
+
+import { isExecutedByCorepack, packageManager } from '@pnpm/cli.meta'
+import type { Config, ConfigContext } from '@pnpm/config.reader'
+import { executionTimeLogger, scopeLogger } from '@pnpm/core-loggers'
+import { getSystemRuntimeVersion } from '@pnpm/engine.runtime.system-version'
+import { PnpmError } from '@pnpm/error'
+import { globalWarn, logger } from '@pnpm/logger'
+import { type EngineDependency, isRuntimeAlias, type RuntimeName } from '@pnpm/types'
+import { finishWorkers } from '@pnpm/worker'
+import { safeReadProjectManifestOnly } from '@pnpm/workspace.project-manifest-reader'
+import { filterProjectsFromDir } from '@pnpm/workspace.projects-filter'
+import chalk from 'chalk'
+import loudRejection from 'loud-rejection'
+import { isEmpty } from 'ramda'
+import semver from 'semver'
+
+import { checkForUpdates } from './checkForUpdates.js'
+import { NOT_IMPLEMENTED_COMMAND_SET, overridableByScriptCommands, pnpmCmds, recursiveByDefaultCommands, skipPackageManagerCheckForCommand } from './cmd/index.js'
+import { formatUnknownOptionsError } from './formatError.js'
+import { getConfig, installConfigDepsAndLoadHooks } from './getConfig.js'
+import type { ParsedCliArgsWithBuiltIn } from './parseCliArgs.js'
+import { parseCliArgs } from './parseCliArgs.js'
+import { initReporter, type ReporterType } from './reporter/index.js'
+import { switchCliVersion } from './switchCliVersion.js'
+import { syncEnvLockfile } from './syncEnvLockfile.js'
+
+export const REPORTER_INITIALIZED = Symbol('reporterInitialized')
+
+// Commands whose reporter output (warnings, progress) must go to stderr so that
+// their stdout stays a clean, machine-readable value. For example, `pnpm store
+// path` is meant to be captured with `STORE=$(pnpm store path)` and `pnpm config
+// list --json` to be piped into `jq`; a warning mixed into stdout would corrupt
+// both.
+const COMMANDS_WITH_STDERR_REPORTER = new Set(['dlx', 'create', 'config', 'set', 'get', 'sbom', 'with', 'store'])
+
+loudRejection()
+
+function isRootOnlyPatterns (patterns: string[]): boolean {
+  return patterns.length === 1 && patterns[0] === '.'
+}
+
+// This prevents the program from crashing when the pipe's read side closes early
+// (e.g., when running `pnpm config list | head`)
+process.stdout.on('error', (err: NodeJS.ErrnoException) => {
+  if (err.code === 'EPIPE') {
+    process.exit(0)
+  }
+  throw err
+})
+
+export async function main (inputArgv: string[]): Promise<void> {
+  let parsedCliArgs!: ParsedCliArgsWithBuiltIn
+  try {
+    parsedCliArgs = await parseCliArgs(inputArgv)
+  } catch (err: any) { // eslint-disable-line
+    // Reporting is not initialized at this point, so just printing the error
+    printError(err.message, err['hint'])
+    process.exitCode = 1
+    return
+  }
+  let {
+    argv,
+    params: cliParams,
+    options: cliOptions,
+    cmd,
+    fallbackCommandUsed,
+    builtInCommandForced,
+    unknownOptions,
+    workspaceDir,
+  } = parsedCliArgs
+  if (cmd !== null && !pnpmCmds[cmd]) {
+    printError(`Unknown command '${cmd}'`, 'For help, run: pnpm help')
+    process.exitCode = 1
+    return
+  }
+
+  if (unknownOptions.size > 0 && !(cmd && NOT_IMPLEMENTED_COMMAND_SET.has(cmd))) {
+    printError(formatUnknownOptionsError(unknownOptions), `For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`)
+    process.exitCode = 1
+    return
+  }
+
+  let config: Config & {
+    argv: { remain: string[], cooked: string[], original: string[] }
+    fallbackCommandUsed: boolean
+    parseable?: boolean
+    json?: boolean
+  }
+  let context: ConfigContext
+  try {
+    // When we just want to print the location of the global bin directory,
+    // we don't need the write permission to it. Related issue: #2700
+    const globalDirShouldAllowWrite = cmd !== 'root'
+    const isDlxOrCreateCommand = cmd === 'dlx' || cmd === 'create'
+    const isConfigCommand = cmd === 'config' || cmd === 'set' || cmd === 'get'
+    if (cmd === 'link' && cliParams.length === 0) {
+      cliOptions.global = true
+    }
+    ;({ config, context } = await getConfig(cliOptions, {
+      excludeReporter: false,
+      globalDirShouldAllowWrite,
+      workspaceDir,
+      onlyInheritDlxSettingsFromLocal: isDlxOrCreateCommand,
+    }) as { config: typeof config, context: ConfigContext })
+    if (cmd !== 'setup' && !shouldSkipPmHandling(cmd, cliParams)) {
+      if (context.wantedPackageManager != null) {
+        const pm = context.wantedPackageManager
+        if (pm.onFail !== 'ignore') {
+          if (pm.name === 'pnpm' && pm.onFail === 'download' && !isExecutedByCorepack()) {
+            // Corepack owns version switching; pnpm only switches versions when
+            // the user is running pnpm directly.
+            await switchCliVersion(config, context)
+          } else if (cliOptions.global) {
+            globalWarn('Using --global skips the package manager check for this project')
+          } else {
+            // checkPackageManager and syncEnvLockfile run regardless of how pnpm
+            // was invoked. Different developers on the same project may use
+            // corepack or invoke pnpm directly, and the lockfile's
+            // `packageManagerDependencies` entry must stay consistent across both
+            // workflows. syncEnvLockfile self-gates via shouldPersistLockfile so
+            // it only writes to the lockfile when the project opted in (via
+            // `devEngines.packageManager`, or a v12+ `packageManager` pin).
+            checkPackageManager(pm, { underCorepack: isExecutedByCorepack() })
+            await syncEnvLockfile(config, context)
+          }
+        }
+      }
+      if (cmd != null && !cliOptions.global) {
+        for (const runtime of getWantedRuntimes(context)) {
+          checkRuntime(runtime)
+        }
+      }
+    }
+    // `pnpm set` / `pnpm get` are separate top-level commands whose handlers
+    // delegate to the `config` command internally. They are not rewritten to
+    // `cmd === 'config'` at this layer, so list them explicitly — users can
+    // hit the #10684 crash via any of these three entry points.
+    ;({ config, context } = await installConfigDepsAndLoadHooks(config, context, {
+      tolerateConfigDependenciesErrors: isConfigCommand,
+    }) as { config: typeof config, context: ConfigContext })
+    if (cmd != null && COMMANDS_WITH_STDERR_REPORTER.has(cmd)) {
+      config.useStderr = true
+    }
+    config.argv = argv
+    config.fallbackCommandUsed = fallbackCommandUsed
+    // Set 'npm_command' env variable to current command name
+    if (cmd) {
+      config.extraEnv = {
+        ...config.extraEnv,
+        // Follow the behavior of npm by setting it to 'run-script' when running scripts (e.g. pnpm run dev)
+        // and to the command name otherwise (e.g. pnpm test)
+        npm_command: cmd === 'run' ? 'run-script' : cmd,
+      }
+    }
+  } catch (err: any) { // eslint-disable-line
+    // Reporting is not initialized at this point, so just printing the error
+    const hint = err['hint'] ? err['hint'] : `For help, run: pnpm help${cmd ? ` ${cmd}` : ''}`
+    printError(err.message, hint)
+    process.exitCode = 1
+    await finishWorkers()
+    return
+  }
+  if (cmd == null && cliOptions.version) {
+    console.log(packageManager.version)
+    return
+  }
+
+  let write: (text: string) => void = process.stdout.write.bind(process.stdout)
+  // chalk reads the FORCE_COLOR env variable
+  if (config.color === 'always') {
+    process.env['FORCE_COLOR'] = '1'
+  } else if (config.color === 'never') {
+    process.env['FORCE_COLOR'] = '0'
+
+    // In some cases, it is already late to set the FORCE_COLOR env variable.
+    // Some text might be already generated.
+    //
+    // A better solution might be to dynamically load all the code after the settings are read
+    // and the env variable set.
+    write = (text) => process.stdout.write(stripAnsi(text))
+  }
+
+  const reporterType: ReporterType = (() => {
+    if (config.loglevel === 'silent') return 'silent'
+    if (config.reporter) return config.reporter as ReporterType
+    if (config.ci || !process.stdout.isTTY) return 'append-only'
+    return 'default'
+  })()
+
+  const printLogs = !config['parseable'] && !config['json']
+  if (printLogs) {
+    // `pnpm add -g` may install several isolated groups in one run, one
+    // per CLI param. When that happens, force the reporter to show the
+    // per-prefix progress/stats output so every group's stats line up
+    // with the right install dir instead of being silently dropped.
+    const multiGroupGlobalAdd = cmd === 'add' && cliOptions.global === true && cliParams.length > 1
+    initReporter(reporterType, {
+      cmd,
+      config: { ...config, ...context },
+      hideProgressPrefix: multiGroupGlobalAdd ? false : undefined,
+    })
+    global[REPORTER_INITIALIZED] = reporterType
+  }
+
+  // Commands with scriptOverride: if the current project's package.json has a
+  // script with the same name, run the script instead of the built-in command.
+  const typedCommandName = argv.remain[0]
+  if (cmd != null && !builtInCommandForced && overridableByScriptCommands.has(typedCommandName) && !cliOptions.global) {
+    const currentDirManifest = config.dir === context.rootProjectManifestDir
+      ? context.rootProjectManifest
+      : await safeReadProjectManifestOnly(config.dir)
+    if (currentDirManifest?.scripts?.[typedCommandName]) {
+      // Redirect to "pnpm run <cmd>"
+      cmd = 'run'
+      cliParams.unshift(typedCommandName)
+      fallbackCommandUsed = true
+      config.fallbackCommandUsed = true
+      config.extraEnv = {
+        ...config.extraEnv,
+        npm_command: 'run-script',
+      }
+    } else if (
+      workspaceDir &&
+      config.dir !== context.rootProjectManifestDir &&
+      context.rootProjectManifest?.scripts?.[typedCommandName]
+    ) {
+      throw new PnpmError(
+        'SCRIPT_OVERRIDE_IN_WORKSPACE_ROOT',
+        `The workspace root has a "${typedCommandName}" script, ` +
+        `so the built-in "pnpm ${typedCommandName}" command cannot run from a subdirectory`,
+        {
+          hint: `Run "pnpm run ${typedCommandName}" from the workspace root to execute the script`,
+        }
+      )
+    }
+  }
+
+  if (
+    cmd != null && recursiveByDefaultCommands.has(cmd) &&
+    typeof workspaceDir === 'string'
+  ) {
+    cliOptions['recursive'] = true
+    config.recursive = true
+
+    if (!config.recursiveInstall && !config.filter && !config.filterProd) {
+      config.filter = ['{.}...']
+    }
+  }
+
+  if (cliOptions['recursive']) {
+    const wsDir = workspaceDir ?? process.cwd()
+
+    config.filter = config.filter ?? []
+    config.filterProd = config.filterProd ?? []
+
+    const filters = [
+      ...config.filter.map((filter) => ({ filter, followProdDepsOnly: false })),
+      ...config.filterProd.map((filter) => ({ filter, followProdDepsOnly: true })),
+    ]
+    const relativeWSDirPath = () => path.relative(process.cwd(), wsDir) || '.'
+    if (config.workspaceRoot) {
+      filters.push({ filter: `{${relativeWSDirPath()}}`, followProdDepsOnly: Boolean(config.filterProd.length) })
+    } else if (
+      !filters.some(({ filter }) => !filter.startsWith('!')) &&
+      workspaceDir &&
+      config.workspacePackagePatterns &&
+      !isRootOnlyPatterns(config.workspacePackagePatterns) &&
+      !config.includeWorkspaceRoot &&
+      (cmd === 'run' || cmd === 'exec' || cmd === 'add' || cmd === 'test')
+    ) {
+      filters.push({ filter: `!{${relativeWSDirPath()}}`, followProdDepsOnly: Boolean(config.filterProd.length) })
+    }
+
+    const filterResults = await filterProjectsFromDir(wsDir, filters, {
+      engineStrict: config.engineStrict,
+      nodeVersion: config.nodeVersion,
+      patterns: config.workspacePackagePatterns,
+      linkWorkspacePackages: !!config.linkWorkspacePackages,
+      prefix: process.cwd(),
+      workspaceDir: wsDir,
+      testPattern: config.testPattern,
+      changedFilesIgnorePattern: config.changedFilesIgnorePattern,
+      useGlobDirFiltering: !config.legacyDirFiltering,
+      sharedWorkspaceLockfile: config.sharedWorkspaceLockfile,
+    })
+
+    if (filterResults.allProjects.length === 0) {
+      if (printLogs) {
+        console.log(`No projects found in "${wsDir}"`)
+      }
+      process.exitCode = config.failIfNoMatch ? 1 : 0
+      return
+    }
+    context.allProjectsGraph = filterResults.allProjectsGraph
+    context.selectedProjectsGraph = filterResults.selectedProjectsGraph
+    if (isEmpty(context.selectedProjectsGraph)) {
+      if (printLogs) {
+        console.log(`No projects matched the filters in "${wsDir}"`)
+      }
+      if (config.failIfNoMatch) {
+        process.exitCode = 1
+        return
+      }
+      if (cmd !== 'list') {
+        process.exitCode = 0
+        return
+      }
+    }
+    if (filterResults.unmatchedFilters.length !== 0 && printLogs) {
+      console.log(`No projects matched the filters "${filterResults.unmatchedFilters.join(', ')}" in "${wsDir}"`)
+    }
+    context.allProjects = filterResults.allProjects
+    config.workspaceDir = wsDir
+  }
+
+  let { output, exitCode }: { output?: string | null, exitCode: number } = await (async () => {
+    // NOTE: we defer the next stage, otherwise reporter might not catch all the logs
+    await new Promise<void>((resolve) => setTimeout(() => {
+      resolve()
+    }, 0))
+
+    if (
+      config.updateNotifier !== false &&
+      !config.ci &&
+      cmd !== 'self-update' &&
+      !config.offline &&
+      !config.preferOffline &&
+      !config.fallbackCommandUsed &&
+      (cmd === 'install' || cmd === 'add')
+    ) {
+      checkForUpdates(config).catch(() => { /* Ignore */ })
+    }
+
+    if (config.force === true && !config.fallbackCommandUsed) {
+      logger.warn({
+        message: 'using --force I sure hope you know what you are doing',
+        prefix: config.dir,
+      })
+    }
+
+    scopeLogger.debug({
+      ...(
+        !cliOptions['recursive']
+          ? { selected: 1 }
+          : {
+            selected: Object.keys(context.selectedProjectsGraph!).length,
+            total: context.allProjects!.length,
+          }
+      ),
+      ...(workspaceDir ? { workspacePrefix: workspaceDir } : {}),
+    })
+    let result = pnpmCmds[cmd ?? 'help'](
+      // Spread config (settings) and context (runtime state) into a single
+      // options object for command handlers. The original split objects are
+      // also passed for handlers that need them separated (e.g. config commands).
+      // Named "_config"/"_context" to avoid clashing with the "--config" CLI option.
+      { ...config, ...context, _config: config, _context: context } as Omit<typeof config & ConfigContext, 'reporter'>,
+      cliParams,
+      pnpmCmds
+    )
+    try {
+      if (result instanceof Promise) {
+        result = await result
+      }
+    } finally {
+      await finishWorkers()
+    }
+    executionTimeLogger.debug({
+      startedAt: global['pnpm__startedAt'],
+      endedAt: Date.now(),
+    })
+    if (!result) {
+      return { output: null, exitCode: 0 }
+    }
+    if (typeof result === 'string') {
+      return { output: result, exitCode: 0 }
+    }
+    return result
+  })()
+  if (output) {
+    if (!output.endsWith('\n')) {
+      output = `${output}\n`
+    }
+    write(output)
+  }
+  if (!cmd) {
+    exitCode = 1
+  }
+  if (exitCode) {
+    process.exitCode = exitCode
+  }
+}
+
+function printError (message: string, hint?: string): void {
+  const ERROR = chalk.bgRed.red('[') + chalk.bgRed.black('ERROR') + chalk.bgRed.red(']')
+  console.error(`${message.startsWith(ERROR) ? '' : ERROR + ' '}${chalk.red(message)}`)
+  if (hint) {
+    console.error(hint)
+  }
+}
+
+/**
+ * Whether to skip the packageManager/runtime handling block (both auto
+ * download and warn/error checks). Returns true when the command itself
+ * opts out via `skipPackageManagerCheck: true`, or when the user is asking
+ * for help on such a command — `pnpm help <skippable>` and
+ * `pnpm <skippable> --help` (which parse-cli-args rewrites to the same
+ * cmd='help' form) shouldn't download an older pinned pnpm just to render
+ * help for a command that older pnpm may not even have.
+ */
+function shouldSkipPmHandling (cmd: string | null, cliParams: string[]): boolean {
+  if (cmd == null) return false
+  if (skipPackageManagerCheckForCommand.has(cmd)) return true
+  if (cmd === 'help' && cliParams[0] != null && skipPackageManagerCheckForCommand.has(cliParams[0])) return true
+  return false
+}
+
+function checkPackageManager (pm: EngineDependency, opts: { underCorepack: boolean }): void {
+  if (!pm.name) return
+  const shouldError = pm.onFail === 'error' || pm.onFail === 'download'
+  if (pm.name !== 'pnpm') {
+    const msg = `This project is configured to use ${pm.name}`
+    if (shouldError) {
+      throw new PnpmError('OTHER_PM_EXPECTED', msg)
+    }
+    globalWarn(msg)
+  } else if (pm.version) {
+    const currentPnpmVersion = packageManager.name === 'pnpm'
+      ? packageManager.version
+      : undefined
+    if (currentPnpmVersion && !semver.satisfies(currentPnpmVersion, pm.version, { includePrerelease: true })) {
+      let msg = `This project is configured to use ${pm.version} of pnpm. Your current pnpm is v${currentPnpmVersion}`
+      // When pnpm runs under corepack, corepack — not pnpm — selects the
+      // running version, so users see this mismatch even with onFail='download'
+      // (which would normally auto-switch). Spell out that pnpm cannot switch
+      // here and point at the two ways out.
+      if (opts.underCorepack) {
+        msg += '\nCorepack invoked pnpm with this version, and pnpm does not switch versions when running under corepack.'
+      }
+      if (shouldError) {
+        const baseHint = 'If you want to bypass this version check, you can set the "pmOnFail" configuration to "warn" or "ignore" (e.g. via --pm-on-fail=ignore). If using "devEngines.packageManager", you can set its "onFail" to "warn" or "ignore"'
+        const hint = opts.underCorepack
+          ? `Align the "packageManager" field in package.json with "devEngines.packageManager", or invoke pnpm directly (without corepack) so it can switch versions automatically.\n${baseHint}`
+          : baseHint
+        throw new PnpmError('BAD_PM_VERSION', msg, { hint })
+      } else {
+        globalWarn(msg)
+      }
+    }
+  }
+}
+
+const RUNTIME_DISPLAY_NAMES: Record<RuntimeName, string> = {
+  node: 'Node.js',
+  deno: 'Deno',
+  bun: 'Bun',
+}
+
+// devEngines.runtime takes precedence over engines.runtime per the iteration
+// order below: the first entry seen for a given runtime wins.
+function getWantedRuntimes (context: ConfigContext): EngineDependency[] {
+  const manifest = context.rootProjectManifest
+  if (manifest == null) return []
+  const result: EngineDependency[] = []
+  const seen = new Set<RuntimeName>()
+  for (const enginesFieldName of ['devEngines', 'engines'] as const) {
+    const enginesRuntime = manifest[enginesFieldName]?.runtime
+    if (enginesRuntime == null) continue
+    const runtimes: EngineDependency[] = Array.isArray(enginesRuntime) ? enginesRuntime : [enginesRuntime]
+    for (const runtime of runtimes) {
+      if (!runtime.name || !isRuntimeAlias(runtime.name) || seen.has(runtime.name)) continue
+      seen.add(runtime.name)
+      result.push(runtime)
+    }
+  }
+  return result
+}
+
+function checkRuntime (runtime: EngineDependency): void {
+  if (runtime.onFail == null || runtime.onFail === 'ignore' || runtime.onFail === 'download') return
+  if (!runtime.name || !isRuntimeAlias(runtime.name)) return
+  const runtimeName: RuntimeName = runtime.name
+  const displayName = RUNTIME_DISPLAY_NAMES[runtimeName]
+  const wantedRange = runtime.version
+  if (!wantedRange || !semver.validRange(wantedRange)) {
+    const msg = wantedRange
+      ? `This project requires an invalid ${displayName} version range: ${wantedRange}`
+      : `This project requires a ${displayName} runtime but does not specify a version range`
+    failRuntimeCheck(runtime.onFail, msg)
+    return
+  }
+  const currentVersion = getSystemRuntimeVersion(runtimeName)
+  if (currentVersion == null) {
+    failRuntimeCheck(
+      runtime.onFail,
+      `This project requires ${displayName} ${wantedRange}, but ${displayName} was not found on the system`
+    )
+    return
+  }
+  if (semver.satisfies(currentVersion, wantedRange, { includePrerelease: true })) return
+
+  failRuntimeCheck(
+    runtime.onFail,
+    `This project requires ${displayName} ${wantedRange}. Your current ${displayName} is ${currentVersion}`
+  )
+}
+
+function failRuntimeCheck (onFail: 'error' | 'warn', message: string): void {
+  if (onFail === 'error') {
+    throw new PnpmError('BAD_RUNTIME_VERSION', message, { hint: RUNTIME_ON_FAIL_HINT })
+  }
+  globalWarn(message)
+}
+
+const RUNTIME_ON_FAIL_HINT = 'If you want to bypass this version check, set "runtimeOnFail" to "warn" or "ignore" (e.g. via --runtime-on-fail=ignore), or set "devEngines.runtime.onFail"/"engines.runtime.onFail" to "warn" or "ignore"'

@@ -1,9 +1,9 @@
-#[cfg(unix)]
-use super::LINK_STATE_COPY;
 use super::{
     LINK_STATE_CLONE, LINK_STATE_HARDLINK, LinkFileError, auto_link, clone_or_copy_link,
     is_call_error, is_cross_device, link_file,
 };
+#[cfg(unix)]
+use super::{LINK_STATE_COPY, import_into_fresh_target};
 use pacquet_config::PackageImportMethod;
 use pacquet_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
@@ -33,7 +33,6 @@ fn copy_materializes_the_file_contents() {
         .expect("link_file should succeed");
 
     assert_eq!(fs::read(&dst).unwrap(), b"hello");
-    // A plain copy leaves the two files as independent inodes.
     let src_ino = fs::metadata(&src).unwrap();
     let dst_ino = fs::metadata(&dst).unwrap();
     #[cfg(unix)]
@@ -45,9 +44,104 @@ fn copy_materializes_the_file_contents() {
     let _ = (src_ino, dst_ino);
 }
 
+/// A CAS entry stored as executable carries the `-exec` suffix in its
+/// store path. Copying it out must land an executable file even when
+/// the copy tier dropped the exec bit (overlayfs etc.) — the suffix is
+/// the source of truth, so the copied binary ends up `0o755`.
+#[test]
+#[cfg(unix)]
+fn copy_restores_executable_mode_from_cas_suffix() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = tempdir().unwrap();
+    let src = write_source(tmp.path(), "1b59d9-exec", b"#!/usr/bin/env node\n");
+    fs::set_permissions(&src, fs::Permissions::from_mode(0o644)).unwrap();
+    let dst = tmp.path().join("nested/dst");
+    fs::create_dir_all(dst.parent().unwrap()).unwrap();
+
+    link_file::<SilentReporter>(&AtomicU8::new(0), PackageImportMethod::Copy, &src, &dst)
+        .expect("copy should restore executable CAS mode");
+
+    let dst_mode = fs::metadata(&dst).unwrap().permissions().mode() & 0o777;
+    assert_eq!(dst_mode, 0o755, "copied executable file must stay executable");
+}
+
+/// A non-executable CAS entry has no `-exec` suffix, so the copy must
+/// leave its mode untouched. Guards against widening permissions on the
+/// restrictive end — a `0o600` source stays `0o600`, never `0o711`.
+#[test]
+#[cfg(unix)]
+fn copy_does_not_widen_non_exec_mode() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = tempdir().unwrap();
+    let src = write_source(tmp.path(), "1b59d9", b"private data\n");
+    fs::set_permissions(&src, fs::Permissions::from_mode(0o600)).unwrap();
+    let dst = tmp.path().join("nested/dst");
+    fs::create_dir_all(dst.parent().unwrap()).unwrap();
+
+    link_file::<SilentReporter>(&AtomicU8::new(0), PackageImportMethod::Copy, &src, &dst)
+        .expect("copy should succeed");
+
+    let dst_mode = fs::metadata(&dst).unwrap().permissions().mode() & 0o777;
+    assert_eq!(dst_mode, 0o600, "non-executable file must not gain exec bits");
+}
+
+/// On EEXIST the import adopts the racing writer's dirent, but re-asserts
+/// the exec bit from the `-exec` suffix — so a target a prior failed
+/// restore left at `0o644` is healed rather than adopted broken. Driven
+/// through `Hardlink` for a deterministic EEXIST without needing reflink
+/// (copy-on-write) support on the test filesystem.
+#[test]
+#[cfg(unix)]
+fn eexist_restores_executable_mode_from_cas_suffix() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = tempdir().unwrap();
+    let src = write_source(tmp.path(), "1b59d9-exec", b"#!/usr/bin/env node\n");
+    fs::set_permissions(&src, fs::Permissions::from_mode(0o755)).unwrap();
+    let dst = write_source(tmp.path(), "dst", b"#!/usr/bin/env node\n");
+    fs::set_permissions(&dst, fs::Permissions::from_mode(0o644)).unwrap();
+
+    import_into_fresh_target::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Hardlink,
+        &src,
+        &dst,
+    )
+    .expect("EEXIST import should heal the exec bit");
+
+    let dst_mode = fs::metadata(&dst).unwrap().permissions().mode() & 0o777;
+    assert_eq!(dst_mode, 0o755, "stale 0o644 target must be restored to 0o755 on EEXIST");
+}
+
+/// The EEXIST exec-bit re-assertion must not widen a non-executable
+/// entry: a `-exec`-less source leaves an existing `0o600` target alone.
+#[test]
+#[cfg(unix)]
+fn eexist_does_not_widen_non_exec_mode() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let tmp = tempdir().unwrap();
+    let src = write_source(tmp.path(), "1b59d9", b"private data\n");
+    fs::set_permissions(&src, fs::Permissions::from_mode(0o644)).unwrap();
+    let dst = write_source(tmp.path(), "dst", b"private data\n");
+    fs::set_permissions(&dst, fs::Permissions::from_mode(0o600)).unwrap();
+
+    import_into_fresh_target::<SilentReporter>(
+        &AtomicU8::new(0),
+        PackageImportMethod::Hardlink,
+        &src,
+        &dst,
+    )
+    .expect("EEXIST import should be a no-op for a non-exec entry");
+
+    let dst_mode = fs::metadata(&dst).unwrap().permissions().mode() & 0o777;
+    assert_eq!(dst_mode, 0o600, "non-exec EEXIST target must not gain exec bits");
+}
+
 /// Hardlinking in the same directory on the same filesystem works on
-/// every mainstream OS the project supports. We verify the post-link
-/// inodes match (on unix) or that the contents match (otherwise).
+/// every mainstream OS the project supports.
 #[test]
 fn hardlink_shares_contents_with_source() {
     let tmp = tempdir().unwrap();
@@ -129,7 +223,7 @@ fn explicit_hardlink_surfaces_errors() {
 /// `CloneOrCopy` has to succeed on any filesystem because
 /// `clone_or_copy_link` falls back to `fs::copy` when the reflink
 /// attempt fails with a capability error. This hits the match arm
-/// directly — the `existing_target_is_preserved` loop
+/// directly — the [`existing_target_is_preserved`] loop
 /// short-circuits before the arm ever runs, so without this we had
 /// no coverage of the real code path.
 #[test]
@@ -317,7 +411,7 @@ fn auto_respects_cached_hardlink_state() {
 
 /// Same propagate-on-call-error property for `CloneOrCopy`. Uses
 /// `AlreadyExists` trigger for the same reason
-/// `auto_call_errors_propagate_without_downgrading` does —
+/// [`auto_call_errors_propagate_without_downgrading`] does —
 /// `NotFound` gets rewritten to `InvalidInput` inside reflink-copy
 /// on non-macOS and would take the fallback path instead of the
 /// propagation path.
@@ -407,7 +501,7 @@ fn is_call_error_rejects_capability_codes() {
 }
 
 /// Pre-seed `CloneOrCopy` state to `COPY` and verify it uses
-/// `fs::copy` — mirrors `auto_respects_cached_copy_state`. Also
+/// `fs::copy` — mirrors [`auto_respects_cached_copy_state`]. Also
 /// confirms we skip the hardlink tier entirely (pnpm
 /// `createCloneOrCopyImporter` has no hardlink fallback).
 #[test]

@@ -1,0 +1,1315 @@
+# @pnpm/lockfile-utils
+
+## 1100.1.0
+
+### Minor Changes
+
+- bae694f: Some registries generate tarballs on-demand and cannot provide an integrity checksum in their package metadata. In that case pnpm now computes the integrity from the downloaded tarball and stores it in the lockfile, so the entry is verifiable on subsequent installs instead of being written without an integrity (which would fail the next install). This also applies to `--lockfile-only`: the tarball is downloaded so its integrity can be computed. A lockfile entry that is still missing its integrity is rejected as a `ERR_PNPM_MISSING_TARBALL_INTEGRITY` lockfile verification violation (the install fails closed) rather than being silently re-fetched.
+
+### Patch Changes
+
+- a84d2a1: Add `@pnpm/resolving.tarball-url`, which builds and recognizes the canonical npm tarball URL of a package. It vendors `getNpmTarballUrl` (previously the external `get-npm-tarball-url` package) and adds `isCanonicalRegistryTarballUrl`, the predicate the lockfile writer uses to decide whether a tarball URL is derivable from name+version+registry (and can therefore be omitted from `pnpm-lock.yaml`).
+
+  Exposing `isCanonicalRegistryTarballUrl` lets a custom resolver (pnpmfile `resolvers`) fronting a proxy that serves tarballs on a non-canonical path (e.g. an ephemeral `localhost:<port>`) rewrite the resolved tarball to the canonical form, so nothing host-specific is persisted to the lockfile. Previously this logic was private to `@pnpm/lockfile.utils`.
+
+  Two correctness fixes are included while consolidating the logic: the scoped-package unescape now handles uppercase `%2F` as well as `%2f` (percent-encoding is case-insensitive), and protocol-insensitive comparison strips only a leading `http(s)://` scheme instead of splitting on the first `://` (which could truncate URLs containing a later `://`).
+
+- Updated dependencies [bae694f]
+- Updated dependencies [a84d2a1]
+- Updated dependencies [852d537]
+  - @pnpm/resolving.resolver-base@1100.5.0
+  - @pnpm/hooks.types@1100.1.0
+  - @pnpm/resolving.tarball-url@1100.0.0
+  - @pnpm/error@1100.0.1
+  - @pnpm/lockfile.types@1100.0.12
+
+## 1100.0.13
+
+### Patch Changes
+
+- f20ad8f: Git dependencies that point to a subdirectory of a repository (`repo#commit&path:/sub/dir`) keep their `path` in the lockfile again. Since the integrity of git-hosted tarballs started being pinned in the lockfile, any install that actually downloaded the tarball rebuilt the lockfile resolution as `{ integrity, tarball, gitHosted }` and dropped the `path` field, while installs served from the store kept it — so the field disappeared seemingly at random. Without `path`, later installs from that lockfile silently unpacked the repository root instead of the subdirectory [#12304](https://github.com/pnpm/pnpm/issues/12304).
+- Updated dependencies [681b593]
+- Updated dependencies [a31faa7]
+  - @pnpm/types@1101.3.2
+  - @pnpm/deps.path@1100.0.8
+  - @pnpm/hooks.types@1100.0.12
+  - @pnpm/lockfile.types@1100.0.11
+  - @pnpm/resolving.resolver-base@1100.4.2
+
+## 1100.0.12
+
+### Patch Changes
+
+- Updated dependencies [bf1b731]
+  - @pnpm/types@1101.3.1
+  - @pnpm/deps.path@1100.0.7
+  - @pnpm/hooks.types@1100.0.11
+  - @pnpm/lockfile.types@1100.0.10
+  - @pnpm/resolving.resolver-base@1100.4.1
+
+## 1100.0.11
+
+### Patch Changes
+
+- Updated dependencies [a017bf3]
+- Updated dependencies [6d17b66]
+  - @pnpm/types@1101.3.0
+  - @pnpm/resolving.resolver-base@1100.4.0
+  - @pnpm/deps.path@1100.0.6
+  - @pnpm/hooks.types@1100.0.10
+  - @pnpm/lockfile.types@1100.0.9
+
+## 1100.0.10
+
+### Patch Changes
+
+- e55f4b5: Reject `pnpm-lock.yaml` entries whose remote tarball `resolution:` block is missing the `integrity` field. Previously the worker that extracts a downloaded tarball skipped hash verification when no integrity was supplied and minted a fresh one from the unverified bytes, so an attacker who could both alter the lockfile (e.g. via a pull request that strips `integrity:`) and serve modified content at the referenced tarball URL could install a tampered package without any error — including under `--frozen-lockfile`. pnpm now fails closed at lockfile-read time with `ERR_PNPM_MISSING_TARBALL_INTEGRITY`. Git-hosted tarballs (`gitHosted: true` or a URL on codeload.github.com / bitbucket.org / gitlab.com) and `file:` tarballs are exempt — the commit SHA in a git-host URL and the user-controlled local path already anchor the bytes.
+- Updated dependencies [35d2355]
+  - @pnpm/types@1101.2.0
+  - @pnpm/deps.path@1100.0.5
+  - @pnpm/hooks.types@1100.0.9
+  - @pnpm/lockfile.types@1100.0.8
+  - @pnpm/resolving.resolver-base@1100.3.1
+
+## 1100.0.9
+
+### Patch Changes
+
+- Updated dependencies [1627943]
+- Updated dependencies [64afc92]
+  - @pnpm/resolving.resolver-base@1100.3.0
+  - @pnpm/types@1101.1.1
+  - @pnpm/hooks.types@1100.0.8
+  - @pnpm/lockfile.types@1100.0.7
+  - @pnpm/deps.path@1100.0.4
+
+## 1100.0.8
+
+### Patch Changes
+
+- Updated dependencies [4195766]
+- Updated dependencies [31538bf]
+  - @pnpm/resolving.resolver-base@1100.2.0
+  - @pnpm/hooks.types@1100.0.7
+  - @pnpm/lockfile.types@1100.0.6
+
+## 1100.0.7
+
+### Patch Changes
+
+- Updated dependencies [b61e268]
+  - @pnpm/types@1101.1.0
+  - @pnpm/deps.path@1100.0.3
+  - @pnpm/hooks.types@1100.0.6
+  - @pnpm/lockfile.types@1100.0.5
+  - @pnpm/resolving.resolver-base@1100.1.3
+
+## 1100.0.6
+
+### Patch Changes
+
+- cfa271b: Restored the heuristic that preserves tarball URLs in `pnpm-lock.yaml` when they cannot be derived from name+version+registry, even with the default `lockfileIncludeTarballUrl: false`. Without this, `pnpm install --frozen-lockfile` from an empty store fails with `ERR_PNPM_FETCH_404` for packages on registries that serve tarballs from a non-standard path — most notably GitHub Packages (`https://npm.pkg.github.com/download/<scope>/<name>/<version>/<hash>`) and JSR. `lockfileIncludeTarballUrl: true` continues to force the URL into the lockfile for every package [#11276](https://github.com/pnpm/pnpm/issues/11276).
+
+## 1100.0.5
+
+### Patch Changes
+
+- 27425d7: Pin the integrity of git-hosted tarballs (codeload.github.com, gitlab.com, bitbucket.org) in the lockfile so that subsequent installs detect a tampered or substituted tarball and refuse to install it. Previously the lockfile only stored the tarball URL for git dependencies, so a compromised git host or a man-in-the-middle could serve arbitrary code on later installs without lockfile changes.
+
+  A new `gitHosted: true` field is recorded on git-hosted tarball resolutions in the lockfile, letting every reader/writer route them by a single typed check instead of pattern-matching the tarball URL in each call site. Lockfiles written by older pnpm versions are enriched on load (URL fallback) so the field can be relied on uniformly across the codebase.
+
+- Updated dependencies [27425d7]
+  - @pnpm/lockfile.types@1100.0.4
+  - @pnpm/resolving.resolver-base@1100.1.2
+  - @pnpm/hooks.types@1100.0.5
+
+## 1100.0.4
+
+### Patch Changes
+
+- 6b891a5: Fix `ERR_PNPM_FETCH_404` when installing a project whose lockfile depends on a `file:` tarball. The previous behavior dropped the `tarball` field from `file:` and git-hosted resolutions when `lockfile-include-tarball-url=false` (the default), even though those URLs cannot be reconstructed from the package name, version, and registry [#11407](https://github.com/pnpm/pnpm/issues/11407).
+- Updated dependencies [184ce26]
+  - @pnpm/resolving.resolver-base@1100.1.1
+  - @pnpm/fetching.pick-fetcher@1100.0.4
+  - @pnpm/deps.path@1100.0.2
+  - @pnpm/hooks.types@1100.0.4
+  - @pnpm/lockfile.types@1100.0.3
+
+## 1100.0.3
+
+### Patch Changes
+
+- @pnpm/fetching.pick-fetcher@1100.0.3
+- @pnpm/hooks.types@1100.0.3
+
+## 1100.0.2
+
+### Patch Changes
+
+- Updated dependencies [72c1e05]
+  - @pnpm/resolving.resolver-base@1100.1.0
+  - @pnpm/fetching.pick-fetcher@1100.0.2
+  - @pnpm/hooks.types@1100.0.2
+  - @pnpm/lockfile.types@1100.0.2
+
+## 1100.0.1
+
+### Patch Changes
+
+- Updated dependencies [ff28085]
+  - @pnpm/types@1101.0.0
+  - @pnpm/deps.path@1100.0.1
+  - @pnpm/hooks.types@1100.0.1
+  - @pnpm/lockfile.types@1100.0.1
+  - @pnpm/resolving.resolver-base@1100.0.1
+  - @pnpm/fetching.pick-fetcher@1100.0.1
+
+## 1004.0.0
+
+### Major Changes
+
+- 491a84f: This package is now pure ESM.
+- 7d2fd48: Node.js v18, 19, 20, and 21 support discontinued.
+- 394d88c: Remove extendProjectsWithTargetDirs.
+
+### Minor Changes
+
+- a8f016c: Store config dependency and package manager integrity info in `pnpm-lock.yaml` instead of inlining it in `pnpm-workspace.yaml`. The workspace manifest now contains only clean version specifiers for `configDependencies`, while the resolved versions, integrity hashes, and tarball URLs are recorded in the lockfile as a separate YAML document. The env lockfile section also stores `packageManagerDependencies` resolved during version switching and self-update. Projects using the old inline-hash format are automatically migrated on install.
+
+### Patch Changes
+
+- 38b8e35: Support for custom resolvers and fetchers.
+- Updated dependencies [5f73b0f]
+- Updated dependencies [facdd71]
+- Updated dependencies [9b0a460]
+- Updated dependencies [76718b3]
+- Updated dependencies [a8f016c]
+- Updated dependencies [cc1b8e3]
+- Updated dependencies [606f53e]
+- Updated dependencies [491a84f]
+- Updated dependencies [7d2fd48]
+- Updated dependencies [efb48dc]
+- Updated dependencies [50fbeca]
+- Updated dependencies [cb367b9]
+- Updated dependencies [7b1c189]
+- Updated dependencies [8ffb1a7]
+- Updated dependencies [05fb1ae]
+- Updated dependencies [71de2b3]
+- Updated dependencies [10bc391]
+- Updated dependencies [38b8e35]
+- Updated dependencies [1e6de25]
+- Updated dependencies [831f574]
+- Updated dependencies [2df8b71]
+- Updated dependencies [15549a9]
+- Updated dependencies [cc7c0d2]
+- Updated dependencies [9d3f00b]
+- Updated dependencies [efb48dc]
+  - @pnpm/deps.path@1002.0.0
+  - @pnpm/resolving.resolver-base@1006.0.0
+  - @pnpm/types@1001.0.0
+  - @pnpm/lockfile.types@1003.0.0
+  - @pnpm/fetching.pick-fetcher@1002.0.0
+  - @pnpm/error@1001.0.0
+  - @pnpm/hooks.types@1002.0.0
+
+## 1003.0.3
+
+### Patch Changes
+
+- Updated dependencies [7c1382f]
+- Updated dependencies [7c1382f]
+- Updated dependencies [dee39ec]
+  - @pnpm/types@1000.9.0
+  - @pnpm/resolver-base@1005.1.0
+  - @pnpm/lockfile.types@1002.0.2
+  - @pnpm/dependency-path@1001.1.3
+  - @pnpm/pick-fetcher@1001.0.0
+
+## 1003.0.2
+
+### Patch Changes
+
+- @pnpm/dependency-path@1001.1.2
+
+## 1003.0.1
+
+### Patch Changes
+
+- Updated dependencies [e792927]
+  - @pnpm/types@1000.8.0
+  - @pnpm/lockfile.types@1002.0.1
+  - @pnpm/dependency-path@1001.1.1
+  - @pnpm/resolver-base@1005.0.1
+  - @pnpm/pick-fetcher@1001.0.0
+
+## 1003.0.0
+
+### Major Changes
+
+- d1edf73: Removed node fetcher. The binary fetcher should be used for downloading node assets.
+
+### Patch Changes
+
+- Updated dependencies [d1edf73]
+- Updated dependencies [d1edf73]
+- Updated dependencies [86b33e9]
+- Updated dependencies [d1edf73]
+- Updated dependencies [f91922c]
+  - @pnpm/dependency-path@1001.1.0
+  - @pnpm/lockfile.types@1002.0.0
+  - @pnpm/resolver-base@1005.0.0
+  - @pnpm/pick-fetcher@1001.0.0
+
+## 1002.1.0
+
+### Minor Changes
+
+- 1a07b8f: Added support for resolving and downloading the Node.js runtime specified in the [devEngines](https://github.com/openjs-foundation/package-metadata-interoperability-collab-space/issues/15) field of `package.json`.
+
+  Usage example:
+
+  ```json
+  {
+    "devEngines": {
+      "runtime": {
+        "name": "node",
+        "version": "^24.4.0",
+        "onFail": "download"
+      }
+    }
+  }
+  ```
+
+  When running `pnpm install`, pnpm will resolve Node.js to the latest version that satisfies the specified range and install it as a dependency of the project. As a result, when running scripts, the locally installed Node.js version will be used.
+
+  Unlike the existing options, `useNodeVersion` and `executionEnv.nodeVersion`, this new field supports version ranges, which are locked to exact versions during installation. The resolved version is stored in the pnpm lockfile, along with an integrity checksum for future validation of the Node.js content's validity.
+
+  Related PR: [#9755](https://github.com/pnpm/pnpm/pull/9755).
+
+### Patch Changes
+
+- 2e85f29: Don't parse the dependency path twice.
+- Updated dependencies [1a07b8f]
+- Updated dependencies [1a07b8f]
+  - @pnpm/types@1000.7.0
+  - @pnpm/resolver-base@1004.1.0
+  - @pnpm/pick-fetcher@1000.1.0
+  - @pnpm/lockfile.types@1001.1.0
+  - @pnpm/dependency-path@1001.0.2
+
+## 1002.0.1
+
+### Patch Changes
+
+- @pnpm/dependency-path@1001.0.1
+
+## 1002.0.0
+
+### Major Changes
+
+- 540986f: Peers suffix renamed to peerDepGraphHash.
+
+### Patch Changes
+
+- Updated dependencies [540986f]
+  - @pnpm/dependency-path@1001.0.0
+
+## 1001.0.12
+
+### Patch Changes
+
+- Updated dependencies [2721291]
+- Updated dependencies [6acf819]
+  - @pnpm/resolver-base@1004.0.0
+  - @pnpm/pick-fetcher@1000.0.1
+
+## 1001.0.11
+
+### Patch Changes
+
+- Updated dependencies [5ec7255]
+  - @pnpm/types@1000.6.0
+  - @pnpm/lockfile.types@1001.0.8
+  - @pnpm/dependency-path@1000.0.9
+  - @pnpm/resolver-base@1003.0.1
+  - @pnpm/pick-fetcher@1000.0.0
+
+## 1001.0.10
+
+### Patch Changes
+
+- Updated dependencies [8a9f3a4]
+- Updated dependencies [5b73df1]
+- Updated dependencies [9c3dd03]
+- Updated dependencies [5b73df1]
+  - @pnpm/resolver-base@1003.0.0
+  - @pnpm/types@1000.5.0
+  - @pnpm/pick-fetcher@1000.0.0
+  - @pnpm/lockfile.types@1001.0.7
+  - @pnpm/dependency-path@1000.0.8
+
+## 1001.0.9
+
+### Patch Changes
+
+- Updated dependencies [81f441c]
+  - @pnpm/resolver-base@1002.0.0
+  - @pnpm/pick-fetcher@1000.0.0
+
+## 1001.0.8
+
+### Patch Changes
+
+- Updated dependencies [750ae7d]
+- Updated dependencies [72cff38]
+  - @pnpm/types@1000.4.0
+  - @pnpm/resolver-base@1001.0.0
+  - @pnpm/lockfile.types@1001.0.6
+  - @pnpm/dependency-path@1000.0.7
+  - @pnpm/pick-fetcher@1000.0.0
+
+## 1001.0.7
+
+### Patch Changes
+
+- Updated dependencies [5f7be64]
+- Updated dependencies [5f7be64]
+  - @pnpm/types@1000.3.0
+  - @pnpm/lockfile.types@1001.0.5
+  - @pnpm/dependency-path@1000.0.6
+  - @pnpm/resolver-base@1000.2.1
+  - @pnpm/pick-fetcher@1000.0.0
+
+## 1001.0.6
+
+### Patch Changes
+
+- Updated dependencies [3d52365]
+  - @pnpm/resolver-base@1000.2.0
+  - @pnpm/pick-fetcher@1000.0.0
+
+## 1001.0.5
+
+### Patch Changes
+
+- @pnpm/dependency-path@1000.0.5
+
+## 1001.0.4
+
+### Patch Changes
+
+- Updated dependencies [a5e4965]
+  - @pnpm/types@1000.2.1
+  - @pnpm/dependency-path@1000.0.4
+  - @pnpm/lockfile.types@1001.0.4
+  - @pnpm/resolver-base@1000.1.4
+  - @pnpm/pick-fetcher@1000.0.0
+
+## 1001.0.3
+
+### Patch Changes
+
+- Updated dependencies [8fcc221]
+  - @pnpm/types@1000.2.0
+  - @pnpm/lockfile.types@1001.0.3
+  - @pnpm/dependency-path@1000.0.3
+  - @pnpm/resolver-base@1000.1.3
+  - @pnpm/pick-fetcher@1000.0.0
+
+## 1001.0.2
+
+### Patch Changes
+
+- Updated dependencies [b562deb]
+  - @pnpm/types@1000.1.1
+  - @pnpm/lockfile.types@1001.0.2
+  - @pnpm/dependency-path@1000.0.2
+  - @pnpm/resolver-base@1000.1.2
+  - @pnpm/pick-fetcher@1000.0.0
+
+## 1001.0.1
+
+### Patch Changes
+
+- Updated dependencies [9591a18]
+  - @pnpm/types@1000.1.0
+  - @pnpm/lockfile.types@1001.0.1
+  - @pnpm/dependency-path@1000.0.1
+  - @pnpm/resolver-base@1000.1.1
+  - @pnpm/pick-fetcher@1000.0.0
+
+## 1001.0.0
+
+### Major Changes
+
+- a76da0c: Removed lockfile conversion from v6 to v9. If you need to convert lockfile v6 to v9, use pnpm CLI v9.
+
+### Patch Changes
+
+- Updated dependencies [6483b64]
+- Updated dependencies [a76da0c]
+  - @pnpm/resolver-base@1000.1.0
+  - @pnpm/lockfile.types@1001.0.0
+  - @pnpm/pick-fetcher@1000.0.0
+
+## 1.0.5
+
+### Patch Changes
+
+- Updated dependencies [dcd2917]
+- Updated dependencies [d55b259]
+  - @pnpm/dependency-path@6.0.0
+
+## 1.0.4
+
+### Patch Changes
+
+- @pnpm/dependency-path@5.1.7
+
+## 1.0.3
+
+### Patch Changes
+
+- Updated dependencies [d500d9f]
+  - @pnpm/types@12.2.0
+  - @pnpm/lockfile.types@1.0.3
+  - @pnpm/dependency-path@5.1.6
+  - @pnpm/resolver-base@13.0.4
+  - @pnpm/pick-fetcher@3.0.0
+
+## 1.0.2
+
+### Patch Changes
+
+- Updated dependencies [7ee59a1]
+  - @pnpm/types@12.1.0
+  - @pnpm/lockfile.types@1.0.2
+  - @pnpm/dependency-path@5.1.5
+  - @pnpm/resolver-base@13.0.3
+  - @pnpm/pick-fetcher@3.0.0
+
+## 1.0.1
+
+### Patch Changes
+
+- Updated dependencies [cb006df]
+  - @pnpm/lockfile.types@1.0.1
+  - @pnpm/types@12.0.0
+  - @pnpm/dependency-path@5.1.4
+  - @pnpm/resolver-base@13.0.2
+  - @pnpm/pick-fetcher@3.0.0
+
+## 1.0.0
+
+### Major Changes
+
+- c5ef9b0: Package renamed from `@pnpm/lockfile-utils".
+
+### Patch Changes
+
+- Updated dependencies [797ef0f]
+  - @pnpm/lockfile.types@1.0.0
+
+## 11.0.4
+
+### Patch Changes
+
+- Updated dependencies [0ef168b]
+  - @pnpm/types@11.1.0
+  - @pnpm/lockfile-types@7.1.3
+  - @pnpm/dependency-path@5.1.3
+  - @pnpm/resolver-base@13.0.1
+  - @pnpm/pick-fetcher@3.0.0
+
+## 11.0.3
+
+### Patch Changes
+
+- Updated dependencies [dd00eeb]
+- Updated dependencies
+  - @pnpm/resolver-base@13.0.0
+  - @pnpm/types@11.0.0
+  - @pnpm/pick-fetcher@3.0.0
+  - @pnpm/lockfile-types@7.1.2
+  - @pnpm/dependency-path@5.1.2
+
+## 11.0.2
+
+### Patch Changes
+
+- Updated dependencies [13e55b2]
+  - @pnpm/types@10.1.1
+  - @pnpm/lockfile-types@7.1.1
+  - @pnpm/dependency-path@5.1.1
+  - @pnpm/resolver-base@12.0.2
+  - @pnpm/pick-fetcher@3.0.0
+
+## 11.0.1
+
+### Patch Changes
+
+- Updated dependencies [47341e5]
+  - @pnpm/dependency-path@5.1.0
+  - @pnpm/lockfile-types@7.1.0
+
+## 11.0.0
+
+### Major Changes
+
+- Breaking changes to the API.
+
+### Patch Changes
+
+- Updated dependencies [45f4262]
+- Updated dependencies
+  - @pnpm/types@10.1.0
+  - @pnpm/lockfile-types@7.0.0
+  - @pnpm/dependency-path@5.0.0
+  - @pnpm/resolver-base@12.0.1
+  - @pnpm/pick-fetcher@3.0.0
+
+## 10.1.1
+
+### Patch Changes
+
+- 7a0536e: Fix `Cannot read properties of undefined (reading 'missingPeersOfChildren')` exception that happens on install [#8041](https://github.com/pnpm/pnpm/issues/8041).
+
+## 10.1.0
+
+### Minor Changes
+
+- 9719a42: New setting called `virtual-store-dir-max-length` added to modify the maximum allowed length of the directories inside `node_modules/.pnpm`. The default length is set to 120 characters. This setting is particularly useful on Windows, where there is a limit to the maximum length of a file path [#7355](https://github.com/pnpm/pnpm/issues/7355).
+
+### Patch Changes
+
+- Updated dependencies [9719a42]
+  - @pnpm/dependency-path@4.0.0
+
+## 10.0.0
+
+### Major Changes
+
+- cdd8365: Package ID does not contain the registry domain.
+- 43cdd87: Node.js v16 support dropped. Use at least Node.js v18.12.
+- d381a60: Support for lockfile v5 is dropped. Use pnpm v8 to convert lockfile v5 to lockfile v6 [#7470](https://github.com/pnpm/pnpm/pull/7470).
+
+### Patch Changes
+
+- Updated dependencies [7733f3a]
+- Updated dependencies [cdd8365]
+- Updated dependencies [89b396b]
+- Updated dependencies [43cdd87]
+- Updated dependencies [086b69c]
+- Updated dependencies [d381a60]
+- Updated dependencies [27a96a8]
+- Updated dependencies [b13d2dc]
+- Updated dependencies [730929e]
+- Updated dependencies [98a1266]
+  - @pnpm/types@10.0.0
+  - @pnpm/dependency-path@3.0.0
+  - @pnpm/lockfile-types@6.0.0
+  - @pnpm/resolver-base@12.0.0
+  - @pnpm/pick-fetcher@3.0.0
+
+## 9.0.5
+
+### Patch Changes
+
+- Updated dependencies [31054a63e]
+  - @pnpm/resolver-base@11.1.0
+  - @pnpm/pick-fetcher@2.0.1
+
+## 9.0.4
+
+### Patch Changes
+
+- Updated dependencies [4d34684f1]
+  - @pnpm/lockfile-types@5.1.5
+  - @pnpm/types@9.4.2
+  - @pnpm/dependency-path@2.1.7
+  - @pnpm/resolver-base@11.0.2
+  - @pnpm/pick-fetcher@2.0.1
+
+## 9.0.3
+
+### Patch Changes
+
+- Updated dependencies
+  - @pnpm/lockfile-types@5.1.4
+  - @pnpm/types@9.4.1
+  - @pnpm/dependency-path@2.1.6
+  - @pnpm/resolver-base@11.0.1
+  - @pnpm/pick-fetcher@2.0.1
+
+## 9.0.2
+
+### Patch Changes
+
+- d5a176af7: Fix a bug where `--fix-lockfile` crashes on tarballs [#7368](https://github.com/pnpm/pnpm/issues/7368).
+
+## 9.0.1
+
+### Patch Changes
+
+- b4194fe52: Fixed out-of-memory exception that was happening on dependencies with many peer dependencies, when `node-linker` was set to `hoisted` [#6227](https://github.com/pnpm/pnpm/issues/6227).
+
+## 9.0.0
+
+### Major Changes
+
+- 4c2450208: (Important) Tarball resolutions in `pnpm-lock.yaml` will no longer contain a `registry` field. This field has been unused for a long time. This change should not cause any issues besides backward compatible modifications to the lockfile [#7262](https://github.com/pnpm/pnpm/pull/7262).
+
+### Patch Changes
+
+- Updated dependencies [4c2450208]
+  - @pnpm/resolver-base@11.0.0
+  - @pnpm/pick-fetcher@2.0.1
+
+## 8.0.7
+
+### Patch Changes
+
+- Updated dependencies [43ce9e4a6]
+  - @pnpm/types@9.4.0
+  - @pnpm/lockfile-types@5.1.3
+  - @pnpm/dependency-path@2.1.5
+  - @pnpm/resolver-base@10.0.4
+  - @pnpm/pick-fetcher@2.0.1
+
+## 8.0.6
+
+### Patch Changes
+
+- Updated dependencies [d774a3196]
+  - @pnpm/types@9.3.0
+  - @pnpm/lockfile-types@5.1.2
+  - @pnpm/dependency-path@2.1.4
+  - @pnpm/resolver-base@10.0.3
+  - @pnpm/pick-fetcher@2.0.1
+
+## 8.0.5
+
+### Patch Changes
+
+- f394cfccd: Don't update git-hosted dependencies when adding an unrelated dependency [#7008](https://github.com/pnpm/pnpm/issues/7008).
+- Updated dependencies [f394cfccd]
+  - @pnpm/pick-fetcher@2.0.1
+
+## 8.0.4
+
+### Patch Changes
+
+- e9aa6f682: Apply fixes from @typescript-eslint v6 for nullish coalescing and optional chains. No behavior changes are expected with this change.
+
+## 8.0.3
+
+### Patch Changes
+
+- Updated dependencies [aa2ae8fe2]
+  - @pnpm/types@9.2.0
+  - @pnpm/lockfile-types@5.1.1
+  - @pnpm/dependency-path@2.1.3
+  - @pnpm/resolver-base@10.0.2
+
+## 8.0.2
+
+### Patch Changes
+
+- d9da627cd: Should always treat local file dependency as new dependency [#5381](https://github.com/pnpm/pnpm/issues/5381)
+
+## 8.0.1
+
+### Patch Changes
+
+- Updated dependencies [9c4ae87bd]
+- Updated dependencies [a9e0b7cbf]
+  - @pnpm/lockfile-types@5.1.0
+  - @pnpm/types@9.1.0
+  - @pnpm/dependency-path@2.1.2
+  - @pnpm/resolver-base@10.0.1
+
+## 8.0.0
+
+### Major Changes
+
+- d58cdb962: Return details about the reason why the lockfile doesn't satisfy the manifest.
+
+## 7.0.1
+
+### Patch Changes
+
+- Updated dependencies [c0760128d]
+  - @pnpm/dependency-path@2.1.1
+
+## 7.0.0
+
+### Major Changes
+
+- 72ba638e3: Breaking changes to the API of `satisfiesPackageManifest`.
+
+## 6.0.1
+
+### Patch Changes
+
+- Updated dependencies [5087636b6]
+- Updated dependencies [94f94eed6]
+  - @pnpm/dependency-path@2.1.0
+
+## 6.0.0
+
+### Major Changes
+
+- c92936158: The registry field is removed from the `resolution` object in `pnpm-lock.yaml`.
+- eceaa8b8b: Node.js 14 support dropped.
+
+### Patch Changes
+
+- Updated dependencies [c92936158]
+- Updated dependencies [ca8f51e60]
+- Updated dependencies [eceaa8b8b]
+- Updated dependencies [0e26acb0f]
+  - @pnpm/lockfile-types@5.0.0
+  - @pnpm/dependency-path@2.0.0
+  - @pnpm/resolver-base@10.0.0
+  - @pnpm/types@9.0.0
+
+## 5.0.7
+
+### Patch Changes
+
+- Updated dependencies [029143cff]
+- Updated dependencies [029143cff]
+  - @pnpm/resolver-base@9.2.0
+
+## 5.0.6
+
+### Patch Changes
+
+- Updated dependencies [d89d7a078]
+  - @pnpm/dependency-path@1.1.3
+
+## 5.0.5
+
+### Patch Changes
+
+- Updated dependencies [9247f6781]
+  - @pnpm/dependency-path@1.1.2
+
+## 5.0.4
+
+### Patch Changes
+
+- Updated dependencies [0f6e95872]
+  - @pnpm/dependency-path@1.1.1
+
+## 5.0.3
+
+### Patch Changes
+
+- Updated dependencies [3ebce5db7]
+  - @pnpm/dependency-path@1.1.0
+
+## 5.0.2
+
+### Patch Changes
+
+- Updated dependencies [b77651d14]
+  - @pnpm/types@8.10.0
+  - @pnpm/lockfile-types@4.3.6
+  - @pnpm/dependency-path@1.0.1
+  - @pnpm/resolver-base@9.1.5
+
+## 5.0.1
+
+### Patch Changes
+
+- Updated dependencies [313702d76]
+  - @pnpm/dependency-path@1.0.0
+
+## 5.0.0
+
+### Major Changes
+
+- ecc8794bb: Breaking change to the API of the `extendProjectsWithTargetDirs` function.
+
+### Patch Changes
+
+- ecc8794bb: Sync all injected dependencies when hoisted node linker is used.
+
+## 4.2.8
+
+### Patch Changes
+
+- Updated dependencies [702e847c1]
+  - @pnpm/types@8.9.0
+  - dependency-path@9.2.8
+  - @pnpm/lockfile-types@4.3.5
+  - @pnpm/resolver-base@9.1.4
+
+## 4.2.7
+
+### Patch Changes
+
+- Updated dependencies [844e82f3a]
+  - @pnpm/types@8.8.0
+  - dependency-path@9.2.7
+  - @pnpm/lockfile-types@4.3.4
+  - @pnpm/resolver-base@9.1.3
+
+## 4.2.6
+
+### Patch Changes
+
+- Updated dependencies [d665f3ff7]
+  - @pnpm/types@8.7.0
+  - dependency-path@9.2.6
+  - @pnpm/lockfile-types@4.3.3
+  - @pnpm/resolver-base@9.1.2
+
+## 4.2.5
+
+### Patch Changes
+
+- Updated dependencies [156cc1ef6]
+  - @pnpm/types@8.6.0
+  - dependency-path@9.2.5
+  - @pnpm/lockfile-types@4.3.2
+  - @pnpm/resolver-base@9.1.1
+
+## 4.2.4
+
+### Patch Changes
+
+- Updated dependencies [23984abd1]
+  - @pnpm/resolver-base@9.1.0
+
+## 4.2.3
+
+### Patch Changes
+
+- 8103f92bd: Use a patched version of ramda to fix deprecation warnings on Node.js 16. Related issue: https://github.com/ramda/ramda/pull/3270
+
+## 4.2.2
+
+### Patch Changes
+
+- Updated dependencies [c90798461]
+  - @pnpm/types@8.5.0
+  - dependency-path@9.2.4
+  - @pnpm/lockfile-types@4.3.1
+  - @pnpm/resolver-base@9.0.6
+
+## 4.2.1
+
+### Patch Changes
+
+- c83f40c10: pnpm should not consider a lockfile out-of-date if `auto-install-peers` is set to `true` and the peer dependency is in `devDependencies` or `optionalDependencies` [#5080](https://github.com/pnpm/pnpm/issues/5080).
+
+## 4.2.0
+
+### Minor Changes
+
+- 8dcfbe357: Add `publishDirectory` field to the lockfile and relink the project when it changes.
+
+### Patch Changes
+
+- Updated dependencies [8dcfbe357]
+  - @pnpm/lockfile-types@4.3.0
+
+## 4.1.0
+
+### Minor Changes
+
+- e3f4d131c: New option added: autoInstallPeers.
+
+## 4.0.10
+
+### Patch Changes
+
+- dependency-path@9.2.3
+
+## 4.0.9
+
+### Patch Changes
+
+- 5f643f23b: Update ramda to v0.28.
+
+## 4.0.8
+
+### Patch Changes
+
+- Updated dependencies [fc581d371]
+  - dependency-path@9.2.2
+
+## 4.0.7
+
+### Patch Changes
+
+- Updated dependencies [d01c32355]
+- Updated dependencies [8e5b77ef6]
+- Updated dependencies [8e5b77ef6]
+  - @pnpm/lockfile-types@4.2.0
+  - @pnpm/types@8.4.0
+  - dependency-path@9.2.1
+  - @pnpm/resolver-base@9.0.5
+
+## 4.0.6
+
+### Patch Changes
+
+- Updated dependencies [2a34b21ce]
+- Updated dependencies [c635f9fc1]
+  - @pnpm/types@8.3.0
+  - @pnpm/lockfile-types@4.1.0
+  - dependency-path@9.2.0
+  - @pnpm/resolver-base@9.0.4
+
+## 4.0.5
+
+### Patch Changes
+
+- Updated dependencies [fb5bbfd7a]
+- Updated dependencies [725636a90]
+  - @pnpm/types@8.2.0
+  - dependency-path@9.1.4
+  - @pnpm/lockfile-types@4.0.3
+  - @pnpm/resolver-base@9.0.3
+
+## 4.0.4
+
+### Patch Changes
+
+- Updated dependencies [4d39e4a0c]
+  - @pnpm/types@8.1.0
+  - dependency-path@9.1.3
+  - @pnpm/lockfile-types@4.0.2
+  - @pnpm/resolver-base@9.0.2
+
+## 4.0.3
+
+### Patch Changes
+
+- Updated dependencies [c57695550]
+  - dependency-path@9.1.2
+
+## 4.0.2
+
+### Patch Changes
+
+- Updated dependencies [18ba5e2c0]
+  - @pnpm/types@8.0.1
+  - dependency-path@9.1.1
+  - @pnpm/lockfile-types@4.0.1
+  - @pnpm/resolver-base@9.0.1
+
+## 4.0.1
+
+### Patch Changes
+
+- 688b0eaff: When checking if the lockfile is up-to-date, an empty `dependenciesMeta` field in the manifest should be satisfied by a not set field in the lockfile [#4463](https://github.com/pnpm/pnpm/pull/4463).
+- Updated dependencies [0a70aedb1]
+  - dependency-path@9.1.0
+
+## 4.0.0
+
+### Major Changes
+
+- 542014839: Node.js 12 is not supported.
+
+### Patch Changes
+
+- Updated dependencies [d504dc380]
+- Updated dependencies [faf830b8f]
+- Updated dependencies [542014839]
+  - @pnpm/types@8.0.0
+  - dependency-path@9.0.0
+  - @pnpm/lockfile-types@4.0.0
+  - @pnpm/resolver-base@9.0.0
+
+## 3.2.1
+
+### Patch Changes
+
+- Updated dependencies [b138d048c]
+  - @pnpm/lockfile-types@3.2.0
+  - @pnpm/types@7.10.0
+  - dependency-path@8.0.11
+  - @pnpm/resolver-base@8.1.6
+
+## 3.2.0
+
+### Minor Changes
+
+- cdc521cfa: Injected package location should be properly detected in a hoisted `node_modules`.
+
+## 3.1.6
+
+### Patch Changes
+
+- Updated dependencies [26cd01b88]
+  - @pnpm/types@7.9.0
+  - dependency-path@8.0.10
+  - @pnpm/lockfile-types@3.1.5
+  - @pnpm/resolver-base@8.1.5
+
+## 3.1.5
+
+### Patch Changes
+
+- Updated dependencies [b5734a4a7]
+  - @pnpm/types@7.8.0
+  - dependency-path@8.0.9
+  - @pnpm/lockfile-types@3.1.4
+  - @pnpm/resolver-base@8.1.4
+
+## 3.1.4
+
+### Patch Changes
+
+- Updated dependencies [6493e0c93]
+  - @pnpm/types@7.7.1
+  - dependency-path@8.0.8
+  - @pnpm/lockfile-types@3.1.3
+  - @pnpm/resolver-base@8.1.3
+
+## 3.1.3
+
+### Patch Changes
+
+- Updated dependencies [ba9b2eba1]
+  - @pnpm/types@7.7.0
+  - dependency-path@8.0.7
+  - @pnpm/lockfile-types@3.1.2
+  - @pnpm/resolver-base@8.1.2
+
+## 3.1.2
+
+### Patch Changes
+
+- 3cf543fc1: Non-standard tarball URL should be correctly calculated when the registry has no trailing slash in the configuration file [#4052](https://github.com/pnpm/pnpm/issues/4052). This is a regression caused introduced in v6.23.2 caused by [#4032](https://github.com/pnpm/pnpm/pull/4032).
+
+## 3.1.1
+
+### Patch Changes
+
+- Updated dependencies [302ae4f6f]
+  - @pnpm/types@7.6.0
+  - dependency-path@8.0.6
+  - @pnpm/lockfile-types@3.1.1
+  - @pnpm/resolver-base@8.1.1
+
+## 3.1.0
+
+### Minor Changes
+
+- 4ab87844a: New utility function added: `extendProjectsWithTargetDirs()`.
+
+### Patch Changes
+
+- Updated dependencies [4ab87844a]
+- Updated dependencies [4ab87844a]
+- Updated dependencies [4ab87844a]
+  - @pnpm/types@7.5.0
+  - @pnpm/resolver-base@8.1.0
+  - @pnpm/lockfile-types@3.1.0
+  - dependency-path@8.0.5
+
+## 3.0.8
+
+### Patch Changes
+
+- Updated dependencies [b734b45ea]
+  - @pnpm/types@7.4.0
+  - dependency-path@8.0.4
+  - @pnpm/resolver-base@8.0.4
+
+## 3.0.7
+
+### Patch Changes
+
+- Updated dependencies [8e76690f4]
+  - @pnpm/types@7.3.0
+  - dependency-path@8.0.3
+  - @pnpm/resolver-base@8.0.3
+
+## 3.0.6
+
+### Patch Changes
+
+- Updated dependencies [6c418943c]
+  - dependency-path@8.0.2
+
+## 3.0.5
+
+### Patch Changes
+
+- Updated dependencies [724c5abd8]
+  - @pnpm/types@7.2.0
+  - dependency-path@8.0.1
+  - @pnpm/resolver-base@8.0.2
+
+## 3.0.4
+
+### Patch Changes
+
+- a1a03d145: Import only the required functions from ramda.
+
+## 3.0.3
+
+### Patch Changes
+
+- Updated dependencies [20e2f235d]
+  - dependency-path@8.0.0
+
+## 3.0.2
+
+### Patch Changes
+
+- Updated dependencies [97c64bae4]
+  - @pnpm/types@7.1.0
+  - dependency-path@7.0.1
+  - @pnpm/resolver-base@8.0.1
+
+## 3.0.1
+
+### Patch Changes
+
+- Updated dependencies [9ceab68f0]
+  - dependency-path@7.0.0
+
+## 3.0.0
+
+### Major Changes
+
+- 97b986fbc: Node.js 10 support is dropped. At least Node.js 12.17 is required for the package to work.
+
+### Patch Changes
+
+- Updated dependencies [97b986fbc]
+- Updated dependencies [6871d74b2]
+- Updated dependencies [e4efddbd2]
+- Updated dependencies [f2bb5cbeb]
+  - dependency-path@6.0.0
+  - @pnpm/lockfile-types@3.0.0
+  - @pnpm/resolver-base@8.0.0
+  - @pnpm/types@7.0.0
+
+## 2.0.22
+
+### Patch Changes
+
+- Updated dependencies [9ad8c27bf]
+- Updated dependencies [9ad8c27bf]
+  - @pnpm/lockfile-types@2.2.0
+  - @pnpm/types@6.4.0
+  - dependency-path@5.1.1
+  - @pnpm/resolver-base@7.1.1
+
+## 2.0.21
+
+### Patch Changes
+
+- Updated dependencies [e27dcf0dc]
+  - dependency-path@5.1.0
+
+## 2.0.20
+
+### Patch Changes
+
+- Updated dependencies [8698a7060]
+  - @pnpm/resolver-base@7.1.0
+
+## 2.0.19
+
+### Patch Changes
+
+- Updated dependencies [39142e2ad]
+  - dependency-path@5.0.6
+
+## 2.0.18
+
+### Patch Changes
+
+- Updated dependencies [b5d694e7f]
+  - @pnpm/lockfile-types@2.1.1
+  - @pnpm/types@6.3.1
+  - dependency-path@5.0.5
+  - @pnpm/resolver-base@7.0.5
+
+## 2.0.17
+
+### Patch Changes
+
+- Updated dependencies [d54043ee4]
+- Updated dependencies [d54043ee4]
+  - @pnpm/lockfile-types@2.1.0
+  - @pnpm/types@6.3.0
+  - dependency-path@5.0.4
+  - @pnpm/resolver-base@7.0.4
+
+## 2.0.16
+
+### Patch Changes
+
+- 1140ef721: When getting resolution from package snapshot, always prefer the registry that is present in the package snapshot.
+- a2ef8084f: Use the same versions of dependencies across the pnpm monorepo.
+- Updated dependencies [a2ef8084f]
+  - dependency-path@5.0.3
+
+## 2.0.15
+
+### Patch Changes
+
+- Updated dependencies [db17f6f7b]
+  - @pnpm/types@6.2.0
+  - dependency-path@5.0.2
+  - @pnpm/resolver-base@7.0.3
+
+## 2.0.14
+
+### Patch Changes
+
+- Updated dependencies [71a8c8ce3]
+  - @pnpm/types@6.1.0
+  - dependency-path@5.0.1
+  - @pnpm/resolver-base@7.0.2
+
+## 2.0.13
+
+### Patch Changes
+
+- Updated dependencies [41d92948b]
+  - dependency-path@5.0.0
+
+## 2.0.12
+
+### Patch Changes
+
+- Updated dependencies [da091c711]
+- Updated dependencies [6a8a97eee]
+  - @pnpm/types@6.0.0
+  - @pnpm/lockfile-types@2.0.1
+  - dependency-path@4.0.7
+  - @pnpm/resolver-base@7.0.1
+
+## 2.0.12-alpha.1
+
+### Patch Changes
+
+- Updated dependencies [6a8a97eee]
+  - @pnpm/lockfile-types@2.0.1-alpha.0
+
+## 2.0.12-alpha.0
+
+### Patch Changes
+
+- Updated dependencies [da091c71]
+  - @pnpm/types@6.0.0-alpha.0
+  - dependency-path@4.0.7-alpha.0
+  - @pnpm/resolver-base@7.0.1-alpha.0
+
+## 2.0.11
+
+### Patch Changes
+
+- 907c63a48: Dependencies updated.

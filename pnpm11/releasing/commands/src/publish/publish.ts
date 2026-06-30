@@ -1,0 +1,312 @@
+import path from 'node:path'
+
+import { confirm } from '@inquirer/prompts'
+import { FILTERING } from '@pnpm/cli.common-cli-options-help'
+import { docsUrl, readProjectManifest } from '@pnpm/cli.utils'
+import { type Config, type ConfigContext, types as allTypes } from '@pnpm/config.reader'
+import { PnpmError } from '@pnpm/error'
+import { runLifecycleHook, type RunLifecycleHookOptions } from '@pnpm/exec.lifecycle'
+import { getCurrentBranch, isGitRepo, isRemoteHistoryClean, isWorkingTreeClean } from '@pnpm/network.git-utils'
+import type { ExportedManifest } from '@pnpm/releasing.exportable-manifest'
+import type { ProjectManifest } from '@pnpm/types'
+import { rimraf } from '@zkochan/rimraf'
+import { pick } from 'ramda'
+import { realpathMissing } from 'realpath-missing'
+import { renderHelp } from 'render-help'
+import { temporaryDirectory } from 'tempy'
+
+import { extractManifestFromPacked, isTarballPath } from './extractManifestFromPacked.js'
+import { optionsWithOtpEnv } from './otpEnv.js'
+import * as pack from './pack.js'
+import { publishPackedPkg, type PublishSummary } from './publishPackedPkg.js'
+import { type PublishRecursiveOpts, recursivePublish, type RecursivePublishedPackage } from './recursivePublish.js'
+
+export function rcOptionsTypes (): Record<string, unknown> {
+  return pick([
+    'access',
+    'git-checks',
+    'ignore-scripts',
+    'skip-manifest-obfuscation',
+    'provenance',
+    'npm-path',
+    'otp',
+    'publish-branch',
+    'registry',
+    'tag',
+    'unsafe-perm',
+    'embed-readme',
+  ], allTypes)
+}
+
+export function cliOptionsTypes (): Record<string, unknown> {
+  return {
+    ...rcOptionsTypes(),
+    batch: Boolean,
+    'dry-run': Boolean,
+    force: Boolean,
+    json: Boolean,
+    otp: String,
+    recursive: Boolean,
+    'report-summary': Boolean,
+  }
+}
+
+export const commandNames = ['publish']
+
+export function help (): string {
+  return renderHelp({
+    description: 'Publishes a package to the npm registry.',
+    descriptionLists: [
+      {
+        title: 'Options',
+
+        list: [
+          {
+            description: "Don't check if current branch is your publish branch, clean, and up to date",
+            name: '--no-git-checks',
+          },
+          {
+            description: 'Sets branch name to publish. Default is master',
+            name: '--publish-branch',
+          },
+          {
+            description: 'Does everything a publish would do except actually publishing to the registry',
+            name: '--dry-run',
+          },
+          {
+            description: 'Show information in JSON format',
+            name: '--json',
+          },
+          {
+            description: 'Registers the published package with the given tag. By default, the "latest" tag is used.',
+            name: '--tag <tag>',
+          },
+          {
+            description: 'Tells the registry whether this package should be published as public or restricted',
+            name: '--access <public|restricted>',
+          },
+          {
+            description: 'Ignores any publish related lifecycle scripts (prepublishOnly, postpublish, and the like)',
+            name: '--ignore-scripts',
+          },
+          {
+            description: 'Skip pnpm\'s manifest obfuscation: keep the original `packageManager` field and publish lifecycle scripts in the published manifest instead of stripping them. The pnpm-specific `pnpm` field is still omitted.',
+            name: '--skip-manifest-obfuscation',
+          },
+          {
+            description: 'Packages are proceeded to be published even if their current version is already in the registry. This is useful when a "prepublishOnly" script bumps the version of the package before it is published',
+            name: '--force',
+          },
+          {
+            description: 'Save the list of the newly published packages to "pnpm-publish-summary.json". Useful when some other tooling is used to report the list of published packages.',
+            name: '--report-summary',
+          },
+          {
+            description: 'When publishing packages that require two-factor authentication, this option can specify a one-time password',
+            name: '--otp',
+          },
+          {
+            description: 'Publish all packages from the workspace',
+            name: '--recursive',
+            shortAlias: '-r',
+          },
+          {
+            description: 'Send all packages to the registry in a single request instead of one request per package. Requires --recursive and a registry that implements the "/-/pnpm/v1/publish" endpoint (for example, pnpr)',
+            name: '--batch',
+          },
+        ],
+      },
+      FILTERING,
+    ],
+    url: docsUrl('publish'),
+    usages: ['pnpm publish [<tarball>|<dir>] [--tag <tag>] [--access <public|restricted>] [options]'],
+  })
+}
+
+const GIT_CHECKS_HINT = 'If you want to disable Git checks on publish, set the "git-checks" setting to "false", or run again with "--no-git-checks".'
+
+export async function handler (
+  opts: Omit<PublishRecursiveOpts, 'workspaceDir'> & {
+    argv: {
+      original: string[]
+    }
+    engineStrict?: boolean
+    json?: boolean
+    recursive?: boolean
+    workspaceDir?: string
+  } & Pick<Config, 'bin' | 'gitChecks' | 'ignoreScripts' | 'pnpmHomeDir' | 'publishBranch' | 'embedReadme' | 'skipManifestObfuscation'>
+  & Pick<ConfigContext, 'allProjects'>,
+  params: string[]
+): Promise<{ exitCode?: number, output?: string } | undefined> {
+  const result = await publish(opts, params)
+  // Emit per-package summaries on stdout when --json is set: single object for a single-package
+  // publish, array for recursive publish. Mirrors `pnpm pack --json`'s shape choice.
+  if (opts.json) {
+    if (result?.publishSummary) {
+      return { output: JSON.stringify(result.publishSummary, null, 2), exitCode: 0 }
+    }
+    if (result?.publishedPackages) {
+      return { output: JSON.stringify(result.publishedPackages, null, 2), exitCode: result.exitCode ?? 0 }
+    }
+  }
+  if (result?.manifest) return
+  return result
+}
+
+export interface PublishResult {
+  exitCode?: number
+  manifest?: ProjectManifest
+  publishedManifest?: ExportedManifest
+  /** Per-package summary in the npm-CLI `--json` shape; only populated for single-package publish. */
+  publishSummary?: PublishSummary
+  /** Per-package summaries collected by recursive publish. */
+  publishedPackages?: RecursivePublishedPackage[]
+}
+
+export async function publish (
+  opts: Omit<PublishRecursiveOpts, 'workspaceDir'> & {
+    argv: {
+      original: string[]
+    }
+    engineStrict?: boolean
+    recursive?: boolean
+    workspaceDir?: string
+  } & Pick<Config, 'bin' | 'gitChecks' | 'ignoreScripts' | 'pnpmHomeDir' | 'publishBranch' | 'embedReadme' | 'packGzipLevel' | 'skipManifestObfuscation'>
+  & Pick<ConfigContext, 'allProjects'>,
+  params: string[]
+): Promise<PublishResult> {
+  if (opts.batch && !opts.recursive) {
+    throw new PnpmError('BATCH_PUBLISH_REQUIRES_RECURSIVE', '--batch can only be used together with --recursive', {
+      hint: 'Run "pnpm publish -r --batch" to publish all workspace packages in a single request.',
+    })
+  }
+  if (opts.gitChecks !== false && await isGitRepo()) {
+    if (!(await isWorkingTreeClean())) {
+      throw new PnpmError('GIT_UNCLEAN', 'Unclean working tree. Commit or stash changes first.', {
+        hint: GIT_CHECKS_HINT,
+      })
+    }
+    const branches = opts.publishBranch ? [opts.publishBranch] : ['master', 'main']
+    const currentBranch = await getCurrentBranch()
+    if (currentBranch === null) {
+      throw new PnpmError(
+        'GIT_UNKNOWN_BRANCH',
+        `The Git HEAD may not attached to any branch, but your "publish-branch" is set to "${branches.join('|')}".`,
+        {
+          hint: GIT_CHECKS_HINT,
+        }
+      )
+    }
+    if (!branches.includes(currentBranch)) {
+      let isConfirmed: boolean
+      try {
+        isConfirmed = await confirm({
+          message: `You're on branch "${currentBranch}" but your "publish-branch" is set to "${branches.join('|')}". Do you want to continue?`,
+        })
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'ExitPromptError') {
+          isConfirmed = false
+        } else {
+          throw err
+        }
+      }
+
+      if (!isConfirmed) {
+        throw new PnpmError('GIT_NOT_CORRECT_BRANCH', `Branch is not on '${branches.join('|')}'.`, {
+          hint: GIT_CHECKS_HINT,
+        })
+      }
+    }
+    if (!(await isRemoteHistoryClean())) {
+      throw new PnpmError('GIT_NOT_LATEST', 'Remote history differs. Please pull changes.', {
+        hint: GIT_CHECKS_HINT,
+      })
+    }
+  }
+  if (opts.recursive && (opts.selectedProjectsGraph != null)) {
+    const { exitCode, publishedPackages } = await recursivePublish({
+      ...opts,
+      selectedProjectsGraph: opts.selectedProjectsGraph,
+      workspaceDir: opts.workspaceDir ?? process.cwd(),
+    })
+    return { exitCode, publishedPackages }
+  }
+
+  opts = optionsWithOtpEnv(opts, process.env)
+
+  const dirInParams = (params.length > 0) ? params[0] : undefined
+
+  if (dirInParams != null && isTarballPath(dirInParams)) {
+    const tarballPath = dirInParams
+    const publishedManifest = await extractManifestFromPacked(tarballPath)
+    // Publishing a pre-built tarball bypasses `pack.api()`, so we don't have the file listing
+    // or unpacked size — those summary fields are reported as empty/zero.
+    const publishSummary = await publishPackedPkg({
+      tarballPath,
+      publishedManifest,
+      contents: [],
+      unpackedSize: 0,
+    }, opts)
+    return { exitCode: 0, publishSummary }
+  }
+
+  const dir = dirInParams ?? opts.dir ?? process.cwd()
+
+  const _runScriptsIfPresent = runScriptsIfPresent.bind(null, {
+    depPath: dir,
+    extraBinPaths: opts.extraBinPaths,
+    extraEnv: opts.extraEnv,
+    pkgRoot: dir,
+    rootModulesDir: await realpathMissing(path.join(dir, 'node_modules')),
+    stdio: 'inherit',
+    unsafePerm: true, // when running scripts explicitly, assume that they're trusted.
+    userAgent: opts.userAgent,
+  })
+  const { manifest } = await readProjectManifest(dir, opts)
+  // Unfortunately, we cannot support postpack at the moment
+  if (!opts.ignoreScripts) {
+    await _runScriptsIfPresent([
+      'prepublishOnly',
+      'prepublish',
+    ], manifest)
+  }
+
+  // We have to publish the tarball from another location.
+  // Otherwise, npm would publish the package with the package.json file
+  // from the current working directory, ignoring the package.json file
+  // that was generated and packed to the tarball.
+  const packDestination = temporaryDirectory()
+  let publishedManifest: ExportedManifest | undefined
+  let publishSummary: PublishSummary | undefined
+  try {
+    const packResult = await pack.api({
+      ...opts,
+      dir,
+      packDestination,
+      dryRun: false,
+    })
+    publishSummary = await publishPackedPkg(packResult, opts)
+    publishedManifest = packResult.publishedManifest
+  } finally {
+    await rimraf(packDestination)
+  }
+
+  if (!opts.ignoreScripts) {
+    await _runScriptsIfPresent([
+      'publish',
+      'postpublish',
+    ], manifest)
+  }
+  return { manifest, publishedManifest, publishSummary }
+}
+
+export async function runScriptsIfPresent (
+  opts: RunLifecycleHookOptions,
+  scriptNames: string[],
+  manifest: ProjectManifest
+): Promise<void> {
+  for (const scriptName of scriptNames) {
+    if (!manifest.scripts?.[scriptName]) continue
+    await runLifecycleHook(scriptName, manifest, opts) // eslint-disable-line no-await-in-loop
+  }
+}

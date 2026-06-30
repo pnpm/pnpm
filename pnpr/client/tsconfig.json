@@ -10,13 +10,13 @@
   ],
   "references": [
     {
-      "path": "../../core/types"
+      "path": "../../pnpm11/core/types"
     },
     {
-      "path": "../../lockfile/fs"
+      "path": "../../pnpm11/lockfile/fs"
     },
     {
-      "path": "../../lockfile/types"
+      "path": "../../pnpm11/lockfile/types"
     }
   ]
 }

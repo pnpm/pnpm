@@ -1,8 +1,11 @@
 use super::{
     Decision, OptimisticRepeatInstallCheck, check_optimistic_repeat_install, current_settings,
+    current_settings_with_catalogs,
 };
+use indexmap::IndexMap;
+use pacquet_catalogs_types::Catalogs;
 use pacquet_config::Config;
-use pacquet_lockfile::Lockfile;
+use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
 use pacquet_modules_yaml::IncludedDependencies;
 use pacquet_package_manifest::PackageManifest;
 use pacquet_workspace_state::{
@@ -24,16 +27,44 @@ fn check(
     node_linker: pacquet_config::NodeLinker,
     project_manifests: &[(std::path::PathBuf, &PackageManifest)],
 ) -> Decision {
+    check_with_catalogs(
+        workspace_root,
+        config,
+        node_linker,
+        project_manifests,
+        false,
+        &BTreeMap::default(),
+    )
+}
+
+fn check_with_catalogs(
+    workspace_root: &std::path::Path,
+    config: &Config,
+    node_linker: pacquet_config::NodeLinker,
+    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
+    is_workspace_install: bool,
+    catalogs: &Catalogs,
+) -> Decision {
     check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
         workspace_root,
         config,
         node_linker,
         included: isolated_included(),
         project_manifests,
-        is_workspace_install: false,
-        lockfile: None,
-        catalogs: &BTreeMap::default(),
+        is_workspace_install,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        catalogs,
     })
+}
+
+fn check_workspace(
+    workspace_root: &std::path::Path,
+    config: &Config,
+    node_linker: pacquet_config::NodeLinker,
+    project_manifests: &[(std::path::PathBuf, &PackageManifest)],
+    catalogs: &Catalogs,
+) -> Decision {
+    check_with_catalogs(workspace_root, config, node_linker, project_manifests, true, catalogs)
 }
 
 /// Write an empty `pnpm-lock.yaml` to satisfy the single-project
@@ -71,6 +102,25 @@ fn setup_fresh_install(
     project_version: &str,
     manifest_extra_json: &str,
 ) -> (tempfile::TempDir, &'static Config, PackageManifest) {
+    setup_fresh_install_with_config(
+        config_kind,
+        project_name,
+        project_version,
+        manifest_extra_json,
+        |_| {},
+    )
+}
+
+/// Same as [`setup_fresh_install`] but applies `configure` to the
+/// `Config` before the workspace-state snapshot is taken, so the
+/// settings comparison sees the configured values as unchanged.
+fn setup_fresh_install_with_config(
+    config_kind: pacquet_config::NodeLinker,
+    project_name: &str,
+    project_version: &str,
+    manifest_extra_json: &str,
+    configure: impl FnOnce(&mut Config),
+) -> (tempfile::TempDir, &'static Config, PackageManifest) {
     let dir = tempdir().unwrap();
     let workspace_root = dir.path();
     let manifest_path = workspace_root.join("package.json");
@@ -100,6 +150,7 @@ fn setup_fresh_install(
 
     let mut config = Config::new();
     config.modules_dir = workspace_root.join("node_modules");
+    configure(&mut config);
     let config = Box::leak(Box::new(config));
     // Pre-create the modules dir so the "missing node_modules" guard
     // doesn't fire on the happy-path tests.
@@ -123,6 +174,490 @@ fn setup_fresh_install(
 fn returns_up_to_date_when_state_and_manifests_agree() {
     let (dir, config, manifest) =
         setup_fresh_install(pacquet_config::NodeLinker::Isolated, "root", "1.0.0", "");
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+    assert_eq!(decision, Decision::UpToDate);
+}
+
+/// A `file:` dependency must never short-circuit: nothing the fast
+/// path stats covers the dependency's *contents*, so the full install
+/// path has to run and refetch it
+/// (<https://github.com/pnpm/pnpm/issues/11795>).
+#[test]
+fn returns_skipped_when_a_project_has_a_file_dependency() {
+    let (dir, config, manifest) = setup_fresh_install(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"file:../foo"}"#,
+    );
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("local file dependency")),
+    );
+}
+
+/// Same bail for a `file:` *tarball* in any dependency group — a
+/// repacked `.tgz` bumps no manifest mtime either.
+#[test]
+fn returns_skipped_when_a_project_has_a_file_tarball_dev_dependency() {
+    let (dir, config, manifest) = setup_fresh_install(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""devDependencies":{"tar":"file:./vendor/tar.tgz"}"#,
+    );
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("local file dependency")),
+    );
+}
+
+/// Bare local path and tarball specs resolve to local file dependencies
+/// too — same bail as `file:`, for the same reason.
+#[test]
+fn returns_skipped_when_a_project_has_a_bare_local_path_dependency() {
+    for spec in
+        ["vendor/pkg.tgz", "../sibling-dir", "~/pkgs/foo", "/abs/path/foo", "c:/pkgs/foo", "c:pkgs"]
+    {
+        let (dir, config, manifest) = setup_fresh_install(
+            pacquet_config::NodeLinker::Isolated,
+            "root",
+            "1.0.0",
+            &format!(r#""dependencies":{{"foo":"{spec}"}}"#),
+        );
+
+        let decision = check(
+            dir.path(),
+            config,
+            pacquet_config::NodeLinker::Isolated,
+            &[(dir.path().to_path_buf(), &manifest)],
+        );
+        assert!(
+            matches!(decision, Decision::Skipped { reason } if reason.contains("local file dependency")),
+            "spec {spec:?} must bail",
+        );
+    }
+}
+
+/// A local file dependency in a group excluded from the install must
+/// not bail: the group isn't materialized, so its contents can't be
+/// stale. A change to the include flags themselves is caught by the
+/// settings comparison instead.
+#[test]
+fn returns_up_to_date_when_the_local_file_dependency_is_in_an_excluded_group() {
+    let (dir, config, manifest) = setup_fresh_install(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""optionalDependencies":{"foo":"file:../foo"}"#,
+    );
+
+    let included = IncludedDependencies {
+        dependencies: true,
+        dev_dependencies: true,
+        optional_dependencies: false,
+    };
+    // Re-stamp the state with the same include flags the check runs
+    // under, so the settings comparison passes and the include gate is
+    // what gets exercised.
+    let settings = current_settings(config, pacquet_config::NodeLinker::Isolated, included);
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        dir.path().to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    write_state(dir.path(), now_millis(), settings, projects);
+
+    let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root: dir.path(),
+        config,
+        node_linker: pacquet_config::NodeLinker::Isolated,
+        included,
+        project_manifests: &[(dir.path().to_path_buf(), &manifest)],
+        is_workspace_install: false,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        catalogs: &BTreeMap::default(),
+    });
+    assert_eq!(decision, Decision::UpToDate);
+}
+
+/// The include gate is per-group: a local file dependency in a group
+/// that *is* installed still bails even when other groups are excluded.
+#[test]
+fn returns_skipped_when_the_local_file_dependency_is_in_an_included_group() {
+    let (dir, config, manifest) = setup_fresh_install(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"file:../foo"}"#,
+    );
+
+    let included = IncludedDependencies {
+        dependencies: true,
+        dev_dependencies: false,
+        optional_dependencies: false,
+    };
+    let settings = current_settings(config, pacquet_config::NodeLinker::Isolated, included);
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        dir.path().to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    write_state(dir.path(), now_millis(), settings, projects);
+
+    let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root: dir.path(),
+        config,
+        node_linker: pacquet_config::NodeLinker::Isolated,
+        included,
+        project_manifests: &[(dir.path().to_path_buf(), &manifest)],
+        is_workspace_install: false,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        catalogs: &BTreeMap::default(),
+    });
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("local file dependency")),
+    );
+}
+
+/// A `pnpm.overrides` entry mapping to a local file spec must bail the
+/// same way a direct local file dependency does: the override redirects
+/// every matching dependency in the graph to that directory, and
+/// nothing the fast path stats covers its contents.
+#[test]
+fn returns_skipped_when_an_override_maps_to_a_local_file_dependency() {
+    let (dir, config, manifest) = setup_fresh_install_with_config(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"^1.0.0"}"#,
+        |config| {
+            config.overrides =
+                Some(IndexMap::from([("bar".to_string(), "file:../bar".to_string())]));
+        },
+    );
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("override")),
+        "decision was {decision:?}",
+    );
+}
+
+/// Registry and `link:` overrides keep the fast path: neither redirects
+/// a dependency to contents only a refetch would pick up.
+#[test]
+fn returns_up_to_date_when_overrides_are_not_local_paths() {
+    let (dir, config, manifest) = setup_fresh_install_with_config(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"^1.0.0"}"#,
+        |config| {
+            config.overrides = Some(IndexMap::from([
+                ("bar".to_string(), "^2.0.0".to_string()),
+                ("baz".to_string(), "link:../baz".to_string()),
+            ]));
+        },
+    );
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+    assert_eq!(decision, Decision::UpToDate);
+}
+
+/// A `packageExtensions` entry injecting a local file dependency must
+/// bail: extensions are merged into matching packages' manifests during
+/// the full install, so the spec never appears in a project manifest.
+#[test]
+fn returns_skipped_when_a_package_extension_injects_a_local_file_dependency() {
+    let (dir, config, manifest) = setup_fresh_install_with_config(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"^1.0.0"}"#,
+        |config| {
+            config.package_extensions = Some(IndexMap::from([(
+                "foo@1".to_string(),
+                pacquet_config::PackageExtension {
+                    dependencies: Some(BTreeMap::from([(
+                        "bar".to_string(),
+                        "file:../bar".to_string(),
+                    )])),
+                    ..Default::default()
+                },
+            )]));
+        },
+    );
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("package extension")),
+        "decision was {decision:?}",
+    );
+}
+
+/// A local file dependency injected via a packageExtension's
+/// optionalDependencies does not bail when optionals are excluded from
+/// the install — they aren't installed, so their contents can't be stale.
+#[test]
+fn returns_up_to_date_when_a_package_extension_optional_dependency_is_excluded() {
+    let (dir, config, manifest) = setup_fresh_install_with_config(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"^1.0.0"}"#,
+        |config| {
+            config.package_extensions = Some(IndexMap::from([(
+                "foo@1".to_string(),
+                pacquet_config::PackageExtension {
+                    optional_dependencies: Some(BTreeMap::from([(
+                        "bar".to_string(),
+                        "file:../bar".to_string(),
+                    )])),
+                    ..Default::default()
+                },
+            )]));
+        },
+    );
+
+    let included = IncludedDependencies {
+        dependencies: true,
+        dev_dependencies: true,
+        optional_dependencies: false,
+    };
+    let settings = current_settings(config, pacquet_config::NodeLinker::Isolated, included);
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        dir.path().to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    write_state(dir.path(), now_millis(), settings, projects);
+
+    let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root: dir.path(),
+        config,
+        node_linker: pacquet_config::NodeLinker::Isolated,
+        included,
+        project_manifests: &[(dir.path().to_path_buf(), &manifest)],
+        is_workspace_install: false,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        catalogs: &BTreeMap::default(),
+    });
+    assert_eq!(decision, Decision::UpToDate);
+}
+
+/// An unparsable `pnpm.overrides` (here a `catalog:` reference with no
+/// matching catalog entry) bails to the full install with the
+/// parse-error reason, not the local-file reason: the cause is a
+/// misconfiguration, and attributing it to a local file dependency
+/// would mislead troubleshooting.
+#[test]
+fn returns_skipped_with_parse_error_reason_when_overrides_cannot_be_parsed() {
+    let (dir, config, manifest) = setup_fresh_install_with_config(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"^1.0.0"}"#,
+        |config| {
+            config.overrides = Some(IndexMap::from([("bar".to_string(), "catalog:".to_string())]));
+        },
+    );
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("cannot be parsed")),
+        "decision was {decision:?}",
+    );
+}
+
+/// A `catalog:` dependency whose catalog entry holds a bare local path
+/// is a local file dependency after dereferencing — the catalog
+/// resolver only bans the `workspace:`, `link:`, and `file:` protocols,
+/// so the bare-path spelling reaches the local resolver. Same bail as
+/// a direct local path.
+#[test]
+fn returns_skipped_when_a_catalog_dependency_resolves_to_a_local_path() {
+    let (dir, config, manifest) = setup_fresh_install(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"catalog:"}"#,
+    );
+
+    let catalogs: Catalogs = BTreeMap::from([(
+        "default".to_string(),
+        BTreeMap::from([("foo".to_string(), "../foo".to_string())]),
+    )]);
+    let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root: dir.path(),
+        config,
+        node_linker: pacquet_config::NodeLinker::Isolated,
+        included: isolated_included(),
+        project_manifests: &[(dir.path().to_path_buf(), &manifest)],
+        is_workspace_install: false,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        catalogs: &catalogs,
+    });
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("local file dependency")),
+        "decision was {decision:?}",
+    );
+}
+
+/// A `catalog:` dependency resolving to a registry range keeps the
+/// fast path: the dereferenced specifier is not a local path.
+#[test]
+fn returns_up_to_date_when_a_catalog_dependency_resolves_to_a_registry_range() {
+    let (dir, config, manifest) = setup_fresh_install(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"catalog:"}"#,
+    );
+
+    let catalogs: Catalogs = BTreeMap::from([(
+        "default".to_string(),
+        BTreeMap::from([("foo".to_string(), "^1.0.0".to_string())]),
+    )]);
+    // Record the catalogs in the state so the catalog-cache comparison
+    // passes and the spec-deref path is what gets exercised, not the
+    // "catalogs cache outdated" bail.
+    let settings = current_settings_with_catalogs(
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        isolated_included(),
+        &catalogs,
+    );
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        dir.path().to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    write_state(dir.path(), now_millis(), settings, projects);
+
+    let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root: dir.path(),
+        config,
+        node_linker: pacquet_config::NodeLinker::Isolated,
+        included: isolated_included(),
+        project_manifests: &[(dir.path().to_path_buf(), &manifest)],
+        is_workspace_install: false,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        catalogs: &catalogs,
+    });
+    assert_eq!(decision, Decision::UpToDate);
+}
+
+/// A `pnpm.overrides` entry spelled `catalog:` whose catalog entry
+/// holds a local path bails like a direct local file override —
+/// overrides are dereferenced through `parse_config_overrides` before
+/// the check.
+#[test]
+fn returns_skipped_when_an_override_maps_through_a_catalog_to_a_local_path() {
+    let (dir, config, manifest) = setup_fresh_install_with_config(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"^1.0.0"}"#,
+        |config| {
+            config.overrides = Some(IndexMap::from([("bar".to_string(), "catalog:".to_string())]));
+        },
+    );
+
+    let catalogs: Catalogs = BTreeMap::from([(
+        "default".to_string(),
+        BTreeMap::from([("bar".to_string(), "./vendor/bar".to_string())]),
+    )]);
+    let decision = check_optimistic_repeat_install(&OptimisticRepeatInstallCheck {
+        workspace_root: dir.path(),
+        config,
+        node_linker: pacquet_config::NodeLinker::Isolated,
+        included: isolated_included(),
+        project_manifests: &[(dir.path().to_path_buf(), &manifest)],
+        is_workspace_install: false,
+        lockfile: MaybeLazyLockfile::Loaded(None),
+        catalogs: &catalogs,
+    });
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("override")),
+        "decision was {decision:?}",
+    );
+}
+
+/// Specs the git, remote-tarball, and registry resolvers claim must not
+/// bail — matching them would disable the fast path for every project
+/// with git dependencies.
+#[test]
+fn returns_up_to_date_when_specs_are_not_local_paths() {
+    let (dir, config, manifest) = setup_fresh_install(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        concat!(
+            r#""dependencies":{"foo":"user/repo","bar":"github:user/repo","#,
+            // `quux` is a git shorthand whose committish ends in .tgz — it
+            // must not be mistaken for a local tarball.
+            r#""baz":"https://example.com/pkg.tgz","qux":"~1.2.3","quux":"user/repo#release.tgz"}"#,
+        ),
+    );
+
+    let decision = check(
+        dir.path(),
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(dir.path().to_path_buf(), &manifest)],
+    );
+    assert_eq!(decision, Decision::UpToDate);
+}
+
+/// `link:` dependencies are symlinked — changes inside them flow
+/// through without a reinstall, so they don't invalidate the fast path.
+#[test]
+fn returns_up_to_date_when_a_project_has_only_link_dependencies() {
+    let (dir, config, manifest) = setup_fresh_install(
+        pacquet_config::NodeLinker::Isolated,
+        "root",
+        "1.0.0",
+        r#""dependencies":{"foo":"link:../foo"}"#,
+    );
 
     let decision = check(
         dir.path(),
@@ -992,8 +1527,6 @@ fn returns_up_to_date_when_state_carries_unported_pnpm_settings() {
         current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included());
     // Populate fields pacquet records but `settings_match` does not
     // compare, to prove a difference on them keeps the fast path.
-    // `catalogs` is always ignored by pnpm itself; pacquet mirrors that.
-    settings.catalogs = Some(serde_json::json!({"default": {"react": "^18.0.0"}}));
     // `workspacePackagePatterns` is recorded by pnpm from
     // pnpm-workspace.yaml's `packages:` field, which pacquet
     // tracks via `WorkspaceManifest.packages` instead of this
@@ -1014,6 +1547,99 @@ fn returns_up_to_date_when_state_carries_unported_pnpm_settings() {
         &[(workspace_root.to_path_buf(), &manifest)],
     );
     assert_eq!(decision, Decision::UpToDate);
+}
+
+#[test]
+fn returns_outdated_when_workspace_catalog_cache_changes() {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    let manifest_path = workspace_root.join("package.json");
+    fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
+    let manifest = PackageManifest::from_path(manifest_path).unwrap();
+    write_empty_lockfile(workspace_root);
+
+    let mut config = Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    fs::create_dir_all(&config.modules_dir).unwrap();
+    let config = config.leak();
+
+    let recorded_catalogs = Catalogs::from([(
+        "default".to_string(),
+        BTreeMap::from([("react".to_string(), "^18.0.0".to_string())]),
+    )]);
+    let settings = current_settings_with_catalogs(
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        isolated_included(),
+        &recorded_catalogs,
+    );
+
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        workspace_root.to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    write_state(workspace_root, now_millis() + 60_000, settings, projects);
+
+    let current_catalogs = Catalogs::from([(
+        "default".to_string(),
+        BTreeMap::from([("react".to_string(), "^19.0.0".to_string())]),
+    )]);
+    let decision = check_workspace(
+        workspace_root,
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(workspace_root.to_path_buf(), &manifest)],
+        &current_catalogs,
+    );
+    assert_eq!(decision, Decision::Skipped { reason: "catalogs cache outdated" });
+}
+
+#[test]
+fn returns_outdated_when_single_project_catalog_cache_changes() {
+    let dir = tempdir().unwrap();
+    let workspace_root = dir.path();
+    let manifest_path = workspace_root.join("package.json");
+    fs::write(&manifest_path, r#"{"name":"root","version":"1.0.0"}"#).unwrap();
+    let manifest = PackageManifest::from_path(manifest_path).unwrap();
+    write_empty_lockfile(workspace_root);
+
+    let mut config = Config::new();
+    config.modules_dir = workspace_root.join("node_modules");
+    fs::create_dir_all(&config.modules_dir).unwrap();
+    let config = config.leak();
+
+    let recorded_catalogs = Catalogs::from([(
+        "default".to_string(),
+        BTreeMap::from([("react".to_string(), "^18.0.0".to_string())]),
+    )]);
+    let settings = current_settings_with_catalogs(
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        isolated_included(),
+        &recorded_catalogs,
+    );
+
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        workspace_root.to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    write_state(workspace_root, now_millis() + 60_000, settings, projects);
+
+    let current_catalogs = Catalogs::from([(
+        "default".to_string(),
+        BTreeMap::from([("react".to_string(), "^19.0.0".to_string())]),
+    )]);
+    let decision = check_with_catalogs(
+        workspace_root,
+        config,
+        pacquet_config::NodeLinker::Isolated,
+        &[(workspace_root.to_path_buf(), &manifest)],
+        false,
+        &current_catalogs,
+    );
+    assert_eq!(decision, Decision::Skipped { reason: "catalogs cache outdated" });
 }
 
 /// `allowBuilds` is the one field where pnpm and pacquet round-trip
@@ -1112,7 +1738,7 @@ fn returns_skipped_when_sibling_node_modules_missing_for_project_with_deps() {
             (sibling_dir, &sibling_manifest),
         ],
         is_workspace_install: true,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         catalogs: &BTreeMap::default(),
     });
     assert!(matches!(decision, Decision::Skipped { reason } if reason.contains("node_modules")));
@@ -1174,7 +1800,7 @@ fn returns_up_to_date_in_workspace_mode_without_lockfile() {
         included: isolated_included(),
         project_manifests: &[(dir.path().to_path_buf(), &manifest)],
         is_workspace_install: true,
-        lockfile: None,
+        lockfile: MaybeLazyLockfile::Loaded(None),
         catalogs: &BTreeMap::default(),
     });
     assert_eq!(decision, Decision::UpToDate);
@@ -1200,6 +1826,17 @@ packages:
 snapshots:
 
   foo@1.0.0: {}
+";
+
+const FOO_LOCKFILE_WITHOUT_PACKAGES: &str = "lockfileVersion: '9.0'
+
+importers:
+
+  .:
+    dependencies:
+      foo:
+        specifier: ^1.0.0
+        version: 1.0.0
 ";
 
 const FOO_MANIFEST: &str = r#"{"name":"root","version":"1.0.0","dependencies":{"foo":"^1.0.0"}}"#;
@@ -1249,9 +1886,65 @@ fn content_check_decision(
         included: isolated_included(),
         project_manifests,
         is_workspace_install,
-        lockfile: lockfile.as_ref(),
+        lockfile: MaybeLazyLockfile::Loaded(lockfile.as_ref()),
         catalogs: &BTreeMap::default(),
     })
+}
+
+#[test]
+fn returns_skipped_when_current_lockfile_missing_for_non_empty_wanted_lockfile() {
+    let (dir, config) = setup_content_check_project();
+    fs::remove_file(config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME)).unwrap();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+
+    let decision =
+        content_check_decision(&dir, config, false, &[(dir.path().to_path_buf(), &manifest)]);
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("current lockfile")),
+        "expected Skipped(current lockfile missing), got {decision:?}",
+    );
+}
+
+#[test]
+fn returns_skipped_when_current_lockfile_missing_for_wanted_lockfile_with_importer_deps() {
+    let (dir, config) = setup_content_check_project();
+    let workspace_root = dir.path();
+    fs::write(workspace_root.join(Lockfile::FILE_NAME), FOO_LOCKFILE_WITHOUT_PACKAGES).unwrap();
+
+    sleep(Duration::from_millis(20));
+    let settings =
+        current_settings(config, pacquet_config::NodeLinker::Isolated, isolated_included());
+    let mut projects = BTreeMap::new();
+    projects.insert(
+        workspace_root.to_string_lossy().into_owned(),
+        ProjectEntry { name: Some("root".into()), version: Some("1.0.0".into()) },
+    );
+    write_state(workspace_root, now_millis(), settings, projects);
+    sleep(Duration::from_millis(20));
+
+    fs::remove_file(config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME)).unwrap();
+    let manifest = PackageManifest::from_path(workspace_root.join("package.json")).unwrap();
+
+    let decision =
+        content_check_decision(&dir, config, false, &[(workspace_root.to_path_buf(), &manifest)]);
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("current lockfile")),
+        "expected Skipped(current lockfile missing), got {decision:?}",
+    );
+}
+
+#[test]
+fn returns_skipped_when_current_lockfile_is_empty_for_non_empty_wanted_lockfile() {
+    let (dir, config) = setup_content_check_project();
+    fs::write(config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME), "").unwrap();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+
+    let decision =
+        content_check_decision(&dir, config, false, &[(dir.path().to_path_buf(), &manifest)]);
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("current lockfile")),
+        "expected Skipped(current lockfile missing), got {decision:?}",
+    );
 }
 
 /// A manifest rewrite that leaves the dependency fields intact — the
@@ -1302,6 +1995,28 @@ fn returns_skipped_when_wanted_lockfile_diverged_from_current() {
     let (dir, config) = setup_content_check_project();
 
     fs::write(dir.path().join("package.json"), FOO_MANIFEST).unwrap();
+    fs::write(dir.path().join(Lockfile::FILE_NAME), FOO_LOCKFILE.replace("1.0.0", "1.0.1"))
+        .unwrap();
+    let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
+
+    let decision =
+        content_check_decision(&dir, config, false, &[(dir.path().to_path_buf(), &manifest)]);
+    assert!(
+        matches!(decision, Decision::Skipped { reason } if reason.contains("not up to date")),
+        "expected Skipped(outdated deps), got {decision:?}",
+    );
+}
+
+/// Only the wanted lockfile changed (a `git checkout` / stash-restore of
+/// just `pnpm-lock.yaml`), with every manifest left untouched. The
+/// manifest-mtime fast path must not skip the lockfile change. Regression
+/// for pnpm/pnpm#12100.
+#[test]
+fn returns_skipped_when_only_the_lockfile_changed() {
+    let (dir, config) = setup_content_check_project();
+
+    // Rewrite only the wanted lockfile; package.json keeps its original
+    // (pre-state) mtime, so `modifiedProjects` is empty.
     fs::write(dir.path().join(Lockfile::FILE_NAME), FOO_LOCKFILE.replace("1.0.0", "1.0.1"))
         .unwrap();
     let manifest = PackageManifest::from_path(dir.path().join("package.json")).unwrap();
@@ -1423,7 +2138,7 @@ importers:
             (sibling_dir, &sibling_manifest),
         ],
         is_workspace_install: true,
-        lockfile: lockfile.as_ref(),
+        lockfile: MaybeLazyLockfile::Loaded(lockfile.as_ref()),
         catalogs: &BTreeMap::default(),
     })
 }

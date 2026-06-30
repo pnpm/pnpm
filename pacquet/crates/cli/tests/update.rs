@@ -53,7 +53,7 @@ fn set_ignore_dependencies(workspace: &Path, names: &[&str]) {
     }
     yaml.push_str("updateConfig:\n  ignoreDependencies:\n");
     for name in names {
-        writeln!(yaml, "    - \"{name}\"").unwrap();
+        writeln!(yaml, r#"    - "{name}""#).unwrap();
     }
     fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
 }
@@ -71,7 +71,7 @@ fn virtual_store_has(workspace: &Path, name_at_version: &str) -> bool {
 }
 
 /// List the `node_modules/.pnpm` entries. Logged before
-/// `virtual_store_has` assertions so a failing CI run shows what was
+/// [`virtual_store_has`] assertions so a failing CI run shows what was
 /// actually materialized.
 fn list_virtual_store(workspace: &Path) -> Vec<String> {
     let dir = workspace.join("node_modules").join(".pnpm");
@@ -116,6 +116,95 @@ fn update_bumps_within_range() {
     drop((root, anchor));
 }
 
+#[test]
+fn update_runs_with_ndjson_and_silent_reporters() {
+    for reporter in ["--reporter=ndjson", "--reporter=silent"] {
+        let (root, workspace, anchor) = setup();
+
+        write_manifest(&workspace, &format!(r#"{{ "{DEP}": "100.0.0" }}"#));
+        pacquet(&workspace, ["install"]).assert().success();
+        write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
+
+        pacquet(&workspace, [reporter, "update"]).assert().success();
+
+        assert!(
+            virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"),
+            "update should bump the dependency when running with {reporter}",
+        );
+
+        drop((root, anchor));
+    }
+}
+
+/// Mixing a transitive selector with a direct dependency selector must
+/// still update the matching transitive package. Ports pnpm's regression
+/// test for <https://github.com/pnpm/pnpm/issues/12103>, where a direct
+/// selector wrongly suppressed recursive transitive updates. pacquet
+/// matches every bare-name selector against direct deps and locked
+/// package names alike, so the direct selector never gates the
+/// transitive one.
+#[test]
+fn update_transitive_mixed_with_direct_selector() {
+    let (root, workspace, anchor) = setup();
+
+    // Pin the transitive dep-of-pkg-with-1-dep at 100.0.0 (via a direct
+    // exact entry), then drop it to a pure transitive of pkg-with-1-dep.
+    write_manifest(
+        &workspace,
+        &format!(r#"{{ "{FOO}": "1.0.0", "{PARENT}": "100.0.0", "{DEP}": "100.0.0" }}"#),
+    );
+    pacquet(&workspace, ["install"]).assert().success();
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.0.0"));
+
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "1.0.0", "{PARENT}": "100.0.0" }}"#));
+
+    // DEP is a transitive selector; FOO is a direct dependency selector.
+    pacquet(&workspace, ["update", DEP, FOO]).assert().success();
+
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
+    assert!(
+        virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"),
+        "the transitive selector should bump even alongside a direct selector",
+    );
+
+    drop((root, anchor));
+}
+
+/// The glob form of the mixed-selector case — the shape from
+/// <https://github.com/pnpm/pnpm/issues/12103> (`pnpm up "@babel/*" uuid`).
+/// A glob that names only a transitive
+/// dependency must still bump it when a direct selector rides alongside.
+/// The glob is matched against locked package names through the same
+/// `create_matcher` path as a bare name, so the direct selector cannot
+/// gate it.
+#[test]
+fn update_transitive_glob_mixed_with_direct_selector() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(
+        &workspace,
+        &format!(r#"{{ "{FOO}": "1.0.0", "{PARENT}": "100.0.0", "{DEP}": "100.0.0" }}"#),
+    );
+    pacquet(&workspace, ["install"]).assert().success();
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.0.0"));
+
+    write_manifest(&workspace, &format!(r#"{{ "{FOO}": "1.0.0", "{PARENT}": "100.0.0" }}"#));
+
+    // "@pnpm.e2e/dep-of-*" matches the transitive dep-of-pkg-with-1-dep
+    // only; FOO is a direct dependency selector.
+    pacquet(&workspace, ["update", "@pnpm.e2e/dep-of-*", FOO]).assert().success();
+
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
+    assert!(
+        virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.1.0"),
+        "the transitive glob selector should bump even alongside a direct selector",
+    );
+
+    drop((root, anchor));
+}
+
 /// `pacquet update --latest` ignores the manifest range, bumps to the
 /// `latest` dist-tag, and rewrites `package.json`.
 #[test]
@@ -137,9 +226,12 @@ fn update_latest_rewrites_manifest() {
     drop((root, anchor));
 }
 
-/// `--save-exact` writes the bumped version without a range operator.
+/// `--latest` keeps the range operator the dependency already used, even
+/// when `--save-exact` is passed: a pre-existing pin takes precedence over
+/// the config default, matching pnpm's `calcRange`. (`pnpm update --latest
+/// --save-exact` on `^1.0.0` writes `^<latest>`, not the exact version.)
 #[test]
-fn update_latest_save_exact() {
+fn update_latest_save_exact_preserves_existing_caret() {
     let (root, workspace, anchor) = setup();
 
     write_manifest(&workspace, &format!(r#"{{ "{DEP}": "^100.0.0" }}"#));
@@ -147,7 +239,79 @@ fn update_latest_save_exact() {
 
     pacquet(&workspace, ["update", "--latest", "--save-exact"]).assert().success();
 
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("^101.0.0"));
+
+    drop((root, anchor));
+}
+
+/// `--latest` preserves a tilde range instead of widening it to the default
+/// caret. Ports the prefix-preservation half of pnpm's `calcRange`.
+#[test]
+fn update_latest_preserves_tilde() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "~100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update", "--latest"]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("~101.0.0"));
+
+    drop((root, anchor));
+}
+
+/// `--latest` preserves an exact pin (no range operator) without needing
+/// `--save-exact`.
+#[test]
+fn update_latest_preserves_exact() {
+    let (root, workspace, anchor) = setup();
+
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "100.0.0" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update", "--latest"]).assert().success();
+
     assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("101.0.0"));
+
+    drop((root, anchor));
+}
+
+/// `--latest` must not rewrite a `workspace:` dependency that points at a
+/// local path. Resolving it against the registry would either fail (the
+/// package is workspace-only, not published) or replace the path — which can
+/// target a publish directory — with a version range. Regression test for
+/// <https://github.com/pnpm/pnpm/issues/3902>.
+#[test]
+fn update_latest_preserves_workspace_local_path_specifier() {
+    let (root, workspace, anchor) = setup();
+
+    // A workspace-only sibling package, not published to the mocked
+    // registry, referenced by a `workspace:` local path.
+    let sibling = workspace.join("local-dep");
+    fs::create_dir_all(&sibling).expect("mkdir local-dep");
+    fs::write(sibling.join("package.json"), r#"{ "name": "local-dep", "version": "1.0.0" }"#)
+        .expect("write local-dep/package.json");
+
+    let workspace_yaml = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&workspace_yaml).expect("read pnpm-workspace.yaml");
+    // Fail loudly if the harness ever starts writing `packages:` — appending a
+    // second top-level mapping key produces invalid YAML.
+    assert!(
+        !yaml.contains("packages:"),
+        "pnpm-workspace.yaml already has a `packages:` key — update this test",
+    );
+    if !yaml.ends_with('\n') {
+        yaml.push('\n');
+    }
+    yaml.push_str("packages:\n  - 'local-dep'\n");
+    fs::write(&workspace_yaml, yaml).expect("write pnpm-workspace.yaml");
+
+    write_manifest(&workspace, r#"{ "local-dep": "workspace:./local-dep" }"#);
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update", "--latest"]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, "local-dep").as_deref(), Some("workspace:./local-dep"));
 
     drop((root, anchor));
 }
@@ -422,9 +586,133 @@ fn set_strict_catalog(workspace: &Path, entries: &[(&str, &str)]) {
     }
     yaml.push_str("catalogMode: strict\ncatalog:\n");
     for (name, spec) in entries {
-        writeln!(yaml, "  \"{name}\": \"{spec}\"").unwrap();
+        writeln!(yaml, r#"  "{name}": "{spec}""#).unwrap();
     }
     fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+}
+
+/// Append a named `catalogs:` block (default `manual` catalogMode) to the
+/// harness-written `pnpm-workspace.yaml`.
+fn set_named_catalog(workspace: &Path, catalog: &str, entries: &[(&str, &str)]) {
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    if !yaml.ends_with('\n') {
+        yaml.push('\n');
+    }
+    writeln!(yaml, "catalogs:\n  {catalog}:").unwrap();
+    for (name, spec) in entries {
+        writeln!(yaml, r#"    "{name}": "{spec}""#).unwrap();
+    }
+    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+}
+
+fn read_workspace_yaml(workspace: &Path) -> String {
+    fs::read_to_string(workspace.join("pnpm-workspace.yaml")).expect("read pnpm-workspace.yaml")
+}
+
+/// An unmatched `--latest` selector is a no-op and must not read or parse
+/// the workspace catalogs: a malformed catalog config (here, the default
+/// catalog defined through both `catalog:` and `catalogs.default`) does not
+/// make the no-op fail.
+#[test]
+fn update_latest_unmatched_selector_does_not_read_catalogs() {
+    let (root, workspace, anchor) = setup();
+
+    // A valid `catalog:` dependency (so the eager read would have triggered)
+    // alongside a default catalog defined twice (which a catalog read rejects
+    // with ERR_PNPM_..._CONFIGURATION).
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "catalog:grp1" }}"#));
+    let yaml_path = workspace.join("pnpm-workspace.yaml");
+    let mut yaml = fs::read_to_string(&yaml_path).expect("read pnpm-workspace.yaml");
+    if !yaml.ends_with('\n') {
+        yaml.push('\n');
+    }
+    write!(
+        yaml,
+        "catalog:\n  \"a\": \"^1.0.0\"\ncatalogs:\n  default:\n    \"b\": \"^1.0.0\"\n  grp1:\n    \"{DEP}\": \"~100.0.0\"\n",
+    )
+    .unwrap();
+    fs::write(&yaml_path, yaml).expect("write pnpm-workspace.yaml");
+
+    // The selector matches no direct dependency, so the update returns early
+    // without ever reading the (malformed) catalogs.
+    pacquet(&workspace, ["update", "--latest", "not-a-dependency"]).assert().success();
+
+    drop((root, anchor));
+}
+
+/// `pacquet update --latest` on a `catalog:` dependency keeps the
+/// `catalog:` reference in `package.json` and bumps the catalog entry to
+/// the latest version, preserving the entry's own range operator — even
+/// under the default `manual` catalogMode (which does not auto-catalog).
+#[test]
+fn update_latest_catalog_preserves_reference_and_operator() {
+    let (root, workspace, anchor) = setup();
+
+    set_named_catalog(&workspace, "grp1", &[(DEP, "~100.0.0")]);
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "catalog:grp1" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update", "--latest"]).assert().success();
+
+    // The manifest still references the catalog, untouched.
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("catalog:grp1"));
+
+    // The catalog entry is bumped to the latest version with its tilde
+    // operator preserved (not widened to the default caret).
+    let yaml = read_workspace_yaml(&workspace);
+    assert!(yaml.contains("~101.0.0"), "catalog entry should be bumped to ~101.0.0: {yaml}");
+    assert!(!yaml.contains("100.0.0"), "stale catalog entry should be gone: {yaml}");
+
+    drop((root, anchor));
+}
+
+/// `--latest --no-save` on a `catalog:` dependency leaves `package.json`
+/// and `pnpm-workspace.yaml` untouched, but still re-resolves the lockfile
+/// to the bumped version. The bumped catalog drives resolution in memory
+/// (via the install's catalogs override) without being persisted to disk —
+/// matching how a non-catalog `--no-save` update bumps the lockfile.
+#[test]
+fn update_latest_no_save_catalog_bumps_lockfile_only() {
+    let (root, workspace, anchor) = setup();
+
+    set_named_catalog(&workspace, "grp1", &[(DEP, "~100.0.0")]);
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "catalog:grp1" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@100.0.0"));
+
+    pacquet(&workspace, ["update", "--latest", "--no-save"]).assert().success();
+
+    // package.json and the workspace catalog are untouched...
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("catalog:grp1"));
+    let yaml = read_workspace_yaml(&workspace);
+    assert!(yaml.contains("~100.0.0"), "catalog entry must be untouched under --no-save: {yaml}");
+
+    // ...but the lockfile/store re-resolved to the bumped version.
+    eprintln!("virtual store contents: {:?}", list_virtual_store(&workspace));
+    assert!(virtual_store_has(&workspace, "@pnpm.e2e+dep-of-pkg-with-1-dep@101.0.0"));
+
+    drop((root, anchor));
+}
+
+/// The same preservation applies to the default catalog (`catalog:`).
+#[test]
+fn update_latest_default_catalog_preserves_reference() {
+    let (root, workspace, anchor) = setup();
+
+    set_named_catalog(&workspace, "default", &[(DEP, "^100.0.0")]);
+    write_manifest(&workspace, &format!(r#"{{ "{DEP}": "catalog:" }}"#));
+    pacquet(&workspace, ["install"]).assert().success();
+
+    pacquet(&workspace, ["update", "--latest"]).assert().success();
+
+    assert_eq!(dep_spec(&workspace, DEP).as_deref(), Some("catalog:"));
+
+    let yaml = read_workspace_yaml(&workspace);
+    assert!(yaml.contains("^101.0.0"), "catalog entry should be bumped to ^101.0.0: {yaml}");
+    assert!(!yaml.contains("100.0.0"), "stale catalog entry should be gone: {yaml}");
+
+    drop((root, anchor));
 }
 
 /// `pacquet update --lockfile-only <pkg>@<version>` under

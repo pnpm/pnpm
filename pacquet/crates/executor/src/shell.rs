@@ -50,14 +50,6 @@ pub struct SelectedShell {
 /// <https://github.com/pnpm/npm-lifecycle/blob/d2d8e790/index.js#L241-L252>,
 /// with the `.bat` / `.cmd` guard from `pnpm/exec/lifecycle/src/runLifecycleHook.ts:63-71`.
 ///
-/// Priority:
-/// 1. If `script_shell` ends in `.bat` / `.cmd` on Windows, return
-///    [`ScriptShellError::BatchFileOnWindows`].
-/// 2. If `script_shell` is `Some`, use it with `-c`.
-/// 3. On Windows: `%ComSpec%` (or `cmd`) with `/d /s /c`, with
-///    `windows_verbatim_args` set.
-/// 4. Otherwise: `sh -c`.
-///
 /// `is_windows` lets tests drive both branches without `#[cfg(windows)]`
 /// gating the test bodies. Production callers pass `cfg!(windows)`.
 pub fn select_shell(

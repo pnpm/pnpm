@@ -1,0 +1,1568 @@
+import fs from 'node:fs'
+import * as path from 'node:path'
+
+import { expect, jest, test } from '@jest/globals'
+import { LOCKFILE_VERSION } from '@pnpm/constants'
+import {
+  addDependenciesToPackage,
+  install,
+  mutateModulesInSingleProject,
+  UnexpectedStoreError,
+  UnexpectedVirtualStoreDirError,
+} from '@pnpm/installing.deps-installer'
+import { prepare, prepareEmpty, preparePackages } from '@pnpm/prepare'
+import { fixtures } from '@pnpm/test-fixtures'
+import { addDistTag, getIntegrity, REGISTRY_MOCK_PORT } from '@pnpm/testing.registry-mock'
+import type { ProjectManifest, ProjectRootDir } from '@pnpm/types'
+import { rimrafSync } from '@zkochan/rimraf'
+import { isCI } from 'ci-info'
+import deepRequireCwd from 'deep-require-cwd'
+import { safeExeca as execa } from 'execa'
+import isWindows from 'is-windows'
+import semver from 'semver'
+import { writeYamlFileSync } from 'write-yaml-file'
+
+import { testDefaults } from '../utils/index.js'
+
+const f = fixtures(import.meta.dirname)
+const IS_WINDOWS = isWindows()
+
+const testOnNonWindows = IS_WINDOWS ? test.skip : test
+const testOnNode27Plus = semver.major(process.versions.node) >= 27 ? test : test.skip
+
+test('spec not specified in package.json.dependencies', async () => {
+  const project = prepareEmpty()
+
+  await install({
+    dependencies: {
+      'is-positive': '',
+    },
+  }, testDefaults())
+
+  const lockfile = project.readLockfile()
+  expect(lockfile.importers['.'].dependencies?.['is-positive'].specifier).toBe('')
+})
+
+test.skip('ignoring some files in the dependency', async () => {
+  prepareEmpty()
+
+  const ignoreFile = (filename: string) => filename === 'readme.md'
+  await addDependenciesToPackage({}, ['is-positive@1.0.0'], testDefaults({}, {}, { ignoreFile }))
+
+  // package.json was not ignored
+  expect(fs.existsSync(path.resolve('node_modules', 'is-positive', 'package.json'))).toBeTruthy()
+  // readme.md was ignored
+  expect(fs.existsSync(path.resolve('node_modules', 'is-positive', 'readme.md'))).toBeFalsy()
+})
+
+test('writes a package map for Node.js package-map resolution', async () => {
+  const project = prepareEmpty()
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({ fastUnpack: false }))
+
+  const packageMap = JSON.parse(fs.readFileSync(path.resolve('node_modules/.package-map.json'), 'utf8'))
+  const rootDependencyId = packageMap.packages['.'].dependencies['@pnpm.e2e/pkg-with-1-dep']
+  expect(rootDependencyId).toBe('@pnpm.e2e/pkg-with-1-dep@100.0.0')
+  expect(packageMap.packages[rootDependencyId]).toMatchObject({
+    url: './.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/pkg-with-1-dep',
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '@pnpm.e2e/pkg-with-1-dep@100.0.0',
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': expect.stringMatching(/^@pnpm\.e2e\/dep-of-pkg-with-1-dep@100\./),
+    },
+  })
+  project.has('.package-map.json')
+
+  fs.rmSync(path.resolve('node_modules/.package-map.json'))
+  await install(manifest, testDefaults({ fastUnpack: false, frozenLockfile: true }))
+  project.has('.package-map.json')
+})
+
+test('writes a package map that resolves against the global virtual store layout', async () => {
+  prepareEmpty()
+  const globalVirtualStoreDir = path.resolve('links')
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({
+    fastUnpack: false,
+    enableGlobalVirtualStore: true,
+    virtualStoreDir: globalVirtualStoreDir,
+  }))
+
+  const expectMapResolvesOnDisk = (): void => {
+    const packageMap = JSON.parse(fs.readFileSync(path.resolve('node_modules/.package-map.json'), 'utf8'))
+    const rootDependencyId = packageMap.packages['.'].dependencies['@pnpm.e2e/pkg-with-1-dep']
+    // The global virtual store nests by name/version/content-hash, unlike the
+    // flat local `.pnpm` layout, so the url must come from the real location.
+    expect(packageMap.packages[rootDependencyId].url).toContain('links/@pnpm.e2e/pkg-with-1-dep/100.0.0/')
+    for (const entry of Object.values<{ url: string }>(packageMap.packages)) {
+      expect(fs.existsSync(path.resolve('node_modules', entry.url))).toBe(true)
+    }
+  }
+  expectMapResolvesOnDisk()
+
+  rimrafSync('node_modules')
+  await install(manifest, testDefaults({
+    fastUnpack: false,
+    enableGlobalVirtualStore: true,
+    virtualStoreDir: globalVirtualStoreDir,
+    frozenLockfile: true,
+  }))
+  expectMapResolvesOnDisk()
+})
+
+test('writes a loose package map for Node.js package-map resolution', async () => {
+  prepareEmpty()
+
+  await addDependenciesToPackage({}, [
+    '@pnpm.e2e/foo@100.0.0',
+    '@pnpm.e2e/pkg-with-1-dep@100.0.0',
+  ], testDefaults({
+    fastUnpack: false,
+    nodePackageMapType: 'loose',
+  }))
+
+  const packageMap = JSON.parse(fs.readFileSync(path.resolve('node_modules/.package-map.json'), 'utf8'))
+  const rootDependencyId = packageMap.packages['.'].dependencies['@pnpm.e2e/pkg-with-1-dep']
+  expect(packageMap.packages[rootDependencyId].dependencies).toMatchObject({
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': expect.stringMatching(/^@pnpm\.e2e\/dep-of-pkg-with-1-dep@100\./),
+    '@pnpm.e2e/foo': '@pnpm.e2e/foo@100.0.0',
+  })
+})
+
+test('writes a package map for hoisted node linker from the real layout', async () => {
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({
+    fastUnpack: false,
+    nodeLinker: 'hoisted',
+  }))
+
+  const packageMap = JSON.parse(fs.readFileSync(path.resolve('node_modules/.package-map.json'), 'utf8'))
+  const rootDependencyId = packageMap.packages['.'].dependencies['@pnpm.e2e/pkg-with-1-dep']
+  expect(rootDependencyId).toBe('@pnpm.e2e/pkg-with-1-dep')
+  expect(packageMap.packages[rootDependencyId]).toMatchObject({
+    url: './@pnpm.e2e/pkg-with-1-dep',
+    dependencies: {
+      '@pnpm.e2e/pkg-with-1-dep': '@pnpm.e2e/pkg-with-1-dep',
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': expect.stringMatching(/^@pnpm\.e2e\/dep-of-pkg-with-1-dep/),
+    },
+  })
+  project.has('.package-map.json')
+})
+
+test('writes a loose package map for hoisted node linker', async () => {
+  prepareEmpty()
+
+  await addDependenciesToPackage({}, [
+    '@pnpm.e2e/foo@100.0.0',
+    '@pnpm.e2e/pkg-with-1-dep@100.0.0',
+  ], testDefaults({
+    fastUnpack: false,
+    nodeLinker: 'hoisted',
+    nodePackageMapType: 'loose',
+  }))
+
+  const packageMap = JSON.parse(fs.readFileSync(path.resolve('node_modules/.package-map.json'), 'utf8'))
+  const rootDependencyId = packageMap.packages['.'].dependencies['@pnpm.e2e/pkg-with-1-dep']
+  expect(packageMap.packages[rootDependencyId].dependencies).toMatchObject({
+    '@pnpm.e2e/dep-of-pkg-with-1-dep': expect.stringMatching(/^@pnpm\.e2e\/dep-of-pkg-with-1-dep/),
+    '@pnpm.e2e/foo': '@pnpm.e2e/foo',
+  })
+})
+
+test('does not inject a package map into lifecycle scripts when virtualStoreOnly skips map materialization', async () => {
+  prepareEmpty()
+  fs.mkdirSync('pkg')
+  const marker = path.resolve('package-map-env-ok')
+  fs.writeFileSync('pkg/package.json', JSON.stringify({
+    name: 'pkg',
+    version: '1.0.0',
+    scripts: {
+      install: makeAssertNoPackageMapNodeOptionsScript(marker),
+    },
+  }), 'utf8')
+
+  await addDependenciesToPackage({}, ['file:./pkg'], testDefaults({
+    allowBuilds: { 'pkg@file:pkg': true },
+    nodeExperimentalPackageMap: true,
+    virtualStoreOnly: true,
+  }))
+
+  expect(fs.existsSync(path.resolve('node_modules/.package-map.json'))).toBeFalsy()
+  expect(fs.existsSync(marker)).toBeTruthy()
+})
+
+test('does not write or inject a package map when modules directory creation is disabled', async () => {
+  prepareEmpty()
+  const marker = path.resolve('package-map-env-ok')
+  const manifest: ProjectManifest = {
+    name: 'project',
+    version: '1.0.0',
+    scripts: {
+      install: makeAssertNoPackageMapNodeOptionsScript(marker),
+    },
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }
+
+  await install(manifest, testDefaults({ ignoreScripts: true }))
+  rimrafSync('node_modules')
+
+  await install(manifest, testDefaults({
+    enableModulesDir: false,
+    frozenLockfile: true,
+    nodeExperimentalPackageMap: true,
+  }))
+
+  expect(fs.existsSync(path.resolve('node_modules'))).toBeFalsy()
+  expect(fs.existsSync(marker)).toBeTruthy()
+})
+
+testOnNode27Plus('package map can resolve package dependencies at runtime with Node.js', async () => {
+  prepareEmpty()
+
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({ fastUnpack: false }))
+
+  const packageMap = JSON.parse(fs.readFileSync(path.resolve('node_modules/.package-map.json'), 'utf8'))
+  const rootDependencyId = packageMap.packages['.'].dependencies['@pnpm.e2e/pkg-with-1-dep']
+  const rootDependencyDir = path.resolve('node_modules', packageMap.packages[rootDependencyId].url)
+  const dependencyId = packageMap.packages[rootDependencyId].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep']
+
+  rimrafSync(path.join(rootDependencyDir, 'node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep'))
+
+  fs.writeFileSync(
+    path.join(rootDependencyDir, 'package-map-smoke.cjs'),
+    `
+const dep = require('@pnpm.e2e/dep-of-pkg-with-1-dep')()
+if (dep.name !== '@pnpm.e2e/dep-of-pkg-with-1-dep') {
+  throw new Error(\`unexpected dependency name: \${dep.name}\`)
+}
+if (!dep.version.startsWith('100.')) {
+  throw new Error(\`unexpected dependency version: \${dep.version}\`)
+}
+`,
+    'utf8'
+  )
+
+  await execa('node', [
+    `--experimental-package-map=${path.resolve('node_modules/.package-map.json')}`,
+    path.join(rootDependencyDir, 'package-map-smoke.cjs'),
+  ])
+
+  expect(dependencyId).toMatch(/^@pnpm\.e2e\/dep-of-pkg-with-1-dep@100\./)
+})
+
+testOnNode27Plus('hoisted package map can resolve package dependencies at runtime with Node.js', async () => {
+  prepareEmpty()
+
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({
+    fastUnpack: false,
+    nodeLinker: 'hoisted',
+  }))
+
+  const packageMap = JSON.parse(fs.readFileSync(path.resolve('node_modules/.package-map.json'), 'utf8'))
+  const rootDependencyId = packageMap.packages['.'].dependencies['@pnpm.e2e/pkg-with-1-dep']
+  const rootDependencyDir = path.resolve('node_modules', packageMap.packages[rootDependencyId].url)
+  const dependencyId = packageMap.packages[rootDependencyId].dependencies['@pnpm.e2e/dep-of-pkg-with-1-dep']
+
+  fs.writeFileSync(
+    path.join(rootDependencyDir, 'package-map-smoke.cjs'),
+    `
+const dep = require('@pnpm.e2e/dep-of-pkg-with-1-dep')()
+if (dep.name !== '@pnpm.e2e/dep-of-pkg-with-1-dep') {
+  throw new Error(\`unexpected dependency name: \${dep.name}\`)
+}
+if (!dep.version.startsWith('100.')) {
+  throw new Error(\`unexpected dependency version: \${dep.version}\`)
+}
+`,
+    'utf8'
+  )
+
+  await execa('node', [
+    `--experimental-package-map=${path.resolve('node_modules/.package-map.json')}`,
+    path.join(rootDependencyDir, 'package-map-smoke.cjs'),
+  ])
+
+  expect(dependencyId).toMatch(/^@pnpm\.e2e\/dep-of-pkg-with-1-dep/)
+})
+
+testOnNode27Plus('hoisted package map blocks undeclared hoisted dependencies at runtime with Node.js', async () => {
+  prepareEmpty()
+
+  await addDependenciesToPackage({}, [
+    '@pnpm.e2e/foo@100.0.0',
+    '@pnpm.e2e/pkg-with-1-dep@100.0.0',
+  ], testDefaults({
+    fastUnpack: false,
+    nodeLinker: 'hoisted',
+  }))
+
+  const packageMap = JSON.parse(fs.readFileSync(path.resolve('node_modules/.package-map.json'), 'utf8'))
+  const rootDependencyId = packageMap.packages['.'].dependencies['@pnpm.e2e/pkg-with-1-dep']
+  const rootDependencyDir = path.resolve('node_modules', packageMap.packages[rootDependencyId].url)
+  expect(packageMap.packages[rootDependencyId].dependencies['@pnpm.e2e/foo']).toBeUndefined()
+
+  const smokeFile = path.join(rootDependencyDir, 'package-map-undeclared-smoke.cjs')
+  fs.writeFileSync(
+    smokeFile,
+    `
+require('@pnpm.e2e/foo/package.json')
+`,
+    'utf8'
+  )
+
+  await execa('node', [smokeFile])
+  await expect(execa('node', [
+    `--experimental-package-map=${path.resolve('node_modules/.package-map.json')}`,
+    smokeFile,
+  ])).rejects.toMatchObject({
+    exitCode: 1,
+    stderr: expect.stringContaining('MODULE_NOT_FOUND'),
+  })
+})
+
+testOnNode27Plus('loose hoisted package map allows undeclared hoisted dependencies at runtime with Node.js', async () => {
+  prepareEmpty()
+
+  await addDependenciesToPackage({}, [
+    '@pnpm.e2e/foo@100.0.0',
+    '@pnpm.e2e/pkg-with-1-dep@100.0.0',
+  ], testDefaults({
+    fastUnpack: false,
+    nodeLinker: 'hoisted',
+    nodePackageMapType: 'loose',
+  }))
+
+  const packageMap = JSON.parse(fs.readFileSync(path.resolve('node_modules/.package-map.json'), 'utf8'))
+  const rootDependencyId = packageMap.packages['.'].dependencies['@pnpm.e2e/pkg-with-1-dep']
+  const rootDependencyDir = path.resolve('node_modules', packageMap.packages[rootDependencyId].url)
+  expect(packageMap.packages[rootDependencyId].dependencies['@pnpm.e2e/foo']).toBe('@pnpm.e2e/foo')
+
+  const smokeFile = path.join(rootDependencyDir, 'package-map-loose-smoke.cjs')
+  fs.writeFileSync(
+    smokeFile,
+    `
+const foo = require('@pnpm.e2e/foo/package.json')
+if (foo.name !== '@pnpm.e2e/foo') {
+  throw new Error(\`unexpected package name: \${foo.name}\`)
+}
+`,
+    'utf8'
+  )
+
+  await execa('node', [
+    `--experimental-package-map=${path.resolve('node_modules/.package-map.json')}`,
+    smokeFile,
+  ])
+})
+
+test('no dependencies (lodash)', async () => {
+  const project = prepareEmpty()
+  const reporter = jest.fn()
+
+  await addDistTag({ package: 'lodash', version: '4.1.0', distTag: 'latest' })
+
+  await addDependenciesToPackage(
+    {
+      name: 'project',
+      version: '0.0.0',
+    },
+    ['lodash@4.0.0'],
+    testDefaults({ fastUnpack: false, reporter })
+  )
+
+  const manifestMatcher = expect.objectContaining({
+    initial: { name: 'project', version: '0.0.0' },
+    level: 'debug',
+    name: 'pnpm:package-manifest',
+  })
+  expect(reporter.mock.calls.filter(([arg]) => manifestMatcher.asymmetricMatch(arg))).toHaveLength(1)
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    level: 'debug',
+    name: 'pnpm:stage',
+    prefix: process.cwd(),
+    stage: 'resolution_started',
+  }))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    level: 'debug',
+    name: 'pnpm:stage',
+    prefix: process.cwd(),
+    stage: 'resolution_done',
+  }))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    level: 'debug',
+    name: 'pnpm:stage',
+    prefix: process.cwd(),
+    stage: 'importing_started',
+  }))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    level: 'debug',
+    name: 'pnpm:stage',
+    prefix: process.cwd(),
+    stage: 'importing_done',
+  }))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    added: 1,
+    level: 'debug',
+    name: 'pnpm:stats',
+    prefix: process.cwd(),
+  }))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    level: 'debug',
+    name: 'pnpm:stats',
+    prefix: process.cwd(),
+    removed: 0,
+  }))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    added: expect.objectContaining({
+      dependencyType: 'prod',
+      latest: '4.1.0',
+      name: 'lodash',
+      realName: 'lodash',
+      version: '4.0.0',
+    }),
+    level: 'debug',
+    name: 'pnpm:root',
+    prefix: process.cwd(),
+  }))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    level: 'debug',
+    name: 'pnpm:package-manifest',
+    updated: {
+      dependencies: {
+        lodash: '4.0.0',
+      },
+      name: 'project',
+      version: '0.0.0',
+    } as ProjectManifest,
+  }))
+
+  const m = project.requireModule('lodash')
+  expect(typeof m).toBe('function')
+  expect(typeof m.clone).toBe('function')
+})
+
+test('only the new packages are added', async () => {
+  prepareEmpty()
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm/x'], testDefaults())
+  const reporter = jest.fn()
+  await addDependenciesToPackage(manifest, ['@pnpm/y'], testDefaults({ reporter }))
+
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    added: 1,
+    level: 'debug',
+    name: 'pnpm:stats',
+  }))
+})
+
+test('scoped modules without version spec', async () => {
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, ['@zkochan/foo'], testDefaults())
+
+  project.has('@zkochan/foo')
+})
+
+test('scoped package with custom registry', async () => {
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage({}, ['@scoped/peer'], testDefaults({
+    // setting an incorrect default registry URL
+    authConfig: {
+      '@scoped:registry': `http://localhost:${REGISTRY_MOCK_PORT}/`,
+    },
+    registry: 'http://localhost:9999/',
+  }))
+
+  const m = project.requireModule('@scoped/peer/package.json')
+  expect(m).toBeTruthy()
+})
+
+test('modules without version spec, with custom tag config', async () => {
+  const project = prepareEmpty()
+
+  const tag = 'beta'
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: tag })
+
+  await addDependenciesToPackage({}, ['@pnpm.e2e/dep-of-pkg-with-1-dep'], testDefaults({ tag }))
+
+  project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
+})
+
+test('modules without version spec but with a trailing @', async () => {
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage({}, ['@pnpm.e2e/dep-of-pkg-with-1-dep@'], testDefaults())
+
+  project.has('@pnpm.e2e/dep-of-pkg-with-1-dep')
+})
+
+test('aliased modules without version spec but with a trailing @', async () => {
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage({}, ['foo@npm:@pnpm.e2e/dep-of-pkg-with-1-dep@'], testDefaults())
+
+  project.has('foo')
+})
+
+test('installing a package by specifying a specific dist-tag', async () => {
+  const project = prepareEmpty()
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'beta' })
+
+  await addDependenciesToPackage({}, ['@pnpm.e2e/dep-of-pkg-with-1-dep@beta'], testDefaults())
+
+  project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
+})
+
+test('update a package when installing with a dist-tag', async () => {
+  const project = prepareEmpty()
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'beta' })
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/dep-of-pkg-with-1-dep'], testDefaults({ targetDependenciesField: 'devDependencies' }))
+
+  const reporter = jest.fn()
+
+  await addDependenciesToPackage(manifest, ['@pnpm.e2e/dep-of-pkg-with-1-dep@beta'], testDefaults({ targetDependenciesField: 'devDependencies', reporter }))
+
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    level: 'debug',
+    name: 'pnpm:root',
+    removed: expect.objectContaining({
+      dependencyType: 'dev',
+      name: '@pnpm.e2e/dep-of-pkg-with-1-dep',
+      version: '100.0.0',
+    }),
+  }))
+
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    added: expect.objectContaining({
+      dependencyType: 'dev',
+      name: '@pnpm.e2e/dep-of-pkg-with-1-dep',
+      version: '100.1.0',
+    }),
+    level: 'debug',
+    name: 'pnpm:root',
+  }))
+
+  project.has('@pnpm.e2e/dep-of-pkg-with-1-dep')
+  project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0')
+
+  expect(manifest.devDependencies!['@pnpm.e2e/dep-of-pkg-with-1-dep']).toBe('^100.1.0')
+})
+
+test('scoped modules with versions', async () => {
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, ['@zkochan/foo@1.0.0'], testDefaults({ fastUnpack: false }))
+
+  project.has('@zkochan/foo')
+})
+
+test('multiple scoped modules (@rstacruz/...)', async () => {
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, ['@rstacruz/tap-spec@4.1.1', '@rstacruz/travis-encrypt@1.1.1'], testDefaults({ fastUnpack: false }))
+
+  expect(typeof project.requireModule('@rstacruz/tap-spec')).toBe('function')
+  expect(typeof project.requireModule('@rstacruz/travis-encrypt')).toBe('function')
+})
+
+test('installing a beta version of a package', async () => {
+  prepareEmpty()
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/beta-version'], testDefaults())
+
+  expect(manifest.dependencies?.['@pnpm.e2e/beta-version']).toBe('1.0.0-beta.0')
+})
+
+test('nested scoped modules (test-pnpm-issue219 -> @zkochan/test-pnpm-issue219)', async () => {
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, ['@pnpm.e2e/test-pnpm-issue219@1.0.3'], testDefaults({ fastUnpack: false }))
+
+  const m = project.requireModule('@pnpm.e2e/test-pnpm-issue219')
+  expect(m).toBe('test-pnpm-issue219,@zkochan/test-pnpm-issue219')
+})
+
+test('idempotency', async () => {
+  const project = prepareEmpty()
+  const reporter = jest.fn()
+  const opts = testDefaults({ reporter })
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], opts)
+
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    added: expect.objectContaining({
+      dependencyType: 'prod',
+      name: '@pnpm.e2e/pkg-with-1-dep',
+      version: '100.0.0',
+    }),
+    level: 'debug',
+    name: 'pnpm:root',
+  }))
+
+  reporter.mockClear()
+
+  await addDependenciesToPackage(manifest, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], opts)
+
+  expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining({
+    added: expect.objectContaining({
+      dependencyType: 'prod',
+      name: '@pnpm.e2e/pkg-with-1-dep',
+      version: '100.0.0',
+    }),
+    level: 'debug',
+    name: 'pnpm:root',
+  }))
+
+  project.has('@pnpm.e2e/pkg-with-1-dep')
+})
+
+test('reporting adding root package', async () => {
+  const project = prepareEmpty()
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], testDefaults())
+
+  project.storeHas('flatten', '1.0.2')
+
+  const reporter = jest.fn()
+
+  await addDependenciesToPackage(manifest, ['flatten@1.0.2'], testDefaults({ reporter }))
+
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    added: expect.objectContaining({
+      dependencyType: 'prod',
+      name: 'flatten',
+      version: '1.0.2',
+    }),
+    level: 'debug',
+    name: 'pnpm:root',
+  }))
+})
+
+test('overwriting (magic-hook@2.0.0 and @0.1.0)', async () => {
+  const project = prepareEmpty()
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], testDefaults())
+
+  project.storeHas('flatten', '1.0.2')
+
+  await addDependenciesToPackage(manifest, ['magic-hook@0.1.0'], testDefaults())
+
+  // flatten is not removed from store even though it is unreferenced
+  // store should be pruned to have this removed
+  project.storeHas('flatten', '1.0.2')
+
+  const m = project.requireModule('magic-hook/package.json')
+  expect(m.version).toBe('0.1.0')
+})
+
+test('overwriting (is-positive@3.0.0 with is-positive@latest)', async () => {
+  await addDistTag({ package: 'is-positive', version: '3.1.0', distTag: 'latest' })
+  const project = prepareEmpty()
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-positive@3.0.0'], testDefaults({ save: true }))
+  expect(manifest.dependencies?.['is-positive']).toBe('3.0.0')
+
+  project.storeHas('is-positive', '3.0.0')
+
+  const { updatedManifest } = await addDependenciesToPackage(manifest, ['is-positive@latest'], testDefaults({ save: true }))
+
+  project.storeHas('is-positive', '3.1.0')
+  expect(updatedManifest.dependencies?.['is-positive']).toBe('3.1.0')
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/2188
+test('keeping existing specs untouched when adding new dependency', async () => {
+  prepareEmpty()
+
+  await addDistTag({ package: '@pnpm.e2e/bar', version: '100.1.0', distTag: 'latest' })
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({ dependencies: { '@pnpm.e2e/bar': '^100.0.0' } }, ['@pnpm.e2e/foo@100.1.0'], testDefaults())
+
+  expect(manifest.dependencies).toStrictEqual({ '@pnpm.e2e/bar': '^100.0.0', '@pnpm.e2e/foo': '100.1.0' })
+})
+
+test('forcing', async () => {
+  prepareEmpty()
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], testDefaults({ fastUnpack: false }))
+
+  const distPath = path.resolve('node_modules', 'magic-hook', 'dist')
+  rimrafSync(distPath)
+
+  await addDependenciesToPackage(manifest, ['magic-hook@2.0.0'], testDefaults({ fastUnpack: false, force: true }))
+
+  const distPathExists = fs.existsSync(distPath)
+  expect(distPathExists).toBeTruthy()
+})
+
+test('argumentless forcing', async () => {
+  prepareEmpty()
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], testDefaults({ fastUnpack: false }))
+
+  const distPath = path.resolve('node_modules', 'magic-hook', 'dist')
+  rimrafSync(distPath)
+
+  await install(manifest, testDefaults({ fastUnpack: false, force: true }))
+
+  const distPathExists = fs.existsSync(distPath)
+  expect(distPathExists).toBeTruthy()
+})
+
+test('no forcing', async () => {
+  prepareEmpty()
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], testDefaults())
+
+  const distPath = path.resolve('node_modules', 'magic-hook', 'dist')
+  rimrafSync(distPath)
+
+  await addDependenciesToPackage(manifest, ['magic-hook@2.0.0'], testDefaults())
+
+  const distPathExists = fs.existsSync(distPath)
+  expect(distPathExists).toBeFalsy()
+})
+
+test('refetch package to store if it has been modified', async () => {
+  const project = prepareEmpty()
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], testDefaults({ fastUnpack: false }))
+
+  const distPathInStore = project.resolve('magic-hook', '2.0.0', 'dist')
+  rimrafSync(distPathInStore)
+  rimrafSync('node_modules')
+  const distPath = path.resolve('node_modules', 'magic-hook', 'dist')
+
+  await addDependenciesToPackage(manifest, ['magic-hook@2.0.0'], testDefaults({ fastUnpack: false }))
+
+  const distPathExists = fs.existsSync(distPath)
+  expect(distPathExists).toBeTruthy()
+})
+
+// TODO: decide what to do with this case
+test.skip('relink package to project if the dependency is not linked from store', async () => {
+  prepareEmpty()
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['magic-hook@2.0.0'], testDefaults({ save: true, pinnedVersion: 'patch' }))
+
+  const pkgJsonPath = path.resolve('node_modules', 'magic-hook', 'package.json')
+
+  function getInode () {
+    return fs.statSync(pkgJsonPath).ino
+  }
+
+  const storeInode = getInode()
+
+  // rewriting package.json, to destroy the link
+  const pkgJson = fs.readFileSync(pkgJsonPath, 'utf8')
+  rimrafSync(pkgJsonPath)
+  fs.writeFileSync(pkgJsonPath, pkgJson, 'utf8')
+
+  expect(storeInode).not.toEqual(getInode())
+
+  await install(manifest, testDefaults({ repeatInstallDepth: 0 }))
+
+  expect(storeInode).toEqual(getInode())
+})
+
+test('circular deps', async () => {
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, ['@pnpm.e2e/circular-deps-1-of-2'], testDefaults({ fastUnpack: false }))
+
+  const m = project.requireModule('@pnpm.e2e/circular-deps-1-of-2/mirror')
+
+  expect(m()).toBe('@pnpm.e2e/circular-deps-1-of-2')
+
+  expect(fs.existsSync(path.join('node_modules', '@pnpm.e2e/circular-deps-1-of-2', 'node_modules', '@pnpm.e2e/circular-deps-2-of-2', 'node_modules', '@pnpm.e2e/circular-deps-1-of-2'))).toBeFalsy()
+})
+
+test('concurrent circular deps', async () => {
+  // es5-ext is an external package from the registry
+  // the latest dist-tag is overridden to have a stable test
+  await addDistTag({ package: 'es5-ext', version: '0.10.31', distTag: 'latest' })
+  await addDistTag({ package: 'es6-iterator', version: '2.0.1', distTag: 'latest' })
+
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, ['es6-iterator@2.0.0'], testDefaults({ fastUnpack: false }))
+
+  const m = project.requireModule('es6-iterator')
+
+  expect(m).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/es6-iterator@2.0.0/node_modules/es5-ext'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/es6-iterator@2.0.1/node_modules/es5-ext'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/es5-ext@0.10.31/node_modules/es6-iterator'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/es5-ext@0.10.31/node_modules/es6-symbol'))).toBeTruthy()
+})
+
+test('concurrent installation of the same packages', async () => {
+  const project = prepareEmpty()
+
+  // the same version of core-js is required by two different dependencies
+  // of babek-core
+  await addDependenciesToPackage({}, ['babel-core@6.21.0'], testDefaults({ fastUnpack: false }))
+
+  const m = project.requireModule('babel-core')
+
+  expect(m).toBeTruthy()
+})
+
+test('big with dependencies and circular deps (babel-preset-2015)', async () => {
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, ['babel-preset-es2015@6.3.13'], testDefaults({ fastUnpack: false }))
+
+  const m = project.requireModule('babel-preset-es2015')
+  expect(typeof m).toBe('object')
+})
+
+test('compiled modules (ursa@0.9.1)', async () => {
+  // TODO: fix this for Node.js v7
+  if (!isCI || IS_WINDOWS || semver.satisfies(process.version, '>=7.0.0')) {
+    console.log('runs only on CI')
+    return
+  }
+
+  const project = prepareEmpty()
+  await addDependenciesToPackage({}, ['ursa@0.9.1'], testDefaults())
+
+  const m = project.requireModule('ursa')
+  expect(typeof m).toBe('object')
+})
+
+test('bin specified in the directories property linked to .bin folder', async () => {
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-directories-bin'], testDefaults({ fastUnpack: false }))
+
+  project.isExecutable('.bin/pkg-with-directories-bin')
+})
+
+test('bin specified in the directories property symlinked to .bin folder when prefer-symlinked-executables is true on POSIX', async () => {
+  const project = prepareEmpty()
+
+  const opts = testDefaults({ fastUnpack: false, preferSymlinkedExecutables: true })
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-directories-bin'], opts)
+
+  project.isExecutable('.bin/pkg-with-directories-bin')
+
+  if (!isWindows()) {
+    const link = fs.readlinkSync('node_modules/.bin/pkg-with-directories-bin')
+    expect(link).toBeTruthy()
+  }
+})
+
+testOnNonWindows('building native addons', async () => {
+  prepareEmpty()
+
+  await addDependenciesToPackage({}, ['diskusage@1.1.3'], testDefaults({ fastUnpack: false, allowBuilds: { diskusage: true } }))
+
+  expect(fs.existsSync('node_modules/diskusage/build')).toBeTruthy()
+})
+
+test('should update subdep on second install', async () => {
+  const project = prepareEmpty()
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], testDefaults({ save: true }))
+
+  project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
+
+  let lockfile = project.readLockfile()
+
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+
+  const reporter = jest.fn()
+
+  await install(manifest, testDefaults({ depth: 1, update: true, reporter }))
+
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    added: 1,
+    level: 'debug',
+    name: 'pnpm:stats',
+    prefix: process.cwd(),
+  }))
+
+  project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0')
+
+  lockfile = project.readLockfile()
+
+  expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+
+  expect(deepRequireCwd(['@pnpm.e2e/pkg-with-1-dep', '@pnpm.e2e/dep-of-pkg-with-1-dep', './package.json']).version).toBe('100.1.0')
+})
+
+test('should not update subdep when depth is smaller than depth of package', async () => {
+  const project = prepareEmpty()
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], testDefaults({ save: true }))
+
+  project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
+
+  let lockfile = project.readLockfile()
+
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+
+  await install(manifest, testDefaults({ depth: 0, update: true }))
+
+  project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
+
+  lockfile = project.readLockfile()
+
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0'])
+  expect(lockfile.packages).not.toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+
+  expect(deepRequireCwd(['@pnpm.e2e/pkg-with-1-dep', '@pnpm.e2e/dep-of-pkg-with-1-dep', './package.json']).version).toBe('100.0.0')
+})
+
+test('should install dependency in second project', async () => {
+  const project1 = prepareEmpty()
+
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], testDefaults({ fastUnpack: false, save: true, store: '../store' }))
+  expect(project1.requireModule('@pnpm.e2e/pkg-with-1-dep')().name).toBe('@pnpm.e2e/dep-of-pkg-with-1-dep')
+
+  const project2 = prepareEmpty()
+
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], testDefaults({ fastUnpack: false, save: true, store: '../store' }))
+
+  expect(project2.requireModule('@pnpm.e2e/pkg-with-1-dep')().name).toBe('@pnpm.e2e/dep-of-pkg-with-1-dep')
+})
+
+test('should throw error when trying to install using a different store then the previous one', async () => {
+  prepareEmpty()
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-positive'], testDefaults({ storeDir: 'node_modules/.store1' }))
+
+  await expect(
+    addDependenciesToPackage(manifest, ['is-negative'], testDefaults({ storeDir: 'node_modules/.store2' }))
+  ).rejects.toThrow(new UnexpectedStoreError({
+    expectedStorePath: '',
+    actualStorePath: '',
+    modulesDir: '',
+  }))
+})
+
+test('ignores drive case in store path', async () => {
+  if (!isWindows()) return
+
+  prepareEmpty()
+
+  // paths are case-insensitive on windows, so we will test with an upper and lower-case store
+  const storePathUpper: string = path.resolve('node_modules/.store1').toUpperCase()
+  const storePathLower: string = storePathUpper.toLowerCase()
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage(
+    {},
+    ['rimraf@2.5.1'],
+    testDefaults({ storeDir: storePathUpper }, null, null, { ignoreFile: () => {} }) // eslint-disable-line:no-empty
+  )
+  await addDependenciesToPackage(manifest, ['is-negative'], testDefaults({ storeDir: storePathLower }))
+})
+
+test('should not throw error if using a different store after all the packages were uninstalled', async () => {
+  // TODO: implement
+})
+
+test('should throw error when trying to install using a different virtual store directory then the previous one', async () => {
+  prepareEmpty()
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-positive'], testDefaults({ virtualStoreDir: 'pkgs' }))
+
+  await expect(
+    addDependenciesToPackage(manifest, ['is-negative'], testDefaults({ virtualStoreDir: 'pnpm' }))
+  ).rejects.toThrow(new UnexpectedVirtualStoreDirError({
+    actual: '',
+    expected: '',
+    modulesDir: '',
+  }))
+})
+
+test('lockfile locks npm dependencies', async () => {
+  const project = prepareEmpty()
+  const reporter = jest.fn()
+
+  await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep'], testDefaults({ save: true, reporter }))
+
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    level: 'debug',
+    name: 'pnpm:progress',
+    packageId: '@pnpm.e2e/pkg-with-1-dep@100.0.0',
+    requester: process.cwd(),
+    status: 'resolved',
+  }))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    level: 'debug',
+    packageId: '@pnpm.e2e/pkg-with-1-dep@100.0.0',
+    requester: process.cwd(),
+    status: 'fetched',
+  }))
+
+  project.storeHas('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.0.0')
+
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+
+  rimrafSync('node_modules')
+
+  reporter.mockClear()
+  await install(manifest, testDefaults({ reporter }))
+
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    level: 'debug',
+    packageId: '@pnpm.e2e/pkg-with-1-dep@100.0.0',
+    requester: process.cwd(),
+    status: 'resolved',
+  }))
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    level: 'debug',
+    packageId: '@pnpm.e2e/pkg-with-1-dep@100.0.0',
+    requester: process.cwd(),
+    status: 'found_in_store',
+  }))
+
+  const m = project.requireModule('.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json')
+
+  expect(m.version).toBe('100.0.0')
+})
+
+test('self-require should work', async () => {
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage({}, ['@pnpm.e2e/uses-pkg-with-self-usage'], testDefaults({ fastUnpack: false }))
+
+  expect(project.requireModule('@pnpm.e2e/uses-pkg-with-self-usage')).toBeTruthy()
+})
+
+test('install on project with lockfile and no node_modules', async () => {
+  const project = prepareEmpty()
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-negative'], testDefaults())
+
+  rimrafSync('node_modules')
+
+  await addDependenciesToPackage(manifest, ['is-positive'], testDefaults())
+
+  project.has('is-positive') // installed new dependency
+
+  // We have to install all other direct dependencies in case they resolve some peers
+  project.has('is-negative')
+})
+
+test('install a dependency with * range', async () => {
+  const project = prepareEmpty()
+  const reporter = jest.fn()
+
+  await install({
+    dependencies: {
+      '@pnpm.e2e/has-beta-only': '*',
+    },
+  }, testDefaults({ reporter }))
+
+  project.has('@pnpm.e2e/has-beta-only')
+
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    level: 'debug',
+    name: 'pnpm:package-manifest',
+    updated: {
+      dependencies: {
+        '@pnpm.e2e/has-beta-only': '*',
+      },
+    } as ProjectManifest,
+  }))
+})
+
+test('should throw error when trying to install a package without name', async () => {
+  prepareEmpty()
+  await expect(
+    addDependenciesToPackage({}, [`file:${f.find('missing-pkg-name.tgz')}`], testDefaults())
+  ).rejects.toThrow(/^Can't install .*: Missing package name$/)
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/1193
+test('rewrites node_modules created by npm', async () => {
+  const project = prepare()
+
+  await execa('npm', ['install', 'rimraf@2.5.1', '@types/node', '--save'])
+
+  const { updatedManifest: manifest } = await install({}, testDefaults())
+
+  const m = project.requireModule('rimraf')
+  expect(typeof m).toBe('function')
+  project.isExecutable('.bin/rimraf')
+
+  await execa('npm', ['install', '-f', 'rimraf@2.5.1', '@types/node', '--save'])
+
+  await install(manifest, testDefaults())
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/1685
+// also, there's a better version of this test (with the same name) in the pnpm package
+// TODO: move this test to @pnpm/store.controller
+test("don't fail on case insensitive filesystems when package has 2 files with same name", async () => {
+  const project = prepareEmpty()
+  const reporter = jest.fn()
+
+  const opts = testDefaults({ reporter })
+  await addDependenciesToPackage({}, ['@pnpm.e2e/with-same-file-in-different-cases'], opts)
+
+  project.has('@pnpm.e2e/with-same-file-in-different-cases')
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/1134
+test('reinstalls missing packages to node_modules', async () => {
+  const project = prepareEmpty()
+  const reporter = jest.fn()
+  const depLocation = path.resolve('node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive')
+  const missingDepLog = {
+    level: 'debug',
+    missing: depLocation,
+    name: 'pnpm:_broken_node_modules',
+  }
+
+  const opts = testDefaults({ fastUnpack: false, reporter })
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-positive@1.0.0'], opts)
+
+  expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining(missingDepLog))
+
+  rimrafSync('pnpm-lock.yaml')
+  rimrafSync('node_modules/is-positive')
+  rimrafSync(depLocation)
+
+  project.hasNot('is-positive')
+
+  reporter.mockClear()
+
+  await install(manifest, opts)
+
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining(missingDepLog))
+  project.has('is-positive')
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/1134
+test('reinstalls missing packages to node_modules during headless install', async () => {
+  const project = prepareEmpty()
+  const reporter = jest.fn()
+  const depLocation = path.resolve('node_modules/.pnpm/is-positive@1.0.0/node_modules/is-positive')
+  const missingDepLog = {
+    level: 'debug',
+    missing: depLocation,
+    name: 'pnpm:_broken_node_modules',
+  }
+
+  const opts = testDefaults({ fastUnpack: false, reporter })
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-positive@1.0.0'], opts)
+
+  expect(reporter).not.toHaveBeenCalledWith(expect.objectContaining(missingDepLog))
+
+  rimrafSync('node_modules/is-positive')
+  rimrafSync(depLocation)
+
+  project.hasNot('is-positive')
+
+  reporter.mockClear()
+
+  await install(manifest, opts)
+
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining(missingDepLog))
+  project.has('is-positive')
+})
+
+test('do not update deps when lockfile is present', async () => {
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.0', distTag: 'latest' })
+  const project = prepareEmpty()
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/peer-a'], testDefaults({ lockfileOnly: true }))
+
+  const initialLockfile = project.readLockfile()
+
+  await addDistTag({ package: '@pnpm.e2e/peer-a', version: '1.0.1', distTag: 'latest' })
+
+  await mutateModulesInSingleProject({
+    manifest,
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({ preferFrozenLockfile: false }))
+
+  const latestLockfile = project.readLockfile()
+
+  expect(initialLockfile).toStrictEqual(latestLockfile)
+})
+
+test('all the subdeps of dependencies are linked when a node_modules is partially up to date', async () => {
+  prepareEmpty()
+
+  await mutateModulesInSingleProject({
+    manifest: {
+      dependencies: {
+        '@pnpm.e2e/foobarqar': '1.0.0',
+      },
+    },
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults())
+
+  writeYamlFileSync(path.resolve('pnpm-lock.yaml'), {
+    dependencies: {
+      '@pnpm.e2e/foobarqar': {
+        specifier: '1.0.1',
+        version: '1.0.1',
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      '@pnpm.e2e/bar@100.0.0': {
+        resolution: {
+          integrity: getIntegrity('@pnpm.e2e/bar', '100.0.0'),
+        },
+      },
+      '@pnpm.e2e/foo@100.1.0': {
+        resolution: {
+          integrity: getIntegrity('@pnpm.e2e/foo', '100.1.0'),
+        },
+      },
+      '@pnpm.e2e/foobarqar@1.0.1': {
+        dependencies: {
+          '@pnpm.e2e/bar': '100.0.0',
+          '@pnpm.e2e/foo': '100.1.0',
+          'is-positive': '3.1.0',
+        },
+        resolution: {
+          integrity: getIntegrity('@pnpm.e2e/foobarqar', '1.0.1'),
+        },
+      },
+      'is-positive@3.1.0': {
+        engines: {
+          node: '>=0.10.0',
+        },
+        resolution: {
+          integrity: 'sha512-8ND1j3y9/HP94TOvGzr69/FgbkX2ruOldhLEsTWwcJVfo4oRjwemJmJxt7RJkKYH8tz7vYBP9JcKQY8CLuJ90Q==',
+        },
+      },
+    },
+  }, { lineWidth: 1000 })
+
+  await mutateModulesInSingleProject({
+    manifest: {
+      dependencies: {
+        '@pnpm.e2e/foobarqar': '1.0.1',
+      },
+    },
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({ preferFrozenLockfile: false }))
+
+  expect(
+    [...fs.readdirSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+foobarqar@1.0.1/node_modules/@pnpm.e2e'))].sort()
+  ).toStrictEqual(
+    [
+      'bar',
+      'foo',
+      'foobarqar',
+      'qar',
+    ].sort()
+  )
+})
+
+test('subdep symlinks are updated if the lockfile has new subdep versions specified', async () => {
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+  const project = prepareEmpty()
+
+  await mutateModulesInSingleProject({
+    manifest: {
+      dependencies: {
+        '@pnpm.e2e/parent-of-pkg-with-1-dep': '1.0.0',
+      },
+    },
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults())
+
+  const lockfile = project.readLockfile()
+
+  expect(
+    Object.keys(lockfile.packages)
+  ).toStrictEqual(
+    [
+      '@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0',
+      '@pnpm.e2e/parent-of-pkg-with-1-dep@1.0.0',
+      '@pnpm.e2e/pkg-with-1-dep@100.0.0',
+    ]
+  )
+
+  writeYamlFileSync(path.resolve('pnpm-lock.yaml'), {
+    dependencies: {
+      '@pnpm.e2e/parent-of-pkg-with-1-dep': {
+        specifier: '1.0.0',
+        version: '1.0.0',
+      },
+    },
+    lockfileVersion: LOCKFILE_VERSION,
+    packages: {
+      '@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0': {
+        resolution: {
+          integrity: getIntegrity('@pnpm.e2e/dep-of-pkg-with-1-dep', '100.1.0'),
+        },
+      },
+      '@pnpm.e2e/parent-of-pkg-with-1-dep@1.0.0': {
+        dependencies: {
+          '@pnpm.e2e/pkg-with-1-dep': '100.0.0',
+        },
+        resolution: {
+          integrity: getIntegrity('@pnpm.e2e/parent-of-pkg-with-1-dep', '1.0.0'),
+        },
+      },
+      '@pnpm.e2e/pkg-with-1-dep@100.0.0': {
+        dependencies: {
+          '@pnpm.e2e/dep-of-pkg-with-1-dep': '100.1.0',
+        },
+        resolution: {
+          integrity: getIntegrity('@pnpm.e2e/pkg-with-1-dep', '100.0.0'),
+        },
+      },
+    },
+  }, { lineWidth: 1000 })
+
+  await mutateModulesInSingleProject({
+    manifest: {
+      dependencies: {
+        '@pnpm.e2e/parent-of-pkg-with-1-dep': '1.0.0',
+      },
+    },
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({ preferFrozenLockfile: false }))
+
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+pkg-with-1-dep@100.0.0/node_modules/@pnpm.e2e/dep-of-pkg-with-1-dep/package.json'))).toBeTruthy()
+})
+
+test('globally installed package which don\'t have bins should log warning message', async () => {
+  prepareEmpty()
+  const reporter = jest.fn()
+
+  const opts = testDefaults({ global: true, reporter })
+
+  await mutateModulesInSingleProject({
+    manifest: {
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    mutation: 'install',
+    rootDir: process.cwd() as ProjectRootDir,
+  }, opts)
+
+  expect(reporter).toHaveBeenCalledWith(expect.objectContaining({
+    message: 'is-positive has no binaries',
+    prefix: process.cwd(),
+  }))
+})
+
+// Covers issue: https://github.com/pnpm/pnpm/issues/2629
+test('installing a package that has a manifest with byte order mark (BOM)', async () => {
+  const project = prepareEmpty()
+
+  await install({
+    dependencies: {
+      paralleljs: '0.2.1',
+    },
+  }, testDefaults())
+
+  project.has('paralleljs')
+})
+
+test('ignore files in node_modules', async () => {
+  const project = prepareEmpty()
+  const reporter = jest.fn()
+
+  fs.mkdirSync('node_modules')
+  fs.writeFileSync('node_modules/foo', 'x', 'utf8')
+
+  await addDependenciesToPackage(
+    {
+      name: 'project',
+      version: '0.0.0',
+    },
+    ['lodash@4.0.0'],
+    testDefaults({ fastUnpack: false, reporter })
+  )
+
+  const m = project.requireModule('lodash')
+  expect(typeof m).toBe('function')
+  expect(typeof m.clone).toBe('function')
+  expect(fs.readFileSync('node_modules/foo', 'utf8')).toBe('x')
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/2339
+test('memory consumption is under control on huge package with many peer dependencies. Sample 1', async () => {
+  prepareEmpty()
+
+  await addDependenciesToPackage(
+    {
+      name: 'project',
+      version: '0.0.0',
+    },
+    ['@teambit/bit@0.0.30'],
+    testDefaults({ fastUnpack: true, lockfileOnly: true, strictPeerDependencies: false })
+  )
+
+  expect(fs.existsSync('pnpm-lock.yaml')).toBeTruthy()
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/2339
+test('memory consumption is under control on huge package with many peer dependencies. Sample 2', async () => {
+  prepareEmpty()
+
+  await addDependenciesToPackage(
+    {
+      name: 'project',
+      version: '0.0.0',
+    },
+    ['@teambit/react@0.0.30'],
+    testDefaults({ fastUnpack: true, lockfileOnly: true, strictPeerDependencies: false })
+  )
+
+  expect(fs.existsSync('pnpm-lock.yaml')).toBeTruthy()
+})
+
+test('installing with no symlinks with PnP', async () => {
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage(
+    {
+      name: 'project',
+      version: '0.0.0',
+    },
+    ['rimraf@2.7.1'],
+    testDefaults({
+      enablePnp: true,
+      fastUnpack: false,
+      symlink: false,
+    })
+  )
+
+  expect([...fs.readdirSync(path.resolve('node_modules')).sort()]).toStrictEqual(['.bin', '.modules.yaml', '.package-map.json', '.pnpm'])
+  expect([...fs.readdirSync(path.resolve('node_modules/.pnpm/rimraf@2.7.1/node_modules'))]).toStrictEqual(['rimraf'])
+
+  expect(project.readCurrentLockfile()).toBeTruthy()
+  expect(project.readModulesManifest()).toBeTruthy()
+  expect(fs.existsSync(path.resolve('.pnp.cjs'))).toBeTruthy()
+})
+
+test('installing with no modules directory', async () => {
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage(
+    {
+      name: 'project',
+      version: '0.0.0',
+    },
+    ['rimraf@2.7.1'],
+    testDefaults({
+      enableModulesDir: false,
+      fastUnpack: false,
+    })
+  )
+
+  expect(project.readLockfile()).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules'))).toBeFalsy()
+})
+
+test('installing dependencies with the same name in different case', async () => {
+  preparePackages([
+    {
+      location: 'project-1',
+      package: { name: 'project-1' },
+    },
+  ])
+
+  await mutateModulesInSingleProject({
+    mutation: 'install',
+    manifest: {
+      dependencies: {
+        File: 'https://registry.npmjs.org/File/-/File-0.10.2.tgz',
+        file: 'https://registry.npmjs.org/file/-/file-0.2.2.tgz',
+      },
+    },
+    rootDir: path.resolve('project-1') as ProjectRootDir,
+  }, testDefaults({ fastUnpack: false }))
+
+  // if it did not fail, it is fine
+})
+
+test('two dependencies have the same version and name. The only difference is the casing in the name', async () => {
+  prepareEmpty()
+
+  await mutateModulesInSingleProject({
+    mutation: 'install',
+    manifest: {
+      dependencies: {
+        a: 'npm:JSONStream@1.0.3',
+        b: 'npm:jsonstream@1.0.3',
+      },
+    },
+    rootDir: process.cwd() as ProjectRootDir,
+  }, testDefaults({
+    fastUnpack: false,
+  }, {
+    registries: {
+      default: 'https://registry.npmjs.org/',
+    },
+  }))
+
+  expect(fs.readdirSync(path.resolve('node_modules/.pnpm'))).toHaveLength(5)
+})
+
+test('installing a package with broken bin', async () => {
+  const project = prepareEmpty()
+
+  await addDependenciesToPackage({}, ['@pnpm.e2e/broken-bin@1.0.0'], testDefaults({ fastUnpack: false }))
+
+  project.has('@pnpm.e2e/broken-bin')
+})
+
+test('a package should be able to be a dependency of itself', async () => {
+  const project = prepareEmpty()
+
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@paul-soporan/test-package-self-require-trap@2.0.0'], testDefaults())
+
+  const subpkg = '.pnpm/@paul-soporan+test-package-self-require-trap@2.0.0/node_modules/@paul-soporan/test-package-self-require-trap/node_modules/@paul-soporan/test-package-self-require-trap/package.json'
+  {
+    const pkg = project.requireModule(subpkg)
+    expect(pkg.version).toBe('1.0.0')
+  }
+
+  rimrafSync('node_modules')
+  await install(manifest, testDefaults({ frozenLockfile: true }))
+
+  {
+    const pkg = project.requireModule(subpkg)
+    expect(pkg.version).toBe('1.0.0')
+  }
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/8570
+test('install should not hang on circular peer dependencies', async () => {
+  prepareEmpty()
+
+  // cspell:disable-next-line
+  await addDependenciesToPackage({}, ['@medusajs/medusa-js@6.1.7'], testDefaults())
+})
+
+function makeAssertNoPackageMapNodeOptionsScript (marker: string): string {
+  const scriptPath = path.resolve('assert-no-package-map-node-options.cjs')
+  fs.writeFileSync(scriptPath, `
+const fs = require('node:fs')
+
+if ((process.env.NODE_OPTIONS || '').includes('--experimental-package-map')) {
+  throw new Error('unexpected package map NODE_OPTIONS')
+}
+fs.writeFileSync(process.argv[2], 'ok')
+`, 'utf8')
+  return `node ${JSON.stringify(scriptPath)} ${JSON.stringify(marker)}`
+}

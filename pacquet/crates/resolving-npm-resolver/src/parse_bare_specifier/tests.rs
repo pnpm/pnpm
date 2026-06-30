@@ -148,9 +148,7 @@ fn workspace_protocol_specifier_declines() {
 
 #[test]
 fn npm_prefix_without_alias_uses_bare_as_name_and_falls_back_to_default_tag() {
-    // No outer alias → enter the lastIndexOf('@') branch. `^1.0.0` has
-    // no `@`, so name = '^1.0.0' and bare = default tag ('latest').
-    // Upstream's parser doesn't validate the name; downstream consumers
+    // The parser doesn't validate the name; downstream consumers
     // surface the malformed name as ERR_PNPM_INVALID_PACKAGE_NAME from
     // pick_package's validator.
     let spec = parse_bare_specifier("npm:^1.0.0", None, DEFAULT_TAG, REGISTRY).unwrap();
@@ -382,7 +380,6 @@ fn named_registry_scope_without_name_errors() {
 
 #[test]
 fn named_registry_version_only_no_alias_declines() {
-    // Without a package alias, `gh:<version>` cannot map to a name.
     let gh = gh_aliases();
     let result =
         parse_named_registry_specifier_to_registry_package_spec("gh:^1.0.0", &gh, None, "latest");
@@ -461,8 +458,6 @@ fn named_registry_unknown_alias_declines() {
 
 #[test]
 fn named_registry_invalid_name_error_carries_user_alias() {
-    // When `work:@acme` fails validation, the user's alias must
-    // appear in the message — not a generic `gh` reference.
     let err = parse_named_registry_specifier_to_registry_package_spec(
         "work:@acme",
         &aliases(&["work"]),

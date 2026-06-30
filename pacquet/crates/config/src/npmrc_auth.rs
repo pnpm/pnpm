@@ -1,6 +1,10 @@
 use crate::{Config, api::EnvVar};
+use indexmap::IndexMap;
 use pacquet_env_replace::env_replace_lossy;
-use pacquet_network::{AuthHeaders, NoProxySetting, PerRegistryTls, RegistryTls, base64_encode};
+use pacquet_network::{
+    AuthHeaders, DEFAULT_REGISTRY_SCOPE, NoProxySetting, PerRegistryTls, RegistryTls,
+    base64_encode, nerf_dart,
+};
 use std::{
     collections::{BTreeMap, HashMap},
     path::{Path, PathBuf},
@@ -40,7 +44,7 @@ use std::{
 /// up.
 ///
 /// [#336]: https://github.com/pnpm/pacquet/issues/336
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub(crate) struct NpmrcAuth {
     pub registry: Option<String>,
     pub scoped_registries: BTreeMap<String, String>,
@@ -48,11 +52,9 @@ pub(crate) struct NpmrcAuth {
     /// `username=…` / `_password=…` without a leading `//host/`).
     /// Applied to whichever URI the resolved `registry` points at.
     pub default_creds: RawCreds,
-    /// Per-URI creds, keyed by the literal `.npmrc` key prefix
-    /// (`//host[:port]/path/`). The map is preserved verbatim through
-    /// to [`AuthHeaders`] construction so the lookup keys stay
-    /// byte-equivalent to upstream.
-    pub creds_by_uri: HashMap<String, RawCreds>,
+    /// Per-registry creds keyed as `[registry_uri][scope]`. The `@`
+    /// scope stores registry-wide credentials.
+    pub creds_by_scope_by_uri: HashMap<String, HashMap<String, RawCreds>>,
     /// `${VAR}` placeholders that could not be resolved while parsing.
     /// Surfaced as warnings; `pnpm` does the same in
     /// [`substituteEnv`](https://github.com/pnpm/pnpm/blob/601317e7a3/config/reader/src/loadNpmrcFiles.ts#L156-L162).
@@ -108,6 +110,19 @@ pub(crate) struct NpmrcAuth {
     /// pnpm's
     /// [`configByUri[<uri>].tls`](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/getNetworkConfigs.ts#L34-L40).
     pub tls_by_uri: HashMap<String, RegistryTls>,
+    /// Scope→URL registry routes inferred from `_auth` (`"@"` → `"default"`,
+    /// `"@org"` → that scope). Safe because the credential and its
+    /// destination host come from the same trusted value, so repo config
+    /// can't redirect the token elsewhere. Applied after workspace yaml by
+    /// [`Self::apply_json_env_registries`].
+    pub json_env_registries: BTreeMap<String, String>,
+    /// Raw INI config keys (those for which
+    /// [`crate::config_types::is_ini_config_key`] holds), post-`${VAR}`
+    /// substitution, captured verbatim for `pnpm config get` / `list`. This
+    /// is the source of [`crate::Config::raw_auth_config`] (pnpm's
+    /// `authConfig`); it does not feed auth-header resolution, which reads
+    /// the structured fields above.
+    pub raw_ini_config: BTreeMap<String, String>,
 }
 
 /// Raw (unparsed) credential fields for a given registry URI, mirroring
@@ -200,11 +215,71 @@ impl NpmrcAuth {
         let mut auth = NpmrcAuth::default();
         for (key, value) in npm_scoped {
             if let Some((uri, suffix)) = split_creds_key(&key) {
-                let entry = auth.creds_by_uri.entry(uri.to_owned()).or_default();
+                let entry = auth.creds_entry_mut(uri);
                 apply_creds_field(entry, suffix, value);
             }
         }
         auth
+    }
+
+    /// Parse the structured `_auth` setting from its two trusted, non-repo
+    /// sources — the global pnpm `config.yaml` (`global_value`) and the
+    /// `pnpm_config__auth` env var — global-first then env, so the env var
+    /// wins on conflict. Mirrors pnpm's `readJsonAuthEnv` +
+    /// `readGlobalConfigAuth`.
+    ///
+    /// Parsing is strict: a malformed value (bad JSON, wrong shape, invalid
+    /// registry URL or scope, an unsupported credential field) is a hard
+    /// error, not a warning — both sources are user-controlled, so a typo
+    /// should surface immediately rather than silently drop auth.
+    ///
+    /// The env var exists because GitHub Actions / bash / zsh drop env var
+    /// names containing `/`, `:`, or `.`, breaking the
+    /// `pnpm_config_//host/:_authToken=…` form on CI (pnpm/pnpm#12314).
+    /// Values are used as-is — no `${VAR}` re-expansion, which would let
+    /// repo-controlled env vars leak into them.
+    pub fn from_json_sources<Sys: EnvVar>(
+        global_value: Option<&serde_json::Value>,
+    ) -> Result<Self, serde_json::Error> {
+        let mut auth = NpmrcAuth::default();
+        if let Some(global_value) = global_value {
+            auth.apply_json_auth(serde_json::from_value(global_value.clone())?);
+        }
+        // Lowercase is the documented form; UPPER covers the all-caps shell
+        // convention some CI runners apply.
+        let env_value = Sys::var("pnpm_config__auth")
+            .filter(|value| !value.is_empty())
+            .or_else(|| Sys::var("PNPM_CONFIG__AUTH").filter(|value| !value.is_empty()));
+        if let Some(value) = env_value {
+            auth.apply_json_auth(serde_json::from_str(&value)?);
+        }
+        Ok(auth)
+    }
+
+    /// Fold a parsed [`JsonAuth`] into `self` (last-write-wins, so the env
+    /// object applied after the global one overrides on conflict): each
+    /// entry becomes a `//host/:_authToken` credential and an inferred
+    /// registry route (see [`Self::json_env_registries`]).
+    fn apply_json_auth(&mut self, parsed: JsonAuth) {
+        for (registry, scopes) in parsed.0 {
+            for (scope, creds) in scopes {
+                let key = match &scope {
+                    JsonAuthScope::Default => format!("{}:_authToken", registry.nerfed),
+                    JsonAuthScope::Package(scope) => {
+                        format!("{}:{scope}:_authToken", registry.nerfed)
+                    }
+                };
+                if let Some((uri, suffix)) = split_creds_key(&key) {
+                    let entry = self.creds_entry_mut(uri);
+                    apply_creds_field(entry, suffix, creds.auth_token);
+                }
+                let route_key = match scope {
+                    JsonAuthScope::Default => "default".to_string(),
+                    JsonAuthScope::Package(scope) => scope,
+                };
+                self.json_env_registries.insert(route_key, registry.normalized.clone());
+            }
+        }
     }
 
     /// Parse an `.npmrc` file's contents and pick out the auth/network keys.
@@ -302,6 +377,13 @@ impl NpmrcAuth {
                 auth.warnings.push(format!("Failed to replace env in config: {placeholder}"));
             }
 
+            // Capture every auth/scoped/per-registry key verbatim for
+            // `pnpm config get` / `list`, independent of the structured
+            // parsing below (which only some of these keys feed).
+            if crate::config_types::is_ini_config_key(&key) {
+                auth.raw_ini_config.insert(key.clone(), value.clone());
+            }
+
             if key == "registry" {
                 auth.registry = Some(value);
                 continue;
@@ -348,13 +430,6 @@ impl NpmrcAuth {
                     continue;
                 }
                 "strict-ssl" => {
-                    // pnpm/nopt parses `true` / `false` case-sensitively.
-                    // Anything else resets the slot to `None` so the
-                    // build-site `unwrap_or(true)` default kicks in —
-                    // matters when the same `.npmrc` has multiple
-                    // `strict-ssl=` lines and a later invalid token
-                    // would otherwise leave an earlier `false`
-                    // silently active.
                     auth.strict_ssl = parse_bool(&value);
                     continue;
                 }
@@ -366,7 +441,7 @@ impl NpmrcAuth {
             }
 
             if let Some((uri, suffix)) = split_creds_key(&key) {
-                let entry = auth.creds_by_uri.entry(uri.to_owned()).or_default();
+                let entry = auth.creds_entry_mut(uri);
                 apply_creds_field(entry, suffix, value);
                 continue;
             }
@@ -506,31 +581,63 @@ impl NpmrcAuth {
         }
     }
 
+    /// Apply the [`Self::json_env_registries`] routes. Unlike
+    /// [`Self::apply_registry_and_warn`] (which runs *before* workspace
+    /// yaml), this is called *after* yaml so the inferred routes win over
+    /// repo-controlled registries.
+    pub fn apply_json_env_registries(&mut self, config: &mut Config) {
+        for (scope, url) in std::mem::take(&mut self.json_env_registries) {
+            if scope == "default" {
+                config.registry.clone_from(&url);
+            }
+            config.registries.insert(scope, url);
+        }
+    }
+
     /// Phase 2: compute and store the final [`AuthHeaders`] map,
     /// keying default-registry creds at `config.registry`'s nerf-darted
     /// URI. Mirrors pnpm's
     /// [`getAuthHeadersFromCreds`](https://github.com/pnpm/pnpm/blob/601317e7a3/network/auth-header/src/getAuthHeadersFromConfig.ts).
     pub fn build_auth_headers(self, config: &mut Config) {
         let mut auth_header_by_uri: HashMap<String, String> = HashMap::new();
-        for (uri, raw) in self.creds_by_uri {
-            if let Some(header) = creds_to_header(&raw) {
-                auth_header_by_uri.insert(uri, header);
+        let mut auth_header_by_scope_by_uri: HashMap<String, HashMap<String, String>> =
+            HashMap::new();
+        // Raw `_authToken` per nerf-darted registry URI, default scope
+        // only, preserved alongside the baked header for `pnpm logout`.
+        // See [`Config::auth_tokens_by_uri`].
+        let mut auth_tokens_by_uri: HashMap<String, String> = HashMap::new();
+        for (uri, raw_by_scope) in self.creds_by_scope_by_uri {
+            for (scope, raw) in raw_by_scope {
+                if scope == DEFAULT_REGISTRY_SCOPE
+                    && let Some(token) = &raw.auth_token
+                {
+                    auth_tokens_by_uri.insert(uri.clone(), token.clone());
+                }
+                if let Some(header) = creds_to_header(&raw) {
+                    if scope == DEFAULT_REGISTRY_SCOPE {
+                        auth_header_by_uri.insert(uri.clone(), header);
+                    } else {
+                        auth_header_by_scope_by_uri
+                            .entry(uri.clone())
+                            .or_default()
+                            .insert(scope, header);
+                    }
+                }
             }
         }
-        // Default-registry creds are passed through with an empty-string
-        // key, matching upstream's
-        // [`getAuthHeadersFromCreds`](https://github.com/pnpm/pnpm/blob/601317e7a3/network/auth-header/src/getAuthHeadersFromConfig.ts)
-        // where `configByUri['']` holds default creds and is re-keyed
-        // onto `defaultRegistry` by the constructor.
-        // [`AuthHeaders::from_creds_map`] does the nerf-darting.
-        if !self.default_creds.is_empty()
-            && let Some(header) = creds_to_header(&self.default_creds)
-        {
-            auth_header_by_uri.insert(String::new(), header);
+        if !self.default_creds.is_empty() {
+            let default_uri = pacquet_network::nerf_dart(&config.registry);
+            if let Some(token) = &self.default_creds.auth_token {
+                auth_tokens_by_uri.insert(default_uri.clone(), token.clone());
+            }
+            if let Some(header) = creds_to_header(&self.default_creds) {
+                auth_header_by_uri.insert(default_uri, header);
+            }
         }
 
+        config.auth_tokens_by_uri = auth_tokens_by_uri;
         config.auth_headers =
-            Arc::new(AuthHeaders::from_creds_map(auth_header_by_uri, Some(&config.registry)));
+            Arc::new(AuthHeaders::from_parts(auth_header_by_uri, auth_header_by_scope_by_uri));
     }
 
     /// Pin this source file's **unscoped** credentials (`_authToken`,
@@ -538,7 +645,7 @@ impl NpmrcAuth {
     /// registry declared in this same file — or the npmjs default
     /// ([`DEFAULT_REGISTRY`]) when the file has no `registry=` of its
     /// own — by nerf-darting that registry into a per-URI key and moving
-    /// the values onto [`Self::creds_by_uri`] / [`Self::tls_by_uri`].
+    /// the values onto [`Self::creds_by_scope_by_uri`] / [`Self::tls_by_uri`].
     ///
     /// This is the security boundary ported from pnpm's
     /// [`rescopeUnscopedCreds`](https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/loadNpmrcFiles.ts):
@@ -593,7 +700,12 @@ impl NpmrcAuth {
             }
             // An explicitly URL-scoped value for the same key wins, so
             // the rescoped unscoped value only fills the gaps.
-            self.creds_by_uri.entry(key.clone()).or_default().fill_from(taken);
+            self.creds_by_scope_by_uri
+                .entry(key.clone())
+                .or_default()
+                .entry(DEFAULT_REGISTRY_SCOPE.to_owned())
+                .or_default()
+                .fill_from(taken);
         }
         if has_identity {
             let entry = self.tls_by_uri.entry(key.clone()).or_default();
@@ -631,6 +743,12 @@ impl NpmrcAuth {
         for (scope, registry) in lower.scoped_registries {
             self.scoped_registries.entry(scope).or_insert(registry);
         }
+        for (scope, registry) in lower.json_env_registries {
+            self.json_env_registries.entry(scope).or_insert(registry);
+        }
+        for (key, value) in lower.raw_ini_config {
+            self.raw_ini_config.entry(key).or_insert(value);
+        }
         self.https_proxy = self.https_proxy.take().or(lower.https_proxy);
         self.http_proxy = self.http_proxy.take().or(lower.http_proxy);
         self.legacy_proxy = self.legacy_proxy.take().or(lower.legacy_proxy);
@@ -644,8 +762,11 @@ impl NpmrcAuth {
         self.strict_ssl = self.strict_ssl.take().or(lower.strict_ssl);
         self.local_address = self.local_address.take().or(lower.local_address);
 
-        for (uri, creds) in lower.creds_by_uri {
-            self.creds_by_uri.entry(uri).or_default().fill_from(creds);
+        for (uri, lower_by_scope) in lower.creds_by_scope_by_uri {
+            let by_scope = self.creds_by_scope_by_uri.entry(uri).or_default();
+            for (scope, creds) in lower_by_scope {
+                by_scope.entry(scope).or_default().fill_from(creds);
+            }
         }
         for (uri, tls) in lower.tls_by_uri {
             let entry = self.tls_by_uri.entry(uri).or_default();
@@ -678,6 +799,15 @@ impl NpmrcAuth {
         self.apply_proxy_cascade::<Sys>(config);
         self.apply_tls_and_local_address(config);
         self.build_auth_headers(config);
+    }
+
+    fn creds_entry_mut(&mut self, uri: &str) -> &mut RawCreds {
+        let (registry_uri, scope) = split_scope_from_uri(uri);
+        self.creds_by_scope_by_uri
+            .entry(registry_uri)
+            .or_default()
+            .entry(scope.unwrap_or_else(|| DEFAULT_REGISTRY_SCOPE.to_owned()))
+            .or_default()
     }
 }
 
@@ -874,6 +1004,45 @@ fn split_creds_key(key: &str) -> Option<(&str, &str)> {
     None
 }
 
+fn split_scope_from_uri(uri: &str) -> (String, Option<String>) {
+    if let Some((registry_uri, scope)) = split_scope_from_uri_by_colon(uri) {
+        return (normalize_registry_key(registry_uri), Some(scope.to_owned()));
+    }
+    split_scope_from_uri_by_path(uri)
+}
+
+fn split_scope_from_uri_by_colon(uri: &str) -> Option<(&str, &str)> {
+    if !uri.starts_with("//") {
+        return None;
+    }
+    let scope_separator_index = uri.rfind(":@")?;
+    let scope = &uri[scope_separator_index + 1..];
+    if !is_package_scope(scope) {
+        return None;
+    }
+    Some((&uri[..scope_separator_index], scope))
+}
+
+fn split_scope_from_uri_by_path(uri: &str) -> (String, Option<String>) {
+    let trimmed = uri.strip_suffix('/').unwrap_or(uri);
+    let Some(last_slash_index) = trimmed.rfind('/') else {
+        return (uri.to_owned(), None);
+    };
+    let scope = &trimmed[last_slash_index + 1..];
+    if !is_package_scope(scope) {
+        return (uri.to_owned(), None);
+    }
+    (trimmed[..=last_slash_index].to_owned(), Some(scope.to_owned()))
+}
+
+fn is_package_scope(scope: &str) -> bool {
+    scope.starts_with('@') && scope.len() > 1 && !scope.contains('/') && !scope.contains(':')
+}
+
+fn normalize_registry_key(registry: &str) -> String {
+    if registry.ends_with('/') { registry.to_owned() } else { format!("{registry}/") }
+}
+
 fn apply_creds_field(creds: &mut RawCreds, field: &str, value: String) {
     // The catch-all swallows arbitrary `.npmrc` keys that don't map to
     // a credential field. Examples: a top-level `store-dir=` line, or
@@ -888,6 +1057,100 @@ fn apply_creds_field(creds: &mut RawCreds, field: &str, value: String) {
         "_password" => creds.password = Some(value),
         _ => {}
     }
+}
+
+/// The parsed `_auth` setting: registry URL → scope → credentials.
+/// Deserialization is strict — any malformed entry (bad JSON, wrong shape,
+/// invalid URL/scope, unsupported credential field) is an error, never a
+/// silent skip. See [`NpmrcAuth::from_json_sources`].
+///
+/// [`IndexMap`] preserves source order so a later entry wins for a
+/// duplicate inferred route (`"@"` / `@scope` across different hosts),
+/// matching pnpm's `Object.entries` iteration — a `BTreeMap` would re-sort
+/// and could pick a different host.
+#[derive(Debug, serde::Deserialize)]
+struct JsonAuth(IndexMap<JsonAuthRegistry, IndexMap<JsonAuthScope, JsonAuthCreds>>);
+
+/// A registry URL `_auth` key. Validated to be an http(s) URL with no
+/// userinfo, query, or fragment (those can carry secrets), then stored
+/// normalized (trailing slash) and nerf-darted for the credential key.
+/// Parsed with the `url` crate, matching the TS side's `new URL()`.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Deserialize)]
+#[serde(try_from = "String")]
+struct JsonAuthRegistry {
+    normalized: String,
+    nerfed: String,
+}
+
+impl TryFrom<String> for JsonAuthRegistry {
+    type Error = String;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        // Error messages never echo the raw key: it can embed secrets in
+        // userinfo or a query string, and these messages reach logs.
+        let Ok(url) = url::Url::parse(&value) else {
+            return Err("an `_auth` key is not a valid http(s) registry URL".to_string());
+        };
+        if url.scheme() != "http" && url.scheme() != "https" {
+            return Err("an `_auth` registry URL must use http or https".to_string());
+        }
+        let Some(host) = url.host_str() else {
+            return Err("an `_auth` registry URL must have a host".to_string());
+        };
+        // A credential-free label for the remaining messages.
+        let label = match url.port() {
+            Some(port) => format!("{}://{host}:{port}", url.scheme()),
+            None => format!("{}://{host}", url.scheme()),
+        };
+        if !url.username().is_empty()
+            || url.password().is_some()
+            || url.query().is_some()
+            || url.fragment().is_some()
+        {
+            return Err(format!(
+                "registry URL {label} must not include credentials, a query, or a fragment",
+            ));
+        }
+        let normalized = normalize_registry_url(url.as_str());
+        let nerfed = nerf_dart(&normalized);
+        if nerfed.is_empty() {
+            return Err(format!("registry URL {label} is not a valid registry URL"));
+        }
+        Ok(JsonAuthRegistry { normalized, nerfed })
+    }
+}
+
+/// A scope key within a registry: `@` for registry-wide/default credentials,
+/// or a package scope like `@org`.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Deserialize)]
+#[serde(try_from = "String")]
+enum JsonAuthScope {
+    Default,
+    Package(String),
+}
+
+impl TryFrom<String> for JsonAuthScope {
+    type Error = String;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        if value == DEFAULT_REGISTRY_SCOPE {
+            return Ok(JsonAuthScope::Default);
+        }
+        if is_package_scope(&value) {
+            return Ok(JsonAuthScope::Package(value));
+        }
+        Err(format!(r#"scope "{value}" must be "@" or a package scope like "@org""#))
+    }
+}
+
+/// Credentials for one registry scope. Only `authToken` is accepted; the
+/// deprecated `basicAuth` / `username` + `password` forms are rejected via
+/// `deny_unknown_fields`.
+#[derive(Debug, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct JsonAuthCreds {
+    #[serde(rename = "authToken")]
+    auth_token: String,
 }
 
 /// Per-registry TLS suffixes. The `*file` variants instruct the

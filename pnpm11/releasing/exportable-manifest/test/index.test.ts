@@ -1,0 +1,419 @@
+/// <reference path="../../../__typings__/index.d.ts"/>
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
+import { expect, test } from '@jest/globals'
+import { getCatalogsFromWorkspaceManifest } from '@pnpm/catalogs.config'
+import { preparePackages } from '@pnpm/prepare'
+import { createExportableManifest, type MakePublishManifestOptions } from '@pnpm/releasing.exportable-manifest'
+import type { ProjectManifest } from '@pnpm/types'
+import crossSpawn from 'cross-spawn'
+import { writeYamlFileSync } from 'write-yaml-file'
+
+const pnpmBin = path.join(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
+
+const SPAWN_ENV = { ...process.env, pnpm_config_minimum_release_age: '0' } as NodeJS.ProcessEnv
+
+const defaultOpts: MakePublishManifestOptions = {
+  catalogs: {},
+}
+
+test('prepublish scripts and packageManager are removed', async () => {
+  expect(await createExportableManifest(process.cwd(), {
+    name: 'foo',
+    version: '1.0.0',
+    dependencies: {
+      qar: '2',
+    },
+    scripts: {
+      postinstall: 'echo hello',
+      prepublishOnly: 'echo',
+    },
+    packageManager: 'pnpm@10.0.0',
+  }, defaultOpts)).toStrictEqual({
+    name: 'foo',
+    version: '1.0.0',
+    dependencies: {
+      qar: '2',
+    },
+    scripts: {
+      postinstall: 'echo hello',
+    },
+  })
+})
+
+test('the packageManager field is removed', async () => {
+  expect(await createExportableManifest(process.cwd(), {
+    name: 'foo',
+    version: '1.0.0',
+    dependencies: {
+      qar: '2',
+    },
+    packageManager: 'pnpm@8.0.0',
+  }, defaultOpts)).toStrictEqual({
+    name: 'foo',
+    version: '1.0.0',
+    dependencies: {
+      qar: '2',
+    },
+  })
+})
+
+test('publish lifecycle scripts are removed', async () => {
+  expect(await createExportableManifest(process.cwd(), {
+    name: 'foo',
+    version: '1.0.0',
+    scripts: {
+      prepublishOnly: 'echo',
+      prepack: 'echo',
+      prepare: 'echo',
+      postpack: 'echo',
+      publish: 'echo',
+      postpublish: 'echo',
+      postinstall: 'echo',
+      test: 'echo',
+    },
+  }, defaultOpts)).toStrictEqual({
+    name: 'foo',
+    version: '1.0.0',
+    scripts: {
+      postinstall: 'echo',
+      test: 'echo',
+    },
+  })
+})
+
+test('packageManager and publish lifecycle scripts are preserved when skipManifestObfuscation is enabled, but pnpm is still omitted', async () => {
+  const manifest: ProjectManifest & { pnpm?: Record<string, unknown> } = {
+    name: 'foo',
+    version: '1.0.0',
+    packageManager: 'pnpm@10.0.0',
+    pnpm: {
+      testField: true,
+    },
+    scripts: {
+      prepublishOnly: 'echo',
+      postinstall: 'echo hello',
+    },
+  }
+
+  expect(await createExportableManifest(process.cwd(), manifest, {
+    ...defaultOpts,
+    skipManifestObfuscation: true,
+  })).toStrictEqual({
+    name: 'foo',
+    version: '1.0.0',
+    packageManager: 'pnpm@10.0.0',
+    scripts: {
+      prepublishOnly: 'echo',
+      postinstall: 'echo hello',
+    },
+  })
+})
+
+test('skipManifestObfuscation does not mutate the original manifest', async () => {
+  const manifest: ProjectManifest = {
+    name: 'foo',
+    version: '1.0.0',
+    publishConfig: {
+      main: './dist/index.js',
+    },
+  }
+
+  await withTempProjectReadme('readme content', async (projectDir) => {
+    expect(await createExportableManifest(projectDir, manifest, {
+      ...defaultOpts,
+      skipManifestObfuscation: true,
+      embedReadme: true,
+    })).toStrictEqual({
+      name: 'foo',
+      version: '1.0.0',
+      main: './dist/index.js',
+      readme: 'readme content',
+    })
+  })
+
+  expect(manifest).toStrictEqual({
+    name: 'foo',
+    version: '1.0.0',
+    publishConfig: {
+      main: './dist/index.js',
+    },
+  })
+})
+
+test('readme added to published manifest', async () => {
+  await withTempProjectReadme('readme content', async (projectDir) => {
+    expect(await createExportableManifest(projectDir, {
+      name: 'foo',
+      version: '1.0.0',
+    }, {
+      ...defaultOpts,
+      embedReadme: true,
+    })).toStrictEqual({
+      name: 'foo',
+      version: '1.0.0',
+      readme: 'readme content',
+    })
+  })
+})
+
+;(process.platform === 'win32' ? test.skip : test)('readme is not embedded when README.md is a symlink pointing outside the project', async () => {
+  const tmpDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-readme-'))
+  try {
+    const secretFile = path.join(tmpDir, 'secret.txt')
+    await fs.promises.writeFile(secretFile, 'secret content', 'utf8')
+    const projectDir = path.join(tmpDir, 'project')
+    await fs.promises.mkdir(projectDir)
+    await fs.promises.symlink(secretFile, path.join(projectDir, 'README.md'))
+
+    expect(await createExportableManifest(projectDir, {
+      name: 'foo',
+      version: '1.0.0',
+    }, {
+      ...defaultOpts,
+      embedReadme: true,
+    })).toStrictEqual({
+      name: 'foo',
+      version: '1.0.0',
+    })
+  } finally {
+    await fs.promises.rm(tmpDir, { recursive: true, force: true })
+  }
+})
+
+async function withTempProjectReadme<T> (readmeContent: string, fn: (projectDir: string) => Promise<T>): Promise<T> {
+  const projectDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'pnpm-readme-'))
+  try {
+    await fs.promises.writeFile(path.join(projectDir, 'README.md'), readmeContent, 'utf8')
+    return await fn(projectDir)
+  } finally {
+    await fs.promises.rm(projectDir, { recursive: true, force: true })
+  }
+}
+
+test('workspace deps are replaced', async () => {
+  const manifest: ProjectManifest = {
+    name: 'workspace-protocol-package',
+    version: '1.0.0',
+
+    dependencies: {
+      bar: 'workspace:@foo/bar@*',
+      baz: 'workspace:baz@^',
+      foo: 'workspace:*',
+      qux: 'workspace:^',
+      quux: 'workspace:',
+      waldo: 'workspace:^',
+      xerox: 'workspace:../xerox',
+      xeroxAlias: 'workspace:../xerox',
+      corge: 'workspace:1.0.0',
+      grault: 'workspace:^1.0.0',
+      garply: 'workspace:plugh@2.0.0',
+    },
+    peerDependencies: {
+      foo: 'workspace:>= || ^3.9.0',
+      baz: '^1.0.0 || workspace:>',
+      bar: 'workspace:^3.0.0',
+      qux: 'workspace:^',
+      waldo: 'workspace:^1.x',
+    },
+  }
+
+  preparePackages([
+    manifest,
+    {
+      name: 'baz',
+      version: '1.2.3',
+    },
+    {
+      name: '@foo/bar',
+      version: '3.2.1',
+    },
+    {
+      name: 'foo',
+      version: '4.5.6',
+    },
+    {
+      name: 'qux',
+      version: '1.0.0-alpha-a.b-c-something+build.1-aef.1-its-okay',
+    },
+    {
+      name: 'quux',
+      version: '7.8.9',
+    },
+    {
+      name: 'waldo',
+      version: '1.9.0',
+    },
+    {
+      name: 'xerox',
+      version: '4.5.6',
+    },
+    {
+      name: 'corge',
+      version: '1.0.0',
+    },
+    {
+      name: 'grault',
+      version: '1.0.0',
+    },
+    {
+      name: 'plugh',
+      version: '2.0.0',
+    },
+  ])
+
+  writeYamlFileSync('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  crossSpawn.sync(pnpmBin, ['install', '--store-dir=store'], { env: SPAWN_ENV })
+
+  process.chdir('workspace-protocol-package')
+
+  expect(await createExportableManifest(process.cwd(), manifest, defaultOpts)).toStrictEqual({
+    name: 'workspace-protocol-package',
+    version: '1.0.0',
+    dependencies: {
+      bar: 'npm:@foo/bar@3.2.1',
+      baz: '^1.2.3',
+      foo: '4.5.6',
+      qux: '^1.0.0-alpha-a.b-c-something+build.1-aef.1-its-okay',
+      quux: '7.8.9',
+      waldo: '^1.9.0',
+      xerox: '4.5.6',
+      xeroxAlias: 'npm:xerox@4.5.6',
+      corge: '1.0.0',
+      grault: '^1.0.0',
+      garply: 'npm:plugh@2.0.0',
+    },
+    peerDependencies: {
+      baz: '^1.0.0 || >1.2.3',
+      foo: '>=4.5.6 || ^3.9.0',
+      bar: '^3.0.0',
+      qux: '^1.0.0-alpha-a.b-c-something+build.1-aef.1-its-okay',
+      waldo: '^1.x',
+    },
+  })
+})
+
+test('catalog deps are replaced', async () => {
+  const manifest: ProjectManifest = {
+    name: 'catalog-protocol-package',
+    version: '1.0.0',
+
+    dependencies: {
+      bar: 'catalog:',
+    },
+    optionalDependencies: {
+      baz: 'catalog:baz',
+    },
+    peerDependencies: {
+      foo: 'catalog:foo',
+    },
+  }
+
+  preparePackages([manifest])
+
+  const workspaceManifest = {
+    packages: ['**', '!store/**'],
+    catalog: {
+      bar: '^1.2.3',
+    },
+    catalogs: {
+      foo: {
+        foo: '^1.2.4',
+      },
+      baz: {
+        baz: '^1.2.5',
+      },
+    },
+  }
+  writeYamlFileSync('pnpm-workspace.yaml', workspaceManifest)
+
+  crossSpawn.sync(pnpmBin, ['install', '--store-dir=store'], { env: SPAWN_ENV })
+
+  process.chdir('catalog-protocol-package')
+
+  const catalogs = getCatalogsFromWorkspaceManifest(workspaceManifest)
+  expect(await createExportableManifest(process.cwd(), manifest, { catalogs })).toStrictEqual({
+    name: 'catalog-protocol-package',
+    version: '1.0.0',
+    dependencies: {
+      bar: '^1.2.3',
+    },
+    optionalDependencies: {
+      baz: '^1.2.5',
+    },
+    peerDependencies: {
+      foo: '^1.2.4',
+    },
+  })
+})
+
+test('jsr deps are replaced', async () => {
+  const manifest = {
+    name: 'jsr-protocol-manifest',
+    version: '0.0.0',
+    dependencies: {
+      '@foo/bar': 'jsr:^1.0.0',
+    },
+    optionalDependencies: {
+      baz: 'jsr:@foo/baz@3.0',
+    },
+    peerDependencies: {
+      qux: 'jsr:@foo/qux',
+    },
+  } satisfies ProjectManifest
+
+  preparePackages([manifest])
+
+  process.chdir(manifest.name)
+
+  expect(await createExportableManifest(process.cwd(), manifest, { catalogs: {} })).toStrictEqual({
+    name: 'jsr-protocol-manifest',
+    version: '0.0.0',
+    dependencies: {
+      '@foo/bar': 'npm:@jsr/foo__bar@^1.0.0',
+    },
+    optionalDependencies: {
+      baz: 'npm:@jsr/foo__baz@3.0',
+    },
+    peerDependencies: {
+      qux: 'npm:@jsr/foo__qux',
+    },
+  } as Partial<typeof manifest>)
+})
+
+test('checks for name', async () => {
+  const location = 'package-to-export'
+  const manifest = { version: '0.0.0' } satisfies ProjectManifest
+
+  preparePackages([{
+    location,
+    package: manifest,
+  }])
+
+  process.chdir(location)
+
+  await expect(createExportableManifest(process.cwd(), manifest, { catalogs: {} })).rejects.toMatchObject({
+    code: 'ERR_PNPM_MISSING_REQUIRED_FIELD',
+    field: 'name',
+  })
+})
+
+test('checks for version', async () => {
+  const location = 'package-to-export'
+  const manifest = { name: 'example' } satisfies ProjectManifest
+
+  preparePackages([{
+    location,
+    package: manifest,
+  }])
+
+  process.chdir(location)
+
+  await expect(createExportableManifest(process.cwd(), manifest, { catalogs: {} })).rejects.toMatchObject({
+    code: 'ERR_PNPM_MISSING_REQUIRED_FIELD',
+    field: 'version',
+  })
+})

@@ -1,0 +1,67 @@
+{
+  "name": "@pnpm/resolving.default-resolver",
+  "version": "1100.3.10",
+  "description": "pnpm's default package resolver",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "npm",
+    "resolver"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm11/resolving/default-resolver",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/pnpm11/resolving/default-resolver#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "lint": "eslint \"src/**/*.ts\" \"test/**/*.ts\"",
+    "test": "pn compile && pn .test",
+    "prepublishOnly": "tsgo --build",
+    "compile": "tsgo --build && pn lint --fix",
+    ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
+  },
+  "dependencies": {
+    "@pnpm/engine.runtime.bun-resolver": "workspace:*",
+    "@pnpm/engine.runtime.deno-resolver": "workspace:*",
+    "@pnpm/engine.runtime.node-resolver": "workspace:*",
+    "@pnpm/error": "workspace:*",
+    "@pnpm/fetching.types": "workspace:*",
+    "@pnpm/hooks.types": "workspace:*",
+    "@pnpm/network.auth-header": "workspace:*",
+    "@pnpm/resolving.git-resolver": "workspace:*",
+    "@pnpm/resolving.local-resolver": "workspace:*",
+    "@pnpm/resolving.npm-resolver": "workspace:*",
+    "@pnpm/resolving.resolver-base": "workspace:*",
+    "@pnpm/resolving.tarball-resolver": "workspace:*",
+    "@pnpm/types": "workspace:*"
+  },
+  "devDependencies": {
+    "@jest/globals": "catalog:",
+    "@pnpm/fetching.fetcher-base": "workspace:*",
+    "@pnpm/fetching.tarball-fetcher": "workspace:*",
+    "@pnpm/network.fetch": "workspace:*",
+    "@pnpm/resolving.default-resolver": "workspace:*",
+    "@pnpm/store.cafs-types": "workspace:*",
+    "@pnpm/testing.mock-agent": "workspace:*",
+    "load-json-file": "catalog:",
+    "tempy": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "jest": {
+    "preset": "@pnpm/jest-config"
+  }
+}

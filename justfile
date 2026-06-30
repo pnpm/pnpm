@@ -53,6 +53,14 @@ check:
 test:
   cargo nextest run
 
+# Run pacquet package tests only.
+test-pacquet:
+  cargo nextest run --workspace --exclude pnpr --exclude pnpr-fixtures
+
+# Run pnpr package tests only.
+test-pnpr:
+  cargo nextest run -p pnpr -p pnpr-fixtures
+
 # List expected-failing test ports
 [unix]
 known-failures:

@@ -20,7 +20,9 @@
 //! Ports the request half of upstream's
 //! [`fetchMetadataFromFromRegistry`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetch.ts#L118-L204).
 
-use pacquet_network::{AuthHeaders, RetryOpts, ThrottledClient, send_with_retry};
+use pacquet_network::{
+    AuthHeaders, RetryOpts, ThrottledClient, redact_url_credentials, retry_async, send_with_retry,
+};
 use pacquet_registry::Package;
 use reqwest::{StatusCode, header};
 
@@ -61,7 +63,7 @@ pub struct FetchFullMetadataOptions<'a> {
     /// the body re-download. Mirrors upstream's `modified` option at
     /// the same call site.
     pub modified: Option<&'a str>,
-    pub(crate) retry_opts: RetryOpts,
+    pub retry_opts: RetryOpts,
 }
 
 /// Outcome of a [`fetch_full_metadata`] call. Mirrors upstream's
@@ -85,74 +87,63 @@ pub enum FetchFullMetadataOutcome {
 /// Fetch the registry metadata document for `pkg_name`. The
 /// `full_metadata` flag on [`FetchFullMetadataOptions`] picks
 /// between the full and abbreviated packument forms.
-///
-/// When [`FetchFullMetadataOptions::etag`] or
-/// [`FetchFullMetadataOptions::modified`] is set, the request
-/// includes `If-None-Match` / `If-Modified-Since` headers and the
-/// registry may answer `304 Not Modified` — the fetcher returns
-/// [`FetchFullMetadataOutcome::NotModified`] without a body in that
-/// case. Mirrors upstream's
-/// [`fetchFromRegistry`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/network/fetch/src/fetchFromRegistry.ts#L41-L86)
-/// 304 short-circuit, used by
-/// [`maybeUpgradeAbbreviatedMetaForReleaseAge`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L488-L499)
-/// so the upgrade fetch coalesces against the registry's
-/// representation cache.
 pub async fn fetch_full_metadata(
     pkg_name: &str,
     opts: &FetchFullMetadataOptions<'_>,
 ) -> Result<FetchFullMetadataOutcome, FetchMetadataError> {
-    // Format once and reuse for the request, the auth-header lookup,
-    // and the error mapper. Mirrors upstream's
-    // [`toUri`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetch.ts)
-    // — scoped names get the `/` after the `@scope` percent-encoded
-    // so the registry routes the request to the package as a single
-    // path segment, not two.
     let url = to_registry_url(opts.registry, pkg_name);
     let accept = if opts.full_metadata { ACCEPT_FULL_DOC } else { ACCEPT_ABBREVIATED_DOC };
-    let (client, response) = send_with_retry(opts.http_client, &url, opts.retry_opts, |client| {
-        let mut request = client.get(&url).header(header::ACCEPT, accept);
-        if let Some(value) = opts.auth_headers.for_url(&url) {
-            request = request.header(header::AUTHORIZATION, value);
+    retry_async(&url, opts.retry_opts, FetchMetadataError::is_body_retryable, || async {
+        let (client, response) =
+            send_with_retry(opts.http_client, &url, opts.retry_opts, |client| {
+                let mut request = client.get(&url).header(header::ACCEPT, accept);
+                if let Some(value) = opts.auth_headers.for_url_with_package(&url, Some(pkg_name)) {
+                    request = request.header(header::AUTHORIZATION, value);
+                }
+                if let Some(etag) = opts.etag {
+                    request = request.header(header::IF_NONE_MATCH, etag);
+                }
+                if let Some(modified) = opts.modified {
+                    request = request.header(header::IF_MODIFIED_SINCE, modified);
+                }
+                request
+            })
+            .await
+            .map_err(|error| FetchMetadataError::Network {
+                url: redact_url_credentials(&url),
+                error,
+            })?;
+        if response.status() == StatusCode::NOT_MODIFIED {
+            return Ok(FetchFullMetadataOutcome::NotModified);
         }
-        if let Some(etag) = opts.etag {
-            request = request.header(header::IF_NONE_MATCH, etag);
-        }
-        if let Some(modified) = opts.modified {
-            request = request.header(header::IF_MODIFIED_SINCE, modified);
-        }
-        request
-    })
-    .await
-    .map_err(|error| FetchMetadataError::Network { url: url.clone(), error })?;
-    if response.status() == StatusCode::NOT_MODIFIED {
-        return Ok(FetchFullMetadataOutcome::NotModified);
-    }
-    let response = response
-        .error_for_status()
-        .map_err(|error| FetchMetadataError::Network { url: url.clone(), error })?;
-    // Decode in two steps so a JSON-shape mismatch surfaces as
-    // `FetchMetadataError::Decode` (with the serde_json error), not
-    // as `Network` (which `.json::<T>()` would do, conflating
-    // transport and parse failures and losing the
-    // `decode_error` diagnostic code).
-    let raw_body = response
-        .text()
+        let response = response.error_for_status().map_err(|error| {
+            FetchMetadataError::Network { url: redact_url_credentials(&url), error }
+        })?;
+        let raw_body = response.text().await.map_err(|error| FetchMetadataError::BodyRead {
+            url: redact_url_credentials(&url),
+            error,
+        })?;
+        // Body fully buffered — release the connection and its
+        // network-concurrency permit, then parse off the reactor: a
+        // multi-MB packument parse would otherwise pin a tokio worker
+        // and stall every socket it pumps (see
+        // `fetch_full_metadata_cached` for the cold-install numbers).
+        drop(client);
+        let task_url = url.clone();
+        let meta = tokio::task::spawn_blocking(move || {
+            serde_json::from_str::<Package>(&raw_body).map_err(|error| FetchMetadataError::Decode {
+                url: redact_url_credentials(&task_url),
+                error,
+            })
+        })
         .await
-        .map_err(|error| FetchMetadataError::Network { url: url.clone(), error })?;
-    // Body fully buffered — release the connection and its
-    // network-concurrency permit, then parse off the reactor: a
-    // multi-MB packument parse would otherwise pin a tokio worker
-    // and stall every socket it pumps (see
-    // `fetch_full_metadata_cached` for the cold-install numbers).
-    drop(client);
-    let task_url = url.clone();
-    let meta = tokio::task::spawn_blocking(move || {
-        serde_json::from_str::<Package>(&raw_body)
-            .map_err(|error| FetchMetadataError::Decode { url: task_url, error })
+        .map_err(|error| FetchMetadataError::ParseTask {
+            url: redact_url_credentials(&url),
+            error,
+        })??;
+        Ok(FetchFullMetadataOutcome::Modified(Box::new(meta)))
     })
     .await
-    .map_err(|error| FetchMetadataError::ParseTask { url, error })??;
-    Ok(FetchFullMetadataOutcome::Modified(Box::new(meta)))
 }
 
 #[cfg(test)]

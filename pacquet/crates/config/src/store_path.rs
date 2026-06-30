@@ -56,11 +56,6 @@ use std::{
 /// Resolve where to place the default pnpm store given the `SmartDefault`
 /// home-based path and the project root.
 ///
-/// Returns `home_default` unchanged when the project's volume can be
-/// reached via hardlink from `pnpm_home_dir`. Otherwise returns
-/// `<mountpoint>/.pnpm-store` where `<mountpoint>` is the first
-/// ancestor of `pkg_root` that accepts the hardlink (the volume mount
-/// point), preferring the mountpoint's parent when it too is linkable.
 /// Falls back to `home_default` whenever the algorithm cannot complete
 /// — pnpm's
 /// [`storePathRelativeToHome`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L45-L78)
@@ -142,9 +137,7 @@ fn filesystem_root(path: &Path) -> PathBuf {
 
 /// Given `from` (an ancestor of `to`), return `from` with one more
 /// path segment appended along the way to `to`. Port of npm's
-/// [`next-path`](https://github.com/zkochan/packages/blob/main/next-path/index.js):
-/// `nextPath('/', '/Volumes/src/proj')` → `'/Volumes'`,
-/// `nextPath('/Volumes', '/Volumes/src/proj')` → `'/Volumes/src'`.
+/// [`next-path`](https://github.com/zkochan/packages/blob/main/next-path/index.js).
 /// Returns `from` unchanged when `from` is not a prefix of `to`.
 fn next_path(from: &Path, to: &Path) -> PathBuf {
     let from_components: Vec<_> = from.components().collect();

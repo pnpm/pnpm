@@ -13,6 +13,7 @@ use std::{
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use node_semver::Version;
 use pacquet_crypto_shasums_file::{
     FetchShasumsFileError, FetchVerifiedNodeShasumsError, fetch_shasums_file,
     fetch_verified_node_shasums_file,
@@ -153,7 +154,11 @@ impl NodeResolver {
                         as ResolveError
                 })?;
         let variants = self.read_node_assets(&mirror, &version, &parsed.release_channel).await?;
-        let range = if version == version_spec { version.clone() } else { format!("^{version}") };
+        let range = normalize_node_runtime_version_specifier(
+            version_spec,
+            &version,
+            wanted_dependency.prev_specifier.as_deref(),
+        );
         let resolution = LockfileResolution::Variations(VariationsResolution { variants });
         let manifest = serde_json::json!({
             "name": "node",
@@ -260,6 +265,30 @@ fn bare_runtime_spec<'a>(wanted: &'a WantedDependency, expected_alias: &str) -> 
     wanted.bare_specifier.as_deref().and_then(|spec| spec.strip_prefix(BARE_SPEC_PREFIX))
 }
 
+fn normalize_node_runtime_version_specifier(
+    version_spec: &str,
+    resolved_version: &str,
+    prev_specifier: Option<&str>,
+) -> String {
+    if resolved_version == version_spec
+        || matches!(Version::parse(resolved_version), Ok(version) if !version.pre_release.is_empty())
+    {
+        return resolved_version.to_string();
+    }
+    let source = prev_specifier
+        .and_then(|specifier| specifier.strip_prefix(BARE_SPEC_PREFIX))
+        .unwrap_or(version_spec);
+    let spec = source.split_once('/').map_or(source, |(_, spec)| spec);
+    let prefix = if spec.starts_with('^') {
+        "^"
+    } else if spec.starts_with('~') {
+        "~"
+    } else {
+        ""
+    };
+    format!("{prefix}{resolved_version}")
+}
+
 /// Read the asset list for one mirror version and decode each row
 /// into a [`PlatformAssetResolution`].
 ///
@@ -340,20 +369,15 @@ struct NodeFileName {
 /// Match upstream's
 /// `^node-v<version>-([^-.]+)-([^.-]+)(-musl)?\.(tar\.gz|zip)$` —
 /// implemented by hand so the resolver doesn't pay the regex crate
-/// dependency for a single pattern. The version segment is matched
-/// literally; the platform and arch each disallow `.` and `-`, and
-/// `-musl` is the only legal third segment.
+/// dependency for a single pattern.
 fn parse_node_file_name(file_name: &str, version: &str) -> Option<NodeFileName> {
     let prefix = format!("node-v{version}-");
     let rest = file_name.strip_prefix(&prefix)?;
-    let (head, suffix) = if let Some(head) = rest.strip_suffix(".tar.gz") {
-        (head, ".tar.gz")
-    } else if let Some(head) = rest.strip_suffix(".zip") {
-        (head, ".zip")
+    let head = if let Some(head) = rest.strip_suffix(".tar.gz") {
+        head
     } else {
-        return None;
+        rest.strip_suffix(".zip")?
     };
-    let _ = suffix;
     let (platform, after_platform) = head.split_once('-')?;
     if platform.is_empty() || platform.contains('.') {
         return None;
@@ -369,9 +393,6 @@ fn parse_node_file_name(file_name: &str, version: &str) -> Option<NodeFileName> 
 }
 
 fn bin_spec_for_platform(platform: &str) -> BinarySpec {
-    // pnpm records the runtime variant's `bin` as a named map keyed by the
-    // executable name (`{ node: bin/node }`), not a bare string — mirror
-    // that so the `variants[].resolution.bin` block round-trips.
     let path = if platform == "win32" { "node.exe" } else { "bin/node" };
     BinarySpec::Map(BTreeMap::from([("node".to_string(), path.to_string())]))
 }

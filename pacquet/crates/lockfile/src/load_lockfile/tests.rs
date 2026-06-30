@@ -68,13 +68,6 @@ fn write_lockfile(content: &str) -> tempfile::TempDir {
     tmp
 }
 
-/// A pnpm v11 multi-document lockfile (env document + main document)
-/// must parse as the *second* document. The env document carries the
-/// package-manager bootstrap and is intentionally ignored by the
-/// install path. Mirrors upstream's
-/// [`_read`](https://github.com/pnpm/pnpm/blob/31858c544b/lockfile/fs/src/read.ts#L103-L110)
-/// which feeds the lockfile content through `extractMainDocument`
-/// before parsing.
 #[test]
 fn parses_main_document_from_combined_yaml() {
     let combined = format!("---\n{ENV_DOC}\n---\n{MAIN_DOC}");
@@ -85,9 +78,6 @@ fn parses_main_document_from_combined_yaml() {
         .expect("load combined lockfile")
         .expect("combined lockfile should be present");
 
-    // Same content parsed without the env prelude must produce an
-    // identical `Lockfile` — proves the env document was skipped and
-    // didn't bleed into the parsed structure.
     let tmp_main = write_lockfile(MAIN_DOC);
     let main_only_dir = tmp_main.path().join("node_modules").join(".pacquet");
     let main_only_loaded = Lockfile::load_current_from_virtual_store_dir(&main_only_dir)
@@ -97,10 +87,6 @@ fn parses_main_document_from_combined_yaml() {
     assert_eq!(combined_loaded, main_only_loaded);
 }
 
-/// An env-only lockfile (file starts with `---\n` but has no second
-/// document) reads back as `Ok(None)`, mirroring upstream's empty-main-
-/// document short-circuit at
-/// <https://github.com/pnpm/pnpm/blob/31858c544b/lockfile/fs/src/read.ts#L105-L110>.
 #[test]
 fn env_only_lockfile_loads_as_none() {
     let env_only = format!("---\n{ENV_DOC}\n");

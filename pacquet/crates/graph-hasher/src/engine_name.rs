@@ -9,11 +9,6 @@ pub use pacquet_detect_libc::{host_arch, host_platform};
 /// `${process.platform};${process.arch};node${process.version.split('.')[0].substring(1)}`
 /// ```
 ///
-/// Example outputs:
-/// - `"darwin;arm64;node20"`
-/// - `"linux;x64;node22"`
-/// - `"win32;x64;node24"`
-///
 /// `node_major` is the Node major version (e.g. `20`, `22`, `24`).
 /// Callers pass it as a number because the discovery side (spawning
 /// `node --version` or reading `npm_node_execpath`) is policy and
@@ -33,16 +28,6 @@ pub fn engine_name(node_major: u32, platform: Option<&str>, arch: Option<&str>) 
 /// Discover the host Node binary's major version by spawning
 /// `node --version` and parsing the leading major-version digits
 /// from its output.
-///
-/// Accepted shapes (in order of how `parse_node_version_output`
-/// strips them):
-/// - `v22.11.0` — canonical Node output.
-/// - `22.11.0` — a leading `v` is optional, for Node-compat runtimes
-///   that drop it.
-/// - `v25.0.0-nightly` — pre-release tags after the major are fine
-///   because parsing stops at the first `.`.
-/// - `v22` — no `.` at all is still parseable; the whole post-`v`
-///   string is treated as the major.
 ///
 /// Used by [`engine_name`] callers that don't have a Node version
 /// pinned by config. Returns `None` when:
@@ -108,14 +93,15 @@ fn parse_node_version_output(stdout: &str) -> Option<u32> {
 ///
 /// Delegates to [`pacquet_detect_libc::detect()`] for the
 /// actual detection; see that function for the fallback chain. The
-/// result is cached after the first call via [`std::sync::OnceLock`].
+/// result is cached after the first call via [`std::sync::LazyLock`].
+#[must_use]
 pub fn host_libc() -> &'static str {
-    use std::sync::OnceLock;
+    use std::sync::LazyLock;
 
-    static CACHED: OnceLock<&'static str> = OnceLock::new();
-    CACHED.get_or_init(|| {
+    static CACHED: LazyLock<&'static str> = LazyLock::new(|| {
         pacquet_detect_libc::detect().map_or("unknown", pacquet_detect_libc::Implementation::as_str)
-    })
+    });
+    *CACHED
 }
 
 #[cfg(test)]

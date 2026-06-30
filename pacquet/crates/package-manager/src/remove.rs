@@ -2,14 +2,13 @@ use crate::{Install, InstallError, ResolvedPackages, UpdateSeedPolicy};
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_config::Config;
-use pacquet_lockfile::Lockfile;
+use pacquet_lockfile::{Lockfile, MaybeLazyLockfile};
 use pacquet_network::ThrottledClient;
 use pacquet_package_manifest::{DependencyGroup, PackageManifest, PackageManifestError};
 use pacquet_reporter::{LogEvent, LogLevel, PackageManifestLog, PackageManifestMessage, Reporter};
 use pacquet_tarball::MemCache;
 use std::{collections::HashSet, fmt::Write as _, sync::Arc};
 
-/// This subroutine does everything `pacquet remove` is supposed to do.
 #[must_use]
 pub struct Remove<'a> {
     pub tarball_mem_cache: Arc<MemCache>,
@@ -20,8 +19,7 @@ pub struct Remove<'a> {
     pub manifest: &'a mut PackageManifest,
     pub lockfile: Option<&'a Lockfile>,
     pub lockfile_path: Option<&'a std::path::Path>,
-    /// Names to remove. Empty is rejected with
-    /// [`RemoveValidationError::MustRemoveSomething`].
+    /// Names to remove.
     pub package_names: &'a [String],
     /// Dependency field to restrict removal to, or `None` to remove from
     /// any field. Derived from the `--save-prod` / `--save-dev` /
@@ -40,22 +38,15 @@ pub struct Remove<'a> {
 /// the manifest is mutated or any install runs.
 ///
 /// Kept separate from [`RemoveError`] so the `validate_removable` guard
-/// returns a small `Result` — folding these into `RemoveError` (which
+/// returns a small `Result` — folding these into [`RemoveError`] (which
 /// carries the large [`InstallError`]) trips `clippy::result_large_err`
 /// on the non-async validator.
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum RemoveValidationError {
-    /// `pacquet remove` was invoked with no package names. Mirrors pnpm's
-    /// `ERR_PNPM_MUST_REMOVE_SOMETHING` thrown at
-    /// <https://github.com/pnpm/pnpm/blob/9cad8274fd/installing/commands/src/remove.ts>.
     #[display("At least one dependency name should be specified for removal")]
     #[diagnostic(code(ERR_PNPM_MUST_REMOVE_SOMETHING))]
     MustRemoveSomething,
 
-    /// One or more names passed to `pacquet remove` aren't present in the
-    /// targeted dependency field(s). Mirrors pnpm's
-    /// `ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS`; the message and hint are
-    /// built to match upstream's `RemoveMissingDepsError`.
     #[display("{message}")]
     #[diagnostic(code(ERR_PNPM_CANNOT_REMOVE_MISSING_DEPS))]
     CannotRemoveMissingDeps {
@@ -105,7 +96,7 @@ impl Remove<'_> {
             http_client_arc,
             config,
             manifest,
-            lockfile,
+            lockfile: MaybeLazyLockfile::Loaded(lockfile),
             lockfile_path,
             // `pnpm remove`'s `include` defaults to every dependency
             // group (`production`/`dev`/`optional` !== false), so the
@@ -135,18 +126,21 @@ impl Remove<'_> {
             supported_architectures,
             node_linker: config.node_linker,
             lockfile_only,
+            dry_run: false,
             // Removing a dependency must not bump the survivors: keep
             // every remaining lockfile pin in the preferred-versions
             // seed, same as `install` / `add`.
             update_seed_policy: UpdateSeedPolicy::KeepAll,
             auth_override: None,
             resolution_observer: None,
+            catalogs_override: None,
+            disable_optimistic_repeat_install: false,
         }
         .run::<Reporter>()
         .await
         .map_err(RemoveError::Install)?;
 
-        manifest.save().map_err(RemoveError::SaveManifest)?;
+        let updated = manifest.save_and_get_written_value().map_err(RemoveError::SaveManifest)?;
 
         // `pnpm:package-manifest updated` mirrors the post-mutation emit
         // pnpm fires after rewriting the manifest. See the parallel emit
@@ -159,7 +153,7 @@ impl Remove<'_> {
             .into_owned();
         Reporter::emit(&LogEvent::PackageManifest(PackageManifestLog {
             level: LogLevel::Debug,
-            message: PackageManifestMessage::Updated { prefix, updated: manifest.value().clone() },
+            message: PackageManifestMessage::Updated { prefix, updated },
         }));
 
         Ok(())
@@ -169,9 +163,7 @@ impl Remove<'_> {
 /// The up-front guards `pacquet remove` applies before mutating the
 /// manifest or running any install — both fail fast, matching pnpm's
 /// `remove` handler at
-/// <https://github.com/pnpm/pnpm/blob/9cad8274fd/installing/commands/src/remove.ts>:
-/// an empty target list is `MUST_REMOVE_SOMETHING`, and any name absent
-/// from the targeted field(s) is `CANNOT_REMOVE_MISSING_DEPS`.
+/// <https://github.com/pnpm/pnpm/blob/9cad8274fd/installing/commands/src/remove.ts>.
 fn validate_removable(
     manifest: &PackageManifest,
     package_names: &[String],

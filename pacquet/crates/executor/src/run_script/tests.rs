@@ -18,7 +18,6 @@ fn posix_quote_wraps_unsafe_strings() {
 
 #[test]
 fn posix_quote_escapes_embedded_single_quotes() {
-    // The `shlex` escape for an embedded quote is `'"'"'`.
     assert_eq!(posix_quote("it's"), r#"'it'"'"'s'"#);
 }
 
@@ -64,7 +63,7 @@ fn run(pkg_root: &Path, stage: &str, script: &str, args: &[String]) -> std::proc
 fn run_script_stamps_npm_lifecycle_event() {
     let dir = tempdir().expect("temp dir");
     let marker = dir.path().join("stage.txt");
-    let script = format!("printf %s \"$npm_lifecycle_event\" > \"{}\"", marker.display());
+    let script = format!(r#"printf %s "$npm_lifecycle_event" > "{}""#, marker.display());
 
     let status = run(dir.path(), "build", &script, &[]);
     assert!(status.success(), "the script should exit cleanly");
@@ -77,7 +76,7 @@ fn run_script_stamps_npm_lifecycle_event() {
 fn run_script_prepends_node_modules_bin_to_path() {
     let dir = tempdir().expect("temp dir");
     let marker = dir.path().join("path.txt");
-    let script = format!("printf %s \"$PATH\" > \"{}\"", marker.display());
+    let script = format!(r#"printf %s "$PATH" > "{}""#, marker.display());
 
     run(dir.path(), "build", &script, &[]);
     let written = fs::read_to_string(&marker).expect("read marker");

@@ -49,7 +49,8 @@ impl From<std::io::Error> for ResolveError {
 
 /// Resolve a request lockfile-only and return the produced lockfile.
 /// The store is intentionally left untouched (no tarball is fetched):
-/// pnpr serves no file content, so the client fetches every tarball.
+/// tarball downloads happen later from upstream URLs or an uplink's
+/// `/~<uplink>/` registry endpoint.
 ///
 /// A single-project request resolves one root (`.`) importer. A
 /// multi-project request is reconstructed as a real workspace in the
@@ -159,7 +160,7 @@ pub async fn resolve(
         http_client_arc: Arc::clone(client),
         config,
         manifest: &manifest,
-        lockfile: input_lockfile,
+        lockfile: pacquet_lockfile::MaybeLazyLockfile::Loaded(input_lockfile),
         lockfile_path: input_lockfile.map(|_| lockfile_path.as_path()),
         dependency_groups: vec![
             DependencyGroup::Prod,
@@ -182,15 +183,18 @@ pub async fn resolve(
         supported_architectures: None,
         node_linker: NodeLinker::Isolated,
         lockfile_only: true,
+        dry_run: false,
         update_seed_policy: pacquet_package_manager::UpdateSeedPolicy::KeepAll,
         // Resolve as the caller (forwarded credentials) without baking
         // per-user auth into the interned `&'static Config`.
         auth_override: Some(Arc::clone(auth_headers)),
         // Stream each resolved tarball to the client as the walk yields
-        // it (`/v1/resolve` NDJSON `package` frames) so tarball fetch
+        // it (`/-/pnpr/v0/resolve` NDJSON `package` frames) so tarball fetch
         // overlaps this server-side resolution. `None` falls back to a
         // single terminal `done` frame carrying the whole lockfile.
         resolution_observer: observer,
+        catalogs_override: None,
+        disable_optimistic_repeat_install: false,
     }
     .run::<SilentReporter>()
     .await

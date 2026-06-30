@@ -4,14 +4,16 @@ use super::PackageName;
 fn accepts_unscoped() {
     let name = PackageName::parse("lodash").unwrap();
     assert_eq!(name.as_str(), "lodash");
-    name.validate_tarball_name("lodash-4.17.21.tgz").unwrap();
+    assert_eq!(name.tarball_name_for_version("4.17.21"), "lodash-4.17.21.tgz");
+    name.parse_tarball_name("lodash-4.17.21.tgz").unwrap();
 }
 
 #[test]
 fn accepts_scoped() {
     let name = PackageName::parse("@types/node").unwrap();
     assert_eq!(name.as_str(), "@types/node");
-    name.validate_tarball_name("node-20.0.0.tgz").unwrap();
+    assert_eq!(name.tarball_name_for_version("20.0.0"), "node-20.0.0.tgz");
+    name.parse_tarball_name("node-20.0.0.tgz").unwrap();
 }
 
 #[test]
@@ -29,7 +31,7 @@ fn rejects_dot_prefix() {
 #[test]
 fn rejects_tarball_for_other_package() {
     let name = PackageName::parse("foo").unwrap();
-    assert!(name.validate_tarball_name("bar-1.0.0.tgz").is_err());
-    assert!(name.validate_tarball_name("../foo-1.0.0.tgz").is_err());
-    assert!(name.validate_tarball_name("foo-1.0.0").is_err());
+    assert!(name.parse_tarball_name("bar-1.0.0.tgz").is_err());
+    assert!(name.parse_tarball_name("../foo-1.0.0.tgz").is_err());
+    assert!(name.parse_tarball_name("foo-1.0.0").is_err());
 }

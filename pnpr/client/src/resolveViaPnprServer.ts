@@ -35,14 +35,10 @@ export interface ResolveViaPnprServerOptions {
   /** The client's named-registry aliases (`namedRegistries`). */
   namedRegistries?: Record<string, string>
   /**
-   * The caller's forwarded upstream credentials, keyed by nerf-darted
-   * registry URI, so the server resolves private content as the
-   * caller. Distinct from `authorization` (pnpr identity).
-   */
-  authHeaders?: Record<string, string>
-  /**
    * `Authorization` for the pnpr server's own URL (`undefined` if none):
-   * identifies the caller to pnpr's gate.
+   * identifies the caller to pnpr's gate. The client never forwards its
+   * own upstream registry credentials — pnpr selects upstream credentials
+   * from its route policy, so none are placed in the request body.
    */
   authorization?: string
   /** Overrides */
@@ -67,7 +63,7 @@ export interface ResolveViaPnprServerResult {
 interface Violation { name: string, version: string, code: string, reason: string }
 
 /**
- * One NDJSON frame from `POST /v1/resolve`. `package` frames stream as
+ * One NDJSON frame from `POST /-/pnpr/v0/resolve`. `package` frames stream as
  * the server resolves; exactly one terminal frame (`done` / `error` /
  * `violations`) closes the response.
  */
@@ -81,7 +77,7 @@ type ResolveFrame =
  * Resolve a project against a pnpr server and return the resolved
  * lockfile.
  *
- * `POST /v1/resolve` answers with an `application/x-ndjson` stream: one
+ * `POST /-/pnpr/v0/resolve` answers with an `application/x-ndjson` stream: one
  * `package` frame per resolved tarball as the server's tree walk yields
  * it, then exactly one terminal frame — `done` (full lockfile + stats),
  * `error`, or `violations`. pnpr serves no file content — the caller
@@ -102,7 +98,6 @@ export async function resolveViaPnprServer (
     projects,
     registry: opts.registry,
     namedRegistries: opts.namedRegistries,
-    authHeaders: opts.authHeaders,
     overrides: opts.overrides,
     nodeVersion: opts.nodeVersion ?? process.version.slice(1),
     os: process.platform,
@@ -139,7 +134,7 @@ export async function resolveViaPnprServer (
 type TerminalFrame = Extract<ResolveFrame, { type: 'done' | 'error' | 'violations' }>
 
 /**
- * Parse the NDJSON `/v1/resolve` body and return its single terminal
+ * Parse the NDJSON `/-/pnpr/v0/resolve` body and return its single terminal
  * frame. `package` frames are skipped — this client fetches tarballs the
  * normal way after resolution rather than overlapping fetch with the
  * stream. Throws on an unknown frame type (so a protocol mismatch fails
@@ -154,15 +149,15 @@ function parseTerminalFrame (body: string): TerminalFrame {
     if (frame.type === 'done' || frame.type === 'error' || frame.type === 'violations') {
       return frame
     }
-    throw new Error(`pnpr server /v1/resolve stream emitted an unknown frame type: ${String((frame as { type: unknown }).type)}`)
+    throw new Error(`pnpr server /-/pnpr/v0/resolve stream emitted an unknown frame type: ${String((frame as { type: unknown }).type)}`)
   }
-  throw new Error('pnpr server /v1/resolve stream ended without a terminal frame')
+  throw new Error('pnpr server /-/pnpr/v0/resolve stream ended without a terminal frame')
 }
 
 const REQUEST_TIMEOUT = 600_000 // 10 minutes — server-side resolution can be slow on first run
 
 /**
- * `POST /v1/resolve` and return the full response body, decompressed.
+ * `POST /-/pnpr/v0/resolve` and return the full response body, decompressed.
  *
  * `urlPath` resolution normalizes the base to end with "/" so a path
  * prefix configured on the pnpr server URL (e.g. https://host/pnpr/) is
@@ -170,7 +165,7 @@ const REQUEST_TIMEOUT = 600_000 // 10 minutes — server-side resolution can be 
  */
 async function postResolve (registryUrl: string, body: string, authorization?: string): Promise<Buffer> {
   const base = registryUrl.endsWith('/') ? registryUrl : `${registryUrl}/`
-  const url = new URL('v1/resolve', base)
+  const url = new URL('-/pnpr/v0/resolve', base)
   const requestFn = url.protocol === 'https:' ? https.request : http.request
 
   const headers: http.OutgoingHttpHeaders = {

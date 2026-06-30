@@ -40,3 +40,148 @@ fn object_store_error_maps_to_bad_gateway() {
     });
     assert_eq!(err.status_code(), StatusCode::BAD_GATEWAY);
 }
+
+#[test]
+fn public_message_hides_server_error_details() {
+    let err = RegistryError::ObjectStore(object_store::Error::Generic {
+        store: "test",
+        source: "internal-hostname".into(),
+    });
+    assert_eq!(err.status_code(), StatusCode::BAD_GATEWAY);
+    assert_eq!(err.public_message(), "Bad Gateway");
+    assert!(err.to_string().contains("internal-hostname"));
+}
+
+#[test]
+fn log_message_keeps_non_secret_server_error_details() {
+    let err =
+        RegistryError::Internal { reason: "auth database COUNT(*) returned no rows".to_string() };
+    assert_eq!(err.public_message(), "Internal Server Error");
+    assert_eq!(err.log_message(), "Internal error: auth database COUNT(*) returned no rows");
+}
+
+#[test]
+fn log_message_redacts_embedded_database_url_credentials() {
+    let err = RegistryError::Internal {
+        reason: "connection failed for postgres://admin:secret@db.example/pnpr?sslmode=require and libsql://edge.example/pnpr?authToken=token-value".to_string(),
+    };
+
+    let message = err.log_message();
+
+    assert!(message.contains("connection failed"));
+    assert!(message.contains("db.example"));
+    assert!(message.contains("edge.example"));
+    assert!(message.contains("sslmode=require"));
+    assert!(message.contains("postgres://redacted@db.example/pnpr?sslmode=require"));
+    assert!(message.contains("authToken=redacted"));
+    assert!(!message.contains("admin"));
+    assert!(!message.contains("secret"));
+    assert!(!message.contains("token-value"));
+}
+
+#[test]
+fn log_message_redacts_ipv6_database_url_credentials() {
+    let err = RegistryError::Internal {
+        reason: "connection failed for postgres://admin:secret@[::1]/pnpr?sslmode=require"
+            .to_string(),
+    };
+
+    let message = err.log_message();
+
+    assert!(message.contains("postgres://redacted@[::1]/pnpr?sslmode=require"));
+    assert!(!message.contains("admin"));
+    assert!(!message.contains("secret"));
+}
+
+#[test]
+fn log_message_redacts_malformed_database_url_credentials() {
+    let err = RegistryError::Internal {
+        reason:
+            "connection failed for postgres://admin:sec#ret@db.example/pnpr?password=query-secret"
+                .to_string(),
+    };
+
+    let message = err.log_message();
+
+    assert!(message.contains("postgres://redacted@db.example/pnpr?password=redacted"));
+    assert!(!message.contains("admin"));
+    assert!(!message.contains("sec#ret"));
+    assert!(!message.contains("query-secret"));
+}
+
+#[test]
+fn log_message_redacts_malformed_database_url_credentials_with_slash() {
+    let err = RegistryError::Internal {
+        reason: "connection failed for postgres://admin:pa/ss@db.example/pnpr".to_string(),
+    };
+
+    let message = err.log_message();
+
+    assert!(message.contains("postgres://redacted@db.example/pnpr"));
+    assert!(!message.contains("admin"));
+    assert!(!message.contains("pa/ss"));
+}
+
+#[test]
+fn log_message_redacts_database_url_fragment_secrets() {
+    let err = RegistryError::Internal {
+        reason: "connection failed for postgres://db.example/pnpr#password=fragment-secret"
+            .to_string(),
+    };
+
+    let message = err.log_message();
+
+    assert!(message.contains("postgres://db.example/pnpr"));
+    assert!(!message.contains("fragment-secret"));
+    assert!(!message.contains("#password"));
+}
+
+#[test]
+fn log_message_redacts_malformed_database_url_fragment_secrets() {
+    let err = RegistryError::Internal {
+        reason:
+            "connection failed for postgres://admin:pa/ss@db.example/pnpr#password=fragment-secret"
+                .to_string(),
+    };
+
+    let message = err.log_message();
+
+    assert!(message.contains("postgres://redacted@db.example/pnpr"));
+    assert!(!message.contains("admin"));
+    assert!(!message.contains("pa/ss"));
+    assert!(!message.contains("fragment-secret"));
+    assert!(!message.contains("#password"));
+}
+
+#[test]
+fn allows_uplink_fallthrough_only_for_availability_failures() {
+    // 5xx is an availability signal: a later uplink may serve the package,
+    // so the chain falls through.
+    for status in [500, 502, 503, 504] {
+        let err = RegistryError::UpstreamStatus {
+            url: "https://up.example/foo".to_string(),
+            status,
+            body: String::new(),
+        };
+        assert!(err.allows_uplink_fallthrough(), "status {status} should fall through");
+    }
+
+    // An open circuit is an availability failure too.
+    let circuit_open = RegistryError::UpstreamUnavailable { uplink: "npmjs".to_string() };
+    assert!(circuit_open.allows_uplink_fallthrough());
+
+    // Every 4xx is an authoritative response about this request — including
+    // 429 (throttle) and 408 (timeout) — and must NOT be masked by a later
+    // uplink.
+    for status in [400, 401, 403, 408, 410, 429, 451] {
+        let err = RegistryError::UpstreamStatus {
+            url: "https://up.example/foo".to_string(),
+            status,
+            body: String::new(),
+        };
+        assert!(!err.allows_uplink_fallthrough(), "status {status} must not fall through");
+    }
+
+    // A non-upstream error is never a fall-through candidate.
+    assert!(!RegistryError::InvalidConfig { reason: "x".to_string() }.allows_uplink_fallthrough());
+}

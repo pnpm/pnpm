@@ -36,6 +36,7 @@ fn make_node(
             policy_violation: None,
         }),
         children: children.iter().map(|(alias, child)| (alias.to_string(), dp(child))).collect(),
+        optional_children: HashSet::new(),
         peer_dependencies: BTreeMap::new(),
         transitive_peer_dependencies: HashSet::new(),
         resolved_peer_names: resolved_peers.iter().map(std::string::ToString::to_string).collect(),
@@ -83,11 +84,6 @@ fn build_graph() -> DependenciesGraph {
     graph
 }
 
-/// The subset variant must collapse into the same larger variant no
-/// matter the order the two equal-sized larger variants are presented in
-/// — the determinism guarantee the total-order tie-break exists to
-/// provide. Without the dep-path tie-break, swapping the two would flip
-/// which one wins the collapse (pnpm/pnpm#12179).
 #[test]
 fn collapse_target_is_independent_of_variant_order() {
     let graph = build_graph();
@@ -103,10 +99,6 @@ fn collapse_target_is_independent_of_variant_order() {
     assert_eq!(baz_first.get(&dp(SUBSET)), qux_first.get(&dp(SUBSET)));
 }
 
-/// End to end over [`dedupe_peer_dependents`]: an importer that resolved
-/// `foo` to the subset variant has its direct dep rewritten to the
-/// collapse target, and the now-orphaned subset snapshot is pruned from
-/// the graph while both larger variants remain.
 #[test]
 fn rewrites_importer_direct_dep_and_prunes_orphan() {
     let mut graph = build_graph();
@@ -127,13 +119,6 @@ fn rewrites_importer_direct_dep_and_prunes_orphan() {
     assert!(graph.contains_key(&dp(QUX_VARIANT)));
 }
 
-/// Port of pnpm's `packages are not deduplicated when versions do not
-/// match`
-/// ([dedupeDepPaths.test.ts](https://github.com/pnpm/pnpm/blob/7f91ba4045/installing/deps-resolver/test/dedupeDepPaths.test.ts#L8)).
-/// `foo` has an optional `baz` peer and a required `bar` peer pinned to
-/// two different majors. The variant without `baz` collapses into the
-/// one with `baz` *of the same `bar` major*, but never across `bar`
-/// majors — so the two majors stay distinct.
 #[test]
 fn does_not_collapse_across_incompatible_peer_versions() {
     let bar1 = "foo@1.0.0(bar@1.0.0)";
@@ -184,13 +169,53 @@ fn does_not_collapse_across_incompatible_peer_versions() {
     assert_eq!(direct["project3"]["foo"], direct["project4"]["foo"]);
 }
 
-/// A package whose two variants are mutually incompatible (neither's
-/// children/peers subset the other) must not collapse — both survive and
-/// no remap happens.
+#[test]
+fn direct_dep_collapses_but_parent_edge_keeps_incompatible_peer_variant() {
+    let subset = "foo@1.0.0(bar@1.0.0)";
+    let larger = "foo@1.0.0(bar@1.0.0)(baz@1.0.0)";
+    let baz = "baz@1.0.0(qux@1.0.0)";
+    let consumer = "consumer@1.0.0(foo@1.0.0(bar@1.0.0))(bar@1.0.0)";
+
+    let mut graph = DependenciesGraph::new();
+    for (id, dep_path) in [("bar@1.0.0", "bar@1.0.0"), ("qux@1.0.0", "qux@1.0.0")] {
+        graph.insert(dp(dep_path), make_node(id, dep_path, &[], &[]));
+    }
+    graph.insert(dp(baz), make_node("baz@1.0.0", baz, &[("qux", "qux@1.0.0")], &["qux"]));
+    graph.insert(dp(subset), make_node("foo@1.0.0", subset, &[("bar", "bar@1.0.0")], &["bar"]));
+    graph.insert(
+        dp(larger),
+        make_node("foo@1.0.0", larger, &[("bar", "bar@1.0.0"), ("baz", baz)], &["bar", "baz"]),
+    );
+    graph.insert(
+        dp(consumer),
+        make_node(
+            "consumer@1.0.0",
+            consumer,
+            &[("foo", subset), ("bar", "bar@1.0.0")],
+            &["foo", "bar"],
+        ),
+    );
+
+    let mut direct: DirectByImporter = BTreeMap::new();
+    direct.insert("project-subset".to_string(), BTreeMap::from([("foo".to_string(), dp(subset))]));
+    direct.insert("project-larger".to_string(), BTreeMap::from([("foo".to_string(), dp(larger))]));
+    direct.insert(
+        "project-consumer".to_string(),
+        BTreeMap::from([("consumer".to_string(), dp(consumer))]),
+    );
+
+    dedupe_peer_dependents(&mut graph, &mut direct);
+
+    assert_eq!(direct["project-subset"]["foo"], dp(larger));
+    assert_eq!(direct["project-larger"]["foo"], dp(larger));
+    assert_eq!(graph[&dp(consumer)].children["foo"], dp(subset));
+    assert!(graph.contains_key(&dp(subset)));
+    assert!(graph.contains_key(&dp(larger)));
+}
+
 #[test]
 fn incompatible_variants_do_not_collapse() {
     let mut graph = build_graph();
-    // Drop the subset so only the two incompatible variants remain.
     graph.remove(&dp(SUBSET));
 
     let mut direct: DirectByImporter = BTreeMap::new();

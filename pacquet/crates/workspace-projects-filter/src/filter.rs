@@ -257,9 +257,6 @@ fn reverse_graph<Pkg>(projects_graph: &ProjectGraph<Pkg>) -> HashMap<PathBuf, Ve
 
 /// Port of upstream's
 /// [`matchProjects`](https://github.com/pnpm/pnpm/blob/3b62f9da31/workspace/projects-filter/src/index.ts#L322-L334).
-/// Falls back to a `@*/<pattern>` scope search when an unscoped pattern
-/// matches nothing, but only accepts that fallback when it is
-/// unambiguous (exactly one match).
 fn match_projects(candidates: &[(PathBuf, Option<String>)], pattern: &str) -> Vec<PathBuf> {
     let matcher = create_matcher(std::slice::from_ref(&pattern.to_string()));
     let matches: Vec<PathBuf> = candidates
@@ -294,15 +291,12 @@ fn match_projects_by_path<Pkg>(
 
 /// Whether `child` is strictly inside `parent`. Mirrors the
 /// [`is-subdir`](https://github.com/jonschlinkert/is-subdir) package
-/// upstream uses for `matchProjectsByExactPath`: an equal path is *not*
-/// a subdirectory.
+/// upstream uses for `matchProjectsByExactPath`.
 fn is_subdir(parent: &Path, child: &Path) -> bool {
     let Some(relative) = pathdiff::diff_paths(child, parent) else {
         return false;
     };
     match relative.components().next() {
-        // Empty (equal paths), `..`-prefixed (ancestor), or `.` are not
-        // subdirectories.
         None | Some(Component::ParentDir | Component::CurDir) => false,
         Some(_) => true,
     }
@@ -334,9 +328,6 @@ where
 
 /// Port of upstream's
 /// [`filterProjectsBySelectorObjects`](https://github.com/pnpm/pnpm/blob/3b62f9da31/workspace/projects-filter/src/index.ts#L103-L156).
-/// Builds the dependency graph (a `--filter-prod` second graph that
-/// ignores devDependencies when any prod selector is present), filters
-/// each, and unions the selections (prod first, then all).
 pub fn filter_projects_by_selector_objects<Pkg>(
     projects: Vec<Pkg>,
     selectors: &[ProjectSelector],

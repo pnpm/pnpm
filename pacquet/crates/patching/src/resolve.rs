@@ -41,8 +41,7 @@ impl From<PatchNonSemverRangeError> for ResolvePatchedDependenciesError {
 /// the order in `PATCH_KEY_CONFLICT` diagnostics matches the order
 /// the user wrote in yaml — matching pnpm's JS-object iteration
 /// behavior. [`IndexMap`] is required for that; a [`BTreeMap`]
-/// would sort the keys and reorder ranges alphabetically, which
-/// surfaced as a review comment from Copilot on pacquet#425.
+/// would sort the keys and reorder ranges alphabetically.
 ///
 /// Ports the workspace-dir-resolution + grouping half of upstream's
 /// [`getOptionsFromPnpmSettings`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/config/reader/src/getOptionsFromRootManifest.ts#L28-L46)
@@ -55,9 +54,6 @@ impl From<PatchNonSemverRangeError> for ResolvePatchedDependenciesError {
 /// with the *workspace* manifest, not the project manifest — pnpm
 /// v11 stopped reading install settings (including
 /// `patchedDependencies`) from `package.json`'s `pnpm` field.
-///
-/// Returns `Ok(None)` when `raw` is empty so callers don't have to
-/// special-case an empty grouping.
 ///
 /// [`BTreeMap`]: std::collections::BTreeMap
 /// [`PatchGroup::range`]: crate::PatchGroup::range

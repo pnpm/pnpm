@@ -1,0 +1,23 @@
+[package]
+name                  = "pacquet-ecosystem-e2e"
+version               = "0.0.0"
+publish               = false
+authors.workspace     = true
+description.workspace = true
+edition.workspace     = true
+homepage.workspace    = true
+keywords.workspace    = true
+license.workspace     = true
+repository.workspace  = true
+
+[[bin]]
+name = "ecosystem-e2e"
+path = "src/main.rs"
+
+[dependencies]
+clap       = { workspace = true }
+serde_json = { workspace = true }
+which      = { workspace = true }
+
+[lints]
+workspace = true

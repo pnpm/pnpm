@@ -1,7 +1,8 @@
 use crate::{
-    auth::{AuthState, UpsertOutcome, identify},
+    auth::{AuthState, TokenRecord, UpsertOutcome, identify},
     config::Config,
     error::RegistryError,
+    journal::JournaledPublish,
     package_name::PackageName,
     policy::Identity,
     publish::{
@@ -12,21 +13,33 @@ use crate::{
     streaming,
     upstream::{
         CacheValidators, FetchOutcome, FetchedPackument, PackumentFetch, Upstream,
-        abbreviate_packument, extract_version_manifest, rewrite_tarball_urls,
+        ValidatorsByUplink, abbreviate_packument, extract_version_manifest, rewrite_tarball_urls,
+        tarball_basename,
     },
 };
 use axum::{
     Router,
     body::Body,
-    extract::{DefaultBodyLimit, OriginalUri, Path, Request, State},
-    http::{HeaderMap, StatusCode, header},
+    extract::{
+        ConnectInfo, DefaultBodyLimit, FromRequestParts, OriginalUri, Path, Request, State,
+        connect_info::Connected,
+    },
+    http::{HeaderMap, Method, StatusCode, header, request::Parts},
+    middleware::{self, Next},
     response::{IntoResponse, Response},
-    routing::{delete, get, post},
+    routing::{any, delete, get, post, put},
+    serve::IncomingStream,
 };
 use chrono::Utc;
 use indexmap::IndexMap;
 use serde_json::{Value, json};
-use std::{sync::Arc, time::Duration};
+use ssri::Integrity;
+use std::{
+    collections::HashSet,
+    net::{IpAddr, SocketAddr},
+    sync::Arc,
+    time::Duration,
+};
 use tower_http::{
     compression::{
         CompressionLayer,
@@ -44,12 +57,17 @@ use tracing::Span;
 /// long version histories.
 const ABBREVIATED_CONTENT_TYPE: &str = "application/vnd.npm.install-v1+json";
 
+/// Cap tarballs at 100 MiB while pnpr has to spool them to disk for SRI
+/// verification. This bounds per-request temporary disk usage for
+/// chunked or malicious upstream bodies.
+const MAX_TARBALL_BYTES: u64 = 100 * 1024 * 1024;
+
 /// Cap publish bodies at 100 MiB. The default axum body limit is
 /// 2 MiB, far too small for a real package — npm itself caps publish
 /// at 100 MiB and verdaccio inherits that limit. We apply it via
 /// [`DefaultBodyLimit::max`] on the router rather than on each
 /// route, so future write endpoints inherit the same ceiling.
-const MAX_PUBLISH_BODY_BYTES: usize = 100 * 1024 * 1024;
+const MAX_PUBLISH_BODY_BYTES: usize = MAX_TARBALL_BYTES as usize;
 
 #[derive(Clone)]
 struct AppState {
@@ -68,9 +86,12 @@ struct AppInner {
     /// two concurrent writers to the same package on this instance can't
     /// lose each other's changes. See [`PackageLocks`].
     package_locks: PackageLocks,
-    /// Lazily-built engine backing the `/v1/resolve` endpoint. Built on
+    /// Lazily-built engine backing the `/-/pnpr/v0/resolve` endpoint. Built on
     /// first such request so servers that never receive one pay nothing.
     resolver: std::sync::OnceLock<crate::resolver::Resolver>,
+    /// Local OSV index, loaded before the server accepts requests when
+    /// `osv.enabled` is set and a mounted surface consults it.
+    osv_index: Option<Arc<crate::resolver::OsvIndex>>,
 }
 
 /// Per-package serialization for the read-modify-write packument flows
@@ -109,10 +130,29 @@ impl PackageLocks {
     /// read and the write are atomic with respect to other same-package
     /// writers.
     async fn lock(&self, name: &str) -> tokio::sync::MutexGuard<'_, ()> {
+        self.stripes[self.stripe_index(name)].lock().await
+    }
+
+    /// Lock the stripes owning every name in `names`, held until the
+    /// returned guards are dropped. Stripes are locked in ascending
+    /// index order (duplicates collapsed), so two overlapping
+    /// batch publishes — or a batch publish racing a single-package
+    /// publish — can't deadlock on lock order.
+    async fn lock_many(&self, names: &[&str]) -> Vec<tokio::sync::MutexGuard<'_, ()>> {
+        let mut indices: Vec<usize> = names.iter().map(|name| self.stripe_index(name)).collect();
+        indices.sort_unstable();
+        indices.dedup();
+        let mut guards = Vec::with_capacity(indices.len());
+        for index in indices {
+            guards.push(self.stripes[index].lock().await);
+        }
+        guards
+    }
+
+    fn stripe_index(&self, name: &str) -> usize {
         let mut hasher = std::collections::hash_map::DefaultHasher::new();
         std::hash::Hash::hash(name, &mut hasher);
-        let index = std::hash::Hasher::finish(&hasher) as usize % self.stripes.len();
-        self.stripes[index].lock().await
+        std::hash::Hasher::finish(&hasher) as usize % self.stripes.len()
     }
 }
 
@@ -128,22 +168,85 @@ impl PackageLocks {
 /// router level, so we take both via one handler that branches on
 /// the `@` prefix and the literal-`-` segment.
 pub fn router(config: Config) -> Router {
-    router_with_auth(config, AuthState::in_memory())
+    let max_users = config.auth.htpasswd.max_users;
+    router_with_auth(config, AuthState::in_memory_with_max_users(max_users))
+}
+
+/// Fallible counterpart to [`router`]: surfaces a missing/invalid OSV
+/// database (when `osv.enabled`) as an error instead of panicking, for
+/// embedders that build the router directly rather than via [`serve`].
+pub fn try_router(config: Config) -> crate::error::Result<Router> {
+    let max_users = config.auth.htpasswd.max_users;
+    try_router_with_auth(config, AuthState::in_memory_with_max_users(max_users))
 }
 
 /// Like [`router`] but with a caller-supplied [`AuthState`]. Used
 /// by [`serve`] to wire the persistent file-backed stores, and by
 /// tests that want to override the bcrypt cost or pre-seed users.
+///
+/// Panics if `osv.enabled` is set but the database can't load; call
+/// [`try_router_with_auth`] to handle that as a recoverable error.
 pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
+    try_router_with_auth(config, auth)
+        .expect("pnpr config must be valid and any enabled OSV database must load before building the router")
+}
+
+/// Fallible counterpart to [`router_with_auth`].
+pub fn try_router_with_auth(config: Config, auth: AuthState) -> crate::error::Result<Router> {
+    // Enforce the "at least one surface enabled" invariant for embedders
+    // that build and serve the router themselves rather than going through
+    // `serve`/`serve_listener`.
+    config.ensure_a_feature_is_enabled()?;
+    let osv_index = load_active_osv_index(&config)?;
+    Ok(router_with_auth_and_osv(config, auth, osv_index))
+}
+
+/// Load the OSV index only for surfaces that actually consult it. With
+/// both mounted surfaces disabled rejected earlier, that means any
+/// enabled `osv` config now applies to the resolver, the registry, or
+/// both.
+fn load_active_osv_index(
+    config: &Config,
+) -> crate::error::Result<Option<Arc<crate::resolver::OsvIndex>>> {
+    if config.resolver.enabled || config.registry.enabled {
+        crate::resolver::load_osv_index(config)
+    } else {
+        Ok(None)
+    }
+}
+
+/// Run startup side effects and load auth backends for surfaces that
+/// consult caller identity. The registry needs publish-journal recovery;
+/// both the registry and resolver need auth because resolver requests
+/// control outbound dependency-resolution work.
+async fn load_startup_auth(config: &Config) -> crate::error::Result<AuthState> {
+    if config.registry.enabled {
+        crate::journal::recover_publish_journal(config).await?;
+    }
+    AuthState::load(&config.auth, &config.backend).await
+}
+
+fn router_with_auth_and_osv(
+    config: Config,
+    auth: AuthState,
+    osv_index: Option<Arc<crate::resolver::OsvIndex>>,
+) -> Router {
     let storage =
         Storage::new(&config.hosted_store, config.storage.clone(), config.cache_storage.clone());
-    let upstreams: IndexMap<String, Upstream> = config
-        .uplinks
-        .iter()
-        .map(|(name, uplink)| {
-            (name.clone(), Upstream::new(uplink.url.clone(), uplink.headers.clone()))
-        })
-        .collect();
+    let registry_enabled = config.registry.enabled;
+    let resolver_enabled = config.resolver.enabled;
+    // Only the registry routes consult the uplinks, so a resolver-only
+    // server builds none — skipping a `ThrottledClient` allocation per
+    // configured uplink.
+    let upstreams: IndexMap<String, Upstream> = if registry_enabled {
+        config
+            .uplinks
+            .iter()
+            .map(|(name, uplink)| (name.clone(), Upstream::new(name, uplink)))
+            .collect()
+    } else {
+        IndexMap::new()
+    };
     let state = AppState {
         inner: Arc::new(AppInner {
             storage,
@@ -152,31 +255,83 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
             auth,
             package_locks: PackageLocks::new(),
             resolver: std::sync::OnceLock::new(),
+            osv_index,
         }),
     };
-    Router::new()
-        .route("/-/ping", get(serve_ping))
-        // pnpr resolver: opt-in, versioned endpoints layered on the
-        // registry core. Non-pnpm clients never touch these. `/-/pnpr`
-        // is the capability handshake (404 on a plain registry).
-        .route("/-/pnpr", get(serve_pnpr_handshake))
-        .route("/v1/resolve", post(serve_resolve))
-        .route("/v1/verify-lockfile", post(serve_verify_lockfile))
-        .route("/{name}", get(get_packument_unscoped).put(put_one_segment))
-        .route("/{first}/{second}", get(get_two_segments).put(put_two_segments))
-        .route(
-            "/{first}/{second}/{third}",
-            get(get_three_segments).put(put_three_segments).delete(delete_three_segments),
-        )
-        .route("/{scope}/{name}/-/{filename}", get(get_tarball_scoped))
-        .route("/{a}/{b}/{c}/{d}", get(get_four_segments).delete(delete_four_segments))
-        .route(
-            "/{a}/{b}/{c}/{d}/{e}",
-            get(get_five_segments).put(put_five_segments).delete(delete_five_segments),
-        )
-        // Scoped tarball delete: `DELETE /@scope/name/-/<basename-version>.tgz/-rev/<rev>`
-        .route("/{a}/{b}/{c}/{d}/{e}/{f}", delete(delete_six_segments))
+    // `/-/ping` is a health check and is always served. The two
+    // configurable surfaces — the resolver (install accelerator) and the
+    // npm registry — are each mounted only when their feature is enabled,
+    // so an operator can run resolver-only, registry-only, or both. The
+    // config guarantees at least one is enabled.
+    let mut router = Router::new().route("/-/ping", get(serve_ping));
+    // The install-accelerator (resolver) surface, all under the reserved
+    // `/-/pnpr` namespace. `/-/pnpr` is the capability handshake (404 on a
+    // plain registry); `/-/pnpr/v0/resolve` and `/-/pnpr/v0/verify-lockfile`
+    // are the resolver endpoints. These resolve against the registries the
+    // *client* sends, so the accelerator works whether or not this process
+    // also fronts a registry.
+    //
+    // When the resolver is disabled, only `/-/pnpr` gets a 404 stub: it is
+    // the capability-probe path and overlaps the registry catch-all
+    // (`/-/pnpr` matches `/{first}/{second}`), so without the stub a probe
+    // would be proxied upstream, giving a confusing 502 where a client
+    // expects the "no resolver here" 404. The `/-/pnpr/v0/*` endpoints carry
+    // no capability probe, so they are left unmounted rather than stubbed: a
+    // client learns the resolver is absent from the handshake 404 and never
+    // calls them.
+    if resolver_enabled {
+        router = router
+            .route("/-/pnpr", get(serve_pnpr_handshake))
+            .route(
+                "/-/pnpr/v0/resolve",
+                post(serve_resolve).route_layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    require_resolver_caller,
+                )),
+            )
+            .route(
+                "/-/pnpr/v0/verify-lockfile",
+                post(serve_verify_lockfile).route_layer(middleware::from_fn_with_state(
+                    state.clone(),
+                    require_resolver_caller,
+                )),
+            );
+    } else {
+        router = router.route("/-/pnpr", any(resolver_disabled));
+    }
+    // The npm-registry surface: every packument/tarball read, publish,
+    // unpublish, dist-tag, search, and the user/login endpoint. When the
+    // feature is disabled, none of these routes are mounted — not merely
+    // hidden — so a resolver-only tier exposes no registry surface at all.
+    if registry_enabled {
+        router = router
+            // Batch publish: one request carrying many packages' publish
+            // documents. Not part of the standard npm registry API —
+            // `pnpm publish --batch` opts into it explicitly.
+            .route("/-/pnpm/v1/publish", put(serve_batch_publish))
+            .route("/{name}", get(get_packument_unscoped).put(put_one_segment))
+            .route("/{first}/{second}", get(get_two_segments).put(put_two_segments))
+            .route(
+                "/{first}/{second}/{third}",
+                get(get_three_segments).put(put_three_segments).delete(delete_three_segments),
+            )
+            .route("/{scope}/{name}/-/{filename}", get(get_tarball_scoped))
+            .route("/{a}/{b}/{c}/{d}", get(get_four_segments).delete(delete_four_segments))
+            .route(
+                "/{a}/{b}/{c}/{d}/{e}",
+                get(get_five_segments).put(put_five_segments).delete(delete_five_segments),
+            )
+            // Scoped tarball delete: `DELETE /@scope/name/-/<basename-version>.tgz/-rev/<rev>`
+            .route("/{a}/{b}/{c}/{d}/{e}/{f}", delete(delete_six_segments));
+    }
+    router
         .layer(DefaultBodyLimit::max(MAX_PUBLISH_BODY_BYTES))
+        // Authenticate once, ahead of every handler: resolve the caller,
+        // enforce bearer-token read-only / CIDR restrictions (so a
+        // restricted token is rejected before a write handler buffers its
+        // up-to-100-MiB body), and stash the identity for handlers to read.
+        // Inside the trace layer below, so a rejection is still one record.
+        .layer(axum::middleware::from_fn_with_state(state.clone(), authenticate))
         // gzip metadata responses for clients that send `Accept-Encoding:
         // gzip`, matching how a real (CDN-fronted) registry serves
         // packuments — pnpr is commonly hit directly with no proxy in
@@ -231,18 +386,40 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
         .with_state(state)
 }
 
-/// Bind to `config.listen` and serve forever. Loads the configured
-/// htpasswd users and token database before binding the socket so
-/// a startup-time auth error surfaces before we accept any client
-/// connections.
+/// Bind to `config.listen` and serve forever. Loads auth state before
+/// binding so a startup-time auth error surfaces before we accept any
+/// client connections. Registry startup additionally recovers the publish
+/// journal.
 pub async fn serve(config: Config) -> crate::error::Result<()> {
-    let auth = AuthState::load(&config.auth, &config.backend).await?;
+    // Enforce the "at least one surface" invariant here too, not only at
+    // YAML load / CLI: embedders build `Config` programmatically and call
+    // straight into `serve`, so a both-disabled config must fail loudly
+    // rather than start a server that only answers `/-/ping`.
+    config.ensure_a_feature_is_enabled()?;
+    log_enabled_surfaces(&config);
+    let osv_index = load_active_osv_index(&config)?;
+    let auth = load_startup_auth(&config).await?;
     let listen = config.listen;
-    let app = router_with_auth(config, auth);
+    let app = router_with_auth_and_osv(config, auth, osv_index);
     let listener = NodelayTcpListener(tokio::net::TcpListener::bind(listen).await?);
     tracing::info!(%listen, "pnpr listening");
-    axum::serve(listener, app).with_graceful_shutdown(shutdown_signal()).await?;
+    axum::serve(listener, app.into_make_service_with_connect_info::<PeerAddr>())
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
     Ok(())
+}
+
+/// Log which surfaces are mounted at startup. A misconfiguration — most
+/// importantly a typo'd `registry:` / `resolver:` block name, which the
+/// intentionally verdaccio-lenient config parser silently ignores and so
+/// leaves the surface at its default-enabled state — is then immediately
+/// visible to the operator rather than only discoverable by probing.
+fn log_enabled_surfaces(config: &Config) {
+    tracing::info!(
+        registry = config.registry.enabled,
+        resolver = config.resolver.enabled,
+        "pnpr surfaces",
+    );
 }
 
 /// Serve on an already-bound listener.
@@ -255,15 +432,21 @@ pub async fn serve_listener(
     listener: tokio::net::TcpListener,
 ) -> crate::error::Result<()> {
     let listen = listener.local_addr()?;
-    // Load the configured auth backends here too — going through
-    // `router` would silently fall back to in-memory auth and ignore a
-    // persisted htpasswd / SQLite store or a configured `backend:`.
-    let auth = AuthState::load(&config.auth, &config.backend).await?;
-    let app = router_with_auth(config, auth);
+    config.ensure_a_feature_is_enabled()?;
+    log_enabled_surfaces(&config);
+    let osv_index = load_active_osv_index(&config)?;
+    // Load the configured auth backends here too — going through `router`
+    // would silently fall back to in-memory auth and ignore a persisted
+    // htpasswd / SQLite store or a configured `backend:`.
+    let auth = load_startup_auth(&config).await?;
+    let app = router_with_auth_and_osv(config, auth, osv_index);
     tracing::info!(%listen, "pnpr listening");
-    axum::serve(NodelayTcpListener(listener), app)
-        .with_graceful_shutdown(shutdown_signal())
-        .await?;
+    axum::serve(
+        NodelayTcpListener(listener),
+        app.into_make_service_with_connect_info::<PeerAddr>(),
+    )
+    .with_graceful_shutdown(shutdown_signal())
+    .await?;
     Ok(())
 }
 
@@ -308,6 +491,22 @@ impl axum::serve::Listener for NodelayTcpListener {
     }
 }
 
+/// Client socket address captured from the accepted TCP connection, for
+/// the CIDR-restriction gate. A local newtype (rather than [`SocketAddr`]
+/// directly) so we can implement axum's [`Connected`] for
+/// [`NodelayTcpListener`] — the blanket impl axum ships covers only the
+/// bare [`tokio::net::TcpListener`], not our wrapper. This is the real
+/// peer address from the socket, never a client-supplied forwarding
+/// header, so it can't be spoofed.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct PeerAddr(pub(crate) SocketAddr);
+
+impl Connected<IncomingStream<'_, NodelayTcpListener>> for PeerAddr {
+    fn connect_info(stream: IncomingStream<'_, NodelayTcpListener>) -> Self {
+        PeerAddr(*stream.remote_addr())
+    }
+}
+
 async fn shutdown_signal() {
     let _ = tokio::signal::ctrl_c().await;
     tracing::info!("shutdown signal received");
@@ -321,43 +520,64 @@ async fn shutdown_signal() {
 
 async fn get_packument_unscoped(
     State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
     headers: HeaderMap,
     Path(name): Path<String>,
 ) -> Response {
-    serve_packument(&state, &headers, &name).await
+    serve_packument(&state, &identity, &headers, &name).await
 }
 
 async fn get_two_segments(
     State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
     headers: HeaderMap,
     Path((first, second)): Path<(String, String)>,
 ) -> Response {
     if first == "-" && second == "whoami" {
-        return private_no_cache(serve_whoami(&state, &headers).await);
+        return private_no_cache(serve_whoami(&identity));
+    }
+    // `/~<uplink>/<pkg>` — unscoped packument through an uplink endpoint.
+    if let Some(uplink) = first.strip_prefix('~').filter(|uplink| !uplink.is_empty()) {
+        return private_no_cache(
+            serve_packument_via_uplink(&state, &identity, &headers, uplink, &second).await,
+        );
     }
     if first.starts_with('@') {
         let full = format!("{first}/{second}");
-        serve_packument(&state, &headers, &full).await
+        serve_packument(&state, &identity, &headers, &full).await
     } else {
-        serve_version_manifest(&state, &headers, &first, &second).await
+        serve_version_manifest(&state, &identity, &first, &second).await
     }
 }
 
 async fn get_three_segments(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthedCaller(identity): AuthedCaller,
     OriginalUri(uri): OriginalUri,
+    headers: HeaderMap,
     Path((first, second, third)): Path<(String, String, String)>,
 ) -> Response {
     if first == "-" && second == "v1" && third == "search" {
         let query = uri.query().unwrap_or("");
-        return serve_search(&state, &headers, query).await;
+        return serve_search(&state, &identity, query).await;
+    }
+    // `/~<uplink>/@scope/<pkg>` — scoped packument through an uplink endpoint.
+    // (A `/~<uplink>/<pkg>/<version>` version-manifest fetch is not served;
+    // clients read the full packument from the endpoint instead.)
+    if let Some(uplink) = first.strip_prefix('~').filter(|uplink| !uplink.is_empty()) {
+        if second.starts_with('@') {
+            let full = format!("{second}/{third}");
+            return private_no_cache(
+                serve_packument_via_uplink(&state, &identity, &headers, uplink, &full).await,
+            );
+        }
+        return not_found();
     }
     if second == "-" {
-        serve_tarball(&state, &headers, &first, &third).await
+        serve_tarball(&state, &identity, &first, &third).await
     } else if first.starts_with('@') {
         let full = format!("{first}/{second}");
-        serve_version_manifest(&state, &headers, &full, &third).await
+        serve_version_manifest(&state, &identity, &full, &third).await
     } else {
         not_found()
     }
@@ -365,14 +585,20 @@ async fn get_three_segments(
 
 async fn get_tarball_scoped(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthedCaller(identity): AuthedCaller,
     Path((scope, name, filename)): Path<(String, String, String)>,
 ) -> Response {
+    // `/~<uplink>/<pkg>/-/<file>` — unscoped tarball through an uplink endpoint.
+    if let Some(uplink) = scope.strip_prefix('~').filter(|uplink| !uplink.is_empty()) {
+        return private_no_cache(
+            serve_tarball_via_uplink(&state, &identity, uplink, &name, &filename).await,
+        );
+    }
     if !scope.starts_with('@') {
         return not_found();
     }
     let full = format!("{scope}/{name}");
-    serve_tarball(&state, &headers, &full, &filename).await
+    serve_tarball(&state, &identity, &full, &filename).await
 }
 
 /// 4-segment GET:
@@ -382,28 +608,38 @@ async fn get_tarball_scoped(
 ///   (`npm token list`).
 async fn get_four_segments(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthedCaller(identity): AuthedCaller,
     Path((a, b, c, d)): Path<(String, String, String, String)>,
 ) -> Response {
     if a == "-" && b == "package" && d == "dist-tags" {
-        return get_dist_tags(&state, &headers, &c).await;
+        return get_dist_tags(&state, &identity, &c).await;
     }
     if a == "-" && b == "npm" && c == "v1" && d == "user" {
-        return private_no_cache(serve_profile(&state, &headers).await);
+        return private_no_cache(serve_profile(&identity));
     }
     if a == "-" && b == "npm" && c == "v1" && d == "tokens" {
-        return private_no_cache(list_tokens(&state, &headers).await);
+        return private_no_cache(list_tokens(&state, &identity).await);
     }
     not_found()
 }
 
-/// 5-segment GET: rare for the npm spec — just here as a not-found
-/// catchall so the route compiles and DELETE/PUT can sit on the
-/// same path.
+/// 5-segment GET: `/~<uplink>/@scope/<pkg>/-/<file>` is a scoped tarball
+/// through an uplink endpoint; every other 5-segment GET is a not-found
+/// catchall (the route exists so DELETE/PUT can sit on the same path).
 async fn get_five_segments(
-    State(_state): State<AppState>,
-    Path((_, _, _, _, _)): Path<(String, String, String, String, String)>,
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    Path((a, b, c, d, e)): Path<(String, String, String, String, String)>,
 ) -> Response {
+    if let Some(uplink) = a.strip_prefix('~').filter(|uplink| !uplink.is_empty())
+        && b.starts_with('@')
+        && d == "-"
+    {
+        let full = format!("{b}/{c}");
+        return private_no_cache(
+            serve_tarball_via_uplink(&state, &identity, uplink, &full, &e).await,
+        );
+    }
     not_found()
 }
 
@@ -414,11 +650,11 @@ async fn get_five_segments(
 /// `PUT /{name}` — publish an unscoped package.
 async fn put_one_segment(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthedCaller(identity): AuthedCaller,
     Path(name): Path<String>,
     body: axum::body::Bytes,
 ) -> Response {
-    publish_package(&state, &headers, &name, body).await
+    publish_package(&state, &identity, &name, body).await
 }
 
 /// `PUT /{first}/{second}` — publish a scoped package
@@ -426,13 +662,13 @@ async fn put_one_segment(
 /// because that's at least 4 segments.
 async fn put_two_segments(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthedCaller(identity): AuthedCaller,
     Path((first, second)): Path<(String, String)>,
     body: axum::body::Bytes,
 ) -> Response {
     if first.starts_with('@') {
         let full = format!("{first}/{second}");
-        return publish_package(&state, &headers, &full, body).await;
+        return publish_package(&state, &identity, &full, body).await;
     }
     not_found()
 }
@@ -441,7 +677,7 @@ async fn put_two_segments(
 /// `PUT /{pkg}/-rev/{rev}` — packument update (partial unpublish).
 async fn put_three_segments(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthedCaller(identity): AuthedCaller,
     Path((first, second, third)): Path<(String, String, String)>,
     body: axum::body::Bytes,
 ) -> Response {
@@ -449,6 +685,8 @@ async fn put_three_segments(
         && second == "user"
         && let Some(name) = third.strip_prefix("org.couchdb.user:")
     {
+        // adduser/login authenticates from the request body, not the
+        // caller's existing identity.
         return add_user(&state, name, &body).await;
     }
     if second == "-rev" {
@@ -456,7 +694,7 @@ async fn put_three_segments(
         // We don't track revisions, so it's only used for routing —
         // the body is the full mutated packument.
         let _ = third;
-        return update_packument(&state, &headers, &first, &body).await;
+        return update_packument(&state, &identity, &first, &body).await;
     }
     not_found()
 }
@@ -467,12 +705,12 @@ async fn put_three_segments(
 /// axum's percent-decoding.
 async fn delete_three_segments(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthedCaller(identity): AuthedCaller,
     Path((first, second, third)): Path<(String, String, String)>,
 ) -> Response {
     if second == "-rev" {
         let _ = third;
-        return delete_package(&state, &headers, &first).await;
+        return delete_package(&state, &identity, &first).await;
     }
     not_found()
 }
@@ -480,12 +718,12 @@ async fn delete_three_segments(
 /// `PUT /-/package/{pkg}/dist-tags/{tag}` — add/update a dist-tag.
 async fn put_five_segments(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthedCaller(identity): AuthedCaller,
     Path((a, b, c, d, e)): Path<(String, String, String, String, String)>,
     body: axum::body::Bytes,
 ) -> Response {
     if a == "-" && b == "package" && d == "dist-tags" {
-        return set_dist_tag(&state, &headers, &c, &e, &body).await;
+        return set_dist_tag(&state, &identity, &c, &e, &body).await;
     }
     not_found()
 }
@@ -495,11 +733,11 @@ async fn put_five_segments(
 /// row from the token store.
 async fn delete_four_segments(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthedCaller(identity): AuthedCaller,
     Path((a, b, c, d)): Path<(String, String, String, String)>,
 ) -> Response {
     if a == "-" && b == "user" && c == "token" {
-        return private_no_cache(logout(&state, &headers, &d).await);
+        return private_no_cache(logout(&state, &identity, &d).await);
     }
     not_found()
 }
@@ -510,15 +748,15 @@ async fn delete_four_segments(
 ///   (one step of `pnpm unpublish <pkg>@<version>`).
 async fn delete_five_segments(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthedCaller(identity): AuthedCaller,
     Path((a, b, c, d, e)): Path<(String, String, String, String, String)>,
 ) -> Response {
     if a == "-" && b == "package" && d == "dist-tags" {
-        return remove_dist_tag(&state, &headers, &c, &e).await;
+        return remove_dist_tag(&state, &identity, &c, &e).await;
     }
     if b == "-" && d == "-rev" {
         let _ = e; // revision token is unused
-        return delete_tarball(&state, &headers, &a, &c).await;
+        return delete_tarball(&state, &identity, &a, &c).await;
     }
     not_found()
 }
@@ -534,16 +772,16 @@ async fn delete_five_segments(
 ///   listing-side `key` (`npm token revoke`).
 async fn delete_six_segments(
     State(state): State<AppState>,
-    headers: HeaderMap,
+    AuthedCaller(identity): AuthedCaller,
     Path((a, b, c, d, e, f)): Path<(String, String, String, String, String, String)>,
 ) -> Response {
     if a == "-" && b == "npm" && c == "v1" && d == "tokens" && e == "token" {
-        return private_no_cache(revoke_token_by_key(&state, &headers, &f).await);
+        return private_no_cache(revoke_token_by_key(&state, &identity, &f).await);
     }
     if a.starts_with('@') && c == "-" && e == "-rev" {
         let _ = f; // revision token is unused
         let full = format!("{a}/{b}");
-        return delete_tarball(&state, &headers, &full, &d).await;
+        return delete_tarball(&state, &identity, &full, &d).await;
     }
     not_found()
 }
@@ -552,18 +790,29 @@ async fn delete_six_segments(
 // Handler bodies.
 // --------------------------------------------------------------------
 
-async fn serve_packument(state: &AppState, headers: &HeaderMap, raw_name: &str) -> Response {
+async fn serve_packument(
+    state: &AppState,
+    identity: &Identity,
+    headers: &HeaderMap,
+    raw_name: &str,
+) -> Response {
     let name = match PackageName::parse(raw_name) {
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Access).await {
+    if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
         return error_response(&err);
     }
     match load_packument_bytes(state, &name).await {
         PackumentLoad::Ok(bytes) => {
             let abbreviated = wants_abbreviated(headers);
-            match packument_response(&name, &bytes, &state.inner.config, abbreviated) {
+            match packument_response(
+                &name,
+                &bytes,
+                &state.inner.config.public_url,
+                state.inner.osv_index.as_ref(),
+                abbreviated,
+            ) {
                 Ok(response) => response,
                 Err(err) => error_response(&err),
             }
@@ -575,7 +824,7 @@ async fn serve_packument(state: &AppState, headers: &HeaderMap, raw_name: &str) 
 
 async fn serve_version_manifest(
     state: &AppState,
-    headers: &HeaderMap,
+    identity: &Identity,
     raw_name: &str,
     version_or_tag: &str,
 ) -> Response {
@@ -583,7 +832,7 @@ async fn serve_version_manifest(
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Access).await {
+    if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
         return error_response(&err);
     }
     let bytes = match load_packument_bytes(state, &name).await {
@@ -595,6 +844,12 @@ async fn serve_version_manifest(
         Ok(v) => v,
         Err(err) => return error_response(&RegistryError::Json(err)),
     };
+    if let Some(osv_index) = state.inner.osv_index.as_ref() {
+        let resolved = resolve_version_or_tag(&packument, version_or_tag);
+        if is_osv_vulnerable_packument_version(&packument, name.as_str(), resolved, osv_index) {
+            return not_found();
+        }
+    }
     let Some(manifest) =
         extract_version_manifest(&packument, &name, version_or_tag, &state.inner.config.public_url)
     else {
@@ -606,9 +861,157 @@ async fn serve_version_manifest(
     }
 }
 
-async fn serve_tarball(
+/// The `dist.tarball` rewrite base for an uplink's `/~<uplink>/` registry
+/// endpoint, so a served packument points tarball requests back at the same
+/// endpoint (where this server re-checks access and proxies the bytes).
+fn uplink_tarball_base(public_url: &str, uplink: &str) -> String {
+    format!("{}/~{uplink}", public_url.trim_end_matches('/'))
+}
+
+/// Resolve the upstream behind an authorized `/~<uplink>/` endpoint request.
+///
+/// Fails closed: an uplink that does not exist or carries no `access:` policy
+/// is a `404` (it is not a private-route endpoint), and a caller the policy
+/// does not admit is a `403`. Returns the [`Upstream`] to fetch *through* —
+/// `/~<uplink>/` requests never read or write the shared proxy mirror, so a
+/// private uplink's packuments and tarballs can never leak across the public
+/// path or another uplink.
+fn authorized_uplink<'a>(
+    state: &'a AppState,
+    identity: &Identity,
+    uplink: &str,
+) -> Result<&'a Upstream, Box<Response>> {
+    let Some(access) =
+        state.inner.config.uplinks.get(uplink).and_then(|config| config.access.as_ref())
+    else {
+        return Err(Box::new(not_found()));
+    };
+    if !access.allows(identity) {
+        let user =
+            require_caller(identity, "uplink access").unwrap_or_else(|_| "<anonymous>".to_string());
+        return Err(Box::new(error_response(&RegistryError::Forbidden {
+            user,
+            action: "access",
+            resource: format!("uplink {uplink:?}"),
+        })));
+    }
+    state.inner.upstreams.get(uplink).ok_or_else(|| Box::new(not_found()))
+}
+
+/// Serve a packument through an uplink's `/~<uplink>/` endpoint: fetch the
+/// uplink's own copy fresh (never the shared mirror), rewrite its
+/// `dist.tarball` URLs back onto the same endpoint, and apply OSV filtering.
+/// The disposable cache namespace for an uplink's `/~<uplink>/` route, keyed by
+/// the uplink and a digest of its credential so its packuments and tarballs
+/// never collide with the public mirror or another uplink, and so a credential
+/// rotation moves to a fresh namespace. The `(uplink, credential)` is HMAC'd
+/// with the server secret, so the on-disk path leaks neither, and a path-unsafe
+/// uplink name can't escape the cache root (the digest is hex).
+fn uplink_cache_namespace(state: &AppState, uplink: &str) -> String {
+    let authorization = state
+        .inner
+        .config
+        .uplinks
+        .get(uplink)
+        .and_then(|uplink| uplink.headers.get(reqwest::header::AUTHORIZATION))
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or_default();
+    let digest = crate::route::uplink_cache_digest(
+        uplink,
+        crate::route::credential_digest(authorization),
+        &state.inner.config.resolution_cache_secret,
+    );
+    format!("~uplinks/{digest}")
+}
+
+/// Load an uplink route's packument: a fresh per-uplink cache entry when one
+/// exists, otherwise a fetch through the uplink (with its server-side
+/// credential) written back to the same private namespace. An uplink with
+/// `cache: false` neither reads nor writes the private cache — it streams the
+/// packument through every time, like the public path's `cache: false` knob.
+async fn load_uplink_packument(
     state: &AppState,
+    namespace: &str,
+    upstream: &Upstream,
+    name: &PackageName,
+    ttl: Duration,
+) -> Result<Option<Vec<u8>>, RegistryError> {
+    if upstream.caches()
+        && let Some(bytes) = state.inner.storage.read_uplink_packument(namespace, name, ttl).await?
+    {
+        return Ok(Some(bytes));
+    }
+    match upstream.fetch_packument(name, &CacheValidators::default()).await? {
+        PackumentFetch::Modified(fetched) => {
+            if upstream.caches()
+                && let Err(err) = state
+                    .inner
+                    .storage
+                    .write_uplink_packument(namespace, name, &fetched.bytes)
+                    .await
+            {
+                tracing::warn!(?err, package = %name.as_str(), "uplink packument cache write failed");
+            }
+            Ok(Some(fetched.bytes))
+        }
+        PackumentFetch::NotFound => Ok(None),
+        // `load_uplink_packument` sends no conditional validators (the uplink
+        // cache refetches stale entries rather than revalidating — see
+        // `Store::read_uplink_packument`), so a well-behaved upstream never
+        // answers 304 here. If one does anyway, "not modified" means the cached
+        // body is current, so serve it (fresh or stale) rather than a spurious
+        // 404 that a client could cache as "package gone".
+        PackumentFetch::NotModified => {
+            state.inner.storage.read_uplink_packument_any(namespace, name).await
+        }
+    }
+}
+
+async fn serve_packument_via_uplink(
+    state: &AppState,
+    identity: &Identity,
     headers: &HeaderMap,
+    uplink: &str,
+    raw_name: &str,
+) -> Response {
+    let name = match PackageName::parse(raw_name) {
+        Ok(n) => n,
+        Err(err) => return error_response(&err),
+    };
+    let upstream = match authorized_uplink(state, identity, uplink) {
+        Ok(upstream) => upstream,
+        Err(response) => return *response,
+    };
+    let namespace = uplink_cache_namespace(state, uplink);
+    let ttl = upstream.maxage().unwrap_or(state.inner.config.packument_ttl);
+    let bytes = match load_uplink_packument(state, &namespace, upstream, &name, ttl).await {
+        Ok(Some(bytes)) => bytes,
+        Ok(None) => return not_found(),
+        Err(err) => return error_response(&err),
+    };
+    let base = uplink_tarball_base(&state.inner.config.public_url, uplink);
+    match packument_response(
+        &name,
+        &bytes,
+        &base,
+        state.inner.osv_index.as_ref(),
+        wants_abbreviated(headers),
+    ) {
+        Ok(response) => response,
+        Err(err) => error_response(&err),
+    }
+}
+
+/// Serve a tarball through an uplink's `/~<uplink>/` endpoint. The version's
+/// `dist.integrity` is read from the uplink's own packument (served from the
+/// private cache when fresh), and the bytes are verified against it. Both the
+/// packument and the verified tarball are cached under the uplink's private
+/// namespace, so a private uplink's content never lands in the shared proxy
+/// mirror yet is not re-fetched on every request.
+async fn serve_tarball_via_uplink(
+    state: &AppState,
+    identity: &Identity,
+    uplink: &str,
     raw_name: &str,
     filename: &str,
 ) -> Response {
@@ -616,43 +1019,343 @@ async fn serve_tarball(
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = name.validate_tarball_name(filename) {
+    let (filename, name_version) = match name.parse_tarball_name(filename) {
+        Ok(parsed) => parsed,
+        Err(err) => return error_response(&err),
+    };
+    let upstream = match authorized_uplink(state, identity, uplink) {
+        Ok(upstream) => upstream,
+        Err(response) => return *response,
+    };
+    if let Err(err) = ensure_osv_allowed(state, &name, &name_version) {
         return error_response(&err);
     }
-    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Access).await {
+    let namespace = uplink_cache_namespace(state, uplink);
+    let ttl = upstream.maxage().unwrap_or(state.inner.config.packument_ttl);
+    let packument = match load_uplink_packument(state, &namespace, upstream, &name, ttl).await {
+        Ok(Some(bytes)) => bytes,
+        Ok(None) => return not_found(),
+        Err(err) => return error_response(&err),
+    };
+    let TarballDist { version, integrity } =
+        match expected_tarball_dist(&packument, &name, &filename) {
+            Ok(Some(dist)) => dist,
+            Ok(None) => return not_found(),
+            Err(err) => return error_response(&err),
+        };
+    if version != name_version
+        && let Err(err) = ensure_osv_allowed(state, &name, &version)
+    {
         return error_response(&err);
     }
 
-    match state.inner.storage.open_tarball(&name, filename).await {
-        Ok(Some((body, len))) => return tarball_response(body, len),
-        Ok(None) => {}
-        Err(err) => {
-            tracing::warn!(?err, package = %name.as_str(), %filename, "tarball cache open failed");
+    // Serve a cached private-mirror hit directly: the bytes were verified
+    // against `dist.integrity` when written and the client re-verifies what it
+    // receives, so no re-hash is needed — the same trust model the public proxy
+    // path uses. A `cache: false` uplink skips the cache and streams through.
+    if upstream.caches() {
+        match state.inner.storage.open_uplink_tarball(&namespace, &name, &filename).await {
+            Ok(Some((file, len))) => {
+                return tarball_response(streaming::stream_file(file), Some(len));
+            }
+            Ok(None) => {}
+            Err(err) => {
+                tracing::warn!(?err, package = %name.as_str(), %filename, "uplink tarball cache open failed");
+            }
         }
     }
 
-    let Some(upstream) = resolve_upstream(state, &name) else {
-        return not_found();
-    };
-
-    let response = match upstream.fetch_tarball_response(&name, filename).await {
+    let response = match upstream.fetch_tarball_response(&name, &filename).await {
         Ok(FetchOutcome::Ok(response)) => response,
         Ok(FetchOutcome::NotFound) => return not_found(),
         Err(err) => return error_response(&err),
     };
-    let upstream_len = response.content_length();
+    let write =
+        match state.inner.storage.open_uplink_tarball_tmp(&namespace, &name, &filename).await {
+            Ok(write) => write,
+            Err(err) => return error_response(&err),
+        };
+    if !upstream.caches() {
+        // Fetch-through: verify and stream from the temp file, then remove it,
+        // so a `cache: false` uplink's tarball is never persisted.
+        return match streaming::download_verified_to_temp(
+            response,
+            write,
+            &integrity,
+            MAX_TARBALL_BYTES,
+        )
+        .await
+        {
+            Ok((file, len, tmp_path)) => {
+                tarball_response(streaming::stream_file_and_remove(file, tmp_path), Some(len))
+            }
+            Err(err) => error_response(&tarball_stream_error(err, &name, &filename)),
+        };
+    }
+    // Stream the download to the client while teeing it into the namespaced
+    // cache; the entry is promoted only on an SRI match (see
+    // `stream_verified_to_cache`). No `Content-Length` is set: the upstream's
+    // is attacker-controlled and unverifiable before streaming, so the body is
+    // chunked and the client reads to EOF (then re-verifies the integrity).
+    match streaming::stream_verified_to_cache(response, write, &integrity, MAX_TARBALL_BYTES) {
+        Ok(body) => tarball_response(body, None),
+        Err(err) => error_response(&tarball_stream_error(err, &name, &filename)),
+    }
+}
 
-    let write = match state.inner.storage.open_cached_tarball_tmp(&name, filename).await {
-        Ok(w) => w,
+async fn serve_tarball(
+    state: &AppState,
+    identity: &Identity,
+    raw_name: &str,
+    filename: &str,
+) -> Response {
+    let name = match PackageName::parse(raw_name) {
+        Ok(n) => n,
+        Err(err) => return error_response(&err),
+    };
+    // `name_version` is the version segment carried by the filename. It is
+    // canonical for hosted tarballs (the publish handler enforces it) and a
+    // best-effort screen here; the authoritative version a proxied tarball
+    // resolves to is the `version` matched below, which may differ for a
+    // non-canonical upstream tarball name.
+    let (filename, name_version) = match name.parse_tarball_name(filename) {
+        Ok(parsed) => parsed,
+        Err(err) => return error_response(&err),
+    };
+    if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
+        return error_response(&err);
+    }
+    if let Err(err) = ensure_osv_allowed(state, &name, &name_version) {
+        return error_response(&err);
+    }
+
+    // The hosted store is authoritative. A genuine fault here (not a
+    // plain miss, which surfaces as `Ok(None)`) must fail closed rather
+    // than fall through to upstream and serve bytes of a different
+    // provenance for the same package name.
+    match state.inner.storage.open_hosted_tarball(&name, &filename).await {
+        Ok(Some((body, len))) => return tarball_response(body, len),
+        Ok(None) => {}
         Err(err) => {
-            tracing::warn!(?err, package = %name.as_str(), %filename, "tarball cache tmp-open failed; streaming without cache");
-            let body = Body::from_stream(response.bytes_stream());
-            return tarball_response(body, upstream_len);
+            tracing::warn!(?err, package = %name.as_str(), %filename, "hosted tarball open failed");
+            return error_response(&err);
         }
+    }
+
+    let upstreams = resolve_upstreams(state, &name);
+
+    // A cached tarball is verified against `dist.integrity` on the way in
+    // (`stream_verified_to_cache`) and re-verified by the client on receipt,
+    // so a hit can be served without re-hashing.
+    let resolved_dist =
+        match screen_cached_tarball_osv(state, &name, &filename, &name_version).await {
+            Ok(dist) => dist,
+            Err(response) => return response,
+        };
+
+    // Read the cache if any uplink in the chain mirrors tarballs (or there's
+    // no upstream left at all — a leftover mirror).
+    let should_read_cache = upstreams.is_empty() || upstreams.iter().any(|u| u.caches());
+    if should_read_cache {
+        match state.inner.storage.open_cached_tarball(&name, &filename).await {
+            Ok(Some((file, len))) => {
+                return tarball_response(streaming::stream_file(file), Some(len));
+            }
+            Ok(None) => {}
+            Err(err) => {
+                tracing::warn!(?err, package = %name.as_str(), %filename, "tarball cache open failed");
+            }
+        }
+    }
+
+    if upstreams.is_empty() {
+        return not_found();
+    }
+
+    // Cache miss: the download must be verified against `dist.integrity` before
+    // caching — reuse the dist the OSV screen resolved, or resolve it now.
+    let integrity = match resolved_dist {
+        Some(dist) => dist.integrity,
+        None => match resolve_tarball_dist_and_screen(state, &name, &filename, &name_version).await
+        {
+            Ok(dist) => dist.integrity,
+            Err(response) => return response,
+        },
     };
 
-    let body = streaming::tee_to_cache(response, write);
-    tarball_response(body, upstream_len)
+    // Walk the uplink fallback chain in declared order: the first uplink to
+    // return the tarball wins; a `NotFound` falls through to the next; a
+    // transport error is remembered and the next uplink tried. Integrity is
+    // enforced on the streamed bytes below regardless of which uplink served
+    // them, so trying several is safe.
+    let (upstream, response) = match fetch_tarball_with_fallback(&upstreams, &name, &filename).await
+    {
+        TarballFetch::Ok(upstream, response) => (upstream, response),
+        TarballFetch::NotFound => return not_found(),
+        TarballFetch::Err(err) => return error_response(&err),
+    };
+
+    let write = match state.inner.storage.open_cached_tarball_tmp(&name, &filename).await {
+        Ok(w) => w,
+        Err(err) => return error_response(&err),
+    };
+
+    if upstream.caches() {
+        // Stream the download to the client (see `stream_verified_to_cache`)
+        // rather than buffering the whole tarball at the server to verify it
+        // first, so the upstream fetch and the client transfer overlap. No
+        // `Content-Length` is set: the upstream's is attacker-controlled and
+        // unverifiable before streaming, so the body is chunked and the client
+        // reads to EOF (then re-verifies the integrity).
+        match streaming::stream_verified_to_cache(response, write, &integrity, MAX_TARBALL_BYTES) {
+            Ok(body) => tarball_response(body, None),
+            Err(err) => error_response(&tarball_stream_error(err, &name, &filename)),
+        }
+    } else {
+        match streaming::download_verified_to_temp(response, write, &integrity, MAX_TARBALL_BYTES)
+            .await
+        {
+            Ok((file, len, tmp_path)) => {
+                tarball_response(streaming::stream_file_and_remove(file, tmp_path), Some(len))
+            }
+            Err(err) => error_response(&tarball_stream_error(err, &name, &filename)),
+        }
+    }
+}
+
+/// The version a tarball request resolves to, plus that version's declared
+/// `dist.integrity`. The version is found by matching `filename` against
+/// each version's `dist.tarball` basename rather than parsing it out of
+/// the filename, so a non-canonical name (see [`rewrite_tarball_urls`])
+/// resolves to the right version, integrity, and OSV identity.
+struct TarballDist {
+    version: String,
+    integrity: Integrity,
+}
+
+/// OSV-screen a tarball's resolved version before its cached bytes are served.
+/// Returns the resolved [`TarballDist`] (for the cache-miss path to reuse) when
+/// OSV screening is enabled, or `None` when it is disabled — where the resolved
+/// version isn't needed until a cache miss. On a blocked version or a lookup
+/// failure, returns the [`Response`] the handler should return.
+async fn screen_cached_tarball_osv(
+    state: &AppState,
+    name: &PackageName,
+    filename: &str,
+    name_version: &str,
+) -> Result<Option<TarballDist>, Response> {
+    if state.inner.osv_index.is_none() {
+        return Ok(None);
+    }
+    resolve_tarball_dist_and_screen(state, name, filename, name_version).await.map(Some)
+}
+
+/// Resolve a tarball's authoritative [`TarballDist`] from the packument and
+/// OSV-screen the resolved version when it differs from the filename-carried
+/// `name_version` (already screened by the caller). On failure, returns the
+/// [`Response`] the handler should return. Shared by [`screen_cached_tarball_osv`]
+/// and the cache-miss download path in [`serve_tarball`].
+async fn resolve_tarball_dist_and_screen(
+    state: &AppState,
+    name: &PackageName,
+    filename: &str,
+    name_version: &str,
+) -> Result<TarballDist, Response> {
+    let packument = match load_packument_bytes(state, name).await {
+        PackumentLoad::Ok(bytes) => bytes,
+        PackumentLoad::NotFound => return Err(not_found()),
+        PackumentLoad::Err(err) => return Err(error_response(&err)),
+    };
+    let dist = match expected_tarball_dist(&packument, name, filename) {
+        Ok(Some(dist)) => dist,
+        Ok(None) => return Err(not_found()),
+        Err(err) => return Err(error_response(&err)),
+    };
+    // A non-canonical tarball name slips past the filename-version screen, so
+    // this is where OSV sees the version such a tarball really belongs to.
+    if dist.version != name_version
+        && let Err(err) = ensure_osv_allowed(state, name, &dist.version)
+    {
+        return Err(error_response(&err));
+    }
+    Ok(dist)
+}
+
+fn expected_tarball_dist(
+    packument: &[u8],
+    name: &PackageName,
+    filename: &str,
+) -> Result<Option<TarballDist>, RegistryError> {
+    let packument: Value = serde_json::from_slice(packument)?;
+    let Some(versions) = packument.get("versions").and_then(Value::as_object) else {
+        return Ok(None);
+    };
+    let mut matches = versions.iter().filter(|(_, manifest)| {
+        manifest
+            .get("dist")
+            .and_then(|dist| dist.get("tarball"))
+            .and_then(Value::as_str)
+            .and_then(tarball_basename)
+            .is_some_and(|basename| basename == filename)
+    });
+    let Some((version, manifest)) = matches.next() else {
+        return Ok(None);
+    };
+    // A tarball name must identify exactly one declaring version, or the
+    // integrity and OSV checks below could bind to the wrong one. Two
+    // versions sharing a basename is a malformed/hostile packument, never a
+    // legitimate registry, so fail closed rather than pick by iteration order.
+    if matches.next().is_some() {
+        return Err(tarball_integrity_error(
+            name,
+            filename,
+            "packument declares the same dist.tarball basename for multiple versions".to_string(),
+        ));
+    }
+    let declared = manifest
+        .get("dist")
+        .and_then(|dist| dist.get("integrity"))
+        .and_then(Value::as_str)
+        .ok_or_else(|| {
+            tarball_integrity_error(
+                name,
+                filename,
+                format!("packument has no dist.integrity for version {version:?}"),
+            )
+        })?;
+    let integrity = streaming::parse_integrity(declared).map_err(|err| {
+        tarball_integrity_error(name, filename, format!("malformed dist.integrity: {err}"))
+    })?;
+    Ok(Some(TarballDist { version: version.clone(), integrity }))
+}
+
+fn tarball_stream_error(
+    err: streaming::TarballStreamError,
+    name: &PackageName,
+    filename: &str,
+) -> RegistryError {
+    match err {
+        streaming::TarballStreamError::Upstream { url, source } => {
+            RegistryError::Upstream { url, source }
+        }
+        streaming::TarballStreamError::Io(err) => RegistryError::Io(err),
+        streaming::TarballStreamError::Integrity(err) => {
+            tarball_integrity_error(name, filename, format!("integrity verification failed: {err}"))
+        }
+        streaming::TarballStreamError::TooLarge { limit, received } => tarball_integrity_error(
+            name,
+            filename,
+            format!("tarball body exceeds {limit} byte limit (received {received} bytes)"),
+        ),
+    }
+}
+
+fn tarball_integrity_error(name: &PackageName, filename: &str, reason: String) -> RegistryError {
+    RegistryError::TarballIntegrity {
+        package: name.as_str().to_string(),
+        filename: filename.to_string(),
+        reason,
+    }
 }
 
 /// Add a new user or log in an existing one. Mirrors verdaccio's
@@ -680,19 +1383,20 @@ async fn add_user(state: &AppState, name: &str, body: &[u8]) -> Response {
         });
     };
 
-    let outcome = match state.inner.auth.users.add_or_login(name, password).await {
+    let (outcome, username) = match state.inner.auth.users.add_or_login(name, password).await {
         Ok(o) => o,
         Err(err) => return error_response(&err),
     };
-    let token = match state.inner.auth.tokens.issue(name).await {
+    let token = match state.inner.auth.tokens.issue(&username).await {
         Ok(t) => t,
         Err(err) => return error_response(&err),
     };
     let ok_msg = match outcome {
-        UpsertOutcome::Created => format!("user '{name}' created"),
-        UpsertOutcome::LoggedIn => format!("you are authenticated as '{name}'"),
+        UpsertOutcome::Created => format!("user '{username}' created"),
+        UpsertOutcome::LoggedIn => format!("you are authenticated as '{username}'"),
     };
-    let body = json!({ "ok": ok_msg, "token": token, "id": format!("org.couchdb.user:{name}") });
+    let body =
+        json!({ "ok": ok_msg, "token": token, "id": format!("org.couchdb.user:{username}") });
     let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
     Response::builder()
         .status(StatusCode::CREATED)
@@ -707,10 +1411,10 @@ async fn add_user(state: &AppState, name: &str, body: &[u8]) -> Response {
 /// pure auth: no per-package policy applies, so anonymous always
 /// gets 401 even when `$all` would let it through for packument
 /// reads.
-async fn serve_whoami(state: &AppState, headers: &HeaderMap) -> Response {
-    let username = match require_caller(state, headers, "user identity").await {
+fn serve_whoami(identity: &Identity) -> Response {
+    let username = match require_caller(identity, "user identity") {
         Ok(username) => username,
-        Err(response) => return response,
+        Err(err) => return error_response(&err),
     };
     json_response(StatusCode::OK, &json!({ "username": username }))
 }
@@ -720,10 +1424,10 @@ async fn serve_whoami(state: &AppState, headers: &HeaderMap) -> Response {
 /// 2FA, or anything beyond the username; the absent fields surface
 /// as their zero-value defaults so the npm CLI's table renderer
 /// doesn't choke on a missing key.
-async fn serve_profile(state: &AppState, headers: &HeaderMap) -> Response {
-    let username = match require_caller(state, headers, "user profile").await {
+fn serve_profile(identity: &Identity) -> Response {
+    let username = match require_caller(identity, "user profile") {
         Ok(username) => username,
-        Err(response) => return response,
+        Err(err) => return error_response(&err),
     };
     json_response(
         StatusCode::OK,
@@ -744,10 +1448,10 @@ async fn serve_profile(state: &AppState, headers: &HeaderMap) -> Response {
 /// raw token itself is never persisted; the `token` field surfaces
 /// the leading 6 hex characters of the key as a preview, matching
 /// what verdaccio does when it can't reconstruct the original.
-async fn list_tokens(state: &AppState, headers: &HeaderMap) -> Response {
-    let username = match require_caller(state, headers, "token list").await {
+async fn list_tokens(state: &AppState, identity: &Identity) -> Response {
+    let username = match require_caller(identity, "token list") {
         Ok(username) => username,
-        Err(response) => return response,
+        Err(err) => return error_response(&err),
     };
     let tokens = match state.inner.auth.tokens.list_for_user(&username).await {
         Ok(tokens) => tokens,
@@ -763,10 +1467,10 @@ async fn list_tokens(state: &AppState, headers: &HeaderMap) -> Response {
 /// (anonymous is 401, a different authenticated user is 403); an
 /// unknown key returns 404. `npm token revoke` calls this with the
 /// `key` it pulled from [`list_tokens`].
-async fn revoke_token_by_key(state: &AppState, headers: &HeaderMap, key: &str) -> Response {
-    let username = match require_caller(state, headers, "token revocation").await {
+async fn revoke_token_by_key(state: &AppState, identity: &Identity, key: &str) -> Response {
+    let username = match require_caller(identity, "token revocation") {
         Ok(username) => username,
-        Err(response) => return response,
+        Err(err) => return error_response(&err),
     };
     match state.inner.auth.tokens.find_by_key(key).await {
         Ok(Some(record)) if record.username != username => {
@@ -791,10 +1495,10 @@ async fn revoke_token_by_key(state: &AppState, headers: &HeaderMap, key: &str) -
 /// `Authorization: Bearer <tok>` header). We require authentication
 /// and require that the auth identifies the same user who owns the
 /// token being deleted.
-async fn logout(state: &AppState, headers: &HeaderMap, raw_token: &str) -> Response {
-    let username = match require_caller(state, headers, "logout").await {
+async fn logout(state: &AppState, identity: &Identity, raw_token: &str) -> Response {
+    let username = match require_caller(identity, "logout") {
         Ok(username) => username,
-        Err(response) => return response,
+        Err(err) => return error_response(&err),
     };
     let target_owner = match state.inner.auth.tokens.lookup(raw_token).await {
         Ok(Some(owner)) => owner,
@@ -817,8 +1521,8 @@ async fn logout(state: &AppState, headers: &HeaderMap, raw_token: &str) -> Respo
 
 fn token_response_object(key: &str, record: &crate::auth::TokenRecord) -> Value {
     let preview: String = key.chars().take(6).collect();
-    let created = iso_from_unix_millis((record.created_at as i64) * 1000);
-    let updated = iso_from_unix_millis((record.last_used_at as i64) * 1000);
+    let created = token_timestamp_iso(record.created_at);
+    let updated = token_timestamp_iso(record.last_used_at);
     json!({
         "key": key,
         "token": preview,
@@ -830,35 +1534,68 @@ fn token_response_object(key: &str, record: &crate::auth::TokenRecord) -> Value 
     })
 }
 
+fn token_timestamp_iso(seconds: u64) -> String {
+    iso_from_unix_millis(token_timestamp_millis(seconds))
+}
+
+fn token_timestamp_millis(seconds: u64) -> i64 {
+    const MILLIS_PER_SECOND: u64 = 1000;
+    let max_seconds = i64::MAX as u64 / MILLIS_PER_SECOND;
+    (seconds.min(max_seconds) * MILLIS_PER_SECOND) as i64
+}
+
+#[cfg(test)]
+mod tests;
+
+/// Require that an endpoint's caller is authenticated, returning their
+/// username or the 401 error to send back. The identity was already
+/// resolved by the [`authenticate`] middleware (which is also where an
+/// auth-backend outage surfaces as a 5xx), so this is a pure check.
+/// `resource` names what the 401 is about.
+fn require_caller(identity: &Identity, resource: &str) -> Result<String, RegistryError> {
+    match identity {
+        Identity::User { username, .. } => Ok(username.clone()),
+        Identity::Anonymous => {
+            Err(RegistryError::Unauthenticated { resource: resource.to_string() })
+        }
+    }
+}
+
 async fn caller_username(
     state: &AppState,
     headers: &HeaderMap,
 ) -> Result<Option<String>, RegistryError> {
-    identify(
-        headers.get(header::AUTHORIZATION).and_then(|value| value.to_str().ok()),
-        state.inner.auth.users.as_ref(),
-        state.inner.auth.tokens.as_ref(),
-    )
-    .await
+    let authorization = single_authorization_header(headers)?;
+    identify(authorization, state.inner.auth.tokens.as_ref()).await
 }
 
-/// Resolve the authenticated caller for an endpoint that requires one,
-/// or return the ready-made response to send back: 401 when the request
-/// is anonymous, or a 5xx when the auth backend itself failed (so an
-/// outage isn't mistaken for "not logged in"). `resource` names what the
-/// 401 is about.
-async fn require_caller(
-    state: &AppState,
-    headers: &HeaderMap,
-    resource: &str,
-) -> Result<String, Response> {
-    match caller_username(state, headers).await {
-        Ok(Some(username)) => Ok(username),
-        Ok(None) => {
-            Err(error_response(&RegistryError::Unauthenticated { resource: resource.to_string() }))
-        }
-        Err(err) => Err(error_response(&err)),
+async fn require_resolver_caller(
+    State(state): State<AppState>,
+    request: Request,
+    next: Next,
+) -> Response {
+    match caller_username(&state, request.headers()).await {
+        Ok(Some(_username)) => next.run(request).await,
+        Ok(None) => error_response(&RegistryError::Unauthenticated {
+            resource: "dependency resolution".to_string(),
+        }),
+        Err(error) => error_response(&error),
     }
+}
+
+fn single_authorization_header(headers: &HeaderMap) -> Result<Option<&str>, RegistryError> {
+    let mut values = headers.get_all(header::AUTHORIZATION).iter();
+    let Some(value) = values.next() else {
+        return Ok(None);
+    };
+    if values.next().is_some() {
+        return Err(RegistryError::BadRequest {
+            reason: "multiple Authorization headers are not allowed".to_string(),
+        });
+    }
+    value.to_str().map(Some).map_err(|_| RegistryError::BadRequest {
+        reason: "Authorization header is not valid text".to_string(),
+    })
 }
 
 fn json_response(status: StatusCode, body: &Value) -> Response {
@@ -890,7 +1627,7 @@ fn private_no_cache(mut response: Response) -> Response {
 /// base64-encoded.
 async fn publish_package(
     state: &AppState,
-    headers: &HeaderMap,
+    identity: &Identity,
     raw_name: &str,
     body: axum::body::Bytes,
 ) -> Response {
@@ -898,11 +1635,8 @@ async fn publish_package(
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Publish).await {
-        return error_response(&err);
-    }
 
-    let mut incoming: Value = match serde_json::from_slice(&body) {
+    let incoming: Value = match serde_json::from_slice(&body) {
         Ok(v) => v,
         Err(err) => return error_response(&RegistryError::Json(err)),
     };
@@ -922,10 +1656,152 @@ async fn publish_package(
         });
     }
 
-    let attachments = match extract_attachments(&mut incoming) {
-        Ok(a) => a,
+    let validated = match validate_publish_doc(state, identity, name, incoming).await {
+        Ok(validated) => validated,
         Err(err) => return error_response(&err),
     };
+
+    // Serialize the read-merge-write against other writers of this same
+    // package on this instance, so a concurrent publish can't read the
+    // same `existing`, merge a different version, and overwrite ours.
+    // Held until this function returns, past the packument write below.
+    let _packument_guard = state.inner.package_locks.lock(validated.name.as_str()).await;
+
+    let staged = match stage_publish(state, validated, &now_iso()).await {
+        Ok(staged) => staged,
+        Err(err) => return error_response(&err),
+    };
+    if let Err(err) = commit_publishes(state, vec![staged]).await {
+        return error_response(&err);
+    }
+    publish_created_response()
+}
+
+/// `PUT /-/pnpm/v1/publish` — publish several packages with one
+/// request. The body is `{"packages": [<publish doc>, ...]}` where
+/// each entry is exactly the JSON body that `PUT /:pkg` takes
+/// (packument with `_attachments`). `pnpm publish --batch` sends
+/// this; the endpoint is not part of the standard npm registry API.
+///
+/// The batch is all-or-nothing up to the commit point: every
+/// document is validated (name, publish policy, attachment
+/// integrity) and every tarball of every package is fully written
+/// to a tmp slot before anything becomes visible to readers, so a
+/// batch that fails validation or staging leaves no new versions
+/// behind.
+async fn serve_batch_publish(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    body: axum::body::Bytes,
+) -> Response {
+    let incoming: Value = match serde_json::from_slice(&body) {
+        Ok(v) => v,
+        Err(err) => return error_response(&RegistryError::Json(err)),
+    };
+    let Value::Object(mut incoming) = incoming else {
+        return error_response(&RegistryError::BadRequest {
+            reason: "body must be a JSON object".to_string(),
+        });
+    };
+    let Some(Value::Array(docs)) = incoming.remove("packages") else {
+        return error_response(&RegistryError::BadRequest {
+            reason: "body must have a `packages` array".to_string(),
+        });
+    };
+    if docs.is_empty() {
+        return error_response(&RegistryError::BadRequest {
+            reason: "`packages` must not be empty".to_string(),
+        });
+    }
+
+    let mut validated = Vec::with_capacity(docs.len());
+    let mut seen_names = std::collections::BTreeSet::new();
+    for doc in docs {
+        let Some(doc_name) = doc.get("name").and_then(Value::as_str) else {
+            return error_response(&RegistryError::BadRequest {
+                reason: "every entry in `packages` must have a string `name`".to_string(),
+            });
+        };
+        let name = match PackageName::parse(doc_name) {
+            Ok(name) => name,
+            Err(err) => return error_response(&err),
+        };
+        // One packument read-merge-write per package: with the same
+        // package twice in a batch, the second entry's merge would
+        // depend on the first's uncommitted result. Senders carry
+        // multiple versions of one package as several `versions`
+        // entries in a single document instead.
+        if !seen_names.insert(name.as_str().to_string()) {
+            return error_response(&RegistryError::BadRequest {
+                reason: format!("duplicate package {:?} in `packages`", name.as_str()),
+            });
+        }
+        match validate_publish_doc(&state, &identity, name, doc).await {
+            Ok(doc) => validated.push(doc),
+            Err(err) => return error_response(&err),
+        }
+    }
+
+    // Hold every affected package's lock across the whole
+    // stage-and-commit, so concurrent writers of any package in the
+    // batch serialize with us just like with a single publish.
+    let names: Vec<&str> = validated.iter().map(|doc| doc.name.as_str()).collect();
+    let _guards = state.inner.package_locks.lock_many(&names).await;
+
+    let now = now_iso();
+    let mut staged: Vec<StagedPublish> = Vec::with_capacity(validated.len());
+    for doc in validated {
+        match stage_publish(&state, doc, &now).await {
+            Ok(stage) => staged.push(stage),
+            Err(err) => {
+                for stage in staged {
+                    cleanup_tmp_slots(stage.slots).await;
+                }
+                return error_response(&err);
+            }
+        }
+    }
+    if let Err(err) = commit_publishes(&state, staged).await {
+        return error_response(&err);
+    }
+    publish_created_response()
+}
+
+/// A publish document that passed every check that can run before
+/// taking the package lock: the caller may publish the package, and
+/// each attachment maps to a canonical disk filename and a
+/// `versions[v].dist` block.
+struct ValidatedPublish {
+    name: PackageName,
+    /// The publish body with `_attachments` stripped.
+    incoming: Value,
+    /// One entry per attachment.
+    prepared: Vec<PreparedAttachment>,
+}
+
+/// One publish attachment resolved to its canonical on-disk filename and its
+/// `versions[version].dist` block.
+struct PreparedAttachment {
+    attachment: PendingAttachment,
+    /// Canonical on-disk filename.
+    canonical: String,
+    /// The version this attachment publishes, parsed from its filename.
+    /// Lets the re-publish guard tell a content publish from a metadata-only
+    /// update (which carries no attachments).
+    version: String,
+    /// The matching `dist` block, or `Value::Null` when absent.
+    dist: Value,
+}
+
+async fn validate_publish_doc(
+    state: &AppState,
+    identity: &Identity,
+    name: PackageName,
+    mut incoming: Value,
+) -> Result<ValidatedPublish, RegistryError> {
+    authorize(state, identity, name.as_str(), Action::Publish)?;
+
+    let attachments = extract_attachments(&mut incoming)?;
 
     // Resolve each attachment's canonical disk filename + matching
     // `versions[v].dist` block. Attachment names that don't match the
@@ -935,27 +1811,95 @@ async fn publish_package(
     // scoped libnpmpublish bodies the wire form is `@scope/name-version.tgz`
     // but on disk it lives at `<root>/@scope/name/name-version.tgz`,
     // matching what `serve_tarball` expects.
-    let mut prepared: Vec<(PendingAttachment, String, Value)> =
-        Vec::with_capacity(attachments.len());
+    let mut prepared: Vec<PreparedAttachment> = Vec::with_capacity(attachments.len());
     for attachment in attachments {
-        let (canonical, version) = match name.parse_tarball_name(&attachment.filename) {
-            Ok(parsed) => parsed,
-            Err(err) => return error_response(&err),
-        };
+        let (canonical, version) = name.parse_tarball_name(&attachment.filename)?;
         let dist = incoming
             .get("versions")
             .and_then(|versions| versions.get(&version))
             .and_then(|manifest| manifest.get("dist"))
             .cloned()
             .unwrap_or(Value::Null);
-        prepared.push((attachment, canonical, dist));
+        prepared.push(PreparedAttachment { attachment, canonical, version, dist });
     }
+    Ok(ValidatedPublish { name, incoming, prepared })
+}
 
-    // Serialize the read-merge-write against other writers of this same
-    // package on this instance, so a concurrent publish can't read the
-    // same `existing`, merge a different version, and overwrite ours.
-    // Held until this function returns, past the packument write below.
-    let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
+/// A publish whose packument is merged and whose tarballs are fully
+/// written to tmp slots — everything verified, nothing visible to
+/// readers yet. [`commit_publishes`] makes it visible.
+struct StagedPublish {
+    name: PackageName,
+    merged_bytes: Vec<u8>,
+    slots: Vec<crate::storage::TarballSlot>,
+}
+
+/// Merge the incoming packument with the on-disk / upstream state
+/// and stream every tarball to a tmp slot. The caller must hold the
+/// package lock for `doc.name` from before this call until after
+/// [`commit_publishes`]. On error, every tmp file this call wrote is
+/// removed.
+async fn stage_publish(
+    state: &AppState,
+    doc: ValidatedPublish,
+    now_iso: &str,
+) -> Result<StagedPublish, RegistryError> {
+    let ValidatedPublish { name, incoming, prepared } = doc;
+
+    let hosted_bytes = state.inner.storage.read_hosted_packument(&name).await?;
+    let hosted: Option<Value> = match hosted_bytes.as_deref().map(serde_json::from_slice) {
+        Some(Ok(value)) => Some(value),
+        Some(Err(err)) => return Err(RegistryError::Json(err)),
+        None => None,
+    };
+
+    // Validate each incoming version against the locally hosted packument
+    // (a hosted packument is served as-is, so anything not in it is genuinely
+    // new here, even if it exists upstream):
+    //
+    // * Already hosted — published content is immutable, so reject a *content*
+    //   re-publish with 409 (as npm/verdaccio do): one that carries a new
+    //   tarball (an attachment) or changes `dist.integrity` (the content
+    //   anchor; the `tarball` URL is rewritten on read, so don't compare it).
+    //   A clash that does neither is a metadata-only update (`pnpm deprecate`),
+    //   which is allowed — `merge_versions` keeps the hosted `dist`.
+    // * New — it must ship a tarball. A version entry with no attachment would
+    //   be advertised with no hosted tarball (installs 404) and would block a
+    //   later real publish of it (409): reject with 400.
+    let attachment_versions: HashSet<&str> =
+        prepared.iter().map(|attachment| attachment.version.as_str()).collect();
+    let hosted_versions =
+        hosted.as_ref().and_then(|h| h.get("versions")).and_then(Value::as_object);
+    if let Some(incoming_versions) = incoming.get("versions").and_then(Value::as_object) {
+        for (version, incoming_manifest) in incoming_versions {
+            let has_attachment = attachment_versions.contains(version.as_str());
+            match hosted_versions.and_then(|hosted| hosted.get(version)) {
+                Some(hosted_manifest) => {
+                    let incoming_integrity =
+                        incoming_manifest.pointer("/dist/integrity").and_then(Value::as_str);
+                    let hosted_integrity =
+                        hosted_manifest.pointer("/dist/integrity").and_then(Value::as_str);
+                    let integrity_changed = incoming_integrity
+                        .is_some_and(|integrity| Some(integrity) != hosted_integrity);
+                    if has_attachment || integrity_changed {
+                        return Err(RegistryError::VersionAlreadyPublished {
+                            package: name.as_str().to_string(),
+                            version: version.clone(),
+                        });
+                    }
+                }
+                None if !has_attachment => {
+                    return Err(RegistryError::BadRequest {
+                        reason: format!(
+                            "cannot publish version {version} of {:?} without a tarball",
+                            name.as_str(),
+                        ),
+                    });
+                }
+                None => {}
+            }
+        }
+    }
 
     // Seed the merge from whatever the upstream knows about the
     // package, not just from a cold cache. Without this, a publish
@@ -964,25 +1908,21 @@ async fn publish_package(
     // would mask every upstream version + dist-tag on subsequent
     // reads. `update_dist_tag` already does the same fallback —
     // we just mirror it here.
-    let existing_bytes = match state.inner.storage.read_hosted_packument(&name).await {
-        Ok(Some(bytes)) => Some(bytes),
-        Ok(None) => match load_packument_bytes(state, &name).await {
+    let existing_bytes = match hosted_bytes {
+        Some(bytes) => Some(bytes),
+        None => match load_packument_bytes(state, &name).await {
             PackumentLoad::Ok(bytes) => Some(bytes),
             PackumentLoad::NotFound => None,
-            PackumentLoad::Err(err) => return error_response(&err),
+            PackumentLoad::Err(err) => return Err(err),
         },
-        Err(err) => return error_response(&err),
     };
     let existing: Option<Value> = match existing_bytes.as_deref().map(serde_json::from_slice) {
         Some(Ok(v)) => Some(v),
-        Some(Err(err)) => return error_response(&RegistryError::Json(err)),
+        Some(Err(err)) => return Err(RegistryError::Json(err)),
         None => None,
     };
-    let merged = merge_manifest(existing.as_ref(), &incoming, &now_iso());
-    let merged_bytes = match serde_json::to_vec_pretty(&merged) {
-        Ok(b) => b,
-        Err(err) => return error_response(&RegistryError::Json(err)),
-    };
+    let merged = merge_manifest(existing.as_ref(), &incoming, hosted.as_ref(), now_iso);
+    let merged_bytes = serde_json::to_vec_pretty(&merged).map_err(RegistryError::Json)?;
     // `incoming` is no longer needed; drop it so the base64 strings
     // inside go away as soon as `prepared` (which owns each one) is
     // drained below.
@@ -992,17 +1932,13 @@ async fn publish_package(
     // missing integrity field — short-circuits the publish with a
     // 400; any tmp files written before the failure get removed
     // along the way so a bad upload leaves no on-disk artifact.
-    //
-    // Tarballs are written before the packument so a successful
-    // packument write never advertises a tarball that's missing from
-    // disk.
     let mut written_slots = Vec::with_capacity(prepared.len());
-    for (attachment, canonical, dist) in prepared {
+    for PreparedAttachment { attachment, canonical, version: _, dist } in prepared {
         let slot = match state.inner.storage.reserve_hosted_tarball(&name, &canonical).await {
             Ok(slot) => slot,
             Err(err) => {
                 cleanup_tmp_slots(written_slots).await;
-                return error_response(&err);
+                return Err(err);
             }
         };
         let PendingAttachment { filename, data, declared_length } = attachment;
@@ -1017,28 +1953,81 @@ async fn publish_package(
             Ok(Ok(_)) => written_slots.push(slot),
             Ok(Err(err)) => {
                 cleanup_tmp_slots(written_slots).await;
-                return error_response(&err);
+                return Err(err);
             }
             Err(join_err) => {
                 let _ = tokio::fs::remove_file(&slot.tmp_path).await;
                 cleanup_tmp_slots(written_slots).await;
-                return error_response(&RegistryError::Io(std::io::Error::other(
-                    join_err.to_string(),
-                )));
+                return Err(RegistryError::Io(std::io::Error::other(join_err.to_string())));
             }
         }
     }
+    Ok(StagedPublish { name, merged_bytes, slots: written_slots })
+}
 
-    for slot in written_slots {
-        if let Err(err) = state.inner.storage.finalize_tarball_slot(slot).await {
-            return error_response(&err);
+/// Make every staged publish visible. The full intent — merged
+/// packument bytes plus the staged tmp-file locations — is sealed into
+/// the commit journal first, so a crash or I/O failure mid-apply can
+/// never leave the batch partially published: startup recovery rolls
+/// a sealed transaction forward. If sealing itself fails, nothing was
+/// promoted and the staged tmp files are cleaned up here.
+///
+/// Within each package, tarballs are promoted before the packument so
+/// a successful packument write never advertises a tarball that's
+/// missing from disk.
+async fn commit_publishes(
+    state: &AppState,
+    staged: Vec<StagedPublish>,
+) -> Result<(), RegistryError> {
+    let journal = state.inner.storage.publish_journal();
+    let entries: Vec<JournaledPublish<'_>> = staged
+        .iter()
+        .map(|stage| JournaledPublish {
+            name: &stage.name,
+            packument: &stage.merged_bytes,
+            slots: &stage.slots,
+        })
+        .collect();
+    let sealed = journal.seal(&entries).await;
+    drop(entries);
+    let txn = match sealed {
+        Ok(txn) => txn,
+        Err(err) => {
+            for stage in staged {
+                cleanup_tmp_slots(stage.slots).await;
+            }
+            return Err(err);
+        }
+    };
+    // Past the seal the transaction is committed: the apply below is pure
+    // roll-forward, and failures must NOT clean up the staged files. If
+    // the apply fails partway, complete it immediately via the same
+    // idempotent recovery path so a running server never leaves the batch
+    // partially visible; startup recovery is the final backstop if even
+    // that fails.
+    let apply_result = async {
+        for stage in staged {
+            for slot in stage.slots {
+                state.inner.storage.finalize_tarball_slot(slot).await?;
+            }
+            state.inner.storage.write_hosted_packument(&stage.name, &stage.merged_bytes).await?;
+        }
+        Ok::<(), RegistryError>(())
+    }
+    .await;
+    match apply_result {
+        Ok(()) => {
+            txn.finish().await;
+            Ok(())
+        }
+        Err(apply_err) => {
+            tracing::warn!(error = %apply_err, "publish apply failed after seal; rolling forward");
+            txn.roll_forward(&state.inner.storage).await.map_err(|_| apply_err)
         }
     }
+}
 
-    if let Err(err) = state.inner.storage.write_hosted_packument(&name, &merged_bytes).await {
-        return error_response(&err);
-    }
-
+fn publish_created_response() -> Response {
     let body = json!({ "ok": true, "success": true });
     let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
     Response::builder()
@@ -1075,7 +2064,7 @@ async fn cleanup_tmp_slots(slots: Vec<crate::storage::TarballSlot>) {
 /// `objects` before the response is built. Without this the search
 /// endpoint would happily enumerate protected packages that the
 /// packument and tarball GETs correctly hide behind 401.
-async fn serve_search(state: &AppState, headers: &HeaderMap, query_string: &str) -> Response {
+async fn serve_search(state: &AppState, identity: &Identity, query_string: &str) -> Response {
     let Some(text) = crate::search::parse_query(query_string) else {
         let body = json!({ "objects": [], "total": 0, "time": now_iso() });
         let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
@@ -1100,13 +2089,8 @@ async fn serve_search(state: &AppState, headers: &HeaderMap, query_string: &str)
     augment_search_with_upstream(state, &text, &mut body).await;
 
     if let Some(objects) = body.get_mut("objects").and_then(Value::as_array_mut) {
-        // The caller is the same across every result, so resolve the
-        // identity once (the async backend hit) and authorize each
-        // candidate synchronously inside the filter.
-        let identity = match resolve_identity(state, headers).await {
-            Ok(identity) => identity,
-            Err(err) => return error_response(&err),
-        };
+        // The caller was resolved once by the middleware; authorize each
+        // candidate synchronously against it inside the filter.
         objects.retain(|entry| {
             let Some(name) =
                 entry.get("package").and_then(|pkg| pkg.get("name")).and_then(Value::as_str)
@@ -1114,7 +2098,7 @@ async fn serve_search(state: &AppState, headers: &HeaderMap, query_string: &str)
                 // Malformed entry — be conservative and drop it.
                 return false;
             };
-            authorize(state, &identity, name, Action::Access).is_ok()
+            authorize(state, identity, name, Action::Access).is_ok()
         });
         let visible = objects.len();
         // Surface the post-filter count so clients can't infer the
@@ -1177,13 +2161,15 @@ async fn augment_search_with_upstream(state: &AppState, query: &str, body: &mut 
 /// `PUT /:pkg/-rev/:rev` — overwrite the on-disk packument with the
 /// client-supplied body. pnpm uses this in the partial-unpublish
 /// flow: it fetches the packument, removes the unpublished version
-/// from `versions` / `dist-tags`, then PUTs the result back. We
-/// trust the body verbatim — the same trust verdaccio extends — and
-/// strip any `_attachments` so we don't persist base64 payloads
-/// alongside the manifest.
+/// from `versions` / `dist-tags`, then PUTs the result back. We strip
+/// any `_attachments` so we don't persist base64 payloads alongside
+/// the manifest, and run [`enforce_published_version_immutability`] so
+/// the body can't tamper with a published version's `dist` or smuggle
+/// in a new one — everything else in the body is trusted verbatim, the
+/// same trust verdaccio extends.
 async fn update_packument(
     state: &AppState,
-    headers: &HeaderMap,
+    identity: &Identity,
     raw_name: &str,
     body: &[u8],
 ) -> Response {
@@ -1191,26 +2177,44 @@ async fn update_packument(
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Publish).await {
-        return error_response(&err);
+    for action in [Action::Publish, Action::Unpublish] {
+        if let Err(err) = authorize(state, identity, name.as_str(), action) {
+            return error_response(&err);
+        }
     }
     let mut packument: Value = match serde_json::from_slice(body) {
         Ok(v) => v,
         Err(err) => return error_response(&RegistryError::Json(err)),
     };
+    // The write destination is the URL package name; a mismatched body name
+    // would otherwise land under the URL package and persist an inconsistent
+    // manifest.
+    if let Some(body_name) = packument.get("name").and_then(Value::as_str)
+        && body_name != name.as_str()
+    {
+        return error_response(&RegistryError::BadRequest {
+            reason: format!(
+                "packument name {body_name:?} does not match the URL package {:?}",
+                name.as_str(),
+            ),
+        });
+    }
     if let Some(obj) = packument.as_object_mut() {
         obj.remove("_attachments");
         obj.remove("_rev");
         obj.remove("_revisions");
     }
-    let bytes = match serde_json::to_vec_pretty(&packument) {
-        Ok(b) => b,
-        Err(err) => return error_response(&RegistryError::Json(err)),
-    };
     // Serialize the write against this instance's other same-package
     // packument writers (publish / dist-tag), so the client-supplied
     // rewrite can't interleave with a concurrent merge.
     let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
+    if let Some(err) = enforce_published_version_immutability(state, &name, &mut packument).await {
+        return error_response(&err);
+    }
+    let bytes = match serde_json::to_vec_pretty(&packument) {
+        Ok(b) => b,
+        Err(err) => return error_response(&RegistryError::Json(err)),
+    };
     if let Err(err) = state.inner.storage.write_hosted_packument(&name, &bytes).await {
         return error_response(&err);
     }
@@ -1223,16 +2227,170 @@ async fn update_packument(
         .expect("static-shape response always builds")
 }
 
+/// Hold a published version's security-critical `dist` fields immutable across
+/// the partial-unpublish `PUT`, which otherwise persists the body verbatim.
+/// [`expected_tarball_dist`] resolves a tarball request to a version by
+/// `dist.tarball` basename and verifies the bytes against that version's string
+/// `dist.integrity`, so letting either drift — while the bytes on disk stay put —
+/// breaks installs of that version (`EINTEGRITY`, or a 404/502 redirect).
+///
+/// For each version in the body, given a hosted packument: changing the
+/// `dist.integrity` or `dist.tarball` basename of an already-published version is
+/// rejected; omitting either is repaired from the hosted value (the round-trip
+/// drops them on retained versions); and a version not already published is
+/// rejected — this endpoint only removes versions, and an added entry could
+/// collide a basename or seed a tarball-less one. A `PUT` to a package with no
+/// hosted packument is rejected outright (nothing to unpublish, and the write
+/// would seed versions that publish can never overwrite).
+///
+/// Returns the rejection, or `None` when the body is acceptable (after any
+/// restores). Must hold the package lock so a concurrent publish can't race it.
+async fn enforce_published_version_immutability(
+    state: &AppState,
+    name: &PackageName,
+    incoming: &mut Value,
+) -> Option<RegistryError> {
+    let hosted: Value = match state.inner.storage.read_hosted_packument(name).await {
+        // Fail closed: a corrupt packument must not silently disable the gate.
+        Ok(Some(bytes)) => match serde_json::from_slice(&bytes) {
+            Ok(value) => value,
+            Err(err) => return Some(RegistryError::Json(err)),
+        },
+        Ok(None) => {
+            return Some(RegistryError::BadRequest {
+                reason: format!(
+                    "cannot update {:?}: it has no published packument to unpublish from",
+                    name.as_str(),
+                ),
+            });
+        }
+        Err(err) => return Some(err),
+    };
+    // None (no versions to enforce) means "accept", not "error" here.
+    let incoming_versions = incoming.get("versions").and_then(Value::as_object)?;
+    let hosted_versions = hosted.get("versions").and_then(Value::as_object);
+    // Fields to re-insert after the scan; deferred because the scan borrows
+    // `incoming` and the restore mutates it.
+    let mut restore: Vec<(String, &'static str, Value)> = Vec::new();
+    for (version, manifest) in incoming_versions {
+        let Some(existing) = hosted_versions.and_then(|versions| versions.get(version)) else {
+            return Some(RegistryError::BadRequest {
+                reason: format!(
+                    "version {version:?} is not in the published package; this endpoint removes versions, it does not add them",
+                ),
+            });
+        };
+        // A present dist.integrity must be a string; a non-string would slip past
+        // the string-only checks below.
+        let incoming_integrity = match manifest.get("dist").and_then(|dist| dist.get("integrity")) {
+            None => None,
+            Some(Value::String(value)) => Some(value.as_str()),
+            Some(_) => {
+                return Some(RegistryError::BadRequest {
+                    reason: format!("dist.integrity for version {version:?} must be a string"),
+                });
+            }
+        };
+        let existing_dist = existing.get("dist");
+        let existing_integrity =
+            existing_dist.and_then(|dist| dist.get("integrity")).and_then(Value::as_str);
+        match (existing_integrity, incoming_integrity) {
+            (Some(stored), Some(submitted)) if stored != submitted => {
+                return Some(RegistryError::BadRequest {
+                    reason: format!(
+                        "dist.integrity for the published version {version:?} is immutable",
+                    ),
+                });
+            }
+            (Some(stored), None) => {
+                if let Some(err) = require_object_dist(manifest, version) {
+                    return Some(err);
+                }
+                restore.push((version.clone(), "integrity", Value::String(stored.to_string())));
+            }
+            _ => {}
+        }
+        // Compare basenames, not URLs: the round-trip carries the rewritten URL
+        // (see [`rewrite_tarball_urls`]) while the hosted side keeps the original,
+        // and [`served_tarball_basename`] applies the same version-derived
+        // fallback so a basename-less stored URL is still pinned.
+        let existing_tarball = existing_dist.and_then(|dist| dist.get("tarball"));
+        if let Some(stored_basename) = served_tarball_basename(existing, name) {
+            let incoming_basename = manifest
+                .get("dist")
+                .and_then(|dist| dist.get("tarball"))
+                .and_then(Value::as_str)
+                .and_then(tarball_basename);
+            match incoming_basename {
+                Some(submitted) if submitted != stored_basename => {
+                    return Some(RegistryError::BadRequest {
+                        reason: format!(
+                            "dist.tarball for the published version {version:?} is immutable",
+                        ),
+                    });
+                }
+                Some(_) => {}
+                None => {
+                    if let Some(err) = require_object_dist(manifest, version) {
+                        return Some(err);
+                    }
+                    let stored = existing_tarball.cloned().unwrap_or(Value::Null);
+                    restore.push((version.clone(), "tarball", stored));
+                }
+            }
+        }
+    }
+    for (version, key, value) in restore {
+        if let Some(dist) = incoming
+            .get_mut("versions")
+            .and_then(|versions| versions.get_mut(&version))
+            .and_then(|manifest| manifest.get_mut("dist"))
+            .and_then(Value::as_object_mut)
+        {
+            dist.insert(key.to_string(), value);
+        }
+    }
+    None
+}
+
+/// The tarball basename a version is actually served under, mirroring
+/// [`rewrite_tarball_urls`]: the `dist.tarball` URL's own basename when it has
+/// one, otherwise the version-derived canonical name the rewrite falls back to.
+/// Returns `None` when the manifest carries no string `dist.tarball` to serve.
+fn served_tarball_basename(manifest: &Value, pkg: &PackageName) -> Option<String> {
+    let url = manifest.get("dist").and_then(|dist| dist.get("tarball")).and_then(Value::as_str)?;
+    if let Some(basename) = tarball_basename(url) {
+        return Some(basename.to_owned());
+    }
+    let version = manifest.get("version").and_then(Value::as_str)?;
+    Some(pkg.tarball_name_for_version(version))
+}
+
+/// Reject a published version whose `dist` isn't an object: a restore needs an
+/// object to write into, so otherwise it would no-op and persist the version
+/// without the field — the stripping this guards against.
+fn require_object_dist(manifest: &Value, version: &str) -> Option<RegistryError> {
+    if manifest.get("dist").is_some_and(Value::is_object) {
+        return None;
+    }
+    Some(RegistryError::BadRequest {
+        reason: format!("dist for the published version {version:?} must be an object"),
+    })
+}
+
 /// `DELETE /:pkg/-rev/:rev` — remove the entire package directory,
 /// packument and all tarballs. Used by `pnpm unpublish --force`.
-async fn delete_package(state: &AppState, headers: &HeaderMap, raw_name: &str) -> Response {
+async fn delete_package(state: &AppState, identity: &Identity, raw_name: &str) -> Response {
     let name = match PackageName::parse(raw_name) {
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Publish).await {
+    if let Err(err) = authorize(state, identity, name.as_str(), Action::Unpublish) {
         return error_response(&err);
     }
+    // Serialize against same-package publishers so a delete can't race a
+    // stage-and-commit and remove the package mid-write.
+    let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
     if let Err(err) = state.inner.storage.remove_package(&name).await {
         return error_response(&err);
     }
@@ -1252,7 +2410,7 @@ async fn delete_package(state: &AppState, headers: &HeaderMap, raw_name: &str) -
 /// by going through `canonicalize_tarball_name` first.
 async fn delete_tarball(
     state: &AppState,
-    headers: &HeaderMap,
+    identity: &Identity,
     raw_name: &str,
     filename: &str,
 ) -> Response {
@@ -1264,9 +2422,12 @@ async fn delete_tarball(
         Ok(c) => c,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Publish).await {
+    if let Err(err) = authorize(state, identity, name.as_str(), Action::Unpublish) {
         return error_response(&err);
     }
+    // Serialize against same-package publishers so a delete can't race a
+    // stage-and-commit and remove a tarball mid-write.
+    let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
     if let Err(err) = state.inner.storage.remove_tarball(&name, &canonical).await {
         return error_response(&err);
     }
@@ -1281,12 +2442,12 @@ async fn delete_tarball(
 
 /// `GET /-/package/:pkg/dist-tags` — return the packument's
 /// `dist-tags` object.
-async fn get_dist_tags(state: &AppState, headers: &HeaderMap, raw_name: &str) -> Response {
+async fn get_dist_tags(state: &AppState, identity: &Identity, raw_name: &str) -> Response {
     let name = match PackageName::parse(raw_name) {
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Access).await {
+    if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
         return error_response(&err);
     }
     let bytes = match load_packument_bytes(state, &name).await {
@@ -1298,7 +2459,8 @@ async fn get_dist_tags(state: &AppState, headers: &HeaderMap, raw_name: &str) ->
         Ok(v) => v,
         Err(err) => return error_response(&RegistryError::Json(err)),
     };
-    let tags = packument.get("dist-tags").cloned().unwrap_or_else(|| json!({}));
+    let mut tags = packument.get("dist-tags").cloned().unwrap_or_else(|| json!({}));
+    filter_osv_vulnerable_dist_tags(&mut tags, &packument, &name, state.inner.osv_index.as_ref());
     let bytes = serde_json::to_vec(&tags).expect("dist-tags object serializes");
     Response::builder()
         .status(StatusCode::OK)
@@ -1311,12 +2473,12 @@ async fn get_dist_tags(state: &AppState, headers: &HeaderMap, raw_name: &str) ->
 /// a JSON-encoded version string (e.g. `"1.0.0"`).
 async fn set_dist_tag(
     state: &AppState,
-    headers: &HeaderMap,
+    identity: &Identity,
     raw_name: &str,
     tag: &str,
     body: &[u8],
 ) -> Response {
-    update_dist_tag(state, headers, raw_name, tag, |tags| {
+    update_dist_tag(state, identity, raw_name, tag, |tags| {
         let version: String = match serde_json::from_slice(body) {
             Ok(s) => s,
             Err(err) => return Err(RegistryError::Json(err)),
@@ -1329,11 +2491,11 @@ async fn set_dist_tag(
 
 async fn remove_dist_tag(
     state: &AppState,
-    headers: &HeaderMap,
+    identity: &Identity,
     raw_name: &str,
     tag: &str,
 ) -> Response {
-    update_dist_tag(state, headers, raw_name, tag, |tags| {
+    update_dist_tag(state, identity, raw_name, tag, |tags| {
         tags.remove(tag);
         Ok(())
     })
@@ -1346,7 +2508,7 @@ async fn remove_dist_tag(
 /// 200 or 201, so we standardize on 201.
 async fn update_dist_tag<Mutate>(
     state: &AppState,
-    headers: &HeaderMap,
+    identity: &Identity,
     raw_name: &str,
     tag: &str,
     mutate: Mutate,
@@ -1358,7 +2520,7 @@ where
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = enforce_access(state, headers, name.as_str(), Action::Publish).await {
+    if let Err(err) = authorize(state, identity, name.as_str(), Action::Publish) {
         return error_response(&err);
     }
 
@@ -1447,6 +2609,7 @@ where
 enum Action {
     Access,
     Publish,
+    Unpublish,
 }
 
 impl Action {
@@ -1454,36 +2617,132 @@ impl Action {
         match self {
             Action::Access => "access",
             Action::Publish => "publish",
+            Action::Unpublish => "unpublish",
         }
     }
 }
 
-/// Resolve the caller behind a request by inspecting its
-/// `Authorization` header against the auth backends. The backend
-/// lookup is async (a networked record store hits the database here),
-/// so this is the one async step the access checks fan out from.
-async fn resolve_identity(
+/// The caller resolved once by the [`authenticate`] middleware and stored
+/// in request extensions. Every registry handler that needs to know who is
+/// calling reads it back through this extractor rather than re-inspecting
+/// the `Authorization` header — so a request hits the auth backend exactly
+/// once, and the identity a handler sees is the same one the restriction
+/// gate already approved (no second lookup, no policy/identity race).
+#[derive(Clone)]
+struct AuthedCaller(Identity);
+
+impl<RouterState: Send + Sync> FromRequestParts<RouterState> for AuthedCaller {
+    type Rejection = Response;
+
+    async fn from_request_parts(
+        parts: &mut Parts,
+        _state: &RouterState,
+    ) -> Result<Self, Self::Rejection> {
+        // The middleware runs on every route, so the context is always
+        // present; a miss means a wiring bug, surfaced as a 5xx.
+        parts.extensions.get::<AuthedCaller>().cloned().ok_or_else(|| {
+            error_response(&RegistryError::Internal {
+                reason: "authentication middleware did not run".to_string(),
+            })
+        })
+    }
+}
+
+/// Authenticate every request once, up front, and stash the resolved
+/// [`Identity`] in request extensions for the handlers (via
+/// [`AuthedCaller`]).
+///
+/// This is also where bearer-token restrictions are enforced — ahead of
+/// every route handler, so a restricted token is rejected before a write
+/// handler buffers its (up to 100 MiB) request body. npm bearer tokens can
+/// be marked read-only or pinned to a set of CIDR ranges; pnpr persists
+/// both and surfaces them on `npm token list`, so it must enforce them too
+/// — otherwise a token the operator restricted could still publish, or be
+/// used from any network. Basic-auth and anonymous requests carry no
+/// restriction and are still subject to the per-package access policy in
+/// the handlers; an unknown or revoked bearer token resolves to anonymous.
+async fn authenticate(State(state): State<AppState>, mut request: Request, next: Next) -> Response {
+    // Copy what resolution needs out of the request before mutating its
+    // extensions below — the header and method borrows can't outlive the
+    // `extensions_mut` call.
+    let header = match single_authorization_header(request.headers()) {
+        Ok(header) => header.map(str::to_owned),
+        Err(err) => return error_response(&err),
+    };
+    let method = request.method().clone();
+    let peer = request.extensions().get::<ConnectInfo<PeerAddr>>().map(|info| info.0.0);
+
+    let identity = match resolve_caller(&state, header.as_deref(), &method, peer).await {
+        Ok(identity) => identity,
+        Err(err) => return error_response(&err),
+    };
+    request.extensions_mut().insert(AuthedCaller(identity));
+    next.run(request).await
+}
+
+/// Resolve the `Authorization` header to an [`Identity`], hitting the auth
+/// backend exactly once. A bearer token is looked up as a full record so
+/// its read-only / CIDR restrictions can be enforced here (a violation is
+/// a `Forbidden` error); an unknown bearer token, a non-`Bearer` scheme
+/// (e.g. legacy `Basic`), and a missing header all resolve to
+/// [`Identity::Anonymous`]. `Err` is a backing-store failure, surfaced as a
+/// 5xx so an outage isn't mistaken for "not authenticated".
+async fn resolve_caller(
     state: &AppState,
-    headers: &HeaderMap,
+    header: Option<&str>,
+    method: &Method,
+    peer: Option<SocketAddr>,
 ) -> Result<Identity, RegistryError> {
-    let username = identify(
-        headers.get(header::AUTHORIZATION).and_then(|value| value.to_str().ok()),
-        state.inner.auth.users.as_ref(),
-        state.inner.auth.tokens.as_ref(),
-    )
-    .await?;
-    Ok(match username {
-        Some(username) => Identity::User { username },
-        None => Identity::Anonymous,
-    })
+    if let Some(raw_token) = header.and_then(bearer_credentials) {
+        let Some(record) = state.inner.auth.tokens.lookup_record(raw_token).await? else {
+            return Ok(Identity::Anonymous);
+        };
+        check_token_restrictions(&record, method, peer)?;
+        return Ok(state.inner.config.identity_for_user(record.username));
+    }
+    // Anything that is not a bearer token — Basic, another scheme, or no
+    // credentials — carries no request identity. Going through `identify`
+    // here would re-run the bearer lookup and bypass the restriction checks
+    // above, so resolve straight to anonymous.
+    Ok(Identity::Anonymous)
+}
+
+/// Enforce a bearer token's own restrictions. A read-only token may not
+/// drive a mutating request; a CIDR-pinned token may only be used from a
+/// whitelisted peer (and is refused when the peer address is unavailable,
+/// so the check fails closed).
+fn check_token_restrictions(
+    record: &TokenRecord,
+    method: &Method,
+    peer: Option<SocketAddr>,
+) -> Result<(), RegistryError> {
+    if record.readonly && is_write_method(method) {
+        return Err(RegistryError::Forbidden {
+            user: record.username.clone(),
+            action: "write with",
+            resource: "a read-only token".to_string(),
+        });
+    }
+    if !record.cidr_whitelist.is_empty() {
+        // The peer address comes from the accepted socket (`ConnectInfo`),
+        // never a client-supplied forwarding header.
+        let allowed = peer.is_some_and(|addr| cidr_whitelist_allows(&record.cidr_whitelist, addr));
+        if !allowed {
+            return Err(RegistryError::Forbidden {
+                user: record.username.clone(),
+                action: "use",
+                resource: "this token from your network address".to_string(),
+            });
+        }
+    }
+    Ok(())
 }
 
 /// Check an already-resolved `identity` against the per-package rule.
-/// Returns `Ok(())` when the call is allowed; otherwise the
-/// appropriate `Unauthenticated` / `Forbidden` error. Split from
-/// [`resolve_identity`] so a caller that filters many packages (the
-/// search endpoint) resolves the identity once and authorizes each
-/// candidate synchronously.
+/// Returns `Ok(())` when the call is allowed; otherwise the appropriate
+/// `Unauthenticated` / `Forbidden` error. The identity is resolved once by
+/// [`authenticate`], so every handler — including the search endpoint that
+/// filters many packages — authorizes synchronously against it.
 fn authorize(
     state: &AppState,
     identity: &Identity,
@@ -1494,6 +2753,7 @@ fn authorize(
     let list = match action {
         Action::Access => effective.access,
         Action::Publish => effective.publish,
+        Action::Unpublish => effective.unpublish,
     };
     if list.allows(identity) {
         return Ok(());
@@ -1504,7 +2764,7 @@ fn authorize(
         Identity::Anonymous => {
             Err(RegistryError::Unauthenticated { resource: format!("package {package:?}") })
         }
-        Identity::User { username } => Err(RegistryError::Forbidden {
+        Identity::User { username, .. } => Err(RegistryError::Forbidden {
             user: username.clone(),
             action: action.label(),
             resource: format!("package {package:?}"),
@@ -1512,15 +2772,88 @@ fn authorize(
     }
 }
 
-/// Resolve the caller and check the per-package rule in one step.
-async fn enforce_access(
-    state: &AppState,
-    headers: &HeaderMap,
-    package: &str,
-    action: Action,
-) -> Result<(), RegistryError> {
-    let identity = resolve_identity(state, headers).await?;
-    authorize(state, &identity, package, action)
+/// The raw credentials of an `Authorization: Bearer <token>` header, or
+/// `None` for any other scheme. The scheme is matched case-insensitively,
+/// matching [`identify`].
+fn bearer_credentials(header_value: &str) -> Option<&str> {
+    let (scheme, credentials) = header_value.trim().split_once(' ')?;
+    scheme.eq_ignore_ascii_case("Bearer").then(|| credentials.trim())
+}
+
+/// Whether `method` mutates registry state. Every write surface (publish,
+/// unpublish, dist-tag add/remove, adduser, logout, token revoke) is a
+/// PUT or DELETE; reads and the resolver POSTs are not. A read-only token
+/// is confined to the non-mutating methods.
+fn is_write_method(method: &Method) -> bool {
+    matches!(*method, Method::PUT | Method::DELETE | Method::PATCH)
+}
+
+/// Whether `peer` falls inside any range of a token's CIDR whitelist. An
+/// IPv4-mapped IPv6 peer is normalized to its IPv4 form first, so a
+/// dual-stack listener still matches plain IPv4 ranges.
+fn cidr_whitelist_allows(whitelist: &[String], peer: SocketAddr) -> bool {
+    let peer = canonical_ip(peer.ip());
+    whitelist.iter().any(|entry| cidr_contains(entry.trim(), peer))
+}
+
+fn canonical_ip(addr: IpAddr) -> IpAddr {
+    match addr {
+        IpAddr::V6(v6) => v6.to_ipv4_mapped().map_or(IpAddr::V6(v6), IpAddr::V4),
+        v4 @ IpAddr::V4(_) => v4,
+    }
+}
+
+/// Whether `peer` is inside one `addr/prefix` (or bare `addr`) whitelist
+/// entry. A bare address matches only itself; a malformed entry (bad
+/// address, or a non-numeric / out-of-range prefix) matches nothing, so
+/// the restriction fails closed rather than open.
+fn cidr_contains(entry: &str, peer: IpAddr) -> bool {
+    let (net, prefix) = match entry.split_once('/') {
+        Some((net, prefix)) => (net.trim(), Some(prefix.trim())),
+        None => (entry, None),
+    };
+    let Ok(net) = net.parse::<IpAddr>() else {
+        return false;
+    };
+    match (net, peer) {
+        (IpAddr::V4(net), IpAddr::V4(peer)) => {
+            let Some(bits) = parse_prefix(prefix, 32) else {
+                return false;
+            };
+            let mask = ipv4_mask(bits);
+            (u32::from(net) & mask) == (u32::from(peer) & mask)
+        }
+        (IpAddr::V6(net), IpAddr::V6(peer)) => {
+            let Some(bits) = parse_prefix(prefix, 128) else {
+                return false;
+            };
+            let mask = ipv6_mask(bits);
+            (u128::from(net) & mask) == (u128::from(peer) & mask)
+        }
+        // Different address families never match.
+        _ => false,
+    }
+}
+
+/// Parse a CIDR prefix length, defaulting to a full-width match (an exact
+/// host) when the entry carried no `/prefix`. `None` for a non-numeric or
+/// too-large value.
+fn parse_prefix(prefix: Option<&str>, max_bits: u8) -> Option<u8> {
+    match prefix {
+        None => Some(max_bits),
+        Some(prefix) => {
+            let bits: u8 = prefix.parse().ok()?;
+            (bits <= max_bits).then_some(bits)
+        }
+    }
+}
+
+fn ipv4_mask(prefix: u8) -> u32 {
+    if prefix == 0 { 0 } else { u32::MAX << (32 - prefix) }
+}
+
+fn ipv6_mask(prefix: u8) -> u128 {
+    if prefix == 0 { 0 } else { u128::MAX << (128 - prefix) }
 }
 
 /// True when the client's `Accept` header offers the
@@ -1535,14 +2868,68 @@ fn wants_abbreviated(headers: &HeaderMap) -> bool {
         .is_some_and(|accept| accept.contains(ABBREVIATED_CONTENT_TYPE))
 }
 
-/// Resolve which prebuilt [`Upstream`] should serve `package`, by
-/// walking the verdaccio-style `packages` rules in declared order and
-/// looking up the resolved uplink name in [`AppInner::upstreams`].
-/// Returns `None` when no rule with a `proxy:` field matches the
-/// package, leaving the request to fall through to a not-found.
-fn resolve_upstream<'a>(state: &'a AppState, package: &PackageName) -> Option<&'a Upstream> {
-    let (uplink_name, _) = state.inner.config.resolve_uplink(package.as_str())?;
-    state.inner.upstreams.get(uplink_name)
+/// Resolve the ordered [`Upstream`] fallback chain that should serve
+/// `package`, by walking the verdaccio-style `packages` rules in declared
+/// order ([`Config::resolve_uplinks`]) and looking each resolved uplink
+/// name up in [`AppInner::upstreams`], preserving order. Returns an empty
+/// vec when no rule with a `proxy:` field matches, leaving the request to
+/// fall through to a not-found.
+fn resolve_upstreams<'a>(state: &'a AppState, package: &PackageName) -> Vec<&'a Upstream> {
+    state
+        .inner
+        .config
+        .resolve_uplinks(package.as_str())
+        .into_iter()
+        .filter_map(|(uplink_name, _)| state.inner.upstreams.get(uplink_name))
+        .collect()
+}
+
+/// Outcome of walking the uplink fallback chain for a tarball.
+enum TarballFetch<'a> {
+    /// `upstream` returned the tarball; the caller streams `response` and
+    /// keys the cache-write decision off `upstream.caches()`.
+    Ok(&'a Upstream, reqwest::Response),
+    /// Every uplink answered `404` — the tarball isn't anywhere in the chain.
+    NotFound,
+    /// No uplink served it and at least one errored. Surfaced rather than a
+    /// `404` so a transient failure isn't reported as "gone".
+    Err(RegistryError),
+}
+
+/// Try each uplink in `upstreams` in order until one returns the tarball.
+/// A `NotFound` falls through to the next uplink (a private uplink later in
+/// the chain may host it); an *availability* error (transport, circuit, 5xx)
+/// is remembered and the next uplink tried. An authoritative upstream error
+/// (401/403/other hard 4xx) stops the walk immediately — see
+/// [`RegistryError::allows_uplink_fallthrough`] — so a later mirror can't
+/// mask the primary's rejection. After the chain is exhausted, an error (if
+/// any was seen) takes precedence over `NotFound`, so a tarball that a
+/// momentarily failing uplink really hosts isn't masked as a hard 404.
+async fn fetch_tarball_with_fallback<'a>(
+    upstreams: &[&'a Upstream],
+    name: &PackageName,
+    filename: &str,
+) -> TarballFetch<'a> {
+    let mut last_err = None;
+    for upstream in upstreams {
+        match upstream.fetch_tarball_response(name, filename).await {
+            Ok(FetchOutcome::Ok(response)) => return TarballFetch::Ok(upstream, response),
+            Ok(FetchOutcome::NotFound) => continue,
+            Err(err) => {
+                tracing::warn!(?err, package = %name.as_str(), %filename, uplink = upstream.name(), "upstream tarball fetch failed");
+                if !err.allows_uplink_fallthrough() {
+                    // Hard upstream rejection — surface it rather than letting
+                    // a later uplink answer for a tarball this one refused.
+                    return TarballFetch::Err(err);
+                }
+                last_err = Some(err);
+            }
+        }
+    }
+    match last_err {
+        Some(err) => TarballFetch::Err(err),
+        None => TarballFetch::NotFound,
+    }
 }
 
 /// Result of loading the packument for a package — either bytes (raw,
@@ -1571,7 +2958,8 @@ async fn load_packument_bytes(state: &AppState, name: &PackageName) -> Packument
         }
     }
 
-    let Some(upstream) = resolve_upstream(state, name) else {
+    let upstreams = resolve_upstreams(state, name);
+    if upstreams.is_empty() {
         // Nothing published and no upstream to proxy. The only thing
         // left is a leftover cache entry (e.g. a `proxy:` rule was
         // removed after the package was mirrored).
@@ -1585,96 +2973,164 @@ async fn load_packument_bytes(state: &AppState, name: &PackageName) -> Packument
             Ok(None) => PackumentLoad::NotFound,
             Err(err) => PackumentLoad::Err(err),
         };
-    };
+    }
 
     // Freshness window for the proxy cache: a cached packument younger
     // than `ttl` is served straight from disk; older than `ttl` it's
-    // "stale" and revalidated against the upstream below. Lower = newer
+    // "stale" and revalidated against an upstream below. Lower = newer
     // versions surface sooner but more upstream traffic; higher = the
     // reverse. The conditional GET on the stale path keeps a high `ttl`
     // cheap (a `304` refreshes the entry without re-downloading it).
-    let ttl = state.inner.config.packument_ttl;
+    //
+    // The TTL is a per-package cache property decided before any uplink is
+    // contacted, so it comes from the primary (first) uplink's `maxage`
+    // (verdaccio's knob) when it sets one; otherwise the global
+    // `packument_ttl` (the `--packument-ttl-secs` flag) applies. Only the
+    // primary governs freshness — a secondary's `maxage` must not control the
+    // shared cache it rarely fills.
+    let ttl = upstreams
+        .first()
+        .and_then(|upstream| upstream.maxage())
+        .unwrap_or(state.inner.config.packument_ttl);
     // A fresh entry serves immediately (and moves its bytes out — a
     // packument can be multiple MB). A stale entry yields only its
-    // validators; its body stays on disk until a `304`/error path below
-    // actually needs it, so the common stale→`200` refresh never reads it.
+    // per-uplink validators; its body stays on disk until a `304`/error
+    // path below actually needs it, so the common stale→`200` refresh never
+    // reads it.
     let validators = match state.inner.storage.read_cached_packument_entry(name, ttl).await {
         Ok(Some(CachedPackument::Fresh(bytes))) => {
             record_cache_status("hit");
             return PackumentLoad::Ok(bytes);
         }
         Ok(Some(CachedPackument::Stale(validators))) => validators,
-        Ok(None) => CacheValidators::default(),
+        Ok(None) => ValidatorsByUplink::default(),
         Err(err) => {
             tracing::warn!(?err, package = %name.as_str(), "cache read failed");
-            CacheValidators::default()
+            ValidatorsByUplink::default()
         }
     };
 
-    // Revalidate conditionally when we hold a stale copy: the upstream
-    // can answer `304` and save us re-downloading an unchanged packument.
-    match upstream.fetch_packument(name, &validators).await {
-        Ok(PackumentFetch::Modified(fetched)) => {
-            store_fetched_packument(state, name, fetched).await
-        }
-        // `304` confirmed our stale copy is current: read it now (deferred
-        // until here), re-write it to bump the cache mtime so it's fresh
-        // again until the next TTL window, and serve it.
-        Ok(PackumentFetch::NotModified) => {
-            match state.inner.storage.read_cached_packument(name).await {
-                Ok(Some(bytes)) => {
-                    if let Err(err) =
-                        state.inner.storage.write_cached_packument(name, &bytes, &validators).await
-                    {
-                        tracing::warn!(?err, package = %name.as_str(), "packument cache refresh failed");
-                    }
-                    record_cache_status("revalidated");
-                    PackumentLoad::Ok(bytes)
-                }
-                // The body vanished between the freshness check and this read
-                // (cache wiped concurrently). The upstream just confirmed the
-                // package exists, so re-fetch it unconditionally and self-heal
-                // rather than 404-ing a present package.
-                Ok(None) => match upstream.fetch_packument(name, &CacheValidators::default()).await
-                {
-                    Ok(PackumentFetch::Modified(fetched)) => {
-                        store_fetched_packument(state, name, fetched).await
-                    }
-                    Ok(_) => PackumentLoad::NotFound,
-                    Err(err) => PackumentLoad::Err(err),
-                },
-                Err(err) => PackumentLoad::Err(err),
+    // Walk the uplink fallback chain in declared order. The first uplink to
+    // return a body (`Modified`) or confirm our cache (`NotModified`) wins;
+    // a `NotFound` falls through to the next (a private uplink later in the
+    // chain may host the package); an *availability* error (transport,
+    // circuit, 5xx) is remembered and the next uplink tried. An authoritative
+    // upstream error (401/403/other hard 4xx) stops the walk immediately —
+    // see [`RegistryError::allows_uplink_fallthrough`] — so a later public
+    // mirror can never mask the primary's rejection of a scoped package. Each
+    // uplink is sent only *its own* cached validators — an `ETag` is
+    // origin-specific, so replaying one uplink's against another could
+    // spuriously `304` and serve stale data.
+    let mut last_err = None;
+    for upstream in &upstreams {
+        // Revalidate conditionally when we hold this uplink's validators:
+        // the upstream can answer `304` and save re-downloading an unchanged
+        // packument.
+        let uplink_validators = validators.get(upstream.name());
+        match upstream.fetch_packument(name, &uplink_validators).await {
+            Ok(PackumentFetch::Modified(fetched)) => {
+                return store_fetched_packument(state, name, upstream.name(), fetched).await;
             }
-        }
-        Ok(PackumentFetch::NotFound) => PackumentLoad::NotFound,
-        Err(err) => {
-            tracing::warn!(?err, package = %name.as_str(), "upstream packument fetch failed");
-            match state.inner.storage.read_cached_packument(name).await {
-                Ok(Some(bytes)) => {
-                    record_cache_status("stale");
-                    PackumentLoad::Ok(bytes)
+            Ok(PackumentFetch::NotModified) => {
+                return serve_revalidated(state, name, upstream, &uplink_validators).await;
+            }
+            Ok(PackumentFetch::NotFound) => continue,
+            Err(err) => {
+                tracing::warn!(?err, package = %name.as_str(), uplink = upstream.name(), "upstream packument fetch failed");
+                if !err.allows_uplink_fallthrough() {
+                    // Hard upstream rejection (auth/throttle/other 4xx). Surface
+                    // it immediately: don't try later uplinks (which could
+                    // answer for a package this one authoritatively refused) and
+                    // don't fall back to a stale cached body either — serving
+                    // cache here would mask an authoritative denial and keep
+                    // handing out content the upstream is now refusing.
+                    return PackumentLoad::Err(err);
                 }
-                // No cache to fall back on: surface the upstream failure.
-                Ok(None) => PackumentLoad::Err(err),
-                // The cache itself is unreadable: surface that I/O error
-                // rather than the upstream one — it's the more actionable
-                // failure when both go wrong.
-                Err(cache_err) => PackumentLoad::Err(cache_err),
+                last_err = Some(err);
             }
         }
     }
+
+    // Chain exhausted. If any uplink errored, fall back to a stale cached
+    // body — a transient failure must never be reported as an authoritative
+    // 404 the client would cache as "gone". If every uplink answered a clean
+    // `NotFound`, the package genuinely isn't anywhere in the chain.
+    match last_err {
+        Some(err) => serve_stale_or_error(state, name, err).await,
+        None => PackumentLoad::NotFound,
+    }
 }
 
-/// Persist a freshly fetched packument to the proxy cache and return it,
-/// tagging the access record as a `miss`. A cache-write failure is logged
-/// but not fatal — the fetched bytes are still served.
+/// Handle a `304 Not Modified` from `upstream`: the cached body is still
+/// current, so read it (deferred until now), re-write it to bump the cache
+/// mtime and re-record this uplink's validators, and serve it
+/// (`revalidated`). If the body vanished between the freshness check and
+/// this read (cache wiped concurrently), re-fetch it unconditionally from
+/// the same uplink and self-heal rather than 404-ing a present package.
+async fn serve_revalidated(
+    state: &AppState,
+    name: &PackageName,
+    upstream: &Upstream,
+    validators: &CacheValidators,
+) -> PackumentLoad {
+    match state.inner.storage.read_cached_packument(name).await {
+        Ok(Some(bytes)) => {
+            if let Err(err) = state
+                .inner
+                .storage
+                .write_cached_packument(name, &bytes, upstream.name(), validators)
+                .await
+            {
+                tracing::warn!(?err, package = %name.as_str(), "packument cache refresh failed");
+            }
+            record_cache_status("revalidated");
+            PackumentLoad::Ok(bytes)
+        }
+        Ok(None) => match upstream.fetch_packument(name, &CacheValidators::default()).await {
+            Ok(PackumentFetch::Modified(fetched)) => {
+                store_fetched_packument(state, name, upstream.name(), fetched).await
+            }
+            Ok(_) => PackumentLoad::NotFound,
+            Err(err) => PackumentLoad::Err(err),
+        },
+        Err(err) => PackumentLoad::Err(err),
+    }
+}
+
+/// Every uplink in the chain failed. Fall back to a stale cached body if one
+/// exists (tagging the access `stale`); otherwise surface the upstream
+/// error — unless the cache read itself failed, in which case that I/O error
+/// is the more actionable one to surface.
+async fn serve_stale_or_error(
+    state: &AppState,
+    name: &PackageName,
+    err: RegistryError,
+) -> PackumentLoad {
+    match state.inner.storage.read_cached_packument(name).await {
+        Ok(Some(bytes)) => {
+            record_cache_status("stale");
+            PackumentLoad::Ok(bytes)
+        }
+        Ok(None) => PackumentLoad::Err(err),
+        Err(cache_err) => PackumentLoad::Err(cache_err),
+    }
+}
+
+/// Persist a freshly fetched packument to the proxy cache (recording
+/// `uplink_name`'s validators in the package's per-uplink validator map)
+/// and return it, tagging the access record as a `miss`. A cache-write
+/// failure is logged but not fatal — the fetched bytes are still served.
 async fn store_fetched_packument(
     state: &AppState,
     name: &PackageName,
+    uplink_name: &str,
     fetched: FetchedPackument,
 ) -> PackumentLoad {
-    if let Err(err) =
-        state.inner.storage.write_cached_packument(name, &fetched.bytes, &fetched.validators).await
+    if let Err(err) = state
+        .inner
+        .storage
+        .write_cached_packument(name, &fetched.bytes, uplink_name, &fetched.validators)
+        .await
     {
         tracing::warn!(?err, package = %name.as_str(), "packument cache write failed");
     }
@@ -1691,8 +3147,8 @@ async fn store_fetched_packument(
 /// * `revalidated` — entry was stale; the upstream answered `304 Not
 ///   Modified`, so the cached body was reused.
 /// * `miss` — fetched a fresh body from the upstream.
-/// * `stale` — upstream was unreachable; a stale cached body was served
-///   as a fallback.
+/// * `stale` — every uplink in the chain errored; a stale cached body was
+///   served as a fallback.
 /// * `orphaned` — a leftover mirror served with no upstream left to
 ///   revalidate against (its `proxy:` rule was removed after the package
 ///   was mirrored). Served regardless of age, so distinct from `hit`.
@@ -1714,11 +3170,13 @@ fn record_cache_status(status: &'static str) {
 fn packument_response(
     name: &PackageName,
     bytes: &[u8],
-    config: &Config,
+    tarball_base: &str,
+    osv_index: Option<&Arc<crate::resolver::OsvIndex>>,
     abbreviated: bool,
 ) -> Result<Response, RegistryError> {
     let mut doc: Value = serde_json::from_slice(bytes)?;
-    rewrite_tarball_urls(&mut doc, name, &config.public_url);
+    filter_osv_vulnerable_versions(&mut doc, name, osv_index);
+    rewrite_tarball_urls(&mut doc, name, tarball_base);
     let (body, content_type) = if abbreviated {
         let trimmed = abbreviate_packument(&doc, Utc::now());
         (serde_json::to_vec(&trimmed)?, ABBREVIATED_CONTENT_TYPE)
@@ -1726,6 +3184,115 @@ fn packument_response(
         (serde_json::to_vec(&doc)?, "application/json")
     };
     Ok(packument_bytes_response(body, content_type))
+}
+
+fn filter_osv_vulnerable_versions(
+    packument: &mut Value,
+    name: &PackageName,
+    osv_index: Option<&Arc<crate::resolver::OsvIndex>>,
+) {
+    let Some(osv_index) = osv_index else { return };
+    let package_name = name.as_str();
+    let mut blocked_keys = HashSet::new();
+    let mut retained_version_keys = HashSet::new();
+    let has_time = packument.get("time").and_then(Value::as_object).is_some();
+    if let Some(versions) = packument.get_mut("versions").and_then(Value::as_object_mut) {
+        versions.retain(|key, manifest| {
+            let manifest_version = manifest.get("version").and_then(Value::as_str);
+            let key_is_vulnerable = osv_index.is_vulnerable(package_name, key);
+            let manifest_is_vulnerable = manifest_version.is_some_and(|version| {
+                version != key && osv_index.is_vulnerable(package_name, version)
+            });
+            if key_is_vulnerable || manifest_is_vulnerable {
+                blocked_keys.insert(key.clone());
+                false
+            } else {
+                if has_time {
+                    retained_version_keys.insert(key.clone());
+                }
+                true
+            }
+        });
+    }
+    if let Some(tags) = packument.get_mut("dist-tags").and_then(Value::as_object_mut) {
+        tags.retain(|_, version| {
+            version.as_str().is_none_or(|version| {
+                !blocked_keys.contains(version) && !osv_index.is_vulnerable(package_name, version)
+            })
+        });
+    }
+    if let Some(time) = packument.get_mut("time").and_then(Value::as_object_mut) {
+        time.retain(|key, _| {
+            !blocked_keys.contains(key)
+                && (matches!(key.as_str(), "created" | "modified")
+                    || retained_version_keys.contains(key)
+                    || !osv_index.is_vulnerable(package_name, key))
+        });
+    }
+}
+
+fn filter_osv_vulnerable_dist_tags(
+    tags: &mut Value,
+    packument: &Value,
+    name: &PackageName,
+    osv_index: Option<&Arc<crate::resolver::OsvIndex>>,
+) {
+    let Some(osv_index) = osv_index else { return };
+    let Some(tags) = tags.as_object_mut() else {
+        return;
+    };
+    let package_name = name.as_str();
+    tags.retain(|_, version| {
+        version.as_str().is_none_or(|version| {
+            !is_osv_vulnerable_packument_version(packument, package_name, version, osv_index)
+        })
+    });
+}
+
+fn is_osv_vulnerable_packument_version(
+    packument: &Value,
+    package_name: &str,
+    version: &str,
+    osv_index: &crate::resolver::OsvIndex,
+) -> bool {
+    if osv_index.is_vulnerable(package_name, version) {
+        return true;
+    }
+    let manifest_version = packument
+        .get("versions")
+        .and_then(|versions| versions.get(version))
+        .and_then(|manifest| manifest.get("version"))
+        .and_then(Value::as_str);
+    manifest_version.is_some_and(|manifest_version| {
+        manifest_version != version && osv_index.is_vulnerable(package_name, manifest_version)
+    })
+}
+
+fn resolve_version_or_tag<'a>(packument: &'a Value, version_or_tag: &'a str) -> &'a str {
+    packument
+        .get("dist-tags")
+        .and_then(|tags| tags.get(version_or_tag))
+        .and_then(Value::as_str)
+        .unwrap_or(version_or_tag)
+}
+
+fn ensure_osv_allowed(
+    state: &AppState,
+    name: &PackageName,
+    version: &str,
+) -> Result<(), RegistryError> {
+    let Some(osv_index) = state.inner.osv_index.as_ref() else {
+        return Ok(());
+    };
+    let ids = osv_index.vulnerability_ids(name.as_str(), version);
+    if ids.is_empty() {
+        return Ok(());
+    }
+    Err(RegistryError::OsvVulnerability {
+        package: name.as_str().to_string(),
+        version: version.to_string(),
+        advisories: crate::resolver::format_advisory_ids(&ids),
+    })
 }
 
 fn packument_bytes_response(bytes: Vec<u8>, content_type: &'static str) -> Response {
@@ -1752,8 +3319,16 @@ fn not_found() -> Response {
 
 fn error_response(err: &RegistryError) -> Response {
     let status = err.status_code();
-    tracing::error!(%err, %status, "request failed");
-    (status, err.to_string()).into_response()
+    let error_kind = err.log_kind();
+    if status.is_server_error() {
+        let err = err.log_message();
+        tracing::error!(%err, %error_kind, %status, "request failed");
+    } else if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
+        tracing::debug!(%err, %error_kind, %status, "request failed");
+    } else {
+        tracing::warn!(%err, %error_kind, %status, "request failed");
+    }
+    (status, err.public_message()).into_response()
 }
 
 async fn serve_ping(State(_state): State<AppState>) -> Response {
@@ -1763,23 +3338,46 @@ async fn serve_ping(State(_state): State<AppState>) -> Response {
 /// `GET /-/pnpr` — capability handshake for the pnpr resolver
 /// protocol. A plain npm registry has no such route and 404s, so a
 /// client can fail fast against a misconfigured server. `versions`
-/// lists the `/vN/resolve` protocol versions this server speaks.
+/// lists the `/-/pnpr/vN/resolve` protocol versions this server speaks.
 async fn serve_pnpr_handshake() -> Response {
-    (StatusCode::OK, axum::Json(serde_json::json!({ "pnpr": { "versions": [1] } }))).into_response()
+    (StatusCode::OK, axum::Json(serde_json::json!({ "pnpr": { "versions": [0] } }))).into_response()
 }
 
-async fn serve_resolve(State(state): State<AppState>, body: axum::body::Bytes) -> Response {
-    // pnpr resolves but serves no file content, so there is no per-package
-    // read gate here: the client fetches every tarball directly from the
-    // registry with its own credentials, and resolution uses the client's
-    // forwarded credentials for private packages.
-    let runtime =
-        crate::resolver::Resolver::get_or_init(&state.inner.resolver, &state.inner.config);
-    crate::resolver::handle_resolve(runtime, body).await
+/// 404 stub mounted on the resolver paths when the resolver feature is
+/// disabled. Registered so these specific paths return a clean
+/// not-found — in particular `/-/pnpr`, whose 404 is how a client
+/// detects "no resolver here" — rather than being shadowed by the
+/// registry's catch-all param routes and proxied upstream.
+async fn resolver_disabled() -> Response {
+    StatusCode::NOT_FOUND.into_response()
 }
 
-async fn serve_verify_lockfile(State(state): State<AppState>, body: axum::body::Bytes) -> Response {
-    let runtime =
-        crate::resolver::Resolver::get_or_init(&state.inner.resolver, &state.inner.config);
-    crate::resolver::handle_verify_lockfile(runtime, body).await
+async fn serve_resolve(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    body: axum::body::Bytes,
+) -> Response {
+    // The caller's identity drives both resolution and gateway access:
+    // it selects which pnpr-managed upstream credentials and hosted
+    // packages the resolve may use, and gates which cached resolutions
+    // it may receive.
+    let runtime = crate::resolver::Resolver::get_or_init(
+        &state.inner.resolver,
+        &state.inner.config,
+        state.inner.osv_index.clone(),
+    );
+    crate::resolver::handle_resolve(runtime, identity, body).await
+}
+
+async fn serve_verify_lockfile(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    body: axum::body::Bytes,
+) -> Response {
+    let runtime = crate::resolver::Resolver::get_or_init(
+        &state.inner.resolver,
+        &state.inner.config,
+        state.inner.osv_index.clone(),
+    );
+    crate::resolver::handle_verify_lockfile(runtime, identity, body).await
 }

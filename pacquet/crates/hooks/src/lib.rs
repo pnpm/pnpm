@@ -167,7 +167,7 @@ pub trait CustomResolver: Send + Sync {
     ) -> Result<bool, HookError>;
 }
 
-/// A no-op implementation of `PnpmfileHooks`.
+/// A no-op implementation of [`PnpmfileHooks`].
 pub struct NoopHooks;
 
 #[async_trait]
@@ -182,9 +182,7 @@ impl PnpmfileHooks for NoopHooks {
     async fn after_all_resolved(&self, _: Value, _: HookContext) -> Result<Value, HookError> {
         Ok(Value::Null)
     }
-    async fn pre_resolution(&self, _: PreResolutionHookContext, _: PreResolutionHookLogger) {
-        // no-op
-    }
+    async fn pre_resolution(&self, _: PreResolutionHookContext, _: PreResolutionHookLogger) {}
     async fn filter_log(&self, _: Value, _: HookContext) -> bool {
         true
     }

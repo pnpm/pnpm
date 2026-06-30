@@ -145,11 +145,12 @@ Passing a number is interpreted as a PR number. The PR is fetched via
 `git fetch origin pull/<number>/head` into a local branch named `pr-<number>`, so it works
 for both same-repo branches and forks.
 
-If [Claude Code](https://www.anthropic.com/claude-code) is installed on your system, `wt
-<pr-number>` will additionally launch a Claude review of the PR via the tracked hook at
-`.git-wt/pr-hook`. The hook silently no-ops if `claude` isn't on your `PATH`, so contributors
-who don't use Claude aren't affected. Requires `@zkochan/git-wt` ≥ 0.0.3, which is the
-version that introduced the per-repo hook lookup.
+For PR worktrees, `git wt <pr-number>` will additionally launch an agent review of the PR via
+the tracked hook at `.git-wt/pr-hook`. The hook defaults to
+[Claude Code](https://www.anthropic.com/claude-code), but you can pass another agent CLI name
+after the PR number, for example `git wt 10000 codex`. The hook silently no-ops if the
+requested CLI isn't on your `PATH`, so contributors who don't use an agent aren't affected.
+Requires a version of `@zkochan/git-wt` with per-repo hook lookup.
 
 If you only need the worktree path (e.g. to open it in an editor) without switching directories,
 invoke `git-wt` directly — it's also exposed as a native git subcommand:
@@ -192,7 +193,7 @@ Before you submit your Pull Request (PR) consider the following guidelines:
   ```
 
 - Create your patch, following [code style guidelines](#coding-style-guidelines), and **including appropriate test cases**.
-- Run `pnpm changeset` in the root of the repository and describe your changes. The resulting files should be committed as they will be used during release.
+- Run `pnpm changeset` in the root of the repository and describe your changes. The resulting files should be committed as they will be used during release. Write the description for pnpm users and keep it concise — it becomes a release note. Implementation rationale belongs in the commit message, not the changeset.
 - Run the full test suite and ensure that all tests pass.
 - Commit your changes using a descriptive commit message that follows our
   [commit message conventions](#commit-message-guidelines). Adherence to these conventions

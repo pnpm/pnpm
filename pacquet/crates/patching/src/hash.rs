@@ -24,17 +24,6 @@ pub enum CalcPatchHashError {
 /// [`createHexHashFromFile`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/crypto/hash/src/index.ts#L31-L33)
 /// composed with
 /// [`readNormalizedFile`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/crypto/hash/src/index.ts#L36-L39).
-/// The normalization step matters: a patch file authored on Windows
-/// and committed without `.gitattributes` would otherwise hash
-/// differently than the same file on POSIX, and the resulting
-/// `patch_hash` would change between platforms.
-///
-/// Invalid UTF-8 byte sequences are replaced with the Unicode
-/// replacement character (U+FFFD) before hashing, matching Node.js
-/// [`fs.readFile(path, 'utf8')`](https://nodejs.org/api/buffer.html)
-/// which upstream uses in `readNormalizedFile`. Erroring on invalid
-/// bytes would diverge from pnpm: a patch file with stray non-UTF-8
-/// bytes would work under pnpm but fail under pacquet.
 pub fn create_hex_hash_from_file(path: &Path) -> Result<String, CalcPatchHashError> {
     let bytes = fs::read(path)
         .map_err(|source| CalcPatchHashError::ReadFile { path: path.to_path_buf(), source })?;

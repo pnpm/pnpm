@@ -5,6 +5,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_config::Config;
 use pacquet_executor::{push_script_arg, select_shell};
+use pacquet_package_manager::{make_node_package_map_option, package_map_path_for_execution};
 use pacquet_package_manifest::PackageManifest;
 use std::{
     ffi::{OsStr, OsString},
@@ -17,12 +18,11 @@ use std::{
 /// Ports pnpm's `exec` command from
 /// <https://github.com/pnpm/pnpm/blob/d4a2b0364c/exec/commands/src/exec.ts>.
 /// The recursive variant (selected by the global `-r` / `--recursive`
-/// flag) runs the command in every workspace project, topologically
-/// sorted and sequential, with `--resume-from` / `--report-summary` /
-/// `--no-bail` (see [`recursive`]). The `--filter` package-selector
-/// narrowing and `--workspace-concurrency` parallelism are not ported yet
-/// — the selected set is every workspace project, matching the recursive
-/// `run` runner and pacquet's currently-unfiltered `install`.
+/// flag) runs the command across the `--filter`-selected workspace
+/// projects, topologically sorted and sequential, with `--resume-from` /
+/// `--report-summary` / `--no-bail` (see [`recursive`]).
+/// `--workspace-concurrency` parallelism is not ported yet, matching the
+/// recursive `run` runner.
 #[derive(Debug, Args)]
 pub struct ExecArgs {
     /// The command to run, followed by its arguments.
@@ -99,9 +99,9 @@ impl ExecArgs {
         Ok(())
     }
 
-    /// Execute the command for every project in the workspace, in
-    /// topological order. The recursive counterpart of [`Self::run`],
-    /// selected when the global `-r` / `--recursive` flag is set.
+    /// Execute the command across the `--filter`-selected workspace
+    /// projects, in topological order. The recursive counterpart of
+    /// [`Self::run`], selected when the global `-r` / `--recursive` flag is set.
     pub fn run_recursive(&self, config: &Config, dir: &Path) -> miette::Result<()> {
         recursive::exec_recursive(self, config, dir)
     }
@@ -183,9 +183,14 @@ pub(super) fn spawn_in_dir(
     if let Some(name) = read_package_name(dir) {
         cmd.env("PNPM_PACKAGE_NAME", name);
     }
+    let mut node_options = config.node_options.clone();
+    if let Some(package_map_path) = package_map_path_for_execution(config, dir) {
+        node_options =
+            Some(make_node_package_map_option(&package_map_path, node_options.as_deref()));
+    }
     // pnpm forwards `nodeOptions` as `NODE_OPTIONS` to the child.
     // See exec.ts:246.
-    if let Some(node_options) = &config.node_options {
+    if let Some(node_options) = node_options {
         cmd.env("NODE_OPTIONS", node_options);
     }
 

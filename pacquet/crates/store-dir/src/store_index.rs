@@ -62,11 +62,11 @@ pub struct StoreIndexWriter {
 
 /// Messages the writer task processes in arrival order. Coalesced
 /// per-`key` inside each batch so multiple mutations to the same
-/// store-index row apply against the same in-memory `PackageFilesIndex`
+/// store-index row apply against the same in-memory [`PackageFilesIndex`]
 /// before the batch's `INSERT OR REPLACE` flush.
 enum WriteMsg {
     /// Wholesale replace the row at `key`. Used by the prefetch /
-    /// download path that already has the full `PackageFilesIndex`
+    /// download path that already has the full [`PackageFilesIndex`]
     /// in hand.
     Replace { key: String, value: PackageFilesIndex },
     /// Read-modify-write the row at `key`: load the existing row
@@ -199,7 +199,7 @@ impl StoreIndexWriter {
     }
 }
 
-/// Fold one queued `WriteMsg` into the batch's in-flight
+/// Fold one queued [`WriteMsg`] into the batch's in-flight
 /// `pending` map. Pure function on `(&mut StoreIndex, &mut
 /// HashMap, WriteMsg)` so the writer-task closure stays a thin
 /// drain loop; correctness of each variant lives here.
@@ -240,7 +240,7 @@ fn apply_write_msg(
     }
 }
 
-/// Return a mutable reference to the `PackageFilesIndex` row for
+/// Return a mutable reference to the [`PackageFilesIndex`] row for
 /// `key`, loading from `SQLite` when this is the row's first
 /// sighting in the batch. Returns `None` (and logs at `debug!` /
 /// `warn!` as appropriate) when no base row exists or the `SQLite`
@@ -537,8 +537,8 @@ impl StoreIndex {
     ///    — pacquet matches pnpm's on-wire shape so the two tools can
     ///    share `index.db`.
     /// 3. **Legacy pacquet-written**: plain `MessagePack` maps from the
-    ///    `rmp_serde::to_vec_named` path used before this PR. These
-    ///    may still live in caches that predate the cutover.
+    ///    `rmp_serde::to_vec_named` path. These may still live in
+    ///    caches written by older pacquet versions.
     ///
     /// All three route through
     /// [`transcode_to_plain_msgpack`][crate::msgpackr_records::transcode_to_plain_msgpack],
@@ -556,6 +556,33 @@ impl StoreIndex {
             .query_row("SELECT data FROM package_index WHERE key = ?", [key], |row| {
                 row.get::<_, Vec<u8>>(0)
             })
+            .map(Some)
+            .or_else(|err| match err {
+                rusqlite::Error::QueryReturnedNoRows => Ok(None),
+                other => Err(StoreIndexError::Read { source: other }),
+            })?;
+
+        let Some(bytes) = row else { return Ok(None) };
+        decode_index_value(&bytes).map(Some)
+    }
+
+    /// Look up the first package-files index whose key ends with `\t{pkg_id}`.
+    ///
+    /// This is for read-only inspection commands that only know the local
+    /// package id and must not resolve against a registry to recover the
+    /// integrity half of the key.
+    pub fn get_by_pkg_id(
+        &self,
+        pkg_id: &str,
+    ) -> Result<Option<PackageFilesIndex>, StoreIndexError> {
+        let pattern = format!("%\t{}", escape_like_pattern(pkg_id));
+        let row: Option<Vec<u8>> = self
+            .conn
+            .query_row(
+                r"SELECT data FROM package_index WHERE key LIKE ?1 ESCAPE '\' ORDER BY key LIMIT 1",
+                [pattern],
+                |row| row.get::<_, Vec<u8>>(0),
+            )
             .map(Some)
             .or_else(|err| match err {
                 rusqlite::Error::QueryReturnedNoRows => Ok(None),
@@ -606,15 +633,15 @@ impl StoreIndex {
 
     /// Batched read that returns the **undecoded** value bytes for each
     /// hit. Callers run `decode_index_value` themselves — either inline
-    /// (matching the old [`Self::get_many`] shape) or, more usefully,
-    /// in parallel across a rayon pool after releasing the
-    /// [`SharedReadonlyStoreIndex`] mutex.
+    /// (like [`Self::get_many`]) or, more usefully, in parallel across
+    /// a rayon pool after releasing the [`SharedReadonlyStoreIndex`]
+    /// mutex.
     ///
     /// The decode is the dominant CPU cost of [`Self::get_many`] for
     /// rows that carry a `manifest` field — msgpackr-records transcode
     /// plus a `rmp_serde::from_slice` of a nested JSON tree per row,
     /// times ~1k rows on a real lockfile. Doing that work under the
-    /// `SharedReadonlyStoreIndex` lock serialises N installs back to
+    /// [`SharedReadonlyStoreIndex`] lock serialises N installs back to
     /// one thread; doing it after the lock releases lets each prefetch
     /// fan out across the rayon pool.
     pub fn get_many_raw(&self, keys: &[String]) -> Result<Vec<(String, Vec<u8>)>, StoreIndexError> {
@@ -647,6 +674,31 @@ impl StoreIndex {
             }
         }
         Ok(out)
+    }
+
+    /// Visit every raw `package_index` row without first collecting the
+    /// full key set. This mirrors pnpm's `StoreIndex.entries()` shape while
+    /// leaving decode policy to the caller.
+    pub fn for_each_raw<VisitError>(
+        &self,
+        mut visit: impl FnMut(String, Vec<u8>) -> Result<(), VisitError>,
+    ) -> Result<(), VisitError>
+    where
+        VisitError: From<StoreIndexError>,
+    {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT key, data FROM package_index")
+            .map_err(|source| VisitError::from(StoreIndexError::Read { source }))?;
+        let rows = stmt
+            .query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, Vec<u8>>(1)?)))
+            .map_err(|source| VisitError::from(StoreIndexError::Read { source }))?;
+        for row in rows {
+            let (key, data) =
+                row.map_err(|source| VisitError::from(StoreIndexError::Read { source }))?;
+            visit(key, data)?;
+        }
+        Ok(())
     }
 
     /// Batched existence probe: the subset of `keys` that have a row in
@@ -708,7 +760,7 @@ impl StoreIndex {
     /// `SQLite` errors during the transaction roll it back before returning,
     /// so a partial apply never leaves the index in a half-written state.
     /// A per-row msgpack encoding error is logged at `warn!` and skipped
-    /// — one malformed `PackageFilesIndex` shouldn't cost every other row
+    /// — one malformed [`PackageFilesIndex`] shouldn't cost every other row
     /// in the batch the chance to commit, matching the "best-effort
     /// index" stance the writer task and the read path already take.
     /// Encoding is done up front into a `Vec<(String, Vec<u8>)>` so the
@@ -810,6 +862,17 @@ fn decode_index_value(bytes: &[u8]) -> Result<PackageFilesIndex, StoreIndexError
     rmp_serde::from_slice(&plain).map_err(|source| StoreIndexError::Decode { source })
 }
 
+fn escape_like_pattern(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+    for character in value.chars() {
+        if matches!(character, '\\' | '%' | '_') {
+            escaped.push('\\');
+        }
+        escaped.push(character);
+    }
+    escaped
+}
+
 /// Build the `SQLite` key pnpm uses: `"{integrity}\t{pkg_id}"`. Integrity strings
 /// never contain tabs so the separator is unambiguous.
 #[must_use]
@@ -832,14 +895,6 @@ pub fn git_hosted_store_index_key(pkg_id: &str, built: bool) -> String {
 
 /// Pick the store-index key for a tarball-shaped resolution.
 ///
-/// Mirrors pnpm's `pickStoreIndexKey` at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/store/index/src/index.ts#L85-L94>:
-///
-/// - Tarballs flagged `git_hosted: true`, or any tarball entry missing
-///   integrity, use [`git_hosted_store_index_key`] — the cached content
-///   depends on whether the build ran.
-/// - All other integrity-carrying tarballs use [`store_index_key`].
-///
 /// The `built` flag must match the build decision the caller will make at
 /// fetch time (upstream sets it to `!opts.ignoreScripts`).
 #[must_use]
@@ -858,7 +913,9 @@ pub fn pick_store_index_key(
 /// Per-instance record of what a tarball contributed to the CAFS. Stored as the
 /// value half of each `package_index` row.
 ///
-/// Mirrors pnpm v11's `PackageFilesIndex` from `store/cafs/src/checkPkgFilesIntegrity.ts`.
+/// Mirrors pnpm v11's [`PackageFilesIndex`][ts-PackageFilesIndex] from `store/cafs/src/checkPkgFilesIntegrity.ts`.
+///
+/// [ts-PackageFilesIndex]: https://github.com/pnpm/pnpm/blob/1819226b51/store/cafs/src/checkPkgFilesIntegrity.ts#L31-L37
 #[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PackageFilesIndex {

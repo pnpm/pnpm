@@ -15,10 +15,10 @@
 use crate::{
     cas_io::{ImportedFiles, import_into_cas},
     error::{GitFetcherError, PreparePackageError},
-    packlist::packlist,
     prepare_package::{AllowBuildRef, PreparePackageOptions, PreparedPackage, prepare_package},
 };
 use pacquet_executor::ScriptsPrependNodePath;
+use pacquet_fs_packlist::packlist;
 use pacquet_package_manifest::safe_read_package_json_from_dir;
 use pacquet_reporter::Reporter;
 use pacquet_store_dir::{PackageFilesIndex, StoreDir, StoreIndexWriter};
@@ -76,10 +76,7 @@ pub struct GitFetcher<'a> {
     /// (matches upstream's `execa('git', …)` shape). Tests use it to
     /// inject a shim binary at an absolute path, so the test can
     /// observe the fetcher's argv without mutating process-global
-    /// state. `None` keeps the existing `Command::new("git")`
-    /// behavior; `Some(path)` runs `Command::new(path)` for every
-    /// git invocation inside `run_sync` (`init`, `clone`, `fetch`,
-    /// `checkout`, `rev-parse`).
+    /// state.
     pub git_bin: Option<&'a Path>,
 }
 
@@ -233,9 +230,8 @@ fn wrap_prepare_error(_repo: &str, err: PreparePackageError) -> GitFetcherError 
     GitFetcherError::Prepare(err)
 }
 
-/// True iff `commit` is exactly a 40-character hexadecimal git SHA.
-/// Rejects everything else (short SHAs, ref names, option-shaped
-/// strings like `--upload-pack=…`) before the value reaches `git`.
+/// True iff `commit` is exactly a 40-character hexadecimal git SHA,
+/// validated before the value reaches `git`.
 fn is_valid_commit_hash(commit: &str) -> bool {
     commit.len() == 40 && commit.bytes().all(|b| b.is_ascii_hexdigit())
 }
@@ -267,7 +263,6 @@ fn extract_host(url: &str) -> Option<&str> {
     let authority_end = rest.find('/').unwrap_or(rest.len());
     let authority = &rest[..authority_end];
     let host = authority.rsplit('@').next().unwrap_or(authority);
-    // Strip port, if any.
     let host = host.split(':').next().unwrap_or(host);
     if host.is_empty() { None } else { Some(host) }
 }

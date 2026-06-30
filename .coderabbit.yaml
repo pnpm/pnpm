@@ -1,0 +1,85 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+reviews:
+  # Skip generated, vendored, and snapshot files so reviews focus on hand-written code.
+  path_filters:
+    - "!pnpm-lock.yaml"
+    - "!Cargo.lock"
+    - "!**/dist/**"
+    - "!**/__fixtures__/**"
+    - "!**/*.snap"
+    - "!**/CHANGELOG.md"
+  path_instructions:
+    - path: "**/*"
+      instructions: |
+        Apply the review framework in REVIEW_GUIDE.md (it is stack-agnostic and covers pnpm, pacquet, and pnpr). The repo's priority order — security first, performance second, then correctness and conventions — applies to every reviewer. You are one of two bots: to avoid duplicate comments, Qodo provides the primary depth on security and performance while you provide the primary depth on correctness, maintainability, and the documented conventions; always still report any security or performance issue you find. Focus your added depth on: (1) bugs and logic errors; (2) violations of the documented code style, comment rules, and engineering conventions of the stack the changed file belongs to — for the TypeScript CLI see AGENTS.md ("Code Style", "Comments", "Conventions") and CONTRIBUTING.md, and for the Rust stacks see the pacquet/** and pnpr/** instructions below; (3) missed reuse or duplication across the monorepo. Still raise any clear security or performance problem you notice. Do not repeat issues the linters already enforce (eslint for TypeScript, clippy/dylint for Rust). Surface only issues tied to changed code, and name the bug or the specific documented rule that is violated.
+    - path: "pacquet/**"
+      instructions: |
+        pacquet is the Rust port of pnpm. For code style, comments, and conventions follow pacquet/AGENTS.md and pacquet/CODE_STYLE_GUIDE.md — the TypeScript conventions in the root AGENTS.md do not apply here. REVIEW_GUIDE.md's security, performance, scope, and parity framework still applies.
+    - path: "pnpr/**"
+      instructions: |
+        pnpr is the pnpm registry server (Rust). For code style, comments, and conventions follow pnpr/AGENTS.md and pnpr/CONTRIBUTING.md — the TypeScript conventions in the root AGENTS.md do not apply here. REVIEW_GUIDE.md's framework still applies.
+  # Walkthrough poem adds no review value.
+  poem: false
+  # Required for CodeRabbit to submit approving reviews at all. With this off
+  # (the default — and what the dashboard toggle resolves to for this repo)
+  # CodeRabbit only comments and never approves. Declared in-repo so approvals
+  # don't depend on dashboard state.
+  request_changes_workflow: true
+  # Pre-merge checks are on by default (and in the dashboard), so they're disabled
+  # explicitly here: they add a status block without review value for this repo, and
+  # title enforcement is already covered by the commit-msg hook and the squash-title
+  # convention. "off" is quoted so YAML doesn't read it as the boolean false.
+  pre_merge_checks:
+    docstrings:
+      mode: "off"
+    title:
+      mode: "off"
+    description:
+      mode: "off"
+    issue_assessment:
+      mode: "off"
+  # Actually attach the chosen labels to the PR, not just suggest them in the walkthrough.
+  auto_apply_labels: true
+  # Custom labels assigned based on which product the diff touches. More than one may apply to a single PR.
+  labeling_instructions:
+    - label: "product: pnpm@11"
+      instructions: "Apply only when changes are in the pnpm11/ directory (the TypeScript pnpm CLI, frozen at v11)."
+    - label: "product: pacquet"
+      instructions: "Apply when changes affect pacquet, the Rust port of the pnpm CLI (the pacquet/ directory)."
+    - label: "product: pnpr"
+      instructions: "Apply when changes affect pnpr, the pnpm registry server (the pnpr/ directory and pacquet/crates/pnpr-* crates)."
+
+knowledge_base:
+  learnings:
+    # Only apply learnings from this repository, not shared across other orgs/repos.
+    scope: local
+
+# Auto-label issues, where a durable area/type taxonomy actually pays off (issues are long-lived and searched).
+issue_enrichment:
+  labeling:
+    auto_apply_labels: true
+    labeling_instructions:
+      - label: "type: bug"
+        instructions: "Apply when the issue reports incorrect or unexpected behavior."
+      - label: "type: feature"
+        instructions: "Apply when the issue requests new functionality or an enhancement."
+      - label: "type: question"
+        instructions: "Apply when the issue is a usage question rather than a bug or feature request."
+      - label: "area: lockfile"
+        instructions: "Apply when the issue concerns pnpm-lock.yaml parsing, format, or handling."
+      - label: "area: monorepo"
+        instructions: "Apply when the issue concerns the pnpm workspace feature."
+      - label: "area: lifecycle-scripts"
+        instructions: "Apply when the issue concerns running package lifecycle/build scripts."
+      - label: "area: peers"
+        instructions: "Apply when the issue concerns peer dependency resolution."
+      - label: "area: catalogs"
+        instructions: "Apply when the issue concerns the catalogs feature."
+      - label: "area: patching"
+        instructions: "Apply when the issue concerns patching packages (pnpm patch / patchedDependencies)."
+      - label: "area: resolution"
+        instructions: "Apply when the issue concerns dependency resolution."
+      - label: "area: supply chain security"
+        instructions: "Apply when the issue concerns minimumReleaseAge, blockExoticSubdeps, build-script safety, or trust policies."
+      - label: "area: config dependencies"
+        instructions: "Apply when the issue concerns configDependencies."

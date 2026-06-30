@@ -33,6 +33,12 @@ pub struct DependenciesGraphNode {
     /// inherited from the per-occurrence tree node, peers added during
     /// peer resolution.
     pub children: BTreeMap<String, DepPath>,
+    /// Child aliases that originated from `optionalDependencies`.
+    /// This is kept separately from [`Self::children`] because lockfile
+    /// reuse may realize child edges from an existing `pnpm-lock.yaml`
+    /// snapshot whose synthetic manifest no longer carries an
+    /// `optionalDependencies` block.
+    pub optional_children: HashSet<String>,
     pub peer_dependencies: BTreeMap<String, PeerDep>,
     /// Names of peers resolved from outside this node's own peer-deps —
     /// i.e. peers it inherited from its parents' context.

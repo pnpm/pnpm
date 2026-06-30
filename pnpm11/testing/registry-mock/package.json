@@ -1,0 +1,44 @@
+{
+  "name": "@pnpm/testing.registry-mock",
+  "version": "1100.0.7",
+  "private": true,
+  "description": "Thin test helpers that talk to the mock npm registry — wraps registry-access.commands with REGISTRY_MOCK_PORT and REGISTRY_MOCK_CREDENTIALS baked in.",
+  "keywords": [
+    "pnpm",
+    "pnpm11",
+    "testing"
+  ],
+  "license": "MIT",
+  "funding": "https://opencollective.com/pnpm",
+  "repository": "https://github.com/pnpm/pnpm/tree/main/pnpm11/testing/registry-mock",
+  "homepage": "https://github.com/pnpm/pnpm/tree/main/testing/registry-mock#readme",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "type": "module",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "!*.map"
+  ],
+  "scripts": {
+    "prepublishOnly": "pn compile",
+    "lint": "eslint \"src/**/*.ts\"",
+    "test": "pn compile",
+    "compile": "tsgo --build && pn lint --fix"
+  },
+  "dependencies": {
+    "@pnpm/network.fetch": "workspace:*",
+    "@pnpm/registry-access.client": "workspace:*"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "devDependencies": {
+    "@pnpm/testing.registry-mock": "workspace:*"
+  }
+}

@@ -6,9 +6,12 @@ mod retry;
 mod tests;
 mod tls;
 
-pub use auth::{AuthHeaders, base64_encode, nerf_dart};
+pub use auth::{
+    AuthHeaders, AuthHeadersByScope, DEFAULT_REGISTRY_SCOPE, MetadataCacheScope, UpstreamRouteHook,
+    base64_encode, nerf_dart, redact_and_sanitize, redact_url_credentials,
+};
 pub use proxy::{NoProxySetting, ProxyConfig, ProxyError};
-pub use retry::{RetryOpts, send_with_retry, should_retry_status};
+pub use retry::{RetryOpts, retry_async, send_with_retry, should_retry_status};
 pub use tls::{PerRegistryTls, RegistryTls, TlsConfig, TlsError};
 
 use priority_semaphore::{Permit, PrioritySemaphore};
@@ -27,10 +30,10 @@ use std::{collections::HashMap, num::NonZeroUsize, ops::Deref, sync::Arc, time::
 ///
 /// Production installs override this with the value resolved by
 /// `pacquet-config` (`userAgent`, defaulting to pnpm's
-/// `pnpm/pacquet-<version> npm/? node/? <platform> <arch>` format — see
-/// `config/reader/src/index.ts`). The `pnpm` token is preserved in
-/// that default so any UA-keyed allow / rate-limit rule that lets pnpm
-/// through also lets pacquet through.
+/// `pnpm/<version> npm/? node/? <platform> <arch>` format — see
+/// `config/reader/src/index.ts`). The leading `pnpm` token matches the
+/// TypeScript CLI exactly, so any UA-keyed allow / rate-limit rule that
+/// lets pnpm through also lets this build through.
 ///
 /// A default `reqwest::Client` sends *no* User-Agent at all, which
 /// some registry CDNs and corporate WAFs treat as a bot signature and
@@ -277,12 +280,50 @@ impl ThrottledClient {
         per_registry: &PerRegistryTls,
         settings: &NetworkSettings,
     ) -> Result<Self, ForInstallsError> {
+        Self::for_installs_with_redirect(proxy, tls, per_registry, settings, None)
+    }
+
+    /// Like [`Self::new_for_installs`] but installs `redirect_guard` as the
+    /// client's redirect policy: every redirect hop is re-validated by the
+    /// guard, and a hop it rejects fails the request without fetching. pnpr
+    /// resolves on behalf of untrusted callers, so it passes a guard that
+    /// re-checks each redirect target against its fetch allowlist — otherwise
+    /// an allowlisted registry could `302` pnpr onto an internal host, slipping
+    /// a server-side request past the request-boundary allowlist (SSRF). The
+    /// CLI fetches on the user's own behalf and keeps the default follow
+    /// policy via [`Self::new_for_installs`].
+    #[must_use]
+    pub fn new_for_installs_with_redirect_guard(
+        is_allowed: impl Fn(&reqwest::Url) -> bool + Send + Sync + 'static,
+    ) -> Self {
+        let redirect_guard: RedirectGuard = Arc::new(is_allowed);
+        Self::for_installs_with_redirect(
+            &ProxyConfig::default(),
+            &TlsConfig::default(),
+            &PerRegistryTls::default(),
+            &NetworkSettings::default(),
+            Some(&redirect_guard),
+        )
+        .expect("default proxy + TLS configs carry no URLs/PEMs and cannot fail")
+    }
+
+    fn for_installs_with_redirect(
+        proxy: &ProxyConfig,
+        tls: &TlsConfig,
+        per_registry: &PerRegistryTls,
+        settings: &NetworkSettings,
+        redirect_guard: Option<&RedirectGuard>,
+    ) -> Result<Self, ForInstallsError> {
         if settings.network_concurrency == 0 {
             return Err(ForInstallsError::ZeroNetworkConcurrency);
         }
         let https = proxy.https_proxy.as_deref().map(parse_proxy_url).transpose()?;
         let http = proxy.http_proxy.as_deref().map(parse_proxy_url).transpose()?;
         let no_proxy = Arc::new(NoProxyMatcher::from(proxy.no_proxy.as_ref()));
+        // Read once here, not inside `build_client`: `for_installs`
+        // builds one client per per-registry override, so loading the
+        // bundle per call would re-read and re-parse it N times.
+        let extra_ca_certs = load_node_extra_ca_certs();
 
         let build_client = |effective_tls: &TlsConfig| -> Result<Client, ForInstallsError> {
             let mut builder = default_client_builder(settings);
@@ -292,7 +333,15 @@ impl ThrottledClient {
             if let Some(url) = http.clone() {
                 builder = builder.proxy(build_scheme_proxy(url, "http", Arc::clone(&no_proxy)));
             }
+            // Lowest-priority additive roots; `apply_tls` layers the
+            // `.npmrc` ca/cafile roots on top next.
+            for cert in &extra_ca_certs {
+                builder = builder.add_root_certificate(cert.clone());
+            }
             builder = apply_tls(builder, effective_tls)?;
+            if let Some(guard) = redirect_guard {
+                builder = builder.redirect(allowlist_redirect_policy(Arc::clone(guard)));
+            }
             Ok(builder.build().expect("build reqwest client with default timeouts and proxy"))
         };
 
@@ -390,6 +439,56 @@ impl ThrottledClient {
 /// total deadline and undici `connectTimeout = fetchTimeout + 1`).
 /// `settings.user_agent` is sent verbatim; a value that cannot be
 /// encoded as an HTTP header falls back to [`DEFAULT_USER_AGENT`].
+/// A redirect-hop validator: returns `true` to follow a redirect to `url`,
+/// `false` to block it. See
+/// [`ThrottledClient::new_for_installs_with_redirect_guard`].
+pub type RedirectGuard = Arc<dyn Fn(&reqwest::Url) -> bool + Send + Sync>;
+
+/// Cap on redirect hops, matching reqwest's default `Policy::default()` limit
+/// so the guarded client doesn't follow a redirect chain further than the
+/// unguarded one would.
+const MAX_REDIRECT_HOPS: usize = 10;
+
+/// A redirect target the [`RedirectGuard`] rejected. Surfaced as the request
+/// error so a blocked redirect fails loudly rather than silently fetching.
+#[derive(Debug)]
+struct BlockedRedirect(reqwest::Url);
+
+impl std::fmt::Display for BlockedRedirect {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Surface only `scheme://host[:port]` — never the path, query,
+        // fragment, or userinfo, where a presigned-URL signature/token could
+        // live. This error string can reach a client, so it must not leak the
+        // very credential the redirect was carrying.
+        write!(
+            f,
+            "redirect to {}://{}",
+            self.0.scheme(),
+            self.0.host_str().unwrap_or("<unknown>"),
+        )?;
+        if let Some(port) = self.0.port() {
+            write!(f, ":{port}")?;
+        }
+        write!(f, " is not allowed by the fetch allowlist")
+    }
+}
+
+impl std::error::Error for BlockedRedirect {}
+
+/// A reqwest redirect policy that consults `guard` for every hop: an allowed
+/// target is followed (up to [`MAX_REDIRECT_HOPS`]), a rejected one fails the
+/// request with [`BlockedRedirect`] instead of being fetched.
+fn allowlist_redirect_policy(guard: RedirectGuard) -> reqwest::redirect::Policy {
+    reqwest::redirect::Policy::custom(move |attempt| {
+        let target = attempt.url().clone();
+        if attempt.previous().len() >= MAX_REDIRECT_HOPS || !guard(&target) {
+            attempt.error(BlockedRedirect(target))
+        } else {
+            attempt.follow()
+        }
+    })
+}
+
 fn default_client_builder(settings: &NetworkSettings) -> reqwest::ClientBuilder {
     let user_agent = HeaderValue::from_str(&settings.user_agent)
         .unwrap_or_else(|_| HeaderValue::from_static(DEFAULT_USER_AGENT));
@@ -409,6 +508,44 @@ fn default_client_builder(settings: &NetworkSettings) -> reqwest::ClientBuilder 
         .timeout(settings.fetch_timeout)
         .pool_idle_timeout(Duration::from_secs(4))
         .hickory_dns(true)
+}
+
+/// Load the PEM bundle named by `NODE_EXTRA_CA_CERTS` as extra trust
+/// roots, to be added to every client `for_installs` builds.
+///
+/// `NODE_EXTRA_CA_CERTS` is the standard Node convention for appending
+/// a CA to the default trust store. pnpm-on-Node inherits that trust
+/// implicitly because it runs inside Node; pacquet is a native binary,
+/// so to keep real-world parity for users behind a corporate MITM proxy
+/// it reads the variable explicitly. This is the one deliberate
+/// exception to the ".npmrc-only, no env vars" TLS parity policy
+/// documented in [`tls::TlsConfig`]: the variable is a process-global
+/// Node convention rather than a pnpm setting, and Node already honors
+/// it for pnpm today — so reading it *restores* parity rather than
+/// diverging from it. The certs are added in
+/// [`ThrottledClient::for_installs`] (not [`apply_tls`]) so the
+/// `.npmrc`-derived [`TlsConfig`] stays env-free.
+///
+/// Read and parsed once per [`ThrottledClient::for_installs`] call —
+/// that constructor builds one client per per-registry override, so
+/// loading here (rather than inside the per-client builder) avoids
+/// re-reading and re-parsing the bundle N times during startup.
+///
+/// The resulting certs are additive and lowest-priority: layered under
+/// the `.npmrc` `ca` / `cafile` roots that [`apply_tls`] adds afterward
+/// and under the built-in webpki roots (ordering is immaterial — the
+/// rustls root store is a union). A missing, unreadable, or malformed
+/// file yields an empty list, matching pnpm's silent treatment of a
+/// missing `cafile` rather than failing the client build.
+fn load_node_extra_ca_certs() -> Vec<Certificate> {
+    let Some(path) = std::env::var_os("NODE_EXTRA_CA_CERTS").filter(|value| !value.is_empty())
+    else {
+        return Vec::new();
+    };
+    let Ok(bytes) = std::fs::read(&path) else {
+        return Vec::new();
+    };
+    Certificate::from_pem_bundle(&bytes).unwrap_or_default()
 }
 
 /// Apply [`TlsConfig`] onto a [`reqwest::ClientBuilder`]: register each

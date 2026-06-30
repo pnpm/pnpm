@@ -28,12 +28,6 @@ fn fast_retry_opts() -> RetryOpts {
     }
 }
 
-/// Fetches against a real `mockito` server that asserts the request
-/// arrives with the *full*-metadata `Accept` header
-/// (`application/json`) and the registry-keyed `Authorization`
-/// header. The 200 body carries `time`, `_npmUser`, and
-/// `dist.attestations` so the test also confirms the deserialization
-/// surfaces those fields end-to-end.
 #[tokio::test]
 async fn fetch_full_metadata_targets_full_endpoint_with_auth() {
     let mut server = mockito::Server::new_async().await;
@@ -98,11 +92,60 @@ async fn fetch_full_metadata_targets_full_endpoint_with_auth() {
     mock.assert_async().await;
 }
 
-/// A 5xx response propagates as a [`super::FetchMetadataError::Network`]
-/// rather than panicking or silently returning a default-valued
-/// `Package`. Mirrors upstream's `fetchFullMetadataCached`
-/// fail-closed behavior — the verifier surfaces the underlying
-/// message as the violation reason.
+#[tokio::test]
+async fn fetch_full_metadata_uses_package_scope_auth() {
+    let mut server = mockito::Server::new_async().await;
+    let body = r#"{
+        "name": "@scope/pkg",
+        "dist-tags": { "latest": "1.0.0" },
+        "modified": "2025-01-15T12:00:00.000Z",
+        "versions": {
+            "1.0.0": {
+                "name": "@scope/pkg",
+                "version": "1.0.0",
+                "dist": {
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": "https://registry/@scope/pkg-1.0.0.tgz"
+                }
+            }
+        }
+    }"#;
+    let mock = server
+        .mock("GET", "/@scope%2Fpkg")
+        .match_header("authorization", "Bearer scoped-token")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(body)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::from_creds_map(
+        [(
+            format!("{}@scope", pacquet_network::nerf_dart(&registry)),
+            "Bearer scoped-token".to_owned(),
+        )],
+        None,
+    );
+    let opts = FetchFullMetadataOptions {
+        registry: &registry,
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        full_metadata: false,
+        etag: None,
+        modified: None,
+        retry_opts: no_retry_opts(),
+    };
+
+    let pkg = expect_modified(
+        fetch_full_metadata("@scope/pkg", &opts).await.expect("server returns 200"),
+    );
+    assert_eq!(pkg.name, "@scope/pkg");
+    mock.assert_async().await;
+}
+
 #[tokio::test]
 async fn fetch_full_metadata_surfaces_5xx_as_network_error() {
     let mut server = mockito::Server::new_async().await;
@@ -128,6 +171,35 @@ async fn fetch_full_metadata_surfaces_5xx_as_network_error() {
     );
     let text = format!("{err:?}");
     assert!(text.contains("acme"), "error mentions the failing URL: {text}");
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn fetch_full_metadata_redacts_credentials_in_surfaced_error() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = server.mock("GET", "/acme").with_status(503).expect(1).create_async().await;
+
+    // Registry configured with inline basic-auth in the URL: the surfaced
+    // error (Display *and* Debug, which reach the terminal and CI logs) must
+    // not carry the password.
+    let registry = format!("{}/", server.url().replacen("http://", "http://user:secret@", 1));
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataOptions {
+        registry: &registry,
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        full_metadata: true,
+        etag: None,
+        modified: None,
+        retry_opts: no_retry_opts(),
+    };
+
+    let err = fetch_full_metadata("acme", &opts).await.expect_err("503 must surface");
+    for rendered in [err.to_string(), format!("{err:?}")] {
+        assert!(!rendered.contains("secret"), "password must not leak: {rendered}");
+        assert!(!rendered.contains("user:"), "userinfo must not leak: {rendered}");
+    }
     mock.assert_async().await;
 }
 
@@ -178,11 +250,96 @@ async fn fetch_full_metadata_retries_transient_status() {
     second.assert_async().await;
 }
 
-/// Scoped names percent-encode the `/` between the `@scope` prefix
-/// and the bare name so the registry routes the request as a
-/// single path segment — matches upstream's `toUri`. The mockito
-/// `match` rule below uses the encoded path; if the encoding
-/// regresses (raw slash), mockito returns 501 and the test fails.
+/// A `Content-Encoding: gzip` header over a body that isn't gzip makes
+/// reqwest fail while *decoding the response body* — the same class of
+/// failure as a connection reset mid-transfer, surfacing as reqwest's
+/// "error decoding response body". This is the error the CI benchmark
+/// hit against the live registry and that `send_with_retry` can't see,
+/// because it happens after the request returns `200`.
+async fn corrupt_gzip_body_mock(server: &mut mockito::ServerGuard) -> mockito::Mock {
+    server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_header("content-encoding", "gzip")
+        .with_body("this is not valid gzip")
+        .expect(1)
+        .create_async()
+        .await
+}
+
+#[tokio::test]
+async fn fetch_full_metadata_surfaces_body_read_failure_distinctly() {
+    let mut server = mockito::Server::new_async().await;
+    let mock = corrupt_gzip_body_mock(&mut server).await;
+
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataOptions {
+        registry: &registry,
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        full_metadata: true,
+        etag: None,
+        modified: None,
+        retry_opts: no_retry_opts(),
+    };
+
+    let err = fetch_full_metadata("acme", &opts).await.expect_err("undecodable body must surface");
+    assert!(
+        matches!(err, super::FetchMetadataError::BodyRead { .. }),
+        "expected BodyRead variant, got: {err:?}",
+    );
+    mock.assert_async().await;
+}
+
+#[tokio::test]
+async fn fetch_full_metadata_retries_body_read_failure() {
+    let mut server = mockito::Server::new_async().await;
+    let first = corrupt_gzip_body_mock(&mut server).await;
+    let body = r#"{
+        "name": "acme",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "acme",
+                "version": "1.0.0",
+                "dist": {
+                    "integrity": "sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+                    "shasum": "0000000000000000000000000000000000000000",
+                    "tarball": "https://registry/acme-1.0.0.tgz"
+                }
+            }
+        }
+    }"#;
+    let second = server
+        .mock("GET", "/acme")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(body)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let registry = format!("{}/", server.url());
+    let http_client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let opts = FetchFullMetadataOptions {
+        registry: &registry,
+        http_client: &http_client,
+        auth_headers: &auth_headers,
+        full_metadata: true,
+        etag: None,
+        modified: None,
+        retry_opts: fast_retry_opts(),
+    };
+
+    let pkg = expect_modified(fetch_full_metadata("acme", &opts).await.expect("body read retries"));
+    assert_eq!(pkg.name, "acme");
+    first.assert_async().await;
+    second.assert_async().await;
+}
+
 #[tokio::test]
 async fn fetch_full_metadata_encodes_scoped_name() {
     let mut server = mockito::Server::new_async().await;
@@ -231,11 +388,6 @@ async fn fetch_full_metadata_encodes_scoped_name() {
     mock.assert_async().await;
 }
 
-/// A 200 response with a malformed body surfaces as
-/// [`super::FetchMetadataError::Decode`] (not `Network`), so the
-/// install-side diagnostic code routes to `decode_error` rather
-/// than `network_error`. Mirrors upstream's split between transport
-/// and decode failures.
 #[tokio::test]
 async fn fetch_full_metadata_surfaces_decode_failure_distinctly() {
     let mut server = mockito::Server::new_async().await;
@@ -268,14 +420,6 @@ async fn fetch_full_metadata_surfaces_decode_failure_distinctly() {
     mock.assert_async().await;
 }
 
-/// When the caller supplies `etag` / `modified`, the request carries
-/// `If-None-Match` / `If-Modified-Since` and a registry `304` answers
-/// with [`FetchFullMetadataOutcome::NotModified`] instead of a body.
-/// Matches upstream's
-/// [`notModified`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/network/fetch/src/fetchFromRegistry.ts#L41-L86)
-/// short-circuit, which `maybeUpgradeAbbreviatedMetaForReleaseAge`
-/// relies on to coalesce the upgrade fetch against the registry's
-/// representation cache.
 #[tokio::test]
 async fn fetch_full_metadata_returns_not_modified_on_304() {
     let mut server = mockito::Server::new_async().await;

@@ -89,8 +89,6 @@ fn scoped_name_with_peer_strips_to_bare() {
 
 /// Mirrors pnpm's `getPkgIdWithPatchHash` test, scoped + patch-hash + peer leg
 /// ([`deps/path/test/index.ts`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/test/index.ts#L143)).
-/// Pins both helpers in one shot — the divergence between
-/// `remove_suffix` and `get_pkg_id_with_patch_hash` lives here.
 #[test]
 fn scoped_name_with_patch_hash_and_peer_keeps_only_patch_hash() {
     let dep_path = "@foo/bar@1.0.0(patch_hash=zzzz)(@types/node@18.0.0)";

@@ -69,18 +69,9 @@ impl StoreDir {
     /// `<store_dir>/links`. Mirrors upstream's
     /// [`pruneGlobalVirtualStore`](https://github.com/pnpm/pnpm/blob/94240bc046/store/controller/src/storeController/pruneGlobalVirtualStore.ts#L21-L58).
     ///
-    /// Behaviour:
-    /// - No `links/` directory yet: silent no-op (matches upstream's
-    ///   `if (!await pathExists(linksDir)) return`).
-    /// - No registered projects: prints `pnpm`'s informational message
-    ///   and returns. Pacquet doesn't yet thread the install-time
-    ///   reporter into store-dir, so the message goes to stderr via
-    ///   `eprintln!` until [#344] lands the proper reporter wiring.
-    /// - Otherwise: mark-and-sweep as documented in the module-level
-    ///   comment. The removed-slot count is reported to stderr to
-    ///   match upstream's `globalInfo("Removed N package(s) ...")`
-    ///   message — the function itself returns `()` like upstream's
-    ///   `Promise<void>` shape.
+    /// Pacquet doesn't yet thread the install-time reporter into
+    /// store-dir, so the informational messages go to stderr via
+    /// `eprintln!` until [#344] lands the proper reporter wiring.
     ///
     /// Returns `Ok(())` on success; surfaces I/O errors from the mark
     /// or sweep walks as [`PruneError`]. Stale registry entries are
@@ -142,7 +133,7 @@ impl StoreDir {
 /// descends into every non-hidden subdir until it sees `node_modules`,
 /// at which point it records the path and stops descending — the
 /// hoisted deps inside `node_modules/.pnpm` and friends are picked up
-/// by `walk_symlinks_to_store`'s transitive recursion instead.
+/// by [`walk_symlinks_to_store`]'s transitive recursion instead.
 fn find_all_node_modules_dirs(project_dir: &Path) -> Vec<PathBuf> {
     let mut out = Vec::new();
     scan(project_dir, &mut out);
@@ -265,8 +256,6 @@ fn walk_symlinks_to_store(
             if let Some(idx) = nm_idx {
                 let slot: PathBuf = parts[..idx].iter().collect();
                 reachable.insert(slot.clone());
-                // Recurse into the slot's own node_modules for
-                // transitive deps.
                 let inner_modules = canonical_links.join(&slot).join("node_modules");
                 walk_symlinks_to_store(&inner_modules, canonical_links, reachable, visited);
             }
@@ -408,7 +397,7 @@ fn remove_slot_dir(path: &Path) -> Result<(), PruneError> {
 /// [`rimraf`](https://github.com/pnpm/pnpm/blob/94240bc046/store/controller/src/storeController/pruneGlobalVirtualStore.ts#L210-L223)
 /// on the empty `<version>/`, `<name>/`, and `<scope>/` parents — a
 /// concurrent install that materialises a fresh slot in the window
-/// between `list_subdirs` and the parent cleanup would have its
+/// between [`list_subdirs`] and the parent cleanup would have its
 /// just-written tree wiped by upstream's recursive remove. Switching
 /// to `fs::remove_dir` keeps pacquet race-safe (the new slot stays;
 /// only the parent that's truly empty is removed) while producing

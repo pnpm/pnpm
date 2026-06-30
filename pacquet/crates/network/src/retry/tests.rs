@@ -1,8 +1,22 @@
-use std::time::Duration;
+use std::{
+    sync::atomic::{AtomicU32, Ordering},
+    time::Duration,
+};
 
 use reqwest::StatusCode;
 
-use super::{RetryOpts, should_retry_status};
+use super::{RetryOpts, retry_async, should_retry_status};
+
+/// `RetryOpts` whose backoff is effectively instant, so retry-loop
+/// tests don't sleep.
+fn instant_retry_opts(retries: u32) -> RetryOpts {
+    RetryOpts {
+        retries,
+        factor: 1,
+        min_timeout: Duration::from_millis(1),
+        max_timeout: Duration::from_millis(1),
+    }
+}
 
 #[test]
 fn default_matches_pnpm_fetch_retries() {
@@ -53,4 +67,56 @@ fn retryable_statuses_match_pnpm() {
     assert!(!should_retry_status(StatusCode::UNAUTHORIZED)); // 401
     assert!(!should_retry_status(StatusCode::FORBIDDEN)); // 403
     assert!(!should_retry_status(StatusCode::NOT_FOUND)); // 404
+}
+
+#[tokio::test]
+async fn retry_async_retries_a_retryable_error_until_success() {
+    let calls = AtomicU32::new(0);
+    let result: Result<&str, &str> = retry_async(
+        "https://registry/pkg",
+        instant_retry_opts(3),
+        |_error| true,
+        || {
+            let attempt = calls.fetch_add(1, Ordering::Relaxed);
+            async move { if attempt < 2 { Err("error decoding response body") } else { Ok("ok") } }
+        },
+    )
+    .await;
+    assert_eq!(result, Ok("ok"));
+    assert_eq!(calls.load(Ordering::Relaxed), 3, "two failures then a success");
+}
+
+#[tokio::test]
+async fn retry_async_does_not_retry_a_non_retryable_error() {
+    let calls = AtomicU32::new(0);
+    let result: Result<(), &str> = retry_async(
+        "https://registry/pkg",
+        instant_retry_opts(3),
+        |_error| false,
+        || {
+            calls.fetch_add(1, Ordering::Relaxed);
+            async { Err("fatal") }
+        },
+    )
+    .await;
+    assert_eq!(result, Err("fatal"));
+    let total = calls.load(Ordering::Relaxed);
+    assert_eq!(total, 1, "non-retryable errors return on the first attempt");
+}
+
+#[tokio::test]
+async fn retry_async_gives_up_after_the_retry_budget() {
+    let calls = AtomicU32::new(0);
+    let result: Result<(), &str> = retry_async(
+        "https://registry/pkg",
+        instant_retry_opts(2),
+        |_error| true,
+        || {
+            calls.fetch_add(1, Ordering::Relaxed);
+            async { Err("error decoding response body") }
+        },
+    )
+    .await;
+    assert_eq!(result, Err("error decoding response body"));
+    assert_eq!(calls.load(Ordering::Relaxed), 3, "initial attempt plus `retries` retries");
 }
