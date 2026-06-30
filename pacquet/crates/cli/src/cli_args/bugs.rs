@@ -67,7 +67,7 @@ impl BugsArgs {
                 async move {
                     get_bugs_url_from_registry(spec, &target_registry, http_client, auth_headers)
                         .await
-                        .wrap_err_with(|| format!("look up bugs URL for \"{spec}\""))
+                        .wrap_err_with(|| format!(r#"look up bugs URL for "{spec}""#))
                 }
             });
 
@@ -127,7 +127,7 @@ async fn get_bugs_url_from_registry(
         };
         BugsError::RegistryError { url, reason }
     })
-    .wrap_err_with(|| format!("fetch package info for \"{package_name}\" from the registry"))?;
+    .wrap_err_with(|| format!(r#"fetch package info for "{package_name}" from the registry"#))?;
 
     let manifest = package_manifest_from_version(&package_version);
     pick_bugs_url(&manifest)
