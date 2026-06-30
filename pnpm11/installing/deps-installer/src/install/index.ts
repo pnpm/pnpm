@@ -2619,32 +2619,66 @@ async function mutateModulesViaPnpr (
  * runs server-side and does not report applied selectors back.
  *
  * A selector is considered matched if its target name appears as a
- * dependency key in any importer or package snapshot. Version-scoped
- * selectors additionally require the resolved version to satisfy the
- * target range. Parent-scoped selectors only check packages whose name
- * matches the parent.
+ * dependency key in any importer or package snapshot. The target's
+ * version range (bareSpecifier) is NOT checked against the resolved
+ * version because the lockfile stores post-override values — the
+ * override already changed the version, so comparing the new version
+ * against the old selector range would produce false positives (e.g.
+ * `foo@^1: 2.0.0` resolves to 2.0.0, which doesn't satisfy ^1).
+ * Parent-scoped selectors check both resolved packages and workspace
+ * project manifests (importers) for parent identity.
+ *
+ * `projectManifests` maps importer IDs to the workspace project's
+ * manifest, so parent-scoped overrides can match project names that
+ * don't appear in `lockfile.packages`.
  */
-function findAppliedOverrideSelectorsFromLockfile (
+export function findAppliedOverrideSelectorsFromLockfile (
   lockfile: LockfileObject,
-  parsedOverrides: Array<{ selector: string, parentPkg?: { name: string, bareSpecifier?: string }, targetPkg: { name: string, bareSpecifier?: string } }>
+  parsedOverrides: Array<{ selector: string, parentPkg?: { name: string, bareSpecifier?: string }, targetPkg: { name: string, bareSpecifier?: string } }>,
+  projectManifests: Array<{ importerId: string, manifest: ProjectManifest }> = []
 ): Set<string> {
   const applied = new Set<string>()
 
   for (const override of parsedOverrides) {
     const targetName = override.targetPkg.name
-    const targetRange = override.targetPkg.bareSpecifier
 
     if (override.parentPkg != null) {
       const parentName = override.parentPkg.name
       const parentRange = override.parentPkg.bareSpecifier
+      const parentRangeValid = parentRange == null || semver.validRange(parentRange) != null
+
+      // Check workspace project manifests as potential parent matches.
+      // Importer snapshots don't carry name/version, so we match against
+      // the manifest and then look up the importer's dependencies.
+      for (const { importerId, manifest: projectManifest } of projectManifests) {
+        if (projectManifest.name !== parentName) continue
+        if (parentRange != null) {
+          const projectVersion = projectManifest.version
+          if (projectVersion == null) continue
+          if (!parentRangeValid || !semver.satisfies(projectVersion, parentRange)) continue
+        }
+        const importer = lockfile.importers[importerId as ProjectId]
+        if (importer == null) continue
+        if (
+          depEntryMatches(importer.dependencies, targetName) ||
+          depEntryMatches(importer.devDependencies, targetName) ||
+          depEntryMatches(importer.optionalDependencies, targetName)
+        ) {
+          applied.add(override.selector)
+          break
+        }
+      }
+      if (applied.has(override.selector)) continue
+
+      // Check resolved packages as potential parent matches.
       for (const [depPath, snapshot] of Object.entries(lockfile.packages ?? {}) as Array<[DepPath, PackageSnapshot]>) {
         const { name, version } = nameVerFromPkgSnapshot(depPath, snapshot)
         if (name !== parentName) continue
-        if (parentRange != null && version != null && !semver.satisfies(version, parentRange)) continue
+        if (parentRange != null && (version == null || !parentRangeValid || !semver.satisfies(version, parentRange))) continue
         if (
-          depEntryMatches(snapshot.dependencies, targetName, targetRange) ||
-          depEntryMatches(snapshot.optionalDependencies, targetName, targetRange) ||
-          depEntryMatches(snapshot.peerDependencies, targetName, targetRange)
+          depEntryMatches(snapshot.dependencies, targetName) ||
+          depEntryMatches(snapshot.optionalDependencies, targetName) ||
+          depEntryMatches(snapshot.peerDependencies, targetName)
         ) {
           applied.add(override.selector)
           break
@@ -2653,9 +2687,9 @@ function findAppliedOverrideSelectorsFromLockfile (
     } else {
       for (const importer of Object.values(lockfile.importers)) {
         if (
-          depEntryMatches(importer.dependencies, targetName, targetRange) ||
-          depEntryMatches(importer.devDependencies, targetName, targetRange) ||
-          depEntryMatches(importer.optionalDependencies, targetName, targetRange)
+          depEntryMatches(importer.dependencies, targetName) ||
+          depEntryMatches(importer.devDependencies, targetName) ||
+          depEntryMatches(importer.optionalDependencies, targetName)
         ) {
           applied.add(override.selector)
           break
@@ -2664,9 +2698,9 @@ function findAppliedOverrideSelectorsFromLockfile (
       if (applied.has(override.selector)) continue
       for (const snapshot of Object.values(lockfile.packages ?? {})) {
         if (
-          depEntryMatches(snapshot.dependencies, targetName, targetRange) ||
-          depEntryMatches(snapshot.optionalDependencies, targetName, targetRange) ||
-          depEntryMatches(snapshot.peerDependencies, targetName, targetRange)
+          depEntryMatches(snapshot.dependencies, targetName) ||
+          depEntryMatches(snapshot.optionalDependencies, targetName) ||
+          depEntryMatches(snapshot.peerDependencies, targetName)
         ) {
           applied.add(override.selector)
           break
@@ -2679,24 +2713,17 @@ function findAppliedOverrideSelectorsFromLockfile (
 }
 
 /**
- * Check whether a resolved-dependency map contains `targetName` with a
- * version that satisfies `targetRange` (when set). Returns `false` for
- * absent maps or names. Non-semver values (link:, file:, npm: aliases)
- * are treated as matches when a range is set — the lockfile stores
- * post-override resolved versions, and we only need to know the override
- * targeted a real dependency, not that the version chain is exact.
+ * Check whether a resolved-dependency map contains `targetName`. The
+ * lockfile stores post-override resolved versions; the target's version
+ * range is intentionally NOT checked here because the override already
+ * changed the version (see findAppliedOverrideSelectorsFromLockfile).
  */
 function depEntryMatches (
   deps: Record<string, string> | undefined,
-  targetName: string,
-  targetRange: string | undefined
+  targetName: string
 ): boolean {
   if (deps == null) return false
-  const version = deps[targetName]
-  if (version == null) return false
-  if (targetRange == null) return true
-  if (!semver.valid(version)) return true
-  return semver.satisfies(version, targetRange)
+  return deps[targetName] != null
 }
 
 /**
@@ -2804,7 +2831,15 @@ async function installViaPnprServer (
     // 'resolution_done' so the reporter's buffer captures them.
     const parsedOverrides = parseOverrides(opts.overrides ?? {}, opts.catalogs ?? {})
     if (parsedOverrides.length > 0) {
-      const applied = findAppliedOverrideSelectorsFromLockfile(lockfile, parsedOverrides)
+      // Build the project-manifest list so parent-scoped overrides can
+      // match workspace project names (which appear in lockfile.importers,
+      // not lockfile.packages). Importer IDs are POSIX-normalized relative
+      // paths from the lockfileDir — same computation as `projectsList`.
+      const projectManifests = (allInstallProjects ?? [{ rootDir, manifest }]).map(p => ({
+        importerId: (path.relative(lockfileDir, p.rootDir) || '.').split(path.sep).join('/'),
+        manifest: p.manifest,
+      }))
+      const applied = findAppliedOverrideSelectorsFromLockfile(lockfile, parsedOverrides, projectManifests)
       for (const override of parsedOverrides) {
         if (!applied.has(override.selector)) {
           unusedOverrideLogger.debug({
