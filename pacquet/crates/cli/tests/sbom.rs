@@ -44,7 +44,11 @@ fn run_sbom_json(workspace: &Path, format: &str, extra_args: &[&str]) -> serde_j
     let mut args = vec!["sbom", "--sbom-format", format, "--lockfile-only"];
     args.extend_from_slice(extra_args);
     let output = pacquet(workspace, args).output().expect("run pacquet");
-    assert!(output.status.success(), "pacquet sbom failed: {}", String::from_utf8_lossy(&output.stderr));
+    assert!(
+        output.status.success(),
+        "pacquet sbom failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     serde_json::from_slice(&output.stdout).expect("parse JSON output")
 }
 
@@ -61,7 +65,8 @@ fn sbom_cyclonedx_basic() {
     let components = parsed["components"].as_array().expect("components array");
     assert!(!components.is_empty());
 
-    let is_positive = components.iter().find(|c| c["name"] == "is-positive").expect("find is-positive");
+    let is_positive =
+        components.iter().find(|c| c["name"] == "is-positive").expect("find is-positive");
     assert_eq!(is_positive["purl"], "pkg:npm/is-positive@3.1.0");
     assert_eq!(is_positive["version"], "3.1.0");
 }
@@ -95,9 +100,11 @@ fn sbom_prod_excludes_dev() {
     let parsed = run_sbom_json(tmp.path(), "cyclonedx", &["--prod"]);
 
     let components = parsed["components"].as_array().expect("components array");
-    let names: Vec<&str> = components.iter().filter_map(|c| c["name"].as_str()).collect();
-    assert!(names.contains(&"is-positive"), "prod dep should be included");
-    assert!(!names.contains(&"typescript"), "dev dep should be excluded with --prod");
+    assert!(components.iter().any(|c| c["name"] == "is-positive"), "prod dep should be included",);
+    assert!(
+        !components.iter().any(|c| c["name"] == "typescript"),
+        "dev dep should be excluded with --prod",
+    );
 }
 
 #[test]
@@ -106,11 +113,14 @@ fn sbom_dev_only_scope_excluded() {
     let parsed = run_sbom_json(tmp.path(), "cyclonedx", &[]);
 
     let components = parsed["components"].as_array().expect("components array");
-    let typescript = components.iter().find(|c| c["name"] == "typescript").expect("find typescript");
+    let typescript =
+        components.iter().find(|c| c["name"] == "typescript").expect("find typescript");
     assert_eq!(typescript["scope"], "excluded");
 
     let props = typescript["properties"].as_array().expect("properties");
-    assert!(props.iter().any(|p| p["name"] == "cdx:npm:package:development" && p["value"] == "true"));
+    assert!(
+        props.iter().any(|p| p["name"] == "cdx:npm:package:development" && p["value"] == "true")
+    );
 }
 
 #[test]
@@ -124,18 +134,24 @@ fn sbom_spec_version_1_6() {
 #[test]
 fn sbom_invalid_spec_version_fails() {
     let tmp = copy_fixture("simple-sbom");
-    let output = pacquet(tmp.path(), ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--sbom-spec-version", "2.0"])
-        .output()
-        .expect("run pacquet");
+    let output = pacquet(
+        tmp.path(),
+        ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--sbom-spec-version", "2.0"],
+    )
+    .output()
+    .expect("run pacquet");
     assert!(!output.status.success());
 }
 
 #[test]
 fn sbom_spec_version_with_spdx_fails() {
     let tmp = copy_fixture("simple-sbom");
-    let output = pacquet(tmp.path(), ["sbom", "--sbom-format", "spdx", "--lockfile-only", "--sbom-spec-version", "1.6"])
-        .output()
-        .expect("run pacquet");
+    let output = pacquet(
+        tmp.path(),
+        ["sbom", "--sbom-format", "spdx", "--lockfile-only", "--sbom-spec-version", "1.6"],
+    )
+    .output()
+    .expect("run pacquet");
     assert!(!output.status.success());
 }
 
@@ -176,9 +192,10 @@ fn sbom_dependencies_present() {
     let deps = parsed["dependencies"].as_array().expect("dependencies array");
     assert!(!deps.is_empty());
 
-    let root_dep = deps.iter().find(|d| {
-        d["ref"].as_str().unwrap().contains("simple-sbom-test")
-    }).expect("root in dependencies");
+    let root_dep = deps
+        .iter()
+        .find(|d| d["ref"].as_str().unwrap().contains("simple-sbom-test"))
+        .expect("root in dependencies");
     let depends_on = root_dep["dependsOn"].as_array().expect("dependsOn");
     assert!(depends_on.iter().any(|d| d.as_str().unwrap().contains("is-positive")));
 }
@@ -231,7 +248,14 @@ fn sbom_out_writes_file() {
     let out_path = tmp.path().join("sbom.json");
     let output = pacquet(
         tmp.path(),
-        ["sbom", "--sbom-format", "cyclonedx", "--lockfile-only", "--out", out_path.to_str().unwrap()],
+        [
+            "sbom",
+            "--sbom-format",
+            "cyclonedx",
+            "--lockfile-only",
+            "--out",
+            out_path.to_str().unwrap(),
+        ],
     )
     .output()
     .expect("run pacquet");
@@ -247,6 +271,5 @@ fn sbom_exclude_peers() {
     let tmp = copy_fixture("with-peer-dependency");
     let parsed = run_sbom_json(tmp.path(), "cyclonedx", &["--exclude-peers"]);
     let components = parsed["components"].as_array().expect("components");
-    let names: Vec<&str> = components.iter().filter_map(|c| c["name"].as_str()).collect();
-    assert!(names.contains(&"is-positive"), "non-peer dep should remain");
+    assert!(components.iter().any(|c| c["name"] == "is-positive"), "non-peer dep should remain",);
 }

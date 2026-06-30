@@ -160,6 +160,18 @@ fn extract_repository(manifest: &serde_json::Value) -> Option<String> {
     repo.get("url").and_then(|u| u.as_str()).map(ToString::to_string)
 }
 
+fn strip_url_credentials(url: &str) -> String {
+    if let Some(after_scheme) = url.find("://") {
+        let scheme = &url[..after_scheme + 3];
+        let rest = &url[after_scheme + 3..];
+        if let Some(at_pos) = rest.find('@') {
+            let after_host_start = &rest[at_pos + 1..];
+            return format!("{scheme}{after_host_start}");
+        }
+    }
+    url.to_string()
+}
+
 fn extract_bugs_url(manifest: &serde_json::Value) -> Option<String> {
     let bugs = manifest.get("bugs")?;
     let url = if let Some(s) = bugs.as_str() {
@@ -167,7 +179,10 @@ fn extract_bugs_url(manifest: &serde_json::Value) -> Option<String> {
     } else {
         bugs.get("url")?.as_str()?.to_string()
     };
-    (url.starts_with("http://") || url.starts_with("https://")).then_some(url)
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return None;
+    }
+    Some(strip_url_credentials(&url))
 }
 
 fn extract_homepage(manifest: &serde_json::Value) -> Option<String> {
@@ -206,12 +221,19 @@ fn build_purl(name: &str, version: &str) -> String {
     format!("pkg:npm/{}@{}", encode_purl_name(name), version)
 }
 
+fn is_simple_spdx_id(license: &str) -> bool {
+    !license.is_empty()
+        && license.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.' || c == '+')
+}
+
 fn classify_license(license: &str) -> serde_json::Value {
     let is_expression = license.split_whitespace().any(|w| w == "AND" || w == "OR" || w == "WITH");
     if is_expression {
         serde_json::json!({ "expression": license })
-    } else {
+    } else if is_simple_spdx_id(license) {
         serde_json::json!({ "license": { "id": license } })
+    } else {
+        serde_json::json!({ "license": { "name": license } })
     }
 }
 

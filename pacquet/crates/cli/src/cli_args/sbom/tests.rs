@@ -1,6 +1,7 @@
 use super::{
-    base64_to_hex, build_purl, encode_purl_name, extract_author, extract_repository,
-    normalize_link_path, peer_names_from_manifest, sanitize_spdx_id, split_scoped_name,
+    base64_to_hex, build_purl, classify_license, encode_purl_name, extract_author,
+    extract_repository, is_simple_spdx_id, normalize_link_path, peer_names_from_manifest,
+    sanitize_spdx_id, split_scoped_name, strip_url_credentials,
 };
 
 #[test]
@@ -118,6 +119,50 @@ fn normalize_link_path_to_parent() {
 #[test]
 fn normalize_link_path_to_root() {
     assert_eq!(normalize_link_path("packages/a", "../.."), Some(".".to_string()));
+}
+
+#[test]
+fn classify_license_spdx_id() {
+    let v = classify_license("MIT");
+    assert_eq!(v["license"]["id"], "MIT");
+}
+
+#[test]
+fn classify_license_expression() {
+    let v = classify_license("MIT OR Apache-2.0");
+    assert_eq!(v["expression"], "MIT OR Apache-2.0");
+}
+
+#[test]
+fn classify_license_freetext() {
+    let v = classify_license("Proprietary License");
+    assert_eq!(v["license"]["name"], "Proprietary License");
+}
+
+#[test]
+fn is_simple_spdx_id_valid() {
+    assert!(is_simple_spdx_id("MIT"));
+    assert!(is_simple_spdx_id("Apache-2.0"));
+    assert!(is_simple_spdx_id("GPL-3.0-or-later"));
+}
+
+#[test]
+fn is_simple_spdx_id_invalid() {
+    assert!(!is_simple_spdx_id("Proprietary License"));
+    assert!(!is_simple_spdx_id(""));
+}
+
+#[test]
+fn strip_url_credentials_removes_userinfo() {
+    assert_eq!(
+        strip_url_credentials("https://user:token@github.com/foo/bar"),
+        "https://github.com/foo/bar"
+    );
+}
+
+#[test]
+fn strip_url_credentials_no_credentials() {
+    assert_eq!(strip_url_credentials("https://github.com/foo/bar"), "https://github.com/foo/bar");
 }
 
 #[test]
