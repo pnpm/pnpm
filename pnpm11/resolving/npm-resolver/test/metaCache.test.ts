@@ -1,3 +1,5 @@
+import { rmSync } from 'node:fs'
+
 import { expect, test } from '@jest/globals'
 import { ABBREVIATED_META_DIR } from '@pnpm/constants'
 import type { PackageMeta } from '@pnpm/resolving.registry.types'
@@ -94,4 +96,60 @@ test('updateChecksums bypasses the in-memory cache so a disk-promoted entry cann
   // cache now holds a disk-sourced entry for this package.
   await pickPackage(ctx, spec, { registry: REGISTRY, dryRun: false, updateChecksums: true, preferredVersionSelectors: undefined })
   expect(fetchedNames).toEqual(['foo'])
+})
+
+test('offline resolution promotes the disk-loaded packument into the in-memory cache', async () => {
+  const meta = fooMeta()
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(meta, undefined))
+
+  const ctx = {
+    fetch: async () => {
+      throw new Error('offline resolution must not hit the network')
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+    offline: true,
+  }
+  // A range spec avoids the exact-version fast path, so resolution goes through
+  // the offline branch that loads the packument from disk.
+  const spec: RegistryPackageSpec = { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }
+  const opts = { registry: REGISTRY, dryRun: false, preferredVersionSelectors: undefined }
+
+  const first = await pickPackage(ctx, spec, opts)
+  expect(first.pickedPackage?.version).toBe('1.0.0')
+  expect(ctx.metaCache.has(getPkgMetaCacheKey(REGISTRY, 'foo', false, false))).toBe(true)
+
+  // Delete the on-disk mirror: a second resolve must still succeed, proving it
+  // is served from the in-memory cache instead of re-reading and re-parsing disk.
+  rmSync(pkgMirror)
+  const second = await pickPackage(ctx, spec, opts)
+  expect(second.pickedPackage?.version).toBe('1.0.0')
+})
+
+test('prefer-offline resolution promotes the disk-loaded packument into the in-memory cache', async () => {
+  const meta = fooMeta()
+  const cacheDir = temporaryDirectory()
+  const pkgMirror = getPkgMirrorPath(cacheDir, ABBREVIATED_META_DIR, REGISTRY, 'foo')
+  await saveMeta(pkgMirror, prepareJsonForDisk(meta, undefined))
+
+  const ctx = {
+    fetch: async () => {
+      throw new Error('prefer-offline resolution must not hit the network when the cache is warm')
+    },
+    metaCache: createMetaCache(),
+    cacheDir,
+    preferOffline: true,
+  }
+  const spec: RegistryPackageSpec = { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }
+  const opts = { registry: REGISTRY, dryRun: false, preferredVersionSelectors: undefined }
+
+  const first = await pickPackage(ctx, spec, opts)
+  expect(first.pickedPackage?.version).toBe('1.0.0')
+  expect(ctx.metaCache.has(getPkgMetaCacheKey(REGISTRY, 'foo', false, false))).toBe(true)
+
+  rmSync(pkgMirror)
+  const second = await pickPackage(ctx, spec, opts)
+  expect(second.pickedPackage?.version).toBe('1.0.0')
 })
