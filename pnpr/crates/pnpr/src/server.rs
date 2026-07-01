@@ -997,7 +997,30 @@ async fn load_uplink_packument(
     {
         return Ok(Some(bytes));
     }
-    match upstream.fetch_packument(name, &CacheValidators::default()).await? {
+    let fetched = match upstream.fetch_packument(name, &CacheValidators::default()).await {
+        Ok(fetched) => fetched,
+        // Stale-if-error: a stale entry is refetched, but if the upstream is
+        // unreachable, serve the last cached body for this same origin rather
+        // than failing. This preserves availability during a transient outage
+        // and is not a cross-origin fall-through — the bytes came from this very
+        // mount. A clean `NotFound` is an `Ok` variant below, so it never lands
+        // here and stays an authoritative 404.
+        Err(err) => {
+            if upstream.caches()
+                && let Some(bytes) =
+                    state.inner.storage.read_uplink_packument_any(namespace, name).await?
+            {
+                tracing::warn!(
+                    ?err,
+                    package = %name.as_str(),
+                    "upstream packument refetch failed; serving stale cache",
+                );
+                return Ok(Some(bytes));
+            }
+            return Err(err);
+        }
+    };
+    match fetched {
         PackumentFetch::Modified(fetched) => {
             if upstream.caches()
                 && let Err(err) = state

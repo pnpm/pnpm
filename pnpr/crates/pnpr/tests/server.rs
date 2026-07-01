@@ -1646,6 +1646,53 @@ async fn packument_is_refetched_after_ttl_expires() {
     mock.assert_async().await;
 }
 
+/// Stale-if-error: once a cached packument is stale, a refetch that fails
+/// (transient upstream error) falls back to the last cached body rather than
+/// erroring — preserving availability without a cross-origin fall-through.
+#[tokio::test]
+async fn stale_packument_is_served_when_upstream_refetch_fails() {
+    let mut upstream = mockito::Server::new_async().await;
+    let packument = json!({
+        "name": "foo",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": { "1.0.0": { "name": "foo", "version": "1.0.0" } },
+    });
+    let ok = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_body(packument.to_string())
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.packument_ttl = Duration::from_millis(50);
+    let app = router(config);
+
+    // Prime the cache with a fresh fetch.
+    let r1 = app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(r1.status(), StatusCode::OK);
+    let _ = body_bytes(r1.into_body()).await;
+    ok.assert_async().await;
+    ok.remove_async().await;
+
+    // The entry goes stale and the upstream now fails every refetch.
+    let boom =
+        upstream.mock("GET", "/foo").with_status(500).expect_at_least(1).create_async().await;
+    tokio::time::sleep(Duration::from_millis(120)).await;
+
+    // The stale cached packument is served (200), not a 502.
+    let r2 = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(r2.status(), StatusCode::OK);
+    let body = body_bytes(r2.into_body()).await;
+    assert!(
+        String::from_utf8_lossy(&body).contains("1.0.0"),
+        "stale packument body should still carry its versions",
+    );
+    boom.assert_async().await;
+}
+
 #[tokio::test]
 async fn invalid_package_name_returns_bad_request() {
     let upstream = mockito::Server::new_async().await;
