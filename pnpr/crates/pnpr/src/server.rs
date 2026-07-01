@@ -859,13 +859,12 @@ async fn serve_mount_version_manifest(
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    // Per-package access ACL applies to every mount-served read — see
-    // `serve_mount_packument`.
-    if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
-        return error_response(&err);
-    }
     let bytes = match resolve_mount_source(state, mount, name.as_str()) {
         MountSource::Upstream(source) => {
+            // Per-package ACL before serving — see `serve_mount_packument`.
+            if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
+                return error_response(&err);
+            }
             match load_upstream_packument_for(state, identity, &source, &name).await {
                 Ok(Some(bytes)) => bytes,
                 Ok(None) => return not_found(),
@@ -873,9 +872,14 @@ async fn serve_mount_version_manifest(
             }
         }
         MountSource::Hosted(source) => {
+            // Mask first: a private org 404s an unauthorized caller before the
+            // per-package ACL could reveal existence — see `serve_mount_packument`.
             let Some(org) = readable_hosted_namespace(state, identity, &source) else {
                 return not_found();
             };
+            if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
+                return error_response(&err);
+            }
             match state.inner.storage.for_hosted(&org).read_hosted_packument(&name).await {
                 Ok(Some(bytes)) => bytes,
                 Ok(None) => return not_found(),
@@ -1273,14 +1277,6 @@ async fn serve_mount_packument(
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    // The per-package access ACL applies to every mount-served read, regardless
-    // of whether the package routes to a hosted org or an upstream, so an
-    // access-gated name can't be read through a public upstream. Enforced here
-    // (before resolving the source) so the access decision precedes any
-    // existence-revealing signal like an OSV 403.
-    if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
-        return error_response(&err);
-    }
     // `tarball_base` is the URL the *client* addressed (the path-less host or a
     // `/~<mount>/`), not the resolved source's `/~<source>/`. The served
     // packument's `dist.tarball` URLs must stay canonical for that base so a
@@ -1288,8 +1284,19 @@ async fn serve_mount_packument(
     // bake the mount name in and break lockfile portability.
     match resolve_mount_source(state, mount, name.as_str()) {
         MountSource::Upstream(source) => {
+            // The per-package access ACL applies to every mount-served read, so
+            // an access-gated name can't be read through a public upstream.
+            // Checked before serving so the decision precedes any
+            // existence-revealing signal like an OSV 403.
+            if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
+                return error_response(&err);
+            }
             serve_packument_via_uplink(state, identity, headers, &source, &name, tarball_base).await
         }
+        // A hosted mount masks first: a private org 404s an unauthorized caller
+        // (see `readable_hosted_namespace`) *before* the per-package ACL could
+        // return a 401/403 that reveals the package exists — the ACL is applied
+        // inside `serve_hosted_packument` only after the visibility gate passes.
         MountSource::Hosted(source) => {
             serve_hosted_packument(state, identity, headers, &source, &name, tarball_base).await
         }
@@ -1311,15 +1318,16 @@ async fn serve_mount_tarball(
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    // Per-package access ACL applies to every mount-served read — see
-    // `serve_mount_packument`.
-    if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
-        return error_response(&err);
-    }
     match resolve_mount_source(state, mount, name.as_str()) {
         MountSource::Upstream(source) => {
+            // Per-package ACL before serving — see `serve_mount_packument`.
+            if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
+                return error_response(&err);
+            }
             serve_tarball_via_uplink(state, identity, &source, name.as_str(), filename).await
         }
+        // Hosted masks first (private-org 404) then applies the ACL, inside
+        // `serve_hosted_tarball` — see `serve_mount_packument`.
         MountSource::Hosted(source) => {
             serve_hosted_tarball(state, identity, &source, &name, filename).await
         }

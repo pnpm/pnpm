@@ -2520,6 +2520,45 @@ async fn private_hosted_hides_existence_from_unauthorized_caller() {
     assert_eq!(authed.status(), StatusCode::OK);
 }
 
+/// A private org's 404 mask must win over a *denying per-package ACL* on every
+/// mount-served read path: otherwise the ACL's 401/403 would fire first and
+/// reveal that the package exists.
+#[tokio::test]
+async fn private_hosted_org_masks_before_the_package_acl() {
+    let tmp = TempDir::new().unwrap();
+    seed_hosted(&tmp.path().join("acme"), "@acme/widget");
+
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.hosted.insert(
+        "acme".to_string(),
+        HostedConfig { org: "acme".to_string(), access: AccessList::parse("alice") },
+    );
+    config.mounts =
+        Mounts::new(vec![("acme".to_string(), MountKind::Hosted)].into_iter().collect(), None);
+    // A per-package ACL that also denies the anonymous caller. Without the
+    // visibility-first ordering this would return 401/403 and leak existence.
+    config.policies = PackagePolicies::new(vec![
+        PackagePolicy::new(
+            "@acme/widget",
+            AccessList::parse("$authenticated"),
+            AccessList::default(),
+            AccessList::default(),
+        )
+        .expect("policy compiles"),
+    ]);
+    let app = router_with_auth(config, AuthState::in_memory());
+
+    for path in [
+        "/~acme/@acme/widget",                    // packument
+        "/~acme/@acme/widget/1.0.0",              // version manifest
+        "/~acme/@acme/widget/-/widget-1.0.0.tgz", // tarball
+    ] {
+        let resp =
+            app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND, "existence leaked on {path}");
+    }
+}
+
 #[tokio::test]
 async fn publish_to_hosted_round_trips_in_its_own_namespace() {
     use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
