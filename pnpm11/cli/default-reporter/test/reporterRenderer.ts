@@ -65,28 +65,34 @@ test('differential renderer does not reprint unchanged sticky blocks', async () 
     },
   })
 
-  await yieldTick()
+  try {
+    await yieldTick()
 
-  lockfileVerificationLogger.debug({
-    status: 'cached',
-    verifiedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-    lockfilePath: `${cwd}/pnpm-lock.yaml`,
-  })
-  stageLogger.debug({ prefix: cwd, stage: 'resolution_started' })
-  progressLogger.debug({ packageId: 'registry.npmjs.org/foo/1.0.0', requester: cwd, status: 'resolved' })
+    lockfileVerificationLogger.debug({
+      status: 'cached',
+      verifiedAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+      lockfilePath: `${cwd}/pnpm-lock.yaml`,
+    })
+    stageLogger.debug({ prefix: cwd, stage: 'resolution_started' })
+    progressLogger.debug({ packageId: 'registry.npmjs.org/foo/1.0.0', requester: cwd, status: 'resolved' })
 
-  await waitFor(writes, w => w.some(s => stripAnsi(s).includes(LOCKFILE_TEXT)))
+    await waitFor(writes, w => w.some(s => stripAnsi(s).includes(LOCKFILE_TEXT)))
 
-  progressLogger.debug({ packageId: 'registry.npmjs.org/foo/1.0.0', requester: cwd, status: 'fetched' })
+    progressLogger.debug({ packageId: 'registry.npmjs.org/foo/1.0.0', requester: cwd, status: 'fetched' })
 
-  await waitFor(writes, w => w.length >= 2)
-  stop()
+    await waitFor(writes, w => w.length >= 2)
 
-  const firstWrite = writes[0]
-  expect(stripAnsi(firstWrite)).toContain(LOCKFILE_TEXT)
+    // The sticky verdict must be written exactly once. Locate its first render
+    // rather than assuming it lands in writes[0] (the reporter may emit an
+    // initial frame before the verdict), then assert no later write reprints it.
+    const firstStickyIndex = writes.findIndex(w => stripAnsi(w).includes(LOCKFILE_TEXT))
+    expect(firstStickyIndex).toBeGreaterThanOrEqual(0)
 
-  for (const write of writes.slice(1)) {
-    expect(stripAnsi(write)).not.toContain(LOCKFILE_TEXT)
+    for (const write of writes.slice(firstStickyIndex + 1)) {
+      expect(stripAnsi(write)).not.toContain(LOCKFILE_TEXT)
+    }
+  } finally {
+    stop()
   }
 })
 
@@ -121,16 +127,18 @@ test('each write clears external output below the frame', async () => {
     },
   })
 
-  await yieldTick()
+  try {
+    await yieldTick()
 
-  statsLogger.debug({ added: 1, prefix: cwd })
-  statsLogger.debug({ added: 2, prefix: cwd })
-  await waitFor(writes, w => w.length >= 1)
+    statsLogger.debug({ added: 1, prefix: cwd })
+    statsLogger.debug({ added: 2, prefix: cwd })
+    await waitFor(writes, w => w.length >= 1)
 
-  stop()
-
-  expect(writes.length).toBeGreaterThanOrEqual(1)
-  for (const write of writes) {
-    expect(write.endsWith(ERASE_TO_END_OF_DISPLAY)).toBe(true)
+    expect(writes.length).toBeGreaterThanOrEqual(1)
+    for (const write of writes) {
+      expect(write.endsWith(ERASE_TO_END_OF_DISPLAY)).toBe(true)
+    }
+  } finally {
+    stop()
   }
 })

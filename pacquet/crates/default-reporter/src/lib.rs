@@ -136,7 +136,15 @@ impl Sink {
                     let _ = writeln!(out, "{line}");
                 }
             }
-            Output::Frame(frame) => {
+            Output::Frame(mut frame) => {
+                // A trailing newline keeps an interactive prompt on a fresh line
+                // below the frame rather than joined onto its last line, and it
+                // leaves the differ's tracked cursor at column 0 so it stays in
+                // sync with the `\r` prepended on the next update (otherwise the
+                // inline diff computes relative moves from a stale column).
+                if !frame.ends_with('\n') {
+                    frame.push('\n');
+                }
                 let diff_output = self.diff.update(&frame);
                 let _ = out.write_all(format!("\r{diff_output}\x1b[K\x1b[0J").as_bytes());
             }
