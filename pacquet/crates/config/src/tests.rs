@@ -11,8 +11,53 @@ use std::{
     ffi::OsString,
     io,
     path::{Path, PathBuf},
+    sync::{Arc, Mutex},
 };
 use tempfile::tempdir;
+use tracing::Level;
+use tracing_subscriber::{Layer, layer::SubscriberExt};
+
+/// Capture all tracing WARN messages emitted during a closure.
+fn capture_warnings<Func: FnOnce()>(f: Func) -> Vec<String> {
+    let messages: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+    let messages_clone = Arc::clone(&messages);
+
+    struct CaptureLayer(Arc<Mutex<Vec<String>>>);
+    impl<Sub: tracing::Subscriber> Layer<Sub> for CaptureLayer {
+        fn on_event(
+            &self,
+            event: &tracing::Event<'_>,
+            _ctx: tracing_subscriber::layer::Context<'_, Sub>,
+        ) {
+            if *event.metadata().level() == Level::WARN {
+                struct Visitor(String);
+                impl tracing::field::Visit for Visitor {
+                    fn record_str(&mut self, field: &tracing::field::Field, value: &str) {
+                        if field.name() == "message" {
+                            self.0 = value.to_string();
+                        }
+                    }
+                    fn record_debug(
+                        &mut self,
+                        field: &tracing::field::Field,
+                        value: &dyn std::fmt::Debug,
+                    ) {
+                        if field.name() == "message" {
+                            self.0 = format!("{value:?}");
+                        }
+                    }
+                }
+                let mut visitor = Visitor(String::new());
+                event.record(&mut visitor);
+                self.0.lock().unwrap().push(visitor.0);
+            }
+        }
+    }
+
+    let subscriber = tracing_subscriber::registry().with(CaptureLayer(messages_clone));
+    tracing::subscriber::with_default(subscriber, f);
+    Arc::try_unwrap(messages).unwrap().into_inner().unwrap()
+}
 
 /// `Config::current` requires `Sys: LinkProbe` so the late-stage
 /// `store_dir` resolver can probe linkability between project and
@@ -2111,5 +2156,31 @@ pub fn env_registry_override_appends_missing_trailing_slash() {
     assert_eq!(
         config.package_manager_bootstrap.registries.get("default").map(String::as_str),
         Some("https://env.example.com/"),
+    );
+}
+
+// Regression test for pnpm/pnpm#12480: when PNPM_CONFIG_NPMRC_AUTH_FILE points
+// at the project .npmrc, no "Ignored project-level auth setting" warning should fire.
+#[test]
+pub fn npmrc_auth_file_pointing_at_project_npmrc_suppresses_warning() {
+    let project = tempdir().expect("project tempdir");
+    let project_npmrc = project.path().join(".npmrc");
+    fs::write(&project_npmrc, "//registry.npmjs.org/:_authToken=${MY_TOKEN}\n")
+        .expect("write project .npmrc");
+
+    set_fake_env(&[
+        ("MY_TOKEN", "secret-token"),
+        ("PNPM_CONFIG_NPMRC_AUTH_FILE", project_npmrc.to_str().unwrap()),
+    ]);
+
+    let warnings = capture_warnings(|| {
+        load_with_fake_env(project.path());
+    });
+
+    let auth_warnings: Vec<_> =
+        warnings.iter().filter(|w| w.contains("Ignored project-level auth setting")).collect();
+    assert!(
+        auth_warnings.is_empty(),
+        "expected no auth warning when PNPM_CONFIG_NPMRC_AUTH_FILE points at project .npmrc, got: {auth_warnings:?}",
     );
 }

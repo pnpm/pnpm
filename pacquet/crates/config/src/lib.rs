@@ -1819,8 +1819,20 @@ impl Config {
         };
         let project_npmrc_dir =
             workspace_yaml.as_ref().map_or(start_dir, |(base_dir, _)| base_dir.as_path());
+        let project_npmrc_path = project_npmrc_dir.join(".npmrc");
+        // When npmrcAuthFile explicitly points at the project .npmrc, the user has
+        // opted in to trusting it — allow auth env expansion and suppress the warning.
+        // Resolve to absolute so relative values like ".npmrc" still match.
+        let project_is_trusted_auth_file = user_npmrc_path
+            .as_deref()
+            .and_then(|user| std::path::absolute(user).ok())
+            .is_some_and(|user_abs| user_abs == project_npmrc_path);
         let project_source = read_npmrc(project_npmrc_dir).map(|text| {
-            let mut auth = NpmrcAuth::from_project_ini::<Sys>(&text, project_npmrc_dir);
+            let mut auth = if project_is_trusted_auth_file {
+                NpmrcAuth::from_ini::<Sys>(&text, project_npmrc_dir)
+            } else {
+                NpmrcAuth::from_project_ini::<Sys>(&text, project_npmrc_dir)
+            };
             auth.rescope_unscoped("<project>/.npmrc");
             auth
         });

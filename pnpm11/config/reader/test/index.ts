@@ -3997,3 +3997,32 @@ test('GVS: global config.yaml dangerouslyAllowAllBuilds is preserved when no wor
     }
   }
 })
+
+test('no warning when PNPM_CONFIG_NPMRC_AUTH_FILE points at the project .npmrc', async () => {
+  prepare()
+
+  // Write an auth token using an env var into the project .npmrc.
+  fs.writeFileSync('.npmrc', '//registry.npmjs.org/:_authToken=${MY_TOKEN}\n', 'utf8')
+
+  // Resolve the absolute path that pnpm will derive for the workspace .npmrc.
+  const projectNpmrc = path.resolve('.npmrc')
+
+  const { warnings } = await getConfig({
+    cliOptions: {},
+    env: {
+      ...env,
+      MY_TOKEN: 'secret',
+      // Trust this file explicitly — same path as the project .npmrc.
+      PNPM_CONFIG_NPMRC_AUTH_FILE: projectNpmrc,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  // No "Ignored project-level auth setting" warning should appear because
+  // the user explicitly opted in by setting PNPM_CONFIG_NPMRC_AUTH_FILE.
+  const authWarnings = warnings.filter((w) => w.includes('Ignored project-level auth setting'))
+  expect(authWarnings).toHaveLength(0)
+})
