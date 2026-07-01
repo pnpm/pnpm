@@ -981,6 +981,30 @@ fn uplink_cache_namespace(state: &AppState, uplink: &str) -> String {
     format!("~public/{}", crate::route::credential_digest(uplink))
 }
 
+/// Await `fut`, emitting its duration as a `pnpr::serve_timing` debug event
+/// (`phase`, `package`, `elapsed_us`).
+///
+/// Enabling that target — `RUST_LOG=pnpr::serve_timing=debug`, or a pnpr `log:`
+/// level of `debug`/`trace` — turns the upstream serve paths into a per-request
+/// profile of where time goes: the upstream packument/tarball fetch vs the
+/// on-disk cache read. Meant both for ad-hoc perf diagnosis (e.g. cold-store
+/// regressions) and as a server-side datapoint the integrated benchmark can
+/// scrape from the mock's log as a new testbed measurement, alongside its
+/// client-side phase events. Near zero-cost when the target is disabled: the
+/// only always-on work is one `Instant::now()`; the field values (including
+/// `elapsed`) are computed only when the event is enabled.
+async fn timed<Fut: Future>(phase: &'static str, package: &str, fut: Fut) -> Fut::Output {
+    let start = std::time::Instant::now();
+    let out = fut.await;
+    tracing::debug!(
+        target: "pnpr::serve_timing",
+        phase,
+        package,
+        elapsed_us = start.elapsed().as_micros() as u64,
+    );
+    out
+}
+
 /// Load an uplink route's packument: a fresh per-mount cache entry when one
 /// exists, otherwise a fetch through the mount (with its server-side credential)
 /// written back to the same namespace. A mount with `cache: false` neither reads
@@ -993,11 +1017,22 @@ async fn load_uplink_packument(
     ttl: Duration,
 ) -> Result<Option<Vec<u8>>, RegistryError> {
     if upstream.caches()
-        && let Some(bytes) = state.inner.storage.read_uplink_packument(namespace, name, ttl).await?
+        && let Some(bytes) = timed(
+            "packument:cache_read",
+            name.as_str(),
+            state.inner.storage.read_uplink_packument(namespace, name, ttl),
+        )
+        .await?
     {
         return Ok(Some(bytes));
     }
-    let fetched = match upstream.fetch_packument(name, &CacheValidators::default()).await {
+    let fetched = match timed(
+        "packument:upstream_fetch",
+        name.as_str(),
+        upstream.fetch_packument(name, &CacheValidators::default()),
+    )
+    .await
+    {
         Ok(fetched) => fetched,
         // Stale-if-error: a stale entry is refetched, but if the upstream is
         // unreachable, serve the last cached body for this same origin rather
@@ -1164,7 +1199,13 @@ async fn serve_tarball_via_uplink(
     }
     let namespace = uplink_cache_namespace(state, uplink);
     let ttl = upstream.maxage().unwrap_or(state.inner.config.packument_ttl);
-    let packument = match load_uplink_packument(state, &namespace, upstream, &name, ttl).await {
+    let packument = match timed(
+        "tarball:packument_load",
+        name.as_str(),
+        load_uplink_packument(state, &namespace, upstream, &name, ttl),
+    )
+    .await
+    {
         Ok(Some(bytes)) => bytes,
         Ok(None) => return not_found(),
         Err(err) => return error_response(&err),
@@ -1186,7 +1227,13 @@ async fn serve_tarball_via_uplink(
     // receives, so no re-hash is needed — the same trust model the public proxy
     // path uses. A `cache: false` uplink skips the cache and streams through.
     if upstream.caches() {
-        match state.inner.storage.open_uplink_tarball(&namespace, &name, &filename).await {
+        match timed(
+            "tarball:cache_read",
+            name.as_str(),
+            state.inner.storage.open_uplink_tarball(&namespace, &name, &filename),
+        )
+        .await
+        {
             Ok(Some((file, len))) => {
                 return tarball_response(streaming::stream_file(file), Some(len));
             }
@@ -1197,7 +1244,13 @@ async fn serve_tarball_via_uplink(
         }
     }
 
-    let response = match upstream.fetch_tarball_response(&name, &filename).await {
+    let response = match timed(
+        "tarball:upstream_fetch",
+        name.as_str(),
+        upstream.fetch_tarball_response(&name, &filename),
+    )
+    .await
+    {
         Ok(FetchOutcome::Ok(response)) => response,
         Ok(FetchOutcome::NotFound) => return not_found(),
         Err(err) => return error_response(&err),
