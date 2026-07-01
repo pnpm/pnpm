@@ -198,7 +198,7 @@ fn repository_to_issues_url(raw_url: &str) -> Option<String> {
         && let Some(colon_pos) = rest.find(':')
     {
         let host = &rest[..colon_pos];
-        let path = rest[colon_pos + 1..].trim_end_matches(".git").trim_end_matches('/');
+        let path = rest[colon_pos + 1..].trim_end_matches('/').trim_end_matches(".git");
         if !host.is_empty() && !path.is_empty() {
             return Some(format!("https://{host}/{path}/issues"));
         }

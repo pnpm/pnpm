@@ -141,6 +141,14 @@ fn repo_url_resolves_scp_style_ssh() {
 }
 
 #[test]
+fn repo_url_resolves_scp_style_ssh_with_dot_git_and_trailing_slash() {
+    assert_eq!(
+        repository_to_issues_url("git@github.com:test/pkg.git/"),
+        Some("https://github.com/test/pkg/issues".to_string()),
+    );
+}
+
+#[test]
 fn repo_url_resolves_bitbucket_shorthand() {
     assert_eq!(
         repository_to_issues_url("bitbucket:test/pkg"),
