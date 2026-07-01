@@ -70,15 +70,21 @@ fn packument(name: &str, version: &str, tarball: &[u8]) -> Value {
 /// Lay down the on-disk state a publish leaves behind right after
 /// sealing its journal transaction and before applying it: the staged
 /// tmp tarball in the package directory plus the journal entry. With
-/// `sealed`, the `commit` marker is present too.
-fn fabricate_crashed_publish(
+/// `sealed`, the `commit` marker is present too. With `org`, the manifest
+/// records the hosted-org namespace the publish targeted, matching what
+/// an org-routed publish journals.
+fn fabricate_crashed_publish_in(
     storage: &Path,
+    org: Option<&str>,
     name: &str,
     version: &str,
     tarball: &[u8],
     sealed: bool,
 ) -> PathBuf {
-    let pkg_dir = storage.join(name);
+    let pkg_dir = match org {
+        Some(org) => storage.join(org).join(name),
+        None => storage.join(name),
+    };
     std::fs::create_dir_all(&pkg_dir).unwrap();
     let tmp_path = pkg_dir.join(format!("{name}-{version}.tgz.tmp.999.0"));
     std::fs::write(&tmp_path, tarball).unwrap();
@@ -90,22 +96,34 @@ fn fabricate_crashed_publish(
         serde_json::to_vec_pretty(&packument(name, version, tarball)).unwrap(),
     )
     .unwrap();
-    let manifest = json!({
-        "packages": [{
-            "name": name,
-            "packument_file": "packument-0.json",
-            "tarballs": [{
-                "filename": format!("{name}-{version}.tgz"),
-                "tmp_path": tmp_path,
-            }],
+    let mut package = json!({
+        "name": name,
+        "packument_file": "packument-0.json",
+        "tarballs": [{
+            "filename": format!("{name}-{version}.tgz"),
+            "tmp_path": tmp_path,
         }],
     });
+    if let Some(org) = org {
+        package["org"] = json!(org);
+    }
+    let manifest = json!({ "packages": [package] });
     std::fs::write(txn_dir.join("manifest.json"), serde_json::to_vec_pretty(&manifest).unwrap())
         .unwrap();
     if sealed {
         std::fs::write(txn_dir.join("commit"), b"").unwrap();
     }
     tmp_path
+}
+
+fn fabricate_crashed_publish(
+    storage: &Path,
+    name: &str,
+    version: &str,
+    tarball: &[u8],
+    sealed: bool,
+) -> PathBuf {
+    fabricate_crashed_publish_in(storage, None, name, version, tarball, sealed)
 }
 
 #[tokio::test]
@@ -137,6 +155,34 @@ async fn recovery_rolls_a_sealed_transaction_forward() {
     let response =
         app.oneshot(Request::get("/crash-fwd").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
+}
+
+/// A journal entry recorded with an `org` rolls forward into that hosted
+/// namespace — never the flat root — so a crash mid-commit of an org-routed
+/// publish promotes into exactly the store the publish targeted.
+#[tokio::test]
+async fn recovery_rolls_a_sealed_org_transaction_forward_into_its_namespace() {
+    let tmp = TempDir::new().unwrap();
+    let storage = tmp.path().to_path_buf();
+    let tarball = b"org-crashed-bytes";
+    let tmp_path =
+        fabricate_crashed_publish_in(&storage, Some("acme"), "crash-org", "1.0.0", tarball, true);
+
+    recover_publish_journal(&static_config(storage.clone())).await.unwrap();
+
+    let on_disk: Value = serde_json::from_slice(
+        &std::fs::read(storage.join("acme/crash-org/package.json"))
+            .expect("packument written into the org namespace"),
+    )
+    .unwrap();
+    assert_eq!(on_disk["versions"]["1.0.0"]["version"], "1.0.0");
+    assert_eq!(std::fs::read(storage.join("acme/crash-org/crash-org-1.0.0.tgz")).unwrap(), tarball,);
+    assert!(!tmp_path.exists(), "staged tmp file should be promoted away");
+    assert!(
+        !storage.join("crash-org").exists(),
+        "nothing must land in the flat root for an org-journaled publish",
+    );
+    assert!(std::fs::read_dir(storage.join(".pnpr-journal")).unwrap().next().is_none());
 }
 
 #[tokio::test]

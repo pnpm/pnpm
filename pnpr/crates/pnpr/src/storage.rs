@@ -417,6 +417,15 @@ impl Storage {
         self.cached.namespaced(namespace).write_packument(name, bytes).await
     }
 
+    /// Purge an uplink's cached entry for `name` — the packument and any
+    /// cached tarballs. Called on a definitive upstream 404: without the
+    /// purge, the stale entry would linger past its TTL and a later transient
+    /// outage could resurrect the unpublished package through the
+    /// stale-if-error fallback.
+    pub async fn remove_uplink_package(&self, namespace: &str, name: &PackageName) -> Result<bool> {
+        self.cached.namespaced(namespace).remove_package(name).await
+    }
+
     pub async fn open_uplink_tarball_tmp(
         &self,
         namespace: &str,

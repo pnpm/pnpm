@@ -466,6 +466,17 @@ fn rejects_router_targeting_another_router() {
 }
 
 #[test]
+fn rejects_router_with_no_routes() {
+    // An empty router can never match any package; it is only ever a config
+    // mistake, so validation rejects it like an empty route.
+    let registry = mounts(vec![("main", router_mount(vec![]))], None);
+    assert_eq!(
+        registry.validate(),
+        Err(MountConfigError::EmptyRouter { router: "main".to_string() }),
+    );
+}
+
+#[test]
 fn rejects_empty_route() {
     let registry = mounts(
         vec![

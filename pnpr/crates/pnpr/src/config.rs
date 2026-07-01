@@ -75,10 +75,11 @@ pub struct Config {
     /// `upstream` entries and consumed by the `/~<mount>/` serving and route
     /// classification.
     pub uplinks: IndexMap<String, UplinkConfig>,
-    /// Package routing rules, evaluated in declared order. The first
-    /// pattern that matches a requested package supplies its
-    /// uplink (via `proxy`). Patterns without a `proxy` make the
-    /// package storage-only (effectively static for that pattern).
+    /// The raw per-package `access` / `publish` / `unpublish` rules from the
+    /// YAML `packages:` block, in declared order. [`Self::policies`] is the
+    /// compiled form the server enforces; this keeps the declared shape for
+    /// introspection. Access control only — routing a package to its origin
+    /// is the mount graph's job ([`Self::mounts`]).
     pub packages: IndexMap<String, PackageAccess>,
     /// Optional static group memberships used by named access tokens in
     /// package policies and upstream aliases.
@@ -570,9 +571,10 @@ impl fmt::Debug for RedactedHeaders<'_> {
     }
 }
 
-/// Disk shape of one `uplinks:` entry. Mirrors verdaccio's uplink
-/// config for the subset pnpr implements: `url`, an `auth:` block,
-/// and a free-form `headers:` map. Resolved into [`UplinkConfig`] by
+/// The serving knobs of an upstream mount, in verdaccio's uplink shape for
+/// the subset pnpr implements: `url`, an `auth:` block, and a free-form
+/// `headers:` map. Built from an `upstream:` mount entry
+/// ([`resolve_upstream_mount`]) and resolved into [`UplinkConfig`] by
 /// [`resolve_uplink`].
 #[derive(Debug, Deserialize)]
 struct UplinkFile {
@@ -846,9 +848,9 @@ pub struct PackageAccess {
 }
 
 /// A YAML string-or-list value. Verdaccio accepts either a single
-/// space-separated string (`access: $authenticated admin`,
-/// `proxy: npmjs private`) or a sequence (`access: [$authenticated,
-/// admin]`); both normalize to the same ordered token list.
+/// space-separated string (`access: $authenticated admin`) or a sequence
+/// (`access: [$authenticated, admin]`); both normalize to the same ordered
+/// token list.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 pub enum AccessSpec {
@@ -871,7 +873,8 @@ impl AccessSpec {
     /// The tokens in declared order, each element flattened on whitespace
     /// (so `[a b, c]` and `[a, b, c]` agree). Unlike [`Self::to_access_list`]
     /// — which builds an unordered permission *set* — this preserves order,
-    /// which `proxy:` relies on for its fallback chain.
+    /// for consumers (the `groups:` membership lists) where the declared
+    /// sequence is meaningful.
     fn to_ordered_tokens(&self) -> Vec<&str> {
         match self {
             AccessSpec::One(spec) => spec.split_whitespace().collect(),
@@ -1494,17 +1497,14 @@ impl Config {
         // Upstream mounts (and the credentials some carry) are resolved by
         // `build_mounts` below into this map. Resolving an upstream mount's
         // `auth` is strict — an unresolvable token is a config error — so a
-        // resolver-only server (which mounts no registry routes) skips mount
-        // resolution entirely rather than carry upstream secrets it never uses.
+        // resolver-only server (which mounts no registry routes) skips the
+        // credential resolution rather than carry upstream secrets it never
+        // uses. The mount *graph* is still built and validated either way, so
+        // a misconfigured router or org fails startup on every tier, not only
+        // when the registry surface happens to be enabled.
         let mut uplinks: IndexMap<String, UplinkConfig> = IndexMap::new();
-        // Mounts (and the upstream credentials some carry) only matter to the
-        // registry surface; a resolver-only tier skips them, matching the
-        // uplink-resolution skip above.
-        let (hosted, mounts) = if registry.enabled {
-            build_mounts(&mut uplinks, file.mounts, file.default_target)?
-        } else {
-            (IndexMap::new(), Mounts::default())
-        };
+        let (hosted, mounts) =
+            build_mounts(&mut uplinks, file.mounts, file.default_target, registry.enabled)?;
         let route_policy = build_route_policy(file.routes);
         let resolution_cache_secret = resolution_secret(file.secret.as_deref())?;
         let config = Self {
@@ -1603,10 +1603,16 @@ fn mount_err(err: &MountConfigError) -> RegistryError {
 /// Upstream mounts declared under `mounts:` are folded into `uplinks` so they
 /// reuse the same serving and route-classification machinery. Fails closed on
 /// any name collision, malformed mount, or invalid routing graph.
+///
+/// With `resolve_upstreams` false (the registry surface is disabled), an
+/// upstream mount still joins the graph for validation but its credentials
+/// and serving config are not resolved — a resolver-only tier must not fail
+/// on (or carry) upstream secrets it never uses.
 fn build_mounts(
     uplinks: &mut IndexMap<String, UplinkConfig>,
     mount_files: IndexMap<String, MountFile>,
     default_target: Option<String>,
+    resolve_upstreams: bool,
 ) -> Result<(IndexMap<String, HostedConfig>, Mounts), RegistryError> {
     let mut hosted = IndexMap::new();
     let mut graph: IndexMap<String, MountKind> = IndexMap::new();
@@ -1650,8 +1656,10 @@ fn build_mounts(
                 graph.insert(name, MountKind::Hosted);
             }
             MountFile::Upstream(upstream) => {
-                let resolved = resolve_upstream_mount::<SystemEnv>(&name, *upstream)?;
-                uplinks.insert(name.clone(), resolved);
+                if resolve_upstreams {
+                    let resolved = resolve_upstream_mount::<SystemEnv>(&name, *upstream)?;
+                    uplinks.insert(name.clone(), resolved);
+                }
                 graph.insert(name, MountKind::Upstream);
             }
             MountFile::Router(router) => {
@@ -1667,14 +1675,17 @@ fn build_mounts(
 
 /// A hosted mount's `org` becomes a storage path/key segment (`Storage::for_hosted`),
 /// so it must be a single safe component: empty (the flat root) or a name with
-/// no separators, no `..`, and not absolute — otherwise a crafted config could
-/// read or write outside the storage root.
+/// no separators, no leading dot, and not absolute — otherwise a crafted
+/// config could read or write outside the storage root. The leading-dot rule
+/// also keeps an org from aliasing the reserved dot-directories inside the
+/// storage root (the default `.pnpr-cache` wipeable cache and the
+/// `.pnpr-journal` commit journal), which would put authoritative packages
+/// under a path an operator is told is safe to delete.
 fn validate_org_namespace(name: &str, org: &str) -> Result<(), RegistryError> {
     let safe = org.is_empty()
         || (!org.contains('/')
             && !org.contains('\\')
-            && org != "."
-            && org != ".."
+            && !org.starts_with('.')
             && !Path::new(org).is_absolute());
     if safe {
         return Ok(());
@@ -1682,7 +1693,7 @@ fn validate_org_namespace(name: &str, org: &str) -> Result<(), RegistryError> {
     Err(RegistryError::InvalidConfig {
         reason: format!(
             "hosted mount {name:?} has an invalid `org` {org:?}: it must be a single path-safe \
-             segment (no `/`, `\\`, `..`, or absolute path)",
+             segment (no `/`, `\\`, leading `.`, or absolute path)",
         ),
     })
 }

@@ -997,6 +997,71 @@ mounts:
     assert!(err.to_string().contains("path-safe"), "unexpected error: {err}");
 }
 
+/// A dot-prefixed `org` would alias a reserved dot-directory inside the
+/// storage root — most dangerously `.pnpr-cache`, putting authoritative
+/// packages under the path operators are told is safe to wipe.
+#[test]
+fn from_yaml_str_rejects_dot_prefixed_hosted_org() {
+    for org in [".pnpr-cache", ".pnpr-journal", ".hidden"] {
+        let yaml = format!("storage: ./s\nmounts:\n  sneaky:\n    type: hosted\n    org: {org}\n",);
+        let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
+            .expect_err("a dot-prefixed hosted org must be rejected");
+        assert!(err.to_string().contains("path-safe"), "unexpected error for {org:?}: {err}");
+    }
+}
+
+/// `--disable-registry` skips upstream-credential resolution but still
+/// validates the mount graph, so a misconfigured router fails startup on a
+/// resolver-only tier too instead of surfacing only when the registry is
+/// re-enabled.
+#[test]
+fn cli_disable_registry_still_validates_the_mount_graph() {
+    let yaml = "\
+storage: ./s
+mounts:
+  main:
+    type: router
+    routes:
+      - patterns: ['**']
+        source: ghost
+";
+    let overrides = FeatureOverrides { disable_registry: true, disable_resolver: false };
+    let err =
+        Config::from_yaml_str_with_overrides(yaml, Path::new("/x"), listen(), None, overrides)
+            .expect_err("a broken mount graph must fail even with the registry disabled");
+    assert!(err.to_string().contains("ghost"), "unexpected error: {err}");
+}
+
+/// With the registry disabled, an upstream mount whose credential cannot
+/// resolve must not fail startup — the tier never talks to that upstream. The
+/// mount still joins the (validated) graph; only its serving config is
+/// skipped.
+#[test]
+fn cli_disable_registry_skips_upstream_mount_credentials_but_keeps_the_graph() {
+    let yaml = "\
+storage: ./s
+mounts:
+  corp:
+    type: upstream
+    url: https://corp.example/npm/
+    access: [team]
+    auth:
+      type: bearer
+      token_env: PNPR_DEFINITELY_UNSET_TOKEN_VAR
+  main:
+    type: router
+    routes:
+      - patterns: ['**']
+        source: corp
+";
+    let overrides = FeatureOverrides { disable_registry: true, disable_resolver: false };
+    let config =
+        Config::from_yaml_str_with_overrides(yaml, Path::new("/x"), listen(), None, overrides)
+            .expect("a resolver-only tier must not fail on unused upstream credentials");
+    assert!(config.uplinks.is_empty(), "credentials must not be resolved or carried");
+    assert!(config.mounts.get("main").is_some(), "the graph is still built and validated");
+}
+
 /// The internally-tagged mount enum names the valid kinds, so a typo'd `type:`
 /// fails to load rather than being silently misrouted.
 #[test]

@@ -3,7 +3,7 @@ use crate::{
     config::Config,
     error::RegistryError,
     journal::JournaledPublish,
-    mount::{ConcreteKind, Resolved},
+    mount::{ConcreteKind, MountKind, Resolved},
     package_name::PackageName,
     policy::Identity,
     publish::{
@@ -316,13 +316,20 @@ fn router_with_auth_and_osv(
                 get(get_three_segments).put(put_three_segments).delete(delete_three_segments),
             )
             .route("/{scope}/{name}/-/{filename}", get(get_tarball_scoped))
-            .route("/{a}/{b}/{c}/{d}", get(get_four_segments).delete(delete_four_segments))
+            .route(
+                "/{a}/{b}/{c}/{d}",
+                get(get_four_segments).put(put_four_segments).delete(delete_four_segments),
+            )
             .route(
                 "/{a}/{b}/{c}/{d}/{e}",
                 get(get_five_segments).put(put_five_segments).delete(delete_five_segments),
             )
-            // Scoped tarball delete: `DELETE /@scope/name/-/<basename-version>.tgz/-rev/<rev>`
-            .route("/{a}/{b}/{c}/{d}/{e}/{f}", delete(delete_six_segments));
+            // Scoped tarball delete: `DELETE /@scope/name/-/<basename-version>.tgz/-rev/<rev>`,
+            // plus the mount-addressed dist-tag write and unscoped tarball delete.
+            .route("/{a}/{b}/{c}/{d}/{e}/{f}", put(put_six_segments).delete(delete_six_segments))
+            // Mount-addressed scoped tarball delete:
+            // `DELETE /~<mount>/@scope/name/-/<file>/-rev/<rev>`
+            .route("/{a}/{b}/{c}/{d}/{e}/{f}/{g}", delete(delete_seven_segments));
     }
     router
         .layer(DefaultBodyLimit::max(MAX_PUBLISH_BODY_BYTES))
@@ -566,20 +573,41 @@ async fn get_three_segments(
 ) -> Response {
     if first == "-" && second == "v1" && third == "search" {
         let query = uri.query().unwrap_or("");
-        return serve_search(&state, &identity, query).await;
+        // Search results are filtered per caller (mount access + per-package
+        // ACL), so they must never land in a shared HTTP cache.
+        return private_no_cache(serve_search(&state, &identity, None, query).await);
     }
-    // `/~<mount>/@scope/<pkg>` — scoped packument through a mount endpoint.
-    // (A `/~<mount>/<pkg>/<version>` version-manifest fetch is not served;
-    // clients read the full packument from the endpoint instead.)
     if let Some(mount) = first.strip_prefix('~').filter(|mount| !mount.is_empty()) {
+        // `/~<mount>/-/whoami` — caller identity through a mount endpoint, so
+        // `npm whoami --registry .../~<mount>/` works like the path-less base.
+        if second == "-" {
+            if third == "whoami" && mount_is_defined(&state, mount) {
+                return private_no_cache(serve_whoami(&identity));
+            }
+            return not_found();
+        }
+        let base = uplink_tarball_base(&state.inner.config.public_url, mount);
         if second.starts_with('@') {
+            // `/~<mount>/@scope%2Fname/<version>` — version manifest for an
+            // encoded scoped package through a mount endpoint.
+            if second.contains('/') {
+                return private_no_cache(
+                    serve_mount_version_manifest(&state, &identity, mount, &second, &third, &base)
+                        .await,
+                );
+            }
+            // `/~<mount>/@scope/<pkg>` — scoped packument through a mount.
             let full = format!("{second}/{third}");
-            let base = uplink_tarball_base(&state.inner.config.public_url, mount);
             return private_no_cache(
                 serve_mount_packument(&state, &identity, &headers, mount, &full, &base).await,
             );
         }
-        return not_found();
+        // `/~<mount>/<pkg>/<version-or-tag>` — unscoped version manifest
+        // through a mount endpoint. (The unscoped tarball shape
+        // `/~<mount>/<pkg>/-/<file>` is a distinct literal-`-` route.)
+        return private_no_cache(
+            serve_mount_version_manifest(&state, &identity, mount, &second, &third, &base).await,
+        );
     }
     if second == "-" {
         serve_tarball(&state, &identity, &first, &third).await
@@ -614,13 +642,18 @@ async fn get_tarball_scoped(
 /// * `/-/npm/v1/user` — caller's profile (`npm profile get`).
 /// * `/-/npm/v1/tokens` — list bearer tokens for the caller
 ///   (`npm token list`).
+/// * `/~<mount>/-/v1/search` — search through a mount endpoint.
+/// * `/~<mount>/@scope/{pkg}/{version}` — scoped version manifest through a
+///   mount endpoint.
 async fn get_four_segments(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
+    OriginalUri(uri): OriginalUri,
     Path((a, b, c, d)): Path<(String, String, String, String)>,
 ) -> Response {
     if a == "-" && b == "package" && d == "dist-tags" {
-        return get_dist_tags(&state, &identity, &c).await;
+        let response = get_dist_tags(&state, &identity, None, &c).await;
+        return private_if_default_target_private(&state, &c, response);
     }
     if a == "-" && b == "npm" && c == "v1" && d == "user" {
         return private_no_cache(serve_profile(&identity));
@@ -628,23 +661,45 @@ async fn get_four_segments(
     if a == "-" && b == "npm" && c == "v1" && d == "tokens" {
         return private_no_cache(list_tokens(&state, &identity).await);
     }
+    if let Some(mount) = a.strip_prefix('~').filter(|mount| !mount.is_empty()) {
+        if b == "-" && c == "v1" && d == "search" {
+            let query = uri.query().unwrap_or("");
+            return private_no_cache(serve_search(&state, &identity, Some(mount), query).await);
+        }
+        if b.starts_with('@') && !b.contains('/') {
+            let full = format!("{b}/{c}");
+            let base = uplink_tarball_base(&state.inner.config.public_url, mount);
+            return private_no_cache(
+                serve_mount_version_manifest(&state, &identity, mount, &full, &d, &base).await,
+            );
+        }
+    }
     not_found()
 }
 
-/// 5-segment GET: `/~<uplink>/@scope/<pkg>/-/<file>` is a scoped tarball
-/// through an uplink endpoint; every other 5-segment GET is a not-found
-/// catchall (the route exists so DELETE/PUT can sit on the same path).
+/// 5-segment GET:
+/// * `/~<mount>/@scope/<pkg>/-/<file>` — scoped tarball through a mount
+///   endpoint.
+/// * `/~<mount>/-/package/<pkg>/dist-tags` — dist-tags through a mount
+///   endpoint.
+///
+/// Every other 5-segment GET is a not-found catchall (the route exists so
+/// DELETE/PUT can sit on the same path).
 async fn get_five_segments(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     Path((a, b, c, d, e)): Path<(String, String, String, String, String)>,
 ) -> Response {
-    if let Some(mount) = a.strip_prefix('~').filter(|mount| !mount.is_empty())
-        && b.starts_with('@')
-        && d == "-"
-    {
-        let full = format!("{b}/{c}");
-        return private_no_cache(serve_mount_tarball(&state, &identity, mount, &full, &e).await);
+    if let Some(mount) = a.strip_prefix('~').filter(|mount| !mount.is_empty()) {
+        if b.starts_with('@') && d == "-" {
+            let full = format!("{b}/{c}");
+            return private_no_cache(
+                serve_mount_tarball(&state, &identity, mount, &full, &e).await,
+            );
+        }
+        if b == "-" && c == "package" && e == "dist-tags" {
+            return private_no_cache(get_dist_tags(&state, &identity, Some(mount), &d).await);
+        }
     }
     not_found()
 }
@@ -712,7 +767,25 @@ async fn put_three_segments(
         // We don't track revisions, so it's only used for routing —
         // the body is the full mutated packument.
         let _ = third;
-        return update_packument(&state, &identity, &first, &body).await;
+        return update_packument(&state, &identity, None, &first, &body).await;
+    }
+    not_found()
+}
+
+/// `PUT /~<mount>/{pkg}/-rev/{rev}` — packument update (partial unpublish)
+/// through a mount endpoint. Scoped packages arrive percent-encoded as a
+/// single `@scope%2Fname` segment, like the path-less 3-segment form.
+async fn put_four_segments(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    Path((a, b, c, d)): Path<(String, String, String, String)>,
+    body: axum::body::Bytes,
+) -> Response {
+    if let Some(mount) = a.strip_prefix('~').filter(|mount| !mount.is_empty())
+        && c == "-rev"
+    {
+        let _ = d; // revision token is unused
+        return update_packument(&state, &identity, Some(mount), &b, &body).await;
     }
     not_found()
 }
@@ -728,7 +801,7 @@ async fn delete_three_segments(
 ) -> Response {
     if second == "-rev" {
         let _ = third;
-        return delete_package(&state, &identity, &first).await;
+        return delete_package(&state, &identity, None, &first).await;
     }
     not_found()
 }
@@ -741,14 +814,36 @@ async fn put_five_segments(
     body: axum::body::Bytes,
 ) -> Response {
     if a == "-" && b == "package" && d == "dist-tags" {
-        return set_dist_tag(&state, &identity, &c, &e, &body).await;
+        return set_dist_tag(&state, &identity, None, &c, &e, &body).await;
     }
     not_found()
 }
 
-/// `DELETE /-/user/token/{tok}` — npm logout. `{tok}` is the raw
-/// bearer token sent verbatim. We hash it and remove the matching
-/// row from the token store.
+/// `PUT /~<mount>/-/package/{pkg}/dist-tags/{tag}` — add/update a dist-tag
+/// through a mount endpoint.
+async fn put_six_segments(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    Path((a, b, c, d, e, f)): Path<(String, String, String, String, String, String)>,
+    body: axum::body::Bytes,
+) -> Response {
+    if let Some(mount) = a.strip_prefix('~').filter(|mount| !mount.is_empty())
+        && b == "-"
+        && c == "package"
+        && e == "dist-tags"
+    {
+        return set_dist_tag(&state, &identity, Some(mount), &d, &f, &body).await;
+    }
+    not_found()
+}
+
+/// 4-segment DELETE:
+/// * `/-/user/token/{tok}` — npm logout. `{tok}` is the raw bearer token
+///   sent verbatim. We hash it and remove the matching row from the token
+///   store.
+/// * `/~<mount>/{pkg}/-rev/{rev}` — remove the entire package through a
+///   mount endpoint (scoped packages arrive percent-encoded as one
+///   `@scope%2Fname` segment).
 async fn delete_four_segments(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
@@ -756,6 +851,12 @@ async fn delete_four_segments(
 ) -> Response {
     if a == "-" && b == "user" && c == "token" {
         return private_no_cache(logout(&state, &identity, &d).await);
+    }
+    if let Some(mount) = a.strip_prefix('~').filter(|mount| !mount.is_empty())
+        && c == "-rev"
+    {
+        let _ = d; // revision token is unused
+        return delete_package(&state, &identity, Some(mount), &b).await;
     }
     not_found()
 }
@@ -770,11 +871,11 @@ async fn delete_five_segments(
     Path((a, b, c, d, e)): Path<(String, String, String, String, String)>,
 ) -> Response {
     if a == "-" && b == "package" && d == "dist-tags" {
-        return remove_dist_tag(&state, &identity, &c, &e).await;
+        return remove_dist_tag(&state, &identity, None, &c, &e).await;
     }
     if b == "-" && d == "-rev" {
         let _ = e; // revision token is unused
-        return delete_tarball(&state, &identity, &a, &c).await;
+        return delete_tarball(&state, &identity, None, &a, &c).await;
     }
     not_found()
 }
@@ -788,6 +889,10 @@ async fn delete_five_segments(
 ///   `@scope%2Fname` URL.
 /// * `/-/npm/v1/tokens/token/{key}` — revoke a bearer token by its
 ///   listing-side `key` (`npm token revoke`).
+/// * `/~<mount>/-/package/{pkg}/dist-tags/{tag}` — remove a dist-tag
+///   through a mount endpoint.
+/// * `/~<mount>/{pkg}/-/{filename}/-rev/{rev}` — remove an unscoped
+///   tarball through a mount endpoint.
 async fn delete_six_segments(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
@@ -799,7 +904,36 @@ async fn delete_six_segments(
     if a.starts_with('@') && c == "-" && e == "-rev" {
         let _ = f; // revision token is unused
         let full = format!("{a}/{b}");
-        return delete_tarball(&state, &identity, &full, &d).await;
+        return delete_tarball(&state, &identity, None, &full, &d).await;
+    }
+    if let Some(mount) = a.strip_prefix('~').filter(|mount| !mount.is_empty()) {
+        if b == "-" && c == "package" && e == "dist-tags" {
+            return remove_dist_tag(&state, &identity, Some(mount), &d, &f).await;
+        }
+        if c == "-" && e == "-rev" {
+            let _ = f; // revision token is unused
+            return delete_tarball(&state, &identity, Some(mount), &b, &d).await;
+        }
+    }
+    not_found()
+}
+
+/// `DELETE /~<mount>/{scope}/{name}/-/{filename}/-rev/{rev}` — remove a
+/// scoped tarball through a mount endpoint (the unencoded literal-slash form
+/// the pnpm unpublish flow reconstructs from the packument's tarball URL).
+async fn delete_seven_segments(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    Path((a, b, c, d, e, f, g)): Path<(String, String, String, String, String, String, String)>,
+) -> Response {
+    if let Some(mount) = a.strip_prefix('~').filter(|mount| !mount.is_empty())
+        && b.starts_with('@')
+        && d == "-"
+        && f == "-rev"
+    {
+        let _ = g; // revision token is unused
+        let full = format!("{b}/{c}");
+        return delete_tarball(&state, &identity, Some(mount), &full, &e).await;
     }
     not_found()
 }
@@ -821,7 +955,9 @@ async fn serve_packument(
         Some(target) => {
             // The path-less base: tarball URLs stay canonical for the bare host.
             let base = state.inner.config.public_url.clone();
-            serve_mount_packument(state, identity, headers, &target, raw_name, &base).await
+            let response =
+                serve_mount_packument(state, identity, headers, &target, raw_name, &base).await;
+            private_if_default_target_private(state, raw_name, response)
         }
         None => not_found(),
     }
@@ -836,8 +972,16 @@ async fn serve_version_manifest(
     match default_target_mount(state) {
         Some(target) => {
             let base = state.inner.config.public_url.clone();
-            serve_mount_version_manifest(state, identity, &target, raw_name, version_or_tag, &base)
-                .await
+            let response = serve_mount_version_manifest(
+                state,
+                identity,
+                &target,
+                raw_name,
+                version_or_tag,
+                &base,
+            )
+            .await;
+            private_if_default_target_private(state, raw_name, response)
         }
         None => not_found(),
     }
@@ -1076,7 +1220,22 @@ async fn load_uplink_packument(
             }
             Ok(Some(fetched.bytes))
         }
-        PackumentFetch::NotFound => Ok(None),
+        PackumentFetch::NotFound => {
+            // The 404 is authoritative: the package is gone from this origin,
+            // so drop its cached entry too. Otherwise the stale copy would
+            // outlive every TTL and a later transient outage could resurrect
+            // the unpublished package through the stale-if-error fallback.
+            if upstream.caches()
+                && let Err(err) = state.inner.storage.remove_uplink_package(namespace, name).await
+            {
+                tracing::warn!(
+                    ?err,
+                    package = %name.as_str(),
+                    "failed to purge cached entry after an upstream 404",
+                );
+            }
+            Ok(None)
+        }
         // `load_uplink_packument` sends no conditional validators (the uplink
         // cache refetches stale entries rather than revalidating — see
         // `Store::read_uplink_packument`), so a well-behaved upstream never
@@ -1107,19 +1266,24 @@ async fn load_upstream_packument_for(
         .map_err(|err| Box::new(error_response(&err)))
 }
 
-/// Load a package's packument bytes through the path-less base's default-target
-/// mount — resolving to one concrete origin and reading there, with no
-/// fall-through. `Ok(None)` is a definitive not-found (unknown package, no
-/// route, no default target, or an unauthorized private hosted org). Used by
-/// the path-less readers that aren't packument/tarball/version-manifest
-/// (e.g. `dist-tags`).
+/// Load a package's packument bytes through the addressed `/~<mount>/` (or,
+/// path-less, the default-target mount) — resolving to one concrete origin and
+/// reading there, with no fall-through. `Ok(None)` is a definitive not-found
+/// (unknown package, no route, no default target, or an unauthorized private
+/// hosted org). Used by the readers that aren't
+/// packument/tarball/version-manifest (e.g. `dist-tags`).
 async fn load_packument_for_read(
     state: &AppState,
     identity: &Identity,
+    mount: Option<&str>,
     name: &PackageName,
 ) -> Result<Option<Vec<u8>>, Box<Response>> {
-    let Some(target) = default_target_mount(state) else {
-        return Ok(None);
+    let target = match mount {
+        Some(mount) => mount.to_string(),
+        None => match default_target_mount(state) {
+            Some(target) => target,
+            None => return Ok(None),
+        },
     };
     // The per-package access ACL applies to every mount-served read, upstream or
     // hosted — otherwise a restricted package would leak (e.g. its dist-tags)
@@ -1194,15 +1358,32 @@ async fn serve_tarball_via_uplink(
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    let (filename, name_version) = match name.parse_tarball_name(filename) {
-        Ok(parsed) => parsed,
-        Err(err) => return error_response(&err),
+    // A canonical `<basename>-<version>.tgz` (or the scoped wire form) is
+    // normalized as usual. A non-canonical basename preserved verbatim from
+    // the upstream's `dist.tarball` (see `rewrite_tarball_urls`) is accepted
+    // opaquely so long as it is safe as a cache path segment — the packument
+    // match below is what authorizes it, binding it to a declared version
+    // and integrity. Rejecting it here would make such a version
+    // un-fetchable through the very URL this server advertised.
+    let (filename, parsed_version) = match name.parse_tarball_name(filename) {
+        Ok((canonical, version)) => (canonical, Some(version)),
+        Err(err) => {
+            if !crate::package_name::is_safe_path_segment(filename) {
+                return error_response(&err);
+            }
+            (filename.to_string(), None)
+        }
     };
     let upstream = match authorized_uplink(state, identity, uplink) {
         Ok(upstream) => upstream,
         Err(response) => return *response,
     };
-    if let Err(err) = ensure_osv_allowed(state, &name, &name_version) {
+    // Pre-check OSV on the filename-derived version (when the name is
+    // canonical) to fail fast; the authoritative check against the
+    // packument-resolved version runs below either way.
+    if let Some(version) = &parsed_version
+        && let Err(err) = ensure_osv_allowed(state, &name, version)
+    {
         return error_response(&err);
     }
     let namespace = uplink_cache_namespace(state, uplink);
@@ -1224,7 +1405,7 @@ async fn serve_tarball_via_uplink(
             Ok(None) => return not_found(),
             Err(err) => return error_response(&err),
         };
-    if version != name_version
+    if parsed_version.as_deref() != Some(version.as_str())
         && let Err(err) = ensure_osv_allowed(state, &name, &version)
     {
         return error_response(&err);
@@ -1350,6 +1531,51 @@ fn resolve_mount_source(state: &AppState, mount: &str, package: &str) -> MountSo
                 MountSource::NotFound
             }
         }
+    }
+}
+
+/// Whether `mount` names a defined registry mount (or a programmatically
+/// inserted uplink). Gates the package-less mount endpoints (`whoami`) that
+/// have no package name to resolve through the graph.
+fn mount_is_defined(state: &AppState, mount: &str) -> bool {
+    state.inner.config.mounts.get(mount).is_some() || state.inner.config.uplinks.contains_key(mount)
+}
+
+/// Whether the concrete origin `package` resolves to through `mount` serves
+/// caller-gated content: a hosted mount whose access list denies anonymous
+/// callers, or an upstream mount that declares `access:`. Responses from such
+/// an origin vary by `Authorization` and must never land in a shared HTTP
+/// cache, whichever URL surface (path-less or `/~<mount>/`) served them.
+fn resolves_to_private_source(state: &AppState, mount: &str, package: &str) -> bool {
+    match resolve_mount_source(state, mount, package) {
+        MountSource::Hosted(source) => state
+            .inner
+            .config
+            .hosted
+            .get(&source)
+            .is_some_and(|hosted| !hosted.access.allows(&Identity::Anonymous)),
+        MountSource::Upstream(source) => {
+            state.inner.config.uplinks.get(&source).is_some_and(|uplink| uplink.access.is_some())
+        }
+        MountSource::NotFound => false,
+    }
+}
+
+/// Apply the private-cache headers to a path-less response when the
+/// default-target resolution for `package` lands on a private source — the
+/// same headers the `/~<mount>/` surface applies unconditionally, so the two
+/// URL surfaces for the same content get the same cache protection. A public
+/// resolution stays cacheable: the path-less base is the hot install path.
+fn private_if_default_target_private(
+    state: &AppState,
+    package: &str,
+    response: Response,
+) -> Response {
+    match default_target_mount(state) {
+        Some(target) if resolves_to_private_source(state, &target, package) => {
+            private_no_cache(response)
+        }
+        _ => response,
     }
 }
 
@@ -1516,7 +1742,10 @@ async fn serve_tarball(
     // The path-less base is an alias for the default-target mount — see
     // `serve_packument`. With no default target the bare host has no registry.
     match default_target_mount(state) {
-        Some(target) => serve_mount_tarball(state, identity, &target, raw_name, filename).await,
+        Some(target) => {
+            let response = serve_mount_tarball(state, identity, &target, raw_name, filename).await;
+            private_if_default_target_private(state, raw_name, response)
+        }
         None => not_found(),
     }
 }
@@ -1531,24 +1760,49 @@ struct TarballDist {
     integrity: Integrity,
 }
 
+/// The `versions[v].dist` subset the tarball serve path reads. Every tarball
+/// request re-reads its package's packument to bind the filename to a
+/// declared version and integrity; deserializing into this projection instead
+/// of a full `serde_json::Value` skips building (and allocating) the rest of
+/// the document on that hot path.
+#[derive(serde::Deserialize)]
+struct PackumentDists {
+    #[serde(default)]
+    versions: IndexMap<String, VersionDist>,
+}
+
+#[derive(serde::Deserialize)]
+struct VersionDist {
+    #[serde(default)]
+    dist: Option<DistBlock>,
+}
+
+#[derive(serde::Deserialize)]
+struct DistBlock {
+    #[serde(default)]
+    tarball: Option<String>,
+    #[serde(default)]
+    integrity: Option<String>,
+    /// Legacy hex sha1 — the only hash pre-2017 npm publishes carry.
+    #[serde(default)]
+    shasum: Option<String>,
+}
+
 fn expected_tarball_dist(
     packument: &[u8],
     name: &PackageName,
     filename: &str,
 ) -> Result<Option<TarballDist>, RegistryError> {
-    let packument: Value = serde_json::from_slice(packument)?;
-    let Some(versions) = packument.get("versions").and_then(Value::as_object) else {
-        return Ok(None);
-    };
-    let mut matches = versions.iter().filter(|(_, manifest)| {
-        manifest
-            .get("dist")
-            .and_then(|dist| dist.get("tarball"))
-            .and_then(Value::as_str)
+    let packument: PackumentDists = serde_json::from_slice(packument)?;
+    let mut matches = packument.versions.iter().filter_map(|(version, manifest)| {
+        let dist = manifest.dist.as_ref()?;
+        dist.tarball
+            .as_deref()
             .and_then(tarball_basename)
             .is_some_and(|basename| basename == filename)
+            .then_some((version, dist))
     });
-    let Some((version, manifest)) = matches.next() else {
+    let Some((version, dist)) = matches.next() else {
         return Ok(None);
     };
     // A tarball name must identify exactly one declaring version, or the
@@ -1562,20 +1816,26 @@ fn expected_tarball_dist(
             "packument declares the same dist.tarball basename for multiple versions".to_string(),
         ));
     }
-    let declared = manifest
-        .get("dist")
-        .and_then(|dist| dist.get("integrity"))
-        .and_then(Value::as_str)
-        .ok_or_else(|| {
+    // Prefer the SRI `integrity`; fall back to the legacy hex `shasum`
+    // (pre-2017 npm publishes carry only that) so those packages stay
+    // proxyable — still verified, just against sha1. A version declaring
+    // neither stays unservable: bytes never leave unverified.
+    let integrity = if let Some(declared) = dist.integrity.as_deref() {
+        streaming::parse_integrity(declared).map_err(|err| {
+            tarball_integrity_error(name, filename, format!("malformed dist.integrity: {err}"))
+        })?
+    } else {
+        let shasum = dist.shasum.as_deref().ok_or_else(|| {
             tarball_integrity_error(
                 name,
                 filename,
-                format!("packument has no dist.integrity for version {version:?}"),
+                format!("packument has no dist.integrity or dist.shasum for {version:?}"),
             )
         })?;
-    let integrity = streaming::parse_integrity(declared).map_err(|err| {
-        tarball_integrity_error(name, filename, format!("malformed dist.integrity: {err}"))
-    })?;
+        Integrity::from_hex(shasum, ssri::Algorithm::Sha1).map_err(|err| {
+            tarball_integrity_error(name, filename, format!("malformed dist.shasum: {err}"))
+        })?
+    };
     Ok(Some(TarballDist { version: version.clone(), integrity }))
 }
 
@@ -2391,21 +2651,33 @@ async fn cleanup_tmp_slots(slots: Vec<crate::storage::TarballSlot>) {
 /// proxy can't deliver because npm's search is fuzzy and returns
 /// dozens of unrelated matches for almost anything).
 ///
-/// Results are gated on two dimensions, matching what the packument and
-/// tarball GETs enforce:
+/// Results are served through the mount graph and gated exactly like the
+/// packument and tarball GETs:
 ///
-/// * The **mount access list**: the flat store is served only through hosted
-///   mounts whose `org` is the flat root, so a caller none of those mounts
-///   allows gets an empty result — the same existence mask the read paths
-///   apply. Without this, search would enumerate a private mount's packages
-///   by name/version/description while the packument GET correctly 404s.
-/// * The **per-package access policy**: a package the caller can't read
-///   (e.g. anonymous + `@private/*` or `@pnpm.e2e/needs-auth` with the
-///   default rules) is dropped from `objects` before the response is built.
-async fn serve_search(state: &AppState, identity: &Identity, query_string: &str) -> Response {
-    let empty_result = || {
-        let body = json!({ "objects": [], "total": 0, "time": now_iso() });
-        let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
+/// * Only the hosted mounts the addressed registry serves are scanned (see
+///   [`hosted_search_sources`]), each gated by its **mount access list** — a
+///   caller a mount denies gets nothing from it, the same existence mask the
+///   read paths apply. Without this, search would enumerate a private mount's
+///   packages by name/version/description while the packument GET correctly
+///   404s.
+/// * Under a router, a name is kept only when the router actually **routes it
+///   to the scanned source**, so a hosted package shadowed by an earlier route
+///   is as invisible to search as it is to a packument GET.
+/// * The **per-package access policy** drops any package the caller can't
+///   read (e.g. anonymous + `@private/*` with the default rules).
+///
+/// `total` counts the returned (post-filter, size-capped) objects so clients
+/// can't infer the existence of hidden packages from a mismatched total.
+async fn serve_search(
+    state: &AppState,
+    identity: &Identity,
+    mount: Option<&str>,
+    query_string: &str,
+) -> Response {
+    let result = |objects: Vec<Value>| {
+        let total = objects.len();
+        let body = json!({ "objects": objects, "total": total, "time": now_iso() });
+        let bytes = serde_json::to_vec(&body).expect("search response serializes");
         Response::builder()
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, "application/json")
@@ -2413,70 +2685,73 @@ async fn serve_search(state: &AppState, identity: &Identity, query_string: &str)
             .expect("static-shape response always builds")
     };
     let Some(text) = crate::search::parse_query(query_string) else {
-        return empty_result();
+        return result(Vec::new());
     };
-    // The scan below reads the flat hosted store, so the caller must pass the
-    // access list of a hosted mount serving the flat root (`org: ""`). With no
-    // such mount the flat store is not served anywhere and nothing is
-    // searchable.
-    let flat_root_accessible = state
-        .inner
-        .config
-        .hosted
-        .values()
-        .any(|hosted| hosted.org.is_empty() && hosted.access.allows(identity));
-    if !flat_root_accessible {
-        return empty_result();
-    }
+    let Some(mount) = mount.map(str::to_string).or_else(|| default_target_mount(state)) else {
+        return result(Vec::new());
+    };
     let size = crate::search::parse_size(query_string, 20);
-    // Search is local-storage-only: it scans the flat hosted store, never the
-    // upstreams (an upstream is reached only through its own mount, by exact
-    // package name — there is no cross-origin search merge).
-    // TODO: extend this to the per-org hosted namespaces (`Storage::for_hosted`)
-    // so packages published under a non-empty `org` are searchable too, each
-    // namespace gated by its own mount's access list.
-    let mut body = match crate::search::run_local_search(&state.inner.storage, &text, size).await {
-        Ok(body) => body,
-        Err(err) => return error_response(&err),
-    };
-
-    if let Some(objects) = body.get_mut("objects").and_then(Value::as_array_mut) {
-        // The caller was resolved once by the middleware; authorize each
-        // candidate synchronously against it inside the filter.
-        objects.retain(|entry| {
-            let Some(name) =
-                entry.get("package").and_then(|pkg| pkg.get("name")).and_then(Value::as_str)
-            else {
-                // Malformed entry — be conservative and drop it.
-                return false;
-            };
-            authorize(state, identity, name, Action::Access).is_ok()
-        });
-        let visible = objects.len();
-        // Surface the post-filter count so clients can't infer the
-        // existence of hidden packages from a mismatched `total`.
-        body["total"] = json!(visible);
+    let mut objects: Vec<Value> = Vec::new();
+    for source in hosted_search_sources(state, &mount) {
+        if objects.len() >= size {
+            break;
+        }
+        let Some(org) = accessible_hosted_namespace(state, identity, &source) else {
+            continue;
+        };
+        let storage = hosted_storage(state, Some(&org));
+        // The caller was resolved once by the middleware; both filters run
+        // synchronously against it inside the scan.
+        let keep = |name: &str| {
+            matches!(
+                resolve_mount_source(state, &mount, name),
+                MountSource::Hosted(resolved) if resolved == source
+            ) && authorize(state, identity, name, Action::Access).is_ok()
+        };
+        match crate::search::run_local_search(&storage, &text, size - objects.len(), keep).await {
+            Ok(mut entries) => objects.append(&mut entries),
+            Err(err) => return error_response(&err),
+        }
     }
-    let bytes = serde_json::to_vec(&body).expect("search response serializes");
-    Response::builder()
-        .status(StatusCode::OK)
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(bytes))
-        .expect("static-shape response always builds")
+    result(objects)
 }
 
-/// `PUT /:pkg/-rev/:rev` — overwrite the on-disk packument with the
-/// client-supplied body. pnpm uses this in the partial-unpublish
-/// flow: it fetches the packument, removes the unpublished version
-/// from `versions` / `dist-tags`, then PUTs the result back. We strip
-/// any `_attachments` so we don't persist base64 payloads alongside
-/// the manifest, and run [`enforce_published_version_immutability`] so
-/// the body can't tamper with a published version's `dist` or smuggle
-/// in a new one — everything else in the body is trusted verbatim, the
-/// same trust verdaccio extends.
+/// The hosted mounts a search addressed to `mount` scans, in route order.
+/// A hosted mount scans itself; a router scans each distinct hosted route
+/// source; an upstream mount scans nothing — search is local-only, never
+/// proxied (an upstream is reached only through its own mount, by exact
+/// package name; there is no cross-origin search merge).
+fn hosted_search_sources(state: &AppState, mount: &str) -> Vec<String> {
+    match state.inner.config.mounts.get(mount) {
+        Some(MountKind::Hosted) => vec![mount.to_string()],
+        Some(MountKind::Router { routes }) => {
+            let mut sources: Vec<String> = Vec::new();
+            for route in routes {
+                if matches!(state.inner.config.mounts.get(&route.source), Some(MountKind::Hosted))
+                    && !sources.contains(&route.source)
+                {
+                    sources.push(route.source.clone());
+                }
+            }
+            sources
+        }
+        Some(MountKind::Upstream) | None => Vec::new(),
+    }
+}
+
+/// `PUT /:pkg/-rev/:rev` (path-less) or `PUT /~<mount>/:pkg/-rev/:rev` —
+/// overwrite the on-disk packument with the client-supplied body. pnpm uses
+/// this in the partial-unpublish flow: it fetches the packument, removes the
+/// unpublished version from `versions` / `dist-tags`, then PUTs the result
+/// back. We strip any `_attachments` so we don't persist base64 payloads
+/// alongside the manifest, and run
+/// [`enforce_published_version_immutability`] so the body can't tamper with
+/// a published version's `dist` or smuggle in a new one — everything else in
+/// the body is trusted verbatim, the same trust verdaccio extends.
 async fn update_packument(
     state: &AppState,
     identity: &Identity,
+    mount: Option<&str>,
     raw_name: &str,
     body: &[u8],
 ) -> Response {
@@ -2489,7 +2764,7 @@ async fn update_packument(
             return error_response(&err);
         }
     }
-    let org = match resolve_write_org(state, identity, &name) {
+    let org = match resolve_write_org(state, identity, mount, &name) {
         Ok(org) => org,
         Err(response) => return *response,
     };
@@ -2691,9 +2966,15 @@ fn require_object_dist(manifest: &Value, version: &str) -> Option<RegistryError>
     })
 }
 
-/// `DELETE /:pkg/-rev/:rev` — remove the entire package directory,
-/// packument and all tarballs. Used by `pnpm unpublish --force`.
-async fn delete_package(state: &AppState, identity: &Identity, raw_name: &str) -> Response {
+/// `DELETE /:pkg/-rev/:rev` (path-less) or `DELETE /~<mount>/:pkg/-rev/:rev`
+/// — remove the entire package directory, packument and all tarballs. Used
+/// by `pnpm unpublish --force`.
+async fn delete_package(
+    state: &AppState,
+    identity: &Identity,
+    mount: Option<&str>,
+    raw_name: &str,
+) -> Response {
     let name = match PackageName::parse(raw_name) {
         Ok(n) => n,
         Err(err) => return error_response(&err),
@@ -2701,7 +2982,7 @@ async fn delete_package(state: &AppState, identity: &Identity, raw_name: &str) -
     if let Err(err) = authorize(state, identity, name.as_str(), Action::Unpublish) {
         return error_response(&err);
     }
-    let org = match resolve_write_org(state, identity, &name) {
+    let org = match resolve_write_org(state, identity, mount, &name) {
         Ok(org) => org,
         Err(response) => return *response,
     };
@@ -2728,6 +3009,7 @@ async fn delete_package(state: &AppState, identity: &Identity, raw_name: &str) -
 async fn delete_tarball(
     state: &AppState,
     identity: &Identity,
+    mount: Option<&str>,
     raw_name: &str,
     filename: &str,
 ) -> Response {
@@ -2742,7 +3024,7 @@ async fn delete_tarball(
     if let Err(err) = authorize(state, identity, name.as_str(), Action::Unpublish) {
         return error_response(&err);
     }
-    let org = match resolve_write_org(state, identity, &name) {
+    let org = match resolve_write_org(state, identity, mount, &name) {
         Ok(org) => org,
         Err(response) => return *response,
     };
@@ -2761,14 +3043,20 @@ async fn delete_tarball(
         .expect("static-shape response always builds")
 }
 
-/// `GET /-/package/:pkg/dist-tags` — return the packument's
+/// `GET /-/package/:pkg/dist-tags` (path-less) or
+/// `GET /~<mount>/-/package/:pkg/dist-tags` — return the packument's
 /// `dist-tags` object.
-async fn get_dist_tags(state: &AppState, identity: &Identity, raw_name: &str) -> Response {
+async fn get_dist_tags(
+    state: &AppState,
+    identity: &Identity,
+    mount: Option<&str>,
+    raw_name: &str,
+) -> Response {
     let name = match PackageName::parse(raw_name) {
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    let bytes = match load_packument_for_read(state, identity, &name).await {
+    let bytes = match load_packument_for_read(state, identity, mount, &name).await {
         Ok(Some(bytes)) => bytes,
         Ok(None) => return not_found(),
         Err(response) => return *response,
@@ -2787,16 +3075,18 @@ async fn get_dist_tags(state: &AppState, identity: &Identity, raw_name: &str) ->
         .expect("static-shape response always builds")
 }
 
-/// `PUT /-/package/:pkg/dist-tags/:tag` — set a dist-tag. Body is
+/// `PUT /-/package/:pkg/dist-tags/:tag` (path-less) or
+/// `PUT /~<mount>/-/package/:pkg/dist-tags/:tag` — set a dist-tag. Body is
 /// a JSON-encoded version string (e.g. `"1.0.0"`).
 async fn set_dist_tag(
     state: &AppState,
     identity: &Identity,
+    mount: Option<&str>,
     raw_name: &str,
     tag: &str,
     body: &[u8],
 ) -> Response {
-    update_dist_tag(state, identity, raw_name, tag, |tags| {
+    update_dist_tag(state, identity, mount, raw_name, tag, |tags| {
         let version: String = match serde_json::from_slice(body) {
             Ok(s) => s,
             Err(err) => return Err(RegistryError::Json(err)),
@@ -2810,10 +3100,11 @@ async fn set_dist_tag(
 async fn remove_dist_tag(
     state: &AppState,
     identity: &Identity,
+    mount: Option<&str>,
     raw_name: &str,
     tag: &str,
 ) -> Response {
-    update_dist_tag(state, identity, raw_name, tag, |tags| {
+    update_dist_tag(state, identity, mount, raw_name, tag, |tags| {
         tags.remove(tag);
         Ok(())
     })
@@ -2827,6 +3118,7 @@ async fn remove_dist_tag(
 async fn update_dist_tag<Mutate>(
     state: &AppState,
     identity: &Identity,
+    mount: Option<&str>,
     raw_name: &str,
     tag: &str,
     mutate: Mutate,
@@ -2843,7 +3135,7 @@ where
     }
     // A dist-tag change is a write, so it routes to a hosted namespace like
     // a publish — a name routed to an upstream is rejected.
-    let org = match resolve_write_org(state, identity, &name) {
+    let org = match resolve_write_org(state, identity, mount, &name) {
         Ok(org) => org,
         Err(response) => return *response,
     };
@@ -2914,18 +3206,19 @@ where
 // Helpers.
 // --------------------------------------------------------------------
 
-/// Resolve the hosted storage namespace a path-less write
-/// (dist-tag, unpublish, packument update) targets, or the [`Response`] to
-/// return. A write routes like a publish: through the default-target mount to a
-/// hosted org, rejecting a name routed to an upstream and 404ing when the
-/// path-less base has no default target or the mount's access list denies the
-/// caller.
+/// Resolve the hosted storage namespace a non-publish write (dist-tag,
+/// unpublish, packument update) targets, or the [`Response`] to return. A
+/// write routes like a publish: through the addressed `/~<mount>/` (or,
+/// path-less, the default-target mount) to a hosted org, rejecting a name
+/// routed to an upstream and 404ing when the path-less base has no default
+/// target or the mount's access list denies the caller.
 fn resolve_write_org(
     state: &AppState,
     identity: &Identity,
+    mount: Option<&str>,
     name: &PackageName,
 ) -> Result<String, Box<Response>> {
-    match resolve_publish_target(state, identity, None, name.as_str()) {
+    match resolve_publish_target(state, identity, mount, name.as_str()) {
         PublishTarget::Org(org) => Ok(org),
         PublishTarget::Reject(reason) => {
             Err(Box::new(error_response(&RegistryError::BadRequest { reason })))

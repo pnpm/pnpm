@@ -295,6 +295,13 @@ impl Mounts {
         }
         for (name, kind) in &self.mounts {
             if let MountKind::Router { routes } = kind {
+                // A router with no routes can never match any package — every
+                // request through it is a 404. That's only ever a config
+                // mistake (a hosted/upstream mount was probably intended), so
+                // reject it like an empty route.
+                if routes.is_empty() {
+                    return Err(MountConfigError::EmptyRouter { router: name.clone() });
+                }
                 self.validate_router(name, routes)?;
             }
         }
@@ -389,6 +396,8 @@ pub enum MountConfigError {
     UndefinedDefaultTarget { target: String },
     /// A router route has no patterns, so it can never match.
     EmptyRoute { router: String, index: usize },
+    /// A router has no routes at all, so it can never match any package.
+    EmptyRouter { router: String },
     /// A router route lists the router itself as its source.
     SelfReferentialRouter { router: String },
     /// A router route's source is not a defined mount.
@@ -423,6 +432,11 @@ impl fmt::Display for MountConfigError {
             MountConfigError::EmptyRoute { router, index } => {
                 write!(f, "router {router:?} route #{index} has no patterns", index = index + 1)
             }
+            MountConfigError::EmptyRouter { router } => write!(
+                f,
+                "router {router:?} has no routes, so it can never match any package; add routes \
+                 or remove the mount",
+            ),
             MountConfigError::SelfReferentialRouter { router } => {
                 write!(f, "router {router:?} lists itself as a route source")
             }
