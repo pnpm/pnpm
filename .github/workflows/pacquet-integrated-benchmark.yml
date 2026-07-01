@@ -359,10 +359,12 @@ jobs:
             echo "::group::$log"
             tail -n 200 "$log"
             echo "::endgroup::"
-            # When `--serve-timing` is on, these logs carry per-phase serve
-            # timing (`pnpr::serve_timing` events). Aggregate them into a compact
-            # per-phase profile (count, total ms, mean µs) so a cold-store serve
-            # cost is visible without scrolling thousands of lines.
+          done
+          # With `--serve-timing`, pnpr logs its `pnpr::serve_timing` events to
+          # *stdout* (tracing_subscriber's default writer), so aggregate those
+          # logs — not stderr — into a compact per-phase profile (count, total
+          # ms, mean µs) so a cold-store serve cost is visible without scrolling.
+          for log in bench-work-env/*/revision-mock.stdout.log bench-work-env/*/pnpr-server.stdout.log; do
             if grep -q "pnpr::serve_timing" "$log"; then
               echo "::group::$log (serve_timing per-phase summary)"
               grep -oE 'phase="[^"]+".*elapsed_us=[0-9]+' "$log" \
