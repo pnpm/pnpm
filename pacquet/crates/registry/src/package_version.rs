@@ -250,15 +250,18 @@ impl PackageVersion {
         // Format once and reuse for the request, the auth-header
         // lookup, and the error mapper. Keeps the auth lookup and
         // request URL byte-identical and saves two formats.
-        let url = format!("{registry}{name}/{tag}");
+        let encoded_name = pacquet_network::encode_package_name(name);
+        let url = format!("{registry}{encoded_name}/{}", tag.registry_path_segment());
         let network_error = |error| NetworkError { error, url: url.clone() };
 
-        let mut request = http_client.acquire_for_url(&url).await.get(&url).header(
+        // Hold the semaphore permit across send + body consumption so the
+        // socket-bound stays effective under concurrent fan-out. See the
+        // doc comment on `ThrottledClientGuard`.
+        let guard = http_client.acquire_for_url(&url).await;
+        let mut request = guard.get(&url).header(
             "accept",
             "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*",
         );
-        // Same auth flow as `Package::fetch_from_registry`. See the
-        // doc comment there.
         if let Some(value) = auth_headers.for_url_with_package(&url, Some(name)) {
             request = request.header("authorization", value);
         }

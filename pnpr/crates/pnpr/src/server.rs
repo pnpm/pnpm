@@ -543,8 +543,12 @@ async fn get_two_segments(
         );
     }
     if first.starts_with('@') {
-        let full = format!("{first}/{second}");
-        serve_packument(&state, &identity, &headers, &full).await
+        if first.contains('/') {
+            serve_version_manifest(&state, &identity, &first, &second).await
+        } else {
+            let full = format!("{first}/{second}");
+            serve_packument(&state, &identity, &headers, &full).await
+        }
     } else {
         serve_version_manifest(&state, &identity, &first, &second).await
     }

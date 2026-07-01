@@ -6,8 +6,8 @@ use miette::{Context, Diagnostic, IntoDiagnostic};
 use node_semver::Version;
 use pacquet_config::Config;
 use pacquet_network::{
-    NetworkSettings, RetryOpts, ThrottledClient, redact_url_credentials, retry_async,
-    send_with_retry,
+    NetworkSettings, RetryOpts, ThrottledClient, encode_uri_component, redact_url_credentials,
+    retry_async, send_with_retry,
 };
 use pacquet_resolving_npm_resolver::pick_registry_for_package;
 use pacquet_resolving_parse_wanted_dependency::parse_wanted_dependency;
@@ -15,7 +15,6 @@ use reqwest::{RequestBuilder, Response, StatusCode};
 use serde::Deserialize;
 use std::{
     collections::{BTreeMap, HashMap},
-    fmt::Write as _,
     time::Duration,
 };
 
@@ -659,19 +658,6 @@ fn escaped_package_name(package_name: &str) -> String {
         Some(rest) => format!("@{}", encode_uri_component(rest).replace("%2F", "%2f")),
         None => encode_uri_component(package_name),
     }
-}
-
-fn encode_uri_component(input: &str) -> String {
-    const UNRESERVED: &[u8] = b"-_.!~*'()";
-    let mut output = String::with_capacity(input.len());
-    for &byte in input.as_bytes() {
-        if byte.is_ascii_alphanumeric() || UNRESERVED.contains(&byte) {
-            output.push(byte as char);
-        } else {
-            write!(output, "%{byte:02X}").expect("writing to a String never fails");
-        }
-    }
-    output
 }
 
 impl AuthType {

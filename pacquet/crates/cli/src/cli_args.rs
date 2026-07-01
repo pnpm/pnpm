@@ -2,6 +2,7 @@ pub mod add;
 pub mod approve_builds;
 pub mod audit;
 pub mod bin;
+pub mod bugs;
 pub mod cache;
 pub mod cat_file;
 pub mod cat_index;
@@ -26,6 +27,7 @@ pub mod logout;
 pub mod outdated;
 pub mod pack;
 pub mod pack_app;
+
 pub mod patch;
 pub mod patch_commit;
 pub mod patch_remove;

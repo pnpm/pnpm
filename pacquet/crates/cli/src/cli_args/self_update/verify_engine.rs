@@ -23,7 +23,8 @@ use pacquet_config::Config;
 use pacquet_graph_hasher::{host_arch, host_libc, host_platform};
 use pacquet_lockfile::{EnvLockfile, PackageKey, SnapshotDepRef};
 use pacquet_network::{
-    NetworkSettings, RetryOpts, ThrottledClient, redact_url_credentials, send_with_retry,
+    NetworkSettings, RetryOpts, ThrottledClient, encode_package_name, redact_url_credentials,
+    send_with_retry,
 };
 use serde::Deserialize;
 use std::time::Duration;
@@ -466,13 +467,19 @@ async fn fetch_packument(
     {
         return Err(format!("{display_url} returned an oversized packument ({length} bytes)"));
     }
-    let body = response.text().await.map_err(|source| {
-        format!("{display_url}: {}", redact_url_credentials(&source.to_string()))
-    })?;
-    if body.len() as u64 > MAX_PACKUMENT_BYTES {
-        return Err(format!("{display_url} returned an oversized packument"));
+    use futures_util::StreamExt as _;
+    let mut stream = response.bytes_stream();
+    let mut body_bytes = Vec::new();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|source| {
+            format!("{display_url}: {}", redact_url_credentials(&source.to_string()))
+        })?;
+        if (body_bytes.len() + chunk.len()) as u64 > MAX_PACKUMENT_BYTES {
+            return Err(format!("{display_url} returned an oversized packument"));
+        }
+        body_bytes.extend_from_slice(&chunk);
     }
-    serde_json::from_str::<Packument>(&body)
+    serde_json::from_slice::<Packument>(&body_bytes)
         .map(Some)
         .map_err(|err| format!("{display_url} returned invalid JSON: {err}"))
 }
@@ -522,29 +529,6 @@ fn retry_opts(config: &Config) -> RetryOpts {
 
 fn with_trailing_slash(registry: &str) -> String {
     if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
-}
-
-/// Percent-encode a package name for a packument URL (scoped names keep
-/// the leading `@`, the `/` becomes `%2F`).
-fn encode_package_name(name: &str) -> String {
-    match name.strip_prefix('@') {
-        Some(rest) => format!("@{}", encode_uri_component(rest)),
-        None => encode_uri_component(name),
-    }
-}
-
-fn encode_uri_component(input: &str) -> String {
-    use std::fmt::Write as _;
-    const UNRESERVED: &[u8] = b"-_.!~*'()";
-    let mut output = String::with_capacity(input.len());
-    for &byte in input.as_bytes() {
-        if byte.is_ascii_alphanumeric() || UNRESERVED.contains(&byte) {
-            output.push(byte as char);
-        } else {
-            write!(output, "%{byte:02X}").expect("writing to a String never fails");
-        }
-    }
-    output
 }
 
 #[cfg(test)]
