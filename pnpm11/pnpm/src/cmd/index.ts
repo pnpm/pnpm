@@ -34,6 +34,7 @@ import * as ci from './cleanInstall.js'
 import { createHelp } from './help.js'
 import * as installTest from './installTest.js'
 import { NOT_IMPLEMENTED_COMMAND_SET, notImplementedCommandDefinitions } from './notImplemented.js'
+import * as prefix from './prefix.js'
 import * as recursive from './recursive.js'
 import * as root from './root.js'
 
@@ -167,6 +168,7 @@ const commands: CommandDefinition[] = [
   patchRemove,
   peers,
   ping,
+  prefix,
   prune,
   publish,
   stage,
