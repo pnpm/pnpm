@@ -692,7 +692,7 @@ async fn get_four_segments(
 ///   endpoint.
 /// * `/~<prefix>/-/npm/v1/user` and `/~<prefix>/-/npm/v1/tokens` — the
 ///   global profile and token-list endpoints, served under any `~` prefix
-///   (identity endpoints skip the mount lookup — see `get_three_segments`).
+///   (identity endpoints skip the mount lookup — see [`get_three_segments`]).
 ///
 /// Every other 5-segment GET is a not-found catchall (the route exists so
 /// DELETE/PUT can sit on the same path).
@@ -796,7 +796,7 @@ async fn put_three_segments(
 /// * `/~<prefix>/-/user/org.couchdb.user:{name}` — the global adduser/login,
 ///   served under any `~` prefix so `pnpm login` against a mount-URL registry
 ///   works (identity endpoints skip the mount lookup — see
-///   `get_three_segments`).
+///   [`get_three_segments`]).
 async fn put_four_segments(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
@@ -897,7 +897,7 @@ async fn delete_four_segments(
 ///   (one step of `pnpm unpublish <pkg>@<version>`).
 /// * `/~<prefix>/-/user/token/{tok}` — the global logout, served under any
 ///   `~` prefix (identity endpoints skip the mount lookup — see
-///   `get_three_segments`).
+///   [`get_three_segments`]).
 async fn delete_five_segments(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
@@ -964,7 +964,7 @@ async fn delete_six_segments(
 ///   pnpm unpublish flow reconstructs from the packument's tarball URL).
 /// * `/~<prefix>/-/npm/v1/tokens/token/{key}` — the global token revocation,
 ///   served under any `~` prefix (identity endpoints skip the mount lookup —
-///   see `get_three_segments`).
+///   see [`get_three_segments`]).
 async fn delete_seven_segments(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
@@ -2743,7 +2743,7 @@ async fn serve_search(
         let keep = |name: &str| {
             matches!(
                 resolve_mount_source(state, &mount, name),
-                MountSource::Hosted(resolved) if resolved == source
+                MountSource::Hosted(resolved) if resolved == source,
             ) && authorize(state, identity, name, Action::Access).is_ok()
         };
         match crate::search::run_local_search(&storage, &text, size - objects.len(), keep).await {

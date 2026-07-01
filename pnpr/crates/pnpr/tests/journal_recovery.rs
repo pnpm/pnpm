@@ -176,7 +176,7 @@ async fn recovery_rolls_a_sealed_org_transaction_forward_into_its_namespace() {
     )
     .unwrap();
     assert_eq!(on_disk["versions"]["1.0.0"]["version"], "1.0.0");
-    assert_eq!(std::fs::read(storage.join("acme/crash-org/crash-org-1.0.0.tgz")).unwrap(), tarball,);
+    assert_eq!(std::fs::read(storage.join("acme/crash-org/crash-org-1.0.0.tgz")).unwrap(), tarball);
     assert!(!tmp_path.exists(), "staged tmp file should be promoted away");
     assert!(
         !storage.join("crash-org").exists(),

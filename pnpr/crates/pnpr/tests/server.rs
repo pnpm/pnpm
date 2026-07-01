@@ -2983,7 +2983,7 @@ async fn private_hosted_mount_denies_writes_from_non_members() {
         Request::put("/-/package/@corp%2Ftool/dist-tags/latest")
             .header("content-type", "application/json")
             .header(header::AUTHORIZATION, format!("Bearer {token}"))
-            .body(Body::from("\"1.0.0\""))
+            .body(Body::from(r#""1.0.0""#))
             .unwrap()
     };
 
@@ -3148,7 +3148,7 @@ async fn mount_addressed_surface_serves_dist_tags_unpublish_whoami_search_and_ve
         .oneshot(
             authed(Request::put("/~acme/-/package/@acme%2Fwidget/dist-tags/beta"))
                 .header("content-type", "application/json")
-                .body(Body::from("\"1.0.0\""))
+                .body(Body::from(r#""1.0.0""#))
                 .unwrap(),
         )
         .await
@@ -3290,12 +3290,12 @@ async fn pathless_private_mount_responses_carry_private_cache_headers() {
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK, "GET {path}");
         assert_eq!(
-            response.headers().get(header::CACHE_CONTROL).and_then(|v| v.to_str().ok()),
+            response.headers().get(header::CACHE_CONTROL).and_then(|value| value.to_str().ok()),
             Some("private, no-store"),
             "missing private cache header on {path}",
         );
         assert_eq!(
-            response.headers().get(header::VARY).and_then(|v| v.to_str().ok()),
+            response.headers().get(header::VARY).and_then(|value| value.to_str().ok()),
             Some("Authorization"),
             "missing Vary on {path}",
         );
