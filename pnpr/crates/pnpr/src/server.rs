@@ -1433,6 +1433,21 @@ async fn serve_tarball_via_uplink(
     }
     let namespace = uplink_cache_namespace(state, uplink);
     let ttl = upstream.maxage().unwrap_or(state.inner.config.packument_ttl);
+    // Serve a cached hit before touching the packument: a cached entry was
+    // bound to a declared version and verified against `dist.integrity` when
+    // it was written, and the client re-verifies what it receives, so no
+    // re-bind or re-hash is needed. The packument load — and the full-document
+    // JSON parse in `expected_tarball_dist` — costs milliseconds per request
+    // for a large package and would dominate warm tarball serving. Only OSV
+    // screening needs the packument-resolved version first, so with OSV
+    // enabled the cache read waits for the bind below. A `cache: false`
+    // uplink skips the cache and streams through.
+    if upstream.caches()
+        && state.inner.osv_index.is_none()
+        && let Some(response) = cached_uplink_tarball(state, &namespace, &name, &filename).await
+    {
+        return response;
+    }
     let packument = match timed(
         "tarball:packument_load",
         name.as_str(),
@@ -1455,27 +1470,11 @@ async fn serve_tarball_via_uplink(
     {
         return error_response(&err);
     }
-
-    // Serve a cached private-mirror hit directly: the bytes were verified
-    // against `dist.integrity` when written and the client re-verifies what it
-    // receives, so no re-hash is needed — the same trust model the public proxy
-    // path uses. A `cache: false` uplink skips the cache and streams through.
-    if upstream.caches() {
-        match timed(
-            "tarball:cache_read",
-            name.as_str(),
-            state.inner.storage.open_uplink_tarball(&namespace, &name, &filename),
-        )
-        .await
-        {
-            Ok(Some((file, len))) => {
-                return tarball_response(streaming::stream_file(file), Some(len));
-            }
-            Ok(None) => {}
-            Err(err) => {
-                tracing::warn!(?err, package = %name.as_str(), %filename, "uplink tarball cache open failed");
-            }
-        }
+    if upstream.caches()
+        && state.inner.osv_index.is_some()
+        && let Some(response) = cached_uplink_tarball(state, &namespace, &name, &filename).await
+    {
+        return response;
     }
 
     let response = match timed(
@@ -1519,6 +1518,31 @@ async fn serve_tarball_via_uplink(
     match streaming::stream_verified_to_cache(response, write, &integrity, MAX_TARBALL_BYTES) {
         Ok(body) => tarball_response(body, None),
         Err(err) => error_response(&tarball_stream_error(err, &name, &filename)),
+    }
+}
+
+/// The response for a cached uplink tarball, or `None` on a cache miss. A
+/// cache-open fault is logged and treated as a miss so the caller falls back
+/// to the upstream fetch rather than failing the request.
+async fn cached_uplink_tarball(
+    state: &AppState,
+    namespace: &str,
+    name: &PackageName,
+    filename: &str,
+) -> Option<Response> {
+    match timed(
+        "tarball:cache_read",
+        name.as_str(),
+        state.inner.storage.open_uplink_tarball(namespace, name, filename),
+    )
+    .await
+    {
+        Ok(Some((file, len))) => Some(tarball_response(streaming::stream_file(file), Some(len))),
+        Ok(None) => None,
+        Err(err) => {
+            tracing::warn!(?err, package = %name.as_str(), %filename, "uplink tarball cache open failed");
+            None
+        }
     }
 }
 
