@@ -1632,9 +1632,7 @@ fn cold_mock_config_yaml(storage: &Path, origin: &str) -> String {
         uplinks: ColdMockUplinks { npmjs: ColdMockUplink { url: origin.to_string() } },
         packages,
         mounts: ColdMockMounts {
-            npmjs: ColdMockMount {
-                upstream: ColdMockUpstream { url: origin.to_string(), public: true },
-            },
+            npmjs: ColdMockMount { kind: "upstream", url: origin.to_string(), public: true },
         },
         default_target: "npmjs",
         log: ColdMockLog { kind: "stdout", format: "pretty", level: "error" },
@@ -1676,13 +1674,12 @@ struct ColdMockMounts {
     npmjs: ColdMockMount,
 }
 
+/// One `mounts:` entry in the new mount model: the `type:` tag selects the kind
+/// (`upstream` here), and the kind's fields sit alongside it.
 #[derive(Serialize)]
 struct ColdMockMount {
-    upstream: ColdMockUpstream,
-}
-
-#[derive(Serialize)]
-struct ColdMockUpstream {
+    #[serde(rename = "type")]
+    kind: &'static str,
     url: String,
     public: bool,
 }

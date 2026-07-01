@@ -28,8 +28,8 @@ fn config_from_yaml(packages_block: &str) -> (TempDir, Config) {
     // empty `org` namespace), so the path-less base resolves and the per-package
     // ACL in `packages_block` gates the request.
     let mounts_block = "mounts:\n  \
-        local:\n    hostedOrg:\n      org: \"\"\n      access: $all\n  \
-        main:\n    router:\n      routes:\n        - patterns: ['**']\n          source: local\n\
+        local:\n    type: hostedOrg\n    org: \"\"\n    access: $all\n  \
+        main:\n    type: router\n    routes:\n      - patterns: ['**']\n        source: local\n\
         defaultTarget: main\n";
     let yaml = format!(
         "storage: {}\nauth:\n  htpasswd:\n    max_users: 100\n{mounts_block}{packages_block}\n",

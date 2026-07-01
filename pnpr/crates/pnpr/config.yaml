@@ -80,34 +80,34 @@ mounts:
   # The locally-hosted fixtures (and anything published here). An empty `org`
   # namespaces onto the flat `storage` root, where the fixtures are seeded.
   local:
-    hostedOrg:
-      org: ""
-      access: $all
+    type: hostedOrg
+    org: ""
+    access: $all
   # The public npm registry.
   npmjs:
-    upstream:
-      url: https://registry.npmjs.org/
-      public: true
+    type: upstream
+    url: https://registry.npmjs.org/
+    public: true
   # One URL routing each package to exactly one source by the first matching
   # pattern. The fixture scopes are authoritative-local; everything else is
   # npm. A router refuses to start on a shadowed route, so the `**` catch-all
   # must stay last.
   main:
-    router:
-      routes:
-        - patterns:
-            - '@foo/*'
-            - '@having/*'
-            - '@jsr/*'
-            - '@pnpm/*'
-            - '@pnpm.e2e/*'
-            - '@private/*'
-            - '@scoped/*'
-            - '@zkochan/*'
-            - 'create-touch-file-one-bin'
-          source: local
-        - patterns: ['**']
-          source: npmjs
+    type: router
+    routes:
+      - patterns:
+          - '@foo/*'
+          - '@having/*'
+          - '@jsr/*'
+          - '@pnpm/*'
+          - '@pnpm.e2e/*'
+          - '@private/*'
+          - '@scoped/*'
+          - '@zkochan/*'
+          - 'create-touch-file-one-bin'
+        source: local
+      - patterns: ['**']
+        source: npmjs
 
 # The path-less base URL (`https://<pnpr>/`) aliases this mount.
 defaultTarget: main

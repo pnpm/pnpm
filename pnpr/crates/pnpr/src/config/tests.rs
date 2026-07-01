@@ -211,14 +211,14 @@ fn from_yaml_str_resolves_uplink_auth_and_headers() {
     let yaml = r"
 mounts:
   npmjs:
-    upstream:
-      url: https://registry.npmjs.org/
-      access: $authenticated
-      auth:
-        type: bearer
-        token: secret-token
-      headers:
-        X-Org: acme
+    type: upstream
+    url: https://registry.npmjs.org/
+    access: $authenticated
+    auth:
+      type: bearer
+      token: secret-token
+    headers:
+      X-Org: acme
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     let uplink = &config.uplinks["npmjs"];
@@ -346,11 +346,11 @@ fn from_yaml_str_accepts_string_and_bare_number_intervals() {
     let yaml = r"
 mounts:
   npmjs:
-    upstream:
-      url: https://registry.npmjs.org/
-      public: true
-      maxage: 10m
-      timeout: 45
+    type: upstream
+    url: https://registry.npmjs.org/
+    public: true
+    maxage: 10m
+    timeout: 45
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     let uplink = &config.uplinks["npmjs"];
@@ -834,20 +834,20 @@ fn from_yaml_str_router_routes_each_package_to_one_source() {
 storage: ./s
 mounts:
   npmjs:
-    upstream:
-      url: https://registry.npmjs.org/
-      public: true
+    type: upstream
+    url: https://registry.npmjs.org/
+    public: true
   corp:
-    upstream:
-      url: https://npm.corp.example/
-      access: $authenticated
+    type: upstream
+    url: https://npm.corp.example/
+    access: $authenticated
   main:
-    router:
-      routes:
-        - patterns: ['@corp/*']
-          source: corp
-        - patterns: ['**']
-          source: npmjs
+    type: router
+    routes:
+      - patterns: ['@corp/*']
+        source: corp
+      - patterns: ['**']
+        source: npmjs
 defaultTarget: main
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
@@ -876,17 +876,15 @@ fn from_yaml_str_rejects_misordered_router() {
     let yaml = "\
 storage: ./s
 mounts:
-  npmjs:
-    upstream: { url: https://registry.npmjs.org/, public: true }
-  acme:
-    hostedOrg: { org: acme }
+  npmjs: { type: upstream, url: https://registry.npmjs.org/, public: true }
+  acme: { type: hostedOrg, org: acme }
   main:
-    router:
-      routes:
-        - patterns: ['**']
-          source: npmjs
-        - patterns: ['@acme/*']
-          source: acme
+    type: router
+    routes:
+      - patterns: ['**']
+        source: npmjs
+      - patterns: ['@acme/*']
+        source: acme
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
         .expect_err("misordered router must be rejected");
@@ -899,8 +897,7 @@ fn from_yaml_str_rejects_undefined_default_target() {
     let yaml = "\
 storage: ./s
 mounts:
-  npmjs:
-    upstream: { url: https://registry.npmjs.org/, public: true }
+  npmjs: { type: upstream, url: https://registry.npmjs.org/, public: true }
 defaultTarget: ghost
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
@@ -915,12 +912,30 @@ fn from_yaml_str_rejects_private_upstream_without_access() {
 storage: ./s
 mounts:
   corp:
-    upstream:
-      url: https://npm.corp.example/
+    type: upstream
+    url: https://npm.corp.example/
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
         .expect_err("private upstream without access must be rejected");
     assert!(err.to_string().contains("public: true"), "unexpected error: {err}");
+}
+
+/// The internally-tagged mount enum names the valid kinds, so a typo'd `type:`
+/// fails to load rather than being silently misrouted.
+#[test]
+fn from_yaml_str_rejects_unknown_mount_type() {
+    let yaml = "\
+storage: ./s
+mounts:
+  npmjs:
+    type: uplink
+    url: https://registry.npmjs.org/
+";
+    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+        .expect_err("an unknown mount `type:` must be rejected");
+    let message = err.to_string();
+    assert!(message.contains("hostedOrg"), "expected the valid kinds listed, got: {message}");
+    assert!(message.contains("upstream"), "expected the valid kinds listed, got: {message}");
 }
 
 #[test]
@@ -1604,12 +1619,12 @@ packages:
     access: platform
 mounts:
   corp:
-    upstream:
-      url: https://npm.corp.example/
-      access: platform
-      auth:
-        type: bearer
-        token: corp-token
+    type: upstream
+    url: https://npm.corp.example/
+    access: platform
+    auth:
+      type: bearer
+      token: corp-token
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     let alice = config.identity_for_user("alice");
@@ -1767,12 +1782,12 @@ fn uplink_resolves_bearer_auth_and_access() {
     let yaml = r"
 mounts:
   corp:
-    upstream:
-      url: https://npm.corp.example/
-      access: $authenticated alice
-      auth:
-        type: bearer
-        token: corp-token
+    type: upstream
+    url: https://npm.corp.example/
+    access: $authenticated alice
+    auth:
+      type: bearer
+      token: corp-token
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     let uplink = &config.uplinks["corp"];
@@ -1788,12 +1803,12 @@ fn uplink_resolves_basic_auth_and_access() {
     let yaml = r"
 mounts:
   corp:
-    upstream:
-      url: https://npm.corp.example/
-      access: $authenticated
-      auth:
-        type: basic
-        token: dXNlcjpwYXNz
+    type: upstream
+    url: https://npm.corp.example/
+    access: $authenticated
+    auth:
+      type: basic
+      token: dXNlcjpwYXNz
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     let uplink = &config.uplinks["corp"];
@@ -1808,9 +1823,9 @@ fn public_upstream_mount_carries_no_access_credential() {
     let yaml = r"
 mounts:
   corp:
-    upstream:
-      url: https://npm.corp.example/
-      public: true
+    type: upstream
+    url: https://npm.corp.example/
+    public: true
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
     // A public upstream mount is reachable anonymously and carries no access

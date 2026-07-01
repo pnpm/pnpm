@@ -896,17 +896,17 @@ struct PublicRouteFile {
     package: Option<String>,
 }
 
-/// Disk shape of one `mounts:` entry. Exactly one of the three mount kinds
-/// must be set; declaring none or more than one is a config error.
+/// Disk shape of one `mounts:` entry, discriminated by an internal `type:` tag
+/// (`hostedOrg` / `upstream` / `router`). The tag selects exactly one kind, so
+/// "declared none or more than one" is unrepresentable — no runtime count check.
 #[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct MountFile {
-    #[serde(default)]
-    hosted_org: Option<HostedOrgFile>,
-    #[serde(default)]
-    upstream: Option<UpstreamFile>,
-    #[serde(default)]
-    router: Option<RouterFile>,
+#[serde(tag = "type", rename_all = "camelCase")]
+enum MountFile {
+    HostedOrg(HostedOrgFile),
+    // Boxed: `UpstreamFile` is far larger than the other kinds, so an unboxed
+    // variant would bloat every `MountFile`.
+    Upstream(Box<UpstreamFile>),
+    Router(RouterFile),
 }
 
 /// Disk shape of a `hostedOrg:` mount.
@@ -1610,14 +1610,6 @@ fn build_mounts(
         graph.insert(name.clone(), MountKind::Upstream);
     }
     for (name, file) in mount_files {
-        let declared = [file.hosted_org.is_some(), file.upstream.is_some(), file.router.is_some()];
-        if declared.iter().filter(|set| **set).count() != 1 {
-            return Err(RegistryError::InvalidConfig {
-                reason: format!(
-                    "mount {name:?} must declare exactly one of `hostedOrg`, `upstream`, or `router`",
-                ),
-            });
-        }
         if graph.contains_key(&name) {
             return Err(RegistryError::InvalidConfig {
                 reason: format!(
@@ -1625,20 +1617,24 @@ fn build_mounts(
                 ),
             });
         }
-        if let Some(org) = file.hosted_org {
-            let access = org
-                .access
-                .as_ref()
-                .map_or_else(|| AccessList::parse("$all"), AccessSpec::to_access_list);
-            hosted_orgs.insert(name.clone(), HostedOrgConfig { org: org.org, access });
-            graph.insert(name, MountKind::HostedOrg);
-        } else if let Some(upstream) = file.upstream {
-            let resolved = resolve_upstream_mount::<SystemEnv>(&name, upstream)?;
-            uplinks.insert(name.clone(), resolved);
-            graph.insert(name, MountKind::Upstream);
-        } else if let Some(router) = file.router {
-            let routes = build_routes(&name, router.routes)?;
-            graph.insert(name, MountKind::Router { routes });
+        match file {
+            MountFile::HostedOrg(org) => {
+                let access = org
+                    .access
+                    .as_ref()
+                    .map_or_else(|| AccessList::parse("$all"), AccessSpec::to_access_list);
+                hosted_orgs.insert(name.clone(), HostedOrgConfig { org: org.org, access });
+                graph.insert(name, MountKind::HostedOrg);
+            }
+            MountFile::Upstream(upstream) => {
+                let resolved = resolve_upstream_mount::<SystemEnv>(&name, *upstream)?;
+                uplinks.insert(name.clone(), resolved);
+                graph.insert(name, MountKind::Upstream);
+            }
+            MountFile::Router(router) => {
+                let routes = build_routes(&name, router.routes)?;
+                graph.insert(name, MountKind::Router { routes });
+            }
         }
     }
     let mounts = Mounts::new(graph, default_target);
