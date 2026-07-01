@@ -153,9 +153,14 @@ jobs:
         # `$HOME/.cache/pnpm-registry/storage`).
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
-          key: integrated-benchmark-pnpm-registry-${{ hashFiles('pacquet/tasks/integrated-benchmark/src/fixtures/pnpm-lock.yaml') }}
+          # v2: the pre-v2 storage carried a stale caniuse-lite packument in
+          # the legacy uplink cache namespace — it declared a version whose
+          # tarball was never cached, so every fresh-install run 404ed for
+          # the pnpr base revision. Bump the version segment again whenever
+          # the persisted storage goes internally inconsistent like that.
+          key: integrated-benchmark-pnpm-registry-v2-${{ hashFiles('pacquet/tasks/integrated-benchmark/src/fixtures/pnpm-lock.yaml') }}
           restore-keys: |
-            integrated-benchmark-pnpm-registry-
+            integrated-benchmark-pnpm-registry-v2-
           path: |
             ~/.cache/pnpm-registry/storage
         timeout-minutes: 1
