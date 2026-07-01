@@ -80,6 +80,21 @@ pub struct WorkEnv {
     /// already present — i.e. restored from a per-commit CI cache. Off by
     /// default so a local run always rebuilds.
     pub reuse_prebuilt_binaries: bool,
+
+    /// Diagnostic: launch every `pnpr` mock/server with
+    /// `RUST_LOG=pnpr::serve_timing=debug` so its per-phase serve timing lands
+    /// in the process log. Skews the measured means, so it is for diagnosis only.
+    pub serve_timing: bool,
+}
+
+impl WorkEnv {
+    /// Apply the `serve_timing` diagnostic env to a spawned `pnpr` command, if
+    /// enabled — so the server emits per-phase serve timing to its log.
+    fn apply_serve_timing(&self, command: &mut Command) {
+        if self.serve_timing {
+            command.env("RUST_LOG", "pnpr::serve_timing=debug");
+        }
+    }
 }
 
 impl WorkEnv {
@@ -546,7 +561,10 @@ impl WorkEnv {
                 "Serving {revision}'s tarballs from a COLD mock built from pnpr@{revision} on 127.0.0.1:{mock_port} (origin {})...",
                 self.registry,
             );
-            Command::new(&binary)
+            // Chain broken for a mutable binding: `apply_serve_timing` must set
+            // an env on the command before it is spawned.
+            let mut command = Command::new(&binary);
+            command
                 .arg("--config")
                 .arg(&config_path)
                 .arg("--storage")
@@ -556,7 +574,9 @@ impl WorkEnv {
                 .arg("--public-url")
                 .arg(&registry.url)
                 .arg("--packument-ttl-secs")
-                .arg("31536000")
+                .arg("31536000");
+            self.apply_serve_timing(&mut command);
+            command
                 .stdin(Stdio::null())
                 .stdout(stdout)
                 .stderr(stderr)
@@ -566,7 +586,13 @@ impl WorkEnv {
             eprintln!(
                 "Serving {revision}'s tarballs from a mock built from pnpr@{revision} on 127.0.0.1:{mock_port}...",
             );
-            pacquet_registry_mock::pnpr_command_with_binary(&binary, mock_port, Some(&registry.url))
+            let mut command = pacquet_registry_mock::pnpr_command_with_binary(
+                &binary,
+                mock_port,
+                Some(&registry.url),
+            );
+            self.apply_serve_timing(&mut command);
+            command
                 .stdin(Stdio::null())
                 .stdout(stdout)
                 .stderr(stderr)
@@ -637,7 +663,10 @@ impl WorkEnv {
             .expect("create pnpr server stdout log");
         let stderr = File::create(bench_dir.join("pnpr-server.stderr.log"))
             .expect("create pnpr server stderr log");
-        let process = Command::new(&binary)
+        // Chain broken for a mutable binding: `apply_serve_timing` sets an env
+        // before spawn.
+        let mut command = Command::new(&binary);
+        command
             .arg("--config")
             .arg(&pnpr_config)
             .arg("--listen")
@@ -649,7 +678,9 @@ impl WorkEnv {
             // those cached packuments authoritative across the run, the
             // same value the registry-mock pins for the same reason.
             .arg("--packument-ttl-secs")
-            .arg("31536000")
+            .arg("31536000");
+        self.apply_serve_timing(&mut command);
+        let process = command
             .stdin(Stdio::null())
             .stdout(stdout)
             .stderr(stderr)

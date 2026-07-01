@@ -267,7 +267,7 @@ jobs:
         # warm server), and a failure surfaces fast enough to iterate on.
         timeout-minutes: 15
         run: |
-          just integrated-benchmark --reuse-prebuilt-binaries --scenario=isolated-linker.fresh-restore.cold-cache.cold-store --registry=verdaccio --pnpr-latency-ms=${PNPR_LATENCY_MS} --registry-latency-ms=${REGISTRY_LATENCY_MS} --registry-bandwidth-mbps=${REGISTRY_BANDWIDTH_MBPS} $BENCHMARK_TARGETS
+          just integrated-benchmark --reuse-prebuilt-binaries --serve-timing --scenario=isolated-linker.fresh-restore.cold-cache.cold-store --registry=verdaccio --pnpr-latency-ms=${PNPR_LATENCY_MS} --registry-latency-ms=${REGISTRY_LATENCY_MS} --registry-bandwidth-mbps=${REGISTRY_BANDWIDTH_MBPS} $BENCHMARK_TARGETS
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE.md
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE.json
 
@@ -294,7 +294,7 @@ jobs:
         # safety net the other steps document.
         timeout-minutes: 35
         run: |
-          just integrated-benchmark --reuse-prebuilt-binaries --scenario=isolated-linker.fresh-install.cold-cache.cold-store --registry=verdaccio --pnpr-latency-ms=${PNPR_LATENCY_MS} --registry-latency-ms=${REGISTRY_LATENCY_MS} --registry-bandwidth-mbps=${REGISTRY_BANDWIDTH_MBPS} $BENCHMARK_TARGETS
+          just integrated-benchmark --reuse-prebuilt-binaries --serve-timing --scenario=isolated-linker.fresh-install.cold-cache.cold-store --registry=verdaccio --pnpr-latency-ms=${PNPR_LATENCY_MS} --registry-latency-ms=${REGISTRY_LATENCY_MS} --registry-bandwidth-mbps=${REGISTRY_BANDWIDTH_MBPS} $BENCHMARK_TARGETS
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_COLD_STORE.md
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_COLD_STORE.json
 
@@ -359,6 +359,18 @@ jobs:
             echo "::group::$log"
             tail -n 200 "$log"
             echo "::endgroup::"
+            # When `--serve-timing` is on, these logs carry per-phase serve
+            # timing (`pnpr::serve_timing` events). Aggregate them into a compact
+            # per-phase profile (count, total ms, mean µs) so a cold-store serve
+            # cost is visible without scrolling thousands of lines.
+            if grep -q "pnpr::serve_timing" "$log"; then
+              echo "::group::$log (serve_timing per-phase summary)"
+              grep -oE 'phase="[^"]+".*elapsed_us=[0-9]+' "$log" \
+                | sed -E 's/phase="([^"]+)".*elapsed_us=([0-9]+)/\1 \2/' \
+                | awk '{n[$1]++; sum[$1]+=$2} END {for (p in n) printf "%-28s count=%-7d total_ms=%-10.1f mean_us=%.0f\n", p, n[p], sum[p]/1000, sum[p]/n[p]}' \
+                | sort
+              echo "::endgroup::"
+            fi
           done
 
       - name: Generate summary
