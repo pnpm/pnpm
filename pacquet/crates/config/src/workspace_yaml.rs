@@ -60,6 +60,7 @@ where
 #[serde(rename_all = "camelCase", default)]
 pub struct WorkspaceSettings {
     pub hoist: Option<bool>,
+    pub editor: Option<String>,
 
     /// Tri-state `hoistPattern` — see `deserialize_double_option`.
     #[serde(default, deserialize_with = "deserialize_double_option")]
@@ -722,6 +723,10 @@ impl WorkspaceSettings {
             resolution_mode, catalog_mode, registry_supports_time_field,
             allowed_deprecated_versions, update_config, peer_dependency_rules,
             enable_pre_post_scripts, dlx_cache_max_age,
+        }
+
+        if let Some(editor) = self.editor {
+            config.editor = Some(editor);
         }
 
         if let Some(inner) = self.hoist_pattern {

@@ -61,8 +61,10 @@
     "ramda": "catalog:",
     "realpath-missing": "catalog:",
     "render-help": "catalog:",
+    "rename-overwrite": "catalog:",
     "safe-execa": "catalog:",
     "semver": "catalog:",
+    "shlex": "catalog:",
     "terminal-link": "catalog:",
     "tinyglobby": "catalog:"
   },
