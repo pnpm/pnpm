@@ -367,7 +367,7 @@ jobs:
           for log in bench-work-env/*/revision-mock.stdout.log bench-work-env/*/pnpr-server.stdout.log; do
             if grep -q "pnpr::serve_timing" "$log"; then
               echo "::group::$log (serve_timing per-phase summary)"
-              grep -oE 'phase="[^"]+".*elapsed_us=[0-9]+' "$log" \
+              sed -E 's/\x1b\[[0-9;]*m//g' "$log" | grep -oE 'phase="[^"]+".*elapsed_us=[0-9]+' \
                 | sed -E 's/phase="([^"]+)".*elapsed_us=([0-9]+)/\1 \2/' \
                 | awk '{n[$1]++; sum[$1]+=$2} END {for (p in n) printf "%-28s count=%-7d total_ms=%-10.1f mean_us=%.0f\n", p, n[p], sum[p]/1000, sum[p]/n[p]}' \
                 | sort
