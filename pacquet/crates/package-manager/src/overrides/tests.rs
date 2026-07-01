@@ -393,5 +393,6 @@ fn applied_selectors_dedupes_across_apply_calls() {
     }
 
     let applied = overrider.applied_selectors();
-    assert_eq!(applied.iter().collect::<Vec<_>>(), vec![&"foo".to_string()]);
+    assert_eq!(applied.len(), 1);
+    assert!(applied.contains("foo"));
 }

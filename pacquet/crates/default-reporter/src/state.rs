@@ -1035,7 +1035,7 @@ impl ReporterState {
 /// from an override selector before rendering, so a crafted key
 /// cannot inject/spoof terminal output.
 fn sanitize_override_selector(selector: &str) -> String {
-    selector.chars().filter(|ch| !ch.is_control()).map(|ch| ch.to_string()).collect()
+    selector.chars().filter(|ch| !ch.is_control()).collect()
 }
 
 fn diff_key(kind: DepKind) -> &'static str {
