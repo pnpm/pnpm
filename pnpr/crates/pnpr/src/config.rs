@@ -159,8 +159,10 @@ pub struct HostedConfig {
     /// The storage/serving namespace, so two hosted mounts holding the same
     /// `name@version` never collide. Empty (`""`) ⇒ the flat `storage` root.
     pub org: String,
-    /// Who may read this mount's packages. Defaults to `$all` (a public hosted
-    /// mount) when the mount omits `access:`.
+    /// Who may reach this mount at all — gates reads *and* the write routing
+    /// (publish, dist-tag, unpublish), with a denied caller masked as
+    /// not-found either way. Defaults to `$all` (a public hosted mount) when
+    /// the mount omits `access:`.
     pub access: AccessList,
 }
 

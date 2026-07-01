@@ -20,6 +20,7 @@
 //! The check is static because [`PackagePattern`]'s coverage relation is
 //! decidable for this deliberately small glob language.
 
+use crate::package_name::PackageName;
 use indexmap::IndexMap;
 use std::fmt;
 
@@ -46,9 +47,11 @@ pub enum PackagePattern {
 
 impl PackagePattern {
     /// Parse a router pattern. Rejects any `*` that is not one of the three
-    /// recognized wildcard shapes (`**`, `@*/*`, `@<scope>/*`), so an
-    /// unsupported glob fails loudly instead of being read as a literal name
-    /// that silently never matches.
+    /// recognized wildcard shapes (`**`, `@*/*`, `@<scope>/*`), and any
+    /// remaining literal that is not a well-formed package name — so an
+    /// unsupported glob or a typo like `@acme` (meaning `@acme/*`) fails
+    /// loudly instead of being read as a literal name that silently never
+    /// matches and lets the scope fall through to a later route.
     pub fn parse(pattern: &str) -> Result<Self, MountConfigError> {
         let invalid = || MountConfigError::InvalidPattern { pattern: pattern.to_string() };
         if pattern.is_empty() {
@@ -71,6 +74,9 @@ impl PackagePattern {
         // Anything left that still carries a `*` is an unsupported glob.
         if pattern.contains('*') {
             return Err(invalid());
+        }
+        if PackageName::parse(pattern).is_err() {
+            return Err(MountConfigError::ExactPatternNotAName { pattern: pattern.to_string() });
         }
         Ok(PackagePattern::Exact(pattern.to_string()))
     }
@@ -376,6 +382,9 @@ impl Mounts {
 pub enum MountConfigError {
     /// An unsupported wildcard in a router pattern.
     InvalidPattern { pattern: String },
+    /// A wildcard-free router pattern that is not a well-formed package name,
+    /// so it could never match any request.
+    ExactPatternNotAName { pattern: String },
     /// `defaultTarget` names a mount that does not exist.
     UndefinedDefaultTarget { target: String },
     /// A router route has no patterns, so it can never match.
@@ -402,6 +411,11 @@ impl fmt::Display for MountConfigError {
                 f,
                 "unsupported router pattern {pattern:?}: use an exact name, `@scope/*`, `@*/*`, \
                  or `**`",
+            ),
+            MountConfigError::ExactPatternNotAName { pattern } => write!(
+                f,
+                "router pattern {pattern:?} is not a valid package name, so it can never match; \
+                 to route every package in a scope use `@scope/*`",
             ),
             MountConfigError::UndefinedDefaultTarget { target } => {
                 write!(f, "defaultTarget {target:?} is not a defined mount")

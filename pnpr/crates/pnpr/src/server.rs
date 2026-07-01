@@ -874,7 +874,7 @@ async fn serve_mount_version_manifest(
         MountSource::Hosted(source) => {
             // Mask first: a private org 404s an unauthorized caller before the
             // per-package ACL could reveal existence — see `serve_mount_packument`.
-            let Some(org) = readable_hosted_namespace(state, identity, &source) else {
+            let Some(org) = accessible_hosted_namespace(state, identity, &source) else {
                 return not_found();
             };
             if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
@@ -1134,7 +1134,7 @@ async fn load_packument_for_read(
             load_upstream_packument_for(state, identity, &source, name).await
         }
         MountSource::Hosted(source) => {
-            let Some(org) = readable_hosted_namespace(state, identity, &source) else {
+            let Some(org) = accessible_hosted_namespace(state, identity, &source) else {
                 return Ok(None);
             };
             if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
@@ -1383,7 +1383,7 @@ async fn serve_mount_packument(
             serve_packument_via_uplink(state, identity, headers, &source, &name, tarball_base).await
         }
         // A hosted mount masks first: a private org 404s an unauthorized caller
-        // (see `readable_hosted_namespace`) *before* the per-package ACL could
+        // (see `accessible_hosted_namespace`) *before* the per-package ACL could
         // return a 401/403 that reveals the package exists — the ACL is applied
         // inside `serve_hosted_packument` only after the visibility gate passes.
         MountSource::Hosted(source) => {
@@ -1425,10 +1425,13 @@ async fn serve_mount_tarball(
 }
 
 /// The storage namespace of the hosted mount `source` when `identity` may
-/// read it, else `None`. A denied caller is treated as not-found, so a private
-/// org's package existence is not revealed. The org policy composes (logical
-/// AND) with the per-package [`Config::policies`] applied by the serving paths.
-fn readable_hosted_namespace(
+/// access it, else `None`. The mount's `access` list gates reads and writes
+/// alike — a caller who may not read a hosted mount may not publish, tag, or
+/// unpublish into it either. A denied caller is treated as not-found, so a
+/// private org's package existence is not revealed. The org policy composes
+/// (logical AND) with the per-package [`Config::policies`] applied by the
+/// serving and publish paths.
+fn accessible_hosted_namespace(
     state: &AppState,
     identity: &Identity,
     source: &str,
@@ -1450,7 +1453,7 @@ async fn serve_hosted_packument(
     name: &PackageName,
     tarball_base: &str,
 ) -> Response {
-    let Some(org) = readable_hosted_namespace(state, identity, source) else {
+    let Some(org) = accessible_hosted_namespace(state, identity, source) else {
         return not_found();
     };
     if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
@@ -1481,7 +1484,7 @@ async fn serve_hosted_tarball(
     name: &PackageName,
     filename: &str,
 ) -> Response {
-    let Some(org) = readable_hosted_namespace(state, identity, source) else {
+    let Some(org) = accessible_hosted_namespace(state, identity, source) else {
         return not_found();
     };
     let (filename, name_version) = match name.parse_tarball_name(filename) {
@@ -1891,15 +1894,20 @@ enum PublishTarget {
 
 /// Resolve where a publish lands. A write may only target a hosted mount:
 /// a route to an upstream is rejected ("name a hosted mount"), never silently
-/// landing on an upstream. The path-less base routes through its default-target
-/// mount; with no default target the bare host has no registry and the publish
-/// is a not-found, exactly like a read.
-fn resolve_publish_target(state: &AppState, mount: Option<&str>, package: &str) -> PublishTarget {
-    let org_namespace = |source: &str| -> Option<String> {
-        state.inner.config.hosted.get(source).map(|org| org.org.clone())
-    };
+/// landing on an upstream. The mount's `access` list gates the write exactly
+/// as it gates reads — a caller the mount denies gets the same not-found mask
+/// as on a read, so a private mount neither accepts the write nor reveals that
+/// it exists. The path-less base routes through its default-target mount; with
+/// no default target the bare host has no registry and the publish is a
+/// not-found, exactly like a read.
+fn resolve_publish_target(
+    state: &AppState,
+    identity: &Identity,
+    mount: Option<&str>,
+    package: &str,
+) -> PublishTarget {
     let from_source = |source: MountSource, context: &str| match source {
-        MountSource::Hosted(mount) => match org_namespace(&mount) {
+        MountSource::Hosted(mount) => match accessible_hosted_namespace(state, identity, &mount) {
             Some(org) => PublishTarget::Org(org),
             None => PublishTarget::NotFound,
         },
@@ -1959,8 +1967,9 @@ async fn publish_package(
     }
 
     // Route the write to its hosted namespace (or the flat store), failing
-    // closed when the target is an upstream or an unknown mount.
-    let org = match resolve_publish_target(state, mount, name.as_str()) {
+    // closed when the target is an upstream, an unknown mount, or a hosted
+    // mount whose access list denies the caller.
+    let org = match resolve_publish_target(state, identity, mount, name.as_str()) {
         PublishTarget::Org(org) => Some(org),
         PublishTarget::Reject(reason) => {
             return error_response(&RegistryError::BadRequest { reason });
@@ -2066,7 +2075,7 @@ async fn serve_batch_publish(
         // The batch endpoint is path-less, so each package routes via the
         // default target (a router default routes by name; a concrete/absent
         // default keeps the legacy flat store).
-        let org = match resolve_publish_target(&state, None, doc.name.as_str()) {
+        let org = match resolve_publish_target(&state, &identity, None, doc.name.as_str()) {
             PublishTarget::Org(org) => Some(org),
             PublishTarget::Reject(reason) => {
                 for stage in staged {
@@ -2382,28 +2391,50 @@ async fn cleanup_tmp_slots(slots: Vec<crate::storage::TarballSlot>) {
 /// proxy can't deliver because npm's search is fuzzy and returns
 /// dozens of unrelated matches for almost anything).
 ///
-/// Results are filtered by the per-package access policy: a package
-/// the caller can't read (e.g. anonymous + `@private/*` or
-/// `@pnpm.e2e/needs-auth` with the default rules) is dropped from
-/// `objects` before the response is built. Without this the search
-/// endpoint would happily enumerate protected packages that the
-/// packument and tarball GETs correctly hide behind 401.
+/// Results are gated on two dimensions, matching what the packument and
+/// tarball GETs enforce:
+///
+/// * The **mount access list**: the flat store is served only through hosted
+///   mounts whose `org` is the flat root, so a caller none of those mounts
+///   allows gets an empty result — the same existence mask the read paths
+///   apply. Without this, search would enumerate a private mount's packages
+///   by name/version/description while the packument GET correctly 404s.
+/// * The **per-package access policy**: a package the caller can't read
+///   (e.g. anonymous + `@private/*` or `@pnpm.e2e/needs-auth` with the
+///   default rules) is dropped from `objects` before the response is built.
 async fn serve_search(state: &AppState, identity: &Identity, query_string: &str) -> Response {
-    let Some(text) = crate::search::parse_query(query_string) else {
+    let empty_result = || {
         let body = json!({ "objects": [], "total": 0, "time": now_iso() });
         let bytes = serde_json::to_vec(&body).expect("static-shape JSON serializes");
-        return Response::builder()
+        Response::builder()
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, "application/json")
             .body(Body::from(bytes))
-            .expect("static-shape response always builds");
+            .expect("static-shape response always builds")
     };
+    let Some(text) = crate::search::parse_query(query_string) else {
+        return empty_result();
+    };
+    // The scan below reads the flat hosted store, so the caller must pass the
+    // access list of a hosted mount serving the flat root (`org: ""`). With no
+    // such mount the flat store is not served anywhere and nothing is
+    // searchable.
+    let flat_root_accessible = state
+        .inner
+        .config
+        .hosted
+        .values()
+        .any(|hosted| hosted.org.is_empty() && hosted.access.allows(identity));
+    if !flat_root_accessible {
+        return empty_result();
+    }
     let size = crate::search::parse_size(query_string, 20);
     // Search is local-storage-only: it scans the flat hosted store, never the
     // upstreams (an upstream is reached only through its own mount, by exact
     // package name — there is no cross-origin search merge).
     // TODO: extend this to the per-org hosted namespaces (`Storage::for_hosted`)
-    // so packages published under a non-empty `org` are searchable too.
+    // so packages published under a non-empty `org` are searchable too, each
+    // namespace gated by its own mount's access list.
     let mut body = match crate::search::run_local_search(&state.inner.storage, &text, size).await {
         Ok(body) => body,
         Err(err) => return error_response(&err),
@@ -2458,7 +2489,7 @@ async fn update_packument(
             return error_response(&err);
         }
     }
-    let org = match resolve_write_org(state, &name) {
+    let org = match resolve_write_org(state, identity, &name) {
         Ok(org) => org,
         Err(response) => return *response,
     };
@@ -2670,7 +2701,7 @@ async fn delete_package(state: &AppState, identity: &Identity, raw_name: &str) -
     if let Err(err) = authorize(state, identity, name.as_str(), Action::Unpublish) {
         return error_response(&err);
     }
-    let org = match resolve_write_org(state, &name) {
+    let org = match resolve_write_org(state, identity, &name) {
         Ok(org) => org,
         Err(response) => return *response,
     };
@@ -2711,7 +2742,7 @@ async fn delete_tarball(
     if let Err(err) = authorize(state, identity, name.as_str(), Action::Unpublish) {
         return error_response(&err);
     }
-    let org = match resolve_write_org(state, &name) {
+    let org = match resolve_write_org(state, identity, &name) {
         Ok(org) => org,
         Err(response) => return *response,
     };
@@ -2812,7 +2843,7 @@ where
     }
     // A dist-tag change is a write, so it routes to a hosted namespace like
     // a publish — a name routed to an upstream is rejected.
-    let org = match resolve_write_org(state, &name) {
+    let org = match resolve_write_org(state, identity, &name) {
         Ok(org) => org,
         Err(response) => return *response,
     };
@@ -2887,9 +2918,14 @@ where
 /// (dist-tag, unpublish, packument update) targets, or the [`Response`] to
 /// return. A write routes like a publish: through the default-target mount to a
 /// hosted org, rejecting a name routed to an upstream and 404ing when the
-/// path-less base has no default target.
-fn resolve_write_org(state: &AppState, name: &PackageName) -> Result<String, Box<Response>> {
-    match resolve_publish_target(state, None, name.as_str()) {
+/// path-less base has no default target or the mount's access list denies the
+/// caller.
+fn resolve_write_org(
+    state: &AppState,
+    identity: &Identity,
+    name: &PackageName,
+) -> Result<String, Box<Response>> {
+    match resolve_publish_target(state, identity, None, name.as_str()) {
         PublishTarget::Org(org) => Ok(org),
         PublishTarget::Reject(reason) => {
             Err(Box::new(error_response(&RegistryError::BadRequest { reason })))

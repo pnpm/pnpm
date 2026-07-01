@@ -2799,3 +2799,149 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
         .unwrap();
     assert_eq!(rejected.status(), StatusCode::BAD_REQUEST);
 }
+
+/// The mount's access list gates writes exactly as it gates reads (RFC
+/// "registry mounts", implementation point 9). An authenticated non-member
+/// passes the default per-package publish policy (`$authenticated`), so
+/// without the mount-level gate they could publish into — or retag and
+/// unpublish from — a private hosted org. The denial is the same 404 mask
+/// reads use, so the write path reveals nothing about the mount either.
+#[tokio::test]
+async fn private_hosted_mount_denies_writes_from_non_members() {
+    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.hosted.insert(
+        "corp".to_string(),
+        HostedConfig { org: "corp".to_string(), access: AccessList::parse("alice") },
+    );
+    // `/~corp/` addresses the mount directly; the path-less base aliases it,
+    // so the path-less dist-tag and unpublish writes route there too.
+    config.mounts = Mounts::new(
+        vec![("corp".to_string(), MountKind::Hosted)].into_iter().collect(),
+        Some("corp".to_string()),
+    );
+    let auth = AuthState::in_memory();
+    let member = auth.tokens.issue("alice").await.unwrap();
+    let outsider = auth.tokens.issue("mallory").await.unwrap();
+    let app = router_with_auth(config, auth);
+
+    let tarball = b"corp-tool-1.0.0-bytes";
+    let publish_body = json!({
+        "name": "@corp/tool",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": { "1.0.0": { "name": "@corp/tool", "version": "1.0.0", "dist": {
+            "tarball": "http://example.test/@corp/tool/-/tool-1.0.0.tgz",
+            "integrity": sha512_integrity(tarball),
+        } } },
+        "_attachments": { "@corp/tool-1.0.0.tgz": {
+            "content_type": "application/octet-stream",
+            "data": BASE64.encode(tarball),
+            "length": tarball.len(),
+        } },
+    })
+    .to_string();
+    let publish_as = |token: &str| {
+        Request::put("/~corp/@corp/tool")
+            .header("content-type", "application/json")
+            .header(header::AUTHORIZATION, format!("Bearer {token}"))
+            .body(Body::from(publish_body.clone()))
+            .unwrap()
+    };
+    let retag_as = |token: &str| {
+        Request::put("/-/package/@corp%2Ftool/dist-tags/latest")
+            .header("content-type", "application/json")
+            .header(header::AUTHORIZATION, format!("Bearer {token}"))
+            .body(Body::from("\"1.0.0\""))
+            .unwrap()
+    };
+
+    // The non-member publish is masked with 404 — not 401/403, which would
+    // reveal the private mount exists — and nothing lands on disk.
+    let denied = app.clone().oneshot(publish_as(&outsider)).await.unwrap();
+    assert_eq!(denied.status(), StatusCode::NOT_FOUND);
+    assert!(
+        !tmp.path().join("corp/@corp/tool/package.json").exists(),
+        "a denied publish must write nothing",
+    );
+
+    // The member publishes normally.
+    let allowed = app.clone().oneshot(publish_as(&member)).await.unwrap();
+    assert_eq!(allowed.status(), StatusCode::CREATED);
+    assert!(tmp.path().join("corp/@corp/tool/package.json").exists());
+
+    // With the package now hosted, the non-member's path-less retag and
+    // unpublish are masked the same way; the member's retag succeeds.
+    let retag_denied = app.clone().oneshot(retag_as(&outsider)).await.unwrap();
+    assert_eq!(retag_denied.status(), StatusCode::NOT_FOUND);
+    let unpublish_denied = app
+        .clone()
+        .oneshot(
+            Request::delete("/@corp%2Ftool/-rev/1")
+                .header(header::AUTHORIZATION, format!("Bearer {outsider}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(unpublish_denied.status(), StatusCode::NOT_FOUND);
+    assert!(
+        tmp.path().join("corp/@corp/tool/package.json").exists(),
+        "a denied unpublish must remove nothing",
+    );
+    let retag_allowed = app.oneshot(retag_as(&member)).await.unwrap();
+    assert_eq!(retag_allowed.status(), StatusCode::CREATED);
+}
+
+/// Search scans the flat hosted store, so it must apply the owning mount's
+/// access list, not only the per-package ACL: a private flat-root mount
+/// (`org: ""`) is 404-masked on packument reads and must not be enumerable
+/// by name/version/description through `/-/v1/search`.
+#[tokio::test]
+async fn search_does_not_enumerate_a_private_flat_root_mount() {
+    let tmp = TempDir::new().unwrap();
+    // The flat root (`org: ""`) stores directly under `storage`.
+    seed_hosted(tmp.path(), "@corp/secret-tool");
+
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    // Replace the default public flat-root mount (`local`) with a private one;
+    // any surviving `$all` flat-root entry would defeat the gate under test.
+    config.hosted.clear();
+    config.hosted.insert(
+        "corp".to_string(),
+        HostedConfig { org: String::new(), access: AccessList::parse("alice") },
+    );
+    config.mounts = Mounts::new(
+        vec![("corp".to_string(), MountKind::Hosted)].into_iter().collect(),
+        Some("corp".to_string()),
+    );
+    let auth = AuthState::in_memory();
+    let member = auth.tokens.issue("alice").await.unwrap();
+    let outsider = auth.tokens.issue("mallory").await.unwrap();
+    let app = router_with_auth(config, auth);
+
+    let search_with = |authorization: Option<String>| {
+        let mut request = Request::get("/-/v1/search?text=secret");
+        if let Some(value) = authorization {
+            request = request.header(header::AUTHORIZATION, value);
+        }
+        request.body(Body::empty()).unwrap()
+    };
+
+    // Neither the anonymous caller nor an authenticated non-member can
+    // enumerate the private mount's packages.
+    for authorization in [None, Some(format!("Bearer {outsider}"))] {
+        let response = app.clone().oneshot(search_with(authorization)).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = body_json(response.into_body()).await;
+        assert_eq!(body["total"], json!(0), "private package leaked through search");
+        assert_eq!(body["objects"], json!([]));
+    }
+
+    // A member still finds it.
+    let response = app.oneshot(search_with(Some(format!("Bearer {member}")))).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = body_json(response.into_body()).await;
+    assert_eq!(body["objects"][0]["package"]["name"], json!("@corp/secret-tool"));
+}

@@ -37,6 +37,23 @@ fn rejects_unsupported_wildcards() {
     }
 }
 
+/// A wildcard-free pattern that is not a well-formed package name can never
+/// match a request, so a typo like `@acme` (meaning `@acme/*`) must be a
+/// config error rather than a literal that silently lets the scope fall
+/// through to a later route.
+#[test]
+fn rejects_exact_pattern_that_is_not_a_package_name() {
+    for raw in ["@acme", "@acme/", "@/foo", ".hidden", "a/b/c", "@scope/../up"] {
+        assert!(
+            matches!(
+                PackagePattern::parse(raw),
+                Err(MountConfigError::ExactPatternNotAName { .. }),
+            ),
+            "expected {raw:?} to be rejected as not a package name",
+        );
+    }
+}
+
 // --- PackagePattern::matches -----------------------------------------------
 
 #[test]
@@ -104,9 +121,11 @@ fn covers_relation() {
 
 /// `covers` must agree with `matches`: a bare `@scope` exact isn't scoped, so no
 /// scoped pattern covers it (otherwise validation would report a phantom shadow).
+/// `parse` rejects that shape, so build the `Exact` directly to pin the
+/// enum-level consistency.
 #[test]
 fn covers_agrees_with_matches_on_malformed_scoped_exacts() {
-    let bare = pattern("@acme"); // Exact("@acme"), which `@*/*` no longer matches.
+    let bare = PackagePattern::Exact("@acme".to_string()); // which `@*/*` doesn't match.
     assert!(!pattern("@*/*").covers(&bare));
     assert!(!pattern("@acme/*").covers(&bare));
     // A well-formed scoped exact is still covered.
