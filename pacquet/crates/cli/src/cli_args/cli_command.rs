@@ -31,6 +31,7 @@ use super::{
     patch_remove::PatchRemoveArgs,
     ping::PingArgs,
     prune::PruneArgs,
+    publish::PublishArgs,
     rebuild::RebuildArgs,
     remove::RemoveArgs,
     repo::RepoArgs,
@@ -159,6 +160,8 @@ pub enum CliCommand {
     Rebuild(RebuildArgs),
     /// Create a tarball from a package
     Pack(PackArgs),
+    /// Publish a package to the registry
+    Publish(PublishArgs),
     /// Removes packages from `node_modules` and from the project's `package.json`.
     // Unlike npm, pnpm does not treat "r" as an alias of "remove" to avoid
     // confusion with "run" and "recursive".

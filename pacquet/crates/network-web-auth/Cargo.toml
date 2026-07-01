@@ -25,8 +25,9 @@ tokio               = { workspace = true, features = ["macros", "rt", "sync", "t
 url                 = { workspace = true }
 
 [dev-dependencies]
-pretty_assertions = { workspace = true }
-tokio             = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "sync", "time"] }
+pacquet-network-web-auth-testing = { workspace = true }
+pretty_assertions                = { workspace = true }
+tokio                            = { workspace = true, features = ["macros", "rt", "rt-multi-thread", "sync", "time"] }
 
 [lints]
 workspace = true

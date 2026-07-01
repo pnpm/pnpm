@@ -34,6 +34,7 @@ pacquet-registry                          = { path = "pacquet/crates/registry" }
 pacquet-tarball                           = { path = "pacquet/crates/tarball" }
 pacquet-testing-utils                     = { path = "pacquet/crates/testing-utils" }
 pacquet-pack                              = { path = "pacquet/crates/pack" }
+pacquet-publish                           = { path = "pacquet/crates/publish" }
 pacquet-package-manifest                  = { path = "pacquet/crates/package-manifest" }
 pacquet-package-manager                   = { path = "pacquet/crates/package-manager" }
 pacquet-package-is-installable            = { path = "pacquet/crates/package-is-installable" }
@@ -43,6 +44,7 @@ pacquet-lockfile-verification             = { path = "pacquet/crates/lockfile-ve
 pacquet-modules-yaml                      = { path = "pacquet/crates/modules-yaml" }
 pacquet-network                           = { path = "pacquet/crates/network" }
 pacquet-network-web-auth                  = { path = "pacquet/crates/network-web-auth" }
+pacquet-network-web-auth-testing          = { path = "pacquet/crates/network-web-auth-testing" }
 pacquet-config                            = { path = "pacquet/crates/config" }
 pacquet-config-dir                        = { path = "pacquet/crates/config-dir" }
 pacquet-config-parse-overrides            = { path = "pacquet/crates/config-parse-overrides" }
@@ -151,6 +153,7 @@ serde-saphyr = { version = "0.0.27" }
 sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio-rustls"] }
 # 0.11 removes the LowerHex impl on Output; revisit after upstream/consumers catch up
 sha2               = { version = "0.10.9" }
+sigstore-sign      = { version = "0.9.0" }
 smart-default      = { version = "0.7.1" }
 split-first-char   = { version = "2.0.1" }
 ssri               = { version = "9.2.0" }

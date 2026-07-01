@@ -32,6 +32,7 @@ pub mod patch_remove;
 pub(crate) mod patch_state;
 pub mod ping;
 pub mod prune;
+pub mod publish;
 pub mod rebuild;
 pub mod recursive;
 pub mod registry_client;

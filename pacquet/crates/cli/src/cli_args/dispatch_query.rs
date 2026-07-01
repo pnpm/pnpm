@@ -16,6 +16,7 @@ use super::{
     pack::PackArgs,
     pack_app::PackAppArgs,
     ping::PingArgs,
+    publish::PublishArgs,
     repo::RepoArgs,
     reporter::ReporterType,
     root::RootArgs,
@@ -165,6 +166,26 @@ pub(super) fn pack<'a>(ctx: &RunCtx<'a>, args: &PackArgs) -> miette::Result<Comm
         println!("{output}");
     }
     Ok(Box::pin(std::future::ready(Ok(()))))
+}
+
+/// `publish` packs the project, runs its prepublish/publish lifecycle scripts,
+/// and uploads the tarball. Co-located with its sibling `pack` (both come from
+/// pnpm's `releasing/commands`).
+///
+/// Unlike the other handlers this returns its result directly rather than a
+/// boxed [`CommandFuture`]: the OTP / web-auth retry callback borrows a `&str`
+/// challenge, so the publish future is not `Send` and cannot be boxed into the
+/// `Send` `CommandFuture`. `CliArgs::run` awaits it inline instead, where the
+/// command future is only ever `block_on`'d, never spawned.
+pub(super) async fn publish(ctx: &RunCtx<'_>, args: PublishArgs) -> miette::Result<()> {
+    let config = (ctx.config)()?;
+    match ctx.reporter {
+        ReporterType::Default | ReporterType::AppendOnly => {
+            args.run::<DefaultReporter>(ctx.dir, config, ctx.recursive).await
+        }
+        ReporterType::Ndjson => args.run::<NdjsonReporter>(ctx.dir, config, ctx.recursive).await,
+        ReporterType::Silent => args.run::<SilentReporter>(ctx.dir, config, ctx.recursive).await,
+    }
 }
 
 pub(super) fn bin<'a>(ctx: &RunCtx<'a>, args: BinArgs) -> miette::Result<CommandFuture<'a>> {

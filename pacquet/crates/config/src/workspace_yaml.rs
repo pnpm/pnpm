@@ -236,6 +236,12 @@ pub struct WorkspaceSettings {
     /// CLI flag ORs on top of this. Default `false`.
     pub ignore_scripts: Option<bool>,
 
+    /// `gitChecks` from `pnpm-workspace.yaml`. When `false`, `pnpm publish`
+    /// skips its git working-tree checks. See [`Config::git_checks`]. The
+    /// `--no-git-checks` CLI flag forces it off on top of this. Default
+    /// `true`.
+    pub git_checks: Option<bool>,
+
     /// `scriptsPrependNodePath` from `pnpm-workspace.yaml`. Tri-state
     /// — yaml accepts `true` / `false` / `"warn-only"`. Custom serde
     /// shape, see [`ScriptsPrependNodePath`]'s `Deserialize` impl.
@@ -793,6 +799,9 @@ impl WorkspaceSettings {
         }
         if let Some(v) = self.ignore_scripts {
             config.ignore_scripts = v;
+        }
+        if let Some(v) = self.git_checks {
+            config.git_checks = v;
         }
         if let Some(v) = self.scripts_prepend_node_path {
             config.scripts_prepend_node_path = v;

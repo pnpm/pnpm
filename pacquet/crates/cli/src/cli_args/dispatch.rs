@@ -196,7 +196,14 @@ impl CliArgs {
             config: &config,
             state: &state,
         };
-        route(command, &ctx)?.await?;
+        // `publish` is the one command whose future is not `Send` (its OTP /
+        // web-auth retry callback borrows a `&str`), so it cannot flow through
+        // the `Send` `CommandFuture` that `route` returns. Await it inline here,
+        // where the command future is only ever `block_on`'d, never spawned.
+        match command {
+            CliCommand::Publish(args) => dispatch_query::publish(&ctx, args).await?,
+            command => route(command, &ctx)?.await?,
+        }
 
         // The `Done in ...` footer covers the whole command, mirroring pnpm's
         // `pnpm:execution-time` emit in `main.ts`. Only the install-family
@@ -236,6 +243,9 @@ fn route<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFut
         CliCommand::Ping(args) => dispatch_query::ping(ctx, args),
         CliCommand::Rebuild(args) => dispatch_install::rebuild(ctx, args),
         CliCommand::Pack(args) => dispatch_query::pack(ctx, &args),
+        // `publish` returns a non-Send future and so is awaited inline in
+        // [`CliArgs::run`] before `route` is reached (see `dispatch_query::publish`).
+        CliCommand::Publish(_) => unreachable!("publish is awaited inline in CliArgs::run"),
         CliCommand::Remove(args) => dispatch_install::remove(ctx, args),
         CliCommand::Patch(args) => dispatch_install::patch(ctx, args),
         CliCommand::PatchCommit(args) => dispatch_install::patch_commit(ctx, args),
