@@ -27,7 +27,7 @@ jobs:
         uses: ./.github/actions/rustup
 
       - name: Install cargo-unused-features
-        uses: taiki-e/install-action@b8cecb83565409bcc297b2df6e77f030b2a468d5 # v2.82.0
+        uses: taiki-e/install-action@ace6ebe54a6a0c86dfb5f7764b17f793b6925bc3 # v2.82.3
         with:
           tool: cargo-unused-features
 
@@ -51,7 +51,7 @@ jobs:
 
       - name: Install cargo-udeps
         if: steps.filter.outputs.src == 'true'
-        uses: taiki-e/install-action@b8cecb83565409bcc297b2df6e77f030b2a468d5 # v2.82.0
+        uses: taiki-e/install-action@ace6ebe54a6a0c86dfb5f7764b17f793b6925bc3 # v2.82.3
         with:
           tool: cargo-udeps
 
