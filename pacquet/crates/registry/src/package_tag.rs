@@ -19,13 +19,14 @@ pub enum PackageTag {
 
 impl PackageTag {
     /// URL-encoded path segment for use in a registry request URL.
-    /// Special characters in custom tags are percent-encoded so the
-    /// path component stays syntactically valid.
+    /// The version or custom tag is percent-encoded so the path
+    /// component stays syntactically valid regardless of the characters
+    /// it contains (e.g. `+` build metadata in a version).
     #[must_use]
     pub fn registry_path_segment(&self) -> String {
         match self {
             PackageTag::Latest => "latest".to_string(),
-            PackageTag::Version(v) => v.to_string(),
+            PackageTag::Version(v) => pacquet_network::encode_uri_component(&v.to_string()),
             PackageTag::Tag(tag) => pacquet_network::encode_uri_component(tag),
         }
     }
@@ -50,3 +51,6 @@ impl FromStr for PackageTag {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;
