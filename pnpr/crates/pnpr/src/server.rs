@@ -1050,8 +1050,11 @@ async fn load_uplink_packument(
                 && let Some(bytes) =
                     state.inner.storage.read_uplink_packument_any(namespace, name).await?
             {
+                // `log_message()` (not `?err`): an upstream error embeds the
+                // request URL, which can carry credentials (basic-auth userinfo,
+                // a token query param). Log the credential-redacted rendering.
                 tracing::warn!(
-                    ?err,
+                    error = %err.log_message(),
                     package = %name.as_str(),
                     "upstream packument refetch failed; serving stale cache",
                 );

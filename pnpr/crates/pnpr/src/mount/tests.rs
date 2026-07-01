@@ -334,6 +334,33 @@ fn allows_sibling_scopes_before_any_scoped() {
 }
 
 #[test]
+fn rejects_partially_shadowed_route() {
+    // The later route stays reachable through `plainpkg` (which `@*/*` cannot
+    // cover), but its `@secret/foo` pattern is swallowed by the earlier `@*/*`
+    // route. That one pattern must be rejected by name — otherwise requests for
+    // `@secret/foo` silently fall through to the public upstream instead of the
+    // private mount, and the whole-route unreachability check never fires.
+    let registry = mounts(
+        vec![
+            ("public", MountKind::Upstream),
+            ("private", MountKind::Hosted),
+            (
+                "main",
+                router_mount(vec![
+                    route(&["@*/*"], "public"),
+                    route(&["@secret/foo", "plainpkg"], "private"),
+                ]),
+            ),
+        ],
+        None,
+    );
+    assert!(matches!(
+        registry.validate(),
+        Err(MountConfigError::ShadowedPattern { pattern, .. }) if pattern == "@secret/foo",
+    ));
+}
+
+#[test]
 fn rejects_duplicate_pattern() {
     let registry = mounts(
         vec![

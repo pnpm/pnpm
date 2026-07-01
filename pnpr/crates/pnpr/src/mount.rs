@@ -338,6 +338,24 @@ impl Mounts {
                 });
             }
             for pattern in &route.patterns {
+                // A pattern strictly narrower than an earlier route's pattern can
+                // never match — every package it claims is already routed away.
+                // The whole-route check above only fires when *all* of a route's
+                // patterns are covered; catch the partial case here so one
+                // shadowed pattern in an otherwise-reachable route can't silently
+                // send a private package to the origin an earlier `**`/scope route
+                // points at. Strict (`earlier != pattern`) so an exact repeat
+                // stays the clearer `DuplicatePattern` below rather than a shadow.
+                if let Some(earlier) = seen_patterns
+                    .iter()
+                    .find(|&&earlier| earlier != pattern && earlier.covers(pattern))
+                {
+                    return Err(MountConfigError::ShadowedPattern {
+                        router: router.to_string(),
+                        pattern: pattern.to_string(),
+                        by: earlier.to_string(),
+                    });
+                }
                 if seen_patterns.contains(&pattern) {
                     return Err(MountConfigError::DuplicatePattern {
                         router: router.to_string(),
@@ -372,6 +390,9 @@ pub enum MountConfigError {
     DuplicatePattern { router: String, pattern: String },
     /// A router route is fully shadowed by earlier routes and can never match.
     UnreachableRoute { router: String, index: usize, source: String },
+    /// A single router pattern is strictly covered by an earlier route's
+    /// pattern, so it can never match even though the rest of its route can.
+    ShadowedPattern { router: String, pattern: String, by: String },
 }
 
 impl fmt::Display for MountConfigError {
@@ -408,6 +429,11 @@ impl fmt::Display for MountConfigError {
                  routes already match every package it would; reorder it before the routes that \
                  shadow it, or remove it",
                 index = index + 1,
+            ),
+            MountConfigError::ShadowedPattern { router, pattern, by } => write!(
+                f,
+                "router {router:?} pattern {pattern:?} is unreachable: earlier pattern {by:?} \
+                 already matches every package it would; reorder it before {by:?} or remove it",
             ),
         }
     }

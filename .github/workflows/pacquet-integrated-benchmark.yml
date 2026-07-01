@@ -267,7 +267,7 @@ jobs:
         # warm server), and a failure surfaces fast enough to iterate on.
         timeout-minutes: 15
         run: |
-          just integrated-benchmark --reuse-prebuilt-binaries --serve-timing --scenario=isolated-linker.fresh-restore.cold-cache.cold-store --registry=verdaccio --pnpr-latency-ms=${PNPR_LATENCY_MS} --registry-latency-ms=${REGISTRY_LATENCY_MS} --registry-bandwidth-mbps=${REGISTRY_BANDWIDTH_MBPS} $BENCHMARK_TARGETS
+          just integrated-benchmark --reuse-prebuilt-binaries --scenario=isolated-linker.fresh-restore.cold-cache.cold-store --registry=verdaccio --pnpr-latency-ms=${PNPR_LATENCY_MS} --registry-latency-ms=${REGISTRY_LATENCY_MS} --registry-bandwidth-mbps=${REGISTRY_BANDWIDTH_MBPS} $BENCHMARK_TARGETS
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE.md
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE.json
 
@@ -294,7 +294,7 @@ jobs:
         # safety net the other steps document.
         timeout-minutes: 35
         run: |
-          just integrated-benchmark --reuse-prebuilt-binaries --serve-timing --scenario=isolated-linker.fresh-install.cold-cache.cold-store --registry=verdaccio --pnpr-latency-ms=${PNPR_LATENCY_MS} --registry-latency-ms=${REGISTRY_LATENCY_MS} --registry-bandwidth-mbps=${REGISTRY_BANDWIDTH_MBPS} $BENCHMARK_TARGETS
+          just integrated-benchmark --reuse-prebuilt-binaries --scenario=isolated-linker.fresh-install.cold-cache.cold-store --registry=verdaccio --pnpr-latency-ms=${PNPR_LATENCY_MS} --registry-latency-ms=${REGISTRY_LATENCY_MS} --registry-bandwidth-mbps=${REGISTRY_BANDWIDTH_MBPS} $BENCHMARK_TARGETS
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_COLD_STORE.md
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_INSTALL_COLD_CACHE_COLD_STORE.json
 
@@ -360,10 +360,12 @@ jobs:
             tail -n 200 "$log"
             echo "::endgroup::"
           done
-          # With `--serve-timing`, pnpr logs its `pnpr::serve_timing` events to
-          # *stdout* (tracing_subscriber's default writer), so aggregate those
-          # logs — not stderr — into a compact per-phase profile (count, total
-          # ms, mean µs) so a cold-store serve cost is visible without scrolling.
+          # Opt-in: only produces output when a run passed `--serve-timing`
+          # (kept off by default so debug-logging overhead never skews the timed
+          # means). When on, pnpr logs its `pnpr::serve_timing` events to *stdout*
+          # (tracing_subscriber's default writer), so aggregate those logs — not
+          # stderr — into a compact per-phase profile (count, total ms, mean µs)
+          # so a cold-store serve cost is visible without scrolling.
           for log in bench-work-env/*/revision-mock.stdout.log bench-work-env/*/pnpr-server.stdout.log; do
             if grep -q "pnpr::serve_timing" "$log"; then
               echo "::group::$log (serve_timing per-phase summary)"

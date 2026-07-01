@@ -92,7 +92,17 @@ impl WorkEnv {
     /// enabled — so the server emits per-phase serve timing to its log.
     fn apply_serve_timing(&self, command: &mut Command) {
         if self.serve_timing {
-            command.env("RUST_LOG", "pnpr::serve_timing=debug");
+            // Append rather than clobber, so a `RUST_LOG` the caller already set
+            // (to surface other diagnostics) keeps working alongside the timing
+            // target. EnvFilter reads the last matching directive, and ours is
+            // target-scoped, so appending never suppresses an existing filter.
+            let directive = match std::env::var("RUST_LOG") {
+                Ok(existing) if !existing.is_empty() => {
+                    format!("{existing},pnpr::serve_timing=debug")
+                }
+                _ => "pnpr::serve_timing=debug".to_string(),
+            };
+            command.env("RUST_LOG", directive);
         }
     }
 }
