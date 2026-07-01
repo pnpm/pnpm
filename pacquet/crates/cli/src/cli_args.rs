@@ -30,6 +30,7 @@ pub mod patch;
 pub mod patch_commit;
 pub mod patch_remove;
 pub(crate) mod patch_state;
+pub mod peers;
 pub mod ping;
 pub mod prune;
 pub mod rebuild;
