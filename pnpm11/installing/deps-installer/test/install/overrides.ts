@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-import { expect, test } from '@jest/globals'
+import { expect, jest, test } from '@jest/globals'
 import { WANTED_LOCKFILE } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import { addDependenciesToPackage, type MutatedProject, mutateModules, mutateModulesInSingleProject, type ProjectOptions } from '@pnpm/installing.deps-installer'
@@ -109,6 +109,7 @@ test('versions are replaced with versions specified through overrides option', a
 
 test('when adding a new dependency that is present in the overrides, use the spec from the override', async () => {
   prepareEmpty()
+  const reporter = jest.fn()
 
   await addDistTag({ package: '@pnpm.e2e/bar', version: '100.0.0', distTag: 'latest' })
 
@@ -117,10 +118,12 @@ test('when adding a new dependency that is present in the overrides, use the spe
   }
   const { updatedManifest: manifest } = await addDependenciesToPackage({},
     ['@pnpm.e2e/bar'],
-    testDefaults({ overrides })
+    testDefaults({ overrides, reporter })
   )
 
   expect(manifest.dependencies?.['@pnpm.e2e/bar']).toBe(overrides['@pnpm.e2e/bar'])
+  const calls = reporter.mock.calls.map(([log]) => log as { name?: string })
+  expect(calls.some((log) => log?.name === 'pnpm:unusedOverride')).toBe(false)
 })
 
 test('explicitly specifying a version at install will ignore overrides', async () => {
@@ -293,4 +296,49 @@ test('overrides remove dependencies', async () => {
   ).toBe(false)
   const currentLockfile = project.readCurrentLockfile()
   expect(lockfile.overrides).toStrictEqual(currentLockfile.overrides)
+})
+
+test('emits a pnpm:unusedOverride log for overrides that matched no dependency', async () => {
+  prepareEmpty()
+  const reporter = jest.fn()
+
+  // @pnpm.e2e/dep-of-pkg-with-1-dep is a transitive dep of pkg-with-1-dep,
+  // so its override is applied. The other two selectors match nothing.
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({
+    overrides: {
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
+      'this-overrides-key-matches-nothing': '1.0.0',
+      '@pnpm.e2e/does-not-exist>@pnpm.e2e/bar': '1.0.0',
+    },
+    reporter,
+  }))
+
+  const calls = reporter.mock.calls.map(([log]) => log as { name?: string, selector?: string })
+  const unused = calls.filter((log) => log?.name === 'pnpm:unusedOverride')
+  expect(unused.map((log) => log.selector).sort()).toEqual([
+    '@pnpm.e2e/does-not-exist>@pnpm.e2e/bar',
+    'this-overrides-key-matches-nothing',
+  ])
+})
+
+test('does not emit pnpm:unusedOverride when the override matched', async () => {
+  const project = prepareEmpty()
+  const reporter = jest.fn()
+
+  await addDependenciesToPackage({}, ['@pnpm.e2e/pkg-with-1-dep@100.0.0'], testDefaults({
+    overrides: {
+      '@pnpm.e2e/dep-of-pkg-with-1-dep': '101.0.0',
+    },
+    reporter,
+  }))
+
+  // Sanity: the override actually applied (the rewrite landed in the
+  // lockfile), so the absence of an unused-override event below means
+  // the matcher ran and recognized the hit — not that nothing was
+  // checked at all.
+  const lockfile = project.readLockfile()
+  expect(lockfile.packages).toHaveProperty(['@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0'])
+
+  const calls = reporter.mock.calls.map(([log]) => log as { name?: string })
+  expect(calls.some((log) => log?.name === 'pnpm:unusedOverride')).toBe(false)
 })

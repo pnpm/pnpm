@@ -22,6 +22,7 @@ import { reportScope } from './reportScope.js'
 import { reportSkippedOptionalDependencies } from './reportSkippedOptionalDependencies.js'
 import { reportStats } from './reportStats.js'
 import { type FilterPkgsDiff, reportSummary } from './reportSummary.js'
+import { reportUnusedOverrides } from './reportUnusedOverrides.js'
 import { reportUpdateCheck } from './reportUpdateCheck.js'
 
 const PRINT_EXECUTION_TIME_IN_COMMANDS = {
@@ -57,6 +58,7 @@ export function reporterForClient (
     scope: Rx.Observable<logs.ScopeLog>
     skippedOptionalDependency: Rx.Observable<logs.SkippedOptionalDependencyLog>
     packageImportMethod: Rx.Observable<logs.PackageImportMethodLog>
+    unusedOverride: Rx.Observable<logs.UnusedOverrideLog>
     updateCheck: Rx.Observable<logs.UpdateCheckLog>
   },
   opts: {
@@ -111,6 +113,10 @@ export function reporterForClient (
         deprecation: log$.deprecation,
         stage: log$.stage,
       }, { cwd, isRecursive: opts.isRecursive }),
+      reportUnusedOverrides({
+        unusedOverride: log$.unusedOverride,
+        stage: log$.stage,
+      }),
       reportRequestRetry(log$.requestRetry)
     )
   }

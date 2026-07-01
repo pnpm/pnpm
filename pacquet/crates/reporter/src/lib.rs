@@ -119,6 +119,16 @@ pub enum LogEvent {
     #[serde(rename = "pnpm:skipped-optional-dependency")]
     SkippedOptionalDependency(SkippedOptionalDependencyLog),
 
+    /// One per override selector that matched no resolved dependency
+    /// (`pnpm:unusedOverride`). pnpm's reporter buffers these against
+    /// `pnpm:stage { stage: "resolution_done" }` and emits a single
+    /// grouped warning.
+    ///
+    /// Upstream: <https://github.com/pnpm/pnpm/blob/3b12eb27de/core/core-loggers/src/unusedOverrideLogger.ts>.
+    /// Emit site: <https://github.com/pnpm/pnpm/blob/3b12eb27de/installing/deps-installer/src/install/index.ts>.
+    #[serde(rename = "pnpm:unusedOverride")]
+    UnusedOverride(UnusedOverrideLog),
+
     /// Bracketing events for the configurational-dependency install
     /// (`pnpm:installing-config-deps`): a `started` before any
     /// fetch/link work, then a single `done` carrying the installed
@@ -579,6 +589,17 @@ pub struct SkippedOptionalDependencyLog {
     pub package: SkippedOptionalPackage,
     pub prefix: String,
     pub reason: SkippedOptionalReason,
+}
+
+/// `pnpm:unusedOverride` payload. One event per override selector
+/// that matched no resolved dependency. `prefix` is the workspace
+/// root (`lockfileDir`), `selector` is the raw override key verbatim
+/// (`foo`, `parent>child`, `foo@^1`).
+#[derive(Debug, Clone, Serialize)]
+pub struct UnusedOverrideLog {
+    pub level: LogLevel,
+    pub prefix: String,
+    pub selector: String,
 }
 
 /// Package identifier carried on a [`SkippedOptionalDependencyLog`].
