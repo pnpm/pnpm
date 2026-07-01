@@ -41,7 +41,7 @@ impl FromStr for PackageTag {
         } else if Range::parse(value).is_ok() {
             // A semver range (e.g. `^18`) is neither an exact version nor a
             // dist-tag, so it is not a valid path segment for the abbreviated
-            // registry endpoint. Report it as unparseable (the range never
+            // registry endpoint. Report it as an error (the range never
             // parses as a `Version`) rather than treating it as a literal tag
             // that would issue a doomed `/pkg/^18` request.
             value.parse::<Version>().map(PackageTag::Version)
