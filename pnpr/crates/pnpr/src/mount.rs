@@ -105,11 +105,13 @@ impl PackagePattern {
             AnyScoped => match other {
                 All => false,
                 AnyScoped | Scope(_) => true,
-                Exact(name) => name.starts_with('@'),
+                // Consistent with `matches`: an exact name is scoped only when
+                // it is a well-formed `@scope/name`, never a bare `@scope`.
+                Exact(name) => scoped_name(name).is_some(),
             },
             Scope(scope) => match other {
                 Scope(other_scope) => other_scope == scope,
-                Exact(name) => scope_of(name) == Some(scope.as_str()),
+                Exact(name) => scoped_name(name).is_some_and(|(name_scope, _)| name_scope == scope),
                 All | AnyScoped => false,
             },
             Exact(name) => matches!(other, Exact(other_name) if other_name == name),
@@ -134,15 +136,6 @@ impl fmt::Display for PackagePattern {
 fn scoped_name(package: &str) -> Option<(&str, &str)> {
     let (scope, name) = package.strip_prefix('@')?.split_once('/')?;
     (!scope.is_empty() && !name.is_empty()).then_some((scope, name))
-}
-
-/// The scope of a package name (`@acme/foo` → `acme`), or `None` when it is
-/// unscoped.
-fn scope_of(package: &str) -> Option<&str> {
-    package
-        .strip_prefix('@')
-        .and_then(|rest| rest.split('/').next())
-        .filter(|scope| !scope.is_empty())
 }
 
 /// One router route: package-name patterns mapped to a single concrete source

@@ -486,11 +486,11 @@ impl Store {
         let mtime = metadata.modified().map_err(RegistryError::Io)?;
         let age = SystemTime::now().duration_since(mtime).unwrap_or(Duration::ZERO);
         if age <= ttl {
-            // Fresh: read the body to serve it; validators aren't needed.
+            // Fresh: read the body and serve it.
             Ok(Some(CachedPackument::Fresh(fs::read(&path).await?)))
         } else {
-            // Stale: load only the validators for the conditional refetch.
-            // The body is read later, on demand, and only if needed.
+            // Stale: treated as a miss so the caller refetches from the upstream
+            // (there is no conditional revalidation), so the body isn't read here.
             Ok(Some(CachedPackument::Stale))
         }
     }

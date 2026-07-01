@@ -947,9 +947,9 @@ fn authorized_uplink<'a>(
 /// The disposable cache namespace for an upstream mount's `/~<mount>/` route, so
 /// its packuments and tarballs never collide with another mount.
 ///
-/// A **private** mount — any that declares `access:` (so it is not `public`, per
-/// [`resolve_upstream_mount`], which forbids a public mount from carrying any
-/// credential) — is namespaced by an HMAC over `(mount, credential)` keyed with
+/// A **private** mount — any that declares `access:` (so it is not `public`; the
+/// config loader forbids a public mount from carrying any credential) — is
+/// namespaced by an HMAC over `(mount, credential)` keyed with
 /// the server secret: the on-disk path leaks neither the mount name nor the
 /// credential, and a credential rotation moves to a fresh namespace. Keying on
 /// the declared visibility rather than on the presence of an `Authorization`

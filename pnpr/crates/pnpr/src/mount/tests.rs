@@ -102,6 +102,18 @@ fn covers_relation() {
     assert!(!exact_plain.covers(&pattern("bar")));
 }
 
+/// `covers` must agree with `matches`: a bare `@scope` exact isn't scoped, so no
+/// scoped pattern covers it (otherwise validation would report a phantom shadow).
+#[test]
+fn covers_agrees_with_matches_on_malformed_scoped_exacts() {
+    let bare = pattern("@acme"); // Exact("@acme"), which `@*/*` no longer matches.
+    assert!(!pattern("@*/*").covers(&bare));
+    assert!(!pattern("@acme/*").covers(&bare));
+    // A well-formed scoped exact is still covered.
+    assert!(pattern("@*/*").covers(&pattern("@acme/foo")));
+    assert!(pattern("@acme/*").covers(&pattern("@acme/foo")));
+}
+
 // --- resolution ------------------------------------------------------------
 
 #[test]
