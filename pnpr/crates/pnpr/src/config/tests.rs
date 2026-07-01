@@ -920,6 +920,59 @@ mounts:
     assert!(err.to_string().contains("public: true"), "unexpected error: {err}");
 }
 
+/// A `public` upstream is anonymous, so declaring `access:` on it is a
+/// contradiction that must fail closed rather than be silently dropped.
+#[test]
+fn from_yaml_str_rejects_public_upstream_with_access() {
+    let yaml = "\
+storage: ./s
+mounts:
+  npmjs:
+    type: upstream
+    url: https://registry.npmjs.org/
+    public: true
+    access: $authenticated
+";
+    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+        .expect_err("public upstream with access must be rejected");
+    assert!(err.to_string().contains("`access`"), "unexpected error: {err}");
+}
+
+/// A `public` upstream sends no credential, so an `Authorization` header on it
+/// must fail closed rather than leak a credential to a supposedly-public origin.
+#[test]
+fn from_yaml_str_rejects_public_upstream_with_authorization_header() {
+    let yaml = "\
+storage: ./s
+mounts:
+  npmjs:
+    type: upstream
+    url: https://registry.npmjs.org/
+    public: true
+    headers:
+      Authorization: Bearer leaked
+";
+    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+        .expect_err("public upstream with an Authorization header must be rejected");
+    assert!(err.to_string().contains("Authorization"), "unexpected error: {err}");
+}
+
+/// A hosted `org` becomes a storage path segment, so a traversal-y value must be
+/// rejected at load rather than reach the filesystem.
+#[test]
+fn from_yaml_str_rejects_hosted_org_path_traversal() {
+    let yaml = "\
+storage: ./s
+mounts:
+  evil:
+    type: hosted
+    org: ../../etc
+";
+    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+        .expect_err("a traversal-y hosted org must be rejected");
+    assert!(err.to_string().contains("path-safe"), "unexpected error: {err}");
+}
+
 /// The internally-tagged mount enum names the valid kinds, so a typo'd `type:`
 /// fails to load rather than being silently misrouted.
 #[test]

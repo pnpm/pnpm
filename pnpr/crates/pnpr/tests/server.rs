@@ -5,8 +5,8 @@ use axum::{
 use flate2::read::GzDecoder;
 use futures_util::stream;
 use pnpr::{
-    AccessList, AuthState, Config, HostedConfig, MountKind, Mounts, PackagePattern, PublicRoute,
-    Route, router, router_with_auth,
+    AccessList, AuthState, Config, HostedConfig, MountKind, Mounts, PackagePattern,
+    PackagePolicies, PackagePolicy, PublicRoute, Route, router, router_with_auth,
 };
 use serde_json::{Value, json};
 use ssri::{Algorithm, IntegrityOpts};
@@ -44,12 +44,22 @@ fn config_for(upstream: &str, storage: PathBuf) -> Config {
 /// returns a path that does not exist, so existence assertions read naturally.
 fn public_cache_pkg(cache_root: &Path, pkg: &str) -> PathBuf {
     let public = cache_root.join(".pnpr-cache").join("~public");
-    let digest_dir = std::fs::read_dir(&public)
-        .ok()
-        .and_then(|mut entries| entries.next())
-        .and_then(Result::ok)
-        .map_or_else(|| public.join("__none__"), |entry| entry.path());
-    digest_dir.join(pkg)
+    // The public cache holds one digest directory per public mount. These tests
+    // configure exactly one, so require at most one *directory* (ignoring stray
+    // files and `read_dir` order) instead of trusting the first entry.
+    let mut digest_dirs: Vec<PathBuf> = std::fs::read_dir(&public)
+        .into_iter()
+        .flatten()
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
+        .map(|entry| entry.path())
+        .collect();
+    digest_dirs.sort();
+    assert!(
+        digest_dirs.len() <= 1,
+        "expected at most one ~public mount namespace, found {digest_dirs:?}",
+    );
+    digest_dirs.first().cloned().unwrap_or_else(|| public.join("__none__")).join(pkg)
 }
 
 async fn body_bytes(body: Body) -> Vec<u8> {
@@ -493,6 +503,48 @@ async fn osv_filters_vulnerable_versions_from_proxy_and_cache() {
     assert!(tags.get("latest").is_none());
     assert_eq!(tags["stable"], "1.0.0");
 
+    mock.assert_async().await;
+}
+
+/// The per-package ACL applies to the path-less `dist-tags` reader even when the
+/// package routes to an upstream: an unauthorized caller is denied before the
+/// upstream is ever queried, so a restricted package's tags don't leak.
+#[tokio::test]
+async fn upstream_dist_tags_enforce_package_access() {
+    let mut upstream = mockito::Server::new_async().await;
+    let mock = upstream
+        .mock("GET", "/restricted")
+        .with_body(
+            json!({
+                "name": "restricted",
+                "dist-tags": { "latest": "1.0.0" },
+                "versions": { "1.0.0": { "name": "restricted", "version": "1.0.0" } },
+            })
+            .to_string(),
+        )
+        // The ACL must short-circuit the read before any upstream fetch.
+        .expect(0)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.policies = PackagePolicies::new(vec![
+        PackagePolicy::new(
+            "restricted",
+            AccessList::parse("$authenticated"),
+            AccessList::default(),
+            AccessList::default(),
+        )
+        .expect("policy compiles"),
+    ]);
+    let app = router(config);
+
+    let response = app
+        .oneshot(Request::get("/-/package/restricted/dist-tags").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     mock.assert_async().await;
 }
 

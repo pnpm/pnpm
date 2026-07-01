@@ -55,6 +55,17 @@ fn matches_by_shape() {
     assert!(!pattern("@acme/foo").matches("@acme/bar"));
 }
 
+/// A scoped pattern requires a real `@scope/name`; a bare `@scope`, an empty
+/// scope, or an empty name must not match, so such an input isn't misrouted to a
+/// scoped mount.
+#[test]
+fn scoped_patterns_require_a_name_segment() {
+    for malformed in ["@acme", "@acme/", "@/foo", "@"] {
+        assert!(!pattern("@*/*").matches(malformed), "@*/* wrongly matched {malformed:?}");
+        assert!(!pattern("@acme/*").matches(malformed), "@acme/* wrongly matched {malformed:?}");
+    }
+}
+
 // --- PackagePattern::covers ------------------------------------------------
 
 #[test]

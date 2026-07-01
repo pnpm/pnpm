@@ -1623,6 +1623,7 @@ fn build_mounts(
         }
         match file {
             MountFile::Hosted(mount) => {
+                validate_org_namespace(&name, &mount.org)?;
                 let access = mount
                     .access
                     .as_ref()
@@ -1644,6 +1645,28 @@ fn build_mounts(
     let mounts = Mounts::new(graph, default_target);
     mounts.validate().map_err(|err| mount_err(&err))?;
     Ok((hosted, mounts))
+}
+
+/// A hosted mount's `org` becomes a storage path/key segment (`Storage::for_hosted`),
+/// so it must be a single safe component: empty (the flat root) or a name with
+/// no separators, no `..`, and not absolute — otherwise a crafted config could
+/// read or write outside the storage root.
+fn validate_org_namespace(name: &str, org: &str) -> Result<(), RegistryError> {
+    let safe = org.is_empty()
+        || (!org.contains('/')
+            && !org.contains('\\')
+            && org != "."
+            && org != ".."
+            && !Path::new(org).is_absolute());
+    if safe {
+        return Ok(());
+    }
+    Err(RegistryError::InvalidConfig {
+        reason: format!(
+            "hosted mount {name:?} has an invalid `org` {org:?}: it must be a single path-safe \
+             segment (no `/`, `\\`, `..`, or absolute path)",
+        ),
+    })
 }
 
 /// Compile one router's `routes:` block, parsing each pattern into the decidable
@@ -1675,11 +1698,33 @@ fn resolve_upstream_mount<Sys: EnvVar>(
     name: &str,
     file: UpstreamFile,
 ) -> Result<UplinkConfig, RegistryError> {
+    // A public origin is anonymous and shared, so every credential-bearing or
+    // access-gating knob contradicts `public: true` and must fail closed rather
+    // than be silently ignored (which would send a credential to, or expose, a
+    // supposedly-public origin).
     if file.public && file.auth.is_some() {
         return Err(RegistryError::InvalidConfig {
             reason: format!(
                 "upstream mount {name:?} is `public` but also declares `auth`; a public origin \
                  sends no credential",
+            ),
+        });
+    }
+    if file.public && file.access.is_some() {
+        return Err(RegistryError::InvalidConfig {
+            reason: format!(
+                "upstream mount {name:?} is `public` but also declares `access`; a public origin \
+                 is reachable anonymously",
+            ),
+        });
+    }
+    if file.public
+        && file.headers.keys().any(|header| header.eq_ignore_ascii_case(AUTHORIZATION.as_str()))
+    {
+        return Err(RegistryError::InvalidConfig {
+            reason: format!(
+                "upstream mount {name:?} is `public` but declares an `Authorization` header; a \
+                 public origin sends no credential",
             ),
         });
     }
@@ -1691,8 +1736,6 @@ fn resolve_upstream_mount<Sys: EnvVar>(
             ),
         });
     }
-    // A public origin is allowlisted and fetched anonymously, so it carries no
-    // access list; its `access:` (if any) is dropped above by the public guard.
     let access = if file.public { None } else { file.access };
     let uplink_file = UplinkFile {
         url: file.url,

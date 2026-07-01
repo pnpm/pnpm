@@ -80,8 +80,12 @@ impl PackagePattern {
     pub fn matches(&self, package: &str) -> bool {
         match self {
             PackagePattern::All => true,
-            PackagePattern::AnyScoped => package.starts_with('@'),
-            PackagePattern::Scope(scope) => scope_of(package) == Some(scope.as_str()),
+            // A scoped pattern matches only a well-formed `@scope/name`, never a
+            // bare `@scope` with no name segment.
+            PackagePattern::AnyScoped => scoped_name(package).is_some(),
+            PackagePattern::Scope(scope) => {
+                scoped_name(package).is_some_and(|(package_scope, _)| package_scope == scope)
+            }
             PackagePattern::Exact(name) => name == package,
         }
     }
@@ -122,6 +126,14 @@ impl fmt::Display for PackagePattern {
             PackagePattern::Exact(name) => f.write_str(name),
         }
     }
+}
+
+/// The `(scope, name)` of a well-formed scoped package (`@acme/foo` →
+/// `("acme", "foo")`), or `None` when it is unscoped or missing either segment
+/// (`@acme`, `@/foo`, `@acme/`).
+fn scoped_name(package: &str) -> Option<(&str, &str)> {
+    let (scope, name) = package.strip_prefix('@')?.split_once('/')?;
+    (!scope.is_empty() && !name.is_empty()).then_some((scope, name))
 }
 
 /// The scope of a package name (`@acme/foo` → `acme`), or `None` when it is

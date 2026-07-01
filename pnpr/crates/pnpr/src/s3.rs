@@ -146,6 +146,16 @@ impl S3Store {
     /// Staging scratch is shared (its tmp filenames are already unique).
     #[must_use]
     pub fn namespaced(&self, segment: &str) -> S3Store {
+        // An empty segment is the flat root: keep the prefix exactly so it
+        // addresses the same object keys as the un-namespaced store, rather than
+        // gaining a spurious `/` that points at a different key space.
+        if segment.is_empty() {
+            return Self {
+                store: Arc::clone(&self.store),
+                prefix: self.prefix.clone(),
+                staging_dir: self.staging_dir.clone(),
+            };
+        }
         Self {
             store: Arc::clone(&self.store),
             prefix: format!("{}{segment}/", self.prefix),

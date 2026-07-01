@@ -947,35 +947,34 @@ fn authorized_uplink<'a>(
 /// The disposable cache namespace for an upstream mount's `/~<mount>/` route, so
 /// its packuments and tarballs never collide with another mount.
 ///
-/// A **private** mount (one carrying an upstream credential) is namespaced by an
-/// HMAC over `(mount, credential)` keyed with the server secret: the on-disk
-/// path leaks neither the mount name nor the credential, and a credential
-/// rotation moves to a fresh namespace. A **public** mount has nothing private
-/// to protect and its content is integrity-verified, so it uses a *stable*
-/// namespace (`~public/<digest-of-mount-name>`) that is shared across process
-/// restarts — recovering the old shared-mirror's cache persistence without a
-/// per-process secret in the path.
+/// A **private** mount — any that declares `access:` (so it is not `public`, per
+/// [`resolve_upstream_mount`], which forbids a public mount from carrying any
+/// credential) — is namespaced by an HMAC over `(mount, credential)` keyed with
+/// the server secret: the on-disk path leaks neither the mount name nor the
+/// credential, and a credential rotation moves to a fresh namespace. Keying on
+/// the declared visibility rather than on the presence of an `Authorization`
+/// header keeps a mount whose credential rides a *custom* header (or which
+/// gates access without an upstream credential) out of the guessable public
+/// namespace. A **public** mount has nothing private to protect and its content
+/// is integrity-verified, so it uses a *stable* namespace
+/// (`~public/<digest-of-mount-name>`) that is shared across process restarts.
 fn uplink_cache_namespace(state: &AppState, uplink: &str) -> String {
-    let authorization = state
-        .inner
-        .config
-        .uplinks
-        .get(uplink)
-        .and_then(|uplink| uplink.headers.get(reqwest::header::AUTHORIZATION))
-        .and_then(|value| value.to_str().ok());
-    match authorization {
-        Some(authorization) => {
-            let digest = crate::route::uplink_cache_digest(
-                uplink,
-                crate::route::credential_digest(authorization),
-                &state.inner.config.resolution_cache_secret,
-            );
-            format!("~uplinks/{digest}")
-        }
-        // Public mount: a stable, secret-free namespace keyed only by the mount
-        // name (hashed so a path-unsafe name can't escape the cache root).
-        None => format!("~public/{}", crate::route::credential_digest(uplink)),
+    let config = state.inner.config.uplinks.get(uplink);
+    if config.is_some_and(|uplink| uplink.access.is_some()) {
+        let credential = config
+            .and_then(|uplink| uplink.headers.get(reqwest::header::AUTHORIZATION))
+            .and_then(|value| value.to_str().ok())
+            .unwrap_or_default();
+        let digest = crate::route::uplink_cache_digest(
+            uplink,
+            crate::route::credential_digest(credential),
+            &state.inner.config.resolution_cache_secret,
+        );
+        return format!("~uplinks/{digest}");
     }
+    // Public mount: a stable, secret-free namespace keyed only by the mount
+    // name (hashed so a path-unsafe name can't escape the cache root).
+    format!("~public/{}", crate::route::credential_digest(uplink))
 }
 
 /// Load an uplink route's packument: a fresh per-mount cache entry when one
@@ -1049,6 +1048,12 @@ async fn load_packument_for_read(
     identity: &Identity,
     name: &PackageName,
 ) -> Result<Option<Vec<u8>>, Box<Response>> {
+    // The per-package access ACL applies to every mount-served read, upstream or
+    // hosted, so gate it once up front — otherwise a restricted package routed to
+    // an upstream would leak (e.g. its dist-tags) through the path-less readers.
+    if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
+        return Err(Box::new(error_response(&err)));
+    }
     let Some(target) = default_target_mount(state) else {
         return Ok(None);
     };
@@ -1060,9 +1065,6 @@ async fn load_packument_for_read(
             let Some(org) = readable_hosted_namespace(state, identity, &source) else {
                 return Ok(None);
             };
-            if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
-                return Err(Box::new(error_response(&err)));
-            }
             state
                 .inner
                 .storage
@@ -2300,9 +2302,11 @@ async fn serve_search(state: &AppState, identity: &Identity, query_string: &str)
             .expect("static-shape response always builds");
     };
     let size = crate::search::parse_size(query_string, 20);
-    // Search is local-storage-only: it scans the hosted store, never the
+    // Search is local-storage-only: it scans the flat hosted store, never the
     // upstreams (an upstream is reached only through its own mount, by exact
     // package name — there is no cross-origin search merge).
+    // TODO: extend this to the per-org hosted namespaces (`Storage::for_hosted`)
+    // so packages published under a non-empty `org` are searchable too.
     let mut body = match crate::search::run_local_search(&state.inner.storage, &text, size).await {
         Ok(body) => body,
         Err(err) => return error_response(&err),
