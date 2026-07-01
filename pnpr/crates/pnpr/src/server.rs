@@ -872,11 +872,11 @@ async fn serve_mount_version_manifest(
                 Err(response) => return *response,
             }
         }
-        MountSource::HostedOrg(source) => {
-            let Some(org) = readable_hosted_org_namespace(state, identity, &source) else {
+        MountSource::Hosted(source) => {
+            let Some(org) = readable_hosted_namespace(state, identity, &source) else {
                 return not_found();
             };
-            match state.inner.storage.for_hosted_org(&org).read_hosted_packument(&name).await {
+            match state.inner.storage.for_hosted(&org).read_hosted_packument(&name).await {
                 Ok(Some(bytes)) => bytes,
                 Ok(None) => return not_found(),
                 Err(err) => return error_response(&err),
@@ -1056,8 +1056,8 @@ async fn load_packument_for_read(
         MountSource::Upstream(source) => {
             load_upstream_packument_for(state, identity, &source, name).await
         }
-        MountSource::HostedOrg(source) => {
-            let Some(org) = readable_hosted_org_namespace(state, identity, &source) else {
+        MountSource::Hosted(source) => {
+            let Some(org) = readable_hosted_namespace(state, identity, &source) else {
                 return Ok(None);
             };
             if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
@@ -1066,7 +1066,7 @@ async fn load_packument_for_read(
             state
                 .inner
                 .storage
-                .for_hosted_org(&org)
+                .for_hosted(&org)
                 .read_hosted_packument(name)
                 .await
                 .map_err(|err| Box::new(error_response(&err)))
@@ -1218,8 +1218,8 @@ enum MountSource {
     /// An upstream mount (public or private), served via its `/~<source>/`
     /// uplink machinery. The id is a key in [`Config::uplinks`].
     Upstream(String),
-    /// A hosted-organization mount, served from the hosted store.
-    HostedOrg(String),
+    /// A hosted mount, served from the hosted store.
+    Hosted(String),
     /// The mount id is unknown, or a router matched no route — a definitive
     /// not-found with no fall-through.
     NotFound,
@@ -1239,8 +1239,8 @@ fn resolve_mount_source(state: &AppState, mount: &str, package: &str) -> MountSo
         Resolved::Concrete { mount, kind: ConcreteKind::Upstream } => {
             MountSource::Upstream(mount.to_string())
         }
-        Resolved::Concrete { mount, kind: ConcreteKind::HostedOrg } => {
-            MountSource::HostedOrg(mount.to_string())
+        Resolved::Concrete { mount, kind: ConcreteKind::Hosted } => {
+            MountSource::Hosted(mount.to_string())
         }
         // A router that matched no route is a definitive not-found — never a
         // fall-through to another origin.
@@ -1288,8 +1288,8 @@ async fn serve_mount_packument(
         MountSource::Upstream(source) => {
             serve_packument_via_uplink(state, identity, headers, &source, &name, tarball_base).await
         }
-        MountSource::HostedOrg(source) => {
-            serve_hosted_org_packument(state, identity, headers, &source, &name, tarball_base).await
+        MountSource::Hosted(source) => {
+            serve_hosted_packument(state, identity, headers, &source, &name, tarball_base).await
         }
         MountSource::NotFound => not_found(),
     }
@@ -1318,18 +1318,18 @@ async fn serve_mount_tarball(
         MountSource::Upstream(source) => {
             serve_tarball_via_uplink(state, identity, &source, name.as_str(), filename).await
         }
-        MountSource::HostedOrg(source) => {
-            serve_hosted_org_tarball(state, identity, &source, &name, filename).await
+        MountSource::Hosted(source) => {
+            serve_hosted_tarball(state, identity, &source, &name, filename).await
         }
         MountSource::NotFound => not_found(),
     }
 }
 
-/// The storage namespace of the hosted-org mount `source` when `identity` may
+/// The storage namespace of the hosted mount `source` when `identity` may
 /// read it, else `None`. A denied caller is treated as not-found, so a private
 /// org's package existence is not revealed. The org policy composes (logical
 /// AND) with the per-package [`Config::policies`] applied by the serving paths.
-fn readable_hosted_org_namespace(
+fn readable_hosted_namespace(
     state: &AppState,
     identity: &Identity,
     source: &str,
@@ -1337,13 +1337,13 @@ fn readable_hosted_org_namespace(
     state
         .inner
         .config
-        .hosted_orgs
+        .hosted
         .get(source)
         .filter(|org| org.access.allows(identity))
         .map(|org| org.org.clone())
 }
 
-async fn serve_hosted_org_packument(
+async fn serve_hosted_packument(
     state: &AppState,
     identity: &Identity,
     headers: &HeaderMap,
@@ -1351,7 +1351,7 @@ async fn serve_hosted_org_packument(
     name: &PackageName,
     tarball_base: &str,
 ) -> Response {
-    let Some(org) = readable_hosted_org_namespace(state, identity, source) else {
+    let Some(org) = readable_hosted_namespace(state, identity, source) else {
         return not_found();
     };
     if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
@@ -1359,7 +1359,7 @@ async fn serve_hosted_org_packument(
     }
     // A hosted org has no upstream fallback: a package it does not host is a
     // definitive not-found. Reads come from the org's own storage namespace.
-    match state.inner.storage.for_hosted_org(&org).read_hosted_packument(name).await {
+    match state.inner.storage.for_hosted(&org).read_hosted_packument(name).await {
         Ok(Some(bytes)) => match packument_response(
             name,
             &bytes,
@@ -1375,14 +1375,14 @@ async fn serve_hosted_org_packument(
     }
 }
 
-async fn serve_hosted_org_tarball(
+async fn serve_hosted_tarball(
     state: &AppState,
     identity: &Identity,
     source: &str,
     name: &PackageName,
     filename: &str,
 ) -> Response {
-    let Some(org) = readable_hosted_org_namespace(state, identity, source) else {
+    let Some(org) = readable_hosted_namespace(state, identity, source) else {
         return not_found();
     };
     let (filename, name_version) = match name.parse_tarball_name(filename) {
@@ -1395,11 +1395,11 @@ async fn serve_hosted_org_tarball(
     if let Err(err) = ensure_osv_allowed(state, name, &name_version) {
         return error_response(&err);
     }
-    match state.inner.storage.for_hosted_org(&org).open_hosted_tarball(name, &filename).await {
+    match state.inner.storage.for_hosted(&org).open_hosted_tarball(name, &filename).await {
         Ok(Some((body, len))) => tarball_response(body, len),
         Ok(None) => not_found(),
         Err(err) => {
-            tracing::warn!(?err, package = %name.as_str(), %filename, "hosted-org tarball open failed");
+            tracing::warn!(?err, package = %name.as_str(), %filename, "hosted tarball open failed");
             error_response(&err)
         }
     }
@@ -1770,18 +1770,18 @@ fn private_no_cache(mut response: Response) -> Response {
     response
 }
 
-/// The hosted storage view a publish writes to: a hosted-org namespace, or
+/// The hosted storage view a publish writes to: a hosted namespace, or
 /// the flat (path-less) store when `org` is `None`.
 fn hosted_storage(state: &AppState, org: Option<&str>) -> Storage {
     match org {
-        Some(org) => state.inner.storage.for_hosted_org(org),
+        Some(org) => state.inner.storage.for_hosted(org),
         None => state.inner.storage.clone(),
     }
 }
 
 /// Where a publish of `package` writes, given an optional explicit `/~<mount>/`.
 enum PublishTarget {
-    /// Write into this hosted-org storage namespace.
+    /// Write into this hosted storage namespace.
     Org(String),
     /// The resolved target is not a hosted org; reject with this reason.
     Reject(String),
@@ -1790,23 +1790,23 @@ enum PublishTarget {
     NotFound,
 }
 
-/// Resolve where a publish lands. A write may only target a hosted-org mount:
+/// Resolve where a publish lands. A write may only target a hosted mount:
 /// a route to an upstream is rejected ("name a hosted mount"), never silently
 /// landing on an upstream. The path-less base routes through its default-target
 /// mount; with no default target the bare host has no registry and the publish
 /// is a not-found, exactly like a read.
 fn resolve_publish_target(state: &AppState, mount: Option<&str>, package: &str) -> PublishTarget {
     let org_namespace = |source: &str| -> Option<String> {
-        state.inner.config.hosted_orgs.get(source).map(|org| org.org.clone())
+        state.inner.config.hosted.get(source).map(|org| org.org.clone())
     };
     let from_source = |source: MountSource, context: &str| match source {
-        MountSource::HostedOrg(mount) => match org_namespace(&mount) {
+        MountSource::Hosted(mount) => match org_namespace(&mount) {
             Some(org) => PublishTarget::Org(org),
             None => PublishTarget::NotFound,
         },
         MountSource::Upstream(_) => PublishTarget::Reject(format!(
             "cannot publish {package:?} {context}: it routes to an upstream registry; name a \
-             hosted-org mount",
+             hosted mount",
         )),
         MountSource::NotFound => PublishTarget::NotFound,
     };
@@ -1859,7 +1859,7 @@ async fn publish_package(
         });
     }
 
-    // Route the write to its hosted-org namespace (or the flat store), failing
+    // Route the write to its hosted namespace (or the flat store), failing
     // closed when the target is an upstream or an unknown mount.
     let org = match resolve_publish_target(state, mount, name.as_str()) {
         PublishTarget::Org(org) => Some(org),
@@ -2138,7 +2138,7 @@ async fn stage_publish(
         }
     }
 
-    // A hosted-org mount has no upstream, so a publish seeds the merge only from
+    // A hosted mount has no upstream, so a publish seeds the merge only from
     // the org's own hosted packument; a brand-new package starts from `None`.
     let existing: Option<Value> = hosted.clone();
     let merged = merge_manifest(existing.as_ref(), &incoming, hosted.as_ref(), now_iso);
@@ -2228,7 +2228,7 @@ async fn commit_publishes(
     // that fails.
     let apply_result = async {
         for stage in staged {
-            // Promote into the package's hosted-org namespace (or the flat
+            // Promote into the package's hosted namespace (or the flat
             // store when it has none) — the same target the journal recorded,
             // so an inline failure and a startup roll-forward land identically.
             let store = hosted_storage(state, stage.org.as_deref());
@@ -2709,7 +2709,7 @@ where
     if let Err(err) = authorize(state, identity, name.as_str(), Action::Publish) {
         return error_response(&err);
     }
-    // A dist-tag change is a write, so it routes to a hosted-org namespace like
+    // A dist-tag change is a write, so it routes to a hosted namespace like
     // a publish — a name routed to an upstream is rejected.
     let org = match resolve_write_org(state, &name) {
         Ok(org) => org,
@@ -2782,7 +2782,7 @@ where
 // Helpers.
 // --------------------------------------------------------------------
 
-/// Resolve the hosted-org storage namespace a path-less write
+/// Resolve the hosted storage namespace a path-less write
 /// (dist-tag, unpublish, packument update) targets, or the [`Response`] to
 /// return. A write routes like a publish: through the default-target mount to a
 /// hosted org, rejecting a name routed to an upstream and 404ing when the

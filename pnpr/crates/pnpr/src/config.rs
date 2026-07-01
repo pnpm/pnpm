@@ -140,27 +140,27 @@ pub struct Config {
     pub resolution_cache_secret: Arc<[u8]>,
     /// The validated registry-mount routing graph: every addressable origin
     /// (`/~<mount>/`) plus the optional path-less default target. Concrete
-    /// upstream mounts are backed by [`Self::uplinks`]; hosted-org mounts by
-    /// [`Self::hosted_orgs`]; routers map package patterns to one of those.
+    /// upstream mounts are backed by [`Self::uplinks`]; hosted mounts by
+    /// [`Self::hosted`]; routers map package patterns to one of those.
     /// Built and validated at config load — a misordered or self-referential
     /// router fails startup rather than serving the wrong origin.
     pub mounts: Mounts,
-    /// Hosted-organization mounts, keyed by mount id. Each owns an `org`
-    /// storage/serving namespace and an access policy gating that org's
-    /// packages. The only mount kind that accepts writes.
-    pub hosted_orgs: IndexMap<String, HostedOrgConfig>,
+    /// Hosted mounts, keyed by mount id. Each owns an `org` storage/serving
+    /// namespace and an access policy gating its packages. The only mount kind
+    /// that accepts writes.
+    pub hosted: IndexMap<String, HostedConfig>,
 }
 
-/// A resolved hosted-organization mount: the org identity it serves and the
-/// access policy applied to every package under it. Per-package ACLs in
-/// [`Config::policies`] compose on top (logical AND) for finer control.
+/// A resolved hosted mount: the `org` namespace it serves and the access policy
+/// applied to every package under it. Per-package ACLs in [`Config::policies`]
+/// compose on top (logical AND) for finer control.
 #[derive(Debug, Clone)]
-pub struct HostedOrgConfig {
-    /// The organization identity. Doubles as the storage/serving namespace so
-    /// two orgs hosting the same `name@version` never collide.
+pub struct HostedConfig {
+    /// The storage/serving namespace, so two hosted mounts holding the same
+    /// `name@version` never collide. Empty (`""`) ⇒ the flat `storage` root.
     pub org: String,
-    /// Who may read this org's packages. Defaults to `$all` (a public hosted
-    /// org) when the mount omits `access:`.
+    /// Who may read this mount's packages. Defaults to `$all` (a public hosted
+    /// mount) when the mount omits `access:`.
     pub access: AccessList,
 }
 
@@ -897,24 +897,28 @@ struct PublicRouteFile {
 }
 
 /// Disk shape of one `mounts:` entry, discriminated by an internal `type:` tag
-/// (`hostedOrg` / `upstream` / `router`). The tag selects exactly one kind, so
+/// (`hosted` / `upstream` / `router`). The tag selects exactly one kind, so
 /// "declared none or more than one" is unrepresentable — no runtime count check.
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 enum MountFile {
-    HostedOrg(HostedOrgFile),
+    Hosted(HostedFile),
     // Boxed: `UpstreamFile` is far larger than the other kinds, so an unboxed
     // variant would bloat every `MountFile`.
     Upstream(Box<UpstreamFile>),
     Router(RouterFile),
 }
 
-/// Disk shape of a `hostedOrg:` mount.
+/// Disk shape of a `hosted:` mount.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
-struct HostedOrgFile {
+struct HostedFile {
+    /// Storage namespace for this mount's packages, so two hosted mounts can
+    /// hold the same `name@version` without colliding. Omitted ⇒ the flat
+    /// `storage` root (`""`).
+    #[serde(default)]
     org: String,
-    /// Who may read this org's packages. Omitted ⇒ `$all`.
+    /// Who may read this mount's packages. Omitted ⇒ `$all`.
     #[serde(default)]
     access: Option<AccessSpec>,
 }
@@ -1004,7 +1008,7 @@ struct ConfigFile {
     registry: Option<FeatureFile>,
     #[serde(default)]
     resolver: Option<FeatureFile>,
-    /// pnpr registry mounts: hosted-org, upstream, and router origins, each
+    /// pnpr registry mounts: hosted, upstream, and router origins, each
     /// exposed at `/~<mount>/`. The only routing surface — there is no legacy
     /// `uplinks:`/`packages: proxy:` fallback.
     #[serde(default)]
@@ -1173,10 +1177,10 @@ impl Config {
             "npmjs".to_string(),
             UplinkConfig::with_defaults("https://registry.npmjs.org".to_string(), HeaderMap::new()),
         );
-        let mut hosted_orgs = IndexMap::new();
-        hosted_orgs.insert(
+        let mut hosted = IndexMap::new();
+        hosted.insert(
             "local".to_string(),
-            HostedOrgConfig { org: String::new(), access: AccessList::parse("$all") },
+            HostedConfig { org: String::new(), access: AccessList::parse("$all") },
         );
         let local_patterns = REGISTRY_MOCK_LOCAL_PATTERNS
             .iter()
@@ -1185,7 +1189,7 @@ impl Config {
             })
             .collect();
         let graph = [
-            ("local".to_string(), MountKind::HostedOrg),
+            ("local".to_string(), MountKind::Hosted),
             ("npmjs".to_string(), MountKind::Upstream),
             (
                 "main".to_string(),
@@ -1218,23 +1222,23 @@ impl Config {
             route_policy: RoutePolicy::default(),
             resolution_cache_secret: random_secret(),
             mounts,
-            hosted_orgs,
+            hosted,
         }
     }
 
-    /// Build a static-mode config that serves `storage` verbatim: one hosted-org
+    /// Build a static-mode config that serves `storage` verbatim: one hosted
     /// mount over the storage root (an empty `org` namespace == the flat root),
     /// routed to by a `**` router that the path-less base aliases. Every package
     /// resolves to that one hosted origin — no upstream, no fall-through.
     #[must_use]
     pub fn static_serve(listen: SocketAddr, storage: PathBuf) -> Self {
-        let mut hosted_orgs = IndexMap::new();
-        hosted_orgs.insert(
+        let mut hosted = IndexMap::new();
+        hosted.insert(
             "local".to_string(),
-            HostedOrgConfig { org: String::new(), access: AccessList::parse("$all") },
+            HostedConfig { org: String::new(), access: AccessList::parse("$all") },
         );
         let graph = [
-            ("local".to_string(), MountKind::HostedOrg),
+            ("local".to_string(), MountKind::Hosted),
             (
                 "main".to_string(),
                 MountKind::Router {
@@ -1266,7 +1270,7 @@ impl Config {
             route_policy: RoutePolicy::default(),
             resolution_cache_secret: random_secret(),
             mounts,
-            hosted_orgs,
+            hosted,
         }
     }
 
@@ -1494,7 +1498,7 @@ impl Config {
         // Mounts (and the upstream credentials some carry) only matter to the
         // registry surface; a resolver-only tier skips them, matching the
         // uplink-resolution skip above.
-        let (hosted_orgs, mounts) = if registry.enabled {
+        let (hosted, mounts) = if registry.enabled {
             build_mounts(&mut uplinks, file.mounts, file.default_target)?
         } else {
             (IndexMap::new(), Mounts::default())
@@ -1521,7 +1525,7 @@ impl Config {
             route_policy,
             resolution_cache_secret,
             mounts,
-            hosted_orgs,
+            hosted,
         };
         config.ensure_a_feature_is_enabled()?;
         Ok(config)
@@ -1591,9 +1595,9 @@ fn mount_err(err: &MountConfigError) -> RegistryError {
     RegistryError::InvalidConfig { reason: err.to_string() }
 }
 
-/// Build the validated [`Mounts`] graph (and the hosted-org table) from the
+/// Build the validated [`Mounts`] graph (and the hosted table) from the
 /// resolved uplinks and the `mounts:` block. Every uplink is an upstream
-/// mount; `mounts:` adds hosted-org, further upstream, and router mounts.
+/// mount; `mounts:` adds hosted, further upstream, and router mounts.
 /// Upstream mounts declared under `mounts:` are folded into `uplinks` so they
 /// reuse the same serving and route-classification machinery. Fails closed on
 /// any name collision, malformed mount, or invalid routing graph.
@@ -1601,8 +1605,8 @@ fn build_mounts(
     uplinks: &mut IndexMap<String, UplinkConfig>,
     mount_files: IndexMap<String, MountFile>,
     default_target: Option<String>,
-) -> Result<(IndexMap<String, HostedOrgConfig>, Mounts), RegistryError> {
-    let mut hosted_orgs = IndexMap::new();
+) -> Result<(IndexMap<String, HostedConfig>, Mounts), RegistryError> {
+    let mut hosted = IndexMap::new();
     let mut graph: IndexMap<String, MountKind> = IndexMap::new();
     // Every configured uplink is, by definition, an upstream mount addressable
     // at `/~<uplink>/`.
@@ -1618,13 +1622,13 @@ fn build_mounts(
             });
         }
         match file {
-            MountFile::HostedOrg(org) => {
-                let access = org
+            MountFile::Hosted(mount) => {
+                let access = mount
                     .access
                     .as_ref()
                     .map_or_else(|| AccessList::parse("$all"), AccessSpec::to_access_list);
-                hosted_orgs.insert(name.clone(), HostedOrgConfig { org: org.org, access });
-                graph.insert(name, MountKind::HostedOrg);
+                hosted.insert(name.clone(), HostedConfig { org: mount.org, access });
+                graph.insert(name, MountKind::Hosted);
             }
             MountFile::Upstream(upstream) => {
                 let resolved = resolve_upstream_mount::<SystemEnv>(&name, *upstream)?;
@@ -1639,7 +1643,7 @@ fn build_mounts(
     }
     let mounts = Mounts::new(graph, default_target);
     mounts.validate().map_err(|err| mount_err(&err))?;
-    Ok((hosted_orgs, mounts))
+    Ok((hosted, mounts))
 }
 
 /// Compile one router's `routes:` block, parsing each pattern into the decidable

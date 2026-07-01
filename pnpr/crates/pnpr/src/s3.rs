@@ -142,7 +142,7 @@ impl S3Store {
     }
 
     /// A view of this store with `segment` appended to the key prefix, giving a
-    /// hosted-org mount its own object-key namespace under the same bucket.
+    /// hosted mount its own object-key namespace under the same bucket.
     /// Staging scratch is shared (its tmp filenames are already unique).
     #[must_use]
     pub fn namespaced(&self, segment: &str) -> S3Store {

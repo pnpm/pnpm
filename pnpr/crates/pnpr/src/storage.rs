@@ -266,7 +266,7 @@ impl HostedStore {
         }
     }
 
-    /// A view rooted under `segment`, giving a hosted-org mount its own
+    /// A view rooted under `segment`, giving a hosted mount its own
     /// storage namespace so two orgs hosting the same `name@version` never
     /// collide on disk (or on object keys).
     fn namespaced(&self, segment: &str) -> HostedStore {
@@ -300,14 +300,14 @@ impl Storage {
         self.hosted.list_package_names().await
     }
 
-    /// A view whose hosted store is namespaced under `org`, so a hosted-org
+    /// A view whose hosted store is namespaced under `org`, so a hosted
     /// mount's packages live in their own storage namespace — two orgs hosting
     /// the same `name@version` can't collide. The disposable proxy cache is
-    /// shared (org mounts never touch it). Used by hosted-org serving and the
+    /// shared (org mounts never touch it). Used by hosted serving and the
     /// org-routed publish flow; the flat (un-namespaced) store remains the
     /// legacy path-less hosted surface.
     #[must_use]
-    pub fn for_hosted_org(&self, org: &str) -> Storage {
+    pub fn for_hosted(&self, org: &str) -> Storage {
         Storage { hosted: self.hosted.namespaced(org), cached: self.cached.clone() }
     }
 

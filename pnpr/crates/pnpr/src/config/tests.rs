@@ -400,14 +400,14 @@ fn proxy_constructor_serves_fixtures_locally_and_proxies_the_rest() {
     assert!(config.uplinks.contains_key("npmjs"));
     assert_eq!(config.mounts.default_target(), Some("main"));
     // The flat-root hosted org serves the registry-mock fixture scopes.
-    assert_eq!(config.hosted_orgs["local"].org, "");
+    assert_eq!(config.hosted["local"].org, "");
     assert_eq!(
         config.mounts.resolve_default("@pnpm.e2e/dep-of-pkg-with-1-dep"),
-        Resolved::Concrete { mount: "local", kind: ConcreteKind::HostedOrg },
+        Resolved::Concrete { mount: "local", kind: ConcreteKind::Hosted },
     );
     assert_eq!(
         config.mounts.resolve_default("create-touch-file-one-bin"),
-        Resolved::Concrete { mount: "local", kind: ConcreteKind::HostedOrg },
+        Resolved::Concrete { mount: "local", kind: ConcreteKind::Hosted },
     );
     // Everything else proxies to the npm upstream.
     assert_eq!(
@@ -417,16 +417,16 @@ fn proxy_constructor_serves_fixtures_locally_and_proxies_the_rest() {
 }
 
 #[test]
-fn static_constructor_serves_everything_from_one_hosted_org() {
+fn static_constructor_serves_everything_from_one_hosted() {
     use crate::mount::{ConcreteKind, Resolved};
     let config = Config::static_serve(listen(), PathBuf::from("/tmp"));
     assert!(config.uplinks.is_empty());
-    // Everything routes to the single local hosted-org mount, which serves the
+    // Everything routes to the single local hosted mount, which serves the
     // flat storage root (its `org` namespace is empty).
-    assert_eq!(config.hosted_orgs["local"].org, "");
+    assert_eq!(config.hosted["local"].org, "");
     assert_eq!(
         config.mounts.resolve_default("anything"),
-        Resolved::Concrete { mount: "local", kind: ConcreteKind::HostedOrg },
+        Resolved::Concrete { mount: "local", kind: ConcreteKind::Hosted },
     );
 }
 
@@ -441,7 +441,7 @@ fn from_default_yaml_parses_bundled_file() {
     // everything else to npmjs.
     assert_eq!(
         config.mounts.resolve_default("@pnpm.e2e/foo"),
-        Resolved::Concrete { mount: "local", kind: ConcreteKind::HostedOrg },
+        Resolved::Concrete { mount: "local", kind: ConcreteKind::Hosted },
     );
     assert_eq!(
         config.mounts.resolve_default("lodash"),
@@ -877,7 +877,7 @@ fn from_yaml_str_rejects_misordered_router() {
 storage: ./s
 mounts:
   npmjs: { type: upstream, url: https://registry.npmjs.org/, public: true }
-  acme: { type: hostedOrg, org: acme }
+  acme: { type: hosted, org: acme }
   main:
     type: router
     routes:
@@ -934,7 +934,7 @@ mounts:
     let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
         .expect_err("an unknown mount `type:` must be rejected");
     let message = err.to_string();
-    assert!(message.contains("hostedOrg"), "expected the valid kinds listed, got: {message}");
+    assert!(message.contains("hosted"), "expected the valid kinds listed, got: {message}");
     assert!(message.contains("upstream"), "expected the valid kinds listed, got: {message}");
 }
 

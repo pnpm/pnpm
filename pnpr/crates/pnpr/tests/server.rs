@@ -5,7 +5,7 @@ use axum::{
 use flate2::read::GzDecoder;
 use futures_util::stream;
 use pnpr::{
-    AccessList, AuthState, Config, HostedOrgConfig, MountKind, Mounts, PackagePattern, PublicRoute,
+    AccessList, AuthState, Config, HostedConfig, MountKind, Mounts, PackagePattern, PublicRoute,
     Route, router, router_with_auth,
 };
 use serde_json::{Value, json};
@@ -2398,18 +2398,18 @@ fn seed_hosted(storage: &Path, pkg: &str) {
 }
 
 #[tokio::test]
-async fn hosted_org_mount_serves_only_what_it_hosts() {
+async fn hosted_mount_serves_only_what_it_hosts() {
     let tmp = TempDir::new().unwrap();
     // The org "acme" stores under its own namespace (`<storage>/acme/`).
     seed_hosted(&tmp.path().join("acme"), "@acme/widget");
 
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.hosted_orgs.insert(
+    config.hosted.insert(
         "acme".to_string(),
-        HostedOrgConfig { org: "acme".to_string(), access: AccessList::parse("$all") },
+        HostedConfig { org: "acme".to_string(), access: AccessList::parse("$all") },
     );
     config.mounts =
-        Mounts::new(vec![("acme".to_string(), MountKind::HostedOrg)].into_iter().collect(), None);
+        Mounts::new(vec![("acme".to_string(), MountKind::Hosted)].into_iter().collect(), None);
     let app = router_with_auth(config, AuthState::in_memory());
 
     // A hosted package is served from the org mount.
@@ -2430,18 +2430,18 @@ async fn hosted_org_mount_serves_only_what_it_hosts() {
 }
 
 #[tokio::test]
-async fn private_hosted_org_hides_existence_from_unauthorized_caller() {
+async fn private_hosted_hides_existence_from_unauthorized_caller() {
     let tmp = TempDir::new().unwrap();
     // The org "acme" stores under its own namespace (`<storage>/acme/`).
     seed_hosted(&tmp.path().join("acme"), "@acme/widget");
 
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.hosted_orgs.insert(
+    config.hosted.insert(
         "acme".to_string(),
-        HostedOrgConfig { org: "acme".to_string(), access: AccessList::parse("alice") },
+        HostedConfig { org: "acme".to_string(), access: AccessList::parse("alice") },
     );
     config.mounts =
-        Mounts::new(vec![("acme".to_string(), MountKind::HostedOrg)].into_iter().collect(), None);
+        Mounts::new(vec![("acme".to_string(), MountKind::Hosted)].into_iter().collect(), None);
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let app = router_with_auth(config, auth);
@@ -2469,20 +2469,20 @@ async fn private_hosted_org_hides_existence_from_unauthorized_caller() {
 }
 
 #[tokio::test]
-async fn publish_to_hosted_org_round_trips_in_its_own_namespace() {
+async fn publish_to_hosted_round_trips_in_its_own_namespace() {
     use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    config.hosted_orgs.insert(
+    config.hosted.insert(
         "acme".to_string(),
-        HostedOrgConfig { org: "acme".to_string(), access: AccessList::parse("$authenticated") },
+        HostedConfig { org: "acme".to_string(), access: AccessList::parse("$authenticated") },
     );
     // npmjs already exists (from config_for); add a hosted org + a router that
     // sends `@acme/*` to it and everything else to npmjs, aliased path-less.
     let graph = vec![
         ("npmjs".to_string(), MountKind::Upstream),
-        ("acme".to_string(), MountKind::HostedOrg),
+        ("acme".to_string(), MountKind::Hosted),
         (
             "main".to_string(),
             MountKind::Router {

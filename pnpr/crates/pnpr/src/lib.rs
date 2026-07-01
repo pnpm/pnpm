@@ -30,9 +30,9 @@ pub use auth::{
 };
 pub use config::{
     AccessSpec, AuthConfig, BackendConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML,
-    FeatureOverrides, HostedOrgConfig, HostedStoreConfig, HtpasswdConfig, LibsqlSettings,
-    LogConfig, LogFormat, LogLevel, MaxUsers, OsvConfig, PackageAccess, PublicRoute,
-    RegistryFeature, ResolverFeature, RoutePolicy, SqlBackendSettings, TokensConfig, UplinkConfig,
+    FeatureOverrides, HostedConfig, HostedStoreConfig, HtpasswdConfig, LibsqlSettings, LogConfig,
+    LogFormat, LogLevel, MaxUsers, OsvConfig, PackageAccess, PublicRoute, RegistryFeature,
+    ResolverFeature, RoutePolicy, SqlBackendSettings, TokensConfig, UplinkConfig,
     default_cache_dir,
 };
 pub use error::{RegistryError, Result};

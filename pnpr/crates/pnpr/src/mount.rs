@@ -2,9 +2,8 @@
 //!
 //! A **registry mount** is an addressable npm-registry surface exposed at
 //! `https://<pnpr>/~<mount>/`. There are two concrete kinds — a pnpr-hosted
-//! organization registry and a single-origin upstream registry — plus one
-//! composite, a **router**, that maps package-name patterns to a single
-//! concrete source.
+//! registry and a single-origin upstream registry — plus one composite, a
+//! **router**, that maps package-name patterns to a single concrete source.
 //!
 //! The model is governed by one invariant: **provenance is declared, never
 //! inferred.** A package resolves to exactly one declared concrete origin, and
@@ -140,7 +139,7 @@ fn scope_of(package: &str) -> Option<&str> {
 #[derive(Debug, Clone)]
 pub struct Route {
     pub patterns: Vec<PackagePattern>,
-    /// A [`MountKind::HostedOrg`] or [`MountKind::Upstream`] mount id — never
+    /// A [`MountKind::Hosted`] or [`MountKind::Upstream`] mount id — never
     /// another router (enforced by [`Mounts::validate`]).
     pub source: String,
 }
@@ -157,9 +156,10 @@ impl Route {
 /// captures only what routing and validation need.
 #[derive(Debug, Clone)]
 pub enum MountKind {
-    /// A pnpr-hosted organization registry. Accepts writes; serves only that
-    /// organization's hosted packages.
-    HostedOrg,
+    /// A pnpr-hosted registry: the authoritative origin for the packages it
+    /// stores, and the only kind that accepts writes. Reads and writes are
+    /// scoped to the mount's own storage namespace (its optional `org`).
+    Hosted,
     /// Exactly one external origin. One URL, one credential generation, one
     /// cache namespace — not a chain and not a set of endpoints.
     Upstream,
@@ -169,14 +169,14 @@ pub enum MountKind {
 
 impl MountKind {
     fn is_concrete(&self) -> bool {
-        matches!(self, MountKind::HostedOrg | MountKind::Upstream)
+        matches!(self, MountKind::Hosted | MountKind::Upstream)
     }
 }
 
 /// The kind of a concrete (non-router) source a request resolved to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ConcreteKind {
-    HostedOrg,
+    Hosted,
     Upstream,
 }
 
@@ -239,9 +239,7 @@ impl Mounts {
             return Resolved::UnknownMount;
         };
         match kind {
-            MountKind::HostedOrg => {
-                Resolved::Concrete { mount: mount_id, kind: ConcreteKind::HostedOrg }
-            }
+            MountKind::Hosted => Resolved::Concrete { mount: mount_id, kind: ConcreteKind::Hosted },
             MountKind::Upstream => {
                 Resolved::Concrete { mount: mount_id, kind: ConcreteKind::Upstream }
             }
@@ -252,8 +250,8 @@ impl Mounts {
                 // Validation guarantees every route source is a defined concrete
                 // mount, so the lookup and the kind classification cannot miss.
                 match self.mounts.get_key_value(&route.source) {
-                    Some((source_id, MountKind::HostedOrg)) => {
-                        Resolved::Concrete { mount: source_id, kind: ConcreteKind::HostedOrg }
+                    Some((source_id, MountKind::Hosted)) => {
+                        Resolved::Concrete { mount: source_id, kind: ConcreteKind::Hosted }
                     }
                     Some((source_id, MountKind::Upstream)) => {
                         Resolved::Concrete { mount: source_id, kind: ConcreteKind::Upstream }
@@ -394,7 +392,7 @@ impl fmt::Display for MountConfigError {
             MountConfigError::NonConcreteSource { router, source } => write!(
                 f,
                 "router {router:?} route source {source:?} is itself a router; a route must target \
-                 a hosted-org or upstream mount",
+                 a hosted or upstream mount",
             ),
             MountConfigError::DuplicatePattern { router, pattern } => {
                 write!(f, "router {router:?} declares pattern {pattern:?} more than once")

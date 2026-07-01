@@ -221,11 +221,11 @@ async fn roll_forward(storage: &Storage, dir: &Path) -> Result<()> {
     let manifest: Manifest = serde_json::from_slice(&fs::read(dir.join(MANIFEST_FILE)).await?)?;
     for package in &manifest.packages {
         let name = PackageName::parse(&package.name)?;
-        // Roll forward into the package's hosted-org namespace (or the flat
+        // Roll forward into the package's hosted namespace (or the flat
         // store when it has none), so a crash mid-commit promotes the staged
         // tarballs and packument into exactly the store the publish targeted.
         let store = match &package.org {
-            Some(org) => storage.for_hosted_org(org),
+            Some(org) => storage.for_hosted(org),
             None => storage.clone(),
         };
         for tarball in &package.tarballs {

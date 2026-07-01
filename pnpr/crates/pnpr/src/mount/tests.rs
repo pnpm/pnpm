@@ -95,11 +95,10 @@ fn covers_relation() {
 
 #[test]
 fn concrete_mount_resolves_to_itself() {
-    let registry =
-        mounts(vec![("acme", MountKind::HostedOrg), ("npmjs", MountKind::Upstream)], None);
+    let registry = mounts(vec![("acme", MountKind::Hosted), ("npmjs", MountKind::Upstream)], None);
     assert_eq!(
         registry.resolve("acme", "@acme/foo"),
-        Resolved::Concrete { mount: "acme", kind: ConcreteKind::HostedOrg },
+        Resolved::Concrete { mount: "acme", kind: ConcreteKind::Hosted },
     );
     assert_eq!(
         registry.resolve("npmjs", "react"),
@@ -117,7 +116,7 @@ fn unknown_mount_resolves_to_unknown() {
 fn router_resolves_first_matching_route_authoritatively() {
     let registry = mounts(
         vec![
-            ("acme", MountKind::HostedOrg),
+            ("acme", MountKind::Hosted),
             ("corp", MountKind::Upstream),
             ("npmjs", MountKind::Upstream),
             (
@@ -136,7 +135,7 @@ fn router_resolves_first_matching_route_authoritatively() {
 
     assert_eq!(
         registry.resolve("main", "@acme/foo"),
-        Resolved::Concrete { mount: "acme", kind: ConcreteKind::HostedOrg },
+        Resolved::Concrete { mount: "acme", kind: ConcreteKind::Hosted },
     );
     assert_eq!(
         registry.resolve("main", "@corp/foo"),
@@ -154,7 +153,7 @@ fn router_earlier_route_wins_over_later_catch_all() {
     // for an `@acme/*` name even though it would also match.
     let registry = mounts(
         vec![
-            ("acme", MountKind::HostedOrg),
+            ("acme", MountKind::Hosted),
             ("npmjs", MountKind::Upstream),
             (
                 "main",
@@ -167,7 +166,7 @@ fn router_earlier_route_wins_over_later_catch_all() {
     );
     assert_eq!(
         registry.resolve("main", "@acme/secret"),
-        Resolved::Concrete { mount: "acme", kind: ConcreteKind::HostedOrg },
+        Resolved::Concrete { mount: "acme", kind: ConcreteKind::Hosted },
     );
 }
 
@@ -175,7 +174,7 @@ fn router_earlier_route_wins_over_later_catch_all() {
 fn router_with_no_matching_route_is_no_route_not_fallthrough() {
     let registry = mounts(
         vec![
-            ("acme", MountKind::HostedOrg),
+            ("acme", MountKind::Hosted),
             ("main", MountKind::Router { routes: vec![route(&["@acme/*"], "acme")] }),
         ],
         None,
@@ -214,7 +213,7 @@ fn router_mount(routes: Vec<Route>) -> MountKind {
 fn valid_config_passes() {
     let registry = mounts(
         vec![
-            ("acme", MountKind::HostedOrg),
+            ("acme", MountKind::Hosted),
             ("corp", MountKind::Upstream),
             ("npmjs", MountKind::Upstream),
             (
@@ -245,7 +244,7 @@ fn rejects_catch_all_before_narrower_route() {
     // The dangerous common mistake: `**` first shadows a later private scope.
     let registry = mounts(
         vec![
-            ("acme", MountKind::HostedOrg),
+            ("acme", MountKind::Hosted),
             ("npmjs", MountKind::Upstream),
             ("main", router_mount(vec![route(&["**"], "npmjs"), route(&["@acme/*"], "acme")])),
         ],
@@ -261,7 +260,7 @@ fn rejects_catch_all_before_narrower_route() {
 fn rejects_route_shadowed_by_broader_scope() {
     let registry = mounts(
         vec![
-            ("acme", MountKind::HostedOrg),
+            ("acme", MountKind::Hosted),
             ("other", MountKind::Upstream),
             ("main", router_mount(vec![route(&["@*/*"], "other"), route(&["@acme/*"], "acme")])),
         ],
@@ -279,7 +278,7 @@ fn allows_narrower_route_before_broader() {
     // less, so the scope route is still reachable for every other name.
     let registry = mounts(
         vec![
-            ("a", MountKind::HostedOrg),
+            ("a", MountKind::Hosted),
             ("b", MountKind::Upstream),
             ("main", router_mount(vec![route(&["@acme/foo"], "a"), route(&["@acme/*"], "b")])),
         ],
@@ -294,8 +293,8 @@ fn allows_sibling_scopes_before_any_scoped() {
     // stays reachable.
     let registry = mounts(
         vec![
-            ("a", MountKind::HostedOrg),
-            ("b", MountKind::HostedOrg),
+            ("a", MountKind::Hosted),
+            ("b", MountKind::Hosted),
             ("rest", MountKind::Upstream),
             (
                 "main",
@@ -315,7 +314,7 @@ fn allows_sibling_scopes_before_any_scoped() {
 fn rejects_duplicate_pattern() {
     let registry = mounts(
         vec![
-            ("a", MountKind::HostedOrg),
+            ("a", MountKind::Hosted),
             ("b", MountKind::Upstream),
             ("main", router_mount(vec![route(&["@acme/*"], "a"), route(&["@acme/*"], "b")])),
         ],
@@ -334,8 +333,8 @@ fn rejects_duplicate_pattern_when_reachable() {
     // check is what fires.
     let registry = mounts(
         vec![
-            ("a", MountKind::HostedOrg),
-            ("b", MountKind::HostedOrg),
+            ("a", MountKind::Hosted),
+            ("b", MountKind::Hosted),
             ("rest", MountKind::Upstream),
             (
                 "main",

@@ -77,11 +77,11 @@ web:
 # is the `@pnpm/registry-mock` shape: the fixture scopes are served from the
 # local hosted store, and everything else proxies the public npm registry.
 mounts:
-  # The locally-hosted fixtures (and anything published here). An empty `org`
-  # namespaces onto the flat `storage` root, where the fixtures are seeded.
+  # The locally-hosted fixtures (and anything published here). With no `org`,
+  # this mount namespaces onto the flat `storage` root, where the fixtures are
+  # seeded.
   local:
-    type: hostedOrg
-    org: ""
+    type: hosted
     access: $all
   # The public npm registry.
   npmjs:
