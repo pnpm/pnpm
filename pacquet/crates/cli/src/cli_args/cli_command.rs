@@ -15,6 +15,7 @@ use super::{
     dist_tag::DistTagArgs,
     dlx::DlxArgs,
     docs::DocsArgs,
+    edit::EditArgs,
     exec::ExecArgs,
     fetch::FetchArgs,
     find_hash::FindHashArgs,
@@ -130,6 +131,8 @@ pub enum CliCommand {
     Init,
     /// Add a package
     Add(AddArgs),
+    /// Opens an installed package's folder in the default text editor.
+    Edit(EditArgs),
     /// Install packages
     #[clap(visible_alias = "i")]
     Install(InstallArgs),
