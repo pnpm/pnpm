@@ -5,7 +5,7 @@ use axum::{
 use flate2::read::GzDecoder;
 use futures_util::stream;
 use pnpr::{
-    AccessList, AuthState, Config, HostedConfig, MountKind, Mounts, PackagePattern,
+    AccessList, AuthState, Config, HostedConfig, MaxUsers, MountKind, Mounts, PackagePattern,
     PackagePolicies, PackagePolicy, PublicRoute, Route, router, router_with_auth,
 };
 use serde_json::{Value, json};
@@ -3365,4 +3365,117 @@ async fn upstream_404_purges_cached_packument() {
     let dead = router(config_for("http://127.0.0.1:1", tmp.path().to_path_buf()));
     let outage = dead.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
     assert_ne!(outage.status(), StatusCode::OK, "purged package must not be served stale");
+}
+
+/// The identity endpoints — adduser/login, whoami, profile, token list,
+/// logout, token revoke — are global, so they are served under *any*
+/// `/~<prefix>/` without consulting the mount table: clients derive these
+/// URLs from their configured registry URL, so `pnpm login --registry
+/// .../~corp/` must work even when nothing named `corp` is mounted. Skipping
+/// the lookup also keeps them from becoming an existence oracle for private
+/// mount names (a defined and an undefined mount must not answer
+/// differently).
+#[tokio::test]
+async fn identity_endpoints_are_served_under_any_mount_prefix() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    let app = router(config);
+
+    // Login against a mount prefix that is NOT a defined mount.
+    let registration = json!({
+        "_id": "org.couchdb.user:alice",
+        "name": "alice",
+        "password": "secret",
+        "email": "alice@example.test",
+        "type": "user",
+        "roles": [],
+    });
+    let login = || {
+        Request::put("/~corp/-/user/org.couchdb.user:alice")
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&registration).unwrap()))
+            .unwrap()
+    };
+    let logged_in = app.clone().oneshot(login()).await.unwrap();
+    assert_eq!(logged_in.status(), StatusCode::CREATED);
+    let token = body_json(logged_in.into_body()).await["token"].as_str().unwrap().to_string();
+
+    // whoami, profile, and token list answer under the same prefix.
+    for path in ["/~corp/-/whoami", "/~corp/-/npm/v1/user", "/~corp/-/npm/v1/tokens"] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "GET {path}");
+    }
+
+    // Token revocation by key (`npm token revoke`) works under the prefix.
+    let tokens = app
+        .clone()
+        .oneshot(
+            Request::get("/~corp/-/npm/v1/tokens")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let key = body_json(tokens.into_body()).await["objects"][0]["key"]
+        .as_str()
+        .expect("token listing has a key")
+        .to_string();
+    let revoke = app
+        .clone()
+        .oneshot(
+            Request::delete(format!("/~corp/-/npm/v1/tokens/token/{key}").as_str())
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert!(revoke.status().is_success(), "token revoke got {}", revoke.status());
+
+    // Log back in and out (`npm logout` sends the raw token in the URL);
+    // afterwards the token no longer authenticates.
+    let logged_in = app.clone().oneshot(login()).await.unwrap();
+    assert_eq!(logged_in.status(), StatusCode::CREATED);
+    let token = body_json(logged_in.into_body()).await["token"].as_str().unwrap().to_string();
+    let logout = app
+        .clone()
+        .oneshot(
+            Request::delete(format!("/~corp/-/user/token/{token}").as_str())
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert!(logout.status().is_success(), "logout got {}", logout.status());
+    let stale = app
+        .clone()
+        .oneshot(
+            Request::get("/~corp/-/whoami")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(stale.status(), StatusCode::UNAUTHORIZED);
+
+    // No existence oracle: anonymous whoami answers 401 identically whether
+    // or not the prefix names a real mount (`npmjs` is defined by config_for).
+    for path in ["/~corp/-/whoami", "/~npmjs/-/whoami"] {
+        let response =
+            app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED, "GET {path}");
+    }
 }

@@ -1003,7 +1003,7 @@ mounts:
 #[test]
 fn from_yaml_str_rejects_dot_prefixed_hosted_org() {
     for org in [".pnpr-cache", ".pnpr-journal", ".hidden"] {
-        let yaml = format!("storage: ./s\nmounts:\n  sneaky:\n    type: hosted\n    org: {org}\n",);
+        let yaml = format!("storage: ./s\nmounts:\n  sneaky:\n    type: hosted\n    org: {org}\n");
         let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
             .expect_err("a dot-prefixed hosted org must be rejected");
         assert!(err.to_string().contains("path-safe"), "unexpected error for {org:?}: {err}");

@@ -580,8 +580,16 @@ async fn get_three_segments(
     if let Some(mount) = first.strip_prefix('~').filter(|mount| !mount.is_empty()) {
         // `/~<mount>/-/whoami` — caller identity through a mount endpoint, so
         // `npm whoami --registry .../~<mount>/` works like the path-less base.
+        //
+        // The identity endpoints (whoami here; adduser, logout, profile, and
+        // the token endpoints in their segment handlers) are global and serve
+        // no mount content, so they answer under *any* `/~<prefix>/` without
+        // consulting the mount table. A lookup would gate nothing — identity
+        // is server-wide — while turning the 401-vs-404 split into an
+        // existence oracle for private mount names that the content paths
+        // carefully mask.
         if second == "-" {
-            if third == "whoami" && mount_is_defined(&state, mount) {
+            if third == "whoami" {
                 return private_no_cache(serve_whoami(&identity));
             }
             return not_found();
@@ -682,6 +690,9 @@ async fn get_four_segments(
 ///   endpoint.
 /// * `/~<mount>/-/package/<pkg>/dist-tags` — dist-tags through a mount
 ///   endpoint.
+/// * `/~<prefix>/-/npm/v1/user` and `/~<prefix>/-/npm/v1/tokens` — the
+///   global profile and token-list endpoints, served under any `~` prefix
+///   (identity endpoints skip the mount lookup — see `get_three_segments`).
 ///
 /// Every other 5-segment GET is a not-found catchall (the route exists so
 /// DELETE/PUT can sit on the same path).
@@ -699,6 +710,12 @@ async fn get_five_segments(
         }
         if b == "-" && c == "package" && e == "dist-tags" {
             return private_no_cache(get_dist_tags(&state, &identity, Some(mount), &d).await);
+        }
+        if b == "-" && c == "npm" && d == "v1" && e == "user" {
+            return private_no_cache(serve_profile(&identity));
+        }
+        if b == "-" && c == "npm" && d == "v1" && e == "tokens" {
+            return private_no_cache(list_tokens(&state, &identity).await);
         }
     }
     not_found()
@@ -772,20 +789,33 @@ async fn put_three_segments(
     not_found()
 }
 
-/// `PUT /~<mount>/{pkg}/-rev/{rev}` — packument update (partial unpublish)
-/// through a mount endpoint. Scoped packages arrive percent-encoded as a
-/// single `@scope%2Fname` segment, like the path-less 3-segment form.
+/// 4-segment PUT:
+/// * `/~<mount>/{pkg}/-rev/{rev}` — packument update (partial unpublish)
+///   through a mount endpoint. Scoped packages arrive percent-encoded as a
+///   single `@scope%2Fname` segment, like the path-less 3-segment form.
+/// * `/~<prefix>/-/user/org.couchdb.user:{name}` — the global adduser/login,
+///   served under any `~` prefix so `pnpm login` against a mount-URL registry
+///   works (identity endpoints skip the mount lookup — see
+///   `get_three_segments`).
 async fn put_four_segments(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     Path((a, b, c, d)): Path<(String, String, String, String)>,
     body: axum::body::Bytes,
 ) -> Response {
-    if let Some(mount) = a.strip_prefix('~').filter(|mount| !mount.is_empty())
-        && c == "-rev"
-    {
-        let _ = d; // revision token is unused
-        return update_packument(&state, &identity, Some(mount), &b, &body).await;
+    if let Some(mount) = a.strip_prefix('~').filter(|mount| !mount.is_empty()) {
+        if b == "-"
+            && c == "user"
+            && let Some(name) = d.strip_prefix("org.couchdb.user:")
+        {
+            // Like the path-less form, adduser/login authenticates from the
+            // request body, not the caller's existing identity.
+            return add_user(&state, name, &body).await;
+        }
+        if c == "-rev" {
+            let _ = d; // revision token is unused
+            return update_packument(&state, &identity, Some(mount), &b, &body).await;
+        }
     }
     not_found()
 }
@@ -865,6 +895,9 @@ async fn delete_four_segments(
 /// * `/-/package/{pkg}/dist-tags/{tag}` — remove a dist-tag.
 /// * `/{pkg}/-/{filename}/-rev/{rev}` — remove an unscoped tarball
 ///   (one step of `pnpm unpublish <pkg>@<version>`).
+/// * `/~<prefix>/-/user/token/{tok}` — the global logout, served under any
+///   `~` prefix (identity endpoints skip the mount lookup — see
+///   `get_three_segments`).
 async fn delete_five_segments(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
@@ -872,6 +905,13 @@ async fn delete_five_segments(
 ) -> Response {
     if a == "-" && b == "package" && d == "dist-tags" {
         return remove_dist_tag(&state, &identity, None, &c, &e).await;
+    }
+    if a.strip_prefix('~').is_some_and(|mount| !mount.is_empty())
+        && b == "-"
+        && c == "user"
+        && d == "token"
+    {
+        return private_no_cache(logout(&state, &identity, &e).await);
     }
     if b == "-" && d == "-rev" {
         let _ = e; // revision token is unused
@@ -918,22 +958,27 @@ async fn delete_six_segments(
     not_found()
 }
 
-/// `DELETE /~<mount>/{scope}/{name}/-/{filename}/-rev/{rev}` — remove a
-/// scoped tarball through a mount endpoint (the unencoded literal-slash form
-/// the pnpm unpublish flow reconstructs from the packument's tarball URL).
+/// 7-segment DELETE:
+/// * `/~<mount>/{scope}/{name}/-/{filename}/-rev/{rev}` — remove a scoped
+///   tarball through a mount endpoint (the unencoded literal-slash form the
+///   pnpm unpublish flow reconstructs from the packument's tarball URL).
+/// * `/~<prefix>/-/npm/v1/tokens/token/{key}` — the global token revocation,
+///   served under any `~` prefix (identity endpoints skip the mount lookup —
+///   see `get_three_segments`).
 async fn delete_seven_segments(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     Path((a, b, c, d, e, f, g)): Path<(String, String, String, String, String, String, String)>,
 ) -> Response {
-    if let Some(mount) = a.strip_prefix('~').filter(|mount| !mount.is_empty())
-        && b.starts_with('@')
-        && d == "-"
-        && f == "-rev"
-    {
-        let _ = g; // revision token is unused
-        let full = format!("{b}/{c}");
-        return delete_tarball(&state, &identity, Some(mount), &full, &e).await;
+    if let Some(mount) = a.strip_prefix('~').filter(|mount| !mount.is_empty()) {
+        if b == "-" && c == "npm" && d == "v1" && e == "tokens" && f == "token" {
+            return private_no_cache(revoke_token_by_key(&state, &identity, &g).await);
+        }
+        if b.starts_with('@') && d == "-" && f == "-rev" {
+            let _ = g; // revision token is unused
+            let full = format!("{b}/{c}");
+            return delete_tarball(&state, &identity, Some(mount), &full, &e).await;
+        }
     }
     not_found()
 }
@@ -1532,13 +1577,6 @@ fn resolve_mount_source(state: &AppState, mount: &str, package: &str) -> MountSo
             }
         }
     }
-}
-
-/// Whether `mount` names a defined registry mount (or a programmatically
-/// inserted uplink). Gates the package-less mount endpoints (`whoami`) that
-/// have no package name to resolve through the graph.
-fn mount_is_defined(state: &AppState, mount: &str) -> bool {
-    state.inner.config.mounts.get(mount).is_some() || state.inner.config.uplinks.contains_key(mount)
 }
 
 /// Whether the concrete origin `package` resolves to through `mount` serves
