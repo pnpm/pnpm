@@ -394,13 +394,24 @@ fn resolve_relative_joins_relative_paths_to_base() {
 }
 
 #[test]
-fn proxy_constructor_routes_everything_through_npmjs() {
+fn proxy_constructor_serves_fixtures_locally_and_proxies_the_rest() {
     use crate::mount::{ConcreteKind, Resolved};
     let config = Config::proxy(listen(), PathBuf::from("/tmp"));
     assert!(config.uplinks.contains_key("npmjs"));
-    assert_eq!(config.mounts.default_target(), Some("npmjs"));
+    assert_eq!(config.mounts.default_target(), Some("main"));
+    // The flat-root hosted org serves the registry-mock fixture scopes.
+    assert_eq!(config.hosted_orgs["local"].org, "");
     assert_eq!(
-        config.mounts.resolve_default("anything"),
+        config.mounts.resolve_default("@pnpm.e2e/dep-of-pkg-with-1-dep"),
+        Resolved::Concrete { mount: "local", kind: ConcreteKind::HostedOrg },
+    );
+    assert_eq!(
+        config.mounts.resolve_default("create-touch-file-one-bin"),
+        Resolved::Concrete { mount: "local", kind: ConcreteKind::HostedOrg },
+    );
+    // Everything else proxies to the npm upstream.
+    assert_eq!(
+        config.mounts.resolve_default("is-positive"),
         Resolved::Concrete { mount: "npmjs", kind: ConcreteKind::Upstream },
     );
 }

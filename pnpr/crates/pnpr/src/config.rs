@@ -1136,6 +1136,22 @@ fn default_true() -> bool {
     true
 }
 
+/// The package-name patterns that [`Config::proxy`] routes to its flat-root
+/// hosted org rather than the npm upstream: the registry-mock fixture scopes
+/// plus the one unscoped fixture. Kept in sync with the bundled `config.yaml`
+/// router and the fixtures under `pnpr/.fixtures/packages`.
+const REGISTRY_MOCK_LOCAL_PATTERNS: &[&str] = &[
+    "@foo/*",
+    "@having/*",
+    "@jsr/*",
+    "@pnpm/*",
+    "@pnpm.e2e/*",
+    "@private/*",
+    "@scoped/*",
+    "@zkochan/*",
+    "create-touch-file-one-bin",
+];
+
 impl Config {
     /// Default `listen` when one isn't supplied by the caller.
     pub const DEFAULT_LISTEN: &'static str = "127.0.0.1:7677";
@@ -1143,9 +1159,13 @@ impl Config {
     /// proxy-mode default.
     pub const DEFAULT_PACKUMENT_TTL: Duration = Duration::from_mins(5);
 
-    /// Build a proxy-mode config with the default npm upstream: a single
-    /// `npmjs` uplink plus a `**` package rule that routes everything
-    /// through it. Kept for callers that don't use YAML config.
+    /// Build a proxy-mode config in the registry-mock shape: the fixture scopes
+    /// (and the one unscoped fixture) resolve to a flat-root hosted org over
+    /// `storage`, while every other name proxies to the `npmjs` upstream. The
+    /// path-less base aliases the `main` router. Kept for callers that don't use
+    /// YAML config (notably pacquet's test registry, whose fixtures are served
+    /// locally while real npm packages fall through to npmjs). The local pattern
+    /// set mirrors the bundled `config.yaml` router.
     #[must_use]
     pub fn proxy(listen: SocketAddr, storage: PathBuf) -> Self {
         let mut uplinks = IndexMap::new();
@@ -1153,12 +1173,31 @@ impl Config {
             "npmjs".to_string(),
             UplinkConfig::with_defaults("https://registry.npmjs.org".to_string(), HeaderMap::new()),
         );
-        // One public upstream mount (`npmjs`) aliased by the path-less base via
-        // the default target — so the bare host proxies everything to npmjs.
-        let mounts = Mounts::new(
-            std::iter::once(("npmjs".to_string(), MountKind::Upstream)).collect(),
-            Some("npmjs".to_string()),
+        let mut hosted_orgs = IndexMap::new();
+        hosted_orgs.insert(
+            "local".to_string(),
+            HostedOrgConfig { org: String::new(), access: AccessList::parse("$all") },
         );
+        let local_patterns = REGISTRY_MOCK_LOCAL_PATTERNS
+            .iter()
+            .map(|pattern| {
+                PackagePattern::parse(pattern).expect("valid built-in fixture route pattern")
+            })
+            .collect();
+        let graph = [
+            ("local".to_string(), MountKind::HostedOrg),
+            ("npmjs".to_string(), MountKind::Upstream),
+            (
+                "main".to_string(),
+                MountKind::Router {
+                    routes: vec![
+                        Route { patterns: local_patterns, source: "local".to_string() },
+                        Route { patterns: vec![PackagePattern::All], source: "npmjs".to_string() },
+                    ],
+                },
+            ),
+        ];
+        let mounts = Mounts::new(graph.into_iter().collect(), Some("main".to_string()));
         Self {
             listen,
             public_url: format!("http://{listen}"),
@@ -1179,7 +1218,7 @@ impl Config {
             route_policy: RoutePolicy::default(),
             resolution_cache_secret: random_secret(),
             mounts,
-            hosted_orgs: IndexMap::new(),
+            hosted_orgs,
         }
     }
 
