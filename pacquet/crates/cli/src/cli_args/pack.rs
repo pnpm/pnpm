@@ -11,7 +11,7 @@
 //! yet, so they take their `false` / empty defaults.
 
 use crate::cli_args::recursive::{
-    AutoExcludeRoot, discover_workspace_projects, select_recursive_projects, sort_projects,
+    AutoExcludeRoot, discover_workspace_projects, select_recursive_projects, sort_filtered_projects,
 };
 use clap::Args;
 use miette::Context;
@@ -108,8 +108,15 @@ impl PackArgs {
         // workspace root stays in the selection (its own name/version
         // eligibility check still applies below).
         let (projects, _patterns) = discover_workspace_projects(workspace_root)?;
-        let graph = select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
-        let chunks = sort_projects(&graph);
+        let selection =
+            select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
+        let graph = &selection.selected;
+        let chunks = sort_filtered_projects(
+            graph,
+            selection.full_graph(),
+            selection.prod_all.as_ref(),
+            &selection.prod_only_selected,
+        );
 
         // In recursive mode `--out` / `--pack-destination` resolves to an
         // absolute path against the CLI dir (and defaults the destination

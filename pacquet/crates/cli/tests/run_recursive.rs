@@ -58,6 +58,17 @@ fn build_writes_marker(name: &str) -> Value {
     })
 }
 
+/// A package whose `build` script appends its name to a shared `../order.log`
+/// (the workspace root), so a test can read back the order the recursive
+/// runner executed the selected projects in.
+fn build_appends_run_order(name: &str) -> Value {
+    json!({
+        "name": name,
+        "version": "1.0.0",
+        "scripts": { "build": format!("echo {name} >> ../order.log") },
+    })
+}
+
 /// `pacquet -r run <script>` runs the script in every workspace project,
 /// in topological order derived from the workspace dependency graph.
 #[test]
@@ -423,7 +434,7 @@ fn recursive_run_filter_no_matching_script_reports_no_selected_packages() {
 fn recursive_run_filter_prod_follows_production_deps_only() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let mut app = build_writes_marker("app");
-    app["devDependencies"] = json!({ "lib": "1.0.0" });
+    app["devDependencies"] = json!({ "lib": "workspace:*" });
     write_workspace(&workspace, &[("lib", build_writes_marker("lib")), ("app", app)]);
 
     pacquet
@@ -478,6 +489,68 @@ fn recursive_run_diff_selector_is_unsupported() {
     drop(root);
 }
 
+/// A bare-semver range naming a sibling is not a workspace edge under the
+/// default `link-workspace-packages: false`, matching pnpm. `app` listing
+/// `lib` as a bare `1.0.0` dependency therefore has no edge to it, so
+/// `--filter app...` (which follows dependencies) selects only `app`.
+#[test]
+fn recursive_run_does_not_follow_bare_semver_deps_as_workspace_edges() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let mut app = build_writes_marker("app");
+    app["dependencies"] = json!({ "lib": "1.0.0" });
+    write_workspace(&workspace, &[("lib", build_writes_marker("lib")), ("app", app)]);
+
+    pacquet
+        .with_arg("-r")
+        .with_arg("--filter")
+        .with_arg("app...")
+        .with_arg("run")
+        .with_arg("build")
+        .assert()
+        .success();
+
+    assert!(workspace.join("app").join("ran.txt").exists(), "the selected app should run");
+    assert!(
+        !workspace.join("lib").join("ran.txt").exists(),
+        "a bare-semver range is not a workspace edge under the default link-workspace-packages: false, so app... must not reach lib",
+    );
+
+    drop(root);
+}
+
+/// A mixed `--filter` / `--filter-prod` selection lists prod-selected
+/// projects before regular ones. With `alpha` and `beta` independent — so
+/// they share one topological chunk — `--filter alpha` `--filter-prod beta`
+/// runs `beta` before `alpha`.
+#[test]
+fn recursive_run_mixed_filter_runs_prod_selected_before_regular() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[("alpha", build_appends_run_order("alpha")), ("beta", build_appends_run_order("beta"))],
+    );
+
+    pacquet
+        .with_arg("-r")
+        .with_arg("--filter")
+        .with_arg("alpha")
+        .with_arg("--filter-prod")
+        .with_arg("beta")
+        .with_arg("run")
+        .with_arg("build")
+        .assert()
+        .success();
+
+    let log = fs::read_to_string(workspace.join("order.log")).expect("read order log");
+    assert_eq!(
+        log.lines().collect::<Vec<_>>(),
+        vec!["beta", "alpha"],
+        "prod-selected projects run before regular-selected ones in a mixed selection",
+    );
+
+    drop(root);
+}
+
 /// A `--filter` that matches no project is a no-op: the run exits 0
 /// without raising the no-selected-packages error, since the selected
 /// projects graph is empty.
@@ -513,7 +586,7 @@ fn recursive_run_resume_from_starts_at_the_given_package() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let dependent = |name: &str| {
         let mut manifest = build_writes_marker(name);
-        manifest["dependencies"] = json!({ "project-1": "1" });
+        manifest["dependencies"] = json!({ "project-1": "workspace:*" });
         manifest
     };
     write_workspace(

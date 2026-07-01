@@ -9923,6 +9923,9 @@ importers:
         specifier: workspace:*
         version: link:../../core/types
     devDependencies:
+      '@jest/globals':
+        specifier: 'catalog:'
+        version: 30.4.1
       '@pnpm/workspace.projects-sorter':
         specifier: workspace:*
         version: 'link:'

@@ -5,7 +5,7 @@ import { promisify } from 'node:util'
 import { expect, test } from '@jest/globals'
 import type { PnpmError } from '@pnpm/error'
 import type { ProjectRootDir } from '@pnpm/types'
-import { filterWorkspaceProjects, type ProjectGraph } from '@pnpm/workspace.projects-filter'
+import { filterProjectsBySelectorObjects, filterWorkspaceProjects, type ProjectGraph } from '@pnpm/workspace.projects-filter'
 import type { BaseProject } from '@pnpm/workspace.projects-graph'
 import { isCI } from 'ci-info'
 import { safeExeca as execa } from 'execa'
@@ -18,6 +18,47 @@ import './parseProjectSelector.js'
 
 const touch = promisify(touchCB)
 const mkdir = promisify(fs.mkdir)
+
+test('returns prod graph metadata for mixed regular and prod-only filters', async () => {
+  const projectADir = '/workspace/project-a' as ProjectRootDir
+  const projectBDir = '/workspace/project-b' as ProjectRootDir
+  const projectCDir = '/workspace/project-c' as ProjectRootDir
+  const projects: BaseProject[] = [
+    {
+      rootDir: projectADir,
+      manifest: {
+        name: 'project-a',
+        version: '1.0.0',
+        dependencies: { 'project-b': 'workspace:*' },
+        devDependencies: { 'project-c': 'workspace:*' },
+      },
+    },
+    {
+      rootDir: projectBDir,
+      manifest: {
+        name: 'project-b',
+        version: '1.0.0',
+      },
+    },
+    {
+      rootDir: projectCDir,
+      manifest: {
+        name: 'project-c',
+        version: '1.0.0',
+      },
+    },
+  ]
+
+  const result = await filterProjectsBySelectorObjects(projects, [
+    { namePattern: 'project-a', followProdDepsOnly: true },
+    { namePattern: 'project-c' },
+  ], { workspaceDir: process.cwd() })
+
+  expect(Object.keys(result.selectedProjectsGraph)).toStrictEqual([projectADir, projectCDir])
+  expect(result.selectedProjectsGraph[projectADir].dependencies).toStrictEqual([projectBDir])
+  expect(result.prodAllProjectsGraph?.[projectADir].dependencies).toStrictEqual([projectBDir])
+  expect(result.prodOnlySelectedProjectDirs).toStrictEqual([projectADir])
+})
 
 const PROJECTS_GRAPH: ProjectGraph<BaseProject> = {
   ['/packages/project-0' as ProjectRootDir]: {
