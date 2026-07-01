@@ -71,6 +71,42 @@ function resolveSafePnpmPath (): string {
   throw new PnpmError('EDIT_PNPM_NOT_FOUND', 'Could not find a pnpm executable on the PATH')
 }
 
+/**
+ * Resolve a bare executable name to its first PATH match that is outside
+ * the project root.  On Windows, `child_process.spawn` with a bare name
+ * searches the current directory before PATH, so a repo-local file named
+ * `notepad.exe` could hijack the editor command.
+ */
+function resolveSafeEditorPath (cmd: string, projectRoot: string): string | null {
+  const hasSep = cmd.includes('/') || (process.platform === 'win32' && cmd.includes('\\'))
+  if (hasSep) return null
+
+  const envPath = process.env.PATH || ''
+  const pathDirs = envPath.split(path.delimiter)
+  const exts = process.platform === 'win32' ? ['.exe', '.cmd', '.bat', '.ps1', ''] : ['']
+
+  for (const dir of pathDirs) {
+    if (!dir || !path.isAbsolute(dir)) {
+      continue
+    }
+    if (path.relative(projectRoot, dir).startsWith('..')) {
+      // This PATH entry is outside the project — safe to use
+      for (const ext of exts) {
+        const candidate = path.join(dir, `${cmd}${ext}`)
+        try {
+          const stat = fs.statSync(candidate)
+          if (stat.isFile()) {
+            return candidate
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+  }
+  return null
+}
+
 export async function handler (opts: EditCommandOptions, params: string[]): Promise<void> {
   if (!params[0]) {
     throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm edit` requires the package name')
@@ -142,8 +178,11 @@ export async function handler (opts: EditCommandOptions, params: string[]): Prom
   const cmd = editorParts[0]
   const args = [...editorParts.slice(1), realPkgPath]
 
+  const safeCmd = resolveSafeEditorPath(cmd, lockfileDir)
+  const finalCmd = safeCmd ?? cmd
+
   await new Promise<void>((resolve, reject) => {
-    const child = spawn(cmd, args, {
+    const child = spawn(finalCmd, args, {
       stdio: 'inherit',
       shell: false,
     })

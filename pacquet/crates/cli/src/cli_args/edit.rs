@@ -25,7 +25,9 @@ impl EditArgs {
         // Parse package name and potential sub-packages
         let parts = parse_package_path(package_path)?;
 
-        let modules_dir = state.config.modules_dir.clone();
+        let modules_dir = dunce::canonicalize(&state.config.modules_dir)
+            .into_diagnostic()
+            .wrap_err("Failed to canonicalize modules directory")?;
         let mut current_dir = modules_dir.clone();
         for (i, part) in parts.iter().enumerate() {
             let candidate = if i == 0 {
@@ -38,9 +40,10 @@ impl EditArgs {
                 return Err(miette!("Could not find package '{}' under '{}'", part, dir));
             }
             // Follow symlinks to the real directory in virtual store
-            current_dir = fs::canonicalize(&candidate).into_diagnostic().wrap_err_with(|| {
-                format!("Failed to canonicalize path '{}'", candidate.display())
-            })?;
+            current_dir =
+                dunce::canonicalize(&candidate).into_diagnostic().wrap_err_with(|| {
+                    format!("Failed to canonicalize path '{}'", candidate.display())
+                })?;
         }
 
         let real_pkg_path = current_dir;
@@ -73,10 +76,33 @@ impl EditArgs {
             return Err(miette!("No editor command specified"));
         }
         let program = &editor_parts[0];
-        let mut command = Command::new(program);
-        if editor_parts.len() > 1 {
-            command.args(&editor_parts[1..]);
-        }
+        let mut command = if is_bare_name(program) {
+            // Resolve bare-name programs to the first PATH match that
+            // is outside the project directory. On Windows, the default
+            // search order puts the current directory before PATH, so a
+            // repo-local `notepad.exe` could hijack the editor command.
+            if let Some(safe_path) = which::which_all(program).ok().and_then(|mut matches| {
+                matches.find(|resolved| !path_is_within_project(resolved, &modules_dir))
+            }) {
+                let mut cmd = Command::new(&safe_path);
+                if editor_parts.len() > 1 {
+                    cmd.args(&editor_parts[1..]);
+                }
+                cmd
+            } else {
+                let mut cmd = Command::new(program);
+                if editor_parts.len() > 1 {
+                    cmd.args(&editor_parts[1..]);
+                }
+                cmd
+            }
+        } else {
+            let mut cmd = Command::new(program);
+            if editor_parts.len() > 1 {
+                cmd.args(&editor_parts[1..]);
+            }
+            cmd
+        };
         command.arg(&real_pkg_path);
 
         let status = command
@@ -221,6 +247,17 @@ fn make_owner_writable(permissions: &fs::Permissions) -> fs::Permissions {
         p.set_readonly(false);
         p
     }
+}
+
+fn is_bare_name(name: &str) -> bool {
+    !(name.contains('/') || cfg!(windows) && name.contains('\\'))
+}
+
+fn path_is_within_project(path: &Path, project_root: &Path) -> bool {
+    dunce::canonicalize(path)
+        .ok()
+        .zip(dunce::canonicalize(project_root).ok())
+        .is_some_and(|(p, r)| p.starts_with(&r))
 }
 
 #[cfg(test)]
