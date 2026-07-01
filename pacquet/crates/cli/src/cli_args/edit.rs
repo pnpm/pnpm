@@ -6,8 +6,6 @@ use std::{env, fs, io, path::Path, process::Command};
 
 #[cfg(unix)]
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
-#[cfg(windows)]
-use std::os::windows::fs::MetadataExt;
 
 /// Opens an installed package's folder in the default text editor.
 #[derive(Debug, Args)]
