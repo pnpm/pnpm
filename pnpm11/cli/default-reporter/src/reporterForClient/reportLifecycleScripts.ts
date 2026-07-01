@@ -277,6 +277,9 @@ function formatLine (maxWidth: number, logObj: LifecycleLog): string {
 
 function cutLine (line: string | undefined, maxLength: number): string {
   if (!line) return ''
+  // Streamed lifecycle output is printed in full (maxLength is Infinity).
+  // cli-truncate rejects a non-finite width, so skip truncation in that case.
+  if (!Number.isFinite(maxLength)) return line
   return cliTruncate(line, maxLength)
 }
 
