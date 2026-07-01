@@ -19,6 +19,7 @@ use super::{
     repo::RepoArgs,
     reporter::ReporterType,
     root::RootArgs,
+    sbom::SbomArgs,
     self_update::SelfUpdateArgs,
     setup::SetupArgs,
     store::StoreCommand,
@@ -98,6 +99,10 @@ pub(super) fn ll<'a>(ctx: &RunCtx<'a>, mut args: ListArgs) -> miette::Result<Com
 }
 
 pub(super) fn why<'a>(ctx: &RunCtx<'a>, args: WhyArgs) -> miette::Result<CommandFuture<'a>> {
+    Ok(Box::pin(args.run((ctx.state)(true)?)))
+}
+
+pub(super) fn sbom<'a>(ctx: &RunCtx<'a>, args: SbomArgs) -> miette::Result<CommandFuture<'a>> {
     Ok(Box::pin(args.run((ctx.state)(true)?)))
 }
 
