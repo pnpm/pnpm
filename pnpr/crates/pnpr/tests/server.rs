@@ -2559,6 +2559,42 @@ async fn private_hosted_org_masks_before_the_package_acl() {
     }
 }
 
+/// The same 404-before-ACL masking must hold on the path-less `dist-tags` reader
+/// (`load_packument_for_read`), which resolves through the default-target mount.
+#[tokio::test]
+async fn private_hosted_org_masks_dist_tags_before_the_package_acl() {
+    let tmp = TempDir::new().unwrap();
+    seed_hosted(&tmp.path().join("acme"), "@acme/widget");
+
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.hosted.insert(
+        "acme".to_string(),
+        HostedConfig { org: "acme".to_string(), access: AccessList::parse("alice") },
+    );
+    // The path-less base aliases the "acme" hosted mount, so `/-/package/...`
+    // resolves to it.
+    config.mounts = Mounts::new(
+        vec![("acme".to_string(), MountKind::Hosted)].into_iter().collect(),
+        Some("acme".to_string()),
+    );
+    config.policies = PackagePolicies::new(vec![
+        PackagePolicy::new(
+            "@acme/widget",
+            AccessList::parse("$authenticated"),
+            AccessList::default(),
+            AccessList::default(),
+        )
+        .expect("policy compiles"),
+    ]);
+    let app = router_with_auth(config, AuthState::in_memory());
+
+    let resp = app
+        .oneshot(Request::get("/-/package/@acme%2Fwidget/dist-tags").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}
+
 #[tokio::test]
 async fn publish_to_hosted_round_trips_in_its_own_namespace() {
     use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};

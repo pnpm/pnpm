@@ -1052,23 +1052,28 @@ async fn load_packument_for_read(
     identity: &Identity,
     name: &PackageName,
 ) -> Result<Option<Vec<u8>>, Box<Response>> {
-    // The per-package access ACL applies to every mount-served read, upstream or
-    // hosted, so gate it once up front — otherwise a restricted package routed to
-    // an upstream would leak (e.g. its dist-tags) through the path-less readers.
-    if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
-        return Err(Box::new(error_response(&err)));
-    }
     let Some(target) = default_target_mount(state) else {
         return Ok(None);
     };
+    // The per-package access ACL applies to every mount-served read, upstream or
+    // hosted — otherwise a restricted package would leak (e.g. its dist-tags)
+    // through these path-less readers. It runs *after* the hosted-org visibility
+    // gate, though, so a private org still 404-masks an unauthorized caller
+    // rather than revealing existence via a 401/403 (see `serve_mount_packument`).
     match resolve_mount_source(state, &target, name.as_str()) {
         MountSource::Upstream(source) => {
+            if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
+                return Err(Box::new(error_response(&err)));
+            }
             load_upstream_packument_for(state, identity, &source, name).await
         }
         MountSource::Hosted(source) => {
             let Some(org) = readable_hosted_namespace(state, identity, &source) else {
                 return Ok(None);
             };
+            if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
+                return Err(Box::new(error_response(&err)));
+            }
             state
                 .inner
                 .storage
