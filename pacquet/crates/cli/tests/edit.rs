@@ -55,7 +55,7 @@ fn edit_dependency_successfully() {
     assert!(index_js.exists());
 
     // We will use a node script as a dummy editor to overwrite index.js
-    let dummy_editor = "node -e \"const fs = require('fs'); fs.writeFileSync(require('path').join(process.argv[1], 'index.js'), 'module.exports = () => \\\"modified\\\";');\"";
+    let dummy_editor = r#"node -e "const fs = require('fs'); fs.writeFileSync(require('path').join(process.argv[1], 'index.js'), 'module.exports = () => \"modified\";');""#;
 
     let mut cmd = pacquet(&workspace);
     cmd.env("EDITOR", dummy_editor);
@@ -89,7 +89,7 @@ fn edit_dependency_via_pnpm_config_editor() {
     let pkg_dir = workspace.join("node_modules/is-positive");
     let index_js = pkg_dir.join("index.js");
 
-    let dummy_editor = "node -e \"const fs = require('fs'); fs.writeFileSync(require('path').join(process.argv[1], 'index.js'), 'module.exports = () => \\\"config_editor_modified\\\";');\"";
+    let dummy_editor = r#"node -e "const fs = require('fs'); fs.writeFileSync(require('path').join(process.argv[1], 'index.js'), 'module.exports = () => \"config_editor_modified\";');""#;
 
     let mut cmd = pacquet(&workspace);
     cmd.env("PNPM_CONFIG_EDITOR", dummy_editor);
@@ -118,7 +118,7 @@ fn edit_dependency_via_workspace_yaml_editor() {
     )
     .expect("write package.json");
 
-    let dummy_editor = "node -e \"const fs = require('fs'); fs.writeFileSync(require('path').join(process.argv[1], 'index.js'), 'module.exports = () => \\\"yaml_editor_modified\\\";');\"";
+    let dummy_editor = r#"node -e "const fs = require('fs'); fs.writeFileSync(require('path').join(process.argv[1], 'index.js'), 'module.exports = () => \"yaml_editor_modified\";');""#;
 
     let workspace_yaml_text = format!(
         "storeDir: ../pacquet-store\ncacheDir: ../pacquet-cache\nenableGlobalVirtualStore: false\neditor: {dummy_editor}\n",
