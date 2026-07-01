@@ -959,15 +959,15 @@ fn authorized_uplink<'a>(
 /// is integrity-verified, so it uses a *stable* namespace
 /// (`~public/<digest-of-mount-name>`) that is shared across process restarts.
 fn uplink_cache_namespace(state: &AppState, uplink: &str) -> String {
-    let config = state.inner.config.uplinks.get(uplink);
-    if config.is_some_and(|uplink| uplink.access.is_some()) {
-        let credential = config
-            .and_then(|uplink| uplink.headers.get(reqwest::header::AUTHORIZATION))
-            .and_then(|value| value.to_str().ok())
-            .unwrap_or_default();
+    if let Some(config) = state.inner.config.uplinks.get(uplink)
+        && config.access.is_some()
+    {
+        // Key the epoch on every header the uplink attaches upstream, not just
+        // `Authorization`, so rotating a credential carried in a custom header
+        // still moves the private cache to a fresh namespace.
         let digest = crate::route::uplink_cache_digest(
             uplink,
-            crate::route::credential_digest(credential),
+            crate::route::headers_credential_digest(&config.headers),
             &state.inner.config.resolution_cache_secret,
         );
         return format!("~uplinks/{digest}");

@@ -28,7 +28,7 @@ use std::{
 };
 
 use pacquet_network::{MetadataCacheScope, UpstreamRouteHook, nerf_dart};
-use reqwest::header::AUTHORIZATION;
+use reqwest::header::{AUTHORIZATION, HeaderMap};
 use sha2::{Digest, Sha256};
 use wax::{Glob, Program};
 
@@ -100,8 +100,9 @@ impl PrivateAccessDescriptor {
 /// `(uplink, credential)`. Keyed by the server `secret` so the on-disk path
 /// reveals neither the uplink name nor its credential, and so a path-unsafe
 /// uplink name (`..`, `/`) can never escape the cache root — the digest is
-/// hex. [`credential_digest`] is a [`credential_digest`] of the uplink's
-/// `Authorization`, so a credential rotation moves to a fresh namespace.
+/// hex. The digest passed here is a [`headers_credential_digest`] over the
+/// uplink's attached headers, so rotating any credential moves to a fresh
+/// namespace.
 #[must_use]
 pub(crate) fn uplink_cache_digest(
     uplink: &str,
@@ -122,6 +123,33 @@ pub(crate) fn uplink_cache_digest(
 #[must_use]
 pub(crate) fn credential_digest(authorization: &str) -> String {
     hex(&Sha256::digest(authorization.as_bytes()))
+}
+
+/// A hash of an uplink's *effective credential material* — every request header
+/// it attaches upstream, not just `Authorization` — used as the credential epoch
+/// in [`PrivateAccessDescriptor::Alias`]. pnpr supports credentials carried in
+/// custom headers, so rotating any of them must re-key the uplink's private
+/// cache; keying on `Authorization` alone would keep serving old-credential
+/// content after such a rotation.
+///
+/// Stable across runs and independent of map iteration order: the (name, value)
+/// pairs are sorted and length-prefixed before hashing, so no two distinct
+/// header sets share a digest. The raw values never reach disk — this is a
+/// one-way SHA-256, then HMAC-keyed with the server secret by
+/// [`PrivateAccessDescriptor::digest_id`].
+#[must_use]
+pub(crate) fn headers_credential_digest(headers: &HeaderMap) -> String {
+    let mut entries: Vec<(&[u8], &[u8])> =
+        headers.iter().map(|(name, value)| (name.as_str().as_bytes(), value.as_bytes())).collect();
+    entries.sort_unstable();
+    let mut hasher = Sha256::new();
+    for (name, value) in entries {
+        hasher.update((name.len() as u64).to_le_bytes());
+        hasher.update(name);
+        hasher.update((value.len() as u64).to_le_bytes());
+        hasher.update(value);
+    }
+    hex(&hasher.finalize())
 }
 
 /// The set of private routes a single resolve actually touched, paired
