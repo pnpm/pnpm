@@ -16,7 +16,7 @@ export function cliOptionsTypes (): Record<string, unknown> {
   return rcOptionsTypes()
 }
 
-export const commandNames = ['bugs']
+export const commandNames = ['bugs', 'issues']
 
 export function help (): string {
   return renderHelp({
