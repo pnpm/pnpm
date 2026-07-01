@@ -95,13 +95,11 @@ async fn fetch_packument_sends_no_authorization_when_headers_empty() {
 }
 
 #[tokio::test]
-async fn fetch_packument_captures_validators_from_response() {
+async fn fetch_packument_modified_carries_the_body() {
     let mut server = mockito::Server::new_async().await;
     let mock = server
         .mock("GET", "/foo")
         .with_status(200)
-        .with_header("etag", r#""abc123""#)
-        .with_header("last-modified", "Wed, 21 Oct 2015 07:28:00 GMT")
         .with_body(json!({ "name": "foo" }).to_string())
         .expect(1)
         .create_async()

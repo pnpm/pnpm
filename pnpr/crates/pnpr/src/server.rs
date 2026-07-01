@@ -1041,7 +1041,12 @@ async fn load_uplink_packument(
         // mount. A clean `NotFound` is an `Ok` variant below, so it never lands
         // here and stays an authoritative 404.
         Err(err) => {
-            if upstream.caches()
+            // Only mask a *transient* availability failure (transport, 5xx, open
+            // circuit). A 4xx is authoritative about this request — auth revoked,
+            // `410 Gone`, throttled — and must surface rather than be answered
+            // from old bytes.
+            if err.is_transient_upstream_error()
+                && upstream.caches()
                 && let Some(bytes) =
                     state.inner.storage.read_uplink_packument_any(namespace, name).await?
             {

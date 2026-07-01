@@ -1624,6 +1624,22 @@ fn build_mounts(
         match file {
             MountFile::Hosted(mount) => {
                 validate_org_namespace(&name, &mount.org)?;
+                // Two hosted mounts sharing an `org` would read and write the
+                // same storage namespace, so a package published to one would
+                // surface through the other — breaking the declared-provenance
+                // isolation. Reject the collision at load.
+                if let Some((other, _)) = hosted
+                    .iter()
+                    .find(|(_, existing): &(_, &HostedConfig)| existing.org == mount.org)
+                {
+                    return Err(RegistryError::InvalidConfig {
+                        reason: format!(
+                            "hosted mount {name:?} reuses the `org` namespace {:?} already claimed \
+                             by mount {other:?}; two hosted mounts cannot share a namespace",
+                            mount.org,
+                        ),
+                    });
+                }
                 let access = mount
                     .access
                     .as_ref()
@@ -1718,13 +1734,15 @@ fn resolve_upstream_mount<Sys: EnvVar>(
             ),
         });
     }
-    if file.public
-        && file.headers.keys().any(|header| header.eq_ignore_ascii_case(AUTHORIZATION.as_str()))
-    {
+    if file.public && !file.headers.is_empty() {
+        // A public origin is fetched anonymously, so it sends no request headers
+        // at all. Rejecting *any* custom header (not just `Authorization`) closes
+        // the door on a credential smuggled through `X-Api-Key`, a cookie, or any
+        // other header on a mount that is meant to be reachable anonymously.
         return Err(RegistryError::InvalidConfig {
             reason: format!(
-                "upstream mount {name:?} is `public` but declares an `Authorization` header; a \
-                 public origin sends no credential",
+                "upstream mount {name:?} is `public` but declares custom `headers`; a public \
+                 origin is fetched anonymously and sends none",
             ),
         });
     }

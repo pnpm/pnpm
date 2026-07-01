@@ -1677,10 +1677,13 @@ async fn stale_packument_is_served_when_upstream_refetch_fails() {
     ok.assert_async().await;
     ok.remove_async().await;
 
-    // The entry goes stale and the upstream now fails every refetch.
+    // The entry goes stale and the upstream now fails every refetch. Staleness
+    // is decided from the cache file's mtime, so sleep well past a coarse
+    // filesystem's timestamp granularity (~1s) plus the TTL — otherwise the
+    // entry could still read as fresh and the test would flake.
     let boom =
         upstream.mock("GET", "/foo").with_status(500).expect_at_least(1).create_async().await;
-    tokio::time::sleep(Duration::from_millis(120)).await;
+    tokio::time::sleep(Duration::from_millis(1200)).await;
 
     // The stale cached packument is served (200), not a 502.
     let r2 = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
@@ -1691,6 +1694,42 @@ async fn stale_packument_is_served_when_upstream_refetch_fails() {
         "stale packument body should still carry its versions",
     );
     boom.assert_async().await;
+}
+
+/// Stale-if-error masks only *transient* failures: a 4xx (here `403`) is
+/// authoritative about this request, so the cached bytes must NOT be served —
+/// the error surfaces instead.
+#[tokio::test]
+async fn a_4xx_upstream_does_not_serve_stale_cache() {
+    let mut upstream = mockito::Server::new_async().await;
+    let packument = json!({ "name": "foo", "dist-tags": { "latest": "1.0.0" }, "versions": {} });
+    let ok = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_body(packument.to_string())
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.packument_ttl = Duration::from_millis(50);
+    let app = router(config);
+
+    let r1 = app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(r1.status(), StatusCode::OK);
+    let _ = body_bytes(r1.into_body()).await;
+    ok.assert_async().await;
+    ok.remove_async().await;
+
+    // The refetch now returns 403 (auth revoked). It must not be masked.
+    let denied =
+        upstream.mock("GET", "/foo").with_status(403).expect_at_least(1).create_async().await;
+    tokio::time::sleep(Duration::from_millis(1200)).await;
+
+    let r2 = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_ne!(r2.status(), StatusCode::OK, "a 4xx must not be answered from stale cache");
+    denied.assert_async().await;
 }
 
 #[tokio::test]

@@ -938,11 +938,14 @@ mounts:
     assert!(err.to_string().contains("`access`"), "unexpected error: {err}");
 }
 
-/// A `public` upstream sends no credential, so an `Authorization` header on it
-/// must fail closed rather than leak a credential to a supposedly-public origin.
+/// A `public` upstream is fetched anonymously, so *any* custom header — not just
+/// `Authorization`, but a credential smuggled through `X-Api-Key` — must fail
+/// closed rather than be sent to a supposedly-public origin.
 #[test]
-fn from_yaml_str_rejects_public_upstream_with_authorization_header() {
-    let yaml = "\
+fn from_yaml_str_rejects_public_upstream_with_custom_headers() {
+    for header in ["Authorization: Bearer leaked", "X-Api-Key: secret"] {
+        let yaml = format!(
+            "\
 storage: ./s
 mounts:
   npmjs:
@@ -950,11 +953,32 @@ mounts:
     url: https://registry.npmjs.org/
     public: true
     headers:
-      Authorization: Bearer leaked
+      {header}
+",
+        );
+        let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
+            .expect_err("public upstream with a custom header must be rejected");
+        assert!(err.to_string().contains("headers"), "unexpected error for {header:?}: {err}");
+    }
+}
+
+/// Two hosted mounts sharing an `org` namespace would alias the same storage, so
+/// the collision must be rejected at load.
+#[test]
+fn from_yaml_str_rejects_duplicate_hosted_org() {
+    let yaml = "\
+storage: ./s
+mounts:
+  acme:
+    type: hosted
+    org: shared
+  acme-mirror:
+    type: hosted
+    org: shared
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
-        .expect_err("public upstream with an Authorization header must be rejected");
-    assert!(err.to_string().contains("Authorization"), "unexpected error: {err}");
+        .expect_err("two hosted mounts on the same org must be rejected");
+    assert!(err.to_string().contains("reuses the `org`"), "unexpected error: {err}");
 }
 
 /// A hosted `org` becomes a storage path segment, so a traversal-y value must be
