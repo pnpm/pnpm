@@ -250,6 +250,114 @@ describe('pkg command', () => {
     })
   })
 
+  describe('get-published subcommand', () => {
+    test('applies publishConfig overrides', async () => {
+      const manifest = {
+        name: 'test-package',
+        version: '1.0.0',
+        main: './src/index.ts',
+        publishConfig: {
+          main: './dist/index.js',
+        },
+      }
+      fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(manifest, null, 2))
+
+      const result = await handler({ dir: tmpDir }, ['get-published', 'main'])
+      expect(result).toBe('./dist/index.js')
+    })
+
+    test('strips publish lifecycle scripts', async () => {
+      const manifest = {
+        name: 'test-package',
+        version: '1.0.0',
+        scripts: {
+          build: 'tsc',
+          prepublishOnly: 'npm run build',
+          prepack: 'echo prepack',
+        },
+      }
+      fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(manifest, null, 2))
+
+      const result = JSON.parse(await handler({ dir: tmpDir }, ['get-published', 'scripts']) as string)
+      expect(result.build).toBe('tsc')
+      expect(result.prepublishOnly).toBeUndefined()
+      expect(result.prepack).toBeUndefined()
+    })
+
+    test('strips pnpm field', async () => {
+      const manifest = {
+        name: 'test-package',
+        version: '1.0.0',
+        pnpm: {
+          overrides: { foo: '1.0.0' },
+        },
+      }
+      fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(manifest, null, 2))
+
+      const result = JSON.parse(await handler({ dir: tmpDir }, ['get-published']) as string)
+      expect(result.pnpm).toBeUndefined()
+    })
+
+    test('returns full transformed manifest with no field args', async () => {
+      const manifest = {
+        name: 'test-package',
+        version: '1.0.0',
+        main: './src/index.ts',
+        publishConfig: {
+          main: './dist/index.js',
+        },
+      }
+      fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(manifest, null, 2))
+
+      const result = JSON.parse(await handler({ dir: tmpDir }, ['get-published']) as string)
+      expect(result.main).toBe('./dist/index.js')
+      expect(result.name).toBe('test-package')
+    })
+
+    test('reads from publishConfig.directory subfolder', async () => {
+      const rootManifest = {
+        name: 'root-package',
+        version: '1.0.0',
+        main: './src/index.ts',
+        publishConfig: {
+          directory: 'dist',
+        },
+      }
+      fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(rootManifest, null, 2))
+
+      const distDir = path.join(tmpDir, 'dist')
+      fs.mkdirSync(distDir, { recursive: true })
+      const distManifest = {
+        name: 'root-package',
+        version: '1.0.0',
+        main: './index.js',
+        types: './index.d.ts',
+      }
+      fs.writeFileSync(path.join(distDir, 'package.json'), JSON.stringify(distManifest, null, 2))
+
+      const result = JSON.parse(await handler({ dir: tmpDir }, ['get-published']) as string)
+      expect(result.main).toBe('./index.js')
+      expect(result.types).toBe('./index.d.ts')
+    })
+
+    test('rejects publishConfig.directory that escapes the project', async () => {
+      const manifest = {
+        name: 'test-package',
+        version: '1.0.0',
+        publishConfig: {
+          directory: '../../../etc',
+        },
+      }
+      fs.writeFileSync(path.join(tmpDir, 'package.json'), JSON.stringify(manifest, null, 2))
+
+      await expect(handler({ dir: tmpDir }, ['get-published']))
+        .rejects.toMatchObject({
+          code: 'ERR_PNPM_PUBLISH_DIR_OUTSIDE_PROJECT',
+          message: expect.stringContaining('../../../etc'),
+        })
+    })
+  })
+
   describe('error handling', () => {
     test('throws error for unknown subcommand', async () => {
       const manifest = { name: 'test-package' }

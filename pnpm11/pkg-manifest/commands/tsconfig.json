@@ -10,10 +10,13 @@
   ],
   "references": [
     { "path": "../../__utils__/prepare" },
+    { "path": "../../catalogs/types" },
     { "path": "../../cli/utils" },
     { "path": "../../config/reader" },
     { "path": "../../core/error" },
     { "path": "../../core/types" },
-    { "path": "../../object/property-path" }
+    { "path": "../../hooks/pnpmfile" },
+    { "path": "../../object/property-path" },
+    { "path": "../../releasing/exportable-manifest" }
   ]
 }
