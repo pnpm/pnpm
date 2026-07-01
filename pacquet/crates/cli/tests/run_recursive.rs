@@ -519,10 +519,9 @@ fn recursive_run_does_not_follow_bare_semver_deps_as_workspace_edges() {
 }
 
 /// A mixed `--filter` / `--filter-prod` selection lists prod-selected
-/// projects before regular ones, matching pnpm's
-/// `{ ...prodFilteredGraph, ...filteredGraph }`. With `alpha` and `beta`
-/// independent — so they share one topological chunk — `--filter alpha`
-/// `--filter-prod beta` runs `beta` before `alpha`.
+/// projects before regular ones. With `alpha` and `beta` independent — so
+/// they share one topological chunk — `--filter alpha` `--filter-prod beta`
+/// runs `beta` before `alpha`.
 #[test]
 fn recursive_run_mixed_filter_runs_prod_selected_before_regular() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
