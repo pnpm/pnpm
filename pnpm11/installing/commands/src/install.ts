@@ -71,6 +71,8 @@ export function rcOptionsTypes (): Record<string, unknown> {
     'side-effects-cache',
     'store-dir',
     'strict-peer-dependencies',
+    'minimum-release-age',
+    'minimum-release-age-exclude',
     'trust-lockfile',
     'trust-policy',
     'trust-policy-exclude',
@@ -252,6 +254,8 @@ by any dependencies, so it is an emulation of a flat node_modules',
             description: 'Ignore trust downgrades for packages published more than specified minutes ago',
             name: '--trust-policy-ignore-after <minutes>',
           },
+          OPTIONS.minimumReleaseAge,
+          OPTIONS.minimumReleaseAgeExclude,
           {
             description: 'Trust the lockfile and skip the supply-chain verification step that re-applies minimumReleaseAge / trustPolicy to each lockfile entry. Use only when the lockfile is part of the trusted base (closed-source projects, CI runs against an already-verified lockfile)',
             name: '--trust-lockfile',
@@ -360,6 +364,8 @@ export type InstallCommandOptions = Pick<Config,
 | 'saveCatalogName'
 | 'saveWorkspaceProtocol'
 | 'lockfileIncludeTarballUrl'
+| 'minimumReleaseAge'
+| 'minimumReleaseAgeExclude'
 | 'sideEffectsCache'
 | 'sideEffectsCacheReadonly'
 | 'sort'

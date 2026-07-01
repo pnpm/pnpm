@@ -1,5 +1,9 @@
 import { pickRegistryForPackage } from '@pnpm/config.pick-registry-for-package'
-import { createPackageVersionPolicy } from '@pnpm/config.version-policy'
+import {
+  coerceExcludeToArray,
+  createPackageVersionPolicy,
+  validateMinimumReleaseAge,
+} from '@pnpm/config.version-policy'
 import { FULL_META_DIR } from '@pnpm/constants'
 import { PnpmError } from '@pnpm/error'
 import type { GetAuthHeader } from '@pnpm/fetching.types'
@@ -46,7 +50,12 @@ export interface CreateNpmResolutionVerifierOptions {
    * thing that proves the manifest stays in sync with the lockfile.
    */
   minimumReleaseAgeStrict?: boolean
-  minimumReleaseAgeExclude?: string[]
+  /**
+   * May arrive as a bare `string` when a single `--minimum-release-age-exclude`
+   * flag is passed on the CLI (`[String, Array]` coercion); normalized to
+   * `string[]` before use so the policy matcher iterates packages, not chars.
+   */
+  minimumReleaseAgeExclude?: string[] | string
   /**
    * When the registry's metadata lacks the per-version `time` field
    * (some self-hosted registries strip it), the verifier can't apply
@@ -117,14 +126,20 @@ export interface CreateNpmResolutionVerifierOptions {
 export function createNpmResolutionVerifier (
   opts: CreateNpmResolutionVerifierOptions
 ): ResolutionVerifier {
+  if (opts.minimumReleaseAge != null) {
+    validateMinimumReleaseAge(opts.minimumReleaseAge)
+  }
   const ageCheckActive = Boolean(opts.minimumReleaseAge)
   const trustCheckActive = opts.trustPolicy === 'no-downgrade'
 
   const cutoff = ageCheckActive
     ? (opts.now ?? Date.now()) - opts.minimumReleaseAge! * 60 * 1000
     : 0
-  const excludePolicy = opts.minimumReleaseAgeExclude?.length
-    ? createExcludePolicy(opts.minimumReleaseAgeExclude, 'minimumReleaseAgeExclude')
+  const normalizedMinAgeExcludes = opts.minimumReleaseAgeExclude != null && opts.minimumReleaseAgeExclude !== ''
+    ? coerceExcludeToArray(opts.minimumReleaseAgeExclude)
+    : undefined
+  const excludePolicy = normalizedMinAgeExcludes?.length
+    ? createExcludePolicy(normalizedMinAgeExcludes, 'minimumReleaseAgeExclude')
     : undefined
   const trustExcludePolicy = opts.trustPolicyExclude?.length
     ? createExcludePolicy(opts.trustPolicyExclude, 'trustPolicyExclude')
@@ -259,7 +274,7 @@ export function createNpmResolutionVerifier (
   // hold), but it makes the cache contract trivial to reason about and
   // removes a class of bypasses where a previously-approved version
   // stays trusted after its exclude entry has been pulled.
-  const sortedMinAgeExcludes = [...new Set(opts.minimumReleaseAgeExclude ?? [])].sort()
+  const sortedMinAgeExcludes = [...new Set(normalizedMinAgeExcludes ?? [])].sort()
   const sortedTrustExcludes = [...new Set(opts.trustPolicyExclude ?? [])].sort()
   return {
     verify,
