@@ -162,9 +162,9 @@ export async function handler (opts: EditCommandOptions, params: string[]): Prom
   })
 
   const pkgToRebuild = parts[parts.length - 1]
-  let pnpmPath = resolveSafePnpmPath()
-  let rebuildArgs = ['rebuild', pkgToRebuild]
   const execPath = process.execPath
+  let pnpmPath: string
+  let rebuildArgs: string[]
 
   const monorepoBin = path.resolve(import.meta.dirname, '../../../pnpm/bin/pnpm.mjs')
   if (fs.existsSync(monorepoBin)) {
@@ -175,6 +175,9 @@ export async function handler (opts: EditCommandOptions, params: string[]): Prom
     if (pnpmScript && (pnpmScript.endsWith('.js') || pnpmScript.endsWith('.cjs') || pnpmScript.endsWith('.mjs') || pnpmScript.endsWith('.ts')) && pnpmScript.includes('pnpm')) {
       pnpmPath = execPath
       rebuildArgs = [pnpmScript, 'rebuild', pkgToRebuild]
+    } else {
+      pnpmPath = resolveSafePnpmPath()
+      rebuildArgs = ['rebuild', pkgToRebuild]
     }
   }
 
