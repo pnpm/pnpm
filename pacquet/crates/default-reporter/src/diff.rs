@@ -11,6 +11,12 @@ use std::fmt::Write as _;
 
 use crate::format::visible_width;
 
+// `visible_width` counts one column per char (matching `string-length` in the
+// TS reporter), not `wcwidth` (which counts CJK/wide chars as 2). This
+// matches the TS `ansi-diff` usage where `string-length` is the width source.
+// ASCII-dominant progress output is unaffected; CJK package names would be
+// undercounted, same as the pre-pnpm/pnpm#12351 behavior.
+
 /// Renders the differential between successive frames.
 pub(crate) struct Diff {
     col: usize,
@@ -33,9 +39,9 @@ impl Diff {
         let min = next.len().min(self.lines.len());
         let mut scrub = false;
 
-        // Clone the previous lines so the borrow of `self.lines` ends before
-        // we mutate `self.col` / `self.row`.
-        let old: Vec<Line> = self.lines.iter().take(min).cloned().collect();
+        // Take ownership of the previous lines so the borrow of `self` ends
+        // and we can freely mutate `self.col` / `self.row` during the loop.
+        let old = std::mem::take(&mut self.lines);
 
         for (idx, new_line) in next.iter().enumerate().take(min) {
             let old_line = &old[idx];
@@ -49,6 +55,7 @@ impl Diff {
             let old_row = old_line.row;
             let old_height = old_line.height;
             if !scrub
+                && self.col != self.width
                 && new_line.try_inline_diff(
                     old_line,
                     &mut out,
@@ -93,15 +100,11 @@ impl Diff {
             }
         }
 
-        if let Some(old_last) = self.lines.last() {
-            let new_last_row = next.last().map_or(0, |line| line.row + line.height);
+        if let Some(old_last) = old.last() {
             let old_last_row = old_last.row + old_last.height;
-            if new_last_row < old_last_row {
-                self.move_to(&mut out, 0, new_last_row);
-                for _ in new_last_row..old_last_row {
-                    out.push_str("\x1b[0K\n");
-                    self.row += 1;
-                }
+            let new_last_row = next.last().map_or(0, |line| line.row + line.height);
+            if next.is_empty() || new_last_row < old_last_row {
+                self.clear_down(&mut out, old_last_row);
             }
         }
 
@@ -114,18 +117,19 @@ impl Diff {
     }
 
     fn move_to(&mut self, out: &mut String, col: usize, row: usize) {
-        if col > self.col {
-            let _ = write!(out, "\x1b[{}C", col - self.col);
-        } else if col < self.col {
-            let _ = write!(out, "\x1b[{}D", self.col - col);
+        move_to(out, &mut self.col, &mut self.row, col, row);
+    }
+
+    /// Clear lines from the cursor's current position down to `target_row`,
+    /// matching `ansi-diff`'s `_clearDown`. The first line starts at the
+    /// cursor's current column; subsequent lines start at column 0.
+    fn clear_down(&mut self, out: &mut String, target_row: usize) {
+        let mut col = self.col;
+        for current_row in self.row..=target_row {
+            self.move_to(out, col, current_row);
+            out.push_str("\x1b[0K");
+            col = 0;
         }
-        if row > self.row {
-            let _ = write!(out, "\x1b[{}B", row - self.row);
-        } else if row < self.row {
-            let _ = write!(out, "\x1b[{}A", self.row - row);
-        }
-        self.col = col;
-        self.row = row;
     }
 }
 
