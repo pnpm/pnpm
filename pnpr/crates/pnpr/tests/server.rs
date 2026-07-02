@@ -2434,6 +2434,7 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://upstream.invalid", tmp.path().to_path_buf());
     config.registry.enabled = false;
+    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
     let app = router(config);
 
     // The resolver surface stays reachable. `/-/ping` and the capability
@@ -2472,6 +2473,58 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
         .await
         .unwrap();
     assert_eq!(batch_publish.status(), StatusCode::NOT_FOUND);
+
+    // The account endpoints ride every tier: a resolver-only tier mints and
+    // manages the tokens its own resolver surface demands, so `pnpm login
+    // --registry https://<resolver-host>/` works without a registry-serving
+    // replica that shares the auth backend.
+    let registration = json!({
+        "_id": "org.couchdb.user:alice",
+        "name": "alice",
+        "password": "secret",
+        "email": "alice@example.test",
+        "type": "user",
+        "roles": [],
+    });
+    let logged_in = app
+        .clone()
+        .oneshot(
+            Request::put("/-/user/org.couchdb.user:alice")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&registration).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(logged_in.status(), StatusCode::CREATED);
+    let token = body_json(logged_in.into_body()).await["token"].as_str().unwrap().to_string();
+    for path in ["/-/whoami", "/-/npm/v1/user", "/-/npm/v1/tokens"] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "GET {path}");
+    }
+
+    // The minted token authenticates against the resolver surface itself.
+    let verify = app
+        .clone()
+        .oneshot(
+            Request::post("/-/pnpr/v0/verify-lockfile")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::from("{}"))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_ne!(verify.status(), StatusCode::UNAUTHORIZED);
+    assert_ne!(verify.status(), StatusCode::NOT_FOUND);
 }
 
 #[tokio::test]
