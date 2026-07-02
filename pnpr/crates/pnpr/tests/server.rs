@@ -725,7 +725,9 @@ async fn tarball_is_proxied_and_cached() {
     assert_eq!(first.status(), StatusCode::OK);
     assert_eq!(body_bytes(first.into_body()).await, bytes);
 
-    let second = router(config_for("http://127.0.0.1:1", storage))
+    // A fresh instance over the same storage and origin serves the cached
+    // copy; the `expect(1)` mocks prove the upstream is never asked twice.
+    let second = router(config_for(&upstream.url(), storage))
         .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
@@ -926,6 +928,56 @@ async fn uplink_cache_does_not_leak_to_the_public_path() {
         .unwrap();
     assert_eq!(public.status(), StatusCode::OK);
     assert_eq!(body_bytes(public.into_body()).await, public_bytes);
+}
+
+/// Repointing a mount's `url:` must abandon the previous origin's cache: the
+/// namespace is keyed by the origin, so a warm entry fetched from the old
+/// upstream — packument or tarball, including via the cache-first tarball
+/// path — can never answer for the new one under the same mount name.
+#[tokio::test]
+async fn repointing_an_uplink_url_abandons_the_old_origins_cache() {
+    let mut old_origin = mockito::Server::new_async().await;
+    let mut new_origin = mockito::Server::new_async().await;
+    let old_bytes = b"old-origin-foo-tarball";
+    let new_bytes = b"new-origin-foo-tarball";
+
+    for (server, body) in [(&mut old_origin, &old_bytes[..]), (&mut new_origin, &new_bytes[..])] {
+        let packument = json!({
+            "name": "foo",
+            "dist-tags": { "latest": "1.0.0" },
+            "versions": { "1.0.0": { "name": "foo", "version": "1.0.0", "dist": {
+                "tarball": format!("{}/foo/-/foo-1.0.0.tgz", server.url()),
+                "integrity": sha512_integrity(body),
+            } } },
+        });
+        server.mock("GET", "/foo").with_body(packument.to_string()).create_async().await;
+        server
+            .mock("GET", "/foo/-/foo-1.0.0.tgz")
+            .with_header("content-type", "application/octet-stream")
+            .with_body(body)
+            .create_async()
+            .await;
+    }
+
+    // Prime the cache from the old origin.
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for(&old_origin.url(), tmp.path().to_path_buf()));
+    let primed = app
+        .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(primed.status(), StatusCode::OK);
+    assert_eq!(body_bytes(primed.into_body()).await, old_bytes);
+
+    // Same storage, same mount name, new `url:` — the fresh entries must come
+    // from the new origin, not the still-fresh cache of the old one.
+    let app = router(config_for(&new_origin.url(), tmp.path().to_path_buf()));
+    let repointed = app
+        .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(repointed.status(), StatusCode::OK);
+    assert_eq!(body_bytes(repointed.into_body()).await, new_bytes);
 }
 
 #[tokio::test]
@@ -1245,8 +1297,13 @@ async fn tarball_route_preserves_basename_and_binds_to_declaring_version() {
     let package_dir = public_cache_pkg(&storage, "foo");
     assert_eq!(tarball_cache_entries(&package_dir), vec!["foo-2.0.0.tgz".to_string()]);
 
-    let offline = router(config_for("http://127.0.0.1:1", storage));
-    let replay = offline.oneshot(Request::get(route).body(Body::empty()).unwrap()).await.unwrap();
+    // A fresh instance over the same storage and the same origin replays the
+    // cached entry; the `expect(1)` mocks prove the upstream is never
+    // consulted again. (A *different* URL would be a repoint, which
+    // deliberately abandons this cache — see
+    // `repointing_an_uplink_url_abandons_the_old_origins_cache`.)
+    let restarted = router(config_for(&upstream.url(), storage));
+    let replay = restarted.oneshot(Request::get(route).body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(replay.status(), StatusCode::OK);
     assert_eq!(body_bytes(replay.into_body()).await, v1_bytes);
 
@@ -1316,14 +1373,23 @@ async fn tampered_upstream_tarball_is_served_but_never_cached() {
     assert_eq!(body_bytes(tarball_response.into_body()).await, poison_bytes);
     assert!(!cache_path.exists(), "unverified tarball must not be written to the cache");
 
-    let cached_response = router(config_for("http://127.0.0.1:1", storage))
+    packument_mock.assert_async().await;
+    tarball_mock.assert_async().await;
+
+    // Same origin URL (so the same cache namespace), upstream now down: a
+    // request must fail rather than be answered from the cache, proving the
+    // unverified bytes were never promoted into it.
+    let url = upstream.url();
+    drop(upstream);
+    let cached_response = router(config_for(&url, storage))
         .oneshot(Request::get("/poisoned/-/poisoned-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
-    assert_eq!(cached_response.status(), StatusCode::SERVICE_UNAVAILABLE);
-
-    packument_mock.assert_async().await;
-    tarball_mock.assert_async().await;
+    assert!(
+        cached_response.status().is_server_error(),
+        "the tampered tarball must not be served from cache, got {}",
+        cached_response.status(),
+    );
 }
 
 #[tokio::test]

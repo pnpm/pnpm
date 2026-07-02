@@ -1165,9 +1165,15 @@ fn uplink_cache_namespace(state: &AppState, uplink: &str) -> String {
 /// Compute an upstream mount's disposable cache namespace, so its packuments
 /// and tarballs never collide with another mount's.
 ///
+/// Both shapes fold in the mount's upstream **URL**: the cache is a mirror of
+/// one declared origin, so repointing a mount's `url:` moves to a fresh
+/// namespace and bytes fetched from the previous origin can never answer for
+/// the new one. The cache-first warm tarball path depends on this — it serves
+/// a cached entry without re-binding it against the current packument.
+///
 /// A **private** mount — any that declares `access:` (so it is not `public`; the
 /// config loader forbids a public mount from carrying any credential) — is
-/// namespaced by an HMAC over `(mount, credential)` keyed with
+/// namespaced by an HMAC over `(mount, url, credential)` keyed with
 /// the server secret: the on-disk path leaks neither the mount name nor the
 /// credential, and a credential rotation moves to a fresh namespace. Keying on
 /// the declared visibility rather than on the presence of an `Authorization`
@@ -1175,24 +1181,30 @@ fn uplink_cache_namespace(state: &AppState, uplink: &str) -> String {
 /// gates access without an upstream credential) out of the guessable public
 /// namespace. A **public** mount has nothing private to protect and its content
 /// is integrity-verified, so it uses a *stable* namespace
-/// (`~public/<digest-of-mount-name>`) that is shared across process restarts.
+/// (`~public/<digest-of-mount-name-and-url>`) that is shared across process
+/// restarts.
 fn compute_uplink_cache_namespace(config: &Config, uplink: &str) -> String {
+    let url = config.uplinks.get(uplink).map_or("", |uplink_config| uplink_config.url.as_str());
     if let Some(uplink_config) = config.uplinks.get(uplink)
         && uplink_config.access.is_some()
     {
-        // Key the epoch on every header the uplink attaches upstream, not just
-        // `Authorization`, so rotating a credential carried in a custom header
-        // still moves the private cache to a fresh namespace.
-        let digest = crate::route::uplink_cache_digest(
-            uplink,
+        // The credential epoch covers the origin URL and every header the
+        // uplink attaches upstream, not just `Authorization`, so repointing
+        // the URL or rotating a credential carried in a custom header moves
+        // the private cache to a fresh namespace. The NUL separator keeps
+        // `(url, headers)` pairs unambiguous — a URL cannot contain NUL.
+        let epoch = crate::route::credential_digest(&format!(
+            "{url}\0{}",
             crate::route::headers_credential_digest(&uplink_config.headers),
-            &config.resolution_cache_secret,
-        );
+        ));
+        let digest =
+            crate::route::uplink_cache_digest(uplink, epoch, &config.resolution_cache_secret);
         return format!("~uplinks/{digest}");
     }
-    // Public mount: a stable, secret-free namespace keyed only by the mount
-    // name (hashed so a path-unsafe name can't escape the cache root).
-    format!("~public/{}", crate::route::credential_digest(uplink))
+    // Public mount: a stable, secret-free namespace keyed by the mount name
+    // and its origin URL (hashed so a path-unsafe value can't escape the
+    // cache root).
+    format!("~public/{}", crate::route::credential_digest(&format!("{uplink}\0{url}")))
 }
 
 /// Await `fut`, emitting its duration as a `pnpr::serve_timing` debug event
