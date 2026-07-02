@@ -139,6 +139,59 @@ test('update transitive dependency when mixed with a direct dependency selector'
   expect(lockfile.packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0']).toBeTruthy()
 })
 
+test('update a transitive dependency to an explicitly requested version', async () => {
+  // @pnpm.e2e/pkg-with-good-optional depends on @pnpm.e2e/dep-of-pkg-with-1-dep via "*".
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
+
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/pkg-with-good-optional': '1.0.0',
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
+  expect(project.readLockfile().packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0']).toBeTruthy()
+
+  // 101.0.0 is now the latest, but the update requests 100.1.0, which must win.
+  await addDistTag({ package: '@pnpm.e2e/dep-of-pkg-with-1-dep', version: '101.0.0', distTag: 'latest' })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  }, ['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0'])
+
+  const lockfile = project.readLockfile()
+
+  expect(lockfile.packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.1.0']).toBeTruthy()
+  expect(lockfile.packages['@pnpm.e2e/dep-of-pkg-with-1-dep@100.0.0']).toBeFalsy()
+  expect(lockfile.packages['@pnpm.e2e/dep-of-pkg-with-1-dep@101.0.0']).toBeFalsy()
+})
+
+test('update with a version does not pollute Object.prototype via a crafted package name', async () => {
+  const project = prepare({
+    dependencies: {
+      '@pnpm.e2e/foo': '1.0.0',
+    },
+  })
+
+  await install.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  })
+
+  await update.handler({
+    ...DEFAULT_OPTS,
+    dir: process.cwd(),
+  }, ['__proto__@1.0.0'])
+
+  expect(({} as Record<string, unknown>)['1.0.0']).toBeUndefined()
+  expect(project.readLockfile().packages['@pnpm.e2e/foo@1.0.0']).toBeTruthy()
+})
+
 test('update: fail when both "latest" and "workspace" are true', async () => {
   preparePackages([
     {
