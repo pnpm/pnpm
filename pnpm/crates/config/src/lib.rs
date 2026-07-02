@@ -543,6 +543,7 @@ pub struct Config {
     /// works when the hoisted dependencies are in the root of `node_modules`, you can set this to
     /// true to hoist them for you.
     pub shamefully_hoist: bool,
+    pub editor: Option<String>,
 
     /// The location where all packages are saved on disk. Share a
     /// writable store only between mutually trusted users, jobs, and
