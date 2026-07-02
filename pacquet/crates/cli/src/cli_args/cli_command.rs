@@ -41,6 +41,7 @@ use super::{
     root::RootArgs,
     run::RunArgs,
     runtime::RuntimeArgs,
+    sbom::SbomArgs,
     self_update::SelfUpdateArgs,
     set_script::SetScriptArgs,
     setup::SetupArgs,
@@ -152,6 +153,8 @@ pub enum CliCommand {
     Ll(ListArgs),
     /// Shows the packages that depend on `pkg`
     Why(WhyArgs),
+    /// Generate a Software Bill of Materials (SBOM).
+    Sbom(SbomArgs),
     /// Displays your pnpm username.
     Whoami,
     /// Manage a package's distribution tags.
