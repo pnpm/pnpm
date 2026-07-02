@@ -222,8 +222,10 @@ impl PackageVersion {
         let mut packument_manifest = manifest;
         let manifest_object =
             packument_manifest.as_object_mut().expect("fixture package.json is an object");
-        let mut dist =
-            manifest_object.get("dist").and_then(|d| d.as_object().cloned()).unwrap_or_default();
+        let mut dist = manifest_object
+            .get("dist")
+            .and_then(|dist_val| dist_val.as_object().cloned())
+            .unwrap_or_default();
         dist.insert("tarball".to_string(), json!(tarball_url));
         dist.insert("integrity".to_string(), json!(integrity));
         manifest_object.insert("dist".to_string(), Value::Object(dist));
