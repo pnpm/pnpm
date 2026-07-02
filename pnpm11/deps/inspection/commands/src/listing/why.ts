@@ -80,6 +80,7 @@ export async function handler (
     reportAs,
     modulesDir: opts.modulesDir,
     checkWantedLockfileOnly: opts.lockfileOnly,
+    excludePeerDependencies: opts.excludePeers,
     finders,
   })
 }

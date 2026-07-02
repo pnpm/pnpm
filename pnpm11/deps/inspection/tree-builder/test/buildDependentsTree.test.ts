@@ -23,7 +23,13 @@ function refToRelativeOrThrow (reference: string, pkgName: string): DepPath {
  *
  * Returns the lockfileDir path and a cleanup function.
  */
-function createMockProject (packages: Record<string, { version: string, manifest: Record<string, unknown>, deps?: string[] }>): {
+function createMockProject (packages: Record<string, {
+  version: string
+  manifest: Record<string, unknown>
+  deps?: string[]
+  peerDeps?: string[]
+  topLevel?: boolean
+}>): {
   lockfileDir: string
   currentPackages: PackageSnapshots
   importers: Record<ProjectId, ProjectSnapshot>
@@ -55,6 +61,7 @@ function createMockProject (packages: Record<string, { version: string, manifest
     currentPackages[depPath] = {
       resolution: { integrity: `${pkgName}-mock-integrity` },
       dependencies: deps,
+      peerDependencies: Object.fromEntries((info.peerDeps ?? []).map(dep => [dep, '*'])),
     }
   }
 
@@ -74,6 +81,7 @@ function createMockProject (packages: Record<string, { version: string, manifest
   // Single root importer that depends on all top-level packages
   const rootDeps: Record<string, string> = {}
   for (const [pkgName, info] of Object.entries(packages)) {
+    if (info.topLevel === false) continue
     rootDeps[pkgName] = info.version
   }
 
@@ -95,6 +103,85 @@ function createMockProject (packages: Record<string, { version: string, manifest
 }
 
 describe('buildDependentsTree', () => {
+  test('excludes peer dependency edges from reverse trees', async () => {
+    const { lockfileDir, currentPackages, importers, cleanup } = createMockProject({
+      peer: {
+        version: '1.0.0',
+        manifest: {},
+        topLevel: false,
+      },
+      parent: {
+        version: '1.0.0(peer@1.0.0)',
+        manifest: {},
+        deps: ['peer'],
+        peerDeps: ['peer'],
+      },
+    })
+
+    try {
+      const importerInfoMap = new Map([
+        ['.', { name: 'my-project', version: '0.0.0' }],
+      ])
+
+      const trees = await buildDependentsTree(['peer'], [lockfileDir], {
+        lockfileDir,
+        excludePeerDependencies: true,
+        importerInfoMap,
+        lockfile: {
+          lockfileVersion: '9.0',
+          importers,
+          packages: currentPackages,
+        },
+      })
+
+      expect(trees).toHaveLength(0)
+    } finally {
+      cleanup()
+    }
+  })
+
+  test('keeps non-peer dependency edges when excluding peers from reverse trees', async () => {
+    const { lockfileDir, currentPackages, importers, cleanup } = createMockProject({
+      peer: {
+        version: '1.0.0',
+        manifest: {},
+      },
+      parent: {
+        version: '1.0.0(peer@1.0.0)',
+        manifest: {},
+        deps: ['peer'],
+        peerDeps: ['peer'],
+      },
+    })
+
+    try {
+      const importerInfoMap = new Map([
+        ['.', { name: 'my-project', version: '0.0.0' }],
+      ])
+
+      const trees = await buildDependentsTree(['peer'], [lockfileDir], {
+        lockfileDir,
+        excludePeerDependencies: true,
+        importerInfoMap,
+        lockfile: {
+          lockfileVersion: '9.0',
+          importers,
+          packages: currentPackages,
+        },
+      })
+
+      expect(trees).toHaveLength(1)
+      expect(trees[0].dependents).toEqual([
+        expect.objectContaining({
+          name: 'my-project',
+          depField: 'dependencies',
+        }),
+      ])
+    } finally {
+      cleanup()
+    }
+  })
+
   describe('nameFormatter', () => {
     test('populates displayName on matched root and intermediate nodes', async () => {
       const { lockfileDir, currentPackages, importers, cleanup } = createMockProject({
