@@ -1,7 +1,7 @@
-use base64::{engine::general_purpose, Engine};
-use flate2::{write::GzEncoder, Compression};
+use base64::{Engine, engine::general_purpose};
+use flate2::{Compression, write::GzEncoder};
 use node_semver::{Range, Version};
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256, Sha512};
 use std::{
     collections::{BTreeMap, HashMap},
@@ -9,8 +9,8 @@ use std::{
     io::{self, Write},
     path::{Path, PathBuf},
     sync::{
-        atomic::{AtomicU64, Ordering},
         LazyLock,
+        atomic::{AtomicU64, Ordering},
     },
 };
 use walkdir::WalkDir;
