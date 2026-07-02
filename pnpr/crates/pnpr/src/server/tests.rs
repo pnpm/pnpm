@@ -319,3 +319,16 @@ async fn forwarded_header_cannot_satisfy_a_cidr_restriction() {
     };
     assert_eq!(status(app, request).await, StatusCode::FORBIDDEN);
 }
+
+#[test]
+fn access_log_uri_redacts_the_logout_token_segment() {
+    let redact = |raw: &str| super::loggable_uri(&raw.parse().unwrap());
+    assert_eq!(redact("/-/user/token/npm_secret-token-value"), "/-/user/token/<redacted>");
+    assert_eq!(
+        redact("/~corp/-/user/token/npm_secret-token-value"),
+        "/~corp/-/user/token/<redacted>",
+    );
+    // Everything else is logged verbatim, query string included.
+    assert_eq!(redact("/foo/-/foo-1.0.0.tgz"), "/foo/-/foo-1.0.0.tgz");
+    assert_eq!(redact("/-/v1/search?text=foo"), "/-/v1/search?text=foo");
+}

@@ -69,6 +69,13 @@ const MAX_TARBALL_BYTES: u64 = 100 * 1024 * 1024;
 /// route, so future write endpoints inherit the same ceiling.
 const MAX_PUBLISH_BODY_BYTES: usize = MAX_TARBALL_BYTES as usize;
 
+/// Cap adduser/login bodies far below the publish ceiling. The body is a
+/// small couchdb-user JSON document, and login is the one body-accepting
+/// endpoint reachable anonymously on every tier — letting it inherit the
+/// 100 MiB publish limit would hand unauthenticated callers a cheap
+/// buffer-and-parse amplifier.
+const MAX_LOGIN_BODY_BYTES: usize = 64 * 1024;
+
 #[derive(Clone)]
 struct AppState {
     inner: Arc<AppInner>,
@@ -221,10 +228,10 @@ fn load_active_osv_index(
     }
 }
 
-/// Run startup side effects and load auth backends for surfaces that
-/// consult caller identity. The registry needs publish-journal recovery;
-/// both the registry and resolver need auth because resolver requests
-/// control outbound dependency-resolution work.
+/// Run startup side effects and load the auth backends. The registry
+/// needs publish-journal recovery; auth loads on every tier because the
+/// account endpoints (which mint and manage tokens) are always served,
+/// and both mounted surfaces consult caller identity.
 async fn load_startup_auth(config: &Config) -> crate::error::Result<AuthState> {
     if config.registry.enabled {
         crate::journal::recover_publish_journal(config).await?;
@@ -276,6 +283,39 @@ fn router_with_auth_and_osv(
     // so an operator can run resolver-only, registry-only, or both. The
     // config guarantees at least one is enabled.
     let mut router = Router::new().route("/-/ping", get(serve_ping));
+    // The account endpoints — adduser/login, whoami, profile, token
+    // listing/revocation, logout — are pnpr account management, not
+    // npm-registry functionality: they mint and manage the tokens every
+    // authenticated surface demands, so they ride every tier alongside
+    // `/-/ping`. A resolver-only tier can then issue its own credentials
+    // (`pnpm login --registry https://<resolver-host>/`) instead of
+    // depending on a registry-serving replica that shares the auth backend.
+    //
+    // Each endpoint also answers under any `/~<prefix>/`, so a client whose
+    // registry URL is a mount endpoint can log in against it. The identity
+    // endpoints are global and consult no mount state; a mount-table lookup
+    // would gate nothing while turning the 401-vs-404 split into an
+    // existence oracle for private mount names that the content handlers
+    // carefully mask.
+    router = router
+        .route("/-/whoami", get(get_whoami))
+        .route("/{prefix}/-/whoami", get(get_whoami_prefixed))
+        .route(
+            "/-/user/{user}",
+            put(put_login).route_layer(DefaultBodyLimit::max(MAX_LOGIN_BODY_BYTES)),
+        )
+        .route(
+            "/{prefix}/-/user/{user}",
+            put(put_login_prefixed).route_layer(DefaultBodyLimit::max(MAX_LOGIN_BODY_BYTES)),
+        )
+        .route("/-/user/token/{token}", delete(delete_session_token))
+        .route("/{prefix}/-/user/token/{token}", delete(delete_session_token_prefixed))
+        .route("/-/npm/v1/user", get(get_profile))
+        .route("/{prefix}/-/npm/v1/user", get(get_profile_prefixed))
+        .route("/-/npm/v1/tokens", get(get_token_list))
+        .route("/{prefix}/-/npm/v1/tokens", get(get_token_list_prefixed))
+        .route("/-/npm/v1/tokens/token/{key}", delete(delete_token_by_key))
+        .route("/{prefix}/-/npm/v1/tokens/token/{key}", delete(delete_token_by_key_prefixed));
     // The install-accelerator (resolver) surface, all under the reserved
     // `/-/pnpr` namespace. `/-/pnpr` is the capability handshake (404 on a
     // plain registry); `/-/pnpr/v0/resolve` and `/-/pnpr/v0/verify-lockfile`
@@ -312,9 +352,10 @@ fn router_with_auth_and_osv(
         router = router.route("/-/pnpr", any(resolver_disabled));
     }
     // The npm-registry surface: every packument/tarball read, publish,
-    // unpublish, dist-tag, search, and the user/login endpoint. When the
-    // feature is disabled, none of these routes are mounted — not merely
-    // hidden — so a resolver-only tier exposes no registry surface at all.
+    // unpublish, dist-tag, and search. When the surface is off (no mounts
+    // declared, or `--disable-registry`), none of these routes are mounted
+    // — not merely hidden — so a resolver-only tier exposes no registry
+    // surface at all.
     if registry_enabled {
         router = router
             // Batch publish: one request carrying many packages' publish
@@ -385,7 +426,7 @@ fn router_with_auth_and_osv(
                         target: "pnpr::access",
                         "request",
                         method = %request.method(),
-                        uri = %request.uri(),
+                        uri = %loggable_uri(request.uri()),
                         // Filled in by `record_cache_status` for packument
                         // reads (e.g. `cache=hit`); stays absent otherwise.
                         cache = tracing::field::Empty,
@@ -403,6 +444,23 @@ fn router_with_auth_and_osv(
                 .on_failure(()),
         )
         .with_state(state)
+}
+
+/// The request URI as recorded in the access log. npm's logout protocol
+/// (`DELETE .../-/user/token/{token}`, path-less or under a `/~<prefix>/`)
+/// puts the raw bearer token in the URL path, and a reusable credential
+/// must never reach a log line, so everything after that marker is
+/// redacted. Every other URI is logged verbatim; a false positive (a
+/// registry path that merely embeds the marker) is redacted too, which
+/// only costs log detail on a request no route serves.
+fn loggable_uri(uri: &axum::http::Uri) -> String {
+    const TOKEN_MARKER: &str = "/-/user/token/";
+    match uri.path().find(TOKEN_MARKER) {
+        Some(index) => {
+            format!("{}<redacted>", &uri.path()[..index + TOKEN_MARKER.len()])
+        }
+        None => uri.to_string(),
+    }
 }
 
 /// Bind to `config.listen` and serve forever. Loads auth state before
@@ -428,11 +486,12 @@ pub async fn serve(config: Config) -> crate::error::Result<()> {
     Ok(())
 }
 
-/// Log which surfaces are mounted at startup. A misconfiguration — most
-/// importantly a typo'd `registry:` / `resolver:` block name, which the
-/// intentionally verdaccio-lenient config parser silently ignores and so
-/// leaves the surface at its default-enabled state — is then immediately
-/// visible to the operator rather than only discoverable by probing.
+/// Log which surfaces are mounted at startup. A misconfiguration — a
+/// `mounts:` block that didn't parse the way the operator meant, or a
+/// typo'd `resolver:` block name, which the intentionally
+/// verdaccio-lenient config parser silently ignores and so leaves the
+/// surface at its default-enabled state — is then immediately visible to
+/// the operator rather than only discoverable by probing.
 fn log_enabled_surfaces(config: &Config) {
     tracing::info!(
         registry = config.registry.enabled,
@@ -552,9 +611,6 @@ async fn get_two_segments(
     headers: HeaderMap,
     Path((first, second)): Path<(String, String)>,
 ) -> Response {
-    if first == "-" && second == "whoami" {
-        return private_no_cache(serve_whoami(&identity));
-    }
     // `/~<mount>/<pkg>` — unscoped packument through a mount endpoint. The
     // tarball base is the client's `/~<mount>/` URL so the rewritten URLs stay
     // canonical for the registry the client actually addressed.
@@ -590,20 +646,10 @@ async fn get_three_segments(
         return private_no_cache(serve_search(&state, &identity, None, query).await);
     }
     if let Some(mount) = first.strip_prefix('~').filter(|mount| !mount.is_empty()) {
-        // `/~<mount>/-/whoami` — caller identity through a mount endpoint, so
-        // `npm whoami --registry .../~<mount>/` works like the path-less base.
-        //
-        // The identity endpoints (whoami here; adduser, logout, profile, and
-        // the token endpoints in their segment handlers) are global and serve
-        // no mount content, so they answer under *any* `/~<prefix>/` without
-        // consulting the mount table. A lookup would gate nothing — identity
-        // is server-wide — while turning the 401-vs-404 split into an
-        // existence oracle for private mount names that the content paths
-        // carefully mask.
+        // The account endpoints (whoami, adduser, logout, profile, tokens)
+        // live on dedicated always-mounted routes; a `/~<mount>/-/...` path
+        // that still reaches this handler names no mount content.
         if second == "-" {
-            if third == "whoami" {
-                return private_no_cache(serve_whoami(&identity));
-            }
             return not_found();
         }
         let base = uplink_tarball_base(&state.inner.config.public_url, mount);
@@ -659,9 +705,6 @@ async fn get_tarball_scoped(
 
 /// 4-segment GET:
 /// * `/-/package/{pkg}/dist-tags` — packument's `dist-tags` object.
-/// * `/-/npm/v1/user` — caller's profile (`npm profile get`).
-/// * `/-/npm/v1/tokens` — list bearer tokens for the caller
-///   (`npm token list`).
 /// * `/~<mount>/-/v1/search` — search through a mount endpoint.
 /// * `/~<mount>/@scope/{pkg}/{version}` — scoped version manifest through a
 ///   mount endpoint.
@@ -674,12 +717,6 @@ async fn get_four_segments(
     if a == "-" && b == "package" && d == "dist-tags" {
         let response = get_dist_tags(&state, &identity, None, &c).await;
         return private_if_caller_gated(&state, &c, response);
-    }
-    if a == "-" && b == "npm" && c == "v1" && d == "user" {
-        return private_no_cache(serve_profile(&identity));
-    }
-    if a == "-" && b == "npm" && c == "v1" && d == "tokens" {
-        return private_no_cache(list_tokens(&state, &identity).await);
     }
     if let Some(mount) = a.strip_prefix('~').filter(|mount| !mount.is_empty()) {
         if b == "-" && c == "v1" && d == "search" {
@@ -702,9 +739,6 @@ async fn get_four_segments(
 ///   endpoint.
 /// * `/~<mount>/-/package/<pkg>/dist-tags` — dist-tags through a mount
 ///   endpoint.
-/// * `/~<prefix>/-/npm/v1/user` and `/~<prefix>/-/npm/v1/tokens` — the
-///   global profile and token-list endpoints, served under any `~` prefix
-///   (identity endpoints skip the mount lookup — see [`get_three_segments`]).
 ///
 /// Every other 5-segment GET is a not-found catchall (the route exists so
 /// DELETE/PUT can sit on the same path).
@@ -722,12 +756,6 @@ async fn get_five_segments(
         }
         if b == "-" && c == "package" && e == "dist-tags" {
             return private_no_cache(get_dist_tags(&state, &identity, Some(mount), &d).await);
-        }
-        if b == "-" && c == "npm" && d == "v1" && e == "user" {
-            return private_no_cache(serve_profile(&identity));
-        }
-        if b == "-" && c == "npm" && d == "v1" && e == "tokens" {
-            return private_no_cache(list_tokens(&state, &identity).await);
         }
     }
     not_found()
@@ -768,7 +796,6 @@ async fn put_two_segments(
     not_found()
 }
 
-/// `PUT /-/user/org.couchdb.user:{name}` — adduser / login.
 /// `PUT /{pkg}/-rev/{rev}` — packument update (partial unpublish).
 async fn put_three_segments(
     State(state): State<AppState>,
@@ -776,14 +803,6 @@ async fn put_three_segments(
     Path((first, second, third)): Path<(String, String, String)>,
     body: axum::body::Bytes,
 ) -> Response {
-    if first == "-"
-        && second == "user"
-        && let Some(name) = third.strip_prefix("org.couchdb.user:")
-    {
-        // adduser/login authenticates from the request body, not the
-        // caller's existing identity.
-        return add_user(&state, name, &body).await;
-    }
     // `PUT /~<mount>/@scope/<pkg>` — publish a scoped package through a mount.
     if let Some(mount) = first.strip_prefix('~').filter(|mount| !mount.is_empty())
         && second.starts_with('@')
@@ -805,29 +824,17 @@ async fn put_three_segments(
 /// * `/~<mount>/{pkg}/-rev/{rev}` — packument update (partial unpublish)
 ///   through a mount endpoint. Scoped packages arrive percent-encoded as a
 ///   single `@scope%2Fname` segment, like the path-less 3-segment form.
-/// * `/~<prefix>/-/user/org.couchdb.user:{name}` — the global adduser/login,
-///   served under any `~` prefix so `pnpm login` against a mount-URL registry
-///   works (identity endpoints skip the mount lookup — see
-///   [`get_three_segments`]).
 async fn put_four_segments(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     Path((a, b, c, d)): Path<(String, String, String, String)>,
     body: axum::body::Bytes,
 ) -> Response {
-    if let Some(mount) = a.strip_prefix('~').filter(|mount| !mount.is_empty()) {
-        if b == "-"
-            && c == "user"
-            && let Some(name) = d.strip_prefix("org.couchdb.user:")
-        {
-            // Like the path-less form, adduser/login authenticates from the
-            // request body, not the caller's existing identity.
-            return add_user(&state, name, &body).await;
-        }
-        if c == "-rev" {
-            let _ = d; // revision token is unused
-            return update_packument(&state, &identity, Some(mount), &b, &body).await;
-        }
+    if let Some(mount) = a.strip_prefix('~').filter(|mount| !mount.is_empty())
+        && c == "-rev"
+    {
+        let _ = d; // revision token is unused
+        return update_packument(&state, &identity, Some(mount), &b, &body).await;
     }
     not_found()
 }
@@ -880,9 +887,6 @@ async fn put_six_segments(
 }
 
 /// 4-segment DELETE:
-/// * `/-/user/token/{tok}` — npm logout. `{tok}` is the raw bearer token
-///   sent verbatim. We hash it and remove the matching row from the token
-///   store.
 /// * `/~<mount>/{pkg}/-rev/{rev}` — remove the entire package through a
 ///   mount endpoint (scoped packages arrive percent-encoded as one
 ///   `@scope%2Fname` segment).
@@ -891,9 +895,6 @@ async fn delete_four_segments(
     AuthedCaller(identity): AuthedCaller,
     Path((a, b, c, d)): Path<(String, String, String, String)>,
 ) -> Response {
-    if a == "-" && b == "user" && c == "token" {
-        return private_no_cache(logout(&state, &identity, &d).await);
-    }
     if let Some(mount) = a.strip_prefix('~').filter(|mount| !mount.is_empty())
         && c == "-rev"
     {
@@ -907,9 +908,6 @@ async fn delete_four_segments(
 /// * `/-/package/{pkg}/dist-tags/{tag}` — remove a dist-tag.
 /// * `/{pkg}/-/{filename}/-rev/{rev}` — remove an unscoped tarball
 ///   (one step of `pnpm unpublish <pkg>@<version>`).
-/// * `/~<prefix>/-/user/token/{tok}` — the global logout, served under any
-///   `~` prefix (identity endpoints skip the mount lookup — see
-///   [`get_three_segments`]).
 async fn delete_five_segments(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
@@ -917,13 +915,6 @@ async fn delete_five_segments(
 ) -> Response {
     if a == "-" && b == "package" && d == "dist-tags" {
         return remove_dist_tag(&state, &identity, None, &c, &e).await;
-    }
-    if a.strip_prefix('~').is_some_and(|mount| !mount.is_empty())
-        && b == "-"
-        && c == "user"
-        && d == "token"
-    {
-        return private_no_cache(logout(&state, &identity, &e).await);
     }
     if b == "-" && d == "-rev" {
         let _ = e; // revision token is unused
@@ -939,8 +930,6 @@ async fn delete_five_segments(
 ///   form (`http://host/@scope/name/-/name-1.0.0.tgz`), so the
 ///   request lands here unencoded rather than as a 5-seg
 ///   `@scope%2Fname` URL.
-/// * `/-/npm/v1/tokens/token/{key}` — revoke a bearer token by its
-///   listing-side `key` (`npm token revoke`).
 /// * `/~<mount>/-/package/{pkg}/dist-tags/{tag}` — remove a dist-tag
 ///   through a mount endpoint.
 /// * `/~<mount>/{pkg}/-/{filename}/-rev/{rev}` — remove an unscoped
@@ -950,9 +939,6 @@ async fn delete_six_segments(
     AuthedCaller(identity): AuthedCaller,
     Path((a, b, c, d, e, f)): Path<(String, String, String, String, String, String)>,
 ) -> Response {
-    if a == "-" && b == "npm" && c == "v1" && d == "tokens" && e == "token" {
-        return private_no_cache(revoke_token_by_key(&state, &identity, &f).await);
-    }
     if a.starts_with('@') && c == "-" && e == "-rev" {
         let _ = f; // revision token is unused
         let full = format!("{a}/{b}");
@@ -974,25 +960,145 @@ async fn delete_six_segments(
 /// * `/~<mount>/{scope}/{name}/-/{filename}/-rev/{rev}` — remove a scoped
 ///   tarball through a mount endpoint (the unencoded literal-slash form the
 ///   pnpm unpublish flow reconstructs from the packument's tarball URL).
-/// * `/~<prefix>/-/npm/v1/tokens/token/{key}` — the global token revocation,
-///   served under any `~` prefix (identity endpoints skip the mount lookup —
-///   see [`get_three_segments`]).
 async fn delete_seven_segments(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     Path((a, b, c, d, e, f, g)): Path<(String, String, String, String, String, String, String)>,
 ) -> Response {
-    if let Some(mount) = a.strip_prefix('~').filter(|mount| !mount.is_empty()) {
-        if b == "-" && c == "npm" && d == "v1" && e == "tokens" && f == "token" {
-            return private_no_cache(revoke_token_by_key(&state, &identity, &g).await);
-        }
-        if b.starts_with('@') && d == "-" && f == "-rev" {
-            let _ = g; // revision token is unused
-            let full = format!("{b}/{c}");
-            return delete_tarball(&state, &identity, Some(mount), &full, &e).await;
-        }
+    if let Some(mount) = a.strip_prefix('~').filter(|mount| !mount.is_empty())
+        && b.starts_with('@')
+        && d == "-"
+        && f == "-rev"
+    {
+        let _ = g; // revision token is unused
+        let full = format!("{b}/{c}");
+        return delete_tarball(&state, &identity, Some(mount), &full, &e).await;
     }
     not_found()
+}
+
+// --------------------------------------------------------------------
+// Account routes — adduser/login, whoami, profile, token list and
+// revocation, logout. Mounted on every tier (see the router construction
+// in `router_with_auth_and_osv`). Each has a `/~<prefix>/`-addressed twin
+// whose `/{prefix}/...` route pattern also matches a non-`~` first
+// segment; that shape is not an account URL, so the handler 404s it —
+// though route-level layers still run first (an oversized body to a
+// non-`~` login path is the body cap's 413, not a 404).
+// --------------------------------------------------------------------
+
+/// Whether `prefix` is a `/~<prefix>/`-style first segment — the only
+/// shape the prefixed account routes serve.
+fn is_tilde_prefix(prefix: &str) -> bool {
+    prefix.strip_prefix('~').is_some_and(|rest| !rest.is_empty())
+}
+
+async fn get_whoami(AuthedCaller(identity): AuthedCaller) -> Response {
+    private_no_cache(serve_whoami(&identity))
+}
+
+async fn get_whoami_prefixed(
+    AuthedCaller(identity): AuthedCaller,
+    Path(prefix): Path<String>,
+) -> Response {
+    if !is_tilde_prefix(&prefix) {
+        return not_found();
+    }
+    private_no_cache(serve_whoami(&identity))
+}
+
+/// `PUT /-/user/org.couchdb.user:{name}` — adduser / login. Authenticates
+/// from the request body, not the caller's existing identity.
+async fn put_login(
+    State(state): State<AppState>,
+    Path(user): Path<String>,
+    body: axum::body::Bytes,
+) -> Response {
+    match user.strip_prefix("org.couchdb.user:") {
+        Some(name) => add_user(&state, name, &body).await,
+        None => not_found(),
+    }
+}
+
+async fn put_login_prefixed(
+    State(state): State<AppState>,
+    Path((prefix, user)): Path<(String, String)>,
+    body: axum::body::Bytes,
+) -> Response {
+    if !is_tilde_prefix(&prefix) {
+        return not_found();
+    }
+    put_login(State(state), Path(user), body).await
+}
+
+async fn delete_session_token(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    Path(token): Path<String>,
+) -> Response {
+    private_no_cache(logout(&state, &identity, &token).await)
+}
+
+async fn delete_session_token_prefixed(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    Path((prefix, token)): Path<(String, String)>,
+) -> Response {
+    if !is_tilde_prefix(&prefix) {
+        return not_found();
+    }
+    private_no_cache(logout(&state, &identity, &token).await)
+}
+
+async fn get_profile(AuthedCaller(identity): AuthedCaller) -> Response {
+    private_no_cache(serve_profile(&identity))
+}
+
+async fn get_profile_prefixed(
+    AuthedCaller(identity): AuthedCaller,
+    Path(prefix): Path<String>,
+) -> Response {
+    if !is_tilde_prefix(&prefix) {
+        return not_found();
+    }
+    private_no_cache(serve_profile(&identity))
+}
+
+async fn get_token_list(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+) -> Response {
+    private_no_cache(list_tokens(&state, &identity).await)
+}
+
+async fn get_token_list_prefixed(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    Path(prefix): Path<String>,
+) -> Response {
+    if !is_tilde_prefix(&prefix) {
+        return not_found();
+    }
+    private_no_cache(list_tokens(&state, &identity).await)
+}
+
+async fn delete_token_by_key(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    Path(key): Path<String>,
+) -> Response {
+    private_no_cache(revoke_token_by_key(&state, &identity, &key).await)
+}
+
+async fn delete_token_by_key_prefixed(
+    State(state): State<AppState>,
+    AuthedCaller(identity): AuthedCaller,
+    Path((prefix, key)): Path<(String, String)>,
+) -> Response {
+    if !is_tilde_prefix(&prefix) {
+        return not_found();
+    }
+    private_no_cache(revoke_token_by_key(&state, &identity, &key).await)
 }
 
 // --------------------------------------------------------------------

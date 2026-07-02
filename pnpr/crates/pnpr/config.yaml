@@ -40,11 +40,12 @@ storage: ./storage
 #  mysql:
 #    url: ${PNPR_MYSQL_URL}
 #    maxConnections: 16
-# Feature toggles for pnpr's two surfaces. Both are enabled by default;
-# disable one to carve down what this server exposes. At least one must
-# stay enabled. (`/-/ping` is always served.)
-#registry:          # npm registry: packument/tarball reads, publish,
-#  enabled: true    # unpublish, dist-tag, search, user/login endpoints
+# The npm-registry surface (packument/tarball reads, publish, unpublish,
+# dist-tag, search) is served iff at least one mount is declared under
+# `mounts:` below; `--disable-registry` turns it off per tier. The install
+# accelerator has its own toggle. Something must be served: mounts, or the
+# resolver. (`/-/ping` and the login/token account endpoints are always
+# served.)
 #resolver:          # install accelerator: /-/pnpr, /-/pnpr/v0/resolve,
 #  enabled: true    # and /-/pnpr/v0/verify-lockfile
 secret: pnpm-registry-mock-secret-key-32

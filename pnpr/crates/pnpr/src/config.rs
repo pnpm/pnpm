@@ -120,9 +120,10 @@ pub struct Config {
     /// known vulnerable npm package versions without live API calls.
     pub osv: OsvConfig,
     /// The npm-registry surface: packument and tarball reads, publish,
-    /// unpublish, dist-tag, search, and the user/login endpoints. Enabled
-    /// by default; disable it to run a stateless resolver tier in front
-    /// of an existing registry. See [`RegistryFeature`].
+    /// unpublish, dist-tag, and search. Derived, not configured: the
+    /// surface is served iff at least one mount is declared, minus the
+    /// `--disable-registry` per-tier override (a stateless resolver tier
+    /// in front of an existing registry). See [`RegistryFeature`].
     pub registry: RegistryFeature,
     /// The install-accelerator surface: the `/-/pnpr` handshake and the
     /// `/-/pnpr/v0/resolve` / `/-/pnpr/v0/verify-lockfile` endpoints. Enabled by
@@ -187,7 +188,10 @@ pub struct PublicRoute {
     pub package: Option<String>,
 }
 
-/// Toggle for the npm-registry surface. A dedicated type — rather than a
+/// State of the npm-registry surface. There is no YAML toggle for it:
+/// the surface is served iff at least one mount is declared under
+/// `mounts:` (no mounts ⇒ nothing to serve), minus the per-tier
+/// `--disable-registry` CLI override. A dedicated type — rather than a
 /// bare `bool` on [`Config`] — so finer-grained registry sub-features
 /// (e.g. disabling `publish` for a read-only mirror) can be added here
 /// without changing the config shape.
@@ -227,7 +231,8 @@ impl Default for ResolverFeature {
 /// strict (a `uplink.auth` block with an unresolvable token is a config
 /// error): applying `--disable-registry` only after parsing would still
 /// force a resolver-only tier to carry upstream secrets. A `true` field
-/// forces the corresponding surface off regardless of the config file.
+/// forces the corresponding surface off regardless of what the config
+/// file declares.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct FeatureOverrides {
     pub disable_registry: bool,
@@ -1004,13 +1009,11 @@ struct ConfigFile {
     /// pnpr-only local OSV database settings.
     #[serde(default)]
     osv: OsvFile,
-    /// pnpr-only feature toggles for the two server surfaces. Each is on
-    /// unless explicitly disabled; absent on a stock verdaccio config, so
-    /// both stay enabled there. `Option` so a bare `registry:` (which
-    /// YAML parses as null) is accepted as "default" rather than failing
-    /// to deserialize into the struct.
-    #[serde(default)]
-    registry: Option<FeatureFile>,
+    /// pnpr-only feature toggle for the resolver surface. On unless
+    /// explicitly disabled; absent on a stock verdaccio config, so it
+    /// stays enabled there. `Option` so a bare `resolver:` (which YAML
+    /// parses as null) is accepted as "default" rather than failing to
+    /// deserialize into the struct.
     #[serde(default)]
     resolver: Option<FeatureFile>,
     /// pnpr registry mounts: hosted, upstream, and router origins, each
@@ -1119,14 +1122,13 @@ struct OsvFile {
     path: Option<String>,
 }
 
-/// Disk shape of a `registry:` / `resolver:` feature block. A bare
-/// `enabled` today; per-surface sub-feature keys can be added later. The
-/// field and the whole-block defaults are both `enabled: true`, so
-/// omitting the block — or writing `registry:` with no body — keeps the
-/// surface on.
-/// `deny_unknown_fields` so a typo like `registry: { enable: false }`
+/// Disk shape of the `resolver:` feature block. A bare `enabled` today;
+/// sub-feature keys can be added later. The field and the whole-block
+/// defaults are both `enabled: true`, so omitting the block — or writing
+/// `resolver:` with no body — keeps the surface on.
+/// `deny_unknown_fields` so a typo like `resolver: { enable: false }`
 /// (note: `enable`, not `enabled`) is a loud config error rather than
-/// silently leaving the surface enabled — these toggles scope which
+/// silently leaving the surface enabled — the toggle scopes which
 /// endpoints are exposed, so a silent default-on is a security footgun.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -1497,13 +1499,13 @@ impl Config {
         let groups = build_groups(&file.groups);
         let policies = build_policies(&file.packages)?;
         let osv = build_osv_config(&file.osv, base_dir);
-        // Effective enablement folds the CLI overrides in here, so the
-        // registry-only work below (uplink resolution) is skipped whether
-        // the surface was disabled in the config file or on the command
-        // line.
-        let registry = RegistryFeature {
-            enabled: file.registry.unwrap_or_default().enabled && !overrides.disable_registry,
-        };
+        // The npm-registry surface is derived, not configured: served iff
+        // at least one mount is declared (no mounts ⇒ nothing to serve),
+        // minus the per-tier `--disable-registry` override. Folding the
+        // override in here lets the registry-only work below (uplink
+        // credential resolution) key off effective enablement.
+        let registry =
+            RegistryFeature { enabled: !file.mounts.is_empty() && !overrides.disable_registry };
         let resolver = ResolverFeature {
             enabled: file.resolver.unwrap_or_default().enabled && !overrides.disable_resolver,
         };
@@ -1546,15 +1548,19 @@ impl Config {
         Ok(config)
     }
 
-    /// At least one top-level surface must be served; a server with both
-    /// `registry` and `resolver` disabled would answer only `/-/ping`.
-    /// Checked at config load and again after CLI overrides.
+    /// At least one top-level surface must be served; a server with no
+    /// registry surface (no mounts declared, or `--disable-registry`) and
+    /// the resolver disabled would answer only `/-/ping` and the account
+    /// endpoints. Checked at config load and again in the serve/router
+    /// entry points for programmatically built configs.
     pub fn ensure_a_feature_is_enabled(&self) -> Result<(), RegistryError> {
         if self.registry.enabled || self.resolver.enabled {
             Ok(())
         } else {
             Err(RegistryError::InvalidConfig {
-                reason: "at least one of `registry` or `resolver` must be enabled".to_string(),
+                reason: "nothing to serve: the npm-registry surface is off (no `mounts:` \
+                         declared, or `--disable-registry`) and the resolver is disabled"
+                    .to_string(),
             })
         }
     }
