@@ -46,6 +46,7 @@
     "@pnpm/installing.dedupe.types": "workspace:*",
     "@pnpm/types": "workspace:*",
     "@pnpm/util.lex-comparator": "catalog:",
+    "ansi-diff": "catalog:",
     "boxen": "catalog:",
     "chalk": "catalog:",
     "cli-truncate": "catalog:",
