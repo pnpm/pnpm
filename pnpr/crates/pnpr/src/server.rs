@@ -426,7 +426,7 @@ fn router_with_auth_and_osv(
                         target: "pnpr::access",
                         "request",
                         method = %request.method(),
-                        uri = %request.uri(),
+                        uri = %loggable_uri(request.uri()),
                         // Filled in by `record_cache_status` for packument
                         // reads (e.g. `cache=hit`); stays absent otherwise.
                         cache = tracing::field::Empty,
@@ -444,6 +444,23 @@ fn router_with_auth_and_osv(
                 .on_failure(()),
         )
         .with_state(state)
+}
+
+/// The request URI as recorded in the access log. npm's logout protocol
+/// (`DELETE .../-/user/token/{token}`, path-less or under a `/~<prefix>/`)
+/// puts the raw bearer token in the URL path, and a reusable credential
+/// must never reach a log line, so everything after that marker is
+/// redacted. Every other URI is logged verbatim; a false positive (a
+/// registry path that merely embeds the marker) is redacted too, which
+/// only costs log detail on a request no route serves.
+fn loggable_uri(uri: &axum::http::Uri) -> String {
+    const TOKEN_MARKER: &str = "/-/user/token/";
+    match uri.path().find(TOKEN_MARKER) {
+        Some(index) => {
+            format!("{}<redacted>", &uri.path()[..index + TOKEN_MARKER.len()])
+        }
+        None => uri.to_string(),
+    }
 }
 
 /// Bind to `config.listen` and serve forever. Loads auth state before
