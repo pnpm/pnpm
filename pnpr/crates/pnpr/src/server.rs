@@ -981,8 +981,10 @@ async fn delete_seven_segments(
 // Account routes — adduser/login, whoami, profile, token list and
 // revocation, logout. Mounted on every tier (see the router construction
 // in `router_with_auth_and_osv`). Each has a `/~<prefix>/`-addressed twin
-// whose `/{prefix}/...` route pattern also matches a non-`~` first segment;
-// that shape is not an account URL and 404s.
+// whose `/{prefix}/...` route pattern also matches a non-`~` first
+// segment; that shape is not an account URL, so the handler 404s it —
+// though route-level layers still run first (an oversized body to a
+// non-`~` login path is the body cap's 413, not a 404).
 // --------------------------------------------------------------------
 
 /// Whether `prefix` is a `/~<prefix>/`-style first segment — the only
