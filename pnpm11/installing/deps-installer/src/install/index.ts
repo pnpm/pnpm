@@ -62,6 +62,7 @@ import {
   calcPatchHashes,
   createOverridesMapFromParsed,
   getOutdatedLockfileSetting,
+  resolvePatchedDependencies,
 } from '@pnpm/lockfile.settings-checker'
 import { PACKAGE_MAP_FILENAME, writePackageMap, writePnpFile } from '@pnpm/lockfile.to-pnp'
 import { allProjectsAreUpToDate, satisfiesPackageManifest } from '@pnpm/lockfile.verification'
@@ -638,19 +639,7 @@ export async function mutateModules (
     }
     const packageExtensionsChecksum = hashObjectNullableWithPrefix(opts.packageExtensions)
     const pnpmfileChecksum = await opts.hooks.calculatePnpmfileChecksum?.()
-    // Resolve patchedDependencies against lockfileDir upfront so both
-    // calcPatchHashes and the patchGroupInput construction use the same
-    // absolute paths. path.resolve with an already-absolute path is a
-    // no-op, so this is safe regardless of whether the upstream config
-    // layer already resolved to absolute paths.
-    const resolvedPatchedDeps = opts.patchedDependencies
-      ? Object.fromEntries(
-        Object.entries(opts.patchedDependencies).map(([key, value]) => [
-          key,
-          path.resolve(opts.lockfileDir, value),
-        ])
-      )
-      : undefined
+    const resolvedPatchedDeps = resolvePatchedDependencies(opts.patchedDependencies, opts.lockfileDir)
     const patchedDependencies = opts.ignorePackageManifest
       ? ctx.wantedLockfile.patchedDependencies
       : (resolvedPatchedDeps ? await calcPatchHashes(resolvedPatchedDeps) : {})

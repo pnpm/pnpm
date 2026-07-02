@@ -23,6 +23,7 @@ import {
   calcPatchHashes,
   createOverridesMapFromParsed,
   getOutdatedLockfileSetting,
+  resolvePatchedDependencies,
 } from '@pnpm/lockfile.settings-checker'
 import {
   getWorkspacePackagesByDirectory,
@@ -660,17 +661,7 @@ async function assertWantedLockfileUpToDate (
     wantedLockfileDir,
   } = opts
 
-  // Resolve patchedDependencies against the lockfile directory so
-  // relative patch-file paths work regardless of the workspace dir
-  // that was used when the config was loaded.
-  const resolvedPatchedDeps = config.patchedDependencies
-    ? Object.fromEntries(
-      Object.entries(config.patchedDependencies).map(([key, value]) => [
-        key,
-        path.resolve(wantedLockfileDir, value),
-      ])
-    )
-    : undefined
+  const resolvedPatchedDeps = resolvePatchedDependencies(config.patchedDependencies, wantedLockfileDir)
   const [
     patchedDependencies,
     pnpmfileChecksum,
