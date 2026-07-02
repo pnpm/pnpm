@@ -251,9 +251,17 @@ export async function pickPackage (
       metaCachedInStore = await limit(async () => loadMeta(pkgMirror))
 
       if (ctx.offline) {
-        if (metaCachedInStore != null) return {
-          meta: metaCachedInStore,
-          pickedPackage: pickMatchingVersionFinal(pickerOpts, spec, metaCachedInStore),
+        if (metaCachedInStore != null) {
+          // Cache the parsed metadata in memory so repeat resolutions of the
+          // same package (common across a large dependency graph) don't re-read
+          // and re-parse the on-disk mirror. maybeUpgradeAbbreviatedMetaForReleaseAge
+          // short-circuits when offline, so the top-level cache hit path returns
+          // the same meta without any network access.
+          ctx.metaCache.set(cacheKey, metaCachedInStore)
+          return {
+            meta: metaCachedInStore,
+            pickedPackage: pickMatchingVersionFinal(pickerOpts, spec, metaCachedInStore),
+          }
         }
 
         throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${pkgMirror}`)
@@ -273,6 +281,11 @@ export async function pickPackage (
         }
         const pickedPackage = pickMatchingVersionFinal(pickerOpts, spec, metaCachedInStore)
         if (pickedPackage) {
+          // Cache the (possibly abbreviated) parsed metadata in memory so repeat
+          // resolutions of the same package don't re-read and re-parse the mirror.
+          // On a later cache hit the top-level path re-runs the same
+          // maybeUpgradeAbbreviatedMetaForReleaseAge check, so behavior is unchanged.
+          ctx.metaCache.set(cacheKey, metaCachedInStore)
           return {
             meta: metaCachedInStore,
             pickedPackage,
