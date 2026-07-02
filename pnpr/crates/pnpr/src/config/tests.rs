@@ -437,16 +437,23 @@ fn from_default_yaml_parses_bundled_file() {
     assert!(config.uplinks.contains_key("npmjs"));
     assert_eq!(config.uplinks["npmjs"].url, "https://registry.npmjs.org/");
     assert_eq!(config.auth.htpasswd.max_users, super::MaxUsers::Disabled);
-    // The bundled file routes fixture scopes to the local hosted org and
-    // everything else to npmjs.
-    assert_eq!(
-        config.mounts.resolve_default("@pnpm.e2e/foo"),
-        Resolved::Concrete { mount: "local", kind: ConcreteKind::Hosted },
-    );
-    assert_eq!(
-        config.mounts.resolve_default("lodash"),
-        Resolved::Concrete { mount: "npmjs", kind: ConcreteKind::Upstream },
-    );
+    // The bundled file routes fixture scopes, the fixture packages living in
+    // real npm scopes, and test-published names to the local hosted org, and
+    // everything else — including the rest of those real scopes — to npmjs.
+    for local in ["@pnpm.e2e/foo", "@pnpm/y", "test-publish-tarball", "project-100"] {
+        assert_eq!(
+            config.mounts.resolve_default(local),
+            Resolved::Concrete { mount: "local", kind: ConcreteKind::Hosted },
+            "{local} must be hosted",
+        );
+    }
+    for upstream in ["react", "lodash", "test-exclude", "@pnpm/error"] {
+        assert_eq!(
+            config.mounts.resolve_default(upstream),
+            Resolved::Concrete { mount: "npmjs", kind: ConcreteKind::Upstream },
+            "{upstream} must proxy npm",
+        );
+    }
 }
 
 #[test]
