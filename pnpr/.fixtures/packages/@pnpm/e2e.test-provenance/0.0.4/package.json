@@ -1,0 +1,19 @@
+{
+  "name": "@pnpm/e2e.test-provenance",
+  "version": "0.0.4",
+  "dist": {
+    "attestations": {
+      "provenance": {
+        "predicateType": "https://slsa.dev/provenance/v1"
+      }
+    }
+  },
+  "_npmUser": {
+    "name": "GitHub Actions",
+    "email": "npm-oidc-no-reply@github.com",
+    "trustedPublisher": {
+      "id": "github",
+      "oidcConfigId": "oidc:08f7117a-76fc-4516-b43f-6c0a1220b855"
+    }
+  }
+}

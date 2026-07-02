@@ -1,0 +1,13 @@
+{
+  "name": "@pnpm/macos-arm64",
+  "version": "10.32.0",
+  "bin": {
+    "pnpm": "pnpm"
+  },
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "arm64"
+  ]
+}

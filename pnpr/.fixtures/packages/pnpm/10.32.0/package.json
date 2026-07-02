@@ -1,0 +1,7 @@
+{
+  "name": "pnpm",
+  "version": "10.32.0",
+  "bin": {
+    "pnpm": "pnpm"
+  }
+}
