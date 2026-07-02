@@ -1475,10 +1475,19 @@ async fn serve_tarball_via_uplink(
     // it was written, and the client re-verifies what it receives, so no
     // re-bind or re-hash is needed. The packument load — and the full-document
     // JSON parse in `expected_tarball_dist` — costs milliseconds per request
-    // for a large package and would dominate warm tarball serving. Only OSV
-    // screening needs the packument-resolved version first, so with OSV
-    // enabled the cache read waits for the bind below. A `cache: false`
-    // uplink skips the cache and streams through.
+    // for a large package and would dominate warm tarball serving.
+    //
+    // Deliberately, a hit is NOT re-bound against the packument as it stands
+    // *now*: a version unpublished since the write stays downloadable from
+    // this disposable mirror until the entry is wiped (registry-CDN
+    // semantics; resolution already stops offering it once the refreshed
+    // packument drops it), and a hostile packument rewrite — say, duplicate
+    // `dist.tarball` basenames — cannot retroactively poison bytes that were
+    // verified on the way in. The fail-closed bind below protects the *fetch*
+    // of new bytes; end-to-end SRI (the client's lockfile) is the authority
+    // on what it accepts. Only OSV screening needs the packument-resolved
+    // version first, so with OSV enabled the cache read waits for the bind
+    // below. A `cache: false` uplink skips the cache and streams through.
     if upstream.caches()
         && state.inner.osv_index.is_none()
         && let Some(response) = cached_uplink_tarball(state, &namespace, &name, &filename).await
