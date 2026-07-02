@@ -571,8 +571,6 @@ impl WorkEnv {
                 "Serving {revision}'s tarballs from a COLD mock built from pnpr@{revision} on 127.0.0.1:{mock_port} (origin {})...",
                 self.registry,
             );
-            // Chain broken for a mutable binding: `apply_serve_timing` must set
-            // an env on the command before it is spawned.
             let mut command = Command::new(&binary);
             command
                 .arg("--config")
@@ -673,8 +671,6 @@ impl WorkEnv {
             .expect("create pnpr server stdout log");
         let stderr = File::create(bench_dir.join("pnpr-server.stderr.log"))
             .expect("create pnpr server stderr log");
-        // Chain broken for a mutable binding: `apply_serve_timing` sets an env
-        // before spawn.
         let mut command = Command::new(&binary);
         command
             .arg("--config")

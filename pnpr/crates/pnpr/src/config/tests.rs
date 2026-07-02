@@ -826,8 +826,8 @@ packages:
     assert_eq!(config.auth.htpasswd.max_users, super::MaxUsers::Disabled);
 }
 
-/// A router mount routes each package to exactly one concrete source — the safe
-/// replacement for what a multi-uplink fallback chain used to express.
+/// A router mount routes each package to exactly one concrete source — the
+/// safe alternative to a multi-uplink fallback chain.
 #[test]
 fn from_yaml_str_router_routes_each_package_to_one_source() {
     let yaml = "\
@@ -1899,8 +1899,8 @@ fn resolve_uplink_rejects_an_unparsable_interval() {
 
 #[test]
 fn bundled_default_config_enforces_its_protections() {
-    // Building from the bundled YAML must reproduce the
-    // registry-mock protections that used to be hard-coded.
+    // The bundled YAML is the only place the registry-mock protections are
+    // declared, so building from it must yield every one of them.
     let config = Config::from_default_yaml(Path::new("/tmp"), listen(), None);
     let needs_auth = config.policies.for_package("@pnpm.e2e/needs-auth");
     assert!(!needs_auth.access.allows(&Identity::Anonymous));
