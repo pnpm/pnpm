@@ -2198,17 +2198,27 @@ fn update_excludes(scope: &UpdateReuseScope, name: &str) -> bool {
 fn real_package_name_of(wanted: &WantedDependency) -> Option<Cow<'_, str>> {
     let bare = wanted.bare_specifier.as_deref()?;
     if let Some(rest) = bare.strip_prefix("npm:") {
-        // Npm-alias: parse the real name out of `bare_specifier`
-        // because `wanted.alias` keeps the local install name. Split
-        // at the last `@` to separate the real name from the version
-        // range. When there is no `@`, the whole `rest` is the name
-        // (default-tag form `npm:bar`).
-        let last_at = rest.bytes().enumerate().rev().find_map(|(i, b)| (b == b'@').then_some(i));
-        let name = match last_at {
-            Some(idx) if idx >= 1 => &rest[..idx],
-            _ => rest,
-        };
-        return (!name.is_empty()).then_some(Cow::Borrowed(name));
+        // `npm:<range>` form: the body is a semver range, not a name,
+        // so the install alias IS the real package name. Mirrors
+        // `overlay_lookup_names`'s `alias_keeps_name` branch.
+        let alias_keeps_name = wanted
+            .alias
+            .as_deref()
+            .is_some_and(|alias| !alias.is_empty() && rest.parse::<node_semver::Range>().is_ok());
+        if !alias_keeps_name {
+            // `npm:<name>@<range>` or `npm:<name>`: parse the real name
+            // out of `bare_specifier` because `wanted.alias` keeps the
+            // local install name. Split at the last `@` to separate the
+            // real name from the version range. When there is no `@`,
+            // the whole `rest` is the name (default-tag form `npm:bar`).
+            let last_at =
+                rest.bytes().enumerate().rev().find_map(|(i, b)| (b == b'@').then_some(i));
+            let name = match last_at {
+                Some(idx) if idx >= 1 => &rest[..idx],
+                _ => rest,
+            };
+            return (!name.is_empty()).then_some(Cow::Borrowed(name));
+        }
     }
     if bare.starts_with("jsr:") {
         // An unparsable `jsr:` specifier carries no recoverable real
@@ -2223,7 +2233,8 @@ fn real_package_name_of(wanted: &WantedDependency) -> Option<Cow<'_, str>> {
         .flatten()?;
         return Some(Cow::Owned(spec.npm_pkg_name));
     }
-    // Plain dep or workspace dep: the install alias is the real name.
+    // Plain dep, workspace dep, or `npm:<range>` form: the install
+    // alias is the real name.
     wanted.alias.as_deref().map(Cow::Borrowed)
 }
 

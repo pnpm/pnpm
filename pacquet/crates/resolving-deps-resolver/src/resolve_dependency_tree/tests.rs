@@ -219,6 +219,28 @@ mod real_package_name_of {
     }
 
     #[test]
+    fn returns_alias_for_npm_range_form() {
+        // `foo@npm:^1.0.0`: the body after `npm:` is a semver range,
+        // not a name. The install alias `foo` is the real package
+        // name — without this branch, the range string itself would
+        // be returned as the name and update targeting would miss.
+        assert_eq!(
+            real_package_name_of(&wanted(Some("foo"), Some("npm:^1.0.0"))).as_deref(),
+            Some("foo"),
+        );
+    }
+
+    #[test]
+    fn returns_alias_for_npm_range_form_with_complex_range() {
+        // The `npm:<range>` form supports any valid semver range in
+        // the body — `>=1.0.0 <2.0.0`, `~1.2.3`, `1.x`, etc.
+        assert_eq!(
+            real_package_name_of(&wanted(Some("foo"), Some("npm:>=1.0.0 <2.0.0"))).as_deref(),
+            Some("foo"),
+        );
+    }
+
+    #[test]
     fn folds_jsr_specifier_to_npm_registry_name_with_version_range() {
         // `foo@jsr:@foo/bar@^1`: install alias is `foo`, but the picker
         // and lockfile snapshots key on the folded npm registry name
