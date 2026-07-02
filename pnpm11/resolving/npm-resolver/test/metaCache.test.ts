@@ -95,3 +95,53 @@ test('updateChecksums bypasses the in-memory cache so a disk-promoted entry cann
   await pickPackage(ctx, spec, { registry: REGISTRY, dryRun: false, updateChecksums: true, preferredVersionSelectors: undefined })
   expect(fetchedNames).toEqual(['foo'])
 })
+
+test('abbreviated metadata is normalized to the abbreviated field set before caching', async () => {
+  // Simulate a registry (e.g. Azure DevOps Artifacts) that ignores the
+  // abbreviated Accept header and returns the full package.json per version,
+  // including fields the resolver never reads.
+  const meta = {
+    _id: 'foo',
+    _rev: '1-abc',
+    readme: 'x'.repeat(1000),
+    name: 'foo',
+    'dist-tags': { latest: '1.0.0' },
+    versions: {
+      '1.0.0': {
+        name: 'foo',
+        version: '1.0.0',
+        dependencies: { bar: '^1.0.0' },
+        devDependencies: { typescript: '^5.0.0' },
+        scripts: { build: 'tsc', postinstall: 'node ./install.js' },
+        exports: { '.': './index.js' },
+        description: 'a package',
+        dist: {
+          tarball: 'https://registry.npmjs.org/foo/-/foo-1.0.0.tgz',
+          integrity: 'sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==',
+        },
+      },
+    },
+  } as unknown as PackageMeta
+
+  const cacheDir = temporaryDirectory()
+  const ctx = {
+    fetch: async () => ({ meta, jsonText: JSON.stringify(meta), etag: undefined }),
+    metaCache: createMetaCache(),
+    cacheDir,
+  }
+  const spec: RegistryPackageSpec = { type: 'range', name: 'foo', fetchSpec: '^1.0.0' }
+
+  const res = await pickPackage(ctx, spec, { registry: REGISTRY, dryRun: false, preferredVersionSelectors: undefined })
+  expect(res.pickedPackage?.version).toBe('1.0.0')
+
+  // The returned/cached meta is normalized: non-install fields dropped, install
+  // fields kept, so resolution is unchanged.
+  const cachedVersion = res.meta.versions['1.0.0'] as unknown as Record<string, unknown>
+  expect(cachedVersion.scripts).toBeUndefined()
+  expect(cachedVersion.exports).toBeUndefined()
+  expect(cachedVersion.description).toBeUndefined()
+  expect((res.meta as unknown as Record<string, unknown>).readme).toBeUndefined()
+  expect((res.meta as unknown as Record<string, unknown>)._id).toBeUndefined()
+  expect(cachedVersion.dependencies).toEqual({ bar: '^1.0.0' })
+  expect(cachedVersion.dist).toBeDefined()
+})

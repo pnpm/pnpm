@@ -381,6 +381,7 @@ export async function pickPackage (
 
       let meta = fetchResult.meta
       let resultToSave: FetchMetadataResult = fetchResult
+      let upgradedToFull = false
 
       // When minimumReleaseAge is active and we fetched abbreviated metadata,
       // check if the package was recently modified and needs full metadata
@@ -424,16 +425,27 @@ export async function pickPackage (
           if (!fullFetchResult.notModified) {
             resultToSave = fullFetchResult
             meta = fullFetchResult.meta
+            upgradedToFull = true
           }
         }
       }
 
-      if (ctx.filterMetadata) {
+      // Normalize the abbreviated slot down to the abbreviated field set.
+      // filterMetadata already does this for the full-metadata slot. Some
+      // registries (e.g. Azure DevOps Artifacts) ignore the abbreviated Accept
+      // header and return the full document; clearMeta drops the fields the
+      // resolver never reads (scripts, exports, readme, custom fields), so the
+      // abbreviated mirror stays small and parses fast on later resolutions.
+      // clearMeta keeps every abbreviated field (and top-level time), so
+      // resolution output is unchanged. Scoped to plain abbreviated results:
+      // full-metadata and minimumReleaseAge-upgraded documents are left as-is.
+      const normalizeAbbreviated = !fullMetadata && !upgradedToFull
+      if (ctx.filterMetadata || normalizeAbbreviated) {
         meta = clearMeta(meta)
       }
       if (!opts.dryRun) {
         // Serialize before setting meta.etag so it only lives in the headers line, not the body.
-        const jsonForDisk = ctx.filterMetadata
+        const jsonForDisk = (ctx.filterMetadata || normalizeAbbreviated)
           ? prepareJsonForDisk(meta, resultToSave.etag)
           : prepareJsonForDisk(resultToSave.meta, resultToSave.etag, resultToSave.jsonText)
         runLimited(pkgMirror, (limit) => limit(async () => {
@@ -554,7 +566,7 @@ function persistUpgradedMeta (
 
 function clearMeta (pkg: PackageMeta): PackageMeta {
   const versions: PackageMeta['versions'] = {}
-  for (const [version, info] of Object.entries(pkg.versions)) {
+  for (const [version, info] of Object.entries(pkg.versions ?? {})) {
     // The list taken from https://github.com/npm/registry/blob/master/docs/responses/package-metadata.md#abbreviated-version-object
     // with the addition of 'libc'
     versions[version] = pick([
