@@ -638,20 +638,33 @@ export async function mutateModules (
     }
     const packageExtensionsChecksum = hashObjectNullableWithPrefix(opts.packageExtensions)
     const pnpmfileChecksum = await opts.hooks.calculatePnpmfileChecksum?.()
+    // Resolve patchedDependencies against lockfileDir upfront so both
+    // calcPatchHashes and the patchGroupInput construction use the same
+    // absolute paths. path.resolve with an already-absolute path is a
+    // no-op, so this is safe regardless of whether the upstream config
+    // layer already resolved to absolute paths.
+    const resolvedPatchedDeps = opts.patchedDependencies
+      ? Object.fromEntries(
+        Object.entries(opts.patchedDependencies).map(([key, value]) => [
+          key,
+          path.resolve(opts.lockfileDir, value),
+        ])
+      )
+      : undefined
     const patchedDependencies = opts.ignorePackageManifest
       ? ctx.wantedLockfile.patchedDependencies
-      : (opts.patchedDependencies ? await calcPatchHashes(opts.patchedDependencies) : {})
-    const patchGroupInput = opts.patchedDependencies
+      : (resolvedPatchedDeps ? await calcPatchHashes(resolvedPatchedDeps) : {})
+    const patchGroupInput = resolvedPatchedDeps
       ? Object.fromEntries(
         Object.entries(patchedDependencies ?? {}).map(([key, hash]) => {
-          let patchFilePath = opts.patchedDependencies![key]
-            ? path.resolve(opts.lockfileDir, opts.patchedDependencies![key])
+          let patchFilePath = resolvedPatchedDeps![key]
+            ? path.resolve(opts.lockfileDir, resolvedPatchedDeps![key])
             : undefined
           if (!patchFilePath) {
             const lastAt = key.lastIndexOf('@')
             const pkgName = lastAt > 0 ? key.slice(0, lastAt) : key
-            if (opts.patchedDependencies![pkgName]) {
-              patchFilePath = path.resolve(opts.lockfileDir, opts.patchedDependencies![pkgName])
+            if (resolvedPatchedDeps![pkgName]) {
+              patchFilePath = path.resolve(opts.lockfileDir, resolvedPatchedDeps![pkgName])
             }
           }
           return [key, { hash, patchFilePath }]
