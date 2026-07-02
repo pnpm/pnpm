@@ -56,8 +56,9 @@ auth:
     # (registration disabled); set a non-negative cap to allow registration.
     max_users: -1
 
-# Optional static group/team memberships. Package policies can use these
-# group names anywhere they already accept usernames.
+# Optional static group/team memberships. Every access list accepts these
+# group names anywhere it accepts usernames — the per-package `packages:`
+# policies and the mount-level `access:` lists alike.
 #groups:
 #  platform: alice bob
 
