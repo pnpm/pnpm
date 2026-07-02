@@ -1,0 +1,13 @@
+{
+  "name": "@pnpm/win-arm64",
+  "version": "11.9.0",
+  "bin": {
+    "pnpm": "pnpm"
+  },
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "arm64"
+  ]
+}

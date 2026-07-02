@@ -1,0 +1,14 @@
+{
+  "name": "@reflink/reflink",
+  "version": "0.1.19",
+  "optionalDependencies": {
+    "@reflink/reflink-win32-x64-msvc": "0.1.19",
+    "@reflink/reflink-darwin-x64": "0.1.19",
+    "@reflink/reflink-linux-x64-gnu": "0.1.19",
+    "@reflink/reflink-darwin-arm64": "0.1.19",
+    "@reflink/reflink-linux-arm64-gnu": "0.1.19",
+    "@reflink/reflink-linux-arm64-musl": "0.1.19",
+    "@reflink/reflink-win32-arm64-msvc": "0.1.19",
+    "@reflink/reflink-linux-x64-musl": "0.1.19"
+  }
+}

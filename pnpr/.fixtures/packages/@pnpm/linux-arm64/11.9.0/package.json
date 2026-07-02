@@ -1,0 +1,13 @@
+{
+  "name": "@pnpm/linux-arm64",
+  "version": "11.9.0",
+  "bin": {
+    "pnpm": "pnpm"
+  },
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "arm64"
+  ]
+}

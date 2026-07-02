@@ -1,0 +1,21 @@
+{
+  "name": "@pnpm/exe",
+  "version": "9.1.1",
+  "dependencies": {
+    "@pnpm/win-x64": "9.1.1",
+    "@pnpm/linux-x64": "9.1.1",
+    "@pnpm/macos-x64": "9.1.1",
+    "@pnpm/linux-arm64": "9.1.1",
+    "@pnpm/macos-arm64": "9.1.1"
+  },
+  "optionalDependencies": {
+    "@pnpm/win-x64": "9.1.1",
+    "@pnpm/linux-x64": "9.1.1",
+    "@pnpm/macos-x64": "9.1.1",
+    "@pnpm/linux-arm64": "9.1.1",
+    "@pnpm/macos-arm64": "9.1.1"
+  },
+  "bin": {
+    "pnpm": "pnpm"
+  }
+}
