@@ -266,7 +266,7 @@ fn removed_registry_key_is_rejected_in_any_form() {
         assert!(matches!(err, RegistryError::InvalidConfig { .. }));
         assert!(
             err.to_string().contains("`registry:` key has been removed"),
-            "for {yaml:?}: {err}"
+            "for {yaml:?}: {err}",
         );
     }
 }

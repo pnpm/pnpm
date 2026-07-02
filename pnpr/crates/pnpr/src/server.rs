@@ -617,7 +617,7 @@ async fn get_three_segments(
     }
     if let Some(mount) = first.strip_prefix('~').filter(|mount| !mount.is_empty()) {
         // The account endpoints (whoami, adduser, logout, profile, tokens)
-        // live on dedicated always-mounted routes; a `/~<mount>/-/…` path
+        // live on dedicated always-mounted routes; a `/~<mount>/-/...` path
         // that still reaches this handler names no mount content.
         if second == "-" {
             return not_found();
@@ -951,7 +951,7 @@ async fn delete_seven_segments(
 // Account routes — adduser/login, whoami, profile, token list and
 // revocation, logout. Mounted on every tier (see the router construction
 // in `router_with_auth_and_osv`). Each has a `/~<prefix>/`-addressed twin
-// whose `/{prefix}/…` route pattern also matches a non-`~` first segment;
+// whose `/{prefix}/...` route pattern also matches a non-`~` first segment;
 // that shape is not an account URL and 404s.
 // --------------------------------------------------------------------
 
