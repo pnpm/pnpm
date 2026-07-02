@@ -151,7 +151,7 @@ jobs:
         # was Node + Verdaccio. Path matches `runtime_storage()` in
         # `pacquet/tasks/registry-mock/src/dirs.rs` (defaults to
         # `$HOME/.cache/pnpm-registry/storage`).
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           # The version segment (v2) discards the persisted storage when it
           # goes internally inconsistent — e.g. a cached packument declaring
@@ -171,7 +171,7 @@ jobs:
       # cache silently missed and every run built cold. The compiled
       # revision *binaries* are cached separately, per commit, below.
       - name: Cache Rust deps
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           key: integrated-benchmark-deps-${{ matrix.os }}-${{ hashFiles('**/Cargo.lock', 'rust-toolchain.toml') }}-${{ github.run_id }}
           restore-keys: |
@@ -193,7 +193,7 @@ jobs:
       # is the only thing that compiles. Restored into the paths the
       # orchestrator builds into, so it skips the clone + `cargo build`.
       - name: Cache pnpr@main binaries
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           key: integrated-benchmark-bin-${{ matrix.os }}-${{ steps.revs.outputs.main_sha }}-${{ hashFiles('rust-toolchain.toml') }}
           path: |
@@ -203,7 +203,7 @@ jobs:
         continue-on-error: true
 
       - name: Cache pnpr@HEAD binaries
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           key: integrated-benchmark-bin-${{ matrix.os }}-${{ steps.revs.outputs.head_sha }}-${{ hashFiles('rust-toolchain.toml') }}
           path: |
@@ -225,7 +225,7 @@ jobs:
           install: false
 
       - name: Cache pnpm
-        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           key: integrated-benchmark-pnpm-v11-${{ hashFiles('pnpm-lock.yaml') }}
           restore-keys: |
@@ -241,7 +241,7 @@ jobs:
           packages: hyperfine@1.18.0
 
       - name: Install just
-        uses: taiki-e/install-action@b8cecb83565409bcc297b2df6e77f030b2a468d5 # v2.82.0
+        uses: taiki-e/install-action@682e7d9e49c5e653d371fc6adbda67653461378a # v2.82.4
         with:
           tool: just
 
@@ -540,7 +540,7 @@ jobs:
 
       - name: Install Bencher CLI
         if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-        uses: bencherdev/bencher@ec56bb69a7f34096002ca3384d10e2f6676b063e # v0.6.7
+        uses: bencherdev/bencher@5f9d4cf890255c35e0354af1ed325108a6a0babd # v0.6.8
 
       - name: Upload results to Bencher
         # Runs on push and workflow_dispatch — both execute in the
