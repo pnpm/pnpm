@@ -3323,6 +3323,58 @@ async fn pathless_private_mount_responses_carry_private_cache_headers() {
     );
 }
 
+/// A per-package ACL that denies anonymous callers makes the path-less
+/// response vary by `Authorization` even when the source mount itself is
+/// public, so it must carry the private-cache headers — otherwise a shared
+/// HTTP cache could replay an authenticated 200 to an anonymous caller.
+#[tokio::test]
+async fn pathless_acl_gated_package_carries_private_cache_headers() {
+    let tmp = TempDir::new().unwrap();
+    seed_hosted(&tmp.path().join("acme"), "@acme/widget");
+
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.hosted.insert(
+        "acme".to_string(),
+        HostedConfig { org: "acme".to_string(), access: AccessList::parse("$all") },
+    );
+    config.mounts = Mounts::new(
+        vec![("acme".to_string(), MountKind::Hosted)].into_iter().collect(),
+        Some("acme".to_string()),
+    );
+    config.policies = PackagePolicies::new(vec![
+        PackagePolicy::new(
+            "@acme/widget",
+            AccessList::parse("$authenticated"),
+            AccessList::default(),
+            AccessList::default(),
+        )
+        .expect("policy compiles"),
+    ]);
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let app = router_with_auth(config, auth);
+
+    let response = app
+        .oneshot(
+            Request::get("/@acme/widget")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response.headers().get(header::CACHE_CONTROL).and_then(|value| value.to_str().ok()),
+        Some("private, no-store"),
+        "an ACL-gated path-less response must not be shared-cacheable",
+    );
+    assert_eq!(
+        response.headers().get(header::VARY).and_then(|value| value.to_str().ok()),
+        Some("Authorization"),
+    );
+}
+
 /// A definitive upstream 404 purges the cached packument, so a package
 /// unpublished upstream cannot be resurrected later by the stale-if-error
 /// fallback during a transient outage.

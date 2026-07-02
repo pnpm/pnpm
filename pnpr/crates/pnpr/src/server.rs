@@ -673,7 +673,7 @@ async fn get_four_segments(
 ) -> Response {
     if a == "-" && b == "package" && d == "dist-tags" {
         let response = get_dist_tags(&state, &identity, None, &c).await;
-        return private_if_default_target_private(&state, &c, response);
+        return private_if_caller_gated(&state, &c, response);
     }
     if a == "-" && b == "npm" && c == "v1" && d == "user" {
         return private_no_cache(serve_profile(&identity));
@@ -1014,7 +1014,7 @@ async fn serve_packument(
             let base = state.inner.config.public_url.clone();
             let response =
                 serve_mount_packument(state, identity, headers, &target, raw_name, &base).await;
-            private_if_default_target_private(state, raw_name, response)
+            private_if_caller_gated(state, raw_name, response)
         }
         None => not_found(),
     }
@@ -1038,7 +1038,7 @@ async fn serve_version_manifest(
                 &base,
             )
             .await;
-            private_if_default_target_private(state, raw_name, response)
+            private_if_caller_gated(state, raw_name, response)
         }
         None => not_found(),
     }
@@ -1648,16 +1648,21 @@ fn resolves_to_private_source(state: &AppState, mount: &str, package: &str) -> b
     }
 }
 
-/// Apply the private-cache headers to a path-less response when the
-/// default-target resolution for `package` lands on a private source — the
-/// same headers the `/~<mount>/` surface applies unconditionally, so the two
-/// URL surfaces for the same content get the same cache protection. A public
-/// resolution stays cacheable: the path-less base is the hot install path.
-fn private_if_default_target_private(
-    state: &AppState,
-    package: &str,
-    response: Response,
-) -> Response {
+/// Apply the private-cache headers to a path-less response whenever it can
+/// vary by caller — the default-target resolution for `package` lands on a
+/// private source, or the per-package ACL denies anonymous access (so the
+/// same URL answers 200 or 403 depending on `Authorization`, even through a
+/// public mount). These are the same headers the `/~<mount>/` surface applies
+/// unconditionally, so the two URL surfaces for the same content get the same
+/// defense against a shared HTTP cache replaying an authenticated response to
+/// an anonymous caller. A publicly-readable resolution stays cacheable: the
+/// path-less base is the hot install path.
+fn private_if_caller_gated(state: &AppState, package: &str, response: Response) -> Response {
+    let acl_gated =
+        !state.inner.config.policies.for_package(package).access.allows(&Identity::Anonymous);
+    if acl_gated {
+        return private_no_cache(response);
+    }
     match default_target_mount(state) {
         Some(target) if resolves_to_private_source(state, &target, package) => {
             private_no_cache(response)
@@ -1831,7 +1836,7 @@ async fn serve_tarball(
     match default_target_mount(state) {
         Some(target) => {
             let response = serve_mount_tarball(state, identity, &target, raw_name, filename).await;
-            private_if_default_target_private(state, raw_name, response)
+            private_if_caller_gated(state, raw_name, response)
         }
         None => not_found(),
     }
