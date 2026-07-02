@@ -21,37 +21,37 @@ test('save to package.json (is-positive@^1.0.0)', async () => {
 
 // NOTE: this works differently for global installations. See similar tests in global.ts
 test("don't override existing spec in package.json on named installation", async () => {
-  await addDistTag({ package: 'is-negative', version: '2.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/multi-version-a', version: '2.1.0', distTag: 'latest' })
   const project = prepareEmpty()
   let { updatedManifest: manifest } = await addDependenciesToPackage({
     dependencies: {
-      'is-negative': '^1.0.0', // this will be updated
+      '@pnpm.e2e/multi-version-a': '^1.0.0', // this will be updated
       'is-positive': '^2.0.0', // this will be kept as no newer version is available from the range
       sec: 'sindresorhus/sec#main',
     },
   }, ['is-positive'], testDefaults())
-  manifest = (await addDependenciesToPackage(manifest, ['is-negative@latest'], testDefaults())).updatedManifest
+  manifest = (await addDependenciesToPackage(manifest, ['@pnpm.e2e/multi-version-a@latest'], testDefaults())).updatedManifest
   manifest = (await addDependenciesToPackage(manifest, ['sec'], testDefaults())).updatedManifest
 
   expect(project.requireModule('is-positive/package.json').version).toBe('2.0.0')
-  expect(project.requireModule('is-negative/package.json').version).toBe('2.1.0')
+  expect(project.requireModule('@pnpm.e2e/multi-version-a/package.json').version).toBe('2.1.0')
 
   expect(manifest.dependencies).toStrictEqual({
-    'is-negative': '^2.1.0',
+    '@pnpm.e2e/multi-version-a': '^2.1.0',
     'is-positive': '^2.0.0',
     sec: 'sindresorhus/sec#main',
   })
 })
 
-test('saveDev scoped module to package.json (@rstacruz/tap-spec)', async () => {
-  await addDistTag({ package: '@rstacruz/tap-spec', version: '4.1.1', distTag: 'latest' })
+test('saveDev scoped module to package.json (@scoped/exports-function)', async () => {
+  await addDistTag({ package: '@scoped/exports-function', version: '4.1.1', distTag: 'latest' })
   const project = prepareEmpty()
-  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@rstacruz/tap-spec'], testDefaults({ fastUnpack: false, targetDependenciesField: 'devDependencies' }))
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@scoped/exports-function'], testDefaults({ fastUnpack: false, targetDependenciesField: 'devDependencies' }))
 
-  const m = project.requireModule('@rstacruz/tap-spec')
+  const m = project.requireModule('@scoped/exports-function')
   expect(typeof m).toBe('function')
 
-  expect(manifest.devDependencies).toStrictEqual({ '@rstacruz/tap-spec': '^4.1.1' })
+  expect(manifest.devDependencies).toStrictEqual({ '@scoped/exports-function': '^4.1.1' })
 })
 
 test('dependency should not be added to package.json if it is already there', async () => {

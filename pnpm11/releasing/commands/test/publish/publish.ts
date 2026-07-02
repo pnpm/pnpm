@@ -303,7 +303,7 @@ test('publish: package with all possible fields in publishConfig', async () => {
 })
 
 test('publish: package with publishConfig.registry overrides the default registry', async () => {
-  const pkgName = `test-publish-config-registry-${Date.now()}`
+  const pkgName = `@pnpmtest/test-publish-config-registry-${Date.now()}`
   prepare({
     name: pkgName,
     version: '1.0.0',
@@ -1044,7 +1044,7 @@ test('publish from a tarball', async () => {
 })
 
 test('publish --json: writes per-package summary to stdout', async () => {
-  const pkgName = `test-publish-json-${Date.now()}`
+  const pkgName = `@pnpmtest/test-publish-json-${Date.now()}`
   prepare({ name: pkgName, version: '0.0.0' })
 
   const result = await publish.handler({
@@ -1061,7 +1061,7 @@ test('publish --json: writes per-package summary to stdout', async () => {
     id: `${pkgName}@0.0.0`,
     name: pkgName,
     version: '0.0.0',
-    filename: `${pkgName}-0.0.0.tgz`,
+    filename: `${pkgName.substring(1).replace('/', '-')}-0.0.0.tgz`,
     bundled: [],
   })
   expect(summary.size).toEqual(expect.any(Number))
