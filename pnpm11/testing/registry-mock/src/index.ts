@@ -99,14 +99,17 @@ export function getIntegrity (pkgName: string, pkgVersion: string): string {
       'Tests that call getIntegrity must run under the with-registry jest preset.'
     )
   }
-  const candidatePaths = [
-    path.join(storage, pkgName, 'package.json'),
-    ...listPublicProxyNamespaces(path.join(storage, PROXY_CACHE_DIR, '~public'))
-      .map((namespace) => path.join(namespace, pkgName, 'package.json')),
-  ]
   const maxRetries = 4
   let delay = 200 // milliseconds
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    // Rebuilt on every attempt: the proxy-cache namespace directory itself is
+    // created lazily along with the first cached packument, so it may not
+    // exist yet on the first attempt.
+    const candidatePaths = [
+      path.join(storage, pkgName, 'package.json'),
+      ...listPublicProxyNamespaces(path.join(storage, PROXY_CACHE_DIR, '~public'))
+        .map((namespace) => path.join(namespace, pkgName, 'package.json')),
+    ]
     const content = readPackument(candidatePaths)
     if (content) {
       return content.versions[pkgVersion].dist.integrity
