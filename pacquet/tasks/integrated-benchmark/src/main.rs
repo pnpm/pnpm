@@ -35,6 +35,7 @@ async fn main() {
         registry_bandwidth_mbps,
         registry_slow_start,
         reuse_prebuilt_binaries,
+        serve_timing,
         build_only,
         targets,
     } = clap::Parser::parse();
@@ -174,6 +175,7 @@ async fn main() {
         registry_slow_start,
         registry_port: spawned_registry_port,
         reuse_prebuilt_binaries,
+        serve_timing,
     };
     if build_only {
         env.build();

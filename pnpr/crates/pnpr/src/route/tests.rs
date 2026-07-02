@@ -76,6 +76,31 @@ fn hmac_sha256_matches_rfc4231_case1() {
 }
 
 #[test]
+fn headers_credential_digest_covers_all_headers_order_independently() {
+    use super::headers_credential_digest;
+
+    // Order of insertion must not change the digest.
+    let mut auth_first = HeaderMap::new();
+    auth_first.insert(AUTHORIZATION, HeaderValue::from_static("Bearer tok"));
+    auth_first.insert("x-api-key", HeaderValue::from_static("k1"));
+    let mut custom_first = HeaderMap::new();
+    custom_first.insert("x-api-key", HeaderValue::from_static("k1"));
+    custom_first.insert(AUTHORIZATION, HeaderValue::from_static("Bearer tok"));
+    assert_eq!(headers_credential_digest(&auth_first), headers_credential_digest(&custom_first));
+
+    // Rotating a credential carried in a *custom* header re-keys the namespace,
+    // even though `Authorization` alone would look unchanged.
+    let mut rotated = HeaderMap::new();
+    rotated.insert("x-api-key", HeaderValue::from_static("k2"));
+    let mut original = HeaderMap::new();
+    original.insert("x-api-key", HeaderValue::from_static("k1"));
+    assert_ne!(headers_credential_digest(&original), headers_credential_digest(&rotated));
+
+    // An empty header set is stable but distinct from any credentialed one.
+    assert_ne!(headers_credential_digest(&HeaderMap::new()), headers_credential_digest(&original));
+}
+
+#[test]
 fn npmjs_host_is_public_including_scoped() {
     let context = RouteContext::from_config(&base_config());
     assert_eq!(

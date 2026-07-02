@@ -56,13 +56,11 @@ auth:
     # (registration disabled); set a non-negative cap to allow registration.
     max_users: -1
 
-# Optional static group/team memberships. Package policies and upstream
-# aliases can use these group names anywhere they already accept usernames.
+# Optional static group/team memberships. Every access list accepts these
+# group names anywhere it accepts usernames — the per-package `packages:`
+# policies and the mount-level `access:` lists alike.
 #groups:
 #  platform: alice bob
-#  release:
-#    - alice
-#    - carol
 
 plugins: ../node_modules
 
@@ -70,28 +68,54 @@ middlewares:
   audit:
     enabled: true
 
-# a list of other known repositories we can talk to
-uplinks:
-  npmjs:
-    url: https://registry.npmjs.org/
-
-  # An uplink that declares `access:` becomes a pnpr-managed private-route
-  # credential, exposed as a registry endpoint at `/~<name>/` (here,
-  # `/~corp/`). pnpr selects it only when the caller satisfies `access` and
-  # sends its credential upstream. The private cache is namespaced by a hash of
-  # that credential, so rotating it (editing `auth`) automatically moves to a
-  # fresh namespace — no manual epoch to bump. Point a scope at the endpoint to
-  # use it, e.g. `@acme:registry=https://<pnpr>/~corp/`.
-  #corp:
-  #  url: https://npm.corp.example/
-  #  access: platform
-  #  auth:
-  #    type: bearer
-  #    tokenEnv: PNPR_CORP_NPM_TOKEN
-
 web:
   enable: false
 
+# Registry mounts: the only routing surface. Every addressable origin is a
+# mount exposed at `/~<mount>/`, and provenance is declared, never inferred —
+# a package resolves to exactly one declared concrete origin, with no
+# cross-origin fall-through (not on "not found", not on "unavailable"). This
+# is the `@pnpm/registry-mock` shape: the fixture scopes are served from the
+# local hosted store, and everything else proxies the public npm registry.
+mounts:
+  # The locally-hosted fixtures (and anything published here). With no `org`,
+  # this mount namespaces onto the flat `storage` root, where the fixtures are
+  # seeded.
+  local:
+    type: hosted
+    access: $all
+  # The public npm registry.
+  npmjs:
+    type: upstream
+    url: https://registry.npmjs.org/
+    public: true
+  # One URL routing each package to exactly one source by the first matching
+  # pattern. The fixture scopes are authoritative-local; everything else is
+  # npm. A router refuses to start on a shadowed route, so the `**` catch-all
+  # must stay last.
+  main:
+    type: router
+    routes:
+      - patterns:
+          - '@foo/*'
+          - '@having/*'
+          - '@jsr/*'
+          - '@pnpm/*'
+          - '@pnpm.e2e/*'
+          - '@private/*'
+          - '@scoped/*'
+          - '@zkochan/*'
+          - 'create-touch-file-one-bin'
+        source: local
+      - patterns: ['**']
+        source: npmjs
+
+# The path-less base URL (`https://<pnpr>/`) aliases this mount.
+defaultTarget: main
+
+# Per-package access control (an ACL layer, independent of routing). The
+# default for an unmatched package is open reads + authenticated writes;
+# these rules tighten specific fixtures to authenticated-only.
 packages:
   '@private/*':
     access: $authenticated
@@ -102,48 +126,6 @@ packages:
     access: $authenticated
     publish: $authenticated
     unpublish: $authenticated
-
-  '@*/*':
-    access: $all
-    publish: $authenticated
-    unpublish: $authenticated
-    proxy: npmjs
-
-  'plugin-example':
-    access: $all
-    publish: $authenticated
-    unpublish: $authenticated
-
-  'pkg-with-1-dep':
-    access: $all
-    publish: $authenticated
-    unpublish: $authenticated
-
-  'dep-of-pkg-with-1-dep':
-    access: $all
-    publish: $authenticated
-    unpublish: $authenticated
-
-  'foobar':
-    access: $all
-    publish: $authenticated
-    unpublish: $authenticated
-
-  'alpha':
-    access: $all
-    publish: $authenticated
-    unpublish: $authenticated
-
-  'deprecated':
-    access: $all
-    publish: $authenticated
-    unpublish: $authenticated
-
-  '**':
-    access: $all
-    publish: $authenticated
-    unpublish: $authenticated
-    proxy: npmjs
 
 # log settings (verdaccio 6+ shape: a single `log:` object, not a list)
 log:

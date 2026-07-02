@@ -154,34 +154,35 @@ fn log_message_redacts_malformed_database_url_fragment_secrets() {
 }
 
 #[test]
-fn allows_uplink_fallthrough_only_for_availability_failures() {
-    // 5xx is an availability signal: a later uplink may serve the package,
-    // so the chain falls through.
+fn is_transient_upstream_error_only_for_availability_failures() {
+    // 5xx is a transient availability signal (a refetch may recover), so a
+    // stale cache entry may answer in the meantime.
     for status in [500, 502, 503, 504] {
         let err = RegistryError::UpstreamStatus {
             url: "https://up.example/foo".to_string(),
             status,
             body: String::new(),
         };
-        assert!(err.allows_uplink_fallthrough(), "status {status} should fall through");
+        assert!(err.is_transient_upstream_error(), "status {status} is transient (5xx/transport)");
     }
 
     // An open circuit is an availability failure too.
     let circuit_open = RegistryError::UpstreamUnavailable { uplink: "npmjs".to_string() };
-    assert!(circuit_open.allows_uplink_fallthrough());
+    assert!(circuit_open.is_transient_upstream_error());
 
     // Every 4xx is an authoritative response about this request — including
-    // 429 (throttle) and 408 (timeout) — and must NOT be masked by a later
-    // uplink.
+    // 429 (throttle) and 408 (timeout) — and must NOT be masked (e.g. by
+    // serving a stale cache entry).
     for status in [400, 401, 403, 408, 410, 429, 451] {
         let err = RegistryError::UpstreamStatus {
             url: "https://up.example/foo".to_string(),
             status,
             body: String::new(),
         };
-        assert!(!err.allows_uplink_fallthrough(), "status {status} must not fall through");
+        assert!(!err.is_transient_upstream_error(), "status {status} is not transient (4xx)");
     }
 
-    // A non-upstream error is never a fall-through candidate.
-    assert!(!RegistryError::InvalidConfig { reason: "x".to_string() }.allows_uplink_fallthrough());
+    // A non-upstream error is never a transient availability failure.
+    let config_error = RegistryError::InvalidConfig { reason: "x".to_string() };
+    assert!(!config_error.is_transient_upstream_error());
 }

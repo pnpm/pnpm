@@ -5,7 +5,8 @@ use axum::{
 use flate2::read::GzDecoder;
 use futures_util::stream;
 use pnpr::{
-    AccessList, AccessSpec, AuthState, Config, PackageAccess, PublicRoute, router, router_with_auth,
+    AccessList, AuthState, Config, HostedConfig, MaxUsers, MountKind, Mounts, PackagePattern,
+    PackagePolicies, PackagePolicy, PublicRoute, Route, router, router_with_auth,
 };
 use serde_json::{Value, json};
 use ssri::{Algorithm, IntegrityOpts};
@@ -37,22 +38,28 @@ fn config_for(upstream: &str, storage: PathBuf) -> Config {
     config
 }
 
-/// A proxy config whose `**` rule lists two uplinks — `npmjs` (primary)
-/// then `private` (secondary) — as an ordered fallback chain, so the
-/// registry tries `primary` first and falls through to `secondary`.
-fn config_for_two(primary: &str, secondary: &str, storage: PathBuf) -> Config {
-    let mut config = config_for(primary, storage);
-    let mut secondary_uplink = config.uplinks.get("npmjs").expect("default `npmjs` uplink").clone();
-    secondary_uplink.url = secondary.to_string();
-    config.uplinks.insert("private".to_string(), secondary_uplink);
-    config.packages.insert(
-        "**".to_string(),
-        PackageAccess {
-            proxy: Some(AccessSpec::Many(vec!["npmjs".to_string(), "private".to_string()])),
-            ..Default::default()
-        },
+/// A public upstream mount caches under `.pnpr-cache/~public/<digest>/<pkg>/`.
+/// The proxy tests use a single `npmjs` mount, so there is one digest dir; this
+/// resolves the per-package cache dir under it. When nothing is cached yet it
+/// returns a path that does not exist, so existence assertions read naturally.
+fn public_cache_pkg(cache_root: &Path, pkg: &str) -> PathBuf {
+    let public = cache_root.join(".pnpr-cache").join("~public");
+    // The public cache holds one digest directory per public mount. These tests
+    // configure exactly one, so require at most one *directory* (ignoring stray
+    // files and `read_dir` order) instead of trusting the first entry.
+    let mut digest_dirs: Vec<PathBuf> = std::fs::read_dir(&public)
+        .into_iter()
+        .flatten()
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
+        .map(|entry| entry.path())
+        .collect();
+    digest_dirs.sort();
+    assert!(
+        digest_dirs.len() <= 1,
+        "expected at most one ~public mount namespace, found {digest_dirs:?}",
     );
-    config
+    digest_dirs.first().cloned().unwrap_or_else(|| public.join("__none__")).join(pkg)
 }
 
 async fn body_bytes(body: Body) -> Vec<u8> {
@@ -316,6 +323,21 @@ fn sha512_integrity(bytes: &[u8]) -> String {
     opts.result().to_string()
 }
 
+/// The 40-char hex SHA-1 the way pre-2017 npm publishes carry it in the
+/// legacy `dist.shasum` field.
+fn sha1_hex_of(bytes: &[u8]) -> String {
+    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+    let mut opts = IntegrityOpts::new().algorithm(Algorithm::Sha1);
+    opts.input(bytes);
+    let integrity = opts.result();
+    let digest = BASE64.decode(&integrity.hashes[0].digest).unwrap();
+    digest.iter().fold(String::with_capacity(40), |mut acc, byte| {
+        use std::fmt::Write as _;
+        write!(acc, "{byte:02x}").unwrap();
+        acc
+    })
+}
+
 fn osv_database(package: &str, versions: &[&str]) -> TempDir {
     let dir = TempDir::new().unwrap();
     let versions: Vec<Value> = versions.iter().map(|version| json!(version)).collect();
@@ -365,7 +387,9 @@ async fn mock_packument_for_tarball(
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body(packument.to_string())
-        .expect(1)
+        // At least once: a `cache: true` mount fetches the packument a single
+        // time (then caches); a `cache: false` mount refetches per request.
+        .expect_at_least(1)
         .create_async()
         .await
 }
@@ -494,6 +518,48 @@ async fn osv_filters_vulnerable_versions_from_proxy_and_cache() {
     assert!(tags.get("latest").is_none());
     assert_eq!(tags["stable"], "1.0.0");
 
+    mock.assert_async().await;
+}
+
+/// The per-package ACL applies to the path-less `dist-tags` reader even when the
+/// package routes to an upstream: an unauthorized caller is denied before the
+/// upstream is ever queried, so a restricted package's tags don't leak.
+#[tokio::test]
+async fn upstream_dist_tags_enforce_package_access() {
+    let mut upstream = mockito::Server::new_async().await;
+    let mock = upstream
+        .mock("GET", "/restricted")
+        .with_body(
+            json!({
+                "name": "restricted",
+                "dist-tags": { "latest": "1.0.0" },
+                "versions": { "1.0.0": { "name": "restricted", "version": "1.0.0" } },
+            })
+            .to_string(),
+        )
+        // The ACL must short-circuit the read before any upstream fetch.
+        .expect(0)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.policies = PackagePolicies::new(vec![
+        PackagePolicy::new(
+            "restricted",
+            AccessList::parse("$authenticated"),
+            AccessList::default(),
+            AccessList::default(),
+        )
+        .expect("policy compiles"),
+    ]);
+    let app = router(config);
+
+    let response = app
+        .oneshot(Request::get("/-/package/restricted/dist-tags").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
     mock.assert_async().await;
 }
 
@@ -916,242 +982,6 @@ async fn uplink_endpoint_cache_false_streams_without_caching() {
     tarball_mock.assert_async().await;
 }
 
-/// Builds a packument whose single `1.0.0` version points its tarball at
-/// `upstream_url`. Used by the multi-uplink tests, which need to control the
-/// upstream the packument is served from independently of the helper that
-/// also installs a mock.
-fn packument_json(upstream_url: &str) -> Value {
-    json!({
-        "name": "foo",
-        "dist-tags": { "latest": "1.0.0" },
-        "versions": {
-            "1.0.0": {
-                "name": "foo",
-                "version": "1.0.0",
-                "dist": {
-                    "tarball": format!("{upstream_url}/foo/-/foo-1.0.0.tgz"),
-                    "integrity": "sha512-deadbeef",
-                },
-            },
-        },
-    })
-}
-
-#[tokio::test]
-async fn packument_falls_back_to_secondary_uplink_on_primary_error() {
-    let mut primary = mockito::Server::new_async().await;
-    let mut secondary = mockito::Server::new_async().await;
-    // Primary errors (5xx) once; the registry must fall through to the
-    // secondary rather than surfacing the error.
-    let primary_mock = primary.mock("GET", "/foo").with_status(500).expect(1).create_async().await;
-    let secondary_mock = secondary
-        .mock("GET", "/foo")
-        .with_status(200)
-        .with_header("content-type", "application/json")
-        .with_body(packument_json(&secondary.url()).to_string())
-        .expect(1)
-        .create_async()
-        .await;
-
-    let tmp = TempDir::new().unwrap();
-    let app = router(config_for_two(&primary.url(), &secondary.url(), tmp.path().to_path_buf()));
-    let response = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
-    let body: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
-    assert_eq!(body["versions"]["1.0.0"]["version"], "1.0.0");
-
-    primary_mock.assert_async().await;
-    secondary_mock.assert_async().await;
-}
-
-#[tokio::test]
-async fn packument_falls_back_to_secondary_uplink_on_primary_404() {
-    let mut primary = mockito::Server::new_async().await;
-    let mut secondary = mockito::Server::new_async().await;
-    // A 404 from the primary is not authoritative across the chain: a
-    // private uplink later in the list may still host the package.
-    let primary_mock = primary.mock("GET", "/foo").with_status(404).expect(1).create_async().await;
-    let secondary_mock = secondary
-        .mock("GET", "/foo")
-        .with_status(200)
-        .with_header("content-type", "application/json")
-        .with_body(packument_json(&secondary.url()).to_string())
-        .expect(1)
-        .create_async()
-        .await;
-
-    let tmp = TempDir::new().unwrap();
-    let app = router(config_for_two(&primary.url(), &secondary.url(), tmp.path().to_path_buf()));
-    let response = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
-    let body: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
-    assert_eq!(body["versions"]["1.0.0"]["version"], "1.0.0");
-
-    primary_mock.assert_async().await;
-    secondary_mock.assert_async().await;
-}
-
-#[tokio::test]
-async fn packument_does_not_fall_through_on_primary_hard_4xx() {
-    let mut primary = mockito::Server::new_async().await;
-    let mut secondary = mockito::Server::new_async().await;
-    // A hard authoritative rejection (403) from the primary must not be
-    // masked by a later uplink: the secondary is never contacted, and the
-    // rejection surfaces as a gateway error rather than the secondary's body.
-    let primary_mock = primary.mock("GET", "/foo").with_status(403).expect(1).create_async().await;
-    let secondary_mock = secondary
-        .mock("GET", "/foo")
-        .with_status(200)
-        .with_header("content-type", "application/json")
-        .with_body(packument_json(&secondary.url()).to_string())
-        .expect(0)
-        .create_async()
-        .await;
-
-    let tmp = TempDir::new().unwrap();
-    let app = router(config_for_two(&primary.url(), &secondary.url(), tmp.path().to_path_buf()));
-    let response = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
-    assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
-
-    primary_mock.assert_async().await;
-    // `expect(0)` asserts the secondary was never reached.
-    secondary_mock.assert_async().await;
-}
-
-#[tokio::test]
-async fn packument_hard_4xx_does_not_serve_stale_cache() {
-    // Warm the cache from a live primary, then make the primary return a hard
-    // 403: the authoritative rejection must surface as a gateway error, not be
-    // masked by the stale cached body.
-    let mut warm_primary = mockito::Server::new_async().await;
-    let warm_mock = warm_primary
-        .mock("GET", "/foo")
-        .with_status(200)
-        .with_header("content-type", "application/json")
-        .with_body(packument_json(&warm_primary.url()).to_string())
-        .expect(1)
-        .create_async()
-        .await;
-
-    let tmp = TempDir::new().unwrap();
-    let storage = tmp.path().to_path_buf();
-
-    let secondary = mockito::Server::new_async().await;
-    let warm = router(config_for_two(&warm_primary.url(), &secondary.url(), storage.clone()));
-    let first = warm.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
-    assert_eq!(first.status(), StatusCode::OK);
-    warm_mock.assert_async().await;
-
-    // Primary now rejects with 403; the secondary must never be consulted and
-    // the stale cache must not be served.
-    tokio::time::sleep(Duration::from_millis(20)).await;
-    let mut denying_primary = mockito::Server::new_async().await;
-    let deny_mock =
-        denying_primary.mock("GET", "/foo").with_status(403).expect(1).create_async().await;
-    let mut secondary = mockito::Server::new_async().await;
-    let secondary_mock = secondary
-        .mock("GET", "/foo")
-        .with_status(200)
-        .with_header("content-type", "application/json")
-        .with_body(packument_json(&secondary.url()).to_string())
-        .expect(0)
-        .create_async()
-        .await;
-
-    let mut config = config_for_two(&denying_primary.url(), &secondary.url(), storage);
-    config.packument_ttl = Duration::from_millis(1);
-    let response =
-        router(config).oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
-    assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
-
-    deny_mock.assert_async().await;
-    secondary_mock.assert_async().await;
-}
-
-#[tokio::test]
-async fn packument_is_not_found_when_all_uplinks_404() {
-    let mut primary = mockito::Server::new_async().await;
-    let mut secondary = mockito::Server::new_async().await;
-    let primary_mock = primary.mock("GET", "/foo").with_status(404).expect(1).create_async().await;
-    let secondary_mock =
-        secondary.mock("GET", "/foo").with_status(404).expect(1).create_async().await;
-
-    let tmp = TempDir::new().unwrap();
-    let app = router(config_for_two(&primary.url(), &secondary.url(), tmp.path().to_path_buf()));
-    let response = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
-    assert_eq!(response.status(), StatusCode::NOT_FOUND);
-
-    primary_mock.assert_async().await;
-    secondary_mock.assert_async().await;
-}
-
-#[tokio::test]
-async fn tarball_falls_back_to_secondary_uplink() {
-    let mut primary = mockito::Server::new_async().await;
-    let mut secondary = mockito::Server::new_async().await;
-    let bytes = b"fallback-tarball-bytes";
-    // The primary serves the packument (so version + integrity resolve) but
-    // 404s the tarball; the secondary holds the actual bytes.
-    let packument_mock = mock_packument_for_tarball(&mut primary, "foo", "1.0.0", bytes).await;
-    let primary_tarball =
-        primary.mock("GET", "/foo/-/foo-1.0.0.tgz").with_status(404).expect(1).create_async().await;
-    let secondary_tarball = secondary
-        .mock("GET", "/foo/-/foo-1.0.0.tgz")
-        .with_status(200)
-        .with_header("content-type", "application/octet-stream")
-        .with_body(bytes)
-        .expect(1)
-        .create_async()
-        .await;
-
-    let tmp = TempDir::new().unwrap();
-    let app = router(config_for_two(&primary.url(), &secondary.url(), tmp.path().to_path_buf()));
-    let response = app
-        .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
-    assert_eq!(body_bytes(response.into_body()).await, bytes);
-
-    packument_mock.assert_async().await;
-    primary_tarball.assert_async().await;
-    secondary_tarball.assert_async().await;
-}
-
-#[tokio::test]
-async fn packument_serves_stale_cache_when_all_uplinks_fail() {
-    let mut primary = mockito::Server::new_async().await;
-    let secondary = mockito::Server::new_async().await;
-    let packument_mock = primary
-        .mock("GET", "/foo")
-        .with_status(200)
-        .with_header("content-type", "application/json")
-        .with_body(packument_json(&primary.url()).to_string())
-        .expect(1)
-        .create_async()
-        .await;
-
-    let tmp = TempDir::new().unwrap();
-    let storage = tmp.path().to_path_buf();
-
-    // Populate the cache from the live uplinks.
-    let warm = router(config_for_two(&primary.url(), &secondary.url(), storage.clone()));
-    let first = warm.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
-    assert_eq!(first.status(), StatusCode::OK);
-    packument_mock.assert_async().await;
-
-    // Both uplinks now unreachable and the cache is past its TTL: the stale
-    // body must still be served rather than erroring.
-    tokio::time::sleep(Duration::from_millis(20)).await;
-    let mut dead = config_for_two("http://127.0.0.1:1", "http://127.0.0.1:1", storage);
-    dead.packument_ttl = Duration::from_millis(1);
-    let stale =
-        router(dead).oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
-    assert_eq!(stale.status(), StatusCode::OK);
-    let body: Value = serde_json::from_slice(&body_bytes(stale.into_body()).await).unwrap();
-    assert_eq!(body["versions"]["1.0.0"]["version"], "1.0.0");
-}
-
 #[tokio::test]
 async fn osv_refuses_vulnerable_tarball_before_upstream_fetch() {
     let mut upstream = mockito::Server::new_async().await;
@@ -1304,7 +1134,7 @@ async fn osv_refuses_vulnerable_cached_tarball_under_noncanonical_name() {
     // The warm-up must have written the tarball to the proxy cache, so the
     // screened request below genuinely exercises the cache-hit path rather than
     // silently falling back to a miss that would be refused anyway.
-    let cached_tarball = cache_dir.join(".pnpr-cache").join("foo").join("foo-0.0.1.tgz");
+    let cached_tarball = public_cache_pkg(&cache_dir, "foo").join("foo-0.0.1.tgz");
     assert!(
         cached_tarball.is_file(),
         "warm-up must populate the proxy cache at {cached_tarball:?}",
@@ -1412,7 +1242,7 @@ async fn tarball_route_preserves_basename_and_binds_to_declaring_version() {
     assert_eq!(first.status(), StatusCode::OK);
     assert_eq!(body_bytes(first.into_body()).await, v1_bytes);
 
-    let package_dir = storage.join(".pnpr-cache").join("foo");
+    let package_dir = public_cache_pkg(&storage, "foo");
     assert_eq!(tarball_cache_entries(&package_dir), vec!["foo-2.0.0.tgz".to_string()]);
 
     let offline = router(config_for("http://127.0.0.1:1", storage));
@@ -1465,7 +1295,7 @@ async fn tampered_upstream_tarball_is_served_but_never_cached() {
 
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
-    let cache_path = storage.join(".pnpr-cache").join("poisoned").join("poisoned-1.0.0.tgz");
+    let cache_path = public_cache_pkg(&storage, "poisoned").join("poisoned-1.0.0.tgz");
 
     // Upstream serves bytes that don't match the version's `dist.integrity`.
     // They are streamed to the client (which re-verifies and rejects them),
@@ -1497,9 +1327,12 @@ async fn tampered_upstream_tarball_is_served_but_never_cached() {
 }
 
 #[tokio::test]
-async fn tarball_without_integrity_is_rejected_before_fetch() {
+async fn tarball_without_integrity_or_shasum_is_rejected_before_fetch() {
     let mut upstream = mockito::Server::new_async().await;
-    let packument = foo_packument(&upstream.url());
+    // No `dist.integrity` and no `dist.shasum`: nothing to verify the bytes
+    // against, so the request must fail before any tarball fetch.
+    let mut packument = foo_packument(&upstream.url());
+    packument["versions"]["1.0.0"]["dist"].as_object_mut().unwrap().remove("shasum");
     let packument_mock = upstream
         .mock("GET", "/foo")
         .with_status(200)
@@ -1524,6 +1357,39 @@ async fn tarball_without_integrity_is_rejected_before_fetch() {
 
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
     packument_mock.assert_async().await;
+    tarball_mock.assert_async().await;
+}
+
+/// A pre-2017 npm publish carries only the legacy hex `dist.shasum`. It must
+/// stay proxyable — verified against sha1 rather than not served at all.
+#[tokio::test]
+async fn shasum_only_tarball_is_served_with_sha1_verification() {
+    let mut upstream = mockito::Server::new_async().await;
+    let bytes = b"legacy-shasum-tarball";
+    let mut packument = foo_packument(&upstream.url());
+    packument["versions"]["1.0.0"]["dist"]["shasum"] = json!(sha1_hex_of(bytes));
+    upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(packument.to_string())
+        .create_async()
+        .await;
+    let tarball_mock = upstream
+        .mock("GET", "/foo/-/foo-1.0.0.tgz")
+        .with_status(200)
+        .with_body(bytes)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let response = router(config_for(&upstream.url(), tmp.path().to_path_buf()))
+        .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body_bytes(response.into_body()).await, bytes);
     tarball_mock.assert_async().await;
 }
 
@@ -1681,7 +1547,7 @@ async fn tarball_verification_finalizes_cache_with_no_tmp_leftover() {
 
     // Verification and finalization complete before the response is
     // built, leaving only the canonical cache path.
-    let package_dir = cache_dir.join(".pnpr-cache").join("big");
+    let package_dir = public_cache_pkg(&cache_dir, "big");
     let entries = tarball_cache_entries(&package_dir);
     assert_eq!(entries, vec!["big-1.0.0.tgz".to_string()]);
 
@@ -1723,15 +1589,94 @@ async fn unreachable_upstream_maps_to_service_unavailable() {
 
 #[tokio::test]
 async fn tarball_filename_for_other_package_is_rejected() {
-    let upstream = mockito::Server::new_async().await;
+    // A non-canonical filename is admitted only when the package's own
+    // packument declares that basename in some version's `dist.tarball` (the
+    // preserved-upstream-basename case). `foo`'s packument declares only
+    // `foo-1.0.0.tgz`, so another package's filename is a definitive 404 —
+    // never fetched, never cached under `foo`.
+    let mut upstream = mockito::Server::new_async().await;
+    upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(foo_packument(&upstream.url()).to_string())
+        .create_async()
+        .await;
     let tmp = TempDir::new().unwrap();
     let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
 
     let response = app
+        .clone()
         .oneshot(Request::get("/foo/-/bar-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
-    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+    // A filename that is not even a safe path segment stays an early 400,
+    // before any packument or tarball I/O.
+    let unsafe_name = app
+        .oneshot(Request::get("/foo/-/..%5Cescape.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(unsafe_name.status(), StatusCode::BAD_REQUEST);
+}
+
+/// An upstream may host a version under a basename that doesn't follow the
+/// canonical `<name>-<version>.tgz` shape (e.g. esprima-fb's zero-padded
+/// `3001.0001.0000-dev-harmony-fb`). The rewrite preserves that basename in
+/// the served packument, so the serve path must accept it back and bind it
+/// to the declaring version's integrity — otherwise the version is
+/// un-fetchable through the very URL this server advertised.
+#[tokio::test]
+async fn non_canonical_upstream_tarball_basename_is_served() {
+    let mut upstream = mockito::Server::new_async().await;
+    let bytes = b"exotic-basename-tarball";
+    let exotic = "legacy_foo_build.tgz";
+    let packument = json!({
+        "name": "foo",
+        "dist-tags": { "latest": "3001.1.0-exotic" },
+        "versions": { "3001.1.0-exotic": {
+            "name": "foo",
+            "version": "3001.1.0-exotic",
+            "dist": {
+                "tarball": format!("{}/foo/-/{exotic}", upstream.url()),
+                "integrity": sha512_integrity(bytes),
+            },
+        } },
+    });
+    upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(packument.to_string())
+        .create_async()
+        .await;
+    let tarball_mock = upstream
+        .mock("GET", format!("/foo/-/{exotic}").as_str())
+        .with_status(200)
+        .with_body(bytes)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
+
+    // The served packument advertises the preserved basename on this server.
+    let served =
+        app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    let doc = body_json(served.into_body()).await;
+    let advertised = doc["versions"]["3001.1.0-exotic"]["dist"]["tarball"].as_str().unwrap();
+    assert!(advertised.ends_with(&format!("/foo/-/{exotic}")), "got {advertised}");
+
+    // And fetching that URL back serves the verified bytes.
+    let response = app
+        .oneshot(Request::get(format!("/foo/-/{exotic}").as_str()).body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(body_bytes(response.into_body()).await, bytes);
+    tarball_mock.assert_async().await;
 }
 
 #[tokio::test]
@@ -1794,8 +1739,8 @@ async fn scoped_tarball_filename_is_canonicalized_before_fetch_and_cache() {
         .unwrap();
     assert_eq!(canonical.status(), StatusCode::OK);
     assert_eq!(body_bytes(canonical.into_body()).await, bytes);
-    assert!(storage.join(".pnpr-cache/@types/node/node-20.0.0.tgz").exists());
-    assert!(!storage.join(".pnpr-cache/@types/node/@types").exists());
+    assert!(public_cache_pkg(&storage, "@types/node").join("node-20.0.0.tgz").exists());
+    assert!(!public_cache_pkg(&storage, "@types/node").join("@types").exists());
     packument_mock.assert_async().await;
     mock.assert_async().await;
 }
@@ -1831,152 +1776,90 @@ async fn packument_is_refetched_after_ttl_expires() {
     mock.assert_async().await;
 }
 
-/// A stale cached packument is revalidated with a conditional GET: the
-/// upstream's `ETag` is replayed as `If-None-Match`, and a `304` lets
-/// the server serve its cached copy without re-downloading the body. The
-/// `304` also refreshes the entry, so a third request inside the TTL is
-/// served straight from cache with no upstream call at all.
+/// Stale-if-error: once a cached packument is stale, a refetch that fails
+/// (transient upstream error) falls back to the last cached body rather than
+/// erroring — preserving availability without a cross-origin fall-through.
 #[tokio::test]
-async fn stale_packument_is_revalidated_with_conditional_get() {
+async fn stale_packument_is_served_when_upstream_refetch_fails() {
     let mut upstream = mockito::Server::new_async().await;
-    let packument = json!({ "name": "foo", "dist-tags": { "latest": "1.0.0" }, "versions": {} });
-    // First request (no validator yet): full body plus an ETag to store.
-    let full = upstream
+    let packument = json!({
+        "name": "foo",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": { "1.0.0": { "name": "foo", "version": "1.0.0" } },
+    });
+    let ok = upstream
         .mock("GET", "/foo")
-        .match_header("if-none-match", mockito::Matcher::Missing)
         .with_status(200)
-        .with_header("etag", r#""v1""#)
         .with_body(packument.to_string())
-        .expect(1)
-        .create_async()
-        .await;
-    // Revalidation: the stored ETag comes back as If-None-Match; upstream
-    // confirms it's unchanged with a bodyless 304.
-    let revalidate = upstream
-        .mock("GET", "/foo")
-        .match_header("if-none-match", r#""v1""#)
-        .with_status(304)
         .expect(1)
         .create_async()
         .await;
 
     let tmp = TempDir::new().unwrap();
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    // A generous TTL: r2's `304` refresh rewrites the cache file, and r3 must
-    // see that entry as fresh. The margin has to comfortably exceed the wall
-    // time between r2's refresh-write and r3's freshness check, which can spike
-    // on a contended CI runner (and is subject to coarse filesystem mtime
-    // granularity on Windows). The r1->r2 sleep stays longer than the TTL so r2
-    // is still stale.
-    config.packument_ttl = Duration::from_millis(500);
+    config.packument_ttl = Duration::from_millis(50);
+    let app = router(config);
+
+    // Prime the cache with a fresh fetch.
+    let r1 = app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(r1.status(), StatusCode::OK);
+    let _ = body_bytes(r1.into_body()).await;
+    ok.assert_async().await;
+    ok.remove_async().await;
+
+    // The entry goes stale and the upstream now fails every refetch. Staleness
+    // is decided from the cache file's mtime, so sleep well past a coarse
+    // filesystem's timestamp granularity (~1s) plus the TTL — otherwise the
+    // entry could still read as fresh and the test would flake.
+    let boom =
+        upstream.mock("GET", "/foo").with_status(500).expect_at_least(1).create_async().await;
+    tokio::time::sleep(Duration::from_millis(1200)).await;
+
+    // The stale cached packument is served (200), not a 502.
+    let r2 = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(r2.status(), StatusCode::OK);
+    let body = body_bytes(r2.into_body()).await;
+    assert!(
+        String::from_utf8_lossy(&body).contains("1.0.0"),
+        "stale packument body should still carry its versions",
+    );
+    boom.assert_async().await;
+}
+
+/// Stale-if-error masks only *transient* failures: a 4xx (here `403`) is
+/// authoritative about this request, so the cached bytes must NOT be served —
+/// the error surfaces instead.
+#[tokio::test]
+async fn a_4xx_upstream_does_not_serve_stale_cache() {
+    let mut upstream = mockito::Server::new_async().await;
+    let packument = json!({ "name": "foo", "dist-tags": { "latest": "1.0.0" }, "versions": {} });
+    let ok = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_body(packument.to_string())
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.packument_ttl = Duration::from_millis(50);
     let app = router(config);
 
     let r1 = app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(r1.status(), StatusCode::OK);
     let _ = body_bytes(r1.into_body()).await;
+    ok.assert_async().await;
+    ok.remove_async().await;
 
-    // Wait past the TTL so the cached packument is stale and gets revalidated.
-    tokio::time::sleep(Duration::from_millis(700)).await;
+    // The refetch now returns 403 (auth revoked). It must not be masked.
+    let denied =
+        upstream.mock("GET", "/foo").with_status(403).expect_at_least(1).create_async().await;
+    tokio::time::sleep(Duration::from_millis(1200)).await;
 
-    let r2 = app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
-    assert_eq!(r2.status(), StatusCode::OK);
-    let body: Value = serde_json::from_slice(&body_bytes(r2.into_body()).await).unwrap();
-    assert_eq!(body["dist-tags"]["latest"], "1.0.0", "304 must serve the cached body");
-
-    // The 304 refreshed the entry, so this request is within the TTL and
-    // never reaches the upstream — both mocks asserting exactly one call.
-    let r3 = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
-    assert_eq!(r3.status(), StatusCode::OK);
-
-    full.assert_async().await;
-    revalidate.assert_async().await;
-}
-
-/// A hosted packument is authoritative: even with a proxy upstream
-/// configured, a divergent upstream packument, and an expired TTL, the
-/// hosted copy is served verbatim and the upstream is never contacted.
-/// This is the guarantee that published versions can't be masked or
-/// lost by a proxy refresh.
-#[tokio::test]
-async fn hosted_packument_is_never_overwritten_by_upstream() {
-    let mut upstream = mockito::Server::new_async().await;
-    let upstream_mock = upstream
-        .mock("GET", "/foo")
-        .with_status(200)
-        .with_body(json!({ "name": "foo", "versions": { "9.9.9": {} } }).to_string())
-        .expect(0)
-        .create_async()
-        .await;
-
-    let tmp = TempDir::new().unwrap();
-
-    // Seed the hosted store directly, as a publish (or static fixture)
-    // would have. The hosted root is `config.storage` == tmp.
-    let hosted = json!({
-        "name": "foo",
-        "dist-tags": { "latest": "1.0.0" },
-        "versions": {
-            "1.0.0": { "name": "foo", "version": "1.0.0", "dist": {
-                "tarball": "http://example.test/foo/-/foo-1.0.0.tgz", "shasum": "abc"
-            }},
-        },
-    });
-    std::fs::create_dir_all(tmp.path().join("foo")).unwrap();
-    std::fs::write(tmp.path().join("foo/package.json"), hosted.to_string()).unwrap();
-
-    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    // Zero TTL: if the hosted copy were treated as a cache entry, this
-    // would force an immediate upstream refetch.
-    config.packument_ttl = Duration::from_millis(0);
-    let app = router(config);
-
-    let response = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
-    let body: Value = serde_json::from_slice(&body_bytes(response.into_body()).await).unwrap();
-    let versions: Vec<&str> =
-        body["versions"].as_object().unwrap().keys().map(String::as_str).collect();
-    assert_eq!(versions, vec!["1.0.0"], "hosted packument must win over upstream's 9.9.9");
-
-    // The upstream was never hit — the hosted copy short-circuits the proxy.
-    upstream_mock.assert_async().await;
-}
-
-#[tokio::test]
-async fn stale_packument_is_served_when_upstream_fails() {
-    let mut upstream = mockito::Server::new_async().await;
-    let packument = json!({ "name": "foo", "dist-tags": { "latest": "1.0.0" }, "versions": {} });
-    let _mock = upstream
-        .mock("GET", "/foo")
-        .with_status(200)
-        .with_body(packument.to_string())
-        .expect(1)
-        .create_async()
-        .await;
-
-    let tmp = TempDir::new().unwrap();
-    let cache_dir = tmp.path().to_path_buf();
-
-    // Round 1: warm the cache against a working upstream.
-    let r1 = router(config_for(&upstream.url(), cache_dir.clone()))
-        .oneshot(Request::get("/foo").body(Body::empty()).unwrap())
-        .await
-        .unwrap();
-    assert_eq!(r1.status(), StatusCode::OK);
-    let _ = body_bytes(r1.into_body()).await;
-
-    // Round 2: point at a dead port (so upstream errors) and set TTL
-    // to zero so the cache is considered stale. The handler should
-    // try upstream, fail, and fall back to the on-disk packument.
-    let mut dead_config = config_for("http://127.0.0.1:1", cache_dir.clone());
-    dead_config.packument_ttl = Duration::from_millis(0);
-    let r2 = router(dead_config)
-        .oneshot(Request::get("/foo").body(Body::empty()).unwrap())
-        .await
-        .unwrap();
-    assert_eq!(r2.status(), StatusCode::OK, "stale cache should be served on upstream failure");
-    let body: Value = serde_json::from_slice(&body_bytes(r2.into_body()).await).unwrap();
-    assert_eq!(body["name"], "foo");
-    assert_eq!(body["dist-tags"]["latest"], "1.0.0");
+    let r2 = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_ne!(r2.status(), StatusCode::OK, "a 4xx must not be answered from stale cache");
+    denied.assert_async().await;
 }
 
 #[tokio::test]
@@ -2025,7 +1908,7 @@ async fn concurrent_tarball_fetches_settle_to_one_cache_file() {
 
     // Any overlapping verified writes atomically target the same final
     // path, so one tarball remains with no temporary siblings.
-    let dir = cache_dir.join(".pnpr-cache").join("foo");
+    let dir = public_cache_pkg(&cache_dir, "foo");
     let entries = tarball_cache_entries(&dir);
     assert_eq!(entries, vec!["foo-1.0.0.tgz".to_string()]);
 
@@ -2060,34 +1943,8 @@ async fn cache_tmp_open_failure_fails_closed() {
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
 
     // The cache path under the not-a-dir should not exist.
-    let cache_path = blocked.join(".pnpr-cache").join("foo").join("foo-1.0.0.tgz");
+    let cache_path = public_cache_pkg(&blocked, "foo").join("foo-1.0.0.tgz");
     assert!(!cache_path.exists());
-}
-
-#[tokio::test]
-async fn hosted_tarball_open_failure_fails_closed() {
-    let mut upstream = mockito::Server::new_async().await;
-    // A hosted-store fault must fail closed before any upstream lookup,
-    // so neither the packument nor the tarball may be fetched.
-    let packument_mock = upstream.mock("GET", "/foo").expect(0).create_async().await;
-    let tarball_mock = upstream.mock("GET", "/foo/-/foo-1.0.0.tgz").expect(0).create_async().await;
-
-    // Place a regular file where the hosted package directory belongs so
-    // opening the hosted tarball fails with a real I/O error (not a plain
-    // miss). The authoritative hosted store must fail closed instead of
-    // falling through to the upstream proxy.
-    let tmp = TempDir::new().unwrap();
-    let storage = tmp.path().to_path_buf();
-    std::fs::create_dir_all(&storage).unwrap();
-    std::fs::write(storage.join("foo"), b"not a directory").unwrap();
-
-    let response = router(config_for(&upstream.url(), storage))
-        .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
-    packument_mock.assert_async().await;
-    tarball_mock.assert_async().await;
 }
 
 #[tokio::test]
@@ -2190,7 +2047,7 @@ async fn upstream_stream_error_clears_cache() {
     );
 
     // The incomplete body is never promoted to the cache.
-    assert!(await_no_tgz(&cache_dir.join(".pnpr-cache").join("foo"), Duration::from_secs(1)).await);
+    assert!(await_no_tgz(&public_cache_pkg(&cache_dir, "foo"), Duration::from_secs(1)).await);
 }
 
 #[tokio::test]
@@ -2218,7 +2075,7 @@ async fn proxied_tarball_streams_to_client_and_is_cached() {
     // end-of-stream SRI check that promotes the verified bytes to the cache.
     assert_eq!(body_bytes(response.into_body()).await, bytes);
 
-    let cache_path = cache_dir.join(".pnpr-cache").join("big").join("big-1.0.0.tgz");
+    let cache_path = public_cache_pkg(&cache_dir, "big").join("big-1.0.0.tgz");
     assert_eq!(std::fs::read(cache_path).unwrap(), bytes);
 }
 
@@ -2431,6 +2288,8 @@ async fn per_uplink_maxage_overrides_global_packument_ttl() {
 async fn cache_false_uplink_streams_tarball_without_mirroring() {
     let mut upstream = mockito::Server::new_async().await;
     let bytes = b"uncached-tarball-bytes";
+    // A `cache: false` mount streams everything through, so each of the two
+    // requests refetches the packument as well as the tarball.
     let packument_mock = mock_packument_for_tarball(&mut upstream, "foo", "1.0.0", bytes).await;
     let mock = upstream
         .mock("GET", "/foo/-/foo-1.0.0.tgz")
@@ -2458,7 +2317,7 @@ async fn cache_false_uplink_streams_tarball_without_mirroring() {
 
     // Nothing was mirrored: the package dir either doesn't exist or holds
     // no tarball or temp tarball. Both requests therefore went to the upstream.
-    let package_dir = cache_dir.join(".pnpr-cache").join("foo");
+    let package_dir = public_cache_pkg(&cache_dir, "foo");
     assert!(
         tarball_cache_entries(&package_dir).is_empty(),
         "a cache:false uplink must not write tarballs to the mirror",
@@ -2494,7 +2353,7 @@ async fn cache_false_uplink_rejects_tampered_tarball_without_mirroring() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
-    let package_dir = cache_dir.join(".pnpr-cache").join("foo");
+    let package_dir = public_cache_pkg(&cache_dir, "foo");
     assert!(
         tarball_cache_entries(&package_dir).is_empty(),
         "a rejected cache:false tarball must leave no mirror entry",
@@ -2605,4 +2464,1070 @@ async fn registry_only_serves_registry_and_refuses_resolver_endpoints() {
     assert_eq!(verify.status(), StatusCode::METHOD_NOT_ALLOWED);
 
     mock.assert_async().await;
+}
+
+// --------------------------------------------------------------------
+// Registry-mount routing (RFC: registry mounts for pnpr).
+// --------------------------------------------------------------------
+
+/// Mock a one-version packument plus its tarball for `pkg` on `server`,
+/// returning the tarball bytes.
+async fn mock_package(server: &mut mockito::Server, pkg: &str, marker: &str) -> Vec<u8> {
+    let body = format!("tarball-{marker}").into_bytes();
+    // The canonical tarball basename strips any scope: `@corp/secret` →
+    // `secret-1.0.0.tgz`.
+    let bare = pkg.rsplit('/').next().unwrap();
+    let basename = format!("{bare}-1.0.0.tgz");
+    let packument = json!({
+        "name": pkg,
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": { "1.0.0": { "name": pkg, "version": "1.0.0", "dist": {
+            "tarball": format!("{}/{pkg}/-/{basename}", server.url()),
+            "integrity": sha512_integrity(&body),
+        } } },
+    });
+    server
+        .mock("GET", format!("/{pkg}").as_str())
+        .with_body(packument.to_string())
+        .create_async()
+        .await;
+    server
+        .mock("GET", format!("/{pkg}/-/{basename}").as_str())
+        .with_header("content-type", "application/octet-stream")
+        .with_body(&body)
+        .create_async()
+        .await;
+    body
+}
+
+/// Build a config with two public upstream mounts and a `main` router that
+/// sends `@corp/*` to `corp` and everything else to `npmjs`, aliased by the
+/// path-less base.
+fn router_config(npmjs_url: &str, corp_url: &str, storage: PathBuf) -> Config {
+    let mut config = config_for(npmjs_url, storage);
+    let mut corp = config.uplinks.get("npmjs").expect("default `npmjs` uplink").clone();
+    corp.url = corp_url.to_string();
+    config.uplinks.insert("corp".to_string(), corp);
+    let graph = vec![
+        ("npmjs".to_string(), MountKind::Upstream),
+        ("corp".to_string(), MountKind::Upstream),
+        (
+            "main".to_string(),
+            MountKind::Router {
+                routes: vec![
+                    Route {
+                        patterns: vec![PackagePattern::parse("@corp/*").unwrap()],
+                        source: "corp".to_string(),
+                    },
+                    Route {
+                        patterns: vec![PackagePattern::parse("**").unwrap()],
+                        source: "npmjs".to_string(),
+                    },
+                ],
+            },
+        ),
+    ];
+    let mounts = Mounts::new(graph.into_iter().collect(), Some("main".to_string()));
+    mounts.validate().expect("router config is valid");
+    config.mounts = mounts;
+    config
+}
+
+#[tokio::test]
+async fn router_routes_each_package_to_its_declared_source() {
+    let mut npmjs = mockito::Server::new_async().await;
+    let mut corp = mockito::Server::new_async().await;
+    let lodash_bytes = mock_package(&mut npmjs, "lodash", "public").await;
+    let corp_bytes = mock_package(&mut corp, "@corp/secret", "private").await;
+
+    let tmp = TempDir::new().unwrap();
+    let config = router_config(&npmjs.url(), &corp.url(), tmp.path().to_path_buf());
+    let app = router_with_auth(config, AuthState::in_memory());
+
+    // `@corp/*` resolves to the corp upstream, authoritatively.
+    let corp_tar = app
+        .clone()
+        .oneshot(
+            Request::get("/~main/@corp/secret/-/secret-1.0.0.tgz").body(Body::empty()).unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(corp_tar.status(), StatusCode::OK);
+    assert_eq!(body_bytes(corp_tar.into_body()).await, corp_bytes);
+
+    // Everything else falls to the npmjs upstream via the `**` route.
+    let public_tar = app
+        .clone()
+        .oneshot(Request::get("/~main/lodash/-/lodash-1.0.0.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(public_tar.status(), StatusCode::OK);
+    assert_eq!(body_bytes(public_tar.into_body()).await, lodash_bytes);
+
+    // The path-less base aliases the `main` router (the default target), so the
+    // bare host routes identically.
+    let bare = app
+        .oneshot(Request::get("/lodash/-/lodash-1.0.0.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(bare.status(), StatusCode::OK);
+    assert_eq!(body_bytes(bare.into_body()).await, lodash_bytes);
+}
+
+#[tokio::test]
+async fn router_not_found_does_not_fall_through_to_public() {
+    // A router whose only route is the private `@corp/*` scope. A public name
+    // it does not route must be a definitive 404 — never served from a public
+    // origin — which is the dependency-confusion vector closed by construction.
+    let mut corp = mockito::Server::new_async().await;
+    let _ = mock_package(&mut corp, "@corp/secret", "private").await;
+
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    let mut corp_uplink = config.uplinks.get("npmjs").expect("default `npmjs` uplink").clone();
+    corp_uplink.url = corp.url();
+    config.uplinks.insert("corp".to_string(), corp_uplink);
+    let graph = vec![
+        ("corp".to_string(), MountKind::Upstream),
+        (
+            "main".to_string(),
+            MountKind::Router {
+                routes: vec![Route {
+                    patterns: vec![PackagePattern::parse("@corp/*").unwrap()],
+                    source: "corp".to_string(),
+                }],
+            },
+        ),
+    ];
+    config.mounts = Mounts::new(graph.into_iter().collect(), Some("main".to_string()));
+    let app = router_with_auth(config, AuthState::in_memory());
+
+    // The matched private scope still serves.
+    let matched = app
+        .clone()
+        .oneshot(Request::get("/~main/@corp/secret").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(matched.status(), StatusCode::OK);
+
+    // An unrouted public name is a definitive not-found, not a fall-through.
+    let unrouted =
+        app.oneshot(Request::get("/~main/lodash").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(unrouted.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn router_unavailable_source_errors_not_404() {
+    // The matched source is down. The router must surface an *error*, never a
+    // 404 — reporting "not found" would let a downstream proxy or the client's
+    // next-configured registry fall through to a different origin.
+    let tmp = TempDir::new().unwrap();
+    // Point `corp` at a closed port so every fetch is a transport failure.
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    let mut corp_uplink = config.uplinks.get("npmjs").expect("default `npmjs` uplink").clone();
+    corp_uplink.url = "http://127.0.0.1:1".to_string();
+    config.uplinks.insert("corp".to_string(), corp_uplink);
+    let graph = vec![
+        ("corp".to_string(), MountKind::Upstream),
+        (
+            "main".to_string(),
+            MountKind::Router {
+                routes: vec![Route {
+                    patterns: vec![PackagePattern::parse("@corp/*").unwrap()],
+                    source: "corp".to_string(),
+                }],
+            },
+        ),
+    ];
+    config.mounts = Mounts::new(graph.into_iter().collect(), Some("main".to_string()));
+    let app = router_with_auth(config, AuthState::in_memory());
+
+    let response = app
+        .oneshot(Request::get("/~main/@corp/secret").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_ne!(response.status(), StatusCode::NOT_FOUND);
+    assert!(response.status().is_server_error(), "expected 5xx, got {}", response.status());
+}
+
+/// Seed a hosted package directly into the hosted store (root == `storage`),
+/// as a publish would have.
+fn seed_hosted(storage: &Path, pkg: &str) {
+    let packument = json!({
+        "name": pkg,
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": { "1.0.0": { "name": pkg, "version": "1.0.0", "dist": {
+            "tarball": format!("http://example.test/{pkg}/-/widget-1.0.0.tgz"),
+            "shasum": "abc",
+        } } },
+    });
+    std::fs::create_dir_all(storage.join(pkg)).unwrap();
+    std::fs::write(storage.join(pkg).join("package.json"), packument.to_string()).unwrap();
+}
+
+#[tokio::test]
+async fn hosted_mount_serves_only_what_it_hosts() {
+    let tmp = TempDir::new().unwrap();
+    // The org "acme" stores under its own namespace (`<storage>/acme/`).
+    seed_hosted(&tmp.path().join("acme"), "@acme/widget");
+
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.hosted.insert(
+        "acme".to_string(),
+        HostedConfig { org: "acme".to_string(), access: AccessList::parse("$all") },
+    );
+    config.mounts =
+        Mounts::new(vec![("acme".to_string(), MountKind::Hosted)].into_iter().collect(), None);
+    let app = router_with_auth(config, AuthState::in_memory());
+
+    // A hosted package is served from the org mount.
+    let hit = app
+        .clone()
+        .oneshot(Request::get("/~acme/@acme/widget").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(hit.status(), StatusCode::OK);
+
+    // A name the org does not host is a definitive not-found — a hosted org has
+    // no upstream fall-through.
+    let miss = app
+        .oneshot(Request::get("/~acme/@acme/absent").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(miss.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn private_hosted_hides_existence_from_unauthorized_caller() {
+    let tmp = TempDir::new().unwrap();
+    // The org "acme" stores under its own namespace (`<storage>/acme/`).
+    seed_hosted(&tmp.path().join("acme"), "@acme/widget");
+
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.hosted.insert(
+        "acme".to_string(),
+        HostedConfig { org: "acme".to_string(), access: AccessList::parse("alice") },
+    );
+    config.mounts =
+        Mounts::new(vec![("acme".to_string(), MountKind::Hosted)].into_iter().collect(), None);
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let app = router_with_auth(config, auth);
+
+    // An unauthorized (anonymous) caller gets 404, not 403 — the org's package
+    // existence is not revealed.
+    let anon = app
+        .clone()
+        .oneshot(Request::get("/~acme/@acme/widget").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(anon.status(), StatusCode::NOT_FOUND);
+
+    // The authorized caller reads it.
+    let authed = app
+        .oneshot(
+            Request::get("/~acme/@acme/widget")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(authed.status(), StatusCode::OK);
+}
+
+/// A private org's 404 mask must win over a *denying per-package ACL* on every
+/// mount-served read path: otherwise the ACL's 401/403 would fire first and
+/// reveal that the package exists.
+#[tokio::test]
+async fn private_hosted_org_masks_before_the_package_acl() {
+    let tmp = TempDir::new().unwrap();
+    seed_hosted(&tmp.path().join("acme"), "@acme/widget");
+
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.hosted.insert(
+        "acme".to_string(),
+        HostedConfig { org: "acme".to_string(), access: AccessList::parse("alice") },
+    );
+    config.mounts =
+        Mounts::new(vec![("acme".to_string(), MountKind::Hosted)].into_iter().collect(), None);
+    // A per-package ACL that also denies the anonymous caller. Without the
+    // visibility-first ordering this would return 401/403 and leak existence.
+    config.policies = PackagePolicies::new(vec![
+        PackagePolicy::new(
+            "@acme/widget",
+            AccessList::parse("$authenticated"),
+            AccessList::default(),
+            AccessList::default(),
+        )
+        .expect("policy compiles"),
+    ]);
+    let app = router_with_auth(config, AuthState::in_memory());
+
+    for path in [
+        "/~acme/@acme/widget",                    // packument
+        "/~acme/@acme/widget/1.0.0",              // version manifest
+        "/~acme/@acme/widget/-/widget-1.0.0.tgz", // tarball
+    ] {
+        let resp =
+            app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::NOT_FOUND, "existence leaked on {path}");
+    }
+}
+
+/// The same 404-before-ACL masking must hold on the path-less `dist-tags` reader
+/// (`load_packument_for_read`), which resolves through the default-target mount.
+#[tokio::test]
+async fn private_hosted_org_masks_dist_tags_before_the_package_acl() {
+    let tmp = TempDir::new().unwrap();
+    seed_hosted(&tmp.path().join("acme"), "@acme/widget");
+
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.hosted.insert(
+        "acme".to_string(),
+        HostedConfig { org: "acme".to_string(), access: AccessList::parse("alice") },
+    );
+    // The path-less base aliases the "acme" hosted mount, so `/-/package/...`
+    // resolves to it.
+    config.mounts = Mounts::new(
+        vec![("acme".to_string(), MountKind::Hosted)].into_iter().collect(),
+        Some("acme".to_string()),
+    );
+    config.policies = PackagePolicies::new(vec![
+        PackagePolicy::new(
+            "@acme/widget",
+            AccessList::parse("$authenticated"),
+            AccessList::default(),
+            AccessList::default(),
+        )
+        .expect("policy compiles"),
+    ]);
+    let app = router_with_auth(config, AuthState::in_memory());
+
+    let resp = app
+        .oneshot(Request::get("/-/package/@acme%2Fwidget/dist-tags").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn publish_to_hosted_round_trips_in_its_own_namespace() {
+    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.hosted.insert(
+        "acme".to_string(),
+        HostedConfig { org: "acme".to_string(), access: AccessList::parse("$authenticated") },
+    );
+    // npmjs already exists (from config_for); add a hosted org + a router that
+    // sends `@acme/*` to it and everything else to npmjs, aliased path-less.
+    let graph = vec![
+        ("npmjs".to_string(), MountKind::Upstream),
+        ("acme".to_string(), MountKind::Hosted),
+        (
+            "main".to_string(),
+            MountKind::Router {
+                routes: vec![
+                    Route {
+                        patterns: vec![PackagePattern::parse("@acme/*").unwrap()],
+                        source: "acme".to_string(),
+                    },
+                    Route {
+                        patterns: vec![PackagePattern::parse("**").unwrap()],
+                        source: "npmjs".to_string(),
+                    },
+                ],
+            },
+        ),
+    ];
+    config.mounts = Mounts::new(graph.into_iter().collect(), Some("main".to_string()));
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let app = router_with_auth(config, auth);
+
+    let tarball = b"acme-widget-1.0.0-bytes";
+    let body = json!({
+        "name": "@acme/widget",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": { "1.0.0": { "name": "@acme/widget", "version": "1.0.0", "dist": {
+            "tarball": "http://example.test/@acme/widget/-/widget-1.0.0.tgz",
+            "integrity": sha512_integrity(tarball),
+        } } },
+        "_attachments": { "@acme/widget-1.0.0.tgz": {
+            "content_type": "application/octet-stream",
+            "data": BASE64.encode(tarball),
+            "length": tarball.len(),
+        } },
+    });
+
+    // Publish through the org's own `/~acme/` endpoint.
+    let publish = app
+        .clone()
+        .oneshot(
+            Request::put("/~acme/@acme/widget")
+                .header("content-type", "application/json")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::from(serde_json::to_vec(&body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(publish.status(), StatusCode::CREATED);
+
+    // It physically lands in the org's storage namespace, not the flat root.
+    assert!(
+        tmp.path().join("acme/@acme/widget/package.json").exists(),
+        "published packument should be in the org namespace",
+    );
+    assert!(
+        !tmp.path().join("@acme/widget/package.json").exists(),
+        "nothing should be written to the flat hosted root",
+    );
+
+    // It reads back through the org endpoint (authenticated)...
+    let read = app
+        .clone()
+        .oneshot(
+            Request::get("/~acme/@acme/widget")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(read.status(), StatusCode::OK);
+    let doc = body_json(read.into_body()).await;
+    assert!(doc["versions"]["1.0.0"].is_object());
+
+    // ...and its tarball serves from the org namespace.
+    let tar = app
+        .clone()
+        .oneshot(
+            Request::get("/~acme/@acme/widget/-/widget-1.0.0.tgz")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(tar.status(), StatusCode::OK);
+    assert_eq!(body_bytes(tar.into_body()).await, tarball);
+
+    // A publish routed to an upstream is rejected — a write can never land on
+    // an upstream registry.
+    let rejected = app
+        .oneshot(
+            Request::put("/lodash")
+                .header("content-type", "application/json")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::from(json!({ "name": "lodash", "versions": {} }).to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(rejected.status(), StatusCode::BAD_REQUEST);
+}
+
+/// The mount's access list gates writes exactly as it gates reads (RFC
+/// "registry mounts", implementation point 9). An authenticated non-member
+/// passes the default per-package publish policy (`$authenticated`), so
+/// without the mount-level gate they could publish into — or retag and
+/// unpublish from — a private hosted org. The denial is the same 404 mask
+/// reads use, so the write path reveals nothing about the mount either.
+#[tokio::test]
+async fn private_hosted_mount_denies_writes_from_non_members() {
+    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.hosted.insert(
+        "corp".to_string(),
+        HostedConfig { org: "corp".to_string(), access: AccessList::parse("alice") },
+    );
+    // `/~corp/` addresses the mount directly; the path-less base aliases it,
+    // so the path-less dist-tag and unpublish writes route there too.
+    config.mounts = Mounts::new(
+        vec![("corp".to_string(), MountKind::Hosted)].into_iter().collect(),
+        Some("corp".to_string()),
+    );
+    let auth = AuthState::in_memory();
+    let member = auth.tokens.issue("alice").await.unwrap();
+    let outsider = auth.tokens.issue("mallory").await.unwrap();
+    let app = router_with_auth(config, auth);
+
+    let tarball = b"corp-tool-1.0.0-bytes";
+    let publish_body = json!({
+        "name": "@corp/tool",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": { "1.0.0": { "name": "@corp/tool", "version": "1.0.0", "dist": {
+            "tarball": "http://example.test/@corp/tool/-/tool-1.0.0.tgz",
+            "integrity": sha512_integrity(tarball),
+        } } },
+        "_attachments": { "@corp/tool-1.0.0.tgz": {
+            "content_type": "application/octet-stream",
+            "data": BASE64.encode(tarball),
+            "length": tarball.len(),
+        } },
+    })
+    .to_string();
+    let publish_as = |token: &str| {
+        Request::put("/~corp/@corp/tool")
+            .header("content-type", "application/json")
+            .header(header::AUTHORIZATION, format!("Bearer {token}"))
+            .body(Body::from(publish_body.clone()))
+            .unwrap()
+    };
+    let retag_as = |token: &str| {
+        Request::put("/-/package/@corp%2Ftool/dist-tags/latest")
+            .header("content-type", "application/json")
+            .header(header::AUTHORIZATION, format!("Bearer {token}"))
+            .body(Body::from(r#""1.0.0""#))
+            .unwrap()
+    };
+
+    // The non-member publish is masked with 404 — not 401/403, which would
+    // reveal the private mount exists — and nothing lands on disk.
+    let denied = app.clone().oneshot(publish_as(&outsider)).await.unwrap();
+    assert_eq!(denied.status(), StatusCode::NOT_FOUND);
+    assert!(
+        !tmp.path().join("corp/@corp/tool/package.json").exists(),
+        "a denied publish must write nothing",
+    );
+
+    // The member publishes normally.
+    let allowed = app.clone().oneshot(publish_as(&member)).await.unwrap();
+    assert_eq!(allowed.status(), StatusCode::CREATED);
+    assert!(tmp.path().join("corp/@corp/tool/package.json").exists());
+
+    // With the package now hosted, the non-member's path-less retag and
+    // unpublish are masked the same way; the member's retag succeeds.
+    let retag_denied = app.clone().oneshot(retag_as(&outsider)).await.unwrap();
+    assert_eq!(retag_denied.status(), StatusCode::NOT_FOUND);
+    let unpublish_denied = app
+        .clone()
+        .oneshot(
+            Request::delete("/@corp%2Ftool/-rev/1")
+                .header(header::AUTHORIZATION, format!("Bearer {outsider}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(unpublish_denied.status(), StatusCode::NOT_FOUND);
+    assert!(
+        tmp.path().join("corp/@corp/tool/package.json").exists(),
+        "a denied unpublish must remove nothing",
+    );
+    let retag_allowed = app.oneshot(retag_as(&member)).await.unwrap();
+    assert_eq!(retag_allowed.status(), StatusCode::CREATED);
+}
+
+/// Search scans the flat hosted store, so it must apply the owning mount's
+/// access list, not only the per-package ACL: a private flat-root mount
+/// (`org: ""`) is 404-masked on packument reads and must not be enumerable
+/// by name/version/description through `/-/v1/search`.
+#[tokio::test]
+async fn search_does_not_enumerate_a_private_flat_root_mount() {
+    let tmp = TempDir::new().unwrap();
+    // The flat root (`org: ""`) stores directly under `storage`.
+    seed_hosted(tmp.path(), "@corp/secret-tool");
+
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    // Replace the default public flat-root mount (`local`) with a private one;
+    // any surviving `$all` flat-root entry would defeat the gate under test.
+    config.hosted.clear();
+    config.hosted.insert(
+        "corp".to_string(),
+        HostedConfig { org: String::new(), access: AccessList::parse("alice") },
+    );
+    config.mounts = Mounts::new(
+        vec![("corp".to_string(), MountKind::Hosted)].into_iter().collect(),
+        Some("corp".to_string()),
+    );
+    let auth = AuthState::in_memory();
+    let member = auth.tokens.issue("alice").await.unwrap();
+    let outsider = auth.tokens.issue("mallory").await.unwrap();
+    let app = router_with_auth(config, auth);
+
+    let search_with = |authorization: Option<String>| {
+        let mut request = Request::get("/-/v1/search?text=secret");
+        if let Some(value) = authorization {
+            request = request.header(header::AUTHORIZATION, value);
+        }
+        request.body(Body::empty()).unwrap()
+    };
+
+    // Neither the anonymous caller nor an authenticated non-member can
+    // enumerate the private mount's packages.
+    for authorization in [None, Some(format!("Bearer {outsider}"))] {
+        let response = app.clone().oneshot(search_with(authorization)).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = body_json(response.into_body()).await;
+        assert_eq!(body["total"], json!(0), "private package leaked through search");
+        assert_eq!(body["objects"], json!([]));
+    }
+
+    // A member still finds it.
+    let response = app.oneshot(search_with(Some(format!("Bearer {member}")))).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = body_json(response.into_body()).await;
+    assert_eq!(body["objects"][0]["package"]["name"], json!("@corp/secret-tool"));
+}
+
+/// Every registry operation routes through the mount graph when addressed as
+/// `/~<mount>/...` (RFC "registry mounts", implementation point 7): dist-tag
+/// read/add/remove, whoami, search, the version manifest, and the whole
+/// unpublish flow. The mount here is deliberately *not* reachable from any
+/// default target — without the mount-addressed surface these operations
+/// would be impossible for it.
+#[tokio::test]
+async fn mount_addressed_surface_serves_dist_tags_unpublish_whoami_search_and_version_manifest() {
+    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.hosted.insert(
+        "acme".to_string(),
+        HostedConfig { org: "acme".to_string(), access: AccessList::parse("$authenticated") },
+    );
+    // No default target: the mount is addressable only at `/~acme/`.
+    config.mounts =
+        Mounts::new(vec![("acme".to_string(), MountKind::Hosted)].into_iter().collect(), None);
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let app = router_with_auth(config, auth);
+    let authed = |request: axum::http::request::Builder| {
+        request.header(header::AUTHORIZATION, format!("Bearer {token}"))
+    };
+
+    // Seed the mount through its own publish endpoint.
+    let tarball = b"acme-widget-bytes";
+    let publish_body = json!({
+        "name": "@acme/widget",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": { "1.0.0": { "name": "@acme/widget", "version": "1.0.0", "dist": {
+            "tarball": "http://example.test/@acme/widget/-/widget-1.0.0.tgz",
+            "integrity": sha512_integrity(tarball),
+        } } },
+        "_attachments": { "@acme/widget-1.0.0.tgz": {
+            "content_type": "application/octet-stream",
+            "data": BASE64.encode(tarball),
+            "length": tarball.len(),
+        } },
+    });
+    let publish = app
+        .clone()
+        .oneshot(
+            authed(Request::put("/~acme/@acme/widget"))
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&publish_body).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(publish.status(), StatusCode::CREATED);
+
+    // dist-tags read through the mount.
+    let tags = app
+        .clone()
+        .oneshot(
+            authed(Request::get("/~acme/-/package/@acme%2Fwidget/dist-tags"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(tags.status(), StatusCode::OK);
+    assert_eq!(body_json(tags.into_body()).await["latest"], json!("1.0.0"));
+
+    // dist-tag add, visible on the next read, then remove.
+    let add = app
+        .clone()
+        .oneshot(
+            authed(Request::put("/~acme/-/package/@acme%2Fwidget/dist-tags/beta"))
+                .header("content-type", "application/json")
+                .body(Body::from(r#""1.0.0""#))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(add.status(), StatusCode::CREATED);
+    let tags = app
+        .clone()
+        .oneshot(
+            authed(Request::get("/~acme/-/package/@acme%2Fwidget/dist-tags"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(body_json(tags.into_body()).await["beta"], json!("1.0.0"));
+    let remove = app
+        .clone()
+        .oneshot(
+            authed(Request::delete("/~acme/-/package/@acme%2Fwidget/dist-tags/beta"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(remove.status(), StatusCode::CREATED);
+
+    // whoami through the mount.
+    let whoami = app
+        .clone()
+        .oneshot(authed(Request::get("/~acme/-/whoami")).body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(whoami.status(), StatusCode::OK);
+    assert_eq!(body_json(whoami.into_body()).await["username"], json!("alice"));
+
+    // Search through the mount finds the hosted package; the anonymous
+    // caller (whom the mount denies) gets an empty result.
+    let search = app
+        .clone()
+        .oneshot(
+            authed(Request::get("/~acme/-/v1/search?text=widget")).body(Body::empty()).unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(search.status(), StatusCode::OK);
+    let body = body_json(search.into_body()).await;
+    assert_eq!(body["objects"][0]["package"]["name"], json!("@acme/widget"));
+    let anon_search = app
+        .clone()
+        .oneshot(Request::get("/~acme/-/v1/search?text=widget").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(body_json(anon_search.into_body()).await["total"], json!(0));
+
+    // Version manifest through the mount, with `dist.tarball` rewritten onto
+    // the mount's own base.
+    let manifest = app
+        .clone()
+        .oneshot(authed(Request::get("/~acme/@acme/widget/1.0.0")).body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(manifest.status(), StatusCode::OK);
+    let manifest = body_json(manifest.into_body()).await;
+    assert_eq!(
+        manifest["dist"]["tarball"],
+        json!("http://example.test/~acme/@acme/widget/-/widget-1.0.0.tgz"),
+    );
+
+    // The unpublish flow: PUT back a packument without the version, delete
+    // its tarball (the unencoded scoped 7-segment form), then delete the
+    // package — all through the mount.
+    let put_back = app
+        .clone()
+        .oneshot(
+            authed(Request::put("/~acme/@acme%2Fwidget/-rev/1"))
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({ "name": "@acme/widget", "versions": {}, "dist-tags": {} }).to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(put_back.status(), StatusCode::CREATED);
+    let delete_tar = app
+        .clone()
+        .oneshot(
+            authed(Request::delete("/~acme/@acme/widget/-/widget-1.0.0.tgz/-rev/1"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(delete_tar.status(), StatusCode::CREATED);
+    assert!(!tmp.path().join("acme/@acme/widget/widget-1.0.0.tgz").exists());
+    let delete_pkg = app
+        .clone()
+        .oneshot(
+            authed(Request::delete("/~acme/@acme%2Fwidget/-rev/1")).body(Body::empty()).unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(delete_pkg.status(), StatusCode::CREATED);
+    assert!(!tmp.path().join("acme/@acme/widget").exists());
+}
+
+/// Path-less responses resolved to a private mount carry the same
+/// `Cache-Control: private, no-store` / `Vary: Authorization` headers the
+/// `/~<mount>/` surface applies — same content, same defense against a shared
+/// HTTP cache. A public resolution stays cacheable.
+#[tokio::test]
+async fn pathless_private_mount_responses_carry_private_cache_headers() {
+    let tmp = TempDir::new().unwrap();
+    seed_hosted(&tmp.path().join("acme"), "@acme/widget");
+
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.hosted.insert(
+        "acme".to_string(),
+        HostedConfig { org: "acme".to_string(), access: AccessList::parse("alice") },
+    );
+    config.mounts = Mounts::new(
+        vec![("acme".to_string(), MountKind::Hosted)].into_iter().collect(),
+        Some("acme".to_string()),
+    );
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let app = router_with_auth(config, auth);
+
+    for path in ["/@acme/widget", "/@acme%2Fwidget/1.0.0", "/-/package/@acme%2Fwidget/dist-tags"] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "GET {path}");
+        assert_eq!(
+            response.headers().get(header::CACHE_CONTROL).and_then(|value| value.to_str().ok()),
+            Some("private, no-store"),
+            "missing private cache header on {path}",
+        );
+        assert_eq!(
+            response.headers().get(header::VARY).and_then(|value| value.to_str().ok()),
+            Some("Authorization"),
+            "missing Vary on {path}",
+        );
+    }
+
+    // Control: the same content behind a public mount stays cacheable.
+    let tmp_public = TempDir::new().unwrap();
+    seed_hosted(&tmp_public.path().join("acme"), "@acme/widget");
+    let mut config = config_for("http://127.0.0.1:1", tmp_public.path().to_path_buf());
+    config.hosted.insert(
+        "acme".to_string(),
+        HostedConfig { org: "acme".to_string(), access: AccessList::parse("$all") },
+    );
+    config.mounts = Mounts::new(
+        vec![("acme".to_string(), MountKind::Hosted)].into_iter().collect(),
+        Some("acme".to_string()),
+    );
+    let app = router_with_auth(config, AuthState::in_memory());
+    let response =
+        app.oneshot(Request::get("/@acme/widget").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(
+        response.headers().get(header::CACHE_CONTROL).is_none(),
+        "a public path-less response must stay cacheable",
+    );
+}
+
+/// A per-package ACL that denies anonymous callers makes the path-less
+/// response vary by `Authorization` even when the source mount itself is
+/// public, so it must carry the private-cache headers — otherwise a shared
+/// HTTP cache could replay an authenticated 200 to an anonymous caller.
+#[tokio::test]
+async fn pathless_acl_gated_package_carries_private_cache_headers() {
+    let tmp = TempDir::new().unwrap();
+    seed_hosted(&tmp.path().join("acme"), "@acme/widget");
+
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.hosted.insert(
+        "acme".to_string(),
+        HostedConfig { org: "acme".to_string(), access: AccessList::parse("$all") },
+    );
+    config.mounts = Mounts::new(
+        vec![("acme".to_string(), MountKind::Hosted)].into_iter().collect(),
+        Some("acme".to_string()),
+    );
+    config.policies = PackagePolicies::new(vec![
+        PackagePolicy::new(
+            "@acme/widget",
+            AccessList::parse("$authenticated"),
+            AccessList::default(),
+            AccessList::default(),
+        )
+        .expect("policy compiles"),
+    ]);
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let app = router_with_auth(config, auth);
+
+    let response = app
+        .oneshot(
+            Request::get("/@acme/widget")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response.headers().get(header::CACHE_CONTROL).and_then(|value| value.to_str().ok()),
+        Some("private, no-store"),
+        "an ACL-gated path-less response must not be shared-cacheable",
+    );
+    assert_eq!(
+        response.headers().get(header::VARY).and_then(|value| value.to_str().ok()),
+        Some("Authorization"),
+    );
+}
+
+/// A definitive upstream 404 purges the cached packument, so a package
+/// unpublished upstream cannot be resurrected later by the stale-if-error
+/// fallback during a transient outage.
+#[tokio::test]
+async fn upstream_404_purges_cached_packument() {
+    let mut upstream = mockito::Server::new_async().await;
+    let packument = json!({ "name": "foo", "versions": {} });
+    let ok_mock = upstream
+        .mock("GET", "/foo")
+        .with_status(200)
+        .with_body(packument.to_string())
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    config.packument_ttl = Duration::from_millis(50);
+    let app = router(config);
+
+    let first =
+        app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(first.status(), StatusCode::OK);
+    let _ = body_bytes(first.into_body()).await;
+    ok_mock.assert_async().await;
+    let cached = public_cache_pkg(tmp.path(), "foo");
+    assert!(cached.exists(), "first fetch should cache the packument");
+
+    // The package is unpublished upstream; past the TTL the refetch sees the
+    // authoritative 404 and must drop the cached entry.
+    ok_mock.remove_async().await;
+    upstream.mock("GET", "/foo").with_status(404).create_async().await;
+    tokio::time::sleep(Duration::from_millis(120)).await;
+    let gone =
+        app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(gone.status(), StatusCode::NOT_FOUND);
+    assert!(!cached.exists(), "the 404 must purge the cached packument");
+
+    // A later transient outage can no longer resurrect it from stale cache.
+    let dead = router(config_for("http://127.0.0.1:1", tmp.path().to_path_buf()));
+    let outage = dead.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_ne!(outage.status(), StatusCode::OK, "purged package must not be served stale");
+}
+
+/// The identity endpoints — adduser/login, whoami, profile, token list,
+/// logout, token revoke — are global, so they are served under *any*
+/// `/~<prefix>/` without consulting the mount table: clients derive these
+/// URLs from their configured registry URL, so `pnpm login --registry
+/// .../~corp/` must work even when nothing named `corp` is mounted. Skipping
+/// the lookup also keeps them from becoming an existence oracle for private
+/// mount names (a defined and an undefined mount must not answer
+/// differently).
+#[tokio::test]
+async fn identity_endpoints_are_served_under_any_mount_prefix() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.auth.htpasswd.max_users = MaxUsers::Unlimited;
+    let app = router(config);
+
+    // Login against a mount prefix that is NOT a defined mount.
+    let registration = json!({
+        "_id": "org.couchdb.user:alice",
+        "name": "alice",
+        "password": "secret",
+        "email": "alice@example.test",
+        "type": "user",
+        "roles": [],
+    });
+    let login = || {
+        Request::put("/~corp/-/user/org.couchdb.user:alice")
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&registration).unwrap()))
+            .unwrap()
+    };
+    let logged_in = app.clone().oneshot(login()).await.unwrap();
+    assert_eq!(logged_in.status(), StatusCode::CREATED);
+    let token = body_json(logged_in.into_body()).await["token"].as_str().unwrap().to_string();
+
+    // whoami, profile, and token list answer under the same prefix.
+    for path in ["/~corp/-/whoami", "/~corp/-/npm/v1/user", "/~corp/-/npm/v1/tokens"] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::get(path)
+                    .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "GET {path}");
+    }
+
+    // Token revocation by key (`npm token revoke`) works under the prefix.
+    let tokens = app
+        .clone()
+        .oneshot(
+            Request::get("/~corp/-/npm/v1/tokens")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let key = body_json(tokens.into_body()).await["objects"][0]["key"]
+        .as_str()
+        .expect("token listing has a key")
+        .to_string();
+    let revoke = app
+        .clone()
+        .oneshot(
+            Request::delete(format!("/~corp/-/npm/v1/tokens/token/{key}").as_str())
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert!(revoke.status().is_success(), "token revoke got {}", revoke.status());
+
+    // Log back in and out (`npm logout` sends the raw token in the URL);
+    // afterwards the token no longer authenticates.
+    let logged_in = app.clone().oneshot(login()).await.unwrap();
+    assert_eq!(logged_in.status(), StatusCode::CREATED);
+    let token = body_json(logged_in.into_body()).await["token"].as_str().unwrap().to_string();
+    let logout = app
+        .clone()
+        .oneshot(
+            Request::delete(format!("/~corp/-/user/token/{token}").as_str())
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert!(logout.status().is_success(), "logout got {}", logout.status());
+    let stale = app
+        .clone()
+        .oneshot(
+            Request::get("/~corp/-/whoami")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(stale.status(), StatusCode::UNAUTHORIZED);
+
+    // No existence oracle: anonymous whoami answers 401 identically whether
+    // or not the prefix names a real mount (`npmjs` is defined by config_for).
+    for path in ["/~corp/-/whoami", "/~npmjs/-/whoami"] {
+        let response =
+            app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED, "GET {path}");
+    }
 }

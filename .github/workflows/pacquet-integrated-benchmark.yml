@@ -153,9 +153,13 @@ jobs:
         # `$HOME/.cache/pnpm-registry/storage`).
         uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
         with:
-          key: integrated-benchmark-pnpm-registry-${{ hashFiles('pacquet/tasks/integrated-benchmark/src/fixtures/pnpm-lock.yaml') }}
+          # The version segment (v2) discards the persisted storage when it
+          # goes internally inconsistent — e.g. a cached packument declaring
+          # a version whose tarball was never cached, which 404s every
+          # fresh-install run. Bump it to repopulate from a clean slate.
+          key: integrated-benchmark-pnpm-registry-v2-${{ hashFiles('pacquet/tasks/integrated-benchmark/src/fixtures/pnpm-lock.yaml') }}
           restore-keys: |
-            integrated-benchmark-pnpm-registry-
+            integrated-benchmark-pnpm-registry-v2-
           path: |
             ~/.cache/pnpm-registry/storage
         timeout-minutes: 1
@@ -338,6 +342,44 @@ jobs:
           just integrated-benchmark --reuse-prebuilt-binaries --scenario=isolated-linker.fresh-restore.cold-cache.cold-store.cold-pnpr --registry=verdaccio --pnpr-latency-ms=${PNPR_LATENCY_MS} --registry-latency-ms=${REGISTRY_LATENCY_MS} --registry-bandwidth-mbps=${REGISTRY_BANDWIDTH_MBPS} $BENCHMARK_TARGETS
           cp bench-work-env/BENCHMARK_REPORT.md bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR.md
           cp bench-work-env/BENCHMARK_REPORT.json bench-work-env/BENCHMARK_REPORT_ISOLATED_FRESH_RESTORE_COLD_CACHE_COLD_STORE_COLD_PNPR.json
+
+      # When a scenario fails, hyperfine aborts and the benchmarked install's
+      # own output is invisible: each target's script redirects stdout+stderr to
+      # `bench-work-env/<target>/BENCHMARK_OUTPUT.ndjson` (to keep hyperfine's
+      # timing clean), so `--show-output` shows nothing. Dump those logs and the
+      # per-revision pnpr server logs so the real install error reaches the CI
+      # log for diagnosis.
+      - name: Dump benchmark install output on failure
+        if: failure()
+        shell: bash
+        run: |
+          shopt -s nullglob
+          for log in bench-work-env/*/BENCHMARK_OUTPUT.ndjson; do
+            echo "::group::$log"
+            cat "$log"
+            echo "::endgroup::"
+          done
+          for log in bench-work-env/*/revision-mock.stderr.log bench-work-env/*/pnpr-server.stderr.log; do
+            echo "::group::$log"
+            tail -n 200 "$log"
+            echo "::endgroup::"
+          done
+          # Opt-in: only produces output when a run passed `--serve-timing`
+          # (kept off by default so debug-logging overhead never skews the timed
+          # means). When on, pnpr logs its `pnpr::serve_timing` events to *stdout*
+          # (tracing_subscriber's default writer), so aggregate those logs — not
+          # stderr — into a compact per-phase profile (count, total ms, mean µs)
+          # so a cold-store serve cost is visible without scrolling.
+          for log in bench-work-env/*/revision-mock.stdout.log bench-work-env/*/pnpr-server.stdout.log; do
+            if grep -q "pnpr::serve_timing" "$log"; then
+              echo "::group::$log (serve_timing per-phase summary)"
+              sed -E 's/\x1b\[[0-9;]*m//g' "$log" | grep -oE 'phase="[^"]+".*elapsed_us=[0-9]+' \
+                | sed -E 's/phase="([^"]+)".*elapsed_us=([0-9]+)/\1 \2/' \
+                | awk '{n[$1]++; sum[$1]+=$2} END {for (p in n) printf "%-28s count=%-7d total_ms=%-10.1f mean_us=%.0f\n", p, n[p], sum[p]/1000, sum[p]/n[p]}' \
+                | sort
+              echo "::endgroup::"
+            fi
+          done
 
       - name: Generate summary
         shell: bash
