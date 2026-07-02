@@ -152,9 +152,10 @@ pub struct Config {
     pub hosted: IndexMap<String, HostedConfig>,
 }
 
-/// A resolved hosted mount: the `org` namespace it serves and the access policy
-/// applied to every package under it. Per-package ACLs in [`Config::policies`]
-/// compose on top (logical AND) for finer control.
+/// A resolved hosted mount: the `org` namespace it serves, the access policy
+/// applied to every package under it, and an optional declared upstream
+/// **mirror** that turns the mount into an overlay. Per-package ACLs in
+/// [`Config::policies`] compose on top (logical AND) for finer control.
 #[derive(Debug, Clone)]
 pub struct HostedConfig {
     /// The storage/serving namespace, so two hosted mounts holding the same
@@ -165,6 +166,19 @@ pub struct HostedConfig {
     /// not-found either way. Defaults to `$all` (a public hosted mount) when
     /// the mount omits `access:`.
     pub access: AccessList,
+    /// When set, this hosted mount is an **overlay** over the named upstream
+    /// mount: a read for a package the overlay does not host falls through to
+    /// the mirror (served, and cached, exactly like a routed upstream read),
+    /// and a write (dist-tag, publish) that finds no hosted packument
+    /// materializes the mirror's packument into the hosted store first.
+    ///
+    /// This is the one declared form of cross-origin content the mount model
+    /// permits — distinct from the router's forbidden existence-based
+    /// fall-through — because the backing is a single origin named in config
+    /// and validated at load, not inferred from which source happens to have
+    /// the package. Routing still resolves a name to exactly one concrete
+    /// source; the mirror is a serving-layer property of a hosted source.
+    pub mirror: Option<String>,
 }
 
 /// Which fetch routes the resolution cache treats as public. The official
@@ -926,6 +940,11 @@ struct HostedFile {
     /// Who may read this mount's packages. Omitted ⇒ `$all`.
     #[serde(default)]
     access: Option<AccessSpec>,
+    /// The upstream mount this hosted mount mirrors — turning it into an
+    /// overlay. Omitted ⇒ a pure hosted mount (no upstream fall-through). See
+    /// [`HostedConfig::mirror`].
+    #[serde(default)]
+    mirror: Option<String>,
 }
 
 /// Disk shape of an `upstream:` mount — one external origin. Mirrors an
@@ -1147,8 +1166,13 @@ fn default_true() -> bool {
 
 /// The package-name patterns that [`Config::proxy`] routes to its flat-root
 /// hosted org rather than the npm upstream: the registry-mock fixture scopes
-/// plus the one unscoped fixture. Kept in sync with the bundled `config.yaml`
-/// router and the fixtures under `pnpr/.fixtures/packages`.
+/// plus the one unscoped fixture. This is the *pre-overlay* routing shape;
+/// the bundled `config.yaml` instead makes `local` an overlay mirrored on
+/// `npmjs` (so any name falls through to npmjs and dist-tags materialize),
+/// which [`Config::proxy`] deliberately does not replicate — pacquet's tests
+/// don't dist-tag upstream packages, and keeping the pure-upstream `**` route
+/// here avoids changing their behavior. Kept in sync with the fixtures under
+/// `pnpr/.fixtures/packages`.
 const REGISTRY_MOCK_LOCAL_PATTERNS: &[&str] = &[
     "@foo/*",
     "@having/*",
@@ -1168,13 +1192,16 @@ impl Config {
     /// proxy-mode default.
     pub const DEFAULT_PACKUMENT_TTL: Duration = Duration::from_mins(5);
 
-    /// Build a proxy-mode config in the registry-mock shape: the fixture scopes
-    /// (and the one unscoped fixture) resolve to a flat-root hosted org over
-    /// `storage`, while every other name proxies to the `npmjs` upstream. The
-    /// path-less base aliases the `main` router. Kept for callers that don't use
-    /// YAML config (notably pacquet's test registry, whose fixtures are served
-    /// locally while real npm packages fall through to npmjs). The local pattern
-    /// set mirrors the bundled `config.yaml` router.
+    /// Build a proxy-mode config in the pre-overlay registry-mock shape: the
+    /// fixture scopes (and the one unscoped fixture) resolve to a flat-root
+    /// hosted org over `storage`, while every other name proxies to the
+    /// `npmjs` upstream. The path-less base aliases the `main` router. This is
+    /// the shape pacquet's test registry uses; the bundled `config.yaml`
+    /// served to the TypeScript CLI's e2e registry instead makes `local` an
+    /// overlay mirrored on `npmjs` (see [`HostedConfig::mirror`]) so dist-tag
+    /// writes against proxied packages materialize — behavior pacquet's tests
+    /// don't need and that is omitted here to avoid changing theirs. The local
+    /// pattern set is `REGISTRY_MOCK_LOCAL_PATTERNS`.
     #[must_use]
     pub fn proxy(listen: SocketAddr, storage: PathBuf) -> Self {
         let mut uplinks = IndexMap::new();
@@ -1185,7 +1212,7 @@ impl Config {
         let mut hosted = IndexMap::new();
         hosted.insert(
             "local".to_string(),
-            HostedConfig { org: String::new(), access: AccessList::parse("$all") },
+            HostedConfig { org: String::new(), access: AccessList::parse("$all"), mirror: None },
         );
         let local_patterns = REGISTRY_MOCK_LOCAL_PATTERNS
             .iter()
@@ -1240,7 +1267,7 @@ impl Config {
         let mut hosted = IndexMap::new();
         hosted.insert(
             "local".to_string(),
-            HostedConfig { org: String::new(), access: AccessList::parse("$all") },
+            HostedConfig { org: String::new(), access: AccessList::parse("$all"), mirror: None },
         );
         let graph = [
             ("local".to_string(), MountKind::Hosted),
@@ -1654,7 +1681,10 @@ fn build_mounts(
                     .access
                     .as_ref()
                     .map_or_else(|| AccessList::parse("$all"), AccessSpec::to_access_list);
-                hosted.insert(name.clone(), HostedConfig { org: mount.org, access });
+                hosted.insert(
+                    name.clone(),
+                    HostedConfig { org: mount.org, access, mirror: mount.mirror },
+                );
                 graph.insert(name, MountKind::Hosted);
             }
             MountFile::Upstream(upstream) => {
@@ -1672,6 +1702,7 @@ fn build_mounts(
     }
     let mounts = Mounts::new(graph, default_target);
     mounts.validate().map_err(|err| mount_err(&err))?;
+    validate_hosted_mirrors(&mounts, &hosted)?;
     Ok((hosted, mounts))
 }
 
@@ -1696,6 +1727,31 @@ fn validate_mount_name(name: &str) -> Result<(), RegistryError> {
              `\\`, `:`, `%`, `?`, `#`, whitespace, or control characters",
         ),
     })
+}
+
+/// A hosted mount's `mirror` must name a defined `upstream` mount — the only
+/// kind whose content an overlay can defer to. A mirror pointing at another
+/// hosted mount (including itself) or a router, or at a name that is not a
+/// mount at all, is rejected at load rather than turning into a silent
+/// no-op or a routing surprise. The check runs after [`Mounts::validate`], so
+/// the graph (and every declared upstream) already exists.
+fn validate_hosted_mirrors(
+    mounts: &Mounts,
+    hosted: &IndexMap<String, HostedConfig>,
+) -> Result<(), RegistryError> {
+    for (name, cfg) in hosted {
+        if let Some(mirror) = &cfg.mirror
+            && !matches!(mounts.get(mirror), Some(MountKind::Upstream))
+        {
+            return Err(RegistryError::InvalidConfig {
+                reason: format!(
+                    "hosted mount {name:?} mirrors {mirror:?}, which is not a defined `upstream` \
+                     mount; a mirror must name one",
+                ),
+            });
+        }
+    }
+    Ok(())
 }
 
 /// A hosted mount's `org` becomes a storage path/key segment (`Storage::for_hosted`),

@@ -71,47 +71,35 @@ middlewares:
 web:
   enable: false
 
-# Registry mounts: the only routing surface. Every addressable origin is a
-# mount exposed at `/~<mount>/`, and provenance is declared, never inferred —
-# a package resolves to exactly one declared concrete origin, with no
-# cross-origin fall-through (not on "not found", not on "unavailable"). This
-# is the `@pnpm/registry-mock` shape: the fixture scopes are served from the
-# local hosted store, and everything else proxies the public npm registry.
+# Registry mounts: the only routing surface. Provenance is declared, never
+# inferred — a package resolves to exactly one declared concrete origin. This
+# is the `@pnpm/registry-mock` shape: the `local` hosted store is seeded from
+# the in-repo fixtures and mirrors the public npm registry, so a package the
+# fixtures host (or a test has published or dist-tagged) is served
+# authoritatively from `local`, and every other name falls through to npmjs.
+# That mirror is the one declared form of cross-origin content the model
+# permits — the backing is a single origin named here, validated at load, not
+# a router existence-based fall-through (see `HostedConfig::mirror`).
 mounts:
-  # The locally-hosted fixtures (and anything published here). With no `org`,
-  # this mount namespaces onto the flat `storage` root, where the fixtures are
-  # seeded.
+  # The locally-hosted fixtures (and anything published or dist-tagged here).
+  # With no `org`, this mount namespaces onto the flat `storage` root, where
+  # the fixtures are seeded. Mirroring `npmjs` makes it an overlay: a read for
+  # a name the overlay does not host is served (and cached) from npmjs, and a
+  # dist-tag write against a proxied name materializes its packument here
+  # first — so tests can pin a real package (`is-positive`, `lodash`, …) to a
+  # chosen version while still resolving its full upstream version list.
   local:
     type: hosted
+    mirror: npmjs
     access: $all
   # The public npm registry.
   npmjs:
     type: upstream
     url: https://registry.npmjs.org/
     public: true
-  # One URL routing each package to exactly one source by the first matching
-  # pattern. The fixture scopes are authoritative-local; everything else is
-  # npm. A router refuses to start on a shadowed route, so the `**` catch-all
-  # must stay last.
-  main:
-    type: router
-    routes:
-      - patterns:
-          - '@foo/*'
-          - '@having/*'
-          - '@jsr/*'
-          - '@pnpm/*'
-          - '@pnpm.e2e/*'
-          - '@private/*'
-          - '@scoped/*'
-          - '@zkochan/*'
-          - 'create-touch-file-one-bin'
-        source: local
-      - patterns: ['**']
-        source: npmjs
 
 # The path-less base URL (`https://<pnpr>/`) aliases this mount.
-defaultTarget: main
+defaultTarget: local
 
 # Per-package access control (an ACL layer, independent of routing). The
 # default for an unmatched package is open reads + authenticated writes;

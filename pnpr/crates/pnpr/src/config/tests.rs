@@ -437,15 +437,18 @@ fn from_default_yaml_parses_bundled_file() {
     assert!(config.uplinks.contains_key("npmjs"));
     assert_eq!(config.uplinks["npmjs"].url, "https://registry.npmjs.org/");
     assert_eq!(config.auth.htpasswd.max_users, super::MaxUsers::Disabled);
-    // The bundled file routes fixture scopes to the local hosted org and
-    // everything else to npmjs.
+    // The bundled file makes `local` a single overlay mount mirrored on npmjs:
+    // every name — fixture scope or not — resolves to the hosted `local`, whose
+    // serving layer falls through to the npmjs mirror for anything it does not
+    // host (and materializes the packument on a dist-tag write).
+    assert_eq!(config.hosted["local"].mirror.as_deref(), Some("npmjs"));
     assert_eq!(
         config.mounts.resolve_default("@pnpm.e2e/foo"),
         Resolved::Concrete { mount: "local", kind: ConcreteKind::Hosted },
     );
     assert_eq!(
         config.mounts.resolve_default("lodash"),
-        Resolved::Concrete { mount: "npmjs", kind: ConcreteKind::Upstream },
+        Resolved::Concrete { mount: "local", kind: ConcreteKind::Hosted },
     );
 }
 
@@ -979,6 +982,51 @@ mounts:
     let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
         .expect_err("two hosted mounts on the same org must be rejected");
     assert!(err.to_string().contains("reuses the `org`"), "unexpected error: {err}");
+}
+
+/// A hosted mount's `mirror` must name a defined `upstream` mount — the only
+/// kind whose content an overlay can defer to. Pointing it at another hosted
+/// mount, or at a name that is not a mount at all, fails at load.
+#[test]
+fn from_yaml_str_rejects_hosted_mirror_that_is_not_a_defined_upstream() {
+    for (label, yaml) in [
+        (
+            "another hosted mount",
+            "storage: ./s\nmounts:\n  local:\n    type: hosted\n    mirror: other\n  other:\n    \
+             type: hosted\n    org: other\n",
+        ),
+        (
+            "an undefined mount",
+            "storage: ./s\nmounts:\n  local:\n    type: hosted\n    mirror: ghost\n",
+        ),
+    ] {
+        let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+            .expect_err("a hosted mirror must name a defined upstream mount ({label})");
+        assert!(
+            err.to_string().contains("not a defined `upstream` mount"),
+            "unexpected error for {label}: {err}",
+        );
+    }
+}
+
+/// A hosted mount mirroring a defined upstream mount parses and is recorded on
+/// the resolved [`HostedConfig`].
+#[test]
+fn from_yaml_str_parses_hosted_mirror_over_an_upstream_mount() {
+    let yaml = "\
+storage: ./s
+mounts:
+  local:
+    type: hosted
+    mirror: npmjs
+  npmjs:
+    type: upstream
+    url: https://registry.npmjs.org/
+    public: true
+defaultTarget: local
+";
+    let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
+    assert_eq!(config.hosted["local"].mirror.as_deref(), Some("npmjs"));
 }
 
 /// A hosted `org` becomes a storage path segment, so a traversal-y value —

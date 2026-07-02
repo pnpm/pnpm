@@ -1386,13 +1386,24 @@ async fn load_packument_for_read(
             if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
                 return Err(Box::new(error_response(&err)));
             }
-            state
+            let hosted = state
                 .inner
                 .storage
                 .for_hosted(&org)
                 .read_hosted_packument(name)
                 .await
-                .map_err(|err| Box::new(error_response(&err)))
+                .map_err(|err| Box::new(error_response(&err)))?;
+            match hosted {
+                Some(bytes) => Ok(Some(bytes)),
+                // Overlay miss falls through to the declared upstream mirror;
+                // a pure hosted mount has no fallback.
+                None => match hosted_mirror(state, &source) {
+                    Some(uplink) => {
+                        load_upstream_packument_for(state, identity, &uplink, name).await
+                    }
+                    None => Ok(None),
+                },
+            }
         }
         MountSource::NotFound => Ok(None),
     }
@@ -1784,6 +1795,14 @@ fn accessible_hosted_namespace(
         .map(|org| org.org.clone())
 }
 
+/// The upstream mount a hosted `source` mirrors, when it is an overlay. `None`
+/// for a pure hosted mount. A read or write that misses the hosted store
+/// consults this mirror rather than failing — the declared form of
+/// cross-origin content the mount model permits (see [`crate::config::HostedConfig::mirror`]).
+fn hosted_mirror(state: &AppState, source: &str) -> Option<String> {
+    state.inner.config.hosted.get(source).and_then(|hosted| hosted.mirror.clone())
+}
+
 async fn serve_hosted_packument(
     state: &AppState,
     identity: &Identity,
@@ -1798,8 +1817,6 @@ async fn serve_hosted_packument(
     if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
         return error_response(&err);
     }
-    // A hosted org has no upstream fallback: a package it does not host is a
-    // definitive not-found. Reads come from the org's own storage namespace.
     match state.inner.storage.for_hosted(&org).read_hosted_packument(name).await {
         Ok(Some(bytes)) => match packument_response(
             name,
@@ -1811,7 +1828,17 @@ async fn serve_hosted_packument(
             Ok(response) => response,
             Err(err) => error_response(&err),
         },
-        Ok(None) => not_found(),
+        Ok(None) => match hosted_mirror(state, source) {
+            // Overlay miss: fall through to the declared upstream mirror,
+            // served (and cached) exactly like a routed upstream read.
+            Some(uplink) => {
+                serve_packument_via_uplink(state, identity, headers, &uplink, name, tarball_base)
+                    .await
+            }
+            // A pure hosted org has no upstream fallback: a package it does not
+            // host is a definitive not-found.
+            None => not_found(),
+        },
         Err(err) => error_response(&err),
     }
 }
@@ -1826,19 +1853,32 @@ async fn serve_hosted_tarball(
     let Some(org) = accessible_hosted_namespace(state, identity, source) else {
         return not_found();
     };
-    let (filename, name_version) = match name.parse_tarball_name(filename) {
-        Ok(parsed) => parsed,
-        Err(err) => return error_response(&err),
-    };
     if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
         return error_response(&err);
     }
-    if let Err(err) = ensure_osv_allowed(state, name, &name_version) {
-        return error_response(&err);
-    }
-    match state.inner.storage.for_hosted(&org).open_hosted_tarball(name, &filename).await {
+    let mirror = hosted_mirror(state, source);
+    // Try the hosted store first under the canonical filename. An overlay
+    // defers to its mirror on a miss — and also when the basename is a
+    // non-canonical upstream form the hosted path cannot parse (hosted
+    // tarballs are always written under their canonical name).
+    let hosted_open = match name.parse_tarball_name(filename) {
+        Ok((canonical, name_version)) => {
+            if let Err(err) = ensure_osv_allowed(state, name, &name_version) {
+                return error_response(&err);
+            }
+            state.inner.storage.for_hosted(&org).open_hosted_tarball(name, &canonical).await
+        }
+        Err(err) if mirror.is_none() => return error_response(&err),
+        Err(_) => Ok(None),
+    };
+    match hosted_open {
         Ok(Some((body, len))) => tarball_response(body, len),
-        Ok(None) => not_found(),
+        Ok(None) => match mirror {
+            Some(uplink) => {
+                serve_tarball_via_uplink(state, identity, &uplink, name.as_str(), filename).await
+            }
+            None => not_found(),
+        },
         Err(err) => {
             tracing::warn!(?err, package = %name.as_str(), %filename, "hosted tarball open failed");
             error_response(&err)
@@ -2256,8 +2296,10 @@ fn hosted_storage(state: &AppState, org: Option<&str>) -> Storage {
 
 /// Where a publish of `package` writes, given an optional explicit `/~<mount>/`.
 enum PublishTarget {
-    /// Write into this hosted storage namespace.
-    Org(String),
+    /// Write into this hosted storage namespace. The resolved `mount` id is
+    /// carried alongside so the write path can consult the mount's declared
+    /// mirror (an overlay materializes the upstream packument on a miss).
+    Org { mount: String, org: String },
     /// The resolved target is not a hosted org; reject with this reason.
     Reject(String),
     /// The addressed mount or route does not exist (or the path-less base has
@@ -2281,7 +2323,7 @@ fn resolve_publish_target(
 ) -> PublishTarget {
     let from_source = |source: MountSource, context: &str| match source {
         MountSource::Hosted(mount) => match accessible_hosted_namespace(state, identity, &mount) {
-            Some(org) => PublishTarget::Org(org),
+            Some(org) => PublishTarget::Org { mount, org },
             None => PublishTarget::NotFound,
         },
         MountSource::Upstream(_) => PublishTarget::Reject(format!(
@@ -2343,7 +2385,7 @@ async fn publish_package(
     // closed when the target is an upstream, an unknown mount, or a hosted
     // mount whose access list denies the caller.
     let org = match resolve_publish_target(state, identity, mount, name.as_str()) {
-        PublishTarget::Org(org) => Some(org),
+        PublishTarget::Org { org, .. } => Some(org),
         PublishTarget::Reject(reason) => {
             return error_response(&RegistryError::BadRequest { reason });
         }
@@ -2449,7 +2491,7 @@ async fn serve_batch_publish(
         // default target (a router default routes by name; a concrete/absent
         // default keeps the legacy flat store).
         let org = match resolve_publish_target(&state, &identity, None, doc.name.as_str()) {
-            PublishTarget::Org(org) => Some(org),
+            PublishTarget::Org { org, .. } => Some(org),
             PublishTarget::Reject(reason) => {
                 for stage in staged {
                     cleanup_tmp_slots(stage.slots).await;
@@ -2878,7 +2920,7 @@ async fn update_packument(
         }
     }
     let org = match resolve_write_org(state, identity, mount, &name) {
-        Ok(org) => org,
+        Ok((org, _)) => org,
         Err(response) => return *response,
     };
     let storage = hosted_storage(state, Some(&org));
@@ -3096,7 +3138,7 @@ async fn delete_package(
         return error_response(&err);
     }
     let org = match resolve_write_org(state, identity, mount, &name) {
-        Ok(org) => org,
+        Ok((org, _)) => org,
         Err(response) => return *response,
     };
     // Serialize against same-package publishers so a delete can't race a
@@ -3138,7 +3180,7 @@ async fn delete_tarball(
         return error_response(&err);
     }
     let org = match resolve_write_org(state, identity, mount, &name) {
-        Ok(org) => org,
+        Ok((org, _)) => org,
         Err(response) => return *response,
     };
     // Serialize against same-package publishers so a delete can't race a
@@ -3247,9 +3289,10 @@ where
         return error_response(&err);
     }
     // A dist-tag change is a write, so it routes to a hosted namespace like
-    // a publish — a name routed to an upstream is rejected.
-    let org = match resolve_write_org(state, identity, mount, &name) {
-        Ok(org) => org,
+    // a publish — a name routed to a pure upstream is rejected; an overlay
+    // routes here too, and is handled by the materialize-on-miss branch below.
+    let (org, mirror) = match resolve_write_org(state, identity, mount, &name) {
+        Ok(target) => target,
         Err(response) => return *response,
     };
     let storage = hosted_storage(state, Some(&org));
@@ -3258,14 +3301,28 @@ where
     // on this instance (held until this function returns).
     let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
 
-    // A hosted org has no upstream, so a dist-tag change starts from the org's
-    // own packument; a package it does not host can't be tagged.
+    // A pure hosted org has no upstream, so a dist-tag change starts from the
+    // org's own packument; a package it does not host can't be tagged. An
+    // overlay instead materializes its mirror's packument on a miss, so the
+    // first dist-tag change against a proxied package starts from its real
+    // version list rather than 404ing.
     let mut packument: Value = match storage.read_hosted_packument(&name).await {
         Ok(Some(bytes)) => match serde_json::from_slice(&bytes) {
             Ok(v) => v,
             Err(err) => return error_response(&RegistryError::Json(err)),
         },
-        Ok(None) => return not_found(),
+        Ok(None) => match &mirror {
+            Some(uplink) => match load_upstream_packument_for(state, identity, uplink, &name).await
+            {
+                Ok(Some(bytes)) => match serde_json::from_slice(&bytes) {
+                    Ok(v) => v,
+                    Err(err) => return error_response(&RegistryError::Json(err)),
+                },
+                Ok(None) => return not_found(),
+                Err(response) => return *response,
+            },
+            None => return not_found(),
+        },
         Err(err) => return error_response(&err),
     };
 
@@ -3320,19 +3377,20 @@ where
 // --------------------------------------------------------------------
 
 /// Resolve the hosted storage namespace a non-publish write (dist-tag,
-/// unpublish, packument update) targets, or the [`Response`] to return. A
-/// write routes like a publish: through the addressed `/~<mount>/` (or,
-/// path-less, the default-target mount) to a hosted org, rejecting a name
-/// routed to an upstream and 404ing when the path-less base has no default
-/// target or the mount's access list denies the caller.
+/// unpublish, packument update) targets, plus that mount's declared mirror (if
+/// it is an overlay), or the [`Response`] to return. A write routes like a
+/// publish: through the addressed `/~<mount>/` (or, path-less, the
+/// default-target mount) to a hosted org, rejecting a name routed to an
+/// upstream and 404ing when the path-less base has no default target or the
+/// mount's access list denies the caller.
 fn resolve_write_org(
     state: &AppState,
     identity: &Identity,
     mount: Option<&str>,
     name: &PackageName,
-) -> Result<String, Box<Response>> {
+) -> Result<(String, Option<String>), Box<Response>> {
     match resolve_publish_target(state, identity, mount, name.as_str()) {
-        PublishTarget::Org(org) => Ok(org),
+        PublishTarget::Org { mount, org } => Ok((org, hosted_mirror(state, &mount))),
         PublishTarget::Reject(reason) => {
             Err(Box::new(error_response(&RegistryError::BadRequest { reason })))
         }

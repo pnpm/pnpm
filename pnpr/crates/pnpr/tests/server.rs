@@ -38,6 +38,28 @@ fn config_for(upstream: &str, storage: PathBuf) -> Config {
     config
 }
 
+/// The registry-mock's bundled `config.yaml` shape: a single `local` hosted
+/// mount mirrored on `npmjs` (an overlay), aliased by the path-less base with
+/// no router. A hosted name is served from `local`; anything else falls through
+/// to the `npmjs` mirror, and a dist-tag write against a proxied name
+/// materializes its packument into `local`.
+fn overlay_config(upstream_url: &str, storage: PathBuf) -> Config {
+    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
+    let mut config = Config::proxy(listen, storage);
+    config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink").url = upstream_url.to_string();
+    config.public_url = "http://example.test".to_string();
+    config.packument_ttl = Duration::from_mins(1);
+    config.hosted.get_mut("local").expect("default `local` mount").mirror =
+        Some("npmjs".to_string());
+    config.mounts = Mounts::new(
+        vec![("local".to_string(), MountKind::Hosted), ("npmjs".to_string(), MountKind::Upstream)]
+            .into_iter()
+            .collect(),
+        Some("local".to_string()),
+    );
+    config
+}
+
 /// A public upstream mount caches under `.pnpr-cache/~public/<digest>/<pkg>/`.
 /// The proxy tests use a single `npmjs` mount, so there is one digest dir; this
 /// resolves the per-package cache dir under it. When nothing is cached yet it
@@ -2740,7 +2762,7 @@ async fn hosted_mount_serves_only_what_it_hosts() {
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.hosted.insert(
         "acme".to_string(),
-        HostedConfig { org: "acme".to_string(), access: AccessList::parse("$all") },
+        HostedConfig { org: "acme".to_string(), access: AccessList::parse("$all"), mirror: None },
     );
     config.mounts =
         Mounts::new(vec![("acme".to_string(), MountKind::Hosted)].into_iter().collect(), None);
@@ -2772,7 +2794,7 @@ async fn private_hosted_hides_existence_from_unauthorized_caller() {
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.hosted.insert(
         "acme".to_string(),
-        HostedConfig { org: "acme".to_string(), access: AccessList::parse("alice") },
+        HostedConfig { org: "acme".to_string(), access: AccessList::parse("alice"), mirror: None },
     );
     config.mounts =
         Mounts::new(vec![("acme".to_string(), MountKind::Hosted)].into_iter().collect(), None);
@@ -2813,7 +2835,7 @@ async fn private_hosted_org_masks_before_the_package_acl() {
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.hosted.insert(
         "acme".to_string(),
-        HostedConfig { org: "acme".to_string(), access: AccessList::parse("alice") },
+        HostedConfig { org: "acme".to_string(), access: AccessList::parse("alice"), mirror: None },
     );
     config.mounts =
         Mounts::new(vec![("acme".to_string(), MountKind::Hosted)].into_iter().collect(), None);
@@ -2851,7 +2873,7 @@ async fn private_hosted_org_masks_dist_tags_before_the_package_acl() {
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.hosted.insert(
         "acme".to_string(),
-        HostedConfig { org: "acme".to_string(), access: AccessList::parse("alice") },
+        HostedConfig { org: "acme".to_string(), access: AccessList::parse("alice"), mirror: None },
     );
     // The path-less base aliases the "acme" hosted mount, so `/-/package/...`
     // resolves to it.
@@ -2885,7 +2907,11 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.hosted.insert(
         "acme".to_string(),
-        HostedConfig { org: "acme".to_string(), access: AccessList::parse("$authenticated") },
+        HostedConfig {
+            org: "acme".to_string(),
+            access: AccessList::parse("$authenticated"),
+            mirror: None,
+        },
     );
     // npmjs already exists (from config_for); add a hosted org + a router that
     // sends `@acme/*` to it and everything else to npmjs, aliased path-less.
@@ -3010,7 +3036,7 @@ async fn private_hosted_mount_denies_writes_from_non_members() {
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.hosted.insert(
         "corp".to_string(),
-        HostedConfig { org: "corp".to_string(), access: AccessList::parse("alice") },
+        HostedConfig { org: "corp".to_string(), access: AccessList::parse("alice"), mirror: None },
     );
     // `/~corp/` addresses the mount directly; the path-less base aliases it,
     // so the path-less dist-tag and unpublish writes route there too.
@@ -3106,7 +3132,7 @@ async fn search_does_not_enumerate_a_private_flat_root_mount() {
     config.hosted.clear();
     config.hosted.insert(
         "corp".to_string(),
-        HostedConfig { org: String::new(), access: AccessList::parse("alice") },
+        HostedConfig { org: String::new(), access: AccessList::parse("alice"), mirror: None },
     );
     config.mounts = Mounts::new(
         vec![("corp".to_string(), MountKind::Hosted)].into_iter().collect(),
@@ -3156,7 +3182,11 @@ async fn mount_addressed_surface_serves_dist_tags_unpublish_whoami_search_and_ve
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.hosted.insert(
         "acme".to_string(),
-        HostedConfig { org: "acme".to_string(), access: AccessList::parse("$authenticated") },
+        HostedConfig {
+            org: "acme".to_string(),
+            access: AccessList::parse("$authenticated"),
+            mirror: None,
+        },
     );
     // No default target: the mount is addressable only at `/~acme/`.
     config.mounts =
@@ -3333,7 +3363,7 @@ async fn pathless_private_mount_responses_carry_private_cache_headers() {
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.hosted.insert(
         "acme".to_string(),
-        HostedConfig { org: "acme".to_string(), access: AccessList::parse("alice") },
+        HostedConfig { org: "acme".to_string(), access: AccessList::parse("alice"), mirror: None },
     );
     config.mounts = Mounts::new(
         vec![("acme".to_string(), MountKind::Hosted)].into_iter().collect(),
@@ -3373,7 +3403,7 @@ async fn pathless_private_mount_responses_carry_private_cache_headers() {
     let mut config = config_for("http://127.0.0.1:1", tmp_public.path().to_path_buf());
     config.hosted.insert(
         "acme".to_string(),
-        HostedConfig { org: "acme".to_string(), access: AccessList::parse("$all") },
+        HostedConfig { org: "acme".to_string(), access: AccessList::parse("$all"), mirror: None },
     );
     config.mounts = Mounts::new(
         vec![("acme".to_string(), MountKind::Hosted)].into_iter().collect(),
@@ -3401,7 +3431,7 @@ async fn pathless_acl_gated_package_carries_private_cache_headers() {
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.hosted.insert(
         "acme".to_string(),
-        HostedConfig { org: "acme".to_string(), access: AccessList::parse("$all") },
+        HostedConfig { org: "acme".to_string(), access: AccessList::parse("$all"), mirror: None },
     );
     config.mounts = Mounts::new(
         vec![("acme".to_string(), MountKind::Hosted)].into_iter().collect(),
@@ -3596,4 +3626,187 @@ async fn identity_endpoints_are_served_under_any_mount_prefix() {
             app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED, "GET {path}");
     }
+}
+
+// ---------------------------------------------------------------------------
+// Overlay mounts: a hosted mount with a declared `mirror` upstream. A hosted
+// name is served from the hosted store; a miss falls through to the mirror;
+// a dist-tag write against a proxied name materializes the mirror's packument.
+// ---------------------------------------------------------------------------
+
+/// A read for a name the overlay does not host falls through to its mirror,
+/// served (and cached) exactly like a routed upstream read.
+#[tokio::test]
+async fn overlay_read_falls_through_to_the_mirror() {
+    let mut upstream = mockito::Server::new_async().await;
+    upstream
+        .mock("GET", "/is-positive")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            json!({
+                "name": "is-positive",
+                "dist-tags": { "latest": "1.0.0" },
+                "versions": { "1.0.0": {
+                    "name": "is-positive", "version": "1.0.0",
+                    "dist": { "tarball": "http://example.test/is-positive/-/is-positive-1.0.0.tgz" },
+                } },
+            })
+            .to_string(),
+        )
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let app = router_with_auth(
+        overlay_config(&upstream.url(), tmp.path().to_path_buf()),
+        AuthState::in_memory(),
+    );
+
+    let resp =
+        app.oneshot(Request::get("/is-positive").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_json(resp.into_body()).await;
+    assert_eq!(body["dist-tags"]["latest"], "1.0.0");
+}
+
+/// A hosted package wins over the mirror: the upstream is never contacted.
+/// The mirror points at a dead address so any fall-through would surface as a
+/// connection error rather than a 200.
+#[tokio::test]
+async fn overlay_read_prefers_hosted_content_over_the_mirror() {
+    let tmp = TempDir::new().unwrap();
+    seed_hosted(tmp.path(), "foo");
+    let app = router_with_auth(
+        overlay_config("http://127.0.0.1:1", tmp.path().to_path_buf()),
+        AuthState::in_memory(),
+    );
+
+    let resp = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let body = body_json(resp.into_body()).await;
+    assert_eq!(body["dist-tags"]["latest"], "1.0.0");
+}
+
+/// A dist-tag write against a proxied package materializes the mirror's
+/// packument into the hosted store — the override sticks and the mirror's
+/// version list is preserved (matching the pre-mount registry-mock behavior
+/// the test suite was written against).
+#[tokio::test]
+async fn overlay_dist_tag_materializes_the_mirror_packument() {
+    let mut upstream = mockito::Server::new_async().await;
+    let packument = json!({
+        "name": "is-positive",
+        "dist-tags": { "latest": "3.0.0" },
+        "versions": {
+            "1.0.0": { "name": "is-positive", "version": "1.0.0", "dist": {
+                "tarball": format!("{}/is-positive/-/is-positive-1.0.0.tgz", upstream.url()),
+                "shasum": "aa",
+            } },
+            "3.0.0": { "name": "is-positive", "version": "3.0.0", "dist": {
+                "tarball": format!("{}/is-positive/-/is-positive-3.0.0.tgz", upstream.url()),
+                "shasum": "bb",
+            } },
+        },
+    });
+    let packument_mock = upstream
+        .mock("GET", "/is-positive")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(packument.to_string())
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let app = router_with_auth(overlay_config(&upstream.url(), tmp.path().to_path_buf()), auth);
+
+    assert!(!tmp.path().join("is-positive/package.json").exists(), "nothing hosted yet");
+
+    let resp = app
+        .clone()
+        .oneshot(
+            Request::put("/-/package/is-positive/dist-tags/latest")
+                .header("content-type", "application/json")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::from(b"\"1.0.0\"".to_vec()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::CREATED);
+
+    let stored: Value = serde_json::from_str(
+        &std::fs::read_to_string(tmp.path().join("is-positive/package.json")).unwrap(),
+    )
+    .unwrap();
+    assert_eq!(stored["dist-tags"]["latest"], "1.0.0", "the override stuck");
+    assert!(
+        stored["versions"].get("3.0.0").is_some(),
+        "the mirror's version list is preserved on materialization",
+    );
+
+    // A subsequent read serves the materialized packument (hosted-first), so
+    // the override is visible to clients resolving through the registry.
+    let read =
+        app.oneshot(Request::get("/is-positive").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(read.status(), StatusCode::OK);
+    let body = body_json(read.into_body()).await;
+    assert_eq!(body["dist-tags"]["latest"], "1.0.0");
+    assert!(body["versions"].get("3.0.0").is_some());
+
+    packument_mock.assert_async().await;
+}
+
+/// A tarball for a version that exists only on the mirror is fetched through
+/// the mirror (and verified against its packument), so a materialized
+/// packument's other versions stay installable.
+#[tokio::test]
+async fn overlay_tarball_falls_through_to_the_mirror() {
+    let tarball_bytes = b"is-positive-1.0.0-tarball";
+    let integrity = sha512_integrity(tarball_bytes);
+    let mut upstream = mockito::Server::new_async().await;
+    upstream
+        .mock("GET", "/is-positive")
+        .with_status(200)
+        .with_header("content-type", "application/json")
+        .with_body(
+            json!({
+                "name": "is-positive",
+                "dist-tags": { "latest": "1.0.0" },
+                "versions": { "1.0.0": {
+                    "name": "is-positive", "version": "1.0.0",
+                    "dist": {
+                        "tarball": format!("{}/is-positive/-/is-positive-1.0.0.tgz", upstream.url()),
+                        "integrity": integrity,
+                    },
+                } },
+            })
+            .to_string(),
+        )
+        .create_async()
+        .await;
+    upstream
+        .mock("GET", "/is-positive/-/is-positive-1.0.0.tgz")
+        .with_status(200)
+        .with_header("content-type", "application/octet-stream")
+        .with_body(tarball_bytes)
+        .expect(1)
+        .create_async()
+        .await;
+
+    let tmp = TempDir::new().unwrap();
+    let app = router_with_auth(
+        overlay_config(&upstream.url(), tmp.path().to_path_buf()),
+        AuthState::in_memory(),
+    );
+
+    let resp = app
+        .oneshot(Request::get("/is-positive/-/is-positive-1.0.0.tgz").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    assert_eq!(body_bytes(resp.into_body()).await, tarball_bytes);
 }
