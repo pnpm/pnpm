@@ -33,6 +33,7 @@ pub mod patch_commit;
 pub mod patch_remove;
 pub(crate) mod patch_state;
 pub mod ping;
+pub mod prefix;
 pub mod prune;
 pub mod rebuild;
 pub mod recursive;

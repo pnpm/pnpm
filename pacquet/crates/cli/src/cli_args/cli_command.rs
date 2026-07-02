@@ -31,6 +31,7 @@ use super::{
     patch_commit::PatchCommitArgs,
     patch_remove::PatchRemoveArgs,
     ping::PingArgs,
+    prefix::PrefixArgs,
     prune::PruneArgs,
     rebuild::RebuildArgs,
     remove::RemoveArgs,
@@ -210,6 +211,8 @@ pub enum CliCommand {
     Bin(BinArgs),
     /// Print the effective `node_modules` directory.
     Root(RootArgs),
+    /// Print the current package prefix.
+    Prefix(PrefixArgs),
     /// Manage the pnpm configuration files.
     #[clap(visible_alias = "c")]
     Config(ConfigArgs),

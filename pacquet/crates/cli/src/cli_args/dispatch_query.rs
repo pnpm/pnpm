@@ -17,6 +17,7 @@ use super::{
     pack::PackArgs,
     pack_app::PackAppArgs,
     ping::PingArgs,
+    prefix::PrefixArgs,
     repo::RepoArgs,
     reporter::ReporterType,
     root::RootArgs,
@@ -174,6 +175,11 @@ pub(super) fn bin<'a>(ctx: &RunCtx<'a>, args: BinArgs) -> miette::Result<Command
 }
 
 pub(super) fn root<'a>(ctx: &RunCtx<'a>, args: RootArgs) -> miette::Result<CommandFuture<'a>> {
+    args.run(ctx.dir)?;
+    Ok(Box::pin(std::future::ready(Ok(()))))
+}
+
+pub(super) fn prefix<'a>(ctx: &RunCtx<'a>, args: PrefixArgs) -> miette::Result<CommandFuture<'a>> {
     args.run(ctx.dir)?;
     Ok(Box::pin(std::future::ready(Ok(()))))
 }

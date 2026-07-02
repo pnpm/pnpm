@@ -6,7 +6,6 @@ const NOT_IMPLEMENTED_COMMANDS = [
   'access',
   'edit',
   'issues',
-  'prefix',
   'profile',
   'set-script',
   'team',
