@@ -1,4 +1,5 @@
 ---
+"@pnpm/deps.inspection.commands": minor
 "pnpm": minor
 ---
 

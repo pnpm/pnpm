@@ -23,6 +23,8 @@ test('bugs: command should be available', () => {
   expect(bugs.handler).toBeDefined()
   expect(bugs.help).toBeDefined()
   expect(bugs.commandNames).toEqual(['bugs', 'issues'])
+  expect(bugs.help()).toContain('pnpm bugs')
+  expect(bugs.help()).toContain('pnpm issues')
 })
 
 test('bugs: opens bugs.url from local manifest', async () => {
