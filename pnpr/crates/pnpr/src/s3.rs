@@ -141,6 +141,28 @@ impl S3Store {
         Self { store, prefix, staging_dir: cache_root.join(STAGING_SUBDIR) }
     }
 
+    /// A view of this store with `segment` appended to the key prefix, giving a
+    /// hosted mount its own object-key namespace under the same bucket.
+    /// Staging scratch is shared (its tmp filenames are already unique).
+    #[must_use]
+    pub fn namespaced(&self, segment: &str) -> S3Store {
+        // An empty segment is the flat root: keep the prefix exactly so it
+        // addresses the same object keys as the un-namespaced store, rather than
+        // gaining a spurious `/` that points at a different key space.
+        if segment.is_empty() {
+            return Self {
+                store: Arc::clone(&self.store),
+                prefix: self.prefix.clone(),
+                staging_dir: self.staging_dir.clone(),
+            };
+        }
+        Self {
+            store: Arc::clone(&self.store),
+            prefix: format!("{}{segment}/", self.prefix),
+            staging_dir: self.staging_dir.clone(),
+        }
+    }
+
     pub async fn read_packument(&self, name: &PackageName) -> Result<Option<Vec<u8>>> {
         match self.store.get(&self.packument_key(name)).await {
             Ok(result) => Ok(Some(result.bytes().await?.to_vec())),

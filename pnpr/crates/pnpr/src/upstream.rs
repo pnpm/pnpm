@@ -4,7 +4,6 @@ use crate::{
     package_name::PackageName,
 };
 use chrono::{DateTime, Timelike, Utc};
-use indexmap::IndexMap;
 use pacquet_network::ThrottledClient;
 use reqwest::{
     StatusCode,
@@ -157,14 +156,12 @@ pub enum FetchOutcome<Payload> {
     NotFound,
 }
 
-/// Conditional-GET validators captured from an upstream packument
-/// response (its `ETag` / `Last-Modified`) and replayed on the next
-/// refresh as `If-None-Match` / `If-Modified-Since`. An upstream that
-/// emits neither leaves both `None`, and the refresh falls back to an
-/// unconditional GET.
-///
-/// Persisted verbatim in a sidecar next to the cached packument (see
-/// [`crate::storage`]); the field names double as the on-disk JSON keys.
+/// Conditional-GET validators sent on a packument refresh (an `ETag` /
+/// `Last-Modified` replayed as `If-None-Match` / `If-Modified-Since`). A
+/// per-mount cache refetches a stale entry rather than revalidating it, so in
+/// practice the default (empty) value is always sent; the type stays so the
+/// fetch path can grow conditional revalidation again without a signature
+/// change.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct CacheValidators {
     #[serde(skip_serializing_if = "Option::is_none", default)]
@@ -173,70 +170,10 @@ pub struct CacheValidators {
     pub last_modified: Option<String>,
 }
 
-impl CacheValidators {
-    pub fn is_empty(&self) -> bool {
-        self.etag.is_none() && self.last_modified.is_none()
-    }
-
-    fn from_headers(headers: &HeaderMap) -> Self {
-        let get =
-            |name| headers.get(name).and_then(|value| value.to_str().ok()).map(str::to_string);
-        Self { etag: get(header::ETAG), last_modified: get(header::LAST_MODIFIED) }
-    }
-}
-
-/// The conditional-GET validators a package's cached packument carries,
-/// keyed by uplink name. A `proxy:` rule can list several uplinks as a
-/// fallback chain, and each upstream's `ETag`/`Last-Modified` is its own —
-/// replaying one origin's validators against another risks a spurious
-/// `304` (another origin's body served under that confirmation). A refresh
-/// therefore sends each uplink only [`Self::get`]'s entry for it.
-///
-/// In practice the cache holds a single shared packument body, so
-/// [`crate::storage::Storage::write_cached_packument`] keeps validators for
-/// exactly the uplink that fetched that body — the map carries at most one
-/// entry (the body's origin), and every other uplink resolves to empty
-/// validators (an unconditional GET). Modelling it as a map keeps the
-/// `get`/`set` plumbing origin-agnostic and tolerates a stray multi-entry
-/// sidecar from a future change without ever sending the wrong origin's
-/// validators.
-///
-/// Persisted as the packument's validator sidecar (see [`crate::storage`]),
-/// a JSON object `{ "<uplink>": { "etag": ..., "last_modified": ... } }`.
-/// An older single-object sidecar (a bare [`CacheValidators`]) fails to
-/// deserialize into this shape; the storage layer degrades that to an empty
-/// map, costing one unconditional refetch after an upgrade.
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
-pub struct ValidatorsByUplink(IndexMap<String, CacheValidators>);
-
-impl ValidatorsByUplink {
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
-    /// The validators recorded for `uplink`, or empty defaults when there
-    /// are none — the signal for an unconditional GET to that uplink.
-    pub fn get(&self, uplink: &str) -> CacheValidators {
-        self.0.get(uplink).cloned().unwrap_or_default()
-    }
-
-    /// Record (replacing) one uplink's validators. Empty validators clear
-    /// the entry, so a later read can't replay an `ETag` the upstream no
-    /// longer sends.
-    pub fn set(&mut self, uplink: &str, validators: CacheValidators) {
-        if validators.is_empty() {
-            self.0.shift_remove(uplink);
-        } else {
-            self.0.insert(uplink.to_string(), validators);
-        }
-    }
-}
-
-/// A packument fetched (or revalidated) against an upstream.
+/// A packument fetched against an upstream.
 #[derive(Debug)]
 pub struct FetchedPackument {
     pub bytes: Vec<u8>,
-    pub validators: CacheValidators,
 }
 
 /// Outcome of a (possibly conditional) packument fetch.
@@ -267,13 +204,6 @@ impl Upstream {
             cache: config.cache,
             breaker: Arc::new(CircuitBreaker::new(config.max_fails, config.fail_timeout)),
         }
-    }
-
-    /// The configured uplink name (the YAML `uplinks:` key). Used to key
-    /// this uplink's entry in the cache's per-uplink validator map
-    /// ([`ValidatorsByUplink`]).
-    pub fn name(&self) -> &str {
-        &self.name
     }
 
     /// Per-uplink packument freshness window (`maxage`), or `None` to
@@ -335,13 +265,12 @@ impl Upstream {
             return Ok(PackumentFetch::NotModified);
         }
         let response = self.checked(response, &url).await?;
-        let validators = CacheValidators::from_headers(response.headers());
         let bytes = response.bytes().await.map_err(|source| {
             self.breaker.record_failure();
             RegistryError::Upstream { url: url.clone(), source }
         })?;
         self.breaker.record_success();
-        Ok(PackumentFetch::Modified(FetchedPackument { bytes: bytes.to_vec(), validators }))
+        Ok(PackumentFetch::Modified(FetchedPackument { bytes: bytes.to_vec() }))
     }
 
     /// Send the tarball request and return the streaming

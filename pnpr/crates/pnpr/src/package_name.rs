@@ -74,13 +74,30 @@ impl PackageName {
     }
 }
 
+// `:` is rejected because on Windows `C:foo` is a drive-relative *prefix*
+// component: `PathBuf::join` treats it as a new path rather than a child
+// segment, so a `:`-carrying name or filename could escape the storage or
+// cache root. No legitimate package name, semver version, or tarball
+// basename carries a `:`.
 fn is_safe_segment(segment: &str) -> bool {
     !segment.is_empty()
         && !segment.starts_with('.')
         && !segment.contains('/')
         && !segment.contains('\\')
+        && !segment.contains(':')
         && !segment.contains('\0')
         && segment != ".."
+}
+
+/// Whether `filename` is safe to use as a single on-disk path segment (no
+/// traversal, no separators, no absolute-path or Windows drive prefixes). The
+/// uplink tarball path uses it to admit a non-canonical basename preserved
+/// from an upstream `dist.tarball` (see `rewrite_tarball_urls`) into the
+/// cache layout — the packument match is what authorizes the name; this only
+/// keeps it on disk safely.
+#[must_use]
+pub fn is_safe_path_segment(filename: &str) -> bool {
+    is_safe_segment(filename)
 }
 
 #[cfg(test)]
