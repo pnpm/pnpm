@@ -1009,11 +1009,6 @@ struct ConfigFile {
     /// pnpr-only local OSV database settings.
     #[serde(default)]
     osv: OsvFile,
-    /// Removed key, rejected in any form (see
-    /// [`reject_removed_registry_key`]). The npm-registry surface is
-    /// derived from `mounts:` instead.
-    #[serde(default, rename = "registry", deserialize_with = "reject_removed_registry_key")]
-    _registry: Option<()>,
     /// pnpr-only feature toggle for the resolver surface. On unless
     /// explicitly disabled; absent on a stock verdaccio config, so it
     /// stays enabled there. `Option` so a bare `resolver:` (which YAML
@@ -1150,23 +1145,6 @@ impl Default for FeatureFile {
 
 fn default_true() -> bool {
     true
-}
-
-/// Reject the removed top-level `registry:` key in any form (a mapping,
-/// a scalar, or a bare `registry:` null). The parser is otherwise lenient
-/// about unknown keys (so a verdaccio config drops in untouched), but this
-/// one used to disable a surface: silently ignoring `registry: {enabled:
-/// false}` would serve the full npm-registry surface a config explicitly
-/// disclaimed — a fail-open — so it errors with migration guidance instead.
-fn reject_removed_registry_key<'de, De>(_deserializer: De) -> Result<Option<()>, De::Error>
-where
-    De: serde::Deserializer<'de>,
-{
-    Err(serde::de::Error::custom(
-        "the `registry:` key has been removed: the npm-registry surface is served \
-         iff at least one mount is declared under `mounts:`; delete the `registry:` \
-         block (use `--disable-registry` for a per-tier override)",
-    ))
 }
 
 /// The package-name patterns that [`Config::proxy`] routes to its flat-root

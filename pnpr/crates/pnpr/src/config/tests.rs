@@ -254,24 +254,6 @@ fn resolver_block_present_but_empty_defaults_to_enabled() {
 }
 
 #[test]
-fn removed_registry_key_is_rejected_in_any_form() {
-    // `registry: {enabled: false}` used to disable the surface. The parser
-    // is lenient about unknown keys (verdaccio compat), but silently
-    // ignoring this one would fail open — mounts would serve a registry the
-    // config explicitly disclaimed — so any `registry:` key must be a loud
-    // config error with migration guidance.
-    for yaml in ["registry:\n  enabled: false\n", "registry:\n", "registry: {}\n"] {
-        let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
-            .expect_err("the removed `registry:` key must be rejected");
-        assert!(matches!(err, RegistryError::InvalidConfig { .. }));
-        assert!(
-            err.to_string().contains("`registry:` key has been removed"),
-            "for {yaml:?}: {err}",
-        );
-    }
-}
-
-#[test]
 fn cli_disabling_both_surfaces_with_bundled_config_errors_without_panicking() {
     // No config file → the bundled branch. Disabling both surfaces via
     // CLI must surface a clean error, not panic on the bundled `expect`.
