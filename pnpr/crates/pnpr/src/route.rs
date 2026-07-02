@@ -133,9 +133,10 @@ pub(crate) fn credential_digest(authorization: &str) -> String {
 /// content after such a rotation.
 ///
 /// Stable across runs and independent of map iteration order: the (name, value)
-/// pairs are sorted and length-prefixed before hashing, so no two distinct
-/// header sets share a digest. The raw values never reach disk — this is a
-/// one-way SHA-256, then HMAC-keyed with the server secret by
+/// pairs are sorted and length-prefixed before hashing, so the encoding of a
+/// header set is unambiguous and distinct sets can only collide by a SHA-256
+/// collision. The raw values never reach disk — this is a one-way SHA-256,
+/// then HMAC-keyed with the server secret by
 /// [`PrivateAccessDescriptor::digest_id`].
 #[must_use]
 pub(crate) fn headers_credential_digest(headers: &HeaderMap) -> String {

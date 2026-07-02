@@ -1010,6 +1010,23 @@ fn from_yaml_str_rejects_dot_prefixed_hosted_org() {
     }
 }
 
+/// A mount name is addressed as the single URL path segment `/~<name>/` and is
+/// embedded in rewritten tarball URLs, so a name that cannot survive that
+/// round trip (separators, traversal, URL delimiters, whitespace) must fail at
+/// load instead of becoming an unreachable or URL-ambiguous mount.
+#[test]
+fn from_yaml_str_rejects_url_unsafe_mount_names() {
+    for name in ["'a/b'", "'..'", "'.hidden'", "'a b'", "'a%2Fb'", "'a?b'", "'a#b'", "'C:d'"] {
+        let yaml = format!("storage: ./s\nmounts:\n  {name}:\n    type: hosted\n");
+        let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
+            .expect_err("a URL-unsafe mount name must be rejected");
+        assert!(
+            err.to_string().contains("URL-safe path segment"),
+            "unexpected error for {name}: {err}",
+        );
+    }
+}
+
 /// `--disable-registry` skips upstream-credential resolution but still
 /// validates the mount graph, so a misconfigured router fails startup on a
 /// resolver-only tier too instead of surfacing only when the registry is

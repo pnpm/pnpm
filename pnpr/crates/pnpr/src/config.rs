@@ -1619,9 +1619,11 @@ fn build_mounts(
     // Every configured uplink is, by definition, an upstream mount addressable
     // at `/~<uplink>/`.
     for name in uplinks.keys() {
+        validate_mount_name(name)?;
         graph.insert(name.clone(), MountKind::Upstream);
     }
     for (name, file) in mount_files {
+        validate_mount_name(&name)?;
         if graph.contains_key(&name) {
             return Err(RegistryError::InvalidConfig {
                 reason: format!(
@@ -1671,6 +1673,29 @@ fn build_mounts(
     let mounts = Mounts::new(graph, default_target);
     mounts.validate().map_err(|err| mount_err(&err))?;
     Ok((hosted, mounts))
+}
+
+/// A mount's name is addressed as the single URL path segment `/~<name>/` and
+/// is embedded verbatim into rewritten `dist.tarball` URLs, so it must be one
+/// URL-safe segment. A name that can't survive that round trip is rejected at
+/// load rather than becoming an unreachable mount (`/` splits it across
+/// segments), a URL-parsing ambiguity (`?`, `#`, `%`, whitespace, control
+/// characters), or a path-meaningful component intermediaries may normalize
+/// away (`.`, `..`, a Windows drive prefix).
+fn validate_mount_name(name: &str) -> Result<(), RegistryError> {
+    let safe = crate::package_name::is_safe_path_segment(name)
+        && !name.contains(['%', '?', '#'])
+        && !name.contains(|ch: char| ch.is_whitespace() || ch.is_control());
+    if safe {
+        return Ok(());
+    }
+    Err(RegistryError::InvalidConfig {
+        reason: format!(
+            "mount name {name:?} is not a single URL-safe path segment: it is served at \
+             `/~<name>/`, so it cannot be empty, `.` or `..`, start with `.`, or contain `/`, \
+             `\\`, `:`, `%`, `?`, `#`, whitespace, or control characters",
+        ),
+    })
 }
 
 /// A hosted mount's `org` becomes a storage path/key segment (`Storage::for_hosted`),

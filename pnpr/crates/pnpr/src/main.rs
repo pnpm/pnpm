@@ -137,9 +137,12 @@ fn init_logging(logs: &LogConfig) {
         .unwrap_or_else(|_| EnvFilter::new(logs.level.as_filter_directive()));
     // Emit ANSI colors only to an interactive terminal — never when stdout is
     // redirected to a file or pipe (e.g. the benchmark's mock logs), where the
-    // escape codes are just noise that breaks downstream log parsing.
+    // escape codes are just noise that breaks downstream log parsing. The
+    // writer is pinned to stdout explicitly so the `is_terminal` probe always
+    // inspects the stream the subscriber actually writes to.
     let builder = tracing_subscriber::fmt()
         .with_env_filter(filter)
+        .with_writer(std::io::stdout)
         .with_ansi(std::io::stdout().is_terminal());
     match logs.format {
         // `with_current_span(true)` keeps the per-request span's

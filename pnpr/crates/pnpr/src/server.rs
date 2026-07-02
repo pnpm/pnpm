@@ -80,6 +80,12 @@ struct AppInner {
     /// used in [`Config::uplinks`]. Built once at router construction
     /// time so each request avoids re-allocating a `ThrottledClient`.
     upstreams: IndexMap<String, Upstream>,
+    /// The disposable cache namespace of each uplink, keyed like
+    /// [`Self::upstreams`]. A pure function of the config (see
+    /// [`compute_uplink_cache_namespace`]), precomputed here so the
+    /// per-request path doesn't re-sort and re-hash the uplink's headers on
+    /// every packument and tarball served through an upstream mount.
+    uplink_cache_namespaces: IndexMap<String, String>,
     config: Config,
     auth: AuthState,
     /// Serializes the read-modify-write packument flows per package so
@@ -247,10 +253,16 @@ fn router_with_auth_and_osv(
     } else {
         IndexMap::new()
     };
+    let uplink_cache_namespaces = config
+        .uplinks
+        .keys()
+        .map(|name| (name.clone(), compute_uplink_cache_namespace(&config, name)))
+        .collect();
     let state = AppState {
         inner: Arc::new(AppInner {
             storage,
             upstreams,
+            uplink_cache_namespaces,
             config,
             auth,
             package_locks: PackageLocks::new(),
@@ -1137,8 +1149,21 @@ fn authorized_uplink<'a>(
     state.inner.upstreams.get(uplink).ok_or_else(|| Box::new(not_found()))
 }
 
-/// The disposable cache namespace for an upstream mount's `/~<mount>/` route, so
-/// its packuments and tarballs never collide with another mount.
+/// The disposable cache namespace for an upstream mount's `/~<mount>/` route —
+/// the entry precomputed in [`AppInner::uplink_cache_namespaces`], falling back
+/// to a fresh computation only for a name outside [`Config::uplinks`] (which
+/// the mount dispatch never produces).
+fn uplink_cache_namespace(state: &AppState, uplink: &str) -> String {
+    state
+        .inner
+        .uplink_cache_namespaces
+        .get(uplink)
+        .cloned()
+        .unwrap_or_else(|| compute_uplink_cache_namespace(&state.inner.config, uplink))
+}
+
+/// Compute an upstream mount's disposable cache namespace, so its packuments
+/// and tarballs never collide with another mount's.
 ///
 /// A **private** mount — any that declares `access:` (so it is not `public`; the
 /// config loader forbids a public mount from carrying any credential) — is
@@ -1151,17 +1176,17 @@ fn authorized_uplink<'a>(
 /// namespace. A **public** mount has nothing private to protect and its content
 /// is integrity-verified, so it uses a *stable* namespace
 /// (`~public/<digest-of-mount-name>`) that is shared across process restarts.
-fn uplink_cache_namespace(state: &AppState, uplink: &str) -> String {
-    if let Some(config) = state.inner.config.uplinks.get(uplink)
-        && config.access.is_some()
+fn compute_uplink_cache_namespace(config: &Config, uplink: &str) -> String {
+    if let Some(uplink_config) = config.uplinks.get(uplink)
+        && uplink_config.access.is_some()
     {
         // Key the epoch on every header the uplink attaches upstream, not just
         // `Authorization`, so rotating a credential carried in a custom header
         // still moves the private cache to a fresh namespace.
         let digest = crate::route::uplink_cache_digest(
             uplink,
-            crate::route::headers_credential_digest(&config.headers),
-            &state.inner.config.resolution_cache_secret,
+            crate::route::headers_credential_digest(&uplink_config.headers),
+            &config.resolution_cache_secret,
         );
         return format!("~uplinks/{digest}");
     }
