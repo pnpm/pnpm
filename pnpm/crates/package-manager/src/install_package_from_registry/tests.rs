@@ -172,6 +172,7 @@ fn create_config(
         explicit_settings: Default::default(),
         raw_auth_config: Default::default(),
         config_dir: None,
+        editor: None,
     }
 }
 
