@@ -740,7 +740,7 @@ export async function getConfig (opts: {
 
   const {
     hooks, finders,
-    allProjects, selectedProjectsGraph, allProjectsGraph,
+    allProjects, selectedProjectsGraph, allProjectsGraph, prodAllProjectsGraph, prodOnlySelectedProjectDirs,
     rootProjectManifest, rootProjectManifestDir,
     cliOptions: ctxCliOptions,
     explicitlySetKeys: ctxExplicitlySetKeys,
@@ -749,7 +749,7 @@ export async function getConfig (opts: {
   } = pnpmConfig as Config & ConfigContext
   const context: ConfigContext = {
     hooks, finders,
-    allProjects, selectedProjectsGraph, allProjectsGraph,
+    allProjects, selectedProjectsGraph, allProjectsGraph, prodAllProjectsGraph, prodOnlySelectedProjectDirs,
     rootProjectManifest, rootProjectManifestDir,
     cliOptions: ctxCliOptions,
     explicitlySetKeys: ctxExplicitlySetKeys,

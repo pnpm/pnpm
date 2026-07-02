@@ -11,7 +11,7 @@ import { logger } from '@pnpm/logger'
 import { prependDirsToPath } from '@pnpm/shell.path'
 import type { Project, ProjectRootDir, ProjectRootDirRealPath, ProjectsGraph } from '@pnpm/types'
 import { tryReadProjectManifest } from '@pnpm/workspace.project-manifest-reader'
-import { sortProjects } from '@pnpm/workspace.projects-sorter'
+import { sortFilteredProjects } from '@pnpm/workspace.projects-sorter'
 import { safeExeca as execa } from 'execa'
 import pLimit from 'p-limit'
 import { pick } from 'ramda'
@@ -164,7 +164,7 @@ export type ExecOpts = Required<Pick<ConfigContext, 'selectedProjectsGraph'>> & 
 | 'userAgent'
 | 'verifyDepsBeforeRun'
 | 'workspaceDir'
-> & Pick<ConfigContext, 'cliOptions'> & CheckDepsStatusOptions
+> & Pick<ConfigContext, 'cliOptions' | 'allProjectsGraph' | 'prodAllProjectsGraph' | 'prodOnlySelectedProjectDirs'> & CheckDepsStatusOptions
 
 export async function handler (
   opts: ExecOpts,
@@ -186,7 +186,7 @@ export async function handler (
   let chunks!: ProjectRootDir[][]
   if (opts.recursive) {
     chunks = opts.sort
-      ? sortProjects(opts.selectedProjectsGraph)
+      ? sortFilteredProjects(opts)
       : [(Object.keys(opts.selectedProjectsGraph) as ProjectRootDir[]).sort()]
     if (opts.reverse) {
       chunks = chunks.reverse()

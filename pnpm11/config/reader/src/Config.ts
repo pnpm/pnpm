@@ -5,6 +5,7 @@ import type {
   Finder,
   Project,
   ProjectManifest,
+  ProjectRootDir,
   ProjectsGraph,
   Registries,
   RegistryConfig,
@@ -44,6 +45,14 @@ export interface ConfigContext {
   allProjects?: Project[]
   selectedProjectsGraph?: ProjectsGraph
   allProjectsGraph?: ProjectsGraph
+  /**
+   * The prod-pruned full graph, set when prod-only filters (`--filter-prod`) are
+   * used. Recursive commands sort prod-only selected projects through it so
+   * transitive prod dependencies order correctly without reintroducing the dev
+   * edges the filter dropped.
+   */
+  prodAllProjectsGraph?: ProjectsGraph
+  prodOnlySelectedProjectDirs?: ProjectRootDir[]
   rootProjectManifest?: ProjectManifest
   rootProjectManifestDir: string
 
