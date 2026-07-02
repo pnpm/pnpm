@@ -36,6 +36,7 @@ interface ReverseEdge {
   parentSerialized: string
   parentNodeId: TreeNodeId
   alias: string
+  isPeer: boolean
 }
 
 export interface DependentNode {
@@ -78,6 +79,7 @@ interface WalkContext {
   importerInfoMap: Map<string, ImporterInfo>
   resolvedPackageNodes: Map<string, { path: string, readManifest: () => DependencyManifest }>
   nameFormatter?: NameFormatter
+  excludePeerDependencies?: boolean
   /** Tracks nodes on the current path for cycle detection. Mutated during walk. */
   visited: Set<string>
   /** Tracks nodes already fully expanded, for deduplication across branches. */
@@ -98,6 +100,7 @@ interface BuildDependentsTreeOptions {
   nameFormatter?: NameFormatter
   resolvePeersFromWorkspaceRoot?: boolean
   nodeLinker?: 'hoisted' | 'isolated' | 'pnp'
+  excludePeerDependencies?: boolean
 }
 
 export async function buildDependentsTree (
@@ -142,6 +145,7 @@ export async function buildDependentsTree (
     importerInfoMap: opts.importerInfoMap,
     resolvedPackageNodes,
     nameFormatter: opts.nameFormatter,
+    excludePeerDependencies: opts.excludePeerDependencies,
     visited: new Set(),
     expanded: new Set(),
   })
@@ -211,6 +215,7 @@ function buildTreeIfMatched (
   ctx.visited = new Set([serialized])
   ctx.expanded = new Set()
   const dependents = walkReverse(serialized, ctx)
+  if (ctx.excludePeerDependencies && dependents.length === 0) return undefined
   const peersSuffixHash = peersSuffixHashFromDepPath(depPath)
 
   const displayName = ctx.nameFormatter
@@ -267,6 +272,7 @@ function invertGraph (graph: DependencyGraph): Map<string, ReverseEdge[]> {
         parentSerialized,
         parentNodeId: node.nodeId,
         alias: edge.alias,
+        isPeer: node.peers.has(edge.alias),
       })
     }
   }
@@ -350,6 +356,8 @@ function walkReverse (
   const dependents: DependentNode[] = []
 
   for (const edge of sortedEdges) {
+    if (ctx.excludePeerDependencies && edge.isPeer) continue
+
     // Cycle detection: this node is already on our current path
     const dependent = ctx.visited.has(edge.parentSerialized)
       ? createCircularDependent(edge, ctx)
