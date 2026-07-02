@@ -69,6 +69,13 @@ const MAX_TARBALL_BYTES: u64 = 100 * 1024 * 1024;
 /// route, so future write endpoints inherit the same ceiling.
 const MAX_PUBLISH_BODY_BYTES: usize = MAX_TARBALL_BYTES as usize;
 
+/// Cap adduser/login bodies far below the publish ceiling. The body is a
+/// small couchdb-user JSON document, and login is the one body-accepting
+/// endpoint reachable anonymously on every tier — letting it inherit the
+/// 100 MiB publish limit would hand unauthenticated callers a cheap
+/// buffer-and-parse amplifier.
+const MAX_LOGIN_BODY_BYTES: usize = 64 * 1024;
+
 #[derive(Clone)]
 struct AppState {
     inner: Arc<AppInner>,
@@ -293,8 +300,14 @@ fn router_with_auth_and_osv(
     router = router
         .route("/-/whoami", get(get_whoami))
         .route("/{prefix}/-/whoami", get(get_whoami_prefixed))
-        .route("/-/user/{user}", put(put_login))
-        .route("/{prefix}/-/user/{user}", put(put_login_prefixed))
+        .route(
+            "/-/user/{user}",
+            put(put_login).route_layer(DefaultBodyLimit::max(MAX_LOGIN_BODY_BYTES)),
+        )
+        .route(
+            "/{prefix}/-/user/{user}",
+            put(put_login_prefixed).route_layer(DefaultBodyLimit::max(MAX_LOGIN_BODY_BYTES)),
+        )
         .route("/-/user/token/{token}", delete(delete_session_token))
         .route("/{prefix}/-/user/token/{token}", delete(delete_session_token_prefixed))
         .route("/-/npm/v1/user", get(get_profile))

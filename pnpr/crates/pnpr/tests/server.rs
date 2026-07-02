@@ -2498,7 +2498,16 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
         .unwrap();
     assert_eq!(logged_in.status(), StatusCode::CREATED);
     let token = body_json(logged_in.into_body()).await["token"].as_str().unwrap().to_string();
-    for path in ["/-/whoami", "/-/npm/v1/user", "/-/npm/v1/tokens"] {
+    // The `/~<prefix>/`-addressed twins answer too — they must not depend on
+    // the (absent) registry segment routes.
+    for path in [
+        "/-/whoami",
+        "/-/npm/v1/user",
+        "/-/npm/v1/tokens",
+        "/~corp/-/whoami",
+        "/~corp/-/npm/v1/user",
+        "/~corp/-/npm/v1/tokens",
+    ] {
         let response = app
             .clone()
             .oneshot(
@@ -2511,6 +2520,17 @@ async fn resolver_only_serves_resolver_endpoints_and_refuses_registry_routes() {
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK, "GET {path}");
     }
+    let prefixed_login = app
+        .clone()
+        .oneshot(
+            Request::put("/~corp/-/user/org.couchdb.user:alice")
+                .header("content-type", "application/json")
+                .body(Body::from(serde_json::to_vec(&registration).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(prefixed_login.status(), StatusCode::CREATED);
 
     // The minted token authenticates against the resolver surface itself.
     let verify = app
