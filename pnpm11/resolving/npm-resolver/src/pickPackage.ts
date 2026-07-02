@@ -10,10 +10,10 @@ import type { PackageInRegistry, PackageMeta } from '@pnpm/resolving.registry.ty
 import getRegistryName from 'encode-registry'
 import pLimit, { type LimitFunction } from 'p-limit'
 import { fastPathTemp as pathTemp } from 'path-temp'
-import { pick } from 'ramda'
 import { renameOverwrite } from 'rename-overwrite'
 import semver from 'semver'
 
+import { clearMeta } from './clearMeta.js'
 import type { FetchMetadataNotModifiedResult, FetchMetadataResult } from './fetch.js'
 import type { RegistryPackageSpec } from './parseBareSpecifier.js'
 import {
@@ -550,43 +550,6 @@ function persistUpgradedMeta (
     }
   }))
   return metaForCache
-}
-
-function clearMeta (pkg: PackageMeta): PackageMeta {
-  const versions: PackageMeta['versions'] = {}
-  for (const [version, info] of Object.entries(pkg.versions)) {
-    // The list taken from https://github.com/npm/registry/blob/master/docs/responses/package-metadata.md#abbreviated-version-object
-    // with the addition of 'libc'
-    versions[version] = pick([
-      'name',
-      'version',
-      'bin',
-      'directories',
-      'devDependencies',
-      'optionalDependencies',
-      'dependencies',
-      'peerDependencies',
-      'dist',
-      'engines',
-      'peerDependenciesMeta',
-      'cpu',
-      'os',
-      'libc',
-      'deprecated',
-      'bundleDependencies',
-      'bundledDependencies',
-      'hasInstallScript',
-      '_npmUser',
-    ], info)
-  }
-
-  return {
-    name: pkg.name,
-    'dist-tags': pkg['dist-tags'],
-    versions,
-    time: pkg.time,
-    modified: pkg.modified,
-  }
 }
 
 export function encodePkgName (pkgName: string): string {
