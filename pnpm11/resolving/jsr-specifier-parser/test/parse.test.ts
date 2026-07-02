@@ -42,8 +42,31 @@ describe('parseJsrSpecifier', () => {
     expect(() => parseJsrSpecifier('jsr:@foo')).toThrow(expect.objectContaining({
       code: 'ERR_PNPM_INVALID_JSR_PACKAGE_NAME',
     }))
-    // scope with a trailing slash but empty package name: jsr:@scope/
     expect(() => parseJsrSpecifier('jsr:@foo/')).toThrow(expect.objectContaining({
+      code: 'ERR_PNPM_INVALID_JSR_PACKAGE_NAME',
+    }))
+    expect(() => parseJsrSpecifier('jsr:@foo/@^1.0.0')).toThrow(expect.objectContaining({
+      code: 'ERR_PNPM_INVALID_JSR_PACKAGE_NAME',
+    }))
+  })
+
+  test('errors on jsr specifiers that contain names with empty scopes', () => {
+    expect(() => parseJsrSpecifier('jsr:@/bar')).toThrow(expect.objectContaining({
+      code: 'ERR_PNPM_INVALID_JSR_PACKAGE_NAME',
+    }))
+  })
+
+  test('errors on jsr specifiers that contain path separators in the package name', () => {
+    expect(() => parseJsrSpecifier('jsr:@foo/../bar')).toThrow(expect.objectContaining({
+      code: 'ERR_PNPM_INVALID_JSR_PACKAGE_NAME',
+    }))
+    expect(() => parseJsrSpecifier('jsr:@foo/bar/baz')).toThrow(expect.objectContaining({
+      code: 'ERR_PNPM_INVALID_JSR_PACKAGE_NAME',
+    }))
+    expect(() => parseJsrSpecifier('jsr:@foo/bar\\baz')).toThrow(expect.objectContaining({
+      code: 'ERR_PNPM_INVALID_JSR_PACKAGE_NAME',
+    }))
+    expect(() => parseJsrSpecifier('jsr:@fo\\o/bar')).toThrow(expect.objectContaining({
       code: 'ERR_PNPM_INVALID_JSR_PACKAGE_NAME',
     }))
   })

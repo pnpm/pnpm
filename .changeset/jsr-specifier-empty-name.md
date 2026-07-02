@@ -1,5 +1,6 @@
 ---
 "@pnpm/resolving.jsr-specifier-parser": patch
+"pnpm": patch
 ---
 
-fix: throw `INVALID_JSR_PACKAGE_NAME` for `jsr:@scope/` specifiers with an empty package name instead of silently returning a malformed `@jsr/scope__` npm package name
+pnpm now rejects `jsr:` specifiers with a malformed package name — an empty scope or name (e.g. `jsr:@scope/`) or path separators inside the name — with `ERR_PNPM_INVALID_JSR_PACKAGE_NAME` instead of silently converting them into a malformed `@jsr/...` npm package name.

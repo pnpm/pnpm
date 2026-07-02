@@ -43,8 +43,9 @@ pub enum ParseJsrSpecifierError {
     #[diagnostic(code(ERR_PNPM_MISSING_JSR_PACKAGE_SCOPE))]
     MissingScope,
 
-    /// Specifier carries a scope but no `/name` segment
-    /// (e.g. `jsr:@foo` or `jsr:@foo@^1`).
+    /// Specifier carries a malformed scoped name: no `/name` segment
+    /// (e.g. `jsr:@foo`), an empty scope or name (e.g. `jsr:@foo/`),
+    /// or path separators inside the name (e.g. `jsr:@foo/../bar`).
     #[display("The package name '{pkg_name}' is invalid")]
     #[diagnostic(code(ERR_PNPM_INVALID_JSR_PACKAGE_NAME))]
     InvalidPackageName {
@@ -129,11 +130,16 @@ fn jsr_to_npm_package_name(jsr_pkg_name: &str) -> Result<String, ParseJsrSpecifi
     let Some(after_at) = jsr_pkg_name.strip_prefix('@') else {
         return Err(ParseJsrSpecifierError::MissingScope);
     };
+    let invalid =
+        || ParseJsrSpecifierError::InvalidPackageName { pkg_name: jsr_pkg_name.to_string() };
     let Some((scope, name)) = after_at.split_once('/') else {
-        return Err(ParseJsrSpecifierError::InvalidPackageName {
-            pkg_name: jsr_pkg_name.to_string(),
-        });
+        return Err(invalid());
     };
+    // The returned name is used in registry URLs and metadata cache file
+    // paths, so path separator characters must never make it through.
+    if scope.is_empty() || name.is_empty() || name.contains('/') || jsr_pkg_name.contains('\\') {
+        return Err(invalid());
+    }
     Ok(format!("@jsr/{scope}__{name}"))
 }
 

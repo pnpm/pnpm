@@ -58,10 +58,12 @@ function jsrToNpmPackageName (jsrPkgName: string): string {
   if (sepIndex === -1) {
     throw new PnpmError('INVALID_JSR_PACKAGE_NAME', `The package name '${jsrPkgName}' is invalid`)
   }
-  const scope = jsrPkgName.substring(0, sepIndex)
+  const scope = jsrPkgName.substring('@'.length, sepIndex)
   const name = jsrPkgName.substring(sepIndex + '/'.length)
-  if (!name) {
+  // The returned name is used in registry URLs and metadata cache file paths,
+  // so path separator characters must never make it through.
+  if (!scope || !name || name.includes('/') || jsrPkgName.includes('\\')) {
     throw new PnpmError('INVALID_JSR_PACKAGE_NAME', `The package name '${jsrPkgName}' is invalid`)
   }
-  return `@jsr/${scope.substring(1)}__${name}`
+  return `@jsr/${scope}__${name}`
 }
