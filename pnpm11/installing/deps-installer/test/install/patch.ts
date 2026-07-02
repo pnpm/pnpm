@@ -570,3 +570,41 @@ test('patch package should fail when the name-only range patch fails to apply', 
 
   expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).not.toContain('// patched')
 })
+
+test('patch with relative paths resolved against lockfileDir', async () => {
+  const project = prepareEmpty()
+  // Simulate the scenario where patches live under the lockfile directory
+  // but patchedDependencies only records relative paths. The install path
+  // must resolve them against lockfileDir so calcPatchHashes can read them.
+  const patchesDir = path.join(process.cwd(), 'patches')
+  fs.mkdirSync(patchesDir, { recursive: true })
+  fs.copyFileSync(
+    path.join(f.find('patch-pkg'), 'is-positive@1.0.0.patch'),
+    path.join(patchesDir, 'is-positive@1.0.0.patch')
+  )
+
+  const patchedDependencies = {
+    'is-positive@1.0.0': 'patches/is-positive@1.0.0.patch',
+  }
+  const opts = testDefaults({
+    fastUnpack: false,
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
+    patchedDependencies,
+    // Explicit lockfileDir so the resolution is deterministic
+    lockfileDir: process.cwd(),
+  }, {}, {}, { packageImportMethod: 'hardlink' })
+  await install({
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  }, opts)
+
+  expect(fs.readFileSync('node_modules/is-positive/index.js', 'utf8')).toContain('// patched')
+
+  const patchFileHash = await createHexHashFromFile(path.join(patchesDir, 'is-positive@1.0.0.patch'))
+  const lockfile = project.readLockfile()
+  expect(lockfile.patchedDependencies).toStrictEqual({
+    'is-positive@1.0.0': patchFileHash,
+  })
+})
