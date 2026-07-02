@@ -97,15 +97,78 @@ mounts:
     type: router
     routes:
       - patterns:
+          # Scopes seeded from the in-repo fixture sources
+          # (`pnpr/.fixtures/packages/`). Scopes shared with real, active npm
+          # scopes (`@pnpm`, `@zkochan`) are routed by exact name instead —
+          # see below — so proxied dependency trees can still pull the scope's
+          # other real packages from npm.
           - '@foo/*'
           - '@having/*'
           - '@jsr/*'
-          - '@pnpm/*'
           - '@pnpm.e2e/*'
           - '@private/*'
           - '@scoped/*'
-          - '@zkochan/*'
           - 'create-touch-file-one-bin'
+          # The fixture packages in the real `@pnpm` and `@zkochan` scopes,
+          # each routed by exact name.
+          - '@pnpm/plugin-pnpmfile'
+          - '@pnpm/postinstall-modifies-source'
+          - '@pnpm/x'
+          - '@pnpm/xyz'
+          - '@pnpm/xyz-parent'
+          - '@pnpm/xyz-parent-parent'
+          - '@pnpm/xyz-parent-parent-parent'
+          - '@pnpm/xyz-parent-parent-parent-parent'
+          - '@pnpm/xyz-parent-parent-with-xyz'
+          - '@pnpm/y'
+          - '@pnpm/z'
+          - '@zkochan/test-pnpm-issue219'
+          # Names tests publish to the mock and then read back. Exact names
+          # only — an unscoped prefix wildcard would swallow real npm packages
+          # that proxied dependency trees need (`test-*` would capture
+          # `test-exclude`). A test publishing a new unscoped name must add it
+          # here; publishing dynamically-suffixed names belongs in the
+          # `@pnpmtest` scope.
+          - '@pnpmtest/*'
+          - 'batch-dry-1'
+          - 'batch-dry-2'
+          - 'batch-no-recursive'
+          - 'batch-pkg-2'
+          - 'batch-unsupported-1'
+          - 'project-100'
+          - 'project-200'
+          - 'publish_config_directory_dist_package'
+          - 'test-deprecate-package'
+          - 'test-deprecate-specific'
+          - 'test-dist-tag-add'
+          - 'test-dist-tag-add-default'
+          - 'test-dist-tag-ls'
+          - 'test-dist-tag-ls-default'
+          - 'test-dist-tag-rm'
+          - 'test-dist-tag-rm-latest'
+          - 'test-dist-tag-rm-missing'
+          - 'test-publish-config'
+          - 'test-publish-config-directory'
+          - 'test-publish-config-installation'
+          - 'test-publish-helper-token-basic.json'
+          - 'test-publish-helper-token-bearer.json'
+          - 'test-publish-package-oidc.json'
+          - 'test-publish-package.json'
+          - 'test-publish-package.json5'
+          - 'test-publish-package.yaml'
+          - 'test-publish-scripts'
+          - 'test-publish-skip-manifest-obfuscation'
+          - 'test-publish-skip-manifest-obfuscation-installation'
+          - 'test-publish-tarball'
+          - 'test-publish-with-ignore-scripts'
+          - 'test-publish-with-scripts'
+          - 'test-undeprecate-pkg'
+          - 'test-unpublish-force'
+          - 'test-unpublish-no-force'
+          - 'test-unpublish-no-ver'
+          - 'test-unpublish-version'
+          - 'workspace-package-with-default-catalog'
+          - 'workspace-package-with-named-catalog'
         source: local
       - patterns: ['**']
         source: npmjs
@@ -113,9 +176,11 @@ mounts:
 # The path-less base URL (`https://<pnpr>/`) aliases this mount.
 defaultTarget: main
 
-# Per-package access control (an ACL layer, independent of routing). The
-# default for an unmatched package is open reads + authenticated writes;
-# these rules tighten specific fixtures to authenticated-only.
+# Per-package access control (an ACL layer, independent of routing). With no
+# matching rule the built-in default allows authenticated publish but admits
+# no one to unpublish, so the `**` rule below keeps every non-tightened
+# package open for reads and authenticated for both write kinds — the
+# `@pnpm/registry-mock` contract the tests rely on.
 packages:
   '@private/*':
     access: $authenticated
@@ -124,6 +189,11 @@ packages:
 
   '@pnpm.e2e/needs-auth':
     access: $authenticated
+    publish: $authenticated
+    unpublish: $authenticated
+
+  '**':
+    access: $all
     publish: $authenticated
     unpublish: $authenticated
 
