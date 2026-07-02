@@ -2,7 +2,7 @@ import { expect, test } from '@jest/globals'
 import type { LockfileObject } from '@pnpm/lockfile.types'
 import type { PreferredVersions } from '@pnpm/resolving.resolver-base'
 import type { PackageResponse, StoreController } from '@pnpm/store.controller-types'
-import type { PackageManifest, PkgResolutionId, ProjectId, ProjectRootDir } from '@pnpm/types'
+import type { DepPath, PackageManifest, PkgResolutionId, ProjectId, ProjectRootDir } from '@pnpm/types'
 
 import { type ImporterToResolveGeneric, type ResolveDependenciesOptions, resolveDependencyTree } from '../lib/resolveDependencyTree.js'
 
@@ -101,13 +101,168 @@ test('shared package children are resolved from the deterministic shallowest con
   ])
 })
 
+test('updateRequested bypasses preferred-version propagation along the dep chain so a deeper caret consumer reaches latest (form-data regression)', async () => {
+  // The bypass must be scoped per wanted-dependency: true only for the
+  // user's update target, false for every other package on the chain.
+  // The fixture nests an exact-pin carrier above a caret consumer in a
+  // single dep chain — cross-branch propagation does not happen in
+  // pnpm's preferredVersions model, so the targeted package must
+  // appear at two depths in the SAME chain for the bug to surface.
+  const requestLog: Array<{
+    alias: string | undefined
+    bareSpecifier: string | undefined
+    updateRequested: boolean | undefined
+    hadPreferredT100: boolean
+    resolvedId: string
+  }> = []
+  const storeController = createStoreController(async (wantedDependency, options) => {
+    const alias = wantedDependency.alias!
+    const bareSpecifier = wantedDependency.bareSpecifier!
+    const version = pickVersion(alias, bareSpecifier, options.preferredVersions, options.updateRequested)
+    const resolvedId = `${alias}@${version}`
+    requestLog.push({
+      alias,
+      bareSpecifier,
+      updateRequested: options.updateRequested,
+      // Snapshot at call time: `options.preferredVersions` is a live
+      // object whose later mutations could otherwise make the sanity
+      // assertion below pass even if the value was absent here.
+      hadPreferredT100: Boolean(options.preferredVersions.t?.['1.0.0']),
+      resolvedId,
+    })
+    return createPackageResponse(resolvedId)
+  })
+  const lockfile = createLockfileWithTPinning()
+
+  await resolveDependencyTree([
+    {
+      id: '.' as ProjectId,
+      manifest: {
+        name: 'root',
+        version: '0.0.0',
+        dependencies: {
+          // Carrier that pins `t` exactly AND pulls in `inner`, whose
+          // own manifest consumes `t` via caret. The exact-pin becomes
+          // a depth-1 sibling of `inner`, so its resolved version
+          // propagates down to `inner`'s depth-2 caret re-resolution.
+          multi: '1.0.0',
+        },
+      },
+      modulesDir: '/project/node_modules',
+      rootDir: '/project' as ProjectRootDir,
+      updatePackageManifest: false,
+      // Mirror `pnpm up -r t`: target t by name.
+      updateMatching: (name: string) => name === 't',
+      wantedDependencies: [
+        {
+          alias: 'multi',
+          bareSpecifier: '1.0.0',
+          dev: false,
+          optional: false,
+          // Mirror `pnpm up -r`'s default depth (Infinity) so the
+          // targeted update propagates through transitives.
+          updateDepth: Number.POSITIVE_INFINITY,
+        },
+      ],
+    } satisfies ImporterToResolveGeneric<object>,
+  ], {
+    allowedDeprecatedVersions: {},
+    allowUnusedPatches: false,
+    currentLockfile: lockfile,
+    dryRun: false,
+    engineStrict: false,
+    force: false,
+    forceFullResolution: false,
+    hooks: {},
+    lockfileDir: '/project',
+    pnpmVersion: '0.0.0',
+    registries: {
+      default: 'https://registry.npmjs.org/',
+    },
+    storeController,
+    tag: 'latest',
+    virtualStoreDir: '/project/node_modules/.pnpm',
+    globalVirtualStoreDir: '/project/node_modules/.pnpm/global',
+    virtualStoreDirMaxLength: 120,
+    wantedLockfile: lockfile,
+    workspacePackages: new Map(),
+    peersSuffixMaxLength: 1000,
+    dedupePeerDependents: true,
+  } satisfies ResolveDependenciesOptions)
+
+  const tResolutions = requestLog.filter(({ alias }) => alias === 't')
+  // Two resolutions of t reach requestPackage: multi's depth-1 exact
+  // pin and inner's depth-2 caret consumer.
+  expect(tResolutions).toHaveLength(2)
+
+  const caretResolution = tResolutions.find(({ bareSpecifier }) => bareSpecifier === '^1.0.0')
+  const exactResolution = tResolutions.find(({ bareSpecifier }) => bareSpecifier === '1.0.0')
+
+  // Primary contract: the caret consumer (inner's transitive t@^1.0.0)
+  // reaches `latest` (1.0.1), not the older version propagated down the
+  // chain from multi's exact-pin (1.0.0). A `t@1.0.0` here is the
+  // form-data downgrade — the targeted update quietly pinned the
+  // caret consumer to the propagated preferred instead of letting it
+  // bump.
+  expect(caretResolution?.resolvedId).toBe('t@1.0.1')
+
+  // Sanity check that the bug scenario was actually set up: the
+  // caret consumer's preferredVersions must contain t/1.0.0
+  // (propagated from multi's exact-pin). If this fails, the topology
+  // no longer reproduces the bug and the primary assertion above is
+  // meaningless.
+  expect(caretResolution?.hadPreferredT100).toBe(true)
+
+  // Companion outcome: the exact-pin resolves to 1.0.0 (range admits
+  // nothing else).
+  expect(exactResolution?.resolvedId).toBe('t@1.0.0')
+
+  // Plumbing diagnostics: the targeted package's resolutions must
+  // carry `updateRequested: true` so the npm picker bypasses
+  // preferredVersionSelectors. The carriers (re-resolved because of
+  // the broad `update` flag, but NOT the user's target) must carry
+  // `updateRequested: false` — this per-package discrimination is the
+  // core distinction the fix introduces over the broad `update` flag.
+  for (const resolution of tResolutions) {
+    expect(resolution.updateRequested).toBe(true)
+  }
+  // Assert every carrier resolution (not just the first) stays
+  // `updateRequested: false`, so a stray re-resolution can't slip the
+  // broad `update` flag through for a non-targeted package.
+  const multiResolutions = requestLog.filter(({ alias }) => alias === 'multi')
+  expect(multiResolutions.length).toBeGreaterThan(0)
+  for (const resolution of multiResolutions) {
+    expect(resolution.updateRequested).toBe(false)
+  }
+  const innerResolutions = requestLog.filter(({ alias }) => alias === 'inner')
+  expect(innerResolutions.length).toBeGreaterThan(0)
+  for (const resolution of innerResolutions) {
+    expect(resolution.updateRequested).toBe(false)
+  }
+})
+
 function hasPreferredVersion (preferredVersions: PreferredVersions, alias: string, version: string): boolean {
   return Boolean(preferredVersions[alias]?.[version])
 }
 
-function pickVersion (alias: string, bareSpecifier: string, preferredVersions: PreferredVersions): string {
+function pickVersion (alias: string, bareSpecifier: string, preferredVersions: PreferredVersions, updateRequested?: boolean): string {
   if (alias === 'provider' && bareSpecifier === '*') {
     return hasPreferredVersion(preferredVersions, alias, '1.0.0') ? '1.0.0' : '2.0.0'
+  }
+  if (alias === 't') {
+    // An exact specifier admits only itself; the updateRequested bypass
+    // cannot widen an exact pin.
+    if (bareSpecifier === '1.0.0') return '1.0.0'
+    // Caret admits 1.0.0 and 1.0.1 (latest). Model the npm-picker
+    // contract from `resolving/npm-resolver/src/index.ts`: when
+    // `updateRequested` is true, `preferredVersionSelectors` is
+    // undefined and the picker ignores propagated preferred versions.
+    // Otherwise the picker honors a propagated 1.0.0 — the form-data
+    // bug behavior the fix eliminates.
+    if (bareSpecifier === '^1.0.0') {
+      if (updateRequested === true) return '1.0.1'
+      return hasPreferredVersion(preferredVersions, 't', '1.0.0') ? '1.0.0' : '1.0.1'
+    }
   }
   return bareSpecifier
 }
@@ -121,6 +276,53 @@ function createLockfile (): LockfileObject {
       },
     },
     packages: {},
+  }
+}
+
+/**
+ * Mirror `pnpm up -r t`'s starting state. The prior lockfile records
+ * `multi@1.0.0` (the carrier whose manifest pins t at 1.0.0 and pulls
+ * in `inner`), `inner@1.0.0` (whose own manifest consumes t via caret
+ * `^1.0.0`), and `t@1.0.0` (the version both branches resolved to
+ * under the older `latest` dist-tag). `infoFromLockfile` is only
+ * populated when the package is recorded here — without it the
+ * deps-resolver never invokes `updateMatching`.
+ */
+function createLockfileWithTPinning (): LockfileObject {
+  return {
+    lockfileVersion: '9.0',
+    importers: {
+      ['.' as ProjectId]: {
+        specifiers: {
+          multi: '1.0.0',
+        },
+        dependencies: {
+          multi: '1.0.0',
+        },
+      },
+    },
+    packages: {
+      ['multi@1.0.0' as DepPath]: {
+        id: 'multi@1.0.0',
+        name: 'multi',
+        version: '1.0.0',
+        resolution: { type: 'directory', directory: '/dev/null' },
+        dependencies: { t: '1.0.0', inner: '1.0.0' },
+      },
+      ['inner@1.0.0' as DepPath]: {
+        id: 'inner@1.0.0',
+        name: 'inner',
+        version: '1.0.0',
+        resolution: { type: 'directory', directory: '/dev/null' },
+        dependencies: { t: '1.0.0' },
+      },
+      ['t@1.0.0' as DepPath]: {
+        id: 't@1.0.0',
+        name: 't',
+        version: '1.0.0',
+        resolution: { type: 'directory', directory: '/dev/null' },
+      },
+    },
   }
 }
 
@@ -203,6 +405,34 @@ const manifests: Record<string, PackageManifest> = {
     version: '1.0.0',
     dependencies: {
       provider: '*',
+    },
+  },
+  't@1.0.0': {
+    name: 't',
+    version: '1.0.0',
+  },
+  't@1.0.1': {
+    name: 't',
+    version: '1.0.1',
+  },
+  'multi@1.0.0': {
+    name: 'multi',
+    version: '1.0.0',
+    dependencies: {
+      // Shallower exact pin on t (nx → form-data@4.0.5 role).
+      t: '1.0.0',
+      // Sub-carrier whose own manifest consumes t via caret (axios →
+      // form-data@^4.0.5 role).
+      inner: '1.0.0',
+    },
+  },
+  'inner@1.0.0': {
+    name: 'inner',
+    version: '1.0.0',
+    dependencies: {
+      // Caret consumer — admits 1.0.0 (initial) and 1.0.1 (after the
+      // dist-tag bump that `pnpm up -r t` reacts to).
+      t: '^1.0.0',
     },
   },
 }

@@ -510,6 +510,100 @@ test("ignore the preferred version if it's not inside the wanted range", async (
   expect(resolveResult!.id).toBe('is-positive@3.1.0')
 })
 
+test('ignore the preferred version when updateRequested is true (targeted update must not be pulled down by sibling propagation)', async () => {
+  // Regression test for the form-data downgrade: when the user runs
+  // `pnpm up -r <pkg>`, the targeted package's resolution must not be
+  // pinned to an older sibling-resolved version via preferredVersionSelectors.
+  // The resolver receives updateRequested=true only for packages matching
+  // the user's update target, so unrelated re-resolutions keep deduping.
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, {
+      ...isPositiveMeta,
+      'dist-tags': { latest: '3.1.0' },
+    })
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registries,
+  })
+  const resolveResult = await resolveFromNpm({
+    alias: 'is-positive',
+    bareSpecifier: '^3.0.0',
+  }, {
+    preferredVersions: {
+      'is-positive': { '3.0.0': 'version' },
+    },
+    updateRequested: true,
+  })
+  expect(resolveResult!.id).toBe('is-positive@3.1.0')
+})
+
+test('still honor the preferred version when updateRequested is false (dedup during plain install)', async () => {
+  // Companion to the test above: the new flag must not regress normal
+  // install-time dedup. With updateRequested unset/false, a preferred
+  // version inside the wanted range continues to win over latest so
+  // pnpm avoids creating a duplicate.
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, {
+      ...isPositiveMeta,
+      'dist-tags': { latest: '3.1.0' },
+    })
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registries,
+  })
+  const resolveResult = await resolveFromNpm({
+    alias: 'is-positive',
+    bareSpecifier: '^3.0.0',
+  }, {
+    preferredVersions: {
+      'is-positive': { '3.0.0': 'version' },
+    },
+    updateRequested: false,
+  })
+  expect(resolveResult!.id).toBe('is-positive@3.0.0')
+})
+
+test('preserve vulnerability-avoidance range selectors even when updateRequested is true', async () => {
+  // Security regression: `pnpm audit --fix` targets vulnerable packages via
+  // updateMatching (so updateRequested becomes true for them) and steers
+  // resolution away from vulnerable versions with negative-weight `range`
+  // selectors in preferredVersions. Only the propagated exact-version pins
+  // may be dropped for the targeted package — the range penalties must
+  // survive, or the "fix" would re-pick the vulnerable highest-in-range
+  // version.
+  getMockAgent().get(registries.default.replace(/\/$/, ''))
+    .intercept({ path: '/is-positive', method: 'GET' })
+    .reply(200, isPositiveMeta) // latest is 3.1.0
+
+  const { resolveFromNpm } = createResolveFromNpm({
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registries,
+  })
+  const resolveResult = await resolveFromNpm({
+    alias: 'is-positive',
+    bareSpecifier: '^3.0.0',
+  }, {
+    preferredVersions: {
+      'is-positive': {
+        // A propagated exact pin — dropped so it can't hold the target down.
+        '3.0.0': 'version',
+        // A vulnerability penalty on 3.1.0 — must survive so the targeted
+        // update lands on 3.0.0 instead of the vulnerable latest.
+        '>=3.1.0': { selectorType: 'range', weight: -1000 },
+      },
+    },
+    updateRequested: true,
+  })
+  expect(resolveResult!.id).toBe('is-positive@3.0.0')
+})
+
 test('use the preferred range if it intersects with the wanted range', async () => {
   getMockAgent().get(registries.default.replace(/\/$/, ''))
     .intercept({ path: '/is-positive', method: 'GET' })

@@ -267,3 +267,125 @@ async fn errors_on_invalid_scoped_package_name() {
         .expect_err("scope without name must error");
     assert!(err.to_string().contains("'gh:'"), "got {err}");
 }
+
+#[tokio::test]
+async fn update_requested_bypasses_preferred_versions() {
+    // Regression test for the form-data downgrade on named-registry /
+    // JSR resolution paths. With `update_requested=true`, the picker
+    // must skip `preferred_versions` so a sibling's older resolved
+    // version doesn't pull the targeted update off the latest dist-tag.
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/@acme%2Fprivate")
+        .with_status(200)
+        .with_body(ACME_PRIVATE_BODY)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+
+    let mut user = HashMap::new();
+    user.insert("gh".to_string(), registry);
+    let (resolver, _tempdir) = build_resolver(user);
+
+    // Preferred = 2.0.0 (older). Range = ^2.0.0 admits both 2.0.0 and
+    // latest 2.1.0. Without the bypass, the picker honors the preferred
+    // version and returns 2.0.0.
+    let mut preferred = pacquet_resolving_resolver_base::PreferredVersions::new();
+    preferred.insert("@acme/private".to_string(), {
+        let mut selectors = pacquet_resolving_resolver_base::VersionSelectors::new();
+        selectors.insert(
+            "2.0.0".to_string(),
+            pacquet_resolving_resolver_base::VersionSelectorEntry::Plain(
+                pacquet_resolving_resolver_base::VersionSelectorType::Version,
+            ),
+        );
+        selectors
+    });
+    let wanted = WantedDependency {
+        alias: Some("@acme/private".to_string()),
+        bare_specifier: Some("gh:^2.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver
+        .resolve(
+            &wanted,
+            &ResolveOptions {
+                preferred_versions: std::sync::Arc::new(preferred),
+                update_requested: true,
+                ..ResolveOptions::default()
+            },
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    // Latest 2.1.0 wins because update_requested bypassed the preferred
+    // 2.0.0.
+    assert_eq!(result.id.as_str(), "@acme/private@2.1.0");
+}
+
+#[tokio::test]
+async fn update_requested_keeps_non_version_selectors() {
+    // Parity with pnpm's `stripVersionPins`: `update_requested` drops only
+    // the propagated exact-version pins, not `range`/`tag` selectors. pnpm
+    // uses these to steer resolution (e.g. vulnerability-avoidance penalties
+    // from `pnpm audit --fix`), and they must keep applying to the targeted
+    // package. Here a `range` preference on the older 2.0.0 stands in for any
+    // such non-pin selector: it must survive so the targeted update honors it
+    // instead of jumping to latest 2.1.0.
+    let mut server = mockito::Server::new_async().await;
+    let _mock = server
+        .mock("GET", "/@acme%2Fprivate")
+        .with_status(200)
+        .with_body(ACME_PRIVATE_BODY)
+        .create_async()
+        .await;
+    let registry = format!("{}/", server.url());
+
+    let mut user = HashMap::new();
+    user.insert("gh".to_string(), registry);
+    let (resolver, _tempdir) = build_resolver(user);
+
+    let mut preferred = pacquet_resolving_resolver_base::PreferredVersions::new();
+    preferred.insert("@acme/private".to_string(), {
+        let mut selectors = pacquet_resolving_resolver_base::VersionSelectors::new();
+        // A propagated exact pin — dropped, so it can't hold the target down.
+        selectors.insert(
+            "2.1.0".to_string(),
+            pacquet_resolving_resolver_base::VersionSelectorEntry::Plain(
+                pacquet_resolving_resolver_base::VersionSelectorType::Version,
+            ),
+        );
+        // A `range` preference on 2.0.0 — must survive update_requested.
+        selectors.insert(
+            "2.0.0".to_string(),
+            pacquet_resolving_resolver_base::VersionSelectorEntry::Weighted(
+                pacquet_resolving_resolver_base::VersionSelectorWithWeight {
+                    selector_type: pacquet_resolving_resolver_base::VersionSelectorType::Range,
+                    weight: 1000,
+                },
+            ),
+        );
+        selectors
+    });
+    let wanted = WantedDependency {
+        alias: Some("@acme/private".to_string()),
+        bare_specifier: Some("gh:^2.0.0".to_string()),
+        ..WantedDependency::default()
+    };
+    let result = resolver
+        .resolve(
+            &wanted,
+            &ResolveOptions {
+                preferred_versions: std::sync::Arc::new(preferred),
+                update_requested: true,
+                ..ResolveOptions::default()
+            },
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    // The surviving `range` selector steers to 2.0.0; had update_requested
+    // dropped it (alongside the version pin), the picker would have returned
+    // latest 2.1.0.
+    assert_eq!(result.id.as_str(), "@acme/private@2.0.0");
+}

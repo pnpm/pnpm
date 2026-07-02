@@ -313,3 +313,37 @@ test('the same package name served by two registries does not collide in the in-
     },
   })
 })
+
+test('resolveFromNamedRegistry() preserves vulnerability-avoidance range selectors even when updateRequested is true', async () => {
+  // Security regression: the simple-registry picker (jsr + named registries)
+  // must use the same `stripVersionPins` helper as the npm picker, so a
+  // targeted update drops only propagated exact-version pins and keeps
+  // range penalties (e.g. `pnpm audit --fix` vulnerability avoidance).
+  // Without the helper, dropping all selectors lets the "fix" re-pick the
+  // vulnerable highest-in-range version.
+  interceptGhAcmePrivate()
+
+  const { resolveFromNamedRegistry } = createNpmResolver(fetch, () => undefined, {
+    storeDir: temporaryDirectory(),
+    cacheDir: temporaryDirectory(),
+    registries,
+  })
+
+  const resolveResult = await resolveFromNamedRegistry(
+    { alias: '@acme/private', bareSpecifier: 'gh:^2.0.0' },
+    {
+      preferredVersions: {
+        '@acme/private': {
+          // Propagated exact pin — dropped so it can't hold the target down.
+          '2.0.0': 'version',
+          // Vulnerability penalty on 2.1.0 — must survive so the targeted
+          // update lands on 2.0.0 instead of the vulnerable latest.
+          '>=2.1.0': { selectorType: 'range', weight: -1000 },
+        },
+      },
+      updateRequested: true,
+    }
+  )
+
+  expect(resolveResult).toMatchObject({ id: '@acme/private@2.0.0' })
+})

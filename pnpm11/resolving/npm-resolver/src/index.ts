@@ -19,6 +19,7 @@ import type {
   ResolveOptions,
   ResolveResult,
   TarballResolution,
+  VersionSelectors,
   WantedDependency,
   WorkspacePackage,
   WorkspacePackages,
@@ -295,6 +296,40 @@ export function createNpmResolver (
   }
 }
 
+/**
+ * The preferred-version selectors to hand the package picker for `pkgName`.
+ *
+ * When this package is the user's update target (`updateRequested`), the
+ * exact-version pins propagated from already-resolved siblings are dropped
+ * so the target can reach `latest` instead of being held back to a sibling's
+ * older resolved version. Non-pin selectors are preserved — in particular the
+ * negative-weight `range` penalties that `pnpm audit --fix` injects to steer
+ * resolution away from vulnerable versions, which must keep applying even to
+ * the targeted package.
+ */
+function preferredVersionSelectorsFor (
+  opts: Pick<ResolveFromNpmOptions, 'updateRequested' | 'preferredVersions'>,
+  pkgName: string
+): VersionSelectors | undefined {
+  const selectors = opts.preferredVersions?.[pkgName]
+  if (!opts.updateRequested) return selectors
+  return stripVersionPins(selectors)
+}
+
+/** Drop selectors whose type is `version` (propagated exact pins), keeping
+ * `range` and `tag` selectors. Returns `undefined` when nothing remains. */
+function stripVersionPins (selectors?: VersionSelectors): VersionSelectors | undefined {
+  if (selectors == null) return undefined
+  let kept: VersionSelectors | undefined
+  for (const [selector, value] of Object.entries(selectors)) {
+    const selectorType = typeof value === 'string' ? value : value.selectorType
+    if (selectorType === 'version') continue
+    kept ??= {}
+    kept[selector] = value
+  }
+  return kept
+}
+
 function isNpmSpec (query: LatestQuery, defaultRegistry: string): boolean {
   const { alias, bareSpecifier } = query.wantedDependency
   if (!bareSpecifier) return alias != null
@@ -388,6 +423,7 @@ export type ResolveFromNpmOptions = {
   preferredVersions?: PreferredVersions
   preferWorkspacePackages?: boolean
   update?: false | 'compatible' | 'latest'
+  updateRequested?: boolean
   updateChecksums?: boolean
   injectWorkspacePackages?: boolean
   calcSpecifier?: boolean
@@ -501,7 +537,7 @@ async function resolveNpm (
       publishedByExclude: opts.publishedByExclude,
       authHeaderValue,
       dryRun: opts.dryRun === true,
-      preferredVersionSelectors: opts.preferredVersions?.[spec.name],
+      preferredVersionSelectors: preferredVersionSelectorsFor(opts, spec.name),
       registry,
       includeLatestTag: opts.update === 'latest',
       updateChecksums: opts.updateChecksums,
@@ -737,7 +773,7 @@ async function pickFromSimpleRegistry (
     publishedByExclude: opts.publishedByExclude,
     authHeaderValue,
     dryRun: opts.dryRun === true,
-    preferredVersionSelectors: opts.preferredVersions?.[spec.name],
+    preferredVersionSelectors: preferredVersionSelectorsFor(opts, spec.name),
     registry,
     includeLatestTag: opts.update === 'latest',
     updateChecksums: opts.updateChecksums,

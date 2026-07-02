@@ -323,6 +323,15 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
     ) -> Result<Option<PickedFromRegistry>, ResolveError> {
         let overlay_selectors =
             crate::preferred_overlay::overlay_merged_selectors(opts, &spec.name);
+        let base_selectors =
+            overlay_selectors.as_ref().or_else(|| opts.preferred_versions.get(&spec.name));
+        // For the user's update target, drop the propagated exact-version
+        // pins so it can reach `latest`, keeping `range`/`tag` selectors
+        // (e.g. vulnerability-avoidance penalties). Mirrors pnpm.
+        let stripped_selectors = opts
+            .update_requested
+            .then(|| base_selectors.and_then(crate::preferred_overlay::strip_version_pins))
+            .flatten();
         let ctx = PickPackageContext {
             http_client: &self.http_client,
             auth_headers: &self.auth_headers,
@@ -342,9 +351,11 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
             PickFromRegistryOptions {
                 registry,
                 spec,
-                preferred_version_selectors: overlay_selectors
-                    .as_ref()
-                    .or_else(|| opts.preferred_versions.get(&spec.name)),
+                preferred_version_selectors: if opts.update_requested {
+                    stripped_selectors.as_ref()
+                } else {
+                    base_selectors
+                },
                 published_by: opts.published_by,
                 published_by_exclude: opts.published_by_exclude.as_ref(),
                 pick_lowest_version: opts.pick_lowest_version,
