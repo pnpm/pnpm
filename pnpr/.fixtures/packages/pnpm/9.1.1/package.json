@@ -1,7 +1,0 @@
-{
-  "name": "pnpm",
-  "version": "9.1.1",
-  "bin": {
-    "pnpm": "pnpm"
-  }
-}
