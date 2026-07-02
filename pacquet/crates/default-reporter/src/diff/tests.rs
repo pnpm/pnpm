@@ -92,13 +92,12 @@ fn clear_down_from_cursor_row() {
     // not from new_last_row.
     diff.update("Line A\nLine B\nLine C\n");
     let output = diff.update("Line A\nLine B changed\n");
-    // Line C is removed → clear_down should emit \x1b[0K for it.
+    // Line A (unchanged) must not appear in the diff output at all.
+    assert!(!output.contains("Line A"), "unchanged leading line not rewritten: {output:?}");
+    // Line B is rewritten (different length → full rewrite, not inline diff).
+    assert!(output.contains("Line B changed"), "changed line B is written: {output:?}");
+    // Line C is removed → clear_down emits \x1b[0K for the trailing rows.
     assert!(output.contains("\x1b[0K"), "removed trailing line is cleared: {output:?}");
-    // Line A (unchanged) should NOT be rewritten.
-    assert!(
-        !output.contains("Line A\n") || output.matches('\x1b').count() > 1,
-        "unchanged leading line not rewritten: {output:?}",
-    );
 }
 
 #[test]

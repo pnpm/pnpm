@@ -146,7 +146,9 @@ impl Sink {
                     frame.push('\n');
                 }
                 let diff_output = self.diff.update(&frame);
-                let _ = out.write_all(format!("\r{diff_output}\x1b[K\x1b[0J").as_bytes());
+                let _ = out.write_all(b"\r");
+                let _ = out.write_all(diff_output.as_bytes());
+                let _ = out.write_all(b"\x1b[K\x1b[0J");
             }
         }
         let _ = out.flush();

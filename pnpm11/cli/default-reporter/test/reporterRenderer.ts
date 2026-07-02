@@ -78,9 +78,10 @@ test('differential renderer does not reprint unchanged sticky blocks', async () 
 
     await waitFor(writes, w => w.some(s => stripAnsi(s).includes(LOCKFILE_TEXT)))
 
+    const writesBeforeFetch = writes.length
     progressLogger.debug({ packageId: 'registry.npmjs.org/foo/1.0.0', requester: cwd, status: 'fetched' })
 
-    await waitFor(writes, w => w.length >= 2)
+    await waitFor(writes, w => w.length > writesBeforeFetch)
 
     // The sticky verdict must be written exactly once. Locate its first render
     // rather than assuming it lands in writes[0] (the reporter may emit an
