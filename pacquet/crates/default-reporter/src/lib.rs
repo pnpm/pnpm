@@ -93,6 +93,10 @@ static SINK: LazyLock<Mutex<Sink>> = LazyLock::new(|| Mutex::new(Sink::new()));
 struct Sink {
     state: ReporterState,
     diff: diff::Diff,
+    /// Reused across frames so the hot progress path composes the whole
+    /// redraw without allocating, and writes it as a single `write_all`
+    /// (an atomic update other writers can't interleave into).
+    frame_buf: String,
     throttle: Duration,
     last_write: Option<Instant>,
 }
@@ -109,7 +113,7 @@ impl Sink {
         let diff = diff::Diff::new(columns);
         let throttle =
             if append_only { Duration::from_secs(1) } else { Duration::from_millis(200) };
-        Sink { state, diff, throttle, last_write: None }
+        Sink { state, diff, frame_buf: String::new(), throttle, last_write: None }
     }
 
     fn write(&mut self, output: Output, coalesceable: bool) {
@@ -145,10 +149,15 @@ impl Sink {
                 if !frame.ends_with('\n') {
                     frame.push('\n');
                 }
-                let diff_output = self.diff.update(&frame);
-                let _ = out.write_all(b"\r");
-                let _ = out.write_all(diff_output.as_bytes());
-                let _ = out.write_all(b"\x1b[K\x1b[0J");
+                // `\r` resets the column in case an external process left the
+                // cursor mid-line; `\x1b[K` erases trailing characters on the
+                // current line; `\x1b[0J` erases anything written below the
+                // rendered frame.
+                self.frame_buf.clear();
+                self.frame_buf.push('\r');
+                self.diff.update_into(&frame, &mut self.frame_buf);
+                self.frame_buf.push_str("\x1b[K\x1b[0J");
+                let _ = out.write_all(self.frame_buf.as_bytes());
             }
         }
         let _ = out.flush();

@@ -62,16 +62,17 @@ fn inline_diff_skipped_for_ansi_lines() {
 }
 
 #[test]
-fn inline_diff_skipped_for_small_change() {
+fn inline_diff_skipped_for_short_common_affix() {
     let mut diff = Diff::new(120);
-    // Two frames that differ by only one character at the very end.
-    // left=28, right=0, left+right=28 > 4 so this DOES qualify for inline diff.
-    // Use a shorter line where the change is tiny relative to the line.
-    diff.update("Progress: resolved 1\n");
-    let output = diff.update("Progress: resolved 2\n");
-    // left=19, right=0, left+right=19 > 4 → inline diff applies.
-    // The changed char '2' is written; the unchanged prefix is not.
-    assert!(output.contains('2'), "changed char is written: {output:?}");
+    // Same length, but the unchanged prefix + suffix is only 4 chars
+    // (left=2, right=2) — at the `left + right <= 4` threshold, an inline
+    // diff isn't worth it, so the whole line is rewritten.
+    diff.update("AB0000000000CD\n");
+    let output = diff.update("AB1111111111CD\n");
+    assert!(
+        output.contains("AB1111111111CD"),
+        "line with a short common affix is fully rewritten: {output:?}",
+    );
 }
 
 #[test]

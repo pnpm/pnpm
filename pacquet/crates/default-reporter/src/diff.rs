@@ -30,12 +30,12 @@ impl Diff {
         Diff { col: 0, row: 0, width, lines: Vec::new() }
     }
 
-    /// Returns the ANSI escape sequence that transforms the previous frame
-    /// into `frame`. The caller wraps this with `\r` (column reset) and
-    /// `\x1b[0J` (erase below frame).
-    pub(crate) fn update(&mut self, frame: &str) -> String {
+    /// Appends to `out` the ANSI escape sequence that transforms the previous
+    /// frame into `frame`. The caller wraps this with `\r` (column reset) and
+    /// `\x1b[0J` (erase below frame), composing the whole redraw into one
+    /// buffer so it reaches the terminal as a single write.
+    pub(crate) fn update_into(&mut self, frame: &str, out: &mut String) {
         let next = Line::split(frame, self.width);
-        let mut out = String::new();
         let min = next.len().min(self.lines.len());
         let mut scrub = false;
 
@@ -56,17 +56,11 @@ impl Diff {
             let old_height = old_line.height;
             if !scrub
                 && self.col != self.width
-                && new_line.try_inline_diff(
-                    old_line,
-                    &mut out,
-                    &mut self.col,
-                    &mut self.row,
-                    self.width,
-                )
+                && new_line.try_inline_diff(old_line, out, &mut self.col, &mut self.row, self.width)
             {
                 continue;
             }
-            self.move_to(&mut out, 0, new_line.row);
+            self.move_to(out, 0, new_line.row);
             out.push_str(&new_line.raw);
             if new_line.row != old_row || new_line.height != old_height {
                 scrub = true;
@@ -85,7 +79,7 @@ impl Diff {
         }
 
         for new_line in &next[min..] {
-            self.move_to(&mut out, 0, new_line.row);
+            self.move_to(out, 0, new_line.row);
             out.push_str(&new_line.raw);
             if scrub {
                 out.push_str("\x1b[0K");
@@ -104,15 +98,21 @@ impl Diff {
             let old_last_row = old_last.row + old_last.height;
             let new_last_row = next.last().map_or(0, |line| line.row + line.height);
             if next.is_empty() || new_last_row < old_last_row {
-                self.clear_down(&mut out, old_last_row);
+                self.clear_down(out, old_last_row);
             }
         }
 
         if let Some(last) = next.last() {
-            self.move_to(&mut out, last.remainder, last.row + last.height);
+            self.move_to(out, last.remainder, last.row + last.height);
         }
 
         self.lines = next;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn update(&mut self, frame: &str) -> String {
+        let mut out = String::new();
+        self.update_into(frame, &mut out);
         out
     }
 
