@@ -1148,16 +1148,29 @@ fn default_true() -> bool {
 /// The package-name patterns that [`Config::proxy`] routes to its flat-root
 /// hosted org rather than the npm upstream: the registry-mock fixture scopes
 /// plus the one unscoped fixture. Kept in sync with the bundled `config.yaml`
-/// router and the fixtures under `pnpr/.fixtures/packages`.
+/// router and the fixtures under `pnpr/.fixtures/packages`. The fixture
+/// packages living in real, active npm scopes (`@pnpm`, `@zkochan`) are
+/// routed by exact name so the rest of those scopes keeps proxying npm
+/// (dependency trees of proxied packages pull real `@pnpm/*` packages).
 const REGISTRY_MOCK_LOCAL_PATTERNS: &[&str] = &[
     "@foo/*",
     "@having/*",
     "@jsr/*",
-    "@pnpm/*",
     "@pnpm.e2e/*",
     "@private/*",
     "@scoped/*",
-    "@zkochan/*",
+    "@pnpm/plugin-pnpmfile",
+    "@pnpm/postinstall-modifies-source",
+    "@pnpm/x",
+    "@pnpm/xyz",
+    "@pnpm/xyz-parent",
+    "@pnpm/xyz-parent-parent",
+    "@pnpm/xyz-parent-parent-parent",
+    "@pnpm/xyz-parent-parent-parent-parent",
+    "@pnpm/xyz-parent-parent-with-xyz",
+    "@pnpm/y",
+    "@pnpm/z",
+    "@zkochan/test-pnpm-issue219",
     "create-touch-file-one-bin",
 ];
 

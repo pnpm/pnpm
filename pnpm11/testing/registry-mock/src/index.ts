@@ -125,14 +125,16 @@ export function getIntegrity (pkgName: string, pkgVersion: string): string {
 // name and URL, which the test side cannot compute — so enumerate whatever
 // namespaces exist (for the registry mock, at most one: npmjs).
 function listPublicProxyNamespaces (publicCacheDir: string): string[] {
-  let entries: string[]
+  let entries: fs.Dirent[]
   try {
-    entries = fs.readdirSync(publicCacheDir)
+    entries = fs.readdirSync(publicCacheDir, { withFileTypes: true })
   } catch (err: unknown) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') return []
     throw err
   }
-  return entries.map((entry) => path.join(publicCacheDir, entry))
+  return entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => path.join(publicCacheDir, entry.name))
 }
 
 // Returns the first readable packument among the candidates, or `undefined` when
