@@ -7,9 +7,8 @@ use pacquet_resolving_resolver_base::{
 /// target: the exact pins a sibling propagated must not hold the target
 /// down, but `range`/`tag` selectors — e.g. the vulnerability-avoidance
 /// penalties pnpm injects — must keep steering it. Mirrors pnpm's
-/// [`stripVersionPins`](https://github.com/pnpm/pnpm/blob/3687b0e180/resolving/npm-resolver/src/index.ts).
-/// Returns `None` when nothing remains, so the caller treats it the same
-/// as "no preferred versions".
+/// `stripVersionPins`. Returns `None` when nothing remains, so the
+/// caller treats it the same as "no preferred versions".
 pub(crate) fn strip_version_pins(selectors: &VersionSelectors) -> Option<VersionSelectors> {
     let kept: VersionSelectors = selectors
         .iter()
