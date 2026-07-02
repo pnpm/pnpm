@@ -1699,26 +1699,22 @@ fn validate_mount_name(name: &str) -> Result<(), RegistryError> {
 }
 
 /// A hosted mount's `org` becomes a storage path/key segment (`Storage::for_hosted`),
-/// so it must be a single safe component: empty (the flat root) or a name with
-/// no separators, no leading dot, and not absolute — otherwise a crafted
-/// config could read or write outside the storage root. The leading-dot rule
-/// also keeps an org from aliasing the reserved dot-directories inside the
-/// storage root (the default `.pnpr-cache` wipeable cache and the
-/// `.pnpr-journal` commit journal), which would put authoritative packages
-/// under a path an operator is told is safe to delete.
+/// so it must be empty (the flat root) or one safe component under the same
+/// rules as every other on-disk segment (no separators, traversal, leading
+/// dot, or Windows drive prefix) — otherwise a crafted config could read or
+/// write outside the storage root. The leading-dot rule also keeps an org
+/// from aliasing the reserved dot-directories inside the storage root (the
+/// default `.pnpr-cache` wipeable cache and the `.pnpr-journal` commit
+/// journal), which would put authoritative packages under a path an operator
+/// is told is safe to delete.
 fn validate_org_namespace(name: &str, org: &str) -> Result<(), RegistryError> {
-    let safe = org.is_empty()
-        || (!org.contains('/')
-            && !org.contains('\\')
-            && !org.starts_with('.')
-            && !Path::new(org).is_absolute());
-    if safe {
+    if org.is_empty() || crate::package_name::is_safe_path_segment(org) {
         return Ok(());
     }
     Err(RegistryError::InvalidConfig {
         reason: format!(
             "hosted mount {name:?} has an invalid `org` {org:?}: it must be a single path-safe \
-             segment (no `/`, `\\`, leading `.`, or absolute path)",
+             segment (no `/`, `\\`, `:`, leading `.`, or traversal)",
         ),
     })
 }
