@@ -2251,7 +2251,7 @@ fn should_bypass_preferred(scope: &UpdateReuseScope, wanted: &WantedDependency) 
     match scope {
         UpdateReuseScope::All | UpdateReuseScope::None => false,
         UpdateReuseScope::Except(_) => {
-            real_package_name_of(wanted).is_some_and(|n| update_excludes(scope, &n))
+            real_package_name_of(wanted).is_some_and(|n| update_excludes(scope, n.as_ref()))
         }
     }
 }
