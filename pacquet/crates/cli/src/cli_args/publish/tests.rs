@@ -146,3 +146,18 @@ async fn publish_directory_errors_when_no_manifest_is_present() {
         Some("ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND"),
     );
 }
+
+/// `--batch` is only meaningful with `--recursive`; passing it to a single
+/// publish is rejected before any git check or network work.
+#[tokio::test]
+async fn run_rejects_batch_without_recursive() {
+    let args = PublishArgs { batch: true, ..publish_args() };
+    let err = args
+        .run::<SilentReporter>(std::path::Path::new("."), &Config::default(), false)
+        .await
+        .expect_err("--batch requires --recursive");
+    assert_eq!(
+        err.code().map(|code| code.to_string()).as_deref(),
+        Some("ERR_PNPM_BATCH_PUBLISH_REQUIRES_RECURSIVE"),
+    );
+}
