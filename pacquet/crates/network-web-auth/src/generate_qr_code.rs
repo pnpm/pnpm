@@ -1,27 +1,71 @@
-use qrcode::{QrCode, render::unicode};
+use qrcode::{EcLevel, QrCode, Version, bits::Bits, types::Color};
 
-/// Render `text` as a compact half-block Unicode QR code for a terminal.
+/// Render `text` as a compact half-block Unicode QR code for a terminal,
+/// matching the output of pnpm's `qrcode-terminal` small mode.
 ///
-/// Light modules (including the quiet-zone border) are drawn as block
-/// glyphs and dark modules as blank cells, so on the usual light-on-dark
+/// The code is encoded at error-correction level `L` in a single byte segment
+/// (so its version — and therefore its on-screen size — matches pnpm's) and
+/// framed by a one-module light border rather than the four-module quiet zone
+/// the crate's own renderer draws, keeping the margin thin. Dark modules are
+/// blank and light modules are block glyphs, so on the usual light-on-dark
 /// terminal the code shows as dark modules inside a light frame — the
-/// orientation a QR scanner expects. This is why the renderer's dark and
-/// light colors are swapped from the crate default, which draws dark
-/// modules as glyphs and would render inverted and borderless on a dark
-/// terminal.
+/// orientation a QR scanner expects.
 ///
 /// Returns an error only when `text` exceeds the maximum QR data capacity.
-/// `text` comes from an untrusted registry response, so an oversized
-/// payload surfaces as a recoverable error rather than a panic.
+/// `text` comes from an untrusted registry response, so an oversized payload
+/// surfaces as a recoverable error rather than a panic.
 pub fn generate_qr_code(text: &str) -> Result<String, GenerateQrCodeError> {
-    QrCode::new(text)
-        .map(|code| {
-            code.render::<unicode::Dense1x2>()
-                .dark_color(unicode::Dense1x2::Light)
-                .light_color(unicode::Dense1x2::Dark)
-                .build()
-        })
-        .map_err(|source| GenerateQrCodeError { reason: source.to_string() })
+    byte_mode_code(text.as_bytes(), EcLevel::L).map(|code| render_small(&code))
+}
+
+/// Encode `data` as a single byte-mode segment at the smallest version that
+/// fits, matching `qrcode-terminal`'s `addData`. The crate's `QrCode::new`
+/// optimizes into mixed segments instead, which can pick a different version
+/// (and so a different size) than pnpm renders.
+fn byte_mode_code(data: &[u8], ec_level: EcLevel) -> Result<QrCode, GenerateQrCodeError> {
+    for version_number in 1_i16..=40 {
+        let mut bits = Bits::new(Version::Normal(version_number));
+        if bits.push_byte_data(data).is_err() || bits.push_terminator(ec_level).is_err() {
+            continue;
+        }
+        if let Ok(code) = QrCode::with_bits(bits, ec_level) {
+            return Ok(code);
+        }
+    }
+    Err(GenerateQrCodeError { reason: "text exceeds the maximum QR code data capacity".to_owned() })
+}
+
+/// Render `code` in `qrcode-terminal`'s small (half-block) style: a one-row
+/// top border, each module row framed by a light column, and each character
+/// stacking two vertical modules. A real QR always has an odd module count, so
+/// the bottom edge is the last row's light lower half — no separate bottom
+/// border row.
+fn render_small(code: &QrCode) -> String {
+    let width = code.width();
+    let colors = code.to_colors();
+    // Rows past the bottom edge pair with a light module, so the final
+    // character row's lower half is the (thin) bottom quiet zone.
+    let is_dark = |row: usize, col: usize| row < width && colors[row * width + col] == Color::Dark;
+
+    let mut lines = Vec::with_capacity(width / 2 + 2);
+    lines.push("\u{2584}".repeat(width + 2));
+    let mut row = 0;
+    while row < width {
+        let mut line = String::with_capacity((width + 2) * 3);
+        line.push('\u{2588}');
+        for col in 0..width {
+            line.push(match (is_dark(row, col), is_dark(row + 1, col)) {
+                (false, false) => '\u{2588}', // both light  -> full block
+                (false, true) => '\u{2580}',  // light / dark -> upper half
+                (true, false) => '\u{2584}',  // dark / light -> lower half
+                (true, true) => ' ',          // both dark   -> blank
+            });
+        }
+        line.push('\u{2588}');
+        lines.push(line);
+        row += 2;
+    }
+    lines.join("\n")
 }
 
 /// `text` could not be encoded as a QR code (e.g. it exceeds the maximum
