@@ -1039,9 +1039,11 @@ struct ConfigFile {
     /// config still carrying the global block previously enforced access
     /// with it, so silently dropping the key (the fate of unknown verdaccio
     /// fields) would be a security regression — private packages would
-    /// quietly open up on upgrade.
-    #[serde(default)]
-    packages: Option<serde::de::IgnoredAny>,
+    /// quietly open up on upgrade. Presence-detected through a custom
+    /// deserializer because a plain `Option` maps a *bare* `packages:`
+    /// (YAML null) to `None`, which would slip past the rejection.
+    #[serde(default, deserialize_with = "detect_removed_packages_block")]
+    packages: Option<RemovedPackagesBlock>,
     /// pnpr-only static groups: each key is a group/team name and each
     /// value is the list of pnpr usernames in that group.
     #[serde(default)]
@@ -1063,6 +1065,24 @@ struct ConfigFile {
     /// intentionally not accepted.
     #[serde(default)]
     log: Option<LogEntryFile>,
+}
+
+/// Marker for a present top-level `packages:` key, whatever its value.
+#[derive(Debug)]
+struct RemovedPackagesBlock;
+
+/// `Some` whenever the `packages:` key is present — including `packages:`
+/// with no value (YAML null), which `Option<IgnoredAny>` would map to
+/// `None` and let slip past the loud rejection. The value itself is
+/// consumed and discarded; only presence matters.
+fn detect_removed_packages_block<'de, De>(
+    deserializer: De,
+) -> Result<Option<RemovedPackagesBlock>, De::Error>
+where
+    De: serde::Deserializer<'de>,
+{
+    serde::de::IgnoredAny::deserialize(deserializer)?;
+    Ok(Some(RemovedPackagesBlock))
 }
 
 /// The YAML `log:` object. Mirrors verdaccio 6's logger config.

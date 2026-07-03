@@ -1803,6 +1803,22 @@ packages:
         ),
         "unexpected error: {err}",
     );
+
+    // A *bare* `packages:` (YAML null) and an empty block are the same
+    // removed key and must be rejected identically — a plain `Option`
+    // would map null to "absent" and let it slip through.
+    for stub in ["packages:\n", "packages: {}\n", "packages: ~\n"] {
+        let yaml = format!("storage: ./s\nregistries:\n  local:\n    type: hosted\n{stub}");
+        let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
+            .expect_err("a present top-level packages: key must be rejected");
+        assert!(
+            matches!(
+                &err,
+                RegistryError::InvalidConfig { reason } if reason.contains("top-level `packages:`"),
+            ),
+            "unexpected error for {stub:?}: {err}",
+        );
+    }
 }
 
 #[test]
