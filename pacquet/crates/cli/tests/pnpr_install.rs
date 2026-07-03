@@ -2,7 +2,7 @@
 //!
 //! Runs the real `pacquet` binary against a mocked fixtures registry,
 //! with an in-process `pnpr` hosting the fast-path endpoints. The pnpr
-//! server's own uplink is left at the default; the client sends the
+//! server's own upstream is left at the default; the client sends the
 //! registry it wants resolved from (the mock, which the server allowlists
 //! as a public route), so a passing test proves resolution used the
 //! client-supplied registry. The client then links `node_modules` from the

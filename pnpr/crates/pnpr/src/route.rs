@@ -33,7 +33,7 @@ use sha2::{Digest, Sha256};
 use wax::{Glob, Program};
 
 use crate::{
-    config::{Config, PublicRoute, UplinkConfig},
+    config::{Config, PublicRoute, UpstreamConfig},
     policy::{AccessList, Identity, PackagePolicies},
 };
 
@@ -50,7 +50,7 @@ pub enum RouteClass {
     Hosted { policy_id: String },
     /// A proxied upstream route served with a pnpr-managed credential
     /// alias the caller is authorized to use. [`credential_digest`] is a hash
-    /// of the uplink's `Authorization`, so rotating the credential changes it
+    /// of the upstream's `Authorization`, so rotating the credential changes it
     /// (see [`credential_digest`]).
     Proxied { alias: String, credential_digest: String },
 }
@@ -62,7 +62,7 @@ pub enum RouteClass {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum PrivateAccessDescriptor {
     /// Proxied route via a pnpr-managed upstream alias. [`credential_digest`]
-    /// hashes the uplink's `Authorization`, so rotating the credential moves
+    /// hashes the upstream's `Authorization`, so rotating the credential moves
     /// future hits to a new namespace — no manual epoch counter to bump.
     Alias { alias: String, credential_digest: String },
     /// pnpr-hosted route, gated by re-running the named package access
@@ -95,27 +95,27 @@ impl PrivateAccessDescriptor {
     }
 }
 
-/// The HMAC digest namespacing an uplink's private cache (packuments and
+/// The HMAC digest namespacing an upstream's private cache (packuments and
 /// tarballs), identical to the metadata-mirror descriptor id for the same
-/// `(uplink, credential)`. Keyed by the server `secret` so the on-disk path
-/// reveals neither the uplink name nor its credential, and so a path-unsafe
-/// uplink name (`..`, `/`) can never escape the cache root — the digest is
+/// `(upstream, credential)`. Keyed by the server `secret` so the on-disk path
+/// reveals neither the upstream name nor its credential, and so a path-unsafe
+/// upstream name (`..`, `/`) can never escape the cache root — the digest is
 /// hex. The digest passed here is a [`headers_credential_digest`] over the
-/// uplink's attached headers, so rotating any credential moves to a fresh
+/// upstream's attached headers, so rotating any credential moves to a fresh
 /// namespace.
 #[must_use]
-pub(crate) fn uplink_cache_digest(
-    uplink: String,
+pub(crate) fn upstream_cache_digest(
+    upstream: String,
     credential_digest: String,
     secret: &[u8],
 ) -> String {
-    PrivateAccessDescriptor::Alias { alias: uplink, credential_digest }.digest_id(secret)
+    PrivateAccessDescriptor::Alias { alias: upstream, credential_digest }.digest_id(secret)
 }
 
-/// A hash of an uplink's `Authorization` header value, used as the credential
+/// A hash of an upstream's `Authorization` header value, used as the credential
 /// epoch in [`PrivateAccessDescriptor::Alias`]. Rotating the upstream
 /// credential changes this automatically, re-keying every private cache the
-/// uplink owns — so a rotation invalidates old-credential content with no
+/// upstream owns — so a rotation invalidates old-credential content with no
 /// manual step to forget. The raw token never appears: it's a one-way SHA-256
 /// (then HMAC-keyed with the server secret by [`PrivateAccessDescriptor::digest_id`]
 /// before it reaches disk).
@@ -124,10 +124,10 @@ pub(crate) fn credential_digest(authorization: &str) -> String {
     hex(&Sha256::digest(authorization.as_bytes()))
 }
 
-/// A hash of an uplink's *effective credential material* — every request header
+/// A hash of an upstream's *effective credential material* — every request header
 /// it attaches upstream, not just `Authorization` — used as the credential epoch
 /// in [`PrivateAccessDescriptor::Alias`]. pnpr supports credentials carried in
-/// custom headers, so rotating any of them must re-key the uplink's private
+/// custom headers, so rotating any of them must re-key the upstream's private
 /// cache; keying on `Authorization` alone would keep serving old-credential
 /// content after such a rotation.
 ///
@@ -215,11 +215,11 @@ pub struct RouteContext {
     public_routes: Vec<RouteMatcher>,
     /// pnpr-managed upstream credential aliases, in declared order.
     aliases: Vec<ResolvedAlias>,
-    /// Nerf-darted origin of every configured uplink (access-bearing or a
-    /// plain mirror), forming the uplink half of the fetch allowlist. A
+    /// Nerf-darted origin of every configured upstream (access-bearing or a
+    /// plain mirror), forming the upstream half of the fetch allowlist. A
     /// plain mirror needs no credential, so it has no [`ResolvedAlias`]; it
     /// is still a configured registry pnpr may fetch from anonymously.
-    uplink_origins: Vec<String>,
+    upstream_origins: Vec<String>,
     /// Package access policy, used to decide whether a pnpr-hosted route
     /// is public (admits everyone) or private, and to gate hosted hits.
     policies: PackagePolicies,
@@ -242,12 +242,12 @@ struct ResolvedAlias {
     credential_digest: String,
     registry: String,
     /// Nerf-darted upstream origin the alias serves. Routing is by origin
-    /// alone — an uplink credential covers every package on its registry.
+    /// alone — an upstream credential covers every package on its registry.
     origin: String,
-    /// The uplink registry's URL scheme (`https`/`http`). The credential is
+    /// The upstream registry's URL scheme (`https`/`http`). The credential is
     /// attached only to a fetch of this same scheme: nerf-darting strips the
     /// scheme from [`Self::origin`], so without this check an `http://host`
-    /// fetch would match an `https://host` uplink and send its token in clear.
+    /// fetch would match an `https://host` upstream and send its token in clear.
     scheme: String,
     /// The fully-formed `Authorization` header value the alias sends
     /// upstream (`Bearer ...` / `Basic ...`).
@@ -257,7 +257,7 @@ struct ResolvedAlias {
 }
 
 impl fmt::Debug for ResolvedAlias {
-    /// Redacts [`Self::authorization`] — it carries the uplink's server-owned
+    /// Redacts [`Self::authorization`] — it carries the upstream's server-owned
     /// upstream credential, which must never reach a log line or panic dump.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ResolvedAlias")
@@ -279,25 +279,25 @@ impl RouteContext {
         let hosted_origin = nerf_prefix(&config.public_url);
         // The official npm registry is a built-in public route, so it is both
         // allowlisted and classified public without any operator config (and
-        // ahead of any uplink credential for the same origin — public wins).
+        // ahead of any upstream credential for the same origin — public wins).
         let public_routes = std::iter::once(RouteMatcher::npmjs())
             .chain(config.route_policy.public.iter().filter_map(RouteMatcher::from_public_route))
             .collect();
-        // Proxied-route credentials come from `uplinks:` entries that declare
+        // Proxied-route credentials come from `upstreams:` entries that declare
         // an `access:` policy. They are matched by registry origin and exposed
         // to clients at `/~<name>/`.
         let aliases = config
-            .uplinks
+            .upstreams
             .iter()
-            .filter_map(|(name, uplink)| ResolvedAlias::from_uplink(name.clone(), uplink))
+            .filter_map(|(name, upstream)| ResolvedAlias::from_upstream(name.clone(), upstream))
             .collect();
-        let uplink_origins =
-            config.uplinks.values().filter_map(|uplink| nerf_prefix(&uplink.url)).collect();
+        let upstream_origins =
+            config.upstreams.values().filter_map(|upstream| nerf_prefix(&upstream.url)).collect();
         Self {
             hosted_origin,
             public_routes,
             aliases,
-            uplink_origins,
+            upstream_origins,
             policies: config.policies.clone(),
         }
     }
@@ -326,20 +326,21 @@ impl RouteContext {
         if let Some(hosted) = self.hosted_origin.as_deref()
             && fetch.starts_with(hosted)
         {
-            // A fetch to pnpr's own `/~<uplink>/` endpoint addresses that
-            // uplink, not a hosted package (a package name can never begin
-            // with `~`). Authorized callers resolve through the uplink;
-            // everyone else — and an unknown uplink — gets an anonymous
+            // A fetch to pnpr's own `/~<name>/` endpoint addresses that
+            // upstream, not a hosted package (a package name can never begin
+            // with `~`). Authorized callers resolve through the upstream;
+            // everyone else — and an unknown upstream — gets an anonymous
             // fetch the endpoint itself rejects, rather than falling through
             // to the hosted-package policy.
             if let Some(rest) = fetch.strip_prefix(hosted)
-                && let Some(uplink) = rest.strip_prefix('~').and_then(|rest| rest.split('/').next())
-                && !uplink.is_empty()
+                && let Some(upstream) =
+                    rest.strip_prefix('~').and_then(|rest| rest.split('/').next())
+                && !upstream.is_empty()
             {
                 return match self
                     .aliases
                     .iter()
-                    .find(|alias| alias.name == uplink && alias.access.allows(identity))
+                    .find(|alias| alias.name == upstream && alias.access.allows(identity))
                 {
                     Some(alias) => RouteClass::Proxied {
                         alias: alias.name.clone(),
@@ -354,9 +355,9 @@ impl RouteContext {
         if let Some(alias) = self.select_alias(identity, &fetch)
             && scheme_of(url) == Some(alias.scheme.as_str())
         {
-            // Scheme must match the uplink's: nerf-darting strips it, so an
+            // Scheme must match the upstream's: nerf-darting strips it, so an
             // `http://host` fetch would otherwise be handed an `https://host`
-            // uplink's server-owned credential and leak it in cleartext. A
+            // upstream's server-owned credential and leak it in cleartext. A
             // scheme mismatch falls through to an anonymous public fetch (which
             // fails closed upstream if the resource is actually private).
             return RouteClass::Proxied {
@@ -374,8 +375,8 @@ impl RouteContext {
 
     /// Whether pnpr is permitted to fetch from `url`'s registry at all. The
     /// allowlist is the union of every configured route: the built-in npm
-    /// host, operator-declared public routes, configured uplink origins, and
-    /// pnpr's own origin (which serves its hosted packages and `/~<uplink>/`
+    /// host, operator-declared public routes, configured upstream origins, and
+    /// pnpr's own origin (which serves its hosted packages and `/~<name>/`
     /// endpoints). A client `registry`/`namedRegistries` matching none of
     /// these is rejected before any server-side fetch — the resolver's SSRF
     /// boundary — so there is no "unknown registry" to resolve anonymously.
@@ -402,7 +403,7 @@ impl RouteContext {
         {
             return true;
         }
-        self.uplink_origins.iter().any(|origin| fetch.starts_with(origin))
+        self.upstream_origins.iter().any(|origin| fetch.starts_with(origin))
     }
 
     /// A pnpr-hosted route is public when its package access policy
@@ -446,10 +447,10 @@ impl RouteContext {
                 // this exact alias for its origin — the first authorized alias
                 // [`Self::select_alias`] returns there — and its credential
                 // still hashes to the same digest. Not merely an alias the
-                // caller is authorized for: with overlapping uplink access
+                // caller is authorized for: with overlapping upstream access
                 // (several aliases on one origin a caller can use), an
                 // authorization-only check could replay a lockfile routed
-                // through a different `/~<uplink>/` endpoint than this caller
+                // through a different `/~<name>/` endpoint than this caller
                 // resolves through. A since-removed alias (`find` → `None`) or
                 // a rotated credential also fails closed here.
                 self.aliases.iter().find(|candidate| candidate.name == alias.as_str()).is_some_and(
@@ -468,13 +469,13 @@ impl RouteContext {
     }
 
     /// The upstream registry an authorized caller reaches through the
-    /// `/~<uplink>/` endpoint, used to reverse an endpoint tarball URL back to
+    /// `/~<name>/` endpoint, used to reverse an endpoint tarball URL back to
     /// its upstream when verifying an input lockfile. Returns `None` when the
-    /// uplink is unknown or the caller is not authorized for it.
-    pub(crate) fn uplink_registry(&self, identity: &Identity, uplink: &str) -> Option<String> {
+    /// upstream is unknown or the caller is not authorized for it.
+    pub(crate) fn upstream_registry(&self, identity: &Identity, upstream: &str) -> Option<String> {
         self.aliases
             .iter()
-            .find(|candidate| candidate.name == uplink && candidate.access.allows(identity))
+            .find(|candidate| candidate.name == upstream && candidate.access.allows(identity))
             .map(|candidate| candidate.registry.clone())
     }
 }
@@ -489,7 +490,7 @@ impl RouteMatcher {
     /// `404`s — so a successfully-resolved npmjs route is public and globally
     /// shareable. Prepended to the operator-declared routes in
     /// [`RouteContext::from_config`], so it is allowlisted and public without
-    /// any config, and ahead of any uplink credential for the same origin.
+    /// any config, and ahead of any upstream credential for the same origin.
     fn npmjs() -> Self {
         Self { origin: Some(NPMJS_ORIGIN.to_string()), package: None }
     }
@@ -531,20 +532,20 @@ impl RouteMatcher {
 }
 
 impl ResolvedAlias {
-    /// Build a proxied-route alias from a `uplinks:` entry. An uplink
+    /// Build a proxied-route alias from a `upstreams:` entry. An upstream
     /// participates in route classification only when it declares both an
     /// `access:` policy and a resolved `Authorization` credential; routing is
     /// by registry origin, so no package glob is attached.
-    fn from_uplink(name: String, uplink: &UplinkConfig) -> Option<Self> {
-        let access = uplink.access.clone()?;
+    fn from_upstream(name: String, upstream: &UpstreamConfig) -> Option<Self> {
+        let access = upstream.access.clone()?;
         let authorization =
-            uplink.headers.get(AUTHORIZATION).and_then(|value| value.to_str().ok())?.to_string();
+            upstream.headers.get(AUTHORIZATION).and_then(|value| value.to_str().ok())?.to_string();
         Some(Self {
             name,
             credential_digest: credential_digest(&authorization),
-            registry: uplink.url.clone(),
-            origin: nerf_prefix(&uplink.url)?,
-            scheme: scheme_of(&uplink.url)?.to_string(),
+            registry: upstream.url.clone(),
+            origin: nerf_prefix(&upstream.url)?,
+            scheme: scheme_of(&upstream.url)?.to_string(),
             authorization,
             access,
         })
@@ -680,7 +681,7 @@ pub(crate) fn strip_url_credentials(url: &str) -> String {
 /// (`?X-Amz-Signature=…`, `?token=…`). A genuinely public tarball is fetched by
 /// its bare path and verified by SRI regardless, so the sanitized URL still
 /// works; one that truly needed a token was never a public route and must be
-/// configured as an uplink (whose tarballs route through `/~<uplink>/`, keeping
+/// configured as an upstream (whose tarballs route through `/~<name>/`, keeping
 /// the token server-side). Unlike a client-supplied direct-tarball spec — whose
 /// query is the caller's own intent — this is untrusted upstream metadata.
 #[must_use]
@@ -704,9 +705,9 @@ fn compile_glob(pattern: &str) -> Option<Glob<'static>> {
 /// (`//host[:port]/`), the prefix every fetch under it shares. `None`
 /// for an unparsable URL.
 /// The nerf-darted registry prefix used to match fetches to a hosted, public,
-/// or proxied-uplink route. Path-preserving (`//host/base/`), unlike a bare
+/// or proxied-upstream route. Path-preserving (`//host/base/`), unlike a bare
 /// host: a pnpr served under a path prefix (`https://host/pnpr/`) still
-/// recognizes its own `/pnpr/~<uplink>/` endpoints, and a public/uplink route
+/// recognizes its own `/pnpr/~<name>/` endpoints, and a public/upstream route
 /// declared for `https://host/base/` does not also match a sibling
 /// `https://host/other/` path on the same host.
 fn nerf_prefix(url: &str) -> Option<String> {

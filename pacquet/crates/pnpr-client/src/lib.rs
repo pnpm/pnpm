@@ -13,8 +13,8 @@
 //!
 //! The resolver itself is stateless — it materializes no store and the
 //! `/resolve` endpoint persists no tarballs. Resolved tarballs are fetched
-//! from upstream public URLs or, for a private proxied route, an uplink's
-//! `/~<uplink>/` registry endpoint (which may cache them server-side under
+//! from upstream public URLs or, for a private proxied route, an upstream's
+//! `/~<name>/` registry endpoint (which may cache them server-side under
 //! its own private namespace).
 
 use std::collections::BTreeMap;

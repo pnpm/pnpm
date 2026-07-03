@@ -41,9 +41,9 @@ storage: ./storage
 #    url: ${PNPR_MYSQL_URL}
 #    maxConnections: 16
 # The npm-registry surface (packument/tarball reads, publish, unpublish,
-# dist-tag, search) is served iff at least one mount is declared under
-# `mounts:` below; `--disable-registry` turns it off per tier. The install
-# accelerator has its own toggle. Something must be served: mounts, or the
+# dist-tag, search) is served iff at least one registry is declared under
+# `registries:` below; `--disable-registry` turns it off per tier. The install
+# accelerator has its own toggle. Something must be served: registries, or the
 # resolver. (`/-/ping` and the login/token account endpoints are always
 # served.)
 #resolver:          # install accelerator: /-/pnpr, /-/pnpr/v0/resolve,
@@ -59,7 +59,7 @@ auth:
 
 # Optional static group/team memberships. Every access list accepts these
 # group names anywhere it accepts usernames — the per-package `packages:`
-# policies and the mount-level `access:` lists alike.
+# policies and the registry-level `access:` lists alike.
 #groups:
 #  platform: alice bob
 
@@ -72,110 +72,111 @@ middlewares:
 web:
   enable: false
 
-# Registry mounts: the only routing surface. Every addressable origin is a
-# mount exposed at `/~<mount>/`, and provenance is declared, never inferred —
-# a package resolves to exactly one declared concrete origin, with no
-# cross-origin fall-through (not on "not found", not on "unavailable"). This
-# is the `@pnpm/registry-mock` shape: the fixture scopes are served from the
-# local hosted store, and everything else proxies the public npm registry.
-mounts:
+# Registries: the only routing surface. Every addressable origin is a
+# registry exposed at `/~<name>/`, and provenance is declared, never inferred —
+# every concrete registry declares the package-name patterns it serves (its
+# namespace, enforced on every path to it), a package resolves to exactly one
+# declared concrete origin, and there is no cross-origin fall-through (not on
+# "not found", not on "unavailable"). This is the `@pnpm/registry-mock` shape:
+# the fixture scopes are served from the local hosted store, and everything
+# else proxies the public npm registry.
+registries:
   # The locally-hosted fixtures (and anything published here). With no `org`,
-  # this mount namespaces onto the flat `storage` root, where the fixtures are
-  # seeded.
+  # this registry namespaces onto the flat `storage` root, where the fixtures are
+  # seeded. `patterns:` is the registry's declared namespace: only these names
+  # can be served from or published to this registry, so a name outside it can
+  # never squat here and later shadow its real origin.
   local:
     type: hosted
     access: $all
-  # The public npm registry.
+    patterns:
+      # Scopes seeded from the in-repo fixture sources
+      # (`pnpr/.fixtures/packages/`). Scopes shared with real, active npm
+      # scopes (`@pnpm`, `@zkochan`) are claimed by exact name instead — see
+      # below — so proxied dependency trees can still pull the scope's other
+      # real packages from npm.
+      - '@foo/*'
+      - '@having/*'
+      - '@jsr/*'
+      - '@pnpm.e2e/*'
+      - '@private/*'
+      - '@scoped/*'
+      - 'create-touch-file-one-bin'
+      # The fixture packages in the real `@pnpm` and `@zkochan` scopes, each
+      # claimed by exact name.
+      - '@pnpm/plugin-pnpmfile'
+      - '@pnpm/postinstall-modifies-source'
+      - '@pnpm/x'
+      - '@pnpm/xyz'
+      - '@pnpm/xyz-parent'
+      - '@pnpm/xyz-parent-parent'
+      - '@pnpm/xyz-parent-parent-parent'
+      - '@pnpm/xyz-parent-parent-parent-parent'
+      - '@pnpm/xyz-parent-parent-with-xyz'
+      - '@pnpm/y'
+      - '@pnpm/z'
+      - '@zkochan/test-pnpm-issue219'
+      # Names tests publish to the mock and then read back. Exact names only —
+      # an unscoped prefix wildcard would swallow real npm packages that
+      # proxied dependency trees need (`test-*` would capture `test-exclude`).
+      # A test publishing a new unscoped name must add it here; publishing
+      # dynamically-suffixed names belongs in the `@pnpmtest` scope.
+      - '@pnpmtest/*'
+      - 'batch-dry-1'
+      - 'batch-dry-2'
+      - 'batch-no-recursive'
+      - 'batch-pkg-2'
+      - 'batch-unsupported-1'
+      - 'project-100'
+      - 'project-200'
+      - 'publish_config_directory_dist_package'
+      - 'test-deprecate-package'
+      - 'test-deprecate-specific'
+      - 'test-dist-tag-add'
+      - 'test-dist-tag-add-default'
+      - 'test-dist-tag-ls'
+      - 'test-dist-tag-ls-default'
+      - 'test-dist-tag-rm'
+      - 'test-dist-tag-rm-latest'
+      - 'test-dist-tag-rm-missing'
+      - 'test-publish-config'
+      - 'test-publish-config-directory'
+      - 'test-publish-config-installation'
+      - 'test-publish-helper-token-basic.json'
+      - 'test-publish-helper-token-bearer.json'
+      - 'test-publish-package-oidc.json'
+      - 'test-publish-package.json'
+      - 'test-publish-package.json5'
+      - 'test-publish-package.yaml'
+      - 'test-publish-scripts'
+      - 'test-publish-skip-manifest-obfuscation'
+      - 'test-publish-skip-manifest-obfuscation-installation'
+      - 'test-publish-tarball'
+      - 'test-publish-with-ignore-scripts'
+      - 'test-publish-with-scripts'
+      - 'test-undeprecate-pkg'
+      - 'test-unpublish-force'
+      - 'test-unpublish-no-force'
+      - 'test-unpublish-no-ver'
+      - 'test-unpublish-version'
+      - 'workspace-package-with-default-catalog'
+      - 'workspace-package-with-named-catalog'
+  # The public npm registry. No `patterns:` — it serves every name, the
+  # catch-all in any router, so it must be listed last in `sources:` below.
   npmjs:
     type: upstream
     url: https://registry.npmjs.org/
     public: true
-  # One URL routing each package to exactly one source by the first matching
-  # pattern. The fixture scopes are authoritative-local; everything else is
-  # npm. A router refuses to start on a shadowed route, so the `**` catch-all
-  # must stay last.
+  # One URL routing each package to the first listed source whose declared
+  # patterns claim it. The fixture names are authoritative-local; everything
+  # else is npm. A router refuses to start on an unreachable source, so the
+  # pattern-less catch-all must stay last.
   main:
     type: router
-    routes:
-      - patterns:
-          # Scopes seeded from the in-repo fixture sources
-          # (`pnpr/.fixtures/packages/`). Scopes shared with real, active npm
-          # scopes (`@pnpm`, `@zkochan`) are routed by exact name instead —
-          # see below — so proxied dependency trees can still pull the scope's
-          # other real packages from npm.
-          - '@foo/*'
-          - '@having/*'
-          - '@jsr/*'
-          - '@pnpm.e2e/*'
-          - '@private/*'
-          - '@scoped/*'
-          - 'create-touch-file-one-bin'
-          # The fixture packages in the real `@pnpm` and `@zkochan` scopes,
-          # each routed by exact name.
-          - '@pnpm/plugin-pnpmfile'
-          - '@pnpm/postinstall-modifies-source'
-          - '@pnpm/x'
-          - '@pnpm/xyz'
-          - '@pnpm/xyz-parent'
-          - '@pnpm/xyz-parent-parent'
-          - '@pnpm/xyz-parent-parent-parent'
-          - '@pnpm/xyz-parent-parent-parent-parent'
-          - '@pnpm/xyz-parent-parent-with-xyz'
-          - '@pnpm/y'
-          - '@pnpm/z'
-          - '@zkochan/test-pnpm-issue219'
-          # Names tests publish to the mock and then read back. Exact names
-          # only — an unscoped prefix wildcard would swallow real npm packages
-          # that proxied dependency trees need (`test-*` would capture
-          # `test-exclude`). A test publishing a new unscoped name must add it
-          # here; publishing dynamically-suffixed names belongs in the
-          # `@pnpmtest` scope.
-          - '@pnpmtest/*'
-          - 'batch-dry-1'
-          - 'batch-dry-2'
-          - 'batch-no-recursive'
-          - 'batch-pkg-2'
-          - 'batch-unsupported-1'
-          - 'project-100'
-          - 'project-200'
-          - 'publish_config_directory_dist_package'
-          - 'test-deprecate-package'
-          - 'test-deprecate-specific'
-          - 'test-dist-tag-add'
-          - 'test-dist-tag-add-default'
-          - 'test-dist-tag-ls'
-          - 'test-dist-tag-ls-default'
-          - 'test-dist-tag-rm'
-          - 'test-dist-tag-rm-latest'
-          - 'test-dist-tag-rm-missing'
-          - 'test-publish-config'
-          - 'test-publish-config-directory'
-          - 'test-publish-config-installation'
-          - 'test-publish-helper-token-basic.json'
-          - 'test-publish-helper-token-bearer.json'
-          - 'test-publish-package-oidc.json'
-          - 'test-publish-package.json'
-          - 'test-publish-package.json5'
-          - 'test-publish-package.yaml'
-          - 'test-publish-scripts'
-          - 'test-publish-skip-manifest-obfuscation'
-          - 'test-publish-skip-manifest-obfuscation-installation'
-          - 'test-publish-tarball'
-          - 'test-publish-with-ignore-scripts'
-          - 'test-publish-with-scripts'
-          - 'test-undeprecate-pkg'
-          - 'test-unpublish-force'
-          - 'test-unpublish-no-force'
-          - 'test-unpublish-no-ver'
-          - 'test-unpublish-version'
-          - 'workspace-package-with-default-catalog'
-          - 'workspace-package-with-named-catalog'
-        source: local
-      - patterns: ['**']
-        source: npmjs
+    sources: [local, npmjs]
 
-# The path-less base URL (`https://<pnpr>/`) aliases this mount.
-defaultTarget: main
+# The path-less base URL (`https://<pnpr>/`) aliases this registry.
+defaultRegistry: main
 
 # Per-package access control (an ACL layer, independent of routing). With no
 # matching rule the built-in default allows authenticated publish but admits

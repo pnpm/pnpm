@@ -5,8 +5,8 @@ use axum::{
 use flate2::read::GzDecoder;
 use futures_util::stream;
 use pnpr::{
-    AccessList, AuthState, Config, HostedConfig, MaxUsers, MountKind, Mounts, PackagePattern,
-    PackagePolicies, PackagePolicy, PublicRoute, Route, router, router_with_auth,
+    AccessList, AuthState, Config, HostedConfig, MaxUsers, PackagePattern, PackagePolicies,
+    PackagePolicy, PublicRoute, Registries, Registry, router, router_with_auth,
 };
 use serde_json::{Value, json};
 use ssri::{Algorithm, IntegrityOpts};
@@ -29,22 +29,23 @@ use tokio::{
 };
 use tower::ServiceExt;
 
-fn config_for(upstream: impl Into<String>, storage: PathBuf) -> Config {
+fn config_for(upstream: impl AsRef<str>, storage: PathBuf) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::proxy(listen, storage);
-    config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink").url = upstream.into();
+    config.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").url =
+        upstream.as_ref().to_string();
     config.public_url = "http://example.test".to_string();
     config.packument_ttl = Duration::from_mins(1);
     config
 }
 
-/// A public upstream mount caches under `.pnpr-cache/~public/<digest>/<pkg>/`.
-/// The proxy tests use a single `npmjs` mount, so there is one digest dir; this
+/// A public upstream registry caches under `.pnpr-cache/~public/<digest>/<pkg>/`.
+/// The proxy tests use a single `npmjs` registry, so there is one digest dir; this
 /// resolves the per-package cache dir under it. When nothing is cached yet it
 /// returns a path that does not exist, so existence assertions read naturally.
 fn public_cache_pkg(cache_root: &Path, pkg: &str) -> PathBuf {
     let public = cache_root.join(".pnpr-cache").join("~public");
-    // The public cache holds one digest directory per public mount. These tests
+    // The public cache holds one digest directory per public registry. These tests
     // configure exactly one, so require at most one *directory* (ignoring stray
     // files and `read_dir` order) instead of trusting the first entry.
     let mut digest_dirs: Vec<PathBuf> = std::fs::read_dir(&public)
@@ -57,7 +58,7 @@ fn public_cache_pkg(cache_root: &Path, pkg: &str) -> PathBuf {
     digest_dirs.sort();
     assert!(
         digest_dirs.len() <= 1,
-        "expected at most one ~public mount namespace, found {digest_dirs:?}",
+        "expected at most one ~public registry namespace, found {digest_dirs:?}",
     );
     digest_dirs.first().cloned().unwrap_or_else(|| public.join("__none__")).join(pkg)
 }
@@ -387,8 +388,8 @@ async fn mock_packument_for_tarball(
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body(packument.to_string())
-        // At least once: a `cache: true` mount fetches the packument a single
-        // time (then caches); a `cache: false` mount refetches per request.
+        // At least once: a `cache: true` registry fetches the packument a single
+        // time (then caches); a `cache: false` registry refetches per request.
         .expect_at_least(1)
         .create_async()
         .await
@@ -420,7 +421,7 @@ async fn packument_is_proxied_cached_and_rewritten() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let mut config = config_for(upstream.url(), tmp.path().to_path_buf());
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
     config.public_url = "http://example.test".to_string();
     let app = router(config);
 
@@ -475,7 +476,7 @@ async fn osv_filters_vulnerable_versions_from_proxy_and_cache() {
 
     let tmp = TempDir::new().unwrap();
     let osv = osv_database("foo", &["1.1.0"]);
-    let mut config = config_for(upstream.url(), tmp.path().to_path_buf());
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
     config.resolver.enabled = false;
     enable_osv(&mut config, osv.path());
     let app = router(config);
@@ -543,7 +544,7 @@ async fn upstream_dist_tags_enforce_package_access() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let mut config = config_for(upstream.url(), tmp.path().to_path_buf());
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
     config.policies = PackagePolicies::new(vec![
         PackagePolicy::new(
             "restricted",
@@ -609,7 +610,7 @@ async fn osv_filters_packument_identity_mismatches() {
 
     let tmp = TempDir::new().unwrap();
     let osv = osv_database("foo", &["1.1.0", "1.2.0"]);
-    let mut config = config_for(upstream.url(), tmp.path().to_path_buf());
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
     config.resolver.enabled = false;
     enable_osv(&mut config, osv.path());
     let app = router(config);
@@ -652,10 +653,10 @@ async fn osv_filters_packument_identity_mismatches() {
 }
 
 #[tokio::test]
-async fn uplink_auth_and_custom_headers_are_forwarded_upstream() {
+async fn upstream_auth_and_custom_headers_are_forwarded_upstream() {
     let mut upstream = mockito::Server::new_async().await;
     // The mock only matches when both headers are present, so a passing
-    // request proves the resolved per-uplink headers reached upstream.
+    // request proves the resolved per-upstream headers reached upstream.
     let mock = upstream
         .mock("GET", "/foo")
         .match_header("authorization", "Bearer secret-token")
@@ -667,15 +668,43 @@ async fn uplink_auth_and_custom_headers_are_forwarded_upstream() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let mut config = config_for(upstream.url(), tmp.path().to_path_buf());
-    let uplink = config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink");
-    uplink.headers.insert("authorization", "Bearer secret-token".parse().unwrap());
-    uplink.headers.insert("x-org", "acme".parse().unwrap());
-    let app = router(config);
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    let upstream = config.upstreams.get_mut("npmjs").expect("default `npmjs` upstream");
+    upstream.headers.insert("authorization", "Bearer secret-token".parse().unwrap());
+    upstream.headers.insert("x-org", "acme".parse().unwrap());
+    // A credentialed upstream must be access-gated (server construction
+    // enforces it), so the read authenticates as an admitted caller.
+    upstream.access = Some(AccessList::parse("$authenticated"));
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let app = router_with_auth(config, auth);
 
-    let response = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    let response = app
+        .oneshot(
+            Request::get("/foo")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     mock.assert_async().await;
+}
+
+/// Mirrors the YAML rule at the programmatic layer: an upstream reachable
+/// without an `access:` gate may not send custom headers — any header can
+/// carry a credential, and an ungated `/~<name>/` would let every caller
+/// spend it.
+#[tokio::test]
+async fn building_the_server_rejects_an_ungated_credentialed_upstream() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    let upstream = config.upstreams.get_mut("npmjs").expect("default `npmjs` upstream");
+    upstream.headers.insert("x-api-key", "secret".parse().unwrap());
+    let err =
+        pnpr::try_router(config).expect_err("an ungated credentialed upstream must fail startup");
+    assert!(err.to_string().contains("npmjs"), "unexpected error: {err}");
 }
 
 #[tokio::test]
@@ -691,7 +720,7 @@ async fn scoped_packument_is_served() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let app = router(config_for(upstream.url(), tmp.path().to_path_buf()));
+    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
 
     let response =
         app.oneshot(Request::get("/@types/node").body(Body::empty()).unwrap()).await.unwrap();
@@ -715,7 +744,7 @@ async fn tarball_is_proxied_and_cached() {
 
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
-    let app = router(config_for(upstream.url(), storage.clone()));
+    let app = router(config_for(&upstream.url(), storage.clone()));
 
     let first = app
         .clone()
@@ -727,7 +756,7 @@ async fn tarball_is_proxied_and_cached() {
 
     // A fresh instance over the same storage and origin serves the cached
     // copy; the `expect(1)` mocks prove the upstream is never asked twice.
-    let second = router(config_for(upstream.url(), storage))
+    let second = router(config_for(&upstream.url(), storage))
         .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
@@ -738,18 +767,18 @@ async fn tarball_is_proxied_and_cached() {
     mock.assert_async().await;
 }
 
-/// A proxy config whose default `npmjs` uplink is promoted to an
-/// access-bearing private-route uplink, reachable at `/~npmjs/`.
-fn uplink_endpoint_config(upstream_url: &str, storage: PathBuf, access: &str) -> Config {
+/// A proxy config whose default `npmjs` upstream is promoted to an
+/// access-bearing private-route upstream, reachable at `/~npmjs/`.
+fn upstream_endpoint_config(upstream_url: &str, storage: PathBuf, access: &str) -> Config {
     let mut config = config_for(upstream_url, storage);
     config.public_url = "http://example.test".to_string();
-    config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink").access =
+    config.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").access =
         Some(AccessList::parse(access));
     config
 }
 
 #[tokio::test]
-async fn uplink_endpoint_serves_packument_with_endpoint_rewritten_tarballs() {
+async fn upstream_endpoint_serves_packument_with_endpoint_rewritten_tarballs() {
     let mut upstream = mockito::Server::new_async().await;
     let packument = json!({
         "name": "foo",
@@ -768,7 +797,7 @@ async fn uplink_endpoint_serves_packument_with_endpoint_rewritten_tarballs() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let config = uplink_endpoint_config(&upstream.url(), tmp.path().to_path_buf(), "alice");
+    let config = upstream_endpoint_config(&upstream.url(), tmp.path().to_path_buf(), "alice");
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let app = router_with_auth(config, auth);
@@ -797,11 +826,11 @@ async fn uplink_endpoint_serves_packument_with_endpoint_rewritten_tarballs() {
 }
 
 #[tokio::test]
-async fn uplink_endpoint_rejects_unauthorized_caller() {
+async fn upstream_endpoint_rejects_unauthorized_caller() {
     let tmp = TempDir::new().unwrap();
-    let config = uplink_endpoint_config("http://127.0.0.1:1", tmp.path().to_path_buf(), "alice");
+    let config = upstream_endpoint_config("http://127.0.0.1:1", tmp.path().to_path_buf(), "alice");
     let app = router(config);
-    // Anonymous caller is not admitted by the uplink's access policy, and the
+    // Anonymous caller is not admitted by the upstream's access policy, and the
     // request fails closed before any upstream fetch.
     let response =
         app.oneshot(Request::get("/~npmjs/foo").body(Body::empty()).unwrap()).await.unwrap();
@@ -809,9 +838,9 @@ async fn uplink_endpoint_rejects_unauthorized_caller() {
 }
 
 #[tokio::test]
-async fn uplink_endpoint_tarball_is_verified_and_cached_per_uplink() {
+async fn upstream_endpoint_tarball_is_verified_and_cached_per_upstream() {
     let mut upstream = mockito::Server::new_async().await;
-    let bytes = b"private-uplink-tarball";
+    let bytes = b"private-upstream-tarball";
     let packument = json!({
         "name": "foo",
         "dist-tags": { "latest": "1.0.0" },
@@ -820,7 +849,7 @@ async fn uplink_endpoint_tarball_is_verified_and_cached_per_uplink() {
             "integrity": sha512_integrity(bytes),
         } } },
     });
-    // The packument and verified tarball are cached in the uplink's private
+    // The packument and verified tarball are cached in the upstream's private
     // namespace, so two tarball requests hit the upstream exactly once each —
     // the second is served from the private cache, never re-fetched.
     let packument_mock = upstream
@@ -840,7 +869,7 @@ async fn uplink_endpoint_tarball_is_verified_and_cached_per_uplink() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let config = uplink_endpoint_config(&upstream.url(), tmp.path().to_path_buf(), "alice");
+    let config = upstream_endpoint_config(&upstream.url(), tmp.path().to_path_buf(), "alice");
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let app = router_with_auth(config, auth);
@@ -865,12 +894,12 @@ async fn uplink_endpoint_tarball_is_verified_and_cached_per_uplink() {
 }
 
 #[tokio::test]
-async fn uplink_cache_does_not_leak_to_the_public_path() {
-    // The public `**` route proxies through the default `npmjs` uplink to the
-    // public upstream; a separate access-bearing `corp` uplink serves a
+async fn upstream_cache_does_not_leak_to_the_public_path() {
+    // The public `**` route proxies through the default `npmjs` upstream to the
+    // public upstream; a separate access-bearing `corp` upstream serves a
     // *different* upstream at `/~corp/`. After the private `/~corp/foo` tarball
     // is cached, the public `/foo` request must still serve the public bytes —
-    // proving the private uplink's cache is namespaced, not shared.
+    // proving the private upstream's cache is namespaced, not shared.
     let mut public_upstream = mockito::Server::new_async().await;
     let mut private_upstream = mockito::Server::new_async().await;
     let public_bytes = b"public-foo-tarball";
@@ -897,11 +926,11 @@ async fn uplink_cache_does_not_leak_to_the_public_path() {
     }
 
     let tmp = TempDir::new().unwrap();
-    let mut config = config_for(public_upstream.url(), tmp.path().to_path_buf());
-    let mut corp = config.uplinks.get("npmjs").expect("default `npmjs` uplink").clone();
+    let mut config = config_for(&public_upstream.url(), tmp.path().to_path_buf());
+    let mut corp = config.upstreams.get("npmjs").expect("default `npmjs` upstream").clone();
     corp.url = private_upstream.url();
     corp.access = Some(AccessList::parse("alice"));
-    config.uplinks.insert("corp".to_string(), corp);
+    config.upstreams.insert("corp".to_string(), corp);
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let app = router_with_auth(config, auth);
@@ -921,7 +950,7 @@ async fn uplink_cache_does_not_leak_to_the_public_path() {
     assert_eq!(body_bytes(private.into_body()).await, private_bytes);
 
     // The public path must serve the public upstream's bytes, never the
-    // private uplink's cached copy.
+    // private upstream's cached copy.
     let public = app
         .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
@@ -930,12 +959,12 @@ async fn uplink_cache_does_not_leak_to_the_public_path() {
     assert_eq!(body_bytes(public.into_body()).await, public_bytes);
 }
 
-/// Repointing a mount's `url:` must abandon the previous origin's cache: the
+/// Repointing a registry's `url:` must abandon the previous origin's cache: the
 /// namespace is keyed by the origin, so a warm entry fetched from the old
 /// upstream — packument or tarball, including via the cache-first tarball
-/// path — can never answer for the new one under the same mount name.
+/// path — can never answer for the new one under the same registry name.
 #[tokio::test]
-async fn repointing_an_uplink_url_abandons_the_old_origins_cache() {
+async fn repointing_an_upstream_url_abandons_the_old_origins_cache() {
     let mut old_origin = mockito::Server::new_async().await;
     let mut new_origin = mockito::Server::new_async().await;
     let old_bytes = b"old-origin-foo-tarball";
@@ -961,7 +990,7 @@ async fn repointing_an_uplink_url_abandons_the_old_origins_cache() {
 
     // Prime the cache from the old origin.
     let tmp = TempDir::new().unwrap();
-    let app = router(config_for(old_origin.url(), tmp.path().to_path_buf()));
+    let app = router(config_for(&old_origin.url(), tmp.path().to_path_buf()));
     let primed = app
         .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
@@ -969,9 +998,9 @@ async fn repointing_an_uplink_url_abandons_the_old_origins_cache() {
     assert_eq!(primed.status(), StatusCode::OK);
     assert_eq!(body_bytes(primed.into_body()).await, old_bytes);
 
-    // Same storage, same mount name, new `url:` — the fresh entries must come
+    // Same storage, same registry name, new `url:` — the fresh entries must come
     // from the new origin, not the still-fresh cache of the old one.
-    let app = router(config_for(new_origin.url(), tmp.path().to_path_buf()));
+    let app = router(config_for(&new_origin.url(), tmp.path().to_path_buf()));
     let repointed = app
         .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
@@ -981,9 +1010,9 @@ async fn repointing_an_uplink_url_abandons_the_old_origins_cache() {
 }
 
 #[tokio::test]
-async fn uplink_endpoint_cache_false_streams_without_caching() {
+async fn upstream_endpoint_cache_false_streams_without_caching() {
     let mut upstream = mockito::Server::new_async().await;
-    let bytes = b"uncached-private-uplink-tarball";
+    let bytes = b"uncached-private-upstream-tarball";
     let packument = json!({
         "name": "foo",
         "dist-tags": { "latest": "1.0.0" },
@@ -992,7 +1021,7 @@ async fn uplink_endpoint_cache_false_streams_without_caching() {
             "integrity": sha512_integrity(bytes),
         } } },
     });
-    // A `cache: false` uplink endpoint persists nothing, so each request
+    // A `cache: false` upstream endpoint persists nothing, so each request
     // re-fetches the packument and tarball — the mocks are hit twice.
     let packument_mock = upstream
         .mock("GET", "/foo")
@@ -1009,8 +1038,8 @@ async fn uplink_endpoint_cache_false_streams_without_caching() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let mut config = uplink_endpoint_config(&upstream.url(), tmp.path().to_path_buf(), "alice");
-    config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink").cache = false;
+    let mut config = upstream_endpoint_config(&upstream.url(), tmp.path().to_path_buf(), "alice");
+    config.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").cache = false;
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let app = router_with_auth(config, auth);
@@ -1047,7 +1076,7 @@ async fn osv_refuses_vulnerable_tarball_before_upstream_fetch() {
 
     let tmp = TempDir::new().unwrap();
     let osv = osv_database("foo", &["1.0.0"]);
-    let mut config = config_for(upstream.url(), tmp.path().to_path_buf());
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
     config.resolver.enabled = false;
     enable_osv(&mut config, osv.path());
     let app = router(config);
@@ -1076,7 +1105,7 @@ async fn osv_tarball_screening_preserves_access_gate() {
 
     let tmp = TempDir::new().unwrap();
     let osv = osv_database("@pnpm.e2e/needs-auth", &["1.0.0"]);
-    let mut config = config_for(upstream.url(), tmp.path().to_path_buf());
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
     config.resolver.enabled = false;
     enable_osv(&mut config, osv.path());
     let app = router(config);
@@ -1109,7 +1138,7 @@ async fn osv_refuses_vulnerable_tarball_from_cache() {
 
     let tmp = TempDir::new().unwrap();
     let cache_dir = tmp.path().to_path_buf();
-    let warming_app = router(config_for(upstream.url(), cache_dir.clone()));
+    let warming_app = router(config_for(&upstream.url(), cache_dir.clone()));
 
     let warmed = warming_app
         .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
@@ -1119,7 +1148,7 @@ async fn osv_refuses_vulnerable_tarball_from_cache() {
     assert_eq!(body_bytes(warmed.into_body()).await, bytes);
 
     let osv = osv_database("foo", &["1.0.0"]);
-    let mut config = config_for(upstream.url(), cache_dir);
+    let mut config = config_for(&upstream.url(), cache_dir);
     config.resolver.enabled = false;
     enable_osv(&mut config, osv.path());
     let screened_app = router(config);
@@ -1175,7 +1204,7 @@ async fn osv_refuses_vulnerable_cached_tarball_under_noncanonical_name() {
 
     let tmp = TempDir::new().unwrap();
     let cache_dir = tmp.path().to_path_buf();
-    let warming_app = router(config_for(upstream.url(), cache_dir.clone()));
+    let warming_app = router(config_for(&upstream.url(), cache_dir.clone()));
     let warmed = warming_app
         .oneshot(Request::get("/foo/-/foo-0.0.1.tgz").body(Body::empty()).unwrap())
         .await
@@ -1195,7 +1224,7 @@ async fn osv_refuses_vulnerable_cached_tarball_under_noncanonical_name() {
     // Block the resolved version 1.0.0; the filename carries the unblocked
     // 0.0.1, so only a resolved-version screen on the cache hit can refuse.
     let osv = osv_database("foo", &["1.0.0"]);
-    let mut config = config_for(upstream.url(), cache_dir);
+    let mut config = config_for(&upstream.url(), cache_dir);
     config.resolver.enabled = false;
     enable_osv(&mut config, osv.path());
     let screened_app = router(config);
@@ -1265,7 +1294,7 @@ async fn tarball_route_preserves_basename_and_binds_to_declaring_version() {
 
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
-    let app = router(config_for(upstream.url(), storage.clone()));
+    let app = router(config_for(&upstream.url(), storage.clone()));
 
     let selected = app
         .clone()
@@ -1301,8 +1330,8 @@ async fn tarball_route_preserves_basename_and_binds_to_declaring_version() {
     // cached entry; the `expect(1)` mocks prove the upstream is never
     // consulted again. (A *different* URL would be a repoint, which
     // deliberately abandons this cache — see
-    // `repointing_an_uplink_url_abandons_the_old_origins_cache`.)
-    let restarted = router(config_for(upstream.url(), storage));
+    // `repointing_an_upstream_url_abandons_the_old_origins_cache`.)
+    let restarted = router(config_for(&upstream.url(), storage));
     let replay = restarted.oneshot(Request::get(route).body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(replay.status(), StatusCode::OK);
     assert_eq!(body_bytes(replay.into_body()).await, v1_bytes);
@@ -1358,7 +1387,7 @@ async fn tampered_upstream_tarball_is_served_but_never_cached() {
     // They are streamed to the client (which re-verifies and rejects them),
     // but the SRI mismatch on the full body means they are never promoted to
     // the cache — so they can't poison a later request.
-    let app = router(config_for(upstream.url(), storage.clone()));
+    let app = router(config_for(&upstream.url(), storage.clone()));
     let packument_response =
         app.clone().oneshot(Request::get("/poisoned").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(packument_response.status(), StatusCode::OK);
@@ -1416,7 +1445,7 @@ async fn tarball_without_integrity_or_shasum_is_rejected_before_fetch() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let response = router(config_for(upstream.url(), tmp.path().to_path_buf()))
+    let response = router(config_for(&upstream.url(), tmp.path().to_path_buf()))
         .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
@@ -1450,7 +1479,7 @@ async fn shasum_only_tarball_is_served_with_sha1_verification() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let response = router(config_for(upstream.url(), tmp.path().to_path_buf()))
+    let response = router(config_for(&upstream.url(), tmp.path().to_path_buf()))
         .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
@@ -1505,7 +1534,7 @@ async fn ambiguous_tarball_basename_is_rejected_before_fetch() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let response = router(config_for(upstream.url(), tmp.path().to_path_buf()))
+    let response = router(config_for(&upstream.url(), tmp.path().to_path_buf()))
         .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
@@ -1554,7 +1583,7 @@ async fn invalid_tarball_integrities_are_controlled_failures() {
             .await;
 
         let tmp = TempDir::new().unwrap();
-        let response = router(config_for(upstream.url(), tmp.path().to_path_buf()))
+        let response = router(config_for(&upstream.url(), tmp.path().to_path_buf()))
             .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
             .await
             .unwrap();
@@ -1576,7 +1605,7 @@ async fn upstream_404_is_propagated() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let app = router(config_for(upstream.url(), tmp.path().to_path_buf()));
+    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
 
     let response =
         app.oneshot(Request::get("/missing").body(Body::empty()).unwrap()).await.unwrap();
@@ -1599,7 +1628,7 @@ async fn tarball_verification_finalizes_cache_with_no_tmp_leftover() {
 
     let tmp = TempDir::new().unwrap();
     let cache_dir = tmp.path().to_path_buf();
-    let app = router(config_for(upstream.url(), cache_dir.clone()));
+    let app = router(config_for(&upstream.url(), cache_dir.clone()));
 
     let response = app
         .oneshot(Request::get("/big/-/big-1.0.0.tgz").body(Body::empty()).unwrap())
@@ -1629,7 +1658,7 @@ async fn upstream_5xx_maps_to_bad_gateway() {
         upstream.mock("GET", "/broken").with_status(500).with_body("kaboom").create_async().await;
 
     let tmp = TempDir::new().unwrap();
-    let app = router(config_for(upstream.url(), tmp.path().to_path_buf()));
+    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
 
     let response = app.oneshot(Request::get("/broken").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
@@ -1669,7 +1698,7 @@ async fn tarball_filename_for_other_package_is_rejected() {
         .create_async()
         .await;
     let tmp = TempDir::new().unwrap();
-    let app = router(config_for(upstream.url(), tmp.path().to_path_buf()));
+    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
 
     let response = app
         .clone()
@@ -1726,7 +1755,7 @@ async fn non_canonical_upstream_tarball_basename_is_served() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let app = router(config_for(upstream.url(), tmp.path().to_path_buf()));
+    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
 
     // The served packument advertises the preserved basename on this server.
     let served =
@@ -1760,7 +1789,7 @@ async fn scoped_tarball_is_proxied() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let app = router(config_for(upstream.url(), tmp.path().to_path_buf()));
+    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
 
     let response = app
         .oneshot(Request::get("/@types/node/-/node-20.0.0.tgz").body(Body::empty()).unwrap())
@@ -1787,7 +1816,7 @@ async fn scoped_tarball_filename_is_canonicalized_before_fetch_and_cache() {
 
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
-    let app = router(config_for(upstream.url(), storage.clone()));
+    let app = router(config_for(&upstream.url(), storage.clone()));
 
     let noncanonical = app
         .clone()
@@ -1824,7 +1853,7 @@ async fn packument_is_refetched_after_ttl_expires() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let mut config = config_for(upstream.url(), tmp.path().to_path_buf());
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
     config.packument_ttl = Duration::from_millis(50);
     let app = router(config);
 
@@ -1862,7 +1891,7 @@ async fn stale_packument_is_served_when_upstream_refetch_fails() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let mut config = config_for(upstream.url(), tmp.path().to_path_buf());
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
     config.packument_ttl = Duration::from_millis(50);
     let app = router(config);
 
@@ -1908,7 +1937,7 @@ async fn a_4xx_upstream_does_not_serve_stale_cache() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let mut config = config_for(upstream.url(), tmp.path().to_path_buf());
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
     config.packument_ttl = Duration::from_millis(50);
     let app = router(config);
 
@@ -1932,7 +1961,7 @@ async fn a_4xx_upstream_does_not_serve_stale_cache() {
 async fn invalid_package_name_returns_bad_request() {
     let upstream = mockito::Server::new_async().await;
     let tmp = TempDir::new().unwrap();
-    let app = router(config_for(upstream.url(), tmp.path().to_path_buf()));
+    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
 
     // `.hidden` trips the dot-prefix rejection in `PackageName::parse`.
     let response =
@@ -1955,7 +1984,7 @@ async fn concurrent_tarball_fetches_settle_to_one_cache_file() {
 
     let tmp = TempDir::new().unwrap();
     let cache_dir = tmp.path().to_path_buf();
-    let app = router(config_for(upstream.url(), cache_dir.clone()));
+    let app = router(config_for(&upstream.url(), cache_dir.clone()));
 
     let packument =
         app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
@@ -2000,7 +2029,7 @@ async fn cache_tmp_open_failure_fails_closed() {
     let blocked = tmp.path().join("not-a-dir");
     std::fs::write(&blocked, b"already a file").unwrap();
 
-    let app = router(config_for(upstream.url(), blocked.clone()));
+    let app = router(config_for(&upstream.url(), blocked.clone()));
 
     let response = app
         .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
@@ -2025,7 +2054,7 @@ async fn malformed_upstream_json_maps_to_bad_gateway() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let app = router(config_for(upstream.url(), tmp.path().to_path_buf()));
+    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
 
     let response = app.oneshot(Request::get("/borked").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
@@ -2130,7 +2159,7 @@ async fn proxied_tarball_streams_to_client_and_is_cached() {
 
     let tmp = TempDir::new().unwrap();
     let cache_dir = tmp.path().to_path_buf();
-    let app = router(config_for(upstream.url(), cache_dir.clone()));
+    let app = router(config_for(&upstream.url(), cache_dir.clone()));
 
     let response = app
         .oneshot(Request::get("/big/-/big-1.0.0.tgz").body(Body::empty()).unwrap())
@@ -2219,7 +2248,7 @@ async fn packument_is_gzipped_for_clients_that_accept_it() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let app = router(config_for(upstream.url(), tmp.path().to_path_buf()));
+    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
 
     let response = app
         .oneshot(
@@ -2260,7 +2289,7 @@ async fn packument_is_not_gzipped_without_accept_encoding() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let app = router(config_for(upstream.url(), tmp.path().to_path_buf()));
+    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
 
     let response = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -2289,7 +2318,7 @@ async fn tarball_is_not_gzipped_even_when_accepted() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let app = router(config_for(upstream.url(), tmp.path().to_path_buf()));
+    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
 
     // Tarballs are already `.tgz` (gzip); the layer must not re-compress
     // them even when the client offers `Accept-Encoding: gzip`.
@@ -2312,12 +2341,12 @@ async fn tarball_is_not_gzipped_even_when_accepted() {
     mock.assert_async().await;
 }
 
-/// A per-uplink `maxage` shorter than the global `packument_ttl` governs
+/// A per-upstream `maxage` shorter than the global `packument_ttl` governs
 /// freshness: with a generous global TTL the second request would be a
 /// cache hit, but `maxage: 0` forces a revalidation, so the upstream is
 /// hit twice.
 #[tokio::test]
-async fn per_uplink_maxage_overrides_global_packument_ttl() {
+async fn per_upstream_maxage_overrides_global_packument_ttl() {
     let mut upstream = mockito::Server::new_async().await;
     let packument = json!({ "name": "foo", "versions": {} });
     let mock = upstream
@@ -2329,11 +2358,11 @@ async fn per_uplink_maxage_overrides_global_packument_ttl() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let mut config = config_for(upstream.url(), tmp.path().to_path_buf());
-    // Global TTL stays generous (a minute); the per-uplink maxage of zero
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    // Global TTL stays generous (a minute); the per-upstream maxage of zero
     // is what must take effect and make every read stale.
     config.packument_ttl = Duration::from_mins(1);
-    config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink").maxage =
+    config.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").maxage =
         Some(Duration::from_millis(0));
     let app = router(config);
 
@@ -2347,14 +2376,14 @@ async fn per_uplink_maxage_overrides_global_packument_ttl() {
     mock.assert_async().await;
 }
 
-/// A `cache: false` uplink streams tarballs through without writing them
+/// A `cache: false` upstream streams tarballs through without writing them
 /// to the local mirror: a second request re-fetches from the upstream
 /// (so the mock is hit twice) and no `.tgz` is left in the cache dir.
 #[tokio::test]
-async fn cache_false_uplink_streams_tarball_without_mirroring() {
+async fn cache_false_upstream_streams_tarball_without_mirroring() {
     let mut upstream = mockito::Server::new_async().await;
     let bytes = b"uncached-tarball-bytes";
-    // A `cache: false` mount streams everything through, so each of the two
+    // A `cache: false` registry streams everything through, so each of the two
     // requests refetches the packument as well as the tarball.
     let packument_mock = mock_packument_for_tarball(&mut upstream, "foo", "1.0.0", bytes).await;
     let mock = upstream
@@ -2367,8 +2396,8 @@ async fn cache_false_uplink_streams_tarball_without_mirroring() {
 
     let tmp = TempDir::new().unwrap();
     let cache_dir = tmp.path().to_path_buf();
-    let mut config = config_for(upstream.url(), cache_dir.clone());
-    config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink").cache = false;
+    let mut config = config_for(&upstream.url(), cache_dir.clone());
+    config.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").cache = false;
     let app = router(config);
 
     for _ in 0..2 {
@@ -2386,7 +2415,7 @@ async fn cache_false_uplink_streams_tarball_without_mirroring() {
     let package_dir = public_cache_pkg(&cache_dir, "foo");
     assert!(
         tarball_cache_entries(&package_dir).is_empty(),
-        "a cache:false uplink must not write tarballs to the mirror",
+        "a cache:false upstream must not write tarballs to the mirror",
     );
 
     packument_mock.assert_async().await;
@@ -2394,7 +2423,7 @@ async fn cache_false_uplink_streams_tarball_without_mirroring() {
 }
 
 #[tokio::test]
-async fn cache_false_uplink_rejects_tampered_tarball_without_mirroring() {
+async fn cache_false_upstream_rejects_tampered_tarball_without_mirroring() {
     let mut upstream = mockito::Server::new_async().await;
     let good_bytes = b"good-uncached-tarball";
     let poison_bytes = b"poisoned-uncached-tarball";
@@ -2410,8 +2439,8 @@ async fn cache_false_uplink_rejects_tampered_tarball_without_mirroring() {
 
     let tmp = TempDir::new().unwrap();
     let cache_dir = tmp.path().to_path_buf();
-    let mut config = config_for(upstream.url(), cache_dir.clone());
-    config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink").cache = false;
+    let mut config = config_for(&upstream.url(), cache_dir.clone());
+    config.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").cache = false;
     let app = router(config);
 
     let response = app
@@ -2558,7 +2587,7 @@ async fn registry_only_serves_registry_and_refuses_resolver_endpoints() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let mut config = config_for(upstream.url(), tmp.path().to_path_buf());
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
     config.resolver.enabled = false;
     let app = router(config);
 
@@ -2606,7 +2635,7 @@ async fn registry_only_serves_registry_and_refuses_resolver_endpoints() {
 }
 
 // --------------------------------------------------------------------
-// Registry-mount routing (RFC: registry mounts for pnpr).
+// Registry routing (RFC: registries for pnpr).
 // --------------------------------------------------------------------
 
 /// Mock a one-version packument plus its tarball for `pkg` on `server`,
@@ -2639,36 +2668,28 @@ async fn mock_package(server: &mut mockito::Server, pkg: &str, marker: &str) -> 
     body
 }
 
-/// Build a config with two public upstream mounts and a `main` router that
-/// sends `@corp/*` to `corp` and everything else to `npmjs`, aliased by the
-/// path-less base.
-fn router_config(npmjs_url: &str, corp_url: impl Into<String>, storage: PathBuf) -> Config {
+/// Build a config with two public upstream registries — `corp` claiming `@corp/*`
+/// and a pattern-less `npmjs` catch-all — and a `main` router over them,
+/// aliased by the path-less base.
+fn router_config(npmjs_url: &str, corp_url: impl AsRef<str>, storage: PathBuf) -> Config {
     let mut config = config_for(npmjs_url, storage);
-    let mut corp = config.uplinks.get("npmjs").expect("default `npmjs` uplink").clone();
-    corp.url = corp_url.into();
-    config.uplinks.insert("corp".to_string(), corp);
+    let mut corp = config.upstreams.get("npmjs").expect("default `npmjs` upstream").clone();
+    corp.url = corp_url.as_ref().to_string();
+    config.upstreams.insert("corp".to_string(), corp);
     let graph = vec![
-        ("npmjs".to_string(), MountKind::Upstream),
-        ("corp".to_string(), MountKind::Upstream),
+        ("npmjs".to_string(), Registry::Upstream { patterns: vec![] }),
+        (
+            "corp".to_string(),
+            Registry::Upstream { patterns: vec![PackagePattern::parse("@corp/*").unwrap()] },
+        ),
         (
             "main".to_string(),
-            MountKind::Router {
-                routes: vec![
-                    Route {
-                        patterns: vec![PackagePattern::parse("@corp/*").unwrap()],
-                        source: "corp".to_string(),
-                    },
-                    Route {
-                        patterns: vec![PackagePattern::parse("**").unwrap()],
-                        source: "npmjs".to_string(),
-                    },
-                ],
-            },
+            Registry::Router { sources: vec!["corp".to_string(), "npmjs".to_string()] },
         ),
     ];
-    let mounts = Mounts::new(graph.into_iter().collect(), Some("main".to_string()));
-    mounts.validate().expect("router config is valid");
-    config.mounts = mounts;
+    let registries = Registries::new(graph.into_iter().collect(), Some("main".to_string()));
+    registries.validate().expect("router config is valid");
+    config.registries = registries;
     config
 }
 
@@ -2680,7 +2701,7 @@ async fn router_routes_each_package_to_its_declared_source() {
     let corp_bytes = mock_package(&mut corp, "@corp/secret", "private").await;
 
     let tmp = TempDir::new().unwrap();
-    let config = router_config(&npmjs.url(), corp.url(), tmp.path().to_path_buf());
+    let config = router_config(&npmjs.url(), &corp.url(), tmp.path().to_path_buf());
     let app = router_with_auth(config, AuthState::in_memory());
 
     // `@corp/*` resolves to the corp upstream, authoritatively.
@@ -2715,33 +2736,33 @@ async fn router_routes_each_package_to_its_declared_source() {
 
 #[tokio::test]
 async fn router_not_found_does_not_fall_through_to_public() {
-    // A router whose only route is the private `@corp/*` scope. A public name
-    // it does not route must be a definitive 404 — never served from a public
-    // origin — which is the dependency-confusion vector closed by construction.
+    // A router whose only source claims the private `@corp/*` scope. A public
+    // name no source claims must be a definitive 404 — never served from a
+    // public origin — which is the dependency-confusion vector closed by
+    // construction. The same namespace bound holds on the registry's own URL:
+    // `/~corp/lodash` is a 404 answered before the upstream (and its
+    // server-owned credential) is consulted.
     let mut corp = mockito::Server::new_async().await;
     let _ = mock_package(&mut corp, "@corp/secret", "private").await;
+    let off_pattern_fetch = corp.mock("GET", "/lodash").expect(0).create_async().await;
 
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    let mut corp_uplink = config.uplinks.get("npmjs").expect("default `npmjs` uplink").clone();
-    corp_uplink.url = corp.url();
-    config.uplinks.insert("corp".to_string(), corp_uplink);
+    let mut corp_upstream =
+        config.upstreams.get("npmjs").expect("default `npmjs` upstream").clone();
+    corp_upstream.url = corp.url();
+    config.upstreams.insert("corp".to_string(), corp_upstream);
     let graph = vec![
-        ("corp".to_string(), MountKind::Upstream),
         (
-            "main".to_string(),
-            MountKind::Router {
-                routes: vec![Route {
-                    patterns: vec![PackagePattern::parse("@corp/*").unwrap()],
-                    source: "corp".to_string(),
-                }],
-            },
+            "corp".to_string(),
+            Registry::Upstream { patterns: vec![PackagePattern::parse("@corp/*").unwrap()] },
         ),
+        ("main".to_string(), Registry::Router { sources: vec!["corp".to_string()] }),
     ];
-    config.mounts = Mounts::new(graph.into_iter().collect(), Some("main".to_string()));
+    config.registries = Registries::new(graph.into_iter().collect(), Some("main".to_string()));
     let app = router_with_auth(config, AuthState::in_memory());
 
-    // The matched private scope still serves.
+    // The claimed private scope still serves.
     let matched = app
         .clone()
         .oneshot(Request::get("/~main/@corp/secret").body(Body::empty()).unwrap())
@@ -2749,10 +2770,20 @@ async fn router_not_found_does_not_fall_through_to_public() {
         .unwrap();
     assert_eq!(matched.status(), StatusCode::OK);
 
-    // An unrouted public name is a definitive not-found, not a fall-through.
-    let unrouted =
-        app.oneshot(Request::get("/~main/lodash").body(Body::empty()).unwrap()).await.unwrap();
-    assert_eq!(unrouted.status(), StatusCode::NOT_FOUND);
+    // An unclaimed public name is a definitive not-found, not a fall-through.
+    let unclaimed = app
+        .clone()
+        .oneshot(Request::get("/~main/lodash").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(unclaimed.status(), StatusCode::NOT_FOUND);
+
+    // Addressing the upstream registry directly is bounded the same way, without
+    // an upstream fetch.
+    let direct =
+        app.oneshot(Request::get("/~corp/lodash").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(direct.status(), StatusCode::NOT_FOUND);
+    off_pattern_fetch.assert_async().await;
 }
 
 #[tokio::test]
@@ -2763,22 +2794,18 @@ async fn router_unavailable_source_errors_not_404() {
     let tmp = TempDir::new().unwrap();
     // Point `corp` at a closed port so every fetch is a transport failure.
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    let mut corp_uplink = config.uplinks.get("npmjs").expect("default `npmjs` uplink").clone();
-    corp_uplink.url = "http://127.0.0.1:1".to_string();
-    config.uplinks.insert("corp".to_string(), corp_uplink);
+    let mut corp_upstream =
+        config.upstreams.get("npmjs").expect("default `npmjs` upstream").clone();
+    corp_upstream.url = "http://127.0.0.1:1".to_string();
+    config.upstreams.insert("corp".to_string(), corp_upstream);
     let graph = vec![
-        ("corp".to_string(), MountKind::Upstream),
         (
-            "main".to_string(),
-            MountKind::Router {
-                routes: vec![Route {
-                    patterns: vec![PackagePattern::parse("@corp/*").unwrap()],
-                    source: "corp".to_string(),
-                }],
-            },
+            "corp".to_string(),
+            Registry::Upstream { patterns: vec![PackagePattern::parse("@corp/*").unwrap()] },
         ),
+        ("main".to_string(), Registry::Router { sources: vec!["corp".to_string()] }),
     ];
-    config.mounts = Mounts::new(graph.into_iter().collect(), Some("main".to_string()));
+    config.registries = Registries::new(graph.into_iter().collect(), Some("main".to_string()));
     let app = router_with_auth(config, AuthState::in_memory());
 
     let response = app
@@ -2805,7 +2832,7 @@ fn seed_hosted(storage: &Path, pkg: &str) {
 }
 
 #[tokio::test]
-async fn hosted_mount_serves_only_what_it_hosts() {
+async fn hosted_registry_serves_only_what_it_hosts() {
     let tmp = TempDir::new().unwrap();
     // The org "acme" stores under its own namespace (`<storage>/acme/`).
     seed_hosted(&tmp.path().join("acme"), "@acme/widget");
@@ -2815,11 +2842,13 @@ async fn hosted_mount_serves_only_what_it_hosts() {
         "acme".to_string(),
         HostedConfig { org: "acme".to_string(), access: AccessList::parse("$all") },
     );
-    config.mounts =
-        Mounts::new(vec![("acme".to_string(), MountKind::Hosted)].into_iter().collect(), None);
+    config.registries = Registries::new(
+        vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
+        None,
+    );
     let app = router_with_auth(config, AuthState::in_memory());
 
-    // A hosted package is served from the org mount.
+    // A hosted package is served from the org registry.
     let hit = app
         .clone()
         .oneshot(Request::get("/~acme/@acme/widget").body(Body::empty()).unwrap())
@@ -2847,8 +2876,10 @@ async fn private_hosted_hides_existence_from_unauthorized_caller() {
         "acme".to_string(),
         HostedConfig { org: "acme".to_string(), access: AccessList::parse("alice") },
     );
-    config.mounts =
-        Mounts::new(vec![("acme".to_string(), MountKind::Hosted)].into_iter().collect(), None);
+    config.registries = Registries::new(
+        vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
+        None,
+    );
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let app = router_with_auth(config, auth);
@@ -2876,7 +2907,7 @@ async fn private_hosted_hides_existence_from_unauthorized_caller() {
 }
 
 /// A private org's 404 mask must win over a *denying per-package ACL* on every
-/// mount-served read path: otherwise the ACL's 401/403 would fire first and
+/// registry-served read path: otherwise the ACL's 401/403 would fire first and
 /// reveal that the package exists.
 #[tokio::test]
 async fn private_hosted_org_masks_before_the_package_acl() {
@@ -2888,8 +2919,10 @@ async fn private_hosted_org_masks_before_the_package_acl() {
         "acme".to_string(),
         HostedConfig { org: "acme".to_string(), access: AccessList::parse("alice") },
     );
-    config.mounts =
-        Mounts::new(vec![("acme".to_string(), MountKind::Hosted)].into_iter().collect(), None);
+    config.registries = Registries::new(
+        vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
+        None,
+    );
     // A per-package ACL that also denies the anonymous caller. Without the
     // visibility-first ordering this would return 401/403 and leak existence.
     config.policies = PackagePolicies::new(vec![
@@ -2915,7 +2948,7 @@ async fn private_hosted_org_masks_before_the_package_acl() {
 }
 
 /// The same 404-before-ACL masking must hold on the path-less `dist-tags` reader
-/// (`load_packument_for_read`), which resolves through the default-target mount.
+/// (`load_packument_for_read`), which resolves through the default-target registry.
 #[tokio::test]
 async fn private_hosted_org_masks_dist_tags_before_the_package_acl() {
     let tmp = TempDir::new().unwrap();
@@ -2926,10 +2959,10 @@ async fn private_hosted_org_masks_dist_tags_before_the_package_acl() {
         "acme".to_string(),
         HostedConfig { org: "acme".to_string(), access: AccessList::parse("alice") },
     );
-    // The path-less base aliases the "acme" hosted mount, so `/-/package/...`
+    // The path-less base aliases the "acme" hosted registry, so `/-/package/...`
     // resolves to it.
-    config.mounts = Mounts::new(
-        vec![("acme".to_string(), MountKind::Hosted)].into_iter().collect(),
+    config.registries = Registries::new(
+        vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         Some("acme".to_string()),
     );
     config.policies = PackagePolicies::new(vec![
@@ -2960,28 +2993,21 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
         "acme".to_string(),
         HostedConfig { org: "acme".to_string(), access: AccessList::parse("$authenticated") },
     );
-    // npmjs already exists (from config_for); add a hosted org + a router that
-    // sends `@acme/*` to it and everything else to npmjs, aliased path-less.
+    // npmjs already exists (from config_for); add a hosted org claiming
+    // `@acme/*` + a router over it and the pattern-less npmjs catch-all,
+    // aliased path-less.
     let graph = vec![
-        ("npmjs".to_string(), MountKind::Upstream),
-        ("acme".to_string(), MountKind::Hosted),
+        ("npmjs".to_string(), Registry::Upstream { patterns: vec![] }),
+        (
+            "acme".to_string(),
+            Registry::Hosted { patterns: vec![PackagePattern::parse("@acme/*").unwrap()] },
+        ),
         (
             "main".to_string(),
-            MountKind::Router {
-                routes: vec![
-                    Route {
-                        patterns: vec![PackagePattern::parse("@acme/*").unwrap()],
-                        source: "acme".to_string(),
-                    },
-                    Route {
-                        patterns: vec![PackagePattern::parse("**").unwrap()],
-                        source: "npmjs".to_string(),
-                    },
-                ],
-            },
+            Registry::Router { sources: vec!["acme".to_string(), "npmjs".to_string()] },
         ),
     ];
-    config.mounts = Mounts::new(graph.into_iter().collect(), Some("main".to_string()));
+    config.registries = Registries::new(graph.into_iter().collect(), Some("main".to_string()));
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let app = router_with_auth(config, auth);
@@ -3069,14 +3095,276 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
     assert_eq!(rejected.status(), StatusCode::BAD_REQUEST);
 }
 
-/// The mount's access list gates writes exactly as it gates reads (RFC
-/// "registry mounts", implementation point 9). An authenticated non-member
-/// passes the default per-package publish policy (`$authenticated`), so
-/// without the mount-level gate they could publish into — or retag and
-/// unpublish from — a private hosted org. The denial is the same 404 mask
-/// reads use, so the write path reveals nothing about the mount either.
+/// A hosted registry's declared `patterns:` are enforced on the registry itself, on
+/// every path to it: an off-pattern publish is rejected and an off-pattern
+/// read is a definitive 404 — through a router and at the registry's own
+/// `/~<name>/` URL alike — so a typo'd scope can never squat in the hosted
+/// store and later surface as authoritative.
 #[tokio::test]
-async fn private_hosted_mount_denies_writes_from_non_members() {
+async fn hosted_registry_patterns_bound_publish_and_reads_on_every_path() {
+    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.hosted.insert(
+        "acme".to_string(),
+        HostedConfig { org: "acme".to_string(), access: AccessList::parse("$authenticated") },
+    );
+    // `acme` claims only `@acme/*`; the router has no other source, and the
+    // path-less base aliases the router.
+    let graph = vec![
+        (
+            "acme".to_string(),
+            Registry::Hosted { patterns: vec![PackagePattern::parse("@acme/*").unwrap()] },
+        ),
+        ("main".to_string(), Registry::Router { sources: vec!["acme".to_string()] }),
+    ];
+    let registries = Registries::new(graph.into_iter().collect(), Some("main".to_string()));
+    registries.validate().expect("patterned hosted config is valid");
+    config.registries = registries;
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let app = router_with_auth(config, auth);
+
+    let publish_body = |pkg: &str| {
+        let tarball = b"typo-bytes";
+        let bare = pkg.rsplit('/').next().unwrap();
+        json!({
+            "name": pkg,
+            "dist-tags": { "latest": "1.0.0" },
+            "versions": { "1.0.0": { "name": pkg, "version": "1.0.0", "dist": {
+                "tarball": format!("http://example.test/{pkg}/-/{bare}-1.0.0.tgz"),
+                "integrity": sha512_integrity(tarball),
+            } } },
+            "_attachments": { format!("{pkg}-1.0.0.tgz"): {
+                "content_type": "application/octet-stream",
+                "data": BASE64.encode(tarball),
+                "length": tarball.len(),
+            } },
+        })
+        .to_string()
+    };
+    let publish_to = |url: &str, pkg: &str| {
+        Request::put(url)
+            .header("content-type", "application/json")
+            .header(header::AUTHORIZATION, format!("Bearer {token}"))
+            .body(Body::from(publish_body(pkg)))
+            .unwrap()
+    };
+
+    // An off-pattern publish is rejected on the registry's own URL, through the
+    // router, and via the path-less base — and nothing lands in the store.
+    for (url, pkg) in [
+        ("/~acme/@typo/widget", "@typo/widget"),
+        ("/~main/@typo/widget", "@typo/widget"),
+        ("/@typo%2Fwidget", "@typo/widget"),
+    ] {
+        let rejected = app.clone().oneshot(publish_to(url, pkg)).await.unwrap();
+        assert_eq!(rejected.status(), StatusCode::BAD_REQUEST, "publish {url} must be rejected");
+    }
+    assert!(
+        !tmp.path().join("acme/@typo/widget/package.json").exists(),
+        "an off-pattern publish must write nothing",
+    );
+
+    // A claimed name publishes normally through the registry's own URL.
+    let accepted = app.clone().oneshot(publish_to("/~acme/@acme/widget", "@acme/widget")).await;
+    assert_eq!(accepted.unwrap().status(), StatusCode::CREATED);
+
+    // An off-pattern read is a definitive 404 on both addresses, before the
+    // hosted store is consulted.
+    for url in ["/~acme/@typo/widget", "/~main/@typo/widget"] {
+        let read = app
+            .clone()
+            .oneshot(
+                Request::get(url)
+                    .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(read.status(), StatusCode::NOT_FOUND, "read {url} must 404");
+    }
+}
+
+/// The off-pattern publish rejection explains a config fact about the
+/// addressed registry, so it is only for callers the registry admits: a
+/// denied caller gets the same 404 mask every read gives, and an unclaimed
+/// probe cannot distinguish a private registry from an undefined one.
+#[tokio::test]
+async fn off_pattern_publish_is_masked_for_callers_the_registry_denies() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.hosted.insert(
+        "corp".to_string(),
+        HostedConfig { org: "corp".to_string(), access: AccessList::parse("alice") },
+    );
+    config.registries = Registries::new(
+        vec![(
+            "corp".to_string(),
+            Registry::Hosted { patterns: vec![PackagePattern::parse("@corp/*").unwrap()] },
+        )]
+        .into_iter()
+        .collect(),
+        None,
+    );
+    let auth = AuthState::in_memory();
+    let member = auth.tokens.issue("alice").await.unwrap();
+    let outsider = auth.tokens.issue("mallory").await.unwrap();
+    let app = router_with_auth(config, auth);
+
+    let publish_as = |token: &str| {
+        Request::put("/~corp/@typo/widget")
+            .header("content-type", "application/json")
+            .header(header::AUTHORIZATION, format!("Bearer {token}"))
+            .body(Body::from(json!({ "name": "@typo/widget", "versions": {} }).to_string()))
+            .unwrap()
+    };
+
+    // The denied caller sees exactly what an undefined registry would give.
+    let masked = app.clone().oneshot(publish_as(&outsider)).await.unwrap();
+    assert_eq!(masked.status(), StatusCode::NOT_FOUND);
+
+    // The member gets the loud off-pattern rejection.
+    let rejected = app.oneshot(publish_as(&member)).await.unwrap();
+    assert_eq!(rejected.status(), StatusCode::BAD_REQUEST);
+}
+
+/// A programmatically-built registry graph gets the same fail-closed
+/// validation as a YAML load: server construction folds every upstream into
+/// the graph and rejects an invalid graph instead of serving it.
+#[tokio::test]
+async fn building_the_server_rejects_an_invalid_programmatic_registry_graph() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.registries = Registries::new(
+        vec![("main".to_string(), Registry::Router { sources: vec!["ghost".to_string()] })]
+            .into_iter()
+            .collect(),
+        None,
+    );
+    let err =
+        pnpr::try_router(config).expect_err("an unknown router source must fail server startup");
+    assert!(err.to_string().contains("ghost"), "unexpected error: {err}");
+}
+
+/// A concrete registry declared in the graph without its serving config
+/// would answer every request not-found at runtime; server construction
+/// rejects the mismatch instead.
+#[tokio::test]
+async fn building_the_server_rejects_a_concrete_registry_without_serving_config() {
+    let tmp = TempDir::new().unwrap();
+
+    // A hosted graph entry with no hosted-table row.
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.registries = Registries::new(
+        vec![("ghost-org".to_string(), Registry::Hosted { patterns: vec![] })]
+            .into_iter()
+            .collect(),
+        None,
+    );
+    let err = pnpr::try_router(config).expect_err("a backing-less hosted registry must fail");
+    assert!(err.to_string().contains("ghost-org"), "unexpected error: {err}");
+
+    // An upstream graph entry with no upstream serving config.
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.registries = Registries::new(
+        vec![("phantom".to_string(), Registry::Upstream { patterns: vec![] })]
+            .into_iter()
+            .collect(),
+        None,
+    );
+    let err = pnpr::try_router(config).expect_err("a backing-less upstream registry must fail");
+    assert!(err.to_string().contains("phantom"), "unexpected error: {err}");
+}
+
+/// One name cannot identify two different origins: serving config left under
+/// a name the graph declares as a different kind fails construction,
+/// mirroring the YAML collision rejection.
+#[tokio::test]
+async fn building_the_server_rejects_a_name_shared_by_two_registry_kinds() {
+    let tmp = TempDir::new().unwrap();
+
+    // Upstream serving config under a name the graph declares as hosted.
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.registries = Registries::new(
+        vec![("npmjs".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
+        None,
+    );
+    let err = pnpr::try_router(config).expect_err("an upstream/hosted name collision must fail");
+    assert!(err.to_string().contains("collides"), "unexpected error: {err}");
+
+    // A hosted serving row under a name the graph declares as a router.
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.hosted.insert(
+        "corp".to_string(),
+        HostedConfig { org: "corp".to_string(), access: AccessList::parse("$all") },
+    );
+    config.registries = Registries::new(
+        vec![("corp".to_string(), Registry::Router { sources: vec!["npmjs".to_string()] })]
+            .into_iter()
+            .collect(),
+        None,
+    );
+    let err = pnpr::try_router(config).expect_err("a hosted/router name collision must fail");
+    assert!(err.to_string().contains("collides"), "unexpected error: {err}");
+}
+
+/// The programmatic path enforces the same name/org safety as YAML loading:
+/// a hosted `org` that could escape the storage root fails server startup.
+#[tokio::test]
+async fn building_the_server_rejects_an_unsafe_programmatic_hosted_org() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.hosted.insert(
+        "evil".to_string(),
+        HostedConfig { org: "../escape".to_string(), access: AccessList::parse("$all") },
+    );
+    let err = pnpr::try_router(config).expect_err("a path-escaping org must fail startup");
+    assert!(err.to_string().contains("org"), "unexpected error: {err}");
+}
+
+/// The write endpoints gate on a private upstream's `access:` exactly as
+/// reads do: a denied caller gets the read path's 403, not a 400 rejection
+/// that narrates where the name routes.
+#[tokio::test]
+async fn publish_to_a_private_upstream_is_denied_before_the_upstream_rejection() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    let mut corp = config.upstreams.get("npmjs").expect("default `npmjs` upstream").clone();
+    corp.access = Some(AccessList::parse("alice"));
+    config.upstreams.insert("corp".to_string(), corp);
+    let auth = AuthState::in_memory();
+    let member = auth.tokens.issue("alice").await.unwrap();
+    let outsider = auth.tokens.issue("mallory").await.unwrap();
+    let app = router_with_auth(config, auth);
+
+    let publish_as = |token: &str| {
+        Request::put("/~corp/lodash")
+            .header("content-type", "application/json")
+            .header(header::AUTHORIZATION, format!("Bearer {token}"))
+            .body(Body::from(json!({ "name": "lodash", "versions": {} }).to_string()))
+            .unwrap()
+    };
+
+    let denied = app.clone().oneshot(publish_as(&outsider)).await.unwrap();
+    assert_eq!(denied.status(), StatusCode::FORBIDDEN);
+
+    // The admitted caller still can't write to an upstream, but the answer is
+    // the clear rejection rather than an access denial.
+    let rejected = app.oneshot(publish_as(&member)).await.unwrap();
+    assert_eq!(rejected.status(), StatusCode::BAD_REQUEST);
+}
+
+/// The registry's access list gates writes exactly as it gates reads (RFC
+/// "registries", implementation point 9). An authenticated non-member
+/// passes the default per-package publish policy (`$authenticated`), so
+/// without the registry-level gate they could publish into — or retag and
+/// unpublish from — a private hosted org. The denial is the same 404 mask
+/// reads use, so the write path reveals nothing about the registry either.
+#[tokio::test]
+async fn private_hosted_registry_denies_writes_from_non_members() {
     use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
     let tmp = TempDir::new().unwrap();
@@ -3085,10 +3373,10 @@ async fn private_hosted_mount_denies_writes_from_non_members() {
         "corp".to_string(),
         HostedConfig { org: "corp".to_string(), access: AccessList::parse("alice") },
     );
-    // `/~corp/` addresses the mount directly; the path-less base aliases it,
+    // `/~corp/` addresses the registry directly; the path-less base aliases it,
     // so the path-less dist-tag and unpublish writes route there too.
-    config.mounts = Mounts::new(
-        vec![("corp".to_string(), MountKind::Hosted)].into_iter().collect(),
+    config.registries = Registries::new(
+        vec![("corp".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         Some("corp".to_string()),
     );
     let auth = AuthState::in_memory();
@@ -3127,7 +3415,7 @@ async fn private_hosted_mount_denies_writes_from_non_members() {
     };
 
     // The non-member publish is masked with 404 — not 401/403, which would
-    // reveal the private mount exists — and nothing lands on disk.
+    // reveal the private registry exists — and nothing lands on disk.
     let denied = app.clone().oneshot(publish_as(&outsider)).await.unwrap();
     assert_eq!(denied.status(), StatusCode::NOT_FOUND);
     assert!(
@@ -3163,26 +3451,26 @@ async fn private_hosted_mount_denies_writes_from_non_members() {
     assert_eq!(retag_allowed.status(), StatusCode::CREATED);
 }
 
-/// Search scans the flat hosted store, so it must apply the owning mount's
-/// access list, not only the per-package ACL: a private flat-root mount
+/// Search scans the flat hosted store, so it must apply the owning registry's
+/// access list, not only the per-package ACL: a private flat-root registry
 /// (`org: ""`) is 404-masked on packument reads and must not be enumerable
 /// by name/version/description through `/-/v1/search`.
 #[tokio::test]
-async fn search_does_not_enumerate_a_private_flat_root_mount() {
+async fn search_does_not_enumerate_a_private_flat_root_registry() {
     let tmp = TempDir::new().unwrap();
     // The flat root (`org: ""`) stores directly under `storage`.
     seed_hosted(tmp.path(), "@corp/secret-tool");
 
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    // Replace the default public flat-root mount (`local`) with a private one;
+    // Replace the default public flat-root registry (`local`) with a private one;
     // any surviving `$all` flat-root entry would defeat the gate under test.
     config.hosted.clear();
     config.hosted.insert(
         "corp".to_string(),
         HostedConfig { org: String::new(), access: AccessList::parse("alice") },
     );
-    config.mounts = Mounts::new(
-        vec![("corp".to_string(), MountKind::Hosted)].into_iter().collect(),
+    config.registries = Registries::new(
+        vec![("corp".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         Some("corp".to_string()),
     );
     let auth = AuthState::in_memory();
@@ -3199,7 +3487,7 @@ async fn search_does_not_enumerate_a_private_flat_root_mount() {
     };
 
     // Neither the anonymous caller nor an authenticated non-member can
-    // enumerate the private mount's packages.
+    // enumerate the private registry's packages.
     for authorization in [None, Some(format!("Bearer {outsider}"))] {
         let response = app.clone().oneshot(search_with(authorization)).await.unwrap();
         assert_eq!(response.status(), StatusCode::OK);
@@ -3215,14 +3503,15 @@ async fn search_does_not_enumerate_a_private_flat_root_mount() {
     assert_eq!(body["objects"][0]["package"]["name"], json!("@corp/secret-tool"));
 }
 
-/// Every registry operation routes through the mount graph when addressed as
-/// `/~<mount>/...` (RFC "registry mounts", implementation point 7): dist-tag
+/// Every registry operation routes through the registry graph when addressed as
+/// `/~<name>/...` (RFC "registries", implementation point 7): dist-tag
 /// read/add/remove, whoami, search, the version manifest, and the whole
-/// unpublish flow. The mount here is deliberately *not* reachable from any
-/// default target — without the mount-addressed surface these operations
+/// unpublish flow. The registry here is deliberately *not* reachable from any
+/// default target — without the registry-addressed surface these operations
 /// would be impossible for it.
 #[tokio::test]
-async fn mount_addressed_surface_serves_dist_tags_unpublish_whoami_search_and_version_manifest() {
+async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and_version_manifest()
+{
     use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
     let tmp = TempDir::new().unwrap();
@@ -3231,9 +3520,11 @@ async fn mount_addressed_surface_serves_dist_tags_unpublish_whoami_search_and_ve
         "acme".to_string(),
         HostedConfig { org: "acme".to_string(), access: AccessList::parse("$authenticated") },
     );
-    // No default target: the mount is addressable only at `/~acme/`.
-    config.mounts =
-        Mounts::new(vec![("acme".to_string(), MountKind::Hosted)].into_iter().collect(), None);
+    // No default target: the registry is addressable only at `/~acme/`.
+    config.registries = Registries::new(
+        vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
+        None,
+    );
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let app = router_with_auth(config, auth);
@@ -3241,7 +3532,7 @@ async fn mount_addressed_surface_serves_dist_tags_unpublish_whoami_search_and_ve
         request.header(header::AUTHORIZATION, format!("Bearer {token}"))
     };
 
-    // Seed the mount through its own publish endpoint.
+    // Seed the registry through its own publish endpoint.
     let tarball = b"acme-widget-bytes";
     let publish_body = json!({
         "name": "@acme/widget",
@@ -3268,7 +3559,7 @@ async fn mount_addressed_surface_serves_dist_tags_unpublish_whoami_search_and_ve
         .unwrap();
     assert_eq!(publish.status(), StatusCode::CREATED);
 
-    // dist-tags read through the mount.
+    // dist-tags read through the registry.
     let tags = app
         .clone()
         .oneshot(
@@ -3314,7 +3605,7 @@ async fn mount_addressed_surface_serves_dist_tags_unpublish_whoami_search_and_ve
         .unwrap();
     assert_eq!(remove.status(), StatusCode::CREATED);
 
-    // whoami through the mount.
+    // whoami through the registry.
     let whoami = app
         .clone()
         .oneshot(authed(Request::get("/~acme/-/whoami")).body(Body::empty()).unwrap())
@@ -3323,8 +3614,8 @@ async fn mount_addressed_surface_serves_dist_tags_unpublish_whoami_search_and_ve
     assert_eq!(whoami.status(), StatusCode::OK);
     assert_eq!(body_json(whoami.into_body()).await["username"], json!("alice"));
 
-    // Search through the mount finds the hosted package; the anonymous
-    // caller (whom the mount denies) gets an empty result.
+    // Search through the registry finds the hosted package; the anonymous
+    // caller (whom the registry denies) gets an empty result.
     let search = app
         .clone()
         .oneshot(
@@ -3342,8 +3633,8 @@ async fn mount_addressed_surface_serves_dist_tags_unpublish_whoami_search_and_ve
         .unwrap();
     assert_eq!(body_json(anon_search.into_body()).await["total"], json!(0));
 
-    // Version manifest through the mount, with `dist.tarball` rewritten onto
-    // the mount's own base.
+    // Version manifest through the registry, with `dist.tarball` rewritten onto
+    // the registry's own base.
     let manifest = app
         .clone()
         .oneshot(authed(Request::get("/~acme/@acme/widget/1.0.0")).body(Body::empty()).unwrap())
@@ -3358,7 +3649,7 @@ async fn mount_addressed_surface_serves_dist_tags_unpublish_whoami_search_and_ve
 
     // The unpublish flow: PUT back a packument without the version, delete
     // its tarball (the unencoded scoped 7-segment form), then delete the
-    // package — all through the mount.
+    // package — all through the registry.
     let put_back = app
         .clone()
         .oneshot(
@@ -3394,12 +3685,12 @@ async fn mount_addressed_surface_serves_dist_tags_unpublish_whoami_search_and_ve
     assert!(!tmp.path().join("acme/@acme/widget").exists());
 }
 
-/// Path-less responses resolved to a private mount carry the same
+/// Path-less responses resolved to a private registry carry the same
 /// `Cache-Control: private, no-store` / `Vary: Authorization` headers the
-/// `/~<mount>/` surface applies — same content, same defense against a shared
+/// `/~<name>/` surface applies — same content, same defense against a shared
 /// HTTP cache. A public resolution stays cacheable.
 #[tokio::test]
-async fn pathless_private_mount_responses_carry_private_cache_headers() {
+async fn pathless_private_registry_responses_carry_private_cache_headers() {
     let tmp = TempDir::new().unwrap();
     seed_hosted(&tmp.path().join("acme"), "@acme/widget");
 
@@ -3408,8 +3699,8 @@ async fn pathless_private_mount_responses_carry_private_cache_headers() {
         "acme".to_string(),
         HostedConfig { org: "acme".to_string(), access: AccessList::parse("alice") },
     );
-    config.mounts = Mounts::new(
-        vec![("acme".to_string(), MountKind::Hosted)].into_iter().collect(),
+    config.registries = Registries::new(
+        vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         Some("acme".to_string()),
     );
     let auth = AuthState::in_memory();
@@ -3440,7 +3731,7 @@ async fn pathless_private_mount_responses_carry_private_cache_headers() {
         );
     }
 
-    // Control: the same content behind a public mount stays cacheable.
+    // Control: the same content behind a public registry stays cacheable.
     let tmp_public = TempDir::new().unwrap();
     seed_hosted(&tmp_public.path().join("acme"), "@acme/widget");
     let mut config = config_for("http://127.0.0.1:1", tmp_public.path().to_path_buf());
@@ -3448,8 +3739,8 @@ async fn pathless_private_mount_responses_carry_private_cache_headers() {
         "acme".to_string(),
         HostedConfig { org: "acme".to_string(), access: AccessList::parse("$all") },
     );
-    config.mounts = Mounts::new(
-        vec![("acme".to_string(), MountKind::Hosted)].into_iter().collect(),
+    config.registries = Registries::new(
+        vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         Some("acme".to_string()),
     );
     let app = router_with_auth(config, AuthState::in_memory());
@@ -3463,7 +3754,7 @@ async fn pathless_private_mount_responses_carry_private_cache_headers() {
 }
 
 /// A per-package ACL that denies anonymous callers makes the path-less
-/// response vary by `Authorization` even when the source mount itself is
+/// response vary by `Authorization` even when the source registry itself is
 /// public, so it must carry the private-cache headers — otherwise a shared
 /// HTTP cache could replay an authenticated 200 to an anonymous caller.
 #[tokio::test]
@@ -3476,8 +3767,8 @@ async fn pathless_acl_gated_package_carries_private_cache_headers() {
         "acme".to_string(),
         HostedConfig { org: "acme".to_string(), access: AccessList::parse("$all") },
     );
-    config.mounts = Mounts::new(
-        vec![("acme".to_string(), MountKind::Hosted)].into_iter().collect(),
+    config.registries = Registries::new(
+        vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         Some("acme".to_string()),
     );
     config.policies = PackagePolicies::new(vec![
@@ -3530,7 +3821,7 @@ async fn upstream_404_purges_cached_packument() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let mut config = config_for(upstream.url(), tmp.path().to_path_buf());
+    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
     config.packument_ttl = Duration::from_millis(50);
     let app = router(config);
 
@@ -3560,20 +3851,20 @@ async fn upstream_404_purges_cached_packument() {
 
 /// The identity endpoints — adduser/login, whoami, profile, token list,
 /// logout, token revoke — are global, so they are served under *any*
-/// `/~<prefix>/` without consulting the mount table: clients derive these
+/// `/~<prefix>/` without consulting the registry table: clients derive these
 /// URLs from their configured registry URL, so `pnpm login --registry
 /// .../~corp/` must work even when nothing named `corp` is mounted. Skipping
 /// the lookup also keeps them from becoming an existence oracle for private
-/// mount names (a defined and an undefined mount must not answer
+/// registry names (a defined and an undefined registry must not answer
 /// differently).
 #[tokio::test]
-async fn identity_endpoints_are_served_under_any_mount_prefix() {
+async fn identity_endpoints_are_served_under_any_registry_prefix() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.auth.htpasswd.max_users = MaxUsers::Unlimited;
     let app = router(config);
 
-    // Login against a mount prefix that is NOT a defined mount.
+    // Login against a registry prefix that is NOT a defined registry.
     let registration = json!({
         "_id": "org.couchdb.user:alice",
         "name": "alice",
@@ -3663,7 +3954,7 @@ async fn identity_endpoints_are_served_under_any_mount_prefix() {
     assert_eq!(stale.status(), StatusCode::UNAUTHORIZED);
 
     // No existence oracle: anonymous whoami answers 401 identically whether
-    // or not the prefix names a real mount (`npmjs` is defined by config_for).
+    // or not the prefix names a real registry (`npmjs` is defined by config_for).
     for path in ["/~corp/-/whoami", "/~npmjs/-/whoami"] {
         let response =
             app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();

@@ -27,12 +27,12 @@ fn config_from_yaml(packages_block: &str) -> (TempDir, Config) {
     // Route everything to one local hosted over the flat storage root (an
     // empty `org` namespace), so the path-less base resolves and the per-package
     // ACL in `packages_block` gates the request.
-    let mounts_block = "mounts:\n  \
+    let registries_block = "registries:\n  \
         local:\n    type: hosted\n    org: \"\"\n    access: $all\n  \
-        main:\n    type: router\n    routes:\n      - patterns: ['**']\n        source: local\n\
-        defaultTarget: main\n";
+        main:\n    type: router\n    sources: [local]\n\
+        defaultRegistry: main\n";
     let yaml = format!(
-        "storage: {}\nauth:\n  htpasswd:\n    max_users: 100\n{mounts_block}{packages_block}\n",
+        "storage: {}\nauth:\n  htpasswd:\n    max_users: 100\n{registries_block}{packages_block}\n",
         storage.display(),
     );
     let path = dir.path().join("config.yaml");

@@ -19,16 +19,16 @@ pub enum RegistryError {
         body: String,
     },
 
-    /// The uplink's circuit breaker is open: it reached `max_fails`
+    /// The upstream's circuit breaker is open: it reached `max_fails`
     /// consecutive failures and is still inside its `fail_timeout`
     /// cooldown, so pnpr short-circuits the request instead of hammering
     /// a known-down upstream. The packument path turns this into a
     /// stale-cache fallback; with nothing cached it surfaces as 503.
-    #[display("Upstream {uplink} is temporarily unavailable (circuit open)")]
+    #[display("Upstream {upstream} is temporarily unavailable (circuit open)")]
     #[from(skip)]
     UpstreamUnavailable {
         #[error(not(source))]
-        uplink: String,
+        upstream: String,
     },
 
     #[display("EINTEGRITY: tarball {filename:?} for package {package:?}: {reason}")]

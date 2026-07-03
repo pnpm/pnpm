@@ -91,7 +91,7 @@ fn is_safe_segment(segment: &str) -> bool {
 
 /// Whether `filename` is safe to use as a single on-disk path segment (no
 /// traversal, no separators, no absolute-path or Windows drive prefixes). The
-/// uplink tarball path uses it to admit a non-canonical basename preserved
+/// upstream tarball path uses it to admit a non-canonical basename preserved
 /// from an upstream `dist.tarball` (see `rewrite_tarball_urls`) into the
 /// cache layout — the packument match is what authorizes the name; this only
 /// keeps it on disk safely.

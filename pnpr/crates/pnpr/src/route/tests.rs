@@ -9,7 +9,7 @@ use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 
 use super::{Footprint, PrivateAccessDescriptor, RouteClass, RouteContext, RouteHook};
 use crate::{
-    config::{Config, PublicRoute, UplinkConfig},
+    config::{Config, PublicRoute, UpstreamConfig},
     policy::{AccessList, Identity, PackagePolicies},
 };
 
@@ -123,9 +123,9 @@ fn npmjs_host_is_public_including_scoped() {
 #[test]
 fn allows_registry_is_a_default_deny_allowlist() {
     let mut config = base_config();
-    config.uplinks.insert(
+    config.upstreams.insert(
         "corp".to_string(),
-        uplink_with_access("https://npm.corp.example/", "$authenticated"),
+        upstream_with_access("https://npm.corp.example/", "$authenticated"),
     );
     config.route_policy.public.push(PublicRoute {
         registry: Some("https://public.mirror.example/".to_string()),
@@ -133,8 +133,8 @@ fn allows_registry_is_a_default_deny_allowlist() {
     });
     let context = RouteContext::from_config(&config);
 
-    // Allowed: the built-in npm host, a declared public route, a uplink
-    // origin, and pnpr's own origin (its `/~<uplink>/` endpoints).
+    // Allowed: the built-in npm host, a declared public route, an upstream
+    // origin, and pnpr's own origin (its `/~<name>/` endpoints).
     assert!(context.allows_registry("https://registry.npmjs.org/"));
     assert!(context.allows_registry("https://public.mirror.example/@scope/pkg"));
     assert!(context.allows_registry("https://npm.corp.example/@acme/widget"));
@@ -153,10 +153,10 @@ fn allows_registry_is_a_default_deny_allowlist() {
 
 #[test]
 fn the_builtin_npmjs_route_is_always_allowlisted_and_public() {
-    // Even a deployment that declares no uplinks and no public routes still
+    // Even a deployment that declares no upstreams and no public routes still
     // resolves from the official npm registry: it's a built-in public route.
     let mut config = base_config();
-    config.uplinks.clear();
+    config.upstreams.clear();
     let context = RouteContext::from_config(&config);
 
     assert!(context.allows_registry("https://registry.npmjs.org/lodash"));
@@ -212,7 +212,7 @@ fn public_route_with_an_invalid_field_fails_closed_instead_of_matching_all() {
     // A typo'd registry URL must not collapse to a match-any public rule
     // that would classify a private registry's packages as Public.
     let mut config = base_config();
-    config.uplinks.clear();
+    config.upstreams.clear();
     config.route_policy.public.push(PublicRoute {
         registry: Some("not a url".to_string()),
         package: Some("@public/*".to_string()),
@@ -229,7 +229,7 @@ fn public_route_with_an_invalid_field_fails_closed_instead_of_matching_all() {
 
     // An invalid package glob drops the rule the same way.
     let mut config = base_config();
-    config.uplinks.clear();
+    config.upstreams.clear();
     config.route_policy.public.push(PublicRoute {
         registry: Some("https://npm.corp.example/".to_string()),
         package: Some("[".to_string()),
@@ -238,39 +238,39 @@ fn public_route_with_an_invalid_field_fails_closed_instead_of_matching_all() {
     assert!(!context.allows_registry("https://npm.corp.example/@secret/pkg"));
 }
 
-/// The standard bearer token every test uplink uses, and the credential digest
+/// The standard bearer token every test upstream uses, and the credential digest
 /// it produces — what a `RouteClass::Proxied` / `PrivateAccessDescriptor::Alias`
-/// for such an uplink carries.
-const UPLINK_TOKEN: &str = "Bearer uplink-secret";
+/// for such an upstream carries.
+const UPSTREAM_TOKEN: &str = "Bearer upstream-secret";
 
 fn corp_credential() -> String {
-    super::credential_digest(UPLINK_TOKEN)
+    super::credential_digest(UPSTREAM_TOKEN)
 }
 
-/// A *different* credential digest, standing in for the same uplink after its
+/// A *different* credential digest, standing in for the same upstream after its
 /// upstream credential has been rotated.
 fn rotated_credential() -> String {
     super::credential_digest("Bearer rotated-secret")
 }
 
-fn uplink_with_access(registry: impl Into<String>, access: &str) -> UplinkConfig {
+fn upstream_with_access(registry: impl Into<String>, access: &str) -> UpstreamConfig {
     let mut headers = HeaderMap::new();
-    headers.insert(AUTHORIZATION, HeaderValue::from_static("Bearer uplink-secret"));
-    let mut uplink = UplinkConfig::with_defaults(registry.into(), headers);
-    uplink.access = Some(AccessList::parse(access));
-    uplink
+    headers.insert(AUTHORIZATION, HeaderValue::from_static("Bearer upstream-secret"));
+    let mut upstream = UpstreamConfig::with_defaults(registry.into(), headers);
+    upstream.access = Some(AccessList::parse(access));
+    upstream
 }
 
 #[test]
-fn uplink_with_access_is_a_proxied_route_matched_by_origin() {
+fn upstream_with_access_is_a_proxied_route_matched_by_origin() {
     let mut config = base_config();
-    config.uplinks.insert(
+    config.upstreams.insert(
         "corp".to_string(),
-        uplink_with_access("https://npm.corp.example/", "$authenticated"),
+        upstream_with_access("https://npm.corp.example/", "$authenticated"),
     );
     let context = RouteContext::from_config(&config);
 
-    // An authorized caller selects the uplink as a proxied route.
+    // An authorized caller selects the upstream as a proxied route.
     assert_eq!(
         context.classify(
             &user("alice"),
@@ -280,7 +280,7 @@ fn uplink_with_access_is_a_proxied_route_matched_by_origin() {
         RouteClass::Proxied { alias: "corp".to_string(), credential_digest: corp_credential() },
     );
     // Routing is by registry origin, not a package glob, so any package on
-    // that origin matches the same uplink.
+    // that origin matches the same upstream.
     assert_eq!(
         context.classify(&user("alice"), "https://npm.corp.example/lodash", Some("lodash")),
         RouteClass::Proxied { alias: "corp".to_string(), credential_digest: corp_credential() },
@@ -295,20 +295,20 @@ fn uplink_with_access_is_a_proxied_route_matched_by_origin() {
 }
 
 #[test]
-fn uplink_credential_is_not_attached_over_a_mismatched_scheme() {
+fn upstream_credential_is_not_attached_over_a_mismatched_scheme() {
     let mut config = base_config();
-    config.uplinks.insert(
+    config.upstreams.insert(
         "corp".to_string(),
-        uplink_with_access("https://npm.corp.example/", "$authenticated"),
+        upstream_with_access("https://npm.corp.example/", "$authenticated"),
     );
     let context = RouteContext::from_config(&config);
 
-    // An https fetch matches the https uplink and gets the managed credential.
+    // An https fetch matches the https upstream and gets the managed credential.
     assert_eq!(
         context.classify(&user("alice"), "https://npm.corp.example/lodash", Some("lodash")),
         RouteClass::Proxied { alias: "corp".to_string(), credential_digest: corp_credential() },
     );
-    // A plain-http fetch to the same origin must NOT receive the https uplink's
+    // A plain-http fetch to the same origin must NOT receive the https upstream's
     // server-owned token (nerf-darting strips the scheme); it falls through to
     // an anonymous public fetch instead.
     assert_eq!(
@@ -318,26 +318,26 @@ fn uplink_credential_is_not_attached_over_a_mismatched_scheme() {
 }
 
 #[test]
-fn self_uplink_endpoint_url_classifies_as_proxied_for_authorized_caller() {
+fn self_upstream_endpoint_url_classifies_as_proxied_for_authorized_caller() {
     let mut config = base_config();
-    config.uplinks.insert(
+    config.upstreams.insert(
         "corp".to_string(),
-        uplink_with_access("https://npm.corp.example/", "$authenticated"),
+        upstream_with_access("https://npm.corp.example/", "$authenticated"),
     );
     let context = RouteContext::from_config(&config);
     // A request to pnpr's own `/~corp/` endpoint resolves through the corp
-    // uplink, using its current credential (the URL carries none).
+    // upstream, using its current credential (the URL carries none).
     let url = format!("{}/~corp/@acme%2fwidget", config.public_url);
     assert_eq!(
         context.classify(&user("alice"), &url, Some("@acme/widget")),
         RouteClass::Proxied { alias: "corp".to_string(), credential_digest: corp_credential() },
     );
-    // An unauthorized caller gets no managed credential: a `/~<uplink>/` URL
-    // is an uplink endpoint, never a hosted package, so it does not fall
+    // An unauthorized caller gets no managed credential: a `/~<name>/` URL
+    // is an upstream endpoint, never a hosted package, so it does not fall
     // through to the hosted-package policy; the anonymous fetch the endpoint
     // itself rejects is the fail-closed point.
     assert_eq!(context.classify(&anon(), &url, Some("@acme/widget")), RouteClass::Public);
-    // An unknown uplink name is treated the same way.
+    // An unknown upstream name is treated the same way.
     let ghost = format!("{}/~ghost/@acme%2fwidget", config.public_url);
     assert_eq!(context.classify(&user("alice"), &ghost, Some("@acme/widget")), RouteClass::Public);
 }
@@ -347,9 +347,9 @@ fn self_endpoint_recognized_when_pnpr_is_served_under_a_path_prefix() {
     let mut config = base_config();
     // pnpr deployed behind a reverse proxy under a `/pnpr/` sub-path.
     config.public_url = "https://host.example/pnpr/".to_string();
-    config.uplinks.insert(
+    config.upstreams.insert(
         "corp".to_string(),
-        uplink_with_access("https://npm.corp.example/", "$authenticated"),
+        upstream_with_access("https://npm.corp.example/", "$authenticated"),
     );
     let context = RouteContext::from_config(&config);
     // The path-preserving hosted prefix still recognizes the `/pnpr/~corp/`
@@ -365,16 +365,16 @@ fn self_endpoint_recognized_when_pnpr_is_served_under_a_path_prefix() {
 }
 
 #[test]
-fn uplink_without_access_is_an_anonymous_route() {
+fn upstream_without_access_is_an_anonymous_route() {
     let mut config = base_config();
     let mut headers = HeaderMap::new();
-    headers.insert(AUTHORIZATION, HeaderValue::from_static("Bearer uplink-secret"));
-    // A plain proxy uplink that does not declare `access:` is never offered
+    headers.insert(AUTHORIZATION, HeaderValue::from_static("Bearer upstream-secret"));
+    // A plain proxy upstream that does not declare `access:` is never offered
     // as a resolver private-route credential, but its origin is still
     // allowlisted (a configured registry) and fetched anonymously.
-    config.uplinks.insert(
+    config.upstreams.insert(
         "mirror".to_string(),
-        UplinkConfig::with_defaults("https://npm.corp.example/".to_string(), headers),
+        UpstreamConfig::with_defaults("https://npm.corp.example/".to_string(), headers),
     );
     let context = RouteContext::from_config(&config);
     assert!(context.allows_registry("https://npm.corp.example/lodash"));
@@ -389,8 +389,8 @@ fn proxied_alias_accepts_configured_group_identity() {
     let mut config = base_config();
     config.groups.add_user_to_group("alice".to_string(), "platform".to_string());
     config
-        .uplinks
-        .insert("corp".to_string(), uplink_with_access("https://npm.corp.example/", "platform"));
+        .upstreams
+        .insert("corp".to_string(), upstream_with_access("https://npm.corp.example/", "platform"));
     let context = RouteContext::from_config(&config);
     let url = "https://npm.corp.example/@acme%2fwidget";
 
@@ -436,17 +436,17 @@ fn hosted_route_follows_package_access_policy() {
 }
 
 #[test]
-fn overlapping_uplink_access_reuses_only_the_selected_alias() {
+fn overlapping_upstream_access_reuses_only_the_selected_alias() {
     let mut config = base_config();
-    // Two uplinks serving the same origin; `primary` is declared first, so
+    // Two upstreams serving the same origin; `primary` is declared first, so
     // `select_alias` picks it for a caller authorized for both.
-    config.uplinks.insert(
+    config.upstreams.insert(
         "primary".to_string(),
-        uplink_with_access("https://npm.corp.example/", "$authenticated"),
+        upstream_with_access("https://npm.corp.example/", "$authenticated"),
     );
-    config.uplinks.insert(
+    config.upstreams.insert(
         "secondary".to_string(),
-        uplink_with_access("https://npm.corp.example/", "$authenticated"),
+        upstream_with_access("https://npm.corp.example/", "$authenticated"),
     );
     let context = RouteContext::from_config(&config);
 
@@ -510,9 +510,9 @@ fn footprint_digest_is_stable_and_namespaced() {
 #[test]
 fn route_hook_records_routes_and_returns_alias_credential() {
     let mut config = base_config();
-    config.uplinks.insert(
+    config.upstreams.insert(
         "corp".to_string(),
-        uplink_with_access("https://npm.corp.example/", "$authenticated"),
+        upstream_with_access("https://npm.corp.example/", "$authenticated"),
     );
     let footprint = std::sync::Arc::new(std::sync::Mutex::new(Footprint::default()));
     let hook = RouteHook::new(
@@ -524,10 +524,10 @@ fn route_hook_records_routes_and_returns_alias_credential() {
 
     // Public fetch: no upstream credential, no private footprint entry.
     assert_eq!(hook.authorize("https://registry.npmjs.org/lodash", Some("lodash")), None);
-    // Private proxied fetch: the uplink credential is returned and recorded.
+    // Private proxied fetch: the upstream credential is returned and recorded.
     assert_eq!(
         hook.authorize("https://npm.corp.example/@acme%2fwidget", Some("@acme/widget")),
-        Some("Bearer uplink-secret".to_string()),
+        Some("Bearer upstream-secret".to_string()),
     );
 
     let footprint = footprint.lock().unwrap();
@@ -538,9 +538,9 @@ fn route_hook_records_routes_and_returns_alias_credential() {
 #[test]
 fn metadata_scope_maps_route_classes() {
     let mut config = base_config();
-    config.uplinks.insert(
+    config.upstreams.insert(
         "corp".to_string(),
-        uplink_with_access("https://npm.corp.example/", "$authenticated"),
+        upstream_with_access("https://npm.corp.example/", "$authenticated"),
     );
     let footprint = std::sync::Arc::new(std::sync::Mutex::new(Footprint::default()));
     let hook = RouteHook::new(
@@ -578,9 +578,9 @@ fn metadata_scope_maps_route_classes() {
 #[test]
 fn authorized_alias_users_share_metadata_scope() {
     let mut config = base_config();
-    config.uplinks.insert(
+    config.upstreams.insert(
         "corp".to_string(),
-        uplink_with_access("https://npm.corp.example/", "$authenticated"),
+        upstream_with_access("https://npm.corp.example/", "$authenticated"),
     );
     let context = Arc::new(RouteContext::from_config(&config));
     let secret = Arc::from(b"server-secret".as_slice());
