@@ -1,4 +1,5 @@
 import { PnpmError } from '@pnpm/error'
+import validateNpmPackageName from 'validate-npm-package-name'
 
 export interface JsrSpec {
   jsrPkgName: string
@@ -54,16 +55,13 @@ function jsrToNpmPackageName (jsrPkgName: string): string {
   if (jsrPkgName[0] !== '@') {
     throw new PnpmError('MISSING_JSR_PACKAGE_SCOPE', 'Package names from JSR must have a scope')
   }
-  const sepIndex = jsrPkgName.indexOf('/')
-  if (sepIndex === -1) {
+  // The returned name is used in registry URLs and metadata cache file paths,
+  // so anything that is not a valid npm package name must never make it through.
+  if (!validateNpmPackageName(jsrPkgName).validForOldPackages) {
     throw new PnpmError('INVALID_JSR_PACKAGE_NAME', `The package name '${jsrPkgName}' is invalid`)
   }
+  const sepIndex = jsrPkgName.indexOf('/')
   const scope = jsrPkgName.substring('@'.length, sepIndex)
   const name = jsrPkgName.substring(sepIndex + '/'.length)
-  // The returned name is used in registry URLs and metadata cache file paths,
-  // so path separator characters must never make it through.
-  if (!scope || !name || name.includes('/') || jsrPkgName.includes('\\')) {
-    throw new PnpmError('INVALID_JSR_PACKAGE_NAME', `The package name '${jsrPkgName}' is invalid`)
-  }
   return `@jsr/${scope}__${name}`
 }

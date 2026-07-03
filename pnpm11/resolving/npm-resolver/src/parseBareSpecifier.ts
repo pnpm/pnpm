@@ -2,6 +2,7 @@ import { PnpmError } from '@pnpm/error'
 import { parseJsrSpecifier } from '@pnpm/resolving.jsr-specifier-parser'
 import { parseNpmTarballUrl } from 'parse-npm-tarball-url'
 import semver from 'semver'
+import validateNpmPackageName from 'validate-npm-package-name'
 import getVersionSelectorType from 'version-selector-type'
 
 export interface RegistryPackageSpec {
@@ -150,8 +151,8 @@ export function parseNamedRegistrySpecifierToRegistryPackageSpec (
   }
 
   // The name is used in registry URLs and metadata cache file paths, so
-  // path separator characters must never make it through.
-  if (!isWellFormedPackageName(pkgName)) {
+  // anything that is not a valid npm package name must never make it through.
+  if (!validateNpmPackageName(pkgName).validForOldPackages) {
     throw new PnpmError(
       'INVALID_NAMED_REGISTRY_PACKAGE_NAME',
       `The package name '${pkgName}' in named registry '${registryName}:' is invalid`
@@ -167,22 +168,4 @@ export function parseNamedRegistrySpecifierToRegistryPackageSpec (
     type: selector.type,
     registryName,
   }
-}
-
-function isWellFormedPackageName (pkgName: string): boolean {
-  if (pkgName.includes('\\')) return false
-  if (pkgName.startsWith('@')) {
-    const sepIndex = pkgName.indexOf('/')
-    if (sepIndex === -1) return false
-    const scope = pkgName.substring('@'.length, sepIndex)
-    const name = pkgName.substring(sepIndex + '/'.length)
-    return scope.length > 0 && !name.includes('/') && isWellFormedNameSegment(name)
-  }
-  return !pkgName.includes('/') && isWellFormedNameSegment(pkgName)
-}
-
-// `.` and `..` are never valid npm names, and as URL path segments they get
-// normalized away from the intended registry path.
-function isWellFormedNameSegment (name: string): boolean {
-  return name.length > 0 && name !== '.' && name !== '..'
 }

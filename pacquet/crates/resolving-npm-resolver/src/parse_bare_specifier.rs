@@ -17,6 +17,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use node_semver::{Range, Version};
 use pacquet_resolving_jsr_specifier_parser::{ParseJsrSpecifierError, parse_jsr_specifier};
+use pacquet_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
 use reqwest::Url;
 
 use crate::pick_package_from_meta::{RegistryPackageSpec, RegistryPackageSpecType};
@@ -157,11 +158,13 @@ pub struct NamedRegistryPackageSpec {
 #[derive(Debug, Display, Error, Diagnostic, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ParseNamedRegistrySpecifierError {
-    /// Malformed package name — a missing or empty scope/name segment,
-    /// or path separators inside the name. Always a configuration bug,
-    /// refused so the user gets an immediate, actionable error instead
-    /// of a confusing downstream 404 (or a name that escapes into
-    /// registry URL paths and metadata cache file paths).
+    /// Package name that is not a valid npm package name — a missing
+    /// or empty scope/name segment, path separators inside the name,
+    /// or anything else `validate-npm-package-name` rejects. Always a
+    /// configuration bug, refused so the user gets an immediate,
+    /// actionable error instead of a confusing downstream 404 (or a
+    /// name that escapes into registry URL paths and metadata cache
+    /// file paths).
     #[display("The package name '{pkg_name}' in named registry '{registry_name}:' is invalid")]
     #[diagnostic(code(ERR_PNPM_INVALID_NAMED_REGISTRY_PACKAGE_NAME))]
     InvalidPackageName {
@@ -241,8 +244,9 @@ pub fn parse_named_registry_specifier_to_registry_package_spec(
     }
 
     // The name is used in registry URLs and metadata cache file paths, so
-    // path separator characters must never make it through.
-    if !is_well_formed_package_name(&pkg_name) {
+    // anything that is not a valid npm package name must never make it
+    // through.
+    if !is_valid_old_npm_package_name(&pkg_name) {
         return Err(ParseNamedRegistrySpecifierError::InvalidPackageName {
             registry_name: registry_name.to_string(),
             pkg_name,
@@ -263,27 +267,6 @@ pub fn parse_named_registry_specifier_to_registry_package_spec(
         },
         registry_name: registry_name.to_string(),
     }))
-}
-
-fn is_well_formed_package_name(pkg_name: &str) -> bool {
-    if pkg_name.contains('\\') {
-        return false;
-    }
-    match pkg_name.strip_prefix('@') {
-        Some(scoped) => match scoped.split_once('/') {
-            Some((scope, name)) => {
-                !scope.is_empty() && !name.contains('/') && is_well_formed_name_segment(name)
-            }
-            None => false,
-        },
-        None => !pkg_name.contains('/') && is_well_formed_name_segment(pkg_name),
-    }
-}
-
-// `.` and `..` are never valid npm names, and as URL path segments they
-// get normalized away from the intended registry path.
-fn is_well_formed_name_segment(name: &str) -> bool {
-    !name.is_empty() && name != "." && name != ".."
 }
 
 /// Discriminate between an exact version, a semver range, and a

@@ -4526,6 +4526,7 @@ version = "0.0.1"
 dependencies = [
  "derive_more",
  "miette 7.6.0",
+ "pacquet-resolving-parse-wanted-dependency",
 ]
 
 [[package]]
@@ -4568,6 +4569,7 @@ dependencies = [
  "pacquet-resolving-default-resolver",
  "pacquet-resolving-jsr-specifier-parser",
  "pacquet-resolving-local-resolver",
+ "pacquet-resolving-parse-wanted-dependency",
  "pacquet-resolving-resolver-base",
  "pacquet-workspace-range-resolver",
  "pacquet-workspace-spec",

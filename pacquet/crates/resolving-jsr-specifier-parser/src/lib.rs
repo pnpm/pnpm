@@ -13,6 +13,7 @@
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
+use pacquet_resolving_parse_wanted_dependency::is_valid_old_npm_package_name;
 
 /// Parsed `jsr:` specifier.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -43,9 +44,11 @@ pub enum ParseJsrSpecifierError {
     #[diagnostic(code(ERR_PNPM_MISSING_JSR_PACKAGE_SCOPE))]
     MissingScope,
 
-    /// Specifier carries a malformed scoped name: no `/name` segment
-    /// (e.g. `jsr:@foo`), an empty scope or name (e.g. `jsr:@foo/`),
-    /// or path separators inside the name (e.g. `jsr:@foo/../bar`).
+    /// Specifier carries a scoped name that is not a valid npm package
+    /// name: no `/name` segment (e.g. `jsr:@foo`), an empty scope or
+    /// name (e.g. `jsr:@foo/`), path separators inside the name
+    /// (e.g. `jsr:@foo/../bar`), or anything else
+    /// `validate-npm-package-name` rejects.
     #[display("The package name '{pkg_name}' is invalid")]
     #[diagnostic(code(ERR_PNPM_INVALID_JSR_PACKAGE_NAME))]
     InvalidPackageName {
@@ -132,14 +135,15 @@ fn jsr_to_npm_package_name(jsr_pkg_name: &str) -> Result<String, ParseJsrSpecifi
     };
     let invalid =
         || ParseJsrSpecifierError::InvalidPackageName { pkg_name: jsr_pkg_name.to_string() };
+    // The returned name is used in registry URLs and metadata cache file
+    // paths, so anything that is not a valid npm package name must never
+    // make it through.
+    if !is_valid_old_npm_package_name(jsr_pkg_name) {
+        return Err(invalid());
+    }
     let Some((scope, name)) = after_at.split_once('/') else {
         return Err(invalid());
     };
-    // The returned name is used in registry URLs and metadata cache file
-    // paths, so path separator characters must never make it through.
-    if scope.is_empty() || name.is_empty() || name.contains('/') || jsr_pkg_name.contains('\\') {
-        return Err(invalid());
-    }
     Ok(format!("@jsr/{scope}__{name}"))
 }
 
