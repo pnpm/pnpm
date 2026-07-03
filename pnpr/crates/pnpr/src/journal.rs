@@ -66,7 +66,7 @@ struct ManifestPackage {
     /// Hosted-org storage namespace this package publishes into, or `None` for
     /// the flat (path-less) hosted store. Recovery namespaces the roll-forward
     /// by it so a crash mid-commit promotes into the right org. Defaulted for
-    /// back-compat with journals written before org mounts existed.
+    /// back-compat with journals written before org registries existed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     org: Option<String>,
     /// File inside the transaction directory holding the merged

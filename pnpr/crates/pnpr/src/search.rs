@@ -73,7 +73,7 @@ pub fn parse_size(query_string: &str, default_size: usize) -> usize {
 /// filter, applied before any packument is read so a filtered name costs
 /// no I/O. Returns at most `limit` entries in npm search v1 `objects`
 /// shape (`{ package: {...}, score: {...}, searchScore }`); the server
-/// aggregates entries across the namespaces a mount serves and builds the
+/// aggregates entries across the namespaces a registry serves and builds the
 /// response body. Errors reading individual packuments are tolerated — a
 /// malformed packument just doesn't match anything. Works against both
 /// the local-directory and the S3-backed hosted store.

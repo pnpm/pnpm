@@ -44,14 +44,14 @@ impl TestRegistryInstance {
         let storage = pnpr_fixtures::ensure_storage();
         // Proxy mode: `@pnpm.e2e` fixtures are served from local storage, while
         // real npm packages (`is-positive`, `is-negative`, etc.) fall through to
-        // the npm uplink — matching how registry-mock served pacquet's tests.
+        // the npm upstream — matching how registry-mock served pacquet's tests.
         let mut config = Config::proxy(listen, storage.to_path_buf());
         config.public_url = url.trim_end_matches('/').to_string();
         // Registration is opt-in; tests that forward credentials create
         // accounts via adduser against this registry.
         config.auth.htpasswd.max_users = pnpr::MaxUsers::Unlimited;
         // A long TTL keeps the fixture packuments (whose `time` values are static)
-        // from being treated as stale and refetched from the uplink.
+        // from being treated as stale and refetched from the upstream.
         config.packument_ttl = std::time::Duration::from_hours(8760);
         thread::Builder::new()
             .name("pacquet-test-registry".to_string())

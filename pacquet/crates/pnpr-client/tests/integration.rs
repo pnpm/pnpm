@@ -5,13 +5,13 @@
 //! `/-/pnpr/v0/resolve` endpoints. The client sends the registry it wants
 //! resolved from (allowlisted on the server), proving resolution uses the
 //! client-supplied registry. Public routes keep their upstream tarball URLs;
-//! a private proxied route is returned as its uplink's `/~<uplink>/`
+//! a private proxied route is returned as its upstream's `/~<name>/`
 //! registry-endpoint URL.
 //!
 //! The client authenticates to pnpr with a bearer token but never
 //! forwards its own upstream registry credentials. Private upstream
 //! content resolves only when the pnpr server is configured with an
-//! access-bearing uplink the caller is authorized to use.
+//! access-bearing upstream the caller is authorized to use.
 
 use std::{
     collections::BTreeMap,
@@ -38,30 +38,30 @@ async fn start_pnpr(registry_url: &str) -> (String, String, TempDir) {
 }
 
 /// Like [`start_pnpr`] but registers operator-managed access-bearing
-/// uplinks, so the server can fetch private upstream content on behalf of
+/// upstreams, so the server can fetch private upstream content on behalf of
 /// an authorized caller without the client forwarding any credential. A
-/// uplink's origin is itself allowlisted, so no public route is needed.
-async fn start_pnpr_with_uplinks(
-    uplinks: Vec<(String, pnpr::UplinkConfig)>,
+/// upstream's origin is itself allowlisted, so no public route is needed.
+async fn start_pnpr_with_upstreams(
+    upstreams: Vec<(String, pnpr::UpstreamConfig)>,
 ) -> (String, String, TempDir) {
-    start_pnpr_inner(None, uplinks, Vec::new()).await
+    start_pnpr_inner(None, upstreams, Vec::new()).await
 }
 
-/// Like [`start_pnpr_with_uplinks`] but pins `public_url` so a lockfile
+/// Like [`start_pnpr_with_upstreams`] but pins `public_url` so a lockfile
 /// produced by one instance can be verified by another fresh instance: a
-/// `/~<uplink>/` endpoint URL is reversed to its upstream by matching the
+/// `/~<name>/` endpoint URL is reversed to its upstream by matching the
 /// verifying server's own `public_url`, which a real single-pnpr deployment
 /// shares across resolve and verify.
-async fn start_pnpr_with_uplinks_at(
+async fn start_pnpr_with_upstreams_at(
     public_url: &str,
-    uplinks: Vec<(String, pnpr::UplinkConfig)>,
+    upstreams: Vec<(String, pnpr::UpstreamConfig)>,
 ) -> (String, String, TempDir) {
-    start_pnpr_inner(Some(public_url.to_string()), uplinks, Vec::new()).await
+    start_pnpr_inner(Some(public_url.to_string()), upstreams, Vec::new()).await
 }
 
 async fn start_pnpr_inner(
     public_url: Option<String>,
-    uplinks: Vec<(String, pnpr::UplinkConfig)>,
+    upstreams: Vec<(String, pnpr::UpstreamConfig)>,
     public_registries: Vec<String>,
 ) -> (String, String, TempDir) {
     let storage = TempDir::new().expect("pnpr storage tempdir");
@@ -71,8 +71,8 @@ async fn start_pnpr_inner(
     let mut config = pnpr::Config::proxy(addr, storage.path().to_path_buf());
     config.public_url = public_url.unwrap_or_else(|| format!("http://{addr}"));
     config.auth.htpasswd.max_users = pnpr::MaxUsers::Unlimited;
-    for (name, uplink) in uplinks {
-        config.uplinks.insert(name, uplink);
+    for (name, upstream) in upstreams {
+        config.upstreams.insert(name, upstream);
     }
     for registry in public_registries {
         config
@@ -91,9 +91,9 @@ async fn start_pnpr_inner(
     (base_url, format!("Bearer {token}"), storage)
 }
 
-/// An access-bearing uplink that serves `registry_url` with `token`, usable
+/// An access-bearing upstream that serves `registry_url` with `token`, usable
 /// by any authenticated pnpr caller (exposed at `/~test-registry/`).
-fn registry_uplink(registry_url: &str, token: &str) -> (String, pnpr::UplinkConfig) {
+fn registry_upstream(registry_url: &str, token: &str) -> (String, pnpr::UpstreamConfig) {
     let mut headers = reqwest::header::HeaderMap::new();
     headers.insert(
         reqwest::header::AUTHORIZATION,
@@ -102,13 +102,13 @@ fn registry_uplink(registry_url: &str, token: &str) -> (String, pnpr::UplinkConf
     );
     (
         "test-registry".to_string(),
-        pnpr::UplinkConfig {
+        pnpr::UpstreamConfig {
             url: registry_url.to_string(),
             headers,
             maxage: None,
-            timeout: pnpr::UplinkConfig::DEFAULT_TIMEOUT,
-            max_fails: pnpr::UplinkConfig::DEFAULT_MAX_FAILS,
-            fail_timeout: pnpr::UplinkConfig::DEFAULT_FAIL_TIMEOUT,
+            timeout: pnpr::UpstreamConfig::DEFAULT_TIMEOUT,
+            max_fails: pnpr::UpstreamConfig::DEFAULT_MAX_FAILS,
+            fail_timeout: pnpr::UpstreamConfig::DEFAULT_FAIL_TIMEOUT,
             cache: true,
             access: Some(pnpr::AccessList::parse("$authenticated")),
         },
@@ -168,7 +168,7 @@ fn deps<const COUNT: usize>(entries: [(&str, &str); COUNT]) -> BTreeMap<String, 
 
 /// Register a user with an npm-compatible registry and return its bearer
 /// token. The pnpr fixture authenticates its own caller with this token;
-/// an access-bearing uplink uses one as its server-side credential.
+/// an access-bearing upstream uses one as its server-side credential.
 async fn register_token(registry_url: &str, username: &str) -> String {
     let body = serde_json::json!({ "name": username, "password": "password123" });
     let response = reqwest::Client::new()
@@ -240,19 +240,19 @@ async fn sends_the_identity_header_but_no_upstream_credentials() {
 /// End-to-end: the test registry gates `@pnpm.e2e/needs-auth` behind
 /// `$authenticated`. The client never forwards its own credentials, so
 /// resolving it works only when the pnpr server is configured with an
-/// uplink for that registry that the caller is
+/// upstream for that registry that the caller is
 /// authorized to use.
 #[tokio::test]
-async fn an_uplink_resolves_a_private_package() {
+async fn an_upstream_resolves_a_private_package() {
     let registry = TestRegistry::start();
     let token = register_token(&registry.url(), "needs-auth-forwarder").await;
     let (pnpr_url, pnpr_auth, _storage) =
-        start_pnpr_with_uplinks(vec![registry_uplink(&registry.url(), &token)]).await;
+        start_pnpr_with_upstreams(vec![registry_upstream(&registry.url(), &token)]).await;
 
     let client = PnprClient::new(pnpr_url);
 
     let opts = options(&registry.url(), &pnpr_auth, deps([("@pnpm.e2e/needs-auth", "1.0.0")]));
-    let outcome = client.resolve(opts).await.expect("the uplink should resolve it");
+    let outcome = client.resolve(opts).await.expect("the upstream should resolve it");
     let packages = outcome.lockfile.packages.as_ref().expect("lockfile has packages");
     assert!(
         packages.keys().any(|key| key.to_string().starts_with("@pnpm.e2e/needs-auth@1.0.0")),
@@ -261,12 +261,12 @@ async fn an_uplink_resolves_a_private_package() {
     );
 }
 
-/// The same install against a server with no matching uplink
+/// The same install against a server with no matching upstream
 /// fails: the client forwards no credential and pnpr has none to select,
 /// so the gated packument can only be fetched anonymously — which the
 /// registry refuses.
 #[tokio::test]
-async fn a_private_package_fails_without_an_uplink() {
+async fn a_private_package_fails_without_an_upstream() {
     let registry = TestRegistry::start();
     let (pnpr_url, pnpr_auth, _storage) = start_pnpr(&registry.url()).await;
 
@@ -276,7 +276,7 @@ async fn a_private_package_fails_without_an_uplink() {
     let Err(PnprClientError::Server(message)) = client.resolve(opts).await else {
         panic!("expected the gated install to fail with a server error");
     };
-    assert!(message.contains("401"), "expected an auth denial without an uplink, got: {message}");
+    assert!(message.contains("401"), "expected an auth denial without an upstream, got: {message}");
 }
 
 #[tokio::test]
@@ -301,7 +301,7 @@ async fn resolves_a_package() {
     assert!(outcome.stats.total_packages >= 1);
 }
 
-/// An unknown route (no uplink, no public rule) has no managed credential,
+/// An unknown route (no upstream, no public rule) has no managed credential,
 /// so it was resolved anonymously and pnpr mints no gateway URL: the
 /// resolution keeps its registry resolution, and the client fetches the
 /// tarball directly from the upstream the same way pnpr did.
@@ -490,22 +490,22 @@ async fn verify_lockfile_endpoint_rejects_policy_violation() {
 }
 
 /// The verification fan-out fetches each entry's packument, so a gated
-/// package verifies only when the pnpr server has an uplink for the
+/// package verifies only when the pnpr server has an upstream for the
 /// registry — and fails closed against a server without one. Each verify
 /// targets a fresh pnpr so neither the whole-lockfile verdict cache nor the
 /// metadata mirror warmed by an earlier call can satisfy it without
-/// exercising the uplink. The resolve and aliased-verify instances share a
-/// `public_url` so the verifier can reverse the lockfile's `/~<uplink>/`
+/// exercising the upstream. The resolve and aliased-verify instances share a
+/// `public_url` so the verifier can reverse the lockfile's `/~<name>/`
 /// tarball URLs back to upstream — what a real single-pnpr deployment does.
 #[tokio::test]
-async fn verify_lockfile_endpoint_uses_uplinks() {
+async fn verify_lockfile_endpoint_uses_upstreams() {
     let registry = TestRegistry::start();
     let token = register_token(&registry.url(), "needs-auth-verifier").await;
     let shared_public_url = "http://pnpr.verify.test";
 
-    let (resolve_pnpr_url, resolve_auth, _resolve_storage) = start_pnpr_with_uplinks_at(
+    let (resolve_pnpr_url, resolve_auth, _resolve_storage) = start_pnpr_with_upstreams_at(
         shared_public_url,
-        vec![registry_uplink(&registry.url(), &token)],
+        vec![registry_upstream(&registry.url(), &token)],
     )
     .await;
     let mut resolve_opts =
@@ -520,10 +520,10 @@ async fn verify_lockfile_endpoint_uses_uplinks() {
     resolve_opts.minimum_release_age = Some(1);
     resolve_opts.minimum_release_age_ignore_missing_time = false;
 
-    // A fresh pnpr that carries the uplink verifies the gated entry.
-    let (aliased_pnpr_url, aliased_auth, _aliased_storage) = start_pnpr_with_uplinks_at(
+    // A fresh pnpr that carries the upstream verifies the gated entry.
+    let (aliased_pnpr_url, aliased_auth, _aliased_storage) = start_pnpr_with_upstreams_at(
         shared_public_url,
-        vec![registry_uplink(&registry.url(), &token)],
+        vec![registry_upstream(&registry.url(), &token)],
     )
     .await;
     let mut aliased_opts = resolve_opts.clone();
@@ -533,9 +533,9 @@ async fn verify_lockfile_endpoint_uses_uplinks() {
     PnprClient::new(aliased_pnpr_url)
         .verify_lockfile(verify_opts)
         .await
-        .expect("the uplink should let the gated entry verify");
+        .expect("the upstream should let the gated entry verify");
 
-    // A pnpr without the uplink has no credential to select, so the gated
+    // A pnpr without the upstream has no credential to select, so the gated
     // entry's metadata fetch must fail closed.
     let (plain_pnpr_url, plain_auth, _plain_storage) = start_pnpr(&registry.url()).await;
     let mut plain_opts = resolve_opts.clone();
@@ -544,7 +544,7 @@ async fn verify_lockfile_endpoint_uses_uplinks() {
         VerifyLockfileOptions::from_resolve_options(&plain_opts).expect("lockfile is present");
     assert!(
         PnprClient::new(plain_pnpr_url).verify_lockfile(plain_verify_opts).await.is_err(),
-        "without an uplink the gated entry's metadata fetch must fail closed",
+        "without an upstream the gated entry's metadata fetch must fail closed",
     );
 }
 

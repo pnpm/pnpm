@@ -11,10 +11,10 @@ mod auth;
 mod config;
 mod error;
 mod journal;
-mod mount;
 mod package_name;
 mod policy;
 mod publish;
+mod registry;
 mod resolver;
 mod route;
 mod s3;
@@ -32,15 +32,15 @@ pub use config::{
     AccessSpec, AuthConfig, BackendConfig, Config, ConfigSource, DEFAULT_CONFIG_YAML,
     FeatureOverrides, HostedConfig, HostedStoreConfig, HtpasswdConfig, LibsqlSettings, LogConfig,
     LogFormat, LogLevel, MaxUsers, OsvConfig, PackageAccess, PublicRoute, RegistryFeature,
-    ResolverFeature, RoutePolicy, SqlBackendSettings, TokensConfig, UplinkConfig,
+    ResolverFeature, RoutePolicy, SqlBackendSettings, TokensConfig, UpstreamConfig,
     default_cache_dir,
 };
 pub use error::{RegistryError, Result};
 pub use journal::recover_publish_journal;
-pub use mount::{
-    ConcreteKind, MountConfigError, MountKind, Mounts, PackagePattern, Resolved, Route,
-};
 pub use policy::{AccessList, AccessToken, Identity, PackagePolicies, PackagePolicy};
+pub use registry::{
+    ConcreteKind, PackagePattern, Registries, Registry, RegistryConfigError, Resolved,
+};
 pub use server::{
     router, router_with_auth, serve, serve_listener, try_router, try_router_with_auth,
 };

@@ -131,7 +131,7 @@ async fn cancelling_in_flight_response_body_removes_tmp_file() {
     let storage = Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), cache.clone());
     let name = PackageName::parse("foo").unwrap();
     let write =
-        storage.open_uplink_tarball_tmp("~public/test", &name, "foo-1.0.0.tgz").await.unwrap();
+        storage.open_upstream_tarball_tmp("~public/test", &name, "foo-1.0.0.tgz").await.unwrap();
 
     let body = stream_verified_to_cache(response, write, &integrity, u64::MAX).unwrap();
     let mut chunks = body.into_data_stream();
@@ -162,7 +162,7 @@ async fn oversized_response_is_rejected_and_tmp_is_removed() {
     let storage = Storage::new(&HostedStoreConfig::Fs, tmp.path().join("hosted"), cache.clone());
     let name = PackageName::parse("foo").unwrap();
     let write =
-        storage.open_uplink_tarball_tmp("~public/test", &name, "foo-1.0.0.tgz").await.unwrap();
+        storage.open_upstream_tarball_tmp("~public/test", &name, "foo-1.0.0.tgz").await.unwrap();
 
     // An upstream that declares an oversize body is rejected up front, before
     // any bytes stream, so the caller turns it into an error response.

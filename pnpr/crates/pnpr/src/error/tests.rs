@@ -167,7 +167,7 @@ fn is_transient_upstream_error_only_for_availability_failures() {
     }
 
     // An open circuit is an availability failure too.
-    let circuit_open = RegistryError::UpstreamUnavailable { uplink: "npmjs".to_string() };
+    let circuit_open = RegistryError::UpstreamUnavailable { upstream: "npmjs".to_string() };
     assert!(circuit_open.is_transient_upstream_error());
 
     // Every 4xx is an authoritative response about this request — including
