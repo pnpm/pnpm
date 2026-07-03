@@ -156,14 +156,14 @@ export async function handler (opts: EditCommandOptions, params: string[]): Prom
     const part = parts[i]
     const candidatePath = i === 0 ? path.join(currentDir, part) : path.join(currentDir, 'node_modules', part)
     try {
-      await fsPromises.access(candidatePath)
+      await fsPromises.access(candidatePath) // eslint-disable-line no-await-in-loop
     } catch {
       throw new PnpmError(
         'EDIT_PACKAGE_NOT_FOUND',
         `Could not find package '${part}' under '${currentDir}'`
       )
     }
-    const resolvedPath = await fsPromises.realpath(candidatePath)
+    const resolvedPath = await fsPromises.realpath(candidatePath) // eslint-disable-line no-await-in-loop
     const relative = path.relative(expectedRoot, resolvedPath)
     if (relative.startsWith('..') || path.isAbsolute(relative)) {
       throw new PnpmError(
@@ -247,28 +247,46 @@ export async function handler (opts: EditCommandOptions, params: string[]): Prom
 async function deHardlinkDir (dir: string): Promise<void> {
   const files = await fsPromises.readdir(dir)
   const tmpDir = fs.mkdtempSync(path.join(dir, `.pnpm-edit-${path.basename(dir)}-`))
+  const renames: Array<[string, string]> = []
+  const tasks: Array<() => Promise<void>> = []
   try {
-    for (const file of files) {
-      const filePath = path.join(dir, file)
-      const stat = await fsPromises.lstat(filePath)
+    const entries = await Promise.all(
+      files.map(async (file) => {
+        const filePath = path.join(dir, file)
+        const stat = await fsPromises.lstat(filePath)
+        return { file, filePath, stat }
+      })
+    )
+    const dirTasks: Array<Promise<void>> = []
+    for (const { file, filePath, stat } of entries) {
       if (stat.isSymbolicLink()) {
         continue
       }
       if (stat.isDirectory()) {
-        await deHardlinkDir(filePath)
+        dirTasks.push(deHardlinkDir(filePath))
       } else if (stat.isFile()) {
         if (stat.nlink <= 1) {
           continue
         }
-        const originalMode = stat.mode
-        const writableMode = originalMode | 0o200
+        const writableMode = stat.mode | 0o200
         const tmpFile = path.join(tmpDir, file)
-        await fsPromises.copyFile(filePath, tmpFile)
-        await fsPromises.chmod(tmpFile, writableMode)
-        renameOverwriteSync(tmpFile, filePath)
+        renames.push([tmpFile, filePath])
+        tasks.push(async () => {
+          await fsPromises.copyFile(filePath, tmpFile)
+          await fsPromises.chmod(tmpFile, writableMode)
+        })
       }
     }
+    await Promise.all(dirTasks)
+    await Promise.all(tasks.map(t => t()))
+    for (const [tmpFile, filePath] of renames) {
+      renameOverwriteSync(tmpFile, filePath)
+    }
   } finally {
-    try { await fsPromises.rmdir(tmpDir) } catch { /* ignore */ }
+    try {
+      await fsPromises.rmdir(tmpDir)
+    } catch {
+      // ignore
+    }
   }
 }
