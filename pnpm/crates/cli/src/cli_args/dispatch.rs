@@ -308,6 +308,7 @@ fn route<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFut
         CliCommand::Sbom(args) => dispatch_query::sbom(ctx, args),
         CliCommand::Whoami => dispatch_query::whoami(ctx),
         CliCommand::DistTag(args) => dispatch_query::dist_tag(ctx, args),
+        CliCommand::Team(args) => dispatch_query::team(ctx, args),
         CliCommand::Ping(args) => dispatch_query::ping(ctx, args),
         CliCommand::Search(args) => dispatch_query::search(ctx, args),
         CliCommand::Rebuild(args) => dispatch_install::rebuild(ctx, args),
