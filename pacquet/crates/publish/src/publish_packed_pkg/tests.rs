@@ -1,10 +1,15 @@
 use super::{
-    DistHashes, PublishHttpError, build_publish_document, clean_version, is_otp_challenge,
-    parse_otp_challenge, publish_with_otp_handling, put_publish,
+    DistHashes, PublishHttpError, PublishPackedPkgError, build_publish_document, clean_version,
+    is_otp_challenge, parse_otp_challenge, publish_with_otp_handling, put_publish,
+    web_auth_fetch_options,
 };
+use crate::oidc::OidcHttpOptions;
+use crate::publish_options::{CreatePublishOptionsError, PublishUnsupportedRegistryProtocolError};
 use crate::registry_config_keys::parse_supported_registry_url;
 use pacquet_network::ThrottledClient;
-use pacquet_network_web_auth::{Host as WebAuthHost, WebAuthFetchOptions, WithOtpError};
+use pacquet_network_web_auth::{
+    Host as WebAuthHost, OtpChallenge, OtpError, WebAuthFetchOptions, WithOtpError,
+};
 use pacquet_network_web_auth_testing::{
     InputResponse, SleepBehavior, ok_202, ok_token, web_auth_fake,
 };
@@ -531,4 +536,45 @@ async fn web_auth_flow_times_out_when_the_poll_never_completes() {
     .await
     .expect_err("the web-auth poll times out");
     assert!(matches!(err, WithOtpError::Timeout(_)), "got {err:?}");
+}
+
+#[test]
+fn web_auth_fetch_options_maps_the_retry_and_timeout_knobs() {
+    let http = OidcHttpOptions {
+        fetch_retries: Some(5),
+        fetch_retry_factor: Some(2.0),
+        fetch_retry_maxtimeout: Some(60_000),
+        fetch_retry_mintimeout: Some(1_000),
+        fetch_timeout: Some(30_000),
+    };
+    let options = web_auth_fetch_options(&http);
+    assert_eq!(options.timeout, Some(30_000));
+    let retry = options.retry.expect("the publish flow always sets retry options");
+    assert_eq!(retry.retries, Some(5));
+    assert_eq!(retry.factor, Some(2.0));
+    assert_eq!(retry.max_timeout, Some(60_000));
+    assert_eq!(retry.min_timeout, Some(1_000));
+    assert_eq!(retry.randomize, None);
+}
+
+#[test]
+fn publish_http_error_surfaces_an_otp_challenge_but_not_a_transport_failure() {
+    let otp = PublishHttpError::Otp { challenge: OtpChallenge::default() };
+    assert!(otp.as_otp_challenge().is_some());
+
+    let transport = PublishHttpError::Transport { reason: "connection refused".to_owned() };
+    assert!(transport.as_otp_challenge().is_none());
+}
+
+#[test]
+fn publish_packed_pkg_error_wraps_option_and_otp_failures() {
+    let from_options = PublishPackedPkgError::from(CreatePublishOptionsError::from(
+        PublishUnsupportedRegistryProtocolError { registry_url: "ftp://example.com/".to_owned() },
+    ));
+    assert!(matches!(from_options, PublishPackedPkgError::CreateOptions(_)));
+
+    let from_otp = PublishPackedPkgError::from(WithOtpError::Operation(PublishHttpError::Transport {
+        reason: "connection refused".to_owned(),
+    }));
+    assert!(matches!(from_otp, PublishPackedPkgError::Otp(_)));
 }
