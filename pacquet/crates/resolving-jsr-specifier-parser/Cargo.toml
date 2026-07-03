@@ -11,6 +11,8 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
+pacquet-resolving-parse-wanted-dependency = { workspace = true }
+
 derive_more = { workspace = true }
 miette      = { workspace = true }
 

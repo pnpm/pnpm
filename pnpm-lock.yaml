@@ -8673,6 +8673,9 @@ importers:
       '@pnpm/error':
         specifier: workspace:*
         version: link:../../core/error
+      validate-npm-package-name:
+        specifier: 'catalog:'
+        version: 7.0.2
     devDependencies:
       '@jest/globals':
         specifier: 'catalog:'
@@ -8680,6 +8683,9 @@ importers:
       '@pnpm/resolving.jsr-specifier-parser':
         specifier: workspace:*
         version: 'link:'
+      '@types/validate-npm-package-name':
+        specifier: 'catalog:'
+        version: 4.0.2
 
   pnpm11/resolving/local-resolver:
     dependencies:
@@ -8810,6 +8816,9 @@ importers:
       ssri:
         specifier: 'catalog:'
         version: 13.0.1
+      validate-npm-package-name:
+        specifier: 'catalog:'
+        version: 7.0.2
       version-selector-type:
         specifier: 'catalog:'
         version: 3.0.0
@@ -8844,6 +8853,9 @@ importers:
       '@types/ssri':
         specifier: 'catalog:'
         version: 7.1.5
+      '@types/validate-npm-package-name':
+        specifier: 'catalog:'
+        version: 4.0.2
       load-json-file:
         specifier: 'catalog:'
         version: 7.0.1

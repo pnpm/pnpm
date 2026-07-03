@@ -32,11 +32,13 @@
     ".test": "cross-env NODE_OPTIONS=\"$NODE_OPTIONS --experimental-vm-modules --disable-warning=ExperimentalWarning --disable-warning=DEP0169\" jest"
   },
   "dependencies": {
-    "@pnpm/error": "workspace:*"
+    "@pnpm/error": "workspace:*",
+    "validate-npm-package-name": "catalog:"
   },
   "devDependencies": {
     "@jest/globals": "catalog:",
-    "@pnpm/resolving.jsr-specifier-parser": "workspace:*"
+    "@pnpm/resolving.jsr-specifier-parser": "workspace:*",
+    "@types/validate-npm-package-name": "catalog:"
   },
   "engines": {
     "node": ">=22.13"

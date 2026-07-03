@@ -11,14 +11,15 @@ license.workspace     = true
 repository.workspace  = true
 
 [dependencies]
-pacquet-config                         = { workspace = true }
-pacquet-lockfile                       = { workspace = true }
-pacquet-network                        = { workspace = true }
-pacquet-registry                       = { workspace = true }
-pacquet-resolving-jsr-specifier-parser = { workspace = true }
-pacquet-resolving-resolver-base        = { workspace = true }
-pacquet-workspace-range-resolver       = { workspace = true }
-pacquet-workspace-spec                 = { workspace = true }
+pacquet-config                            = { workspace = true }
+pacquet-lockfile                          = { workspace = true }
+pacquet-network                           = { workspace = true }
+pacquet-registry                          = { workspace = true }
+pacquet-resolving-jsr-specifier-parser    = { workspace = true }
+pacquet-resolving-parse-wanted-dependency = { workspace = true }
+pacquet-resolving-resolver-base           = { workspace = true }
+pacquet-workspace-range-resolver          = { workspace = true }
+pacquet-workspace-spec                    = { workspace = true }
 
 chrono      = { workspace = true }
 dashmap     = { workspace = true }
