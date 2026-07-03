@@ -478,6 +478,30 @@ fn runs_prepack_prepare_and_postpack() {
     assert!(dir.path().join("postpack.ran").exists(), "postpack should have run");
 }
 
+#[cfg(unix)]
+#[test]
+fn includes_prepack_generated_files_removed_by_postpack() {
+    let (dir, mut opts) = fixture(&json!({
+        "name": "foo",
+        "version": "1.0.0",
+        "files": ["generated.txt"],
+        "scripts": {
+            "prepack": "printf 'generated during prepack' > generated.txt",
+            "postpack": "rm -f generated.txt",
+        },
+    }));
+    opts.ignore_scripts = false;
+
+    let result = api::<SilentReporter, Host>(&opts).unwrap();
+
+    assert_eq!(result.contents, vec!["generated.txt".to_string(), "package.json".into()]);
+    assert!(dir.path().join("foo-1.0.0.tgz").is_file());
+    assert!(!dir.path().join("generated.txt").exists(), "postpack should clean the generated file");
+
+    let names = tarball_entry_names(&dir.path().join("foo-1.0.0.tgz"));
+    assert!(names.contains(&"package/generated.txt".to_string()));
+}
+
 /// With scripts enabled but the manifest declaring none of the
 /// requested lifecycle scripts (here an empty `prepack`), `script_body`
 /// yields `None` and `run_scripts_if_present` returns early, so packing

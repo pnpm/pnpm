@@ -291,6 +291,8 @@ where
         .into_bytes();
 
     let dest_dir = resolve_dest_dir(&dir, pack_destination.as_deref());
+    let unpacked_size = unpacked_size::<Sys>(&files_map, manifest_json.len() as u64)?;
+    let contents = packed_contents(&files_map);
 
     if !opts.dry_run {
         Sys::create_dir_all(&dest_dir).map_err(|source| PackError::CreateDir {
@@ -318,8 +320,6 @@ where
     }
 
     let tarball_path = packed_tarball_path(&opts.dir, &dir, &dest_dir, &tarball_name);
-    let unpacked_size = unpacked_size::<Sys>(&files_map, manifest_json.len() as u64)?;
-    let contents = packed_contents(&files_map);
 
     Ok(PackResult { published_manifest: publish_manifest, contents, tarball_path, unpacked_size })
 }

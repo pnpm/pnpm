@@ -280,6 +280,26 @@ export async function api (opts: PackOptions): Promise<PackResult> {
       filesMap[`package/${license}`] = path.join(opts.workspaceDir, license)
     }
   }
+  // Derive `contents` and `unpackedSize` from `filesMap` (the full set of tar entries) rather than
+  // from `files` (the packlist subset) so that:
+  //   - workspace LICENSE files appended to `filesMap` after the packlist call are included; and
+  //   - `package.yaml` / `package.json5` entries are reported under the name they actually have in
+  //     the tar (`package.json`), since `packPkg()` rewrites them.
+  const sizes = await Promise.all(Object.entries(filesMap).map(async ([name, source]) => {
+    if (/^package\/package\.(?:json|json5|yaml)$/.test(name)) {
+      return Buffer.byteLength(JSON.stringify(publishManifest, null, 2))
+    }
+    const stat = await fs.promises.stat(source)
+    return stat.size
+  }))
+  const unpackedSize = sizes.reduce((acc, size) => acc + size, 0)
+  const packedContents = Array.from(new Set(
+    Object.keys(filesMap).map((name) =>
+      /^package\/package\.(?:json|json5|yaml)$/.test(name)
+        ? 'package.json'
+        : name.replace(/^package\//, '')
+    )
+  )).sort((a, b) => a.localeCompare(b, 'en'))
   const destDir = packDestination
     ? (path.isAbsolute(packDestination) ? packDestination : path.join(dir, packDestination ?? '.'))
     : dir
@@ -307,26 +327,6 @@ export async function api (opts: PackOptions): Promise<PackResult> {
   } else {
     packedTarballPath = path.relative(opts.dir, path.join(dir, tarballName))
   }
-  // Derive `contents` and `unpackedSize` from `filesMap` (the full set of tar entries) rather than
-  // from `files` (the packlist subset) so that:
-  //   - workspace LICENSE files appended to `filesMap` after the packlist call are included; and
-  //   - `package.yaml` / `package.json5` entries are reported under the name they actually have in
-  //     the tar (`package.json`), since `packPkg()` rewrites them.
-  const sizes = await Promise.all(Object.entries(filesMap).map(async ([name, source]) => {
-    if (/^package\/package\.(?:json|json5|yaml)$/.test(name)) {
-      return Buffer.byteLength(JSON.stringify(publishManifest, null, 2))
-    }
-    const stat = await fs.promises.stat(source)
-    return stat.size
-  }))
-  const unpackedSize = sizes.reduce((acc, size) => acc + size, 0)
-  const packedContents = Array.from(new Set(
-    Object.keys(filesMap).map((name) =>
-      /^package\/package\.(?:json|json5|yaml)$/.test(name)
-        ? 'package.json'
-        : name.replace(/^package\//, '')
-    )
-  )).sort((a, b) => a.localeCompare(b, 'en'))
   return {
     publishedManifest: publishManifest,
     contents: packedContents,
