@@ -133,7 +133,7 @@ fn allows_registry_is_a_default_deny_allowlist() {
     });
     let context = RouteContext::from_config(&config);
 
-    // Allowed: the built-in npm host, a declared public route, a upstream
+    // Allowed: the built-in npm host, a declared public route, an upstream
     // origin, and pnpr's own origin (its `/~<name>/` endpoints).
     assert!(context.allows_registry("https://registry.npmjs.org/"));
     assert!(context.allows_registry("https://public.mirror.example/@scope/pkg"));

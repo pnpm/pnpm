@@ -1152,11 +1152,13 @@ fn default_true() -> bool {
 /// The namespace [`Config::proxy`] declares on its flat-root hosted org, so
 /// those names resolve locally rather than to the npm upstream: the
 /// registry-mock fixture scopes plus the one unscoped fixture. Kept in sync
-/// with the bundled `config.yaml` `local` registry and the fixtures under
-/// `pnpr/.fixtures/packages`. The fixture packages living in real, active npm
-/// scopes (`@pnpm`, `@zkochan`) are claimed by exact name so the rest of
-/// those scopes keeps proxying npm (dependency trees of proxied packages pull
-/// real `@pnpm/*` packages).
+/// with the fixtures under `pnpr/.fixtures/packages` and with the
+/// fixture-scope subset of the bundled `config.yaml` `local` registry — the
+/// YAML additionally claims the exact names the TS test suite publishes,
+/// which pacquet's in-process registry never sees. The fixture packages
+/// living in real, active npm scopes (`@pnpm`, `@zkochan`) are claimed by
+/// exact name so the rest of those scopes keeps proxying npm (dependency
+/// trees of proxied packages pull real `@pnpm/*` packages).
 const REGISTRY_MOCK_LOCAL_PATTERNS: &[&str] = &[
     "@foo/*",
     "@having/*",
@@ -1192,8 +1194,11 @@ impl Config {
     /// pattern-less `npmjs` upstream. The path-less base aliases the `main`
     /// router. Kept for callers that don't use YAML config (notably pacquet's
     /// test registry, whose fixtures are served locally while real npm packages
-    /// fall through to npmjs). The local pattern set mirrors the bundled
-    /// `config.yaml` `local` registry.
+    /// fall through to npmjs). The local pattern set mirrors the fixture
+    /// subset of the bundled `config.yaml` `local` registry
+    /// ([`REGISTRY_MOCK_LOCAL_PATTERNS`]); the YAML additionally claims the
+    /// exact names the TS test suite publishes, which never reach this
+    /// constructor.
     #[must_use]
     pub fn proxy(listen: SocketAddr, storage: PathBuf) -> Self {
         let mut upstreams = IndexMap::new();
