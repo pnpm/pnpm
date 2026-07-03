@@ -258,7 +258,7 @@ registries:
     let upstream = &config.upstreams["npmjs"];
     assert_eq!(
         upstream.headers.get(AUTHORIZATION).unwrap().to_str().unwrap(),
-        "Bearer secret-token"
+        "Bearer secret-token",
     );
     assert_eq!(upstream.headers.get("x-org").unwrap().to_str().unwrap(), "acme");
 }
