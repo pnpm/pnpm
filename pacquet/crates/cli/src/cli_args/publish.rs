@@ -347,3 +347,6 @@ fn run_publish_scripts<Reporter: self::Reporter>(
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests;
