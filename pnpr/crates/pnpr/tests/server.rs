@@ -671,11 +671,39 @@ async fn upstream_auth_and_custom_headers_are_forwarded_upstream() {
     let upstream = config.upstreams.get_mut("npmjs").expect("default `npmjs` upstream");
     upstream.headers.insert("authorization", "Bearer secret-token".parse().unwrap());
     upstream.headers.insert("x-org", "acme".parse().unwrap());
-    let app = router(config);
+    // A credentialed upstream must be access-gated (server construction
+    // enforces it), so the read authenticates as an admitted caller.
+    upstream.access = Some(AccessList::parse("$authenticated"));
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let app = router_with_auth(config, auth);
 
-    let response = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
+    let response = app
+        .oneshot(
+            Request::get("/foo")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     mock.assert_async().await;
+}
+
+/// Mirrors the YAML rule at the programmatic layer: an upstream reachable
+/// without an `access:` gate may not send custom headers — any header can
+/// carry a credential, and an ungated `/~<name>/` would let every caller
+/// spend it.
+#[tokio::test]
+async fn building_the_server_rejects_an_ungated_credentialed_upstream() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    let upstream = config.upstreams.get_mut("npmjs").expect("default `npmjs` upstream");
+    upstream.headers.insert("x-api-key", "secret".parse().unwrap());
+    let err =
+        pnpr::try_router(config).expect_err("an ungated credentialed upstream must fail startup");
+    assert!(err.to_string().contains("npmjs"), "unexpected error: {err}");
 }
 
 #[tokio::test]

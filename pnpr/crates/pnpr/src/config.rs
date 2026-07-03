@@ -1619,6 +1619,21 @@ impl Config {
                 return Err(org_collision_error(name, &hosted.org, other));
             }
         }
+        for (name, upstream) in &self.upstreams {
+            // Mirror the YAML rule (`resolve_upstream_registry`): an upstream
+            // with no `access:` gate is publicly reachable at `/~<name>/`, and
+            // a public origin sends no request headers — any header can carry
+            // a credential, and an ungated endpoint would let every caller
+            // spend it (a confused deputy).
+            if upstream.access.is_none() && !upstream.headers.is_empty() {
+                return Err(RegistryError::InvalidConfig {
+                    reason: format!(
+                        "upstream registry {name:?} sends custom headers but declares no \
+                         `access:` gate; a publicly reachable upstream must send none",
+                    ),
+                });
+            }
+        }
         self.registries.validate().map_err(|err| registry_err(&err))
     }
 

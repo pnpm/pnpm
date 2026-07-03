@@ -241,10 +241,10 @@ fn public_route_with_an_invalid_field_fails_closed_instead_of_matching_all() {
 /// The standard bearer token every test upstream uses, and the credential digest
 /// it produces — what a `RouteClass::Proxied` / `PrivateAccessDescriptor::Alias`
 /// for such an upstream carries.
-const UPLINK_TOKEN: &str = "Bearer upstream-secret";
+const UPSTREAM_TOKEN: &str = "Bearer upstream-secret";
 
 fn corp_credential() -> String {
-    super::credential_digest(UPLINK_TOKEN)
+    super::credential_digest(UPSTREAM_TOKEN)
 }
 
 /// A *different* credential digest, standing in for the same upstream after its
