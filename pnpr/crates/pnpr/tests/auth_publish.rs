@@ -35,12 +35,12 @@ fn static_config_with_packages(dir: &TempDir, packages_block: &str) -> (Config, 
     // Route everything to one local hosted over the flat storage root (an
     // empty `org` namespace), so publishes/reads resolve through the path-less
     // base and the per-package ACL in `packages_block` gates them.
-    let mounts_block = "mounts:\n  \
+    let registries_block = "registries:\n  \
         local:\n    type: hosted\n    org: \"\"\n    access: $all\n  \
         main:\n    type: router\n    sources: [local]\n\
-        defaultTarget: main\n";
+        defaultRegistry: main\n";
     let yaml =
-        format!("storage: {}\n{mounts_block}packages:\n{packages_block}\n", storage.display());
+        format!("storage: {}\n{registries_block}packages:\n{packages_block}\n", storage.display());
     let config_path = dir.path().join("config.yaml");
     std::fs::write(&config_path, yaml).unwrap();
     let mut config =

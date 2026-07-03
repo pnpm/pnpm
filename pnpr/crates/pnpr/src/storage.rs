@@ -140,7 +140,7 @@ impl Drop for TarballWrite {
 /// (potentially multi-MB) body when it isn't needed:
 ///
 /// * `Fresh` — within the TTL; the body is read and ready to serve.
-/// * `Stale` — past the TTL. The body is left on disk; a per-mount cache
+/// * `Stale` — past the TTL. The body is left on disk; a per-registry cache
 ///   refetches a stale entry rather than revalidating it, so the caller treats
 ///   `Stale` as a miss.
 #[derive(Debug)]
@@ -266,7 +266,7 @@ impl HostedStore {
         }
     }
 
-    /// A view rooted under `segment`, giving a hosted mount its own
+    /// A view rooted under `segment`, giving a hosted registry its own
     /// storage namespace so two orgs hosting the same `name@version` never
     /// collide on disk (or on object keys).
     fn namespaced(&self, segment: &str) -> HostedStore {
@@ -301,9 +301,9 @@ impl Storage {
     }
 
     /// A view whose hosted store is namespaced under `org`, so a hosted
-    /// mount's packages live in their own storage namespace — two orgs hosting
+    /// registry's packages live in their own storage namespace — two orgs hosting
     /// the same `name@version` can't collide. The disposable proxy cache is
-    /// shared (org mounts never touch it). Used by hosted serving and the
+    /// shared (org registries never touch it). Used by hosted serving and the
     /// org-routed publish flow; the flat (un-namespaced) store remains the
     /// legacy path-less hosted surface.
     #[must_use]

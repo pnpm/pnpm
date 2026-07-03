@@ -158,7 +158,7 @@ pub enum FetchOutcome<Payload> {
 
 /// Conditional-GET validators sent on a packument refresh (an `ETag` /
 /// `Last-Modified` replayed as `If-None-Match` / `If-Modified-Since`). A
-/// per-mount cache refetches a stale entry rather than revalidating it, so in
+/// per-registry cache refetches a stale entry rather than revalidating it, so in
 /// practice the default (empty) value is always sent; the type stays so the
 /// fetch path can grow conditional revalidation again without a signature
 /// change.

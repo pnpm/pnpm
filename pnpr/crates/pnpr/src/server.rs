@@ -3,13 +3,13 @@ use crate::{
     config::Config,
     error::RegistryError,
     journal::JournaledPublish,
-    mount::{ConcreteKind, MountKind, Resolved},
     package_name::PackageName,
     policy::Identity,
     publish::{
         PendingAttachment, extract_attachments, iso_from_unix_millis, merge_manifest, now_iso,
         stream_decode_verify_and_write,
     },
+    registry::{ConcreteKind, Registry, Resolved},
     storage::Storage,
     streaming,
     upstream::{
@@ -91,7 +91,7 @@ struct AppInner {
     /// [`Self::upstreams`]. A pure function of the config (see
     /// [`compute_uplink_cache_namespace`]), precomputed here so the
     /// per-request path doesn't re-sort and re-hash the uplink's headers on
-    /// every packument and tarball served through an upstream mount.
+    /// every packument and tarball served through an upstream registry.
     uplink_cache_namespaces: IndexMap<String, String>,
     config: Config,
     auth: AuthState,
@@ -292,10 +292,10 @@ fn router_with_auth_and_osv(
     // depending on a registry-serving replica that shares the auth backend.
     //
     // Each endpoint also answers under any `/~<prefix>/`, so a client whose
-    // registry URL is a mount endpoint can log in against it. The identity
-    // endpoints are global and consult no mount state; a mount-table lookup
+    // registry URL is a registry endpoint can log in against it. The identity
+    // endpoints are global and consult no registry state; a registry-table lookup
     // would gate nothing while turning the 401-vs-404 split into an
-    // existence oracle for private mount names that the content handlers
+    // existence oracle for private registry names that the content handlers
     // carefully mask.
     router = router
         .route("/-/whoami", get(get_whoami))
@@ -352,7 +352,7 @@ fn router_with_auth_and_osv(
         router = router.route("/-/pnpr", any(resolver_disabled));
     }
     // The npm-registry surface: every packument/tarball read, publish,
-    // unpublish, dist-tag, and search. When the surface is off (no mounts
+    // unpublish, dist-tag, and search. When the surface is off (no registries
     // declared, or `--disable-registry`), none of these routes are mounted
     // — not merely hidden — so a resolver-only tier exposes no registry
     // surface at all.
@@ -378,10 +378,10 @@ fn router_with_auth_and_osv(
                 get(get_five_segments).put(put_five_segments).delete(delete_five_segments),
             )
             // Scoped tarball delete: `DELETE /@scope/name/-/<basename-version>.tgz/-rev/<rev>`,
-            // plus the mount-addressed dist-tag write and unscoped tarball delete.
+            // plus the registry-addressed dist-tag write and unscoped tarball delete.
             .route("/{a}/{b}/{c}/{d}/{e}/{f}", put(put_six_segments).delete(delete_six_segments))
-            // Mount-addressed scoped tarball delete:
-            // `DELETE /~<mount>/@scope/name/-/<file>/-rev/<rev>`
+            // Registry-addressed scoped tarball delete:
+            // `DELETE /~<name>/@scope/name/-/<file>/-rev/<rev>`
             .route("/{a}/{b}/{c}/{d}/{e}/{f}/{g}", delete(delete_seven_segments));
     }
     router
@@ -487,7 +487,7 @@ pub async fn serve(config: Config) -> crate::error::Result<()> {
 }
 
 /// Log which surfaces are mounted at startup. A misconfiguration — a
-/// `mounts:` block that didn't parse the way the operator meant, or a
+/// `registries:` block that didn't parse the way the operator meant, or a
 /// typo'd `resolver:` block name, which the intentionally
 /// verdaccio-lenient config parser silently ignores and so leaves the
 /// surface at its default-enabled state — is then immediately visible to
@@ -611,13 +611,13 @@ async fn get_two_segments(
     headers: HeaderMap,
     Path((first, second)): Path<(String, String)>,
 ) -> Response {
-    // `/~<mount>/<pkg>` — unscoped packument through a mount endpoint. The
-    // tarball base is the client's `/~<mount>/` URL so the rewritten URLs stay
+    // `/~<name>/<pkg>` — unscoped packument through a registry endpoint. The
+    // tarball base is the client's `/~<name>/` URL so the rewritten URLs stay
     // canonical for the registry the client actually addressed.
-    if let Some(mount) = first.strip_prefix('~').filter(|mount| !mount.is_empty()) {
-        let base = uplink_tarball_base(&state.inner.config.public_url, mount);
+    if let Some(registry) = first.strip_prefix('~').filter(|registry| !registry.is_empty()) {
+        let base = uplink_tarball_base(&state.inner.config.public_url, registry);
         return private_no_cache(
-            serve_mount_packument(&state, &identity, &headers, mount, &second, &base).await,
+            serve_registry_packument(&state, &identity, &headers, registry, &second, &base).await,
         );
     }
     if first.starts_with('@') {
@@ -641,38 +641,41 @@ async fn get_three_segments(
 ) -> Response {
     if first == "-" && second == "v1" && third == "search" {
         let query = uri.query().unwrap_or("");
-        // Search results are filtered per caller (mount access + per-package
+        // Search results are filtered per caller (registry access + per-package
         // ACL), so they must never land in a shared HTTP cache.
         return private_no_cache(serve_search(&state, &identity, None, query).await);
     }
-    if let Some(mount) = first.strip_prefix('~').filter(|mount| !mount.is_empty()) {
+    if let Some(registry) = first.strip_prefix('~').filter(|registry| !registry.is_empty()) {
         // The account endpoints (whoami, adduser, logout, profile, tokens)
-        // live on dedicated always-mounted routes; a `/~<mount>/-/...` path
-        // that still reaches this handler names no mount content.
+        // live on dedicated always-mounted routes; a `/~<name>/-/...` path
+        // that still reaches this handler names no registry content.
         if second == "-" {
             return not_found();
         }
-        let base = uplink_tarball_base(&state.inner.config.public_url, mount);
+        let base = uplink_tarball_base(&state.inner.config.public_url, registry);
         if second.starts_with('@') {
-            // `/~<mount>/@scope%2Fname/<version>` — version manifest for an
-            // encoded scoped package through a mount endpoint.
+            // `/~<name>/@scope%2Fname/<version>` — version manifest for an
+            // encoded scoped package through a registry endpoint.
             if second.contains('/') {
                 return private_no_cache(
-                    serve_mount_version_manifest(&state, &identity, mount, &second, &third, &base)
-                        .await,
+                    serve_registry_version_manifest(
+                        &state, &identity, registry, &second, &third, &base,
+                    )
+                    .await,
                 );
             }
-            // `/~<mount>/@scope/<pkg>` — scoped packument through a mount.
+            // `/~<name>/@scope/<pkg>` — scoped packument through a registry.
             let full = format!("{second}/{third}");
             return private_no_cache(
-                serve_mount_packument(&state, &identity, &headers, mount, &full, &base).await,
+                serve_registry_packument(&state, &identity, &headers, registry, &full, &base).await,
             );
         }
-        // `/~<mount>/<pkg>/<version-or-tag>` — unscoped version manifest
-        // through a mount endpoint. (The unscoped tarball shape
-        // `/~<mount>/<pkg>/-/<file>` is a distinct literal-`-` route.)
+        // `/~<name>/<pkg>/<version-or-tag>` — unscoped version manifest
+        // through a registry endpoint. (The unscoped tarball shape
+        // `/~<name>/<pkg>/-/<file>` is a distinct literal-`-` route.)
         return private_no_cache(
-            serve_mount_version_manifest(&state, &identity, mount, &second, &third, &base).await,
+            serve_registry_version_manifest(&state, &identity, registry, &second, &third, &base)
+                .await,
         );
     }
     if second == "-" {
@@ -690,10 +693,10 @@ async fn get_tarball_scoped(
     AuthedCaller(identity): AuthedCaller,
     Path((scope, name, filename)): Path<(String, String, String)>,
 ) -> Response {
-    // `/~<mount>/<pkg>/-/<file>` — unscoped tarball through a mount endpoint.
-    if let Some(mount) = scope.strip_prefix('~').filter(|mount| !mount.is_empty()) {
+    // `/~<name>/<pkg>/-/<file>` — unscoped tarball through a registry endpoint.
+    if let Some(registry) = scope.strip_prefix('~').filter(|registry| !registry.is_empty()) {
         return private_no_cache(
-            serve_mount_tarball(&state, &identity, mount, &name, &filename).await,
+            serve_registry_tarball(&state, &identity, registry, &name, &filename).await,
         );
     }
     if !scope.starts_with('@') {
@@ -705,9 +708,9 @@ async fn get_tarball_scoped(
 
 /// 4-segment GET:
 /// * `/-/package/{pkg}/dist-tags` — packument's `dist-tags` object.
-/// * `/~<mount>/-/v1/search` — search through a mount endpoint.
-/// * `/~<mount>/@scope/{pkg}/{version}` — scoped version manifest through a
-///   mount endpoint.
+/// * `/~<name>/-/v1/search` — search through a registry endpoint.
+/// * `/~<name>/@scope/{pkg}/{version}` — scoped version manifest through a
+///   registry endpoint.
 async fn get_four_segments(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
@@ -718,16 +721,17 @@ async fn get_four_segments(
         let response = get_dist_tags(&state, &identity, None, &c).await;
         return private_if_caller_gated(&state, &c, response);
     }
-    if let Some(mount) = a.strip_prefix('~').filter(|mount| !mount.is_empty()) {
+    if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty()) {
         if b == "-" && c == "v1" && d == "search" {
             let query = uri.query().unwrap_or("");
-            return private_no_cache(serve_search(&state, &identity, Some(mount), query).await);
+            return private_no_cache(serve_search(&state, &identity, Some(registry), query).await);
         }
         if b.starts_with('@') && !b.contains('/') {
             let full = format!("{b}/{c}");
-            let base = uplink_tarball_base(&state.inner.config.public_url, mount);
+            let base = uplink_tarball_base(&state.inner.config.public_url, registry);
             return private_no_cache(
-                serve_mount_version_manifest(&state, &identity, mount, &full, &d, &base).await,
+                serve_registry_version_manifest(&state, &identity, registry, &full, &d, &base)
+                    .await,
             );
         }
     }
@@ -735,9 +739,9 @@ async fn get_four_segments(
 }
 
 /// 5-segment GET:
-/// * `/~<mount>/@scope/<pkg>/-/<file>` — scoped tarball through a mount
+/// * `/~<name>/@scope/<pkg>/-/<file>` — scoped tarball through a registry
 ///   endpoint.
-/// * `/~<mount>/-/package/<pkg>/dist-tags` — dist-tags through a mount
+/// * `/~<name>/-/package/<pkg>/dist-tags` — dist-tags through a registry
 ///   endpoint.
 ///
 /// Every other 5-segment GET is a not-found catchall (the route exists so
@@ -747,15 +751,15 @@ async fn get_five_segments(
     AuthedCaller(identity): AuthedCaller,
     Path((a, b, c, d, e)): Path<(String, String, String, String, String)>,
 ) -> Response {
-    if let Some(mount) = a.strip_prefix('~').filter(|mount| !mount.is_empty()) {
+    if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty()) {
         if b.starts_with('@') && d == "-" {
             let full = format!("{b}/{c}");
             return private_no_cache(
-                serve_mount_tarball(&state, &identity, mount, &full, &e).await,
+                serve_registry_tarball(&state, &identity, registry, &full, &e).await,
             );
         }
         if b == "-" && c == "package" && e == "dist-tags" {
-            return private_no_cache(get_dist_tags(&state, &identity, Some(mount), &d).await);
+            return private_no_cache(get_dist_tags(&state, &identity, Some(registry), &d).await);
         }
     }
     not_found()
@@ -776,8 +780,8 @@ async fn put_one_segment(
 }
 
 /// `PUT /{first}/{second}` — publish a scoped package
-/// (`/@scope/name`), or an unscoped package through a mount endpoint
-/// (`/~<mount>/<pkg>`). The `/-/package/{pkg}` shape never lands here
+/// (`/@scope/name`), or an unscoped package through a registry endpoint
+/// (`/~<name>/<pkg>`). The `/-/package/{pkg}` shape never lands here
 /// because that's at least 4 segments.
 async fn put_two_segments(
     State(state): State<AppState>,
@@ -785,9 +789,9 @@ async fn put_two_segments(
     Path((first, second)): Path<(String, String)>,
     body: axum::body::Bytes,
 ) -> Response {
-    // `PUT /~<mount>/<pkg>` — publish an unscoped package through a mount.
-    if let Some(mount) = first.strip_prefix('~').filter(|mount| !mount.is_empty()) {
-        return publish_package(&state, &identity, Some(mount), &second, body).await;
+    // `PUT /~<name>/<pkg>` — publish an unscoped package through a registry.
+    if let Some(registry) = first.strip_prefix('~').filter(|registry| !registry.is_empty()) {
+        return publish_package(&state, &identity, Some(registry), &second, body).await;
     }
     if first.starts_with('@') {
         let full = format!("{first}/{second}");
@@ -803,12 +807,12 @@ async fn put_three_segments(
     Path((first, second, third)): Path<(String, String, String)>,
     body: axum::body::Bytes,
 ) -> Response {
-    // `PUT /~<mount>/@scope/<pkg>` — publish a scoped package through a mount.
-    if let Some(mount) = first.strip_prefix('~').filter(|mount| !mount.is_empty())
+    // `PUT /~<name>/@scope/<pkg>` — publish a scoped package through a registry.
+    if let Some(registry) = first.strip_prefix('~').filter(|registry| !registry.is_empty())
         && second.starts_with('@')
     {
         let full = format!("{second}/{third}");
-        return publish_package(&state, &identity, Some(mount), &full, body).await;
+        return publish_package(&state, &identity, Some(registry), &full, body).await;
     }
     if second == "-rev" {
         // `third` is the opaque revision token the client sent back.
@@ -821,8 +825,8 @@ async fn put_three_segments(
 }
 
 /// 4-segment PUT:
-/// * `/~<mount>/{pkg}/-rev/{rev}` — packument update (partial unpublish)
-///   through a mount endpoint. Scoped packages arrive percent-encoded as a
+/// * `/~<name>/{pkg}/-rev/{rev}` — packument update (partial unpublish)
+///   through a registry endpoint. Scoped packages arrive percent-encoded as a
 ///   single `@scope%2Fname` segment, like the path-less 3-segment form.
 async fn put_four_segments(
     State(state): State<AppState>,
@@ -830,11 +834,11 @@ async fn put_four_segments(
     Path((a, b, c, d)): Path<(String, String, String, String)>,
     body: axum::body::Bytes,
 ) -> Response {
-    if let Some(mount) = a.strip_prefix('~').filter(|mount| !mount.is_empty())
+    if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty())
         && c == "-rev"
     {
         let _ = d; // revision token is unused
-        return update_packument(&state, &identity, Some(mount), &b, &body).await;
+        return update_packument(&state, &identity, Some(registry), &b, &body).await;
     }
     not_found()
 }
@@ -868,38 +872,38 @@ async fn put_five_segments(
     not_found()
 }
 
-/// `PUT /~<mount>/-/package/{pkg}/dist-tags/{tag}` — add/update a dist-tag
-/// through a mount endpoint.
+/// `PUT /~<name>/-/package/{pkg}/dist-tags/{tag}` — add/update a dist-tag
+/// through a registry endpoint.
 async fn put_six_segments(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     Path((a, b, c, d, e, f)): Path<(String, String, String, String, String, String)>,
     body: axum::body::Bytes,
 ) -> Response {
-    if let Some(mount) = a.strip_prefix('~').filter(|mount| !mount.is_empty())
+    if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty())
         && b == "-"
         && c == "package"
         && e == "dist-tags"
     {
-        return set_dist_tag(&state, &identity, Some(mount), &d, &f, &body).await;
+        return set_dist_tag(&state, &identity, Some(registry), &d, &f, &body).await;
     }
     not_found()
 }
 
 /// 4-segment DELETE:
-/// * `/~<mount>/{pkg}/-rev/{rev}` — remove the entire package through a
-///   mount endpoint (scoped packages arrive percent-encoded as one
+/// * `/~<name>/{pkg}/-rev/{rev}` — remove the entire package through a
+///   registry endpoint (scoped packages arrive percent-encoded as one
 ///   `@scope%2Fname` segment).
 async fn delete_four_segments(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     Path((a, b, c, d)): Path<(String, String, String, String)>,
 ) -> Response {
-    if let Some(mount) = a.strip_prefix('~').filter(|mount| !mount.is_empty())
+    if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty())
         && c == "-rev"
     {
         let _ = d; // revision token is unused
-        return delete_package(&state, &identity, Some(mount), &b).await;
+        return delete_package(&state, &identity, Some(registry), &b).await;
     }
     not_found()
 }
@@ -930,10 +934,10 @@ async fn delete_five_segments(
 ///   form (`http://host/@scope/name/-/name-1.0.0.tgz`), so the
 ///   request lands here unencoded rather than as a 5-seg
 ///   `@scope%2Fname` URL.
-/// * `/~<mount>/-/package/{pkg}/dist-tags/{tag}` — remove a dist-tag
-///   through a mount endpoint.
-/// * `/~<mount>/{pkg}/-/{filename}/-rev/{rev}` — remove an unscoped
-///   tarball through a mount endpoint.
+/// * `/~<name>/-/package/{pkg}/dist-tags/{tag}` — remove a dist-tag
+///   through a registry endpoint.
+/// * `/~<name>/{pkg}/-/{filename}/-rev/{rev}` — remove an unscoped
+///   tarball through a registry endpoint.
 async fn delete_six_segments(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
@@ -944,35 +948,35 @@ async fn delete_six_segments(
         let full = format!("{a}/{b}");
         return delete_tarball(&state, &identity, None, &full, &d).await;
     }
-    if let Some(mount) = a.strip_prefix('~').filter(|mount| !mount.is_empty()) {
+    if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty()) {
         if b == "-" && c == "package" && e == "dist-tags" {
-            return remove_dist_tag(&state, &identity, Some(mount), &d, &f).await;
+            return remove_dist_tag(&state, &identity, Some(registry), &d, &f).await;
         }
         if c == "-" && e == "-rev" {
             let _ = f; // revision token is unused
-            return delete_tarball(&state, &identity, Some(mount), &b, &d).await;
+            return delete_tarball(&state, &identity, Some(registry), &b, &d).await;
         }
     }
     not_found()
 }
 
 /// 7-segment DELETE:
-/// * `/~<mount>/{scope}/{name}/-/{filename}/-rev/{rev}` — remove a scoped
-///   tarball through a mount endpoint (the unencoded literal-slash form the
+/// * `/~<name>/{scope}/{name}/-/{filename}/-rev/{rev}` — remove a scoped
+///   tarball through a registry endpoint (the unencoded literal-slash form the
 ///   pnpm unpublish flow reconstructs from the packument's tarball URL).
 async fn delete_seven_segments(
     State(state): State<AppState>,
     AuthedCaller(identity): AuthedCaller,
     Path((a, b, c, d, e, f, g)): Path<(String, String, String, String, String, String, String)>,
 ) -> Response {
-    if let Some(mount) = a.strip_prefix('~').filter(|mount| !mount.is_empty())
+    if let Some(registry) = a.strip_prefix('~').filter(|registry| !registry.is_empty())
         && b.starts_with('@')
         && d == "-"
         && f == "-rev"
     {
         let _ = g; // revision token is unused
         let full = format!("{b}/{c}");
-        return delete_tarball(&state, &identity, Some(mount), &full, &e).await;
+        return delete_tarball(&state, &identity, Some(registry), &full, &e).await;
     }
     not_found()
 }
@@ -1111,15 +1115,15 @@ async fn serve_packument(
     headers: &HeaderMap,
     raw_name: &str,
 ) -> Response {
-    // The path-less base is an alias for the default-target mount: every
-    // request routes through the mount graph (authoritatively, no
+    // The path-less base is an alias for the default-target registry: every
+    // request routes through the registry graph (authoritatively, no
     // fall-through). With no default target the bare host has no registry.
-    match default_target_mount(state) {
+    match default_registry_target(state) {
         Some(target) => {
             // The path-less base: tarball URLs stay canonical for the bare host.
             let base = state.inner.config.public_url.clone();
             let response =
-                serve_mount_packument(state, identity, headers, &target, raw_name, &base).await;
+                serve_registry_packument(state, identity, headers, &target, raw_name, &base).await;
             private_if_caller_gated(state, raw_name, response)
         }
         None => not_found(),
@@ -1132,10 +1136,10 @@ async fn serve_version_manifest(
     raw_name: &str,
     version_or_tag: &str,
 ) -> Response {
-    match default_target_mount(state) {
+    match default_registry_target(state) {
         Some(target) => {
             let base = state.inner.config.public_url.clone();
-            let response = serve_mount_version_manifest(
+            let response = serve_registry_version_manifest(
                 state,
                 identity,
                 &target,
@@ -1151,13 +1155,13 @@ async fn serve_version_manifest(
 }
 
 /// Serve a single version's manifest (`GET <base>/<pkg>/<version-or-tag>`)
-/// through the mount graph. Resolves the package to its one concrete origin,
+/// through the registry graph. Resolves the package to its one concrete origin,
 /// loads that origin's packument, and extracts the requested version with its
 /// `dist.tarball` rewritten onto the same origin's base.
-async fn serve_mount_version_manifest(
+async fn serve_registry_version_manifest(
     state: &AppState,
     identity: &Identity,
-    mount: &str,
+    registry: &str,
     raw_name: &str,
     version_or_tag: &str,
     tarball_base: &str,
@@ -1166,9 +1170,9 @@ async fn serve_mount_version_manifest(
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    let bytes = match resolve_mount_source(state, mount, name.as_str()) {
-        MountSource::Upstream(source) => {
-            // Per-package ACL before serving — see `serve_mount_packument`.
+    let bytes = match resolve_registry_source(state, registry, name.as_str()) {
+        RegistrySource::Upstream(source) => {
+            // Per-package ACL before serving — see `serve_registry_packument`.
             if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
                 return error_response(&err);
             }
@@ -1178,9 +1182,9 @@ async fn serve_mount_version_manifest(
                 Err(response) => return *response,
             }
         }
-        MountSource::Hosted(source) => {
+        RegistrySource::Hosted(source) => {
             // Mask first: a private org 404s an unauthorized caller before the
-            // per-package ACL could reveal existence — see `serve_mount_packument`.
+            // per-package ACL could reveal existence — see `serve_registry_packument`.
             let Some(org) = accessible_hosted_namespace(state, identity, &source) else {
                 return not_found();
             };
@@ -1193,7 +1197,7 @@ async fn serve_mount_version_manifest(
                 Err(err) => return error_response(&err),
             }
         }
-        MountSource::Unclaimed | MountSource::NotFound => return not_found(),
+        RegistrySource::Unclaimed | RegistrySource::NotFound => return not_found(),
     };
     let packument: Value = match serde_json::from_slice(&bytes) {
         Ok(v) => v,
@@ -1238,8 +1242,8 @@ fn authorized_uplink<'a>(
     let Some(config) = state.inner.config.uplinks.get(uplink) else {
         return Err(Box::new(not_found()));
     };
-    // A private upstream mount gates by its `access:` list; a public mount
-    // (no access) is reachable by anyone at its `/~<mount>/` URL, its upstream
+    // A private upstream registry gates by its `access:` list; a public registry
+    // (no access) is reachable by anyone at its `/~<name>/` URL, its upstream
     // credential (if any) staying server-side either way.
     if let Some(access) = config.access.as_ref()
         && !access.allows(identity)
@@ -1255,10 +1259,10 @@ fn authorized_uplink<'a>(
     state.inner.upstreams.get(uplink).ok_or_else(|| Box::new(not_found()))
 }
 
-/// The disposable cache namespace for an upstream mount's `/~<mount>/` route —
+/// The disposable cache namespace for an upstream registry's `/~<name>/` route —
 /// the entry precomputed in [`AppInner::uplink_cache_namespaces`], falling back
 /// to a fresh computation only for a name outside [`Config::uplinks`] (which
-/// the mount dispatch never produces).
+/// the registry dispatch never produces).
 fn uplink_cache_namespace(state: &AppState, uplink: &str) -> String {
     state
         .inner
@@ -1268,26 +1272,26 @@ fn uplink_cache_namespace(state: &AppState, uplink: &str) -> String {
         .unwrap_or_else(|| compute_uplink_cache_namespace(&state.inner.config, uplink))
 }
 
-/// Compute an upstream mount's disposable cache namespace, so its packuments
-/// and tarballs never collide with another mount's.
+/// Compute an upstream registry's disposable cache namespace, so its packuments
+/// and tarballs never collide with another registry's.
 ///
-/// Both shapes fold in the mount's upstream **URL**: the cache is a mirror of
-/// one declared origin, so repointing a mount's `url:` moves to a fresh
+/// Both shapes fold in the registry's upstream **URL**: the cache is a mirror of
+/// one declared origin, so repointing a registry's `url:` moves to a fresh
 /// namespace and bytes fetched from the previous origin can never answer for
 /// the new one. The cache-first warm tarball path depends on this — it serves
 /// a cached entry without re-binding it against the current packument.
 ///
-/// A **private** mount — any that declares `access:` (so it is not `public`; the
-/// config loader forbids a public mount from carrying any credential) — is
-/// namespaced by an HMAC over `(mount, url, credential)` keyed with
-/// the server secret: the on-disk path leaks neither the mount name nor the
+/// A **private** registry — any that declares `access:` (so it is not `public`; the
+/// config loader forbids a public registry from carrying any credential) — is
+/// namespaced by an HMAC over `(registry, url, credential)` keyed with
+/// the server secret: the on-disk path leaks neither the registry name nor the
 /// credential, and a credential rotation moves to a fresh namespace. Keying on
 /// the declared visibility rather than on the presence of an `Authorization`
-/// header keeps a mount whose credential rides a *custom* header (or which
+/// header keeps a registry whose credential rides a *custom* header (or which
 /// gates access without an upstream credential) out of the guessable public
-/// namespace. A **public** mount has nothing private to protect and its content
+/// namespace. A **public** registry has nothing private to protect and its content
 /// is integrity-verified, so it uses a *stable* namespace
-/// (`~public/<digest-of-mount-name-and-url>`) that is shared across process
+/// (`~public/<digest-of-registry-name-and-url>`) that is shared across process
 /// restarts.
 fn compute_uplink_cache_namespace(config: &Config, uplink: &str) -> String {
     let url = config.uplinks.get(uplink).map_or("", |uplink_config| uplink_config.url.as_str());
@@ -1307,7 +1311,7 @@ fn compute_uplink_cache_namespace(config: &Config, uplink: &str) -> String {
             crate::route::uplink_cache_digest(uplink, epoch, &config.resolution_cache_secret);
         return format!("~uplinks/{digest}");
     }
-    // Public mount: a stable, secret-free namespace keyed by the mount name
+    // Public registry: a stable, secret-free namespace keyed by the registry name
     // and its origin URL (hashed so a path-unsafe value can't escape the
     // cache root).
     format!("~public/{}", crate::route::credential_digest(&format!("{uplink}\0{url}")))
@@ -1337,9 +1341,9 @@ async fn timed<Fut: Future>(phase: &'static str, package: &str, fut: Fut) -> Fut
     out
 }
 
-/// Load an uplink route's packument: a fresh per-mount cache entry when one
-/// exists, otherwise a fetch through the mount (with its server-side credential)
-/// written back to the same namespace. A mount with `cache: false` neither reads
+/// Load an uplink route's packument: a fresh per-registry cache entry when one
+/// exists, otherwise a fetch through the registry (with its server-side credential)
+/// written back to the same namespace. A registry with `cache: false` neither reads
 /// nor writes the cache — it streams everything through, refetching each time.
 async fn load_uplink_packument(
     state: &AppState,
@@ -1370,7 +1374,7 @@ async fn load_uplink_packument(
         // unreachable, serve the last cached body for this same origin rather
         // than failing. This preserves availability during a transient outage
         // and is not a cross-origin fall-through — the bytes came from this very
-        // mount. A clean `NotFound` is an `Ok` variant below, so it never lands
+        // registry. A clean `NotFound` is an `Ok` variant below, so it never lands
         // here and stays an authoritative 404.
         Err(err) => {
             // Only mask a *transient* availability failure (transport, 5xx, open
@@ -1436,8 +1440,8 @@ async fn load_uplink_packument(
     }
 }
 
-/// Authorize and load an upstream mount's packument bytes (from its per-mount
-/// private cache, else a fresh fetch through the mount), or a [`Response`]
+/// Authorize and load an upstream registry's packument bytes (from its per-registry
+/// private cache, else a fresh fetch through the registry), or a [`Response`]
 /// error the caller should return. Shared by the packument and version-manifest
 /// serving paths.
 async fn load_upstream_packument_for(
@@ -1454,8 +1458,8 @@ async fn load_upstream_packument_for(
         .map_err(|err| Box::new(error_response(&err)))
 }
 
-/// Load a package's packument bytes through the addressed `/~<mount>/` (or,
-/// path-less, the default-target mount) — resolving to one concrete origin and
+/// Load a package's packument bytes through the addressed `/~<name>/` (or,
+/// path-less, the default-target registry) — resolving to one concrete origin and
 /// reading there, with no fall-through. `Ok(None)` is a definitive not-found
 /// (unknown package, no route, no default target, or an unauthorized private
 /// hosted org). Used by the readers that aren't
@@ -1463,29 +1467,29 @@ async fn load_upstream_packument_for(
 async fn load_packument_for_read(
     state: &AppState,
     identity: &Identity,
-    mount: Option<&str>,
+    registry: Option<&str>,
     name: &PackageName,
 ) -> Result<Option<Vec<u8>>, Box<Response>> {
-    let target = match mount {
-        Some(mount) => mount.to_string(),
-        None => match default_target_mount(state) {
+    let target = match registry {
+        Some(registry) => registry.to_string(),
+        None => match default_registry_target(state) {
             Some(target) => target,
             None => return Ok(None),
         },
     };
-    // The per-package access ACL applies to every mount-served read, upstream or
+    // The per-package access ACL applies to every registry-served read, upstream or
     // hosted — otherwise a restricted package would leak (e.g. its dist-tags)
     // through these path-less readers. It runs *after* the hosted-org visibility
     // gate, though, so a private org still 404-masks an unauthorized caller
-    // rather than revealing existence via a 401/403 (see `serve_mount_packument`).
-    match resolve_mount_source(state, &target, name.as_str()) {
-        MountSource::Upstream(source) => {
+    // rather than revealing existence via a 401/403 (see `serve_registry_packument`).
+    match resolve_registry_source(state, &target, name.as_str()) {
+        RegistrySource::Upstream(source) => {
             if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
                 return Err(Box::new(error_response(&err)));
             }
             load_upstream_packument_for(state, identity, &source, name).await
         }
-        MountSource::Hosted(source) => {
+        RegistrySource::Hosted(source) => {
             let Some(org) = accessible_hosted_namespace(state, identity, &source) else {
                 return Ok(None);
             };
@@ -1500,7 +1504,7 @@ async fn load_packument_for_read(
                 .await
                 .map_err(|err| Box::new(error_response(&err)))
         }
-        MountSource::Unclaimed | MountSource::NotFound => Ok(None),
+        RegistrySource::Unclaimed | RegistrySource::NotFound => Ok(None),
     }
 }
 
@@ -1699,10 +1703,10 @@ async fn cached_uplink_tarball(
 }
 
 // --------------------------------------------------------------------
-// Registry-mount dispatch. A `/~<mount>/` request resolves the package to
-// exactly one concrete origin through the validated mount graph
-// ([`crate::mount`]) and serves it there — authoritatively. Every concrete
-// mount's declared `patterns:` are enforced here, before storage or any
+// Registry dispatch. A `/~<name>/` request resolves the package to
+// exactly one concrete origin through the validated registry graph
+// ([`crate::registry`]) and serves it there — authoritatively. Every concrete
+// registry's declared `patterns:` are enforced here, before storage or any
 // upstream is consulted, on the direct address and through a router alike; a
 // router selects the first source whose patterns claim the name. An unclaimed
 // name is a definitive 404 (never a fall-through to another origin), and a
@@ -1712,73 +1716,73 @@ async fn cached_uplink_tarball(
 // one layer out.
 // --------------------------------------------------------------------
 
-/// The concrete origin a `/~<mount>/` request resolved to, owned so it can be
+/// The concrete origin a `/~<name>/` request resolved to, owned so it can be
 /// held across an `await` without borrowing the config.
-enum MountSource {
-    /// An upstream mount (public or private), served via its `/~<source>/`
+enum RegistrySource {
+    /// An upstream registry (public or private), served via its `/~<source>/`
     /// uplink machinery. The id is a key in [`Config::uplinks`].
     Upstream(String),
-    /// A hosted mount, served from the hosted store.
+    /// A hosted registry, served from the hosted store.
     Hosted(String),
-    /// No declared namespace claims the package — the addressed mount's
+    /// No declared namespace claims the package — the addressed registry's
     /// patterns don't cover it, or none of a router's sources claim it. A
     /// definitive 404 on reads; writes reject it with a reason instead, so a
     /// typo'd scope fails loudly rather than 404-ing later.
     Unclaimed,
-    /// The mount id is unknown — a definitive not-found with no fall-through.
+    /// The registry id is unknown — a definitive not-found with no fall-through.
     NotFound,
 }
 
-/// The mount the path-less base (`https://<pnpr>/`) aliases, owned so it can be
+/// The registry the path-less base (`https://<pnpr>/`) aliases, owned so it can be
 /// held across an `await`. `None` disables the path-less base entirely — the
 /// bare host has no registry and every request is a not-found, so clients must
-/// address a `/~<mount>/`. There is no legacy hosted-then-proxy path: a
-/// path-less request resolves through the mount graph or it does not resolve.
-fn default_target_mount(state: &AppState) -> Option<String> {
-    state.inner.config.mounts.default_target().map(str::to_string)
+/// address a `/~<name>/`. There is no legacy hosted-then-proxy path: a
+/// path-less request resolves through the registry graph or it does not resolve.
+fn default_registry_target(state: &AppState) -> Option<String> {
+    state.inner.config.registries.default_registry().map(str::to_string)
 }
 
-fn resolve_mount_source(state: &AppState, mount: &str, package: &str) -> MountSource {
-    match state.inner.config.mounts.resolve(mount, package) {
-        Resolved::Concrete { mount, kind: ConcreteKind::Upstream } => {
-            MountSource::Upstream(mount.to_string())
+fn resolve_registry_source(state: &AppState, registry: &str, package: &str) -> RegistrySource {
+    match state.inner.config.registries.resolve(registry, package) {
+        Resolved::Concrete { registry, kind: ConcreteKind::Upstream } => {
+            RegistrySource::Upstream(registry.to_string())
         }
-        Resolved::Concrete { mount, kind: ConcreteKind::Hosted } => {
-            MountSource::Hosted(mount.to_string())
+        Resolved::Concrete { registry, kind: ConcreteKind::Hosted } => {
+            RegistrySource::Hosted(registry.to_string())
         }
         // An unclaimed name is definitive — never a fall-through to another
         // origin, and never a storage or upstream consultation.
-        Resolved::Unclaimed => MountSource::Unclaimed,
-        // Every configured uplink is an upstream mount addressable at
+        Resolved::Unclaimed => RegistrySource::Unclaimed,
+        // Every configured uplink is an upstream registry addressable at
         // `/~<uplink>/`, even one inserted programmatically without rebuilding
-        // the mount graph; fall back to that before declaring not-found.
-        Resolved::UnknownMount => {
-            if state.inner.config.uplinks.contains_key(mount) {
-                MountSource::Upstream(mount.to_string())
+        // the registry graph; fall back to that before declaring not-found.
+        Resolved::UnknownRegistry => {
+            if state.inner.config.uplinks.contains_key(registry) {
+                RegistrySource::Upstream(registry.to_string())
             } else {
-                MountSource::NotFound
+                RegistrySource::NotFound
             }
         }
     }
 }
 
-/// Whether the concrete origin `package` resolves to through `mount` serves
-/// caller-gated content: a hosted mount whose access list denies anonymous
-/// callers, or an upstream mount that declares `access:`. Responses from such
+/// Whether the concrete origin `package` resolves to through `registry` serves
+/// caller-gated content: a hosted registry whose access list denies anonymous
+/// callers, or an upstream registry that declares `access:`. Responses from such
 /// an origin vary by `Authorization` and must never land in a shared HTTP
-/// cache, whichever URL surface (path-less or `/~<mount>/`) served them.
-fn resolves_to_private_source(state: &AppState, mount: &str, package: &str) -> bool {
-    match resolve_mount_source(state, mount, package) {
-        MountSource::Hosted(source) => state
+/// cache, whichever URL surface (path-less or `/~<name>/`) served them.
+fn resolves_to_private_source(state: &AppState, registry: &str, package: &str) -> bool {
+    match resolve_registry_source(state, registry, package) {
+        RegistrySource::Hosted(source) => state
             .inner
             .config
             .hosted
             .get(&source)
             .is_some_and(|hosted| !hosted.access.allows(&Identity::Anonymous)),
-        MountSource::Upstream(source) => {
+        RegistrySource::Upstream(source) => {
             state.inner.config.uplinks.get(&source).is_some_and(|uplink| uplink.access.is_some())
         }
-        MountSource::Unclaimed | MountSource::NotFound => false,
+        RegistrySource::Unclaimed | RegistrySource::NotFound => false,
     }
 }
 
@@ -1786,7 +1790,7 @@ fn resolves_to_private_source(state: &AppState, mount: &str, package: &str) -> b
 /// vary by caller — the default-target resolution for `package` lands on a
 /// private source, or the per-package ACL denies anonymous access (so the
 /// same URL answers 200 or 403 depending on `Authorization`, even through a
-/// public mount). These are the same headers the `/~<mount>/` surface applies
+/// public registry). These are the same headers the `/~<name>/` surface applies
 /// unconditionally, so the two URL surfaces for the same content get the same
 /// defense against a shared HTTP cache replaying an authenticated response to
 /// an anonymous caller. A publicly-readable resolution stays cacheable: the
@@ -1797,7 +1801,7 @@ fn private_if_caller_gated(state: &AppState, package: &str, response: Response) 
     if acl_gated {
         return private_no_cache(response);
     }
-    match default_target_mount(state) {
+    match default_registry_target(state) {
         Some(target) if resolves_to_private_source(state, &target, package) => {
             private_no_cache(response)
         }
@@ -1805,12 +1809,12 @@ fn private_if_caller_gated(state: &AppState, package: &str, response: Response) 
     }
 }
 
-/// Serve a packument addressed to `/~<mount>/<pkg>` through the mount graph.
-async fn serve_mount_packument(
+/// Serve a packument addressed to `/~<name>/<pkg>` through the registry graph.
+async fn serve_registry_packument(
     state: &AppState,
     identity: &Identity,
     headers: &HeaderMap,
-    mount: &str,
+    registry: &str,
     raw_name: &str,
     tarball_base: &str,
 ) -> Response {
@@ -1819,13 +1823,13 @@ async fn serve_mount_packument(
         Err(err) => return error_response(&err),
     };
     // `tarball_base` is the URL the *client* addressed (the path-less host or a
-    // `/~<mount>/`), not the resolved source's `/~<source>/`. The served
+    // `/~<name>/`), not the resolved source's `/~<source>/`. The served
     // packument's `dist.tarball` URLs must stay canonical for that base so a
     // client's lockfile drops them — persisting the resolved source path would
-    // bake the mount name in and break lockfile portability.
-    match resolve_mount_source(state, mount, name.as_str()) {
-        MountSource::Upstream(source) => {
-            // The per-package access ACL applies to every mount-served read, so
+    // bake the registry name in and break lockfile portability.
+    match resolve_registry_source(state, registry, name.as_str()) {
+        RegistrySource::Upstream(source) => {
+            // The per-package access ACL applies to every registry-served read, so
             // an access-gated name can't be read through a public upstream.
             // Checked before serving so the decision precedes any
             // existence-revealing signal like an OSV 403.
@@ -1834,24 +1838,24 @@ async fn serve_mount_packument(
             }
             serve_packument_via_uplink(state, identity, headers, &source, &name, tarball_base).await
         }
-        // A hosted mount masks first: a private org 404s an unauthorized caller
+        // A hosted registry masks first: a private org 404s an unauthorized caller
         // (see `accessible_hosted_namespace`) *before* the per-package ACL could
         // return a 401/403 that reveals the package exists — the ACL is applied
         // inside `serve_hosted_packument` only after the visibility gate passes.
-        MountSource::Hosted(source) => {
+        RegistrySource::Hosted(source) => {
             serve_hosted_packument(state, identity, headers, &source, &name, tarball_base).await
         }
-        MountSource::Unclaimed | MountSource::NotFound => not_found(),
+        RegistrySource::Unclaimed | RegistrySource::NotFound => not_found(),
     }
 }
 
-/// Serve a tarball addressed to `/~<mount>/<pkg>/-/<file>` through the mount
+/// Serve a tarball addressed to `/~<name>/<pkg>/-/<file>` through the registry
 /// graph. Routing is deterministic by package name, so the tarball resolves to
 /// the same concrete source the packument did.
-async fn serve_mount_tarball(
+async fn serve_registry_tarball(
     state: &AppState,
     identity: &Identity,
-    mount: &str,
+    registry: &str,
     raw_name: &str,
     filename: &str,
 ) -> Response {
@@ -1859,26 +1863,26 @@ async fn serve_mount_tarball(
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    match resolve_mount_source(state, mount, name.as_str()) {
-        MountSource::Upstream(source) => {
-            // Per-package ACL before serving — see `serve_mount_packument`.
+    match resolve_registry_source(state, registry, name.as_str()) {
+        RegistrySource::Upstream(source) => {
+            // Per-package ACL before serving — see `serve_registry_packument`.
             if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
                 return error_response(&err);
             }
             serve_tarball_via_uplink(state, identity, &source, name.as_str(), filename).await
         }
         // Hosted masks first (private-org 404) then applies the ACL, inside
-        // `serve_hosted_tarball` — see `serve_mount_packument`.
-        MountSource::Hosted(source) => {
+        // `serve_hosted_tarball` — see `serve_registry_packument`.
+        RegistrySource::Hosted(source) => {
             serve_hosted_tarball(state, identity, &source, &name, filename).await
         }
-        MountSource::Unclaimed | MountSource::NotFound => not_found(),
+        RegistrySource::Unclaimed | RegistrySource::NotFound => not_found(),
     }
 }
 
-/// The storage namespace of the hosted mount `source` when `identity` may
-/// access it, else `None`. The mount's `access` list gates reads and writes
-/// alike — a caller who may not read a hosted mount may not publish, tag, or
+/// The storage namespace of the hosted registry `source` when `identity` may
+/// access it, else `None`. The registry's `access` list gates reads and writes
+/// alike — a caller who may not read a hosted registry may not publish, tag, or
 /// unpublish into it either. A denied caller is treated as not-found, so a
 /// private org's package existence is not revealed. The org policy composes
 /// (logical AND) with the per-package [`Config::policies`] applied by the
@@ -1965,11 +1969,12 @@ async fn serve_tarball(
     raw_name: &str,
     filename: &str,
 ) -> Response {
-    // The path-less base is an alias for the default-target mount — see
+    // The path-less base is an alias for the default-target registry — see
     // `serve_packument`. With no default target the bare host has no registry.
-    match default_target_mount(state) {
+    match default_registry_target(state) {
         Some(target) => {
-            let response = serve_mount_tarball(state, identity, &target, raw_name, filename).await;
+            let response =
+                serve_registry_tarball(state, identity, &target, raw_name, filename).await;
             private_if_caller_gated(state, raw_name, response)
         }
         None => not_found(),
@@ -2367,70 +2372,73 @@ fn hosted_storage(state: &AppState, org: Option<&str>) -> Storage {
     }
 }
 
-/// Where a publish of `package` writes, given an optional explicit `/~<mount>/`.
+/// Where a publish of `package` writes, given an optional explicit `/~<name>/`.
 enum PublishTarget {
     /// Write into this hosted storage namespace.
     Org(String),
     /// The resolved target is not a hosted org; reject with this reason.
     Reject(String),
-    /// The addressed mount or route does not exist (or the path-less base has
+    /// The addressed registry or route does not exist (or the path-less base has
     /// no default target).
     NotFound,
 }
 
-/// Resolve where a publish lands. A write may only target a hosted mount
+/// Resolve where a publish lands. A write may only target a hosted registry
 /// whose declared patterns claim the name: a selection of an upstream is
-/// rejected ("name a hosted mount"), never silently landing on an upstream,
+/// rejected ("name a hosted registry"), never silently landing on an upstream,
 /// and an unclaimed name is rejected with the reason — so a typo'd scope
-/// fails loudly at publish time instead of storing a name the mount's
-/// namespace can never serve. The mount's `access` list gates the write
-/// exactly as it gates reads — a caller the mount denies gets the same
-/// not-found mask as on a read, so a private mount neither accepts the write
+/// fails loudly at publish time instead of storing a name the registry's
+/// namespace can never serve. The registry's `access` list gates the write
+/// exactly as it gates reads — a caller the registry denies gets the same
+/// not-found mask as on a read, so a private registry neither accepts the write
 /// nor reveals that it exists. The path-less base routes through its
-/// default-target mount; with no default target the bare host has no registry
+/// default-target registry; with no default target the bare host has no registry
 /// and the publish is a not-found, exactly like a read.
 fn resolve_publish_target(
     state: &AppState,
     identity: &Identity,
-    mount: Option<&str>,
+    registry: Option<&str>,
     package: &str,
 ) -> PublishTarget {
-    let from_source = |source: MountSource, context: &str| match source {
-        MountSource::Hosted(mount) => match accessible_hosted_namespace(state, identity, &mount) {
-            Some(org) => PublishTarget::Org(org),
-            None => PublishTarget::NotFound,
-        },
-        MountSource::Upstream(_) => PublishTarget::Reject(format!(
+    let from_source = |source: RegistrySource, context: &str| match source {
+        RegistrySource::Hosted(registry) => {
+            match accessible_hosted_namespace(state, identity, &registry) {
+                Some(org) => PublishTarget::Org(org),
+                None => PublishTarget::NotFound,
+            }
+        }
+        RegistrySource::Upstream(_) => PublishTarget::Reject(format!(
             "cannot publish {package:?} {context}: it routes to an upstream registry; name a \
-             hosted mount",
+             hosted registry",
         )),
-        MountSource::Unclaimed => PublishTarget::Reject(format!(
-            "cannot publish {package:?} {context}: no mount's declared `patterns:` claim this \
+        RegistrySource::Unclaimed => PublishTarget::Reject(format!(
+            "cannot publish {package:?} {context}: no registry's declared `patterns:` claim this \
              package name",
         )),
-        MountSource::NotFound => PublishTarget::NotFound,
+        RegistrySource::NotFound => PublishTarget::NotFound,
     };
-    match mount {
-        Some(mount) => from_source(
-            resolve_mount_source(state, mount, package),
-            &format!("through mount {mount:?}"),
+    match registry {
+        Some(registry) => from_source(
+            resolve_registry_source(state, registry, package),
+            &format!("through registry {registry:?}"),
         ),
-        None => match default_target_mount(state) {
-            Some(target) => {
-                from_source(resolve_mount_source(state, &target, package), "to the path-less base")
-            }
+        None => match default_registry_target(state) {
+            Some(target) => from_source(
+                resolve_registry_source(state, &target, package),
+                "to the path-less base",
+            ),
             None => PublishTarget::NotFound,
         },
     }
 }
 
-/// `PUT /:pkg` (path-less) or `PUT /~<mount>/:pkg` — publish a new version (or
+/// `PUT /:pkg` (path-less) or `PUT /~<name>/:pkg` — publish a new version (or
 /// republish). Body is the full packument with `_attachments` carrying the
 /// tarball bytes base64-encoded.
 async fn publish_package(
     state: &AppState,
     identity: &Identity,
-    mount: Option<&str>,
+    registry: Option<&str>,
     raw_name: &str,
     body: axum::body::Bytes,
 ) -> Response {
@@ -2460,9 +2468,9 @@ async fn publish_package(
     }
 
     // Route the write to its hosted namespace (or the flat store), failing
-    // closed when the target is an upstream, an unknown mount, or a hosted
-    // mount whose access list denies the caller.
-    let org = match resolve_publish_target(state, identity, mount, name.as_str()) {
+    // closed when the target is an upstream, an unknown registry, or a hosted
+    // registry whose access list denies the caller.
+    let org = match resolve_publish_target(state, identity, registry, name.as_str()) {
         PublishTarget::Org(org) => Some(org),
         PublishTarget::Reject(reason) => {
             return error_response(&RegistryError::BadRequest { reason });
@@ -2739,7 +2747,7 @@ async fn stage_publish(
         }
     }
 
-    // A hosted mount has no upstream, so a publish seeds the merge only from
+    // A hosted registry has no upstream, so a publish seeds the merge only from
     // the org's own hosted packument; a brand-new package starts from `None`.
     let existing: Option<Value> = hosted.clone();
     let merged = merge_manifest(existing.as_ref(), &incoming, hosted.as_ref(), now_iso);
@@ -2884,13 +2892,13 @@ async fn cleanup_tmp_slots(slots: Vec<crate::storage::TarballSlot>) {
 /// proxy can't deliver because npm's search is fuzzy and returns
 /// dozens of unrelated matches for almost anything).
 ///
-/// Results are served through the mount graph and gated exactly like the
+/// Results are served through the registry graph and gated exactly like the
 /// packument and tarball GETs:
 ///
-/// * Only the hosted mounts the addressed registry serves are scanned (see
-///   [`hosted_search_sources`]), each gated by its **mount access list** — a
-///   caller a mount denies gets nothing from it, the same existence mask the
-///   read paths apply. Without this, search would enumerate a private mount's
+/// * Only the hosted registries the addressed registry serves are scanned (see
+///   [`hosted_search_sources`]), each gated by its **registry access list** — a
+///   caller a registry denies gets nothing from it, the same existence mask the
+///   read paths apply. Without this, search would enumerate a private registry's
 ///   packages by name/version/description while the packument GET correctly
 ///   404s.
 /// * Under a router, a name is kept only when the router actually **routes it
@@ -2904,7 +2912,7 @@ async fn cleanup_tmp_slots(slots: Vec<crate::storage::TarballSlot>) {
 async fn serve_search(
     state: &AppState,
     identity: &Identity,
-    mount: Option<&str>,
+    registry: Option<&str>,
     query_string: &str,
 ) -> Response {
     let result = |objects: Vec<Value>| {
@@ -2920,12 +2928,13 @@ async fn serve_search(
     let Some(text) = crate::search::parse_query(query_string) else {
         return result(Vec::new());
     };
-    let Some(mount) = mount.map(str::to_string).or_else(|| default_target_mount(state)) else {
+    let Some(registry) = registry.map(str::to_string).or_else(|| default_registry_target(state))
+    else {
         return result(Vec::new());
     };
     let size = crate::search::parse_size(query_string, 20);
     let mut objects: Vec<Value> = Vec::new();
-    for source in hosted_search_sources(state, &mount) {
+    for source in hosted_search_sources(state, &registry) {
         if objects.len() >= size {
             break;
         }
@@ -2937,8 +2946,8 @@ async fn serve_search(
         // synchronously against it inside the scan.
         let keep = |name: &str| {
             matches!(
-                resolve_mount_source(state, &mount, name),
-                MountSource::Hosted(resolved) if resolved == source,
+                resolve_registry_source(state, &registry, name),
+                RegistrySource::Hosted(resolved) if resolved == source,
             ) && authorize(state, identity, name, Action::Access).is_ok()
         };
         match crate::search::run_local_search(&storage, &text, size - objects.len(), keep).await {
@@ -2949,29 +2958,29 @@ async fn serve_search(
     result(objects)
 }
 
-/// The hosted mounts a search addressed to `mount` scans, in source order.
-/// A hosted mount scans itself; a router scans each of its hosted sources; an
-/// upstream mount scans nothing — search is local-only, never proxied (an
-/// upstream is reached only through its own mount, by exact package name;
+/// The hosted registries a search addressed to `registry` scans, in source order.
+/// A hosted registry scans itself; a router scans each of its hosted sources; an
+/// upstream registry scans nothing — search is local-only, never proxied (an
+/// upstream is reached only through its own registry, by exact package name;
 /// there is no cross-origin search merge).
-fn hosted_search_sources(state: &AppState, mount: &str) -> Vec<String> {
-    match state.inner.config.mounts.get(mount) {
-        Some(MountKind::Hosted { .. }) => vec![mount.to_string()],
-        Some(MountKind::Router { sources }) => sources
+fn hosted_search_sources(state: &AppState, registry: &str) -> Vec<String> {
+    match state.inner.config.registries.get(registry) {
+        Some(Registry::Hosted { .. }) => vec![registry.to_string()],
+        Some(Registry::Router { sources }) => sources
             .iter()
             .filter(|source| {
                 matches!(
-                    state.inner.config.mounts.get(source.as_str()),
-                    Some(MountKind::Hosted { .. }),
+                    state.inner.config.registries.get(source.as_str()),
+                    Some(Registry::Hosted { .. }),
                 )
             })
             .cloned()
             .collect(),
-        Some(MountKind::Upstream { .. }) | None => Vec::new(),
+        Some(Registry::Upstream { .. }) | None => Vec::new(),
     }
 }
 
-/// `PUT /:pkg/-rev/:rev` (path-less) or `PUT /~<mount>/:pkg/-rev/:rev` —
+/// `PUT /:pkg/-rev/:rev` (path-less) or `PUT /~<name>/:pkg/-rev/:rev` —
 /// overwrite the on-disk packument with the client-supplied body. pnpm uses
 /// this in the partial-unpublish flow: it fetches the packument, removes the
 /// unpublished version from `versions` / `dist-tags`, then PUTs the result
@@ -2983,7 +2992,7 @@ fn hosted_search_sources(state: &AppState, mount: &str) -> Vec<String> {
 async fn update_packument(
     state: &AppState,
     identity: &Identity,
-    mount: Option<&str>,
+    registry: Option<&str>,
     raw_name: &str,
     body: &[u8],
 ) -> Response {
@@ -2996,7 +3005,7 @@ async fn update_packument(
             return error_response(&err);
         }
     }
-    let org = match resolve_write_org(state, identity, mount, &name) {
+    let org = match resolve_write_org(state, identity, registry, &name) {
         Ok(org) => org,
         Err(response) => return *response,
     };
@@ -3198,13 +3207,13 @@ fn require_object_dist(manifest: &Value, version: &str) -> Option<RegistryError>
     })
 }
 
-/// `DELETE /:pkg/-rev/:rev` (path-less) or `DELETE /~<mount>/:pkg/-rev/:rev`
+/// `DELETE /:pkg/-rev/:rev` (path-less) or `DELETE /~<name>/:pkg/-rev/:rev`
 /// — remove the entire package directory, packument and all tarballs. Used
 /// by `pnpm unpublish --force`.
 async fn delete_package(
     state: &AppState,
     identity: &Identity,
-    mount: Option<&str>,
+    registry: Option<&str>,
     raw_name: &str,
 ) -> Response {
     let name = match PackageName::parse(raw_name) {
@@ -3214,7 +3223,7 @@ async fn delete_package(
     if let Err(err) = authorize(state, identity, name.as_str(), Action::Unpublish) {
         return error_response(&err);
     }
-    let org = match resolve_write_org(state, identity, mount, &name) {
+    let org = match resolve_write_org(state, identity, registry, &name) {
         Ok(org) => org,
         Err(response) => return *response,
     };
@@ -3241,7 +3250,7 @@ async fn delete_package(
 async fn delete_tarball(
     state: &AppState,
     identity: &Identity,
-    mount: Option<&str>,
+    registry: Option<&str>,
     raw_name: &str,
     filename: &str,
 ) -> Response {
@@ -3256,7 +3265,7 @@ async fn delete_tarball(
     if let Err(err) = authorize(state, identity, name.as_str(), Action::Unpublish) {
         return error_response(&err);
     }
-    let org = match resolve_write_org(state, identity, mount, &name) {
+    let org = match resolve_write_org(state, identity, registry, &name) {
         Ok(org) => org,
         Err(response) => return *response,
     };
@@ -3276,19 +3285,19 @@ async fn delete_tarball(
 }
 
 /// `GET /-/package/:pkg/dist-tags` (path-less) or
-/// `GET /~<mount>/-/package/:pkg/dist-tags` — return the packument's
+/// `GET /~<name>/-/package/:pkg/dist-tags` — return the packument's
 /// `dist-tags` object.
 async fn get_dist_tags(
     state: &AppState,
     identity: &Identity,
-    mount: Option<&str>,
+    registry: Option<&str>,
     raw_name: &str,
 ) -> Response {
     let name = match PackageName::parse(raw_name) {
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    let bytes = match load_packument_for_read(state, identity, mount, &name).await {
+    let bytes = match load_packument_for_read(state, identity, registry, &name).await {
         Ok(Some(bytes)) => bytes,
         Ok(None) => return not_found(),
         Err(response) => return *response,
@@ -3308,17 +3317,17 @@ async fn get_dist_tags(
 }
 
 /// `PUT /-/package/:pkg/dist-tags/:tag` (path-less) or
-/// `PUT /~<mount>/-/package/:pkg/dist-tags/:tag` — set a dist-tag. Body is
+/// `PUT /~<name>/-/package/:pkg/dist-tags/:tag` — set a dist-tag. Body is
 /// a JSON-encoded version string (e.g. `"1.0.0"`).
 async fn set_dist_tag(
     state: &AppState,
     identity: &Identity,
-    mount: Option<&str>,
+    registry: Option<&str>,
     raw_name: &str,
     tag: &str,
     body: &[u8],
 ) -> Response {
-    update_dist_tag(state, identity, mount, raw_name, tag, |tags| {
+    update_dist_tag(state, identity, registry, raw_name, tag, |tags| {
         let version: String = match serde_json::from_slice(body) {
             Ok(s) => s,
             Err(err) => return Err(RegistryError::Json(err)),
@@ -3332,11 +3341,11 @@ async fn set_dist_tag(
 async fn remove_dist_tag(
     state: &AppState,
     identity: &Identity,
-    mount: Option<&str>,
+    registry: Option<&str>,
     raw_name: &str,
     tag: &str,
 ) -> Response {
-    update_dist_tag(state, identity, mount, raw_name, tag, |tags| {
+    update_dist_tag(state, identity, registry, raw_name, tag, |tags| {
         tags.remove(tag);
         Ok(())
     })
@@ -3350,7 +3359,7 @@ async fn remove_dist_tag(
 async fn update_dist_tag<Mutate>(
     state: &AppState,
     identity: &Identity,
-    mount: Option<&str>,
+    registry: Option<&str>,
     raw_name: &str,
     tag: &str,
     mutate: Mutate,
@@ -3367,7 +3376,7 @@ where
     }
     // A dist-tag change is a write, so it routes to a hosted namespace like
     // a publish — a name routed to an upstream is rejected.
-    let org = match resolve_write_org(state, identity, mount, &name) {
+    let org = match resolve_write_org(state, identity, registry, &name) {
         Ok(org) => org,
         Err(response) => return *response,
     };
@@ -3440,17 +3449,17 @@ where
 
 /// Resolve the hosted storage namespace a non-publish write (dist-tag,
 /// unpublish, packument update) targets, or the [`Response`] to return. A
-/// write routes like a publish: through the addressed `/~<mount>/` (or,
-/// path-less, the default-target mount) to a hosted org, rejecting a name
+/// write routes like a publish: through the addressed `/~<name>/` (or,
+/// path-less, the default-target registry) to a hosted org, rejecting a name
 /// routed to an upstream and 404ing when the path-less base has no default
-/// target or the mount's access list denies the caller.
+/// target or the registry's access list denies the caller.
 fn resolve_write_org(
     state: &AppState,
     identity: &Identity,
-    mount: Option<&str>,
+    registry: Option<&str>,
     name: &PackageName,
 ) -> Result<String, Box<Response>> {
-    match resolve_publish_target(state, identity, mount, name.as_str()) {
+    match resolve_publish_target(state, identity, registry, name.as_str()) {
         PublishTarget::Org(org) => Ok(org),
         PublishTarget::Reject(reason) => {
             Err(Box::new(error_response(&RegistryError::BadRequest { reason })))

@@ -11,10 +11,10 @@ mod auth;
 mod config;
 mod error;
 mod journal;
-mod mount;
 mod package_name;
 mod policy;
 mod publish;
+mod registry;
 mod resolver;
 mod route;
 mod s3;
@@ -37,8 +37,10 @@ pub use config::{
 };
 pub use error::{RegistryError, Result};
 pub use journal::recover_publish_journal;
-pub use mount::{ConcreteKind, MountConfigError, MountKind, Mounts, PackagePattern, Resolved};
 pub use policy::{AccessList, AccessToken, Identity, PackagePolicies, PackagePolicy};
+pub use registry::{
+    ConcreteKind, PackagePattern, Registries, Registry, RegistryConfigError, Resolved,
+};
 pub use server::{
     router, router_with_auth, serve, serve_listener, try_router, try_router_with_auth,
 };

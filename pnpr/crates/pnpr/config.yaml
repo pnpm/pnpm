@@ -41,9 +41,9 @@ storage: ./storage
 #    url: ${PNPR_MYSQL_URL}
 #    maxConnections: 16
 # The npm-registry surface (packument/tarball reads, publish, unpublish,
-# dist-tag, search) is served iff at least one mount is declared under
-# `mounts:` below; `--disable-registry` turns it off per tier. The install
-# accelerator has its own toggle. Something must be served: mounts, or the
+# dist-tag, search) is served iff at least one registry is declared under
+# `registries:` below; `--disable-registry` turns it off per tier. The install
+# accelerator has its own toggle. Something must be served: registries, or the
 # resolver. (`/-/ping` and the login/token account endpoints are always
 # served.)
 #resolver:          # install accelerator: /-/pnpr, /-/pnpr/v0/resolve,
@@ -59,7 +59,7 @@ auth:
 
 # Optional static group/team memberships. Every access list accepts these
 # group names anywhere it accepts usernames — the per-package `packages:`
-# policies and the mount-level `access:` lists alike.
+# policies and the registry-level `access:` lists alike.
 #groups:
 #  platform: alice bob
 
@@ -72,19 +72,19 @@ middlewares:
 web:
   enable: false
 
-# Registry mounts: the only routing surface. Every addressable origin is a
-# mount exposed at `/~<mount>/`, and provenance is declared, never inferred —
-# every concrete mount declares the package-name patterns it serves (its
+# Registries: the only routing surface. Every addressable origin is a
+# registry exposed at `/~<name>/`, and provenance is declared, never inferred —
+# every concrete registry declares the package-name patterns it serves (its
 # namespace, enforced on every path to it), a package resolves to exactly one
 # declared concrete origin, and there is no cross-origin fall-through (not on
 # "not found", not on "unavailable"). This is the `@pnpm/registry-mock` shape:
 # the fixture scopes are served from the local hosted store, and everything
 # else proxies the public npm registry.
-mounts:
+registries:
   # The locally-hosted fixtures (and anything published here). With no `org`,
-  # this mount namespaces onto the flat `storage` root, where the fixtures are
-  # seeded. `patterns:` is the mount's declared namespace: only these names
-  # can be served from or published to this mount, so a name outside it can
+  # this registry namespaces onto the flat `storage` root, where the fixtures are
+  # seeded. `patterns:` is the registry's declared namespace: only these names
+  # can be served from or published to this registry, so a name outside it can
   # never squat here and later shadow its real origin.
   local:
     type: hosted
@@ -175,8 +175,8 @@ mounts:
     type: router
     sources: [local, npmjs]
 
-# The path-less base URL (`https://<pnpr>/`) aliases this mount.
-defaultTarget: main
+# The path-less base URL (`https://<pnpr>/`) aliases this registry.
+defaultRegistry: main
 
 # Per-package access control (an ACL layer, independent of routing). With no
 # matching rule the built-in default allows authenticated publish but admits

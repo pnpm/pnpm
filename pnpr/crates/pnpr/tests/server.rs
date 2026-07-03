@@ -5,8 +5,8 @@ use axum::{
 use flate2::read::GzDecoder;
 use futures_util::stream;
 use pnpr::{
-    AccessList, AuthState, Config, HostedConfig, MaxUsers, MountKind, Mounts, PackagePattern,
-    PackagePolicies, PackagePolicy, PublicRoute, router, router_with_auth,
+    AccessList, AuthState, Config, HostedConfig, MaxUsers, PackagePattern, PackagePolicies,
+    PackagePolicy, PublicRoute, Registries, Registry, router, router_with_auth,
 };
 use serde_json::{Value, json};
 use ssri::{Algorithm, IntegrityOpts};
@@ -38,13 +38,13 @@ fn config_for(upstream: &str, storage: PathBuf) -> Config {
     config
 }
 
-/// A public upstream mount caches under `.pnpr-cache/~public/<digest>/<pkg>/`.
-/// The proxy tests use a single `npmjs` mount, so there is one digest dir; this
+/// A public upstream registry caches under `.pnpr-cache/~public/<digest>/<pkg>/`.
+/// The proxy tests use a single `npmjs` registry, so there is one digest dir; this
 /// resolves the per-package cache dir under it. When nothing is cached yet it
 /// returns a path that does not exist, so existence assertions read naturally.
 fn public_cache_pkg(cache_root: &Path, pkg: &str) -> PathBuf {
     let public = cache_root.join(".pnpr-cache").join("~public");
-    // The public cache holds one digest directory per public mount. These tests
+    // The public cache holds one digest directory per public registry. These tests
     // configure exactly one, so require at most one *directory* (ignoring stray
     // files and `read_dir` order) instead of trusting the first entry.
     let mut digest_dirs: Vec<PathBuf> = std::fs::read_dir(&public)
@@ -57,7 +57,7 @@ fn public_cache_pkg(cache_root: &Path, pkg: &str) -> PathBuf {
     digest_dirs.sort();
     assert!(
         digest_dirs.len() <= 1,
-        "expected at most one ~public mount namespace, found {digest_dirs:?}",
+        "expected at most one ~public registry namespace, found {digest_dirs:?}",
     );
     digest_dirs.first().cloned().unwrap_or_else(|| public.join("__none__")).join(pkg)
 }
@@ -387,8 +387,8 @@ async fn mock_packument_for_tarball(
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body(packument.to_string())
-        // At least once: a `cache: true` mount fetches the packument a single
-        // time (then caches); a `cache: false` mount refetches per request.
+        // At least once: a `cache: true` registry fetches the packument a single
+        // time (then caches); a `cache: false` registry refetches per request.
         .expect_at_least(1)
         .create_async()
         .await
@@ -930,10 +930,10 @@ async fn uplink_cache_does_not_leak_to_the_public_path() {
     assert_eq!(body_bytes(public.into_body()).await, public_bytes);
 }
 
-/// Repointing a mount's `url:` must abandon the previous origin's cache: the
+/// Repointing a registry's `url:` must abandon the previous origin's cache: the
 /// namespace is keyed by the origin, so a warm entry fetched from the old
 /// upstream — packument or tarball, including via the cache-first tarball
-/// path — can never answer for the new one under the same mount name.
+/// path — can never answer for the new one under the same registry name.
 #[tokio::test]
 async fn repointing_an_uplink_url_abandons_the_old_origins_cache() {
     let mut old_origin = mockito::Server::new_async().await;
@@ -969,7 +969,7 @@ async fn repointing_an_uplink_url_abandons_the_old_origins_cache() {
     assert_eq!(primed.status(), StatusCode::OK);
     assert_eq!(body_bytes(primed.into_body()).await, old_bytes);
 
-    // Same storage, same mount name, new `url:` — the fresh entries must come
+    // Same storage, same registry name, new `url:` — the fresh entries must come
     // from the new origin, not the still-fresh cache of the old one.
     let app = router(config_for(&new_origin.url(), tmp.path().to_path_buf()));
     let repointed = app
@@ -2354,7 +2354,7 @@ async fn per_uplink_maxage_overrides_global_packument_ttl() {
 async fn cache_false_uplink_streams_tarball_without_mirroring() {
     let mut upstream = mockito::Server::new_async().await;
     let bytes = b"uncached-tarball-bytes";
-    // A `cache: false` mount streams everything through, so each of the two
+    // A `cache: false` registry streams everything through, so each of the two
     // requests refetches the packument as well as the tarball.
     let packument_mock = mock_packument_for_tarball(&mut upstream, "foo", "1.0.0", bytes).await;
     let mock = upstream
@@ -2606,7 +2606,7 @@ async fn registry_only_serves_registry_and_refuses_resolver_endpoints() {
 }
 
 // --------------------------------------------------------------------
-// Registry-mount routing (RFC: registry mounts for pnpr).
+// Registry routing (RFC: registries for pnpr).
 // --------------------------------------------------------------------
 
 /// Mock a one-version packument plus its tarball for `pkg` on `server`,
@@ -2639,7 +2639,7 @@ async fn mock_package(server: &mut mockito::Server, pkg: &str, marker: &str) -> 
     body
 }
 
-/// Build a config with two public upstream mounts — `corp` claiming `@corp/*`
+/// Build a config with two public upstream registries — `corp` claiming `@corp/*`
 /// and a pattern-less `npmjs` catch-all — and a `main` router over them,
 /// aliased by the path-less base.
 fn router_config(npmjs_url: &str, corp_url: &str, storage: PathBuf) -> Config {
@@ -2648,19 +2648,19 @@ fn router_config(npmjs_url: &str, corp_url: &str, storage: PathBuf) -> Config {
     corp.url = corp_url.to_string();
     config.uplinks.insert("corp".to_string(), corp);
     let graph = vec![
-        ("npmjs".to_string(), MountKind::Upstream { patterns: vec![] }),
+        ("npmjs".to_string(), Registry::Upstream { patterns: vec![] }),
         (
             "corp".to_string(),
-            MountKind::Upstream { patterns: vec![PackagePattern::parse("@corp/*").unwrap()] },
+            Registry::Upstream { patterns: vec![PackagePattern::parse("@corp/*").unwrap()] },
         ),
         (
             "main".to_string(),
-            MountKind::Router { sources: vec!["corp".to_string(), "npmjs".to_string()] },
+            Registry::Router { sources: vec!["corp".to_string(), "npmjs".to_string()] },
         ),
     ];
-    let mounts = Mounts::new(graph.into_iter().collect(), Some("main".to_string()));
-    mounts.validate().expect("router config is valid");
-    config.mounts = mounts;
+    let registries = Registries::new(graph.into_iter().collect(), Some("main".to_string()));
+    registries.validate().expect("router config is valid");
+    config.registries = registries;
     config
 }
 
@@ -2710,7 +2710,7 @@ async fn router_not_found_does_not_fall_through_to_public() {
     // A router whose only source claims the private `@corp/*` scope. A public
     // name no source claims must be a definitive 404 — never served from a
     // public origin — which is the dependency-confusion vector closed by
-    // construction. The same namespace bound holds on the mount's own URL:
+    // construction. The same namespace bound holds on the registry's own URL:
     // `/~corp/lodash` is a 404 answered before the upstream (and its
     // server-owned credential) is consulted.
     let mut corp = mockito::Server::new_async().await;
@@ -2725,11 +2725,11 @@ async fn router_not_found_does_not_fall_through_to_public() {
     let graph = vec![
         (
             "corp".to_string(),
-            MountKind::Upstream { patterns: vec![PackagePattern::parse("@corp/*").unwrap()] },
+            Registry::Upstream { patterns: vec![PackagePattern::parse("@corp/*").unwrap()] },
         ),
-        ("main".to_string(), MountKind::Router { sources: vec!["corp".to_string()] }),
+        ("main".to_string(), Registry::Router { sources: vec!["corp".to_string()] }),
     ];
-    config.mounts = Mounts::new(graph.into_iter().collect(), Some("main".to_string()));
+    config.registries = Registries::new(graph.into_iter().collect(), Some("main".to_string()));
     let app = router_with_auth(config, AuthState::in_memory());
 
     // The claimed private scope still serves.
@@ -2748,7 +2748,7 @@ async fn router_not_found_does_not_fall_through_to_public() {
         .unwrap();
     assert_eq!(unclaimed.status(), StatusCode::NOT_FOUND);
 
-    // Addressing the upstream mount directly is bounded the same way, without
+    // Addressing the upstream registry directly is bounded the same way, without
     // an upstream fetch.
     let direct =
         app.oneshot(Request::get("/~corp/lodash").body(Body::empty()).unwrap()).await.unwrap();
@@ -2770,11 +2770,11 @@ async fn router_unavailable_source_errors_not_404() {
     let graph = vec![
         (
             "corp".to_string(),
-            MountKind::Upstream { patterns: vec![PackagePattern::parse("@corp/*").unwrap()] },
+            Registry::Upstream { patterns: vec![PackagePattern::parse("@corp/*").unwrap()] },
         ),
-        ("main".to_string(), MountKind::Router { sources: vec!["corp".to_string()] }),
+        ("main".to_string(), Registry::Router { sources: vec!["corp".to_string()] }),
     ];
-    config.mounts = Mounts::new(graph.into_iter().collect(), Some("main".to_string()));
+    config.registries = Registries::new(graph.into_iter().collect(), Some("main".to_string()));
     let app = router_with_auth(config, AuthState::in_memory());
 
     let response = app
@@ -2801,7 +2801,7 @@ fn seed_hosted(storage: &Path, pkg: &str) {
 }
 
 #[tokio::test]
-async fn hosted_mount_serves_only_what_it_hosts() {
+async fn hosted_registry_serves_only_what_it_hosts() {
     let tmp = TempDir::new().unwrap();
     // The org "acme" stores under its own namespace (`<storage>/acme/`).
     seed_hosted(&tmp.path().join("acme"), "@acme/widget");
@@ -2811,13 +2811,13 @@ async fn hosted_mount_serves_only_what_it_hosts() {
         "acme".to_string(),
         HostedConfig { org: "acme".to_string(), access: AccessList::parse("$all") },
     );
-    config.mounts = Mounts::new(
-        vec![("acme".to_string(), MountKind::Hosted { patterns: vec![] })].into_iter().collect(),
+    config.registries = Registries::new(
+        vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         None,
     );
     let app = router_with_auth(config, AuthState::in_memory());
 
-    // A hosted package is served from the org mount.
+    // A hosted package is served from the org registry.
     let hit = app
         .clone()
         .oneshot(Request::get("/~acme/@acme/widget").body(Body::empty()).unwrap())
@@ -2845,8 +2845,8 @@ async fn private_hosted_hides_existence_from_unauthorized_caller() {
         "acme".to_string(),
         HostedConfig { org: "acme".to_string(), access: AccessList::parse("alice") },
     );
-    config.mounts = Mounts::new(
-        vec![("acme".to_string(), MountKind::Hosted { patterns: vec![] })].into_iter().collect(),
+    config.registries = Registries::new(
+        vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         None,
     );
     let auth = AuthState::in_memory();
@@ -2876,7 +2876,7 @@ async fn private_hosted_hides_existence_from_unauthorized_caller() {
 }
 
 /// A private org's 404 mask must win over a *denying per-package ACL* on every
-/// mount-served read path: otherwise the ACL's 401/403 would fire first and
+/// registry-served read path: otherwise the ACL's 401/403 would fire first and
 /// reveal that the package exists.
 #[tokio::test]
 async fn private_hosted_org_masks_before_the_package_acl() {
@@ -2888,8 +2888,8 @@ async fn private_hosted_org_masks_before_the_package_acl() {
         "acme".to_string(),
         HostedConfig { org: "acme".to_string(), access: AccessList::parse("alice") },
     );
-    config.mounts = Mounts::new(
-        vec![("acme".to_string(), MountKind::Hosted { patterns: vec![] })].into_iter().collect(),
+    config.registries = Registries::new(
+        vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         None,
     );
     // A per-package ACL that also denies the anonymous caller. Without the
@@ -2917,7 +2917,7 @@ async fn private_hosted_org_masks_before_the_package_acl() {
 }
 
 /// The same 404-before-ACL masking must hold on the path-less `dist-tags` reader
-/// (`load_packument_for_read`), which resolves through the default-target mount.
+/// (`load_packument_for_read`), which resolves through the default-target registry.
 #[tokio::test]
 async fn private_hosted_org_masks_dist_tags_before_the_package_acl() {
     let tmp = TempDir::new().unwrap();
@@ -2928,10 +2928,10 @@ async fn private_hosted_org_masks_dist_tags_before_the_package_acl() {
         "acme".to_string(),
         HostedConfig { org: "acme".to_string(), access: AccessList::parse("alice") },
     );
-    // The path-less base aliases the "acme" hosted mount, so `/-/package/...`
+    // The path-less base aliases the "acme" hosted registry, so `/-/package/...`
     // resolves to it.
-    config.mounts = Mounts::new(
-        vec![("acme".to_string(), MountKind::Hosted { patterns: vec![] })].into_iter().collect(),
+    config.registries = Registries::new(
+        vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         Some("acme".to_string()),
     );
     config.policies = PackagePolicies::new(vec![
@@ -2966,17 +2966,17 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
     // `@acme/*` + a router over it and the pattern-less npmjs catch-all,
     // aliased path-less.
     let graph = vec![
-        ("npmjs".to_string(), MountKind::Upstream { patterns: vec![] }),
+        ("npmjs".to_string(), Registry::Upstream { patterns: vec![] }),
         (
             "acme".to_string(),
-            MountKind::Hosted { patterns: vec![PackagePattern::parse("@acme/*").unwrap()] },
+            Registry::Hosted { patterns: vec![PackagePattern::parse("@acme/*").unwrap()] },
         ),
         (
             "main".to_string(),
-            MountKind::Router { sources: vec!["acme".to_string(), "npmjs".to_string()] },
+            Registry::Router { sources: vec!["acme".to_string(), "npmjs".to_string()] },
         ),
     ];
-    config.mounts = Mounts::new(graph.into_iter().collect(), Some("main".to_string()));
+    config.registries = Registries::new(graph.into_iter().collect(), Some("main".to_string()));
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let app = router_with_auth(config, auth);
@@ -3064,13 +3064,13 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
     assert_eq!(rejected.status(), StatusCode::BAD_REQUEST);
 }
 
-/// A hosted mount's declared `patterns:` are enforced on the mount itself, on
+/// A hosted registry's declared `patterns:` are enforced on the registry itself, on
 /// every path to it: an off-pattern publish is rejected and an off-pattern
-/// read is a definitive 404 — through a router and at the mount's own
-/// `/~<mount>/` URL alike — so a typo'd scope can never squat in the hosted
+/// read is a definitive 404 — through a router and at the registry's own
+/// `/~<name>/` URL alike — so a typo'd scope can never squat in the hosted
 /// store and later surface as authoritative.
 #[tokio::test]
-async fn hosted_mount_patterns_bound_publish_and_reads_on_every_path() {
+async fn hosted_registry_patterns_bound_publish_and_reads_on_every_path() {
     use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
     let tmp = TempDir::new().unwrap();
@@ -3084,13 +3084,13 @@ async fn hosted_mount_patterns_bound_publish_and_reads_on_every_path() {
     let graph = vec![
         (
             "acme".to_string(),
-            MountKind::Hosted { patterns: vec![PackagePattern::parse("@acme/*").unwrap()] },
+            Registry::Hosted { patterns: vec![PackagePattern::parse("@acme/*").unwrap()] },
         ),
-        ("main".to_string(), MountKind::Router { sources: vec!["acme".to_string()] }),
+        ("main".to_string(), Registry::Router { sources: vec!["acme".to_string()] }),
     ];
-    let mounts = Mounts::new(graph.into_iter().collect(), Some("main".to_string()));
-    mounts.validate().expect("patterned hosted config is valid");
-    config.mounts = mounts;
+    let registries = Registries::new(graph.into_iter().collect(), Some("main".to_string()));
+    registries.validate().expect("patterned hosted config is valid");
+    config.registries = registries;
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let app = router_with_auth(config, auth);
@@ -3121,7 +3121,7 @@ async fn hosted_mount_patterns_bound_publish_and_reads_on_every_path() {
             .unwrap()
     };
 
-    // An off-pattern publish is rejected on the mount's own URL, through the
+    // An off-pattern publish is rejected on the registry's own URL, through the
     // router, and via the path-less base — and nothing lands in the store.
     for (url, pkg) in [
         ("/~acme/@typo/widget", "@typo/widget"),
@@ -3136,7 +3136,7 @@ async fn hosted_mount_patterns_bound_publish_and_reads_on_every_path() {
         "an off-pattern publish must write nothing",
     );
 
-    // A claimed name publishes normally through the mount's own URL.
+    // A claimed name publishes normally through the registry's own URL.
     let accepted = app.clone().oneshot(publish_to("/~acme/@acme/widget", "@acme/widget")).await;
     assert_eq!(accepted.unwrap().status(), StatusCode::CREATED);
 
@@ -3157,14 +3157,14 @@ async fn hosted_mount_patterns_bound_publish_and_reads_on_every_path() {
     }
 }
 
-/// The mount's access list gates writes exactly as it gates reads (RFC
-/// "registry mounts", implementation point 9). An authenticated non-member
+/// The registry's access list gates writes exactly as it gates reads (RFC
+/// "registries", implementation point 9). An authenticated non-member
 /// passes the default per-package publish policy (`$authenticated`), so
-/// without the mount-level gate they could publish into — or retag and
+/// without the registry-level gate they could publish into — or retag and
 /// unpublish from — a private hosted org. The denial is the same 404 mask
-/// reads use, so the write path reveals nothing about the mount either.
+/// reads use, so the write path reveals nothing about the registry either.
 #[tokio::test]
-async fn private_hosted_mount_denies_writes_from_non_members() {
+async fn private_hosted_registry_denies_writes_from_non_members() {
     use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
     let tmp = TempDir::new().unwrap();
@@ -3173,10 +3173,10 @@ async fn private_hosted_mount_denies_writes_from_non_members() {
         "corp".to_string(),
         HostedConfig { org: "corp".to_string(), access: AccessList::parse("alice") },
     );
-    // `/~corp/` addresses the mount directly; the path-less base aliases it,
+    // `/~corp/` addresses the registry directly; the path-less base aliases it,
     // so the path-less dist-tag and unpublish writes route there too.
-    config.mounts = Mounts::new(
-        vec![("corp".to_string(), MountKind::Hosted { patterns: vec![] })].into_iter().collect(),
+    config.registries = Registries::new(
+        vec![("corp".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         Some("corp".to_string()),
     );
     let auth = AuthState::in_memory();
@@ -3215,7 +3215,7 @@ async fn private_hosted_mount_denies_writes_from_non_members() {
     };
 
     // The non-member publish is masked with 404 — not 401/403, which would
-    // reveal the private mount exists — and nothing lands on disk.
+    // reveal the private registry exists — and nothing lands on disk.
     let denied = app.clone().oneshot(publish_as(&outsider)).await.unwrap();
     assert_eq!(denied.status(), StatusCode::NOT_FOUND);
     assert!(
@@ -3251,26 +3251,26 @@ async fn private_hosted_mount_denies_writes_from_non_members() {
     assert_eq!(retag_allowed.status(), StatusCode::CREATED);
 }
 
-/// Search scans the flat hosted store, so it must apply the owning mount's
-/// access list, not only the per-package ACL: a private flat-root mount
+/// Search scans the flat hosted store, so it must apply the owning registry's
+/// access list, not only the per-package ACL: a private flat-root registry
 /// (`org: ""`) is 404-masked on packument reads and must not be enumerable
 /// by name/version/description through `/-/v1/search`.
 #[tokio::test]
-async fn search_does_not_enumerate_a_private_flat_root_mount() {
+async fn search_does_not_enumerate_a_private_flat_root_registry() {
     let tmp = TempDir::new().unwrap();
     // The flat root (`org: ""`) stores directly under `storage`.
     seed_hosted(tmp.path(), "@corp/secret-tool");
 
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    // Replace the default public flat-root mount (`local`) with a private one;
+    // Replace the default public flat-root registry (`local`) with a private one;
     // any surviving `$all` flat-root entry would defeat the gate under test.
     config.hosted.clear();
     config.hosted.insert(
         "corp".to_string(),
         HostedConfig { org: String::new(), access: AccessList::parse("alice") },
     );
-    config.mounts = Mounts::new(
-        vec![("corp".to_string(), MountKind::Hosted { patterns: vec![] })].into_iter().collect(),
+    config.registries = Registries::new(
+        vec![("corp".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         Some("corp".to_string()),
     );
     let auth = AuthState::in_memory();
@@ -3287,7 +3287,7 @@ async fn search_does_not_enumerate_a_private_flat_root_mount() {
     };
 
     // Neither the anonymous caller nor an authenticated non-member can
-    // enumerate the private mount's packages.
+    // enumerate the private registry's packages.
     for authorization in [None, Some(format!("Bearer {outsider}"))] {
         let response = app.clone().oneshot(search_with(authorization)).await.unwrap();
         assert_eq!(response.status(), StatusCode::OK);
@@ -3303,14 +3303,15 @@ async fn search_does_not_enumerate_a_private_flat_root_mount() {
     assert_eq!(body["objects"][0]["package"]["name"], json!("@corp/secret-tool"));
 }
 
-/// Every registry operation routes through the mount graph when addressed as
-/// `/~<mount>/...` (RFC "registry mounts", implementation point 7): dist-tag
+/// Every registry operation routes through the registry graph when addressed as
+/// `/~<name>/...` (RFC "registries", implementation point 7): dist-tag
 /// read/add/remove, whoami, search, the version manifest, and the whole
-/// unpublish flow. The mount here is deliberately *not* reachable from any
-/// default target — without the mount-addressed surface these operations
+/// unpublish flow. The registry here is deliberately *not* reachable from any
+/// default target — without the registry-addressed surface these operations
 /// would be impossible for it.
 #[tokio::test]
-async fn mount_addressed_surface_serves_dist_tags_unpublish_whoami_search_and_version_manifest() {
+async fn registry_addressed_surface_serves_dist_tags_unpublish_whoami_search_and_version_manifest()
+{
     use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 
     let tmp = TempDir::new().unwrap();
@@ -3319,9 +3320,9 @@ async fn mount_addressed_surface_serves_dist_tags_unpublish_whoami_search_and_ve
         "acme".to_string(),
         HostedConfig { org: "acme".to_string(), access: AccessList::parse("$authenticated") },
     );
-    // No default target: the mount is addressable only at `/~acme/`.
-    config.mounts = Mounts::new(
-        vec![("acme".to_string(), MountKind::Hosted { patterns: vec![] })].into_iter().collect(),
+    // No default target: the registry is addressable only at `/~acme/`.
+    config.registries = Registries::new(
+        vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         None,
     );
     let auth = AuthState::in_memory();
@@ -3331,7 +3332,7 @@ async fn mount_addressed_surface_serves_dist_tags_unpublish_whoami_search_and_ve
         request.header(header::AUTHORIZATION, format!("Bearer {token}"))
     };
 
-    // Seed the mount through its own publish endpoint.
+    // Seed the registry through its own publish endpoint.
     let tarball = b"acme-widget-bytes";
     let publish_body = json!({
         "name": "@acme/widget",
@@ -3358,7 +3359,7 @@ async fn mount_addressed_surface_serves_dist_tags_unpublish_whoami_search_and_ve
         .unwrap();
     assert_eq!(publish.status(), StatusCode::CREATED);
 
-    // dist-tags read through the mount.
+    // dist-tags read through the registry.
     let tags = app
         .clone()
         .oneshot(
@@ -3404,7 +3405,7 @@ async fn mount_addressed_surface_serves_dist_tags_unpublish_whoami_search_and_ve
         .unwrap();
     assert_eq!(remove.status(), StatusCode::CREATED);
 
-    // whoami through the mount.
+    // whoami through the registry.
     let whoami = app
         .clone()
         .oneshot(authed(Request::get("/~acme/-/whoami")).body(Body::empty()).unwrap())
@@ -3413,8 +3414,8 @@ async fn mount_addressed_surface_serves_dist_tags_unpublish_whoami_search_and_ve
     assert_eq!(whoami.status(), StatusCode::OK);
     assert_eq!(body_json(whoami.into_body()).await["username"], json!("alice"));
 
-    // Search through the mount finds the hosted package; the anonymous
-    // caller (whom the mount denies) gets an empty result.
+    // Search through the registry finds the hosted package; the anonymous
+    // caller (whom the registry denies) gets an empty result.
     let search = app
         .clone()
         .oneshot(
@@ -3432,8 +3433,8 @@ async fn mount_addressed_surface_serves_dist_tags_unpublish_whoami_search_and_ve
         .unwrap();
     assert_eq!(body_json(anon_search.into_body()).await["total"], json!(0));
 
-    // Version manifest through the mount, with `dist.tarball` rewritten onto
-    // the mount's own base.
+    // Version manifest through the registry, with `dist.tarball` rewritten onto
+    // the registry's own base.
     let manifest = app
         .clone()
         .oneshot(authed(Request::get("/~acme/@acme/widget/1.0.0")).body(Body::empty()).unwrap())
@@ -3448,7 +3449,7 @@ async fn mount_addressed_surface_serves_dist_tags_unpublish_whoami_search_and_ve
 
     // The unpublish flow: PUT back a packument without the version, delete
     // its tarball (the unencoded scoped 7-segment form), then delete the
-    // package — all through the mount.
+    // package — all through the registry.
     let put_back = app
         .clone()
         .oneshot(
@@ -3484,12 +3485,12 @@ async fn mount_addressed_surface_serves_dist_tags_unpublish_whoami_search_and_ve
     assert!(!tmp.path().join("acme/@acme/widget").exists());
 }
 
-/// Path-less responses resolved to a private mount carry the same
+/// Path-less responses resolved to a private registry carry the same
 /// `Cache-Control: private, no-store` / `Vary: Authorization` headers the
-/// `/~<mount>/` surface applies — same content, same defense against a shared
+/// `/~<name>/` surface applies — same content, same defense against a shared
 /// HTTP cache. A public resolution stays cacheable.
 #[tokio::test]
-async fn pathless_private_mount_responses_carry_private_cache_headers() {
+async fn pathless_private_registry_responses_carry_private_cache_headers() {
     let tmp = TempDir::new().unwrap();
     seed_hosted(&tmp.path().join("acme"), "@acme/widget");
 
@@ -3498,8 +3499,8 @@ async fn pathless_private_mount_responses_carry_private_cache_headers() {
         "acme".to_string(),
         HostedConfig { org: "acme".to_string(), access: AccessList::parse("alice") },
     );
-    config.mounts = Mounts::new(
-        vec![("acme".to_string(), MountKind::Hosted { patterns: vec![] })].into_iter().collect(),
+    config.registries = Registries::new(
+        vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         Some("acme".to_string()),
     );
     let auth = AuthState::in_memory();
@@ -3530,7 +3531,7 @@ async fn pathless_private_mount_responses_carry_private_cache_headers() {
         );
     }
 
-    // Control: the same content behind a public mount stays cacheable.
+    // Control: the same content behind a public registry stays cacheable.
     let tmp_public = TempDir::new().unwrap();
     seed_hosted(&tmp_public.path().join("acme"), "@acme/widget");
     let mut config = config_for("http://127.0.0.1:1", tmp_public.path().to_path_buf());
@@ -3538,8 +3539,8 @@ async fn pathless_private_mount_responses_carry_private_cache_headers() {
         "acme".to_string(),
         HostedConfig { org: "acme".to_string(), access: AccessList::parse("$all") },
     );
-    config.mounts = Mounts::new(
-        vec![("acme".to_string(), MountKind::Hosted { patterns: vec![] })].into_iter().collect(),
+    config.registries = Registries::new(
+        vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         Some("acme".to_string()),
     );
     let app = router_with_auth(config, AuthState::in_memory());
@@ -3553,7 +3554,7 @@ async fn pathless_private_mount_responses_carry_private_cache_headers() {
 }
 
 /// A per-package ACL that denies anonymous callers makes the path-less
-/// response vary by `Authorization` even when the source mount itself is
+/// response vary by `Authorization` even when the source registry itself is
 /// public, so it must carry the private-cache headers — otherwise a shared
 /// HTTP cache could replay an authenticated 200 to an anonymous caller.
 #[tokio::test]
@@ -3566,8 +3567,8 @@ async fn pathless_acl_gated_package_carries_private_cache_headers() {
         "acme".to_string(),
         HostedConfig { org: "acme".to_string(), access: AccessList::parse("$all") },
     );
-    config.mounts = Mounts::new(
-        vec![("acme".to_string(), MountKind::Hosted { patterns: vec![] })].into_iter().collect(),
+    config.registries = Registries::new(
+        vec![("acme".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
         Some("acme".to_string()),
     );
     config.policies = PackagePolicies::new(vec![
@@ -3650,20 +3651,20 @@ async fn upstream_404_purges_cached_packument() {
 
 /// The identity endpoints — adduser/login, whoami, profile, token list,
 /// logout, token revoke — are global, so they are served under *any*
-/// `/~<prefix>/` without consulting the mount table: clients derive these
+/// `/~<prefix>/` without consulting the registry table: clients derive these
 /// URLs from their configured registry URL, so `pnpm login --registry
 /// .../~corp/` must work even when nothing named `corp` is mounted. Skipping
 /// the lookup also keeps them from becoming an existence oracle for private
-/// mount names (a defined and an undefined mount must not answer
+/// registry names (a defined and an undefined registry must not answer
 /// differently).
 #[tokio::test]
-async fn identity_endpoints_are_served_under_any_mount_prefix() {
+async fn identity_endpoints_are_served_under_any_registry_prefix() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     config.auth.htpasswd.max_users = MaxUsers::Unlimited;
     let app = router(config);
 
-    // Login against a mount prefix that is NOT a defined mount.
+    // Login against a registry prefix that is NOT a defined registry.
     let registration = json!({
         "_id": "org.couchdb.user:alice",
         "name": "alice",
@@ -3753,7 +3754,7 @@ async fn identity_endpoints_are_served_under_any_mount_prefix() {
     assert_eq!(stale.status(), StatusCode::UNAUTHORIZED);
 
     // No existence oracle: anonymous whoami answers 401 identically whether
-    // or not the prefix names a real mount (`npmjs` is defined by config_for).
+    // or not the prefix names a real registry (`npmjs` is defined by config_for).
     for path in ["/~corp/-/whoami", "/~npmjs/-/whoami"] {
         let response =
             app.clone().oneshot(Request::get(path).body(Body::empty()).unwrap()).await.unwrap();

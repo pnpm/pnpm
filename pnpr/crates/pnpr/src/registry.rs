@@ -1,25 +1,25 @@
-//! Registry mounts: the routing graph and its static validation.
+//! Registries: the routing graph and its static validation.
 //!
-//! A **registry mount** is an addressable npm-registry surface exposed at
-//! `https://<pnpr>/~<mount>/`. There are two concrete kinds — a pnpr-hosted
+//! A **registry** is an addressable npm-registry surface exposed at
+//! `https://<pnpr>/~<name>/`. There are two concrete kinds — a pnpr-hosted
 //! registry and a single-origin upstream registry — plus one composite, a
-//! **router**, an ordered list of concrete mounts behind one URL.
+//! **router**, an ordered list of concrete registries behind one URL.
 //!
 //! The model is governed by one invariant: **provenance is declared, never
-//! inferred.** Every concrete mount declares the package-name patterns it
-//! serves — its namespace — and that namespace is enforced on the mount
+//! inferred.** Every concrete registry declares the package-name patterns it
+//! serves — its namespace — and that namespace is enforced on the registry
 //! itself, on every path to it: an unclaimed name is a definitive not-found
 //! before storage or the upstream is consulted, whether the request came
-//! through a router or addressed the mount directly. A router selects the
+//! through a router or addressed the registry directly. A router selects the
 //! first listed source whose patterns claim the name — authoritatively. It can
-//! order competing claims, but it can never assign a name to a mount that does
+//! order competing claims, but it can never assign a name to a registry that does
 //! not claim it, so no configuration can express a cross-origin fall-through:
 //! a selected source's "not found" or "unavailable" is final. There is no
 //! existence-based fallback, no mirror group, and no multi-endpoint failover.
 //!
 //! Because selection is first-source-in-order, source order is load-bearing: a
 //! misordered router is the one way a configuration mistake could silently send
-//! a private scope to a public origin. [`Mounts::validate`] rejects that class
+//! a private scope to a public origin. [`Registries::validate`] rejects that class
 //! at config load (and reload) — shadowed/unreachable sources, duplicate
 //! sources and patterns, and sources that are unknown, self-referential, or
 //! not concrete. The check is static because [`PackagePattern`]'s coverage
@@ -29,13 +29,13 @@ use crate::package_name::PackageName;
 use indexmap::IndexMap;
 use std::fmt;
 
-/// A package-name pattern: one member of a concrete mount's declared
+/// A package-name pattern: one member of a concrete registry's declared
 /// namespace.
 ///
 /// Deliberately a small, **decidable** language so [`Self::covers`] can decide
 /// statically whether one pattern matches a superset of another — the property
-/// [`Mounts::validate`] relies on to detect shadowed sources. A general glob
-/// (`wax`) would make coverage undecidable, so mount patterns are restricted
+/// [`Registries::validate`] relies on to detect shadowed sources. A general glob
+/// (`wax`) would make coverage undecidable, so registry patterns are restricted
 /// to these four shapes; an unrecognized wildcard is a parse error rather than
 /// a silently-narrowing literal.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -52,14 +52,14 @@ pub enum PackagePattern {
 }
 
 impl PackagePattern {
-    /// Parse a mount pattern. Rejects any `*` that is not one of the three
+    /// Parse a registry pattern. Rejects any `*` that is not one of the three
     /// recognized wildcard shapes (`**`, `@*/*`, `@<scope>/*`), and any
     /// remaining literal that is not a well-formed package name — so an
     /// unsupported glob or a typo like `@acme` (meaning `@acme/*`) fails
     /// loudly instead of being read as a literal name that silently never
     /// matches and lets the scope land on a later router source.
-    pub fn parse(pattern: &str) -> Result<Self, MountConfigError> {
-        let invalid = || MountConfigError::InvalidPattern { pattern: pattern.to_string() };
+    pub fn parse(pattern: &str) -> Result<Self, RegistryConfigError> {
+        let invalid = || RegistryConfigError::InvalidPattern { pattern: pattern.to_string() };
         if pattern.is_empty() {
             return Err(invalid());
         }
@@ -82,7 +82,7 @@ impl PackagePattern {
             return Err(invalid());
         }
         if PackageName::parse(pattern).is_err() {
-            return Err(MountConfigError::ExactPatternNotAName { pattern: pattern.to_string() });
+            return Err(RegistryConfigError::ExactPatternNotAName { pattern: pattern.to_string() });
         }
         Ok(PackagePattern::Exact(pattern.to_string()))
     }
@@ -103,7 +103,7 @@ impl PackagePattern {
     }
 
     /// Whether this pattern matches every package the `other` pattern matches
-    /// (i.e. `self` ⊇ `other`). Decides source shadowing in [`Mounts::validate`].
+    /// (i.e. `self` ⊇ `other`). Decides source shadowing in [`Registries::validate`].
     ///
     /// A union of earlier patterns can only shadow `other` through a single
     /// member: the one unbounded case — many `@<scope>/*` covering `@*/*` —
@@ -150,44 +150,44 @@ fn scoped_name(package: &str) -> Option<(&str, &str)> {
     (!scope.is_empty() && !name.is_empty()).then_some((scope, name))
 }
 
-/// The routing role of a mount. The per-mount serving details (upstream URL,
+/// The routing role of a registry. The per-registry serving details (upstream URL,
 /// credentials, access policy, org id) live in the `config` module; this
 /// captures only what routing and validation need.
 ///
-/// A concrete mount's `patterns` are its declared namespace: the names it
+/// A concrete registry's `patterns` are its declared namespace: the names it
 /// serves and accepts publishes for, and the claim routers derive their
 /// selection from. An empty list claims every name — the catch-all in any
 /// router.
 #[derive(Debug, Clone)]
-pub enum MountKind {
+pub enum Registry {
     /// A pnpr-hosted registry: the authoritative origin for the packages it
     /// stores, and the only kind that accepts writes. Reads and writes are
-    /// scoped to the mount's own storage namespace (its optional `org`).
+    /// scoped to the registry's own storage namespace (its optional `org`).
     Hosted { patterns: Vec<PackagePattern> },
     /// Exactly one external origin. One URL, one credential generation, one
     /// cache namespace — not a chain and not a set of endpoints.
     Upstream { patterns: Vec<PackagePattern> },
-    /// An ordered list of concrete mounts. A package resolves to the first
+    /// An ordered list of concrete registries. A package resolves to the first
     /// source whose declared patterns claim it.
     Router { sources: Vec<String> },
 }
 
-impl MountKind {
+impl Registry {
     fn is_concrete(&self) -> bool {
-        matches!(self, MountKind::Hosted { .. } | MountKind::Upstream { .. })
+        matches!(self, Registry::Hosted { .. } | Registry::Upstream { .. })
     }
 
-    /// A concrete mount's declared namespace; `None` for a router (a router
+    /// A concrete registry's declared namespace; `None` for a router (a router
     /// has no namespace of its own — it derives one from its sources).
     fn patterns(&self) -> Option<&[PackagePattern]> {
         match self {
-            MountKind::Hosted { patterns } | MountKind::Upstream { patterns } => Some(patterns),
-            MountKind::Router { .. } => None,
+            Registry::Hosted { patterns } | Registry::Upstream { patterns } => Some(patterns),
+            Registry::Router { .. } => None,
         }
     }
 }
 
-/// Whether a concrete mount's declared namespace claims `package`. An empty
+/// Whether a concrete registry's declared namespace claims `package`. An empty
 /// pattern list claims every name.
 fn namespace_claims(patterns: &[PackagePattern], package: &str) -> bool {
     patterns.is_empty() || patterns.iter().any(|pattern| pattern.matches(package))
@@ -200,103 +200,103 @@ pub enum ConcreteKind {
     Upstream,
 }
 
-/// The outcome of resolving a request `(mount, package)` to a concrete origin.
+/// The outcome of resolving a request `(registry, package)` to a concrete origin.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Resolved<'a> {
-    /// Resolved to exactly one concrete source mount whose declared patterns
+    /// Resolved to exactly one concrete source registry whose declared patterns
     /// claim the package.
-    Concrete { mount: &'a str, kind: ConcreteKind },
+    Concrete { registry: &'a str, kind: ConcreteKind },
     /// No declared namespace claims this package: the addressed concrete
-    /// mount's patterns don't cover it, or none of a router's sources claim
+    /// registry's patterns don't cover it, or none of a router's sources claim
     /// it. A definitive `404` on reads and a rejection on writes, answered
     /// before storage or any upstream is consulted — never a fall-through.
     Unclaimed,
-    /// The addressed mount id is not defined.
-    UnknownMount,
+    /// The addressed registry id is not defined.
+    UnknownRegistry,
 }
 
-/// The validated set of registry mounts plus the optional path-less default
+/// The validated set of registries plus the optional path-less default
 /// target. Built and validated by the `config` module at load time.
 #[derive(Debug, Default, Clone)]
-pub struct Mounts {
-    mounts: IndexMap<String, MountKind>,
-    /// The mount the path-less base URL (`https://<pnpr>/`) aliases. `None`
-    /// disables the path-less base entirely — clients must address a mount.
-    default_target: Option<String>,
+pub struct Registries {
+    registries: IndexMap<String, Registry>,
+    /// The registry the path-less base URL (`https://<pnpr>/`) aliases. `None`
+    /// disables the path-less base entirely — clients must address a registry.
+    default_registry: Option<String>,
 }
 
-impl Mounts {
+impl Registries {
     #[must_use]
-    pub fn new(mounts: IndexMap<String, MountKind>, default_target: Option<String>) -> Self {
-        Self { mounts, default_target }
+    pub fn new(registries: IndexMap<String, Registry>, default_registry: Option<String>) -> Self {
+        Self { registries, default_registry }
     }
 
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.mounts.is_empty()
+        self.registries.is_empty()
     }
 
     #[must_use]
-    pub fn get(&self, mount: &str) -> Option<&MountKind> {
-        self.mounts.get(mount)
+    pub fn get(&self, registry: &str) -> Option<&Registry> {
+        self.registries.get(registry)
     }
 
     #[must_use]
-    pub fn default_target(&self) -> Option<&str> {
-        self.default_target.as_deref()
+    pub fn default_registry(&self) -> Option<&str> {
+        self.default_registry.as_deref()
     }
 
-    /// Whether `mount` is a defined router.
+    /// Whether `registry` is a defined router.
     #[must_use]
-    pub fn is_router(&self, mount: &str) -> bool {
-        matches!(self.mounts.get(mount), Some(MountKind::Router { .. }))
+    pub fn is_router(&self, registry: &str) -> bool {
+        matches!(self.registries.get(registry), Some(Registry::Router { .. }))
     }
 
-    /// Resolve a request addressed to `mount` for `package` to its single
-    /// concrete origin, enforcing every concrete mount's declared namespace at
-    /// the mount itself. A concrete mount resolves to itself only when its
+    /// Resolve a request addressed to `registry` for `package` to its single
+    /// concrete origin, enforcing every concrete registry's declared namespace at
+    /// the registry itself. A concrete registry resolves to itself only when its
     /// patterns claim the package; a router resolves to the first source whose
     /// patterns claim it (authoritatively — an unclaimed package is
     /// [`Resolved::Unclaimed`], never a fall-through).
     #[must_use]
-    pub fn resolve<'a>(&'a self, mount: &str, package: &str) -> Resolved<'a> {
-        let Some((mount_id, kind)) = self.mounts.get_key_value(mount) else {
-            return Resolved::UnknownMount;
+    pub fn resolve<'a>(&'a self, registry: &str, package: &str) -> Resolved<'a> {
+        let Some((registry_id, kind)) = self.registries.get_key_value(registry) else {
+            return Resolved::UnknownRegistry;
         };
         match kind {
-            MountKind::Hosted { patterns } => {
+            Registry::Hosted { patterns } => {
                 if namespace_claims(patterns, package) {
-                    Resolved::Concrete { mount: mount_id, kind: ConcreteKind::Hosted }
+                    Resolved::Concrete { registry: registry_id, kind: ConcreteKind::Hosted }
                 } else {
                     Resolved::Unclaimed
                 }
             }
-            MountKind::Upstream { patterns } => {
+            Registry::Upstream { patterns } => {
                 if namespace_claims(patterns, package) {
-                    Resolved::Concrete { mount: mount_id, kind: ConcreteKind::Upstream }
+                    Resolved::Concrete { registry: registry_id, kind: ConcreteKind::Upstream }
                 } else {
                     Resolved::Unclaimed
                 }
             }
-            MountKind::Router { sources } => {
+            Registry::Router { sources } => {
                 // Validation guarantees every source is a defined concrete
-                // mount; a non-concrete entry here can only mean the graph was
+                // registry; a non-concrete entry here can only mean the graph was
                 // built without validation, and it simply never matches.
                 for source in sources {
-                    match self.mounts.get_key_value(source) {
-                        Some((source_id, MountKind::Hosted { patterns }))
+                    match self.registries.get_key_value(source) {
+                        Some((source_id, Registry::Hosted { patterns }))
                             if namespace_claims(patterns, package) =>
                         {
                             return Resolved::Concrete {
-                                mount: source_id,
+                                registry: source_id,
                                 kind: ConcreteKind::Hosted,
                             };
                         }
-                        Some((source_id, MountKind::Upstream { patterns }))
+                        Some((source_id, Registry::Upstream { patterns }))
                             if namespace_claims(patterns, package) =>
                         {
                             return Resolved::Concrete {
-                                mount: source_id,
+                                registry: source_id,
                                 kind: ConcreteKind::Upstream,
                             };
                         }
@@ -310,36 +310,36 @@ impl Mounts {
 
     /// Resolve a request to the path-less base (`https://<pnpr>/`) through the
     /// configured default target. With no default target the path-less base is
-    /// disabled, so every package is [`Resolved::UnknownMount`].
+    /// disabled, so every package is [`Resolved::UnknownRegistry`].
     #[must_use]
     pub fn resolve_default<'a>(&'a self, package: &str) -> Resolved<'a> {
-        match self.default_target.as_deref() {
+        match self.default_registry.as_deref() {
             Some(target) => self.resolve(target, package),
-            None => Resolved::UnknownMount,
+            None => Resolved::UnknownRegistry,
         }
     }
 
-    /// Validate the whole mount set, failing closed on any configuration that
+    /// Validate the whole registry set, failing closed on any configuration that
     /// could route a private name to the wrong origin or leave a source dead.
     /// Run at config load and on reload.
-    pub fn validate(&self) -> Result<(), MountConfigError> {
-        if let Some(target) = &self.default_target
-            && !self.mounts.contains_key(target)
+    pub fn validate(&self) -> Result<(), RegistryConfigError> {
+        if let Some(target) = &self.default_registry
+            && !self.registries.contains_key(target)
         {
-            return Err(MountConfigError::UndefinedDefaultTarget { target: target.clone() });
+            return Err(RegistryConfigError::UndefinedDefaultRegistry { target: target.clone() });
         }
-        for (name, kind) in &self.mounts {
+        for (name, kind) in &self.registries {
             match kind {
-                MountKind::Hosted { patterns } | MountKind::Upstream { patterns } => {
+                Registry::Hosted { patterns } | Registry::Upstream { patterns } => {
                     validate_namespace(name, patterns)?;
                 }
-                MountKind::Router { sources } => {
+                Registry::Router { sources } => {
                     // A router with no sources can never serve any package —
                     // every request through it is a 404. That's only ever a
-                    // config mistake (a hosted/upstream mount was probably
+                    // config mistake (a hosted/upstream registry was probably
                     // intended), so reject it.
                     if sources.is_empty() {
-                        return Err(MountConfigError::EmptyRouter { router: name.clone() });
+                        return Err(RegistryConfigError::EmptyRouter { router: name.clone() });
                     }
                     self.validate_router(name, sources)?;
                 }
@@ -348,7 +348,7 @@ impl Mounts {
         Ok(())
     }
 
-    fn validate_router(&self, router: &str, sources: &[String]) -> Result<(), MountConfigError> {
+    fn validate_router(&self, router: &str, sources: &[String]) -> Result<(), RegistryConfigError> {
         // A pattern-less source claims every name; represent that claim as an
         // explicit `**` so coverage against and by earlier sources is decided
         // by the same relation as any declared pattern.
@@ -356,21 +356,23 @@ impl Mounts {
         let mut seen_sources: Vec<&str> = Vec::new();
         let mut seen_patterns: Vec<&PackagePattern> = Vec::new();
         for (index, source) in sources.iter().enumerate() {
-            // The source must resolve to a defined concrete mount: an unknown
+            // The source must resolve to a defined concrete registry: an unknown
             // name, the router itself, or another router are all rejected, so a
             // router can only ever land on a real origin (no nesting, no cycles).
             if source == router {
-                return Err(MountConfigError::SelfReferentialRouter { router: router.to_string() });
+                return Err(RegistryConfigError::SelfReferentialRouter {
+                    router: router.to_string(),
+                });
             }
-            let kind = match self.mounts.get(source) {
+            let kind = match self.registries.get(source) {
                 None => {
-                    return Err(MountConfigError::UnknownSource {
+                    return Err(RegistryConfigError::UnknownSource {
                         router: router.to_string(),
                         source: source.clone(),
                     });
                 }
                 Some(kind) if !kind.is_concrete() => {
-                    return Err(MountConfigError::NonConcreteSource {
+                    return Err(RegistryConfigError::NonConcreteSource {
                         router: router.to_string(),
                         source: source.clone(),
                     });
@@ -378,7 +380,7 @@ impl Mounts {
                 Some(kind) => kind,
             };
             if seen_sources.contains(&source.as_str()) {
-                return Err(MountConfigError::DuplicateSource {
+                return Err(RegistryConfigError::DuplicateSource {
                     router: router.to_string(),
                     source: source.clone(),
                 });
@@ -396,7 +398,7 @@ impl Mounts {
                 .iter()
                 .all(|pattern| seen_patterns.iter().any(|earlier| earlier.covers(pattern)))
             {
-                return Err(MountConfigError::UnreachableSource {
+                return Err(RegistryConfigError::UnreachableSource {
                     router: router.to_string(),
                     index,
                     source: source.clone(),
@@ -417,7 +419,7 @@ impl Mounts {
                 if let Some(earlier) =
                     seen_patterns.iter().find(|&&earlier| earlier.covers(pattern))
                 {
-                    return Err(MountConfigError::ShadowedPattern {
+                    return Err(RegistryConfigError::ShadowedPattern {
                         router: router.to_string(),
                         source: source.clone(),
                         pattern: pattern.to_string(),
@@ -426,7 +428,7 @@ impl Mounts {
                 }
             }
             // Extend the seen set only after the per-pattern pass: a source's
-            // own patterns may overlap each other (a mount-level redundancy,
+            // own patterns may overlap each other (a registry-level redundancy,
             // not a routing defect) without shadowing anything across sources.
             seen_patterns.extend(patterns);
         }
@@ -434,12 +436,15 @@ impl Mounts {
     }
 }
 
-/// Reject a duplicate pattern within one concrete mount's declared namespace.
-fn validate_namespace(mount: &str, patterns: &[PackagePattern]) -> Result<(), MountConfigError> {
+/// Reject a duplicate pattern within one concrete registry's declared namespace.
+fn validate_namespace(
+    registry: &str,
+    patterns: &[PackagePattern],
+) -> Result<(), RegistryConfigError> {
     for (index, pattern) in patterns.iter().enumerate() {
         if patterns[..index].contains(pattern) {
-            return Err(MountConfigError::DuplicatePattern {
-                mount: mount.to_string(),
+            return Err(RegistryConfigError::DuplicatePattern {
+                registry: registry.to_string(),
                 pattern: pattern.to_string(),
             });
         }
@@ -447,30 +452,30 @@ fn validate_namespace(mount: &str, patterns: &[PackagePattern]) -> Result<(), Mo
     Ok(())
 }
 
-/// A static mount-configuration defect. Surfaced by [`Mounts::validate`] and by
+/// A static registry-configuration defect. Surfaced by [`Registries::validate`] and by
 /// [`PackagePattern::parse`]; the `config` module turns it into an
-/// `InvalidConfig` so a bad mount set fails server startup and config reload.
+/// `InvalidConfig` so a bad registry set fails server startup and config reload.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum MountConfigError {
-    /// An unsupported wildcard in a mount pattern.
+pub enum RegistryConfigError {
+    /// An unsupported wildcard in a registry pattern.
     InvalidPattern { pattern: String },
-    /// A wildcard-free mount pattern that is not a well-formed package name,
+    /// A wildcard-free registry pattern that is not a well-formed package name,
     /// so it could never match any request.
     ExactPatternNotAName { pattern: String },
-    /// `defaultTarget` names a mount that does not exist.
-    UndefinedDefaultTarget { target: String },
+    /// `defaultRegistry` names a registry that does not exist.
+    UndefinedDefaultRegistry { target: String },
     /// A router has no sources at all, so it can never serve any package.
     EmptyRouter { router: String },
     /// A router lists itself as a source.
     SelfReferentialRouter { router: String },
-    /// A router source is not a defined mount.
+    /// A router source is not a defined registry.
     UnknownSource { router: String, source: String },
-    /// A router source is another router, not a concrete mount.
+    /// A router source is another router, not a concrete registry.
     NonConcreteSource { router: String, source: String },
     /// A router lists the same source more than once.
     DuplicateSource { router: String, source: String },
-    /// A concrete mount declares the same pattern more than once.
-    DuplicatePattern { mount: String, pattern: String },
+    /// A concrete registry declares the same pattern more than once.
+    DuplicatePattern { registry: String, pattern: String },
     /// A router source's claims are fully covered by earlier sources, so it
     /// can never be selected.
     UnreachableSource { router: String, index: usize, source: String },
@@ -480,52 +485,52 @@ pub enum MountConfigError {
     ShadowedPattern { router: String, source: String, pattern: String, by: String },
 }
 
-impl fmt::Display for MountConfigError {
+impl fmt::Display for RegistryConfigError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            MountConfigError::InvalidPattern { pattern } => write!(
+            RegistryConfigError::InvalidPattern { pattern } => write!(
                 f,
-                "unsupported mount pattern {pattern:?}: use an exact name, `@scope/*`, `@*/*`, \
+                "unsupported registry pattern {pattern:?}: use an exact name, `@scope/*`, `@*/*`, \
                  or `**`",
             ),
-            MountConfigError::ExactPatternNotAName { pattern } => write!(
+            RegistryConfigError::ExactPatternNotAName { pattern } => write!(
                 f,
-                "mount pattern {pattern:?} is not a valid package name, so it can never match; \
+                "registry pattern {pattern:?} is not a valid package name, so it can never match; \
                  to claim every package in a scope use `@scope/*`",
             ),
-            MountConfigError::UndefinedDefaultTarget { target } => {
-                write!(f, "defaultTarget {target:?} is not a defined mount")
+            RegistryConfigError::UndefinedDefaultRegistry { target } => {
+                write!(f, "defaultRegistry {target:?} is not a defined registry")
             }
-            MountConfigError::EmptyRouter { router } => write!(
+            RegistryConfigError::EmptyRouter { router } => write!(
                 f,
                 "router {router:?} has no sources, so it can never serve any package; add \
-                 sources or remove the mount",
+                 sources or remove the registry",
             ),
-            MountConfigError::SelfReferentialRouter { router } => {
+            RegistryConfigError::SelfReferentialRouter { router } => {
                 write!(f, "router {router:?} lists itself as a source")
             }
-            MountConfigError::UnknownSource { router, source } => {
-                write!(f, "router {router:?} source {source:?} is not a defined mount")
+            RegistryConfigError::UnknownSource { router, source } => {
+                write!(f, "router {router:?} source {source:?} is not a defined registry")
             }
-            MountConfigError::NonConcreteSource { router, source } => write!(
+            RegistryConfigError::NonConcreteSource { router, source } => write!(
                 f,
                 "router {router:?} source {source:?} is itself a router; a source must be a \
-                 hosted or upstream mount",
+                 hosted or upstream registry",
             ),
-            MountConfigError::DuplicateSource { router, source } => {
+            RegistryConfigError::DuplicateSource { router, source } => {
                 write!(f, "router {router:?} lists source {source:?} more than once")
             }
-            MountConfigError::DuplicatePattern { mount, pattern } => {
-                write!(f, "mount {mount:?} declares pattern {pattern:?} more than once")
+            RegistryConfigError::DuplicatePattern { registry, pattern } => {
+                write!(f, "registry {registry:?} declares pattern {pattern:?} more than once")
             }
-            MountConfigError::UnreachableSource { router, index, source } => write!(
+            RegistryConfigError::UnreachableSource { router, index, source } => write!(
                 f,
                 "router {router:?} source #{index} ({source:?}) is unreachable: earlier sources \
                  already claim every package it would serve; list it before the sources that \
                  shadow it, or remove it",
                 index = index + 1,
             ),
-            MountConfigError::ShadowedPattern { router, source, pattern, by } => write!(
+            RegistryConfigError::ShadowedPattern { router, source, pattern, by } => write!(
                 f,
                 "router {router:?} can never select source {source:?} for its pattern \
                  {pattern:?}: an earlier source's pattern {by:?} already claims every package it \
@@ -535,7 +540,7 @@ impl fmt::Display for MountConfigError {
     }
 }
 
-impl std::error::Error for MountConfigError {}
+impl std::error::Error for RegistryConfigError {}
 
 #[cfg(test)]
 mod tests;

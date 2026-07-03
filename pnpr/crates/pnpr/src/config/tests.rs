@@ -209,7 +209,7 @@ fn uplink_invalid_custom_header_value_is_a_config_error() {
 #[test]
 fn from_yaml_str_resolves_uplink_auth_and_headers() {
     let yaml = r"
-mounts:
+registries:
   npmjs:
     type: upstream
     url: https://registry.npmjs.org/
@@ -227,15 +227,15 @@ mounts:
 }
 
 #[test]
-fn registry_surface_is_derived_from_declared_mounts() {
-    // No mounts ⇒ nothing to serve on the npm-registry surface; declaring
+fn registry_surface_is_derived_from_declared_registries() {
+    // No registries ⇒ nothing to serve on the npm-registry surface; declaring
     // one turns the surface on. There is no YAML toggle in between.
     let config = Config::from_yaml_str("{}", Path::new("/x"), listen(), None).unwrap();
     assert!(!config.registry.enabled);
     assert!(config.resolver.enabled);
 
     let yaml = "
-mounts:
+registries:
   npmjs: { type: upstream, url: https://registry.npmjs.org/, public: true }
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
@@ -276,7 +276,7 @@ fn unknown_key_in_feature_block_is_a_config_error() {
 #[test]
 fn from_yaml_str_parses_the_resolver_toggle() {
     let yaml = "
-mounts:
+registries:
   npmjs: { type: upstream, url: https://registry.npmjs.org/, public: true }
 resolver:
   enabled: false
@@ -288,7 +288,7 @@ resolver:
 
 #[test]
 fn nothing_to_serve_is_a_config_error() {
-    // No mounts (⇒ no registry surface) and the resolver disabled leaves
+    // No registries (⇒ no registry surface) and the resolver disabled leaves
     // only `/-/ping` and the account endpoints — a misconfiguration.
     let yaml = "resolver:\n  enabled: false\n";
     let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
@@ -304,7 +304,7 @@ fn from_yaml_str_accepts_string_and_bare_number_intervals() {
     // both); the bare number must read as seconds rather than failing to
     // deserialize against the `Option<String>`-shaped field.
     let yaml = r"
-mounts:
+registries:
   npmjs:
     type: upstream
     url: https://registry.npmjs.org/
@@ -355,44 +355,44 @@ fn resolve_relative_joins_relative_paths_to_base() {
 
 #[test]
 fn proxy_constructor_serves_fixtures_locally_and_proxies_the_rest() {
-    use crate::mount::{ConcreteKind, Resolved};
+    use crate::registry::{ConcreteKind, Resolved};
     let config = Config::proxy(listen(), PathBuf::from("/tmp"));
     assert!(config.uplinks.contains_key("npmjs"));
-    assert_eq!(config.mounts.default_target(), Some("main"));
+    assert_eq!(config.registries.default_registry(), Some("main"));
     // The flat-root hosted org serves the registry-mock fixture scopes.
     assert_eq!(config.hosted["local"].org, "");
     assert_eq!(
-        config.mounts.resolve_default("@pnpm.e2e/dep-of-pkg-with-1-dep"),
-        Resolved::Concrete { mount: "local", kind: ConcreteKind::Hosted },
+        config.registries.resolve_default("@pnpm.e2e/dep-of-pkg-with-1-dep"),
+        Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
     );
     assert_eq!(
-        config.mounts.resolve_default("create-touch-file-one-bin"),
-        Resolved::Concrete { mount: "local", kind: ConcreteKind::Hosted },
+        config.registries.resolve_default("create-touch-file-one-bin"),
+        Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
     );
     // Everything else proxies to the npm upstream.
     assert_eq!(
-        config.mounts.resolve_default("is-positive"),
-        Resolved::Concrete { mount: "npmjs", kind: ConcreteKind::Upstream },
+        config.registries.resolve_default("is-positive"),
+        Resolved::Concrete { registry: "npmjs", kind: ConcreteKind::Upstream },
     );
 }
 
 #[test]
 fn static_constructor_serves_everything_from_one_hosted() {
-    use crate::mount::{ConcreteKind, Resolved};
+    use crate::registry::{ConcreteKind, Resolved};
     let config = Config::static_serve(listen(), PathBuf::from("/tmp"));
     assert!(config.uplinks.is_empty());
-    // Everything routes to the single local hosted mount, which serves the
+    // Everything routes to the single local hosted registry, which serves the
     // flat storage root (its `org` namespace is empty).
     assert_eq!(config.hosted["local"].org, "");
     assert_eq!(
-        config.mounts.resolve_default("anything"),
-        Resolved::Concrete { mount: "local", kind: ConcreteKind::Hosted },
+        config.registries.resolve_default("anything"),
+        Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
     );
 }
 
 #[test]
 fn from_default_yaml_parses_bundled_file() {
-    use crate::mount::{ConcreteKind, Resolved};
+    use crate::registry::{ConcreteKind, Resolved};
     let config = Config::from_default_yaml(Path::new("/tmp"), listen(), None);
     assert!(config.uplinks.contains_key("npmjs"));
     assert_eq!(config.uplinks["npmjs"].url, "https://registry.npmjs.org/");
@@ -402,15 +402,15 @@ fn from_default_yaml_parses_bundled_file() {
     // everything else — including the rest of those real scopes — to npmjs.
     for local in ["@pnpm.e2e/foo", "@pnpm/y", "test-publish-tarball", "project-100"] {
         assert_eq!(
-            config.mounts.resolve_default(local),
-            Resolved::Concrete { mount: "local", kind: ConcreteKind::Hosted },
+            config.registries.resolve_default(local),
+            Resolved::Concrete { registry: "local", kind: ConcreteKind::Hosted },
             "{local} must be hosted",
         );
     }
     for upstream in ["react", "lodash", "test-exclude", "@pnpm/error"] {
         assert_eq!(
-            config.mounts.resolve_default(upstream),
-            Resolved::Concrete { mount: "npmjs", kind: ConcreteKind::Upstream },
+            config.registries.resolve_default(upstream),
+            Resolved::Concrete { registry: "npmjs", kind: ConcreteKind::Upstream },
             "{upstream} must proxy npm",
         );
     }
@@ -793,14 +793,14 @@ packages:
     assert_eq!(config.auth.htpasswd.max_users, super::MaxUsers::Disabled);
 }
 
-/// A router mount routes each package to exactly one concrete source — the
+/// A router registry routes each package to exactly one concrete source — the
 /// first listed source whose declared patterns claim it — the safe
 /// alternative to a multi-uplink fallback chain.
 #[test]
 fn from_yaml_str_router_routes_each_package_to_one_source() {
     let yaml = "\
 storage: ./s
-mounts:
+registries:
   npmjs:
     type: upstream
     url: https://registry.npmjs.org/
@@ -813,23 +813,23 @@ mounts:
   main:
     type: router
     sources: [corp, npmjs]
-defaultTarget: main
+defaultRegistry: main
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    // Both upstream mounts are exposed as uplinks for serving.
+    // Both upstream registries are exposed as uplinks for serving.
     assert!(config.uplinks.contains_key("npmjs"));
     assert!(config.uplinks.contains_key("corp"));
     // The public upstream carries no credential gate; the private one does.
     assert!(config.uplinks["npmjs"].access.is_none());
     assert!(config.uplinks["corp"].access.is_some());
-    assert_eq!(config.mounts.default_target(), Some("main"));
-    assert!(config.mounts.is_router("main"));
-    match config.mounts.resolve("main", "@corp/secret") {
-        crate::mount::Resolved::Concrete { mount, .. } => assert_eq!(mount, "corp"),
+    assert_eq!(config.registries.default_registry(), Some("main"));
+    assert!(config.registries.is_router("main"));
+    match config.registries.resolve("main", "@corp/secret") {
+        crate::registry::Resolved::Concrete { registry, .. } => assert_eq!(registry, "corp"),
         other => panic!("expected @corp/* -> corp, got {other:?}"),
     }
-    match config.mounts.resolve("main", "lodash") {
-        crate::mount::Resolved::Concrete { mount, .. } => assert_eq!(mount, "npmjs"),
+    match config.registries.resolve("main", "lodash") {
+        crate::registry::Resolved::Concrete { registry, .. } => assert_eq!(registry, "npmjs"),
         other => panic!("expected lodash -> npmjs, got {other:?}"),
     }
 }
@@ -841,7 +841,7 @@ defaultTarget: main
 fn from_yaml_str_rejects_misordered_router() {
     let yaml = "\
 storage: ./s
-mounts:
+registries:
   npmjs: { type: upstream, url: https://registry.npmjs.org/, public: true }
   acme: { type: hosted, org: acme, patterns: ['@acme/*'] }
   main:
@@ -853,55 +853,55 @@ mounts:
     assert!(err.to_string().contains("unreachable"), "unexpected error: {err}");
 }
 
-/// An unsupported wildcard in a mount's `patterns:` fails config load, named
-/// for the offending mount, rather than becoming a claim that never matches.
+/// An unsupported wildcard in a registry's `patterns:` fails config load, named
+/// for the offending registry, rather than becoming a claim that never matches.
 #[test]
-fn from_yaml_str_rejects_invalid_mount_pattern() {
+fn from_yaml_str_rejects_invalid_registry_pattern() {
     let yaml = "\
 storage: ./s
-mounts:
+registries:
   acme: { type: hosted, org: acme, patterns: ['@acme/ba*r'] }
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
-        .expect_err("an unsupported mount pattern must be rejected");
+        .expect_err("an unsupported registry pattern must be rejected");
     let message = err.to_string();
-    assert!(message.contains("acme"), "expected the mount named, got: {message}");
+    assert!(message.contains("acme"), "expected the registry named, got: {message}");
     assert!(message.contains("@acme/ba*r"), "expected the pattern named, got: {message}");
 }
 
-/// A duplicate pattern within one mount's namespace fails config load.
+/// A duplicate pattern within one registry's namespace fails config load.
 #[test]
-fn from_yaml_str_rejects_duplicate_mount_pattern() {
+fn from_yaml_str_rejects_duplicate_registry_pattern() {
     let yaml = "\
 storage: ./s
-mounts:
+registries:
   acme: { type: hosted, org: acme, patterns: ['@acme/*', '@acme/*'] }
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
-        .expect_err("a duplicate mount pattern must be rejected");
+        .expect_err("a duplicate registry pattern must be rejected");
     assert!(err.to_string().contains("more than once"), "unexpected error: {err}");
 }
 
-/// `defaultTarget` naming an undefined mount fails closed.
+/// `defaultRegistry` naming an undefined registry fails closed.
 #[test]
-fn from_yaml_str_rejects_undefined_default_target() {
+fn from_yaml_str_rejects_undefined_default_registry() {
     let yaml = "\
 storage: ./s
-mounts:
+registries:
   npmjs: { type: upstream, url: https://registry.npmjs.org/, public: true }
-defaultTarget: ghost
+defaultRegistry: ghost
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
         .expect_err("undefined default target must be rejected");
-    assert!(err.to_string().contains("defaultTarget"), "unexpected error: {err}");
+    assert!(err.to_string().contains("defaultRegistry"), "unexpected error: {err}");
 }
 
-/// A non-`public` upstream mount must declare who may reach it.
+/// A non-`public` upstream registry must declare who may reach it.
 #[test]
 fn from_yaml_str_rejects_private_upstream_without_access() {
     let yaml = "\
 storage: ./s
-mounts:
+registries:
   corp:
     type: upstream
     url: https://npm.corp.example/
@@ -917,7 +917,7 @@ mounts:
 fn from_yaml_str_rejects_public_upstream_with_access() {
     let yaml = "\
 storage: ./s
-mounts:
+registries:
   npmjs:
     type: upstream
     url: https://registry.npmjs.org/
@@ -938,7 +938,7 @@ fn from_yaml_str_rejects_public_upstream_with_custom_headers() {
         let yaml = format!(
             "\
 storage: ./s
-mounts:
+registries:
   npmjs:
     type: upstream
     url: https://registry.npmjs.org/
@@ -953,13 +953,13 @@ mounts:
     }
 }
 
-/// Two hosted mounts sharing an `org` namespace would alias the same storage, so
+/// Two hosted registries sharing an `org` namespace would alias the same storage, so
 /// the collision must be rejected at load.
 #[test]
 fn from_yaml_str_rejects_duplicate_hosted_org() {
     let yaml = "\
 storage: ./s
-mounts:
+registries:
   acme:
     type: hosted
     org: shared
@@ -968,7 +968,7 @@ mounts:
     org: shared
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
-        .expect_err("two hosted mounts on the same org must be rejected");
+        .expect_err("two hosted registries on the same org must be rejected");
     assert!(err.to_string().contains("reuses the `org`"), "unexpected error: {err}");
 }
 
@@ -979,7 +979,8 @@ mounts:
 #[test]
 fn from_yaml_str_rejects_hosted_org_path_traversal() {
     for org in ["../../etc", "C:acme", "a/b"] {
-        let yaml = format!("storage: ./s\nmounts:\n  evil:\n    type: hosted\n    org: {org}\n");
+        let yaml =
+            format!("storage: ./s\nregistries:\n  evil:\n    type: hosted\n    org: {org}\n");
         let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
             .expect_err("a traversal-y hosted org must be rejected");
         assert!(err.to_string().contains("path-safe"), "unexpected error for {org:?}: {err}");
@@ -992,23 +993,24 @@ fn from_yaml_str_rejects_hosted_org_path_traversal() {
 #[test]
 fn from_yaml_str_rejects_dot_prefixed_hosted_org() {
     for org in [".pnpr-cache", ".pnpr-journal", ".hidden"] {
-        let yaml = format!("storage: ./s\nmounts:\n  sneaky:\n    type: hosted\n    org: {org}\n");
+        let yaml =
+            format!("storage: ./s\nregistries:\n  sneaky:\n    type: hosted\n    org: {org}\n");
         let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
             .expect_err("a dot-prefixed hosted org must be rejected");
         assert!(err.to_string().contains("path-safe"), "unexpected error for {org:?}: {err}");
     }
 }
 
-/// A mount name is addressed as the single URL path segment `/~<name>/` and is
+/// A registry name is addressed as the single URL path segment `/~<name>/` and is
 /// embedded in rewritten tarball URLs, so a name that cannot survive that
 /// round trip (separators, traversal, URL delimiters, whitespace) must fail at
-/// load instead of becoming an unreachable or URL-ambiguous mount.
+/// load instead of becoming an unreachable or URL-ambiguous registry.
 #[test]
-fn from_yaml_str_rejects_url_unsafe_mount_names() {
+fn from_yaml_str_rejects_url_unsafe_registry_names() {
     for name in ["'a/b'", "'..'", "'.hidden'", "'a b'", "'a%2Fb'", "'a?b'", "'a#b'", "'C:d'"] {
-        let yaml = format!("storage: ./s\nmounts:\n  {name}:\n    type: hosted\n");
+        let yaml = format!("storage: ./s\nregistries:\n  {name}:\n    type: hosted\n");
         let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None)
-            .expect_err("a URL-unsafe mount name must be rejected");
+            .expect_err("a URL-unsafe registry name must be rejected");
         assert!(
             err.to_string().contains("URL-safe path segment"),
             "unexpected error for {name}: {err}",
@@ -1017,14 +1019,14 @@ fn from_yaml_str_rejects_url_unsafe_mount_names() {
 }
 
 /// `--disable-registry` skips upstream-credential resolution but still
-/// validates the mount graph, so a misconfigured router fails startup on a
+/// validates the registry graph, so a misconfigured router fails startup on a
 /// resolver-only tier too instead of surfacing only when the registry is
 /// re-enabled.
 #[test]
-fn cli_disable_registry_still_validates_the_mount_graph() {
+fn cli_disable_registry_still_validates_the_registry_graph() {
     let yaml = "\
 storage: ./s
-mounts:
+registries:
   main:
     type: router
     sources: [ghost]
@@ -1032,19 +1034,19 @@ mounts:
     let overrides = FeatureOverrides { disable_registry: true, disable_resolver: false };
     let err =
         Config::from_yaml_str_with_overrides(yaml, Path::new("/x"), listen(), None, overrides)
-            .expect_err("a broken mount graph must fail even with the registry disabled");
+            .expect_err("a broken registry graph must fail even with the registry disabled");
     assert!(err.to_string().contains("ghost"), "unexpected error: {err}");
 }
 
-/// With the registry disabled, an upstream mount whose credential cannot
+/// With the registry disabled, an upstream registry whose credential cannot
 /// resolve must not fail startup — the tier never talks to that upstream. The
-/// mount still joins the (validated) graph; only its serving config is
+/// registry still joins the (validated) graph; only its serving config is
 /// skipped.
 #[test]
-fn cli_disable_registry_skips_upstream_mount_credentials_but_keeps_the_graph() {
+fn cli_disable_registry_skips_upstream_registry_credentials_but_keeps_the_graph() {
     let yaml = "\
 storage: ./s
-mounts:
+registries:
   corp:
     type: upstream
     url: https://corp.example/npm/
@@ -1061,22 +1063,22 @@ mounts:
         Config::from_yaml_str_with_overrides(yaml, Path::new("/x"), listen(), None, overrides)
             .expect("a resolver-only tier must not fail on unused upstream credentials");
     assert!(config.uplinks.is_empty(), "credentials must not be resolved or carried");
-    assert!(config.mounts.get("main").is_some(), "the graph is still built and validated");
+    assert!(config.registries.get("main").is_some(), "the graph is still built and validated");
 }
 
-/// The internally-tagged mount enum names the valid kinds, so a typo'd `type:`
+/// The internally-tagged registry enum names the valid kinds, so a typo'd `type:`
 /// fails to load rather than being silently misrouted.
 #[test]
-fn from_yaml_str_rejects_unknown_mount_type() {
+fn from_yaml_str_rejects_unknown_registry_type() {
     let yaml = "\
 storage: ./s
-mounts:
+registries:
   npmjs:
     type: uplink
     url: https://registry.npmjs.org/
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
-        .expect_err("an unknown mount `type:` must be rejected");
+        .expect_err("an unknown registry `type:` must be rejected");
     let message = err.to_string();
     assert!(message.contains("hosted"), "expected the valid kinds listed, got: {message}");
     assert!(message.contains("upstream"), "expected the valid kinds listed, got: {message}");
@@ -1761,7 +1763,7 @@ groups:
 packages:
   '@team/*':
     access: platform
-mounts:
+registries:
   corp:
     type: upstream
     url: https://npm.corp.example/
@@ -1924,7 +1926,7 @@ routes:
 #[test]
 fn uplink_resolves_bearer_auth_and_access() {
     let yaml = r"
-mounts:
+registries:
   corp:
     type: upstream
     url: https://npm.corp.example/
@@ -1945,7 +1947,7 @@ mounts:
 #[test]
 fn uplink_resolves_basic_auth_and_access() {
     let yaml = r"
-mounts:
+registries:
   corp:
     type: upstream
     url: https://npm.corp.example/
@@ -1963,16 +1965,16 @@ mounts:
 }
 
 #[test]
-fn public_upstream_mount_carries_no_access_credential() {
+fn public_upstream_registry_carries_no_access_credential() {
     let yaml = r"
-mounts:
+registries:
   corp:
     type: upstream
     url: https://npm.corp.example/
     public: true
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
-    // A public upstream mount is reachable anonymously and carries no access
+    // A public upstream registry is reachable anonymously and carries no access
     // policy or upstream credential.
     assert!(config.uplinks["corp"].access.is_none());
 }

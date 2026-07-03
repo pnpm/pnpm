@@ -55,7 +55,7 @@ struct Args {
     /// Disable the npm-registry surface (packument/tarball reads, publish,
     /// unpublish, dist-tag, search) on this tier. Without the flag the
     /// surface is served whenever the loaded config declares at least one
-    /// mount under `mounts:`.
+    /// registry under `registries:`.
     #[arg(long)]
     disable_registry: bool,
 
