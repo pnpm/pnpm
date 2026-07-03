@@ -1782,8 +1782,13 @@ fn resolves_to_private_source(state: &AppState, registry: &str, package: &str) -
             })
         }
         // A private upstream (registry-level `access:`) is caller-gated for
-        // every name; a public one can still gate individual names through a
-        // per-package `access` rule.
+        // *every* name — unlike a hosted registry, its registry-level gate is
+        // enforced independently at serving (`authorized_upstream` runs
+        // before per-package rules on every upstream read), so a per-package
+        // `access: $all` entry cannot open a name on it and `access.is_some()`
+        // alone already means the response varies by caller. A public
+        // upstream can still gate individual names through a per-package
+        // `access` rule.
         RegistrySource::Upstream(source) => {
             state.inner.config.upstreams.get(&source).is_some_and(|upstream| {
                 upstream.access.is_some()

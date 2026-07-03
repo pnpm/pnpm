@@ -495,6 +495,7 @@ fn overlapping_upstream_access_reuses_only_the_selected_alias() {
     via_primary.add(PrivateAccessDescriptor::Alias {
         alias: "primary".to_string(),
         credential_digest: corp_credential(),
+        package: None,
     });
     assert!(via_primary.allows(&context, &user("alice")));
 
@@ -504,6 +505,7 @@ fn overlapping_upstream_access_reuses_only_the_selected_alias() {
     via_secondary.add(PrivateAccessDescriptor::Alias {
         alias: "secondary".to_string(),
         credential_digest: corp_credential(),
+        package: None,
     });
     assert!(!via_secondary.allows(&context, &user("alice")));
 }
@@ -517,6 +519,7 @@ fn footprint_digest_is_stable_and_namespaced() {
     footprint.add(PrivateAccessDescriptor::Alias {
         alias: "corp".to_string(),
         credential_digest: corp_credential(),
+        package: None,
     });
     assert!(!footprint.is_public());
     let digest = footprint.digest(b"secret").expect("private footprint has a digest");
@@ -526,6 +529,7 @@ fn footprint_digest_is_stable_and_namespaced() {
     rotated.add(PrivateAccessDescriptor::Alias {
         alias: "corp".to_string(),
         credential_digest: rotated_credential(),
+        package: None,
     });
     assert_ne!(digest, rotated.digest(b"secret").unwrap());
 
@@ -537,6 +541,7 @@ fn footprint_digest_is_stable_and_namespaced() {
     one_order.add(PrivateAccessDescriptor::Alias {
         alias: "x".to_string(),
         credential_digest: corp_credential(),
+        package: None,
     });
     one_order.add(PrivateAccessDescriptor::Hosted { policy_id: "@p/*".to_string() });
     let mut other_order = Footprint::default();
@@ -544,6 +549,7 @@ fn footprint_digest_is_stable_and_namespaced() {
     other_order.add(PrivateAccessDescriptor::Alias {
         alias: "x".to_string(),
         credential_digest: corp_credential(),
+        package: None,
     });
     assert_eq!(one_order.digest(b"k"), other_order.digest(b"k"));
 }
@@ -608,7 +614,8 @@ fn metadata_scope_maps_route_classes() {
         descriptor_id,
         PrivateAccessDescriptor::Alias {
             alias: "corp".to_string(),
-            credential_digest: corp_credential()
+            credential_digest: corp_credential(),
+            package: None,
         }
         .digest_id(b"server-secret"),
     );
@@ -650,7 +657,8 @@ fn authorized_alias_users_share_metadata_scope() {
         descriptor_id,
         PrivateAccessDescriptor::Alias {
             alias: "corp".to_string(),
-            credential_digest: corp_credential()
+            credential_digest: corp_credential(),
+            package: None,
         }
         .digest_id(b"server-secret"),
     );
@@ -661,12 +669,22 @@ fn descriptor_digest_id_depends_on_secret() {
     let descriptor = PrivateAccessDescriptor::Alias {
         alias: "corp".to_string(),
         credential_digest: corp_credential(),
+        package: None,
     };
     assert_ne!(descriptor.digest_id(b"secret-a"), descriptor.digest_id(b"secret-b"));
     // Generation rotation moves the namespace.
     let rotated = PrivateAccessDescriptor::Alias {
         alias: "corp".to_string(),
         credential_digest: rotated_credential(),
+        package: None,
     };
     assert_ne!(descriptor.digest_id(b"secret-a"), rotated.digest_id(b"secret-a"));
+    // A package-qualified descriptor (an explicitly refined name) keys its
+    // own namespace, distinct from the registry-scoped one.
+    let qualified = PrivateAccessDescriptor::Alias {
+        alias: "corp".to_string(),
+        credential_digest: corp_credential(),
+        package: Some("@corp/secret".to_string()),
+    };
+    assert_ne!(descriptor.digest_id(b"secret-a"), qualified.digest_id(b"secret-a"));
 }

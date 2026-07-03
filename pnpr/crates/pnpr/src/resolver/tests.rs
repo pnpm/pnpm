@@ -96,6 +96,7 @@ fn private_alias_footprint(alias: &str) -> Footprint {
     footprint.add(PrivateAccessDescriptor::Alias {
         alias: alias.to_string(),
         credential_digest: crate::route::credential_digest(ALIAS_TOKEN),
+        package: None,
     });
     footprint
 }
@@ -389,6 +390,56 @@ fn revoked_alias_access_stops_matching_private_resolution_hits() {
     );
     assert!(
         cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("bob")).is_some(),
+    );
+}
+
+#[test]
+fn package_qualified_alias_descriptor_rechecks_upstream_rules_on_replay() {
+    use crate::policy::{PackageRule, PackageRules};
+    use crate::registry::PackagePattern;
+
+    let cache = Mutex::new(HashMap::new());
+    let key = "base".to_string();
+    let lockfile = lockfile("1.0.0");
+    // A resolution that touched an explicitly refined name records the
+    // package-qualified descriptor (what `RouteHook` would produce).
+    let mut footprint = Footprint::default();
+    footprint.add(PrivateAccessDescriptor::Alias {
+        alias: "corp".to_string(),
+        credential_digest: crate::route::credential_digest(ALIAS_TOKEN),
+        package: Some("@corp/secret".to_string()),
+    });
+    assert!(store_resolution(
+        &cache,
+        Duration::from_mins(1),
+        key.clone(),
+        footprint,
+        b"secret",
+        &lockfile,
+    ));
+
+    let mut config = registry_config();
+    let mut upstream = upstream_with_access("https://npm.corp.example/", "$authenticated");
+    upstream.rules = PackageRules::new(
+        vec![PackageRule {
+            pattern: PackagePattern::parse("@corp/secret").expect("test pattern parses"),
+            access: Some(AccessList::parse("alice")),
+            publish: None,
+            unpublish: None,
+        }],
+        Some(AccessList::parse("$authenticated")),
+    );
+    config.upstreams.insert("corp".to_string(), upstream);
+    let context = RouteContext::from_config(&config);
+
+    // Alice satisfies the per-package refinement: the hit replays.
+    assert!(
+        cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("alice")).is_some(),
+    );
+    // Bob passes the registry-level alias gate but the refinement denies
+    // him: replay must be exactly as strict as a fresh resolve, so no hit.
+    assert!(
+        cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("bob")).is_none(),
     );
 }
 

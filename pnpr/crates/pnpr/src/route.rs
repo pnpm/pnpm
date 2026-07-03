@@ -66,7 +66,12 @@ pub(crate) enum PrivateAccessDescriptor {
     /// Proxied route via a pnpr-managed upstream alias. [`credential_digest`]
     /// hashes the upstream's `Authorization`, so rotating the credential moves
     /// future hits to a new namespace — no manual epoch counter to bump.
-    Alias { alias: String, credential_digest: String },
+    /// `package` is set only when the upstream's rules **explicitly refine**
+    /// this name's `access`: the descriptor then re-checks that per-package
+    /// gate on cache replay, so a caller the refinement denies cannot obtain
+    /// through the cache what a fresh resolve refuses them. Unrefined names
+    /// share the plain registry-scoped descriptor (`package: None`).
+    Alias { alias: String, credential_digest: String, package: Option<String> },
     /// pnpr-hosted route, gated by re-running the named package access
     /// policy for the caller.
     Hosted { policy_id: String },
@@ -79,8 +84,11 @@ impl PrivateAccessDescriptor {
     /// policy of the same text).
     fn key_input(&self) -> String {
         match self {
-            PrivateAccessDescriptor::Alias { alias, credential_digest } => {
+            PrivateAccessDescriptor::Alias { alias, credential_digest, package: None } => {
                 format!("alias\0{alias}\0{credential_digest}")
+            }
+            PrivateAccessDescriptor::Alias { alias, credential_digest, package: Some(package) } => {
+                format!("alias\0{alias}\0{credential_digest}\0{package}")
             }
             PrivateAccessDescriptor::Hosted { policy_id } => format!("hosted\0{policy_id}"),
         }
@@ -111,7 +119,7 @@ pub(crate) fn upstream_cache_digest(
     credential_digest: String,
     secret: &[u8],
 ) -> String {
-    PrivateAccessDescriptor::Alias { alias: upstream.to_string(), credential_digest }
+    PrivateAccessDescriptor::Alias { alias: upstream.to_string(), credential_digest, package: None }
         .digest_id(secret)
 }
 
@@ -342,6 +350,16 @@ impl RouteContext {
         rules.for_package(package).access.allows(identity)
     }
 
+    /// The descriptor package qualifier for a proxied fetch: `Some(package)`
+    /// only when the upstream's rules explicitly refine this name's access,
+    /// so the cache descriptor re-checks that refinement on replay. Names
+    /// the registry-level gate alone covers stay registry-scoped, keeping
+    /// the common footprint one descriptor per alias.
+    fn alias_package_qualifier(&self, alias: &str, package: Option<&str>) -> Option<String> {
+        let (package, rules) = (package?, self.upstream_rules.get(alias)?);
+        rules.for_package(package).access_is_explicit.then(|| package.to_string())
+    }
+
     /// Classify a single fetch to `url` for `package` (`None` for a
     /// non-package fetch), for `identity`. Precedence follows the RFC:
     /// public wins and suppresses auth; then pnpr-hosted; then an
@@ -550,7 +568,7 @@ impl RouteContext {
         descriptor: &PrivateAccessDescriptor,
     ) -> bool {
         match descriptor {
-            PrivateAccessDescriptor::Alias { alias, credential_digest } => {
+            PrivateAccessDescriptor::Alias { alias, credential_digest, package } => {
                 // Reuse the cached resolution only if `identity` would *select*
                 // this exact alias for its origin — the first authorized alias
                 // [`Self::select_alias`] returns there — and its credential
@@ -560,20 +578,20 @@ impl RouteContext {
                 // authorization-only check could replay a lockfile routed
                 // through a different `/~<name>/` endpoint than this caller
                 // resolves through. A since-removed alias (`find` → `None`) or
-                // a rotated credential also fails closed here. Replay
-                // granularity is registry-scoped by design — the descriptor
-                // names no package, so the gate is the registry-level alias
-                // selection (`package: None`), shared among the callers the
-                // upstream's `access:` admits; per-package `access`
-                // refinements bound fresh resolves and every serving read.
+                // a rotated credential also fails closed here. A descriptor
+                // carrying a package qualifier (recorded when the upstream's
+                // rules explicitly refine that name) re-checks the per-package
+                // gate through `select_alias`, so cache replay is exactly as
+                // strict as a fresh resolve; unqualified descriptors gate at
+                // the registry level, shared among the callers the upstream's
+                // `access:` admits.
                 self.aliases.iter().find(|candidate| candidate.name == alias.as_str()).is_some_and(
                     |candidate| {
-                        self.select_alias(identity, &candidate.origin, None).is_some_and(
-                            |selected| {
+                        self.select_alias(identity, &candidate.origin, package.as_deref())
+                            .is_some_and(|selected| {
                                 selected.name == alias.as_str()
                                     && selected.credential_digest == *credential_digest
-                            },
-                        )
+                            })
                     },
                 )
             }
@@ -740,7 +758,10 @@ impl UpstreamRouteHook for RouteHook {
                     .iter()
                     .find(|candidate| candidate.name == alias)
                     .map(|candidate| candidate.authorization.clone());
-                self.record(PrivateAccessDescriptor::Alias { alias, credential_digest });
+                // Package-qualified only when the upstream's rules explicitly
+                // refine this name, so replay re-checks the refinement.
+                let package = self.context.alias_package_qualifier(&alias, package);
+                self.record(PrivateAccessDescriptor::Alias { alias, credential_digest, package });
                 authorization
             }
         }
@@ -756,8 +777,11 @@ impl UpstreamRouteHook for RouteHook {
                     .digest_id(&self.secret),
             },
             RouteClass::Proxied { alias, credential_digest } => MetadataCacheScope::Private {
-                descriptor_id: PrivateAccessDescriptor::Alias { alias, credential_digest }
-                    .digest_id(&self.secret),
+                descriptor_id: {
+                    let package = self.context.alias_package_qualifier(&alias, package);
+                    PrivateAccessDescriptor::Alias { alias, credential_digest, package }
+                        .digest_id(&self.secret)
+                },
             },
         }
     }
