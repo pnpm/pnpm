@@ -1654,24 +1654,27 @@ fn write_pnpr_benchmark_config(
 /// A config for the cold mock: isolated `storage` and a single public upstream
 /// at the warm origin, so every request is a cache miss proxied through to it.
 ///
-/// The routing is expressed in *two* shapes so one file drives every
-/// benchmarked `pnpr` binary regardless of revision: the `mounts:` +
-/// `defaultTarget:` mount model that current `pnpr` reads, and the legacy
+/// The routing is expressed in *three* shapes so one file drives every
+/// benchmarked `pnpr` binary regardless of revision: the `registries:` +
+/// `defaultRegistry:` model that current `pnpr` reads, the `mounts:` +
+/// `defaultTarget:` shape the registries model replaced, and the legacy
 /// `uplinks:` + `packages: proxy:` shape that a `pnpr` built before the mount
-/// model reads. Each server ignores the block it doesn't recognize — neither
-/// `ConfigFile` sets `deny_unknown_fields`, and neither `PackageAccess` does
-/// either — so both proxy every request to the same `origin`.
+/// model reads. Each server ignores the blocks it doesn't recognize — no
+/// revision's `ConfigFile` or `PackageAccess` sets `deny_unknown_fields` —
+/// so all of them proxy every request to the same `origin`.
 fn cold_mock_config_yaml(storage: &Path, origin: &str) -> String {
     let mut packages = HashMap::new();
     packages.insert("**", ColdMockPackageAccess { access: "$all", proxy: "npmjs" });
+    let upstream =
+        || ColdMockUpstreamEntry { kind: "upstream", url: origin.to_string(), public: true };
     let config = ColdMockConfig {
         storage: storage.display().to_string(),
         uplinks: ColdMockUplinks { npmjs: ColdMockUplink { url: origin.to_string() } },
         packages,
-        mounts: ColdMockMounts {
-            npmjs: ColdMockMount { kind: "upstream", url: origin.to_string(), public: true },
-        },
+        mounts: ColdMockUpstreamTable { npmjs: upstream() },
         default_target: "npmjs",
+        registries: ColdMockUpstreamTable { npmjs: upstream() },
+        default_registry: "npmjs",
         log: ColdMockLog { kind: "stdout", format: "pretty", level: "error" },
     };
     serde_saphyr::to_string(&config).expect("serialize cold mock config")
@@ -1684,9 +1687,12 @@ struct ColdMockConfig {
     storage: String,
     uplinks: ColdMockUplinks,
     packages: HashMap<&'static str, ColdMockPackageAccess>,
-    mounts: ColdMockMounts,
+    mounts: ColdMockUpstreamTable,
     #[serde(rename = "defaultTarget")]
     default_target: &'static str,
+    registries: ColdMockUpstreamTable,
+    #[serde(rename = "defaultRegistry")]
+    default_registry: &'static str,
     log: ColdMockLog,
 }
 
@@ -1706,15 +1712,17 @@ struct ColdMockPackageAccess {
     proxy: &'static str,
 }
 
+/// The `mounts:` / `registries:` table — the same single-upstream entry under
+/// either key, since the registries model kept the tagged-entry shape.
 #[derive(Serialize)]
-struct ColdMockMounts {
-    npmjs: ColdMockMount,
+struct ColdMockUpstreamTable {
+    npmjs: ColdMockUpstreamEntry,
 }
 
-/// One `mounts:` entry in the new mount model: the `type:` tag selects the kind
+/// One `mounts:`/`registries:` entry: the `type:` tag selects the kind
 /// (`upstream` here), and the kind's fields sit alongside it.
 #[derive(Serialize)]
-struct ColdMockMount {
+struct ColdMockUpstreamEntry {
     #[serde(rename = "type")]
     kind: &'static str,
     url: String,
