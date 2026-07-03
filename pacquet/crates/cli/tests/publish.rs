@@ -227,6 +227,30 @@ fn publish_a_directory_argument_publishes_that_package() {
     mock.assert();
 }
 
+/// A registry that rejects the `PUT` with a 5xx makes `pacquet publish` fail
+/// with the failed-to-publish error — the response completed, so this is not a
+/// transport error.
+#[test]
+fn errors_when_the_registry_rejects_the_publish() {
+    let dir = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    write_project(
+        dir.path(),
+        &registry,
+        &json!({ "name": "test-publish-rejected", "version": "1.0.0" }),
+    );
+    server.mock("PUT", "/test-publish-rejected").with_status(500).with_body("boom").create();
+
+    let output = publish(dir.path(), &[]);
+    assert!(!output.status.success(), "a 5xx registry response must fail the publish");
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("test-publish-rejected"),
+        "the failure should name the package; stderr: {}",
+        String::from_utf8_lossy(&output.stderr),
+    );
+}
+
 #[test]
 fn errors_when_publishing_a_nonexistent_tarball() {
     let dir = tempfile::tempdir().expect("workspace");
