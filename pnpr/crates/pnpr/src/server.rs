@@ -3042,10 +3042,16 @@ async fn serve_search(
         if objects.len() >= size {
             break;
         }
-        let Some(org) = state.inner.config.hosted.get(&source).map(|hosted| hosted.org.clone())
-        else {
+        let Some(hosted) = state.inner.config.hosted.get(&source) else {
             continue;
         };
+        // Fast path: a caller no rule of this registry could ever admit
+        // gets the empty result without a storage scan — the blanket mask
+        // must not become an enumeration (or scan-timing) primitive.
+        if !hosted.rules.any_access_admits(identity) {
+            continue;
+        }
+        let org = hosted.org.clone();
         let storage = hosted_storage(state, Some(&org));
         // The caller was resolved once by the middleware; both filters run
         // synchronously against it inside the scan. Visibility is

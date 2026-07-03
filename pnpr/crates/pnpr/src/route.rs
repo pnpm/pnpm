@@ -232,6 +232,14 @@ pub struct RouteContext {
     /// pnpr-hosted route is public (its effective access admits everyone)
     /// or private, and to gate hosted cache hits for the caller.
     hosted_rules: IndexMap<String, PackageRules>,
+    /// Each upstream registry's `packages:` rules. Alias selection is
+    /// per-package-aware: a caller the upstream's effective access denies
+    /// for a name is never handed the server-owned credential for it, so a
+    /// fresh resolve fails closed exactly where the serving endpoint would
+    /// deny the read. (Cache *replay* granularity stays registry-scoped:
+    /// the alias descriptor covers every name the alias resolves, shared
+    /// among callers the registry-level `access:` admits.)
+    upstream_rules: IndexMap<String, PackageRules>,
 }
 
 #[derive(Debug, Clone)]
@@ -307,6 +315,11 @@ impl RouteContext {
             .iter()
             .map(|(name, hosted)| (name.clone(), hosted.rules.clone()))
             .collect();
+        let upstream_rules = config
+            .upstreams
+            .iter()
+            .map(|(name, upstream)| (name.clone(), upstream.rules.clone()))
+            .collect();
         Self {
             hosted_origin,
             public_routes,
@@ -314,7 +327,19 @@ impl RouteContext {
             upstream_origins,
             registries: config.registries.clone(),
             hosted_rules,
+            upstream_rules,
         }
+    }
+
+    /// Whether the upstream registry's effective per-package access admits
+    /// `identity` for `package`. A non-package fetch and an upstream with no
+    /// rules entry (a programmatically folded one) gate at the registry
+    /// level only, which alias selection already checked.
+    fn upstream_admits(&self, registry: &str, identity: &Identity, package: Option<&str>) -> bool {
+        let (Some(package), Some(rules)) = (package, self.upstream_rules.get(registry)) else {
+            return true;
+        };
+        rules.for_package(package).access.allows(identity)
     }
 
     /// Classify a single fetch to `url` for `package` (`None` for a
@@ -358,10 +383,16 @@ impl RouteContext {
                     .iter()
                     .find(|alias| alias.name == registry && alias.access.allows(identity))
                 {
-                    return RouteClass::Proxied {
-                        alias: alias.name.clone(),
-                        credential_digest: alias.credential_digest.clone(),
-                    };
+                    // Per-package refinement: a name the upstream's rules
+                    // deny this caller gets no credential — the anonymous
+                    // fetch fails closed at the endpoint, matching serving.
+                    if self.upstream_admits(&alias.name, identity, package) {
+                        return RouteClass::Proxied {
+                            alias: alias.name.clone(),
+                            credential_digest: alias.credential_digest.clone(),
+                        };
+                    }
+                    return RouteClass::Public;
                 }
                 if self.hosted_rules.contains_key(registry) {
                     return self.classify_hosted(identity, registry, package);
@@ -385,7 +416,11 @@ impl RouteContext {
                         .aliases
                         .iter()
                         .find(|alias| alias.name == registry && alias.access.allows(identity))
-                    {
+                        .filter(|alias| {
+                            // Per-package refinement — see the `/~<name>/`
+                            // branch above.
+                            self.upstream_admits(&alias.name, identity, Some(package))
+                        }) {
                         Some(alias) => RouteClass::Proxied {
                             alias: alias.name.clone(),
                             credential_digest: alias.credential_digest.clone(),
@@ -402,7 +437,7 @@ impl RouteContext {
             };
         }
 
-        if let Some(alias) = self.select_alias(identity, &fetch)
+        if let Some(alias) = self.select_alias(identity, &fetch, package)
             && scheme_of(url) == Some(alias.scheme.as_str())
         {
             // Scheme must match the upstream's: nerf-darting strips it, so an
@@ -496,10 +531,17 @@ impl RouteContext {
         }
     }
 
-    fn select_alias(&self, identity: &Identity, fetch: &str) -> Option<&ResolvedAlias> {
-        self.aliases
-            .iter()
-            .find(|alias| fetch.starts_with(&alias.origin) && alias.access.allows(identity))
+    fn select_alias(
+        &self,
+        identity: &Identity,
+        fetch: &str,
+        package: Option<&str>,
+    ) -> Option<&ResolvedAlias> {
+        self.aliases.iter().find(|alias| {
+            fetch.starts_with(&alias.origin)
+                && alias.access.allows(identity)
+                && self.upstream_admits(&alias.name, identity, package)
+        })
     }
 
     pub(crate) fn allows_descriptor(
@@ -518,13 +560,20 @@ impl RouteContext {
                 // authorization-only check could replay a lockfile routed
                 // through a different `/~<name>/` endpoint than this caller
                 // resolves through. A since-removed alias (`find` → `None`) or
-                // a rotated credential also fails closed here.
+                // a rotated credential also fails closed here. Replay
+                // granularity is registry-scoped by design — the descriptor
+                // names no package, so the gate is the registry-level alias
+                // selection (`package: None`), shared among the callers the
+                // upstream's `access:` admits; per-package `access`
+                // refinements bound fresh resolves and every serving read.
                 self.aliases.iter().find(|candidate| candidate.name == alias.as_str()).is_some_and(
                     |candidate| {
-                        self.select_alias(identity, &candidate.origin).is_some_and(|selected| {
-                            selected.name == alias.as_str()
-                                && selected.credential_digest == *credential_digest
-                        })
+                        self.select_alias(identity, &candidate.origin, None).is_some_and(
+                            |selected| {
+                                selected.name == alias.as_str()
+                                    && selected.credential_digest == *credential_digest
+                            },
+                        )
                     },
                 )
             }

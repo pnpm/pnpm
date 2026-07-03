@@ -334,6 +334,21 @@ impl PackageRules {
     pub fn default_access(&self) -> &AccessList {
         &self.default_access
     }
+
+    /// Whether *any* name this registry serves could admit `identity`: the
+    /// registry-level default does, or some explicit entry's `access` does.
+    /// The search scan's fast path — a caller no rule could ever admit gets
+    /// the empty result without enumerating the registry's storage, so a
+    /// blanket-masked registry leaks neither package names nor its size
+    /// through scan timing.
+    #[must_use]
+    pub fn any_access_admits(&self, identity: &Identity) -> bool {
+        self.default_access.allows(identity)
+            || self
+                .rules
+                .iter()
+                .any(|rule| rule.access.as_ref().is_some_and(|access| access.allows(identity)))
+    }
 }
 
 #[cfg(test)]

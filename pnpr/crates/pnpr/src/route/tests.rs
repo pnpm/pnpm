@@ -262,6 +262,45 @@ fn upstream_with_access(registry: &str, access: &str) -> UpstreamConfig {
 }
 
 #[test]
+fn upstream_per_package_rules_gate_alias_selection() {
+    use crate::policy::{PackageRule, PackageRules};
+    use crate::registry::PackagePattern;
+
+    let mut config = base_config();
+    let mut upstream = upstream_with_access("https://npm.corp.example/", "$authenticated");
+    // The registry admits every authenticated caller, but `@corp/secret`
+    // is refined down to alice.
+    upstream.rules = PackageRules::new(
+        vec![PackageRule {
+            pattern: PackagePattern::parse("@corp/secret").expect("test pattern parses"),
+            access: Some(AccessList::parse("alice")),
+            publish: None,
+            unpublish: None,
+        }],
+        Some(AccessList::parse("$authenticated")),
+    );
+    config.upstreams.insert("corp".to_string(), upstream);
+    let context = RouteContext::from_config(&config);
+
+    let url = "https://npm.corp.example/@corp%2fsecret";
+    // Alice is admitted by the per-package rule: proxied with the credential.
+    assert!(matches!(
+        context.classify(&user("alice"), url, Some("@corp/secret")),
+        RouteClass::Proxied { .. },
+    ));
+    // Bob holds registry-level access but the per-package rule denies him:
+    // no credential is handed out, matching the serving endpoint's denial —
+    // his anonymous fetch fails closed instead of warming a private cache.
+    assert_eq!(context.classify(&user("bob"), url, Some("@corp/secret")), RouteClass::Public);
+    // Other names on the registry stay proxied for bob.
+    assert!(matches!(
+        context
+            .classify(&user("bob"), "https://npm.corp.example/@corp%2ftool", Some("@corp/tool"),),
+        RouteClass::Proxied { .. },
+    ));
+}
+
+#[test]
 fn upstream_with_access_is_a_proxied_route_matched_by_origin() {
     let mut config = base_config();
     config.upstreams.insert(
