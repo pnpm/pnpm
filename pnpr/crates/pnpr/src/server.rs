@@ -4,7 +4,7 @@ use crate::{
     error::RegistryError,
     journal::JournaledPublish,
     package_name::PackageName,
-    policy::Identity,
+    policy::{Identity, PackageRules},
     publish::{
         PendingAttachment, extract_attachments, iso_from_unix_millis, merge_manifest, now_iso,
         stream_decode_verify_and_write,
@@ -37,7 +37,7 @@ use ssri::Integrity;
 use std::{
     collections::HashSet,
     net::{IpAddr, SocketAddr},
-    sync::Arc,
+    sync::{Arc, LazyLock},
     time::Duration,
 };
 use tower_http::{
@@ -1173,27 +1173,29 @@ async fn serve_registry_version_manifest(
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    let bytes = match resolve_registry_source(state, registry, name.as_str()) {
+    let resolved_source = resolve_registry_source(state, registry, name.as_str());
+    let bytes = match &resolved_source {
         RegistrySource::Upstream(source) => {
-            // Per-package ACL before serving — see `serve_registry_packument`.
-            if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
+            // The upstream registry's per-package rules gate the read — see
+            // `serve_registry_packument`.
+            if let Err(err) =
+                authorize(state, identity, &resolved_source, name.as_str(), Action::Access)
+            {
                 return error_response(&err);
             }
-            match load_upstream_packument_for(state, identity, &source, &name).await {
+            match load_upstream_packument_for(state, identity, source, &name).await {
                 Ok(Some(bytes)) => bytes,
                 Ok(None) => return not_found(),
                 Err(response) => return *response,
             }
         }
         RegistrySource::Hosted(source) => {
-            // Mask first: a private org 404s an unauthorized caller before the
-            // per-package ACL could reveal existence — see `serve_registry_packument`.
-            let Some(org) = accessible_hosted_namespace(state, identity, &source) else {
-                return not_found();
+            // The hosted gate answers a denial itself — a not-found mask or
+            // an explicit-rule 401/403 — see `serve_registry_packument`.
+            let org = match hosted_read_namespace(state, identity, source, name.as_str()) {
+                Ok(org) => org,
+                Err(response) => return *response,
             };
-            if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
-                return error_response(&err);
-            }
             match state.inner.storage.for_hosted(&org).read_hosted_packument(&name).await {
                 Ok(Some(bytes)) => bytes,
                 Ok(None) => return not_found(),
@@ -1481,25 +1483,27 @@ async fn load_packument_for_read(
             None => return Ok(None),
         },
     };
-    // The per-package access ACL applies to every registry-served read, upstream or
-    // hosted — otherwise a restricted package would leak (e.g. its dist-tags)
-    // through these path-less readers. It runs *after* the hosted-org visibility
-    // gate, though, so a private org still 404-masks an unauthorized caller
-    // rather than revealing existence via a 401/403 (see `serve_registry_packument`).
-    match resolve_registry_source(state, &target, name.as_str()) {
+    // The resolved registry's per-package rules apply to every served read,
+    // upstream or hosted — otherwise a restricted package would leak (e.g.
+    // its dist-tags) through these path-less readers. A hosted denial is a
+    // not-found mask rather than a 401/403 that reveals existence (see
+    // `serve_registry_packument`).
+    let resolved_source = resolve_registry_source(state, &target, name.as_str());
+    match &resolved_source {
         RegistrySource::Upstream(source) => {
-            if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
+            if let Err(err) =
+                authorize(state, identity, &resolved_source, name.as_str(), Action::Access)
+            {
                 return Err(Box::new(error_response(&err)));
             }
-            load_upstream_packument_for(state, identity, &source, name).await
+            load_upstream_packument_for(state, identity, source, name).await
         }
         RegistrySource::Hosted(source) => {
-            let Some(org) = accessible_hosted_namespace(state, identity, &source) else {
-                return Ok(None);
+            let org = match hosted_gate(state, identity, source, name.as_str()) {
+                HostedGate::Allowed(org) => org,
+                HostedGate::MaskNotFound => return Ok(None),
+                HostedGate::Denied(err) => return Err(Box::new(error_response(&err))),
             };
-            if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
-                return Err(Box::new(error_response(&err)));
-            }
             state
                 .inner
                 .storage
@@ -1772,37 +1776,34 @@ fn resolve_registry_source(state: &AppState, registry: &str, package: &str) -> R
 /// cache, whichever URL surface (path-less or `/~<name>/`) served them.
 fn resolves_to_private_source(state: &AppState, registry: &str, package: &str) -> bool {
     match resolve_registry_source(state, registry, package) {
-        RegistrySource::Hosted(source) => state
-            .inner
-            .config
-            .hosted
-            .get(&source)
-            .is_some_and(|hosted| !hosted.access.allows(&Identity::Anonymous)),
-        RegistrySource::Upstream(source) => state
-            .inner
-            .config
-            .upstreams
-            .get(&source)
-            .is_some_and(|upstream| upstream.access.is_some()),
+        RegistrySource::Hosted(source) => {
+            state.inner.config.hosted.get(&source).is_some_and(|hosted| {
+                !hosted.rules.for_package(package).access.allows(&Identity::Anonymous)
+            })
+        }
+        // A private upstream (registry-level `access:`) is caller-gated for
+        // every name; a public one can still gate individual names through a
+        // per-package `access` rule.
+        RegistrySource::Upstream(source) => {
+            state.inner.config.upstreams.get(&source).is_some_and(|upstream| {
+                upstream.access.is_some()
+                    || !upstream.rules.for_package(package).access.allows(&Identity::Anonymous)
+            })
+        }
         RegistrySource::Unclaimed | RegistrySource::NotFound => false,
     }
 }
 
 /// Apply the private-cache headers to a path-less response whenever it can
 /// vary by caller — the default-target resolution for `package` lands on a
-/// private source, or the per-package ACL denies anonymous access (so the
-/// same URL answers 200 or 403 depending on `Authorization`, even through a
+/// source whose effective per-package access denies anonymous callers (so the
+/// same URL answers differently depending on `Authorization`, even through a
 /// public registry). These are the same headers the `/~<name>/` surface applies
 /// unconditionally, so the two URL surfaces for the same content get the same
 /// defense against a shared HTTP cache replaying an authenticated response to
 /// an anonymous caller. A publicly-readable resolution stays cacheable: the
 /// path-less base is the hot install path.
 fn private_if_caller_gated(state: &AppState, package: &str, response: Response) -> Response {
-    let acl_gated =
-        !state.inner.config.policies.for_package(package).access.allows(&Identity::Anonymous);
-    if acl_gated {
-        return private_no_cache(response);
-    }
     match default_registry_target(state) {
         Some(target) if resolves_to_private_source(state, &target, package) => {
             private_no_cache(response)
@@ -1829,24 +1830,26 @@ async fn serve_registry_packument(
     // packument's `dist.tarball` URLs must stay canonical for that base so a
     // client's lockfile drops them — persisting the resolved source path would
     // bake the registry name in and break lockfile portability.
-    match resolve_registry_source(state, registry, name.as_str()) {
+    let resolved_source = resolve_registry_source(state, registry, name.as_str());
+    match &resolved_source {
         RegistrySource::Upstream(source) => {
-            // The per-package access ACL applies to every registry-served read, so
-            // an access-gated name can't be read through a public upstream.
-            // Checked before serving so the decision precedes any
-            // existence-revealing signal like an OSV 403.
-            if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
+            // The upstream registry's per-package rules gate every served
+            // read, so an access-gated name can't be read even through a
+            // public upstream. Checked before serving so the decision
+            // precedes any existence-revealing signal like an OSV 403.
+            if let Err(err) =
+                authorize(state, identity, &resolved_source, name.as_str(), Action::Access)
+            {
                 return error_response(&err);
             }
-            serve_packument_via_upstream(state, identity, headers, &source, &name, tarball_base)
+            serve_packument_via_upstream(state, identity, headers, source, &name, tarball_base)
                 .await
         }
-        // A hosted registry masks first: a private org 404s an unauthorized caller
-        // (see `accessible_hosted_namespace`) *before* the per-package ACL could
-        // return a 401/403 that reveals the package exists — the ACL is applied
-        // inside `serve_hosted_packument` only after the visibility gate passes.
+        // A hosted denial answers per its gate tier (see `hosted_gate`): a
+        // registry-default denial is a not-found mask, an explicit
+        // `packages:` entry denies loudly so clients can prompt for auth.
         RegistrySource::Hosted(source) => {
-            serve_hosted_packument(state, identity, headers, &source, &name, tarball_base).await
+            serve_hosted_packument(state, identity, headers, source, &name, tarball_base).await
         }
         RegistrySource::Unclaimed | RegistrySource::NotFound => not_found(),
     }
@@ -1866,42 +1869,90 @@ async fn serve_registry_tarball(
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    match resolve_registry_source(state, registry, name.as_str()) {
+    let resolved_source = resolve_registry_source(state, registry, name.as_str());
+    match &resolved_source {
         RegistrySource::Upstream(source) => {
-            // Per-package ACL before serving — see `serve_registry_packument`.
-            if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
+            // Per-package rules before serving — see `serve_registry_packument`.
+            if let Err(err) =
+                authorize(state, identity, &resolved_source, name.as_str(), Action::Access)
+            {
                 return error_response(&err);
             }
-            serve_tarball_via_upstream(state, identity, &source, name.as_str(), filename).await
+            serve_tarball_via_upstream(state, identity, source, name.as_str(), filename).await
         }
-        // Hosted masks first (private-org 404) then applies the ACL, inside
-        // `serve_hosted_tarball` — see `serve_registry_packument`.
+        // A hosted denial is a not-found mask, inside `serve_hosted_tarball`
+        // — see `serve_registry_packument`.
         RegistrySource::Hosted(source) => {
-            serve_hosted_tarball(state, identity, &source, &name, filename).await
+            serve_hosted_tarball(state, identity, source, &name, filename).await
         }
         RegistrySource::Unclaimed | RegistrySource::NotFound => not_found(),
     }
 }
 
-/// The storage namespace of the hosted registry `source` when `identity` may
-/// access it, else `None`. The registry's `access` list gates reads and writes
-/// alike — a caller who may not read a hosted registry may not publish, tag, or
-/// unpublish into it either. A denied caller is treated as not-found, so a
-/// private org's package existence is not revealed. The org policy composes
-/// (logical AND) with the per-package [`Config::policies`] applied by the
-/// serving and publish paths.
-fn accessible_hosted_namespace(
+/// How a hosted registry answers a read of `package` for `identity`:
+/// admitted with the storage namespace to read from, or denied one of two
+/// ways. The two denial shapes preserve the two authorization tiers the
+/// merged `packages:` map folds together: an **explicit** entry's `access`
+/// is declared, discoverable config — deny loudly (401/403, so a client can
+/// prompt for credentials, the registry-mock `needs-auth` contract) — while
+/// the registry-level **default** masks as not-found, so a blanket-private
+/// registry never reveals which names exist.
+enum HostedGate {
+    Allowed(String),
+    /// The registry default denies the caller: indistinguishable from an
+    /// absent package.
+    MaskNotFound,
+    /// An explicit `packages:` entry denies the caller: 401 for an
+    /// anonymous caller (authenticate and retry), 403 for an authenticated
+    /// one outside the allowed set.
+    Denied(RegistryError),
+}
+
+/// Evaluate the hosted read gate: the effective per-package `access` (most
+/// specific `packages:` entry, falling back to the registry-level default)
+/// gates reads and the write routing alike — a caller who may not read a
+/// hosted package may not publish, tag, or unpublish it either.
+fn hosted_gate(state: &AppState, identity: &Identity, source: &str, package: &str) -> HostedGate {
+    let Some(hosted) = state.inner.config.hosted.get(source) else {
+        return HostedGate::MaskNotFound;
+    };
+    let effective = hosted.rules.for_package(package);
+    if effective.access.allows(identity) {
+        return HostedGate::Allowed(hosted.org.clone());
+    }
+    // Loud denial only inside a registry the caller may see: the explicit
+    // entry gates this name, but the registry-level default admits the
+    // caller to the registry itself. When the default denies them too, the
+    // mask below wins — an explicit rule on a blanket-private registry must
+    // not become an existence probe.
+    if effective.access_is_explicit && hosted.rules.default_access().allows(identity) {
+        return HostedGate::Denied(match identity {
+            Identity::Anonymous => {
+                RegistryError::Unauthenticated { resource: format!("package {package:?}") }
+            }
+            Identity::User { username, .. } => RegistryError::Forbidden {
+                user: username.clone(),
+                action: "access",
+                resource: format!("package {package:?}"),
+            },
+        });
+    }
+    HostedGate::MaskNotFound
+}
+
+/// [`hosted_gate`] flattened to a `Result` for the readers: the org to read
+/// from, or the response to answer with.
+fn hosted_read_namespace(
     state: &AppState,
     identity: &Identity,
     source: &str,
-) -> Option<String> {
-    state
-        .inner
-        .config
-        .hosted
-        .get(source)
-        .filter(|org| org.access.allows(identity))
-        .map(|org| org.org.clone())
+    package: &str,
+) -> Result<String, Box<Response>> {
+    match hosted_gate(state, identity, source, package) {
+        HostedGate::Allowed(org) => Ok(org),
+        HostedGate::MaskNotFound => Err(Box::new(not_found())),
+        HostedGate::Denied(err) => Err(Box::new(error_response(&err))),
+    }
 }
 
 async fn serve_hosted_packument(
@@ -1912,12 +1963,10 @@ async fn serve_hosted_packument(
     name: &PackageName,
     tarball_base: &str,
 ) -> Response {
-    let Some(org) = accessible_hosted_namespace(state, identity, source) else {
-        return not_found();
+    let org = match hosted_read_namespace(state, identity, source, name.as_str()) {
+        Ok(org) => org,
+        Err(response) => return *response,
     };
-    if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
-        return error_response(&err);
-    }
     // A hosted org has no upstream fallback: a package it does not host is a
     // definitive not-found. Reads come from the org's own storage namespace.
     match state.inner.storage.for_hosted(&org).read_hosted_packument(name).await {
@@ -1943,16 +1992,14 @@ async fn serve_hosted_tarball(
     name: &PackageName,
     filename: &str,
 ) -> Response {
-    let Some(org) = accessible_hosted_namespace(state, identity, source) else {
-        return not_found();
+    let org = match hosted_read_namespace(state, identity, source, name.as_str()) {
+        Ok(org) => org,
+        Err(response) => return *response,
     };
     let (filename, name_version) = match name.parse_tarball_name(filename) {
         Ok(parsed) => parsed,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
-        return error_response(&err);
-    }
     if let Err(err) = ensure_osv_allowed(state, name, &name_version) {
         return error_response(&err);
     }
@@ -2377,8 +2424,10 @@ fn hosted_storage(state: &AppState, org: Option<&str>) -> Storage {
 
 /// Where a publish of `package` writes, given an optional explicit `/~<name>/`.
 enum PublishTarget {
-    /// Write into this hosted storage namespace.
-    Org(String),
+    /// Write into the hosted registry `source`'s storage namespace `org`.
+    /// The source name is carried so the write's `publish`/`unpublish`
+    /// authorization can consult that registry's `packages:` rules.
+    Hosted { source: String, org: String },
     /// The resolved target is not a hosted org; reject with this reason.
     Reject(String),
     /// The resolved upstream registry denies this caller; answer with the
@@ -2418,9 +2467,10 @@ fn resolve_publish_target(
     };
     match resolve_registry_source(state, &target, package) {
         RegistrySource::Hosted(registry) => {
-            match accessible_hosted_namespace(state, identity, &registry) {
-                Some(org) => PublishTarget::Org(org),
-                None => PublishTarget::NotFound,
+            match hosted_gate(state, identity, &registry, package) {
+                HostedGate::Allowed(org) => PublishTarget::Hosted { source: registry, org },
+                HostedGate::MaskNotFound => PublishTarget::NotFound,
+                HostedGate::Denied(err) => PublishTarget::Denied(Box::new(error_response(&err))),
             }
         }
         // A write can never land on an upstream — but the upstream's `access:`
@@ -2461,9 +2511,15 @@ fn resolve_publish_target(
 /// any of its sources is.
 fn registry_visible_to_caller(state: &AppState, identity: &Identity, name: &str) -> bool {
     let concrete_visible = |name: &str| match state.inner.config.registries.get(name) {
-        Some(Registry::Hosted { .. }) => {
-            accessible_hosted_namespace(state, identity, name).is_some()
-        }
+        // The name being probed is unclaimed, so there is no per-package
+        // entry to consult: the registry-level default `access:` decides
+        // whether the caller may learn the registry exists at all.
+        Some(Registry::Hosted { .. }) => state
+            .inner
+            .config
+            .hosted
+            .get(name)
+            .is_some_and(|hosted| hosted.rules.default_access().allows(identity)),
         Some(Registry::Upstream { .. }) => true,
         Some(Registry::Router { .. }) | None => false,
     };
@@ -2509,22 +2565,14 @@ async fn publish_package(
         });
     }
 
-    // Route the write to its hosted namespace (or the flat store), failing
-    // closed when the target is an upstream, an unknown registry, or a hosted
-    // registry whose access list denies the caller.
-    let org = match resolve_publish_target(state, identity, registry, name.as_str()) {
-        PublishTarget::Org(org) => Some(org),
-        PublishTarget::Reject(reason) => {
-            return error_response(&RegistryError::BadRequest { reason });
-        }
-        PublishTarget::Denied(response) => return *response,
-        PublishTarget::NotFound => return not_found(),
-    };
-
-    let validated = match validate_publish_doc(state, identity, name, incoming).await {
-        Ok(validated) => validated,
-        Err(err) => return error_response(&err),
-    };
+    // Routing, masking, and the publish rule all run inside
+    // `validate_publish_doc`: the write resolves to a hosted registry (or
+    // fails closed), and that registry's `packages:` rules authorize it.
+    let (validated, target) =
+        match validate_publish_doc(state, identity, registry, name, incoming).await {
+            Ok(validated) => validated,
+            Err(response) => return *response,
+        };
 
     // Serialize the read-merge-write against other writers of this same
     // package on this instance, so a concurrent publish can't read the
@@ -2532,7 +2580,7 @@ async fn publish_package(
     // Held until this function returns, past the packument write below.
     let _packument_guard = state.inner.package_locks.lock(validated.name.as_str()).await;
 
-    let staged = match stage_publish(state, validated, &now_iso(), org.as_deref()).await {
+    let staged = match stage_publish(state, validated, &now_iso(), Some(&target.org)).await {
         Ok(staged) => staged,
         Err(err) => return error_response(&err),
     };
@@ -2601,46 +2649,27 @@ async fn serve_batch_publish(
                 reason: format!("duplicate package {:?} in `packages`", name.as_str()),
             });
         }
-        match validate_publish_doc(&state, &identity, name, doc).await {
+        // The batch endpoint is path-less, so each package routes via the
+        // default target; validation resolves that route and checks the
+        // resolved hosted registry's publish rule per document.
+        match validate_publish_doc(&state, &identity, None, name, doc).await {
             Ok(doc) => validated.push(doc),
-            Err(err) => return error_response(&err),
+            Err(response) => return *response,
         }
     }
 
     // Hold every affected package's lock across the whole
     // stage-and-commit, so concurrent writers of any package in the
     // batch serialize with us just like with a single publish.
-    let names: Vec<&str> = validated.iter().map(|doc| doc.name.as_str()).collect();
+    let names: Vec<&str> = validated.iter().map(|(doc, _)| doc.name.as_str()).collect();
     let _guards = state.inner.package_locks.lock_many(&names).await;
 
     let now = now_iso();
     let mut staged: Vec<StagedPublish> = Vec::with_capacity(validated.len());
-    for doc in validated {
-        // The batch endpoint is path-less, so each package routes via the
-        // default target (a router default routes by name; a concrete/absent
-        // default keeps the legacy flat store).
-        let org = match resolve_publish_target(&state, &identity, None, doc.name.as_str()) {
-            PublishTarget::Org(org) => Some(org),
-            PublishTarget::Reject(reason) => {
-                for stage in staged {
-                    cleanup_tmp_slots(stage.slots).await;
-                }
-                return error_response(&RegistryError::BadRequest { reason });
-            }
-            PublishTarget::Denied(response) => {
-                for stage in staged {
-                    cleanup_tmp_slots(stage.slots).await;
-                }
-                return *response;
-            }
-            PublishTarget::NotFound => {
-                for stage in staged {
-                    cleanup_tmp_slots(stage.slots).await;
-                }
-                return not_found();
-            }
-        };
-        match stage_publish(&state, doc, &now, org.as_deref()).await {
+    for (doc, target) in validated {
+        // Each document's write target was resolved during validation, so a
+        // routing failure surfaced before any tarball was staged.
+        match stage_publish(&state, doc, &now, Some(&target.org)).await {
             Ok(stage) => staged.push(stage),
             Err(err) => {
                 for stage in staged {
@@ -2685,11 +2714,37 @@ struct PreparedAttachment {
 async fn validate_publish_doc(
     state: &AppState,
     identity: &Identity,
+    registry: Option<&str>,
+    name: PackageName,
+    incoming: Value,
+) -> Result<(ValidatedPublish, WriteTarget), Box<Response>> {
+    // Route the write to its hosted registry first (masking a denied caller
+    // as not-found, rejecting an upstream target), then check that
+    // registry's `publish` rule for this package — so routing failures
+    // surface before any 401/403 that would reveal a masked name exists.
+    let target = resolve_write_target(state, identity, registry, &name)?;
+    authorize(
+        state,
+        identity,
+        &RegistrySource::Hosted(target.source.clone()),
+        name.as_str(),
+        Action::Publish,
+    )
+    .map_err(|err| Box::new(error_response(&err)))?;
+
+    let (validated, target) = validate_publish_attachments(name, incoming, target)
+        .map_err(|err| Box::new(error_response(&err)))?;
+    Ok((validated, target))
+}
+
+/// The attachment half of [`validate_publish_doc`], split out so the
+/// routing/authorization half above can use `?` on `Box<Response>` while
+/// this half keeps plain [`RegistryError`]s.
+fn validate_publish_attachments(
     name: PackageName,
     mut incoming: Value,
-) -> Result<ValidatedPublish, RegistryError> {
-    authorize(state, identity, name.as_str(), Action::Publish)?;
-
+    target: WriteTarget,
+) -> Result<(ValidatedPublish, WriteTarget), RegistryError> {
     let attachments = extract_attachments(&mut incoming)?;
 
     // Resolve each attachment's canonical disk filename + matching
@@ -2711,7 +2766,7 @@ async fn validate_publish_doc(
             .unwrap_or(Value::Null);
         prepared.push(PreparedAttachment { attachment, canonical, version, dist });
     }
-    Ok(ValidatedPublish { name, incoming, prepared })
+    Ok((ValidatedPublish { name, incoming, prepared }, target))
 }
 
 /// A publish whose packument is merged and whose tarballs are fully
@@ -2987,17 +3042,21 @@ async fn serve_search(
         if objects.len() >= size {
             break;
         }
-        let Some(org) = accessible_hosted_namespace(state, identity, &source) else {
+        let Some(org) = state.inner.config.hosted.get(&source).map(|hosted| hosted.org.clone())
+        else {
             continue;
         };
         let storage = hosted_storage(state, Some(&org));
         // The caller was resolved once by the middleware; both filters run
-        // synchronously against it inside the scan.
+        // synchronously against it inside the scan. Visibility is
+        // per-package: each hit is gated by this hosted registry's effective
+        // access for that name, so a per-package rule can open (or close) a
+        // name regardless of the registry-level default.
         let keep = |name: &str| {
             matches!(
                 resolve_registry_source(state, &registry, name),
                 RegistrySource::Hosted(resolved) if resolved == source,
-            ) && authorize(state, identity, name, Action::Access).is_ok()
+            ) && matches!(hosted_gate(state, identity, &source, name), HostedGate::Allowed(_))
         };
         match crate::search::run_local_search(&storage, &text, size - objects.len(), keep).await {
             Ok(mut entries) => objects.append(&mut entries),
@@ -3049,15 +3108,17 @@ async fn update_packument(
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
+    let target = match resolve_write_target(state, identity, registry, &name) {
+        Ok(target) => target,
+        Err(response) => return *response,
+    };
+    let source = RegistrySource::Hosted(target.source.clone());
     for action in [Action::Publish, Action::Unpublish] {
-        if let Err(err) = authorize(state, identity, name.as_str(), action) {
+        if let Err(err) = authorize(state, identity, &source, name.as_str(), action) {
             return error_response(&err);
         }
     }
-    let org = match resolve_write_org(state, identity, registry, &name) {
-        Ok(org) => org,
-        Err(response) => return *response,
-    };
+    let org = target.org;
     let storage = hosted_storage(state, Some(&org));
     let mut packument: Value = match serde_json::from_slice(body) {
         Ok(v) => v,
@@ -3269,13 +3330,20 @@ async fn delete_package(
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = authorize(state, identity, name.as_str(), Action::Unpublish) {
-        return error_response(&err);
-    }
-    let org = match resolve_write_org(state, identity, registry, &name) {
-        Ok(org) => org,
+    let target = match resolve_write_target(state, identity, registry, &name) {
+        Ok(target) => target,
         Err(response) => return *response,
     };
+    if let Err(err) = authorize(
+        state,
+        identity,
+        &RegistrySource::Hosted(target.source.clone()),
+        name.as_str(),
+        Action::Unpublish,
+    ) {
+        return error_response(&err);
+    }
+    let org = target.org;
     // Serialize against same-package publishers so a delete can't race a
     // stage-and-commit and remove the package mid-write.
     let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
@@ -3311,13 +3379,20 @@ async fn delete_tarball(
         Ok(c) => c,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = authorize(state, identity, name.as_str(), Action::Unpublish) {
-        return error_response(&err);
-    }
-    let org = match resolve_write_org(state, identity, registry, &name) {
-        Ok(org) => org,
+    let target = match resolve_write_target(state, identity, registry, &name) {
+        Ok(target) => target,
         Err(response) => return *response,
     };
+    if let Err(err) = authorize(
+        state,
+        identity,
+        &RegistrySource::Hosted(target.source.clone()),
+        name.as_str(),
+        Action::Unpublish,
+    ) {
+        return error_response(&err);
+    }
+    let org = target.org;
     // Serialize against same-package publishers so a delete can't race a
     // stage-and-commit and remove a tarball mid-write.
     let _packument_guard = state.inner.package_locks.lock(name.as_str()).await;
@@ -3420,15 +3495,23 @@ where
         Ok(n) => n,
         Err(err) => return error_response(&err),
     };
-    if let Err(err) = authorize(state, identity, name.as_str(), Action::Publish) {
-        return error_response(&err);
-    }
     // A dist-tag change is a write, so it routes to a hosted namespace like
-    // a publish — a name routed to an upstream is rejected.
-    let org = match resolve_write_org(state, identity, registry, &name) {
-        Ok(org) => org,
+    // a publish — a name routed to an upstream is rejected — and the
+    // resolved registry's `publish` rule gates it.
+    let target = match resolve_write_target(state, identity, registry, &name) {
+        Ok(target) => target,
         Err(response) => return *response,
     };
+    if let Err(err) = authorize(
+        state,
+        identity,
+        &RegistrySource::Hosted(target.source.clone()),
+        name.as_str(),
+        Action::Publish,
+    ) {
+        return error_response(&err);
+    }
+    let org = target.org;
     let storage = hosted_storage(state, Some(&org));
 
     // Serialize the read-modify-write against other same-package writers
@@ -3502,20 +3585,27 @@ where
 /// path-less, the default-target registry) to a hosted org, rejecting a name
 /// routed to an upstream and 404ing when the path-less base has no default
 /// target or the registry's access list denies the caller.
-fn resolve_write_org(
+fn resolve_write_target(
     state: &AppState,
     identity: &Identity,
     registry: Option<&str>,
     name: &PackageName,
-) -> Result<String, Box<Response>> {
+) -> Result<WriteTarget, Box<Response>> {
     match resolve_publish_target(state, identity, registry, name.as_str()) {
-        PublishTarget::Org(org) => Ok(org),
+        PublishTarget::Hosted { source, org } => Ok(WriteTarget { source, org }),
         PublishTarget::Reject(reason) => {
             Err(Box::new(error_response(&RegistryError::BadRequest { reason })))
         }
         PublishTarget::Denied(response) => Err(response),
         PublishTarget::NotFound => Err(Box::new(not_found())),
     }
+}
+
+/// The hosted registry a write resolved to: its name (for the
+/// `publish`/`unpublish` rule lookup) and its storage namespace.
+struct WriteTarget {
+    source: String,
+    org: String,
 }
 
 /// What the caller is trying to do with a package. Drives which
@@ -3653,18 +3743,41 @@ fn check_token_restrictions(
     Ok(())
 }
 
-/// Check an already-resolved `identity` against the per-package rule.
-/// Returns `Ok(())` when the call is allowed; otherwise the appropriate
-/// `Unauthenticated` / `Forbidden` error. The identity is resolved once by
-/// [`authenticate`], so every handler — including the search endpoint that
-/// filters many packages — authorizes synchronously against it.
+/// The `packages:` rules of the concrete registry a request resolved to.
+/// Authorization is entirely registry-scoped — there is no global,
+/// name-keyed ACL — so every check consults the one registry that serves
+/// the package. The fallback (safe defaults: reads open, publishes need
+/// auth, destructive writes denied) only fires for a programmatically
+/// built config whose serving tables miss the graph entry.
+fn source_rules<'a>(state: &'a AppState, source: &RegistrySource) -> &'a PackageRules {
+    static SAFE_DEFAULTS: LazyLock<PackageRules> = LazyLock::new(PackageRules::default);
+    match source {
+        RegistrySource::Hosted(name) => {
+            state.inner.config.hosted.get(name).map(|hosted| &hosted.rules)
+        }
+        RegistrySource::Upstream(name) => {
+            state.inner.config.upstreams.get(name).map(|upstream| &upstream.rules)
+        }
+        RegistrySource::Unclaimed | RegistrySource::NotFound => None,
+    }
+    .unwrap_or(&SAFE_DEFAULTS)
+}
+
+/// Check an already-resolved `identity` against the resolved source
+/// registry's per-package rule (the most specific `packages:` entry, its
+/// omitted fields falling back to the registry defaults). Returns `Ok(())`
+/// when the call is allowed; otherwise the appropriate `Unauthenticated` /
+/// `Forbidden` error. The identity is resolved once by [`authenticate`], so
+/// every handler — including the search endpoint that filters many packages —
+/// authorizes synchronously against it.
 fn authorize(
     state: &AppState,
     identity: &Identity,
+    source: &RegistrySource,
     package: &str,
     action: Action,
 ) -> Result<(), RegistryError> {
-    let effective = state.inner.config.policies.for_package(package);
+    let effective = source_rules(state, source).for_package(package);
     let list = match action {
         Action::Access => effective.access,
         Action::Publish => effective.publish,

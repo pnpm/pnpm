@@ -83,121 +83,111 @@ web:
 registries:
   # The locally-hosted fixtures (and anything published here). With no `org`,
   # this registry namespaces onto the flat `storage` root, where the fixtures are
-  # seeded. `patterns:` is the registry's declared namespace: only these names
-  # can be served from or published to this registry, so a name outside it can
-  # never squat here and later shadow its real origin.
+  # seeded. The `packages:` map is the registry's declared namespace (its key
+  # set) plus the per-package access rules (its values): only these names can
+  # be served from or published to this registry — so a name outside it can
+  # never squat here and later shadow its real origin — and each name is
+  # gated by its most specific matching key, whatever the key order. The
+  # `unpublish: $authenticated` value keeps the `@pnpm/registry-mock`
+  # contract (destructive writes open to any authenticated user), which the
+  # per-registry default (unpublish denied) would otherwise tighten.
   local:
     type: hosted
     access: $all
-    patterns:
+    packages:
       # Scopes seeded from the in-repo fixture sources
       # (`pnpr/.fixtures/packages/`). Scopes shared with real, active npm
       # scopes (`@pnpm`, `@zkochan`) are claimed by exact name instead — see
       # below — so proxied dependency trees can still pull the scope's other
       # real packages from npm.
-      - '@foo/*'
-      - '@having/*'
-      - '@jsr/*'
-      - '@pnpm.e2e/*'
-      - '@private/*'
-      - '@scoped/*'
-      - 'create-touch-file-one-bin'
+      '@foo/*': &default-rules { unpublish: $authenticated }
+      '@having/*': *default-rules
+      '@jsr/*': *default-rules
+      '@pnpm.e2e/*': *default-rules
+      '@private/*': &authenticated
+        access: $authenticated
+        publish: $authenticated
+        unpublish: $authenticated
+      '@scoped/*': *default-rules
+      'create-touch-file-one-bin': *default-rules
       # The fixture packages in the real `@pnpm` and `@zkochan` scopes, each
       # claimed by exact name.
-      - '@pnpm/plugin-pnpmfile'
-      - '@pnpm/postinstall-modifies-source'
-      - '@pnpm/x'
-      - '@pnpm/xyz'
-      - '@pnpm/xyz-parent'
-      - '@pnpm/xyz-parent-parent'
-      - '@pnpm/xyz-parent-parent-parent'
-      - '@pnpm/xyz-parent-parent-parent-parent'
-      - '@pnpm/xyz-parent-parent-with-xyz'
-      - '@pnpm/y'
-      - '@pnpm/z'
-      - '@zkochan/test-pnpm-issue219'
+      '@pnpm/plugin-pnpmfile': *default-rules
+      '@pnpm/postinstall-modifies-source': *default-rules
+      '@pnpm/x': *default-rules
+      '@pnpm/xyz': *default-rules
+      '@pnpm/xyz-parent': *default-rules
+      '@pnpm/xyz-parent-parent': *default-rules
+      '@pnpm/xyz-parent-parent-parent': *default-rules
+      '@pnpm/xyz-parent-parent-parent-parent': *default-rules
+      '@pnpm/xyz-parent-parent-with-xyz': *default-rules
+      '@pnpm/y': *default-rules
+      '@pnpm/z': *default-rules
+      '@zkochan/test-pnpm-issue219': *default-rules
       # Names tests publish to the mock and then read back. Exact names only —
       # an unscoped prefix wildcard would swallow real npm packages that
       # proxied dependency trees need (`test-*` would capture `test-exclude`).
       # A test publishing a new unscoped name must add it here; publishing
       # dynamically-suffixed names belongs in the `@pnpmtest` scope.
-      - '@pnpmtest/*'
-      - 'batch-dry-1'
-      - 'batch-dry-2'
-      - 'batch-no-recursive'
-      - 'batch-pkg-2'
-      - 'batch-unsupported-1'
-      - 'project-100'
-      - 'project-200'
-      - 'publish_config_directory_dist_package'
-      - 'test-deprecate-package'
-      - 'test-deprecate-specific'
-      - 'test-dist-tag-add'
-      - 'test-dist-tag-add-default'
-      - 'test-dist-tag-ls'
-      - 'test-dist-tag-ls-default'
-      - 'test-dist-tag-rm'
-      - 'test-dist-tag-rm-latest'
-      - 'test-dist-tag-rm-missing'
-      - 'test-publish-config'
-      - 'test-publish-config-directory'
-      - 'test-publish-config-installation'
-      - 'test-publish-helper-token-basic.json'
-      - 'test-publish-helper-token-bearer.json'
-      - 'test-publish-package-oidc.json'
-      - 'test-publish-package.json'
-      - 'test-publish-package.json5'
-      - 'test-publish-package.yaml'
-      - 'test-publish-scripts'
-      - 'test-publish-skip-manifest-obfuscation'
-      - 'test-publish-skip-manifest-obfuscation-installation'
-      - 'test-publish-tarball'
-      - 'test-publish-with-ignore-scripts'
-      - 'test-publish-with-scripts'
-      - 'test-undeprecate-pkg'
-      - 'test-unpublish-force'
-      - 'test-unpublish-no-force'
-      - 'test-unpublish-no-ver'
-      - 'test-unpublish-version'
-      - 'workspace-package-with-default-catalog'
-      - 'workspace-package-with-named-catalog'
-  # The public npm registry. No `patterns:` — it serves every name, the
+      '@pnpmtest/*': *default-rules
+      'batch-dry-1': *default-rules
+      'batch-dry-2': *default-rules
+      'batch-no-recursive': *default-rules
+      'batch-pkg-2': *default-rules
+      'batch-unsupported-1': *default-rules
+      'project-100': *default-rules
+      'project-200': *default-rules
+      'publish_config_directory_dist_package': *default-rules
+      'test-deprecate-package': *default-rules
+      'test-deprecate-specific': *default-rules
+      'test-dist-tag-add': *default-rules
+      'test-dist-tag-add-default': *default-rules
+      'test-dist-tag-ls': *default-rules
+      'test-dist-tag-ls-default': *default-rules
+      'test-dist-tag-rm': *default-rules
+      'test-dist-tag-rm-latest': *default-rules
+      'test-dist-tag-rm-missing': *default-rules
+      'test-publish-config': *default-rules
+      'test-publish-config-directory': *default-rules
+      'test-publish-config-installation': *default-rules
+      'test-publish-helper-token-basic.json': *default-rules
+      'test-publish-helper-token-bearer.json': *default-rules
+      'test-publish-package-oidc.json': *default-rules
+      'test-publish-package.json': *default-rules
+      'test-publish-package.json5': *default-rules
+      'test-publish-package.yaml': *default-rules
+      'test-publish-scripts': *default-rules
+      'test-publish-skip-manifest-obfuscation': *default-rules
+      'test-publish-skip-manifest-obfuscation-installation': *default-rules
+      'test-publish-tarball': *default-rules
+      'test-publish-with-ignore-scripts': *default-rules
+      'test-publish-with-scripts': *default-rules
+      'test-undeprecate-pkg': *default-rules
+      'test-unpublish-force': *default-rules
+      'test-unpublish-no-force': *default-rules
+      'test-unpublish-no-ver': *default-rules
+      'test-unpublish-version': *default-rules
+      'workspace-package-with-default-catalog': *default-rules
+      'workspace-package-with-named-catalog': *default-rules
+      # Tightened by exact name: wins over the '@pnpm.e2e/*' scope key by
+      # specificity, whatever the key order.
+      '@pnpm.e2e/needs-auth': *authenticated
+  # The public npm registry. No `packages:` map — it serves every name, the
   # catch-all in any router, so it must be listed last in `sources:` below.
   npmjs:
     type: upstream
     url: https://registry.npmjs.org/
     public: true
   # One URL routing each package to the first listed source whose declared
-  # patterns claim it. The fixture names are authoritative-local; everything
+  # packages claim it. The fixture names are authoritative-local; everything
   # else is npm. A router refuses to start on an unreachable source, so the
-  # pattern-less catch-all must stay last.
+  # map-less catch-all must stay last.
   main:
     type: router
     sources: [local, npmjs]
 
 # The path-less base URL (`https://<pnpr>/`) aliases this registry.
 defaultRegistry: main
-
-# Per-package access control (an ACL layer, independent of routing). With no
-# matching rule the built-in default allows authenticated publish but admits
-# no one to unpublish, so the `**` rule below keeps every non-tightened
-# package open for reads and authenticated for both write kinds — the
-# `@pnpm/registry-mock` contract the tests rely on.
-packages:
-  '@private/*':
-    access: $authenticated
-    publish: $authenticated
-    unpublish: $authenticated
-
-  '@pnpm.e2e/needs-auth':
-    access: $authenticated
-    publish: $authenticated
-    unpublish: $authenticated
-
-  '**':
-    access: $all
-    publish: $authenticated
-    unpublish: $authenticated
 
 # log settings (verdaccio 6+ shape: a single `log:` object, not a list)
 log:

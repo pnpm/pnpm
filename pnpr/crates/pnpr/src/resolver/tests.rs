@@ -18,7 +18,7 @@ use super::{
 };
 use crate::{
     config::{Config as RegistryConfig, PublicRoute, UpstreamConfig},
-    policy::{AccessList, Identity, PackagePolicies, PackagePolicy},
+    policy::{AccessList, Identity, PackageRule, PackageRules},
     route::{Footprint, PrivateAccessDescriptor, RouteContext},
 };
 
@@ -100,22 +100,28 @@ fn private_alias_footprint(alias: &str) -> Footprint {
     footprint
 }
 
-fn private_hosted_footprint(policy_id: &str) -> Footprint {
+fn private_hosted_footprint(registry: &str, package: &str) -> Footprint {
     let mut footprint = Footprint::default();
-    footprint.add(PrivateAccessDescriptor::Hosted { policy_id: policy_id.to_string() });
+    // Registry-qualified, matching `hosted_policy_id` in the route module.
+    footprint.add(PrivateAccessDescriptor::Hosted { policy_id: format!("{registry}\0{package}") });
     footprint
 }
 
-fn package_policies(pattern: &str, access: &str) -> PackagePolicies {
-    PackagePolicies::new(vec![
-        PackagePolicy::new(
-            pattern,
-            AccessList::parse(access),
-            AccessList::parse("$authenticated"),
-            AccessList::default(),
-        )
-        .expect("policy parses"),
-    ])
+/// Replace the `local` hosted registry's rules with a single-pattern map
+/// whose `access` is `access`, so a test can rotate who may read a hosted
+/// package.
+fn set_local_hosted_rules(config: &mut RegistryConfig, pattern: &str, access: &str) {
+    use crate::registry::PackagePattern;
+    let rules = PackageRules::new(
+        vec![PackageRule {
+            pattern: PackagePattern::parse(pattern).expect("test pattern parses"),
+            access: Some(AccessList::parse(access)),
+            publish: Some(AccessList::parse("$authenticated")),
+            unpublish: None,
+        }],
+        None,
+    );
+    config.hosted.get_mut("local").expect("proxy config has a local hosted registry").rules = rules;
 }
 
 fn lockfile(version: &str) -> Lockfile {
@@ -395,13 +401,13 @@ fn revoked_hosted_package_access_stops_matching_private_resolution_hits() {
         &cache,
         Duration::from_mins(1),
         key.clone(),
-        private_hosted_footprint("@private/pkg"),
+        private_hosted_footprint("local", "@private/pkg"),
         b"secret",
         &lockfile,
     ));
 
     let mut config = registry_config();
-    config.policies = package_policies("@private/*", "alice");
+    set_local_hosted_rules(&mut config, "@private/*", "alice");
     let context = RouteContext::from_config(&config);
     assert!(
         cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("alice")).is_some(),
@@ -410,7 +416,7 @@ fn revoked_hosted_package_access_stops_matching_private_resolution_hits() {
         cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("bob")).is_none(),
     );
 
-    config.policies = package_policies("@private/*", "bob");
+    set_local_hosted_rules(&mut config, "@private/*", "bob");
     let context = RouteContext::from_config(&config);
     assert!(
         cached_resolution(&cache, Duration::from_mins(1), &key, &context, &user("alice")).is_none(),

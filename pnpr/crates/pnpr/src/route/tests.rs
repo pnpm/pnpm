@@ -10,7 +10,7 @@ use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use super::{Footprint, PrivateAccessDescriptor, RouteClass, RouteContext, RouteHook};
 use crate::{
     config::{Config, PublicRoute, UpstreamConfig},
-    policy::{AccessList, Identity, PackagePolicies},
+    policy::{AccessList, Identity},
 };
 
 fn base_config() -> Config {
@@ -409,7 +409,9 @@ fn proxied_alias_accepts_configured_group_identity() {
 fn hosted_route_follows_package_access_policy() {
     let mut config = base_config();
     config.public_url = "https://pnpr.example/".to_string();
-    config.policies = PackagePolicies::registry_mock_defaults();
+    // `Config::proxy` carries the registry-mock rules on the `local` hosted
+    // registry: `@private/*` requires auth, the rest of the fixture
+    // namespace is open.
     let context = RouteContext::from_config(&config);
 
     // `@private/*` requires auth: private+gated for an authorized caller. An
@@ -422,7 +424,7 @@ fn hosted_route_follows_package_access_policy() {
             "https://pnpr.example/@private%2fpkg",
             Some("@private/pkg")
         ),
-        RouteClass::Hosted { policy_id: "@private/pkg".to_string() },
+        RouteClass::Hosted { policy_id: "local\0@private/pkg".to_string() },
     );
     assert_eq!(
         context.classify(&anon(), "https://pnpr.example/@private%2fpkg", Some("@private/pkg")),

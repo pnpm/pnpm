@@ -27,6 +27,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use indexmap::IndexMap;
 use pacquet_network::{MetadataCacheScope, UpstreamRouteHook, nerf_dart};
 use reqwest::header::{AUTHORIZATION, HeaderMap};
 use sha2::{Digest, Sha256};
@@ -34,7 +35,8 @@ use wax::{Glob, Program};
 
 use crate::{
     config::{Config, PublicRoute, UpstreamConfig},
-    policy::{AccessList, Identity, PackagePolicies},
+    policy::{AccessList, Identity, PackageRules},
+    registry::{ConcreteKind, Registries, Resolved},
 };
 
 /// The classification of a single fetch route.
@@ -221,9 +223,15 @@ pub struct RouteContext {
     /// plain mirror needs no credential, so it has no [`ResolvedAlias`]; it
     /// is still a configured registry pnpr may fetch from anonymously.
     upstream_origins: Vec<String>,
-    /// Package access policy, used to decide whether a pnpr-hosted route
-    /// is public (admits everyone) or private, and to gate hosted hits.
-    policies: PackagePolicies,
+    /// The registry routing graph, used to resolve a path-less fetch to the
+    /// concrete registry that serves it — the same dispatch the serving
+    /// endpoints use, so classification and serving can't disagree about a
+    /// package's origin.
+    registries: Registries,
+    /// Each hosted registry's `packages:` rules, used to decide whether a
+    /// pnpr-hosted route is public (its effective access admits everyone)
+    /// or private, and to gate hosted cache hits for the caller.
+    hosted_rules: IndexMap<String, PackageRules>,
 }
 
 #[derive(Debug, Clone)]
@@ -294,12 +302,18 @@ impl RouteContext {
             .collect();
         let upstream_origins =
             config.upstreams.values().filter_map(|upstream| nerf_prefix(&upstream.url)).collect();
+        let hosted_rules = config
+            .hosted
+            .iter()
+            .map(|(name, hosted)| (name.clone(), hosted.rules.clone()))
+            .collect();
         Self {
             hosted_origin,
             public_routes,
             aliases,
             upstream_origins,
-            policies: config.policies.clone(),
+            registries: config.registries.clone(),
+            hosted_rules,
         }
     }
 
@@ -328,29 +342,64 @@ impl RouteContext {
             && fetch.starts_with(hosted)
         {
             // A fetch to pnpr's own `/~<name>/` endpoint addresses that
-            // upstream, not a hosted package (a package name can never begin
-            // with `~`). Authorized callers resolve through the upstream;
-            // everyone else — and an unknown upstream — gets an anonymous
-            // fetch the endpoint itself rejects, rather than falling through
-            // to the hosted-package policy.
+            // registry directly (a package name can never begin with `~`):
+            // an access-bearing upstream resolves through its alias for
+            // authorized callers, a hosted registry through its own rules.
+            // Everyone else — and an unknown name — gets an anonymous fetch
+            // the endpoint itself rejects, rather than falling through to
+            // another registry's policy.
             if let Some(rest) = fetch.strip_prefix(hosted)
-                && let Some(upstream) =
+                && let Some(registry) =
                     rest.strip_prefix('~').and_then(|rest| rest.split('/').next())
-                && !upstream.is_empty()
+                && !registry.is_empty()
             {
-                return match self
+                if let Some(alias) = self
                     .aliases
                     .iter()
-                    .find(|alias| alias.name == upstream && alias.access.allows(identity))
+                    .find(|alias| alias.name == registry && alias.access.allows(identity))
                 {
-                    Some(alias) => RouteClass::Proxied {
+                    return RouteClass::Proxied {
                         alias: alias.name.clone(),
                         credential_digest: alias.credential_digest.clone(),
-                    },
-                    None => RouteClass::Public,
-                };
+                    };
+                }
+                if self.hosted_rules.contains_key(registry) {
+                    return self.classify_hosted(identity, registry, package);
+                }
+                return RouteClass::Public;
             }
-            return self.classify_hosted(identity, package);
+            // A path-less fetch resolves through the graph's default
+            // registry — the same dispatch the serving endpoints use — to
+            // the one concrete registry that serves this package.
+            let Some(package) = package else {
+                // A non-package fetch against pnpr itself carries no private
+                // package data to key.
+                return RouteClass::Public;
+            };
+            return match self.registries.resolve_default(package) {
+                Resolved::Concrete { registry, kind: ConcreteKind::Hosted } => {
+                    self.classify_hosted(identity, registry, Some(package))
+                }
+                Resolved::Concrete { registry, kind: ConcreteKind::Upstream } => {
+                    match self
+                        .aliases
+                        .iter()
+                        .find(|alias| alias.name == registry && alias.access.allows(identity))
+                    {
+                        Some(alias) => RouteClass::Proxied {
+                            alias: alias.name.clone(),
+                            credential_digest: alias.credential_digest.clone(),
+                        },
+                        // A public upstream source (no alias) is an anonymous
+                        // public fetch; an unauthorized caller falls through
+                        // to one the endpoint fails closed on.
+                        None => RouteClass::Public,
+                    }
+                }
+                // Unclaimed or no default registry: the endpoint answers
+                // not-found, so there is no private content to key.
+                Resolved::Unclaimed | Resolved::UnknownRegistry => RouteClass::Public,
+            };
         }
 
         if let Some(alias) = self.select_alias(identity, &fetch)
@@ -407,21 +456,32 @@ impl RouteContext {
         self.upstream_origins.iter().any(|origin| fetch.starts_with(origin))
     }
 
-    /// A pnpr-hosted route is public when its package access policy
-    /// admits an anonymous caller; otherwise it is private and gated by
-    /// re-running that policy for the caller.
-    fn classify_hosted(&self, identity: &Identity, package: Option<&str>) -> RouteClass {
+    /// A pnpr-hosted route is public when the hosted registry's effective
+    /// access for the package admits an anonymous caller; otherwise it is
+    /// private and gated by re-running that registry's rules for the caller.
+    /// The descriptor is registry-qualified — the same `name@version` on two
+    /// hosted registries is two different packages, so their cache entries
+    /// must never share a key.
+    fn classify_hosted(
+        &self,
+        identity: &Identity,
+        registry: &str,
+        package: Option<&str>,
+    ) -> RouteClass {
         let Some(package) = package else {
             // A non-package fetch against pnpr itself carries no private
             // package data to key.
             return RouteClass::Public;
         };
-        let access = self.policies.for_package(package).access;
+        let Some(rules) = self.hosted_rules.get(registry) else {
+            return RouteClass::Public;
+        };
+        let access = rules.for_package(package).access;
         if access.allows(&Identity::Anonymous) {
             return RouteClass::Public;
         }
         if access.allows(identity) {
-            RouteClass::Hosted { policy_id: package.to_string() }
+            RouteClass::Hosted { policy_id: hosted_policy_id(registry, package) }
         } else {
             // The caller can't read this hosted package: classify it as an
             // anonymous public fetch with no managed credential, which the
@@ -464,7 +524,16 @@ impl RouteContext {
                 )
             }
             PrivateAccessDescriptor::Hosted { policy_id } => {
-                self.policies.for_package(policy_id).access.allows(identity)
+                // The id is registry-qualified (see `hosted_policy_id`); a
+                // descriptor that doesn't parse — including one written by a
+                // pre-registry-scoped build — fails closed and re-resolves.
+                match policy_id.split_once('\0') {
+                    Some((registry, package)) => self
+                        .hosted_rules
+                        .get(registry)
+                        .is_some_and(|rules| rules.for_package(package).access.allows(identity)),
+                    None => false,
+                }
             }
         }
     }
@@ -479,6 +548,13 @@ impl RouteContext {
             .find(|candidate| candidate.name == upstream && candidate.access.allows(identity))
             .map(|candidate| candidate.registry.clone())
     }
+}
+
+/// The registry-qualified id of one hosted package's access decision, stored
+/// in [`PrivateAccessDescriptor::Hosted`]. `\0` separates the components so a
+/// registry name (URL-safe, never NUL) can't alias into a package name.
+fn hosted_policy_id(registry: &str, package: &str) -> String {
+    format!("{registry}\0{package}")
 }
 
 /// Nerf-darted origin of the official npm registry, the built-in public route.

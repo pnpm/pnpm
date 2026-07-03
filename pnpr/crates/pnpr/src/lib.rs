@@ -37,7 +37,7 @@ pub use config::{
 };
 pub use error::{RegistryError, Result};
 pub use journal::recover_publish_journal;
-pub use policy::{AccessList, AccessToken, Identity, PackagePolicies, PackagePolicy};
+pub use policy::{AccessList, AccessToken, Identity, PackageRule, PackageRules};
 pub use registry::{
     ConcreteKind, PackagePattern, Registries, Registry, RegistryConfigError, Resolved,
 };
