@@ -20,7 +20,7 @@ use crate::{
     failed_to_publish_error::FailedToPublishError,
     global_log::{global_info, global_warn},
     oidc::{OidcHttpOptions, escaped_package_name},
-    provenance_gen::{ProvenanceGenError, generate_provenance},
+    provenance_gen::{ProvenanceGenError, SignProvenance, generate_provenance},
     publish_options::{
         Access, CreatePublishOptionsError, CreatePublishOptionsInput, create_publish_options,
     },
@@ -71,7 +71,7 @@ pub async fn publish_packed_pkg<Sys, Reporter>(
     network: &PublishNetwork<'_>,
 ) -> Result<PublishSummary, PublishPackedPkgError>
 where
-    Sys: EnvVar + CiInfo + Clock + OidcFetch,
+    Sys: EnvVar + CiInfo + Clock + OidcFetch + SignProvenance,
     Reporter: self::Reporter,
 {
     let input = CreatePublishOptionsInput {

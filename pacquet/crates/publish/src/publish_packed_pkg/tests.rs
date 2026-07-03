@@ -7,6 +7,7 @@ use super::{
 use crate::{
     capabilities::{CiInfo, Clock, EnvVar, OidcFetch, OidcFetchError, OidcRequest, OidcResponse},
     oidc::OidcHttpOptions,
+    provenance_gen::{ProvenanceGenError, SignProvenance, SignedProvenance},
     publish_options::{CreatePublishOptionsError, PublishUnsupportedRegistryProtocolError},
     registry_config_keys::parse_supported_registry_url,
 };
@@ -609,6 +610,11 @@ impl OidcFetch for OfflineSys {
         unreachable!("a dry run makes no network request")
     }
 }
+impl SignProvenance for OfflineSys {
+    async fn sign_statement(_: &str, _: &[u8]) -> Result<SignedProvenance, ProvenanceGenError> {
+        unreachable!("a dry run never signs provenance")
+    }
+}
 
 /// A dry run resolves options and hashes the tarball, then returns the summary
 /// before the registry PUT. With an offline host no network request is made.
@@ -649,4 +655,111 @@ async fn publish_packed_pkg_dry_run_returns_the_summary_without_publishing() {
     assert_eq!(summary.size, tarball.len() as u64);
     assert_eq!(summary.unpacked_size, 42);
     assert_eq!(summary.stage_id, None);
+}
+
+/// A GitHub-Actions host wired for the whole `--provenance` publish flow: an
+/// `NPM_ID_TOKEN` short-circuits the OIDC id-token fetch, the `fetch` answers
+/// both the auth-token exchange and the sigstore-audience token request, the
+/// build-statement env is present, and the signer returns a canned bundle so no
+/// real sigstore call is made. The registry `PUT` itself still goes over the
+/// wire to the mocked server.
+struct ProvenanceSys;
+impl CiInfo for ProvenanceSys {
+    fn github_actions() -> bool {
+        true
+    }
+    fn gitlab() -> bool {
+        false
+    }
+}
+impl Clock for ProvenanceSys {
+    fn now_ms() -> u64 {
+        0
+    }
+}
+impl EnvVar for ProvenanceSys {
+    fn var(name: &str) -> Option<String> {
+        let value = match name {
+            "NPM_ID_TOKEN" => "npm-id-token",
+            "ACTIONS_ID_TOKEN_REQUEST_TOKEN" => "request-token",
+            "ACTIONS_ID_TOKEN_REQUEST_URL" => "https://github.example/token",
+            "GITHUB_SERVER_URL" => "https://github.com",
+            "GITHUB_REPOSITORY" => "pnpm/pnpm",
+            "GITHUB_WORKFLOW_REF" => "pnpm/pnpm/.github/workflows/release.yml@refs/heads/main",
+            "GITHUB_REF" => "refs/heads/main",
+            "GITHUB_SHA" => "abc123",
+            "RUNNER_ENVIRONMENT" => "github-hosted",
+            _ => return None,
+        };
+        Some(value.to_owned())
+    }
+}
+impl OidcFetch for ProvenanceSys {
+    async fn fetch(request: OidcRequest<'_>) -> Result<OidcResponse, OidcFetchError> {
+        let body = if request.url.contains("audience=sigstore") {
+            r#"{"value":"sigstore-token"}"#
+        } else if request.url.contains("/oidc/token/exchange/") {
+            r#"{"token":"registry-token"}"#
+        } else {
+            unreachable!("unexpected OIDC request: {}", request.url)
+        };
+        Ok(OidcResponse { ok: true, status: 200, body: body.to_owned() })
+    }
+}
+impl SignProvenance for ProvenanceSys {
+    async fn sign_statement(_: &str, _: &[u8]) -> Result<SignedProvenance, ProvenanceGenError> {
+        Ok(SignedProvenance {
+            media_type: "application/vnd.dev.sigstore.bundle.v0.3+json".to_owned(),
+            data: "signed-bundle-json".to_owned(),
+        })
+    }
+}
+
+/// The `--provenance` flow: `publish_packed_pkg` runs the *real*
+/// `generate_provenance` (only the signer is faked) and splices the signed
+/// `.sigstore` bundle into the document's `_attachments` before the `PUT`.
+#[tokio::test]
+async fn publish_packed_pkg_attaches_signed_provenance_to_the_document() {
+    let mut server = mockito::Server::new_async().await;
+    let manifest = json!({ "name": "pkg", "version": "1.0.0" });
+    let tarball = b"tarball-bytes";
+    let pkg = PackedPkg {
+        published_manifest: &manifest,
+        tarball_data: tarball,
+        tarball_path: "pkg-1.0.0.tgz",
+        contents: &[],
+        unpacked_size: 0,
+    };
+    let opts = PublishPackedPkgOptions {
+        default_registry: format!("{}/", server.url()),
+        scoped_registries: std::collections::BTreeMap::new(),
+        access: None,
+        tag: "latest".to_owned(),
+        otp: None,
+        provenance: Some(true),
+        dry_run: false,
+        stage: false,
+        http: OidcHttpOptions::default(),
+    };
+    let mock = server
+        .mock("PUT", "/pkg")
+        .match_body(mockito::Matcher::PartialJsonString(
+            r#"{"_attachments":{"pkg-1.0.0.sigstore":{"content_type":"application/vnd.dev.sigstore.bundle.v0.3+json","data":"signed-bundle-json"}}}"#
+                .to_owned(),
+        ))
+        .with_status(200)
+        .with_body("{}")
+        .expect(1)
+        .create_async()
+        .await;
+    let client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let network = PublishNetwork { client: &client, auth_headers: &auth_headers };
+
+    let summary = publish_packed_pkg::<ProvenanceSys, SilentReporter>(&pkg, &opts, &network)
+        .await
+        .expect("a provenance publish succeeds");
+
+    assert_eq!(summary.name, "pkg");
+    mock.assert_async().await;
 }

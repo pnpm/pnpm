@@ -1,6 +1,6 @@
 use super::{
-    ProvenanceGenError, build_statement, fetch_sigstore_token, github_statement, gitlab_statement,
-    npm_purl,
+    ProvenanceGenError, SignProvenance, SignedProvenance, build_statement, fetch_sigstore_token,
+    generate_provenance, github_statement, gitlab_statement, npm_purl,
 };
 use crate::{
     capabilities::{CiInfo, Clock, EnvVar, OidcFetch, OidcFetchError, OidcRequest, OidcResponse},
@@ -295,6 +295,115 @@ async fn fetch_sigstore_token_errors_when_gitlab_token_missing() {
     let err =
         fetch_sigstore_token::<Sys, SilentReporter>(&OidcHttpOptions::default()).await.unwrap_err();
     assert!(matches!(err, ProvenanceGenError::GitLabMissingToken));
+}
+
+/// A GitHub-Actions host wired for the whole `generate_provenance` path: the
+/// build-statement env ([`GhEnv`]), the id-token request env, a `fetch` that
+/// answers the `sigstore`-audience token request, and a fake signer that
+/// returns a canned bundle so no real Fulcio / Rekor call is made.
+struct GhSignSys;
+impl CiInfo for GhSignSys {
+    fn github_actions() -> bool {
+        true
+    }
+    fn gitlab() -> bool {
+        false
+    }
+}
+impl Clock for GhSignSys {
+    fn now_ms() -> u64 {
+        0
+    }
+}
+impl EnvVar for GhSignSys {
+    fn var(name: &str) -> Option<String> {
+        match name {
+            "ACTIONS_ID_TOKEN_REQUEST_TOKEN" => Some("request-token".to_owned()),
+            "ACTIONS_ID_TOKEN_REQUEST_URL" => Some("https://github.example/token".to_owned()),
+            _ => GhEnv::var(name),
+        }
+    }
+}
+impl OidcFetch for GhSignSys {
+    async fn fetch(request: OidcRequest<'_>) -> Result<OidcResponse, OidcFetchError> {
+        assert!(request.url.contains("audience=sigstore"), "unexpected request: {}", request.url);
+        Ok(OidcResponse { ok: true, status: 200, body: r#"{"value":"sigstore-token"}"#.to_owned() })
+    }
+}
+impl SignProvenance for GhSignSys {
+    async fn sign_statement(
+        jwt: &str,
+        statement: &[u8],
+    ) -> Result<SignedProvenance, ProvenanceGenError> {
+        assert_eq!(jwt, "sigstore-token", "the sigstore-audience token is passed to the signer");
+        assert!(!statement.is_empty(), "a serialized statement is signed");
+        Ok(SignedProvenance {
+            media_type: "application/vnd.dev.sigstore.bundle.v0.3+json".to_owned(),
+            data: r#"{"mediaType":"application/vnd.dev.sigstore.bundle.v0.3+json"}"#.to_owned(),
+        })
+    }
+}
+
+/// `generate_provenance` builds the statement, fetches the sigstore token, and
+/// hands both to the signer, wrapping the result as the `.sigstore` attachment.
+#[tokio::test]
+async fn generate_provenance_builds_the_signed_attachment() {
+    let attachment = generate_provenance::<GhSignSys, SilentReporter>(
+        "@scope/pkg",
+        "1.2.3",
+        b"tarball-bytes",
+        &OidcHttpOptions::default(),
+    )
+    .await
+    .expect("provenance generation succeeds");
+
+    assert_eq!(attachment.bundle_name, "@scope/pkg-1.2.3.sigstore");
+    assert_eq!(attachment.content_type, "application/vnd.dev.sigstore.bundle.v0.3+json");
+    assert_eq!(attachment.data, r#"{"mediaType":"application/vnd.dev.sigstore.bundle.v0.3+json"}"#);
+}
+
+/// A signer failure propagates as the publish-facing provenance error.
+#[tokio::test]
+async fn generate_provenance_surfaces_a_signer_failure() {
+    struct FailingSigner;
+    impl CiInfo for FailingSigner {
+        fn github_actions() -> bool {
+            true
+        }
+        fn gitlab() -> bool {
+            false
+        }
+    }
+    impl Clock for FailingSigner {
+        fn now_ms() -> u64 {
+            0
+        }
+    }
+    impl EnvVar for FailingSigner {
+        fn var(name: &str) -> Option<String> {
+            GhSignSys::var(name)
+        }
+    }
+    impl OidcFetch for FailingSigner {
+        async fn fetch(request: OidcRequest<'_>) -> Result<OidcResponse, OidcFetchError> {
+            GhSignSys::fetch(request).await
+        }
+    }
+    impl SignProvenance for FailingSigner {
+        async fn sign_statement(_: &str, _: &[u8]) -> Result<SignedProvenance, ProvenanceGenError> {
+            Err(ProvenanceGenError::Sign { source: "fulcio rejected the request".to_owned() })
+        }
+    }
+
+    let err = generate_provenance::<FailingSigner, SilentReporter>(
+        "pkg",
+        "1.0.0",
+        b"tarball",
+        &OidcHttpOptions::default(),
+    )
+    .await
+    .expect_err("a signer failure aborts provenance generation");
+    assert!(matches!(err, ProvenanceGenError::Sign { .. }), "got {err:?}");
 }
 
 #[tokio::test]

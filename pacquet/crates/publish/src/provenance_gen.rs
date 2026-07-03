@@ -19,7 +19,7 @@ use sha2::{Digest, Sha512};
 use sigstore_sign::{SigningContext, oidc::IdentityToken};
 
 use crate::{
-    capabilities::{CiInfo, Clock, EnvVar, OidcFetch, OidcFetchError},
+    capabilities::{CiInfo, Clock, EnvVar, Host, OidcFetch, OidcFetchError},
     global_log::global_info,
     oidc::{GitHubRequestTokenError, OidcHttpOptions, github_request_token, truthy_env},
 };
@@ -38,6 +38,7 @@ const SIGSTORE_AUDIENCE: &str = "sigstore";
 /// The `_attachments["<name>-<version>.sigstore"]` entry to splice into the
 /// publish document. `data` is the serialized bundle JSON (stored verbatim,
 /// not base64).
+#[derive(Debug)]
 pub struct ProvenanceAttachment {
     pub bundle_name: String,
     pub content_type: String,
@@ -54,7 +55,7 @@ pub async fn generate_provenance<Sys, Reporter>(
     options: &OidcHttpOptions,
 ) -> Result<ProvenanceAttachment, ProvenanceGenError>
 where
-    Sys: EnvVar + CiInfo + Clock + OidcFetch,
+    Sys: EnvVar + CiInfo + Clock + OidcFetch + SignProvenance,
     Reporter: self::Reporter,
 {
     let sha512_hex = format!("{:x}", Sha512::digest(tarball_data));
@@ -67,23 +68,52 @@ where
     let statement_bytes = serde_json::to_vec(&statement).expect("serialize provenance statement");
 
     let jwt = fetch_sigstore_token::<Sys, Reporter>(options).await?;
-    let token = IdentityToken::from_jwt(&jwt)
-        .map_err(|source| ProvenanceGenError::IdentityToken { source: source.to_string() })?;
-
-    let bundle = SigningContext::production()
-        .signer(token)
-        .sign_raw_statement(&statement_bytes)
-        .await
-        .map_err(|source| ProvenanceGenError::Sign { source: source.to_string() })?;
+    let signed = Sys::sign_statement(&jwt, &statement_bytes).await?;
 
     global_info::<Reporter>("Signed provenance statement with source and build information");
 
-    let data = serde_json::to_string(&bundle).expect("serialize sigstore bundle");
     Ok(ProvenanceAttachment {
         bundle_name: format!("{package_name}-{package_version}.sigstore"),
-        content_type: bundle.media_type,
-        data,
+        content_type: signed.media_type,
+        data: signed.data,
     })
+}
+
+/// Sign the in-toto SLSA statement into a sigstore bundle. The production
+/// [`Host`] impl performs the real keyless sigstore exchange (Fulcio
+/// certificate + Rekor transparency log) over the network; tests inject a fake
+/// so [`generate_provenance`] runs offline and deterministically.
+pub trait SignProvenance {
+    /// Sign `statement` (the serialized in-toto statement) using `jwt`, the
+    /// OIDC token minted for the `sigstore` audience.
+    fn sign_statement(
+        jwt: &str,
+        statement: &[u8],
+    ) -> impl Future<Output = Result<SignedProvenance, ProvenanceGenError>>;
+}
+
+/// A signed sigstore bundle: its media type and the serialized bundle JSON
+/// (stored verbatim in the publish document, not base64-encoded).
+pub struct SignedProvenance {
+    pub media_type: String,
+    pub data: String,
+}
+
+impl SignProvenance for Host {
+    async fn sign_statement(
+        jwt: &str,
+        statement: &[u8],
+    ) -> Result<SignedProvenance, ProvenanceGenError> {
+        let token = IdentityToken::from_jwt(jwt)
+            .map_err(|source| ProvenanceGenError::IdentityToken { source: source.to_string() })?;
+        let bundle = SigningContext::production()
+            .signer(token)
+            .sign_raw_statement(statement)
+            .await
+            .map_err(|source| ProvenanceGenError::Sign { source: source.to_string() })?;
+        let data = serde_json::to_string(&bundle).expect("serialize sigstore bundle");
+        Ok(SignedProvenance { media_type: bundle.media_type, data })
+    }
 }
 
 /// Format the npm package coordinate as a PURL
