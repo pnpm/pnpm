@@ -520,11 +520,11 @@ async function resolveNpm (
           calcSpecifier: opts.calcSpecifier,
           pinnedVersion: opts.pinnedVersion,
         })
-      } catch (workspaceErr: any) { // eslint-disable-line
+      } catch (workspaceErr) {
         // When the registry doesn't have the package and the workspace has it
         // only at non-matching versions, the mismatch error (which lists the
         // available workspace versions) is more actionable than the raw 404.
-        if (err.code === 'ERR_PNPM_FETCH_404' && workspaceErr.code === 'ERR_PNPM_NO_MATCHING_VERSION_INSIDE_WORKSPACE') {
+        if (err.code === 'ERR_PNPM_FETCH_404' && (workspaceErr as { code?: string }).code === 'ERR_PNPM_NO_MATCHING_VERSION_INSIDE_WORKSPACE') {
           throw workspaceErr
         }
       }
@@ -546,11 +546,11 @@ async function resolveNpm (
           calcSpecifier: opts.calcSpecifier,
           pinnedVersion: opts.pinnedVersion,
         })
-      } catch (workspaceErr: any) { // eslint-disable-line
+      } catch (workspaceErr) {
         // Neither the registry nor the workspace has a matching version; the
         // workspace mismatch error carries the available local versions,
         // which is the actionable detail here.
-        if (workspaceErr.code === 'ERR_PNPM_NO_MATCHING_VERSION_INSIDE_WORKSPACE') {
+        if ((workspaceErr as { code?: string }).code === 'ERR_PNPM_NO_MATCHING_VERSION_INSIDE_WORKSPACE') {
           throw workspaceErr
         }
       }
