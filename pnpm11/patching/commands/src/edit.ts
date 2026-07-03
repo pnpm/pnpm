@@ -1,7 +1,7 @@
-import { spawn } from 'node:child_process'
 import fs from 'node:fs'
 import fsPromises from 'node:fs/promises'
 import path from 'node:path'
+import util from 'node:util'
 
 import { docsUrl } from '@pnpm/cli.utils'
 import type { Config } from '@pnpm/config.reader'
@@ -195,24 +195,20 @@ export async function handler (opts: EditCommandOptions, params: string[]): Prom
   const safeCmd = resolveSafeEditorPath(cmd, lockfileDir)
   const finalCmd = safeCmd ?? cmd
 
-  await new Promise<void>((resolve, reject) => {
-    const child = spawn(finalCmd, args, {
+  try {
+    await execa(finalCmd, args, {
       stdio: 'inherit',
-      shell: false,
     })
-
-    child.on('exit', (code: number | null) => {
-      if (code === 0) {
-        resolve()
-      } else {
-        reject(new PnpmError('EDITOR_EXIT_ERROR', `Editor exited with non-zero code ${code}`))
-      }
-    })
-
-    child.on('error', (err: Error) => {
-      reject(new PnpmError('EDITOR_SPAWN_ERROR', `Failed to launch editor '${cmd}': ${err.message}`))
-    })
-  })
+  } catch (err: unknown) {
+    if (util.types.isNativeError(err) && 'exitCode' in err && typeof err.exitCode === 'number') {
+      throw new PnpmError('EDITOR_EXIT_ERROR', `Editor exited with code ${err.exitCode}`)
+    }
+    if (util.types.isNativeError(err) && 'signal' in err && err.signal) {
+      throw new PnpmError('EDITOR_SIGNAL_ERROR', `Editor was terminated with signal ${err.signal}`)
+    }
+    const reason = err instanceof Error ? err.message : String(err)
+    throw new PnpmError('EDITOR_SPAWN_ERROR', `Failed to launch editor '${cmd}': ${reason}`)
+  }
 
   const pkgToRebuild = parts[parts.length - 1]
   const execPath = process.execPath
