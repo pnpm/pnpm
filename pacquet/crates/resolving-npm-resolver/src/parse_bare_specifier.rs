@@ -157,9 +157,11 @@ pub struct NamedRegistryPackageSpec {
 #[derive(Debug, Display, Error, Diagnostic, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ParseNamedRegistrySpecifierError {
-    /// Scope without a `/<name>` segment. Always a configuration bug,
+    /// Malformed package name — a missing or empty scope/name segment,
+    /// or path separators inside the name. Always a configuration bug,
     /// refused so the user gets an immediate, actionable error instead
-    /// of a confusing downstream 404.
+    /// of a confusing downstream 404 (or a name that escapes into
+    /// registry URL paths and metadata cache file paths).
     #[display("The package name '{pkg_name}' in named registry '{registry_name}:' is invalid")]
     #[diagnostic(code(ERR_PNPM_INVALID_NAMED_REGISTRY_PACKAGE_NAME))]
     InvalidPackageName {
@@ -174,9 +176,9 @@ pub enum ParseNamedRegistrySpecifierError {
 ///
 /// Returns `Ok(None)` for any specifier that does not use one of the
 /// configured aliases (no colon, alias unknown, body unparsable) so
-/// the caller can fall through to other resolvers. Errors only for
-/// recoverable-by-the-user input — a scoped name with no `/<name>`
-/// segment.
+/// the caller can fall through to other resolvers. Errors when the
+/// alias matches but the package name is malformed (see
+/// [`ParseNamedRegistrySpecifierError::InvalidPackageName`]).
 ///
 /// Supported shapes:
 /// - `<alias>:[@<owner>/]<name>[@<version_selector>]`
@@ -216,12 +218,6 @@ pub fn parse_named_registry_specifier_to_registry_package_spec(
         } else {
             (&body[..last_at], Some(body[last_at + 1..].to_string()))
         };
-        if !name_part.contains('/') || name_part.ends_with('/') {
-            return Err(ParseNamedRegistrySpecifierError::InvalidPackageName {
-                registry_name: registry_name.to_string(),
-                pkg_name: name_part.to_string(),
-            });
-        }
         pkg_name = name_part.to_string();
         version_selector = ver_part;
     } else if package_alias.is_some_and(|alias| alias.starts_with('@')) {
@@ -244,6 +240,15 @@ pub fn parse_named_registry_specifier_to_registry_package_spec(
         version_selector = ver_part;
     }
 
+    // The name is used in registry URLs and metadata cache file paths, so
+    // path separator characters must never make it through.
+    if !is_well_formed_package_name(&pkg_name) {
+        return Err(ParseNamedRegistrySpecifierError::InvalidPackageName {
+            registry_name: registry_name.to_string(),
+            pkg_name,
+        });
+    }
+
     let selector_input = version_selector.as_deref().unwrap_or(default_tag);
     let Some(selector) = get_version_selector_type(selector_input) else {
         return Ok(None);
@@ -258,6 +263,19 @@ pub fn parse_named_registry_specifier_to_registry_package_spec(
         },
         registry_name: registry_name.to_string(),
     }))
+}
+
+fn is_well_formed_package_name(pkg_name: &str) -> bool {
+    if pkg_name.contains('\\') {
+        return false;
+    }
+    match pkg_name.strip_prefix('@') {
+        Some(scoped) => match scoped.split_once('/') {
+            Some((scope, name)) => !scope.is_empty() && !name.is_empty() && !name.contains('/'),
+            None => false,
+        },
+        None => !pkg_name.contains('/'),
+    }
 }
 
 /// Discriminate between an exact version, a semver range, and a

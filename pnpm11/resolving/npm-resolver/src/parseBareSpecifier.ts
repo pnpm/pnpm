@@ -95,6 +95,9 @@ export interface NamedRegistryPackageSpec extends RegistryPackageSpec {
 // Parses a named-registry specifier of the shape `<alias>:<body>` into a
 // RegistryPackageSpec. Returns `null` when the specifier does not use one of
 // the configured aliases, so the caller can fall through to other resolvers.
+// Throws INVALID_NAMED_REGISTRY_PACKAGE_NAME when the alias matches but the
+// package name is malformed (missing or empty scope/name segments, path
+// separators inside the name).
 // Supported shapes:
 // - `<alias>:[@<owner>/]<name>[@<version_selector>]`
 // - `<alias>:<version_selector>` paired with a package alias
@@ -128,12 +131,6 @@ export function parseNamedRegistrySpecifierToRegistryPackageSpec (
       pkgName = body.substring(0, index)
       versionSelector = body.substring(index + '@'.length)
     }
-    if (pkgName.indexOf('/') === -1 || pkgName.endsWith('/')) {
-      throw new PnpmError(
-        'INVALID_NAMED_REGISTRY_PACKAGE_NAME',
-        `The package name '${pkgName}' in named registry '${registryName}:' is invalid`
-      )
-    }
   } else if (packageAlias?.startsWith('@')) {
     // `<alias>:<tag>` paired with a scoped alias — body is a version
     // selector (tag/dist-tag). Mirrors GitHub Packages, where the package
@@ -152,6 +149,15 @@ export function parseNamedRegistrySpecifierToRegistryPackageSpec (
     if (!pkgName) return null
   }
 
+  // The name is used in registry URLs and metadata cache file paths, so
+  // path separator characters must never make it through.
+  if (!isWellFormedPackageName(pkgName)) {
+    throw new PnpmError(
+      'INVALID_NAMED_REGISTRY_PACKAGE_NAME',
+      `The package name '${pkgName}' in named registry '${registryName}:' is invalid`
+    )
+  }
+
   const selector = getVersionSelectorType(versionSelector ?? defaultTag)
   if (selector == null) return null
 
@@ -161,4 +167,16 @@ export function parseNamedRegistrySpecifierToRegistryPackageSpec (
     type: selector.type,
     registryName,
   }
+}
+
+function isWellFormedPackageName (pkgName: string): boolean {
+  if (pkgName.includes('\\')) return false
+  if (pkgName.startsWith('@')) {
+    const sepIndex = pkgName.indexOf('/')
+    if (sepIndex === -1) return false
+    const scope = pkgName.substring('@'.length, sepIndex)
+    const name = pkgName.substring(sepIndex + '/'.length)
+    return scope.length > 0 && name.length > 0 && !name.includes('/')
+  }
+  return !pkgName.includes('/')
 }

@@ -115,6 +115,20 @@ describe('parseNamedRegistrySpecifierToRegistryPackageSpec', () => {
     }))
   })
 
+  test('throws when the scope is empty', () => {
+    expect(() => parseNamedRegistrySpecifierToRegistryPackageSpec('gh:@/bar', GH_ALIASES, undefined, DEFAULT_TAG)).toThrow(expect.objectContaining({
+      code: 'ERR_PNPM_INVALID_NAMED_REGISTRY_PACKAGE_NAME',
+    }))
+  })
+
+  test('throws when the package name contains path separators', () => {
+    for (const rawSpecifier of ['gh:@acme/../foo', 'gh:@acme/foo/bar', 'gh:@acme/foo\\bar', 'gh:@sco\\pe/foo', 'gh:foo/../bar', 'gh:foo\\bar']) {
+      expect(() => parseNamedRegistrySpecifierToRegistryPackageSpec(rawSpecifier, GH_ALIASES, undefined, DEFAULT_TAG)).toThrow(expect.objectContaining({
+        code: 'ERR_PNPM_INVALID_NAMED_REGISTRY_PACKAGE_NAME',
+      }))
+    }
+  })
+
   test('does not claim <alias>:<version_selector> when no package alias is provided', () => {
     // No alias means we cannot know the package name — we must not hijack such specifiers.
     expect(parseNamedRegistrySpecifierToRegistryPackageSpec('gh:^1.0.0', GH_ALIASES, undefined, DEFAULT_TAG)).toBeNull()
