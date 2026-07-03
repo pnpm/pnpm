@@ -1,19 +1,26 @@
 use qrcode::{QrCode, render::unicode};
 
-/// Render `text` as a compact Unicode QR code for printing in a terminal.
+/// Render `text` as a compact half-block Unicode QR code for a terminal.
 ///
-/// Ports pnpm's `generateQrCode`, which used `qrcode-terminal` with
-/// `small: true`. The exact glyphs differ (this uses `qrcode`'s
-/// half-block `Dense1x2` renderer), but the encoded payload and
-/// scannability match.
+/// Light modules (including the quiet-zone border) are drawn as block
+/// glyphs and dark modules as blank cells, so on the usual light-on-dark
+/// terminal the code shows as dark modules inside a light frame — the
+/// orientation a QR scanner expects. This is why the renderer's dark and
+/// light colors are swapped from the crate default, which draws dark
+/// modules as glyphs and would render inverted and borderless on a dark
+/// terminal.
 ///
-/// Returns an error only when `text` is too long to fit in any QR version
-/// — pnpm treats this as a should-never-happen, but `text` comes from an
-/// untrusted registry response, so this surfaces it as a recoverable error
-/// rather than a panic.
+/// Returns an error only when `text` exceeds the maximum QR data capacity.
+/// `text` comes from an untrusted registry response, so an oversized
+/// payload surfaces as a recoverable error rather than a panic.
 pub fn generate_qr_code(text: &str) -> Result<String, GenerateQrCodeError> {
     QrCode::new(text)
-        .map(|code| code.render::<unicode::Dense1x2>().build())
+        .map(|code| {
+            code.render::<unicode::Dense1x2>()
+                .dark_color(unicode::Dense1x2::Light)
+                .light_color(unicode::Dense1x2::Dark)
+                .build()
+        })
         .map_err(|source| GenerateQrCodeError { reason: source.to_string() })
 }
 
