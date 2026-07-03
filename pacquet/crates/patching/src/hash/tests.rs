@@ -17,8 +17,7 @@ fn hashes_a_known_file() {
 }
 
 /// CRLF must normalize to LF — otherwise the same logical patch
-/// hashes differently on Windows vs POSIX. Mirrors upstream's
-/// [`readNormalizedFile`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/crypto/hash/src/index.ts#L36-L39).
+/// hashes differently on Windows vs POSIX.
 #[test]
 fn crlf_normalizes_to_lf() {
     let dir = tempdir().unwrap();
@@ -64,9 +63,7 @@ fn missing_file_errors() {
 }
 
 /// Invalid UTF-8 bytes are replaced with U+FFFD rather than
-/// erroring, matching Node.js `fs.readFile(path, 'utf8')` which
-/// upstream uses in
-/// [`readNormalizedFile`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/crypto/hash/src/index.ts#L36-L39).
+/// erroring, matching Node.js `fs.readFile(path, 'utf8')`.
 /// Three stray invalid bytes hash as three U+FFFD chars (each
 /// encoded as `0xEF 0xBF 0xBD` in UTF-8). The expected digest is
 /// the SHA-256 of those nine bytes, cross-checked against

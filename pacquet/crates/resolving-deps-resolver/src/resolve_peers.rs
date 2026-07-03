@@ -1,5 +1,4 @@
-//! Pacquet port of pnpm's
-//! [`resolvePeers`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolvePeers.ts).
+//! Resolves peer dependencies for a resolved dependency tree.
 //!
 //! Walks the per-occurrence [`crate::ResolvedTree::dependencies_tree`]
 //! depth-first, propagating a [`ParentRefs`] map of available parents
@@ -8,38 +7,28 @@
 //! Produces a [`DependenciesGraph`] keyed by depPath plus the
 //! `direct → DepPath` map the install layer consumes.
 //!
-//! **Scope of this port.** The slice landing here covers the
-//! correctness surface — peer matching, depPath construction with
-//! per-occurrence variation, missing / bad peer issue collection,
-//! transitive-peer propagation, and the basic cycle break — plus
-//! upstream's two performance caches:
+//! Beyond the correctness surface — peer matching, depPath construction
+//! with per-occurrence variation, missing / bad peer issue collection,
+//! transitive-peer propagation, and the basic cycle break — the walk
+//! carries two performance caches:
 //!
 //! - **`peersCache`** — caches resolved peer combinations keyed by
 //!   `pkgIdWithPatchHash` so a repeat visit short-circuits the walk
 //!   when the current parent peer context matches one the cache has
 //!   already seen. Stored on [`Walker::peers_cache`] and matched via
 //!   [`Walker::find_hit`] + [`Walker::parent_packages_match`].
-//!   Ported from upstream's
-//!   [`peersCache`](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolvePeers.ts#L342-L348).
 //! - **`purePkgs` fast path** — a pure package (no resolved / missing
 //!   peers across its entire subtree) gets its `depPath` equal to its
 //!   `pkgIdWithPatchHash` without recursing. Stored on
 //!   [`Walker::pure_pkgs`] and consulted at the top of
-//!   [`Walker::resolve_node`]. Ported from upstream's
-//!   [`purePkgs` early-return](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolvePeers.ts#L398-L406).
+//!   [`Walker::resolve_node`].
 //!   The set is populated bottom-up: a node lands in `purePkgs` only
 //!   when both its own walked subtree and (transitively) every cached
 //!   subtree it relies on report no resolved or missing peers.
 //!
-//! The one upstream optimisation pacquet does **not** port yet:
-//!
-//! - **`graph-cycles`-driven async deferment** — upstream's
-//!   `pathsByNodeIdPromises` lets a cyclic peer pick a `name@version`
-//!   peer-id once `analyzeGraph` confirms the cycle. Pacquet performs
-//!   a synchronous post-order traversal with an `in_progress` set; a
-//!   re-entry on the same `NodeId` falls back to `name@version` as
-//!   the peer-id, which is what upstream's cycle resolution converges
-//!   on anyway.
+//! Cycle handling is synchronous: a post-order traversal with an
+//! `in_progress` set, where a re-entry on the same `NodeId` falls back
+//! to `name@version` as the peer-id.
 
 use crate::{
     dedupe_injected_deps::dedupe_injected_deps,
@@ -74,20 +63,18 @@ use std::{
 /// fetched manifest, which the resolver doesn't read at resolve
 /// time); for those, fall back to `(alias, id-as-string)`. The peer
 /// graph machinery only ever looks the name up in
-/// [`ResolvedTree::all_peer_dep_names`] — a set that comes from
-/// upstream's `parsePeerDependencies` over npm-shaped packages — so
-/// the fallback's "name" will simply miss every lookup, naturally
-/// short-circuiting peer propagation for non-npm packages without
-/// panicking on `name_ver = None`.
+/// [`ResolvedTree::all_peer_dep_names`] — a set built by parsing the
+/// peer dependencies of npm-shaped packages — so the fallback's
+/// "name" will simply miss every lookup, naturally short-circuiting
+/// peer propagation for non-npm packages without panicking on
+/// `name_ver = None`.
 /// Reinterpret a `link:<rel>` [`NodeId`] as a [`DepPath`].
 ///
 /// Linked top-parent `NodeIds` (whether the workspace-link arm or the
 /// `excludeLinksFromLockfile` remap) never enter the dependency tree,
 /// so [`Walker::node_dep_paths`] never maps them. The `link:<rel>`
 /// `NodeId` is itself a well-formed pnpm `DepPath`, so the snapshot
-/// child edge can use it verbatim. Mirrors upstream's
-/// [`pathsByNodeId.get(childNodeId) ?? (childNodeId as unknown as DepPath)`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/resolvePeers.ts#L164)
-/// fallback in `resolveChildren`.
+/// child edge can use it verbatim.
 fn link_node_id_as_dep_path(node_id: &NodeId) -> Option<DepPath> {
     let NodeId::Leaf(id) = node_id else { return None };
     id.starts_with("link:").then(|| DepPath::from(id.to_string()))
@@ -112,16 +99,13 @@ fn pkg_name_version(result: &ResolveResult) -> (String, String) {
 #[derive(Debug, Clone)]
 pub struct ResolvePeersOptions {
     /// Cap on the rendered peer-suffix length before pacquet swaps the
-    /// suffix for its short hash. Mirrors upstream's
-    /// `peersSuffixMaxLength` (default 1000).
+    /// suffix for its short hash (default 1000).
     pub peers_suffix_max_length: usize,
 
     /// When `true`, every resolved-peer slot in the depPath suffix
     /// renders as `name@version` instead of the peer's own depPath,
     /// collapsing recursive peer suffixes like
-    /// `(foo@1.0.0(bar@2.0.0))` into `(foo@1.0.0)`. Mirrors pnpm's
-    /// [`dedupePeers`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-resolver/src/resolvePeers.ts#L990-L997)
-    /// branch in `peerNodeIdToPeerId`.
+    /// `(foo@1.0.0(bar@2.0.0))` into `(foo@1.0.0)`.
     pub dedupe_peers: bool,
 
     /// When `true`, `link:` direct dependencies whose target lives
@@ -129,8 +113,6 @@ pub struct ResolvePeersOptions {
     /// the peer-resolution parent map with a node id remapped to
     /// `link:<rel-from-lockfile_dir-to-modules_dir>/<alias>`, so peer
     /// resolution against those parents stays stable across machines.
-    /// Mirrors upstream's
-    /// [exclude-link `target` rewrite](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/index.ts#L232-L244).
     pub exclude_links_from_lockfile: bool,
 
     /// Absolute path of the directory `pnpm-lock.yaml` lives in. Used
@@ -147,10 +129,8 @@ pub struct ResolvePeersOptions {
     /// When `Some`, missing-peer issues declared inside a subtree
     /// whose root package's shared children context is owned by a
     /// *different* importer are not emitted. The peer-hoist loop sets
-    /// this so its input matches upstream, where a non-owner package
-    /// occurrence keeps the missing-peer report computed under the
-    /// owner occurrence's alias chain
-    /// ([`missingPeersOfChildrenByPkgId`](https://github.com/pnpm/pnpm/blob/a751c7f27d/installing/deps-resolver/src/resolveDependencies.ts#L193)) —
+    /// this so a non-owner package occurrence keeps the missing-peer
+    /// report computed under the owner occurrence's alias chain —
     /// only the package's *own* peers are re-evaluated per occurrence.
     /// The final workspace-wide pass leaves this `None` so warnings
     /// still cover every importer. Held by `Arc`: the maps inside are
@@ -172,10 +152,10 @@ pub struct HoistMissingScope {
     /// [`crate::WorkspaceTreeCtx::first_walk_missing_by_pkg`]. A
     /// missing peer inside a foreign-claimed subtree is suppressed
     /// only when the owner's walk did *not* report it missing —
-    /// i.e. that context satisfied it, which is what upstream's
-    /// shared children report filtered out at walk time. Misses the
-    /// owner walk could not satisfy stay visible to every importer
-    /// (and each hoists its own copy).
+    /// i.e. that context satisfied it, so the shared children report
+    /// filtered it out at walk time. Misses the owner walk could not
+    /// satisfy stay visible to every importer (and each hoists its
+    /// own copy).
     pub first_walk_missing_by_pkg: HashMap<String, std::collections::HashSet<String>>,
 }
 
@@ -208,16 +188,14 @@ impl Default for ResolvePeersOptions {
     }
 }
 
-/// Output bag of [`fn@resolve_peers`]. Mirrors upstream's
-/// [`resolvePeers` return shape](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolvePeers.ts#L101-L102).
+/// Output bag of [`fn@resolve_peers`].
 #[derive(Debug, Default)]
 pub struct ResolvePeersResult {
     pub graph: DependenciesGraph,
     pub direct_dependencies_by_alias: BTreeMap<String, DepPath>,
     /// Real peer providers that were resolved from inside the walked
     /// dependency tree. The auto-install-peers loop appends these to
-    /// the importer's hidden direct-dep set, matching pnpm's
-    /// resolver-stage `resolvedPeers` handling.
+    /// the importer's hidden direct-dep set.
     pub resolved_peer_providers_by_alias: BTreeMap<String, NodeId>,
     pub peer_dependency_issues: PeerDependencyIssues,
     /// Per resolved package: the union of missing-peer names its
@@ -232,8 +210,6 @@ pub struct ResolvePeersResult {
 /// — the lockfile importer id, the importer's `directNodeIdsByAlias`
 /// slice, the absolute project root, and the per-importer
 /// `modules_dir` used by the `excludeLinksFromLockfile` link-remap.
-/// Mirrors the per-project payload pnpm's `resolvePeers` reads off
-/// `opts.projects`.
 #[derive(Debug, Clone)]
 pub struct ImporterPeerInput {
     pub id: String,
@@ -291,12 +267,10 @@ pub fn resolve_peers(tree: &mut ResolvedTree, opts: ResolvePeersOptions) -> Reso
 /// the shared `tree`, then rewrite injected workspace deps that
 /// dedupe back to `link:` symlinks.
 ///
-/// Mirrors pnpm's
-/// [`resolvePeers`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-resolver/src/resolvePeers.ts#L72)
-/// multi-importer entry point: one Walker walks every importer's
-/// direct deps in sequence so `peersCache` + `purePkgs` are shared
-/// across importers, then the in-crate `dedupe_injected_deps` pass
-/// runs once with all importers' direct deps in scope.
+/// One Walker walks every importer's direct deps in sequence so
+/// `peersCache` + `purePkgs` are shared across importers, then the
+/// in-crate `dedupe_injected_deps` pass runs once with all importers'
+/// direct deps in scope.
 pub fn resolve_peers_workspace(
     tree: &mut ResolvedTree,
     importers: &[ImporterPeerInput],
@@ -413,31 +387,27 @@ pub fn resolve_peers_workspace(
     }
 }
 
-/// Per-name entry in the propagating [`ParentRefs`] map. Mirrors upstream's
-/// [`ParentRef`](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolvePeers.ts#L998-L1006).
+/// Per-name entry in the propagating [`ParentRefs`] map.
 #[derive(Debug, Clone)]
 struct ParentRef {
     version: String,
-    /// `None` for top-level deps that were already installed (upstream
-    /// fills these from `topParents`). Pacquet doesn't surface those
-    /// yet — `None` only appears on the importer-level cycle-break
-    /// fallback, where the `name@version` form of the peer-id is the
-    /// only useful representation.
+    /// `None` for top-level deps that were already installed. Pacquet
+    /// doesn't surface those yet — `None` only appears on the
+    /// importer-level cycle-break fallback, where the `name@version`
+    /// form of the peer-id is the only useful representation.
     node_id: Option<NodeId>,
     /// Local install name in `node_modules`. May differ from the
     /// package's real name for npm-alias entries.
     alias: Option<String>,
     /// Depth at which this parent was added. Threaded into
     /// [`ParentPkgInfo`] so [`Walker::parent_packages_match`] can
-    /// apply upstream's depth-equality fallback when peer
-    /// dependencies are shadowed across occurrences. Mirrors
-    /// upstream's `ParentRef.depth`.
+    /// apply the depth-equality fallback when peer dependencies are
+    /// shadowed across occurrences.
     depth: i32,
     /// Per-name shadowing counter. Incremented when a same-name
     /// parent is added at a deeper walk that doesn't match the
-    /// existing entry. Mirrors upstream's `ParentRef.occurrence`;
-    /// used by [`Walker::parent_packages_match`] to detect
-    /// shadowed peers.
+    /// existing entry. Used by [`Walker::parent_packages_match`] to
+    /// detect shadowed peers.
     occurrence: u32,
 }
 
@@ -459,15 +429,14 @@ struct Walker<'tree> {
     opts: ResolvePeersOptions,
     graph: DependenciesGraph,
     issues: PeerDependencyIssues,
-    /// `NodeId → DepPath` once a node has been walked. Mirrors
-    /// upstream's `pathsByNodeId` map. Lets repeated visits (an
-    /// importer-direct dep that's also reached transitively) reuse the
-    /// already-computed depPath.
+    /// `NodeId → DepPath` once a node has been walked. Lets repeated
+    /// visits (an importer-direct dep that's also reached transitively)
+    /// reuse the already-computed depPath.
     node_dep_paths: HashMap<NodeId, DepPath>,
     /// Peers each node and its subtree resolved against ancestors —
-    /// the "unknown resolved peers" upstream propagates up so a parent
-    /// can fold its descendants' peer dependencies into its own peer
-    /// suffix. Indexed by `NodeId`; value's keys are peer aliases.
+    /// the "unknown resolved peers" propagated up so a parent can fold
+    /// its descendants' peer dependencies into its own peer suffix.
+    /// Indexed by `NodeId`; value's keys are peer aliases.
     node_external_peers: HashMap<NodeId, HashMap<String, NodeId>>,
     /// Peers each node and its subtree declared but couldn't find.
     /// Indexed by `NodeId`; value's keys are peer aliases.
@@ -477,8 +446,7 @@ struct Walker<'tree> {
     node_missing_peers_of_children: HashMap<NodeId, HashMap<String, MissingPeerInfo>>,
     /// Resolver-stage real peer providers seen while walking the tree.
     /// This intentionally excludes `peerDependenciesMeta`-only entries:
-    /// pnpm's auto-install pass is fed by `getMissingPeers`, which reads
-    /// real `peerDependencies` entries only.
+    /// the auto-install pass reads real `peerDependencies` entries only.
     resolved_peer_providers_by_alias: BTreeMap<String, NodeId>,
     /// Stack of nodes currently being walked. Re-entry on a node here
     /// is a cycle — the recursion bottoms out with a `name@version`
@@ -497,8 +465,7 @@ struct Walker<'tree> {
     /// with zero external peers and zero missing peers. A revisit of
     /// any such package whose own `peerDependencies` is empty
     /// short-circuits with `depPath = pkgIdWithPatchHash` — no
-    /// recursion, no peersCache lookup. Mirrors upstream's
-    /// [`purePkgs` early-return](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolvePeers.ts#L398-L406).
+    /// recursion, no peersCache lookup.
     /// Populated bottom-up: a node is added when its local `is_pure`
     /// flag is true after its own walk completes.
     pure_pkgs: HashSet<String>,
@@ -508,14 +475,11 @@ struct Walker<'tree> {
     /// info)` missing set produced by one specific parent peer
     /// context. [`Walker::find_hit`] iterates the bucket and accepts
     /// the first item whose cached context is compatible with the
-    /// current call's `child_parent_refs`. Mirrors upstream's
-    /// [`peersCache`](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolvePeers.ts#L342-L348)
-    /// + [`findHit`](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolvePeers.ts#L660-L699).
+    /// current call's `child_parent_refs`.
     ///
-    /// The matcher omits upstream's `parentPackagesMatch` deep check
-    /// `find_hit` calls
-    /// [`Walker::parent_packages_match`] for the deep check upstream
-    /// runs via `parentPkgsOfNode`.
+    /// [`Walker::find_hit`] calls [`Walker::parent_packages_match`] for
+    /// the deep check, which compares against the parent context
+    /// snapshots held in [`Walker::parent_pkgs_of_node`].
     peers_cache: HashMap<String, Vec<PeersCacheItem>>,
     /// Per-`NodeId` snapshot of the parent peer context (peer-relevant
     /// names → [`ParentPkgInfo`]) recorded at the moment the walker
@@ -524,9 +488,7 @@ struct Walker<'tree> {
     /// cache hit only when each of its resolved-peer `NodeId`s has an
     /// entry here whose recorded parent context still matches the
     /// current walk's `parent_refs` (or, for `purePkgs` peers, the
-    /// presence-and-pkg-id match short-circuit). Mirrors upstream's
-    /// [`parentPkgsOfNode`](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolvePeers.ts#L356)
-    /// + [`parentPackagesMatch`](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolvePeers.ts#L701-L731).
+    /// presence-and-pkg-id match short-circuit).
     parent_pkgs_of_node: HashMap<NodeId, HashMap<String, ParentPkgInfo>>,
     /// Per-`NodeId` snapshot captured at graph-insert time, consumed by
     /// the post-walk [`Walker::build_final_dep_paths`] /
@@ -537,10 +499,8 @@ struct Walker<'tree> {
 
 /// Per-peer-name snapshot stored on [`Walker::parent_pkgs_of_node`].
 ///
-/// Mirrors upstream's
-/// [`ParentPkgInfo`](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolvePeers.ts#L364-L369).
 /// `pkg_id` is `None` for parents that came in without a real
-/// `NodeId` (the importer-level `topParents` path upstream); those
+/// `NodeId` (the importer-level `topParents` path); those
 /// fall back to a pure `version` comparison.
 #[derive(Debug, Clone)]
 struct ParentPkgInfo {
@@ -560,7 +520,7 @@ struct ParentPkgInfo {
 /// walk surfaced — when a cache item carries a missing peer that the
 /// current parent context *does* provide, the contexts are
 /// incompatible and the item must be rejected. `missing_peers_of_children`
-/// is the subset upstream exposes as the package's children report.
+/// is the subset exposed as the package's children report.
 struct PeersCacheItem {
     dep_path: DepPath,
     resolved_peers: HashMap<String, NodeId>,
@@ -580,9 +540,7 @@ struct PendingPeerEdge {
 
 /// Per-`NodeId` data captured during the walk so the post-walk
 /// [`Walker::build_final_dep_paths`] pass can recompute each node's
-/// depPath with its resolved peers' *full* suffixes — matching pnpm's
-/// deferred [`calculateDepPath`](https://github.com/pnpm/pnpm/blob/894ea6af2c/installing/deps-resolver/src/resolvePeers.ts#L629),
-/// which awaits each pending peer's depPath and collapses to
+/// depPath with its resolved peers' *full* suffixes, collapsing to
 /// `name@version` only for genuinely detected cycles.
 ///
 /// The walk itself is left untouched: it still computes the provisional
@@ -606,11 +564,10 @@ struct NodeRecord {
 }
 
 /// Sentinel for "this node's subtree is still missing peer `X`". The
-/// `range` + `optional` payload mirrors upstream's `MissingPeers` map
-/// value; pacquet records them for upstream parity (and for the
-/// `peersCache` lookup ported in a later slice) but the
-/// issue-collection path uses [`PeerDependencyIssues::missing`]
-/// directly, so neither field is read after construction yet.
+/// `range` + `optional` payload is recorded for a future `peersCache`
+/// lookup, but the issue-collection path uses
+/// [`PeerDependencyIssues::missing`] directly, so neither field is read
+/// after construction yet.
 #[derive(Debug, Clone)]
 struct MissingPeerInfo {
     #[allow(dead_code, reason = "future peersCache validation")]
@@ -630,8 +587,7 @@ struct NodeOutput {
     /// are absorbed into the children's depPaths).
     external_resolved_peers: HashMap<String, NodeId>,
     /// Real `peerDependencies` resolved anywhere in this node's
-    /// subtree. This mirrors the dependency-resolution phase's
-    /// `resolvedPeers` bag that feeds pnpm's auto-install-peers loop.
+    /// subtree. This feeds the auto-install-peers loop.
     auto_install_resolved_peers: HashMap<String, NodeId>,
     missing_peers: HashMap<String, MissingPeerInfo>,
 }
@@ -719,17 +675,14 @@ impl Walker<'_> {
 
     /// Build the seed [`ParentRefs`] from the importer's direct deps so
     /// a direct dep's peer requirements can be satisfied by a sibling
-    /// direct dep. Mirrors upstream's `pkgsByName` initialisation at
-    /// the entry of `resolvePeers`.
+    /// direct dep.
     ///
     /// `link:` direct deps whose target lives outside
     /// [`ResolvePeersOptions::lockfile_dir`] are seeded with a node id
     /// rewritten to `link:<rel-from-lockfile_dir-to-modules_dir>/<alias>`
     /// when [`ResolvePeersOptions::exclude_links_from_lockfile`] is on
     /// — keeping the peer-suffix segment stable across machines
-    /// regardless of the absolute path of the external link. Mirrors
-    /// upstream's
-    /// [`target` rewrite in `index.ts`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/index.ts#L232-L244).
+    /// regardless of the absolute path of the external link.
     fn build_importer_parents(&self) -> ParentRefs {
         self.build_importer_parents_from(&self.tree.direct)
     }
@@ -777,8 +730,7 @@ impl Walker<'_> {
         // zero missing peers on a previous walk, AND this package
         // itself declares no `peerDependencies`, the `depPath` is the
         // bare `pkgIdWithPatchHash` regardless of parent context.
-        // Skip recursion entirely. Mirrors upstream's
-        // [`purePkgs` short-circuit](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolvePeers.ts#L398-L406).
+        // Skip recursion entirely.
         //
         // The pkg lookup happens before the existing in-progress
         // gate because: a re-entry on this same `NodeId` while it's
@@ -791,10 +743,9 @@ impl Walker<'_> {
         if self.tree.dependencies_tree.contains_key(&node_id) {
             let tree_node_depth = self.tree.dependencies_tree[&node_id].depth;
             let pkg_id = self.tree.dependencies_tree[&node_id].resolved_package_id.clone();
-            // Workspace-link short-circuit: mirrors upstream's
-            // [`if (node.depth === -1) return ...`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/installing/deps-resolver/src/resolvePeers.ts#L396)
-            // in `resolvePeersOfNode`. The linked package's depPath is
-            // its `link:<rel-path>` id verbatim — no peer-graph suffix,
+            // Workspace-link short-circuit: a node at depth -1 is a
+            // workspace link. The linked package's depPath is its
+            // `link:<rel-path>` id verbatim — no peer-graph suffix,
             // no graph entry. Peer matching for the linked package is
             // the linked importer's responsibility, not the parent's.
             if tree_node_depth == -1 {
@@ -818,8 +769,8 @@ impl Walker<'_> {
                 self.node_dep_paths.insert(node_id.clone(), dep_path.clone());
                 // Lower the existing graph entry's `depth` if this
                 // occurrence reached the package shallower than the
-                // previous walk(s). Mirrors the same `Math.min`
-                // tie-break the non-fast path runs via
+                // previous walk(s). The same minimum-depth tie-break
+                // the non-fast path runs via
                 // `self.graph.entry(...).and_modify(...)`; without it
                 // a shallow revisit through `pure_pkgs` would leave
                 // the entry's depth stuck at the first walk's value.
@@ -914,9 +865,7 @@ impl Walker<'_> {
         }
 
         // Record this node's parent context for the descendants'
-        // [`peers_cache`] lookups. Mirrors upstream's
-        // `parentPkgsOfNode.set(childNodeId, parentDepPaths)` in
-        // `resolvePeersOfChildren`. We compute and store the snapshot
+        // [`peers_cache`] lookups. We compute and store the snapshot
         // before recursing so a cycle re-entry on a child also has
         // access to its caller's parent context.
         let parent_dep_paths = self.parent_dep_paths_from_refs(&child_parent_refs);
@@ -931,8 +880,7 @@ impl Walker<'_> {
         // `pkgIdWithPatchHash` produced a result whose resolved-peer
         // map and missing-peer set are compatible with the current
         // parent peer context, reuse the cached `depPath` and external
-        // peer/missing maps without recursing. Mirrors upstream's
-        // [`findHit` call](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolvePeers.ts#L441-L467).
+        // peer/missing maps without recursing.
         //
         // The cache lookup uses `child_parent_refs` (the augmented
         // view) because a node's own children count as parents for
@@ -945,8 +893,7 @@ impl Walker<'_> {
             let missing_of_children = cached.missing_peers_of_children.clone();
             // Re-emit the missing-peer issues against the current
             // parent chain so each occurrence of the package shows up
-            // in the diagnostic, mirroring upstream's behaviour at the
-            // cache-hit branch. Without this, the first walk's parent
+            // in the diagnostic. Without this, the first walk's parent
             // chain would be the only one ever reported. The cached
             // summary blends the node's own peers with its subtree's,
             // so under a hoist scope the foreignness of the node
@@ -1125,14 +1072,12 @@ impl Walker<'_> {
         // Capture this node's NodeId-level edges + metadata for the
         // post-walk [`Walker::build_final_dep_paths`] rebuild. Edges are
         // the node's regular children overlaid with its *own* resolved
-        // peers — mirroring upstream's
-        // [`childrenNodeIds: { ...children, ...resolvedPeers }`](https://github.com/pnpm/pnpm/blob/894ea6af2c/installing/deps-resolver/src/resolvePeers.ts#L700-L705),
-        // where `resolvedPeers` is this node's own peer resolution, not
-        // the descendants' peers bubbled up for the suffix. A peer a
-        // descendant resolved (e.g. `debug`'s optional `supports-color`)
-        // is symlinked at the descendant that declares it, so it must
-        // not appear in this node's dependencies. Carries NodeIds so the
-        // rebuild can resolve each to its corrected final depPath.
+        // peers — this node's own peer resolution, not the descendants'
+        // peers bubbled up for the suffix. A peer a descendant resolved
+        // (e.g. `debug`'s optional `supports-color`) is symlinked at the
+        // descendant that declares it, so it must not appear in this
+        // node's dependencies. Carries NodeIds so the rebuild can
+        // resolve each to its corrected final depPath.
         let mut record_edges =
             self.previously_resolved_children(parent_node_ids, parent_pkg_ids_chain, &pkg.id);
         record_edges.extend(children_map.clone());
@@ -1162,8 +1107,7 @@ impl Walker<'_> {
         // fast-path early return at the top of [`resolve_node`];
         // non-pure subtrees push a [`PeersCacheItem`] so a future
         // visit with a compatible parent context can short-circuit
-        // via [`Self::find_hit`]. Mirrors upstream's
-        // [post-walk cache-population block](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolvePeers.ts#L507-L522).
+        // via [`Self::find_hit`].
         //
         // A cycle re-entry resolves against truncated children (the cycle is
         // broken by dropping the repeated package's subtree), so its empty or
@@ -1190,9 +1134,8 @@ impl Walker<'_> {
         }
 
         // Multiple visits with the same depPath collapse onto the same
-        // graph entry. Upstream takes the entry with the smallest
-        // `depth` when there's a conflict; pacquet ports the same
-        // tie-break so install order matches.
+        // graph entry. On a conflict, keep the entry with the smallest
+        // `depth` so install order matches.
         self.graph
             .entry(dep_path.clone())
             .and_modify(|node| {
@@ -1296,8 +1239,7 @@ impl Walker<'_> {
 
     /// Build the [`PeerId`] contribution for one resolved peer.
     ///
-    /// Precedence (mirrors upstream's
-    /// [`peerNodeIdToPeerId`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/resolvePeers.ts#L976-L998)):
+    /// Precedence:
     ///
     /// 1. **`link:<rel>` `NodeIds`** — emit
     ///    `PeerId::Pair { name: peer_alias, version: link_path_to_peer_version(rel) }`
@@ -1308,8 +1250,7 @@ impl Walker<'_> {
     ///    `link:node_modules/<alias>`.
     /// 2. **`dedupe_peers` enabled** — emit `name@version` from the
     ///    resolved package so recursive peer suffixes collapse like
-    ///    `(foo@1.0.0(bar@2.0.0))` → `(foo@1.0.0)`. Mirrors upstream's
-    ///    [`dedupePeers` branch](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-resolver/src/resolvePeers.ts#L990-L997).
+    ///    `(foo@1.0.0(bar@2.0.0))` → `(foo@1.0.0)`.
     /// 3. **The peer's `DepPath`** once it has been walked —
     ///    `node_dep_paths` lookup, emitted as [`PeerId::DepPath`].
     /// 4. **Cycle fallback** — `name@version` from the resolved package,
@@ -1368,12 +1309,11 @@ impl Walker<'_> {
     }
 
     /// One resolved-peer slot of `node_id`'s suffix, computed against the
-    /// already-finalized depPaths. Mirrors [`Self::build_peer_id`] but
+    /// already-finalized depPaths. Like [`Self::build_peer_id`] but
     /// substitutes the provisional cycle fallback with a strongly-
     /// connected-component test: a peer is collapsed to `name@version`
     /// only when it shares a peer-graph SCC with `node_id` (a genuine
-    /// cycle, matching pnpm's `cyclicPeerAliases` branch). Non-cyclic
-    /// peers carry their full depPath, which is the parity fix.
+    /// cycle). Non-cyclic peers carry their full depPath.
     fn final_peer_id(
         &self,
         node_id: &NodeId,
@@ -1422,9 +1362,8 @@ impl Walker<'_> {
     /// Recompute every node's depPath with its resolved peers' *full*
     /// suffixes. Genuine peer cycles (detected as multi-node peer-graph
     /// SCCs, or self-loops) keep the `name@version` collapse; every other
-    /// peer slot carries the peer's own depPath. This is the synchronous
-    /// equivalent of pnpm's deferred `calculateDepPath` + `analyzeGraph`
-    /// cycle detection.
+    /// peer slot carries the peer's own depPath. The cycle detection
+    /// runs synchronously over the already-walked graph.
     fn build_final_dep_paths(&self) -> HashMap<NodeId, DepPath> {
         let (_, scc_of) = self.peer_sccs();
         let cyclic_peer_names = self.cyclic_peer_names();
@@ -1954,15 +1893,12 @@ impl Walker<'_> {
     /// Realize the `(alias → NodeId)` children of `node_id` if it's
     /// currently a [`TreeChildren::Lazy`] entry; return the realized
     /// map (cloned for the caller). On a [`TreeChildren::Realized`]
-    /// entry, just clones and returns. Mirrors upstream's
-    /// [`buildTree` thunk-on-demand expansion](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolveDependencyTree.ts#L371-L401):
+    /// entry, just clones and returns. Expands the thunk on demand:
     ///
     /// 1. Walk [`ResolvedTree::children_by_id`] for this node's
     ///    package id.
     /// 2. Skip any child whose pkg id appears in `parent_ids` — that
-    ///    edge would form a cycle, matching upstream's
-    ///    [`parentIdsContainSequence`](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolveDependencyTree.ts#L378)
-    ///    gate.
+    ///    edge would form a cycle.
     /// 3. For each surviving child, allocate a per-occurrence
     ///    `NodeId` (leaves reuse the deterministic `NodeId::leaf`
     ///    for the leaf-collapse the eager walker does too) and
@@ -2075,13 +2011,10 @@ impl Walker<'_> {
         if let Some(dep_path) = self.node_dep_paths.get(&node_id) {
             graph_children.insert(alias, dep_path.clone());
         } else if let Some(link_dep_path) = link_node_id_as_dep_path(&node_id) {
-            // Mirrors upstream's
-            // [`pathsByNodeId.get(childNodeId) ?? (childNodeId as unknown as DepPath)`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/resolvePeers.ts#L164)
-            // fallback in `resolveChildren`. `topParents` linked-dep
-            // NodeIds never enter the tree, so `node_dep_paths` is
-            // empty for them; the `link:<rel>` NodeId is itself a
-            // valid DepPath, so the snapshot's child edge can use
-            // it verbatim.
+            // `topParents` linked-dep NodeIds never enter the tree, so
+            // `node_dep_paths` is empty for them; the `link:<rel>`
+            // NodeId is itself a valid DepPath, so the snapshot's child
+            // edge can use it verbatim.
             graph_children.insert(alias, link_dep_path);
         } else {
             self.pending_peer_edges.push(PendingPeerEdge {
@@ -2194,13 +2127,11 @@ impl Walker<'_> {
 
     /// Build the `(peer_name → ParentPkgInfo)` snapshot that gets
     /// stored on [`Self::parent_pkgs_of_node`] for each child the
-    /// caller is about to descend into. Mirrors upstream's
-    /// [`parentDepPaths` construction inside `resolvePeersOfChildren`](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolvePeers.ts#L817-L829).
+    /// caller is about to descend into.
     ///
-    /// `link:` parents (upstream's `nodeId.startsWith('link:')`
-    /// branch) don't have a real tree entry; pacquet's [`ParentRef`]
-    /// keeps the `NodeId` but the tree-lookup falls back to a pure
-    /// `version` comparison the same way upstream does.
+    /// `link:` parents don't have a real tree entry; pacquet's
+    /// [`ParentRef`] keeps the `NodeId` but the tree-lookup falls back
+    /// to a pure `version` comparison.
     fn parent_dep_paths_from_refs(
         &self,
         parent_refs: &ParentRefs,
@@ -2231,8 +2162,7 @@ impl Walker<'_> {
 
     /// Look up [`Self::peers_cache`] for a cached resolution of
     /// `pkg_id` whose parent peer context is compatible with the
-    /// current `parent_refs`. Mirrors upstream's
-    /// [`findHit`](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolvePeers.ts#L660-L699).
+    /// current `parent_refs`.
     ///
     /// A cache item matches when, for every cached resolved peer:
     ///
@@ -2301,16 +2231,14 @@ impl Walker<'_> {
         })
     }
 
-    /// Compare two `NodeId`s' recorded parent peer contexts. Mirrors
-    /// upstream's
-    /// [`parentPackagesMatch`](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolvePeers.ts#L701-L731):
+    /// Compare two `NodeId`s' recorded parent peer contexts:
     /// both nodes' contexts must have the same set of peer-relevant
     /// names, every name must resolve to the same version or
     /// `pkgIdWithPatchHash`, and — when a peer is shadowed (an
     /// `occurrence > 0` somewhere on either side) — the contexts
     /// must additionally agree on depth/`purePkgs` to compensate
-    /// for the loss of single-occurrence guarantees upstream relies
-    /// on for the shallow-equality path.
+    /// for the loss of single-occurrence guarantees on the
+    /// shallow-equality path.
     fn parent_packages_match(&self, cached_node_id: &NodeId, current_node_id: &NodeId) -> bool {
         let Some(cached_parents) = self.parent_pkgs_of_node.get(cached_node_id) else {
             return false;
@@ -2352,9 +2280,7 @@ impl Walker<'_> {
     }
 }
 
-/// Whether every entry in `parents` has `occurrence == 0`. Mirrors
-/// upstream's
-/// [`parentPkgsHaveSingleOccurrence`](https://github.com/pnpm/pnpm/blob/c86c423bdc/installing/deps-resolver/src/resolvePeers.ts#L733-L735).
+/// Whether every entry in `parents` has `occurrence == 0`.
 fn parent_pkgs_have_single_occurrence(parents: &HashMap<String, ParentPkgInfo>) -> bool {
     parents.values().all(|info| info.occurrence == 0)
 }
@@ -2544,10 +2470,8 @@ fn peer_segment_name(segment: &str) -> Option<&str> {
     Some(&segment[..version_separator])
 }
 
-/// Reproduce upstream's parent-ref dual-keying: each parent is recorded
-/// by its install alias *and* its real name when the two differ.
-/// Mirrors
-/// [`toPkgByName`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolvePeers.ts#L1015-L1033).
+/// Record a parent ref under both keys: each parent is recorded by its
+/// install alias *and* its real name when the two differ.
 ///
 /// `parent_node_id` is the [`NodeId`] the parent should appear under
 /// in the [`ParentRefs`] map. For most parents this is just
@@ -2624,12 +2548,7 @@ fn version_gte(left: &str, right: &str) -> bool {
 ///   link — already stable across machines, no remap needed).
 ///
 /// On `Some`, the remap encodes `<modules_dir>/<alias>` as a path
-/// relative to `lockfile_dir`, prefixed with `link:`. Mirrors
-/// upstream's
-/// [`target` rewrite in `index.ts`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/index.ts#L232-L244)
-/// and the surrounding
-/// [`createNodeIdForLinkedLocalPkg`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/resolveDependencies.ts#L976-L978)
-/// helper.
+/// relative to `lockfile_dir`, prefixed with `link:`.
 fn remap_link_node_id(
     opts: &ResolvePeersOptions,
     alias: &str,
@@ -2654,10 +2573,9 @@ fn remap_link_node_id(
     Some(NodeId::leaf(&format!("link:{rel}")))
 }
 
-/// Build the `parents` chain attached to a peer issue. Upstream uses
-/// the `ResolvedPackage` of each parent; pacquet's slice records just
-/// `name` and `version`, which is what the renderer downstream
-/// consumes.
+/// Build the `parents` chain attached to a peer issue. Records just
+/// `name` and `version` per parent, which is what the renderer
+/// downstream consumes.
 fn parents_from_chain(chain_names: &[String], _pkg_name: &str) -> Vec<ParentPackageRef> {
     // The chain pacquet tracks today is name-only — populating
     // `version` would need a parallel `Vec<String>` of versions or a
@@ -2669,22 +2587,19 @@ fn parents_from_chain(chain_names: &[String], _pkg_name: &str) -> Vec<ParentPack
         .collect()
 }
 
-/// Range-satisfaction check that tolerates prereleases the way pnpm's
+/// Range-satisfaction check that tolerates prereleases the way
 /// `@yarnpkg/core/semverUtils.satisfiesWithPrereleases` does — falls
 /// back to a literal-equality check when the range can't be parsed,
 /// which lets non-semver peer ranges (`*`, git refs, etc.) still
-/// match. Mirrors upstream's
-/// [`semverUtils.satisfiesWithPrereleases`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolvePeers.ts#L922)
-/// call site.
+/// match.
 ///
 /// **Prerelease tolerance.** `node-semver`'s [`Range::satisfies`]
 /// rejects prerelease versions against non-prerelease comparators.
-/// Yarn's `satisfiesWithPrereleases` (which pnpm imports here)
-/// explicitly allows that pairing. We approximate it by retrying with
-/// the prerelease tag stripped: if `version` is a prerelease and the
-/// straight check fails, see whether the base `MAJOR.MINOR.PATCH`
-/// satisfies the range — without pulling in Yarn's full per-comparator
-/// algorithm.
+/// Yarn's `satisfiesWithPrereleases` explicitly allows that pairing.
+/// We approximate it by retrying with the prerelease tag stripped: if
+/// `version` is a prerelease and the straight check fails, see whether
+/// the base `MAJOR.MINOR.PATCH` satisfies the range — without pulling
+/// in Yarn's full per-comparator algorithm.
 fn satisfies_with_prereleases(version: &str, range: &str) -> bool {
     if range == "*" {
         return true;

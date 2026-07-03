@@ -1,7 +1,6 @@
 use pacquet_crypto_hash::shorten_virtual_store_name;
 
-/// Turn a depPath into a filesystem-safe directory name. Mirrors pnpm's
-/// [`depPathToFilename`](https://github.com/pnpm/pnpm/blob/097983fbca/deps/path/src/index.ts#L169-L180).
+/// Turn a depPath into a filesystem-safe directory name.
 #[must_use]
 pub fn dep_path_to_filename(dep_path: &str, max_length_without_hash: usize) -> String {
     let mut filename = dep_path_to_filename_unescaped(dep_path);
@@ -16,19 +15,17 @@ pub fn dep_path_to_filename(dep_path: &str, max_length_without_hash: usize) -> S
 }
 
 /// Pre-escape pass: rewrite `file:` to `file+`, strip a single leading
-/// `/`, and re-join `@version`. Mirrors pnpm's private
-/// [`depPathToFilenameUnescaped`](https://github.com/pnpm/pnpm/blob/097983fbca/deps/path/src/index.ts#L182-L192).
+/// `/`, and re-join `@version`.
 fn dep_path_to_filename_unescaped(dep_path: &str) -> String {
     if dep_path.starts_with("file:") {
         return dep_path.replacen(':', "+", 1);
     }
     let trimmed = dep_path.strip_prefix('/').unwrap_or(dep_path);
-    // Upstream's `depPath.indexOf('@', 1)` skips position 0 so a leading
-    // `@` on a scoped name (`@scope/foo`) doesn't get treated as the
-    // version separator. The `len() < 2` guard mirrors that
-    // out-of-range scan returning -1: nothing to rebuild, return the
-    // string as-is. Without it the `[1..]` slice panics on empty /
-    // single-byte input.
+    // Scan for the `@` from position 1 so a leading `@` on a scoped name
+    // (`@scope/foo`) doesn't get treated as the version separator. The
+    // `len() < 2` guard handles the case where there's nothing to
+    // rebuild: return the string as-is. Without it the `[1..]` slice
+    // panics on empty / single-byte input.
     if trimmed.len() < 2 {
         return trimmed.to_string();
     }
@@ -38,10 +35,9 @@ fn dep_path_to_filename_unescaped(dep_path: &str) -> String {
     };
     let split = rel + 1;
     let (name, rest) = trimmed.split_at(split);
-    // Upstream rebuilds as `${name}@${rest.slice(1)}` — i.e. it consumes
-    // the `@` and re-emits one. The transformation is a no-op for any
-    // input whose `name` slot does not already end in `@`; matches the
-    // upstream form byte-for-byte.
+    // Rebuild as `${name}@${rest[1..]}` — i.e. consume the `@` and
+    // re-emit one. The transformation is a no-op for any input whose
+    // `name` slot does not already end in `@`.
     let rest = rest.strip_prefix('@').unwrap_or(rest);
     format!("{name}@{rest}")
 }

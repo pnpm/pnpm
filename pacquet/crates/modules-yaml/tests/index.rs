@@ -1,8 +1,8 @@
-//! Direct ports of upstream's
-//! [`installing/modules-yaml/test/index.ts`](https://github.com/pnpm/pnpm/blob/1819226b51/installing/modules-yaml/test/index.ts).
+//! Round-trip tests for reading and writing the `.modules.yaml`
+//! manifest.
 //!
-//! Pacquet-side tests that have no upstream counterpart live in
-//! sibling files (`real_fs.rs`, `fakes.rs`).
+//! Further `.modules.yaml` behavior-branch tests live in sibling files
+//! (`real_fs.rs`, `fakes.rs`).
 
 use pacquet_modules_yaml::{
     HoistKind, Host, Modules, read_modules_manifest, write_modules_manifest,
@@ -16,7 +16,6 @@ fn manifest_from_json(value: Value) -> Modules {
     serde_json::from_value(value).expect("deserialize Modules fixture")
 }
 
-// Ported from <https://github.com/pnpm/pnpm/blob/1819226b51/installing/modules-yaml/test/index.ts#L10-L40>
 #[test]
 fn write_modules_manifest_and_read_modules_manifest() {
     let temp_dir = tempfile::tempdir().expect("create temporary directory");
@@ -63,7 +62,6 @@ fn write_modules_manifest_and_read_modules_manifest() {
     assert_eq!(virtual_store_dir.is_absolute(), cfg!(windows));
 }
 
-// Ported from <https://github.com/pnpm/pnpm/blob/1819226b51/installing/modules-yaml/test/index.ts#L42-L53>
 #[test]
 fn read_legacy_shamefully_hoist_true_manifest() {
     let manifest = env!("CARGO_MANIFEST_DIR")
@@ -93,7 +91,6 @@ fn read_legacy_shamefully_hoist_true_manifest() {
     );
 }
 
-// Ported from <https://github.com/pnpm/pnpm/blob/1819226b51/installing/modules-yaml/test/index.ts#L55-L66>
 #[test]
 fn read_legacy_shamefully_hoist_false_manifest() {
     let manifest = env!("CARGO_MANIFEST_DIR")
@@ -123,7 +120,6 @@ fn read_legacy_shamefully_hoist_false_manifest() {
     );
 }
 
-// Ported from <https://github.com/pnpm/pnpm/blob/1819226b51/installing/modules-yaml/test/index.ts#L68-L94>
 #[test]
 fn write_modules_manifest_creates_node_modules_directory() {
     let temp_dir = tempfile::tempdir().expect("create temporary directory");
@@ -156,7 +152,6 @@ fn write_modules_manifest_creates_node_modules_directory() {
     assert_eq!(actual, Some(modules_yaml));
 }
 
-// Ported from <https://github.com/pnpm/pnpm/blob/1819226b51/installing/modules-yaml/test/index.ts#L96-L99>
 #[test]
 fn read_empty_modules_manifest_returns_none() {
     let modules_yaml = env!("CARGO_MANIFEST_DIR")

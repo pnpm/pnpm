@@ -216,8 +216,7 @@ fn basic_auth_works_without_settings() {
 
 #[test]
 fn registry_with_pathname_matches_metadata_and_tarballs() {
-    // Mirrors the GitHub Packages scope-registry example from
-    // pnpm's test suite.
+    // GitHub Packages scope-registry example.
     let headers = build(&[("//npm.pkg.github.com/pnpm/", "Bearer abc123")]);
     assert_eq!(
         headers.for_url("https://npm.pkg.github.com/pnpm").as_deref(),
@@ -394,16 +393,13 @@ fn returns_none_for_unmatched_url_in_empty_map() {
     assert_eq!(AuthHeaders::default().for_url("http://reg.com"), None);
 }
 
-/// Upstream's
-/// [`getAuthHeadersFromCreds`](https://github.com/pnpm/pnpm/blob/601317e7a3/network/auth-header/src/getAuthHeadersFromConfig.ts)
-/// processes per-URI entries first, then unconditionally overwrites
-/// the default-registry slot with the default-creds header. When a
-/// `.npmrc` carries both `_authToken=A` (default) and
+/// `from_creds_map` processes per-URI entries first, then unconditionally
+/// overwrites the default-registry slot with the default-creds header.
+/// When a `.npmrc` carries both `_authToken=A` (default) and
 /// `//registry.npmjs.org/:_authToken=B` (per-URI for the default
-/// registry), upstream guarantees the *default* (A) wins on the
-/// default registry. Without the two-phase build in `from_creds_map`,
-/// pacquet's `HashMap` iteration would let either value win
-/// non-deterministically.
+/// registry), the *default* (A) must win on the default registry.
+/// Without the two-phase build in `from_creds_map`, pacquet's `HashMap`
+/// iteration would let either value win non-deterministically.
 #[test]
 fn default_creds_win_over_per_uri_on_default_registry() {
     let headers = AuthHeaders::from_creds_map(

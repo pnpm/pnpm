@@ -1,7 +1,6 @@
 use crate::suffix_index::index_of_dep_path_suffix;
 
-/// Extract the `pkgId` substring from a `dep_path`, mirroring pnpm's
-/// [`tryGetPackageId`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/src/index.ts#L72-L88).
+/// Extract the `pkgId` substring from a `dep_path`.
 ///
 /// The function combines two transforms:
 ///
@@ -29,9 +28,9 @@ pub fn try_get_package_id(dep_path: &str) -> std::borrow::Cow<'_, str> {
     if !trimmed.contains(':') {
         return std::borrow::Cow::Borrowed(trimmed);
     }
-    // Drop the leading `<name>@` prefix. `indexOf('@', 1)` in pnpm
-    // skips position 0 so a leading `@` on a scoped name doesn't
-    // count as the separator.
+    // Drop the leading `<name>@` prefix. The scan for `@` starts at
+    // position 1 so a leading `@` on a scoped name doesn't count as the
+    // separator.
     let Some(at_idx) = trimmed[1..].find('@').map(|off| off + 1) else {
         return std::borrow::Cow::Borrowed(trimmed);
     };

@@ -357,18 +357,18 @@ if (foo.name !== '@pnpm.e2e/foo') {
   ])
 })
 
-test('no dependencies (lodash)', async () => {
+test('no dependencies (@pnpm.e2e/function-with-clone)', async () => {
   const project = prepareEmpty()
   const reporter = jest.fn()
 
-  await addDistTag({ package: 'lodash', version: '4.1.0', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/function-with-clone', version: '4.1.0', distTag: 'latest' })
 
   await addDependenciesToPackage(
     {
       name: 'project',
       version: '0.0.0',
     },
-    ['lodash@4.0.0'],
+    ['@pnpm.e2e/function-with-clone@4.0.0'],
     testDefaults({ fastUnpack: false, reporter })
   )
 
@@ -418,8 +418,8 @@ test('no dependencies (lodash)', async () => {
     added: expect.objectContaining({
       dependencyType: 'prod',
       latest: '4.1.0',
-      name: 'lodash',
-      realName: 'lodash',
+      name: '@pnpm.e2e/function-with-clone',
+      realName: '@pnpm.e2e/function-with-clone',
       version: '4.0.0',
     }),
     level: 'debug',
@@ -431,14 +431,14 @@ test('no dependencies (lodash)', async () => {
     name: 'pnpm:package-manifest',
     updated: {
       dependencies: {
-        lodash: '4.0.0',
+        '@pnpm.e2e/function-with-clone': '4.0.0',
       },
       name: 'project',
       version: '0.0.0',
     } as ProjectManifest,
   }))
 
-  const m = project.requireModule('lodash')
+  const m = project.requireModule('@pnpm.e2e/function-with-clone')
   expect(typeof m).toBe('function')
   expect(typeof m.clone).toBe('function')
 })
@@ -657,18 +657,18 @@ test('overwriting (magic-hook@2.0.0 and @0.1.0)', async () => {
   expect(m.version).toBe('0.1.0')
 })
 
-test('overwriting (is-positive@3.0.0 with is-positive@latest)', async () => {
-  await addDistTag({ package: 'is-positive', version: '3.1.0', distTag: 'latest' })
+test('overwriting (@pnpm.e2e/multi-version-b@3.0.0 with @pnpm.e2e/multi-version-b@latest)', async () => {
+  await addDistTag({ package: '@pnpm.e2e/multi-version-b', version: '3.1.0', distTag: 'latest' })
   const project = prepareEmpty()
-  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['is-positive@3.0.0'], testDefaults({ save: true }))
-  expect(manifest.dependencies?.['is-positive']).toBe('3.0.0')
+  const { updatedManifest: manifest } = await addDependenciesToPackage({}, ['@pnpm.e2e/multi-version-b@3.0.0'], testDefaults({ save: true }))
+  expect(manifest.dependencies?.['@pnpm.e2e/multi-version-b']).toBe('3.0.0')
 
-  project.storeHas('is-positive', '3.0.0')
+  project.storeHas('@pnpm.e2e/multi-version-b', '3.0.0')
 
-  const { updatedManifest } = await addDependenciesToPackage(manifest, ['is-positive@latest'], testDefaults({ save: true }))
+  const { updatedManifest } = await addDependenciesToPackage(manifest, ['@pnpm.e2e/multi-version-b@latest'], testDefaults({ save: true }))
 
-  project.storeHas('is-positive', '3.1.0')
-  expect(updatedManifest.dependencies?.['is-positive']).toBe('3.1.0')
+  project.storeHas('@pnpm.e2e/multi-version-b', '3.1.0')
+  expect(updatedManifest.dependencies?.['@pnpm.e2e/multi-version-b']).toBe('3.1.0')
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/2188
@@ -773,21 +773,21 @@ test('circular deps', async () => {
 })
 
 test('concurrent circular deps', async () => {
-  // es5-ext is an external package from the registry
-  // the latest dist-tag is overridden to have a stable test
-  await addDistTag({ package: 'es5-ext', version: '0.10.31', distTag: 'latest' })
-  await addDistTag({ package: 'es6-iterator', version: '2.0.1', distTag: 'latest' })
+  // the latest dist-tag points above the installed version so the circular
+  // dependency resolves two versions of the same package concurrently
+  await addDistTag({ package: '@pnpm.e2e/circular-ext', version: '0.10.31', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/circular-iterator', version: '2.0.1', distTag: 'latest' })
 
   const project = prepareEmpty()
-  await addDependenciesToPackage({}, ['es6-iterator@2.0.0'], testDefaults({ fastUnpack: false }))
+  await addDependenciesToPackage({}, ['@pnpm.e2e/circular-iterator@2.0.0'], testDefaults({ fastUnpack: false }))
 
-  const m = project.requireModule('es6-iterator')
+  const m = project.requireModule('@pnpm.e2e/circular-iterator')
 
   expect(m).toBeTruthy()
-  expect(fs.existsSync(path.resolve('node_modules/.pnpm/es6-iterator@2.0.0/node_modules/es5-ext'))).toBeTruthy()
-  expect(fs.existsSync(path.resolve('node_modules/.pnpm/es6-iterator@2.0.1/node_modules/es5-ext'))).toBeTruthy()
-  expect(fs.existsSync(path.resolve('node_modules/.pnpm/es5-ext@0.10.31/node_modules/es6-iterator'))).toBeTruthy()
-  expect(fs.existsSync(path.resolve('node_modules/.pnpm/es5-ext@0.10.31/node_modules/es6-symbol'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+circular-iterator@2.0.0/node_modules/@pnpm.e2e/circular-ext'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+circular-iterator@2.0.1/node_modules/@pnpm.e2e/circular-ext'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+circular-ext@0.10.31/node_modules/@pnpm.e2e/circular-iterator'))).toBeTruthy()
+  expect(fs.existsSync(path.resolve('node_modules/.pnpm/@pnpm.e2e+circular-ext@0.10.31/node_modules/@pnpm.e2e/circular-symbol'))).toBeTruthy()
 })
 
 test('concurrent installation of the same packages', async () => {

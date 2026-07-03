@@ -1,6 +1,6 @@
 use clap::Parser;
 use pnpr::{Config, ConfigSource, LogConfig, LogFormat, RegistryError, default_cache_dir, serve};
-use std::{net::SocketAddr, path::PathBuf, time::Duration};
+use std::{io::IsTerminal, net::SocketAddr, path::PathBuf, time::Duration};
 use tracing_subscriber::EnvFilter;
 
 #[derive(Debug, Parser)]
@@ -53,8 +53,9 @@ struct Args {
     osv_db: Option<PathBuf>,
 
     /// Disable the npm-registry surface (packument/tarball reads, publish,
-    /// unpublish, dist-tag, search, and the user/login endpoints).
-    /// Overrides `registry.enabled` from the loaded config.
+    /// unpublish, dist-tag, search) on this tier. Without the flag the
+    /// surface is served whenever the loaded config declares at least one
+    /// mount under `mounts:`.
     #[arg(long)]
     disable_registry: bool,
 
@@ -135,7 +136,15 @@ fn redacted_report(err: &RegistryError) -> miette::Report {
 fn init_logging(logs: &LogConfig) {
     let filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new(logs.level.as_filter_directive()));
-    let builder = tracing_subscriber::fmt().with_env_filter(filter);
+    // Emit ANSI colors only to an interactive terminal — never when stdout is
+    // redirected to a file or pipe (e.g. the benchmark's mock logs), where the
+    // escape codes are just noise that breaks downstream log parsing. The
+    // writer is pinned to stdout explicitly so the `is_terminal` probe always
+    // inspects the stream the subscriber actually writes to.
+    let builder = tracing_subscriber::fmt()
+        .with_env_filter(filter)
+        .with_writer(std::io::stdout)
+        .with_ansi(std::io::stdout().is_terminal());
     match logs.format {
         // `with_current_span(true)` keeps the per-request span's
         // `method`/`uri` fields attached to the single access event;

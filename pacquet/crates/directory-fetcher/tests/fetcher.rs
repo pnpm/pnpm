@@ -68,9 +68,7 @@ fn run_flags_requires_build_when_install_script_present() {
     .unwrap();
 
     // `pkg_requires_build` sees the install script in the manifest
-    // and flips the bit. Matches upstream's
-    // `pkgRequiresBuild(manifest, filesIndex)` at
-    // <https://github.com/pnpm/pnpm/blob/85ceff2383/building/pkg-requires-build/src/index.ts>.
+    // and flips the bit.
     assert!(out.requires_build);
 }
 
@@ -92,19 +90,16 @@ fn run_flags_requires_build_when_binding_gyp_present() {
 
     // No install script in the manifest, but `binding.gyp` at the
     // package root is the canonical "this is a node-gyp native
-    // module" signal. Mirrors upstream's `filesIncludeInstallScripts`
-    // check.
+    // module" signal.
     assert!(out.requires_build);
 }
 
 #[test]
 fn run_returns_none_manifest_for_bit_workspace_directory_without_package_json() {
-    // pnpm's `safeReadProjectManifestOnly` returns null when no
-    // manifest variant exists; pacquet's `safe_read_package_json_from_dir`
-    // returns `Ok(None)` for the same `ENOENT` case. The fetcher
-    // must surface that as `manifest: None` rather than erroring —
-    // the Bit-workspace shape upstream documents at
-    // <https://github.com/pnpm/pnpm/blob/85ceff2383/fetching/directory-fetcher/src/index.ts#L63-L66>.
+    // `safe_read_package_json_from_dir` returns `Ok(None)` when no
+    // manifest variant exists (the `ENOENT` case). The fetcher must
+    // surface that as `manifest: None` rather than erroring — the
+    // Bit-workspace shape, where a directory has no `package.json`.
     let dir = tempdir().unwrap();
     let root = dir.path();
     touch(root, "index.js", "");

@@ -1,7 +1,5 @@
-//! Pacquet port of pnpm's
-//! [`resolveFromTarball`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/tarball-resolver/src/index.ts#L10-L38)
-//! plus the `resolveLatestFromTarball` companion at the same file's
-//! lines 43-47.
+//! Resolves `http://` / `https://` tarball URLs and the latest-version
+//! companion path for them.
 
 use std::{collections::HashMap, sync::Arc};
 
@@ -95,12 +93,12 @@ impl TarballResolver {
         }
 
         // Round-trip through `Url::parse` to drop a redundant default
-        // port (`registry.npmjs.org:443` → `registry.npmjs.org`),
-        // matching upstream's `new URL(spec).toString()`.
+        // port (`registry.npmjs.org:443` → `registry.npmjs.org`) before
+        // it reaches the lockfile.
         let normalized_bare_specifier =
             reqwest::Url::parse(bare).map_err(|err| Box::new(err) as ResolveError)?.to_string();
 
-        // Warm-store reuse, mirroring pnpm's lazy fetch: when the prior
+        // Warm-store reuse: when the prior
         // lockfile recorded this exact tarball URL with an integrity and
         // the content is already extracted in the store, reuse the cached
         // integrity + bundled manifest instead of re-downloading. The
@@ -263,8 +261,7 @@ impl TarballResolver {
 /// URL tarballs lock to the exact URL — no concept of "latest". When
 /// the wanted dep names an http(s) URL, claim it so the dispatcher
 /// stops; the caller still surfaces a ref-mismatch report if the
-/// lockfile points at a different URL than before. Mirrors upstream's
-/// [`resolveLatestFromTarball`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/tarball-resolver/src/index.ts#L43-L47).
+/// lockfile points at a different URL than before.
 fn resolve_latest(query: &LatestQuery) -> Option<LatestInfo> {
     let bare = query.wanted_dependency.bare_specifier.as_deref()?;
     if !is_http_url(bare) {

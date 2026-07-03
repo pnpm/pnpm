@@ -1,10 +1,8 @@
 use super::which_version_is_pinned;
 use pacquet_registry::PinnedVersion;
 
-/// Ports pnpm's `whichVersionIsPinned` test table
-/// (<https://github.com/pnpm/pnpm/blob/29ab905c21/resolving/npm-resolver/test/whichVersionIsPinned.test.ts>),
-/// extended with the parseRange edge cases pnpm derives the same results
-/// for (verified against the upstream implementation).
+/// Table covering the pin classifications, including the parse-range
+/// edge cases that derive the same results.
 #[test]
 fn matches_pnpm_which_version_is_pinned() {
     use PinnedVersion::{Major, Minor, None as NoneVariant, Patch};

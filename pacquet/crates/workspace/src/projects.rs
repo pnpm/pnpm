@@ -1,12 +1,7 @@
 //! Glob-expand `packages:` from `pnpm-workspace.yaml` into the
 //! workspace's [`Project`] list.
 //!
-//! Port of upstream's
-//! [`findWorkspaceProjects`](https://github.com/pnpm/pnpm/blob/94240bc046/workspace/projects-reader/src/index.ts)
-//! and
-//! [`findPackages`](https://github.com/pnpm/pnpm/blob/94240bc046/workspace/projects-reader/src/findPackages.ts).
-//!
-//! Out of scope (tracked as upstream parity follow-ups):
+//! Out of scope (tracked as parity follow-ups):
 //!
 //! - `engines` / `os` / `cpu` installability filtering. Issue [#431]
 //!   explicitly defers this.
@@ -35,7 +30,7 @@ use wax::{
 
 /// A project discovered under the workspace root.
 ///
-/// Pacquet keeps this shape narrower than upstream's `Project` (which
+/// Pacquet keeps this shape narrower than pnpm's project type (which
 /// also carries `rootDirRealPath`, `modulesDir`, etc.). The fields here
 /// are what `pacquet-package-manager` actually needs at install time;
 /// anything else is read on demand from the manifest. If a caller
@@ -47,17 +42,11 @@ pub struct Project {
 }
 
 /// Options for [`find_workspace_projects`].
-///
-/// Field names mirror upstream's [`FindWorkspaceProjectsOpts`][ts-FindWorkspaceProjectsOpts] so a port
-/// of any individual install entry point doesn't have to translate
-/// option names.
-///
-/// [ts-FindWorkspaceProjectsOpts]: https://github.com/pnpm/pnpm/blob/94240bc046/workspace/projects-reader/src/index.ts#L11-L24
 #[derive(Debug, Default, Clone)]
 pub struct FindWorkspaceProjectsOpts {
-    /// Package discovery patterns. When `None`, this lower-level
-    /// `findPackages` port falls back to `['.', '**']`. Callers
-    /// enumerating a real workspace manifest should pass
+    /// Package discovery patterns. When `None`, the lower-level
+    /// enumeration falls back to `['.', '**']`. Callers enumerating a
+    /// real workspace manifest should pass
     /// [`crate::workspace_package_patterns`] instead.
     pub patterns: Option<Vec<String>>,
 }
@@ -89,12 +78,9 @@ pub enum FindWorkspaceProjectsError {
 
 /// Find every project under `workspace_root` matching `opts.patterns`.
 ///
-/// Mirrors upstream's
-/// [`findWorkspaceProjects`](https://github.com/pnpm/pnpm/blob/94240bc046/workspace/projects-reader/src/index.ts)
-/// except for the per-project `packageIsInstallable` /
-/// `checkNonRootProjectManifest` validations, which are explicitly
-/// deferred by [#431]. When validation lands, this entry point grows
-/// the filter; today it's a thin wrapper over
+/// The per-project installability and non-root-manifest validations are
+/// explicitly deferred by [#431]. When validation lands, this entry
+/// point grows the filter; today it's a thin wrapper over
 /// [`find_workspace_projects_no_check`].
 ///
 /// [#431]: https://github.com/pnpm/pacquet/issues/431
@@ -105,29 +91,27 @@ pub fn find_workspace_projects(
     find_workspace_projects_no_check(workspace_root, opts)
 }
 
-/// Skip-validation variant, matching upstream's
-/// [`findWorkspaceProjectsNoCheck`](https://github.com/pnpm/pnpm/blob/94240bc046/workspace/projects-reader/src/index.ts).
+/// Skip-validation variant.
 pub fn find_workspace_projects_no_check(
     workspace_root: &Path,
     opts: &FindWorkspaceProjectsOpts,
 ) -> Result<Vec<Project>, FindWorkspaceProjectsError> {
-    // Upstream default mirrors tinyglobby's call site: when no patterns
-    // were configured (`opts.patterns ?? defaults`), search the
-    // workspace root non-recursively *and* recursively. The two-pattern
-    // fallback fires only on `None`, not on `Some(vec![])` — an explicit
-    // empty array means "enumerate only the workspace root" (which is
-    // unconditionally added below per upstream's
-    // <https://github.com/pnpm/pnpm/issues/1986> rule).
+    // When no patterns were configured, search the workspace root
+    // non-recursively *and* recursively. The two-pattern fallback fires
+    // only on `None`, not on `Some(vec![])` — an explicit empty array
+    // means "enumerate only the workspace root" (which is
+    // unconditionally added below per
+    // <https://github.com/pnpm/pnpm/issues/1986>).
     let default_patterns = [".".to_string(), "**".to_string()];
     let patterns: &[String] = match opts.patterns.as_deref() {
         Some(p) => p,
         None => &default_patterns,
     };
 
-    // Upstream (tinyglobby) treats `!`-prefixed patterns as negations.
-    // wax does not accept `!` inside `Glob::new()`, so split them out
-    // and feed them through `.not()` instead. `!/...` remains a no-op:
-    // relative workspace paths never match that absolute form.
+    // `!`-prefixed patterns are negations. wax does not accept `!`
+    // inside `Glob::new()`, so split them out and feed them through
+    // `.not()` instead. `!/...` remains a no-op: relative workspace
+    // paths never match that absolute form.
     let mut include_patterns: Vec<&str> = Vec::new();
     let mut user_negation_globs: Vec<String> = Vec::new();
     for pattern in patterns {
@@ -147,8 +131,8 @@ pub fn find_workspace_projects_no_check(
     }
 
     // wax's `not` takes a single pattern; combine the ignores with
-    // `wax::any` so the walk filters them all in one pass, matching
-    // upstream's `ignore: ['**/node_modules/**', '**/bower_components/**']`.
+    // `wax::any` so the walk filters them all in one pass (ignoring
+    // `**/node_modules/**` and `**/bower_components/**`).
     // Built once outside the per-pattern loop and `.clone()`-d into each
     // `Walk::not` call (both `Glob` and `Any` derive `Clone` in wax),
     // since `IGNORE_PATTERNS` is a constant and reparsing it on every
@@ -194,10 +178,9 @@ pub fn find_workspace_projects_no_check(
         manifest_paths.insert(root_manifest);
     }
 
-    // Sort lexicographically by `rootDir` (= parent of the manifest),
-    // matching upstream's `lexCompare(path.dirname(p1), path.dirname(p2))`.
-    // `BTreeSet` already sorts by full path, but the upstream contract
-    // is "by dir then by basename"; with our basename always being
+    // Sort lexicographically by `rootDir` (= parent of the manifest).
+    // `BTreeSet` already sorts by full path, but the contract is "by
+    // dir then by basename"; with our basename always being
     // `package.json` the two orderings coincide. Keep the explicit
     // sort below to make the contract visible.
     let mut sorted: Vec<PathBuf> = manifest_paths.into_iter().collect();
@@ -211,13 +194,11 @@ pub fn find_workspace_projects_no_check(
     for manifest_path in sorted {
         let manifest = match read_exact_project_manifest(&manifest_path) {
             Ok(m) => m,
-            // Upstream swallows ENOENT mid-walk (a file vanished
-            // between listing and reading) at
-            // <https://github.com/pnpm/pnpm/blob/94240bc046/workspace/projects-reader/src/findPackages.ts>.
-            // Mirror that exact-and-only carve-out: parse errors,
-            // permission failures, and "is a directory" must still
-            // propagate so a malformed `package.json` surfaces as a
-            // diagnostic instead of being silently dropped from the
+            // Swallow ENOENT mid-walk (a file vanished between listing
+            // and reading). This is the exact-and-only carve-out: parse
+            // errors, permission failures, and "is a directory" must
+            // still propagate so a malformed `package.json` surfaces as
+            // a diagnostic instead of being silently dropped from the
             // workspace.
             Err(ReadProjectManifestError::Read(PackageManifestError::Io(err)))
                 if err.kind() == ErrorKind::NotFound =>
@@ -236,18 +217,16 @@ pub fn find_workspace_projects_no_check(
     Ok(projects)
 }
 
-/// Hardcoded ignore patterns, matching upstream's `DEFAULT_IGNORE`
-/// minus the `**/test/**` / `**/tests/**` exclusions (which are only
-/// relevant to `findPackages` callers that aren't enumerating a real
-/// workspace — `findWorkspaceProjects` overrides them with just the
-/// `node_modules` / `bower_components` pair).
+/// Hardcoded ignore patterns. Enumerating a real workspace excludes
+/// only `node_modules` and `bower_components`, not the `**/test/**` /
+/// `**/tests/**` directories that the lower-level package-finding path
+/// excludes.
 const IGNORE_PATTERNS: &[&str] = &["**/node_modules/**", "**/bower_components/**"];
 
 fn normalize_pattern(pattern: &str) -> String {
-    // Mirrors upstream `normalizePatterns`: each user pattern is
-    // suffixed with the manifest basename so the glob matches manifest
-    // files rather than directories. Pacquet only supports
-    // `package.json` today; upstream's `{json,yaml,json5}` brace
+    // Each user pattern is suffixed with the manifest basename so the
+    // glob matches manifest files rather than directories. Pacquet only
+    // supports `package.json` today; the `{json,yaml,json5}` brace
     // expansion is dropped to match the [`project_manifest`] reader.
     let trimmed = pattern.trim_end_matches('/');
     if trimmed.is_empty() {

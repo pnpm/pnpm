@@ -4,9 +4,6 @@ use miette::Diagnostic;
 use std::collections::HashSet;
 
 /// Iterate every configured patch key in a stable order.
-///
-/// Ports upstream's
-/// [`allPatchKeys`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/patching/config/src/allPatchKeys.ts).
 pub fn all_patch_keys(patched_dependencies: &PatchGroupRecord) -> impl Iterator<Item = &str> + '_ {
     patched_dependencies.values().flat_map(|group| {
         group
@@ -20,9 +17,6 @@ pub fn all_patch_keys(patched_dependencies: &PatchGroupRecord) -> impl Iterator<
 
 /// Raised when one or more configured patches were never applied
 /// because no package matched their key.
-///
-/// Mirrors upstream's
-/// [`ERR_PNPM_UNUSED_PATCH`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/patching/config/src/verifyPatches.ts#L25-L29).
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display("The following patches were not used: {}", unused_patches.join(", "))]
 #[diagnostic(
@@ -43,9 +37,6 @@ pub struct UnusedPatches {
 }
 
 /// Check that every configured patch was applied at least once.
-///
-/// Ports upstream's
-/// [`verifyPatches`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/patching/config/src/verifyPatches.ts).
 pub fn verify_patches(
     patched_dependencies: &PatchGroupRecord,
     applied_patches: &HashSet<String>,

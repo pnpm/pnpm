@@ -27,21 +27,17 @@ use std::{
 /// * TLS + `local-address` keys (`ca`, `cafile`, `cert`, `key`,
 ///   `strict-ssl`, `local-address`). `cafile` reads from disk and
 ///   feeds the same slot as inline `ca`; an unreadable `cafile` is
-///   silently treated as unset (matching pnpm's
-///   [`loadCAFile`](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/loadNpmrcFiles.ts#L238-L265)).
+///   silently treated as unset.
 ///   Applied via [`NpmrcAuth::apply_tls_and_local_address`].
 ///
-/// Values pass through `${VAR}` substitution before being stored,
-/// matching pnpm's `loadNpmrcFiles.ts` flow. Unresolved placeholders are
-/// substituted with `""` and recorded as warnings so the literal `${VAR}`
-/// never reaches downstream auth code (critical for OIDC trusted publishing
-/// — see <https://github.com/pnpm/pnpm/issues/11513>), again matching pnpm.
+/// Values pass through `${VAR}` substitution before being stored.
+/// Unresolved placeholders are substituted with `""` and recorded as
+/// warnings so the literal `${VAR}` never reaches downstream auth code
+/// (critical for OIDC trusted publishing — see
+/// <https://github.com/pnpm/pnpm/issues/11513>).
 ///
 /// Other project-structural `.npmrc` knobs remain unparsed for now.
-/// See the upstream
-/// [`isIniConfigKey`](https://github.com/pnpm/pnpm/blob/601317e7a3/config/reader/src/localConfig.ts#L160-L161)
-/// list. They will land here as the matching feature work picks them
-/// up.
+/// They will land here as the matching feature work picks them up.
 ///
 /// [#336]: https://github.com/pnpm/pacquet/issues/336
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -56,8 +52,7 @@ pub(crate) struct NpmrcAuth {
     /// scope stores registry-wide credentials.
     pub creds_by_scope_by_uri: HashMap<String, HashMap<String, RawCreds>>,
     /// `${VAR}` placeholders that could not be resolved while parsing.
-    /// Surfaced as warnings; `pnpm` does the same in
-    /// [`substituteEnv`](https://github.com/pnpm/pnpm/blob/601317e7a3/config/reader/src/loadNpmrcFiles.ts#L156-L162).
+    /// Surfaced as warnings.
     pub warnings: Vec<String>,
     /// `https-proxy=…` from .npmrc. Applied by
     /// [`NpmrcAuth::apply_proxy_cascade`].
@@ -65,27 +60,21 @@ pub(crate) struct NpmrcAuth {
     /// `http-proxy=…` from .npmrc.
     pub http_proxy: Option<String>,
     /// Legacy `proxy=…` from .npmrc. Feeds into the `httpsProxy` slot
-    /// only when `https-proxy` is unset — mirrors upstream's
-    /// [`pnpmConfig.httpsProxy = pnpmConfig.proxy`](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/index.ts#L591-L600).
+    /// only when `https-proxy` is unset.
     pub legacy_proxy: Option<String>,
-    /// `no-proxy=…` or `noproxy=…` from .npmrc. Last write wins (matches
-    /// upstream's
-    /// [single `noProxy` slot](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/index.ts#L598-L600)
-    /// fed by either alias).
+    /// `no-proxy=…` or `noproxy=…` from .npmrc. Last write wins: a
+    /// single `noProxy` slot fed by either alias.
     pub no_proxy: Option<String>,
     /// Inline `ca=…` PEM from .npmrc. Each successive `ca=` line
-    /// appends to the same `Vec` (matching upstream's
-    /// `[null, String, Array]` nopt shape, where the array form
-    /// arrives as repeated keys in INI). Combined with `cafile`'s
-    /// split output by [`NpmrcAuth::apply_tls_and_local_address`].
+    /// appends to the same `Vec`, since the array form arrives as
+    /// repeated keys in INI. Combined with `cafile`'s split output by
+    /// [`NpmrcAuth::apply_tls_and_local_address`].
     pub ca: Vec<String>,
     /// `cafile=<path>` from .npmrc. Read at apply time, split on
-    /// `-----END CERTIFICATE-----` to produce one PEM per cert
-    /// (mirroring pnpm's
-    /// [`loadCAFile`](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/loadNpmrcFiles.ts#L249-L255)).
+    /// `-----END CERTIFICATE-----` to produce one PEM per cert.
     /// `cafile`-not-found is silently treated as unset. A relative
     /// path is resolved against the directory of the `.npmrc` that
-    /// declared it (matching pnpm/pnpm#11726), so `pnpm --dir <proj>`
+    /// declared it (pnpm/pnpm#11726), so `pnpm --dir <proj>`
     /// from a different cwd still finds it.
     pub cafile: Option<String>,
     /// `cert=…` client certificate PEM from .npmrc.
@@ -93,22 +82,18 @@ pub(crate) struct NpmrcAuth {
     /// `key=…` client private key PEM from .npmrc.
     pub key: Option<String>,
     /// `strict-ssl=…` toggle from .npmrc. `None` = unset (defaults to
-    /// strict at apply site, matching pnpm's per-emit-site default at
-    /// [`dispatcher.ts:191,197,241,295`](https://github.com/pnpm/pnpm/blob/94240bc046/network/fetch/src/dispatcher.ts#L191)).
+    /// strict at the apply site).
     pub strict_ssl: Option<bool>,
     /// `local-address=…` outbound interface from .npmrc. Stored as a
     /// raw string here; [`NpmrcAuth::apply_tls_and_local_address`]
     /// parses it as [`std::net::IpAddr`]. An invalid address is
-    /// silently dropped (mirrors pnpm, which hands the value verbatim
-    /// to undici and lets Node error at connect time).
+    /// silently dropped.
     pub local_address: Option<String>,
     /// Per-registry TLS overrides keyed by the literal `.npmrc` key
     /// prefix (`//host[:port]/path/`). Populated by `:ca`, `:cafile`,
     /// `:cert`, `:certfile`, `:key`, `:keyfile` keys. The map is
     /// preserved verbatim through to [`PerRegistryTls`] construction
-    /// so lookup keys stay byte-equivalent to upstream. Mirrors
-    /// pnpm's
-    /// [`configByUri[<uri>].tls`](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/getNetworkConfigs.ts#L34-L40).
+    /// so lookup keys stay byte-equivalent to the keys as written.
     pub tls_by_uri: HashMap<String, RegistryTls>,
     /// Scope→URL registry routes inferred from `_auth` (`"@"` → `"default"`,
     /// `"@org"` → that scope). Safe because the credential and its
@@ -119,15 +104,12 @@ pub(crate) struct NpmrcAuth {
     /// Raw INI config keys (those for which
     /// [`crate::config_types::is_ini_config_key`] holds), post-`${VAR}`
     /// substitution, captured verbatim for `pnpm config get` / `list`. This
-    /// is the source of [`crate::Config::raw_auth_config`] (pnpm's
-    /// `authConfig`); it does not feed auth-header resolution, which reads
-    /// the structured fields above.
+    /// is the source of [`crate::Config::raw_auth_config`]; it does not feed
+    /// auth-header resolution, which reads the structured fields above.
     pub raw_ini_config: BTreeMap<String, String>,
 }
 
-/// Raw (unparsed) credential fields for a given registry URI, mirroring
-/// pnpm's
-/// [`RawCreds`](https://github.com/pnpm/pnpm/blob/601317e7a3/config/reader/src/parseCreds.ts#L7-L18).
+/// Raw (unparsed) credential fields for a given registry URI.
 /// Each `Option` stores the post-`${VAR}`-substitution value when set.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub(crate) struct RawCreds {
@@ -167,8 +149,7 @@ impl RawCreds {
 }
 
 /// Default registry used when a source declares credentials but no
-/// `registry=` of its own to scope them to. Matches pnpm's
-/// `npmDefaults.registry`.
+/// `registry=` of its own to scope them to.
 const DEFAULT_REGISTRY: &str = "https://registry.npmjs.org/";
 
 impl NpmrcAuth {
@@ -225,8 +206,7 @@ impl NpmrcAuth {
     /// Parse the structured `_auth` setting from its two trusted, non-repo
     /// sources — the global pnpm `config.yaml` (`global_value`) and the
     /// `pnpm_config__auth` env var — global-first then env, so the env var
-    /// wins on conflict. Mirrors pnpm's `readJsonAuthEnv` +
-    /// `readGlobalConfigAuth`.
+    /// wins on conflict.
     ///
     /// Parsing is strict: a malformed value (bad JSON, wrong shape, invalid
     /// registry URL or scope, an unsupported credential field) is a hard
@@ -286,10 +266,9 @@ impl NpmrcAuth {
     /// Unknown keys are silently dropped. `${VAR}` placeholders inside keys
     /// and values are resolved via the [`EnvVar`] capability; unresolved
     /// placeholders (no env value and no `${VAR:-default}` fallback) are
-    /// substituted with `""` and surfaced as warnings, matching pnpm's
-    /// `substituteEnv` in `loadNpmrcFiles.ts`. Leaving the literal `${VAR}`
-    /// in an auth value would otherwise be sent verbatim — most damagingly
-    /// as a bearer auth token under OIDC trusted publishing
+    /// substituted with `""` and surfaced as warnings. Leaving the literal
+    /// `${VAR}` in an auth value would otherwise be sent verbatim — most
+    /// damagingly as a bearer auth token under OIDC trusted publishing
     /// (<https://github.com/pnpm/pnpm/issues/11513>).
     ///
     /// The `.npmrc` format is a tiny ini dialect: one `key=value` per line,
@@ -326,8 +305,7 @@ impl NpmrcAuth {
             let raw_key = raw_key.trim();
             let raw_value = raw_value.trim();
 
-            // Apply ${VAR} substitution to both the key and the value,
-            // matching `readAndFilterNpmrc` in pnpm's `loadNpmrcFiles.ts`.
+            // Apply ${VAR} substitution to both the key and the value.
             // Unresolved placeholders become "" and are recorded as warnings.
             if !opts.expand_request_destination_env
                 && has_env_placeholder(raw_key)
@@ -411,9 +389,8 @@ impl NpmrcAuth {
                     continue;
                 }
                 "ca" => {
-                    // Repeated `ca=` lines accumulate — matches
-                    // upstream's `[null, String, Array]` nopt type
-                    // where multiple values arrive as an array.
+                    // Repeated `ca=` lines accumulate — multiple values
+                    // arrive as repeated keys in INI.
                     auth.ca.push(value);
                     continue;
                 }
@@ -448,11 +425,9 @@ impl NpmrcAuth {
 
             if let Some((uri, field, is_file)) = split_ssl_key(&key) {
                 // For `*file` variants the value is a path; read the
-                // file at parse time (silent on error, matching
-                // pnpm's `fs.readFileSync` which throws into the
-                // outer parse and is swallowed). For inline variants
-                // expand `\n` → real newlines so a single-line INI
-                // value can carry a multi-line PEM.
+                // file at parse time (silent on error). For inline
+                // variants expand `\n` → real newlines so a single-line
+                // INI value can carry a multi-line PEM.
                 let resolved = if is_file {
                     let Ok(contents) = std::fs::read_to_string(&value) else {
                         continue;
@@ -488,15 +463,12 @@ impl NpmrcAuth {
     /// The transformations:
     /// - Inline `ca=` PEMs are kept verbatim.
     /// - `cafile=<path>` is read from disk and split on
-    ///   `-----END CERTIFICATE-----` (mirroring pnpm's
-    ///   [`loadCAFile`](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/loadNpmrcFiles.ts#L249-L265)).
+    ///   `-----END CERTIFICATE-----`.
     ///   Inline `ca` entries appear in the final list before the
     ///   `cafile` ones — same ordering as a `ca=` line followed by a
-    ///   `cafile=` line. Unreadable `cafile` is silently dropped
-    ///   (matches upstream's `catch {}` swallow).
+    ///   `cafile=` line. Unreadable `cafile` is silently dropped.
     /// - `local-address` is parsed as [`std::net::IpAddr`]. An invalid
-    ///   value is silently dropped (mirrors pnpm — Node errors at
-    ///   connect time rather than load time).
+    ///   value is silently dropped.
     ///
     /// `strict_ssl`, `cert`, `key` are pass-through (no transformation).
     ///
@@ -505,8 +477,7 @@ impl NpmrcAuth {
     /// [`NpmrcAuth::from_ini`] (pnpm/pnpm#11726).
     pub fn apply_tls_and_local_address(&mut self, config: &mut Config) {
         // Inline CA first, then file-loaded CA, so a user that
-        // duplicates a cert across both ends up with it added twice
-        // — same ordering pnpm produces.
+        // duplicates a cert across both ends up with it added twice.
         let mut ca = std::mem::take(&mut self.ca);
         if let Some(path) = self.cafile.take() {
             ca.extend(load_cafile(Path::new(&path)));
@@ -524,24 +495,20 @@ impl NpmrcAuth {
     }
 
     /// Resolve the `(https_proxy, http_proxy, no_proxy)` triple on
-    /// `config.proxy`, mirroring upstream's
-    /// [`config/reader/src/index.ts:591-600`](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/index.ts#L591-L600)
-    /// cascade. `.npmrc` always wins over env vars; the legacy `proxy=`
-    /// key feeds the `httpsProxy` slot only (the http side falls back
-    /// to the resolved `httpsProxy` before consulting env). `noProxy`
-    /// accepts the literal token `true` to mean "bypass every proxy"
-    /// — matching the `string | true` shape of upstream's
-    /// [`Config.noProxy`](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/Config.ts#L142-L146).
+    /// `config.proxy`. `.npmrc` always wins over env vars; the legacy
+    /// `proxy=` key feeds the `httpsProxy` slot only (the http side
+    /// falls back to the resolved `httpsProxy` before consulting env).
+    /// `noProxy` accepts the literal token `true` to mean "bypass every
+    /// proxy".
     ///
     /// Generic over [`EnvVar`] so cascade tests can drive every branch
     /// without mutating the process environment (no `EnvGuard` global
     /// lock).
     pub fn apply_proxy_cascade<Sys: EnvVar>(&mut self, config: &mut Config) {
-        // Upstream's `getProcessEnv` tries literal-, upper-, and
-        // lower-case in order (config/reader/src/index.ts:689-693). For
-        // the proxy var names below the literal form is already either
-        // fully upper or fully lower, so the triple collapses to two
-        // real attempts.
+        // Each proxy env var is tried in literal-, upper-, then
+        // lower-case order. For the var names below the literal form is
+        // already either fully upper or fully lower, so the triple
+        // collapses to two real attempts.
         fn env_pair<Sys: EnvVar>(upper: &str, lower: &str) -> Option<String> {
             Sys::var(upper).or_else(|| Sys::var(lower))
         }
@@ -596,8 +563,7 @@ impl NpmrcAuth {
 
     /// Phase 2: compute and store the final [`AuthHeaders`] map,
     /// keying default-registry creds at `config.registry`'s nerf-darted
-    /// URI. Mirrors pnpm's
-    /// [`getAuthHeadersFromCreds`](https://github.com/pnpm/pnpm/blob/601317e7a3/network/auth-header/src/getAuthHeadersFromConfig.ts).
+    /// URI.
     pub fn build_auth_headers(self, config: &mut Config) {
         let mut auth_header_by_uri: HashMap<String, String> = HashMap::new();
         let mut auth_header_by_scope_by_uri: HashMap<String, HashMap<String, String>> =
@@ -647,11 +613,10 @@ impl NpmrcAuth {
     /// own — by nerf-darting that registry into a per-URI key and moving
     /// the values onto [`Self::creds_by_scope_by_uri`] / [`Self::tls_by_uri`].
     ///
-    /// This is the security boundary ported from pnpm's
-    /// [`rescopeUnscopedCreds`](https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/loadNpmrcFiles.ts):
-    /// rescoping happens per file *before* sources are merged, so a
-    /// credential can never be pulled to a different registry that a
-    /// higher-priority `.npmrc` (or `pnpm-workspace.yaml`) later sets.
+    /// This is a security boundary: rescoping happens per file *before*
+    /// sources are merged, so a credential can never be pulled to a
+    /// different registry that a higher-priority `.npmrc` (or
+    /// `pnpm-workspace.yaml`) later sets.
     /// An explicitly URL-scoped value already present for the same key
     /// is left untouched. A deprecation warning is queued (drained by
     /// [`Self::apply_registry_and_warn`]) for each rescoped field.
@@ -673,7 +638,7 @@ impl NpmrcAuth {
         if key.is_empty() {
             // Unparsable registry (e.g. an unresolved `${VAR}`). Drop
             // the unscoped material rather than risk sending it to the
-            // wrong host — matching pnpm's catch branch.
+            // wrong host.
             self.default_creds = RawCreds::default();
             self.cert = None;
             self.key = None;
@@ -731,8 +696,8 @@ impl NpmrcAuth {
     /// Merge a lower-priority source under `self` (the higher-priority
     /// one). Fields already set on `self` win; `lower` fills the gaps.
     /// Per-URI credential and TLS maps merge field-by-field with the
-    /// same "higher wins" rule. Mirrors pnpm's merge order
-    /// (`user < auth.ini < workspace`), where each later source
+    /// same "higher wins" rule. The merge order is
+    /// `user < auth.ini < workspace`, where each later source
     /// overwrites the keys an earlier one set.
     ///
     /// Both sources must already have been through
@@ -811,16 +776,15 @@ impl NpmrcAuth {
     }
 }
 
-/// Normalize a registry URL the way pnpm's `normalizeRegistryUrl` does
-/// for the purposes of nerf-darting: ensure a single trailing slash.
+/// Normalize a registry URL for the purposes of nerf-darting: ensure a
+/// single trailing slash.
 fn normalize_registry_url(registry: &str) -> String {
     if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
 }
 
 /// Resolve a top-level `cafile=` value against the directory of the
 /// `.npmrc` that declared it. Empty and absolute values pass through
-/// unchanged; relative values are joined onto `npmrc_dir`. Mirrors
-/// pnpm/pnpm#11726.
+/// unchanged; relative values are joined onto `npmrc_dir` (pnpm/pnpm#11726).
 fn resolve_cafile(value: String, npmrc_dir: &Path) -> String {
     if value.is_empty() || Path::new(&value).is_absolute() {
         return value;
@@ -829,9 +793,9 @@ fn resolve_cafile(value: String, npmrc_dir: &Path) -> String {
     resolved.into_os_string().into_string().unwrap_or(value)
 }
 
-/// Parse a `strict-ssl=…` value. pnpm/nopt accepts only the literal
-/// `true` and `false` tokens; anything else is dropped silently so the
-/// dispatcher's per-emit `strictSsl ?? true` default kicks in.
+/// Parse a `strict-ssl=…` value. Only the literal `true` and `false`
+/// tokens are accepted; anything else is dropped silently so the
+/// per-emit `strictSsl ?? true` default kicks in.
 fn parse_bool(value: &str) -> Option<bool> {
     match value.trim() {
         "true" => Some(true),
@@ -864,9 +828,7 @@ fn has_env_placeholder(value: &str) -> bool {
 }
 
 /// Read a `cafile` path and split the contents on
-/// `-----END CERTIFICATE-----` to produce one PEM per certificate.
-/// Mirrors pnpm's
-/// [`loadCAFile`](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/loadNpmrcFiles.ts#L238-L265):
+/// `-----END CERTIFICATE-----` to produce one PEM per certificate:
 /// re-append the delimiter to each split, trim, drop empties, and
 /// silently treat any read error as an empty list.
 fn load_cafile(path: &Path) -> Vec<String> {
@@ -874,22 +836,18 @@ fn load_cafile(path: &Path) -> Vec<String> {
         return Vec::new();
     };
     let delimiter = "-----END CERTIFICATE-----";
-    // Byte-for-byte parity with pnpm's
-    // [`loadCAFile`](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/loadNpmrcFiles.ts#L251-L254):
-    // `contents.split(delim).filter(ca => ca.trim().length > 0).map(ca => `${ca.trimStart()}${delim}`)`.
-    //
     // Key contract points:
-    // - `split` (not `split_inclusive`) — pnpm drops the delimiter
-    //   from each chunk and re-appends it on the map side.
+    // - `split` (not `split_inclusive`) — the delimiter is dropped
+    //   from each chunk and re-appended on the map side.
     // - Filter on `chunk.trim().is_empty()` — drops the trailing
     //   empty chunk produced when the file ends with a delimiter,
     //   but *keeps* a trailing non-empty (malformed) chunk so
     //   downstream `Certificate::from_pem` surfaces the parse error
     //   instead of pacquet silently dropping the entry.
-    // - `trim_start()` (not full `trim`) — pnpm preserves any
-    //   trailing whitespace inside the chunk before the appended
-    //   delimiter. Doesn't matter to a PEM parser but matters for
-    //   "is the output byte-equivalent to pnpm's" tests.
+    // - `trim_start()` (not full `trim`) — any trailing whitespace
+    //   inside the chunk before the appended delimiter is preserved.
+    //   It doesn't matter to a PEM parser but does matter for
+    //   byte-equivalence tests.
     contents
         .split(delimiter)
         .filter(|chunk| !chunk.trim().is_empty())
@@ -899,9 +857,8 @@ fn load_cafile(path: &Path) -> Vec<String> {
 
 /// Parse the raw `no-proxy` value into [`NoProxySetting`].
 ///
-/// `"true"` (after trimming) is the literal-`true` shape from upstream's
-/// `noProxy: string | true` type. Anything else is comma-split, trimmed,
-/// empties dropped.
+/// `"true"` (after trimming) means "bypass every proxy". Anything else is
+/// comma-split, trimmed, empties dropped.
 fn parse_no_proxy(raw: &str) -> NoProxySetting {
     if raw.trim() == "true" {
         return NoProxySetting::Bypass;
@@ -911,9 +868,8 @@ fn parse_no_proxy(raw: &str) -> NoProxySetting {
     )
 }
 
-/// Convert raw .npmrc credentials into the `Authorization` header
-/// value pnpm would send. Returns `None` if no usable credential
-/// shape is present.
+/// Convert raw .npmrc credentials into an `Authorization` header
+/// value. Returns `None` if no usable credential shape is present.
 fn creds_to_header(creds: &RawCreds) -> Option<String> {
     if let Some(token) = &creds.auth_token {
         return Some(format!("Bearer {token}"));
@@ -924,8 +880,7 @@ fn creds_to_header(creds: &RawCreds) -> Option<String> {
     if let (Some(user), Some(pass_b64)) = (&creds.username, &creds.password) {
         // npm encodes `_password` as base64 of the raw password. The
         // header itself is `Basic base64(user:password)`, so we decode
-        // the password back and re-encode the pair, matching pnpm's
-        // [`parseBasicAuth`](https://github.com/pnpm/pnpm/blob/601317e7a3/config/reader/src/parseCreds.ts#L56-L77).
+        // the password back and re-encode the pair.
         let password = base64_decode(pass_b64).unwrap_or_else(|| pass_b64.clone());
         return Some(format!("Basic {}", base64_encode(&format!("{user}:{password}"))));
     }
@@ -961,8 +916,7 @@ fn base64_decode(input: &str) -> Option<String> {
     String::from_utf8(bytes).ok()
 }
 
-/// Auth-suffix keys recognised on a `//host[:port]/path/:` prefix,
-/// mirroring `AUTH_SUFFIX_RE` from pnpm's `getNetworkConfigs.ts`.
+/// Auth-suffix keys recognised on a `//host[:port]/path/:` prefix.
 const CREDS_SUFFIXES: &[&str] = &["_authToken", "_auth", "_password", "username"];
 
 fn is_auth_value_key(key: &str) -> bool {
@@ -1047,9 +1001,8 @@ fn apply_creds_field(creds: &mut RawCreds, field: &str, value: String) {
     // The catch-all swallows arbitrary `.npmrc` keys that don't map to
     // a credential field. Examples: a top-level `store-dir=` line, or
     // a `//host/:registry=` per-registry override that we don't honour
-    // yet. Matches pnpm's `getNetworkConfigs` shape: only the four
-    // recognised fields contribute to `RawCreds`; everything else is
-    // silently dropped.
+    // yet. Only the four recognised fields contribute to `RawCreds`;
+    // everything else is silently dropped.
     match field {
         "_authToken" => creds.auth_token = Some(value),
         "_auth" => creds.auth_pair_base64 = Some(value),
@@ -1065,16 +1018,15 @@ fn apply_creds_field(creds: &mut RawCreds, field: &str, value: String) {
 /// silent skip. See [`NpmrcAuth::from_json_sources`].
 ///
 /// [`IndexMap`] preserves source order so a later entry wins for a
-/// duplicate inferred route (`"@"` / `@scope` across different hosts),
-/// matching pnpm's `Object.entries` iteration — a `BTreeMap` would re-sort
-/// and could pick a different host.
+/// duplicate inferred route (`"@"` / `@scope` across different hosts) —
+/// a `BTreeMap` would re-sort and could pick a different host.
 #[derive(Debug, serde::Deserialize)]
 struct JsonAuth(IndexMap<JsonAuthRegistry, IndexMap<JsonAuthScope, JsonAuthCreds>>);
 
 /// A registry URL `_auth` key. Validated to be an http(s) URL with no
 /// userinfo, query, or fragment (those can carry secrets), then stored
 /// normalized (trailing slash) and nerf-darted for the credential key.
-/// Parsed with the `url` crate, matching the TS side's `new URL()`.
+/// Parsed with the `url` crate.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Deserialize)]
 #[serde(try_from = "String")]
 struct JsonAuthRegistry {
@@ -1155,9 +1107,8 @@ struct JsonAuthCreds {
 
 /// Per-registry TLS suffixes. The `*file` variants instruct the
 /// parser to read the value as a path; the bare variants use the
-/// value as inline PEM (with `\n` escape expansion). Mirrors
-/// `SSL_SUFFIX_RE = /:(?<id>cert|key|ca)(?<kind>file)?$/` from pnpm's
-/// [`getNetworkConfigs.ts:94`](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/getNetworkConfigs.ts#L94).
+/// value as inline PEM (with `\n` escape expansion). These match the
+/// shape `:(?<id>cert|key|ca)(?<kind>file)?$`.
 const TLS_SUFFIXES: &[(&str, &str, bool)] = &[
     // (suffix, field, is_file)
     (":cafile", "ca", true),
@@ -1169,12 +1120,11 @@ const TLS_SUFFIXES: &[(&str, &str, bool)] = &[
 ];
 
 /// Return `(uri_prefix, field, is_file)` when `key` ends in one of the
-/// recognized TLS suffixes. Matches pnpm's `tryParseSslKey` —
-/// deliberately does *not* require a leading `//`, so the lax keys
-/// pnpm accepts (`foo:cert=…`) end up in the map with `uri_prefix =
+/// recognized TLS suffixes. Deliberately does *not* require a leading
+/// `//`, so lax keys (`foo:cert=…`) end up in the map with `uri_prefix =
 /// "foo"`. They never match a real nerf-darted URL so the entry is
-/// effectively dropped at lookup time, but storing it preserves
-/// byte-for-byte parity with upstream parsing.
+/// effectively dropped at lookup time, but storing it keeps the parse
+/// lax in the same way npm's `.npmrc` parsing is.
 ///
 /// Order matters: `:certfile` must be tested before `:cert` so the
 /// `*file` variants don't get parsed as the inline form with a
@@ -1196,10 +1146,9 @@ fn split_inline_identity_key(key: &str) -> Option<(&str, &'static str)> {
 /// Write a per-registry TLS value onto a [`RegistryTls`] entry.
 ///
 /// For inline values (`is_file = false`) the parser pre-expands `\n`
-/// escapes to real newlines — pnpm does this only on per-registry
-/// values, not on the top-level `ca=` form
-/// ([`getNetworkConfigs.ts:38-39`](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/getNetworkConfigs.ts#L38-L39))
-/// — and `value` arrives already expanded.
+/// escapes to real newlines — this expansion applies only to
+/// per-registry values, not to the top-level `ca=` form — and `value`
+/// arrives already expanded.
 fn apply_tls_field(tls: &mut RegistryTls, field: &str, value: String) {
     match field {
         "ca" => tls.ca = Some(value),

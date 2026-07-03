@@ -1,10 +1,8 @@
-//! Port of `config/package-is-installable/test/checkPlatform.ts`
-//! at <https://github.com/pnpm/pnpm/blob/94240bc046/config/package-is-installable/test/checkPlatform.ts>.
+//! Tests for [`check_platform`].
 //!
-//! The upstream tests mock `process.platform` / `process.arch` /
-//! `detect-libc.familySync`. Pacquet's [`check_platform`] takes the
-//! three values as parameters, so the ports pass them explicitly
-//! rather than mutating any global state.
+//! [`check_platform`] takes the current `os` / `cpu` / `libc` as
+//! parameters, so these tests pass them explicitly rather than mutating
+//! any global state.
 
 use crate::{
     SupportedArchitectures, UnsupportedPlatformError, WantedPlatform, WantedPlatformRef,

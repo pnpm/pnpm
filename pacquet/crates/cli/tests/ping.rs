@@ -1,13 +1,12 @@
 //! `pacquet ping` resolves the registry (the `--registry` override or the
-//! configured default) and prints pnpm's `PING`/`PONG` report for
+//! configured default) and prints a `PING`/`PONG` report for
 //! `GET <registry>-/ping?write=true`.
 //!
-//! Ports the upstream ping tests
-//! (<https://github.com/pnpm/pnpm/blob/fc2f33912e/pnpm11/registry-access/commands/test/ping.ts>):
-//! the reachable-registry report, the JSON-details branch, the configured
-//! default registry, rejection on a non-success status, preservation of a
-//! registry path prefix, and a transport failure. Adds a pacquet-only guard
-//! that inline registry credentials are redacted from the echoed `PING` line.
+//! Covers the reachable-registry report, the JSON-details branch, the
+//! configured default registry, rejection on a non-success status,
+//! preservation of a registry path prefix, and a transport failure, plus a
+//! guard that inline registry credentials are redacted from the echoed
+//! `PING` line.
 //!
 //! The registry is a `mockito` server the spawned `pacquet` connects to
 //! over loopback. An empty `--npmrc-auth-file` replaces the developer's
@@ -46,7 +45,7 @@ fn run_ping(workspace: &Path, auth_file: &Path, registry: Option<&str>) -> std::
     command.output().expect("spawn pacquet ping")
 }
 
-/// Match `GET /<path>-/ping?write=true`, the request pnpm's ping issues.
+/// Match `GET /<path>-/ping?write=true`, the request `pacquet ping` issues.
 fn ping_mock(server: &mut mockito::Server, path_prefix: &str) -> mockito::Mock {
     server
         .mock("GET", format!("{path_prefix}/-/ping").as_str())

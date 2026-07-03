@@ -20,15 +20,12 @@ pub struct TarballResolution {
     /// The git resolver sets this when it produces the resolution; the
     /// lockfile loader back-fills it on entries whose URL matches a known
     /// git host for backward compatibility with lockfiles written before
-    /// this field existed. Mirrors pnpm's `TarballResolution.gitHosted`
-    /// at <https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/types/src/index.ts#L88-L107>.
+    /// this field existed.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub git_hosted: Option<bool>,
-    /// Sub-directory inside the tarball to pack, mirroring
-    /// `GitResolution.path`. Pnpm's git-hosted tarball fetcher uses it
-    /// to package only one directory of a monorepo's archive. Mirrors
-    /// pnpm's `TarballResolution.path` at
-    /// <https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/types/src/index.ts#L93>.
+    /// Sub-directory inside the tarball to pack. The git-hosted tarball
+    /// fetcher uses it to package only one directory of a monorepo's
+    /// archive.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,
 }
@@ -53,22 +50,18 @@ pub struct DirectoryResolution {
 pub struct GitResolution {
     pub repo: String,
     pub commit: String,
-    /// Sub-directory inside the cloned tree to package. Mirrors pnpm's
-    /// `GitRepositoryResolution.path` at
-    /// <https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/types/src/index.ts#L120-L125>.
-    /// The git fetcher passes this to `preparePackage` so the build runs
-    /// inside the sub-directory rather than the repo root.
+    /// Sub-directory inside the cloned tree to package. The git fetcher
+    /// uses it so the build runs inside the sub-directory rather than the
+    /// repo root.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,
 }
 
-/// One of the named executables a [`BinaryResolution`] exposes. Pnpm
-/// writes either a single string (one binary, named after the
+/// One of the named executables a [`BinaryResolution`] exposes. The
+/// lockfile records either a single string (one binary, named after the
 /// package) or a map of `{ bin_name -> path_inside_archive }` so a
 /// runtime archive can expose several launchers (e.g. `node` and
-/// `node-mips`). Mirrors pnpm's
-/// [`BinaryResolution.bin`](https://github.com/pnpm/pnpm/blob/94240bc046/resolving/resolver-base/src/index.ts#L46-L48)
-/// type union.
+/// `node-mips`).
 ///
 /// `BTreeMap` (not `HashMap`) keeps the serialised order stable so a
 /// round-trip through pacquet doesn't churn the lockfile diff.
@@ -85,8 +78,6 @@ pub enum BinarySpec {
 
 /// Archive format for a [`BinaryResolution`].
 ///
-/// Mirrors pnpm's `BinaryResolution.archive` discriminator at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/resolving/resolver-base/src/index.ts#L47>.
 /// `tarball` is the common shape for nodejs.org's `.tar.gz` artifacts
 /// (Linux / macOS); `zip` is what Windows Node ships as.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -97,8 +88,7 @@ pub enum BinaryArchive {
 }
 
 /// For a downloaded binary archive (a JavaScript runtime: Node, Deno,
-/// or Bun). Mirrors pnpm's
-/// [`BinaryResolution`](https://github.com/pnpm/pnpm/blob/94240bc046/resolving/resolver-base/src/index.ts#L41-L49).
+/// or Bun).
 ///
 /// The install path extracts the archive into the CAS (with optional
 /// per-package `ignoreFilePattern` filtering — Node strips bundled
@@ -112,28 +102,24 @@ pub struct BinaryResolution {
     pub bin: BinarySpec,
     pub archive: BinaryArchive,
     /// Basename of the archive's top-level directory (e.g.
-    /// `node-v22.0.0-darwin-arm64`). Only emitted for zip archives —
-    /// see
-    /// [`engine/runtime/node-resolver/src/index.ts`](https://github.com/pnpm/pnpm/blob/94240bc046/engine/runtime/node-resolver/src/index.ts)
-    /// where the resolver sets `resolution.prefix = address.basename`
-    /// only for the `.zip` branch. The zip extractor strips this
-    /// prefix when applying `ignoreFilePattern` and renames the
-    /// resulting `<temp>/<basename>/` directory to the CAS target.
-    /// Tarball entries already carry the prefix in their tar header,
-    /// so this stays `None` for them.
+    /// `node-v22.0.0-darwin-arm64`). Only emitted for zip archives,
+    /// where the resolver sets the prefix to the archive's basename.
+    /// The zip extractor strips this prefix when applying
+    /// `ignoreFilePattern` and renames the resulting
+    /// `<temp>/<basename>/` directory to the CAS target. Tarball
+    /// entries already carry the prefix in their tar header, so this
+    /// stays `None` for them.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub prefix: Option<String>,
 }
 
 /// One `(os, cpu, libc?)` triple a [`PlatformAssetResolution`] covers.
-/// Mirrors pnpm's
-/// [`PlatformAssetTarget`](https://github.com/pnpm/pnpm/blob/94240bc046/resolving/resolver-base/src/index.ts#L60-L64).
 ///
-/// Pnpm only writes `libc` for musl-built variants; glibc is the
+/// `libc` is only written for musl-built variants; glibc is the
 /// implicit default on Linux and the field is omitted everywhere
 /// else. `Option<String>` (rather than `Option<Libc>` enum) keeps
 /// future libc values future-compatible without a churning serde
-/// migration if upstream adds one.
+/// migration if a new one lands.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 pub struct PlatformAssetTarget {
@@ -144,15 +130,14 @@ pub struct PlatformAssetTarget {
 }
 
 /// One variant of a [`VariationsResolution`]: an inner [`LockfileResolution`]
-/// paired with the host triples it covers. Mirrors pnpm's
-/// [`PlatformAssetResolution`](https://github.com/pnpm/pnpm/blob/94240bc046/resolving/resolver-base/src/index.ts#L66-L69).
+/// paired with the host triples it covers.
 ///
-/// The inner resolution is *atomic* upstream — a [`BinaryResolution`],
-/// [`TarballResolution`], etc. — never another [`VariationsResolution`].
-/// Pacquet's type is wider (the full [`LockfileResolution`]) for serde-
-/// round-trip uniformity, and we trust the lockfile to honor the
-/// upstream contract: [`select_platform_variant`] does not add a
-/// runtime check rejecting a nested `Variations`. A malformed
+/// The inner resolution is *atomic* in the on-disk shape — a
+/// [`BinaryResolution`], [`TarballResolution`], etc. — never another
+/// [`VariationsResolution`]. Pacquet's type is wider (the full
+/// [`LockfileResolution`]) for serde-round-trip uniformity, and we trust
+/// the lockfile to honor that contract: [`select_platform_variant`] does
+/// not add a runtime check rejecting a nested `Variations`. A malformed
 /// lockfile that nested them would just route the picked variant's
 /// inner shape back through the install dispatcher, which surfaces
 /// each shape independently — no infinite recursion is possible
@@ -167,8 +152,6 @@ pub struct PlatformAssetResolution {
 
 /// For a runtime (or any platform-conditioned binary) that has more
 /// than one downloadable artifact, one per `(os, cpu, libc?)` combo.
-/// Mirrors pnpm's
-/// [`VariationsResolution`](https://github.com/pnpm/pnpm/blob/94240bc046/resolving/resolver-base/src/index.ts#L73-L76).
 ///
 /// At install time, the dispatcher walks `variants` in declaration
 /// order and picks the first whose `targets[]` includes the host
@@ -180,20 +163,17 @@ pub struct VariationsResolution {
 }
 
 /// Host triple used to pick a variant out of a [`VariationsResolution`].
-/// Mirrors pnpm's
-/// [`PlatformSelector`](https://github.com/pnpm/pnpm/blob/94240bc046/resolving/resolver-base/src/index.ts#L78-L83).
 ///
-/// `libc`'s tri-state encodes pnpm's `string | null | undefined` shape:
+/// `libc`'s tri-state encodes the `string | null | undefined` shape:
 ///
 /// - `None` — the host's libc constraint is irrelevant (macOS, Windows,
 ///   BSD, ...). Matches a variant whose `libc` is `None` (the default
 ///   build); a `libc: "musl"` variant is rejected since `musl` is a
 ///   non-default, non-interchangeable artifact.
 /// - `Some("glibc")` — Linux with glibc. Same matching rule as `None`:
-///   the default variant wins, musl variants are skipped. Upstream
-///   collapses `null` and `"glibc"` into the same arm in
-///   [`libcMatches`](https://github.com/pnpm/pnpm/blob/94240bc046/resolving/resolver-base/src/index.ts#L100-L107)
-///   because the variant emitter only annotates non-glibc builds.
+///   the default variant wins, musl variants are skipped. `null` and
+///   `"glibc"` collapse into the same arm because the variant emitter
+///   only annotates non-glibc builds.
 /// - `Some("musl")` — Linux with musl. Requires an exact `libc:
 ///   "musl"` annotation on the variant, so the glibc default doesn't
 ///   silently install.
@@ -205,8 +185,7 @@ pub struct PlatformSelector {
 }
 
 /// Pick the variant whose target list contains the host triple, or
-/// `None` if no variant matches. Port of pnpm's
-/// [`selectPlatformVariant`](https://github.com/pnpm/pnpm/blob/94240bc046/resolving/resolver-base/src/index.ts#L92-L98).
+/// `None` if no variant matches.
 ///
 /// Iterates `variants` in declaration order and returns the first
 /// [`PlatformAssetResolution`] whose `targets[]` contains an `(os, cpu,
@@ -229,8 +208,7 @@ pub fn select_platform_variant<'a>(
 }
 
 /// Check whether a variant's `libc` annotation matches the host
-/// selector's `libc` value. Port of upstream's
-/// [`libcMatches`](https://github.com/pnpm/pnpm/blob/94240bc046/resolving/resolver-base/src/index.ts#L100-L107).
+/// selector's `libc` value.
 ///
 /// The contract is asymmetric on purpose: `None` and `"glibc"` on the
 /// selector side both demand `None` on the variant (the unannotated
@@ -283,9 +261,6 @@ impl LockfileResolution {
     /// git-hosted, or when it does not match the derived URL (e.g. private
     /// registries with non-standard tarball paths). Non-tarball resolutions and
     /// integrity-less tarballs pass through unchanged.
-    ///
-    /// Port of pnpm's
-    /// [`toLockfileResolution`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/utils/src/toLockfileResolution.ts).
     #[must_use]
     pub fn to_lockfile_form(
         &self,
@@ -357,8 +332,7 @@ fn is_canonical_registry_tarball_url(
     remove_protocol(&expected) == remove_protocol(&actual)
 }
 
-/// Default-vs-scope routing for an npm package. Mirrors pnpm's
-/// [`pickRegistryForPackage`](https://github.com/pnpm/pnpm/blob/main/config/pick-registry-for-package/src/index.ts).
+/// Default-vs-scope routing for an npm package.
 ///
 /// Routing rules:
 ///
@@ -397,8 +371,7 @@ fn scope_of(name: &str) -> Option<&str> {
 
 /// Strip only a leading `http://` or `https://` scheme (case-insensitive) so
 /// URLs are compared protocol-insensitively, without truncating on a later
-/// `://` in the path or query. Port of pnpm's `removeProtocol`
-/// (`url.replace(/^https?:\/\//i, '')`).
+/// `://` in the path or query.
 fn remove_protocol(url: &str) -> &str {
     ["https://", "http://"]
         .into_iter()
@@ -434,9 +407,7 @@ impl From<ResolutionSerde> for LockfileResolution {
         match value {
             ResolutionSerde::Tarball(mut resolution) => {
                 // Back-fill `gitHosted` for entries written by older pnpm
-                // versions that lacked the field. Mirrors upstream's
-                // `enrichGitHostedFlag` at
-                // <https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/fs/src/lockfileFormatConverters.ts#L158-L168>.
+                // versions that lacked the field.
                 if resolution.git_hosted.is_none() && is_git_hosted_tarball_url(&resolution.tarball)
                 {
                     resolution.git_hosted = Some(true);

@@ -356,7 +356,7 @@ fn leaked_offline_config(
 /// have a package's tarball download finished (or in flight) in the
 /// shared mem cache by the time the cold batch reaches it. The cold
 /// batch must reuse that download via the mem cache rather than racing
-/// a second fetch of the same bytes (<https://github.com/pnpm/pnpm/issues/12241>).
+/// a second fetch of the same bytes.
 ///
 /// Seed the mem cache with a finished download keyed by the exact URL
 /// the registry resolution derives, then run the cold-batch installer

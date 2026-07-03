@@ -1389,20 +1389,23 @@ packages:
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/2928
+// @pnpm.e2e/has-build-metadata-dep depends on
+// `@pnpm.e2e/has-build-metadata@^0.5.0-alpha.51+f10fea0` — a range carrying
+// build metadata, which must not leak into the lockfile.
 test('build metadata is always ignored in versions and the lockfile is not flickering because of them', async () => {
-  await addDistTag({ package: '@monorepolint/core', version: '0.5.0-alpha.51', distTag: 'latest' })
+  await addDistTag({ package: '@pnpm.e2e/has-build-metadata', version: '0.5.0-alpha.51', distTag: 'latest' })
   const project = prepareEmpty()
 
   const { updatedManifest: manifest } = await addDependenciesToPackage({},
     [
-      '@monorepolint/cli@0.5.0-alpha.51',
+      '@pnpm.e2e/has-build-metadata-dep@0.5.0-alpha.51',
     ], testDefaults({ lockfileOnly: true }))
 
-  const depPath = '@monorepolint/core@0.5.0-alpha.51'
+  const depPath = '@pnpm.e2e/has-build-metadata@0.5.0-alpha.51'
   const initialLockfile = project.readLockfile()
   const initialPkgEntry = initialLockfile.packages[depPath]
   expect(initialPkgEntry?.resolution).toStrictEqual({
-    integrity: 'sha512-ihFonHDppOZyG717OW6Bamd37mI2gQHjd09buTjbKhRX8NAHsTbRUKwp39ZYVI5AYgLF1eDlLpgOY4dHy2xGQw==',
+    integrity: getIntegrity('@pnpm.e2e/has-build-metadata', '0.5.0-alpha.51'),
   })
 
   await addDependenciesToPackage(manifest, ['is-positive'], testDefaults({ lockfileOnly: true }))

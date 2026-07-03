@@ -1,17 +1,13 @@
 //! Naming-case predicates and conversions used by `pnpm config`.
 //!
-//! Ports the two predicates from pnpm's
-//! [`@pnpm/text.naming-cases`](https://github.com/pnpm/pnpm/blob/8eb1be4988/text/naming-cases/src/index.ts)
-//! plus the kebab/camel conversions the config command reaches for through
-//! `lodash.kebabcase` and the `camelcase` npm package. Only the behavior the
-//! config command depends on is reproduced: the inputs are config keys
-//! (kebab-case or camelCase ASCII identifiers) and the user-typed keys the
-//! command normalizes before validation.
+//! Provides two case predicates plus the kebab/camel conversions the config
+//! command needs, matching `lodash.kebabcase` and the `camelcase` npm package.
+//! Only the behavior the config command depends on is reproduced: the inputs
+//! are config keys (kebab-case or camelCase ASCII identifiers) and the
+//! user-typed keys the command normalizes before validation.
 
 /// Whether `name` is *strictly* kebab-case: at least two `-`-separated
 /// segments, each `[a-z][a-z0-9]*`.
-///
-/// Mirrors pnpm's `isStrictlyKebabCase`.
 #[must_use]
 pub fn is_strictly_kebab_case(name: &str) -> bool {
     let mut segments = name.split('-');
@@ -35,8 +31,6 @@ fn is_kebab_segment(segment: &str) -> bool {
 }
 
 /// Whether `name` is camelCase: `[a-z][a-zA-Z0-9]*`.
-///
-/// Mirrors pnpm's `isCamelCase`.
 #[must_use]
 pub fn is_camel_case(name: &str) -> bool {
     let mut chars = name.chars();

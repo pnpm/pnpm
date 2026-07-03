@@ -154,6 +154,19 @@ async fn adduser_issues_token_for_canonical_username() {
 }
 
 #[tokio::test]
+async fn oversized_login_body_is_rejected() {
+    // Login is the one body-accepting endpoint reachable anonymously on
+    // every tier, so it carries its own body cap (64 KiB) instead of
+    // inheriting the 100 MiB publish ceiling.
+    let tmp = TempDir::new().unwrap();
+    let app = router(static_config(tmp.path().to_path_buf()));
+
+    let body = adduser_body("alice", &"x".repeat(65 * 1024));
+    let response = app.oneshot(put_json("/-/user/org.couchdb.user:alice", body)).await.unwrap();
+    assert_eq!(response.status(), StatusCode::PAYLOAD_TOO_LARGE);
+}
+
+#[tokio::test]
 async fn whoami_returns_401_when_unauthenticated() {
     let tmp = TempDir::new().unwrap();
     let app = router(static_config(tmp.path().to_path_buf()));

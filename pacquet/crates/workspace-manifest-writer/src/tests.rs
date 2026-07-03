@@ -1,8 +1,7 @@
-//! Ports of pnpm's `addCatalogs` / `updateWorkspaceManifest` catalog tests
-//! ([source](https://github.com/pnpm/pnpm/blob/e7e99f04e4/workspace/workspace-manifest-writer/test/)).
+//! Tests for the workspace-manifest catalog writer.
 //!
 //! Structural cases assert the parsed shape; the format-sensitive cases
-//! assert byte-for-byte, matching pnpm's own expectations.
+//! assert byte-for-byte.
 
 use std::{fs, path::PathBuf};
 

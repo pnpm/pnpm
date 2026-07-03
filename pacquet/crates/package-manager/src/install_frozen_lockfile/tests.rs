@@ -3,9 +3,8 @@ use pacquet_lockfile::{PkgName, SnapshotDepRef, SnapshotEntry};
 use pretty_assertions::assert_eq;
 use std::collections::HashMap;
 
-/// `dependencies.node: 'runtime:<v>'` is the desugared form pnpm's
-/// resolver writes when a dep declares its own `engines.runtime`
-/// (see [`installing/deps-resolver/src/resolveDependencies.ts:1477-1479`](https://github.com/pnpm/pnpm/blob/29a42efc3b/installing/deps-resolver/src/resolveDependencies.ts#L1477-L1479)).
+/// `dependencies.node: 'runtime:<v>'` is the desugared form the
+/// resolver writes when a dep declares its own `engines.runtime`.
 #[test]
 fn picks_up_runtime_pin_from_dependencies() {
     let mut deps = HashMap::new();

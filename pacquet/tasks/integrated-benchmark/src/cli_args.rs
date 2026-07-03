@@ -104,6 +104,15 @@ pub struct CliArgs {
     #[clap(long)]
     pub reuse_prebuilt_binaries: bool,
 
+    /// Diagnostic: run every `pnpr` mock/server with
+    /// `RUST_LOG=pnpr::serve_timing=debug` so each serve emits per-phase timing
+    /// (upstream fetch vs cache read) into its log. Isolates server-side serve
+    /// cost from the client's filesystem/link noise — useful for cold-store perf
+    /// questions. Adds logging overhead, so it skews the measured means; enable
+    /// only for a diagnostic run, not a baseline.
+    #[clap(long)]
+    pub serve_timing: bool,
+
     /// Targets to benchmark. Each is `pacquet@<rev>`, `pnpm@<rev>`, or
     /// `pnpr@<rev>` (a pacquet client driven through a pnpr server).
     #[clap(required = true)]

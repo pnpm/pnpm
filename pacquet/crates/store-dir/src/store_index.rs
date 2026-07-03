@@ -21,9 +21,8 @@ use url::Url;
 ///
 /// Each row keys a package by its tarball integrity plus a package identifier
 /// and stores a msgpack-encoded [`PackageFilesIndex`]. The schema and PRAGMAs
-/// below mirror pnpm's implementation in
-/// [`store/index/src/index.ts`](https://github.com/pnpm/pnpm/blob/1819226b51/store/index/src/index.ts)
-/// so that the two tools can read each other's entries.
+/// below match pnpm v11's on-disk index format so that the two tools can read
+/// each other's entries.
 pub struct StoreIndex {
     conn: Connection,
 }
@@ -38,9 +37,8 @@ pub type SharedReadonlyStoreIndex = Arc<Mutex<StoreIndex>>;
 /// Handle producers use to hand rows off to the batched writer task. Clone
 /// cheaply via [`Arc`] to share across tokio tasks.
 ///
-/// The design mirrors pnpm's `queueWrites` / `flush` / `setRawMany` pattern
-/// (see `store/index/src/index.ts`): producers don't touch `SQLite`, they
-/// just push `(key, value)` onto an unbounded channel. A single
+/// The design follows a queue-and-flush pattern: producers don't touch
+/// `SQLite`, they just push `(key, value)` onto an unbounded channel. A single
 /// [`spawn_blocking`][tokio::task::spawn_blocking] task drains the channel,
 /// collects each non-blocking burst into a batch (capped at 256 entries —
 /// see `MAX_BATCH_SIZE`), and flushes it with one `BEGIN IMMEDIATE` ...
@@ -94,9 +92,7 @@ enum WriteMsg {
 /// Batch cap for [`StoreIndexWriter`]. Big enough that a 1352-snapshot
 /// install flushes in a handful of transactions (so the fsync cost is
 /// amortized), small enough that a single failing row doesn't cost
-/// thousands of predecessors' worth of redo work on rollback. pnpm's
-/// `setRawMany` has no explicit cap (it drains whatever `nextTick`
-/// scheduled) but in practice its batches stay in the low hundreds.
+/// thousands of predecessors' worth of redo work on rollback.
 const MAX_BATCH_SIZE: usize = 256;
 
 /// Per-query placeholder cap for [`StoreIndex::get_many`]. `SQLite`'s
@@ -301,9 +297,7 @@ impl StoreIndexWriter {
     /// `WriteMsg::SideEffectsUpload` variant for the rationale.
     ///
     /// If no base row exists at `key`, the upload is silently
-    /// skipped (matches upstream's
-    /// [`if (!existingFilesIndex) return`](https://github.com/pnpm/pnpm/blob/7e3145f9fc/worker/src/start.ts#L344-L353)
-    /// bail-out at the same gate).
+    /// skipped — there is nothing to layer the side-effects diff onto.
     pub fn queue_side_effects_upload(
         &self,
         key: String,
@@ -677,8 +671,7 @@ impl StoreIndex {
     }
 
     /// Visit every raw `package_index` row without first collecting the
-    /// full key set. This mirrors pnpm's `StoreIndex.entries()` shape while
-    /// leaving decode policy to the caller.
+    /// full key set, leaving decode policy to the caller.
     pub fn for_each_raw<VisitError>(
         &self,
         mut visit: impl FnMut(String, Vec<u8>) -> Result<(), VisitError>,
@@ -751,8 +744,7 @@ impl StoreIndex {
 
     /// Insert-or-replace a batch of rows in a single transaction.
     ///
-    /// Matches pnpm's `setRawMany` (see `store/index/src/index.ts`): one
-    /// `BEGIN IMMEDIATE` ... `COMMIT` around the inserts, which amortizes the
+    /// One `BEGIN IMMEDIATE` ... `COMMIT` wraps the inserts, which amortizes the
     /// WAL commit fsync across the whole batch. At 1352 snapshots that
     /// turns 1352 per-row fsyncs into ⌈`1352/batch_size`⌉ — on APFS this is
     /// the single biggest lever for `pacquet install` wall time ([#263]).
@@ -881,8 +873,6 @@ pub fn store_index_key(integrity: &str, pkg_id: &str) -> String {
 }
 
 /// Store-index key for git-hosted tarballs and bare `type: git` resolutions.
-/// Mirrors pnpm's `gitHostedStoreIndexKey` at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/store/index/src/index.ts#L65-L67>.
 ///
 /// The cached content of a git-hosted package depends on whether build scripts
 /// ran during fetch (`preparePackage`), so `built` is part of the key. The
@@ -896,7 +886,7 @@ pub fn git_hosted_store_index_key(pkg_id: &str, built: bool) -> String {
 /// Pick the store-index key for a tarball-shaped resolution.
 ///
 /// The `built` flag must match the build decision the caller will make at
-/// fetch time (upstream sets it to `!opts.ignoreScripts`).
+/// fetch time (the negation of whether build scripts are ignored).
 #[must_use]
 pub fn pick_store_index_key(
     integrity: Option<&str>,
@@ -913,9 +903,8 @@ pub fn pick_store_index_key(
 /// Per-instance record of what a tarball contributed to the CAFS. Stored as the
 /// value half of each `package_index` row.
 ///
-/// Mirrors pnpm v11's [`PackageFilesIndex`][ts-PackageFilesIndex] from `store/cafs/src/checkPkgFilesIntegrity.ts`.
-///
-/// [ts-PackageFilesIndex]: https://github.com/pnpm/pnpm/blob/1819226b51/store/cafs/src/checkPkgFilesIntegrity.ts#L31-L37
+/// Shaped to interop with pnpm v11's package-files index so the two tools
+/// can share `index.db`.
 #[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PackageFilesIndex {
@@ -950,9 +939,8 @@ pub struct PackageFilesIndex {
     pub side_effects: Option<HashMap<String, SideEffectsDiff>>,
 }
 
-/// Value of [`PackageFilesIndex::files`]. Mirrors pnpm v11's
-/// [`PackageFileInfo`](https://github.com/pnpm/pnpm/blob/1819226b51/store/cafs-types/src/index.ts)
-/// field-for-field so that the msgpack payload interops.
+/// Value of [`PackageFilesIndex::files`]. Matches pnpm v11's per-file
+/// metadata field-for-field so that the msgpack payload interops.
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CafsFileInfo {

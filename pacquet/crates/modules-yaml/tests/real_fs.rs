@@ -1,11 +1,8 @@
-//! Pacquet-side tests that exercise behavior branches by writing
-//! `.modules.yaml` files to a real `tempfile::tempdir()` and reading them
-//! back. These cover branches that pnpm only exercises transitively
-//! through install-level integration tests in `pnpm/test/`
-//! (e.g. custom `virtualStoreDir` at
-//! <https://github.com/pnpm/pnpm/blob/1819226b51/pnpm/test/monorepo/index.ts#L1467-L1545>);
-//! the install integration tests are gated on the install pipeline being
-//! ported, so these direct unit tests guard the behavior in the meantime.
+//! Tests that exercise behavior branches by writing `.modules.yaml`
+//! files to a real `tempfile::tempdir()` and reading them back. These
+//! cover branches (e.g. a custom `virtualStoreDir`) that the install
+//! pipeline only reaches transitively; until that pipeline lands these
+//! direct unit tests guard the behavior.
 
 use indexmap::IndexSet;
 use pacquet_modules_yaml::{DepPath, Host, Modules, read_modules_manifest, write_modules_manifest};
@@ -19,8 +16,7 @@ fn manifest_from_json(value: Value) -> Modules {
 }
 
 /// Reading a manifest whose `virtualStoreDir` is already absolute must
-/// preserve it verbatim, matching upstream
-/// <https://github.com/pnpm/pnpm/blob/1819226b51/installing/modules-yaml/src/index.ts#L66-L70>.
+/// preserve it verbatim.
 #[test]
 fn read_preserves_absolute_virtual_store_dir() {
     let temp_dir = tempfile::tempdir().expect("create temporary directory");
@@ -67,9 +63,8 @@ fn round_trip_recovers_normalized_absolute_for_non_descendant_store() {
 
 /// On non-Windows, `write_modules_manifest` rewrites a non-descendant
 /// `virtualStoreDir` (sibling, parent, etc.) to a relative path with
-/// `..` segments — matching upstream's `path.relative()` output at
-/// <https://github.com/pnpm/pnpm/blob/1819226b51/installing/modules-yaml/src/index.ts#L132-L135>,
-/// not just the descendant case that `Path::strip_prefix` covers.
+/// `..` segments, not just the descendant case that `Path::strip_prefix`
+/// covers.
 #[cfg(not(windows))]
 #[test]
 fn write_relativizes_non_descendant_virtual_store_dir() {
@@ -91,9 +86,7 @@ fn write_relativizes_non_descendant_virtual_store_dir() {
     assert_eq!(raw["virtualStoreDir"], json!("../../.pnpm-store"));
 }
 
-/// `writeModules` sorts `skipped` in place before serializing, matching
-/// upstream
-/// <https://github.com/pnpm/pnpm/blob/1819226b51/installing/modules-yaml/src/index.ts#L117>.
+/// `write_modules_manifest` sorts `skipped` before serializing.
 #[test]
 fn write_sorts_skipped_array() {
     let temp_dir = tempfile::tempdir().expect("create temporary directory");
@@ -113,9 +106,8 @@ fn write_sorts_skipped_array() {
     assert_eq!(raw["skipped"], json!(["alpha", "mu", "zeta"]));
 }
 
-/// A null `publicHoistPattern` is removed before serializing because the
-/// YAML writer fails on undefined fields upstream. The behavior matches
-/// <https://github.com/pnpm/pnpm/blob/1819226b51/installing/modules-yaml/src/index.ts#L123-L125>.
+/// A null `publicHoistPattern` is removed before serializing rather than
+/// emitted as an explicit null field.
 #[test]
 fn write_removes_null_public_hoist_pattern() {
     let temp_dir = tempfile::tempdir().expect("create temporary directory");
@@ -140,8 +132,8 @@ fn write_removes_null_public_hoist_pattern() {
 
 /// `DepPath` is a transparent newtype around `String`: on the wire it is
 /// indistinguishable from a plain string, so `hoistedAliases` keys and
-/// `ignoredBuilds` elements round-trip through JSON (and YAML) the same
-/// way upstream's `as DepPath`-cast values do.
+/// `ignoredBuilds` elements round-trip through JSON (and YAML) as plain
+/// strings.
 #[test]
 fn dep_path_serializes_transparently() {
     let temp_dir = tempfile::tempdir().expect("create temporary directory");
@@ -182,12 +174,11 @@ fn dep_path_serializes_transparently() {
 }
 
 /// `hoistedLocations` is the per-depPath list of lockfile-relative
-/// directory paths that `linkHoistedModules` and rebuild consult to
+/// directory paths that hoisted-module linking and rebuild consult to
 /// find where a package lives on disk. Pacquet has no consumer yet
 /// (the install pipeline still writes the field as `None`), so this
 /// test pins the schema-level round-trip until a real producer
-/// appears. Mirrors the optional `Record<string, string[]>` shape at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/installing/modules-yaml/src/index.ts#L43>.
+/// appears.
 #[test]
 fn hoisted_locations_round_trips() {
     let temp_dir = tempfile::tempdir().expect("create temporary directory");
@@ -227,9 +218,8 @@ fn hoisted_locations_round_trips() {
 
 /// A manifest with no `hoistedLocations` (the only state pacquet
 /// writes today) must omit the field on disk rather than emit
-/// `hoistedLocations: null`. Upstream's `Record<string, string[]> |
-/// undefined` shape relies on `JSON.stringify` dropping `undefined`
-/// values; pacquet relies on `skip_serializing_if = "Option::is_none"`.
+/// `hoistedLocations: null`. Pacquet relies on
+/// `skip_serializing_if = "Option::is_none"` for this.
 #[test]
 fn absent_hoisted_locations_is_omitted_on_write() {
     let temp_dir = tempfile::tempdir().expect("create temporary directory");

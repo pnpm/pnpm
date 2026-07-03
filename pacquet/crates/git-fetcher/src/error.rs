@@ -3,16 +3,13 @@ use pacquet_diagnostics::miette::{self, Diagnostic};
 
 /// Error type of [`crate::prepare_package()`].
 ///
-/// Mirrors the upstream error codes thrown by
-/// [`exec/prepare-package`](https://github.com/pnpm/pnpm/blob/94240bc046/exec/prepare-package/src/index.ts).
-/// Codes that match upstream byte-for-byte (`GIT_DEP_PREPARE_NOT_ALLOWED`,
-/// `ERR_PNPM_PREPARE_PACKAGE`, `INVALID_PATH`) keep `pnpm.io/errors/<code>`
-/// URL resolution working.
+/// The error codes (`GIT_DEP_PREPARE_NOT_ALLOWED`,
+/// `ERR_PNPM_PREPARE_PACKAGE`, `INVALID_PATH`) match pnpm's, so
+/// `pnpm.io/errors/<code>` URL resolution keeps working.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum PreparePackageError {
     /// Package wants to run build scripts but is not in `allowBuilds`.
-    /// Mirrors [`exec/prepare-package/src/index.ts:37-46`](https://github.com/pnpm/pnpm/blob/94240bc046/exec/prepare-package/src/index.ts#L37-L46).
     #[display(
         "The git-hosted package \"{name}@{version}\" needs to execute build scripts but is not in the \"allowBuilds\" allowlist."
     )]
@@ -24,9 +21,8 @@ pub enum PreparePackageError {
     )]
     NotAllowed { name: String, version: String },
 
-    /// A lifecycle script invoked by `preparePackage` failed. Mirrors
-    /// upstream's `ERR_PNPM_PREPARE_PACKAGE` stamp at
-    /// [`exec/prepare-package/src/index.ts:71-77`](https://github.com/pnpm/pnpm/blob/94240bc046/exec/prepare-package/src/index.ts#L71-L77).
+    /// A lifecycle script invoked by `preparePackage` failed, stamped
+    /// with the `ERR_PNPM_PREPARE_PACKAGE` code.
     #[display("Failed to prepare package: {source}")]
     #[diagnostic(code(ERR_PNPM_PREPARE_PACKAGE))]
     LifecycleFailed {
@@ -35,8 +31,7 @@ pub enum PreparePackageError {
     },
 
     /// `path` field on the resolution pointed outside the cloned dir
-    /// or to a non-directory. Mirrors `safeJoinPath`'s `INVALID_PATH`
-    /// at [`exec/prepare-package/src/index.ts:92-103`](https://github.com/pnpm/pnpm/blob/94240bc046/exec/prepare-package/src/index.ts#L92-L103).
+    /// or to a non-directory, rejected with the `INVALID_PATH` code.
     #[display("Path {path:?} is not a valid sub-directory of the git checkout")]
     #[diagnostic(code(INVALID_PATH))]
     InvalidPath { path: String },
@@ -66,9 +61,8 @@ pub enum GitFetcherError {
     #[diagnostic(code(pacquet_git_fetcher::git_exec_failed))]
     GitExec { operation: &'static str, stderr: String, status: std::process::ExitStatus },
 
-    /// `git rev-parse HEAD` did not return the pinned commit. Mirrors
-    /// upstream's `GIT_CHECKOUT_FAILED` at
-    /// [`fetching/git-fetcher/src/index.ts:39-41`](https://github.com/pnpm/pnpm/blob/94240bc046/fetching/git-fetcher/src/index.ts#L39-L41).
+    /// `git rev-parse HEAD` did not return the pinned commit, rejected
+    /// with the `GIT_CHECKOUT_FAILED` code.
     #[display("received commit {received} does not match expected value {expected}")]
     #[diagnostic(code(GIT_CHECKOUT_FAILED))]
     CheckoutMismatch { expected: String, received: String },

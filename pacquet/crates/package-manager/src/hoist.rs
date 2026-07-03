@@ -1,6 +1,3 @@
-//! Port of upstream's hoist algorithm from
-//! [`installing/linking/hoist/src/index.ts`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/linking/hoist/src/index.ts).
-//!
 //! Hoisting decides which transitive dependencies should *also* surface
 //! outside their isolated `<virtual_store>/<pkg>/node_modules/<pkg>`
 //! shape — into the project's flat `node_modules/.pnpm/node_modules/`
@@ -10,7 +7,6 @@
 //! by snapshot key) that the install pipeline persists to
 //! `.modules.yaml` and uses to drive symlink creation + bin linking.
 //!
-//! This module ports `getHoistedDependencies` and `symlinkHoistedDependencies`.
 //! Bin linking for hoisted aliases is handled at the call site
 //! ([`crate::InstallFrozenLockfile::run`]) by re-using
 //! [`crate::link_direct_dep_bins`] against the private and public
@@ -33,14 +29,12 @@ pub type HoistedDependencies = BTreeMap<String, BTreeMap<String, HoistKind>>;
 /// `lockfile.snapshots:` + `lockfile.packages:` via
 /// [`build_hoist_graph`].
 ///
-/// Mirrors the subset of upstream's
-/// [`DependenciesGraphNode`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/linking/hoist/src/index.ts#L14-L21)
-/// the hoist pass actually consumes: `name` (for the symlink target's
-/// last segment), `children` (for BFS recursion), and `has_bin` (for
-/// the bin-link gating). The other fields upstream's struct carries
-/// (`dir`, `optionalDependencies`, `depPath`) are derivable from the
-/// snapshot key + virtual-store-dir at the call sites that need them,
-/// so they aren't materialised here.
+/// Carries only the fields the hoist pass actually consumes: `name`
+/// (for the symlink target's last segment), `children` (for BFS
+/// recursion), and `has_bin` (for the bin-link gating). The other
+/// per-node fields (`dir`, `optionalDependencies`, `depPath`) are
+/// derivable from the snapshot key + virtual-store-dir at the call
+/// sites that need them, so they aren't materialised here.
 #[derive(Debug, Clone)]
 pub struct HoistGraphNode {
     /// Package name as it appears on the lockfile key (= the
@@ -52,7 +46,7 @@ pub struct HoistGraphNode {
     /// alias because that's what becomes the directory name in the
     /// hoisted location too.
     pub children: HashMap<String, PackageKey>,
-    /// Mirrors upstream's `node.hasBin`. `false` when the lockfile's
+    /// Whether the package declares a bin. `false` when the lockfile's
     /// `packages:` metadata doesn't carry the field (treat as "no bin"
     /// rather than guessing).
     pub has_bin: bool,
@@ -89,8 +83,7 @@ pub fn build_hoist_graph(
             let children: HashMap<String, PackageKey> = dep_entries
                 // `dep_ref.resolve` is `None` for `link:` deps —
                 // workspace siblings that live outside the virtual
-                // store. Mirrors upstream's `if (childDepPath)`
-                // check in `getChildren`.
+                // store, which are skipped here.
                 .filter_map(|(alias, dep_ref)| Some((alias.to_string(), dep_ref.resolve(alias)?)))
                 .collect();
             Some((
@@ -105,8 +98,7 @@ pub fn build_hoist_graph(
         .collect()
 }
 
-/// Per-importer direct-dependency map. Mirrors upstream's
-/// [`DirectDependenciesByImporterId`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/linking/hoist/src/index.ts#L23-L25).
+/// Per-importer direct-dependency map.
 ///
 /// Outer key is the importer id (`"."` for the root project; workspace
 /// projects extend this in [#431]). Inner map is alias → snapshot key,
@@ -118,14 +110,11 @@ pub fn build_hoist_graph(
 pub type DirectDepsByImporter = HashMap<String, HashMap<String, PackageKey>>;
 
 /// Build a [`DirectDepsByImporter`] from the lockfile's `importers:`
-/// section, restricted to the supplied dependency groups. Mirrors the
-/// `directDependenciesByImporterId` upstream computes inside
-/// [`deps-restorer`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/src/index.ts).
+/// section, restricted to the supplied dependency groups.
 ///
-/// The CLI passes `[Prod, Dev, Optional]` today, matching upstream's
-/// dep-groups-included-in-install. Peer is filtered upfront because
-/// upstream doesn't include peer-only entries in the direct-deps map
-/// either (peers materialize through their host).
+/// The CLI passes `[Prod, Dev, Optional]` today. Peer is filtered
+/// upfront because peer-only entries don't belong in the direct-deps
+/// map (peers materialize through their host).
 ///
 /// Accepts an iterator over `(importer_id, &ProjectSnapshot)` pairs
 /// rather than the lockfile's full `&HashMap` so the caller can
@@ -162,8 +151,8 @@ where
             for (name, spec) in map {
                 // Skip `link:` workspace siblings — they don't live
                 // in the snapshot graph and aren't candidates for the
-                // private/public hoist (upstream handles them via the
-                // separate `hoistedWorkspacePackages` shape, which is
+                // private/public hoist (they belong to the separate
+                // `hoistedWorkspacePackages` shape, which is
                 // out of scope for this issue per <https://github.com/pnpm/pacquet/issues/431>). For aliased
                 // deps, [`ImporterDepVersion::resolved_key`] returns
                 // the alias's own (name, suffix), matching the
@@ -211,10 +200,9 @@ pub struct HoistResult {
     pub hoisted_aliases_with_bins: Vec<String>,
     /// Aliases whose target package declares a bin and were hoisted
     /// publicly. Public-hoist bins land alongside the project's
-    /// direct-dep bins in `<root>/node_modules/.bin`. Mirrors
-    /// upstream's [`hoist.ts:55-65` comment](https://github.com/pnpm/pnpm/blob/94240bc046/installing/linking/hoist/src/index.ts#L55-L65)
-    /// — "the bins of the publicly hoisted modules will be linked
-    /// together with the bins of the project's direct dependencies".
+    /// direct-dep bins in `<root>/node_modules/.bin` — the bins of the
+    /// publicly hoisted modules are linked together with the bins of
+    /// the project's direct dependencies.
     /// In pacquet's pipeline ordering, `SymlinkDirectDependencies`
     /// runs *before* `hoist`, so the install pipeline does an
     /// additional `link_direct_dep_bins` pass over this list after
@@ -223,11 +211,6 @@ pub struct HoistResult {
 }
 
 /// Walk the dep graph BFS and decide which aliases should be hoisted.
-///
-/// Mirrors upstream's
-/// [`getHoistedDependencies`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/linking/hoist/src/index.ts#L73-L114)
-/// composed with
-/// [`hoistGraph`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/linking/hoist/src/index.ts#L207-L267).
 ///
 /// Returns `None` when the graph is empty.
 #[must_use]
@@ -240,25 +223,23 @@ pub fn get_hoisted_dependencies<'a>(input: &'a HoistInputs<'a>) -> Option<HoistR
     // deps. Each (alias, node) pair becomes both a depth-0 visit
     // entry and a starting point for BFS recursion.
     //
-    // Upstream's `graphWalker` also tracks `directDeps` separately so
-    // the depth=-1 importer-deps node can be sorted ahead of the
-    // depth=0 transitives. Pacquet folds the same shape into the
+    // The importer-deps node (depth -1) is sorted ahead of the
+    // depth=0 transitives. Pacquet folds this into the
     // `BfsEntry`s with depth `-1` for the importer pseudo-node and
     // depth `0` for the importer's direct deps.
     let mut visited: HashSet<&'a PackageKey> = HashSet::new();
     let mut entries: Vec<BfsEntry<'a>> = Vec::new();
 
     // Importer pseudo-nodes (depth -1) — one per importer, carrying
-    // its direct-deps map as `children`. Upstream stuffs all
-    // importers' deps into a single depth=-1 node; pacquet keeps them
-    // separate so the per-importer `nodeId` (the importer id string)
+    // its direct-deps map as `children`. pacquet keeps each importer's
+    // deps in a separate depth=-1 node (rather than one combined node)
+    // so the per-importer `nodeId` (the importer id string)
     // sorts deterministically against itself in the per-depth sort.
     for (importer_id, direct_deps) in input.direct_deps_by_importer {
         entries.push(BfsEntry {
             depth: -1,
-            // The pseudo-node's nodeId is the importer id. Upstream
-            // uses an empty string `'' as T` for a single-importer
-            // shape; the per-importer breakdown here gives a stable
+            // The pseudo-node's nodeId is the importer id. The
+            // per-importer breakdown gives a stable
             // (depth, importer_id) sort. Cloning the few-byte
             // importer ids is cheap; what matters perf-wise is that
             // `children` is now borrowed.
@@ -310,8 +291,8 @@ pub fn get_hoisted_dependencies<'a>(input: &'a HoistInputs<'a>) -> Option<HoistR
         }
     }
 
-    // Sort by `(depth, sort_key)` — matches upstream's
-    // `sort by depth then lexCompare(nodeId)`.
+    // Sort by `(depth, sort_key)` — depth first, then lexicographic
+    // by `nodeId`.
     entries.sort_by(|a, b| a.depth.cmp(&b.depth).then_with(|| a.sort_key.cmp(&b.sort_key)));
 
     // Seed `hoisted_aliases` with every direct-dep name of the root
@@ -329,7 +310,7 @@ pub fn get_hoisted_dependencies<'a>(input: &'a HoistInputs<'a>) -> Option<HoistR
         HashMap::new();
     let mut hoisted_aliases_with_bins: Vec<String> = Vec::new();
     let mut publicly_hoisted_aliases_with_bins: Vec<String> = Vec::new();
-    // Dedup the bin-alias vecs — upstream uses a Set; pacquet emits
+    // Dedup the bin-alias vecs — pacquet emits
     // `Vec`s to keep the consumer signature simple but de-dups via
     // these sets first. Separate sets for private vs public so an
     // alias hoisted both privately (impossible — public always wins)
@@ -419,8 +400,7 @@ struct BfsEntry<'a> {
     children: &'a HashMap<String, PackageKey>,
 }
 
-/// Create the hoist symlinks. Mirrors upstream's
-/// [`symlinkHoistedDependencies`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/linking/hoist/src/index.ts#L269-L307).
+/// Create the hoist symlinks.
 ///
 /// For each (`snapshot_key`, alias, kind) entry, link
 /// `<target_dir>/<alias>` → `<layout.slot_dir(key)>/node_modules/<package_name>`,
@@ -438,8 +418,6 @@ struct BfsEntry<'a> {
 /// `.pnpm` dir) or inside the internal pnpm directory (the parent of
 /// `private_hoisted_modules_dir`), the stale symlink is replaced.
 /// External symlinks (or non-symlink occupants) are left in place.
-/// Mirrors upstream's `resolveLinkTarget` + `isSubdir` pattern in
-/// [`symlinkHoistedDependency`](https://github.com/pnpm/pnpm/blob/cbe1a171bd/installing/linking/hoist/src/index.ts#L310-L343).
 ///
 /// Two-phase to amortize directory creation:
 ///
@@ -588,9 +566,6 @@ fn name_to_dir(name: &PkgName) -> std::path::PathBuf {
 /// install), remove it and create a new symlink to `dep_dir`. External
 /// symlinks (and non-symlink occupants) are left in place.
 ///
-/// Mirrors upstream's
-/// [`symlinkHoistedDependency`](https://github.com/pnpm/pnpm/blob/cbe1a171bd/installing/linking/hoist/src/index.ts#L310-L343)
-/// `isSubdir(virtualStoreDir, …) || isSubdir(internalPnpmDir, …)` guard.
 /// The already-correct fast path skips the unlink + recreate churn (and
 /// the transient missing-link window it opens) on warm reinstalls, the
 /// same way [`pacquet_fs::force_symlink_dir`] does — see its

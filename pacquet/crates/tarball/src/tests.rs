@@ -1021,7 +1021,7 @@ fn extract_rejects_parent_dir_component_in_entry_path() {
 /// the matched entries from *both* `cas_paths` and
 /// `pkg_files_idx.files`. The Slice D dispatcher will rely on this
 /// for runtime archive filtering (Node's bundled `npm` / `corepack`,
-/// per upstream's `NODE_EXTRAS_IGNORE_PATTERN`); without coverage
+/// matching the `NODE_EXTRAS_IGNORE_PATTERN`); without coverage
 /// here, a regression that, e.g., applied the filter to `cas_paths`
 /// but forgot the `pkg_files_idx` row would slip past the existing
 /// `None`-path tests.
@@ -1101,11 +1101,10 @@ fn extract_tarball_records_requires_build_from_manifest() {
     drop(tempdir);
 }
 
-/// `RetryOpts::default()` reproduces pnpm's
-/// `network/fetch/src/fetch.ts` defaults: 2 retries, factor 10,
-/// minTimeout 10 s, maxTimeout 60 s. The first post-failure delay
-/// is `minTimeout`; subsequent delays multiply by `factor` until
-/// they hit `maxTimeout`.
+/// `RetryOpts::default()` uses pnpm's network-fetch defaults: 2
+/// retries, factor 10, minTimeout 10 s, maxTimeout 60 s. The first
+/// post-failure delay is `minTimeout`; subsequent delays multiply by
+/// `factor` until they hit `maxTimeout`.
 #[test]
 fn retry_opts_delay_matches_pnpm_formula() {
     let opts = RetryOpts::default();
@@ -2713,8 +2712,8 @@ fn extract_zip_strips_prefix_from_entry_paths() {
     drop(tempdir);
 }
 
-/// The ignore filter must see the *post-strip* path, the same one
-/// upstream's regex sees. A filter that drops `LICENSE` must hit
+/// The ignore filter must see the *post-strip* path. A filter that
+/// drops `LICENSE` must hit
 /// after the `node-v22.0.0-darwin-arm64/` prefix has been removed —
 /// otherwise the Node-runtime filter (which targets
 /// `^lib/node_modules/(npm|corepack)`) would never match.
@@ -2728,9 +2727,9 @@ fn extract_zip_applies_ignore_filter_on_stripped_path() {
     ]);
     let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).expect("open zip");
 
-    // Filter mirroring the upstream `NODE_EXTRAS_IGNORE_PATTERN`
-    // shape — strips bundled npm / corepack — but compiled by hand
-    // so the test doesn't pull a regex engine into pacquet-tarball.
+    // Filter matching the `NODE_EXTRAS_IGNORE_PATTERN` shape — strips
+    // bundled npm / corepack — but compiled by hand so the test
+    // doesn't pull a regex engine into pacquet-tarball.
     fn node_extras_filter(path: &str) -> bool {
         path.starts_with("lib/node_modules/npm/") || path.starts_with("lib/node_modules/corepack/")
     }
@@ -2757,9 +2756,8 @@ fn extract_zip_applies_ignore_filter_on_stripped_path() {
 
 /// A zip whose entry path contains `..` (or any other escaping
 /// component) must be rejected with [`TarballError::PathTraversal`].
-/// Mirrors upstream's `validatePathSecurity` rejection — even if a
-/// later layer would have re-anchored the write, refusing the
-/// archive outright is the cheapest defense against a malicious
+/// Even if a later layer would have re-anchored the write, refusing
+/// the archive outright is the cheapest defense against a malicious
 /// publisher.
 #[test]
 fn extract_zip_rejects_parent_dir_component() {
@@ -2929,7 +2927,7 @@ async fn offline_mode_skips_network_on_cache_miss() {
 
     // Variant shape + diagnostic code together. The `code` check
     // pins the user-facing surface — `ERR_PACQUET_NO_OFFLINE_TARBALL`
-    // is part of the CLI contract, just like upstream's
+    // is part of the CLI contract, like pnpm's
     // `ERR_PNPM_NO_OFFLINE_META`.
     let TarballError::NoOfflineTarball { package_id, url: errored_url } = &err else {
         panic!("expected NoOfflineTarball, got {err:?}");
@@ -3008,14 +3006,10 @@ async fn offline_mode_still_uses_prefetched_cache() {
     drop(store_dir_keep);
 }
 
-/// Ported from upstream's
-/// [`normalizeBundledManifest.test.ts`](https://github.com/pnpm/pnpm/blob/1fb8a2d5d8/store/cafs/test/normalizeBundledManifest.test.ts).
-///
 /// Pacquet's [`normalize_bundled_manifest`] picks the subset of
 /// `package.json` fields downstream install code reads (bin lookup,
 /// peer extraction, build-script detection) and narrows `scripts` to
-/// the three lifecycle hooks. Adding a case here? Add (or mirror) the
-/// upstream case too. Two upstream cases are intentionally NOT ported:
+/// the three lifecycle hooks. Two cases are intentionally NOT covered:
 /// `semver.clean` normalization (pacquet keeps version verbatim, per
 /// the function's doc comment) and the missing-version default of
 /// `0.0.0` (pacquet leaves the field absent rather than synthesizing
@@ -3139,10 +3133,10 @@ mod normalize_bundled_manifest_tests {
         );
     }
 
-    /// Upstream skips `null` and `undefined` fields. Rust's
+    /// `null` and `undefined` fields are skipped. Rust's
     /// [`serde_json::Value`] has no `undefined`, but JSON `null`
     /// reaches the picker as [`serde_json::Value::Null`] and must be
-    /// filtered the same way (`if (...!v.is_null())` in the source).
+    /// filtered out the same way.
     #[test]
     fn skips_null_fields() {
         let result = normalize_bundled_manifest(&json!({
@@ -3159,10 +3153,10 @@ mod normalize_bundled_manifest_tests {
     }
 
     /// The bundled manifest is downstream-fed into
-    /// [`extract_peer_dependencies`](https://github.com/pnpm/pnpm/blob/1fb8a2d5d8/pacquet/crates/resolving-deps-resolver/src/resolve_dependency_tree.rs#L776-L824)
-    /// and `extract_children`; dropping `peerDependenciesMeta` or
-    /// `optionalDependencies` here would replicate the pnpm/pnpm#11934
-    /// resolver-side bug on the install-side. Pin the keys explicitly.
+    /// `extract_peer_dependencies` and `extract_children`; dropping
+    /// `peerDependenciesMeta` or `optionalDependencies` here would
+    /// replicate the pnpm/pnpm#11934 resolver-side bug on the
+    /// install-side. Pin the keys explicitly.
     #[test]
     fn preserves_optional_dependencies_and_peer_dependencies_meta_keys() {
         let result = normalize_bundled_manifest(&json!({

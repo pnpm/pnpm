@@ -27,34 +27,28 @@ const DIRECT_GROUPS: [DependencyGroup; 3] =
 
 /// Everything `pacquet update` (alias `up` / `upgrade`) does.
 ///
-/// Ports pnpm's
-/// [`update` command](https://github.com/pnpm/pnpm/blob/097983fbca/installing/commands/src/update/index.ts)
-/// onto pacquet's always-fresh-resolve install path. The two halves of
-/// pnpm's behavior map as follows:
+/// Runs on pacquet's always-fresh-resolve install path. Its behavior has
+/// two halves:
 ///
 /// * **Compatible bump** (no `--latest`): the matched names have their
 ///   lockfile pins withheld from the preferred-versions seed
 ///   ([`UpdateSeedPolicy`]) so the resolver re-picks the highest version
 ///   satisfying the manifest range. `package.json` is left untouched —
-///   pnpm only rewrites the manifest for deps marked `updateSpec`, which
+///   the manifest is only rewritten for deps marked `updateSpec`, which
 ///   compatible updates are not.
 /// * **`--latest`**: each matched *direct* dependency's `latest` tag is
 ///   fetched and written into `package.json`, reusing the range operator
 ///   the dependency already pinned (`^` stays `^`, `~` stays `~`, an exact
 ///   pin stays exact) and falling back to the configured default
-///   otherwise — pnpm's `calcRange` precedence. The follow-up install then
-///   resolves the new range. Mirrors pnpm's `updateToLatest` + `updateSpec`
-///   path.
+///   otherwise. The follow-up install then resolves the new range.
 ///
-/// Selector handling mirrors pnpm's
-/// [`update`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/commands/src/update/index.ts#L282-L328):
+/// Selector handling:
 /// bare-name selectors (`foo`, `@scope/bar-*`) with `depth > 0` and no
 /// `--latest` match every package of that name **at any depth** (the
-/// match is applied against the lockfile's package names, like pnpm's
-/// `updateMatching(infoFromLockfile.name, ...)`); selectors carrying a
-/// version (`foo@2`) or any selector under `--latest` match only direct
-/// dependencies, and the version (or fetched latest) is written into the
-/// manifest before resolving.
+/// match is applied against the lockfile's package names); selectors
+/// carrying a version (`foo@2`) or any selector under `--latest` match
+/// only direct dependencies, and the version (or fetched latest) is
+/// written into the manifest before resolving.
 #[must_use]
 pub struct Update<'a> {
     pub tarball_mem_cache: Arc<MemCache>,
@@ -76,25 +70,22 @@ pub struct Update<'a> {
     /// `--save-exact` / `-E`: write the resolved version without a range
     /// operator when rewriting the manifest under `--latest`. Only applies
     /// to dependencies whose current specifier has no recoverable pin; an
-    /// existing `^`/`~`/exact range is preserved over this default, matching
-    /// pnpm's `calcRange`.
+    /// existing `^`/`~`/exact range is preserved over this default.
     pub save_exact: bool,
     /// `--save` (default) / `--no-save`. When `false`, the manifest is
     /// not persisted: the `--latest` / versioned-selector range rewrites
     /// still drive resolution (so `pnpm-lock.yaml` updates) but
-    /// `package.json` on disk is left untouched. Mirrors pnpm's
-    /// `updatePackageManifest: opts.save !== false`.
+    /// `package.json` on disk is left untouched.
     pub save: bool,
     /// Dependency groups the update considers when choosing which direct
-    /// dependencies to match. Mirrors pnpm's `includeDirect` derived from
+    /// dependencies to match, derived from
     /// `--prod` / `--dev` / `--no-optional`. Note: the *materialized*
-    /// dependency set is always all three groups (pnpm's `include` is
-    /// all-true for updates so the `node_modules` layout is unchanged);
-    /// this only narrows the update scope.
+    /// dependency set is always all three groups (the `node_modules`
+    /// layout is unchanged); this only narrows the update scope.
     pub include_direct: Vec<DependencyGroup>,
-    /// `--depth`. Only its `> 0` predicate is consulted (matching pnpm's
-    /// `depth > 0` gate on the name matcher); `usize::MAX` stands in for
-    /// pnpm's `Infinity` default.
+    /// `--depth`. Only its `> 0` predicate is consulted (the `depth > 0`
+    /// gate on the name matcher); `usize::MAX` stands in for the
+    /// `Infinity` default.
     pub depth: usize,
     /// CLI-merged `supportedArchitectures`, forwarded to the install.
     pub supported_architectures: Option<pacquet_package_is_installable::SupportedArchitectures>,
@@ -115,14 +106,12 @@ pub struct Update<'a> {
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum UpdateError {
     /// `--latest` was combined with a versioned selector (`foo@2`).
-    /// Mirrors pnpm's `ERR_PNPM_LATEST_WITH_SPEC`.
     #[display("Specs are not allowed to be used with --latest ({_0})")]
     #[diagnostic(code(ERR_PNPM_LATEST_WITH_SPEC))]
     LatestWithSpec(#[error(not(source))] String),
 
     /// Package selectors were given (with `--depth 0` and without
-    /// `--latest`) but none matched a direct dependency. Mirrors pnpm's
-    /// `ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES`.
+    /// `--latest`) but none matched a direct dependency.
     #[display("None of the specified packages were found in the dependencies.")]
     #[diagnostic(code(ERR_PNPM_NO_PACKAGE_IN_DEPENDENCIES))]
     NoPackageInDependencies,
@@ -171,8 +160,6 @@ pub enum UpdateError {
 }
 
 /// A CLI selector split into its name pattern and optional version part.
-/// Ports pnpm's
-/// [`parseUpdateParam`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/commands/src/recursive.ts#L582-L595).
 struct ParsedSelector {
     pattern: String,
     version: Option<String>,
@@ -222,8 +209,7 @@ impl Update<'_> {
         let selectors: Vec<ParsedSelector> =
             packages.iter().map(|input| parse_update_param(input)).collect();
 
-        // `--latest` forbids versioned selectors, matching pnpm's
-        // `LATEST_WITH_SPEC` guard.
+        // `--latest` forbids versioned selectors.
         if latest {
             let with_spec: Vec<&str> = packages
                 .iter()
@@ -279,8 +265,7 @@ impl Update<'_> {
             // the update so they keep their lockfile pins. The filter runs
             // against the *included* direct deps, so group narrowing
             // (`--prod` / `--dev` / `--no-optional`) still scopes the
-            // update. Mirrors pnpm's `makeIgnorePatterns` feeding
-            // `matchDependencies(..., includeDirect)`.
+            // update.
             let ignore_patterns =
                 config.update_config.ignore_dependencies.as_deref().unwrap_or_default();
             // Only compile a matcher when there's something to ignore, so
@@ -313,13 +298,11 @@ impl Update<'_> {
                 // their pins.
                 //
                 // Skip the expansion when `--latest` selected no direct
-                // dependency (every included direct dep was ignored):
-                // pnpm returns early there (`if (opts.latest) return`), a
+                // dependency (every included direct dep was ignored): a
                 // true no-op. A non-`--latest` update with no direct match
-                // still re-resolves the non-ignored *indirect* deps,
-                // matching pnpm's "updating indirect dependencies only"
-                // branch, so the expansion must run in that case.
-                // <https://github.com/pnpm/pnpm/blob/097983fbca/installing/commands/src/installDeps.ts#L355-L364>
+                // still re-resolves the non-ignored *indirect* deps
+                // (updating indirect dependencies only), so the expansion
+                // must run in that case.
                 if !(latest && drop_names.is_empty())
                     && let Some(snapshots) = lockfile.and_then(|lf| lf.snapshots.as_ref())
                 {
@@ -346,8 +329,7 @@ impl Update<'_> {
                 }
             }
             // Match against every locked package name too, so a selector
-            // that names a transitive-only dependency still bumps it —
-            // pnpm applies `updateMatching` to `infoFromLockfile.name`.
+            // that names a transitive-only dependency still bumps it.
             if let Some(snapshots) = lockfile.and_then(|lf| lf.snapshots.as_ref()) {
                 for key in snapshots.keys() {
                     let name = key.name.to_string();
@@ -360,7 +342,7 @@ impl Update<'_> {
         } else {
             // Versioned selectors and/or `--latest`: match direct
             // dependencies only and write the new range into the
-            // manifest, mirroring pnpm's `matchDependencies` + `updateSpec`.
+            // manifest.
             let patterns: Vec<String> = selectors.iter().map(|sel| sel.pattern.clone()).collect();
             let matcher = create_matcher(&patterns);
             let matched_direct: Vec<(String, DependencyGroup, String)> = direct
@@ -370,9 +352,7 @@ impl Update<'_> {
                 .collect();
 
             if matched_direct.is_empty() {
-                // No direct dependency matched the selectors. Mirrors
-                // pnpm's `matchDependencies` returning empty:
-                // <https://github.com/pnpm/pnpm/blob/097983fbca/installing/commands/src/installDeps.ts#L353-L366>.
+                // No direct dependency matched the selectors.
                 if latest {
                     // `--latest` with an unmatched selector is a no-op.
                     return Ok(());
@@ -502,16 +482,14 @@ impl Update<'_> {
         // Apply the manifest rewrites in memory before resolving so the
         // install picks the new ranges. Under `--no-save` the in-memory
         // mutation still drives resolution (so `pnpm-lock.yaml` updates)
-        // but the manifest is not persisted below — matching pnpm's
-        // `updatePackageManifest: opts.save !== false`.
+        // but the manifest is not persisted below.
         let persist_manifest = save && !rewrites.is_empty();
         for (name, group, spec) in &rewrites {
             manifest.add_dependency(name, spec, *group).map_err(UpdateError::UpdateManifest)?;
         }
 
         // Persist the new catalog entries to `pnpm-workspace.yaml`. Gated on
-        // `save`: `--no-save` persists nothing to disk, matching pnpm's
-        // `if (opts.save !== false)` guard around `updateWorkspaceManifest`.
+        // `save`: `--no-save` persists nothing to disk.
         if save
             && !updated_catalogs.is_empty()
             && let Some(workspace_dir) = &workspace_dir_for_catalogs
@@ -548,7 +526,7 @@ impl Update<'_> {
             lockfile_path,
             // `include` is always all-true for updates: the materialized
             // `node_modules` layout must not change just because the
-            // update scope was narrowed. Mirrors pnpm's update `include`.
+            // update scope was narrowed.
             dependency_groups: DIRECT_GROUPS,
             frozen_lockfile: false,
             // `update` always re-resolves against the registry, so the
@@ -629,8 +607,8 @@ fn ensure_catalog_ctx<'slot>(
     Ok(slot.as_ref().expect("just populated"))
 }
 
-/// The range operator to write a `--latest` bump with, mirroring pnpm's
-/// `calcRange`: the operator the dependency already pinned wins over the
+/// The range operator to write a `--latest` bump with: the operator the
+/// dependency already pinned wins over the
 /// configured default. For a `catalog:` reference the pin comes from the
 /// catalog entry it points to (the reference carries none of its own), which
 /// is the only case that needs to consult the catalogs.
@@ -713,11 +691,10 @@ async fn fetch_latest(
 /// `--latest` instead of being resolved against the registry, since the path
 /// may target a publish directory that a normalized range would drop.
 ///
-/// pnpm keeps these out of the registry-resolution path via
+/// These are kept out of the registry-resolution path via
 /// `preserveWorkspaceProtocol`, which is always on under `update --latest`
 /// (the override that derives it from `linkWorkspacePackages` only runs under
 /// `--workspace`, and `--workspace` cannot be combined with `--latest`).
-/// Mirrors [`isWorkspaceLocalPathSpecifier`](https://github.com/pnpm/pnpm/blob/fddb8a4032/installing/deps-resolver/src/updateProjectManifest.ts#L72-L76).
 pub(crate) fn is_workspace_local_path_specifier(bare_specifier: &str) -> bool {
     let Some(pref) = bare_specifier.strip_prefix("workspace:") else {
         return false;

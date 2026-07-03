@@ -32,8 +32,15 @@ fn static_config_with_packages(dir: &TempDir, packages_block: &str) -> (Config, 
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let storage = dir.path().join("storage");
     std::fs::create_dir_all(&storage).unwrap();
+    // Route everything to one local hosted over the flat storage root (an
+    // empty `org` namespace), so publishes/reads resolve through the path-less
+    // base and the per-package ACL in `packages_block` gates them.
+    let mounts_block = "mounts:\n  \
+        local:\n    type: hosted\n    org: \"\"\n    access: $all\n  \
+        main:\n    type: router\n    routes:\n      - patterns: ['**']\n        source: local\n\
+        defaultTarget: main\n";
     let yaml =
-        format!("storage: {}\nuplinks: {{}}\npackages:\n{packages_block}\n", storage.display());
+        format!("storage: {}\n{mounts_block}packages:\n{packages_block}\n", storage.display());
     let config_path = dir.path().join("config.yaml");
     std::fs::write(&config_path, yaml).unwrap();
     let mut config =
@@ -1403,64 +1410,6 @@ async fn search_returns_empty_for_made_up_query() {
     let body = body_json(response.into_body()).await;
     assert_eq!(body["objects"].as_array().unwrap().len(), 0);
     assert_eq!(body["total"], 0);
-}
-
-#[tokio::test]
-async fn search_augments_with_upstream_when_local_misses_exact_name() {
-    use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
-    use std::time::Duration;
-
-    let mut upstream = mockito::Server::new_async().await;
-    let packument = json!({
-        "name": "ghost-pkg",
-        "dist-tags": { "latest": "1.0.0" },
-        "versions": {
-            "1.0.0": {
-                "name": "ghost-pkg",
-                "version": "1.0.0",
-                "description": "phantom dependency",
-                "dist": { "tarball": format!("{}/ghost-pkg/-/ghost-pkg-1.0.0.tgz", upstream.url()) },
-            },
-        },
-    });
-    let _packument_mock = upstream
-        .mock("GET", "/ghost-pkg")
-        .with_status(200)
-        .with_body(packument.to_string())
-        .create_async()
-        .await;
-
-    let tmp = TempDir::new().unwrap();
-    let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0));
-    let mut config = Config::proxy(listen, tmp.path().to_path_buf());
-    config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink").url = upstream.url();
-    config.public_url = "http://example.test".to_string();
-    config.packument_ttl = Duration::from_mins(1);
-    let app = router(config);
-
-    let response = app
-        .oneshot(Request::get("/-/v1/search?text=ghost-pkg&size=20").body(Body::empty()).unwrap())
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
-    let body = body_json(response.into_body()).await;
-    let names: Vec<&str> = body["objects"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|object| object["package"]["name"].as_str().unwrap())
-        .collect();
-    assert!(
-        names.contains(&"ghost-pkg"),
-        "upstream-augment should surface exact-name match; got {names:?}",
-    );
-    assert_eq!(body["total"], names.len());
-
-    // The augment also caches the packument in the disposable proxy
-    // cache, so a subsequent search reuses it without another upstream
-    // call.
-    let on_disk = tmp.path().join(".pnpr-cache").join("ghost-pkg/package.json");
-    assert!(on_disk.exists(), "augment must cache the fetched packument");
 }
 
 #[tokio::test]

@@ -1,5 +1,5 @@
-//! Pacquet port of pnpm's `@pnpm/crypto.object-hasher` (which itself
-//! wraps npm's `object-hash` library) and `@pnpm/deps.graph-hasher`.
+//! Object hashing (wrapping the algorithm of npm's `object-hash`
+//! library) and the dep-graph hasher.
 //!
 //! The cache key used by the side-effects cache is **on disk and
 //! shared with pnpm**, so the hash output must be byte-for-byte
@@ -8,9 +8,7 @@
 //! (`object:<N>:<key>:<value>,...` with sorted keys, `string:<utf16_len>:<value>`,
 //! etc.) — pacquet replicates that format here.
 //!
-//! References (pinned to b4f8f47ac2 / object-hash@3.0.0):
-//! - <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/crypto/object-hasher/src/index.ts>
-//! - <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/deps/graph-hasher/src/index.ts>
+//! Reference (object-hash@3.0.0):
 //! - <https://github.com/puleos/object-hash/blob/v3.0.0/index.js>
 
 mod dep_state;

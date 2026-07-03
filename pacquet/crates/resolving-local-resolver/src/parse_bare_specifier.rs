@@ -1,5 +1,4 @@
-//! Port of pnpm's
-//! [`parseBareSpecifier.ts`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/local-resolver/src/parseBareSpecifier.ts).
+//! Bare-specifier parsing for the local-filesystem resolver.
 //!
 //! Decides whether a wanted dep is a local-filesystem shape (and which
 //! protocol — `link:` vs `file:`) and builds the [`LocalPackageSpec`]
@@ -11,9 +10,7 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_resolving_resolver_base::PkgResolutionId;
 
-/// The wanted-dependency slice the local resolver consumes. Mirrors
-/// pnpm's
-/// [`WantedLocalDependency`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/local-resolver/src/parseBareSpecifier.ts#L21-L24).
+/// The wanted-dependency slice the local resolver consumes.
 #[derive(Debug, Default, Clone)]
 pub struct WantedLocalDependency {
     pub bare_specifier: String,
@@ -23,8 +20,7 @@ pub struct WantedLocalDependency {
     pub injected: bool,
 }
 
-/// Parsed local-spec the resolver chain consumes. Mirrors pnpm's
-/// [`LocalPackageSpec`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/local-resolver/src/parseBareSpecifier.ts#L14-L20).
+/// Parsed local-spec the resolver chain consumes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct LocalPackageSpec {
     /// Where the directory will be addressed from inside the lockfile.
@@ -34,9 +30,8 @@ pub(crate) struct LocalPackageSpec {
     /// Absolute path the resolver actually inspects (the location of
     /// `package.json` for directories, the tarball file for files).
     pub fetch_spec: PathBuf,
-    /// `PkgResolutionId` upstream calls this — the branded identifier
-    /// the install layer uses to dedupe and key into the lockfile.
-    /// Formatted as `<protocol><normalized-path>`.
+    /// Branded identifier the install layer uses to dedupe and key
+    /// into the lockfile. Formatted as `<protocol><normalized-path>`.
     pub id: PkgResolutionId,
     pub kind: LocalSpecKind,
     /// Normalized echo of the bare specifier (with the chosen
@@ -52,17 +47,12 @@ pub(crate) enum LocalSpecKind {
 }
 
 /// Options shared by [`parse_local_scheme`] and [`parse_local_path`].
-/// Mirrors upstream's
-/// [`{ preserveAbsolutePaths }`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/local-resolver/src/parseBareSpecifier.ts#L40-L44)
-/// option bag.
 #[derive(Debug, Default, Clone, Copy)]
 pub(crate) struct ParseOptions {
     pub preserve_absolute_paths: bool,
 }
 
-/// `path:` is rejected so users get the same nudge they'd get from
-/// pnpm. Mirrors upstream's
-/// [`PathIsUnsupportedProtocolError`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/local-resolver/src/parseBareSpecifier.ts#L27-L36).
+/// `path:` is rejected so users get a nudge toward `link:` / `file:`.
 #[derive(Debug, Display, Error, Diagnostic, Clone)]
 #[display(
     "Local dependencies via `path:` protocol are not supported. \
@@ -78,9 +68,6 @@ pub struct PathProtocolNotSupportedError {
 /// (`link:` / `workspace:` / `file:`). Returns `Ok(None)` when the
 /// specifier doesn't carry one of those prefixes; returns
 /// `Err(PathProtocolNotSupportedError)` for `path:`.
-///
-/// Mirrors upstream's
-/// [`parseLocalScheme`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/local-resolver/src/parseBareSpecifier.ts#L38-L55).
 pub(crate) fn parse_local_scheme(
     wd: &WantedLocalDependency,
     project_dir: &Path,
@@ -109,9 +96,6 @@ pub(crate) fn parse_local_scheme(
 /// Parse a wanted dep by path shape alone — no scheme prefix. The
 /// dispatcher calls this *after* [`parse_local_scheme`] so explicit
 /// `link:`/`file:`/`workspace:`/`path:` prefixes don't slip through.
-///
-/// Mirrors upstream's
-/// [`parseLocalPath`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/local-resolver/src/parseBareSpecifier.ts#L57-L73).
 pub(crate) fn parse_local_path(
     wd: &WantedLocalDependency,
     project_dir: &Path,
@@ -129,9 +113,6 @@ pub(crate) fn parse_local_path(
 
 /// Build the final [`LocalPackageSpec`] from a wanted dep that has
 /// already been claimed by either entry point.
-///
-/// Mirrors upstream's
-/// [`fromLocal`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/local-resolver/src/parseBareSpecifier.ts#L75-L136).
 fn from_local(
     wd: &WantedLocalDependency,
     project_dir: &Path,
@@ -172,11 +153,8 @@ fn from_local(
         }
     };
 
-    // After upstream's `protocol = type === 'directory' && !injected ? 'link:' : 'file:'` step,
-    // upstream re-uses the `injected` variable to mean "is the dep
-    // copy-shaped" (`protocol === 'file:'`) for the dependencyPath /
-    // id calculations below. Match the rebind explicitly so the next
-    // few lines read identically.
+    // Once the protocol is chosen, "copy-shaped" (`protocol == "file:"`)
+    // drives the dependencyPath / id calculations below.
     let copy_shaped = protocol == "file:";
 
     let dependency_path = if copy_shaped {
@@ -208,9 +186,7 @@ fn from_local(
     }
 }
 
-/// Mirror upstream's
-/// [`bareSpecifier.replace(...)`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/local-resolver/src/parseBareSpecifier.ts#L82-L84)
-/// chain:
+/// Normalize a bare specifier through this replacement chain:
 ///
 /// 1. Replace all `\` with `/`.
 /// 2. Drive-letter prefix: `^(file|link|workspace):/*([A-Z]:)` → `$1`.
@@ -276,8 +252,6 @@ fn normalize_components(path: &Path) -> PathBuf {
     out
 }
 
-/// `normalizeRelativeOrAbsolute` from upstream
-/// [`fromLocal`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/local-resolver/src/parseBareSpecifier.ts#L109-L117).
 /// When `preserveAbsolutePaths` is on and the input spec is absolute,
 /// the result keeps the absolute form (slash-normalised); otherwise
 /// the result is relative to `relative_to`.
@@ -299,7 +273,8 @@ fn forward_slashes(input: String) -> String {
     if input.contains('\\') { input.replace('\\', "/") } else { input }
 }
 
-/// Match upstream's `isAbsolutePath` regex (`/^\/|^[A-Z]:/i`).
+/// `true` for an absolute spec: a leading `/` or a `<letter>:` drive
+/// prefix (`/^\/|^[A-Z]:/i`).
 fn is_absolute_specifier(spec: &str) -> bool {
     let mut chars = spec.chars();
     match chars.next() {
@@ -309,16 +284,14 @@ fn is_absolute_specifier(spec: &str) -> bool {
     }
 }
 
-/// Match upstream's `isFilespec` regex:
+/// `true` for a path-shaped spec:
 /// - Windows: `/^(?:[./\\]|~\/|[a-z]:)/i`
 /// - POSIX:   `/^(?:[./]|~\/|[a-z]:)/i`
 ///
-/// Implemented uniformly because pacquet doesn't need the `\\`
-/// alternative outside the bigger normalize step ([`is_filespec`] is
-/// only consulted on already-forward-slashed paths in the upstream
-/// flow because [`parse_local_path`] only inspects `bare_specifier`
-/// which hasn't been normalised yet; we accept the backslash for
-/// Windows-host inputs to keep parity).
+/// Implemented uniformly (accepting the backslash on every platform):
+/// [`parse_local_path`] inspects `bare_specifier` before the normalize
+/// step that forward-slashes paths, so Windows-host inputs may still
+/// carry a leading `\`.
 fn is_filespec(spec: &str) -> bool {
     let mut chars = spec.chars();
     match chars.next() {

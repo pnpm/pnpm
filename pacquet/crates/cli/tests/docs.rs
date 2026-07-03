@@ -1,13 +1,11 @@
 //! `pacquet docs` / `pacquet home` — open the documentation of a package
 //! in the browser.
 //!
-//! Ports the upstream docs tests
-//! (<https://github.com/pnpm/pnpm/blob/fc2f33912e/pnpm11/deps/inspection/commands/test/docs.ts>):
-//! the missing-package-name error and the command structure checks. The
-//! browser-opening success path is covered by the unit tests on `is_http_url`;
-//! the full integration path (mock registry + URL open) follows the `whoami`
-//! pattern but is deferred because it requires a platform-specific browser
-//! launcher.
+//! Covers the missing-package-name error and the command structure
+//! checks. The browser-opening success path is covered by the unit tests
+//! on `is_http_url`; the full integration path (mock registry + URL open)
+//! follows the `whoami` pattern but is deferred because it requires a
+//! platform-specific browser launcher.
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;

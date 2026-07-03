@@ -1,6 +1,3 @@
-//! Pacquet port of pnpm's
-//! [`@pnpm/resolving.git-resolver`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/git-resolver/src/index.ts).
-//!
 //! Resolves dependencies whose `bareSpecifier` names a git repository:
 //! the GitHub / GitLab / Bitbucket short-hands (`github:owner/repo#ref`,
 //! `gitlab:…`, `bitbucket:…`, the bare `owner/repo` form), git-scheme
@@ -11,24 +8,20 @@
 //! Three pieces:
 //!
 //! - [`create_git_hosted_pkg_id()`] — pure ID builder for git resolutions.
-//!   Ports
-//!   [`createGitHostedPkgId.ts`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/git-resolver/src/createGitHostedPkgId.ts).
 //! - [`parse_bare_specifier()`] — recognise + normalise the input string,
 //!   resolve hosted-vs-private (HTTP HEAD probe + `git ls-remote --exit-code`
-//!   reachability check), pick a `fetchSpec`. Ports
-//!   [`parseBareSpecifier.ts`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/git-resolver/src/parseBareSpecifier.ts).
+//!   reachability check), pick a `fetchSpec`.
 //! - [`GitResolver`] — the [`Resolver`](pacquet_resolving_resolver_base::Resolver)
 //!   impl that drives the two above, runs `git ls-remote` to pin a
 //!   commit, and emits either a `Tarball{gitHosted: true}` or `Git`
-//!   resolution. Ports
-//!   [`index.ts`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/git-resolver/src/index.ts).
+//!   resolution.
 //!
 //! Out of scope:
 //!
-//! - The `prev_specifier` short-circuit (upstream's `currentPkg && !update`
-//!   branch). Pacquet doesn't thread `currentPkg` through the seam yet
-//!   — the resolver always re-runs `ls-remote`. Restore the fast path
-//!   when `currentPkg` lands on `ResolveOptions`.
+//! - The `prev_specifier` short-circuit (the `currentPkg && !update`
+//!   fast path). Pacquet doesn't thread `currentPkg` through the seam
+//!   yet — the resolver always re-runs `ls-remote`. Restore the fast
+//!   path when `currentPkg` lands on `ResolveOptions`.
 //! - Proxy / TLS plumbing on the HTTP HEAD probe — the probe uses the
 //!   default [`pacquet_network::ThrottledClient`], same as the rest of
 //!   the install path.

@@ -1,6 +1,3 @@
-//! Pacquet port of pnpm's
-//! [`@pnpm/catalogs.config`](https://github.com/pnpm/pnpm/blob/a8a8cbce6d/catalogs/config/src/getCatalogsFromWorkspaceManifest.ts).
-//!
 //! Normalizes the two surface forms `pnpm-workspace.yaml` supports for
 //! defining the default catalog — `catalog:` at the top level vs.
 //! `catalogs.default` nested under the named catalogs — into the
@@ -14,9 +11,6 @@ use pacquet_workspace::WorkspaceManifest;
 /// Raised when the workspace manifest defines the default catalog
 /// twice — once via the top-level `catalog:` shorthand and once via
 /// the explicit `catalogs.default` key.
-///
-/// Mirrors upstream's `INVALID_CATALOGS_CONFIGURATION` `PnpmError`
-/// ([source](https://github.com/pnpm/pnpm/blob/a8a8cbce6d/catalogs/config/src/getCatalogsFromWorkspaceManifest.ts#L32-L37)).
 #[derive(Debug, Display, Error, Diagnostic, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum InvalidCatalogsConfigurationError {
@@ -29,9 +23,6 @@ pub enum InvalidCatalogsConfigurationError {
 
 /// Project the catalog-shaped fields from a parsed workspace manifest
 /// into a single flat [`Catalogs`] map.
-///
-/// Mirrors upstream's `getCatalogsFromWorkspaceManifest`
-/// ([source](https://github.com/pnpm/pnpm/blob/a8a8cbce6d/catalogs/config/src/getCatalogsFromWorkspaceManifest.ts#L5-L30)).
 pub fn get_catalogs_from_workspace_manifest(
     workspace_manifest: Option<&WorkspaceManifest>,
 ) -> Result<Catalogs, InvalidCatalogsConfigurationError> {
@@ -41,10 +32,10 @@ pub fn get_catalogs_from_workspace_manifest(
 
     check_default_catalog_is_defined_once(manifest)?;
 
-    // Upstream spreads `workspace.catalogs` after writing `default`, so
-    // an explicit `catalogs.default` overrides the (already-validated
-    // to be absent) `catalog` field. With `catalog`/`catalogs.default`
-    // mutually exclusive only one branch ever populates the key.
+    // `catalogs` is applied after writing `default`, so an explicit
+    // `catalogs.default` overrides the (already-validated to be absent)
+    // `catalog` field. With `catalog`/`catalogs.default` mutually
+    // exclusive only one branch ever populates the key.
     let mut catalogs = Catalogs::new();
     if let Some(default) = &manifest.catalog {
         catalogs.insert(DEFAULT_CATALOG_NAME.to_string(), default.clone());
@@ -60,9 +51,6 @@ pub fn get_catalogs_from_workspace_manifest(
 
 /// Validate that the default catalog is defined through at most one of
 /// the two surface forms.
-///
-/// Mirrors upstream's `checkDefaultCatalogIsDefinedOnce`
-/// ([source](https://github.com/pnpm/pnpm/blob/a8a8cbce6d/catalogs/config/src/getCatalogsFromWorkspaceManifest.ts#L32-L40)).
 pub fn check_default_catalog_is_defined_once(
     manifest: &WorkspaceManifest,
 ) -> Result<(), InvalidCatalogsConfigurationError> {

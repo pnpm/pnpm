@@ -1,7 +1,5 @@
 use super::PinnedVersion;
 
-/// Mirrors pnpm's `getPinnedVersion()` test
-/// (<https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/commands/test/getPinnedVersion.ts>).
 #[test]
 fn from_save_options_matches_pnpm_get_pinned_version() {
     assert_eq!(PinnedVersion::from_save_options(true, None), PinnedVersion::Patch);

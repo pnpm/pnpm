@@ -184,7 +184,7 @@ async fn should_install_dependencies() {
     // depPath and the layout lands the slot at
     // `@pnpm+xyz@1.0.0_@pnpm+x@1.0.0_@pnpm+y@1.0.0_@pnpm+z@1.0.0` —
     // matching the snapshot key shape `pnpm install` would write
-    // to `pnpm-lock.yaml` and the slot upstream's frozen-lockfile
+    // to `pnpm-lock.yaml` and the slot the frozen-lockfile
     // path materialises into.
     let path = project_root
         .join("node_modules/.pacquet/@pnpm+xyz@1.0.0_@pnpm+x@1.0.0_@pnpm+y@1.0.0_@pnpm+z@1.0.0");
@@ -200,8 +200,7 @@ async fn should_install_dependencies() {
 /// always fires) sweeps a surplus `.pacquet` directory the wanted
 /// lockfile doesn't reference, while keeping the slot it does. Drives
 /// the [`crate::prune_virtual_store`] wiring through the real install
-/// path; mirrors the surplus-cleanup behavior of pnpm's `prune` at
-/// <https://github.com/pnpm/pnpm/blob/e1e29c1520/installing/linking/modules-cleaner/src/prune.ts#L180-L190>.
+/// path, exercising the surplus-cleanup behavior.
 #[tokio::test]
 async fn install_prunes_surplus_virtual_store_dir() {
     let mock_instance = TestRegistry::start();
@@ -617,9 +616,6 @@ async fn frozen_lockfile_flag_overrides_config_lockfile_false() {
 /// * the install completes,
 /// * the virtual-store directory uses the *real* package name, and
 /// * the symlink under `node_modules/` uses the alias key.
-///
-/// Mirrors pnpm's `parseBareSpecifier`. Reference:
-/// <https://github.com/pnpm/pnpm/blob/1819226b51/resolving/npm-resolver/src/parseBareSpecifier.ts>
 #[tokio::test]
 async fn npm_alias_dependency_installs_under_alias_key() {
     let mock_instance = TestRegistry::start();
@@ -947,10 +943,10 @@ async fn install_emits_pnpm_event_sequence() {
 
     let captured = EVENTS.lock().unwrap();
 
-    // Event ordering matches pnpm: manifest snapshot, context,
+    // Event ordering: manifest snapshot, context,
     // importing_started, the `pnpm:stats` added/removed pair from
     // `CreateVirtualStore::run`, then `importing_done` once extraction
-    // and symlink linking are complete (mirrors upstream `link.ts:167`),
+    // and symlink linking are complete,
     // followed by the `pnpm:ignored-scripts` summary that
     // `BuildModules::run` produces, then summary closing the run. The
     // empty snapshot map still triggers the stats emit (`added: 0`,
@@ -1027,10 +1023,8 @@ async fn install_emits_pnpm_event_sequence() {
     drop(dir);
 }
 
-/// A successful install must persist `<modules_dir>/.modules.yaml`,
-/// matching pnpm's
-/// [`writeModulesManifest`](https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/deps-installer/src/install/index.ts#L1608-L1630)
-/// call. Asserts the on-disk fields a follow-up install (or third-
+/// A successful install must persist `<modules_dir>/.modules.yaml`.
+/// Asserts the on-disk fields a follow-up install (or third-
 /// party tool) keys off: `layoutVersion`, `nodeLinker`, the
 /// `included` set derived from the dispatched dependency groups, the
 /// store and virtual-store directories, and the `default` registry.
@@ -1146,15 +1140,13 @@ async fn install_writes_modules_yaml() {
     drop(dir);
 }
 
-/// `pnpm run`'s `verifyDepsBeforeRun` gate at
-/// <https://github.com/pnpm/pnpm/blob/7ff112bac6/deps/status/src/checkDepsStatus.ts#L80-L86>
-/// bails to "outdated" the moment
-/// `<workspaceDir>/node_modules/.pnpm-workspace-state-v1.json` is
-/// missing. Pacquet must write it on every install so pnpm can fast-path
-/// the check after pacquet has materialized the modules tree — that's
-/// the gap behind the
-/// [`pnpm_config_verify_deps_before_run: false`](https://github.com/pnpm/pnpm/commit/7ff112bac6)
-/// workaround in pnpm's own CI.
+/// `pnpm run`'s `verifyDepsBeforeRun` gate bails to "outdated" the
+/// moment `<workspaceDir>/node_modules/.pnpm-workspace-state-v1.json`
+/// is missing. Pacquet must write it on every install so pnpm can
+/// fast-path the check after pacquet has materialized the modules
+/// tree — that's the gap behind the
+/// `pnpm_config_verify_deps_before_run: false` workaround in pnpm's
+/// own CI.
 #[tokio::test]
 async fn install_writes_workspace_state() {
     let dir = tempdir().unwrap();
@@ -1275,12 +1267,9 @@ async fn install_writes_workspace_state() {
 }
 
 /// Unit tests for [`super::build_projects_map`] / [`super::build_workspace_state`].
-/// Ports the cases in upstream's
-/// [`createWorkspaceState.test.ts`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/workspace/state/test/createWorkspaceState.test.ts):
-/// the `projects` map must contain one entry per project in the list,
+/// The `projects` map must contain one entry per project in the list,
 /// keyed on the project root dir. Pacquet's `build_projects_map`
-/// derives the list directly from `project_manifests` — same shape as
-/// pnpm's `createWorkspaceState` taking `allProjects` — so a fresh
+/// derives the list directly from `project_manifests`, so a fresh
 /// install that hasn't written a `pnpm-lock.yaml` yet still records
 /// every workspace project, not just the root.
 mod build_workspace_state_tests {
@@ -1299,9 +1288,8 @@ mod build_workspace_state_tests {
         PackageManifest::from_path(manifest_path).unwrap()
     }
 
-    /// Ports `createWorkspaceState() on empty list`: a zero-project
-    /// input produces an empty `projects` map but still populates the
-    /// timestamp.
+    /// A zero-project input produces an empty `projects` map but still
+    /// populates the timestamp.
     #[test]
     fn empty_project_list_produces_empty_projects_map() {
         let dir = tempdir().unwrap();
@@ -1318,10 +1306,10 @@ mod build_workspace_state_tests {
         assert!(state.last_validated_timestamp > 0);
     }
 
-    /// Ports `createWorkspaceState() on non-empty list`: every project
-    /// in the list lands in `state.projects` keyed by its `root_dir`.
-    /// Regression catch for the bug where a workspace fresh install
-    /// (no `pnpm-lock.yaml` on disk) recorded only the root importer.
+    /// Every project in the list lands in `state.projects` keyed by its
+    /// `root_dir`. Regression catch for the bug where a workspace fresh
+    /// install (no `pnpm-lock.yaml` on disk) recorded only the root
+    /// importer.
     #[test]
     fn records_every_workspace_project_keyed_by_root_dir() {
         let dir = tempdir().unwrap();
@@ -1386,9 +1374,8 @@ mod build_workspace_state_tests {
     }
 }
 
-/// Ports `'do not fail on an optional dependency that has a non-optional
-/// dependency with a failing postinstall script'` at
-/// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/deps-installer/test/install/optionalDependencies.ts#L563-L572>.
+/// Scenario: do not fail on an optional dependency that has a
+/// non-optional dependency with a failing postinstall script.
 ///
 /// Resolves `@pnpm.e2e/has-failing-postinstall-dep@1.0.0` as an
 /// optional dependency through the live registry-mock instance. The
@@ -1400,8 +1387,7 @@ mod build_workspace_state_tests {
 /// `crate::build_modules::tests::do_not_fail_on_optional_dep_with_failing_postinstall`).
 /// This test pins the fetch + extract behavior on the optional edge:
 /// both packages must land in the virtual store and the install must
-/// NOT abort, matching the upstream expectation that `addDependenciesToPackage`
-/// resolves.
+/// NOT abort.
 #[tokio::test]
 async fn install_optional_failing_postinstall_dep_via_registry_mock_succeeds() {
     let mock_instance = TestRegistry::start();
@@ -1485,8 +1471,6 @@ async fn install_optional_failing_postinstall_dep_via_registry_mock_succeeds() {
 
 /// Regression for pnpm/pnpm#11934: `peerDependenciesMeta` must be
 /// preserved end-to-end so optional peers are not auto-installed.
-/// Ported from upstream's
-/// [`peerDependencies.ts:1181-1255`](https://github.com/pnpm/pnpm/blob/1fb8a2d5d8/installing/deps-installer/test/install/peerDependencies.ts#L1181-L1255).
 #[tokio::test]
 async fn auto_install_peers_does_not_cascade_optional_peers() {
     let mock_instance = TestRegistry::start();
@@ -1584,13 +1568,12 @@ async fn auto_install_peers_does_not_cascade_optional_peers() {
 /// Companion to [`auto_install_peers_does_not_cascade_optional_peers`]:
 /// `@pnpm.e2e/abc-optional-peers-meta-only@1.0.0` declares `peer-b` and
 /// `peer-c` **only** through `peerDependenciesMeta`, with no matching
-/// `peerDependencies` entry. Upstream and pacquet treat such entries
-/// as optional peers with implicit range `*`; the install must still
-/// keep them out of the tree when no other consumer requests them.
+/// `peerDependencies` entry. Such entries are treated as optional
+/// peers with implicit range `*`; the install must still keep them out
+/// of the tree when no other consumer requests them.
 ///
-/// Ported from upstream's "warning is not reported when cannot resolve
-/// optional peer dependency (specified by meta field only)" at
-/// [`installing/deps-installer/test/install/peerDependencies.ts`](https://github.com/pnpm/pnpm/blob/1fb8a2d5d8/installing/deps-installer/test/install/peerDependencies.ts#L1257-L1323).
+/// Scenario: a warning is not reported when an optional peer
+/// dependency (specified by meta field only) cannot be resolved.
 #[tokio::test]
 async fn auto_install_peers_skips_meta_only_optional_peers() {
     let mock_instance = TestRegistry::start();
@@ -1800,8 +1783,7 @@ async fn warm_reinstall_skips_snapshot_when_current_lockfile_matches() {
 }
 
 /// When the cached directory is gone but the cache key still matches,
-/// pacquet emits `pnpm:_broken_node_modules` (mirroring upstream's
-/// debug emit at `lockfileToDepGraph.ts:258`) and falls through to the
+/// pacquet emits `pnpm:_broken_node_modules` and falls through to the
 /// full install path for that snapshot.
 #[tokio::test]
 async fn warm_reinstall_emits_broken_modules_when_dir_is_missing() {
@@ -2202,9 +2184,8 @@ async fn warm_reinstall_reports_added_zero_and_emits_no_imported_events() {
 
 /// Issue [#447]: a `--frozen-lockfile` install where the on-disk
 /// `package.json` has drifted from the lockfile importer entry must
-/// fail with `OutdatedLockfile` *before* any fetch or link work
-/// starts. Mirrors upstream's `ERR_PNPM_OUTDATED_LOCKFILE` thrown
-/// from `pkg-manager/core/src/install/index.ts:823` — CI-correctness
+/// fail with `OutdatedLockfile` (`ERR_PNPM_OUTDATED_LOCKFILE`)
+/// *before* any fetch or link work starts — a CI-correctness
 /// guarantee that pacquet can't silently install the wrong shape of
 /// `node_modules` when the manifest and lockfile diverge.
 ///
@@ -2290,8 +2271,6 @@ async fn frozen_lockfile_errors_when_manifest_drifts_from_lockfile() {
 /// with the flag flipped: we now expect the install to reach the
 /// fetch site and fail there (network / integrity error against the
 /// bogus tarball URL) rather than abort early with `OutdatedLockfile`.
-///
-/// Issue context: <https://github.com/pnpm/pnpm/issues/11797>.
 #[tokio::test]
 async fn ignore_manifest_check_bypasses_manifest_freshness_gate() {
     let dir = tempdir().unwrap();
@@ -2356,9 +2335,7 @@ async fn ignore_manifest_check_bypasses_manifest_freshness_gate() {
 
 /// `pnpm.overrides` drift between the lockfile-recorded map and the
 /// current config surfaces as `OutdatedLockfile` with a
-/// `StalenessReason::OverridesChanged` payload. Mirrors upstream's
-/// `getOutdatedLockfileSetting → 'overrides'` branch firing
-/// `LockfileConfigMismatchError` under `--frozen-lockfile`.
+/// `StalenessReason::OverridesChanged` payload under `--frozen-lockfile`.
 #[tokio::test]
 async fn frozen_lockfile_errors_when_overrides_drift_from_lockfile() {
     let dir = tempdir().unwrap();
@@ -2535,12 +2512,10 @@ async fn frozen_lockfile_applies_overrides_to_manifest_before_freshness_check() 
 /// `pnpm-lock.yaml#overrides`. The freshness check must therefore
 /// resolve `catalog:` on the config side too before comparing — a
 /// raw string compare would treat `catalog:` ≠ `<concrete>` on every
-/// install. Mirrors pnpm's
-/// [`parseOverrides(overrides, catalogs)`](https://github.com/pnpm/pnpm/blob/4a36b9a110/config/parse-overrides/src/index.ts#L20-L44)
-/// →
-/// [`createOverridesMapFromParsed`](https://github.com/pnpm/pnpm/blob/4a36b9a110/lockfile/settings-checker/src/createOverridesMapFromParsed.ts)
-/// pipeline. Regression test for the case the user hit on a workspace
-/// whose `pnpm.overrides` declared catalog-backed entries.
+/// install. The config side parses the overrides against the catalogs
+/// and builds the resolved overrides map before comparing. Regression
+/// test for the case the user hit on a workspace whose `pnpm.overrides`
+/// declared catalog-backed entries.
 #[tokio::test]
 async fn frozen_lockfile_resolves_catalog_protocol_in_overrides_before_freshness_check() {
     let dir = tempdir().unwrap();
@@ -2716,16 +2691,14 @@ async fn frozen_lockfile_errors_when_lockfile_has_no_root_importer() {
 /// default for non-`--global` installs — see
 /// [`pacquet_config::default_enable_global_virtual_store`]),
 /// `Install::run` registers the project at
-/// `<store_dir>/projects/<short-hash>` (mirroring upstream's
-/// [`registerProject`](https://github.com/pnpm/pnpm/blob/94240bc046/store/controller/src/storeController/projectRegistry.ts))
+/// `<store_dir>/projects/<short-hash>`
 /// and routes every per-snapshot slot through
 /// [`crate::VirtualStoreLayout`]. The empty-snapshot lockfile here is
 /// enough to prove the wiring runs end-to-end without panicking and
 /// that the registry entry actually lands on disk; the GVS-shaped
 /// per-package path layout itself is unit-tested inside the
-/// [`crate::VirtualStoreLayout`] module, and the e2e port of
-/// upstream's `globalVirtualStore.ts` cases (with non-empty
-/// snapshots) is tracked as a follow-up.
+/// [`crate::VirtualStoreLayout`] module, and the e2e GVS cases (with
+/// non-empty snapshots) are tracked as a follow-up.
 #[tokio::test]
 async fn frozen_lockfile_under_gvs_registers_project_and_runs_clean() {
     let dir = tempdir().unwrap();
@@ -2801,7 +2774,7 @@ async fn frozen_lockfile_under_gvs_registers_project_and_runs_clean() {
     // `register_project` wrote `<store_dir>/v11/projects/<short-hash>`
     // pointing back at the project dir. Canonicalize the *entry
     // path* (not `read_link`'s output) so the kernel follows the
-    // symlink — pacquet, like upstream pnpm, writes the target as
+    // symlink — pacquet writes the target as
     // a path relative to the link's parent, so canonicalizing the
     // raw `read_link` string from the CWD would never resolve.
     let projects_dir = store_dir.join("v11/projects");
@@ -2819,17 +2792,17 @@ async fn frozen_lockfile_under_gvs_registers_project_and_runs_clean() {
 }
 
 /// Under GVS, the `virtualStoreDir` value pacquet persists in
-/// `.modules.yaml` must equal the path upstream pnpm writes — i.e.
+/// `.modules.yaml` must equal the path pnpm writes — i.e.
 /// `<storeDir>/v11/links` — not the project-local `node_modules/.pnpm`
 /// path pacquet keeps internally in [`Config::virtual_store_dir`]. If
 /// they diverge, the next `pnpm install` reads the manifest, recomputes
-/// `ctx.virtualStoreDir` from the GVS-on path, and trips upstream's
-/// [`checkCompatibility`](https://github.com/pnpm/pnpm/blob/f2a4d2caef/installing/deps-installer/src/install/checkCompatibility/index.ts#L37-L43)
-/// with `ERR_PNPM_UNEXPECTED_VIRTUAL_STORE_DIR` for every project,
-/// forcing the "modules directories will be reinstalled from scratch"
-/// prompt on every invocation. The same value is also emitted on the
-/// `pnpm:context` channel that `@pnpm/cli.default-reporter` parses, so
-/// the same parity rule applies there.
+/// `ctx.virtualStoreDir` from the GVS-on path, and trips its
+/// `checkCompatibility` with `ERR_PNPM_UNEXPECTED_VIRTUAL_STORE_DIR`
+/// for every project, forcing the "modules directories will be
+/// reinstalled from scratch" prompt on every invocation. The same
+/// value is also emitted on the `pnpm:context` channel that
+/// `@pnpm/cli.default-reporter` parses, so the same parity rule
+/// applies there.
 #[tokio::test]
 async fn gvs_persists_global_virtual_store_dir_in_modules_yaml_and_context_log() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
@@ -2935,9 +2908,7 @@ async fn gvs_persists_global_virtual_store_dir_in_modules_yaml_and_context_log()
     // result because `read_modules_manifest`'s
     // `modules_dir.join(relative)` keeps `..` segments verbatim, while
     // pnpm's `path.relative(modules.virtualStoreDir, opts.virtualStoreDir)`
-    // check at
-    // [`checkCompatibility/index.ts:37-43`](https://github.com/pnpm/pnpm/blob/f2a4d2caef/installing/deps-installer/src/install/checkCompatibility/index.ts#L37-L43)
-    // reduces them before comparing.
+    // check reduces them before comparing.
     let read_back =
         read_modules_manifest::<Host>(&modules_dir).expect("read .modules.yaml").expect("present");
     assert_eq!(
@@ -3044,11 +3015,9 @@ async fn frozen_lockfile_with_gvs_off_skips_project_registry() {
 }
 
 /// Workspace install under GVS registers the workspace root once,
-/// regardless of how many importers the workspace declares. Mirrors
-/// upstream's
-/// [`registerProject(opts.storeDir, opts.lockfileDir)`](https://github.com/pnpm/pnpm/blob/d8a79a9c30/installing/context/src/index.ts#L128)
-/// call site in `getContext`, which fires exactly once per install
-/// against the workspace root — store prune walks
+/// regardless of how many importers the workspace declares. The
+/// project registration fires exactly once per install against the
+/// workspace root — store prune walks
 /// `<workspace>/node_modules/.pnpm/` to find every installed package,
 /// so one registry entry per workspace is enough.
 #[tokio::test]
@@ -3149,11 +3118,8 @@ async fn frozen_lockfile_under_gvs_registers_workspace_root_only() {
 
 /// `build_modules_manifest` serializes the install-time
 /// [`SkippedSnapshots`] into `.modules.yaml.skipped` as a list of
-/// depPath strings. Mirrors upstream's
-/// `skipped: Array.from(ctx.skipped)` literal at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/src/install/index.ts#L1625>:
-/// each entry is the snapshot's [`PackageKey`] `Display` form
-/// (`name@version(peers)`), and ordering is handled by
+/// depPath strings: each entry is the snapshot's [`PackageKey`]
+/// `Display` form (`name@version(peers)`), and ordering is handled by
 /// `write_modules_manifest`'s sort-on-write.
 ///
 /// An empty set produces an empty list — covers the fresh-install
@@ -3200,9 +3166,7 @@ fn build_modules_manifest_serializes_skipped_set() {
     );
 
     // Compare as sets — `build_modules_manifest` does not sort.
-    // Sort-on-write happens later inside `write_modules_manifest`,
-    // matching upstream's `saveModules.skipped.sort()` at
-    // <https://github.com/pnpm/pnpm/blob/94240bc046/installing/modules-yaml/src/index.ts#L121>;
+    // Sort-on-write happens later inside `write_modules_manifest`;
     // the read-after-write order is covered by the integration
     // test on the full install path.
     let actual: HashSet<String> = manifest.skipped.iter().cloned().collect();
@@ -3357,23 +3321,18 @@ async fn frozen_install_preserves_seeded_skipped_across_reinstall() {
     drop(dir);
 }
 
-/// Port of upstream's
-/// [`deps-restorer/test/index.ts:340`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/test/index.ts#L340-L360)
-/// `skipping optional dependency if it cannot be fetched`. An
-/// `optional: true` snapshot whose tarball URL is unreachable must
+/// Scenario: skipping an optional dependency if it cannot be fetched.
+/// An `optional: true` snapshot whose tarball URL is unreachable must
 /// not abort the install — the failure is silently swallowed at
-/// the per-snapshot fetch dispatch in `CreateVirtualStore`, mirroring
-/// upstream's
-/// [`lockfileToDepGraph.ts:294-298`](https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-builder/src/lockfileToDepGraph.ts#L294-L298)
-/// catch site.
+/// the per-snapshot fetch dispatch in `CreateVirtualStore`.
 ///
 /// Asserts:
 /// 1. The install resolves `Ok` (no abort).
 /// 2. The broken snapshot's virtual-store slot was NOT created.
 /// 3. The on-disk `.modules.yaml.skipped` does NOT contain the
-///    broken snapshot — fetch failures are transient by upstream's
-///    convention (the catch site never updates `opts.skipped`), so
-///    a subsequent install retries the fetch.
+///    broken snapshot — fetch failures are transient (the catch site
+///    never updates `opts.skipped`), so a subsequent install retries
+///    the fetch.
 #[tokio::test]
 async fn frozen_install_silently_swallows_unreachable_optional_tarball() {
     // Lockfile with one `optional: true` snapshot whose `tarball` URL
@@ -3476,9 +3435,9 @@ async fn frozen_install_silently_swallows_unreachable_optional_tarball() {
     );
 
     // The fetch-failure entry must NOT have been persisted to
-    // `.modules.yaml.skipped`. Mirrors upstream's silent catch site
-    // that never updates `opts.skipped`, so a future install retries
-    // the fetch (in case the URL becomes reachable again).
+    // `.modules.yaml.skipped`. The silent catch site never updates
+    // `opts.skipped`, so a future install retries the fetch (in case
+    // the URL becomes reachable again).
     let written = modules_dir
         .pipe_as_ref(read_modules_manifest::<Host>)
         .expect("read .modules.yaml")
@@ -3494,9 +3453,7 @@ async fn frozen_install_silently_swallows_unreachable_optional_tarball() {
 
 /// The fetch-failure swallow is gated on `snapshot.optional`. A
 /// non-optional snapshot whose tarball is unreachable must still
-/// abort the install — mirrors upstream's `if (pkgSnapshot.optional)
-/// return; throw err;` at
-/// [`lockfileToDepGraph.ts:296-298`](https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-builder/src/lockfileToDepGraph.ts#L296-L298).
+/// abort the install (the swallow is `if optional return; else throw`).
 /// Same fixture as the swallow test but with `optional: true`
 /// removed from the snapshot entry — confirms the polarity is
 /// correct.
@@ -3579,10 +3536,7 @@ async fn frozen_install_propagates_non_optional_fetch_failure() {
     drop(dir);
 }
 
-/// Ports the `--no-optional` shape of
-/// [`installing/deps-installer/test/install/optionalDependencies.ts:391`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/optionalDependencies.ts#L391)
-/// and the frozen-install side of
-/// [`installing/deps-restorer/test/index.ts:323`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/test/index.ts#L323).
+/// The frozen-install `--no-optional` scenario.
 ///
 /// The fixture is designed to discriminate slice 5 (`--no-optional`
 /// filter) from slice 4 (fetch-failure swallow): a snapshot with
@@ -3594,9 +3548,7 @@ async fn frozen_install_propagates_non_optional_fetch_failure() {
 /// 4. A successful install therefore proves the snapshot was
 /// dropped **before** cache-key derivation by the slice 5 gate.
 ///
-/// Mirrors upstream's depNode filter at
-/// [`link.ts:109-111`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/src/install/link.ts#L109-L111):
-/// when `!include.optionalDependencies`, every depNode whose
+/// When `!include.optionalDependencies`, every depNode whose
 /// `optional` flag is true is dropped from the install graph
 /// before extraction / linking / building runs.
 ///
@@ -3801,12 +3753,11 @@ async fn frozen_install_optional_included_surfaces_missing_metadata() {
     drop(dir);
 }
 
-/// Regression coverage for the shared-dependency case from
-/// [`installing/deps-installer/test/install/optionalDependencies.ts:712`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/test/install/optionalDependencies.ts#L712)
+/// Regression coverage for the shared-dependency case
 /// (`dependency that is both optional and non-optional is installed,
 /// when optional dependencies should be skipped`).
 ///
-/// `SnapshotEntry::optional` is set by upstream's resolver only
+/// `SnapshotEntry::optional` is set by the resolver only
 /// when a snapshot is reachable **exclusively** through optional
 /// edges. A snapshot reachable through any non-optional edge carries
 /// `optional: false` and **must not** be dropped by `--no-optional`.
@@ -4318,8 +4269,8 @@ async fn frozen_lockfile_install_skips_runtime_when_skip_runtimes_set() {
 
 /// End-to-end wiring smoke for the lockfile-verification gate
 /// (Phase 7). An invalid `minimumReleaseAgeExclude` pattern (the
-/// glob form is rejected when paired with a version part, per
-/// upstream's `ERR_PNPM_NAME_PATTERN_IN_VERSION_UNION` arm) trips
+/// glob form is rejected when paired with a version part, surfacing
+/// `ERR_PNPM_NAME_PATTERN_IN_VERSION_UNION`) trips
 /// `build_resolution_verifiers` before the frozen-lockfile dispatch
 /// runs. The resulting `InstallError::BuildVerifiers` proves:
 ///
@@ -4529,17 +4480,14 @@ async fn frozen_lockfile_gate_rejects_under_huge_minimum_release_age() {
 // ----------------------------------------------------------------------------
 // Fresh-install lockfile generation
 //
-// These tests port the parts of
-// [`installing/deps-installer/test/lockfile.ts`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-installer/test/lockfile.ts)
-// that exercise a *fresh* install — the path that converts the
+// These tests exercise a *fresh* install — the path that converts the
 // resolver's `DependenciesGraph` into a v9 `pnpm-lock.yaml`. Tests that
 // require an existing lockfile (incremental update, repeat install,
 // `--frozen-lockfile`-with-stale-lockfile) stay deferred — see issue
 // pnpm/pnpm#11813 for the broader scope.
 
-/// Pacquet equivalent of upstream's
-/// ["lockfile has correct format"](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-installer/test/lockfile.ts#L38)
-/// for the smallest fresh-install slice: one direct prod dep produces
+/// Scenario: lockfile has correct format.
+/// The smallest fresh-install slice: one direct prod dep produces
 /// a v9 lockfile with the right `lockfileVersion`, an importer entry
 /// under `.`, and matching `packages:` / `snapshots:` rows.
 #[tokio::test]
@@ -4699,12 +4647,10 @@ async fn fresh_install_uses_final_peer_suffix_for_transitive_pending_peer() {
 }
 
 /// Manifest-declared dependency groups land in the matching importer
-/// section in the lockfile. Mirrors upstream's
-/// ["packages are placed in devDependencies even if they are present as
-/// non-dev as well"](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-installer/test/lockfile.ts#L559)
-/// at the surface level — pacquet routes deps through
-/// `manifest_alias_to_group`, so a dep declared in `devDependencies`
-/// lands in the lockfile's `devDependencies` section.
+/// section in the lockfile (packages are placed in `devDependencies`
+/// even if they are present as non-dev as well). Pacquet routes deps
+/// through `manifest_alias_to_group`, so a dep declared in
+/// `devDependencies` lands in the lockfile's `devDependencies` section.
 #[tokio::test]
 async fn fresh_install_splits_dev_and_prod_dependency_sections() {
     let mock_instance = TestRegistry::start();
@@ -4778,10 +4724,8 @@ async fn fresh_install_splits_dev_and_prod_dependency_sections() {
 }
 
 /// Specifiers recorded into each importer-level entry mirror the
-/// user-written `package.json` value, not the resolved version.
-/// Mirrors the per-entry `specifier:` check in upstream's
-/// ["lockfile has correct format"](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-installer/test/lockfile.ts#L38)
-/// — a `^1.0.0` declared spec round-trips through the lockfile as
+/// user-written `package.json` value, not the resolved version:
+/// a `^1.0.0` declared spec round-trips through the lockfile as
 /// `specifier: ^1.0.0` even when the resolved version is exact
 /// (`1.0.0`).
 #[tokio::test]
@@ -4927,9 +4871,9 @@ async fn fresh_install_lockfile_round_trips_through_load_save_load() {
 }
 
 /// `config.lockfile = false` opt-out skips the lockfile write but
-/// keeps the install running. Mirrors upstream's
-/// ["lockfile is ignored when lockfile = false"](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-installer/test/lockfile.ts#L660):
-/// no `pnpm-lock.yaml` on disk, but `node_modules/` materialized.
+/// keeps the install running (lockfile is ignored when
+/// `lockfile = false`): no `pnpm-lock.yaml` on disk, but
+/// `node_modules/` materialized.
 #[tokio::test]
 async fn fresh_install_with_lockfile_disabled_does_not_write_a_lockfile() {
     let mock_instance = TestRegistry::start();
@@ -5002,9 +4946,8 @@ async fn fresh_install_with_lockfile_disabled_does_not_write_a_lockfile() {
 
 /// A fresh install also writes `<virtual_store_dir>/lock.yaml` so the
 /// next install's slot-skip optimization has something to diff
-/// against. Mirrors the upstream
-/// [`writeCurrentLockfile`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/fs/src/write.ts#L41-L51)
-/// call at the tail of the install pipeline. The contents round-trip
+/// against. The current-lockfile write runs at the tail of the
+/// install pipeline. The contents round-trip
 /// through `Lockfile`, so a subsequent `pacquet install
 /// --frozen-lockfile` can read it back without a parse error.
 #[tokio::test]
@@ -5197,8 +5140,8 @@ async fn prefer_frozen_install_writes_missing_current_lockfile() {
 }
 
 /// `config.lockfile = false` opts out of *both* lockfile writes (the
-/// wanted `pnpm-lock.yaml` and the per-virtual-store `lock.yaml`),
-/// matching upstream pnpm's all-or-nothing `useLockfile` behavior.
+/// wanted `pnpm-lock.yaml` and the per-virtual-store `lock.yaml`) —
+/// the `useLockfile` setting is all-or-nothing.
 #[tokio::test]
 async fn fresh_install_with_lockfile_disabled_skips_current_lockfile_too() {
     let mock_instance = TestRegistry::start();
@@ -5265,10 +5208,10 @@ async fn fresh_install_with_lockfile_disabled_skips_current_lockfile_too() {
 
 /// A top-level `optionalDependencies` entry surfaces as
 /// `snapshots[<key>].optional: true` in the freshly-written lockfile.
-/// Mirrors upstream's `ResolvedPackage.optional` propagation that
-/// `BuildModules` consults to decide whether a build failure should
-/// be reported via `pnpm:skipped-optional-dependency`. A non-optional
-/// sibling lands `optional: false` so the test pins both sides.
+/// The `optional` flag is what `BuildModules` consults to decide
+/// whether a build failure should be reported via
+/// `pnpm:skipped-optional-dependency`. A non-optional sibling lands
+/// `optional: false` so the test pins both sides.
 #[tokio::test]
 async fn fresh_install_marks_optional_snapshots_in_pnpm_lock_yaml() {
     let mock_instance = TestRegistry::start();
@@ -5355,8 +5298,8 @@ async fn fresh_install_marks_optional_snapshots_in_pnpm_lock_yaml() {
     // Note: transitive deps that arrive via auto-install-peers
     // hoisting land at the importer level as non-optional — they're
     // installed top-level to satisfy a missing peer regardless of
-    // whether the consumer was optional. Matches upstream pnpm's
-    // hoist semantics. Pure transitive optional propagation
+    // whether the consumer was optional (the hoist
+    // semantics). Pure transitive optional propagation
     // (consumer → regular `dependencies` child) is exercised by the
     // adapter's unit tests since the mock-registry fixtures here
     // don't expose that shape.
@@ -5445,7 +5388,7 @@ async fn fresh_install_hoisted_node_linker_records_modules_yaml() {
 /// `--no-runtime` (`config.skip_runtimes = true`) on the fresh path
 /// is refused for the same reason: pacquet's runtime filter runs only
 /// inside the frozen-lockfile path, so honoring the flag on a fresh
-/// install would need a port of upstream's runtime-snapshot filter.
+/// install would need a runtime-snapshot filter there too.
 #[tokio::test]
 async fn fresh_install_refuses_skip_runtimes_before_writing_state() {
     let dir = tempdir().unwrap();
@@ -5818,9 +5761,8 @@ fn is_modules_yaml_consistent_returns_true_when_settings_match() {
 }
 
 /// `nodeLinker` drift between `.modules.yaml` and the current config
-/// disqualifies the up-to-date short-circuit. Mirrors upstream's
-/// `validateModules` behavior — a different linker forces a full
-/// rebuild of `node_modules` rather than a fast no-op.
+/// disqualifies the up-to-date short-circuit — a different linker
+/// forces a full rebuild of `node_modules` rather than a fast no-op.
 #[test]
 fn is_modules_yaml_consistent_returns_false_when_node_linker_drifts() {
     let dir = tempdir().unwrap();
@@ -5902,9 +5844,8 @@ fn is_modules_yaml_consistent_returns_false_when_included_drifts() {
 /// End-to-end: when `.modules.yaml`, `<virtual_store_dir>/lock.yaml`,
 /// and the wanted lockfile all agree, [`Install::run`] must emit the
 /// `name: "pnpm"` "Lockfile is up to date" log and return without
-/// running materialization. Mirrors upstream pnpm's
-/// `allProjectsAreUpToDate` + `validateModules` short-circuit at
-/// <https://github.com/pnpm/pnpm/blob/a456dc78fb/installing/deps-installer/src/install/index.ts#L913-L985>.
+/// running materialization (the `allProjectsAreUpToDate` +
+/// `validateModules` short-circuit).
 #[tokio::test]
 async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
@@ -6049,8 +5990,7 @@ async fn frozen_install_short_circuits_when_modules_and_lockfile_are_consistent(
     drop(dir);
 }
 
-/// Port of pnpm's `optimisticRepeatInstall` short-circuit
-/// (`installing/commands/src/installDeps.ts:179-194`). When nothing
+/// The `optimisticRepeatInstall` short-circuit. When nothing
 /// has changed since the previous successful install, `Install::run`
 /// must emit pnpm's `name: "pnpm"` "Already up to date" log and
 /// return without ever calling `verify_lockfile_resolutions` or
@@ -6083,11 +6023,9 @@ async fn optimistic_repeat_install_skips_entire_pipeline_when_state_is_fresh() {
     manifest.save().unwrap();
 
     // Single-project optimistic-repeat-install requires `pnpm-lock.yaml`
-    // on disk (matching pnpm's
-    // <https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L396-L401>
-    // `throwLockfileNotFound`). Write a minimal v9 lockfile next to
-    // the manifest so the freshness gate passes — the fast path only
-    // checks existence, not contents.
+    // on disk (a missing lockfile triggers `throwLockfileNotFound`).
+    // Write a minimal v9 lockfile next to the manifest so the freshness
+    // gate passes — the fast path only checks existence, not contents.
     std::fs::write(project_root.join("pnpm-lock.yaml"), "lockfileVersion: '9.0'\n")
         .expect("seed pnpm-lock.yaml");
 
@@ -6454,8 +6392,8 @@ async fn frozen_lockfile_disables_optimistic_short_circuit() {
 /// install (`is_full_install: false`) must therefore never take the
 /// optimistic short-circuit — otherwise a fresh workspace state would
 /// read as "already up to date" and the mutation would never be
-/// resolved or materialized. Mirrors upstream `installDeps` calling
-/// `checkDepsStatus` only for the plain-install mutation.
+/// resolved or materialized. The dependency-status check runs only
+/// for the plain-install mutation.
 #[tokio::test]
 async fn partial_install_disables_optimistic_short_circuit() {
     static EVENTS: Mutex<Vec<LogEvent>> = Mutex::new(Vec::new());
@@ -6595,10 +6533,10 @@ async fn partial_install_disables_optimistic_short_circuit() {
 /// `lock.yaml` to stand in for it — must NOT short-circuit, even when
 /// `node_modules` and the workspace-state file survive. There is
 /// nothing to content-check the manifests against and nothing to
-/// regenerate `pnpm-lock.yaml` from, so the full install must run.
-/// Mirrors pnpm's [`throwLockfileNotFound`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L396-L401)
-/// converting into `upToDate: false`. When the current lockfile IS
-/// present, the fast path instead treats it as the wanted lockfile —
+/// regenerate `pnpm-lock.yaml` from, so the full install must run —
+/// the missing-lockfile case converts into `upToDate: false`. When
+/// the current lockfile IS present, the fast path instead treats it
+/// as the wanted lockfile —
 /// see `regenerates_missing_wanted_lockfile_from_current_when_manifests_unchanged`
 /// in the `optimistic_repeat_install` tests. Companion to the
 /// workspace-mode tolerance proved by
@@ -7553,9 +7491,8 @@ async fn fresh_lockfile_only_with_compatibility_db(
 /// `packageExtensions` adds entries to a dependency's manifest at
 /// resolve time and the resulting lockfile records the merged shape.
 ///
-/// Ports the spirit of
-/// [`packageExtensions.ts:16`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-installer/test/install/packageExtensions.ts#L16)
-/// `manifests are extended with fields specified by packageExtensions`.
+/// Scenario: manifests are extended with fields specified by
+/// `packageExtensions`.
 /// Covers both the resolution-side effect (the extension's
 /// `peerDependencies` entry must land in the package's lockfile
 /// metadata) and the lockfile-side `packageExtensionsChecksum` write
@@ -7653,9 +7590,7 @@ async fn fresh_install_applies_package_extensions_to_dependency_manifest() {
 
     // The lockfile must also carry the `packageExtensionsChecksum`
     // (sha256-prefixed) so a subsequent frozen install can detect
-    // drift. Mirrors upstream's
-    // `ctx.wantedLockfile.packageExtensionsChecksum = packageExtensionsChecksum`
-    // assignment.
+    // drift.
     let checksum = lockfile
         .package_extensions_checksum
         .as_deref()
@@ -7671,10 +7606,8 @@ async fn fresh_install_applies_package_extensions_to_dependency_manifest() {
 /// `packageExtensions` drift between the lockfile-recorded checksum
 /// and the freshly-computed value from `Config::package_extensions`
 /// surfaces as `OutdatedLockfile` with a
-/// `StalenessReason::PackageExtensionsChecksumChanged` payload.
-/// Mirrors upstream's
-/// `getOutdatedLockfileSetting → 'packageExtensionsChecksum'` branch
-/// firing `LockfileConfigMismatchError` under `--frozen-lockfile`.
+/// `StalenessReason::PackageExtensionsChecksumChanged` payload under
+/// `--frozen-lockfile`.
 #[tokio::test]
 async fn frozen_lockfile_errors_when_package_extensions_drift_from_lockfile() {
     let dir = tempdir().unwrap();
@@ -7825,8 +7758,7 @@ async fn install_with_pnpmfile_reporter<Reporter: self::Reporter + 'static>(
     .await
 }
 
-// Ports pnpm's `readPackage hook` install test
-// (pnpm/test/install/hooks.ts): the hook rewrites a resolved package's
+// The `readPackage` hook rewrites a resolved package's
 // dependency range, and resolution honors it. `@pnpm.e2e/pkg-with-1-dep`
 // depends on `@pnpm.e2e/dep-of-pkg-with-1-dep@^100.0.0`, which would resolve
 // to 100.1.0; pinning it to 100.0.0 in the hook installs 100.0.0 instead.
@@ -7862,8 +7794,8 @@ async fn read_package_hook_pins_transitive_dependency_version() {
     drop((dir, registry));
 }
 
-// Ports pnpm's `readPackage hook makes installation fail if it does not
-// return the modified package manifests`.
+// A `readPackage` hook that does not return the modified package
+// manifest makes the installation fail.
 #[tokio::test]
 async fn read_package_hook_failure_aborts_install() {
     let registry = TestRegistry::start();
@@ -7882,8 +7814,8 @@ async fn read_package_hook_failure_aborts_install() {
     drop((dir, registry));
 }
 
-// Ports pnpm's `prints meaningful error when there is syntax error in
-// .pnpmfile.cjs`.
+// A syntax error in `.pnpmfile.cjs` prints a meaningful error and
+// aborts the install.
 #[tokio::test]
 async fn pnpmfile_syntax_error_aborts_install() {
     let registry = TestRegistry::start();
@@ -7902,8 +7834,7 @@ async fn pnpmfile_syntax_error_aborts_install() {
     drop((dir, registry));
 }
 
-// Ports pnpm's `pnpmfile: run afterAllResolved hook` and the deps-installer
-// `readPackage, afterAllResolved hooks` test: the hook receives the resolved
+// The `afterAllResolved` hook receives the resolved
 // lockfile object and its return value is what gets written, so an arbitrary
 // added key must survive to pnpm-lock.yaml.
 #[tokio::test]
@@ -7933,10 +7864,9 @@ async fn after_all_resolved_hook_modifies_written_lockfile() {
     assert!(lockfile_text.contains("@pnpm.e2e/pkg-with-1-dep"));
 }
 
-// Ports pnpm's `adding or changing pnpmfile should change
-// pnpmfileChecksum` (pnpm/test/hooks.ts): a project pnpmfile that
-// exports hooks makes the install record its normalized-content hash as
-// `pnpmfileChecksum` in pnpm-lock.yaml.
+// A project pnpmfile that exports hooks makes the install record its
+// normalized-content hash as `pnpmfileChecksum` in pnpm-lock.yaml, so
+// adding or changing the pnpmfile changes the checksum.
 #[tokio::test]
 async fn pnpmfile_with_hooks_records_pnpmfile_checksum() {
     let registry = TestRegistry::start();
@@ -8013,8 +7943,7 @@ fn first_hook_log(events: &[LogEvent]) -> &HookLog {
         .expect("a pnpm:hook event must be emitted")
 }
 
-// Ports pnpm's `pnpmfile: pass log function to readPackage hook`
-// (pnpm/test/install/hooks.ts): a `readPackage` hook's `context.log(...)`
+// A `readPackage` hook's `context.log(...)`
 // surfaces on the `pnpm:hook` channel with the pnpmfile path (`from`), the
 // project (`prefix`), the hook name, and the message.
 #[tokio::test]
@@ -8057,7 +7986,7 @@ async fn read_package_hook_log_is_forwarded_to_pnpm_hook_channel() {
     drop((dir, registry));
 }
 
-// Ports pnpm's `pnpmfile: run afterAllResolved hook`: an `afterAllResolved`
+// An `afterAllResolved`
 // hook's `context.log(...)` surfaces on the `pnpm:hook` channel.
 #[tokio::test]
 async fn after_all_resolved_hook_log_is_forwarded_to_pnpm_hook_channel() {
@@ -8096,7 +8025,7 @@ async fn after_all_resolved_hook_log_is_forwarded_to_pnpm_hook_channel() {
     drop((dir, registry));
 }
 
-// Ports pnpm's `pnpmfile: run async afterAllResolved hook`: an async
+// An async
 // `afterAllResolved` hook's `context.log(...)` also surfaces on `pnpm:hook`.
 #[tokio::test]
 async fn async_after_all_resolved_hook_log_is_forwarded_to_pnpm_hook_channel() {

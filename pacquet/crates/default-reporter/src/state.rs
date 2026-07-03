@@ -1,9 +1,8 @@
 //! Event-folding renderer: the in-process equivalent of
 //! `@pnpm/cli.default-reporter`'s `RxJS` graph. Each [`LogEvent`] is folded into
 //! [`ReporterState`], which recomputes the terminal frame. The frame model
-//! (fixed blocks pinned below scrolling non-fixed blocks) ports
-//! `mergeOutputs.ts`; the per-channel rendering ports the matching
-//! `reporterForClient/report*.ts` module.
+//! pins fixed blocks below scrolling non-fixed blocks, with one rendering
+//! path per log channel.
 
 use std::{collections::HashMap, fmt::Write as _};
 
@@ -35,9 +34,8 @@ pub enum Output {
 }
 
 /// Lazily-assigned block indices for one logical output stream — its
-/// non-fixed (`block`) and fixed (`fixed`) slots in the frame, matching the
-/// per-inner-observable `currentBlockNo` / `currentFixedBlockNo` of
-/// `mergeOutputs.ts`.
+/// non-fixed (`block`) and fixed (`fixed`) slots in the frame — the
+/// per-stream `currentBlockNo` / `currentFixedBlockNo` pair.
 #[derive(Debug, Default, Clone)]
 struct BlockSlot {
     block: Option<usize>,
@@ -46,7 +44,7 @@ struct BlockSlot {
 
 /// The frame buffer: scrolling `blocks` rendered above pinned `fixed_blocks`,
 /// or — in append-only mode — a list of `pending` lines to print as they
-/// arrive. Ports `mergeOutputs.ts`.
+/// arrive.
 #[derive(Debug)]
 struct Frame {
     append_only: bool,
@@ -129,10 +127,7 @@ struct ProgressEntry {
     slot: BlockSlot,
 }
 
-/// One dependency added or removed, ready to render. Ports [`PackageDiff`][ts-PackageDiff]
-/// in `pkgsDiff.ts`.
-///
-/// [ts-PackageDiff]: https://github.com/pnpm/pnpm/blob/6fadd7def9/pnpm11/cli/default-reporter/src/reporterForClient/pkgsDiff.ts#L7-L15
+/// One dependency added or removed, ready to render.
 #[derive(Debug, Clone)]
 struct PackageDiff {
     added: bool,
@@ -143,8 +138,7 @@ struct PackageDiff {
     latest: Option<String>,
 }
 
-/// The five dependency buckets, in summary render order. Ports the
-/// `PkgsDiff` record + `propertyByDependencyType`.
+/// The five dependency buckets, in summary render order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DepKind {
     Prod,
@@ -238,7 +232,7 @@ pub struct ReporterState {
 
 const MAX_SHOWN_WARNINGS: usize = 5;
 
-/// `reportLifecycleScripts.ts` color wheel.
+/// Lifecycle-script prefix color wheel.
 const COLOR_WHEEL: [fn(&Colors, &str) -> String; 6] = [
     |colors, text| colors.cyan(text),
     |colors, text| colors.magenta_bright(text),
@@ -345,7 +339,7 @@ impl ReporterState {
         }
     }
 
-    // --- context (reportContext.ts) ---------------------------------------
+    // --- context ----------------------------------------------------------
 
     fn on_context(&mut self, log: &ContextLog) {
         self.context = Some(log.clone());
@@ -380,7 +374,7 @@ impl ReporterState {
         self.context_slot = slot;
     }
 
-    // --- progress (reportProgress.ts) -------------------------------------
+    // --- progress ---------------------------------------------------------
 
     fn on_progress(&mut self, message: &ProgressMessage) {
         let requester = match message {
@@ -434,7 +428,7 @@ impl ReporterState {
         self.progress.get_mut(prefix).unwrap().slot = slot;
     }
 
-    // --- big tarballs (reportBigTarballsProgress.ts) ----------------------
+    // --- big tarballs -----------------------------------------------------
 
     fn on_fetching(&mut self, message: &FetchingProgressMessage) {
         const BIG_TARBALL_SIZE: u64 = 1024 * 1024 * 5;
@@ -471,7 +465,7 @@ impl ReporterState {
         )
     }
 
-    // --- stats (reportStats.ts) -------------------------------------------
+    // --- stats ------------------------------------------------------------
 
     fn on_stats(&mut self, message: &StatsMessage) {
         let prefix = match message {
@@ -540,7 +534,7 @@ impl ReporterState {
         out
     }
 
-    // --- summary (reportSummary.ts + pkgsDiff.ts) -------------------------
+    // --- summary ----------------------------------------------------------
 
     fn on_root(&mut self, message: &pacquet_reporter::RootMessage) {
         use pacquet_reporter::RootMessage;
@@ -676,7 +670,7 @@ impl ReporterState {
         result
     }
 
-    // --- lifecycle (reportLifecycleScripts.ts) ----------------------------
+    // --- lifecycle --------------------------------------------------------
 
     fn on_lifecycle(&mut self, message: &LifecycleMessage) {
         if self.append_only {
@@ -855,9 +849,9 @@ impl ReporterState {
         }
         // Suppress the warning box under `strictDepBuilds` — the install
         // fails with `ERR_PNPM_IGNORED_BUILDS` instead, so the box would
-        // only duplicate the error. Mirrors pnpm's `reportIgnoredBuilds`,
-        // gated on `!strictDepBuilds`. The structured event still carries
-        // the names for NDJSON consumers.
+        // only duplicate the error. The box is gated on
+        // `!strictDepBuilds`; the structured event still carries the
+        // names for NDJSON consumers.
         if log.strict_dep_builds {
             return;
         }

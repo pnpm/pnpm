@@ -1,11 +1,9 @@
 //! Install pnpm into the global packages directory for a self-update.
 //!
-//! Ports pnpm's
-//! [`installPnpm`](https://github.com/pnpm/pnpm/blob/a33eeec9cd/pnpm11/engine/pm/commands/src/self-updater/installPnpm.ts):
-//! the engine is installed into a fresh directory under the global
+//! The engine is installed into a fresh directory under the global
 //! packages dir (visible to `pnpm ls -g`), the host's native platform
 //! binary is linked into the wrapper (replicating the wrapper's
-//! preinstall, which is skipped because pnpm installs the engine with
+//! preinstall, which is skipped because the engine is installed with
 //! scripts disabled), and the caller links the bins + hash symlink.
 
 use crate::{State, cli_args::add::add_package};
@@ -27,17 +25,13 @@ use super::SelfUpdateError;
 
 /// From v12 the unscoped `pnpm` package is itself the native engine
 /// (equal content to `@pnpm/exe`), so a self-update always converges on
-/// installing `pnpm`. Mirrors pnpm's `pnpmPackageNameToInstall` for the
-/// v12+ branch.
+/// installing `pnpm`.
 pub(crate) const PNPM_PACKAGE_NAME: &str = "pnpm";
 
-/// The package-manager components pnpm marks buildable when installing
-/// the engine, so the `ENGINE_NAME` is folded into their global-virtual-
-/// store hash and each platform resolves to its own slot instead of
-/// colliding. Mirrors pnpm's [`PNPM_ALLOW_BUILDS`][ts-PNPM_ALLOW_BUILDS]
-/// (`{ '@pnpm/exe': true, 'pnpm': true }`).
-///
-/// [ts-PNPM_ALLOW_BUILDS]: https://github.com/pnpm/pnpm/blob/a33eeec9cd/pnpm11/engine/pm/commands/src/self-updater/installPnpm.ts#L34
+/// The package-manager components marked buildable when installing the
+/// engine (`{ '@pnpm/exe': true, 'pnpm': true }`), so the `ENGINE_NAME` is
+/// folded into their global-virtual-store hash and each platform resolves
+/// to its own slot instead of colliding.
 pub(crate) const PNPM_ALLOW_BUILDS: [&str; 2] = ["pnpm", "@pnpm/exe"];
 
 pub(super) struct InstallPnpmResult {
@@ -129,7 +123,7 @@ pub(crate) async fn run_install<Reporter: self::Reporter + 'static>(
     cfg.lockfile = true;
     cfg.workspace_dir = None;
     cfg.supported_architectures = supported_architectures;
-    // pnpm installs the engine with `ignoreScripts: true` — the wrapper's
+    // The engine is installed with scripts disabled — the wrapper's
     // preinstall (which links the platform binary) is replicated by
     // `link_exe_platform_binary`, so running it here is both unnecessary
     // and a code-execution surface during a privileged install.
@@ -138,10 +132,9 @@ pub(crate) async fn run_install<Reporter: self::Reporter + 'static>(
     cfg.strict_dep_builds = false;
     if enable_global_virtual_store {
         // The engine lands in the shared GVS, so mark the package-manager
-        // components buildable — exactly as pnpm's `installPnpmToStore`
-        // passes `PNPM_ALLOW_BUILDS` to `findPnpmGvsPath` — so the
-        // `ENGINE_NAME` enters their GVS hash and each platform gets its
-        // own slot. Scripts still don't run (`ignore_scripts` above).
+        // components ([`PNPM_ALLOW_BUILDS`]) buildable so the `ENGINE_NAME`
+        // enters their GVS hash and each platform gets its own slot.
+        // Scripts still don't run (`ignore_scripts` above).
         cfg.global_virtual_store_dir = base_config.store_dir.links();
         cfg.allow_builds.clear();
         for name in PNPM_ALLOW_BUILDS {
@@ -177,7 +170,7 @@ pub(crate) async fn run_install<Reporter: self::Reporter + 'static>(
 
 /// Scope-local directory name of the `@pnpm/exe` platform package under
 /// the legacy `<os>-<arch>` scheme (`macos-arm64`, `win-x86`,
-/// `linux-x64`, `linuxstatic-x64`). Mirrors pnpm's `exePlatformPkgDirName`.
+/// `linux-x64`, `linuxstatic-x64`).
 pub(super) fn exe_platform_pkg_dir_name(platform: &str, arch: &str, libc: &str) -> String {
     let arch = normalized_arch(platform, arch);
     let os = match platform {
@@ -196,9 +189,8 @@ pub(super) fn exe_platform_pkg_dir_name(platform: &str, arch: &str, libc: &str) 
 }
 
 /// Scope-local directory name of the platform package under the
-/// `exe.<platform>-<arch>[-musl]` scheme — the convention pnpm v12 (the
-/// Rust port) ships its native binaries under. Mirrors pnpm's
-/// `exePlatformPkgDirNameNext`.
+/// `exe.<platform>-<arch>[-musl]` scheme — the convention pnpm v12 ships
+/// its native binaries under.
 pub(super) fn exe_platform_pkg_dir_name_next(platform: &str, arch: &str, libc: &str) -> String {
     let arch = normalized_arch(platform, arch);
     let libc_suffix = if platform == "linux" && libc == "musl" { "-musl" } else { "" };
@@ -228,7 +220,6 @@ fn apply_package_manager_bootstrap(cfg: &mut Config, bootstrap: &PackageManagerB
 /// Link the host's native platform binary (`@pnpm/exe.<target>`) into the
 /// wrapper package directory, replicating the wrapper's preinstall step
 /// (skipped because the engine is installed with scripts disabled).
-/// Mirrors pnpm's `linkExePlatformBinary`.
 ///
 /// Errors loudly when the wrapper or its platform binary is missing, or
 /// when the hard link fails: with scripts disabled, this manual linking is
@@ -315,7 +306,7 @@ fn force_link(src: &Path, dest: &Path) -> std::io::Result<()> {
 /// Point the Windows wrapper's `bin` field at the `.exe` variants (the
 /// npm shim generator reads `bin` at install time). Written via a temp
 /// file + rename so the content-addressed, hard-linked `package.json`
-/// blob is not mutated in place. Mirrors pnpm's same step.
+/// blob is not mutated in place.
 fn rewrite_windows_bin_field(wrapper_dir: &Path) {
     let pkg_json_path = wrapper_dir.join("package.json");
     let Ok(text) = fs::read_to_string(&pkg_json_path) else {

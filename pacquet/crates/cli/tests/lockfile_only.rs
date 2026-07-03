@@ -1,8 +1,6 @@
 //! `--lockfile-only` coverage for `pacquet install`.
 //!
-//! Ports pnpm's
-//! [`installing/deps-installer/test/install/lockfileOnly.ts`](https://github.com/pnpm/pnpm/blob/a33c4bfcb0/installing/deps-installer/test/install/lockfileOnly.ts):
-//! resolving with `lockfileOnly` writes `pnpm-lock.yaml` (direct and
+//! Resolving with `lockfileOnly` writes `pnpm-lock.yaml` (direct and
 //! transitive deps) without fetching any tarball into the store or
 //! creating `node_modules`, and a repeat run keeps that property. The
 //! `--frozen-lockfile --lockfile-only` combination still validates the
@@ -204,8 +202,6 @@ fn frozen_lockfile_only_succeeds_without_materializing_when_fresh() {
 /// `--lockfile-only` together with `lockfile: false` (pnpm's
 /// `useLockfile: false`) is a config conflict — the only output the
 /// flag produces is the lockfile, which `lockfile: false` disables.
-/// Ports pnpm's
-/// [`lockfile.ts` "fail when installing with useLockfile: false and lockfileOnly: true"](https://github.com/pnpm/pnpm/blob/a33c4bfcb0/installing/deps-installer/test/lockfile.ts#L727-L736).
 #[test]
 fn lockfile_false_with_lockfile_only_is_a_config_conflict() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -250,8 +246,6 @@ fn lockfile_false_with_lockfile_only_is_a_config_conflict() {
 /// In a workspace, a fresh `--lockfile-only` run records every
 /// importer, and a later run after a new project is added updates the
 /// lockfile to include it — all without materializing `node_modules`.
-/// Ports pnpm's
-/// [`lockfile.ts` "update the lockfile when a new project is added to the workspace and lockfile-only installation is used"](https://github.com/pnpm/pnpm/blob/a33c4bfcb0/installing/deps-installer/test/lockfile.ts#L1564-L1610).
 #[test]
 fn lockfile_only_updates_importers_when_a_project_is_added() {
     let CommandTempCwd { pacquet, root, workspace, npmrc_info, .. } =
@@ -302,8 +296,8 @@ fn lockfile_only_updates_importers_when_a_project_is_added() {
     // fresh-resolve path: pacquet's auto-frozen freshness gate
     // (`check_lockfile_freshness`) only validates the root importer
     // today, so it wouldn't notice a newly-added sibling and would
-    // otherwise short-circuit to the frozen path. Re-resolving is what
-    // pnpm's `mutateModules` does unconditionally in the upstream test.
+    // otherwise short-circuit to the frozen path. The flag makes the
+    // re-resolve unconditional.
     fs::create_dir_all(workspace.join("packages/project-2")).expect("mkdir project-2");
     fs::write(
         workspace.join("packages/project-2/package.json"),

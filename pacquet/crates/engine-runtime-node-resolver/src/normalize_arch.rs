@@ -1,5 +1,5 @@
-//! Pacquet port of
-//! [`normalizeArch.ts`](https://github.com/pnpm/pnpm/blob/1627943d2a/engine/runtime/node-resolver/src/normalizeArch.ts).
+//! Normalises the `(platform, arch)` pair into the directory-name
+//! shape nodejs.org publishes for.
 
 /// Translate the `(platform, arch)` pair pnpm sees at install time into
 /// the directory-name shape nodejs.org actually publishes for.

@@ -34,9 +34,8 @@ pub enum BuildModulesError {
     #[diagnostic(transparent)]
     PatchApply(#[error(source)] PatchApplyError),
 
-    /// Mirrors upstream's
-    /// [`ERR_PNPM_PATCH_FILE_PATH_MISSING`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/during-install/src/index.ts#L172-L176)
-    /// — fired when a snapshot's resolved patch carries a hash but
+    /// `ERR_PNPM_PATCH_FILE_PATH_MISSING` — fired when a snapshot's
+    /// resolved patch carries a hash but
     /// no `patch_file_path`. The hash-without-path shape can come
     /// from the lockfile when no live config provides the path, so
     /// the user must add an entry to `patchedDependencies` in
@@ -71,9 +70,7 @@ pub enum BuildModulesError {
     /// A complete seed never reaches here — patched and built packages
     /// are imported from the side-effects cache and skipped by the
     /// `is_built` gate — so this means the seed is missing build
-    /// output. Mirrors the TS `ERR_PNPM_FROZEN_STORE_NEEDS_BUILD`
-    /// thrown from
-    /// [`building/during-install`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/during-install/src/index.ts).
+    /// output, surfaced as `ERR_PNPM_FROZEN_STORE_NEEDS_BUILD`.
     #[display("Cannot build {package} because the store is read-only (frozenStore is enabled)")]
     #[diagnostic(
         code(ERR_PNPM_FROZEN_STORE_NEEDS_BUILD),
@@ -94,9 +91,6 @@ pub enum BuildModulesError {
 /// Build policy derived from `allowBuilds` and
 /// `dangerouslyAllowAllBuilds` in `pnpm-workspace.yaml`.
 ///
-/// Ports pnpm's `createAllowBuildFunction` from
-/// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/policy/src/index.ts>.
-///
 /// The internal `expanded_allowed` and `expanded_disallowed` sets
 /// contain the result of running each `allowBuilds` key through
 /// [`expand_package_version_specs`], so a key like
@@ -116,9 +110,7 @@ impl AllowBuildPolicy {
     /// Build a policy from already-expanded `allowed` and
     /// `disallowed` sets and `dangerouslyAllowAllBuilds`. Pure
     /// constructor — no IO — so the policy logic is tested
-    /// directly with in-memory inputs (mirrors upstream's
-    /// `createAllowBuildFunction(opts)` in
-    /// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/policy/src/index.ts>).
+    /// directly with in-memory inputs.
     #[must_use]
     pub fn new(
         expanded_allowed: HashSet<String>,
@@ -236,9 +228,7 @@ pub(crate) fn normalize_build_dep_path(dep_path: &str) -> String {
 
 /// The `allowBuilds` key under which an ignored build should be approved:
 /// the package name for registry packages, the peer-suffix-free depPath for
-/// git/tarball artifacts (whose name alone must not approve builds). Ports
-/// pnpm's
-/// [`allowBuildKeyFromIgnoredBuild`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/policy/src/index.ts#L83-L88).
+/// git/tarball artifacts (whose name alone must not approve builds).
 #[must_use]
 pub fn allow_build_key_from_ignored_build(dep_path: &str) -> String {
     let pkg_id_with_patch_hash = get_pkg_id_with_patch_hash(dep_path);
@@ -249,12 +239,10 @@ pub fn allow_build_key_from_ignored_build(dep_path: &str) -> String {
 }
 
 /// Split a peer-suffix-free depPath / pkgId into its `name` and `version`
-/// (with any `(patch_hash=…)` segment stripped), mirroring the half of
-/// pnpm's
-/// [`parse`](https://github.com/pnpm/pnpm/blob/097983fbca/deps/path/src/index.ts#L123-L170)
-/// that [`allow_build_key_from_ignored_build`] consumes. Returns `None`
-/// when there is no `@` version separator past position 0 or the version
-/// is empty — the cases pnpm's `parse` reports as a name-less `{}`.
+/// (with any `(patch_hash=…)` segment stripped) — the half of depPath
+/// parsing that [`allow_build_key_from_ignored_build`] consumes. Returns
+/// `None` when there is no `@` version separator past position 0 or the
+/// version is empty — the cases that yield a name-less result.
 fn parse_dep_path_name_version(pkg_id: &str) -> Option<(&str, &str)> {
     let sep = pkg_id.get(1..)?.find('@').map(|off| off + 1)?;
     let name = &pkg_id[..sep];
@@ -291,8 +279,7 @@ fn is_source_like_dep_path_version(version: &str) -> bool {
 
 /// Drives a forced rebuild of already-installed packages. Constructed by
 /// `pacquet rebuild` and `pacquet approve-builds`; absent (`None`) for a
-/// normal install. Mirrors the rebuild half of pnpm's
-/// [`buildSelectedPkgs`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/after-install/src/index.ts).
+/// normal install.
 ///
 /// Effect on [`BuildModules`]: a selected package is built even when the
 /// side-effects cache reports it already built (an explicit rebuild always
@@ -323,14 +310,10 @@ impl RebuildOptions {
 
 /// Run lifecycle scripts for all packages that require a build.
 ///
-/// Ports the core of `buildModules` from
-/// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/during-install/src/index.ts>.
-///
 /// Packages are visited in topological order (children before parents) via
 /// [`build_sequence`]. Chunks run sequentially. Members within a chunk
 /// run in parallel under a per-install rayon thread pool bounded to
-/// [`BuildModules::child_concurrency`] threads — mirrors upstream's
-/// [`runGroups(getWorkspaceConcurrency(opts.childConcurrency), groups)`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/during-install/src/index.ts#L124).
+/// [`BuildModules::child_concurrency`] threads.
 pub struct BuildModules<'a> {
     /// Install-scoped slot-directory mapping (GVS-aware). The layout
     /// knows the per-snapshot subdirectory shape (legacy flat-name vs
@@ -352,8 +335,8 @@ pub struct BuildModules<'a> {
     /// prefetch. Missing entries fall back to inspecting the
     /// materialized package directory.
     pub requires_build_by_snapshot: Option<&'a crate::RequiresBuildBySnapshot>,
-    /// `<platform>;<arch>;node<major>` — the prefix part of
-    /// upstream's dep-state cache key. Computed once at install
+    /// `<platform>;<arch>;node<major>` — the prefix part of the
+    /// dep-state cache key. Computed once at install
     /// start by [`pacquet_graph_hasher::detect_node_major`] +
     /// [`pacquet_graph_hasher::engine_name`]. When `None`, the
     /// gate falls through to "rebuild" (no key to look up).
@@ -362,11 +345,10 @@ pub struct BuildModules<'a> {
     /// gate is bypassed entirely and every `requires_build`
     /// snapshot runs its scripts.
     pub side_effects_cache: bool,
-    /// Mirrors upstream's `sideEffectsCacheWrite` at
-    /// <https://github.com/pnpm/pnpm/blob/7e3145f9fc/config/reader/src/index.ts#L615>.
-    /// When `true`, a successful postinstall triggers a re-CAFS of
-    /// the built package directory and a queued mutation of the
-    /// matching `PackageFilesIndex.sideEffects` row.
+    /// Mirrors `config.side_effects_cache_write`. When `true`, a
+    /// successful postinstall triggers a re-CAFS of the built package
+    /// directory and a queued mutation of the matching
+    /// `PackageFilesIndex.sideEffects` row.
     pub side_effects_cache_write: bool,
     /// Store-dir handle for the WRITE path's `add_files_from_dir`
     /// call. `None` short-circuits the upload site entirely — used
@@ -383,9 +365,7 @@ pub struct BuildModules<'a> {
     /// [`pacquet_patching::get_patch_info`]. `None` when no
     /// `patchedDependencies` is configured.
     ///
-    /// Drives three things, mirroring upstream's
-    /// [`during-install`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/during-install/src/index.ts)
-    /// flow:
+    /// Drives three things:
     ///
     /// 1. Build trigger — a snapshot with a patch entry becomes a
     ///    build candidate even when `requires_build` is false.
@@ -402,24 +382,19 @@ pub struct BuildModules<'a> {
     /// Mirrors `config.unsafe_perm`. When `false`, [`pacquet_executor`]
     /// runs each lifecycle script under a per-package TMPDIR set to
     /// `node_modules/.tmp`; when `true`, TMPDIR is left at the
-    /// inherited value (matches upstream's
-    /// [`@pnpm/npm-lifecycle`](https://github.com/pnpm/npm-lifecycle/blob/d2d8e790/index.js#L204-L220)
-    /// gate). Default `true`.
+    /// inherited value. Default `true`.
     pub unsafe_perm: bool,
     /// Mirrors `config.child_concurrency`. Per-chunk parallelism
     /// for build-script spawns. Chunks remain sequential to preserve
     /// topological ordering; members within a chunk run in parallel
-    /// up to this many at a time. Mirrors upstream's
-    /// [`runGroups(getWorkspaceConcurrency(opts.childConcurrency), groups)`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/during-install/src/index.ts#L124).
-    /// Floored to `1` to guarantee forward progress on
-    /// resource-constrained hosts.
+    /// up to this many at a time. Floored to `1` to guarantee forward
+    /// progress on resource-constrained hosts.
     pub child_concurrency: u32,
     /// Snapshots the installability pass marked optional+incompatible.
     /// Excluded from both `requires_build` computation and the
     /// `build_sequence` input — pacquet does not run scripts (or
     /// even check `binding.gyp`) for slots that don't exist on
-    /// disk. Mirrors pnpm's `lockfileToDepGraph` flow where skipped
-    /// snapshots never enter the build graph.
+    /// disk. Skipped snapshots never enter the build graph.
     pub skipped: &'a SkippedSnapshots,
 
     /// Per-snapshot `pkgRoot` override, populated by the hoisted
@@ -430,17 +405,15 @@ pub struct BuildModules<'a> {
     /// the snapshot didn't make it into the hoisted graph (skipped
     /// optional, etc.) and the build phase silently passes over it.
     /// `None` for the isolated linker — its slot directories are
-    /// recovered from [`crate::VirtualStoreLayout::slot_dir`].
-    /// Mirrors upstream's two-mode `pkgRoots` selection at
-    /// [`building/after-install/src/index.ts`](https://github.com/pnpm/pnpm/blob/94240bc046/building/after-install/src/index.ts#L340-L350).
+    /// recovered from [`crate::VirtualStoreLayout::slot_dir`]. The
+    /// two-mode `pkgRoot` selection (override map vs. layout slot)
+    /// is handled by `pkg_root_for_key`.
     pub pkg_root_by_key: Option<&'a HashMap<PackageKey, PathBuf>>,
 
     /// When `true`, compute per-snapshot `extra_bin_paths` via
     /// `bin_dirs_in_all_parent_dirs` (private helper in this module)
     /// so lifecycle scripts can resolve binaries from every ancestor `node_modules/.bin`
-    /// up to [`Self::lockfile_dir`]. Mirrors upstream's hoisted
-    /// branch at
-    /// [`after-install:357`](https://github.com/pnpm/pnpm/blob/94240bc046/building/after-install/src/index.ts#L357).
+    /// up to [`Self::lockfile_dir`]. Set under the hoisted linker.
     /// Always `false` under the isolated linker — its bins live in
     /// the slot's own `<slot>/node_modules/.bin`, populated up-
     /// front by [`crate::LinkVirtualStoreBins`], and the script
@@ -459,12 +432,8 @@ pub struct BuildModules<'a> {
     /// Mirrors `config.ignore_scripts`. When `true`, no lifecycle
     /// script runs and the allow-build gate is bypassed entirely, so a
     /// package not in `allowBuilds` is *not* added to the returned
-    /// ignored-builds set — matching pnpm, where the during-install
-    /// loop skips its `ignoredBuilds.add(...)` branch under
-    /// `ignoreScripts`
-    /// (<https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/during-install/src/index.ts#L137-L150>).
-    /// Patches still apply, since pnpm applies a patch even when scripts
-    /// are suppressed.
+    /// ignored-builds set. Patches still apply — a patch is applied
+    /// even when scripts are suppressed.
     pub ignore_scripts: bool,
 
     /// Mirrors `config.package_import_method`. Used by the
@@ -495,8 +464,7 @@ impl BuildModules<'_> {
     /// scripts were skipped because the package was not in `allowBuilds`.
     ///
     /// The caller is expected to fold the returned set into a single
-    /// `pnpm:ignored-scripts` event — mirroring upstream's emit at
-    /// <https://github.com/pnpm/pnpm/blob/80037699fb/installing/deps-installer/src/install/index.ts#L414>.
+    /// `pnpm:ignored-scripts` event.
     pub fn run<Reporter: self::Reporter>(self) -> Result<Vec<String>, BuildModulesError> {
         let BuildModules {
             layout,
@@ -531,8 +499,8 @@ impl BuildModules<'_> {
         let Some(snapshots) = snapshots else { return Ok(Vec::new()) };
 
         // Compute `requiresBuild` per snapshot. Warm store-index rows
-        // already carry the upstream worker's answer, so only misses
-        // need to inspect the materialized package directory.
+        // already carry a precomputed answer, so only misses need to
+        // inspect the materialized package directory.
         let requires_build_map: HashMap<PackageKey, bool> = snapshots
             .keys()
             // Skip snapshots that never landed on disk. `pkg_requires_build`
@@ -574,12 +542,10 @@ impl BuildModules<'_> {
         // iterator and the function returns immediately —
         // O(0) walk for that path.
         //
-        // Mirrors upstream's per-install `DepsStateCache` at
-        // <https://github.com/pnpm/pnpm/blob/7e3145f9fc/building/during-install/src/index.ts#L74>.
-        // The cache memoizes per-node hash across diamond-shaped
-        // subgraphs so the recursive walk stays linear in
-        // |closure| even when the same dep is reachable through
-        // many parents.
+        // The per-install dep-state cache memoizes per-node hash
+        // across diamond-shaped subgraphs so the recursive walk stays
+        // linear in |closure| even when the same dep is reachable
+        // through many parents.
         let read_gate_active = side_effects_cache
             && engine_name.is_some()
             && side_effects_maps_by_snapshot.is_some_and(|map| !map.is_empty());
@@ -623,8 +589,6 @@ impl BuildModules<'_> {
         // depend on). One pool reused across all chunks; chunks
         // themselves run sequentially.
         //
-        // Mirrors upstream's
-        // [`runGroups(getWorkspaceConcurrency(opts.childConcurrency), groups)`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/during-install/src/index.ts#L124).
         // `ThreadPoolBuilder::build()` is fallible — the OS may
         // refuse the spawn (`EAGAIN` / RLIMIT_NPROC) on a host
         // already near its process-thread limit. Surface that as
@@ -738,8 +702,6 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     // Ancestors of a build/patch candidate are included in the
     // sequence (so the topo order stays correct) but only run
     // scripts / apply patches when they themselves are candidates.
-    // Mirrors upstream's chunk filter at
-    // <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/during-install/src/index.ts#L73-L77>.
     if !requires_build && !has_patch {
         return Ok(());
     }
@@ -754,8 +716,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     // package name for registry deps, the full pkgId for git/tarball
     // artifacts), so match either form — a selected non-registry artifact
     // is forced past the gate too. The allow-policy gate still applies — a
-    // rebuild never builds a disallowed package — matching pnpm's
-    // `buildModules` honoring `allowBuild` during rebuild. Non-selected
+    // rebuild never builds a disallowed package. Non-selected
     // packages still run the allow-policy gate below (so their
     // `.modules.yaml` ignored-builds record stays intact), but their
     // scripts are suppressed by the rebuild-selection gate after it.
@@ -764,15 +725,13 @@ fn build_one_snapshot<Reporter: self::Reporter>(
             || rebuild.is_selected(&allow_build_key_from_ignored_build(&dep_path))
     });
 
-    // Mirrors upstream's `if (node.requiresBuild) { allowBuild(...) }`
-    // at lines 88-101: the allowBuilds gate only applies when the
-    // node has scripts to run. A patched-only package skips this
-    // check entirely and proceeds to patch application below.
+    // The allowBuilds gate only applies when the node has scripts to
+    // run. A patched-only package skips this check entirely and
+    // proceeds to patch application below.
     //
     // `false` / `None` from the policy set `should_run_scripts =
     // false` (NOT early-return), so the patch still gets applied
-    // even when scripts are disallowed. Matches upstream's
-    // `ignoreScripts = true; break` pattern.
+    // even when scripts are disallowed.
     let mut should_run_scripts = requires_build && !ignore_scripts;
     if should_run_scripts {
         match allow_build_policy.check(&dep_path) {
@@ -800,7 +759,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     // scripts are suppressed here. The side-effects `is_built` gate below
     // is only an optimization and is disabled by default, so this gate —
     // not that short-circuit — is what bounds script execution to the
-    // selection, matching pnpm's `buildSelectedPkgs`.
+    // selection.
     if rebuild.is_some() && !force_rebuild {
         should_run_scripts = false;
     }
@@ -834,32 +793,25 @@ fn build_one_snapshot<Reporter: self::Reporter>(
             snapshot_key,
             &pacquet_graph_hasher::CalcDepStateOptions {
                 engine_name: engine,
-                // Mirrors upstream's
-                // `patchFileHash: depNode.patch?.hash` at
-                // <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/during-install/src/index.ts#L201>.
                 // `None` for unpatched snapshots leaves the
-                // `;patch=...` segment off the cache key entirely,
-                // matching upstream when `depNode.patch == null`.
+                // `;patch=...` segment off the cache key entirely.
                 patch_file_hash: patch.map(|patch| patch.hash.as_str()),
-                // Mirrors `includeDepGraphHash: hasSideEffects` at
-                // upstream line 202. A patched-only snapshot (no
-                // scripts will run) leaves the deps-hash off so the
-                // cache key stays stable across dep-graph changes
+                // The deps-graph hash is included only when scripts
+                // will run. A patched-only snapshot leaves it off so
+                // the cache key stays stable across dep-graph changes
                 // that don't affect this package's patched output.
                 include_dep_graph_hash: should_run_scripts,
             },
         )
     });
 
-    // Side-effects-cache `is_built` gate. Mirrors upstream's
-    // `!node.isBuilt` filter at
-    // <https://github.com/pnpm/pnpm/blob/7e3145f9fc/building/during-install/src/index.ts#L73-L77>.
-    // We're already past the policy gate, so this snapshot would
-    // otherwise run its scripts — but if the prefetch surfaced a
-    // matching side-effects-cache entry, the build is already
-    // represented on disk (pnpm seeded it on a previous install)
-    // and we can skip. An explicit `pacquet rebuild` (`force_rebuild`)
-    // always re-runs the scripts, so it bypasses this gate.
+    // Side-effects-cache `is_built` gate. We're already past the
+    // policy gate, so this snapshot would otherwise run its scripts
+    // — but if the prefetch surfaced a matching side-effects-cache
+    // entry, the build is already represented on disk (seeded on a
+    // previous install) and we can skip. An explicit `pacquet rebuild`
+    // (`force_rebuild`) always re-runs the scripts, so it bypasses
+    // this gate.
     if !force_rebuild
         && side_effects_cache
         && let Some(maps_by_snapshot) = side_effects_maps_by_snapshot
@@ -878,9 +830,8 @@ fn build_one_snapshot<Reporter: self::Reporter>(
         // side-effects `added` / `deleted` overlay) still has to land on
         // disk before the build is skipped, or the package is left in its
         // pre-build state — e.g. a postinstall that downloads a binary
-        // leaves nothing behind on the warm reinstall. Mirrors pnpm's
-        // `getFlatMap` applying the side-effects diff at import time
-        // (<https://github.com/pnpm/pnpm/blob/b4f8f47ac2/store/create-cafs-store/src/index.ts#L83-L100>).
+        // leaves nothing behind on the warm reinstall. The side-effects
+        // diff is applied at import time.
         //
         // Skip under the global virtual store: there the slot persists
         // inside the store with its build output already on disk (a cache
@@ -967,8 +918,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     // would fail with a raw `EROFS`. Refuse up front with guidance.
     // We're past the `is_built` gate, so a cached build has already
     // returned — reaching here means the seed is genuinely missing
-    // this package's build output. Mirrors the TS backstop in
-    // <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/during-install/src/index.ts>.
+    // this package's build output.
     // Bin-linking (the other write) reuses existing symlinks
     // write-free on a complete seed, so only patch/script writes gate.
     if frozen_store && layout.enable_global_virtual_store() && (has_patch || should_run_scripts) {
@@ -1020,18 +970,11 @@ fn build_one_snapshot<Reporter: self::Reporter>(
         Vec::new()
     };
 
-    // Apply the patch before running postinstall hooks. Mirrors
-    // upstream at
-    // <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/during-install/src/index.ts#L171-L178>:
-    // ```
-    // if (depNode.patch) {
-    //   if (!depNode.patch.patchFilePath) throw PATCH_FILE_PATH_MISSING
-    //   isPatched = applyPatchToDir(...)
-    // }
-    // ```
+    // Apply the patch before running postinstall hooks. A snapshot
+    // with a patch entry but no resolved `patch_file_path` is a hard
+    // error (`PatchFilePathMissing`).
     // `is_patched` feeds the cache-write gate below
-    // (`is_patched || has_side_effects`), matching upstream's
-    // line 199 condition.
+    // (`is_patched || has_side_effects`).
     let is_patched = if let Some(p) = patch {
         let patch_file_path = p.patch_file_path.as_deref().ok_or_else(|| {
             BuildModulesError::PatchFilePathMissing { dep_path: snapshot_key.to_string() }
@@ -1087,29 +1030,26 @@ fn build_one_snapshot<Reporter: self::Reporter>(
         false
     };
 
-    // Side-effects-cache WRITE path. Mirrors upstream at
-    // <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/during-install/src/index.ts#L198-L216>:
-    // after a successful `run_postinstall_hooks` (or a patch
-    // application that mutated the dir), re-hash the package
-    // directory and queue a
+    // Side-effects-cache WRITE path. After a successful
+    // `run_postinstall_hooks` (or a patch application that mutated
+    // the dir), re-hash the package directory and queue a
     // `PackageFilesIndex.sideEffects[cache_key] = diff` mutation
     // so a future install can skip the rebuild.
     //
-    // Upstream's gate is `(isPatched || hasSideEffects) &&
-    // opts.sideEffectsCacheWrite`. Pacquet mirrors that — a
-    // patched-only snapshot still uploads its post-patch state so
-    // subsequent installs hit the cache.
+    // The gate is `(is_patched || has_side_effects) &&
+    // side_effects_cache_write` — a patched-only snapshot still
+    // uploads its post-patch state so subsequent installs hit the
+    // cache.
     //
     // The other preconditions: cache_key composable (engine + graph
     // present), `packages` map available for the integrity lookup,
     // and the metadata row carries an integrity (registry / tarball
-    // resolutions — git / directory have no integrity and pnpm
-    // doesn't cache those either).
+    // resolutions — git / directory have no integrity, so those
+    // aren't cached).
     //
-    // All errors are swallowed with a `tracing::warn!`, matching
-    // upstream's `try { upload } catch (err) { logger.warn(...) }`
-    // at lines 208-215. A failed upload doesn't fail the install:
-    // the next install re-runs the build.
+    // All errors are swallowed with a `tracing::warn!`. A failed
+    // upload doesn't fail the install: the next install re-runs the
+    // build.
     if (is_patched || has_side_effects)
         && side_effects_cache_write
         && let Some(writer) = store_index_writer
@@ -1168,9 +1108,7 @@ fn virtual_store_dir_for_key(layout: &crate::VirtualStoreLayout, key: &PackageKe
 
 /// Resolve the on-disk package directory for a snapshot.
 ///
-/// Two-mode lookup mirroring upstream's
-/// [`pkgRoots`](https://github.com/pnpm/pnpm/blob/94240bc046/building/after-install/src/index.ts#L340-L350)
-/// computation:
+/// Two-mode lookup:
 ///
 /// - **Isolated** (`pkg_root_by_key.is_none()`) — fall through to
 ///   [`virtual_store_dir_for_key`], which routes through the
@@ -1201,8 +1139,7 @@ fn pkg_root_for_key(
 /// slot in its pre-build state. A forced re-import rebuilds the directory
 /// to match the overlay exactly (adding the build output and dropping any
 /// files the build deleted) while preserving the slot's nested
-/// `node_modules/` symlinks. Mirrors pnpm's `getFlatMap` + importer,
-/// which links the side-effects-applied file map directly.
+/// `node_modules/` symlinks.
 ///
 /// The import always runs on a cache hit (non-GVS). Skipping it when the
 /// slot "looks" materialized is unsound by filename alone — a slot left
@@ -1227,9 +1164,7 @@ fn materialize_side_effects<Reporter: self::Reporter>(
     .map_err(BuildModulesError::MaterializeSideEffects)
 }
 
-/// Mirrors upstream's
-/// [`binDirsInAllParentDirs`](https://github.com/pnpm/pnpm/blob/94240bc046/building/after-install/src/index.ts#L476-L487)
-/// — walk every ancestor `node_modules/.bin` from `pkg_root` up to
+/// Walk every ancestor `node_modules/.bin` from `pkg_root` up to
 /// (and including) `lockfile_dir`. Used as the per-snapshot
 /// `extra_bin_paths` under `nodeLinker: hoisted` so a lifecycle
 /// script invoked at a nested location can resolve bins added by
@@ -1238,11 +1173,9 @@ fn materialize_side_effects<Reporter: self::Reporter>(
 /// children sit in its own `node_modules`, and bin-link writes are
 /// per-slot).
 ///
-/// The `path.dirname(dir)[0] === '@'` check upstream skips
-/// pushing when `dir`'s parent path string starts with `@` — a
-/// guard for relative-path code paths in the upstream codebase.
-/// Mirrored here against the parent's path-string first character
-/// for byte-for-byte parity with upstream's output.
+/// A step is skipped when `dir`'s parent path string starts with
+/// `@` — a guard for relative-path code paths. The check is against
+/// the parent's path-string first character.
 ///
 /// Non-existent ancestor `.bin` directories are harmless: they
 /// just don't contribute anything to lifecycle-script PATH lookup.

@@ -1,6 +1,3 @@
-//! Pacquet port of pnpm's
-//! [`@pnpm/workspace.spec-parser`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/workspace/spec-parser/src/index.ts).
-//!
 //! Parses the `workspace:` family of bare specifiers:
 //!
 //! - `workspace:*` / `workspace:^` / `workspace:~` — pick the highest
@@ -21,10 +18,9 @@
 
 use std::fmt;
 
-/// Parsed `workspace:` bare specifier. Mirrors upstream's
-/// [`WorkspaceSpec`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/workspace/spec-parser/src/index.ts#L3-L22)
-/// class — a record of `(alias, version)` plus a `Display` impl that
-/// round-trips back to the original `workspace:` form.
+/// Parsed `workspace:` bare specifier — a record of `(alias, version)`
+/// plus a `Display` impl that round-trips back to the original
+/// `workspace:` form.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct WorkspaceSpec {
     /// The optional `<alias>` portion of `workspace:<alias>@<version>`.
@@ -37,9 +33,8 @@ pub struct WorkspaceSpec {
 }
 
 impl WorkspaceSpec {
-    /// Construct a [`WorkspaceSpec`] directly. The TS class exposes a
-    /// `new WorkspaceSpec(version, alias?)` constructor; pacquet keeps
-    /// the same shape so call sites don't have to translate.
+    /// Construct a [`WorkspaceSpec`] directly from a version and an
+    /// optional alias.
     pub fn new(version: impl Into<String>, alias: Option<impl Into<String>>) -> Self {
         Self { alias: alias.map(Into::into), version: version.into() }
     }
@@ -48,11 +43,9 @@ impl WorkspaceSpec {
     /// start with `workspace:` so the caller can fall through to the
     /// next protocol in the resolver chain.
     ///
-    /// Mirrors upstream's
-    /// [`WorkspaceSpec.parse`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/workspace/spec-parser/src/index.ts#L12-L16)
-    /// — same regex (`/^workspace:(?:(?<alias>[^._/][^@]*)@)?(?<version>.*)$/`)
-    /// expressed as a hand-rolled split so the crate carries no regex
-    /// dependency.
+    /// Implements the grammar
+    /// `/^workspace:(?:(?<alias>[^._/][^@]*)@)?(?<version>.*)$/` as a
+    /// hand-rolled split so the crate carries no regex dependency.
     pub fn parse(bare_specifier: &str) -> Option<Self> {
         let suffix = bare_specifier.strip_prefix("workspace:")?;
         let (alias, version) = split_alias_version(suffix);
@@ -61,9 +54,7 @@ impl WorkspaceSpec {
 }
 
 impl fmt::Display for WorkspaceSpec {
-    /// Round-trip the spec back to its `workspace:` form. Mirrors
-    /// upstream's
-    /// [`toString`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/workspace/spec-parser/src/index.ts#L18-L21).
+    /// Round-trip the spec back to its `workspace:` form.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.alias {
             Some(alias) => write!(f, "workspace:{alias}@{version}", version = self.version),
@@ -72,10 +63,10 @@ impl fmt::Display for WorkspaceSpec {
     }
 }
 
-/// Split the post-`workspace:` portion into `(alias?, version)` using
-/// the same shape upstream's `[^._/][^@]*@` regex implements: the
-/// alias must start with a character that is **not** `.`, `_`, or `/`,
-/// be at least one character long, and be followed by a literal `@`.
+/// Split the post-`workspace:` portion into `(alias?, version)` per the
+/// `[^._/][^@]*@` shape: the alias must start with a character that is
+/// **not** `.`, `_`, or `/`, be at least one character long, and be
+/// followed by a literal `@`.
 fn split_alias_version(suffix: &str) -> (Option<&str>, &str) {
     let mut chars = suffix.char_indices();
     let Some((_, first)) = chars.next() else {

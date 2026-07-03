@@ -285,9 +285,7 @@ async fn reuses_preferred_version_instead_of_resolving_fresh() {
 }
 
 // ---------------------------------------------------------------------------
-// Ports of upstream's deps-installer `autoInstallPeers.ts` test cases. Each
-// covers a single-importer scenario from
-// <https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-installer/test/install/autoInstallPeers.ts>
+// `autoInstallPeers` test cases, each covering a single-importer scenario.
 // ---------------------------------------------------------------------------
 
 #[tokio::test]
@@ -685,11 +683,11 @@ async fn auto_install_does_not_hoist_when_root_already_has_dep() {
 
 /// An optional peer with a real `peerDependencies` entry whose
 /// provider is resolved anywhere in the tree (here: deep under a
-/// sibling) IS hoisted: upstream folds every run-resolved version into
-/// `ctx.allPreferredVersions` and `getHoistableOptionalPeers` resolves
-/// the peer against it after the wave (verified against pnpm 11.6.0 —
-/// the `eslint` + `cosmiconfig-typescript-loader` shape, where
-/// `eslint` gains `(jiti@x)`). For
+/// sibling) IS hoisted: every run-resolved version folds into the
+/// preferred-versions set and the optional-peer hoist resolves the
+/// peer against it after the wave (verified against pnpm 11.6.0 — the
+/// `eslint` + `cosmiconfig-typescript-loader` shape, where `eslint`
+/// gains `(jiti@x)`). For
 /// <https://github.com/pnpm/pnpm/issues/12266>.
 #[tokio::test]
 async fn optional_peer_with_real_entry_is_hoisted_from_resolved_tree() {
@@ -745,7 +743,7 @@ async fn optional_peer_with_real_entry_is_hoisted_from_resolved_tree() {
 /// A peer declared only via `peerDependenciesMeta` on a direct package
 /// (no `peerDependencies` entry — the `debug` / `supports-color`
 /// shape) is NOT hoisted even when a provider is resolved in the tree:
-/// upstream's direct-package `getMissingPeers` feeds the hoist from
+/// the direct-package missing-peer scan feeds the hoist from
 /// `peerDependencies` entries only (verified against pnpm 11.6.0 —
 /// `debug` + `concurrently` leaves `debug@4.4.3` bare). For
 /// <https://github.com/pnpm/pnpm/issues/12266>.
@@ -965,11 +963,10 @@ async fn auto_install_does_not_install_same_missing_peer_twice() {
     assert_eq!(y_calls, 1, "y should be resolved at most once");
 }
 
-/// Port of "prefer the peer dependency version already used in the
-/// root": when the importer declares the peer itself, its pinned
-/// version wins via the importer-peerDependencies seed (matching
-/// upstream's `getAllDependenciesFromManifest({ autoInstallPeers })`)
-/// — even if `latest` would resolve higher.
+/// Prefer the peer dependency version already used in the root: when
+/// the importer declares the peer itself, its pinned version wins via
+/// the importer-peerDependencies seed — even if `latest` would resolve
+/// higher.
 #[tokio::test]
 async fn auto_install_prefers_peer_version_pinned_in_importer_peerdeps() {
     let mut table = HashMap::new();
@@ -1078,8 +1075,7 @@ async fn auto_install_hoisted_peer_dep_reuses_regular_dep_version() {
 
 /// `catalog:` on a direct dependency is rewritten to the catalog's
 /// recorded specifier before the resolver chain sees the wanted dep.
-/// Mirrors upstream's
-/// [importer-only catalog dereference](https://github.com/pnpm/pnpm/blob/a8a8cbce6d/installing/deps-resolver/src/resolveDependencies.ts#L592-L611).
+/// The dereference is importer-only.
 #[tokio::test]
 async fn catalog_protocol_on_direct_dep_is_rewritten() {
     let mut table = HashMap::new();
@@ -1106,7 +1102,7 @@ async fn catalog_protocol_on_direct_dep_is_rewritten() {
 }
 
 /// A misconfigured `catalog:` entry (here: missing alias) short-
-/// circuits resolution with the upstream `CATALOG_ENTRY_NOT_FOUND_FOR_SPEC`
+/// circuits resolution with the `CATALOG_ENTRY_NOT_FOUND_FOR_SPEC`
 /// error rather than falling through to `SpecNotSupported`.
 #[tokio::test]
 async fn catalog_misconfiguration_surfaces_pnpm_error_code() {
@@ -1134,10 +1130,9 @@ async fn catalog_misconfiguration_surfaces_pnpm_error_code() {
 /// Build a [`ResolveResult`] for an `npm:`-aliased install. `local_alias`
 /// is the alias the importer uses in `node_modules/` (and in
 /// `parentPkgs`); `real_name`/`version` identify the resolved package.
-/// Mirrors the real npm-resolver's behaviour at
-/// [`npm_resolver.rs:288`](https://github.com/pnpm/pnpm/blob/2a0032edc0/pacquet/crates/resolving-npm-resolver/src/npm_resolver.rs#L288):
-/// the result carries the local alias, while `name_ver` and `id` point
-/// at the underlying package.
+/// Mirrors the real npm-resolver's behaviour: the result carries the
+/// local alias, while `name_ver` and `id` point at the underlying
+/// package.
 fn aliased_fake_result(
     local_alias: &str,
     real_name: &str,
@@ -1151,14 +1146,12 @@ fn aliased_fake_result(
 
 /// Regression test for <https://github.com/pnpm/pnpm/issues/11999>.
 ///
-/// The TypeScript fix (`installing/deps-resolver/src/resolvePeers.ts`)
-/// broadens which cycles `calculateDepPath` short-circuits. Pacquet's
-/// `resolve_peers` walks synchronously with an `in_progress` set, so
-/// the deadlock that hit pnpm does not occur here — but the scenario
-/// has to keep terminating with a graph entry for the aliased root and
-/// for each pair of mutually-peer-depending leaves.
+/// Pacquet's `resolve_peers` walks synchronously with an `in_progress`
+/// set, so the deadlock that hit pnpm does not occur here — but the
+/// scenario has to keep terminating with a graph entry for the aliased
+/// root and for each pair of mutually-peer-depending leaves.
 ///
-/// Layout (from the upstream bug): an aliased install `a@npm:a-real`
+/// Layout (from the bug report): an aliased install `a@npm:a-real`
 /// pulls in `b-real` and `c-real`. Each of those depends on one half
 /// of a mutual-peer pair (`x` ↔ `y`) and peer-depends on the aliased
 /// root (`a@npm:a-real`). The hoist loop auto-installs `x` and `y` at

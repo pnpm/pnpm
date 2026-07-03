@@ -15,8 +15,8 @@ use std::{
 use tempfile::tempdir;
 
 /// `Config::current` requires `Sys: LinkProbe` so the late-stage
-/// `store_dir` resolver (port of pnpm's `storePathRelativeToHome`)
-/// can probe linkability between project and home. Tests in this
+/// `store_dir` resolver can probe linkability between project and
+/// home. Tests in this
 /// module pin specific config-cascade behaviours, none of which
 /// turn on cross-volume detection, so the test fakes return
 /// `false` for every probe. The probe failing collapses to the
@@ -807,9 +807,9 @@ pub fn json_env_invalid_auth_aborts_the_load() {
 }
 
 /// Env JSON routes override user-level (`~/.npmrc` / `auth.ini`) scoped
-/// registries in the package-manager bootstrap, matching pnpm's TS
-/// `packageManagerRegistries` precedence (env JSON > trusted .npmrc).
-/// CLI scoped overrides still win — applied later by `ConfigOverrides`.
+/// registries in the package-manager bootstrap: env JSON outranks the
+/// trusted `.npmrc`. CLI scoped overrides still win — applied later by
+/// `ConfigOverrides`.
 #[test]
 pub fn json_env_overrides_user_bootstrap_scoped_registry() {
     let project = tempdir().expect("project tempdir");
@@ -1051,12 +1051,11 @@ pub fn non_auth_keys_in_npmrc_are_ignored() {
     assert_eq!(config.node_linker, defaults.node_linker);
 }
 
-/// pnpm 11's `isIniConfigKey` (config/config/src/auth.ts) leaves the
-/// `fetch-retries*` family out of `NPM_AUTH_SETTINGS`, so a value
-/// like `fetch-retries=99` in `.npmrc` is silently ignored upstream.
-/// pacquet must do the same — applying it would diverge from pnpm
-/// and silently change install behaviour for projects that have a
-/// stale `.npmrc` lying around.
+/// pnpm 11 does not treat the `fetch-retries*` family as an
+/// `.npmrc`-readable auth setting, so a value like `fetch-retries=99`
+/// in `.npmrc` is silently ignored. pacquet must do the same —
+/// applying it would silently change install behaviour for projects
+/// that have a stale `.npmrc` lying around.
 #[test]
 pub fn fetch_retry_keys_in_npmrc_are_ignored() {
     let tmp = tempdir().unwrap();
@@ -1118,8 +1117,8 @@ pub fn npmrc_in_home_folder_applies_registry() {
 #[test]
 pub fn pnpm_workspace_yaml_registry_overrides_npmrc_registry() {
     // `registry` is the one non-scope key pnpm 11 still reads from
-    // .npmrc (it's in RAW_AUTH_CFG_KEYS). When both files define it,
-    // the yaml wins, matching pnpm itself.
+    // .npmrc. When both files define it, the yaml wins, matching
+    // pnpm itself.
     let tmp = tempdir().unwrap();
     fs::write(tmp.path().join(".npmrc"), "registry=https://from-npmrc.test")
         .expect("write to .npmrc");
@@ -1296,10 +1295,9 @@ pub fn proxy_env_fallback_applies_through_current() {
     );
 }
 
-/// Pnpm's
-/// [`workspace-manifest-reader`](https://github.com/pnpm/pnpm/blob/8eb1be4988/workspace/workspace-manifest-reader/src/index.ts)
-/// fails the process on invalid yaml. `Config::current` must do the
-/// same instead of silently falling back to defaults.
+/// pnpm fails the process on an invalid `pnpm-workspace.yaml`.
+/// `Config::current` must do the same instead of silently falling
+/// back to defaults.
 #[test]
 pub fn invalid_workspace_yaml_propagates_error() {
     let tmp = tempdir().unwrap();
@@ -1318,8 +1316,9 @@ pub fn invalid_workspace_yaml_propagates_error() {
 /// not leave `modules_dir` / `virtual_store_dir` anchored at the
 /// CLI `--dir`. The presence of `pnpm-workspace.yaml` in an
 /// ancestor signals that the workspace root is the install anchor,
-/// matching pnpm v11's `pnpmConfig.dir = lockfileDir` rule. Without
-/// this, the per-importer `node_modules` writes (under the
+/// matching pnpm v11, which anchors the install at the lockfile
+/// directory. Without this, the per-importer `node_modules` writes
+/// (under the
 /// workspace root) and the virtual store (under the subdir) would
 /// produce two inconsistent layouts for the same install.
 #[test]
@@ -1411,8 +1410,8 @@ pub fn npm_config_workspace_dir_re_anchors_modules() {
 }
 
 /// An empty `NPM_CONFIG_WORKSPACE_DIR` falls through to the
-/// upward walk, matching pnpm's truthy `if (workspaceDir)` check.
-/// Pairs with `pacquet_workspace`'s
+/// upward walk, matching pnpm, which treats only a non-empty
+/// workspace-dir value as set. Pairs with `pacquet_workspace`'s
 /// `empty_env_var_is_treated_as_unset`.
 ///
 /// Drives the [`EnvVarOs`] DI seam with a fake that returns an
@@ -1600,13 +1599,9 @@ pub fn global_virtual_store_dir_survives_workspace_yaml_anchor() {
 }
 
 /// Workspace-only keys in the global `config.yaml` are silently
-/// ignored, matching pnpm's
-/// [`isConfigFileKey`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/configFileKey.ts#L187)
-/// filter at
-/// [`index.ts:299-309`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/config/reader/src/index.ts#L299-L309).
-/// A `nodeLinker: hoisted` in the global yaml would change the
-/// installer's layout strategy if applied — pnpm rejects it, and
-/// pacquet must too.
+/// ignored, matching pnpm. A `nodeLinker: hoisted` in the global
+/// yaml would change the installer's layout strategy if applied —
+/// pnpm rejects it, and pacquet must too.
 #[test]
 pub fn global_config_yaml_workspace_only_keys_are_ignored() {
     let xdg = tempdir().unwrap();
@@ -1614,9 +1609,9 @@ pub fn global_config_yaml_workspace_only_keys_are_ignored() {
     fs::create_dir_all(&config_dir).unwrap();
     fs::write(
         config_dir.join("config.yaml"),
-        // `nodeLinker`, `hoist`, `symlink`, and `lockfile` are
-        // all in pnpm's `excludedPnpmKeys`. None should apply
-        // when set in the global config.
+        // `nodeLinker`, `hoist`, `symlink`, and `lockfile` are all
+        // workspace-only keys pnpm excludes from the global config.
+        // None should apply when set in the global config.
         "nodeLinker: hoisted\nhoist: false\nsymlink: false\nlockfile: false\n",
     )
     .expect("write to global config.yaml");
@@ -1779,12 +1774,11 @@ pub fn patches_dir_reads_from_env_overlay() {
 
 /// `PNPM_CONFIG_HOIST=false` runs the same post-processing as
 /// yaml-set `hoist: false` — it short-circuits `hoist_pattern`
-/// to `None`, mirroring upstream's
-/// [`projectConfig.ts:72-75`](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/projectConfig.ts#L72-L75)
-/// rule (`hoist === false ⇒ hoistPattern: undefined`). Without
-/// this, the install-time `hoist_pattern.is_some() ||
-/// public_hoist_pattern.is_some()` guard would still enable
-/// hoisting even after the user disabled it via env var.
+/// to `None`, following the rule that `hoist: false` clears the
+/// hoist pattern. Without this, the install-time
+/// `hoist_pattern.is_some() || public_hoist_pattern.is_some()` guard
+/// would still enable hoisting even after the user disabled it via
+/// env var.
 #[test]
 pub fn pnpm_config_hoist_false_clears_hoist_pattern() {
     struct HostWithHoistEnv;

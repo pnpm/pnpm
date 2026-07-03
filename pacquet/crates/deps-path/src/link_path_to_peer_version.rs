@@ -1,8 +1,6 @@
 /// Convert a `link:` target's path into the filename-safe token pnpm
 /// uses as the peer's "version" inside peer-suffix hashes.
 ///
-/// Mirrors upstream's
-/// [`linkPathToPeerVersion`](https://github.com/pnpm/pnpm/blob/094aa6e57b/installing/deps-resolver/src/linkPathToPeerVersion.ts).
 /// The output must stay stable across pnpm versions so lockfiles
 /// don't churn; the encoding replicates what
 /// [`filenamify` v4](https://www.npmjs.com/package/filenamify/v/4.3.0)

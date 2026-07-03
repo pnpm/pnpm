@@ -1,9 +1,6 @@
-//! Pacquet port of pnpm's
-//! [`@pnpm/catalogs.resolver`](https://github.com/pnpm/pnpm/blob/a8a8cbce6d/catalogs/resolver/src/resolveFromCatalog.ts).
-//!
 //! Dereferences a `catalog:` bare specifier against a parsed
 //! [`Catalogs`] map and returns either the configured version or one of
-//! the upstream misconfiguration errors. The npm-resolver chain calls
+//! the misconfiguration errors. The npm-resolver chain calls
 //! [`resolve_from_catalog`] before its own protocol dispatch so a
 //! resolved [`CatalogResolutionFound::resolution`] feeds back in as a
 //! plain bare specifier.
@@ -17,10 +14,6 @@ use pacquet_catalogs_types::Catalogs;
 /// that catalog resolution needs. Modeled as its own type so this
 /// crate doesn't depend on the resolver-base crate; the conversion
 /// is a trivial field copy at the call site.
-///
-/// Mirrors upstream's [`WantedDependency`][ts-WantedDependency] interface.
-///
-/// [ts-WantedDependency]: https://github.com/pnpm/pnpm/blob/a8a8cbce6d/catalogs/resolver/src/resolveFromCatalog.ts#L5-L8
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct WantedDependency {
     pub alias: String,
@@ -28,10 +21,6 @@ pub struct WantedDependency {
 }
 
 /// Outcome of [`resolve_from_catalog`].
-///
-/// Mirrors upstream's [`CatalogResolutionResult`][ts-CatalogResolutionResult] discriminated union.
-///
-/// [ts-CatalogResolutionResult]: https://github.com/pnpm/pnpm/blob/a8a8cbce6d/catalogs/resolver/src/resolveFromCatalog.ts#L19
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CatalogResolutionResult {
     /// The catalog protocol resolved to a usable specifier.
@@ -43,20 +32,12 @@ pub enum CatalogResolutionResult {
 }
 
 /// Successful catalog dereference.
-///
-/// Mirrors upstream's [`CatalogResolutionFound`][ts-CatalogResolutionFound].
-///
-/// [ts-CatalogResolutionFound]: https://github.com/pnpm/pnpm/blob/a8a8cbce6d/catalogs/resolver/src/resolveFromCatalog.ts#L21-L24
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CatalogResolutionFound {
     pub resolution: CatalogResolution,
 }
 
 /// Resolved (catalog name, specifier) pair.
-///
-/// Mirrors upstream's [`CatalogResolution`][ts-CatalogResolution].
-///
-/// [ts-CatalogResolution]: https://github.com/pnpm/pnpm/blob/a8a8cbce6d/catalogs/resolver/src/resolveFromCatalog.ts#L26-L38
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CatalogResolution {
     /// Catalog the entry was found in.
@@ -67,21 +48,14 @@ pub struct CatalogResolution {
 
 /// A user-misconfigured catalog entry. Carries the error so the call
 /// site can rethrow or render it.
-///
-/// Mirrors upstream's [`CatalogResolutionMisconfiguration`][ts-CatalogResolutionMisconfiguration].
-///
-/// [ts-CatalogResolutionMisconfiguration]: https://github.com/pnpm/pnpm/blob/a8a8cbce6d/catalogs/resolver/src/resolveFromCatalog.ts#L40-L52
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CatalogResolutionMisconfiguration {
     pub catalog_name: String,
     pub error: CatalogResolutionError,
 }
 
-/// The four ways a `catalog:` lookup can fail. Each variant maps
-/// byte-for-byte to the upstream `PnpmError` code.
-///
-/// Mirrors the four errors raised by upstream's `resolveFromCatalog`
-/// ([source](https://github.com/pnpm/pnpm/blob/a8a8cbce6d/catalogs/resolver/src/resolveFromCatalog.ts#L60-L120)).
+/// The four ways a `catalog:` lookup can fail. Each variant carries the
+/// `pnpm` error code reported for that failure.
 #[derive(Debug, Display, Error, Diagnostic, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum CatalogResolutionError {
@@ -109,9 +83,6 @@ pub enum CatalogResolutionError {
 }
 
 /// Resolve a wanted dependency through the catalogs map.
-///
-/// Mirrors upstream's `resolveFromCatalog`
-/// ([source](https://github.com/pnpm/pnpm/blob/a8a8cbce6d/catalogs/resolver/src/resolveFromCatalog.ts#L60-L130)).
 #[must_use]
 pub fn resolve_from_catalog(
     catalogs: &Catalogs,
@@ -143,12 +114,10 @@ pub fn resolve_from_catalog(
         });
     }
 
-    // Banning `workspace:` matches upstream's three-part justification
-    // ([source](https://github.com/pnpm/pnpm/blob/a8a8cbce6d/catalogs/resolver/src/resolveFromCatalog.ts#L84-L100)):
-    // it's silly to indirect through a catalog when the workspace
-    // protocol resolves directly, and `link:` resolutions cannot be
-    // cached in `pnpm-lock.yaml` across importers the way semver
-    // selectors can.
+    // `workspace:` is banned: it's silly to indirect through a catalog
+    // when the workspace protocol resolves directly, and `link:`
+    // resolutions cannot be cached in `pnpm-lock.yaml` across importers
+    // the way semver selectors can.
     let protocol_of_lookup = catalog_lookup.split(':').next().unwrap_or("");
     if protocol_of_lookup == "workspace" {
         return CatalogResolutionResult::Misconfiguration(CatalogResolutionMisconfiguration {

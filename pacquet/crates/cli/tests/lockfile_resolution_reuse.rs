@@ -2,12 +2,10 @@
 //! and transitive subtree for an unchanged dependency, instead of
 //! re-resolving it from the registry.
 //!
-//! See `pacquet/plans/LOCKFILE_RESOLUTION_REUSE.md`. pnpm avoids
+//! See `pacquet/plans/LOCKFILE_RESOLUTION_REUSE.md`. pacquet avoids
 //! re-resolving an unchanged tree by reading the prior lockfile's
-//! recorded resolution + child refs
-//! ([`getInfoFromLockfile`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L1199-L1248));
-//! pacquet ports that so a re-install with the registry gone still
-//! succeeds for the unchanged subtree.
+//! recorded resolution + child refs, so a re-install with the registry
+//! gone still succeeds for the unchanged subtree.
 
 use assert_cmd::prelude::*;
 use command_extra::CommandExtra;
@@ -107,11 +105,9 @@ fn reuses_unchanged_subtree_without_re_resolving_from_the_registry() {
 /// fresh resolve would, so reuse can never silently drift the resolution.
 ///
 /// Compared **byte-for-byte**: the writer sorts every lockfile map by its
-/// rendered key (matching pnpm's
-/// [`sortLockfileKeys`](https://github.com/pnpm/pnpm/blob/39101f5e37/lockfile/fs/src/sortLockfileKeys.ts)),
-/// so build-insertion order no longer leaks into the file. A reuse build and
-/// a fresh build of the same manifest therefore emit identical bytes — this
-/// is the byte-stability guarantee from
+/// rendered key, so build-insertion order no longer leaks into the file. A
+/// reuse build and a fresh build of the same manifest therefore emit
+/// identical bytes — this is the byte-stability guarantee from
 /// [#12117](https://github.com/pnpm/pnpm/issues/12117).
 #[test]
 fn a_reused_tree_is_structurally_identical_to_a_fresh_resolve() {

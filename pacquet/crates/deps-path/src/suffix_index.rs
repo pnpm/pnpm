@@ -1,8 +1,6 @@
 /// Index pair returned by [`index_of_dep_path_suffix`]. Both fields are
 /// byte offsets into the original depPath, or `None` when the suffix is
-/// absent. Mirrors pnpm's
-/// [`indexOfDepPathSuffix`](https://github.com/pnpm/pnpm/blob/097983fbca/deps/path/src/index.ts#L9-L31)
-/// `{ peersIndex, patchHashIndex }` return.
+/// absent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DepPathSuffixIndex {
     pub peers_index: Option<usize>,
@@ -11,8 +9,7 @@ pub struct DepPathSuffixIndex {
 
 /// Walk `dep_path` from right to left, balancing parentheses, and find
 /// the boundary of the peer-suffix and (optional) `(patch_hash=…)`
-/// segments. Mirrors pnpm's
-/// [`indexOfDepPathSuffix`](https://github.com/pnpm/pnpm/blob/097983fbca/deps/path/src/index.ts#L9-L31).
+/// segments.
 #[must_use]
 pub fn index_of_dep_path_suffix(dep_path: &str) -> DepPathSuffixIndex {
     let bytes = dep_path.as_bytes();
@@ -22,10 +19,9 @@ pub fn index_of_dep_path_suffix(dep_path: &str) -> DepPathSuffixIndex {
     }
 
     let mut open: i32 = 1;
-    // Scan from second-to-last byte down to byte 0. Upstream's loop
-    // starts at `length - 2` and stops at `>= 0`; we mirror it byte-for-
-    // byte (depPath is ASCII outside of the package-name slot, and pnpm
-    // doesn't permit non-ASCII there either).
+    // Scan from second-to-last byte down to byte 0. The scan is
+    // byte-level: depPath is ASCII outside of the package-name slot, and
+    // pnpm doesn't permit non-ASCII there either.
     let mut cursor = bytes.len().checked_sub(2);
     while let Some(idx) = cursor {
         match bytes[idx] {
@@ -47,8 +43,7 @@ pub fn index_of_dep_path_suffix(dep_path: &str) -> DepPathSuffixIndex {
 }
 
 /// Strip the peer-suffix and `(patch_hash=…)` segments from `dep_path`,
-/// returning just the `pkgId` (no patch hash) prefix. Mirrors pnpm's
-/// [`removeSuffix`](https://github.com/pnpm/pnpm/blob/097983fbca/deps/path/src/index.ts#L52-L61).
+/// returning just the `pkgId` (no patch hash) prefix.
 #[must_use]
 pub fn remove_suffix(dep_path: &str) -> &str {
     let DepPathSuffixIndex { peers_index, patch_hash_index } = index_of_dep_path_suffix(dep_path);
@@ -62,8 +57,7 @@ pub fn remove_suffix(dep_path: &str) -> &str {
 }
 
 /// Strip just the peer-suffix from `dep_path`, keeping the
-/// `(patch_hash=…)` segment if present. Mirrors pnpm's
-/// [`getPkgIdWithPatchHash`](https://github.com/pnpm/pnpm/blob/097983fbca/deps/path/src/index.ts#L63-L70).
+/// `(patch_hash=…)` segment if present.
 #[must_use]
 pub fn get_pkg_id_with_patch_hash(dep_path: &str) -> &str {
     let DepPathSuffixIndex { peers_index, .. } = index_of_dep_path_suffix(dep_path);

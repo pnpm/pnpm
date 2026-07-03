@@ -14,9 +14,7 @@ use std::{
     path::{Component, Path, PathBuf},
 };
 
-/// One raw `--filter` / `--filter-prod` entry, before parsing. Mirrors
-/// upstream's
-/// [`WorkspaceFilter`](https://github.com/pnpm/pnpm/blob/3b62f9da31/workspace/projects-filter/src/index.ts#L15-L18).
+/// One raw `--filter` / `--filter-prod` entry, before parsing.
 #[derive(Debug, Clone)]
 pub struct WorkspaceFilter {
     pub filter: String,
@@ -29,8 +27,7 @@ pub struct WorkspaceFilter {
 /// and the selectors that matched nothing.
 #[derive(Debug, Default, Clone)]
 pub struct FilteredProjects {
-    /// Selected project root directories, in upstream's
-    /// `Object.keys(selectedProjectsGraph)` order.
+    /// Selected project root directories, in selection order.
     pub selected_projects: Vec<PathBuf>,
     pub unmatched_filters: Vec<String>,
 }
@@ -46,8 +43,7 @@ pub struct FilterWorkspaceProjectsOptions {
 /// Options for [`filter_projects`] / [`filter_projects_by_selector_objects`].
 #[derive(Debug, Clone)]
 pub struct FilterProjectsOptions {
-    /// Directory that path selectors resolve against (upstream's
-    /// `prefix`).
+    /// Directory that path selectors resolve against.
     pub prefix: PathBuf,
     /// Tri-state `linkWorkspacePackages`, forwarded to
     /// [`create_projects_graph()`].
@@ -70,9 +66,8 @@ pub enum FilterError {
     UnsupportedDiffSelector,
 
     /// A selector resolved to neither a name pattern, a directory, nor a
-    /// diff. Mirrors upstream's `Unsupported project selector:
-    /// ${JSON.stringify(selector)}`, including the offending selector so
-    /// CLI input is debuggable.
+    /// diff. The message includes the offending selector so CLI input is
+    /// debuggable.
     #[display("Unsupported project selector: {selector}")]
     #[diagnostic(code(pacquet_workspace_projects_filter::unsupported_selector))]
     UnsupportedSelector {
@@ -83,8 +78,6 @@ pub enum FilterError {
 
 /// Filter a pre-built [`ProjectGraph`] by `project_selectors`.
 ///
-/// Port of upstream's
-/// [`filterWorkspaceProjects`](https://github.com/pnpm/pnpm/blob/3b62f9da31/workspace/projects-filter/src/index.ts#L182-L210).
 /// Include selectors are unioned; exclude selectors (`!`-prefixed) are
 /// then subtracted. An empty include set means "every project".
 pub fn filter_workspace_projects<Pkg>(
@@ -122,8 +115,6 @@ struct FilterGraphResult {
     unmatched_filters: Vec<String>,
 }
 
-/// Port of upstream's
-/// [`_filterGraph`](https://github.com/pnpm/pnpm/blob/3b62f9da31/workspace/projects-filter/src/index.ts#L212-L298).
 fn filter_graph<Pkg>(
     projects_graph: &ProjectGraph<Pkg>,
     opts: FilterWorkspaceProjectsOptions,
@@ -216,8 +207,8 @@ where
     Ok(FilterGraphResult { selected: walked.into_iter().collect(), unmatched_filters })
 }
 
-/// Port of upstream's
-/// [`pickSubgraph`](https://github.com/pnpm/pnpm/blob/3b62f9da31/workspace/projects-filter/src/index.ts#L389-L405).
+/// Walk the subgraph reachable from `next_node_ids`.
+///
 /// `adj` returns the adjacency list (forward dependencies or reversed
 /// dependents) for a node; recursion always re-includes the visited
 /// children regardless of the top-level `include_root`.
@@ -242,9 +233,7 @@ fn pick_subgraph<Adjacency>(
     }
 }
 
-/// Port of upstream's
-/// [`reverseGraph`](https://github.com/pnpm/pnpm/blob/3b62f9da31/workspace/projects-filter/src/index.ts#L307-L320):
-/// invert edges so a node maps to the projects that depend on it.
+/// Invert edges so a node maps to the projects that depend on it.
 fn reverse_graph<Pkg>(projects_graph: &ProjectGraph<Pkg>) -> HashMap<PathBuf, Vec<PathBuf>> {
     let mut reversed: HashMap<PathBuf, Vec<PathBuf>> = HashMap::new();
     for (dependent, node) in projects_graph {
@@ -255,8 +244,8 @@ fn reverse_graph<Pkg>(projects_graph: &ProjectGraph<Pkg>) -> HashMap<PathBuf, Ve
     reversed
 }
 
-/// Port of upstream's
-/// [`matchProjects`](https://github.com/pnpm/pnpm/blob/3b62f9da31/workspace/projects-filter/src/index.ts#L322-L334).
+/// Select candidate projects whose name matches `pattern`, falling back
+/// to a `@*/`-scoped match when an unscoped pattern matches nothing.
 fn match_projects(candidates: &[(PathBuf, Option<String>)], pattern: &str) -> Vec<PathBuf> {
     let matcher = create_matcher(std::slice::from_ref(&pattern.to_string()));
     let matches: Vec<PathBuf> = candidates
@@ -289,9 +278,8 @@ fn match_projects_by_path<Pkg>(
     }
 }
 
-/// Whether `child` is strictly inside `parent`. Mirrors the
-/// [`is-subdir`](https://github.com/jonschlinkert/is-subdir) package
-/// upstream uses for `matchProjectsByExactPath`.
+/// Whether `child` is strictly inside `parent`, matching the semantics of
+/// the [`is-subdir`](https://github.com/jonschlinkert/is-subdir) package.
 fn is_subdir(parent: &Path, child: &Path) -> bool {
     let Some(relative) = pathdiff::diff_paths(child, parent) else {
         return false;
@@ -302,11 +290,8 @@ fn is_subdir(parent: &Path, child: &Path) -> bool {
     }
 }
 
-/// Parse and apply a list of [`WorkspaceFilter`]s against `projects`.
-///
-/// Port of upstream's
-/// [`filterProjects`](https://github.com/pnpm/pnpm/blob/3b62f9da31/workspace/projects-filter/src/index.ts#L92-L101)
-/// composed with `filterProjectsBySelectorObjects`.
+/// Parse a list of [`WorkspaceFilter`]s into selectors and apply them
+/// against `projects` via [`filter_projects_by_selector_objects`].
 pub fn filter_projects<Pkg>(
     projects: Vec<Pkg>,
     filter: &[WorkspaceFilter],
@@ -326,8 +311,9 @@ where
     filter_projects_by_selector_objects(projects, &selectors, opts)
 }
 
-/// Port of upstream's
-/// [`filterProjectsBySelectorObjects`](https://github.com/pnpm/pnpm/blob/3b62f9da31/workspace/projects-filter/src/index.ts#L103-L156).
+/// Build the project graph and apply parsed `selectors`, running the
+/// `--filter-prod` selectors against a production-only graph and the rest
+/// against the full graph.
 pub fn filter_projects_by_selector_objects<Pkg>(
     projects: Vec<Pkg>,
     selectors: &[ProjectSelector],

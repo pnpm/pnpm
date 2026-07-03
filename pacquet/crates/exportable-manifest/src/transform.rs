@@ -1,34 +1,26 @@
-//! Final normalization pass applied to a publish manifest, mirroring
-//! upstream's
-//! [`transform`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/releasing/exportable-manifest/src/transform/index.ts)
-//! pipeline. The four steps run in the same order pnpm's `ramda.pipe`
-//! composes them: required-field validation, `bin` normalization,
+//! Final normalization pass applied to a publish manifest. The four
+//! steps run in order: required-field validation, `bin` normalization,
 //! `peerDependenciesMeta` defaulting, then `repository` normalization.
 //!
-//! The TypeScript pipeline is a `pipe(...)` of single-argument
-//! transforms; the Rust port is a straight sequence of in-place
-//! mutations on the manifest object — no closure composition.
+//! The pass is a straight sequence of in-place mutations on the
+//! manifest object — no closure composition.
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use serde_json::{Map, Value};
 
-/// Failures raised while transforming a publish manifest. Both map
-/// byte-for-byte to the upstream `PnpmError` codes.
+/// Failures raised while transforming a publish manifest. Both carry
+/// the pnpm error codes published for these conditions.
 #[derive(Debug, Display, Error, Diagnostic, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum TransformError {
     /// A `name` / `version` field required by the registry is missing.
-    /// Mirrors upstream's `MISSING_REQUIRED_FIELD` at
-    /// [`transform/requiredFields.ts`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/releasing/exportable-manifest/src/transform/requiredFields.ts#L11-L14).
     #[display("Missing required field \"{field}\"")]
     #[diagnostic(code(ERR_PNPM_MISSING_REQUIRED_FIELD))]
     MissingRequiredField { field: &'static str },
 
     /// A string `bin` was declared on a package whose scoped name has
-    /// no `/` segment to derive the command name from. Mirrors
-    /// upstream's `INVALID_SCOPED_PACKAGE_NAME` at
-    /// [`transform/bin.ts`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/releasing/exportable-manifest/src/transform/bin.ts#L37-L42).
+    /// no `/` segment to derive the command name from.
     #[display("The name \"{invalid_name}\" is not a valid scoped package name")]
     #[diagnostic(code(ERR_PNPM_INVALID_SCOPED_PACKAGE_NAME))]
     InvalidScopedPackageName { invalid_name: String },
@@ -44,10 +36,9 @@ pub fn transform(manifest: &mut Map<String, Value>) -> Result<(), TransformError
 }
 
 /// Reject a manifest missing the registry-required `name` / `version`.
-/// Mirrors upstream's `if (!manifest.name)` truthiness check: a field
-/// counts as missing only when it is absent or JS-falsy (`null`, `false`,
-/// `0`, or `""`), so any other present value — including a non-string —
-/// passes, matching pnpm exactly.
+/// A field counts as missing only when it is absent or JS-falsy
+/// (`null`, `false`, `0`, or `""`), so any other present value —
+/// including a non-string — passes.
 fn transform_required_fields(manifest: &Map<String, Value>) -> Result<(), TransformError> {
     for field in ["name", "version"] {
         if !manifest.get(field).is_some_and(is_truthy) {
@@ -58,8 +49,9 @@ fn transform_required_fields(manifest: &Map<String, Value>) -> Result<(), Transf
 }
 
 /// Whether a JSON value is truthy under JavaScript's coercion rules, so
-/// the publish-manifest transforms gate the same way pnpm's `if (!value)`
-/// checks do. Arrays and objects are always truthy, even when empty.
+/// the publish-manifest transforms gate on the same falsy set a JS
+/// `if (!value)` check would. Arrays and objects are always truthy,
+/// even when empty.
 fn is_truthy(value: &Value) -> bool {
     match value {
         Value::Null => false,

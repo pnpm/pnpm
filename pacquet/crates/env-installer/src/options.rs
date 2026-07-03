@@ -5,7 +5,7 @@ use pacquet_store_dir::StoreDir;
 use std::{collections::HashMap, path::Path};
 
 /// Default npm registry used when neither the config nor a scope entry
-/// names one. Mirrors pnpm's `DEFAULT_REGISTRIES.default`.
+/// names one.
 const DEFAULT_REGISTRY: &str = "https://registry.npmjs.org/";
 
 /// Handles and settings the config-dependency resolve/install pass
@@ -45,10 +45,8 @@ impl ConfigDepsInstallOptions<'_> {
         self.registries.get("default").map_or(DEFAULT_REGISTRY, String::as_str)
     }
 
-    /// Registry serving `name`. Mirrors pnpm's
-    /// [`pickRegistryForPackage`](https://github.com/pnpm/pnpm/blob/31858c544b/config/pick-registry-for-package/src/index.ts):
-    /// a scoped package consults its `@scope` entry, falling back to
-    /// the default.
+    /// Registry serving `name`: a scoped package consults its `@scope`
+    /// entry, falling back to the default.
     pub(crate) fn pick_registry(&self, name: &str) -> &str {
         if let Some(scope_end) = scope_of(name)
             && let Some(registry) = self.registries.get(&name[..scope_end])

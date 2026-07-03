@@ -58,11 +58,10 @@ pub struct InstallPackageBySnapshot<'a> {
     /// URL, rather than racing a second fetch of the same bytes. Both
     /// background prefetchers feed it: the pnpr client's
     /// [`crate::TarballPrefetcher`] (frozen materialization) and the
-    /// fresh-resolve path's [`crate::PrefetchingResolver`] (cold batch,
-    /// closing the race in
-    /// <https://github.com/pnpm/pnpm/issues/12241>). `None` keeps the
-    /// standalone `run_without_mem_cache` path for installs with no
-    /// prefetcher (e.g. a plain `--frozen-lockfile` without pnpr).
+    /// fresh-resolve path's [`crate::PrefetchingResolver`] (cold
+    /// batch). `None` keeps the standalone `run_without_mem_cache`
+    /// path for installs with no prefetcher (e.g. a plain
+    /// `--frozen-lockfile` without pnpr).
     pub tarball_mem_cache: Option<&'a Arc<MemCache>>,
     /// Install-scoped package-status progress dedupe. Shared with the
     /// resolve-time prefetcher on the fresh path so the cold fallback
@@ -90,11 +89,10 @@ pub struct InstallPackageBySnapshot<'a> {
     /// [`crate::CreateVirtualStore`].
     pub allow_build_policy: &'a AllowBuildPolicy,
     /// Workspace / lockfile root used to resolve directory-typed
-    /// resolutions (`LockfileResolution::Directory`) against. Pnpm's
-    /// directory-fetcher computes the source dir as
-    /// `path.resolve(opts.lockfileDir, resolution.directory)`; pacquet
-    /// threads the same value through so the resolved source matches
-    /// upstream byte-for-byte even for relative resolutions like
+    /// resolutions (`LockfileResolution::Directory`) against. The
+    /// source dir is computed as
+    /// `path.resolve(lockfile_dir, resolution.directory)`, so the
+    /// resolved source is correct even for relative resolutions like
     /// `../local-pkg`.
     pub workspace_root: &'a Path,
     /// Snapshots whose slots were not materialized on this host —
@@ -112,9 +110,7 @@ pub struct InstallPackageBySnapshot<'a> {
     /// `cas_paths` directly and writes them into project-tree
     /// `node_modules/<alias>` directories. Either way the CAS files
     /// land in the store, so this is purely about whether the
-    /// virtual-store slot gets materialized. Mirrors upstream's
-    /// [`nodeLinker === 'hoisted'`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/src/index.ts#L411-L425)
-    /// branch in `headlessInstall`.
+    /// virtual-store slot gets materialized.
     pub node_linker: NodeLinker,
     /// When `true`, return the fetched CAS paths without populating the
     /// virtual-store slot ([`CreateVirtualDirBySnapshot`]) — the caller
@@ -166,9 +162,7 @@ pub enum InstallPackageBySnapshotError {
     /// Failure from the directory fetcher: walking the source
     /// directory of an injected workspace dep, reading its manifest,
     /// or running the npm-packlist filter for
-    /// `includeOnlyPackageFiles` mode. Mirrors the failure surface
-    /// of pnpm's `directory-fetcher` at
-    /// <https://github.com/pnpm/pnpm/blob/85ceff2383/fetching/directory-fetcher/src/index.ts>.
+    /// `includeOnlyPackageFiles` mode.
     #[diagnostic(transparent)]
     DirectoryFetch(#[error(source)] DirectoryFetcherError),
 
@@ -198,7 +192,7 @@ pub enum InstallPackageBySnapshotError {
 
     /// A variant inside a [`LockfileResolution::Variations`] carries
     /// a resolution other than [`LockfileResolution::Binary`].
-    /// Upstream contract guarantees variants are atomic
+    /// The lockfile contract guarantees variants are atomic
     /// `BinaryResolution`s; this variant catches lockfile corruption
     /// or a future shape pacquet doesn't recognise rather than
     /// silently routing through and confusing the install pipeline.
@@ -278,9 +272,9 @@ impl InstallPackageBySnapshot<'_> {
         // depending on temporary-lifetime extension.
         //
         // `AllowBuildPolicy::check` returns `None` when the package
-        // is neither allow-listed nor deny-listed. Default-deny
-        // (`None → false`) matches pnpm v11's policy: build scripts
-        // have to be explicitly opted in to run.
+        // is neither allow-listed nor deny-listed. The default is deny
+        // (`None → false`): build scripts have to be explicitly opted
+        // in to run.
         let allow_build_closure =
             |dep_path: &str| allow_build_policy.check(dep_path).unwrap_or(false);
         let scripts_prepend_node_path = match config.scripts_prepend_node_path {
@@ -335,7 +329,7 @@ impl InstallPackageBySnapshot<'_> {
                 // Reusing that entry would skip writing the `name@<url>`
                 // store-index row a later re-resolve needs to reuse the
                 // warm store, so remote tarballs must take the standalone
-                // path. See <https://github.com/pnpm/pnpm/issues/12241>.
+                // path.
                 let raw_cas_paths = match tarball_mem_cache {
                     Some(mem_cache)
                         if matches!(&metadata.resolution, LockfileResolution::Registry(_)) =>
@@ -356,9 +350,8 @@ impl InstallPackageBySnapshot<'_> {
                 .map_err(InstallPackageBySnapshotError::DownloadTarball)?;
 
                 // Run the git-hosted prepare+packlist pass for
-                // tarballs sourced from a git host. Mirrors pnpm's
-                // dispatch at `fetching/pick-fetcher/src/index.ts`:
-                // a `gitHosted: true` tarball routes through
+                // tarballs sourced from a git host: a
+                // `gitHosted: true` tarball routes through
                 // `gitHostedTarballFetcher` rather than the plain
                 // `remoteTarballFetcher`, because the host's archive
                 // endpoint doesn't run `prepare`/`prepublish*` and
@@ -401,13 +394,12 @@ impl InstallPackageBySnapshot<'_> {
             }
             LockfileResolution::Directory(dir_resolution) => {
                 // Injected workspace dep (`file:./local-pkg` with
-                // `dependenciesMeta[*].injected = true`). Upstream's
-                // [`directory-fetcher`](https://github.com/pnpm/pnpm/blob/85ceff2383/fetching/directory-fetcher/src/index.ts#L26-L32)
-                // resolves the source dir as
+                // `dependenciesMeta[*].injected = true`). The source
+                // dir resolves as
                 // `path.resolve(opts.lockfileDir, resolution.directory)`
-                // and returns `local: true` with a `filesMap` that
-                // points directly at the source files (no CAFS write).
-                // Pacquet does the same: the `files_map` keys are the
+                // and the fetcher returns `local: true` with a
+                // `filesMap` that points directly at the source files
+                // (no CAFS write). The `files_map` keys are the
                 // forward-slash relative paths, the values are the
                 // source paths, and downstream `link_file` /
                 // `import_indexed_dir` hardlink-or-copy from those
@@ -415,8 +407,7 @@ impl InstallPackageBySnapshot<'_> {
                 // like they would from a CAS-resident entry.
                 //
                 // `include_only_package_files = false` /
-                // `resolve_symlinks = false` match upstream's defaults
-                // in [`extendInstallOptions.ts:41`](https://github.com/pnpm/pnpm/blob/85ceff2383/installing/deps-installer/src/install/extendInstallOptions.ts#L41).
+                // `resolve_symlinks = false` are the defaults.
                 // Wiring those through pacquet's config surface is a
                 // follow-up; see the `resolveSymlinksInInjectedDirs`
                 // / `includeOnlyPackageFiles` plumbing tracked in the
@@ -428,8 +419,7 @@ impl InstallPackageBySnapshot<'_> {
             // the archive to fetch. `Variations` is the multi-
             // platform wrapper: pick the variant whose `targets`
             // includes the host triple, then route through the same
-            // `BinaryResolution` extractor (mirrors upstream's
-            // [`binary-fetcher/src/index.ts`](https://github.com/pnpm/pnpm/blob/94240bc046/fetching/binary-fetcher/src/index.ts)).
+            // `BinaryResolution` extractor.
             LockfileResolution::Binary(binary) => {
                 fetch_binary_resolution_to_cas::<Reporter>(
                     binary,
@@ -459,8 +449,8 @@ impl InstallPackageBySnapshot<'_> {
                         available_targets: render_variant_targets(&variations.variants),
                     });
                 };
-                // Upstream's `PlatformAssetResolution.resolution`
-                // is always atomic (`BinaryResolution`); pacquet's
+                // A platform asset resolution is always atomic
+                // (`BinaryResolution`); pacquet's
                 // type widens to the full `LockfileResolution` for
                 // serde uniformity but `select_platform_variant`'s
                 // docs spell out that nested `Variations` would just
@@ -537,10 +527,8 @@ impl InstallPackageBySnapshot<'_> {
         // [`crate::link_hoisted_modules()`] consumes the CAS paths
         // directly to materialize project-tree `node_modules/`
         // directories, so any slot we'd write here would only waste
-        // disk. Mirrors upstream's branch at
-        // <https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/src/index.ts#L411-L425>:
-        // hoisted skips both `linkAllModules` (slot symlinks) and
-        // `linkAllPkgs` (slot file imports), and runs
+        // disk. Hoisted skips both `linkAllModules` (slot symlinks)
+        // and `linkAllPkgs` (slot file imports), and runs
         // `linkHoistedModules` over the CAS paths instead.
         if !defer_link && matches!(node_linker, NodeLinker::Isolated | NodeLinker::Pnp) {
             CreateVirtualDirBySnapshot {
@@ -649,15 +637,14 @@ pub fn tarball_url_and_integrity<'a>(
 }
 
 /// Build the host's [`PlatformSelector`] for runtime-variant
-/// matching. Mirrors pnpm's call shape at the binary-fetcher
-/// dispatch site: `{ os: process.platform, cpu: process.arch, libc:
-/// process.platform === 'linux' ? family : null }`.
+/// matching, from the host's os, cpu, and libc (the latter only on
+/// Linux).
 ///
 /// Translating `host_libc()`'s `"unknown"` to `None` lets
-/// [`select_platform_variant`]'s asymmetric libc rule apply the
-/// same way upstream's does: `None` and `Some("glibc")` both
-/// require the variant to omit `libc`, and `Some("musl")` requires
-/// an exact match.
+/// [`select_platform_variant`]'s asymmetric libc rule apply
+/// consistently: `None` and `Some("glibc")` both require the
+/// variant to omit `libc`, and `Some("musl")` requires an exact
+/// match.
 pub(crate) fn host_platform_selector() -> PlatformSelector {
     let libc = match host_libc() {
         "unknown" => None,
@@ -666,10 +653,9 @@ pub(crate) fn host_platform_selector() -> PlatformSelector {
     PlatformSelector { os: host_platform().to_string(), cpu: host_arch().to_string(), libc }
 }
 
-/// Hand-coded port of upstream's
-/// [`NODE_EXTRAS_IGNORE_PATTERN`](https://github.com/pnpm/pnpm/blob/94240bc046/engine/runtime/node-resolver/src/index.ts)
-/// regex (`^(?:(?:lib/)?node_modules/(?:npm|corepack)(?:/|$)|bin/(?:npm|npx|corepack)$|(?:npm|npx|corepack)(?:\.(?:cmd|ps1))?$)`).
-/// Used as the archive-entry filter when extracting a Node.js
+/// Hand-coded matcher for the
+/// `^(?:(?:lib/)?node_modules/(?:npm|corepack)(?:/|$)|bin/(?:npm|npx|corepack)$|(?:npm|npx|corepack)(?:\.(?:cmd|ps1))?$)`
+/// regex. Used as the archive-entry filter when extracting a Node.js
 /// runtime archive: pnpm bundles `npm` + `corepack` in the tarball,
 /// but pacquet (and pnpm) install pnpm itself as the package
 /// manager, so the bundled tooling is dead weight and would also
@@ -677,8 +663,8 @@ pub(crate) fn host_platform_selector() -> PlatformSelector {
 /// entries during the CAS write keeps the runtime artifact in the
 /// store free of the bundled tooling without a post-hoc cleanup.
 ///
-/// Pacquet uses a hand-coded matcher rather than the upstream regex
-/// so [`pacquet_tarball`] doesn't have to pull in a regex engine.
+/// The hand-coded matcher avoids pulling a regex engine into
+/// [`pacquet_tarball`].
 fn node_extras_filter(path: &str) -> bool {
     // ^(?:(?:lib/)?node_modules/(?:npm|corepack)(?:/|$))
     let after_lib = path.strip_prefix("lib/").unwrap_or(path);
@@ -743,7 +729,7 @@ fn archive_filter_for(package_key: &PackageKey) -> Option<Arc<IgnoreEntryFilter>
 ///
 /// - [`BinaryArchive::Tarball`] uses [`DownloadTarballToStore`]
 ///   with `package_unpacked_size: None` (binary archives don't
-///   carry that hint upstream either).
+///   carry that hint).
 /// - [`BinaryArchive::Zip`] uses [`DownloadZipArchiveToStore`]
 ///   with `archive_prefix: binary.prefix.as_deref()` so the runtime
 ///   archive's top-level wrapper (e.g.
@@ -820,9 +806,7 @@ async fn fetch_binary_resolution_to_cas<Reporter: self::Reporter>(
     // takes. Runtime archives don't ship their own `package.json`,
     // so the existing bin-link step (which reads the manifest off
     // the slot's `package.json`) has nothing to consume by default.
-    // Mirrors upstream's `appendManifest` flow at
-    // [`binary-fetcher/src/index.ts`](https://github.com/pnpm/pnpm/blob/94240bc046/fetching/binary-fetcher/src/index.ts):
-    // the synthesized object has `name`, `version`, and `bin` — the
+    // The synthesized object has `name`, `version`, and `bin` — the
     // three fields pacquet's `link_bins_of_packages` actually looks
     // at. Writing the bytes through `write_cas_file` keeps the
     // import path uniform with every other CAS-imported file and
@@ -843,12 +827,10 @@ async fn fetch_binary_resolution_to_cas<Reporter: self::Reporter>(
     Ok(cas_paths)
 }
 
-/// Serialize the synthesized runtime `package.json` to bytes,
-/// matching the upstream `appendManifest` shape.
+/// Serialize the synthesized runtime `package.json` to bytes.
 ///
-/// `serde_json::to_vec` writes a single-line UTF-8 blob — same
-/// format upstream's worker thread emits. The bytes go straight
-/// into the CAS, where they're addressed by the SHA-512 of their
+/// `serde_json::to_vec` writes a single-line UTF-8 blob. The bytes go
+/// straight into the CAS, where they're addressed by the SHA-512 of their
 /// content; two runtime archives whose `(name, version, bin)`
 /// triple happens to match share the same blob.
 fn synthesize_runtime_manifest_bytes(
@@ -896,12 +878,10 @@ fn render_variant_targets(variants: &[pacquet_lockfile::PlatformAssetResolution]
 }
 
 /// `pnpm:progress` `resolved` for a frozen-lockfile snapshot the
-/// cold-batch path is about to fetch. Mirrors pnpm's emit at
-/// <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/deps-resolver/src/resolveDependencies.ts#L1586>:
-/// one event per (resolved) package, fired before the fetch
-/// attempt. In pacquet's frozen-lockfile path the lockfile *is* the
-/// resolution, so each snapshot is "already resolved" by the time
-/// we reach this site.
+/// cold-batch path is about to fetch: one event per (resolved)
+/// package, fired before the fetch attempt. In pacquet's
+/// frozen-lockfile path the lockfile *is* the resolution, so each
+/// snapshot is "already resolved" by the time we reach this site.
 ///
 /// Pulled out of [`InstallPackageBySnapshot::run`] so the
 /// event-construction code is unit-testable; the call site itself

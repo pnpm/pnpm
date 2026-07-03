@@ -7,18 +7,11 @@
 //! `pnpm:skipped-optional-dependency` for every optional+incompatible
 //! one.
 //!
-//! Mirrors the union of upstream's:
-//! - The resolver-side gate at
-//!   <https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-resolver/src/resolveDependencies.ts#L1307-L1312>.
-//! - The headless re-check at
-//!   <https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-builder/src/lockfileToDepGraph.ts#L206-L215>.
-//!
 //! Pacquet's install path is lockfile-driven and has no resolver, so
 //! the headless re-check is the only relevant emit site. Running it
 //! every install also means the set is recomputed against the current
-//! host — pnpm's `lockfileToDepGraph` does exactly the same, and the
-//! comment at upstream's `:194-215` calls out that the host arch may
-//! have changed since the previous install wrote `.modules.yaml`.
+//! host, since the host arch may have changed since the previous
+//! install wrote `.modules.yaml`.
 
 use std::collections::{HashMap, HashSet};
 
@@ -40,30 +33,22 @@ use pacquet_reporter::{
 /// - **Installability skips** (`installability`) — engine, platform,
 ///   or libc mismatch surfaced by [`compute_skipped_snapshots`].
 ///   Persisted to `.modules.yaml.skipped` and re-seeded on every
-///   subsequent install, mirroring upstream's
-///   `opts.skipped.add(depPath)` at
-///   <https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-builder/src/lockfileToDepGraph.ts#L213>.
+///   subsequent install.
 ///
 /// - **Fetch-failure skips** (`fetch_failed`) — an `optional: true`
 ///   snapshot whose tarball / metadata / extract step blew up
-///   during the install. **Not** persisted, matching upstream's
-///   silent `if (pkgSnapshot.optional) return` at
-///   <https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-builder/src/lockfileToDepGraph.ts#L294-L298>:
-///   upstream's catch site never updates `opts.skipped`, so a
-///   subsequent install retries the fetch.
+///   during the install. **Not** persisted: the catch site never
+///   records the skip, so a subsequent install retries the fetch.
 ///
 /// - **`--no-optional` exclusions** (`optional_excluded`) —
 ///   snapshots whose lockfile entry has `optional: true` AND the
 ///   user passed `--no-optional` (or `IncludedDependencies::optional_dependencies`
-///   is false). **Not** persisted, matching upstream's behavior:
-///   the filter sits at
-///   <https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/src/install/link.ts#L109-L111>,
-///   downstream of the `opts.skipped` set, so re-running without
+///   is false). **Not** persisted: the filter sits downstream of the
+///   skip set, so re-running without
 ///   `--no-optional` brings the snapshots back into the install
 ///   graph. Pacquet's downstream architecture walks the lockfile
 ///   directly rather than a pre-pruned graph, so a separate filter
-///   is needed where upstream gets it for free from the depNode
-///   filter chain.
+///   is needed here.
 ///
 /// All three subsets contribute to [`contains`] and [`iter`] —
 /// downstream walkers treat skipped-for-any-reason uniformly. Only
@@ -99,11 +84,9 @@ impl SkippedSnapshots {
     /// Seed the installability set with snapshot keys recorded as
     /// skipped by a previous install (read from
     /// `.modules.yaml.skipped`). Unparsable strings are silently
-    /// dropped — upstream tolerates the same shape mismatch at
-    /// <https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-builder/src/lockfileToDepGraph.ts#L194>
-    /// (the seed is only consulted by `Set.has(depPath)`; a
+    /// dropped — the seed is only consulted by membership lookup; a
     /// nonsense string never matches any current snapshot, so the
-    /// orphan is harmless).
+    /// orphan is harmless.
     pub fn from_strings<Iter>(iter: Iter) -> Self
     where
         Iter: IntoIterator,
@@ -250,8 +233,8 @@ impl InstallabilityHost {
     /// `node_detected` records which path was taken so callers can
     /// suppress side-effects-cache lookups when the version is
     /// synthetic. Slice 2 will wire a proper `nodeVersion` config
-    /// setting and surface `ERR_PNPM_INVALID_NODE_VERSION` to match
-    /// upstream's throw-on-detection-failure behavior.
+    /// setting and surface `ERR_PNPM_INVALID_NODE_VERSION`, throwing
+    /// on detection failure.
     #[must_use]
     pub fn detect() -> Self {
         let detected = pacquet_graph_hasher::detect_node_version();
@@ -287,7 +270,7 @@ impl InstallabilityHost {
 ///      this path is currently unreachable from production — wired
 ///      for the slice that lands the config setting.
 ///    - `Ok(Some(err))` otherwise: emit `tracing::warn!` and proceed.
-///      Upstream uses `pnpm:install-check` here, which pacquet's
+///      This should emit `pnpm:install-check`, which pacquet's
 ///      reporter does not yet expose — slice 1 follow-up.
 ///    - `Err(InvalidNodeVersionError)`: surface as
 ///      `ERR_PNPM_INVALID_NODE_VERSION`.
@@ -311,8 +294,6 @@ pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
     // The `seed` is returned as-is on the fast path so previously
     // skipped snapshots survive across reinstalls even when the
     // lockfile's per-snapshot constraints have since been removed.
-    // Mirrors upstream's early-return behavior at
-    // <https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-builder/src/lockfileToDepGraph.ts#L194>.
     //
     // Concretely on the integrated benchmark (1352 packages with no
     // platform / engine constraints): drops ~1352 `String` and
@@ -358,8 +339,7 @@ pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
     // `None` = compatible. `Some(err)` = incompatible, with the
     // diagnostic the caller would surface (used as both the
     // `SkipOptional` details payload and the `ProceedWithWarning`
-    // message body, matching upstream's `warn.toString()` / `warn.message`
-    // at `index.ts:50` / `:44`).
+    // message body).
     //
     // The key carries the snapshot's `optional` flag because the
     // platform-from-name inference only runs for optional snapshots,
@@ -425,10 +405,10 @@ pub fn compute_skipped_snapshots<Reporter: self::Reporter>(
             return Err(Box::new(warn));
         }
 
-        // Non-optional, non-strict: upstream emits `pnpm:install-check`
-        // warn (TODO: add channel to the reporter). For now the
-        // tracing-level warning is the user-visible signal that an
-        // incompatible non-optional dep slipped through.
+        // Non-optional, non-strict: this should emit a
+        // `pnpm:install-check` warn (TODO: add channel to the reporter).
+        // For now the tracing-level warning is the user-visible signal
+        // that an incompatible non-optional dep slipped through.
         tracing::warn!(
             target: "pacquet::install",
             package = %metadata_key,

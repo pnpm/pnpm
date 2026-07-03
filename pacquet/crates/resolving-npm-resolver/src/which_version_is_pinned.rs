@@ -5,15 +5,11 @@ use pacquet_registry::PinnedVersion;
 
 /// Classify the range operator an existing specifier pins to.
 ///
-/// Ports pnpm's
-/// [`whichVersionIsPinned`](https://github.com/pnpm/pnpm/blob/29ab905c21/resolving/npm-resolver/src/whichVersionIsPinned.ts).
 /// Returns the [`PinnedVersion`] the specifier already uses, or `None` when
 /// the specifier carries no single recoverable pin (a `catalog:` reference,
 /// a tag, a multi-comparator range, or junk). Callers fall back to the
-/// configured default in that case, mirroring `calcRange`'s
-/// `whichVersionIsPinned(prev) ?? whichVersionIsPinned(bare) ?? default`
-/// precedence
-/// (<https://github.com/pnpm/pnpm/blob/681b593eb2/resolving/npm-resolver/src/index.ts#L806-L814>).
+/// configured default in that case, trying the previous specifier first,
+/// then the bare specifier, then the default.
 #[must_use]
 pub fn which_version_is_pinned(spec: &str) -> Option<PinnedVersion> {
     if spec.starts_with("catalog:") {
@@ -63,8 +59,8 @@ pub fn which_version_is_pinned(spec: &str) -> Option<PinnedVersion> {
 enum Operator {
     Caret,
     Tilde,
-    /// Any other comparison operator (`>=`, `<`, `=`, `~>`, ...). pnpm's
-    /// `switch` leaves these unhandled, so they fall through to `None`.
+    /// Any other comparison operator (`>=`, `<`, `=`, `~>`, ...). These
+    /// are left unhandled and fall through to `None`.
     Other,
 }
 
@@ -76,12 +72,12 @@ struct Comparator {
 }
 
 /// Scan forward from `from` for the next single version comparator,
-/// mirroring one iteration of semver-utils' `reSemverRange` global match
-/// (the engine `whichVersionIsPinned` relies on). Returns the parsed
-/// comparator and the byte offset just past it, or `None` if no comparator
-/// remains. A comparator requires a numeric major component; an operator
-/// without one (`^abc`) and separators (`||`, `-`) are skipped, just as a
-/// non-matching prefix is skipped by `exec`.
+/// mirroring one iteration of semver-utils' `reSemverRange` global match.
+/// Returns the parsed comparator and the byte offset just past it, or
+/// `None` if no comparator remains. A comparator requires a numeric major
+/// component; an operator without one (`^abc`) and separators (`||`, `-`)
+/// are skipped, just as a non-matching prefix is skipped by a global
+/// regex match.
 fn next_comparator(bytes: &[u8], from: usize) -> Option<(Comparator, usize)> {
     let mut start = from;
     while start < bytes.len() {

@@ -15,7 +15,7 @@ pub type ReadPackageResult = Arc<Value>;
 
 /// An error raised while running a pnpmfile hook in Node.js.
 ///
-/// Mirrors pnpm's `PNPMFILE_FAIL` / `BAD_READ_PACKAGE_HOOK_RESULT` errors: a
+/// Covers the `PNPMFILE_FAIL` / `BAD_READ_PACKAGE_HOOK_RESULT` conditions: a
 /// throwing or syntactically invalid pnpmfile, or a `readPackage` hook that
 /// returns something that is not a package manifest, aborts the install.
 #[derive(Debug, Display, Clone)]
@@ -56,8 +56,7 @@ pub trait PnpmfileHooks: Send + Sync {
     ///
     /// Returns the (possibly modified) manifest. A hook that throws, or returns
     /// something other than a package manifest object, yields a [`HookError`] so
-    /// the install fails loudly — matching pnpm, where a bad `readPackage` hook
-    /// aborts resolution.
+    /// the install fails loudly — a bad `readPackage` hook aborts resolution.
     async fn read_package(
         &self,
         pkg: Value,
@@ -81,8 +80,7 @@ pub trait PnpmfileHooks: Send + Sync {
     ///
     /// Returns the (possibly modified) config object. A hook-less
     /// pnpmfile returns `config` unchanged. A throwing hook yields a
-    /// [`HookError`] and aborts the install. Mirrors pnpm's
-    /// [`updateConfig` hook](https://github.com/pnpm/pnpm/blob/31858c544b/pnpm/src/getConfig.ts#L86-L91).
+    /// [`HookError`] and aborts the install.
     async fn update_config(&self, config: Value, ctx: HookContext) -> Result<Value, HookError> {
         let _ = ctx;
         // The default no-op returns the config unchanged. Returning it
@@ -100,14 +98,10 @@ pub trait PnpmfileHooks: Send + Sync {
     /// Compute the `pnpmfileChecksum` recorded in `pnpm-lock.yaml`, or
     /// `None` when this hook set defines no `hooks` object.
     ///
-    /// Mirrors pnpm's
-    /// [`calculatePnpmfileChecksum`](https://github.com/pnpm/pnpm/blob/1819226b51/hooks/pnpmfile/src/requireHooks.ts#L131-L143):
-    /// the checksum is installed (and thus written to the lockfile) only
-    /// when at least one loaded pnpmfile exports a `hooks` object
-    /// (`entries.some(entry => entry.hooks != null)`), and its value is
-    /// the normalized-content hash of the included pnpmfiles. A pnpmfile
-    /// that exists but exports no hooks contributes no checksum, matching
-    /// pnpm.
+    /// The checksum is installed (and thus written to the lockfile) only
+    /// when at least one loaded pnpmfile exports a `hooks` object, and its
+    /// value is the normalized-content hash of the included pnpmfiles. A
+    /// pnpmfile that exists but exports no hooks contributes no checksum.
     async fn calculate_pnpmfile_checksum(&self) -> Option<String> {
         None
     }
@@ -120,20 +114,16 @@ pub trait PnpmfileHooks: Send + Sync {
     }
 
     /// Get custom resolvers exported from the pnpmfile's top-level
-    /// `resolvers` array. Mirrors pnpm's
-    /// [`requireHooks`](https://github.com/pnpm/pnpm/blob/1627943d2a/hooks/pnpmfile/src/requireHooks.ts#L222-L228)
-    /// merge of `resolvers` exports into `cookedHooks.customResolvers`.
+    /// `resolvers` array.
     async fn get_custom_resolvers(&self) -> Result<Vec<Arc<dyn CustomResolver>>, HookError> {
         Ok(vec![])
     }
 }
 
-/// A custom resolver exported from a pnpmfile. Mirrors pnpm's
-/// [`CustomResolver`](https://github.com/pnpm/pnpm/blob/1627943d2a/hooks/types/src/index.ts#L48-L87)
-/// interface, whose methods are all optional — the `has_*` accessors
-/// report which ones the underlying resolver actually implements, so
-/// callers can skip the corresponding calls the way pnpm skips absent
-/// methods.
+/// A custom resolver exported from a pnpmfile. The pnpmfile interface's
+/// methods are all optional — the `has_*` accessors report which ones the
+/// underlying resolver actually implements, so callers can skip the
+/// corresponding calls for absent methods.
 #[async_trait]
 pub trait CustomResolver: Send + Sync {
     /// Whether the resolver implements `canResolve`.

@@ -1,22 +1,14 @@
 //! Format-preserving writer for `pnpm-workspace.yaml`'s catalog blocks.
 //!
-//! Pacquet port of the catalog-relevant half of pnpm's
-//! [`updateWorkspaceManifest`](https://github.com/pnpm/pnpm/blob/e7e99f04e4/workspace/workspace-manifest-writer/src/index.ts):
-//! given a set of `updatedCatalogs`, merge them into the `catalog:` /
+//! Given a set of updated catalogs, merge them into the `catalog:` /
 //! `catalogs:` blocks of an existing `pnpm-workspace.yaml` (or create the
 //! file) while preserving the comments, blank lines, key order, and quote
 //! styles of everything it does not touch.
 //!
-//! pnpm reaches that fidelity with eemeli/yaml's mutable Document AST plus
-//! its own [`reorderRecursive`] / [`propagateBlankLinesToNewPairs`] passes.
-//! Pacquet has no equivalent AST, so the format-preserving edits are
-//! expressed as targeted text splices (for inserts) and
-//! [`yamlpatch`] `Op::Replace` (for value updates) — which suffices because
-//! `updatedCatalogs` only ever *inserts* new entries/blocks or *updates* a
-//! single value, never reorders existing content.
-//!
-//! [`reorderRecursive`]: https://github.com/pnpm/pnpm/blob/e7e99f04e4/workspace/workspace-manifest-writer/src/index.ts#L290-L313
-//! [`propagateBlankLinesToNewPairs`]: https://github.com/pnpm/pnpm/blob/e7e99f04e4/workspace/workspace-manifest-writer/src/index.ts#L347-L385
+//! The format-preserving edits are expressed as targeted text splices (for
+//! inserts) and [`yamlpatch`] `Op::Replace` (for value updates) — which
+//! suffices because the merge only ever *inserts* new entries/blocks or
+//! *updates* a single value, never reorders existing content.
 
 use std::{
     fs,
@@ -38,8 +30,7 @@ mod tests;
 
 use model::Manifest;
 
-/// Base name of pnpm's workspace manifest, matching pnpm's
-/// [`WORKSPACE_MANIFEST_FILENAME`](https://github.com/pnpm/pnpm/blob/e7e99f04e4/packages/constants/src/index.ts).
+/// Base name of pnpm's workspace manifest.
 pub const WORKSPACE_MANIFEST_FILENAME: &str = "pnpm-workspace.yaml";
 
 /// Error raised while reading, editing, or writing `pnpm-workspace.yaml`.
@@ -410,9 +401,7 @@ pub fn remove_overrides(
 /// (a `pnpm-workspace.yaml` or a global `config.yaml`), preserving the rest of
 /// the document's formatting and writing back only when something changed.
 ///
-/// A `null` `value` deletes the key (mirroring pnpm's
-/// [`updateWorkspaceManifest`](https://github.com/pnpm/pnpm/blob/e7e99f04e4/workspace/workspace-manifest-writer/src/index.ts#L75-L83),
-/// where `value == null` `delete`s the field); any other value sets it. When the
+/// A `null` `value` deletes the key; any other value sets it. When the
 /// edit empties the document, the file is removed. Used by `pnpm config set` /
 /// `pnpm config delete` for the keys routed to a YAML config file.
 pub fn update_manifest_field(
@@ -442,9 +431,9 @@ pub fn update_manifest_field(
     }
 
     // A `set` may target a config directory that does not exist yet
-    // (`pnpm config set --global`). Mirror pnpm's `fs.mkdir(dir, { recursive:
-    // true })` before the write; a `delete` never needs it (the file, hence its
-    // parent, already exists).
+    // (`pnpm config set --global`). Create the directory recursively before
+    // the write; a `delete` never needs it (the file, hence its parent,
+    // already exists).
     if !value.is_null()
         && let Some(parent) = path.parent().filter(|parent| !parent.as_os_str().is_empty())
     {
@@ -480,9 +469,7 @@ fn write_or_remove_manifest(
 /// directory is written, flushed to disk, and renamed over `path`. The
 /// rename replaces the destination's directory entry, so a
 /// `pnpm-workspace.yaml` that is a symlink is overwritten rather than
-/// followed, and a crash mid-write cannot leave a torn manifest. Mirrors
-/// pnpm's `writeFileAtomic` use in
-/// [`updateWorkspaceManifest`](https://github.com/pnpm/pnpm/blob/e7e99f04e4/workspace/workspace-manifest-writer/src/index.ts#L32).
+/// followed, and a crash mid-write cannot leave a torn manifest.
 fn write_atomic(path: &Path, contents: &str) -> io::Result<()> {
     let dir = path
         .parent()

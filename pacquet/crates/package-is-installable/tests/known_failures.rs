@@ -36,13 +36,13 @@ mod known_failures {
         ))
     }
 
-    /// Ports the third assertion of `pnpm is a prerelease version` at
-    /// <https://github.com/pnpm/pnpm/blob/94240bc046/config/package-is-installable/test/checkEngine.ts#L31-L35>.
+    /// A strict `>=9.0.0` pnpm-engine range must not be satisfied by a
+    /// full prerelease version (`9.0.0-alpha.1`).
     ///
-    /// Lives under `known_failures` because pacquet's
-    /// `satisfies_with_prerelease` accepts where upstream rejects. The
-    /// `allow_known_failure!` call at the boundary keeps the test
-    /// executable so the day pacquet implements byte-for-byte
+    /// Lives under [`known_failures`] because pacquet's
+    /// `satisfies_with_prerelease` accepts where the range should
+    /// reject. The `allow_known_failure!` call at the boundary keeps
+    /// the test executable so the day pacquet implements byte-for-byte
     /// `includePrerelease: true` semantics, this test will start
     /// passing and lose its known-failure marker.
     #[test]

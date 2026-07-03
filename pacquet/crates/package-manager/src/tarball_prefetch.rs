@@ -1,9 +1,8 @@
 //! Background tarball downloads for the pnpr client path.
 //!
 //! [`TarballPrefetcher`] fires a download as each `package` frame streams
-//! in from `/-/pnpr/v0/resolve` so the fetch overlaps the *server's* resolution
-//! ([pnpm/pnpm#12234](https://github.com/pnpm/pnpm/issues/12234)). It is
-//! the streaming-client analogue of [`crate::PrefetchingResolver`] (the
+//! in from `/-/pnpr/v0/resolve` so the fetch overlaps the *server's* resolution.
+//! It is the streaming-client analogue of [`crate::PrefetchingResolver`] (the
 //! local fresh-install prefetcher), but independent: the resolver path
 //! reports prefetch progress through the install reporter, whereas this
 //! one runs silently and lets the frozen materialization install emit

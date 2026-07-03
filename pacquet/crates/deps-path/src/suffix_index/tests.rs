@@ -49,8 +49,7 @@ fn handles_nested_parens_in_peer_segment() {
     assert_eq!(got.peers_index, Some("foo@1.0.0".len()));
 }
 
-/// Mirrors pnpm's `getPkgIdWithPatchHash` test, runtime leg
-/// ([`deps/path/test/index.ts`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/test/index.ts#L119)).
+/// A `runtime:` engine entry carries no peer or patch-hash suffix.
 #[test]
 fn runtime_dep_path_has_no_suffix() {
     let dep_path = "node@runtime:24.11.1";
@@ -60,8 +59,7 @@ fn runtime_dep_path_has_no_suffix() {
     assert_eq!(get_pkg_id_with_patch_hash(dep_path), "node@runtime:24.11.1");
 }
 
-/// Mirrors pnpm's `getPkgIdWithPatchHash` test, scoped-name leg
-/// ([`deps/path/test/index.ts`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/test/index.ts#L134)).
+/// A scoped name with no suffix round-trips unchanged.
 #[test]
 fn scoped_name_without_suffix_round_trips() {
     let dep_path = "@foo/bar@1.0.0";
@@ -69,8 +67,7 @@ fn scoped_name_without_suffix_round_trips() {
     assert_eq!(get_pkg_id_with_patch_hash(dep_path), "@foo/bar@1.0.0");
 }
 
-/// Mirrors pnpm's `getPkgIdWithPatchHash` test, scoped + patch-hash leg
-/// ([`deps/path/test/index.ts`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/test/index.ts#L137)).
+/// A scoped name with a patch-hash keeps the patch-hash in the pkgId.
 #[test]
 fn scoped_name_with_patch_hash_keeps_patch_hash() {
     let dep_path = "@foo/bar@1.0.0(patch_hash=yyyy)";
@@ -78,8 +75,7 @@ fn scoped_name_with_patch_hash_keeps_patch_hash() {
     assert_eq!(get_pkg_id_with_patch_hash(dep_path), "@foo/bar@1.0.0(patch_hash=yyyy)");
 }
 
-/// Mirrors pnpm's `getPkgIdWithPatchHash` test, scoped + peer leg
-/// ([`deps/path/test/index.ts`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/test/index.ts#L140)).
+/// A scoped name with a peer suffix strips down to the bare pkgId.
 #[test]
 fn scoped_name_with_peer_strips_to_bare() {
     let dep_path = "@foo/bar@1.0.0(@types/node@18.0.0)";
@@ -87,8 +83,8 @@ fn scoped_name_with_peer_strips_to_bare() {
     assert_eq!(get_pkg_id_with_patch_hash(dep_path), "@foo/bar@1.0.0");
 }
 
-/// Mirrors pnpm's `getPkgIdWithPatchHash` test, scoped + patch-hash + peer leg
-/// ([`deps/path/test/index.ts`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/test/index.ts#L143)).
+/// A scoped name with both a patch-hash and a peer suffix keeps only
+/// the patch-hash.
 #[test]
 fn scoped_name_with_patch_hash_and_peer_keeps_only_patch_hash() {
     let dep_path = "@foo/bar@1.0.0(patch_hash=zzzz)(@types/node@18.0.0)";
@@ -96,8 +92,6 @@ fn scoped_name_with_patch_hash_and_peer_keeps_only_patch_hash() {
     assert_eq!(get_pkg_id_with_patch_hash(dep_path), "@foo/bar@1.0.0(patch_hash=zzzz)");
 }
 
-/// Mirrors pnpm's `tryGetPackageId` test, leading-slash legacy + nested-peer leg
-/// ([`deps/path/test/index.ts`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/test/index.ts#L112)).
 /// `PkgNameVerPeer` rejects the leading-slash shape, but the
 /// string-level helpers still need to handle it for older lockfile
 /// readers.
@@ -108,8 +102,6 @@ fn leading_slash_legacy_with_nested_peer_strips_to_bare() {
     assert_eq!(get_pkg_id_with_patch_hash(dep_path), "/foo@1.0.0");
 }
 
-/// Mirrors pnpm's `tryGetPackageId` test, scope-with-parens leg
-/// ([`deps/path/test/index.ts`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/test/index.ts#L113)).
 /// The right-to-left balanced scan is what makes this work — a
 /// left-to-right `find('(')` would split inside `(-.-)`.
 #[test]

@@ -1,7 +1,4 @@
-//! Port of pnpm's
-//! [`workspacePrefToNpm`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/src/workspacePrefToNpm.ts).
-//!
-//! Translates a `workspace:` bare specifier into the npm-shaped form
+//! Translate a `workspace:` bare specifier into the npm-shaped form
 //! the [`crate::parse_bare_specifier()`] flow consumes.
 
 use derive_more::{Display, Error};
@@ -21,8 +18,7 @@ pub struct InvalidWorkspaceSpecError {
 }
 
 /// Translate a `workspace:` bare specifier into its npm-shape
-/// equivalent. Mirrors upstream's
-/// [`workspacePrefToNpm`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/src/workspacePrefToNpm.ts#L3-L14).
+/// equivalent.
 pub fn workspace_pref_to_npm(
     workspace_bare_specifier: &str,
 ) -> Result<String, InvalidWorkspaceSpecError> {

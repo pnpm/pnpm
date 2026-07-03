@@ -3,8 +3,6 @@
 //! ignoring the project's `packageManager` / `devEngines.packageManager`
 //! pin.
 //!
-//! Ports pnpm's
-//! [`with` command](https://github.com/pnpm/pnpm/blob/a33eeec9cd/pnpm11/engine/pm/commands/src/with/with.ts).
 //! `with current <cmd>` is rewritten before clap parses argv (see
 //! [`crate::with_current`]) into a direct dispatch of `<cmd>` with
 //! `pmOnFail` forced to `ignore`, so this handler only ever sees a
@@ -22,8 +20,8 @@ use std::{ffi::OsString, fs, path::Path, process::Command};
 
 use crate::config_deps;
 
-/// Errors specific to `pacquet with`. Codes mirror pnpm's `PnpmError`
-/// codes (pnpm prefixes them with `ERR_PNPM_`).
+/// Errors specific to `pacquet with`. The codes carry the shared
+/// `ERR_PNPM_` prefix.
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum WithError {
     #[display("Missing version argument. Usage: pnpm with <version|current> <args...>")]
@@ -103,16 +101,14 @@ impl WithArgs {
 }
 
 /// Spawn the downloaded `pnpm` with `bin_dir` prepended to `PATH` and the
-/// child's package-manager check disabled, inheriting stdio. Mirrors the
-/// `crossSpawn.sync` at the end of pnpm's `with` handler.
+/// child's package-manager check disabled, inheriting stdio.
 fn spawn_pnpm(bin_dir: &Path, args: &[String]) -> miette::Result<std::process::ExitStatus> {
     let path = prepend_to_path(bin_dir)?;
     // Resolve `pnpm` strictly within `bin_dir`, never the full PATH, so a
     // missing or broken shim is an error rather than silently falling
     // through to a different `pnpm` elsewhere on PATH (which would run the
-    // wrong engine). Mirrors pnpm's `with`, which spawns the explicit
-    // `path.join(binDir, 'pnpm')`; `which_in` is used only to pick the
-    // platform-correct shim name (e.g. `pnpm.cmd` on Windows).
+    // wrong engine). `which_in` is used only to pick the platform-correct
+    // shim name (e.g. `pnpm.cmd` on Windows).
     let program = which::which_in("pnpm", Some(bin_dir), bin_dir)
         .into_diagnostic()
         .wrap_err("locate the requested pnpm binary in the engine's bin directory")?;
@@ -156,8 +152,7 @@ fn prepend_to_path(dir: &Path) -> Result<OsString, WithError> {
 }
 
 /// `true` when pnpm is running under corepack (which sets `COREPACK_ROOT`
-/// and manages its own version switching). Mirrors pnpm's
-/// `isExecutedByCorepack`.
+/// and manages its own version switching).
 fn is_executed_by_corepack() -> bool {
     std::env::var_os("COREPACK_ROOT").is_some()
 }

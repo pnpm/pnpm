@@ -445,8 +445,7 @@ async fn pick_lowest_version_picks_min() {
 /// name alone — otherwise a packument fetched from one registry
 /// would satisfy a later resolve against a different registry, and
 /// the second resolve could return a version that doesn't exist
-/// at the second registry. Mirrors upstream's per-resolver-instance
-/// cache scoping.
+/// at the second registry.
 #[tokio::test]
 async fn in_memory_cache_does_not_leak_across_registries() {
     let mut server_a = mockito::Server::new_async().await;
@@ -863,9 +862,7 @@ async fn published_by_triggers_upgrade_when_modified_after_cutoff() {
 /// Boundary case: `modified == cutoff`. `modified` is an upper
 /// bound on every version's publish time, so when it equals the
 /// cutoff every version passes the per-version `<=` filter and
-/// the upgrade fetch is unnecessary. Mirrors upstream's strict
-/// inclusive boundary in
-/// [`maybeUpgradeAbbreviatedMetaForReleaseAge`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L474).
+/// the upgrade fetch is unnecessary (the boundary is inclusive).
 #[tokio::test]
 async fn published_by_skips_upgrade_when_modified_equals_cutoff() {
     let mut server = mockito::Server::new_async().await;

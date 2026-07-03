@@ -3,8 +3,7 @@ use ssri::Integrity;
 
 /// One configurational dependency normalized for installation — the
 /// shape the install pass consumes after reading the env lockfile (or
-/// migrating an old inline-integrity manifest entry). Mirrors pnpm's
-/// [`NormalizedConfigDep`](https://github.com/pnpm/pnpm/blob/31858c544b/installing/env-installer/src/parseIntegrity.ts).
+/// migrating an old inline-integrity manifest entry).
 #[derive(Debug, Clone)]
 pub struct NormalizedConfigDep {
     pub version: String,
@@ -14,8 +13,6 @@ pub struct NormalizedConfigDep {
 }
 
 /// A platform-specific optional subdependency of a config dependency.
-/// Mirrors pnpm's
-/// [`NormalizedSubdep`](https://github.com/pnpm/pnpm/blob/31858c544b/installing/env-installer/src/parseIntegrity.ts).
 #[derive(Debug, Clone)]
 pub struct NormalizedSubdep {
     pub name: String,
@@ -28,11 +25,9 @@ pub struct NormalizedSubdep {
 }
 
 /// Split an old-format config-dependency value of the form
-/// `<version>+<integrity>` into its parts. Mirrors pnpm's
-/// [`parseIntegrity`](https://github.com/pnpm/pnpm/blob/31858c544b/installing/env-installer/src/parseIntegrity.ts):
-/// the absence of a `+` separator means the user wrote a clean
-/// specifier without committing an integrity, which is an error in the
-/// migration path.
+/// `<version>+<integrity>` into its parts: the absence of a `+`
+/// separator means the user wrote a clean specifier without committing
+/// an integrity, which is an error in the migration path.
 pub fn parse_integrity(
     pkg_name: &str,
     pkg_spec: &str,

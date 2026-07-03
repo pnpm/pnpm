@@ -1,13 +1,10 @@
-//! Port of pnpm's
-//! [`exec/prepare-package`](https://github.com/pnpm/pnpm/blob/94240bc046/exec/prepare-package/src/index.ts).
+//! Prepare a git-hosted package for installation.
 //!
 //! Decides whether a git-hosted package needs building, runs the
 //! synthesized `<pm>-install` (which transitively runs npm/yarn/pnpm's
 //! built-in `prepare` lifecycle), then any remaining `prepublish*`
-//! scripts. Honors the same `allowBuild` gate pnpm uses, and rejects
-//! sub-paths that escape the git root via [`safe_join_path`] (mirrors
-//! upstream's `safeJoinPath` at
-//! [`index.ts:92-103`](https://github.com/pnpm/pnpm/blob/94240bc046/exec/prepare-package/src/index.ts#L92-L103)).
+//! scripts. Honors the `allowBuild` gate, and rejects sub-paths that
+//! escape the git root via [`safe_join_path`].
 
 use crate::{error::PreparePackageError, preferred_pm::detect_preferred_pm};
 use pacquet_executor::{
@@ -25,10 +22,9 @@ use std::{
 /// Scripts to re-run after `<pm>-install` finishes. `prepare` itself
 /// runs automatically as part of `<pm>-install` (npm/yarn/pnpm fold it
 /// into the install lifecycle), so we don't need to invoke it
-/// separately. Matches upstream's set at
-/// [`exec/prepare-package/src/index.ts:14-20`](https://github.com/pnpm/pnpm/blob/94240bc046/exec/prepare-package/src/index.ts#L14-L20).
+/// separately.
 ///
-/// Note: pnpm intentionally omits `prepublishOnly` here — neither npm
+/// Note: `prepublishOnly` is intentionally omitted here — neither npm
 /// nor Yarn run it for git-hosted deps.
 const PREPUBLISH_SCRIPTS: &[&str] = &["prepublish", "prepack", "publish"];
 
@@ -57,9 +53,8 @@ pub struct PreparePackageOptions<'a> {
     pub extra_env: &'a HashMap<String, String>,
 }
 
-/// Result of [`prepare_package`]. `should_be_built` lines up with
-/// upstream's `shouldBeBuilt` — drives the `built` dimension of the
-/// git-hosted store-index key.
+/// Result of [`prepare_package`]. `should_be_built` drives the
+/// `built` dimension of the git-hosted store-index key.
 #[derive(Debug)]
 pub struct PreparedPackage {
     pub pkg_dir: PathBuf,
@@ -72,9 +67,6 @@ pub struct PreparedPackage {
 /// `<pm>-install` plus any defined `prepublish` / `prepack` / `publish`
 /// hooks, then deletes `node_modules` so the install-time deps don't
 /// leak into the CAS.
-///
-/// Mirrors upstream's `preparePackage` at
-/// [`index.ts:29-80`](https://github.com/pnpm/pnpm/blob/94240bc046/exec/prepare-package/src/index.ts#L29-L80).
 pub fn prepare_package<Reporter: self::Reporter>(
     opts: &PreparePackageOptions<'_>,
     git_root_dir: &Path,
@@ -97,11 +89,10 @@ pub fn prepare_package<Reporter: self::Reporter>(
         return Ok(PreparedPackage { pkg_dir, should_be_built: true });
     }
 
-    // `allowBuild` check before any spawn. Upstream throws when
-    // `opts.allowBuild?.(depPath)` is missing or false, with
-    // GIT_DEP_PREPARE_NOT_ALLOWED. The manifest comes from the fetched
-    // artifact itself, so its name and version only feed the error
-    // message; the dep path is the gated identity.
+    // `allowBuild` check before any spawn. A dep path that isn't
+    // allowed throws GIT_DEP_PREPARE_NOT_ALLOWED. The manifest comes
+    // from the fetched artifact itself, so its name and version only
+    // feed the error message; the dep path is the gated identity.
     let name = manifest.get("name").and_then(Value::as_str).unwrap_or("");
     let version = manifest.get("version").and_then(Value::as_str).unwrap_or("");
     if !(opts.allow_build)(opts.dep_path) {
@@ -168,9 +159,9 @@ pub fn prepare_package<Reporter: self::Reporter>(
             .map_err(map_lifecycle_err)?;
     }
 
-    // Upstream `rimraf`s the install-time `node_modules` so the deps
-    // don't leak into the CAS. Ignore `NotFound` (the script may not
-    // have populated `node_modules` at all).
+    // Remove the install-time `node_modules` so the deps don't leak
+    // into the CAS. Ignore `NotFound` (the script may not have
+    // populated `node_modules` at all).
     let node_modules = pkg_dir.join("node_modules");
     if let Err(error) = fs::remove_dir_all(&node_modules)
         && error.kind() != std::io::ErrorKind::NotFound
@@ -181,8 +172,7 @@ pub fn prepare_package<Reporter: self::Reporter>(
     Ok(PreparedPackage { pkg_dir, should_be_built: true })
 }
 
-/// Decide whether the package needs building. Mirrors upstream's
-/// [`packageShouldBeBuilt`](https://github.com/pnpm/pnpm/blob/94240bc046/exec/prepare-package/src/index.ts#L82-L90).
+/// Decide whether the package needs building.
 fn package_should_be_built(manifest: &Value, pkg_dir: &Path) -> bool {
     let Some(scripts) = manifest.get("scripts").and_then(Value::as_object) else {
         return false;
@@ -201,7 +191,6 @@ fn package_should_be_built(manifest: &Value, pkg_dir: &Path) -> bool {
 }
 
 /// Join `sub` onto `root` and reject results that climb outside.
-/// Mirrors upstream's [`safeJoinPath`](https://github.com/pnpm/pnpm/blob/94240bc046/exec/prepare-package/src/index.ts#L92-L103).
 fn safe_join_path(root: &Path, sub: Option<&str>) -> Result<PathBuf, PreparePackageError> {
     let sub = sub.unwrap_or("");
     let joined = if sub.is_empty() { root.to_path_buf() } else { root.join(sub) };
@@ -219,9 +208,7 @@ fn safe_join_path(root: &Path, sub: Option<&str>) -> Result<PathBuf, PreparePack
 }
 
 /// Write `(stage, script)` into the working manifest's `scripts` map
-/// so the next `run_lifecycle_hook` invocation can look it up. Matches
-/// upstream's `manifest.scripts[installScriptName] = ...` mutation at
-/// [`index.ts:57`](https://github.com/pnpm/pnpm/blob/94240bc046/exec/prepare-package/src/index.ts#L57).
+/// so the next `run_lifecycle_hook` invocation can look it up.
 fn inject_script(manifest: &mut Value, stage: &str, script: &str) {
     let scripts = manifest.get_mut("scripts").and_then(Value::as_object_mut);
     if let Some(scripts) = scripts {

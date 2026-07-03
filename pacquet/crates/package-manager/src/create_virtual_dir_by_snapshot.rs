@@ -55,20 +55,15 @@ pub struct CreateVirtualDirBySnapshot<'a> {
     /// Snapshots whose slots were not materialized on this host —
     /// platform-mismatched optionals, `--no-optional` exclusions, and
     /// swallowed optional fetch failures. `create_symlink_layout`
-    /// uses this to skip dangling symlinks to absent slots. Mirrors
-    /// upstream's `!pkg.installable && pkg.optional` short-circuit in
-    /// `linkAllModules` at
-    /// <https://github.com/pnpm/pnpm/blob/f2981a316/installing/deps-installer/src/install/link.ts#L540>.
+    /// uses this to skip dangling symlinks to absent slots: an
+    /// uninstallable optional snapshot is never linked.
     pub skipped: &'a SkippedSnapshots,
     /// Child aliases that were linked by a previous install but are no
     /// longer in this snapshot's dependency set. Their stale symlinks
     /// are unlinked from the slot before the progress event fires, so
     /// a warm reinstall that drops a dependency (e.g. via an override)
-    /// doesn't leave a dangling child behind. Mirrors upstream's
-    /// `removeObsoleteChild` pass in `linkAllModules` at
-    /// <https://github.com/pnpm/pnpm/blob/5e47dd5e59/installing/deps-installer/src/install/link.ts#L573>.
-    /// Empty for fresh packages and for survivors whose dependency set
-    /// only changed by addition.
+    /// doesn't leave a dangling child behind. Empty for fresh packages
+    /// and for survivors whose dependency set only changed by addition.
     pub removed_aliases: &'a [PkgName],
     #[cfg(test)]
     pub(crate) link_concurrency_probe: Option<&'a tests::LinkConcurrencyProbe>,
@@ -169,9 +164,9 @@ impl CreateVirtualDirBySnapshot<'_> {
         // the join rather than before it: the removed aliases are
         // disjoint from the wanted set `create_symlink_layout` just
         // linked, and from the package's own `node_modules/<self>`
-        // directory the CAS import populates, so the end state is the
-        // same as upstream's remove-then-link ordering without racing
-        // either parallel task.
+        // directory the CAS import populates, so the end state matches
+        // a remove-then-link ordering without racing either parallel
+        // task.
         for alias in removed_aliases {
             if *alias == package_key.name {
                 continue;
@@ -179,10 +174,9 @@ impl CreateVirtualDirBySnapshot<'_> {
             remove_obsolete_child(&virtual_node_modules_dir, alias)?;
         }
 
-        // `pnpm:progress imported` mirrors pnpm's emit at
-        // <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/deps-installer/src/install/link.ts#L498>:
-        // one event per (resolved + fetched) package once its CAFS
-        // import has finished. `to` is the per-package directory
+        // `pnpm:progress imported` fires one event per (resolved +
+        // fetched) package once its CAFS import has finished. `to` is
+        // the per-package directory
         // inside the virtual store. `method` is best-effort — pacquet
         // doesn't surface the per-package resolved method past
         // `link_file`'s install-scoped atomic, so we report the
@@ -218,9 +212,7 @@ pub(crate) fn optimistic_wire_method(method: PackageImportMethod) -> WireImportM
     }
 }
 
-/// Unlink one obsolete child from a slot's `node_modules`, mirroring
-/// pnpm's `removeObsoleteChild` at
-/// <https://github.com/pnpm/pnpm/blob/5e47dd5e59/installing/deps-installer/src/install/link.ts#L641>.
+/// Unlink one obsolete child from a slot's `node_modules`.
 ///
 /// Removes the `<node_modules>/<alias>` symlink and, for a scoped
 /// alias, drops the now-empty `@scope` directory (ignoring the error

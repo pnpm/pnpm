@@ -1,5 +1,4 @@
-//! Port of pnpm's
-//! [`dedupeInjectedDeps`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-resolver/src/dedupeInjectedDeps.ts).
+//! Dedupe of injected workspace dependencies.
 //!
 //! Runs at the tail of the multi-importer [`fn@crate::resolve_peers`]
 //! pass. Each importer's direct deps map is scanned for entries whose
@@ -127,12 +126,13 @@ fn apply_dedupe_map(
     }
 }
 
-/// Build the `link:<rel>` depPath payload, mirroring pnpm's
-/// [`link:${normalize(path.relative(id, dedupedProjectId))}`](https://github.com/pnpm/pnpm/blob/39101f5e37/installing/deps-resolver/src/dedupeInjectedDeps.ts#L98).
-/// `id` and `dedupedProjectId` upstream are lockfile importer keys
-/// (POSIX-relative paths from the lockfile dir), which pacquet stores
-/// as absolute project dirs; resolving the relative path through the
-/// filesystem layer keeps Windows path separators correct.
+/// Build the `link:<rel>` depPath payload as
+/// `link:<normalized relative path from the source importer to the
+/// deduped target project>`. The source and target are lockfile
+/// importer keys (POSIX-relative paths from the lockfile dir), which
+/// pacquet stores as absolute project dirs; resolving the relative
+/// path through the filesystem layer keeps Windows path separators
+/// correct.
 fn make_link_dep_path(source_root: &Path, target_root: &Path, lockfile_dir: &Path) -> DepPath {
     let rel =
         pathdiff::diff_paths(target_root, source_root).unwrap_or_else(|| target_root.to_path_buf());
@@ -153,8 +153,7 @@ fn make_link_dep_path(source_root: &Path, target_root: &Path, lockfile_dir: &Pat
     DepPath::from(format!("link:{rel_posix}"))
 }
 
-/// Remove graph nodes no importer reaches after a dedupe pass, mirroring
-/// pnpm's [`pruneSharedLockfile`](https://github.com/pnpm/pnpm/blob/39101f5e37/lockfile/pruner/src/index.ts).
+/// Remove graph nodes no importer reaches after a dedupe pass.
 /// A snapshot that loses all references — an injected `file:` rewritten
 /// to `link:`, or a peer-variant collapsed by
 /// [`fn@crate::dedupe_peer_dependents::dedupe_peer_dependents`] — would

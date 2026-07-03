@@ -1,7 +1,6 @@
-//! Port of pnpm's
-//! [`getStorePath` / `storePathRelativeToHome`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L14-L78).
+//! Resolves the default store directory.
 //!
-//! When the user has not pinned `storeDir`, pnpm places the store on
+//! When the user has not pinned `storeDir`, the store is placed on
 //! the same volume as the project so the on-disk layout can use
 //! hardlinks instead of cross-volume copies. The choice is:
 //!
@@ -12,9 +11,7 @@
 //!    find the first directory that *does* accept the hardlink (the
 //!    mount point), prefer that mount point's parent if it is also
 //!    linkable, and return `<mount_point>/.pnpm-store`. If only the
-//!    project folder itself is linkable, fall back to the home store
-//!    — that's what pnpm does at
-//!    [`index.ts:67-68`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L67-L68).
+//!    project folder itself is linkable, fall back to the home store.
 //!
 //! Without this detection a developer with a separate
 //! case-sensitive workspace volume (for example
@@ -35,9 +32,8 @@
 //! [`pacquet_store_dir::STORE_VERSION`] (`"v11"`) is *not* appended in
 //! this module; the path returned here is the un-suffixed base. Every
 //! caller wraps the result in [`pacquet_store_dir::StoreDir::from`],
-//! which appends the suffix in one place — mirroring pnpm's
-//! [`getStorePath`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L39-L42)
-//! `if (!endsWith(v11)) append(v11)` branch. Doing the join at
+//! which appends the suffix in one place — an
+//! `if (!endsWith(v11)) append(v11)` step. Doing the join at
 //! construction guarantees that everything pacquet exposes externally
 //! (the `storeDir` written to `.modules.yaml`, the path printed by
 //! `pacquet store path`, the NDJSON `context` log event) matches the
@@ -57,10 +53,7 @@ use std::{
 /// home-based path and the project root.
 ///
 /// Falls back to `home_default` whenever the algorithm cannot complete
-/// — pnpm's
-/// [`storePathRelativeToHome`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L45-L78)
-/// makes the same conservative choice on any error in its `try` /
-/// `catch`.
+/// — the conservative choice on any error.
 pub fn resolve_store_dir<Sys: LinkProbe>(
     home_default: PathBuf,
     pnpm_home_dir: &Path,
@@ -78,10 +71,9 @@ pub fn resolve_store_dir<Sys: LinkProbe>(
         return home_default;
     };
 
-    // Walk one level up if that parent is also linkable. Mirrors
-    // [`index.ts:60-64`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L60-L64):
-    // some mounts expose a writable parent (e.g. `/Volumes` on macOS
-    // is writable even though the actual mount is `/Volumes/src`).
+    // Walk one level up if that parent is also linkable: some mounts
+    // expose a writable parent (e.g. `/Volumes` on macOS is writable
+    // even though the actual mount is `/Volumes/src`).
     let mountpoint = match mountpoint.parent() {
         Some(parent) if parent != mountpoint && Sys::can_link_between_dirs(&pkg_root, parent) => {
             parent.to_path_buf()
@@ -89,8 +81,7 @@ pub fn resolve_store_dir<Sys: LinkProbe>(
         _ => mountpoint,
     };
 
-    // pnpm's [`index.ts:67-68`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L67-L68):
-    // when linkability is confined to the project folder itself, the
+    // When linkability is confined to the project folder itself, the
     // mount-point fallback would put the store *inside* the project
     // — instead, defer to the home store.
     if mountpoint == pkg_root {
@@ -101,8 +92,7 @@ pub fn resolve_store_dir<Sys: LinkProbe>(
 }
 
 /// Find the volume mount point for the directory containing `existing`,
-/// using `can_link_between_dirs` to test each ancestor. Port of pnpm's
-/// [`rootLinkTarget`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L6-L21).
+/// using `can_link_between_dirs` to test each ancestor.
 ///
 /// Returns `None` if no ancestor accepts the hardlink (no usable
 /// mount point) — the caller falls back to the home store.
@@ -137,7 +127,7 @@ fn filesystem_root(path: &Path) -> PathBuf {
 
 /// Given `from` (an ancestor of `to`), return `from` with one more
 /// path segment appended along the way to `to`. Port of npm's
-/// [`next-path`](https://github.com/zkochan/packages/blob/main/next-path/index.js).
+/// [`next-path`](https://github.com/sholladay/next-path/blob/ce2c138683/index.js).
 /// Returns `from` unchanged when `from` is not a prefix of `to`.
 fn next_path(from: &Path, to: &Path) -> PathBuf {
     let from_components: Vec<_> = from.components().collect();
@@ -158,12 +148,10 @@ fn next_path(from: &Path, to: &Path) -> PathBuf {
 }
 
 /// Real-filesystem implementation of [`LinkProbe::can_link_between_dirs`]
-/// used by the production [`Host`][crate::api::Host] impl. Mirrors
-/// pnpm's
-/// [`canLinkToSubdir`](https://github.com/pnpm/pnpm/blob/29a42efc3b/store/path/src/index.ts#L80-L92):
-/// create a temp file in `from_dir`, create a temp subdirectory in
-/// `to_dir`, attempt the hardlink, then clean up. Failure for any
-/// reason (parent missing, EACCES, EXDEV, ...) collapses to `false`.
+/// used by the production [`Host`][crate::api::Host] impl: create a temp
+/// file in `from_dir`, create a temp subdirectory in `to_dir`, attempt
+/// the hardlink, then clean up. Failure for any reason (parent missing,
+/// EACCES, EXDEV, ...) collapses to `false`.
 pub(crate) fn host_can_link_between_dirs(from_dir: &Path, to_dir: &Path) -> bool {
     let src = path_temp_in(from_dir);
     if fs::File::create(&src).is_err() {

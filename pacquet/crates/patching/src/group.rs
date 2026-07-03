@@ -9,12 +9,10 @@ use node_semver::Range;
 /// Input to [`group_patched_dependencies`]: the
 /// `pnpm.patchedDependencies` map after hashes have been computed.
 ///
-/// One entry per `patchedDependencies` key. Upstream accepts either a
-/// string hash (the historical shape — see
-/// [`PatchFile`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/patching/config/src/groupPatchedDependencies.ts#L23))
-/// or a `{ hash, patchFilePath }` object. Pacquet collapses both into
-/// the latter at config-load time, so the grouper only sees the
-/// resolved shape.
+/// One entry per `patchedDependencies` key. The config accepts either a
+/// string hash (the historical shape) or a `{ hash, patchFilePath }`
+/// object. Pacquet collapses both into the latter at config-load time,
+/// so the grouper only sees the resolved shape.
 #[derive(Debug, Clone)]
 pub struct PatchInput {
     pub hash: String,
@@ -23,10 +21,7 @@ pub struct PatchInput {
 
 /// Raised when a `patchedDependencies` key's version segment is
 /// non-empty, not a valid semver version, and not a valid semver
-/// range.
-///
-/// Mirrors upstream's
-/// [`ERR_PNPM_PATCH_NON_SEMVER_RANGE`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/patching/config/src/groupPatchedDependencies.ts#L30-L31).
+/// range. Surfaces as `ERR_PNPM_PATCH_NON_SEMVER_RANGE`.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display("{non_semver_version} is not a valid semantic version range.")]
 #[diagnostic(code(ERR_PNPM_PATCH_NON_SEMVER_RANGE))]
@@ -35,9 +30,6 @@ pub struct PatchNonSemverRangeError {
 }
 
 /// Bucketize `patchedDependencies` by package name and match flavor.
-///
-/// Ports upstream's
-/// [`groupPatchedDependencies`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/patching/config/src/groupPatchedDependencies.ts#L6-L49).
 pub fn group_patched_dependencies<Iter>(
     entries: Iter,
 ) -> Result<PatchGroupRecord, PatchNonSemverRangeError>
@@ -77,8 +69,8 @@ where
             }
             _ => {
                 // A bare `name` key and a `name@*` key both target
-                // `group.all`. Upstream runs this bare-name branch last,
-                // so a bare `name` overwrites whatever `name@*` set.
+                // `group.all`. This bare-name branch runs last, so a
+                // bare `name` overwrites whatever `name@*` set.
                 let group = result.entry(key.clone()).or_default();
                 group.all = Some(extended);
             }

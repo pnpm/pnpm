@@ -1,9 +1,6 @@
-//! Global package install command handlers.
+//! Global package install command handlers (`add -g`, `update -g`,
+//! `remove -g`).
 //!
-//! Ports pnpm's `@pnpm/global.commands`
-//! ([`globalAdd`](https://github.com/pnpm/pnpm/blob/1819226b51/global/commands/src/globalAdd.ts),
-//! [`globalUpdate`](https://github.com/pnpm/pnpm/blob/1819226b51/global/commands/src/globalUpdate.ts),
-//! [`globalRemove`](https://github.com/pnpm/pnpm/blob/1819226b51/global/commands/src/globalRemove.ts)).
 //! Each space-separated CLI param is its own isolated install group (a
 //! comma splits a group; local paths / URLs are kept whole). A group
 //! installs into a fresh directory under the global packages dir, then a
@@ -39,8 +36,8 @@ use std::{
     path::{Path, PathBuf},
 };
 
-/// Errors specific to global package management. Codes mirror pnpm's
-/// `ERR_PNPM_`-prefixed `PnpmError` codes.
+/// Errors specific to global package management, carrying the
+/// `ERR_PNPM_`-prefixed codes.
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum GlobalError {
     #[display("Unable to find the global bin directory")]
@@ -62,16 +59,15 @@ pub enum GlobalError {
 }
 
 /// Resolve the global packages and global bin directories, erroring with
-/// `NO_GLOBAL_BIN_DIR` when the pnpm home can't be determined — matching
-/// pnpm's `if (!opts.bin)` guard.
+/// `NO_GLOBAL_BIN_DIR` when the pnpm home can't be determined.
 fn global_dirs(config: &Config) -> Result<(PathBuf, PathBuf), GlobalError> {
     let bin = config.global_bin.clone().ok_or(GlobalError::NoGlobalBinDir)?;
     let pkg_dir = config.global_pkg_dir.clone().ok_or(GlobalError::NoGlobalBinDir)?;
     Ok((pkg_dir, bin))
 }
 
-/// Validate the global bin dir is on `PATH` and writable. Mirrors pnpm's
-/// `checkGlobalBinDir` for mutating commands.
+/// Validate the global bin dir is on `PATH` and writable, required for
+/// mutating commands.
 fn check_bin_dir(global_bin_dir: &Path) -> miette::Result<()> {
     check_global_bin_dir(global_bin_dir, std::env::var("PATH").ok().as_deref(), true)
         .map_err(miette::Report::new)
@@ -313,9 +309,8 @@ async fn run_group_install<Reporter: self::Reporter + 'static>(
         }
     }
     // Don't fail the install when a dependency's build is ignored; the
-    // global approval prompt (run after the install) handles it. Mirrors
-    // pnpm's global flow, which records ignored builds and prompts rather
-    // than erroring under `strictDepBuilds`.
+    // global approval prompt (run after the install) records the ignored
+    // builds and prompts rather than erroring under `strictDepBuilds`.
     cfg.strict_dep_builds = false;
 
     let config: &'static Config = Config::leak(cfg);
@@ -341,9 +336,8 @@ async fn run_group_install<Reporter: self::Reporter + 'static>(
 }
 
 /// Run the interactive build-approval flow against the just-installed
-/// group, mirroring pnpm's `promptApproveGlobalBuilds`. No-op when nothing
-/// is awaiting approval, or when stdin is not a TTY (unless the test
-/// auto-approve env var is set).
+/// group. No-op when nothing is awaiting approval, or when stdin is not a
+/// TTY (unless the test auto-approve env var is set).
 async fn prompt_approve_global_builds<Reporter: self::Reporter + 'static>(
     config: &'static Config,
     install_dir: &Path,
@@ -375,7 +369,7 @@ async fn prompt_approve_global_builds<Reporter: self::Reporter + 'static>(
 }
 
 /// Remove any existing global installs of `aliases` before linking the new
-/// group, deduplicated by hash. Mirrors pnpm's `removeExistingGlobalInstalls`.
+/// group, deduplicated by hash.
 fn remove_existing_global_installs(
     global_pkg_dir: &Path,
     global_bin_dir: &Path,
@@ -421,7 +415,7 @@ fn remove_group(
 }
 
 /// The set of bin names provided by global package groups other than those
-/// in `exclude_hashes`. Mirrors pnpm's `getBinNamesOfOtherGroups`.
+/// in `exclude_hashes`.
 fn bin_names_of_other_groups(
     global_pkg_dir: &Path,
     exclude_hashes: &HashSet<String>,
@@ -453,7 +447,7 @@ fn read_aliases(install_dir: &Path) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// Build the registry map (`{ default, ...scoped }`) pnpm hashes into the
+/// Build the registry map (`{ default, ...scoped }`) hashed into the
 /// global cache key.
 fn registries_with_default(config: &Config) -> Vec<(String, String)> {
     let mut registries = vec![("default".to_string(), config.registry.clone())];
@@ -461,7 +455,7 @@ fn registries_with_default(config: &Config) -> Vec<(String, String)> {
     registries
 }
 
-// --- param grouping (port of globalAdd's split/resolve helpers) -----------
+// --- param grouping (split/resolve helpers) -------------------------------
 
 fn split_into_groups(params: &[String], base_dir: &Path) -> Vec<Vec<String>> {
     params

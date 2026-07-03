@@ -9,8 +9,6 @@
 //! `pacquet-network` for `AuthHeaders`, so the inverse direction
 //! would form a cycle.
 //!
-//! Ports the TLS wiring of pnpm v11's
-//! [`network/fetch/src/dispatcher.ts`](https://github.com/pnpm/pnpm/blob/94240bc046/network/fetch/src/dispatcher.ts).
 //! Parity policy: pnpm performs no PEM parsing in user-space (PEM
 //! strings are handed directly to Node `tls` / undici, which parse
 //! internally), emits no `ERR_PNPM_*` codes for malformed TLS
@@ -30,11 +28,10 @@ use std::{collections::HashMap, net::IpAddr};
 
 /// Resolved TLS + local-address configuration.
 ///
-/// All fields are optional. `strict_ssl` is `None` here because pnpm
-/// applies the `true` default at every read site
-/// ([`dispatcher.ts:191,197,241,295`](https://github.com/pnpm/pnpm/blob/94240bc046/network/fetch/src/dispatcher.ts#L191))
-/// rather than baking it into the config layer — pacquet does the
-/// same so a user that explicitly sets `strict-ssl=false` stays
+/// All fields are optional. `strict_ssl` is `None` here because the
+/// `true` default is applied at client-build time rather than baked
+/// into the config layer, so a user that explicitly sets
+/// `strict-ssl=false` stays
 /// distinguishable from "unset". The default value is applied at
 /// client-build time by [`crate::ThrottledClient::for_installs`].
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
@@ -43,10 +40,8 @@ pub struct TlsConfig {
     /// element is a PEM-encoded certificate. Populated by `.npmrc`'s
     /// `ca` key (inline PEM, possibly multiple via array shape) or by
     /// reading `cafile` (which gets split on
-    /// `-----END CERTIFICATE-----` to mirror pnpm's
-    /// [loader behavior](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/loadNpmrcFiles.ts#L249-L255)).
-    /// `cafile`-not-found is silently treated as unset, matching
-    /// upstream.
+    /// `-----END CERTIFICATE-----`). `cafile`-not-found is silently
+    /// treated as unset.
     pub ca: Vec<String>,
 
     /// PEM-encoded client certificate, when client-cert auth is
@@ -85,8 +80,7 @@ pub struct TlsConfig {
 ///
 /// pnpm does not define `ERR_PNPM_INVALID_CA` / `ERR_PNPM_INVALID_CERT`
 /// / `ERR_PNPM_INVALID_KEY` error codes — invalid PEM surfaces as raw
-/// `tls.connect` errors at request time
-/// ([`dispatcher.ts:184-200`](https://github.com/pnpm/pnpm/blob/94240bc046/network/fetch/src/dispatcher.ts#L184-L200)).
+/// `tls.connect` errors at request time.
 /// Pacquet validates eagerly because reqwest's `Certificate::from_pem`
 /// / `Identity::from_pem` return errors up-front and pushing that to
 /// per-request time would silently degrade every install behind a
@@ -112,13 +106,10 @@ pub enum TlsError {
 
 /// Per-registry TLS overrides keyed by nerf-darted registry URI.
 ///
-/// Mirrors pnpm v11's
-/// [`configByUri[<uri>].tls`](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/getNetworkConfigs.ts#L34-L40)
-/// shape: each entry is the `(ca, cert, key)` triple a request to that
-/// registry should use *instead of* the corresponding top-level fields
-/// — matching upstream's `{ ...opts, ...sslConfig }` spread at
-/// [`dispatcher.ts:143,264`](https://github.com/pnpm/pnpm/blob/94240bc046/network/fetch/src/dispatcher.ts#L143)
-/// where per-registry values override top-level **field-by-field**.
+/// Each entry is the `(ca, cert, key)` triple a request to that
+/// registry should use *instead of* the corresponding top-level fields,
+/// with per-registry values overriding the top-level ones
+/// **field-by-field**.
 ///
 /// Lookup is via [`PerRegistryTls::pick_for_url`] with the 5-step
 /// fallback chain pnpm uses (exact > nerf-dart > no-port > shorter
@@ -144,12 +135,10 @@ pub struct PerRegistryTls {
 /// so the network layer sees one form.
 ///
 /// Why `Option<String>` for `ca` (not `Vec<String>` like
-/// [`TlsConfig::ca`]): pnpm's per-registry parser stores a single
+/// [`TlsConfig::ca`]): the per-registry parser stores a single
 /// string per `(uri, field)` slot — multi-cert bundles arrive as one
 /// PEM string with embedded `-----END CERTIFICATE-----` delimiters,
-/// which `reqwest::Certificate::from_pem` accepts. See
-/// [`getNetworkConfigs.ts:37`](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/getNetworkConfigs.ts#L37)
-/// for the upstream shape.
+/// which `reqwest::Certificate::from_pem` accepts.
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct RegistryTls {
     /// Per-registry CA override. May contain multiple
@@ -199,9 +188,8 @@ impl PerRegistryTls {
         self.by_uri.iter().map(|(k, v)| (k.as_str(), v))
     }
 
-    /// Look up the per-registry override for `url` via pnpm's
-    /// [`pickSettingByUrl`](https://github.com/pnpm/pnpm/blob/94240bc046/network/fetch/src/dispatcher.ts#L338-L375)
-    /// 5-step fallback chain:
+    /// Look up the per-registry override for `url` via the 5-step
+    /// fallback chain:
     ///
     /// 1. Exact URL match.
     /// 2. Nerf-darted URL.

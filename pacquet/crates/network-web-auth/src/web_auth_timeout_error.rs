@@ -2,14 +2,10 @@ use pacquet_diagnostics::miette::{self, Diagnostic};
 
 /// Web-based authentication did not complete before the timeout.
 ///
-/// Ports pnpm's [`WebAuthTimeoutError`][ts-WebAuthTimeoutError]. The
-/// `code(...)` is part of the public contract (<https://pnpm.io/errors>).
+/// The `code(...)` is part of the public contract (<https://pnpm.io/errors>).
 /// `start_time` / `end_time` are the Unix-epoch-millisecond
 /// [`Clock`](crate::Clock) readings that bracketed the poll, and `timeout`
-/// is the configured budget in milliseconds — the same three numbers pnpm's
-/// error carries.
-///
-/// [ts-WebAuthTimeoutError]: https://github.com/pnpm/pnpm/blob/a06591e349/pnpm11/network/web-auth/src/WebAuthTimeoutError.ts#L3-L15
+/// is the configured budget in milliseconds.
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 #[display("Web-based authentication timed out before it could be completed")]
 #[diagnostic(

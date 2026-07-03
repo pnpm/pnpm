@@ -17,8 +17,6 @@ pub struct PackageDistribution {
     /// `/-/npm/v1/attestations/<name>@<version>` endpoint that serves
     /// the raw bundle.
     ///
-    /// Mirrors pnpm's
-    /// [`PackageInRegistry.dist.attestations`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/registry/types/src/index.ts#L52-L57).
     /// Read by the `trustPolicy='no-downgrade'` verifier when it
     /// decides whether a version's trust evidence is weaker than
     /// an earlier-published one's.
@@ -41,9 +39,9 @@ pub struct AttestationsDist {
 
 /// Provenance attestation marker. The presence of this object on
 /// `dist.attestations.provenance` is what counts as the "provenance"
-/// rank for [`getTrustEvidence`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/trustChecks.ts#L119-L127);
-/// the inner `predicateType` field is kept for round-trip parity but
-/// the verifier itself does not inspect it.
+/// rank when ranking a version's trust evidence; the inner
+/// `predicateType` field is kept for round-trip parity but the
+/// verifier itself does not inspect it.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ProvenanceMeta {

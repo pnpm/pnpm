@@ -7,9 +7,6 @@
 //! `noproxy`, plus the env-var fallback cascade. [`NoProxyMatcher`] and
 //! the URL helpers are private to the crate; they're invoked from the
 //! client constructor.
-//!
-//! Ports the routing + matching semantics of pnpm v11's
-//! [`network/fetch/src/dispatcher.ts`](https://github.com/pnpm/pnpm/blob/94240bc046/network/fetch/src/dispatcher.ts).
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -23,10 +20,6 @@ use reqwest::Url;
 /// `pacquet-network` (rather than `pacquet-config`) because
 /// `pacquet-config` already depends on `pacquet-network` for the auth
 /// plumbing, so adding the reverse direction would form a cycle.
-///
-/// Mirrors the `(httpsProxy, httpProxy, noProxy)` slots that upstream
-/// composes in [`config/reader/src/index.ts:591-600`](https://github.com/pnpm/pnpm/blob/94240bc046/config/reader/src/index.ts#L591-L600)
-/// and consumes in [`network/fetch/src/dispatcher.ts:43-55`](https://github.com/pnpm/pnpm/blob/94240bc046/network/fetch/src/dispatcher.ts#L43-L55).
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct ProxyConfig {
     /// Proxy URL used for HTTPS targets. `None` means no proxy. May carry
@@ -41,34 +34,31 @@ pub struct ProxyConfig {
 
     /// Hosts that should bypass any configured proxy. `None` = no bypass
     /// rules; [`NoProxySetting::Bypass`] = bypass every proxy
-    /// (upstream's `noProxy: true`); [`NoProxySetting::List`] = the parsed
+    /// (`no-proxy=true`); [`NoProxySetting::List`] = the parsed
     /// reverse-dot-segment-prefix host list.
     pub no_proxy: Option<NoProxySetting>,
 }
 
 /// Parsed `no-proxy` value.
 ///
-/// Upstream models this as `noProxy: string | true`. Per AGENTS.md rule 7
-/// (string-literal-union → `enum`) the two-shape union becomes a closed
-/// Rust enum so callers can pattern-match the bypass case without
-/// inspecting a sentinel string.
+/// The setting takes either a host-list string or the literal `true`.
+/// Per AGENTS.md rule 7 (string-literal-union → `enum`) the two-shape
+/// union becomes a closed Rust enum so callers can pattern-match the
+/// bypass case without inspecting a sentinel string.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NoProxySetting {
     /// `no-proxy=true` — bypass every proxy regardless of host.
     Bypass,
     /// Comma-separated host list, trimmed and empties dropped. Match
-    /// semantics are reverse-dot-segment-prefix (see
-    /// [`checkNoProxy`](https://github.com/pnpm/pnpm/blob/94240bc046/network/fetch/src/dispatcher.ts#L308-L332)).
+    /// semantics are reverse-dot-segment-prefix.
     List(Vec<String>),
 }
 
 /// Build-time error returned by [`crate::ThrottledClient::for_installs`]
 /// when a configured proxy URL is malformed.
 ///
-/// Matches pnpm v11's `ERR_PNPM_INVALID_PROXY` error code (raised in
-/// [`network/fetch/src/dispatcher.ts:114-119`](https://github.com/pnpm/pnpm/blob/94240bc046/network/fetch/src/dispatcher.ts#L114-L119))
-/// so users with a stale `.npmrc` see the same diagnostic when migrating
-/// from pnpm to pacquet.
+/// Carries the `ERR_PNPM_INVALID_PROXY` error code so users with a stale
+/// `.npmrc` see the same diagnostic when migrating from pnpm to pacquet.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[non_exhaustive]
 pub enum ProxyError {
@@ -85,10 +75,8 @@ pub enum ProxyError {
 }
 
 /// Parse a proxy URL, auto-prefixing `http://` when the input lacks an
-/// authority so values like `proxy.example:8080` round-trip the same
-/// way pnpm's [`parseProxyUrl`](https://github.com/pnpm/pnpm/blob/94240bc046/network/fetch/src/dispatcher.ts#L106-L121)
-/// handles them. Any other parse failure surfaces as
-/// [`ProxyError::InvalidProxy`].
+/// authority so values like `proxy.example:8080` round-trip as a proxy
+/// URL. Any other parse failure surfaces as [`ProxyError::InvalidProxy`].
 ///
 /// A successful first parse is only accepted if the URL has a host —
 /// Rust's `Url::parse` is permissive enough to accept
@@ -114,8 +102,7 @@ pub(crate) fn parse_proxy_url(raw: &str) -> Result<Url, ProxyError> {
 /// (`user`, `password`) pair, percent-decoded. Returns `(url, None)`
 /// when the URL has no username.
 ///
-/// The two halves are decoded independently — pnpm calls
-/// `decodeURIComponent` on each.
+/// The two halves are decoded independently.
 pub(crate) fn strip_userinfo(mut url: Url) -> (Url, Option<(String, String)>) {
     let raw_user = url.username();
     if raw_user.is_empty() {
@@ -168,9 +155,7 @@ pub(crate) fn percent_decode_str(text: &str) -> String {
 
 /// Pre-built reverse-dot-segment lookup table for the no-proxy bypass.
 ///
-/// Port of upstream's
-/// [`checkNoProxy`](https://github.com/pnpm/pnpm/blob/94240bc046/network/fetch/src/dispatcher.ts#L308-L332):
-/// each entry's dot-segments are reversed at construction, and a host
+/// Each entry's dot-segments are reversed at construction, and a host
 /// matches when the entry's reversed segments are a prefix of the
 /// host's reversed segments. `npmjs.org` thus matches
 /// `registry.npmjs.org` and `foo.bar.npmjs.org` but not

@@ -197,7 +197,7 @@ test('batch publish against a real pnpr registry publishes every package', async
     version: '1.0.0',
   }
   const pkg2 = {
-    name: `batch-e2e-project-2-${SUFFIX}`,
+    name: `@pnpmtest/batch-e2e-project-2-${SUFFIX}`,
     version: '1.2.3',
   }
   preparePackages([pkg1, pkg2])

@@ -6,9 +6,9 @@ produced layout actually works.
 
 It exists for two reasons specific to this repo:
 
-- **pacquet parity** — pacquet is a Rust port of pnpm. A real framework that
-  installs and builds under pnpm but not under pacquet is a far better parity
-  signal than any unit test.
+- **pacquet parity** — pacquet and the pnpm CLI are parallel implementations
+  kept at parity. A real framework that installs and builds under pnpm but not
+  under pacquet is a far better parity signal than any unit test.
 - **global virtual store** — the global virtual store relocates where
   dependencies physically live, the same class of change that forced Yarn to
   build ecosystem tests for Plug'n'Play. Running real stacks under it is the

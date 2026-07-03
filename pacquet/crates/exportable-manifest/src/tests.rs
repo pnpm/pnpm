@@ -1,10 +1,7 @@
-//! Port of pnpm's
-//! [`releasing/exportable-manifest/test/index.test.ts`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/releasing/exportable-manifest/test/index.test.ts)
-//! covering the workspace-protocol rewrite. The upstream test goes
-//! through `createExportableManifest` (which performs a full install
-//! and reads from the resulting `node_modules`); pacquet's test
-//! materializes the same `node_modules` layout directly with
-//! `tempfile::TempDir` so we exercise `replace_workspace_protocol`
+//! Tests for the workspace-protocol rewrite. Rather than run a full
+//! install and read from the resulting `node_modules`, these
+//! materialize the `node_modules` layout directly with
+//! `tempfile::TempDir` so they exercise `replace_workspace_protocol`
 //! and `replace_workspace_protocol_peer_dependency` in isolation.
 
 use std::{fs, path::Path};
@@ -16,9 +13,8 @@ use super::{
     replace_workspace_protocol_peer_dependency,
 };
 
-/// Materialize the install tree upstream's
-/// [`workspace deps are replaced`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/releasing/exportable-manifest/test/index.test.ts#L96-L197)
-/// case sets up via `pnpm install`. Returns `(temp_root, project_dir)`:
+/// Materialize the install tree the workspace-protocol rewrite case
+/// needs. Returns `(temp_root, project_dir)`:
 /// `project_dir = <temp>/workspace-protocol-package` so the relative
 /// `workspace:../xerox` resolves to a sibling at `<temp>/xerox`.
 fn workspace_fixture() -> (TempDir, std::path::PathBuf) {
@@ -101,8 +97,7 @@ fn peer_workspace_dep_rewrites_match_upstream() {
     assert_eq!(rewrite_peer("waldo", "workspace:^1.x", dir), "^1.x");
 }
 
-/// Upstream uses JS `String.prototype.replace('workspace:', '')`, which
-/// strips only the first occurrence.
+/// Only the first `workspace:` occurrence is stripped.
 #[test]
 fn peer_workspace_strip_only_removes_first_occurrence() {
     let (_fixture, project) = workspace_fixture();

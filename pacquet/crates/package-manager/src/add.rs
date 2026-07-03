@@ -141,8 +141,8 @@ where
         let (package_name, explicit_spec) = split_name_spec(package_name);
 
         // Read the workspace catalogs so `catalogMode` / `--save-catalog`
-        // can reconcile the added version against them, mirroring the read
-        // pnpm's `installSome` does before resolving. `manifest_dir` is
+        // can reconcile the added version against them, the same read a
+        // partial install does before resolving. `manifest_dir` is
         // owned so it can outlive the manifest mutation below.
         let manifest_dir =
             manifest.path().parent().expect("manifest path always has a parent dir").to_path_buf();
@@ -172,12 +172,12 @@ where
         // The bare specifier to reconcile against the catalogs:
         // - an explicit `@<version>` is resolved to a concrete version and
         //   recorded with the range operator it (or the existing entry)
-        //   pins, mirroring pnpm — `pnpm add foo@^7` records `^7.8.4`, not
+        //   pins — `pnpm add foo@^7` records `^7.8.4`, not
         //   `^7`. Specifiers that aren't a plain registry range/tag/version
         //   for this package (protocols, `npm:` aliases) stay verbatim;
         // - a re-add with no version keeps the dependency's current
         //   specifier verbatim (a `catalog:` reference, a range, or an
-        //   exact pin), matching pnpm — `pnpm add <existing>` without a
+        //   exact pin) — `pnpm add <existing>` without a
         //   version leaves the declared range untouched;
         // - a brand-new dependency fetches and pins the `latest` range.
         let bare_specifier = match (explicit_spec, prev_specifier.as_deref()) {
@@ -280,10 +280,9 @@ where
             skip_runtimes: config.skip_runtimes,
             trust_lockfile: config.trust_lockfile,
             update_checksums: false,
-            // `pacquet add` is a partial install (pnpm's
-            // `mutation: 'installSome'`), so the root project's own
-            // lifecycle scripts must not run — mirroring pnpm's
-            // `mutation === 'install'` filter.
+            // `pacquet add` is a partial install, so the root project's
+            // own lifecycle scripts must not run — they fire only for a
+            // full install.
             is_full_install: false,
             resolved_packages,
             supported_architectures,
@@ -305,11 +304,9 @@ where
 
         let updated = manifest.save_and_get_written_value().map_err(AddError::SaveManifest)?;
 
-        // `pnpm:package-manifest updated` mirrors pnpm's emit at
-        // <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/deps-resolver/src/index.ts#L238>:
-        // fires once after the manifest is rewritten so consumers
-        // (e.g. the audit pipeline that diffs initial vs updated)
-        // see the post-add shape. `prefix` is the manifest's parent
+        // `pnpm:package-manifest updated` fires once after the manifest
+        // is rewritten so consumers (e.g. the audit pipeline that diffs
+        // initial vs updated) see the post-add shape. `prefix` is the manifest's parent
         // directory, matching what `Install::run` derived for the
         // matching `initial` event.
         //
@@ -434,7 +431,7 @@ async fn resolve_explicit_registry_spec(
         return Ok(None);
     };
 
-    // pnpm's calcSpecifier precedence: the existing entry's operator wins
+    // Specifier-operator precedence: the existing entry's operator wins
     // over the spec's, which wins over the configured default. Only a
     // registry-style previous specifier carries a meaningful operator —
     // `which_version_is_pinned` forward-scans for a version substring, so a
@@ -458,7 +455,7 @@ fn is_registry_style_specifier(specifier: &str, package_name: &str, registry: &s
 /// Split a `pacquet add` argument into its package name and optional
 /// `@<version>` part. The version separator is the first `@` at or after
 /// index 1, so a leading scope `@` (`@scope/pkg`) is never mistaken for a
-/// version. Mirrors the separator rule pnpm's `parseWantedDependency` uses.
+/// version.
 fn split_name_spec(input: &str) -> (&str, Option<&str>) {
     match input.get(1..).and_then(|rest| rest.find('@')).map(|offset| offset + 1) {
         Some(idx) => (&input[..idx], Some(&input[idx + 1..])),
@@ -469,9 +466,9 @@ fn split_name_spec(input: &str) -> (&str, Option<&str>) {
 /// The specifier `pacquet add <name>@<spec>` saves when `<spec>` isn't a plain
 /// registry range. A hosted-git request — a bare `owner/repo#committish`
 /// shorthand or a GitHub / GitLab / Bitbucket URL — is rewritten to its
-/// `github:` / `gitlab:` / `bitbucket:` shortcut form, the same
-/// `normalizedBareSpecifier` pnpm saves. Everything else (`file:`, `link:`,
-/// `workspace:`, `npm:` aliases, tarball URLs) is kept verbatim.
+/// `github:` / `gitlab:` / `bitbucket:` shortcut form. Everything else
+/// (`file:`, `link:`, `workspace:`, `npm:` aliases, tarball URLs) is
+/// kept verbatim.
 ///
 /// An auth-bearing HTTPS URL (`git+https://<token>@github.com/...`) is also
 /// kept verbatim: the shortcut form cannot carry userinfo, so shortcutting

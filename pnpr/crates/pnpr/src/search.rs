@@ -14,7 +14,7 @@
 //! the `@pnpm/registry-mock` fixture (a few dozen packages) and the
 //! test queries that exercise it.
 
-use crate::{error::Result, package_name::PackageName, publish::now_iso, storage::Storage};
+use crate::{error::Result, package_name::PackageName, storage::Storage};
 use serde_json::{Map, Value, json};
 use std::collections::BTreeMap;
 
@@ -68,23 +68,29 @@ pub fn parse_size(query_string: &str, default_size: usize) -> usize {
     default_size
 }
 
-/// Scan the hosted store for packuments whose name contains `query`
-/// (case-insensitive). Returns at most `limit` matches in npm search v1
-/// shape: `{ objects: [{ package: {...}, score: {...}, searchScore }],
-/// total, time }`. Errors reading individual packuments are tolerated —
-/// a malformed packument just doesn't match anything. Works against
-/// both the local-directory and the S3-backed hosted store.
-pub async fn run_local_search(storage: &Storage, query: &str, limit: usize) -> Result<Value> {
+/// Scan one hosted store for packuments whose name contains `query`
+/// (case-insensitive) and passes `keep` — the server's routing and access
+/// filter, applied before any packument is read so a filtered name costs
+/// no I/O. Returns at most `limit` entries in npm search v1 `objects`
+/// shape (`{ package: {...}, score: {...}, searchScore }`); the server
+/// aggregates entries across the namespaces a mount serves and builds the
+/// response body. Errors reading individual packuments are tolerated — a
+/// malformed packument just doesn't match anything. Works against both
+/// the local-directory and the S3-backed hosted store.
+pub async fn run_local_search(
+    storage: &Storage,
+    query: &str,
+    limit: usize,
+    keep: impl Fn(&str) -> bool,
+) -> Result<Vec<Value>> {
     let needle = query.to_lowercase();
     let mut matches: Vec<Value> = Vec::new();
-    let mut total: usize = 0;
 
     for name in storage.hosted_package_names().await? {
-        if !name.to_lowercase().contains(&needle) {
-            continue;
-        }
-        total += 1;
         if matches.len() >= limit {
+            break;
+        }
+        if !name.to_lowercase().contains(&needle) || !keep(&name) {
             continue;
         }
         let Ok(parsed) = PackageName::parse(&name) else { continue };
@@ -95,17 +101,11 @@ pub async fn run_local_search(storage: &Storage, query: &str, limit: usize) -> R
         }
     }
 
-    Ok(json!({
-        "objects": matches,
-        "total": total,
-        "time": now_iso(),
-    }))
+    Ok(matches)
 }
 
-/// Construct one entry for the `objects` array — public because the
-/// server's upstream-augment path also needs it when injecting a
-/// packument fetched from npm into the local-search response.
-pub fn build_search_entry(name: &str, packument: &Value) -> Option<Value> {
+/// Construct one entry for the `objects` array.
+fn build_search_entry(name: &str, packument: &Value) -> Option<Value> {
     Some(json!({
         "package": build_search_package(name, packument)?,
         "score": {"final": 1.0, "detail": {"quality": 1.0, "popularity": 1.0, "maintenance": 1.0}},

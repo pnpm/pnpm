@@ -1,6 +1,5 @@
-//! Ported one-for-one from upstream's
-//! [`hoistPeers.test.ts`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/test/hoistPeers.test.ts).
-//! Adding a case here? Add (or mirror) the upstream case too.
+//! Tests for [`super::hoist_peers`] and
+//! [`super::get_hoistable_optional_peers`].
 
 use std::collections::BTreeMap;
 

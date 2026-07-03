@@ -109,11 +109,9 @@ impl CliArgs {
         // `@pnpm/cli.default-reporter` derives via `process.cwd()`. Without
         // this, a default `--dir=.` leaves `prefix` as `"."`, the reporter
         // never matches it against its `cwd`, and every progress / stats
-        // line gets a redundant `.` path prefix prepended. Mirrors pnpm's
-        // <https://github.com/pnpm/pnpm/blob/8eb1be4988/config/reader/src/index.ts#L270>
-        // `cwd = fs.realpathSync(betterPathResolve(cliOptions.dir ...))`,
-        // later assigned to `pnpmConfig.dir` (used as the install
-        // `lockfileDir`, threaded into every event's `prefix`).
+        // line gets a redundant `.` path prefix prepended. The resolved
+        // path becomes `config.dir` (used as the install `lockfileDir`,
+        // threaded into every event's `prefix`).
         let dir = dunce::canonicalize(&dir)
             .into_diagnostic()
             .wrap_err_with(|| format!("canonicalizing the `--dir` argument: {}", dir.display()))?;
@@ -148,8 +146,7 @@ impl CliArgs {
         let manifest_path = dir.join("package.json");
         // Resolve `.npmrc` / `pnpm-workspace.yaml` from the canonicalized
         // `--dir` rather than the process cwd, matching pnpm 11 (which
-        // builds its `localPrefix` from `cliOptions.dir`, not `cwd`) —
-        // see [`loadNpmrcConfig`](https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/loadNpmrcFiles.ts#L48-L50).
+        // builds its `localPrefix` from `cliOptions.dir`, not `cwd`).
         //
         // Production callers turbofish `Host` explicitly so the
         // dependency-injection plumbing is visible at the call site.
@@ -238,9 +235,11 @@ fn route<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFut
         CliCommand::Update(args) => dispatch_install::update(ctx, args),
         CliCommand::Outdated(args) => dispatch_query::outdated(ctx, args),
         CliCommand::Audit(args) => dispatch_query::audit(ctx, args),
+        CliCommand::Bugs(args) => dispatch_query::bugs(ctx, args),
         CliCommand::List(args) => dispatch_query::list(ctx, args),
         CliCommand::Ll(args) => dispatch_query::ll(ctx, args),
         CliCommand::Why(args) => dispatch_query::why(ctx, args),
+        CliCommand::Sbom(args) => dispatch_query::sbom(ctx, args),
         CliCommand::Whoami => dispatch_query::whoami(ctx),
         CliCommand::DistTag(args) => dispatch_query::dist_tag(ctx, args),
         CliCommand::Ping(args) => dispatch_query::ping(ctx, args),
@@ -266,6 +265,7 @@ fn route<'a>(command: CliCommand, ctx: &RunCtx<'a>) -> miette::Result<CommandFut
         CliCommand::Runtime(args) => dispatch_install::runtime(ctx, args),
         CliCommand::Bin(args) => dispatch_query::bin(ctx, args),
         CliCommand::Root(args) => dispatch_query::root(ctx, args),
+        CliCommand::Prefix(args) => dispatch_query::prefix(ctx, args),
         CliCommand::Config(args) => dispatch_query::config(ctx, args),
         CliCommand::PackApp(args) => dispatch_query::pack_app(ctx, args),
         CliCommand::Store(command) => dispatch_query::store(ctx, command),

@@ -69,12 +69,9 @@ fn parse_key_without_leading_slash() {
     assert_eq!(version, "4.18.1");
 }
 
-// Policy-logic tests below mirror upstream `building/policy/test/index.ts`
-// (`https://github.com/pnpm/pnpm/blob/80037699fb/building/policy/test/index.ts`).
-// They drive `AllowBuildPolicy::new` directly with in-memory rule maps so the
-// policy logic stays decoupled from the manifest reader, exactly the way
-// upstream tests drive `createAllowBuildFunction(opts)` decoupled from
-// `Config` parsing.
+// Policy-logic tests below drive `AllowBuildPolicy::new` directly with
+// in-memory rule maps so the policy logic stays decoupled from the
+// manifest reader and `Config` parsing.
 
 #[test]
 fn default_policy_denies_all() {
@@ -130,10 +127,8 @@ fn unlisted_returns_none() {
     assert_eq!(policy.check("@pnpm.e2e/not-listed@1.0.0"), None);
 }
 
-/// Upstream checks `expandedDisallowed` before `expandedAllowed`
-/// in [`createAllowBuildFunction`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/policy/src/index.ts#L36-L43),
-/// so a bare-name disallow wins over an exact-version allow.
-/// Pacquet matches that order.
+/// The disallowed set is checked before the allowed set, so a
+/// bare-name disallow wins over an exact-version allow.
 #[test]
 fn disallow_bare_name_wins_over_allow_exact_version() {
     let policy =
@@ -178,9 +173,7 @@ fn dangerously_allow_all_overrides_deny() {
     assert_eq!(policy.check("@pnpm.e2e/pkg@1.0.0"), Some(true));
 }
 
-/// Mirrors upstream's
-/// [`'should allowBuilds with true value'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/policy/test/index.ts#L5-L15)
-/// — version unions expand into separate exact-version allows.
+/// Version unions expand into separate exact-version allows.
 /// `qar@1.0.0 || 2.0.0` allows exactly those two versions, leaves
 /// other versions unlisted (`None`).
 #[test]
@@ -193,9 +186,7 @@ fn allow_via_version_union() {
     assert_eq!(policy.check("qar@1.1.0"), None);
 }
 
-/// Mirrors upstream's
-/// [`'should not allow patterns in allowBuilds'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/policy/test/index.ts#L28-L34)
-/// — wildcards in `allowBuilds` keys are accepted by the parser
+/// Wildcards in `allowBuilds` keys are accepted by the parser
 /// (they land as literal strings in the expanded set) but the
 /// `HashSet::contains` lookup means they never match a real
 /// package name. Use `dangerouslyAllowAllBuilds` for blanket
@@ -305,8 +296,7 @@ fn root_importers(deps: &[(&str, &str)]) -> HashMap<String, ProjectSnapshot> {
 
 /// Default-deny: a buildable package not listed in `allowBuilds` lands in
 /// the returned ignored set, sorted lexically. "Buildable" is computed from
-/// the extracted package directory (postinstall in package.json), matching
-/// upstream's `pkgRequiresBuild`.
+/// the extracted package directory (postinstall in package.json).
 #[test]
 fn build_modules_collects_ignored_builds() {
     let snapshots = HashMap::from([
@@ -371,8 +361,7 @@ fn build_modules_collects_ignored_builds() {
 /// [`build_modules_collects_ignored_builds`] reports as ignored are
 /// instead silently skipped: no script runs and the returned set is
 /// empty, so the install does not fail with `ERR_PNPM_IGNORED_BUILDS`.
-/// Mirrors pnpm leaving `ignoredBuilds` empty when `ignoreScripts` is
-/// set.
+/// With `ignore_scripts` set, the ignored-builds set stays empty.
 #[test]
 fn ignore_scripts_skips_build_without_collecting_ignored() {
     let snapshots = HashMap::from([
@@ -565,8 +554,7 @@ fn build_modules_collects_ignored_builds_under_concurrency() {
 }
 
 /// Explicit `false` in `allowBuilds` is silently skipped — it does NOT
-/// land in the ignored-scripts list. Mirrors upstream
-/// `building/during-install/src/index.ts:91-93`.
+/// land in the ignored-scripts list.
 #[test]
 fn build_modules_excludes_explicit_deny_from_ignored() {
     let snapshots = HashMap::from([
@@ -630,22 +618,15 @@ fn build_modules_excludes_explicit_deny_from_ignored() {
 
 /// Optional dep whose postinstall fails must be reported through the
 /// `pnpm:skipped-optional-dependency` channel (reason `build_failure`)
-/// and NOT abort the install. Mirrors upstream
-/// `building/during-install/src/index.ts:218-240` and the spirit of
-/// `'do not fail on an optional dependency that has a non-optional
-/// dependency with a failing postinstall script'` at
-/// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/deps-installer/test/install/optionalDependencies.ts#L563-L572>.
+/// and NOT abort the install.
 ///
-/// The test uses the upstream fixture `@pnpm.e2e/failing-postinstall@1.0.0`
-/// (script body verbatim from `/Volumes/src/pnpm/registry-mock/packages/failing-postinstall/package.json`)
-/// so the failure mode is exactly the one upstream's optional-dep
-/// tests exercise.
+/// The test uses the `@pnpm.e2e/failing-postinstall@1.0.0` fixture
+/// (`postinstall: echo hello && echo world && exit 1`).
 ///
-/// Unix-gated because the upstream script (`echo hello && echo world && exit 1`)
-/// is POSIX shell syntax. The cmd-on-Windows path picks a different
-/// shell — `pacquet_executor::select_shell` (tested in the executor
-/// crate's `shell::tests`) covers the shell-selection branches in
-/// isolation.
+/// Unix-gated because the script is POSIX shell syntax. The
+/// cmd-on-Windows path picks a different shell —
+/// `pacquet_executor::select_shell` (tested in the executor crate's
+/// `shell::tests`) covers the shell-selection branches in isolation.
 #[cfg(unix)]
 #[test]
 fn do_not_fail_on_optional_dep_with_failing_postinstall() {
@@ -729,11 +710,10 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
     assert!(skipped_event.details.is_some(), "details must carry the error toString");
 }
 
-/// Ports the upstream `'using side effects cache'` test at
-/// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/deps-installer/test/install/sideEffects.ts#L79-L131>.
+/// A side-effects cache hit skips the rebuild.
 ///
-/// Upstream runs the install twice — first to populate the cache
-/// via the WRITE path, then to consume it. Pacquet doesn't have a
+/// The cache is normally populated by running the install twice —
+/// once via the WRITE path, then consumed. Pacquet doesn't have a
 /// WRITE path yet ([#421]'s slice (B)), so we hand-craft the same
 /// state directly: a `side_effects_maps_by_snapshot` entry whose
 /// cache key matches what `BuildModules` will compute via
@@ -743,10 +723,9 @@ fn do_not_fail_on_optional_dep_with_failing_postinstall() {
 /// stage.
 ///
 /// The fixture (`@pnpm.e2e/failing-postinstall@1.0.0`, `postinstall:
-/// echo hello && echo world && exit 1`) is the same upstream's
-/// own tests use; if the gate were broken the build would run and
-/// the install would propagate the exit-1 failure (cf.
-/// [`fail_when_failing_postinstall_is_required`] below).
+/// echo hello && echo world && exit 1`); if the gate were broken the
+/// build would run and the install would propagate the exit-1
+/// failure (cf. [`fail_when_failing_postinstall_is_required`] below).
 ///
 /// [#421]: https://github.com/pnpm/pacquet/issues/421
 #[cfg(unix)]
@@ -1122,8 +1101,7 @@ fn materialization_failure_on_incomplete_slot_is_fatal() {
 }
 
 /// Negative pair: with `side_effects_cache = false`, even a
-/// matching cache entry is ignored — the build runs. Mirrors
-/// upstream's `sideEffectsCache: false` config branch.
+/// matching cache entry is ignored — the build runs.
 #[cfg(unix)]
 #[test]
 fn side_effects_cache_disabled_bypasses_the_gate() {
@@ -1186,25 +1164,23 @@ fn side_effects_cache_disabled_bypasses_the_gate() {
     assert!(matches!(err, crate::build_modules::BuildModulesError::LifecycleScript(_)));
 }
 
-/// Mirrors `'fail on a package with failing postinstall if the
-/// package is both an optional and non-optional dependency'` at
-/// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/deps-installer/test/install/optionalDependencies.ts#L574-L591>.
+/// A package that is both an optional and a non-optional dependency
+/// fails the install when its postinstall fails.
 ///
-/// Upstream's resolver folds reachability ALL-paths-optional, so a
-/// package reachable through any non-optional edge has
-/// `snapshots[...].optional = false` in the lockfile (cf.
-/// `installing/deps-resolver/src/resolveDependencies.ts:1605-1610`).
-/// `BuildModules` then propagates the build failure rather than
-/// swallowing it. Pacquet trusts the precomputed flag; this test
-/// pins the propagation branch by supplying the same fixture with
-/// `optional: false`, which is the lockfile shape upstream produces
-/// for the dual-reachability case.
+/// The resolver folds reachability ALL-paths-optional, so a package
+/// reachable through any non-optional edge has
+/// `snapshots[...].optional = false` in the lockfile. `BuildModules`
+/// then propagates the build failure rather than swallowing it.
+/// Pacquet trusts the precomputed flag; this test pins the
+/// propagation branch by supplying the fixture with `optional:
+/// false`, the lockfile shape produced for the dual-reachability
+/// case.
 #[cfg(unix)]
 #[test]
 fn fail_when_failing_postinstall_is_required() {
     let pkg_key = key("@pnpm.e2e/failing-postinstall", "1.0.0");
-    // `optional: false` — pacquet's analog of upstream's
-    // ALL-paths-optional fold concluding the dep is required.
+    // `optional: false` — the ALL-paths-optional fold concluded the
+    // dep is required.
     let snapshots = HashMap::from([(pkg_key.clone(), SnapshotEntry::default())]);
     let importers = root_importers(&[("@pnpm.e2e/failing-postinstall", "1.0.0")]);
     let policy = policy_from_specs([], true);
@@ -1344,8 +1320,6 @@ fn frozen_backstop_run(
 /// build output is missing from the read-only store refuses up front
 /// with `ERR_PNPM_FROZEN_STORE_NEEDS_BUILD` rather than crashing on a
 /// raw `EROFS` when `apply_patch_to_dir` tries to write into the store.
-/// Mirrors the TS unit test
-/// `frozenStore + GVS: a patched package that is not cached refuses up front`.
 #[test]
 fn frozen_store_gvs_patch_not_seeded_refuses() {
     let store_dir = tempdir().expect("create temp dir");
@@ -1362,8 +1336,7 @@ fn frozen_store_gvs_patch_not_seeded_refuses() {
 /// An optional patched snapshot must not block the install: a build or
 /// patch failure on an optional dependency is non-fatal at runtime, so
 /// the backstop skips its build (emitting the skipped-optional log)
-/// instead of refusing. Mirrors the TS unit test
-/// `frozenStore + GVS: an optional patched package that is not cached is skipped, not blocked`.
+/// instead of refusing.
 #[test]
 fn frozen_store_gvs_optional_not_seeded_skips() {
     let store_dir = tempdir().expect("create temp dir");
@@ -1392,8 +1365,7 @@ fn gvs_without_frozen_store_does_not_trip_backstop() {
 /// Negative control: under the legacy (non-GVS) layout, package
 /// directories live under the writable project-local virtual store, so
 /// the backstop is correctly inert even with `frozen_store` enabled —
-/// builds and patches there never touch the read-only store. Mirrors
-/// the TS unit test `frozenStore without GVS: ... is not blocked`.
+/// builds and patches there never touch the read-only store.
 #[test]
 fn frozen_store_without_gvs_does_not_trip_backstop() {
     let virtual_store_dir = tempdir().expect("create temp dir");
@@ -1407,14 +1379,12 @@ fn frozen_store_without_gvs_does_not_trip_backstop() {
     assert!(ignored.is_empty(), "no scripts to ignore for a patched-only snapshot: {ignored:?}");
 }
 
-/// Materialize a package fixture whose contents are byte-identical
-/// to upstream's `@pnpm.e2e/failing-postinstall@1.0.0` at
-/// `/Volumes/src/pnpm/registry-mock/packages/failing-postinstall/package.json`.
-/// Reusing the upstream script body (`echo hello && echo world && exit 1`)
-/// keeps the failure mode and exit code identical to what
-/// `optionalDependencies.ts` exercises against the live mock
-/// registry, without dragging the lockfile-with-real-integrity
-/// machinery into a `BuildModules`-unit test.
+/// Materialize a package fixture matching the
+/// `@pnpm.e2e/failing-postinstall@1.0.0` registry-mock package. The
+/// script body (`echo hello && echo world && exit 1`) reproduces the
+/// failure mode and exit code without dragging the
+/// lockfile-with-real-integrity machinery into a `BuildModules`-unit
+/// test.
 #[cfg(unix)]
 fn create_failing_postinstall_fixture(virtual_store_dir: &Path, key: &PackageKey) -> PathBuf {
     let key_str = key.without_peer().to_string();
@@ -1515,9 +1485,8 @@ fn create_postinstall_modifies_source_fixture(
     (pkg_dir, actual_mode)
 }
 
-/// Mirrors upstream's `'a postinstall script does not modify the
-/// original sources added to the store'` at
-/// <https://github.com/pnpm/pnpm/blob/7e3145f9fc/installing/deps-installer/test/install/sideEffects.ts#L189-L223>.
+/// A postinstall script does not modify the original sources added
+/// to the store.
 ///
 /// After a successful postinstall, `BuildModules` re-CAFS the
 /// built directory, diffs against the pristine `PackageFilesIndex.files`
@@ -1687,8 +1656,7 @@ async fn write_path_populates_side_effects_row() {
 
 /// Counterpart of the WRITE-path test: with `side_effects_cache_write
 /// = false`, the same fixture's row must come out of `BuildModules`
-/// with `side_effects = None`. Mirrors upstream's gate on
-/// `opts.sideEffectsCacheWrite` at `building/during-install/src/index.ts:198`.
+/// with `side_effects = None`.
 #[cfg(unix)]
 #[tokio::test(flavor = "current_thread")]
 async fn write_path_disabled_skips_upload() {
@@ -1794,13 +1762,9 @@ async fn write_path_disabled_skips_upload() {
     assert!(row.side_effects.is_none(), "write disabled must NOT populate side_effects");
 }
 
-/// Mirrors upstream's `'uploading errors do not interrupt
-/// installation'` at <https://github.com/pnpm/pnpm/blob/7e3145f9fc/installing/deps-installer/test/install/sideEffects.ts#L166-L186>.
-///
-/// Upstream stubs `opts.storeController.upload` to throw and
-/// asserts the install completes (the postinstall ran, the
-/// generated file is on disk) but the `SQLite` row's `side_effects`
-/// stays empty.
+/// Uploading errors do not interrupt the install: the install
+/// completes (the postinstall ran, the generated file is on disk)
+/// but the `SQLite` row's `side_effects` stays empty.
 ///
 /// Pacquet has no DI seam for the upload, but the WRITE path's
 /// only failure point is `add_files_from_dir`, which surfaces as
@@ -1808,9 +1772,8 @@ async fn write_path_disabled_skips_upload() {
 /// the postinstall script create a 0-permission file in the
 /// package directory: `add_files_from_dir` then fails to `fs::read`
 /// it, returning an error that `BuildModules` swallows with
-/// `tracing::warn!` (matching upstream's `try { … } catch { logger.warn }`).
-/// The install completes, the postinstall-generated artifact is on
-/// disk, and the build keeps going.
+/// `tracing::warn!`. The install completes, the postinstall-generated
+/// artifact is on disk, and the build keeps going.
 #[cfg(unix)]
 #[tokio::test(flavor = "current_thread")]
 async fn upload_error_does_not_interrupt_install() {
@@ -1859,9 +1822,7 @@ async fn upload_error_does_not_interrupt_install() {
     let pkg_dir = create_postinstall_with_unreadable_fixture(virtual_store_dir.path(), &pkg_key);
 
     // Pre-seed a base row so we can assert that the swallowed
-    // upload error leaves the row's `side_effects` field
-    // untouched — matches upstream's `filesIndex2.sideEffects
-    // toBeFalsy()` at sideEffects.ts:186.
+    // upload error leaves the row's `side_effects` field untouched.
     let files_index_file = store_index_key(integrity_str, &pkg_key.without_peer().to_string());
     let base_row = PackageFilesIndex {
         manifest: None,
@@ -1926,8 +1887,6 @@ async fn upload_error_does_not_interrupt_install() {
     // The base row stays untouched: the `add_files_from_dir`
     // error fired before `queue_side_effects_upload` ran, so the
     // writer task never saw a `SideEffectsUpload` for this row.
-    // Mirrors upstream's `filesIndex2.sideEffects toBeFalsy()` at
-    // sideEffects.ts:186.
     let index = StoreIndex::open_readonly_in(&store_dir).expect("open index for read");
     let row = index.get(&files_index_file).expect("get row").expect("base row present");
     assert!(
@@ -1991,9 +1950,8 @@ fn sha512_hex(buf: &[u8]) -> String {
 /// appends.
 ///
 /// Drive this through the WRITE path so the test can read the
-/// cache key back out of the persisted row — the key shape is
-/// the contract upstream relies on
-/// (<https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/during-install/src/index.ts#L199-L204>).
+/// cache key back out of the persisted row — the `;patch=<hash>`
+/// segment in the key shape is the contract the cache relies on.
 #[cfg(unix)]
 #[tokio::test(flavor = "current_thread")]
 async fn write_path_cache_key_includes_patch_hash() {
@@ -2167,10 +2125,7 @@ new file mode 100644
 }
 
 /// A patch in the `patches` map gets applied to the extracted
-/// package dir before postinstall hooks run. Mirrors the upstream
-/// `simple-with-patch` fixture at
-/// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/installing/deps-restorer/test/fixtures/simple-with-patch/>
-/// at the unit level.
+/// package dir before postinstall hooks run.
 ///
 /// Drives `BuildModules` with a single `requires_build=false`
 /// snapshot (no postinstall scripts), `dangerouslyAllowAllBuilds: true`
@@ -2279,9 +2234,7 @@ new file mode 100644
 /// When the resolved patch entry carries a hash but no
 /// `patch_file_path`, surfacing `ERR_PNPM_PATCH_FILE_PATH_MISSING`
 /// is the explicit signal the user should add the package to
-/// `patchedDependencies` in `pnpm-workspace.yaml`. Mirrors upstream's
-/// guard at
-/// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/during-install/src/index.ts#L172-L176>.
+/// `patchedDependencies` in `pnpm-workspace.yaml`.
 #[cfg(unix)]
 #[tokio::test(flavor = "current_thread")]
 async fn missing_patch_file_path_errors_with_diagnostic() {
@@ -2365,15 +2318,12 @@ async fn missing_patch_file_path_errors_with_diagnostic() {
 
 /// Top-level hoisted package: the helper must produce one entry per
 /// ancestor `node_modules/.bin` from `pkg_root` up to (and including)
-/// `lockfile_dir`. Mirrors upstream's
-/// [`binDirsInAllParentDirs`](https://github.com/pnpm/pnpm/blob/94240bc046/building/after-install/src/index.ts#L476-L487):
-/// a `pkgRoot` of `<lockfile>/node_modules/foo` produces three paths
-/// — the package's own `node_modules/.bin`, the synthetic
-/// `<modules>/node_modules/.bin` from the dirname loop step, and the
-/// final `<lockfile>/node_modules/.bin` push after the loop exits.
-/// Synthetic entries don't exist on disk and are harmless to PATH
-/// lookup; pinning the literal list keeps pacquet byte-for-byte
-/// compatible with upstream's wire output.
+/// `lockfile_dir`. A `pkgRoot` of `<lockfile>/node_modules/foo`
+/// produces three paths — the package's own `node_modules/.bin`, the
+/// synthetic `<modules>/node_modules/.bin` from the dirname loop step,
+/// and the final `<lockfile>/node_modules/.bin` push after the loop
+/// exits. Synthetic entries don't exist on disk and are harmless to
+/// PATH lookup; pinning the literal list pins the exact output shape.
 #[test]
 fn bin_dirs_top_level_hoisted_pkg() {
     let lockfile_dir = PathBuf::from("/repo");
@@ -2413,12 +2363,12 @@ fn bin_dirs_nested_hoisted_pkg() {
     );
 }
 
-/// Scoped package: `<lockfile>/node_modules/@scope/pkg`. Upstream's
-/// `path.dirname(dir)[0] === '@'` guard never fires when paths are
-/// absolute (the dirname's leading char is `/`); we mirror that by
-/// pushing every step regardless of segment shape, including the
-/// scope slot's synthetic `<scope>/node_modules/.bin`. See the
-/// helper's doc-comment for the upstream rationale.
+/// Scoped package: `<lockfile>/node_modules/@scope/pkg`. The
+/// `@`-scope guard never fires when paths are absolute (the dirname's
+/// leading char is `/`), so every step is pushed regardless of segment
+/// shape, including the scope slot's synthetic
+/// `<scope>/node_modules/.bin`. See the helper's doc-comment for the
+/// rationale.
 #[test]
 fn bin_dirs_scoped_pkg_pushes_every_step() {
     let lockfile_dir = PathBuf::from("/repo");

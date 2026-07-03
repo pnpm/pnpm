@@ -43,7 +43,7 @@ pub(crate) struct ImportedFiles {
 /// over a freshly-checked-out git tree. Tarball entries on the
 /// extraction side already get path-traversal guards in
 /// `pacquet-tarball`, but defense-in-depth at this layer means a
-/// future caller (or a bug in the upstream sanitiser) can't turn
+/// future caller (or a bug in that earlier sanitiser) can't turn
 /// a malformed entry into a write outside the working tree.
 fn join_checked(root: &Path, rel: &str) -> Result<PathBuf, GitFetcherError> {
     let rel_path = Path::new(rel);
@@ -75,12 +75,10 @@ fn join_checked(root: &Path, rel: &str) -> Result<PathBuf, GitFetcherError> {
 /// be writable *without* mutating the shared CAS entry, so this path
 /// always allocates fresh inodes via [`fs::copy`].
 ///
-/// Mirrors the effect of upstream's
-/// [`cafs.importPackage(tempLocation, …)`](https://github.com/pnpm/pnpm/blob/94240bc046/fetching/tarball-fetcher/src/gitHostedTarballFetcher.ts#L75)
-/// call inside `prepareGitHostedPkg`, but produces a *standalone*
-/// directory rather than a pnpm-style CAFS slot — pacquet's `StoreDir`
-/// only knows how to import on the way *in*, and the prepare phase
-/// needs raw filesystem semantics for scripts to run.
+/// Produces a *standalone* directory rather than a CAFS slot —
+/// pacquet's `StoreDir` only knows how to import on the way *in*, and
+/// the prepare phase needs raw filesystem semantics for scripts to
+/// run.
 pub(crate) fn materialize_into(
     cas_paths: &HashMap<String, PathBuf>,
     target_dir: &Path,
@@ -105,9 +103,8 @@ pub(crate) fn materialize_into(
 /// returning both the install-dispatcher map and the
 /// [`pacquet_store_dir::PackageFilesIndex::files`] payload the fetcher
 /// queues to `index.db` so a future install's warm prefetch can skip
-/// the re-fetch. Mirrors the role of upstream's
-/// [`addFilesFromDir`](https://github.com/pnpm/pnpm/blob/94240bc046/store/cafs/src/addFilesFromDir.ts)
-/// on the post-prepare write side.
+/// the re-fetch. This is the post-prepare write side of the CAS
+/// import.
 pub(crate) fn import_into_cas(
     store_dir: &StoreDir,
     pkg_dir: &Path,
@@ -166,12 +163,11 @@ fn file_mode_from(_meta: &fs::Metadata) -> u32 {
 
 /// Synthesize the [`PackageFilesIndex::files`](pacquet_store_dir::PackageFilesIndex::files)
 /// payload from an existing `cas_paths` map without re-reading file
-/// bytes. Used by [`crate::GitHostedTarballFetcher`]'s fast path
-/// (mirrors upstream's [`gitHostedTarballFetcher.ts:88-100`](https://github.com/pnpm/pnpm/blob/94240bc046/fetching/tarball-fetcher/src/gitHostedTarballFetcher.ts#L88-L100)),
+/// bytes. Used by [`crate::GitHostedTarballFetcher`]'s fast path,
 /// where the prepared file set is byte-identical to the raw tarball,
 /// so re-hashing every entry into the CAS would be wasted work.
 ///
-/// The digest is extracted from the CAS path itself — pnpm v11 lays
+/// The digest is extracted from the CAS path itself — the store lays
 /// CAS files out as `files/XX/<rest>[-exec]`, so concatenating the
 /// shard byte (parent directory name) with the file stem (sans the
 /// optional `-exec` suffix) reconstructs the full hex digest. Mode

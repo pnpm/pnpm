@@ -56,8 +56,7 @@ fn node(root: &str, name: &str, deps: &[&str]) -> (PathBuf, ProjectGraphNode<Tes
     )
 }
 
-/// The shared fixture from upstream's
-/// [`projects-filter` test](https://github.com/pnpm/pnpm/blob/3b62f9da31/workspace/projects-filter/test/index.ts#L22-L124).
+/// The shared project graph fixture used across the filter tests.
 fn projects_graph() -> ProjectGraph<TestPkg> {
     let mut graph: ProjectGraph<TestPkg> = IndexMap::new();
     for (key, value) in [
@@ -517,11 +516,11 @@ fn path_selector_with_no_match_is_reported_unmatched() {
     assert_eq!(result.unmatched_filters, ["/does-not-exist"]);
 }
 
-/// Ports of upstream `projects-filter` cases that require the git-diff
-/// changed-packages selector (`[<since>]`). Pacquet parses the selector
-/// but has not ported git-diff project selection, so these are stubbed
-/// through [`pacquet_testing_utils::allow_known_failure`] until that
-/// lands. The selector-rejection path itself is covered by
+/// Filter cases that require the git-diff changed-packages selector
+/// (`[<since>]`). Pacquet parses the selector but has not ported git-diff
+/// project selection, so these are stubbed through
+/// [`pacquet_testing_utils::allow_known_failure`] until that lands. The
+/// selector-rejection path itself is covered by
 /// [`super::diff_selector_is_unsupported`].
 mod known_failures {
     use pacquet_testing_utils::{
@@ -539,19 +538,16 @@ mod known_failures {
         ))
     }
 
-    /// Upstream: [`index.ts:348` "select changed packages"](https://github.com/pnpm/pnpm/blob/3b62f9da31/workspace/projects-filter/test/index.ts#L348).
     #[test]
     fn select_changed_packages() {
         allow_known_failure!(git_diff_selection_unimplemented());
     }
 
-    /// Upstream: [`index.ts:480` "select changed packages when operating under a git worktree"](https://github.com/pnpm/pnpm/blob/3b62f9da31/workspace/projects-filter/test/index.ts#L480).
     #[test]
     fn select_changed_packages_under_git_worktree() {
         allow_known_failure!(git_diff_selection_unimplemented());
     }
 
-    /// Upstream: [`index.ts:553` "selection should fail when diffing to a branch that does not exist"](https://github.com/pnpm/pnpm/blob/3b62f9da31/workspace/projects-filter/test/index.ts#L553).
     #[test]
     fn selection_fails_for_nonexistent_diff_branch() {
         allow_known_failure!(git_diff_selection_unimplemented());

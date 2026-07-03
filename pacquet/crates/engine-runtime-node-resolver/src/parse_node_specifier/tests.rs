@@ -2,8 +2,6 @@ use pretty_assertions::assert_eq;
 
 use super::{ParseNodeSpecifierError, parse_node_specifier};
 
-/// Mirrors upstream's
-/// [`parseNodeSpecifier.test.ts`](https://github.com/pnpm/pnpm/blob/1627943d2a/engine/runtime/node-resolver/test/parseNodeSpecifier.test.ts).
 #[test]
 fn matches_upstream_table() {
     let cases: &[(&str, &str, &str)] = &[

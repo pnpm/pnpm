@@ -4,8 +4,6 @@ use pretty_assertions::assert_eq;
 
 use super::get_node_mirror;
 
-/// Mirrors upstream's
-/// [`getNodeMirror.test.ts`](https://github.com/pnpm/pnpm/blob/1627943d2a/engine/runtime/node-resolver/test/getNodeMirror.test.ts).
 #[test]
 fn configured_mirror_per_channel_wins_over_default() {
     for (channel, host) in [

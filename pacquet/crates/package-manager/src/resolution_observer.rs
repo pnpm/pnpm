@@ -6,8 +6,7 @@
 //! forwards a lightweight fetch hint to a [`ResolutionObserver`]. The
 //! pnpr server installs an observer that streams each hint to the client
 //! as an NDJSON `package` frame, so the client begins fetching tarballs
-//! while the server is still resolving
-//! ([pnpm/pnpm#12234](https://github.com/pnpm/pnpm/issues/12234)).
+//! while the server is still resolving.
 
 use crate::install_package_from_registry::{
     extract_tarball, manifest_file_count, manifest_unpacked_size,

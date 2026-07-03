@@ -1,20 +1,17 @@
 //! `pacquet pack` — create a tarball from a package.
 //!
-//! Ports pnpm's
-//! [`pack` command](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/pack.ts).
 //! The single-project work lives in [`pacquet_pack::api`]; this module
 //! maps the resolved [`Config`] and CLI flags onto
 //! [`pacquet_pack::PackOptions`], and drives the recursive (`-r`) sweep
 //! over the workspace the same way the other recursive commands do.
 //!
-//! Scope versus upstream: `--workspace-concurrency` is accepted but the
-//! recursive sweep runs sequentially (matching pacquet's other
-//! recursive commands), and the `embedReadme` / `extraEnv` config keys
-//! are not surfaced by `Config` yet, so they take their `false` / empty
-//! defaults.
+//! `--workspace-concurrency` is accepted but the recursive sweep runs
+//! sequentially (matching pacquet's other recursive commands), and the
+//! `embedReadme` / `extraEnv` config keys are not surfaced by `Config`
+//! yet, so they take their `false` / empty defaults.
 
 use crate::cli_args::recursive::{
-    AutoExcludeRoot, discover_workspace_projects, select_recursive_projects, sort_projects,
+    AutoExcludeRoot, discover_workspace_projects, select_recursive_projects, sort_filtered_projects,
 };
 use clap::Args;
 use miette::Context;
@@ -93,8 +90,7 @@ impl PackArgs {
     }
 
     /// Pack each `--filter`-selected workspace project that declares both
-    /// a name and a version, in topological order. Mirrors the recursive
-    /// arm of pnpm's `handler`.
+    /// a name and a version, in topological order.
     fn run_recursive<Reporter: self::Reporter>(
         &self,
         dir: &Path,
@@ -112,13 +108,20 @@ impl PackArgs {
         // workspace root stays in the selection (its own name/version
         // eligibility check still applies below).
         let (projects, _patterns) = discover_workspace_projects(workspace_root)?;
-        let graph = select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
-        let chunks = sort_projects(&graph);
+        let selection =
+            select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
+        let graph = &selection.selected;
+        let chunks = sort_filtered_projects(
+            graph,
+            selection.full_graph(),
+            selection.prod_all.as_ref(),
+            &selection.prod_only_selected,
+        );
 
-        // In recursive mode upstream resolves `--out` / `--pack-destination`
-        // to an absolute path against the CLI dir (and defaults the
-        // destination to the CLI dir), so every tarball lands in one place
-        // regardless of each project's own root.
+        // In recursive mode `--out` / `--pack-destination` resolves to an
+        // absolute path against the CLI dir (and defaults the destination
+        // to the CLI dir), so every tarball lands in one place regardless
+        // of each project's own root.
         let (out, pack_destination) = self.resolve_recursive_destination(dir);
 
         let mut packed: Vec<PackResultJson> = Vec::new();

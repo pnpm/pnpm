@@ -249,11 +249,9 @@ fn parse_non_semver_with_peer_suffix() {
     assert_eq!(parsed.to_string(), "https://example.com/foo.tgz(peer@1.0.0)");
 }
 
-/// Parity check for pnpm's `parse()` test, patch-hash + peer leg
-/// ([`deps/path/test/index.ts`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/path/test/index.ts#L68-L73)).
-/// `PkgVerPeer` folds patch-hash into the `peer` field; only the raw
-/// string is what byte-level consumers (lockfile YAML, snapshot keys)
-/// compare against.
+/// Patch-hash + peer leg of dep-path parsing. `PkgVerPeer` folds the
+/// patch-hash into the `peer` field; only the raw string is what
+/// byte-level consumers (lockfile YAML, snapshot keys) compare against.
 #[test]
 fn parse_patch_hash_then_peer_suffix_round_trip() {
     let raw = "1.0.0(patch_hash=0000)(@types/babel__core@7.1.14)";

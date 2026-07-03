@@ -1,8 +1,5 @@
 //! Read and write pnpm's `node_modules/.modules.yaml` manifest.
 //!
-//! Mirrors pnpm v11's `installing/modules-yaml` package. See upstream
-//! <https://github.com/pnpm/pnpm/blob/1819226b51/installing/modules-yaml/src/index.ts>.
-//!
 //! The manifest is stored at `<modules_dir>/.modules.yaml`, where
 //! `modules_dir` is the path of a `node_modules` directory. The on-disk
 //! format is JSON (which YAML accepts), so reads use a YAML parser and
@@ -24,14 +21,10 @@ use std::{
 /// Filename of the modules manifest inside `node_modules/`.
 ///
 /// The leading dot is required because `npm shrinkwrap` would otherwise
-/// treat the file as an extraneous package. See upstream comment at
-/// <https://github.com/pnpm/pnpm/blob/1819226b51/installing/modules-yaml/src/index.ts#L15-L17>.
+/// treat the file as an extraneous package.
 pub const MODULES_FILENAME: &str = ".modules.yaml";
 
 /// Default value for the `virtualStoreDirMaxLength` field.
-///
-/// Matches pnpm's fallback at
-/// <https://github.com/pnpm/pnpm/blob/1819226b51/installing/modules-yaml/src/index.ts#L101-L103>.
 pub const DEFAULT_VIRTUAL_STORE_DIR_MAX_LENGTH: u64 = 120;
 
 /// Capability trait: read a file's contents into a [`String`].
@@ -57,8 +50,6 @@ pub trait FsWrite {
 
 /// Capability trait: read the current wall-clock time as a [`SystemTime`].
 ///
-/// Mirrors upstream's `new Date()` call at
-/// <https://github.com/pnpm/pnpm/blob/1819226b51/installing/modules-yaml/src/index.ts#L98-L99>.
 /// Decoupled from [`SystemTime::now`] so tests can fake the clock and
 /// assert deterministic `prunedAt` values.
 pub trait Clock {
@@ -96,19 +87,15 @@ impl Clock for Host {
     }
 }
 
-/// Newtype wrapper around a dependency-path string. Mirrors upstream's
-/// [`DepPath`][ts-DepPath] branded type.
+/// Newtype wrapper around a dependency-path string.
 ///
-/// Upstream's [`DepPath`][ts-DepPath] is `string & { __brand: 'DepPath' }`, a branded
-/// string. Every construction site uses an `as DepPath` cast — there are
-/// no validating constructors anywhere in pnpm. The brand exists purely
-/// to stop a plain `string` from being assigned where a [`DepPath`] is
-/// expected at compile time. This Rust wrapper mirrors that contract: no
-/// validation runs at construction, and `#[serde(transparent)]` makes the
-/// wire format identical to `String` so a [`DepPath`] round-trips through
-/// JSON / YAML the same way upstream's branded string does.
-///
-/// [ts-DepPath]: https://github.com/pnpm/pnpm/blob/1819226b51/core/types/src/misc.ts#L65
+/// [`DepPath`] is a branded string: every construction site is unvalidated, so
+/// there are no validating constructors. The brand exists purely to stop a
+/// plain `string` from being assigned where a [`DepPath`] is expected at
+/// compile time. No validation runs at construction, and
+/// `#[serde(transparent)]` makes the wire format identical to `String` so a
+/// [`DepPath`] round-trips through JSON / YAML the same way a plain string
+/// does.
 #[derive(
     Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, From, Into,
 )]
@@ -125,11 +112,9 @@ impl DepPath {
 
 /// Typed view of a `node_modules/.modules.yaml` manifest.
 ///
-/// Mirrors upstream's normalized [`Modules`](https://github.com/pnpm/pnpm/blob/1819226b51/installing/modules-yaml/src/index.ts#L46-L48)
-/// type, which is [`ModulesRaw`](https://github.com/pnpm/pnpm/blob/1819226b51/installing/modules-yaml/src/index.ts#L23-L44)
-/// with `ignoredBuilds` widened from `DepPath[]` (the on-disk shape)
-/// to `Set<DepPath>` (the in-memory shape). Pacquet collapses the two
-/// upstream types into a single struct: serde handles the
+/// This is the normalized shape: `ignoredBuilds` is widened from the on-disk
+/// `DepPath[]` array to an in-memory set. Pacquet keeps the raw and
+/// normalized shapes in a single struct: serde handles the
 /// array↔[`IndexSet`] conversion at the [`Self::ignored_builds`]
 /// field via [`IndexSet`]'s deduplicating `Deserialize` impl, so a
 /// separate raw-shape type is not needed. `IndexSet` (insertion-ordered)
@@ -137,7 +122,7 @@ impl DepPath {
 /// iteration semantics — the on-disk array order round-trips
 /// byte-for-byte.
 ///
-/// Every required-by-upstream field carries a `#[serde(default)]` so
+/// Every required field carries a `#[serde(default)]` so
 /// legacy manifests written by older pnpm versions still deserialize;
 /// the read path then fills in the modern shape from the legacy fields.
 #[derive(Debug, Default, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -148,12 +133,11 @@ pub struct Modules {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hoisted_aliases: Option<BTreeMap<DepPath, Vec<String>>>,
 
-    /// Upstream's [`HoistedDependencies`](https://github.com/pnpm/pnpm/blob/1819226b51/core/types/src/misc.ts#L57)
-    /// is `Record<DepPath | ProjectId, ...>`. Pacquet keeps the key as
-    /// [`String`] because [`DepPath`] and `ProjectId` share the same
-    /// underlying type with no validation, so the union cannot be
-    /// disambiguated statically; the [`String`] type faithfully ports
-    /// upstream's union.
+    /// `HoistedDependencies` is keyed by `DepPath | ProjectId`. Pacquet keeps
+    /// the key as [`String`] because [`DepPath`] and `ProjectId` share the
+    /// same underlying type with no validation, so the union cannot be
+    /// disambiguated statically; the [`String`] type faithfully represents
+    /// that union.
     #[serde(default)]
     pub hoisted_dependencies: BTreeMap<String, BTreeMap<String, HoistKind>>,
 
@@ -181,10 +165,9 @@ pub struct Modules {
     #[serde(default)]
     pub pruned_at: String,
 
-    // TODO: upstream's `StrictModules` (which `writeModulesManifest`
-    // takes) tightens this to a required `Registries`. Revisit when
-    // the install-pipeline port supplies a producer that always
-    // populates `default`.
+    // TODO: the strict manifest shape that the write path takes tightens
+    // this to a required `Registries`. Revisit when the install-pipeline
+    // port supplies a producer that always populates `default`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub registries: Option<BTreeMap<String, String>>,
 
@@ -214,11 +197,9 @@ pub struct Modules {
     /// Per-depPath list of lockfile-relative directory paths where
     /// the package was placed under `nodeLinker: hoisted`. Required
     /// by rebuild (which throws `MISSING_HOISTED_LOCATIONS` when
-    /// absent) and consulted by `lockfileToHoistedDepGraph`'s
-    /// skip-fetch optimization to decide whether the package is
-    /// already on disk. Mirrors upstream's optional
-    /// `Record<string, string[]>` at
-    /// <https://github.com/pnpm/pnpm/blob/94240bc046/installing/modules-yaml/src/index.ts#L43>.
+    /// absent) and consulted by the hoisted dep-graph's skip-fetch
+    /// optimization to decide whether the package is already on disk.
+    /// An optional `Record<string, string[]>` on the on-disk shape.
     /// Pacquet's install pipeline does not populate this yet; the
     /// field is wired into the schema so a future hoisted-linker
     /// implementation can write it without changing the on-disk
@@ -274,10 +255,7 @@ pub struct ModulesLayout {
     pub allow_builds: Option<BTreeMap<String, AllowBuildValue>>,
 }
 
-/// Which dependency groups the install pipeline included. Mirrors
-/// upstream's [`IncludedDependencies`][ts-IncludedDependencies].
-///
-/// [ts-IncludedDependencies]: https://github.com/pnpm/pnpm/blob/1819226b51/installing/modules-yaml/src/index.ts#L19-L21
+/// Which dependency groups the install pipeline included.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IncludedDependencies {
@@ -299,19 +277,14 @@ pub enum NodeLinker {
     Pnp,
 }
 
-/// Pinned identifier for the `node_modules` layout pacquet emits, mirroring
-/// upstream's `LAYOUT_VERSION` constant at
-/// <https://github.com/pnpm/pnpm/blob/1819226b51/core/constants/src/index.ts#L8>.
+/// Pinned identifier for the `node_modules` layout pacquet emits.
 ///
 /// The unit type carries no data: its existence is the value. It serializes
 /// as the integer `5` and deserializes only when the on-disk value is
-/// exactly `5`. Any other version causes a deserialization error, mirroring
-/// upstream's `checkCompatibility` reaction at
-/// <https://github.com/pnpm/pnpm/blob/1819226b51/installing/deps-installer/src/install/checkCompatibility/index.ts#L18-L22>,
-/// which throws `ModulesBreakingChangeError` for a missing or mismatched
-/// `layoutVersion`. Wrapping this in [`Option`] on [`Modules`]
-/// distinguishes "missing" (legacy, breaking change) from "present and
-/// matching".
+/// exactly `5`. Any other version causes a deserialization error, the
+/// breaking-change reaction to a missing or mismatched `layoutVersion`.
+/// Wrapping this in [`Option`] on [`Modules`] distinguishes "missing"
+/// (legacy, breaking change) from "present and matching".
 ///
 /// The `#[serde(try_from = "u32", into = "u32")]` proxy lets us reuse
 /// serde's number deserializer, while the [`TryFrom`] impl owns the
@@ -407,8 +380,7 @@ pub enum WriteModulesError {
 /// Read `<modules_dir>/.modules.yaml` and return the normalized manifest.
 ///
 /// Returns `Ok(None)` when the file does not exist or contains a YAML
-/// `null` document, matching upstream `readModules` at
-/// <https://github.com/pnpm/pnpm/blob/1819226b51/installing/modules-yaml/src/index.ts#L50-L105>.
+/// `null` document.
 ///
 /// Production callers turbofish [`Host`]: `read_modules_manifest::<Host>(dir)`.
 /// The bounds list the minimal capabilities ([`FsReadToString`] +
@@ -492,9 +464,6 @@ where
 /// Write `manifest` to `<modules_dir>/.modules.yaml`, creating `modules_dir`
 /// if it does not already exist.
 ///
-/// Mirrors upstream `writeModules` at
-/// <https://github.com/pnpm/pnpm/blob/1819226b51/installing/modules-yaml/src/index.ts#L111-L138>.
-///
 /// Takes `manifest` by value because the body unconditionally rewrites
 /// fields (sort `skipped`, drop legacy `hoistedAliases`, relativize
 /// `virtualStoreDir`); making the caller hand over ownership keeps the
@@ -514,8 +483,7 @@ where
     manifest.skipped.sort();
     drop_legacy_hoisted_aliases_when_unreferenced(&mut manifest);
     // Junctions on Windows break when the project moves, so the absolute
-    // path is intentionally preserved there. See upstream
-    // <https://github.com/pnpm/pnpm/blob/1819226b51/installing/modules-yaml/src/index.ts#L129-L135>.
+    // path is intentionally preserved there.
     if !cfg!(windows) {
         rewrite_virtual_store_dir_relative(&mut manifest, modules_dir);
     }
@@ -531,9 +499,7 @@ where
 }
 
 /// When `virtualStoreDir` is missing, default to `modules_dir/.pnpm`. When
-/// it is relative, resolve it against `modules_dir`. Mirrors upstream's
-/// resolution at
-/// <https://github.com/pnpm/pnpm/blob/1819226b51/installing/modules-yaml/src/index.ts#L66-L70>.
+/// it is relative, resolve it against `modules_dir`.
 fn resolve_virtual_store_dir(manifest: &mut Modules, modules_dir: &Path) {
     let stored_path = Path::new(&manifest.virtual_store_dir);
     let resolved = match (manifest.virtual_store_dir.is_empty(), stored_path.is_absolute()) {
@@ -554,15 +520,15 @@ fn resolve_virtual_store_dir(manifest: &mut Modules, modules_dir: &Path) {
 }
 
 /// Store `virtualStoreDir` relative to `modules_dir`, falling back to the
-/// original value when no relative form exists. Mirrors upstream's
-/// `path.relative(modulesDir, saveModules.virtualStoreDir)` at
-/// <https://github.com/pnpm/pnpm/blob/1819226b51/installing/modules-yaml/src/index.ts#L132-L135>.
+/// original value when no relative form exists. This is the
+/// `path.relative(modulesDir, virtualStoreDir)` of the manifest's
+/// `virtualStoreDir`.
 ///
 /// `pathdiff::diff_paths` is the Rust-side equivalent of Node's
 /// `path.relative` (i.e. it produces `..` segments for non-descendant
 /// targets); plain `Path::strip_prefix` would only handle descendants
 /// and leave sibling/parent absolute paths untouched, which would
-/// diverge from upstream's `path.relative` output.
+/// diverge from Node's `path.relative` output.
 fn rewrite_virtual_store_dir_relative(manifest: &mut Modules, modules_dir: &Path) {
     let stored_path = Path::new(&manifest.virtual_store_dir);
     let relative =
@@ -571,9 +537,7 @@ fn rewrite_virtual_store_dir_relative(manifest: &mut Modules, modules_dir: &Path
 }
 
 /// Translate the legacy `shamefullyHoist` and `hoistedAliases` fields into
-/// the modern `publicHoistPattern` and `hoistedDependencies` shapes. Mirrors
-/// upstream's translation block at
-/// <https://github.com/pnpm/pnpm/blob/1819226b51/installing/modules-yaml/src/index.ts#L71-L97>.
+/// the modern `publicHoistPattern` and `hoistedDependencies` shapes.
 fn apply_legacy_shamefully_hoist(manifest: &mut Modules) {
     let Some(shamefully_hoist) = manifest.shamefully_hoist else {
         return;
@@ -598,8 +562,7 @@ fn apply_legacy_shamefully_hoist(manifest: &mut Modules) {
 }
 
 /// Drop the legacy `hoistedAliases` field on write when neither hoist
-/// pattern is present, mirroring upstream's cleanup at
-/// <https://github.com/pnpm/pnpm/blob/1819226b51/installing/modules-yaml/src/index.ts#L126-L128>.
+/// pattern is present.
 fn drop_legacy_hoisted_aliases_when_unreferenced(manifest: &mut Modules) {
     if manifest.hoist_pattern.is_none() && manifest.public_hoist_pattern.is_none() {
         manifest.hoisted_aliases = None;

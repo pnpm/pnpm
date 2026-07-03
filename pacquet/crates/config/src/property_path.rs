@@ -1,13 +1,12 @@
 //! Parser for the property-path mini-language used by `pnpm config get`.
 //!
-//! Port of the read half of pnpm's
-//! [`@pnpm/object.property-path`](https://github.com/pnpm/pnpm/blob/8eb1be4988/object/property-path/src):
-//! the tokenizer (`tokenize`), the parser ([`parse_property_path`]), and
-//! [`get_object_value_by_property_path`]. The mutating `set`/`delete` halves
-//! are not ported — the config command only reads through a property path and
-//! uses [`parse_property_path`] to classify a key as simple vs. deep.
+//! Implements the read half: the tokenizer (`tokenize`), the parser
+//! ([`parse_property_path`]), and [`get_object_value_by_property_path`]. The
+//! mutating `set`/`delete` halves are not implemented — the config command
+//! only reads through a property path and uses [`parse_property_path`] to
+//! classify a key as simple vs. deep.
 //!
-//! Grammar (mirroring upstream's examples):
+//! Grammar:
 //! `foo.bar.baz`, `.foo.bar`, `foo.bar["baz"]`, `foo['bar'].baz`,
 //! `["foo"].bar`, `foo[123]`.
 
@@ -15,17 +14,15 @@ use derive_more::{Display, Error};
 use serde_json::Value;
 
 /// One parsed property-path segment. A numeric literal keeps its numeric
-/// identity (it is the only form that may index into an array), mirroring
-/// upstream's `string | number` yield type.
+/// identity (it is the only form that may index into an array).
 #[derive(Debug, Clone, PartialEq)]
 pub enum Segment {
     Key(String),
     Index(f64),
 }
 
-/// Error raised while parsing a property path. Mirrors the `PnpmError`
-/// subclasses in pnpm's `parse.ts` / token parsers; the codes match so
-/// they remain part of the public contract.
+/// Error raised while parsing a property path. The error codes are part
+/// of the public contract.
 #[derive(Debug, Display, Error, PartialEq)]
 #[non_exhaustive]
 pub enum ParsePropertyPathError {
@@ -91,8 +88,7 @@ fn parse_token(source: &str) -> Result<(Token, &str), ParsePropertyPathError> {
     if let Some(result) = parse_whitespace(source) {
         return Ok(result);
     }
-    // Unexpected: a single (char-boundary-safe) unit, mirroring upstream's
-    // `source.slice(0, 1)`.
+    // Unexpected: a single (char-boundary-safe) unit.
     let mut indices = source.char_indices();
     indices.next();
     let split = indices.next().map_or(source.len(), |(i, _)| i);
@@ -143,7 +139,7 @@ fn parse_numeric_literal(source: &str) -> Result<Option<(Token, &str)>, ParsePro
         if c.is_ascii_digit() || c == '.' {
             end = i + c.len_utf8();
         } else if c.is_ascii_alphabetic() {
-            // Forbid `0x1A`, `1e20`, `123n`, ... like upstream.
+            // Forbid `0x1A`, `1e20`, `123n`, ...
             return Err(ParsePropertyPathError::UnsupportedNumericSuffix { suffix: c.to_string() });
         } else {
             break;
@@ -204,8 +200,8 @@ fn parse_whitespace(source: &str) -> Option<(Token, &str)> {
 
 /// Parse a property path string into its segments.
 ///
-/// Mirrors pnpm's `parsePropertyPath` shift/reduce loop: a leading or
-/// inter-segment `.`, bracketed string/number literals, and bare identifiers.
+/// A shift/reduce loop over a leading or inter-segment `.`, bracketed
+/// string/number literals, and bare identifiers.
 pub fn parse_property_path(property_path: &str) -> Result<Vec<Segment>, ParsePropertyPathError> {
     enum Stack {
         Dot,
@@ -290,8 +286,6 @@ fn token_content(token: &Token) -> String {
 /// Walk `value` along `property_path`, returning the value found there, or
 /// `None` if any step meets a non-object/array, a missing key, or a
 /// non-numeric segment indexing an array.
-///
-/// Mirrors pnpm's `getObjectValueByPropertyPath`.
 #[must_use]
 pub fn get_object_value_by_property_path<'a>(
     value: &'a Value,

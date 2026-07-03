@@ -81,9 +81,8 @@ pub type RequiresBuildBySnapshot = HashMap<PackageKey, bool>;
 /// The caller (`InstallFrozenLockfile::run`) folds these into its
 /// own [`crate::SkippedSnapshots`] so downstream consumers
 /// (`build_sequence`, `link_bins`, hoisting, etc.) treat them as
-/// absent, mirroring upstream's `graph[dir]` simply not having the
-/// entry at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-builder/src/lockfileToDepGraph.ts#L294-L298>.
+/// absent — a failed-fetch optional snapshot is simply not present
+/// in the install graph.
 pub struct CreateVirtualStoreOutput {
     pub package_manifests: PackageManifests,
     pub side_effects_maps_by_snapshot: SideEffectsMapsBySnapshot,
@@ -97,10 +96,8 @@ pub struct CreateVirtualStoreOutput {
     /// — there is no virtual store under hoisted, so this is the
     /// only output that survives into the link phase. `None` for
     /// the isolated and pnp linkers (their slot directories are
-    /// the bridge into the link phase instead). Mirrors upstream's
-    /// `lockfileToHoistedDepGraph` populating per-node `fetching`
-    /// handles inside the walk; pacquet decouples fetch and walk,
-    /// so the index is built here at fetch time.
+    /// the bridge into the link phase instead). Pacquet decouples
+    /// fetch and walk, so the index is built here at fetch time.
     pub cas_paths_by_pkg_id: Option<CasPathsByPkgId>,
 }
 
@@ -114,9 +111,8 @@ pub struct CreateVirtualStore<'a> {
     /// Snapshots and per-version metadata recorded by the previous
     /// install, parsed from `<virtual_store_dir>/lock.yaml`. `None`
     /// on a first install (the file doesn't exist). When present,
-    /// per-snapshot lookups against this drive the
-    /// `lockfileToDepGraph`-equivalent skip decision — see
-    /// [`CreateVirtualStore::run`].
+    /// per-snapshot lookups against this drive the warm-reinstall
+    /// skip decision — see [`CreateVirtualStore::run`].
     pub current_snapshots: Option<&'a HashMap<PackageKey, SnapshotEntry>>,
     pub current_packages: Option<&'a HashMap<PackageKey, PackageMetadata>>,
     /// Install-scoped precomputed slot-directory mapping (GVS-aware).
@@ -144,12 +140,11 @@ pub struct CreateVirtualStore<'a> {
     /// on this host. Their virtual-store slots are not created — the
     /// warm/cold partition skips them, and the bundled-manifest +
     /// side-effects-cache lookups they would feed downstream phases
-    /// are likewise omitted. Mirrors pnpm's `lockfileToDepGraph`
-    /// behavior of materializing only non-skipped snapshots in the
-    /// graph passed to the build phase.
+    /// are likewise omitted: only non-skipped snapshots are
+    /// materialized into the graph passed to the build phase.
     pub skipped: &'a SkippedSnapshots,
-    /// Lockfile / workspace root — `lockfileDir` in upstream's
-    /// install options. Threaded into the per-snapshot
+    /// Lockfile / workspace root (`lockfileDir`). Threaded into the
+    /// per-snapshot
     /// [`InstallPackageBySnapshot`] so the directory fetcher can
     /// resolve `LockfileResolution::Directory` entries (e.g.
     /// `directory: "../local-pkg"`) against the same base pnpm uses.
@@ -273,7 +268,7 @@ impl CreateVirtualStore<'_> {
 
         // Eagerly create `files/00..ff` under the v11 store root so per-
         // tarball CAFS writes never pay a `create_dir_all` syscall on the
-        // hot path. Ports pnpm's `initStore` in `worker/src/start.ts`.
+        // hot path.
         // See [`init_store_dir_best_effort`] for the error-degradation
         // policy shared with `install_without_lockfile.rs`. Skipped under
         // `frozenStore`: the store is read-only and complete, so no
@@ -305,7 +300,7 @@ impl CreateVirtualStore<'_> {
         // (`InstallFrozenLockfile::run`) so it survives past
         // `CreateVirtualStore::run` and gets reused by the build
         // phase's side-effects-cache WRITE path, which queues rows
-        // after the install path finishes — see pnpm/pnpm@7e3145f9fc:building/during-install/src/index.ts:198-216.
+        // after the install path finishes.
         //
         // The cold-batch download path uses the same writer through
         // `InstallPackageBySnapshot.store_index_writer`.
@@ -315,8 +310,7 @@ impl CreateVirtualStore<'_> {
         // for the duration of the install; every per-snapshot fetch
         // gets the same handle. A CAFS path verified on snapshot A
         // populates the set so snapshot B's verify pass skips the stat
-        // / re-hash cost. Ports pnpm's `verifiedFilesCache: Set<string>`
-        // threading in `store/cafs/src/checkPkgFilesIntegrity.ts`.
+        // / re-hash cost.
         let verified_files_cache = SharedVerifiedFilesCache::default();
 
         // Batch every cache lookup the per-snapshot futures would otherwise
@@ -361,11 +355,8 @@ impl CreateVirtualStore<'_> {
         // 1. **Installability skip (this PR)** — `SkippedSnapshots`
         //    contains it because the host's `engines` / `cpu` / `os`
         //    / `libc` don't satisfy the package's constraints and the
-        //    snapshot is `optional`. Mirrors pnpm's `lockfileToDepGraph`
-        //    behavior at
-        //    <https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-builder/src/lockfileToDepGraph.ts#L194>
-        //    where skipped depPaths are dropped from the graph the
-        //    builder iterates. These snapshots also stay out of the
+        //    snapshot is `optional`. A skipped depPath is dropped from
+        //    the install graph. These snapshots also stay out of the
         //    `skipped_entries` cache-key pass — they were never
         //    supposed to be installed, so there are no store-index
         //    rows to keep alive.
@@ -373,12 +364,10 @@ impl CreateVirtualStore<'_> {
         // 2. **Current-lockfile skip (main <https://github.com/pnpm/pacquet/pull/442>)** — the previous
         //    install also installed this snapshot (`current_snapshots`)
         //    with the same dependency wiring + integrity, AND its
-        //    virtual-store slot still exists on disk. Mirrors
-        //    upstream's gate at
-        //    <https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-builder/src/lockfileToDepGraph.ts#L246-L260>.
-        //    These DO land in `skipped_entries` so `BuildModules`'s
-        //    `is_built` cache lookup can short-circuit re-runs of
-        //    allowed-build scripts on warm reinstalls.
+        //    virtual-store slot still exists on disk. These DO land in
+        //    `skipped_entries` so `BuildModules`'s `is_built` cache
+        //    lookup can short-circuit re-runs of allowed-build scripts
+        //    on warm reinstalls.
         //
         // Run this *before* deriving cache keys so unchanged
         // directory-backed snapshots aren't tripped by
@@ -406,12 +395,9 @@ impl CreateVirtualStore<'_> {
                 // Directory-typed snapshots carry mutable local
                 // source: the user can edit `file:./local-pkg` files
                 // between installs and pacquet must re-walk them on
-                // every install, otherwise the slot drifts. Mirrors
-                // upstream's `!isDirectoryDep` clause in `depIsPresent`
-                // at
-                // <https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-builder/src/lockfileToDepGraph.ts#L226-L228>
-                // — pnpm forces directory snapshots through the cold
-                // path for the same reason. Without this carve-out
+                // every install, otherwise the slot drifts. Directory
+                // snapshots are forced through the cold path for this
+                // reason. Without this carve-out
                 // both `current` and `wanted` resolutions report
                 // `integrity() == None`, `integrity_equal` returns
                 // true, the slot directory check passes, and the
@@ -503,22 +489,17 @@ impl CreateVirtualStore<'_> {
             })
             .collect();
 
-        // `pnpm:stats added` mirrors pnpm's emit at
-        // <https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/src/install/link.ts#L363>:
-        // one event per project once the orchestrator has decided
-        // how many packages will land in the virtual store. Upstream
-        // reports `newDepPathsSet.size`, the *delta* between current
-        // and wanted lockfile; pacquet computes the same delta as the
-        // post-skip-filter snapshot count so a warm reinstall against
-        // an unchanged lockfile reports `added: 0`.
+        // `pnpm:stats added` fires one event per project once the
+        // orchestrator has decided how many packages will land in the
+        // virtual store. The value is the *delta* between current and
+        // wanted lockfile, computed as the post-skip-filter snapshot
+        // count so a warm reinstall against an unchanged lockfile
+        // reports `added: 0`.
         //
-        // `pnpm:stats removed: 0` mirrors the no-current-lockfile
-        // branch of
-        // <https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/src/index.ts#L290>:
-        // pnpm emits a placeholder `0` when there's nothing to prune
-        // so consumers don't render a stale "removed" count from a
-        // previous install. Pacquet has no pruning pipeline yet, so
-        // the placeholder is the truthful value today.
+        // `pnpm:stats removed: 0` emits a placeholder `0` when there's
+        // nothing to prune so consumers don't render a stale "removed"
+        // count from a previous install. Pacquet has no pruning
+        // pipeline yet, so the placeholder is the truthful value today.
         Reporter::emit(&LogEvent::Stats(StatsLog {
             level: LogLevel::Debug,
             message: StatsMessage::Added {
@@ -687,10 +668,10 @@ impl CreateVirtualStore<'_> {
         let mut cas_paths_by_pkg_id: Option<CasPathsByPkgId> = is_hoisted.then(|| {
             let mut map = CasPathsByPkgId::with_capacity(warm.len());
             for (snapshot_key, _snapshot, cas_paths, _cache_key) in &warm {
-                // Mirrors upstream's `getPkgIdWithPatchHash` — strip
-                // the peer-graph suffix but keep `(patch_hash=...)` so
-                // patched packages share one CAS-paths entry across
-                // their peer variants.
+                // `get_pkg_id_with_patch_hash` strips the peer-graph
+                // suffix but keeps `(patch_hash=...)` so patched
+                // packages share one CAS-paths entry across their peer
+                // variants.
                 let pkg_id = PkgIdWithPatchHash::from(
                     get_pkg_id_with_patch_hash(&snapshot_key.to_string()).to_string(),
                 );
@@ -704,9 +685,7 @@ impl CreateVirtualStore<'_> {
         // dropped a child contribute an entry; fresh packages and
         // addition-only changes map to the empty slice. Computed once
         // here so both the warm and cold `SlotLink` batches can borrow
-        // it. Mirrors the `removedAliases` upstream derives in
-        // `getChangedChildren` at
-        // <https://github.com/pnpm/pnpm/blob/5e47dd5e59/installing/deps-installer/src/install/link.ts#L611-L615>.
+        // it.
         let removed_aliases_by_key: HashMap<PackageKey, Vec<PkgName>> = match current_snapshots {
             Some(current_snapshots) => snapshot_entries
                 .iter()
@@ -738,10 +717,8 @@ impl CreateVirtualStore<'_> {
             // Hoisted skips this batch entirely: no virtual-store slot
             // gets written, so there's no per-snapshot link work to
             // do — the CAS paths captured below are the only output
-            // the link phase consumes. Mirrors upstream's
-            // `nodeLinker === 'hoisted'` guard at
-            // <https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/src/index.ts#L411-L425>
-            // which routes all link work into `linkHoistedModules`.
+            // the link phase consumes. Under `nodeLinker: hoisted` all
+            // link work is routed into the hoisted linker instead.
             let warm_slots: Vec<SlotLink<'_>> = warm
                 .iter()
                 .map(|(snapshot_key, snapshot, cas_paths, cache_key)| SlotLink {
@@ -772,9 +749,8 @@ impl CreateVirtualStore<'_> {
         // Per-snapshot result is `(Option<PackageKey>, Option<HashMap>)`:
         // - `Some(key)` in the first slot flags a fetch/extract failure
         //   that was silently swallowed because the snapshot is
-        //   `optional: true`. Mirrors upstream's
-        //   `if (pkgSnapshot.optional) return; throw err;` at
-        //   <https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-builder/src/lockfileToDepGraph.ts#L294-L298>.
+        //   `optional: true` — an optional snapshot whose fetch fails is
+        //   dropped rather than aborting the install.
         //   Aggregated into `fetch_failed` for the caller to fold into
         //   its [`crate::SkippedSnapshots`] so downstream walkers
         //   (`build_sequence`, `link_bins`, hoist) treat the snapshot
@@ -840,25 +816,23 @@ impl CreateVirtualStore<'_> {
                             Ok((None, Some((*snapshot_key, *snapshot, cas_paths, requires_build))))
                         }
                         Err(err) if snapshot.optional && is_fetch_side_failure(&err) => {
-                            // Silent swallow, matching upstream. `tracing::warn!`
-                            // gives operator visibility without polluting
-                            // the reporter wire (upstream's frozen path
-                            // emits nothing; only the resolver-side
-                            // emit site fires `pnpm:skipped-optional-
-                            // dependency reason=resolution_failure`).
+                            // Silent swallow. `tracing::warn!` gives
+                            // operator visibility without polluting the
+                            // reporter wire: the frozen path emits
+                            // nothing here; only the resolver-side emit
+                            // site fires `pnpm:skipped-optional-
+                            // dependency reason=resolution_failure`.
                             //
                             // Scoped via [`is_fetch_side_failure`] to the
                             // tarball-fetch / git-fetch / CAS-write
-                            // variants — i.e. the same surface upstream
-                            // wraps in
-                            // <https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-builder/src/lockfileToDepGraph.ts#L286-L298>.
+                            // variants — the fetch-side surface an
+                            // optional snapshot is allowed to swallow.
                             // Local materialization (`CreateVirtualDir`)
                             // and config-shape errors
                             // (`MissingTarballIntegrity`,
                             // `UnsupportedResolution`) abort even for
-                            // optional snapshots, matching upstream's
-                            // post-fetch `linkPkg` path which sits
-                            // outside the catch.
+                            // optional snapshots — they sit outside the
+                            // swallowed fetch surface.
                             tracing::warn!(
                                 target: "pacquet::install",
                                 snapshot = %snapshot_key,
@@ -918,11 +892,7 @@ impl CreateVirtualStore<'_> {
         }
 
         // Build the per-pkg CAS index when the install is targeting
-        // the hoisted linker. Upstream's
-        // [`lockfileToHoistedDepGraph`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/src/lockfileToHoistedDepGraph.ts)
-        // populates a per-node `fetching` handle inside the walk and
-        // [`linkHoistedModules`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/src/linkHoistedModules.ts)
-        // awaits it at link time. Pacquet's fetcher and walker run
+        // the hoisted linker. Pacquet's fetcher and walker run
         // independently, so the CAS index is collected here and
         // handed to the linker in [`crate::link_hoisted_modules()`]
         // through this output field.
@@ -949,10 +919,10 @@ impl CreateVirtualStore<'_> {
         if let Some(map) = cas_paths_by_pkg_id.as_mut() {
             map.reserve(cold_cas_paths.len());
             for (snapshot_key, _snapshot, paths, _requires_build) in cold_cas_paths {
-                // Mirrors upstream's `getPkgIdWithPatchHash` — strip
-                // the peer-graph suffix but keep `(patch_hash=...)` so
-                // patched packages share one CAS-paths entry across
-                // their peer variants.
+                // `get_pkg_id_with_patch_hash` strips the peer-graph
+                // suffix but keeps `(patch_hash=...)` so patched
+                // packages share one CAS-paths entry across their peer
+                // variants.
                 let pkg_id = PkgIdWithPatchHash::from(
                     get_pkg_id_with_patch_hash(&snapshot_key.to_string()).to_string(),
                 );
@@ -1192,9 +1162,9 @@ fn snapshot_cache_key(
             // source-path entries; no `write_cas_file` happens, no
             // `PackageFilesIndex` row is written). There is therefore
             // no warm-cache key to recover the install from — every
-            // install re-walks the source dir, matching upstream's
-            // behavior (the source may have changed since the last
-            // install). Returning `Ok(None)` routes the snapshot
+            // install re-walks the source dir (the source may have
+            // changed since the last install). Returning `Ok(None)`
+            // routes the snapshot
             // through the cold path which runs the fetcher.
             Ok(None)
         }
@@ -1251,8 +1221,8 @@ fn snapshot_cache_key(
 }
 
 /// Two snapshots agree on dependency wiring when both their
-/// `dependencies` and `optionalDependencies` maps are equal in
-/// upstream's sense.
+/// `dependencies` and `optionalDependencies` maps are equal (an
+/// absent map and an empty map count as equal).
 fn snapshot_deps_equal(current: &SnapshotEntry, wanted: &SnapshotEntry) -> bool {
     fn maps_equal<Key, Value>(
         lhs: Option<&HashMap<Key, Value>>,
@@ -1280,32 +1250,25 @@ fn integrity_equal(current: Option<&PackageMetadata>, wanted: Option<&PackageMet
 }
 
 /// True for the [`InstallPackageBySnapshotError`] variants pacquet
-/// classifies as **fetch-side** — the surface inside upstream's
-/// catch at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-builder/src/lockfileToDepGraph.ts#L286-L298>.
-/// These are the ones an optional snapshot is allowed to swallow:
+/// classifies as **fetch-side** — the failures that happen while
+/// fetching a package into the CAS. These are the ones an optional
+/// snapshot is allowed to swallow:
 ///
 /// - `DownloadTarball` — HTTP fetch, integrity check, gzip decode,
-///   CAS write. Equivalent to `storeController.fetchPackage`
-///   blowing up.
+///   CAS write.
 /// - `GitFetch` — `git` CLI clone / checkout / preparePackage /
-///   packlist / CAS import. Equivalent to upstream's git-fetcher
-///   inside the same `fetchPackage` dispatch.
+///   packlist / CAS import.
 /// - `DirectoryFetch` — local-directory walk / manifest read /
-///   packlist for injected workspace deps. Equivalent to upstream's
-///   directory-fetcher inside the same `fetchPackage` dispatch; pnpm
-///   swallows the throw for optional snapshots uniformly with the
-///   tarball / git paths.
+///   packlist for injected workspace deps. Swallowed for optional
+///   snapshots uniformly with the tarball / git paths.
 ///
-/// Excluded (propagate even for optional snapshots, matching
-/// upstream's post-`fetching()` `linkPkg` path that sits outside
-/// the catch):
+/// Excluded (propagate even for optional snapshots — they happen
+/// after the fetch, while linking the package into its slot):
 ///
 /// - `CreateVirtualDir` — local materialization (clone / hardlink /
 ///   copy / symlink from CAS into the slot dir).
 /// - `MissingTarballIntegrity`, `UnsupportedResolution` —
-///   config/shape errors; upstream's equivalents `throw` rather
-///   than going through `fetchPackage`.
+///   config/shape errors raised before any fetch runs.
 fn is_fetch_side_failure(err: &InstallPackageBySnapshotError) -> bool {
     matches!(
         err,

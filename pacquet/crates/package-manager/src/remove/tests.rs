@@ -1,9 +1,5 @@
-//! Ports the up-front validation cases of pnpm's `remove` handler
-//! tests at
-//! <https://github.com/pnpm/pnpm/blob/9cad8274fd/installing/commands/test/remove/remove.ts>.
-//! Each case throws before any install runs, so [`validate_removable`]
-//! is the faithful equivalent of pnpm calling `remove.handler` and
-//! catching the error.
+//! Up-front validation cases for the `remove` handler. Each case
+//! errors before any install runs, exercising [`validate_removable`].
 
 use super::{RemoveValidationError, validate_removable};
 use pacquet_package_manifest::{DependencyGroup, PackageManifest};

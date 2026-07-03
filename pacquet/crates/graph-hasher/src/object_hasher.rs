@@ -3,17 +3,15 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 
-/// Mirrors `hashObject` from
-/// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/crypto/object-hasher/src/index.ts#L41>
-/// (sorted keys, sha256, base64).
+/// Hash a JSON value with sorted keys, sha256, and base64 encoding.
 ///
 /// The bytestream the library writes before hashing is described in
 /// the (private) `serialize` helper below — it must match pnpm's
 /// byte-for-byte because the result is persisted on disk and shared
 /// with pnpm.
 ///
-/// `undefined` in JS maps to no Rust value here; the upstream
-/// short-circuit `hashUnknown(undefined)` returns 44 zero characters
+/// `undefined` in JS maps to no Rust value here; the `hashUnknown`
+/// short-circuit for `undefined` returns 44 zero characters
 /// regardless of options. Callers who need that semantic should
 /// branch on the optional before calling.
 #[must_use]
@@ -21,20 +19,16 @@ pub fn hash_object(value: &Value) -> String {
     hash_object_with_encoding(value, HashEncoding::Base64, /* sort */ true)
 }
 
-/// Mirrors `hashObjectWithoutSorting` at
-/// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/crypto/object-hasher/src/index.ts#L37>.
+/// Hash a JSON value preserving key insertion order (no sorting).
 #[must_use]
 pub fn hash_object_without_sorting(value: &Value, encoding: HashEncoding) -> String {
     hash_object_with_encoding(value, encoding, /* sort */ false)
 }
 
-/// Mirrors `hashObjectNullableWithPrefix` at
-/// <https://github.com/pnpm/pnpm/blob/39101f5e37/crypto/object-hasher/src/index.ts#L44-L48>.
 /// Returns `None` when `value` is `undefined`-like (a null JSON value)
-/// or an empty object — matching upstream's
-/// `if (!object || isEmpty(object)) return undefined`. Otherwise hashes
-/// with sorted keys + sha256 + base64 and prefixes with `sha256-`,
-/// matching the wire shape pnpm writes to `pnpm-lock.yaml#packageExtensionsChecksum`.
+/// or an empty object. Otherwise hashes with sorted keys + sha256 +
+/// base64 and prefixes with `sha256-`, matching the wire shape pnpm
+/// writes to `pnpm-lock.yaml#packageExtensionsChecksum`.
 ///
 /// Only `Object` is checked for emptiness; non-object, non-null
 /// inputs (Bool / Number / String / Array) are unreachable in
@@ -55,7 +49,7 @@ pub fn hash_object_nullable_with_prefix(value: &Value) -> Option<String> {
 }
 
 /// General form. `sort = true` sorts object keys before serialization
-/// (the `unorderedObjects` option upstream); `sort = false` preserves
+/// (object-hash's `unorderedObjects` option); `sort = false` preserves
 /// insertion order.
 #[must_use]
 pub fn hash_object_with_encoding(value: &Value, encoding: HashEncoding, sort: bool) -> String {
@@ -72,9 +66,9 @@ pub fn hash_object_with_encoding(value: &Value, encoding: HashEncoding, sort: bo
 /// in object-hash@3.0.0 with `respectType: false`. Only the type
 /// arms pacquet actually feeds in are implemented here — `Value` is
 /// the union of String / Number / Bool / Null / Array / Object,
-/// which covers every input pacquet's graph-hasher and the upstream
-/// `hashObject`-using callers ever pass. Anything else would either
-/// be unreachable for pacquet or require porting upstream's Date /
+/// which covers every input pacquet's graph-hasher and the
+/// [`hash_object`] callers ever pass. Anything else would either
+/// be unreachable for pacquet or require porting object-hash's Date /
 /// Set / Map / Buffer arms — explicitly not in scope here.
 fn serialize(out: &mut Vec<u8>, value: &Value, sort: bool) {
     match value {
@@ -95,9 +89,9 @@ fn serialize(out: &mut Vec<u8>, value: &Value, sort: bool) {
             // shortest round-trippable form. Pacquet's cache-key
             // inputs only ever hit the integer path in practice
             // (`hash_object` is called by `calc_dep_graph_hash`
-            // with strings + nested objects of strings; the
-            // upstream `hashObject` test cases use integer
-            // literals `1`, `2`, `3`). `n.to_string()` from
+            // with strings + nested objects of strings, and the
+            // only numeric inputs are integer literals).
+            // `n.to_string()` from
             // `serde_json::Number` matches for integers; for
             // non-integer floats `serde_json`'s `f64` formatting
             // can diverge from JS's "shortest round-trippable"
@@ -112,7 +106,7 @@ fn serialize(out: &mut Vec<u8>, value: &Value, sort: bool) {
         Value::String(s) => serialize_str(out, s),
         Value::Array(arr) => {
             // index.js:257-291 — `array:<N>:` then each entry.
-            // pnpm's `hashObject` *does* sort arrays in the
+            // object-hash *does* sort arrays in the
             // unordered case, but pacquet does not currently feed
             // arrays through this path, so the simpler "ordered"
             // variant is what we model. Adding the unordered

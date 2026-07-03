@@ -1,9 +1,6 @@
 //! Apply `packageExtensions` to dependency manifests at resolve time.
 //!
-//! Pacquet port of upstream's
-//! [`createPackageExtender`](https://github.com/pnpm/pnpm/blob/39101f5e37/hooks/read-package-hook/src/createPackageExtender.ts).
-//! Upstream wires this hook into the resolver's `readPackageHook`
-//! chain; pacquet calls it from the deps-resolver's per-resolve seam
+//! This hook runs from the deps-resolver's per-resolve seam
 //! before the resolved `ResolveResult` lands in the wanted-dep cache
 //! and the dependency tree walker.
 //!
@@ -13,8 +10,7 @@
 //!
 //! 1. Looks up the manifest's `name` in the grouped index.
 //! 2. For each matched entry, checks the range against the manifest's
-//!    `version` with `node_semver` (mirrors upstream's
-//!    `semver.satisfies`).
+//!    `version` with `node_semver`.
 //! 3. Merges each declared field (`dependencies`,
 //!    `optionalDependencies`, `peerDependencies`,
 //!    `peerDependenciesMeta`) onto the manifest with the extension
@@ -37,15 +33,10 @@ use serde_json::{Map, Value};
 use std::{collections::HashMap, sync::Arc};
 
 /// Returned by [`PackageExtender::new`] when a selector's
-/// `@<range>` half fails to parse as a `node-semver` range. Mirrors
-/// upstream's
-/// [`createPackageExtender`](https://github.com/pnpm/pnpm/blob/39101f5e37/hooks/read-package-hook/src/createPackageExtender.ts#L34-L45)
-/// behavior — pnpm passes the raw `bareSpecifier` straight into
-/// `semver.satisfies`, which throws a `TypeError` on a malformed
-/// range and propagates the failure out of the read-package hook.
-/// Pacquet matches that "loud failure" contract but surfaces it
-/// earlier (at install start, before any resolution work) so the
-/// user sees the bad selector before any tarballs are fetched.
+/// `@<range>` half fails to parse as a `node-semver` range. A malformed
+/// range is a loud failure, surfaced at install start — before any
+/// resolution work — so the user sees the bad selector before any
+/// tarballs are fetched.
 #[derive(Debug, Display, Error, Diagnostic)]
 #[display(
     "Invalid version range in packageExtensions selector {selector:?}: {range:?} is not a valid semver range"
@@ -143,10 +134,9 @@ impl PackageExtender {
     /// when any extension matched and the manifest is therefore
     /// modified. Returns the original `Arc` untouched when no
     /// extension applied — callers can keep using the shared
-    /// resolver-cache copy. The clone-on-match shape mirrors how the
-    /// upstream `readPackageHook` conceptually returns a fresh
-    /// manifest from each consumer's perspective without paying
-    /// the deep-clone tax when nothing changed.
+    /// resolver-cache copy. The clone-on-match shape gives each
+    /// consumer a fresh manifest without paying the deep-clone tax
+    /// when nothing changed.
     ///
     /// The name-bucket check on its own is not enough — a selector
     /// `is-positive@^1` against a `2.0.0` manifest shares the bucket

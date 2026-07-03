@@ -1,9 +1,7 @@
 //! Materialize configurational dependencies into
 //! `node_modules/.pnpm-config/<name>`.
 //!
-//! Mirrors pnpm's
-//! [`installConfigDeps`](https://github.com/pnpm/pnpm/blob/31858c544b/installing/env-installer/src/installConfigDeps.ts):
-//! each config dependency is fetched into the global virtual store
+//! Each config dependency is fetched into the global virtual store
 //! (`<store>/links/<gvs-path>/node_modules/<name>`) and symlinked from
 //! `.pnpm-config`. Platform-specific optional subdeps are installed one
 //! level deep as siblings inside the parent's leaf `node_modules`.
@@ -136,7 +134,6 @@ pub async fn install_config_deps<Reporter: self::Reporter>(
 
 /// Lazily emits the single `pnpm:installing-config-deps started` event,
 /// so an install that finds everything already in place stays silent.
-/// Mirrors upstream's `reportStarted` closure.
 struct StartedGate {
     emitted: bool,
 }
@@ -159,8 +156,8 @@ impl StartedGate {
     }
 }
 
-/// `<name>@<version>:<integrity>`. Mirrors upstream's `fullPkgId` shape
-/// that the GVS hash incorporates.
+/// `<name>@<version>:<integrity>` — the package-id shape the GVS hash
+/// incorporates.
 fn full_pkg_id(name: &str, version: &str, integrity: &Integrity) -> String {
     format!("{name}@{version}:{integrity}")
 }
@@ -209,7 +206,10 @@ async fn materialize<Reporter: self::Reporter>(
     .map_err(ConfigDepError::Import)
 }
 
-#[expect(clippy::too_many_arguments, reason = "mirrors upstream's installOptionalSubdeps")]
+#[expect(
+    clippy::too_many_arguments,
+    reason = "this install path threads every resolution input through one call"
+)]
 async fn install_optional_subdeps<Reporter: self::Reporter>(
     opts: &ConfigDepsInstallOptions<'_>,
     logged_methods: &AtomicU8,
@@ -278,10 +278,10 @@ async fn install_optional_subdeps<Reporter: self::Reporter>(
 /// Whether `subdep` runs on the host. Subdeps with no platform
 /// constraints always pass; otherwise [`check_package`] decides, and an
 /// incompatible subdep is logged at debug via
-/// `pnpm:skipped-optional-dependency`. Mirrors upstream's use of
-/// `checkPackage` (rather than `packageIsInstallable`, which would warn
-/// loudly on every install because the env lockfile records all
-/// platform variants).
+/// `pnpm:skipped-optional-dependency`. Uses the non-warning check
+/// (rather than the installability check, which would warn loudly on
+/// every install because the env lockfile records all platform
+/// variants).
 fn is_compatible<Reporter: self::Reporter>(
     opts: &ConfigDepsInstallOptions<'_>,
     parent_name: &str,
@@ -338,10 +338,9 @@ fn is_compatible<Reporter: self::Reporter>(
     }
 }
 
-/// Build the install-set view of `env_lockfile.importers["."]`. Mirrors
-/// upstream's `normalizeFromLockfile`, surfacing
-/// `ENV_LOCKFILE_CORRUPTED` for a `configDependencies` entry whose
-/// `packages:` row (or integrity) is missing.
+/// Build the install-set view of `env_lockfile.importers["."]`,
+/// surfacing `ENV_LOCKFILE_CORRUPTED` for a `configDependencies` entry
+/// whose `packages:` row (or integrity) is missing.
 fn normalize_from_lockfile(
     env_lockfile: &EnvLockfile,
     opts: &ConfigDepsInstallOptions<'_>,
@@ -366,8 +365,7 @@ fn normalize_from_lockfile(
             }
         })?;
         // Derive the tarball URL (when integrity-only) from the registry
-        // that serves this package, honoring per-scope registry entries —
-        // matching upstream's `pickRegistryForPackage(registries, name)`.
+        // that serves this package, honoring per-scope registry entries.
         let (integrity, tarball) = integrity_and_tarball(
             &pkg.resolution,
             name,
@@ -454,7 +452,7 @@ fn read_optional_subdeps(
 
 /// Extract `(integrity, tarball_url)` from a lockfile-form resolution,
 /// deriving the canonical npm tarball URL when the registry resolution
-/// omitted it. Mirrors upstream's `resolution.tarball ?? getNpmTarballUrl(...)`.
+/// omitted it.
 fn integrity_and_tarball(
     resolution: &LockfileResolution,
     name: &str,
@@ -497,9 +495,8 @@ fn prune_link(path: &Path) {
     }
 }
 
-/// List the immediate child names of `dir`. Mirrors upstream's
-/// `readModulesDir`, returning an empty list when the directory is
-/// absent.
+/// List the immediate child names of `dir`, returning an empty list
+/// when the directory is absent.
 fn read_dir_names(dir: &Path) -> Result<Vec<String>, ConfigDepError> {
     let mut names = Vec::new();
     let entries = match fs::read_dir(dir) {
@@ -515,13 +512,13 @@ fn read_dir_names(dir: &Path) -> Result<Vec<String>, ConfigDepError> {
             error,
         })?;
         let Some(name) = entry.file_name().to_str().map(str::to_owned) else { continue };
-        // Skip dot-dirs (`.bin`, `.pnpm`, etc.), matching `readModulesDir`.
+        // Skip dot-dirs (`.bin`, `.pnpm`, etc.).
         if name.starts_with('.') {
             continue;
         }
         // A scope dir holds the actual `@scope/<pkg>` entries one level
         // down; expand it so the returned names match the scoped package
-        // keys callers compare against. Mirrors upstream's `readModulesDir`.
+        // keys callers compare against.
         if name.starts_with('@') {
             let scope_dir = dir.join(&name);
             match fs::read_dir(&scope_dir) {
@@ -553,7 +550,7 @@ fn read_dir_names(dir: &Path) -> Result<Vec<String>, ConfigDepError> {
 /// Whether the symlink (or directory) at `link_path` already resolves
 /// to `expected`. Realpaths both sides so a store mounted through a
 /// symlink, or case-insensitive filesystems, don't produce false
-/// negatives. Mirrors upstream's `symlinkPointsTo`.
+/// negatives.
 fn symlink_points_to(link_path: &Path, expected: &Path) -> bool {
     match (fs::canonicalize(link_path), fs::canonicalize(expected)) {
         (Ok(link_real), Ok(expected_real)) => link_real == expected_real,

@@ -1,11 +1,6 @@
 //! `pacquet audit signatures` — verify ECDSA registry signatures for the
 //! installed packages.
 //!
-//! Ports pnpm's
-//! [`@pnpm/deps.security.signatures`](https://github.com/pnpm/pnpm/blob/fc2f33912e/pnpm11/deps/security/signatures/src/verifySignatures.ts)
-//! and the
-//! [`audit signatures` command](https://github.com/pnpm/pnpm/blob/fc2f33912e/pnpm11/deps/compliance/commands/src/audit/signatures.ts).
-//!
 //! For every installed `name@version`, the package's own registry is asked
 //! for its signing keys (`/-/npm/v1/keys`) and its full packument. A
 //! package is **verified** as soon as one of its `dist.signatures` validates,
@@ -16,10 +11,7 @@
 //! signature is present but does not validate is **invalid** — a tamper
 //! signal.
 
-use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
-    fmt::Write as _,
-};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use base64::Engine as _;
 use owo_colors::{OwoColorize, Stream};
@@ -28,7 +20,9 @@ use p256::{
     pkcs8::DecodePublicKey,
 };
 use pacquet_config::Config;
-use pacquet_network::{ThrottledClient, redact_url_credentials, send_with_retry};
+use pacquet_network::{
+    ThrottledClient, encode_package_name, redact_url_credentials, send_with_retry,
+};
 use serde::{Deserialize, Serialize};
 
 use super::{bold, red, retry_opts_from_config, sanitize_response_body};
@@ -517,31 +511,6 @@ async fn fetch_packument(
 
 fn with_trailing_slash(registry: &str) -> String {
     if registry.ends_with('/') { registry.to_string() } else { format!("{registry}/") }
-}
-
-/// Percent-encode a package name for a packument URL, matching pnpm's
-/// `toUri`: a scoped name keeps its leading `@` and encodes the rest (so the
-/// `/` becomes `%2F`), an unscoped name is encoded whole.
-fn encode_package_name(name: &str) -> String {
-    match name.strip_prefix('@') {
-        Some(rest) => format!("@{}", encode_uri_component(rest)),
-        None => encode_uri_component(name),
-    }
-}
-
-/// Port of JavaScript `encodeURIComponent`: every UTF-8 byte outside the
-/// unreserved set is percent-encoded.
-fn encode_uri_component(input: &str) -> String {
-    const UNRESERVED: &[u8] = b"-_.!~*'()";
-    let mut output = String::with_capacity(input.len());
-    for &byte in input.as_bytes() {
-        if byte.is_ascii_alphanumeric() || UNRESERVED.contains(&byte) {
-            output.push(byte as char);
-        } else {
-            write!(output, "%{byte:02X}").expect("writing to a String never fails");
-        }
-    }
-    output
 }
 
 pub(super) fn render_signature_verification_result(result: &SignatureVerificationResult) -> String {

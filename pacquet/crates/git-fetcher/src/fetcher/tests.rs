@@ -471,10 +471,9 @@ async fn fetcher_skips_build_when_ignore_scripts() {
         requester: "/test",
         store_index_writer: None,
         // The key's `built` dimension reflects what the *dispatcher*
-        // would pass for `ignore_scripts: false`. Upstream's
-        // `pickStoreIndexKey` would flip this to `\tnot-built` when
-        // ignore-scripts is honored at the dispatcher layer; pacquet's
-        // dispatcher hardcodes `built=true` today (see
+        // would pass for `ignore_scripts: false`. The key would flip to
+        // `\tnot-built` when ignore-scripts is honored at the dispatcher
+        // layer; pacquet's dispatcher hardcodes `built=true` today (see
         // `install_package_by_snapshot.rs`), so we mirror that here.
         // `received.built` is the unrelated `should_be_built` flag from
         // `prepare_package` (does the manifest declare a build?) — it
@@ -593,7 +592,7 @@ async fn fetcher_surfaces_prepare_failure() {
         }
     }
     // Then assert the `#[diagnostic(code(...))]` text — a rename of
-    // the code on the enum variant (e.g. dropping the upstream
+    // the code on the enum variant (e.g. dropping the
     // `ERR_PNPM_PREPARE_PACKAGE` matcher in favor of a pacquet-only
     // string) would silently regress error-code parity with pnpm
     // without this check.
@@ -834,13 +833,9 @@ fn position_of(invocations: &[Vec<String>], argv: &[&str]) -> Option<usize> {
         .position(|args| args.len() == argv.len() && args.iter().zip(argv).all(|(a, b)| a == b))
 }
 
-/// Ports pnpm's `still able to shallow fetch for allowed hosts` at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/fetching/git-fetcher/test/index.ts#L183>.
-///
-/// Upstream uses `jest.mock('execa')` to spy on the git binary's
-/// argv and assert the shallow-fetch sequence (`init` → `remote add
-/// origin <url>` → `fetch --depth 1 origin <commit>`). Pacquet
-/// achieves the same observation by:
+/// Asserts the shallow-fetch git invocation sequence (`init` →
+/// `remote add origin <url>` → `fetch --depth 1 origin <commit>`) by
+/// spying on the git binary's argv. Pacquet observes the argv by:
 ///
 /// 1. Writing a tiny shell-script `git` to a temp dir.
 /// 2. Passing the shim's path to the fetcher via

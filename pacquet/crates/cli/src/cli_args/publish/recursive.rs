@@ -29,7 +29,8 @@ use serde_json::Value;
 use super::PublishArgs;
 use crate::cli_args::{
     recursive::{
-        AutoExcludeRoot, discover_workspace_projects, select_recursive_projects, sort_projects,
+        AutoExcludeRoot, discover_workspace_projects, select_recursive_projects,
+        sort_filtered_projects,
     },
     registry_client::build_registry_client,
 };
@@ -57,7 +58,9 @@ impl PublishArgs {
         // selection; its own name/version/private eligibility check drops it
         // below, matching pnpm's `recursivePublish`.
         let (projects, _patterns) = discover_workspace_projects(workspace_root)?;
-        let graph = select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
+        let selection =
+            select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
+        let graph = &selection.selected;
         // An empty selection is a no-op (exit 0) that writes no summary —
         // whether the workspace enumerates no project at all or a `--filter`
         // narrowed it to nothing. Mirrors pnpm's main.ts dispatch, which
@@ -115,7 +118,13 @@ impl PublishArgs {
         // Publish chunk by chunk in dependency order. Publishing cannot run
         // concurrently: an OTP challenge is interactive and per-process.
         let mut published: Vec<PublishSummary> = Vec::new();
-        for chunk in sort_projects(&graph) {
+        let chunks = sort_filtered_projects(
+            graph,
+            selection.full_graph(),
+            selection.prod_all.as_ref(),
+            &selection.prod_only_selected,
+        );
+        for chunk in chunks {
             for root in chunk {
                 if !to_publish.contains(&root) {
                     continue;

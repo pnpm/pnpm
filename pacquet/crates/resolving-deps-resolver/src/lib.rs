@@ -1,7 +1,6 @@
 #![cfg_attr(dylint_lib = "perfectionist", feature(register_tool))]
 #![cfg_attr(dylint_lib = "perfectionist", register_tool(perfectionist))]
-//! Port of pnpm's
-//! [`@pnpm/installing.deps-resolver`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/index.ts).
+//! Dependency resolution for an install pass.
 //!
 //! The public entry point for an install pass is
 //! [`fn@resolve_workspace`] — it loops over every workspace project,
@@ -19,9 +18,9 @@
 //!    dependencies. Produces:
 //!
 //!    - [`ResolvedTree::packages`] — flat dedup map keyed by
-//!      `pkgIdWithPatchHash`, mirroring upstream's `resolvedPkgsById`.
+//!      `pkgIdWithPatchHash`.
 //!    - [`ResolvedTree::dependencies_tree`] — per-occurrence tree
-//!      keyed by [`NodeId`], mirroring upstream's `dependenciesTree`.
+//!      keyed by [`NodeId`].
 //!    - [`ResolvedTree::all_peer_dep_names`] — names every visited
 //!      package declares as a peer, used by the peer pass as the
 //!      `parentPkgs` filter.
@@ -41,11 +40,9 @@
 //!    [`fn@hoist_peers`] / [`fn@get_hoistable_optional_peers`], extends
 //!    the tree with hoisted picks via
 //!    [`extend_tree`], and re-runs the peer pass
-//!    until both pass-1 and pass-2 reach a fixed point. Mirrors
-//!    upstream's
-//!    [`resolveRootDependencies`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L327-L437).
+//!    until both pass-1 and pass-2 reach a fixed point.
 //!
-//! This is intentionally a thin slice of upstream:
+//! Notable design points:
 //!
 //! - **Shared workspace ctx.** [`fn@resolve_workspace`] constructs one
 //!   [`WorkspaceTreeCtx`] and hands an `Arc::clone` to every per-importer

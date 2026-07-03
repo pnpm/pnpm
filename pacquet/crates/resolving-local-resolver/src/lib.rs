@@ -1,5 +1,4 @@
-//! Pacquet port of pnpm's
-//! [`@pnpm/resolving.local-resolver`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/local-resolver/src/index.ts).
+//! Local-filesystem resolver.
 //!
 //! Resolves `file:`, `link:`, `workspace:`, and bare filesystem
 //! specifiers — the four shapes the install layer can satisfy from
@@ -7,14 +6,12 @@
 //! side for the directory case lives in `pacquet-directory-fetcher`;
 //! this crate is resolution-only.
 //!
-//! Three public entry points mirror upstream's:
+//! Three public entry points:
 //!
 //! - [`resolve_from_local_scheme`] — claims a wanted dep iff its bare
 //!   specifier starts with `link:`, `workspace:`, or `file:`. The
 //!   `path:` prefix is rejected with [`PathProtocolNotSupportedError`]
-//!   to match upstream's
-//!   [`PATH_IS_UNSUPPORTED_PROTOCOL`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/local-resolver/src/parseBareSpecifier.ts#L29-L34)
-//!   error.
+//!   (the `PATH_IS_UNSUPPORTED_PROTOCOL` error).
 //! - [`resolve_from_local_path`] — claims a wanted dep purely by path
 //!   shape (relative path, absolute path, drive letter, tarball
 //!   filename). Bare-specifier dispatchers run this *after*

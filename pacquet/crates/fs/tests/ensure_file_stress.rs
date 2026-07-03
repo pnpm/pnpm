@@ -1,7 +1,6 @@
 //! Cross-process stress tests for [`pacquet_fs::ensure_file`].
 //!
-//! Ports the three multi-process scenarios upstream pnpm covers in
-//! [`store/cafs/test/writeBufferToCafs.test.ts`](https://github.com/pnpm/pnpm/blob/8695496f58/store/cafs/test/writeBufferToCafs.test.ts):
+//! Covers three multi-process scenarios:
 //!
 //! 1. Concurrent writes of the same content from many processes all
 //!    succeed and converge on a byte-identical CAS file.
@@ -16,11 +15,10 @@
 //!
 //! Pacquet's [`cas_write_lock`](pacquet_fs::ensure_file) is
 //! process-local (a static array of [`std::sync::Mutex<()>`] stripes
-//! keyed by hashed path), just like upstream's
-//! `locker: Map<string, number>`. The cross-process safety contract
-//! therefore lives entirely in the kernel-level `O_CREAT | O_EXCL` +
-//! atomic-rename primitives. The existing intra-process 32-thread
-//! test in `ensure_file::tests`
+//! keyed by hashed path), so the cross-process safety contract lives
+//! entirely in the kernel-level `O_CREAT | O_EXCL` + atomic-rename
+//! primitives. The existing intra-process 32-thread test in
+//! `ensure_file::tests`
 //! ([`concurrent_writers_of_same_path_do_not_swap_the_inode`])
 //! exercises the lock; this suite exercises the unprotected
 //! filesystem-only path.
@@ -29,13 +27,11 @@ use sha2::{Digest, Sha512};
 use std::{fs, path::Path, process::Command, sync::Arc, thread};
 use tempfile::tempdir;
 
-/// Number of worker processes per test. Eight matches upstream's
-/// `numWorkers = 8` default.
+/// Number of worker processes per test.
 const WORKER_COUNT: usize = 8;
 
-/// 256 KiB matches upstream's `crypto.randomBytes(256 * 1024)`.
-/// Big enough to make a partial write detectable as a size mismatch
-/// without being so big it dominates the test runtime.
+/// 256 KiB: big enough to make a partial write detectable as a size
+/// mismatch without being so big it dominates the test runtime.
 const CONTENT_SIZE: usize = 256 * 1024;
 
 /// Path to the test-only worker binary that `cargo build` produced
@@ -79,9 +75,7 @@ fn sha512_hex(content: &[u8]) -> String {
 }
 
 /// Concurrent writes of the same buffer from many processes all
-/// succeed and converge on a byte-identical CAS file. Mirrors
-/// upstream's [`should handle concurrent writes from multiple
-/// processes without corruption`](https://github.com/pnpm/pnpm/blob/8695496f58/store/cafs/test/writeBufferToCafs.test.ts#L60).
+/// succeed and converge on a byte-identical CAS file.
 #[test]
 fn multi_process_concurrent_writes_converge_on_correct_content() {
     let tmp = tempdir().expect("tempdir");
@@ -110,9 +104,7 @@ fn multi_process_concurrent_writes_converge_on_correct_content() {
 /// A pre-seeded corrupt blob at the target path doesn't wedge the
 /// store: every concurrent writer still returns success, and the
 /// final on-disk content matches the buffer the workers were trying
-/// to write. Mirrors upstream's [`should recover from a corrupt file
-/// when multiple processes write
-/// concurrently`](https://github.com/pnpm/pnpm/blob/8695496f58/store/cafs/test/writeBufferToCafs.test.ts#L85).
+/// to write.
 #[test]
 fn multi_process_recovery_from_pre_seeded_corrupt_file() {
     let tmp = tempdir().expect("tempdir");
@@ -155,9 +147,7 @@ fn multi_process_recovery_from_pre_seeded_corrupt_file() {
 /// A pre-seeded truncated prefix of the correct content (simulating
 /// a writer that crashed mid-`write_all`) also recovers: the size
 /// mismatch short-circuits the byte comparison and `write_atomic`
-/// renames a fresh blob over the partial one. Mirrors upstream's
-/// [`should recover from a truncated file (simulating crash
-/// mid-write)`](https://github.com/pnpm/pnpm/blob/8695496f58/store/cafs/test/writeBufferToCafs.test.ts#L111).
+/// renames a fresh blob over the partial one.
 #[test]
 fn multi_process_recovery_from_pre_seeded_truncated_file() {
     let tmp = tempdir().expect("tempdir");
@@ -168,11 +158,10 @@ fn multi_process_recovery_from_pre_seeded_truncated_file() {
     fs::write(&content_path, &content).expect("write content fixture");
     let expected_digest = sha512_hex(&content);
 
-    // Pre-seed the first 1 KiB of the correct content. Same as
-    // upstream's `content.subarray(0, 1024)`: matches the prefix
-    // of what the workers will write, so a naive content-matching
-    // path that compared only the first chunk would erroneously
-    // claim a hit. The size-mismatch guard inside
+    // Pre-seed the first 1 KiB of the correct content: matches the
+    // prefix of what the workers will write, so a naive content-
+    // matching path that compared only the first chunk would
+    // erroneously claim a hit. The size-mismatch guard inside
     // `verify_or_rewrite` is what makes recovery work.
     fs::write(&target_path, &content[..1024]).expect("pre-seed truncated blob");
 

@@ -19,16 +19,15 @@ pub(crate) fn to_string<Value: Serialize>(value: &Value) -> Result<String, serde
 
 /// Serialize a [`HashMap`] with its entries emitted in canonical key order.
 ///
-/// pnpm orders every lockfile map by its *rendered* key string via
-/// [`lexCompare`](https://github.com/pnpm/pnpm/blob/39101f5e37/lockfile/fs/src/sortLockfileKeys.ts)
-/// (a plain code-unit comparison). Sorting by the rendered string — rather
-/// than by the key type's structural `Ord` — is load-bearing: the `@`
-/// separating `name` from `version` in a `packages:`/`snapshots:` key, and
-/// the leading `@` of a scoped `name`, both order differently under a
-/// field-wise comparison than under a comparison of the concatenated string
-/// (`react-dom@1.0.0` sorts before `react@17.0.2`; `@types/node` sorts before
-/// `node`). [`Display`] renders each key exactly as it is serialized, so
-/// sorting by it reproduces pnpm's byte order.
+/// Every lockfile map is ordered by its *rendered* key string under a plain
+/// code-unit comparison. Sorting by the rendered string — rather than by the
+/// key type's structural `Ord` — is load-bearing: the `@` separating `name`
+/// from `version` in a `packages:`/`snapshots:` key, and the leading `@` of a
+/// scoped `name`, both order differently under a field-wise comparison than
+/// under a comparison of the concatenated string (`react-dom@1.0.0` sorts
+/// before `react@17.0.2`; `@types/node` sorts before `node`). [`Display`]
+/// renders each key exactly as it is serialized, so sorting by it reproduces
+/// the canonical byte order.
 pub(crate) fn sorted_map<Key, Value, Ser>(
     map: &HashMap<Key, Value>,
     serializer: Ser,

@@ -662,11 +662,9 @@ fn ignored_scripts_event_matches_pnpm_wire_shape() {
     assert!(json.get("strictDepBuilds").is_none());
 }
 
-/// `pnpm:skipped-optional-dependency` matches upstream's wire
-/// shape: top-level `details`, `package: { id, name, version }`,
-/// `prefix`, and `reason` (`snake_case`). Mirrors
-/// `SkippedOptionalDependencyMessage` at
-/// <https://github.com/pnpm/pnpm/blob/b4f8f47ac2/core/core-loggers/src/skippedOptionalDependencyLogger.ts>.
+/// `pnpm:skipped-optional-dependency` matches pnpm's wire shape:
+/// top-level `details`, `package: { id, name, version }`, `prefix`,
+/// and `reason` (`snake_case`).
 #[test]
 fn skipped_optional_dependency_event_matches_pnpm_wire_shape() {
     let event = LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
@@ -723,8 +721,7 @@ fn skipped_optional_omits_absent_details() {
 
 /// `pnpm:_broken_node_modules` carries a single `missing` field with
 /// the absolute path of the slot that should have been on disk but
-/// wasn't. Mirrors upstream's emit shape at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/deps/graph-builder/src/lockfileToDepGraph.ts#L258>.
+/// wasn't.
 #[test]
 fn broken_modules_event_matches_pnpm_wire_shape() {
     let event = LogEvent::BrokenModules(BrokenModulesLog {
@@ -742,14 +739,12 @@ fn broken_modules_event_matches_pnpm_wire_shape() {
     assert_eq!(json["missing"], "/proj/node_modules/.pacquet/react@18.0.0/node_modules/react");
 }
 
-/// `resolution_failure` payload uses the second upstream variant:
+/// `resolution_failure` payload uses the second `package` variant:
 /// no `id`, optional `name` / `version`, and a `bareSpecifier`
-/// (camelCase on the wire). Mirrors the `package` shape at
-/// <https://github.com/pnpm/pnpm/blob/94240bc046/core/core-loggers/src/skippedOptionalDependencyLogger.ts#L21-L29>:
-/// pnpm renders the resolver-time emit with whatever fields the
-/// resolver had at fail time — bare specifier always present;
-/// `name` / `version` only when the resolver advanced far enough
-/// to extract them.
+/// (camelCase on the wire). The resolver-time emit carries whatever
+/// fields the resolver had at fail time — bare specifier always
+/// present; `name` / `version` only when the resolver advanced far
+/// enough to extract them.
 #[test]
 fn skipped_optional_resolution_failure_event_matches_pnpm_wire_shape() {
     let event = LogEvent::SkippedOptionalDependency(SkippedOptionalDependencyLog {
@@ -885,8 +880,7 @@ fn recording_fake_captures_emitted_events() {
 
 /// `pnpm:lockfile-verification` `started` event carries `entries` and
 /// the camelCase `lockfilePath`, both flattened into the envelope
-/// alongside `status: "started"`. Mirrors upstream's emit at
-/// <https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutions.ts#L135-L139>.
+/// alongside `status: "started"`.
 #[test]
 fn lockfile_verification_started_event_matches_pnpm_wire_shape() {
     let event = LogEvent::LockfileVerification(LockfileVerificationLog {
@@ -911,8 +905,7 @@ fn lockfile_verification_started_event_matches_pnpm_wire_shape() {
 }
 
 /// `pnpm:lockfile-verification` `done` event adds `elapsedMs` in
-/// camelCase, with `status: "done"`. Matches upstream's emit at
-/// <https://github.com/pnpm/pnpm/blob/2a9bd897bf/installing/deps-installer/src/install/verifyLockfileResolutions.ts#L163-L168>.
+/// camelCase, with `status: "done"`.
 #[test]
 fn lockfile_verification_done_event_matches_pnpm_wire_shape() {
     let event = LogEvent::LockfileVerification(LockfileVerificationLog {

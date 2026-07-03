@@ -180,14 +180,11 @@ fn parallel_build_leaves_share_chunk() {
     assert_eq!(chunks[1], vec![key("root", "1.0.0")]);
 }
 
-/// Direct port of upstream
-/// [`'buildSequence() test 2'`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/during-install/test/buildSequence.test.ts#L28-L51).
-///
-/// This is the subgraph-trim case for [#397] item `#16`. Pacquet's
+/// The subgraph-trim case for [#397] item `#16`. Pacquet's
 /// existing [`unrelated_subgraph_excluded`] covers a stronger
 /// scenario (an entirely unreachable subgraph); this one pins the
-/// upstream-equivalent behavior where an importer that's still in
-/// the install set gets dropped from the build sequence.
+/// behavior where an importer that's still in the install set gets
+/// dropped from the build sequence.
 ///
 /// [#397]: https://github.com/pnpm/pacquet/issues/397
 #[test]
@@ -210,13 +207,12 @@ fn non_builder_importer_with_shared_builder_child_is_trimmed() {
 }
 
 /// A snapshot marked in the skip set must NOT enter the build queue
-/// even if it carries a configured patch. Upstream's `lockfileToDepGraph`
-/// excludes skipped nodes from the depGraph entirely, so the patch
-/// lookup never finds them. Without this gate, `build_one_snapshot`'s
-/// `pkg_dir.exists()` defensive return would still suppress the
-/// actual build attempt — but the snapshot would have been queued
-/// and the graph walked through it. The gate makes the exclusion
-/// correct-by-construction.
+/// even if it carries a configured patch. Skipped nodes are excluded
+/// from the build graph entirely, so the patch lookup never finds
+/// them. Without this gate, `build_one_snapshot`'s `pkg_dir.exists()`
+/// defensive return would still suppress the actual build attempt —
+/// but the snapshot would have been queued and the graph walked
+/// through it. The gate makes the exclusion correct-by-construction.
 #[test]
 fn skipped_patched_snapshot_does_not_enter_build_queue() {
     use std::collections::HashSet;
@@ -249,10 +245,10 @@ fn skipped_patched_snapshot_does_not_enter_build_queue() {
 }
 
 /// A snapshot reachable *only* via a skipped optional parent must not
-/// enter the build queue, even if it requires a build. Pnpm's
-/// `lockfileToDepGraph` removes skipped depPaths from the graph
-/// entirely, so descendants reachable only via that edge are
-/// effectively orphans in the build phase.
+/// enter the build queue, even if it requires a build. Skipped
+/// depPaths are removed from the build graph entirely, so descendants
+/// reachable only via that edge are effectively orphans in the build
+/// phase.
 #[test]
 fn skipped_parent_does_not_drag_descendants_into_build_queue() {
     use std::collections::HashSet;

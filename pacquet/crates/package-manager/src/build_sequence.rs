@@ -8,22 +8,17 @@ use std::collections::{HashMap, HashSet};
 
 /// Compute topologically ordered chunks of packages that need building.
 ///
-/// Ports `buildSequence` from
-/// `https://github.com/pnpm/pnpm/blob/80037699fb/building/during-install/src/buildSequence.ts`.
-///
 /// The returned chunks are ordered children-first: every chunk may safely
 /// run only after every preceding chunk has finished. Members of the same
 /// chunk are independent and could run concurrently (pacquet currently runs
 /// them sequentially).
 ///
 /// Only nodes whose subtree contains at least one build candidate appear in
-/// the output. Snapshots not reachable from any importer are excluded —
-/// matching pnpm's `getSubgraphToBuild` walk.
+/// the output. Snapshots not reachable from any importer are excluded.
 ///
 /// `requires_build` is the per-snapshot map computed by the caller after
 /// extraction (from each package's manifest scripts and presence of
-/// `binding.gyp` / `.hooks/`). Mirrors the role of `node.requiresBuild`
-/// upstream, which the worker computes from the extracted package contents.
+/// `binding.gyp` / `.hooks/`).
 ///
 /// `patches` is the per-snapshot lookup map produced by
 /// `InstallFrozenLockfile::run` from
@@ -31,11 +26,8 @@ use std::collections::{HashMap, HashSet};
 /// [`pacquet_patching::get_patch_info`]: keys are peer-stripped
 /// [`PackageKey`]s, values are the matched
 /// [`pacquet_patching::ExtendedPatchInfo`]. `None` when no
-/// `patchedDependencies` is configured. Presence of a key here
-/// mirrors upstream's `node.patch != null` and makes the snapshot
-/// a build candidate even when `requires_build` is false. Mirrors
-/// upstream's
-/// [`getSubgraphToBuild`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/during-install/src/buildSequence.ts#L40-L67).
+/// `patchedDependencies` is configured. Presence of a key here makes
+/// the snapshot a build candidate even when `requires_build` is false.
 pub fn build_sequence(
     requires_build: &HashMap<PackageKey, bool>,
     patches: Option<&HashMap<PackageKey, ExtendedPatchInfo>>,
@@ -147,12 +139,9 @@ fn collect_root_dep_paths(
             for (name, spec) in map {
                 // `link:` deps don't live in the virtual store —
                 // they're per-importer directory symlinks — so they
-                // are not snapshot roots. Mirrors upstream's
-                // `if (depPath.startsWith('link:')) continue` at
-                // build-time in
-                // <https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-installer/src/install/index.ts>.
-                // For aliased deps, the snapshot key uses the alias's
-                // own (name, suffix), not the importer-map key.
+                // are not snapshot roots. For aliased deps, the
+                // snapshot key uses the alias's own (name, suffix),
+                // not the importer-map key.
                 let Some(key) = spec.version.resolved_key(name) else {
                     continue;
                 };
@@ -194,17 +183,12 @@ struct GetSubgraphCtx<'a> {
 /// Walk the dep graph from `entry_nodes`, filling `nodes_to_build` with
 /// packages whose subtree (including themselves) contains a build candidate.
 ///
-/// Ports `getSubgraphToBuild` from
-/// `https://github.com/pnpm/pnpm/blob/b4f8f47ac2/building/during-install/src/buildSequence.ts`.
 /// A node is a candidate when `requires_build` is set OR when an entry
-/// for the peer-stripped key is present in `patches` (mirrors
-/// upstream's `node.requiresBuild || node.patch != null`) — *unless*
-/// the node is in `skipped`, in which case its virtual-store slot
-/// was never created so neither the requires-build nor patch path
-/// can run. Mirrors pnpm's `lockfileToDepGraph` flow where skipped
-/// snapshots never enter the build graph at all (the patch lookup
-/// upstream walks `pkgGraph[depPath]?.patch` and `depGraph` itself
-/// excludes skipped nodes).
+/// for the peer-stripped key is present in `patches` — *unless* the
+/// node is in `skipped`, in which case its virtual-store slot was never
+/// created so neither the requires-build nor patch path can run. A
+/// skipped snapshot never enters the build graph, so a child reachable
+/// only through a skipped edge is excluded too.
 ///
 /// Returns whether *any* of the entry nodes (or their subtrees) needs to build.
 fn get_subgraph_to_build(
@@ -225,13 +209,12 @@ fn get_subgraph_to_build(
 
         // A skipped snapshot never had its virtual-store slot
         // created, so neither requires-build nor a configured
-        // patch can produce work. Mirrors pnpm's `lockfileToDepGraph`
-        // flow where skipped depPaths are dropped from `depGraph`
-        // entirely: a child reachable only via a skipped edge
-        // doesn't enter the build graph either. Gate *before*
-        // recursion so a skipped optional doesn't drag its
-        // transitive deps into the walk via an edge pnpm wouldn't
-        // see.
+        // patch can produce work. A skipped depPath is dropped from
+        // the build graph entirely: a child reachable only via a
+        // skipped edge doesn't enter the build graph either. Gate
+        // *before* recursion so a skipped optional doesn't drag its
+        // transitive deps into the walk via an edge that should not
+        // be followed.
         if ctx.skipped.contains(dep_path) {
             walked.insert(dep_path.clone());
             continue;

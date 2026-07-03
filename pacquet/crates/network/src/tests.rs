@@ -1,12 +1,9 @@
 //! Tests for [`super`]'s proxy plumbing.
 //!
-//! Mirrors the describe blocks in pnpm v11's
-//! [`network/fetch/test/dispatcher.test.ts`](https://github.com/pnpm/pnpm/blob/94240bc046/network/fetch/test/dispatcher.test.ts)
-//! that don't require a real proxy listener:
+//! Covers the proxy behaviors that don't require a real proxy listener:
 //!
 //! * `HTTP proxy` — per-URL routing, basic-auth decoding, scheme bypass.
-//! * `SOCKS proxy` — routing decision (live-network case skipped, same as
-//!   upstream).
+//! * `SOCKS proxy` — routing decision (live-network case skipped).
 //! * `noProxy` — reverse-dot-segment match, bypass-all literal.
 //! * `Invalid proxy URL` — `ERR_PNPM_INVALID_PROXY`.
 //!
@@ -99,8 +96,8 @@ fn parse_proxy_url_keeps_existing_scheme() {
 
 #[test]
 fn parse_proxy_url_socks_schemes_pass_through() {
-    // pnpm honors socks4, socks4a, socks5 (dispatcher.ts:124-132).
-    // Routing happens elsewhere; here we only assert the URL parses.
+    // socks4, socks4a, and socks5 are honored. Routing happens
+    // elsewhere; here we only assert the URL parses.
     for scheme in ["socks4", "socks4a", "socks5"] {
         let url =
             parse_proxy_url(&format!("{scheme}://socksproxy.example:1080")).expect("socks parses");
@@ -116,7 +113,7 @@ fn parse_proxy_url_invalid_returns_invalid_proxy_error() {
     match &err {
         ProxyError::InvalidProxy { url, .. } => assert_eq!(url, "://broken"),
     }
-    // Diagnostic code matches upstream `ERR_PNPM_INVALID_PROXY`.
+    // Diagnostic code is `ERR_PNPM_INVALID_PROXY`.
     let code = miette::Diagnostic::code(&err).expect("code() set");
     assert_eq!(code.to_string(), "ERR_PNPM_INVALID_PROXY");
 }

@@ -15,10 +15,7 @@
 //! resolver's upgrade-on-recent-modified path) must request full
 //! metadata. The resolver's default install path requests
 //! abbreviated and upgrades to full only when the maturity check
-//! demands it — mirroring upstream's pickPackage logic.
-//!
-//! Ports the request half of upstream's
-//! [`fetchMetadataFromFromRegistry`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetch.ts#L118-L204).
+//! demands it.
 
 use pacquet_network::{
     AuthHeaders, RetryOpts, ThrottledClient, redact_url_credentials, retry_async, send_with_retry,
@@ -28,19 +25,16 @@ use reqwest::{StatusCode, header};
 
 use crate::{FetchMetadataError, registry_url::to_registry_url};
 
-/// Accept header for the full packument. Matches upstream's
-/// [`ACCEPT_FULL_DOC`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/network/fetch/src/fetchFromRegistry.ts#L12).
+/// Accept header for the full packument.
 pub(crate) const ACCEPT_FULL_DOC: &str = "application/json; q=1.0, */*";
 
-/// Accept header for the abbreviated `install-v1` packument. Matches
-/// upstream's
-/// [`ACCEPT_ABBREVIATED_DOC`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/network/fetch/src/fetchFromRegistry.ts#L15).
+/// Accept header for the abbreviated `install-v1` packument.
 pub(crate) const ACCEPT_ABBREVIATED_DOC: &str =
     "application/vnd.npm.install-v1+json; q=1.0, application/json; q=0.8, */*";
 
-/// Options bundle for [`fetch_full_metadata`]. Mirrors upstream's
-/// `FetchFullMetadataCachedOptions` minus the cache-directory field;
-/// the cached variant layers it on.
+/// Options bundle for [`fetch_full_metadata`]. The cached variant
+/// ([`crate::FetchFullMetadataCachedOptions`]) layers a
+/// cache-directory field on top of these.
 #[derive(Debug, Clone)]
 pub struct FetchFullMetadataOptions<'a> {
     pub registry: &'a str,
@@ -48,33 +42,27 @@ pub struct FetchFullMetadataOptions<'a> {
     pub auth_headers: &'a AuthHeaders,
     /// `true` requests the full packument (with `time`, `_npmUser`,
     /// and `dist.attestations`); `false` requests the abbreviated
-    /// `install-v1` form. Mirrors upstream's
-    /// [`opts.fullMetadata`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetch.ts#L113).
+    /// `install-v1` form.
     pub full_metadata: bool,
     /// Optional `If-None-Match` header value. When `Some`, the
     /// registry can answer the request with `304 Not Modified` and
     /// the fetcher returns [`FetchFullMetadataOutcome::NotModified`]
-    /// instead of a body. Mirrors upstream's
-    /// [`etag` option](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetch.ts#L113)
-    /// passed verbatim into the `make-fetch-happen` request.
+    /// instead of a body.
     pub etag: Option<&'a str>,
     /// Optional `If-Modified-Since` header value. Same role as
     /// [`Self::etag`] — gives the registry a chance to short-circuit
-    /// the body re-download. Mirrors upstream's `modified` option at
-    /// the same call site.
+    /// the body re-download.
     pub modified: Option<&'a str>,
     pub retry_opts: RetryOpts,
 }
 
-/// Outcome of a [`fetch_full_metadata`] call. Mirrors upstream's
-/// [`FetchMetadataResult | FetchMetadataNotModifiedResult`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/fetch.ts#L80-L86)
-/// union — the caller (today: only
+/// Outcome of a [`fetch_full_metadata`] call. The caller (today: only
 /// `maybe_upgrade_abbreviated_meta_for_release_age` inside
 /// [`crate::pick_package()`]) reacts differently to a 304 than to
-/// a 200. [`Package`] is boxed
-/// so the size of the enum stays small even though a full packument
-/// can be many KB; mirrors the same boxing pattern used elsewhere in
-/// the crate when a large struct sits next to a unit variant.
+/// a 200. [`Package`] is boxed so the size of the enum stays small
+/// even though a full packument can be many KB — the same boxing
+/// pattern used elsewhere in the crate when a large struct sits next
+/// to a unit variant.
 #[derive(Debug, Clone)]
 pub enum FetchFullMetadataOutcome {
     /// Registry returned a 2xx with a parsed body.

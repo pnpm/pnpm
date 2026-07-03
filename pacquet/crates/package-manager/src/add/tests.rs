@@ -23,7 +23,7 @@ async fn add_routes_scoped_packages_to_configured_scoped_registry() {
 
     let mut default_registry = mockito::Server::new_async().await;
     let default_latest = default_registry
-        .mock("GET", "/@private/foo/latest")
+        .mock("GET", "/@private%2Ffoo/latest")
         .with_status(500)
         .expect(0)
         .create_async()
@@ -38,7 +38,7 @@ async fn add_routes_scoped_packages_to_configured_scoped_registry() {
     let mut scoped_registry = mockito::Server::new_async().await;
     let scoped_registry_url = format!("{}/", scoped_registry.url());
     let scoped_latest = scoped_registry
-        .mock("GET", "/@private/foo/latest")
+        .mock("GET", "/@private%2Ffoo/latest")
         .with_status(200)
         .with_header("content-type", "application/json")
         .with_body(scoped_version_body(&scoped_registry_url))

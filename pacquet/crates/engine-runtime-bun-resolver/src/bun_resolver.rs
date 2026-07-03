@@ -1,5 +1,4 @@
-//! Pacquet port of upstream's
-//! [`resolveBunRuntime` / `resolveLatestBunRuntime`](https://github.com/pnpm/pnpm/blob/1627943d2a/engine/runtime/bun-resolver/src/index.ts#L24-L92).
+//! Resolves `bun@runtime:<spec>` dependencies.
 
 use std::sync::Arc;
 

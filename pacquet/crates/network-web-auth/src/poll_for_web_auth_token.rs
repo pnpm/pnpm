@@ -6,14 +6,10 @@ use crate::{
 #[cfg(test)]
 mod tests;
 
-/// Options forwarded to each poll request. Ports TS
-/// [`WebAuthFetchOptions`][ts-WebAuthFetchOptions] (the `method` is always
-/// `GET`, so it is implicit here). `retry` mirrors the undici retry knobs
-/// pnpm passes through; the production [`Host`](crate::Host) fetch currently
-/// applies only `timeout` and leaves `retry` for the consuming command to
-/// wire.
-///
-/// [ts-WebAuthFetchOptions]: https://github.com/pnpm/pnpm/blob/a06591e349/pnpm11/network/web-auth/src/pollForWebAuthToken.ts#L3-L13
+/// Options forwarded to each poll request (the `method` is always `GET`, so
+/// it is implicit here). `retry` carries the undici retry knobs; the
+/// production [`Host`](crate::Host) fetch currently applies only `timeout`
+/// and leaves `retry` for the consuming command to wire.
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct WebAuthFetchOptions {
     /// Per-request timeout in milliseconds.
@@ -21,8 +17,7 @@ pub struct WebAuthFetchOptions {
     pub retry: Option<WebAuthRetryOptions>,
 }
 
-/// Retry knobs forwarded with [`WebAuthFetchOptions`]. Field-for-field
-/// port of pnpm's `WebAuthFetchOptions['retry']`.
+/// Retry knobs forwarded with [`WebAuthFetchOptions`].
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct WebAuthRetryOptions {
     pub factor: Option<f64>,
@@ -32,12 +27,9 @@ pub struct WebAuthRetryOptions {
     pub retries: Option<u32>,
 }
 
-/// A poll response materialized by the [`WebAuthFetch`] capability. Ports
-/// TS [`WebAuthFetchResponse`][ts-WebAuthFetchResponse]: `ok` / `status`, the
-/// one header the poll reads (`Retry-After`), and the body text that
-/// [`token`](Self::token) parses.
-///
-/// [ts-WebAuthFetchResponse]: https://github.com/pnpm/pnpm/blob/a06591e349/pnpm11/network/web-auth/src/pollForWebAuthToken.ts#L19-L24
+/// A poll response materialized by the [`WebAuthFetch`] capability:
+/// `ok` / `status`, the one header the poll reads (`Retry-After`), and the
+/// body text that [`token`](Self::token) parses.
 #[derive(Debug, Clone)]
 pub struct WebAuthFetchResponse {
     pub ok: bool,
@@ -51,8 +43,7 @@ pub struct WebAuthFetchResponse {
 impl WebAuthFetchResponse {
     /// Extract the `token` field from the JSON body. `Ok(None)` when the
     /// body parses but carries no token; `Err` when the body is not the
-    /// expected JSON shape — mirroring TS `response.json()` rejecting,
-    /// which the poll loop swallows.
+    /// expected JSON shape, which the poll loop swallows.
     pub fn token(&self) -> Result<Option<String>, serde_json::Error> {
         #[derive(serde::Deserialize)]
         struct TokenBody {
@@ -80,8 +71,6 @@ const POLL_INTERVAL_MS: u64 = 1000;
 /// The caller is responsible for displaying the authentication URL (and
 /// optional QR code) before calling this. Returns the token string, or
 /// [`WebAuthTimeoutError`] when the budget is exceeded.
-///
-/// Ports pnpm's `pollForWebAuthToken`.
 pub async fn poll_for_web_auth_token<Sys>(
     params: WebAuthTokenPollParams,
 ) -> Result<String, WebAuthTimeoutError>

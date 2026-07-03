@@ -1,9 +1,7 @@
 //! Resolve and install configurational dependencies before the main
 //! install runs.
 //!
-//! Mirrors the install half of pnpm's
-//! [`installConfigDepsAndLoadHooks`](https://github.com/pnpm/pnpm/blob/31858c544b/pnpm/src/getConfig.ts#L45-L99):
-//! config dependencies are materialized at config-finalization time, so
+//! Config dependencies are materialized at config-finalization time, so
 //! the env lockfile (the first YAML document of `pnpm-lock.yaml`) is
 //! written before the regular install reads or rewrites the wanted
 //! lockfile. Plugin-hook loading (the `updateConfig` half) is wired in
@@ -71,15 +69,12 @@ pub async fn sync_package_manager_dependencies(
 }
 
 /// The version `pnpm self-update` resolved a specifier to, plus whether
-/// the pick violated the active maturity/trust policy. Mirrors the
-/// `resolution.manifest`-derived values pnpm's self-update reads from
-/// [`createResolver`](https://github.com/pnpm/pnpm/blob/a33eeec9cd/pnpm11/engine/pm/commands/src/self-updater/selfUpdate.ts#L83-L116).
+/// the pick violated the active maturity/trust policy.
 pub struct ResolvedPnpm {
     pub version: String,
     /// `true` when the resolver picked a version despite the maturity
     /// (`minimumReleaseAge`) or `trustPolicy` gate. Self-update fails
-    /// closed on this under strict resolution, mirroring pnpm's
-    /// `makeResolutionStrict`.
+    /// closed on this under strict resolution.
     pub policy_violation: bool,
 }
 
@@ -176,7 +171,7 @@ pub async fn resolve_pnpm_version(
 /// Add a single config dependency: resolve + install it (merged with any
 /// already-declared config deps), then write the clean specifier into
 /// `pnpm-workspace.yaml`'s `configDependencies` block. Backs
-/// `pacquet add --config`. Mirrors pnpm's `resolveConfigDeps`.
+/// `pacquet add --config`.
 pub async fn add_config_dependency<Reporter: self::Reporter>(
     config: &Config,
     root_dir: &Path,
@@ -343,10 +338,8 @@ impl EnvInstallerContext {
 
 /// Run the `updateConfig` pnpmfile hooks contributed by config-dependency
 /// plugins (and the project's own pnpmfile), applying their result to
-/// `config`. Mirrors the hook half of pnpm's
-/// [`installConfigDepsAndLoadHooks`](https://github.com/pnpm/pnpm/blob/31858c544b/pnpm/src/getConfig.ts#L74-L98):
-/// plugin pnpmfiles run before the project pnpmfile (pnpm `unshift`s
-/// them), each transforming the config object in turn.
+/// `config`. Plugin pnpmfiles run before the project pnpmfile, each
+/// transforming the config object in turn.
 ///
 /// Config round-trips through [`WorkspaceSettings`], so any settings key
 /// a hook changes is applied back the same way `pnpm-workspace.yaml` is.
@@ -420,8 +413,8 @@ pub async fn run_update_config_hooks<Reporter: self::Reporter>(
     // *replaced*, or *removed* an entry is all reflected — a removed key
     // (absent from the output) maps to an empty set rather than silently
     // falling back to the manifest. At least one pnpmfile ran (the empty
-    // case returned early above), so this mirrors pnpm using the
-    // post-hook `config.catalogs`.
+    // case returned early above), so the post-hook catalogs are the
+    // authoritative set.
     config.catalogs = Some(
         current
             .get("catalogs")

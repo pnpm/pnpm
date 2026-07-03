@@ -1,7 +1,6 @@
-//! Port of pnpm's
-//! [`checkGlobalBinDir`](https://github.com/pnpm/pnpm/blob/1819226b51/config/reader/src/checkGlobalBinDir.ts):
-//! the global bin directory must exist on `PATH` (so the executables it
-//! links are reachable) and, for mutating commands, be writable.
+//! Validates the global bin directory: it must exist on `PATH` (so the
+//! executables it links are reachable) and, for mutating commands, be
+//! writable.
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
@@ -12,8 +11,8 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-/// Failure from [`check_global_bin_dir`]. Codes mirror pnpm's
-/// `ERR_PNPM_`-prefixed `PnpmError` codes.
+/// Failure from [`check_global_bin_dir`]. Codes use pnpm's
+/// `ERR_PNPM_`-prefixed error codes.
 #[derive(Debug, Display, Error, Diagnostic)]
 pub enum CheckGlobalBinDirError {
     /// The `PATH` environment variable is unset, so there is no global
@@ -79,10 +78,10 @@ fn global_bin_dir_is_in_path(global_bin_dir: &Path, path_env: &str) -> bool {
     })
 }
 
-/// Mirrors pnpm's `areDirsEqual` (`path.relative(dir1, dir2) === ''`), which
-/// normalizes both paths before comparing. Plain `Path` equality would treat
-/// e.g. `/a/b/.` or `/a/x/../b` as different from `/a/b` and reject a global
-/// bin dir that is effectively on `PATH`.
+/// Compares two directories the way `path.relative(dir1, dir2) === ''`
+/// would: by normalizing both paths first. Plain `Path` equality would
+/// treat e.g. `/a/b/.` or `/a/x/../b` as different from `/a/b` and reject a
+/// global bin dir that is effectively on `PATH`.
 fn dirs_equal(dir1: &Path, dir2: &Path) -> bool {
     lexically_normalize(dir1) == lexically_normalize(dir2)
 }

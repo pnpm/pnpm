@@ -1,6 +1,7 @@
 use super::{
     audit::{AuditArgs, AuditOutcome},
     bin::BinArgs,
+    bugs::BugsArgs,
     cache::CacheCommand,
     cat_file::CatFileArgs,
     cat_index::CatIndexArgs,
@@ -16,10 +17,12 @@ use super::{
     pack::PackArgs,
     pack_app::PackAppArgs,
     ping::PingArgs,
+    prefix::PrefixArgs,
     publish::PublishArgs,
     repo::RepoArgs,
     reporter::ReporterType,
     root::RootArgs,
+    sbom::SbomArgs,
     self_update::SelfUpdateArgs,
     setup::SetupArgs,
     store::StoreCommand,
@@ -99,6 +102,10 @@ pub(super) fn ll<'a>(ctx: &RunCtx<'a>, mut args: ListArgs) -> miette::Result<Com
 }
 
 pub(super) fn why<'a>(ctx: &RunCtx<'a>, args: WhyArgs) -> miette::Result<CommandFuture<'a>> {
+    Ok(Box::pin(args.run((ctx.state)(true)?)))
+}
+
+pub(super) fn sbom<'a>(ctx: &RunCtx<'a>, args: SbomArgs) -> miette::Result<CommandFuture<'a>> {
     Ok(Box::pin(args.run((ctx.state)(true)?)))
 }
 
@@ -194,6 +201,11 @@ pub(super) fn bin<'a>(ctx: &RunCtx<'a>, args: BinArgs) -> miette::Result<Command
 }
 
 pub(super) fn root<'a>(ctx: &RunCtx<'a>, args: RootArgs) -> miette::Result<CommandFuture<'a>> {
+    args.run(ctx.dir)?;
+    Ok(Box::pin(std::future::ready(Ok(()))))
+}
+
+pub(super) fn prefix<'a>(ctx: &RunCtx<'a>, args: PrefixArgs) -> miette::Result<CommandFuture<'a>> {
     args.run(ctx.dir)?;
     Ok(Box::pin(std::future::ready(Ok(()))))
 }
@@ -352,6 +364,12 @@ pub(super) fn ignored_builds<'a>(
     let output = super::ignored_builds::render_ignored_builds((ctx.config)()?)?;
     print!("{output}");
     Ok(Box::pin(std::future::ready(Ok(()))))
+}
+
+pub(super) fn bugs<'a>(ctx: &RunCtx<'a>, args: BugsArgs) -> miette::Result<CommandFuture<'a>> {
+    let cfg: &Config = (ctx.config)()?;
+    let dir = ctx.dir;
+    Ok(Box::pin(async move { args.run(cfg, dir).await }))
 }
 
 pub(super) fn find_hash<'a>(

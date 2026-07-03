@@ -97,10 +97,9 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// One entry per importer to resolve, keyed by the lockfile
     /// importer id (`"."` for the workspace root, POSIX-relative path
     /// for sibling projects — see
-    /// [`pacquet_workspace::importer_id_from_root_dir`]). Mirrors
-    /// upstream's `importers: ImporterToResolve[]` shape on
-    /// `resolveDependencies`. For a non-workspace install this carries
-    /// a single `"."` entry pointing at the only project.
+    /// [`pacquet_workspace::importer_id_from_root_dir`]). For a
+    /// non-workspace install this carries a single `"."` entry
+    /// pointing at the only project.
     pub importer_manifests: BTreeMap<String, &'a PackageManifest>,
     pub dependency_groups: DependencyGroupList,
     /// Install-scoped dedupe state for `pnpm:package-import-method`.
@@ -113,8 +112,7 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     pub catalogs: Catalogs,
     /// Lockfile root for the install, used by the resolver chain to
     /// compute `link:` / `file:` relative paths and to anchor
-    /// workspace-package resolution. Mirrors upstream's `lockfileDir`
-    /// argument on `resolveDependencies`. Equal to the manifest's
+    /// workspace-package resolution. Equal to the manifest's
     /// parent directory under single-project installs and to the
     /// `pnpm-workspace.yaml` root under monorepos.
     pub lockfile_dir: &'a Path,
@@ -122,9 +120,8 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// sees a `workspace:` spec. `None` when this install isn't inside
     /// a `pnpm-workspace.yaml` workspace; the resolver then errors out
     /// on any `workspace:` spec via
-    /// `ResolveFromWorkspaceError::WorkspacePackagesNotLoaded` —
-    /// matching pnpm's
-    /// [`Cannot resolve package from workspace because opts.workspacePackages is not defined`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/resolving/npm-resolver/src/index.ts#L828-L830)
+    /// `ResolveFromWorkspaceError::WorkspacePackagesNotLoaded` — the
+    /// `Cannot resolve package from workspace because opts.workspacePackages is not defined`
     /// behavior.
     pub workspace_packages: Option<pacquet_resolving_resolver_base::WorkspacePackages>,
     /// Refresh locked integrity values from the registry. Threaded
@@ -137,9 +134,8 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// stale-lockfile / `preferFrozenLockfile: false` rewrite path
     /// — the resolver biases toward the seeded versions when they
     /// still satisfy the spec so unrelated dependencies keep their
-    /// pins. `None` on the no-lockfile path. Mirrors upstream's
-    /// `update: false` resolver mode at
-    /// <https://github.com/pnpm/pnpm/blob/097983fbca/lockfile/preferred-versions/src/index.ts#L13-L33>.
+    /// pins. `None` on the no-lockfile path. Corresponds to the
+    /// `update: false` resolver mode.
     pub wanted_lockfile: Option<&'a Lockfile>,
     /// Per-install packument cache shared with the lockfile-verifier
     /// constructed in [`Install::run`](crate::Install::run). The
@@ -162,9 +158,8 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
     /// When `true`, resolve the graph and write `pnpm-lock.yaml`, then
     /// return — skipping the tarball prefetch, virtual-store
     /// materialization, symlinks, hoisting, and bin linking. The store
-    /// stays untouched (no tarball is fetched), matching pnpm's
-    /// `dryRun: opts.lockfileOnly` resolve pass. See
-    /// [`crate::Install::lockfile_only`].
+    /// stays untouched (no tarball is fetched) — a dry-run resolve pass.
+    /// See [`crate::Install::lockfile_only`].
     pub lockfile_only: bool,
     /// `--dry-run`: build the would-be lockfile but do not write it to
     /// disk. Implies [`Self::lockfile_only`] (nothing is materialized);
@@ -192,10 +187,9 @@ pub struct InstallWithFreshLockfile<'a, DependencyGroupList> {
 /// A name whose pin is withheld no longer carries its previously-locked
 /// version at the existing-version weight, so the resolver falls back to
 /// picking the highest version satisfying the manifest range — the
-/// compatible re-resolution `pacquet update` performs. Mirrors pnpm's
+/// compatible re-resolution `pacquet update` performs. This is the
 /// `update: 'compatible'` resolver mode, which ignores the lockfile
-/// version for the dependency being updated
-/// (<https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/resolveDependencies.ts#L823-L827>).
+/// version for the dependency being updated.
 ///
 /// `KeepAll` is the install/add default (every pin seeds the table, so
 /// unrelated entries keep their resolutions on a rewrite).
@@ -262,9 +256,8 @@ pub enum InstallWithFreshLockfileError {
     #[diagnostic(transparent)]
     LinkVirtualStoreBins(#[error(source)] LinkVirtualStoreBinsError),
 
-    /// The resolver chain failed for at least one dependency. Mirrors
-    /// upstream's per-dep resolver error surface — the inner message
-    /// carries the boxed error's `Display`.
+    /// The resolver chain failed for at least one dependency. The
+    /// inner message carries the boxed error's `Display`.
     #[display("Failed to resolve dependency tree: {_0}")]
     #[diagnostic(code(pacquet_package_manager::resolve_dependency_tree))]
     ResolveDependencyTree(#[error(not(source))] ResolveDependencyTreeError),
@@ -277,21 +270,20 @@ pub enum InstallWithFreshLockfileError {
     ResolveImporter(#[error(not(source))] ResolveImporterError),
 
     /// `minimumReleaseAgeExclude` patterns rejected at compile time.
-    /// Mirrors upstream's `ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE_EXCLUDE`.
+    /// Surfaced as `ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE_EXCLUDE`.
     #[display("Invalid value in minimumReleaseAgeExclude: {_0}")]
     #[diagnostic(code(ERR_PNPM_INVALID_MINIMUM_RELEASE_AGE_EXCLUDE))]
     MinimumReleaseAgeExclude(#[error(source)] pacquet_config::version_policy::VersionPolicyError),
 
     /// `trustPolicyExclude` patterns rejected at compile time.
-    /// Mirrors upstream's `ERR_PNPM_INVALID_TRUST_POLICY_EXCLUDE`.
+    /// Surfaced as `ERR_PNPM_INVALID_TRUST_POLICY_EXCLUDE`.
     #[display("Invalid value in trustPolicyExclude: {_0}")]
     #[diagnostic(code(ERR_PNPM_INVALID_TRUST_POLICY_EXCLUDE))]
     TrustPolicyExclude(#[error(source)] pacquet_config::version_policy::VersionPolicyError),
 
     /// `allowBuilds` patterns in `pnpm-workspace.yaml` couldn't be
     /// parsed. Same `VersionPolicyError` shape the frozen-lockfile
-    /// path surfaces — see `InstallFrozenLockfileError::VersionPolicy`
-    /// for the upstream reference.
+    /// path surfaces — see `InstallFrozenLockfileError::VersionPolicy`.
     #[diagnostic(transparent)]
     AllowBuildsPolicy(#[error(source)] VersionPolicyError),
 
@@ -315,18 +307,15 @@ pub enum InstallWithFreshLockfileError {
     /// A user-defined `namedRegistries` entry mapped an alias to a
     /// non-http(s) URL. Surfaced at resolver construction so the
     /// install fails fast with a specific error code instead of a
-    /// downstream 404. Mirrors upstream's
+    /// downstream 404. Surfaced as
     /// `ERR_PNPM_INVALID_NAMED_REGISTRY_URL`.
     #[diagnostic(transparent)]
     InvalidNamedRegistry(#[error(source)] MergeNamedRegistriesError),
 
     /// A `packageExtensions` selector's `@<range>` half failed to
-    /// parse as a `node-semver` range. Mirrors upstream's behavior —
-    /// pnpm hands the raw range to `semver.satisfies`, which throws
-    /// a `TypeError` on a malformed range; pacquet surfaces the same
-    /// failure mode earlier (install start, not first per-manifest
-    /// match) so the user sees the bad selector before any tarballs
-    /// are fetched.
+    /// parse as a `node-semver` range. A malformed range is rejected
+    /// at install start, not at the first per-manifest match, so the
+    /// user sees the bad selector before any tarballs are fetched.
     #[diagnostic(transparent)]
     InvalidPackageExtensionSelector(
         #[error(source)] crate::package_extender::InvalidPackageExtensionSelector,
@@ -360,7 +349,7 @@ pub enum InstallWithFreshLockfileError {
     SaveWantedLockfile(#[error(source)] SaveLockfileError),
 
     /// The `afterAllResolved` pnpmfile hook threw or otherwise failed.
-    /// Mirrors pnpm, where a throwing `afterAllResolved` aborts the install.
+    /// A throwing `afterAllResolved` aborts the install.
     #[display("{_0}")]
     #[diagnostic(code(PNPMFILE_FAIL))]
     AfterAllResolvedHook(#[error(not(source))] pacquet_hooks::HookError),
@@ -372,15 +361,14 @@ pub enum InstallWithFreshLockfileError {
     AfterAllResolvedSerialize(#[error(source)] serde_json::Error),
 
     /// The pnpmfile's `getCustomResolvers` hook threw while loading custom
-    /// resolvers. Mirrors pnpm, where a throwing custom-resolver hook
-    /// aborts the install.
+    /// resolvers. A throwing custom-resolver hook aborts the install.
     #[display("{_0}")]
     #[diagnostic(code(PNPMFILE_FAIL))]
     CustomResolverHook(#[error(not(source))] pacquet_hooks::HookError),
 
     /// A custom resolver's `shouldRefreshResolution` hook threw while
-    /// checking whether to force re-resolution. Mirrors pnpm, where a
-    /// throwing hook aborts the install.
+    /// checking whether to force re-resolution. A throwing hook aborts
+    /// the install.
     #[display("{_0}")]
     #[diagnostic(code(PNPMFILE_FAIL))]
     CustomResolverForceResolve(#[error(not(source))] pacquet_hooks::HookError),
@@ -509,7 +497,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
 
         // Eagerly create `files/00..ff` under the v11 store root so per-
         // tarball CAFS writes never pay a `create_dir_all` syscall on the
-        // hot path. Ports pnpm's `initStore` in `worker/src/start.ts`.
+        // hot path.
         // See [`init_store_dir_best_effort`] for the error-degradation
         // policy shared with `create_virtual_store.rs`. Skipped under
         // `frozenStore`: the store is read-only and complete, so no
@@ -531,9 +519,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // `pnpm-workspace.yaml#namedRegistries`. `merge_named_registries`
         // validates each URL up front and folds in pacquet's built-in
         // aliases (today: `gh:` → GitHub Packages); a malformed URL
-        // here aborts the install with `ERR_PNPM_INVALID_NAMED_REGISTRY_URL`,
-        // matching upstream's
-        // [`mergeNamedRegistries`](https://github.com/pnpm/pnpm/blob/b61e268d57/resolving/npm-resolver/src/index.ts#L642-L656).
+        // here aborts the install with `ERR_PNPM_INVALID_NAMED_REGISTRY_URL`.
         let user_named_registries: HashMap<String, String> =
             config.named_registries.iter().map(|(name, url)| (name.clone(), url.clone())).collect();
         let merged_named_registries = merge_named_registries(&user_named_registries)
@@ -562,9 +548,8 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         .map_err(InstallWithFreshLockfileError::MinimumReleaseAgeExclude)?;
 
         // One per-cache-key packument fetch serializer shared between
-        // the npm and named-registry resolvers. Ports upstream's
-        // [`metafileOperationLimits`](https://github.com/pnpm/pnpm/blob/f657b5cb44/resolving/npm-resolver/src/pickPackage.ts#L42-L44):
-        // concurrent picks for the same `(registry, name)` coalesce
+        // the npm and named-registry resolvers.
+        // Concurrent picks for the same `(registry, name)` coalesce
         // into a single network fetch instead of firing N parallel
         // HTTP GETs queued behind the `ThrottledClient` semaphore.
         let fetch_locker = shared_packument_fetch_locker();
@@ -583,9 +568,8 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // its name/version/integrity) and the [`PrefetchingResolver`]
         // need these at construction time so the store-index / writer /
         // verify cache they touch is the same one the install pass uses
-        // once resolution is done. Mirrors pnpm's `packageRequester`
-        // shape: the fetch begins as soon as the resolver returns,
-        // before any further tree walk.
+        // once resolution is done. The fetch begins as soon as the
+        // resolver returns, before any further tree walk.
         let open_store_index = if config.frozen_store {
             StoreIndex::shared_immutable_in
         } else {
@@ -639,8 +623,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             // per-version `time` field (and the registry doesn't serve
             // it in abbreviated form). When `false`, [`pick_package`]
             // still upgrades per-call where `published_by` / `optional`
-            // demand it. Mirrors upstream's
-            // [`fullMetadata`](https://github.com/pnpm/pnpm/blob/b4f8f47ac2/store/connection-manager/src/createNewStoreController.ts#L69-L74).
+            // demand it.
             full_metadata,
             filter_metadata: full_metadata,
             retry_opts: crate::retry_config::retry_opts_from_config(config),
@@ -698,10 +681,10 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         };
         // `preserveAbsolutePaths` is wired through `Config`; thread the
         // current value into the local-resolver context so absolute
-        // `file:` / `link:` specs round-trip the same shape upstream
-        // produces under the matching `--config.preserve-absolute-paths`
-        // setting. Pacquet doesn't expose `preserveAbsolutePaths` yet,
-        // so the context defaults to `false`.
+        // `file:` / `link:` specs round-trip the right shape under the
+        // `--config.preserve-absolute-paths` setting. Pacquet doesn't
+        // expose `preserveAbsolutePaths` yet, so the context defaults
+        // to `false`.
         let local_ctx = LocalResolverContext { preserve_absolute_paths: false };
         let local_scheme_resolver = LocalSchemeResolver::new(local_ctx);
         let local_path_resolver = LocalPathResolver::new(local_ctx);
@@ -742,12 +725,11 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                 vec![]
             };
 
-        // Order mirrors upstream's chain at
-        // <https://github.com/pnpm/pnpm/blob/1627943d2a/resolving/default-resolver/src/index.ts#L128-L147>:
+        // Chain order:
         // custom resolvers → npm → jsr (folded into npm) → git →
         // tarball → localScheme → node → deno → bun → namedRegistry →
         // localPath. Custom resolvers join only when they implement
-        // both `canResolve` and `resolve` (upstream skips the others).
+        // both `canResolve` and `resolve`; the others are skipped.
         // The local-resolver split is required by named-registry: a
         // `<alias>:@scope/pkg` specifier carries an embedded `/`,
         // which the path-shape detector
@@ -791,9 +773,8 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         //
         // Skipped entirely under `--lockfile-only`: that path writes only
         // `pnpm-lock.yaml` and must not touch the store, so resolution
-        // runs through the bare chain with no background download.
-        // Mirrors pnpm's `dryRun: opts.lockfileOnly` at
-        // <https://github.com/pnpm/pnpm/blob/a33c4bfcb0/installing/deps-installer/src/install/index.ts#L1432>.
+        // runs through the bare chain with no background download. This is
+        // the `dryRun: opts.lockfileOnly` path.
         let resolver: Box<dyn Resolver> = if lockfile_only {
             inner_resolver
         } else {
@@ -923,8 +904,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
 
         // Seed `allPreferredVersions` from every importer's manifest +
         // the wanted lockfile's snapshots (when an existing one is
-        // present and is being rewritten). Mirrors upstream's
-        // `getPreferredVersionsFromLockfileAndManifests` shape: the
+        // present and is being rewritten): the
         // manifests contribute direct-dep specifiers, the lockfile
         // contributes concrete `(name, version)` pins that bump the
         // weight of an already-matching direct-dep entry. Without the
@@ -978,9 +958,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // Resolve `pnpm-workspace.yaml`'s `patchedDependencies` once
         // per install. The resolver consults the grouped record at
         // every per-node lookup to attach `(patch_hash=<hash>)` to the
-        // matched package's `pkgIdWithPatchHash`. Mirrors upstream's
-        // single `calcPatchHashes` + `groupPatchedDependencies` call at
-        // <https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-installer/src/install/index.ts#L468-L488>.
+        // matched package's `pkgIdWithPatchHash`.
         let patched_dependencies = config
             .resolved_patched_dependencies()
             .map_err(InstallWithFreshLockfileError::ResolvePatchedDependencies)?
@@ -989,8 +967,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // recorded in the lockfile's top-level `patchedDependencies`
         // block. Computed separately from the grouped record above
         // (which buckets by package name) so the user's exact keys
-        // survive into the lockfile, mirroring pnpm's
-        // `calcPatchHashes(opts.patchedDependencies)`.
+        // survive into the lockfile.
         let patched_dependency_hashes = config
             .patched_dependency_hashes()
             .map_err(InstallWithFreshLockfileError::CalcPatchHashes)?;
@@ -1001,10 +978,8 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // to the consuming project; the shared `meta_cache`,
         // `fetch_locker`, and `picked_manifest_cache` keep the
         // packument and version-pick work amortized across importers.
-        // Mirrors upstream's
-        // [`resolveRootDependencies`](https://github.com/pnpm/pnpm/blob/3422cecfd3/installing/deps-resolver/src/resolveDependencies.ts#L327-L437)
-        // iteration: one shared resolution context, per-importer
-        // direct-deps slices.
+        // One shared resolution context, per-importer direct-deps
+        // slices.
         let phase_start = std::time::Instant::now();
         let workspace_importers: Vec<pacquet_resolving_deps_resolver::WorkspaceImporter<'_>> =
             importer_manifests
@@ -1022,8 +997,8 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         let after_all_resolved_hook = pnpmfile_hook.clone();
         // Pre-bind the reporter, project prefix, and pnpmfile path into the
         // `context.log(...)` sinks so the resolver and lockfile writer stay
-        // reporter-agnostic. Mirrors pnpm's `createReadPackageHookContext`,
-        // which forwards each hook's `context.log` to the `pnpm:hook` channel.
+        // reporter-agnostic. Each hook's `context.log` is forwarded to the
+        // `pnpm:hook` channel.
         let pnpmfile_path =
             pnpmfile_hook.as_ref().and_then(|hook| hook.source_path()).map(Path::to_path_buf);
         let read_package_log = pnpmfile_path
@@ -1033,7 +1008,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             .as_ref()
             .map(|from| hook_log_fn::<Reporter>(lockfile_dir, from, "afterAllResolved"));
 
-        // Call preResolution hook before resolution starts (mirrors pnpm's behavior in install/index.ts)
+        // Call preResolution hook before resolution starts.
         if let Some(ref hook) = pnpmfile_hook {
             let wanted_lockfile_json = wanted_lockfile.map_or_else(
                 || serde_json::json!({}),
@@ -1237,9 +1212,8 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         drop(picked_manifest_cache);
 
         // Compute the `pnpmfileChecksum` once for both lockfile-build
-        // paths below. Mirrors pnpm's `calculatePnpmfileChecksum`: the
-        // hash of the project's `.pnpmfile.{cjs,mjs}` when it exports
-        // hooks, `None` otherwise. Resolution has already spawned the
+        // paths below: the hash of the project's `.pnpmfile.{cjs,mjs}`
+        // when it exports hooks, `None` otherwise. Resolution has already spawned the
         // pnpmfile worker (every `readPackage` runs through it), so the
         // gate query is cheap here.
         let pnpmfile_checksum: Option<String> = match after_all_resolved_hook.as_ref() {
@@ -1252,7 +1226,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // tarball was prefetched (the resolver ran without the
         // `PrefetchingResolver` wrapper), so the store is untouched and
         // there is no `node_modules`, `.modules.yaml`, or current
-        // lockfile — matching pnpm's lockfileOnly resolve pass.
+        // lockfile — a lockfile-only resolve pass.
         if lockfile_only {
             let built_lockfile = build_fresh_lockfile(FreshLockfileBuildOptions {
                 config,
@@ -1368,10 +1342,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // `<store_dir>/links`; otherwise it falls through to the legacy
         // `<virtual_store_dir>/<flat-name>` shape. Either way every
         // downstream slot-path lookup routes through
-        // `VirtualStoreLayout::slot_dir`. Mirrors the frozen-lockfile
+        // `VirtualStoreLayout::slot_dir`. Matches the frozen-lockfile
         // path's `enableGlobalVirtualStore: true → allowBuilds ??= {}`
-        // shape at
-        // <https://github.com/pnpm/pnpm/blob/94240bc046/installing/deps-restorer/src/index.ts#L342-L344>.
+        // shape.
         //
         // The lockfile-shaped `snapshots:` / `packages:` maps the
         // layout reads are produced via the writable-lockfile adapter
@@ -1498,8 +1471,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
         // phased pipeline in `CreateVirtualStore` runs a single
         // `par_iter` over every warm snapshot at once, which closes the
         // ~94% wall-time gap to pnpm on the full-resolution-warm scenario
-        // without regressing the cold-cache or frozen-lockfile paths. See
-        // <https://github.com/pnpm/pnpm/issues/11866> for the architectural diagnosis and the bench data.
+        // without regressing the cold-cache or frozen-lockfile paths.
         //
         // The fresh-lockfile path has no installability check yet
         // (the resolver's `PackageVersion` deserializer doesn't carry
@@ -1550,10 +1522,9 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             // batch's only on-disk dedup is the store-index row, which the
             // prefetcher's writer commits asynchronously. Without the
             // shared cache a snapshot whose prefetch hasn't committed its
-            // row yet is classified cold and re-downloaded — the race in
-            // <https://github.com/pnpm/pnpm/issues/12241>. Routing the cold
-            // batch through the mem cache makes it reuse the in-flight
-            // download instead.
+            // row yet is classified cold and re-downloaded — a race that
+            // routing the cold batch through the mem cache fixes by
+            // reusing the in-flight download instead.
             tarball_mem_cache: Some(&tarball_mem_cache),
             #[cfg(test)]
             link_concurrency_probe: None,
@@ -1636,7 +1607,7 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
                     config,
                     lockfile: &built_lockfile,
                     // No previous-install `<virtual_store_dir>/lock.yaml`
-                    // is threaded into the fresh path yet (<https://github.com/pnpm/pnpm/issues/11871>), so the
+                    // is threaded into the fresh path yet, so the
                     // walker runs without an orphan diff.
                     current_lockfile: None,
                     layout: &layout,
@@ -1735,15 +1706,12 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
 
             // Link bins. Direct dependencies first (each importer's
             // `node_modules/.bin`) and then per-slot children inside the
-            // virtual store. Mirrors the same two-call shape as
+            // virtual store, using the same two-call shape as
             // `install_frozen_lockfile.rs`. We re-walk `<modules_dir>`
             // instead of replaying the manifest because the
-            // `dependency_groups` iterator was already consumed above;
-            // pnpm's own `linkBins(modulesDir, binsDir)` overload uses
-            // the same strategy. One pass per importer so sibling
-            // workspace projects get their own `.bin/` populated,
-            // mirroring upstream's per-importer `linkBinsOfImporter` at
-            // <https://github.com/pnpm/pnpm/blob/3422cecfd3/installing/deps-installer/src/install/link.ts>.
+            // `dependency_groups` iterator was already consumed above.
+            // One pass per importer so sibling workspace projects get
+            // their own `.bin/` populated.
             let modules_basename = config.modules_dir.file_name().map_or_else(
                 || std::ffi::OsString::from("node_modules"),
                 std::ffi::OsStr::to_os_string,
@@ -1792,12 +1760,10 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             (hoisted_dependencies, BTreeMap::new())
         };
 
-        // Mirrors upstream `link.ts:167-170`: `importing_done` fires
-        // once extraction and symlink linking are complete, before the
-        // build phase. Reporters use it to close the import progress
-        // display so the subsequent `pnpm:lifecycle` events render in
-        // their own section.
-        // <https://github.com/pnpm/pnpm/blob/80037699fb/installing/deps-installer/src/install/link.ts#L167>
+        // `importing_done` fires once extraction and symlink linking
+        // are complete, before the build phase. Reporters use it to
+        // close the import progress display so the subsequent
+        // `pnpm:lifecycle` events render in their own section.
         Reporter::emit(&LogEvent::Stage(StageLog {
             level: LogLevel::Debug,
             prefix: requester.to_string(),
@@ -1910,17 +1876,14 @@ impl<DependencyGroupList> InstallWithFreshLockfile<'_, DependencyGroupList> {
             ),
         }
 
-        // Write `pnpm-lock.yaml` from the resolved graph. Mirrors
-        // upstream's
-        // [`writeLockfiles`](https://github.com/pnpm/pnpm/blob/094aa6e57b/lockfile/fs/src/write.ts#L133)
-        // call at the tail of `deps-installer/src/install/index.ts`:
+        // Write `pnpm-lock.yaml` from the resolved graph:
         // every non-frozen install lands a wanted lockfile so the next
         // pnpm / pacquet invocation can either go headless or diff
         // against it. The save runs after the build phase succeeds so a
         // partial install can't leave a lockfile pointing at slots that
-        // never landed on disk. `config.lockfile=false` skips the write,
-        // matching pnpm's documented opt-out behavior even though that
-        // knob is rarely exercised today.
+        // never landed on disk. `config.lockfile=false` skips the write
+        // (a documented opt-out, though that knob is rarely exercised
+        // today).
         //
         // The built lockfile is returned to the caller so it can also
         // persist `<virtual_store_dir>/lock.yaml` after `.modules.yaml`
@@ -2005,8 +1968,7 @@ fn collect_prefetch_cache_keys_from_graph(
 /// Build the `context.log(...)` sink a pnpmfile hook forwards to: each
 /// `context.log(message)` call emits a `pnpm:hook` event through the
 /// install's reporter, carrying the project `prefix`, the pnpmfile path
-/// (`from`), and the hook name. Mirrors pnpm's `createReadPackageHookContext`,
-/// which routes `context.log` to `hookLogger.debug({ from, hook, message, prefix })`.
+/// (`from`), and the hook name.
 fn hook_log_fn<Reporter: self::Reporter>(
     prefix: &Path,
     from: &Path,
@@ -2028,7 +1990,7 @@ fn hook_log_fn<Reporter: self::Reporter>(
 /// Write the freshly-built wanted lockfile to `target`, first running the
 /// `afterAllResolved` pnpmfile hook when one is configured.
 ///
-/// Mirrors pnpm: `afterAllResolved` receives the resolved lockfile object and
+/// `afterAllResolved` receives the resolved lockfile object and
 /// returns the (possibly mutated) lockfile that gets written. The round-trip
 /// goes through `serde_json::Value` so hook-added keys the typed [`Lockfile`]
 /// cannot represent survive to disk; `serde_json`'s `preserve_order` feature
@@ -2121,13 +2083,8 @@ fn compose_manifest_hooks(
 }
 
 /// Build the [`Lockfile`] for `<lockfile_dir>/pnpm-lock.yaml` from the
-/// merged resolver graph + per-importer direct-deps maps.
-///
-/// Mirrors upstream's
-/// [`updateLockfile`](https://github.com/pnpm/pnpm/blob/097983fbca/installing/deps-resolver/src/updateLockfile.ts)
-/// then the
-/// [`writeLockfiles`](https://github.com/pnpm/pnpm/blob/094aa6e57b/lockfile/fs/src/write.ts#L133)
-/// fan-out, with [`dependencies_graph_to_lockfile()`] doing the wire-shape lifting.
+/// merged resolver graph + per-importer direct-deps maps, with
+/// [`dependencies_graph_to_lockfile()`] doing the wire-shape lifting.
 struct FreshLockfileBuildOptions<'a> {
     config: &'a Config,
     importer_manifests: &'a BTreeMap<String, &'a PackageManifest>,

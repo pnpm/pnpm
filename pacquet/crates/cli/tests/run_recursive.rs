@@ -58,9 +58,19 @@ fn build_writes_marker(name: &str) -> Value {
     })
 }
 
+/// A package whose `build` script appends its name to a shared `../order.log`
+/// (the workspace root), so a test can read back the order the recursive
+/// runner executed the selected projects in.
+fn build_appends_run_order(name: &str) -> Value {
+    json!({
+        "name": name,
+        "version": "1.0.0",
+        "scripts": { "build": format!("echo {name} >> ../order.log") },
+    })
+}
+
 /// `pacquet -r run <script>` runs the script in every workspace project,
-/// in topological order. Mirrors the ordering pnpm's recursive run
-/// produces from the workspace dependency graph.
+/// in topological order derived from the workspace dependency graph.
 #[test]
 fn recursive_run_executes_script_in_every_project() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -131,8 +141,8 @@ fn recursive_run_settings_only_workspace_enumerates_root_only() {
 
 /// `pacquet -r --filter <name> run <script>` runs the script only in the
 /// `--filter`-selected project, leaving the rest untouched. Threads
-/// `config.filter` through the recursive dispatch the way pnpm builds its
-/// `selectedProjectsGraph`.
+/// `config.filter` through the recursive dispatch to build the selected
+/// projects graph.
 #[test]
 fn recursive_run_filter_selects_only_matching_project() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -227,9 +237,8 @@ fn write_workspace_with_root_and_packages(workspace: &Path) {
     }
 }
 
-/// A bare `--filter` (no `-r`) enters recursive mode CLI-wide, matching
-/// pnpm's `parse-cli-args` promotion: the script runs only in the
-/// selected project even though `-r` was never passed.
+/// A bare `--filter` (no `-r`) enters recursive mode CLI-wide: the script
+/// runs only in the selected project even though `-r` was never passed.
 #[test]
 fn filter_without_recursive_flag_enters_recursive_run() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -263,8 +272,8 @@ fn filter_without_recursive_flag_enters_recursive_run() {
 
 /// In a workspace with both a root project and sub-packages, a default
 /// recursive `run` (no inclusion filter) auto-excludes the workspace
-/// root, mirroring pnpm's `!{<workspace-root>}` augmentation. The
-/// sub-packages run; the root does not.
+/// root via the `!{<workspace-root>}` augmentation. The sub-packages
+/// run; the root does not.
 #[test]
 fn recursive_run_auto_excludes_workspace_root() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -283,7 +292,7 @@ fn recursive_run_auto_excludes_workspace_root() {
 }
 
 /// An all-exclusion selection (`--filter=!<name>`) also drops the
-/// workspace root, mirroring pnpm's release-workflow shape
+/// workspace root, matching the release-workflow shape
 /// (`--filter=!pnpm --filter=!@pnpm/exe`): `-r --filter=!project-2 run
 /// build` runs project-1 only — project-2 is excluded by the selector
 /// and the root by the `!{<workspace-root>}` augmentation.
@@ -378,10 +387,9 @@ fn recursive_run_filter_prod_all_exclusion_also_drops_root() {
 }
 
 /// When `--filter` narrows the set and no *selected* package defines the
-/// script, the error keeps pnpm's `ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT` code
+/// script, the error keeps the `ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT` code
 /// but switches to the "None of the selected packages" wording (vs. "None
-/// of the packages" when every project is selected). Mirrors pnpm's
-/// `runRecursive.ts:203-210`.
+/// of the packages" when every project is selected).
 #[test]
 fn recursive_run_filter_no_matching_script_reports_no_selected_packages() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -426,7 +434,7 @@ fn recursive_run_filter_no_matching_script_reports_no_selected_packages() {
 fn recursive_run_filter_prod_follows_production_deps_only() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let mut app = build_writes_marker("app");
-    app["devDependencies"] = json!({ "lib": "1.0.0" });
+    app["devDependencies"] = json!({ "lib": "workspace:*" });
     write_workspace(&workspace, &[("lib", build_writes_marker("lib")), ("app", app)]);
 
     pacquet
@@ -481,9 +489,71 @@ fn recursive_run_diff_selector_is_unsupported() {
     drop(root);
 }
 
+/// A bare-semver range naming a sibling is not a workspace edge under the
+/// default `link-workspace-packages: false`, matching pnpm. `app` listing
+/// `lib` as a bare `1.0.0` dependency therefore has no edge to it, so
+/// `--filter app...` (which follows dependencies) selects only `app`.
+#[test]
+fn recursive_run_does_not_follow_bare_semver_deps_as_workspace_edges() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let mut app = build_writes_marker("app");
+    app["dependencies"] = json!({ "lib": "1.0.0" });
+    write_workspace(&workspace, &[("lib", build_writes_marker("lib")), ("app", app)]);
+
+    pacquet
+        .with_arg("-r")
+        .with_arg("--filter")
+        .with_arg("app...")
+        .with_arg("run")
+        .with_arg("build")
+        .assert()
+        .success();
+
+    assert!(workspace.join("app").join("ran.txt").exists(), "the selected app should run");
+    assert!(
+        !workspace.join("lib").join("ran.txt").exists(),
+        "a bare-semver range is not a workspace edge under the default link-workspace-packages: false, so app... must not reach lib",
+    );
+
+    drop(root);
+}
+
+/// A mixed `--filter` / `--filter-prod` selection lists prod-selected
+/// projects before regular ones. With `alpha` and `beta` independent — so
+/// they share one topological chunk — `--filter alpha` `--filter-prod beta`
+/// runs `beta` before `alpha`.
+#[test]
+fn recursive_run_mixed_filter_runs_prod_selected_before_regular() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    write_workspace(
+        &workspace,
+        &[("alpha", build_appends_run_order("alpha")), ("beta", build_appends_run_order("beta"))],
+    );
+
+    pacquet
+        .with_arg("-r")
+        .with_arg("--filter")
+        .with_arg("alpha")
+        .with_arg("--filter-prod")
+        .with_arg("beta")
+        .with_arg("run")
+        .with_arg("build")
+        .assert()
+        .success();
+
+    let log = fs::read_to_string(workspace.join("order.log")).expect("read order log");
+    assert_eq!(
+        log.lines().collect::<Vec<_>>(),
+        vec!["beta", "alpha"],
+        "prod-selected projects run before regular-selected ones in a mixed selection",
+    );
+
+    drop(root);
+}
+
 /// A `--filter` that matches no project is a no-op: the run exits 0
-/// without raising the no-selected-packages error, matching pnpm's
-/// main-dispatch exit-0 for an empty `selectedProjectsGraph`.
+/// without raising the no-selected-packages error, since the selected
+/// projects graph is empty.
 #[test]
 fn recursive_run_filter_no_match_is_a_noop() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -511,16 +581,12 @@ fn recursive_run_filter_no_match_is_a_noop() {
 /// both depending on `project-1`, the sorted chunks are
 /// `[[project-1], [project-2, project-3]]`; resuming from `project-3`
 /// drops the first chunk, so only `project-2` and `project-3` run.
-///
-/// Ports pnpm's
-/// [`runRecursive.ts:817`](https://github.com/pnpm/pnpm/blob/8eb1be4988/exec/commands/test/runRecursive.ts#L817)
-/// `` `pnpm -r --resume-from run` should executed from given package ``.
 #[test]
 fn recursive_run_resume_from_starts_at_the_given_package() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
     let dependent = |name: &str| {
         let mut manifest = build_writes_marker(name);
-        manifest["dependencies"] = json!({ "project-1": "1" });
+        manifest["dependencies"] = json!({ "project-1": "workspace:*" });
         manifest
     };
     write_workspace(
@@ -551,9 +617,8 @@ fn recursive_run_resume_from_starts_at_the_given_package() {
     drop(root);
 }
 
-/// An unknown `--resume-from` package fails with pnpm's
-/// `ERR_PNPM_RESUME_FROM_NOT_FOUND`. Ports the error path of pnpm's
-/// `getResumedPackageChunks`.
+/// An unknown `--resume-from` package fails with
+/// `ERR_PNPM_RESUME_FROM_NOT_FOUND`.
 #[test]
 fn recursive_run_resume_from_unknown_package_errors() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -581,11 +646,6 @@ fn recursive_run_resume_from_unknown_package_errors() {
 /// recording every package's status: `passed`, `failure`, or `skipped`
 /// (no matching script). With `--no-bail` every package runs even after
 /// a failure, and the overall run fails with `ERR_PNPM_RECURSIVE_FAIL`.
-///
-/// Ports pnpm's
-/// [`runRecursive.ts:956`](https://github.com/pnpm/pnpm/blob/8eb1be4988/exec/commands/test/runRecursive.ts#L956)
-/// `pnpm recursive run report summary` (whose `DEFAULT_OPTS` set
-/// `bail: false`).
 #[test]
 fn recursive_run_report_summary_records_every_package_status() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -744,8 +804,7 @@ fn recursive_run_if_present_is_a_noop_when_no_package_has_the_script() {
 }
 
 /// Recursive `run` must resolve each package's `node_modules/.bin` on
-/// PATH so locally-installed bins (e.g. `tsc`, `eslint`) work — pnpm's
-/// `runLifecycleHook` (runRecursive.ts:124-149) sets this up for every
+/// PATH so locally-installed bins (e.g. `tsc`, `eslint`) work, for every
 /// project. Without it, `pacquet -r run build` would fail with
 /// `command not found` for any bare bin name living under `.bin`.
 #[test]
@@ -781,10 +840,9 @@ fn recursive_run_resolves_local_bin_on_path_per_project() {
 }
 
 /// `pnpm -r run <name>` skips a project whose `<name>` script body is
-/// the empty string. pnpm's `runRecursive.ts:107` gates on
-/// `!manifest.scripts[name]` (empty string is falsy in JS); pacquet
-/// has to mirror that explicitly because `manifest.script` returns
-/// `Some("")`.
+/// the empty string. An empty script body is falsy in JS and so is
+/// skipped; pacquet checks for it explicitly because `manifest.script`
+/// returns `Some("")`.
 #[test]
 fn recursive_run_skips_empty_script_body() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -823,9 +881,7 @@ fn recursive_run_skips_empty_script_body() {
 }
 
 /// `pnpm -r run .hidden` is rejected outside a lifecycle context with
-/// `ERR_PNPM_HIDDEN_SCRIPT`. Mirrors pnpm's
-/// `throwOrFilterHiddenScripts` call from `runRecursive.ts:113-115`,
-/// applied once for the user-typed script name.
+/// `ERR_PNPM_HIDDEN_SCRIPT`, applied once for the user-typed script name.
 #[test]
 fn recursive_run_rejects_hidden_script_name() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -854,9 +910,9 @@ fn recursive_run_rejects_hidden_script_name() {
 }
 
 /// When NO workspace project defines the requested hidden `.name`
-/// script, pnpm's `runRecursive` short-circuits at the truthy-body
-/// gate before reaching `throwOrFilterHiddenScripts`, so the error
-/// surfaces as `ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT` rather than
+/// script, the truthy-body gate short-circuits before the hidden-script
+/// check runs, so the error surfaces as
+/// `ERR_PNPM_RECURSIVE_RUN_NO_SCRIPT` rather than
 /// `ERR_PNPM_HIDDEN_SCRIPT`. Pins the gate ordering.
 #[test]
 fn recursive_run_missing_hidden_script_reports_no_script_not_hidden() {
@@ -884,9 +940,7 @@ fn recursive_run_missing_hidden_script_reports_no_script_not_hidden() {
 }
 
 /// With `enable-pre-post-scripts=true`, `pacquet -r run build` runs
-/// `prebuild` and `postbuild` around the main `build` per project,
-/// matching pnpm's `runRecursive` which binds `runScript` with
-/// `runScriptOptions.enablePrePostScripts` (runRecursive.ts:147,156).
+/// `prebuild` and `postbuild` around the main `build` per project.
 #[test]
 fn recursive_run_runs_pre_and_post_when_enabled() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -925,8 +979,7 @@ fn recursive_run_runs_pre_and_post_when_enabled() {
 /// Recursion guard: when `npm_lifecycle_event` matches the requested
 /// script AND `PNPM_SCRIPT_SRC_DIR` matches a project root, that
 /// project is skipped so a script that itself invokes `pacquet -r run
-/// <name>` doesn't recurse without bound. Mirrors pnpm's
-/// `runRecursive.ts:108-110`.
+/// <name>` doesn't recurse without bound.
 #[test]
 fn recursive_run_recursion_guard_skips_originating_project() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -968,10 +1021,8 @@ fn recursive_run_recursion_guard_skips_originating_project() {
     drop(root);
 }
 
-/// `pacquet -r run` with no script name surfaces pnpm's
-/// `ERR_PNPM_SCRIPT_NAME_IS_REQUIRED` typed error variant, matching the
-/// `PnpmError('SCRIPT_NAME_IS_REQUIRED', ...)` throw in pnpm's
-/// `runRecursive.ts:50-52`.
+/// `pacquet -r run` with no script name surfaces the
+/// `ERR_PNPM_SCRIPT_NAME_IS_REQUIRED` typed error variant.
 #[test]
 fn recursive_run_without_script_name_errors_with_script_name_is_required() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();

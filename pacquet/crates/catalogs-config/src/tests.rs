@@ -1,6 +1,3 @@
-//! Ports of `catalogs/config/test/getCatalogsFromWorkspaceManifest.test.ts`
-//! ([source](https://github.com/pnpm/pnpm/blob/a8a8cbce6d/catalogs/config/test/getCatalogsFromWorkspaceManifest.test.ts)).
-
 use super::{InvalidCatalogsConfigurationError, get_catalogs_from_workspace_manifest};
 use pacquet_catalogs_types::{Catalog, Catalogs};
 use pacquet_workspace::WorkspaceManifest;

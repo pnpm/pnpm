@@ -1,9 +1,7 @@
 //! Add a directory (and an optional proxy variable such as `PNPM_HOME`) to
 //! the user's `PATH` persistently.
 //!
-//! Ports pnpm's
-//! [`@pnpm/os.env.path-extender`](https://github.com/pnpm/pnpm/blob/1819226b51/packages/path-extender/src/path-extender.ts):
-//! on Windows the user registry is edited; on every other platform the
+//! On Windows the user registry is edited; on every other platform the
 //! current shell's rc file is edited. The Windows changes are rendered into
 //! the same `old_settings` / `new_settings` shape the POSIX path reports.
 
@@ -14,20 +12,18 @@ use derive_more::{Display, Error};
 use miette::Diagnostic;
 use std::path::{Path, PathBuf};
 
-/// Where the new directory is inserted into `PATH`. Mirrors pnpm's
-/// [`AddingPosition`] (defaulting to `start`).
+/// Where the new directory is inserted into `PATH` (defaulting to `start`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum AddingPosition {
     Start,
-    // `setup` always inserts at the start, but `end` is part of the ported
+    // `setup` always inserts at the start, but `end` is part of the
     // path-extender contract (and exercised by the renderer tests), so the
-    // renderers keep handling it to stay aligned with upstream pnpm.
+    // renderers keep handling it.
     #[allow(dead_code, reason = "ported path-extender API; setup only uses Start")]
     End,
 }
 
-/// How the shell config file changed. Mirrors the change kinds reported by
-/// pnpm's `@pnpm/os.env.path-extender`.
+/// How the shell config file changed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(super) enum ConfigFileChangeType {
     Skipped,
@@ -37,16 +33,14 @@ pub(super) enum ConfigFileChangeType {
 }
 
 /// The config file that was touched and how. `None` on Windows, where the
-/// registry — not a file — is edited. Mirrors the per-file report shape from
-/// pnpm's `@pnpm/os.env.path-extender`.
+/// registry — not a file — is edited.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct ConfigReport {
     pub path: PathBuf,
     pub change_type: ConfigFileChangeType,
 }
 
-/// The before/after of a path-extension run. Mirrors pnpm's
-/// [`PathExtenderReport`].
+/// The before/after of a path-extension run.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct PathExtenderReport {
     pub config_file: Option<ConfigReport>,
@@ -54,9 +48,7 @@ pub(super) struct PathExtenderReport {
     pub new_settings: String,
 }
 
-/// Options for [`add_dir_to_env_path`]. Mirrors pnpm's
-/// `AddDirToPosixEnvPathOpts` (the superset the public `addDirToEnvPath`
-/// accepts).
+/// Options for [`add_dir_to_env_path`].
 pub(super) struct AddDirToEnvPathOpts<'a> {
     pub config_section_name: &'a str,
     pub proxy_var_name: Option<&'a str>,
@@ -65,8 +57,7 @@ pub(super) struct AddDirToEnvPathOpts<'a> {
     pub position: AddingPosition,
 }
 
-/// Errors raised while extending `PATH`. Codes mirror pnpm's `PnpmError`
-/// codes (pnpm prefixes them with `ERR_PNPM_`).
+/// Errors raised while extending `PATH`. Codes are prefixed with `ERR_PNPM_`.
 #[derive(Debug, Display, Error, Diagnostic)]
 pub(crate) enum PathExtenderError {
     #[display(
@@ -106,10 +97,10 @@ pub(crate) enum PathExtenderError {
     #[diagnostic(code(ERR_PNPM_INVALID_SUBDIR))]
     InvalidSubDir { sub_dir: String },
 
-    // Hardening beyond pnpm's `@pnpm/os.env.path-extender`: a path-separator
-    // (`:` on POSIX, `;` on Windows), a `%` (Windows `%PNPM_HOME%`
-    // expansion), or a newline in `PNPM_HOME` would split the persisted
-    // `PATH` into extra entries, so it is rejected rather than written.
+    // Hardening: a path-separator (`:` on POSIX, `;` on Windows), a `%`
+    // (Windows `%PNPM_HOME%` expansion), or a newline in `PNPM_HOME` would
+    // split the persisted `PATH` into extra entries, so it is rejected rather
+    // than written.
     #[display(
         r#"The pnpm home directory "{dir}" contains a character ({character:?}) that is unsafe for the PATH"#
     )]
@@ -193,7 +184,7 @@ fn reject_unsafe_chars(dir: &Path, unsafe_chars: &[char]) -> Result<(), PathExte
 
 /// Persistently add `dir` to the user's `PATH`. The proxy-variable
 /// indirection (`PNPM_HOME` → `$PNPM_HOME/bin`) keeps the `PATH` entry
-/// stable when the home directory moves. Mirrors pnpm's `addDirToEnvPath`.
+/// stable when the home directory moves.
 pub(super) fn add_dir_to_env_path(
     dir: &Path,
     opts: &AddDirToEnvPathOpts,
@@ -208,7 +199,7 @@ pub(super) fn add_dir_to_env_path(
     }
     // Per-target compilation: the Windows registry path and the POSIX
     // rc-file path are both compiled everywhere, and `cfg!(windows)` selects
-    // the right one at runtime, mirroring pnpm's `process.platform` branch.
+    // the right one at runtime.
     if cfg!(windows) {
         let changes = windows::add_dir_to_windows_env_path(dir, opts)?;
         Ok(render_windows_report(&changes))
@@ -218,7 +209,7 @@ pub(super) fn add_dir_to_env_path(
 }
 
 /// Render the per-variable Windows registry changes into the file-oriented
-/// report shape. Mirrors pnpm's `renderWindowsReport`.
+/// report shape.
 fn render_windows_report(changes: &[windows::EnvVariableChange]) -> PathExtenderReport {
     let mut old_settings = Vec::new();
     let mut new_settings = Vec::new();

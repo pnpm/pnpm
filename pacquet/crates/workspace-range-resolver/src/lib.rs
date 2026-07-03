@@ -1,6 +1,3 @@
-//! Pacquet port of pnpm's
-//! [`@pnpm/workspace.range-resolver`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/workspace/range-resolver/src/index.ts).
-//!
 //! Picks the best workspace-sibling version for one of the `workspace:`
 //! range tokens — `*`, `^`, `~`, the empty string, or an arbitrary
 //! semver range.
@@ -12,11 +9,9 @@ use node_semver::{Range, Version};
 /// `range` is the `<version>` portion of a `workspace:` specifier (see
 /// `pacquet-workspace-spec`'s `WorkspaceSpec`). The four sentinel tokens
 /// (`*`, `^`, `~`, `""`) widen the search to *all* versions, prereleases
-/// included — mirroring the
-/// [`includePrerelease: true`](https://github.com/pnpm/pnpm/blob/ef87f3ccff/workspace/range-resolver/src/index.ts#L4-L8)
-/// branch upstream takes. Any other input is treated as a node-semver
-/// range and prereleases are excluded the same way `semver.maxSatisfying`
-/// excludes them in the non-`includePrerelease` branch.
+/// included. Any other input is treated as a node-semver range and
+/// prereleases are excluded unless the range itself carries a
+/// prerelease tag.
 ///
 /// Returns the matching raw version string (one of the entries in
 /// `versions`) or `None` when nothing satisfies.
@@ -32,10 +27,9 @@ fn is_wildcard(range: &str) -> bool {
     matches!(range, "*" | "^" | "~" | "")
 }
 
-/// Highest version overall, including prereleases. The TS impl reaches
-/// `semver.maxSatisfying(versions, '*', { includePrerelease: true })`
-/// for this; since `*` matches everything when prereleases are allowed,
-/// pacquet collapses that to a direct max.
+/// Highest version overall, including prereleases. Since `*` matches
+/// everything when prereleases are allowed, this collapses to a direct
+/// max over all parseable versions.
 fn max_version_including_prerelease(versions: &[String]) -> Option<String> {
     let mut best: Option<(Version, &str)> = None;
     for raw in versions {
@@ -49,8 +43,7 @@ fn max_version_including_prerelease(versions: &[String]) -> Option<String> {
 }
 
 /// Highest version satisfying `range`. Prereleases are excluded unless
-/// the range itself contains a prerelease tag — mirroring the
-/// non-`includePrerelease` branch of `semver.maxSatisfying`.
+/// the range itself contains a prerelease tag.
 fn max_satisfying(versions: &[String], range: &str) -> Option<String> {
     let parsed_range = Range::parse(range).ok()?;
     let range_allows_prereleases = range_allows_prereleases(range);
@@ -71,15 +64,14 @@ fn max_satisfying(versions: &[String], range: &str) -> Option<String> {
     best.map(|(_, raw)| raw.to_string())
 }
 
-/// Heuristic for whether `range` would let `semver.maxSatisfying`
-/// surface prereleases without the `includePrerelease` flag.
+/// Heuristic for whether `range` would match prereleases without the
+/// `includePrerelease` flag.
 ///
 /// In node-semver a range only matches prereleases when one of its
 /// comparators carries a `-<pre>` tag (e.g. `>=1.2.3-rc.0` matches
 /// `1.2.3-rc.1` but not `1.2.4-rc.0`). The exact rule is involved, but
 /// for our purposes "the range string contains a `-` after a digit"
-/// is a tight enough approximation — same heuristic upstream's
-/// `maxSatisfying` uses when constructing the comparator filter.
+/// is a tight enough approximation.
 fn range_allows_prereleases(range: &str) -> bool {
     let bytes = range.as_bytes();
     let mut prev_is_digit = false;

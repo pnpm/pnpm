@@ -3,6 +3,7 @@ use super::{
     approve_builds::ApproveBuildsArgs,
     audit::AuditArgs,
     bin::BinArgs,
+    bugs::BugsArgs,
     cache::CacheCommand,
     cat_file::CatFileArgs,
     cat_index::CatIndexArgs,
@@ -30,6 +31,7 @@ use super::{
     patch_commit::PatchCommitArgs,
     patch_remove::PatchRemoveArgs,
     ping::PingArgs,
+    prefix::PrefixArgs,
     prune::PruneArgs,
     publish::PublishArgs,
     rebuild::RebuildArgs,
@@ -40,6 +42,7 @@ use super::{
     root::RootArgs,
     run::RunArgs,
     runtime::RuntimeArgs,
+    sbom::SbomArgs,
     self_update::SelfUpdateArgs,
     set_script::SetScriptArgs,
     setup::SetupArgs,
@@ -113,13 +116,10 @@ impl CliArgs {
     /// `--filter-prod` selector is present, even without an explicit
     /// `-r` / `--recursive`.
     ///
-    /// Mirrors pnpm's `parse-cli-args`, which sets `options.recursive =
-    /// true` for any command whenever a filter is given
-    /// (<https://github.com/pnpm/pnpm/blob/8eb1be4988/cli/parse-cli-args/src/index.ts#L211-L219>),
-    /// so the promotion applies CLI-wide rather than being special-cased
-    /// per command. Call once on the parsed args before dispatch; both
-    /// the install fast-path bail and [`Self::run`] then observe the
-    /// promoted flag.
+    /// Setting `recursive = true` whenever a filter is given applies
+    /// CLI-wide rather than being special-cased per command. Call once on
+    /// the parsed args before dispatch; both the install fast-path bail
+    /// and [`Self::run`] then observe the promoted flag.
     pub fn promote_recursive_for_filter(&mut self) {
         if !self.filter.is_empty() || !self.filter_prod.is_empty() {
             self.recursive = true;
@@ -143,6 +143,9 @@ pub enum CliCommand {
     Outdated(OutdatedArgs),
     /// Checks for known security issues with the installed packages.
     Audit(AuditArgs),
+    /// Opens the bug tracker URL of a package in the default browser.
+    #[clap(visible_alias = "issues")]
+    Bugs(BugsArgs),
     /// List installed packages.
     #[clap(visible_alias = "ls")]
     List(ListArgs),
@@ -151,6 +154,8 @@ pub enum CliCommand {
     Ll(ListArgs),
     /// Shows the packages that depend on `pkg`
     Why(WhyArgs),
+    /// Generate a Software Bill of Materials (SBOM).
+    Sbom(SbomArgs),
     /// Displays your pnpm username.
     Whoami,
     /// Manage a package's distribution tags.
@@ -167,7 +172,7 @@ pub enum CliCommand {
     Publish(PublishArgs),
     /// Removes packages from `node_modules` and from the project's `package.json`.
     // Unlike npm, pnpm does not treat "r" as an alias of "remove" to avoid
-    // confusion with "run" and "recursive". Mirrors pnpm's `commandNames`.
+    // confusion with "run" and "recursive".
     #[clap(visible_aliases = ["uninstall", "rm", "un", "uni"])]
     Remove(RemoveArgs),
     /// Prepare a package for patching.
@@ -212,6 +217,8 @@ pub enum CliCommand {
     Bin(BinArgs),
     /// Print the effective `node_modules` directory.
     Root(RootArgs),
+    /// Print the current package prefix.
+    Prefix(PrefixArgs),
     /// Manage the pnpm configuration files.
     #[clap(visible_alias = "c")]
     Config(ConfigArgs),

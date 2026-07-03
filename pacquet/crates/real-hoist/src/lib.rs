@@ -1,13 +1,11 @@
 //! Real-directory hoister for the `nodeLinker: hoisted` install layout.
 //!
-//! Ports pnpm v11's [`installing/linking/real-hoist`][upstream-wrapper]
-//! package, which is itself a thin wrapper around the
+//! Implements pnpm's hoisted layout as a thin wrapper around the
 //! [`@yarnpkg/nm/hoist`][yarn-hoist] algorithm. The wrapper translates a
 //! pnpm lockfile into a [`HoisterTree`] (rooted at `.` with one child
 //! per workspace importer), runs the algorithm, and post-filters
 //! `externalDependencies` out of the top-level result.
 //!
-//! [upstream-wrapper]: https://github.com/pnpm/pnpm/blob/94240bc0464196bd52f7006b97f6d9a43df34633/installing/linking/real-hoist/src/index.ts
 //! [yarn-hoist]: https://github.com/yarnpkg/berry/blob/4287909fa6a0a1ec976a55776bff606864b31990/packages/yarnpkg-nm/sources/hoist.ts
 
 use derive_more::{Display, Error};
@@ -151,10 +149,8 @@ pub struct HoistOpts {
     pub hoisting_limits: HoistingLimits,
     pub external_dependencies: BTreeSet<String>,
     /// When `true`, every package's `peer_names` is zeroed before
-    /// the hoister runs. Mirrors pnpm's `autoInstallPeers` short-
-    /// circuit at [real-hoist:124][auto].
-    ///
-    /// [auto]: https://github.com/pnpm/pnpm/blob/94240bc0464196bd52f7006b97f6d9a43df34633/installing/linking/real-hoist/src/index.ts#L124-L129
+    /// the hoister runs, so the hoister moves peers freely. Set from
+    /// pnpm's `autoInstallPeers` config.
     pub auto_install_peers: bool,
     /// When `true` (the default), every non-root workspace importer
     /// is added to the hoister tree as a `Workspace`-kind child of
@@ -162,10 +158,8 @@ pub struct HoistOpts {
     /// for workspace projects to participate in the shared
     /// hoist-decisions pass — without this every project hoists
     /// independently and conflicting versions don't dedupe across
-    /// the workspace. Mirrors pnpm's `hoistWorkspacePackages` at
-    /// [`installing/linking/real-hoist/src/index.ts`](https://github.com/pnpm/pnpm/blob/94240bc046/installing/linking/real-hoist/src/index.ts#L51-L66).
-    /// Pacquet's `Config::hoist_workspace_packages` (in
-    /// `pacquet-config`) drives this for the install pipeline.
+    /// the workspace. Pacquet's `Config::hoist_workspace_packages`
+    /// (in `pacquet-config`) drives this for the install pipeline.
     pub hoist_workspace_packages: bool,
 }
 
@@ -175,10 +169,10 @@ impl Default for HoistOpts {
             hoisting_limits: HoistingLimits::new(),
             external_dependencies: BTreeSet::new(),
             auto_install_peers: false,
-            // Match upstream's default-on behavior. Workspace-aware
-            // hoisting is the whole point of `nodeLinker: hoisted` in
-            // a workspace — opting out is a niche knob, never the
-            // expected starting point.
+            // Workspace-aware hoisting is the whole point of
+            // `nodeLinker: hoisted` in a workspace — opting out is a
+            // niche knob, never the expected starting point, so it
+            // defaults on.
             hoist_workspace_packages: true,
         }
     }
@@ -192,11 +186,7 @@ impl Default for HoistOpts {
 #[non_exhaustive]
 pub enum HoistError {
     /// A snapshot referenced by an importer is missing from
-    /// `lockfile.snapshots`. Mirrors pnpm's
-    /// `LockfileMissingDependencyError` raised at
-    /// [real-hoist:111][missing-dep].
-    ///
-    /// [missing-dep]: https://github.com/pnpm/pnpm/blob/94240bc0464196bd52f7006b97f6d9a43df34633/installing/linking/real-hoist/src/index.ts#L109-L111
+    /// `lockfile.snapshots`.
     #[display("Broken lockfile: missing snapshot for {pkg_key}")]
     #[diagnostic(
         code(ERR_PNPM_LOCKFILE_MISSING_DEPENDENCY),
@@ -259,8 +249,7 @@ impl<Inner> From<Rc<Inner>> for RcByPtr<Inner> {
 }
 
 /// Build the [`HoisterTree`] for `lockfile`'s root importer and
-/// run the `@yarnpkg/nm` hoister over it. Ports
-/// [`installing/linking/real-hoist/src/index.ts`][upstream].
+/// run the `@yarnpkg/nm` hoister over it.
 ///
 /// The inner hoist is a recursive DFS with multi-round
 /// convergence over the result graph (peer-aware, with
@@ -268,8 +257,6 @@ impl<Inner> From<Rc<Inner>> for RcByPtr<Inner> {
 /// remain — popularity-based ident preference, multi-importer
 /// workspace trees, and `ExternalSoftLink` descendants — are
 /// documented on the private `nm_hoist` driver.
-///
-/// [upstream]: https://github.com/pnpm/pnpm/blob/94240bc0464196bd52f7006b97f6d9a43df34633/installing/linking/real-hoist/src/index.ts
 pub fn hoist(lockfile: &Lockfile, opts: &HoistOpts) -> Result<HoisterResult, HoistError> {
     let mut nodes: HashMap<String, Rc<HoisterTree>> = HashMap::new();
 
@@ -283,7 +270,7 @@ pub fn hoist(lockfile: &Lockfile, opts: &HoistOpts) -> Result<HoisterResult, Hoi
     // the root so the hoister won't move anything else into those
     // slots; they're stripped from the result after hoisting.
     // Pacquet has no consumer for this yet, but the wrapper handles
-    // it for parity with upstream's signature.
+    // it so the signature is complete.
     for dep in &opts.external_dependencies {
         let placeholder = Rc::new(HoisterTree {
             name: dep.clone(),
@@ -302,14 +289,12 @@ pub fn hoist(lockfile: &Lockfile, opts: &HoistOpts) -> Result<HoisterResult, Hoi
     // (the default). The hoister sees the whole workspace as one
     // tree, which is what enables cross-project dedupe of
     // conflicting versions and gives the layout `node_modules/<dep>`
-    // → `<lockfile_dir>/<importer>/node_modules/<dep>` shape that
-    // upstream's hoisted linker expects.
+    // → `<lockfile_dir>/<importer>/node_modules/<dep>` shape the
+    // hoisted linker expects.
     //
     // When the knob is `false`, non-root importers don't enter the
     // shared tree — each project hoists independently in the walk
-    // phase. Mirrors upstream's `hoistWorkspacePackages: false`
-    // path at
-    // <https://github.com/pnpm/pnpm/blob/94240bc046/installing/linking/real-hoist/src/index.ts#L51-L66>.
+    // phase.
     if opts.hoist_workspace_packages {
         let mut non_root: Vec<(&String, &ProjectSnapshot)> = lockfile
             .importers
@@ -368,14 +353,12 @@ fn collect_importer_deps(
     nodes: &mut HashMap<String, Rc<HoisterTree>>,
     out: &mut IndexSet<RcByPtr<HoisterTree>>,
 ) -> Result<(), HoistError> {
-    // Upstream merges `dependencies + devDependencies +
-    // optionalDependencies` into one alias-keyed object. Later
-    // entries (in declaration order) win on duplicate aliases —
-    // which is the same as inserting in that order and keeping the
-    // last write. Pacquet's `ResolvedDependencyMap` is a HashMap so
-    // declaration order is lost; merge into a `HashMap` (last write
-    // wins) and emit in alias-sorted order so the build is
-    // deterministic regardless of map seed.
+    // Merge `dependencies + devDependencies + optionalDependencies`
+    // into one alias-keyed object; on a duplicate alias the last
+    // write wins. `ResolvedDependencyMap` is a HashMap so declaration
+    // order is lost; merge into a `HashMap` (last write wins) and emit
+    // in alias-sorted order so the build is deterministic regardless
+    // of map seed.
     let mut merged: HashMap<&PkgName, &pacquet_lockfile::ResolvedDependencySpec> = HashMap::new();
     for deps in
         [&importer.dependencies, &importer.dev_dependencies, &importer.optional_dependencies]
@@ -416,10 +399,10 @@ fn build_dep_node(
     opts: &HoistOpts,
     nodes: &mut HashMap<String, Rc<HoisterTree>>,
 ) -> Result<Rc<HoisterTree>, HoistError> {
-    // Cache key is `<alias>:<dep_key>` to match upstream — two
-    // different aliases pointing at the same package are
-    // intentionally different nodes (the node's `name` field
-    // differs), so they shouldn't share a cache slot.
+    // Cache key is `<alias>:<dep_key>` — two different aliases
+    // pointing at the same package are intentionally different nodes
+    // (the node's `name` field differs), so they shouldn't share a
+    // cache slot.
     let cache_key = format!("{alias}:{dep_key}");
     if let Some(existing) = nodes.get(&cache_key) {
         return Ok(Rc::clone(existing));
@@ -435,8 +418,6 @@ fn build_dep_node(
 
     // Peer-name set: peerDependencies (from the `packages:` map)
     // plus transitivePeerDependencies (from the `snapshots:` map).
-    // Mirrors upstream's
-    // `[...Object.keys(pkgSnapshot.peerDependencies), ...transitivePeerDependencies]`.
     // Zeroed when `auto_install_peers` is on, so the hoister moves
     // freely.
     let mut peer_names: BTreeSet<String> = BTreeSet::new();
@@ -464,8 +445,7 @@ fn build_dep_node(
     // recursion gets the same `Rc<HoisterTree>` — by the time the
     // outer call returns the cell holds the populated set, and the
     // shared-by-identity invariant the hoister algorithm relies on
-    // survives. Mirrors the in-place mutation of `node.dependencies`
-    // at upstream's real-hoist:132.
+    // survives.
     let node = Rc::new(HoisterTree {
         name: alias.to_string(),
         ident_name: dep_key.name.to_string(),
@@ -508,8 +488,7 @@ fn collect_snapshot_deps(
         //
         // `link:` deps return `None` — they have no snapshot to
         // hoist (the install layer materialises them as direct
-        // directory symlinks), so we skip them here, mirroring
-        // upstream's `if (childDepPath)` check in `getChildren`.
+        // directory symlinks), so we skip them here.
         let Some(dep_key) = dep_ref.resolve(alias) else {
             continue;
         };
@@ -521,8 +500,8 @@ fn collect_snapshot_deps(
 
 /// Encode an importer id for use as a child node's `name` (and in
 /// the hoisting-limits locator keys built by
-/// `pacquet_package_manager::get_hoisting_limits`). Upstream uses
-/// `encodeURIComponent`, which percent-encodes everything except
+/// `pacquet_package_manager::get_hoisting_limits`). Matches
+/// `encodeURIComponent`: percent-encode everything except
 /// `A-Z a-z 0-9 - _ . ! ~ * ' ( )`. Pacquet workspace importers are
 /// filesystem-relative paths, so the common case is alphanumeric +
 /// `/` + `-` + `_`. Encode `/` (since it would confuse

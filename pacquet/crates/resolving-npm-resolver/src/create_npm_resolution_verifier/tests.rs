@@ -776,7 +776,7 @@ async fn verify_routes_via_named_registry_prefix() {
 
 /// `policy()` returns the snapshot the verification cache hashes
 /// alongside the lockfile. Each field is sorted/deduped where the
-/// upstream contract requires it.
+/// snapshot contract requires it.
 #[test]
 fn policy_snapshot_records_all_fields_sorted_and_deduped() {
     let mut opts = default_opts("https://registry.example/");
@@ -870,8 +870,8 @@ fn can_trust_past_check_rejects_tighter_min_age() {
 }
 
 /// Any drift in the exclude list invalidates the cached run, even
-/// when the drift would have been more permissive (an extra entry).
-/// Mirrors upstream's stricter-than-necessary identity check.
+/// when the drift would have been more permissive (an extra entry):
+/// the check is a stricter-than-necessary identity comparison.
 #[test]
 fn can_trust_past_check_rejects_changed_exclude_list() {
     let mut opts = default_opts("https://registry.example/");
@@ -954,10 +954,7 @@ fn abbreviated_packument_json(name: &str, version: &str, modified: &str) -> serd
 /// Abbreviated-modified shortcut: when the package-level `modified`
 /// timestamp is older than the cutoff and the pinned version is
 /// still listed, the shortcut passes the gate without falling
-/// through to the attestation or full-meta layers. Mirrors
-/// upstream's
-/// [`tryAbbreviatedModifiedShortcut`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts#L606-L624)
-/// happy path.
+/// through to the attestation or full-meta layers.
 #[tokio::test]
 async fn min_age_pass_via_abbreviated_modified_shortcut() {
     let mut server = mockito::Server::new_async().await;
@@ -1040,10 +1037,7 @@ async fn min_age_shortcut_falls_through_when_modified_within_cutoff() {
 /// versions the registry currently lists. An unpublished or
 /// never-published pin must NOT slip through on a stale
 /// package-level timestamp — the verifier falls through to the
-/// per-version layers, which surface the unchecked entry. Mirrors
-/// upstream's
-/// [`if (!meta?.versionNames?.has(version)) return undefined`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/createNpmResolutionVerifier.ts#L622)
-/// guard.
+/// per-version layers, which surface the unchecked entry.
 #[tokio::test]
 async fn min_age_shortcut_falls_through_when_version_not_listed() {
     let mut server = mockito::Server::new_async().await;

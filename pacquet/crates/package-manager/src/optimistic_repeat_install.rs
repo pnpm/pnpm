@@ -1,59 +1,44 @@
 //! Pre-install fast path: when nothing has changed since the last
 //! install, skip the entire pipeline.
 //!
-//! Port of upstream's `optimisticRepeatInstall` + [`checkDepsStatus`]
-//! dispatch. `installDeps` calls `checkDepsStatus` before any of the
-//! install setup runs and logs "Already up to date" when nothing has
-//! changed. The check keys off `<workspace_root>/node_modules/.pnpm-workspace-state-v1.json`'s
+//! The install logs "Already up to date" when nothing has changed,
+//! before any of the install setup runs. The check keys off
+//! `<workspace_root>/node_modules/.pnpm-workspace-state-v1.json`'s
 //! `lastValidatedTimestamp` against each project's `package.json`
 //! mtime — never touching the lockfile, the verifier cache, or any
 //! resolver state.
 //!
-//! Mirrors:
-//! - [`installing/commands/src/installDeps.ts:179-194`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/installing/commands/src/installDeps.ts#L179-L194)
-//!   — dispatch.
-//! - [`deps/status/src/checkDepsStatus.ts`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts)
-//!   — the underlying check.
-//!
-//! Scope: the mtime-vs-`lastValidatedTimestamp` branch (upstream's
-//! `modifiedProjects.length === 0` exit at lines 263-271), the
-//! patch-file branch of upstream's
-//! [`patchesOrHooksAreModified`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L597-L612)
+//! Scope: the mtime-vs-`lastValidatedTimestamp` branch (the
+//! up-to-date exit when no project is modified), the patch-file branch
 //! (a configured patch file whose mtime is newer than
 //! `lastValidatedTimestamp` invalidates the fast path even when its
 //! `patchedDependencies` config entry is unchanged — a content edit the
 //! key→path settings comparison can't see), and the modified-manifests
 //! content re-check: when a manifest's mtime is newer but its
-//! dependency-relevant content still matches the lockfile, upstream's
-//! [`assertWantedLockfileUpToDate`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L483-L561)
+//! dependency-relevant content still matches the lockfile, the install
 //! still reports up-to-date (a `touch package.json`, a `scripts` edit, or
 //! an `npm pkg set/delete` rewrite must not trigger a full install), and
-//! the pnpmfile branch of `patchesOrHooksAreModified` (an added, removed,
-//! or edited workspace pnpmfile invalidates the fast path; plugin
-//! pnpmfiles from config dependencies are covered by the
-//! `config_dependencies` comparison instead of the mtime check), and the
-//! local-file-dependency bail (upstream's `treatLocalFileDepsAsOutdated`
-//! option, set by `installDeps`): no tracked mtime covers the *contents*
-//! of a local file dependency (a `file:` specifier or a bare local
-//! path/tarball spec, declared directly or through a `pnpm.overrides`
-//! entry), so projects declaring one always take the
-//! full install path, which refetches those dependencies
-//! (pnpm/pnpm#11795). The `isLocalFileDepUpdated` branch of
-//! `linkedPackagesAreUpToDate` is NOT
-//! ported here. When this function returns `Decision::Skipped` the caller
-//! proceeds with the full install path, which still has its own freshness
-//! guards (`check_lockfile_freshness`, the no-op short-circuit). Remaining
-//! work tracked at pnpm/pnpm#11940 (this issue).
-//!
-//! [`checkDepsStatus`]: https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts
+//! the pnpmfile branch (an added, removed, or edited workspace pnpmfile
+//! invalidates the fast path; plugin pnpmfiles from config dependencies
+//! are covered by the `config_dependencies` comparison instead of the
+//! mtime check), and the local-file-dependency bail: no tracked mtime
+//! covers the *contents* of a local file dependency (a `file:` specifier
+//! or a bare local path/tarball spec, declared directly or through a
+//! `pnpm.overrides` entry), so projects declaring one always take the
+//! full install path, which refetches those dependencies. The
+//! local-file-dependency freshness branch of linked-package verification
+//! is NOT ported here. When this function returns `Decision::Skipped` the
+//! caller proceeds with the full install path, which still has its own
+//! freshness guards (`check_lockfile_freshness`, the no-op
+//! short-circuit).
 //!
 //! ## Why a separate module
 //!
 //! Lives in `pacquet-package-manager` rather than a new
 //! `pacquet-deps-status` crate because the only call site today is
-//! `Install::run`. When pacquet ports `verifyDepsBeforeRun` (the
-//! second consumer of `checkDepsStatus` upstream), extract this into
-//! its own crate to match pnpm's `@pnpm/deps.status` package.
+//! `Install::run`. When a second consumer of the deps-status check
+//! lands (the verify-deps-before-run gate), extract this into
+//! its own crate.
 
 use std::{
     fs,
@@ -76,14 +61,11 @@ use pacquet_workspace_state::{
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Decision {
     /// The install is fully up to date — emit "Already up to date"
-    /// and exit before any of the install setup runs. Mirrors pnpm's
-    /// [`upToDate: true`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L270)
-    /// outcome.
+    /// and exit before any of the install setup runs.
     UpToDate,
-    /// Fall through to the full install path. `reason` is the short
-    /// string the upstream `issue` field would carry; surfaced via
-    /// `tracing::debug!` for diagnosability without contaminating the
-    /// reporter stream.
+    /// Fall through to the full install path. `reason` is a short
+    /// diagnostic string surfaced via `tracing::debug!` for
+    /// diagnosability without contaminating the reporter stream.
     Skipped { reason: &'static str },
 }
 
@@ -104,16 +86,13 @@ pub struct OptimisticRepeatInstallCheck<'a> {
     /// install path on the fall-through.
     pub project_manifests: &'a [(PathBuf, &'a PackageManifest)],
     /// `true` when a `pnpm-workspace.yaml` drives the install — that
-    /// selects pnpm's
-    /// [`allProjects && workspaceDir` branch](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L187)
-    /// which keys the manifest and lockfile comparisons off
-    /// `lastValidatedTimestamp`. `false` (no workspace manifest)
-    /// selects the
-    /// [single-project branch](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L387-L462)
-    /// which additionally requires `pnpm-lock.yaml` to exist on disk —
-    /// pnpm throws `RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND` otherwise, which
-    /// the outer `try` converts into `upToDate: false` — and keys its
-    /// comparisons off the lockfile mtimes instead.
+    /// selects the workspace branch, which keys the manifest and
+    /// lockfile comparisons off `lastValidatedTimestamp`. `false` (no
+    /// workspace manifest) selects the single-project branch, which
+    /// additionally requires `pnpm-lock.yaml` to exist on disk —
+    /// `RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND` is raised otherwise, which
+    /// resolves to not-up-to-date — and keys its comparisons off the
+    /// lockfile mtimes instead.
     pub is_workspace_install: bool,
     /// The wanted lockfile (`None` once loaded when `pnpm-lock.yaml`
     /// is absent or empty). Consulted only by the modified-manifests
@@ -153,16 +132,13 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
 
     // No workspace state means no previous install has completed
     // (or the file was deleted) — there's no `lastValidatedTimestamp`
-    // to compare against. Mirrors upstream's
-    // <https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L80-L86>
-    // first-return guard.
+    // to compare against.
     let Ok(Some(state)) = load_workspace_state(workspace_root) else {
         return Decision::Skipped { reason: "no workspace state on disk" };
     };
 
-    // Unconditional where upstream gates it behind
-    // `treatLocalFileDepsAsOutdated`: the only caller here is the
-    // install command — the one consumer that sets the flag upstream.
+    // Unconditional here because the only caller is the install
+    // command, which always treats local file deps as outdated.
     if has_local_file_dep(project_manifests, included, catalogs) {
         return Decision::Skipped {
             reason: "a dependency is a local file dependency and its contents may have changed",
@@ -195,15 +171,13 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
         return Decision::Skipped { reason: "workspace project list changed" };
     }
 
-    // The "modules dir exists when the project has deps" gate from
-    // upstream's
-    // <https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L237-L249>:
-    // a project with `dependencies`/`devDependencies` but no
-    // `node_modules` cannot be up to date. Pnpm reads `modulesDir`
+    // The "modules dir exists when the project has deps" gate: a
+    // project with `dependencies`/`devDependencies` but no
+    // `node_modules` cannot be up to date. The `modulesDir` is read
     // off the per-project config; pacquet doesn't track per-importer
     // overrides yet, so check the install-time `config.modules_dir`
     // for the root + `<project_root>/node_modules` for siblings,
-    // matching pnpm's `isolated`-linker default.
+    // matching the `isolated`-linker default.
     if !modules_dirs_present(config, project_manifests) {
         return Decision::Skipped {
             reason: "project has dependencies but no node_modules directory",
@@ -211,21 +185,20 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
     }
 
     // Single-project installs require a lockfile to even attempt the
-    // fast path. Upstream's single-project branch at
-    // <https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L396-L401>
-    // throws `RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND` when
-    // `wantedLockfileStats` is absent, which the outer `try`
-    // converts into `upToDate: false`. Pacquet additionally accepts
-    // the *current* lockfile (`<virtual_store_dir>/lock.yaml`) as a
-    // stand-in when `pnpm-lock.yaml` is missing: it records exactly
-    // what the previous install materialized, so the content checks
-    // can run against it and `pnpm-lock.yaml` is regenerated from it
-    // on success — the same substitution the full install path makes
+    // fast path. The single-project branch raises
+    // `RUN_CHECK_DEPS_LOCKFILE_NOT_FOUND` when the wanted-lockfile
+    // stat is absent, which resolves to not-up-to-date. Pacquet
+    // additionally accepts the *current* lockfile
+    // (`<virtual_store_dir>/lock.yaml`) as a stand-in when
+    // `pnpm-lock.yaml` is missing: it records exactly what the
+    // previous install materialized, so the content checks can run
+    // against it and `pnpm-lock.yaml` is regenerated from it on
+    // success — the same substitution the full install path makes
     // when it synthesizes the wanted lockfile from the current one.
-    // Workspace installs skip this existence gate — pnpm's workspace
-    // branch tolerates a missing `pnpm-lock.yaml` (its `scanWantedLockfiles`
-    // probe `continue`s on ENOENT, and the missing lockfile is restored
-    // from the current one rather than throwing). The mtime side of that
+    // Workspace installs skip this existence gate — the workspace
+    // branch tolerates a missing `pnpm-lock.yaml` (the wanted-lockfile
+    // scan `continue`s on ENOENT, and the missing lockfile is restored
+    // from the current one rather than failing). The mtime side of that
     // probe is handled by `wanted_lockfile_modified` below.
     if !is_workspace_install
         && !workspace_root.join(Lockfile::FILE_NAME).exists()
@@ -236,10 +209,9 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
 
     // A patch file edited in place keeps the same `patchedDependencies`
     // key→path entry (so `settings_match` can't see the change) but
-    // changes the patched output and the patch hash. Upstream catches
-    // this in `patchesOrHooksAreModified` before the manifest-modified
-    // exit; mirror that ordering so the patch reason wins when both a
-    // patch and a manifest are newer than the last validation.
+    // changes the patched output and the patch hash. This check runs
+    // before the manifest-modified exit so the patch reason wins when
+    // both a patch and a manifest are newer than the last validation.
     if patches_modified_since(workspace_root, config, state.last_validated_timestamp) {
         return Decision::Skipped { reason: "a patch file is newer than the last validation" };
     }
@@ -247,14 +219,13 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
     // A pnpmfile added, removed, or edited in place can change
     // resolution (readPackage rewrites, custom resolvers, a
     // `shouldRefreshResolution` verdict) without touching any manifest,
-    // so it must defeat the mtime fast path. Upstream catches this in
-    // the pnpmfile branch of `patchesOrHooksAreModified`.
+    // so it must defeat the mtime fast path.
     if pnpmfiles_modified_since(workspace_root, &state.pnpmfiles, state.last_validated_timestamp) {
         return Decision::Skipped { reason: "a pnpmfile changed since the last validation" };
     }
 
-    // The fast-path conclusion. Upstream walks every manifest and
-    // returns `upToDate: true` when none have an mtime newer than
+    // The fast-path conclusion: walk every manifest and report up to
+    // date when none have an mtime newer than
     // `workspaceState.lastValidatedTimestamp`. The walk has to
     // succeed (read errors mean we can't *prove* freshness, so fall
     // through).
@@ -269,9 +240,8 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
     // A lockfile-only change — `git checkout`/stash-restore of just
     // `pnpm-lock.yaml`, or an external rewrite — leaves every manifest
     // untouched but still invalidates the install. Probe the wanted
-    // lockfile's mtime before the manifest-mtime exit, mirroring
-    // upstream's `scanWantedLockfiles` + `!lockfilesModified` early-return
-    // guard (pnpm/pnpm#12100).
+    // lockfile's mtime before the manifest-mtime exit so a lockfile
+    // modification is not missed.
     let lockfile_modified =
         wanted_lockfile_modified(workspace_root, state.last_validated_timestamp);
 
@@ -288,14 +258,12 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
         };
     }
 
-    // A newer mtime alone doesn't invalidate: upstream's
-    // modified-manifests branch re-checks the *content* against the
-    // wanted lockfile (`assertWantedLockfileUpToDate`) so a rewrite
-    // that left the dependency fields intact — `touch`, a `scripts`
-    // edit, `npm pkg set/delete` — still reports up to date. When only
-    // the lockfile changed, upstream validates every project rather than
-    // just the modified ones (`projectsToCheck = lockfilesModified ?
-    // allManifestStats : modifiedProjects`).
+    // A newer mtime alone doesn't invalidate: the modified-manifests
+    // branch re-checks the *content* against the wanted lockfile so a
+    // rewrite that left the dependency fields intact — `touch`, a
+    // `scripts` edit, `npm pkg set/delete` — still reports up to date.
+    // When only the lockfile changed, every project is validated rather
+    // than just the modified ones.
     let projects_to_check: Vec<&ManifestStat<'_>> =
         if lockfile_modified { manifest_stats.iter().collect() } else { modified };
     match modified_manifests_match_lockfile(check, &state, &projects_to_check) {
@@ -303,14 +271,13 @@ pub fn check_optimistic_repeat_install(check: &OptimisticRepeatInstallCheck<'_>)
             if let Err(reason) = regenerate_wanted_lockfile_if_missing(check, loaded_current) {
                 return Decision::Skipped { reason };
             }
-            // "update lastValidatedTimestamp to prevent pointless
-            // repeat" — upstream's workspace branch rewrites the
-            // state after the content checks pass at
-            // <https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L349-L357>.
-            // The single-project branch keys its comparisons off the
-            // lockfile mtimes instead and leaves the state alone. A
-            // failed write only costs the next run a repeat of the
-            // content check, so it degrades rather than fails.
+            // Update `lastValidatedTimestamp` to prevent a pointless
+            // repeat: the workspace branch rewrites the state after the
+            // content checks pass. The single-project branch keys its
+            // comparisons off the lockfile mtimes instead and leaves the
+            // state alone. A failed write only costs the next run a
+            // repeat of the content check, so it degrades rather than
+            // fails.
             if is_workspace_install {
                 let new_state = crate::install::build_workspace_state(
                     workspace_root,
@@ -437,8 +404,6 @@ fn has_local_file_package_extension(
 /// the `file:` protocol, path-prefixed specs (`./`, `../`, `~/`,
 /// absolute POSIX paths, and Windows drive paths including
 /// drive-relative ones like `c:dir`), and bare tarball file names.
-/// Port of upstream's `isLocalFileSpec` in
-/// `deps/status/src/checkDepsStatus.ts`.
 ///
 /// Deliberately narrower than the local resolver's bare-path matching:
 /// a bare path like `user/repo` is statically indistinguishable from a
@@ -480,9 +445,8 @@ fn ends_with_ignore_ascii_case(spec: &str, suffix: &str) -> bool {
 }
 
 /// `c:/...`, `c:\...`, or drive-relative `c:foo` — a Windows drive
-/// path. No separator is required after the colon, matching the local
-/// resolver's `isFilespec` (`resolving/local-resolver/src/parseBareSpecifier.ts`);
-/// no registry protocol is a single letter, so `[a-z]:` is unambiguous.
+/// path. No separator is required after the colon; no registry protocol
+/// is a single letter, so `[a-z]:` is unambiguous.
 fn is_windows_drive_path(spec: &str) -> bool {
     let bytes = spec.as_bytes();
     bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':'
@@ -525,13 +489,11 @@ struct ManifestStat<'a> {
     mtime_ms: i64,
 }
 
-/// Port of upstream's modified-manifests branch: the lockfile-equality
-/// assertion ([`assertLockfilesEqual`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/assertLockfilesEqual.ts))
-/// plus [`assertWantedLockfileUpToDate`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L483-L561)
-/// (settings drift, per-importer specifier match, linked-package
-/// freshness) for every project whose manifest is newer than the last
-/// validation. `Err` carries the `Decision::Skipped` reason; upstream
-/// converts the equivalent throws into `upToDate: false`.
+/// The modified-manifests branch: the lockfile-equality assertion plus
+/// the wanted-lockfile up-to-date check (settings drift, per-importer
+/// specifier match, linked-package freshness) for every project whose
+/// manifest is newer than the last validation. `Err` carries the
+/// `Decision::Skipped` reason.
 ///
 /// When `pnpm-lock.yaml` is absent, the current lockfile stands in as
 /// the wanted one (see the lockfile gate in
@@ -586,15 +548,13 @@ fn modified_manifests_match_lockfile(
     } else if is_workspace_install {
         // Workspace branch: a wanted lockfile newer than the last
         // validation must equal what the previous install materialized.
-        // Mirrors <https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L283-L289>.
         if wanted_mtime_ms > state.last_validated_timestamp {
             assert_wanted_lockfile_equals_current(wanted, config)?;
         }
         modified
     } else {
         // Single-project branch keys off the lockfile mtimes instead of
-        // `lastValidatedTimestamp`. Mirrors
-        // <https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L407-L462>.
+        // `lastValidatedTimestamp`.
         let current_mtime_ms =
             mtime_ms(&config.virtual_store_dir.join(Lockfile::CURRENT_FILE_NAME));
         if let Some(current_mtime_ms) = current_mtime_ms
@@ -663,11 +623,10 @@ fn modified_manifests_match_lockfile(
     Ok(loaded_current)
 }
 
-/// Port of upstream's
-/// [`assertLockfilesEqual`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/assertLockfilesEqual.ts):
-/// with no current lockfile every importer of the wanted one must be
-/// dependency-free (`RUN_CHECK_DEPS_NO_DEPS`); otherwise the two parsed
-/// lockfiles must be equal (`RUN_CHECK_DEPS_OUTDATED_DEPS`).
+/// Assert the wanted lockfile equals the current one: with no current
+/// lockfile every importer of the wanted one must be dependency-free
+/// (`RUN_CHECK_DEPS_NO_DEPS`); otherwise the two parsed lockfiles must
+/// be equal (`RUN_CHECK_DEPS_OUTDATED_DEPS`).
 fn assert_wanted_lockfile_equals_current(
     wanted: &Lockfile,
     config: &Config,
@@ -703,14 +662,11 @@ fn assert_wanted_lockfile_equals_current(
 }
 
 /// Shared lookups for [`linked_packages_are_up_to_date`], built once
-/// per content check. Mirrors the `bind(null, {...})` context upstream
-/// creates in
-/// [`checkDepsStatus`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L317-L329).
+/// per content check.
 struct LinkedPackagesContext<'a> {
     link_workspace_packages: bool,
     manifests_by_dir: std::collections::HashMap<&'a Path, &'a PackageManifest>,
-    /// `name → version → root_dir` over the workspace's projects —
-    /// the same index upstream's `workspacePackages` map carries.
+    /// `name → version → root_dir` over the workspace's projects.
     workspace_packages:
         std::collections::HashMap<String, std::collections::HashMap<String, &'a Path>>,
 }
@@ -739,8 +695,7 @@ impl<'a> LinkedPackagesContext<'a> {
     }
 
     /// The version of the package manifest at `dir`, preferring the
-    /// already-loaded workspace manifests over a disk read. Mirrors
-    /// upstream's `manifestsByDir[linkedDir] ?? safeReadPackageJsonFromDir`.
+    /// already-loaded workspace manifests over a disk read.
     fn linked_version(&self, dir: &Path) -> Option<String> {
         if let Some(manifest) = self.manifests_by_dir.get(dir) {
             return manifest_string_field(manifest, "version");
@@ -752,14 +707,13 @@ impl<'a> LinkedPackagesContext<'a> {
     }
 }
 
-/// Port of upstream's
-/// [`linkedPackagesAreUpToDate`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/lockfile/verification/src/linkedPackagesAreUpToDate.ts):
-/// every importer dependency that resolved to a workspace link must
-/// still link under today's manifest spec, and every one that resolved
-/// to the registry must not have become linkable. The
-/// `isLocalFileDepUpdated` branch (a `file:` directory specifier) is
-/// not ported — those entries conservatively report "not up to date" so
-/// the full install path re-evaluates them.
+/// Verify that linked packages are up to date: every importer
+/// dependency that resolved to a workspace link must still link under
+/// today's manifest spec, and every one that resolved to the registry
+/// must not have become linkable. The local-file-dependency freshness
+/// branch (a `file:` directory specifier) is not handled here — those
+/// entries conservatively report "not up to date" so the full install
+/// path re-evaluates them.
 fn linked_packages_are_up_to_date(
     ctx: &LinkedPackagesContext<'_>,
     project_dir: &Path,
@@ -804,8 +758,7 @@ fn linked_packages_are_up_to_date(
                 continue;
             }
             // A linked dependency whose spec is a distribution tag is
-            // considered up to date to skip full resolution
-            // (<https://github.com/pnpm/pnpm/issues/6592>).
+            // considered up to date to skip full resolution.
             if is_linked && spec_is_distribution_tag(current_spec) {
                 continue;
             }
@@ -838,9 +791,8 @@ fn linked_packages_are_up_to_date(
     true
 }
 
-/// Port of upstream's
-/// [`refIsLocalDirectory`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/lockfile/utils/src/refIsLocalTarball.ts):
-/// a `file:` specifier that is not a tarball.
+/// Whether a specifier points at a local directory: a `file:`
+/// specifier that is not a tarball.
 fn ref_is_local_directory(specifier: &str) -> bool {
     specifier.starts_with("file:")
         && !(specifier.ends_with(".tgz")
@@ -849,20 +801,18 @@ fn ref_is_local_directory(specifier: &str) -> bool {
 }
 
 /// Whether a bare specifier is an npm distribution tag (`latest`,
-/// `beta`, ...). Approximates upstream's
-/// `getVersionSelectorType(spec)?.type === 'tag'` — anything that
-/// doesn't parse as a semver range and contains only characters a tag
-/// name may carry. Protocol-ish specs (`workspace:^1.0.0`,
-/// `npm:foo@1`) contain `:`/`@`/`/` and therefore never match, same as
-/// `version-selector-type` rejecting them.
+/// `beta`, ...): anything that doesn't parse as a semver range and
+/// contains only characters a tag name may carry. Protocol-ish specs
+/// (`workspace:^1.0.0`, `npm:foo@1`) contain `:`/`@`/`/` and therefore
+/// never match.
 fn spec_is_distribution_tag(spec: &str) -> bool {
     !spec.is_empty()
         && spec.parse::<node_semver::Range>().is_err()
         && spec.chars().all(|char| char.is_ascii_alphanumeric() || matches!(char, '-' | '_' | '.'))
 }
 
-/// Port of upstream's `getVersionRange`: strips the `workspace:` /
-/// `npm:` envelope so the remainder can be compared as a semver range.
+/// Strip the `workspace:` / `npm:` envelope so the remainder can be
+/// compared as a semver range.
 fn version_range_of_spec(spec: &str) -> &str {
     if let Some(rest) = spec.strip_prefix("workspace:") {
         return rest;
@@ -900,11 +850,10 @@ fn mtime_ms(path: &Path) -> Option<i64> {
 }
 
 /// Whether `<workspace_root>/pnpm-lock.yaml` has an mtime newer than the
-/// last validation. Mirrors upstream's `scanWantedLockfiles` modification
-/// probe: a lockfile-only change leaves every manifest untouched but must
-/// still defeat the manifest-mtime fast path (pnpm/pnpm#12100). A missing
-/// lockfile reports `false` here — it is handled by the existence and
-/// stand-in gates, not treated as a modification.
+/// last validation. A lockfile-only change leaves every manifest
+/// untouched but must still defeat the manifest-mtime fast path. A
+/// missing lockfile reports `false` here — it is handled by the
+/// existence and stand-in gates, not treated as a modification.
 fn wanted_lockfile_modified(workspace_root: &Path, last_validated_timestamp: i64) -> bool {
     mtime_ms(&workspace_root.join(Lockfile::FILE_NAME))
         .is_some_and(|mtime| mtime > last_validated_timestamp)
@@ -939,9 +888,8 @@ fn current_lockfile_file_has_content(virtual_store_dir: &Path) -> bool {
 /// participate in the comparison; the rest are listed at the end of
 /// this function with the reason each is safe to skip.
 ///
-/// pnpm's [`checkDepsStatus`](https://github.com/pnpm/pnpm/blob/20f9362161/deps/status/src/checkDepsStatus.ts#L138)
-/// iterates the full `WORKSPACE_STATE_SETTING_KEYS` list, reading a key
-/// absent from the recorded state as `undefined`. So the reverse
+/// pnpm iterates the full `WORKSPACE_STATE_SETTING_KEYS` list, reading a
+/// key absent from the recorded state as `undefined`. So the reverse
 /// scenario (pacquet wrote the state, pnpm reads it next) stays on the
 /// fast path only for keys whose pnpm-resolved value is also
 /// `undefined`. Every key pnpm resolves to a concrete default —
@@ -951,10 +899,10 @@ fn current_lockfile_file_has_content(virtual_store_dir: &Path) -> bool {
 /// report drift and re-run a (no-op) install on every command after a
 /// pacquet install. `enableGlobalVirtualStore` is `undefined` by
 /// default (concrete only under `--global`/CI), so pacquet's omit-when-
-/// off encoding already matches. The `allowBuilds` coercion mirrors
-/// pnpm's [`opts.allowBuilds ?? {}`](https://github.com/pnpm/pnpm/blob/20f9362161/deps/status/src/checkDepsStatus.ts#L143)
-/// on the read side and pnpm's tolerance of an absent `allowBuilds` key
-/// in the recorded state on the write side.
+/// off encoding already matches. The `allowBuilds` coercion treats an
+/// absent value as an empty map on the read side, matching pnpm's
+/// tolerance of an absent `allowBuilds` key in the recorded state on
+/// the write side.
 fn settings_match(
     state: &WorkspaceState,
     config: &Config,
@@ -996,9 +944,8 @@ fn settings_match(
         && recorded.prefer_workspace_packages == live.prefer_workspace_packages
         && recorded.production == live.production
         && recorded.public_hoist_pattern == live.public_hoist_pattern
-    // Deliberately *not* compared in this generic settings loop. pnpm
-    // ignores `catalogs` here (`ignoredSettings.add('catalogs')`), then
-    // checks it separately. Pacquet mirrors that split in
+    // Deliberately *not* compared in this generic settings loop:
+    // `catalogs` is ignored here and checked separately in
     // `check_optimistic_repeat_install` so catalogs from either
     // `pnpm-workspace.yaml` or an `updateConfig` hook can invalidate
     // the cache.
@@ -1242,15 +1189,11 @@ fn manifest_string_field(manifest: &PackageManifest, key: &str) -> Option<String
 }
 
 /// Whether any configured patch file's mtime is newer than the last
-/// validation. Mirrors the patch branch of upstream's
-/// [`patchesOrHooksAreModified`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L604-L613):
-/// `allPatchStats.some(patch => patch && patch.mtime > lastValidatedTimestamp)`.
-/// A patch that can't be stat'd is treated as not-modified — pnpm's
-/// `safeStat` returns null and the `patch &&` guard drops it, leaving a
-/// genuinely missing patch to surface on the full install path. Patch
-/// paths are resolved against `workspace_root` (the `pnpm-workspace.yaml`
-/// dir, where `patchedDependencies` is declared), matching how
-/// [`Config::patched_dependency_hashes`] resolves them.
+/// validation. A patch that can't be stat'd is treated as not-modified,
+/// leaving a genuinely missing patch to surface on the full install
+/// path. Patch paths are resolved against `workspace_root` (the
+/// `pnpm-workspace.yaml` dir, where `patchedDependencies` is declared),
+/// matching how [`Config::patched_dependency_hashes`] resolves them.
 fn patches_modified_since(workspace_root: &Path, config: &Config, cutoff_ms: i64) -> bool {
     let Some(patches) = config.patched_dependencies.as_ref() else {
         return false;
@@ -1276,8 +1219,7 @@ fn patches_modified_since(workspace_root: &Path, config: &Config, cutoff_ms: i64
 /// The pnpmfile list recorded in the workspace state and compared by
 /// the freshness check: today just the workspace pnpmfile.
 /// Config-dependency plugin pnpmfiles are tracked via the
-/// `config_dependencies` comparison instead. pnpm records every loaded
-/// pnpmfile (`resolvedPnpmfilePaths`, plugins included).
+/// `config_dependencies` comparison instead.
 pub(crate) fn current_pnpmfiles(workspace_root: &Path) -> Vec<String> {
     pacquet_hooks::finder::find_pnpmfile(workspace_root)
         .map(|path| path.to_string_lossy().into_owned())
@@ -1285,11 +1227,10 @@ pub(crate) fn current_pnpmfiles(workspace_root: &Path) -> Vec<String> {
         .collect()
 }
 
-/// Mirrors the pnpmfile branch of upstream's
-/// [`patchesOrHooksAreModified`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/checkDepsStatus.ts#L692-L703):
-/// the recorded pnpmfile list must match the current one, every
-/// recorded pnpmfile must still exist, and none may be newer than the
-/// last validation.
+/// Whether the pnpmfiles changed since the last validation: the
+/// recorded pnpmfile list must match the current one, every recorded
+/// pnpmfile must still exist, and none may be newer than the last
+/// validation.
 fn pnpmfiles_modified_since(workspace_root: &Path, previous: &[String], cutoff_ms: i64) -> bool {
     let current = current_pnpmfiles(workspace_root);
     if current != previous {
@@ -1308,10 +1249,7 @@ fn pnpmfiles_modified_since(workspace_root: &Path, previous: &[String], cutoff_m
 }
 
 /// Stat every project's `package.json`. `None` on any stat failure —
-/// "can't prove freshness, fall through" — matching pnpm's
-/// [`statManifestFile`](https://github.com/pnpm/pnpm/blob/cc4ff817aa/deps/status/src/statManifestFile.ts)
-/// behavior on missing files (it throws, which `checkDepsStatus`
-/// catches via the outer `try`).
+/// "can't prove freshness, fall through".
 fn stat_manifests<'a>(
     project_manifests: &'a [(PathBuf, &'a PackageManifest)],
 ) -> Option<Vec<ManifestStat<'a>>> {

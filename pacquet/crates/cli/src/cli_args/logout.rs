@@ -1,8 +1,7 @@
 //! `pacquet logout` — revoke the registry auth token and remove it from
-//! `auth.ini`. Ports pnpm's `pnpm logout`
-//! ([`@pnpm/auth.commands`](https://github.com/pnpm/pnpm/blob/fc2f33912e/pnpm11/auth/commands/src/logout.ts)).
-//! The command logic lives in `pacquet-auth-commands`; this module is the
-//! thin CLI adapter that resolves config into [`LogoutOptions`].
+//! `auth.ini`. The command logic lives in `pacquet-auth-commands`; this
+//! module is the thin CLI adapter that resolves config into
+//! [`LogoutOptions`].
 
 use std::{collections::HashMap, time::Duration};
 

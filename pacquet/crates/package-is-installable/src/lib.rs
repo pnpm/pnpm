@@ -1,8 +1,4 @@
-//! Port of `@pnpm/config.package-is-installable` from upstream pnpm.
-//!
-//! Mirrors the entry point and the two checker helpers
-//! ([`check_engine()`], [`check_platform()`]) at
-//! <https://github.com/pnpm/pnpm/blob/94240bc046/config/package-is-installable/>.
+//! Evaluates whether a package can be installed on the current host.
 //!
 //! Three exported functions:
 //! - [`check_engine()`] — evaluates `engines.node` / `engines.pnpm` against
@@ -11,10 +7,9 @@
 //!   triple against the host (or a caller-supplied
 //!   [`SupportedArchitectures`] override).
 //! - [`package_is_installable()`] — composes the two and produces a
-//!   tri-state verdict matching upstream's `boolean | null` return:
-//!   compatible, skip-as-optional, or proceed-with-warning. Caller
-//!   handles emitting `pnpm:install-check` and
-//!   `pnpm:skipped-optional-dependency` events.
+//!   tri-state verdict: compatible, skip-as-optional, or
+//!   proceed-with-warning. Caller handles emitting `pnpm:install-check`
+//!   and `pnpm:skipped-optional-dependency` events.
 
 mod check_engine;
 mod check_platform;

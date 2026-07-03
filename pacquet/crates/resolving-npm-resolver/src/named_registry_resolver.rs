@@ -1,8 +1,6 @@
 //! Named-registry resolver.
 //!
-//! Ports upstream's
-//! [`resolveFromNamedRegistry`](https://github.com/pnpm/pnpm/blob/b61e268d57/resolving/npm-resolver/src/index.ts#L674-L704):
-//! parses a `<alias>:` specifier through
+//! Parses a `<alias>:` specifier through
 //! [`parse_named_registry_specifier_to_registry_package_spec`], looks
 //! the alias up in the merged named-registries map, and picks the
 //! version against that registry's URL. The result carries
@@ -43,16 +41,13 @@ use crate::{
 
 /// Provenance tag emitted on [`ResolveResult::resolved_via`] when the
 /// picker drove a `<alias>:` specifier through a configured named
-/// registry. Mirrors upstream's
-/// [`resolveFromNamedRegistry`](https://github.com/pnpm/pnpm/blob/b61e268d57/resolving/npm-resolver/src/index.ts#L697).
+/// registry.
 const NAMED_REGISTRY_RESOLVED_VIA: &str = "named-registry";
 
 /// Named-registry resolver.
 ///
-/// One instance per install. Mirrors upstream's named-registry shell
-/// of [`createNpmResolver`](https://github.com/pnpm/pnpm/blob/b61e268d57/resolving/npm-resolver/src/index.ts#L192-L289)
-/// — same plumbing as [`crate::NpmResolver`], with the
-/// already-merged-and-validated map of named registries and a
+/// One instance per install. Same plumbing as [`crate::NpmResolver`],
+/// with the already-merged-and-validated map of named registries and a
 /// precomputed set of alias names the parser checks against.
 ///
 /// Construct the maps with
@@ -86,8 +81,7 @@ pub struct NamedRegistryResolver<Cache: PackageMetaCache> {
     pub prefer_offline: bool,
     pub ignore_missing_time_field: bool,
     /// Install-wide bias toward full metadata. Threaded through to
-    /// [`PickPackageContext::full_metadata`]. Mirrors upstream's
-    /// [`ctx.fullMetadata`](https://github.com/pnpm/pnpm/blob/2a9bd897bf/resolving/npm-resolver/src/pickPackage.ts#L175).
+    /// [`PickPackageContext::full_metadata`].
     pub full_metadata: bool,
     /// When full metadata is forced, read and write pnpm's filtered
     /// full-metadata mirror.
@@ -139,9 +133,7 @@ impl<Cache: PackageMetaCache + 'static> NamedRegistryResolver<Cache> {
         };
 
         // Defensive: should never trigger because the parser checks
-        // the alias set first, but match upstream's belt-and-braces
-        // guard at
-        // <https://github.com/pnpm/pnpm/blob/b61e268d57/resolving/npm-resolver/src/index.ts#L689-L690>.
+        // the alias set first, but kept as a belt-and-braces guard.
         let Some(registry) = self.named_registries.get(&registry_name) else {
             return Ok(None);
         };

@@ -80,6 +80,31 @@ pub struct WorkEnv {
     /// already present — i.e. restored from a per-commit CI cache. Off by
     /// default so a local run always rebuilds.
     pub reuse_prebuilt_binaries: bool,
+
+    /// Diagnostic: launch every `pnpr` mock/server with
+    /// `RUST_LOG=pnpr::serve_timing=debug` so its per-phase serve timing lands
+    /// in the process log. Skews the measured means, so it is for diagnosis only.
+    pub serve_timing: bool,
+}
+
+impl WorkEnv {
+    /// Apply the `serve_timing` diagnostic env to a spawned `pnpr` command, if
+    /// enabled — so the server emits per-phase serve timing to its log.
+    fn apply_serve_timing(&self, command: &mut Command) {
+        if self.serve_timing {
+            // Append rather than clobber, so a `RUST_LOG` the caller already set
+            // (to surface other diagnostics) keeps working alongside the timing
+            // target. EnvFilter reads the last matching directive, and ours is
+            // target-scoped, so appending never suppresses an existing filter.
+            let directive = match std::env::var("RUST_LOG") {
+                Ok(existing) if !existing.is_empty() => {
+                    format!("{existing},pnpr::serve_timing=debug")
+                }
+                _ => "pnpr::serve_timing=debug".to_string(),
+            };
+            command.env("RUST_LOG", directive);
+        }
+    }
 }
 
 impl WorkEnv {
@@ -546,7 +571,8 @@ impl WorkEnv {
                 "Serving {revision}'s tarballs from a COLD mock built from pnpr@{revision} on 127.0.0.1:{mock_port} (origin {})...",
                 self.registry,
             );
-            Command::new(&binary)
+            let mut command = Command::new(&binary);
+            command
                 .arg("--config")
                 .arg(&config_path)
                 .arg("--storage")
@@ -556,7 +582,9 @@ impl WorkEnv {
                 .arg("--public-url")
                 .arg(&registry.url)
                 .arg("--packument-ttl-secs")
-                .arg("31536000")
+                .arg("31536000");
+            self.apply_serve_timing(&mut command);
+            command
                 .stdin(Stdio::null())
                 .stdout(stdout)
                 .stderr(stderr)
@@ -566,7 +594,13 @@ impl WorkEnv {
             eprintln!(
                 "Serving {revision}'s tarballs from a mock built from pnpr@{revision} on 127.0.0.1:{mock_port}...",
             );
-            pacquet_registry_mock::pnpr_command_with_binary(&binary, mock_port, Some(&registry.url))
+            let mut command = pacquet_registry_mock::pnpr_command_with_binary(
+                &binary,
+                mock_port,
+                Some(&registry.url),
+            );
+            self.apply_serve_timing(&mut command);
+            command
                 .stdin(Stdio::null())
                 .stdout(stdout)
                 .stderr(stderr)
@@ -637,7 +671,8 @@ impl WorkEnv {
             .expect("create pnpr server stdout log");
         let stderr = File::create(bench_dir.join("pnpr-server.stderr.log"))
             .expect("create pnpr server stderr log");
-        let process = Command::new(&binary)
+        let mut command = Command::new(&binary);
+        command
             .arg("--config")
             .arg(&pnpr_config)
             .arg("--listen")
@@ -649,7 +684,9 @@ impl WorkEnv {
             // those cached packuments authoritative across the run, the
             // same value the registry-mock pins for the same reason.
             .arg("--packument-ttl-secs")
-            .arg("31536000")
+            .arg("31536000");
+        self.apply_serve_timing(&mut command);
+        let process = command
             .stdin(Stdio::null())
             .stdout(stdout)
             .stderr(stderr)
@@ -1614,34 +1651,42 @@ fn write_pnpr_benchmark_config(
     path
 }
 
-/// A minimal verdaccio-shaped config for the cold mock: isolated `storage` and
-/// a single `**` proxy uplink at the warm origin, with public reads needing no
-/// auth (matching the bundled mock config).
+/// A config for the cold mock: isolated `storage` and a single public upstream
+/// at the warm origin, so every request is a cache miss proxied through to it.
+///
+/// The routing is expressed in *two* shapes so one file drives every
+/// benchmarked `pnpr` binary regardless of revision: the `mounts:` +
+/// `defaultTarget:` mount model that current `pnpr` reads, and the legacy
+/// `uplinks:` + `packages: proxy:` shape that a `pnpr` built before the mount
+/// model reads. Each server ignores the block it doesn't recognize — neither
+/// `ConfigFile` sets `deny_unknown_fields`, and neither `PackageAccess` does
+/// either — so both proxy every request to the same `origin`.
 fn cold_mock_config_yaml(storage: &Path, origin: &str) -> String {
+    let mut packages = HashMap::new();
+    packages.insert("**", ColdMockPackageAccess { access: "$all", proxy: "npmjs" });
     let config = ColdMockConfig {
         storage: storage.display().to_string(),
         uplinks: ColdMockUplinks { npmjs: ColdMockUplink { url: origin.to_string() } },
-        packages: ColdMockPackages {
-            all: ColdMockPackage {
-                access: "$all",
-                publish: "$authenticated",
-                unpublish: "$authenticated",
-                proxy: "npmjs",
-            },
+        packages,
+        mounts: ColdMockMounts {
+            npmjs: ColdMockMount { kind: "upstream", url: origin.to_string(), public: true },
         },
+        default_target: "npmjs",
         log: ColdMockLog { kind: "stdout", format: "pretty", level: "error" },
     };
     serde_saphyr::to_string(&config).expect("serialize cold mock config")
 }
 
-/// A minimal verdaccio-shaped config for the cold mock, serialized rather than
-/// string-formatted so the `storage` path and `origin` URL are escaped and the
-/// structure can't drift.
+/// The cold mock config, serialized rather than string-formatted so the
+/// `storage` path and `origin` URL are escaped and the structure can't drift.
 #[derive(Serialize)]
 struct ColdMockConfig {
     storage: String,
     uplinks: ColdMockUplinks,
-    packages: ColdMockPackages,
+    packages: HashMap<&'static str, ColdMockPackageAccess>,
+    mounts: ColdMockMounts,
+    #[serde(rename = "defaultTarget")]
+    default_target: &'static str,
     log: ColdMockLog,
 }
 
@@ -1656,17 +1701,24 @@ struct ColdMockUplink {
 }
 
 #[derive(Serialize)]
-struct ColdMockPackages {
-    #[serde(rename = "**")]
-    all: ColdMockPackage,
+struct ColdMockPackageAccess {
+    access: &'static str,
+    proxy: &'static str,
 }
 
 #[derive(Serialize)]
-struct ColdMockPackage {
-    access: &'static str,
-    publish: &'static str,
-    unpublish: &'static str,
-    proxy: &'static str,
+struct ColdMockMounts {
+    npmjs: ColdMockMount,
+}
+
+/// One `mounts:` entry in the new mount model: the `type:` tag selects the kind
+/// (`upstream` here), and the kind's fields sit alongside it.
+#[derive(Serialize)]
+struct ColdMockMount {
+    #[serde(rename = "type")]
+    kind: &'static str,
+    url: String,
+    public: bool,
 }
 
 #[derive(Serialize)]

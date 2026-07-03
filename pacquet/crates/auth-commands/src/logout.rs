@@ -1,34 +1,28 @@
-//! Port of pnpm's `pnpm logout`
-//! ([`@pnpm/auth.commands`](https://github.com/pnpm/pnpm/blob/fc2f33912e/pnpm11/auth/commands/src/logout.ts)).
-//!
 //! `pnpm logout` revokes the registry auth token on the server and
 //! removes it from `auth.ini`. A token that instead lives in `.npmrc`
 //! or an env var is left in place, with a warning, because pnpm only
 //! owns `auth.ini`.
 //!
-//! Upstream wires the side effects (`fetch`, `readIniFile`,
-//! `writeIniFile`, `globalInfo`, `globalWarn`) through a `LogoutContext`
-//! object of injected functions. Pacquet uses the project's
-//! capability-trait seam instead: filesystem reads/writes and the
-//! token-revocation request are `Sys`-bound capabilities with no `&self`
-//! receiver (production provider [`Host`], test fakes are unit structs),
-//! and the two `global*` log channels are emitted through the
-//! `Reporter` seam. See the dependency-injection convention in
-//! `pacquet/CODE_STYLE_GUIDE.md`.
+//! Filesystem reads/writes and the token-revocation request are
+//! `Sys`-bound capabilities with no `&self` receiver (production
+//! provider [`Host`], test fakes are unit structs), and the two
+//! `global*` log channels are emitted through the `Reporter` seam. See
+//! the dependency-injection convention in `pacquet/CODE_STYLE_GUIDE.md`.
 
 use std::{collections::HashMap, future::Future, io, path::PathBuf};
 
 use derive_more::{Display, Error};
 use miette::Diagnostic;
 use pacquet_network::{
-    RetryOpts, ThrottledClient, nerf_dart, redact_and_sanitize, send_with_retry,
+    RetryOpts, ThrottledClient, encode_uri_component, nerf_dart, redact_and_sanitize,
+    send_with_retry,
 };
 use pacquet_reporter::{LogEvent, LogLevel, PnpmLog, Reporter};
 
 use crate::ini::IniSettings;
 
 /// The registry `pnpm logout` targets when neither `--registry` nor a
-/// configured registry is given. Mirrors upstream's literal default.
+/// configured registry is given.
 pub const DEFAULT_REGISTRY: &str = "https://registry.npmjs.org/";
 
 /// Read a file into a `String`, mirroring [`std::fs::read_to_string`].
@@ -110,8 +104,8 @@ impl RevokeToken for Host {
     }
 }
 
-/// Inputs to [`logout`]. `auth_config` mirrors the subset of pnpm's
-/// `config.authConfig` the command consults: rc keys of the form
+/// Inputs to [`logout`]. `auth_config` holds the subset of the auth
+/// config the command consults: rc keys of the form
 /// `//host[:port]/path/:_authToken` mapped to their raw token.
 pub struct LogoutOptions<'a> {
     /// The `--registry` value; `None` falls back to [`DEFAULT_REGISTRY`].
@@ -200,7 +194,7 @@ where
 }
 
 /// Read `auth.ini`, treating a missing file as empty. Any other read
-/// error propagates (mirrors upstream's `safeReadIniFile`).
+/// error propagates.
 fn safe_read_ini<Sys: FsReadToString>(path: &std::path::Path) -> Result<IniSettings, LogoutError> {
     match Sys::read_to_string(path) {
         Ok(text) => Ok(IniSettings::parse(&text)),
@@ -227,29 +221,6 @@ fn normalize_registry_url(registry: &str) -> String {
 /// the segment boundary.
 fn revoke_log_url(revoke_url: &str) -> &str {
     revoke_url.rsplit_once('/').map_or(revoke_url, |(prefix, _token)| prefix)
-}
-
-/// Percent-encode `value` the way JavaScript's `encodeURIComponent`
-/// does: every byte outside the unreserved set `A-Za-z0-9-_.!~*'()` is
-/// escaped as `%XX` with uppercase hex digits.
-fn encode_uri_component(value: &str) -> String {
-    let mut out = String::with_capacity(value.len());
-    for &byte in value.as_bytes() {
-        if byte.is_ascii_alphanumeric()
-            || matches!(byte, b'-' | b'_' | b'.' | b'!' | b'~' | b'*' | b'\'' | b'(' | b')')
-        {
-            out.push(byte as char);
-        } else {
-            out.push('%');
-            out.push(hex_upper(byte >> 4));
-            out.push(hex_upper(byte & 0x0f));
-        }
-    }
-    out
-}
-
-fn hex_upper(nibble: u8) -> char {
-    char::from_digit(u32::from(nibble), 16).expect("nibble is < 16").to_ascii_uppercase()
 }
 
 /// Errors surfaced by [`logout`]. The two user-facing variants carry

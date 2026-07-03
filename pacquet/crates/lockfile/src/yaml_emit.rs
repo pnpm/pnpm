@@ -17,7 +17,7 @@
 //!
 //! The input is first lowered to a [`serde_json::Value`] (the crate enables
 //! `serde_json/preserve_order`, so map order is retained), then its keys are
-//! reordered by [`sort_lockfile_keys`] — a port of pnpm's `sortLockfileKeys`,
+//! reordered by [`sort_lockfile_keys`] to match pnpm's lockfile key sort,
 //! so the byte output is independent of pacquet's struct field order — and
 //! finally rendered by a faithful translation of the fork's `dumper.js`.
 //!
@@ -35,10 +35,8 @@ const SINGLE_LINE_KEYS: [&str; 4] = ["cpu", "engines", "os", "libc"];
 /// One indentation level, in spaces (`js-yaml`'s default `indent`).
 const INDENT: usize = 2;
 
-/// Per-package / per-snapshot key priority. Mirrors [`ORDERED_KEYS`][ts-ORDERED_KEYS] in pnpm's
-/// [`sortLockfileKeys`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/fs/src/sortLockfileKeys.ts).
-///
-/// [ts-ORDERED_KEYS]: https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/fs/src/sortLockfileKeys.ts#L4-L31
+/// Per-package / per-snapshot key priority, matching pnpm's lockfile
+/// key sort.
 const ORDERED_KEYS: [&str; 20] = [
     "resolution",
     "id",
@@ -62,9 +60,7 @@ const ORDERED_KEYS: [&str; 20] = [
     "optional",
 ];
 
-/// Top-level key priority. Mirrors [`ROOT_KEYS`][ts-ROOT_KEYS] in pnpm's `sortLockfileKeys`.
-///
-/// [ts-ROOT_KEYS]: https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/fs/src/sortLockfileKeys.ts#L34-L44
+/// Top-level key priority, matching pnpm's lockfile root-key sort.
 const ROOT_KEYS: [&str; 9] = [
     "lockfileVersion",
     "settings",
@@ -87,9 +83,7 @@ pub(crate) fn to_string<Value: serde::Serialize>(
     Ok(dump)
 }
 
-/// Reorder a lockfile document's keys to match pnpm's on-write ordering. Port
-/// of pnpm's
-/// [`sortLockfileKeys`](https://github.com/pnpm/pnpm/blob/94240bc046/lockfile/fs/src/sortLockfileKeys.ts):
+/// Reorder a lockfile document's keys to match pnpm's on-write ordering:
 /// `importers` / `packages` / `snapshots` / `catalogs` / `time` /
 /// `patchedDependencies` are sorted by their direct keys, each section's
 /// entries are deep-sorted (by the priority map for packages/snapshots, by the
@@ -126,13 +120,13 @@ fn sort_lockfile_keys(value: Value) -> Value {
     Value::Object(sort_by_priority(root, &ROOT_KEYS, false))
 }
 
-/// Plain code-unit key comparison, matching pnpm's `lexCompare`.
+/// Plain code-unit key comparison.
 fn lex_cmp(left: &str, right: &str) -> Ordering {
     left.cmp(right)
 }
 
-/// Mirror of pnpm's `compareWithPriority`: prioritized keys come first in
-/// priority order, the rest follow in `lexCompare` order.
+/// Prioritized keys come first in priority order, the rest follow in
+/// plain code-unit order.
 fn priority_cmp(priority: &[&str], left: &str, right: &str) -> Ordering {
     let rank = |key: &str| priority.iter().position(|entry| *entry == key);
     match (rank(left), rank(right)) {

@@ -1,17 +1,13 @@
 //! Walk a local package directory and produce the relative-path →
-//! absolute-source-path map upstream's
-//! [`fetchAllFilesFromDir`](https://github.com/pnpm/pnpm/blob/85ceff2383/fetching/directory-fetcher/src/index.ts#L58-L106)
-//! and [`fetchPackageFilesFromDir`](https://github.com/pnpm/pnpm/blob/85ceff2383/fetching/directory-fetcher/src/index.ts#L150-L165)
-//! return as `filesMap`.
+//! absolute-source-path map (`files_map`).
 //!
 //! Two modes:
 //!
-//! - [`walk_all_files`] mirrors `fetchAllFilesFromDir`: recursive
-//!   walk, exclude `node_modules`, drop broken symlinks, optionally
-//!   resolve symlinks via `realFileStat`.
-//! - [`walk_package_files`] mirrors `fetchPackageFilesFromDir`:
-//!   delegate to [`pacquet_git_fetcher::packlist`] for the npm-packlist
-//!   filtered set.
+//! - [`walk_all_files`]: recursive walk, exclude `node_modules`, drop
+//!   broken symlinks, optionally resolve symlinks via a real-path stat.
+//! - [`walk_package_files`]: delegate to
+//!   [`pacquet_git_fetcher::packlist`] for the npm-packlist filtered
+//!   set.
 
 use crate::error::DirectoryFetcherError;
 use pacquet_package_manifest::safe_read_package_json_from_dir;
@@ -37,9 +33,6 @@ pub(crate) type FilesMap = HashMap<String, PathBuf>;
 /// Recursive walk of `dir`, skipping `node_modules` at any depth and
 /// dropping entries whose `stat` (or `realpath` under `resolve_symlinks`)
 /// fails with `ENOENT`.
-///
-/// Mirrors upstream's
-/// [`_fetchAllFilesFromDir`](https://github.com/pnpm/pnpm/blob/85ceff2383/fetching/directory-fetcher/src/index.ts#L78-L106).
 pub(crate) fn walk_all_files(
     dir: &Path,
     resolve_symlinks: bool,
@@ -120,8 +113,7 @@ fn walk_all_inner(
         })?;
         let file_name = entry.file_name();
         // Non-UTF-8 names can't round-trip through pacquet's forward-slash
-        // relative-path map; skip them, matching upstream's implicit JS
-        // string semantics.
+        // relative-path map; skip them.
         let Some(file_name_str) = file_name.to_str() else { continue };
         if file_name_str == "node_modules" {
             continue;
@@ -233,10 +225,9 @@ fn resolve_entry(
         };
         Ok(Some(ResolvedEntry { path: real, metadata: real_meta }))
     } else {
-        // Upstream's `fileStat` uses `fs.stat` (not `lstat`), which
-        // follows symlinks for the *type* decision but reports the
-        // broken-symlink ENOENT as "skip". Match that: `fs::metadata`
-        // is Rust's `stat` analog.
+        // Use `fs::metadata` (Rust's `stat`, not `lstat`): it follows
+        // symlinks for the *type* decision but reports a broken
+        // symlink's ENOENT, which the caller treats as "skip".
         match fs::metadata(path) {
             Ok(m) => Ok(Some(ResolvedEntry { path: path.to_path_buf(), metadata: m })),
             Err(err) if err.kind() == io::ErrorKind::NotFound => {
@@ -280,11 +271,10 @@ fn canonicalize_path(path: &Path) -> Result<PathBuf, DirectoryFetcherError> {
 
 /// Read the manifest for packlist filtering, run
 /// [`pacquet_git_fetcher::packlist`], and absolutise each entry against
-/// `dir`. Mirrors upstream's `fetchPackageFilesFromDir` —
-/// [`directory-fetcher/src/index.ts:150-165`](https://github.com/pnpm/pnpm/blob/85ceff2383/fetching/directory-fetcher/src/index.ts#L150-L165).
+/// `dir`.
 pub(crate) fn walk_package_files(dir: &Path) -> Result<FilesMap, DirectoryFetcherError> {
-    // packlist requires *some* manifest; pnpm's `fetchPackageFilesFromDir`
-    // passes the JSON it just read. When the manifest is missing the
+    // packlist requires *some* manifest; pass the JSON just read from
+    // disk. When the manifest is missing the
     // packlist filter still works against an empty object (no `files`
     // field, no `bundleDependencies`), which collapses to "include
     // every walked file except always-excluded cruft".

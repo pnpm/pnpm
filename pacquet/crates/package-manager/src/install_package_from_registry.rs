@@ -77,9 +77,8 @@ pub struct InstallPackageFromRegistry<'a> {
     /// download, the virtual-store import, and the
     /// `pnpm:progress resolved` / `pnpm:progress imported` emits all
     /// fire on the first visit. Subsequent visitors only refresh the
-    /// per-parent symlink under `node_modules_dir/<alias>`, mirroring
-    /// upstream's per-package (not per-edge) progress signalling at
-    /// <https://github.com/pnpm/pnpm/blob/086c5e91e8/installing/deps-resolver/src/resolveDependencies.ts#L1586>.
+    /// per-parent symlink under `node_modules_dir/<alias>`, so progress
+    /// is signalled per-package, not per-edge.
     pub first_visit: bool,
 }
 
@@ -93,8 +92,7 @@ pub enum InstallPackageFromRegistryError {
     /// The resolver produced a resolution shape the npm install path
     /// can't materialize (today: anything other than a tarball
     /// resolution carrying an integrity hash). Surfaces with a
-    /// pacquet-internal code; the matching pnpm error is upstream's
-    /// generic install failure for the same shape.
+    /// pacquet-internal code.
     #[display("Unsupported resolution shape for npm install path: {detail}")]
     #[diagnostic(code(pacquet_package_manager::unsupported_resolution))]
     UnsupportedResolution {
@@ -222,9 +220,7 @@ impl InstallPackageFromRegistry<'_> {
 /// structured `name_ver` (npm registry); falls back to the name/version
 /// read from the fetched manifest for resolvers that learn them only
 /// after the fetch — remote (non-registry) tarball, git, and file deps,
-/// whose name/version live in `package.json`. Mirrors pnpm's
-/// [`getManifestFromResponse`](https://github.com/pnpm/pnpm/blob/df990fdb51/installing/deps-resolver/src/resolveDependencies.ts)
-/// fallback.
+/// whose name/version live in `package.json`.
 fn real_name_version(resolution: &ResolveResult) -> Option<(String, String)> {
     if let Some(name_ver) = resolution.name_ver.as_ref() {
         return Some((name_ver.name.to_string(), name_ver.suffix.to_string()));
