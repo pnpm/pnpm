@@ -54,7 +54,11 @@ fn publish_puts_the_package_document_with_dist_tag_and_attachment() {
     let dir = tempfile::tempdir().expect("workspace");
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
-    write_project(dir.path(), &registry, &json!({ "name": "test-publish-pkg", "version": "1.0.0" }));
+    write_project(
+        dir.path(),
+        &registry,
+        &json!({ "name": "test-publish-pkg", "version": "1.0.0" }),
+    );
 
     let mock = server
         .mock("PUT", "/test-publish-pkg")
@@ -82,7 +86,11 @@ fn dry_run_uploads_nothing() {
     let dir = tempfile::tempdir().expect("workspace");
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
-    write_project(dir.path(), &registry, &json!({ "name": "test-publish-dry", "version": "1.0.0" }));
+    write_project(
+        dir.path(),
+        &registry,
+        &json!({ "name": "test-publish-dry", "version": "1.0.0" }),
+    );
 
     // Any PUT during a dry run is a failure: the mock expects zero hits.
     let mock = server.mock("PUT", Matcher::Any).expect(0).create();
@@ -95,10 +103,7 @@ fn dry_run_uploads_nothing() {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr),
     );
-    assert!(
-        combined.contains("dry run"),
-        "a dry run should announce itself; output: {combined}",
-    );
+    assert!(combined.contains("dry run"), "a dry run should announce itself; output: {combined}");
     mock.assert();
 }
 
@@ -135,7 +140,11 @@ fn tag_flag_registers_the_version_under_that_dist_tag() {
     let dir = tempfile::tempdir().expect("workspace");
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
-    write_project(dir.path(), &registry, &json!({ "name": "test-publish-tag", "version": "2.3.4" }));
+    write_project(
+        dir.path(),
+        &registry,
+        &json!({ "name": "test-publish-tag", "version": "2.3.4" }),
+    );
 
     let mock = server
         .mock("PUT", "/test-publish-tag")
@@ -174,23 +183,20 @@ fn publish_from_a_prebuilt_tarball() {
     let dir = tempfile::tempdir().expect("workspace");
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
-    write_project(dir.path(), &registry, &json!({ "name": "test-publish-tgz", "version": "1.0.0" }));
+    write_project(
+        dir.path(),
+        &registry,
+        &json!({ "name": "test-publish-tgz", "version": "1.0.0" }),
+    );
 
     // Build a tarball with `pacquet pack`, then publish it by path.
-    let pack = pacquet(dir.path())
-        .with_arg("pack")
-        .output()
-        .expect("spawn pacquet pack");
+    let pack = pacquet(dir.path()).with_arg("pack").output().expect("spawn pacquet pack");
     assert!(pack.status.success(), "pack stderr: {}", String::from_utf8_lossy(&pack.stderr));
     let tarball = "test-publish-tgz-1.0.0.tgz";
     assert!(dir.path().join(tarball).exists(), "pack should write {tarball}");
 
-    let mock = server
-        .mock("PUT", "/test-publish-tgz")
-        .with_status(200)
-        .with_body("{}")
-        .expect(1)
-        .create();
+    let mock =
+        server.mock("PUT", "/test-publish-tgz").with_status(200).with_body("{}").expect(1).create();
 
     assert_success(&publish(dir.path(), &[tarball]));
     mock.assert();
@@ -236,7 +242,11 @@ fn json_flag_prints_the_per_package_summary() {
     let dir = tempfile::tempdir().expect("workspace");
     let mut server = mockito::Server::new();
     let registry = format!("{}/", server.url());
-    write_project(dir.path(), &registry, &json!({ "name": "test-publish-json", "version": "1.0.0" }));
+    write_project(
+        dir.path(),
+        &registry,
+        &json!({ "name": "test-publish-json", "version": "1.0.0" }),
+    );
     server.mock("PUT", "/test-publish-json").with_status(200).with_body("{}").create();
 
     let output = publish(dir.path(), &["--json"]);
