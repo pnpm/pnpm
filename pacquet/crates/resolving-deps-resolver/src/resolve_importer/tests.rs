@@ -1134,13 +1134,13 @@ async fn catalog_misconfiguration_surfaces_pnpm_error_code() {
 /// local alias, while `name_ver` and `id` point at the underlying
 /// package.
 fn aliased_fake_result(
-    local_alias: &str,
+    local_alias: impl Into<String>,
     real_name: &str,
     version: &str,
     manifest: serde_json::Value,
 ) -> ResolveResult {
     let mut result = fake_result(real_name, version, manifest);
-    result.alias = Some(local_alias.to_string());
+    result.alias = Some(local_alias.into());
     result
 }
 

@@ -12,8 +12,8 @@ mod known_failures {
 
     const PACKAGE_ID: &str = "registry.npmjs.org/foo/1.0.0";
 
-    fn current(node: &str, pnpm: Option<&str>) -> Engine {
-        Engine { node: node.to_string(), pnpm: pnpm.map(str::to_string) }
+    fn current(node: impl Into<String>, pnpm: Option<&str>) -> Engine {
+        Engine { node: node.into(), pnpm: pnpm.map(str::to_string) }
     }
 
     fn wanted(node: Option<&str>, pnpm: Option<&str>) -> WantedEngine {

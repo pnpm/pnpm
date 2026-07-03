@@ -28,9 +28,9 @@ fn fixture() -> (TempDir, PathBuf) {
     (tmp, inner)
 }
 
-fn opts(project_dir: &Path) -> LocalResolverOptions {
+fn opts(project_dir: impl AsRef<Path>) -> LocalResolverOptions {
     LocalResolverOptions {
-        project_dir: project_dir.to_path_buf(),
+        project_dir: project_dir.as_ref().to_path_buf(),
         lockfile_dir: None,
         current_pkg: None,
         update: LocalResolverUpdate::Off,

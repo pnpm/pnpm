@@ -11,7 +11,7 @@ use std::time::Duration;
 /// Build an [`Upstream`] pointing at `url` with `headers`, all per-upstream
 /// tuning knobs at their verdaccio defaults.
 fn upstream(url: String, headers: HeaderMap) -> Upstream {
-    Upstream::new("npmjs", &UpstreamConfig::with_defaults(url, headers))
+    Upstream::new("npmjs".to_string(), &UpstreamConfig::with_defaults(url, headers))
 }
 
 /// Fixed "current time" for abbreviation tests so the `time`-map
@@ -520,7 +520,7 @@ fn coarsens_time_entries_by_age() {
 /// open state and observe the short-circuit before the cooldown lapses.
 fn breaking_upstream(url: String, max_fails: u32) -> Upstream {
     Upstream::new(
-        "npmjs",
+        "npmjs".to_string(),
         &UpstreamConfig {
             url,
             headers: HeaderMap::new(),

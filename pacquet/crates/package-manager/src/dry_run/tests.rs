@@ -80,7 +80,7 @@ fn group_move_is_reported_even_when_version_is_unchanged() {
         dependencies: Some(importer_map(&[("is-positive", "^1.0.0", "1.0.0")])),
         ..Default::default()
     };
-    let diff = diff_importer(".", Some(&old), Some(&new));
+    let diff = diff_importer(".".to_string(), Some(&old), Some(&new));
     assert!(!diff.is_empty(), "a dev -> prod move must register as a change: {diff:?}");
 }
 
@@ -94,6 +94,6 @@ fn specifier_only_change_is_reported() {
         dependencies: Some(importer_map(&[("is-positive", "~1.0.0", "1.0.0")])),
         ..Default::default()
     };
-    let diff = diff_importer(".", Some(&old), Some(&new));
+    let diff = diff_importer(".".to_string(), Some(&old), Some(&new));
     assert!(!diff.is_empty(), "a specifier-only change must be reported: {diff:?}");
 }

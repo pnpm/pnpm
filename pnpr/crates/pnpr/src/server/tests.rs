@@ -176,8 +176,12 @@ fn app_with_token(tmp: &TempDir, raw: &str, record: TokenRecord) -> axum::Router
     app_with_config_and_token(Config::static_serve(listen, tmp.path().to_path_buf()), raw, record)
 }
 
-fn app_with_config_and_token(config: Config, raw: &str, record: TokenRecord) -> axum::Router {
-    let tokens: Arc<dyn TokenBackend> = Arc::new(OneToken { raw: raw.to_string(), record });
+fn app_with_config_and_token(
+    config: Config,
+    raw: impl Into<String>,
+    record: TokenRecord,
+) -> axum::Router {
+    let tokens: Arc<dyn TokenBackend> = Arc::new(OneToken { raw: raw.into(), record });
     let auth = AuthState { users: Arc::new(UserStore::in_memory()), tokens };
     router_with_auth(config, auth)
 }
@@ -222,7 +226,7 @@ async fn configured_groups_reach_package_authorization() {
     let tmp = TempDir::new().unwrap();
     let listen = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
     let mut config = Config::static_serve(listen, tmp.path().to_path_buf());
-    config.groups.add_user_to_group("alice", "platform");
+    config.groups.add_user_to_group("alice".to_string(), "platform".to_string());
     config.policies = PackagePolicies::new(vec![
         PackagePolicy::new(
             "@team/*",

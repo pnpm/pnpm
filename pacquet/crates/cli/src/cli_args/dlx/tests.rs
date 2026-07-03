@@ -51,9 +51,9 @@ fn architecture_flags_accumulate_and_default_empty() {
     assert_eq!(parsed.dlx.command, ["tool"]);
 }
 
-fn regs(default: &str) -> BTreeMap<String, String> {
+fn regs(default: impl Into<String>) -> BTreeMap<String, String> {
     let mut map = BTreeMap::new();
-    map.insert("default".to_string(), default.to_string());
+    map.insert("default".to_string(), default.into());
     map
 }
 

@@ -43,9 +43,12 @@ const WORKER_BIN: &str = env!("CARGO_BIN_EXE_cafs_stress_worker");
 /// Run [`WORKER_COUNT`] worker subprocesses in parallel, each calling
 /// `ensure_file(target, content, None)`. Returns the exit codes; the
 /// caller asserts every one is `0`.
-fn run_workers(content_path: &Path, target_path: &Path) -> Vec<std::process::ExitStatus> {
-    let content_path: Arc<Path> = Arc::from(content_path.to_path_buf());
-    let target_path: Arc<Path> = Arc::from(target_path.to_path_buf());
+fn run_workers(
+    content_path: impl AsRef<Path>,
+    target_path: impl AsRef<Path>,
+) -> Vec<std::process::ExitStatus> {
+    let content_path: Arc<Path> = Arc::from(content_path.as_ref().to_path_buf());
+    let target_path: Arc<Path> = Arc::from(target_path.as_ref().to_path_buf());
 
     #[expect(
         clippy::needless_collect,

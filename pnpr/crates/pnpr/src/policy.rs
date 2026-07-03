@@ -87,8 +87,8 @@ pub struct AccessGroups {
 }
 
 impl AccessGroups {
-    pub(crate) fn add_user_to_group(&mut self, username: &str, group: &str) {
-        self.by_user.entry(username.to_string()).or_default().insert(group.to_string());
+    pub(crate) fn add_user_to_group(&mut self, username: String, group: String) {
+        self.by_user.entry(username).or_default().insert(group);
     }
 
     #[must_use]

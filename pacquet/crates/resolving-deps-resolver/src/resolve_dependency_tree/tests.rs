@@ -88,10 +88,10 @@ mod higher_direct_dep_version {
 
     use super::super::{DirectDepVersions, higher_direct_dep_version};
 
-    fn direct(name: &str, versions: &[&str]) -> DirectDepVersions {
+    fn direct(name: impl Into<String>, versions: &[&str]) -> DirectDepVersions {
         let parsed =
             versions.iter().map(|raw| raw.parse::<Version>().expect("parse version")).collect();
-        HashMap::from([(name.to_string(), parsed)])
+        HashMap::from([(name.into(), parsed)])
     }
 
     fn ver(raw: &str) -> Version {

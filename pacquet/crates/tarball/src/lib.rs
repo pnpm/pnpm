@@ -371,7 +371,7 @@ async fn open_local_tarball(path: &Path) -> Result<(tokio::fs::File, u64), Tarba
     let metadata = tokio::fs::metadata(path)
         .await
         .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
-    reject_non_file_local_tarball(path, &metadata)?;
+    reject_non_file_local_tarball(path.to_path_buf(), &metadata)?;
     let file = tokio::fs::File::open(path)
         .await
         .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
@@ -379,12 +379,12 @@ async fn open_local_tarball(path: &Path) -> Result<(tokio::fs::File, u64), Tarba
         .metadata()
         .await
         .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
-    reject_non_file_local_tarball(path, &metadata)?;
+    reject_non_file_local_tarball(path.to_path_buf(), &metadata)?;
     Ok((file, metadata.len()))
 }
 
 fn reject_non_file_local_tarball(
-    path: &Path,
+    path: PathBuf,
     metadata: &std::fs::Metadata,
 ) -> Result<(), TarballError> {
     if metadata.is_file() {
@@ -407,7 +407,7 @@ async fn read_local_tarball_buffer(
 
     let read_limit = size.checked_add(1).ok_or_else(|| {
         read_local_tarball_error(
-            path,
+            path.to_path_buf(),
             io::ErrorKind::InvalidData,
             format!("local tarball is too large to read into memory ({size} bytes)"),
         )
@@ -420,7 +420,7 @@ async fn read_local_tarball_buffer(
         .map_err(|source| TarballError::ReadLocalTarball { path: path.to_path_buf(), source })?;
     if u64::try_from(buffer.len()).unwrap_or(u64::MAX) > size {
         return Err(read_local_tarball_error(
-            path,
+            path.to_path_buf(),
             io::ErrorKind::InvalidData,
             format!("local tarball changed while reading; refused to read past {size} bytes"),
         ));
@@ -435,7 +435,7 @@ fn allocate_local_tarball_buffer(
 ) -> Result<Vec<u8>, TarballError> {
     allocate_tarball_buffer(Some(size), package_url).map_err(|error| match error {
         TarballError::TarballTooLarge { .. } => read_local_tarball_error(
-            path,
+            path.to_path_buf(),
             io::ErrorKind::InvalidData,
             format!("local tarball is too large to read into memory ({size} bytes)"),
         ),
@@ -444,14 +444,11 @@ fn allocate_local_tarball_buffer(
 }
 
 fn read_local_tarball_error(
-    path: &Path,
+    path: PathBuf,
     kind: io::ErrorKind,
     message: impl Into<String>,
 ) -> TarballError {
-    TarballError::ReadLocalTarball {
-        path: path.to_path_buf(),
-        source: io::Error::new(kind, message.into()),
-    }
+    TarballError::ReadLocalTarball { path, source: io::Error::new(kind, message.into()) }
 }
 
 #[instrument(skip(gz_data), fields(gz_data_len = gz_data.len()))]
@@ -1869,8 +1866,8 @@ async fn fetch_and_extract_once<Reporter: self::Reporter>(
 /// Emit `pnpm:progress found_in_store` for a (`package_id`, requester)
 /// pair the cache resolved without a download.
 fn emit_progress_found_in_store<Reporter: self::Reporter>(
-    package_id: &str,
-    requester: &str,
+    package_id: String,
+    requester: String,
     progress_key: Option<(&SharedReportedProgressKeys, &str)>,
 ) {
     if progress_already_reported(progress_key) {
@@ -1878,16 +1875,13 @@ fn emit_progress_found_in_store<Reporter: self::Reporter>(
     }
     Reporter::emit(&LogEvent::Progress(ProgressLog {
         level: LogLevel::Debug,
-        message: ProgressMessage::FoundInStore {
-            package_id: package_id.to_owned(),
-            requester: requester.to_owned(),
-        },
+        message: ProgressMessage::FoundInStore { package_id, requester },
     }));
 }
 
 fn emit_progress_fetched<Reporter: self::Reporter>(
-    package_id: &str,
-    requester: &str,
+    package_id: String,
+    requester: String,
     progress_key: Option<(&SharedReportedProgressKeys, &str)>,
 ) {
     if progress_already_reported(progress_key) {
@@ -1895,10 +1889,7 @@ fn emit_progress_fetched<Reporter: self::Reporter>(
     }
     Reporter::emit(&LogEvent::Progress(ProgressLog {
         level: LogLevel::Debug,
-        message: ProgressMessage::Fetched {
-            package_id: package_id.to_owned(),
-            requester: requester.to_owned(),
-        },
+        message: ProgressMessage::Fetched { package_id, requester },
     }));
 }
 
@@ -1974,7 +1965,11 @@ async fn fetch_and_extract_with_retry<Reporter: self::Reporter>(
                 // `pnpm:progress fetched`: one event per (resolved)
                 // package once the tarball has been pulled from the
                 // network and extracted.
-                emit_progress_fetched::<Reporter>(package_id, requester, progress_key);
+                emit_progress_fetched::<Reporter>(
+                    package_id.to_string(),
+                    requester.to_string(),
+                    progress_key,
+                );
                 return Ok(value);
             }
             Err(err) if !is_transient_error(&err) => return Err(err),
@@ -2085,7 +2080,11 @@ impl<'a> DownloadTarballToStore<'a> {
                 ?package_id,
                 "Reusing prefetched CAFS entry — skipping download (warm-cache fast path)",
             );
-            emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
+            emit_progress_found_in_store::<Reporter>(
+                package_id.to_string(),
+                requester.to_string(),
+                progress_key,
+            );
             let cas_paths = Arc::clone(cas_paths);
             let cache_lock = Arc::new(RwLock::new(CacheValue::Available(Arc::clone(&cas_paths))));
             mem_cache.insert(package_url.to_string(), cache_lock);
@@ -2124,7 +2123,11 @@ impl<'a> DownloadTarballToStore<'a> {
                     // progress set, this emit is skipped for keys the
                     // owner reported; otherwise preserve the legacy
                     // per-caller cache-hit progress.
-                    emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
+                    emit_progress_found_in_store::<Reporter>(
+                        package_id.to_string(),
+                        requester.to_string(),
+                        progress_key,
+                    );
                     return Ok(Arc::clone(cas_paths));
                 }
                 CacheValue::InProgress(notify) => Arc::clone(notify),
@@ -2141,7 +2144,11 @@ impl<'a> DownloadTarballToStore<'a> {
                 CacheValue::Available(cas_paths) => {
                     // Same rationale as the pre-notify `Available`
                     // branch above.
-                    emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
+                    emit_progress_found_in_store::<Reporter>(
+                        package_id.to_string(),
+                        requester.to_string(),
+                        progress_key,
+                    );
                     Ok(Arc::clone(cas_paths))
                 }
                 CacheValue::Failed => {
@@ -2266,7 +2273,11 @@ impl<'a> DownloadTarballToStore<'a> {
                 ?package_id,
                 "Reusing prefetched CAFS entry — skipping download",
             );
-            emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
+            emit_progress_found_in_store::<Reporter>(
+                package_id.to_string(),
+                requester.to_string(),
+                progress_key,
+            );
             return Ok((**cas_paths).clone());
         }
         if let Some(cas_paths) = load_cached_cas_paths(
@@ -2279,7 +2290,11 @@ impl<'a> DownloadTarballToStore<'a> {
         .await
         {
             tracing::info!(target: "pacquet::download", ?package_url, ?package_id, "Reusing cached CAFS entry — skipping download");
-            emit_progress_found_in_store::<Reporter>(package_id, requester, progress_key);
+            emit_progress_found_in_store::<Reporter>(
+                package_id.to_string(),
+                requester.to_string(),
+                progress_key,
+            );
             return Ok(cas_paths);
         }
 
@@ -2796,7 +2811,11 @@ impl DownloadZipArchiveToStore<'_> {
                 ?package_id,
                 "Reusing prefetched CAFS entry — skipping zip download",
             );
-            emit_progress_found_in_store::<Reporter>(package_id, requester, None);
+            emit_progress_found_in_store::<Reporter>(
+                package_id.to_string(),
+                requester.to_string(),
+                None,
+            );
             return Ok((**cas_paths).clone());
         }
         if let Some(cas_paths) = load_cached_cas_paths(
@@ -2809,7 +2828,11 @@ impl DownloadZipArchiveToStore<'_> {
         .await
         {
             tracing::info!(target: "pacquet::download", ?package_url, ?package_id, "Reusing cached CAFS entry — skipping zip download");
-            emit_progress_found_in_store::<Reporter>(package_id, requester, None);
+            emit_progress_found_in_store::<Reporter>(
+                package_id.to_string(),
+                requester.to_string(),
+                None,
+            );
             return Ok(cas_paths);
         }
 

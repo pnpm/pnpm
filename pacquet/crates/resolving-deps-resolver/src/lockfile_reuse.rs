@@ -153,7 +153,7 @@ fn importer_dep<'a>(
 pub(crate) fn synthesize_reused_result(
     lockfile: &Lockfile,
     key: &PkgNameVerPeer,
-    alias: &str,
+    alias: String,
 ) -> Option<ResolveResult> {
     let metadata_key = key.without_peer();
     let version = metadata_key.suffix.version_semver()?.clone();
@@ -179,7 +179,7 @@ pub(crate) fn synthesize_reused_result(
         resolution: metadata.resolution.clone(),
         resolved_via: "npm-registry".to_string(),
         normalized_bare_specifier: None,
-        alias: Some(alias.to_string()),
+        alias: Some(alias),
         policy_violation: None,
     })
 }

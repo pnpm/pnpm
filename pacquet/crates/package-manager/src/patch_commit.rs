@@ -349,9 +349,9 @@ fn normalize_diff_output(diff: &str, folder_a: &str, folder_b: &str) -> String {
         let (content, newline) = line.strip_suffix('\n').map_or((line, ""), |line| (line, "\n"));
         if content.starts_with("diff --git ") {
             in_hunk = false;
-            out.push_str(&normalize_diff_path_line(content, folder_a, folder_b));
+            out.push_str(&normalize_diff_path_line(content.to_string(), folder_a, folder_b));
         } else if !in_hunk && is_diff_path_line(content) {
-            out.push_str(&normalize_diff_path_line(content, folder_a, folder_b));
+            out.push_str(&normalize_diff_path_line(content.to_string(), folder_a, folder_b));
         } else {
             out.push_str(content);
         }
@@ -370,8 +370,8 @@ fn is_diff_path_line(line: &str) -> bool {
     line.starts_with("diff --git ") || line.starts_with("--- ") || line.starts_with("+++ ")
 }
 
-fn normalize_diff_path_line(line: &str, folder_a: &str, folder_b: &str) -> String {
-    let mut out = line.to_string();
+fn normalize_diff_path_line(line: String, folder_a: &str, folder_b: &str) -> String {
+    let mut out = line;
     for (prefix, folder) in [('a', folder_a), ('b', folder_b)] {
         let trimmed = folder.trim_matches('/');
         out = out.replace(&format!("{prefix}/{trimmed}/"), &format!("{prefix}/"));

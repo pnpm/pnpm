@@ -7,8 +7,8 @@ fn parse(raw: &str) -> ProjectSelector {
     parse_project_selector(raw, Path::new(PREFIX))
 }
 
-fn name(pattern: &str) -> Option<String> {
-    Some(pattern.to_string())
+fn name(pattern: impl Into<String>) -> Option<String> {
+    Some(pattern.into())
 }
 
 fn dir(path: &str) -> Option<PathBuf> {

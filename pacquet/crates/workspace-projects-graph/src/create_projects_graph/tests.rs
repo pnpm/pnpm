@@ -48,11 +48,16 @@ impl GraphProject for TestProject {
     }
 }
 
-fn project(root: &str, name: &str, version: &str, prod: &[(&str, &str)]) -> TestProject {
+fn project(
+    root: &str,
+    name: impl Into<String>,
+    version: impl Into<String>,
+    prod: &[(&str, &str)],
+) -> TestProject {
     TestProject {
         root_dir: PathBuf::from(root),
-        name: Some(name.to_string()),
-        version: Some(version.to_string()),
+        name: Some(name.into()),
+        version: Some(version.into()),
         peer: Vec::new(),
         dev: Vec::new(),
         optional: Vec::new(),

@@ -155,7 +155,8 @@ impl PatchArgs {
         let edit_dir = if let Some(path) = edit_dir.as_ref() {
             resolve_path(dir, path)
         } else {
-            let edit_dir = default_edit_dir(&state.config.modules_dir, &package_name, &target);
+            let edit_dir =
+                default_edit_dir(&state.config.modules_dir, package_name.clone(), &target);
             prepare_default_edit_dir(&state.config.modules_dir, &edit_dir)?;
             edit_dir
         };
@@ -297,7 +298,7 @@ fn is_empty_dir(path: &Path) -> io::Result<bool> {
     Ok(fs::read_dir(path)?.next().is_none())
 }
 
-fn default_edit_dir(modules_dir: &Path, package_name: &str, target: &PatchTarget) -> PathBuf {
+fn default_edit_dir(modules_dir: &Path, package_name: String, target: &PatchTarget) -> PathBuf {
     modules_dir.join(".pnpm_patches").join(default_edit_dir_name(package_name, target))
 }
 
@@ -380,14 +381,14 @@ fn reject_edit_dir_symlink_components_under(
     reject_default_edit_dir_symlink_components(&root, &edit_dir)
 }
 
-fn default_edit_dir_name(package_name: &str, target: &PatchTarget) -> String {
+fn default_edit_dir_name(package_name: String, target: &PatchTarget) -> String {
     if !target.alias.is_empty() && !target.bare_specifier.is_empty() {
         return format!("{}@{}", target.alias, sanitize_bare_specifier(&target.bare_specifier));
     }
     if !target.alias.is_empty() {
         return target.alias.clone();
     }
-    package_name.to_string()
+    package_name
 }
 
 fn sanitize_bare_specifier(input: &str) -> String {
@@ -445,7 +446,7 @@ impl ExistingPatchFileContext {
         let project_root = lexical_normalize(lockfile_dir);
         let real_project_root =
             dunce::canonicalize(&project_root).unwrap_or_else(|_| project_root.clone());
-        let patches_dir = join_setting_path(&project_root, patches_dir_setting);
+        let patches_dir = join_setting_path(project_root.clone(), patches_dir_setting);
         if !is_subdir(&project_root, &patches_dir) {
             return Err(PatchError::PatchesDirOutsideProject {
                 patches_dir: patches_dir_setting.to_string(),
@@ -503,8 +504,8 @@ fn checked_existing_patch_file_path(
     Ok(target_path)
 }
 
-fn join_setting_path(base: &Path, setting: &str) -> PathBuf {
-    let mut joined = base.to_path_buf();
+fn join_setting_path(base: PathBuf, setting: &str) -> PathBuf {
+    let mut joined = base;
     for component in Path::new(setting).components() {
         match component {
             Component::Prefix(_) | Component::RootDir => {}

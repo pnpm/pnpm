@@ -339,7 +339,7 @@ impl ImporterHoistState {
         } = opts;
 
         let ctx = TreeCtx::with_workspace(workspace, base_opts)
-            .with_importer_id(importer_id)
+            .with_importer_id(importer_id.to_string())
             .with_importer_order(importer_order)
             .with_patched_dependencies(patched_dependencies)
             .with_resolution_mode(pick_lowest_direct, subdep_published_by);

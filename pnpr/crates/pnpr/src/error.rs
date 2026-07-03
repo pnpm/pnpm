@@ -428,7 +428,8 @@ fn split_trailing_punctuation(candidate: &str) -> (&str, &str) {
 }
 
 fn redact_url_candidate(candidate: &str) -> Option<String> {
-    redact_parseable_url_candidate(candidate).or_else(|| redact_unparsable_url_candidate(candidate))
+    redact_parseable_url_candidate(candidate)
+        .or_else(|| redact_unparsable_url_candidate(candidate.to_string()))
 }
 
 fn redact_parseable_url_candidate(candidate: &str) -> Option<String> {
@@ -470,8 +471,8 @@ fn redact_parseable_url_candidate(candidate: &str) -> Option<String> {
     changed.then(|| url.to_string())
 }
 
-fn redact_unparsable_url_candidate(candidate: &str) -> Option<String> {
-    let mut redacted = candidate.to_string();
+fn redact_unparsable_url_candidate(candidate: String) -> Option<String> {
+    let mut redacted = candidate;
     let mut changed = false;
     if let Some(safe_url) = redact_unparsable_url_userinfo(&redacted) {
         redacted = safe_url;

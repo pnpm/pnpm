@@ -101,7 +101,7 @@ impl ApproveBuildsArgs {
         } else if all {
             sort_unique(pending.clone())
         } else {
-            let Some(selected) = prompt_for_builds(&pending)? else {
+            let Some(selected) = prompt_for_builds(pending.clone())? else {
                 // The prompt was interrupted (Esc / Ctrl-C); leave
                 // everything untouched, matching pnpm's `ExitPromptError`
                 // early exit.
@@ -194,9 +194,9 @@ fn partition_params(
 /// Show the checkbox prompt and return the chosen package names, or `None`
 /// when the prompt is interrupted.
 fn prompt_for_builds(
-    automatically_ignored_builds: &[String],
+    automatically_ignored_builds: Vec<String>,
 ) -> miette::Result<Option<Vec<String>>> {
-    let choices = sort_unique(automatically_ignored_builds.to_vec());
+    let choices = sort_unique(automatically_ignored_builds);
     match MultiSelect::new()
         .with_prompt("Choose which packages to build (<space> to select, <enter> to confirm)")
         .items(&choices)

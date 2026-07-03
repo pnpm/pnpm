@@ -6,8 +6,8 @@ use pretty_assertions::assert_eq;
 
 const ZERO_HASH: &str = "00000000000000000000000000000000";
 
-fn info(key: &str) -> ExtendedPatchInfo {
-    ExtendedPatchInfo { hash: ZERO_HASH.to_string(), patch_file_path: None, key: key.to_string() }
+fn info(key: impl Into<String>) -> ExtendedPatchInfo {
+    ExtendedPatchInfo { hash: ZERO_HASH.to_string(), patch_file_path: None, key: key.into() }
 }
 
 fn record_with_foo(group: PatchGroup) -> PatchGroupRecord {

@@ -56,10 +56,10 @@ fn opts(packages: &WorkspacePackages) -> ResolveFromWorkspaceOptions<'_> {
     }
 }
 
-fn wanted(alias: &str, bare: &str) -> WantedDependency {
+fn wanted(alias: impl Into<String>, bare: impl Into<String>) -> WantedDependency {
     WantedDependency {
-        alias: Some(alias.to_string()),
-        bare_specifier: Some(bare.to_string()),
+        alias: Some(alias.into()),
+        bare_specifier: Some(bare.into()),
         ..WantedDependency::default()
     }
 }

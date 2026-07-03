@@ -43,7 +43,6 @@ ignore = [
 [perfectionist]
 enable = ["unordered_derives"]
 disable = [
-    "needless_borrowed_parameters",
     "unpinned_repo_ref",
     "clap_help_markdown",
 ]

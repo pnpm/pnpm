@@ -29,10 +29,11 @@ use tokio::{
 };
 use tower::ServiceExt;
 
-fn config_for(upstream: &str, storage: PathBuf) -> Config {
+fn config_for(upstream: impl AsRef<str>, storage: PathBuf) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::proxy(listen, storage);
-    config.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").url = upstream.to_string();
+    config.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").url =
+        upstream.as_ref().to_string();
     config.public_url = "http://example.test".to_string();
     config.packument_ttl = Duration::from_mins(1);
     config
@@ -352,9 +353,9 @@ fn osv_database(package: &str, versions: &[&str]) -> TempDir {
     dir
 }
 
-fn enable_osv(config: &mut Config, path: &Path) {
+fn enable_osv(config: &mut Config, path: impl AsRef<Path>) {
     config.osv.enabled = true;
-    config.osv.path = Some(path.to_path_buf());
+    config.osv.path = Some(path.as_ref().to_path_buf());
 }
 
 async fn mock_packument_for_tarball(
@@ -2670,10 +2671,10 @@ async fn mock_package(server: &mut mockito::Server, pkg: &str, marker: &str) -> 
 /// Build a config with two public upstream registries — `corp` claiming `@corp/*`
 /// and a pattern-less `npmjs` catch-all — and a `main` router over them,
 /// aliased by the path-less base.
-fn router_config(npmjs_url: &str, corp_url: &str, storage: PathBuf) -> Config {
+fn router_config(npmjs_url: &str, corp_url: impl AsRef<str>, storage: PathBuf) -> Config {
     let mut config = config_for(npmjs_url, storage);
     let mut corp = config.upstreams.get("npmjs").expect("default `npmjs` upstream").clone();
-    corp.url = corp_url.to_string();
+    corp.url = corp_url.as_ref().to_string();
     config.upstreams.insert("corp".to_string(), corp);
     let graph = vec![
         ("npmjs".to_string(), Registry::Upstream { patterns: vec![] }),

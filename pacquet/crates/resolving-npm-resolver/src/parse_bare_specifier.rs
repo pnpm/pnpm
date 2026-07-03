@@ -34,13 +34,13 @@ pub(crate) struct VersionSelectorMatch {
 /// (git URLs, workspace protocol, catalog protocol, etc.), so the
 /// resolver chain falls through to the next entry.
 pub fn parse_bare_specifier(
-    bare_specifier: &str,
+    bare_specifier: String,
     alias: Option<&str>,
     default_tag: &str,
     registry: &str,
 ) -> Option<RegistryPackageSpec> {
     let mut name: Option<String> = alias.map(str::to_string);
-    let mut bare = bare_specifier.to_string();
+    let mut bare = bare_specifier;
 
     if let Some(rest) = bare.strip_prefix("npm:") {
         bare = rest.to_string();

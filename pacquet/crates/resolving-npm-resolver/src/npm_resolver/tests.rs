@@ -55,9 +55,9 @@ const PACKAGE_BODY: &str = r#"{
     }
 }"#;
 
-fn build_resolver(registry: &str) -> (NpmResolver<InMemoryPackageMetaCache>, TempDir) {
+fn build_resolver(registry: impl Into<String>) -> (NpmResolver<InMemoryPackageMetaCache>, TempDir) {
     let mut registries = HashMap::new();
-    registries.insert("default".to_string(), registry.to_string());
+    registries.insert("default".to_string(), registry.into());
     build_resolver_with_registries(registries)
 }
 

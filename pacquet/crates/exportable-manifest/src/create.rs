@@ -220,18 +220,19 @@ fn convert_dependency_for_publish(
         }
     }
     .map_err(CreateExportableManifestError::ReplaceWorkspaceProtocol)?;
-    let after_catalog = replace_catalog_protocol(dep_name, &after_workspace, opts.catalogs)?;
+    let after_catalog =
+        replace_catalog_protocol(dep_name.to_string(), &after_workspace, opts.catalogs)?;
     replace_jsr_protocol(dep_name, &after_catalog)
 }
 
 /// Dereference a `catalog:` specifier; pass any other specifier
 /// through unchanged.
 fn replace_catalog_protocol(
-    alias: &str,
+    alias: String,
     spec: &str,
     catalogs: &Catalogs,
 ) -> Result<String, CreateExportableManifestError> {
-    let wanted = WantedDependency { alias: alias.to_string(), bare_specifier: spec.to_string() };
+    let wanted = WantedDependency { alias, bare_specifier: spec.to_string() };
     match resolve_from_catalog(catalogs, &wanted) {
         CatalogResolutionResult::Found(found) => Ok(found.resolution.specifier),
         CatalogResolutionResult::Unused => Ok(spec.to_string()),

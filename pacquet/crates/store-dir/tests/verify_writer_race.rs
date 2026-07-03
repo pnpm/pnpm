@@ -62,10 +62,10 @@ fn sha512_hex(content: &[u8]) -> String {
 /// with `checked_at` pinned to the Unix epoch so the file's current
 /// mtime is always > 100 ms past the recorded check time — the
 /// condition that makes `verify_file` enter its destructive branch.
-fn make_index(filename: &str, content: &[u8]) -> PackageFilesIndex {
+fn make_index(filename: impl Into<String>, content: &[u8]) -> PackageFilesIndex {
     let mut files = std::collections::HashMap::new();
     files.insert(
-        filename.to_string(),
+        filename.into(),
         CafsFileInfo {
             digest: sha512_hex(content),
             mode: 0o644,

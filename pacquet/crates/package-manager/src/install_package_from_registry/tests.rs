@@ -24,14 +24,18 @@ use std::{
 };
 use tempfile::tempdir;
 
-fn create_config(store_dir: &Path, modules_dir: &Path, virtual_store_dir: &Path) -> Config {
+fn create_config(
+    store_dir: &Path,
+    modules_dir: impl AsRef<Path>,
+    virtual_store_dir: &Path,
+) -> Config {
     Config {
         hoist: false,
         hoist_pattern: None,
         public_hoist_pattern: None,
         shamefully_hoist: false,
         store_dir: StoreDir::new(store_dir),
-        modules_dir: modules_dir.to_path_buf(),
+        modules_dir: modules_dir.as_ref().to_path_buf(),
         node_linker: Default::default(),
         node_experimental_package_map: false,
         node_package_map_type: Default::default(),

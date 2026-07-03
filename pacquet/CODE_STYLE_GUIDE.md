@@ -160,6 +160,8 @@ push_path(&mut my_list, my_path_ref.to_path_buf());
 
 It does force `my_path_ref` to be explicitly copied, but since `item` is not copied, the total number of copying remains the same for `my_path_ref`.
 
+The Example 1 direction — a [borrowed] parameter whose sole, unconditional use is to produce its [owned] counterpart — is enforced by [`perfectionist::needless_borrowed_parameters`](https://github.com/KSXGitHub/perfectionist/blob/0.0.0-rc.22/rules/needless_borrowed_parameters.md), so the compiler-adjacent tooling flags it for you. Example 2 and the [most-encompassing-type](#use-the-most-encompassing-type-for-function-parameters) guidance below are the opposite trade-off (widening to a [borrowed] signature) and remain a judgment call the lint does not make.
+
 **Example 2:** Preferring [borrowed] signature.
 
 ```rust

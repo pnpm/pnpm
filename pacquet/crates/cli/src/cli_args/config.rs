@@ -163,14 +163,14 @@ impl ConfigArgs {
             ConfigSubcommand::Set(args) => {
                 let flags = args.flags;
                 let (key, value) = split_set_params(args.key, args.value, "set")?;
-                config_set(config, dir, flags, &key, Some(value))?;
+                config_set(config, dir, flags, key, Some(value))?;
             }
             ConfigSubcommand::Delete(args) => {
                 let key = args
                     .key
                     .filter(|key| !key.is_empty())
                     .ok_or_else(|| ConfigError::NoParams { subcommand: "delete".to_string() })?;
-                config_set(config, dir, args.flags, &key, None)?;
+                config_set(config, dir, args.flags, key, None)?;
             }
             ConfigSubcommand::Get(args) => {
                 let output = match args.key.as_deref().filter(|key| !key.is_empty()) {
@@ -234,11 +234,10 @@ fn config_set(
     config: &Config,
     dir: &Path,
     flags: ConfigFlags,
-    key: &str,
+    mut key: String,
     value: Option<String>,
 ) -> miette::Result<()> {
     let global = resolve_global(flags);
-    let mut key = key.to_string();
     let mut is_auth_setting = config_types::is_ini_config_key(&key);
     if !is_auth_setting {
         key = validate_simple_key(&key)?;

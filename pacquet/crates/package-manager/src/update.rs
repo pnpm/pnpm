@@ -389,7 +389,7 @@ impl Update<'_> {
                         rewrites.push((name.clone(), *group, version.serialize(pin)));
                     } else if let Some(spec) = selectors
                         .iter()
-                        .find(|sel| matcher_one(&sel.pattern).matches(name))
+                        .find(|sel| matcher_one(sel.pattern.clone()).matches(name))
                         .and_then(|sel| sel.version.clone())
                     {
                         rewrites.push((name.clone(), *group, spec));
@@ -578,8 +578,8 @@ impl Update<'_> {
 /// Compile a single pattern into a matcher. Used to map a matched direct
 /// dependency back to the selector that claimed it (so a versioned
 /// selector's version is applied to the right dep).
-fn matcher_one(pattern: &str) -> pacquet_config::matcher::Matcher {
-    create_matcher(std::slice::from_ref(&pattern.to_string()))
+fn matcher_one(pattern: String) -> pacquet_config::matcher::Matcher {
+    create_matcher(&[pattern])
 }
 
 /// The workspace catalogs and the directories needed to read the existing

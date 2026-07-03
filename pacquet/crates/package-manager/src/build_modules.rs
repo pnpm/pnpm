@@ -965,7 +965,7 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     // `lockfile_dir` so a lifecycle script invoked at a nested
     // hoisted location can resolve bins added by parents.
     let extra_bin_paths: Vec<PathBuf> = if gather_ancestor_bin_paths {
-        bin_dirs_in_all_parent_dirs(&pkg_dir, lockfile_dir)
+        bin_dirs_in_all_parent_dirs(pkg_dir.clone(), lockfile_dir)
     } else {
         Vec::new()
     };
@@ -1061,9 +1061,13 @@ fn build_one_snapshot<Reporter: self::Reporter>(
     {
         let files_index_file =
             pacquet_store_dir::store_index_key(&integrity.to_string(), &metadata_key.to_string());
-        if let Err(err) =
-            pacquet_store_dir::upload(store, &pkg_dir, &files_index_file, cache_key, writer)
-        {
+        if let Err(err) = pacquet_store_dir::upload(
+            store,
+            &pkg_dir,
+            files_index_file,
+            cache_key.to_string(),
+            writer,
+        ) {
             tracing::warn!(
                 target: "pacquet::build",
                 ?err,
@@ -1179,9 +1183,9 @@ fn materialize_side_effects<Reporter: self::Reporter>(
 ///
 /// Non-existent ancestor `.bin` directories are harmless: they
 /// just don't contribute anything to lifecycle-script PATH lookup.
-fn bin_dirs_in_all_parent_dirs(pkg_root: &Path, lockfile_dir: &Path) -> Vec<PathBuf> {
+fn bin_dirs_in_all_parent_dirs(pkg_root: PathBuf, lockfile_dir: &Path) -> Vec<PathBuf> {
     let mut bin_dirs: Vec<PathBuf> = Vec::new();
-    let mut dir: PathBuf = pkg_root.to_path_buf();
+    let mut dir: PathBuf = pkg_root;
     loop {
         let parent = dir.parent().unwrap_or_else(|| Path::new(""));
         let parent_starts_with_at =

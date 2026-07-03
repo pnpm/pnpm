@@ -105,12 +105,11 @@ impl PrivateAccessDescriptor {
 /// namespace.
 #[must_use]
 pub(crate) fn upstream_cache_digest(
-    upstream: &str,
+    upstream: String,
     credential_digest: String,
     secret: &[u8],
 ) -> String {
-    PrivateAccessDescriptor::Alias { alias: upstream.to_string(), credential_digest }
-        .digest_id(secret)
+    PrivateAccessDescriptor::Alias { alias: upstream, credential_digest }.digest_id(secret)
 }
 
 /// A hash of an upstream's `Authorization` header value, used as the credential
@@ -290,7 +289,7 @@ impl RouteContext {
         let aliases = config
             .upstreams
             .iter()
-            .filter_map(|(name, upstream)| ResolvedAlias::from_upstream(name, upstream))
+            .filter_map(|(name, upstream)| ResolvedAlias::from_upstream(name.clone(), upstream))
             .collect();
         let upstream_origins =
             config.upstreams.values().filter_map(|upstream| nerf_prefix(&upstream.url)).collect();
@@ -537,12 +536,12 @@ impl ResolvedAlias {
     /// participates in route classification only when it declares both an
     /// `access:` policy and a resolved `Authorization` credential; routing is
     /// by registry origin, so no package glob is attached.
-    fn from_upstream(name: &str, upstream: &UpstreamConfig) -> Option<Self> {
+    fn from_upstream(name: String, upstream: &UpstreamConfig) -> Option<Self> {
         let access = upstream.access.clone()?;
         let authorization =
             upstream.headers.get(AUTHORIZATION).and_then(|value| value.to_str().ok())?.to_string();
         Some(Self {
-            name: name.to_string(),
+            name,
             credential_digest: credential_digest(&authorization),
             registry: upstream.url.clone(),
             origin: nerf_prefix(&upstream.url)?,

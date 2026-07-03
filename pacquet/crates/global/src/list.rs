@@ -85,7 +85,7 @@ pub fn list_global_packages(
 
     Ok(match report_as {
         ListReportAs::Json => render_json(&global_dir_str, &deps, long),
-        ListReportAs::Parseable => render_parseable(&global_dir_str, &deps, long),
+        ListReportAs::Parseable => render_parseable(global_dir_str, &deps, long),
         ListReportAs::Tree => render_tree(&global_dir_str, &deps, long),
     })
 }
@@ -126,8 +126,8 @@ fn render_json(global_dir: &str, deps: &[ListedDep], long: bool) -> String {
     serde_json::to_string_pretty(&root).expect("serialize global list")
 }
 
-fn render_parseable(global_dir: &str, deps: &[ListedDep], long: bool) -> String {
-    let mut lines = vec![global_dir.to_string()];
+fn render_parseable(global_dir: String, deps: &[ListedDep], long: bool) -> String {
+    let mut lines = vec![global_dir];
     for dep in deps {
         if long {
             lines.push(parseable_long_line(dep));

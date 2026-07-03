@@ -28,8 +28,8 @@ use std::{
 /// thread, allowlisting `registry_url` as a public route so the client may
 /// resolve against it (off-allowlist registries are rejected at the request
 /// boundary); returns its base URL and a pre-seeded bearer token.
-fn start_pnpr(registry_url: &str) -> (String, String) {
-    let registry_url = registry_url.to_string();
+fn start_pnpr(registry_url: impl Into<String>) -> (String, String) {
+    let registry_url = registry_url.into();
     // Persisted (not cleaned) because the detached server thread outlives
     // this function.
     let storage = tempfile::tempdir().expect("pnpr storage").keep();
@@ -101,7 +101,7 @@ fn install_via_pnpr_links_node_modules() {
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { npmrc_path, store_dir, mock_instance, .. } = npmrc_info;
 
-    let (pnpr_url, token) = start_pnpr(&mock_instance.url());
+    let (pnpr_url, token) = start_pnpr(mock_instance.url());
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
 
     let manifest_path = workspace.join("package.json");
@@ -136,7 +136,7 @@ fn frozen_install_via_pnpr_verifies_the_local_lockfile_without_resolving_or_redo
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { npmrc_path, mock_instance, .. } = npmrc_info;
 
-    let (pnpr_url, token) = start_pnpr(&mock_instance.url());
+    let (pnpr_url, token) = start_pnpr(mock_instance.url());
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
 
     let manifest_path = workspace.join("package.json");
@@ -206,7 +206,7 @@ fn install_via_pnpr_lockfile_only_writes_lockfile_without_linking() {
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { npmrc_path, store_dir, mock_instance, .. } = npmrc_info;
 
-    let (pnpr_url, token) = start_pnpr(&mock_instance.url());
+    let (pnpr_url, token) = start_pnpr(mock_instance.url());
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
 
     let manifest_path = workspace.join("package.json");
@@ -240,7 +240,7 @@ fn import_via_pnpr_server_writes_lockfile_without_linking() {
         CommandTempCwd::init().add_mocked_registry();
     let AddMockedRegistry { npmrc_path, store_dir, mock_instance, .. } = npmrc_info;
 
-    let (pnpr_url, token) = start_pnpr(&mock_instance.url());
+    let (pnpr_url, token) = start_pnpr(mock_instance.url());
     configure_pnpr_auth(&npmrc_path, &pnpr_url, &token);
 
     let manifest_path = workspace.join("package.json");

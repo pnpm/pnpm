@@ -21,7 +21,7 @@ fn assert_invalid_input(err: GitFetcherError) {
 #[test]
 fn join_checked_accepts_normal_segments() {
     let root = Path::new("/root");
-    let joined = join_checked(root, "a/b/c.txt").unwrap();
+    let joined = join_checked(root.to_path_buf(), "a/b/c.txt").unwrap();
     // Use components() so the assertion stays platform-agnostic.
     let expected: Vec<_> = Path::new("/root/a/b/c.txt").components().collect();
     let actual: Vec<_> = joined.components().collect();
@@ -31,7 +31,7 @@ fn join_checked_accepts_normal_segments() {
 #[test]
 fn join_checked_strips_current_dir_components() {
     let root = Path::new("/root");
-    let joined = join_checked(root, "./a").unwrap();
+    let joined = join_checked(root.to_path_buf(), "./a").unwrap();
     let expected: Vec<_> = Path::new("/root/a").components().collect();
     let actual: Vec<_> = joined.components().collect();
     assert_eq!(actual, expected);
@@ -39,15 +39,19 @@ fn join_checked_strips_current_dir_components() {
 
 #[test]
 fn join_checked_rejects_absolute_paths() {
-    assert_invalid_input(join_checked(Path::new("/root"), "/etc/passwd").unwrap_err());
+    assert_invalid_input(
+        join_checked(Path::new("/root").to_path_buf(), "/etc/passwd").unwrap_err(),
+    );
 }
 
 #[test]
 fn join_checked_rejects_parent_dir() {
-    assert_invalid_input(join_checked(Path::new("/root"), "../escape").unwrap_err());
+    assert_invalid_input(join_checked(Path::new("/root").to_path_buf(), "../escape").unwrap_err());
     // Even a `..` deep in the path must be refused — otherwise
     // `a/../../escape` would slip through.
-    assert_invalid_input(join_checked(Path::new("/root"), "a/../escape").unwrap_err());
+    assert_invalid_input(
+        join_checked(Path::new("/root").to_path_buf(), "a/../escape").unwrap_err(),
+    );
 }
 
 #[test]

@@ -118,7 +118,7 @@ async fn handler<Reporter: self::Reporter + 'static>(
     dir: &Path,
 ) -> miette::Result<Option<String>> {
     let prefix = dir.to_string_lossy().into_owned();
-    info::<Reporter>(&prefix, "Checking for updates...");
+    info::<Reporter>(prefix.clone(), "Checking for updates...".to_owned());
 
     // `self-update` (no args) defaults to the `latest` dist-tag but
     // refuses to downgrade; `self-update latest` (explicit) bypasses the
@@ -166,7 +166,7 @@ async fn handler<Reporter: self::Reporter + 'static>(
         && target.major > previous_major
         && let Some(hint) = major_upgrade_hint(target.major)
     {
-        warn::<Reporter>(&prefix, hint);
+        warn::<Reporter>(prefix.clone(), hint.to_owned());
     }
 
     // Project-pin branch: the project pins pnpm, so update the pin in
@@ -198,8 +198,8 @@ async fn handler<Reporter: self::Reporter + 'static>(
     }
 
     info::<Reporter>(
-        &prefix,
-        &format!("Switching pnpm from v{PACQUET_VERSION} to v{target_version}..."),
+        prefix,
+        format!("Switching pnpm from v{PACQUET_VERSION} to v{target_version}..."),
     );
 
     let env_root = config.global_pkg_dir.clone().ok_or(SelfUpdateError::NoGlobalDir)?;
@@ -476,18 +476,10 @@ fn range_satisfies(range: &str, version: &str) -> bool {
 #[cfg(test)]
 mod tests;
 
-fn info<Reporter: self::Reporter>(prefix: &str, message: &str) {
-    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
-        level: LogLevel::Info,
-        message: message.to_string(),
-        prefix: prefix.to_string(),
-    }));
+fn info<Reporter: self::Reporter>(prefix: String, message: String) {
+    Reporter::emit(&LogEvent::Pnpm(PnpmLog { level: LogLevel::Info, message, prefix }));
 }
 
-fn warn<Reporter: self::Reporter>(prefix: &str, message: &str) {
-    Reporter::emit(&LogEvent::Pnpm(PnpmLog {
-        level: LogLevel::Warn,
-        message: message.to_string(),
-        prefix: prefix.to_string(),
-    }));
+fn warn<Reporter: self::Reporter>(prefix: String, message: String) {
+    Reporter::emit(&LogEvent::Pnpm(PnpmLog { level: LogLevel::Warn, message, prefix }));
 }

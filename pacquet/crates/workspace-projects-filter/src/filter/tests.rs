@@ -40,13 +40,17 @@ impl GraphProject for TestPkg {
     }
 }
 
-fn node(root: &str, name: &str, deps: &[&str]) -> (PathBuf, ProjectGraphNode<TestPkg>) {
+fn node(
+    root: &str,
+    name: impl Into<String>,
+    deps: &[&str],
+) -> (PathBuf, ProjectGraphNode<TestPkg>) {
     (
         PathBuf::from(root),
         ProjectGraphNode {
             package: TestPkg {
                 root_dir: PathBuf::from(root),
-                name: Some(name.to_string()),
+                name: Some(name.into()),
                 version: Some("1.0.0".to_string()),
                 deps: Vec::new(),
                 dev_deps: Vec::new(),
@@ -390,10 +394,10 @@ fn diff_selector_is_unsupported() {
     assert!(matches!(error, FilterError::UnsupportedDiffSelector));
 }
 
-fn graph_project(root: &str, name: &str, deps: &[(&str, &str)]) -> TestPkg {
+fn graph_project(root: &str, name: impl Into<String>, deps: &[(&str, &str)]) -> TestPkg {
     TestPkg {
         root_dir: PathBuf::from(root),
-        name: Some(name.to_string()),
+        name: Some(name.into()),
         version: Some("1.0.0".to_string()),
         deps: deps.iter().map(|(name, spec)| (name.to_string(), spec.to_string())).collect(),
         dev_deps: Vec::new(),

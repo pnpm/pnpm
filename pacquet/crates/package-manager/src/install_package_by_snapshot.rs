@@ -264,7 +264,7 @@ impl InstallPackageBySnapshot<'_> {
 
         // TODO: skip when already exists in store?
         let package_id = package_key.without_peer().to_string();
-        emit_progress_resolved::<Reporter>(&package_id, requester);
+        emit_progress_resolved::<Reporter>(package_id.clone(), requester.to_string());
 
         // Adapter shared between the `Git` arm below and the
         // `gitHosted: true` post-pass on tarballs. Named local so
@@ -887,13 +887,10 @@ fn render_variant_targets(variants: &[pacquet_lockfile::PlatformAssetResolution]
 /// event-construction code is unit-testable; the call site itself
 /// only fires when a non-empty cold-batch lockfile install runs,
 /// which the existing test suite doesn't cover.
-fn emit_progress_resolved<Reporter: self::Reporter>(package_id: &str, requester: &str) {
+fn emit_progress_resolved<Reporter: self::Reporter>(package_id: String, requester: String) {
     Reporter::emit(&LogEvent::Progress(ProgressLog {
         level: LogLevel::Debug,
-        message: ProgressMessage::Resolved {
-            package_id: package_id.to_owned(),
-            requester: requester.to_owned(),
-        },
+        message: ProgressMessage::Resolved { package_id, requester },
     }));
 }
 

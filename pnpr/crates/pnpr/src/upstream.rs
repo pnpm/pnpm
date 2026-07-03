@@ -193,11 +193,11 @@ impl Upstream {
     /// resolved [`UpstreamConfig`], baking in the per-upstream
     /// `timeout`/`maxage`/`cache` knobs and arming the
     /// `max_fails`/`fail_timeout` circuit breaker.
-    pub fn new(name: &str, config: &UpstreamConfig) -> Self {
+    pub fn new(name: String, config: &UpstreamConfig) -> Self {
         Self {
             client: Arc::new(ThrottledClient::new_for_installs()),
             base: config.url.clone(),
-            name: name.to_string(),
+            name,
             headers: config.headers.clone(),
             timeout: config.timeout,
             maxage: config.maxage,

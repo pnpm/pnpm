@@ -190,7 +190,7 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
         let spec = match wanted_dependency.bare_specifier.as_deref() {
             Some(bare) => {
                 match parse_bare_specifier(
-                    bare,
+                    bare.to_string(),
                     wanted_dependency.alias.as_deref(),
                     default_tag,
                     &registry,
@@ -200,7 +200,9 @@ impl<Cache: PackageMetaCache + 'static> NpmResolver<Cache> {
                 }
             }
             None => match wanted_dependency.alias.as_deref() {
-                Some(alias) if !alias.is_empty() => default_tag_spec(alias, default_tag),
+                Some(alias) if !alias.is_empty() => {
+                    default_tag_spec(alias.to_string(), default_tag.to_string())
+                }
                 _ => return Ok(None),
             },
         };
@@ -470,10 +472,10 @@ fn workspace_fallback_options(opts: &ResolveOptions) -> ResolveFromWorkspaceOpti
 
 /// `bare_specifier` is absent but `alias` is present: synthesize a tag
 /// spec pointing at the default tag.
-fn default_tag_spec(alias: &str, default_tag: &str) -> RegistryPackageSpec {
+fn default_tag_spec(alias: String, default_tag: String) -> RegistryPackageSpec {
     RegistryPackageSpec {
-        name: alias.to_string(),
-        fetch_spec: default_tag.to_string(),
+        name: alias,
+        fetch_spec: default_tag,
         spec_type: RegistryPackageSpecType::Tag,
         normalized_bare_specifier: None,
     }

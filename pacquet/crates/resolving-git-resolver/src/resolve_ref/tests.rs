@@ -18,8 +18,8 @@ impl GitCommandRunner for Stub {
         Box::pin(async move { self.result.clone().map_err(|message| GitRunError { message }) })
     }
 }
-fn stub(stdout: &str) -> Stub {
-    Stub { result: Ok(stdout.to_string()), last_args: Mutex::new(Vec::new()) }
+fn stub(stdout: impl Into<String>) -> Stub {
+    Stub { result: Ok(stdout.into()), last_args: Mutex::new(Vec::new()) }
 }
 
 #[tokio::test]

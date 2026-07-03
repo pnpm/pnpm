@@ -995,7 +995,12 @@ fn sanitize_control_chars_escapes_registry_control_characters() {
     assert_eq!(sanitize_control_chars("ok\u{1b}[31m\n\u{7f}"), r"ok\u{1b}[31m\u{a}\u{7f}");
 }
 
-fn advisory(id: u64, title: &str, severity: ConfigAuditLevel, ghsa: &str) -> AuditAdvisory {
+fn advisory(
+    id: u64,
+    title: impl Into<String>,
+    severity: ConfigAuditLevel,
+    ghsa: &str,
+) -> AuditAdvisory {
     AuditAdvisory {
         findings: vec![AuditFinding {
             version: "1.0.0".to_string(),
@@ -1005,7 +1010,7 @@ fn advisory(id: u64, title: &str, severity: ConfigAuditLevel, ghsa: &str) -> Aud
             bundled: false,
         }],
         id,
-        title: title.to_string(),
+        title: title.into(),
         module_name: "pkg".to_string(),
         vulnerable_versions: "<2.0.0".to_string(),
         patched_versions: Some(">=2.0.0".to_string()),
@@ -1026,15 +1031,15 @@ fn caret_range_for_patched_uses_minimum_with_caret() {
 
 fn fix_advisory(
     id: u64,
-    module_name: &str,
-    vulnerable: &str,
+    module_name: impl Into<String>,
+    vulnerable: impl Into<String>,
     patched: Option<&str>,
     severity: ConfigAuditLevel,
     ghsa: &str,
 ) -> AuditAdvisory {
     let mut advisory = advisory(id, "title", severity, ghsa);
-    advisory.module_name = module_name.to_string();
-    advisory.vulnerable_versions = vulnerable.to_string();
+    advisory.module_name = module_name.into();
+    advisory.vulnerable_versions = vulnerable.into();
     advisory.patched_versions = patched.map(ToString::to_string);
     advisory
 }
