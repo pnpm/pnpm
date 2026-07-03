@@ -1,14 +1,16 @@
 use super::{
-    DistHashes, PublishHttpError, PublishPackedPkgError, build_publish_document, clean_version,
-    is_otp_challenge, parse_otp_challenge, publish_with_otp_handling, put_publish,
+    DistHashes, PackedPkg, PublishHttpError, PublishNetwork, PublishPackedPkgError,
+    PublishPackedPkgOptions, build_publish_document, clean_version, is_otp_challenge,
+    parse_otp_challenge, publish_packed_pkg, publish_with_otp_handling, put_publish,
     web_auth_fetch_options,
 };
 use crate::{
+    capabilities::{CiInfo, Clock, EnvVar, OidcFetch, OidcFetchError, OidcRequest, OidcResponse},
     oidc::OidcHttpOptions,
     publish_options::{CreatePublishOptionsError, PublishUnsupportedRegistryProtocolError},
     registry_config_keys::parse_supported_registry_url,
 };
-use pacquet_network::ThrottledClient;
+use pacquet_network::{AuthHeaders, ThrottledClient};
 use pacquet_network_web_auth::{
     Host as WebAuthHost, OtpChallenge, OtpError, WebAuthFetchOptions, WithOtpError,
 };
@@ -577,4 +579,74 @@ fn publish_packed_pkg_error_wraps_option_and_otp_failures() {
             reason: "connection refused".to_owned(),
         }));
     assert!(matches!(from_otp, PublishPackedPkgError::Otp(_)));
+}
+
+/// A host outside CI: no `NPM_ID_TOKEN`, not GitHub Actions, so the OIDC probe
+/// in `create_publish_options` resolves to "not applicable" without touching
+/// the network — and the token exchange (clock) and any registry fetch stay
+/// unreachable.
+struct OfflineSys;
+impl CiInfo for OfflineSys {
+    fn github_actions() -> bool {
+        false
+    }
+    fn gitlab() -> bool {
+        false
+    }
+}
+impl Clock for OfflineSys {
+    fn now_ms() -> u64 {
+        unreachable!("no OIDC token exchange outside CI")
+    }
+}
+impl EnvVar for OfflineSys {
+    fn var(_: &str) -> Option<String> {
+        None
+    }
+}
+impl OidcFetch for OfflineSys {
+    async fn fetch(_: OidcRequest<'_>) -> Result<OidcResponse, OidcFetchError> {
+        unreachable!("a dry run makes no network request")
+    }
+}
+
+/// A dry run resolves options and hashes the tarball, then returns the summary
+/// before the registry PUT. With an offline host no network request is made.
+#[tokio::test]
+async fn publish_packed_pkg_dry_run_returns_the_summary_without_publishing() {
+    let manifest = json!({ "name": "@scope/pkg", "version": "1.2.3" });
+    let tarball = b"tarball-bytes";
+    let contents = ["package.json".to_owned()];
+    let pkg = PackedPkg {
+        published_manifest: &manifest,
+        tarball_data: tarball,
+        tarball_path: "@scope/pkg-1.2.3.tgz",
+        contents: &contents,
+        unpacked_size: 42,
+    };
+    let opts = PublishPackedPkgOptions {
+        default_registry: "https://registry.example/".to_owned(),
+        scoped_registries: std::collections::BTreeMap::new(),
+        access: None,
+        tag: "latest".to_owned(),
+        otp: None,
+        provenance: None,
+        dry_run: true,
+        stage: false,
+        http: OidcHttpOptions::default(),
+    };
+    let client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let network = PublishNetwork { client: &client, auth_headers: &auth_headers };
+
+    let summary = publish_packed_pkg::<OfflineSys, SilentReporter>(&pkg, &opts, &network)
+        .await
+        .expect("a dry run succeeds offline");
+
+    assert_eq!(summary.id, "@scope/pkg@1.2.3");
+    assert_eq!(summary.name, "@scope/pkg");
+    assert_eq!(summary.version, "1.2.3");
+    assert_eq!(summary.size, tarball.len() as u64);
+    assert_eq!(summary.unpacked_size, 42);
+    assert_eq!(summary.stage_id, None);
 }
