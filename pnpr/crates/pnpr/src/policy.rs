@@ -174,11 +174,65 @@ pub struct PackageRule {
 #[derive(Debug, Clone)]
 pub struct PackageRules {
     rules: Vec<PackageRule>,
+    /// Winner lookup by specificity tier, rebuilt whenever the rule set
+    /// changes: at most one key per tier can match a given name, so the
+    /// most specific match resolves with map lookups instead of a scan of
+    /// every rule — `for_package` runs on every read, write, search hit,
+    /// and route classification.
+    index: RuleIndex,
     /// Fallbacks for fields the winning entry omits (and for every name
     /// when the map itself is empty = the registry claims every name).
     default_access: AccessList,
     default_publish: AccessList,
     default_unpublish: AccessList,
+}
+
+/// Positions of the rules by pattern shape, mirroring the specificity
+/// chain: an exact key beats the name's scope key beats `@*/*` beats `**`.
+/// Duplicate keys never coexist here — YAML loading and the routing-graph
+/// validation both reject them — so each slot holds the one possible rule.
+#[derive(Debug, Default, Clone)]
+struct RuleIndex {
+    exact: BTreeMap<String, usize>,
+    scopes: BTreeMap<String, usize>,
+    any_scoped: Option<usize>,
+    all: Option<usize>,
+}
+
+impl RuleIndex {
+    fn build(rules: &[PackageRule]) -> Self {
+        let mut index = Self::default();
+        for (position, rule) in rules.iter().enumerate() {
+            match &rule.pattern {
+                PackagePattern::Exact(name) => {
+                    index.exact.insert(name.clone(), position);
+                }
+                PackagePattern::Scope(scope) => {
+                    index.scopes.insert(scope.clone(), position);
+                }
+                PackagePattern::AnyScoped => index.any_scoped = Some(position),
+                PackagePattern::All => index.all = Some(position),
+            }
+        }
+        index
+    }
+
+    /// The winning rule's position for `package`: the most specific tier
+    /// with a matching key.
+    fn winner(&self, package: &str) -> Option<usize> {
+        if let Some(&position) = self.exact.get(package) {
+            return Some(position);
+        }
+        if let Some(scope) = PackagePattern::scope_of(package) {
+            if let Some(&position) = self.scopes.get(scope) {
+                return Some(position);
+            }
+            if let Some(position) = self.any_scoped {
+                return Some(position);
+            }
+        }
+        self.all
+    }
 }
 
 impl Default for PackageRules {
@@ -212,6 +266,7 @@ impl PackageRules {
     #[must_use]
     pub fn new(rules: Vec<PackageRule>, default_access: Option<AccessList>) -> Self {
         Self {
+            index: RuleIndex::build(&rules),
             rules,
             default_access: default_access.unwrap_or_else(|| AccessList::parse("$all")),
             default_publish: AccessList::parse("$authenticated"),
@@ -233,6 +288,7 @@ impl PackageRules {
     /// For tests and embedders that build rules programmatically.
     pub fn push_rule(&mut self, rule: PackageRule) {
         self.rules.push(rule);
+        self.index = RuleIndex::build(&self.rules);
     }
 
     /// The namespace this registry declares: the map's key set. Empty =
@@ -255,14 +311,11 @@ impl PackageRules {
     /// matching entry's fields, each falling back to the registry-level
     /// default. Selection is order-free — the restricted pattern language
     /// guarantees at most one matching key per specificity tier, so the
-    /// winner is unique regardless of where it appears in the map.
+    /// winner is unique regardless of where it appears in the map — and
+    /// indexed, so it costs tier lookups rather than a scan of every rule.
     #[must_use]
     pub fn for_package(&self, package: &str) -> Effective<'_> {
-        let winner = self
-            .rules
-            .iter()
-            .filter(|rule| rule.pattern.matches(package))
-            .max_by_key(|rule| rule.pattern.specificity());
+        let winner = self.index.winner(package).map(|position| &self.rules[position]);
         let explicit_access = winner.and_then(|rule| rule.access.as_ref());
         Effective {
             access: explicit_access.unwrap_or(&self.default_access),

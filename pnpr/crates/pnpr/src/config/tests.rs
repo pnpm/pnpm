@@ -1635,7 +1635,7 @@ fn most_specific_key_wins_regardless_of_declaration_order() {
     for packages in [scope_then_catch_all, catch_all_then_scope] {
         let config = hosted_rules_config(packages);
         let rules = &config.hosted["local"].rules;
-        assert!(!rules.for_package("@secret/x").access.allows(&Identity::Anonymous), "{packages}",);
+        assert!(!rules.for_package("@secret/x").access.allows(&Identity::Anonymous), "{packages}");
         assert!(rules.for_package("anything").access.allows(&Identity::Anonymous), "{packages}");
     }
 }

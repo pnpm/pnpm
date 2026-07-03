@@ -459,9 +459,14 @@ impl RouteContext {
     /// A pnpr-hosted route is public when the hosted registry's effective
     /// access for the package admits an anonymous caller; otherwise it is
     /// private and gated by re-running that registry's rules for the caller.
-    /// The descriptor is registry-qualified — the same `name@version` on two
-    /// hosted registries is two different packages, so their cache entries
-    /// must never share a key.
+    /// This is the same effective-access lookup the serving gate
+    /// (`hosted_gate`) admits with, so classification and serving cannot
+    /// disagree about *whether* a caller may read a name — the serving
+    /// tiers only vary the denial's shape (mask vs. 401/403), and every
+    /// denial classifies as an anonymous public fetch the endpoint fails
+    /// closed on. The descriptor is registry-qualified — the same
+    /// `name@version` on two hosted registries is two different packages,
+    /// so their cache entries must never share a key.
     fn classify_hosted(
         &self,
         identity: &Identity,

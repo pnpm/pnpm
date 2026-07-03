@@ -112,6 +112,14 @@ impl PackagePattern {
         }
     }
 
+    /// The scope of a well-formed scoped package name (`@acme/foo` →
+    /// `acme`), without its leading `@`; `None` for an unscoped or
+    /// malformed name. The scope-tier key a specificity lookup consults.
+    #[must_use]
+    pub fn scope_of(package: &str) -> Option<&str> {
+        scoped_name(package).map(|(scope, _)| scope)
+    }
+
     /// Whether this pattern matches `package`.
     #[must_use]
     pub fn matches(&self, package: &str) -> bool {

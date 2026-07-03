@@ -1195,7 +1195,7 @@ const REGISTRY_MOCK_LOCAL_PATTERNS: &[&str] = &[
 ];
 
 /// The `local` hosted registry's `packages:` rules in the registry-mock
-/// shape: the fixture namespace (`REGISTRY_MOCK_LOCAL_PATTERNS`) with
+/// shape: the fixture namespace ([`REGISTRY_MOCK_LOCAL_PATTERNS`]) with
 /// default rules, `@private/*` and `@pnpm.e2e/needs-auth` restricted to
 /// authenticated callers (the rules `@pnpm/registry-mock` applied under
 /// verdaccio), and unpublish open to any authenticated user so the
@@ -1928,12 +1928,18 @@ fn build_rules(
             let pattern = PackagePattern::parse(pattern).map_err(|err| {
                 RegistryError::InvalidConfig { reason: format!("registry {registry:?}: {err}") }
             })?;
-            let rule = rule.as_ref();
+            let fields = rule.as_ref();
             Ok(PackageRule {
                 pattern,
-                access: rule.and_then(|r| r.access.as_ref()).map(AccessSpec::to_access_list),
-                publish: rule.and_then(|r| r.publish.as_ref()).map(AccessSpec::to_access_list),
-                unpublish: rule.and_then(|r| r.unpublish.as_ref()).map(AccessSpec::to_access_list),
+                access: fields
+                    .and_then(|fields| fields.access.as_ref())
+                    .map(AccessSpec::to_access_list),
+                publish: fields
+                    .and_then(|fields| fields.publish.as_ref())
+                    .map(AccessSpec::to_access_list),
+                unpublish: fields
+                    .and_then(|fields| fields.unpublish.as_ref())
+                    .map(AccessSpec::to_access_list),
             })
         })
         .collect::<Result<Vec<_>, RegistryError>>()?;

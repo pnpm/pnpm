@@ -2931,8 +2931,9 @@ async fn private_hosted_org_masks_before_the_package_acl() {
         None,
     );
     // A per-package rule that also denies the anonymous caller. In the
-    // merged model there is no separate ACL layer to mis-order: a hosted
-    // read denial is a not-found mask by construction.
+    // merged model there is no separate ACL layer whose ordering could
+    // leak: a caller the registry-level default denies is masked as
+    // not-found for every name, explicitly ruled or not.
     config
         .hosted
         .get_mut("acme")

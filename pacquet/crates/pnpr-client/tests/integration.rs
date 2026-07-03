@@ -111,6 +111,7 @@ fn registry_upstream(registry_url: &str, token: &str) -> (String, pnpr::Upstream
             fail_timeout: pnpr::UpstreamConfig::DEFAULT_FAIL_TIMEOUT,
             cache: true,
             access: Some(pnpr::AccessList::parse("$authenticated")),
+            rules: pnpr::PackageRules::default(),
         },
     )
 }
