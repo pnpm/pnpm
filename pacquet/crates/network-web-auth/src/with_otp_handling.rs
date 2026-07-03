@@ -121,7 +121,24 @@ fn js_typeof(value: &Value) -> &'static str {
          --otp option if you are using a classic one-time password (OTP)"
     )
 )]
-pub struct OtpNonInteractiveError;
+pub struct OtpNonInteractiveError {
+    #[error(not(source))]
+    pub auth_url: Option<String>,
+    #[error(not(source))]
+    pub done_url: Option<String>,
+}
+
+impl OtpNonInteractiveError {
+    #[must_use]
+    pub fn new(body: Option<OtpErrorBody>) -> Self {
+        match body {
+            Some(OtpErrorBody { auth_url, done_url }) => {
+                OtpNonInteractiveError { auth_url, done_url }
+            }
+            None => OtpNonInteractiveError { auth_url: None, done_url: None },
+        }
+    }
+}
 
 /// The registry asked for an OTP a second time after one was already
 /// supplied (`ERR_PNPM_OTP_SECOND_CHALLENGE`).
@@ -203,7 +220,7 @@ where
     };
 
     if !Sys::stdin_is_tty() || !Sys::stdout_is_tty() {
-        return Err(WithOtpError::NonInteractive(OtpNonInteractiveError));
+        return Err(WithOtpError::NonInteractive(OtpNonInteractiveError::new(challenge.body)));
     }
 
     let otp = match challenge.body {

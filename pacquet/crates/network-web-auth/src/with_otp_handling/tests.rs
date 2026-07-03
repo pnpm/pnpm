@@ -291,6 +291,27 @@ async fn throws_non_interactive_error_when_stdout_is_not_interactive() {
 }
 
 #[tokio::test]
+async fn preserves_web_auth_urls_on_non_interactive_error() {
+    reset();
+    STDIN_TTY.with(|tty| tty.set(false));
+
+    let error = with_otp_handling::<Fake, UnexpectedReporter, String, TestError, _>(
+        WebAuthFetchOptions::default(),
+        async |_otp| Err(TestError::Otp { body: web_auth_body() }),
+    )
+    .await
+    .expect_err("an error");
+
+    match error {
+        WithOtpError::NonInteractive(error) => {
+            assert_eq!(error.auth_url.as_deref(), Some("https://registry.npmjs.org/auth/abc"));
+            assert_eq!(error.done_url.as_deref(), Some("https://registry.npmjs.org/auth/abc/done"));
+        }
+        other => panic!("expected non-interactive error, got {other:?}"),
+    }
+}
+
+#[tokio::test]
 async fn classic_flow_prompts_for_otp_and_retries_operation() {
     reset();
     set_input(InputResponse::Value(Some("654321".to_owned())));

@@ -99,6 +99,26 @@ describe('withOtpHandling', () => {
       .rejects.toBeInstanceOf(OtpNonInteractiveError)
   })
 
+  it('preserves webauth URLs on OtpNonInteractiveError', async () => {
+    const context = createOtpMockContext({
+      process: { stdin: { isTTY: false } },
+    })
+    const operation = async () => {
+      throw Object.assign(new Error('otp'), {
+        code: 'EOTP',
+        body: {
+          authUrl: 'https://registry.npmjs.org/auth/abc',
+          doneUrl: 'https://registry.npmjs.org/auth/abc/done',
+        },
+      })
+    }
+    await expect(withOtpHandling({ context, fetchOptions, operation }))
+      .rejects.toMatchObject({
+        authUrl: 'https://registry.npmjs.org/auth/abc',
+        doneUrl: 'https://registry.npmjs.org/auth/abc/done',
+      })
+  })
+
   describe('classic OTP flow', () => {
     it('prompts for OTP and retries operation', async () => {
       let callCount = 0

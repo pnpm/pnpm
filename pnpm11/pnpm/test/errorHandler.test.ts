@@ -1,3 +1,6 @@
+import http from 'node:http'
+import type { AddressInfo } from 'node:net'
+
 import { expect, test } from '@jest/globals'
 import { prepare, preparePackages } from '@pnpm/prepare'
 import { fixtures } from '@pnpm/test-fixtures'
@@ -5,7 +8,7 @@ import getPort from 'get-port'
 import isWindows from 'is-windows'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpmSync } from './utils/index.js'
+import { execPnpmSync, spawnPnpm } from './utils/index.js'
 import { isPortInUse } from './utils/isPortInUse.js'
 
 const f = fixtures(import.meta.dirname)
@@ -24,6 +27,74 @@ test('should print json format error when publish --json failed', async () => {
   const { error } = JSON.parse(stdout.toString())
   expect(error?.code).toBe('ERR_PNPM_PACKAGE_VERSION_NOT_FOUND')
   expect(error?.message).toBe('Package version is not defined in the package.json.')
+})
+
+test('should print webauth URLs in json format error when OTP is required non-interactively', async () => {
+  prepare({
+    name: 'test-dist-tag-webauth',
+    version: '1.0.0',
+  })
+
+  const requests: Array<{ method: string | undefined, url: string | undefined }> = []
+  const server = http.createServer((req, res) => {
+    requests.push({
+      method: req.method,
+      url: req.url,
+    })
+    res.writeHead(401, { 'content-type': 'application/json' })
+    res.end(JSON.stringify({
+      authUrl: 'https://registry.npmjs.org/-/auth/login/abc123',
+      doneUrl: 'https://registry.npmjs.org/-/auth/done/abc123',
+    }))
+  })
+
+  try {
+    await new Promise<void>((resolve) => {
+      server.listen(0, '127.0.0.1', resolve)
+    })
+    const { port } = server.address() as AddressInfo
+    const proc = spawnPnpm([
+      'dist-tag',
+      'add',
+      'test-dist-tag-webauth@1.0.0',
+      'beta',
+      '--json',
+      `--registry=http://127.0.0.1:${port}/`,
+    ])
+    const stdout: Buffer[] = []
+    const stderr: Buffer[] = []
+    proc.stdout!.on('data', (chunk: Buffer) => stdout.push(chunk))
+    proc.stderr!.on('data', (chunk: Buffer) => stderr.push(chunk))
+    const status = await new Promise<number | null>((resolve, reject) => {
+      proc.on('error', reject)
+      proc.on('close', (code: number | null, signal: string | null) => {
+        if (signal) {
+          reject(new Error(`Killed by signal ${signal}\n\n${Buffer.concat([...stdout, ...stderr]).toString()}`))
+        } else {
+          resolve(code)
+        }
+      })
+    })
+
+    expect(status).toBe(1)
+    expect(requests).toEqual([{
+      method: 'PUT',
+      url: '/-/package/test-dist-tag-webauth/dist-tags/beta',
+    }])
+    const { error } = JSON.parse(Buffer.concat(stdout).toString())
+    expect(error).toMatchObject({
+      code: 'ERR_PNPM_OTP_NON_INTERACTIVE',
+      authUrl: 'https://registry.npmjs.org/-/auth/login/abc123',
+      doneUrl: 'https://registry.npmjs.org/-/auth/done/abc123',
+    })
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((err) => {
+        if (err) reject(err)
+        else resolve()
+      })
+    })
+  }
 })
 
 test('should print json format error when add dependency on workspace root', async () => {

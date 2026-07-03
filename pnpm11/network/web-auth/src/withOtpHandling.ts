@@ -84,7 +84,7 @@ export async function withOtpHandling<T> ({
   } catch (error) {
     if (!isOtpError(error)) throw error
     if (!process.stdin.isTTY || !process.stdout.isTTY) {
-      throw new OtpNonInteractiveError()
+      throw new OtpNonInteractiveError(error.body)
     }
 
     let otp: string | undefined
@@ -176,10 +176,19 @@ export class SyntheticOtpError extends Error implements OtpError {
 }
 
 export class OtpNonInteractiveError extends PnpmError {
-  constructor () {
+  readonly authUrl?: string
+  readonly doneUrl?: string
+
+  constructor (body?: OtpErrorBody) {
     super('OTP_NON_INTERACTIVE', 'The registry requires additional authentication, but pnpm is not running in an interactive terminal', {
       hint: 'Re-run this command in an interactive terminal to complete authentication, or provide the --otp option if you are using a classic one-time password (OTP)',
     })
+    if (typeof body?.authUrl === 'string') {
+      this.authUrl = body.authUrl
+    }
+    if (typeof body?.doneUrl === 'string') {
+      this.doneUrl = body.doneUrl
+    }
   }
 }
 

@@ -27,6 +27,7 @@ export async function errorHandler (error: Error & { code?: string }): Promise<v
       error: {
         code: error.code ?? error.name,
         message: error.message,
+        ...getWebAuthUrls(error),
       },
     }, null, 2))
   } else if (global[REPORTER_INITIALIZED] !== 'silent') {
@@ -78,4 +79,15 @@ async function killProcesses (status: number): Promise<void> {
     // ignore error here
   }
   await exit(status)
+}
+
+function getWebAuthUrls (error: Error & { authUrl?: unknown, doneUrl?: unknown }): { authUrl?: string, doneUrl?: string } {
+  const urls: { authUrl?: string, doneUrl?: string } = {}
+  if (typeof error.authUrl === 'string') {
+    urls.authUrl = error.authUrl
+  }
+  if (typeof error.doneUrl === 'string') {
+    urls.doneUrl = error.doneUrl
+  }
+  return urls
 }
