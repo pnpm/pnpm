@@ -391,6 +391,20 @@ fn named_registry_empty_scope_errors() {
 }
 
 #[test]
+fn named_registry_dot_segment_name_errors() {
+    let gh = gh_aliases();
+    for input in ["gh:.", "gh:..", "gh:@acme/.", "gh:@acme/.."] {
+        let err =
+            parse_named_registry_specifier_to_registry_package_spec(input, &gh, None, "latest")
+                .expect_err("dot-segment names must error");
+        assert!(
+            matches!(err, ParseNamedRegistrySpecifierError::InvalidPackageName { .. }),
+            "got {err:?} for {input:?}",
+        );
+    }
+}
+
+#[test]
 fn named_registry_path_separators_in_name_error() {
     let gh = gh_aliases();
     for input in [

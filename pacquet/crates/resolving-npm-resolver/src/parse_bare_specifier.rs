@@ -271,11 +271,19 @@ fn is_well_formed_package_name(pkg_name: &str) -> bool {
     }
     match pkg_name.strip_prefix('@') {
         Some(scoped) => match scoped.split_once('/') {
-            Some((scope, name)) => !scope.is_empty() && !name.is_empty() && !name.contains('/'),
+            Some((scope, name)) => {
+                !scope.is_empty() && !name.contains('/') && is_well_formed_name_segment(name)
+            }
             None => false,
         },
-        None => !pkg_name.contains('/'),
+        None => !pkg_name.contains('/') && is_well_formed_name_segment(pkg_name),
     }
+}
+
+// `.` and `..` are never valid npm names, and as URL path segments they
+// get normalized away from the intended registry path.
+fn is_well_formed_name_segment(name: &str) -> bool {
+    !name.is_empty() && name != "." && name != ".."
 }
 
 /// Discriminate between an exact version, a semver range, and a

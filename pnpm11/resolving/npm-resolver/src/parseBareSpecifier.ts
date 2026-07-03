@@ -176,7 +176,13 @@ function isWellFormedPackageName (pkgName: string): boolean {
     if (sepIndex === -1) return false
     const scope = pkgName.substring('@'.length, sepIndex)
     const name = pkgName.substring(sepIndex + '/'.length)
-    return scope.length > 0 && name.length > 0 && !name.includes('/')
+    return scope.length > 0 && !name.includes('/') && isWellFormedNameSegment(name)
   }
-  return !pkgName.includes('/')
+  return !pkgName.includes('/') && isWellFormedNameSegment(pkgName)
+}
+
+// `.` and `..` are never valid npm names, and as URL path segments they get
+// normalized away from the intended registry path.
+function isWellFormedNameSegment (name: string): boolean {
+  return name.length > 0 && name !== '.' && name !== '..'
 }
