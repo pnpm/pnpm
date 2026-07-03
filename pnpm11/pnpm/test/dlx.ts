@@ -337,7 +337,12 @@ test('dlx creates cache and store prune cleans cache', async () => {
     '--allow-build=shx',
     '--allow-build=shx@https://codeload.github.com/shelljs/shx/tar.gz/61aca968cd7afc712ca61a4fc4ec3201e3770dc7',
   ]
-  await Promise.all(Object.entries(commands).map(([cmd, args]) => execPnpm([...settings, ...allowBuilds, 'dlx', cmd, ...args])))
+
+  /* eslint-disable no-await-in-loop */
+  for (const [cmd, args] of Object.entries(commands)) {
+    await execPnpm([...settings, ...allowBuilds, 'dlx', cmd, ...args])
+  }
+  /* eslint-enable no-await-in-loop */
 
   // ensure that the dlx cache has certain structure
   const dlxBaseDir = path.resolve('cache', 'dlx')
