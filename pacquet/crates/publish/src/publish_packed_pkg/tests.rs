@@ -6,8 +6,7 @@ use crate::registry_config_keys::parse_supported_registry_url;
 use pacquet_network::ThrottledClient;
 use pacquet_network_web_auth::{Host as WebAuthHost, WebAuthFetchOptions, WithOtpError};
 use pacquet_network_web_auth_testing::{
-    FakeHost, InputResponse, RecordingReporter, SleepBehavior, infos, ok_202, ok_token, reset,
-    set_fetch, set_input, set_sleep_behavior, set_stdin_tty,
+    InputResponse, SleepBehavior, ok_202, ok_token, web_auth_fake,
 };
 use pacquet_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
@@ -324,6 +323,7 @@ async fn publish_with_otp_handling_returns_the_response_when_no_otp_is_required(
 /// a mocked operation cannot.
 #[tokio::test]
 async fn classic_otp_flow_prompts_then_retries_with_the_code() {
+    web_auth_fake!();
     reset();
     set_input(InputResponse::Value(Some("654321".to_owned())));
     let mut server = mockito::Server::new_async().await;
@@ -369,6 +369,7 @@ async fn classic_otp_flow_prompts_then_retries_with_the_code() {
 /// flow gives up rather than prompting a second time.
 #[tokio::test]
 async fn classic_otp_flow_second_challenge_is_an_error() {
+    web_auth_fake!();
     reset();
     set_input(InputResponse::Value(Some("123456".to_owned())));
     let mut server = mockito::Server::new_async().await;
@@ -411,6 +412,7 @@ async fn classic_otp_flow_second_challenge_is_an_error() {
 /// fails fast without a retry PUT.
 #[tokio::test]
 async fn non_interactive_terminal_rejects_the_otp_challenge() {
+    web_auth_fake!();
     reset();
     set_stdin_tty(false);
     let mut server = mockito::Server::new_async().await;
@@ -444,6 +446,7 @@ async fn non_interactive_terminal_rejects_the_otp_challenge() {
 /// the retry PUT carries the web token. The auth URL is surfaced to the user.
 #[tokio::test]
 async fn web_auth_flow_polls_then_retries_with_the_web_token() {
+    web_auth_fake!();
     reset();
     let mut fetches = 0;
     set_fetch(Box::new(move || {
@@ -499,6 +502,7 @@ async fn web_auth_flow_polls_then_retries_with_the_web_token() {
 /// times out without ever retrying the PUT.
 #[tokio::test]
 async fn web_auth_flow_times_out_when_the_poll_never_completes() {
+    web_auth_fake!();
     reset();
     set_fetch(Box::new(|| Ok(ok_202())));
     set_sleep_behavior(SleepBehavior::AdvanceByFixed(6 * 60 * 1000));
