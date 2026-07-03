@@ -308,6 +308,52 @@ fn recursive_publish_pushes_each_eligible_package() {
     drop(root);
 }
 
+/// A package whose current version is already on the registry is skipped; only
+/// the not-yet-published package is pushed.
+#[test]
+fn recursive_publish_skips_already_published_packages() {
+    let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
+    let mut server = mockito::Server::new();
+    write_workspace(
+        &workspace,
+        &[("project-1", public_pkg("project-1")), ("project-2", public_pkg("project-2"))],
+    );
+    write_registry_npmrc(&workspace, &format!("{}/", server.url()));
+
+    // project-1 already has 1.0.0 published (an abbreviated packument that lists
+    // the version), so it is skipped; project-2 is absent (404) and published.
+    let packument = json!({
+        "name": "project-1",
+        "dist-tags": { "latest": "1.0.0" },
+        "versions": {
+            "1.0.0": {
+                "name": "project-1",
+                "version": "1.0.0",
+                "dist": {
+                    "tarball": "http://example.test/project-1-1.0.0.tgz",
+                    "integrity": "sha512-deadbeef",
+                },
+            },
+        },
+    });
+    server.mock("GET", "/project-1").with_status(200).with_body(packument.to_string()).create();
+    server.mock("GET", "/project-2").with_status(404).create();
+    let put_1 = server.mock("PUT", "/project-1").expect(0).create();
+    let put_2 =
+        server.mock("PUT", "/project-2").with_status(200).with_body("{}").expect(1).create();
+
+    clear_ci(pacquet)
+        .with_arg("-r")
+        .with_arg("publish")
+        .with_arg("--no-git-checks")
+        .assert()
+        .success();
+
+    put_1.assert();
+    put_2.assert();
+    drop(root);
+}
+
 /// `--force` skips the already-published probe entirely and republishes, so no
 /// `GET` is issued.
 #[test]

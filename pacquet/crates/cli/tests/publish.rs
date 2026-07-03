@@ -197,6 +197,31 @@ fn publish_from_a_prebuilt_tarball() {
 }
 
 #[test]
+fn publish_a_directory_argument_publishes_that_package() {
+    let dir = tempfile::tempdir().expect("workspace");
+    let mut server = mockito::Server::new();
+    let registry = format!("{}/", server.url());
+    fs::write(dir.path().join(".npmrc"), format!("registry={registry}\n")).expect("write .npmrc");
+    let package_dir = dir.path().join("subpkg");
+    fs::create_dir(&package_dir).expect("create package dir");
+    fs::write(
+        package_dir.join("package.json"),
+        json!({ "name": "test-publish-subdir", "version": "1.0.0" }).to_string(),
+    )
+    .expect("write package.json");
+
+    let mock = server
+        .mock("PUT", "/test-publish-subdir")
+        .with_status(200)
+        .with_body("{}")
+        .expect(1)
+        .create();
+
+    assert_success(&publish(dir.path(), &["subpkg"]));
+    mock.assert();
+}
+
+#[test]
 fn errors_when_publishing_a_nonexistent_tarball() {
     let dir = tempfile::tempdir().expect("workspace");
     let registry = "https://registry.example/";
