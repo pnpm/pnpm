@@ -3,33 +3,39 @@
 //! A **registry mount** is an addressable npm-registry surface exposed at
 //! `https://<pnpr>/~<mount>/`. There are two concrete kinds — a pnpr-hosted
 //! registry and a single-origin upstream registry — plus one composite, a
-//! **router**, that maps package-name patterns to a single concrete source.
+//! **router**, an ordered list of concrete mounts behind one URL.
 //!
 //! The model is governed by one invariant: **provenance is declared, never
-//! inferred.** A package resolves to exactly one declared concrete origin, and
-//! no configuration can express a cross-origin fall-through. A router's first
-//! matching route is authoritative; later routes are never consulted, and a
-//! matched source's "not found" or "unavailable" is final. There is no
+//! inferred.** Every concrete mount declares the package-name patterns it
+//! serves — its namespace — and that namespace is enforced on the mount
+//! itself, on every path to it: an unclaimed name is a definitive not-found
+//! before storage or the upstream is consulted, whether the request came
+//! through a router or addressed the mount directly. A router selects the
+//! first listed source whose patterns claim the name — authoritatively. It can
+//! order competing claims, but it can never assign a name to a mount that does
+//! not claim it, so no configuration can express a cross-origin fall-through:
+//! a selected source's "not found" or "unavailable" is final. There is no
 //! existence-based fallback, no mirror group, and no multi-endpoint failover.
 //!
-//! Because routing is first-match-in-order, route order is load-bearing: a
+//! Because selection is first-source-in-order, source order is load-bearing: a
 //! misordered router is the one way a configuration mistake could silently send
 //! a private scope to a public origin. [`Mounts::validate`] rejects that class
-//! at config load (and reload) — shadowed/unreachable routes, duplicate
-//! patterns, and sources that are unknown, self-referential, or not concrete.
-//! The check is static because [`PackagePattern`]'s coverage relation is
-//! decidable for this deliberately small glob language.
+//! at config load (and reload) — shadowed/unreachable sources, duplicate
+//! sources and patterns, and sources that are unknown, self-referential, or
+//! not concrete. The check is static because [`PackagePattern`]'s coverage
+//! relation is decidable for this deliberately small glob language.
 
 use crate::package_name::PackageName;
 use indexmap::IndexMap;
 use std::fmt;
 
-/// A package-name routing pattern.
+/// A package-name pattern: one member of a concrete mount's declared
+/// namespace.
 ///
 /// Deliberately a small, **decidable** language so [`Self::covers`] can decide
 /// statically whether one pattern matches a superset of another — the property
-/// [`Mounts::validate`] relies on to detect shadowed routes. A general glob
-/// (`wax`) would make coverage undecidable, so router patterns are restricted
+/// [`Mounts::validate`] relies on to detect shadowed sources. A general glob
+/// (`wax`) would make coverage undecidable, so mount patterns are restricted
 /// to these four shapes; an unrecognized wildcard is a parse error rather than
 /// a silently-narrowing literal.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -46,12 +52,12 @@ pub enum PackagePattern {
 }
 
 impl PackagePattern {
-    /// Parse a router pattern. Rejects any `*` that is not one of the three
+    /// Parse a mount pattern. Rejects any `*` that is not one of the three
     /// recognized wildcard shapes (`**`, `@*/*`, `@<scope>/*`), and any
     /// remaining literal that is not a well-formed package name — so an
     /// unsupported glob or a typo like `@acme` (meaning `@acme/*`) fails
     /// loudly instead of being read as a literal name that silently never
-    /// matches and lets the scope fall through to a later route.
+    /// matches and lets the scope land on a later router source.
     pub fn parse(pattern: &str) -> Result<Self, MountConfigError> {
         let invalid = || MountConfigError::InvalidPattern { pattern: pattern.to_string() };
         if pattern.is_empty() {
@@ -97,7 +103,7 @@ impl PackagePattern {
     }
 
     /// Whether this pattern matches every package the `other` pattern matches
-    /// (i.e. `self` ⊇ `other`). Decides route shadowing in [`Mounts::validate`].
+    /// (i.e. `self` ⊇ `other`). Decides source shadowing in [`Mounts::validate`].
     ///
     /// A union of earlier patterns can only shadow `other` through a single
     /// member: the one unbounded case — many `@<scope>/*` covering `@*/*` —
@@ -144,44 +150,47 @@ fn scoped_name(package: &str) -> Option<(&str, &str)> {
     (!scope.is_empty() && !name.is_empty()).then_some((scope, name))
 }
 
-/// One router route: package-name patterns mapped to a single concrete source
-/// mount. Evaluated in declared order; the first route with a matching pattern
-/// is authoritative.
-#[derive(Debug, Clone)]
-pub struct Route {
-    pub patterns: Vec<PackagePattern>,
-    /// A [`MountKind::Hosted`] or [`MountKind::Upstream`] mount id — never
-    /// another router (enforced by [`Mounts::validate`]).
-    pub source: String,
-}
-
-impl Route {
-    /// Whether any of this route's patterns matches `package`.
-    fn matches(&self, package: &str) -> bool {
-        self.patterns.iter().any(|pattern| pattern.matches(package))
-    }
-}
-
 /// The routing role of a mount. The per-mount serving details (upstream URL,
 /// credentials, access policy, org id) live in the `config` module; this
 /// captures only what routing and validation need.
+///
+/// A concrete mount's `patterns` are its declared namespace: the names it
+/// serves and accepts publishes for, and the claim routers derive their
+/// selection from. An empty list claims every name — the catch-all in any
+/// router.
 #[derive(Debug, Clone)]
 pub enum MountKind {
     /// A pnpr-hosted registry: the authoritative origin for the packages it
     /// stores, and the only kind that accepts writes. Reads and writes are
     /// scoped to the mount's own storage namespace (its optional `org`).
-    Hosted,
+    Hosted { patterns: Vec<PackagePattern> },
     /// Exactly one external origin. One URL, one credential generation, one
     /// cache namespace — not a chain and not a set of endpoints.
-    Upstream,
-    /// Maps package-name patterns to concrete mounts in declared order.
-    Router { routes: Vec<Route> },
+    Upstream { patterns: Vec<PackagePattern> },
+    /// An ordered list of concrete mounts. A package resolves to the first
+    /// source whose declared patterns claim it.
+    Router { sources: Vec<String> },
 }
 
 impl MountKind {
     fn is_concrete(&self) -> bool {
-        matches!(self, MountKind::Hosted | MountKind::Upstream)
+        matches!(self, MountKind::Hosted { .. } | MountKind::Upstream { .. })
     }
+
+    /// A concrete mount's declared namespace; `None` for a router (a router
+    /// has no namespace of its own — it derives one from its sources).
+    fn patterns(&self) -> Option<&[PackagePattern]> {
+        match self {
+            MountKind::Hosted { patterns } | MountKind::Upstream { patterns } => Some(patterns),
+            MountKind::Router { .. } => None,
+        }
+    }
+}
+
+/// Whether a concrete mount's declared namespace claims `package`. An empty
+/// pattern list claims every name.
+fn namespace_claims(patterns: &[PackagePattern], package: &str) -> bool {
+    patterns.is_empty() || patterns.iter().any(|pattern| pattern.matches(package))
 }
 
 /// The kind of a concrete (non-router) source a request resolved to.
@@ -194,11 +203,14 @@ pub enum ConcreteKind {
 /// The outcome of resolving a request `(mount, package)` to a concrete origin.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Resolved<'a> {
-    /// Resolved to exactly one concrete source mount.
+    /// Resolved to exactly one concrete source mount whose declared patterns
+    /// claim the package.
     Concrete { mount: &'a str, kind: ConcreteKind },
-    /// A router matched no route for this package. The request is a definitive
-    /// `404`; the router never falls through to another origin.
-    NoRoute,
+    /// No declared namespace claims this package: the addressed concrete
+    /// mount's patterns don't cover it, or none of a router's sources claim
+    /// it. A definitive `404` on reads and a rejection on writes, answered
+    /// before storage or any upstream is consulted — never a fall-through.
+    Unclaimed,
     /// The addressed mount id is not defined.
     UnknownMount,
 }
@@ -241,34 +253,57 @@ impl Mounts {
     }
 
     /// Resolve a request addressed to `mount` for `package` to its single
-    /// concrete origin. A concrete mount resolves to itself; a router resolves
-    /// by first matching route (authoritatively — a non-matching router is
-    /// [`Resolved::NoRoute`], never a fall-through).
+    /// concrete origin, enforcing every concrete mount's declared namespace at
+    /// the mount itself. A concrete mount resolves to itself only when its
+    /// patterns claim the package; a router resolves to the first source whose
+    /// patterns claim it (authoritatively — an unclaimed package is
+    /// [`Resolved::Unclaimed`], never a fall-through).
     #[must_use]
     pub fn resolve<'a>(&'a self, mount: &str, package: &str) -> Resolved<'a> {
         let Some((mount_id, kind)) = self.mounts.get_key_value(mount) else {
             return Resolved::UnknownMount;
         };
         match kind {
-            MountKind::Hosted => Resolved::Concrete { mount: mount_id, kind: ConcreteKind::Hosted },
-            MountKind::Upstream => {
-                Resolved::Concrete { mount: mount_id, kind: ConcreteKind::Upstream }
-            }
-            MountKind::Router { routes } => {
-                let Some(route) = routes.iter().find(|route| route.matches(package)) else {
-                    return Resolved::NoRoute;
-                };
-                // Validation guarantees every route source is a defined concrete
-                // mount, so the lookup and the kind classification cannot miss.
-                match self.mounts.get_key_value(&route.source) {
-                    Some((source_id, MountKind::Hosted)) => {
-                        Resolved::Concrete { mount: source_id, kind: ConcreteKind::Hosted }
-                    }
-                    Some((source_id, MountKind::Upstream)) => {
-                        Resolved::Concrete { mount: source_id, kind: ConcreteKind::Upstream }
-                    }
-                    _ => Resolved::UnknownMount,
+            MountKind::Hosted { patterns } => {
+                if namespace_claims(patterns, package) {
+                    Resolved::Concrete { mount: mount_id, kind: ConcreteKind::Hosted }
+                } else {
+                    Resolved::Unclaimed
                 }
+            }
+            MountKind::Upstream { patterns } => {
+                if namespace_claims(patterns, package) {
+                    Resolved::Concrete { mount: mount_id, kind: ConcreteKind::Upstream }
+                } else {
+                    Resolved::Unclaimed
+                }
+            }
+            MountKind::Router { sources } => {
+                // Validation guarantees every source is a defined concrete
+                // mount; a non-concrete entry here can only mean the graph was
+                // built without validation, and it simply never matches.
+                for source in sources {
+                    match self.mounts.get_key_value(source) {
+                        Some((source_id, MountKind::Hosted { patterns }))
+                            if namespace_claims(patterns, package) =>
+                        {
+                            return Resolved::Concrete {
+                                mount: source_id,
+                                kind: ConcreteKind::Hosted,
+                            };
+                        }
+                        Some((source_id, MountKind::Upstream { patterns }))
+                            if namespace_claims(patterns, package) =>
+                        {
+                            return Resolved::Concrete {
+                                mount: source_id,
+                                kind: ConcreteKind::Upstream,
+                            };
+                        }
+                        _ => {}
+                    }
+                }
+                Resolved::Unclaimed
             }
         }
     }
@@ -285,7 +320,7 @@ impl Mounts {
     }
 
     /// Validate the whole mount set, failing closed on any configuration that
-    /// could route a private name to the wrong origin or leave a route dead.
+    /// could route a private name to the wrong origin or leave a source dead.
     /// Run at config load and on reload.
     pub fn validate(&self) -> Result<(), MountConfigError> {
         if let Some(target) = &self.default_target
@@ -294,92 +329,122 @@ impl Mounts {
             return Err(MountConfigError::UndefinedDefaultTarget { target: target.clone() });
         }
         for (name, kind) in &self.mounts {
-            if let MountKind::Router { routes } = kind {
-                // A router with no routes can never match any package — every
-                // request through it is a 404. That's only ever a config
-                // mistake (a hosted/upstream mount was probably intended), so
-                // reject it like an empty route.
-                if routes.is_empty() {
-                    return Err(MountConfigError::EmptyRouter { router: name.clone() });
+            match kind {
+                MountKind::Hosted { patterns } | MountKind::Upstream { patterns } => {
+                    validate_namespace(name, patterns)?;
                 }
-                self.validate_router(name, routes)?;
+                MountKind::Router { sources } => {
+                    // A router with no sources can never serve any package —
+                    // every request through it is a 404. That's only ever a
+                    // config mistake (a hosted/upstream mount was probably
+                    // intended), so reject it.
+                    if sources.is_empty() {
+                        return Err(MountConfigError::EmptyRouter { router: name.clone() });
+                    }
+                    self.validate_router(name, sources)?;
+                }
             }
         }
         Ok(())
     }
 
-    fn validate_router(&self, router: &str, routes: &[Route]) -> Result<(), MountConfigError> {
+    fn validate_router(&self, router: &str, sources: &[String]) -> Result<(), MountConfigError> {
+        // A pattern-less source claims every name; represent that claim as an
+        // explicit `**` so coverage against and by earlier sources is decided
+        // by the same relation as any declared pattern.
+        const CATCH_ALL: &[PackagePattern] = &[PackagePattern::All];
+        let mut seen_sources: Vec<&str> = Vec::new();
         let mut seen_patterns: Vec<&PackagePattern> = Vec::new();
-        for (index, route) in routes.iter().enumerate() {
-            if route.patterns.is_empty() {
-                return Err(MountConfigError::EmptyRoute { router: router.to_string(), index });
-            }
+        for (index, source) in sources.iter().enumerate() {
             // The source must resolve to a defined concrete mount: an unknown
             // name, the router itself, or another router are all rejected, so a
-            // route can only ever land on a real origin (no nesting, no cycles).
-            if route.source == router {
+            // router can only ever land on a real origin (no nesting, no cycles).
+            if source == router {
                 return Err(MountConfigError::SelfReferentialRouter { router: router.to_string() });
             }
-            match self.mounts.get(&route.source) {
+            let kind = match self.mounts.get(source) {
                 None => {
                     return Err(MountConfigError::UnknownSource {
                         router: router.to_string(),
-                        source: route.source.clone(),
+                        source: source.clone(),
                     });
                 }
-                Some(source) if !source.is_concrete() => {
+                Some(kind) if !kind.is_concrete() => {
                     return Err(MountConfigError::NonConcreteSource {
                         router: router.to_string(),
-                        source: route.source.clone(),
+                        source: source.clone(),
                     });
                 }
-                Some(_) => {}
+                Some(kind) => kind,
+            };
+            if seen_sources.contains(&source.as_str()) {
+                return Err(MountConfigError::DuplicateSource {
+                    router: router.to_string(),
+                    source: source.clone(),
+                });
             }
-            // A route is unreachable when every one of its patterns is already
-            // covered by some pattern in an earlier route — the misordered-`**`
-            // hazard and its general form. Reject it so a shadowed private route
-            // is a startup error, not a silent public fall-through.
-            if route
-                .patterns
+            seen_sources.push(source);
+            let patterns = match kind.patterns() {
+                Some([]) | None => CATCH_ALL,
+                Some(patterns) => patterns,
+            };
+            // A source is unreachable when every name it claims is already
+            // claimed by an earlier source — the misordered-catch-all hazard
+            // and its general form. Reject it so a shadowed private source is
+            // a startup error, not a silent public fall-through.
+            if patterns
                 .iter()
                 .all(|pattern| seen_patterns.iter().any(|earlier| earlier.covers(pattern)))
             {
-                return Err(MountConfigError::UnreachableRoute {
+                return Err(MountConfigError::UnreachableSource {
                     router: router.to_string(),
                     index,
-                    source: route.source.clone(),
+                    source: source.clone(),
                 });
             }
-            for pattern in &route.patterns {
-                // A pattern strictly narrower than an earlier route's pattern can
-                // never match — every package it claims is already routed away.
-                // The whole-route check above only fires when *all* of a route's
-                // patterns are covered; catch the partial case here so one
-                // shadowed pattern in an otherwise-reachable route can't silently
-                // send a private package to the origin an earlier `**`/scope route
-                // points at. Strict (`earlier != pattern`) so an exact repeat
-                // stays the clearer `DuplicatePattern` below rather than a shadow.
-                if let Some(earlier) = seen_patterns
-                    .iter()
-                    .find(|&&earlier| earlier != pattern && earlier.covers(pattern))
+            for pattern in patterns {
+                // A pattern covered by an earlier source's pattern can never be
+                // selected in this router — every package it claims is already
+                // routed away. The whole-source check above only fires when
+                // *all* of a source's patterns are covered; catch the partial
+                // case here so one dead claim of an otherwise-reachable source
+                // can't silently send a private package to the origin an
+                // earlier catch-all/scope claim points at. An identical claim
+                // by two sources is the same defect: whichever is listed later
+                // never receives the name, which is genuinely ambiguous
+                // provenance the operator must resolve in the declared
+                // namespaces, not by order.
+                if let Some(earlier) =
+                    seen_patterns.iter().find(|&&earlier| earlier.covers(pattern))
                 {
                     return Err(MountConfigError::ShadowedPattern {
                         router: router.to_string(),
+                        source: source.clone(),
                         pattern: pattern.to_string(),
                         by: earlier.to_string(),
                     });
                 }
-                if seen_patterns.contains(&pattern) {
-                    return Err(MountConfigError::DuplicatePattern {
-                        router: router.to_string(),
-                        pattern: pattern.to_string(),
-                    });
-                }
-                seen_patterns.push(pattern);
             }
+            // Extend the seen set only after the per-pattern pass: a source's
+            // own patterns may overlap each other (a mount-level redundancy,
+            // not a routing defect) without shadowing anything across sources.
+            seen_patterns.extend(patterns);
         }
         Ok(())
     }
+}
+
+/// Reject a duplicate pattern within one concrete mount's declared namespace.
+fn validate_namespace(mount: &str, patterns: &[PackagePattern]) -> Result<(), MountConfigError> {
+    for (index, pattern) in patterns.iter().enumerate() {
+        if patterns[..index].contains(pattern) {
+            return Err(MountConfigError::DuplicatePattern {
+                mount: mount.to_string(),
+                pattern: pattern.to_string(),
+            });
+        }
+    }
+    Ok(())
 }
 
 /// A static mount-configuration defect. Surfaced by [`Mounts::validate`] and by
@@ -387,30 +452,32 @@ impl Mounts {
 /// `InvalidConfig` so a bad mount set fails server startup and config reload.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MountConfigError {
-    /// An unsupported wildcard in a router pattern.
+    /// An unsupported wildcard in a mount pattern.
     InvalidPattern { pattern: String },
-    /// A wildcard-free router pattern that is not a well-formed package name,
+    /// A wildcard-free mount pattern that is not a well-formed package name,
     /// so it could never match any request.
     ExactPatternNotAName { pattern: String },
     /// `defaultTarget` names a mount that does not exist.
     UndefinedDefaultTarget { target: String },
-    /// A router route has no patterns, so it can never match.
-    EmptyRoute { router: String, index: usize },
-    /// A router has no routes at all, so it can never match any package.
+    /// A router has no sources at all, so it can never serve any package.
     EmptyRouter { router: String },
-    /// A router route lists the router itself as its source.
+    /// A router lists itself as a source.
     SelfReferentialRouter { router: String },
-    /// A router route's source is not a defined mount.
+    /// A router source is not a defined mount.
     UnknownSource { router: String, source: String },
-    /// A router route's source is another router, not a concrete mount.
+    /// A router source is another router, not a concrete mount.
     NonConcreteSource { router: String, source: String },
-    /// Two router routes declare the same pattern.
-    DuplicatePattern { router: String, pattern: String },
-    /// A router route is fully shadowed by earlier routes and can never match.
-    UnreachableRoute { router: String, index: usize, source: String },
-    /// A single router pattern is strictly covered by an earlier route's
-    /// pattern, so it can never match even though the rest of its route can.
-    ShadowedPattern { router: String, pattern: String, by: String },
+    /// A router lists the same source more than once.
+    DuplicateSource { router: String, source: String },
+    /// A concrete mount declares the same pattern more than once.
+    DuplicatePattern { mount: String, pattern: String },
+    /// A router source's claims are fully covered by earlier sources, so it
+    /// can never be selected.
+    UnreachableSource { router: String, index: usize, source: String },
+    /// A single pattern of a later source is covered by an earlier source's
+    /// pattern, so it can never be selected in this router even though the
+    /// rest of its source stays reachable.
+    ShadowedPattern { router: String, source: String, pattern: String, by: String },
 }
 
 impl fmt::Display for MountConfigError {
@@ -418,50 +485,51 @@ impl fmt::Display for MountConfigError {
         match self {
             MountConfigError::InvalidPattern { pattern } => write!(
                 f,
-                "unsupported router pattern {pattern:?}: use an exact name, `@scope/*`, `@*/*`, \
+                "unsupported mount pattern {pattern:?}: use an exact name, `@scope/*`, `@*/*`, \
                  or `**`",
             ),
             MountConfigError::ExactPatternNotAName { pattern } => write!(
                 f,
-                "router pattern {pattern:?} is not a valid package name, so it can never match; \
-                 to route every package in a scope use `@scope/*`",
+                "mount pattern {pattern:?} is not a valid package name, so it can never match; \
+                 to claim every package in a scope use `@scope/*`",
             ),
             MountConfigError::UndefinedDefaultTarget { target } => {
                 write!(f, "defaultTarget {target:?} is not a defined mount")
             }
-            MountConfigError::EmptyRoute { router, index } => {
-                write!(f, "router {router:?} route #{index} has no patterns", index = index + 1)
-            }
             MountConfigError::EmptyRouter { router } => write!(
                 f,
-                "router {router:?} has no routes, so it can never match any package; add routes \
-                 or remove the mount",
+                "router {router:?} has no sources, so it can never serve any package; add \
+                 sources or remove the mount",
             ),
             MountConfigError::SelfReferentialRouter { router } => {
-                write!(f, "router {router:?} lists itself as a route source")
+                write!(f, "router {router:?} lists itself as a source")
             }
             MountConfigError::UnknownSource { router, source } => {
-                write!(f, "router {router:?} route source {source:?} is not a defined mount")
+                write!(f, "router {router:?} source {source:?} is not a defined mount")
             }
             MountConfigError::NonConcreteSource { router, source } => write!(
                 f,
-                "router {router:?} route source {source:?} is itself a router; a route must target \
-                 a hosted or upstream mount",
+                "router {router:?} source {source:?} is itself a router; a source must be a \
+                 hosted or upstream mount",
             ),
-            MountConfigError::DuplicatePattern { router, pattern } => {
-                write!(f, "router {router:?} declares pattern {pattern:?} more than once")
+            MountConfigError::DuplicateSource { router, source } => {
+                write!(f, "router {router:?} lists source {source:?} more than once")
             }
-            MountConfigError::UnreachableRoute { router, index, source } => write!(
+            MountConfigError::DuplicatePattern { mount, pattern } => {
+                write!(f, "mount {mount:?} declares pattern {pattern:?} more than once")
+            }
+            MountConfigError::UnreachableSource { router, index, source } => write!(
                 f,
-                "router {router:?} route #{index} (source {source:?}) is unreachable: earlier \
-                 routes already match every package it would; reorder it before the routes that \
+                "router {router:?} source #{index} ({source:?}) is unreachable: earlier sources \
+                 already claim every package it would serve; list it before the sources that \
                  shadow it, or remove it",
                 index = index + 1,
             ),
-            MountConfigError::ShadowedPattern { router, pattern, by } => write!(
+            MountConfigError::ShadowedPattern { router, source, pattern, by } => write!(
                 f,
-                "router {router:?} pattern {pattern:?} is unreachable: earlier pattern {by:?} \
-                 already matches every package it would; reorder it before {by:?} or remove it",
+                "router {router:?} can never select source {source:?} for its pattern \
+                 {pattern:?}: an earlier source's pattern {by:?} already claims every package it \
+                 would; reorder the sources or adjust the declared namespaces",
             ),
         }
     }

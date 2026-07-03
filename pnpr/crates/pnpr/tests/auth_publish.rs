@@ -37,7 +37,7 @@ fn static_config_with_packages(dir: &TempDir, packages_block: &str) -> (Config, 
     // base and the per-package ACL in `packages_block` gates them.
     let mounts_block = "mounts:\n  \
         local:\n    type: hosted\n    org: \"\"\n    access: $all\n  \
-        main:\n    type: router\n    routes:\n      - patterns: ['**']\n        source: local\n\
+        main:\n    type: router\n    sources: [local]\n\
         defaultTarget: main\n";
     let yaml =
         format!("storage: {}\n{mounts_block}packages:\n{packages_block}\n", storage.display());

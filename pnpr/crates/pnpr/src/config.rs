@@ -1,6 +1,6 @@
 use crate::{
     error::RegistryError,
-    mount::{MountConfigError, MountKind, Mounts, PackagePattern, Route},
+    mount::{MountConfigError, MountKind, Mounts, PackagePattern},
     policy::{AccessGroups, AccessList, Identity, PackagePolicies, PackagePolicy},
     s3::{S3Settings, build_s3_store},
 };
@@ -143,9 +143,11 @@ pub struct Config {
     /// The validated registry-mount routing graph: every addressable origin
     /// (`/~<mount>/`) plus the optional path-less default target. Concrete
     /// upstream mounts are backed by [`Self::uplinks`]; hosted mounts by
-    /// [`Self::hosted`]; routers map package patterns to one of those.
-    /// Built and validated at config load — a misordered or self-referential
-    /// router fails startup rather than serving the wrong origin.
+    /// [`Self::hosted`]; each declares the package-name patterns it serves,
+    /// and a router selects the first of its sources whose patterns claim the
+    /// name. Built and validated at config load — a misordered or
+    /// self-referential router fails startup rather than serving the wrong
+    /// origin.
     pub mounts: Mounts,
     /// Hosted mounts, keyed by mount id. Each owns an `org` storage/serving
     /// namespace and an access policy gating its packages. The only mount kind
@@ -931,6 +933,10 @@ struct HostedFile {
     /// Who may read this mount's packages. Omitted ⇒ `$all`.
     #[serde(default)]
     access: Option<AccessSpec>,
+    /// The names this mount serves and accepts publishes for. Omitted ⇒ every
+    /// name.
+    #[serde(default)]
+    patterns: Vec<String>,
 }
 
 /// Disk shape of an `upstream:` mount — one external origin. Mirrors an
@@ -962,24 +968,20 @@ struct UpstreamFile {
     /// non-`public` upstream (otherwise no one could be authorized to use it).
     #[serde(default)]
     access: Option<AccessSpec>,
+    /// The names that may be requested through this mount. Omitted ⇒ every
+    /// name. Bounding a private upstream stops an authorized caller from
+    /// pulling arbitrary public names through its server-owned credential.
+    #[serde(default)]
+    patterns: Vec<String>,
 }
 
-/// Disk shape of a `router:` mount.
+/// Disk shape of a `router:` mount: an ordered list of concrete mount names.
+/// The first source whose declared patterns claim a package serves it.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct RouterFile {
     #[serde(default)]
-    routes: Vec<RouteFile>,
-}
-
-/// Disk shape of one router route: package-name patterns mapped to a single
-/// concrete source mount.
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-struct RouteFile {
-    #[serde(default)]
-    patterns: Vec<String>,
-    source: String,
+    sources: Vec<String>,
 }
 
 /// Disk shape of the YAML file. Fields verdaccio supports but
@@ -1147,13 +1149,14 @@ fn default_true() -> bool {
     true
 }
 
-/// The package-name patterns that [`Config::proxy`] routes to its flat-root
-/// hosted org rather than the npm upstream: the registry-mock fixture scopes
-/// plus the one unscoped fixture. Kept in sync with the bundled `config.yaml`
-/// router and the fixtures under `pnpr/.fixtures/packages`. The fixture
-/// packages living in real, active npm scopes (`@pnpm`, `@zkochan`) are
-/// routed by exact name so the rest of those scopes keeps proxying npm
-/// (dependency trees of proxied packages pull real `@pnpm/*` packages).
+/// The namespace [`Config::proxy`] declares on its flat-root hosted org, so
+/// those names resolve locally rather than to the npm upstream: the
+/// registry-mock fixture scopes plus the one unscoped fixture. Kept in sync
+/// with the bundled `config.yaml` `local` mount and the fixtures under
+/// `pnpr/.fixtures/packages`. The fixture packages living in real, active npm
+/// scopes (`@pnpm`, `@zkochan`) are claimed by exact name so the rest of
+/// those scopes keeps proxying npm (dependency trees of proxied packages pull
+/// real `@pnpm/*` packages).
 const REGISTRY_MOCK_LOCAL_PATTERNS: &[&str] = &[
     "@foo/*",
     "@having/*",
@@ -1184,12 +1187,13 @@ impl Config {
     pub const DEFAULT_PACKUMENT_TTL: Duration = Duration::from_mins(5);
 
     /// Build a proxy-mode config in the registry-mock shape: the fixture scopes
-    /// (and the one unscoped fixture) resolve to a flat-root hosted org over
-    /// `storage`, while every other name proxies to the `npmjs` upstream. The
-    /// path-less base aliases the `main` router. Kept for callers that don't use
-    /// YAML config (notably pacquet's test registry, whose fixtures are served
-    /// locally while real npm packages fall through to npmjs). The local pattern
-    /// set mirrors the bundled `config.yaml` router.
+    /// (and the one unscoped fixture) are the declared namespace of a flat-root
+    /// hosted org over `storage`, while every other name proxies to the
+    /// pattern-less `npmjs` upstream. The path-less base aliases the `main`
+    /// router. Kept for callers that don't use YAML config (notably pacquet's
+    /// test registry, whose fixtures are served locally while real npm packages
+    /// fall through to npmjs). The local pattern set mirrors the bundled
+    /// `config.yaml` `local` mount.
     #[must_use]
     pub fn proxy(listen: SocketAddr, storage: PathBuf) -> Self {
         let mut uplinks = IndexMap::new();
@@ -1205,20 +1209,15 @@ impl Config {
         let local_patterns = REGISTRY_MOCK_LOCAL_PATTERNS
             .iter()
             .map(|pattern| {
-                PackagePattern::parse(pattern).expect("valid built-in fixture route pattern")
+                PackagePattern::parse(pattern).expect("valid built-in fixture mount pattern")
             })
             .collect();
         let graph = [
-            ("local".to_string(), MountKind::Hosted),
-            ("npmjs".to_string(), MountKind::Upstream),
+            ("local".to_string(), MountKind::Hosted { patterns: local_patterns }),
+            ("npmjs".to_string(), MountKind::Upstream { patterns: Vec::new() }),
             (
                 "main".to_string(),
-                MountKind::Router {
-                    routes: vec![
-                        Route { patterns: local_patterns, source: "local".to_string() },
-                        Route { patterns: vec![PackagePattern::All], source: "npmjs".to_string() },
-                    ],
-                },
+                MountKind::Router { sources: vec!["local".to_string(), "npmjs".to_string()] },
             ),
         ];
         let mounts = Mounts::new(graph.into_iter().collect(), Some("main".to_string()));
@@ -1246,10 +1245,11 @@ impl Config {
         }
     }
 
-    /// Build a static-mode config that serves `storage` verbatim: one hosted
-    /// mount over the storage root (an empty `org` namespace == the flat root),
-    /// routed to by a `**` router that the path-less base aliases. Every package
-    /// resolves to that one hosted origin — no upstream, no fall-through.
+    /// Build a static-mode config that serves `storage` verbatim: one
+    /// pattern-less hosted mount over the storage root (an empty `org`
+    /// namespace == the flat root), the sole source of a router that the
+    /// path-less base aliases. Every package resolves to that one hosted
+    /// origin — no upstream, no fall-through.
     #[must_use]
     pub fn static_serve(listen: SocketAddr, storage: PathBuf) -> Self {
         let mut hosted = IndexMap::new();
@@ -1258,16 +1258,8 @@ impl Config {
             HostedConfig { org: String::new(), access: AccessList::parse("$all") },
         );
         let graph = [
-            ("local".to_string(), MountKind::Hosted),
-            (
-                "main".to_string(),
-                MountKind::Router {
-                    routes: vec![Route {
-                        patterns: vec![PackagePattern::All],
-                        source: "local".to_string(),
-                    }],
-                },
-            ),
+            ("local".to_string(), MountKind::Hosted { patterns: Vec::new() }),
+            ("main".to_string(), MountKind::Router { sources: vec!["local".to_string()] }),
         ];
         let mounts = Mounts::new(graph.into_iter().collect(), Some("main".to_string()));
         Self {
@@ -1636,10 +1628,10 @@ fn build_mounts(
     let mut hosted = IndexMap::new();
     let mut graph: IndexMap<String, MountKind> = IndexMap::new();
     // Every configured uplink is, by definition, an upstream mount addressable
-    // at `/~<uplink>/`.
+    // at `/~<uplink>/`. No declared patterns ⇒ it serves every name.
     for name in uplinks.keys() {
         validate_mount_name(name)?;
-        graph.insert(name.clone(), MountKind::Upstream);
+        graph.insert(name.clone(), MountKind::Upstream { patterns: Vec::new() });
     }
     for (name, file) in mount_files {
         validate_mount_name(&name)?;
@@ -1673,19 +1665,20 @@ fn build_mounts(
                     .access
                     .as_ref()
                     .map_or_else(|| AccessList::parse("$all"), AccessSpec::to_access_list);
+                let patterns = build_patterns(&name, &mount.patterns)?;
                 hosted.insert(name.clone(), HostedConfig { org: mount.org, access });
-                graph.insert(name, MountKind::Hosted);
+                graph.insert(name, MountKind::Hosted { patterns });
             }
             MountFile::Upstream(upstream) => {
+                let patterns = build_patterns(&name, &upstream.patterns)?;
                 if resolve_upstreams {
                     let resolved = resolve_upstream_mount::<SystemEnv>(&name, *upstream)?;
                     uplinks.insert(name.clone(), resolved);
                 }
-                graph.insert(name, MountKind::Upstream);
+                graph.insert(name, MountKind::Upstream { patterns });
             }
             MountFile::Router(router) => {
-                let routes = build_routes(&name, router.routes)?;
-                graph.insert(name, MountKind::Router { routes });
+                graph.insert(name, MountKind::Router { sources: router.sources });
             }
         }
     }
@@ -1738,22 +1731,17 @@ fn validate_org_namespace(name: &str, org: &str) -> Result<(), RegistryError> {
     })
 }
 
-/// Compile one router's `routes:` block, parsing each pattern into the decidable
-/// [`PackagePattern`] language. Source-mount validity (defined, concrete, not
-/// self) is checked later by [`Mounts::validate`] once the whole graph exists.
-fn build_routes(router: &str, routes: Vec<RouteFile>) -> Result<Vec<Route>, RegistryError> {
-    routes
-        .into_iter()
-        .map(|route| {
-            let patterns = route
-                .patterns
-                .iter()
-                .map(|pattern| PackagePattern::parse(pattern).map_err(|err| mount_err(&err)))
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|err| RegistryError::InvalidConfig {
-                    reason: format!("router {router:?}: {err}"),
-                })?;
-            Ok(Route { patterns, source: route.source })
+/// Compile a concrete mount's `patterns:` list into the decidable
+/// [`PackagePattern`] language. Duplicate patterns and the routing-graph
+/// checks are handled later by [`Mounts::validate`] once the whole graph
+/// exists.
+fn build_patterns(mount: &str, patterns: &[String]) -> Result<Vec<PackagePattern>, RegistryError> {
+    patterns
+        .iter()
+        .map(|pattern| {
+            PackagePattern::parse(pattern).map_err(|err| RegistryError::InvalidConfig {
+                reason: format!("mount {mount:?}: {err}"),
+            })
         })
         .collect()
 }

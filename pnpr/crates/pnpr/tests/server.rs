@@ -6,7 +6,7 @@ use flate2::read::GzDecoder;
 use futures_util::stream;
 use pnpr::{
     AccessList, AuthState, Config, HostedConfig, MaxUsers, MountKind, Mounts, PackagePattern,
-    PackagePolicies, PackagePolicy, PublicRoute, Route, router, router_with_auth,
+    PackagePolicies, PackagePolicy, PublicRoute, router, router_with_auth,
 };
 use serde_json::{Value, json};
 use ssri::{Algorithm, IntegrityOpts};
@@ -2639,31 +2639,23 @@ async fn mock_package(server: &mut mockito::Server, pkg: &str, marker: &str) -> 
     body
 }
 
-/// Build a config with two public upstream mounts and a `main` router that
-/// sends `@corp/*` to `corp` and everything else to `npmjs`, aliased by the
-/// path-less base.
+/// Build a config with two public upstream mounts — `corp` claiming `@corp/*`
+/// and a pattern-less `npmjs` catch-all — and a `main` router over them,
+/// aliased by the path-less base.
 fn router_config(npmjs_url: &str, corp_url: &str, storage: PathBuf) -> Config {
     let mut config = config_for(npmjs_url, storage);
     let mut corp = config.uplinks.get("npmjs").expect("default `npmjs` uplink").clone();
     corp.url = corp_url.to_string();
     config.uplinks.insert("corp".to_string(), corp);
     let graph = vec![
-        ("npmjs".to_string(), MountKind::Upstream),
-        ("corp".to_string(), MountKind::Upstream),
+        ("npmjs".to_string(), MountKind::Upstream { patterns: vec![] }),
+        (
+            "corp".to_string(),
+            MountKind::Upstream { patterns: vec![PackagePattern::parse("@corp/*").unwrap()] },
+        ),
         (
             "main".to_string(),
-            MountKind::Router {
-                routes: vec![
-                    Route {
-                        patterns: vec![PackagePattern::parse("@corp/*").unwrap()],
-                        source: "corp".to_string(),
-                    },
-                    Route {
-                        patterns: vec![PackagePattern::parse("**").unwrap()],
-                        source: "npmjs".to_string(),
-                    },
-                ],
-            },
+            MountKind::Router { sources: vec!["corp".to_string(), "npmjs".to_string()] },
         ),
     ];
     let mounts = Mounts::new(graph.into_iter().collect(), Some("main".to_string()));
@@ -2715,11 +2707,15 @@ async fn router_routes_each_package_to_its_declared_source() {
 
 #[tokio::test]
 async fn router_not_found_does_not_fall_through_to_public() {
-    // A router whose only route is the private `@corp/*` scope. A public name
-    // it does not route must be a definitive 404 — never served from a public
-    // origin — which is the dependency-confusion vector closed by construction.
+    // A router whose only source claims the private `@corp/*` scope. A public
+    // name no source claims must be a definitive 404 — never served from a
+    // public origin — which is the dependency-confusion vector closed by
+    // construction. The same namespace bound holds on the mount's own URL:
+    // `/~corp/lodash` is a 404 answered before the upstream (and its
+    // server-owned credential) is consulted.
     let mut corp = mockito::Server::new_async().await;
     let _ = mock_package(&mut corp, "@corp/secret", "private").await;
+    let off_pattern_fetch = corp.mock("GET", "/lodash").expect(0).create_async().await;
 
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
@@ -2727,21 +2723,16 @@ async fn router_not_found_does_not_fall_through_to_public() {
     corp_uplink.url = corp.url();
     config.uplinks.insert("corp".to_string(), corp_uplink);
     let graph = vec![
-        ("corp".to_string(), MountKind::Upstream),
         (
-            "main".to_string(),
-            MountKind::Router {
-                routes: vec![Route {
-                    patterns: vec![PackagePattern::parse("@corp/*").unwrap()],
-                    source: "corp".to_string(),
-                }],
-            },
+            "corp".to_string(),
+            MountKind::Upstream { patterns: vec![PackagePattern::parse("@corp/*").unwrap()] },
         ),
+        ("main".to_string(), MountKind::Router { sources: vec!["corp".to_string()] }),
     ];
     config.mounts = Mounts::new(graph.into_iter().collect(), Some("main".to_string()));
     let app = router_with_auth(config, AuthState::in_memory());
 
-    // The matched private scope still serves.
+    // The claimed private scope still serves.
     let matched = app
         .clone()
         .oneshot(Request::get("/~main/@corp/secret").body(Body::empty()).unwrap())
@@ -2749,10 +2740,20 @@ async fn router_not_found_does_not_fall_through_to_public() {
         .unwrap();
     assert_eq!(matched.status(), StatusCode::OK);
 
-    // An unrouted public name is a definitive not-found, not a fall-through.
-    let unrouted =
-        app.oneshot(Request::get("/~main/lodash").body(Body::empty()).unwrap()).await.unwrap();
-    assert_eq!(unrouted.status(), StatusCode::NOT_FOUND);
+    // An unclaimed public name is a definitive not-found, not a fall-through.
+    let unclaimed = app
+        .clone()
+        .oneshot(Request::get("/~main/lodash").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(unclaimed.status(), StatusCode::NOT_FOUND);
+
+    // Addressing the upstream mount directly is bounded the same way, without
+    // an upstream fetch.
+    let direct =
+        app.oneshot(Request::get("/~corp/lodash").body(Body::empty()).unwrap()).await.unwrap();
+    assert_eq!(direct.status(), StatusCode::NOT_FOUND);
+    off_pattern_fetch.assert_async().await;
 }
 
 #[tokio::test]
@@ -2767,16 +2768,11 @@ async fn router_unavailable_source_errors_not_404() {
     corp_uplink.url = "http://127.0.0.1:1".to_string();
     config.uplinks.insert("corp".to_string(), corp_uplink);
     let graph = vec![
-        ("corp".to_string(), MountKind::Upstream),
         (
-            "main".to_string(),
-            MountKind::Router {
-                routes: vec![Route {
-                    patterns: vec![PackagePattern::parse("@corp/*").unwrap()],
-                    source: "corp".to_string(),
-                }],
-            },
+            "corp".to_string(),
+            MountKind::Upstream { patterns: vec![PackagePattern::parse("@corp/*").unwrap()] },
         ),
+        ("main".to_string(), MountKind::Router { sources: vec!["corp".to_string()] }),
     ];
     config.mounts = Mounts::new(graph.into_iter().collect(), Some("main".to_string()));
     let app = router_with_auth(config, AuthState::in_memory());
@@ -2815,8 +2811,10 @@ async fn hosted_mount_serves_only_what_it_hosts() {
         "acme".to_string(),
         HostedConfig { org: "acme".to_string(), access: AccessList::parse("$all") },
     );
-    config.mounts =
-        Mounts::new(vec![("acme".to_string(), MountKind::Hosted)].into_iter().collect(), None);
+    config.mounts = Mounts::new(
+        vec![("acme".to_string(), MountKind::Hosted { patterns: vec![] })].into_iter().collect(),
+        None,
+    );
     let app = router_with_auth(config, AuthState::in_memory());
 
     // A hosted package is served from the org mount.
@@ -2847,8 +2845,10 @@ async fn private_hosted_hides_existence_from_unauthorized_caller() {
         "acme".to_string(),
         HostedConfig { org: "acme".to_string(), access: AccessList::parse("alice") },
     );
-    config.mounts =
-        Mounts::new(vec![("acme".to_string(), MountKind::Hosted)].into_iter().collect(), None);
+    config.mounts = Mounts::new(
+        vec![("acme".to_string(), MountKind::Hosted { patterns: vec![] })].into_iter().collect(),
+        None,
+    );
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let app = router_with_auth(config, auth);
@@ -2888,8 +2888,10 @@ async fn private_hosted_org_masks_before_the_package_acl() {
         "acme".to_string(),
         HostedConfig { org: "acme".to_string(), access: AccessList::parse("alice") },
     );
-    config.mounts =
-        Mounts::new(vec![("acme".to_string(), MountKind::Hosted)].into_iter().collect(), None);
+    config.mounts = Mounts::new(
+        vec![("acme".to_string(), MountKind::Hosted { patterns: vec![] })].into_iter().collect(),
+        None,
+    );
     // A per-package ACL that also denies the anonymous caller. Without the
     // visibility-first ordering this would return 401/403 and leak existence.
     config.policies = PackagePolicies::new(vec![
@@ -2929,7 +2931,7 @@ async fn private_hosted_org_masks_dist_tags_before_the_package_acl() {
     // The path-less base aliases the "acme" hosted mount, so `/-/package/...`
     // resolves to it.
     config.mounts = Mounts::new(
-        vec![("acme".to_string(), MountKind::Hosted)].into_iter().collect(),
+        vec![("acme".to_string(), MountKind::Hosted { patterns: vec![] })].into_iter().collect(),
         Some("acme".to_string()),
     );
     config.policies = PackagePolicies::new(vec![
@@ -2960,25 +2962,18 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
         "acme".to_string(),
         HostedConfig { org: "acme".to_string(), access: AccessList::parse("$authenticated") },
     );
-    // npmjs already exists (from config_for); add a hosted org + a router that
-    // sends `@acme/*` to it and everything else to npmjs, aliased path-less.
+    // npmjs already exists (from config_for); add a hosted org claiming
+    // `@acme/*` + a router over it and the pattern-less npmjs catch-all,
+    // aliased path-less.
     let graph = vec![
-        ("npmjs".to_string(), MountKind::Upstream),
-        ("acme".to_string(), MountKind::Hosted),
+        ("npmjs".to_string(), MountKind::Upstream { patterns: vec![] }),
+        (
+            "acme".to_string(),
+            MountKind::Hosted { patterns: vec![PackagePattern::parse("@acme/*").unwrap()] },
+        ),
         (
             "main".to_string(),
-            MountKind::Router {
-                routes: vec![
-                    Route {
-                        patterns: vec![PackagePattern::parse("@acme/*").unwrap()],
-                        source: "acme".to_string(),
-                    },
-                    Route {
-                        patterns: vec![PackagePattern::parse("**").unwrap()],
-                        source: "npmjs".to_string(),
-                    },
-                ],
-            },
+            MountKind::Router { sources: vec!["acme".to_string(), "npmjs".to_string()] },
         ),
     ];
     config.mounts = Mounts::new(graph.into_iter().collect(), Some("main".to_string()));
@@ -3069,6 +3064,99 @@ async fn publish_to_hosted_round_trips_in_its_own_namespace() {
     assert_eq!(rejected.status(), StatusCode::BAD_REQUEST);
 }
 
+/// A hosted mount's declared `patterns:` are enforced on the mount itself, on
+/// every path to it: an off-pattern publish is rejected and an off-pattern
+/// read is a definitive 404 — through a router and at the mount's own
+/// `/~<mount>/` URL alike — so a typo'd scope can never squat in the hosted
+/// store and later surface as authoritative.
+#[tokio::test]
+async fn hosted_mount_patterns_bound_publish_and_reads_on_every_path() {
+    use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.hosted.insert(
+        "acme".to_string(),
+        HostedConfig { org: "acme".to_string(), access: AccessList::parse("$authenticated") },
+    );
+    // `acme` claims only `@acme/*`; the router has no other source, and the
+    // path-less base aliases the router.
+    let graph = vec![
+        (
+            "acme".to_string(),
+            MountKind::Hosted { patterns: vec![PackagePattern::parse("@acme/*").unwrap()] },
+        ),
+        ("main".to_string(), MountKind::Router { sources: vec!["acme".to_string()] }),
+    ];
+    let mounts = Mounts::new(graph.into_iter().collect(), Some("main".to_string()));
+    mounts.validate().expect("patterned hosted config is valid");
+    config.mounts = mounts;
+    let auth = AuthState::in_memory();
+    let token = auth.tokens.issue("alice").await.unwrap();
+    let app = router_with_auth(config, auth);
+
+    let publish_body = |pkg: &str| {
+        let tarball = b"typo-bytes";
+        let bare = pkg.rsplit('/').next().unwrap();
+        json!({
+            "name": pkg,
+            "dist-tags": { "latest": "1.0.0" },
+            "versions": { "1.0.0": { "name": pkg, "version": "1.0.0", "dist": {
+                "tarball": format!("http://example.test/{pkg}/-/{bare}-1.0.0.tgz"),
+                "integrity": sha512_integrity(tarball),
+            } } },
+            "_attachments": { format!("{pkg}-1.0.0.tgz"): {
+                "content_type": "application/octet-stream",
+                "data": BASE64.encode(tarball),
+                "length": tarball.len(),
+            } },
+        })
+        .to_string()
+    };
+    let publish_to = |url: &str, pkg: &str| {
+        Request::put(url)
+            .header("content-type", "application/json")
+            .header(header::AUTHORIZATION, format!("Bearer {token}"))
+            .body(Body::from(publish_body(pkg)))
+            .unwrap()
+    };
+
+    // An off-pattern publish is rejected on the mount's own URL, through the
+    // router, and via the path-less base — and nothing lands in the store.
+    for (url, pkg) in [
+        ("/~acme/@typo/widget", "@typo/widget"),
+        ("/~main/@typo/widget", "@typo/widget"),
+        ("/@typo%2Fwidget", "@typo/widget"),
+    ] {
+        let rejected = app.clone().oneshot(publish_to(url, pkg)).await.unwrap();
+        assert_eq!(rejected.status(), StatusCode::BAD_REQUEST, "publish {url} must be rejected");
+    }
+    assert!(
+        !tmp.path().join("acme/@typo/widget/package.json").exists(),
+        "an off-pattern publish must write nothing",
+    );
+
+    // A claimed name publishes normally through the mount's own URL.
+    let accepted = app.clone().oneshot(publish_to("/~acme/@acme/widget", "@acme/widget")).await;
+    assert_eq!(accepted.unwrap().status(), StatusCode::CREATED);
+
+    // An off-pattern read is a definitive 404 on both addresses, before the
+    // hosted store is consulted.
+    for url in ["/~acme/@typo/widget", "/~main/@typo/widget"] {
+        let read = app
+            .clone()
+            .oneshot(
+                Request::get(url)
+                    .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(read.status(), StatusCode::NOT_FOUND, "read {url} must 404");
+    }
+}
+
 /// The mount's access list gates writes exactly as it gates reads (RFC
 /// "registry mounts", implementation point 9). An authenticated non-member
 /// passes the default per-package publish policy (`$authenticated`), so
@@ -3088,7 +3176,7 @@ async fn private_hosted_mount_denies_writes_from_non_members() {
     // `/~corp/` addresses the mount directly; the path-less base aliases it,
     // so the path-less dist-tag and unpublish writes route there too.
     config.mounts = Mounts::new(
-        vec![("corp".to_string(), MountKind::Hosted)].into_iter().collect(),
+        vec![("corp".to_string(), MountKind::Hosted { patterns: vec![] })].into_iter().collect(),
         Some("corp".to_string()),
     );
     let auth = AuthState::in_memory();
@@ -3182,7 +3270,7 @@ async fn search_does_not_enumerate_a_private_flat_root_mount() {
         HostedConfig { org: String::new(), access: AccessList::parse("alice") },
     );
     config.mounts = Mounts::new(
-        vec![("corp".to_string(), MountKind::Hosted)].into_iter().collect(),
+        vec![("corp".to_string(), MountKind::Hosted { patterns: vec![] })].into_iter().collect(),
         Some("corp".to_string()),
     );
     let auth = AuthState::in_memory();
@@ -3232,8 +3320,10 @@ async fn mount_addressed_surface_serves_dist_tags_unpublish_whoami_search_and_ve
         HostedConfig { org: "acme".to_string(), access: AccessList::parse("$authenticated") },
     );
     // No default target: the mount is addressable only at `/~acme/`.
-    config.mounts =
-        Mounts::new(vec![("acme".to_string(), MountKind::Hosted)].into_iter().collect(), None);
+    config.mounts = Mounts::new(
+        vec![("acme".to_string(), MountKind::Hosted { patterns: vec![] })].into_iter().collect(),
+        None,
+    );
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let app = router_with_auth(config, auth);
@@ -3409,7 +3499,7 @@ async fn pathless_private_mount_responses_carry_private_cache_headers() {
         HostedConfig { org: "acme".to_string(), access: AccessList::parse("alice") },
     );
     config.mounts = Mounts::new(
-        vec![("acme".to_string(), MountKind::Hosted)].into_iter().collect(),
+        vec![("acme".to_string(), MountKind::Hosted { patterns: vec![] })].into_iter().collect(),
         Some("acme".to_string()),
     );
     let auth = AuthState::in_memory();
@@ -3449,7 +3539,7 @@ async fn pathless_private_mount_responses_carry_private_cache_headers() {
         HostedConfig { org: "acme".to_string(), access: AccessList::parse("$all") },
     );
     config.mounts = Mounts::new(
-        vec![("acme".to_string(), MountKind::Hosted)].into_iter().collect(),
+        vec![("acme".to_string(), MountKind::Hosted { patterns: vec![] })].into_iter().collect(),
         Some("acme".to_string()),
     );
     let app = router_with_auth(config, AuthState::in_memory());
@@ -3477,7 +3567,7 @@ async fn pathless_acl_gated_package_carries_private_cache_headers() {
         HostedConfig { org: "acme".to_string(), access: AccessList::parse("$all") },
     );
     config.mounts = Mounts::new(
-        vec![("acme".to_string(), MountKind::Hosted)].into_iter().collect(),
+        vec![("acme".to_string(), MountKind::Hosted { patterns: vec![] })].into_iter().collect(),
         Some("acme".to_string()),
     );
     config.policies = PackagePolicies::new(vec![

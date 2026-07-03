@@ -37,9 +37,7 @@ pub use config::{
 };
 pub use error::{RegistryError, Result};
 pub use journal::recover_publish_journal;
-pub use mount::{
-    ConcreteKind, MountConfigError, MountKind, Mounts, PackagePattern, Resolved, Route,
-};
+pub use mount::{ConcreteKind, MountConfigError, MountKind, Mounts, PackagePattern, Resolved};
 pub use policy::{AccessList, AccessToken, Identity, PackagePolicies, PackagePolicy};
 pub use server::{
     router, router_with_auth, serve, serve_listener, try_router, try_router_with_auth,

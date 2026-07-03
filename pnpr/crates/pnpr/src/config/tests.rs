@@ -794,7 +794,8 @@ packages:
 }
 
 /// A router mount routes each package to exactly one concrete source — the
-/// safe alternative to a multi-uplink fallback chain.
+/// first listed source whose declared patterns claim it — the safe
+/// alternative to a multi-uplink fallback chain.
 #[test]
 fn from_yaml_str_router_routes_each_package_to_one_source() {
     let yaml = "\
@@ -808,13 +809,10 @@ mounts:
     type: upstream
     url: https://npm.corp.example/
     access: $authenticated
+    patterns: ['@corp/*']
   main:
     type: router
-    routes:
-      - patterns: ['@corp/*']
-        source: corp
-      - patterns: ['**']
-        source: npmjs
+    sources: [corp, npmjs]
 defaultTarget: main
 ";
     let config = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap();
@@ -836,26 +834,52 @@ defaultTarget: main
     }
 }
 
-/// A misordered router (catch-all before a narrower private route) fails config
-/// load rather than silently serving a private scope from the public source.
+/// A misordered router (the pattern-less catch-all listed before a narrower
+/// private source) fails config load rather than silently serving a private
+/// scope from the public source.
 #[test]
 fn from_yaml_str_rejects_misordered_router() {
     let yaml = "\
 storage: ./s
 mounts:
   npmjs: { type: upstream, url: https://registry.npmjs.org/, public: true }
-  acme: { type: hosted, org: acme }
+  acme: { type: hosted, org: acme, patterns: ['@acme/*'] }
   main:
     type: router
-    routes:
-      - patterns: ['**']
-        source: npmjs
-      - patterns: ['@acme/*']
-        source: acme
+    sources: [npmjs, acme]
 ";
     let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
         .expect_err("misordered router must be rejected");
     assert!(err.to_string().contains("unreachable"), "unexpected error: {err}");
+}
+
+/// An unsupported wildcard in a mount's `patterns:` fails config load, named
+/// for the offending mount, rather than becoming a claim that never matches.
+#[test]
+fn from_yaml_str_rejects_invalid_mount_pattern() {
+    let yaml = "\
+storage: ./s
+mounts:
+  acme: { type: hosted, org: acme, patterns: ['@acme/ba*r'] }
+";
+    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+        .expect_err("an unsupported mount pattern must be rejected");
+    let message = err.to_string();
+    assert!(message.contains("acme"), "expected the mount named, got: {message}");
+    assert!(message.contains("@acme/ba*r"), "expected the pattern named, got: {message}");
+}
+
+/// A duplicate pattern within one mount's namespace fails config load.
+#[test]
+fn from_yaml_str_rejects_duplicate_mount_pattern() {
+    let yaml = "\
+storage: ./s
+mounts:
+  acme: { type: hosted, org: acme, patterns: ['@acme/*', '@acme/*'] }
+";
+    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None)
+        .expect_err("a duplicate mount pattern must be rejected");
+    assert!(err.to_string().contains("more than once"), "unexpected error: {err}");
 }
 
 /// `defaultTarget` naming an undefined mount fails closed.
@@ -1003,9 +1027,7 @@ storage: ./s
 mounts:
   main:
     type: router
-    routes:
-      - patterns: ['**']
-        source: ghost
+    sources: [ghost]
 ";
     let overrides = FeatureOverrides { disable_registry: true, disable_resolver: false };
     let err =
@@ -1032,9 +1054,7 @@ mounts:
       token_env: PNPR_DEFINITELY_UNSET_TOKEN_VAR
   main:
     type: router
-    routes:
-      - patterns: ['**']
-        source: corp
+    sources: [corp]
 ";
     let overrides = FeatureOverrides { disable_registry: true, disable_resolver: false };
     let config =

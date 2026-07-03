@@ -1193,7 +1193,7 @@ async fn serve_mount_version_manifest(
                 Err(err) => return error_response(&err),
             }
         }
-        MountSource::NotFound => return not_found(),
+        MountSource::Unclaimed | MountSource::NotFound => return not_found(),
     };
     let packument: Value = match serde_json::from_slice(&bytes) {
         Ok(v) => v,
@@ -1500,7 +1500,7 @@ async fn load_packument_for_read(
                 .await
                 .map_err(|err| Box::new(error_response(&err)))
         }
-        MountSource::NotFound => Ok(None),
+        MountSource::Unclaimed | MountSource::NotFound => Ok(None),
     }
 }
 
@@ -1701,12 +1701,15 @@ async fn cached_uplink_tarball(
 // --------------------------------------------------------------------
 // Registry-mount dispatch. A `/~<mount>/` request resolves the package to
 // exactly one concrete origin through the validated mount graph
-// ([`crate::mount`]) and serves it there — authoritatively. A router's first
-// matching route wins; a non-matching router is a definitive 404 (never a
-// fall-through to another origin), and a matched-but-unavailable upstream
-// surfaces an *error* rather than a 404 (the via-uplink path returns
-// `UpstreamUnavailable`), so a down private source can never be reported as
-// "not found" and pushed onto a public origin one layer out.
+// ([`crate::mount`]) and serves it there — authoritatively. Every concrete
+// mount's declared `patterns:` are enforced here, before storage or any
+// upstream is consulted, on the direct address and through a router alike; a
+// router selects the first source whose patterns claim the name. An unclaimed
+// name is a definitive 404 (never a fall-through to another origin), and a
+// selected-but-unavailable upstream surfaces an *error* rather than a 404
+// (the via-uplink path returns `UpstreamUnavailable`), so a down private
+// source can never be reported as "not found" and pushed onto a public origin
+// one layer out.
 // --------------------------------------------------------------------
 
 /// The concrete origin a `/~<mount>/` request resolved to, owned so it can be
@@ -1717,8 +1720,12 @@ enum MountSource {
     Upstream(String),
     /// A hosted mount, served from the hosted store.
     Hosted(String),
-    /// The mount id is unknown, or a router matched no route — a definitive
-    /// not-found with no fall-through.
+    /// No declared namespace claims the package — the addressed mount's
+    /// patterns don't cover it, or none of a router's sources claim it. A
+    /// definitive 404 on reads; writes reject it with a reason instead, so a
+    /// typo'd scope fails loudly rather than 404-ing later.
+    Unclaimed,
+    /// The mount id is unknown — a definitive not-found with no fall-through.
     NotFound,
 }
 
@@ -1739,9 +1746,9 @@ fn resolve_mount_source(state: &AppState, mount: &str, package: &str) -> MountSo
         Resolved::Concrete { mount, kind: ConcreteKind::Hosted } => {
             MountSource::Hosted(mount.to_string())
         }
-        // A router that matched no route is a definitive not-found — never a
-        // fall-through to another origin.
-        Resolved::NoRoute => MountSource::NotFound,
+        // An unclaimed name is definitive — never a fall-through to another
+        // origin, and never a storage or upstream consultation.
+        Resolved::Unclaimed => MountSource::Unclaimed,
         // Every configured uplink is an upstream mount addressable at
         // `/~<uplink>/`, even one inserted programmatically without rebuilding
         // the mount graph; fall back to that before declaring not-found.
@@ -1771,7 +1778,7 @@ fn resolves_to_private_source(state: &AppState, mount: &str, package: &str) -> b
         MountSource::Upstream(source) => {
             state.inner.config.uplinks.get(&source).is_some_and(|uplink| uplink.access.is_some())
         }
-        MountSource::NotFound => false,
+        MountSource::Unclaimed | MountSource::NotFound => false,
     }
 }
 
@@ -1834,7 +1841,7 @@ async fn serve_mount_packument(
         MountSource::Hosted(source) => {
             serve_hosted_packument(state, identity, headers, &source, &name, tarball_base).await
         }
-        MountSource::NotFound => not_found(),
+        MountSource::Unclaimed | MountSource::NotFound => not_found(),
     }
 }
 
@@ -1865,7 +1872,7 @@ async fn serve_mount_tarball(
         MountSource::Hosted(source) => {
             serve_hosted_tarball(state, identity, &source, &name, filename).await
         }
-        MountSource::NotFound => not_found(),
+        MountSource::Unclaimed | MountSource::NotFound => not_found(),
     }
 }
 
@@ -2371,14 +2378,17 @@ enum PublishTarget {
     NotFound,
 }
 
-/// Resolve where a publish lands. A write may only target a hosted mount:
-/// a route to an upstream is rejected ("name a hosted mount"), never silently
-/// landing on an upstream. The mount's `access` list gates the write exactly
-/// as it gates reads — a caller the mount denies gets the same not-found mask
-/// as on a read, so a private mount neither accepts the write nor reveals that
-/// it exists. The path-less base routes through its default-target mount; with
-/// no default target the bare host has no registry and the publish is a
-/// not-found, exactly like a read.
+/// Resolve where a publish lands. A write may only target a hosted mount
+/// whose declared patterns claim the name: a selection of an upstream is
+/// rejected ("name a hosted mount"), never silently landing on an upstream,
+/// and an unclaimed name is rejected with the reason — so a typo'd scope
+/// fails loudly at publish time instead of storing a name the mount's
+/// namespace can never serve. The mount's `access` list gates the write
+/// exactly as it gates reads — a caller the mount denies gets the same
+/// not-found mask as on a read, so a private mount neither accepts the write
+/// nor reveals that it exists. The path-less base routes through its
+/// default-target mount; with no default target the bare host has no registry
+/// and the publish is a not-found, exactly like a read.
 fn resolve_publish_target(
     state: &AppState,
     identity: &Identity,
@@ -2393,6 +2403,10 @@ fn resolve_publish_target(
         MountSource::Upstream(_) => PublishTarget::Reject(format!(
             "cannot publish {package:?} {context}: it routes to an upstream registry; name a \
              hosted mount",
+        )),
+        MountSource::Unclaimed => PublishTarget::Reject(format!(
+            "cannot publish {package:?} {context}: no mount's declared `patterns:` claim this \
+             package name",
         )),
         MountSource::NotFound => PublishTarget::NotFound,
     };
@@ -2935,26 +2949,25 @@ async fn serve_search(
     result(objects)
 }
 
-/// The hosted mounts a search addressed to `mount` scans, in route order.
-/// A hosted mount scans itself; a router scans each distinct hosted route
-/// source; an upstream mount scans nothing — search is local-only, never
-/// proxied (an upstream is reached only through its own mount, by exact
-/// package name; there is no cross-origin search merge).
+/// The hosted mounts a search addressed to `mount` scans, in source order.
+/// A hosted mount scans itself; a router scans each of its hosted sources; an
+/// upstream mount scans nothing — search is local-only, never proxied (an
+/// upstream is reached only through its own mount, by exact package name;
+/// there is no cross-origin search merge).
 fn hosted_search_sources(state: &AppState, mount: &str) -> Vec<String> {
     match state.inner.config.mounts.get(mount) {
-        Some(MountKind::Hosted) => vec![mount.to_string()],
-        Some(MountKind::Router { routes }) => {
-            let mut sources: Vec<String> = Vec::new();
-            for route in routes {
-                if matches!(state.inner.config.mounts.get(&route.source), Some(MountKind::Hosted))
-                    && !sources.contains(&route.source)
-                {
-                    sources.push(route.source.clone());
-                }
-            }
-            sources
-        }
-        Some(MountKind::Upstream) | None => Vec::new(),
+        Some(MountKind::Hosted { .. }) => vec![mount.to_string()],
+        Some(MountKind::Router { sources }) => sources
+            .iter()
+            .filter(|source| {
+                matches!(
+                    state.inner.config.mounts.get(source.as_str()),
+                    Some(MountKind::Hosted { .. }),
+                )
+            })
+            .cloned()
+            .collect(),
+        Some(MountKind::Upstream { .. }) | None => Vec::new(),
     }
 }
 

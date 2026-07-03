@@ -29,7 +29,7 @@ fn config_from_yaml(packages_block: &str) -> (TempDir, Config) {
     // ACL in `packages_block` gates the request.
     let mounts_block = "mounts:\n  \
         local:\n    type: hosted\n    org: \"\"\n    access: $all\n  \
-        main:\n    type: router\n    routes:\n      - patterns: ['**']\n        source: local\n\
+        main:\n    type: router\n    sources: [local]\n\
         defaultTarget: main\n";
     let yaml = format!(
         "storage: {}\nauth:\n  htpasswd:\n    max_users: 100\n{mounts_block}{packages_block}\n",
