@@ -29,7 +29,7 @@ fn emits_resolved_with_supplied_identifiers() {
     }
 
     EVENTS.lock().unwrap().clear();
-    emit_progress_resolved::<RecordingReporter>("react@18.0.0", "/proj");
+    emit_progress_resolved::<RecordingReporter>("react@18.0.0".to_string(), "/proj".to_string());
 
     let captured = EVENTS.lock().unwrap();
     assert!(
@@ -339,12 +339,12 @@ fn registry_metadata() -> pacquet_lockfile::PackageMetadata {
 }
 
 fn leaked_offline_config(
-    registry: &str,
-    store_dir: &std::path::Path,
+    registry: impl Into<String>,
+    store_dir: impl AsRef<std::path::Path>,
 ) -> &'static pacquet_config::Config {
     let mut config = pacquet_config::Config::new();
-    config.registry = registry.to_string();
-    config.store_dir = store_dir.to_path_buf().into();
+    config.registry = registry.into();
+    config.store_dir = store_dir.as_ref().to_path_buf().into();
     // Force the no-mem-cache download path to fail fast instead of
     // reaching out to the network, so a regression that bypasses the
     // mem cache surfaces deterministically as `NoOfflineTarball`.

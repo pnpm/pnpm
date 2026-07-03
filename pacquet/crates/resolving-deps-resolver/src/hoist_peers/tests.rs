@@ -26,8 +26,8 @@ fn plain(ty: VersionSelectorType) -> VersionSelectorEntry {
     VersionSelectorEntry::Plain(ty)
 }
 
-fn missing(name: &str, range: &str) -> (String, MissingPeerInfo) {
-    (name.to_string(), MissingPeerInfo { range: range.to_string() })
+fn missing(name: impl Into<String>, range: impl Into<String>) -> (String, MissingPeerInfo) {
+    (name.into(), MissingPeerInfo { range: range.into() })
 }
 
 fn opts(

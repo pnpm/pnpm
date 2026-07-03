@@ -64,7 +64,7 @@ pub fn update_project_manifest_object(
                 .or_else(|| find_spec(&spec.alias, &root))
                 .filter(|spec| !spec.is_empty());
             let Some(spec_str) = resolved_spec else { continue };
-            define_dep_entry(&mut root, field, &spec.alias, &spec_str)?;
+            define_dep_entry(&mut root, field, spec.alias.clone(), spec_str.clone())?;
             for dep_field in DEPENDENCIES_FIELDS {
                 if dep_field != field {
                     delete_dep_entry(&mut root, dep_field, &spec.alias);
@@ -76,14 +76,14 @@ pub fn update_project_manifest_object(
                     spec.resolved_version.as_deref(),
                     spec.pinned_version,
                 );
-                define_dep_entry(&mut root, "peerDependencies", &spec.alias, &peer_spec)?;
+                define_dep_entry(&mut root, "peerDependencies", spec.alias.clone(), peer_spec)?;
             }
         } else if let Some(bare_specifier) = spec.bare_specifier.as_deref()
             && !bare_specifier.is_empty()
         {
             let used = guess_dependency_type(&spec.alias, &root).unwrap_or("dependencies");
             if used != "peerDependencies" {
-                define_dep_entry(&mut root, used, &spec.alias, bare_specifier)?;
+                define_dep_entry(&mut root, used, spec.alias.clone(), bare_specifier.to_string())?;
             }
         }
     }
@@ -152,8 +152,8 @@ fn guess_dependency_type(alias: &str, root: &Value) -> Option<&'static str> {
 fn define_dep_entry(
     root: &mut Value,
     field: &str,
-    alias: &str,
-    value: &str,
+    alias: String,
+    value: String,
 ) -> Result<(), PackageManifestError> {
     let Some(obj) = root.as_object_mut() else {
         return Err(PackageManifestError::InvalidAttribute(
@@ -171,7 +171,7 @@ fn define_dep_entry(
             "the {field} field must be an object",
         )));
     };
-    deps.insert(alias.to_string(), Value::String(value.to_string()));
+    deps.insert(alias, Value::String(value));
     Ok(())
 }
 

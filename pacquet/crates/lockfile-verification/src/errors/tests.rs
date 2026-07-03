@@ -1,12 +1,12 @@
 use super::{MAX_VIOLATIONS_TO_PRINT, RenderedViolation, VerifyError};
 
-fn rendered(name: &str, version: &str, code: &'static str, reason: &str) -> RenderedViolation {
-    RenderedViolation {
-        name: name.to_string(),
-        version: version.to_string(),
-        code,
-        reason: reason.to_string(),
-    }
+fn rendered(
+    name: impl Into<String>,
+    version: impl Into<String>,
+    code: &'static str,
+    reason: impl Into<String>,
+) -> RenderedViolation {
+    RenderedViolation { name: name.into(), version: version.into(), code, reason: reason.into() }
 }
 
 #[test]
@@ -66,7 +66,7 @@ fn over_cap_adds_and_n_more_summary() {
     let n = MAX_VIOLATIONS_TO_PRINT + 5;
     for i in 0..n {
         violations.push(rendered(
-            &format!("pkg-{i}"),
+            format!("pkg-{i}"),
             "1.0.0",
             "MINIMUM_RELEASE_AGE_VIOLATION",
             "young",

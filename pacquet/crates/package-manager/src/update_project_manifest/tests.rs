@@ -19,23 +19,27 @@ fn apply(manifest: &mut PackageManifest, opts: &UpdateProjectManifestOptions<'_>
     update_project_manifest(manifest, opts).expect("update manifest");
 }
 
-fn wanted(alias: Option<&str>, bare_specifier: &str, update_spec: bool) -> WantedDependencyUpdate {
+fn wanted(
+    alias: Option<&str>,
+    bare_specifier: impl Into<String>,
+    update_spec: bool,
+) -> WantedDependencyUpdate {
     WantedDependencyUpdate {
         alias: alias.map(ToString::to_string),
-        bare_specifier: bare_specifier.to_string(),
+        bare_specifier: bare_specifier.into(),
         update_spec,
     }
 }
 
 /// A resolved direct dependency carrying the wanted dependency it came from.
 fn resolved(
-    alias: &str,
+    alias: impl Into<String>,
     version: Option<&str>,
     normalized_bare_specifier: Option<&str>,
     wanted_dependency: WantedDependencyUpdate,
 ) -> ResolvedDirectDependency {
     ResolvedDirectDependency {
-        alias: alias.to_string(),
+        alias: alias.into(),
         version: version.map(ToString::to_string),
         normalized_bare_specifier: normalized_bare_specifier.map(ToString::to_string),
         catalog_lookup: None,

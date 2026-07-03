@@ -56,7 +56,7 @@ fn importing_done() -> LogEvent {
     })
 }
 
-fn added_root(name: &str, version: &str, dt: DependencyType) -> LogEvent {
+fn added_root(name: &str, version: impl Into<String>, dt: DependencyType) -> LogEvent {
     LogEvent::Root(RootLog {
         level: LogLevel::Debug,
         message: RootMessage::Added {
@@ -64,7 +64,7 @@ fn added_root(name: &str, version: &str, dt: DependencyType) -> LogEvent {
             added: AddedRoot {
                 name: name.to_string(),
                 real_name: name.to_string(),
-                version: Some(version.to_string()),
+                version: Some(version.into()),
                 dependency_type: Some(dt),
                 id: None,
                 latest: None,

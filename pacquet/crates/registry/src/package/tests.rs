@@ -106,7 +106,7 @@ async fn fetch_from_registry_attaches_authorization_header() {
     mock.assert_async().await;
 }
 
-fn package_with_versions(name: &str, versions: &[&str], latest: &str) -> Package {
+fn package_with_versions(name: &str, versions: &[&str], latest: impl Into<String>) -> Package {
     let versions_map = versions
         .iter()
         .map(|version| {
@@ -129,7 +129,7 @@ fn package_with_versions(name: &str, versions: &[&str], latest: &str) -> Package
         })
         .collect();
     let mut dist_tags = HashMap::new();
-    dist_tags.insert("latest".to_string(), latest.to_string());
+    dist_tags.insert("latest".to_string(), latest.into());
     Package {
         name: name.to_string(),
         dist_tags,

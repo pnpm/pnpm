@@ -32,11 +32,11 @@ impl MockResolver {
         MockResolver { has_should_refresh_resolution: false, ..Self::refreshing(false) }
     }
 
-    fn failing(message: &str) -> Self {
+    fn failing(message: impl Into<String>) -> Self {
         MockResolver {
             refresh_outcome: Err(HookError::Execution {
                 pnpmfile: ".pnpmfile.cjs".to_string(),
-                message: message.to_string(),
+                message: message.into(),
             }),
             ..Self::refreshing(false)
         }

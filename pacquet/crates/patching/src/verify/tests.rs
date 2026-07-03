@@ -7,8 +7,8 @@ use std::collections::HashSet;
 
 const ZERO_HASH: &str = "00000000000000000000000000000000";
 
-fn input(hash: &str) -> PatchInput {
-    PatchInput { hash: hash.to_string(), patch_file_path: None }
+fn input(hash: impl Into<String>) -> PatchInput {
+    PatchInput { hash: hash.into(), patch_file_path: None }
 }
 
 fn entries(keys: &[&str]) -> Vec<(String, PatchInput)> {

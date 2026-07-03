@@ -107,8 +107,8 @@ pub(crate) struct LockfileGuard {
 }
 
 impl LockfileGuard {
-    pub(crate) fn new(existing: Option<String>, lockfile_path: &Path) -> Self {
-        Self { existing, lockfile_path: lockfile_path.to_path_buf(), disarmed: false }
+    pub(crate) fn new(existing: Option<String>, lockfile_path: PathBuf) -> Self {
+        Self { existing, lockfile_path, disarmed: false }
     }
 
     pub(crate) fn disarm(&mut self) {

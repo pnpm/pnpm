@@ -105,12 +105,11 @@ impl PrivateAccessDescriptor {
 /// namespace.
 #[must_use]
 pub(crate) fn uplink_cache_digest(
-    uplink: &str,
+    uplink: String,
     credential_digest: String,
     secret: &[u8],
 ) -> String {
-    PrivateAccessDescriptor::Alias { alias: uplink.to_string(), credential_digest }
-        .digest_id(secret)
+    PrivateAccessDescriptor::Alias { alias: uplink, credential_digest }.digest_id(secret)
 }
 
 /// A hash of an uplink's `Authorization` header value, used as the credential
@@ -290,7 +289,7 @@ impl RouteContext {
         let aliases = config
             .uplinks
             .iter()
-            .filter_map(|(name, uplink)| ResolvedAlias::from_uplink(name, uplink))
+            .filter_map(|(name, uplink)| ResolvedAlias::from_uplink(name.clone(), uplink))
             .collect();
         let uplink_origins =
             config.uplinks.values().filter_map(|uplink| nerf_prefix(&uplink.url)).collect();
@@ -536,12 +535,12 @@ impl ResolvedAlias {
     /// participates in route classification only when it declares both an
     /// `access:` policy and a resolved `Authorization` credential; routing is
     /// by registry origin, so no package glob is attached.
-    fn from_uplink(name: &str, uplink: &UplinkConfig) -> Option<Self> {
+    fn from_uplink(name: String, uplink: &UplinkConfig) -> Option<Self> {
         let access = uplink.access.clone()?;
         let authorization =
             uplink.headers.get(AUTHORIZATION).and_then(|value| value.to_str().ok())?.to_string();
         Some(Self {
-            name: name.to_string(),
+            name,
             credential_digest: credential_digest(&authorization),
             registry: uplink.url.clone(),
             origin: nerf_prefix(&uplink.url)?,

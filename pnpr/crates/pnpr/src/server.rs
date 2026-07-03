@@ -255,7 +255,7 @@ fn router_with_auth_and_osv(
         config
             .uplinks
             .iter()
-            .map(|(name, uplink)| (name.clone(), Upstream::new(name, uplink)))
+            .map(|(name, uplink)| (name.clone(), Upstream::new(name.clone(), uplink)))
             .collect()
     } else {
         IndexMap::new()
@@ -1303,8 +1303,11 @@ fn compute_uplink_cache_namespace(config: &Config, uplink: &str) -> String {
             "{url}\0{}",
             crate::route::headers_credential_digest(&uplink_config.headers),
         ));
-        let digest =
-            crate::route::uplink_cache_digest(uplink, epoch, &config.resolution_cache_secret);
+        let digest = crate::route::uplink_cache_digest(
+            uplink.to_string(),
+            epoch,
+            &config.resolution_cache_secret,
+        );
         return format!("~uplinks/{digest}");
     }
     // Public mount: a stable, secret-free namespace keyed by the mount name
@@ -2031,7 +2034,7 @@ fn expected_tarball_dist(
     if matches.next().is_some() {
         return Err(tarball_integrity_error(
             name,
-            filename,
+            filename.to_string(),
             "packument declares the same dist.tarball basename for multiple versions".to_string(),
         ));
     }
@@ -2041,18 +2044,26 @@ fn expected_tarball_dist(
     // neither stays unservable: bytes never leave unverified.
     let integrity = if let Some(declared) = dist.integrity.as_deref() {
         streaming::parse_integrity(declared).map_err(|err| {
-            tarball_integrity_error(name, filename, format!("malformed dist.integrity: {err}"))
+            tarball_integrity_error(
+                name,
+                filename.to_string(),
+                format!("malformed dist.integrity: {err}"),
+            )
         })?
     } else {
         let shasum = dist.shasum.as_deref().ok_or_else(|| {
             tarball_integrity_error(
                 name,
-                filename,
+                filename.to_string(),
                 format!("packument has no dist.integrity or dist.shasum for {version:?}"),
             )
         })?;
         Integrity::from_hex(shasum, ssri::Algorithm::Sha1).map_err(|err| {
-            tarball_integrity_error(name, filename, format!("malformed dist.shasum: {err}"))
+            tarball_integrity_error(
+                name,
+                filename.to_string(),
+                format!("malformed dist.shasum: {err}"),
+            )
         })?
     };
     Ok(Some(TarballDist { version: version.clone(), integrity }))
@@ -2068,23 +2079,21 @@ fn tarball_stream_error(
             RegistryError::Upstream { url, source }
         }
         streaming::TarballStreamError::Io(err) => RegistryError::Io(err),
-        streaming::TarballStreamError::Integrity(err) => {
-            tarball_integrity_error(name, filename, format!("integrity verification failed: {err}"))
-        }
+        streaming::TarballStreamError::Integrity(err) => tarball_integrity_error(
+            name,
+            filename.to_string(),
+            format!("integrity verification failed: {err}"),
+        ),
         streaming::TarballStreamError::TooLarge { limit, received } => tarball_integrity_error(
             name,
-            filename,
+            filename.to_string(),
             format!("tarball body exceeds {limit} byte limit (received {received} bytes)"),
         ),
     }
 }
 
-fn tarball_integrity_error(name: &PackageName, filename: &str, reason: String) -> RegistryError {
-    RegistryError::TarballIntegrity {
-        package: name.as_str().to_string(),
-        filename: filename.to_string(),
-        reason,
-    }
+fn tarball_integrity_error(name: &PackageName, filename: String, reason: String) -> RegistryError {
+    RegistryError::TarballIntegrity { package: name.as_str().to_string(), filename, reason }
 }
 
 /// Add a new user or log in an existing one. Mirrors verdaccio's

@@ -19,9 +19,13 @@ fn parse_iso(input: &str) -> DateTime<Utc> {
     DateTime::parse_from_rfc3339(input).expect("rfc3339").with_timezone(&Utc)
 }
 
-fn make_pkg_version(name: &str, version: &str, deprecated: Option<&str>) -> PackageVersion {
+fn make_pkg_version(
+    name: impl Into<String>,
+    version: &str,
+    deprecated: Option<&str>,
+) -> PackageVersion {
     PackageVersion {
-        name: name.to_string(),
+        name: name.into(),
         version: version.parse::<Version>().expect("parse semver"),
         dist: PackageDistribution::default(),
         dependencies: None,
@@ -67,10 +71,14 @@ fn make_time_map(entries: &[(&str, &str)]) -> HashMap<String, serde_json::Value>
         .collect()
 }
 
-fn spec(name: &str, fetch_spec: &str, spec_type: RegistryPackageSpecType) -> RegistryPackageSpec {
+fn spec(
+    name: impl Into<String>,
+    fetch_spec: impl Into<String>,
+    spec_type: RegistryPackageSpecType,
+) -> RegistryPackageSpec {
     RegistryPackageSpec {
-        name: name.to_string(),
-        fetch_spec: fetch_spec.to_string(),
+        name: name.into(),
+        fetch_spec: fetch_spec.into(),
         spec_type,
         normalized_bare_specifier: None,
     }

@@ -253,10 +253,10 @@ fn rotated_credential() -> String {
     super::credential_digest("Bearer rotated-secret")
 }
 
-fn uplink_with_access(registry: &str, access: &str) -> UplinkConfig {
+fn uplink_with_access(registry: impl Into<String>, access: &str) -> UplinkConfig {
     let mut headers = HeaderMap::new();
     headers.insert(AUTHORIZATION, HeaderValue::from_static("Bearer uplink-secret"));
-    let mut uplink = UplinkConfig::with_defaults(registry.to_string(), headers);
+    let mut uplink = UplinkConfig::with_defaults(registry.into(), headers);
     uplink.access = Some(AccessList::parse(access));
     uplink
 }
@@ -387,7 +387,7 @@ fn uplink_without_access_is_an_anonymous_route() {
 #[test]
 fn proxied_alias_accepts_configured_group_identity() {
     let mut config = base_config();
-    config.groups.add_user_to_group("alice", "platform");
+    config.groups.add_user_to_group("alice".to_string(), "platform".to_string());
     config
         .uplinks
         .insert("corp".to_string(), uplink_with_access("https://npm.corp.example/", "platform"));

@@ -30,18 +30,18 @@ fn package() -> SignaturePackage {
     }
 }
 
-fn ecdsa_key(key: &SigningKey, keyid: &str, expires: Option<&str>) -> RegistryKey {
+fn ecdsa_key(key: &SigningKey, keyid: impl Into<String>, expires: Option<&str>) -> RegistryKey {
     RegistryKey {
         expires: expires.map(str::to_string),
         key: public_key_b64(key),
-        keyid: keyid.to_string(),
+        keyid: keyid.into(),
         keytype: "ecdsa-sha2-nistp256".to_string(),
         scheme: "ecdsa-sha2-nistp256".to_string(),
     }
 }
 
-fn signature(keyid: &str, sig: &str) -> PackageSignature {
-    PackageSignature { keyid: keyid.to_string(), sig: sig.to_string() }
+fn signature(keyid: impl Into<String>, sig: impl Into<String>) -> PackageSignature {
+    PackageSignature { keyid: keyid.into(), sig: sig.into() }
 }
 
 #[test]
@@ -61,7 +61,7 @@ fn valid_signature_verifies() {
     let package = package();
     let integrity = "sha512-abc";
     let message = format!("{}@{}:{integrity}", package.name, package.version);
-    let signatures = vec![signature("k1", &sign_b64(&key, &message))];
+    let signatures = vec![signature("k1", sign_b64(&key, &message))];
     let keys = vec![ecdsa_key(&key, "k1", None)];
 
     assert!(
@@ -101,7 +101,7 @@ fn key_expiry_gates_only_when_published_after_expiry() {
     let package = package();
     let integrity = "sha512-abc";
     let message = format!("foo@1.0.0:{integrity}");
-    let signatures = vec![signature("k1", &sign_b64(&key, &message))];
+    let signatures = vec![signature("k1", sign_b64(&key, &message))];
     let keys = vec![ecdsa_key(&key, "k1", Some("2020-01-01T00:00:00.000Z"))];
 
     let published_after = verify_package_signatures(

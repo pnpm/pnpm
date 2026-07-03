@@ -6,21 +6,21 @@ use pacquet_catalogs_types::{Catalog, Catalogs};
 use std::collections::HashMap;
 
 fn vo(
-    selector: &str,
-    new_bare: &str,
+    selector: impl Into<String>,
+    new_bare: impl Into<String>,
     parent: Option<PackageSelector>,
     target: PackageSelector,
 ) -> VersionOverride {
     VersionOverride {
-        selector: selector.to_string(),
+        selector: selector.into(),
         parent_pkg: parent,
         target_pkg: target,
-        new_bare_specifier: new_bare.to_string(),
+        new_bare_specifier: new_bare.into(),
     }
 }
 
-fn sel(name: &str, bare: Option<&str>) -> PackageSelector {
-    PackageSelector { name: name.to_string(), bare_specifier: bare.map(str::to_owned) }
+fn sel(name: impl Into<String>, bare: Option<&str>) -> PackageSelector {
+    PackageSelector { name: name.into(), bare_specifier: bare.map(str::to_owned) }
 }
 
 /// `HashMap` iteration order is unspecified, so when comparing

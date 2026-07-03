@@ -365,7 +365,8 @@ async fn resolve_explicit_registry_spec(
     let registries: std::collections::HashMap<String, String> =
         config.resolved_registries().into_iter().collect();
     let registry = pick_registry_for_package(&registries, package_name, None);
-    let Some(spec_parsed) = parse_bare_specifier(spec, Some(package_name), "latest", &registry)
+    let Some(spec_parsed) =
+        parse_bare_specifier(spec.to_string(), Some(package_name), "latest", &registry)
     else {
         return Ok(None);
     };
@@ -438,7 +439,7 @@ async fn resolve_explicit_registry_spec(
     // path/URL prev (e.g. `file:../foo-2.0.0.tgz`) would otherwise be misread
     // as a pin. Gate it on `parse_bare_specifier` accepting a non-URL spec.
     let prev_pin = prev_specifier
-        .filter(|prev| is_registry_style_specifier(prev, package_name, &registry))
+        .filter(|prev| is_registry_style_specifier(prev.to_string(), package_name, &registry))
         .and_then(which_version_is_pinned);
     let pin = prev_pin.or_else(|| which_version_is_pinned(spec)).unwrap_or(pinned_version);
     Ok(Some(picked.serialize(pin)))
@@ -447,7 +448,7 @@ async fn resolve_explicit_registry_spec(
 /// Whether `specifier` is a plain registry range/tag/version for
 /// `package_name` (not a non-registry protocol, path, or tarball URL), and
 /// so carries a meaningful range operator.
-fn is_registry_style_specifier(specifier: &str, package_name: &str, registry: &str) -> bool {
+fn is_registry_style_specifier(specifier: String, package_name: &str, registry: &str) -> bool {
     parse_bare_specifier(specifier, Some(package_name), "latest", registry)
         .is_some_and(|parsed| parsed.normalized_bare_specifier.is_none())
 }

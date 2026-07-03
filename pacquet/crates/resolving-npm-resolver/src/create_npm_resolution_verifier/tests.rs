@@ -34,9 +34,9 @@ fn registry_resolution() -> LockfileResolution {
     LockfileResolution::Registry(RegistryResolution { integrity: fake_integrity() })
 }
 
-fn registries_with_default(default: &str) -> HashMap<String, String> {
+fn registries_with_default(default: impl Into<String>) -> HashMap<String, String> {
     let mut map = HashMap::new();
-    map.insert("default".to_string(), default.to_string());
+    map.insert("default".to_string(), default.into());
     map
 }
 

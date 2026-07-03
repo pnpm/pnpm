@@ -93,7 +93,7 @@ async fn start_pnpr_inner(
 
 /// An access-bearing uplink that serves `registry_url` with `token`, usable
 /// by any authenticated pnpr caller (exposed at `/~test-registry/`).
-fn registry_uplink(registry_url: &str, token: &str) -> (String, pnpr::UplinkConfig) {
+fn registry_uplink(registry_url: impl Into<String>, token: &str) -> (String, pnpr::UplinkConfig) {
     let mut headers = reqwest::header::HeaderMap::new();
     headers.insert(
         reqwest::header::AUTHORIZATION,
@@ -103,7 +103,7 @@ fn registry_uplink(registry_url: &str, token: &str) -> (String, pnpr::UplinkConf
     (
         "test-registry".to_string(),
         pnpr::UplinkConfig {
-            url: registry_url.to_string(),
+            url: registry_url.into(),
             headers,
             maxage: None,
             timeout: pnpr::UplinkConfig::DEFAULT_TIMEOUT,
@@ -183,17 +183,17 @@ async fn register_token(registry_url: &str, username: &str) -> String {
 }
 
 fn options(
-    registry: &str,
-    authorization: &str,
+    registry: impl Into<String>,
+    authorization: impl Into<String>,
     dependencies: BTreeMap<String, String>,
 ) -> ResolveOptions {
     ResolveOptions {
         dependencies,
         dev_dependencies: BTreeMap::new(),
         optional_dependencies: BTreeMap::new(),
-        registry: registry.to_string(),
+        registry: registry.into(),
         named_registries: BTreeMap::new(),
-        authorization: Some(authorization.to_string()),
+        authorization: Some(authorization.into()),
         overrides: None,
         lockfile: None,
         frozen_lockfile: false,
@@ -247,11 +247,11 @@ async fn an_uplink_resolves_a_private_package() {
     let registry = TestRegistry::start();
     let token = register_token(&registry.url(), "needs-auth-forwarder").await;
     let (pnpr_url, pnpr_auth, _storage) =
-        start_pnpr_with_uplinks(vec![registry_uplink(&registry.url(), &token)]).await;
+        start_pnpr_with_uplinks(vec![registry_uplink(registry.url(), &token)]).await;
 
     let client = PnprClient::new(pnpr_url);
 
-    let opts = options(&registry.url(), &pnpr_auth, deps([("@pnpm.e2e/needs-auth", "1.0.0")]));
+    let opts = options(registry.url(), &pnpr_auth, deps([("@pnpm.e2e/needs-auth", "1.0.0")]));
     let outcome = client.resolve(opts).await.expect("the uplink should resolve it");
     let packages = outcome.lockfile.packages.as_ref().expect("lockfile has packages");
     assert!(
@@ -272,7 +272,7 @@ async fn a_private_package_fails_without_an_uplink() {
 
     let client = PnprClient::new(pnpr_url);
 
-    let opts = options(&registry.url(), &pnpr_auth, deps([("@pnpm.e2e/needs-auth", "1.0.0")]));
+    let opts = options(registry.url(), &pnpr_auth, deps([("@pnpm.e2e/needs-auth", "1.0.0")]));
     let Err(PnprClientError::Server(message)) = client.resolve(opts).await else {
         panic!("expected the gated install to fail with a server error");
     };
@@ -287,7 +287,7 @@ async fn resolves_a_package() {
     let client = PnprClient::new(pnpr_url);
 
     let outcome = client
-        .resolve(options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
+        .resolve(options(registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
         .await
         .expect("install should succeed");
 
@@ -311,7 +311,7 @@ async fn unknown_route_keeps_its_upstream_tarball_url() {
     let (pnpr_url, pnpr_auth, _storage) = start_pnpr(&registry.url()).await;
 
     let outcome = PnprClient::new(pnpr_url)
-        .resolve(options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
+        .resolve(options(registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
         .await
         .expect("install should succeed");
     let lockfile = serde_json::to_value(&outcome.lockfile).expect("lockfile serializes");
@@ -346,7 +346,7 @@ async fn streams_resolved_packages_before_the_lockfile() {
     let mut streamed: Vec<String> = Vec::new();
     let outcome = client
         .resolve_streaming(
-            options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])),
+            options(registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])),
             |pkg| {
                 assert!(!pkg.integrity.is_empty(), "a package frame carries an integrity");
                 assert!(pkg.tarball.starts_with("http"), "a package frame carries a tarball URL");
@@ -377,7 +377,7 @@ async fn forwards_optional_dependencies() {
 
     let client = PnprClient::new(pnpr_url);
 
-    let mut opts = options(&registry.url(), &pnpr_auth, BTreeMap::new());
+    let mut opts = options(registry.url(), &pnpr_auth, BTreeMap::new());
     opts.optional_dependencies = deps([("@foo/no-deps", "1.0.0")]);
 
     let outcome = client.resolve(opts).await.expect("install should succeed");
@@ -398,14 +398,14 @@ async fn verifies_and_accepts_a_clean_input_lockfile() {
 
     // A first install with no lockfile produces a valid resolved one.
     let first = client
-        .resolve(options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
+        .resolve(options(registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
         .await
         .expect("first install");
 
     // Sending it back as the input lockfile makes the server verify it
     // under the (default, policy-free) client policy before resolving;
     // a clean lockfile passes and the install succeeds.
-    let mut opts = options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
+    let mut opts = options(registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
     opts.lockfile = Some(first.lockfile.clone());
     let second = client.resolve(opts).await.expect("verified-input install should succeed");
     assert!(second.lockfile.packages.is_some(), "resolution still produced a lockfile");
@@ -419,14 +419,14 @@ async fn rejects_an_input_lockfile_that_violates_the_clients_policy() {
     let client = PnprClient::new(pnpr_url);
 
     let first = client
-        .resolve(options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
+        .resolve(options(registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
         .await
         .expect("first install");
 
     // Re-send the same lockfile under a ~100-year minimumReleaseAge: no
     // real publish time can satisfy it, so the server rejects the input
     // lockfile and the client rebuilds the identical `VerifyError`.
-    let mut opts = options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
+    let mut opts = options(registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
     opts.lockfile = Some(first.lockfile.clone());
     opts.minimum_release_age = Some(60 * 24 * 365 * 100);
     opts.minimum_release_age_ignore_missing_time = false;
@@ -448,11 +448,11 @@ async fn verify_lockfile_endpoint_accepts_a_clean_input_lockfile() {
     let client = PnprClient::new(pnpr_url);
 
     let first = client
-        .resolve(options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
+        .resolve(options(registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
         .await
         .expect("first install");
 
-    let mut opts = options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
+    let mut opts = options(registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
     opts.lockfile = Some(first.lockfile);
     let verify_opts =
         VerifyLockfileOptions::from_resolve_options(&opts).expect("lockfile is present");
@@ -468,11 +468,11 @@ async fn verify_lockfile_endpoint_rejects_policy_violation() {
     let client = PnprClient::new(pnpr_url);
 
     let first = client
-        .resolve(options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
+        .resolve(options(registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
         .await
         .expect("first install");
 
-    let mut opts = options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
+    let mut opts = options(registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
     opts.lockfile = Some(first.lockfile);
     opts.minimum_release_age = Some(60 * 24 * 365 * 100);
     opts.minimum_release_age_ignore_missing_time = false;
@@ -505,11 +505,11 @@ async fn verify_lockfile_endpoint_uses_uplinks() {
 
     let (resolve_pnpr_url, resolve_auth, _resolve_storage) = start_pnpr_with_uplinks_at(
         shared_public_url,
-        vec![registry_uplink(&registry.url(), &token)],
+        vec![registry_uplink(registry.url(), &token)],
     )
     .await;
     let mut resolve_opts =
-        options(&registry.url(), &resolve_auth, deps([("@pnpm.e2e/needs-auth", "1.0.0")]));
+        options(registry.url(), &resolve_auth, deps([("@pnpm.e2e/needs-auth", "1.0.0")]));
     let first = PnprClient::new(resolve_pnpr_url)
         .resolve(resolve_opts.clone())
         .await
@@ -523,7 +523,7 @@ async fn verify_lockfile_endpoint_uses_uplinks() {
     // A fresh pnpr that carries the uplink verifies the gated entry.
     let (aliased_pnpr_url, aliased_auth, _aliased_storage) = start_pnpr_with_uplinks_at(
         shared_public_url,
-        vec![registry_uplink(&registry.url(), &token)],
+        vec![registry_uplink(registry.url(), &token)],
     )
     .await;
     let mut aliased_opts = resolve_opts.clone();
@@ -556,7 +556,7 @@ async fn trust_lockfile_makes_the_server_skip_verification() {
     let client = PnprClient::new(pnpr_url);
 
     let first = client
-        .resolve(options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
+        .resolve(options(registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")])))
         .await
         .expect("first install");
 
@@ -564,7 +564,7 @@ async fn trust_lockfile_makes_the_server_skip_verification() {
     // trips on, but with the client's `trustLockfile` opt-out set: the
     // server must skip the verify gate and resolve normally, matching the
     // local `--trust-lockfile` path.
-    let mut opts = options(&registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
+    let mut opts = options(registry.url(), &pnpr_auth, deps([("@foo/no-deps", "1.0.0")]));
     opts.lockfile = Some(first.lockfile.clone());
     opts.minimum_release_age = Some(60 * 24 * 365 * 100);
     opts.minimum_release_age_ignore_missing_time = false;

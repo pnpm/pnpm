@@ -22,9 +22,9 @@ use crate::{
     route::{Footprint, PrivateAccessDescriptor, RouteContext},
 };
 
-fn config_for_registry(registry: &str) -> PacquetConfig {
+fn config_for_registry(registry: impl Into<String>) -> PacquetConfig {
     let mut config = PacquetConfig::new();
-    config.registry = registry.to_string();
+    config.registry = registry.into();
     config
 }
 
@@ -43,12 +43,9 @@ fn registry_config() -> RegistryConfig {
     )
 }
 
-fn public_registry_config(registry: &str) -> RegistryConfig {
+fn public_registry_config(registry: impl Into<String>) -> RegistryConfig {
     let mut config = registry_config();
-    config
-        .route_policy
-        .public
-        .push(PublicRoute { registry: Some(registry.to_string()), package: None });
+    config.route_policy.public.push(PublicRoute { registry: Some(registry.into()), package: None });
     config
 }
 
@@ -82,27 +79,31 @@ fn uplink_with_access(registry: &str, access: &str) -> UplinkConfig {
     uplink_with_token(registry, access, ALIAS_TOKEN)
 }
 
-fn uplink_with_token(registry: &str, access: &str, token: &'static str) -> UplinkConfig {
+fn uplink_with_token(
+    registry: impl Into<String>,
+    access: &str,
+    token: &'static str,
+) -> UplinkConfig {
     let mut headers = reqwest::header::HeaderMap::new();
     headers
         .insert(reqwest::header::AUTHORIZATION, reqwest::header::HeaderValue::from_static(token));
-    let mut uplink = UplinkConfig::with_defaults(registry.to_string(), headers);
+    let mut uplink = UplinkConfig::with_defaults(registry.into(), headers);
     uplink.access = Some(AccessList::parse(access));
     uplink
 }
 
-fn private_alias_footprint(alias: &str) -> Footprint {
+fn private_alias_footprint(alias: impl Into<String>) -> Footprint {
     let mut footprint = Footprint::default();
     footprint.add(PrivateAccessDescriptor::Alias {
-        alias: alias.to_string(),
+        alias: alias.into(),
         credential_digest: crate::route::credential_digest(ALIAS_TOKEN),
     });
     footprint
 }
 
-fn private_hosted_footprint(policy_id: &str) -> Footprint {
+fn private_hosted_footprint(policy_id: impl Into<String>) -> Footprint {
     let mut footprint = Footprint::default();
-    footprint.add(PrivateAccessDescriptor::Hosted { policy_id: policy_id.to_string() });
+    footprint.add(PrivateAccessDescriptor::Hosted { policy_id: policy_id.into() });
     footprint
 }
 
@@ -687,7 +688,7 @@ fn candidate_lists_stay_bounded_and_keep_public_entries() {
             &cache,
             Duration::from_mins(1),
             key.clone(),
-            private_alias_footprint(&format!("corp-{index}")),
+            private_alias_footprint(format!("corp-{index}")),
             b"secret",
             &lockfile,
         ));
@@ -976,7 +977,7 @@ fn intern_config_caps_distinct_leaked_configs_but_keeps_serving_known_ones() {
         ..ResolveRequest::default()
     };
     let intern = |registry: &str| {
-        intern_config(&configs, &store_dir, &cache_dir, &request(registry), max, usize::MAX)
+        intern_config(&configs, &store_dir, cache_dir.clone(), &request(registry), max, usize::MAX)
     };
 
     // Distinct registry configurations are interned up to the cap.
@@ -1008,7 +1009,7 @@ fn intern_config_refuses_a_config_key_larger_than_the_byte_cap() {
         ..ResolveRequest::default()
     };
     let intern = |registry: &str| {
-        intern_config(&configs, &store_dir, &cache_dir, &request(registry), 10, 1024)
+        intern_config(&configs, &store_dir, cache_dir.clone(), &request(registry), 10, 1024)
     };
 
     // A normal configuration is interned.
@@ -1030,7 +1031,7 @@ fn intern_config_keys_overrides_canonically_regardless_of_order() {
     let cache_dir = PathBuf::from("/tmp/pnpr-canon-test-cache");
     let intern = |overrides: serde_json::Value| {
         let request = ResolveRequest { overrides: Some(overrides), ..ResolveRequest::default() };
-        intern_config(&configs, &store_dir, &cache_dir, &request, 10, usize::MAX)
+        intern_config(&configs, &store_dir, cache_dir.clone(), &request, 10, usize::MAX)
     };
 
     // The same overrides sent with a different JSON key order must dedup to a

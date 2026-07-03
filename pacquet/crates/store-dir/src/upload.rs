@@ -49,17 +49,13 @@ pub const HASH_ALGORITHM: &str = "sha512";
 pub fn upload(
     store_dir: &StoreDir,
     built_pkg_location: &Path,
-    files_index_file: &str,
-    side_effects_cache_key: &str,
+    files_index_file: String,
+    side_effects_cache_key: String,
     writer: &StoreIndexWriter,
 ) -> Result<(), UploadError> {
     let added =
         add_files_from_dir(store_dir, built_pkg_location).map_err(UploadError::AddFilesFromDir)?;
-    writer.queue_side_effects_upload(
-        files_index_file.to_string(),
-        side_effects_cache_key.to_string(),
-        added.files,
-    );
+    writer.queue_side_effects_upload(files_index_file, side_effects_cache_key, added.files);
     Ok(())
 }
 

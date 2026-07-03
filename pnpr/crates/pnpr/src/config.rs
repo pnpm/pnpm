@@ -1826,7 +1826,7 @@ fn build_groups(file: &IndexMap<String, AccessSpec>) -> AccessGroups {
     let mut groups = AccessGroups::default();
     for (group, members) in file {
         for username in members.to_ordered_tokens() {
-            groups.add_user_to_group(username, group);
+            groups.add_user_to_group(username.to_string(), group.clone());
         }
     }
     groups

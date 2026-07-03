@@ -307,7 +307,7 @@ fn detect_dep_types(
         snapshots,
         &mut dep_types,
         &mut walked,
-        &dev_keys,
+        dev_keys,
         true,
         include_optional_transitive,
     );
@@ -315,7 +315,7 @@ fn detect_dep_types(
         snapshots,
         &mut dep_types,
         &mut walked,
-        &prod_keys,
+        prod_keys,
         false,
         include_optional_transitive,
     );
@@ -326,11 +326,11 @@ fn detect_dep_types_walk(
     snapshots: Option<&HashMap<PackageKey, SnapshotEntry>>,
     dep_types: &mut HashMap<PackageKey, DepType>,
     walked: &mut HashSet<(PackageKey, bool)>,
-    initial_keys: &[PackageKey],
+    initial_keys: Vec<PackageKey>,
     is_dev: bool,
     include_optional_transitive: bool,
 ) {
-    let mut queue: Vec<PackageKey> = initial_keys.to_vec();
+    let mut queue: Vec<PackageKey> = initial_keys;
 
     while let Some(key) = queue.pop() {
         let walk_key = (key.clone(), is_dev);
@@ -563,7 +563,7 @@ fn collect_components(
                 } else if let Some(snapshot_key) = spec.version.resolved_key(name) {
                     walk_snapshot(
                         &snapshot_key,
-                        &parent_purl,
+                        parent_purl.clone(),
                         &ctx,
                         &mut components_map,
                         &mut relationships,
@@ -630,14 +630,13 @@ fn read_pkg_metadata_from_store(
 
 fn walk_snapshot(
     initial_key: &PkgNameVerPeer,
-    initial_parent_purl: &str,
+    initial_parent_purl: String,
     ctx: &WalkContext<'_>,
     components_map: &mut IndexMap<String, SbomComponent>,
     relationships: &mut Vec<SbomRelationship>,
     visited: &mut HashSet<PackageKey>,
 ) {
-    let mut queue: Vec<(PkgNameVerPeer, String)> =
-        vec![(initial_key.clone(), initial_parent_purl.to_string())];
+    let mut queue: Vec<(PkgNameVerPeer, String)> = vec![(initial_key.clone(), initial_parent_purl)];
 
     while let Some((key, parent_purl)) = queue.pop() {
         let name = key.name.to_string();

@@ -46,11 +46,11 @@ pub fn find_local_prefix(start_dir: &Path) -> miette::Result<PathBuf> {
         }
     }
 
-    if name == start_dir { find_prefix_up(&name, &name) } else { Ok(name) }
+    if name == start_dir { find_prefix_up(name.clone(), &name) } else { Ok(name) }
 }
 
-fn find_prefix_up(name: &Path, original: &Path) -> miette::Result<PathBuf> {
-    let mut current = name.to_path_buf();
+fn find_prefix_up(name: PathBuf, original: &Path) -> miette::Result<PathBuf> {
+    let mut current = name;
     let targets =
         ["node_modules", "package.json", "package.json5", "package.yaml", "pnpm-workspace.yaml"];
 

@@ -246,7 +246,12 @@ impl WorkEnv {
             let registry = self.registry_for(id, direct_registry, revision_mocks);
             fs::create_dir_all(&dir).expect("create directory for the revision");
             create_package_json(&dir, self.fixture_dir.as_deref());
-            create_pnpm_workspace(&dir, self.fixture_dir.as_deref(), registry, scenario);
+            create_pnpm_workspace(
+                &dir,
+                self.fixture_dir.as_deref(),
+                registry.to_string(),
+                scenario,
+            );
             create_install_script(&dir, scenario, &WorkEnv::install_command(id), id);
             create_npmrc(&dir, registry, scenario);
             may_create_lockfile(&dir, scenario, self.fixture_dir.as_deref());
@@ -1560,7 +1565,7 @@ fn save_pristine_copies(dir: &Path) {
 fn create_pnpm_workspace(
     dst_dir: &Path,
     src_dir: Option<&Path>,
-    registry: &str,
+    registry: String,
     scenario: BenchmarkScenario,
 ) {
     let dst = dst_dir.join("pnpm-workspace.yaml");
@@ -1607,7 +1612,7 @@ fn create_pnpm_workspace(
     if manifest.packages.is_none() {
         manifest.packages = Some(vec![".".to_string()]);
     }
-    manifest.registry = Some(registry.to_string());
+    manifest.registry = Some(registry);
     manifest.auto_install_peers = Some(true);
     manifest.ignore_scripts = Some(true);
     manifest.lockfile = Some(scenario.lockfile_enabled());

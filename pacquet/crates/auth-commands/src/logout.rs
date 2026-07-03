@@ -153,7 +153,7 @@ where
         RevokeOutcome::Revoked => true,
         RevokeOutcome::Rejected { status } => {
             global::<Reporter>(
-                opts.prefix,
+                opts.prefix.to_string(),
                 LogLevel::Info,
                 format!("Registry returned HTTP {status} when revoking token"),
             );
@@ -161,7 +161,7 @@ where
         }
         RevokeOutcome::Unreachable => {
             global::<Reporter>(
-                opts.prefix,
+                opts.prefix.to_string(),
                 LogLevel::Info,
                 "Could not reach the registry to revoke the token".to_string(),
             );
@@ -177,7 +177,7 @@ where
             .map_err(|error| LogoutError::WriteAuthIni { path: config_path.clone(), error })?;
     } else if revoked {
         global::<Reporter>(
-            opts.prefix,
+            opts.prefix.to_string(),
             LogLevel::Warn,
             format!(
                 "The auth token for {registry_display} was not found in {}. \
@@ -203,8 +203,8 @@ fn safe_read_ini<Sys: FsReadToString>(path: &std::path::Path) -> Result<IniSetti
     }
 }
 
-fn global<Reporter: self::Reporter>(prefix: &str, level: LogLevel, message: String) {
-    Reporter::emit(&LogEvent::Pnpm(PnpmLog { level, message, prefix: prefix.to_string() }));
+fn global<Reporter: self::Reporter>(prefix: String, level: LogLevel, message: String) {
+    Reporter::emit(&LogEvent::Pnpm(PnpmLog { level, message, prefix }));
 }
 
 /// Append a trailing slash if the registry URL lacks one. Mirrors npm's

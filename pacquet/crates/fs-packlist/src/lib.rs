@@ -179,7 +179,8 @@ fn collect_bundled_files(
             );
             continue;
         }
-        let Some(dep_dir) = resolve_bundled_dependency(&task.name, &task.from_dir, root) else {
+        let Some(dep_dir) = resolve_bundled_dependency(&task.name, task.from_dir.clone(), root)
+        else {
             tracing::debug!(
                 target: "pacquet::fs_packlist",
                 bundle_name = %task.name,
@@ -247,8 +248,8 @@ fn collect_bundled_files(
 ///
 /// Climbing past `root` is refused so a hoisted dep always resolves to
 /// the package being packed rather than to a sibling on the host.
-fn resolve_bundled_dependency(name: &str, from_dir: &Path, root: &Path) -> Option<PathBuf> {
-    let mut current = from_dir.to_path_buf();
+fn resolve_bundled_dependency(name: &str, from_dir: PathBuf, root: &Path) -> Option<PathBuf> {
+    let mut current = from_dir;
     loop {
         let candidate = current.join("node_modules").join(name);
         if candidate.join("package.json").is_file() {

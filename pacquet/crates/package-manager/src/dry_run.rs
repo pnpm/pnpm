@@ -71,7 +71,7 @@ pub fn diff_lockfiles(old: Option<&Lockfile>, new: Option<&Lockfile>) -> Lockfil
     }
     for id in importer_ids {
         let importer_diff = diff_importer(
-            id,
+            id.to_string(),
             old.and_then(|lockfile| lockfile.importers.get(id)),
             new.importers.get(id),
         );
@@ -121,7 +121,7 @@ fn snapshot_wiring_differs(old: &SnapshotEntry, new: &SnapshotEntry) -> bool {
 }
 
 fn diff_importer(
-    id: &str,
+    id: String,
     old: Option<&ProjectSnapshot>,
     new: Option<&ProjectSnapshot>,
 ) -> ImporterDiff {
@@ -153,7 +153,7 @@ fn diff_importer(
         }
     }
 
-    ImporterDiff { id: id.to_string(), added, removed, updated }
+    ImporterDiff { id, added, removed, updated }
 }
 
 /// The `alias -> specifier` map for one dependency group of an importer

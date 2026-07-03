@@ -49,7 +49,7 @@ mod verdict_cache;
 
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::{Arc, Mutex, OnceLock},
     time::{Duration, Instant},
 };
@@ -217,7 +217,7 @@ impl Resolver {
         intern_config(
             &self.configs,
             &self.store_dir,
-            &self.cache_dir,
+            self.cache_dir.clone(),
             request,
             MAX_INTERNED_CONFIGS,
             MAX_CONFIG_KEY_BYTES,
@@ -265,7 +265,7 @@ const MAX_CONFIG_KEY_BYTES: usize = 128 * 1024;
 fn intern_config(
     configs: &Mutex<HashMap<String, &'static PacquetConfig>>,
     store_dir: &StoreDir,
-    cache_dir: &Path,
+    cache_dir: PathBuf,
     request: &ResolveRequest,
     max_interned: usize,
     max_key_bytes: usize,
@@ -309,7 +309,7 @@ fn intern_config(
 
     let mut config = PacquetConfig::new();
     config.store_dir = store_dir.clone();
-    config.cache_dir = cache_dir.to_path_buf();
+    config.cache_dir = cache_dir;
     config.registry = registry;
     config.named_registries = request.named_registries.clone();
     config.overrides = overrides;
@@ -403,7 +403,7 @@ pub(crate) async fn handle_resolve(
             Ok(stats) => verified_dist_stats = stats,
             Err(VerifyFailure::Internal(response)) => return response,
             Err(VerifyFailure::Violations(violations)) => {
-                return ndjson_single_frame(&violations_frame(&violations));
+                return ndjson_single_frame(violations_frame(&violations));
             }
         }
     }
@@ -421,7 +421,7 @@ pub(crate) async fn handle_resolve(
         if let Some(osv_index) = runtime.osv_index.as_ref() {
             let violations = osv_violations_for_lockfile(osv_index, &lockfile);
             if !violations.is_empty() {
-                return ndjson_single_frame(&violations_frame(&violations));
+                return ndjson_single_frame(violations_frame(&violations));
             }
         }
         let mut frames = verified_dist_stats
@@ -446,7 +446,7 @@ pub(crate) async fn handle_resolve(
         // The OSV index is immutable for this resolver instance and a lockfile
         // is only stored after passing the OSV check, so a cache hit is already
         // OSV-clean — no per-package re-scan needed on this warm path.
-        return ndjson_single_frame(&done_frame(&lockfile));
+        return ndjson_single_frame(done_frame(&lockfile));
     }
 
     // Streaming resolve. Run it in a detached task that pushes one
@@ -560,7 +560,7 @@ pub(crate) async fn handle_verify_lockfile(
         Ok(_) => verify_done_or_osv_violations(runtime.osv_index.as_ref(), &input_lockfile),
         Err(VerifyFailure::Internal(response)) => response,
         Err(VerifyFailure::Violations(violations)) => {
-            ndjson_single_frame(&violations_frame(&violations))
+            ndjson_single_frame(violations_frame(&violations))
         }
     }
 }
@@ -1088,13 +1088,13 @@ fn verify_done_or_osv_violations(
     lockfile: &Lockfile,
 ) -> Response {
     let Some(osv_index) = osv_index else {
-        return ndjson_single_frame(&verify_done_frame());
+        return ndjson_single_frame(verify_done_frame());
     };
     let violations = osv_violations_for_lockfile(osv_index, lockfile);
     if violations.is_empty() {
-        ndjson_single_frame(&verify_done_frame())
+        ndjson_single_frame(verify_done_frame())
     } else {
-        ndjson_single_frame(&violations_frame(&violations))
+        ndjson_single_frame(violations_frame(&violations))
     }
 }
 
@@ -1210,11 +1210,11 @@ fn ndjson_line(value: &serde_json::Value) -> Result<Vec<u8>, serde_json::Error> 
 /// A 200 NDJSON response carrying a single, already-serialized terminal
 /// frame (the short-circuit and violation paths, which never stream
 /// `package` frames).
-fn ndjson_single_frame(frame: &[u8]) -> Response {
+fn ndjson_single_frame(frame: Vec<u8>) -> Response {
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, NDJSON_CONTENT_TYPE)
-        .body(Body::from(frame.to_vec()))
+        .body(Body::from(frame))
         .expect("binary response is always valid")
 }
 

@@ -8,8 +8,8 @@ use pretty_assertions::assert_eq;
 
 const DEFAULT_MAX_LENGTH: usize = 120;
 
-fn name_peer_ver(name: &str, peer_ver: &str) -> PkgNameVerPeer {
-    let peer_ver = peer_ver.to_string().parse().unwrap();
+fn name_peer_ver(name: &str, peer_ver: impl Into<String>) -> PkgNameVerPeer {
+    let peer_ver = peer_ver.into().parse().unwrap();
     PkgNameVerPeer::new(name.parse().unwrap(), peer_ver)
 }
 

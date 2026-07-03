@@ -3,8 +3,8 @@ use crate::CafsFileInfo;
 use pretty_assertions::assert_eq;
 use std::collections::HashMap;
 
-fn info(digest: &str, mode: u32, size: u64) -> CafsFileInfo {
-    CafsFileInfo { digest: digest.to_string(), mode, size, checked_at: None }
+fn info(digest: impl Into<String>, mode: u32, size: u64) -> CafsFileInfo {
+    CafsFileInfo { digest: digest.into(), mode, size, checked_at: None }
 }
 
 fn map(entries: &[(&str, CafsFileInfo)]) -> HashMap<String, CafsFileInfo> {

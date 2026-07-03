@@ -199,7 +199,7 @@ fn default_edit_dir_name_sanitizes_bare_specifier_path_chars() {
     };
 
     assert_eq!(
-        default_edit_dir_name("@scope/pkg@npm:@scope/pkg@^1.0.0", &target),
+        default_edit_dir_name("@scope/pkg@npm:@scope/pkg@^1.0.0".to_string(), &target),
         "@scope/pkg@npm+@scope+pkg@^1.0.0",
     );
 }
@@ -215,10 +215,11 @@ fn default_edit_dir_name_falls_back_to_alias_then_requested_package() {
         package_key: "chalk@5.3.0".parse().expect("package key"),
     };
 
-    assert_eq!(default_edit_dir_name("chalk", &target), "chalk");
+    assert_eq!(default_edit_dir_name("chalk".to_string(), &target), "chalk");
 
     target.alias.clear();
-    assert_eq!(default_edit_dir_name("chalk@npm:chalk@5.3.0", &target), "chalk@npm:chalk@5.3.0");
+    let dir_name = default_edit_dir_name("chalk@npm:chalk@5.3.0".to_string(), &target);
+    assert_eq!(dir_name, "chalk@npm:chalk@5.3.0");
 }
 
 struct FakePrompt {

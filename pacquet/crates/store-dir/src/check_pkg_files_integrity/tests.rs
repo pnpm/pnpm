@@ -30,18 +30,18 @@ fn now_ms() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64
 }
 
-fn index_with(algo: &str, info: Vec<(&str, CafsFileInfo)>) -> PackageFilesIndex {
+fn index_with(algo: impl Into<String>, info: Vec<(&str, CafsFileInfo)>) -> PackageFilesIndex {
     PackageFilesIndex {
         manifest: None,
         requires_build: None,
-        algo: algo.to_string(),
+        algo: algo.into(),
         files: info.into_iter().map(|(k, v)| (k.to_string(), v)).collect(),
         side_effects: None,
     }
 }
 
-fn info(digest: &str, size: u64, mode: u32, checked_at: Option<u64>) -> CafsFileInfo {
-    CafsFileInfo { checked_at, digest: digest.to_string(), mode, size }
+fn info(digest: impl Into<String>, size: u64, mode: u32, checked_at: Option<u64>) -> CafsFileInfo {
+    CafsFileInfo { checked_at, digest: digest.into(), mode, size }
 }
 
 #[test]

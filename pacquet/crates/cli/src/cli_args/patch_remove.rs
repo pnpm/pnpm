@@ -97,7 +97,7 @@ impl PatchRemoveArgs {
                 let patch_file = patched_dependencies
                     .get(patch)
                     .ok_or_else(|| PatchRemoveError::PatchNotFound { patch: patch.clone() })?;
-                PatchRemovalTarget::new(patch, patch_file, &ctx)
+                PatchRemovalTarget::new(patch.clone(), patch_file, &ctx)
             })
             .collect::<Result<Vec<_>, _>>()?;
         let removed_patches: HashSet<&String> = patches_to_remove.iter().collect();
@@ -105,7 +105,8 @@ impl PatchRemoveArgs {
             .iter()
             .filter(|(patch, _)| !removed_patches.contains(patch))
             .map(|(patch, patch_file)| {
-                PatchRemovalTarget::new(patch, patch_file, &ctx).map(|target| target.target_path)
+                PatchRemovalTarget::new(patch.clone(), patch_file, &ctx)
+                    .map(|target| target.target_path)
             })
             .collect::<Result<HashSet<_>, _>>()?;
 
@@ -189,7 +190,7 @@ impl PatchRemovalContext {
         let project_root = lexical_normalize(lockfile_dir);
         let real_project_root =
             dunce::canonicalize(&project_root).unwrap_or_else(|_| project_root.clone());
-        let patches_dir = join_setting_path(&project_root, patches_dir_setting);
+        let patches_dir = join_setting_path(project_root.clone(), patches_dir_setting);
         if !is_subdir(&project_root, &patches_dir) {
             return Err(PatchRemoveError::PatchesDirOutsideProject {
                 patches_dir: patches_dir_setting.to_string(),
@@ -214,7 +215,7 @@ struct PatchRemovalTarget {
 
 impl PatchRemovalTarget {
     fn new(
-        patch: &str,
+        patch: String,
         patch_file: &str,
         ctx: &PatchRemovalContext,
     ) -> Result<Self, PatchRemoveError> {
@@ -243,17 +244,12 @@ impl PatchRemovalTarget {
             });
         }
 
-        Ok(Self {
-            patch: patch.to_string(),
-            parent_dir,
-            target_path,
-            target_exists: target_stats.is_some(),
-        })
+        Ok(Self { patch, parent_dir, target_path, target_exists: target_stats.is_some() })
     }
 }
 
-fn join_setting_path(base: &Path, setting: &str) -> PathBuf {
-    let mut joined = base.to_path_buf();
+fn join_setting_path(base: PathBuf, setting: &str) -> PathBuf {
+    let mut joined = base;
     for component in Path::new(setting).components() {
         match component {
             Component::Prefix(_) | Component::RootDir => {}

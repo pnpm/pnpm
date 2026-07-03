@@ -23,11 +23,16 @@ fn sample_resolution() -> LockfileResolution {
 /// Build a minimal graph node at `dir`. The walker would do
 /// this through `lockfile_to_hoisted_dep_graph`; tests build it
 /// directly so the linker can be exercised without a lockfile.
-fn make_node(alias: &str, dep_path: &str, pkg_id: &str, dir: PathBuf) -> DependenciesGraphNode {
+fn make_node(
+    alias: &str,
+    dep_path: impl Into<String>,
+    pkg_id: &str,
+    dir: PathBuf,
+) -> DependenciesGraphNode {
     let modules = dir.parent().expect("dir has parent").to_path_buf();
     DependenciesGraphNode {
         alias: Some(alias.to_string()),
-        dep_path: DepPath::from(dep_path.to_string()),
+        dep_path: DepPath::from(dep_path.into()),
         pkg_id_with_patch_hash: PkgIdWithPatchHash::from(pkg_id),
         dir,
         modules,
@@ -99,7 +104,7 @@ fn flat_layout(
     let mut cas_paths = CasPathsByPkgId::new();
     for (alias, dep_path, pkg_id, files) in entries {
         let dir = modules.join(alias);
-        graph.insert(dir.clone(), make_node(alias, dep_path, pkg_id, dir.clone()));
+        graph.insert(dir.clone(), make_node(alias, *dep_path, pkg_id, dir.clone()));
         hierarchy_children.insert(dir, DepHierarchy::default());
         cas_paths.insert(PkgIdWithPatchHash::from(*pkg_id), plant_package(cas_root, pkg_id, files));
     }

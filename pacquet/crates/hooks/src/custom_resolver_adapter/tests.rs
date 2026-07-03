@@ -55,10 +55,10 @@ impl CustomResolver for ScriptedResolver {
     }
 }
 
-fn wanted(alias: &str, bare_specifier: &str) -> WantedDependency {
+fn wanted(alias: impl Into<String>, bare_specifier: impl Into<String>) -> WantedDependency {
     WantedDependency {
-        alias: Some(alias.to_string()),
-        bare_specifier: Some(bare_specifier.to_string()),
+        alias: Some(alias.into()),
+        bare_specifier: Some(bare_specifier.into()),
         ..WantedDependency::default()
     }
 }

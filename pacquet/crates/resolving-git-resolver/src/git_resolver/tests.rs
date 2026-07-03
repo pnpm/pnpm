@@ -42,10 +42,14 @@ impl GitCommandRunner for FakeRunner {
     }
 }
 
-fn resolver(head_ok: bool, ls_ok: bool, stdout: &str) -> GitResolver<FakeProbe, FakeRunner> {
+fn resolver(
+    head_ok: bool,
+    ls_ok: bool,
+    stdout: impl Into<String>,
+) -> GitResolver<FakeProbe, FakeRunner> {
     GitResolver::new(
         Arc::new(FakeProbe { head_ok, ls_ok }),
-        Arc::new(FakeRunner { stdout: stdout.to_string(), calls: Mutex::new(Vec::new()) }),
+        Arc::new(FakeRunner { stdout: stdout.into(), calls: Mutex::new(Vec::new()) }),
     )
 }
 

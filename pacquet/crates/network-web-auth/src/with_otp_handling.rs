@@ -87,7 +87,7 @@ fn extract_url_field<Reporter: self::Reporter>(
         None => None,
         Some(Value::String(value)) => Some(value.clone()),
         Some(other) => {
-            global_warn::<Reporter>(&format!(
+            global_warn::<Reporter>(format!(
                 "OTP error body: {field} has type {}, expected string",
                 js_typeof(other),
             ));
@@ -209,7 +209,7 @@ where
     let otp = match challenge.body {
         Some(OtpErrorBody { auth_url: Some(auth_url), done_url: Some(done_url) }) => {
             let qr_code = generate_qr_code(&auth_url).map_err(WithOtpError::QrCode)?;
-            global_info::<Reporter>(&format!(
+            global_info::<Reporter>(format!(
                 "Authenticate your account at:\n{auth_url}\n\n{qr_code}",
             ));
             let poll = poll_for_web_auth_token::<Sys>(WebAuthTokenPollParams {

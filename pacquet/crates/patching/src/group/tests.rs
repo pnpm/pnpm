@@ -6,12 +6,12 @@ use pretty_assertions::assert_eq;
 
 const ZERO_HASH: &str = "00000000000000000000000000000000";
 
-fn input(hash: &str) -> PatchInput {
-    PatchInput { hash: hash.to_string(), patch_file_path: None }
+fn input(hash: impl Into<String>) -> PatchInput {
+    PatchInput { hash: hash.into(), patch_file_path: None }
 }
 
-fn info(key: &str, hash: &str) -> ExtendedPatchInfo {
-    ExtendedPatchInfo { hash: hash.to_string(), patch_file_path: None, key: key.to_string() }
+fn info(key: impl Into<String>, hash: impl Into<String>) -> ExtendedPatchInfo {
+    ExtendedPatchInfo { hash: hash.into(), patch_file_path: None, key: key.into() }
 }
 
 /// Groups `patchedDependencies` according to names, match types, and

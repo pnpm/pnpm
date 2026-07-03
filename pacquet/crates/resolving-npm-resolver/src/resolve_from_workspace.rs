@@ -133,7 +133,7 @@ pub fn try_resolve_from_workspace(
     let translated =
         workspace_pref_to_npm(bare).map_err(ResolveFromWorkspaceError::InvalidWorkspaceSpec)?;
     let spec = parse_bare_specifier(
-        &translated,
+        translated,
         wanted_dependency.alias.as_deref(),
         opts.default_tag,
         opts.registry,

@@ -8,8 +8,8 @@ use std::{
     sync::Arc,
 };
 
-fn dp(raw: &str) -> DepPath {
-    DepPath::from(raw.to_string())
+fn dp(raw: impl Into<String>) -> DepPath {
+    DepPath::from(raw.into())
 }
 
 fn make_node(
@@ -35,7 +35,7 @@ fn make_node(
             alias: None,
             policy_violation: None,
         }),
-        children: children.iter().map(|(alias, child)| (alias.to_string(), dp(child))).collect(),
+        children: children.iter().map(|(alias, child)| (alias.to_string(), dp(*child))).collect(),
         optional_children: HashSet::new(),
         peer_dependencies: BTreeMap::new(),
         transitive_peer_dependencies: HashSet::new(),

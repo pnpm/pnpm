@@ -1203,9 +1203,13 @@ fn shared_package_optional_transitive_peer_resolves_deterministically() {
     }
 }
 
-fn tree_node(pkg_id: &str, children: BTreeMap<String, NodeId>, depth: i32) -> DependenciesTreeNode {
+fn tree_node(
+    pkg_id: impl Into<String>,
+    children: BTreeMap<String, NodeId>,
+    depth: i32,
+) -> DependenciesTreeNode {
     DependenciesTreeNode {
-        resolved_package_id: pkg_id.to_string(),
+        resolved_package_id: pkg_id.into(),
         children: TreeChildren::Realized(children),
         depth,
         installable: true,

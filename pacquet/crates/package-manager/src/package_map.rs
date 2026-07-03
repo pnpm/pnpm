@@ -627,7 +627,7 @@ fn add_loose_dependencies(
 ) {
     let (Some(package_dirs), Some(loose_index)) = (package_dirs, loose_index) else { return };
     for (id, package_dir) in package_dirs {
-        let physical = physical_dependencies(package_dir, loose_index);
+        let physical = physical_dependencies(package_dir.clone(), loose_index);
         if let Some(pkg) = packages.get_mut(id) {
             for (alias, dep_id) in physical {
                 pkg.dependencies.insert(alias, dep_id);
@@ -637,11 +637,11 @@ fn add_loose_dependencies(
 }
 
 fn physical_dependencies(
-    package_dir: &Path,
+    package_dir: PathBuf,
     loose_index: &PhysicalPackageIndex,
 ) -> BTreeMap<String, String> {
     let mut dependencies = BTreeMap::new();
-    let mut current = package_dir.to_path_buf();
+    let mut current = package_dir;
     loop {
         let modules_dir = normalize_path(&current.join("node_modules"));
         if let Some(locations) = loose_index.by_modules_dir.get(&modules_dir) {

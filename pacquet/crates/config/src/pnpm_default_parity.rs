@@ -45,8 +45,8 @@ enum Scalar {
     Undefined,
 }
 
-fn s(value: &str) -> Scalar {
-    Scalar::Str(value.to_string())
+fn s(value: String) -> Scalar {
+    Scalar::Str(value)
 }
 
 /// pnpm keys whose default is an environment / platform / CPU
@@ -173,38 +173,38 @@ fn mapped_rows(cfg: &Config) -> Vec<(&'static str, Scalar)> {
 
 fn node_linker_scalar(value: NodeLinker) -> Scalar {
     match value {
-        NodeLinker::Isolated => s("isolated"),
-        NodeLinker::Hoisted => s("hoisted"),
-        NodeLinker::Pnp => s("pnp"),
+        NodeLinker::Isolated => s("isolated".to_string()),
+        NodeLinker::Hoisted => s("hoisted".to_string()),
+        NodeLinker::Pnp => s("pnp".to_string()),
     }
 }
 
 fn node_package_map_type_scalar(value: NodePackageMapType) -> Scalar {
     match value {
-        NodePackageMapType::Standard => s("standard"),
-        NodePackageMapType::Loose => s("loose"),
+        NodePackageMapType::Standard => s("standard".to_string()),
+        NodePackageMapType::Loose => s("loose".to_string()),
     }
 }
 
 fn resolution_mode_scalar(value: ResolutionMode) -> Scalar {
     match value {
-        ResolutionMode::Highest => s("highest"),
-        ResolutionMode::TimeBased => s("time-based"),
-        ResolutionMode::LowestDirect => s("lowest-direct"),
+        ResolutionMode::Highest => s("highest".to_string()),
+        ResolutionMode::TimeBased => s("time-based".to_string()),
+        ResolutionMode::LowestDirect => s("lowest-direct".to_string()),
     }
 }
 
 fn catalog_mode_scalar(value: CatalogMode) -> Scalar {
     match value {
-        CatalogMode::Manual => s("manual"),
-        CatalogMode::Strict => s("strict"),
-        CatalogMode::Prefer => s("prefer"),
+        CatalogMode::Manual => s("manual".to_string()),
+        CatalogMode::Strict => s("strict".to_string()),
+        CatalogMode::Prefer => s("prefer".to_string()),
     }
 }
 
 fn save_catalog_name_scalar(value: Option<&str>) -> Scalar {
     match value {
-        Some(name) => s(name),
+        Some(name) => s(name.to_string()),
         None => Scalar::Undefined,
     }
 }
@@ -213,7 +213,7 @@ fn link_workspace_packages_scalar(value: LinkWorkspacePackages) -> Scalar {
     match value {
         LinkWorkspacePackages::Off => Scalar::Bool(false),
         LinkWorkspacePackages::DirectOnly => Scalar::Bool(true),
-        LinkWorkspacePackages::Deep => s("deep"),
+        LinkWorkspacePackages::Deep => s("deep".to_string()),
     }
 }
 
@@ -221,7 +221,7 @@ fn scripts_prepend_node_path_scalar(value: ScriptsPrependNodePath) -> Scalar {
     match value {
         ScriptsPrependNodePath::Never => Scalar::Bool(false),
         ScriptsPrependNodePath::Always => Scalar::Bool(true),
-        ScriptsPrependNodePath::WarnOnly => s("warn-only"),
+        ScriptsPrependNodePath::WarnOnly => s("warn-only".to_string()),
     }
 }
 

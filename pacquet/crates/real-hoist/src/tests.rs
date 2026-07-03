@@ -1060,14 +1060,14 @@ fn hoist_workspace_packages_false_omits_workspace_children() {
 /// builds the `.` root with empty `peer_names`).
 fn result_node(
     name: &str,
-    reference: &str,
+    reference: impl Into<String>,
     peer_names: &[&str],
     dependencies: Vec<Rc<HoisterResult>>,
 ) -> Rc<HoisterResult> {
     Rc::new(HoisterResult {
         name: name.to_string(),
         ident_name: name.to_string(),
-        references: RefCell::new(BTreeSet::from([reference.to_string()])),
+        references: RefCell::new(BTreeSet::from([reference.into()])),
         peer_names: peer_names.iter().map(|&peer| peer.to_string()).collect(),
         dependencies: RefCell::new(dependencies.into_iter().map(RcByPtr).collect::<IndexSet<_>>()),
     })

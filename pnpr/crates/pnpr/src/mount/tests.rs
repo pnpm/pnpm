@@ -4,11 +4,8 @@ fn pattern(raw: &str) -> PackagePattern {
     PackagePattern::parse(raw).expect("pattern parses")
 }
 
-fn route(patterns: &[&str], source: &str) -> Route {
-    Route {
-        patterns: patterns.iter().map(|raw| pattern(raw)).collect(),
-        source: source.to_string(),
-    }
+fn route(patterns: &[&str], source: impl Into<String>) -> Route {
+    Route { patterns: patterns.iter().map(|raw| pattern(raw)).collect(), source: source.into() }
 }
 
 fn mounts(entries: Vec<(&str, MountKind)>, default_target: Option<&str>) -> Mounts {

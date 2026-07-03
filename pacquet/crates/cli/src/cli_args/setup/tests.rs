@@ -9,11 +9,15 @@ use super::{
 use pretty_assertions::assert_eq;
 use std::path::PathBuf;
 
-fn report(change_type: ConfigFileChangeType, old: &str, new: &str) -> PathExtenderReport {
+fn report(
+    change_type: ConfigFileChangeType,
+    old: impl Into<String>,
+    new: impl Into<String>,
+) -> PathExtenderReport {
     PathExtenderReport {
         config_file: Some(ConfigReport { path: PathBuf::from("/home/user/.bashrc"), change_type }),
-        old_settings: old.to_string(),
-        new_settings: new.to_string(),
+        old_settings: old.into(),
+        new_settings: new.into(),
     }
 }
 

@@ -29,10 +29,10 @@ use tokio::{
 };
 use tower::ServiceExt;
 
-fn config_for(upstream: &str, storage: PathBuf) -> Config {
+fn config_for(upstream: impl Into<String>, storage: PathBuf) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::proxy(listen, storage);
-    config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink").url = upstream.to_string();
+    config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink").url = upstream.into();
     config.public_url = "http://example.test".to_string();
     config.packument_ttl = Duration::from_mins(1);
     config
@@ -352,9 +352,9 @@ fn osv_database(package: &str, versions: &[&str]) -> TempDir {
     dir
 }
 
-fn enable_osv(config: &mut Config, path: &Path) {
+fn enable_osv(config: &mut Config, path: impl AsRef<Path>) {
     config.osv.enabled = true;
-    config.osv.path = Some(path.to_path_buf());
+    config.osv.path = Some(path.as_ref().to_path_buf());
 }
 
 async fn mock_packument_for_tarball(
@@ -420,7 +420,7 @@ async fn packument_is_proxied_cached_and_rewritten() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    let mut config = config_for(upstream.url(), tmp.path().to_path_buf());
     config.public_url = "http://example.test".to_string();
     let app = router(config);
 
@@ -475,7 +475,7 @@ async fn osv_filters_vulnerable_versions_from_proxy_and_cache() {
 
     let tmp = TempDir::new().unwrap();
     let osv = osv_database("foo", &["1.1.0"]);
-    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    let mut config = config_for(upstream.url(), tmp.path().to_path_buf());
     config.resolver.enabled = false;
     enable_osv(&mut config, osv.path());
     let app = router(config);
@@ -543,7 +543,7 @@ async fn upstream_dist_tags_enforce_package_access() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    let mut config = config_for(upstream.url(), tmp.path().to_path_buf());
     config.policies = PackagePolicies::new(vec![
         PackagePolicy::new(
             "restricted",
@@ -609,7 +609,7 @@ async fn osv_filters_packument_identity_mismatches() {
 
     let tmp = TempDir::new().unwrap();
     let osv = osv_database("foo", &["1.1.0", "1.2.0"]);
-    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    let mut config = config_for(upstream.url(), tmp.path().to_path_buf());
     config.resolver.enabled = false;
     enable_osv(&mut config, osv.path());
     let app = router(config);
@@ -667,7 +667,7 @@ async fn uplink_auth_and_custom_headers_are_forwarded_upstream() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    let mut config = config_for(upstream.url(), tmp.path().to_path_buf());
     let uplink = config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink");
     uplink.headers.insert("authorization", "Bearer secret-token".parse().unwrap());
     uplink.headers.insert("x-org", "acme".parse().unwrap());
@@ -691,7 +691,7 @@ async fn scoped_packument_is_served() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
+    let app = router(config_for(upstream.url(), tmp.path().to_path_buf()));
 
     let response =
         app.oneshot(Request::get("/@types/node").body(Body::empty()).unwrap()).await.unwrap();
@@ -715,7 +715,7 @@ async fn tarball_is_proxied_and_cached() {
 
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
-    let app = router(config_for(&upstream.url(), storage.clone()));
+    let app = router(config_for(upstream.url(), storage.clone()));
 
     let first = app
         .clone()
@@ -727,7 +727,7 @@ async fn tarball_is_proxied_and_cached() {
 
     // A fresh instance over the same storage and origin serves the cached
     // copy; the `expect(1)` mocks prove the upstream is never asked twice.
-    let second = router(config_for(&upstream.url(), storage))
+    let second = router(config_for(upstream.url(), storage))
         .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
@@ -897,7 +897,7 @@ async fn uplink_cache_does_not_leak_to_the_public_path() {
     }
 
     let tmp = TempDir::new().unwrap();
-    let mut config = config_for(&public_upstream.url(), tmp.path().to_path_buf());
+    let mut config = config_for(public_upstream.url(), tmp.path().to_path_buf());
     let mut corp = config.uplinks.get("npmjs").expect("default `npmjs` uplink").clone();
     corp.url = private_upstream.url();
     corp.access = Some(AccessList::parse("alice"));
@@ -961,7 +961,7 @@ async fn repointing_an_uplink_url_abandons_the_old_origins_cache() {
 
     // Prime the cache from the old origin.
     let tmp = TempDir::new().unwrap();
-    let app = router(config_for(&old_origin.url(), tmp.path().to_path_buf()));
+    let app = router(config_for(old_origin.url(), tmp.path().to_path_buf()));
     let primed = app
         .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
@@ -971,7 +971,7 @@ async fn repointing_an_uplink_url_abandons_the_old_origins_cache() {
 
     // Same storage, same mount name, new `url:` — the fresh entries must come
     // from the new origin, not the still-fresh cache of the old one.
-    let app = router(config_for(&new_origin.url(), tmp.path().to_path_buf()));
+    let app = router(config_for(new_origin.url(), tmp.path().to_path_buf()));
     let repointed = app
         .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
@@ -1047,7 +1047,7 @@ async fn osv_refuses_vulnerable_tarball_before_upstream_fetch() {
 
     let tmp = TempDir::new().unwrap();
     let osv = osv_database("foo", &["1.0.0"]);
-    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    let mut config = config_for(upstream.url(), tmp.path().to_path_buf());
     config.resolver.enabled = false;
     enable_osv(&mut config, osv.path());
     let app = router(config);
@@ -1076,7 +1076,7 @@ async fn osv_tarball_screening_preserves_access_gate() {
 
     let tmp = TempDir::new().unwrap();
     let osv = osv_database("@pnpm.e2e/needs-auth", &["1.0.0"]);
-    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    let mut config = config_for(upstream.url(), tmp.path().to_path_buf());
     config.resolver.enabled = false;
     enable_osv(&mut config, osv.path());
     let app = router(config);
@@ -1109,7 +1109,7 @@ async fn osv_refuses_vulnerable_tarball_from_cache() {
 
     let tmp = TempDir::new().unwrap();
     let cache_dir = tmp.path().to_path_buf();
-    let warming_app = router(config_for(&upstream.url(), cache_dir.clone()));
+    let warming_app = router(config_for(upstream.url(), cache_dir.clone()));
 
     let warmed = warming_app
         .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
@@ -1119,7 +1119,7 @@ async fn osv_refuses_vulnerable_tarball_from_cache() {
     assert_eq!(body_bytes(warmed.into_body()).await, bytes);
 
     let osv = osv_database("foo", &["1.0.0"]);
-    let mut config = config_for(&upstream.url(), cache_dir);
+    let mut config = config_for(upstream.url(), cache_dir);
     config.resolver.enabled = false;
     enable_osv(&mut config, osv.path());
     let screened_app = router(config);
@@ -1175,7 +1175,7 @@ async fn osv_refuses_vulnerable_cached_tarball_under_noncanonical_name() {
 
     let tmp = TempDir::new().unwrap();
     let cache_dir = tmp.path().to_path_buf();
-    let warming_app = router(config_for(&upstream.url(), cache_dir.clone()));
+    let warming_app = router(config_for(upstream.url(), cache_dir.clone()));
     let warmed = warming_app
         .oneshot(Request::get("/foo/-/foo-0.0.1.tgz").body(Body::empty()).unwrap())
         .await
@@ -1195,7 +1195,7 @@ async fn osv_refuses_vulnerable_cached_tarball_under_noncanonical_name() {
     // Block the resolved version 1.0.0; the filename carries the unblocked
     // 0.0.1, so only a resolved-version screen on the cache hit can refuse.
     let osv = osv_database("foo", &["1.0.0"]);
-    let mut config = config_for(&upstream.url(), cache_dir);
+    let mut config = config_for(upstream.url(), cache_dir);
     config.resolver.enabled = false;
     enable_osv(&mut config, osv.path());
     let screened_app = router(config);
@@ -1265,7 +1265,7 @@ async fn tarball_route_preserves_basename_and_binds_to_declaring_version() {
 
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
-    let app = router(config_for(&upstream.url(), storage.clone()));
+    let app = router(config_for(upstream.url(), storage.clone()));
 
     let selected = app
         .clone()
@@ -1302,7 +1302,7 @@ async fn tarball_route_preserves_basename_and_binds_to_declaring_version() {
     // consulted again. (A *different* URL would be a repoint, which
     // deliberately abandons this cache — see
     // `repointing_an_uplink_url_abandons_the_old_origins_cache`.)
-    let restarted = router(config_for(&upstream.url(), storage));
+    let restarted = router(config_for(upstream.url(), storage));
     let replay = restarted.oneshot(Request::get(route).body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(replay.status(), StatusCode::OK);
     assert_eq!(body_bytes(replay.into_body()).await, v1_bytes);
@@ -1358,7 +1358,7 @@ async fn tampered_upstream_tarball_is_served_but_never_cached() {
     // They are streamed to the client (which re-verifies and rejects them),
     // but the SRI mismatch on the full body means they are never promoted to
     // the cache — so they can't poison a later request.
-    let app = router(config_for(&upstream.url(), storage.clone()));
+    let app = router(config_for(upstream.url(), storage.clone()));
     let packument_response =
         app.clone().oneshot(Request::get("/poisoned").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(packument_response.status(), StatusCode::OK);
@@ -1416,7 +1416,7 @@ async fn tarball_without_integrity_or_shasum_is_rejected_before_fetch() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let response = router(config_for(&upstream.url(), tmp.path().to_path_buf()))
+    let response = router(config_for(upstream.url(), tmp.path().to_path_buf()))
         .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
@@ -1450,7 +1450,7 @@ async fn shasum_only_tarball_is_served_with_sha1_verification() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let response = router(config_for(&upstream.url(), tmp.path().to_path_buf()))
+    let response = router(config_for(upstream.url(), tmp.path().to_path_buf()))
         .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
@@ -1505,7 +1505,7 @@ async fn ambiguous_tarball_basename_is_rejected_before_fetch() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let response = router(config_for(&upstream.url(), tmp.path().to_path_buf()))
+    let response = router(config_for(upstream.url(), tmp.path().to_path_buf()))
         .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
         .unwrap();
@@ -1554,7 +1554,7 @@ async fn invalid_tarball_integrities_are_controlled_failures() {
             .await;
 
         let tmp = TempDir::new().unwrap();
-        let response = router(config_for(&upstream.url(), tmp.path().to_path_buf()))
+        let response = router(config_for(upstream.url(), tmp.path().to_path_buf()))
             .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
             .await
             .unwrap();
@@ -1576,7 +1576,7 @@ async fn upstream_404_is_propagated() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
+    let app = router(config_for(upstream.url(), tmp.path().to_path_buf()));
 
     let response =
         app.oneshot(Request::get("/missing").body(Body::empty()).unwrap()).await.unwrap();
@@ -1599,7 +1599,7 @@ async fn tarball_verification_finalizes_cache_with_no_tmp_leftover() {
 
     let tmp = TempDir::new().unwrap();
     let cache_dir = tmp.path().to_path_buf();
-    let app = router(config_for(&upstream.url(), cache_dir.clone()));
+    let app = router(config_for(upstream.url(), cache_dir.clone()));
 
     let response = app
         .oneshot(Request::get("/big/-/big-1.0.0.tgz").body(Body::empty()).unwrap())
@@ -1629,7 +1629,7 @@ async fn upstream_5xx_maps_to_bad_gateway() {
         upstream.mock("GET", "/broken").with_status(500).with_body("kaboom").create_async().await;
 
     let tmp = TempDir::new().unwrap();
-    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
+    let app = router(config_for(upstream.url(), tmp.path().to_path_buf()));
 
     let response = app.oneshot(Request::get("/broken").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
@@ -1669,7 +1669,7 @@ async fn tarball_filename_for_other_package_is_rejected() {
         .create_async()
         .await;
     let tmp = TempDir::new().unwrap();
-    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
+    let app = router(config_for(upstream.url(), tmp.path().to_path_buf()));
 
     let response = app
         .clone()
@@ -1726,7 +1726,7 @@ async fn non_canonical_upstream_tarball_basename_is_served() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
+    let app = router(config_for(upstream.url(), tmp.path().to_path_buf()));
 
     // The served packument advertises the preserved basename on this server.
     let served =
@@ -1760,7 +1760,7 @@ async fn scoped_tarball_is_proxied() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
+    let app = router(config_for(upstream.url(), tmp.path().to_path_buf()));
 
     let response = app
         .oneshot(Request::get("/@types/node/-/node-20.0.0.tgz").body(Body::empty()).unwrap())
@@ -1787,7 +1787,7 @@ async fn scoped_tarball_filename_is_canonicalized_before_fetch_and_cache() {
 
     let tmp = TempDir::new().unwrap();
     let storage = tmp.path().to_path_buf();
-    let app = router(config_for(&upstream.url(), storage.clone()));
+    let app = router(config_for(upstream.url(), storage.clone()));
 
     let noncanonical = app
         .clone()
@@ -1824,7 +1824,7 @@ async fn packument_is_refetched_after_ttl_expires() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    let mut config = config_for(upstream.url(), tmp.path().to_path_buf());
     config.packument_ttl = Duration::from_millis(50);
     let app = router(config);
 
@@ -1862,7 +1862,7 @@ async fn stale_packument_is_served_when_upstream_refetch_fails() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    let mut config = config_for(upstream.url(), tmp.path().to_path_buf());
     config.packument_ttl = Duration::from_millis(50);
     let app = router(config);
 
@@ -1908,7 +1908,7 @@ async fn a_4xx_upstream_does_not_serve_stale_cache() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    let mut config = config_for(upstream.url(), tmp.path().to_path_buf());
     config.packument_ttl = Duration::from_millis(50);
     let app = router(config);
 
@@ -1932,7 +1932,7 @@ async fn a_4xx_upstream_does_not_serve_stale_cache() {
 async fn invalid_package_name_returns_bad_request() {
     let upstream = mockito::Server::new_async().await;
     let tmp = TempDir::new().unwrap();
-    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
+    let app = router(config_for(upstream.url(), tmp.path().to_path_buf()));
 
     // `.hidden` trips the dot-prefix rejection in `PackageName::parse`.
     let response =
@@ -1955,7 +1955,7 @@ async fn concurrent_tarball_fetches_settle_to_one_cache_file() {
 
     let tmp = TempDir::new().unwrap();
     let cache_dir = tmp.path().to_path_buf();
-    let app = router(config_for(&upstream.url(), cache_dir.clone()));
+    let app = router(config_for(upstream.url(), cache_dir.clone()));
 
     let packument =
         app.clone().oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
@@ -2000,7 +2000,7 @@ async fn cache_tmp_open_failure_fails_closed() {
     let blocked = tmp.path().join("not-a-dir");
     std::fs::write(&blocked, b"already a file").unwrap();
 
-    let app = router(config_for(&upstream.url(), blocked.clone()));
+    let app = router(config_for(upstream.url(), blocked.clone()));
 
     let response = app
         .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
@@ -2025,7 +2025,7 @@ async fn malformed_upstream_json_maps_to_bad_gateway() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
+    let app = router(config_for(upstream.url(), tmp.path().to_path_buf()));
 
     let response = app.oneshot(Request::get("/borked").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(response.status(), StatusCode::BAD_GATEWAY);
@@ -2130,7 +2130,7 @@ async fn proxied_tarball_streams_to_client_and_is_cached() {
 
     let tmp = TempDir::new().unwrap();
     let cache_dir = tmp.path().to_path_buf();
-    let app = router(config_for(&upstream.url(), cache_dir.clone()));
+    let app = router(config_for(upstream.url(), cache_dir.clone()));
 
     let response = app
         .oneshot(Request::get("/big/-/big-1.0.0.tgz").body(Body::empty()).unwrap())
@@ -2219,7 +2219,7 @@ async fn packument_is_gzipped_for_clients_that_accept_it() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
+    let app = router(config_for(upstream.url(), tmp.path().to_path_buf()));
 
     let response = app
         .oneshot(
@@ -2260,7 +2260,7 @@ async fn packument_is_not_gzipped_without_accept_encoding() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
+    let app = router(config_for(upstream.url(), tmp.path().to_path_buf()));
 
     let response = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
@@ -2289,7 +2289,7 @@ async fn tarball_is_not_gzipped_even_when_accepted() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let app = router(config_for(&upstream.url(), tmp.path().to_path_buf()));
+    let app = router(config_for(upstream.url(), tmp.path().to_path_buf()));
 
     // Tarballs are already `.tgz` (gzip); the layer must not re-compress
     // them even when the client offers `Accept-Encoding: gzip`.
@@ -2329,7 +2329,7 @@ async fn per_uplink_maxage_overrides_global_packument_ttl() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    let mut config = config_for(upstream.url(), tmp.path().to_path_buf());
     // Global TTL stays generous (a minute); the per-uplink maxage of zero
     // is what must take effect and make every read stale.
     config.packument_ttl = Duration::from_mins(1);
@@ -2367,7 +2367,7 @@ async fn cache_false_uplink_streams_tarball_without_mirroring() {
 
     let tmp = TempDir::new().unwrap();
     let cache_dir = tmp.path().to_path_buf();
-    let mut config = config_for(&upstream.url(), cache_dir.clone());
+    let mut config = config_for(upstream.url(), cache_dir.clone());
     config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink").cache = false;
     let app = router(config);
 
@@ -2410,7 +2410,7 @@ async fn cache_false_uplink_rejects_tampered_tarball_without_mirroring() {
 
     let tmp = TempDir::new().unwrap();
     let cache_dir = tmp.path().to_path_buf();
-    let mut config = config_for(&upstream.url(), cache_dir.clone());
+    let mut config = config_for(upstream.url(), cache_dir.clone());
     config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink").cache = false;
     let app = router(config);
 
@@ -2558,7 +2558,7 @@ async fn registry_only_serves_registry_and_refuses_resolver_endpoints() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    let mut config = config_for(upstream.url(), tmp.path().to_path_buf());
     config.resolver.enabled = false;
     let app = router(config);
 
@@ -2642,10 +2642,10 @@ async fn mock_package(server: &mut mockito::Server, pkg: &str, marker: &str) -> 
 /// Build a config with two public upstream mounts and a `main` router that
 /// sends `@corp/*` to `corp` and everything else to `npmjs`, aliased by the
 /// path-less base.
-fn router_config(npmjs_url: &str, corp_url: &str, storage: PathBuf) -> Config {
+fn router_config(npmjs_url: &str, corp_url: impl Into<String>, storage: PathBuf) -> Config {
     let mut config = config_for(npmjs_url, storage);
     let mut corp = config.uplinks.get("npmjs").expect("default `npmjs` uplink").clone();
-    corp.url = corp_url.to_string();
+    corp.url = corp_url.into();
     config.uplinks.insert("corp".to_string(), corp);
     let graph = vec![
         ("npmjs".to_string(), MountKind::Upstream),
@@ -2680,7 +2680,7 @@ async fn router_routes_each_package_to_its_declared_source() {
     let corp_bytes = mock_package(&mut corp, "@corp/secret", "private").await;
 
     let tmp = TempDir::new().unwrap();
-    let config = router_config(&npmjs.url(), &corp.url(), tmp.path().to_path_buf());
+    let config = router_config(&npmjs.url(), corp.url(), tmp.path().to_path_buf());
     let app = router_with_auth(config, AuthState::in_memory());
 
     // `@corp/*` resolves to the corp upstream, authoritatively.
@@ -3530,7 +3530,7 @@ async fn upstream_404_purges_cached_packument() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
+    let mut config = config_for(upstream.url(), tmp.path().to_path_buf());
     config.packument_ttl = Duration::from_millis(50);
     let app = router(config);
 

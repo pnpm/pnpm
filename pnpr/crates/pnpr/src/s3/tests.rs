@@ -4,7 +4,7 @@ use object_store::memory::InMemory;
 use std::sync::Arc;
 use tempfile::tempdir;
 
-fn store_with_prefix(prefix: &str) -> (S3Store, tempfile::TempDir) {
+fn store_with_prefix(prefix: impl Into<String>) -> (S3Store, tempfile::TempDir) {
     let staging = tempdir().expect("tempdir");
     let inner: Arc<dyn ObjectStore> = Arc::new(InMemory::new());
     // `S3Store::new` takes the already-normalized prefix, exactly as
@@ -13,7 +13,7 @@ fn store_with_prefix(prefix: &str) -> (S3Store, tempfile::TempDir) {
         bucket: "b".to_string(),
         region: None,
         endpoint: None,
-        prefix: Some(prefix.to_string()),
+        prefix: Some(prefix.into()),
         access_key_id: None,
         secret_access_key: None,
         force_path_style: None,

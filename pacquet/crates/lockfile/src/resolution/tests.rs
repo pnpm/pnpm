@@ -511,9 +511,9 @@ fn serialize_variations_resolution() {
 // `select_platform_variant` / `libc_matches` — Slice B
 // -----------------------------------------------------------------------------
 
-fn binary_resolution(url: &str) -> LockfileResolution {
+fn binary_resolution(url: impl Into<String>) -> LockfileResolution {
     LockfileResolution::Binary(BinaryResolution {
-        url: url.to_string(),
+        url: url.into(),
         integrity: integrity(
             "sha512-gf6ZldcfCDyNXPRiW3lQjEP1Z9rrUM/4Cn7BZbv3SdTA82zxWRP8OmLwvGR974uuENhGCFgFdN11z3n1Ofpprg==",
         ),
@@ -523,16 +523,20 @@ fn binary_resolution(url: &str) -> LockfileResolution {
     })
 }
 
-fn target(os: &str, cpu: &str, libc: Option<&str>) -> PlatformAssetTarget {
-    PlatformAssetTarget { os: os.to_string(), cpu: cpu.to_string(), libc: libc.map(str::to_string) }
+fn target(
+    os: impl Into<String>,
+    cpu: impl Into<String>,
+    libc: Option<&str>,
+) -> PlatformAssetTarget {
+    PlatformAssetTarget { os: os.into(), cpu: cpu.into(), libc: libc.map(str::to_string) }
 }
 
 fn variant(url: &str, targets: Vec<PlatformAssetTarget>) -> PlatformAssetResolution {
     PlatformAssetResolution { resolution: binary_resolution(url), targets }
 }
 
-fn selector(os: &str, cpu: &str, libc: Option<&str>) -> PlatformSelector {
-    PlatformSelector { os: os.to_string(), cpu: cpu.to_string(), libc: libc.map(str::to_string) }
+fn selector(os: impl Into<String>, cpu: impl Into<String>, libc: Option<&str>) -> PlatformSelector {
+    PlatformSelector { os: os.into(), cpu: cpu.into(), libc: libc.map(str::to_string) }
 }
 
 #[test]

@@ -2328,7 +2328,7 @@ async fn missing_patch_file_path_errors_with_diagnostic() {
 fn bin_dirs_top_level_hoisted_pkg() {
     let lockfile_dir = PathBuf::from("/repo");
     let pkg_root = PathBuf::from("/repo/node_modules/foo");
-    let dirs = super::bin_dirs_in_all_parent_dirs(&pkg_root, &lockfile_dir);
+    let dirs = super::bin_dirs_in_all_parent_dirs(pkg_root, &lockfile_dir);
     assert_eq!(
         dirs,
         vec![
@@ -2350,7 +2350,7 @@ fn bin_dirs_top_level_hoisted_pkg() {
 fn bin_dirs_nested_hoisted_pkg() {
     let lockfile_dir = PathBuf::from("/repo");
     let pkg_root = PathBuf::from("/repo/node_modules/parent/node_modules/child");
-    let dirs = super::bin_dirs_in_all_parent_dirs(&pkg_root, &lockfile_dir);
+    let dirs = super::bin_dirs_in_all_parent_dirs(pkg_root, &lockfile_dir);
     assert_eq!(
         dirs,
         vec![
@@ -2373,7 +2373,7 @@ fn bin_dirs_nested_hoisted_pkg() {
 fn bin_dirs_scoped_pkg_pushes_every_step() {
     let lockfile_dir = PathBuf::from("/repo");
     let pkg_root = PathBuf::from("/repo/node_modules/@scope/pkg");
-    let dirs = super::bin_dirs_in_all_parent_dirs(&pkg_root, &lockfile_dir);
+    let dirs = super::bin_dirs_in_all_parent_dirs(pkg_root, &lockfile_dir);
     assert_eq!(
         dirs,
         vec![

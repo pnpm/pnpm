@@ -20,25 +20,25 @@ fn apply(manifest: &mut PackageManifest, specs: &[PackageSpecObject]) {
 }
 
 fn peer_spec(
-    bare_specifier: &str,
+    bare_specifier: impl Into<String>,
     resolved_version: Option<&str>,
     pinned_version: Option<PinnedVersion>,
 ) -> PackageSpecObject {
     PackageSpecObject {
         alias: "foo".to_string(),
         peer: true,
-        bare_specifier: Some(bare_specifier.to_string()),
+        bare_specifier: Some(bare_specifier.into()),
         resolved_version: resolved_version.map(ToString::to_string),
         pinned_version,
         save_type: Some(DependencyGroup::Dev),
     }
 }
 
-fn prod_spec(alias: &str, bare_specifier: &str) -> PackageSpecObject {
+fn prod_spec(alias: impl Into<String>, bare_specifier: impl Into<String>) -> PackageSpecObject {
     PackageSpecObject {
-        alias: alias.to_string(),
+        alias: alias.into(),
         peer: false,
-        bare_specifier: Some(bare_specifier.to_string()),
+        bare_specifier: Some(bare_specifier.into()),
         resolved_version: None,
         pinned_version: None,
         save_type: Some(DependencyGroup::Prod),

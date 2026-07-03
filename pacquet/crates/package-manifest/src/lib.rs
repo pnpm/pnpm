@@ -487,7 +487,7 @@ fn upsert_runtime_entry(
                 .iter_mut()
                 .find(|runtime| runtime.get("name").and_then(Value::as_str) == Some(runtime_name))
             {
-                merge_runtime_entry(existing, runtime_name, version)?;
+                merge_runtime_entry(existing, runtime_name.to_string(), version.to_string())?;
             } else {
                 runtimes.push(runtime_entry);
             }
@@ -526,16 +526,16 @@ fn ensure_object_field<'a>(
 
 fn merge_runtime_entry(
     runtime: &mut Value,
-    runtime_name: &str,
-    version: &str,
+    runtime_name: String,
+    version: String,
 ) -> Result<(), PackageManifestError> {
     let Some(runtime) = runtime.as_object_mut() else {
         return Err(PackageManifestError::InvalidAttribute(
             "runtime entries must be objects".to_string(),
         ));
     };
-    runtime.insert("name".to_string(), Value::String(runtime_name.to_string()));
-    runtime.insert("version".to_string(), Value::String(version.to_string()));
+    runtime.insert("name".to_string(), Value::String(runtime_name));
+    runtime.insert("version".to_string(), Value::String(version));
     runtime.insert("onFail".to_string(), Value::String("download".to_string()));
     Ok(())
 }

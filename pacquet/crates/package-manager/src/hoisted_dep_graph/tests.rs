@@ -121,8 +121,8 @@ fn resolved_dep(version: &str) -> ResolvedDependencySpec {
     ResolvedDependencySpec { specifier: version.to_string(), version: ver_peer(version).into() }
 }
 
-fn directory_resolution(directory: &str) -> LockfileResolution {
-    DirectoryResolution { directory: directory.to_string() }.into()
+fn directory_resolution(directory: impl Into<String>) -> LockfileResolution {
+    DirectoryResolution { directory: directory.into() }.into()
 }
 
 /// Uses a synthetic `directory:` resolution: walker tests don't exercise
@@ -409,8 +409,8 @@ fn host_aware_opts() -> LockfileToHoistedDepGraphOptions {
     }
 }
 
-fn metadata_with_os(os: &str) -> PackageMetadata {
-    PackageMetadata { os: Some(vec![os.to_string()]), ..metadata_stub() }
+fn metadata_with_os(os: impl Into<String>) -> PackageMetadata {
+    PackageMetadata { os: Some(vec![os.into()]), ..metadata_stub() }
 }
 
 /// When `force` is off and the package is not installable, the

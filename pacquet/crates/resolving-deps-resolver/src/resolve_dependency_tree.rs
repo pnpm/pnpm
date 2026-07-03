@@ -917,8 +917,8 @@ impl TreeCtx {
     /// Set the importer this context walks for. See [`TreeCtx`]'s
     /// `importer_id` field.
     #[must_use]
-    pub fn with_importer_id(mut self, importer_id: &str) -> Self {
-        self.importer_id = importer_id.to_string();
+    pub fn with_importer_id(mut self, importer_id: String) -> Self {
+        self.importer_id = importer_id;
         self
     }
 
@@ -1107,7 +1107,7 @@ where
     let direct_versions = level_versions(ctx, &seeds);
     // Recorded only now the level barrier has passed, so the subtree walk
     // sees the resolved direct-dep versions.
-    record_direct_dep_versions(ctx, importer_id, &direct_versions);
+    record_direct_dep_versions(ctx, importer_id.to_string(), &direct_versions);
     let children_overlay = PreferredVersionsOverlay::layer(
         ctx.base_opts.preferred_versions_overlay.clone(),
         direct_versions,
@@ -1449,7 +1449,7 @@ where
     let next_ancestors: Vec<String> =
         ancestor_ids.iter().cloned().chain(std::iter::once(id.clone())).collect();
     let next_ancestors = Arc::new(next_ancestors);
-    let children_owner = claim_children_owner(ctx, &id, depth, ancestor_ids);
+    let children_owner = claim_children_owner(ctx, &id, depth, ancestor_ids.to_vec());
 
     Ok(NodeSeed::Pending(Box::new(PendingNode {
         result,
@@ -1946,11 +1946,11 @@ fn importer_dep_specifier<'a>(importer: &'a ProjectSnapshot, alias: &str) -> Opt
 /// per-edge stale-pin refresh. See [`WorkspaceTreeCtx::direct_dep_versions`].
 fn record_direct_dep_versions(
     ctx: &TreeCtx,
-    importer_id: &str,
+    importer_id: String,
     level: &BTreeMap<String, Vec<String>>,
 ) {
     let mut versions = lock_recoverable(&ctx.workspace.direct_dep_versions);
-    let by_name = Arc::make_mut(versions.entry(importer_id.to_string()).or_default());
+    let by_name = Arc::make_mut(versions.entry(importer_id).or_default());
     for (name, level_versions) in level {
         let bucket = by_name.entry(name.clone()).or_default();
         for version in level_versions {
@@ -2026,12 +2026,12 @@ fn claim_children_owner(
     ctx: &TreeCtx,
     pkg_id: &str,
     depth: i32,
-    ancestor_ids: &[String],
+    ancestor_ids: Vec<String>,
 ) -> ChildrenOwnerClaim {
     let owner = ChildrenOwner {
         depth,
         importer_order: ctx.importer_order,
-        parent_path: ancestor_ids.to_vec(),
+        parent_path: ancestor_ids,
         importer_id: ctx.importer_id.clone(),
     };
     let owns_children = {
@@ -2100,7 +2100,7 @@ fn try_reuse_node(
     if !subtree_fully_reusable(ctx, lockfile, key) {
         return None;
     }
-    let result = synthesize_reused_result(lockfile, key, alias)?;
+    let result = synthesize_reused_result(lockfile, key, alias.to_string())?;
     Some(ReusedNode { key: key.clone(), result })
 }
 
@@ -2146,7 +2146,7 @@ fn subtree_fully_reusable(
     // subtree to re-resolve so the bump's new transitive deps are picked
     // up — update names match at any depth.
     let reusable = !update_excludes(&ctx.workspace.update_reuse_scope, &key.name)
-        && synthesize_reused_result(lockfile, key, &key.name.to_string()).is_some()
+        && synthesize_reused_result(lockfile, key, key.name.to_string()).is_some()
         && subtree_children_reusable(ctx, lockfile, key);
     lock_recoverable(&ctx.workspace.subtree_reusable).insert(key.clone(), reusable);
     reusable
@@ -2288,7 +2288,7 @@ where
     let next_ancestors: Vec<String> =
         ancestor_ids.iter().cloned().chain(std::iter::once(id.clone())).collect();
     let next_ancestors = Arc::new(next_ancestors);
-    let children_owner = claim_children_owner(ctx, &id, depth, ancestor_ids);
+    let children_owner = claim_children_owner(ctx, &id, depth, ancestor_ids.to_vec());
 
     let children = if children_owner.owns_children {
         let child_results = child_refs

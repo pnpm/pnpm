@@ -48,10 +48,10 @@ async fn integrity_of(
 }
 
 /// Build an npm resolver pointing at the in-process mock registry.
-fn build_resolver(registry: &str) -> (NpmResolver<InMemoryPackageMetaCache>, TempDir) {
+fn build_resolver(registry: impl Into<String>) -> (NpmResolver<InMemoryPackageMetaCache>, TempDir) {
     let cache_dir = TempDir::new().unwrap();
     let mut registries = std::collections::HashMap::new();
-    registries.insert("default".to_string(), registry.to_string());
+    registries.insert("default".to_string(), registry.into());
     let resolver = NpmResolver {
         registries,
         named_registries: std::collections::HashMap::new(),
@@ -119,8 +119,8 @@ fn options<'a>(
     }
 }
 
-fn clean_spec(version: &str) -> ConfigDependency {
-    ConfigDependency::VersionWithIntegrity(version.to_string())
+fn clean_spec(version: impl Into<String>) -> ConfigDependency {
+    ConfigDependency::VersionWithIntegrity(version.into())
 }
 
 #[derive(Default)]

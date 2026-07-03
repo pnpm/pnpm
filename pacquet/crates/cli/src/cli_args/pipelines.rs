@@ -143,7 +143,7 @@ impl DedupePipeline {
         let existing =
             if args.check { dedupe::read_lockfile_snapshot(&lockfile_path)? } else { None };
         let guard =
-            args.check.then(|| dedupe::LockfileGuard::new(existing.clone(), &lockfile_path));
+            args.check.then(|| dedupe::LockfileGuard::new(existing.clone(), lockfile_path.clone()));
 
         if let Some(pm) = package_manager_to_sync.as_ref() {
             config_deps::sync_package_manager_dependencies(

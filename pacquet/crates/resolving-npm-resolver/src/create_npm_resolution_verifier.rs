@@ -212,8 +212,8 @@ pub fn create_npm_resolution_verifier(
 
     let named_registry_prefixes = build_named_registry_prefixes(&opts.named_registries);
 
-    let sorted_min_age_excludes = sorted_unique(&opts.minimum_release_age_exclude_patterns);
-    let sorted_trust_excludes = sorted_unique(&opts.trust_policy_exclude_patterns);
+    let sorted_min_age_excludes = sorted_unique(opts.minimum_release_age_exclude_patterns.clone());
+    let sorted_trust_excludes = sorted_unique(opts.trust_policy_exclude_patterns.clone());
 
     let policy_snapshot = build_policy_snapshot(
         opts.minimum_release_age.unwrap_or(0),
@@ -904,8 +904,8 @@ fn format_trust_violation(err: TrustViolation) -> String {
     }
 }
 
-fn sorted_unique(values: &[String]) -> Vec<String> {
-    let mut deduped: Vec<String> = values.to_vec();
+fn sorted_unique(values: Vec<String>) -> Vec<String> {
+    let mut deduped: Vec<String> = values;
     deduped.sort();
     deduped.dedup();
     deduped

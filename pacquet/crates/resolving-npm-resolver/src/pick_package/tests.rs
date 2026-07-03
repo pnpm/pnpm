@@ -52,19 +52,19 @@ const PACKAGE_BODY: &str = r#"{
     }
 }"#;
 
-fn range_spec(name: &str, range: &str) -> RegistryPackageSpec {
+fn range_spec(name: impl Into<String>, range: impl Into<String>) -> RegistryPackageSpec {
     RegistryPackageSpec {
-        name: name.to_string(),
-        fetch_spec: range.to_string(),
+        name: name.into(),
+        fetch_spec: range.into(),
         spec_type: RegistryPackageSpecType::Range,
         normalized_bare_specifier: None,
     }
 }
 
-fn version_spec(name: &str, version: &str) -> RegistryPackageSpec {
+fn version_spec(name: impl Into<String>, version: impl Into<String>) -> RegistryPackageSpec {
     RegistryPackageSpec {
-        name: name.to_string(),
-        fetch_spec: version.to_string(),
+        name: name.into(),
+        fetch_spec: version.into(),
         spec_type: RegistryPackageSpecType::Version,
         normalized_bare_specifier: None,
     }

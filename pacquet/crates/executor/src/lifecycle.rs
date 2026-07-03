@@ -331,18 +331,18 @@ pub fn run_lifecycle_hook<Reporter: self::Reporter>(
         spawn_line_pump::<Reporter>(
             stream,
             LifecycleStdio::Stdout,
-            opts.dep_path,
-            stage,
-            &pkg_root_str,
+            opts.dep_path.to_string(),
+            stage.to_string(),
+            pkg_root_str.clone(),
         )
     });
     let stderr_handle = stderr.map(|stream| {
         spawn_line_pump::<Reporter>(
             stream,
             LifecycleStdio::Stderr,
-            opts.dep_path,
-            stage,
-            &pkg_root_str,
+            opts.dep_path.to_string(),
+            stage.to_string(),
+            pkg_root_str.clone(),
         )
     });
 
@@ -414,13 +414,10 @@ pub fn push_script_arg(cmd: &mut Command, script: &str, _windows_verbatim_args: 
 fn spawn_line_pump<Reporter: self::Reporter>(
     reader: impl Read + Send + 'static,
     stdio: LifecycleStdio,
-    dep_path: &str,
-    stage: &str,
-    wd: &str,
+    dep_path: String,
+    stage: String,
+    wd: String,
 ) -> thread::JoinHandle<()> {
-    let dep_path = dep_path.to_string();
-    let stage = stage.to_string();
-    let wd = wd.to_string();
     thread::spawn(move || {
         let buf = BufReader::new(reader);
         for line in buf.lines() {

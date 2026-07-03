@@ -2194,14 +2194,14 @@ mod patched_dependencies {
     };
     use pacquet_deps_path::DepPath;
 
-    fn exact_group(version: &str, key: &str, hash: &str) -> PatchGroup {
-        let info = ExtendedPatchInfo {
-            hash: hash.to_string(),
-            patch_file_path: None,
-            key: key.to_string(),
-        };
+    fn exact_group(
+        version: impl Into<String>,
+        key: impl Into<String>,
+        hash: impl Into<String>,
+    ) -> PatchGroup {
+        let info = ExtendedPatchInfo { hash: hash.into(), patch_file_path: None, key: key.into() };
         let mut group = PatchGroup::default();
-        group.exact.insert(version.to_string(), info);
+        group.exact.insert(version.into(), info);
         group
     }
 
