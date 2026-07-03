@@ -28,12 +28,13 @@ describe('edit command', () => {
 
     const cacheDir = path.resolve('cache')
     const storeDir = path.resolve('store')
+    const projectDir = process.cwd()
 
     await install.handler({
       ...DEFAULT_OPTS,
       cacheDir,
       storeDir,
-      dir: process.cwd(),
+      dir: projectDir,
       saveLockfile: true,
       packageImportMethod: 'hardlink',
     })
@@ -44,24 +45,22 @@ describe('edit command', () => {
 
     const initialStat = fs.statSync(indexPath)
     const originalInode = initialStat.ino
-    const isHardlinked = initialStat.nlink > 1
+    expect(initialStat.nlink).toBeGreaterThan(1)
 
-    // Use a node one-liner as a dummy editor to append to index.js
     const dummyEditor = 'node -e "const fs = require(\'fs\'); fs.writeFileSync(require(\'path\').join(process.argv[1], \'index.js\'), \'module.exports = () => \\"modified\\";\');"'
 
     await edit.handler({
       ...baseOptions,
-      dir: process.cwd(),
+      dir: projectDir,
       editor: dummyEditor,
     }, ['is-positive'])
 
     const modifiedContent = fs.readFileSync(indexPath, 'utf8')
     expect(modifiedContent).toContain('modified')
 
-    if (isHardlinked) {
-      const newInode = fs.statSync(indexPath).ino
-      expect(newInode).not.toBe(originalInode)
-    }
+    const newStat = fs.statSync(indexPath)
+    expect(newStat.ino).not.toBe(originalInode)
+    expect(newStat.nlink).toBe(1)
   })
 
   test('edit fails for missing package', async () => {

@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process'
 import fs from 'node:fs'
+import fsPromises from 'node:fs/promises'
 import path from 'node:path'
 
 import { docsUrl } from '@pnpm/cli.utils'
@@ -61,6 +62,9 @@ function resolveSafePnpmPath (): string {
       try {
         const stat = fs.statSync(candidate)
         if (stat.isFile()) {
+          if (process.platform !== 'win32') {
+            fs.accessSync(candidate, fs.constants.X_OK)
+          }
           return candidate
         }
       } catch {
@@ -91,12 +95,14 @@ function resolveSafeEditorPath (cmd: string, projectRoot: string): string | null
     }
     const relative = path.relative(projectRoot, dir)
     if (relative.startsWith('..') || path.isAbsolute(relative)) {
-      // This PATH entry is outside the project — safe to use
       for (const ext of exts) {
         const candidate = path.join(dir, `${cmd}${ext}`)
         try {
           const stat = fs.statSync(candidate)
           if (stat.isFile()) {
+            if (process.platform !== 'win32') {
+              fs.accessSync(candidate, fs.constants.X_OK)
+            }
             return candidate
           }
         } catch {
@@ -113,7 +119,7 @@ export async function handler (opts: EditCommandOptions, params: string[]): Prom
     throw new PnpmError('MISSING_PACKAGE_NAME', '`pnpm edit` requires the package name')
   }
 
-  const lockfileDir = fs.realpathSync(opts.dir ?? process.cwd())
+  const lockfileDir = await fsPromises.realpath(opts.dir ?? process.cwd())
   const pkgNameAndSubpkg = params[0]
 
   const segments = pkgNameAndSubpkg.split(/[/\\]/)
@@ -140,7 +146,7 @@ export async function handler (opts: EditCommandOptions, params: string[]): Prom
 
   let expectedRoot = opts.modulesDir ? opts.modulesDir : path.join(lockfileDir, 'node_modules')
   try {
-    expectedRoot = fs.realpathSync(expectedRoot)
+    expectedRoot = await fsPromises.realpath(expectedRoot)
   } catch {
     expectedRoot = path.resolve(expectedRoot)
   }
@@ -149,13 +155,15 @@ export async function handler (opts: EditCommandOptions, params: string[]): Prom
   for (let i = 0; i < parts.length; i++) {
     const part = parts[i]
     const candidatePath = i === 0 ? path.join(currentDir, part) : path.join(currentDir, 'node_modules', part)
-    if (!fs.existsSync(candidatePath)) {
+    try {
+      await fsPromises.access(candidatePath)
+    } catch {
       throw new PnpmError(
         'EDIT_PACKAGE_NOT_FOUND',
         `Could not find package '${part}' under '${currentDir}'`
       )
     }
-    const resolvedPath = fs.realpathSync(candidatePath)
+    const resolvedPath = await fsPromises.realpath(candidatePath)
     const relative = path.relative(expectedRoot, resolvedPath)
     if (relative.startsWith('..') || path.isAbsolute(relative)) {
       throw new PnpmError(
@@ -168,8 +176,7 @@ export async function handler (opts: EditCommandOptions, params: string[]): Prom
 
   const realPkgPath = currentDir
 
-  // De-hardlink to prevent modifying the central store
-  deHardlinkDir(realPkgPath)
+  await deHardlinkDir(realPkgPath)
 
   const editor = opts.editor || process.env.EDITOR || process.env.VISUAL || (process.platform === 'win32' ? 'notepad' : 'vi')
 
@@ -237,37 +244,31 @@ export async function handler (opts: EditCommandOptions, params: string[]): Prom
   }
 }
 
-function deHardlinkDir (dir: string): void {
-  const files = fs.readdirSync(dir)
-  for (const file of files) {
-    const filePath = path.join(dir, file)
-    const stat = fs.lstatSync(filePath)
-    if (stat.isSymbolicLink()) {
-      continue
-    }
-    if (stat.isDirectory()) {
-      deHardlinkDir(filePath)
-    } else if (stat.isFile()) {
-      if (stat.nlink <= 1) {
+async function deHardlinkDir (dir: string): Promise<void> {
+  const files = await fsPromises.readdir(dir)
+  const tmpDir = fs.mkdtempSync(path.join(dir, `.pnpm-edit-${path.basename(dir)}-`))
+  try {
+    for (const file of files) {
+      const filePath = path.join(dir, file)
+      const stat = await fsPromises.lstat(filePath)
+      if (stat.isSymbolicLink()) {
         continue
       }
-      const originalMode = stat.mode
-      const writableMode = originalMode | 0o200
-      const tempPath = `${filePath}.tmp-${Math.random().toString(36).slice(2)}`
-      try {
-        fs.copyFileSync(filePath, tempPath)
-        fs.chmodSync(tempPath, writableMode)
-        renameOverwriteSync(tempPath, filePath)
-      } catch (err) {
-        try {
-          if (fs.existsSync(tempPath)) {
-            fs.unlinkSync(tempPath)
-          }
-        } catch {
-          // ignore
+      if (stat.isDirectory()) {
+        await deHardlinkDir(filePath)
+      } else if (stat.isFile()) {
+        if (stat.nlink <= 1) {
+          continue
         }
-        throw err
+        const originalMode = stat.mode
+        const writableMode = originalMode | 0o200
+        const tmpFile = path.join(tmpDir, file)
+        await fsPromises.copyFile(filePath, tmpFile)
+        await fsPromises.chmod(tmpFile, writableMode)
+        renameOverwriteSync(tmpFile, filePath)
       }
     }
+  } finally {
+    try { await fsPromises.rmdir(tmpDir) } catch { /* ignore */ }
   }
 }
