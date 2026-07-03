@@ -1577,6 +1577,20 @@ impl Config {
     pub fn ensure_valid_registry_graph(&mut self) -> Result<(), RegistryError> {
         for name in self.upstreams.keys() {
             self.registries.ensure_upstream(name);
+            // The fold never overwrites, so a graph entry already declared
+            // under this name must actually be the upstream — otherwise two
+            // different origins would share one `/~<name>/` identity, with
+            // the dormant upstream's credential still offered by the
+            // resolver. YAML loading rejects the same collision while
+            // building the graph.
+            if !matches!(self.registries.get(name), Some(Registry::Upstream { .. })) {
+                return Err(RegistryError::InvalidConfig {
+                    reason: format!(
+                        "upstream registry {name:?} collides with a non-upstream registry of \
+                         the same name",
+                    ),
+                });
+            }
         }
         for name in self.registries.names() {
             validate_registry_name(name)?;
@@ -1613,6 +1627,20 @@ impl Config {
         for (index, (name, hosted)) in self.hosted.iter().enumerate() {
             validate_registry_name(name)?;
             validate_org_namespace(name, &hosted.org)?;
+            // The mirror of the upstream collision above: a hosted serving row
+            // under a name the graph declares as a different kind would leave
+            // `/~<name>/` serving one origin while the row describes another.
+            // (A row with no graph entry at all is merely dormant.)
+            if let Some(kind) = self.registries.get(name)
+                && !matches!(kind, Registry::Hosted { .. })
+            {
+                return Err(RegistryError::InvalidConfig {
+                    reason: format!(
+                        "hosted registry {name:?} collides with a non-hosted registry of the \
+                         same name",
+                    ),
+                });
+            }
             if let Some((other, _)) =
                 self.hosted.iter().take(index).find(|(_, existing)| existing.org == hosted.org)
             {

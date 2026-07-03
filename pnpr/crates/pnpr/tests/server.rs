@@ -3278,6 +3278,38 @@ async fn building_the_server_rejects_a_concrete_registry_without_serving_config(
     assert!(err.to_string().contains("phantom"), "unexpected error: {err}");
 }
 
+/// One name cannot identify two different origins: serving config left under
+/// a name the graph declares as a different kind fails construction,
+/// mirroring the YAML collision rejection.
+#[tokio::test]
+async fn building_the_server_rejects_a_name_shared_by_two_registry_kinds() {
+    let tmp = TempDir::new().unwrap();
+
+    // Upstream serving config under a name the graph declares as hosted.
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.registries = Registries::new(
+        vec![("npmjs".to_string(), Registry::Hosted { patterns: vec![] })].into_iter().collect(),
+        None,
+    );
+    let err = pnpr::try_router(config).expect_err("an upstream/hosted name collision must fail");
+    assert!(err.to_string().contains("collides"), "unexpected error: {err}");
+
+    // A hosted serving row under a name the graph declares as a router.
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.hosted.insert(
+        "corp".to_string(),
+        HostedConfig { org: "corp".to_string(), access: AccessList::parse("$all") },
+    );
+    config.registries = Registries::new(
+        vec![("corp".to_string(), Registry::Router { sources: vec!["npmjs".to_string()] })]
+            .into_iter()
+            .collect(),
+        None,
+    );
+    let err = pnpr::try_router(config).expect_err("a hosted/router name collision must fail");
+    assert!(err.to_string().contains("collides"), "unexpected error: {err}");
+}
+
 /// The programmatic path enforces the same name/org safety as YAML loading:
 /// a hosted `org` that could escape the storage root fails server startup.
 #[tokio::test]
