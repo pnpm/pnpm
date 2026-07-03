@@ -1196,7 +1196,7 @@ impl Config {
     /// test registry, whose fixtures are served locally while real npm packages
     /// fall through to npmjs). The local pattern set mirrors the fixture
     /// subset of the bundled `config.yaml` `local` registry
-    /// ([`REGISTRY_MOCK_LOCAL_PATTERNS`]); the YAML additionally claims the
+    /// (`REGISTRY_MOCK_LOCAL_PATTERNS`); the YAML additionally claims the
     /// exact names the TS test suite publishes, which never reach this
     /// constructor.
     #[must_use]
