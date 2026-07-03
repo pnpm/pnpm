@@ -132,12 +132,18 @@ impl OtpNonInteractiveError {
     #[must_use]
     pub fn new(body: Option<OtpErrorBody>) -> Self {
         match body {
-            Some(OtpErrorBody { auth_url, done_url }) => {
-                OtpNonInteractiveError { auth_url, done_url }
-            }
+            Some(OtpErrorBody { auth_url, done_url }) => OtpNonInteractiveError {
+                auth_url: auth_url.as_deref().and_then(canonical_http_url),
+                done_url: done_url.as_deref().and_then(canonical_http_url),
+            },
             None => OtpNonInteractiveError { auth_url: None, done_url: None },
         }
     }
+}
+
+fn canonical_http_url(value: &str) -> Option<String> {
+    let parsed = url::Url::parse(value).ok()?;
+    matches!(parsed.scheme(), "http" | "https").then(|| parsed.to_string())
 }
 
 /// The registry asked for an OTP a second time after one was already

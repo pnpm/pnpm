@@ -183,12 +183,24 @@ export class OtpNonInteractiveError extends PnpmError {
     super('OTP_NON_INTERACTIVE', 'The registry requires additional authentication, but pnpm is not running in an interactive terminal', {
       hint: 'Re-run this command in an interactive terminal to complete authentication, or provide the --otp option if you are using a classic one-time password (OTP)',
     })
-    if (typeof body?.authUrl === 'string') {
-      this.authUrl = body.authUrl
+    const authUrl = canonicalHttpUrl(body?.authUrl)
+    if (authUrl != null) {
+      this.authUrl = authUrl
     }
-    if (typeof body?.doneUrl === 'string') {
-      this.doneUrl = body.doneUrl
+    const doneUrl = canonicalHttpUrl(body?.doneUrl)
+    if (doneUrl != null) {
+      this.doneUrl = doneUrl
     }
+  }
+}
+
+function canonicalHttpUrl (value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  try {
+    const url = new URL(value)
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : undefined
+  } catch {
+    return undefined
   }
 }
 

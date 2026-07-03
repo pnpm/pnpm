@@ -119,6 +119,29 @@ describe('withOtpHandling', () => {
       })
   })
 
+  it('omits non-http webauth URLs on OtpNonInteractiveError', async () => {
+    const context = createOtpMockContext({
+      process: { stdin: { isTTY: false } },
+    })
+    const operation = async () => {
+      throw Object.assign(new Error('otp'), {
+        code: 'EOTP',
+        body: {
+          authUrl: 'javascript:alert(1)',
+          doneUrl: 'file:///tmp/token',
+        },
+      })
+    }
+    try {
+      await withOtpHandling({ context, fetchOptions, operation })
+      throw new Error('Expected withOtpHandling to throw')
+    } catch (error) {
+      expect(error).toBeInstanceOf(OtpNonInteractiveError)
+      expect((error as OtpNonInteractiveError).authUrl).toBeUndefined()
+      expect((error as OtpNonInteractiveError).doneUrl).toBeUndefined()
+    }
+  })
+
   describe('classic OTP flow', () => {
     it('prompts for OTP and retries operation', async () => {
       let callCount = 0

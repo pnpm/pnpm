@@ -81,13 +81,26 @@ async function killProcesses (status: number): Promise<void> {
   await exit(status)
 }
 
-function getWebAuthUrls (error: Error & { authUrl?: unknown, doneUrl?: unknown }): { authUrl?: string, doneUrl?: string } {
+function getWebAuthUrls (error: Error & { code?: string; authUrl?: unknown, doneUrl?: unknown }): { authUrl?: string, doneUrl?: string } | undefined {
+  if (error.code !== 'ERR_PNPM_OTP_NON_INTERACTIVE') return undefined
   const urls: { authUrl?: string, doneUrl?: string } = {}
-  if (typeof error.authUrl === 'string') {
-    urls.authUrl = error.authUrl
+  const authUrl = canonicalHttpUrl(error.authUrl)
+  if (authUrl != null) {
+    urls.authUrl = authUrl
   }
-  if (typeof error.doneUrl === 'string') {
-    urls.doneUrl = error.doneUrl
+  const doneUrl = canonicalHttpUrl(error.doneUrl)
+  if (doneUrl != null) {
+    urls.doneUrl = doneUrl
   }
   return urls
+}
+
+function canonicalHttpUrl (value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  try {
+    const url = new URL(value)
+    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : undefined
+  } catch {
+    return undefined
+  }
 }
