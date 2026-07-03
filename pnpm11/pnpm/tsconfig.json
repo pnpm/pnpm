@@ -126,6 +126,9 @@
       "path": "../network/fetch"
     },
     {
+      "path": "../network/web-auth"
+    },
+    {
       "path": "../patching/commands"
     },
     {
