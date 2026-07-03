@@ -194,7 +194,13 @@ export class OtpNonInteractiveError extends PnpmError {
   }
 }
 
-function canonicalHttpUrl (value: unknown): string | undefined {
+/**
+ * Returns the canonical serialization of an `http:`/`https:` URL, or
+ * `undefined` for a non-string, an unparsable URL, or any other scheme
+ * (so a registry cannot inject e.g. a `javascript:` URL into output that
+ * automation may open).
+ */
+export function canonicalHttpUrl (value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined
   try {
     const url = new URL(value)

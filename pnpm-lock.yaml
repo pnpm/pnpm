@@ -7827,6 +7827,9 @@ importers:
       '@pnpm/network.fetch':
         specifier: workspace:*
         version: link:../network/fetch
+      '@pnpm/network.web-auth':
+        specifier: workspace:*
+        version: link:../network/web-auth
       '@pnpm/nopt':
         specifier: 'catalog:'
         version: 0.3.1

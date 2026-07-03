@@ -8,7 +8,7 @@ import getPort from 'get-port'
 import isWindows from 'is-windows'
 import { writeYamlFileSync } from 'write-yaml-file'
 
-import { execPnpmSync, spawnPnpm } from './utils/index.js'
+import { execPnpmSync, spawnPnpm, waitForPnpmExit } from './utils/index.js'
 import { isPortInUse } from './utils/isPortInUse.js'
 
 const f = fixtures(import.meta.dirname)
@@ -31,7 +31,7 @@ test('should print json format error when publish --json failed', async () => {
 
 test('should print webauth URLs in json format error when OTP is required non-interactively', async () => {
   prepare({
-    name: 'test-dist-tag-webauth',
+    name: 'test-publish-webauth',
     version: '1.0.0',
   })
 
@@ -41,7 +41,10 @@ test('should print webauth URLs in json format error when OTP is required non-in
       method: req.method,
       url: req.url,
     })
-    res.writeHead(401, { 'content-type': 'application/json' })
+    res.writeHead(401, {
+      'content-type': 'application/json',
+      'www-authenticate': 'OTP',
+    })
     res.end(JSON.stringify({
       authUrl: 'https://registry.npmjs.org/-/auth/login/abc123',
       doneUrl: 'https://registry.npmjs.org/-/auth/done/abc123',
@@ -49,39 +52,25 @@ test('should print webauth URLs in json format error when OTP is required non-in
   })
 
   try {
-    await new Promise<void>((resolve) => {
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject)
       server.listen(0, '127.0.0.1', resolve)
     })
     const { port } = server.address() as AddressInfo
     const proc = spawnPnpm([
-      'dist-tag',
-      'add',
-      'test-dist-tag-webauth@1.0.0',
-      'beta',
+      'publish',
       '--json',
+      '--no-git-checks',
       `--registry=http://127.0.0.1:${port}/`,
     ])
-    const stdout: Buffer[] = []
-    const stderr: Buffer[] = []
-    proc.stdout!.on('data', (chunk: Buffer) => stdout.push(chunk))
-    proc.stderr!.on('data', (chunk: Buffer) => stderr.push(chunk))
-    const status = await new Promise<number | null>((resolve, reject) => {
-      proc.on('error', reject)
-      proc.on('close', (code: number | null, signal: string | null) => {
-        if (signal) {
-          reject(new Error(`Killed by signal ${signal}\n\n${Buffer.concat([...stdout, ...stderr]).toString()}`))
-        } else {
-          resolve(code)
-        }
-      })
-    })
+    const { status, stdout } = await waitForPnpmExit(proc)
 
     expect(status).toBe(1)
     expect(requests).toEqual([{
       method: 'PUT',
-      url: '/-/package/test-dist-tag-webauth/dist-tags/beta',
+      url: '/test-publish-webauth',
     }])
-    const { error } = JSON.parse(Buffer.concat(stdout).toString())
+    const { error } = JSON.parse(stdout.toString())
     expect(error).toMatchObject({
       code: 'ERR_PNPM_OTP_NON_INTERACTIVE',
       authUrl: 'https://registry.npmjs.org/-/auth/login/abc123',

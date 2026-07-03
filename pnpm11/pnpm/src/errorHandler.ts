@@ -1,6 +1,7 @@
 import { promisify } from 'node:util'
 
 import { logger } from '@pnpm/logger'
+import { canonicalHttpUrl } from '@pnpm/network.web-auth'
 import pidTree from 'pidtree'
 
 import { exit } from './exit.js'
@@ -81,7 +82,7 @@ async function killProcesses (status: number): Promise<void> {
   await exit(status)
 }
 
-function getWebAuthUrls (error: Error & { code?: string; authUrl?: unknown, doneUrl?: unknown }): { authUrl?: string, doneUrl?: string } | undefined {
+function getWebAuthUrls (error: Error & { code?: string, authUrl?: unknown, doneUrl?: unknown }): { authUrl?: string, doneUrl?: string } | undefined {
   if (error.code !== 'ERR_PNPM_OTP_NON_INTERACTIVE') return undefined
   const urls: { authUrl?: string, doneUrl?: string } = {}
   const authUrl = canonicalHttpUrl(error.authUrl)
@@ -93,14 +94,4 @@ function getWebAuthUrls (error: Error & { code?: string; authUrl?: unknown, done
     urls.doneUrl = doneUrl
   }
   return urls
-}
-
-function canonicalHttpUrl (value: unknown): string | undefined {
-  if (typeof value !== 'string') return undefined
-  try {
-    const url = new URL(value)
-    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : undefined
-  } catch {
-    return undefined
-  }
 }
