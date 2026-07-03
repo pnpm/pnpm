@@ -1561,6 +1561,22 @@ impl Config {
         }
     }
 
+    /// Ready the registry graph for serving: fold every uplink into the graph
+    /// as a pattern-less upstream registry, then validate the whole graph.
+    /// YAML loading already declares each uplink in the graph and validates
+    /// it; this covers embedders that insert [`Self::uplinks`] entries (or
+    /// build [`Self::registries`]) programmatically, so [`Registries::resolve`]
+    /// is the only dispatch table for `/~<name>/` traffic and a
+    /// programmatically-built graph fails closed like a YAML load. An
+    /// embedder that wants a namespace bound on an uplink declares its
+    /// registry entry (with patterns) before serving.
+    pub fn ensure_valid_registry_graph(&mut self) -> Result<(), RegistryError> {
+        for name in self.uplinks.keys() {
+            self.registries.ensure_upstream(name);
+        }
+        self.registries.validate().map_err(|err| registry_err(&err))
+    }
+
     /// Build the caller identity used by access policies after a bearer
     /// token has authenticated `username`.
     #[must_use]

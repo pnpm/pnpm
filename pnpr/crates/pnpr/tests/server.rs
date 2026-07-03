@@ -3157,6 +3157,67 @@ async fn hosted_registry_patterns_bound_publish_and_reads_on_every_path() {
     }
 }
 
+/// The off-pattern publish rejection explains a config fact about the
+/// addressed registry, so it is only for callers the registry admits: a
+/// denied caller gets the same 404 mask every read gives, and an unclaimed
+/// probe cannot distinguish a private registry from an undefined one.
+#[tokio::test]
+async fn off_pattern_publish_is_masked_for_callers_the_registry_denies() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.hosted.insert(
+        "corp".to_string(),
+        HostedConfig { org: "corp".to_string(), access: AccessList::parse("alice") },
+    );
+    config.registries = Registries::new(
+        vec![(
+            "corp".to_string(),
+            Registry::Hosted { patterns: vec![PackagePattern::parse("@corp/*").unwrap()] },
+        )]
+        .into_iter()
+        .collect(),
+        None,
+    );
+    let auth = AuthState::in_memory();
+    let member = auth.tokens.issue("alice").await.unwrap();
+    let outsider = auth.tokens.issue("mallory").await.unwrap();
+    let app = router_with_auth(config, auth);
+
+    let publish_as = |token: &str| {
+        Request::put("/~corp/@typo/widget")
+            .header("content-type", "application/json")
+            .header(header::AUTHORIZATION, format!("Bearer {token}"))
+            .body(Body::from(json!({ "name": "@typo/widget", "versions": {} }).to_string()))
+            .unwrap()
+    };
+
+    // The denied caller sees exactly what an undefined registry would give.
+    let masked = app.clone().oneshot(publish_as(&outsider)).await.unwrap();
+    assert_eq!(masked.status(), StatusCode::NOT_FOUND);
+
+    // The member gets the loud off-pattern rejection.
+    let rejected = app.oneshot(publish_as(&member)).await.unwrap();
+    assert_eq!(rejected.status(), StatusCode::BAD_REQUEST);
+}
+
+/// A programmatically-built registry graph gets the same fail-closed
+/// validation as a YAML load: server construction folds every uplink into
+/// the graph and rejects an invalid graph instead of serving it.
+#[tokio::test]
+async fn building_the_server_rejects_an_invalid_programmatic_registry_graph() {
+    let tmp = TempDir::new().unwrap();
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.registries = Registries::new(
+        vec![("main".to_string(), Registry::Router { sources: vec!["ghost".to_string()] })]
+            .into_iter()
+            .collect(),
+        None,
+    );
+    let err =
+        pnpr::try_router(config).expect_err("an unknown router source must fail server startup");
+    assert!(err.to_string().contains("ghost"), "unexpected error: {err}");
+}
+
 /// The registry's access list gates writes exactly as it gates reads (RFC
 /// "registries", implementation point 9). An authenticated non-member
 /// passes the default per-package publish policy (`$authenticated`), so

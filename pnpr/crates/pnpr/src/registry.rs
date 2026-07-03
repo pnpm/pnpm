@@ -252,6 +252,17 @@ impl Registries {
         matches!(self.registries.get(registry), Some(Registry::Router { .. }))
     }
 
+    /// Insert `name` as a pattern-less upstream registry when it is not
+    /// already declared, so the server can fold a programmatically-added
+    /// uplink into the graph and keep [`Self::resolve`] the only dispatch
+    /// table for `/~<name>/` traffic. An embedder that wants a namespace
+    /// bound on an uplink declares its own entry (with patterns) first.
+    pub fn ensure_upstream(&mut self, name: &str) {
+        if !self.registries.contains_key(name) {
+            self.registries.insert(name.to_string(), Registry::Upstream { patterns: Vec::new() });
+        }
+    }
+
     /// Resolve a request addressed to `registry` for `package` to its single
     /// concrete origin, enforcing every concrete registry's declared namespace at
     /// the registry itself. A concrete registry resolves to itself only when its

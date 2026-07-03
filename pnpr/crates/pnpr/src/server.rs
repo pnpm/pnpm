@@ -205,11 +205,12 @@ pub fn router_with_auth(config: Config, auth: AuthState) -> Router {
 }
 
 /// Fallible counterpart to [`router_with_auth`].
-pub fn try_router_with_auth(config: Config, auth: AuthState) -> crate::error::Result<Router> {
+pub fn try_router_with_auth(mut config: Config, auth: AuthState) -> crate::error::Result<Router> {
     // Enforce the "at least one surface enabled" invariant for embedders
     // that build and serve the router themselves rather than going through
     // `serve`/`serve_listener`.
     config.ensure_a_feature_is_enabled()?;
+    config.ensure_valid_registry_graph()?;
     let osv_index = load_active_osv_index(&config)?;
     Ok(router_with_auth_and_osv(config, auth, osv_index))
 }
@@ -467,12 +468,13 @@ fn loggable_uri(uri: &axum::http::Uri) -> String {
 /// binding so a startup-time auth error surfaces before we accept any
 /// client connections. Registry startup additionally recovers the publish
 /// journal.
-pub async fn serve(config: Config) -> crate::error::Result<()> {
+pub async fn serve(mut config: Config) -> crate::error::Result<()> {
     // Enforce the "at least one surface" invariant here too, not only at
     // YAML load / CLI: embedders build `Config` programmatically and call
     // straight into `serve`, so a both-disabled config must fail loudly
     // rather than start a server that only answers `/-/ping`.
     config.ensure_a_feature_is_enabled()?;
+    config.ensure_valid_registry_graph()?;
     log_enabled_surfaces(&config);
     let osv_index = load_active_osv_index(&config)?;
     let auth = load_startup_auth(&config).await?;
@@ -506,11 +508,12 @@ fn log_enabled_surfaces(config: &Config) {
 /// address, and then hand that listener here without a bind/drop/rebind
 /// race.
 pub async fn serve_listener(
-    config: Config,
+    mut config: Config,
     listener: tokio::net::TcpListener,
 ) -> crate::error::Result<()> {
     let listen = listener.local_addr()?;
     config.ensure_a_feature_is_enabled()?;
+    config.ensure_valid_registry_graph()?;
     log_enabled_surfaces(&config);
     let osv_index = load_active_osv_index(&config)?;
     // Load the configured auth backends here too — going through `router`
@@ -1753,16 +1756,11 @@ fn resolve_registry_source(state: &AppState, registry: &str, package: &str) -> R
         // An unclaimed name is definitive — never a fall-through to another
         // origin, and never a storage or upstream consultation.
         Resolved::Unclaimed => RegistrySource::Unclaimed,
-        // Every configured uplink is an upstream registry addressable at
-        // `/~<uplink>/`, even one inserted programmatically without rebuilding
-        // the registry graph; fall back to that before declaring not-found.
-        Resolved::UnknownRegistry => {
-            if state.inner.config.uplinks.contains_key(registry) {
-                RegistrySource::Upstream(registry.to_string())
-            } else {
-                RegistrySource::NotFound
-            }
-        }
+        // The graph is the only dispatch table: server construction folds
+        // every configured uplink into it (`ensure_valid_registry_graph`), so
+        // a name it doesn't know is a definitive not-found — there is no
+        // uplink-table side door that would skip namespace enforcement.
+        Resolved::UnknownRegistry => RegistrySource::NotFound,
     }
 }
 
@@ -2390,17 +2388,26 @@ enum PublishTarget {
 /// fails loudly at publish time instead of storing a name the registry's
 /// namespace can never serve. The registry's `access` list gates the write
 /// exactly as it gates reads — a caller the registry denies gets the same
-/// not-found mask as on a read, so a private registry neither accepts the write
-/// nor reveals that it exists. The path-less base routes through its
-/// default-target registry; with no default target the bare host has no registry
-/// and the publish is a not-found, exactly like a read.
+/// not-found mask as on a read, whether the name is claimed or not
+/// ([`registry_visible_to_caller`] gates the loud rejection), so a private
+/// registry neither accepts the write nor reveals that it exists. The
+/// path-less base routes through its default-target registry; with no default
+/// target the bare host has no registry and the publish is a not-found,
+/// exactly like a read.
 fn resolve_publish_target(
     state: &AppState,
     identity: &Identity,
     registry: Option<&str>,
     package: &str,
 ) -> PublishTarget {
-    let from_source = |source: RegistrySource, context: &str| match source {
+    let (target, context) = match registry {
+        Some(registry) => (registry.to_string(), format!("through registry {registry:?}")),
+        None => match default_registry_target(state) {
+            Some(target) => (target, "to the path-less base".to_string()),
+            None => return PublishTarget::NotFound,
+        },
+    };
+    match resolve_registry_source(state, &target, package) {
         RegistrySource::Hosted(registry) => {
             match accessible_hosted_namespace(state, identity, &registry) {
                 Some(org) => PublishTarget::Org(org),
@@ -2411,24 +2418,43 @@ fn resolve_publish_target(
             "cannot publish {package:?} {context}: it routes to an upstream registry; name a \
              hosted registry",
         )),
-        RegistrySource::Unclaimed => PublishTarget::Reject(format!(
-            "cannot publish {package:?} {context}: no registry's declared `patterns:` claim this \
-             package name",
-        )),
+        // The loud rejection explains a config fact about the addressed
+        // registry, so only a caller the registry is visible to gets it;
+        // anyone else keeps the same not-found mask a read gives, so an
+        // off-pattern probe cannot distinguish a private registry from an
+        // undefined one.
+        RegistrySource::Unclaimed => {
+            if registry_visible_to_caller(state, identity, &target) {
+                PublishTarget::Reject(format!(
+                    "cannot publish {package:?} {context}: no registry's declared `patterns:` \
+                     claim this package name",
+                ))
+            } else {
+                PublishTarget::NotFound
+            }
+        }
         RegistrySource::NotFound => PublishTarget::NotFound,
+    }
+}
+
+/// Whether `identity` may learn that the registry `name` exists. A hosted
+/// registry is masked behind its access list — a denied caller sees the same
+/// not-found as for an undefined name on every read, so nothing on the write
+/// path may answer differently. An upstream registry is not masked (a denied
+/// caller gets an explicit 403 on reads), and a router is visible whenever
+/// any of its sources is.
+fn registry_visible_to_caller(state: &AppState, identity: &Identity, name: &str) -> bool {
+    let concrete_visible = |name: &str| match state.inner.config.registries.get(name) {
+        Some(Registry::Hosted { .. }) => {
+            accessible_hosted_namespace(state, identity, name).is_some()
+        }
+        Some(Registry::Upstream { .. }) => true,
+        Some(Registry::Router { .. }) | None => false,
     };
-    match registry {
-        Some(registry) => from_source(
-            resolve_registry_source(state, registry, package),
-            &format!("through registry {registry:?}"),
-        ),
-        None => match default_registry_target(state) {
-            Some(target) => from_source(
-                resolve_registry_source(state, &target, package),
-                "to the path-less base",
-            ),
-            None => PublishTarget::NotFound,
-        },
+    match state.inner.config.registries.get(name) {
+        Some(Registry::Router { sources }) => sources.iter().any(|source| concrete_visible(source)),
+        Some(_) => concrete_visible(name),
+        None => false,
     }
 }
 
