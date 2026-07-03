@@ -291,6 +291,89 @@ async fn throws_non_interactive_error_when_stdout_is_not_interactive() {
 }
 
 #[tokio::test]
+async fn preserves_web_auth_urls_on_non_interactive_error() {
+    reset();
+    STDIN_TTY.with(|tty| tty.set(false));
+
+    let error = with_otp_handling::<Fake, UnexpectedReporter, String, TestError, _>(
+        WebAuthFetchOptions::default(),
+        async |_otp| Err(TestError::Otp { body: web_auth_body() }),
+    )
+    .await
+    .expect_err("an error");
+
+    match error {
+        WithOtpError::NonInteractive(error) => {
+            assert_eq!(error.auth_url.as_deref(), Some("https://registry.npmjs.org/auth/abc"));
+            assert_eq!(error.done_url.as_deref(), Some("https://registry.npmjs.org/auth/abc/done"));
+        }
+        other => panic!("expected non-interactive error, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn strips_credentials_from_web_auth_urls_on_non_interactive_error() {
+    reset();
+    STDIN_TTY.with(|tty| tty.set(false));
+
+    let error = with_otp_handling::<Fake, UnexpectedReporter, String, TestError, _>(
+        WebAuthFetchOptions::default(),
+        async |_otp| {
+            Err(TestError::Otp {
+                body: Some(OtpErrorBody {
+                    auth_url: Some("https://user:secret@registry.npmjs.org/auth/abc".to_owned()),
+                    done_url: Some(
+                        "https://user:secret@registry.npmjs.org/auth/abc/done?authId=xyz"
+                            .to_owned(),
+                    ),
+                }),
+            })
+        },
+    )
+    .await
+    .expect_err("an error");
+
+    match error {
+        WithOtpError::NonInteractive(error) => {
+            assert_eq!(error.auth_url.as_deref(), Some("https://registry.npmjs.org/auth/abc"));
+            assert_eq!(
+                error.done_url.as_deref(),
+                Some("https://registry.npmjs.org/auth/abc/done?authId=xyz"),
+            );
+        }
+        other => panic!("expected non-interactive error, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn omits_non_http_web_auth_urls_on_non_interactive_error() {
+    reset();
+    STDIN_TTY.with(|tty| tty.set(false));
+
+    let error = with_otp_handling::<Fake, UnexpectedReporter, String, TestError, _>(
+        WebAuthFetchOptions::default(),
+        async |_otp| {
+            Err(TestError::Otp {
+                body: Some(OtpErrorBody {
+                    auth_url: Some("javascript:alert(1)".to_owned()),
+                    done_url: Some("file:///tmp/token".to_owned()),
+                }),
+            })
+        },
+    )
+    .await
+    .expect_err("an error");
+
+    match error {
+        WithOtpError::NonInteractive(error) => {
+            assert_eq!(error.auth_url, None);
+            assert_eq!(error.done_url, None);
+        }
+        other => panic!("expected non-interactive error, got {other:?}"),
+    }
+}
+
+#[tokio::test]
 async fn classic_flow_prompts_for_otp_and_retries_operation() {
     reset();
     set_input(InputResponse::Value(Some("654321".to_owned())));
@@ -442,6 +525,36 @@ async fn web_auth_flow_polls_done_url_and_uses_returned_token() {
         "the auth URL should be surfaced, got {:?}",
         infos(),
     );
+}
+
+#[tokio::test]
+async fn web_auth_flow_falls_back_to_classic_prompt_when_urls_are_not_http() {
+    reset();
+    set_input(InputResponse::Value(Some("manual-code".to_owned())));
+    let calls = Rc::new(Cell::new(0));
+    let counter = Rc::clone(&calls);
+
+    let result = with_otp_handling::<Fake, RecordingReporter, String, TestError, _>(
+        WebAuthFetchOptions::default(),
+        async move |otp| {
+            counter.set(counter.get() + 1);
+            if counter.get() == 1 {
+                Err(TestError::Otp {
+                    body: Some(OtpErrorBody {
+                        auth_url: Some("javascript:alert(1)".to_owned()),
+                        done_url: Some("file:///tmp/token".to_owned()),
+                    }),
+                })
+            } else {
+                assert_eq!(otp, Some("manual-code"));
+                Ok("done".to_owned())
+            }
+        },
+    )
+    .await
+    .expect("a result");
+
+    assert_eq!(result, "done");
 }
 
 #[tokio::test]

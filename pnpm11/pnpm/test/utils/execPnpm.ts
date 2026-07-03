@@ -77,6 +77,44 @@ export function spawnPnpm (
   })
 }
 
+/**
+ * Collects the output of a process started with {@link spawnPnpm} until it
+ * exits, killing it if it doesn't exit within the timeout. Unlike
+ * {@link execPnpm}, a non-zero exit code is returned rather than thrown, so
+ * callers can assert on failing invocations.
+ */
+export async function waitForPnpmExit (
+  proc: NodeChildProcess,
+  opts?: {
+    timeout?: number // timeout in ms
+  }
+): Promise<{ status: number | null, stdout: Buffer, stderr: Buffer }> {
+  return new Promise((resolve, reject) => {
+    const timeoutId = registerProcessTimeout(proc, opts?.timeout ?? DEFAULT_EXEC_PNPM_TIMEOUT, reject)
+
+    const stdout: Buffer[] = []
+    const stderr: Buffer[] = []
+    proc.stdout?.on('data', (chunk: Buffer) => {
+      stdout.push(chunk)
+    })
+    proc.stderr?.on('data', (chunk: Buffer) => {
+      stderr.push(chunk)
+    })
+
+    proc.on('error', reject)
+
+    proc.on('close', (code: number | null, signal: string | null) => {
+      clearTimeout(timeoutId)
+
+      if (signal) {
+        reject(new Error(`Killed by signal ${signal}\n\n${Buffer.concat([...stdout, ...stderr]).toString()}`))
+      } else {
+        resolve({ status: code, stdout: Buffer.concat(stdout), stderr: Buffer.concat(stderr) })
+      }
+    })
+  })
+}
+
 export async function execPnpx (args: string[]): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     const proc = spawnPnpx(args)

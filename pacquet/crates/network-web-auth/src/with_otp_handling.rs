@@ -121,7 +121,44 @@ fn js_typeof(value: &Value) -> &'static str {
          --otp option if you are using a classic one-time password (OTP)"
     )
 )]
-pub struct OtpNonInteractiveError;
+pub struct OtpNonInteractiveError {
+    #[error(not(source))]
+    pub auth_url: Option<String>,
+    #[error(not(source))]
+    pub done_url: Option<String>,
+}
+
+impl OtpNonInteractiveError {
+    #[must_use]
+    pub fn new(body: Option<OtpErrorBody>) -> Self {
+        match body {
+            Some(OtpErrorBody { auth_url, done_url }) => OtpNonInteractiveError {
+                auth_url: auth_url.as_deref().and_then(canonical_http_url),
+                done_url: done_url.as_deref().and_then(canonical_http_url),
+            },
+            None => OtpNonInteractiveError { auth_url: None, done_url: None },
+        }
+    }
+}
+
+/// Canonical serialization of an `http`/`https` URL with any userinfo
+/// (`user:pass@`) stripped; `None` for an unparsable URL or any other scheme.
+///
+/// These URLs come from the registry and get displayed, opened in a browser,
+/// and carried on errors for machine consumption: the scheme restriction
+/// keeps a malicious registry from injecting e.g. a `javascript:` URL into
+/// something that opens it, and stripping userinfo keeps credential-shaped
+/// data out of logs (the capability tokens automation needs live in the
+/// path/query, which are preserved).
+fn canonical_http_url(value: &str) -> Option<String> {
+    let mut parsed = url::Url::parse(value).ok()?;
+    if !matches!(parsed.scheme(), "http" | "https") {
+        return None;
+    }
+    parsed.set_username("").ok()?;
+    parsed.set_password(None).ok()?;
+    Some(parsed.to_string())
+}
 
 /// The registry asked for an OTP a second time after one was already
 /// supplied (`ERR_PNPM_OTP_SECOND_CHALLENGE`).
@@ -203,11 +240,18 @@ where
     };
 
     if !Sys::stdin_is_tty() || !Sys::stdout_is_tty() {
-        return Err(WithOtpError::NonInteractive(OtpNonInteractiveError));
+        return Err(WithOtpError::NonInteractive(OtpNonInteractiveError::new(challenge.body)));
     }
 
-    let otp = match challenge.body {
+    let web_auth_urls = match &challenge.body {
         Some(OtpErrorBody { auth_url: Some(auth_url), done_url: Some(done_url) }) => {
+            canonical_http_url(auth_url).zip(canonical_http_url(done_url))
+        }
+        _ => None,
+    };
+
+    let otp = match web_auth_urls {
+        Some((auth_url, done_url)) => {
             let qr_code = generate_qr_code(&auth_url).map_err(WithOtpError::QrCode)?;
             global_info::<Reporter>(&format!(
                 "Authenticate your account at:\n{auth_url}\n\n{qr_code}",
@@ -222,12 +266,14 @@ where
                 .map(Some)
                 .map_err(WithOtpError::Timeout)?
         }
-        _ => match Sys::input("This operation requires a one-time password.\nEnter OTP:").await {
-            Ok(value) => value.filter(|otp| !otp.is_empty()),
-            // The user aborted the prompt: re-throw the original challenge.
-            Err(PromptError::Cancelled) => return Err(WithOtpError::Operation(error)),
-            Err(other) => return Err(WithOtpError::Prompt(other)),
-        },
+        None => {
+            match Sys::input("This operation requires a one-time password.\nEnter OTP:").await {
+                Ok(value) => value.filter(|otp| !otp.is_empty()),
+                // The user aborted the prompt: re-throw the original challenge.
+                Err(PromptError::Cancelled) => return Err(WithOtpError::Operation(error)),
+                Err(other) => return Err(WithOtpError::Prompt(other)),
+            }
+        }
     };
 
     let Some(otp) = otp else {
