@@ -89,16 +89,18 @@ export async function withOtpHandling<T> ({
 
     let otp: string | undefined
 
-    if (error.body?.authUrl && error.body?.doneUrl) {
-      const qrCode = generateQrCode(error.body.authUrl)
-      globalInfo(`Authenticate your account at:\n${error.body.authUrl}\n\n${qrCode}`)
+    const authUrl = canonicalHttpUrl(error.body?.authUrl)
+    const doneUrl = canonicalHttpUrl(error.body?.doneUrl)
+    if (authUrl != null && doneUrl != null) {
+      const qrCode = generateQrCode(authUrl)
+      globalInfo(`Authenticate your account at:\n${authUrl}\n\n${qrCode}`)
       const pollPromise = pollForWebAuthToken({
         context,
-        doneUrl: error.body.doneUrl,
+        doneUrl,
         fetchOptions,
       })
       otp = await promptBrowserOpen({
-        authUrl: error.body.authUrl,
+        authUrl,
         context,
         pollPromise,
       })
@@ -195,16 +197,25 @@ export class OtpNonInteractiveError extends PnpmError {
 }
 
 /**
- * Returns the canonical serialization of an `http:`/`https:` URL, or
- * `undefined` for a non-string, an unparsable URL, or any other scheme
- * (so a registry cannot inject e.g. a `javascript:` URL into output that
- * automation may open).
+ * Returns the canonical serialization of an `http:`/`https:` URL with any
+ * userinfo (`user:pass@`) stripped, or `undefined` for a non-string, an
+ * unparsable URL, or any other scheme.
+ *
+ * These URLs come from the registry and get displayed, opened in a browser,
+ * and emitted in parseable error output: the scheme restriction keeps a
+ * malicious registry from injecting e.g. a `javascript:` URL into something
+ * that opens it, and stripping userinfo keeps credential-shaped data out of
+ * logs (the capability tokens automation needs live in the path/query, which
+ * are preserved).
  */
 export function canonicalHttpUrl (value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined
   try {
     const url = new URL(value)
-    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : undefined
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return undefined
+    url.username = ''
+    url.password = ''
+    return url.href
   } catch {
     return undefined
   }

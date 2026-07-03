@@ -119,6 +119,26 @@ describe('withOtpHandling', () => {
       })
   })
 
+  it('strips credentials from webauth URLs on OtpNonInteractiveError', async () => {
+    const context = createOtpMockContext({
+      process: { stdin: { isTTY: false } },
+    })
+    const operation = async () => {
+      throw Object.assign(new Error('otp'), {
+        code: 'EOTP',
+        body: {
+          authUrl: 'https://user:secret@registry.npmjs.org/auth/abc',
+          doneUrl: 'https://user:secret@registry.npmjs.org/auth/abc/done?authId=xyz',
+        },
+      })
+    }
+    await expect(withOtpHandling({ context, fetchOptions, operation }))
+      .rejects.toMatchObject({
+        authUrl: 'https://registry.npmjs.org/auth/abc',
+        doneUrl: 'https://registry.npmjs.org/auth/abc/done?authId=xyz',
+      })
+  })
+
   it('omits non-http webauth URLs on OtpNonInteractiveError', async () => {
     const context = createOtpMockContext({
       process: { stdin: { isTTY: false } },
@@ -301,6 +321,32 @@ describe('withOtpHandling', () => {
             throw Object.assign(new Error('otp'), {
               code: 'EOTP',
               body: { doneUrl: 'https://registry.npmjs.org/auth/abc/done' },
+            })
+          }
+          expect(otp).toBe('manual-code')
+          return 'done'
+        },
+      })
+      expect(result).toBe('done')
+    })
+
+    it('falls back to classic prompt when webauth URLs are not http(s)', async () => {
+      let callCount = 0
+      const context = createOtpMockContext({
+        enquirer: { input: async () => 'manual-code' },
+      })
+      const result = await withOtpHandling({
+        context,
+        fetchOptions,
+        operation: async otp => {
+          callCount++
+          if (callCount === 1) {
+            throw Object.assign(new Error('otp'), {
+              code: 'EOTP',
+              body: {
+                authUrl: 'javascript:alert(1)',
+                doneUrl: 'file:///tmp/token',
+              },
             })
           }
           expect(otp).toBe('manual-code')
