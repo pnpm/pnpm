@@ -61,7 +61,7 @@ auth:
 # group names anywhere it accepts usernames — the per-package `packages:`
 # policies and the registry-level `access:` lists alike.
 #groups:
-#  platform: alice bob
+#  platform: [alice, bob]
 
 plugins: ../node_modules
 

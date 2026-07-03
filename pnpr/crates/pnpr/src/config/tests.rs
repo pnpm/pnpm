@@ -1605,6 +1605,15 @@ fn hosted_rules_config(packages: &str) -> Config {
     Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None).unwrap()
 }
 
+/// The same one-hosted-registry config as [`hosted_rules_config`], for
+/// the `packages:` fragments that must fail to load.
+fn hosted_rules_err(packages: &str) -> RegistryError {
+    let yaml = format!(
+        "storage: ./s\nregistries:\n  local:\n    type: hosted\n    packages:\n{packages}",
+    );
+    Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None).unwrap_err()
+}
+
 #[test]
 fn rules_are_derived_from_the_registry_packages_map() {
     // The `access` / `publish` tokens in each entry drive the runtime
@@ -1688,17 +1697,30 @@ fn rule_missing_unpublish_denies_destructive_writes() {
 #[test]
 fn rule_empty_unpublish_denies_destructive_writes() {
     let as_null = "      '@team/*':\n        publish: $authenticated\n        unpublish:\n";
-    let as_empty_string =
-        "      '@team/*':\n        publish: $authenticated\n        unpublish: ''\n";
     let as_empty_sequence =
         "      '@team/*':\n        publish: $authenticated\n        unpublish: []\n";
-    for packages in [as_null, as_empty_string, as_empty_sequence] {
+    for packages in [as_null, as_empty_sequence] {
         let config = hosted_rules_config(packages);
         let team = config.hosted["local"].rules.for_package("@team/x");
         assert!(team.publish.allows(&user("alice")), "{packages}");
         assert!(!team.unpublish.allows(&Identity::Anonymous), "{packages}");
         assert!(!team.unpublish.allows(&user("alice")), "{packages}");
     }
+}
+
+#[test]
+fn rule_empty_string_value_is_a_config_error() {
+    // `''` is neither a token nor an unambiguous empty list; the error
+    // names both spellings the author could have meant.
+    let err = hosted_rules_err("      '@team/*':\n        unpublish: ''\n");
+    assert!(
+        matches!(
+            &err,
+            RegistryError::InvalidConfig { reason }
+                if reason.contains("`unpublish`") && reason.contains("use `[]`"),
+        ),
+        "unexpected error: {err}",
+    );
 }
 
 #[test]
@@ -1711,10 +1733,9 @@ fn rule_anonymous_token_is_wired() {
 
 #[test]
 fn rule_usernames_grant_per_user_access() {
-    // Bare names are usernames/groups (verdaccio-style), no longer
-    // a config error.
+    // Bare names are usernames/groups, not a config error.
     let config = hosted_rules_config(
-        "      '@team/*':\n        access: alice bob\n        publish: alice\n",
+        "      '@team/*':\n        access: [alice, bob]\n        publish: alice\n",
     );
     let team = config.hosted["local"].rules.for_package("@team/x");
     assert!(team.access.allows(&user("alice")));
@@ -1729,7 +1750,7 @@ fn rule_usernames_grant_per_user_access() {
 fn groups_grant_package_and_alias_access() {
     let yaml = r"
 groups:
-  platform: alice bob
+  platform: [alice, bob]
   release:
     - carol
 registries:
@@ -1765,17 +1786,118 @@ registries:
 }
 
 #[test]
-fn rule_access_list_accepts_string_and_sequence_forms() {
-    // verdaccio accepts both a space-separated string and a YAML
-    // sequence; they must compile to the same token list.
-    let as_string = "      '@team/*':\n        access: alice bob\n";
-    let as_sequence = "      '@team/*':\n        access: [alice, bob]\n";
-    for packages in [as_string, as_sequence] {
-        let config = hosted_rules_config(packages);
-        let access = config.hosted["local"].rules.for_package("@team/x").access;
-        assert!(access.allows(&user("alice")), "{packages}");
-        assert!(access.allows(&user("bob")), "{packages}");
-        assert!(!access.allows(&user("carol")), "{packages}");
+fn rule_scalar_access_value_is_one_token() {
+    let config = hosted_rules_config("      '@team/*':\n        access: alice\n");
+    let access = config.hosted["local"].rules.for_package("@team/x").access;
+    assert!(access.allows(&user("alice")));
+    assert!(!access.allows(&user("bob")));
+}
+
+#[test]
+fn rule_space_separated_access_list_is_a_config_error() {
+    // Verdaccio's space-separated form must not be silently misread as a
+    // single token that admits nobody; the error points at the YAML
+    // sequence spelling.
+    for packages in [
+        "      '@team/*':\n        access: alice bob\n",
+        "      '@team/*':\n        access: [alice bob]\n",
+    ] {
+        let err = hosted_rules_err(packages);
+        assert!(
+            matches!(
+                &err,
+                RegistryError::InvalidConfig { reason }
+                    if reason.contains("\"alice bob\"") && reason.contains("[alice, bob]"),
+            ),
+            "unexpected error for {packages:?}: {err}",
+        );
+    }
+}
+
+#[test]
+fn rule_alias_spellings_of_builtins_are_config_errors() {
+    // Verdaccio also accepted `@`-prefixed and bare spellings of the
+    // built-in groups. Treating them as user/group names would silently
+    // flip `access: all` from world-readable to deny-everyone, so they
+    // are rejected with the `$` spelling instead.
+    for (token, suggestion) in [
+        ("all", "$all"),
+        ("'@all'", "$all"),
+        ("authenticated", "$authenticated"),
+        ("'@authenticated'", "$authenticated"),
+        ("anonymous", "$anonymous"),
+        ("'@anonymous'", "$anonymous"),
+    ] {
+        let err = hosted_rules_err(&format!("      '@team/*':\n        access: {token}\n"));
+        assert!(
+            matches!(
+                &err,
+                RegistryError::InvalidConfig { reason }
+                    if reason.contains("did you mean") && reason.contains(suggestion),
+            ),
+            "unexpected error for {token:?}: {err}",
+        );
+    }
+}
+
+#[test]
+fn rule_unknown_builtin_token_is_a_config_error() {
+    // The `$` namespace is reserved for the built-in groups, so a typo'd
+    // built-in cannot silently become a name that admits nobody.
+    let err = hosted_rules_err("      '@team/*':\n        access: $team\n");
+    assert!(
+        matches!(
+            &err,
+            RegistryError::InvalidConfig { reason }
+                if reason.contains("unknown built-in access token \"$team\""),
+        ),
+        "unexpected error: {err}",
+    );
+}
+
+#[test]
+fn registry_level_access_list_is_validated_too() {
+    let yaml = "\
+storage: ./s
+registries:
+  local:
+    type: hosted
+    access: all
+";
+    let err = Config::from_yaml_str(yaml, Path::new("/x"), listen(), None).unwrap_err();
+    assert!(
+        matches!(
+            &err,
+            RegistryError::InvalidConfig { reason }
+                if reason.contains("registry \"local\"") && reason.contains("$all"),
+        ),
+        "unexpected error: {err}",
+    );
+}
+
+#[test]
+fn group_declarations_are_validated() {
+    // A group member list is one username per entry — never a
+    // space-separated string.
+    let split_members = "groups:\n  platform: alice bob\n";
+    // A group named like a built-in (or its alias spellings) could never
+    // be referenced from an access list, so declaring one is an error.
+    let reserved_name = "groups:\n  authenticated: [alice]\n";
+    let builtin_name = "groups:\n  $all: [alice]\n";
+    for (yaml, needle) in [
+        (split_members, "\"alice bob\""),
+        (reserved_name, "did you mean"),
+        (builtin_name, "shadows a built-in"),
+    ] {
+        let yaml = format!("storage: ./s\nregistries:\n  local:\n    type: hosted\n{yaml}");
+        let err = Config::from_yaml_str(&yaml, Path::new("/x"), listen(), None).unwrap_err();
+        assert!(
+            matches!(
+                &err,
+                RegistryError::InvalidConfig { reason } if reason.contains(needle),
+            ),
+            "unexpected error for {yaml:?}: {err}",
+        );
     }
 }
 
@@ -2022,7 +2144,7 @@ registries:
   corp:
     type: upstream
     url: https://npm.corp.example/
-    access: $authenticated alice
+    access: [$authenticated, alice]
     auth:
       type: bearer
       token: corp-token

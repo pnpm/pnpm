@@ -87,7 +87,7 @@ fn upstream_with_token(registry: &str, access: &str, token: &'static str) -> Ups
     headers
         .insert(reqwest::header::AUTHORIZATION, reqwest::header::HeaderValue::from_static(token));
     let mut upstream = UpstreamConfig::with_defaults(registry.to_string(), headers);
-    upstream.access = Some(AccessList::parse(access));
+    upstream.access = Some(AccessList::from_tokens([access]));
     upstream
 }
 
@@ -116,8 +116,8 @@ fn set_local_hosted_rules(config: &mut RegistryConfig, pattern: &str, access: &s
     let rules = PackageRules::new(
         vec![PackageRule {
             pattern: PackagePattern::parse(pattern).expect("test pattern parses"),
-            access: Some(AccessList::parse(access)),
-            publish: Some(AccessList::parse("$authenticated")),
+            access: Some(AccessList::from_tokens([access])),
+            publish: Some(AccessList::from_tokens(["$authenticated"])),
             unpublish: None,
         }],
         None,
@@ -423,11 +423,11 @@ fn package_qualified_alias_descriptor_rechecks_upstream_rules_on_replay() {
     upstream.rules = PackageRules::new(
         vec![PackageRule {
             pattern: PackagePattern::parse("@corp/secret").expect("test pattern parses"),
-            access: Some(AccessList::parse("alice")),
+            access: Some(AccessList::from_tokens(["alice"])),
             publish: None,
             unpublish: None,
         }],
-        Some(AccessList::parse("$authenticated")),
+        Some(AccessList::from_tokens(["$authenticated"])),
     );
     config.upstreams.insert("corp".to_string(), upstream);
     let context = RouteContext::from_config(&config);

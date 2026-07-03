@@ -45,8 +45,8 @@ fn config_for(upstream: &str, storage: PathBuf) -> Config {
 fn hosted_with_access(org: &str, access: &str) -> HostedConfig {
     HostedConfig {
         org: org.to_string(),
-        rules: PackageRules::new(Vec::new(), Some(AccessList::parse(access)))
-            .with_default_unpublish(AccessList::parse("$authenticated")),
+        rules: PackageRules::new(Vec::new(), Some(AccessList::from_tokens([access])))
+            .with_default_unpublish(AccessList::from_tokens(["$authenticated"])),
     }
 }
 
@@ -54,7 +54,7 @@ fn hosted_with_access(org: &str, access: &str) -> HostedConfig {
 fn access_rule(pattern: &str, access: &str) -> PackageRule {
     PackageRule {
         pattern: PackagePattern::parse(pattern).expect("test pattern parses"),
-        access: Some(AccessList::parse(access)),
+        access: Some(AccessList::from_tokens([access])),
         publish: None,
         unpublish: None,
     }
@@ -690,7 +690,7 @@ async fn upstream_auth_and_custom_headers_are_forwarded_upstream() {
     upstream.headers.insert("x-org", "acme".parse().unwrap());
     // A credentialed upstream must be access-gated (server construction
     // enforces it), so the read authenticates as an admitted caller.
-    upstream.access = Some(AccessList::parse("$authenticated"));
+    upstream.access = Some(AccessList::from_tokens(["$authenticated"]));
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let app = router_with_auth(config, auth);
@@ -789,7 +789,7 @@ fn upstream_endpoint_config(upstream_url: &str, storage: PathBuf, access: &str) 
     let mut config = config_for(upstream_url, storage);
     config.public_url = "http://example.test".to_string();
     config.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").access =
-        Some(AccessList::parse(access));
+        Some(AccessList::from_tokens([access]));
     config
 }
 
@@ -945,7 +945,7 @@ async fn upstream_cache_does_not_leak_to_the_public_path() {
     let mut config = config_for(&public_upstream.url(), tmp.path().to_path_buf());
     let mut corp = config.upstreams.get("npmjs").expect("default `npmjs` upstream").clone();
     corp.url = private_upstream.url();
-    corp.access = Some(AccessList::parse("alice"));
+    corp.access = Some(AccessList::from_tokens(["alice"]));
     config.upstreams.insert("corp".to_string(), corp);
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
@@ -3318,7 +3318,7 @@ async fn publish_to_a_private_upstream_is_denied_before_the_upstream_rejection()
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
     let mut corp = config.upstreams.get("npmjs").expect("default `npmjs` upstream").clone();
-    corp.access = Some(AccessList::parse("alice"));
+    corp.access = Some(AccessList::from_tokens(["alice"]));
     config.upstreams.insert("corp".to_string(), corp);
     let auth = AuthState::in_memory();
     let member = auth.tokens.issue("alice").await.unwrap();

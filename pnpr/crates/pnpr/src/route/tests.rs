@@ -257,7 +257,7 @@ fn upstream_with_access(registry: &str, access: &str) -> UpstreamConfig {
     let mut headers = HeaderMap::new();
     headers.insert(AUTHORIZATION, HeaderValue::from_static("Bearer upstream-secret"));
     let mut upstream = UpstreamConfig::with_defaults(registry.to_string(), headers);
-    upstream.access = Some(AccessList::parse(access));
+    upstream.access = Some(AccessList::from_tokens([access]));
     upstream
 }
 
@@ -273,11 +273,11 @@ fn upstream_per_package_rules_gate_alias_selection() {
     upstream.rules = PackageRules::new(
         vec![PackageRule {
             pattern: PackagePattern::parse("@corp/secret").expect("test pattern parses"),
-            access: Some(AccessList::parse("alice")),
+            access: Some(AccessList::from_tokens(["alice"])),
             publish: None,
             unpublish: None,
         }],
-        Some(AccessList::parse("$authenticated")),
+        Some(AccessList::from_tokens(["$authenticated"])),
     );
     config.upstreams.insert("corp".to_string(), upstream);
     let context = RouteContext::from_config(&config);

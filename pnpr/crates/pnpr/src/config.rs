@@ -1,6 +1,6 @@
 use crate::{
     error::RegistryError,
-    policy::{AccessGroups, AccessList, Identity, PackageRule, PackageRules},
+    policy::{AccessGroups, AccessList, AccessToken, Identity, PackageRule, PackageRules},
     registry::{PackagePattern, Registries, Registry, RegistryConfigError},
     s3::{S3Settings, build_s3_store},
 };
@@ -753,6 +753,12 @@ fn resolve_upstream_config<Sys: EnvVar>(
     let timeout = parse_field("timeout", &file.timeout)?.unwrap_or(UpstreamConfig::DEFAULT_TIMEOUT);
     let fail_timeout = parse_field("fail_timeout", &file.fail_timeout)?
         .unwrap_or(UpstreamConfig::DEFAULT_FAIL_TIMEOUT);
+    let access =
+        file.access.as_ref().map(AccessSpec::to_access_list).transpose().map_err(|reason| {
+            RegistryError::InvalidConfig {
+                reason: format!("upstream {name:?} has an invalid `access` list: {reason}"),
+            }
+        })?;
 
     Ok(UpstreamConfig {
         url: file.url,
@@ -762,7 +768,7 @@ fn resolve_upstream_config<Sys: EnvVar>(
         max_fails: file.max_fails.unwrap_or(UpstreamConfig::DEFAULT_MAX_FAILS),
         fail_timeout,
         cache: file.cache.unwrap_or(true),
-        access: file.access.as_ref().map(AccessSpec::to_access_list),
+        access,
         // The `packages:` rules are attached by the caller
         // (`build_registries`) — this resolver only handles the serving
         // knobs shared with programmatic construction.
@@ -840,9 +846,9 @@ fn non_empty_token(token: &str) -> Option<String> {
     (!token.trim().is_empty()).then(|| token.to_string())
 }
 
-/// One `packages:` map value: `access` / `publish` / `unpublish` are verdaccio
-/// permission lists (built-in groups like `$all` / `$authenticated` /
-/// `$anonymous`, plus usernames / group names), compiled into the owning
+/// One `packages:` map value: `access` / `publish` / `unpublish` are
+/// permission lists (the built-in `$all` / `$authenticated` / `$anonymous`
+/// pseudo-groups, plus usernames / group names), compiled into the owning
 /// registry's [`PackageRules`]. An omitted field falls back to the
 /// registry-level default. The map key set doubles as the registry's declared
 /// namespace, so one declaration routes, filters, and authorizes.
@@ -854,10 +860,12 @@ pub struct PackageAccess {
     pub unpublish: Option<AccessSpec>,
 }
 
-/// A YAML string-or-list value. Verdaccio accepts either a single
-/// space-separated string (`access: $authenticated admin`) or a sequence
-/// (`access: [$authenticated, admin]`); both normalize to the same ordered
-/// token list.
+/// A YAML permission value: a sequence of tokens, or a scalar naming exactly
+/// one token. Every entry is taken verbatim — there is no whitespace
+/// splitting inside a scalar or a sequence element, so a multi-token list
+/// must be a YAML sequence (`access: [$authenticated, admin]`). Verdaccio's
+/// space-separated form (`access: $authenticated admin`) is rejected with a
+/// pointer at the sequence syntax rather than silently misread as one token.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
 pub enum AccessSpec {
@@ -866,30 +874,78 @@ pub enum AccessSpec {
 }
 
 impl AccessSpec {
-    fn to_access_list(&self) -> AccessList {
+    /// The declared entries: the scalar form is one entry, the sequence
+    /// form one per element.
+    fn entries(&self) -> &[String] {
         match self {
-            AccessSpec::One(spec) => AccessList::parse(spec),
-            // Each element may itself be space-separated; flatten so
-            // `[a b, c]` and `[a, b, c]` agree.
-            AccessSpec::Many(items) => {
-                AccessList::from_tokens(items.iter().flat_map(|item| item.split_whitespace()))
-            }
+            AccessSpec::One(entry) => std::slice::from_ref(entry),
+            AccessSpec::Many(entries) => entries,
         }
     }
 
-    /// The tokens in declared order, each element flattened on whitespace
-    /// (so `[a b, c]` and `[a, b, c]` agree). Unlike [`Self::to_access_list`]
-    /// — which builds an unordered permission *set* — this preserves order,
-    /// for consumers (the `groups:` membership lists) where the declared
-    /// sequence is meaningful.
-    fn to_ordered_tokens(&self) -> Vec<&str> {
-        match self {
-            AccessSpec::One(spec) => spec.split_whitespace().collect(),
-            AccessSpec::Many(items) => {
-                items.iter().flat_map(|item| item.split_whitespace()).collect()
-            }
+    /// Compile into an [`AccessList`], rejecting any entry that is not a
+    /// single well-formed token ([`validate_access_token`]). The returned
+    /// error is the reason only; the caller prefixes the registry/field
+    /// context it alone knows.
+    fn to_access_list(&self) -> Result<AccessList, String> {
+        for entry in self.entries() {
+            validate_access_token(entry)?;
         }
+        Ok(AccessList::from_tokens(self.entries()))
     }
+
+    /// The `groups:` membership reading: each entry is one username, in
+    /// declared order. Unlike [`Self::to_access_list`] the entries are not
+    /// access tokens — usernames get shape validation only.
+    fn member_names(&self) -> Result<&[String], String> {
+        for member in self.entries() {
+            validate_single_token(member)?;
+        }
+        Ok(self.entries())
+    }
+}
+
+/// Reject an access-list entry that is not exactly one recognized token: an
+/// unknown `$…` built-in, or one of verdaccio's alias spellings of the
+/// built-ins (`@all`, bare `all`, …), which must not silently become a
+/// user/group name that admits nobody. This loud rejection at the YAML
+/// boundary is what lets `AccessToken` parsing stay infallible.
+fn validate_access_token(token: &str) -> Result<(), String> {
+    validate_single_token(token)?;
+    if let Some(builtin) = token.strip_prefix('$') {
+        if !matches!(builtin, "all" | "authenticated" | "anonymous") {
+            return Err(format!(
+                "unknown built-in access token {token:?}; the built-in groups are `$all`, \
+                 `$authenticated`, and `$anonymous`",
+            ));
+        }
+        return Ok(());
+    }
+    let bare = token.strip_prefix('@').unwrap_or(token);
+    if matches!(bare, "all" | "authenticated" | "anonymous") {
+        return Err(format!("unknown access token {token:?}; did you mean \"${bare}\"?"));
+    }
+    Ok(())
+}
+
+/// Reject a value that is not exactly one token: the empty string, or a
+/// string containing whitespace (a space-separated list must be a YAML
+/// sequence instead).
+fn validate_single_token(token: &str) -> Result<(), String> {
+    if token.is_empty() {
+        return Err(
+            "an empty string is not a token; use `[]` to admit no one, or omit the field for \
+             the default"
+                .to_string(),
+        );
+    }
+    if token.contains(char::is_whitespace) {
+        return Err(format!(
+            "{token:?} contains whitespace; write one token per YAML sequence item \
+             (e.g. `[alice, bob]`)",
+        ));
+    }
+    Ok(())
 }
 
 /// Disk shape of the `routes:` block.
@@ -1223,7 +1279,7 @@ const REGISTRY_MOCK_LOCAL_PATTERNS: &[&str] = &[
 /// `@pnpm.e2e/needs-auth` key wins over the `@pnpm.e2e/*` scope key by
 /// specificity.
 fn registry_mock_rules() -> PackageRules {
-    let authenticated = || Some(AccessList::parse("$authenticated"));
+    let authenticated = || Some(AccessList::from_tokens(["$authenticated"]));
     let mut rules: Vec<PackageRule> = REGISTRY_MOCK_LOCAL_PATTERNS
         .iter()
         .map(|pattern| PackageRule {
@@ -1241,7 +1297,8 @@ fn registry_mock_rules() -> PackageRules {
         publish: authenticated(),
         unpublish: authenticated(),
     });
-    PackageRules::new(rules, None).with_default_unpublish(AccessList::parse("$authenticated"))
+    PackageRules::new(rules, None)
+        .with_default_unpublish(AccessList::from_tokens(["$authenticated"]))
 }
 
 impl Config {
@@ -1554,7 +1611,7 @@ impl Config {
         let public_url = public_url.unwrap_or_else(|| format!("http://{listen}"));
         let auth = build_auth_config(&file.auth, base_dir);
         let logs = build_log_config(file.log.as_ref());
-        let groups = build_groups(&file.groups);
+        let groups = build_groups(&file.groups)?;
         // The global ACL block is gone, not ignorable: it used to *enforce*
         // access, so dropping it like an unknown verdaccio key would silently
         // open previously-gated packages on upgrade. Fail loudly instead,
@@ -1831,7 +1888,7 @@ fn build_registries(
                 {
                     return Err(org_collision_error(&name, &registry.org, other));
                 }
-                let access = registry.access.as_ref().map(AccessSpec::to_access_list);
+                let access = registry_access_list(&name, registry.access.as_ref())?;
                 let rules = build_rules(&name, &registry.packages, access)?;
                 let patterns = rules.patterns();
                 hosted.insert(name.clone(), HostedConfig { org: registry.org, rules });
@@ -1844,7 +1901,7 @@ fn build_registries(
                 // carries the namespace on every tier, and so a
                 // `publish`/`unpublish` value — a write rule on a registry no
                 // write can land on — fails startup on every tier too.
-                let access = upstream.access.as_ref().map(AccessSpec::to_access_list);
+                let access = registry_access_list(&name, upstream.access.as_ref())?;
                 let rules = build_rules(&name, &upstream.packages, access)?;
                 if rules.refines_writes() {
                     return Err(RegistryError::InvalidConfig {
@@ -1883,6 +1940,19 @@ fn org_collision_error(name: &str, org: &str, other: &str) -> RegistryError {
              registry {other:?}; two hosted registries cannot share a namespace",
         ),
     }
+}
+
+/// Compile a `registries:` entry's registry-level `access:` value, naming the
+/// registry in the error.
+fn registry_access_list(
+    name: &str,
+    spec: Option<&AccessSpec>,
+) -> Result<Option<AccessList>, RegistryError> {
+    spec.map(AccessSpec::to_access_list).transpose().map_err(|reason| {
+        RegistryError::InvalidConfig {
+            reason: format!("registry {name:?} has an invalid `access` list: {reason}"),
+        }
+    })
 }
 
 /// A registry's name is addressed as the single URL path segment `/~<name>/` and
@@ -1944,22 +2014,25 @@ fn build_rules(
 ) -> Result<PackageRules, RegistryError> {
     let rules = packages
         .iter()
-        .map(|(pattern, rule)| {
-            let pattern = PackagePattern::parse(pattern).map_err(|err| {
+        .map(|(key, rule)| {
+            let pattern = PackagePattern::parse(key).map_err(|err| {
                 RegistryError::InvalidConfig { reason: format!("registry {registry:?}: {err}") }
             })?;
             let fields = rule.as_ref();
+            let list = |field: &str, spec: Option<&AccessSpec>| {
+                spec.map(AccessSpec::to_access_list).transpose().map_err(|reason| {
+                    RegistryError::InvalidConfig {
+                        reason: format!(
+                            "registry {registry:?}: {key:?} has an invalid `{field}` list: {reason}",
+                        ),
+                    }
+                })
+            };
             Ok(PackageRule {
                 pattern,
-                access: fields
-                    .and_then(|fields| fields.access.as_ref())
-                    .map(AccessSpec::to_access_list),
-                publish: fields
-                    .and_then(|fields| fields.publish.as_ref())
-                    .map(AccessSpec::to_access_list),
-                unpublish: fields
-                    .and_then(|fields| fields.unpublish.as_ref())
-                    .map(AccessSpec::to_access_list),
+                access: list("access", fields.and_then(|fields| fields.access.as_ref()))?,
+                publish: list("publish", fields.and_then(|fields| fields.publish.as_ref()))?,
+                unpublish: list("unpublish", fields.and_then(|fields| fields.unpublish.as_ref()))?,
             })
         })
         .collect::<Result<Vec<_>, RegistryError>>()?;
@@ -2030,14 +2103,28 @@ fn resolve_upstream_registry<Sys: EnvVar>(
     resolve_upstream_config::<Sys>(name, upstream_config_file)
 }
 
-fn build_groups(file: &IndexMap<String, AccessSpec>) -> AccessGroups {
+fn build_groups(file: &IndexMap<String, AccessSpec>) -> Result<AccessGroups, RegistryError> {
     let mut groups = AccessGroups::default();
     for (group, members) in file {
-        for username in members.to_ordered_tokens() {
+        // A group is only useful as a `Named` token in access lists, so its
+        // name gets the same validation as a token — a name that shadows a
+        // built-in or could never be written in a list must not be declared.
+        validate_access_token(group)
+            .and_then(|()| match AccessToken::from(group.as_str()) {
+                AccessToken::Named(_) => Ok(()),
+                _ => Err(format!("group name {group:?} shadows a built-in access token")),
+            })
+            .map_err(|reason| RegistryError::InvalidConfig {
+                reason: format!("invalid `groups` name: {reason}"),
+            })?;
+        let members = members.member_names().map_err(|reason| RegistryError::InvalidConfig {
+            reason: format!("group {group:?} has an invalid member list: {reason}"),
+        })?;
+        for username in members {
             groups.add_user_to_group(username, group);
         }
     }
-    groups
+    Ok(groups)
 }
 
 /// Minimum length for an operator-configured `secret:`. A shorter value makes

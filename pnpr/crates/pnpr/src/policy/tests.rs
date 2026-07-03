@@ -1,12 +1,16 @@
 use super::{AccessList, AccessToken, Identity, PackageRule, PackageRules};
 use crate::registry::PackagePattern;
 
+fn list(token: &str) -> AccessList {
+    AccessList::from_tokens([token])
+}
+
 fn rule(pattern: &str, access: Option<&str>) -> PackageRule {
     PackageRule {
         pattern: PackagePattern::parse(pattern).expect("test pattern parses"),
-        access: access.map(AccessList::parse),
-        publish: access.map(AccessList::parse),
-        unpublish: access.map(AccessList::parse),
+        access: access.map(list),
+        publish: access.map(list),
+        unpublish: access.map(list),
     }
 }
 
@@ -21,7 +25,7 @@ fn registry_mock_rules() -> PackageRules {
         ],
         None,
     )
-    .with_default_unpublish(AccessList::parse("$authenticated"))
+    .with_default_unpublish(list("$authenticated"))
 }
 
 fn user(name: &str) -> Identity {
@@ -31,40 +35,42 @@ fn user(name: &str) -> Identity {
 #[test]
 fn token_parsing_maps_builtins_and_names() {
     assert_eq!(AccessToken::from("$all"), AccessToken::All);
-    assert_eq!(AccessToken::from("@all"), AccessToken::All);
-    assert_eq!(AccessToken::from("all"), AccessToken::All);
     assert_eq!(AccessToken::from("$authenticated"), AccessToken::Authenticated);
     assert_eq!(AccessToken::from("$anonymous"), AccessToken::Anonymous);
-    assert_eq!(AccessToken::from("@anonymous"), AccessToken::Anonymous);
-    // Anything else is a username / group name (no longer an error).
     assert_eq!(AccessToken::from("admin"), AccessToken::Named("admin".to_string()));
+    // Only the `$`-sigiled spellings are built-ins. The alias spellings
+    // verdaccio accepted are plain names here — YAML loading rejects them
+    // before they reach this constructor, and a programmatic caller just
+    // gets a name that matches nobody (deny-safe).
+    assert_eq!(AccessToken::from("@all"), AccessToken::Named("@all".to_string()));
+    assert_eq!(AccessToken::from("all"), AccessToken::Named("all".to_string()));
+    assert_eq!(AccessToken::from("authenticated"), AccessToken::Named("authenticated".to_string()),);
 }
 
 #[test]
 fn all_admits_everyone() {
-    let list = AccessList::parse("$all");
+    let list = list("$all");
     assert!(list.allows(&Identity::Anonymous));
     assert!(list.allows(&user("alice")));
 }
 
 #[test]
 fn authenticated_admits_only_logged_in() {
-    let list = AccessList::parse("$authenticated");
+    let list = list("$authenticated");
     assert!(!list.allows(&Identity::Anonymous));
     assert!(list.allows(&user("alice")));
 }
 
 #[test]
 fn anonymous_admits_only_logged_out() {
-    let list = AccessList::parse("$anonymous");
+    let list = list("$anonymous");
     assert!(list.allows(&Identity::Anonymous));
     assert!(!list.allows(&user("alice")));
 }
 
 #[test]
 fn usernames_grant_per_user_access() {
-    // verdaccio's per-user access: list the usernames directly.
-    let list = AccessList::parse("alice bob");
+    let list = AccessList::from_tokens(["alice", "bob"]);
     assert!(list.allows(&user("alice")));
     assert!(list.allows(&user("bob")));
     assert!(!list.allows(&user("carol")));
@@ -73,7 +79,7 @@ fn usernames_grant_per_user_access() {
 
 #[test]
 fn groups_grant_named_access() {
-    let list = AccessList::parse("platform");
+    let list = list("platform");
     assert!(list.allows(&Identity::user_with_groups("alice", ["platform"])));
     assert!(list.allows(&user("platform")));
     assert!(!list.allows(&Identity::user_with_groups("bob", ["release"])));
@@ -82,16 +88,16 @@ fn groups_grant_named_access() {
 
 #[test]
 fn mixed_token_list_is_a_union() {
-    // `$authenticated admin` — any logged-in user OR (redundantly)
+    // `[$authenticated, admin]` — any logged-in user OR (redundantly)
     // the `admin` name; satisfied by any authenticated caller.
-    let list = AccessList::parse("$authenticated admin");
+    let list = AccessList::from_tokens(["$authenticated", "admin"]);
     assert!(list.allows(&user("carol")));
     assert!(!list.allows(&Identity::Anonymous));
 }
 
 #[test]
 fn empty_list_admits_no_one() {
-    let list = AccessList::parse("");
+    let list = AccessList::default();
     assert!(list.is_empty());
     assert!(!list.allows(&Identity::Anonymous));
     assert!(!list.allows(&user("alice")));
@@ -162,7 +168,7 @@ fn omitted_rule_fields_fall_back_to_registry_default_not_broader_keys() {
         vec![
             PackageRule {
                 pattern: PackagePattern::parse("@acme/*").expect("parses"),
-                access: Some(AccessList::parse("$authenticated")),
+                access: Some(list("$authenticated")),
                 publish: None,
                 unpublish: None,
             },

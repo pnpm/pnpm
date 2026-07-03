@@ -7,15 +7,13 @@
 //! makes that selection total: for any one name, at most one key per
 //! specificity tier can match, so every name has exactly one winning entry.
 //!
-//! Each permission is a list of tokens (verdaccio's space-separated
-//! groups); a request is allowed when the caller's identity satisfies
-//! any token in the list. Tokens are the built-in pseudo-groups
-//! (`$all`, `$authenticated`, `$anonymous`, plus their `@`/bare
-//! aliases) or a *name*. A name token matches either the authenticated
-//! username or any group attached to that identity. pnpr's static
-//! `groups:` config adds group membership on top of htpasswd users,
-//! matching verdaccio's model where access lists do not distinguish
-//! usernames from group names.
+//! Each permission is a list of tokens; a request is allowed when the
+//! caller's identity satisfies any token in the list. Tokens are the
+//! built-in pseudo-groups (`$all`, `$authenticated`, `$anonymous`) or a
+//! *name*. A name token matches either the authenticated username or
+//! any group attached to that identity — access lists do not
+//! distinguish usernames from group names. pnpr's static `groups:`
+//! config adds group membership on top of htpasswd users.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -24,44 +22,43 @@ use crate::registry::PackagePattern;
 /// A single token in an access list.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum AccessToken {
-    /// `$all` / `@all` / `all` — anyone, authenticated or not.
+    /// `$all` — anyone, authenticated or not.
     All,
-    /// `$authenticated` / `@authenticated` / `authenticated` — any
-    /// caller carrying valid Bearer or Basic credentials.
+    /// `$authenticated` — any caller carrying valid Bearer or Basic
+    /// credentials.
     Authenticated,
-    /// `$anonymous` / `@anonymous` / `anonymous` — only callers
-    /// *without* valid credentials.
+    /// `$anonymous` — only callers *without* valid credentials.
     Anonymous,
     /// A username or group name. Matches an authenticated caller whose
     /// username or group membership equals it.
     Named(String),
 }
 
+/// Only the `$`-sigiled spellings are built-ins; any other token is a
+/// name, which can only *narrow* access, so this stays infallible.
+/// Near-miss spellings (verdaccio's `@all`/bare aliases, an unknown
+/// `$…`) are rejected earlier, at YAML load (`AccessSpec` in the config
+/// module) — a programmatic caller passing one just gets a name that
+/// matches nobody.
 impl From<&str> for AccessToken {
     fn from(token: &str) -> Self {
         match token {
-            "$all" | "@all" | "all" => AccessToken::All,
-            "$authenticated" | "@authenticated" | "authenticated" => AccessToken::Authenticated,
-            "$anonymous" | "@anonymous" | "anonymous" => AccessToken::Anonymous,
+            "$all" => AccessToken::All,
+            "$authenticated" => AccessToken::Authenticated,
+            "$anonymous" => AccessToken::Anonymous,
             name => AccessToken::Named(name.to_string()),
         }
     }
 }
 
 /// One `access` / `publish` permission: the set of tokens that satisfy
-/// it. An empty list admits no one (verdaccio's empty `unpublish:`).
+/// it. An empty list admits no one (an explicit `unpublish: []`).
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 pub struct AccessList(Vec<AccessToken>);
 
 impl AccessList {
-    /// Build from a verdaccio space-separated permission string
-    /// (e.g. `"$authenticated admin"`).
-    #[must_use]
-    pub fn parse(spec: &str) -> Self {
-        Self::from_tokens(spec.split_whitespace())
-    }
-
-    /// Build from already-separated tokens (e.g. a YAML sequence).
+    /// Build from individual tokens (e.g. the elements of a YAML
+    /// sequence). Each string is one token, taken verbatim.
     pub fn from_tokens<Tokens, Token>(tokens: Tokens) -> Self
     where
         Tokens: IntoIterator<Item = Token>,
@@ -268,8 +265,8 @@ impl PackageRules {
         Self {
             index: RuleIndex::build(&rules),
             rules,
-            default_access: default_access.unwrap_or_else(|| AccessList::parse("$all")),
-            default_publish: AccessList::parse("$authenticated"),
+            default_access: default_access.unwrap_or_else(|| AccessList::from_tokens(["$all"])),
+            default_publish: AccessList::from_tokens(["$authenticated"]),
             default_unpublish: AccessList::default(),
         }
     }

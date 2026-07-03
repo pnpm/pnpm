@@ -227,7 +227,7 @@ async fn configured_groups_reach_package_authorization() {
     config.hosted.get_mut("local").unwrap().rules = PackageRules::new(
         vec![PackageRule {
             pattern: PackagePattern::parse("@team/*").unwrap(),
-            access: Some(AccessList::parse("platform")),
+            access: Some(AccessList::from_tokens(["platform"])),
             publish: None,
             unpublish: None,
         }],
