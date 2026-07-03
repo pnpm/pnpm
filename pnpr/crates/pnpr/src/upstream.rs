@@ -1,5 +1,5 @@
 use crate::{
-    config::{RedactedHeaders, UplinkConfig},
+    config::{RedactedHeaders, UpstreamConfig},
     error::{RegistryError, Result},
     package_name::PackageName,
 };
@@ -20,7 +20,7 @@ use std::{
 /// Wraps a shared [`ThrottledClient`] (so the registry inherits pnpm's
 /// tuned reqwest defaults: `User-Agent: pnpm`, HTTP/1.1, hickory DNS,
 /// pool/timeout tuning, concurrency semaphore, and per-registry TLS
-/// routing if it's ever wired in later) and adds the per-uplink glue a
+/// routing if it's ever wired in later) and adds the per-upstream glue a
 /// proxy needs: building the upstream URL, applying verdaccio's
 /// `timeout`/`max_fails`/`fail_timeout` knobs, and fishing the packument
 /// or tarball response out of it.
@@ -28,24 +28,24 @@ use std::{
 pub struct Upstream {
     client: Arc<ThrottledClient>,
     base: String,
-    /// The configured uplink name (the YAML `uplinks:` key). Surfaced in
-    /// client-facing errors so an open circuit names the uplink rather
+    /// The configured upstream name (the YAML `upstreams:` key). Surfaced in
+    /// client-facing errors so an open circuit names the upstream rather
     /// than leaking its upstream URL.
     name: String,
-    /// Resolved per-uplink request headers (auth + custom) attached to
-    /// every fetch. Empty for an uplink with no `auth:`/`headers:`.
+    /// Resolved per-upstream request headers (auth + custom) attached to
+    /// every fetch. Empty for an upstream with no `auth:`/`headers:`.
     headers: HeaderMap,
     /// Per-request deadline (verdaccio's `timeout`).
     timeout: Duration,
-    /// Per-uplink packument freshness window (verdaccio's `maxage`), or
+    /// Per-upstream packument freshness window (verdaccio's `maxage`), or
     /// `None` to defer to the global [`crate::config::Config::packument_ttl`].
     maxage: Option<Duration>,
-    /// Whether tarballs from this uplink are written to the local mirror
+    /// Whether tarballs from this upstream are written to the local mirror
     /// (verdaccio's `cache`).
     cache: bool,
     /// Shared failure tracker implementing verdaccio's
     /// `max_fails`/`fail_timeout` circuit breaker. Behind an [`Arc`] so
-    /// every clone of this `Upstream` (the registry holds one per uplink
+    /// every clone of this `Upstream` (the registry holds one per upstream
     /// and clones it per request) updates the same counters.
     breaker: Arc<CircuitBreaker>,
 }
@@ -66,7 +66,7 @@ impl fmt::Debug for Upstream {
 }
 
 /// Verdaccio's `max_fails` / `fail_timeout` circuit breaker. After
-/// `max_fails` consecutive failures the uplink is considered down and
+/// `max_fails` consecutive failures the upstream is considered down and
 /// requests short-circuit, until `fail_timeout` elapses since the last
 /// failure — a single probe is then allowed through, and its success
 /// resets the breaker or its failure restarts the cooldown.
@@ -83,7 +83,7 @@ impl fmt::Debug for Upstream {
 /// check and its timestamp can never be observed half-updated. The lock
 /// is held only for trivial field reads/writes (never across the network
 /// request), so contention is negligible; a poisoned lock is recovered
-/// rather than propagated as a panic, keeping a failing uplink from
+/// rather than propagated as a panic, keeping a failing upstream from
 /// taking the registry down.
 #[derive(Debug)]
 struct CircuitBreaker {
@@ -189,11 +189,11 @@ pub enum PackumentFetch {
 }
 
 impl Upstream {
-    /// Build an uplink client from its name (the YAML `uplinks:` key) and
-    /// resolved [`UplinkConfig`], baking in the per-uplink
+    /// Build an upstream client from its name (the YAML `upstreams:` key) and
+    /// resolved [`UpstreamConfig`], baking in the per-upstream
     /// `timeout`/`maxage`/`cache` knobs and arming the
     /// `max_fails`/`fail_timeout` circuit breaker.
-    pub fn new(name: &str, config: &UplinkConfig) -> Self {
+    pub fn new(name: &str, config: &UpstreamConfig) -> Self {
         Self {
             client: Arc::new(ThrottledClient::new_for_installs()),
             base: config.url.clone(),
@@ -206,13 +206,13 @@ impl Upstream {
         }
     }
 
-    /// Per-uplink packument freshness window (`maxage`), or `None` to
+    /// Per-upstream packument freshness window (`maxage`), or `None` to
     /// defer to the global [`crate::config::Config::packument_ttl`].
     pub fn maxage(&self) -> Option<Duration> {
         self.maxage
     }
 
-    /// Whether tarballs from this uplink should be written to the local
+    /// Whether tarballs from this upstream should be written to the local
     /// mirror (`cache: true`). When `false` the caller streams the body
     /// straight through without caching it.
     pub fn caches(&self) -> bool {
@@ -251,7 +251,7 @@ impl Upstream {
         }
         let response = self.run(request, &url).await?;
         if response.status() == StatusCode::NOT_FOUND {
-            // A 404 is an authoritative answer, not an uplink failure.
+            // A 404 is an authoritative answer, not an upstream failure.
             self.breaker.record_success();
             return Ok(PackumentFetch::NotFound);
         }
@@ -304,12 +304,12 @@ impl Upstream {
 
     /// Fail fast with [`RegistryError::UpstreamUnavailable`] when the
     /// breaker is open, so callers never pay a request to a known-down
-    /// uplink.
+    /// upstream.
     fn ensure_available(&self) -> Result<()> {
         if self.breaker.try_acquire() {
             return Ok(());
         }
-        Err(RegistryError::UpstreamUnavailable { uplink: self.name.clone() })
+        Err(RegistryError::UpstreamUnavailable { upstream: self.name.clone() })
     }
 
     /// Send a built request, mapping a transport error to

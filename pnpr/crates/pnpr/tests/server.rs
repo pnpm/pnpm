@@ -32,7 +32,7 @@ use tower::ServiceExt;
 fn config_for(upstream: &str, storage: PathBuf) -> Config {
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 4873));
     let mut config = Config::proxy(listen, storage);
-    config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink").url = upstream.to_string();
+    config.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").url = upstream.to_string();
     config.public_url = "http://example.test".to_string();
     config.packument_ttl = Duration::from_mins(1);
     config
@@ -652,10 +652,10 @@ async fn osv_filters_packument_identity_mismatches() {
 }
 
 #[tokio::test]
-async fn uplink_auth_and_custom_headers_are_forwarded_upstream() {
+async fn upstream_auth_and_custom_headers_are_forwarded_upstream() {
     let mut upstream = mockito::Server::new_async().await;
     // The mock only matches when both headers are present, so a passing
-    // request proves the resolved per-uplink headers reached upstream.
+    // request proves the resolved per-upstream headers reached upstream.
     let mock = upstream
         .mock("GET", "/foo")
         .match_header("authorization", "Bearer secret-token")
@@ -668,9 +668,9 @@ async fn uplink_auth_and_custom_headers_are_forwarded_upstream() {
 
     let tmp = TempDir::new().unwrap();
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    let uplink = config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink");
-    uplink.headers.insert("authorization", "Bearer secret-token".parse().unwrap());
-    uplink.headers.insert("x-org", "acme".parse().unwrap());
+    let upstream = config.upstreams.get_mut("npmjs").expect("default `npmjs` upstream");
+    upstream.headers.insert("authorization", "Bearer secret-token".parse().unwrap());
+    upstream.headers.insert("x-org", "acme".parse().unwrap());
     let app = router(config);
 
     let response = app.oneshot(Request::get("/foo").body(Body::empty()).unwrap()).await.unwrap();
@@ -738,18 +738,18 @@ async fn tarball_is_proxied_and_cached() {
     mock.assert_async().await;
 }
 
-/// A proxy config whose default `npmjs` uplink is promoted to an
-/// access-bearing private-route uplink, reachable at `/~npmjs/`.
-fn uplink_endpoint_config(upstream_url: &str, storage: PathBuf, access: &str) -> Config {
+/// A proxy config whose default `npmjs` upstream is promoted to an
+/// access-bearing private-route upstream, reachable at `/~npmjs/`.
+fn upstream_endpoint_config(upstream_url: &str, storage: PathBuf, access: &str) -> Config {
     let mut config = config_for(upstream_url, storage);
     config.public_url = "http://example.test".to_string();
-    config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink").access =
+    config.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").access =
         Some(AccessList::parse(access));
     config
 }
 
 #[tokio::test]
-async fn uplink_endpoint_serves_packument_with_endpoint_rewritten_tarballs() {
+async fn upstream_endpoint_serves_packument_with_endpoint_rewritten_tarballs() {
     let mut upstream = mockito::Server::new_async().await;
     let packument = json!({
         "name": "foo",
@@ -768,7 +768,7 @@ async fn uplink_endpoint_serves_packument_with_endpoint_rewritten_tarballs() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let config = uplink_endpoint_config(&upstream.url(), tmp.path().to_path_buf(), "alice");
+    let config = upstream_endpoint_config(&upstream.url(), tmp.path().to_path_buf(), "alice");
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let app = router_with_auth(config, auth);
@@ -797,11 +797,11 @@ async fn uplink_endpoint_serves_packument_with_endpoint_rewritten_tarballs() {
 }
 
 #[tokio::test]
-async fn uplink_endpoint_rejects_unauthorized_caller() {
+async fn upstream_endpoint_rejects_unauthorized_caller() {
     let tmp = TempDir::new().unwrap();
-    let config = uplink_endpoint_config("http://127.0.0.1:1", tmp.path().to_path_buf(), "alice");
+    let config = upstream_endpoint_config("http://127.0.0.1:1", tmp.path().to_path_buf(), "alice");
     let app = router(config);
-    // Anonymous caller is not admitted by the uplink's access policy, and the
+    // Anonymous caller is not admitted by the upstream's access policy, and the
     // request fails closed before any upstream fetch.
     let response =
         app.oneshot(Request::get("/~npmjs/foo").body(Body::empty()).unwrap()).await.unwrap();
@@ -809,9 +809,9 @@ async fn uplink_endpoint_rejects_unauthorized_caller() {
 }
 
 #[tokio::test]
-async fn uplink_endpoint_tarball_is_verified_and_cached_per_uplink() {
+async fn upstream_endpoint_tarball_is_verified_and_cached_per_upstream() {
     let mut upstream = mockito::Server::new_async().await;
-    let bytes = b"private-uplink-tarball";
+    let bytes = b"private-upstream-tarball";
     let packument = json!({
         "name": "foo",
         "dist-tags": { "latest": "1.0.0" },
@@ -820,7 +820,7 @@ async fn uplink_endpoint_tarball_is_verified_and_cached_per_uplink() {
             "integrity": sha512_integrity(bytes),
         } } },
     });
-    // The packument and verified tarball are cached in the uplink's private
+    // The packument and verified tarball are cached in the upstream's private
     // namespace, so two tarball requests hit the upstream exactly once each —
     // the second is served from the private cache, never re-fetched.
     let packument_mock = upstream
@@ -840,7 +840,7 @@ async fn uplink_endpoint_tarball_is_verified_and_cached_per_uplink() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let config = uplink_endpoint_config(&upstream.url(), tmp.path().to_path_buf(), "alice");
+    let config = upstream_endpoint_config(&upstream.url(), tmp.path().to_path_buf(), "alice");
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let app = router_with_auth(config, auth);
@@ -865,12 +865,12 @@ async fn uplink_endpoint_tarball_is_verified_and_cached_per_uplink() {
 }
 
 #[tokio::test]
-async fn uplink_cache_does_not_leak_to_the_public_path() {
-    // The public `**` route proxies through the default `npmjs` uplink to the
-    // public upstream; a separate access-bearing `corp` uplink serves a
+async fn upstream_cache_does_not_leak_to_the_public_path() {
+    // The public `**` route proxies through the default `npmjs` upstream to the
+    // public upstream; a separate access-bearing `corp` upstream serves a
     // *different* upstream at `/~corp/`. After the private `/~corp/foo` tarball
     // is cached, the public `/foo` request must still serve the public bytes —
-    // proving the private uplink's cache is namespaced, not shared.
+    // proving the private upstream's cache is namespaced, not shared.
     let mut public_upstream = mockito::Server::new_async().await;
     let mut private_upstream = mockito::Server::new_async().await;
     let public_bytes = b"public-foo-tarball";
@@ -898,10 +898,10 @@ async fn uplink_cache_does_not_leak_to_the_public_path() {
 
     let tmp = TempDir::new().unwrap();
     let mut config = config_for(&public_upstream.url(), tmp.path().to_path_buf());
-    let mut corp = config.uplinks.get("npmjs").expect("default `npmjs` uplink").clone();
+    let mut corp = config.upstreams.get("npmjs").expect("default `npmjs` upstream").clone();
     corp.url = private_upstream.url();
     corp.access = Some(AccessList::parse("alice"));
-    config.uplinks.insert("corp".to_string(), corp);
+    config.upstreams.insert("corp".to_string(), corp);
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let app = router_with_auth(config, auth);
@@ -921,7 +921,7 @@ async fn uplink_cache_does_not_leak_to_the_public_path() {
     assert_eq!(body_bytes(private.into_body()).await, private_bytes);
 
     // The public path must serve the public upstream's bytes, never the
-    // private uplink's cached copy.
+    // private upstream's cached copy.
     let public = app
         .oneshot(Request::get("/foo/-/foo-1.0.0.tgz").body(Body::empty()).unwrap())
         .await
@@ -935,7 +935,7 @@ async fn uplink_cache_does_not_leak_to_the_public_path() {
 /// upstream — packument or tarball, including via the cache-first tarball
 /// path — can never answer for the new one under the same registry name.
 #[tokio::test]
-async fn repointing_an_uplink_url_abandons_the_old_origins_cache() {
+async fn repointing_an_upstream_url_abandons_the_old_origins_cache() {
     let mut old_origin = mockito::Server::new_async().await;
     let mut new_origin = mockito::Server::new_async().await;
     let old_bytes = b"old-origin-foo-tarball";
@@ -981,9 +981,9 @@ async fn repointing_an_uplink_url_abandons_the_old_origins_cache() {
 }
 
 #[tokio::test]
-async fn uplink_endpoint_cache_false_streams_without_caching() {
+async fn upstream_endpoint_cache_false_streams_without_caching() {
     let mut upstream = mockito::Server::new_async().await;
-    let bytes = b"uncached-private-uplink-tarball";
+    let bytes = b"uncached-private-upstream-tarball";
     let packument = json!({
         "name": "foo",
         "dist-tags": { "latest": "1.0.0" },
@@ -992,7 +992,7 @@ async fn uplink_endpoint_cache_false_streams_without_caching() {
             "integrity": sha512_integrity(bytes),
         } } },
     });
-    // A `cache: false` uplink endpoint persists nothing, so each request
+    // A `cache: false` upstream endpoint persists nothing, so each request
     // re-fetches the packument and tarball — the mocks are hit twice.
     let packument_mock = upstream
         .mock("GET", "/foo")
@@ -1009,8 +1009,8 @@ async fn uplink_endpoint_cache_false_streams_without_caching() {
         .await;
 
     let tmp = TempDir::new().unwrap();
-    let mut config = uplink_endpoint_config(&upstream.url(), tmp.path().to_path_buf(), "alice");
-    config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink").cache = false;
+    let mut config = upstream_endpoint_config(&upstream.url(), tmp.path().to_path_buf(), "alice");
+    config.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").cache = false;
     let auth = AuthState::in_memory();
     let token = auth.tokens.issue("alice").await.unwrap();
     let app = router_with_auth(config, auth);
@@ -1301,7 +1301,7 @@ async fn tarball_route_preserves_basename_and_binds_to_declaring_version() {
     // cached entry; the `expect(1)` mocks prove the upstream is never
     // consulted again. (A *different* URL would be a repoint, which
     // deliberately abandons this cache — see
-    // `repointing_an_uplink_url_abandons_the_old_origins_cache`.)
+    // `repointing_an_upstream_url_abandons_the_old_origins_cache`.)
     let restarted = router(config_for(&upstream.url(), storage));
     let replay = restarted.oneshot(Request::get(route).body(Body::empty()).unwrap()).await.unwrap();
     assert_eq!(replay.status(), StatusCode::OK);
@@ -2312,12 +2312,12 @@ async fn tarball_is_not_gzipped_even_when_accepted() {
     mock.assert_async().await;
 }
 
-/// A per-uplink `maxage` shorter than the global `packument_ttl` governs
+/// A per-upstream `maxage` shorter than the global `packument_ttl` governs
 /// freshness: with a generous global TTL the second request would be a
 /// cache hit, but `maxage: 0` forces a revalidation, so the upstream is
 /// hit twice.
 #[tokio::test]
-async fn per_uplink_maxage_overrides_global_packument_ttl() {
+async fn per_upstream_maxage_overrides_global_packument_ttl() {
     let mut upstream = mockito::Server::new_async().await;
     let packument = json!({ "name": "foo", "versions": {} });
     let mock = upstream
@@ -2330,10 +2330,10 @@ async fn per_uplink_maxage_overrides_global_packument_ttl() {
 
     let tmp = TempDir::new().unwrap();
     let mut config = config_for(&upstream.url(), tmp.path().to_path_buf());
-    // Global TTL stays generous (a minute); the per-uplink maxage of zero
+    // Global TTL stays generous (a minute); the per-upstream maxage of zero
     // is what must take effect and make every read stale.
     config.packument_ttl = Duration::from_mins(1);
-    config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink").maxage =
+    config.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").maxage =
         Some(Duration::from_millis(0));
     let app = router(config);
 
@@ -2347,11 +2347,11 @@ async fn per_uplink_maxage_overrides_global_packument_ttl() {
     mock.assert_async().await;
 }
 
-/// A `cache: false` uplink streams tarballs through without writing them
+/// A `cache: false` upstream streams tarballs through without writing them
 /// to the local mirror: a second request re-fetches from the upstream
 /// (so the mock is hit twice) and no `.tgz` is left in the cache dir.
 #[tokio::test]
-async fn cache_false_uplink_streams_tarball_without_mirroring() {
+async fn cache_false_upstream_streams_tarball_without_mirroring() {
     let mut upstream = mockito::Server::new_async().await;
     let bytes = b"uncached-tarball-bytes";
     // A `cache: false` registry streams everything through, so each of the two
@@ -2368,7 +2368,7 @@ async fn cache_false_uplink_streams_tarball_without_mirroring() {
     let tmp = TempDir::new().unwrap();
     let cache_dir = tmp.path().to_path_buf();
     let mut config = config_for(&upstream.url(), cache_dir.clone());
-    config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink").cache = false;
+    config.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").cache = false;
     let app = router(config);
 
     for _ in 0..2 {
@@ -2386,7 +2386,7 @@ async fn cache_false_uplink_streams_tarball_without_mirroring() {
     let package_dir = public_cache_pkg(&cache_dir, "foo");
     assert!(
         tarball_cache_entries(&package_dir).is_empty(),
-        "a cache:false uplink must not write tarballs to the mirror",
+        "a cache:false upstream must not write tarballs to the mirror",
     );
 
     packument_mock.assert_async().await;
@@ -2394,7 +2394,7 @@ async fn cache_false_uplink_streams_tarball_without_mirroring() {
 }
 
 #[tokio::test]
-async fn cache_false_uplink_rejects_tampered_tarball_without_mirroring() {
+async fn cache_false_upstream_rejects_tampered_tarball_without_mirroring() {
     let mut upstream = mockito::Server::new_async().await;
     let good_bytes = b"good-uncached-tarball";
     let poison_bytes = b"poisoned-uncached-tarball";
@@ -2411,7 +2411,7 @@ async fn cache_false_uplink_rejects_tampered_tarball_without_mirroring() {
     let tmp = TempDir::new().unwrap();
     let cache_dir = tmp.path().to_path_buf();
     let mut config = config_for(&upstream.url(), cache_dir.clone());
-    config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink").cache = false;
+    config.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").cache = false;
     let app = router(config);
 
     let response = app
@@ -2644,9 +2644,9 @@ async fn mock_package(server: &mut mockito::Server, pkg: &str, marker: &str) -> 
 /// aliased by the path-less base.
 fn router_config(npmjs_url: &str, corp_url: &str, storage: PathBuf) -> Config {
     let mut config = config_for(npmjs_url, storage);
-    let mut corp = config.uplinks.get("npmjs").expect("default `npmjs` uplink").clone();
+    let mut corp = config.upstreams.get("npmjs").expect("default `npmjs` upstream").clone();
     corp.url = corp_url.to_string();
-    config.uplinks.insert("corp".to_string(), corp);
+    config.upstreams.insert("corp".to_string(), corp);
     let graph = vec![
         ("npmjs".to_string(), Registry::Upstream { patterns: vec![] }),
         (
@@ -2719,9 +2719,10 @@ async fn router_not_found_does_not_fall_through_to_public() {
 
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    let mut corp_uplink = config.uplinks.get("npmjs").expect("default `npmjs` uplink").clone();
-    corp_uplink.url = corp.url();
-    config.uplinks.insert("corp".to_string(), corp_uplink);
+    let mut corp_upstream =
+        config.upstreams.get("npmjs").expect("default `npmjs` upstream").clone();
+    corp_upstream.url = corp.url();
+    config.upstreams.insert("corp".to_string(), corp_upstream);
     let graph = vec![
         (
             "corp".to_string(),
@@ -2764,9 +2765,10 @@ async fn router_unavailable_source_errors_not_404() {
     let tmp = TempDir::new().unwrap();
     // Point `corp` at a closed port so every fetch is a transport failure.
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    let mut corp_uplink = config.uplinks.get("npmjs").expect("default `npmjs` uplink").clone();
-    corp_uplink.url = "http://127.0.0.1:1".to_string();
-    config.uplinks.insert("corp".to_string(), corp_uplink);
+    let mut corp_upstream =
+        config.upstreams.get("npmjs").expect("default `npmjs` upstream").clone();
+    corp_upstream.url = "http://127.0.0.1:1".to_string();
+    config.upstreams.insert("corp".to_string(), corp_upstream);
     let graph = vec![
         (
             "corp".to_string(),
@@ -3201,7 +3203,7 @@ async fn off_pattern_publish_is_masked_for_callers_the_registry_denies() {
 }
 
 /// A programmatically-built registry graph gets the same fail-closed
-/// validation as a YAML load: server construction folds every uplink into
+/// validation as a YAML load: server construction folds every upstream into
 /// the graph and rejects an invalid graph instead of serving it.
 #[tokio::test]
 async fn building_the_server_rejects_an_invalid_programmatic_registry_graph() {
@@ -3216,6 +3218,36 @@ async fn building_the_server_rejects_an_invalid_programmatic_registry_graph() {
     let err =
         pnpr::try_router(config).expect_err("an unknown router source must fail server startup");
     assert!(err.to_string().contains("ghost"), "unexpected error: {err}");
+}
+
+/// A concrete registry declared in the graph without its serving config
+/// would answer every request not-found at runtime; server construction
+/// rejects the mismatch instead.
+#[tokio::test]
+async fn building_the_server_rejects_a_concrete_registry_without_serving_config() {
+    let tmp = TempDir::new().unwrap();
+
+    // A hosted graph entry with no hosted-table row.
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.registries = Registries::new(
+        vec![("ghost-org".to_string(), Registry::Hosted { patterns: vec![] })]
+            .into_iter()
+            .collect(),
+        None,
+    );
+    let err = pnpr::try_router(config).expect_err("a backing-less hosted registry must fail");
+    assert!(err.to_string().contains("ghost-org"), "unexpected error: {err}");
+
+    // An upstream graph entry with no upstream serving config.
+    let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
+    config.registries = Registries::new(
+        vec![("phantom".to_string(), Registry::Upstream { patterns: vec![] })]
+            .into_iter()
+            .collect(),
+        None,
+    );
+    let err = pnpr::try_router(config).expect_err("a backing-less upstream registry must fail");
+    assert!(err.to_string().contains("phantom"), "unexpected error: {err}");
 }
 
 /// The programmatic path enforces the same name/org safety as YAML loading:
@@ -3239,9 +3271,9 @@ async fn building_the_server_rejects_an_unsafe_programmatic_hosted_org() {
 async fn publish_to_a_private_upstream_is_denied_before_the_upstream_rejection() {
     let tmp = TempDir::new().unwrap();
     let mut config = config_for("http://127.0.0.1:1", tmp.path().to_path_buf());
-    let mut corp = config.uplinks.get("npmjs").expect("default `npmjs` uplink").clone();
+    let mut corp = config.upstreams.get("npmjs").expect("default `npmjs` upstream").clone();
     corp.access = Some(AccessList::parse("alice"));
-    config.uplinks.insert("corp".to_string(), corp);
+    config.upstreams.insert("corp".to_string(), corp);
     let auth = AuthState::in_memory();
     let member = auth.tokens.issue("alice").await.unwrap();
     let outsider = auth.tokens.issue("mallory").await.unwrap();

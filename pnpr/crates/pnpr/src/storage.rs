@@ -29,7 +29,7 @@ const PACKUMENT_FILE: &str = "package.json";
 static TMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 const MAX_TEMP_CREATE_ATTEMPTS: usize = 16;
 
-/// Handle returned from [`Storage::open_uplink_tarball_tmp`]. The caller
+/// Handle returned from [`Storage::open_upstream_tarball_tmp`]. The caller
 /// writes through [`Self::write_all`] (and on success calls [`Self::finalize`] to
 /// atomically promote the temp file to the final cache path). The temp
 /// path remains armed until promotion succeeds, so cancellation and
@@ -325,7 +325,7 @@ impl Storage {
 
     /// Open a tarball from the authoritative hosted store. Hosted
     /// publish writes verify their SRI before finalization, and static
-    /// storage remains operator-controlled rather than an uplink cache.
+    /// storage remains operator-controlled rather than an upstream cache.
     pub async fn open_hosted_tarball(
         &self,
         name: &PackageName,
@@ -367,18 +367,18 @@ impl Storage {
         Ok(hosted || cached)
     }
 
-    // --- Per-uplink private cache (the `/~<uplink>/` registry endpoint) ----
+    // --- Per-upstream private cache (the `/~<name>/` registry endpoint) ----
     //
-    // A private uplink's packuments and tarballs are cached under a namespace
-    // derived from the uplink and its rotation generation, kept separate from
+    // A private upstream's packuments and tarballs are cached under a namespace
+    // derived from the upstream and its rotation generation, kept separate from
     // the shared public mirror so they can never be served on the public path
-    // or under another uplink. A rotation (new generation) moves to a fresh
+    // or under another upstream. A rotation (new generation) moves to a fresh
     // namespace, so entries fetched with a since-rotated credential age out.
 
-    /// A fresh cached packument for an uplink route, or `None` when it is
-    /// absent or older than `ttl`. The uplink path refetches a stale entry
+    /// A fresh cached packument for an upstream route, or `None` when it is
+    /// absent or older than `ttl`. The upstream path refetches a stale entry
     /// rather than conditionally revalidating it.
-    pub async fn read_uplink_packument(
+    pub async fn read_upstream_packument(
         &self,
         namespace: &str,
         name: &PackageName,
@@ -390,12 +390,12 @@ impl Storage {
         }
     }
 
-    /// The cached uplink packument regardless of freshness (fresh or stale).
-    /// A defensive fallback for an unsolicited upstream `304`: the uplink path
+    /// The cached upstream packument regardless of freshness (fresh or stale).
+    /// A defensive fallback for an unsolicited upstream `304`: the upstream path
     /// sends no conditional validators, so a `304` means "unchanged" and the
     /// cached body — even past `ttl` — is the right thing to serve rather than
     /// a spurious `404`.
-    pub async fn read_uplink_packument_any(
+    pub async fn read_upstream_packument_any(
         &self,
         namespace: &str,
         name: &PackageName,
@@ -408,7 +408,7 @@ impl Storage {
         }
     }
 
-    pub async fn write_uplink_packument(
+    pub async fn write_upstream_packument(
         &self,
         namespace: &str,
         name: &PackageName,
@@ -417,16 +417,20 @@ impl Storage {
         self.cached.namespaced(namespace).write_packument(name, bytes).await
     }
 
-    /// Purge an uplink's cached entry for `name` — the packument and any
+    /// Purge an upstream's cached entry for `name` — the packument and any
     /// cached tarballs. Called on a definitive upstream 404: without the
     /// purge, the stale entry would linger past its TTL and a later transient
     /// outage could resurrect the unpublished package through the
     /// stale-if-error fallback.
-    pub async fn remove_uplink_package(&self, namespace: &str, name: &PackageName) -> Result<bool> {
+    pub async fn remove_upstream_package(
+        &self,
+        namespace: &str,
+        name: &PackageName,
+    ) -> Result<bool> {
         self.cached.namespaced(namespace).remove_package(name).await
     }
 
-    pub async fn open_uplink_tarball_tmp(
+    pub async fn open_upstream_tarball_tmp(
         &self,
         namespace: &str,
         name: &PackageName,
@@ -435,7 +439,7 @@ impl Storage {
         self.cached.namespaced(namespace).open_tarball_tmp(name, filename).await
     }
 
-    pub async fn open_uplink_tarball(
+    pub async fn open_upstream_tarball(
         &self,
         namespace: &str,
         name: &PackageName,
@@ -475,8 +479,8 @@ impl Store {
     }
 
     /// A disposable store rooted at a sub-path of this one. Used to give a
-    /// private `/~<uplink>/` route its own cache namespace so its packuments
-    /// and tarballs never collide with the public mirror or another uplink.
+    /// private `/~<name>/` route its own cache namespace so its packuments
+    /// and tarballs never collide with the public mirror or another upstream.
     fn namespaced(&self, prefix: &str) -> Store {
         Store::new(self.root.join(prefix))
     }

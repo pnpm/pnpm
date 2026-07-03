@@ -1427,7 +1427,7 @@ async fn search_augment_skips_when_upstream_404s() {
     let tmp = TempDir::new().unwrap();
     let listen = SocketAddr::V4(SocketAddrV4::new(Ipv4Addr::LOCALHOST, 0));
     let mut config = Config::proxy(listen, tmp.path().to_path_buf());
-    config.uplinks.get_mut("npmjs").expect("default `npmjs` uplink").url = upstream.url();
+    config.upstreams.get_mut("npmjs").expect("default `npmjs` upstream").url = upstream.url();
     config.public_url = "http://example.test".to_string();
     config.packument_ttl = Duration::from_mins(1);
     let app = router(config);

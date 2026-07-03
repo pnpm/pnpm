@@ -6,7 +6,7 @@ use tracing_subscriber::EnvFilter;
 #[derive(Debug, Parser)]
 #[command(name = "pnpr", version, about = "pnpm-compatible npm registry server")]
 struct Args {
-    /// Path to a verdaccio-shaped YAML config (storage, uplinks,
+    /// Path to a verdaccio-shaped YAML config (storage, upstreams,
     /// packages, log). When omitted, the global `config.yaml` in
     /// pnpr's config dir (pnpm's config-dir rules, under `pnpr`) is
     /// used if it exists, otherwise the bundled default config.
@@ -71,7 +71,7 @@ async fn main() -> miette::Result<()> {
     let args = Args::parse();
     let auto_path = Config::auto_config_path();
     // Pass the surface-disable flags into parsing so a CLI-disabled surface
-    // skips its parse-time work too (e.g. strict uplink token resolution),
+    // skips its parse-time work too (e.g. strict upstream token resolution),
     // not just its routes — applying them after `resolve` would be too late.
     let overrides = pnpr::FeatureOverrides {
         disable_registry: args.disable_registry,

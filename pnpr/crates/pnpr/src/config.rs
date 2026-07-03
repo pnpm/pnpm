@@ -20,7 +20,7 @@ use std::{
 /// The bundled verdaccio-shaped YAML config, mirrored from
 /// `@pnpm/registry-mock`'s `registry/config.yaml`. Other crates can
 /// pull this in directly when they need pnpr's defaults
-/// (uplinks, package routing) without reading a file from disk —
+/// (upstreams, package routing) without reading a file from disk —
 /// e.g. test mocks that want to run with the standard `**` -> `npmjs`
 /// routing applied.
 pub const DEFAULT_CONFIG_YAML: &str = include_str!("../config.yaml");
@@ -43,7 +43,7 @@ pub enum ConfigSource {
 /// Runtime configuration for the pnpm registry server.
 ///
 /// The persisted (YAML) shape follows verdaccio's `config.yaml` —
-/// `storage`, `uplinks`, `packages` — restricted to the subset
+/// `storage`, `upstreams`, `packages` — restricted to the subset
 /// pnpr implements (no web UI, auth, plugins, or logs
 /// routing).
 ///
@@ -74,7 +74,7 @@ pub struct Config {
     /// Upstream-registry backends, keyed by registry id. Built from the `registries:`
     /// `upstream` entries and consumed by the `/~<name>/` serving and route
     /// classification.
-    pub uplinks: IndexMap<String, UplinkConfig>,
+    pub upstreams: IndexMap<String, UpstreamConfig>,
     /// The raw per-package `access` / `publish` / `unpublish` rules from the
     /// YAML `packages:` block, in declared order. [`Self::policies`] is the
     /// compiled form the server enforces; this keeps the declared shape for
@@ -85,7 +85,7 @@ pub struct Config {
     /// package policies and upstream aliases.
     pub groups: AccessGroups,
     /// How long a cached packument is considered fresh before it is
-    /// re-fetched from the resolved uplink. Ignored when no uplink
+    /// re-fetched from the resolved upstream. Ignored when no upstream
     /// matches.
     pub packument_ttl: Duration,
     /// Per-package access, publish, and unpublish rules. [`Config::from_yaml`]
@@ -142,7 +142,7 @@ pub struct Config {
     pub resolution_cache_secret: Arc<[u8]>,
     /// The validated registry routing graph: every addressable origin
     /// (`/~<name>/`) plus the optional path-less default target. Concrete
-    /// upstream registries are backed by [`Self::uplinks`]; hosted registries by
+    /// upstream registries are backed by [`Self::upstreams`]; hosted registries by
     /// [`Self::hosted`]; each declares the package-name patterns it serves,
     /// and a router selects the first of its sources whose patterns claim the
     /// name. Built and validated at config load — a misordered or
@@ -229,8 +229,8 @@ impl Default for ResolverFeature {
 
 /// CLI-level overrides for the feature toggles, applied *during* config
 /// parse so the effective surface enablement is known before any
-/// registry-only work runs. This matters because uplink resolution is
-/// strict (a `uplink.auth` block with an unresolvable token is a config
+/// registry-only work runs. This matters because upstream resolution is
+/// strict (a `upstream.auth` block with an unresolvable token is a config
 /// error): applying `--disable-registry` only after parsing would still
 /// force a resolver-only tier to carry upstream secrets. A `true` field
 /// forces the corresponding surface off regardless of what the config
@@ -481,52 +481,52 @@ impl LogLevel {
     }
 }
 
-/// Runtime uplink declaration: the upstream `url`, the request headers
-/// pnpr attaches to every fetch it makes to that uplink, and the
-/// verdaccio per-uplink tuning knobs (`maxage`, `timeout`, `max_fails`,
+/// Runtime upstream declaration: the upstream `url`, the request headers
+/// pnpr attaches to every fetch it makes to that upstream, and the
+/// verdaccio per-upstream tuning knobs (`maxage`, `timeout`, `max_fails`,
 /// `fail_timeout`, `cache`).
 ///
 /// [`Self::headers`] is resolved once, at config load, from the YAML
 /// `auth:` block (an `Authorization` header derived from
 /// `type`/`token`/`token_env`) merged with the `headers:` map. The
-/// parse-time shape lives in `UplinkFile`; `resolve_uplink` turns
+/// parse-time shape lives in `UpstreamConfigFile`; `resolve_upstream_config` turns
 /// one into the other. Verdaccio fields pnpr doesn't model yet
 /// (agent options, `strict_ssl`, ...) are accepted and dropped.
 #[derive(Clone)]
-pub struct UplinkConfig {
+pub struct UpstreamConfig {
     pub url: String,
     /// Auth + custom headers, fully resolved and ready to attach to
-    /// every request pnpr makes to this uplink.
+    /// every request pnpr makes to this upstream.
     pub headers: HeaderMap,
-    /// Per-uplink packument freshness window (verdaccio's `maxage`).
+    /// Per-upstream packument freshness window (verdaccio's `maxage`).
     /// `None` when the YAML omits it — the proxy then falls back to the
     /// global [`Config::packument_ttl`], so the existing
-    /// `--packument-ttl-secs` flag still governs uplinks that don't set
+    /// `--packument-ttl-secs` flag still governs upstreams that don't set
     /// their own.
     pub maxage: Option<Duration>,
-    /// Per-request deadline for every fetch to this uplink (verdaccio's
+    /// Per-request deadline for every fetch to this upstream (verdaccio's
     /// `timeout`). Defaults to [`Self::DEFAULT_TIMEOUT`].
     pub timeout: Duration,
-    /// Consecutive failures before the uplink is treated as down
+    /// Consecutive failures before the upstream is treated as down
     /// (verdaccio's `max_fails`). Defaults to [`Self::DEFAULT_MAX_FAILS`].
     pub max_fails: u32,
-    /// How long a down uplink stays down before pnpr retries it
+    /// How long a down upstream stays down before pnpr retries it
     /// (verdaccio's `fail_timeout`). Defaults to
     /// [`Self::DEFAULT_FAIL_TIMEOUT`].
     pub fail_timeout: Duration,
-    /// Whether tarballs fetched from this uplink are written to the local
+    /// Whether tarballs fetched from this upstream are written to the local
     /// mirror (verdaccio's `cache`). `false` streams them through
     /// uncached. Defaults to `true`.
     pub cache: bool,
-    /// Which pnpr callers may select this uplink as a proxied private-route
+    /// Which pnpr callers may select this upstream as a proxied private-route
     /// credential, and reach it through its `/~<name>/` registry endpoint.
-    /// `None` means the uplink is registry-proxy only and is never offered as
-    /// a resolver private-route credential — only uplinks that declare
+    /// `None` means the upstream is registry-proxy only and is never offered as
+    /// a resolver private-route credential — only upstreams that declare
     /// `access:` participate in route classification.
     pub access: Option<AccessList>,
 }
 
-impl UplinkConfig {
+impl UpstreamConfig {
     /// Verdaccio's `timeout` default (`30s`).
     pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30);
     /// Verdaccio's `max_fails` default (`2`).
@@ -534,7 +534,7 @@ impl UplinkConfig {
     /// Verdaccio's `fail_timeout` default (`5m`).
     pub const DEFAULT_FAIL_TIMEOUT: Duration = Duration::from_mins(5);
 
-    /// Build a bare uplink with just a URL and headers, all tuning knobs
+    /// Build a bare upstream with just a URL and headers, all tuning knobs
     /// at their verdaccio defaults. Used by the programmatic
     /// [`Config::proxy`] constructor and tests.
     pub(crate) fn with_defaults(url: String, headers: HeaderMap) -> Self {
@@ -551,9 +551,9 @@ impl UplinkConfig {
     }
 }
 
-impl fmt::Debug for UplinkConfig {
+impl fmt::Debug for UpstreamConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("UplinkConfig")
+        f.debug_struct("UpstreamConfig")
             .field("url", &self.url)
             .field("headers", &RedactedHeaders(&self.headers))
             .field("maxage", &self.maxage)
@@ -567,7 +567,7 @@ impl fmt::Debug for UplinkConfig {
 }
 
 /// Wraps a [`HeaderMap`] so its `Debug` lists header names with values
-/// redacted. Uplink headers carry credentials (an `Authorization`, or
+/// redacted. Upstream headers carry credentials (an `Authorization`, or
 /// an API key in a custom header), and those must never reach a log
 /// line, span, or diagnostic dump.
 pub(crate) struct RedactedHeaders<'a>(pub(crate) &'a HeaderMap);
@@ -578,21 +578,21 @@ impl fmt::Debug for RedactedHeaders<'_> {
     }
 }
 
-/// The serving knobs of an upstream registry, in verdaccio's uplink shape for
+/// The serving knobs of an upstream registry, in verdaccio's upstream shape for
 /// the subset pnpr implements: `url`, an `auth:` block, and a free-form
 /// `headers:` map. Built from an `upstream:` registry entry
-/// ([`resolve_upstream_registry`]) and resolved into [`UplinkConfig`] by
-/// [`resolve_uplink`].
+/// ([`resolve_upstream_registry`]) and resolved into [`UpstreamConfig`] by
+/// [`resolve_upstream_config`].
 #[derive(Debug, Deserialize)]
-struct UplinkFile {
+struct UpstreamConfigFile {
     url: String,
     #[serde(default)]
-    auth: Option<UplinkAuthFile>,
+    auth: Option<UpstreamAuthFile>,
     #[serde(default)]
     headers: IndexMap<String, String>,
     /// Verdaccio interval strings (`"2m"`, `"30s"`, `"1h30m"`) or a bare
     /// number of seconds; parsed by [`parse_interval`] in
-    /// [`resolve_uplink`]. Kept as raw strings here so an unparsable
+    /// [`resolve_upstream_config`]. Kept as raw strings here so an unparsable
     /// value surfaces as a config error rather than a serde failure.
     #[serde(default)]
     maxage: Option<Interval>,
@@ -604,8 +604,8 @@ struct UplinkFile {
     fail_timeout: Option<Interval>,
     #[serde(default)]
     cache: Option<bool>,
-    /// Which pnpr callers may select this uplink as a proxied private-route
-    /// credential. Its presence is what promotes a plain proxy uplink into a
+    /// Which pnpr callers may select this upstream as a proxied private-route
+    /// credential. Its presence is what promotes a plain proxy upstream into a
     /// resolver private-route credential exposed at `/~<name>/`.
     #[serde(default)]
     access: Option<AccessSpec>,
@@ -647,12 +647,12 @@ impl<'de> Deserialize<'de> for Interval {
     }
 }
 
-/// The YAML `auth:` block on an uplink. `token` takes priority over
+/// The YAML `auth:` block on an upstream. `token` takes priority over
 /// `token_env`; either resolves to the credential placed in the
-/// `Authorization` header, encoded per [`UplinkAuthType`].
+/// `Authorization` header, encoded per [`UpstreamAuthType`].
 #[derive(Debug, Deserialize)]
-struct UplinkAuthFile {
-    r#type: UplinkAuthType,
+struct UpstreamAuthFile {
+    r#type: UpstreamAuthType,
     #[serde(default)]
     token: Option<String>,
     #[serde(default)]
@@ -665,7 +665,7 @@ struct UplinkAuthFile {
 /// token is already a base64 `user:pass`).
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(rename_all = "lowercase")]
-enum UplinkAuthType {
+enum UpstreamAuthType {
     Bearer,
     Basic,
 }
@@ -694,7 +694,7 @@ impl TokenEnv {
     }
 }
 
-/// Resolve one parsed [`UplinkFile`] into a runtime [`UplinkConfig`],
+/// Resolve one parsed [`UpstreamConfigFile`] into a runtime [`UpstreamConfig`],
 /// baking the `auth:` credential and `headers:` map into a single
 /// [`HeaderMap`]. Reads env vars (for `token_env`) through `Sys` so
 /// the resolution is testable.
@@ -705,37 +705,37 @@ impl TokenEnv {
 /// merge order. A configured `auth:` block that resolves to no token,
 /// an unknown header name, or a non-ASCII header value is a config
 /// error rather than a silent unauthenticated request.
-fn resolve_uplink<Sys: EnvVar>(
+fn resolve_upstream_config<Sys: EnvVar>(
     name: &str,
-    file: UplinkFile,
-) -> Result<UplinkConfig, RegistryError> {
+    file: UpstreamConfigFile,
+) -> Result<UpstreamConfig, RegistryError> {
     let mut headers = HeaderMap::new();
     if let Some(auth) = &file.auth {
         let token =
-            resolve_uplink_token::<Sys>(auth).ok_or_else(|| RegistryError::InvalidConfig {
+            resolve_upstream_token::<Sys>(auth).ok_or_else(|| RegistryError::InvalidConfig {
                 reason: format!(
-                    "uplink {name:?} has an auth block but no token could be resolved \
+                    "upstream {name:?} has an auth block but no token could be resolved \
                      (set auth.token or point auth.token_env at a set env var)",
                 ),
             })?;
         let value = match auth.r#type {
-            UplinkAuthType::Bearer => format!("Bearer {token}"),
-            UplinkAuthType::Basic => format!("Basic {token}"),
+            UpstreamAuthType::Bearer => format!("Bearer {token}"),
+            UpstreamAuthType::Basic => format!("Basic {token}"),
         };
         let value = HeaderValue::from_str(&value).map_err(|_| RegistryError::InvalidConfig {
-            reason: format!("uplink {name:?} auth token is not a valid header value"),
+            reason: format!("upstream {name:?} auth token is not a valid header value"),
         })?;
         headers.insert(AUTHORIZATION, value);
     }
     for (raw_name, raw_value) in &file.headers {
         let header_name = HeaderName::from_bytes(raw_name.as_bytes()).map_err(|_| {
             RegistryError::InvalidConfig {
-                reason: format!("uplink {name:?} has an invalid header name {raw_name:?}"),
+                reason: format!("upstream {name:?} has an invalid header name {raw_name:?}"),
             }
         })?;
         let header_value =
             HeaderValue::from_str(raw_value).map_err(|_| RegistryError::InvalidConfig {
-                reason: format!("uplink {name:?} header {raw_name:?} has an invalid value"),
+                reason: format!("upstream {name:?} header {raw_name:?} has an invalid value"),
             })?;
         headers.insert(header_name, header_value);
     }
@@ -749,22 +749,22 @@ fn resolve_uplink<Sys: EnvVar>(
         raw.as_ref()
             .map(|Interval(value)| {
                 parse_interval(value).ok_or_else(|| RegistryError::InvalidConfig {
-                    reason: format!("uplink {name:?} has an invalid {field} interval {value:?}"),
+                    reason: format!("upstream {name:?} has an invalid {field} interval {value:?}"),
                 })
             })
             .transpose()
     };
     let maxage = parse_field("maxage", &file.maxage)?;
-    let timeout = parse_field("timeout", &file.timeout)?.unwrap_or(UplinkConfig::DEFAULT_TIMEOUT);
+    let timeout = parse_field("timeout", &file.timeout)?.unwrap_or(UpstreamConfig::DEFAULT_TIMEOUT);
     let fail_timeout = parse_field("fail_timeout", &file.fail_timeout)?
-        .unwrap_or(UplinkConfig::DEFAULT_FAIL_TIMEOUT);
+        .unwrap_or(UpstreamConfig::DEFAULT_FAIL_TIMEOUT);
 
-    Ok(UplinkConfig {
+    Ok(UpstreamConfig {
         url: file.url,
         headers,
         maxage,
         timeout,
-        max_fails: file.max_fails.unwrap_or(UplinkConfig::DEFAULT_MAX_FAILS),
+        max_fails: file.max_fails.unwrap_or(UpstreamConfig::DEFAULT_MAX_FAILS),
         fail_timeout,
         cache: file.cache.unwrap_or(true),
         access: file.access.as_ref().map(AccessSpec::to_access_list),
@@ -827,9 +827,9 @@ fn parse_interval(raw: &str) -> Option<Duration> {
     Duration::try_from_secs_f64(total_seconds).ok()
 }
 
-/// Pick the credential for an uplink's `auth:` block: an explicit
+/// Pick the credential for an upstream's `auth:` block: an explicit
 /// `token` wins; otherwise read the env var named by `token_env`.
-fn resolve_uplink_token<Sys: EnvVar>(auth: &UplinkAuthFile) -> Option<String> {
+fn resolve_upstream_token<Sys: EnvVar>(auth: &UpstreamAuthFile) -> Option<String> {
     if let Some(token) = &auth.token {
         return non_empty_token(token);
     }
@@ -940,7 +940,7 @@ struct HostedFile {
 }
 
 /// Disk shape of an `upstream:` registry — one external origin. Mirrors an
-/// uplink's tuning knobs plus `public` (an anonymous, no-credential origin)
+/// upstream's tuning knobs plus `public` (an anonymous, no-credential origin)
 /// and `access` (which pnpr callers may reach a private one).
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -951,7 +951,7 @@ struct UpstreamFile {
     #[serde(default)]
     public: bool,
     #[serde(default)]
-    auth: Option<UplinkAuthFile>,
+    auth: Option<UpstreamAuthFile>,
     #[serde(default)]
     headers: IndexMap<String, String>,
     #[serde(default)]
@@ -1020,7 +1020,7 @@ struct ConfigFile {
     resolver: Option<FeatureFile>,
     /// pnpr registries: hosted, upstream, and router origins, each
     /// exposed at `/~<name>/`. The only routing surface — there is no legacy
-    /// `uplinks:`/`packages: proxy:` fallback.
+    /// `upstreams:`/`packages: proxy:` fallback.
     #[serde(default)]
     registries: IndexMap<String, RegistryFile>,
     /// The registry the path-less base URL aliases. Absent ⇒ the bare host has no
@@ -1196,10 +1196,13 @@ impl Config {
     /// `config.yaml` `local` registry.
     #[must_use]
     pub fn proxy(listen: SocketAddr, storage: PathBuf) -> Self {
-        let mut uplinks = IndexMap::new();
-        uplinks.insert(
+        let mut upstreams = IndexMap::new();
+        upstreams.insert(
             "npmjs".to_string(),
-            UplinkConfig::with_defaults("https://registry.npmjs.org".to_string(), HeaderMap::new()),
+            UpstreamConfig::with_defaults(
+                "https://registry.npmjs.org".to_string(),
+                HeaderMap::new(),
+            ),
         );
         let mut hosted = IndexMap::new();
         hosted.insert(
@@ -1226,7 +1229,7 @@ impl Config {
             public_url: format!("http://{listen}"),
             cache_storage: default_cache_dir(&storage),
             storage,
-            uplinks,
+            upstreams,
             packages: IndexMap::new(),
             groups: AccessGroups::default(),
             packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
@@ -1267,7 +1270,7 @@ impl Config {
             public_url: format!("http://{listen}"),
             cache_storage: default_cache_dir(&storage),
             storage,
-            uplinks: IndexMap::new(),
+            upstreams: IndexMap::new(),
             packages: IndexMap::new(),
             groups: AccessGroups::default(),
             packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
@@ -1412,7 +1415,7 @@ impl Config {
 
     /// Like [`Self::resolve`] but applies CLI [`FeatureOverrides`] during
     /// parse, so a surface disabled on the command line skips its parse-time
-    /// work (e.g. strict uplink token resolution) — not just its routes. The
+    /// work (e.g. strict upstream token resolution) — not just its routes. The
     /// binary uses this; tests and embedders that don't override features
     /// call [`Self::resolve`].
     pub fn resolve_with_overrides(
@@ -1494,7 +1497,7 @@ impl Config {
         // The npm-registry surface is derived, not configured: served iff
         // at least one registry is declared (no registries ⇒ nothing to serve),
         // minus the per-tier `--disable-registry` override. Folding the
-        // override in here lets the registry-only work below (uplink
+        // override in here lets the registry-only work below (upstream
         // credential resolution) key off effective enablement.
         let registry =
             RegistryFeature { enabled: !file.registries.is_empty() && !overrides.disable_registry };
@@ -1509,9 +1512,9 @@ impl Config {
         // uses. The registry *graph* is still built and validated either way, so
         // a misconfigured router or org fails startup on every tier, not only
         // when the registry surface happens to be enabled.
-        let mut uplinks: IndexMap<String, UplinkConfig> = IndexMap::new();
+        let mut upstreams: IndexMap<String, UpstreamConfig> = IndexMap::new();
         let (hosted, registries) = build_registries(
-            &mut uplinks,
+            &mut upstreams,
             file.registries,
             file.default_registry,
             registry.enabled,
@@ -1523,7 +1526,7 @@ impl Config {
             public_url,
             storage,
             cache_storage,
-            uplinks,
+            upstreams,
             packages: file.packages,
             groups,
             packument_ttl: Self::DEFAULT_PACKUMENT_TTL,
@@ -1561,22 +1564,51 @@ impl Config {
         }
     }
 
-    /// Ready the registry graph for serving: fold every uplink into the graph
+    /// Ready the registry graph for serving: fold every upstream into the graph
     /// as a pattern-less upstream registry, then apply every invariant YAML
     /// loading enforces — URL-safe registry names, path-safe and collision-free
     /// hosted `org` namespaces, and the graph validation itself. This covers
-    /// embedders that build [`Self::uplinks`], [`Self::hosted`], or
+    /// embedders that build [`Self::upstreams`], [`Self::hosted`], or
     /// [`Self::registries`] programmatically, so [`Registries::resolve`] is the
     /// only dispatch table for `/~<name>/` traffic and a programmatically-built
     /// config fails closed like a YAML load. An embedder that wants a
-    /// namespace bound on an uplink declares its registry entry (with
+    /// namespace bound on an upstream declares its registry entry (with
     /// patterns) before serving.
     pub fn ensure_valid_registry_graph(&mut self) -> Result<(), RegistryError> {
-        for name in self.uplinks.keys() {
+        for name in self.upstreams.keys() {
             self.registries.ensure_upstream(name);
         }
         for name in self.registries.names() {
             validate_registry_name(name)?;
+            // A concrete registry needs its serving config — a hosted graph
+            // entry without its `hosted` table row (or an upstream without
+            // its serving entry) would answer every request not-found at
+            // runtime. YAML loading builds both sides together; catch a
+            // programmatically-built mismatch at startup. Upstream backing
+            // is only required when the registry surface is enabled: a
+            // resolver-only tier deliberately skips upstream (credential)
+            // resolution and never serves `/~<name>/` content.
+            match self.registries.get(name) {
+                Some(Registry::Hosted { .. }) if !self.hosted.contains_key(name) => {
+                    return Err(RegistryError::InvalidConfig {
+                        reason: format!(
+                            "hosted registry {name:?} has no entry in the hosted serving table; \
+                             every request to it would be not-found",
+                        ),
+                    });
+                }
+                Some(Registry::Upstream { .. })
+                    if self.registry.enabled && !self.upstreams.contains_key(name) =>
+                {
+                    return Err(RegistryError::InvalidConfig {
+                        reason: format!(
+                            "upstream registry {name:?} has no serving config (URL, credentials); \
+                             every request to it would fail",
+                        ),
+                    });
+                }
+                _ => {}
+            }
         }
         for (index, (name, hosted)) in self.hosted.iter().enumerate() {
             validate_registry_name(name)?;
@@ -1642,9 +1674,9 @@ fn registry_err(err: &RegistryConfigError) -> RegistryError {
 }
 
 /// Build the validated [`Registries`] graph (and the hosted table) from the
-/// resolved uplinks and the `registries:` block. Every uplink is an upstream
+/// resolved upstreams and the `registries:` block. Every upstream is an upstream
 /// registry; `registries:` adds hosted, further upstream, and router registries.
-/// Upstream registries declared under `registries:` are folded into `uplinks` so they
+/// Upstream registries declared under `registries:` are folded into `upstreams` so they
 /// reuse the same serving and route-classification machinery. Fails closed on
 /// any name collision, malformed registry, or invalid routing graph.
 ///
@@ -1653,16 +1685,16 @@ fn registry_err(err: &RegistryConfigError) -> RegistryError {
 /// and serving config are not resolved — a resolver-only tier must not fail
 /// on (or carry) upstream secrets it never uses.
 fn build_registries(
-    uplinks: &mut IndexMap<String, UplinkConfig>,
+    upstreams: &mut IndexMap<String, UpstreamConfig>,
     registry_files: IndexMap<String, RegistryFile>,
     default_registry: Option<String>,
     resolve_upstreams: bool,
 ) -> Result<(IndexMap<String, HostedConfig>, Registries), RegistryError> {
     let mut hosted: IndexMap<String, HostedConfig> = IndexMap::new();
     let mut graph: IndexMap<String, Registry> = IndexMap::new();
-    // Every configured uplink is, by definition, an upstream registry addressable
-    // at `/~<uplink>/`. No declared patterns ⇒ it serves every name.
-    for name in uplinks.keys() {
+    // Every configured upstream is, by definition, an upstream registry addressable
+    // at `/~<name>/`. No declared patterns ⇒ it serves every name.
+    for name in upstreams.keys() {
         validate_registry_name(name)?;
         graph.insert(name.clone(), Registry::Upstream { patterns: Vec::new() });
     }
@@ -1671,7 +1703,7 @@ fn build_registries(
         if graph.contains_key(&name) {
             return Err(RegistryError::InvalidConfig {
                 reason: format!(
-                    "registry {name:?} collides with another registry or uplink of the same name",
+                    "registry {name:?} collides with another registry or upstream of the same name",
                 ),
             });
         }
@@ -1696,7 +1728,7 @@ fn build_registries(
                 let patterns = build_patterns(&name, &upstream.patterns)?;
                 if resolve_upstreams {
                     let resolved = resolve_upstream_registry::<SystemEnv>(&name, *upstream)?;
-                    uplinks.insert(name.clone(), resolved);
+                    upstreams.insert(name.clone(), resolved);
                 }
                 graph.insert(name, Registry::Upstream { patterns });
             }
@@ -1785,7 +1817,7 @@ fn build_patterns(
         .collect()
 }
 
-/// Resolve an `upstream:` registry into the shared [`UplinkConfig`] runtime shape.
+/// Resolve an `upstream:` registry into the shared [`UpstreamConfig`] runtime shape.
 /// A `public` upstream is anonymous and world-readable (no credential, no
 /// access gate); a non-`public` one must declare `access:` naming who may
 /// reach it at `/~<name>/`. Declaring both `public` and `auth` is rejected —
@@ -1793,7 +1825,7 @@ fn build_patterns(
 fn resolve_upstream_registry<Sys: EnvVar>(
     name: &str,
     file: UpstreamFile,
-) -> Result<UplinkConfig, RegistryError> {
+) -> Result<UpstreamConfig, RegistryError> {
     // A public origin is anonymous and shared, so every credential-bearing or
     // access-gating knob contradicts `public: true` and must fail closed rather
     // than be silently ignored (which would send a credential to, or expose, a
@@ -1835,7 +1867,7 @@ fn resolve_upstream_registry<Sys: EnvVar>(
         });
     }
     let access = if file.public { None } else { file.access };
-    let uplink_file = UplinkFile {
+    let upstream_config_file = UpstreamConfigFile {
         url: file.url,
         auth: file.auth,
         headers: file.headers,
@@ -1846,7 +1878,7 @@ fn resolve_upstream_registry<Sys: EnvVar>(
         cache: file.cache,
         access,
     };
-    resolve_uplink::<Sys>(name, uplink_file)
+    resolve_upstream_config::<Sys>(name, upstream_config_file)
 }
 
 fn build_groups(file: &IndexMap<String, AccessSpec>) -> AccessGroups {

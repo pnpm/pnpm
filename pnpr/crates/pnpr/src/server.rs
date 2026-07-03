@@ -83,16 +83,16 @@ struct AppState {
 
 struct AppInner {
     storage: Storage,
-    /// One [`Upstream`] per declared uplink, keyed by the same name
-    /// used in [`Config::uplinks`]. Built once at router construction
+    /// One [`Upstream`] per declared upstream, keyed by the same name
+    /// used in [`Config::upstreams`]. Built once at router construction
     /// time so each request avoids re-allocating a `ThrottledClient`.
     upstreams: IndexMap<String, Upstream>,
-    /// The disposable cache namespace of each uplink, keyed like
+    /// The disposable cache namespace of each upstream, keyed like
     /// [`Self::upstreams`]. A pure function of the config (see
-    /// [`compute_uplink_cache_namespace`]), precomputed here so the
-    /// per-request path doesn't re-sort and re-hash the uplink's headers on
+    /// [`compute_upstream_cache_namespace`]), precomputed here so the
+    /// per-request path doesn't re-sort and re-hash the upstream's headers on
     /// every packument and tarball served through an upstream registry.
-    uplink_cache_namespaces: IndexMap<String, String>,
+    upstream_cache_namespaces: IndexMap<String, String>,
     config: Config,
     auth: AuthState,
     /// Serializes the read-modify-write packument flows per package so
@@ -249,28 +249,28 @@ fn router_with_auth_and_osv(
         Storage::new(&config.hosted_store, config.storage.clone(), config.cache_storage.clone());
     let registry_enabled = config.registry.enabled;
     let resolver_enabled = config.resolver.enabled;
-    // Only the registry routes consult the uplinks, so a resolver-only
+    // Only the registry routes consult the upstreams, so a resolver-only
     // server builds none — skipping a `ThrottledClient` allocation per
-    // configured uplink.
+    // configured upstream.
     let upstreams: IndexMap<String, Upstream> = if registry_enabled {
         config
-            .uplinks
+            .upstreams
             .iter()
-            .map(|(name, uplink)| (name.clone(), Upstream::new(name, uplink)))
+            .map(|(name, upstream)| (name.clone(), Upstream::new(name, upstream)))
             .collect()
     } else {
         IndexMap::new()
     };
-    let uplink_cache_namespaces = config
-        .uplinks
+    let upstream_cache_namespaces = config
+        .upstreams
         .keys()
-        .map(|name| (name.clone(), compute_uplink_cache_namespace(&config, name)))
+        .map(|name| (name.clone(), compute_upstream_cache_namespace(&config, name)))
         .collect();
     let state = AppState {
         inner: Arc::new(AppInner {
             storage,
             upstreams,
-            uplink_cache_namespaces,
+            upstream_cache_namespaces,
             config,
             auth,
             package_locks: PackageLocks::new(),
@@ -618,7 +618,7 @@ async fn get_two_segments(
     // tarball base is the client's `/~<name>/` URL so the rewritten URLs stay
     // canonical for the registry the client actually addressed.
     if let Some(registry) = first.strip_prefix('~').filter(|registry| !registry.is_empty()) {
-        let base = uplink_tarball_base(&state.inner.config.public_url, registry);
+        let base = upstream_tarball_base(&state.inner.config.public_url, registry);
         return private_no_cache(
             serve_registry_packument(&state, &identity, &headers, registry, &second, &base).await,
         );
@@ -655,7 +655,7 @@ async fn get_three_segments(
         if second == "-" {
             return not_found();
         }
-        let base = uplink_tarball_base(&state.inner.config.public_url, registry);
+        let base = upstream_tarball_base(&state.inner.config.public_url, registry);
         if second.starts_with('@') {
             // `/~<name>/@scope%2Fname/<version>` — version manifest for an
             // encoded scoped package through a registry endpoint.
@@ -731,7 +731,7 @@ async fn get_four_segments(
         }
         if b.starts_with('@') && !b.contains('/') {
             let full = format!("{b}/{c}");
-            let base = uplink_tarball_base(&state.inner.config.public_url, registry);
+            let base = upstream_tarball_base(&state.inner.config.public_url, registry);
             return private_no_cache(
                 serve_registry_version_manifest(&state, &identity, registry, &full, &d, &base)
                     .await,
@@ -1222,27 +1222,27 @@ async fn serve_registry_version_manifest(
     }
 }
 
-/// The `dist.tarball` rewrite base for an uplink's `/~<uplink>/` registry
+/// The `dist.tarball` rewrite base for an upstream's `/~<name>/` registry
 /// endpoint, so a served packument points tarball requests back at the same
 /// endpoint (where this server re-checks access and proxies the bytes).
-fn uplink_tarball_base(public_url: &str, uplink: &str) -> String {
-    format!("{}/~{uplink}", public_url.trim_end_matches('/'))
+fn upstream_tarball_base(public_url: &str, upstream: &str) -> String {
+    format!("{}/~{upstream}", public_url.trim_end_matches('/'))
 }
 
-/// Resolve the upstream behind an authorized `/~<uplink>/` endpoint request.
+/// Resolve the upstream behind an authorized `/~<name>/` endpoint request.
 ///
-/// Fails closed: an uplink that does not exist or carries no `access:` policy
+/// Fails closed: an upstream that does not exist or carries no `access:` policy
 /// is a `404` (it is not a private-route endpoint), and a caller the policy
 /// does not admit is a `403`. Returns the [`Upstream`] to fetch *through* —
-/// `/~<uplink>/` requests never read or write the shared proxy mirror, so a
-/// private uplink's packuments and tarballs can never leak across the public
-/// path or another uplink.
-fn authorized_uplink<'a>(
+/// `/~<name>/` requests never read or write the shared proxy mirror, so a
+/// private upstream's packuments and tarballs can never leak across the public
+/// path or another upstream.
+fn authorized_upstream<'a>(
     state: &'a AppState,
     identity: &Identity,
-    uplink: &str,
+    upstream: &str,
 ) -> Result<&'a Upstream, Box<Response>> {
-    let Some(config) = state.inner.config.uplinks.get(uplink) else {
+    let Some(config) = state.inner.config.upstreams.get(upstream) else {
         return Err(Box::new(not_found()));
     };
     // A private upstream registry gates by its `access:` list; a public registry
@@ -1251,28 +1251,28 @@ fn authorized_uplink<'a>(
     if let Some(access) = config.access.as_ref()
         && !access.allows(identity)
     {
-        let user =
-            require_caller(identity, "uplink access").unwrap_or_else(|_| "<anonymous>".to_string());
+        let user = require_caller(identity, "upstream access")
+            .unwrap_or_else(|_| "<anonymous>".to_string());
         return Err(Box::new(error_response(&RegistryError::Forbidden {
             user,
             action: "access",
-            resource: format!("uplink {uplink:?}"),
+            resource: format!("upstream {upstream:?}"),
         })));
     }
-    state.inner.upstreams.get(uplink).ok_or_else(|| Box::new(not_found()))
+    state.inner.upstreams.get(upstream).ok_or_else(|| Box::new(not_found()))
 }
 
 /// The disposable cache namespace for an upstream registry's `/~<name>/` route —
-/// the entry precomputed in [`AppInner::uplink_cache_namespaces`], falling back
-/// to a fresh computation only for a name outside [`Config::uplinks`] (which
+/// the entry precomputed in [`AppInner::upstream_cache_namespaces`], falling back
+/// to a fresh computation only for a name outside [`Config::upstreams`] (which
 /// the registry dispatch never produces).
-fn uplink_cache_namespace(state: &AppState, uplink: &str) -> String {
+fn upstream_cache_namespace(state: &AppState, upstream: &str) -> String {
     state
         .inner
-        .uplink_cache_namespaces
-        .get(uplink)
+        .upstream_cache_namespaces
+        .get(upstream)
         .cloned()
-        .unwrap_or_else(|| compute_uplink_cache_namespace(&state.inner.config, uplink))
+        .unwrap_or_else(|| compute_upstream_cache_namespace(&state.inner.config, upstream))
 }
 
 /// Compute an upstream registry's disposable cache namespace, so its packuments
@@ -1296,28 +1296,29 @@ fn uplink_cache_namespace(state: &AppState, uplink: &str) -> String {
 /// is integrity-verified, so it uses a *stable* namespace
 /// (`~public/<digest-of-registry-name-and-url>`) that is shared across process
 /// restarts.
-fn compute_uplink_cache_namespace(config: &Config, uplink: &str) -> String {
-    let url = config.uplinks.get(uplink).map_or("", |uplink_config| uplink_config.url.as_str());
-    if let Some(uplink_config) = config.uplinks.get(uplink)
-        && uplink_config.access.is_some()
+fn compute_upstream_cache_namespace(config: &Config, upstream: &str) -> String {
+    let url =
+        config.upstreams.get(upstream).map_or("", |upstream_config| upstream_config.url.as_str());
+    if let Some(upstream_config) = config.upstreams.get(upstream)
+        && upstream_config.access.is_some()
     {
         // The credential epoch covers the origin URL and every header the
-        // uplink attaches upstream, not just `Authorization`, so repointing
+        // upstream attaches upstream, not just `Authorization`, so repointing
         // the URL or rotating a credential carried in a custom header moves
         // the private cache to a fresh namespace. The NUL separator keeps
         // `(url, headers)` pairs unambiguous — a URL cannot contain NUL.
         let epoch = crate::route::credential_digest(&format!(
             "{url}\0{}",
-            crate::route::headers_credential_digest(&uplink_config.headers),
+            crate::route::headers_credential_digest(&upstream_config.headers),
         ));
         let digest =
-            crate::route::uplink_cache_digest(uplink, epoch, &config.resolution_cache_secret);
-        return format!("~uplinks/{digest}");
+            crate::route::upstream_cache_digest(upstream, epoch, &config.resolution_cache_secret);
+        return format!("~upstreams/{digest}");
     }
     // Public registry: a stable, secret-free namespace keyed by the registry name
     // and its origin URL (hashed so a path-unsafe value can't escape the
     // cache root).
-    format!("~public/{}", crate::route::credential_digest(&format!("{uplink}\0{url}")))
+    format!("~public/{}", crate::route::credential_digest(&format!("{upstream}\0{url}")))
 }
 
 /// Await `fut`, emitting its duration as a `pnpr::serve_timing` debug event
@@ -1344,11 +1345,11 @@ async fn timed<Fut: Future>(phase: &'static str, package: &str, fut: Fut) -> Fut
     out
 }
 
-/// Load an uplink route's packument: a fresh per-registry cache entry when one
+/// Load an upstream route's packument: a fresh per-registry cache entry when one
 /// exists, otherwise a fetch through the registry (with its server-side credential)
 /// written back to the same namespace. A registry with `cache: false` neither reads
 /// nor writes the cache — it streams everything through, refetching each time.
-async fn load_uplink_packument(
+async fn load_upstream_packument(
     state: &AppState,
     namespace: &str,
     upstream: &Upstream,
@@ -1359,7 +1360,7 @@ async fn load_uplink_packument(
         && let Some(bytes) = timed(
             "packument:cache_read",
             name.as_str(),
-            state.inner.storage.read_uplink_packument(namespace, name, ttl),
+            state.inner.storage.read_upstream_packument(namespace, name, ttl),
         )
         .await?
     {
@@ -1387,7 +1388,7 @@ async fn load_uplink_packument(
             if err.is_transient_upstream_error()
                 && upstream.caches()
                 && let Some(bytes) =
-                    state.inner.storage.read_uplink_packument_any(namespace, name).await?
+                    state.inner.storage.read_upstream_packument_any(namespace, name).await?
             {
                 // `log_message()` (not `?err`): an upstream error embeds the
                 // request URL, which can carry credentials (basic-auth userinfo,
@@ -1408,10 +1409,10 @@ async fn load_uplink_packument(
                 && let Err(err) = state
                     .inner
                     .storage
-                    .write_uplink_packument(namespace, name, &fetched.bytes)
+                    .write_upstream_packument(namespace, name, &fetched.bytes)
                     .await
             {
-                tracing::warn!(?err, package = %name.as_str(), "uplink packument cache write failed");
+                tracing::warn!(?err, package = %name.as_str(), "upstream packument cache write failed");
             }
             Ok(Some(fetched.bytes))
         }
@@ -1421,7 +1422,7 @@ async fn load_uplink_packument(
             // outlive every TTL and a later transient outage could resurrect
             // the unpublished package through the stale-if-error fallback.
             if upstream.caches()
-                && let Err(err) = state.inner.storage.remove_uplink_package(namespace, name).await
+                && let Err(err) = state.inner.storage.remove_upstream_package(namespace, name).await
             {
                 tracing::warn!(
                     ?err,
@@ -1431,14 +1432,14 @@ async fn load_uplink_packument(
             }
             Ok(None)
         }
-        // `load_uplink_packument` sends no conditional validators (the uplink
+        // `load_upstream_packument` sends no conditional validators (the upstream
         // cache refetches stale entries rather than revalidating — see
-        // `Store::read_uplink_packument`), so a well-behaved upstream never
+        // `Store::read_upstream_packument`), so a well-behaved upstream never
         // answers 304 here. If one does anyway, "not modified" means the cached
         // body is current, so serve it (fresh or stale) rather than a spurious
         // 404 that a client could cache as "package gone".
         PackumentFetch::NotModified => {
-            state.inner.storage.read_uplink_packument_any(namespace, name).await
+            state.inner.storage.read_upstream_packument_any(namespace, name).await
         }
     }
 }
@@ -1450,13 +1451,13 @@ async fn load_uplink_packument(
 async fn load_upstream_packument_for(
     state: &AppState,
     identity: &Identity,
-    uplink: &str,
+    upstream: &str,
     name: &PackageName,
 ) -> Result<Option<Vec<u8>>, Box<Response>> {
-    let upstream = authorized_uplink(state, identity, uplink)?;
-    let namespace = uplink_cache_namespace(state, uplink);
+    let namespace = upstream_cache_namespace(state, upstream);
+    let upstream = authorized_upstream(state, identity, upstream)?;
     let ttl = upstream.maxage().unwrap_or(state.inner.config.packument_ttl);
-    load_uplink_packument(state, &namespace, upstream, name, ttl)
+    load_upstream_packument(state, &namespace, upstream, name, ttl)
         .await
         .map_err(|err| Box::new(error_response(&err)))
 }
@@ -1511,15 +1512,15 @@ async fn load_packument_for_read(
     }
 }
 
-async fn serve_packument_via_uplink(
+async fn serve_packument_via_upstream(
     state: &AppState,
     identity: &Identity,
     headers: &HeaderMap,
-    uplink: &str,
+    upstream: &str,
     name: &PackageName,
     tarball_base: &str,
 ) -> Response {
-    let bytes = match load_upstream_packument_for(state, identity, uplink, name).await {
+    let bytes = match load_upstream_packument_for(state, identity, upstream, name).await {
         Ok(Some(bytes)) => bytes,
         Ok(None) => return not_found(),
         Err(response) => return *response,
@@ -1536,16 +1537,16 @@ async fn serve_packument_via_uplink(
     }
 }
 
-/// Serve a tarball through an uplink's `/~<uplink>/` endpoint. The version's
-/// `dist.integrity` is read from the uplink's own packument (served from the
+/// Serve a tarball through an upstream's `/~<name>/` endpoint. The version's
+/// `dist.integrity` is read from the upstream's own packument (served from the
 /// private cache when fresh), and the bytes are verified against it. Both the
-/// packument and the verified tarball are cached under the uplink's private
-/// namespace, so a private uplink's content never lands in the shared proxy
+/// packument and the verified tarball are cached under the upstream's private
+/// namespace, so a private upstream's content never lands in the shared proxy
 /// mirror yet is not re-fetched on every request.
-async fn serve_tarball_via_uplink(
+async fn serve_tarball_via_upstream(
     state: &AppState,
     identity: &Identity,
-    uplink: &str,
+    upstream: &str,
     raw_name: &str,
     filename: &str,
 ) -> Response {
@@ -1569,7 +1570,8 @@ async fn serve_tarball_via_uplink(
             (filename.to_string(), None)
         }
     };
-    let upstream = match authorized_uplink(state, identity, uplink) {
+    let namespace = upstream_cache_namespace(state, upstream);
+    let upstream = match authorized_upstream(state, identity, upstream) {
         Ok(upstream) => upstream,
         Err(response) => return *response,
     };
@@ -1581,7 +1583,6 @@ async fn serve_tarball_via_uplink(
     {
         return error_response(&err);
     }
-    let namespace = uplink_cache_namespace(state, uplink);
     let ttl = upstream.maxage().unwrap_or(state.inner.config.packument_ttl);
     // Serve a cached hit before touching the packument: a cached entry was
     // bound to a declared version and verified against `dist.integrity` when
@@ -1600,17 +1601,17 @@ async fn serve_tarball_via_uplink(
     // of new bytes; end-to-end SRI (the client's lockfile) is the authority
     // on what it accepts. Only OSV screening needs the packument-resolved
     // version first, so with OSV enabled the cache read waits for the bind
-    // below. A `cache: false` uplink skips the cache and streams through.
+    // below. A `cache: false` upstream skips the cache and streams through.
     if upstream.caches()
         && state.inner.osv_index.is_none()
-        && let Some(response) = cached_uplink_tarball(state, &namespace, &name, &filename).await
+        && let Some(response) = cached_upstream_tarball(state, &namespace, &name, &filename).await
     {
         return response;
     }
     let packument = match timed(
         "tarball:packument_load",
         name.as_str(),
-        load_uplink_packument(state, &namespace, upstream, &name, ttl),
+        load_upstream_packument(state, &namespace, upstream, &name, ttl),
     )
     .await
     {
@@ -1631,7 +1632,7 @@ async fn serve_tarball_via_uplink(
     }
     if upstream.caches()
         && state.inner.osv_index.is_some()
-        && let Some(response) = cached_uplink_tarball(state, &namespace, &name, &filename).await
+        && let Some(response) = cached_upstream_tarball(state, &namespace, &name, &filename).await
     {
         return response;
     }
@@ -1648,13 +1649,13 @@ async fn serve_tarball_via_uplink(
         Err(err) => return error_response(&err),
     };
     let write =
-        match state.inner.storage.open_uplink_tarball_tmp(&namespace, &name, &filename).await {
+        match state.inner.storage.open_upstream_tarball_tmp(&namespace, &name, &filename).await {
             Ok(write) => write,
             Err(err) => return error_response(&err),
         };
     if !upstream.caches() {
         // Fetch-through: verify and stream from the temp file, then remove it,
-        // so a `cache: false` uplink's tarball is never persisted.
+        // so a `cache: false` upstream's tarball is never persisted.
         return match streaming::download_verified_to_temp(
             response,
             write,
@@ -1680,10 +1681,10 @@ async fn serve_tarball_via_uplink(
     }
 }
 
-/// The response for a cached uplink tarball, or `None` on a cache miss. A
+/// The response for a cached upstream tarball, or `None` on a cache miss. A
 /// cache-open fault is logged and treated as a miss so the caller falls back
 /// to the upstream fetch rather than failing the request.
-async fn cached_uplink_tarball(
+async fn cached_upstream_tarball(
     state: &AppState,
     namespace: &str,
     name: &PackageName,
@@ -1692,14 +1693,14 @@ async fn cached_uplink_tarball(
     match timed(
         "tarball:cache_read",
         name.as_str(),
-        state.inner.storage.open_uplink_tarball(namespace, name, filename),
+        state.inner.storage.open_upstream_tarball(namespace, name, filename),
     )
     .await
     {
         Ok(Some((file, len))) => Some(tarball_response(streaming::stream_file(file), Some(len))),
         Ok(None) => None,
         Err(err) => {
-            tracing::warn!(?err, package = %name.as_str(), %filename, "uplink tarball cache open failed");
+            tracing::warn!(?err, package = %name.as_str(), %filename, "upstream tarball cache open failed");
             None
         }
     }
@@ -1714,7 +1715,7 @@ async fn cached_uplink_tarball(
 // router selects the first source whose patterns claim the name. An unclaimed
 // name is a definitive 404 (never a fall-through to another origin), and a
 // selected-but-unavailable upstream surfaces an *error* rather than a 404
-// (the via-uplink path returns `UpstreamUnavailable`), so a down private
+// (the via-upstream path returns `UpstreamUnavailable`), so a down private
 // source can never be reported as "not found" and pushed onto a public origin
 // one layer out.
 // --------------------------------------------------------------------
@@ -1723,7 +1724,7 @@ async fn cached_uplink_tarball(
 /// held across an `await` without borrowing the config.
 enum RegistrySource {
     /// An upstream registry (public or private), served via its `/~<source>/`
-    /// uplink machinery. The id is a key in [`Config::uplinks`].
+    /// upstream machinery. The id is a key in [`Config::upstreams`].
     Upstream(String),
     /// A hosted registry, served from the hosted store.
     Hosted(String),
@@ -1757,9 +1758,9 @@ fn resolve_registry_source(state: &AppState, registry: &str, package: &str) -> R
         // origin, and never a storage or upstream consultation.
         Resolved::Unclaimed => RegistrySource::Unclaimed,
         // The graph is the only dispatch table: server construction folds
-        // every configured uplink into it (`ensure_valid_registry_graph`), so
+        // every configured upstream into it (`ensure_valid_registry_graph`), so
         // a name it doesn't know is a definitive not-found — there is no
-        // uplink-table side door that would skip namespace enforcement.
+        // upstream-table side door that would skip namespace enforcement.
         Resolved::UnknownRegistry => RegistrySource::NotFound,
     }
 }
@@ -1777,9 +1778,12 @@ fn resolves_to_private_source(state: &AppState, registry: &str, package: &str) -
             .hosted
             .get(&source)
             .is_some_and(|hosted| !hosted.access.allows(&Identity::Anonymous)),
-        RegistrySource::Upstream(source) => {
-            state.inner.config.uplinks.get(&source).is_some_and(|uplink| uplink.access.is_some())
-        }
+        RegistrySource::Upstream(source) => state
+            .inner
+            .config
+            .upstreams
+            .get(&source)
+            .is_some_and(|upstream| upstream.access.is_some()),
         RegistrySource::Unclaimed | RegistrySource::NotFound => false,
     }
 }
@@ -1834,7 +1838,8 @@ async fn serve_registry_packument(
             if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
                 return error_response(&err);
             }
-            serve_packument_via_uplink(state, identity, headers, &source, &name, tarball_base).await
+            serve_packument_via_upstream(state, identity, headers, &source, &name, tarball_base)
+                .await
         }
         // A hosted registry masks first: a private org 404s an unauthorized caller
         // (see `accessible_hosted_namespace`) *before* the per-package ACL could
@@ -1867,7 +1872,7 @@ async fn serve_registry_tarball(
             if let Err(err) = authorize(state, identity, name.as_str(), Action::Access) {
                 return error_response(&err);
             }
-            serve_tarball_via_uplink(state, identity, &source, name.as_str(), filename).await
+            serve_tarball_via_upstream(state, identity, &source, name.as_str(), filename).await
         }
         // Hosted masks first (private-org 404) then applies the ACL, inside
         // `serve_hosted_tarball` — see `serve_registry_packument`.
@@ -2420,9 +2425,9 @@ fn resolve_publish_target(
         }
         // A write can never land on an upstream — but the upstream's `access:`
         // gates the write endpoints exactly as it gates reads, so a caller the
-        // upstream denies gets the read path's 403 (`authorized_uplink`), not
+        // upstream denies gets the read path's 403 (`authorized_upstream`), not
         // a rejection that narrates where the name routes.
-        RegistrySource::Upstream(source) => match authorized_uplink(state, identity, &source) {
+        RegistrySource::Upstream(source) => match authorized_upstream(state, identity, &source) {
             Err(response) => PublishTarget::Denied(response),
             Ok(_) => PublishTarget::Reject(format!(
                 "cannot publish {package:?} {context}: it routes to an upstream registry; name \

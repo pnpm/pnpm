@@ -102,7 +102,7 @@ pub fn pnpr_command_with_binary(bin: &Path, port: u16, public_url: Option<&str>)
     };
     let mut cmd = Command::new(bin);
     // `pnpr` defaults to its bundled verdaccio-shaped config
-    // (npmjs uplink + `**` proxy rule), which matches what the mock
+    // (npmjs upstream + `**` proxy rule), which matches what the mock
     // needs — no `-c` override required. We only pin the runtime
     // bits the bundled config can't know about.
     cmd.arg("--storage")

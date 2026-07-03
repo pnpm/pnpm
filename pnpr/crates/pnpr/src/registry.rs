@@ -268,9 +268,9 @@ impl Registries {
 
     /// Insert `name` as a pattern-less upstream registry when it is not
     /// already declared, so the server can fold a programmatically-added
-    /// uplink into the graph and keep [`Self::resolve`] the only dispatch
+    /// upstream into the graph and keep [`Self::resolve`] the only dispatch
     /// table for `/~<name>/` traffic. An embedder that wants a namespace
-    /// bound on an uplink declares its own entry (with patterns) first.
+    /// bound on an upstream declares its own entry (with patterns) first.
     pub fn ensure_upstream(&mut self, name: &str) {
         if !self.registries.contains_key(name) {
             self.registries.insert(name.to_string(), Registry::Upstream { patterns: Vec::new() });
