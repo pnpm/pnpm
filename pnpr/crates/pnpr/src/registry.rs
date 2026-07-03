@@ -70,10 +70,19 @@ impl PackagePattern {
             return Ok(PackagePattern::AnyScoped);
         }
         if let Some(scope) = pattern.strip_prefix('@').and_then(|rest| rest.strip_suffix("/*")) {
-            // A single, concrete scope: `@acme/*`. The scope itself may not
-            // contain a wildcard or a further path separator.
-            if scope.is_empty() || scope.contains('*') || scope.contains('/') {
+            // A single, concrete scope: `@acme/*`. A wildcard inside the
+            // scope is an unsupported glob; a scope that request parsing
+            // (`PackageName::parse`) would reject — `@.acme`, `@..`, a
+            // separator — is a claim no valid package name can ever match,
+            // so both fail loudly instead of becoming a dead pattern that
+            // silently lets the scope land on a later router source.
+            if scope.contains('*') {
                 return Err(invalid());
+            }
+            if !crate::package_name::is_safe_path_segment(scope) {
+                return Err(RegistryConfigError::ScopePatternNotAScope {
+                    pattern: pattern.to_string(),
+                });
             }
             return Ok(PackagePattern::Scope(scope.to_string()));
         }
@@ -473,6 +482,9 @@ pub enum RegistryConfigError {
     /// A wildcard-free registry pattern that is not a well-formed package name,
     /// so it could never match any request.
     ExactPatternNotAName { pattern: String },
+    /// A `@<scope>/*` pattern whose scope no well-formed package name can
+    /// carry, so it could never match any request.
+    ScopePatternNotAScope { pattern: String },
     /// `defaultRegistry` names a registry that does not exist.
     UndefinedDefaultRegistry { target: String },
     /// A router has no sources at all, so it can never serve any package.
@@ -508,6 +520,11 @@ impl fmt::Display for RegistryConfigError {
                 f,
                 "registry pattern {pattern:?} is not a valid package name, so it can never match; \
                  to claim every package in a scope use `@scope/*`",
+            ),
+            RegistryConfigError::ScopePatternNotAScope { pattern } => write!(
+                f,
+                "registry pattern {pattern:?} does not name a valid scope, so it can never match \
+                 any package",
             ),
             RegistryConfigError::UndefinedDefaultRegistry { target } => {
                 write!(f, "defaultRegistry {target:?} is not a defined registry")

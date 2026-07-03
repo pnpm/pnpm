@@ -1504,7 +1504,7 @@ impl Config {
         // Upstream registries (and the credentials some carry) are resolved by
         // `build_registries` below into this map. Resolving an upstream registry's
         // `auth` is strict — an unresolvable token is a config error — so a
-        // resolver-only server (which registries no registry routes) skips the
+        // resolver-only server (which serves no registry routes) skips the
         // credential resolution rather than carry upstream secrets it never
         // uses. The registry *graph* is still built and validated either way, so
         // a misconfigured router or org fails startup on every tier, not only

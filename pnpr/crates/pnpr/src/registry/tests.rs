@@ -63,6 +63,24 @@ fn rejects_exact_pattern_that_is_not_a_package_name() {
     }
 }
 
+/// A `@<scope>/*` pattern whose scope request parsing (`PackageName::parse`)
+/// would reject is a claim no valid package name can ever match. It must be a
+/// config error rather than a dead pattern — a mistyped private-scope claim
+/// that never matches would silently let the names it was meant to cover land
+/// on a later (often public) router source.
+#[test]
+fn rejects_scope_pattern_whose_scope_is_not_a_valid_scope() {
+    for raw in ["@.acme/*", "@../*", "@/*", "@a/b/*", "@a:b/*"] {
+        assert!(
+            matches!(
+                PackagePattern::parse(raw),
+                Err(RegistryConfigError::ScopePatternNotAScope { .. }),
+            ),
+            "expected {raw:?} to be rejected as an invalid scope",
+        );
+    }
+}
+
 // --- PackagePattern::matches -----------------------------------------------
 
 #[test]
