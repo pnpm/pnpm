@@ -26,12 +26,13 @@ fn publish_args() -> PublishArgs {
 
 #[test]
 fn should_ignore_scripts_ors_the_flag_with_the_config() {
-    let mut config = Config::default();
-    config.ignore_scripts = false;
-    assert!(!publish_args().should_ignore_scripts(&config));
-    assert!(PublishArgs { ignore_scripts: true, ..publish_args() }.should_ignore_scripts(&config));
-    config.ignore_scripts = true;
-    assert!(publish_args().should_ignore_scripts(&config));
+    let config_off = Config { ignore_scripts: false, ..Default::default() };
+    let config_on = Config { ignore_scripts: true, ..Default::default() };
+    assert!(!publish_args().should_ignore_scripts(&config_off));
+    assert!(
+        PublishArgs { ignore_scripts: true, ..publish_args() }.should_ignore_scripts(&config_off),
+    );
+    assert!(publish_args().should_ignore_scripts(&config_on));
 }
 
 #[test]

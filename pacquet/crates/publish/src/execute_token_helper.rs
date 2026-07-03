@@ -1,4 +1,4 @@
-//! Port of [`executeTokenHelper.ts`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/executeTokenHelper.ts): run a configured `tokenHelper` command and
+//! run a configured `tokenHelper` command and
 //! return the auth token it prints.
 //!
 //! Not yet wired into the publish auth path. Upstream resolves the publish
@@ -18,8 +18,8 @@ use crate::{capabilities::RunCommand, global_log::global_warn};
 
 /// Run the `tokenHelper` command (`[cmd, ...args]`) and return its stdout as a
 /// bare token. Each non-empty stderr line is surfaced as a warning, and a
-/// leading `Bearer ` scheme is stripped (libnpmpublish adds the scheme
-/// itself). Ports TS `executeTokenHelper`.
+/// leading `Bearer ` scheme is stripped (the publish request adds the
+/// scheme itself).
 pub fn execute_token_helper<Sys, Reporter>(token_helper: &[String]) -> io::Result<String>
 where
     Sys: RunCommand,
@@ -31,7 +31,7 @@ where
     let args: Vec<&str> = args.iter().map(String::as_str).collect();
     let output = Sys::run(program, &args, None)?;
 
-    // `execa.sync` throws on a non-zero exit, aborting the publish rather than
+    // A non-zero exit aborts the publish rather than
     // proceeding with an empty token; mirror that with an error.
     if !output.success {
         return Err(io::Error::other(format!(
@@ -51,7 +51,7 @@ where
 }
 
 /// Strip a leading `Bearer ` (case-insensitive, requiring at least one
-/// trailing whitespace) from `token`. Mirrors the TS `replace(/^Bearer\s+/i, '')`.
+/// trailing whitespace) from `token`.
 fn strip_bearer_prefix(token: &str) -> &str {
     let Some(after_scheme) = token.get(..6).filter(|head| head.eq_ignore_ascii_case("bearer"))
     else {

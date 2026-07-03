@@ -1,13 +1,11 @@
 //! `pacquet publish` — publish a package to an npm registry.
 //!
-//! Ports pnpm's
-//! [`publish` command](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/publish.ts).
 //! The registry-facing work (OIDC, OTP, the publish document and PUT) lives in
 //! [`pacquet_publish`]; this module maps the resolved [`Config`] and CLI flags
 //! onto its options, runs the git checks and publish-lifecycle scripts, and
 //! packs the project before handing the tarball off.
 //!
-//! Scope versus upstream: `--recursive` (workspace publishing) is ported in
+//! `--recursive` (workspace publishing) lives in
 //! [`recursive`]; `--batch` (a single batched request to a pnpr-style
 //! registry) is accepted for surface parity but not yet ported — it errors
 //! rather than silently doing nothing.
@@ -96,8 +94,8 @@ pub struct PublishArgs {
 
 impl PublishArgs {
     /// Publish the package at `dir` (or the given tarball/directory),
-    /// returning nothing — output is printed here. Ports pnpm's `publish`
-    /// handler for the single-package and tarball paths.
+    /// returning nothing — output is printed here. Handles the single-package
+    /// and tarball paths.
     pub async fn run<Reporter: self::Reporter>(
         self,
         dir: &Path,
@@ -300,7 +298,6 @@ impl PublishArgs {
 
 /// Run the publish-lifecycle scripts the manifest declares, in order, with
 /// `unsafe_perm` (publish scripts are run explicitly and assumed trusted).
-/// Mirrors pnpm's `runScriptsIfPresent`.
 fn run_publish_scripts<Reporter: self::Reporter>(
     dir: &Path,
     config: &Config,

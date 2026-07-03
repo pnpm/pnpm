@@ -1,4 +1,4 @@
-//! Port of [`oidc/provenance.ts`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/oidc/provenance.ts): decide whether to attach provenance based on
+//! decide whether to attach provenance based on
 //! the CI context and the package's registry visibility.
 
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
@@ -17,11 +17,11 @@ mod tests;
 
 /// Determine the `provenance` flag for a package from the CI context and the
 /// package's visibility. Returns `Some(true)` when provenance should be
-/// attached, `None` when it should not. Ports TS `determineProvenance`.
+/// attached, `None` when it should not.
 ///
 /// A [`ProvenanceError`] is skippable (the publish proceeds without
 /// provenance); a malformed id-token payload or a failed visibility request is
-/// a hard error, matching the TS code that lets those propagate.
+/// a hard error that propagates.
 pub async fn determine_provenance<Sys>(
     auth_token: &str,
     id_token: &str,
@@ -78,8 +78,8 @@ where
         .into());
     }
 
-    // The TS reads `await response.json()` unguarded on the success path, so a
-    // malformed body is a hard error rather than a silent "not public".
+    // The success path parses the response body unguarded, so a malformed body
+    // is a hard error rather than a silent "not public".
     let visibility = response
         .body
         .pipe_as_ref(serde_json::from_str::<Value>)
@@ -89,7 +89,7 @@ where
 }
 
 /// Decode the base64url JWT payload into JSON. A decode or parse failure is a
-/// hard error, matching the TS `JSON.parse(...)` that runs unguarded.
+/// hard error; the payload is parsed unguarded.
 fn decode_jwt_payload(payload_b64: &str) -> Result<Value, DetermineProvenanceError> {
     let bytes = URL_SAFE_NO_PAD
         .decode(payload_b64.trim_end_matches('='))
@@ -99,9 +99,7 @@ fn decode_jwt_payload(payload_b64: &str) -> Result<Value, DetermineProvenanceErr
 }
 
 /// A skippable provenance error: the publish proceeds without provenance.
-/// Ports the [`ProvenanceError`][ts-ProvenanceError] hierarchy.
 ///
-/// [ts-ProvenanceError]: https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/oidc/provenance.ts#L127
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum ProvenanceError {
     #[display("The received idToken is not a valid JWT")]
@@ -121,7 +119,7 @@ pub enum ProvenanceError {
 
 impl ProvenanceError {
     /// Build a [`FailedToFetchVisibility`](Self::FailedToFetchVisibility) from
-    /// the rejected response body, mirroring the TS `code`/`message` precedence.
+    /// the rejected response body, preferring `code` then `message`.
     fn failed_to_fetch_visibility(
         body: &str,
         status: u16,

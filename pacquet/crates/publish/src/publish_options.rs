@@ -1,6 +1,6 @@
-//! Port of the option-assembly half of [`publishPackedPkg.ts`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/publishPackedPkg.ts): choose the
-//! target registry, resolve the access level, and run the per-package OIDC
-//! token / provenance exchange that takes precedence over static credentials.
+//! Option assembly for `pnpm publish`: choose the target registry, resolve the
+//! access level, and run the per-package OIDC token / provenance exchange that
+//! takes precedence over static credentials.
 
 use std::collections::BTreeMap;
 
@@ -19,9 +19,8 @@ use crate::{
     registry_config_keys::{NormalizedRegistryUrl, parse_supported_registry_url},
 };
 
-/// The package access level the registry should record. Ports the
-/// `'public' | 'restricted'` union; `None` leaves it unset (the registry
-/// default). Models the TS string-literal union as a closed enum.
+/// The package access level the registry should record. `public` or
+/// `restricted`; `None` leaves it unset (the registry default).
 #[derive(Debug, derive_more::Display, Clone, Copy, PartialEq, Eq)]
 pub enum Access {
     #[display("public")]
@@ -31,8 +30,8 @@ pub enum Access {
 }
 
 impl Access {
-    /// Parse the CLI / `publishConfig.access` value. Ports `isPublishAccess`:
-    /// only `public` / `restricted` are accepted, anything else is `None`.
+    /// Parse the CLI / `publishConfig.access` value: only `public` /
+    /// `restricted` are accepted, anything else is `None`.
     #[must_use]
     pub fn parse(value: &str) -> Option<Access> {
         match value {
@@ -43,11 +42,8 @@ impl Access {
     }
 }
 
-/// The registry has a protocol `pnpm publish` cannot use. Ports pnpm's
-/// [`PublishUnsupportedRegistryProtocolError`][ts-PublishUnsupportedRegistryProtocolError]
+/// The registry has a protocol `pnpm publish` cannot use
 /// (`ERR_PNPM_PUBLISH_UNSUPPORTED_REGISTRY_PROTOCOL`).
-///
-/// [ts-PublishUnsupportedRegistryProtocolError]: https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/publishPackedPkg.ts#L275-L283
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 #[display("Registry {registry_url} has an unsupported protocol")]
 #[diagnostic(
@@ -60,9 +56,8 @@ pub struct PublishUnsupportedRegistryProtocolError {
 
 /// Find the target registry for a package. The manifest's
 /// `publishConfig.registry` wins, then a scoped registry for the package's
-/// scope, then the default registry. Ports the registry-selection half of TS
-/// `findRegistryInfo` (credential / TLS resolution is handled by pacquet's
-/// shared [`pacquet_network::AuthHeaders`] at request time).
+/// scope, then the default registry. Credential / TLS resolution is handled by
+/// pacquet's shared [`pacquet_network::AuthHeaders`] at request time.
 pub fn find_registry_info(
     name: &str,
     default_registry: &str,
@@ -82,7 +77,7 @@ pub fn find_registry_info(
 }
 
 /// The scope of a package name (`@scope/name` → `scope`), or `None` when
-/// unscoped. Mirrors the TS `@(?<scope>[^/]+)/(?<slug>[^/]+)` match.
+/// unscoped. Both the scope and the following slug must be non-empty.
 fn scope_of(name: &str) -> Option<&str> {
     let rest = name.strip_prefix('@')?;
     let slash = rest.find('/')?;
@@ -92,8 +87,7 @@ fn scope_of(name: &str) -> Option<&str> {
 }
 
 /// Resolve the access level: an explicit `--access` wins, else a valid
-/// `publishConfig.access`, else `None`. Mirrors the access line of
-/// `createPublishOptions`.
+/// `publishConfig.access`, else `None`.
 #[must_use]
 pub fn resolve_access(explicit: Option<Access>, manifest: &Value) -> Option<Access> {
     explicit.or_else(|| {
@@ -106,8 +100,7 @@ pub fn resolve_access(explicit: Option<Access>, manifest: &Value) -> Option<Acce
 }
 
 /// The OIDC-derived auth token and provenance flag, returned when trusted
-/// publishing is configured for the package. Ports TS
-/// `OidcTokenProvenanceResult`.
+/// publishing is configured for the package.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OidcTokenProvenance {
     pub auth_token: String,
@@ -115,8 +108,8 @@ pub struct OidcTokenProvenance {
 }
 
 /// A non-skippable OIDC failure: the id-token request or provenance step hit a
-/// hard transport / parse error that the TS code lets propagate past its
-/// `instanceof` guards.
+/// hard transport / parse error that propagates instead of being treated as a
+/// skippable OIDC miss.
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum FetchTokenAndProvenanceError {
     #[display("{_0}")]
@@ -131,7 +124,7 @@ pub enum FetchTokenAndProvenanceError {
 /// Try to obtain an auth token (and provenance flag) for `package_name` on
 /// `registry` via an OIDC token exchange. Returns `Ok(None)` when OIDC is not
 /// applicable or fails in a skippable way — the caller then falls back to
-/// static credentials. Ports TS `fetchTokenAndProvenanceByOidc`.
+/// static credentials.
 ///
 /// `provenance_override` is the explicit `--provenance` value: when set, it is
 /// used verbatim and the visibility probe is skipped.
@@ -186,8 +179,7 @@ where
     }
 }
 
-/// The publish parameters [`create_publish_options`] resolves from. Ports the
-/// subset of `PublishPackedPkgOptions` the option-assembly reads.
+/// The publish parameters [`create_publish_options`] resolves from.
 pub struct CreatePublishOptionsInput<'a> {
     pub default_registry: &'a str,
     pub scoped_registries: &'a BTreeMap<String, String>,
@@ -199,8 +191,7 @@ pub struct CreatePublishOptionsInput<'a> {
 }
 
 /// The resolved registry, access, tag, OTP and provenance/auth-token values a
-/// publish request needs. Ports the relevant fields of TS
-/// `StagePublishOptions`.
+/// publish request needs.
 #[derive(Debug, Clone)]
 pub struct ResolvedPublishOptions {
     pub registry: NormalizedRegistryUrl,
@@ -214,8 +205,7 @@ pub struct ResolvedPublishOptions {
 
 /// Build the registry / auth / access options for publishing `manifest`. When
 /// `oidc_enabled` is `false` the per-package OIDC exchange is skipped (batch
-/// publish sends many packages a package-scoped token cannot authorize). Ports
-/// the option-assembly portion of TS `createPublishOptions`.
+/// publish sends many packages a package-scoped token cannot authorize).
 pub async fn create_publish_options<Sys, Reporter>(
     manifest: &Value,
     input: &CreatePublishOptionsInput<'_>,
@@ -242,7 +232,7 @@ where
     let mut auth_token_override = None;
 
     if oidc_enabled {
-        // OIDC takes precedence over a configured static token, mirroring the
+        // OIDC takes precedence over a configured static token, matching the
         // npm CLI: trusted publishing wins when the registry has it configured.
         let oidc = fetch_token_and_provenance_by_oidc::<Sys, Reporter>(
             name,

@@ -3,9 +3,11 @@ use super::{
     is_otp_challenge, parse_otp_challenge, publish_with_otp_handling, put_publish,
     web_auth_fetch_options,
 };
-use crate::oidc::OidcHttpOptions;
-use crate::publish_options::{CreatePublishOptionsError, PublishUnsupportedRegistryProtocolError};
-use crate::registry_config_keys::parse_supported_registry_url;
+use crate::{
+    oidc::OidcHttpOptions,
+    publish_options::{CreatePublishOptionsError, PublishUnsupportedRegistryProtocolError},
+    registry_config_keys::parse_supported_registry_url,
+};
 use pacquet_network::ThrottledClient;
 use pacquet_network_web_auth::{
     Host as WebAuthHost, OtpChallenge, OtpError, WebAuthFetchOptions, WithOtpError,
@@ -63,7 +65,7 @@ fn builds_document_with_dist_and_attachment() {
     assert_eq!(version["_id"], "@scope/pkg@1.0.0");
     assert_eq!(version["dist"]["integrity"], "sha512-deadbeef");
     assert_eq!(version["dist"]["shasum"], "abc123");
-    // libnpmpublish stores an http:// tarball URL even for an https registry.
+    // The tarball URL is stored as http:// even for an https registry.
     assert_eq!(
         version["dist"]["tarball"],
         "http://registry.example/@scope/pkg/-/@scope/pkg-1.0.0.tgz",
@@ -320,8 +322,8 @@ async fn publish_with_otp_handling_returns_the_response_when_no_otp_is_required(
     mock.assert_async().await;
 }
 
-/// pnpm's `otp.test.ts` "classic OTP flow ... prompts for OTP and retries
-/// publish", driven end-to-end through the publish HTTP layer: the first PUT
+/// The classic OTP flow, driven end-to-end through the publish HTTP layer:
+/// prompt for an OTP on the challenge and retry. The first PUT
 /// (no `npm-otp`) gets a 401 OTP challenge, the fake host prompts and returns
 /// the code, and the retry PUT — distinguished by the `npm-otp` header it now
 /// carries — succeeds. Exercises the `put_publish` ↔ `with_otp_handling` seam
@@ -369,9 +371,8 @@ async fn classic_otp_flow_prompts_then_retries_with_the_code() {
     retry.assert_async().await;
 }
 
-/// `otp.test.ts` "throws `OtpSecondChallengeError` if retry also requires
-/// OTP": when the registry rejects the retry with another OTP challenge the
-/// flow gives up rather than prompting a second time.
+/// When the registry rejects the retry with another OTP challenge the flow
+/// gives up (a second-challenge error) rather than prompting a second time.
 #[tokio::test]
 async fn classic_otp_flow_second_challenge_is_an_error() {
     web_auth_fake!();
@@ -412,9 +413,8 @@ async fn classic_otp_flow_second_challenge_is_an_error() {
     assert!(matches!(err, WithOtpError::SecondChallenge(_)), "got {err:?}");
 }
 
-/// `otp.test.ts` "throws `OtpNonInteractiveError` when terminal is not
-/// interactive": a non-TTY session cannot answer the challenge, so the flow
-/// fails fast without a retry PUT.
+/// A non-TTY session cannot answer the challenge, so the flow fails fast
+/// (a non-interactive error) without a retry PUT.
 #[tokio::test]
 async fn non_interactive_terminal_rejects_the_otp_challenge() {
     web_auth_fake!();
@@ -446,9 +446,9 @@ async fn non_interactive_terminal_rejects_the_otp_challenge() {
     assert!(matches!(err, WithOtpError::NonInteractive(_)), "got {err:?}");
 }
 
-/// `otp.test.ts` web-auth flow "polls `doneUrl` and uses returned token": the
-/// 401 carries `authUrl`/`doneUrl`, the fake host polls (202, 202, token), and
-/// the retry PUT carries the web token. The auth URL is surfaced to the user.
+/// The web-auth flow: the 401 carries `authUrl`/`doneUrl`, the fake host
+/// polls (202, 202, token), and the retry PUT carries the web token. The auth
+/// URL is surfaced to the user.
 #[tokio::test]
 async fn web_auth_flow_polls_then_retries_with_the_web_token() {
     web_auth_fake!();
@@ -502,9 +502,8 @@ async fn web_auth_flow_polls_then_retries_with_the_web_token() {
     retry.assert_async().await;
 }
 
-/// `otp.test.ts` "throws `WebAuthTimeoutError` after 5 minutes": the poll
-/// never completes and the fake clock jumps past the deadline, so the flow
-/// times out without ever retrying the PUT.
+/// The poll never completes and the fake clock jumps past the deadline, so
+/// the flow times out without ever retrying the PUT.
 #[tokio::test]
 async fn web_auth_flow_times_out_when_the_poll_never_completes() {
     web_auth_fake!();
@@ -573,8 +572,9 @@ fn publish_packed_pkg_error_wraps_option_and_otp_failures() {
     ));
     assert!(matches!(from_options, PublishPackedPkgError::CreateOptions(_)));
 
-    let from_otp = PublishPackedPkgError::from(WithOtpError::Operation(PublishHttpError::Transport {
-        reason: "connection refused".to_owned(),
-    }));
+    let from_otp =
+        PublishPackedPkgError::from(WithOtpError::Operation(PublishHttpError::Transport {
+            reason: "connection refused".to_owned(),
+        }));
     assert!(matches!(from_otp, PublishPackedPkgError::Otp(_)));
 }

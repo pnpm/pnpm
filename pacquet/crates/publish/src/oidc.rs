@@ -1,6 +1,5 @@
-//! Port of `publish/oidc`: OpenID-Connect trusted publishing — fetch a CI
-//! id-token, exchange it for a registry auth token, and decide whether to
-//! attach provenance.
+//! OpenID-Connect trusted publishing — fetch a CI id-token, exchange it for a
+//! registry auth token, and decide whether to attach provenance.
 //!
 //! Each step is generic over a single `Sys` type parameter carrying only the
 //! capabilities it consumes ([`EnvVar`], [`CiInfo`](crate::CiInfo), [`Clock`],
@@ -24,8 +23,7 @@ pub use auth_token::{AuthTokenError, fetch_auth_token};
 pub use id_token::{GetIdTokenError, IdTokenError, get_id_token};
 pub use provenance::{DetermineProvenanceError, ProvenanceError, determine_provenance};
 
-/// Read an environment variable, treating an empty value as unset to mirror
-/// JavaScript truthiness (`if (env.X)`).
+/// Read an environment variable, treating an empty value as unset.
 pub(crate) fn truthy_env<Sys: EnvVar>(name: &str) -> Option<String> {
     Sys::var(name).filter(|value| !value.is_empty())
 }
@@ -48,8 +46,7 @@ pub(crate) enum GitHubRequestTokenError {
 /// Drive GitHub Actions' id-token request endpoint for `audience` and return
 /// the raw `value`. Shared by [`get_id_token`] (audience `npm:<host>`) and the
 /// sigstore-token fetch in [`provenance_gen`](crate::generate_provenance)
-/// (audience `sigstore`); pnpm gets its sigstore token from sigstore-js, so
-/// only pacquet has both call sites and this consolidation is pacquet's own.
+/// (audience `sigstore`).
 pub(crate) async fn github_request_token<Sys, Reporter>(
     audience: &str,
     options: &OidcHttpOptions,
@@ -96,15 +93,14 @@ where
         .ok_or(GitHubRequestTokenError::MissingValue)
 }
 
-/// npm-package-arg's `escapedName`: percent-encode the scope separator so the
+/// Percent-encode the scope separator so the
 /// package name is a single URL path segment (`@scope/name` → `@scope%2fname`).
 pub(crate) fn escaped_package_name(name: &str) -> String {
     name.replace('/', "%2f")
 }
 
 /// The fetch-retry / timeout knobs the OIDC requests forward, sourced from the
-/// publish options. Ports the `Pick<PublishPackedPkgOptions, 'fetchRetries' |
-/// ...>` shared by all three OIDC steps.
+/// publish options, shared by all three OIDC steps.
 #[derive(Debug, Default, Clone)]
 pub struct OidcHttpOptions {
     pub fetch_retries: Option<u32>,

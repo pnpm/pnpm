@@ -1,4 +1,4 @@
-//! Port of [`oidc/authToken.ts`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/oidc/authToken.ts): exchange a CI id-token for a registry auth
+//! exchange a CI id-token for a registry auth
 //! token via the npm OIDC token-exchange endpoint.
 
 use pacquet_diagnostics::miette::{self, Diagnostic};
@@ -15,8 +15,8 @@ use crate::{
 mod tests;
 
 /// Exchange `id_token` for an `authToken` scoped to `package_name` on
-/// `registry`. Ports TS `fetchAuthToken`. Every failure is an
-/// [`AuthTokenError`], which the publish flow turns into a warning and skips.
+/// `registry`. Every failure is an [`AuthTokenError`], which the publish flow
+/// turns into a warning and skips.
 pub async fn fetch_auth_token<Sys: OidcFetch>(
     id_token: &str,
     package_name: &str,
@@ -73,9 +73,7 @@ pub async fn fetch_auth_token<Sys: OidcFetch>(
 }
 
 /// A skippable auth-token error: surfaced as a warning by the publish flow.
-/// Ports the [`AuthTokenError`][ts-AuthTokenError] hierarchy.
 ///
-/// [ts-AuthTokenError]: https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/oidc/authToken.ts#L115
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum AuthTokenError {
     #[display(

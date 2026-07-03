@@ -1,14 +1,13 @@
-//! Port of [`FailedToPublishError.ts`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/FailedToPublishError.ts): the error raised when the registry
+//! the error raised when the registry
 //! rejects a publish request.
 
 use std::fmt::Write;
 
 use pacquet_diagnostics::miette::{self, Diagnostic};
 
-/// The registry returned a non-OK response for a publish. Ports pnpm's
-/// [`FailedToPublishError`][ts-FailedToPublishError] (`ERR_PNPM_FAILED_TO_PUBLISH`).
+/// The registry returned a non-OK response for a publish
+/// (`ERR_PNPM_FAILED_TO_PUBLISH`).
 ///
-/// [ts-FailedToPublishError]: https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/FailedToPublishError.ts#L12-L42
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 #[display("{message}")]
 #[diagnostic(code(ERR_PNPM_FAILED_TO_PUBLISH))]
@@ -21,7 +20,7 @@ pub struct FailedToPublishError {
 
 impl FailedToPublishError {
     /// Build the error from the rejected response and the package identity.
-    /// Mirrors the TS constructor's message assembly: a one-line summary, with
+    /// The message assembly: a one-line summary, with
     /// a multi-line response body rendered as an indented `Details:` block and
     /// a single-line body appended inline.
     #[must_use]

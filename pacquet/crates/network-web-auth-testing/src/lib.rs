@@ -1,10 +1,8 @@
 //! Shared test fakes for the OTP / web-auth flow
 //! ([`pacquet_network_web_auth`]).
 //!
-//! pnpm's 2FA/OTP/web-auth tests build a mock "context" through a single
-//! shared test-helper package, reused by both `publish`'s `otp.test.ts` and
-//! `login`'s `login.test.ts`. pacquet mirrors the *shape* of that helper
-//! here, but keeps the mutable pieces per-test: the [`web_auth_fake`] macro
+//! The OTP / web-auth tests need a fake for every web-auth capability. This
+//! crate keeps the fake's mutable pieces per-test: the [`web_auth_fake`] macro
 //! expands, inside a `#[test]` body, to fn-local `thread_local!` statics plus
 //! a local `FakeHost` (implementing every web-auth capability), local
 //! reporters, and local config functions. No scenario state lives at module
@@ -25,7 +23,7 @@ use serde_json::json;
 
 /// An operation error that is either an EOTP challenge or a plain failure, so
 /// a single error type covers both the OTP and non-OTP paths a fake operation
-/// needs to return. Mirrors the shape `isOtpError` reads upstream.
+/// needs to return.
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum FakeOtpError {
     #[display("otp challenge")]
@@ -224,8 +222,8 @@ macro_rules! web_auth_fake {
             }
         }
 
-        /// Panics on any global message — the stand-in for the TS `globalWarn`
-        /// that throws when a test expects no warning.
+        /// Panics on any global message — the strict reporter for a test that
+        /// expects no warning.
         #[allow(dead_code)]
         struct UnexpectedReporter;
 

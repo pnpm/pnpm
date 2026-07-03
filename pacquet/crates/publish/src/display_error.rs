@@ -1,10 +1,10 @@
-//! Port of [`displayError.ts`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/displayError.ts): render a caught error as a short one-line string
+//! render a caught error as a short one-line string
 //! for a warning message.
 
 use pacquet_diagnostics::miette::Diagnostic;
 
 /// Combine an error's `code` (or `name`) and `message` into a one-line
-/// string, mirroring TS `displayError`:
+/// string:
 ///
 /// - both present → `"<code>: <body>"`
 /// - only one present → that one
@@ -25,9 +25,8 @@ pub fn display_error(code: Option<&str>, body: Option<&str>) -> String {
     }
 }
 
-/// Render a diagnostic the way TS `displayError` renders a `PnpmError`: its
-/// `code` followed by its message. The miette `code` plays the role of the
-/// JS error's `.code`, and `Display` plays the role of `.message`.
+/// Render a diagnostic as a short string: its `code` followed by its
+/// message. The miette `code` supplies the code and `Display` the message.
 pub(crate) fn display_diagnostic(error: &impl Diagnostic) -> String {
     let code = error.code().map(|code| code.to_string());
     display_error(code.as_deref(), Some(&error.to_string()))

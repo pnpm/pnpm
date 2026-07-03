@@ -1,5 +1,4 @@
-//! Emit `pnpm:global` info / warn messages through the `R: Reporter` seam,
-//! matching pnpm's `globalInfo` / `globalWarn`.
+//! Emit `pnpm:global` info / warn messages through the `R: Reporter` seam.
 
 use pacquet_reporter::{GlobalLog, LogEvent, LogLevel, Reporter};
 

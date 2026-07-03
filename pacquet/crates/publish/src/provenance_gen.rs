@@ -2,17 +2,11 @@
 //! sigstore (Fulcio keyless certificate + Rekor transparency log) via the
 //! [`sigstore_sign`] crate.
 //!
-//! This ports the in-toto SLSA *statement* construction from
-//! [`generateProvenance`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/oidc/provenance.ts)
-//! /
-//! [`libnpmpublish`'s provenance.js](https://github.com/npm/cli/blob/latest/node_modules/libnpmpublish/lib/provenance.js)
-//! and the `_attachments[*.sigstore]` wiring from `libnpmpublish`'s
-//! `publish.js`. The signing itself is delegated to `sigstore_sign`
-//! unmodified, so the emitted bundle is whatever that crate produces: a
-//! **sigstore bundle v0.3** (single certificate, `dsse` Rekor entry). This is
-//! *not* the legacy form npm's own `libnpmpublish` emits under
-//! `legacyCompatibility: true` (bundle v0.2, `x509CertificateChain`, `intoto`
-//! Rekor entry) — pacquet deliberately does not reproduce that legacy shape.
+//! It builds the in-toto SLSA *statement* and delegates the signing to the
+//! `sigstore_sign` crate unmodified, so the emitted bundle is whatever that
+//! crate produces: a **sigstore bundle v0.3** (single certificate, `dsse`
+//! Rekor entry) — not the legacy v0.2 form (`x509CertificateChain`, `intoto`
+//! Rekor entry), which pacquet deliberately does not reproduce.
 //! The npm registry accepts the v0.3 bundle: a package published this way was
 //! verified end-to-end against npmjs.com (`@pnpm.e2e/testing-provenance2`,
 //! recorded in the Rekor transparency log), so the modern bundle is sufficient
@@ -43,7 +37,7 @@ const SIGSTORE_AUDIENCE: &str = "sigstore";
 
 /// The `_attachments["<name>-<version>.sigstore"]` entry to splice into the
 /// publish document. `data` is the serialized bundle JSON (stored verbatim,
-/// not base64, matching `libnpmpublish`).
+/// not base64).
 pub struct ProvenanceAttachment {
     pub bundle_name: String,
     pub content_type: String,
@@ -92,8 +86,8 @@ where
     })
 }
 
-/// Format the npm package coordinate as a PURL, mirroring `npm-package-arg`'s
-/// `toPurl`: `pkg:npm/<name>@<version>` with only a leading scope `@`
+/// Format the npm package coordinate as a PURL
+/// (`pkg:npm/<name>@<version>`), with only a leading scope `@`
 /// percent-encoded to `%40` (the `/` is left intact).
 fn npm_purl(name: &str, version: &str) -> String {
     let encoded =
@@ -103,7 +97,7 @@ fn npm_purl(name: &str, version: &str) -> String {
 
 /// Build the in-toto SLSA statement from the CI environment. GitHub Actions
 /// emits a Statement v1 + SLSA predicate v1; GitLab CI emits a Statement v0.1 +
-/// SLSA predicate v0.2. Ports `generateProvenance`.
+/// SLSA predicate v0.2.
 fn build_statement<Sys: EnvVar + CiInfo>(subject: &Value) -> Result<Value, ProvenanceGenError> {
     if Sys::github_actions() {
         return Ok(github_statement::<Sys>(subject));
@@ -211,7 +205,7 @@ fn gitlab_statement<Sys: EnvVar>(subject: &Value) -> Value {
 
 /// Fetch an OIDC token with the `sigstore` audience for Fulcio. GitHub Actions
 /// is driven through its request-token endpoint; GitLab forwards the token via
-/// `SIGSTORE_ID_TOKEN`. Mirrors sigstore-js's `CIContextProvider('sigstore')`.
+/// `SIGSTORE_ID_TOKEN`.
 async fn fetch_sigstore_token<Sys, Reporter>(
     options: &OidcHttpOptions,
 ) -> Result<String, ProvenanceGenError>

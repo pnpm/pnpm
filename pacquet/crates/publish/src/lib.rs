@@ -1,5 +1,5 @@
-//! Publish a package to an npm registry — the Rust port of pnpm's `publish`
-//! command (`pnpm11/releasing/commands/src/publish`).
+//! Publish a package to an npm registry — pnpm's `publish` command,
+//! implemented in Rust.
 
 mod capabilities;
 mod display_error;

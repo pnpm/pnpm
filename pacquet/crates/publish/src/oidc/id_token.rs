@@ -1,4 +1,4 @@
-//! Port of [`oidc/idToken.ts`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/oidc/idToken.ts): retrieve an OIDC id-token from the CI
+//! retrieve an OIDC id-token from the CI
 //! environment.
 
 use pacquet_diagnostics::miette::{self, Diagnostic};
@@ -14,8 +14,7 @@ use crate::{
 mod tests;
 
 /// Retrieve an `idToken` from the CI environment, or `None` when OIDC is not
-/// applicable (outside CI, or a CI without a forwarded token). Ports TS
-/// `getIdToken`.
+/// applicable (outside CI, or a CI without a forwarded token).
 ///
 /// `NPM_ID_TOKEN` is honored first as the CI-agnostic injection point; failing
 /// that, only GitHub Actions' request-token endpoint can be driven directly.
@@ -42,10 +41,8 @@ where
 }
 
 /// A skippable id-token error: surfaced as a warning by the publish flow,
-/// which then falls back to static credentials. Ports the
-/// [`IdTokenError`][ts-IdTokenError] hierarchy.
+/// which then falls back to static credentials.
 ///
-/// [ts-IdTokenError]: https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/oidc/idToken.ts#L143
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum IdTokenError {
     #[display("Incorrect permissions for idToken within GitHub Workflows")]

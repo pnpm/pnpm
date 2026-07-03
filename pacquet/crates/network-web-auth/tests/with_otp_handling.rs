@@ -193,10 +193,9 @@ async fn classic_flow_re_throws_the_original_otp_error_when_prompt_is_cancelled(
     assert!(matches!(error, WithOtpError::Operation(FakeOtpError::Otp { .. })), "got {error:?}");
 }
 
-/// Unlike the TS test, which omits `createReadlineInterface` so the prompt
-/// stays silent, pacquet's listener is always available — so the flow also
-/// emits the "Press ENTER" line. The assertion checks that the auth URL
-/// was surfaced and the token round-tripped, not the exact message count.
+/// pacquet's Enter-key listener is always available, so the flow also emits
+/// the "Press ENTER" line. The assertion checks that the auth URL was
+/// surfaced and the token round-tripped, not the exact message count.
 #[tokio::test]
 async fn web_auth_flow_polls_done_url_and_uses_returned_token() {
     web_auth_fake!();

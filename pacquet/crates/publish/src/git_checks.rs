@@ -1,6 +1,5 @@
-//! Port of [`@pnpm/network.git-utils`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/network/git-utils/src/index.ts) plus the git-check orchestration at the
-//! top of [`publish.ts`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/publish.ts): refuse to publish from an unclean tree, the wrong
-//! branch, or behind the remote.
+//! The git precondition checks `pnpm publish` runs: refuse to publish from an
+//! unclean tree, the wrong branch, or behind the remote.
 
 use std::{fs, path::Path};
 
@@ -11,8 +10,7 @@ use crate::capabilities::{ConfirmPrompt, RunCommand};
 const GIT_CHECKS_HINT: &str = r#"If you want to disable Git checks on publish, set the "git-checks" setting to "false", or run again with "--no-git-checks"."#;
 
 /// Run the publish git checks for `cwd`. A no-op when `git_checks_enabled` is
-/// false or `cwd` is not a git repository. Ports the git-check block of TS
-/// `publish`.
+/// false or `cwd` is not a git repository.
 pub fn run_git_checks<Sys>(
     cwd: &Path,
     git_checks_enabled: bool,
@@ -55,14 +53,13 @@ where
     Ok(())
 }
 
-/// Whether `cwd` is inside a git repository. Ports `isGitRepo`.
+/// Whether `cwd` is inside a git repository.
 #[must_use]
 pub fn is_git_repo<Sys: RunCommand>(cwd: &Path) -> bool {
     git_ok::<Sys>(&["rev-parse", "--git-dir"], cwd)
 }
 
-/// Whether the working tree has no uncommitted changes. Ports
-/// `isWorkingTreeClean`.
+/// Whether the working tree has no uncommitted changes.
 #[must_use]
 pub fn is_working_tree_clean<Sys: RunCommand>(cwd: &Path) -> bool {
     match Sys::run("git", &["status", "--porcelain"], Some(cwd)) {
@@ -71,8 +68,8 @@ pub fn is_working_tree_clean<Sys: RunCommand>(cwd: &Path) -> bool {
     }
 }
 
-/// Whether the local branch is not behind its upstream. Ports
-/// `isRemoteHistoryClean` (a missing upstream is treated as clean).
+/// Whether the local branch is not behind its upstream (a missing upstream is
+/// treated as clean).
 #[must_use]
 pub fn is_remote_history_clean<Sys: RunCommand>(cwd: &Path) -> bool {
     match Sys::run("git", &["rev-list", "--count", "--left-only", "@{u}...HEAD"], Some(cwd)) {
@@ -83,9 +80,8 @@ pub fn is_remote_history_clean<Sys: RunCommand>(cwd: &Path) -> bool {
     }
 }
 
-/// The current branch name, or `None` when HEAD is detached. Ports
-/// `getCurrentBranch`: reads `.git/HEAD` first, then falls back to
-/// `git symbolic-ref`.
+/// The current branch name, or `None` when HEAD is detached. Reads `.git/HEAD`
+/// first, then falls back to `git symbolic-ref`.
 #[must_use]
 pub fn get_current_branch<Sys: RunCommand>(cwd: &Path) -> Option<String> {
     match read_branch_from_head_file(cwd) {
@@ -101,17 +97,15 @@ pub fn get_current_branch<Sys: RunCommand>(cwd: &Path) -> Option<String> {
 }
 
 /// The three outcomes of reading `.git/HEAD`: a branch name, a detached HEAD,
-/// or "could not determine — fall back to `git symbolic-ref`". Mirrors the TS
-/// `string | null | undefined` return of `readBranchFromHeadFile`.
+/// or "could not determine — fall back to `git symbolic-ref`".
 enum HeadBranch {
     Branch(String),
     Detached,
     Unknown,
 }
 
-/// Read the branch name from `.git/HEAD` without spawning git. Ports
-/// `readBranchFromHeadFile`, including the worktree/submodule `.git` file
-/// indirection.
+/// Read the branch name from `.git/HEAD` without spawning git, including the
+/// worktree/submodule `.git` file indirection.
 fn read_branch_from_head_file(cwd: &Path) -> HeadBranch {
     let dot_git = cwd.join(".git");
     let Ok(metadata) = fs::symlink_metadata(&dot_git) else {
@@ -148,8 +142,8 @@ fn git_ok<Sys: RunCommand>(args: &[&str], cwd: &Path) -> bool {
     Sys::run("git", args, Some(cwd)).is_ok_and(|output| output.success)
 }
 
-/// The git working-tree precondition that failed. Ports pnpm's `GIT_*`
-/// publish errors; each carries the same disable-checks hint.
+/// The git working-tree precondition that failed. Each variant is an
+/// `ERR_PNPM_GIT_*` publish error carrying the same disable-checks hint.
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 pub enum GitCheckError {
     #[display("Unclean working tree. Commit or stash changes first.")]

@@ -1,5 +1,5 @@
-//! Port of [`tarball/publishSummary.ts`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/tarball/publishSummary.ts): the per-package summary `pnpm publish`
-//! returns and prints under `--json`, modeled after `npm publish --json`.
+//! The per-package summary `pnpm publish` returns and prints under `--json`,
+//! modeled after `npm publish --json`.
 
 use std::path::Path;
 
@@ -7,11 +7,8 @@ use serde::Serialize;
 use serde_json::Value;
 use ssri::{Algorithm, IntegrityOpts};
 
-/// Per-package summary describing a successful publish. Ports TS
-/// [`PublishSummary`][ts-PublishSummary]; field names serialize to the
-/// `npm publish --json` shape.
-///
-/// [ts-PublishSummary]: https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/tarball/publishSummary.ts#L10-L33
+/// Per-package summary describing a successful publish. Field names serialize
+/// to the `npm publish --json` shape.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PublishSummary {
@@ -46,10 +43,7 @@ pub struct PublishSummaryFile {
     pub path: String,
 }
 
-/// The packed-package inputs to [`create_publish_summary`]. Ports TS
-/// [`PackedPkgInfo`][ts-PackedPkgInfo].
-///
-/// [ts-PackedPkgInfo]: https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/tarball/publishSummary.ts#L35-L40
+/// The packed-package inputs to [`create_publish_summary`].
 pub struct PackedPkgInfo<'a> {
     pub published_manifest: &'a Value,
     pub tarball_path: &'a str,
@@ -57,8 +51,7 @@ pub struct PackedPkgInfo<'a> {
     pub unpacked_size: u64,
 }
 
-/// Build the [`PublishSummary`] for a freshly packed package. Ports TS
-/// `createPublishSummary`.
+/// Build the [`PublishSummary`] for a freshly packed package.
 #[must_use]
 pub fn create_publish_summary(info: &PackedPkgInfo<'_>, tarball_data: &[u8]) -> PublishSummary {
     let name = manifest_string(info.published_manifest, "name");
@@ -86,7 +79,7 @@ pub fn create_publish_summary(info: &PackedPkgInfo<'_>, tarball_data: &[u8]) -> 
 
 /// Normalize the two equivalent manifest keys (`bundledDependencies` and
 /// `bundleDependencies`) into a flat list of dependency names, matching npm's
-/// interpretation. Ports TS `extractBundledDependencies`.
+/// interpretation.
 #[must_use]
 pub fn extract_bundled_dependencies(manifest: &Value) -> Vec<String> {
     let raw = manifest

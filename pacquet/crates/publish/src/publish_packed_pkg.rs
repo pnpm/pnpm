@@ -1,7 +1,7 @@
-//! Port of the request half of [`publishPackedPkg.ts`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/publishPackedPkg.ts) plus the
-//! `libnpmpublish`-equivalent PUT: assemble the publish document, send it
-//! (driving any OTP challenge through [`pacquet_network_web_auth`]), and turn
-//! the registry's response into a [`PublishSummary`].
+//! The request half of `pnpm publish`: assemble the publish document, send the
+//! registry `PUT`, drive any OTP challenge through
+//! [`pacquet_network_web_auth`], and turn the registry's response into a
+//! [`PublishSummary`].
 
 use std::collections::BTreeMap;
 
@@ -30,7 +30,7 @@ use crate::{
 
 /// The packed package handed to [`publish_packed_pkg`]: the manifest that was
 /// packed, the tarball's bytes, and the file listing / unpacked size used for
-/// the summary. Ports the `Pick<PackResult, ...>` first argument.
+/// the summary.
 pub struct PackedPkg<'a> {
     pub published_manifest: &'a Value,
     pub tarball_data: &'a [u8],
@@ -39,12 +39,9 @@ pub struct PackedPkg<'a> {
     pub unpacked_size: u64,
 }
 
-/// The configuration `publishPackedPkg` reads. Ports the relevant subset of TS
-/// [`PublishPackedPkgOptions`][ts-PublishPackedPkgOptions]; credential and TLS
+/// The configuration [`publish_packed_pkg`] reads. Credential and TLS
 /// resolution is handled by pacquet's shared [`AuthHeaders`] /
 /// [`ThrottledClient`] rather than per-field options.
-///
-/// [ts-PublishPackedPkgOptions]: https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/publishPackedPkg.ts#L25-L52
 pub struct PublishPackedPkgOptions {
     pub default_registry: String,
     pub scoped_registries: BTreeMap<String, String>,
@@ -67,7 +64,7 @@ pub struct PublishNetwork<'a> {
 ///
 /// `Sys` carries the OIDC capabilities used while resolving credentials; the
 /// OTP / web-authentication flow always runs against
-/// [`pacquet_network_web_auth::Host`]. Ports TS `publishPackedPkg`.
+/// [`pacquet_network_web_auth::Host`].
 pub async fn publish_packed_pkg<Sys, Reporter>(
     pkg: &PackedPkg<'_>,
     opts: &PublishPackedPkgOptions,
@@ -126,7 +123,7 @@ where
     // Provenance is requested either explicitly (`--provenance`) or by OIDC
     // auto-detection for a public repo; `resolved.provenance` carries the merged
     // result. Sign an SLSA attestation with sigstore and splice it into the
-    // document's `_attachments`, mirroring libnpmpublish.
+    // document's `_attachments`.
     if resolved.provenance == Some(true) {
         let attachment =
             generate_provenance::<Sys, Reporter>(&name, &version, pkg.tarball_data, &opts.http)
@@ -179,7 +176,7 @@ where
     )))
 }
 
-/// One completed publish response. Mirrors TS `OtpPublishResponse`.
+/// One completed publish response.
 #[derive(Debug)]
 struct PublishResponse {
     ok: bool,
@@ -252,7 +249,7 @@ where
         fetch_options,
         async move |challenge_otp: Option<&str>| {
             // The web-auth-provided OTP (a fresh challenge) takes precedence
-            // over any statically configured one, mirroring `{ ...opts, otp }`.
+            // over any statically configured one.
             // Convert to an owned value before the first await so the borrowed
             // challenge argument is not held across it (which would make the
             // returned future's `Send` bound not general enough for the CLI).
@@ -329,9 +326,9 @@ async fn put_publish(
     })
 }
 
-/// Whether a 401 response is an OTP / two-factor challenge. Mirrors
-/// npm-registry-fetch: the `WWW-Authenticate` header lists `otp` as a
-/// comma-separated token, or the body mentions `one-time pass`.
+/// Whether a 401 response is an OTP / two-factor challenge: the
+/// `WWW-Authenticate` header lists `otp` as a comma-separated token, or the
+/// body mentions `one-time pass`.
 fn is_otp_challenge(www_authenticate: Option<&str>, body: &str) -> bool {
     let header_lists_otp = www_authenticate.is_some_and(|value| {
         value.split(',').any(|token| token.trim().eq_ignore_ascii_case("otp"))
@@ -377,9 +374,8 @@ struct DistHashes<'a> {
     shasum: &'a str,
 }
 
-/// Build the npm publish document — the JSON body `libnpmpublish` would send
-/// as the whole `PUT /:pkg` request. Ports `buildMetadata` (and the matching
-/// `createPublishDocument` used by batch publish).
+/// Build the npm publish document — the JSON body sent as the whole
+/// `PUT /:pkg` request.
 fn build_publish_document(
     manifest: &Value,
     tarball_data: &[u8],
@@ -415,8 +411,7 @@ fn build_publish_document(
     let mut versions = Map::new();
     versions.insert(version.clone(), Value::Object(version_manifest));
 
-    // A manifest-level `tag` wins over the default, mirroring libnpmpublish's
-    // `const tag = manifest.tag || defaultTag`.
+    // A manifest-level `tag` wins over the default.
     let tag = manifest.get("tag").and_then(Value::as_str).unwrap_or(tag);
     let mut dist_tags = Map::new();
     dist_tags.insert(tag.to_owned(), Value::String(version));
@@ -456,16 +451,17 @@ fn join_registry(
         .map_err(PublishPackedPkgError::InvalidUrl)
 }
 
-/// Clean a version string, mirroring `semver.clean`.
+/// Clean a version string to `major.minor.patch` plus any prerelease,
+/// dropping build metadata.
 fn clean_version(version: &str) -> Result<String, PublishPackedPkgError> {
     let trimmed = version.trim().trim_start_matches(['=', 'v']);
     let mut parsed = trimmed
         .parse::<node_semver::Version>()
         .map_err(|_| PublishPackedPkgError::BadSemver { version: version.to_owned() })?;
-    // `semver.clean` returns `SemVer.version`, which is `major.minor.patch`
-    // plus prerelease but never build metadata. node_semver's `Display`
-    // appends `+build`, so drop it to keep the published version identical to
-    // what pnpm registers (e.g. `1.2.3+build` -> `1.2.3`).
+    // The published version is `major.minor.patch` plus any prerelease but
+    // never build metadata. node_semver's `Display` appends `+build`, so drop
+    // it to keep the published version identical to what pnpm registers (e.g.
+    // `1.2.3+build` -> `1.2.3`).
     parsed.build.clear();
     Ok(parsed.to_string())
 }

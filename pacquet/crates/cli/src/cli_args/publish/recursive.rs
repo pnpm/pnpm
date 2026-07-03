@@ -1,7 +1,5 @@
 //! `pacquet publish --recursive` — publish every selected workspace package.
 //!
-//! Ports pnpm's
-//! [`recursivePublish`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/recursivePublish.ts).
 //! Selects the workspace projects the `--filter` selectors pick, drops the
 //! private / unnamed / already-published ones (unless `--force`), then
 //! publishes the rest one dependency-ordered chunk at a time, optionally
@@ -38,8 +36,7 @@ use crate::cli_args::{
 impl PublishArgs {
     /// Publish every package the `--filter` selectors select, in dependency
     /// order. Git checks have already run once for the workspace in
-    /// [`PublishArgs::run`]; each per-package publish runs with them off,
-    /// matching pnpm's `gitChecks: false` per sub-publish.
+    /// [`PublishArgs::run`]; each per-package publish runs with git checks off.
     pub(super) async fn run_recursive<Reporter: self::Reporter>(
         &self,
         dir: &Path,
@@ -56,16 +53,15 @@ impl PublishArgs {
         // `publish` is not in pnpm's root-auto-exclusion command set
         // (`run` / `exec` / `add` / `test`), so the workspace root stays in the
         // selection; its own name/version/private eligibility check drops it
-        // below, matching pnpm's `recursivePublish`.
+        // below.
         let (projects, _patterns) = discover_workspace_projects(workspace_root)?;
         let selection =
             select_recursive_projects(&projects, config, dir, AutoExcludeRoot::Disabled)?;
         let graph = &selection.selected;
         // An empty selection is a no-op (exit 0) that writes no summary —
         // whether the workspace enumerates no project at all or a `--filter`
-        // narrowed it to nothing. Mirrors pnpm's main.ts dispatch, which
-        // returns before the publish handler for both `allProjects.length === 0`
-        // and an empty `selectedProjectsGraph`.
+        // narrowed it to nothing: publishing returns before the handler when
+        // there are no projects at all or the selection is empty.
         if graph.is_empty() {
             return Ok(Vec::new());
         }
@@ -76,12 +72,11 @@ impl PublishArgs {
         let opts = self.publish_options(config, otp);
         let retry_opts = retry_opts_from_config(config);
 
-        // Mirror pnpm's `pFilter` over the selected graph: keep only packages
-        // that have a name and version, are not private, and — unless
-        // `--force` — are not already on their registry. The already-published
-        // probes are independent registry reads, so run them concurrently like
-        // pnpm's `pFilter` instead of one round-trip at a time (the
-        // `ThrottledClient` still bounds the actual in-flight fan-out).
+        // Filter the selected graph: keep only packages that have a name and
+        // version, are not private, and — unless `--force` — are not already on
+        // their registry. The already-published probes are independent registry
+        // reads, so run them concurrently rather than one round-trip at a time
+        // (the `ThrottledClient` still bounds the actual in-flight fan-out).
         let http_client_ref = &http_client;
         let probes = graph.iter().filter_map(|(root, node)| {
             let manifest = node.package.project.manifest.value();
@@ -143,10 +138,8 @@ impl PublishArgs {
 }
 
 /// A package's `(name, version)` when it is eligible to be published, or `None`
-/// when it should be skipped before any registry lookup. Mirrors pnpm's
-/// `if (!pkg.manifest.name || !pkg.manifest.version || pkg.manifest.private)
-/// return false`: an unnamed, unversioned, or private package is never
-/// published recursively.
+/// when it should be skipped before any registry lookup: an unnamed,
+/// unversioned, or private package is never published recursively.
 fn publish_eligible(manifest: &Value) -> Option<(&str, &str)> {
     if manifest.get("private").and_then(Value::as_bool).unwrap_or(false) {
         return None;
@@ -158,8 +151,8 @@ fn publish_eligible(manifest: &Value) -> Option<(&str, &str)> {
 
 /// Whether `name@version` already exists on its target registry. Any failure —
 /// a 404 for a brand-new package, a transient network error — is treated as
-/// "not published", matching pnpm's `isAlreadyPublished` catch-all (a failed
-/// resolve means the version is absent, so the publish proceeds).
+/// "not published" (a failed resolve means the version is absent, so the
+/// publish proceeds).
 async fn is_already_published(
     name: &str,
     version: &str,
@@ -213,10 +206,8 @@ fn retry_opts_from_config(config: &Config) -> RetryOpts {
     }
 }
 
-/// Emit on the generic `pnpm` channel with a project prefix, matching
-/// pnpm's `recursivePublish` which surfaces this through
-/// `logger.info({ message, prefix: opts.dir })` rather than the
-/// prefix-less `globalInfo` (`pnpm:global`) channel.
+/// Emit on the generic `pnpm` channel with a project prefix (rather than the
+/// prefix-less `pnpm:global` channel), so the message carries the project dir.
 fn emit_info<Reporter: self::Reporter>(message: &str, prefix: &Path) {
     Reporter::emit(&LogEvent::Pnpm(PnpmLog {
         level: LogLevel::Info,

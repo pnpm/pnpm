@@ -1,4 +1,4 @@
-//! Port of [`extractManifestFromPacked.ts`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/extractManifestFromPacked.ts): read `package/package.json` out of
+//! read `package/package.json` out of
 //! a pre-built `.tgz` so a tarball passed to `pnpm publish <tarball>` can be
 //! published without repacking.
 
@@ -11,14 +11,14 @@ use serde_json::Value;
 const TARBALL_SUFFIXES: [&str; 2] = [".tar.gz", ".tgz"];
 
 /// Whether `path` looks like a publishable tarball (ends with `.tar.gz` or
-/// `.tgz`). Ports TS `isTarballPath`.
+/// `.tgz`).
 #[must_use]
 pub fn is_tarball_path(path: &str) -> bool {
     TARBALL_SUFFIXES.iter().any(|suffix| path.ends_with(suffix))
 }
 
 /// Read and parse `package/package.json` from the gzipped tarball at
-/// `tarball_path`. Ports TS `extractManifestFromPacked`.
+/// `tarball_path`.
 pub fn extract_manifest_from_packed(tarball_path: &str) -> Result<Value, ExtractManifestError> {
     let read_err = |source: std::io::Error| ExtractManifestError::Read {
         tarball_path: tarball_path.to_owned(),
@@ -48,8 +48,7 @@ pub fn extract_manifest_from_packed(tarball_path: &str) -> Result<Value, Extract
 }
 
 /// Normalize a tar entry path to forward slashes and collapse `.` / `..`
-/// segments, mirroring the TS `path.normalize(name).replaceAll('\\', '/')`
-/// comparison (so e.g. `package/./package.json` still matches).
+/// segments (so e.g. `package/./package.json` still matches).
 ///
 /// `path.normalize` keeps what cannot be resolved: a leading `/` stays
 /// (the result is still absolute) and a `..` with no real segment to pop is
@@ -109,11 +108,9 @@ pub enum ExtractManifestError {
     MissingManifest(#[error(source)] PublishArchiveMissingManifestError),
 }
 
-/// The archive did not contain `package/package.json`. Ports pnpm's
-/// [`PublishArchiveMissingManifestError`][ts-PublishArchiveMissingManifestError]
+/// The archive did not contain `package/package.json`
 /// (`ERR_PNPM_PUBLISH_ARCHIVE_MISSING_MANIFEST`).
 ///
-/// [ts-PublishArchiveMissingManifestError]: https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/extractManifestFromPacked.ts#L89-L95
 #[derive(Debug, derive_more::Display, derive_more::Error, Diagnostic)]
 #[display("The archive {tarball_path} does not contain package/package.json")]
 #[diagnostic(code(ERR_PNPM_PUBLISH_ARCHIVE_MISSING_MANIFEST))]

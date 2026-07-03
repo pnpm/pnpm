@@ -1,13 +1,12 @@
 //! Per-capability dependency-injection traits and the production [`Host`]
 //! provider for the publish flow.
 //!
-//! The TypeScript `publish` command injects every side effect — `fetch`,
-//! `Date.now`, the `ci-info` probes, `process.env`, `execa` — as closures on
-//! a `context`/`process` bag (see `utils/shared-context.ts`). This crate
-//! ports that seam to pacquet's convention: one `self`-less capability trait
-//! per effect, composed as bounds on a single `Sys` type parameter, with the
-//! real OS behind [`Host`] and `fn`-bound unit-struct fakes in tests. See the
-//! "Dependency injection for tests" section of `pacquet/CODE_STYLE_GUIDE.md`.
+//! Each side effect the publish flow needs — HTTP requests, the clock, the
+//! CI-provider probes, environment reads, subprocess spawns — is its own
+//! `self`-less capability trait, composed as bounds on a single `Sys` type
+//! parameter, with the real OS behind [`Host`] and `fn`-bound unit-struct
+//! fakes in tests. See the "Dependency injection for tests" section of
+//! `pacquet/CODE_STYLE_GUIDE.md`.
 //!
 //! The OTP / web-authentication side effects (the clock, the sleep timer, the
 //! browser opener, the "press Enter" listener, the classic-OTP prompt) are
@@ -23,24 +22,24 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-/// Read an environment variable. Mirrors a `process.env.<NAME>` read.
+/// Read an environment variable.
 ///
 /// Returns `None` when the variable is unset or holds invalid UTF-8. An empty
-/// value is returned as `Some("")`; call sites that mirror JavaScript
-/// truthiness (`if (env.X)`) filter it themselves.
+/// value is returned as `Some("")`; call sites that treat empty as unset
+/// filter it themselves.
 pub trait EnvVar {
     fn var(name: &str) -> Option<String>;
 }
 
-/// Detect the continuous-integration provider. Mirrors the two `ci-info`
-/// fields the publish command reads (`GITHUB_ACTIONS`, `GITLAB`).
+/// Detect the continuous-integration provider: whether the publish flow is
+/// running under GitHub Actions or GitLab CI.
 pub trait CiInfo {
     fn github_actions() -> bool;
     fn gitlab() -> bool;
 }
 
-/// Read the current wall-clock time as Unix-epoch milliseconds. Mirrors TS
-/// `Date.now()`; used only to log how long the GitHub id-token request took.
+/// Read the current wall-clock time as Unix-epoch milliseconds. Used only to
+/// log how long the GitHub id-token request took.
 pub trait Clock {
     fn now_ms() -> u64;
 }
@@ -55,8 +54,7 @@ pub enum OidcMethod {
 }
 
 /// One OIDC request: the id-token fetch, the token exchange, or the
-/// package-visibility probe. Ports the field-for-field options the TS
-/// `fetch` closures receive.
+/// package-visibility probe.
 #[derive(Debug, Clone)]
 pub struct OidcRequest<'a> {
     pub method: OidcMethod,
@@ -68,8 +66,7 @@ pub struct OidcRequest<'a> {
 }
 
 /// A materialized OIDC response. The body is handed back as raw text so the
-/// caller parses (and classifies a malformed body) exactly as the TS code
-/// does with `response.json()`.
+/// caller parses it (and classifies a malformed body) itself.
 #[derive(Debug, Clone)]
 pub struct OidcResponse {
     pub ok: bool,
@@ -77,24 +74,23 @@ pub struct OidcResponse {
     pub body: String,
 }
 
-/// `fetch` itself failed — the request never produced a response. Mirrors the
-/// TS `fetch(...)` promise rejecting (caught and wrapped as
-/// `AuthTokenFetchError` by the auth-token path).
+/// The OIDC request never produced a response — the transport itself failed.
+/// The auth-token path catches this and surfaces it as a fetch failure.
 #[derive(Debug, derive_more::Display, derive_more::Error)]
 #[display("the OIDC request failed: {reason}")]
 pub struct OidcFetchError {
     pub reason: String,
 }
 
-/// Perform a single OIDC request. Mirrors the injected `fetch(url, options)`.
+/// Perform a single OIDC request.
 pub trait OidcFetch {
     fn fetch(
         request: OidcRequest<'_>,
     ) -> impl Future<Output = Result<OidcResponse, OidcFetchError>>;
 }
 
-/// Captured output of a spawned subprocess. Mirrors the `stdout` / `stderr` /
-/// exit-status fields the publish command reads from `execa`.
+/// Captured output of a spawned subprocess: the `stdout`, `stderr`, and
+/// exit-status fields the publish flow reads.
 #[derive(Debug, Clone)]
 pub struct CommandOutput {
     pub success: bool,
@@ -102,18 +98,16 @@ pub struct CommandOutput {
     pub stderr: String,
 }
 
-/// Run a subprocess and capture its output. Mirrors TS `execa(cmd, args)`;
-/// used by the `tokenHelper` execution and the git working-tree checks.
+/// Run a subprocess and capture its output. Used to run the configured token
+/// helper and the git working-tree checks.
 pub trait RunCommand {
     fn run(program: &str, args: &[&str], cwd: Option<&Path>) -> io::Result<CommandOutput>;
 }
 
-/// Ask the user a yes/no question. Mirrors the publish command's
-/// `@inquirer/prompts` `confirm`, used when the current branch is not the
+/// Ask the user a yes/no question, used when the current branch is not the
 /// publish branch.
 pub trait ConfirmPrompt {
-    /// Return the user's answer; an aborted prompt (Ctrl-C) is `false`,
-    /// matching the TS `ExitPromptError` handling.
+    /// Return the user's answer; an aborted prompt (Ctrl-C) is `false`.
     fn confirm(message: &str) -> bool;
 }
 
@@ -138,7 +132,8 @@ impl CiInfo for Host {
     }
 }
 
-/// Mirror `ci-info`'s `!!process.env.<NAME>`: set and non-empty is `true`.
+/// An environment variable counts as set for CI detection when it is present
+/// and non-empty.
 fn env_is_truthy(name: &str) -> bool {
     std::env::var(name).is_ok_and(|value| !value.is_empty())
 }

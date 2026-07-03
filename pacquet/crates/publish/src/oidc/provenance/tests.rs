@@ -10,8 +10,7 @@ const REGISTRY: &str = "https://registry.npmjs.org/";
 
 /// The id-token payload fields [`determine_provenance`] reads, typed to the
 /// string the visibility check looks for so a test builds one without an
-/// untyped map. Ports the inline `Payload` interface of
-/// [`provenance.ts`](https://github.com/pnpm/pnpm/blob/54c5c0e028/pnpm11/releasing/commands/src/publish/oidc/provenance.ts#L86-L89).
+/// untyped map.
 #[derive(serde::Serialize)]
 struct Payload {
     #[serde(skip_serializing_if = "Option::is_none")]

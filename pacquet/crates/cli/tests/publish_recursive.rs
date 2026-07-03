@@ -30,8 +30,8 @@ fn private_pkg(name: &str) -> Value {
 }
 
 /// A `--filter` that matches no project narrows the workspace to nothing, so
-/// recursive publish exits 0 without publishing or writing a summary —
-/// matching pnpm's empty-`selectedProjectsGraph` no-op.
+/// recursive publish exits 0 without publishing or writing a summary — an
+/// empty selection is a no-op.
 #[test]
 fn recursive_publish_filter_no_match_is_a_noop() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
@@ -91,8 +91,7 @@ fn recursive_publish_all_private_writes_empty_summary() {
 }
 
 /// `publish -r --json` prints the per-package summaries as a JSON array on
-/// stdout — an empty array when nothing is published — mirroring pnpm's
-/// `JSON.stringify(publishedPackages)` for the recursive path. Exercised on the
+/// stdout — an empty array when nothing is published. Exercised on the
 /// all-private no-op path so no registry request is made.
 #[test]
 fn recursive_publish_json_prints_empty_array_when_nothing_published() {
@@ -146,8 +145,8 @@ fn recursive_publish_batch_is_unsupported() {
     drop(root);
 }
 
-/// A bare `--filter` (no `-r`) puts `publish` into recursive mode, matching
-/// pnpm's `parse-cli-args` promotion — the shape `release.yml` drives
+/// A bare `--filter` (no `-r`) puts `publish` into recursive mode — the shape
+/// `release.yml` drives
 /// publishing with (`pn publish --filter=<pkg>`). A filter that matches no
 /// project is then a recursive no-op (exit 0); without the promotion this
 /// would fall through to the single-package path and fail for lack of a
@@ -228,9 +227,8 @@ fn recursive_publish_short_flag_after_subcommand() {
 }
 
 /// A workspace that enumerates no project is a recursive no-op that writes no
-/// summary, matching pnpm's main.ts (it returns before the publish handler when
-/// `allProjects.length === 0`) — pacquet must not emit an empty
-/// `pnpm-publish-summary.json` for it.
+/// summary — publishing returns before the handler when there are no
+/// projects, so no empty `pnpm-publish-summary.json` is emitted.
 #[test]
 fn recursive_publish_empty_workspace_writes_no_summary() {
     let CommandTempCwd { pacquet, root, workspace, .. } = CommandTempCwd::init();
