@@ -1,6 +1,7 @@
 use super::{PublishArgs, run_publish_scripts};
 use pacquet_config::Config;
-use pacquet_publish::Access;
+use pacquet_network::{AuthHeaders, ThrottledClient};
+use pacquet_publish::{Access, PublishNetwork};
 use pacquet_reporter::SilentReporter;
 use pretty_assertions::assert_eq;
 use serde_json::json;
@@ -120,4 +121,28 @@ fn run_publish_scripts_is_a_noop_when_no_script_is_declared() {
     .expect("a no-op succeeds");
 
     assert!(!dir.path().join("ran.txt").exists());
+}
+
+/// Publishing a directory that has no `package.json` fails with
+/// `ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND` before any packing or network work —
+/// the only branch of `publish_directory` reachable without a live registry.
+#[tokio::test]
+async fn publish_directory_errors_when_no_manifest_is_present() {
+    let dir = tempfile::tempdir().expect("an empty project dir");
+    let config = Config::default();
+    let args = publish_args();
+    let opts = args.publish_options(&config, None);
+    let client = ThrottledClient::default();
+    let auth_headers = AuthHeaders::default();
+    let network = PublishNetwork { client: &client, auth_headers: &auth_headers };
+
+    let err = args
+        .publish_directory::<SilentReporter>(dir.path(), &config, &opts, &network)
+        .await
+        .expect_err("an empty directory has no package.json");
+
+    assert_eq!(
+        err.code().map(|code| code.to_string()).as_deref(),
+        Some("ERR_PNPM_NO_IMPORTER_MANIFEST_FOUND"),
+    );
 }
